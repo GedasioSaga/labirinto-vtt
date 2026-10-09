@@ -7104,16 +7104,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
    * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
    * contratado, ou a do dono que saiu) e o NPC do mestre dado pelo "Atribuir"
-   * — a ficha de personagem delas é de outro, ou do mestre.
+   * — a ficha de personagem delas é de outro, ou do mestre. Exceção: a peça
+   * marcada NPC (toda peça do acervo nasce assim) que o mestre ligou a um
+   * personagem do tipo Jogador é a ficha desse jogador.
    */
   const fichasDoPersonagem = (playerId: string, world: HostWorld): { token: Token; scene: HostScene }[] => {
     const achadas: { token: Token; scene: HostScene }[] = []
+    const deJogador = new Set((world.rpg?.personagens ?? []).filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
     for (const tokenId of ownership[playerId] ?? []) {
       if (helperLoans.has(tokenId) || loans.get(tokenId)?.borrowerId === playerId) continue
       for (const scene of allScenes(world)) {
         const token = scene.map.tokens.find((t) => t.id === tokenId)
         if (token === undefined) continue
-        if (token.npc !== true) achadas.push({ token, scene })
+        if (token.npc !== true || (token.characterId !== null && deJogador.has(token.characterId))) achadas.push({ token, scene })
         break
       }
     }

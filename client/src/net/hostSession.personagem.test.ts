@@ -82,6 +82,11 @@ function mesa(opcoes: { personagens?: Personagem[]; sistema?: boolean } = {}) {
     mestreGrava: (personagem: Personagem) => {
       personagens = personagens.map((p) => (p.id === personagem.id ? personagem : p))
     },
+    /** O mestre cria o personagem na janela dele e o liga a uma ficha ("Ligar a um token"). */
+    mestreCriaELiga: (personagem: Personagem, tokenId: string) => {
+      personagens = [...personagens, personagem]
+      tokens = tokens.map((t) => (t.id === tokenId ? { ...t, characterId: personagem.id } : t))
+    },
   }
 }
 
@@ -130,6 +135,26 @@ describe('host: quem recebe qual ficha', () => {
       if (clientId === 'c1') expect(ids).toEqual([LUFFY.id])
       if (clientId === 'c2') expect(ids).toEqual([ZORO.id])
     }
+  })
+
+  it('peça NPC (do acervo) que o mestre ligou a personagem do tipo Jogador: a ficha vai ao dono da peça', () => {
+    const t = mesa()
+    const usopp: Personagem = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Usopp'), id: 'pers_usopp' }
+    t.mestreCriaELiga(usopp, 'tok-npc')
+    const [msg] = doTipo(t.session.broadcast(t.mundo()).outbound, 'c1', 'personagens')
+    expect(msg?.type === 'personagens' ? msg.personagens.map((p) => p.id) : null).toEqual([LUFFY.id, usopp.id])
+    expect(msg?.type === 'personagens' ? msg.tokens.find((tk) => tk.tokenId === 'tok-npc') : null).toEqual({ tokenId: 'tok-npc', nome: 'Guarda', personagemId: usopp.id })
+    // E é dela de verdade: a edição dela passa.
+    const r = t.pedir('c1', { type: 'personagem.editar', reqId: 's1', personagemId: usopp.id, partes: { atributos: { forca: 45 } } })
+    expect(resultado(r, 'c1')?.ok).toBe(true)
+  })
+
+  it('peça NPC ligada a personagem do tipo NPC continua sendo do mestre', () => {
+    const t = mesa()
+    const guarda: Personagem = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Guarda'), id: 'pers_guarda' }
+    t.mestreCriaELiga(guarda, 'tok-npc')
+    const [msg] = doTipo(t.session.broadcast(t.mundo()).outbound, 'c1', 'personagens')
+    expect(msg === undefined || (msg.type === 'personagens' && !msg.personagens.some((p) => p.id === guarda.id))).toBe(true)
   })
 
   it('mundo sem `rpg` (mapa solto): nada de ficha sai para ninguém', () => {
