@@ -108,7 +108,7 @@
   border-left-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
 }
 
-.pc-msg--master /* A miniatura de quem falou, ao lado do nome: a foto da ficha, ou as iniciais num tom do nome. */
+/* A miniatura de quem falou, ao lado do nome: a foto da ficha, ou as iniciais num tom do nome. */
 .pc-msg__face {
   display: block;
   flex: none;
@@ -132,7 +132,7 @@
   font-weight: 600;
 }
 
-.pc-msg__from {
+.pc-msg--master .pc-msg__from {
   color: var(--lb-color-brass-bright, #f3ba66);
 }
 

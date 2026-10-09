@@ -117,7 +117,7 @@
   border-left-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
 }
 
-.lb-mchat__msg--master /* A miniatura de quem falou, ao lado do nome: a foto da ficha, ou as iniciais num tom do nome. */
+/* A miniatura de quem falou, ao lado do nome: a foto da ficha, ou as iniciais num tom do nome. */
 .lb-mchat__face {
   display: block;
   flex: none;
@@ -141,7 +141,7 @@
   font-weight: 600;
 }
 
-.lb-mchat__from {
+.lb-mchat__msg--master .lb-mchat__from {
   color: var(--lb-color-brass-bright, #f3ba66);
 }
 
