@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
@@ -1462,7 +1462,41 @@ const NO_WAITING: readonly string[] = []
 /** Mesmo motivo, para as portas por atravessar. */
 const NO_DOORS_TO_CROSS: readonly string[] = []
 
-export function PlayerView({
+/**
+ * Quantas perdas de contexto WebGL seguidas, dentro de `JANELA_DAS_PERDAS_MS`,
+ * a tela aguenta remontando o mapa. Acima disso o aparelho não segura o
+ * WebGL: remontar de novo só faria o mapa piscar para sempre, então a PlayerView
+ * lança e o `PlayerErrorBoundary` mostra "O mapa parou de ser desenhado".
+ */
+const MAX_PERDAS_DE_CONTEXTO = 3
+const JANELA_DAS_PERDAS_MS = 60_000
+
+/**
+ * CONTEXTO WEBGL PERDIDO (bug de 09/10/2026): o Chrome do Android, apertado de
+ * memória (as fotos do inventário aberto, por exemplo, com o mapa escondido
+ * atrás do véu), solta o contexto WebGL do canvas e nem sempre devolve. O
+ * canvas morto aparece BRANCO, com o ícone de imagem quebrada no canto — e o
+ * Pixi não se recupera sozinho (mesmo quando o contexto volta, os textos ficam
+ * sem textura). Aqui a perda troca a chave da PlayerView: o Pixi inteiro é
+ * desmontado e um novo nasce, com canvas e contexto novos, redesenhando o
+ * mesmo recorte.
+ */
+export function PlayerView(props: PlayerViewProps) {
+  const [geracao, setGeracao] = useState(0)
+  const perdas = useRef<number[]>([])
+  const [desistiu, setDesistiu] = useState(false)
+  const perdeuContexto = useCallback(() => {
+    const agora = Date.now()
+    perdas.current = [...perdas.current.filter((quando) => agora - quando < JANELA_DAS_PERDAS_MS), agora]
+    if (perdas.current.length > MAX_PERDAS_DE_CONTEXTO) setDesistiu(true)
+    else setGeracao((g) => g + 1)
+  }, [])
+  if (desistiu) throw new Error('O contexto WebGL do mapa foi perdido repetidas vezes')
+  return <PlayerViewDoCanvas key={geracao} {...props} onContextoPerdido={perdeuContexto} />
+}
+
+function PlayerViewDoCanvas({
+  onContextoPerdido,
   map,
   vision,
   explored,
@@ -1515,7 +1549,7 @@ export function PlayerView({
   onZoomLimitsChange,
   onAcaoNoOlhar,
   arrivalKey,
-}: PlayerViewProps) {
+}: PlayerViewProps & { onContextoPerdido: () => void }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
@@ -2433,6 +2467,12 @@ export function PlayerView({
       }
       initialized = true
       el.appendChild(app.canvas)
+      // Contexto perdido: quem está em volta (`PlayerView`) troca este Pixi por
+      // um novo. `onContextoPerdido` é estável (useCallback) e cada geração
+      // monta este efeito uma vez só, então a referência do fechamento serve.
+      app.canvas.addEventListener('webglcontextlost', () => {
+        if (!destroyed) onContextoPerdido()
+      })
 
       const world = new Container()
       const mapBackground = new Graphics()
