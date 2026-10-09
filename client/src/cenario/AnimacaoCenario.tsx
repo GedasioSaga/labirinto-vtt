@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { duracaoDoCenarioS, movimentoInfo, type CenarioDoPino, type Enquadramento } from './catalogo'
 import { AnimacaoDeEstilo } from './AnimacaoDeEstilo'
 import { duracaoDoEstiloS, useEstilosDeCenario, type EstiloDeCenario } from './estilosDeCenario'
+import { CURVAS, clamp01, faixaDaCamera, faixaDoAmbiente, grua, progresso } from './revelacao/tempo'
 import './cenario.css'
 
 interface AnimacaoCenarioProps {
@@ -15,18 +16,21 @@ interface AnimacaoCenarioProps {
   /** Muda o valor para recomeçar do zero. */
   rodada?: number
   onFim?: () => void
+  /**
+   * REVELAÇÃO DO LOCAL: a animação roda dentro da moldura de madeira e metal.
+   * Sem cortina (a imagem já entra visível, deslizando), a câmera anda de
+   * 0,1 s até meio segundo antes da duração, o ambiente (balanço, névoa,
+   * raios, partículas) assenta antes do fim e o último quadro fica parado.
+   */
+  emMoldura?: boolean
+  /** "Pular" da revelação: salta direto para o último quadro e para ali. */
+  pularParaOFim?: boolean
 }
 
 /** Partes da animação, em fração da duração: aparece, segura, anda, segura, apaga. */
 const FASES = { entra: 0.08, comeca: 0.16, termina: 0.76, apaga: 0.9 }
 const PARTICULAS = 60
 
-const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
-/** Começa devagar, acelera no meio e assenta: movimento de grua de cinema. */
-const grua = (x: number) => {
-  const u = clamp01(x)
-  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
-}
 const mistura = (a: Enquadramento, b: Enquadramento, u: number): Enquadramento => ({
   zoom: a.zoom + (b.zoom - a.zoom) * u,
   x: a.x + (b.x - a.x) * u,
@@ -70,8 +74,23 @@ function novaParticula(qualquerAltura: boolean): Particula {
   }
 }
 
+interface Vento {
+  parar: () => void
+  volume: (v: number) => void
+  /**
+   * Cai a zero a partir de agora (constante de tempo `tau`, em s) e para as
+   * fontes depois de 10 `tau`. Uma vez só: a segunda chamada não faz nada.
+   */
+  silenciar: (tau: number) => void
+}
+
+/** Na moldura o vento acaba junto com o ambiente: a ~1% quando ele termina de assentar. */
+const QUEDAS_DO_VENTO_NO_ASSENTAR = 4.5
+/** "Pular": o vento some num instante, sem estalo. */
+const TAU_DO_VENTO_NO_PULAR_S = 0.06
+
 /** Vento baixo, que sobe e desce devagar. Devolve quem para tudo. */
-function ligarVento(volume: number): { parar: () => void; volume: (v: number) => void } | null {
+function ligarVento(volume: number): Vento | null {
   if (typeof AudioContext === 'undefined') return null
   try {
     const ctx = new AudioContext()
@@ -94,14 +113,26 @@ function ligarVento(volume: number): { parar: () => void; volume: (v: number) =>
     const profundidade = ctx.createGain()
     profundidade.gain.value = 0.1
     lfo.connect(profundidade).connect(ganho.gain)
-    vento.connect(filtro).connect(ganho).connect(mestre)
+    // A queda tem nó próprio: o LFO soma no `ganho` (zerá-lo deixaria o vento oscilando) e o mestre é do volume da mesa.
+    const queda = ctx.createGain()
+    queda.gain.value = 1
+    vento.connect(filtro).connect(ganho).connect(queda).connect(mestre)
     vento.start()
     lfo.start()
     void ctx.resume().catch(() => undefined)
+    let silenciado = false
     return {
       parar: () => void ctx.close().catch(() => undefined),
       volume: (v) => {
         mestre.gain.value = v
+      },
+      silenciar: (tau) => {
+        if (silenciado) return
+        silenciado = true
+        const agora = ctx.currentTime
+        queda.gain.setTargetAtTime(0, agora, tau)
+        vento.stop(agora + 10 * tau)
+        lfo.stop(agora + 10 * tau)
       },
     }
   } catch {
@@ -116,7 +147,7 @@ function ligarVento(volume: number): { parar: () => void; volume: (v: number) =>
  * O "quando", o "Pular" e o fim continuam com quem chama.
  */
 export function AnimacaoCenario(props: AnimacaoCenarioProps) {
-  const { imagem, cenario, volume, repetir = false, rodada = 0, onFim } = props
+  const { imagem, cenario, volume, repetir = false, rodada = 0, onFim, pularParaOFim = false } = props
   const estilos = useEstilosDeCenario()
   const estilo = cenario.estilo === undefined ? null : (estilos.find((e) => e.id === cenario.estilo) ?? null)
   // Guarda o OBJETO que falhou, não o id: um pacote novo com o mesmo id ganha outra chance.
@@ -131,6 +162,7 @@ export function AnimacaoCenario(props: AnimacaoCenarioProps) {
         repetir={repetir}
         rodada={rodada}
         onFim={onFim}
+        pularParaOFim={pularParaOFim}
         onErro={(erro) => {
           console.warn(`estilo de cenário ${estilo.id}: falhou, tocando a panorâmica`, erro)
           setQuebrado(estilo)
@@ -147,7 +179,7 @@ export function AnimacaoCenario(props: AnimacaoCenarioProps) {
  * partículas por cima, cada um só se o mestre ligou. Só `transform` e
  * `opacity` mudam a cada quadro.
  */
-function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada = 0, onFim }: AnimacaoCenarioProps) {
+function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada = 0, onFim, emMoldura = false, pularParaOFim = false }: AnimacaoCenarioProps) {
   const areaRef = useRef<HTMLDivElement>(null)
   const fotoRef = useRef<HTMLImageElement>(null)
   const nevoaARef = useRef<HTMLDivElement>(null)
@@ -159,6 +191,9 @@ function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada =
   onFimRef.current = onFim
   const volumeRef = useRef(volume)
   volumeRef.current = volume
+  // Lido a cada quadro: "Pular" no meio não recomeça a animação, só a leva ao fim.
+  const pularRef = useRef(pularParaOFim)
+  pularRef.current = pularParaOFim
   const ventoRef = useRef<ReturnType<typeof ligarVento>>(null)
   const [tamanho, setTamanho] = useState<{ w: number; h: number } | null>(null)
 
@@ -195,6 +230,11 @@ function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada =
     ventoRef.current?.volume(volume)
   }, [volume])
 
+  // Na moldura a revelação fica no último quadro até o jogador fechar: o "Pular" leva o vento junto, na hora.
+  useEffect(() => {
+    if (emMoldura && pularParaOFim) ventoRef.current?.silenciar(TAU_DO_VENTO_NO_PULAR_S)
+  }, [emMoldura, pularParaOFim, rodada])
+
   useEffect(() => {
     if (!tamanho) return
     const foto = fotoRef.current
@@ -214,75 +254,99 @@ function AnimacaoPanoramica({ imagem, cenario, volume, repetir = false, rodada =
     let anteriorU = 0
     let quadro = 0
     let acabou = false
+    const camera = faixaDaCamera(duracao)
+    const assenta = faixaDoAmbiente(duracao)
 
-    const passo = (agora: number) => {
-      const dt = Math.min(0.05, (agora - anterior) / 1000)
-      anterior = agora
-      let t = (agora - inicio) / 1000
-      if (t >= duracao) {
-        if (repetir) {
-          inicio = agora
-          t = 0
-        } else if (!acabou) {
-          acabou = true
-          if (cortinaRef.current) cortinaRef.current.style.opacity = '1'
-          onFimRef.current?.()
-          return
-        }
-      }
+    /** O quadro do instante `t`. Na moldura, `vivo` (1 a 0) acalma o ambiente até parar. */
+    const desenhar = (t: number, dt: number) => {
       const f = t / duracao
-      const u = reduzir ? 1 : grua((f - FASES.comeca) / (FASES.termina - FASES.comeca))
+      const u = reduzir ? 1 : emMoldura ? grua(progresso(t, camera)) : grua((f - FASES.comeca) / (FASES.termina - FASES.comeca))
+      const vivo = reduzir ? 0 : emMoldura ? 1 - CURVAS.onda.f(progresso(t, assenta)) : 1
       const e = mistura(movimento.inicio, movimento.fim, u)
       const d = deslocamento(e, tamanho.w, tamanho.h)
-      const balanco = reduzir ? { x: 0, y: 0 } : { x: Math.sin(t * 0.6) * 2, y: Math.sin(t * 0.9) * 1.5 }
-      foto.style.transform = `translate(${d.x + balanco.x}px, ${d.y + balanco.y}px) scale(${e.zoom})`
+      const balanco = { x: Math.sin(t * 0.6) * 2 * vivo, y: Math.sin(t * 0.9) * 1.5 * vivo }
+      // Na moldura o balanço fica dentro da folga do zoom: somar 2 px no zoom 1 descobriria a borda.
+      const x = emMoldura ? Math.min(0, Math.max(tamanho.w - tamanho.w * e.zoom, d.x + balanco.x)) : d.x + balanco.x
+      const y = emMoldura ? Math.min(0, Math.max(tamanho.h - tamanho.h * e.zoom, d.y + balanco.y)) : d.y + balanco.y
+      foto.style.transform = `translate(${x}px, ${y}px) scale(${e.zoom})`
 
       // Névoa perto da câmera: anda no sentido contrário ao movimento, mais rápido que a foto.
       const dirX = movimento.fim.x - movimento.inicio.x
       const dirY = movimento.fim.y - movimento.inicio.y
-      if (nevoaARef.current) nevoaARef.current.style.transform = `translate(${-dirX * u * 60 + Math.sin(t * 0.15) * 20}%, ${-dirY * u * 80 + 55}%)`
-      if (nevoaBRef.current) nevoaBRef.current.style.transform = `translate(${-dirX * u * 90 + Math.cos(t * 0.12) * -25}%, ${-dirY * u * 110 + 10}%)`
-      if (raiosRef.current) raiosRef.current.style.transform = `translateY(${(1 - u) * 12}%)`
+      if (nevoaARef.current) nevoaARef.current.style.transform = `translate(${-dirX * u * 60 + Math.sin(t * 0.15) * 20 * vivo}%, ${-dirY * u * 80 + 55}%)`
+      if (nevoaBRef.current) nevoaBRef.current.style.transform = `translate(${-dirX * u * 90 + Math.cos(t * 0.12) * -25 * vivo}%, ${-dirY * u * 110 + 10}%)`
+      if (raiosRef.current) {
+        raiosRef.current.style.transform = `translateY(${(1 - u) * 12}%)`
+        // Na moldura a respiração dos raios (CSS infinita no jogo) vira conta: assenta em 0,6 junto com o resto.
+        if (emMoldura) raiosRef.current.style.opacity = (0.6 + 0.25 * Math.sin(t * 1.05) * vivo).toFixed(3)
+      }
 
       if (ctx2d && canvas) {
         const velocidade = (u - anteriorU) * 30
         const W = canvas.width
         const H = canvas.height
         ctx2d.clearRect(0, 0, W, H)
-        for (const p of pontos) {
-          p.y += (p.vy - dirY * velocidade * (0.4 + p.prof * 1.4)) * dt
-          p.x += (p.vx - dirX * velocidade * (0.4 + p.prof * 1.4) + Math.sin(t * 0.8 + p.fase) * 0.002) * dt * 6
-          if (p.y < -0.05 || p.y > 1.1 || p.x < -0.05 || p.x > 1.05) Object.assign(p, novaParticula(false))
-          const alfa = 0.25 + p.prof * 0.55
-          ctx2d.save()
-          ctx2d.translate(p.x * W, p.y * H)
-          if (p.folha) {
-            ctx2d.rotate(t + p.fase)
-            ctx2d.fillStyle = `rgba(120, 190, 90, ${alfa})`
-            ctx2d.beginPath()
-            ctx2d.ellipse(0, 0, p.r * 2.4, p.r, 0, 0, Math.PI * 2)
-          } else {
-            ctx2d.fillStyle = `rgba(255, 248, 220, ${alfa})`
-            ctx2d.beginPath()
-            ctx2d.arc(0, 0, p.r, 0, Math.PI * 2)
-          }
-          ctx2d.fill()
-          ctx2d.restore()
-        }
+        if (vivo > 0.001) desenharParticulas(ctx2d, W, H, t, dt, velocidade, dirX, dirY, vivo)
       }
       anteriorU = u
 
-      const entra = 1 - clamp01(f / FASES.entra)
-      const sai = clamp01((f - FASES.apaga) / (1 - FASES.apaga))
+      const entra = emMoldura ? 0 : 1 - clamp01(f / FASES.entra)
+      const sai = emMoldura ? 0 : clamp01((f - FASES.apaga) / (1 - FASES.apaga))
       if (cortinaRef.current) cortinaRef.current.style.opacity = String(Math.max(entra, sai))
+    }
+
+    const desenharParticulas = (c: CanvasRenderingContext2D, W: number, H: number, t: number, dt: number, velocidade: number, dirX: number, dirY: number, vivo: number) => {
+      for (const p of pontos) {
+        p.y += (p.vy - dirY * velocidade * (0.4 + p.prof * 1.4)) * dt * vivo
+        p.x += (p.vx - dirX * velocidade * (0.4 + p.prof * 1.4) + Math.sin(t * 0.8 + p.fase) * 0.002) * dt * 6 * vivo
+        if (p.y < -0.05 || p.y > 1.1 || p.x < -0.05 || p.x > 1.05) Object.assign(p, novaParticula(false))
+        const alfa = (0.25 + p.prof * 0.55) * vivo
+        c.save()
+        c.translate(p.x * W, p.y * H)
+        if (p.folha) {
+          c.rotate(t + p.fase)
+          c.fillStyle = `rgba(120, 190, 90, ${alfa})`
+          c.beginPath()
+          c.ellipse(0, 0, p.r * 2.4, p.r, 0, 0, Math.PI * 2)
+        } else {
+          c.fillStyle = `rgba(255, 248, 220, ${alfa})`
+          c.beginPath()
+          c.arc(0, 0, p.r, 0, Math.PI * 2)
+        }
+        c.fill()
+        c.restore()
+      }
+    }
+
+    const passo = (agora: number) => {
+      const dt = Math.min(0.05, (agora - anterior) / 1000)
+      anterior = agora
+      let t = (agora - inicio) / 1000
+      if (pularRef.current && emMoldura) t = duracao
+      // Na moldura nada fecha sozinho no fim: o vento cai com o ambiente, em vez de soprar sobre a imagem parada.
+      if (emMoldura && t >= assenta[0]) ventoRef.current?.silenciar((assenta[1] - assenta[0]) / QUEDAS_DO_VENTO_NO_ASSENTAR)
+      if (t >= duracao) {
+        if (repetir) {
+          inicio = agora
+          t = 0
+        } else if (!acabou) {
+          acabou = true
+          // Na moldura o último quadro (a imagem inteira, tudo parado) fica até o jogador fechar.
+          if (emMoldura) desenhar(duracao, dt)
+          else if (cortinaRef.current) cortinaRef.current.style.opacity = '1'
+          onFimRef.current?.()
+          return
+        }
+      }
+      desenhar(t, dt)
       quadro = requestAnimationFrame(passo)
     }
     quadro = requestAnimationFrame(passo)
     return () => cancelAnimationFrame(quadro)
-  }, [tamanho, cenario.movimento, cenario.duracaoS, repetir, rodada])
+  }, [tamanho, cenario.movimento, cenario.duracaoS, repetir, rodada, emMoldura])
 
   return (
-    <div ref={areaRef} className="lb-cenario">
+    <div ref={areaRef} className={emMoldura ? 'lb-cenario lb-cenario--moldura' : 'lb-cenario'}>
       <div className="lb-cenario__quadro" style={tamanho ? { width: tamanho.w, height: tamanho.h } : { visibility: 'hidden' }}>
         <img ref={fotoRef} className="lb-cenario__foto" src={imagem} alt="" draggable={false} style={tamanho ? { width: tamanho.w, height: tamanho.h } : undefined} />
         {cenario.raios && <div ref={raiosRef} className="lb-cenario__raios" aria-hidden="true" />}

@@ -4,9 +4,10 @@ import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
 /**
- * NOME SÓ DO MESTRE no recorte do jogador: o Diego, ao lado do "?", recebe o
- * pino e a descrição que o mestre escreveu para ele, mas nunca o nome "Faca"
- * — nem no pino, nem em lugar nenhum do recorte.
+ * NOME DO LOCAL no recorte do jogador (09/10/2026): o nome é o título do
+ * painel da revelação e atravessa SÓ junto com a descrição. O Diego, ao lado
+ * do "?", recebe "Faca"; com o pino "só de perto" e a ficha longe, não recebe
+ * nem a descrição nem o nome.
  */
 
 const RAIO = 300
@@ -23,13 +24,27 @@ function mapaCom(pins: Pin[]): MapData {
 
 const FACA: Pin = { id: 'pino-7', x: 240, y: 200, kind: 'interrogacao', description: DESCRICAO, image: null, nome: 'Faca' }
 
-describe('fogFilter: nome do pino é só do mestre', () => {
-  it('o pino chega com a descrição e sem o nome; "Faca" não está em nada do recorte', () => {
+describe('fogFilter: nome do local atravessa só com a descrição', () => {
+  it('pino perto: chega com a descrição e com o nome', () => {
     const view = filterMapForPlayer(mapaCom([FACA]), 'diego', POSSE, RAIO)
     expect(view.map.pins).toHaveLength(1)
     expect(view.map.pins[0].description).toBe(DESCRICAO)
-    expect('nome' in view.map.pins[0]).toBe(false)
+    expect(view.map.pins[0].nome).toBe('Faca')
+  })
+
+  it('pino "só de perto" com a ficha longe: sem descrição e sem nome, em lugar nenhum do recorte', () => {
+    const longe: Pin = { ...FACA, x: 700, y: 200, lerDePerto: 1, marco: true }
+    const view = filterMapForPlayer(mapaCom([longe]), 'diego', POSSE, RAIO)
+    const pino = view.map.pins.find((p) => p.id === 'pino-7')
+    expect(pino?.longe).toBe(true)
+    expect(pino?.description).toBe('')
+    expect(pino !== undefined && 'nome' in pino).toBe(false)
     expect(JSON.stringify(view)).not.toContain('Faca')
+  })
+
+  it('nome em branco não atravessa', () => {
+    const view = filterMapForPlayer(mapaCom([{ ...FACA, nome: '   ' }]), 'diego', POSSE, RAIO)
+    expect('nome' in view.map.pins[0]).toBe(false)
   })
 
   it('controle: o mapa do mestre continua com o nome (o recorte é cópia)', () => {

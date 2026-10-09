@@ -18,7 +18,9 @@ function ficha(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y, size: 1, image: null }
 }
 
-const COFRE: Pin = { id: 'cofre', x: 150, y: 150, kind: 'exclamacao', description: DESCRICAO, image: null, notaDoMestre: NOTA }
+// A nota do pino saiu do tipo em 09/10/2026; a chave antiga entra por Object.assign para provar que a rede não a leva.
+const COFRE_SEM_NOTA: Pin = { id: 'cofre', x: 150, y: 150, kind: 'exclamacao', description: DESCRICAO, image: null }
+const COFRE: Pin = Object.assign({ ...COFRE_SEM_NOTA }, { notaDoMestre: NOTA })
 
 function mundo(): HostWorld {
   const casa: MapData = { ...createEmptyMap('m-casa', 'Casa', 30, 10, 50), tokens: [ficha('gabi', 100, 100)], pins: [COFRE] }

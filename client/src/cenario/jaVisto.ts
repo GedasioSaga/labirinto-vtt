@@ -33,8 +33,8 @@ function lerVistos(armazem: Armazem | null): string[] {
 
 const chaveDoPino = (mapaId: string, pinoId: string) => `${mapaId}|${pinoId}`
 
-/** A animação deste pino toca agora? */
-export function deveTocarCenario(cenario: CenarioDoPino, mapaId: string, pinoId: string, armazem: Armazem | null = armazemDoNavegador()): boolean {
+/** A animação (ou a revelação do pino sem imagem, que toca "só da primeira vez") deste pino toca agora? */
+export function deveTocarCenario(cenario: Pick<CenarioDoPino, 'quando'>, mapaId: string, pinoId: string, armazem: Armazem | null = armazemDoNavegador()): boolean {
   if (cenario.quando === 'sempre') return true
   return !lerVistos(armazem).includes(chaveDoPino(mapaId, pinoId))
 }

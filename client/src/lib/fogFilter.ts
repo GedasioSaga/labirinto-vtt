@@ -4398,7 +4398,8 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  *   no recorte dele.
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
- * - `nome` NUNCA: é o nome só do mestre, e o cartão do jogador é a descrição.
+ * - `nome` (o "Nome do local", título do painel da revelação) VAI só junto
+ *   com a descrição: pino longe chega sem texto e, portanto, sem nome.
  * - `passe` (o item e as fichas que abrem a catraca) NUNCA: diria o que abre
  *   a passagem e quem já pode passar. Quem confere é o host, na ficha do
  *   mapa do mestre (`net/hostSession.ts`).
@@ -4413,10 +4414,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
   // outra cena existe —, e `passe` também (a lista de quem tem passe).
   // `marco` e `lerDePerto` também: são regra do host.
-  // `nome` também, e de propósito: é o rótulo SÓ DO MESTRE ("Faca") — o
-  // jogador lê a descrição (teste em `fogFilter.pinoNome.test.ts`).
-  // `notaDoMestre` ("só eu leio") fica de fora SEMPRE: o jogador lê
-  // `description` e mais nada do texto do pino.
+  // `nome` vai pela mesma porta da descrição (`readable`): o jogador lê o
+  // título do local só quando lê o texto (teste em `fogFilter.pinoNome.test.ts`).
   // `colecao` também: a frase inteira é do mestre; o jogador recebe o
   // progresso DELE pela mensagem `colecoes` do host.
   // Pino "só de perto" com a ficha longe sai vazio e marcado `longe`.
@@ -4428,6 +4427,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
     description: readable ? pin.description : '',
     image: readable && isPlayerSafePinImage(pin.image) ? pin.image : null,
   }
+  // Só texto não vazio atravessa: valor torto de arquivo editado à mão fica no host.
+  if (readable && typeof pin.nome === 'string' && pin.nome.trim() !== '') forPlayer.nome = pin.nome
   if (!readable) forPlayer.longe = true
   if (!known) forPlayer.soMarco = true
   // Ícone: o cartão e o mapa do jogador desenham o símbolo, então ele vai —
@@ -4827,7 +4828,8 @@ export function marcarTrancasParaJogador(
  * - alavanca: o cartão dela é o botão de puxar, que só vale de perto.
  *
  * LISTA DO QUE VAI, como em `pinForPlayer`: campo desconhecido não atravessa —
- * nem o nome e a nota do mestre, nem item, loja, fechadura ou coleção.
+ * nem item, loja, fechadura ou coleção. O nome do local também não: o cartão
+ * mostrado não abre a revelação, e o `PinCard` não tem onde levá-lo.
  */
 export function pinCardForPlayer(pin: Pin): PinCard | null {
   if (isArrivalOnly(pin)) return null

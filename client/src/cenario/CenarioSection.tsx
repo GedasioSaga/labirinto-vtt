@@ -19,6 +19,9 @@ interface CenarioSectionProps {
   cenario: CenarioDoPino | undefined
   /** A imagem do pino; sem ela não há o que animar. */
   imagem: string | null
+  /** "Nome do local" e descrição do pino: a prévia mostra a revelação inteira. Ausentes = painel vazio. */
+  nome?: string
+  descricao?: string
   onChange: (cenario: CenarioDoPino | undefined) => void
 }
 
@@ -63,7 +66,7 @@ const PANORAMICA = ''
  * movimento e quais efeitos. Cada movimento, e cada estilo do pacote, tem o
  * botão de assistir inteiro numa janela.
  */
-export function CenarioSection({ cenario, imagem, onChange }: CenarioSectionProps) {
+export function CenarioSection({ cenario, imagem, nome = '', descricao = '', onChange }: CenarioSectionProps) {
   const tituloId = useId()
   const quandoId = useId()
   const estiloId = useId()
@@ -188,7 +191,7 @@ export function CenarioSection({ cenario, imagem, onChange }: CenarioSectionProp
               </p>
             </>
           )}
-          {previa && <CenarioPreviewDialog imagem={imagem} cenario={previa} onClose={() => setPrevia(null)} />}
+          {previa && <CenarioPreviewDialog imagem={imagem} cenario={previa} nome={nome} descricao={descricao} onClose={() => setPrevia(null)} />}
         </>
       )}
     </section>
@@ -223,8 +226,9 @@ function DuracaoDoCenario({ inputId, dicaId, duracaoS, naturalS, onChange }: Dur
       return
     }
     const preso = Math.min(CENARIO_DURACAO_MAX_S, Math.max(CENARIO_DURACAO_MIN_S, Math.round(lido * 10) / 10))
-    onChange(preso === naturalS ? undefined : preso)
-    setTexto(preso === naturalS ? '' : String(preso))
+    // Grava o que o mestre digitou, mesmo igual ao padrão: se o padrão mudar, a escolha dele não muda junto.
+    onChange(preso)
+    setTexto(String(preso))
   }
 
   return (

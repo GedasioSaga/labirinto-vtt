@@ -701,22 +701,16 @@ export interface Pin extends PlayerSecret, NoPiso {
   /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
   description: string
   /**
-   * NOME SÓ DO MESTRE ("Faca"): o que distingue sete "?" iguais no editor —
-   * desenhado ao lado do pino e na lista "Pinos". NUNCA sai no recorte do
-   * jogador (`lib/fogFilter.ts` monta o pino dele por lista do que vai), que lê
-   * só a descrição. Ausente = sem nome, o pino de sempre — sem migração. O
-   * disco só aceita texto não vazio, aparado e com até `PIN_NOME_MAX_LENGTH`
-   * letras (`lib/mapFile.ts`).
+   * NOME DO LOCAL ("Base da Marinha"): o que distingue sete "?" iguais no
+   * editor — desenhado ao lado do pino e na lista "Pinos" — e o título que o
+   * jogador lê no painel da revelação. Chega ao jogador SÓ junto com a
+   * descrição (`lib/fogFilter.ts`): pino longe, sem texto, vai sem nome.
+   * Ausente = sem nome, o pino de sempre — sem migração. O disco só aceita
+   * texto não vazio, aparado e com até `PIN_NOME_MAX_LENGTH` letras
+   * (`lib/mapFile.ts`). A antiga "Nota do mestre" do pino saiu em 09/10/2026
+   * (decisão do usuário): o disco a descarta ao abrir.
    */
   nome?: string
-  /**
-   * "Nota do mestre" (só eu leio): o lembrete dele sobre o pino — a
-   * combinação do cofre, o que o NPC esconde. NUNCA sai no recorte do jogador
-   * (`pinForPlayer` em `lib/fogFilter.ts` é lista do que vai, e ela não está
-   * lá), nem na pista que o cartão vira. Ausente = sem nota — mapa gravado
-   * antes deste campo abre igual. O disco só aceita texto (`lib/mapFile.ts`).
-   */
-  notaDoMestre?: string
   image: string | null
   /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
   locked?: boolean

@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Prop, Region, Token } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -92,6 +92,19 @@ function positiveNumberOr(value: number | undefined, fallback: number): number {
  * `.map()` logo abaixo estoura `TypeError: Cannot read properties of null`
  * cru na tela, que para o usuário é igual a ter perdido o mapa.
  */
+/**
+ * A "Nota do mestre" do PINO saiu em 09/10/2026 (decisão do usuário: o dado é
+ * apagado). Arquivo de antes traz a chave, e o `...p` do pino a copiaria crua
+ * de volta para o mapa e para o próximo salvamento. A nota da SALA
+ * (`RoomMeta.notaDoMestre`) é outro campo e continua.
+ */
+function semNotaDoMestre(pin: Pin): Pin {
+  if (!Object.prototype.hasOwnProperty.call(pin, 'notaDoMestre')) return pin
+  const copia = { ...pin }
+  Reflect.deleteProperty(copia, 'notaDoMestre')
+  return copia
+}
+
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
@@ -499,18 +512,14 @@ function deserializeMapFields(json: string): MapData {
     // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
     // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
     // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
-    pins: entityList(parsed.pins).map((p) => pinWithCabin({
+    pins: entityList(parsed.pins).map(semNotaDoMestre).map((p) => pinWithCabin({
       ...p,
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
-      // NOME SÓ DO MESTRE: campo NOVO e OPCIONAL. Texto aparado e no teto;
-      // em branco ou torto (número, arquivo editado à mão) volta AUSENTE.
+      // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
+      // ou torto (número, arquivo editado à mão) volta AUSENTE.
       nome: cleanPinName(p.nome) || undefined,
-      // NOTA DO MESTRE: campo NOVO e OPCIONAL. Só texto volta; o resto
-      // (número, objeto, arquivo editado à mão) volta AUSENTE, sem inventar
-      // chave em mapa antigo. O `...p` acima copiaria o valor cru.
-      notaDoMestre: typeof p.notaDoMestre === 'string' ? p.notaDoMestre : undefined,
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
       // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede

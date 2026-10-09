@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CenarioSection } from './CenarioSection'
-import { CENARIO_PADRAO, type CenarioDoPino } from './catalogo'
+import { CENARIO_DURACAO_NATURAL_S, CENARIO_PADRAO, type CenarioDoPino } from './catalogo'
 import { esquecerEstilosDeCenarioDeFora, registrarEstiloDeCenario } from './estilosDeCenario'
 
 let container: HTMLDivElement
@@ -126,5 +126,26 @@ describe('CenarioSection', () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Aproximar')
     act(() => botao('Fechar').click())
     expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  // Antes, digitar o próprio padrão gravava "ausente": quando o padrão mudou de 12 para 5 s, quem escolheu 12 s de propósito passou a tocar 5.
+  it('duração: grava o número digitado mesmo quando é igual ao padrão; vazio volta a ser o padrão', () => {
+    const onChange = render(CENARIO_PADRAO)
+    const campo = container.querySelector<HTMLInputElement>('.lb-cenario-secao__duracao input')
+    if (!campo) throw new Error('sem o campo de duração')
+    const digitar = (valor: string) => {
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(campo, valor)
+        campo.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      act(() => campo.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+    }
+    digitar(String(CENARIO_DURACAO_NATURAL_S))
+    expect(onChange).toHaveBeenLastCalledWith({ ...CENARIO_PADRAO, duracaoS: CENARIO_DURACAO_NATURAL_S })
+    expect(campo.value).toBe(String(CENARIO_DURACAO_NATURAL_S))
+    digitar('12')
+    expect(onChange).toHaveBeenLastCalledWith({ ...CENARIO_PADRAO, duracaoS: 12 })
+    digitar('')
+    expect(onChange).toHaveBeenLastCalledWith({ ...CENARIO_PADRAO, duracaoS: undefined })
   })
 })

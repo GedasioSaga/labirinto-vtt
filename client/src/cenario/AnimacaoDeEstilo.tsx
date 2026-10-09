@@ -17,6 +17,8 @@ interface AnimacaoDeEstiloProps {
   onFim?: () => void
   /** O módulo lançou: quem chamou troca para a panorâmica. */
   onErro: (erro: unknown) => void
+  /** "Pular" da revelação do local: desenha o último instante e para ali. */
+  pularParaOFim?: boolean
 }
 
 /** Teto da densidade de pixels: tela 3x pintaria 9x os pixels de uma 1x sem ganho visível. */
@@ -35,7 +37,7 @@ function pixelsFisicos(w: number, h: number): { largura: number; altura: number 
  * recebe. Qualquer erro do módulo — no criar, num quadro ou no ajuste de tela —
  * para o relógio, solta o módulo e avisa `onErro`.
  */
-export function AnimacaoDeEstilo({ imagem, estilo, duracaoS, volume, repetir, rodada, onFim, onErro }: AnimacaoDeEstiloProps) {
+export function AnimacaoDeEstilo({ imagem, estilo, duracaoS, volume, repetir, rodada, onFim, onErro, pularParaOFim = false }: AnimacaoDeEstiloProps) {
   const areaRef = useRef<HTMLDivElement>(null)
   const fotoRef = useRef<HTMLImageElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,6 +48,9 @@ export function AnimacaoDeEstilo({ imagem, estilo, duracaoS, volume, repetir, ro
   onErroRef.current = onErro
   const volumeRef = useRef(volume)
   volumeRef.current = volume
+  // Lido a cada quadro: pular não recomeça o módulo, só o leva ao último instante.
+  const pularRef = useRef(pularParaOFim)
+  pularRef.current = pularParaOFim
   const [tamanho, setTamanho] = useState<{ w: number; h: number } | null>(null)
   const temTamanho = tamanho !== null
 
@@ -126,6 +131,16 @@ export function AnimacaoDeEstilo({ imagem, estilo, duracaoS, volume, repetir, ro
     const passo = (agora: number) => {
       if (parado) return
       let t = Math.max(0, (agora - inicio) / 1000)
+      if (pularRef.current && !repetir && t < duracaoS) {
+        // O contrato só promete `tS` crescente: um salto para a frente é permitido.
+        try {
+          instanciaRef.current?.atualizar(duracaoS)
+        } catch (erro) {
+          falhar(erro)
+          return
+        }
+        t = duracaoS
+      }
       if (t >= duracaoS) {
         if (!repetir) {
           // Fim: o último quadro fica na tela até quem chamou fechar (o jogador vê o cartão surgir por cima).

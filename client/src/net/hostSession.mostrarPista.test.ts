@@ -274,8 +274,8 @@ describe('pinCardForPlayer', () => {
     expect(pinCardForPlayer(SEGREDO)).toEqual({ id: 'segredo', kind: 'interrogacao', description: 'Só o mestre sabe', image: null })
   })
 
-  it('nome e nota do mestre, item e ícone desconhecido nunca vão', () => {
-    const card = pinCardForPlayer({ ...CARTA, nome: 'Carta do mordomo', notaDoMestre: 'é falsa', item: { nome: 'Carta' }, icon: 'inventado' as never }) // as never: arquivo editado à mão com símbolo desconhecido, que o tipo não deixa escrever
+  it('nome do local, item e ícone desconhecido nunca vão no cartão mostrado', () => {
+    const card = pinCardForPlayer({ ...CARTA, nome: 'Carta do mordomo', item: { nome: 'Carta' }, icon: 'inventado' as never }) // as never: arquivo editado à mão com símbolo desconhecido, que o tipo não deixa escrever
     expect(card).toEqual({ id: 'carta', kind: 'exclamacao', description: TEXTO_DA_CARTA, image: FOTO })
   })
 })

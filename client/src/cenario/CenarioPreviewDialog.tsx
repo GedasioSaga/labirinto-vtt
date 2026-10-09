@@ -2,13 +2,16 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent
 import { createPortal } from 'react-dom'
 import { CloseIcon } from '../components/icons'
 import { CENARIO_DURACAO_NATURAL_S, duracaoDoCenarioS, movimentoInfo, type CenarioDoPino } from './catalogo'
-import { AnimacaoCenario } from './AnimacaoCenario'
+import { RevelacaoDoLocal } from './revelacao/RevelacaoDoLocal'
 import { duracaoDoEstiloS, useEstilosDeCenario } from './estilosDeCenario'
 import './cenario.css'
 
 interface CenarioPreviewDialogProps {
   imagem: string
   cenario: CenarioDoPino
+  /** "Nome do local" e descrição do pino: a prévia mostra a revelação inteira, como o jogador verá. */
+  nome: string
+  descricao: string
   onClose: () => void
 }
 
@@ -20,10 +23,12 @@ function segundos(s: number): string {
 }
 
 /**
- * Janela no meio da tela com a ANIMAÇÃO DO CENÁRIO inteira sobre a imagem do
- * pino, repetindo até o mestre fechar. Mesmo molde do `TransicaoPreviewDialog`.
+ * Janela no meio da tela com a REVELAÇÃO DO LOCAL inteira (a imagem na
+ * moldura com a animação do cenário, o painel com o nome e a descrição), como
+ * o jogador verá. Toca uma vez e fica no último quadro; "Repetir" recomeça.
+ * Mesmo molde do `TransicaoPreviewDialog`.
  */
-export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPreviewDialogProps) {
+export function CenarioPreviewDialog({ imagem, cenario, nome: nomeDoLocal, descricao, onClose }: CenarioPreviewDialogProps) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -97,7 +102,7 @@ export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPrevie
           </button>
         </header>
         <div className="lb-cenario-previa__palco">
-          <AnimacaoCenario imagem={imagem} cenario={cenario} volume={som ? 0.5 : 0} repetir rodada={rodada} />
+          <RevelacaoDoLocal imagem={{ src: imagem, cenario }} nome={nomeDoLocal} descricao={descricao} volume={som ? 0.5 : 0} previa rodada={rodada} />
         </div>
         <div className="lb-cenario-previa__barra">
           <span className="lb-cenario-previa__info">
@@ -105,12 +110,10 @@ export function CenarioPreviewDialog({ imagem, cenario, onClose }: CenarioPrevie
             {cenario.duracaoS === undefined ? ' · duração natural' : ` · natural tem ${segundos(naturalS)}`}
           </span>
           <span className="lb-cenario-previa__acoes">
-            {/* "Som do vento" é só da panorâmica; o estilo do pacote pode ter som próprio. */}
-            {(estilo !== null || cenario.som) && (
-              <button type="button" className="lb-btn lb-btn--ghost" aria-pressed={som} onClick={alternarSom}>
-                {som ? 'Som ligado' : 'Som desligado'}
-              </button>
-            )}
+            {/* A máquina de escrever e a porta sempre têm som; o vento segue o interruptor do pino. */}
+            <button type="button" className="lb-btn lb-btn--ghost" aria-pressed={som} onClick={alternarSom}>
+              {som ? 'Som ligado' : 'Som desligado'}
+            </button>
             <button type="button" className="lb-btn lb-btn--ghost" onClick={() => setRodada((n) => n + 1)}>
               Repetir
             </button>

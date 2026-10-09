@@ -105,7 +105,10 @@
   padding: var(--lb-space-3) var(--lb-space-4);
 }
 
+/* A revelação ocupa o palco inteiro (posição absoluta) e mede o espaço daqui. */
 .lb-cenario-previa__palco {
+  position: relative;
+  overflow: hidden;
   height: min(62vh, 620px);
   padding: var(--lb-space-3);
   background: #05070a;
@@ -199,47 +202,4 @@
 
 .lb-cenario-secao__duracao .lb-input {
   width: 72px;
-}
-
-/* ---- tela cheia do jogador */
-
-.lb-cenario-jogo {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  padding: 16px;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.92);
-  transition: opacity 260ms ease-out;
-}
-
-.lb-cenario-jogo[data-saindo='true'] {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.lb-cenario-jogo__pular {
-  position: absolute;
-  right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: max(16px, env(safe-area-inset-bottom, 0px));
-  padding: 10px 16px;
-  border: 1px solid rgba(216, 208, 191, 0.35);
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #d8d0bf;
-  font: inherit;
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 150ms ease, transform 120ms ease-out;
-}
-
-.lb-cenario-jogo__pular:active {
-  transform: scale(0.97);
-}
-
-.lb-cenario-jogo__pular:focus-visible {
-  outline: 2px solid #d8d0bf;
-  outline-offset: 2px;
 }

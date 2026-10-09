@@ -2024,7 +2024,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -2048,7 +2048,6 @@ export function updatePin(
     next.nome === pin.nome &&
     // Nota do mestre é opcional: `undefined` === '' (sem nota). Apagar a nota
     // de um pino que nunca teve não empurra entrada vazia no histórico.
-    (next.notaDoMestre ?? '') === (pin.notaDoMestre ?? '') &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
     // Marco e "ler só de perto": opcionais também — desligar o que nunca foi

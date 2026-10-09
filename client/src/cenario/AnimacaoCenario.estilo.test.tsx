@@ -173,14 +173,28 @@ describe('AnimacaoCenario com estilo do pacote', () => {
 })
 
 describe('CenarioOverlay com estilo do pacote', () => {
-  it('o fim do estilo devolve a vez ao cartão, como na panorâmica; "Pular" continua lá', () => {
+  it('o estilo roda dentro da moldura e fica no último quadro; só o "Fechar" devolve a vez ao cartão', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    moduloFalso()
+    const { instancia } = moduloFalso()
     const onFim = vi.fn()
-    act(() => root.render(<CenarioOverlay imagem={IMAGEM} cenario={COM_ESTILO} onFim={onFim} />))
-    expect(Array.from(document.querySelectorAll('button')).some((b) => b.textContent === 'Pular')).toBe(true)
+    act(() => root.render(<CenarioOverlay imagem={{ src: IMAGEM, cenario: COM_ESTILO }} nome="Forte" descricao="Muralhas brancas." onFim={onFim} />))
+    const botao = () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Pular' || b.textContent === 'Fechar')
+    expect(botao()?.textContent).toBe('Pular')
+    // jsdom não carrega imagem: a moldura espera um pouco e segue com o formato padrão.
+    await act(async () => {
+      vi.advanceTimersByTime(1600)
+    })
     carregarFoto()
-    quadro(5000)
+    quadro(0)
+    quadro(1000)
+    expect(instancia.atualizar).toHaveBeenCalled()
+    // "Pular" leva o estilo direto ao último instante (5 s, a duração natural dele).
+    act(() => botao()?.click())
+    quadro(1016)
+    expect(instancia.atualizar).toHaveBeenLastCalledWith(5)
+    expect(onFim).not.toHaveBeenCalled()
+    expect(botao()?.textContent).toBe('Fechar')
+    act(() => botao()?.click())
     act(() => vi.advanceTimersByTime(400))
     expect(onFim).toHaveBeenCalledTimes(1)
   })

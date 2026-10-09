@@ -1,0 +1,395 @@
+/*
+ * REVELAÇÃO DO LOCAL — a imagem do pino "!" numa moldura de madeira e metal e
+ * o postigo com o nome e a descrição datilografada. Porte de `estilo.css` do
+ * protótipo v3 aprovado (09/10/2026). A tela do jogador é sempre escura, então
+ * não há variação de tema: os tokens ficam no próprio palco.
+ */
+
+.lb-revelacao {
+  --madeira: 16px;
+  --metal: 9px;
+  --rev-veu: rgba(0, 0, 0, 0.92);
+  --rev-quadro-sombra: 0 20px 60px rgba(0, 0, 0, 0.6);
+  --rev-painel-sombra: 0 18px 48px rgba(0, 0, 0, 0.6);
+  --rev-papel-alto: #17130e;
+  --rev-papel-baixo: #0d0b08;
+  --rev-tinta-titulo: #eceae4;
+  --rev-tinta-texto: #e2dccd;
+  --rev-filete: rgba(236, 234, 228, 0.14);
+  --rev-cursor: #e0a44a;
+  --rev-reflexo: rgba(255, 244, 222, 0.75);
+  --rev-metal-claro: #c7d1d9;
+  --rev-metal-medio: #8a949c;
+  --rev-metal-escuro: #3e454b;
+  /* Fontes do sistema: o app roda sem internet. */
+  --rev-fonte-titulo: 'Sitka Banner', Constantia, Georgia, 'Times New Roman', serif;
+  --rev-fonte-maquina: 'Courier New', Courier, monospace;
+  --rev-fonte-ui: 'Bahnschrift', 'Segoe UI', system-ui, sans-serif;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1400px;
+  isolation: isolate;
+}
+
+.lb-revelacao__fundo {
+  position: absolute;
+  inset: 0;
+  background: var(--rev-veu);
+  opacity: 0;
+}
+
+/* Na prévia do mestre o palco já é escuro: o véu sobra. */
+.lb-revelacao[data-previa='true'] .lb-revelacao__fundo {
+  display: none;
+}
+
+.lb-revelacao__grupo {
+  position: absolute;
+  will-change: transform;
+}
+
+/* A imagem com a moldura. Fica por cima: o postigo gira de trás dela. */
+.lb-revelacao__quadro {
+  position: absolute;
+  z-index: 2;
+  border-radius: 2px;
+  box-shadow: var(--rev-quadro-sombra);
+  will-change: transform, filter;
+}
+
+.lb-revelacao__moldura,
+.lb-revelacao__painel-moldura {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lb-revelacao__vista {
+  position: absolute;
+  overflow: hidden;
+  background: #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
+    inset 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* A animação do cenário dentro da moldura: sem a sombra e o canto do quadro solto. */
+.lb-revelacao__vista .lb-cenario__quadro {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.lb-cenario--moldura .lb-cenario__raios {
+  animation: none;
+  opacity: 0.6;
+}
+
+/* Imagem parada enquanto a animação do cenário ainda não mediu o quadro. */
+.lb-revelacao__foto-parada {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ---- dobradiças: canos de metal no vão entre a borda da moldura e o postigo */
+.lb-revelacao__dobradicas {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.lb-revelacao__dobradicas i,
+.lb-revelacao__folhas i {
+  position: absolute;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--rev-metal-escuro), var(--rev-metal-claro) 35%, var(--rev-metal-medio) 60%, #23282c);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.lb-revelacao[data-modo='coluna'] .lb-revelacao__dobradicas i {
+  background: linear-gradient(180deg, var(--rev-metal-escuro), var(--rev-metal-claro) 35%, var(--rev-metal-medio) 60%, #23282c);
+}
+
+/* A folha presa na moldura: chapa de metal com dois rebites, do cano até o meio da madeira. */
+.lb-revelacao__dobradicas i::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 100%;
+  width: calc(var(--madeira) + 2px);
+  border-radius: 2px 0 0 2px;
+  background:
+    radial-gradient(circle at 50% 24%, var(--rev-metal-claro) 0 1.2px, var(--rev-metal-escuro) 1.7px, transparent 2.3px),
+    radial-gradient(circle at 50% 76%, var(--rev-metal-claro) 0 1.2px, var(--rev-metal-escuro) 1.7px, transparent 2.3px),
+    linear-gradient(180deg, var(--rev-metal-medio), var(--rev-metal-escuro));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.lb-revelacao[data-modo='coluna'] .lb-revelacao__dobradicas i::before {
+  top: auto;
+  bottom: 100%;
+  left: 4px;
+  right: 4px;
+  width: auto;
+  height: calc(var(--madeira) + 2px);
+  border-radius: 2px 2px 0 0;
+  background:
+    radial-gradient(circle at 24% 50%, var(--rev-metal-claro) 0 1.2px, var(--rev-metal-escuro) 1.7px, transparent 2.3px),
+    radial-gradient(circle at 76% 50%, var(--rev-metal-claro) 0 1.2px, var(--rev-metal-escuro) 1.7px, transparent 2.3px),
+    linear-gradient(90deg, var(--rev-metal-medio), var(--rev-metal-escuro));
+}
+
+/* ---- trilho: a caixa da perspectiva do postigo, encostada na borda de fora da moldura */
+.lb-revelacao__trilho {
+  position: absolute;
+  z-index: 1;
+  perspective: 1000px;
+}
+
+.lb-revelacao__carro {
+  position: absolute;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ---- painel: madeira por fora, metal por dentro (moldura.ts), papel escuro no meio */
+.lb-revelacao__painel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: calc(var(--madeira) + var(--metal));
+  border-radius: 2px;
+}
+
+.lb-revelacao__painel[data-escrevendo='true'] {
+  cursor: pointer;
+}
+
+.lb-revelacao__painel-sombra {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  box-shadow: var(--rev-painel-sombra);
+  pointer-events: none;
+}
+
+.lb-revelacao__papel {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 18px 20px;
+  overflow: hidden;
+}
+
+.lb-revelacao__papel-fundo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--rev-papel-alto), var(--rev-papel-baixo));
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
+    inset 0 3px 10px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+.lb-revelacao__cabeca {
+  position: relative;
+  flex: none;
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rev-filete);
+}
+
+/* Sem descrição o título fica sozinho: sem filete embaixo. */
+.lb-revelacao__cabeca:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.lb-revelacao__nome {
+  margin: 0;
+  color: var(--rev-tinta-titulo);
+  font: 600 24px/1.15 var(--rev-fonte-titulo);
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+/* Texto que não cabe rola aqui dentro (e a tela segue o cursor enquanto ele escreve). */
+.lb-revelacao__rolagem {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(226, 220, 205, 0.3) transparent;
+}
+
+.lb-revelacao__texto {
+  position: relative;
+  margin: 0;
+  color: var(--rev-tinta-texto);
+  font: 400 15.5px/1.6 var(--rev-fonte-maquina);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* O resto do texto já ocupa o lugar (transparente): nada pula de linha enquanto ele é escrito. */
+.lb-revelacao__falta {
+  color: transparent;
+}
+
+.lb-revelacao__cursor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  transition: opacity 180ms ease-out;
+}
+
+.lb-revelacao__cursor::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -0.2em;
+  width: 0.6em;
+  height: 2px;
+  background: var(--rev-cursor);
+}
+
+.lb-revelacao__cursor[data-sumiu='true'] {
+  opacity: 0;
+}
+
+/* A face do postigo: escurece de lado e uma faixa de luz corre nela ao assentar. */
+.lb-revelacao__face-sombra,
+.lb-revelacao__reflexo {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.lb-revelacao__face-sombra {
+  background: #000;
+  opacity: 0;
+}
+
+.lb-revelacao__reflexo {
+  overflow: hidden;
+}
+
+.lb-revelacao__reflexo span {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 40%;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--rev-reflexo) 50%, transparent);
+  mix-blend-mode: screen;
+}
+
+.lb-revelacao__leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- "Pular" (o mesmo do cartão do cenário de antes); depois do fim vira "Fechar" */
+.lb-revelacao__pular {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid rgba(216, 208, 191, 0.35);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d0bf;
+  font: 13px/1 var(--rev-fonte-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color 150ms ease,
+    transform 120ms ease-out;
+}
+
+.lb-revelacao__pular:active {
+  transform: scale(0.97);
+}
+
+.lb-revelacao__pular:focus-visible {
+  outline: 2px solid #d8d0bf;
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-revelacao__pular:hover {
+    border-color: rgba(216, 208, 191, 0.6);
+  }
+}
+
+/* ---- tela cheia do jogador: o véu vem de dentro (escurece em 0,3 s), a saída é curta */
+.lb-revelacao-jogo {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  transition: opacity 260ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.lb-revelacao-jogo[data-saindo='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- celular: molduras mais finas, letra um pouco menor */
+@media (max-width: 560px) {
+  .lb-revelacao {
+    --madeira: 11px;
+    --metal: 7px;
+  }
+
+  .lb-revelacao__papel {
+    padding: 11px 13px 13px;
+  }
+
+  .lb-revelacao__cabeca {
+    margin-bottom: 8px;
+    padding-bottom: 7px;
+  }
+
+  .lb-revelacao__nome {
+    font-size: 19px;
+  }
+
+  .lb-revelacao__texto {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}

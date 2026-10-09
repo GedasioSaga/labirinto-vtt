@@ -34,8 +34,12 @@ export const MOVIMENTOS: readonly MovimentoInfo[] = [
   { id: 'aproxima', nome: 'Aproximar', inicio: { zoom: 1, x: 0.5, y: 0.5 }, fim: { zoom: 1.35, x: 0.5, y: 0.45 } },
 ]
 
-/** Duração da animação inteira quando o mestre não escolhe outra. */
-export const CENARIO_DURACAO_NATURAL_S = 12
+/**
+ * Duração da animação inteira quando o mestre não escolhe outra. Regra do
+ * usuário (09/10/2026): animação de ambiente dura 4-5 s. Era 12 s antes da
+ * revelação do local; quem escolheu outra duração no pino continua com ela.
+ */
+export const CENARIO_DURACAO_NATURAL_S = 5
 export const CENARIO_DURACAO_MIN_S = 3
 export const CENARIO_DURACAO_MAX_S = 40
 

@@ -26,18 +26,12 @@ export interface PinControlsProps {
   description: string | null
   onDescriptionChange: (description: string) => void
   /**
-   * "Nome (só mestre)" do pino aberto: o rótulo ao lado dele no editor e na
-   * lista "Pinos". Vazio = sem nome. Ausente `onNomeChange` = sem o campo.
+   * "Nome do local" do pino aberto: o rótulo ao lado dele no editor e na
+   * lista "Pinos", e o título que o jogador vê no painel da revelação. Vazio
+   * = sem nome. Ausente `onNomeChange` = sem o campo.
    */
   nome?: string
   onNomeChange?: (nome: string) => void
-  /**
-   * `Pin.notaDoMestre` — "só eu leio", nunca sai para o jogador. `null` ou
-   * ausente com `description` presente = pino sem nota. Sem
-   * `onNotaDoMestreChange` o campo não aparece (mesmo molde de `RoomControls`).
-   */
-  notaDoMestre?: string | null
-  onNotaDoMestreChange?: (notaDoMestre: string) => void
   /** Pino travado não se move no arrasto — continua clicável para destravar aqui. */
   locked: boolean
   onLockedChange: (locked: boolean) => void
@@ -328,8 +322,6 @@ export function PinControls({
   onDescriptionChange,
   nome = '',
   onNomeChange,
-  notaDoMestre = null,
-  onNotaDoMestreChange,
   locked,
   onLockedChange,
   marco,
@@ -403,30 +395,23 @@ export function PinControls({
               </span>
             </>
           )}
-          {/* Antes da descrição: é o que o MESTRE lê (sete "?" iguais no mapa
-              do crime); a descrição, logo abaixo, é o que o jogador lê. */}
+          {/* Antes da descrição: distingue sete "?" iguais no editor e é o
+              título que o jogador lê no painel da revelação, junto com a
+              descrição logo abaixo (decisão do usuário, 09/10/2026). */}
           {onNomeChange !== undefined && (
             <div className="lb-field">
               <label className="lb-label" htmlFor="lb-pin-nome">
-                Nome (só mestre)
+                Nome do local
               </label>
               <input
                 id="lb-pin-nome"
                 className="lb-input"
                 value={nome}
                 maxLength={PIN_NOME_MAX_LENGTH}
-                aria-describedby="lb-pin-nome-hint"
                 onChange={(event) => onNomeChange(event.target.value)}
               />
-              <span id="lb-pin-nome-hint" className="lb-label">
-                Os jogadores não veem o nome; eles leem a descrição.
-              </span>
             </div>
           )}
-          {/* Dois textos, lado a lado: o que vai para o cartão do jogador e o
-              lembrete que fica aqui. O primeiro rótulo segue começando por
-              "Descrição" (é o nome que a mesa já conhece); o da nota não repete
-              a palavra, para os dois nunca se confundirem. */}
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-pin-description">
               Descrição · o jogador lê
@@ -439,24 +424,6 @@ export function PinControls({
               onChange={(event) => onDescriptionChange(event.target.value)}
             />
           </div>
-          {onNotaDoMestreChange !== undefined && (
-            <div className="lb-field">
-              <label className="lb-label" htmlFor="lb-pin-nota-do-mestre">
-                Nota do mestre · só eu leio
-              </label>
-              <textarea
-                id="lb-pin-nota-do-mestre"
-                className="lb-input lb-textarea"
-                rows={3}
-                value={notaDoMestre ?? ''}
-                aria-describedby="lb-pin-nota-do-mestre-dica"
-                onChange={(event) => onNotaDoMestreChange(event.target.value)}
-              />
-              <p className="lb-field__hint" id="lb-pin-nota-do-mestre-dica">
-                Nunca vai para a tela dos jogadores, nem quando o pino é revelado.
-              </p>
-            </div>
-          )}
           {/* Mesmo rótulo de `ItemTransformControls` ("Travado"), porque é a
               mesma promessa: o item fica onde está quando alguém esbarra nele
               arrastando. O pino não usa aquele componente porque não tem
@@ -496,7 +463,7 @@ export function PinControls({
             </button>
           )}
           {/* Logo depois da imagem: é ela que a animação usa. */}
-          {cenario !== undefined && <CenarioSection cenario={cenario.valor} imagem={image} onChange={cenario.onChange} />}
+          {cenario !== undefined && <CenarioSection cenario={cenario.valor} imagem={image} nome={nome} descricao={description ?? ''} onChange={cenario.onChange} />}
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onDelete}>
             {viagem ? 'Excluir pino de viagem' : alavanca ? 'Excluir alavanca' : 'Excluir ponto de interesse'}
           </button>

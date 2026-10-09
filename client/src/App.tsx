@@ -3722,12 +3722,9 @@ function App() {
                   : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
-              // Nome só do mestre: apagar grava AUSENTE (o pino de sempre), nunca `''`.
+              // Nome do local (o jogador lê no painel da revelação): apagar grava AUSENTE, nunca `''`.
               nome: selectedPin?.nome ?? '',
               onNomeChange: (nome) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { nome: nome === '' ? undefined : nome }),
-              // "Só eu leio": opcional no schema, pino antigo chega sem nota.
-              notaDoMestre: selectedPin ? selectedPin.notaDoMestre ?? '' : null,
-              onNotaDoMestreChange: (notaDoMestre) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { notaDoMestre }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,

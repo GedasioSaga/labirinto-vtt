@@ -4,12 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PinControls, type PinControlsProps } from './PinControls'
 
 /**
- * "Nome (só mestre)" no painel do pino: sete "?" iguais no mapa do crime, e o
- * mestre escreve "Faca" num deles para achar depois. O campo avisa que o
- * jogador não lê o nome — ele lê a descrição.
+ * "Nome do local" no painel do pino: sete "?" iguais no mapa do crime, e o
+ * mestre escreve "Faca" num deles para achar depois. Desde 09/10/2026 é também
+ * o título que o jogador lê no painel da revelação (antes era "Nome (só
+ * mestre)"), e a "Nota do mestre" do pino saiu.
  */
 
-describe('PinControls: nome só do mestre', () => {
+describe('PinControls: nome do local', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -48,7 +49,7 @@ describe('PinControls: nome só do mestre', () => {
   }
 
   function campoNome(): HTMLInputElement | null {
-    const label = Array.from(container.querySelectorAll('label')).find((l) => l.textContent === 'Nome (só mestre)')
+    const label = Array.from(container.querySelectorAll('label')).find((l) => l.textContent === 'Nome do local')
     const id = label?.getAttribute('for')
     const input = id ? document.getElementById(id) : null
     return input instanceof HTMLInputElement ? input : null
@@ -62,12 +63,21 @@ describe('PinControls: nome só do mestre', () => {
     })
   }
 
-  it('mostra o nome gravado e avisa que o jogador não o lê', () => {
+  it('mostra o nome gravado, sem o aviso antigo de que o jogador não o lê', () => {
     render({ nome: 'Faca', onNomeChange: () => {} })
     const campo = campoNome()
     expect(campo?.value).toBe('Faca')
-    const dica = campo?.getAttribute('aria-describedby')
-    expect(dica ? document.getElementById(dica)?.textContent : null).toBe('Os jogadores não veem o nome; eles leem a descrição.')
+    expect(campo?.hasAttribute('aria-describedby')).toBe(false)
+    expect(container.textContent).not.toMatch(/não veem o nome|só mestre/i)
+  })
+
+  it('a nota do mestre do pino saiu; a descrição continua começando por "Descrição"', () => {
+    render({ nome: 'Faca', onNomeChange: () => {} })
+    const rotulos = Array.from(container.querySelectorAll('label')).map((l) => l.textContent ?? '')
+    expect(rotulos.some((t) => /nota do mestre|só eu leio/i.test(t))).toBe(false)
+    expect(rotulos.filter((t) => /descri/i.test(t))).toHaveLength(1)
+    expect(rotulos.find((t) => /descri/i.test(t))).toMatch(/^Descrição/)
+    expect(container.querySelectorAll('textarea')).toHaveLength(1)
   })
 
   it('escrever no campo manda o nome novo', () => {
@@ -82,6 +92,6 @@ describe('PinControls: nome só do mestre', () => {
   it('sem pino selecionado, não há campo de nome', () => {
     render({ description: null, nome: '', onNomeChange: () => {} })
     expect(campoNome()).toBeNull()
-    expect(container.textContent).not.toContain('Nome (só mestre)')
+    expect(container.textContent).not.toContain('Nome do local')
   })
 })

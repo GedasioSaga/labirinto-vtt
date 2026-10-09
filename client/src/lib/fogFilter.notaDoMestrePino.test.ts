@@ -1,7 +1,8 @@
 /**
- * NOTA DO MESTRE NO PINO, lado do RECORTE: o jogador recebe o pino com a
- * descrição ("o jogador lê") e nunca a nota ("só eu leio") — nem o campo, nem
- * o texto dela em lugar nenhum do pacote, nem na pista que o cartão vira.
+ * NOTA DO MESTRE NO PINO, lado do RECORTE: o campo saiu do app em 09/10/2026
+ * (o disco o descarta ao abrir), mas o recorte é lista do que vai — se um pino
+ * chegar com ele por outro caminho, o jogador recebe a descrição e nunca a
+ * nota: nem o campo, nem o texto dela, nem na pista que o cartão vira.
  */
 import { describe, expect, it } from 'vitest'
 import type { MapData, Pin, Token } from '../types/map'
@@ -15,7 +16,9 @@ const NOTA = 'SEGREDO-DO-MESTRE: a combinação é 6-12-18.'
 const ficha: Token = { id: 'arco', characterId: null, name: 'Arco', x: 100, y: 100, size: 1, image: null }
 
 function pino(extra: Partial<Pin> = {}): Pin {
-  return { id: 'cofre', x: 200, y: 100, kind: 'exclamacao', description: DESCRICAO, image: null, notaDoMestre: NOTA, ...extra }
+  // A chave antiga entra por Object.assign: o tipo `Pin` não a tem mais, e o recorte não pode depender disso.
+  const base: Pin = { id: 'cofre', x: 200, y: 100, kind: 'exclamacao', description: DESCRICAO, image: null, ...extra }
+  return Object.assign(base, { notaDoMestre: NOTA })
 }
 
 function mapaCom(pins: Pin[]): MapData {

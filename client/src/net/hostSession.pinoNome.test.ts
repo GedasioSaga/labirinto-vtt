@@ -5,9 +5,10 @@ import { createHostSession, type HostResult, type HostWorld } from './hostSessio
 import type { HostMessage } from './protocol'
 
 /**
- * NOME SÓ DO MESTRE pela rede (aceite do cenário "crime"): o pacote do Diego
- * leva o pino e a descrição, e não leva "Faca" — nem no primeiro snapshot, nem
- * depois de o mestre renomear o pino com a sessão aberta.
+ * NOME DO LOCAL pela rede (decisão do usuário, 09/10/2026: o nome do pino vira
+ * o título da revelação do local). Perto, o pacote do Diego leva o nome junto
+ * com a descrição; renomear com a sessão aberta manda o nome novo. Longe, sem
+ * descrição, também sem nome: coberto em `lib/fogFilter.pinoNome.test.ts`.
  */
 
 const CODE = 'AB12CD'
@@ -55,21 +56,19 @@ function mesa() {
   return s
 }
 
-describe('hostSession: o nome do pino não atravessa a rede', () => {
-  it('o cartão do Diego tem só a descrição, e o pacote não tem "Faca"', () => {
+describe('hostSession: o nome do pino atravessa a rede junto com a descrição', () => {
+  it('perto, o cartão do Diego tem a descrição e o nome do local', () => {
     const r = mesa().broadcast(mundo('Faca'))
     const pino = pinosDo(r).find((p) => p.id === 'pino-7')
     expect(pino?.description).toBe(DESCRICAO)
-    expect(pino?.nome).toBeUndefined()
-    expect(pacoteDo(r)).not.toContain('Faca')
+    expect(pino?.nome).toBe('Faca')
   })
 
-  it('o mestre renomeia o pino com a sessão aberta: o nome novo também não sai', () => {
+  it('o mestre renomeia o pino com a sessão aberta: o nome novo chega ao Diego', () => {
     const s = mesa()
     expect(pinosDo(s.broadcast(mundo('Faca'))).map((p) => p.id)).toEqual(['pino-7'])
     const r = s.broadcast(mundo('Arma do crime'))
-    // O nome não entra no recorte: a tela do Diego sai igual e nada novo vai a ele.
-    expect(r.outbound.filter((o) => o.clientId === 'c-diego')).toEqual([])
-    expect(pacoteDo(r)).not.toContain('Arma do crime')
+    expect(pacoteDo(r)).toContain('Arma do crime')
+    expect(pacoteDo(r)).not.toContain('"Faca"')
   })
 })

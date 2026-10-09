@@ -65,7 +65,7 @@ import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
-import type { CenarioDoPino } from '../cenario/catalogo'
+import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { DiceFeed } from '../components/DiceControls'
 import type { DiceRollEntry } from '../lib/dice'
@@ -762,7 +762,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   /** ITEM NO MAPA: a imagem de item no chão aberta no cartão do item; `null` = nenhuma. */
   const [openItemNoChaoId, setOpenItemNoChaoId] = useState<string | null>(null)
   /** ANIMAÇÃO DO CENÁRIO tocando agora (por cima do cartão do pino "!"); `null` = nenhuma. */
-  const [cenarioTocando, setCenarioTocando] = useState<{ imagem: string; cenario: CenarioDoPino } | null>(null)
+  const [revelacao, setRevelacao] = useState<DadosDaRevelacao | null>(null)
   /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
   const [pinChoiceIds, setPinChoiceIds] = useState<string[] | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
@@ -1144,6 +1144,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     setOpenPinId(null)
     connection.resetLockAnswer()
   }, [connection])
+  // REVELAÇÃO DO LOCAL por cima do cartão: o toque nela ("Pular", "Fechar", o
+  // painel) chega ao "tocar fora" do cartão, que ouve a janela na captura, e
+  // fechava o cartão junto. Com a revelação aberta o cartão não fecha por ali:
+  // fecha-se a revelação e o cartão continua por baixo, como no Esc. Ref, e não
+  // a revelação nas dependências, pelo mesmo motivo do `closePin` estável.
+  const revelacaoAbertaRef = useRef(false)
+  revelacaoAbertaRef.current = revelacao !== null
+  const closePinPeloCartao = useCallback(() => {
+    if (revelacaoAbertaRef.current) return
+    closePin()
+  }, [closePin])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
@@ -1160,14 +1171,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       setOpenItemNoChaoId(null)
       setOpenPinId(pinId)
       connection.readClue(pinId)
-      // ANIMAÇÃO DO CENÁRIO: o pino "!" com animação toca antes do cartão —
-      // sempre, ou só da primeira vez, como o mestre escolheu.
+      // REVELAÇÃO DO LOCAL: o pino "!" abre por cima do cartão — com imagem,
+      // sempre ou só da primeira vez, como o mestre escolheu na animação;
+      // sem imagem, o painel sozinho da primeira vez (`revelacaoDoPino`).
       const estado = connection.getState()
       const pino = estado.map?.pins.find((p) => p.id === pinId)
       const mapaId = estado.map?.id
-      if (pino?.kind === 'exclamacao' && pino.cenario && isPlayerSafePinImage(pino.image) && mapaId !== undefined && deveTocarCenario(pino.cenario, mapaId, pino.id)) {
-        marcarCenarioVisto(mapaId, pino.id)
-        setCenarioTocando({ imagem: pino.image, cenario: pino.cenario })
+      const dados = pino === undefined ? null : revelacaoDoPino(pino)
+      if (dados !== null && mapaId !== undefined && deveTocarCenario(dados, mapaId, pinId)) {
+        marcarCenarioVisto(mapaId, pinId)
+        setRevelacao(dados)
       }
     },
     [connection],
@@ -1626,11 +1639,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerPinCard
             pin={openPin}
             stairs={state.map.stairs}
-            onClose={closePin}
+            onClose={closePinPeloCartao}
             onRead={(pinId) => connection.markPinRead(pinId)}
             onVerAnimacao={
               openPin.kind === 'exclamacao' && openPin.cenario && isPlayerSafePinImage(openPin.image)
-                ? () => openPin.cenario && openPin.image && setCenarioTocando({ imagem: openPin.image, cenario: openPin.cenario })
+                ? () => setRevelacao(revelacaoDoPino(openPin))
                 : undefined
             }
             travelWaiting={state.travel?.phase === 'waiting'}
@@ -2046,7 +2059,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </div>
         )}
         {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
-        {cenarioTocando && <CenarioOverlay imagem={cenarioTocando.imagem} cenario={cenarioTocando.cenario} onFim={() => setCenarioTocando(null)} />}
+        {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={() => setRevelacao(null)} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {reconnecting}
