@@ -1,5 +1,7 @@
 [
   "transicao/portao-pesado",
   "transicao/escada-curva",
-  "transicao/escada-curva-descendo"
+  "transicao/escada-curva-descendo",
+  "transicao/escada-madeira",
+  "transicao/escada-madeira-descendo"
 ]

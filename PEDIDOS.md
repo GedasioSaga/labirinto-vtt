@@ -1475,7 +1475,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 09/10/2026: "faz duas animações uma de subindo a escada e a outra de descer a escada estilo resident evil, a ecada vai ser de madeira, vai ser estilo a de pedra só que diferen da de pedra que já existe coloca paredes de madeira do lado."
 - Decidido: duas transições do pacote, `escada-madeira` ("Escada de madeira subindo") e `escada-madeira-descendo` ("Escada de madeira descendo"), mesma cena com sentido trocado (molde da escadaria de pedra), paredes de madeira dos dois lados; um designer só para as duas, em paralelo com o portão; protótipo para aprovar antes de publicar.
 - Protótipo v1: https://claude.ai/artifact/MW2Khu5m6TCx3sLECcUTPX (09/10, tarde).
-- > 09/10/2026, depois do protótipo: "Da escada de madeira, deixa só de passadas não coloca o som de ficar rangindo." — tirar o rangido nos dois sentidos, só passadas. Feito no protótipo v2 (mesmo link), aguardando aprovação.
+- > 09/10/2026, depois do protótipo: "Da escada de madeira, deixa só de passadas não coloca o som de ficar rangindo." — tirar o rangido nos dois sentidos, só passadas. Feito no protótipo v2 (mesmo link).
+- > 09/10/2026: "A escada eu aprovo, pode subir para o github" — escada de madeira APROVADA: `aprovadas.json` e pacote do GitHub.
 
 > 09/10/2026: "Faz uma animação de escada subindo e descendo [Image #42] só que essas escada ela vai curvando que nem na foto, ela tem essa lateral azul e a escada é feito de uma pedra branca, o fundo é preto, e continua estilo resident evil, faça uma agente só para trabalhar nisso"
 - Imagem 42: escadaria curva de pedra branca subindo junto a uma parede de pedra clara, guarda-corpo azul (balaústres e corrimão azuis, pilares azuis com remate redondo), arandelas, porta azul em arco embaixo.
