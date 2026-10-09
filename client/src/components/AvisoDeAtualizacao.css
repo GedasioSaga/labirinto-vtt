@@ -1,0 +1,58 @@
+/* Aviso de atualização na tela inicial. O painel em si é o `.lb-recovery`
+   (main.css) com a entrada do `.lb-home__recovery`: mesmo vocabulário da oferta
+   de recuperação, só os pedaços próprios ficam aqui. */
+
+/* Notas da versão podem ser longas: rolam dentro do painel em vez de empurrar
+   as portas para fora da tela. */
+.lb-atualizacao__notas {
+  max-height: 7.5em;
+  overflow-y: auto;
+  white-space: pre-line;
+}
+
+.lb-atualizacao__progresso {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+}
+
+.lb-atualizacao__barra {
+  flex: 1 1 auto;
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  background: var(--lb-color-line);
+  appearance: none;
+  overflow: hidden;
+}
+
+.lb-atualizacao__barra::-webkit-progress-bar {
+  background: var(--lb-color-line);
+}
+
+.lb-atualizacao__barra::-webkit-progress-value {
+  background: var(--lb-color-brass);
+  transition: width 200ms ease-out;
+}
+
+.lb-atualizacao__barra::-moz-progress-bar {
+  background: var(--lb-color-brass);
+}
+
+.lb-atualizacao__procurar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-atualizacao__resposta {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-atualizacao__barra::-webkit-progress-value {
+    transition: none;
+  }
+}

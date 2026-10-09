@@ -1,4 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { AvisoDeAtualizacao, BotaoProcurarAtualizacao, useAtualizacaoDoApp } from '../components/AvisoDeAtualizacao'
+import { memoriaDaAbertura, portaDoTauri, type MemoriaDaAbertura, type PortaDoAtualizador } from '../lib/atualizacao'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import { HomeMaze } from './HomeMaze'
 import { useLampGlow } from './useLampGlow'
@@ -23,6 +25,10 @@ interface MainMenuProps {
   flags?: Readonly<FeatureFlags>
   /** Cópia de recuperação de uma abertura que fechou sem salvar; ausente = nada a oferecer. */
   recovery?: RecoveryOffer | null
+  /** Default o updater do Tauri; o teste passa uma porta falsa. */
+  atualizador?: PortaDoAtualizador
+  /** Default a memória do processo; o teste passa uma nova para começar do zero. */
+  memoriaDaAtualizacao?: MemoriaDaAbertura
 }
 
 interface HomeDoorProps {
@@ -76,7 +82,20 @@ function moveFocusBetweenDoors(event: KeyboardEvent<HTMLElement>) {
  * trabalho não salvo. À direita, um labirinto que se desenha na abertura sob
  * um halo de lampião que segue o mouse.
  */
-export function MainMenu({ onCreate, onLoad, onOptions, onRoleplay, flags = FEATURES, recovery }: MainMenuProps) {
+export function MainMenu({
+  onCreate,
+  onLoad,
+  onOptions,
+  onRoleplay,
+  flags = FEATURES,
+  recovery,
+  atualizador = portaDoTauri,
+  memoriaDaAtualizacao = memoriaDaAbertura,
+}: MainMenuProps) {
+  // Procurar atualização só aqui, na tela inicial: dentro do editor ou da
+  // mesa a pergunta atrapalharia. Sala aberta (voltar ao menu não a fecha) é
+  // conferida no Rust antes de qualquer aviso.
+  const atualizacao = useAtualizacaoDoApp(atualizador, memoriaDaAtualizacao)
   const stageRef = useRef<HTMLDivElement>(null)
   const glowRef = useRef<HTMLDivElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -132,12 +151,16 @@ export function MainMenu({ onCreate, onLoad, onOptions, onRoleplay, flags = FEAT
             </section>
           )}
 
+          <AvisoDeAtualizacao atualizacao={atualizacao} />
+
           <nav className="lb-home__doors" aria-label="Começar">
             <HomeDoor title="Criar Mapas" description={createDescription} className="lb-home__door--novo-mapa" onClick={onCreate} />
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
           </nav>
+
+          <BotaoProcurarAtualizacao atualizacao={atualizacao} />
         </section>
 
         <div className="lb-home__art">

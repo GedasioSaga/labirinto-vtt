@@ -18,6 +18,9 @@
     "fs:allow-copy-file",
     "fs:allow-stat",
     "fs:allow-remove",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "process:allow-restart",
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**/*" }]

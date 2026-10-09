@@ -27,11 +27,17 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        // Atualização pelo GitHub: o updater só aceita pacote assinado pela
+        // chave cuja metade pública está em tauri.conf.json; o process dá o
+        // `relaunch` depois de instalar. Quem decide QUANDO é a tela inicial.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(net::commands::NetState::default())
         .invoke_handler(tauri::generate_handler![
             grant_fs_access,
             net::commands::net_start_room,
             net::commands::net_stop_room,
+            net::commands::net_room_open,
             net::commands::net_send,
             net::commands::net_kick,
             net::commands::net_start_tunnel,

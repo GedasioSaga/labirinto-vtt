@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +41,15 @@
     ],
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJFQjE5NTZGMEVENjU2MDAKUldRQVZ0WU9iNVd4dnRFczJNU0VhS1YwUUZVbDUydy9jaml4T2srZVdBRXNVTi9rMEx5MWM1ZHIK",
+      "endpoints": ["https://github.com/GedasioSaga/labirinto-vtt/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

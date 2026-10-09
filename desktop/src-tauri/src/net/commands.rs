@@ -270,6 +270,14 @@ pub async fn net_start_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetS
     Ok(RoomInfo { code, urls, qr_svg, warning })
 }
 
+/// Só leitura: há sala de jogo aberta agora? A tela inicial pergunta antes de
+/// oferecer atualização, porque instalar fecha o app e derrubaria os jogadores.
+/// A fonte é este estado, não o React: voltar ao menu não fecha a sala.
+#[tauri::command]
+pub async fn net_room_open(state: State<'_, NetState>) -> Result<bool, String> {
+    Ok(state.room.lock().await.is_some())
+}
+
 #[tauri::command]
 pub async fn net_stop_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>) -> Result<(), String> {
     close_tunnel_quietly(&app, &state);
