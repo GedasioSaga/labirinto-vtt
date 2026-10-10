@@ -130,14 +130,24 @@ export function soltarPintura(alvo: Container): void {
   }
 }
 
-/** Lado do ladrilho no mundo: a escala da textura no metro do relevo, nunca menor que umas células. */
-export function ladoDoLadrilhoNoMundo(mapa: Pick<MapData, 'width' | 'height' | 'grid'>, escala: number): number {
-  return Math.max(escala * unidadeDoRelevo(mapa), LADRILHO_MINIMO_EM_CELULAS * mapa.grid)
+/**
+ * A medida do ladrilho de uma textura: px do protótipo do relevo (o número,
+ * as de continente) ou casas da grade (`{ casas }`, as de chão de masmorra:
+ * a tábua do convés tem de ter a largura certa contra a casa em qualquer mapa).
+ */
+export type MedidaDoLadrilho = number | { readonly casas: number }
+
+/** Lado do ladrilho no mundo: a escala da textura no metro do relevo (nunca menor que umas células), ou as casas dela. */
+export function ladoDoLadrilhoNoMundo(mapa: Pick<MapData, 'width' | 'height' | 'grid'>, medida: MedidaDoLadrilho): number {
+  if (typeof medida !== 'number') return medida.casas * mapa.grid
+  return Math.max(medida * unidadeDoRelevo(mapa), LADRILHO_MINIMO_EM_CELULAS * mapa.grid)
 }
 
-/** O lado do ladrilho de uma textura, em px do protótipo do relevo: a do catálogo, ou a fixa da importada. */
-export function escalaDaTextura(id: string): number {
-  return texturaDoCatalogo(id)?.escala ?? ESCALA_DA_IMPORTADA
+/** A medida do ladrilho de uma textura: as casas dela, a escala do catálogo, ou a fixa da importada. */
+export function escalaDaTextura(id: string): MedidaDoLadrilho {
+  const textura = texturaDoCatalogo(id)
+  if (textura?.casas !== undefined) return { casas: textura.casas }
+  return textura?.escala ?? ESCALA_DA_IMPORTADA
 }
 
 /** A textura de pixels já prontos, repetível e com mipmap. */
@@ -334,7 +344,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     return promessa
   }
 
-  function escalaDe(id: string): number {
+  function escalaDe(id: string): MedidaDoLadrilho {
     return escalaDaTextura(id)
   }
 

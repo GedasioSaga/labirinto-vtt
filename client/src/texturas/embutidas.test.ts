@@ -77,9 +77,9 @@ function medir(d: Uint8ClampedArray, lado: number): Medidas {
 }
 
 describe('biblioteca inicial de texturas', () => {
-  it('tem as onze texturas pedidas (Bosque e Chão de floresta junto das árvores), com id e nome únicos', () => {
+  it('tem as treze texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve'])
+    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas'])
     expect(new Set(TEXTURAS_EMBUTIDAS.map((t) => t.nome)).size).toBe(ids.length)
   })
 
@@ -106,6 +106,13 @@ describe('biblioteca inicial de texturas', () => {
       it('não tem listra fina: pouca variação de pixel a pixel, igual nas duas direções', () => {
         expect(m.vizinhoX).toBeLessThanOrEqual(0.035)
         expect(m.vizinhoY).toBeLessThanOrEqual(0.035)
+        if (textura.casas !== undefined) {
+          // Chão desenhado (tábua, lajota): a junta se repete numa direção por
+          // natureza. Em troca, ela tem de ser macia: metade da variação de
+          // pixel a pixel que as outras podem ter, nas duas direções.
+          expect(Math.max(m.vizinhoX, m.vizinhoY)).toBeLessThanOrEqual(0.0175)
+          return
+        }
         const razao = m.vizinhoX / m.vizinhoY
         expect(razao).toBeGreaterThan(0.6)
         expect(razao).toBeLessThan(1 / 0.6)
@@ -174,5 +181,36 @@ describe('Bosque e Pântano (pedido de 10/10/2026)', () => {
 
   it('ladrilho grande só com mais pixels: nenhuma textura fica com menos de 3,5 pixels por px do protótipo', () => {
     for (const t of TEXTURAS_EMBUTIDAS) expect((t.lado ?? LADO_PADRAO) / t.escala).toBeGreaterThanOrEqual(3.5)
+  })
+})
+
+describe('chãos de masmorra, medidos em casas da grade', () => {
+  const luzDaCor = (c: number) => (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255
+
+  it('Convés: quatro tábuas por casa (a junta escurece entre elas), oito casas por ladrilho', () => {
+    const conves = texturaDe('conves')
+    expect(conves.casas).toBe(8)
+    const filas = 8 * 4
+    let juntaMaisEscura = 0
+    let total = 0
+    for (let k = 0; k < filas; k += 1) {
+      for (const u of [0.11, 0.37, 0.62, 0.89]) {
+        // Com a meia tábua de deslocamento, a junta da fila k fica em (k - 0,5)/32 e o meio da tábua em k/32.
+        const junta = luzDaCor(conves.cor(u, (k + 0.5) / filas))
+        const meio = luzDaCor(conves.cor(u, k / filas))
+        if (junta < meio) juntaMaisEscura += 1
+        total += 1
+      }
+    }
+    expect(juntaMaisEscura / total).toBeGreaterThan(0.9)
+  })
+
+  it('Lajotas: pedra clara (entre o cinza e o bege), sem branco', () => {
+    const d = pixelsDoLadrilho(texturaDe('lajotas').cor, 128)
+    let soma = 0
+    for (let i = 0; i < d.length; i += 4) soma += luzDe(d, i)
+    const media = soma / (d.length / 4)
+    expect(media).toBeGreaterThan(0.7)
+    expect(media).toBeLessThan(0.85)
   })
 })

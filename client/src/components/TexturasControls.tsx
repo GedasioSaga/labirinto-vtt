@@ -34,8 +34,11 @@ const AMOSTRAS_DA_MINIATURA = 2
  */
 const ESCALA_DA_MINIATURA = 64
 
+/** As de chão de masmorra (medidas em casas) mostram duas casas: a tábua e a lajota com o tamanho de ler. */
+const CASAS_DA_MINIATURA = 2
+
 function corDaMiniatura(textura: TexturaDoCatalogo): TexturaDoCatalogo['cor'] {
-  const parte = Math.min(1, ESCALA_DA_MINIATURA / textura.escala)
+  const parte = Math.min(1, textura.casas !== undefined ? CASAS_DA_MINIATURA / textura.casas : ESCALA_DA_MINIATURA / textura.escala)
   return parte === 1 ? textura.cor : (u, v) => textura.cor(u * parte, v * parte)
 }
 

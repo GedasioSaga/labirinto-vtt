@@ -224,6 +224,9 @@ describe('texturas no palco', () => {
     // 200 x 64 = 12.800 px: a floresta (escala 40) sai com ~412 px.
     expect(Math.round(ladoDoLadrilhoNoMundo(MAPA, 40))).toBe(412)
     expect(ladoDoLadrilhoNoMundo({ width: 20, height: 20, grid: 64 }, 40)).toBe(192)
+    // Chão de masmorra mede em casas: o mesmo número de casas em qualquer mapa, grande ou pequeno.
+    expect(ladoDoLadrilhoNoMundo({ width: 20, height: 20, grid: 64 }, { casas: 8 })).toBe(512)
+    expect(ladoDoLadrilhoNoMundo(MAPA, { casas: 8 })).toBe(8 * MAPA.grid)
   })
 })
 

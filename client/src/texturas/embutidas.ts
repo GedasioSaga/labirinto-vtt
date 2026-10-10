@@ -1,4 +1,4 @@
-import { cobertura, espalhar, pontosPerto, pontosQueAlcancam, type Cobertura, type Espalhamento } from './espalhar'
+import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import {
   cristas,
   empacotar,
@@ -46,10 +46,18 @@ export interface DefinicaoDeTextura {
    * repetição não aparecer) precisa de mais pixels para não borrar de perto.
    */
   lado?: number
+  /**
+   * Lado do ladrilho em CASAS da grade, no lugar da `escala` (que fica só
+   * para a miniatura): chão de masmorra (convés, lajotas) mede contra a casa,
+   * não contra o tamanho do mapa.
+   */
+  casas?: number
 }
 
 /** O ladrilho maior, das texturas de período longo (Bosque, Pântano, Terra). */
 const LADO_GRANDE = 512
+/** O ladrilho dos chãos de masmorra (8 casas): 128 px por casa, a tábua nítida de perto. */
+const LADO_MAIOR = 1024
 
 // ---------------------------------------------------------------------------
 // Areia: o bege claro das praias do mapa, manchado de leve, com grão fino e
@@ -706,6 +714,145 @@ function terra(u: number, v: number): number {
   return empacotar(misturar(c, pedra, passoSuave(1, 0.8, t)))
 }
 
+// ---------------------------------------------------------------------------
+// Chão de masmorra, medido em CASAS da grade (`DefinicaoDeTextura.casas`):
+// a tábua e a lajota têm o tamanho certo contra a casa (1,5 m) em qualquer
+// mapa. Pedido de 10/10/2026: "uma textura de chão de madeira de um barco" e
+// "um chão de tijolos de pedra de uma base da marinha".
+
+/** Uma volta sem emenda em [0, 1). */
+function naVoltaDoLadrilho(t: number): number {
+  return t - Math.floor(t)
+}
+
+/** Ruído de valor sem período (período enorme): para o veio, medido na tábua e não no ladrilho. */
+const SEM_PERIODO = 1 << 20
+
+// Convés: tábuas compridas ao longo do comprimento do navio (na horizontal),
+// quatro por casa (~37 cm cada: tábua larga de convés), com as emendas das
+// pontas desencontradas fila a fila. A junta é larga e macia, de contraste
+// baixo (de longe, nenhuma risca fina); o veio corre ao longo da tábua,
+// fraco; uma ou outra tábua mais clara ou mais escura; cavilhas quase
+// invisíveis nas pontas. Nos marrons do convés do mestre (#2e1a0c).
+
+const CONVES_CASAS = 8
+const CONVES_TABUAS_POR_CASA = 4
+const CONVES_FILAS = CONVES_CASAS * CONVES_TABUAS_POR_CASA
+/** Comprimento das tábuas, em casas (3 a 4,5 m). */
+const CONVES_COMPRIMENTO = [2, 3] as const
+/** Duas emendas de filas vizinhas nunca ficam mais perto que isto, em casas. */
+const CONVES_EMENDA_MINIMA = 0.6
+const CONVES_TONS: readonly Rgb[] = [rgb('#2e1a0c'), rgb('#311c0d'), rgb('#2c190b'), rgb('#331e0e'), rgb('#2f1b0c')]
+
+/** As emendas de cada fila (início de cada tábua, em [0, 1) do ladrilho), em ordem. */
+let emendasDoConves: readonly (readonly number[])[] | null = null
+
+function emendas(): readonly (readonly number[])[] {
+  if (emendasDoConves !== null) return emendasDoConves
+  const sorteio = sorteador(301)
+  const filas: number[][] = []
+  for (let f = 0; f < CONVES_FILAS; f += 1) {
+    const anterior = f > 0 ? filas[f - 1] : []
+    let melhor: number[] = []
+    // Algumas tentativas até nenhuma emenda cair perto da emenda da fila de cima.
+    for (let tentativa = 0; tentativa < 12; tentativa += 1) {
+      const quantas = Math.max(1, Math.round(CONVES_CASAS / (CONVES_COMPRIMENTO[0] + (CONVES_COMPRIMENTO[1] - CONVES_COMPRIMENTO[0]) * sorteio())))
+      const pesos = Array.from({ length: quantas }, () => 0.75 + 0.5 * sorteio())
+      const soma = pesos.reduce((a, b) => a + b, 0)
+      const inicio = sorteio()
+      let pos = inicio
+      const fila = pesos.map((p) => {
+        const aqui = naVoltaDoLadrilho(pos)
+        pos += p / soma
+        return aqui
+      })
+      fila.sort((a, b) => a - b)
+      melhor = fila
+      const perto = fila.some((e) => anterior.some((a) => Math.abs(naVolta(e - a)) * CONVES_CASAS < CONVES_EMENDA_MINIMA))
+      if (!perto) break
+    }
+    filas.push(melhor)
+  }
+  emendasDoConves = filas
+  return filas
+}
+
+function conves(u: number, v: number): number {
+  // Meia tábua de deslocamento: a emenda do ladrilho cai no meio da tábua, nunca numa junta.
+  const y = naVoltaDoLadrilho(v) * CONVES_FILAS + 0.5
+  const fila = Math.floor(y) % CONVES_FILAS
+  const fy = y - Math.floor(y)
+  const doFila = emendas()[fila]
+  const x = naVoltaDoLadrilho(u)
+  // A tábua: a última emenda antes de x (dando a volta).
+  let k = doFila.length - 1
+  for (let i = 0; i < doFila.length; i += 1) if (doFila[i] <= x) k = i
+  const inicio = doFila[k]
+  const fim = doFila[(k + 1) % doFila.length]
+  // Em casas, ao longo da tábua: contínuo através da emenda do ladrilho.
+  const lx = naVoltaDoLadrilho(x - inicio) * CONVES_CASAS
+  const comprimento = (naVoltaDoLadrilho(fim - inicio) || 1) * CONVES_CASAS
+  const tabua = Math.round(inicio * 4096) + fila * 7919
+  let c = CONVES_TONS[Math.floor(hash(tabua, fila, 302) * CONVES_TONS.length) % CONVES_TONS.length]
+  c = luz(c, (hash(tabua, fila, 303) - 0.5) * 0.07)
+  // O veio: manchas compridas ao longo da tábua, fracas, um pouco onduladas.
+  const onda = (valor(lx * 0.6, fy * 2, SEM_PERIODO, tabua) - 0.5) * 0.5
+  const veio = valor(lx * 1.1, (fy + onda) * 3, SEM_PERIODO, tabua + 1) - 0.5
+  const no = valor(lx * 0.35, fy * 1.2, SEM_PERIODO, tabua + 2) - 0.5
+  c = luz(c, veio * 0.07 + no * 0.06)
+  // Juntas: as compridas entre as filas e as das pontas, largas e macias.
+  const borda = Math.min(fy, 1 - fy)
+  const ponta = Math.min(lx, comprimento - lx) * CONVES_TABUAS_POR_CASA
+  const junta = Math.max(passoSuave(0.13, 0, borda), passoSuave(0.1, 0, ponta) * 0.85)
+  // A beirada da tábua de baixo da junta pega a luz (vem de cima); a de cima fica na sombra.
+  const chanfro = passoSuave(0.22, 0.05, fy) * 0.035 - passoSuave(0.78, 0.95, fy) * 0.035
+  c = luz(c, chanfro - junta * 0.2)
+  // Cavilhas nas pontas da tábua, quase invisíveis.
+  let cavilha = 0
+  for (const ly of [0.3, 0.7]) {
+    for (const px of [0.22, comprimento * CONVES_TABUAS_POR_CASA - 0.22]) {
+      const d = Math.hypot(lx * CONVES_TABUAS_POR_CASA - px, fy - ly)
+      cavilha = Math.max(cavilha, passoSuave(0.07, 0.03, d))
+    }
+  }
+  c = luz(c, -0.07 * cavilha)
+  return empacotar(luz(c, (valor(u * 640, v * 640, 640, 304) - 0.5) * 0.03))
+}
+
+// Lajotas de pedra: o piso de uma base militar (a da Marinha, de One Piece):
+// lajotas retangulares grandes (1 × ½ casa) em fiada, a fila de baixo meia
+// lajota adiante; pedra clara e limpa entre o cinza e o bege, cada lajota no
+// seu tom, juntas finas e macias, o chanfro de cima à esquerda pegando a luz.
+
+const LAJOTA_CASAS = 8
+const LAJOTA_FILAS = LAJOTA_CASAS * 2
+const LAJOTA_TONS: readonly Rgb[] = [rgb('#cdc8bc'), rgb('#c9c5bc'), rgb('#cfc9bc'), rgb('#c7c3b9'), rgb('#ccc6b9'), rgb('#c9c4b8')]
+const LAJOTA_JUNTA = rgb('#a9a397')
+
+function lajotas(u: number, v: number): number {
+  // A emenda do ladrilho cai no meio das lajotas (um quarto e três quartos), nunca numa junta.
+  const y = naVoltaDoLadrilho(v) * LAJOTA_FILAS + 0.5
+  const fila = Math.floor(y) % LAJOTA_FILAS
+  const fy = y - Math.floor(y)
+  const x = naVoltaDoLadrilho(u) * LAJOTA_CASAS + (fila % 2 === 1 ? 0.75 : 0.25)
+  const coluna = Math.floor(x) % LAJOTA_CASAS
+  const fx = x - Math.floor(x)
+  let c = LAJOTA_TONS[Math.floor(hash(coluna, fila, 311) * LAJOTA_TONS.length) % LAJOTA_TONS.length]
+  c = luz(c, (hash(coluna, fila, 312) - 0.5) * 0.025)
+  // A superfície: manchas largas e fracas da pedra e o grão miúdo.
+  c = luz(c, fbm(u, v, 12, 3, 313) * 0.025 + (valor(u * 700, v * 700, 700, 314) - 0.5) * 0.035)
+  // Distância às bordas da lajota, em casas (a lajota tem 1 × ½ casa).
+  const bx = Math.min(fx, 1 - fx)
+  const by = Math.min(fy, 1 - fy) * 0.5
+  const borda = Math.min(bx, by)
+  // Chanfro: o lado de cima à esquerda clareia, o de baixo à direita escurece.
+  const cima = Math.min(fx, fy * 0.5)
+  const baixo = Math.min(1 - fx, (1 - fy) * 0.5)
+  c = luz(c, passoSuave(0.05, 0.015, cima) * 0.04 - passoSuave(0.05, 0.015, baixo) * 0.045)
+  c = misturar(c, LAJOTA_JUNTA, passoSuave(0.022, 0.006, borda) * 0.75)
+  return empacotar(c)
+}
+
 /** A biblioteca inicial, na ordem do painel (do litoral para a montanha). */
 export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'areia', nome: 'Areia', escala: 36, cor: areia },
@@ -719,6 +866,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'terra', nome: 'Terra', escala: TERRA_ESCALA, lado: LADO_GRANDE, cor: terra },
   { id: 'pedra', nome: 'Serra', escala: 56, cor: pedra },
   { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
+  // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
+  { id: 'conves', nome: 'Convés', escala: 64, casas: CONVES_CASAS, lado: LADO_MAIOR, cor: conves },
+  { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, cor: lajotas },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */
