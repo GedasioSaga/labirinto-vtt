@@ -52,6 +52,13 @@ export interface DefinicaoDeTextura {
    * não contra o tamanho do mapa.
    */
   casas?: number
+  /**
+   * Esta textura é uma FORMA de outra (pedido de 10/10/2026: "versão clara e
+   * a escura"): as do mesmo `grupo` viram um cartão só no painel, com o `nome`
+   * da primeira, e o clique abre a escolha entre elas pelo `nome` da forma.
+   * O mapa guarda o id da forma; pincel, rede e desenho não sabem de grupo.
+   */
+  forma?: { grupo: string; nome: string }
 }
 
 /** O ladrilho maior, das texturas de período longo (Bosque, Pântano, Terra). */
@@ -821,36 +828,65 @@ function conves(u: number, v: number): number {
 
 // Lajotas de pedra: o piso de uma base militar (a da Marinha, de One Piece):
 // lajotas retangulares grandes (1 × ½ casa) em fiada, a fila de baixo meia
-// lajota adiante; pedra clara e limpa entre o cinza e o bege, cada lajota no
-// seu tom, juntas finas e macias, o chanfro de cima à esquerda pegando a luz.
+// lajota adiante; cada lajota no seu tom, juntas finas e macias, o chanfro de
+// cima à esquerda pegando a luz. Duas formas, o mesmo desenho em dois tons:
+// a CLARA, pedra limpa entre o cinza e o bege; a ESCURA, grafite neutro
+// (pedido de 10/10/2026: "versão clara e a escura, cinza escuro").
 
 const LAJOTA_CASAS = 8
 const LAJOTA_FILAS = LAJOTA_CASAS * 2
-const LAJOTA_TONS: readonly Rgb[] = [rgb('#cdc8bc'), rgb('#c9c5bc'), rgb('#cfc9bc'), rgb('#c7c3b9'), rgb('#ccc6b9'), rgb('#c9c4b8')]
-const LAJOTA_JUNTA = rgb('#a9a397')
 
-function lajotas(u: number, v: number): number {
-  // A emenda do ladrilho cai no meio das lajotas (um quarto e três quartos), nunca numa junta.
-  const y = naVoltaDoLadrilho(v) * LAJOTA_FILAS + 0.5
-  const fila = Math.floor(y) % LAJOTA_FILAS
-  const fy = y - Math.floor(y)
-  const x = naVoltaDoLadrilho(u) * LAJOTA_CASAS + (fila % 2 === 1 ? 0.75 : 0.25)
-  const coluna = Math.floor(x) % LAJOTA_CASAS
-  const fx = x - Math.floor(x)
-  let c = LAJOTA_TONS[Math.floor(hash(coluna, fila, 311) * LAJOTA_TONS.length) % LAJOTA_TONS.length]
-  c = luz(c, (hash(coluna, fila, 312) - 0.5) * 0.025)
-  // A superfície: manchas largas e fracas da pedra e o grão miúdo.
-  c = luz(c, fbm(u, v, 12, 3, 313) * 0.025 + (valor(u * 700, v * 700, 700, 314) - 0.5) * 0.035)
-  // Distância às bordas da lajota, em casas (a lajota tem 1 × ½ casa).
-  const bx = Math.min(fx, 1 - fx)
-  const by = Math.min(fy, 1 - fy) * 0.5
-  const borda = Math.min(bx, by)
-  // Chanfro: o lado de cima à esquerda clareia, o de baixo à direita escurece.
-  const cima = Math.min(fx, fy * 0.5)
-  const baixo = Math.min(1 - fx, (1 - fy) * 0.5)
-  c = luz(c, passoSuave(0.05, 0.015, cima) * 0.04 - passoSuave(0.05, 0.015, baixo) * 0.045)
-  c = misturar(c, LAJOTA_JUNTA, passoSuave(0.022, 0.006, borda) * 0.75)
-  return empacotar(c)
+interface TomDaLajota {
+  /** Os tons das lajotas: cada uma sorteia o seu. */
+  tons: readonly Rgb[]
+  /** A cor da junta, que a borda da lajota mistura (três quartos no fio dela). */
+  junta: Rgb
+  /** Quanto o chanfro de cima à esquerda clareia e o de baixo à direita escurece (fração da luz). */
+  chanfro: { luz: number; sombra: number }
+}
+
+const LAJOTAS_CLARAS: TomDaLajota = {
+  tons: [rgb('#cdc8bc'), rgb('#c9c5bc'), rgb('#cfc9bc'), rgb('#c7c3b9'), rgb('#ccc6b9'), rgb('#c9c4b8')],
+  junta: rgb('#a9a397'),
+  chanfro: { luz: 0.04, sombra: 0.045 },
+}
+
+/**
+ * Grafite neutro: a pedra em #4a4946 e vizinhos (um nada mais quente no
+ * vermelho, para não ficar azulada), a junta #353432 ESCURECE a pedra. O
+ * chanfro sobe para 7 % porque a luz é multiplicada: 4 % de uma pedra tão
+ * escura sumia (~3 níveis); 7 % dá uns 5 níveis, o fio se lê e não brilha.
+ */
+const LAJOTAS_ESCURAS: TomDaLajota = {
+  tons: [rgb('#4a4946'), rgb('#474643'), rgb('#4c4b48'), rgb('#484744'), rgb('#4b4a46'), rgb('#464542')],
+  junta: rgb('#353432'),
+  chanfro: { luz: 0.07, sombra: 0.07 },
+}
+
+function lajotasNoTom({ tons, junta, chanfro }: TomDaLajota): (u: number, v: number) => number {
+  return (u, v) => {
+    // A emenda do ladrilho cai no meio das lajotas (um quarto e três quartos), nunca numa junta.
+    const y = naVoltaDoLadrilho(v) * LAJOTA_FILAS + 0.5
+    const fila = Math.floor(y) % LAJOTA_FILAS
+    const fy = y - Math.floor(y)
+    const x = naVoltaDoLadrilho(u) * LAJOTA_CASAS + (fila % 2 === 1 ? 0.75 : 0.25)
+    const coluna = Math.floor(x) % LAJOTA_CASAS
+    const fx = x - Math.floor(x)
+    let c = tons[Math.floor(hash(coluna, fila, 311) * tons.length) % tons.length]
+    c = luz(c, (hash(coluna, fila, 312) - 0.5) * 0.025)
+    // A superfície: manchas largas e fracas da pedra e o grão miúdo.
+    c = luz(c, fbm(u, v, 12, 3, 313) * 0.025 + (valor(u * 700, v * 700, 700, 314) - 0.5) * 0.035)
+    // Distância às bordas da lajota, em casas (a lajota tem 1 × ½ casa).
+    const bx = Math.min(fx, 1 - fx)
+    const by = Math.min(fy, 1 - fy) * 0.5
+    const borda = Math.min(bx, by)
+    // Chanfro: o lado de cima à esquerda clareia, o de baixo à direita escurece.
+    const cima = Math.min(fx, fy * 0.5)
+    const baixo = Math.min(1 - fx, (1 - fy) * 0.5)
+    c = luz(c, passoSuave(0.05, 0.015, cima) * chanfro.luz - passoSuave(0.05, 0.015, baixo) * chanfro.sombra)
+    c = misturar(c, junta, passoSuave(0.022, 0.006, borda) * 0.75)
+    return empacotar(c)
+  }
 }
 
 /** A biblioteca inicial, na ordem do painel (do litoral para a montanha). */
@@ -868,7 +904,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
   // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
   { id: 'conves', nome: 'Convés', escala: 64, casas: CONVES_CASAS, lado: LADO_MAIOR, cor: conves },
-  { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, cor: lajotas },
+  // As formas de um grupo ficam juntas, a primeira é a que o cartão escolhe na primeira vez.
+  { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Clara' }, cor: lajotasNoTom(LAJOTAS_CLARAS) },
+  { id: 'lajotas-escuras', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Escura' }, cor: lajotasNoTom(LAJOTAS_ESCURAS) },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

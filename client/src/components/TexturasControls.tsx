@@ -1,10 +1,22 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import type { TexturaImportada } from '../types/map'
 import { FORCA_MAX, FORCA_MIN, TAMANHO_DO_PINCEL_MAX, TAMANHO_DO_PINCEL_MIN, type ModoDaTextura } from '../lib/texturas'
 import { escolherImagemDeTextura, ladrilhoDaImagem, nomeDoArquivo } from '../lib/texturaImportada'
 import { ImagePickerUnavailableError } from '../lib/imageImport'
-import { assinarTexturas, listarTexturas, type TexturaDoCatalogo } from '../texturas/catalogo'
+import { agruparPorForma, assinarTexturas, listarTexturas, type GrupoDeFormas, type TexturaDoCatalogo } from '../texturas/catalogo'
+import { theme } from '../theme'
 import { FATIA_DO_LADRILHO_MS, LADO_DA_MINIATURA, pixelsEmFatias } from '../texturas/ladrilhos'
 import { mapaDoPiso } from '../lib/pisos'
 import { useMapStore } from '../stores/mapStore'
@@ -77,11 +89,155 @@ function MiniaturaDoCatalogo({ textura }: { textura: TexturaDoCatalogo }) {
 }
 
 // ---------------------------------------------------------------------------
+// Painel de formas: a textura que tem mais de uma (Lajotas Clara | Escura).
+
+/** Só o gesto do ponteiro anima o painel; aberto ou fechado pelo teclado, ele troca de uma vez. */
+type Movimento = 'abrindo' | 'fechando'
+
+/** Fechando, o painel fica na árvore o tempo da saída (o `fast` da casa) e mais um respiro. */
+const FECHA_MS = Number.parseFloat(theme.motion.fast)
+const FOLGA_MS = 20
+
+interface FecharPainel {
+  /** Gesto do ponteiro: sai com movimento. */
+  comMovimento: boolean
+  /** Escolheu ou desistiu (Esc): o foco volta ao cartão. Clique fora e Tab deixam o foco onde foi. */
+  devolverFoco: boolean
+}
+
+interface PainelDeFormasProps {
+  grupo: GrupoDeFormas
+  escolhida: string
+  movimento: Movimento | undefined
+  /** O cartão que abriu o painel: a âncora da posição e da origem do movimento. */
+  cartao: () => HTMLButtonElement | undefined
+  onEscolher: (id: string) => void
+  onFechar: (como: FecharPainel) => void
+}
+
+/**
+ * O painelzinho que abre do cartão de uma textura com formas (pedido de
+ * 10/10/2026: "se ela tiver mais de uma forma abre um pequeno painel onde eu
+ * possa escolher"). Um grupo de rádio como a grade: setas andam e já escolhem,
+ * clique ou Enter escolhe e fecha, Esc fecha e devolve o foco ao cartão.
+ *
+ * Nasce colado ao cartão, centrado nele e preso à largura da biblioteca;
+ * embaixo, ou em cima quando embaixo passaria da janela. A origem da escala é
+ * o próprio cartão, para o painel brotar dele.
+ */
+function PainelDeFormas({ grupo, escolhida, movimento, cartao, onEscolher, onFechar }: PainelDeFormasProps) {
+  const ref = useRef<HTMLDivElement>(null)
+  const indiceEscolhido = grupo.formas.findIndex((f) => f.id === escolhida)
+
+  useLayoutEffect(() => {
+    const raiz = ref.current
+    const ancora = cartao()
+    if (!raiz || !ancora) return
+    const estilo = getComputedStyle(raiz)
+    const folga = Number.parseFloat(estilo.getPropertyValue('--lb-space-1')) || 0
+    const bordaDaJanela = Number.parseFloat(estilo.getPropertyValue('--lb-layout-edge-gap')) || 0
+    // Cada forma do tamanho do cartão: a miniatura se lê igual nas duas.
+    raiz.style.setProperty('--lb-formas-lado', `${ancora.offsetWidth}px`)
+    const largura = raiz.offsetWidth
+    const altura = raiz.offsetHeight
+    const caixa = raiz.offsetParent instanceof HTMLElement ? raiz.offsetParent.clientWidth : largura
+    const centro = ancora.offsetLeft + ancora.offsetWidth / 2
+    const esquerda = Math.min(Math.max(0, centro - largura / 2), Math.max(0, caixa - largura))
+    const tela = ancora.getBoundingClientRect()
+    const cabeEmbaixo = tela.bottom + folga + altura <= window.innerHeight - bordaDaJanela
+    const cabeEmCima = tela.top - folga - altura >= bordaDaJanela
+    const embaixo = cabeEmbaixo || !cabeEmCima
+    raiz.style.left = `${esquerda}px`
+    raiz.style.top = `${embaixo ? ancora.offsetTop + ancora.offsetHeight + folga : ancora.offsetTop - folga - altura}px`
+    raiz.style.transformOrigin = `${centro - esquerda}px ${embaixo ? 0 : altura}px`
+    // `preventScroll`: o foco não rola o painel lateral para alcançar o painelzinho.
+    raiz.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus({ preventScroll: true })
+    // Só na abertura: escolher outra forma não reposiciona nem rouba o foco.
+  }, [])
+
+  const opcoes = () => Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])
+
+  const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key === 'Escape') {
+      // Não deixa o Esc subir e fechar mais alguma coisa além do painel.
+      evento.preventDefault()
+      evento.stopPropagation()
+      onFechar({ comMovimento: false, devolverFoco: true })
+      return
+    }
+    const atual = indiceEscolhido < 0 ? 0 : indiceEscolhido
+    const passo: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
+    let proximo: number | null = null
+    if (evento.key in passo) proximo = Math.min(grupo.formas.length - 1, Math.max(0, atual + passo[evento.key]))
+    else if (evento.key === 'Home') proximo = 0
+    else if (evento.key === 'End') proximo = grupo.formas.length - 1
+    if (proximo === null) return
+    evento.preventDefault()
+    onEscolher(grupo.formas[proximo].id)
+    opcoes()[proximo]?.focus()
+  }
+
+  /** Tab para fora fecha; voltar ao cartão (Shift+Tab, ou o clique nele) não: quem decide é o cartão. */
+  const sair = (evento: FocusEvent<HTMLDivElement>) => {
+    const destino = evento.relatedTarget
+    if (!(destino instanceof Node) || evento.currentTarget.contains(destino) || cartao()?.contains(destino)) return
+    onFechar({ comMovimento: false, devolverFoco: false })
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={`Formas de ${grupo.nome}`}
+      className="lb-panel lb-texturas__formas"
+      data-movimento={movimento}
+      inert={movimento === 'fechando'}
+      onKeyDown={teclar}
+      onBlur={sair}
+    >
+      <div className="lb-texturas__formas-grade" role="radiogroup" aria-label="Forma">
+        {grupo.formas.map((forma, i) => {
+          const marcada = forma.id === escolhida
+          return (
+            <button
+              key={forma.id}
+              type="button"
+              role="radio"
+              aria-checked={marcada}
+              tabIndex={marcada || (indiceEscolhido < 0 && i === 0) ? 0 : -1}
+              className="lb-texturas__opcao"
+              onClick={(evento) => {
+                onEscolher(forma.id)
+                onFechar({ comMovimento: evento.detail > 0, devolverFoco: true })
+              }}
+            >
+              <MiniaturaDoCatalogo textura={forma} />
+              <span className="lb-texturas__nome">{forma.forma?.nome ?? forma.nome}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Dois quadradinhos sobrepostos no canto da miniatura: este cartão tem mais de uma forma. */
+function SeloDeFormas() {
+  return (
+    <svg className="lb-texturas__selo" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <rect x="1" y="1" width="7" height="7" rx="1.5" />
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
 
 interface ItemDaBiblioteca {
-  id: string
+  /** O id da textura sozinha (ou da importada); nas formas, o da primeira, só como chave. */
+  chave: string
   nome: string
-  catalogo?: TexturaDoCatalogo
+  grupo?: GrupoDeFormas
   importada?: TexturaImportada
 }
 
@@ -89,6 +245,13 @@ const SEM_IMPORTADAS: readonly TexturaImportada[] = []
 
 /** As colunas da grade (o CSS usa as mesmas três): as setas sobem e descem de três em três. */
 const COLUNAS = 3
+
+/** A memória da última forma de cada grupo, com `id` lembrado se ele for uma forma de um grupo de verdade. */
+function lembrarForma(memoria: ReadonlyMap<string, string>, grupos: readonly GrupoDeFormas[], id: string): ReadonlyMap<string, string> {
+  const grupo = grupos.find((g) => g.formas.length > 1 && g.formas.some((f) => f.id === id))
+  if (grupo === undefined || memoria.get(grupo.grupo) === id) return memoria
+  return new Map(memoria).set(grupo.grupo, id)
+}
 
 /**
  * Painel da ferramenta Texturas (`lib/texturas.ts`): o que o PRÓXIMO gesto faz
@@ -117,15 +280,82 @@ export function TexturasControls() {
   const remover = useMapStore((s) => s.removerTexturaImportada)
   const apagarTodas = useMapStore((s) => s.apagarTodasAsTexturas)
   const catalogo = useSyncExternalStore(assinarTexturas, listarTexturas)
+  const grupos = useMemo(() => agruparPorForma(catalogo), [catalogo])
   const [importando, setImportando] = useState(false)
+  // A última forma usada de cada grupo: o cartão volta a ela (a primeira, na primeira vez).
+  const [lembradas, setLembradas] = useState<ReadonlyMap<string, string>>(() => lembrarForma(new Map(), grupos, escolhida))
+  const [painel, setPainel] = useState<{ grupo: string; movimento?: Movimento } | null>(null)
   const grade = useRef<HTMLDivElement>(null)
+  const biblioteca = useRef<HTMLDivElement>(null)
+  const idDasFormas = useId()
 
   const itens: ItemDaBiblioteca[] = [
-    ...catalogo.map((t) => ({ id: t.id, nome: t.nome, catalogo: t })),
-    ...importadas.map((t) => ({ id: t.id, nome: t.nome, importada: t })),
+    ...grupos.map((g) => ({ chave: g.formas[0].id, nome: g.nome, grupo: g })),
+    ...importadas.map((t) => ({ chave: t.id, nome: t.nome, importada: t })),
   ]
-  const indiceEscolhido = itens.findIndex((item) => item.id === escolhida)
+  /** A forma que o cartão do grupo mostra e escolhe: a escolhida, se for dele; senão a última usada; senão a primeira. */
+  const formaDoGrupo = (g: GrupoDeFormas): TexturaDoCatalogo =>
+    g.formas.find((f) => f.id === escolhida) ?? g.formas.find((f) => f.id === lembradas.get(g.grupo)) ?? g.formas[0]
+  const idDoItem = (item: ItemDaBiblioteca) => (item.grupo !== undefined ? formaDoGrupo(item.grupo).id : item.chave)
+  const marcado = (item: ItemDaBiblioteca) => (item.grupo !== undefined ? item.grupo.formas.some((f) => f.id === escolhida) : item.chave === escolhida)
+  const indiceEscolhido = itens.findIndex(marcado)
   const importadaEscolhida = importadas.find((t) => t.id === escolhida)
+  const grupoDoPainel = painel === null ? undefined : grupos.find((g) => g.grupo === painel.grupo && g.formas.length > 1)
+  const painelAberto = grupoDoPainel !== undefined && painel?.movimento !== 'fechando'
+
+  const escolher = (id: string) => {
+    setEscolhida(id)
+    setLembradas((memoria) => lembrarForma(memoria, grupos, id))
+  }
+
+  const cartaoDoGrupo = (grupo: string) =>
+    Array.from(grade.current?.querySelectorAll<HTMLButtonElement>('[data-grupo]') ?? []).find((b) => b.dataset.grupo === grupo)
+
+  const fecharPainel = ({ comMovimento, devolverFoco }: FecharPainel) => {
+    // Já saindo, a saída segue até o fim (o foco que volta ao cartão não a corta).
+    setPainel((atual) => (atual === null || atual.movimento === 'fechando' ? atual : comMovimento ? { ...atual, movimento: 'fechando' } : null))
+    if (devolverFoco && painel !== null) cartaoDoGrupo(painel.grupo)?.focus({ preventScroll: true })
+  }
+
+  /** Cartão com formas: escolhe a forma de sempre e abre o painel (ou fecha, se ele já está aberto). */
+  const clicarNoCartao = (item: ItemDaBiblioteca, evento: MouseEvent<HTMLButtonElement>) => {
+    const grupo = item.grupo
+    if (grupo === undefined || grupo.formas.length < 2) {
+      escolher(idDoItem(item))
+      return
+    }
+    // `detail` 0 é o clique que o Enter e o Espaço disparam: teclado não anima.
+    const comMovimento = evento.detail > 0
+    if (painelAberto && painel?.grupo === grupo.grupo) {
+      fecharPainel({ comMovimento, devolverFoco: false })
+      return
+    }
+    escolher(formaDoGrupo(grupo).id)
+    setPainel({ grupo: grupo.grupo, movimento: comMovimento ? 'abrindo' : undefined })
+  }
+
+  // Fechando: sai da árvore quando a saída acaba.
+  useEffect(() => {
+    if (painel?.movimento !== 'fechando') return
+    const timer = setTimeout(() => setPainel((atual) => (atual?.movimento === 'fechando' ? null : atual)), FECHA_MS + FOLGA_MS)
+    return () => clearTimeout(timer)
+  }, [painel])
+
+  // Clique fora (no mapa, noutro cartão, noutro controle) fecha com movimento. O
+  // próprio cartão não conta: o clique nele é que decide (fecha o que está aberto).
+  const grupoAberto = painelAberto ? painel?.grupo : undefined
+  useEffect(() => {
+    if (grupoAberto === undefined) return
+    const fora = (evento: Event) => {
+      const alvo = evento.target
+      if (!(alvo instanceof Node)) return
+      if (biblioteca.current?.querySelector('.lb-texturas__formas')?.contains(alvo)) return
+      if (cartaoDoGrupo(grupoAberto)?.contains(alvo)) return
+      setPainel((atual) => (atual === null || atual.movimento === 'fechando' ? atual : { ...atual, movimento: 'fechando' }))
+    }
+    document.addEventListener('pointerdown', fora, true)
+    return () => document.removeEventListener('pointerdown', fora, true)
+  }, [grupoAberto])
   const dicaDoModo = MODOS.find((m) => m.modo === modo)?.dica ?? ''
 
   const avisar = (erro: unknown) => {
@@ -158,7 +388,12 @@ export function TexturasControls() {
     }
   }
 
-  /** Setas andam pela grade (três por linha), Home e End vão às pontas: o grupo de rádio de sempre. */
+  /**
+   * Setas andam pela grade (três por linha), Home e End vão às pontas: o grupo
+   * de rádio de sempre, de cartão em cartão. No cartão com formas, a seta
+   * escolhe a forma de sempre dele, sem abrir o painel (quem abre é o clique,
+   * o Enter ou o Espaço).
+   */
   const navegar = (evento: KeyboardEvent<HTMLDivElement>) => {
     const atual = indiceEscolhido < 0 ? 0 : indiceEscolhido
     const passo: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: COLUNAS, ArrowUp: -COLUNAS }
@@ -168,8 +403,16 @@ export function TexturasControls() {
     else if (evento.key === 'End') proximo = itens.length - 1
     if (proximo === null) return
     evento.preventDefault()
-    setEscolhida(itens[proximo].id)
+    escolher(idDoItem(itens[proximo]))
     grade.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[proximo]?.focus()
+  }
+
+  /** Esc com o foco de volta no cartão (Shift+Tab saindo do painel) também fecha. */
+  const escDaBiblioteca = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key !== 'Escape' || !painelAberto) return
+    evento.preventDefault()
+    evento.stopPropagation()
+    fecharPainel({ comMovimento: false, devolverFoco: true })
   }
 
   return (
@@ -183,7 +426,11 @@ export function TexturasControls() {
             role="radio"
             aria-checked={modo === opcao.modo}
             className="lb-seg__option"
-            onClick={() => setModo(opcao.modo)}
+            onClick={() => {
+              // A borracha esconde a biblioteca: o painel de formas não fica esperando por ela.
+              setPainel(null)
+              setModo(opcao.modo)
+            }}
           >
             {opcao.rotulo}
           </button>
@@ -194,30 +441,58 @@ export function TexturasControls() {
       {modo !== 'borracha' && (
         <>
           <h2 className="lb-eyebrow">Textura</h2>
-          <div ref={grade} className="lb-texturas__grade" role="radiogroup" aria-label="Textura" onKeyDown={navegar}>
-            {itens.map((item, i) => {
-              const marcada = item.id === escolhida
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={marcada}
-                  // Um só ponto de parada do Tab no grupo; as setas andam dentro dele.
-                  tabIndex={marcada || (indiceEscolhido < 0 && i === 0) ? 0 : -1}
-                  className="lb-texturas__opcao"
-                  title={item.nome}
-                  onClick={() => setEscolhida(item.id)}
-                >
-                  {item.catalogo !== undefined ? (
-                    <MiniaturaDoCatalogo textura={item.catalogo} />
-                  ) : (
-                    <img className="lb-texturas__miniatura" src={item.importada?.imagem} alt="" draggable={false} />
-                  )}
-                  <span className="lb-texturas__nome">{item.nome}</span>
-                </button>
-              )
-            })}
+          <div ref={biblioteca} className="lb-texturas__biblioteca" onKeyDown={escDaBiblioteca}>
+            <div ref={grade} className="lb-texturas__grade" role="radiogroup" aria-label="Textura" onKeyDown={navegar}>
+              {itens.map((item, i) => {
+                const marcada = marcado(item)
+                const formas = item.grupo !== undefined && item.grupo.formas.length > 1 ? item.grupo : undefined
+                const mostrada = item.grupo !== undefined ? formaDoGrupo(item.grupo) : undefined
+                return (
+                  <button
+                    key={item.chave}
+                    type="button"
+                    role="radio"
+                    aria-checked={marcada}
+                    aria-describedby={formas !== undefined ? `${idDasFormas}-${formas.grupo}` : undefined}
+                    data-grupo={formas?.grupo}
+                    // Um só ponto de parada do Tab no grupo; as setas andam dentro dele.
+                    tabIndex={marcada || (indiceEscolhido < 0 && i === 0) ? 0 : -1}
+                    className="lb-texturas__opcao"
+                    title={formas !== undefined ? `${item.nome}: ${mostrada?.forma?.nome ?? ''}` : item.nome}
+                    onClick={(evento) => clicarNoCartao(item, evento)}
+                  >
+                    {mostrada !== undefined ? (
+                      <span className="lb-texturas__quadro">
+                        <MiniaturaDoCatalogo textura={mostrada} />
+                        {formas !== undefined && <SeloDeFormas />}
+                      </span>
+                    ) : (
+                      <img className="lb-texturas__miniatura" src={item.importada?.imagem} alt="" draggable={false} />
+                    )}
+                    <span className="lb-texturas__nome">{item.nome}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {/* A descrição dos cartões com formas, para o leitor de tela: o nome fica só o da textura. */}
+            {grupos
+              .filter((g) => g.formas.length > 1)
+              .map((g) => (
+                <span key={g.grupo} id={`${idDasFormas}-${g.grupo}`} hidden>
+                  {`Formas: ${g.formas.map((f) => f.forma?.nome ?? f.nome).join(', ')}. Enter abre a escolha.`}
+                </span>
+              ))}
+            {grupoDoPainel !== undefined && (
+              <PainelDeFormas
+                key={grupoDoPainel.grupo}
+                grupo={grupoDoPainel}
+                escolhida={escolhida}
+                movimento={painel?.movimento}
+                cartao={() => cartaoDoGrupo(grupoDoPainel.grupo)}
+                onEscolher={escolher}
+                onFechar={fecharPainel}
+              />
+            )}
           </div>
           {importadaEscolhida !== undefined && (
             <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => remover(importadaEscolhida.id)}>

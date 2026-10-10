@@ -35,6 +35,38 @@ export function assinarTexturas(ouvinte: () => void): () => void {
   }
 }
 
+/** Um cartão da biblioteca: uma textura sozinha, ou as formas de uma (Lajotas Clara e Escura). */
+export interface GrupoDeFormas {
+  /** O `forma.grupo` das formas; o id, na textura sozinha. */
+  grupo: string
+  /** O nome do cartão: o da primeira forma. */
+  nome: string
+  /** Na ordem da lista; a primeira é a que o cartão escolhe na primeira vez. */
+  formas: readonly TexturaDoCatalogo[]
+}
+
+/**
+ * Junta as formas de uma mesma textura num cartão só, na ordem da lista: o
+ * grupo fica onde a primeira forma dele aparece. Textura sem `forma` é um
+ * grupo de uma (as do pacote nunca declaram forma).
+ */
+export function agruparPorForma(texturas: readonly TexturaDoCatalogo[]): GrupoDeFormas[] {
+  const grupos: Array<{ grupo: string; nome: string; formas: TexturaDoCatalogo[] }> = []
+  const comForma = new Map<string, TexturaDoCatalogo[]>()
+  for (const textura of texturas) {
+    const chave = textura.forma?.grupo
+    const existente = chave === undefined ? undefined : comForma.get(chave)
+    if (existente !== undefined) {
+      existente.push(textura)
+      continue
+    }
+    const formas = [textura]
+    if (chave !== undefined) comForma.set(chave, formas)
+    grupos.push({ grupo: chave ?? textura.id, nome: textura.nome, formas })
+  }
+  return grupos
+}
+
 /** A textura do id, ou `null` (importada, ou de um pacote que este aparelho ainda não tem). */
 export function texturaDoCatalogo(id: string): TexturaDoCatalogo | null {
   return lista.find((t) => t.id === id) ?? null

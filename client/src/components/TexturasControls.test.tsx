@@ -108,6 +108,102 @@ describe('TexturasControls', () => {
     expect(useMapStore.getState().map.texturas).toBeUndefined()
   })
 
+  describe('formas de uma textura (Lajotas: Clara | Escura)', () => {
+    const cartao = () => radios('Textura').find((b) => b.textContent === 'Lajotas de pedra')
+    /** O painel de formas aberto (o que está saindo, no movimento de fechar, não conta). */
+    const painel = () => palco.querySelector<HTMLElement>('[role="dialog"]:not([data-movimento="fechando"])')
+    const formas = () => radios('Forma')
+    const tecla = (alvo: Element | null | undefined, key: string) =>
+      act(() => {
+        alvo?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+      })
+
+    it('o cartão com formas escolhe a Clara na primeira vez e abre o painel com o foco nela', () => {
+      montar()
+      act(() => cartao()?.click())
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas')
+      expect(painel()?.getAttribute('aria-label')).toBe('Formas de Lajotas de pedra')
+      expect(formas().map((b) => b.textContent)).toEqual(['Clara', 'Escura'])
+      expect(formas().map((b) => b.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+      expect(document.activeElement).toBe(formas()[0])
+    })
+
+    it('"Escura" escolhe a forma escura, fecha o painel e devolve o foco ao cartão, que segue marcado', () => {
+      montar()
+      act(() => cartao()?.click())
+      act(() => formas()[1].click())
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas-escuras')
+      expect(painel()).toBeNull()
+      expect(document.activeElement).toBe(cartao())
+      expect(cartao()?.getAttribute('aria-checked')).toBe('true')
+      expect(radios('Textura').filter((b) => b.getAttribute('aria-checked') === 'true')).toHaveLength(1)
+    })
+
+    it('Esc fecha sem trocar a forma e devolve o foco ao cartão', () => {
+      montar()
+      act(() => cartao()?.click())
+      tecla(formas()[0], 'Escape')
+      expect(painel()).toBeNull()
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas')
+      expect(document.activeElement).toBe(cartao())
+    })
+
+    it('setas andam entre as formas e já escolhem; um só ponto de Tab no grupo de formas', () => {
+      montar()
+      act(() => cartao()?.click())
+      tecla(formas()[0], 'ArrowRight')
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas-escuras')
+      expect(document.activeElement).toBe(formas()[1])
+      expect(formas().map((b) => b.tabIndex)).toEqual([-1, 0])
+      tecla(formas()[1], 'Home')
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas')
+      expect(document.activeElement).toBe(formas()[0])
+      // As setas não vazam para a grade de baixo (o cartão continua o mesmo).
+      expect(painel()).not.toBeNull()
+    })
+
+    it('reabrir lembra a última forma usada do grupo', () => {
+      montar()
+      act(() => cartao()?.click())
+      act(() => formas()[1].click())
+      act(() => radios('Textura')[0].click())
+      expect(useMapStore.getState().texturaEscolhida).toBe('areia')
+      act(() => cartao()?.click())
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas-escuras')
+      expect(formas().map((b) => b.getAttribute('aria-checked'))).toEqual(['false', 'true'])
+    })
+
+    it('textura sem forma não abre painel', () => {
+      montar()
+      act(() => radios('Textura')[0].click())
+      expect(palco.querySelector('[role="dialog"]')).toBeNull()
+    })
+
+    it('clique fora fecha o painel; clique de novo no cartão também', () => {
+      montar()
+      act(() => cartao()?.click())
+      act(() => {
+        document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
+      })
+      expect(painel()).toBeNull()
+      act(() => cartao()?.click())
+      expect(painel()).not.toBeNull()
+      act(() => cartao()?.click())
+      expect(painel()).toBeNull()
+    })
+
+    it('na grade, as setas andam por cartão e, nas Lajotas, escolhem a forma de agora sem abrir o painel', () => {
+      useMapStore.getState().setTexturaEscolhida('lajotas-escuras')
+      montar()
+      expect(cartao()?.getAttribute('aria-checked')).toBe('true')
+      tecla(cartao(), 'Home')
+      expect(useMapStore.getState().texturaEscolhida).toBe('areia')
+      tecla(radios('Textura')[0], 'End')
+      expect(useMapStore.getState().texturaEscolhida).toBe('lajotas-escuras')
+      expect(palco.querySelector('[role="dialog"]')).toBeNull()
+    })
+  })
+
   it('tamanho e força mostram o valor e mudam a preferência', () => {
     montar()
     const forca = palco.querySelector<HTMLInputElement>('#lb-textura-forca')

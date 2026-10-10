@@ -84,6 +84,87 @@
   white-space: nowrap;
 }
 
+/* A moldura da miniatura do catálogo: é nela que o selo de formas se ancora. */
+.lb-texturas__quadro {
+  position: relative;
+  display: block;
+}
+
+/* Selo de "tem mais de uma forma": dois quadradinhos sobrepostos no canto de
+   baixo da miniatura, numa pastilha da pedra do painel para se ler sobre a
+   lajota clara e sobre a escura. Discreto: o pergaminho apagado, sem latão,
+   mesmo no cartão marcado (o latão é do marcado, não do selo). */
+.lb-texturas__selo {
+  position: absolute;
+  right: var(--lb-space-1);
+  bottom: var(--lb-space-1);
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  border-radius: calc(var(--lb-radius-sm) - 2px);
+  background: var(--lb-color-stone);
+  box-shadow: var(--lb-shadow-sm);
+  fill: none;
+  stroke: var(--lb-color-parchment-dim);
+  stroke-width: 1.3;
+  pointer-events: none;
+}
+
+.lb-texturas__selo rect + rect {
+  fill: var(--lb-color-stone);
+}
+
+/* A biblioteca é a caixa do painel de formas: ele se posiciona nela (o
+   `offsetParent` dos cartões), com a conta feita em `TexturasControls.tsx`. */
+.lb-texturas__biblioteca {
+  position: relative;
+}
+
+/* PAINEL DE FORMAS: o menu opaco da casa (o mesmo `lb-panel` do menu da cena),
+   com as formas lado a lado, cada uma do tamanho do cartão que o abriu. O raio
+   é o do cartão mais o respiro (6 + 4 ≈ o `md`), para os cantos casarem. */
+.lb-panel.lb-texturas__formas {
+  position: absolute;
+  z-index: 20;
+  padding: var(--lb-space-1);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  /* Fundo opaco: o desfoque do vidro não serve aqui e só custaria na escala. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.lb-texturas__formas-grade {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--lb-formas-lado, minmax(0, 1fr));
+  gap: var(--lb-space-1);
+}
+
+/* Movimento: só quando o PONTEIRO abre ou fecha (o teclado troca de uma vez;
+   o componente nem põe o atributo). Brota do cartão (a origem vem do
+   componente) em opacidade e escala 0,96 → 1 com o ease-out da casa; sai
+   pelo mesmo caminho, mais rápido. Transição, e não keyframes: abrir e fechar
+   rápido inverte de onde está. */
+.lb-texturas__formas[data-movimento] {
+  transition:
+    opacity var(--lb-motion-base) var(--lb-motion-ease),
+    transform var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+.lb-texturas__formas[data-movimento='fechando'] {
+  opacity: 0;
+  transform: scale(0.96);
+  transition-duration: var(--lb-motion-fast);
+}
+
+@starting-style {
+  .lb-texturas__formas[data-movimento='abrindo'] {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-texturas__opcao {
     transition: none;
@@ -91,5 +172,20 @@
 
   .lb-texturas__opcao:active {
     transform: none;
+  }
+
+  /* Menos movimento: o painel só esmaece, sem escala. */
+  .lb-texturas__formas[data-movimento] {
+    transition-property: opacity;
+  }
+
+  .lb-texturas__formas[data-movimento='fechando'] {
+    transform: none;
+  }
+
+  @starting-style {
+    .lb-texturas__formas[data-movimento='abrindo'] {
+      transform: none;
+    }
   }
 }

@@ -76,15 +76,21 @@ function medir(d: Uint8ClampedArray, lado: number): Medidas {
   }
 }
 
+/** O nome que o painel mostra: o da textura e, quando ela é uma forma de um grupo, o da forma. */
+function rotulo(t: (typeof TEXTURAS_EMBUTIDAS)[number]): string {
+  return t.forma === undefined ? t.nome : `${t.nome} (${t.forma.nome})`
+}
+
 describe('biblioteca inicial de texturas', () => {
-  it('tem as treze texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
+  it('tem as texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas'])
-    expect(new Set(TEXTURAS_EMBUTIDAS.map((t) => t.nome)).size).toBe(ids.length)
+    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras'])
+    // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
+    expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
   })
 
   for (const textura of TEXTURAS_EMBUTIDAS) {
-    describe(textura.nome, () => {
+    describe(rotulo(textura), () => {
       const LADO = (textura.lado ?? LADO_PADRAO) / 2
       const pixels = pixelsDoLadrilho(textura.cor, LADO)
       const m = medir(pixels, LADO)
@@ -214,3 +220,64 @@ describe('chãos de masmorra, medidos em casas da grade', () => {
     expect(media).toBeLessThan(0.85)
   })
 })
+
+/** FNV-1a de 32 bits dos pixels: a impressão digital do ladrilho. */
+function impressaoDigital(d: Uint8ClampedArray): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < d.length; i += 1) h = Math.imul(h ^ d[i], 0x01000193) >>> 0
+  return h
+}
+
+describe('Lajotas de pedra em duas formas, Clara e Escura (pedido de 10/10/2026)', () => {
+  it('as duas formam o grupo "lajotas": a clara primeiro, com o mesmo nome de cartão', () => {
+    expect(texturaDe('lajotas').forma).toEqual({ grupo: 'lajotas', nome: 'Clara' })
+    expect(texturaDe('lajotas-escuras').forma).toEqual({ grupo: 'lajotas', nome: 'Escura' })
+    expect(texturaDe('lajotas-escuras').nome).toBe(texturaDe('lajotas').nome)
+    expect(texturaDe('lajotas-escuras').casas).toBe(texturaDe('lajotas').casas)
+    expect(texturaDe('lajotas-escuras').lado).toBe(texturaDe('lajotas').lado)
+  })
+
+  it('a Clara é pixel a pixel a de antes: mapa salvo com Lajotas não muda', () => {
+    // Medida na versão de 3ee11a2b, antes da forma Escura existir.
+    expect(impressaoDigital(pixelsDoLadrilho(texturaDe('lajotas').cor, 128))).toBe(1658562967)
+  })
+
+  it('a Escura é grafite neutro: escura sem ser preta, sem tom, a junta mais escura que a pedra', () => {
+    const escura = texturaDe('lajotas-escuras')
+    const d = pixelsDoLadrilho(escura.cor, 128)
+    let soma = 0
+    let menorCanal = 255
+    let maiorCroma = 0
+    for (let i = 0; i < d.length; i += 4) {
+      soma += luzDe(d, i)
+      menorCanal = Math.min(menorCanal, d[i], d[i + 1], d[i + 2])
+      maiorCroma = Math.max(maiorCroma, Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]))
+    }
+    const media = soma / (d.length / 4)
+    // A pedra #4a4946 tem luz ~0,28; a junta #353432 puxa um pouco para baixo.
+    expect(media).toBeGreaterThan(0.24)
+    expect(media).toBeLessThan(0.31)
+    // Sem preto: nem a junta desce do #282828.
+    expect(menorCanal).toBeGreaterThanOrEqual(0x28)
+    // Grafite neutro: no máximo uns poucos níveis entre o canal maior e o menor.
+    expect(maiorCroma).toBeLessThanOrEqual(8)
+    // A junta horizontal (entre duas filas) escurece a pedra, nunca clareia.
+    const filas = 16
+    let juntaMaisEscura = 0
+    let total = 0
+    for (let k = 0; k < filas; k += 1) {
+      for (const u of [0.11, 0.37, 0.62, 0.89]) {
+        // Com a meia fila de deslocamento, a junta da fila k fica em (k + 0,5)/16 e o meio da lajota em k/16.
+        const junta = luzDaCor(escura.cor(u, (k + 0.5) / filas))
+        const meio = luzDaCor(escura.cor(u, k / filas))
+        if (junta < meio) juntaMaisEscura += 1
+        total += 1
+      }
+    }
+    expect(juntaMaisEscura / total).toBeGreaterThan(0.9)
+  })
+})
+
+function luzDaCor(c: number): number {
+  return (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255
+}
