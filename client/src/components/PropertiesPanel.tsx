@@ -83,6 +83,7 @@ import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTrigge
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PenhascoControls } from './PenhascoControls'
+import { TexturasControls } from './TexturasControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
@@ -715,6 +716,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="penhasco" groups={groups}>
           <PenhascoControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="texturas" groups={groups}>
+          <TexturasControls />
         </ToolPropertiesSection>
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}

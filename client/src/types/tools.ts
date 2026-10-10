@@ -43,6 +43,12 @@ export type DrawingTool =
    * (`lib/penhasco.ts`).
    */
   | 'penhasco'
+  /**
+   * Texturas: o mestre pinta uma textura da biblioteca (areia, floresta...)
+   * por cima do que quiser, com pincel, balde e borracha (`lib/texturas.ts`).
+   * Não é o Chão: não cria piso, só pinta por cima das regiões e desenhos.
+   */
+  | 'texturas'
   | 'pin'
   /**
    * Objetos: a mobília desenhada (Barril, Caixa, Baú, Cama, Mesa, Cadeira).

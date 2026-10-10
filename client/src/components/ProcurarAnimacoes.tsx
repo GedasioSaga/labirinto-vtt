@@ -64,16 +64,17 @@ export function textoDaFase(fase: FaseDaProcuraDeAnimacoes): string | null {
 
 /**
  * "Procurar animações novas": o mesmo botão nas três galerias (transição,
- * porta, estilo do cenário). Só no app; a resposta fica ao lado, curta.
+ * porta, estilo do cenário) e na biblioteca de texturas, que chegam no mesmo
+ * pacote (`rotulo` diz o que se procura). Só no app; a resposta fica ao lado, curta.
  */
-export function BotaoProcurarAnimacoes({ porta = portaDoPacoteNoApp }: { porta?: PortaDoPacote }) {
+export function BotaoProcurarAnimacoes({ porta = portaDoPacoteNoApp, rotulo = 'Procurar animações novas' }: { porta?: PortaDoPacote; rotulo?: string }) {
   const procura = useProcuraDeAnimacoes(porta)
   if (!procura.disponivel) return null
   const procurando = procura.fase.tipo === 'procurando'
   return (
     <div className="lb-procurar-animacoes">
       <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" disabled={procurando} onClick={() => void procura.procurar()}>
-        {procurando ? 'Procurando…' : 'Procurar animações novas'}
+        {procurando ? 'Procurando…' : rotulo}
       </button>
       <span className="lb-procurar-animacoes__resposta" role="status">
         {textoDaFase(procura.fase)}

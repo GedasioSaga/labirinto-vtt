@@ -86,6 +86,8 @@ export type GestureMode =
   | 'painting-reveal-brush'
   // Penhasco: arrasto que risca (ou apaga) penhasco na costa.
   | 'painting-penhasco'
+  // Texturas: arrasto do pincel (ou da borracha) de textura.
+  | 'painting-textura'
   // Girar sala pela alça (bolinha acima da sala selecionada).
   | 'rotating-room'
 
@@ -215,6 +217,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'concealZone',
   'revealBrush',
   'penhasco',
+  // Texturas: o clique pinta (pincel) ou enche (balde).
+  'texturas',
   // Objetos: o clique põe um móvel novo no ponto.
   'mobilia',
 ])
@@ -328,6 +332,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'painting-reveal-brush':
     // Penhasco: idem, riscando ou apagando.
     case 'painting-penhasco':
+    case 'painting-textura':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 

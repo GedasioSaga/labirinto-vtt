@@ -30,6 +30,7 @@ import {
   ObjetosIcon,
   PathIcon,
   PenhascoIcon,
+  TexturasIcon,
   PinIcon,
   PolygonIcon,
   PropIcon,
@@ -92,6 +93,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   concealZone: ConcealZoneIcon,
   revealBrush: RevealBrushIcon,
   penhasco: PenhascoIcon,
+  texturas: TexturasIcon,
   pin: PinIcon,
   mobilia: ObjetosIcon,
 }

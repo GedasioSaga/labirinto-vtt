@@ -357,7 +357,32 @@ export function penhascosParaJogador(
   escondido: (p: RegionPoint) => boolean,
 ): TracoDePenhasco[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
-  const saida: TracoDePenhasco[] = []
+  const saida = caminhosParaJogador(lista, conhece, escondido)
+  const primeiroRisco = saida.findIndex((t) => t.modo === 'riscar')
+  if (primeiroRisco < 0) return undefined
+  return saida.slice(primeiroRisco)
+}
+
+/** O que um caminho de pincel precisa ter para ser cortado pelo conhecido do jogador. */
+export interface CaminhoDePincel {
+  id: string
+  raio: number
+  pontos: RegionPoint[]
+}
+
+/**
+ * O corte de `penhascosParaJogador` para qualquer pincel de caminho (o de
+ * penhasco e o de Texturas, `lib/texturas.ts`): cada caminho vira os pedaços
+ * cujo disco encosta no que o jogador conhece, com a folga de um raio em cada
+ * ponta, e o resto do item (modo, textura, força) igual. Id do pedaço =
+ * `<id>~<n>`.
+ */
+export function caminhosParaJogador<T extends CaminhoDePincel>(
+  lista: readonly T[],
+  conhece: (p: RegionPoint) => boolean,
+  escondido: (p: RegionPoint) => boolean,
+): T[] {
+  const saida: T[] = []
   for (const traco of lista) {
     const pontos = caminhoDenso(traco.pontos, passoDoRisco(traco.raio))
     let pedaco = 0
@@ -367,9 +392,8 @@ export function penhascosParaJogador(
       const depois = folgaDaPonta(pontos[fim - 1], pontos[fim], traco.raio, escondido)
       const meio = pontos.slice(inicio, fim)
       saida.push({
+        ...traco,
         id: `${traco.id}~${pedaco}`,
-        modo: traco.modo,
-        raio: traco.raio,
         pontos: [...(antes === null ? [] : [antes]), ...meio, ...(depois === null ? [] : [depois])],
       })
       pedaco += 1
@@ -384,9 +408,7 @@ export function penhascosParaJogador(
     }
     if (inicio >= 0) fechar(pontos.length)
   }
-  const primeiroRisco = saida.findIndex((t) => t.modo === 'riscar')
-  if (primeiroRisco < 0) return undefined
-  return saida.slice(primeiroRisco)
+  return saida
 }
 
 /** Assinatura do que os riscos desenham: o relevo só é refeito quando ela muda (`assinaturaDaTerra`). */

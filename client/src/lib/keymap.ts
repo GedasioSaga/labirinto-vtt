@@ -184,6 +184,9 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // ferramentas de Shift+letra (a mesma dos atalhos do mestre, Shift+N/P/J).
   // C de "costa", onde o pincel risca; Shift+C estava livre.
   penhasco: 'Shift+C',
+  // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
+  // Shift+T estava livre e é o T de "textura".
+  texturas: 'Shift+T',
 }
 
 /** Prefixo das ferramentas de Shift+letra em `TOOL_SHORTCUTS` ('Shift+C'). */

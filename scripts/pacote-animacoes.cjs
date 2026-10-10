@@ -9,11 +9,12 @@
  *   --fontes <pasta>        lê as fontes de outra pasta (padrão: client/src/animacoes)
  *   --motor-minimo <x.y.z>  troca o motorMinimo (o app de dev é mais velho que o mínimo de publicação)
  *   --versao <n>            troca a versão do índice (em vez da publicada + 1)
+ *   --saida <pasta>         grava a saída em outra pasta (padrão: client/dist-animacoes)
  *
  * Fontes: client/src/animacoes/<tipo>/<id>.ts, com <id>.json ao lado (nome e
- * durações); tipo = transicao | porta | cenario. Cada uma vira um módulo ES
- * autocontido (Vite em modo lib), cujo `export default` é a função do tipo.
- * O contrato está no README de cada pasta.
+ * durações, ou a escala da textura); tipo = transicao | porta | cenario |
+ * textura. Cada uma vira um módulo ES autocontido (Vite em modo lib), cujo
+ * `export default` é a função do tipo. O contrato está no README de cada pasta.
  *
  * O app instalado só aceita o pacote se o `indice.json` vier assinado pela
  * MESMA chave do atualizador (%USERPROFILE%\.tauri\labirinto.key, sem senha),
@@ -51,11 +52,14 @@ const TETO_TOTAL = 20 * 1024 * 1024
 const TRANSICAO_DURACAO = [2, 30]
 const CENARIO_DURACAO = [3, 40]
 const PORTA_DURACAO_MAX_MS = 3000
-/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts): a embutida ganha. */
+/** Lado do ladrilho da textura, em px do protótipo do relevo (`ESCALA_MIN`/`ESCALA_MAX` de texturas/catalogo.ts). */
+const TEXTURA_ESCALA = [8, 200]
+/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts): a embutida ganha. */
 const EMBUTIDAS = {
   transicao: ['porta', 'escada-pedra', 'escada-pedra-descendo'],
   porta: ['girar', 'deslizar'],
   cenario: ['panoramica'],
+  textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
 }
 const TIPOS = Object.keys(EMBUTIDAS)
 
@@ -69,17 +73,18 @@ function log(mensagem) {
 }
 
 function lerArgumentos(argv) {
-  const args = { publicar: false, fontes: FONTES_PADRAO, motorMinimo: null, versao: null }
+  const args = { publicar: false, fontes: FONTES_PADRAO, motorMinimo: null, versao: null, saida: SAIDA }
   const valor = (i, nome) => argv[i] ?? falhar(`${nome} pede um valor`)
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--publicar') args.publicar = true
     else if (argv[i] === '--fontes') args.fontes = path.resolve(valor(++i, '--fontes'))
     else if (argv[i] === '--motor-minimo') args.motorMinimo = valor(++i, '--motor-minimo')
     else if (argv[i] === '--versao') args.versao = Number(valor(++i, '--versao'))
+    else if (argv[i] === '--saida') args.saida = path.resolve(valor(++i, '--saida'))
     else falhar(`argumento desconhecido: ${argv[i]}`)
   }
-  if (args.publicar && (args.fontes !== FONTES_PADRAO || args.motorMinimo !== null || args.versao !== null)) {
-    falhar('--fontes, --motor-minimo e --versao são só para teste: não valem com --publicar')
+  if (args.publicar && (args.fontes !== FONTES_PADRAO || args.motorMinimo !== null || args.versao !== null || args.saida !== SAIDA)) {
+    falhar('--fontes, --motor-minimo, --versao e --saida são só para teste: não valem com --publicar')
   }
   if (args.motorMinimo !== null && lerVersao(args.motorMinimo) === null) falhar(`--motor-minimo estranho: ${args.motorMinimo}`)
   if (args.versao !== null && !(Number.isSafeInteger(args.versao) && args.versao >= 1)) falhar('--versao pede um inteiro >= 1')
@@ -114,6 +119,11 @@ function entradaDaMeta(tipo, id, meta, onde) {
     if (!numero(meta.duracaoMs) || meta.duracaoMs <= 0 || meta.duracaoMs > PORTA_DURACAO_MAX_MS) erro(`"duracaoMs" entre 1 e ${PORTA_DURACAO_MAX_MS}`)
     return { id, tipo, nome, duracaoMs: meta.duracaoMs }
   }
+  if (tipo === 'textura') {
+    const [min, max] = TEXTURA_ESCALA
+    if (!numero(meta.escala) || meta.escala < min || meta.escala > max) erro(`"escala" (lado do ladrilho) entre ${min} e ${max}`)
+    return { id, tipo, nome, escala: meta.escala }
+  }
   const [min, max] = tipo === 'transicao' ? TRANSICAO_DURACAO : CENARIO_DURACAO
   if (!numero(meta.duracaoNaturalS) || meta.duracaoNaturalS < min || meta.duracaoNaturalS > max) erro(`"duracaoNaturalS" entre ${min} e ${max}`)
   const quadro = meta.quadroDaMiniaturaS
@@ -146,7 +156,7 @@ function acharFontes(pasta, aprovadas) {
       if (!ID.test(id)) falhar(`${onde}: o nome do arquivo é o id (a-z, 0-9 e "-", até 40)`)
       if (EMBUTIDAS[tipo].includes(id)) falhar(`${onde}: "${id}" é de uma animação embutida no app`)
       const metaArquivo = path.join(dir, `${id}.json`)
-      if (!fs.existsSync(metaArquivo)) falhar(`${onde}: falta ${id}.json ao lado (nome e durações)`)
+      if (!fs.existsSync(metaArquivo)) falhar(`${onde}: falta ${id}.json ao lado (nome e durações, ou nome e escala da textura)`)
       let meta
       try {
         meta = JSON.parse(fs.readFileSync(metaArquivo, 'utf8'))
@@ -251,7 +261,7 @@ function releaseExiste() {
 function publicar(modulos, indice, sig) {
   if (!releaseExiste()) {
     log(`criando a release "${RELEASE}" como PRÉ-LANÇAMENTO (não vira a "latest" do atualizador)`)
-    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de animações', '--notes', 'Animações baixadas pelo app (transições, portas, cenários). Publicado por scripts/pacote-animacoes.cjs.'])
+    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de animações', '--notes', 'Animações e texturas baixadas pelo app (transições, portas, cenários, texturas). Publicado por scripts/pacote-animacoes.cjs.'])
   }
   // Módulos primeiro, índice e assinatura por último: o app nunca vê um índice
   // novo apontando para módulo que ainda não subiu.
@@ -273,7 +283,7 @@ function lerAprovadas() {
   } catch (erro) {
     falhar(`aprovadas.json não é JSON: ${erro.message}`)
   }
-  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario)\/[a-z0-9-]{1,40}$/.test(item))) {
+  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario|textura)\/[a-z0-9-]{1,40}$/.test(item))) {
     falhar('aprovadas.json tem de ser uma lista de "<tipo>/<id>" (ex.: "transicao/portao-pesado")')
   }
   return new Set(lista)
@@ -294,8 +304,9 @@ async function main() {
     for (const item of aprovadas) if (!achadas.has(item)) falhar(`aprovadas.json lista "${item}", mas a fonte não existe`)
   }
   log(`${fontes.length} animação(ões) em ${args.fontes}${aprovadas !== null ? ' (só as aprovadas)' : ''}`)
-  fs.rmSync(SAIDA, { recursive: true, force: true })
-  fs.mkdirSync(SAIDA, { recursive: true })
+  const SAIDA_DESTA = args.saida
+  fs.rmSync(SAIDA_DESTA, { recursive: true, force: true })
+  fs.mkdirSync(SAIDA_DESTA, { recursive: true })
 
   const arquivos = []
   const animacoes = []
@@ -307,7 +318,7 @@ async function main() {
       const nome = `${fonte.tipo}-${fonte.id}.js`
       const bytes = await compilar(vite, fonte)
       total += bytes.length
-      const destino = path.join(SAIDA, nome)
+      const destino = path.join(SAIDA_DESTA, nome)
       fs.writeFileSync(destino, bytes)
       modulos.push(destino)
       arquivos.push({ nome, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), tamanho: bytes.length })
@@ -320,14 +331,14 @@ async function main() {
   const versao = args.versao ?? (await proximaVersao())
   const motorMinimo = args.motorMinimo ?? maiorVersao(conf.version, MOTOR_MINIMO_PISO)
   const indice = { formato: FORMATO, versao, motorMinimo, arquivos, animacoes }
-  const indiceArquivo = path.join(SAIDA, 'indice.json')
+  const indiceArquivo = path.join(SAIDA_DESTA, 'indice.json')
   fs.writeFileSync(indiceArquivo, `${JSON.stringify(indice, null, 2)}\n`)
   const sig = assinar(indiceArquivo)
   if (!assinaturaConfere(indiceArquivo, fs.readFileSync(sig, 'utf8').trim(), pubkey)) {
     falhar('a assinatura do indice.json NÃO confere com a pubkey do tauri.conf.json: nenhum app aceitaria este pacote')
   }
   log(`índice versão ${versao}, motorMinimo ${motorMinimo}; assinatura confere com a chave pública do app`)
-  log(`saída em ${SAIDA}`)
+  log(`saída em ${SAIDA_DESTA}`)
 
   if (!args.publicar) {
     log('sem --publicar: nada foi enviado ao GitHub.')

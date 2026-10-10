@@ -1,0 +1,95 @@
+/* BIBLIOTECA DE TEXTURAS (TexturasControls): a mesma pastilha do segmented
+   (`.lb-seg`), em grade de três, com a miniatura do ladrilho em cima e o nome
+   embaixo. Três colunas no rail de 264 px dão uns 76 px a cada miniatura: a
+   copa da floresta e a onda da duna ainda se leem, e o alvo passa do mínimo
+   para o dedo. `minmax(0, 1fr)`: o nome mais longo não empurra a coluna. */
+.lb-texturas__grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-texturas__opcao {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  padding: var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  /* A borda de latão do marcado acende no ritmo do fundo, como no segmented;
+     a pressão responde na hora e volta sozinha. */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-texturas__opcao:hover {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-texturas__opcao:active {
+  transform: scale(0.97);
+}
+
+.lb-texturas__opcao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-texturas__opcao[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+/* A miniatura é o próprio ladrilho: quadrada, cantos do controle, e um fio
+   escuro por dentro para a neve clara não sumir no fundo do painel. */
+.lb-texturas__miniatura {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: calc(var(--lb-radius-sm) - 2px);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: var(--lb-color-stone-raised);
+  object-fit: cover;
+}
+
+.lb-texturas__opcao[aria-checked='true'] .lb-texturas__miniatura {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(224, 164, 74, 0.55);
+}
+
+.lb-texturas__nome {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-texturas__opcao {
+    transition: none;
+  }
+
+  .lb-texturas__opcao:active {
+    transform: none;
+  }
+}

@@ -30,6 +30,7 @@ import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readPinPass } from './pinPass'
 import { lerPenhascos } from './penhasco'
+import { lerTexturas, lerTexturasImportadas } from './texturas'
 import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
 import { withoutContract, withoutLentMark } from './tokenLoan'
@@ -661,6 +662,8 @@ function deserializeMapFields(json: string): MapData {
     ...(typeof parsed.nomesDosLugares === 'boolean' ? { nomesDosLugares: parsed.nomesDosLugares } : {}),
     // PENHASCO: campo NOVO e OPCIONAL. Risco torto sai, lista vazia abre sem o campo (`lerPenhascos`).
     ...penhascosDoArquivo(parsed.penhascos),
+    // TEXTURAS: campos NOVOS e OPCIONAIS. Passo torto sai; lista vazia abre sem o campo (`lerTexturas`).
+    ...texturasDoArquivo(parsed.texturas, parsed.texturasImportadas),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),
@@ -703,6 +706,13 @@ function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
 function areaTriggersField(raw: unknown): Pick<MapData, 'gatilhos'> {
   const gatilhos = readAreaTriggers(raw)
   return gatilhos === undefined ? {} : { gatilhos }
+}
+
+/** TEXTURAS: cada campo só entra com algum item lido (`lib/texturas.ts`). */
+function texturasDoArquivo(passos: unknown, importadas: unknown): Pick<MapData, 'texturas' | 'texturasImportadas'> {
+  const texturas = lerTexturas(passos)
+  const texturasImportadas = lerTexturasImportadas(importadas)
+  return { ...(texturas === undefined ? {} : { texturas }), ...(texturasImportadas === undefined ? {} : { texturasImportadas }) }
 }
 
 /** PENHASCO: o campo só entra com algum risco lido (`lib/penhasco.ts`). */

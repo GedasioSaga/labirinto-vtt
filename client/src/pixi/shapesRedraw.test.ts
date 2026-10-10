@@ -57,6 +57,7 @@ function setup() {
     regions: spy('regions'),
     perigos: spy('perigos'),
     drawings: spy('drawings'),
+    texturas: spy('texturas'),
     relevo: spy('relevo'),
     hazards: spy('hazards'),
     areaTriggers: spy('areaTriggers'),
@@ -261,6 +262,25 @@ describe('createShapesRedrawer', () => {
     take()
     redraw(snapshot(map, { selection, posseDasFichas: { p1: ['t1'] } }))
     expect(take()).toEqual(['handles'])
+  })
+
+  it('TEXTURAS: pincelada nova acorda a camada; mexer na sala só acorda quando há balde (a forma dele é a da sala)', () => {
+    const { redraw, take } = setup()
+    const semTextura = buildMap()
+    redraw(snapshot(semTextura))
+    take()
+    expect(redraw(snapshot(moveRegion(semTextura, 'r1', 10, 0)))).not.toContain('texturas')
+    take()
+    const pincelada = { id: 'p', tipo: 'pincel' as const, textura: 'areia', forca: 1, raio: 10, pontos: [{ x: 5, y: 5 }] }
+    const comPincel: MapData = { ...semTextura, texturas: [pincelada] }
+    expect(redraw(snapshot(comPincel))).toContain('texturas')
+    take()
+    expect(redraw(snapshot(moveRegion(comPincel, 'r1', 10, 0)))).not.toContain('texturas')
+    take()
+    const comBalde: MapData = { ...comPincel, texturas: [pincelada, { id: 'b', tipo: 'balde', textura: 'neve', forca: 1, alvo: { tipo: 'regiao', id: 'r1' } }] }
+    redraw(snapshot(comBalde))
+    take()
+    expect(redraw(snapshot(moveRegion(comBalde, 'r1', 10, 0)))).toContain('texturas')
   })
 
   it('RELEVO: em cena Continente, mexer na terra ou na chave acorda a camada; em cena Normal, mexer na sala não', () => {

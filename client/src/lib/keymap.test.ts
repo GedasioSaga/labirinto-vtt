@@ -51,16 +51,17 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 28 ferramentas esperadas, sem duplicar letra', () => {
+  it('TOOL_SHORTCUTS cobre exatamente as 29 ferramentas esperadas, sem duplicar letra', () => {
     // Do laço saem CINCO: token, que continua na tabela mesmo escondida;
     // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
     // fariam o índice perder uma em silêncio; e Caminho, Pincel de revelar e
     // Objetos, que chegaram quando já não sobrava letra nenhuma (F é
-    // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO, o Penhasco, que abriu
-    // a família de Shift+letra (teste próprio abaixo).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 6)
+    // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO e o SÉTIMO, Penhasco
+    // e Texturas, da família de Shift+letra (teste próprio abaixo).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 7)
     expect(TOOL_SHORTCUTS.penhasco).toBe('Shift+C')
+    expect(TOOL_SHORTCUTS.texturas).toBe('Shift+T')
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
@@ -101,7 +102,17 @@ describe('resolveShortcut — letras de ferramenta', () => {
     expect(resolveShortcut(evt({ key: 'C', shiftKey: true, ctrlKey: true }))).not.toEqual({ kind: 'selectTool', tool: 'penhasco' })
     // O índice de letra sozinha não leva a combinação, e o de Shift só ela.
     expect([...buildToolByLetter(new Set()).values()]).not.toContain('penhasco')
-    expect([...buildToolByShiftLetter(new Set()).entries()]).toEqual([['c', 'penhasco']])
+    expect([...buildToolByShiftLetter(new Set()).entries()]).toEqual([
+      ['c', 'penhasco'],
+      ['t', 'texturas'],
+    ])
+  })
+
+  it('Shift+T seleciona as Texturas; T sozinho continua o Texto', () => {
+    expect(resolveShortcut(evt({ key: 'T', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'texturas' })
+    expect(resolveShortcut(evt({ key: 't', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'texturas' })
+    expect(resolveShortcut(evt({ key: 't' }))).toEqual({ kind: 'selectTool', tool: 'text' })
+    expect(resolveShortcut(evt({ key: 'T', shiftKey: true, targetTagName: 'INPUT' }))).toBeNull()
   })
 
   it('Shift+C num campo de texto é um C maiúsculo, não o Penhasco', () => {

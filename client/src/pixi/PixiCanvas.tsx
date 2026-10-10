@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
-import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
+import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
@@ -50,6 +50,8 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer } from './drawRelevo'
+import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo } from './drawTexturas'
+import { passoDaPincelada, raioDoPincelDeTextura, type ResultadoDaTextura } from '../lib/texturas'
 import { relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
@@ -257,6 +259,10 @@ import {
   AVISO_PENHASCO_NADA_A_APAGAR,
   AVISO_PENHASCO_SEM_RELEVO,
   AVISO_PINCEL_SEM_ZONA,
+  AVISO_TEXTURA_BALDE_FORA,
+  AVISO_TEXTURA_BALDE_IGUAL,
+  AVISO_TEXTURA_AUSENTE,
+  AVISO_TEXTURA_NADA_A_APAGAR,
   CORRIDOR_DISCARDED_TEXT,
   STAIR_CLICK_WITHOUT_DRAG_TEXT,
 } from '../components/labels'
@@ -346,6 +352,27 @@ function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean): strin
     case 'riscou':
       return comRelevo ? null : AVISO_PENHASCO_SEM_RELEVO
     case 'apagou':
+      return null
+  }
+}
+
+// Texturas — prévia do traço enquanto o ladrilho da textura ainda não saiu
+// (a primeira pincelada de uma textura): um tom neutro de terra, translúcido.
+const TEXTURA_PREVIA_COR = 0xb9a27a
+const TEXTURA_PREVIA_ALPHA = 0.4
+
+/** O que a tela diz depois de soltar o gesto da ferramenta Texturas, ou `null` quando pintou. */
+function avisoDaTextura(resultado: ResultadoDaTextura): string | null {
+  switch (resultado) {
+    case 'nada-a-apagar':
+      return AVISO_TEXTURA_NADA_A_APAGAR
+    case 'fora-de-forma':
+      return AVISO_TEXTURA_BALDE_FORA
+    case 'igual':
+      return AVISO_TEXTURA_BALDE_IGUAL
+    case 'textura-ausente':
+      return AVISO_TEXTURA_AUSENTE
+    case 'pintou':
       return null
   }
 }
@@ -1031,6 +1058,17 @@ export function PixiCanvas({
       const relevoContainer = new Container()
       relevoContainer.eventMode = 'none'
       relevoContainer.addChild(relevo.camada)
+      // TEXTURAS (`drawTexturas.ts`): o que o mestre pintou com a ferramenta
+      // Texturas, por cima do chão e dos desenhos e ABAIXO do relevo — a luz e
+      // a sombra caem por cima da textura, e a borda das salas, as paredes, os
+      // nomes, os pinos e as fichas continuam legíveis por cima dela.
+      const texturas = createTexturasRenderer({
+        aoGerar: (medida) => {
+          el.dataset.texturasMs = String(Math.round(medida.ms))
+          el.dataset.texturasCamadas = String(medida.camadas)
+          el.dataset.texturasPixels = String(medida.pixels)
+        },
+      })
       // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
       const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
@@ -1109,6 +1147,8 @@ export function PixiCanvas({
       // (handlesGraphics) e o draft ativo, mesma ordem do CONTRATO da frente.
       const hoverGraphics = new Graphics()
       const draftGraphics = new Graphics()
+      // TEXTURAS: o anel do pincel (o tamanho dele) segue o ponteiro, acima do rascunho.
+      const anelDoPincelGraphics = new Graphics()
       const angleIndicatorContainer = new Container()
       const guidesGraphics = new Graphics()
       // Pedido 3, fatia 3: o número de cada vão medido, por cima da cota.
@@ -1153,6 +1193,7 @@ export function PixiCanvas({
         // e o Texto (`textLabelsContainer`) — `lib/desenhoSobAsSalas.ts`.
         drawingsGraphics,
         secretDrawingsGraphics,
+        texturas.camada,
         relevoContainer,
         regionStrokesContainer,
         pathsGraphics,
@@ -1178,6 +1219,7 @@ export function PixiCanvas({
         hoverGraphics,
         areaSelectionOutlineGraphics,
         draftGraphics,
+        anelDoPincelGraphics,
         areaMarqueeGraphics,
         // A guia ANTES dos rótulos de medida: texto por cima da linha. Com a
         // guia por cima, o traço magenta cortava o "comprimento · ângulo" da
@@ -1513,6 +1555,8 @@ export function PixiCanvas({
       }
       const onCanvasPointerLeave = () => {
         laserPointer = null
+        // Fora do canvas o pincel de textura não está em lugar nenhum.
+        anelDoPincelGraphics.clear()
         // A medida do Alt segurado vai até a peça sob o mouse: fora do canvas não há peça sob ele.
         hideAltMeasure()
       }
@@ -1907,6 +1951,26 @@ export function PixiCanvas({
               : null,
           )
         },
+        // TEXTURAS: das mesmas salas e desenhos que esta tela desenha (o balde
+        // enche a forma deles); o renderer espera a mão parar e troca de cena na hora.
+        texturas: () => {
+          // A exportação não repinta as texturas: o renderer é assíncrono (espera a mão
+          // parar) e o PNG sai na mesma chamada. Ver o `exportImage`.
+          if (exportScene !== null) return
+          const { map } = sceneState()
+          texturas.atualizar(
+            map.texturas === undefined
+              ? null
+              : {
+                  cena: map.id,
+                  mapa: map,
+                  passos: map.texturas,
+                  importadas: map.texturasImportadas,
+                  regioes: visibleRegions(map.regions, map.hiddenLayers),
+                  desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+                },
+          )
+        },
         // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.
         hazards: () => {
           const { map } = sceneState()
@@ -1989,6 +2053,7 @@ export function PixiCanvas({
         floorSelection: [floorSelectionGraphics],
         perigos: [perigosGraphics],
         drawings: [drawingsGraphics, secretDrawingsGraphics, pathsGraphics, secretPathsGraphics],
+        texturas: [texturas.camada],
         relevo: [relevoContainer],
         hazards: [hazardsGraphics],
         areaTriggers: [areaTriggersGraphics],
@@ -2306,6 +2371,10 @@ export function PixiCanvas({
           ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
           signalsLayer,
           laserLayer,
+          // TEXTURAS na imagem para o jogador: a pintura é assíncrona e a que está no palco
+          // é a do mestre (balde numa sala secreta, pincelada numa zona oculta).
+          // Sem como pintar de novo dentro desta chamada, ela fica de fora.
+          ...(options.masterOnly ? [] : [texturas.camada]),
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
@@ -2595,6 +2664,8 @@ export function PixiCanvas({
         | 'painting-reveal-brush'
         // Penhasco: arrasto que risca (ou, com Alt, apaga) penhasco na costa.
         | 'painting-penhasco'
+        // Texturas: arrasto do pincel (ou da borracha) de textura.
+        | 'painting-textura'
         // Mover um pino de ponto de interesse já cravado.
         | 'dragging-pin'
         // Girar sala pela alça (pixi/roomRotateGesture.ts).
@@ -2712,6 +2783,17 @@ export function PixiCanvas({
       let penhascoStroke: Point[] = []
       let penhascoStrokeMode: ModoDoPenhasco = 'riscar'
       let penhascoStrokeRadius = 0
+      /**
+       * Texturas: a pincelada em curso, local ao gesto como a do penhasco — só
+       * vira mapa ao soltar (`finishTexturaStroke`), um Ctrl+Z por pincelada.
+       * Textura e força são lidas no começo: mexer no painel no meio não muda
+       * a pincelada que já está saindo.
+       */
+      let texturaStroke: Point[] = []
+      let texturaStrokeTipo: 'pincel' | 'borracha' = 'pincel'
+      let texturaStrokeRadius = 0
+      let texturaStrokeTextura = ''
+      let texturaStrokeForca = 1
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -4152,6 +4234,82 @@ export function PixiCanvas({
       }
 
       /**
+       * Anel do pincel de Texturas: o tamanho do pincel em volta do ponteiro,
+       * escuro por fora e claro por dentro (lê-se na neve e na floresta). Some
+       * com o balde (que não tem tamanho) e fora da ferramenta.
+       */
+      const desenharAnelDoPincel = (centro: Point | null) => {
+        anelDoPincelGraphics.clear()
+        if (centro === null) return
+        const { activeTool, texturaModo, texturaTamanho, map } = useMapStore.getState()
+        if (activeTool !== 'texturas' || texturaModo === 'balde') return
+        const raio = raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
+        const px = 1 / camera.scale
+        anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 3 * px, color: 0x000000, alpha: 0.4 })
+        anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 1.25 * px, color: 0xffffff, alpha: 0.85 })
+      }
+
+      /**
+       * Rascunho da pincelada de textura: a própria textura repetida, na força
+       * escolhida, enquanto o ladrilho já existe; antes disso, um tom neutro. A
+       * borracha usa o escuro do esconder. A borda macia vem ao soltar.
+       */
+      const drawTexturaStroke = () => {
+        draftGraphics.clear()
+        const [first, ...rest] = texturaStroke
+        if (first === undefined) return
+        const { map } = useMapStore.getState()
+        const tile = texturaStrokeTipo === 'pincel' ? texturas.ladrilhoParaPrevia(texturaStrokeTextura, map.texturasImportadas) : null
+        let estilo: { color: number; alpha: number } | { texture: Texture; matrix: Matrix; textureSpace: 'global'; alpha: number }
+        if (texturaStrokeTipo === 'borracha') estilo = { color: HIDE_STROKE_COLOR, alpha: HIDE_STROKE_ALPHA }
+        else if (tile === null) estilo = { color: TEXTURA_PREVIA_COR, alpha: TEXTURA_PREVIA_ALPHA }
+        else {
+          const lado = ladoDoLadrilhoNoMundo(map, escalaDaTextura(texturaStrokeTextura))
+          estilo = { texture: tile, matrix: new Matrix().scale(lado / tile.width, lado / tile.height), textureSpace: 'global', alpha: texturaStrokeForca }
+        }
+        if (rest.length === 0) {
+          draftGraphics.circle(first.x, first.y, texturaStrokeRadius).fill(estilo)
+          return
+        }
+        draftGraphics.moveTo(first.x, first.y)
+        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
+        draftGraphics.stroke({ ...estilo, width: texturaStrokeRadius * 2, cap: 'round', join: 'round' })
+      }
+
+      /** Mais um ponto na pincelada, só quando andou um quarto do raio (o arquivo não guarda cada passo do mouse). */
+      const extendTexturaStroke = (point: Point) => {
+        desenharAnelDoPincel(point)
+        const last = texturaStroke[texturaStroke.length - 1]
+        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < passoDaPincelada(texturaStrokeRadius)) return
+        texturaStroke.push(point)
+        drawTexturaStroke()
+      }
+
+      /** Diz por que o gesto de textura não fez nada (borracha no vazio, balde no mar), sem repetir o aviso. */
+      const avisarTextura = (resultado: ResultadoDaTextura) => {
+        const aviso = avisoDaTextura(resultado)
+        if (aviso === null) return
+        const toasts = useToastStore.getState()
+        if (toasts.toasts.some((toast) => toast.text === aviso)) return
+        toasts.push('instrucao', aviso)
+      }
+
+      /** Solta o pincel de textura: a pincelada inteira vira UMA mudança no mapa. */
+      const finishTexturaStroke = (last: Point | null) => {
+        if (last !== null && texturaStroke.length > 0) extendTexturaStroke(last)
+        const pontos = texturaStroke
+        texturaStroke = []
+        draftGraphics.clear()
+        if (pontos.length === 0) return
+        const store = useMapStore.getState()
+        avisarTextura(
+          texturaStrokeTipo === 'pincel'
+            ? store.pintarTextura({ tipo: 'pincel', textura: texturaStrokeTextura, forca: texturaStrokeForca, raio: texturaStrokeRadius, pontos })
+            : store.pintarTextura({ tipo: 'borracha', forca: texturaStrokeForca, raio: texturaStrokeRadius, pontos }),
+        )
+      }
+
+      /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
        * dele (`findSelectableAt`) foi acertado. Camada/hidden/locked já são
        * tratados em `findFloorPieceAt`.
@@ -4187,6 +4345,10 @@ export function PixiCanvas({
         // desfazer) depois de cancelado, ou já com outra ferramenta na mão.
         penhascoStroke = []
         if (mode === 'painting-penhasco') mode = 'idle'
+        // Texturas: idem — a pincelada cancelada não vira passo no mapa.
+        texturaStroke = []
+        if (mode === 'painting-textura') mode = 'idle'
+        anelDoPincelGraphics.clear()
         polygonDraftCenter = null
         stairDraftStart = null
         measureDraftStart = null
@@ -5075,6 +5237,25 @@ export function PixiCanvas({
           penhascoStrokeRadius = raioDoPincelDePenhasco(unidadeDoRelevo(map), penhascoLargura)
           penhascoStroke = [worldPoint]
           drawPenhascoStroke()
+          return
+        }
+
+        if (activeTool === 'texturas') {
+          const { texturaModo, texturaTamanho, texturaForca, texturaEscolhida } = useMapStore.getState()
+          // Balde: um clique enche a forma debaixo dele; não há arrasto.
+          if (texturaModo === 'balde') {
+            avisarTextura(useMapStore.getState().encherComTextura(worldPoint))
+            return
+          }
+          // Sem snap, como o penhasco; Alt troca pincel e borracha só nesta pincelada.
+          mode = 'painting-textura'
+          const borracha = texturaModo === 'borracha'
+          texturaStrokeTipo = borracha !== event.altKey ? 'borracha' : 'pincel'
+          texturaStrokeRadius = raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
+          texturaStrokeTextura = texturaEscolhida
+          texturaStrokeForca = texturaForca
+          texturaStroke = [worldPoint]
+          drawTexturaStroke()
           return
         }
 
@@ -6109,6 +6290,7 @@ export function PixiCanvas({
 
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
@@ -6477,6 +6659,7 @@ export function PixiCanvas({
         // como no pincel de blocos acima (o ponto de fora não entra no traço).
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
+        if (mode === 'painting-textura') finishTexturaStroke(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -6672,6 +6855,8 @@ export function PixiCanvas({
           redrawHover()
           // Pedido 3, fatia 5: com o Alt segurado, a medida segue a peça sob o mouse.
           refreshAltMeasure(event.timeStamp)
+          // Texturas: o anel do pincel acompanha o ponteiro ocioso (só nesta ferramenta).
+          desenharAnelDoPincel(worldPoint)
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
@@ -7070,6 +7255,11 @@ export function PixiCanvas({
 
         if (mode === 'painting-penhasco') {
           extendPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-textura') {
+          extendTexturaStroke(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -7817,6 +8007,8 @@ export function PixiCanvas({
         lightsRenderer.destroy()
         // A textura do relevo também não: o Sprite sai com a cena, ela não.
         relevo.destruir()
+        // As máscaras e os ladrilhos das texturas também: são deste palco só.
+        texturas.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         nomesDosLugares.destruir()
         el.removeEventListener('wheel', onWheel)

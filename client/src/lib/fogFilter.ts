@@ -1,6 +1,7 @@
 import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
+import { importadasParaJogador, texturasParaJogador } from './texturas'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
@@ -3613,6 +3614,10 @@ export function filterMapForGroup(
             (p) => inHiddenPlace(p) || inConcealZone(p),
           ),
         }),
+    // TEXTURAS: as do mestre NUNCA saem daqui (o recorte delas depende das
+    // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
+    texturas: undefined,
+    texturasImportadas: undefined,
     tokens,
     markers: recalledList(map.markers, markers, memoryMode).filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy }))),
     lines: recalledList(map.lines, lines, memoryMode).filter(
@@ -3824,7 +3829,27 @@ export function filterMapForGroup(
       .map((r) => r.id),
   )
   const perigos = perigosDoMestre === undefined ? [] : perigosParaJogador(perigosDoMestre, salasVistasAgora)
-  const recorte: MapData = perigos.length > 0 ? { ...filtered, perigos } : filtered
+  const comPerigos: MapData = perigos.length > 0 ? { ...filtered, perigos } : filtered
+  /**
+   * TEXTURAS: o pincel e a borracha só no pedaço junto do que ele conhece (o
+   * mesmo corte do penhasco); o balde só se a forma que ele enche saiu no
+   * recorte — a forma já está com ele, o balde não diz nada a mais. Das
+   * importadas, só as que algum passo dele usa. A tela dele ainda guarda a
+   * textura sob a máscara do conhecido.
+   */
+  const regioesDoRecorte = new Set(filtered.regions.map((r) => r.id))
+  const desenhosDoRecorte = new Set(filtered.drawings.map((d) => d.id))
+  const texturasDoJogador = texturasParaJogador(
+    map.texturas,
+    (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+    (p) => inHiddenPlace(p) || inConcealZone(p),
+    (alvo) => (alvo.tipo === 'regiao' ? regioesDoRecorte.has(alvo.id) : desenhosDoRecorte.has(alvo.id)),
+  )
+  const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
+  const recorte: MapData =
+    texturasDoJogador === undefined
+      ? comPerigos
+      : { ...comPerigos, texturas: texturasDoJogador, ...(importadasDoJogador === undefined ? {} : { texturasImportadas: importadasDoJogador }) }
 
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto

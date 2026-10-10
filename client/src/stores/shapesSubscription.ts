@@ -52,6 +52,9 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       state.map.nomesDosLugares,
       // PENHASCO (`lib/penhasco.ts`): o risco novo muda o relevo, sem mexer em forma nenhuma.
       state.map.penhascos,
+      // TEXTURAS (`lib/texturas.ts`): a pincelada nova muda a pintura, sem mexer em forma nenhuma.
+      state.map.texturas,
+      state.map.texturasImportadas,
     ] as const,
     onChange,
     { equalityFn: shallow },

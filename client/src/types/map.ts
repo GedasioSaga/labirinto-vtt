@@ -2097,6 +2097,23 @@ export interface MapData {
    */
   penhascos?: TracoDePenhasco[]
   /**
+   * TEXTURAS (`lib/texturas.ts`): o que o mestre pintou com a ferramenta
+   * Texturas, na ordem em que pintou (pincelada, balde e borracha; a de depois
+   * cobre a de antes). A textura não é guardada como imagem: cada tela a pinta
+   * de novo destes passos, então o balde acompanha a forma se o mestre a
+   * redesenhar. Ausente = sem textura, sem linha de migração (a última apagada
+   * tira o campo). Leitura segura em `lerTexturas`. Sai no recorte do jogador
+   * só o que encosta no que ele conhece (`texturasParaJogador`).
+   */
+  texturas?: PinceladaDeTextura[]
+  /**
+   * TEXTURAS IMPORTADAS desta cena: a imagem que o mestre escolheu, já
+   * reduzida a um ladrilho pequeno (`lib/texturaImportada.ts`). Mora no mapa
+   * para viajar com ele à mesa. Ausente = nenhuma. No recorte do jogador vão
+   * só as que alguma pincelada que ele recebe usa.
+   */
+  texturasImportadas?: TexturaImportada[]
+  /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
    * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
@@ -2143,6 +2160,34 @@ export interface TracoDePenhasco {
   raio: number
   /** O caminho do pincel, em px de mundo. Um ponto só é um toque (um disco). */
   pontos: RegionPoint[]
+}
+
+/**
+ * Um passo da ferramenta Texturas (`lib/texturas.ts`), na ordem do mapa:
+ * - `pincel`: pinta a `textura` debaixo do caminho;
+ * - `borracha`: tira a textura (qualquer uma) debaixo do caminho;
+ * - `balde`: enche a parte À VISTA de uma região ou de um desenho pintado (a
+ *   forma menos o que está desenhado por cima dela), lida na hora de pintar.
+ * `forca` (0 a 1) é o quanto o passo cobre o que veio antes: 1 cobre tudo.
+ */
+export type PinceladaDeTextura =
+  | { id: string; tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: RegionPoint[] }
+  | { id: string; tipo: 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
+  | { id: string; tipo: 'balde'; textura: string; forca: number; alvo: AlvoDoBalde }
+
+/** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */
+export interface AlvoDoBalde {
+  tipo: 'regiao' | 'desenho'
+  id: string
+}
+
+/** Uma textura que o mestre trouxe de uma imagem dele (`lib/texturaImportada.ts`). */
+export interface TexturaImportada {
+  /** `importada:<uuid>`: o dois-pontos não cabe num id do pacote nem da biblioteca. */
+  id: string
+  nome: string
+  /** O ladrilho já reduzido, embutido (`data:image/webp;base64,...`). */
+  imagem: string
 }
 
 export type TipoDePerigo = 'fogo' | 'agua'

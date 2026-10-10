@@ -6,6 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   ModoDoPenhasco, TracoDePenhasco,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -76,8 +77,27 @@ import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } f
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
-import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer, visibleRegions } from '../lib/layers'
+import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer, visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
+import {
+  comTexturas,
+  comTexturasImportadas,
+  FORCA_MAX,
+  FORCA_MIN,
+  FORCA_PADRAO,
+  limitar,
+  nomeDaTextura,
+  PREFIXO_IMPORTADA,
+  semTexturaImportada,
+  somarPincelada,
+  TAMANHO_DO_PINCEL_MAX,
+  TAMANHO_DO_PINCEL_MIN,
+  TAMANHO_DO_PINCEL_PADRAO,
+  type ModoDaTextura,
+  type ResultadoDaTextura,
+} from '../lib/texturas'
+import { alvoDoBalde, caixaDoAlvo } from '../lib/baldeDeTextura'
+import { texturaDoCatalogo } from '../texturas/catalogo'
 import { consultaDaTerra } from '../lib/relevo'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
 // store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
@@ -95,6 +115,14 @@ import {
  * dá para ler ou para agir, não para os dois.
  */
 const BLOCKED_MOVE_TOAST_MS = 8000
+
+/** A textura que a ferramenta Texturas escolhe quando a escolhida some (a mais usada no continente). */
+const TEXTURA_ESCOLHIDA_PADRAO = 'floresta'
+
+/** A textura existe para ESTA cena: da biblioteca (ou do pacote que este aparelho tem) ou importada nela. */
+function texturaNaCena(map: MapData, id: string): boolean {
+  return texturaDoCatalogo(id) !== null || (map.texturasImportadas ?? []).some((t) => t.id === id)
+}
 
 /**
  * Último aviso de movimento mostrado (motivo+parede, e quando). Um arrasto
@@ -395,6 +423,21 @@ interface MapStoreState {
   setPenhascoModo: (modo: ModoDoPenhasco) => void
   penhascoLargura: LarguraDoPenhasco
   setPenhascoLargura: (largura: LarguraDoPenhasco) => void
+  /**
+   * Ferramenta Texturas (`lib/texturas.ts`): a textura escolhida na biblioteca,
+   * o que o PRÓXIMO gesto faz (Pincel | Balde | Borracha; Alt troca o pincel
+   * pela borracha), o tamanho do pincel (diâmetro em px do protótipo do
+   * relevo) e a força. Preferências da ferramenta, sem histórico e fora do
+   * map.json, como as do penhasco.
+   */
+  texturaEscolhida: string
+  setTexturaEscolhida: (id: string) => void
+  texturaModo: ModoDaTextura
+  setTexturaModo: (modo: ModoDaTextura) => void
+  texturaTamanho: number
+  setTexturaTamanho: (tamanho: number) => void
+  texturaForca: number
+  setTexturaForca: (forca: number) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -1073,6 +1116,20 @@ interface MapStoreState {
   riscarPenhasco: (traco: Omit<TracoDePenhasco, 'id'>) => ResultadoDoRisco
   /** Tira todos os riscos de penhasco da cena aberta. Com desfazer. */
   apagarTodosOsPenhascos: () => void
+  /**
+   * TEXTURAS (`lib/texturas.ts`): solta uma pincelada do pincel ou da borracha.
+   * Uma pincelada é UM passo no desfazer; a borracha onde não há textura não
+   * vira passo e devolve o motivo para a tela dizer.
+   */
+  pintarTextura: (pincelada: { tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: PontoDoMundo[] } | { tipo: 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[] }) => ResultadoDaTextura
+  /** Balde: enche com a textura escolhida a forma pintada debaixo do ponto (`lib/baldeDeTextura.ts`). Com desfazer. */
+  encherComTextura: (ponto: PontoDoMundo) => ResultadoDaTextura
+  /** Acrescenta uma textura importada (o ladrilho já reduzido) e a deixa escolhida. Com desfazer. Devolve o id. */
+  importarTextura: (nome: string, imagem: string) => string
+  /** Tira uma textura importada e o que ela pintava. Com desfazer. */
+  removerTexturaImportada: (id: string) => void
+  /** Tira tudo o que a ferramenta Texturas pintou na cena aberta (as importadas ficam na biblioteca). Com desfazer. */
+  apagarTodasAsTexturas: () => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
@@ -1666,6 +1723,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     revealBrushWidth: 1,
     penhascoModo: 'riscar',
     penhascoLargura: 'media',
+    texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO,
+    texturaModo: 'pincel',
+    texturaTamanho: TAMANHO_DO_PINCEL_PADRAO,
+    texturaForca: FORCA_PADRAO,
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -1849,6 +1910,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
     setPenhascoModo: (modo) => set({ penhascoModo: modo }),
     setPenhascoLargura: (largura) => set({ penhascoLargura: largura }),
+    setTexturaEscolhida: (id) => set({ texturaEscolhida: id }),
+    setTexturaModo: (modo) => set({ texturaModo: modo }),
+    setTexturaTamanho: (tamanho) => {
+      if (Number.isFinite(tamanho)) set({ texturaTamanho: limitar(Math.round(tamanho), TAMANHO_DO_PINCEL_MIN, TAMANHO_DO_PINCEL_MAX) })
+    },
+    setTexturaForca: (forca) => {
+      if (Number.isFinite(forca)) set({ texturaForca: limitar(Math.round(forca * 100) / 100, FORCA_MIN, FORCA_MAX) })
+    },
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
@@ -2483,6 +2552,53 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (lista !== antes) withHistory((m) => comPenhascos(m, lista))
       return resultado
     },
+    pintarTextura: (pincelada) => {
+      const { map, pisoAtivo } = get()
+      if (pincelada.tipo === 'pincel' && !texturaNaCena(map, pincelada.textura)) {
+        set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
+        return 'textura-ausente'
+      }
+      const antes = map.texturas ?? []
+      // As formas do piso em edição, como a tela as mostra: a de outro piso, ali embaixo, não conta.
+      const doPiso = mapaDoPiso(map, pisoAtivo)
+      const regioes = visibleRegions(doPiso.regions, map.hiddenLayers)
+      const desenhos = visibleDrawings(doPiso.drawings, map.hiddenLayers)
+      const passo: PinceladaDeTextura = { ...pincelada, id: crypto.randomUUID() }
+      const { lista, resultado } = somarPincelada(antes, passo, (alvo) => caixaDoAlvo(alvo, regioes, desenhos))
+      if (lista !== antes) withHistory((m) => comTexturas(m, lista))
+      return resultado
+    },
+    encherComTextura: (ponto) => {
+      const { map, texturaEscolhida, texturaForca, pisoAtivo } = get()
+      // Importada de outra cena (ou desfeita), textura de um pacote que saiu: o passo seria órfão — gravado e invisível.
+      if (!texturaNaCena(map, texturaEscolhida)) {
+        set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
+        return 'textura-ausente'
+      }
+      // A forma é a que esta tela mostra: as regiões e os desenhos do piso em edição, nas camadas à vista.
+      const doPiso = mapaDoPiso(map, pisoAtivo)
+      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map.hiddenLayers), visibleDrawings(doPiso.drawings, map.hiddenLayers), ponto)
+      if (alvo === null) return 'fora-de-forma'
+      const antes = map.texturas ?? []
+      const { lista, resultado } = somarPincelada(antes, { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo })
+      if (lista !== antes) withHistory((m) => comTexturas(m, lista))
+      return resultado
+    },
+    importarTextura: (nome, imagem) => {
+      const id = PREFIXO_IMPORTADA + crypto.randomUUID()
+      withHistory((m) => comTexturasImportadas(m, [...(m.texturasImportadas ?? []), { id, nome: nomeDaTextura(nome), imagem }]))
+      set({ texturaEscolhida: id, texturaModo: get().texturaModo === 'borracha' ? 'pincel' : get().texturaModo })
+      return id
+    },
+    removerTexturaImportada: (id) => {
+      if (semTexturaImportada(get().map, id) === get().map) return
+      withHistory((m) => semTexturaImportada(m, id))
+      if (get().texturaEscolhida === id) set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
+    },
+    apagarTodasAsTexturas: () => {
+      if (get().map.texturas === undefined) return
+      withHistory((m) => comTexturas(m, []))
+    },
     apagarTodosOsPenhascos: () => {
       if (get().map.penhascos === undefined) return
       withHistory((map) => comPenhascos(map, []))
@@ -2766,6 +2882,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
 playerSeqOfMap.set(useMapStore.getState().map, playerSeq)
 useMapStore.subscribe((state) => state.map, (map) => {
   playerSeqOfMap.set(map, playerSeq)
+})
+
+// TEXTURAS: a importada escolhida mora no mapa. Quando ela some — Ctrl+Z da
+// importação, outra cena aberta, refazer, o mestre a remove —, a escolhida
+// volta para a padrão; senão o próximo gesto gravaria um passo órfão (no
+// arquivo e no desfazer, mas invisível) e nenhuma miniatura ficaria marcada.
+useMapStore.subscribe((state) => state.map.texturasImportadas, () => {
+  const { map, texturaEscolhida } = useMapStore.getState()
+  if (!texturaNaCena(map, texturaEscolhida)) useMapStore.setState({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
 })
 
 /** Última contagem de `selectAlignableUnitCount` e as referências de onde ela saiu. */

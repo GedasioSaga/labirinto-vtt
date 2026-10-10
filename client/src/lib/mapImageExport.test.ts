@@ -150,6 +150,33 @@ describe('mapForImageExport', () => {
     expect(mapForImageExport(map, COM_MESTRE).regions[0]?.room?.name).toBe('Capela profanada')
   })
 
+  it('TEXTURAS: sem a opção do mestre, o passo que entrega sala secreta ou zona oculta não sai', () => {
+    const zona = { id: 'z1', name: 'Covil', revealed: false, points: sala('z', 600, 0, 800, 200).points }
+    const map = cripta({
+      regions: [sala('cofre', 0, 0, 200, 200, { secret: true }), sala('salao', 400, 0, 500, 200)],
+      drawings: [{ id: 'mancha', kind: 'polygon', points: sala('d', 650, 50, 700, 100).points, color: '#335533', width: 1, filled: true, fillAlpha: 1 }],
+      concealZones: [zona],
+      texturas: [
+        // Balde de neve na sala secreta: a silhueta dela sairia cheia de textura.
+        { id: 'b-cofre', tipo: 'balde', textura: 'neve', forca: 1, alvo: { tipo: 'regiao', id: 'cofre' } },
+        // Balde no desenho dentro da zona oculta.
+        { id: 'b-mancha', tipo: 'balde', textura: 'pantano', forca: 1, alvo: { tipo: 'desenho', id: 'mancha' } },
+        // Pincelada de lava dentro da zona oculta.
+        { id: 'p-lava', tipo: 'pincel', textura: 'importada:lava', forca: 1, raio: 20, pontos: [{ x: 700, y: 100 }] },
+        // Pincelada que passa a menos de um raio da borda da sala secreta: encosta nela.
+        { id: 'p-borda', tipo: 'pincel', textura: 'terra', forca: 1, raio: 40, pontos: [{ x: 230, y: 100 }] },
+        { id: 'b-salao', tipo: 'balde', textura: 'campo', forca: 1, alvo: { tipo: 'regiao', id: 'salao' } },
+        { id: 'p-longe', tipo: 'pincel', textura: 'terra', forca: 1, raio: 20, pontos: [{ x: 300, y: 500 }] },
+      ],
+      texturasImportadas: [{ id: 'importada:lava', nome: 'Lava do covil', imagem: 'data:image/webp;base64,AAAA' }],
+    })
+    const out = mapForImageExport(map, SEM_MESTRE)
+    expect(out.texturas?.map((p) => p.id)).toEqual(['b-salao', 'p-longe'])
+    // A importada que só a pincelada escondida usava também fica.
+    expect(out.texturasImportadas).toBeUndefined()
+    expect(mapForImageExport(map, COM_MESTRE).texturas).toHaveLength(6)
+  })
+
   it('não muda o mapa recebido', () => {
     const map = cripta({ tokens: [ficha('espreita', 875, 675, { secret: true })] })
     const antes = JSON.stringify(map)

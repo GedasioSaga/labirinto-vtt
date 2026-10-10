@@ -51,6 +51,7 @@ import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorD
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
+import { createTexturasRenderer, type TexturasRenderer } from '../pixi/drawTexturas'
 import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
 import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
 import {
@@ -1093,6 +1094,12 @@ interface Scene {
    * (`knownMask`): a sombra de uma costa na névoa não escorre para o lado visto.
    */
   relevo: RelevoRenderer
+  /**
+   * TEXTURAS (`pixi/drawTexturas.ts`): pintadas SÓ dos passos do recorte deste
+   * jogador (`texturasParaJogador`), sob a névoa como as salas e ainda
+   * recortadas pelo que ele conhece, debaixo do relevo.
+   */
+  texturas: TexturasRenderer
   /**
    * NOMES DOS LUGARES (`pixi/drawNomesDosLugares.ts`): a pílula de cada região
    * com nome DESTE recorte, só se o ponto da haste já é conhecido. Acima da
@@ -2354,6 +2361,20 @@ function PlayerViewDoCanvas({
           }
         : null,
     )
+    // TEXTURAS: só os passos que o recorte trouxe; o balde enche as formas do
+    // recorte. Modo leve ("Efeitos do mapa" desligado, ou o WebGL já caiu): nada.
+    scene.texturas.atualizar(
+      currentMap.texturas !== undefined && efeitosDoMapaLigados(currentSettings) && !modoLeve
+        ? {
+            cena: currentMap.id,
+            mapa: currentMap,
+            passos: currentMap.texturas,
+            importadas: currentMap.texturasImportadas,
+            regioes: regions,
+            desenhos: drawings,
+          }
+        : null,
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -2734,6 +2755,20 @@ function PlayerViewDoCanvas({
       })
       relevoContainer.addChild(relevo.camada)
       relevoContainer.mask = relevoMask
+      // TEXTURAS: a mesma máscara do conhecido (contexto compartilhado), num
+      // contêiner próprio — escondido enquanto não há textura, pelo mesmo
+      // motivo do relevo (máscara visível custa o stencil a cada quadro).
+      const texturasMask = new Graphics(knownMask.context)
+      const texturasContainer = new Container()
+      texturasContainer.eventMode = 'none'
+      texturasContainer.visible = false
+      const texturas = createTexturasRenderer({
+        aoMudarVisibilidade: (visivel) => {
+          if (!texturasContainer.destroyed) texturasContainer.visible = visivel
+        },
+      })
+      texturasContainer.addChild(texturas.camada)
+      texturasContainer.mask = texturasMask
       const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
       const fogDim = new Graphics()
       const visionMask = new Graphics()
@@ -2770,6 +2805,10 @@ function PlayerViewDoCanvas({
         drawings,
         // RELEVO acima do chão e da pintura do botão Desenho, abaixo da borda da
         // sala e de tudo o que se lê (paredes, nomes, pinos, fichas) — como no editor.
+        // TEXTURAS acima do chão e da pintura do botão Desenho, abaixo do relevo
+        // (a luz cai por cima delas) — como no editor.
+        texturasMask,
+        texturasContainer,
         relevoMask,
         relevoContainer,
         regionStrokes,
@@ -2902,6 +2941,7 @@ function PlayerViewDoCanvas({
         lights,
         lightsRenderer: createLightsRenderer(),
         relevo,
+        texturas,
         nomesDosLugares,
         lugaresKey: emptyContentKey(),
         lugares: [],
@@ -3610,6 +3650,7 @@ function PlayerViewDoCanvas({
         scene.lightsRenderer.destroy()
         // A textura do relevo também não.
         scene.relevo.destruir()
+        scene.texturas.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
       }

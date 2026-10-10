@@ -154,6 +154,21 @@ export function RevealBrushIcon(props: IconProps) {
 }
 
 /**
+ * Texturas: o rolo de pintura passando por cima de um chão de pintinhas — a
+ * textura que vai por cima do que já está pintado.
+ */
+export function TexturasIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="3.5" width="13" height="5" rx="1.5" />
+      <path d="M17 6h2.5v4.5H11v3" />
+      <path d="M10 13.5h2v7h-2z" />
+      <path d="M4.5 13.5h.01M6.5 17h.01M4.5 20h.01M15.5 16h.01M17.5 19.5h.01" />
+    </Icon>
+  )
+}
+
+/**
  * Penhasco: a terra vista de lado — o chão em cima e a parede descendo em
  * degraus até a água, que ondula no pé dela.
  */

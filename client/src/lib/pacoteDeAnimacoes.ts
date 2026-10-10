@@ -3,6 +3,7 @@ import { CENARIO_DURACAO_MAX_S, CENARIO_DURACAO_MIN_S } from '../cenario/catalog
 import { esquecerEstilosDeCenarioDeFora, IDS_DE_ESTILO_RESERVADOS, registrarEstiloDeCenario } from '../cenario/estilosDeCenario'
 import { ANIMACOES_EMBUTIDAS, DURACAO_DE_ANIMACAO_MAX_MS, esquecerAnimacoesDePortaDeFora, registrarAnimacaoDePorta } from '../portas/animacoesDePorta'
 import { esquecerTransicoesDeFora, isDuracaoValida, isTransicaoEmbutida, marcarCarregamentoDeFora, registrarTransicao } from '../transicoes/catalogo'
+import { ESCALA_MAX, ESCALA_MIN, esquecerTexturasDeFora, IDS_DAS_EMBUTIDAS as IDS_DAS_TEXTURAS, registrarTexturaDoPacote } from '../texturas/catalogo'
 
 /**
  * PACOTE DE ANIMAÇÕES (Fase B, lado TS) — animação nova chega pelo GitHub sem
@@ -12,8 +13,10 @@ import { esquecerTransicoesDeFora, isDuracaoValida, isTransicaoEmbutida, marcarC
  *
  * - LER o `indice.json` (o Rust só valida o que ele usa; `animacoes` é nosso);
  * - IMPORTAR cada módulo (ES module, `export default` = a função do tipo);
- * - REGISTRAR nos três registros: transições (`transicoes/catalogo.ts`), porta
- *   (`portas/animacoesDePorta.ts`) e cenário (`cenario/estilosDeCenario.ts`).
+ * - REGISTRAR nos quatro registros: transições (`transicoes/catalogo.ts`), porta
+ *   (`portas/animacoesDePorta.ts`), cenário (`cenario/estilosDeCenario.ts`) e
+ *   textura (`texturas/catalogo.ts`: a textura nova da ferramenta Texturas
+ *   chega pelo mesmo pacote, sem instalador).
  *
  * Duas origens: o MESTRE (app Tauri) lê os bytes conferidos pelo Rust e
  * importa de um Blob; o JOGADOR (navegador pela LAN ou túnel) pede ao
@@ -28,7 +31,7 @@ export const NOME_DE_ANIMACAO_DO_PACOTE_MAX = 60
 /** Único formato de índice que este app entende (o Rust confere o mesmo). */
 const FORMATO_DO_INDICE = 1
 
-export type TipoDeAnimacao = 'transicao' | 'porta' | 'cenario'
+export type TipoDeAnimacao = 'transicao' | 'porta' | 'cenario' | 'textura'
 
 interface EntradaComum {
   id: string
@@ -42,6 +45,8 @@ export type EntradaDoPacote =
   | (EntradaComum & { tipo: 'transicao'; duracaoNaturalS: number; quadroDaMiniaturaS: number })
   | (EntradaComum & { tipo: 'porta'; duracaoMs: number })
   | (EntradaComum & { tipo: 'cenario'; duracaoNaturalS: number; quadroDaMiniaturaS?: number })
+  /** Textura: `escala` = lado do ladrilho no mapa, em px do protótipo do relevo (`texturas/embutidas.ts`). */
+  | (EntradaComum & { tipo: 'textura'; escala: number })
 
 export interface IndiceDoPacote {
   versao: number
@@ -58,11 +63,12 @@ function numeroFinito(valor: unknown): valor is number {
 function idEmbutido(tipo: TipoDeAnimacao, id: string): boolean {
   if (tipo === 'transicao') return isTransicaoEmbutida(id)
   if (tipo === 'porta') return ANIMACOES_EMBUTIDAS.some((animacao) => animacao.id === id)
+  if (tipo === 'textura') return IDS_DAS_TEXTURAS.includes(id)
   return IDS_DE_ESTILO_RESERVADOS.includes(id)
 }
 
 function lerTipo(valor: unknown): TipoDeAnimacao | null {
-  return valor === 'transicao' || valor === 'porta' || valor === 'cenario' ? valor : null
+  return valor === 'transicao' || valor === 'porta' || valor === 'cenario' || valor === 'textura' ? valor : null
 }
 
 /**
@@ -86,6 +92,12 @@ export function lerEntradaDoPacote(valor: unknown, arquivos: ReadonlySet<string>
     const duracaoMs = 'duracaoMs' in valor ? valor.duracaoMs : undefined
     if (!numeroFinito(duracaoMs) || duracaoMs <= 0 || duracaoMs > DURACAO_DE_ANIMACAO_MAX_MS) return { motivo: `${id}: duracaoMs` }
     return { entrada: { ...comum, tipo, duracaoMs } }
+  }
+
+  if (tipo === 'textura') {
+    const escala = 'escala' in valor ? valor.escala : undefined
+    if (!numeroFinito(escala) || escala < ESCALA_MIN || escala > ESCALA_MAX) return { motivo: `${id}: escala` }
+    return { entrada: { ...comum, tipo, escala } }
   }
 
   const duracaoNaturalS = 'duracaoNaturalS' in valor ? valor.duracaoNaturalS : undefined
@@ -297,6 +309,8 @@ function registrarEntrada(entrada: EntradaDoPacote, modulo: unknown): boolean {
       const quadro = entrada.quadroDaMiniaturaS === undefined ? {} : { quadroDaMiniaturaS: entrada.quadroDaMiniaturaS }
       return registrarEstiloDeCenario({ id, nome, duracaoNaturalS: entrada.duracaoNaturalS, ...quadro, criar: funcao })
     }
+    case 'textura':
+      return registrarTexturaDoPacote({ id, nome, escala: entrada.escala, cor: funcao })
   }
 }
 
@@ -304,6 +318,7 @@ function esquecerTodasDeFora(): void {
   esquecerTransicoesDeFora()
   esquecerAnimacoesDePortaDeFora()
   esquecerEstilosDeCenarioDeFora()
+  esquecerTexturasDeFora()
 }
 
 interface ModuloImportado {

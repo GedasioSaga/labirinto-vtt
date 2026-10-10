@@ -1,8 +1,10 @@
-import type { ConcealZone, Drawing, MapData, Region, RegionPoint, Stair, Wall } from '../types/map'
+import type { ConcealZone, Drawing, MapData, PinceladaDeTextura, Region, RegionPoint, Stair, Wall } from '../types/map'
+import { distanceToWall } from './doorReach'
 import { shapeCenter } from './floorSdf'
 import { isHidden } from './itemTransform'
 import { isArrivalOnly } from './pinTravel'
 import { ancestorsOf, pointInPolygonInclusive, subtreeIds } from './roomNesting'
+import { comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
 
 /**
  * "Exportar imagem": o que o mestre escolhe no diálogo antes de salvar o PNG.
@@ -94,8 +96,10 @@ function withoutMasterOnly(map: MapData): MapData {
   const hiddenAreas = [...secretRooms.map((r) => r.points), ...activeZoneRings(map.concealZones)]
   const hidden = (point: RegionPoint): boolean => hiddenAreas.some((ring) => pointInPolygonInclusive(point, ring))
   const anyHidden = (points: readonly RegionPoint[]): boolean => hiddenAreas.length > 0 && points.some(hidden)
+  const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d)))
+  const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas)
 
-  return {
+  const semSegredo: MapData = {
     ...map,
     regions: map.regions.filter((r) => !goneRegionIds.has(r.id)).map(withoutHiddenRoomName),
     walls: map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w))),
@@ -104,13 +108,43 @@ function withoutMasterOnly(map: MapData): MapData {
     pins: map.pins.filter((p) => !p.secret && !isArrivalOnly(p) && !anyHidden([p])),
     lights: map.lights.filter((l) => !anyHidden([l])),
     stairs: map.stairs.filter((s) => !s.secret && !anyHidden(stairPoints(s))),
-    drawings: map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d))),
+    drawings,
     markers: map.markers.filter((m) => !anyHidden([{ x: m.cx, y: m.cy }])),
     lines: map.lines.filter((l) => !anyHidden(l.points)),
     floor: map.floor.filter((f) => !anyHidden([shapeCenter(f.shape)])),
     // A zona é anotação do mestre: nem o contorno dela sai.
     concealZones: [],
   }
+  // Das importadas, só as que os passos que ficaram usam: o nome e a imagem das outras são do mestre.
+  return comTexturasImportadas(comTexturas(semSegredo, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
+}
+
+/**
+ * TEXTURAS sem o que é do mestre: o balde enche a forma do alvo, então o
+ * balde de uma sala secreta (ou de um desenho que não sai) desenharia a
+ * silhueta dela; a pincelada que encosta (a menos de um raio) numa sala
+ * secreta ou numa zona oculta entrega o que tem lá. A borracha fica: ela só
+ * tira tinta, não mostra nada.
+ */
+function texturasSemSegredo(
+  map: MapData,
+  goneRegionIds: ReadonlySet<string>,
+  drawingIds: ReadonlySet<string>,
+  hiddenAreas: readonly (readonly RegionPoint[])[],
+): PinceladaDeTextura[] {
+  const encosta = (p: RegionPoint, raio: number): boolean =>
+    hiddenAreas.some(
+      (ring) =>
+        pointInPolygonInclusive(p, ring) ||
+        ring.some((a, i) => {
+          const b = ring[(i + 1) % ring.length]
+          return distanceToWall(p, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }) <= raio
+        }),
+    )
+  return (map.texturas ?? []).filter((passo) => {
+    if (passo.tipo === 'balde') return passo.alvo.tipo === 'regiao' ? !goneRegionIds.has(passo.alvo.id) : drawingIds.has(passo.alvo.id)
+    return passo.tipo === 'borracha' || !passo.pontos.some((p) => encosta(p, passo.raio))
+  })
 }
 
 function activeZoneRings(zones: readonly ConcealZone[]): RegionPoint[][] {

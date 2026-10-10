@@ -25,6 +25,7 @@ export const SHAPES_LAYERS = [
   'regions',
   'perigos',
   'drawings',
+  'texturas',
   'relevo',
   'hazards',
   'areaTriggers',
@@ -141,6 +142,22 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       const drawingId = selectedId('drawing')
       return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
     }
+    case 'texturas':
+      // TEXTURAS (`lib/texturas.ts`): os passos e as importadas; com balde, também
+      // a forma que ele enche (regiões e desenhos). Sem textura no mapa, mexer
+      // em sala não acorda a camada; quem espera a mão parar é o renderer.
+      return map.texturas === undefined
+        ? ['sem texturas']
+        : [
+            'texturas',
+            map.id,
+            map.texturas,
+            map.texturasImportadas,
+            map.texturas.some((p) => p.tipo === 'balde') ? [map.regions, map.drawings, hidden] : null,
+            map.width,
+            map.height,
+            map.grid,
+          ]
     case 'relevo':
       // RELEVO (`lib/relevo.ts`): sai da terra e dos desenhos que a pintam. Desligado,
       // arrastar sala não acorda a camada; ligado, quem espera a mão parar (e
