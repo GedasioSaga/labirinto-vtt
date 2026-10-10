@@ -1637,3 +1637,4 @@ Todas as fases 1-6 (+1b) commitadas na main com push, cada uma com testes, tsc 0
 ## Evidência
 - Fase 1: 19+8 testes novos, 695 vizinhos verdes, tsc 0; p95 16,8 ms ligado e desligado; textura 2048x1275 ~10 MB; regerar 259-263 ms (250 de debounce); prints em scratchpad/relevo-fatia1/.
 - Instalador SÓ depois de TODAS as fases (ordem do usuário 09/10 ~22h15): depois da fase 6, bump + `node scripts/publicar-versao.cjs --publicar --notas <md>` (da main limpa, ou de worktree limpo se houver trabalho sem commit).
+- 09/10 ~22h15: fase 1 COMMITADA `c27751b7` (push). Fases 1b-6 rodando no workflow `wf_a4c229c1-736` (script em ~/.claude/projects/C--dev-labirinto/8c450841-90e0-486f-a9d2-0ddba65d04d9/workflows/scripts/relevo-todas-as-fases-*.js; cada fase commita e dá push sozinha; para se uma fase não commitar). Se o workflow parar, retomar com resumeFromRunId wf_a4c229c1-736. Ao terminar tudo: bump + instalador (ordem do usuário).
