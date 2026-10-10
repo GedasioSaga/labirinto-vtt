@@ -653,6 +653,9 @@ function deserializeMapFields(json: string): MapData {
     // salvo como mapa-mundi (antes do Continente existir) abre Continente com
     // a caravana ligada.
     ...(parsed.continente === true || parsed.worldMap === true ? { continente: true } : {}),
+    // RELEVO: campo NOVO e OPCIONAL. Só booleano vale; ausente (ou torto) abre
+    // sem o campo e segue o padrão do tipo de mapa (`lib/relevo.ts`).
+    ...(typeof parsed.relevo === 'boolean' ? { relevo: parsed.relevo } : {}),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),

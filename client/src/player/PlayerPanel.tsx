@@ -75,6 +75,17 @@ export interface PlayerViewSettings {
    * quem troca de aparelho leva o padrão do aparelho novo.
    */
   followOwnToken?: boolean
+  /**
+   * "Efeitos do mapa": o relevo (luz e sombras, `lib/relevo.ts`) no mapa de
+   * continente. Ausente = ligado; desligar é o modo leve do celular fraco.
+   * Só a escolha feita vai para o armazenamento, como `followOwnToken`.
+   */
+  mapEffects?: boolean
+}
+
+/** O jogador quer os efeitos do mapa? Ligados até ele desligar. */
+export function efeitosDoMapaLigados(settings: PlayerViewSettings): boolean {
+  return settings.mapEffects !== false
 }
 
 /** Tela de toque: o dedo é quem arrasta a ficha até a borda, e ali a câmera seguir é o padrão. */
@@ -167,7 +178,7 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
     return { ...DEFAULT_PLAYER_SETTINGS }
   }
   if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_PLAYER_SETTINGS }
-  const { exploredBrightness, showGrid, showNames, followOwnToken } = parsed as Record<string, unknown>
+  const { exploredBrightness, showGrid, showNames, followOwnToken, mapEffects } = parsed as Record<string, unknown>
   const settings: PlayerViewSettings = {
     exploredBrightness:
       typeof exploredBrightness === 'number' && Number.isFinite(exploredBrightness)
@@ -178,6 +189,7 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
   }
   // Só a escolha feita entra: sem ela o padrão continua sendo o do aparelho.
   if (typeof followOwnToken === 'boolean') settings.followOwnToken = followOwnToken
+  if (typeof mapEffects === 'boolean') settings.mapEffects = mapEffects
   return settings
 }
 
@@ -912,6 +924,14 @@ export function PlayerPanel({
                   onChange={(e) => onSettingsChange({ ...settings, followOwnToken: e.target.checked })}
                 />
                 <span>Câmera segue minha ficha</span>
+              </label>
+              <label className="pp-check">
+                <input
+                  type="checkbox"
+                  checked={efeitosDoMapaLigados(settings)}
+                  onChange={(e) => onSettingsChange({ ...settings, mapEffects: e.target.checked })}
+                />
+                <span>Efeitos do mapa</span>
               </label>
             </section>
           </div>

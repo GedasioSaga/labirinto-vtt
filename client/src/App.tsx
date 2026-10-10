@@ -35,6 +35,7 @@ import { goToPointAction } from './stores/pointActionGo'
 import { useAwayTokensStore } from './stores/awayTokensStore'
 import { useDonosDasFichasStore } from './stores/donosDasFichasStore'
 import { isContinente } from './lib/marcadorDeContinente'
+import { relevoLigado } from './lib/relevo'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
@@ -606,6 +607,7 @@ function App() {
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setSceneDark = useMapStore((state) => state.setSceneDark)
   const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
+  const setRelevo = useMapStore((state) => state.setRelevo)
   const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -2934,6 +2936,8 @@ function App() {
           onTipoChange: aberta ? setTipoDeMapa : (tipo) => mudarFundo((m) => mapFactory.setTipoDeMapa(m, tipo)),
           caravana: sceneMap.worldMap === true,
           onCaravanaChange: aberta ? setWorldMap : (caravana) => mudarFundo((m) => mapFactory.setWorldMap(m, caravana)),
+          relevo: relevoLigado(sceneMap),
+          onRelevoChange: aberta ? setRelevo : (ligado) => mudarFundo((m) => mapFactory.setRelevo(m, ligado)),
         }}
         onClose={() => setConfiguringSceneId(null)}
       />

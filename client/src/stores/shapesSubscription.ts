@@ -42,6 +42,12 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       // Pinos de ponto de interesse e o destaque do pino aberto no painel.
       state.map.pins,
       state.selectedPinId,
+      // RELEVO (`lib/relevo.ts`): a chave "Relevo" e o "Tipo de mapa" (Continente
+      // liga por padrão) não mexem em forma nenhuma; sem eles aqui, ligar ou
+      // desligar só aparecia no próximo zoom ou edição.
+      state.map.relevo,
+      state.map.continente,
+      state.map.worldMap,
     ] as const,
     onChange,
     { equalityFn: shallow },

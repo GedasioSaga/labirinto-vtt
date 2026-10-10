@@ -9,6 +9,13 @@ export interface SceneMapTypeControlsProps {
   /** "Grupo anda junto (caravana)" (`MapData.worldMap`, `lib/caravan.ts`). Só aparece no Continente. */
   caravana: boolean
   onCaravanaChange: (caravana: boolean) => void
+  /**
+   * Chave "Relevo" da cena (`MapData.relevo`, `lib/relevo.ts`): luz, sombra no
+   * mar e nas fronteiras. Já vem resolvida com o padrão do tipo. Sem
+   * `onRelevoChange` (tela antiga, teste), a chave não aparece.
+   */
+  relevo?: boolean
+  onRelevoChange?: (ligado: boolean) => void
 }
 
 const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
@@ -23,9 +30,10 @@ const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
  * "Mapa-mundi" das Configurações do mapa, mora aqui, dentro do Continente.
  * Escolha única no padrão `lb-seg` de `DoorKindControls`.
  */
-export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaChange }: SceneMapTypeControlsProps) {
+export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaChange, relevo = false, onRelevoChange }: SceneMapTypeControlsProps) {
   const tipoHintId = useId()
   const caravanaHintId = useId()
+  const relevoHintId = useId()
   return (
     <section className="lb-section lb-cena-config__tipo">
       <h2 className="lb-eyebrow">Tipo de mapa</h2>
@@ -53,6 +61,15 @@ export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaC
           <Toggle label="Grupo anda junto (caravana)" checked={caravana} describedBy={caravanaHintId} onChange={onCaravanaChange} />
           <p id={caravanaHintId} className="lb-field__hint">
             O grupo vira um pino só, que você arrasta. Parado sobre um pino de viagem, a caravana pode desembarcar na cena dele.
+          </p>
+        </div>
+      )}
+      {onRelevoChange !== undefined && (
+        <div className="lb-field">
+          <Toggle label="Relevo" checked={relevo} describedBy={relevoHintId} onChange={onRelevoChange} />
+          <p id={relevoHintId} className="lb-field__hint">
+            Luz de cima à esquerda sobre a terra, sombra da terra no mar e nas fronteiras entre regiões. Sai das regiões, sem nada a
+            desenhar. Ligado por padrão no Continente.
           </p>
         </div>
       )}

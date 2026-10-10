@@ -8,6 +8,7 @@ import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
 import { tokenPatrolOf } from '../lib/npcPatrol'
 import type { PontoDaRotaAberto } from './drawNpcPatrol'
+import { relevoLigado } from '../lib/relevo'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -23,6 +24,7 @@ export const SHAPES_LAYERS = [
   'regions',
   'perigos',
   'drawings',
+  'relevo',
   'hazards',
   'areaTriggers',
   'faccoes',
@@ -137,6 +139,10 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       const drawingId = selectedId('drawing')
       return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
     }
+    case 'relevo':
+      // RELEVO (`lib/relevo.ts`): sai da terra. Desligado, arrastar sala não acorda a
+      // camada; ligado, quem espera a mão parar é o próprio renderer (`drawRelevo.ts`).
+      return relevoLigado(map) ? ['relevo', map.id, map.regions, hidden, map.width, map.height, map.grid] : ['sem relevo']
     case 'hazards':
       // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
       return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]

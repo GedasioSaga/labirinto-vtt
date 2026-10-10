@@ -1615,3 +1615,25 @@ Fila do usuário de 09/10 (ver fim de `PEDIDOS.md`): (1) transições do pacote 
 - PLANO DO RELEVO APROVADO (09/10). Começar a fatia 1 assim que a revelação for commitada. Texturas: a maioria virá do Claude — cada uma com cuidado, coerente com o mapa, nada estourado.
 - EM PARALELO: workflow `wf_0debda90-29c` (redesenho de UI, 3 propostas: Mesa limpa, Grimório, Estúdio; protótipo navegável + Figma) em scratchpad `redesenho-ui/`. Figma: OAuth iniciado (o usuário precisa autorizar; se o redirecionamento falhar, colar a URL de callback em mcp__plugin_figma_figma__complete_authentication). Ao terminar: ler os arquivos de cada `publicar/`, publicar 3 artifacts e mostrar.
 - 09/10 ~20h45: revelação do local COMMITADA `dd61cfcd` (push feito; suíte 13394 verde após atualizar hostSession.pinoNome.test para o contrato novo). Relevo fatia 1 em andamento: workflow `wf_fa388db9-6c9` (luz, sombra no mar, sombra nas fronteiras; padrão ligado só em cena Continente; seguro com névoa; modo leve). Redesenho de UI em paralelo: `wf_0debda90-29c`.
+- RELEASE v0.4.23 em andamento (09/10 ~21h): commit `29a1603d` (bump) com push; build a partir do worktree LIMPO `C:/dev/labirinto-rel-0423` (detached em 29a1603d, porque a main tem a fatia 1 do relevo sem commit) com CARGO_TARGET_DIR da main. DEPOIS: tirar as junções (`cmd /c rmdir C:\dev\labirinto-rel-0423\node_modules` e `...\client\node_modules`), conferir C:/dev/labirinto/node_modules intacto, só então `git worktree remove`.
+- v0.4.23 PUBLICADA (09/10 21h09): https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.23, latest.json 0.4.23, gitleaks ok. Worktree de release removido (junções tiradas antes; node_modules da main intacto).
+- UI: propostas 1 Mesa limpa https://claude.ai/artifact/W9AWUsy4NtBzfPTMyuEQDx e 2 Grimório https://claude.ai/artifact/FV4mhCWcNy1Zd4xDxGKuQc publicadas (auditadas por subagente, código ~230 KB cada); 3 Estúdio https://claude.ai/artifact/BRvqfnYBGtEFvxfvWpcmjr. Próximo: usuário escolhe partes; inventário completo em scratchpad redesenho-ui/inventario.md. Figma: OAuth pendente do usuário.
+- UI consolidada em andamento (base Grimório + pino "!" e porta aberta animada da Mesa limpa + animação do cenário do Estúdio), pasta scratchpad redesenho-ui/consolidado/.
+
+### 09/10/2026 ~22h10 — ORDEM DO USUÁRIO: fazer TODAS as fases do relevo e só terminar quando todas estiverem feitas
+> "Bom faça todas as fases, o Design é uma coisa à parte, lembre-se só termine quando todas as fases estiverem feitas, faça com carinho pois é algo que muda muito o mapa e queremos só o melhor trabalho."
+
+## Objetivo
+Relevo do mapa de continente completo, plano `~/.claude/plans/relevo-mapa-continente.md`: fase 1 (luz, sombra no mar, sombra nas fronteiras) PRONTA sem commit ainda; faltam: 1b relevo também a partir dos DESENHOS (no Tasmaturi os biomas são 109 desenhos, só 3 regiões), 2 pílulas animadas com nome das regiões, 3 pincel de penhasco, 4 ferramenta Texturas (biblioteca + importar imagem + tipo novo no pacote do GitHub; texturas com cuidado, sem estourar), 5 carimbos (clique + spray; pinheiro, palmeira, pedras, poças; importar + pacote), 6 nuvens passando com chave.
+
+## Estado atual
+- Fase 1 implementada e conferida (workflow `wf_fa388db9-6c9`), suíte rodando (tarefa bebairouj) — commitar e dar push quando passar (arquivos: lib/relevo.ts, pixi/relevoRaster.ts, pixi/drawRelevo.ts, PlayerView/PlayerPanel/SceneMapTypeControls/App/mapFile/mapFactory/mapStore/shapesRedraw/montagemEmFatias/PixiCanvas + testes).
+- Fases 1b-6: workflow sequencial a lançar (uma fase por vez: implementar → 2 revisores → corrigir → conferir no navegador + suíte inteira + commit + push).
+- Design consolidado da UI (à parte): agente designer rodando, publica artifact sozinho; mandar o link ao usuário.
+
+## Critério de pronto
+Todas as fases 1-6 (+1b) commitadas na main com push, cada uma com testes, tsc 0, suíte verde (salvo medições de tempo conhecidas sob carga), conferência no navegador (mestre + jogador, névoa, 390 px) e folha de contato quando animar; instalador só se o usuário pedir.
+
+## Evidência
+- Fase 1: 19+8 testes novos, 695 vizinhos verdes, tsc 0; p95 16,8 ms ligado e desligado; textura 2048x1275 ~10 MB; regerar 259-263 ms (250 de debounce); prints em scratchpad/relevo-fatia1/.
+- Instalador SÓ depois de TODAS as fases (ordem do usuário 09/10 ~22h15): depois da fase 6, bump + `node scripts/publicar-versao.cjs --publicar --notas <md>` (da main limpa, ou de worktree limpo se houver trabalho sem commit).

@@ -34,7 +34,8 @@ const PRIMEIRA_FATIA: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['floor', 
 const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
   // ESTEIRA e CABINE (`conveyors`) vão com as outras marcas de chão: fora da lista,
   // a camada ficava escondida para sempre depois de trocar para um andar denso.
-  ['floorSelection', 'perigos', 'drawings', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
+  // RELEVO (`relevo`) só agenda a geração da textura (`drawRelevo.ts`): vai com as marcas de chão.
+  ['floorSelection', 'perigos', 'drawings', 'relevo', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
   ['roomNames'],
   ['lights', 'watchCones', 'patrolRoutes'],
   ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline'],

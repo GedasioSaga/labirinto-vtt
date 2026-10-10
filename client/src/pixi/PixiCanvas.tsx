@@ -49,6 +49,8 @@ import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
+import { createRelevoRenderer } from './drawRelevo'
+import { relevoLigado } from '../lib/relevo'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, type RoomLabelEditorLook } from './drawRoomNames'
@@ -982,6 +984,19 @@ export function PixiCanvas({
       const regionsContainer = new Container()
       const regionStrokesContainer = new Container()
       const regionLayers = { fills: regionsContainer, strokes: regionStrokesContainer }
+      // RELEVO (`drawRelevo.ts`): luz, sombra no mar e nas fronteiras numa textura
+      // parada, acima do chão e dos desenhos que o pintam, abaixo da borda das
+      // salas e de tudo o que precisa ser lido (paredes, nomes, pinos, fichas).
+      // O contêiner é o que a troca de cena densa esconde até a camada ser pintada.
+      const relevo = createRelevoRenderer({
+        aoGerar: (medida) => {
+          el.dataset.relevoMs = String(Math.round(medida.ms))
+          el.dataset.relevoTextura = `${medida.largura}x${medida.altura}`
+        },
+      })
+      const relevoContainer = new Container()
+      relevoContainer.eventMode = 'none'
+      relevoContainer.addChild(relevo.camada)
       // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
       const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
@@ -1097,6 +1112,7 @@ export function PixiCanvas({
         // e o Texto (`textLabelsContainer`) — `lib/desenhoSobAsSalas.ts`.
         drawingsGraphics,
         secretDrawingsGraphics,
+        relevoContainer,
         regionStrokesContainer,
         pathsGraphics,
         secretPathsGraphics,
@@ -1831,6 +1847,14 @@ export function PixiCanvas({
           drawPerigos(perigosGraphics, visibleRegions(map.regions, map.hiddenLayers), map.perigos ?? [])
         },
         drawings: paintDrawings,
+        // RELEVO: gerado das mesmas salas que o renderer de regiões desenha; o
+        // renderer espera a mão parar e solta a textura da cena anterior na hora.
+        relevo: () => {
+          const { map } = sceneState()
+          relevo.atualizar(
+            relevoLigado(map) ? { cena: map.id, mapa: map, regioes: visibleRegions(map.regions, map.hiddenLayers) } : null,
+          )
+        },
         // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.
         hazards: () => {
           const { map } = sceneState()
@@ -1893,6 +1917,7 @@ export function PixiCanvas({
         floorSelection: [floorSelectionGraphics],
         perigos: [perigosGraphics],
         drawings: [drawingsGraphics, secretDrawingsGraphics, pathsGraphics, secretPathsGraphics],
+        relevo: [relevoContainer],
         hazards: [hazardsGraphics],
         areaTriggers: [areaTriggersGraphics],
         roomNames: [roomNamesContainer],
@@ -7590,6 +7615,8 @@ export function PixiCanvas({
         unsubscribeFloorShape()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         lightsRenderer.destroy()
+        // A textura do relevo também não: o Sprite sai com a cena, ela não.
+        relevo.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)

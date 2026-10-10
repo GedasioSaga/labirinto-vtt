@@ -78,4 +78,29 @@ describe('subscribeToShapesRedraw', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
   })
+
+  // RELEVO: a chave "Relevo" e o "Tipo de mapa" do "Configurar cena" ligam e
+  // desligam o relevo sem mexer em nenhuma forma. Sem disparar aqui, o editor
+  // seguia mostrando (ou sem mostrar) o relevo até o próximo zoom ou edição.
+  it('dispara quando a chave Relevo muda', () => {
+    useMapStore.getState().setTipoDeMapa('continente')
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    useMapStore.getState().setRelevo(false)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    useMapStore.getState().setRelevo(true)
+    expect(onChange).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
+
+  it('dispara quando o Tipo de mapa muda (Continente liga o relevo por padrão)', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    useMapStore.getState().setTipoDeMapa('continente')
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
 })

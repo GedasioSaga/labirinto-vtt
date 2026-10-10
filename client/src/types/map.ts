@@ -2069,6 +2069,15 @@ export interface MapData {
    */
   continente?: true
   /**
+   * RELEVO do mapa (`lib/relevo.ts`): luz de cima à esquerda sobre a terra,
+   * sombra da terra no mar e sombra nas fronteiras entre regiões. Ausente = o
+   * padrão do tipo de mapa (ligado no Continente, desligado no Normal), sem
+   * linha de migração; `true`/`false` só quando o mestre escolheu diferente do
+   * padrão. Atravessa no recorte do jogador: a tela dele gera o próprio relevo
+   * a partir das regiões que recebeu.
+   */
+  relevo?: boolean
+  /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
    * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no

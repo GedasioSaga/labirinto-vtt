@@ -38,6 +38,8 @@ import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
 import { withRoomLabelStyle, type RoomLabelStylePatch } from './roomLabelStyle'
+import { relevoLigado } from './relevo'
+import { isContinente } from './marcadorDeContinente'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -2252,6 +2254,21 @@ export function setTipoDeMapa(map: MapData, tipo: TipoDeMapa): MapData {
   if (map.continente === undefined && map.worldMap === undefined) return map
   const { continente: _continente, worldMap: _caravana, ...rest } = map
   return rest
+}
+
+/**
+ * Chave "Relevo" da cena (`lib/relevo.ts`). Igual ao padrão do tipo de mapa
+ * tira o campo (a cena volta a seguir o tipo, como mapa antigo); diferente
+ * grava a escolha. Valor igual ao de agora devolve o mesmo `map`: sem passo
+ * vazio no desfazer.
+ */
+export function setRelevo(map: MapData, ligado: boolean): MapData {
+  if (relevoLigado(map) === ligado) return map
+  if (ligado === isContinente(map)) {
+    const { relevo: _padrao, ...rest } = map
+    return rest
+  }
+  return { ...map, relevo: ligado }
 }
 
 /** MAPA POR ANDARES (`lib/buildingFloors.ts`): `undefined` tira o campo, e a cena volta a ser comum. */

@@ -1050,6 +1050,8 @@ interface MapStoreState {
   setWorldMap: (worldMap: boolean) => void
   /** "Tipo de mapa" da cena aberta: Continente desenha a ficha de jogador como pino; Normal tira a caravana junto. Com desfazer. */
   setTipoDeMapa: (tipo: mapFactory.TipoDeMapa) => void
+  /** Chave "Relevo" da cena aberta (`lib/relevo.ts`): luz, sombra no mar e nas fronteiras. Com desfazer. */
+  setRelevo: (ligado: boolean) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
@@ -2441,6 +2443,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // O mesmo tipo devolve o mesmo mapa: sem passo vazio no desfazer.
       if (mapFactory.setTipoDeMapa(get().map, tipo) === get().map) return
       withHistory((map) => mapFactory.setTipoDeMapa(map, tipo))
+    },
+    setRelevo: (ligado) => {
+      // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (mapFactory.setRelevo(get().map, ligado) === get().map) return
+      withHistory((map) => mapFactory.setRelevo(map, ligado))
     },
     setArrivalText: (text) => {
       // O mesmo texto devolve o mesmo mapa: sem passo vazio no desfazer.

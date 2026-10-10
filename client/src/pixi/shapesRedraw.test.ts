@@ -57,6 +57,7 @@ function setup() {
     regions: spy('regions'),
     perigos: spy('perigos'),
     drawings: spy('drawings'),
+    relevo: spy('relevo'),
     hazards: spy('hazards'),
     areaTriggers: spy('areaTriggers'),
     faccoes: spy('faccoes'),
@@ -259,6 +260,24 @@ describe('createShapesRedrawer', () => {
     take()
     redraw(snapshot(map, { selection, posseDasFichas: { p1: ['t1'] } }))
     expect(take()).toEqual(['handles'])
+  })
+
+  it('RELEVO: em cena Continente, mexer na terra ou na chave acorda a camada; em cena Normal, mexer na sala não', () => {
+    const { redraw, take } = setup()
+    const continente: MapData = { ...buildMap(), continente: true }
+    redraw(snapshot(continente))
+    take()
+    const andou = moveRegion(continente, 'r1', 10, 0)
+    expect(redraw(snapshot(andou))).toContain('relevo')
+    take()
+    // Desligar a chave também é mudança da camada (libera a textura).
+    expect(redraw(snapshot({ ...andou, relevo: false }))).toEqual(['relevo'])
+
+    const normal = setup()
+    const masmorra = buildMap()
+    normal.redraw(snapshot(masmorra))
+    normal.take()
+    expect(normal.redraw(snapshot(moveRegion(masmorra, 'r1', 10, 0)))).not.toContain('relevo')
   })
 
   it('mapa sem nenhum campo opcional (sem frame, sem gridOffset, sem salas) pinta e depois fica parado', () => {

@@ -50,6 +50,8 @@ import { drawWalls } from '../pixi/drawWalls'
 import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorDePortas'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
+import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
+import { relevoLigado } from '../lib/relevo'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -85,7 +87,7 @@ import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawS
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type DestinationMark, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
-import { followsOwnToken, type PlayerViewSettings } from './PlayerPanel'
+import { efeitosDoMapaLigados, followsOwnToken, type PlayerViewSettings } from './PlayerPanel'
 import {
   MEASURE_OFF,
   measurePointFromScreen,
@@ -1076,6 +1078,12 @@ interface Scene {
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
   textLabels: Container
   textLabelsRenderer: ReturnType<typeof createTextLabelsRenderer>
+  /**
+   * RELEVO (`pixi/drawRelevo.ts`): gerado SÓ das regiões do recorte deste
+   * jogador, sob a névoa como as salas, e ainda recortado pelo que ele conhece
+   * (`knownMask`): a sombra de uma costa na névoa não escorre para o lado visto.
+   */
+  relevo: RelevoRenderer
   /** Halos das luzes do mestre, recortados pelas paredes; sob a névoa. */
   lights: Container
   lightsRenderer: ReturnType<typeof createLightsRenderer>
@@ -1597,11 +1605,14 @@ export function PlayerView(props: PlayerViewProps) {
     else setGeracao((g) => g + 1)
   }, [])
   if (desistiu) throw new Error('O contexto WebGL do mapa foi perdido repetidas vezes')
-  return <PlayerViewDoCanvas key={geracao} {...props} onContextoPerdido={perdeuContexto} />
+  // MODO LEVE do relevo: o aparelho que já perdeu o WebGL uma vez não ganha
+  // mais uma textura grande para segurar (`pixi/drawRelevo.ts`).
+  return <PlayerViewDoCanvas key={geracao} {...props} onContextoPerdido={perdeuContexto} modoLeve={geracao > 0} />
 }
 
 function PlayerViewDoCanvas({
   onContextoPerdido,
+  modoLeve,
   map,
   vision,
   explored,
@@ -1654,7 +1665,7 @@ function PlayerViewDoCanvas({
   onZoomLimitsChange,
   onAcaoNoOlhar,
   arrivalKey,
-}: PlayerViewProps & { onContextoPerdido: () => void }) {
+}: PlayerViewProps & { onContextoPerdido: () => void; modoLeve: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
@@ -2268,6 +2279,17 @@ function PlayerViewDoCanvas({
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regionLayers, regions)
+    // RELEVO: só das regiões que chegaram no recorte. Modo leve (o jogador
+    // desligou "Efeitos do mapa", ou o WebGL deste aparelho já caiu uma vez): nada.
+    const comRelevo = relevoLigado(currentMap) && efeitosDoMapaLigados(currentSettings) && !modoLeve
+    // A origem de cada efeito sai só do conhecido (visão e explorado): a região
+    // chega inteira no recorte, e a sombra de uma costa ainda na névoa cairia no
+    // mar já visto (`ConhecidoDoRelevo`).
+    scene.relevo.atualizar(
+      comRelevo
+        ? { cena: currentMap.id, mapa: currentMap, regioes: regions, conhecido: { visao: currentVision, explorado: currentExplored } }
+        : null,
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -2617,6 +2639,21 @@ function PlayerViewDoCanvas({
       const triggers = new Graphics()
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
+      // RELEVO: a mesma geometria do conhecido (contexto compartilhado, sem
+      // redesenhar), como máscara direta — só aparece onde o jogador já viu.
+      const relevoMask = new Graphics(knownMask.context)
+      const relevoContainer = new Container()
+      relevoContainer.eventMode = 'none'
+      // Escondido enquanto não há textura (relevo desligado, masmorra, modo
+      // leve): contêiner com máscara visível paga o stencil a cada quadro.
+      relevoContainer.visible = false
+      const relevo = createRelevoRenderer({
+        aoMudarVisibilidade: (visivel) => {
+          if (!relevoContainer.destroyed) relevoContainer.visible = visivel
+        },
+      })
+      relevoContainer.addChild(relevo.camada)
+      relevoContainer.mask = relevoMask
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
@@ -2650,6 +2687,10 @@ function PlayerViewDoCanvas({
         // lá embaixo) < desenhos do botão Desenho < borda da sala < Caminho <
         // paredes. O Texto (`textLabels`) segue lá em cima.
         drawings,
+        // RELEVO acima do chão e da pintura do botão Desenho, abaixo da borda da
+        // sala e de tudo o que se lê (paredes, nomes, pinos, fichas) — como no editor.
+        relevoMask,
+        relevoContainer,
         regionStrokes,
         paths,
         // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
@@ -2776,6 +2817,7 @@ function PlayerViewDoCanvas({
         textLabelsRenderer: createTextLabelsRenderer(),
         lights,
         lightsRenderer: createLightsRenderer(),
+        relevo,
         lightsKey: emptyContentKey(),
         fogUnknown,
         knownMask,
@@ -3479,6 +3521,8 @@ function PlayerViewDoCanvas({
         scene.animadorDePortas.cancelar()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
+        // A textura do relevo também não.
+        scene.relevo.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
