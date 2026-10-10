@@ -2348,6 +2348,8 @@ function PlayerViewDoCanvas({
             mapa: currentMap,
             regioes: regions,
             desenhos: drawings,
+            // PENHASCO: só os riscos que o recorte trouxe (junto do conhecido).
+            penhascos: currentMap.penhascos,
             conhecido: { visao: currentVision, explorado: currentExplored },
           }
         : null,

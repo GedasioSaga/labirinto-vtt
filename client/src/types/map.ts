@@ -2087,6 +2087,16 @@ export interface MapData {
    */
   nomesDosLugares?: boolean
   /**
+   * PENHASCO (`lib/penhasco.ts`): os riscos do pincel de penhasco, na ordem em
+   * que o mestre os fez (riscar soma, apagar tira só do que veio antes). A
+   * parede de pedra não é guardada: o relevo a tira da costa (a união da terra)
+   * debaixo dos riscos, então ela acompanha a terra se o mestre a redesenhar.
+   * Ausente = sem penhasco, sem linha de migração (o último apagado tira o
+   * campo). Leitura segura do disco em `lerPenhascos`. Sai no recorte do
+   * jogador só o pedaço junto do que ele conhece (`penhascosParaJogador`).
+   */
+  penhascos?: TracoDePenhasco[]
+  /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
    * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
@@ -2120,6 +2130,19 @@ export interface MapData {
    * recorte do jogador.
    */
   conveyors?: Conveyor[]
+}
+
+/** O que um risco do pincel de penhasco faz: `riscar` põe penhasco na costa debaixo dele, `apagar` tira. */
+export type ModoDoPenhasco = 'riscar' | 'apagar'
+
+/** Um risco do pincel de penhasco (`lib/penhasco.ts`). */
+export interface TracoDePenhasco {
+  id: string
+  modo: ModoDoPenhasco
+  /** Raio do pincel, em px de mundo. */
+  raio: number
+  /** O caminho do pincel, em px de mundo. Um ponto só é um toque (um disco). */
+  pontos: RegionPoint[]
 }
 
 export type TipoDePerigo = 'fogo' | 'agua'

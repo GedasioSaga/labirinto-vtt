@@ -1,5 +1,6 @@
 import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
+import { penhascosParaJogador } from './penhasco'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
@@ -3599,6 +3600,19 @@ export function filterMapForGroup(
     dark: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
+    // PENHASCO: só o pedaço dos riscos junto do que ele conhece; os riscos na
+    // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
+    // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele
+    // ainda corta a parede pelo conhecido e a guarda sob a máscara da névoa.
+    ...(map.penhascos === undefined
+      ? {}
+      : {
+          penhascos: penhascosParaJogador(
+            map.penhascos,
+            (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+            (p) => inHiddenPlace(p) || inConcealZone(p),
+          ),
+        }),
     tokens,
     markers: recalledList(map.markers, markers, memoryMode).filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy }))),
     lines: recalledList(map.lines, lines, memoryMode).filter(

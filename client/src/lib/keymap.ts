@@ -180,7 +180,14 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // (F é "enquadrar tudo" e Z fica reservada ao Ctrl+Z). A barra o alcança, no
   // grupo só dele.
   mobilia: '',
+  // Penhasco: letra sozinha não sobrou nenhuma, então ele abre a família das
+  // ferramentas de Shift+letra (a mesma dos atalhos do mestre, Shift+N/P/J).
+  // C de "costa", onde o pincel risca; Shift+C estava livre.
+  penhasco: 'Shift+C',
 }
+
+/** Prefixo das ferramentas de Shift+letra em `TOOL_SHORTCUTS` ('Shift+C'). */
+const COM_SHIFT = 'Shift+'
 
 /** Ferramentas escondidas por flag: a letra delas fica na tabela, mas não aciona nada. */
 export function hiddenTools(flags: Readonly<FeatureFlags> = FEATURES): ReadonlySet<DrawingTool> {
@@ -203,14 +210,27 @@ export function buildToolByLetter(hidden: ReadonlySet<DrawingTool>): Map<string,
     if (hidden.has(tool)) continue
     const letra = TOOL_SHORTCUTS[tool]
     // Ferramenta sem letra (string vazia) fica fora do índice: só a barra a
-    // alcança. Sem esta guarda, todas elas colidiriam na chave ''.
-    if (letra.length === 0) continue
+    // alcança. Sem esta guarda, todas elas colidiriam na chave ''. A de
+    // Shift+letra mora no índice dela (`buildToolByShiftLetter`).
+    if (letra.length === 0 || letra.startsWith(COM_SHIFT)) continue
     byLetter.set(letra.toLowerCase(), tool)
   }
   return byLetter
 }
 
+/** Índice letra → ferramenta das que vão com Shift ('Shift+C' entra como 'c'), pulando as escondidas. */
+export function buildToolByShiftLetter(hidden: ReadonlySet<DrawingTool>): Map<string, DrawingTool> {
+  const byLetter = new Map<string, DrawingTool>()
+  for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) { // `as`: Record exaustivo, só ferramentas de verdade (ver `buildToolByLetter`)
+    const atalho = TOOL_SHORTCUTS[tool]
+    if (hidden.has(tool) || !atalho.startsWith(COM_SHIFT)) continue
+    byLetter.set(atalho.slice(COM_SHIFT.length).toLowerCase(), tool)
+  }
+  return byLetter
+}
+
 const TOOL_BY_LETTER = buildToolByLetter(hiddenTools())
+const TOOL_BY_SHIFT_LETTER = buildToolByShiftLetter(hiddenTools())
 
 type ArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 
@@ -337,6 +357,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
   // Shift+P (`PAUSE_NPCS_SHORTCUT`): pausa geral dos NPCs, pelo mesmo caminho.
   if (evt.shiftKey && !evt.altKey && lower === 'p') return { kind: 'pauseNpcs' }
+  // Ferramenta de Shift+letra (o Penhasco): pelo mesmo caminho, antes da trava.
+  const comShift = evt.shiftKey && !evt.altKey ? TOOL_BY_SHIFT_LETTER.get(lower) : undefined
+  if (comShift) return { kind: 'selectTool', tool: comShift }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

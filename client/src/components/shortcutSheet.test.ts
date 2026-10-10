@@ -100,7 +100,8 @@ describe('shortcutSheet — o que a tela de atalhos mostra', () => {
       }
       expect(matching.length, `"${tool}" deveria aparecer uma vez`).toBe(1)
       expect(matching[0].what).toBe(label)
-      expect(matching[0].combo.keys).toEqual([letter])
+      // 'Shift+C' (o Penhasco) é desenhado como as outras combinações: duas teclas.
+      expect(matching[0].combo.keys).toEqual(letter.split('+'))
     }
   })
 

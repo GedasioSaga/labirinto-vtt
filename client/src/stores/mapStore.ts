@@ -5,6 +5,7 @@ import type {
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  ModoDoPenhasco, TracoDePenhasco,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -75,7 +76,9 @@ import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } f
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
-import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
+import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer, visibleRegions } from '../lib/layers'
+import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
+import { consultaDaTerra } from '../lib/relevo'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
 // store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
 // paralelo) e vira UM `SelectionSet` só — ver CONTRATO no topo de
@@ -385,6 +388,13 @@ interface MapStoreState {
   setRevealBrushMode: (mode: RevealBrushMode) => void
   revealBrushWidth: RevealBrushWidth
   setRevealBrushWidth: (width: RevealBrushWidth) => void
+  /** Pincel de penhasco: o que o PRÓXIMO risco faz (Alt inverte) e a largura
+   *  do pincel. Preferência de ferramenta, sem histórico e fora do map.json,
+   *  mesma classe de `revealBrushMode`. */
+  penhascoModo: ModoDoPenhasco
+  setPenhascoModo: (modo: ModoDoPenhasco) => void
+  penhascoLargura: LarguraDoPenhasco
+  setPenhascoLargura: (largura: LarguraDoPenhasco) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -1055,6 +1065,14 @@ interface MapStoreState {
   setRelevo: (ligado: boolean) => void
   /** Chave "Nomes dos lugares" da cena aberta (`lib/nomesDosLugares.ts`): o nome de cada região numa pílula. Com desfazer. */
   setNomesDosLugares: (ligado: boolean) => void
+  /**
+   * PENHASCO (`lib/penhasco.ts`): solta um risco do pincel. Um risco é UM passo
+   * no desfazer; risco que não muda nada (sem costa debaixo, borracha no
+   * vazio) não vira passo e devolve o motivo para a tela dizer.
+   */
+  riscarPenhasco: (traco: Omit<TracoDePenhasco, 'id'>) => ResultadoDoRisco
+  /** Tira todos os riscos de penhasco da cena aberta. Com desfazer. */
+  apagarTodosOsPenhascos: () => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
@@ -1646,6 +1664,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     revealBrushMode: 'revelar',
     // Um quadrado de largura: o corredor recém-andado, que é o pedido.
     revealBrushWidth: 1,
+    penhascoModo: 'riscar',
+    penhascoLargura: 'media',
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -1827,6 +1847,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRoomFreeRounded: (rounded) => set({ roomFreeRounded: rounded }),
     setRevealBrushMode: (mode) => set({ revealBrushMode: mode }),
     setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
+    setPenhascoModo: (modo) => set({ penhascoModo: modo }),
+    setPenhascoLargura: (largura) => set({ penhascoLargura: largura }),
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
@@ -2451,6 +2473,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
       if (mapFactory.setRelevo(get().map, ligado) === get().map) return
       withHistory((map) => mapFactory.setRelevo(map, ligado))
+    },
+    riscarPenhasco: (traco) => {
+      const { map } = get()
+      const antes = map.penhascos ?? []
+      // A costa é a da terra que o relevo do editor desenha: as regiões das camadas à vista.
+      const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
+      const { lista, resultado } = riscarPenhascoNaLista(antes, { ...traco, id: crypto.randomUUID() }, naTerra)
+      if (lista !== antes) withHistory((m) => comPenhascos(m, lista))
+      return resultado
+    },
+    apagarTodosOsPenhascos: () => {
+      if (get().map.penhascos === undefined) return
+      withHistory((map) => comPenhascos(map, []))
     },
     setNomesDosLugares: (ligado) => {
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.

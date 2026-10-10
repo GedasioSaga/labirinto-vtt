@@ -1,5 +1,6 @@
-import type { Drawing, MapData, Region, RegionPoint } from '../types/map'
+import type { Drawing, MapData, Region, RegionPoint, TracoDePenhasco } from '../types/map'
 import type { Exploration } from './exploration'
+import { assinaturaDosPenhascos, temRiscoDePenhasco } from './penhasco'
 import { isContinente } from './marcadorDeContinente'
 import { readRegionSplit, splitSecondPart } from './regionSplit'
 import { parseHexColor } from './tokenColor'
@@ -123,6 +124,74 @@ export const AJUSTE_DAS_DIVISAS = {
   longeDoMar: 4,
 } as const
 
+/**
+ * A PAREDE DO PENHASCO (fatia 3, `lib/penhasco.ts`): a terra debaixo dos riscos
+ * repetida para baixo, uma cor por profundidade abaixo da costa. As faixas são
+ * as do protótipo "Diorama vivo" (lábio iluminado, terra, veio escuro, terra
+ * clara, terra, base molhada); o pé escurecendo até a água vem do "Relevo
+ * sutil". Distâncias em px do protótipo, cores em RGB.
+ */
+export const AJUSTE_DO_PENHASCO = {
+  /** Altura da parede abaixo da costa. */
+  altura: 18,
+  /** De cima para baixo: [até que profundidade, cor]. A última vai até o pé. */
+  faixas: [
+    [2.2, [224, 192, 136]],
+    [6, [188, 144, 92]],
+    [7.6, [146, 104, 64]],
+    [11.8, [198, 154, 102]],
+    [14.6, [158, 114, 72]],
+    [18, [112, 78, 50]],
+  ],
+  /**
+   * Meia largura da passagem de uma faixa para a seguinte. Sem ela a troca é um
+   * degrau seco de um texel, e a faixa fina (o veio tem 1,6 px) leria como
+   * listra desenhada, o que o estilo do usuário não quer.
+   */
+  transicao: 0.6,
+  /** Quanto a parede escurece do lábio ao pé: o pé está molhado. */
+  escurecePe: 0.2,
+  /**
+   * Borrão da borda dos riscos: onde o risco acaba, a parede some aos poucos
+   * em vez de terminar num corte reto.
+   */
+  pontas: 4,
+  /**
+   * Quanto, acima do conhecido do jogador, a costa ainda conta como vista
+   * para a parede nascer (`relevoRaster`): de dentro do mar ele conhece a água
+   * até a beira, e a parede sai da terra logo acima dela.
+   */
+  alcanceDoConhecido: 2,
+} as const
+
+/**
+ * A cor da parede do penhasco a `profundidade` px do protótipo abaixo da
+ * costa: a faixa daquela altura, misturada com a vizinha perto da divisa, e
+ * mais escura quanto mais perto da água.
+ */
+export function corDaParede(profundidade: number): [number, number, number] {
+  const { faixas, transicao, escurecePe, altura } = AJUSTE_DO_PENHASCO
+  let indice = faixas.findIndex(([ate]) => profundidade < ate)
+  if (indice < 0) indice = faixas.length - 1
+  let cor: Rgb = faixas[indice][1]
+  const ate = faixas[indice][0]
+  const de = indice === 0 ? -Infinity : faixas[indice - 1][0]
+  // Perto da divisa de baixo, puxa para a próxima; perto da de cima, para a anterior.
+  if (indice < faixas.length - 1 && ate - profundidade < transicao) {
+    cor = misturar(cor, faixas[indice + 1][1], suave((transicao - (ate - profundidade)) / (2 * transicao)))
+  } else if (indice > 0 && profundidade - de < transicao) {
+    cor = misturar(cor, faixas[indice - 1][1], suave((transicao - (profundidade - de)) / (2 * transicao)))
+  }
+  const luz = 1 - escurecePe * Math.min(1, Math.max(0, profundidade / altura))
+  return [Math.round(cor[0] * luz), Math.round(cor[1] * luz), Math.round(cor[2] * luz)]
+}
+
+/** Curva suave de 0 a 1 (`smoothstep`). */
+function suave(t: number): number {
+  const x = Math.min(1, Math.max(0, t))
+  return x * x * (3 - 2 * x)
+}
+
 /** Lados do polígono que aproxima o Círculo e a Elipse: erro de 0,12% do raio, abaixo de 1 px até 800 px de raio. */
 const LADOS_DA_ELIPSE = 64
 
@@ -157,7 +226,13 @@ export interface PlanoDoRelevo {
    * (`drawRelevo`); detalhe, tinta fraca e desenho no mar não estão na textura.
    */
   divisores: string[]
-  /** Pedaço do mundo que a textura cobre: a terra mais a folga da sombra. */
+  /**
+   * Riscos do pincel de penhasco, na ordem (`lib/penhasco.ts`): a parede nasce
+   * na costa debaixo deles. Vazio quando nenhum risco põe penhasco (só
+   * borracha não desenha nada).
+   */
+  penhascos: readonly TracoDePenhasco[]
+  /** Pedaço do mundo que a textura cobre: a terra mais a folga da sombra (e da parede do penhasco, embaixo). */
   retangulo: RetanguloDeMundo
   /** Texels por px de mundo (≤ 1, e o lado maior da textura ≤ o teto). */
   escala: number
@@ -216,6 +291,16 @@ export function unidadeDoRelevo(map: Pick<MapData, 'width' | 'height' | 'grid'>)
  */
 export function terrasDoRelevo(regioes: readonly Region[]): RegionPoint[][] {
   return regioes.filter(ehTerra).map((r) => r.points)
+}
+
+/**
+ * A pergunta "este ponto é terra?" para muitas perguntas seguidas: a união das
+ * terras do relevo. O pincel de penhasco a usa para saber se o risco passou
+ * pela costa (`lib/penhasco.ts`, que é folha e não importa daqui).
+ */
+export function consultaDaTerra(regioes: readonly Region[]): (p: RegionPoint) => boolean {
+  const consultas = terrasDoRelevo(regioes).map(prepararConsulta)
+  return (p) => consultas.some((c) => contem(c, p))
 }
 
 function ehTerra(r: Region): boolean {
@@ -664,8 +749,30 @@ export function planoDoRelevo(
   regioes: readonly Region[],
   desenhos: readonly Drawing[] = [],
   teto: number = TETO_DA_TEXTURA,
+  penhascos: readonly TracoDePenhasco[] = [],
 ): PlanoDoRelevo | null {
-  return concluir(planoDoRelevoEmPassos(map, regioes, desenhos, teto))
+  const plano = concluir(planoDoRelevoEmPassos(map, regioes, desenhos, teto))
+  return plano === null ? null : planoComPenhascos(plano, penhascos, teto)
+}
+
+/**
+ * O plano com os riscos do penhasco (`lib/penhasco.ts`). Fica FORA do plano da
+ * terra de propósito, como o conhecido do jogador: o plano (as divisas, ~100 ms
+ * no celular lento) é guardado por terra (`drawRelevo`), e os riscos que o
+ * jogador recebe crescem a cada pedaço de costa explorado — sem isto, cada
+ * passo junto de um penhasco refaria o plano inteiro. Aqui só muda o que os
+ * riscos mudam: a parede desce abaixo da costa e a sombra no mar sai do pé
+ * dela, então a textura ganha embaixo a altura da parede.
+ */
+export function planoComPenhascos(
+  plano: PlanoDoRelevo,
+  penhascos: readonly TracoDePenhasco[] | undefined,
+  teto: number = TETO_DA_TEXTURA,
+): PlanoDoRelevo {
+  if (penhascos === undefined || !temRiscoDePenhasco(penhascos)) return plano.penhascos.length === 0 ? plano : { ...plano, penhascos: [] }
+  const retangulo = { ...plano.retangulo, altura: plano.retangulo.altura + AJUSTE_DO_PENHASCO.altura * plano.unidade }
+  const escala = Math.min(ESCALA_MAXIMA, teto / Math.max(retangulo.largura, retangulo.altura))
+  return { ...plano, penhascos: [...penhascos], retangulo, escala }
 }
 
 /**
@@ -709,6 +816,8 @@ export function* planoDoRelevoEmPassos(
     fronteiras,
     divisas,
     divisores,
+    // Os riscos entram depois, por `planoComPenhascos`.
+    penhascos: [],
     retangulo,
     escala,
     unidade,
@@ -735,6 +844,16 @@ export function assinaturaDaTerra(regioes: readonly Region[], desenhos: readonly
     .map((r) => `${r.id}${r.filled === false ? '-' : ''}:${r.fillColor}:${r.split === undefined ? '' : JSON.stringify(r.split)}:${pontosEmTexto(r.points)}`)
     .join('|')
   return `${terra}#${assinaturaDosDesenhos(desenhos)}`
+}
+
+/**
+ * Os mesmos riscos de penhasco? Por referência primeiro; referência nova (o
+ * pacote do jogador) compara o conteúdo, para um pacote que só trouxe os
+ * mesmos riscos não refazer a textura. Ausente e vazio são iguais.
+ */
+export function mesmosPenhascos(a: readonly TracoDePenhasco[] | undefined, b: readonly TracoDePenhasco[] | undefined): boolean {
+  if (a === b) return true
+  return assinaturaDosPenhascos(a) === assinaturaDosPenhascos(b)
 }
 
 function pontosEmTexto(pontos: readonly RegionPoint[]): string {

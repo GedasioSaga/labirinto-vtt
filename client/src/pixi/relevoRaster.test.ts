@@ -16,8 +16,8 @@
  *   fronteira, fica fechada na união (senão ganharia sombra de mar e friso).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Drawing, Region, RegionPoint } from '../types/map'
-import { planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
+import type { Drawing, Region, RegionPoint, TracoDePenhasco } from '../types/map'
+import { planoComPenhascos, planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
 import { rasterizarRelevo } from './relevoRaster'
 
 type Cor = [number, number, number, number]
@@ -404,5 +404,100 @@ describe('rasterizarRelevo — divisas pintadas (fatia 1b)', () => {
     expect(com.width).toBe(sem.width)
     expect(com.height).toBe(sem.height)
     expect(Array.from(com.dados)).toEqual(Array.from(sem.dados))
+  })
+})
+
+describe('rasterizarRelevo — penhasco (fatia 3)', () => {
+  // Terra de 0 a 1000. A costa de baixo (y = 1000) é a da parede à vista.
+  // Opaco = parede: a sombra no mar nunca passa de 0,55 de alfa.
+  const continente = regiao('continente', retangulo(0, 0, 1000, 1000))
+  const PAREDE = 0.9
+
+  function riscoNaCosta(id: string, modo: TracoDePenhasco['modo'], de: number, ate: number, y: number, raio: number): TracoDePenhasco {
+    const pontos: RegionPoint[] = []
+    for (let x = de; x <= ate; x += 20) pontos.push({ x, y })
+    return { id, modo, raio, pontos }
+  }
+
+  function comRiscos(riscos: TracoDePenhasco[], conhecido?: ConhecidoDoRelevo): PlanoDoRelevo {
+    return planoComPenhascos(plano([continente], conhecido), riscos, TETO)
+  }
+
+  /** Cor (sem o alfa pré-multiplicado) no ponto do mundo. */
+  function corNoMundo(tela: TelaFalsa, p: PlanoDoRelevo, x: number, y: number): [number, number, number, number] {
+    const i = Math.floor((x - p.retangulo.x) * p.escala)
+    const j = Math.floor((y - p.retangulo.y) * p.escala)
+    const k = (j * tela.width + i) * 4
+    const a = tela.dados[k + 3]
+    return a === 0 ? [0, 0, 0, 0] : [tela.dados[k] / a, tela.dados[k + 1] / a, tela.dados[k + 2] / a, a]
+  }
+
+  it('a parede desce da costa riscada para o mar, só ali: nem sob a costa sem risco, nem sobre a terra', async () => {
+    const p = comRiscos([riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)])
+    const tela = await gerar(p)
+    // 6 px do protótipo abaixo da costa (unidade 10): parede, marrom.
+    expect(maiorAlfaNoMundo(tela, p, [280, 1040, 320, 1080])).toBeGreaterThan(PAREDE)
+    const [r, g, b] = corNoMundo(tela, p, 300, 1060)
+    expect(r).toBeGreaterThan(g)
+    expect(g).toBeGreaterThan(b)
+    // A costa de baixo sem risco: só a sombra.
+    expect(maiorAlfaNoMundo(tela, p, [650, 1020, 950, 1150])).toBeLessThan(PAREDE)
+    // Sobre a terra, a parede não fica (o que cai nela sai).
+    expect(maiorAlfaNoMundo(tela, p, [250, 700, 350, 960])).toBeLessThan(PAREDE)
+    // A parede tem a altura do protótipo (18 px = 180 de mundo): bem abaixo dela, de novo só sombra.
+    expect(maiorAlfaNoMundo(tela, p, [280, 1260, 320, 1300])).toBeLessThan(PAREDE)
+  })
+
+  it('a sombra no mar sai do pé da parede: cai mais longe do que a da costa sem penhasco', async () => {
+    const longe: [number, number, number, number] = [250, 1430, 350, 1470]
+    const sem = plano([continente])
+    expect(maiorAlfaNoMundo(await gerar(sem), sem, longe)).toBe(0)
+    const com = comRiscos([riscoNaCosta('a', 'riscar', 100, 900, 1000, 40)])
+    expect(maiorAlfaNoMundo(await gerar(com), com, longe)).toBeGreaterThan(0.1)
+  })
+
+  it('risco na costa de cima: nada desce para o mar (a parede ficaria atrás da terra)', async () => {
+    const p = comRiscos([riscoNaCosta('a', 'riscar', 200, 400, 0, 40)])
+    expect(maiorAlfaNoMundo(await gerar(p), p, [150, -300, 450, -10])).toBeLessThan(PAREDE)
+  })
+
+  it('a borracha tira o trecho que ela cobre, e o resto do penhasco fica', async () => {
+    const p = comRiscos([riscoNaCosta('a', 'riscar', 100, 900, 1000, 40), riscoNaCosta('b', 'apagar', 500, 500, 1000, 200)])
+    const tela = await gerar(p)
+    expect(maiorAlfaNoMundo(tela, p, [480, 1040, 520, 1080])).toBeLessThan(PAREDE)
+    expect(maiorAlfaNoMundo(tela, p, [130, 1040, 170, 1080])).toBeGreaterThan(PAREDE)
+  })
+
+  it('jogador: costa longe do que ele conhece não faz parede, nem no mar que ele vê', async () => {
+    const riscos = [riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)]
+    // Ele conhece o mar só a partir de 1100: a costa (1000) está fora do alcance.
+    const longeDaCosta = comRiscos(riscos, { visao: [retangulo(0, 1100, 1000, 1500)] })
+    expect(maiorAlfaNoMundo(await gerar(longeDaCosta), longeDaCosta, [250, 1100, 350, 1200])).toBeLessThan(PAREDE)
+    // Controle: com a costa vista (terra e mar), a parede aparece.
+    const comCosta = comRiscos(riscos, { visao: [retangulo(0, 900, 1000, 1500)] })
+    expect(maiorAlfaNoMundo(await gerar(comCosta), comCosta, [280, 1040, 320, 1080])).toBeGreaterThan(PAREDE)
+  })
+
+  it('jogador no mar diante de uma Sala (a terra fechada para quem está fora): o mar até a beira basta', async () => {
+    const riscos = [riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)]
+    // Conhece o mar desde a beira (1002, o antialias da costa), nada da terra.
+    const doMar = comRiscos(riscos, { visao: [retangulo(0, 1002, 1000, 1500)] })
+    expect(maiorAlfaNoMundo(await gerar(doMar), doMar, [280, 1040, 320, 1080])).toBeGreaterThan(PAREDE)
+  })
+
+  it('jogador na terra que nunca viu o mar: a parede é gerada, mas cai no mar que a máscara da névoa cobre', async () => {
+    // A máscara é do `PlayerView`; aqui só a origem: a costa vista dá a parede (a tela a esconde no mar desconhecido).
+    const riscos = [riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)]
+    const daTerra = comRiscos(riscos, { visao: [retangulo(0, 500, 1000, 1000)] })
+    expect(maiorAlfaNoMundo(await gerar(daTerra), daTerra, [280, 1040, 320, 1080])).toBeGreaterThan(PAREDE)
+  })
+
+  it('jogador cujo conhecido acaba na terra um pouco acima da costa: a parede não sai do corte da névoa', async () => {
+    // O topo da parede vem só da BEIRA de baixo da terra. Se viesse da terra
+    // inteira sob o risco, o corte do conhecido (y = 960) viraria um topo
+    // falso, e a parede desceria de ~980 com as faixas fora do lugar.
+    const riscos = [riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)]
+    const acimaDaCosta = comRiscos(riscos, { visao: [retangulo(0, 500, 1000, 960)] })
+    expect(maiorAlfaNoMundo(await gerar(acimaDaCosta), acimaDaCosta, [280, 1040, 320, 1080])).toBeLessThan(PAREDE)
   })
 })

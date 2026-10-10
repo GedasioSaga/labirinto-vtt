@@ -39,6 +39,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   path: 'Caminho',
   concealZone: 'Zona oculta',
   revealBrush: 'Pincel de revelar',
+  penhasco: 'Penhasco',
   pin: 'Pino',
   mobilia: 'Objetos',
 }
@@ -111,6 +112,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
   revealBrush:
     'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
+  penhasco:
+    'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
   mobilia: 'Escolha o objeto na setinha e clique no mapa. Depois arraste com Selecionar.',
 }
@@ -161,7 +164,9 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // — e, ao contrário das formas do grupo, cada caminho carrega a própria cor.
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'stair', 'prop', 'concealZone', 'revealBrush'],
+  // O Penhasco fica com o terreno, logo depois do Caminho: é mais uma coisa do
+  // chão do mapa (a costa), e não anotação.
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'penhasco', 'stair', 'prop', 'concealZone', 'revealBrush'],
   // Objetos (a mobília desenhada) numa parte só dele, pedido do usuário: o
   // móvel não é construção nem anotação, e o separador dos dois lados é o que
   // faz o mestre achá-lo de relance. A Peça (imagem) segue na construção.
@@ -373,6 +378,20 @@ export const STAIR_CLICK_WITHOUT_DRAG_TEXT =
  */
 export const AVISO_PINCEL_SEM_ZONA =
   'O Pincel de revelar só age dentro de uma zona oculta. Marque a área com a ferramenta Zona oculta e pinte por dentro dela.'
+
+/**
+ * PENHASCO (`lib/penhasco.ts`): o que a tela diz quando o risco não fez nada.
+ * Cada texto diz por que e o que fazer, como o aviso do Pincel de revelar.
+ */
+export const AVISO_PENHASCO_LONGE_DA_COSTA =
+  'O penhasco nasce na costa. Risque por cima da beira entre a terra e o mar.'
+/** A beira de cima de uma terra: o mapa é visto de cima e um pouco de frente, e a parede ficaria atrás dela. */
+export const AVISO_PENHASCO_COSTA_ESCONDIDA =
+  'Nesta beira a parede ficaria escondida atrás da terra. O penhasco aparece na costa voltada para baixo do mapa.'
+export const AVISO_PENHASCO_NADA_A_APAGAR = 'Não há penhasco aqui para apagar.'
+/** Riscou com o relevo desligado: o risco fica guardado, mas só aparece com a chave ligada. */
+export const AVISO_PENHASCO_SEM_RELEVO =
+  'Penhasco guardado. Ele faz parte do relevo, que está desligado nesta cena: ligue o Relevo no painel do Penhasco ou no Tipo de mapa.'
 
 /**
  * Trocou de forma no menu do Chão com um Corredor de UM ponto só (achado 7 do

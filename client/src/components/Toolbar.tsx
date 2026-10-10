@@ -29,6 +29,7 @@ import {
   MeasureIcon,
   ObjetosIcon,
   PathIcon,
+  PenhascoIcon,
   PinIcon,
   PolygonIcon,
   PropIcon,
@@ -90,6 +91,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   eraser: EraserIcon,
   concealZone: ConcealZoneIcon,
   revealBrush: RevealBrushIcon,
+  penhasco: PenhascoIcon,
   pin: PinIcon,
   mobilia: ObjetosIcon,
 }

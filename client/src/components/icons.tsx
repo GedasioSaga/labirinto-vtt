@@ -154,6 +154,20 @@ export function RevealBrushIcon(props: IconProps) {
 }
 
 /**
+ * Penhasco: a terra vista de lado — o chão em cima e a parede descendo em
+ * degraus até a água, que ondula no pé dela.
+ */
+export function PenhascoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 6.5h8.5l1.6 3.2-1.1 2.4 2 2.6-.9 3.8H3z" />
+      <path d="M3 11.5h6.5M3 15h8" />
+      <path d="M15.5 19.5c.9 0 1.3-.9 2.2-.9s1.3.9 2.2.9 1.2-.9 2.1-.9" />
+    </Icon>
+  )
+}
+
+/**
  * Pino de ponto de interesse: a gota cravada no mapa, com o miolo vazado —
  * o glifo ("!" ou "?") é escolha do pino, não do ícone da barra, então aqui
  * fica só a forma que identifica a ferramenta.

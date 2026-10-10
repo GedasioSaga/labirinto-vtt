@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Texture } from 'pixi.js'
-import type { Drawing, Region, RegionPoint } from '../types/map'
+import type { Drawing, Region, RegionPoint, TracoDePenhasco } from '../types/map'
 import type { PlanoDoRelevo } from '../lib/relevo'
 import { ESPERA_DO_RELEVO_MS, createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
 
@@ -357,5 +357,45 @@ describe('createRelevoRenderer — desenhos que pintam o chão (fatia 1b)', () =
     expect(falso.gerarTextura).toHaveBeenCalledTimes(1)
     expect(falso.planos[0].terras).toHaveLength(2)
     expect(falso.planos[0].divisores).toEqual(['b1'])
+  })
+})
+
+describe('createRelevoRenderer — riscos de penhasco (fatia 3)', () => {
+  function risco(id: string, ate: number): TracoDePenhasco {
+    return { id, modo: 'riscar', raio: 20, pontos: [{ x: 0, y: 100 }, { x: ate, y: 100 }] }
+  }
+
+  it('risco novo com a mesma terra: regera com espera, levando os riscos, SEM refazer o plano da terra', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(entrada('cena-1', [regiao('a', 0)]))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(falso.planos[0].penhascos).toEqual([])
+    const riscos = [risco('r1', 80)]
+    relevo.atualizar({ ...entrada('cena-1', [regiao('a', 0)]), penhascos: riscos })
+    // A textura velha fica até a nova.
+    expect(relevo.camada.visible).toBe(true)
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(2)
+    expect(falso.planos[1].penhascos).toEqual(riscos)
+    // A parede ganha lugar embaixo da textura.
+    expect(falso.planos[1].retangulo.altura).toBeGreaterThan(falso.planos[0].retangulo.altura)
+    // O plano da terra é o MESMO (guardado): só os riscos e o retângulo mudaram.
+    expect(falso.planos[1].terras).toBe(falso.planos[0].terras)
+  })
+
+  it('os mesmos riscos em objetos novos (o pacote do jogador) não regeram', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar({ ...entrada('cena-1', [regiao('a', 0)]), penhascos: [risco('r1', 80)] })
+    await vi.advanceTimersByTimeAsync(0)
+    relevo.atualizar({ ...entrada('cena-1', [regiao('a', 0)]), penhascos: [risco('r1', 80)] })
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS * 2)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(1)
+    // O risco apagado de vez (a lista some) regera.
+    relevo.atualizar(entrada('cena-1', [regiao('a', 0)]))
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(2)
+    expect(falso.planos[1].penhascos).toEqual([])
   })
 })

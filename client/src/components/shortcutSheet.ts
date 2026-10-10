@@ -92,7 +92,8 @@ function toolRow(tool: DrawingTool, hidden: ReadonlySet<DrawingTool>): ShortcutR
   // Sem letra (Sala livre, Caminho), sem rótulo ou escondida por flag: a
   // tecla não faz nada, então a tela não a promete.
   if (letter === '' || !label || hidden.has(tool)) return null
-  return { what: label, combo: { keys: [letter] }, action: { kind: 'selectTool', tool } }
+  // 'Shift+C' (o Penhasco) vira as duas teclas, como as outras combinações da tela.
+  return { what: label, combo: { keys: letter.split('+') }, action: { kind: 'selectTool', tool } }
 }
 
 function toolGroups(flags: Readonly<FeatureFlags>): [ShortcutGroup, ShortcutGroup] {

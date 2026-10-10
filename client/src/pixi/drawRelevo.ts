@@ -1,7 +1,9 @@
 import { Sprite, Texture } from 'pixi.js'
-import type { Drawing, MapData, Region } from '../types/map'
+import type { Drawing, MapData, Region, TracoDePenhasco } from '../types/map'
 import {
   assinaturaDaTerra,
+  mesmosPenhascos,
+  planoComPenhascos,
   idsDaTerra,
   idsDasAreasPintadas,
   mesmoConhecido,
@@ -45,6 +47,11 @@ export interface EntradaDoRelevo {
    * Ausente: nenhum.
    */
   desenhos?: readonly Drawing[]
+  /**
+   * Os riscos do pincel de penhasco que ESTA tela recebeu (`MapData.penhascos`;
+   * no jogador, só os junto do que ele conhece). Ausente: nenhum.
+   */
+  penhascos?: readonly TracoDePenhasco[]
   /** O que o jogador já conhece (a origem de cada efeito sai só daqui). Ausente: tudo (o mestre). */
   conhecido?: ConhecidoDoRelevo
 }
@@ -226,7 +233,10 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     }
     // Plano interrompido: a terra mudou e a geração dela já está marcada (ou o relevo desligou).
     if (base === INTERROMPIDO || cancelado()) return
-    const plano = base === null || entrada.conhecido === undefined ? base : { ...base, conhecido: entrada.conhecido }
+    // Riscos de penhasco e conhecido entram por fora do plano guardado: os dois
+    // mudam enquanto o jogador explora, a terra quase nunca.
+    const comRiscos = base === null ? null : planoComPenhascos(base, entrada.penhascos)
+    const plano = comRiscos === null || entrada.conhecido === undefined ? comRiscos : { ...comRiscos, conhecido: entrada.conhecido }
     if (plano === null) {
       liberar()
       return
@@ -275,7 +285,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       return
     }
     const terraIgual = pedido !== null && mesmaTerra(pedido, entrada, assinatura)
-    if (pedido !== null && terraIgual && mesmoConhecido(pedido.conhecido, entrada.conhecido)) {
+    if (pedido !== null && terraIgual && mesmoConhecido(pedido.conhecido, entrada.conhecido) && mesmosPenhascos(pedido.penhascos, entrada.penhascos)) {
       // Mesma terra em objetos novos (pacote do jogador): guarda a referência nova
       // para a próxima comparação sair pelo caminho barato.
       pedido = entrada

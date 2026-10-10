@@ -84,6 +84,8 @@ export type GestureMode =
   | 'drawing-conceal-zone'
   // Pincel de revelar: arrasto que revela (ou esconde) um pedaço da zona oculta.
   | 'painting-reveal-brush'
+  // Penhasco: arrasto que risca (ou apaga) penhasco na costa.
+  | 'painting-penhasco'
   // Girar sala pela alça (bolinha acima da sala selecionada).
   | 'rotating-room'
 
@@ -212,6 +214,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'path',
   'concealZone',
   'revealBrush',
+  'penhasco',
   // Objetos: o clique põe um móvel novo no ponto.
   'mobilia',
 ])
@@ -323,6 +326,8 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'drawing-conceal-zone':
     // Pincel de revelar: mesma mira do começo ao fim, revelando ou escondendo.
     case 'painting-reveal-brush':
+    // Penhasco: idem, riscando ou apagando.
+    case 'painting-penhasco':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 

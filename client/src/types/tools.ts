@@ -37,6 +37,12 @@ export type DrawingTool =
    * (`lib/concealBrush.ts`).
    */
   | 'revealBrush'
+  /**
+   * Penhasco: o mestre risca por cima da costa e ali nasce a parede de pedra
+   * do relevo; Alt (ou o modo "Apagar" no painel) apaga um trecho
+   * (`lib/penhasco.ts`).
+   */
+  | 'penhasco'
   | 'pin'
   /**
    * Objetos: a mobília desenhada (Barril, Caixa, Baú, Cama, Mesa, Cadeira).

@@ -1,5 +1,5 @@
 import { forEachExploredNotch, forEachExploredRun } from '../lib/exploration'
-import { AJUSTE_DO_RELEVO, tamanhoDaTextura, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
+import { AJUSTE_DO_PENHASCO, AJUSTE_DO_RELEVO, corDaParede, tamanhoDaTextura, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
 import type { RegionPoint } from '../types/map'
 
 /**
@@ -118,18 +118,29 @@ export async function rasterizarRelevo(plano: PlanoDoRelevo, cancelado: () => bo
     g.restore()
   }
 
-  // Fora da terra: a sombra dela no mar — só da terra já conhecida.
+  // PENHASCO: a parede de pedra debaixo da costa riscada (`montarParede`).
+  const parede = plano.penhascos.length > 0 ? await montarParede(plano, terra, conhecido, cancelado) : null
+  if (cancelado()) return descartarTudo(terra, ...opcional(conhecido), ...opcional(parede?.tela ?? null))
+
+  // Fora da terra: a sombra dela no mar — só da terra já conhecida. Com
+  // penhasco, a sombra sai do pé da parede: a silhueta é a terra mais ela.
   const saida = novaTela(largura, altura)
   const gs = saida.getContext('2d')
-  if (gs === null) return descartarTudo(terra, ...opcional(conhecido))
+  if (gs === null) return descartarTudo(terra, ...opcional(conhecido), ...opcional(parede?.tela ?? null))
   const s = AJUSTE_DO_RELEVO.sombra
   const silhueta = copiar(terra)
   soConhecido(silhueta)
+  if (parede !== null) silhueta.getContext('2d')?.drawImage(parede.tela, parede.x, parede.y)
   sombraDe(gs, silhueta, rgba(s.cor, s.alfa), s.borrao * px, s.dx * px, s.dy * px)
   descartar(silhueta)
   gs.globalCompositeOperation = 'destination-out'
   gs.drawImage(terra, 0, 0)
   gs.globalCompositeOperation = 'source-over'
+  // A parede por cima da sombra (ela é a coisa que faz a sombra).
+  if (parede !== null) {
+    gs.drawImage(parede.tela, parede.x, parede.y)
+    descartar(parede.tela)
+  }
   await ceder()
   if (cancelado()) return descartarTudo(terra, saida, ...opcional(conhecido))
 
@@ -201,6 +212,178 @@ export async function rasterizarRelevo(plano: PlanoDoRelevo, cancelado: () => bo
 
 function opcional(tela: Tela | null): Tela[] {
   return tela === null ? [] : [tela]
+}
+
+/** A parede do penhasco: uma tela do tamanho da caixa dos riscos e onde ela fica na textura. */
+interface ParedeDoPenhasco {
+  tela: Tela
+  x: number
+  y: number
+}
+
+/** Passos de profundidade desenhados entre uma pausa e outra: cada um é uma cópia da caixa dos riscos. */
+const PASSOS_POR_PAUSA = 8
+
+/**
+ * A PAREDE DO PENHASCO (`lib/penhasco.ts`), como no protótipo: a terra debaixo
+ * dos riscos repetida 1, 2, ... texels para baixo, do fundo para o lábio, cada
+ * passo na cor da sua profundidade (`corDaParede`) — o mais raso cobre o mais
+ * fundo, então cada ponto fica com a cor da distância até a costa logo acima.
+ * Depois sai o que caiu sobre a terra: sobra só a faixa que desce para o mar,
+ * e só debaixo da costa riscada ("gruda" na costa).
+ *
+ * Tudo numa tela do tamanho da CAIXA dos riscos (mais a parede embaixo), não
+ * da textura inteira: o mestre risca um trecho de costa, e cada passo copia
+ * só aquele pedaço. No jogador, o topo sai só da terra conhecida.
+ */
+async function montarParede(
+  plano: PlanoDoRelevo,
+  terra: Tela,
+  conhecido: Tela | null,
+  cancelado: () => boolean,
+): Promise<ParedeDoPenhasco | null> {
+  const { escala, unidade, retangulo } = plano
+  const px = unidade * escala
+  const p = AJUSTE_DO_PENHASCO
+  const caixa = caixaDosRiscos(plano.penhascos, p.pontas * 1.5 * unidade)
+  if (caixa === null) return null
+  const passos = Math.max(1, Math.round(p.altura * px))
+  const x0 = Math.max(0, Math.floor((caixa.minX - retangulo.x) * escala))
+  const y0 = Math.max(0, Math.floor((caixa.minY - retangulo.y) * escala))
+  const x1 = Math.min(terra.width, Math.ceil((caixa.maxX - retangulo.x) * escala))
+  const y1 = Math.min(terra.height, Math.ceil((caixa.maxY - retangulo.y) * escala) + passos + 1)
+  if (x1 <= x0 || y1 <= y0) return null
+  const largura = x1 - x0
+  const altura = y1 - y0
+  const local = (g: Pincel) => g.setTransform(escala, 0, 0, escala, -retangulo.x * escala - x0, -retangulo.y * escala - y0)
+
+  // Os riscos na ordem: riscar soma, apagar tira só do que veio antes.
+  const riscos = novaTela(largura, altura)
+  const gr = riscos.getContext('2d')
+  if (gr === null) return null
+  local(gr)
+  gr.fillStyle = '#fff'
+  gr.strokeStyle = '#fff'
+  gr.lineCap = 'round'
+  gr.lineJoin = 'round'
+  for (const traco of plano.penhascos) {
+    gr.globalCompositeOperation = traco.modo === 'riscar' ? 'source-over' : 'destination-out'
+    riscar(gr, traco.pontos, traco.raio)
+  }
+
+  // O topo: a BEIRA de baixo da terra debaixo dos riscos (os texels de terra
+  // com mar logo abaixo), com a borda dos riscos macia (a parede some aos
+  // poucos onde o risco acaba). Só a beira, e não a terra inteira: a cor de
+  // cada ponto da parede sai da distância até a costa logo acima, e um topo
+  // que começasse mais acima numa coluna (a terra do jogador cortada pela
+  // névoa) desenharia uma listra de faixas fora do lugar. No jogador, só a
+  // beira conhecida.
+  const beira = Math.max(2, Math.ceil(px))
+  const topo = novaTela(largura, altura)
+  const gt = topo.getContext('2d')
+  if (gt === null) return descartarTudo(riscos)
+  sombraDe(gt, riscos, '#fff', p.pontas * px)
+  descartar(riscos)
+  gt.globalCompositeOperation = 'destination-out'
+  gt.drawImage(terra, -x0, -y0 - beira)
+  gt.globalCompositeOperation = 'destination-in'
+  gt.drawImage(terra, -x0, -y0)
+  if (conhecido !== null) {
+    // O conhecido alargado uns texels em volta: quem vê a costa do mar (a
+    // terra é uma Sala, fechada para quem está fora) conhece o mar até a
+    // beira, não a terra logo acima dela; e o explorado de quem andou pela
+    // terra para nas células, um pouco antes da beira. A parede sai da beira,
+    // então ela conta como vista quando o conhecido passa a até `alcance`
+    // dela. A faixa a mais é a da própria linha da costa, que ele já vê, e a
+    // parede só aparece no mar conhecido (a máscara da névoa no `PlayerView`).
+    const alcance = Math.max(2, Math.ceil(p.alcanceDoConhecido * px))
+    const conhecidoDaBeira = alargar(conhecido, x0, y0, largura, altura, alcance)
+    if (conhecidoDaBeira === null) return descartarTudo(riscos, topo)
+    gt.drawImage(conhecidoDaBeira, 0, 0)
+    descartar(conhecidoDaBeira)
+  }
+  gt.globalCompositeOperation = 'source-over'
+
+  const tela = novaTela(largura, altura)
+  const gp = tela.getContext('2d')
+  if (gp === null) return descartarTudo(topo)
+  for (let k = passos; k >= 1; k -= 1) {
+    // O meio do texel k abaixo da costa, em px do protótipo.
+    sombraDe(gp, topo, rgba(corDaParede((k - 0.5) / px), 1), 0, 0, k)
+    if (k % PASSOS_POR_PAUSA === 0) {
+      await ceder()
+      if (cancelado()) return descartarTudo(topo, tela)
+    }
+  }
+  descartar(topo)
+  gp.globalCompositeOperation = 'destination-out'
+  gp.drawImage(terra, -x0, -y0)
+  gp.globalCompositeOperation = 'source-over'
+  return { tela, x: x0, y: y0 }
+}
+
+/**
+ * O pedaço (`x0`, `y0`, `largura` × `altura`) da tela `fonte` alargado
+ * `alcance` texels para todo lado (uma dilatação quadrada): em duas passadas,
+ * de lado e de pé, cada uma com cópias deslocadas — sem ler pixel.
+ */
+function alargar(fonte: Tela, x0: number, y0: number, largura: number, altura: number, alcance: number): Tela | null {
+  const deLado = novaTela(largura, altura)
+  const gl = deLado.getContext('2d')
+  if (gl === null) return null
+  for (let k = -alcance; k <= alcance; k += 1) gl.drawImage(fonte, -x0 + k, -y0)
+  const tela = novaTela(largura, altura)
+  const g = tela.getContext('2d')
+  if (g === null) return descartarTudo(deLado)
+  for (let k = -alcance; k <= alcance; k += 1) g.drawImage(deLado, 0, k)
+  descartar(deLado)
+  return tela
+}
+
+/** Caixa, em px de mundo, dos riscos que põem penhasco (a borracha só tira), com o raio e a `folga`. */
+function caixaDosRiscos(
+  penhascos: PlanoDoRelevo['penhascos'],
+  folga: number,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const traco of penhascos) {
+    if (traco.modo !== 'riscar') continue
+    const r = traco.raio + folga
+    for (const ponto of traco.pontos) {
+      minX = Math.min(minX, ponto.x - r)
+      minY = Math.min(minY, ponto.y - r)
+      maxX = Math.max(maxX, ponto.x + r)
+      maxY = Math.max(maxY, ponto.y + r)
+    }
+  }
+  return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null
+}
+
+/** Lados do polígono do toque (risco de um ponto só): um traço de comprimento zero não pinta em todo navegador. */
+const LADOS_DO_TOQUE = 32
+
+/** Um risco do pincel: o caminho na largura do pincel, de pontas redondas. */
+function riscar(g: Pincel, pontos: readonly RegionPoint[], raio: number): void {
+  if (pontos.length === 0) return
+  if (pontos.length === 1) {
+    const { x, y } = pontos[0]
+    preencher(
+      g,
+      Array.from({ length: LADOS_DO_TOQUE }, (_, i) => {
+        const t = (i / LADOS_DO_TOQUE) * Math.PI * 2
+        return { x: x + Math.cos(t) * raio, y: y + Math.sin(t) * raio }
+      }),
+    )
+    return
+  }
+  g.lineWidth = raio * 2
+  g.beginPath()
+  g.moveTo(pontos[0].x, pontos[0].y)
+  for (let i = 1; i < pontos.length; i += 1) g.lineTo(pontos[i].x, pontos[i].y)
+  g.stroke()
 }
 
 function preencher(g: Pincel, poligono: readonly RegionPoint[]): void {

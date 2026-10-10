@@ -13,9 +13,13 @@ import { ShortcutsDialog } from './ShortcutsDialog'
 /** Uma linha do painel, não o painel inteiro (mesmo teto da régua e2e). */
 const MAX_CHARS_DA_LINHA = 120
 
-/** Letra isolada (não pedaço de palavra), em maiúscula como no balão da barra. */
+/**
+ * Letra isolada (não pedaço de palavra), em maiúscula como no balão da barra.
+ * Combinação ('Shift+C', o Penhasco) vale como a tela a escreve: "Shift + C".
+ */
 function letraIsolada(letra: string): RegExp {
-  return new RegExp(`(^|[^\\p{L}])${letra}([^\\p{L}]|$)`, 'u')
+  const teclas = letra.split('+').join('\\s*\\+\\s*')
+  return new RegExp(`(^|[^\\p{L}])${teclas}([^\\p{L}]|$)`, 'u')
 }
 
 /** Existe no painel uma LINHA curta com a tecla e o que ela faz? */

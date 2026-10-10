@@ -5,7 +5,7 @@ import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } 
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { MapData, Pin, Region, Token, Wall } from '../types/map'
+import type { MapData, ModoDoPenhasco, Pin, Region, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
@@ -50,7 +50,8 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer } from './drawRelevo'
-import { relevoLigado } from '../lib/relevo'
+import { relevoLigado, unidadeDoRelevo } from '../lib/relevo'
+import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
@@ -250,7 +251,15 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { baldeDeTintaNoPonto } from '../lib/baldeDeTinta'
-import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import {
+  AVISO_PENHASCO_COSTA_ESCONDIDA,
+  AVISO_PENHASCO_LONGE_DA_COSTA,
+  AVISO_PENHASCO_NADA_A_APAGAR,
+  AVISO_PENHASCO_SEM_RELEVO,
+  AVISO_PINCEL_SEM_ZONA,
+  CORRIDOR_DISCARDED_TEXT,
+  STAIR_CLICK_WITHOUT_DRAG_TEXT,
+} from '../components/labels'
 import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
 import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
 import {
@@ -317,6 +326,29 @@ const HIDE_STROKE_COLOR = 0x000000
 const HIDE_STROKE_ALPHA = 0.55
 /** Passo mínimo entre pontos do traço, em px de mundo: menor que meia célula do pincel. */
 const REVEAL_STROKE_MIN_STEP = 3
+// Penhasco — rascunho do risco em curso, na "terra clara" das faixas da parede
+// (`AJUSTE_DO_PENHASCO`); a borracha usa o mesmo escuro do esconder.
+const PENHASCO_STROKE_COLOR = 0xc69a66
+const PENHASCO_STROKE_ALPHA = 0.45
+
+/**
+ * O que a tela diz depois de soltar o pincel de penhasco, ou `null` quando o
+ * risco fez o que prometia e já aparece.
+ */
+function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean): string | null {
+  switch (resultado) {
+    case 'longe-da-costa':
+      return AVISO_PENHASCO_LONGE_DA_COSTA
+    case 'costa-escondida':
+      return AVISO_PENHASCO_COSTA_ESCONDIDA
+    case 'nada-a-apagar':
+      return AVISO_PENHASCO_NADA_A_APAGAR
+    case 'riscou':
+      return comRelevo ? null : AVISO_PENHASCO_SEM_RELEVO
+    case 'apagou':
+      return null
+  }
+}
 
 // Largura padrão do corredor de chão, como fração do grid: meia célula lê
 // como passagem sem engolir a sala ao lado, e escala com grids diferentes.
@@ -1869,6 +1901,8 @@ export function PixiCanvas({
                   mapa: map,
                   regioes: visibleRegions(map.regions, map.hiddenLayers),
                   desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+                  // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
+                  penhascos: map.penhascos,
                 }
               : null,
           )
@@ -2559,6 +2593,8 @@ export function PixiCanvas({
         | 'drawing-conceal-zone'
         // Pincel de revelar: arrasto que revela (ou, com Alt, esconde) um pedaço da zona oculta.
         | 'painting-reveal-brush'
+        // Penhasco: arrasto que risca (ou, com Alt, apaga) penhasco na costa.
+        | 'painting-penhasco'
         // Mover um pino de ponto de interesse já cravado.
         | 'dragging-pin'
         // Girar sala pela alça (pixi/roomRotateGesture.ts).
@@ -2669,6 +2705,13 @@ export function PixiCanvas({
       let revealStroke: Point[] = []
       let revealStrokeMode: RevealBrushMode = 'revelar'
       let revealStrokeRadius = 0
+      /**
+       * Penhasco: o risco em curso, local ao gesto como o do Pincel de revelar
+       * — só vira mapa ao soltar (`finishPenhascoStroke`), um Ctrl+Z por risco.
+       */
+      let penhascoStroke: Point[] = []
+      let penhascoStrokeMode: ModoDoPenhasco = 'riscar'
+      let penhascoStrokeRadius = 0
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -4061,6 +4104,54 @@ export function PixiCanvas({
       }
 
       /**
+       * Rascunho do Penhasco: o risco na largura real do pincel, na cor da
+       * pedra do penhasco para riscar e escuro para apagar.
+       */
+      const drawPenhascoStroke = () => {
+        draftGraphics.clear()
+        const [first, ...rest] = penhascoStroke
+        if (first === undefined) return
+        const color = penhascoStrokeMode === 'riscar' ? PENHASCO_STROKE_COLOR : HIDE_STROKE_COLOR
+        const alpha = penhascoStrokeMode === 'riscar' ? PENHASCO_STROKE_ALPHA : HIDE_STROKE_ALPHA
+        if (rest.length === 0) {
+          draftGraphics.circle(first.x, first.y, penhascoStrokeRadius).fill({ color, alpha })
+          return
+        }
+        draftGraphics.moveTo(first.x, first.y)
+        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
+        draftGraphics.stroke({ width: penhascoStrokeRadius * 2, color, alpha, cap: 'round', join: 'round' })
+      }
+
+      /** Mais um ponto no risco, só quando andou um quarto do raio: o arquivo não guarda cada passo do mouse. */
+      const extendPenhascoStroke = (point: Point) => {
+        const last = penhascoStroke[penhascoStroke.length - 1]
+        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < passoDoRisco(penhascoStrokeRadius)) return
+        penhascoStroke.push(point)
+        drawPenhascoStroke()
+      }
+
+      /**
+       * Solta o pincel de penhasco: o risco inteiro vira UMA mudança no mapa.
+       * Risco que não mudou nada (longe da costa, só na beira escondida,
+       * borracha no vazio) diz por quê, em vez de sumir calado; o risco que
+       * entrou com o relevo desligado também avisa, porque ainda não aparece.
+       */
+      const finishPenhascoStroke = (last: Point | null) => {
+        if (last !== null && penhascoStroke.length > 0) extendPenhascoStroke(last)
+        const pontos = penhascoStroke
+        penhascoStroke = []
+        draftGraphics.clear()
+        if (pontos.length === 0) return
+        const store = useMapStore.getState()
+        const resultado = store.riscarPenhasco({ modo: penhascoStrokeMode, raio: penhascoStrokeRadius, pontos })
+        const aviso = avisoDoPenhasco(resultado, relevoLigado(useMapStore.getState().map))
+        if (aviso === null) return
+        const toasts = useToastStore.getState()
+        if (toasts.toasts.some((toast) => toast.text === aviso)) return
+        toasts.push('instrucao', aviso)
+      }
+
+      /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
        * dele (`findSelectableAt`) foi acertado. Camada/hidden/locked já são
        * tratados em `findFloorPieceAt`.
@@ -4090,6 +4181,12 @@ export function PixiCanvas({
         concealDraftStart = null
         concealDraftRawStart = null
         revealStroke = []
+        // Penhasco: Esc ou troca de ferramenta com o botão ainda apertado
+        // encerra o GESTO, não só o rascunho. Sem isso o próximo movimento
+        // recomeçava o risco e o soltar o gravava no mapa (com passo no
+        // desfazer) depois de cancelado, ou já com outra ferramenta na mão.
+        penhascoStroke = []
+        if (mode === 'painting-penhasco') mode = 'idle'
         polygonDraftCenter = null
         stairDraftStart = null
         measureDraftStart = null
@@ -4965,6 +5062,19 @@ export function PixiCanvas({
           revealStrokeRadius = revealBrushRadius(map.grid, revealBrushWidth)
           revealStroke = [worldPoint]
           drawRevealStroke()
+          return
+        }
+
+        if (activeTool === 'penhasco') {
+          // Sem snap, como o Pincel de revelar; Alt INVERTE o modo do painel só
+          // neste risco, lido no começo. O raio segue o tamanho do mapa, como a
+          // própria parede (`raioDoPincelDePenhasco`).
+          const { penhascoModo, penhascoLargura } = useMapStore.getState()
+          mode = 'painting-penhasco'
+          penhascoStrokeMode = event.altKey ? (penhascoModo === 'riscar' ? 'apagar' : 'riscar') : penhascoModo
+          penhascoStrokeRadius = raioDoPincelDePenhasco(unidadeDoRelevo(map), penhascoLargura)
+          penhascoStroke = [worldPoint]
+          drawPenhascoStroke()
           return
         }
 
@@ -5998,6 +6108,7 @@ export function PixiCanvas({
         }
 
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
@@ -6365,6 +6476,7 @@ export function PixiCanvas({
         // Pincel de revelar solto fora do canvas: o que já foi pintado vale,
         // como no pincel de blocos acima (o ponto de fora não entra no traço).
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
+        if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -6953,6 +7065,11 @@ export function PixiCanvas({
 
         if (mode === 'painting-reveal-brush') {
           extendRevealStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-penhasco') {
+          extendPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
           return
         }
 

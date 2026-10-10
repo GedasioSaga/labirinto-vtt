@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildToolByLetter, hiddenTools, resolveShortcut, TOOL_SHORTCUTS } from './keymap'
+import { buildToolByLetter, buildToolByShiftLetter, hiddenTools, resolveShortcut, TOOL_SHORTCUTS } from './keymap'
 import { FEATURES } from './features'
 import type { ShortcutEvent } from './keymap'
 import type { DrawingTool } from '../types/tools'
@@ -57,8 +57,10 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
     // fariam o índice perder uma em silêncio; e Caminho, Pincel de revelar e
     // Objetos, que chegaram quando já não sobrava letra nenhuma (F é
-    // "enquadrar tudo", Z fica com o Ctrl+Z).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 5)
+    // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO, o Penhasco, que abriu
+    // a família de Shift+letra (teste próprio abaixo).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 6)
+    expect(TOOL_SHORTCUTS.penhasco).toBe('Shift+C')
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
@@ -87,6 +89,23 @@ describe('resolveShortcut — letras de ferramenta', () => {
     expect([...porLetra.values()]).not.toContain('mobilia')
     // Controle positivo: o índice não está vazio, a Peça segue na letra dela.
     expect(porLetra.get('b')).toBe('prop')
+  })
+
+  it('Shift+C seleciona o Penhasco; C sozinho continua o Círculo', () => {
+    expect(resolveShortcut(evt({ key: 'C', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'penhasco' })
+    // Caps lock com Shift manda a minúscula: vale igual.
+    expect(resolveShortcut(evt({ key: 'c', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'penhasco' })
+    expect(resolveShortcut(evt({ key: 'c' }))).toEqual({ kind: 'selectTool', tool: 'circle' })
+    // Alt+Shift+C e Ctrl+Shift+C não são o Penhasco.
+    expect(resolveShortcut(evt({ key: 'C', shiftKey: true, altKey: true }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'C', shiftKey: true, ctrlKey: true }))).not.toEqual({ kind: 'selectTool', tool: 'penhasco' })
+    // O índice de letra sozinha não leva a combinação, e o de Shift só ela.
+    expect([...buildToolByLetter(new Set()).values()]).not.toContain('penhasco')
+    expect([...buildToolByShiftLetter(new Set()).entries()]).toEqual([['c', 'penhasco']])
+  })
+
+  it('Shift+C num campo de texto é um C maiúsculo, não o Penhasco', () => {
+    expect(resolveShortcut(evt({ key: 'C', shiftKey: true, targetTagName: 'INPUT' }))).toBeNull()
   })
 
   it('k devolve null: a ferramenta Token está escondida', () => {

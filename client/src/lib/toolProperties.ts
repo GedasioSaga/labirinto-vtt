@@ -62,6 +62,8 @@ export type PropertyGroupId =
   | 'pathStyle'
   /** Pincel de revelar: "Revelar | Esconder" e a largura do PRÓXIMO traço. */
   | 'revealBrush'
+  /** Penhasco: "Riscar | Apagar" e a largura do PRÓXIMO risco (`PenhascoControls`). */
+  | 'penhasco'
   /** PAREDES AO REDOR do desenho selecionado (`ParedesAoRedorControls`). */
   | 'paredesAoRedor'
   /** Parede presa a um desenho selecionada: o aviso (`AvisoParedePresa`) no lugar dos controles de parede. */
@@ -75,7 +77,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -366,6 +368,9 @@ export function relevantPropertyGroups(
   // Pincel de revelar: preferência do PRÓXIMO traço (revelar ou esconder, e a
   // largura). Não há "pincel selecionado" — o que ele pinta é da zona.
   if (activeTool === 'revealBrush') groups.add('revealBrush')
+
+  // Penhasco: o mesmo molde — o que o PRÓXIMO risco faz e a largura dele.
+  if (activeTool === 'penhasco') groups.add('penhasco')
 
   // Pino e zona oculta abertos contam: o painel é o cartão deles, e o mapa
   // inteiro embaixo seria o mesmo vazamento da Sala.
