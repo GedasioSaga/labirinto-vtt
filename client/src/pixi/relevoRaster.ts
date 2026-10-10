@@ -35,7 +35,8 @@ function descartar(...telas: Tela[]): void {
   }
 }
 
-function ceder(): Promise<void> {
+/** Dá a vez ao navegador (um giro do laço de eventos): o plano do relevo (`drawRelevo`) usa o mesmo. */
+export function ceder(): Promise<void> {
   return new Promise((resolver) => setTimeout(resolver, 0))
 }
 
@@ -148,9 +149,12 @@ export async function rasterizarRelevo(plano: PlanoDoRelevo, cancelado: () => bo
   gd.setTransform(1, 0, 0, 1, 0, 0)
 
   // Sombra nas fronteiras: uma faixa sobre cada divisa entre terras, borrada.
-  // A costa não entra (`bordasDaTerra`): o mar não escurece a terra.
+  // A costa não entra (`bordasDaTerra`): o mar não escurece a terra. As
+  // divisas pintadas (borda de desenho entre duas cores, `divisasPintadas`)
+  // entram na MESMA tela: um traço só, então onde as duas se cruzam a sombra
+  // não dobra.
   const o = AJUSTE_DO_RELEVO.oclusao
-  if (plano.fronteiras.length > 0) {
+  if (plano.fronteiras.length > 0 || plano.divisas.length > 0) {
     const linhas = novaTela(largura, altura)
     const gl = linhas.getContext('2d')
     if (gl !== null) {
@@ -158,7 +162,7 @@ export async function rasterizarRelevo(plano: PlanoDoRelevo, cancelado: () => bo
       gl.strokeStyle = '#000'
       gl.lineWidth = o.largura * unidade
       gl.lineCap = 'round'
-      tracarSegmentos(gl, plano.fronteiras)
+      tracarSegmentos(gl, [...plano.fronteiras, ...plano.divisas])
       // Divisa na névoa não escurece nada: a faixa borrada dela alcançaria a terra já vista.
       soConhecido(linhas)
       sombraDe(gd, linhas, rgba(o.cor, o.alfa), o.borrao * px)

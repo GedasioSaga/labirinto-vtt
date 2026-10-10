@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Texture } from 'pixi.js'
-import type { Region, RegionPoint } from '../types/map'
+import type { Drawing, Region, RegionPoint } from '../types/map'
 import type { PlanoDoRelevo } from '../lib/relevo'
 import { ESPERA_DO_RELEVO_MS, createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
 
@@ -254,5 +254,108 @@ describe('createRelevoRenderer — terra que encolhe, conhecido que cresce, visi
     expect(avisos.at(-1)).toBe(true)
     relevo.atualizar(null)
     expect(avisos.at(-1)).toBe(false)
+  })
+})
+
+describe('createRelevoRenderer — desenhos que pintam o chão (fatia 1b)', () => {
+  /** Bioma dentro da região `a` (0 a 100): cor diferente do chão, grande o bastante para dividir. */
+  function bioma(id: string, cor = '#0aa148'): Extract<Drawing, { kind: 'polygon' }> {
+    return { id, kind: 'polygon', points: [{ x: 10, y: 10 }, { x: 90, y: 10 }, { x: 90, y: 90 }, { x: 10, y: 90 }], color: cor, width: 0, filled: true, fillAlpha: 1 }
+  }
+  const comDesenhos = (desenhos: Drawing[]): EntradaDoRelevo => ({ ...entrada('cena-1', [regiao('a', 0)]), desenhos })
+
+  it('o plano leva as divisas do bioma; bioma de outra cor regera', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(comDesenhos([bioma('b1')]))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(falso.planos[0].divisas.length).toBeGreaterThan(0)
+    relevo.atualizar(comDesenhos([bioma('b1', '#47948c')]))
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(2)
+  })
+
+  it('rabisco novo por cima (Pincel, Linha) não regera: não muda nenhuma divisa', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(comDesenhos([bioma('b1')]))
+    await vi.advanceTimersByTimeAsync(0)
+    const rabisco: Drawing = { id: 'r1', kind: 'freehand', points: quadrado(0), color: '#000000', width: 8 }
+    relevo.atualizar(comDesenhos([bioma('b1'), rabisco]))
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(1)
+  })
+
+  it('o conhecido muda e a terra não: o plano da terra é reaproveitado, só o conhecido é novo', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar({ ...comDesenhos([bioma('b1')]), conhecido: { visao: [quadrado(0)] } })
+    await vi.advanceTimersByTimeAsync(0)
+    // Pacote novo do host: objetos novos com o mesmo conteúdo, e ele andou.
+    relevo.atualizar({ ...entrada('cena-1', [regiao('a', 0)]), desenhos: [bioma('b1')], conhecido: { visao: [quadrado(0), quadrado(100)] } })
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(2)
+    expect(falso.planos[1].divisas).toBe(falso.planos[0].divisas)
+    expect(falso.planos[1].conhecido?.visao).toHaveLength(2)
+  })
+
+  it('bioma que SOME (o mestre o tornou secreto ou o ocultou): a divisa dele sai NA HORA', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(comDesenhos([bioma('b1')]))
+    await vi.advanceTimersByTimeAsync(0)
+    relevo.atualizar(comDesenhos([]))
+    expect(relevo.camada.visible).toBe(false)
+    expect(falso.destruidas.has(falso.texturas[0])).toBe(true)
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(falso.planos[1].divisas).toEqual([])
+  })
+
+  it('bioma que perde o fundo também sai NA HORA: a divisa dele já não tem cor que a sustente', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(comDesenhos([bioma('b1')]))
+    await vi.advanceTimersByTimeAsync(0)
+    relevo.atualizar(comDesenhos([{ ...bioma('b1'), filled: false }]))
+    expect(relevo.camada.visible).toBe(false)
+  })
+
+  /** Desenhos com fundo que NUNCA dão divisa: a borda deles não está na textura. */
+  const semDivisa: [string, Drawing][] = [
+    ['detalhe (menor que o tamanho mínimo)', { id: 'pedra', kind: 'polygon', points: [{ x: 40, y: 40 }, { x: 46, y: 40 }, { x: 46, y: 46 }, { x: 40, y: 46 }], color: '#3a2a1a', width: 0, filled: true, fillAlpha: 1 }],
+    ['desenho sobre o mar', { id: 'anotacao', kind: 'circle', cx: 600, cy: 600, radius: 80, color: '#d23c3c', width: 0, filled: true, fillAlpha: 1 }],
+    ['tinta a 30%', { id: 'tinta', kind: 'rect', x: 20, y: 20, w: 60, h: 60, color: '#d23c3c', width: 0, filled: true, fillAlpha: 0.3 }],
+  ]
+
+  it.each(semDivisa)('%s que some NÃO esconde a camada: o relevo segue no palco até a textura nova', async (_nome, desenho) => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    relevo.atualizar(comDesenhos([bioma('b1'), desenho]))
+    await vi.advanceTimersByTimeAsync(0)
+    // O mestre apaga (ou desfaz) o desenho, ou ele sai do recorte do jogador.
+    relevo.atualizar(comDesenhos([bioma('b1')]))
+    expect(relevo.camada.visible).toBe(true)
+    expect(falso.destruidas.has(falso.texturas[0])).toBe(false)
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS)
+    expect(relevo.camada.texture).toBe(falso.texturas[1])
+    // Só o bioma deu divisa: é ele que o palco vigia.
+    expect(falso.planos[0].divisores).toEqual(['b1'])
+  })
+
+  it('a classificação das divisas DÁ A VEZ ao navegador, e para quando a terra muda no meio', async () => {
+    const falso = geradorFalso()
+    // Fatia de 0 ms: cede a cada pedaço, como num celular lento em que todo pedaço estoura a fatia.
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura, fatiaMs: 0 })
+    relevo.atualizar(comDesenhos([bioma('b1'), bioma('b2', '#47948c')]))
+    // Só o giro que começa a geração: o plano ainda não acabou, então a textura não começou.
+    await vi.advanceTimersToNextTimerAsync()
+    expect(falso.gerarTextura).not.toHaveBeenCalled()
+    // A terra muda no meio da classificação (o mestre arrastou um vértice).
+    relevo.atualizar({ ...comDesenhos([bioma('b1')]), regioes: [regiao('a', 0), regiao('c', 100)] })
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_RELEVO_MS * 2)
+    // O plano interrompido nunca chegou à textura: só o da terra nova.
+    expect(falso.gerarTextura).toHaveBeenCalledTimes(1)
+    expect(falso.planos[0].terras).toHaveLength(2)
+    expect(falso.planos[0].divisores).toEqual(['b1'])
   })
 })

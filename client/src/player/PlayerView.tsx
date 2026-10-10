@@ -2279,15 +2279,23 @@ function PlayerViewDoCanvas({
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regionLayers, regions)
-    // RELEVO: só das regiões que chegaram no recorte. Modo leve (o jogador
-    // desligou "Efeitos do mapa", ou o WebGL deste aparelho já caiu uma vez): nada.
+    const drawings = visibleDrawings(currentMap.drawings, hidden)
+    // RELEVO: só das regiões e dos desenhos que chegaram no recorte. Modo leve
+    // (o jogador desligou "Efeitos do mapa", ou o WebGL deste aparelho já caiu
+    // uma vez): nada.
     const comRelevo = relevoLigado(currentMap) && efeitosDoMapaLigados(currentSettings) && !modoLeve
     // A origem de cada efeito sai só do conhecido (visão e explorado): a região
-    // chega inteira no recorte, e a sombra de uma costa ainda na névoa cairia no
-    // mar já visto (`ConhecidoDoRelevo`).
+    // e o desenho chegam inteiros no recorte, e a sombra de uma costa (ou de
+    // uma divisa) ainda na névoa cairia no que ele já viu (`ConhecidoDoRelevo`).
     scene.relevo.atualizar(
       comRelevo
-        ? { cena: currentMap.id, mapa: currentMap, regioes: regions, conhecido: { visao: currentVision, explorado: currentExplored } }
+        ? {
+            cena: currentMap.id,
+            mapa: currentMap,
+            regioes: regions,
+            desenhos: drawings,
+            conhecido: { visao: currentVision, explorado: currentExplored },
+          }
         : null,
     )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
@@ -2297,7 +2305,6 @@ function PlayerViewDoCanvas({
     )
     if (perigosChanged) drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
 
-    const drawings = visibleDrawings(currentMap.drawings, hidden)
     if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden], () => JSON.stringify(drawings))) {
       // Os do botão Desenho por baixo da borda da sala; o Caminho por cima (o
       // Texto tem renderer próprio e `drawDrawings` o pula).

@@ -1,7 +1,15 @@
 import { Sprite, Texture } from 'pixi.js'
-import type { MapData, Region } from '../types/map'
-import { assinaturaDaTerra, idsDaTerra, mesmoConhecido, planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
-import { rasterizarRelevo } from './relevoRaster'
+import type { Drawing, MapData, Region } from '../types/map'
+import {
+  assinaturaDaTerra,
+  idsDaTerra,
+  idsDasAreasPintadas,
+  mesmoConhecido,
+  planoDoRelevoEmPassos,
+  type ConhecidoDoRelevo,
+  type PlanoDoRelevo,
+} from '../lib/relevo'
+import { ceder, rasterizarRelevo } from './relevoRaster'
 
 /**
  * RELEVO no palco (`lib/relevo.ts`): um Sprite só, acima do chão das regiões e
@@ -18,12 +26,25 @@ import { rasterizarRelevo } from './relevoRaster'
 /** Quanto a terra precisa ficar parada para o relevo ser refeito (arrasto de vértice, digitação no painel). */
 export const ESPERA_DO_RELEVO_MS = 250
 
+/**
+ * Quanto o plano do relevo roda de uma vez antes de dar a vez ao navegador.
+ * Metade de um quadro a 60 Hz: o resto sobra para a tela continuar
+ * respondendo enquanto o plano do mapa real (~100 ms no celular lento) sai.
+ */
+export const FATIA_DO_PLANO_MS = 8
+
 export interface EntradaDoRelevo {
   /** Id da cena (`MapData.id`): cena nova libera a textura da anterior na hora. */
   cena: string
   mapa: Pick<MapData, 'width' | 'height' | 'grid'>
   /** As regiões que ESTA tela desenha (no jogador, só as do recorte dele). */
   regioes: readonly Region[]
+  /**
+   * Os desenhos que ESTA tela desenha (no jogador, só os do recorte dele): os
+   * preenchidos sobre a terra dão as divisas pintadas (`divisasPintadas`).
+   * Ausente: nenhum.
+   */
+  desenhos?: readonly Drawing[]
   /** O que o jogador já conhece (a origem de cada efeito sai só daqui). Ausente: tudo (o mestre). */
   conhecido?: ConhecidoDoRelevo
 }
@@ -39,6 +60,8 @@ export interface OpcoesDoRelevo {
   /** Gera a textura do plano. Padrão: a tela 2D de `relevoRaster.ts`. Os testes trocam por uma falsa. */
   gerarTextura?: (plano: PlanoDoRelevo, cancelado: () => boolean) => Promise<Texture | null>
   esperaMs?: number
+  /** Fatia do plano (`FATIA_DO_PLANO_MS`). Os testes passam 0 para ceder a cada passo. */
+  fatiaMs?: number
   /** Avisado a cada textura nova aplicada (o editor marca no DOM para o e2e e a medida). */
   aoGerar?: (medida: MedidaDoRelevo) => void
   /**
@@ -64,23 +87,66 @@ async function texturaPadrao(plano: PlanoDoRelevo, cancelado: () => boolean): Pr
   return tela === null ? null : Texture.from(tela, true)
 }
 
-/** Mesma terra? Por referência primeiro (barato); referência nova compara pelo conteúdo. */
+const SEM_DESENHOS: readonly Drawing[] = []
+
+/** Mesma terra (regiões e desenhos que pintam o chão)? Por referência primeiro (barato); referência nova compara pelo conteúdo. */
 function mesmaTerra(a: EntradaDoRelevo, b: EntradaDoRelevo, assinaturaDeA: () => string): boolean {
   if (a.cena !== b.cena || a.mapa.width !== b.mapa.width || a.mapa.height !== b.mapa.height || a.mapa.grid !== b.mapa.grid) return false
-  if (a.regioes.length === b.regioes.length && a.regioes.every((r, i) => r === b.regioes[i])) return true
-  return assinaturaDeA() === assinaturaDaTerra(b.regioes)
+  if (mesmosItens(a.regioes, b.regioes) && mesmosItens(a.desenhos ?? SEM_DESENHOS, b.desenhos ?? SEM_DESENHOS)) return true
+  return assinaturaDeA() === assinaturaDaTerra(b.regioes, b.desenhos)
 }
 
-/** Alguma região de terra de antes ficou de fora agora? */
-function perdeuTerra(antes: readonly Region[], agora: readonly Region[]): boolean {
-  const ficaram = idsDaTerra(agora)
-  for (const id of idsDaTerra(antes)) if (!ficaram.has(id)) return true
+function mesmosItens<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a === b || (a.length === b.length && a.every((item, i) => item === b[i]))
+}
+
+/**
+ * Alguma região de terra de antes ficou de fora agora, ou algum desenho cuja
+ * borda está na textura do palco (`divisoresNaTela`) deixou de pintar o chão?
+ * Só esses têm o formato na textura. Detalhe, tinta fraca e desenho sobre o
+ * mar que somem não mudam o que está no palco: seguem a espera normal, sem o
+ * mapa inteiro piscar numa edição que não mexe no relevo.
+ */
+function perdeuTerra(antes: EntradaDoRelevo, agora: EntradaDoRelevo, divisoresNaTela: readonly string[]): boolean {
+  if (algumSumiu(idsDaTerra(antes.regioes), idsDaTerra(agora.regioes))) return true
+  if (divisoresNaTela.length === 0) return false
+  return algumSumiu(divisoresNaTela, idsDasAreasPintadas(agora.desenhos ?? SEM_DESENHOS))
+}
+
+function algumSumiu(antes: Iterable<string>, agora: ReadonlySet<string>): boolean {
+  for (const id of antes) if (!agora.has(id)) return true
   return false
+}
+
+/** O plano foi abandonado no meio (a terra mudou, ou o palco morreu): quem esperava por ele desiste. */
+const INTERROMPIDO = 'interrompido'
+
+/**
+ * Roda os passos do plano em fatias de `fatiaMs`, dando a vez ao navegador
+ * entre elas. Confere `interrompido` a cada volta: terra nova não espera o
+ * plano velho terminar.
+ */
+async function planoEmFatias(
+  entrada: EntradaDoRelevo,
+  fatiaMs: number,
+  interrompido: () => boolean,
+): Promise<PlanoDoRelevo | null | typeof INTERROMPIDO> {
+  const passos = planoDoRelevoEmPassos(entrada.mapa, entrada.regioes, entrada.desenhos)
+  let inicioDaFatia = performance.now()
+  for (;;) {
+    const passo = passos.next()
+    if (passo.done === true) return passo.value
+    if (performance.now() - inicioDaFatia < fatiaMs) continue
+    await ceder()
+    if (interrompido()) return INTERROMPIDO
+    inicioDaFatia = performance.now()
+  }
 }
 
 export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRenderer {
   const gerarTextura = opcoes.gerarTextura ?? texturaPadrao
   const esperaMs = opcoes.esperaMs ?? ESPERA_DO_RELEVO_MS
+  const fatiaMs = opcoes.fatiaMs ?? FATIA_DO_PLANO_MS
   const camada = new Sprite(Texture.EMPTY)
   camada.label = 'relevo'
   camada.eventMode = 'none'
@@ -102,9 +168,22 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
   /** Cada geração tem um número; a que terminar depois de outra começar é jogada fora. */
   let geracao = 0
   let destruido = false
+  /**
+   * O plano da terra do pedido, sem o conhecido (`null` = ainda não calculado
+   * para esta terra). O jogador regera a cada pedaço explorado, e a terra
+   * quase nunca muda junto: classificar as divisas de novo a cada passo
+   * custaria dezenas de ms no celular, para sair o mesmo plano. É a promessa
+   * (o plano sai em fatias): a geração que chega com a mesma terra no meio do
+   * plano espera o mesmo, em vez de começar outro.
+   */
+  let planoDaTerra: Promise<PlanoDoRelevo | null | typeof INTERROMPIDO> | null = null
+  /** Muda a cada terra nova: o plano em fatias da terra velha para na próxima volta. */
+  let versaoDaTerra = 0
+  /** Os desenhos cuja borda está na textura do palco agora (`PlanoDoRelevo.divisores`). */
+  let divisoresNaTela: readonly string[] = []
 
   const assinatura = (): string => {
-    if (assinaturaDoPedido === null) assinaturaDoPedido = pedido === null ? '' : assinaturaDaTerra(pedido.regioes)
+    if (assinaturaDoPedido === null) assinaturaDoPedido = pedido === null ? '' : assinaturaDaTerra(pedido.regioes, pedido.desenhos)
     return assinaturaDoPedido
   }
 
@@ -112,6 +191,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     const velha = texturaAtual
     texturaAtual = null
     cenaNaTela = null
+    divisoresNaTela = []
     if (!camada.destroyed) camada.texture = Texture.EMPTY
     mostrar(false)
     velha?.destroy(true)
@@ -122,10 +202,30 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     espera = null
   }
 
+  /** A terra mudou (ou o relevo desligou): o plano guardado não vale mais, e o que está saindo para. */
+  function esquecerPlano(): void {
+    planoDaTerra = null
+    versaoDaTerra += 1
+  }
+
   async function gerar(entrada: EntradaDoRelevo): Promise<void> {
     const minha = ++geracao
     const cancelado = () => destruido || minha !== geracao
-    const base = planoDoRelevo(entrada.mapa, entrada.regioes)
+    // Toda mudança de terra cancela a espera e esquece o plano (`atualizar`):
+    // o guardado aqui é sempre da terra desta entrada.
+    if (planoDaTerra === null) {
+      const versao = versaoDaTerra
+      planoDaTerra = planoEmFatias(entrada, fatiaMs, () => destruido || versao !== versaoDaTerra)
+    }
+    let base: PlanoDoRelevo | null | typeof INTERROMPIDO
+    try {
+      base = await planoDaTerra
+    } catch {
+      // Sem relevo é o mapa de sempre: falha no plano não pode derrubar a tela.
+      base = null
+    }
+    // Plano interrompido: a terra mudou e a geração dela já está marcada (ou o relevo desligou).
+    if (base === INTERROMPIDO || cancelado()) return
     const plano = base === null || entrada.conhecido === undefined ? base : { ...base, conhecido: entrada.conhecido }
     if (plano === null) {
       liberar()
@@ -158,6 +258,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     camada.scale.set(1 / plano.escala)
     mostrar(true)
     cenaNaTela = entrada.cena
+    divisoresNaTela = plano.divisores
     velha?.destroy(true)
     opcoes.aoGerar?.({ ms: performance.now() - inicio, largura: textura.width, altura: textura.height })
   }
@@ -169,6 +270,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       geracao += 1
       pedido = null
       assinaturaDoPedido = null
+      esquecerPlano()
       liberar()
       return
     }
@@ -181,13 +283,17 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     }
     const anterior = pedido
     const cenaNova = anterior === null || anterior.cena !== entrada.cena
-    // Terra que ENCOLHEU (o mestre ocultou uma região, a tornou secreta, ou
-    // escondeu a camada Salas): o relevo dela sai já, senão o formato do que
-    // saiu do recorte ficaria ~0,5 s no palco. Terra que cresce ou se move, e
-    // o conhecido que cresce, mantêm a textura velha até a nova.
-    const encolheu = !cenaNova && anterior !== null && !terraIgual && perdeuTerra(anterior.regioes, entrada.regioes)
+    // Terra que ENCOLHEU (o mestre ocultou uma região ou um desenho cuja borda
+    // está na textura, o tornou secreto, ou escondeu a camada): o relevo dele
+    // sai já, senão o formato do que saiu do recorte ficaria ~0,5 s no palco.
+    // Terra que cresce ou se move, desenho que some sem estar na textura, e o
+    // conhecido que cresce, mantêm a textura velha até a nova.
+    const encolheu = !cenaNova && anterior !== null && !terraIgual && perdeuTerra(anterior, entrada, divisoresNaTela)
     pedido = entrada
-    if (!terraIgual) assinaturaDoPedido = null
+    if (!terraIgual) {
+      assinaturaDoPedido = null
+      esquecerPlano()
+    }
     cancelarEspera()
     // Cena nova: a textura da anterior sai já, e a nova nasce no próximo giro
     // (sem esperar a mão parar). Mesma cena: a textura velha fica até a nova.

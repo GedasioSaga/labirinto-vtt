@@ -1847,12 +1847,20 @@ export function PixiCanvas({
           drawPerigos(perigosGraphics, visibleRegions(map.regions, map.hiddenLayers), map.perigos ?? [])
         },
         drawings: paintDrawings,
-        // RELEVO: gerado das mesmas salas que o renderer de regiões desenha; o
+        // RELEVO: gerado das mesmas salas e dos mesmos desenhos que esta tela
+        // desenha (os preenchidos sobre a terra dão as divisas pintadas); o
         // renderer espera a mão parar e solta a textura da cena anterior na hora.
         relevo: () => {
           const { map } = sceneState()
           relevo.atualizar(
-            relevoLigado(map) ? { cena: map.id, mapa: map, regioes: visibleRegions(map.regions, map.hiddenLayers) } : null,
+            relevoLigado(map)
+              ? {
+                  cena: map.id,
+                  mapa: map,
+                  regioes: visibleRegions(map.regions, map.hiddenLayers),
+                  desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+                }
+              : null,
           )
         },
         // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.

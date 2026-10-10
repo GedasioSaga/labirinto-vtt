@@ -280,6 +280,21 @@ describe('createShapesRedrawer', () => {
     expect(normal.redraw(snapshot(moveRegion(masmorra, 'r1', 10, 0)))).not.toContain('relevo')
   })
 
+  it('RELEVO (fatia 1b): em cena Continente, desenho novo acorda a camada (o renderer decide se pinta o chão); em cena Normal, não', () => {
+    const bioma: Drawing = { id: 'bioma', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], color: '#0aa148', width: 0, filled: true, fillAlpha: 1 }
+    const { redraw, take } = setup()
+    const continente: MapData = { ...buildMap(), continente: true }
+    redraw(snapshot(continente))
+    take()
+    expect(redraw(snapshot({ ...continente, drawings: [...continente.drawings, bioma] }))).toContain('relevo')
+
+    const normal = setup()
+    const masmorra = buildMap()
+    normal.redraw(snapshot(masmorra))
+    normal.take()
+    expect(normal.redraw(snapshot({ ...masmorra, drawings: [...masmorra.drawings, bioma] }))).not.toContain('relevo')
+  })
+
   it('mapa sem nenhum campo opcional (sem frame, sem gridOffset, sem salas) pinta e depois fica parado', () => {
     const { redraw, take } = setup()
     const map = createEmptyMap('vazio', 'Vazio', 5, 5, 50)

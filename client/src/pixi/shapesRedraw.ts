@@ -140,9 +140,10 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
     }
     case 'relevo':
-      // RELEVO (`lib/relevo.ts`): sai da terra. Desligado, arrastar sala não acorda a
-      // camada; ligado, quem espera a mão parar é o próprio renderer (`drawRelevo.ts`).
-      return relevoLigado(map) ? ['relevo', map.id, map.regions, hidden, map.width, map.height, map.grid] : ['sem relevo']
+      // RELEVO (`lib/relevo.ts`): sai da terra e dos desenhos que a pintam. Desligado,
+      // arrastar sala não acorda a camada; ligado, quem espera a mão parar (e
+      // ignora o rabisco que não pinta o chão) é o próprio renderer (`drawRelevo.ts`).
+      return relevoLigado(map) ? ['relevo', map.id, map.regions, map.drawings, hidden, map.width, map.height, map.grid] : ['sem relevo']
     case 'hazards':
       // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
       return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]

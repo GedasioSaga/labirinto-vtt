@@ -16,7 +16,7 @@
  *   fronteira, fica fechada na união (senão ganharia sombra de mar e friso).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Region, RegionPoint } from '../types/map'
+import type { Drawing, Region, RegionPoint } from '../types/map'
 import { planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
 import { rasterizarRelevo } from './relevoRaster'
 
@@ -288,8 +288,8 @@ function regiao(id: string, points: RegionPoint[]): Region {
 const MAPA = { width: 1242, height: 1242, grid: 10 }
 const TETO = 276
 
-function plano(regioes: Region[], conhecido?: ConhecidoDoRelevo): PlanoDoRelevo {
-  const p = planoDoRelevo(MAPA, regioes, TETO)
+function plano(regioes: Region[], conhecido?: ConhecidoDoRelevo, desenhos: Drawing[] = []): PlanoDoRelevo {
+  const p = planoDoRelevo(MAPA, regioes, desenhos, TETO)
   if (p === null) throw new Error('sem terra')
   return conhecido === undefined ? p : { ...p, conhecido }
 }
@@ -379,5 +379,30 @@ describe('rasterizarRelevo — fresta entre regiões vizinhas', () => {
     const i = Math.floor((1006 - p.retangulo.x) * p.escala)
     const j = Math.floor((500 - p.retangulo.y) * p.escala)
     expect(terra.dados[(j * terra.largura + i) * 4 + 3]).toBeGreaterThan(0.99)
+  })
+})
+
+describe('rasterizarRelevo — divisas pintadas (fatia 1b)', () => {
+  // Terra de uma região só; o bioma pinta a metade da direita até a costa.
+  // A única divisa é a reta x = 1000 (o resto da borda do bioma é costa).
+  const terra = regiao('terra', retangulo(0, 0, 2000, 1000))
+  const bioma: Drawing = { id: 'bioma', kind: 'polygon', points: retangulo(1000, 0, 2000, 1000), color: '#0aa148', width: 0, filled: true, fillAlpha: 1 }
+  const terraVista: [number, number, number, number] = [1100, 300, 1800, 700]
+
+  it('o mestre tem a faixa da divisa; o jogador que nunca viu a divisa não tem nada dela na terra que conhece', async () => {
+    const mestre = plano([terra], undefined, [bioma])
+    expect(mestre.divisas.length).toBeGreaterThan(0)
+    expect(maiorAlfaNoMundo(await gerar(mestre), mestre, terraVista)).toBeGreaterThan(0.05)
+    const jogador = plano([terra], { visao: [retangulo(1100, 300, 1800, 700)] }, [bioma])
+    expect(maiorAlfaNoMundo(await gerar(jogador), jogador, terraVista)).toBe(0)
+  })
+
+  it('desenho sobre o mar: a textura sai idêntica à sem ele (nem sombra no mar, nem friso)', async () => {
+    const noMar: Drawing = { id: 'mar', kind: 'polygon', points: retangulo(2300, 200, 2700, 800), color: '#0aa148', width: 0, filled: true, fillAlpha: 1 }
+    const sem = await gerar(plano([terra]))
+    const com = await gerar(plano([terra], undefined, [noMar]))
+    expect(com.width).toBe(sem.width)
+    expect(com.height).toBe(sem.height)
+    expect(Array.from(com.dados)).toEqual(Array.from(sem.dados))
   })
 })
