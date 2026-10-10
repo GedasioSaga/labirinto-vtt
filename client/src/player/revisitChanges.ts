@@ -2,6 +2,7 @@ import type { Drawing, MapData, MapLine, MapMarker, Prop, RegionPoint, Stair, Wa
 import type { Bounds } from '../pixi/world'
 import { createExploration, isPointExplored, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
+import { stairMidpoint } from '../lib/stairCurve'
 
 /**
  * MAPA LEMBRADO — "Mudou desde a sua última visita".
@@ -218,8 +219,9 @@ function stairThing(s: Stair): KeyedThing | null {
     { x: seg.x1, y: seg.y1 },
     { x: seg.x2, y: seg.y2 },
   ])
-  const samples = [{ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }]
-  return keyed(`stair:${s.id}`, [s.shape, s.direction, s.segments, s.stepWidth, s.rotation ?? 0], samples, ends)
+  // Na escada curva, o meio do arco; a curva entra na chave: curvar a escada é mudar a escada.
+  const samples = [stairMidpoint(s) ?? { x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }]
+  return keyed(`stair:${s.id}`, [s.shape, s.direction, s.segments, s.stepWidth, s.rotation ?? 0, s.curva ?? 0], samples, ends)
 }
 
 function drawingThing(d: Drawing): KeyedThing | null {

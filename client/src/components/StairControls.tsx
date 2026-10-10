@@ -4,6 +4,7 @@ import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePre
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import { floorSideOf, type StairTravelProps } from '../lib/stairTravel'
 import { travelSceneLabel } from '../lib/pinTravel'
+import { STAIR_MAX_LENGTH_CELLS, STAIR_MAX_WIDTH_CELLS, STAIR_MIN_CELLS } from '../lib/stairCurve'
 
 export type { StairTravelProps }
 
@@ -26,9 +27,160 @@ export interface StairControlsProps {
    * não pode esquecer a ligação e sumir com a seção sem o compilador ver.
    */
   travel: StairTravelProps | null
+  /**
+   * Comprimento e curva da escada SELECIONADA (pedido de 10/10/2026). Ausente
+   * = sem os campos (quem monta o painel sem essa ligação); a largura em casas
+   * aparece sempre, porque `stepWidth` já é prop.
+   */
+  tamanho?: StairTamanhoProps
 }
 
-const MIN_STEP_WIDTH = 1
+export interface StairTamanhoProps {
+  /** Comprimento de ponta a ponta, em px de mundo (`lib/stairCurve.ts`, `stairLength`). Na espiral, o diâmetro. */
+  length: number
+  onLengthChange: (length: number) => void
+  /**
+   * Volta da escada em graus (com o sinal da flecha) e o maior valor que esta
+   * escada aguenta (`stairMaxTurnDegrees`). `null` = forma que não curva: L,
+   * dupla e espiral.
+   */
+  curve: { degrees: number; maxDegrees: number } | null
+  onCurveChange: (degrees: number) => void
+}
+
+/** − e + andam meia casa: as larguras de Pequena, Média e Grande caem nesse passo. */
+const PASSO_CASAS = 0.5
+const FOLGA = 1e-9
+
+/** "4", "4,5", "0,25": casas com vírgula e no máximo duas casas decimais. */
+function formatarCasas(casas: number): string {
+  return String(Math.round(casas * 100) / 100).replace('.', ',')
+}
+
+/** "6,5" ou "6.5" viram 6,5; vazio ou texto que não é número, `null`. */
+function lerCasas(texto: string): number | null {
+  const normalizado = texto.trim().replace(',', '.')
+  if (normalizado === '') return null
+  const valor = Number(normalizado)
+  return Number.isFinite(valor) ? valor : null
+}
+
+interface CampoEmCasasProps {
+  id: string
+  /** O que se lê acima do campo: "Comprimento", "Largura", "Diâmetro". */
+  rotulo: string
+  /** O nome nos botões para quem não vê: "o comprimento" → "Aumentar o comprimento". */
+  nome: string
+  px: number
+  grid: number
+  maxCasas: number
+  onTrocar: (px: number) => void
+}
+
+/**
+ * Um tamanho da escada em CASAS, com − e + ao lado (mesma linha do campo de
+ * Rotação da Sala). O número digitado vale no Enter ou ao sair do campo; Esc
+ * desfaz o que foi digitado, e texto que não é número volta ao valor sem
+ * gravar nada. Teclado decimal: no celular aparece a vírgula.
+ */
+function CampoEmCasas({ id, rotulo, nome, px, grid, maxCasas, onTrocar }: CampoEmCasasProps) {
+  const casas = px / grid
+  /** `null` = ninguém digitando: o campo mostra o valor de agora (a alça mexeu, o Ctrl+Z voltou). */
+  const [texto, setTexto] = useState<string | null>(null)
+
+  const gravar = (novas: number) => {
+    const limitadas = Math.min(maxCasas, Math.max(STAIR_MIN_CELLS, novas))
+    if (Math.abs(limitadas - casas) > FOLGA) onTrocar(limitadas * grid)
+  }
+  const aplicar = () => {
+    if (texto === null) return
+    const lidas = lerCasas(texto)
+    setTexto(null)
+    if (lidas !== null) gravar(lidas)
+  }
+  // Fora do passo (veio de uma alça sem grade), o − e o + caem primeiro na meia casa mais perto.
+  const menos = () => gravar(Math.ceil(casas / PASSO_CASAS - FOLGA) * PASSO_CASAS - PASSO_CASAS)
+  const mais = () => gravar(Math.floor(casas / PASSO_CASAS + FOLGA) * PASSO_CASAS + PASSO_CASAS)
+  const noMinimo = casas <= STAIR_MIN_CELLS + FOLGA
+  const noMaximo = casas >= maxCasas - FOLGA
+
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={id}>
+        {rotulo}
+      </label>
+      <div className="lb-rotation">
+        <div className="lb-inputgroup lb-rotation__value">
+          <input
+            id={id}
+            className="lb-input"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={texto ?? formatarCasas(casas)}
+            onChange={(event) => setTexto(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') aplicar()
+              if (event.key === 'Escape' && texto !== null) {
+                // Só desfaz a digitação; o Esc seguinte (sem texto) segue para o mapa.
+                event.preventDefault()
+                event.stopPropagation()
+                setTexto(null)
+              }
+            }}
+            onBlur={aplicar}
+          />
+          <span className="lb-inputgroup__suffix">{casas === 1 ? 'casa' : 'casas'}</span>
+        </div>
+        <button type="button" className="lb-btn lb-rotation__step" aria-label={`Diminuir ${nome}`} aria-disabled={noMinimo || undefined} onClick={noMinimo ? undefined : menos}>
+          −
+        </button>
+        <button type="button" className="lb-btn lb-rotation__step" aria-label={`Aumentar ${nome}`} aria-disabled={noMaximo || undefined} onClick={noMaximo ? undefined : mais}>
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A curva da escada reta: deslizante de −máximo a +máximo em graus de volta,
+ * 0 no meio = reta. Os dois lados são os dois lados para onde ela dobra — o
+ * mesmo que puxar a alça do meio no mapa. "Endireitar" volta ao zero sem
+ * precisar acertar o meio do deslizante.
+ */
+function CampoDeCurva({ degrees, maxDegrees, onCurveChange }: { degrees: number; maxDegrees: number; onCurveChange: (degrees: number) => void }) {
+  const maximo = Math.max(0, Math.floor(maxDegrees))
+  const valor = Math.max(-maximo, Math.min(maximo, Math.round(degrees)))
+  const leitura = valor === 0 ? 'Reta' : `${Math.abs(valor)}°`
+  return (
+    <div className="lb-field">
+      <div className="lb-section__row">
+        <label className="lb-label" htmlFor="lb-stair-curve">
+          Curva
+        </label>
+        <span className="lb-num">{leitura}</span>
+      </div>
+      <input
+        id="lb-stair-curve"
+        className="lb-range"
+        type="range"
+        min={-maximo}
+        max={maximo}
+        step={1}
+        value={valor}
+        disabled={maximo === 0}
+        aria-valuetext={valor === 0 ? 'reta' : `${Math.abs(valor)} graus`}
+        onChange={(event) => onCurveChange(Number(event.target.value))}
+      />
+      {valor !== 0 && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={() => onCurveChange(0)}>
+          Endireitar
+        </button>
+      )}
+    </div>
+  )
+}
 
 const LEVA_A_ID = 'lb-stair-leva-a'
 
@@ -208,7 +360,7 @@ function StairTravelSection({
  * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
  * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
  */
-export function StairControls({ direction, onDirectionChange, shape, onShapeChange, stepWidth, onStepWidthChange, grid, travel }: StairControlsProps) {
+export function StairControls({ direction, onDirectionChange, shape, onShapeChange, stepWidth, onStepWidthChange, grid, travel, tamanho }: StairControlsProps) {
   const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
 
   return (
@@ -277,31 +429,46 @@ export function StairControls({ direction, onDirectionChange, shape, onShapeChan
             </div>
           </div>
 
-          <div className="lb-field">
-            <label className="lb-label" htmlFor="lb-stair-step-width">
-              Largura do lance (px)
-            </label>
-            <input
-              id="lb-stair-step-width"
-              className="lb-input"
-              type="number"
-              min={MIN_STEP_WIDTH}
-              step={1}
-              value={stepWidth}
-              onChange={(event) => {
-                // Campo apagado (digitando de novo) chega como '' -> Number('') é
-                // 0, não NaN, então cairia direto no clamp de MIN_STEP_WIDTH sem
-                // deixar o usuário passar por um estado intermediário vazio. Só
-                // dado realmente não-numérico (não deveria acontecer num
-                // type="number", mas o valor do evento sempre chega como string)
-                // é descartado em vez de gravar NaN na entidade.
-                const parsed = Number(event.target.value)
-                if (Number.isNaN(parsed)) return
-                onStepWidthChange(Math.max(MIN_STEP_WIDTH, parsed))
-              }}
+          {/* Comprimento, largura e curva (pedido de 10/10/2026): os mesmos
+              números que as alças do mapa mudam, em casas. A largura era em
+              px; em casas ela fala a língua do mapa e dos presets acima. */}
+          {tamanho !== undefined && (
+            <CampoEmCasas
+              id="lb-stair-length"
+              rotulo="Comprimento"
+              nome="o comprimento"
+              px={tamanho.length}
+              grid={grid}
+              maxCasas={STAIR_MAX_LENGTH_CELLS}
+              onTrocar={tamanho.onLengthChange}
             />
-          </div>
+          )}
+          <CampoEmCasas
+            id="lb-stair-step-width"
+            rotulo="Largura"
+            nome="a largura"
+            px={stepWidth}
+            grid={grid}
+            maxCasas={STAIR_MAX_WIDTH_CELLS}
+            onTrocar={onStepWidthChange}
+          />
+          {tamanho?.curve != null && (
+            <CampoDeCurva degrees={tamanho.curve.degrees} maxDegrees={tamanho.curve.maxDegrees} onCurveChange={tamanho.onCurveChange} />
+          )}
         </>
+      )}
+
+      {/* Espiral: o arrasto é o diâmetro do círculo, e é ele que dá o tamanho. */}
+      {shape === 'spiral' && tamanho !== undefined && (
+        <CampoEmCasas
+          id="lb-stair-length"
+          rotulo="Diâmetro"
+          nome="o diâmetro"
+          px={tamanho.length}
+          grid={grid}
+          maxCasas={STAIR_MAX_LENGTH_CELLS}
+          onTrocar={tamanho.onLengthChange}
+        />
       )}
 
       {travel !== null && <StairTravelSection {...travel} direction={direction} />}

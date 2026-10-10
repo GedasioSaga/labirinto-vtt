@@ -35,6 +35,7 @@ import { subtreeIds } from './roomNesting'
 import { rotationTrig } from './roomRotation'
 import { pointBox } from './smartGuides'
 import { stairSpiralCircle } from './stairs'
+import { stairCenterline } from './stairCurve'
 import { isDegenerateRegion } from '../pixi/shapes'
 
 /** Retângulo visível em px de mundo (o `computeViewport` do canvas). */
@@ -105,7 +106,8 @@ export function guideBoxOfStair(stair: Stair): AreaBounds | null {
   // Mesma regra de `planStairFlight`: largura que não forma lance pinta só a moldura, na linha do meio.
   const halfWidth = (Number.isFinite(stair.stepWidth) ? Math.max(0, stair.stepWidth) : 0) / 2
   let box: AreaBounds | null = null
-  for (const { x1, y1, x2, y2 } of stair.segments) {
+  // Escada curva: cordas do arco (`lib/stairCurve.ts`), cada uma com a meia largura para os lados.
+  for (const { x1, y1, x2, y2 } of stairCenterline(stair)) {
     const length = Math.hypot(x2 - x1, y2 - y1)
     if (!(length > 0) || !Number.isFinite(length)) continue
     // A placa vai meia largura para cada lado na perpendicular do lance: em x

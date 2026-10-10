@@ -298,6 +298,8 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
 import { isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/roomOps'
 import { createRoomRotateGesture } from './roomRotateGesture'
+import { createStairHandleGesture } from './stairHandleGesture'
+import { stairHandleLabel } from '../lib/stairHandles'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
 import { tokenRadiusOf } from '../lib/doorReach'
@@ -1901,6 +1903,8 @@ export function PixiCanvas({
       // Girar sala pela alça (bolinha acima da sala selecionada). Nasce antes do
       // redesenho das alças porque ele pergunta se o giro está em curso.
       const roomRotateGesture = createRoomRotateGesture()
+      // Alças da escada selecionada: ponta (comprimento), lateral (largura) e meio (curva).
+      const stairHandleGesture = createStairHandleGesture()
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -2772,6 +2776,8 @@ export function PixiCanvas({
         | 'dragging-wall-body'
         | 'dragging-region-body'
         | 'dragging-stair-body'
+        // Alças da escada selecionada (pixi/stairHandleGesture.ts).
+        | 'resizing-stair'
         | 'dragging-line-point'
         | 'dragging-line-body'
         // B3 (bug3 "mover e redimensionar"): resize por canto de Drawing
@@ -5853,6 +5859,15 @@ export function PixiCanvas({
           }
         }
 
+        // Alças da escada selecionada: antes do arrasto do corpo (o hit-test
+        // genérico lá embaixo pegaria a escada e a moveria inteira). Escada
+        // travada, ou na camada travada, não começa nada aqui.
+        if (activeTool === 'select' && single?.kind === 'stair' && event.button === 0 && stairHandleGesture.begin(single.id, worldPoint, camera.scale)) {
+          mode = 'resizing-stair'
+          updateCursor()
+          return
+        }
+
         if (activeTool === 'select' && single?.kind === 'light') {
           const light = map.lights.find((l) => l.id === single.id)
           if (light && isOnRadiusHandle(light, worldPoint, camera.scale)) {
@@ -6699,6 +6714,11 @@ export function PixiCanvas({
           mode = 'idle'
           redrawEditHandles()
         }
+        // Alça da escada: o arrasto inteiro vira um Ctrl+Z (`stairHandleGesture.finish`).
+        if (mode === 'resizing-stair') {
+          stairHandleGesture.finish()
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -6901,6 +6921,11 @@ export function PixiCanvas({
           roomRotateGesture.finish()
           mode = 'idle'
           redrawEditHandles()
+        }
+        // Alça da escada: o arrasto inteiro vira um Ctrl+Z (`stairHandleGesture.finish`).
+        if (mode === 'resizing-stair') {
+          stairHandleGesture.finish()
+          mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
         if ((mode === 'resizing-drawing-corner' || mode === 'resizing-drawing-radius') && resizingDrawingSnapshot) {
@@ -7337,6 +7362,20 @@ export function PixiCanvas({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const giro = roomRotateGesture.move(worldPoint, event.shiftKey)
           if (giro) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, giro.label, computeViewport())
+          return
+        }
+
+        // Alça da escada ao vivo: a grade de parede (Alt inverte, como nas
+        // outras alças) e o número junto ao ponteiro — comprimento, largura
+        // ou volta. O rótulo some no pointerup, no mesmo ponto dos outros.
+        if (mode === 'resizing-stair') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, snapTargets } = useMapStore.getState()
+          const feedback = stairHandleGesture.move(worldPoint, event.altKey ? !snapTargets.wall : snapTargets.wall)
+          if (feedback) {
+            const label = stairHandleLabel(feedback.stair, feedback.handle, map.grid, map.gridShape, map.scale)
+            dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, label, computeViewport())
+          }
           return
         }
 
@@ -7886,6 +7925,16 @@ export function PixiCanvas({
         // só isso: o botão ainda está apertado, então largar a seleção aqui
         // (o que o Esc faz fora do gesto) tiraria a sala da mão da pessoa.
         // Shift apertado agora já trava de 15 em 15°, sem esperar o mouse andar.
+        // No meio do arrasto da alça da escada, Esc devolve a escada como
+        // estava — e só isso, pelo mesmo motivo do giro da sala abaixo.
+        if (mode === 'resizing-stair' && event.key === 'Escape') {
+          event.preventDefault()
+          stairHandleGesture.cancel()
+          dimensionLabelRenderer.hide()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
         if (mode === 'rotating-room') {
           if (event.key === 'Escape') {
             event.preventDefault()

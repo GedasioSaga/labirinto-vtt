@@ -18,6 +18,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
+import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
@@ -1010,9 +1011,9 @@ function plugsGapInLine(line: WallLine, fixed: readonly Wall[]): boolean {
   return ends.every((p) => inLine.some((o) => isEndOf(p, o)))
 }
 
-/** Pontas e meio de cada lance da escada. */
+/** Pontas e meio de cada lance da escada; na escada curva, pontos sobre o arco desenhado (`lib/stairCurve.ts`). */
 function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
-  return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
+  return stairCenterlineSamples(stair)
 }
 
 /**
@@ -2994,10 +2995,8 @@ export function filterMapForGroup(
     unseenOk: (l) => exploredShape(l.points),
   })
 
-  const stairMid = (s: Stair): RegionPoint | null => {
-    const first = s.segments[0]
-    return first === undefined ? null : { x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 }
-  }
+  // O meio da escada desenhada: na curva, o meio do arco, não o da corda.
+  const stairMid = (s: Stair): RegionPoint | null => stairMidpoint(s)
   const stairs = recallItems(map.stairs, remembered?.stairs, {
     allowed: (s) => !s.hidden && !s.secret,
     shown: (s) => layerShown(stairLayer(s)),
@@ -3500,9 +3499,9 @@ export function filterMapForGroup(
     veils.length === 0 ? [] : map.tokens.filter((t) => !sentTokenIds.has(t.id) && veilsAt({ x: t.x, y: t.y }).length > 0).map((t) => t.id),
   )
   const playerStairs =visibleStairs(recalledList(map.stairs, stairs, memoryMode), hiddenLayers).filter((s) => {
-    const first = s.segments[0]
-    if (s.hidden || secretFromPlayer(s) || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
-    return memoryMode || isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+    const mid = stairMidpoint(s)
+    if (s.hidden || secretFromPlayer(s) || mid === null || stairSamples(s).some(inHiddenPlace)) return false
+    return memoryMode || isPointKnown(mid)
   })
   // ESCADA QUE LEVA A OUTRO ANDAR: o pino dela vai SÓ junto com a escada — a
   // mesma regra que decide a escada decide o pino, e nunca a do ponto do pino.

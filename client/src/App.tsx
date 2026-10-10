@@ -228,6 +228,7 @@ import { traceMapDetails } from './lib/traceDetails'
 import { buildMinimapFromImage, MINIMAP_IMAGE_DEFAULTS } from './lib/minimapFromImage'
 import { layoutMapFrame, MINIMAP_FRAME_STYLE } from './lib/mapFrame'
 import { fitTitleFont } from './pixi/frameTitle'
+import { curvaForTurnDegrees, stairCanCurve, stairLength, stairMaxTurnDegrees, stairTurnDegrees } from './lib/stairCurve'
 
 /**
  * Onda 2, item 12 (Frente A) — empurra um toast de erro padronizado pros
@@ -3884,6 +3885,22 @@ function App() {
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
+              // Comprimento e curva da escada já colocada: os mesmos números das alças do mapa.
+              tamanho:
+                selectedStair === null
+                  ? undefined
+                  : {
+                      length: stairLength(selectedStair),
+                      onLengthChange: (length) => useMapStore.getState().setStairLength(selectedStair.id, length),
+                      curve: stairCanCurve(selectedStair)
+                        ? { degrees: stairTurnDegrees(selectedStair), maxDegrees: stairMaxTurnDegrees(selectedStair) }
+                        : null,
+                      // Deslizante: ao vivo, um Ctrl+Z por gesto (ver liveSliderChange acima).
+                      onCurveChange: (degrees) =>
+                        liveSliderChange(`stair-curve-${selectedStair.id}`, () =>
+                          useMapStore.getState().setStairCurveLive(selectedStair.id, curvaForTurnDegrees(degrees, stairLength(selectedStair))),
+                        ),
+                    },
               // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
               travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}

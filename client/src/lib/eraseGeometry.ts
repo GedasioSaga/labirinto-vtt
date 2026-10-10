@@ -1,5 +1,6 @@
 import type { Drawing, DrawingPoint, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { stairSpiralCircle } from './stairs'
+import { stairCenterline } from './stairCurve'
 
 /**
  * Geometria PURA da borracha (Agente D, Fase 4, N1 — "apagar só uma parte ou
@@ -419,7 +420,8 @@ export function eraseDecisionForRegion(region: Region, center: Point, radius: nu
 export function eraseDecisionForStair(stair: Stair, center: Point, radius: number): EraseWholeDecision {
   const circle = stairSpiralCircle(stair)
   if (circle !== null) return circleOverlapsCircle(center, radius, circle.center, circle.radius) ? 'remove' : 'keep'
-  const touchesAnySegment = stair.segments.some((segment) =>
+  // Escada curva: encostar no arco desenhado, não na corda (`lib/stairCurve.ts`).
+  const touchesAnySegment = stairCenterline(stair).some((segment) =>
     circleOverlapsSegment(center, radius, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }),
   )
   return touchesAnySegment ? 'remove' : 'keep'

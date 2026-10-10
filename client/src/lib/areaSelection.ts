@@ -27,6 +27,7 @@ import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 import { carryAttachedLights } from './lightAttachment'
 import { stairSpiralCircle } from './stairs'
+import { stairCenterline } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
@@ -218,7 +219,8 @@ function stairEntity(stair: Stair): AreaGeometryEntity {
   if (circle !== null) return { kind: 'circle', cx: circle.center.x, cy: circle.center.y, radius: circle.radius }
   return {
     kind: 'segments',
-    segments: stair.segments.map((seg) => ({ a: { x: seg.x1, y: seg.y1 }, b: { x: seg.x2, y: seg.y2 } })),
+    // Escada curva: as cordas do arco desenhado (`lib/stairCurve.ts`).
+    segments: stairCenterline(stair).map((seg) => ({ a: { x: seg.x1, y: seg.y1 }, b: { x: seg.x2, y: seg.y2 } })),
   }
 }
 

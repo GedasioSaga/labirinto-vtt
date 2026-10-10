@@ -1,4 +1,5 @@
 import type { StairDirection, StairSegment } from '../types/map'
+import { stairArcOf } from '../lib/stairCurve'
 import { STROKE_WEIGHT } from './constants'
 import { hairlinePhysicalWidth, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import type { Point } from './world'
@@ -164,7 +165,17 @@ interface TreadLayout {
   /** Onde os degraus acabam: começo do patamar, ou borda de dentro da moldura no topo. */
   high: number
   snapU: Snap
+  /**
+   * Só na escada CURVA: o vão do lado de dentro do arco dividido pelo da
+   * linha do meio (raio de dentro / raio do meio). Lá os degraus radiais se
+   * apertam; o passo também dobra até o vão de dentro não fechar, a mesma
+   * regra do poste da espiral. Ausente = 1 (lance reto).
+   */
+  innerGapScale?: number
 }
+
+/** No lado de dentro da escada curva, o vão entre dois degraus só precisa ficar aberto: 1 px físico, como junto ao poste da espiral. */
+const INNER_GAP_PHYSICAL_PX = 1
 
 /**
  * Onde começa cada degrau (em `u`). Com zoom baixo o vão entre estações cai
@@ -176,8 +187,10 @@ function pickTreadStarts(layout: TreadLayout): number[] {
   const { stations, treadWidth, treadPhysical, pxPerWorld, resolution, low, high, snapU } = layout
   const count = stations.length - 1
   const needPhysical = MIN_TREAD_GAP_SCREEN_PX * resolution + SNAP_SLACK_PHYSICAL_PX
+  const innerGapScale = layout.innerGapScale ?? 1
+  const freeGap = (stride: number, gapScale: number): number => stride * stations[1] * gapScale * pxPerWorld - treadPhysical
   let stride = 1
-  while (stride < count && stride * stations[1] * pxPerWorld - treadPhysical < needPhysical) stride *= 2
+  while (stride < count && (freeGap(stride, 1) < needPhysical || freeGap(stride, innerGapScale) < INNER_GAP_PHYSICAL_PX)) stride *= 2
 
   const minGap = (MIN_TREAD_GAP_SCREEN_PX * resolution) / pxPerWorld
   const fits = (start: number): boolean =>
@@ -267,4 +280,169 @@ export function planStairFlight(
   })
   const treads = starts.map((start): [Point, Point] => [at(start + treadWidth / 2, innerV0), at(start + treadWidth / 2, innerV1)])
   return { ...base, treads, landing }
+}
+
+/** Flecha máxima, em px físicos, entre o arco da escada curva e as cordas que o desenham. */
+const ARC_SAGITTA_PHYSICAL_PX = 0.25
+/** Teto de cordas por arco: uma escada curva enorme não vira milhares de pontos. */
+const MAX_ARC_STEPS = 256
+
+/**
+ * Lance CURVO (pedido de 10/10/2026, "curvar a escada depois de feita"): o
+ * mesmo lance reto dobrado no arco de `Stair.curva` (`lib/stairCurve.ts`). As
+ * quatro camadas são as do reto — placa chapada, patamar no topo, degraus de
+ * moldura a moldura e a moldura fina —, com `u` agora correndo NO ARCO (o
+ * comprimento da linha do meio) e `v` atravessando-o na direção do raio. Os
+ * degraus viram radiais e seguem o ritmo do reto: apertados no pé, abrindo
+ * rumo ao topo, rareando de longe; no lado de dentro, onde se apertam,
+ * o passo também dobra até o vão não fechar. Sem prender ao pixel: nada no
+ * arco é deitado ou em pé.
+ */
+export interface CurvedStairFlight {
+  /** A placa inteira: o anel do arco, borda de fora na ida e de dentro na volta. */
+  plate: Point[]
+  frame: Point[]
+  frameWidth: number
+  /** Um traço radial por degrau, de moldura a moldura. */
+  treads: [Point, Point][]
+  treadWidth: number
+  landing: Point[] | null
+  center: Point
+  /** Raio da linha do meio. */
+  radius: number
+  halfWidth: number
+  /** Ângulo do pé, visto do centro. */
+  footAngle: number
+  /** Ângulo andado do pé ao topo, com sinal. */
+  climbSweep: number
+  pxPerWorld: number
+}
+
+/** Quantas cordas o arco de ângulo `sweep` e raio `r` pede para a flecha ficar abaixo de ARC_SAGITTA_PHYSICAL_PX. */
+function arcSteps(sweep: number, r: number, pxPerWorld: number): number {
+  // Flecha da corda de ângulo θ num raio r: r·(1 − cos(θ/2)) ≈ r·θ²/8.
+  const maxAngle = Math.sqrt((8 * ARC_SAGITTA_PHYSICAL_PX) / Math.max(r * pxPerWorld, EPSILON))
+  return Math.min(MAX_ARC_STEPS, Math.max(2, Math.ceil(Math.abs(sweep) / maxAngle)))
+}
+
+/** Faixa do anel entre os ângulos `from` e `to` e os raios `inner` e `outer`: arco de fora na ida, de dentro na volta. */
+function annulusBand(center: Point, from: number, to: number, inner: number, outer: number, pxPerWorld: number): Point[] {
+  const at = (angle: number, r: number): Point => ({ x: center.x + Math.cos(angle) * r, y: center.y + Math.sin(angle) * r })
+  const steps = arcSteps(to - from, Math.max(outer, inner), pxPerWorld)
+  const points: Point[] = []
+  for (let i = 0; i <= steps; i += 1) points.push(at(from + ((to - from) * i) / steps, outer))
+  for (let i = steps; i >= 0; i -= 1) points.push(at(from + ((to - from) * i) / steps, inner))
+  return points
+}
+
+/**
+ * Plano de um lance curvo de flecha `curva` (já limitada por quem chama, ver
+ * `stairCurveOf`). Mesmas espessuras, cores e passo do reto. Devolve null para
+ * curva zero ou lance de comprimento zero.
+ */
+export function planCurvedStairFlight(
+  segment: StairSegment,
+  stepWidth: number,
+  direction: StairDirection,
+  curva: number,
+  cameraScale = 1,
+  rendererResolution = 1,
+): CurvedStairFlight | null {
+  const arc = stairArcOf(segment, curva)
+  if (arc === null) return null
+  const scale = positiveOr(cameraScale, 1)
+  const resolution = positiveOr(rendererResolution, 1)
+  const pxPerWorld = scale * resolution
+  const width = Number.isFinite(stepWidth) ? Math.max(0, stepWidth) : 0
+  const { center, radius } = arc
+  // Mesma convenção do reto: quem sobe começa em (x1, y1).
+  const ascends = direction === 'up'
+  const footAngle = ascends ? arc.startAngle : arc.startAngle + arc.sweep
+  const climbSweep = ascends ? arc.sweep : -arc.sweep
+  const turn = Math.sign(climbSweep)
+  const length = radius * Math.abs(climbSweep)
+
+  // `u` no arco da linha do meio; `v` positivo é o `across` do reto (a
+  // esquerda de quem sobe), que no arco cai para o centro quando a volta é
+  // positiva e para fora quando é negativa.
+  const angleAt = (u: number): number => footAngle + (turn * u) / radius
+  const radiusAt = (v: number): number => radius - turn * v
+  const at = (u: number, v: number): Point => {
+    const angle = angleAt(u)
+    const r = radiusAt(v)
+    return { x: center.x + Math.cos(angle) * r, y: center.y + Math.sin(angle) * r }
+  }
+  const band = (u0: number, u1: number, v0: number, v1: number): Point[] => {
+    const r0 = radiusAt(v0)
+    const r1 = radiusAt(v1)
+    return annulusBand(center, angleAt(u0), angleAt(u1), Math.min(r0, r1), Math.max(r0, r1), pxPerWorld)
+  }
+
+  const halfWidth = width / 2
+  const frameWidth = strokeWidthInWorld(pixelGrid(scale, resolution, STROKE_WEIGHT.hairline))
+  const [frameU0, frameU1] = insetByHalf(0, length, frameWidth)
+  const [frameV0, frameV1] = insetByHalf(-halfWidth, halfWidth, frameWidth)
+  const treadPhysical = hairlinePhysicalWidth(treadScreenCss(scale), resolution)
+  const treadWidth = treadPhysical / pxPerWorld
+  const base = {
+    plate: band(0, length, -halfWidth, halfWidth),
+    frame: band(frameU0, frameU1, frameV0, frameV1),
+    frameWidth,
+    treadWidth,
+    center,
+    radius,
+    halfWidth,
+    footAngle,
+    climbSweep,
+    pxPerWorld,
+  }
+
+  const innerU0 = frameWidth
+  const innerU1 = length - frameWidth
+  const innerV0 = -halfWidth + frameWidth
+  const innerV1 = halfWidth - frameWidth
+  if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null }
+
+  const run = length - landingDepth(length, width)
+  const landingStart = Math.min(Math.max(run, innerU0), innerU1 - 1 / pxPerWorld)
+  const landing = landingStart < innerU0 ? null : band(landingStart, innerU1, innerV0, innerV1)
+
+  const count = Math.min(MAX_TREAD_INTERVALS, Math.max(1, Math.round(run / (TREAD_PITCH_RATIO * Math.min(width, length)))))
+  const starts = pickTreadStarts({
+    stations: treadStations(run, count),
+    treadWidth,
+    treadPhysical,
+    pxPerWorld,
+    resolution,
+    low: innerU0,
+    high: landing === null ? innerU1 : landingStart,
+    snapU: (u) => u,
+    innerGapScale: Math.max(0, radius - halfWidth) / radius,
+  })
+  const treads = starts.map((start): [Point, Point] => [at(start + treadWidth / 2, innerV0), at(start + treadWidth / 2, innerV1)])
+  return { ...base, treads, landing }
+}
+
+/**
+ * O anel de seleção da escada curva: a placa empurrada `offset` para fora em
+ * todo lado. Nas pontas o empurrão é o mesmo em px em qualquer raio, então o
+ * ângulo a mais é maior no lado de dentro.
+ */
+export function curvedFlightRing(flight: CurvedStairFlight, offset: number): Point[] {
+  const outer = flight.radius + flight.halfWidth + offset
+  const inner = Math.max(EPSILON, flight.radius - flight.halfWidth - offset)
+  const turn = Math.sign(flight.climbSweep)
+  const span = (r: number): [number, number] => {
+    const extra = Math.min(Math.PI / 2, offset / r)
+    return [flight.footAngle - turn * extra, flight.footAngle + flight.climbSweep + turn * extra]
+  }
+  const at = (angle: number, r: number): Point => ({ x: flight.center.x + Math.cos(angle) * r, y: flight.center.y + Math.sin(angle) * r })
+  const [outerFrom, outerTo] = span(outer)
+  const [innerFrom, innerTo] = span(inner)
+  const outerSteps = arcSteps(outerTo - outerFrom, outer, flight.pxPerWorld)
+  const innerSteps = arcSteps(innerTo - innerFrom, inner, flight.pxPerWorld)
+  const points: Point[] = []
+  for (let i = 0; i <= outerSteps; i += 1) points.push(at(outerFrom + ((outerTo - outerFrom) * i) / outerSteps, outer))
+  for (let i = innerSteps; i >= 0; i -= 1) points.push(at(innerFrom + ((innerTo - innerFrom) * i) / innerSteps, inner))
+  return points
 }

@@ -10,6 +10,7 @@ import {
 } from './layers'
 import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
+import { stairCenterline } from './stairCurve'
 import { desenhoFicaSobAsSalas } from './desenhoSobAsSalas'
 
 export interface Point {
@@ -68,7 +69,8 @@ export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT
       continue
     }
     const reach = Math.max(tolerance, stair.stepWidth / 2)
-    for (const segment of stair.segments) {
+    // Escada curva: a linha do meio é o arco desenhado, em cordas (`lib/stairCurve.ts`).
+    for (const segment of stairCenterline(stair)) {
       if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= reach) {
         return stair
       }

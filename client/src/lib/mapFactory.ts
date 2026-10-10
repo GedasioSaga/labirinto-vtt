@@ -29,6 +29,7 @@ import { sameTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
 import { sameCenario } from '../cenario/catalogo'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
+import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaVista, comAparenciaDoMovel, mesmaAparenciaDoMovel, movelComOutraVista, movelComOutroTipo, vistaDoMovel,
@@ -1776,6 +1777,46 @@ export function setStairShape(map: MapData, stairId: string, shape: StairShape):
  *  Escada inexistente: `map` sem mudança (o `.map` abaixo é no-op). */
 export function setStairStepWidth(map: MapData, stairId: string, stepWidth: number): MapData {
   return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, stepWidth } : s)) }
+}
+
+/** O desenho da escada que as alças e a ficha mudam: lances, largura e curva (ausente = reta). */
+export type StairGeometry = Pick<Stair, 'segments' | 'stepWidth' | 'curva'>
+
+/**
+ * Troca o desenho de uma escada JÁ CRIADA (alças do mapa e campos da ficha,
+ * pedido de 10/10/2026). `curva` ausente ou 0 tira o campo: a escada volta a
+ * ser a reta de sempre, sem número sobrando no arquivo. A boca pode ter
+ * andado (a ponta de baixo da reta, o diâmetro da espiral): o pino da escada
+ * que leva a outro andar vai junto (`seatStairPins`). Nada mudou, ou escada
+ * inexistente: o MESMO mapa.
+ */
+export function setStairGeometry(map: MapData, stairId: string, geometry: StairGeometry): MapData {
+  const stair = map.stairs.find((s) => s.id === stairId)
+  if (stair === undefined) return map
+  const curva = geometry.curva === undefined || geometry.curva === 0 ? undefined : geometry.curva
+  if (stair.segments === geometry.segments && stair.stepWidth === geometry.stepWidth && stair.curva === curva) return map
+  const { curva: _curvaAntiga, ...semCurva } = stair
+  const next: Stair = { ...semCurva, segments: geometry.segments, stepWidth: geometry.stepWidth, ...(curva === undefined ? {} : { curva }) }
+  return seatStairPins({ ...map, stairs: map.stairs.map((s) => (s.id === stairId ? next : s)) }, [stairId])
+}
+
+/**
+ * Comprimento de ponta a ponta pela ficha, com o começo (x1, y1) parado — a
+ * boca, onde mora o pino da escada que leva a outro andar. Limitado a
+ * `clampStairLength` casas; a curva escala junto (`withStairLength`).
+ */
+export function setStairLength(map: MapData, stairId: string, length: number): MapData {
+  const stair = map.stairs.find((s) => s.id === stairId)
+  if (stair === undefined) return map
+  const next = withStairLength(stair, clampStairLength(length, map.grid), 'start')
+  return next === stair ? map : setStairGeometry(map, stairId, next)
+}
+
+/** Curva pela ficha (flecha em px de mundo); 0 = reta. O limite é do desenho (`stairCurveOf`). */
+export function setStairCurve(map: MapData, stairId: string, curva: number): MapData {
+  const stair = map.stairs.find((s) => s.id === stairId)
+  if (stair === undefined || !Number.isFinite(curva)) return map
+  return setStairGeometry(map, stairId, { segments: stair.segments, stepWidth: stair.stepWidth, curva })
 }
 
 // ─────────────────────────────────────────────────────────────

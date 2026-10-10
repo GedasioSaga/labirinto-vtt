@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js'
-import type { MapData, RegionPoint, Drawing, Region } from '../types/map'
+import type { MapData, RegionPoint, Drawing, Region, Stair } from '../types/map'
 import type { Selection, DrawingTool } from '../types/tools'
 import type { Point } from './world'
 import { regionEdgeMidpoints } from '../lib/roomLink'
@@ -7,7 +7,9 @@ import { alcasDoDesenho, editavelPorPontos } from '../lib/pontosChave'
 import { isAxisAlignedRect } from '../lib/roomOps'
 import { roomRotateHandle, roomRotationOf } from '../lib/roomRotation'
 import { isLocked } from '../lib/itemTransform'
-import { drawRoomHandles } from './drawRoomHandles'
+import { cornerHandleExtent, drawCornerHandle, drawRoomHandles } from './drawRoomHandles'
+import { stairHandles } from '../lib/stairHandles'
+import { stairLength } from '../lib/stairCurve'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
@@ -353,5 +355,45 @@ export function drawEditHandles(
   if (selection.kind === 'light') {
     const light = map.lights.find((l) => l.id === selection.id)
     if (light) drawLightRadiusHandle(graphics, light, scale)
+    return
   }
+
+  // Escada travada: o pointerdown não pega alça nenhuma (`pixi/stairHandleGesture.ts`).
+  if (selection.kind === 'stair') {
+    const stair = map.stairs.find((s) => s.id === selection.id)
+    if (stair && !isLocked(stair)) drawStairHandles(graphics, stair, scale)
+  }
+}
+
+/**
+ * Alças da escada selecionada (`lib/stairHandles.ts`). Pontas e laterais
+ * mudam o TAMANHO, então falam a língua do canto de Sala e de Token: o chip
+ * quadrado amarelo com a faixa escura (`drawCornerHandle`), do tamanho que a
+ * escada tem na tela. A do meio CURVA, e fala a língua do meio de trecho do
+ * Pincel e da sala livre: a bolinha vazada de fundo escuro — puxar dela dobra
+ * a forma em vez de redimensionar.
+ */
+function drawStairHandles(graphics: Graphics, stair: Stair, cameraScale: number): void {
+  const handles = stairHandles(stair)
+  if (handles.length === 0) return
+  const { radius, keyline } = cornerHandleExtent(stair.stepWidth, stairLength(stair), cameraScale)
+  for (const handle of handles) {
+    if (handle.kind === 'curve') drawStairCurveHandle(graphics, handle.point, cameraScale)
+    else drawCornerHandle(graphics, handle.point.x, handle.point.y, radius, keyline)
+  }
+}
+
+/**
+ * A alça de CURVAR: a vazada do meio de trecho, no tamanho da bolinha de
+ * vértice e não no do meio de trecho (`HANDLE_MIDPOINT_RADIUS`). Lá ela é um
+ * extra (criar ponto); aqui é um dos três gestos da escada, e com o raio menor
+ * ela se perdia entre os degraus (visto no print de 10/10/2026). O fundo
+ * escuro corta o degrau que passa por baixo.
+ */
+function drawStairCurveHandle(graphics: Graphics, point: Point, cameraScale: number): void {
+  const ring = STROKE_WEIGHT.thin / cameraScale
+  const radius = HANDLE_VISUAL_RADIUS / cameraScale
+  const keyline = CORNER_HANDLE_KEYLINE_WIDTH / cameraScale
+  graphics.circle(point.x, point.y, radius + ring / 2 + keyline).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
+  graphics.circle(point.x, point.y, radius).stroke({ width: ring, color: SELECTION_COLOR })
 }

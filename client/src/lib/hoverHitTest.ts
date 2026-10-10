@@ -42,7 +42,8 @@ import { isAxisAlignedRect } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
-import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
+import { canInteractInLayer, stairLayer } from './layers'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
@@ -133,6 +134,13 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     if (selection.kind === 'light') {
       const light = map.lights.find((l) => l.id === selection.id)
       if (light && isOnRadiusHandle(light, worldPoint, scale)) return { kind: 'radius', corner: null, target: null }
+    }
+    // Alças da escada (pontas, laterais, meio): a mesma condição do pointerdown (`pixi/stairHandleGesture.ts`).
+    if (selection.kind === 'stair') {
+      const stair = map.stairs.find((s) => s.id === selection.id)
+      if (stair && canInteractInLayer(stair, stairLayer(stair), map.lockedLayers) && findStairHandleAt(stair, worldPoint, scale) !== null) {
+        return { kind: 'vertex', corner: null, target: null }
+      }
     }
     if (selection.kind === 'token') {
       const token = map.tokens.find((t) => t.id === selection.id)

@@ -3,9 +3,13 @@ import type { Stair } from '../types/map'
 import { SELECTION_COLOR, STAIR_COLOR, STAIR_PLATE_COLOR, STROKE_WEIGHT } from './constants'
 import { hairlinePhysicalWidth, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import { computeSpiralPlan, spiralPoint, type SpiralPlan } from '../lib/stairs'
+import { stairCurveOf } from '../lib/stairCurve'
 import {
+  curvedFlightRing,
   MIN_TREAD_GAP_SCREEN_PX,
+  planCurvedStairFlight,
   planStairFlight,
+  type CurvedStairFlight,
   STAIR_PERSPECTIVE_RATIO,
   TREAD_PITCH_RATIO,
   treadScreenCss,
@@ -101,9 +105,7 @@ export function drawStairs(
   const spirals = planSpirals(stairs)
   const planned = stairs.filter((stair) => stair.shape !== 'spiral').map((stair) => ({
     stair,
-    flights: stair.segments
-      .map((segment) => planStairFlight(segment, stair.stepWidth, stair.direction, cameraScale, rendererResolution))
-      .filter((flight): flight is StairFlight => flight !== null),
+    flights: planFlights(stair, cameraScale, rendererResolution),
   }))
 
   // O realce vai por baixo de TODA escada, espiral ou reta.
@@ -115,18 +117,45 @@ export function drawStairs(
   }
   const selected = planned.find((entry) => entry.stair.id === selectedStairId)
   if (selected) {
-    for (const flight of selected.flights) {
-      graphics.poly(ringQuad(flight, ringWidth / 2), true)
+    for (const entry of selected.flights) {
+      graphics.poly(entry.curved ? curvedFlightRing(entry.flight, ringWidth / 2) : ringQuad(entry.flight, ringWidth / 2), true)
       graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, alpha: opacity, join: 'miter' })
     }
   }
 
-  for (const flight of planned.flatMap((entry) => entry.flights)) paintFlight(graphics, flight, opacity)
+  for (const entry of planned.flatMap((item) => item.flights)) paintFlight(graphics, entry.flight, opacity)
   for (const { plan } of spirals) paintSpiral(graphics, plan, cameraScale, rendererResolution, opacity)
 }
 
-/** Placa, patamar, degraus e moldura de um lance reto, nesta ordem. */
-function paintFlight(graphics: Graphics, flight: StairFlight, opacity: number): void {
+type PlannedFlight = { curved: false; flight: StairFlight } | { curved: true; flight: CurvedStairFlight }
+
+/**
+ * Os lances de uma escada que não é espiral. A reta com `curva`
+ * (`stairCurveOf`, já limitada) vira UM lance curvo; o resto é um lance reto
+ * por segmento, como sempre foi.
+ */
+function planFlights(stair: Stair, cameraScale: number, rendererResolution: number): PlannedFlight[] {
+  const curva = stairCurveOf(stair)
+  const first = stair.segments[0]
+  if (curva !== 0 && first !== undefined) {
+    const flight = planCurvedStairFlight(first, stair.stepWidth, stair.direction, curva, cameraScale, rendererResolution)
+    return flight === null ? [] : [{ curved: true, flight }]
+  }
+  return stair.segments.flatMap((segment): PlannedFlight[] => {
+    const flight = planStairFlight(segment, stair.stepWidth, stair.direction, cameraScale, rendererResolution)
+    return flight === null ? [] : [{ curved: false, flight }]
+  })
+}
+
+/** O que `paintFlight` pinta: o lance reto (`Quad`) e o curvo (anel) têm as mesmas quatro camadas. */
+type PaintableFlight = Pick<StairFlight | CurvedStairFlight, 'frameWidth' | 'treads' | 'treadWidth'> & {
+  plate: Point[]
+  frame: Point[]
+  landing: Point[] | null
+}
+
+/** Placa, patamar, degraus e moldura de um lance, reto ou curvo, nesta ordem. */
+function paintFlight(graphics: Graphics, flight: PaintableFlight, opacity: number): void {
   graphics.poly(flight.plate, true)
   graphics.fill({ color: STAIR_PLATE_COLOR, alpha: STAIR_PLATE_ALPHA * opacity })
 

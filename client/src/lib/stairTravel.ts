@@ -119,6 +119,8 @@ export function buildPartnerStair(id: string, source: Stair, mouth: { x: number;
     direction: oppositeStairDirection(source.direction),
     segments: source.segments.map((seg) => ({ x1: seg.x1 + dx, y1: seg.y1 + dy, x2: seg.x2 + dx, y2: seg.y2 + dy })),
     stepWidth: source.stepWidth,
+    // A curva é relativa à corda (x1, y1)→(x2, y2), que não muda com o sentido: a par fica igual.
+    ...(source.curva === undefined ? {} : { curva: source.curva }),
   }
 }
 

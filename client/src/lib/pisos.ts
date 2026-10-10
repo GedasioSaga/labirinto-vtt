@@ -2,6 +2,7 @@ import type { Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
+import { stairCenterline } from './stairCurve'
 
 /**
  * PISOS NA MESMA CENA — lógica pura. A cena tem pisos numerados (inteiros;
@@ -343,7 +344,8 @@ export function escadaDaFicha(map: Pick<MapData, 'stairs' | 'grid'>, token: Toke
     if (leva === undefined || stair.secret === true || leva === pisoDe(stair)) continue
     if (!escadaNoPiso(stair, piso)) continue
     const alcance = stair.stepWidth / 2 + map.grid * ESCADA_FOLGA_CELULAS
-    const encostada = stair.segments.some((s) => distanciaAoSegmento(token.x, token.y, s.x1, s.y1, s.x2, s.y2) <= alcance)
+    // Escada curva: a ficha está nela se encosta no arco desenhado (`lib/stairCurve.ts`).
+    const encostada = stairCenterline(stair).some((s) => distanciaAoSegmento(token.x, token.y, s.x1, s.y1, s.x2, s.y2) <= alcance)
     if (encostada) return { stairId: stair.id, destino: piso === leva ? pisoDe(stair) : leva }
   }
   return null

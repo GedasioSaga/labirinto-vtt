@@ -1697,6 +1697,17 @@ export interface Stair extends PlayerSecret, NoPiso {
   /** Largura do lance em px de mundo. Default na criação = map.grid. */
   stepWidth: number
   /**
+   * CURVA da escada reta, em px de mundo: a flecha do arco, a distância do
+   * meio da corda (x1, y1)→(x2, y2) até o meio do arco. O sinal diz o lado: o
+   * positivo vai para a perpendicular (−dy, dx) da corda — com o y da tela
+   * para baixo, a ESQUERDA de quem anda de (x1, y1) para (x2, y2). As pontas
+   * não saem do lugar; os degraus viram radiais. Ausente ou 0 = reta, como
+   * sempre foi — sem migração. Só vale na forma 'straight' de um lance, e o
+   * desenho a limita (`lib/stairCurve.ts`, `stairCurveOf`) para os degraus não
+   * se cruzarem: o valor guardado é a intenção, o desenhado é o limitado.
+   */
+  curva?: number
+  /**
    * PISOS NA MESMA CENA — o outro piso a que esta escada leva. Ela liga
    * `piso` (o dela) a este, aparece nos dois e é por ela que a ficha troca de
    * piso no mesmo ponto (`lib/pisos.ts`). `undefined` = escada de enfeite,

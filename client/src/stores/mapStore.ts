@@ -529,6 +529,15 @@ interface MapStoreState {
   /** Troca `stepWidth` de uma escada JÁ CRIADA e selecionada. Com histórico —
    *  mesmo padrão de `setStairDirection`. */
   setStairStepWidthForStair: (id: string, stepWidth: number) => void
+  /** Comprimento de ponta a ponta da escada JÁ CRIADA (campo da ficha), com o
+   *  começo parado — `mapFactory.setStairLength`. Com histórico. */
+  setStairLength: (id: string, length: number) => void
+  /** Curva da escada pelo deslizante da ficha — SEM histórico, par de
+   *  `commitDragHistory` no fim do gesto (`liveSliderChange` no App). */
+  setStairCurveLive: (id: string, curva: number) => void
+  /** Desenho da escada durante o arrasto de uma alça (`pixi/stairHandleGesture.ts`)
+   *  — SEM histórico, par de `commitDragHistory(antes)` no pointerup. */
+  setStairGeometryLive: (id: string, geometry: mapFactory.StairGeometry) => void
   /** Preferência de sessão da ferramenta Borracha (N1, "apagar parte ou
    *  objeto todo", Fase 4) — SEM histórico, mesma classe de `wallKind`.
    *  'objeto' (default) preserva o comportamento de hoje: `eraseAt`
@@ -2012,6 +2021,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     })),
     setStairSizePreset: (preset) => set({ stairSizePreset: preset }),
     setStairStepWidthForStair: (id, stepWidth) => withHistory((map) => mapFactory.setStairStepWidth(map, id, stepWidth)),
+    setStairLength: (id, length) => {
+      // Igual ao de agora (ou limitado ao mesmo valor): nenhum passo de desfazer vazio.
+      if (mapFactory.setStairLength(get().map, id, length) === get().map) return
+      withHistory((map) => mapFactory.setStairLength(map, id, length))
+    },
+    setStairCurveLive: (id, curva) => set((state) => ({ map: mapFactory.setStairCurve(state.map, id, curva) })),
+    setStairGeometryLive: (id, geometry) => set((state) => ({ map: mapFactory.setStairGeometry(state.map, id, geometry) })),
     setEraseMode: (mode) => set({ eraseMode: mode }),
     setFloorShapeKind: (kind) => set({ floorShapeKind: kind }),
     setFloorOp: (op) => set({ floorOp: op }),

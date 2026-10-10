@@ -19,8 +19,9 @@
  * (`lib/hoverHitTest.ts`) — os dois têm de concordar, senão o cursor promete
  * um gesto que o clique não faz.
  */
-import type { DrawingPoint, RegionPoint } from '../types/map'
+import type { DrawingPoint, RegionPoint, Stair } from '../types/map'
 import type { Point } from '../pixi/world'
+import { stairHandles, type StairHandleKind } from './stairHandles'
 import { findBoxCornerAt, boxCorners, RESIZE_HANDLE_TOLERANCE, type Box, type Corner } from './objectTransform'
 import { findRoomCornerAt, ROOM_CORNER_HIT_TOLERANCE, type RoomCorner } from './roomOps'
 import { findCurveControlPointAt } from './selectionHitTest'
@@ -115,6 +116,17 @@ export function findNearestVertexHandleAt(points: readonly DrawingPoint[], point
     }
   }
   return melhor
+}
+
+/**
+ * Alça da escada selecionada sob o ponteiro (`lib/stairHandles.ts`): a MAIS
+ * PERTO, como no traço do Pincel — na escada estreita vista de longe a do
+ * meio e as laterais ficam a poucos px uma da outra.
+ */
+export function findStairHandleAt(stair: Stair, point: Point, cameraScale: number): StairHandleKind | null {
+  const handles = stairHandles(stair)
+  const index = findNearestVertexHandleAt(handles.map((handle) => handle.point), point, cameraScale)
+  return index === null ? null : handles[index].kind
 }
 
 /** Alça de raio (Luz, Drawing círculo) sob o ponteiro, no zoom `cameraScale`. */
