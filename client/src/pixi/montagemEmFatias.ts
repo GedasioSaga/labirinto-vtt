@@ -39,7 +39,8 @@ const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
   // NOMES DOS LUGARES (pílulas) com os nomes de sala: as duas camadas dividem as regiões com nome.
   ['roomNames', 'nomesDosLugares'],
   ['lights', 'watchCones', 'patrolRoutes'],
-  ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline'],
+  // NUVENS só acertam a medida das três nuvens (`drawNuvens.ts`): vão no último quadro.
+  ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline', 'nuvens'],
 ]
 
 export interface MontagemOpcoes {

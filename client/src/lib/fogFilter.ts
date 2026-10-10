@@ -50,6 +50,7 @@ import { cleanPublicSceneName } from './adventure'
 import type { DiceRollEntry, HostDiceRoll } from './dice'
 import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
 import { coresDosPinos } from './marcadorDeContinente'
+import { ceuDasNuvensDoRecorte } from './nuvens'
 import { SIGNAL_NEUTRAL_COLOR } from './signals'
 import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
 import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
@@ -3611,6 +3612,11 @@ export function filterMapForGroup(
     dark: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
+    // NUVENS: o céu delas sai do chão INTEIRO, não do que este recorte manda
+    // (`ceuDasNuvensDoRecorte`): o mesmo do mestre, e parado enquanto o jogador
+    // explora. Sempre presente (`undefined` com elas desligadas), para nunca
+    // vir pelo `...map`. É só uma caixa sob o preto do nunca visto.
+    ceuDasNuvens: ceuDasNuvensDoRecorte(mapaInteiro),
     // PENHASCO: só o pedaço dos riscos junto do que ele conhece; os riscos na
     // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
     // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele
@@ -4105,7 +4111,8 @@ function filterWorldMapForGroup(
   // sai Continente mesmo de cena salva antes do campo existir.
   if (at === null) {
     const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
-    return { ...view, map: { ...view.map, worldMap: true, continente: true } }
+    // O céu do mapa-mundi antigo (sem `continente`) é o dele, com a marca que `plain` perdeu.
+    return { ...view, map: { ...view.map, worldMap: true, continente: true, ceuDasNuvens: ceuDasNuvensDoRecorte(map) } }
   }
   const memberIds = new Set(members.map((t) => t.id))
   const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
@@ -4114,7 +4121,7 @@ function filterWorldMapForGroup(
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
   // A caravana é pino na cor neutra da mesa: ela não é de jogador nenhum.
   const tokens = caravanSent ? [{ ...caravanTokenFor(members, at), pino: SIGNAL_NEUTRAL_COLOR }, ...others] : others
-  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens } }
+  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens, ceuDasNuvens: ceuDasNuvensDoRecorte(map) } }
 }
 
 /** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */

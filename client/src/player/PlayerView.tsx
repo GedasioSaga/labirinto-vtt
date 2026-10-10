@@ -63,6 +63,8 @@ import {
   regioesSemPilula,
   type LugarComNome,
 } from '../lib/nomesDosLugares'
+import { createNuvensRenderer, type NuvensRenderer } from '../pixi/drawNuvens'
+import { nuvensLigadas } from '../lib/nuvens'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -1114,6 +1116,13 @@ interface Scene {
    * revelado), abaixo de bilhetes, pinos e fichas.
    */
   nomesDosLugares: NomesDosLugaresRenderer
+  /**
+   * NUVENS (`pixi/drawNuvens.ts`): as mesmas do mestre (tamanho do mapa e
+   * relógio de parede), SOB a névoa: o preto opaco do nunca visto cobre o
+   * retângulo do mapa, e a nuvem nunca sai dele, então ela só passa sobre o
+   * que o jogador já conhece. Abaixo dos nomes, pinos e fichas.
+   */
+  nuvens: NuvensRenderer
   /** As pílulas do último recorte, antes do filtro do conhecido: o pacote novo com a mesma assinatura reusa a lista. */
   lugaresKey: ContentKey
   lugares: LugarComNome[]
@@ -2304,6 +2313,8 @@ function PlayerViewDoCanvas({
     redrawFarLights(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     scene.nomesDosLugares.setCameraScale(scene.camera.scale)
+    // De perto, o corpo da nuvem esmaece (a sombra não): só opacidade.
+    scene.nuvens.setTela(scene.camera.scale, scene.app.screen.width)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
       sizeTokenView(view, scene.camera.scale, showNames)
@@ -2395,6 +2406,12 @@ function PlayerViewDoCanvas({
             sombras: efeitosDoMapaLigados(currentSettings) && !modoLeve,
           }
         : null,
+    )
+    // NUVENS: as mesmas do mestre (só o tamanho do mapa e o relógio). Modo leve
+    // (sem "Efeitos do mapa", ou o WebGL já caiu uma vez): nenhuma, e nada roda por quadro.
+    scene.nuvens.setTela(scene.camera.scale, scene.app.screen.width)
+    scene.nuvens.atualizar(
+      nuvensLigadas(currentMap) && efeitosDoMapaLigados(currentSettings) && !modoLeve ? { cena: currentMap.id, mapa: currentMap } : null,
     )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
@@ -2811,6 +2828,18 @@ function PlayerViewDoCanvas({
       carimbosContainer.addChild(carimbos.camada)
       carimbosContainer.mask = carimbosMask
       const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      // NUVENS: sem máscara própria (a névoa opaca já as cobre fora do conhecido,
+      // e máscara visível pagaria o stencil a cada quadro). O relógio só roda com
+      // elas andando: desligadas (chave, "Efeitos do mapa", modo leve) ou paradas, nada.
+      const nuvens = createNuvensRenderer(
+        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        {
+          aoMudar: (estado) => {
+            el.dataset.nuvens = String(estado.nuvens)
+            el.dataset.nuvensMovendo = String(estado.movendo)
+          },
+        },
+      )
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
@@ -2868,6 +2897,9 @@ function PlayerViewDoCanvas({
         walls,
         doorHints,
         doors,
+        // NUVENS sobre a planta e SOB a névoa e os nomes: só passam pelo que o
+        // jogador conhece, e o nome do lugar segue legível por cima delas.
+        nuvens.camada,
         roomNames,
         textLabels,
         propLabels,
@@ -2989,6 +3021,7 @@ function PlayerViewDoCanvas({
         texturas,
         carimbos,
         nomesDosLugares,
+        nuvens,
         lugaresKey: emptyContentKey(),
         lugares: [],
         lightsKey: emptyContentKey(),
@@ -3700,6 +3733,7 @@ function PlayerViewDoCanvas({
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
+        scene.nuvens.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {

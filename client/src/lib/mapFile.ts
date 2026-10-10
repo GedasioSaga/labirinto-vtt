@@ -661,6 +661,8 @@ function deserializeMapFields(json: string): MapData {
     ...(typeof parsed.relevo === 'boolean' ? { relevo: parsed.relevo } : {}),
     // NOMES DOS LUGARES: o mesmo molde do relevo (`lib/nomesDosLugares.ts`).
     ...(typeof parsed.nomesDosLugares === 'boolean' ? { nomesDosLugares: parsed.nomesDosLugares } : {}),
+    // NUVENS: o mesmo molde do relevo (`lib/nuvens.ts`).
+    ...(typeof parsed.nuvens === 'boolean' ? { nuvens: parsed.nuvens } : {}),
     // PENHASCO: campo NOVO e OPCIONAL. Risco torto sai, lista vazia abre sem o campo (`lerPenhascos`).
     ...penhascosDoArquivo(parsed.penhascos),
     // TEXTURAS: campos NOVOS e OPCIONAIS. Passo torto sai; lista vazia abre sem o campo (`lerTexturas`).

@@ -100,9 +100,23 @@ describe('SceneMapTypeControls', () => {
     expect(onNomesDosLugaresChange).toHaveBeenCalledWith(false)
   })
 
+  it('chave "Nuvens": mostra o valor resolvido, avisa ao trocar e a explicação diz o que o jogador vê', () => {
+    const onNuvensChange = vi.fn()
+    render({ tipo: 'continente', nuvens: true, onNuvensChange })
+    const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.includes('Nuvens'))
+    const input = label?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null
+    expect(input?.checked).toBe(true)
+    const dica = document.getElementById(input?.getAttribute('aria-describedby') ?? '')
+    expect(dica?.textContent).toContain('sombra no chão')
+    expect(dica?.textContent).toContain('Efeitos do mapa')
+    act(() => input?.click())
+    expect(onNuvensChange).toHaveBeenCalledWith(false)
+  })
+
   it('sem quem ouça a chave "Relevo" (tela antiga), ela não aparece', () => {
     render({ tipo: 'continente' })
     expect(container.textContent).not.toContain('Relevo')
+    expect(container.textContent).not.toContain('Nuvens')
   })
 
   it('a chave antiga "Mapa-mundi (caravana)" não está mais nas Configurações do mapa', () => {

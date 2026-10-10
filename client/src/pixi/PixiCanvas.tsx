@@ -67,6 +67,8 @@ import { consultaDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
+import { createNuvensRenderer } from './drawNuvens'
+import { nuvensLigadas } from '../lib/nuvens'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
@@ -1117,6 +1119,23 @@ export function PixiCanvas({
           el.dataset.carimbosPedacos = String(medida.pedacos)
         },
       })
+      // NUVENS (`drawNuvens.ts`): três nuvens finas com a sombra no chão, acima
+      // de chão, paredes, escadas e carimbos, e ABAIXO dos nomes, dos pinos e
+      // das fichas, que continuam legíveis por cima. O relógio só roda com
+      // elas andando; por quadro mudam só posição e opacidade. O contêiner é o
+      // que a troca de cena densa esconde até a camada ser pintada.
+      const nuvens = createNuvensRenderer(
+        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        {
+          aoMudar: (estado) => {
+            el.dataset.nuvens = String(estado.nuvens)
+            el.dataset.nuvensMovendo = String(estado.movendo)
+          },
+        },
+      )
+      const nuvensContainer = new Container()
+      nuvensContainer.eventMode = 'none'
+      nuvensContainer.addChild(nuvens.camada)
       // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
       const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
@@ -1251,6 +1270,9 @@ export function PixiCanvas({
         doorsGraphics,
         stairsGraphics,
         secretStairsGraphics,
+        // NUVENS entre a planta e os nomes: passam por cima de chão, paredes e
+        // árvores, e por baixo de tudo o que se lê (nomes, pinos, fichas).
+        nuvensContainer,
         roomNamesContainer,
         textLabelsContainer,
         propsContainer,
@@ -2072,6 +2094,12 @@ export function PixiCanvas({
         },
         walls: paintWallsAndDoors,
         stairs: paintStairs,
+        // NUVENS: só a medida (o tamanho do mapa) e a chave; o andar é do relógio do renderer.
+        nuvens: () => {
+          const { map } = sceneState()
+          nuvens.setTela(camera.scale, app.screen.width)
+          nuvens.atualizar(nuvensLigadas(map) ? { cena: map.id, mapa: map } : null)
+        },
         lights: paintLights,
         // OLHOS DO GUARDA: parede nova, porta aberta ou guarda andando mudam o cone.
         watchCones: () => drawWatchCones(watchConesGraphics, sceneState().map),
@@ -2116,6 +2144,7 @@ export function PixiCanvas({
         areaTriggers: [areaTriggersGraphics],
         roomNames: [roomNamesContainer],
         nomesDosLugares: [nomesDosLugaresContainer],
+        nuvens: [nuvensContainer],
         lights: [lightsContainer],
         watchCones: [watchConesGraphics],
         patrolRoutes: [patrolRoutesGraphics],
@@ -2432,6 +2461,9 @@ export function PixiCanvas({
           // é a do mestre (balde numa sala secreta, pincelada numa zona oculta).
           // Sem como pintar de novo dentro desta chamada, ela fica de fora.
           ...(options.masterOnly ? [] : [texturas.camada]),
+          // NUVENS fora da imagem: o mapa exportado é o chão, não um instante do céu
+          // (a sombra de uma nuvem viraria uma mancha parada no papel).
+          nuvensContainer,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
@@ -2625,6 +2657,8 @@ export function PixiCanvas({
         nomesDosLugares.setCameraScale(scale)
         // A etiqueta "Teste" do fantasma escala como os nomes das fichas.
         fantasmaRenderer.setCameraScale(scale)
+        // De perto, o corpo da nuvem esmaece (a sombra não): só opacidade.
+        nuvens.setTela(scale, app.screen.width)
       })
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
@@ -8204,6 +8238,8 @@ export function PixiCanvas({
         carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         nomesDosLugares.destruir()
+        // As nuvens também (e soltam as texturas delas, que são deste palco só).
+        nuvens.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)

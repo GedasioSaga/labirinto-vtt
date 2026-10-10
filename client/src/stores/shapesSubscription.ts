@@ -50,6 +50,8 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       state.map.worldMap,
       // NOMES DOS LUGARES (`lib/nomesDosLugares.ts`): a chave também não mexe em forma nenhuma.
       state.map.nomesDosLugares,
+      // NUVENS (`lib/nuvens.ts`): a chave também não mexe em forma nenhuma.
+      state.map.nuvens,
       // PENHASCO (`lib/penhasco.ts`): o risco novo muda o relevo, sem mexer em forma nenhuma.
       state.map.penhascos,
       // TEXTURAS (`lib/texturas.ts`): a pincelada nova muda a pintura, sem mexer em forma nenhuma.

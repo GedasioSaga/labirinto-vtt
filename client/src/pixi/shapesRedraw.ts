@@ -10,6 +10,7 @@ import { tokenPatrolOf } from '../lib/npcPatrol'
 import type { PontoDaRotaAberto } from './drawNpcPatrol'
 import { relevoLigado } from '../lib/relevo'
 import { nomesDosLugaresLigados } from '../lib/nomesDosLugares'
+import { nuvensLigadas } from '../lib/nuvens'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -36,6 +37,7 @@ export const SHAPES_LAYERS = [
   'nomesDosLugares',
   'walls',
   'stairs',
+  'nuvens',
   'lights',
   'watchCones',
   'patrolRoutes',
@@ -193,6 +195,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // no lugar, que os desenhos com fundo pintam. O zoom não repinta: a
       // pílula segue a câmera por `setCameraScale`. Desligada, nada acorda.
       return nomesDosLugaresLigados(map) ? ['pílulas', map.id, map.regions, map.drawings, hidden] : ['sem pílulas']
+    case 'nuvens':
+      // NUVENS (`lib/nuvens.ts`): saem só do tamanho do mapa, do chão pintado (o
+      // céu é o retângulo dele) e do relógio. O zoom e a sala arrastada não
+      // acordam a camada; quem anda a cada quadro é o relógio do renderer
+      // (`drawNuvens.ts`), mexendo só em posição e opacidade.
+      return nuvensLigadas(map) ? ['nuvens', map.id, map.width, map.height, map.grid, map.floor, map.background] : ['sem nuvens']
     case 'walls':
       return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution]
     case 'stairs':

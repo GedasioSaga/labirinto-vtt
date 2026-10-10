@@ -2087,6 +2087,24 @@ export interface MapData {
    */
   nomesDosLugares?: boolean
   /**
+   * NUVENS (`lib/nuvens.ts`): nuvens finas passando devagar sobre o mapa, com
+   * a sombra no chão. Ausente = o padrão do tipo de mapa (ligado no
+   * Continente, desligado no Normal), sem linha de migração — o mesmo molde
+   * de `relevo`. Atravessa no recorte do jogador: a tela dele monta as mesmas
+   * nuvens a partir do tamanho do mapa e do relógio.
+   */
+  nuvens?: boolean
+  /**
+   * O CÉU das nuvens (`lib/nuvens.ts`, `ceuDoMapa`), em px de mundo. Só existe
+   * no RECORTE do jogador, e só com as nuvens ligadas: o host o calcula do chão
+   * INTEIRO, porque o chão que o jogador recebe depende da névoa (zona oculta,
+   * teto, sala secreta, pincel de revelar, memória), e um céu tirado dele
+   * deixaria as nuvens em outro lugar que no mestre e as faria pular a cada
+   * pedaço revelado. É só uma caixa sob o preto do nunca visto. O arquivo do
+   * mapa não o lê nem grava (o mestre sempre calcula o dele).
+   */
+  ceuDasNuvens?: { x: number; y: number; largura: number; altura: number }
+  /**
    * PENHASCO (`lib/penhasco.ts`): os riscos do pincel de penhasco, na ordem em
    * que o mestre os fez (riscar soma, apagar tira só do que veio antes). A
    * parede de pedra não é guardada: o relevo a tira da costa (a união da terra)

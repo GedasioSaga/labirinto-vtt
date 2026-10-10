@@ -76,8 +76,8 @@ export interface PlayerViewSettings {
    */
   followOwnToken?: boolean
   /**
-   * "Efeitos do mapa": o relevo (luz e sombras, `lib/relevo.ts`) no mapa de
-   * continente. Ausente = ligado; desligar é o modo leve do celular fraco.
+   * "Efeitos do mapa": o relevo (luz e sombras, `lib/relevo.ts`), as texturas
+   * e as nuvens (`lib/nuvens.ts`) no mapa de continente. Ausente = ligado; desligar é o modo leve do celular fraco.
    * Só a escolha feita vai para o armazenamento, como `followOwnToken`.
    */
   mapEffects?: boolean

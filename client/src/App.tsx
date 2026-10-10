@@ -37,6 +37,7 @@ import { useDonosDasFichasStore } from './stores/donosDasFichasStore'
 import { isContinente } from './lib/marcadorDeContinente'
 import { relevoLigado } from './lib/relevo'
 import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
+import { nuvensLigadas } from './lib/nuvens'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
@@ -610,6 +611,7 @@ function App() {
   const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
   const setRelevo = useMapStore((state) => state.setRelevo)
   const setNomesDosLugares = useMapStore((state) => state.setNomesDosLugares)
+  const setNuvens = useMapStore((state) => state.setNuvens)
   const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -2944,6 +2946,8 @@ function App() {
           onNomesDosLugaresChange: aberta
             ? setNomesDosLugares
             : (ligado) => mudarFundo((m) => mapFactory.setNomesDosLugares(m, ligado)),
+          nuvens: nuvensLigadas(sceneMap),
+          onNuvensChange: aberta ? setNuvens : (ligado) => mudarFundo((m) => mapFactory.setNuvens(m, ligado)),
         }}
         onClose={() => setConfiguringSceneId(null)}
       />

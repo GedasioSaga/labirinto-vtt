@@ -24,6 +24,13 @@ export interface SceneMapTypeControlsProps {
    */
   nomesDosLugares?: boolean
   onNomesDosLugaresChange?: (ligado: boolean) => void
+  /**
+   * Chave "Nuvens" (`MapData.nuvens`, `lib/nuvens.ts`): nuvens finas passando
+   * devagar, com a sombra no chão. Já vem resolvida com o padrão do tipo. Sem
+   * `onNuvensChange`, a chave não aparece.
+   */
+  nuvens?: boolean
+  onNuvensChange?: (ligado: boolean) => void
 }
 
 const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
@@ -47,11 +54,14 @@ export function SceneMapTypeControls({
   onRelevoChange,
   nomesDosLugares = false,
   onNomesDosLugaresChange,
+  nuvens = false,
+  onNuvensChange,
 }: SceneMapTypeControlsProps) {
   const tipoHintId = useId()
   const caravanaHintId = useId()
   const relevoHintId = useId()
   const nomesHintId = useId()
+  const nuvensHintId = useId()
   return (
     <section className="lb-section lb-cena-config__tipo">
       <h2 className="lb-eyebrow">Tipo de mapa</h2>
@@ -97,6 +107,15 @@ export function SceneMapTypeControls({
           <p id={nomesHintId} className="lb-field__hint">
             O nome de cada região numa pílula da cor do lugar, com uma haste até ele, do mesmo tamanho em qualquer zoom. Os nomes
             aparecem em cascata quando o mapa abre, e o jogador só vê o de lugar que já descobriu. Ligado por padrão no Continente.
+          </p>
+        </div>
+      )}
+      {onNuvensChange !== undefined && (
+        <div className="lb-field">
+          <Toggle label="Nuvens" checked={nuvens} describedBy={nuvensHintId} onChange={onNuvensChange} />
+          <p id={nuvensHintId} className="lb-field__hint">
+            Nuvens finas passando devagar sobre o mapa, com a sombra no chão, por baixo dos nomes, pinos e fichas. O jogador só as
+            vê sobre o que já descobriu, e quem desliga “Efeitos do mapa” não as vê. Ligado por padrão no Continente.
           </p>
         </div>
       )}

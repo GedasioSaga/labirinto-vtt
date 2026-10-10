@@ -117,6 +117,28 @@ describe('subscribeToShapesRedraw', () => {
     expect(useMapStore.getState().map.continente).toBe(true)
   })
 
+  it('dispara quando a chave Nuvens muda; ela entra no desfazer, e o mesmo valor não vira passo vazio', () => {
+    useMapStore.getState().setTipoDeMapa('continente')
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    // Ligada já é o padrão do Continente: nada muda, nada dispara, nada no desfazer.
+    const passos = useMapStore.getState().past.length
+    useMapStore.getState().setNuvens(true)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(useMapStore.getState().past.length).toBe(passos)
+    expect('nuvens' in useMapStore.getState().map).toBe(false)
+
+    useMapStore.getState().setNuvens(false)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(useMapStore.getState().map.nuvens).toBe(false)
+    useMapStore.getState().undo()
+    expect('nuvens' in useMapStore.getState().map).toBe(false)
+    expect(useMapStore.getState().map.continente).toBe(true)
+    expect(onChange).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
+
   it('dispara quando o Tipo de mapa muda (Continente liga o relevo por padrão)', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToShapesRedraw(onChange)

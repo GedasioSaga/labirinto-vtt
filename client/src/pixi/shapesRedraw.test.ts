@@ -68,6 +68,7 @@ function setup() {
     nomesDosLugares: spy('nomesDosLugares'),
     walls: spy('walls'),
     stairs: spy('stairs'),
+    nuvens: spy('nuvens'),
     lights: spy('lights'),
     watchCones: spy('watchCones'),
     patrolRoutes: spy('patrolRoutes'),
@@ -338,6 +339,29 @@ describe('createShapesRedrawer', () => {
     normal.take()
     expect(normal.redraw(snapshot({ ...masmorra, drawings: [...masmorra.drawings, bioma] }))).not.toContain('nomesDosLugares')
     expect(normal.redraw(snapshot(moveRegion(masmorra, 'r1', 10, 0)))).not.toContain('nomesDosLugares')
+  })
+
+  it('NUVENS: só a chave e o tamanho do mapa acordam a camada; sala arrastada e zoom não (quem anda é o relógio do renderer)', () => {
+    const { redraw, take } = setup()
+    const continente: MapData = { ...buildMap(), continente: true }
+    redraw(snapshot(continente))
+    take()
+    const arrastada = moveRegion(continente, 'r1', 10, 0)
+    expect(redraw(snapshot(arrastada))).not.toContain('nuvens')
+    take()
+    expect(redraw(snapshot(arrastada, { cameraScale: 2 }))).not.toContain('nuvens')
+    take()
+    const maior = { ...arrastada, width: continente.width + 5 }
+    expect(redraw(snapshot(maior, { cameraScale: 2 }))).toContain('nuvens')
+    take()
+    expect(redraw(snapshot({ ...maior, nuvens: false }, { cameraScale: 2 }))).toContain('nuvens')
+
+    // Cena Normal sem a chave: nada acorda a camada.
+    const normal = setup()
+    const masmorra = buildMap()
+    normal.redraw(snapshot(masmorra))
+    normal.take()
+    expect(normal.redraw(snapshot({ ...masmorra, width: masmorra.width + 5 }))).not.toContain('nuvens')
   })
 
   it('NOMES DOS LUGARES: o zoom não repinta as pílulas (elas seguem a câmera por `setCameraScale`)', () => {
