@@ -398,4 +398,43 @@ describe('createRelevoRenderer — riscos de penhasco (fatia 3)', () => {
     expect(falso.gerarTextura).toHaveBeenCalledTimes(2)
     expect(falso.planos[1].penhascos).toEqual([])
   })
+
+  it('à parte (a imagem exportada): um Sprite novo com o relevo da entrada, sem mexer no palco', async () => {
+    const falso = geradorFalso()
+    const relevo = createRelevoRenderer({ gerarTextura: falso.gerarTextura })
+    const pendente = relevo.gerarAParte(entrada('imagem', [regiao('terra', 100)]))
+    await vi.runAllTimersAsync()
+    const sprite = await pendente
+    expect(sprite?.texture).toBe(falso.texturas[0])
+    expect(sprite?.label).toBe('relevo-a-parte')
+    // O palco não ganhou textura nem apareceu: a do mestre fica como estava.
+    expect(relevo.camada.visible).toBe(false)
+    expect(relevo.camada.texture).toBe(Texture.EMPTY)
+    // Sem terra: nada a gerar.
+    const vazio = relevo.gerarAParte(entrada('imagem', []))
+    await vi.runAllTimersAsync()
+    expect(await vazio).toBeNull()
+    relevo.destruir()
+  })
+})
+
+describe('createRelevoRenderer — a medida (data-relevo-ms e data-relevo-plano-ms)', () => {
+  it('o plano e a textura são medidos à parte: o tempo da textura não entra no do plano', async () => {
+    // Relógio que só anda dentro da textura: o plano tem de sair com 0 e a textura com 50.
+    let relogio = 1000
+    const agora = vi.spyOn(performance, 'now').mockImplementation(() => relogio)
+    const falso = geradorFalso()
+    const medidas: { ms: number; planoMs: number }[] = []
+    const relevo = createRelevoRenderer({
+      gerarTextura: async (plano) => {
+        relogio += 50
+        return falso.gerarTextura(plano)
+      },
+      aoGerar: (medida) => medidas.push(medida),
+    })
+    relevo.atualizar(entrada('cena-1', [regiao('a', 0)]))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(medidas).toEqual([expect.objectContaining({ ms: 50, planoMs: 0 })])
+    agora.mockRestore()
+  })
 })

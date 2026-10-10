@@ -27,7 +27,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
-import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
 import { apagarNaCamada, avisoDaRecusa, encherNaCamada, pintarNaCamada, type ResultadoNaCamada } from '../lib/camadasDoPincel'
@@ -2623,12 +2623,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => mapFactory.setRelevo(map, ligado))
     },
     riscarPenhasco: (traco) => {
-      const { map } = get()
-      const antes = map.penhascos ?? []
-      // A costa é a da terra que o relevo do editor desenha: as regiões das camadas à vista.
-      const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
+      const { map, pisoAtivo } = get()
+      // PISOS: o risco e a borracha mexem só nos riscos do piso em edição, e a
+      // costa é a da terra que o relevo DESTE piso desenha (camadas à vista).
+      const doPiso = mapaDoPiso(map, pisoAtivo)
+      const antes = doPiso.penhascos ?? []
+      const naTerra = consultaDaTerra(visibleRegions(doPiso.regions, map.hiddenLayers))
       const { lista, resultado } = riscarPenhascoNaLista(antes, { ...traco, id: crypto.randomUUID() }, naTerra)
-      if (lista !== antes) withHistory((m) => comPenhascos(m, lista))
+      if (lista !== antes) withHistory((m) => comPenhascos(m, comListaDoPiso(m.penhascos ?? [], lista, pisoAtivo)))
       return resultado
     },
     pintarTextura: (pincelada) => {
@@ -2637,14 +2639,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
         return 'textura-ausente'
       }
-      const antes = map.texturas ?? []
-      // As formas do piso em edição, como a tela as mostra: a de outro piso, ali embaixo, não conta.
+      // As formas e os passos do piso em edição, como a tela os mostra: os de outro piso, ali embaixo, não contam.
       const doPiso = mapaDoPiso(map, pisoAtivo)
+      const antes = doPiso.texturas ?? []
       const regioes = visibleRegions(doPiso.regions, map.hiddenLayers)
       const desenhos = visibleDrawings(doPiso.drawings, map.hiddenLayers)
       const passo: PinceladaDeTextura = { ...pincelada, id: crypto.randomUUID() }
       const { lista, resultado } = somarPincelada(antes, passo, (alvo) => caixaDoAlvo(alvo, regioes, desenhos))
-      if (lista !== antes) withHistory((m) => comTexturas(m, lista))
+      // O passo novo ganha o piso em edição no `withHistory` (`nascemNoPiso`).
+      if (lista !== antes) withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], lista, pisoAtivo)))
       return resultado
     },
     encherComTextura: (ponto) => {
@@ -2658,9 +2661,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const doPiso = mapaDoPiso(map, pisoAtivo)
       const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map.hiddenLayers), visibleDrawings(doPiso.drawings, map.hiddenLayers), ponto)
       if (alvo === null) return 'fora-de-forma'
-      const antes = map.texturas ?? []
+      const antes = doPiso.texturas ?? []
       const { lista, resultado } = somarPincelada(antes, { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo })
-      if (lista !== antes) withHistory((m) => comTexturas(m, lista))
+      if (lista !== antes) withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], lista, pisoAtivo)))
       return resultado
     },
     importarTextura: (nome, imagem) => {
@@ -2675,8 +2678,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (get().texturaEscolhida === id) set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
     },
     apagarTodasAsTexturas: () => {
-      if (get().map.texturas === undefined) return
-      withHistory((m) => comTexturas(m, []))
+      // PISOS: "todas" as que a tela mostra, as do piso em edição; as dos outros pisos ficam.
+      const { map, pisoAtivo } = get()
+      if ((mapaDoPiso(map, pisoAtivo).texturas ?? []).length === 0) return
+      withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], [], pisoAtivo)))
     },
     carimbar: (novos) => {
       const { map } = get()
@@ -2693,7 +2698,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       return entram.length < novos.length ? 'teto' : 'carimbou'
     },
     apagarCarimbos: (caminho, raio) => {
-      const antes = get().map.carimbos
+      // PISOS: a borracha alcança só os objetos do piso em edição.
+      const { map, pisoAtivo } = get()
+      const antes = mapaDoPiso(map, pisoAtivo).carimbos
       const sai = idsDebaixoDaBorracha(antes, caminho, raio)
       if (antes === undefined || sai.size === 0) return 'nada-a-apagar'
       withHistory((m) => comCarimbos(m, (m.carimbos ?? []).filter((c) => !sai.has(c.id))))
@@ -2711,12 +2718,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (get().carimboEscolhido === id) set({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
     },
     apagarTodosOsCarimbos: () => {
-      if (get().map.carimbos === undefined) return
-      withHistory((m) => comCarimbos(m, []))
+      const { map, pisoAtivo } = get()
+      if ((mapaDoPiso(map, pisoAtivo).carimbos ?? []).length === 0) return
+      withHistory((m) => comCarimbos(m, comListaDoPiso(m.carimbos ?? [], [], pisoAtivo)))
     },
     apagarTodosOsPenhascos: () => {
-      if (get().map.penhascos === undefined) return
-      withHistory((map) => comPenhascos(map, []))
+      const { map, pisoAtivo } = get()
+      if ((mapaDoPiso(map, pisoAtivo).penhascos ?? []).length === 0) return
+      withHistory((m) => comPenhascos(m, comListaDoPiso(m.penhascos ?? [], [], pisoAtivo)))
     },
     setNomesDosLugares: (ligado) => {
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.

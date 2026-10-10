@@ -1,6 +1,7 @@
 import type { ModoDoPenhasco } from '../types/map'
 import type { LarguraDoPenhasco } from '../lib/penhasco'
 import { relevoLigado } from '../lib/relevo'
+import { mapaDoPiso } from '../lib/pisos'
 import { useMapStore } from '../stores/mapStore'
 
 const MODOS: Array<{ modo: ModoDoPenhasco; rotulo: string }> = [
@@ -31,7 +32,8 @@ export function PenhascoControls() {
   const largura = useMapStore((s) => s.penhascoLargura)
   const setLargura = useMapStore((s) => s.setPenhascoLargura)
   const comRelevo = useMapStore((s) => relevoLigado(s.map))
-  const temPenhasco = useMapStore((s) => s.map.penhascos !== undefined)
+  // PISOS: "apagar todos" só alcança o piso em edição; o botão aparece pelo mesmo recorte.
+  const temPenhasco = useMapStore((s) => (mapaDoPiso(s.map, s.pisoAtivo).penhascos?.length ?? 0) > 0)
   const setRelevo = useMapStore((s) => s.setRelevo)
   const apagarTodos = useMapStore((s) => s.apagarTodosOsPenhascos)
 

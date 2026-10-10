@@ -176,6 +176,39 @@ describe('carimbos no palco', () => {
     expect(desenhos.every((t) => t.destroyed)).toBe(true)
   })
 
+  it('pacote novo: a sombra da prévia de uma arte aposentada é solta na hora (ou ao fim do traço que ainda a mostra)', () => {
+    const f = falsos(undefined, document.createElement('canvas'))
+    const r = createCarimbosRenderer({ assar: f.assar, pintarPedaco: f.pintarPedaco })
+    const rascunho = r.camada.getChildByLabel('carimbos-rascunho')
+    if (rascunho === null) throw new Error('sem rascunho')
+    const sombraDoPrimeiro = (): Texture => {
+      const sprite = rascunho.children[0].children[0]
+      if (!(sprite instanceof Sprite)) throw new Error('a prévia não tem sombra')
+      return sprite.texture
+    }
+    try {
+      r.atualizar(entrada('c1', [objeto('cacto', 700, 700, DO_PACOTE)]))
+      // Um traço que acabou: a sombra da prévia do cacto fica guardada para o próximo.
+      r.mostrarPrevia([objeto('n1', 100, 100, DO_PACOTE)], new Set(), undefined)
+      const livre = sombraDoPrimeiro()
+      r.limparPrevia()
+      expect(livre.destroyed).toBe(false)
+      registrarCacto()
+      expect(livre.destroyed).toBe(true)
+
+      // Um traço em curso ainda mostra a sombra: ela sai quando a prévia acaba.
+      r.mostrarPrevia([objeto('n2', 100, 100, DO_PACOTE)], new Set(), undefined)
+      const presa = sombraDoPrimeiro()
+      registrarCacto()
+      expect(presa.destroyed).toBe(false)
+      r.limparPrevia()
+      expect(presa.destroyed).toBe(true)
+    } finally {
+      r.destruir()
+      esquecerCarimbosDeFora()
+    }
+  })
+
   it('destruir solta a textura que o pacote aposentou quando nenhum desenho veio depois', () => {
     const f = falsos()
     const r = createCarimbosRenderer({ assar: f.assar, pintarPedaco: f.pintarPedaco })

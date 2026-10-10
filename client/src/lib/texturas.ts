@@ -1,5 +1,6 @@
 import type { AlvoDoBalde, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada } from '../types/map'
 import { caminhosParaJogador, passoDoRisco, tracosSeTocam } from './penhasco'
+import { pisoLido } from './pisos'
 
 /**
  * TEXTURAS (fatia 4 do plano do relevo de 09/10/2026): a ferramenta em que o
@@ -128,16 +129,16 @@ function lerPincelada(valor: unknown): PinceladaDeTextura | null {
     const textura = 'textura' in valor ? valor.textura : undefined
     const alvo = lerAlvo('alvo' in valor ? valor.alvo : undefined)
     if (!ehIdDeTextura(textura) || alvo === null) return null
-    return { id, tipo, textura, forca, alvo }
+    return { id, tipo, textura, forca, alvo, ...pisoLido(valor) }
   }
   if (tipo !== 'pincel' && tipo !== 'borracha') return null
   const raio = 'raio' in valor ? valor.raio : undefined
   const pontos = lerPontos('pontos' in valor ? valor.pontos : undefined)
   if (typeof raio !== 'number' || !Number.isFinite(raio) || raio <= 0 || pontos === null) return null
-  if (tipo === 'borracha') return { id, tipo, forca, raio, pontos }
+  if (tipo === 'borracha') return { id, tipo, forca, raio, pontos, ...pisoLido(valor) }
   const textura = 'textura' in valor ? valor.textura : undefined
   if (!ehIdDeTextura(textura)) return null
-  return { id, tipo, textura, forca, raio, pontos }
+  return { id, tipo, textura, forca, raio, pontos, ...pisoLido(valor) }
 }
 
 /** Os passos do arquivo, ou `undefined` (sem o campo). Passo quebrado sai; o resto fica na ordem. */

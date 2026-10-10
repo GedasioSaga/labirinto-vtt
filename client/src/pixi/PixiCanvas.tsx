@@ -49,8 +49,8 @@ import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
-import { createRelevoRenderer } from './drawRelevo'
-import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo } from './drawTexturas'
+import { createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
+import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo, soltarPintura, vistaDaCamera, type EntradaDasTexturas } from './drawTexturas'
 import { passoDaPincelada, raioDoPincelDeTextura, type ResultadoDaTextura } from '../lib/texturas'
 import { createCarimbosRenderer } from './drawCarimbos'
 import {
@@ -830,6 +830,13 @@ type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kin
 
 const MIN_ROOM_NAME_EDITOR_FONT = 12
 
+/** O valor de uma geração à parte da exportação; a que falhou vira `null` (o PNG sai sem ela) e fica no console. */
+function valorOuNada<T>(resultado: PromiseSettledResult<T | null>, aviso: string): T | null {
+  if (resultado.status === 'fulfilled') return resultado.value
+  console.warn(aviso, resultado.reason)
+  return null
+}
+
 /** `prefers-reduced-motion` do sistema: ligado, nada do mapa anima (ficha, anel da vez, câmera). */
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -1092,6 +1099,8 @@ export function PixiCanvas({
       const relevo = createRelevoRenderer({
         aoGerar: (medida) => {
           el.dataset.relevoMs = String(Math.round(medida.ms))
+          // O plano à parte: com a terra igual ele vem do cache e quase não custa.
+          el.dataset.relevoPlanoMs = String(Math.round(medida.planoMs))
           el.dataset.relevoTextura = `${medida.largura}x${medida.altura}`
         },
       })
@@ -1356,6 +1365,9 @@ export function PixiCanvas({
       const positionWorld = () => {
         const res = app.renderer.resolution
         world.position.set(snapToPhysicalPixel(camera.x, res), snapToPhysicalPixel(camera.y, res))
+        // Toda mudança de câmera e de tamanho da tela passa por aqui: a textura
+        // repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
+        texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
       }
       positionWorld()
       world.scale.set(camera.scale)
@@ -1992,6 +2004,27 @@ export function PixiCanvas({
       // repinta a sala, o nome, as paredes, a máscara da grade e a luz que ela
       // barra; selecionar repinta o destaque; o zoom repinta só o que tem
       // espessura em px de tela.
+      /** O que o relevo desenha deste mapa: as salas e os desenhos à vista, e os riscos de penhasco. */
+      const entradaDoRelevo = (map: MapData): EntradaDoRelevo => ({
+        cena: map.id,
+        mapa: map,
+        regioes: visibleRegions(map.regions, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+        // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
+        penhascos: map.penhascos,
+      })
+      /** O que a camada das texturas pinta deste mapa: os passos e as formas que o balde enche. */
+      const entradaDasTexturas = (map: MapData): EntradaDasTexturas => ({
+        // PISOS: cada piso é uma pintura própria. Trocar de piso cai em "cena nova" e
+        // a pintura do piso anterior sai NA HORA, em vez de ficar ~250 ms por cima da
+        // planta do outro (a espera é da edição, não da troca).
+        cena: `${map.id}|${useMapStore.getState().pisoAtivo}`,
+        mapa: map,
+        passos: map.texturas,
+        importadas: map.texturasImportadas,
+        regioes: visibleRegions(map.regions, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+      })
       const redrawLayers = createShapesRedrawer({
         floor: paintFloor,
         gridMask: redrawGridMask,
@@ -2008,19 +2041,11 @@ export function PixiCanvas({
         // desenha (os preenchidos sobre a terra dão as divisas pintadas); o
         // renderer espera a mão parar e solta a textura da cena anterior na hora.
         relevo: () => {
+          // A exportação não mexe no relevo do palco: a imagem leva um gerado à
+          // parte (`exportImage`), e o do mestre fica onde está.
+          if (exportScene !== null) return
           const { map } = sceneState()
-          relevo.atualizar(
-            relevoLigado(map)
-              ? {
-                  cena: map.id,
-                  mapa: map,
-                  regioes: visibleRegions(map.regions, map.hiddenLayers),
-                  desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
-                  // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
-                  penhascos: map.penhascos,
-                }
-              : null,
-          )
+          relevo.atualizar(relevoLigado(map) ? entradaDoRelevo(map) : null)
         },
         // CARIMBOS: síncrono (os desenhos já estão prontos na tela do mestre), então
         // a exportação SEM os itens do mestre também desenha o mapa dela
@@ -2036,18 +2061,7 @@ export function PixiCanvas({
           // parar) e o PNG sai na mesma chamada. Ver o `exportImage`.
           if (exportScene !== null) return
           const { map } = sceneState()
-          texturas.atualizar(
-            map.texturas === undefined
-              ? null
-              : {
-                  cena: map.id,
-                  mapa: map,
-                  passos: map.texturas,
-                  importadas: map.texturasImportadas,
-                  regioes: visibleRegions(map.regions, map.hiddenLayers),
-                  desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
-                },
-          )
+          texturas.atualizar(map.texturas === undefined ? null : entradaDasTexturas(map))
         },
         // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.
         hazards: () => {
@@ -2445,6 +2459,21 @@ export function PixiCanvas({
         if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
         // O piso em edição, como o mestre o vê: os pisos empilhados sairiam um por cima do outro.
         const source = doPisoEmEdicao(useMapStore.getState().map)
+        const mapaDaImagem = mapForImageExport(source, options)
+        // RELEVO e TEXTURAS da imagem: os dois renderers são assíncronos (esperam
+        // a mão parar), e o que está no palco é o do mestre — com a sala secreta
+        // e a pincelada na zona oculta. Os da imagem saem do mapa DELA, gerados
+        // à parte ANTES de trocar a cena: da troca ao `extract` não há `await`.
+        // `allSettled`: um dos dois que falhe não derruba a exportação (o PNG sai sem
+        // ele, como antes), e o que deu certo ainda chega ao `finally` e é destruído.
+        const [relevoGerado, texturasPintadas] = await Promise.allSettled([
+          relevoLigado(mapaDaImagem) ? relevo.gerarAParte(entradaDoRelevo(mapaDaImagem)) : Promise.resolve(null),
+          mapaDaImagem.texturas === undefined ? Promise.resolve(null) : texturas.pintarAParte(entradaDasTexturas(mapaDaImagem)),
+        ])
+        const relevoDaImagem = valorOuNada(relevoGerado, '[exportar] o relevo da imagem falhou')
+        const texturasDaImagem = valorOuNada(texturasPintadas, '[exportar] as texturas da imagem falharam')
+        // A espera acima deixa a montagem da cena andar: ela termina aqui, perto da troca.
+        if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
         const width = source.width * source.grid
         const height = source.height * source.grid
         const scale = imageExportScale(width, height)
@@ -2457,10 +2486,9 @@ export function PixiCanvas({
           ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
           signalsLayer,
           laserLayer,
-          // TEXTURAS na imagem para o jogador: a pintura é assíncrona e a que está no palco
-          // é a do mestre (balde numa sala secreta, pincelada numa zona oculta).
-          // Sem como pintar de novo dentro desta chamada, ela fica de fora.
-          ...(options.masterOnly ? [] : [texturas.camada]),
+          // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
+          texturas.camada,
+          relevo.camada,
           // NUVENS fora da imagem: o mapa exportado é o chão, não um instante do céu
           // (a sombra de uma nuvem viraria uma mancha parada no papel).
           nuvensContainer,
@@ -2468,7 +2496,10 @@ export function PixiCanvas({
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
         try {
-          exportScene = { map: mapForImageExport(source, options), viewport: { left: 0, top: 0, right: width, bottom: height } }
+          exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height } }
+          // No lugar das camadas do mestre, na mesma altura: a textura por baixo da luz do relevo.
+          if (texturasDaImagem !== null) texturas.camada.parent?.addChildAt(texturasDaImagem, texturas.camada.parent.getChildIndex(texturas.camada) + 1)
+          if (relevoDaImagem !== null) relevoContainer.addChild(relevoDaImagem)
           camera = { x: 0, y: 0, scale }
           world.position.set(0, 0)
           world.scale.set(scale)
@@ -2491,6 +2522,15 @@ export function PixiCanvas({
           })
         } finally {
           exportScene = null
+          if (texturasDaImagem !== null) {
+            soltarPintura(texturasDaImagem)
+            texturasDaImagem.destroy()
+          }
+          if (relevoDaImagem !== null) {
+            const textura = relevoDaImagem.texture
+            relevoDaImagem.destroy()
+            textura.destroy(true)
+          }
           camera = editorCamera
           positionWorld()
           world.scale.set(camera.scale)
@@ -2529,6 +2569,8 @@ export function PixiCanvas({
         if (destroyed) return
         redrawGrid()
         redrawMapBounds()
+        // A textura repetida também é recortada à vista (`ajustarAVista`, drawTexturas.ts).
+        texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
       })
       // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
       // mudar de tamanho sem esse evento (layout, WebView2 maximizando) e o
@@ -4421,7 +4463,9 @@ export function PixiCanvas({
        * Alt): guarda o caminho e apaga na prévia o que vai sair.
        */
       const startCarimbo = (worldPoint: Point, screen: Point, alt: boolean) => {
-        const { map, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade } = useMapStore.getState()
+        const { map: mapaInteiro, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade } = useMapStore.getState()
+        // PISOS: a terra, os objetos que o spray evita e os que a borracha apaga são os do piso em edição.
+        const map = doPisoEmEdicao(mapaInteiro)
         const unidade = unidadeDoRelevo(map)
         mode = 'painting-carimbo'
         carimboRaio = raioDoSpray(unidade, carimboLargura)
@@ -4457,7 +4501,7 @@ export function PixiCanvas({
       /** O ponteiro andou: o spray espalha pelo trecho; a borracha soma o que passa debaixo dela. */
       const moveCarimbo = (worldPoint: Point, screen: Point) => {
         desenharAnelDoPincel(worldPoint)
-        const { map } = useMapStore.getState()
+        const map = doPisoEmEdicao(useMapStore.getState().map)
         if (carimboSpray === null) {
           const last = carimboBorracha[carimboBorracha.length - 1]
           if (last !== undefined && Math.hypot(worldPoint.x - last.x, worldPoint.y - last.y) < carimboRaio / 4) return

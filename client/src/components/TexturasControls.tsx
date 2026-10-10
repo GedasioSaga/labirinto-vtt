@@ -6,6 +6,7 @@ import { escolherImagemDeTextura, ladrilhoDaImagem, nomeDoArquivo } from '../lib
 import { ImagePickerUnavailableError } from '../lib/imageImport'
 import { assinarTexturas, listarTexturas, type TexturaDoCatalogo } from '../texturas/catalogo'
 import { FATIA_DO_LADRILHO_MS, LADO_DA_MINIATURA, pixelsEmFatias } from '../texturas/ladrilhos'
+import { mapaDoPiso } from '../lib/pisos'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import { PinImageDrop } from './PinImageDrop'
@@ -95,7 +96,8 @@ export function TexturasControls() {
   const forca = useMapStore((s) => s.texturaForca)
   const setForca = useMapStore((s) => s.setTexturaForca)
   const importadas = useMapStore((s) => s.map.texturasImportadas ?? SEM_IMPORTADAS)
-  const temTextura = useMapStore((s) => s.map.texturas !== undefined)
+  // PISOS: "apagar todas" só alcança o piso em edição; o botão aparece pelo mesmo recorte.
+  const temTextura = useMapStore((s) => (mapaDoPiso(s.map, s.pisoAtivo).texturas?.length ?? 0) > 0)
   const importar = useMapStore((s) => s.importarTextura)
   const remover = useMapStore((s) => s.removerTexturaImportada)
   const apagarTodas = useMapStore((s) => s.apagarTodasAsTexturas)

@@ -68,7 +68,7 @@ describe('chave "Nuvens" e o padrão por tipo de mapa', () => {
   })
 })
 
-describe('o céu do jogador é o do mestre', () => {
+describe('o céu do jogador sai só do recorte dele', () => {
   /** Um trecho de oceano na beira de baixo, fora do mar: é ele que estica o céu até a borda do mapa. */
   const BEIRA: FloorPiece = {
     id: 'beira',
@@ -100,16 +100,18 @@ describe('o céu do jogador é o do mestre', () => {
   })
   const recorte = (map: MapData) => filterMapForPlayer(map, 'p1', { p1: ['ana'] }, 400).map
 
-  it('a peça de chão na zona oculta não chega ao jogador, mas o céu dele é o mesmo do mestre', () => {
+  it('a peça de chão na zona oculta não chega ao jogador, e o céu dele não a conta (a caixa não entrega o tamanho do chão escondido)', () => {
     const doJogador = recorte(mestre(false))
-    // O cenário vale: a beira não saiu no recorte, e sem ela o céu do chão seria outro.
+    // O cenário vale: a beira não saiu no recorte, e com ela o céu do mestre é outro.
     expect(doJogador.floor.some((f) => f.id === 'beira')).toBe(false)
-    expect(ceuDoMapa({ ...doJogador, ceuDasNuvens: undefined })).not.toEqual(ceuDoMapa(mestre(false)))
-    expect(ceuDoMapa(doJogador)).toEqual(ceuDoMapa(mestre(false)))
+    expect(ceuDoMapa(doJogador)).not.toEqual(ceuDoMapa(mestre(false)))
+    expect(ceuDoMapa(doJogador)).toEqual(ceuDoMapa({ ...doJogador, ceuDasNuvens: undefined }))
   })
 
-  it('abrir a zona não muda o céu do jogador (as nuvens não pulam enquanto ele explora)', () => {
-    expect(ceuDoMapa(recorte(mestre(true)))).toEqual(ceuDoMapa(recorte(mestre(false))))
+  it('abrir a zona entrega a peça, e só então o céu do jogador a conta (fica igual ao do mestre)', () => {
+    const aberta = recorte(mestre(true))
+    expect(aberta.floor.some((f) => f.id === 'beira')).toBe(true)
+    expect(ceuDoMapa(aberta)).toEqual(ceuDoMapa(mestre(true)))
   })
 
   it('com a chave desligada o recorte não leva céu nenhum', () => {

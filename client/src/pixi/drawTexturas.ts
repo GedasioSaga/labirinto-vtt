@@ -1,8 +1,9 @@
 import { CanvasSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js'
 import type { Drawing, MapData, PinceladaDeTextura, Region, TexturaImportada } from '../types/map'
 import { planoDasTexturas, pixelsDoPlano, type PlanoDasTexturas } from '../lib/planoDasTexturas'
-import { assinaturaDasTexturas } from '../lib/texturas'
+import { assinaturaDasTexturas, type Caixa } from '../lib/texturas'
 import { unidadeDoRelevo } from '../lib/relevo'
+import type { Camera } from './world'
 import { assinarTexturas, texturaDoCatalogo } from '../texturas/catalogo'
 import { LADO_DO_LADRILHO, pixelsEmFatias } from '../texturas/ladrilhos'
 import { rasterizarTexturas } from './texturasRaster'
@@ -66,7 +67,67 @@ export interface TexturasRenderer {
    */
   ladrilhoParaPrevia: (id: string, importadas: readonly TexturaImportada[] | undefined) => Texture | null
   atualizar: (entrada: EntradaDasTexturas | null) => void
+  /**
+   * A pintura desta entrada num contêiner NOVO, sem mexer no palco: a imagem
+   * exportada pinta a do mapa dela (sem os itens do mestre) antes de trocar a
+   * cena. `null` = nada a pintar (ou o palco desmontou). Quem pede solta com
+   * `soltarPintura`.
+   */
+  pintarAParte: (entrada: EntradaDasTexturas) => Promise<Container | null>
+  /**
+   * O pedaço do mundo à vista (`vistaDaCamera`); `null` = sem recorte. A
+   * textura repetida do palco cobre só o que está na tela: o Pixi passa a
+   * área mascarada por uma textura do tamanho dela NA TELA, sem recortar na
+   * janela (`MaskFilter`, `clipToViewport: false`), e um balde num continente
+   * a 100% pedia 16384 x 8192 px — a placa recusa e a tela do mestre fica
+   * vazia. Quem move a câmera chama a cada mudança.
+   */
+  ajustarAVista: (vista: Caixa | null) => void
   destruir: () => void
+}
+
+/** O pedaço do mundo que a tela mostra com esta câmera (sem giro: o mundo só anda e escala). */
+export function vistaDaCamera(camera: Camera, tela: { width: number; height: number }): Caixa {
+  return {
+    minX: -camera.x / camera.scale,
+    minY: -camera.y / camera.scale,
+    maxX: (tela.width - camera.x) / camera.scale,
+    maxY: (tela.height - camera.y) / camera.scale,
+  }
+}
+
+/**
+ * Leva a área repetida para o pedaço da caixa da pintura que está à vista. A
+ * máscara continua do tamanho da pintura (só recorta quem é mascarado), e o
+ * ladrilho segue preso à origem do mundo: mover a vista não desliza o desenho.
+ */
+function recortarNaVista(repetida: TilingSprite, caixa: Caixa, vista: Caixa | null): void {
+  // Pixel inteiro para fora: a borda da tela nunca cai meio pixel antes do fim da textura.
+  const minX = vista === null ? caixa.minX : Math.max(caixa.minX, Math.floor(vista.minX))
+  const minY = vista === null ? caixa.minY : Math.max(caixa.minY, Math.floor(vista.minY))
+  const maxX = vista === null ? caixa.maxX : Math.min(caixa.maxX, Math.ceil(vista.maxX))
+  const maxY = vista === null ? caixa.maxY : Math.min(caixa.maxY, Math.ceil(vista.maxY))
+  repetida.visible = maxX > minX && maxY > minY
+  if (!repetida.visible) return
+  repetida.position.set(minX, minY)
+  repetida.setSize(maxX - minX, maxY - minY)
+  repetida.tilePosition.set(-minX, -minY)
+}
+
+/**
+ * Solta uma pintura: a repetição sai (o ladrilho fica no cache) e a máscara,
+ * que é só desta pintura, vai com a tela dela. Os filhos saem do contêiner.
+ */
+export function soltarPintura(alvo: Container): void {
+  for (const filho of alvo.removeChildren()) {
+    if (filho instanceof TilingSprite) {
+      filho.mask = null
+      filho.destroy()
+    } else if (filho instanceof Sprite && !filho.destroyed) {
+      filho.texture.destroy(true)
+      filho.destroy()
+    }
+  }
 }
 
 /** Lado do ladrilho no mundo: a escala da textura no metro do relevo, nunca menor que umas células. */
@@ -128,6 +189,12 @@ const SEM_ITENS: readonly never[] = []
 
 function mesmosItens<T>(a: readonly T[], b: readonly T[]): boolean {
   return a === b || (a.length === b.length && a.every((item, i) => item === b[i]))
+}
+
+/** Uma textura repetida do palco e a caixa inteira da pintura dela (o recorte na vista sai dessa caixa). */
+interface Recortavel {
+  repetida: TilingSprite
+  caixa: Caixa
 }
 
 /** O que está no palco (ou saindo): a entrada, a versão do catálogo e, quando preciso, a assinatura das formas. */
@@ -201,6 +268,9 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   const descartados: Promise<Texture | null>[] = []
   /** O último ladrilho entregue à prévia do pincel: o traço em curso pode estar desenhando com ele. */
   let ladrilhoDaPrevia: Texture | null = null
+  /** O pedaço do mundo à vista (`ajustarAVista`) e as repetidas do palco que se recortam nele. */
+  let vista: Caixa | null = null
+  let noPalco: Recortavel[] = []
 
   const pararDeOuvir = assinarTexturas(() => {
     // As do pacote saem do cache (a cor pode ter mudado); as embutidas ficam.
@@ -233,17 +303,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   }
 
   function limparPalco(): void {
-    for (const filho of camada.removeChildren()) {
-      if (filho instanceof TilingSprite) {
-        // O ladrilho fica no cache: só a repetição sai.
-        filho.mask = null
-        filho.destroy()
-      } else if (filho instanceof Sprite && !filho.destroyed) {
-        // A máscara é desta pintura só: textura e tela vão juntas.
-        filho.texture.destroy(true)
-        filho.destroy()
-      }
-    }
+    noPalco = []
+    soltarPintura(camada)
     // Nenhuma camada usa mais os ladrilhos que o pacote novo aposentou.
     soltarDescartados()
     mudarVisibilidade(false)
@@ -253,12 +314,19 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const existente = ladrilhos.get(id)
     if (existente !== undefined) return existente
     const importada = importadas?.find((t) => t.id === id)
-    const promessa = ladrilho(id, importada, cancelado).then((t) => {
-      // Falhou (imagem quebrada, cor de fora que lança, palco desmontado): sai do cache para a próxima pintura tentar de novo.
-      if (t === null) ladrilhos.delete(id)
-      else if (ladrilhos.get(id) === promessa) prontos.set(id, t)
-      return t
-    })
+    const promessa = ladrilho(id, importada, cancelado).then(
+      (t) => {
+        // Falhou (imagem quebrada, palco desmontado): sai do cache para a próxima pintura tentar de novo.
+        if (t === null) ladrilhos.delete(id)
+        else if (ladrilhos.get(id) === promessa) prontos.set(id, t)
+        return t
+      },
+      (erro: unknown) => {
+        // Lançou (cor de fora que lança): a promessa rejeitada também sai do cache, senão toda pintura seguinte falharia igual.
+        if (ladrilhos.get(id) === promessa) ladrilhos.delete(id)
+        throw erro
+      },
+    )
     ladrilhos.set(id, promessa)
     return promessa
   }
@@ -267,43 +335,73 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     return escalaDaTextura(id)
   }
 
+  function planoDe(entrada: EntradaDasTexturas): PlanoDasTexturas | null {
+    const importadas = new Set((entrada.importadas ?? []).map((t) => t.id))
+    return planoDasTexturas(entrada.passos, entrada.regioes, entrada.desenhos, (id) => importadas.has(id) || texturaDoCatalogo(id) !== null)
+  }
+
+  /** Ladrilhos e máscaras do plano, prontos para montar; `null` = cancelado no meio. */
+  async function prepararPlano(
+    plano: PlanoDasTexturas,
+    entrada: EntradaDasTexturas,
+    cancelado: () => boolean,
+  ): Promise<{ ladrilhoDe: Map<string, Texture | null>; mascaras: HTMLCanvasElement[] } | null> {
+    const usadas = [...new Set(plano.camadas.map((c) => c.textura))]
+    // O ladrilho só desiste com o palco desmontado: a edição seguinte reaproveita o que já está saindo.
+    const prontos = await Promise.all(usadas.map((id) => obterLadrilho(id, entrada.importadas, () => destruido)))
+    if (cancelado()) return null
+    const ladrilhoDe = new Map(usadas.map((id, i) => [id, prontos[i]]))
+    const mascaras = await rasterizar(plano, cancelado)
+    if (cancelado() || mascaras === null) return null
+    return { ladrilhoDe, mascaras }
+  }
+
+  /**
+   * Cada camada do plano (a textura repetida vista pela máscara dela) dentro
+   * de `alvo`, recortada em `vista` (`null` = a pintura inteira, a do PNG).
+   * Devolve cada repetida com a caixa da pintura dela, para recortar de novo.
+   */
+  function montarPlano(
+    alvo: Container,
+    plano: PlanoDasTexturas,
+    entrada: EntradaDasTexturas,
+    { ladrilhoDe, mascaras }: { ladrilhoDe: Map<string, Texture | null>; mascaras: HTMLCanvasElement[] },
+    vista: Caixa | null,
+  ): Recortavel[] {
+    const montadas: Recortavel[] = []
+    plano.camadas.forEach((c, i) => {
+      const tile = ladrilhoDe.get(c.textura)
+      const tela = mascaras[i]
+      if (tile === null || tile === undefined || tela === undefined) return
+      const lado = ladoDoLadrilhoNoMundo(entrada.mapa, escalaDe(c.textura))
+      const repetida = new TilingSprite({ texture: tile })
+      repetida.tileScale.set(lado / tile.width)
+      // A grade dos ladrilhos parte da origem do mundo (`recortarNaVista`):
+      // pintar mais (a caixa cresce) não desliza a floresta que já estava lá.
+      recortarNaVista(repetida, c.caixa, vista)
+      const mascara = new Sprite(mascaraDe(tela))
+      mascara.position.set(c.caixa.minX, c.caixa.minY)
+      mascara.scale.set(1 / plano.escala)
+      alvo.addChild(repetida, mascara)
+      repetida.setMask({ mask: mascara, channel: 'alpha' })
+      montadas.push({ repetida, caixa: c.caixa })
+    })
+    return montadas
+  }
+
   async function pintar(entrada: EntradaDasTexturas, minha: number): Promise<void> {
     const cancelado = () => destruido || minha !== geracao
     const inicio = performance.now()
-    const importadas = new Set((entrada.importadas ?? []).map((t) => t.id))
-    const plano = planoDasTexturas(entrada.passos, entrada.regioes, entrada.desenhos, (id) => importadas.has(id) || texturaDoCatalogo(id) !== null)
+    const plano = planoDe(entrada)
     if (plano === null) {
       limparPalco()
       cenaNoPalco = entrada.cena
       return
     }
-    const usadas = [...new Set(plano.camadas.map((c) => c.textura))]
-    // O ladrilho só desiste com o palco desmontado: a edição seguinte reaproveita o que já está saindo.
-    const prontos = await Promise.all(usadas.map((id) => obterLadrilho(id, entrada.importadas, () => destruido)))
-    if (cancelado()) return
-    const ladrilhoDe = new Map(usadas.map((id, i) => [id, prontos[i]]))
-    const mascaras = await rasterizar(plano, cancelado)
-    if (cancelado() || mascaras === null) return
+    const pronto = await prepararPlano(plano, entrada, cancelado)
+    if (pronto === null) return
     limparPalco()
-    plano.camadas.forEach((c, i) => {
-      const tile = ladrilhoDe.get(c.textura)
-      const tela = mascaras[i]
-      if (tile === null || tile === undefined || tela === undefined) return
-      const largura = c.caixa.maxX - c.caixa.minX
-      const altura = c.caixa.maxY - c.caixa.minY
-      const lado = ladoDoLadrilhoNoMundo(entrada.mapa, escalaDe(c.textura))
-      const repetida = new TilingSprite({ texture: tile, width: largura, height: altura })
-      repetida.position.set(c.caixa.minX, c.caixa.minY)
-      repetida.tileScale.set(lado / tile.width)
-      // A grade dos ladrilhos parte da origem do mundo: pintar mais (a caixa
-      // cresce) não desliza a floresta que já estava lá.
-      repetida.tilePosition.set(-c.caixa.minX, -c.caixa.minY)
-      const mascara = new Sprite(mascaraDe(tela))
-      mascara.position.set(c.caixa.minX, c.caixa.minY)
-      mascara.scale.set(1 / plano.escala)
-      camada.addChild(repetida, mascara)
-      repetida.setMask({ mask: mascara, channel: 'alpha' })
-    })
+    noPalco = montarPlano(camada, plano, entrada, pronto, vista)
     cenaNoPalco = entrada.cena
     mudarVisibilidade(camada.children.length > 0)
     opcoes.aoGerar?.({ ms: performance.now() - inicio, camadas: plano.camadas.length, pixels: pixelsDoPlano(plano) })
@@ -346,9 +444,39 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     else espera = setTimeout(comecar, esperaMs)
   }
 
+  async function pintarAParte(entrada: EntradaDasTexturas): Promise<Container | null> {
+    if (destruido || entrada.passos === undefined || entrada.passos.length === 0) return null
+    const plano = planoDe(entrada)
+    if (plano === null) return null
+    const parado = () => destruido
+    const alvo = new Container()
+    alvo.eventMode = 'none'
+    alvo.label = 'texturas-a-parte'
+    try {
+      const pronto = await prepararPlano(plano, entrada, parado)
+      if (pronto === null) {
+        alvo.destroy()
+        return null
+      }
+      montarPlano(alvo, plano, entrada, pronto, null)
+      return alvo
+    } catch (erro: unknown) {
+      // Como o `gerarAParte` do relevo: o PNG sai sem a textura em vez de não sair (o palco faz o mesmo no `.catch` do `pintar`).
+      soltarPintura(alvo)
+      alvo.destroy()
+      console.warn('[texturas] a pintura da imagem falhou', erro)
+      return null
+    }
+  }
+
   return {
     camada,
     atualizar,
+    pintarAParte,
+    ajustarAVista: (agora) => {
+      vista = agora
+      for (const { repetida, caixa } of noPalco) recortarNaVista(repetida, caixa, vista)
+    },
     ladrilhoParaPrevia: (id, importadas) => {
       if (destruido) return null
       const pronto = prontos.get(id)

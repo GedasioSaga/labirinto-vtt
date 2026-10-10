@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sprite, Texture, TilingSprite } from 'pixi.js'
 import type { Drawing, PinceladaDeTextura, Region } from '../types/map'
 import { esquecerTexturasDeFora, registrarTexturaDoPacote } from '../texturas/catalogo'
-import { createTexturasRenderer, ESPERA_DAS_TEXTURAS_MS, ladoDoLadrilhoNoMundo, type EntradaDasTexturas } from './drawTexturas'
+import { createTexturasRenderer, ESPERA_DAS_TEXTURAS_MS, ladoDoLadrilhoNoMundo, vistaDaCamera, type EntradaDasTexturas } from './drawTexturas'
 
 const MAPA = { width: 200, height: 200, grid: 64 }
 const pincel = (id: string, textura: string, x: number): PinceladaDeTextura => ({ id, tipo: 'pincel', textura, forca: 1, raio: 100, pontos: [{ x, y: 500 }] })
@@ -224,5 +224,69 @@ describe('texturas no palco', () => {
     // 200 x 64 = 12.800 px: a floresta (escala 40) sai com ~412 px.
     expect(Math.round(ladoDoLadrilhoNoMundo(MAPA, 40))).toBe(412)
     expect(ladoDoLadrilhoNoMundo({ width: 20, height: 20, grid: 64 }, 40)).toBe(192)
+  })
+})
+
+describe('a textura repetida do palco fica no tamanho da vista', () => {
+  // O Pixi passa a área mascarada (`setMask channel:'alpha'`) por uma textura
+  // do tamanho dela NA TELA, sem recortar na janela: um balde num continente
+  // a 100% pedia 16384 x 8192 px e a tela do mestre ficava vazia.
+  const VISTA = { minX: 200, minY: 300, maxX: 600, maxY: 700 }
+
+  it('vista que chega antes da pintura: a área repetida é só o pedaço à vista, e o ladrilho continua preso à origem do mundo', async () => {
+    const f = falsos()
+    const r = createTexturasRenderer(f)
+    r.ajustarAVista(VISTA)
+    r.atualizar(entrada('a', [balde], [ilha]))
+    await vi.advanceTimersByTimeAsync(0)
+    const repetida = r.camada.children.find((c): c is TilingSprite => c instanceof TilingSprite)
+    if (repetida === undefined) throw new Error('sem textura no palco')
+    expect(repetida.position.x).toBeGreaterThanOrEqual(VISTA.minX)
+    expect(repetida.position.y).toBeGreaterThanOrEqual(VISTA.minY)
+    expect(repetida.position.x + repetida.width).toBeLessThanOrEqual(VISTA.maxX)
+    expect(repetida.position.y + repetida.height).toBeLessThanOrEqual(VISTA.maxY)
+    expect(repetida.tilePosition.x).toBe(-repetida.position.x)
+    expect(repetida.tilePosition.y).toBe(-repetida.position.y)
+    r.destruir()
+  })
+
+  it('vista que muda depois: recorta de novo, e some quando a pintura sai da vista', async () => {
+    const f = falsos()
+    const r = createTexturasRenderer(f)
+    r.atualizar(entrada('a', [balde], [ilha]))
+    await vi.advanceTimersByTimeAsync(0)
+    const repetida = r.camada.children.find((c): c is TilingSprite => c instanceof TilingSprite)
+    if (repetida === undefined) throw new Error('sem textura no palco')
+    const larguraInteira = repetida.width
+    r.ajustarAVista(VISTA)
+    expect(repetida.width).toBeLessThan(larguraInteira)
+    expect(repetida.position.x + repetida.width).toBeLessThanOrEqual(VISTA.maxX)
+    r.ajustarAVista({ minX: 5000, minY: 5000, maxX: 6000, maxY: 6000 })
+    expect(repetida.visible).toBe(false)
+    r.ajustarAVista(VISTA)
+    expect(repetida.visible).toBe(true)
+    r.destruir()
+  })
+
+  it('a vista sai da câmera e do tamanho da tela', () => {
+    expect(vistaDaCamera({ x: -100, y: -50, scale: 2 }, { width: 800, height: 600 })).toEqual({ minX: 50, minY: 25, maxX: 450, maxY: 325 })
+  })
+})
+
+describe('pintura à parte (a do PNG exportado)', () => {
+  it('ladrilho que falha devolve null em vez de rejeitar, e não fica preso no cache: a próxima tentativa pinta', async () => {
+    const f = falsos()
+    f.ladrilho.mockRejectedValueOnce(new Error('cor de fora que lança'))
+    const r = createTexturasRenderer(f)
+    await expect(r.pintarAParte(entrada('a', [pincel('1', 'floresta', 300)]))).resolves.toBeNull()
+    const depois = await r.pintarAParte(entrada('a', [pincel('1', 'floresta', 300)]))
+    expect(depois?.children.filter((c) => c instanceof TilingSprite)).toHaveLength(1)
+  })
+
+  it('máscara que falha devolve null em vez de rejeitar', async () => {
+    const f = falsos()
+    f.rasterizar.mockRejectedValueOnce(new Error('canvas sem contexto'))
+    const r = createTexturasRenderer(f)
+    await expect(r.pintarAParte(entrada('a', [pincel('1', 'floresta', 300)]))).resolves.toBeNull()
   })
 })

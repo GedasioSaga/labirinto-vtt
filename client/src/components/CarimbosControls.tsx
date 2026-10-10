@@ -14,6 +14,7 @@ import { escolherImagemDeCarimbo, imagemDoCarimbo, nomeDoArquivoDoCarimbo } from
 import { ImagePickerUnavailableError } from '../lib/imageImport'
 import { assinarCarimbos, listarCarimbos, type CarimboDoCatalogo } from '../carimbos/catalogo'
 import { assarDesenho, assarImagem, miniaturaDaArte } from '../carimbos/arte'
+import { editandoUmPiso, mapaDoPiso } from '../lib/pisos'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import { PinImageDrop } from './PinImageDrop'
@@ -125,7 +126,9 @@ export function CarimbosControls() {
   const densidade = useMapStore((s) => s.carimboDensidade)
   const setDensidade = useMapStore((s) => s.setCarimboDensidade)
   const importados = useMapStore((s) => s.map.carimbosImportados ?? SEM_IMPORTADOS)
-  const quantos = useMapStore((s) => s.map.carimbos?.length ?? 0)
+  // PISOS: "apagar todos" só alcança o piso em edição; a contagem e o botão leem o mesmo recorte.
+  const quantos = useMapStore((s) => mapaDoPiso(s.map, s.pisoAtivo).carimbos?.length ?? 0)
+  const ondeConta = useMapStore((s) => (editandoUmPiso(s.map, s.pisoAtivo) ? 'neste piso' : 'nesta cena'))
   const importar = useMapStore((s) => s.importarCarimbo)
   const remover = useMapStore((s) => s.removerCarimboImportado)
   const apagarTodos = useMapStore((s) => s.apagarTodosOsCarimbos)
@@ -310,7 +313,7 @@ export function CarimbosControls() {
       {quantos > 0 && (
         <>
           <p className="lb-field__hint" role="status">
-            {quantos === 1 ? '1 objeto nesta cena' : `${quantos.toLocaleString('pt-BR')} objetos nesta cena`}
+            {quantos === 1 ? `1 objeto ${ondeConta}` : `${quantos.toLocaleString('pt-BR')} objetos ${ondeConta}`}
           </p>
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={apagarTodos}>
             Apagar todos os objetos

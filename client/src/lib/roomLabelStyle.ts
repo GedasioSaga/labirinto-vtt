@@ -48,6 +48,15 @@ export function roomLabelStyleOf(room: RoomMeta | undefined): RoomLabelStyle {
 }
 
 /**
+ * O título é o de sempre (plaquinha, tamanho 1, grafite, horizontal)? Sala que
+ * o mestre nunca mexeu, ou mexeu e voltou ao padrão (`withRoomLabelStyle` tira
+ * o campo). O painel usa para saber se há uma escolha dele a não esconder.
+ */
+export function isDefaultRoomLabelStyle(style: RoomLabelStyle): boolean {
+  return style.plate && style.scale === 1 && style.color === ROOM_LABEL_DEFAULT_COLOR && !style.vertical
+}
+
+/**
  * Aplica `patch` à sala. Valor igual ao padrão APAGA o campo em vez de gravar o
  * padrão: o arquivo continua enxuto e a sala volta a ser igual a uma que nunca
  * teve estilo. Valor inválido no patch é ignorado.

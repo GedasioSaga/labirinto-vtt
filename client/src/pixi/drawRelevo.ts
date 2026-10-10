@@ -58,7 +58,14 @@ export interface EntradaDoRelevo {
 
 /** Quanto custou a última textura: o que a medida de desempenho lê. */
 export interface MedidaDoRelevo {
+  /** A textura: pintar as telas 2D do plano e embrulhar numa `Texture` (o envio à GPU fica no quadro seguinte, fora daqui). */
   ms: number
+  /**
+   * O plano (classificar a terra, em fatias), do pedido da geração até ele
+   * sair. Perto de 0 quando a terra não mudou: o plano vem do cache da terra.
+   * Medido à parte porque é a maior parte do custo e não entra em `ms`.
+   */
+  planoMs: number
   largura: number
   altura: number
 }
@@ -84,6 +91,13 @@ export interface RelevoRenderer {
   readonly camada: Sprite
   /** `null` = relevo desligado (ou modo leve): libera a textura. */
   atualizar: (entrada: EntradaDoRelevo | null) => void
+  /**
+   * O relevo desta entrada num Sprite NOVO, sem mexer no palco nem no plano
+   * guardado: a imagem exportada gera o do mapa dela (sem a sala secreta do
+   * mestre) antes de trocar a cena. `null` = sem terra (ou o palco desmontou).
+   * Quem pede solta o Sprite e a textura dele.
+   */
+  gerarAParte: (entrada: EntradaDoRelevo) => Promise<Sprite | null>
   destruir: () => void
 }
 
@@ -218,6 +232,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
   async function gerar(entrada: EntradaDoRelevo): Promise<void> {
     const minha = ++geracao
     const cancelado = () => destruido || minha !== geracao
+    const inicioDoPlano = performance.now()
     // Toda mudança de terra cancela a espera e esquece o plano (`atualizar`):
     // o guardado aqui é sempre da terra desta entrada.
     if (planoDaTerra === null) {
@@ -242,6 +257,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       return
     }
     const inicio = performance.now()
+    const planoMs = inicio - inicioDoPlano
     let textura: Texture | null = null
     try {
       textura = await gerarTextura(plano, cancelado)
@@ -270,7 +286,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     cenaNaTela = entrada.cena
     divisoresNaTela = plano.divisores
     velha?.destroy(true)
-    opcoes.aoGerar?.({ ms: performance.now() - inicio, largura: textura.width, altura: textura.height })
+    opcoes.aoGerar?.({ ms: performance.now() - inicio, planoMs, largura: textura.width, altura: textura.height })
   }
 
   function atualizar(entrada: EntradaDoRelevo | null): void {
@@ -320,6 +336,38 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     )
   }
 
+  async function gerarAParte(entrada: EntradaDoRelevo): Promise<Sprite | null> {
+    const parado = () => destruido
+    if (parado()) return null
+    let base: PlanoDoRelevo | null | typeof INTERROMPIDO
+    try {
+      base = await planoEmFatias(entrada, fatiaMs, parado)
+    } catch {
+      base = null
+    }
+    if (base === INTERROMPIDO || base === null || parado()) return null
+    const comRiscos = planoComPenhascos(base, entrada.penhascos)
+    if (comRiscos === null) return null
+    const plano = entrada.conhecido === undefined ? comRiscos : { ...comRiscos, conhecido: entrada.conhecido }
+    let textura: Texture | null = null
+    try {
+      textura = await gerarTextura(plano, parado)
+    } catch {
+      textura = null
+    }
+    if (textura === null) return null
+    if (parado()) {
+      textura.destroy(true)
+      return null
+    }
+    const sprite = new Sprite(textura)
+    sprite.label = 'relevo-a-parte'
+    sprite.eventMode = 'none'
+    sprite.position.set(plano.retangulo.x, plano.retangulo.y)
+    sprite.scale.set(1 / plano.escala)
+    return sprite
+  }
+
   function destruir(): void {
     if (destruido) return
     destruido = true
@@ -328,5 +376,5 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     if (!camada.destroyed) camada.destroy()
   }
 
-  return { camada, atualizar, destruir }
+  return { camada, atualizar, gerarAParte, destruir }
 }

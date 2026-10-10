@@ -141,11 +141,9 @@ export interface CeuDoMapa {
  * (que cobre o retângulo todo), vale o retângulo do mapa.
  *
  * NA TELA DO JOGADOR vale o céu que o host gravou no recorte
- * (`MapData.ceuDasNuvens`, `ceuDasNuvensDoRecorte`): o chão que ele recebe
- * depende da névoa (zona oculta, teto fechado, sala secreta, pincel de
- * revelar, memória), e um céu tirado desse chão seria outro que o do mestre e
- * mudaria a cada pedaço revelado. Peça oculta para os jogadores (`hidden`)
- * fica de fora do céu.
+ * (`MapData.ceuDasNuvens`, `ceuDasNuvensDoRecorte`), tirado só do chão que
+ * o recorte manda: o chão escondido dele (zona oculta, sala secreta, névoa)
+ * não estica a caixa. Peça oculta para os jogadores (`hidden`) fica de fora.
  */
 export function ceuDoMapa(mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'floor' | 'background' | 'ceuDasNuvens'>): CeuDoMapa | null {
   const doHost = mapa.ceuDasNuvens
@@ -163,9 +161,10 @@ function caixaValida(caixa: NonNullable<MapData['ceuDasNuvens']>): boolean {
 }
 
 /**
- * O céu que o host grava no recorte do jogador: o do chão INTEIRO do mestre,
- * o mesmo que a tela dele calcula. `undefined` com as nuvens desligadas (a
- * masmorra não leva caixa nenhuma) ou mapa sem tamanho.
+ * O céu que o host grava no recorte do jogador: o do chão que `mapa.floor`
+ * traz — quem chama passa o chão do RECORTE (`lib/fogFilter.ts`), nunca o
+ * inteiro do mestre. `undefined` com as nuvens desligadas (a masmorra não
+ * leva caixa nenhuma) ou mapa sem tamanho.
  */
 export function ceuDasNuvensDoRecorte(
   mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'floor' | 'background' | 'nuvens' | 'continente' | 'worldMap'>,

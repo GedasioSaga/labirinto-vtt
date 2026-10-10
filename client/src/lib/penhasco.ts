@@ -1,4 +1,5 @@
 import type { MapData, ModoDoPenhasco, RegionPoint, TracoDePenhasco } from '../types/map'
+import { pisoLido } from './pisos'
 
 /**
  * PENHASCO (fatia 3 do plano do relevo de 09/10/2026): o pincel que põe rochedo
@@ -88,7 +89,7 @@ function lerTraco(valor: unknown): TracoDePenhasco | null {
     if (ponto === null) return null
     lidos.push(ponto)
   }
-  return lidos.length === 0 ? null : { id, modo, raio, pontos: lidos }
+  return lidos.length === 0 ? null : { id, modo, raio, pontos: lidos, ...pisoLido(valor) }
 }
 
 /**

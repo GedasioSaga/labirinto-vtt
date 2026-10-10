@@ -75,10 +75,20 @@ function render(map: MapData, sala: Region = SALA): void {
 const estilo = () => container.querySelector('[role="group"][aria-label="Título no mapa"]')
 const dica = () => container.querySelector('[data-testid="nome-na-pilula"]')
 
+/** A mesma sala, com o título de sempre (o mestre nunca escolheu estilo). */
+const SALA_SEM_ESTILO: Region = { ...SALA, room: { shape: 'polygon', name: 'Capital' } }
+
 describe('estilo do título com a chave "Nomes dos lugares"', () => {
-  it('Continente (chave ligada por padrão): o estilo some e a dica diz que o nome está na pílula', () => {
-    render(mapa(true))
+  it('Continente (chave ligada por padrão), sala com o título de sempre: o estilo some e a dica diz que o nome está na pílula', () => {
+    render(mapa(true, SALA_SEM_ESTILO), SALA_SEM_ESTILO)
     expect(estilo()).toBeNull()
+    expect(dica()?.textContent).toMatch(/pílula/)
+    expect(dica()?.textContent).toMatch(/Nomes dos lugares/)
+  })
+
+  it('Continente antigo com estilo próprio na sala: os controles ficam (o mestre não perde o que escolheu) e a dica explica a pílula', () => {
+    render(mapa(true))
+    expect(estilo()).not.toBeNull()
     expect(dica()?.textContent).toMatch(/pílula/)
     expect(dica()?.textContent).toMatch(/Nomes dos lugares/)
   })

@@ -6,7 +6,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import type { MotivoSemCorredor, bloqueioDaSala } from '../lib/abrirCorredor'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
-import type { RoomLabelStyle, RoomLabelStylePatch } from '../lib/roomLabelStyle'
+import { isDefaultRoomLabelStyle, type RoomLabelStyle, type RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, selectNomeNaPilula, useMapStore } from '../stores/mapStore'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, rotuloAbrirParaOCorredor } from './labels'
 import { Toggle } from './Toggle'
@@ -339,6 +339,22 @@ function RoomVisionRadiusField({ raioDeVisao, onRaioDeVisaoChange, hintId }: Roo
   )
 }
 
+/**
+ * A sala tem estilo de título próprio (Continente de antes da pílula)? A
+ * decisão é tomada quando a sala é selecionada e só pode virar `true` depois:
+ * arrastar o tamanho de volta a 100% ou clicar "Padrão" deixa o estilo igual
+ * ao padrão, e os controles não podem desmontar no meio do gesto (o slider
+ * prendia em 1 e o foco sumia). Outra sala refaz a conta.
+ */
+function useEstiloProprioDaSala(salaId: string | undefined, labelStyle: RoomLabelStyle | undefined): boolean {
+  const agora = labelStyle !== undefined && !isDefaultRoomLabelStyle(labelStyle)
+  const [congelado, setCongelado] = useState({ salaId, valor: agora })
+  const outraSala = congelado.salaId !== salaId
+  // Ajuste de estado durante o render (padrão do React para estado derivado de prop): sem efeito, sem um quadro com a decisão velha.
+  if (outraSala || (agora && !congelado.valor)) setCongelado({ salaId, valor: agora })
+  return outraSala ? agora : congelado.valor || agora
+}
+
 /** O "+" das linhas de opcional: só desenho (quem dá nome à linha é o texto dela), no traço da família de `icons.tsx`. */
 function PlusGlyph() {
   return (
@@ -589,6 +605,7 @@ export function RoomControls({
   // Também da store: ligar a chave "Nomes dos lugares" no Configurar cena, ou
   // apagar o nome, troca o estilo do título pela dica sem passar pelo App.
   const nomeNaPilula = useMapStore((state) => salaId !== undefined && selectNomeNaPilula(state, salaId))
+  const estiloProprio = useEstiloProprioDaSala(salaId, labelStyle)
   const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
   // Com corredor a abrir, ou com parede encostando que não forma corredor (aí desabilitada, com o motivo).
   const mostraAbrir = corredoresParaAbrir > 0 || semCorredor !== null
@@ -640,13 +657,18 @@ export function RoomControls({
         <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
 
-      {labelStyle !== undefined && onLabelStyleChange !== undefined && !nomeNaPilula && (
+      {/* Sala com estilo próprio (mapa Continente de antes da pílula) mostra os
+          controles mesmo com a pílula: esconder o que o mestre já escolheu
+          parece que o estilo se perdeu. Sem estilo próprio, fica só a dica. */}
+      {labelStyle !== undefined && onLabelStyleChange !== undefined && (!nomeNaPilula || estiloProprio) && (
         <RoomLabelStyleControls style={labelStyle} onChange={onLabelStyleChange} />
       )}
       {/* O estilo gravado continua na sala: desligar a chave traz a plaquinha de volta como era. */}
       {labelStyle !== undefined && onLabelStyleChange !== undefined && nomeNaPilula && (
         <p className="lb-field__hint" data-testid="nome-na-pilula">
-          O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. Para mudar o estilo do título, desligue essa chave em Configurar cena.
+          {estiloProprio
+            ? 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. O estilo do título acima continua guardado e volta quando essa chave é desligada em Configurar cena.'
+            : 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. Para mudar o estilo do título, desligue essa chave em Configurar cena.'}
         </p>
       )}
 

@@ -16,7 +16,8 @@ import { PixiCanvas } from './PixiCanvas'
  * um passo (um Ctrl+Z); Alt troca pincel e borracha só naquele gesto; Esc ou
  * trocar de ferramenta no meio do arrasto descartam o traço; o balde é um
  * clique, sem arrasto, e o aviso de gesto sem efeito não se repete. E a
- * "Exportar imagem" sem os itens do mestre não leva a pintura da tela dele.
+ * "Exportar imagem" leva a pintura do mapa DELA (sem os itens do mestre, sem o
+ * balde da sala secreta), pintada à parte; a da tela do mestre fica de fora.
  *
  * Mesmo arranjo sem navegador de `PixiCanvas.penhasco.test.tsx`: só o
  * `Application` (pede WebGL) e a medida do texto (sem canvas 2d) são trocados.
@@ -26,7 +27,13 @@ const tela = vi.hoisted(() => {
   const palcos: Container[] = []
   /** Visibilidade da camada das texturas no instante em que o PNG é desenhado. */
   const texturasNaExportacao: boolean[] = []
-  return { palcos, texturasNaExportacao, largura: 1200, altura: 800 }
+  /** Camadas (textura vista pela máscara) da pintura à parte no instante do PNG; -1 = nenhuma. */
+  const camadasDaImagem: number[] = []
+  /** Quantas terras o plano de cada textura falsa do relevo tinha (a sala secreta é uma terra a mais). */
+  const terrasDoRelevo = new Map<object, number>()
+  /** No instante do PNG: a camada do relevo do palco à vista? E o relevo à parte (terras do plano dele; -1 = nenhum). */
+  const relevoNaExportacao: { palco: boolean; terras: number; sprite: Container | null; textura: { destroyed: boolean } | null }[] = []
+  return { palcos, texturasNaExportacao, camadasDaImagem, terrasDoRelevo, relevoNaExportacao, largura: 1200, altura: 800 }
 })
 
 vi.mock('pixi.js', async (importOriginal) => {
@@ -40,6 +47,17 @@ vi.mock('pixi.js', async (importOriginal) => {
         base64: async (opcoes: { target: Container }) => {
           const camada = opcoes.target.getChildByLabel('texturas', true)
           tela.texturasNaExportacao.push(camada !== null && camada.visible)
+          const aParte = opcoes.target.getChildByLabel('texturas-a-parte', true)
+          tela.camadasDaImagem.push(aParte === null || !aParte.visible ? -1 : aParte.children.length / 2)
+          const relevoDoPalco = opcoes.target.getChildByLabel('relevo', true)
+          const relevoAParte = opcoes.target.getChildByLabel('relevo-a-parte', true)
+          const texturaAParte = relevoAParte instanceof pixi.Sprite ? relevoAParte.texture : null
+          tela.relevoNaExportacao.push({
+            palco: relevoDoPalco !== null && relevoDoPalco.visible,
+            terras: texturaAParte === null ? -1 : (tela.terrasDoRelevo.get(texturaAParte) ?? -1),
+            sprite: relevoAParte,
+            textura: texturaAParte,
+          })
           return 'data:image/png;base64,AAAA'
         },
       },
@@ -61,6 +79,40 @@ vi.mock('pixi.js', async (importOriginal) => {
     }
   }
   return { ...pixi, Application: ApplicationSemGpu, Text: TextSemMedida }
+})
+
+// Sem canvas 2d no jsdom: a máscara e o ladrilho saem falsos, o resto da pintura é o de verdade.
+vi.mock('./drawTexturas', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./drawTexturas')>()
+  const { Texture } = await import('pixi.js')
+  return {
+    ...real,
+    createTexturasRenderer: (opcoes: Parameters<typeof real.createTexturasRenderer>[0] = {}) =>
+      real.createTexturasRenderer({
+        ...opcoes,
+        rasterizar: async (plano) => plano.camadas.map(() => document.createElement('canvas')),
+        ladrilho: async () => new Texture(),
+        mascara: () => new Texture(),
+      }),
+  }
+})
+
+// Sem canvas 2d no jsdom: a textura do relevo sai falsa, guardando quantas terras o plano dela tinha.
+vi.mock('./drawRelevo', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./drawRelevo')>()
+  const { Texture } = await import('pixi.js')
+  return {
+    ...real,
+    createRelevoRenderer: (opcoes: Parameters<typeof real.createRelevoRenderer>[0] = {}) =>
+      real.createRelevoRenderer({
+        ...opcoes,
+        gerarTextura: async (plano) => {
+          const textura = new Texture()
+          tela.terrasDoRelevo.set(textura, plano.terras.length)
+          return textura
+        },
+      }),
+  }
 })
 
 /** Terra de (100, 100) a (900, 500). */
@@ -98,6 +150,9 @@ beforeEach(() => {
   )
   tela.palcos.length = 0
   tela.texturasNaExportacao.length = 0
+  tela.camadasDaImagem.length = 0
+  tela.terrasDoRelevo.clear()
+  tela.relevoNaExportacao.length = 0
   exportador = null
   useToastStore.setState({ toasts: [] })
   useMapStore.setState({
@@ -235,11 +290,19 @@ describe('PixiCanvas — ferramenta Texturas', () => {
     expect(useToastStore.getState().toasts.filter((t) => t.text === AVISO_TEXTURA_BALDE_IGUAL)).toHaveLength(1)
   })
 
-  it('"Exportar imagem" sem os itens do mestre não leva a pintura da tela do mestre; com eles, leva', async () => {
+  it('"Exportar imagem" leva a pintura do mapa dela: sem os itens do mestre, sem o balde da sala secreta; a da tela do mestre fica de fora', async () => {
     await monta()
     act(() => useMapStore.getState().setTexturaModo('balde'))
     ponteiro('pointerdown', { x: 300, y: 300 })
     expect(passos()).toHaveLength(1)
+    // Uma sala secreta com outra textura no balde: só o mestre a vê.
+    const segredo: Region = { ...TERRA, id: 'segredo', secret: true, points: TERRA.points.map((p) => ({ x: p.x + 10, y: p.y + 10 })) }
+    act(() => {
+      const { map } = useMapStore.getState()
+      useMapStore.setState({
+        map: { ...map, regions: [...map.regions, segredo], texturas: [...(map.texturas ?? []), { id: 'balde-secreto', tipo: 'balde', textura: 'areia', forca: 1, alvo: { tipo: 'regiao', id: 'segredo' } }] },
+      })
+    })
     const exportar = exportador
     if (exportar === null) throw new Error('o canvas não entregou o exportador')
     await act(async () => {
@@ -248,8 +311,48 @@ describe('PixiCanvas — ferramenta Texturas', () => {
     await act(async () => {
       await exportar({ grid: false, masterOnly: true })
     })
-    expect(tela.texturasNaExportacao).toEqual([false, true])
+    // A camada do mestre nunca sai; a da imagem sai nas duas, com a areia da sala secreta só na do mestre.
+    expect(tela.texturasNaExportacao).toEqual([false, false])
+    expect(tela.camadasDaImagem).toEqual([1, 2])
+    // A pintura à parte não fica no palco depois.
+    expect(palco().getChildByLabel('texturas-a-parte', true)).toBeNull()
     // E a camada volta a aparecer no editor depois de exportar.
     expect(palco().getChildByLabel('texturas', true)?.visible).toBe(true)
+  })
+
+  it('"Exportar imagem" leva o relevo do mapa dela, gerado à parte: sem a sala secreta sem os itens do mestre, e a textura dele é solta depois', async () => {
+    const segredo: Region = { ...TERRA, id: 'segredo', secret: true, points: TERRA.points.map((p) => ({ x: p.x + 50, y: p.y + 50 })) }
+    act(() => useMapStore.setState({ map: { ...mapaComTerra(), regions: [TERRA, segredo] } }))
+    await monta()
+    const exportar = exportador
+    if (exportar === null) throw new Error('o canvas não entregou o exportador')
+    await act(async () => {
+      await exportar({ grid: false, masterOnly: false })
+    })
+    await act(async () => {
+      await exportar({ grid: false, masterOnly: true })
+    })
+    // O relevo do palco (o do mestre) nunca sai; o à parte sai nas duas, com a sala secreta só na do mestre.
+    expect(tela.relevoNaExportacao.map((r) => r.palco)).toEqual([false, false])
+    expect(tela.relevoNaExportacao.map((r) => r.terras)).toEqual([1, 2])
+    // Depois do PNG, o relevo à parte sai do palco e a textura dele é destruída.
+    expect(palco().getChildByLabel('relevo-a-parte', true)).toBeNull()
+    for (const r of tela.relevoNaExportacao) {
+      expect(r.sprite?.destroyed).toBe(true)
+      expect(r.textura?.destroyed).toBe(true)
+    }
+  })
+
+  it('trocar de piso tira a pintura do piso anterior NA HORA, sem esperar a repintura', async () => {
+    const terreo = { id: 't0', tipo: 'pincel' as const, textura: 'floresta', forca: 1, raio: 80, pontos: [{ x: 300, y: 300 }] }
+    const andar = { ...terreo, id: 't1', textura: 'areia', piso: 1 }
+    act(() => useMapStore.setState({ map: { ...mapaComTerra(), regions: [TERRA, { ...TERRA, id: 'terra-1', piso: 1 }], texturas: [terreo, andar] } }))
+    await monta()
+    const camada = () => palco().getChildByLabel('texturas', true)
+    await vi.waitFor(() => expect(camada()?.children.length ?? 0).toBeGreaterThan(0))
+    const doTerreo = [...(camada()?.children ?? [])]
+    act(() => useMapStore.setState({ pisoAtivo: 1 }))
+    // Logo depois da troca (antes dos 250 ms da espera da edição), nada do térreo continua no palco.
+    expect(camada()?.children.some((c) => doTerreo.includes(c))).toBe(false)
   })
 })

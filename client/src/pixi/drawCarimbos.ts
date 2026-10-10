@@ -219,13 +219,33 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   let desenhada: { entrada: EntradaDosCarimbos; versao: number } | null = null
   /** Texturas que saíram do cache (pacote novo) e ainda podem estar em sprites: soltas no próximo desenho. */
   const aposentadas: Texture[] = []
+  /**
+   * Sombras da prévia de artes aposentadas que um traço EM CURSO ainda mostra:
+   * destruir agora derrubaria o laço de render (o sprite lê a textura a cada
+   * quadro). Saem quando a prévia acaba (`limparPrevia`).
+   */
+  const sombrasPresasNaPrevia: Texture[] = []
+
+  /** A sombra da prévia desta arte sai do cache: na hora, ou ao fim do traço que ainda a mostra. */
+  function aposentarSombraDaPrevia(arte: ArteNoPalco): void {
+    const textura = sombrasDaPrevia.get(arte)
+    if (textura === undefined) return
+    sombrasDaPrevia.delete(arte)
+    const emUso = [...previa.values()].some((item) => item.sombra?.texture === textura)
+    if (emUso) sombrasPresasNaPrevia.push(textura)
+    else textura.destroy(true)
+  }
 
   const pararDeOuvir = assinarCarimbos(() => {
     // Os do pacote saem do cache (o desenho pode ter mudado); os embutidos ficam.
     for (const [chave, guardada] of [...artes]) {
       const tipo = chave.slice(0, chave.lastIndexOf('#'))
       if (ehTipoImportado(tipo) || carimboDoCatalogo(tipo)?.origem === 'embutido') continue
-      if (guardada !== null && guardada !== 'assando') aposentadas.push(guardada.corpo)
+      if (guardada !== null && guardada !== 'assando') {
+        aposentadas.push(guardada.corpo)
+        // Sem isto a silhueta da arte velha ficava na memória de vídeo até o palco morrer.
+        aposentarSombraDaPrevia(guardada)
+      }
       artes.delete(chave)
     }
     versaoDasArtes += 1
@@ -477,6 +497,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       item.sombra?.destroy()
     }
     previa.clear()
+    for (const textura of sombrasPresasNaPrevia.splice(0)) textura.destroy(true)
     if (apagandoAgora.size > 0) {
       for (const sprite of objetos.values()) sprite.alpha = 1
       apagandoAgora = new Set()
@@ -496,6 +517,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       artes.clear()
       for (const textura of sombrasDaPrevia.values()) textura.destroy(true)
       sombrasDaPrevia.clear()
+      for (const textura of sombrasPresasNaPrevia.splice(0)) textura.destroy(true)
       for (const textura of aposentadas.splice(0)) textura.destroy(true)
       camada.destroy({ children: true })
     },

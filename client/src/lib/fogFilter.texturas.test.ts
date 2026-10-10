@@ -66,4 +66,23 @@ describe('Texturas no recorte do jogador', () => {
     expect(view.map.texturas).toBeUndefined()
     expect(view.map.texturasImportadas).toBeUndefined()
   })
+
+  it('PISOS: a pincelada, o carimbo e o risco de penhasco de outro piso não viajam, mesmo junto da ficha', () => {
+    const pontos = [{ x: 100, y: 120 }]
+    const mapa: MapData = {
+      ...cena(),
+      texturas: [{ id: 'em-cima', tipo: 'pincel', textura: 'floresta', forca: 1, raio: 40, pontos, piso: 1 }],
+      carimbos: [{ id: 'arvore-de-cima', tipo: 'pinheiro', x: 100, y: 120, tamanho: 20, giro: 0, piso: 1 }],
+      penhascos: [{ id: 'risco-de-cima', modo: 'riscar', raio: 40, pontos, piso: 1 }],
+    }
+    const view = filterMapForPlayer(mapa, 'p1', POSSE, RAIO)
+    expect(view.map.texturas ?? []).toHaveLength(0)
+    expect(view.map.carimbos ?? []).toHaveLength(0)
+    expect(view.map.penhascos ?? []).toHaveLength(0)
+    // A ficha sobe ao 1º piso: agora são dela.
+    const noPrimeiro = filterMapForPlayer({ ...mapa, tokens: [{ ...ANA, piso: 1 }] }, 'p1', POSSE, RAIO)
+    // O recorte do jogador corta a pincelada em pedaços (`em-cima~0`).
+    expect(noPrimeiro.map.texturas?.map((t) => t.id.split('~')[0])).toEqual(['em-cima'])
+    expect(noPrimeiro.map.carimbos?.map((c) => c.id)).toEqual(['arvore-de-cima'])
+  })
 })

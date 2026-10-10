@@ -2096,12 +2096,12 @@ export interface MapData {
   nuvens?: boolean
   /**
    * O CÉU das nuvens (`lib/nuvens.ts`, `ceuDoMapa`), em px de mundo. Só existe
-   * no RECORTE do jogador, e só com as nuvens ligadas: o host o calcula do chão
-   * INTEIRO, porque o chão que o jogador recebe depende da névoa (zona oculta,
-   * teto, sala secreta, pincel de revelar, memória), e um céu tirado dele
-   * deixaria as nuvens em outro lugar que no mestre e as faria pular a cada
-   * pedaço revelado. É só uma caixa sob o preto do nunca visto. O arquivo do
-   * mapa não o lê nem grava (o mestre sempre calcula o dele).
+   * no RECORTE do jogador, e só com as nuvens ligadas: o host o calcula SÓ do
+   * chão que o recorte manda (acabamento do relevo, 10/10/2026). Tirado do chão
+   * inteiro, a caixa entregaria até onde vai o chão da zona oculta, da sala
+   * secreta e da névoa. Quando o chão dele cresce, a nuvem segue de onde
+   * estava (`pixi/drawNuvens.ts`), sem pular. O arquivo do mapa não o lê nem
+   * grava (o mestre sempre calcula o dele).
    */
   ceuDasNuvens?: { x: number; y: number; largura: number; altura: number }
   /**
@@ -2187,8 +2187,11 @@ export interface MapData {
 /** O que um risco do pincel de penhasco faz: `riscar` põe penhasco na costa debaixo dele, `apagar` tira. */
 export type ModoDoPenhasco = 'riscar' | 'apagar'
 
-/** Um risco do pincel de penhasco (`lib/penhasco.ts`). */
-export interface TracoDePenhasco {
+/**
+ * Um risco do pincel de penhasco (`lib/penhasco.ts`). `piso` (`NoPiso`): o
+ * piso em que foi riscado; ausente = térreo, mapa de antes abre igual.
+ */
+export interface TracoDePenhasco extends NoPiso {
   id: string
   modo: ModoDoPenhasco
   /** Raio do pincel, em px de mundo. */
@@ -2204,11 +2207,14 @@ export interface TracoDePenhasco {
  * - `balde`: enche a parte À VISTA de uma região ou de um desenho pintado (a
  *   forma menos o que está desenhado por cima dela), lida na hora de pintar.
  * `forca` (0 a 1) é o quanto o passo cobre o que veio antes: 1 cobre tudo.
+ * `piso` (`NoPiso`): o piso em que o passo foi feito; ausente = térreo, mapa
+ * de antes abre igual. Cada piso pinta só os passos dele (`mapaDoPiso`).
  */
-export type PinceladaDeTextura =
+export type PinceladaDeTextura = NoPiso & (
   | { id: string; tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'balde'; textura: string; forca: number; alvo: AlvoDoBalde }
+)
 
 /** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */
 export interface AlvoDoBalde {
@@ -2232,8 +2238,9 @@ export interface TexturaImportada {
  * e a variação do spray — guardado pronto, para o objeto não mudar de tamanho
  * se o mapa crescer. `giro`: graus de 0 a 359; a tela escolhe o desenho que
  * gira com a luz parada (de cima à esquerda), não a imagem inteira.
+ * `piso` (`NoPiso`): ausente = térreo, mapa de antes abre igual.
  */
-export interface Carimbo {
+export interface Carimbo extends NoPiso {
   id: string
   /** Id da biblioteca/pacote (`a-z0-9-`) ou de um importado (`importado:...`). */
   tipo: string

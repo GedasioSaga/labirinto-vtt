@@ -5,6 +5,7 @@ import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import type { RoofPeek } from '../lib/fogFilter'
+import { pisoDe } from '../lib/pisos'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -51,7 +52,7 @@ import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorD
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
-import { createTexturasRenderer, type TexturasRenderer } from '../pixi/drawTexturas'
+import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
 import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
@@ -1281,6 +1282,8 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.world.position.set(snapToPhysicalPixel(scene.camera.x, res), snapToPhysicalPixel(scene.camera.y, res))
   // O mundo escala já, em todo caminho: o ponto sob o dedo nunca espera o quadro.
   scene.world.scale.set(scene.camera.scale)
+  // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
+  scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
 }
@@ -2384,7 +2387,10 @@ function PlayerViewDoCanvas({
     scene.texturas.atualizar(
       currentMap.texturas !== undefined && efeitosDoMapaLigados(currentSettings) && !modoLeve
         ? {
-            cena: currentMap.id,
+            // PISOS: o recorte só traz os passos do piso da ficha (todos com o mesmo
+            // `piso`). A ficha que troca de piso cai em "cena nova": a pintura do piso
+            // anterior sai NA HORA, em vez de ficar ~250 ms por cima da planta nova.
+            cena: `${currentMap.id}|${pisoDe(currentMap.texturas[0] ?? {})}`,
             mapa: currentMap,
             passos: currentMap.texturas,
             importadas: currentMap.texturasImportadas,
@@ -3737,7 +3743,11 @@ function PlayerViewDoCanvas({
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
-        if (!destroyed) app.resize()
+        if (destroyed) return
+        app.resize()
+        // Tela que cresce sem a câmera mudar (girar o celular, janela maior): a
+        // textura repetida acompanha a vista nova (`ajustarAVista`, drawTexturas.ts).
+        scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
       })
       resizeObserver.observe(el)
 

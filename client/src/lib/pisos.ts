@@ -79,10 +79,46 @@ function listasDe(map: MapData): readonly NoPiso[][] {
   )
 }
 
+/**
+ * As listas do RELEVO que têm piso (texturas, carimbos, penhasco). Ausentes
+ * continuam ausentes no recorte: o editor e a tela do jogador leem `undefined`
+ * como "nada pintado" e não ganham chave nova.
+ */
+type ListasDoRelevo = Pick<MapData, 'texturas' | 'carimbos' | 'penhascos'>
+
+function listasDoRelevo(map: MapData, f: <T extends NoPiso & { id: string }>(list: T[]) => T[]): ListasDoRelevo {
+  return {
+    ...(map.texturas === undefined ? {} : { texturas: f(map.texturas) }),
+    ...(map.carimbos === undefined ? {} : { carimbos: f(map.carimbos) }),
+    ...(map.penhascos === undefined ? {} : { penhascos: f(map.penhascos) }),
+  }
+}
+
 /** O mapa tem mais de um piso? Alguma entidade fora do térreo, ou escada que liga pisos. */
 export function temPisos(map: MapData): boolean {
   const fora = (item: NoPiso): boolean => pisoDe(item) !== 0
-  return listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
+  const doRelevo = [map.texturas, map.carimbos, map.penhascos].some((list) => (list ?? []).some(fora))
+  return doRelevo || listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
+}
+
+/**
+ * Leitura do arquivo: o `piso` de um item do relevo (passo de textura,
+ * carimbo, risco de penhasco), só se é inteiro na faixa. Ausente, térreo ou
+ * torto: nada (o item fica no térreo, como era antes do campo existir).
+ */
+export function pisoLido(valor: object): NoPiso {
+  const piso = 'piso' in valor ? valor.piso : undefined
+  return ehPiso(piso) && piso !== 0 ? { piso } : {}
+}
+
+/**
+ * A lista inteira com os itens do piso `piso` trocados por `doPiso` (o que a
+ * operação do editor fez só com eles). Os dos outros pisos ficam como estavam:
+ * a borracha no 1º piso não alcança a pintura do térreo. A ordem só importa
+ * dentro de um piso (cada piso pinta só os dele), então os do piso vão no fim.
+ */
+export function comListaDoPiso<T extends NoPiso>(todos: readonly T[], doPiso: readonly T[], piso: number): T[] {
+  return [...todos.filter((item) => pisoDe(item) !== piso), ...doPiso]
 }
 
 /**
@@ -132,6 +168,16 @@ export function mapaDoPiso(map: MapData, piso: number): MapData {
 }
 
 /**
+ * O editor mostra um piso só (mapa com pisos, ou fora do térreo)? É quando
+ * "apagar todos" e as contagens dos painéis valem para "este piso". Usa o
+ * recorte em cache em vez de `temPisos`, que varreria o mapa a cada mudança
+ * da store (o seletor roda a cada quadro de arrasto).
+ */
+export function editandoUmPiso(map: MapData, piso: number): boolean {
+  return mapaDoPiso(map, piso) !== map
+}
+
+/**
  * Cache por MAPA do recorte inteiro: o editor pede o piso em edição a cada
  * quadro de arrasto e a cada clique (`pixi/PixiCanvas.tsx`), e `temPisos`
  * percorre o mapa todo. O mesmo mapa pedido de novo no mesmo piso volta o
@@ -146,6 +192,8 @@ function recortarPiso(map: MapData, piso: number): MapData {
   return {
     ...map,
     ...cadaLista(map, (list) => doPiso(list, chave, noPiso)),
+    // TEXTURAS, CARIMBOS e PENHASCO: a pincelada do 1º piso não aparece no térreo.
+    ...listasDoRelevo(map, (list) => doPiso(list, chave, noPiso)),
     stairs: doPiso(map.stairs, `escada:${piso}`, (s) => escadaNoPiso(s, piso)),
   }
 }
@@ -189,7 +237,15 @@ export function nascemNoPiso(antes: MapData, depois: MapData, piso: number): Map
     pins: nascidosNoPiso(antes.pins, depois.pins, piso),
     stairs: nascidosNoPiso(antes.stairs, depois.stairs, piso),
   }
+  // O relevo também: o passo de textura, o carimbo e o risco de penhasco nascem no piso em edição.
+  const doRelevo: ListasDoRelevo = {
+    ...(depois.texturas === undefined ? {} : { texturas: nascidosNoPiso(antes.texturas, depois.texturas, piso) }),
+    ...(depois.carimbos === undefined ? {} : { carimbos: nascidosNoPiso(antes.carimbos, depois.carimbos, piso) }),
+    ...(depois.penhascos === undefined ? {} : { penhascos: nascidosNoPiso(antes.penhascos, depois.penhascos, piso) }),
+  }
+  const relevoMudou = doRelevo.texturas !== depois.texturas || doRelevo.carimbos !== depois.carimbos || doRelevo.penhascos !== depois.penhascos
   const mudou = [
+    relevoMudou,
     listas.walls !== depois.walls,
     listas.lights !== depois.lights,
     listas.regions !== depois.regions,
@@ -203,9 +259,8 @@ export function nascemNoPiso(antes: MapData, depois: MapData, piso: number): Map
     listas.pins !== depois.pins,
     listas.stairs !== depois.stairs,
   ].some(Boolean)
-  return mudou ? { ...depois, ...listas } : depois
+  return mudou ? { ...depois, ...listas, ...doRelevo } : depois
 }
-
 /** O que o mestre pode levar a outro piso pela seleção (`lib/selectionModel.ts`). */
 export interface ItemParaPiso {
   readonly kind: SelectionKind
