@@ -48,6 +48,8 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       state.map.relevo,
       state.map.continente,
       state.map.worldMap,
+      // NOMES DOS LUGARES (`lib/nomesDosLugares.ts`): a chave também não mexe em forma nenhuma.
+      state.map.nomesDosLugares,
     ] as const,
     onChange,
     { equalityFn: shallow },

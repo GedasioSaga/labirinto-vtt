@@ -36,7 +36,8 @@ const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
   // a camada ficava escondida para sempre depois de trocar para um andar denso.
   // RELEVO (`relevo`) só agenda a geração da textura (`drawRelevo.ts`): vai com as marcas de chão.
   ['floorSelection', 'perigos', 'drawings', 'relevo', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
-  ['roomNames'],
+  // NOMES DOS LUGARES (pílulas) com os nomes de sala: as duas camadas dividem as regiões com nome.
+  ['roomNames', 'nomesDosLugares'],
   ['lights', 'watchCones', 'patrolRoutes'],
   ['concealZones', 'pins', 'textLabels', 'handles', 'areaOutline'],
 ]

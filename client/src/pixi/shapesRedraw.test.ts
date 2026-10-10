@@ -63,6 +63,7 @@ function setup() {
     faccoes: spy('faccoes'),
     conveyors: spy('conveyors'),
     roomNames: spy('roomNames'),
+    nomesDosLugares: spy('nomesDosLugares'),
     walls: spy('walls'),
     stairs: spy('stairs'),
     lights: spy('lights'),
@@ -293,6 +294,37 @@ describe('createShapesRedrawer', () => {
     normal.redraw(snapshot(masmorra))
     normal.take()
     expect(normal.redraw(snapshot({ ...masmorra, drawings: [...masmorra.drawings, bioma] }))).not.toContain('relevo')
+  })
+
+  it('NOMES DOS LUGARES: em cena Continente, desenho novo (cor do chão) e sala acordam as pílulas; a chave repinta também as plaquinhas', () => {
+    const bioma: Drawing = { id: 'bioma', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], color: '#0aa148', width: 0, filled: true, fillAlpha: 1 }
+    const { redraw, take } = setup()
+    const continente: MapData = { ...buildMap(), continente: true }
+    redraw(snapshot(continente))
+    take()
+    expect(redraw(snapshot({ ...continente, drawings: [...continente.drawings, bioma] }))).toContain('nomesDosLugares')
+    take()
+    expect(redraw(snapshot(moveRegion(continente, 'r1', 10, 0)))).toContain('nomesDosLugares')
+    take()
+    // Desligar a chave: as pílulas saem e o nome volta para a plaquinha.
+    const desligada = redraw(snapshot({ ...moveRegion(continente, 'r1', 10, 0), nomesDosLugares: false }))
+    expect(desligada).toContain('nomesDosLugares')
+    expect(desligada).toContain('roomNames')
+
+    const normal = setup()
+    const masmorra = buildMap()
+    normal.redraw(snapshot(masmorra))
+    normal.take()
+    expect(normal.redraw(snapshot({ ...masmorra, drawings: [...masmorra.drawings, bioma] }))).not.toContain('nomesDosLugares')
+    expect(normal.redraw(snapshot(moveRegion(masmorra, 'r1', 10, 0)))).not.toContain('nomesDosLugares')
+  })
+
+  it('NOMES DOS LUGARES: o zoom não repinta as pílulas (elas seguem a câmera por `setCameraScale`)', () => {
+    const { redraw, take } = setup()
+    const continente: MapData = { ...buildMap(), continente: true }
+    redraw(snapshot(continente))
+    take()
+    expect(redraw(snapshot(continente, { cameraScale: 0.1 }))).not.toContain('nomesDosLugares')
   })
 
   it('mapa sem nenhum campo opcional (sem frame, sem gridOffset, sem salas) pinta e depois fica parado', () => {

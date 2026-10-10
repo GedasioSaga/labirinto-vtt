@@ -9,6 +9,7 @@ import { tokenWatchOf } from '../lib/npcWatch'
 import { tokenPatrolOf } from '../lib/npcPatrol'
 import type { PontoDaRotaAberto } from './drawNpcPatrol'
 import { relevoLigado } from '../lib/relevo'
+import { nomesDosLugaresLigados } from '../lib/nomesDosLugares'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -30,6 +31,7 @@ export const SHAPES_LAYERS = [
   'faccoes',
   'conveyors',
   'roomNames',
+  'nomesDosLugares',
   'walls',
   'stairs',
   'lights',
@@ -45,7 +47,7 @@ export const SHAPES_LAYERS = [
 export type ShapesLayer = (typeof SHAPES_LAYERS)[number]
 
 /** Camadas que criam ou mexem em `Text`: pintar uma delas pede sincronizar a resolução dos textos. */
-const TEXT_LAYERS: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['mapFrame', 'roomNames', 'concealZones', 'pins', 'textLabels'])
+const TEXT_LAYERS: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['mapFrame', 'roomNames', 'nomesDosLugares', 'concealZones', 'pins', 'textLabels'])
 
 export function paintedTextLayer(painted: readonly ShapesLayer[]): boolean {
   return painted.some((layer) => TEXT_LAYERS.has(layer))
@@ -160,7 +162,13 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
         ? ['sem esteira']
         : [map.conveyors, map.regions, map.pins, hidden, map.grid, cameraScale, rendererResolution]
     case 'roomNames':
-      return [map.regions, hidden, map.grid]
+      // Com "Nomes dos lugares" ligada, o nome com pílula sai da plaquinha (`regioesSemPilula`).
+      return [map.regions, hidden, map.grid, nomesDosLugaresLigados(map)]
+    case 'nomesDosLugares':
+      // NOMES DOS LUGARES (`lib/nomesDosLugares.ts`): a cor da pílula é a do chão
+      // no lugar, que os desenhos com fundo pintam. O zoom não repinta: a
+      // pílula segue a câmera por `setCameraScale`. Desligada, nada acorda.
+      return nomesDosLugaresLigados(map) ? ['pílulas', map.id, map.regions, map.drawings, hidden] : ['sem pílulas']
     case 'walls':
       return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution]
     case 'stairs':

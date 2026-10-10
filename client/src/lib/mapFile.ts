@@ -656,6 +656,8 @@ function deserializeMapFields(json: string): MapData {
     // RELEVO: campo NOVO e OPCIONAL. Só booleano vale; ausente (ou torto) abre
     // sem o campo e segue o padrão do tipo de mapa (`lib/relevo.ts`).
     ...(typeof parsed.relevo === 'boolean' ? { relevo: parsed.relevo } : {}),
+    // NOMES DOS LUGARES: o mesmo molde do relevo (`lib/nomesDosLugares.ts`).
+    ...(typeof parsed.nomesDosLugares === 'boolean' ? { nomesDosLugares: parsed.nomesDosLugares } : {}),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),

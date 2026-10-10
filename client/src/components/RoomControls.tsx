@@ -7,7 +7,7 @@ import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import type { MotivoSemCorredor, bloqueioDaSala } from '../lib/abrirCorredor'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import type { RoomLabelStyle, RoomLabelStylePatch } from '../lib/roomLabelStyle'
-import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, useMapStore } from '../stores/mapStore'
+import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, selectNomeNaPilula, useMapStore } from '../stores/mapStore'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, rotuloAbrirParaOCorredor } from './labels'
 import { Toggle } from './Toggle'
 import { RoomLabelStyleControls } from './RoomLabelStyleControls'
@@ -586,6 +586,9 @@ export function RoomControls({
   const corredoresParaAbrir = useMapStore((state) => (salaId === undefined ? 0 : selectCorredoresParaAbrir(state, salaId)))
   const bloqueioParaAbrir = useMapStore((state) => (salaId === undefined ? null : selectBloqueioParaAbrir(state, salaId)))
   const semCorredor = useMapStore((state) => (salaId === undefined ? null : selectMotivoSemCorredor(state, salaId)))
+  // Também da store: ligar a chave "Nomes dos lugares" no Configurar cena, ou
+  // apagar o nome, troca o estilo do título pela dica sem passar pelo App.
+  const nomeNaPilula = useMapStore((state) => salaId !== undefined && selectNomeNaPilula(state, salaId))
   const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
   // Com corredor a abrir, ou com parede encostando que não forma corredor (aí desabilitada, com o motivo).
   const mostraAbrir = corredoresParaAbrir > 0 || semCorredor !== null
@@ -637,8 +640,14 @@ export function RoomControls({
         <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
 
-      {labelStyle !== undefined && onLabelStyleChange !== undefined && (
+      {labelStyle !== undefined && onLabelStyleChange !== undefined && !nomeNaPilula && (
         <RoomLabelStyleControls style={labelStyle} onChange={onLabelStyleChange} />
+      )}
+      {/* O estilo gravado continua na sala: desligar a chave traz a plaquinha de volta como era. */}
+      {labelStyle !== undefined && onLabelStyleChange !== undefined && nomeNaPilula && (
+        <p className="lb-field__hint" data-testid="nome-na-pilula">
+          O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. Para mudar o estilo do título, desligue essa chave em Configurar cena.
+        </p>
       )}
 
       {shape === 'rect' && axisAligned && (

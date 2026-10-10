@@ -16,6 +16,14 @@ export interface SceneMapTypeControlsProps {
    */
   relevo?: boolean
   onRelevoChange?: (ligado: boolean) => void
+  /**
+   * Chave "Nomes dos lugares" (`MapData.nomesDosLugares`,
+   * `lib/nomesDosLugares.ts`): o nome de cada região numa pílula com haste.
+   * Já vem resolvida com o padrão do tipo. Sem `onNomesDosLugaresChange`, a
+   * chave não aparece.
+   */
+  nomesDosLugares?: boolean
+  onNomesDosLugaresChange?: (ligado: boolean) => void
 }
 
 const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
@@ -30,10 +38,20 @@ const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
  * "Mapa-mundi" das Configurações do mapa, mora aqui, dentro do Continente.
  * Escolha única no padrão `lb-seg` de `DoorKindControls`.
  */
-export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaChange, relevo = false, onRelevoChange }: SceneMapTypeControlsProps) {
+export function SceneMapTypeControls({
+  tipo,
+  onTipoChange,
+  caravana,
+  onCaravanaChange,
+  relevo = false,
+  onRelevoChange,
+  nomesDosLugares = false,
+  onNomesDosLugaresChange,
+}: SceneMapTypeControlsProps) {
   const tipoHintId = useId()
   const caravanaHintId = useId()
   const relevoHintId = useId()
+  const nomesHintId = useId()
   return (
     <section className="lb-section lb-cena-config__tipo">
       <h2 className="lb-eyebrow">Tipo de mapa</h2>
@@ -70,6 +88,15 @@ export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaC
           <p id={relevoHintId} className="lb-field__hint">
             Luz de cima à esquerda sobre a terra, sombra da terra no mar e nas fronteiras entre regiões. Sai das regiões, sem nada a
             desenhar. Ligado por padrão no Continente.
+          </p>
+        </div>
+      )}
+      {onNomesDosLugaresChange !== undefined && (
+        <div className="lb-field">
+          <Toggle label="Nomes dos lugares" checked={nomesDosLugares} describedBy={nomesHintId} onChange={onNomesDosLugaresChange} />
+          <p id={nomesHintId} className="lb-field__hint">
+            O nome de cada região numa pílula da cor do lugar, com uma haste até ele, do mesmo tamanho em qualquer zoom. Os nomes
+            aparecem em cascata quando o mapa abre, e o jogador só vê o de lugar que já descobriu. Ligado por padrão no Continente.
           </p>
         </div>
       )}

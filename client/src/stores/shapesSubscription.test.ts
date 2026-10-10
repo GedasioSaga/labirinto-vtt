@@ -94,6 +94,29 @@ describe('subscribeToShapesRedraw', () => {
     unsubscribe()
   })
 
+  it('dispara quando a chave Nomes dos lugares muda', () => {
+    useMapStore.getState().setTipoDeMapa('continente')
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    useMapStore.getState().setNomesDosLugares(false)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    useMapStore.getState().setNomesDosLugares(true)
+    expect(onChange).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
+
+  it('a chave Nomes dos lugares entra no desfazer, e o mesmo valor não vira passo vazio', () => {
+    useMapStore.getState().setTipoDeMapa('continente')
+    useMapStore.getState().setNomesDosLugares(true)
+    expect('nomesDosLugares' in useMapStore.getState().map).toBe(false)
+    useMapStore.getState().setNomesDosLugares(false)
+    expect(useMapStore.getState().map.nomesDosLugares).toBe(false)
+    useMapStore.getState().undo()
+    expect('nomesDosLugares' in useMapStore.getState().map).toBe(false)
+    expect(useMapStore.getState().map.continente).toBe(true)
+  })
+
   it('dispara quando o Tipo de mapa muda (Continente liga o relevo por padrão)', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToShapesRedraw(onChange)

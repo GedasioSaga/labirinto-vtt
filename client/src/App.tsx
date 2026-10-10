@@ -36,6 +36,7 @@ import { useAwayTokensStore } from './stores/awayTokensStore'
 import { useDonosDasFichasStore } from './stores/donosDasFichasStore'
 import { isContinente } from './lib/marcadorDeContinente'
 import { relevoLigado } from './lib/relevo'
+import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
@@ -608,6 +609,7 @@ function App() {
   const setSceneDark = useMapStore((state) => state.setSceneDark)
   const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
   const setRelevo = useMapStore((state) => state.setRelevo)
+  const setNomesDosLugares = useMapStore((state) => state.setNomesDosLugares)
   const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -2938,6 +2940,10 @@ function App() {
           onCaravanaChange: aberta ? setWorldMap : (caravana) => mudarFundo((m) => mapFactory.setWorldMap(m, caravana)),
           relevo: relevoLigado(sceneMap),
           onRelevoChange: aberta ? setRelevo : (ligado) => mudarFundo((m) => mapFactory.setRelevo(m, ligado)),
+          nomesDosLugares: nomesDosLugaresLigados(sceneMap),
+          onNomesDosLugaresChange: aberta
+            ? setNomesDosLugares
+            : (ligado) => mudarFundo((m) => mapFactory.setNomesDosLugares(m, ligado)),
         }}
         onClose={() => setConfiguringSceneId(null)}
       />

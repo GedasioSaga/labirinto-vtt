@@ -3,7 +3,7 @@ import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
+import type { Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import type { RoofPeek } from '../lib/fogFilter'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
@@ -51,7 +51,16 @@ import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorD
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
-import { relevoLigado } from '../lib/relevo'
+import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
+import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
+import {
+  assinaturaDosLugares,
+  lugaresComNome,
+  lugaresConhecidos,
+  nomesDosLugaresLigados,
+  regioesSemPilula,
+  type LugarComNome,
+} from '../lib/nomesDosLugares'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -1084,6 +1093,16 @@ interface Scene {
    * (`knownMask`): a sombra de uma costa na névoa não escorre para o lado visto.
    */
   relevo: RelevoRenderer
+  /**
+   * NOMES DOS LUGARES (`pixi/drawNomesDosLugares.ts`): a pílula de cada região
+   * com nome DESTE recorte, só se o ponto da haste já é conhecido. Acima da
+   * névoa (a pílula flutua sobre o que ainda é preto, e o nome é de lugar
+   * revelado), abaixo de bilhetes, pinos e fichas.
+   */
+  nomesDosLugares: NomesDosLugaresRenderer
+  /** As pílulas do último recorte, antes do filtro do conhecido: o pacote novo com a mesma assinatura reusa a lista. */
+  lugaresKey: ContentKey
+  lugares: LugarComNome[]
   /** Halos das luzes do mestre, recortados pelas paredes; sob a névoa. */
   lights: Container
   lightsRenderer: ReturnType<typeof createLightsRenderer>
@@ -1301,6 +1320,33 @@ function redrawFloor(scene: Scene, map: MapData): void {
  * buracos sobrepostos ou saindo do retângulo (Graphics.d.ts), e visões de
  * vários tokens se sobrepõem entre si e com o explorado.
  */
+/**
+ * NOMES DOS LUGARES do jogador: a lista sai das regiões e dos desenhos DESTE
+ * recorte (a mesma assinatura reusa a de antes: cada pacote traz tudo de
+ * novo) e passa pelo conhecido, a cada redesenho — o lugar descoberto agora
+ * entra com a aparição. `regioes` `null` = chave desligada.
+ */
+function redrawNomesDosLugares(
+  scene: Scene,
+  map: MapData,
+  regioes: Region[] | null,
+  desenhos: Drawing[],
+  hidden: readonly LayerId[],
+  opcoes: { conhecido: ConhecidoDoRelevo; ocultos: readonly (readonly RegionPoint[])[]; animar: boolean },
+): void {
+  if (regioes === null) {
+    scene.lugaresKey = emptyContentKey()
+    scene.lugares = []
+    scene.nomesDosLugares.atualizar(null)
+    return
+  }
+  if (contentChanged(scene.lugaresKey, [map.regions, map.drawings, hidden], () => assinaturaDosLugares(regioes, desenhos))) {
+    scene.lugares = lugaresComNome(regioes, desenhos)
+  }
+  scene.nomesDosLugares.setCameraScale(scene.camera.scale)
+  scene.nomesDosLugares.atualizar({ cena: map.id, lugares: lugaresConhecidos(scene.lugares, opcoes.conhecido, opcoes.ocultos), animar: opcoes.animar })
+}
+
 function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, brightness: number): void {
   const width = map.width * map.grid
   const height = map.height * map.grid
@@ -2170,7 +2216,14 @@ function PlayerViewDoCanvas({
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
     // Mesmos rótulos do desenho (o prédio com a contagem de cômodos): a caixa do toque é a do nome desenhado.
-    const region = findRoomLabelAt(regioesComContagem(visibleRegions(map.regions, map.hiddenLayers)), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
+    // NOMES DOS LUGARES: o toque na pílula é o toque no nome.
+    const naPilula = scene.nomesDosLugares.lugarEm(screenX, screenY)
+    if (naPilula !== null) {
+      const lugar = map.regions.find((r) => r.id === naPilula)
+      if (lugar !== undefined && hasEnterText(lugar.room)) return lugar.id
+    }
+    const rotulos = regioesSemPilula(regioesComContagem(visibleRegions(map.regions, map.hiddenLayers)), nomesDosLugaresLigados(map))
+    const region = findRoomLabelAt(rotulos, point, map.grid, scene.camera.scale, roomLabelObstacles(map))
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
@@ -2236,6 +2289,7 @@ function PlayerViewDoCanvas({
     redrawPinsForZoom(scene)
     redrawFarLights(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
+    scene.nomesDosLugares.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
       sizeTokenView(view, scene.camera.scale, showNames)
@@ -2331,7 +2385,24 @@ function PlayerViewDoCanvas({
     }
 
     // PORTAS POR ATRAVESSAR: o prédio mostra quantos cômodos dele o jogador já viu (contados do próprio recorte).
-    scene.roomNamesRenderer.draw(scene.roomNames, regioesComContagem(regions), currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
+    // NOMES DOS LUGARES: com a chave ligada, o nome com pílula não sai também na plaquinha.
+    const comNomesDosLugares = nomesDosLugaresLigados(currentMap)
+    const rotulos = regioesComContagem(regions)
+    scene.roomNamesRenderer.draw(
+      scene.roomNames,
+      regioesSemPilula(rotulos, comNomesDosLugares),
+      currentMap.grid,
+      scene.camera.scale,
+      roomLabelObstacles(currentMap),
+    )
+    redrawNomesDosLugares(scene, currentMap, comNomesDosLugares ? rotulos : null, drawings, hidden, {
+      conhecido: { visao: currentVision, explorado: currentExplored },
+      // A camada das pílulas fica ACIMA do preto da zona oculta: lugar com o ponto da haste lá dentro não ganha pílula.
+      ocultos: currentConcealed,
+      // Modo leve (sem "Efeitos do mapa", ou o WebGL já caiu): o nome aparece já assentado.
+      animar: efeitosDoMapaLigados(currentSettings) && !modoLeve,
+    })
+    scene.nomesDosLugares.camada.visible = currentSettings.showNames
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
@@ -2661,6 +2732,7 @@ function PlayerViewDoCanvas({
       })
       relevoContainer.addChild(relevo.camada)
       relevoContainer.mask = relevoMask
+      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
@@ -2737,6 +2809,9 @@ function PlayerViewDoCanvas({
         // O telhado espiado pela porta, no mesmo andar do telhado, com o buraco da visão.
         peekedRoofs,
         peekMask,
+        // NOMES DOS LUGARES acima da névoa (só o lugar já conhecido tem pílula,
+        // `lugaresConhecidos`) e abaixo de bilhete, pino e ficha, que seguem legíveis por cima.
+        nomesDosLugares.camada,
         // Bilhete e giz acima da névoa, como o pino: só chega o que o jogador
         // já viu (lib/fogFilter.ts), e no escuro lembrado ele continua legível.
         marks,
@@ -2825,6 +2900,9 @@ function PlayerViewDoCanvas({
         lights,
         lightsRenderer: createLightsRenderer(),
         relevo,
+        nomesDosLugares,
+        lugaresKey: emptyContentKey(),
+        lugares: [],
         lightsKey: emptyContentKey(),
         fogUnknown,
         knownMask,
@@ -3530,6 +3608,8 @@ function PlayerViewDoCanvas({
         scene.lightsRenderer.destroy()
         // A textura do relevo também não.
         scene.relevo.destruir()
+        // Sai do relógio antes de o app (e o ticker) morrer.
+        scene.nomesDosLugares.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {

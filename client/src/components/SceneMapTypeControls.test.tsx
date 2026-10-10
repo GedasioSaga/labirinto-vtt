@@ -87,6 +87,19 @@ describe('SceneMapTypeControls', () => {
     expect(onRelevoChange).toHaveBeenCalledWith(false)
   })
 
+  it('chave "Nomes dos lugares": mostra o valor resolvido, avisa ao trocar e tem a explicação ligada a ela', () => {
+    const onNomesDosLugaresChange = vi.fn()
+    render({ tipo: 'continente', nomesDosLugares: true, onNomesDosLugaresChange })
+    const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.includes('Nomes dos lugares'))
+    const input = label?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null
+    expect(input?.checked).toBe(true)
+    const dica = document.getElementById(input?.getAttribute('aria-describedby') ?? '')
+    expect(dica?.textContent).toContain('pílula')
+    expect(dica?.textContent).toContain('já descobriu')
+    act(() => input?.click())
+    expect(onNomesDosLugaresChange).toHaveBeenCalledWith(false)
+  })
+
   it('sem quem ouça a chave "Relevo" (tela antiga), ela não aparece', () => {
     render({ tipo: 'continente' })
     expect(container.textContent).not.toContain('Relevo')

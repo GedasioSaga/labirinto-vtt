@@ -39,6 +39,7 @@ import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
 import { withRoomLabelStyle, type RoomLabelStylePatch } from './roomLabelStyle'
 import { relevoLigado } from './relevo'
+import { nomesDosLugaresLigados } from './nomesDosLugares'
 import { isContinente } from './marcadorDeContinente'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
@@ -2269,6 +2270,20 @@ export function setRelevo(map: MapData, ligado: boolean): MapData {
     return rest
   }
   return { ...map, relevo: ligado }
+}
+
+/**
+ * Chave "Nomes dos lugares" da cena (`lib/nomesDosLugares.ts`). Mesmo molde
+ * de `setRelevo`: igual ao padrão do tipo tira o campo, diferente grava, e o
+ * mesmo valor devolve o mesmo `map` (sem passo vazio no desfazer).
+ */
+export function setNomesDosLugares(map: MapData, ligado: boolean): MapData {
+  if (nomesDosLugaresLigados(map) === ligado) return map
+  if (ligado === isContinente(map)) {
+    const { nomesDosLugares: _padrao, ...rest } = map
+    return rest
+  }
+  return { ...map, nomesDosLugares: ligado }
 }
 
 /** MAPA POR ANDARES (`lib/buildingFloors.ts`): `undefined` tira o campo, e a cena volta a ser comum. */

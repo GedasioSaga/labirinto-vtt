@@ -2078,6 +2078,15 @@ export interface MapData {
    */
   relevo?: boolean
   /**
+   * NOMES DOS LUGARES (`lib/nomesDosLugares.ts`): o nome de cada região numa
+   * pílula colorida com haste, de tamanho fixo na tela, que aparece em
+   * cascata. Ausente = o padrão do tipo de mapa (ligado no Continente,
+   * desligado no Normal), sem linha de migração — o mesmo molde de `relevo`.
+   * Atravessa no recorte do jogador: a tela dele monta as pílulas das regiões
+   * que recebeu (nome escondido chega vazio e não vira pílula).
+   */
+  nomesDosLugares?: boolean
+  /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
    * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no

@@ -43,6 +43,7 @@ import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
 import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
+import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
@@ -1052,6 +1053,8 @@ interface MapStoreState {
   setTipoDeMapa: (tipo: mapFactory.TipoDeMapa) => void
   /** Chave "Relevo" da cena aberta (`lib/relevo.ts`): luz, sombra no mar e nas fronteiras. Com desfazer. */
   setRelevo: (ligado: boolean) => void
+  /** Chave "Nomes dos lugares" da cena aberta (`lib/nomesDosLugares.ts`): o nome de cada região numa pílula. Com desfazer. */
+  setNomesDosLugares: (ligado: boolean) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
@@ -2449,6 +2452,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (mapFactory.setRelevo(get().map, ligado) === get().map) return
       withHistory((map) => mapFactory.setRelevo(map, ligado))
     },
+    setNomesDosLugares: (ligado) => {
+      // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (mapFactory.setNomesDosLugares(get().map, ligado) === get().map) return
+      withHistory((map) => mapFactory.setNomesDosLugares(map, ligado))
+    },
     setArrivalText: (text) => {
       // O mesmo texto devolve o mesmo mapa: sem passo vazio no desfazer.
       if (setArrivalTextOnMap(get().map, text) === get().map) return
@@ -2834,6 +2842,18 @@ export function selectBloqueioParaAbrir(state: Pick<MapStoreState, 'map'>, salaI
  */
 export function selectMotivoSemCorredor(state: Pick<MapStoreState, 'map'>, salaId: string): MotivoSemCorredor | null {
   return aberturaNoPainel(state.map, salaId).semCorredor
+}
+
+/**
+ * O nome desta Sala sai na PÍLULA de "Nomes dos lugares", não na plaquinha:
+ * a chave da cena está ligada e a Sala tem nome e polígono. A pílula não usa o
+ * estilo do título (tamanho, cor, fundo, orientação), então o painel troca
+ * esses controles por uma dica — senão eles mexeriam em nada na tela.
+ */
+export function selectNomeNaPilula(state: Pick<MapStoreState, 'map'>, salaId: string): boolean {
+  if (!nomesDosLugaresLigados(state.map)) return false
+  const sala = state.map.regions.find((r) => r.id === salaId)
+  return sala !== undefined && temPilula(sala)
 }
 
 /** O pedaço da store que diz de onde veio o `map` atual. */

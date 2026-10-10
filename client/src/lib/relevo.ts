@@ -537,6 +537,23 @@ function corDoChao(p: RegionPoint, chaos: readonly ChaoDaRegiao[], areas: readon
   return cor
 }
 
+/**
+ * A cor que a tela mostra em cada ponto (a mesma conta de `corDoChao`), em
+ * `0xRRGGBB`, ou `null` no mar. NOMES DOS LUGARES (`lib/nomesDosLugares.ts`):
+ * a pílula sai da cor do bioma debaixo do lugar — a região e os desenhos que
+ * a pintam, os mesmos que esta tela desenha. Aqui todo desenho com fundo
+ * conta, sem os mínimos da divisa: um bioma pequeno também é a cor do lugar.
+ */
+export function coresDoChao(regioes: readonly Region[], desenhos: readonly Drawing[], pontos: readonly RegionPoint[]): (number | null)[] {
+  if (pontos.length === 0) return []
+  const chaos = chaosDasRegioes(regioes)
+  const areas = areasPintadas(desenhos, { espessura: 0, tamanho: 0 })
+  return pontos.map((p) => {
+    const cor = corDoChao(p, chaos, areas)
+    return cor === null ? null : (Math.round(cor[0]) << 16) | (Math.round(cor[1]) << 8) | Math.round(cor[2])
+  })
+}
+
 /** Oito direções (de 45 em 45 graus), em vetor unitário: a volta que a checagem do mar olha. */
 const DIRECOES_EM_VOLTA: readonly (readonly [number, number])[] = Array.from({ length: 8 }, (_, i): readonly [number, number] => {
   const t = (i / 8) * Math.PI * 2

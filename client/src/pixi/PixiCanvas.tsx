@@ -51,9 +51,11 @@ import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer } from './drawRelevo'
 import { relevoLigado } from '../lib/relevo'
+import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
+import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
-import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, type RoomLabelEditorLook } from './drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
@@ -1002,6 +1004,13 @@ export function PixiCanvas({
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
       // parede interna cortava o nome ao meio (medido 15/09/2026).
       const roomNamesContainer = new Container()
+      // NOMES DOS LUGARES (`drawNomesDosLugares.ts`): a pílula de cada região com
+      // nome, acima dos nomes, das luzes e das rotas, e abaixo das fichas e dos
+      // pinos, que continuam legíveis por cima. O relógio só roda na aparição.
+      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const nomesDosLugaresContainer = new Container()
+      nomesDosLugaresContainer.eventMode = 'none'
+      nomesDosLugaresContainer.addChild(nomesDosLugares.camada)
       const wallsGraphics = new Graphics()
       const doorsGraphics = new Graphics()
       const stairsGraphics = new Graphics()
@@ -1126,6 +1135,7 @@ export function PixiCanvas({
         lightsContainer,
         watchConesGraphics,
         patrolRoutesGraphics,
+        nomesDosLugaresContainer,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -1884,7 +1894,27 @@ export function PixiCanvas({
         },
         roomNames: () => {
           const { map } = sceneState()
-          roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
+          // Com "Nomes dos lugares" ligada, o nome com pílula não sai também na plaquinha.
+          const regioes = regioesSemPilula(visibleRegions(map.regions, map.hiddenLayers), nomesDosLugaresLigados(map))
+          roomNamesRenderer.draw(roomNamesContainer, regioes, map.grid, camera.scale)
+        },
+        // NOMES DOS LUGARES: das salas e dos desenhos que esta tela mostra (a cor
+        // da pílula é a do chão pintado no lugar). O mestre vê o olho de "ver
+        // através das paredes" junto do nome, como na plaquinha.
+        nomesDosLugares: () => {
+          const { map } = sceneState()
+          nomesDosLugares.setCameraScale(camera.scale)
+          nomesDosLugares.atualizar(
+            nomesDosLugaresLigados(map)
+              ? {
+                  cena: map.id,
+                  lugares: lugaresComNome(visibleRegions(map.regions, map.hiddenLayers), visibleDrawings(map.drawings, map.hiddenLayers), {
+                    textoDe: roomLabelText,
+                  }),
+                  animar: true,
+                }
+              : null,
+          )
         },
         walls: paintWallsAndDoors,
         stairs: paintStairs,
@@ -1929,6 +1959,7 @@ export function PixiCanvas({
         hazards: [hazardsGraphics],
         areaTriggers: [areaTriggersGraphics],
         roomNames: [roomNamesContainer],
+        nomesDosLugares: [nomesDosLugaresContainer],
         lights: [lightsContainer],
         watchCones: [watchConesGraphics],
         patrolRoutes: [patrolRoutesGraphics],
@@ -2048,7 +2079,12 @@ export function PixiCanvas({
       // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
       const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
-      editingRoomRef.current = roomNamesRenderer.setEditingRegion
+      // O campo de nome sobre o canvas imita a plaquinha: enquanto ele está aberto,
+      // nem a plaquinha nem a pílula da sala aparecem (o nome velho por trás dele).
+      editingRoomRef.current = (regionId) => {
+        roomNamesRenderer.setEditingRegion(regionId)
+        nomesDosLugares.setLugarEmEdicao(regionId)
+      }
       const concealZonesRenderer = createConcealZonesRenderer()
       // O editor é o único que desenha o nome só do mestre ao lado do pino.
       const pinsRenderer = createPinsRenderer({ showNames: true })
@@ -2246,6 +2282,9 @@ export function PixiCanvas({
           world.scale.set(scale)
           roomNamesRenderer.setCameraScale(scale)
           tokensRenderer.setCameraScale(scale)
+          // A pílula sai no tamanho do PNG e já assentada, mesmo no meio da cascata.
+          nomesDosLugares.setCameraScale(scale)
+          nomesDosLugares.concluirAparicao()
           for (const overlay of overlays) overlay.visible = false
           redrawScene()
           // A escala do mundo mudou para a do PNG: o texto é rasterizado nela
@@ -2265,6 +2304,7 @@ export function PixiCanvas({
           world.scale.set(camera.scale)
           roomNamesRenderer.setCameraScale(camera.scale)
           tokensRenderer.setCameraScale(camera.scale)
+          nomesDosLugares.setCameraScale(camera.scale)
           overlays.forEach((overlay, i) => {
             overlay.visible = wasVisible[i]
           })
@@ -2421,6 +2461,8 @@ export function PixiCanvas({
         // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
         roomNamesRenderer.setCameraScale(scale)
         tokensRenderer.setCameraScale(scale)
+        // Pílula dos lugares: tamanho fixo na tela, e a colisão refeita em px de tela.
+        nomesDosLugares.setCameraScale(scale)
         // A etiqueta "Teste" do fantasma escala como os nomes das fichas.
         fantasmaRenderer.setCameraScale(scale)
       })
@@ -5401,7 +5443,13 @@ export function PixiCanvas({
         // Com grupo (2+) o arrasto do grupo continua valendo, e Shift
         // continua sendo "somar à seleção".
         if (activeTool === 'select' && !event.shiftKey && single?.kind === 'region') {
-          const labelRegion = findRoomLabelAt(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
+          // Nome em pílula não tem plaquinha a arrastar: o arrasto ali move a sala.
+          const labelRegion = findRoomLabelAt(
+            regioesSemPilula(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), nomesDosLugaresLigados(map)),
+            worldPoint,
+            map.grid,
+            camera.scale,
+          )
           if (labelRegion?.room && labelRegion.id === single.id) {
             setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
             if (canInteract(labelRegion)) {
@@ -5499,6 +5547,23 @@ export function PixiCanvas({
           const zona = findConcealZoneForSelect(doPisoEmEdicao(map), worldPoint, pinosNoToque(map))
           if (zona !== null) {
             useMapStore.getState().setSelectedConcealZone(zona.id)
+            mode = 'idle'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+        }
+
+        // NOMES DOS LUGARES: a pílula fica por cima do chão (só ficha, zona e pino
+        // por cima dela), então o clique nela é no LUGAR que ela nomeia: seleciona
+        // a sala e abre o painel. Arrastar não move nada — a pílula não é alça, e
+        // um continente arrastado pelo nome seria um susto. Shift segue somando.
+        if (activeTool === 'select' && event.button === 0 && !event.shiftKey) {
+          const naPilula = nomesDosLugares.lugarEm(event.global.x, event.global.y)
+          const fichaPorCima = naPilula !== null && findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))?.kind === 'token'
+          if (naPilula !== null && !fichaPorCima) {
+            if (map.lockedLayers.includes('salas')) avisarCamadaTravada('salas')
+            else setSelection(selectionOfItem({ kind: 'region', id: naPilula }))
             mode = 'idle'
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
@@ -7106,7 +7171,17 @@ export function PixiCanvas({
           // ponto acima: duplo clique em vértice continua removendo o vértice.
           const rect = el.getBoundingClientRect()
           const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
-          let roomRegion = findRoomLabelAt(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
+          let roomRegion = findRoomLabelAt(
+            regioesSemPilula(visibleRegions(doPisoEmEdicao(map).regions, map.hiddenLayers), nomesDosLugaresLigados(map)),
+            worldPoint,
+            map.grid,
+            camera.scale,
+          )
+          // Duplo clique na pílula do lugar abre o mesmo campo de nome da sala.
+          if (!roomRegion) {
+            const naPilula = nomesDosLugares.lugarEm(event.clientX - rect.left, event.clientY - rect.top)
+            roomRegion = naPilula === null ? null : (map.regions.find((r) => r.id === naPilula && r.room !== undefined) ?? null)
+          }
           if (!roomRegion) {
             const hit = findSelectableAt(hitTestMap(map), worldPoint, pinosNoToque(map))
             const regionId =
@@ -7625,6 +7700,8 @@ export function PixiCanvas({
         lightsRenderer.destroy()
         // A textura do relevo também não: o Sprite sai com a cena, ela não.
         relevo.destruir()
+        // Sai do relógio antes de o app (e o ticker) morrer.
+        nomesDosLugares.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)
