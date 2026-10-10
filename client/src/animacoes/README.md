@@ -1,6 +1,6 @@
 # Pacote de animações
 
-Animações (e texturas da ferramenta Texturas) que chegam ao app **sem instalador novo**: ficam aqui, são compiladas
+Animações (e texturas da ferramenta Texturas, e objetos da ferramenta Carimbos) que chegam ao app **sem instalador novo**: ficam aqui, são compiladas
 e assinadas por `scripts/pacote-animacoes.cjs` e publicadas na release
 `animacoes` do GitHub. O app procura ao abrir e no botão "Procurar animações
 novas".
@@ -11,6 +11,7 @@ client/src/animacoes/
   porta/<id>.ts     + <id>.json   porta abrindo no mapa
   cenario/<id>.ts   + <id>.json   imagem do pino "!" animada
   textura/<id>.ts   + <id>.json   textura da ferramenta Texturas (ladrilho que repete)
+  carimbo/<id>.ts   + <id>.json   objeto da ferramenta Carimbos (desenho com luz de cima à esquerda)
 ```
 
 - `<id>`: `a-z`, `0-9` e `-`, até 40. Não pode ser o id de uma embutida.
@@ -19,7 +20,7 @@ client/src/animacoes/
   app (é embutido no módulo), mas `three` só como `import type` — a cena recebe
   o `three` por parâmetro. Nada de `import()` dinâmico, CSS ou imagem.
 - `<id>.json`: o `nome` que aparece no app (até 60 letras) e as durações do tipo
-  (na textura, a `escala` do ladrilho).
+  (na textura, a `escala` do ladrilho; no carimbo, o `tamanho` e a `sombra`).
 - `<id>.test.ts` (teste) e `_<nome>.ts` (código que duas animações dividem,
   embutido em cada uma pelo import) ficam na mesma pasta e o script os ignora.
 - `aprovadas.json`: a lista `"<tipo>/<id>"` do que o mestre APROVOU no

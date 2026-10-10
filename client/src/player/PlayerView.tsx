@@ -52,6 +52,7 @@ import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
 import { createTexturasRenderer, type TexturasRenderer } from '../pixi/drawTexturas'
+import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
 import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
 import {
@@ -1100,6 +1101,12 @@ interface Scene {
    * recortadas pelo que ele conhece, debaixo do relevo.
    */
   texturas: TexturasRenderer
+  /**
+   * CARIMBOS (`pixi/drawCarimbos.ts`): SÓ os objetos do recorte deste jogador
+   * (`carimbosParaJogador`: base no que ele conhece), sob a névoa e ainda
+   * recortados pelo conhecido — a copa que passa da borda não aparece.
+   */
+  carimbos: CarimbosRenderer
   /**
    * NOMES DOS LUGARES (`pixi/drawNomesDosLugares.ts`): a pílula de cada região
    * com nome DESTE recorte, só se o ponto da haste já é conhecido. Acima da
@@ -2375,6 +2382,20 @@ function PlayerViewDoCanvas({
           }
         : null,
     )
+    // CARIMBOS: só os objetos que o recorte trouxe. Ficam também no modo leve
+    // (são o que o mestre pôs no mapa: a mata, o oásis, as pedras), só sem a
+    // camada de sombras — a parte que pesa na memória do celular fraco.
+    scene.carimbos.atualizar(
+      currentMap.carimbos !== undefined
+        ? {
+            cena: currentMap.id,
+            mapa: currentMap,
+            carimbos: currentMap.carimbos,
+            importados: currentMap.carimbosImportados,
+            sombras: efeitosDoMapaLigados(currentSettings) && !modoLeve,
+          }
+        : null,
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -2769,6 +2790,26 @@ function PlayerViewDoCanvas({
       })
       texturasContainer.addChild(texturas.camada)
       texturasContainer.mask = texturasMask
+      // CARIMBOS: o mesmo molde (máscara do conhecido compartilhada, contêiner
+      // escondido enquanto não há objeto). O desenho de cada objeto fica na
+      // resolução cheia também no celular: o zoom de partida do jogador é
+      // perto, e a metade borrava o pinheiro (conferido a 390 px). Só os
+      // desenhos usados são feitos. No modo leve (o WebGL já caiu uma vez),
+      // metade; o pedaço de sombra, macio por natureza, encolhe no dedo.
+      const carimbosMask = new Graphics(knownMask.context)
+      const carimbosContainer = new Container()
+      carimbosContainer.eventMode = 'none'
+      carimbosContainer.visible = false
+      const telaDeToque = window.matchMedia?.('(pointer: coarse)').matches ?? false
+      const carimbos = createCarimbosRenderer({
+        ladoDaArte: modoLeve ? LADO_DA_ARTE / 2 : LADO_DA_ARTE,
+        texelsDoPedaco: telaDeToque || modoLeve ? TEXELS_DO_PEDACO / 2 : TEXELS_DO_PEDACO,
+        aoMudarVisibilidade: (visivel) => {
+          if (!carimbosContainer.destroyed) carimbosContainer.visible = visivel
+        },
+      })
+      carimbosContainer.addChild(carimbos.camada)
+      carimbosContainer.mask = carimbosMask
       const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
       const fogDim = new Graphics()
       const visionMask = new Graphics()
@@ -2813,6 +2854,10 @@ function PlayerViewDoCanvas({
         relevoContainer,
         regionStrokes,
         paths,
+        // CARIMBOS acima da borda das regiões e dos caminhos, abaixo de móveis,
+        // paredes, nomes e fichas — como no editor.
+        carimbosMask,
+        carimbosContainer,
         // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
         // do editor, que põe a imagem do objeto por cima. Lá a imagem tem fundo
         // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
@@ -2942,6 +2987,7 @@ function PlayerViewDoCanvas({
         lightsRenderer: createLightsRenderer(),
         relevo,
         texturas,
+        carimbos,
         nomesDosLugares,
         lugaresKey: emptyContentKey(),
         lugares: [],
@@ -3651,6 +3697,7 @@ function PlayerViewDoCanvas({
         // A textura do relevo também não.
         scene.relevo.destruir()
         scene.texturas.destruir()
+        scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
       }

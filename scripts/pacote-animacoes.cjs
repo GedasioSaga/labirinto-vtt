@@ -12,8 +12,8 @@
  *   --saida <pasta>         grava a saída em outra pasta (padrão: client/dist-animacoes)
  *
  * Fontes: client/src/animacoes/<tipo>/<id>.ts, com <id>.json ao lado (nome e
- * durações, ou a escala da textura); tipo = transicao | porta | cenario |
- * textura. Cada uma vira um módulo ES autocontido (Vite em modo lib), cujo
+ * durações, a escala da textura ou o tamanho e a sombra do carimbo); tipo =
+ * transicao | porta | cenario | textura | carimbo. Cada uma vira um módulo ES autocontido (Vite em modo lib), cujo
  * `export default` é a função do tipo. O contrato está no README de cada pasta.
  *
  * O app instalado só aceita o pacote se o `indice.json` vier assinado pela
@@ -54,12 +54,17 @@ const CENARIO_DURACAO = [3, 40]
 const PORTA_DURACAO_MAX_MS = 3000
 /** Lado do ladrilho da textura, em px do protótipo do relevo (`ESCALA_MIN`/`ESCALA_MAX` de texturas/catalogo.ts). */
 const TEXTURA_ESCALA = [8, 200]
-/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts): a embutida ganha. */
+/** Tamanho natural do carimbo, em px do protótipo do relevo (`TAMANHO_NATURAL_MIN`/`MAX` de carimbos/catalogo.ts). */
+const CARIMBO_TAMANHO = [2, 80]
+/** O jeito da sombra do carimbo (`SombraDoCarimbo` de carimbos/embutidos.ts). */
+const CARIMBO_SOMBRAS = ['em-pe', 'baixa', 'nenhuma']
+/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts, carimbos/embutidos.ts): a embutida ganha. */
 const EMBUTIDAS = {
   transicao: ['porta', 'escada-pedra', 'escada-pedra-descendo'],
   porta: ['girar', 'deslizar'],
   cenario: ['panoramica'],
   textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
+  carimbo: ['pinheiro', 'pinheiro-nevado', 'arvore', 'arbusto', 'palmeira', 'pedras', 'poca', 'juncos'],
 }
 const TIPOS = Object.keys(EMBUTIDAS)
 
@@ -124,6 +129,12 @@ function entradaDaMeta(tipo, id, meta, onde) {
     if (!numero(meta.escala) || meta.escala < min || meta.escala > max) erro(`"escala" (lado do ladrilho) entre ${min} e ${max}`)
     return { id, tipo, nome, escala: meta.escala }
   }
+  if (tipo === 'carimbo') {
+    const [min, max] = CARIMBO_TAMANHO
+    if (!numero(meta.tamanho) || meta.tamanho < min || meta.tamanho > max) erro(`"tamanho" (natural) entre ${min} e ${max}`)
+    if (!CARIMBO_SOMBRAS.includes(meta.sombra)) erro(`"sombra" é ${CARIMBO_SOMBRAS.join(', ')}`)
+    return { id, tipo, nome, tamanho: meta.tamanho, sombra: meta.sombra }
+  }
   const [min, max] = tipo === 'transicao' ? TRANSICAO_DURACAO : CENARIO_DURACAO
   if (!numero(meta.duracaoNaturalS) || meta.duracaoNaturalS < min || meta.duracaoNaturalS > max) erro(`"duracaoNaturalS" entre ${min} e ${max}`)
   const quadro = meta.quadroDaMiniaturaS
@@ -156,7 +167,7 @@ function acharFontes(pasta, aprovadas) {
       if (!ID.test(id)) falhar(`${onde}: o nome do arquivo é o id (a-z, 0-9 e "-", até 40)`)
       if (EMBUTIDAS[tipo].includes(id)) falhar(`${onde}: "${id}" é de uma animação embutida no app`)
       const metaArquivo = path.join(dir, `${id}.json`)
-      if (!fs.existsSync(metaArquivo)) falhar(`${onde}: falta ${id}.json ao lado (nome e durações, ou nome e escala da textura)`)
+      if (!fs.existsSync(metaArquivo)) falhar(`${onde}: falta ${id}.json ao lado (nome e durações; nome e escala da textura; nome, tamanho e sombra do carimbo)`)
       let meta
       try {
         meta = JSON.parse(fs.readFileSync(metaArquivo, 'utf8'))
@@ -261,7 +272,7 @@ function releaseExiste() {
 function publicar(modulos, indice, sig) {
   if (!releaseExiste()) {
     log(`criando a release "${RELEASE}" como PRÉ-LANÇAMENTO (não vira a "latest" do atualizador)`)
-    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de animações', '--notes', 'Animações e texturas baixadas pelo app (transições, portas, cenários, texturas). Publicado por scripts/pacote-animacoes.cjs.'])
+    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de animações', '--notes', 'Animações, texturas e carimbos baixados pelo app (transições, portas, cenários, texturas, carimbos). Publicado por scripts/pacote-animacoes.cjs.'])
   }
   // Módulos primeiro, índice e assinatura por último: o app nunca vê um índice
   // novo apontando para módulo que ainda não subiu.
@@ -283,7 +294,7 @@ function lerAprovadas() {
   } catch (erro) {
     falhar(`aprovadas.json não é JSON: ${erro.message}`)
   }
-  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario|textura)\/[a-z0-9-]{1,40}$/.test(item))) {
+  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario|textura|carimbo)\/[a-z0-9-]{1,40}$/.test(item))) {
     falhar('aprovadas.json tem de ser uma lista de "<tipo>/<id>" (ex.: "transicao/portao-pesado")')
   }
   return new Set(lista)

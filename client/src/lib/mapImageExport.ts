@@ -5,6 +5,7 @@ import { isHidden } from './itemTransform'
 import { isArrivalOnly } from './pinTravel'
 import { ancestorsOf, pointInPolygonInclusive, subtreeIds } from './roomNesting'
 import { comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
+import { comCarimbos, comCarimbosImportados, importadosParaJogador } from './carimbos'
 
 /**
  * "Exportar imagem": o que o mestre escolhe no diálogo antes de salvar o PNG.
@@ -115,8 +116,12 @@ function withoutMasterOnly(map: MapData): MapData {
     // A zona é anotação do mestre: nem o contorno dela sai.
     concealZones: [],
   }
+  // CARIMBOS: o objeto numa sala secreta ou numa zona oculta diria o que há lá
+  // (um oásis, a mata que esconde a entrada). O de fora fica.
+  const carimbos = (map.carimbos ?? []).filter((c) => !anyHidden([c]))
   // Das importadas, só as que os passos que ficaram usam: o nome e a imagem das outras são do mestre.
-  return comTexturasImportadas(comTexturas(semSegredo, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
+  const comPintura = comTexturasImportadas(comTexturas(semSegredo, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
+  return comCarimbosImportados(comCarimbos(comPintura, carimbos), importadosParaJogador(map.carimbosImportados, carimbos) ?? [])
 }
 
 /**

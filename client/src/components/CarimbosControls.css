@@ -1,0 +1,95 @@
+/* BIBLIOTECA DE CARIMBOS (CarimbosControls): a mesma grade de três da
+   biblioteca de texturas (pastilha do segmented, miniatura em cima, nome
+   embaixo), para as duas ferramentas vizinhas se lerem como uma família. A
+   miniatura é o objeto num quadrado de chão claro, com a sombra — o pinheiro
+   escuro some no fundo de pedra do painel. `minmax(0, 1fr)`: o nome mais
+   longo ("Pinheiro com neve") não empurra a coluna. */
+.lb-carimbos__grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-carimbos__opcao {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  padding: var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  /* A borda de latão do marcado acende no ritmo do fundo, como no segmented;
+     a pressão responde na hora e volta sozinha. */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-carimbos__opcao:hover {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-carimbos__opcao:active {
+  transform: scale(0.97);
+}
+
+.lb-carimbos__opcao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-carimbos__opcao[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+/* O quadrado de chão já vem pintado na própria miniatura; aqui só o canto do
+   controle e o fio escuro por dentro, o mesmo das texturas. */
+.lb-carimbos__miniatura {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: calc(var(--lb-radius-sm) - 2px);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-carimbos__opcao[aria-checked='true'] .lb-carimbos__miniatura {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(224, 164, 74, 0.55);
+}
+
+.lb-carimbos__nome {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-carimbos__opcao {
+    transition: none;
+  }
+
+  .lb-carimbos__opcao:active {
+    transform: none;
+  }
+}

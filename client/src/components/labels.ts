@@ -1,6 +1,7 @@
 import type { DrawingTool, SelectionKind } from '../types/tools'
 import type { BlockedMoveReason } from '../lib/moveValidation'
 import type { MotivoDaAbertura, MotivoSemCorredor } from '../lib/abrirCorredor'
+import { TETO_DE_CARIMBOS } from '../lib/carimbos'
 
 /**
  * Textos visíveis da interface do editor.
@@ -41,6 +42,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   revealBrush: 'Pincel de revelar',
   penhasco: 'Penhasco',
   texturas: 'Texturas',
+  carimbos: 'Carimbos',
   pin: 'Pino',
   mobilia: 'Objetos',
 }
@@ -115,6 +117,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
   texturas:
     'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche uma região ou um desenho, a borracha tira. Segure Alt com o pincel para apagar.',
+  carimbos:
+    'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
@@ -169,7 +173,7 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // ali que o mestre procura "como mostro só um pedaço".
   // O Penhasco fica com o terreno, logo depois do Caminho: é mais uma coisa do
   // chão do mapa (a costa), e não anotação.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'penhasco', 'texturas', 'stair', 'prop', 'concealZone', 'revealBrush'],
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'penhasco', 'texturas', 'carimbos', 'stair', 'prop', 'concealZone', 'revealBrush'],
   // Objetos (a mobília desenhada) numa parte só dele, pedido do usuário: o
   // móvel não é construção nem anotação, e o separador dos dois lados é o que
   // faz o mestre achá-lo de relance. A Peça (imagem) segue na construção.
@@ -401,6 +405,14 @@ export const AVISO_TEXTURA_NADA_A_APAGAR = 'Não há textura aqui para apagar.'
 export const AVISO_TEXTURA_BALDE_FORA = 'O balde enche uma região ou um desenho pintado. Clique em cima de um deles.'
 export const AVISO_TEXTURA_BALDE_IGUAL = 'Esta forma já está com esta textura e esta força.'
 export const AVISO_TEXTURA_AUSENTE = 'A textura escolhida não está nesta cena. Voltei para a Floresta; escolha outra na biblioteca, se quiser.'
+
+/**
+ * CARIMBOS (`lib/carimbos.ts`): o que a tela diz quando o gesto não fez nada
+ * (ou fez só em parte). Cada texto diz por que e o que fazer.
+ */
+export const AVISO_CARIMBO_NADA_A_APAGAR = 'Não há objeto aqui para apagar.'
+export const AVISO_CARIMBO_AUSENTE = 'O carimbo escolhido não está nesta cena. Voltei para o Pinheiro; escolha outro na biblioteca, se quiser.'
+export const AVISO_CARIMBO_TETO = `Esta cena chegou ao limite de ${TETO_DE_CARIMBOS.toLocaleString('pt-BR')} objetos. Apague alguns com a borracha para soltar mais.`
 /** Riscou com o relevo desligado: o risco fica guardado, mas só aparece com a chave ligada. */
 export const AVISO_PENHASCO_SEM_RELEVO =
   'Penhasco guardado. Ele faz parte do relevo, que está desligado nesta cena: ligue o Relevo no painel do Penhasco ou no Tipo de mapa.'

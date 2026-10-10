@@ -4,6 +4,8 @@ import { esquecerEstilosDeCenarioDeFora, IDS_DE_ESTILO_RESERVADOS, registrarEsti
 import { ANIMACOES_EMBUTIDAS, DURACAO_DE_ANIMACAO_MAX_MS, esquecerAnimacoesDePortaDeFora, registrarAnimacaoDePorta } from '../portas/animacoesDePorta'
 import { esquecerTransicoesDeFora, isDuracaoValida, isTransicaoEmbutida, marcarCarregamentoDeFora, registrarTransicao } from '../transicoes/catalogo'
 import { ESCALA_MAX, ESCALA_MIN, esquecerTexturasDeFora, IDS_DAS_EMBUTIDAS as IDS_DAS_TEXTURAS, registrarTexturaDoPacote } from '../texturas/catalogo'
+import { ehSombraDeCarimbo, esquecerCarimbosDeFora, IDS_DOS_EMBUTIDOS as IDS_DOS_CARIMBOS, registrarCarimboDoPacote, TAMANHO_NATURAL_MAX, TAMANHO_NATURAL_MIN } from '../carimbos/catalogo'
+import type { SombraDoCarimbo } from '../carimbos/embutidos'
 
 /**
  * PACOTE DE ANIMAÇÕES (Fase B, lado TS) — animação nova chega pelo GitHub sem
@@ -16,7 +18,8 @@ import { ESCALA_MAX, ESCALA_MIN, esquecerTexturasDeFora, IDS_DAS_EMBUTIDAS as ID
  * - REGISTRAR nos quatro registros: transições (`transicoes/catalogo.ts`), porta
  *   (`portas/animacoesDePorta.ts`), cenário (`cenario/estilosDeCenario.ts`) e
  *   textura (`texturas/catalogo.ts`: a textura nova da ferramenta Texturas
- *   chega pelo mesmo pacote, sem instalador).
+ *   chega pelo mesmo pacote, sem instalador) e carimbo (`carimbos/catalogo.ts`:
+ *   o objeto novo da ferramenta Carimbos, idem).
  *
  * Duas origens: o MESTRE (app Tauri) lê os bytes conferidos pelo Rust e
  * importa de um Blob; o JOGADOR (navegador pela LAN ou túnel) pede ao
@@ -31,7 +34,7 @@ export const NOME_DE_ANIMACAO_DO_PACOTE_MAX = 60
 /** Único formato de índice que este app entende (o Rust confere o mesmo). */
 const FORMATO_DO_INDICE = 1
 
-export type TipoDeAnimacao = 'transicao' | 'porta' | 'cenario' | 'textura'
+export type TipoDeAnimacao = 'transicao' | 'porta' | 'cenario' | 'textura' | 'carimbo'
 
 interface EntradaComum {
   id: string
@@ -47,6 +50,8 @@ export type EntradaDoPacote =
   | (EntradaComum & { tipo: 'cenario'; duracaoNaturalS: number; quadroDaMiniaturaS?: number })
   /** Textura: `escala` = lado do ladrilho no mapa, em px do protótipo do relevo (`texturas/embutidas.ts`). */
   | (EntradaComum & { tipo: 'textura'; escala: number })
+  /** Carimbo: `tamanho` natural em px do protótipo do relevo e o jeito da sombra (`carimbos/embutidos.ts`). */
+  | (EntradaComum & { tipo: 'carimbo'; tamanho: number; sombra: SombraDoCarimbo })
 
 export interface IndiceDoPacote {
   versao: number
@@ -64,11 +69,12 @@ function idEmbutido(tipo: TipoDeAnimacao, id: string): boolean {
   if (tipo === 'transicao') return isTransicaoEmbutida(id)
   if (tipo === 'porta') return ANIMACOES_EMBUTIDAS.some((animacao) => animacao.id === id)
   if (tipo === 'textura') return IDS_DAS_TEXTURAS.includes(id)
+  if (tipo === 'carimbo') return IDS_DOS_CARIMBOS.includes(id)
   return IDS_DE_ESTILO_RESERVADOS.includes(id)
 }
 
 function lerTipo(valor: unknown): TipoDeAnimacao | null {
-  return valor === 'transicao' || valor === 'porta' || valor === 'cenario' || valor === 'textura' ? valor : null
+  return valor === 'transicao' || valor === 'porta' || valor === 'cenario' || valor === 'textura' || valor === 'carimbo' ? valor : null
 }
 
 /**
@@ -98,6 +104,14 @@ export function lerEntradaDoPacote(valor: unknown, arquivos: ReadonlySet<string>
     const escala = 'escala' in valor ? valor.escala : undefined
     if (!numeroFinito(escala) || escala < ESCALA_MIN || escala > ESCALA_MAX) return { motivo: `${id}: escala` }
     return { entrada: { ...comum, tipo, escala } }
+  }
+
+  if (tipo === 'carimbo') {
+    const tamanho = 'tamanho' in valor ? valor.tamanho : undefined
+    if (!numeroFinito(tamanho) || tamanho < TAMANHO_NATURAL_MIN || tamanho > TAMANHO_NATURAL_MAX) return { motivo: `${id}: tamanho` }
+    const sombra = 'sombra' in valor ? valor.sombra : undefined
+    if (!ehSombraDeCarimbo(sombra)) return { motivo: `${id}: sombra` }
+    return { entrada: { ...comum, tipo, tamanho, sombra } }
   }
 
   const duracaoNaturalS = 'duracaoNaturalS' in valor ? valor.duracaoNaturalS : undefined
@@ -311,6 +325,8 @@ function registrarEntrada(entrada: EntradaDoPacote, modulo: unknown): boolean {
     }
     case 'textura':
       return registrarTexturaDoPacote({ id, nome, escala: entrada.escala, cor: funcao })
+    case 'carimbo':
+      return registrarCarimboDoPacote({ id, nome, tamanho: entrada.tamanho, sombra: entrada.sombra, desenhar: funcao })
   }
 }
 
@@ -319,6 +335,7 @@ function esquecerTodasDeFora(): void {
   esquecerAnimacoesDePortaDeFora()
   esquecerEstilosDeCenarioDeFora()
   esquecerTexturasDeFora()
+  esquecerCarimbosDeFora()
 }
 
 interface ModuloImportado {

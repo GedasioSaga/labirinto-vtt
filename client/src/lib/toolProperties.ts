@@ -66,6 +66,8 @@ export type PropertyGroupId =
   | 'penhasco'
   /** Texturas: o modo (Pincel | Balde | Borracha), a biblioteca, tamanho e força do PRÓXIMO gesto (`TexturasControls`). */
   | 'texturas'
+  /** Carimbos: o modo (Carimbo | Borracha), a biblioteca, tamanho, largura e densidade do PRÓXIMO gesto (`CarimbosControls`). */
+  | 'carimbos'
   /** PAREDES AO REDOR do desenho selecionado (`ParedesAoRedorControls`). */
   | 'paredesAoRedor'
   /** Parede presa a um desenho selecionada: o aviso (`AvisoParedePresa`) no lugar dos controles de parede. */
@@ -79,7 +81,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'penhasco', 'texturas', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'texturas', 'carimbos', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -375,6 +377,8 @@ export function relevantPropertyGroups(
   if (activeTool === 'penhasco') groups.add('penhasco')
   // Texturas: o mesmo molde — a biblioteca e o que o PRÓXIMO gesto faz.
   if (activeTool === 'texturas') groups.add('texturas')
+  // Carimbos: idem — a biblioteca de objetos e o que o PRÓXIMO gesto faz.
+  if (activeTool === 'carimbos') groups.add('carimbos')
 
   // Pino e zona oculta abertos contam: o painel é o cartão deles, e o mapa
   // inteiro embaixo seria o mesmo vazamento da Sala.

@@ -181,7 +181,7 @@ function graficoComTraco(cor: number): Graphics {
 const COR_DO_RASCUNHO = 0x12ab34
 
 describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de render (P2)', () => {
-  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só tem grupo próprio o que muda a cada pointermove ou quadro com o mapa parado: o contorno de hover, ao desenhar o rascunho, a guia e o rótulo de medida, o fantasma do endireitar e o da ficha de teste (a grade não)', async () => {
+  it('o world não recebe evento do Pixi e é grupo de render; dentro dele só tem grupo próprio o que muda a cada pointermove ou quadro com o mapa parado: o contorno de hover, ao desenhar o rascunho, a guia e o rótulo de medida, o fantasma do endireitar, o da ficha de teste e a prévia do spray de carimbos (a grade não)', async () => {
     await monta()
     ponteiro('pointermove', { x: 160, y: 160 })
     const hover = contornoDeHover()
@@ -203,12 +203,16 @@ describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de rende
     // A camada do fantasma da ficha de teste: o pai da raiz dele (que existe desde a montagem, escondida).
     const camadaDoTeste = descendentes(mundo()).find((no) => no.label === FANTASMA_DE_TESTE_LABEL)?.parent ?? null
     expect(camadaDoTeste).not.toBeNull()
+    // A prévia do spray de carimbos muda a cada passo do arrasto: grupo próprio,
+    // existe desde a montagem (vazia), como a camada do fantasma de teste.
+    const previaDosCarimbos = descendentes(mundo()).find((no) => no.label === 'carimbos-rascunho') ?? null
+    expect(previaDosCarimbos).not.toBeNull()
 
     expect(mundo().eventMode).toBe('none')
     expect(mundo().isRenderGroup).toBe(true)
     const grupos = descendentes(mundo()).filter((no) => no.isRenderGroup)
-    expect(grupos).toHaveLength(6)
-    for (const proprio of [hover, rascunho, guia, rotulo, fantasma, camadaDoTeste]) expect(grupos).toContain(proprio)
+    expect(grupos).toHaveLength(7)
+    for (const proprio of [hover, rascunho, guia, rotulo, fantasma, camadaDoTeste, previaDosCarimbos]) expect(grupos).toContain(proprio)
   })
 
   it('os ouvintes continuam no stage: o hover segue o ponteiro e o arrasto move a ficha', async () => {

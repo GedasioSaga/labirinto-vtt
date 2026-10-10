@@ -57,11 +57,12 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
     // fariam o índice perder uma em silêncio; e Caminho, Pincel de revelar e
     // Objetos, que chegaram quando já não sobrava letra nenhuma (F é
-    // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO e o SÉTIMO, Penhasco
-    // e Texturas, da família de Shift+letra (teste próprio abaixo).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 7)
+    // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO, o SÉTIMO e o OITAVO,
+    // Penhasco, Texturas e Carimbos, da família de Shift+letra (testes próprios abaixo).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 8)
     expect(TOOL_SHORTCUTS.penhasco).toBe('Shift+C')
     expect(TOOL_SHORTCUTS.texturas).toBe('Shift+T')
+    expect(TOOL_SHORTCUTS.carimbos).toBe('Shift+A')
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
@@ -105,7 +106,15 @@ describe('resolveShortcut — letras de ferramenta', () => {
     expect([...buildToolByShiftLetter(new Set()).entries()]).toEqual([
       ['c', 'penhasco'],
       ['t', 'texturas'],
+      ['a', 'carimbos'],
     ])
+  })
+
+  it('Shift+A seleciona os Carimbos; A sozinho continua o Polígono', () => {
+    expect(resolveShortcut(evt({ key: 'A', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'carimbos' })
+    expect(resolveShortcut(evt({ key: 'a', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'carimbos' })
+    expect(resolveShortcut(evt({ key: 'a' }))).toEqual({ kind: 'selectTool', tool: 'polygon' })
+    expect(resolveShortcut(evt({ key: 'A', shiftKey: true, targetTagName: 'INPUT' }))).toBeNull()
   })
 
   it('Shift+T seleciona as Texturas; T sozinho continua o Texto', () => {

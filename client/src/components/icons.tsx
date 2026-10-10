@@ -169,6 +169,20 @@ export function TexturasIcon(props: IconProps) {
 }
 
 /**
+ * Carimbos: um pinheiro de dois andares em pé no chão, com as pintinhas do
+ * spray em volta — o objeto que se solta (ou se espalha) no mapa.
+ */
+export function CarimbosIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3.5l-4 5.5h2.5L7 14.5h10L13.5 9H16z" />
+      <path d="M12 14.5v4M7 20.5h10" />
+      <path d="M4.5 9.5h.01M19.5 11h.01M4 15.5h.01M20 17h.01" />
+    </Icon>
+  )
+}
+
+/**
  * Penhasco: a terra vista de lado — o chão em cima e a parede descendo em
  * degraus até a água, que ondula no pé dela.
  */

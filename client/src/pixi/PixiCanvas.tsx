@@ -52,7 +52,18 @@ import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions
 import { createRelevoRenderer } from './drawRelevo'
 import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo } from './drawTexturas'
 import { passoDaPincelada, raioDoPincelDeTextura, type ResultadoDaTextura } from '../lib/texturas'
-import { relevoLigado, unidadeDoRelevo } from '../lib/relevo'
+import { createCarimbosRenderer } from './drawCarimbos'
+import {
+  criarSpray,
+  idsDebaixoDaBorracha,
+  raioDoSpray,
+  tamanhoNatural,
+  TETO_DE_CARIMBOS,
+  type ResultadoDoCarimbo,
+  type Spray,
+} from '../lib/carimbos'
+import { carimboDoCatalogo } from '../carimbos/catalogo'
+import { consultaDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
@@ -263,6 +274,9 @@ import {
   AVISO_TEXTURA_BALDE_IGUAL,
   AVISO_TEXTURA_AUSENTE,
   AVISO_TEXTURA_NADA_A_APAGAR,
+  AVISO_CARIMBO_AUSENTE,
+  AVISO_CARIMBO_NADA_A_APAGAR,
+  AVISO_CARIMBO_TETO,
   CORRIDOR_DISCARDED_TEXT,
   STAIR_CLICK_WITHOUT_DRAG_TEXT,
 } from '../components/labels'
@@ -376,6 +390,30 @@ function avisoDaTextura(resultado: ResultadoDaTextura): string | null {
       return null
   }
 }
+
+/** O que a tela diz depois de soltar o gesto da ferramenta Carimbos, ou `null` quando fez o que se pediu. */
+function avisoDoCarimbo(resultado: ResultadoDoCarimbo): string | null {
+  switch (resultado) {
+    case 'nada-a-apagar':
+      return AVISO_CARIMBO_NADA_A_APAGAR
+    case 'tipo-ausente':
+      return AVISO_CARIMBO_AUSENTE
+    case 'teto':
+      return AVISO_CARIMBO_TETO
+    case 'carimbou':
+    case 'apagou':
+      return null
+  }
+}
+
+/** O tamanho natural de um carimbo da biblioteca, em px do protótipo; o importado usa o de um pinheiro. */
+const TAMANHO_NATURAL_DO_IMPORTADO = 14
+
+/**
+ * Movimento mínimo, em px de TELA, para o clique virar spray: abaixo disso a
+ * mão só tremeu no clique e sai um objeto só.
+ */
+const LIMIAR_DO_SPRAY_PX = 6
 
 // Largura padrão do corredor de chão, como fração do grid: meia célula lê
 // como passagem sem engolir a sala ao lado, e escala com grids diferentes.
@@ -1069,6 +1107,16 @@ export function PixiCanvas({
           el.dataset.texturasPixels = String(medida.pixels)
         },
       })
+      // CARIMBOS (`drawCarimbos.ts`): os objetos que o mestre soltou, acima do
+      // relevo, da borda das salas e dos caminhos (a árvore fica de pé por cima
+      // da estrada) e ABAIXO de paredes, nomes, pinos e fichas.
+      const carimbos = createCarimbosRenderer({
+        aoDesenhar: (medida) => {
+          el.dataset.carimbosMs = String(Math.round(medida.ms))
+          el.dataset.carimbos = String(medida.objetos)
+          el.dataset.carimbosPedacos = String(medida.pedacos)
+        },
+      })
       // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
       const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
@@ -1198,6 +1246,7 @@ export function PixiCanvas({
         regionStrokesContainer,
         pathsGraphics,
         secretPathsGraphics,
+        carimbos.camada,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1951,6 +2000,13 @@ export function PixiCanvas({
               : null,
           )
         },
+        // CARIMBOS: síncrono (os desenhos já estão prontos na tela do mestre), então
+        // a exportação SEM os itens do mestre também desenha o mapa dela
+        // (`mapForImageExport` já tirou o objeto da sala secreta e da zona oculta).
+        carimbos: () => {
+          const { map } = sceneState()
+          carimbos.atualizar(map.carimbos === undefined ? null : { cena: map.id, mapa: map, carimbos: map.carimbos, importados: map.carimbosImportados })
+        },
         // TEXTURAS: das mesmas salas e desenhos que esta tela desenha (o balde
         // enche a forma deles); o renderer espera a mão parar e troca de cena na hora.
         texturas: () => {
@@ -2054,6 +2110,7 @@ export function PixiCanvas({
         perigos: [perigosGraphics],
         drawings: [drawingsGraphics, secretDrawingsGraphics, pathsGraphics, secretPathsGraphics],
         texturas: [texturas.camada],
+        carimbos: [carimbos.camada],
         relevo: [relevoContainer],
         hazards: [hazardsGraphics],
         areaTriggers: [areaTriggersGraphics],
@@ -2666,6 +2723,8 @@ export function PixiCanvas({
         | 'painting-penhasco'
         // Texturas: arrasto do pincel (ou da borracha) de textura.
         | 'painting-textura'
+        // Carimbos: o clique (ou o spray, ou a borracha) de objetos.
+        | 'painting-carimbo'
         // Mover um pino de ponto de interesse já cravado.
         | 'dragging-pin'
         // Girar sala pela alça (pixi/roomRotateGesture.ts).
@@ -2794,6 +2853,19 @@ export function PixiCanvas({
       let texturaStrokeRadius = 0
       let texturaStrokeTextura = ''
       let texturaStrokeForca = 1
+      /**
+       * Carimbos: o gesto em curso, local como a pincelada de textura — só
+       * vira mapa ao soltar (`finishCarimbo`), um Ctrl+Z por gesto. O spray
+       * (`criarSpray`) sorteia os objetos uma vez, aqui; a borracha guarda o
+       * caminho. Objeto, tamanho e densidade são lidos no começo.
+       */
+      let carimboSpray: Spray | null = null
+      let carimboBorracha: Point[] = []
+      let carimboRaio = 0
+      /** Onde o ponteiro desceu, em px de TELA: abaixo do limiar, o gesto é um clique. */
+      let carimboInicioNaTela: Point | null = null
+      /** Os objetos debaixo do caminho da borracha até aqui (somados trecho a trecho). */
+      let carimboApagando: Set<string> = new Set()
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -4241,9 +4313,15 @@ export function PixiCanvas({
       const desenharAnelDoPincel = (centro: Point | null) => {
         anelDoPincelGraphics.clear()
         if (centro === null) return
-        const { activeTool, texturaModo, texturaTamanho, map } = useMapStore.getState()
-        if (activeTool !== 'texturas' || texturaModo === 'balde') return
-        const raio = raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
+        const { activeTool, texturaModo, texturaTamanho, carimboLargura, map } = useMapStore.getState()
+        // Carimbos: o anel é a largura do spray (e da borracha) — onde os objetos vão cair.
+        const raio =
+          activeTool === 'carimbos'
+            ? raioDoSpray(unidadeDoRelevo(map), carimboLargura)
+            : activeTool === 'texturas' && texturaModo !== 'balde'
+              ? raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
+              : null
+        if (raio === null) return
         const px = 1 / camera.scale
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 3 * px, color: 0x000000, alpha: 0.4 })
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 1.25 * px, color: 0xffffff, alpha: 0.85 })
@@ -4292,6 +4370,97 @@ export function PixiCanvas({
         const toasts = useToastStore.getState()
         if (toasts.toasts.some((toast) => toast.text === aviso)) return
         toasts.push('instrucao', aviso)
+      }
+
+      /** Diz por que o gesto de carimbo não fez (tudo) o que se pediu, sem repetir o aviso. */
+      const avisarCarimbo = (resultado: ResultadoDoCarimbo) => {
+        const aviso = avisoDoCarimbo(resultado)
+        if (aviso === null) return
+        const toasts = useToastStore.getState()
+        if (toasts.toasts.some((toast) => toast.text === aviso)) return
+        toasts.push('instrucao', aviso)
+      }
+
+      /**
+       * Começa o gesto de Carimbos. Carimbo: o primeiro objeto cai no ponto
+       * exato (o clique), e o spray só espalha se a mão andar. Borracha (ou
+       * Alt): guarda o caminho e apaga na prévia o que vai sair.
+       */
+      const startCarimbo = (worldPoint: Point, screen: Point, alt: boolean) => {
+        const { map, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade } = useMapStore.getState()
+        const unidade = unidadeDoRelevo(map)
+        mode = 'painting-carimbo'
+        carimboRaio = raioDoSpray(unidade, carimboLargura)
+        carimboInicioNaTela = screen
+        if ((carimboModo === 'borracha') !== alt) {
+          carimboSpray = null
+          carimboBorracha = [worldPoint]
+          carimboApagando = idsDebaixoDaBorracha(map.carimbos, carimboBorracha, carimboRaio)
+          carimbos.mostrarPrevia([], carimboApagando, map.carimbosImportados)
+          return
+        }
+        carimboBorracha = []
+        carimboApagando = new Set()
+        // A costa manda no spray: começou na terra, só põe na terra; no mar,
+        // só no mar (pedras no mar). Sem terra no mapa, em qualquer lugar.
+        const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
+        const comecouNaTerra = naTerra(worldPoint)
+        const existentes = map.carimbos ?? []
+        const natural = carimboDoCatalogo(carimboEscolhido)?.tamanho ?? TAMANHO_NATURAL_DO_IMPORTADO
+        carimboSpray = criarSpray({
+          tipo: carimboEscolhido,
+          tamanho: tamanhoNatural(unidade, map.grid, natural, carimboTamanho),
+          raio: carimboRaio,
+          densidade: carimboDensidade,
+          existentes,
+          aceita: (p) => naTerra(p) === comecouNaTerra,
+          vagas: TETO_DE_CARIMBOS - existentes.length,
+        })
+        carimboSpray.comecar(worldPoint)
+        carimbos.mostrarPrevia(carimboSpray.soltos(), carimboApagando, map.carimbosImportados)
+      }
+
+      /** O ponteiro andou: o spray espalha pelo trecho; a borracha soma o que passa debaixo dela. */
+      const moveCarimbo = (worldPoint: Point, screen: Point) => {
+        desenharAnelDoPincel(worldPoint)
+        const { map } = useMapStore.getState()
+        if (carimboSpray === null) {
+          const last = carimboBorracha[carimboBorracha.length - 1]
+          if (last !== undefined && Math.hypot(worldPoint.x - last.x, worldPoint.y - last.y) < carimboRaio / 4) return
+          // Só o trecho novo é conferido: mil objetos não pesam no arrasto.
+          const trecho = last === undefined ? [worldPoint] : [last, worldPoint]
+          carimboBorracha.push(worldPoint)
+          const novos = idsDebaixoDaBorracha(map.carimbos, trecho, carimboRaio)
+          if ([...novos].some((id) => !carimboApagando.has(id))) {
+            carimboApagando = new Set([...carimboApagando, ...novos])
+            carimbos.mostrarPrevia([], carimboApagando, map.carimbosImportados)
+          }
+          return
+        }
+        // Abaixo do limiar a mão só tremeu no clique: continua um objeto só.
+        const inicio = carimboInicioNaTela
+        if (!carimboSpray.espalhou() && inicio !== null && Math.hypot(screen.x - inicio.x, screen.y - inicio.y) < LIMIAR_DO_SPRAY_PX) return
+        if (carimboSpray.passar(worldPoint).length > 0) carimbos.mostrarPrevia(carimboSpray.soltos(), carimboApagando, map.carimbosImportados)
+      }
+
+      /** Solta o gesto de Carimbos: o clique, o spray inteiro ou o caminho da borracha vira UMA mudança no mapa. */
+      const finishCarimbo = (last: { world: Point; screen: Point } | null) => {
+        if (last !== null) moveCarimbo(last.world, last.screen)
+        const spray = carimboSpray
+        const caminho = carimboBorracha
+        carimboSpray = null
+        carimboBorracha = []
+        carimboApagando = new Set()
+        carimboInicioNaTela = null
+        carimbos.limparPrevia()
+        const store = useMapStore.getState()
+        if (spray !== null) {
+          const soltos = spray.soltos()
+          // Nenhum objeto no gesto: a cena já estava no teto.
+          avisarCarimbo(soltos.length === 0 ? 'teto' : store.carimbar(soltos))
+        } else if (caminho.length > 0) {
+          avisarCarimbo(store.apagarCarimbos(caminho, carimboRaio))
+        }
       }
 
       /** Solta o pincel de textura: a pincelada inteira vira UMA mudança no mapa. */
@@ -4348,6 +4517,13 @@ export function PixiCanvas({
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
         texturaStroke = []
         if (mode === 'painting-textura') mode = 'idle'
+        // Carimbos: idem — o spray (ou a borracha) cancelado não vira passo no mapa.
+        carimboSpray = null
+        carimboBorracha = []
+        carimboApagando = new Set()
+        carimboInicioNaTela = null
+        carimbos.limparPrevia()
+        if (mode === 'painting-carimbo') mode = 'idle'
         anelDoPincelGraphics.clear()
         polygonDraftCenter = null
         stairDraftStart = null
@@ -5256,6 +5432,13 @@ export function PixiCanvas({
           texturaStrokeForca = texturaForca
           texturaStroke = [worldPoint]
           drawTexturaStroke()
+          return
+        }
+
+        // Carimbos: sem snap (o objeto cai onde o mestre apontou); Alt troca
+        // carimbo e borracha só neste gesto.
+        if (activeTool === 'carimbos') {
+          startCarimbo(worldPoint, { x: event.global.x, y: event.global.y }, event.altKey)
           return
         }
 
@@ -6291,6 +6474,7 @@ export function PixiCanvas({
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
@@ -6660,6 +6844,8 @@ export function PixiCanvas({
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
+        // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
+        if (mode === 'painting-carimbo') finishCarimbo(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -7260,6 +7446,11 @@ export function PixiCanvas({
 
         if (mode === 'painting-textura') {
           extendTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-carimbo') {
+          moveCarimbo(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y })
           return
         }
 
@@ -8009,6 +8200,8 @@ export function PixiCanvas({
         relevo.destruir()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
         texturas.destruir()
+        // Os desenhos e as sombras dos carimbos também.
+        carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         nomesDosLugares.destruir()
         el.removeEventListener('wheel', onWheel)

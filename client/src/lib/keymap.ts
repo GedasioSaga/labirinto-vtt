@@ -187,6 +187,9 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
   // Shift+T estava livre e é o T de "textura".
   texturas: 'Shift+T',
+  // Carimbos: a mesma família de Shift+letra. O A sozinho é do Polígono;
+  // Shift+A estava livre e é o A de "árvore", o carimbo mais usado.
+  carimbos: 'Shift+A',
 }
 
 /** Prefixo das ferramentas de Shift+letra em `TOOL_SHORTCUTS` ('Shift+C'). */

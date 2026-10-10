@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -98,6 +98,28 @@ import {
 } from '../lib/texturas'
 import { alvoDoBalde, caixaDoAlvo } from '../lib/baldeDeTextura'
 import { texturaDoCatalogo } from '../texturas/catalogo'
+import {
+  comCarimbos,
+  comCarimbosImportados,
+  DENSIDADE_MAX,
+  DENSIDADE_MIN,
+  DENSIDADE_PADRAO,
+  idsDebaixoDaBorracha,
+  LARGURA_DO_SPRAY_MAX,
+  LARGURA_DO_SPRAY_MIN,
+  LARGURA_DO_SPRAY_PADRAO,
+  limitar as limitarCarimbo,
+  nomeDoCarimbo,
+  PREFIXO_IMPORTADO,
+  semCarimboImportado,
+  TAMANHO_DO_CARIMBO_MAX,
+  TAMANHO_DO_CARIMBO_MIN,
+  TAMANHO_DO_CARIMBO_PADRAO,
+  TETO_DE_CARIMBOS,
+  type ModoDoCarimbo,
+  type ResultadoDoCarimbo,
+} from '../lib/carimbos'
+import { carimboDoCatalogo } from '../carimbos/catalogo'
 import { consultaDaTerra } from '../lib/relevo'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
 // store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
@@ -122,6 +144,14 @@ const TEXTURA_ESCOLHIDA_PADRAO = 'floresta'
 /** A textura existe para ESTA cena: da biblioteca (ou do pacote que este aparelho tem) ou importada nela. */
 function texturaNaCena(map: MapData, id: string): boolean {
   return texturaDoCatalogo(id) !== null || (map.texturasImportadas ?? []).some((t) => t.id === id)
+}
+
+/** O carimbo que a ferramenta Carimbos escolhe quando o escolhido some (o mais usado no continente). */
+const CARIMBO_ESCOLHIDO_PADRAO = 'pinheiro'
+
+/** O carimbo existe para ESTA cena: da biblioteca (ou do pacote que este aparelho tem) ou importado nela. */
+function carimboNaCena(map: MapData, id: string): boolean {
+  return carimboDoCatalogo(id) !== null || (map.carimbosImportados ?? []).some((c) => c.id === id)
 }
 
 /**
@@ -438,6 +468,23 @@ interface MapStoreState {
   setTexturaTamanho: (tamanho: number) => void
   texturaForca: number
   setTexturaForca: (forca: number) => void
+  /**
+   * Ferramenta Carimbos (`lib/carimbos.ts`): o objeto escolhido na biblioteca,
+   * o que o PRÓXIMO gesto faz (Carimbo | Borracha; Alt troca), o tamanho do
+   * objeto (% do natural), a largura do spray (e da borracha, em px do
+   * protótipo do relevo) e a densidade do spray. Preferências da ferramenta,
+   * sem histórico e fora do map.json, como as das texturas.
+   */
+  carimboEscolhido: string
+  setCarimboEscolhido: (id: string) => void
+  carimboModo: ModoDoCarimbo
+  setCarimboModo: (modo: ModoDoCarimbo) => void
+  carimboTamanho: number
+  setCarimboTamanho: (tamanho: number) => void
+  carimboLargura: number
+  setCarimboLargura: (largura: number) => void
+  carimboDensidade: number
+  setCarimboDensidade: (densidade: number) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -1130,6 +1177,20 @@ interface MapStoreState {
   removerTexturaImportada: (id: string) => void
   /** Tira tudo o que a ferramenta Texturas pintou na cena aberta (as importadas ficam na biblioteca). Com desfazer. */
   apagarTodasAsTexturas: () => void
+  /**
+   * CARIMBOS (`lib/carimbos.ts`): grava os objetos que UM gesto soltou (um
+   * clique ou um spray inteiro) — um passo no desfazer. Acima do teto da cena
+   * entra só o que cabe, e o resultado diz.
+   */
+  carimbar: (novos: readonly Carimbo[]) => ResultadoDoCarimbo
+  /** Borracha: tira os objetos debaixo do caminho (`idsDebaixoDaBorracha`). Um passo no desfazer; no vazio, nada. */
+  apagarCarimbos: (caminho: PontoDoMundo[], raio: number) => ResultadoDoCarimbo
+  /** Acrescenta um carimbo importado (a imagem já reduzida) e o deixa escolhido. Com desfazer. Devolve o id. */
+  importarCarimbo: (nome: string, imagem: string) => string
+  /** Tira um carimbo importado e os objetos dele. Com desfazer. */
+  removerCarimboImportado: (id: string) => void
+  /** Tira todos os objetos da cena aberta (os importados ficam na biblioteca). Com desfazer. */
+  apagarTodosOsCarimbos: () => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
@@ -1727,6 +1788,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     texturaModo: 'pincel',
     texturaTamanho: TAMANHO_DO_PINCEL_PADRAO,
     texturaForca: FORCA_PADRAO,
+    carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO,
+    carimboModo: 'carimbo',
+    carimboTamanho: TAMANHO_DO_CARIMBO_PADRAO,
+    carimboLargura: LARGURA_DO_SPRAY_PADRAO,
+    carimboDensidade: DENSIDADE_PADRAO,
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -1917,6 +1983,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setTexturaForca: (forca) => {
       if (Number.isFinite(forca)) set({ texturaForca: limitar(Math.round(forca * 100) / 100, FORCA_MIN, FORCA_MAX) })
+    },
+    setCarimboEscolhido: (id) => set({ carimboEscolhido: id }),
+    setCarimboModo: (modo) => set({ carimboModo: modo }),
+    setCarimboTamanho: (tamanho) => {
+      if (Number.isFinite(tamanho)) set({ carimboTamanho: limitarCarimbo(Math.round(tamanho), TAMANHO_DO_CARIMBO_MIN, TAMANHO_DO_CARIMBO_MAX) })
+    },
+    setCarimboLargura: (largura) => {
+      if (Number.isFinite(largura)) set({ carimboLargura: limitarCarimbo(Math.round(largura), LARGURA_DO_SPRAY_MIN, LARGURA_DO_SPRAY_MAX) })
+    },
+    setCarimboDensidade: (densidade) => {
+      if (Number.isFinite(densidade)) set({ carimboDensidade: limitarCarimbo(Math.round(densidade * 100) / 100, DENSIDADE_MIN, DENSIDADE_MAX) })
     },
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
@@ -2599,6 +2676,42 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (get().map.texturas === undefined) return
       withHistory((m) => comTexturas(m, []))
     },
+    carimbar: (novos) => {
+      const { map } = get()
+      const tipo = novos[0]?.tipo
+      if (tipo === undefined) return 'carimbou'
+      // Importado de outra cena (ou desfeito), carimbo de um pacote que saiu: o objeto seria órfão — gravado e invisível.
+      if (novos.some((c) => !carimboNaCena(map, c.tipo))) {
+        set({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
+        return 'tipo-ausente'
+      }
+      const antes = map.carimbos ?? []
+      const entram = novos.slice(0, Math.max(0, TETO_DE_CARIMBOS - antes.length))
+      if (entram.length > 0) withHistory((m) => comCarimbos(m, [...(m.carimbos ?? []), ...entram]))
+      return entram.length < novos.length ? 'teto' : 'carimbou'
+    },
+    apagarCarimbos: (caminho, raio) => {
+      const antes = get().map.carimbos
+      const sai = idsDebaixoDaBorracha(antes, caminho, raio)
+      if (antes === undefined || sai.size === 0) return 'nada-a-apagar'
+      withHistory((m) => comCarimbos(m, (m.carimbos ?? []).filter((c) => !sai.has(c.id))))
+      return 'apagou'
+    },
+    importarCarimbo: (nome, imagem) => {
+      const id = PREFIXO_IMPORTADO + crypto.randomUUID()
+      withHistory((m) => comCarimbosImportados(m, [...(m.carimbosImportados ?? []), { id, nome: nomeDoCarimbo(nome), imagem }]))
+      set({ carimboEscolhido: id, carimboModo: 'carimbo' })
+      return id
+    },
+    removerCarimboImportado: (id) => {
+      if (semCarimboImportado(get().map, id) === get().map) return
+      withHistory((m) => semCarimboImportado(m, id))
+      if (get().carimboEscolhido === id) set({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
+    },
+    apagarTodosOsCarimbos: () => {
+      if (get().map.carimbos === undefined) return
+      withHistory((m) => comCarimbos(m, []))
+    },
     apagarTodosOsPenhascos: () => {
       if (get().map.penhascos === undefined) return
       withHistory((map) => comPenhascos(map, []))
@@ -2891,6 +3004,13 @@ useMapStore.subscribe((state) => state.map, (map) => {
 useMapStore.subscribe((state) => state.map.texturasImportadas, () => {
   const { map, texturaEscolhida } = useMapStore.getState()
   if (!texturaNaCena(map, texturaEscolhida)) useMapStore.setState({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
+})
+
+// CARIMBOS: o mesmo cuidado com o importado escolhido — quando ele some do
+// mapa (Ctrl+Z, outra cena, remover), a escolha volta para o pinheiro.
+useMapStore.subscribe((state) => state.map.carimbosImportados, () => {
+  const { map, carimboEscolhido } = useMapStore.getState()
+  if (!carimboNaCena(map, carimboEscolhido)) useMapStore.setState({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
 })
 
 /** Última contagem de `selectAlignableUnitCount` e as referências de onde ela saiu. */

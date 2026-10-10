@@ -35,7 +35,7 @@ const FATIAS_SEGUINTES: readonly (readonly ShapesLayer[])[] = [
   // ESTEIRA e CABINE (`conveyors`) vão com as outras marcas de chão: fora da lista,
   // a camada ficava escondida para sempre depois de trocar para um andar denso.
   // RELEVO (`relevo`) só agenda a geração da textura (`drawRelevo.ts`): vai com as marcas de chão.
-  ['floorSelection', 'perigos', 'drawings', 'texturas', 'relevo', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
+  ['floorSelection', 'perigos', 'drawings', 'texturas', 'relevo', 'carimbos', 'hazards', 'areaTriggers', 'faccoes', 'conveyors'],
   // NOMES DOS LUGARES (pílulas) com os nomes de sala: as duas camadas dividem as regiões com nome.
   ['roomNames', 'nomesDosLugares'],
   ['lights', 'watchCones', 'patrolRoutes'],

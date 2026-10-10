@@ -84,6 +84,7 @@ import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZon
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PenhascoControls } from './PenhascoControls'
 import { TexturasControls } from './TexturasControls'
+import { CarimbosControls } from './CarimbosControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
@@ -719,6 +720,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="texturas" groups={groups}>
           <TexturasControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="carimbos" groups={groups}>
+          <CarimbosControls />
         </ToolPropertiesSection>
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}

@@ -88,6 +88,8 @@ export type GestureMode =
   | 'painting-penhasco'
   // Texturas: arrasto do pincel (ou da borracha) de textura.
   | 'painting-textura'
+  // Carimbos: o spray (ou a borracha) de objetos.
+  | 'painting-carimbo'
   // Girar sala pela alça (bolinha acima da sala selecionada).
   | 'rotating-room'
 
@@ -219,6 +221,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'penhasco',
   // Texturas: o clique pinta (pincel) ou enche (balde).
   'texturas',
+  // Carimbos: o clique solta um objeto (ou apaga, com a borracha).
+  'carimbos',
   // Objetos: o clique põe um móvel novo no ponto.
   'mobilia',
 ])
@@ -333,6 +337,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     // Penhasco: idem, riscando ou apagando.
     case 'painting-penhasco':
     case 'painting-textura':
+    case 'painting-carimbo':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 

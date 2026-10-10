@@ -27,6 +27,7 @@ export const SHAPES_LAYERS = [
   'drawings',
   'texturas',
   'relevo',
+  'carimbos',
   'hazards',
   'areaTriggers',
   'faccoes',
@@ -163,6 +164,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // arrastar sala não acorda a camada; ligado, quem espera a mão parar (e
       // ignora o rabisco que não pinta o chão) é o próprio renderer (`drawRelevo.ts`).
       return relevoLigado(map) ? ['relevo', map.id, map.regions, map.drawings, map.penhascos, hidden, map.width, map.height, map.grid] : ['sem relevo']
+    case 'carimbos':
+      // CARIMBOS (`lib/carimbos.ts`): os objetos e os importados. Sem objeto no
+      // mapa, mexer em sala não acorda a camada.
+      return map.carimbos === undefined
+        ? ['sem carimbos']
+        : ['carimbos', map.id, map.carimbos, map.carimbosImportados, map.width, map.height, map.grid]
     case 'hazards':
       // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
       return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]

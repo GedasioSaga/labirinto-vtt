@@ -49,6 +49,12 @@ export type DrawingTool =
    * Não é o Chão: não cria piso, só pinta por cima das regiões e desenhos.
    */
   | 'texturas'
+  /**
+   * Carimbos: o mestre solta objetos da biblioteca (pinheiro, palmeira,
+   * pedras, poça...) — o clique solta um, arrastar espalha vários, a
+   * borracha tira (`lib/carimbos.ts`). Cada objeto fica parado onde foi posto.
+   */
+  | 'carimbos'
   | 'pin'
   /**
    * Objetos: a mobília desenhada (Barril, Caixa, Baú, Cama, Mesa, Cadeira).

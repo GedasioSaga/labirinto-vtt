@@ -31,6 +31,7 @@ import { readCarriedItems, readPinItem } from './items'
 import { readPinPass } from './pinPass'
 import { lerPenhascos } from './penhasco'
 import { lerTexturas, lerTexturasImportadas } from './texturas'
+import { lerCarimbos, lerCarimbosImportados } from './carimbos'
 import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
 import { withoutContract, withoutLentMark } from './tokenLoan'
@@ -664,6 +665,8 @@ function deserializeMapFields(json: string): MapData {
     ...penhascosDoArquivo(parsed.penhascos),
     // TEXTURAS: campos NOVOS e OPCIONAIS. Passo torto sai; lista vazia abre sem o campo (`lerTexturas`).
     ...texturasDoArquivo(parsed.texturas, parsed.texturasImportadas),
+    // CARIMBOS: campos NOVOS e OPCIONAIS. Objeto torto sai; lista vazia abre sem o campo (`lerCarimbos`).
+    ...carimbosDoArquivo(parsed.carimbos, parsed.carimbosImportados),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),
@@ -713,6 +716,13 @@ function texturasDoArquivo(passos: unknown, importadas: unknown): Pick<MapData, 
   const texturas = lerTexturas(passos)
   const texturasImportadas = lerTexturasImportadas(importadas)
   return { ...(texturas === undefined ? {} : { texturas }), ...(texturasImportadas === undefined ? {} : { texturasImportadas }) }
+}
+
+/** CARIMBOS: cada campo só entra com algum item lido (`lib/carimbos.ts`). */
+function carimbosDoArquivo(objetos: unknown, importados: unknown): Pick<MapData, 'carimbos' | 'carimbosImportados'> {
+  const carimbos = lerCarimbos(objetos)
+  const carimbosImportados = lerCarimbosImportados(importados)
+  return { ...(carimbos === undefined ? {} : { carimbos }), ...(carimbosImportados === undefined ? {} : { carimbosImportados }) }
 }
 
 /** PENHASCO: o campo só entra com algum risco lido (`lib/penhasco.ts`). */

@@ -31,6 +31,7 @@ import {
   PathIcon,
   PenhascoIcon,
   TexturasIcon,
+  CarimbosIcon,
   PinIcon,
   PolygonIcon,
   PropIcon,
@@ -94,6 +95,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   revealBrush: RevealBrushIcon,
   penhasco: PenhascoIcon,
   texturas: TexturasIcon,
+  carimbos: CarimbosIcon,
   pin: PinIcon,
   mobilia: ObjetosIcon,
 }

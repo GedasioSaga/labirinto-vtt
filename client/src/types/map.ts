@@ -2114,6 +2114,23 @@ export interface MapData {
    */
   texturasImportadas?: TexturaImportada[]
   /**
+   * CARIMBOS (`lib/carimbos.ts`): os objetos que o mestre soltou com a
+   * ferramenta Carimbos (pinheiro, palmeira, pedras, poça...), cada um parado
+   * onde foi posto. Ao contrário da textura, aqui o objeto É o dado: um ponto,
+   * o tamanho e o giro, e cada tela o desenha da biblioteca. Ausente = nenhum,
+   * sem linha de migração (o último apagado tira o campo). Leitura segura em
+   * `lerCarimbos`. Sai no recorte do jogador só o que está no que ele conhece
+   * (`carimbosParaJogador`).
+   */
+  carimbos?: Carimbo[]
+  /**
+   * CARIMBOS IMPORTADOS desta cena: a imagem que o mestre escolheu, já
+   * reduzida (`lib/carimboImportado.ts`). Mora no mapa para viajar com ele à
+   * mesa. Ausente = nenhum. No recorte do jogador vão só os que algum carimbo
+   * que ele recebe usa, sem o nome do mestre.
+   */
+  carimbosImportados?: CarimboImportado[]
+  /**
    * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
    * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
    * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
@@ -2187,6 +2204,33 @@ export interface TexturaImportada {
   id: string
   nome: string
   /** O ladrilho já reduzido, embutido (`data:image/webp;base64,...`). */
+  imagem: string
+}
+
+/**
+ * Um objeto da ferramenta Carimbos (`lib/carimbos.ts`), parado onde foi posto.
+ * `x`/`y`: a BASE do objeto (onde ele toca o chão), em px de mundo.
+ * `tamanho`: o lado natural dele no mundo, em px, já com a escolha do mestre
+ * e a variação do spray — guardado pronto, para o objeto não mudar de tamanho
+ * se o mapa crescer. `giro`: graus de 0 a 359; a tela escolhe o desenho que
+ * gira com a luz parada (de cima à esquerda), não a imagem inteira.
+ */
+export interface Carimbo {
+  id: string
+  /** Id da biblioteca/pacote (`a-z0-9-`) ou de um importado (`importado:...`). */
+  tipo: string
+  x: number
+  y: number
+  tamanho: number
+  giro: number
+}
+
+/** Um carimbo que o mestre trouxe de uma imagem dele (`lib/carimboImportado.ts`). */
+export interface CarimboImportado {
+  /** `importado:<id>`: o dois-pontos não cabe num id do pacote nem da biblioteca. */
+  id: string
+  nome: string
+  /** A imagem já reduzida, com o fundo transparente preservado (`data:image/webp;base64,...`). */
   imagem: string
 }
 

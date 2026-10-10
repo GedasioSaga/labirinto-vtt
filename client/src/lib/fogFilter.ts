@@ -2,6 +2,7 @@ import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, 
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { importadasParaJogador, texturasParaJogador } from './texturas'
+import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
@@ -2014,6 +2015,15 @@ export interface GroupViewer {
 }
 
 /**
+ * CARIMBOS do recorte: os campos SEMPRE presentes (`undefined` quando nada
+ * sai), para o objeto do mestre nunca escapar pelo `...map` do recorte.
+ */
+function carimbosDoRecorte(map: MapData, mostra: (p: RegionPoint) => boolean): Pick<MapData, 'carimbos' | 'carimbosImportados'> {
+  const carimbos = carimbosParaJogador(map.carimbos, mostra)
+  return { carimbos, carimbosImportados: importadosDosCarimbos(map.carimbosImportados, carimbos) }
+}
+
+/**
  * TELA DA MESA — o recorte de um GRUPO: a união do que as fichas de cada
  * membro enxergam, cada uma com o raio do próprio jogador (o raio maior do
  * grupo nunca vale para os outros). As fichas do grupo fazem o papel da ficha
@@ -3618,6 +3628,10 @@ export function filterMapForGroup(
     // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
     texturas: undefined,
     texturasImportadas: undefined,
+    // CARIMBOS: só os de base no que ele conhece, fora de lugar escondido e de
+    // zona oculta — a mata na névoa diria o que há lá (`carimbosParaJogador`).
+    // Dos importados, só os que algum objeto dele usa, sem o nome do mestre.
+    ...carimbosDoRecorte(map, (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p)),
     tokens,
     markers: recalledList(map.markers, markers, memoryMode).filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy }))),
     lines: recalledList(map.lines, lines, memoryMode).filter(

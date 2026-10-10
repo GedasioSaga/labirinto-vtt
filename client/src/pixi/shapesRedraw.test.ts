@@ -58,6 +58,7 @@ function setup() {
     perigos: spy('perigos'),
     drawings: spy('drawings'),
     texturas: spy('texturas'),
+    carimbos: spy('carimbos'),
     relevo: spy('relevo'),
     hazards: spy('hazards'),
     areaTriggers: spy('areaTriggers'),
