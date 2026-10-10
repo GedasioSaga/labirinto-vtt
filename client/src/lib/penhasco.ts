@@ -1,4 +1,4 @@
-import type { MapData, ModoDoPenhasco, RegionPoint, TracoDePenhasco } from '../types/map'
+import type { AlturaDoPenhasco, MapData, ModoDoPenhasco, RegionPoint, TracoDePenhasco } from '../types/map'
 import { pisoLido } from './pisos'
 
 /**
@@ -69,6 +69,22 @@ function ehModo(valor: string): valor is ModoDoPenhasco {
   return valor === 'riscar' || valor === 'apagar'
 }
 
+/**
+ * A altura como ela vai para o arquivo: só Baixo e Alto escrevem o campo.
+ * Médio, valor desconhecido (versão futura, arquivo editado à mão) ou nenhum
+ * viram ausente = Médio: a altura torta não derruba o risco, só o devolve à
+ * parede de sempre. A borracha tira de todas as alturas, então nela o campo
+ * não tem sentido e também sai.
+ */
+function alturaGravada(modo: ModoDoPenhasco, altura: unknown): Pick<TracoDePenhasco, 'altura'> {
+  return modo === 'riscar' && (altura === 'baixo' || altura === 'alto') ? { altura } : {}
+}
+
+/** A altura de um risco (ausente = Médio). */
+export function alturaDoTraco(traco: Pick<TracoDePenhasco, 'altura'>): AlturaDoPenhasco {
+  return traco.altura ?? 'medio'
+}
+
 function lerPonto(valor: unknown): RegionPoint | null {
   if (typeof valor !== 'object' || valor === null || !('x' in valor) || !('y' in valor)) return null
   const { x, y } = valor
@@ -89,7 +105,8 @@ function lerTraco(valor: unknown): TracoDePenhasco | null {
     if (ponto === null) return null
     lidos.push(ponto)
   }
-  return lidos.length === 0 ? null : { id, modo, raio, pontos: lidos, ...pisoLido(valor) }
+  const altura = 'altura' in valor ? valor.altura : undefined
+  return lidos.length === 0 ? null : { id, modo, raio, pontos: lidos, ...alturaGravada(modo, altura), ...pisoLido(valor) }
 }
 
 /**
@@ -278,14 +295,18 @@ export function riscarPenhasco(
     const cobre = oQueORiscoCobre(traco, naTerra)
     if (!cobre.costa) return { lista, resultado: 'longe-da-costa' }
     if (!cobre.parede) return { lista, resultado: 'costa-escondida' }
-    return { lista: [...lista, traco], resultado: 'riscou' }
+    // O Médio entra SEM o campo: o arquivo fica igual ao de antes da altura.
+    const { altura, ...semAltura } = traco
+    return { lista: [...lista, { ...semAltura, ...alturaGravada(traco.modo, altura) }], resultado: 'riscou' }
   }
-  const restantes = lista.filter((t) => t.modo !== 'riscar' || !cabeNaBorracha(t, traco))
-  const encosta = restantes.some((t) => t.modo === 'riscar' && tracosSeTocam(t, traco))
+  // A borracha tira de todas as alturas: entra sem o campo.
+  const { altura: _semAltura, ...borracha } = traco
+  const restantes = lista.filter((t) => t.modo !== 'riscar' || !cabeNaBorracha(t, borracha))
+  const encosta = restantes.some((t) => t.modo === 'riscar' && tracosSeTocam(t, borracha))
   if (restantes.length === lista.length && !encosta) return { lista, resultado: 'nada-a-apagar' }
   // Sem risco nenhum sobrando, as borrachas de antes também não apagam mais nada.
   if (!restantes.some((t) => t.modo === 'riscar')) return { lista: [], resultado: 'apagou' }
-  return { lista: encosta ? [...restantes, traco] : restantes, resultado: 'apagou' }
+  return { lista: encosta ? [...restantes, borracha] : restantes, resultado: 'apagou' }
 }
 
 /** Há algum risco que põe penhasco? Só borracha não desenha nada. */
@@ -415,5 +436,11 @@ export function caminhosParaJogador<T extends CaminhoDePincel>(
 /** Assinatura do que os riscos desenham: o relevo só é refeito quando ela muda (`assinaturaDaTerra`). */
 export function assinaturaDosPenhascos(lista: readonly TracoDePenhasco[] | undefined): string {
   if (lista === undefined) return ''
-  return lista.map((t) => `${t.id}:${t.modo}:${t.raio}:${t.pontos.map((p) => `${p.x},${p.y}`).join(' ')}`).join('|')
+  // A altura só entra quando não é a Média: o risco de antes dela assina igual.
+  return lista
+    .map((t) => {
+      const altura = alturaDoTraco(t)
+      return `${t.id}:${t.modo}:${t.raio}${altura === 'medio' ? '' : `:${altura}`}:${t.pontos.map((p) => `${p.x},${p.y}`).join(' ')}`
+    })
+    .join('|')
 }

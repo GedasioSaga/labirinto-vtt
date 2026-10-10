@@ -5,7 +5,7 @@ import type {
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
-  ModoDoPenhasco, TracoDePenhasco,
+  AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
@@ -453,6 +453,9 @@ interface MapStoreState {
   setPenhascoModo: (modo: ModoDoPenhasco) => void
   penhascoLargura: LarguraDoPenhasco
   setPenhascoLargura: (largura: LarguraDoPenhasco) => void
+  /** Altura da parede dos PRÓXIMOS riscos (o risco guarda a dele). Mesma classe da largura. */
+  penhascoAltura: AlturaDoPenhasco
+  setPenhascoAltura: (altura: AlturaDoPenhasco) => void
   /**
    * Ferramenta Texturas (`lib/texturas.ts`): a textura escolhida na biblioteca,
    * o que o PRÓXIMO gesto faz (Pincel | Balde | Borracha; Alt troca o pincel
@@ -1786,6 +1789,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     revealBrushWidth: 1,
     penhascoModo: 'riscar',
     penhascoLargura: 'media',
+    penhascoAltura: 'medio',
     texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO,
     texturaModo: 'pincel',
     texturaTamanho: TAMANHO_DO_PINCEL_PADRAO,
@@ -1978,6 +1982,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRevealBrushWidth: (width) => set({ revealBrushWidth: width }),
     setPenhascoModo: (modo) => set({ penhascoModo: modo }),
     setPenhascoLargura: (largura) => set({ penhascoLargura: largura }),
+    setPenhascoAltura: (altura) => set({ penhascoAltura: altura }),
     setTexturaEscolhida: (id) => set({ texturaEscolhida: id }),
     setTexturaModo: (modo) => set({ texturaModo: modo }),
     setTexturaTamanho: (tamanho) => {

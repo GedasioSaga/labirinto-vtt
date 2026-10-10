@@ -2187,6 +2187,9 @@ export interface MapData {
 /** O que um risco do pincel de penhasco faz: `riscar` põe penhasco na costa debaixo dele, `apagar` tira. */
 export type ModoDoPenhasco = 'riscar' | 'apagar'
 
+/** Quanto a parede de um risco de penhasco desce para o mar (`AJUSTE_DO_PENHASCO.fator` em `lib/relevo.ts`). */
+export type AlturaDoPenhasco = 'baixo' | 'medio' | 'alto'
+
 /**
  * Um risco do pincel de penhasco (`lib/penhasco.ts`). `piso` (`NoPiso`): o
  * piso em que foi riscado; ausente = térreo, mapa de antes abre igual.
@@ -2198,6 +2201,13 @@ export interface TracoDePenhasco extends NoPiso {
   raio: number
   /** O caminho do pincel, em px de mundo. Um ponto só é um toque (um disco). */
   pontos: RegionPoint[]
+  /**
+   * A altura da parede deste risco. Ausente = Médio, a parede de antes da
+   * altura existir: o mapa antigo abre igual, sem linha de migração, e o risco
+   * Médio nem escreve o campo. Só o risco que põe penhasco tem altura (a
+   * borracha tira de todas).
+   */
+  altura?: AlturaDoPenhasco
 }
 
 /**

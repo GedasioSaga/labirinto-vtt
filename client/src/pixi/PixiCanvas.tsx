@@ -5,7 +5,7 @@ import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, M
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { MapData, ModoDoPenhasco, Pin, Region, Token, Wall } from '../types/map'
+import type { AlturaDoPenhasco, MapData, ModoDoPenhasco, Pin, Region, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
@@ -2918,6 +2918,7 @@ export function PixiCanvas({
       let penhascoStroke: Point[] = []
       let penhascoStrokeMode: ModoDoPenhasco = 'riscar'
       let penhascoStrokeRadius = 0
+      let penhascoStrokeAltura: AlturaDoPenhasco = 'medio'
       /**
        * Texturas: a pincelada em curso, local ao gesto como a do penhasco — só
        * vira mapa ao soltar (`finishTexturaStroke`), um Ctrl+Z por pincelada.
@@ -4373,7 +4374,7 @@ export function PixiCanvas({
         draftGraphics.clear()
         if (pontos.length === 0) return
         const store = useMapStore.getState()
-        const resultado = store.riscarPenhasco({ modo: penhascoStrokeMode, raio: penhascoStrokeRadius, pontos })
+        const resultado = store.riscarPenhasco({ modo: penhascoStrokeMode, raio: penhascoStrokeRadius, pontos, altura: penhascoStrokeAltura })
         const aviso = avisoDoPenhasco(resultado, relevoLigado(useMapStore.getState().map))
         if (aviso === null) return
         const toasts = useToastStore.getState()
@@ -5484,11 +5485,13 @@ export function PixiCanvas({
         if (activeTool === 'penhasco') {
           // Sem snap, como o Pincel de revelar; Alt INVERTE o modo do painel só
           // neste risco, lido no começo. O raio segue o tamanho do mapa, como a
-          // própria parede (`raioDoPincelDePenhasco`).
-          const { penhascoModo, penhascoLargura } = useMapStore.getState()
+          // própria parede (`raioDoPincelDePenhasco`). A altura também é a do
+          // começo do risco: o risco inteiro desce a mesma parede.
+          const { penhascoModo, penhascoLargura, penhascoAltura } = useMapStore.getState()
           mode = 'painting-penhasco'
           penhascoStrokeMode = event.altKey ? (penhascoModo === 'riscar' ? 'apagar' : 'riscar') : penhascoModo
           penhascoStrokeRadius = raioDoPincelDePenhasco(unidadeDoRelevo(map), penhascoLargura)
+          penhascoStrokeAltura = penhascoAltura
           penhascoStroke = [worldPoint]
           drawPenhascoStroke()
           return

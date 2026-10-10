@@ -29,6 +29,7 @@ describe('mapStore.riscarPenhasco', () => {
     useMapStore.getState().loadMap({ ...mapFactory.createEmptyMap('m', 'M', 20, 12, 50), continente: true, regions: [terra] })
     useMapStore.getState().setPenhascoModo('riscar')
     useMapStore.getState().setPenhascoLargura('media')
+    useMapStore.getState().setPenhascoAltura('medio')
   })
 
   it('começa riscando, pincel médio', () => {
@@ -56,6 +57,25 @@ describe('mapStore.riscarPenhasco', () => {
   it('a camada Salas escondida esconde a terra: o risco não acha costa (o relevo também não a desenha)', () => {
     useMapStore.getState().loadMap({ ...useMapStore.getState().map, hiddenLayers: ['salas'] })
     expect(useMapStore.getState().riscarPenhasco({ modo: 'riscar', raio: 30, pontos: naCosta })).toBe('longe-da-costa')
+  })
+
+  it('a altura começa Média e é preferência da ferramenta (fora do desfazer)', () => {
+    expect(useMapStore.getState().penhascoAltura).toBe('medio')
+    useMapStore.getState().setPenhascoAltura('alto')
+    expect(useMapStore.getState().penhascoAltura).toBe('alto')
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('o risco guarda a altura dele; o Médio não escreve o campo; desfazer tira o risco Alto', () => {
+    useMapStore.getState().riscarPenhasco({ modo: 'riscar', raio: 30, pontos: naCosta, altura: 'medio' })
+    useMapStore.getState().riscarPenhasco({ modo: 'riscar', raio: 30, pontos: naCosta, altura: 'alto' })
+    const [medio, alto] = useMapStore.getState().map.penhascos ?? []
+    expect('altura' in medio).toBe(false)
+    expect(alto.altura).toBe('alto')
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.penhascos?.map((t) => t.altura)).toEqual([undefined])
+    useMapStore.getState().redo()
+    expect(useMapStore.getState().map.penhascos?.map((t) => t.altura)).toEqual([undefined, 'alto'])
   })
 
   it('a borracha tira o penhasco que cobre inteiro, e "Apagar todos" limpa com desfazer', () => {

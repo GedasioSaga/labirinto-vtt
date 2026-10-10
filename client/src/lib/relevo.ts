@@ -1,6 +1,6 @@
 import type { Drawing, MapData, Region, RegionPoint, TracoDePenhasco } from '../types/map'
 import type { Exploration } from './exploration'
-import { assinaturaDosPenhascos, temRiscoDePenhasco } from './penhasco'
+import { alturaDoTraco, assinaturaDosPenhascos, temRiscoDePenhasco, tracosSeTocam } from './penhasco'
 import { isContinente } from './marcadorDeContinente'
 import { readRegionSplit, splitSecondPart } from './regionSplit'
 import { parseHexColor } from './tokenColor'
@@ -162,15 +162,44 @@ export const AJUSTE_DO_PENHASCO = {
    * até a beira, e a parede sai da terra logo acima dela.
    */
   alcanceDoConhecido: 2,
+  /**
+   * ALTURA POR RISCO (pedido de 10/10/2026): a parede de cada risco é a
+   * `altura` acima vezes o fator da altura dele, e as faixas esticam na mesma
+   * proporção (`corDaParede`), então lábio, veio e base molhada continuam lá.
+   * O Médio é 1: o mapa de antes da altura abre igual. O Baixo ainda passa do
+   * dobro do lábio e lê como rochedo; o Alto (36 px do protótipo, ~6 células
+   * no mapa real) fica abaixo do tamanho de uma ilha pequena.
+   */
+  fator: { baixo: 0.5, medio: 1, alto: 2 },
+  /**
+   * A passagem entre dois trechos de alturas diferentes que se encostam: em
+   * vez de um degrau seco, a parede mais alta sobe aos poucos a partir da
+   * emenda, em degraus de no máximo `degrau` px do protótipo, cada um
+   * `inclinacao` vezes mais largo que alto. O degrau é menor que o borrão da
+   * ponta (`pontas`), que funde os degraus numa rampa só; com 4,5 px a escada
+   * ainda aparecia no mapa real (conferido em 10/10/2026). Inclinação 1 (45
+   * graus): do Médio ao Alto a rampa tem ~3 células no mapa real; mais
+   * deitada, um trecho Alto curto entre dois Médios nunca chegaria a Alto.
+   */
+  rampa: { degrau: 2, inclinacao: 1 },
 } as const
+
+/** Altura da parede do risco, em px do protótipo (ausente = Médio). */
+export function alturaDaParede(traco: Pick<TracoDePenhasco, 'altura'>): number {
+  return AJUSTE_DO_PENHASCO.altura * AJUSTE_DO_PENHASCO.fator[alturaDoTraco(traco)]
+}
 
 /**
  * A cor da parede do penhasco a `profundidade` px do protótipo abaixo da
  * costa: a faixa daquela altura, misturada com a vizinha perto da divisa, e
- * mais escura quanto mais perto da água.
+ * mais escura quanto mais perto da água. Numa parede de outra `altura`
+ * (`alturaDaParede`), as faixas esticam na proporção: a profundidade vira a da
+ * parede Média de mesma fração.
  */
-export function corDaParede(profundidade: number): [number, number, number] {
+export function corDaParede(profundidade: number, alturaDaParede: number = AJUSTE_DO_PENHASCO.altura): [number, number, number] {
   const { faixas, transicao, escurecePe, altura } = AJUSTE_DO_PENHASCO
+  // Na Média a conta é a de sempre (sem multiplicar), para a cor não mudar nem no arredondamento.
+  if (alturaDaParede !== altura) return corDaParede((profundidade * altura) / alturaDaParede)
   let indice = faixas.findIndex(([ate]) => profundidade < ate)
   if (indice < 0) indice = faixas.length - 1
   let cor: Rgb = faixas[indice][1]
@@ -770,9 +799,76 @@ export function planoComPenhascos(
   teto: number = TETO_DA_TEXTURA,
 ): PlanoDoRelevo {
   if (penhascos === undefined || !temRiscoDePenhasco(penhascos)) return plano.penhascos.length === 0 ? plano : { ...plano, penhascos: [] }
-  const retangulo = { ...plano.retangulo, altura: plano.retangulo.altura + AJUSTE_DO_PENHASCO.altura * plano.unidade }
+  // A textura cabe a parede MAIS ALTA (a sombra no mar sai do pé dela).
+  const maisAlta = Math.max(...penhascos.filter((t) => t.modo === 'riscar').map(alturaDaParede))
+  const retangulo = { ...plano.retangulo, altura: plano.retangulo.altura + maisAlta * plano.unidade }
   const escala = Math.min(ESCALA_MAXIMA, teto / Math.max(retangulo.largura, retangulo.altura))
   return { ...plano, penhascos: [...penhascos], retangulo, escala }
+}
+
+/**
+ * Um degrau da parede do penhasco: os texels cuja parede desce pelo menos
+ * `altura` px do protótipo. O rasterizador pinta cada profundidade com os
+ * degraus que chegam nela, do mais baixo ao mais alto, cada um na cor da SUA
+ * altura (`corDaParede`): cada ponto fica com a cor da altura dele, e onde um
+ * degrau acaba o de baixo continua por trás (sem fresta na emenda).
+ */
+export interface DegrauDaParede {
+  /** Px do protótipo. */
+  altura: number
+  /** As alturas de risco que descem pelo menos isto: o degrau é a união dos riscos delas (`alturaDaParede`). */
+  niveis: number[]
+  /**
+   * A rampa: a terra de cada altura mais baixa que encosta, alargada DE LADO
+   * por `alcance` px de mundo, sai do degrau. De lado porque a parede desce em
+   * pé: a altura de cada coluna é o que conta, e a emenda entre dois trechos
+   * corre ao longo da costa.
+   */
+  recuos: { nivel: number; alcance: number }[]
+}
+
+/** Arredonda a altura de um degrau (em px do protótipo): dois caminhos até a mesma altura dão o mesmo degrau. */
+function alturaDoDegrau(altura: number): number {
+  return Math.round(altura * 1000) / 1000
+}
+
+/**
+ * Os degraus da parede destes riscos, do mais baixo ao mais alto (`unidade`:
+ * px de mundo por px do protótipo). Uma altura por altura de risco e, entre
+ * duas alturas cujos riscos se encostam, os degraus da rampa: a parede mais
+ * alta começa na altura da vizinha e sobe aos poucos, longe da emenda. Riscos
+ * de alturas diferentes longe um do outro não ganham rampa (nem custo dela).
+ * Só Médio (o mapa de antes da altura): um degrau só, sem recuo.
+ */
+export function degrausDaParede(penhascos: readonly TracoDePenhasco[], unidade: number): DegrauDaParede[] {
+  const riscos = penhascos.filter((t) => t.modo === 'riscar')
+  const niveis = [...new Set(riscos.map(alturaDaParede))].sort((a, b) => a - b)
+  const { degrau, inclinacao } = AJUSTE_DO_PENHASCO.rampa
+  const comprimento = (de: number, ate: number) => (ate - de) * inclinacao * unidade
+  const encostam = (baixo: number, alto: number) =>
+    riscos.some(
+      (a) =>
+        alturaDaParede(a) === baixo &&
+        riscos.some((b) => alturaDaParede(b) === alto && tracosSeTocam({ pontos: a.pontos, raio: a.raio + comprimento(baixo, alto) }, b)),
+    )
+  const rampas: [number, number][] = []
+  for (let i = 0; i < niveis.length; i += 1) {
+    for (let j = i + 1; j < niveis.length; j += 1) if (encostam(niveis[i], niveis[j])) rampas.push([niveis[i], niveis[j]])
+  }
+  const alturas = new Set(niveis.map(alturaDoDegrau))
+  for (const [baixo, alto] of rampas) {
+    const partes = Math.max(1, Math.ceil((alto - baixo) / degrau - 1e-9))
+    for (let q = 1; q < partes; q += 1) alturas.add(alturaDoDegrau(baixo + ((alto - baixo) * q) / partes))
+  }
+  return [...alturas]
+    .sort((a, b) => a - b)
+    .map((altura) => ({
+      altura,
+      niveis: niveis.filter((n) => alturaDoDegrau(n) >= altura),
+      recuos: niveis
+        .filter((n) => alturaDoDegrau(n) < altura && rampas.some(([baixo, alto]) => baixo === n && alturaDoDegrau(alto) >= altura))
+        .map((nivel) => ({ nivel, alcance: comprimento(nivel, altura) })),
+    }))
 }
 
 /**

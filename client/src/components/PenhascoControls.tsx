@@ -1,4 +1,4 @@
-import type { ModoDoPenhasco } from '../types/map'
+import type { AlturaDoPenhasco, ModoDoPenhasco } from '../types/map'
 import type { LarguraDoPenhasco } from '../lib/penhasco'
 import { relevoLigado } from '../lib/relevo'
 import { mapaDoPiso } from '../lib/pisos'
@@ -15,9 +15,16 @@ const LARGURAS: Array<{ largura: LarguraDoPenhasco; rotulo: string }> = [
   { largura: 'larga', rotulo: 'Largo' },
 ]
 
+const ALTURAS: Array<{ altura: AlturaDoPenhasco; rotulo: string }> = [
+  { altura: 'baixo', rotulo: 'Baixo' },
+  { altura: 'medio', rotulo: 'Médio' },
+  { altura: 'alto', rotulo: 'Alto' },
+]
+
 /**
- * Painel do Penhasco (`lib/penhasco.ts`): o que o PRÓXIMO risco faz e a largura
- * do pincel, no mesmo segmentado do Pincel de revelar (`ConcealBrushControls`).
+ * Painel do Penhasco (`lib/penhasco.ts`): o que o PRÓXIMO risco faz, a largura
+ * do pincel e a altura da parede, no mesmo segmentado do Pincel de revelar
+ * (`ConcealBrushControls`).
  * "Apagar" existe além do Alt pelo mesmo motivo de lá: Alt segurado durante um
  * arrasto não é gesto que todo mundo descobre.
  *
@@ -31,6 +38,8 @@ export function PenhascoControls() {
   const setModo = useMapStore((s) => s.setPenhascoModo)
   const largura = useMapStore((s) => s.penhascoLargura)
   const setLargura = useMapStore((s) => s.setPenhascoLargura)
+  const altura = useMapStore((s) => s.penhascoAltura)
+  const setAltura = useMapStore((s) => s.setPenhascoAltura)
   const comRelevo = useMapStore((s) => relevoLigado(s.map))
   // PISOS: "apagar todos" só alcança o piso em edição; o botão aparece pelo mesmo recorte.
   const temPenhasco = useMapStore((s) => (mapaDoPiso(s.map, s.pisoAtivo).penhascos?.length ?? 0) > 0)
@@ -74,6 +83,23 @@ export function PenhascoControls() {
           </button>
         ))}
       </div>
+      <h2 className="lb-eyebrow">Altura do penhasco</h2>
+      <div className="lb-seg" role="radiogroup" aria-label="Altura do penhasco">
+        {ALTURAS.map((opcao) => (
+          <button
+            key={opcao.altura}
+            type="button"
+            role="radio"
+            aria-checked={altura === opcao.altura}
+            className="lb-seg__option"
+            onClick={() => setAltura(opcao.altura)}
+          >
+            {opcao.rotulo}
+          </button>
+        ))}
+      </div>
+      {/* A altura fica no risco: trocar aqui não mexe no que já está no mapa, e o mestre precisa saber como mudar um trecho. */}
+      <p className="lb-field__hint">Vale para os próximos riscos. Para mudar um trecho, risque por cima dele.</p>
       {!comRelevo && (
         <>
           <p className="lb-field__hint">O penhasco faz parte do relevo, que está desligado nesta cena.</p>

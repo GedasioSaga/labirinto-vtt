@@ -21,6 +21,7 @@ beforeEach(() => {
   useMapStore.getState().loadMap({ ...createEmptyMap('m', 'M', 20, 20, 50), continente: true })
   useMapStore.getState().setPenhascoModo('riscar')
   useMapStore.getState().setPenhascoLargura('media')
+  useMapStore.getState().setPenhascoAltura('medio')
 })
 
 afterEach(() => {
@@ -52,6 +53,24 @@ describe('PenhascoControls', () => {
     act(() => botao('Largo').click())
     expect(useMapStore.getState().penhascoLargura).toBe('larga')
     // Preferência de ferramenta: nada entra no desfazer.
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('Altura do penhasco: Baixo/Médio/Alto escrevem a preferência, começando no Médio, sem desfazer', () => {
+    montar()
+    const grupo = palco.querySelector('[role="radiogroup"][aria-label="Altura do penhasco"]')
+    expect(grupo).not.toBeNull()
+    const opcoes = Array.from(grupo?.querySelectorAll('button') ?? []).map((b) => b.textContent)
+    expect(opcoes).toEqual(['Baixo', 'Médio', 'Alto'])
+    // 'Médio' também é uma largura: a altura se procura dentro do grupo dela.
+    const medio = Array.from(grupo?.querySelectorAll('button') ?? []).find((b) => b.textContent === 'Médio')
+    expect(medio?.getAttribute('aria-checked')).toBe('true')
+    act(() => botao('Alto').click())
+    expect(useMapStore.getState().penhascoAltura).toBe('alto')
+    expect(botao('Alto').getAttribute('aria-checked')).toBe('true')
+    expect(medio?.getAttribute('aria-checked')).toBe('false')
+    act(() => botao('Baixo').click())
+    expect(useMapStore.getState().penhascoAltura).toBe('baixo')
     expect(useMapStore.getState().past).toHaveLength(0)
   })
 

@@ -1,5 +1,15 @@
 import { forEachExploredNotch, forEachExploredRun } from '../lib/exploration'
-import { AJUSTE_DO_PENHASCO, AJUSTE_DO_RELEVO, corDaParede, tamanhoDaTextura, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
+import {
+  AJUSTE_DO_PENHASCO,
+  AJUSTE_DO_RELEVO,
+  alturaDaParede,
+  corDaParede,
+  degrausDaParede,
+  tamanhoDaTextura,
+  type ConhecidoDoRelevo,
+  type DegrauDaParede,
+  type PlanoDoRelevo,
+} from '../lib/relevo'
 import type { RegionPoint } from '../types/map'
 
 /**
@@ -221,8 +231,47 @@ interface ParedeDoPenhasco {
   y: number
 }
 
-/** Passos de profundidade desenhados entre uma pausa e outra: cada um é uma cópia da caixa dos riscos. */
+/** Cópias da caixa desenhadas entre uma pausa e outra (cada passo de profundidade de cada degrau é uma). */
 const PASSOS_POR_PAUSA = 8
+
+/** Um pedaço da textura, em texels: a caixa da parede inteira, ou a de um degrau dentro dela. */
+interface Quadro {
+  x: number
+  y: number
+  largura: number
+  altura: number
+}
+
+/**
+ * O quadro, na textura, dos riscos que põem penhasco com altura em `niveis`
+ * (todos, sem filtro), mais a parede de `passos` texels embaixo. `null` sem
+ * risco, ou fora da textura.
+ */
+function quadroDosRiscos(plano: PlanoDoRelevo, terra: Tela, passos: number, niveis?: readonly number[]): Quadro | null {
+  const { escala, unidade, retangulo } = plano
+  const riscos = niveis === undefined ? plano.penhascos : plano.penhascos.filter((t) => t.modo === 'riscar' && niveis.includes(alturaDaParede(t)))
+  const caixa = caixaDosRiscos(riscos, AJUSTE_DO_PENHASCO.pontas * 1.5 * unidade)
+  if (caixa === null) return null
+  const x0 = Math.max(0, Math.floor((caixa.minX - retangulo.x) * escala))
+  const y0 = Math.max(0, Math.floor((caixa.minY - retangulo.y) * escala))
+  const x1 = Math.min(terra.width, Math.ceil((caixa.maxX - retangulo.x) * escala))
+  const y1 = Math.min(terra.height, Math.ceil((caixa.maxY - retangulo.y) * escala) + passos + 1)
+  return x1 <= x0 || y1 <= y0 ? null : { x: x0, y: y0, largura: x1 - x0, altura: y1 - y0 }
+}
+
+/** Texels de profundidade de uma parede de `altura` px do protótipo. */
+function passosDaAltura(altura: number, px: number): number {
+  return Math.max(1, Math.round(altura * px))
+}
+
+/** Um degrau pronto para descer: o topo dele (`topoDoDegrau`) e onde ele fica dentro da caixa da parede. */
+interface DegrauNaTela {
+  topo: Tela
+  x: number
+  y: number
+  passos: number
+  altura: number
+}
 
 /**
  * A PAREDE DO PENHASCO (`lib/penhasco.ts`), como no protótipo: a terra debaixo
@@ -232,9 +281,17 @@ const PASSOS_POR_PAUSA = 8
  * Depois sai o que caiu sobre a terra: sobra só a faixa que desce para o mar,
  * e só debaixo da costa riscada ("gruda" na costa).
  *
+ * ALTURA POR RISCO: a parede é feita de degraus (`degrausDaParede`), cada um
+ * com o topo dos riscos que descem pelo menos a altura dele. Em cada
+ * profundidade descem os degraus que chegam nela, do mais baixo ao mais alto,
+ * cada um na cor da sua altura: o ponto fica com a cor da altura dele, e onde
+ * um degrau acaba (a borda macia do topo) o de baixo continua por trás, sem
+ * fresta. Só Médio (o mapa de antes): um degrau só, a parede de sempre.
+ *
  * Tudo numa tela do tamanho da CAIXA dos riscos (mais a parede embaixo), não
  * da textura inteira: o mestre risca um trecho de costa, e cada passo copia
- * só aquele pedaço. No jogador, o topo sai só da terra conhecida.
+ * só aquele pedaço; o degrau mais alto, só a caixa dos riscos dele. No
+ * jogador, o topo sai só da terra conhecida.
  */
 async function montarParede(
   plano: PlanoDoRelevo,
@@ -242,84 +299,272 @@ async function montarParede(
   conhecido: Tela | null,
   cancelado: () => boolean,
 ): Promise<ParedeDoPenhasco | null> {
-  const { escala, unidade, retangulo } = plano
-  const px = unidade * escala
-  const p = AJUSTE_DO_PENHASCO
-  const caixa = caixaDosRiscos(plano.penhascos, p.pontas * 1.5 * unidade)
-  if (caixa === null) return null
-  const passos = Math.max(1, Math.round(p.altura * px))
-  const x0 = Math.max(0, Math.floor((caixa.minX - retangulo.x) * escala))
-  const y0 = Math.max(0, Math.floor((caixa.minY - retangulo.y) * escala))
-  const x1 = Math.min(terra.width, Math.ceil((caixa.maxX - retangulo.x) * escala))
-  const y1 = Math.min(terra.height, Math.ceil((caixa.maxY - retangulo.y) * escala) + passos + 1)
-  if (x1 <= x0 || y1 <= y0) return null
-  const largura = x1 - x0
-  const altura = y1 - y0
-  const local = (g: Pincel) => g.setTransform(escala, 0, 0, escala, -retangulo.x * escala - x0, -retangulo.y * escala - y0)
+  const px = plano.unidade * plano.escala
+  const degraus = degrausDaParede(plano.penhascos, plano.unidade)
+  if (degraus.length === 0) return null
+  const quadro = quadroDosRiscos(plano, terra, passosDaAltura(degraus[degraus.length - 1].altura, px))
+  if (quadro === null) return null
 
-  // Os riscos na ordem: riscar soma, apagar tira só do que veio antes.
-  const riscos = novaTela(largura, altura)
-  const gr = riscos.getContext('2d')
-  if (gr === null) return null
-  local(gr)
-  gr.fillStyle = '#fff'
-  gr.strokeStyle = '#fff'
-  gr.lineCap = 'round'
-  gr.lineJoin = 'round'
-  for (const traco of plano.penhascos) {
-    gr.globalCompositeOperation = traco.modo === 'riscar' ? 'source-over' : 'destination-out'
-    riscar(gr, traco.pontos, traco.raio)
-  }
+  const prontos = await topoDosDegraus(plano, degraus, quadro, terra, conhecido, cancelado)
+  if (prontos === null) return null
 
-  // O topo: a BEIRA de baixo da terra debaixo dos riscos (os texels de terra
-  // com mar logo abaixo), com a borda dos riscos macia (a parede some aos
-  // poucos onde o risco acaba). Só a beira, e não a terra inteira: a cor de
-  // cada ponto da parede sai da distância até a costa logo acima, e um topo
-  // que começasse mais acima numa coluna (a terra do jogador cortada pela
-  // névoa) desenharia uma listra de faixas fora do lugar. No jogador, só a
-  // beira conhecida.
-  const beira = Math.max(2, Math.ceil(px))
-  const topo = novaTela(largura, altura)
-  const gt = topo.getContext('2d')
-  if (gt === null) return descartarTudo(riscos)
-  sombraDe(gt, riscos, '#fff', p.pontas * px)
-  descartar(riscos)
-  gt.globalCompositeOperation = 'destination-out'
-  gt.drawImage(terra, -x0, -y0 - beira)
-  gt.globalCompositeOperation = 'destination-in'
-  gt.drawImage(terra, -x0, -y0)
-  if (conhecido !== null) {
-    // O conhecido alargado uns texels em volta: quem vê a costa do mar (a
-    // terra é uma Sala, fechada para quem está fora) conhece o mar até a
-    // beira, não a terra logo acima dela; e o explorado de quem andou pela
-    // terra para nas células, um pouco antes da beira. A parede sai da beira,
-    // então ela conta como vista quando o conhecido passa a até `alcance`
-    // dela. A faixa a mais é a da própria linha da costa, que ele já vê, e a
-    // parede só aparece no mar conhecido (a máscara da névoa no `PlayerView`).
-    const alcance = Math.max(2, Math.ceil(p.alcanceDoConhecido * px))
-    const conhecidoDaBeira = alargar(conhecido, x0, y0, largura, altura, alcance)
-    if (conhecidoDaBeira === null) return descartarTudo(riscos, topo)
-    gt.drawImage(conhecidoDaBeira, 0, 0)
-    descartar(conhecidoDaBeira)
-  }
-  gt.globalCompositeOperation = 'source-over'
-
-  const tela = novaTela(largura, altura)
+  const tela = novaTela(quadro.largura, quadro.altura)
   const gp = tela.getContext('2d')
-  if (gp === null) return descartarTudo(topo)
-  for (let k = passos; k >= 1; k -= 1) {
-    // O meio do texel k abaixo da costa, em px do protótipo.
-    sombraDe(gp, topo, rgba(corDaParede((k - 0.5) / px), 1), 0, 0, k)
-    if (k % PASSOS_POR_PAUSA === 0) {
+  const topos = prontos.map((d) => d.topo)
+  if (gp === null) return descartarTudo(...topos)
+  // Com mais de um degrau, cada profundidade é somada aqui antes de ir à parede.
+  const soma = prontos.length > 1 ? novaTela(quadro.largura, quadro.altura) : null
+  const gs = soma === null ? null : soma.getContext('2d')
+  if (soma !== null && gs === null) return descartarTudo(...topos, tela, soma)
+  const descer = (g: Pincel, degrau: DegrauNaTela, k: number) =>
+    // O meio do texel k abaixo da costa, em px do protótipo, na cor da altura do degrau.
+    sombraDe(g, degrau.topo, rgba(corDaParede((k - 0.5) / px, degrau.altura), 1), 0, degrau.x, degrau.y + k)
+  let copias = 0
+  for (let k = prontos[prontos.length - 1].passos; k >= 1; k -= 1) {
+    // Os degraus que ainda chegam a esta profundidade. Cada texel é de UM
+    // degrau só (`topoDosDegraus`): somados (`lighter`), a emenda macia entre
+    // dois fecha em 1, e cada ponto fica com a cor da altura dele — nada da
+    // cor de outra altura vaza pela beira antialiasada da costa. A soma então
+    // cobre o que veio de mais fundo, como o degrau único cobria.
+    const chegam = prontos.filter((d) => d.passos >= k)
+    if (chegam.length === 1 || soma === null || gs === null) {
+      for (const degrau of chegam) descer(gp, degrau, k)
+    } else {
+      gs.clearRect(0, 0, soma.width, soma.height)
+      gs.globalCompositeOperation = 'lighter'
+      for (const degrau of chegam) descer(gs, degrau, k)
+      gp.drawImage(soma, 0, 0)
+    }
+    // Conta em caixas inteiras: o anel de um degrau de rampa é uma fração da
+    // caixa, e pausar por ele como por uma caixa inteira só somaria espera
+    // (cada pausa custa uns 4 ms do relógio do navegador). A soma é uma caixa.
+    for (const degrau of chegam) copias += (degrau.topo.width * degrau.topo.height) / (quadro.largura * quadro.altura)
+    if (chegam.length > 1) copias += 1
+    if (copias >= PASSOS_POR_PAUSA) {
+      copias = 0
       await ceder()
-      if (cancelado()) return descartarTudo(topo, tela)
+      if (cancelado()) return descartarTudo(...topos, tela, ...opcional(soma))
     }
   }
-  descartar(topo)
+  descartar(...topos, ...opcional(soma))
   gp.globalCompositeOperation = 'destination-out'
-  gp.drawImage(terra, -x0, -y0)
+  gp.drawImage(terra, -quadro.x, -quadro.y)
   gp.globalCompositeOperation = 'source-over'
-  return { tela, x: x0, y: y0 }
+  return { tela, x: quadro.x, y: quadro.y }
+}
+
+/** A forma de um degrau ainda sem o anel cortado: a do degrau seguinte sai dela. */
+interface FormaAberta {
+  forma: Tela
+  daqui: Quadro
+  passos: number
+  altura: number
+  /** A forma é uma das máscaras por altura (o degrau único): não é desta etapa descartar nem cortar. */
+  emprestada: boolean
+}
+
+/**
+ * O topo de cada degrau, do mais baixo ao mais alto (a ordem em que descem).
+ * Primeiro as máscaras de cada altura de risco (o último risco vale onde dois
+ * se sobrepõem, a borracha tira de todas); depois a forma de cada degrau é a
+ * união das alturas que chegam nele, menos o recuo da rampa. As formas são
+ * encaixadas (a de cima cabe na de baixo); o topo de cada degrau sai do ANEL,
+ * a forma dele menos a do seguinte, então cada texel é de um degrau só e os
+ * anéis borrados somam exatamente o borrão da união.
+ */
+async function topoDosDegraus(
+  plano: PlanoDoRelevo,
+  degraus: readonly DegrauDaParede[],
+  quadro: Quadro,
+  terra: Tela,
+  conhecido: Tela | null,
+  cancelado: () => boolean,
+): Promise<DegrauNaTela[] | null> {
+  const px = plano.unidade * plano.escala
+  const mascaras = mascarasPorAltura(plano, quadro)
+  if (mascaras === null) return null
+  const todas = [...mascaras.values()]
+  const conhecidoDaBeira = conhecido === null ? null : alargarConhecido(conhecido, quadro, px)
+  if (conhecido !== null && conhecidoDaBeira === null) return descartarTudo(...todas)
+  const recuos = new Map<number, { tela: Tela; alcance: number }>()
+  const prontos: DegrauNaTela[] = []
+  let aberta: FormaAberta | null = null
+  const desistir = (): null =>
+    descartarTudo(
+      ...todas,
+      ...[...recuos.values()].map((r) => r.tela),
+      ...prontos.map((d) => d.topo),
+      ...(aberta === null || aberta.emprestada ? [] : [aberta.forma]),
+      ...opcional(conhecidoDaBeira),
+    )
+  // O anel da forma aberta (menos a `seguinte`, se houver) vira o topo pronto.
+  const fechar = (atual: FormaAberta, seguinte: FormaAberta | null): boolean => {
+    if (seguinte !== null) {
+      const g = atual.forma.getContext('2d')
+      if (g === null) return false
+      g.globalCompositeOperation = 'destination-out'
+      g.drawImage(seguinte.forma, seguinte.daqui.x - atual.daqui.x, seguinte.daqui.y - atual.daqui.y)
+      g.globalCompositeOperation = 'source-over'
+    }
+    const topo = topoDoDegrau(atual.forma, atual.daqui, terra, conhecidoDaBeira, quadro, px)
+    if (!atual.emprestada) descartar(atual.forma)
+    if (topo === null) return false
+    prontos.push({ topo, x: atual.daqui.x - quadro.x, y: atual.daqui.y - quadro.y, passos: atual.passos, altura: atual.altura })
+    return true
+  }
+  for (const degrau of degraus) {
+    const passos = passosDaAltura(degrau.altura, px)
+    const daqui = quadroDosRiscos(plano, terra, passos, degrau.niveis)
+    if (daqui === null) continue
+    // Degrau único (só Médio, o mapa de antes): a máscara é a forma, a mesma conta de sempre.
+    const emprestada = degraus.length === 1
+    const forma = emprestada ? (mascaras.get(degrau.niveis[0]) ?? null) : formaDoDegrau(degrau, daqui, quadro, mascaras, recuos, plano.escala)
+    if (forma === null) return desistir()
+    const nova: FormaAberta = { forma, daqui, passos, altura: degrau.altura, emprestada }
+    if (aberta !== null && !fechar(aberta, nova)) {
+      aberta = nova
+      return desistir()
+    }
+    aberta = nova
+    await ceder()
+    if (cancelado()) return desistir()
+  }
+  if (aberta !== null && !fechar(aberta, null)) return desistir()
+  aberta = null
+  descartar(...todas, ...[...recuos.values()].map((r) => r.tela), ...opcional(conhecidoDaBeira))
+  return prontos.length === 0 ? null : prontos
+}
+
+/**
+ * Uma máscara por altura de risco, do tamanho do `quadro`: os riscos na ordem,
+ * riscar soma na máscara da altura dele e TIRA das outras (o último vale),
+ * apagar tira de todas — só do que veio antes. Só Médio: uma máscara, a mesma
+ * conta de sempre.
+ */
+function mascarasPorAltura(plano: PlanoDoRelevo, quadro: Quadro): Map<number, Tela> | null {
+  const { escala, retangulo } = plano
+  const mascaras = new Map<number, Tela>()
+  for (const traco of plano.penhascos) {
+    if (traco.modo === 'riscar' && !mascaras.has(alturaDaParede(traco))) mascaras.set(alturaDaParede(traco), novaTela(quadro.largura, quadro.altura))
+  }
+  const pinceis: [number, Pincel][] = []
+  for (const [nivel, tela] of mascaras) {
+    const g = tela.getContext('2d')
+    if (g === null) return descartarTudo(...mascaras.values())
+    g.setTransform(escala, 0, 0, escala, -retangulo.x * escala - quadro.x, -retangulo.y * escala - quadro.y)
+    g.fillStyle = '#fff'
+    g.strokeStyle = '#fff'
+    g.lineCap = 'round'
+    g.lineJoin = 'round'
+    pinceis.push([nivel, g])
+  }
+  for (const traco of plano.penhascos) {
+    const nivel = traco.modo === 'riscar' ? alturaDaParede(traco) : null
+    for (const [alturaDaMascara, g] of pinceis) {
+      g.globalCompositeOperation = alturaDaMascara === nivel ? 'source-over' : 'destination-out'
+      riscar(g, traco.pontos, traco.raio)
+    }
+  }
+  return mascaras
+}
+
+/**
+ * A forma de um degrau no quadro dele (`daqui`): a união das máscaras das
+ * alturas que chegam nele, menos cada altura mais baixa que encosta alargada
+ * de lado pelo alcance da rampa. As máscaras alargadas (`recuos`) crescem aos
+ * poucos de um degrau para o seguinte: cada uma só é alargada o que falta.
+ */
+function formaDoDegrau(
+  degrau: DegrauDaParede,
+  daqui: Quadro,
+  quadro: Quadro,
+  mascaras: ReadonlyMap<number, Tela>,
+  recuos: Map<number, { tela: Tela; alcance: number }>,
+  escala: number,
+): Tela | null {
+  const forma = novaTela(daqui.largura, daqui.altura)
+  const g = forma.getContext('2d')
+  if (g === null) return null
+  const dx = quadro.x - daqui.x
+  const dy = quadro.y - daqui.y
+  // As máscaras se repartem a terra riscada (onde uma perde, a outra ganha):
+  // somadas, a emenda antialiasada entre duas fecha em 1, sem fresta.
+  g.globalCompositeOperation = 'lighter'
+  for (const nivel of degrau.niveis) {
+    const mascara = mascaras.get(nivel)
+    if (mascara !== undefined) g.drawImage(mascara, dx, dy)
+  }
+  g.globalCompositeOperation = 'destination-out'
+  for (const { nivel, alcance } of degrau.recuos) {
+    const mascara = mascaras.get(nivel)
+    if (mascara === undefined) continue
+    let recuo = recuos.get(nivel)
+    if (recuo === undefined) {
+      recuo = { tela: copiar(mascara), alcance: 0 }
+      recuos.set(nivel, recuo)
+    }
+    const texels = Math.round(alcance * escala)
+    alargarDeLado(recuo.tela, recuo.alcance, texels)
+    recuo.alcance = Math.max(recuo.alcance, texels)
+    g.drawImage(recuo.tela, dx, dy)
+  }
+  return forma
+}
+
+/**
+ * Alarga a tela de lado, no lugar, de `de` para `ate` texels para cada lado
+ * (uma dilatação horizontal), sem ler pixel: cópias dela mesma deslocadas. Uma
+ * tela já alargada `c` texels, somada às cópias a ±s com s ≤ 2c + 1, fica
+ * alargada c + s sem buraco: o passo dobra a cada rodada.
+ */
+function alargarDeLado(tela: Tela, de: number, ate: number): void {
+  const g = tela.getContext('2d')
+  if (g === null) return
+  let feito = de
+  while (feito < ate) {
+    const passo = Math.min(2 * feito + 1, ate - feito)
+    g.drawImage(tela, passo, 0)
+    g.drawImage(tela, -passo, 0)
+    feito += passo
+  }
+}
+
+/**
+ * O conhecido do jogador no `quadro`, alargado uns texels em volta: quem vê a
+ * costa do mar (a terra é uma Sala, fechada para quem está fora) conhece o mar
+ * até a beira, não a terra logo acima dela; e o explorado de quem andou pela
+ * terra para nas células, um pouco antes da beira. A parede sai da beira,
+ * então ela conta como vista quando o conhecido passa a até `alcance` dela. A
+ * faixa a mais é a da própria linha da costa, que ele já vê, e a parede só
+ * aparece no mar conhecido (a máscara da névoa no `PlayerView`).
+ */
+function alargarConhecido(conhecido: Tela, quadro: Quadro, px: number): Tela | null {
+  const alcance = Math.max(2, Math.ceil(AJUSTE_DO_PENHASCO.alcanceDoConhecido * px))
+  return alargar(conhecido, quadro.x, quadro.y, quadro.largura, quadro.altura, alcance)
+}
+
+/**
+ * O topo de um degrau: a BEIRA de baixo da terra debaixo da `forma` (os texels
+ * de terra com mar logo abaixo), com a borda da forma macia (a parede some aos
+ * poucos onde o risco acaba, e o degrau se funde no de baixo). Só a beira, e
+ * não a terra inteira: a cor de cada ponto da parede sai da distância até a
+ * costa logo acima, e um topo que começasse mais acima numa coluna (a terra do
+ * jogador cortada pela névoa) desenharia uma listra de faixas fora do lugar.
+ * No jogador, só a beira conhecida (`conhecidoDaBeira`, no `quadro` da parede).
+ */
+function topoDoDegrau(forma: Tela, daqui: Quadro, terra: Tela, conhecidoDaBeira: Tela | null, quadro: Quadro, px: number): Tela | null {
+  const beira = Math.max(2, Math.ceil(px))
+  const topo = novaTela(daqui.largura, daqui.altura)
+  const gt = topo.getContext('2d')
+  if (gt === null) return null
+  sombraDe(gt, forma, '#fff', AJUSTE_DO_PENHASCO.pontas * px)
+  gt.globalCompositeOperation = 'destination-out'
+  gt.drawImage(terra, -daqui.x, -daqui.y - beira)
+  gt.globalCompositeOperation = 'destination-in'
+  gt.drawImage(terra, -daqui.x, -daqui.y)
+  if (conhecidoDaBeira !== null) gt.drawImage(conhecidoDaBeira, quadro.x - daqui.x, quadro.y - daqui.y)
+  gt.globalCompositeOperation = 'source-over'
+  return topo
 }
 
 /**
