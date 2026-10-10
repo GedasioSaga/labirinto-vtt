@@ -1,0 +1,160 @@
+/*
+ * DESIGN CONSOLIDADO — o Grimório inteiro, com três peças trazidas das outras
+ * propostas e vestidas no papel do livro:
+ *   1. a ficha do ponto de interesse da Mesa limpa (essencial aberto, recursos
+ *      por "+ Adicionar ao pino");
+ *   2. a porta aberta da Mesa limpa (a folha sai do vão), agora girando na
+ *      dobradiça;
+ *   3. a animação do cenário do Estúdio, com prévia viva dentro da ficha.
+ * Só tokens do grimorio.css (--lb-*, --gr-*). Filetes de 1 px.
+ */
+
+:root {
+  /* a folha da porta: easeOutCubic (easings.net), a mesma família da entrada da
+     revelação no app. Sai rápido e assenta sem passar do fim; o JS põe 300 ms
+     para abrir e 260 ms para fechar */
+  --cs-porta-abre: 300ms;
+  --cs-ease-porta: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* ============================================================
+   FICHA DO PINO (layout da Mesa limpa)
+   ============================================================ */
+.essencial { margin-bottom: 8px; }
+.essencial .ficha__dentro { padding-top: 12px; }
+.seg__op--ic { flex: 0 0 38px; }
+.seg__op--ic .ic { width: 17px; height: 17px; }
+
+.recursos:empty { display: none; }
+.recursos { margin-bottom: 8px; }
+.ficha.e-nova { animation: gr-entra 180ms var(--gr-ease-out) both; }
+.ficha__resumo--ligado { color: var(--lb-color-brass); }
+.rec__pe { display: flex; justify-content: flex-end; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--gr-filete); }
+
+.rec-mais {
+  width: 100%; justify-content: flex-start; margin: 0 0 8px;
+  background: transparent; border: 1px dashed var(--gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+@media (hover: hover) and (pointer: fine) {
+  .rec-mais:hover { background: var(--lb-color-brass-soft); }
+}
+
+/* ============================================================
+   PORTA: a folha gira na dobradiça (mapa e ícone da ficha)
+   ============================================================ */
+.porta-folha {
+  transform-box: fill-box;
+  transition: transform var(--cs-porta-abre) var(--cs-ease-porta), fill var(--lb-motion-base) ease;
+}
+.mapa .porta-folha { fill: #d9d2c0; stroke: #15181a; stroke-width: 1; }
+.porta-folha.trancada { fill: var(--lb-color-ember); }
+.jog-mapa-porta { fill: #d9d2c0; stroke: #101214; stroke-width: 1; }
+
+.cabeca__med--porta .ic { width: 26px; height: 26px; stroke-width: 1.8; }
+.cabeca__med--porta .porta-folha { fill: currentColor; stroke: none; }
+.cabeca__med--porta .porta-folha.trancada { fill: #8f2f27; }
+
+/* ============================================================
+   PRÉVIA VIVA DA ANIMAÇÃO DO CENÁRIO
+   ============================================================ */
+.cena-bloco { container-type: inline-size; display: flex; flex-direction: column; gap: 8px; }
+.cena-bloco__acoes { display: flex; align-items: center; gap: 6px; }
+.cena-bloco__dur { margin-left: auto; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+
+.cena {
+  --cs-madeira: max(4px, 2.2cqw);
+  --cs-metal: max(1.5px, 0.75cqw);
+  position: relative; isolation: isolate; overflow: hidden;
+  padding: 5cqw 5cqw 6cqw;
+  border-radius: 8px; border: 1px solid var(--gr-filete);
+  /* o mapa por trás, antes do véu escurecer */
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 7cqw),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 7cqw),
+    #2a3238;
+}
+.cena__veu { position: absolute; inset: 0; z-index: 0; background: radial-gradient(ellipse at 50% 38%, rgba(14, 11, 8, 0.6), rgba(8, 7, 6, 0.9)); }
+.cena__grupo { position: relative; z-index: 1; }
+
+.cena__quadro {
+  position: relative; z-index: 2; padding: var(--cs-madeira); border-radius: 3px;
+  background: linear-gradient(135deg, #6b4a2c, #4a3220 38%, #5c3f26 62%, #3a2817);
+  box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.18), inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+.cena__vista {
+  position: relative; aspect-ratio: 2 / 1; overflow: hidden; border-radius: 1px;
+  box-shadow: 0 0 0 var(--cs-metal) var(--gr-metal-medio), 0 0 0 calc(var(--cs-metal) + 1px) var(--gr-metal-escuro);
+  background: #1b2329;
+}
+.cena__camera { position: absolute; top: 0; left: 0; height: 100%; width: 116%; transform-origin: 66% 62%; }
+.cena[data-camera="pan"] .cena__camera { transform: translateX(-13.79%); }
+.cena[data-camera="aprox"] .cena__camera { transform: scale(1.1); }
+.cena__img { display: block; width: 100%; height: 100%; }
+
+.cena__fx { position: absolute; inset: 0; pointer-events: none; }
+.cena__fx i { position: absolute; inset: 0; }
+.cena[data-nevoa="false"] .cena__fx--nevoa,
+.cena[data-sol="false"] .cena__fx--sol,
+.cena[data-part="false"] .cena__fx--part,
+.cena[data-vento="false"] .cena__vento { display: none; }
+.cena__fx--nevoa i { left: -12%; right: -12%; background: radial-gradient(ellipse 46% 30% at 30% 72%, rgba(214, 222, 228, 0.34), transparent 70%), radial-gradient(ellipse 40% 24% at 78% 58%, rgba(214, 222, 228, 0.24), transparent 70%); }
+.cena__fx--nevoa i + i { background: radial-gradient(ellipse 50% 22% at 58% 86%, rgba(214, 222, 228, 0.28), transparent 70%); }
+.cena__fx--sol i {
+  opacity: 0.8; mix-blend-mode: screen;
+  background: repeating-linear-gradient(112deg, transparent 0 9%, rgba(243, 186, 102, 0.16) 9% 12%, transparent 12% 21%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 90% at 78% 20%, #000 10%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 90% at 78% 20%, #000 10%, transparent 75%);
+}
+.cena__fx--part b { position: absolute; width: max(2px, 0.8cqw); aspect-ratio: 1; border-radius: 50%; background: rgba(255, 236, 200, 0.75); }
+
+.cena__vento {
+  position: absolute; top: 5%; right: 3%; display: inline-flex; align-items: center; gap: 0.5em;
+  padding: 0.3em 0.6em; border-radius: 999px;
+  font: 500 clamp(9px, 2.7cqw, 13px)/1 var(--lb-font-utility); color: var(--lb-color-parchment);
+  background: rgba(10, 9, 7, 0.62); border: 1px solid var(--gr-filete-forte);
+}
+.cena__vento svg { width: 1.1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+.cena__barras { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 0.9em; }
+.cena__barras i { width: 2px; height: 100%; border-radius: 1px; background: var(--lb-color-brass); transform: scaleY(0.4); transform-origin: 50% 100%; }
+/* oscilação contínua: ease-in-out simétrico (a "onda" do app), só enquanto toca */
+.cena.tocando .cena__barras i { animation: cs-barra 520ms cubic-bezier(0.37, 0, 0.63, 1) infinite alternate; }
+.cena.tocando .cena__barras i:nth-child(2) { animation-delay: 160ms; }
+.cena.tocando .cena__barras i:nth-child(3) { animation-delay: 320ms; }
+@keyframes cs-barra { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+
+/* o postigo pendurado na dobradiça, embaixo da moldura */
+.cena__trilho { position: relative; z-index: 1; margin: 0 4%; padding-top: max(5px, 2.4cqw); perspective: 320cqw; perspective-origin: 50% 0; }
+.cena__cano {
+  position: absolute; top: -2px; left: 20%; width: max(9px, 4.4cqw); height: calc(max(5px, 2.4cqw) + 5px); border-radius: 2px;
+  background: linear-gradient(90deg, var(--gr-metal-escuro), var(--gr-metal-claro) 45%, var(--gr-metal-medio));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.cena__cano + .cena__cano { left: auto; right: 20%; }
+.cena__postigo {
+  position: relative; transform-origin: 50% 0; backface-visibility: hidden;
+  padding: 3.4cqw 4cqw 3.8cqw; border-radius: 3px;
+  background: linear-gradient(180deg, var(--gr-papel-alto), var(--gr-papel-baixo));
+  border: max(3px, 1.3cqw) solid #4a3220;
+  box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.2), 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+.cena__sombra { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+.cena__nome { margin: 0 0 0.35em; font: 400 clamp(13px, 5.6cqw, 28px)/1.15 var(--lb-font-display); color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.cena__texto { margin: 0; min-height: 2.9em; font: 400 clamp(10.5px, 3.4cqw, 16px)/1.45 var(--lb-font-sans); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.cena__falta { visibility: hidden; }
+.cena__cursor {
+  display: inline-block; width: 0.45em; height: 1em; margin: 0 0.05em; vertical-align: -0.14em;
+  background: var(--lb-color-brass); opacity: 0; transition: opacity 180ms ease;
+}
+.cena__cursor.vis { opacity: 0.9; }
+
+/* "Ver grande": o mesmo palco, maior, num diálogo */
+.dlg.dlg--cena { width: min(640px, 100%); max-height: calc(100vh - 32px); }
+.cena-bloco--grande .cena { border-radius: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .porta-folha { transition: fill var(--lb-motion-base) ease; }
+  .ficha.e-nova { animation: gr-fade 120ms ease both; }
+  .cena.tocando .cena__barras i { animation: none; transform: scaleY(0.7); }
+  .cena__cursor { transition: none; }
+}

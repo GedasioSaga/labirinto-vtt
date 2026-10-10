@@ -1,0 +1,43 @@
+OK    Grimório mantido: trocar para Parede mostra a ficha da ferramenta
+OK    Grimório mantido: clicar no token mostra a ficha do token
+OK    pino: cabeçalho com o local (Mesa limpa)
+OK    pino: bloco essencial aberto, sem cabeçalho
+OK    pino: Tipo numa linha só (! e ? só com ícone e nome acessível)
+OK    pino: recursos ligados aparecem como fichas
+OK    pino: Animação do cenário aberta com a prévia
+OK    prévia: Assistir toca e o botão vira Parar
+OK    prévia: aos 0,5 s a moldura ainda está entrando (matrix(1, 0, 0, 1, 26.1325, 0))
+OK    prévia: o texto se escreve à máquina (1,9 s) (16 letras)
+OK    prévia: termina parada, com o texto inteiro ({"estado":"parada","n":71,"falta":0})
+OK    prévia viva: a descrição muda o texto na hora
+OK    prévia viva: ligar Partículas aparece na prévia
+OK    prévia: trocar a câmera mostra o movimento escolhido
+OK    prévia: Parar volta ao quadro final
+OK    Ver grande: diálogo com a prévia maior tocando
+OK    Ver grande: palco e botões cabem sem rolar (900 px de altura)
+OK    Ver grande: Esc fecha
+OK    Adicionar ao pino: menu só com o que falta (item,colecao,loja,cabine,estado)
+OK    Adicionar ao pino: entra aberto e com o foco no título
+OK    Tirar do pino: sai e avisa com Desfazer
+OK    Desfazer devolve o recurso
+OK    porta: Estado no topo, Aberta | Fechada (Mesa limpa)
+OK    porta: cabeçalho diz entre o quê
+OK    porta: a folha gira (no meio do caminho logo depois do clique) (-29.5°)
+OK    porta: interromper inverte dali mesmo, sem salto (-29.5° → -43.6°)
+OK    porta: fechada de novo, folha no vão
+OK    Mais ações: "Abrir agora" existe
+OK    Abrir agora abre de verdade (mapa e ícone da ficha a −70°) (-70.0°, -70.0°)
+OK    o Estado na ficha acompanha
+OK    alavanca: Acionar agora abre a Porta do armazém no mapa
+OK    Grimório mantido: abrir sala mostra o código
+OK    folha: a transição gira a folha do mapa e a do ícone juntas (2 animações)
+OK    folha: sem quique (nunca passa de −70° e só anda para um lado) (pico -70.00°)
+OK    reduzido: a porta troca na hora (sem girar)
+OK    reduzido: a prévia não desliza nem escreve letra a letra
+OK    reduzido: a prévia termina em 0,4 s
+OK    jogador: a tela abre em 390 px
+OK    jogador: a porta da Sala 2 é a mesma folha (dado compartilhado)
+OK    jogador: sem rolagem lateral (390 px)
+
+ERROS DE CONSOLE: 0
+FALHAS: 0 de 40

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design consolidado</title>
+  <meta name="description" content="Design consolidado da interface do Labirinto VTT: o Grimório, com o ponto de interesse e a porta animada da Mesa limpa e a animação do cenário do Estúdio.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/grimorio.css">
+  <link rel="stylesheet" href="css/consolidado.css">
+</head>
+<body>
+  <header class="proto">
+    <span class="proto__marca"><b>Consolidado</b>Grimório + Mesa limpa + Estúdio</span>
+    <div class="proto__alternar" role="group" aria-label="Qual tela ver">
+      <button type="button" aria-pressed="true" data-acao="tela" data-v="editor">Editor do mestre</button>
+      <button type="button" aria-pressed="false" data-acao="tela" data-v="jogador">Tela do jogador</button>
+    </div>
+    <button type="button" class="proto__onde" data-acao="onde">Onde foi parar?</button>
+  </header>
+
+  <main class="palco" id="palco">
+    <div class="palco__escala" id="escala">
+      <svg class="mapa" id="mapa" viewBox="0 0 1440 856" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Mapa da cena Porto de Tasmaturi. Clique num item para ver a ficha dele."></svg>
+      <div class="mapa-alvo-solta" id="alvo-solta" aria-hidden="true"></div>
+
+      <div class="chip-cena">
+        <button type="button" class="bt bt--ic" aria-label="Voltar à cena anterior" data-balao="Voltar à cena anterior" data-acao="voltar-cena"><i data-ic="voltar"></i></button>
+        <button type="button" class="chip-cena__nome" aria-haspopup="menu" aria-expanded="false" data-acao="cena-chip">Porto de Tasmaturi<small>cena inicial</small><i data-ic="baixo" data-icc="ic--p"></i></button>
+      </div>
+
+      <aside class="livro livro--esq" id="livro-esq" aria-label="Livro do mestre">
+        <div class="lombada">
+          <span class="lombada__selo" aria-hidden="true"><i data-ic="selo"></i></span>
+          <div class="marcadores" id="marc-esq" role="tablist" aria-label="Páginas do livro do mestre" aria-orientation="vertical">
+            <span class="fita" aria-hidden="true"></span>
+            <button type="button" class="marcador" role="tab" aria-selected="true" aria-controls="esq-corpo" data-acao="marcador-esq" data-pag-esq="ficha"><i data-ic="ficha"></i><span>Ficha</span><span class="marcador__ponto" aria-hidden="true"></span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="esq-corpo" data-acao="marcador-esq" data-pag-esq="cena"><i data-ic="cena"></i><span>Cena</span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="esq-corpo" data-acao="marcador-esq" data-pag-esq="aventura"><i data-ic="aventura"></i><span>Aventura</span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="esq-corpo" data-acao="marcador-esq" data-pag-esq="acervo"><i data-ic="acervo"></i><span>Acervo</span></button>
+          </div>
+          <div class="lombada__pe">
+            <button type="button" class="lombada__recolher" aria-expanded="true" aria-label="Recolher a página" data-balao="Recolher a página" data-acao="recolher-esq"><i data-ic="recolherEsq"></i></button>
+          </div>
+        </div>
+        <div class="pagina-trilho">
+          <div class="pagina">
+            <div class="pagina__topo">
+              <div class="linha">
+                <span class="marca-app">Labirinto</span>
+                <button type="button" class="bt bt--ic" aria-label="Desfazer" data-balao="Desfazer" data-at="Ctrl Z" data-acao="desfazer"><i data-ic="desfazer"></i></button>
+                <button type="button" class="bt bt--ic" aria-label="Refazer" data-balao="Refazer" data-at="Ctrl Y" data-acao="refazer"><i data-ic="refazer"></i></button>
+                <button type="button" class="bt bt--ic" aria-label="Salvar" data-balao="Salvar" data-at="Ctrl S" data-acao="salvar"><i data-ic="salvar"></i></button>
+                <button type="button" class="bt bt--ic" aria-label="Arquivo" aria-haspopup="menu" aria-expanded="false" data-balao="Arquivo: abrir, importar, exportar" data-acao="arquivo"><i data-ic="arquivo"></i></button>
+                <button type="button" class="bt bt--ic" aria-label="Atalhos do teclado" data-balao="Atalhos do teclado" data-at="?" data-acao="atalhos"><i data-ic="ajuda"></i></button>
+              </div>
+              <div class="linha">
+                <button type="button" class="bt bt--latao bt--p" data-acao="novo-token"><i data-ic="mais" data-icc="ic--p"></i>Token</button>
+                <button type="button" class="bt bt--fantasma bt--p" data-balao="Procurar no mapa" data-at="Ctrl K" data-acao="procurar"><i data-ic="busca" data-icc="ic--p"></i>Procurar</button>
+                <button type="button" class="bt bt--ic bt--p empurra" aria-label="Configurações do mapa" data-balao="Configurações do mapa" data-acao="config"><i data-ic="engrenagem"></i></button>
+              </div>
+            </div>
+            <div class="pagina__corpo" id="esq-corpo" role="tabpanel" aria-label="Página aberta"></div>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="livro livro--dir" id="livro-dir" aria-label="Livro da mesa">
+        <div class="lombada">
+          <span class="lombada__selo" aria-hidden="true"><i data-ic="mesa"></i></span>
+          <div class="marcadores" id="marc-dir" role="tablist" aria-label="Páginas do livro da mesa" aria-orientation="vertical">
+            <span class="fita" aria-hidden="true"></span>
+            <button type="button" class="marcador" role="tab" aria-selected="true" aria-controls="dir-corpo" data-acao="marcador-dir" data-pag-dir="grupo"><i data-ic="grupo"></i><span>Grupo</span><span class="marcador__conta" hidden aria-label="1 pedido">1</span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="dir-corpo" data-acao="marcador-dir" data-pag-dir="chat"><i data-ic="chat"></i><span>Chat</span><span class="marcador__conta" hidden aria-label="3 não lidas">3</span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="dir-corpo" data-acao="marcador-dir" data-pag-dir="cenas"><i data-ic="cenas"></i><span>Cenas</span></button>
+            <button type="button" class="marcador" role="tab" aria-selected="false" aria-controls="dir-corpo" data-acao="marcador-dir" data-pag-dir="mesa"><i data-ic="mesa"></i><span>Mesa</span></button>
+          </div>
+          <div class="lombada__pe">
+            <button type="button" class="lombada__recolher" aria-expanded="true" aria-label="Recolher a página" data-balao="Recolher a página" data-acao="recolher-dir"><i data-ic="recolherDir"></i></button>
+          </div>
+        </div>
+        <div class="pagina-trilho">
+          <div class="pagina">
+            <div class="pagina__topo" id="dir-topo"></div>
+            <div class="pagina__corpo" id="dir-corpo" role="tabpanel" aria-label="Página aberta"></div>
+            <div id="dir-pe"></div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="barra" id="barra" role="toolbar" aria-label="Ferramentas"></div>
+    </div>
+  </main>
+
+  <main class="jog-palco" id="jog" hidden></main>
+
+  <div class="balao" id="balao" role="tooltip" aria-hidden="true"></div>
+  <div class="torradas" id="torradas" aria-live="polite"></div>
+
+  <script src="js/icones.js"></script>
+  <script src="js/dados.js"></script>
+  <script src="js/cena.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
