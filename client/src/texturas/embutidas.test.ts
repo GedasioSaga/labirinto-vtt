@@ -13,7 +13,8 @@ import { describe, expect, it } from 'vitest'
 import { TEXTURAS_EMBUTIDAS } from './embutidas'
 import { pixelsDoLadrilho } from './ladrilhos'
 
-const LADO = 128
+/** Mede na metade da resolução de verdade de cada ladrilho (256 → 128, 512 → 256): o mesmo pixel em toda textura. */
+const LADO_PADRAO = 256
 
 interface Medidas {
   emendaX: number
@@ -76,14 +77,15 @@ function medir(d: Uint8ClampedArray, lado: number): Medidas {
 }
 
 describe('biblioteca inicial de texturas', () => {
-  it('tem as nove texturas pedidas, com id e nome únicos', () => {
+  it('tem as onze texturas pedidas (Bosque e Chão de floresta junto das árvores), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'])
+    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve'])
     expect(new Set(TEXTURAS_EMBUTIDAS.map((t) => t.nome)).size).toBe(ids.length)
   })
 
   for (const textura of TEXTURAS_EMBUTIDAS) {
     describe(textura.nome, () => {
+      const LADO = (textura.lado ?? LADO_PADRAO) / 2
       const pixels = pixelsDoLadrilho(textura.cor, LADO)
       const m = medir(pixels, LADO)
 
@@ -123,4 +125,54 @@ describe('biblioteca inicial de texturas', () => {
       })
     })
   }
+})
+
+/** Fração dos pixels (amostrados numa grade de 128×128) cujo vermelho fica abaixo de `limite`. */
+function fracaoComVermelhoAbaixo(cor: (u: number, v: number) => number, limite: number): number {
+  const n = 128
+  let conta = 0
+  for (let y = 0; y < n; y += 1) for (let x = 0; x < n; x += 1) if (((cor((x + 0.5) / n, (y + 0.5) / n) >> 16) & 255) < limite) conta += 1
+  return conta / (n * n)
+}
+
+function texturaDe(id: string) {
+  const t = TEXTURAS_EMBUTIDAS.find((x) => x.id === id)
+  if (t === undefined) throw new Error(`a textura ${id} sumiu da biblioteca`)
+  return t
+}
+
+describe('Bosque e Pântano (pedido de 10/10/2026)', () => {
+  it('Bosque: as copas da Floresta, espaçadas, com o capim aparecendo entre elas', () => {
+    // A copa tem o vermelho baixo das cores da Floresta (#177c5c...); o capim, não.
+    const copa = fracaoComVermelhoAbaixo(texturaDe('bosque').cor, 56)
+    expect(copa).toBeGreaterThan(0.15)
+    expect(copa).toBeLessThan(0.45)
+    // A Floresta continua fechada: quase tudo é copa.
+    expect(fracaoComVermelhoAbaixo(texturaDe('floresta').cor, 56)).toBeGreaterThan(0.9)
+  })
+
+  it('Pântano: água em parte do chão (nem lago nem campo), com período três vezes o de antes', () => {
+    // A água (#2f6b66, #3d7f77) tem o vermelho bem abaixo do mato (#5c8f71, #6f9673).
+    const agua = fracaoComVermelhoAbaixo(texturaDe('pantano').cor, 66)
+    expect(agua).toBeGreaterThan(0.2)
+    expect(agua).toBeLessThan(0.5)
+    expect(texturaDe('pantano').escala).toBeGreaterThanOrEqual(3 * 48)
+  })
+
+  it('Chão de floresta: o verde escuro do mapa (#1f3a1f), sem copa nem preto, e de contraste baixo', () => {
+    const lado = 128
+    const d = pixelsDoLadrilho(texturaDe('chao-de-floresta').cor, lado)
+    const m = medir(d, lado)
+    // Escuro, mas não preto: a luz média perto da do #1f3a1f (~0,19).
+    const luzMedia = Array.from({ length: lado * lado }, (_, k) => luzDe(d, k * 4)).reduce((a, b) => a + b, 0) / (lado * lado)
+    expect(luzMedia).toBeGreaterThan(0.15)
+    expect(luzMedia).toBeLessThan(0.26)
+    // Contraste baixo (pino, nome e ficha leem por cima): bem abaixo do limite das outras.
+    expect(m.desvioDaLuz).toBeLessThan(0.03)
+    expect(m.faixaDaLuz).toBeLessThan(0.12)
+  })
+
+  it('ladrilho grande só com mais pixels: nenhuma textura fica com menos de 3,5 pixels por px do protótipo', () => {
+    for (const t of TEXTURAS_EMBUTIDAS) expect((t.lado ?? LADO_PADRAO) / t.escala).toBeGreaterThanOrEqual(3.5)
+  })
 })

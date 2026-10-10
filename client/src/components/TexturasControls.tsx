@@ -26,6 +26,18 @@ const miniaturas = new Map<string, Uint8ClampedArray>()
 let filaDeMiniaturas: Promise<void> = Promise.resolve()
 /** 2×2 amostras por pixel: a borda da copa não serrilha no tamanho pequeno. */
 const AMOSTRAS_DA_MINIATURA = 2
+/**
+ * Quanto do mundo a miniatura mostra, no máximo (em px do protótipo do
+ * relevo, o metro da `escala`). As de ladrilho grande (Bosque, Pântano, Terra)
+ * mostram só um pedaço dele: inteiro, a árvore e a poça saíam miúdas ao lado
+ * das outras miniaturas.
+ */
+const ESCALA_DA_MINIATURA = 64
+
+function corDaMiniatura(textura: TexturaDoCatalogo): TexturaDoCatalogo['cor'] {
+  const parte = Math.min(1, ESCALA_DA_MINIATURA / textura.escala)
+  return parte === 1 ? textura.cor : (u, v) => textura.cor(u * parte, v * parte)
+}
 
 function miniaturaDe(textura: TexturaDoCatalogo): Promise<Uint8ClampedArray | null> {
   const chave = `${textura.origem}:${textura.id}`
@@ -36,7 +48,7 @@ function miniaturaDe(textura: TexturaDoCatalogo): Promise<Uint8ClampedArray | nu
   const vez = filaDeMiniaturas.then(async () => {
     const ja = miniaturas.get(chave)
     if (ja !== undefined) return ja
-    const dados = await pixelsEmFatias(textura.cor, LADO_DA_MINIATURA, () => false, FATIA_DO_LADRILHO_MS, AMOSTRAS_DA_MINIATURA)
+    const dados = await pixelsEmFatias(corDaMiniatura(textura), LADO_DA_MINIATURA, () => false, FATIA_DO_LADRILHO_MS, AMOSTRAS_DA_MINIATURA)
     // Cor de um pacote que lança: sem miniatura (o quadro fica vazio), e a fila segue.
     if (dados !== null) miniaturas.set(chave, dados)
     return dados

@@ -8,7 +8,7 @@ import { TexturasControls } from './TexturasControls'
 
 /*
  * Painel da ferramenta Texturas: o que o próximo gesto faz, a biblioteca (as
- * nove embutidas e as importadas), tamanho e força — e nenhum controle sem
+ * onze embutidas e as importadas), tamanho e força — e nenhum controle sem
  * efeito na tela: a borracha não tem textura, o balde não tem tamanho.
  */
 
@@ -52,7 +52,7 @@ describe('TexturasControls', () => {
   it('mostra a biblioteca inteira, com a escolhida marcada, e um só ponto de Tab no grupo', () => {
     montar()
     const opcoes = radios('Textura')
-    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Pinheiros', 'Pântano', 'Terra', 'Serra', 'Neve'])
+    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Serra', 'Neve'])
     expect(opcoes.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['Floresta'])
     expect(opcoes.filter((b) => b.tabIndex === 0)).toHaveLength(1)
   })

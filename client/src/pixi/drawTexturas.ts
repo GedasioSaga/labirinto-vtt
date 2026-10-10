@@ -179,9 +179,12 @@ async function ladrilhoPadrao(id: string, importada: TexturaImportada | undefine
   }
   const textura = texturaDoCatalogo(id)
   if (textura === null) return null
-  const pixels = await pixelsEmFatias(textura.cor, LADO_DO_LADRILHO, cancelado)
+  // O lado em pixels é o da textura (as de período longo têm ladrilho maior);
+  // a repetida acerta o tamanho no mundo pela largura do ladrilho (`montarPlano`).
+  const lado = textura.lado ?? LADO_DO_LADRILHO
+  const pixels = await pixelsEmFatias(textura.cor, lado, cancelado)
   if (pixels === null) return null
-  const tela = telaComPixels(pixels, LADO_DO_LADRILHO)
+  const tela = telaComPixels(pixels, lado)
   return tela === null ? null : texturaDoLadrilho(tela)
 }
 

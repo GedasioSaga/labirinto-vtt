@@ -44,6 +44,33 @@ export function passoSuave(a: number, b: number, t: number): number {
   return x * x * (3 - 2 * x)
 }
 
+/** Até que período a grade de gradientes é guardada (256² cantos = 1 MB). */
+const PERIODO_MAXIMO_DA_TABELA = 256
+const tabelas = new Map<number, Float64Array>()
+
+/**
+ * Os gradientes (cosseno, seno) de cada canto da grade de um período e
+ * semente, calculados uma vez: o ladrilho de 512 px pedia o mesmo seno
+ * milhões de vezes. Os números são os mesmos de calcular na hora (o ladrilho
+ * sai idêntico, bit a bit); `null` = período grande ou não inteiro, calcula na hora.
+ */
+function tabelaDeGradientes(periodo: number, semente: number): Float64Array | null {
+  if (!Number.isInteger(periodo) || periodo < 1 || periodo > PERIODO_MAXIMO_DA_TABELA || !Number.isInteger(semente)) return null
+  const chave = semente * (PERIODO_MAXIMO_DA_TABELA + 1) + periodo
+  const pronta = tabelas.get(chave)
+  if (pronta !== undefined) return pronta
+  const tabela = new Float64Array(periodo * periodo * 2)
+  for (let iy = 0; iy < periodo; iy += 1) {
+    for (let ix = 0; ix < periodo; ix += 1) {
+      const angulo = hash(ix, iy, semente) * Math.PI * 2
+      tabela[(iy * periodo + ix) * 2] = Math.cos(angulo)
+      tabela[(iy * periodo + ix) * 2 + 1] = Math.sin(angulo)
+    }
+  }
+  tabelas.set(chave, tabela)
+  return tabela
+}
+
 /**
  * Ruído de gradiente (Perlin) periódico: `x` e `y` em unidades da grade, que
  * se repete a cada `periodo` (inteiro). Sai em torno de [-0,7, 0,7].
@@ -53,8 +80,15 @@ export function gradiente(x: number, y: number, periodo: number, semente: number
   const y0 = Math.floor(y)
   const fx = x - x0
   const fy = y - y0
+  const tabela = tabelaDeGradientes(periodo, semente)
   const canto = (cx: number, cy: number, dx: number, dy: number): number => {
-    const angulo = hash(mod(cx, periodo), mod(cy, periodo), semente) * Math.PI * 2
+    const ix = mod(cx, periodo)
+    const iy = mod(cy, periodo)
+    if (tabela !== null) {
+      const k = (iy * periodo + ix) * 2
+      return tabela[k] * dx + tabela[k + 1] * dy
+    }
+    const angulo = hash(ix, iy, semente) * Math.PI * 2
     return Math.cos(angulo) * dx + Math.sin(angulo) * dy
   }
   const a = canto(x0, y0, fx, fy)
