@@ -1551,6 +1551,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
   4. **Fechamento (18 a 21):** 18 páginas Cena, Aventura e Acervo; 19 tela do jogador no celular; 20 janelas de configuração, com a seção "Mapa vivo" juntando Relevo, Nomes dos lugares e Nuvens; 21 polimento final em 1280, 1366 e 1920 px, movimento reduzido e contraste.
 - **As 3 features pedidas junto** entram nas partes que criam a ficha delas: D nas fatias 9 e 10, B na 14, C na 17. Se o usuário preferir ter B, C e D antes do redesign, dá para fazê-las na interface de hoje, separadas (cada uma ~1 a 2 horas); depois o redesign só muda o lugar dos controles delas.
 - **Decisões já tomadas** para o que o protótipo não mostra: as 7 do item anterior deste pedido (não precisa perguntar de novo).
+- > 10/10/2026 (depois da v0.4.25): "Pode aplicar o Redesign tambem." — RETOMADO: leva 1 (fatias 0 a 4) rodando; levas 2, 3 e 4 em seguida.
 - **Para retomar:** o usuário diz "pode continuar o redesign" (ou "faz só a leva 1", ou "faz só B, C e D"). O roteiro dos agentes está pronto e retoma da fatia 0.
 
 **Fora do redesign, pendente e independente**
