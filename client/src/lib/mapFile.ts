@@ -17,7 +17,23 @@ import {
   isPinKind,
   isPinPassage,
   isPinReadDistance,
+  minigamePadrao,
 } from './pins'
+import {
+  DIFICULDADES_DANCA,
+  FALA_MAX_LENGTH,
+  LETRAS_DANCA,
+  MINIGAME_PADRAO,
+  NPC_MAX_LENGTH,
+  PREMIO_TEXTO_MAX_LENGTH,
+  type ConsequenciaDanca,
+  type DificuldadeDanca,
+  type MinigameDoPino,
+  type MusicaDaDanca,
+  type NotaDaDanca,
+  type PremioDanca,
+  type TrilhaDanca,
+} from '../minigames/danca/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
 import { readPinColecao } from './colecao'
@@ -111,6 +127,135 @@ function semNotaDoMestre(pin: Pin): Pin {
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+const PREMIOS_DANCA: readonly PremioDanca[] = ['item', 'pista', 'bonus', 'nada']
+const CONSEQUENCIAS_DANCA: readonly ConsequenciaDanca[] = ['teste', 'barulho', 'espera', 'nada']
+const PERMITIDAS_DANCA: readonly ('escolha' | DificuldadeDanca)[] = ['escolha', ...DIFICULDADES_DANCA]
+const TRILHAS_DANCA: readonly TrilhaDanca[] = [0, 1, 2, 3]
+const SUBDIVISOES_DANCA: readonly NotaDaDanca['sub'][] = [4, 8, 16]
+/** A batida que abre o compasso: uma das quatro. */
+const FASES_DO_COMPASSO: readonly number[] = [0, 1, 2, 3]
+/**
+ * Teto do nome da música importada. `tipos.ts` não tem um e o nome é do
+ * arquivo do mestre: o corte só impede que um nome gigante estoure o painel.
+ * A consequência usa o teto do prêmio, que é o texto irmão dela no painel.
+ */
+const NOME_DA_MUSICA_MAX_LENGTH = 80
+/**
+ * A música importada mora na mídia da mesa: `midia:<64 hex minúsculos>.<ext>`
+ * de áudio. Mesma forma de `lib/midia.ts` (que hoje só conhece imagem): nada
+ * de caminho, URL ou texto solto chega ao jogador como endereço de música.
+ */
+const FORMA_DA_MUSICA_NA_MIDIA = /^midia:[0-9a-f]{64}\.(mp3|ogg|wav|m4a)$/
+
+function ehObjetoDoArquivo(valor: unknown): valor is object {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+function campoDoArquivo(objeto: object, chave: string): unknown {
+  return Reflect.get(objeto, chave)
+}
+
+function ehNumeroFinito(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isFinite(valor)
+}
+
+/** O valor, se for um da lista; `undefined` para o resto. */
+function umDaLista<T>(lista: readonly T[], valor: unknown): T | undefined {
+  return lista.find((item) => item === valor)
+}
+
+/** Texto aparado e no teto; o que não é texto volta o padrão. Em branco vale: o mestre pode apagar. */
+function textoDoArquivo(valor: unknown, teto: number, padrao: string): string {
+  return typeof valor === 'string' ? valor.trim().slice(0, teto) : padrao
+}
+
+/** Uma seta da coreografia; qualquer campo torto descarta a seta inteira. */
+function lerNotaDaDanca(valor: unknown): NotaDaDanca | undefined {
+  if (!ehObjetoDoArquivo(valor)) return undefined
+  const t = campoDoArquivo(valor, 't')
+  const len = campoDoArquivo(valor, 'len')
+  const lane = umDaLista(TRILHAS_DANCA, campoDoArquivo(valor, 'lane'))
+  const sub = umDaLista(SUBDIVISOES_DANCA, campoDoArquivo(valor, 'sub'))
+  if (!ehNumeroFinito(t) || t < 0 || !ehNumeroFinito(len) || len < 0 || lane === undefined || sub === undefined) return undefined
+  return { t, lane, len, sub }
+}
+
+/** A coreografia: lista obrigatória; a seta torta cai e as boas ficam. */
+function lerCoreografia(valor: unknown): NotaDaDanca[] | undefined {
+  if (!Array.isArray(valor)) return undefined
+  const notas: unknown[] = valor
+  return notas.flatMap((nota) => {
+    const lida = lerNotaDaDanca(nota)
+    return lida === undefined ? [] : [lida]
+  })
+}
+
+/**
+ * A música do desafio. Qualquer peça torta da importada (mídia fora da forma,
+ * ritmo que não é número, coreografia que não é lista) devolve a DEMO: na
+ * dúvida o desafio continua jogável, com a faixa que todo aparelho sintetiza.
+ */
+function lerMusicaDaDanca(valor: unknown): MusicaDaDanca {
+  const demo: MusicaDaDanca = { tipo: 'demo' }
+  if (!ehObjetoDoArquivo(valor) || campoDoArquivo(valor, 'tipo') !== 'arquivo') return demo
+  const midia = campoDoArquivo(valor, 'midia')
+  const bpm = campoDoArquivo(valor, 'bpm')
+  const primeiraBatida = campoDoArquivo(valor, 'primeiraBatida')
+  const duracaoS = campoDoArquivo(valor, 'duracaoS')
+  const fase4 = umDaLista(FASES_DO_COMPASSO, campoDoArquivo(valor, 'fase4'))
+  const coreografias = campoDoArquivo(valor, 'coreografias')
+  if (typeof midia !== 'string' || !FORMA_DA_MUSICA_NA_MIDIA.test(midia)) return demo
+  if (!ehNumeroFinito(bpm) || bpm <= 0 || !ehNumeroFinito(primeiraBatida) || primeiraBatida < 0) return demo
+  if (!ehNumeroFinito(duracaoS) || duracaoS <= 0 || fase4 === undefined || !ehObjetoDoArquivo(coreografias)) return demo
+  const diversao = lerCoreografia(campoDoArquivo(coreografias, 'diversao'))
+  const expert = lerCoreografia(campoDoArquivo(coreografias, 'expert'))
+  if (diversao === undefined || expert === undefined) return demo
+  return {
+    tipo: 'arquivo',
+    midia,
+    nome: textoDoArquivo(campoDoArquivo(valor, 'nome'), NOME_DA_MUSICA_MAX_LENGTH, ''),
+    bpm,
+    primeiraBatida,
+    fase4,
+    duracaoS,
+    coreografias: { diversao, expert },
+  }
+}
+
+/**
+ * MINIGAME do pino, como vem do disco. Campo a campo, como `readPinLock`: o
+ * torto cai no valor de `MINIGAME_PADRAO` e o resto do desafio fica. Só volta
+ * `undefined` (e o pino ganha o padrão inteiro) quando não há desafio nenhum
+ * — não é objeto, ou o jogo não é um que este app conheça (versão futura).
+ * Campo desconhecido não entra: o desafio é montado aqui, nunca copiado.
+ */
+export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined {
+  if (!ehObjetoDoArquivo(valor) || campoDoArquivo(valor, 'jogo') !== 'danca') return undefined
+  const padrao = MINIGAME_PADRAO
+  const premio = campoDoArquivo(valor, 'premio')
+  const consequencia = campoDoArquivo(valor, 'consequencia')
+  return {
+    jogo: 'danca',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), FALA_MAX_LENGTH, padrao.fala),
+    musica: lerMusicaDaDanca(campoDoArquivo(valor, 'musica')),
+    permitida: umDaLista(PERMITIDAS_DANCA, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
+    notaMin: umDaLista(LETRAS_DANCA, campoDoArquivo(valor, 'notaMin')) ?? padrao.notaMin,
+    premio: ehObjetoDoArquivo(premio)
+      ? {
+          tipo: umDaLista(PREMIOS_DANCA, campoDoArquivo(premio, 'tipo')) ?? padrao.premio.tipo,
+          texto: textoDoArquivo(campoDoArquivo(premio, 'texto'), PREMIO_TEXTO_MAX_LENGTH, padrao.premio.texto),
+        }
+      : { ...padrao.premio },
+    consequencia: ehObjetoDoArquivo(consequencia)
+      ? {
+          tipo: umDaLista(CONSEQUENCIAS_DANCA, campoDoArquivo(consequencia, 'tipo')) ?? padrao.consequencia.tipo,
+          texto: textoDoArquivo(campoDoArquivo(consequencia, 'texto'), PREMIO_TEXTO_MAX_LENGTH, padrao.consequencia.texto),
+        }
+      : { ...padrao.consequencia },
+  }
 }
 
 /**
@@ -596,6 +741,11 @@ function deserializeMapFields(json: string): MapData {
       // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
       // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
       portaLigada: readPinLeverDoor(p.portaLigada),
+      // MINIGAME: campo NOVO e OPCIONAL, só do pino de minigame — conferido
+      // campo a campo por `lerMinigameDoArquivo`. Pino de minigame sem desafio
+      // que preste ganha o padrão (sem ele não haveria o que propor); em outro
+      // tipo de pino o campo é sobra e não entra (o `...p` copiaria o cru).
+      minigame: p.kind === 'minigame' ?(lerMinigameDoArquivo(p.minigame) ?? minigamePadrao()) : undefined,
       // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
       // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
       // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`

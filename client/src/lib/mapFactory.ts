@@ -19,7 +19,7 @@ import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
-import { passageOf } from './pins'
+import { minigamePadrao, passageOf, sameMinigame } from './pins'
 import { sameLock } from './pinLock'
 import { closeIfLocked } from './doorLock'
 import { samePinPass } from './pinPass'
@@ -2050,10 +2050,13 @@ export function setItemSecret(map: MapData, kind: SecretKind, id: string, secret
 /**
  * Pino novo no ponto clicado, sem descrição e sem imagem — o painel completa
  * depois. `icon` é opcional e o padrão é a AUSÊNCIA: quem não escolhe símbolo
- * crava o pino de hoje, com o glifo de `kind`.
+ * crava o pino de hoje, com o glifo de `kind`. O MINIGAME nasce com o desafio
+ * do protótipo (cópia de `MINIGAME_PADRAO`): sem ele, o pino não teria o que
+ * propor ao jogador.
  */
 export function buildPin(id: string, point: Point, kind: PinKind, icon?: PinIcon): Pin {
-  const pin: Pin = { id, x: point.x, y: point.y, kind, description: '', image: null }
+  const base: Pin = { id, x: point.x, y: point.y, kind, description: '', image: null }
+  const pin = kind === 'minigame' ? { ...base, minigame: minigamePadrao() } : base
   return icon === undefined ? pin : { ...pin, icon }
 }
 
@@ -2069,7 +2072,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'minigame' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -2111,6 +2114,9 @@ export function updatePin(
     next.presoA === pin.presoA &&
     // Alavanca: desligar uma alavanca que nunca foi ligada não é mudança.
     next.portaLigada === pin.portaLigada &&
+    // Minigame: por valor — o painel grava um objeto novo a cada mudança, e
+    // gravar o mesmo desafio de novo não é mudança.
+    sameMinigame(next.minigame, pin.minigame) &&
     sameItem &&
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
     next.abreCom === pin.abreCom &&

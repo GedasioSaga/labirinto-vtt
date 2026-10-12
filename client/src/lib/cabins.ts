@@ -31,7 +31,7 @@ const CABIN_LABEL_MAX = 40
 
 /**
  * Parada DESTA cena: pino "!"/"?". O de viagem leva ao par dele, nunca a outro
- * pino da cena; a alavanca é um mecanismo de porta, não parada.
+ * pino da cena; a alavanca e o minigame abrem porta, não são parada.
  */
 function canBeCabin(pin: Pin): boolean {
   return pin.kind === 'exclamacao' || pin.kind === 'interrogacao'

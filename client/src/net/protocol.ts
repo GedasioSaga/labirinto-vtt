@@ -39,6 +39,7 @@ import {
   type PersonagemPlayerMessage,
 } from './protocoloDoPersonagem'
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
+import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 
 export type { OwnTokenElsewhere }
 
@@ -370,6 +371,10 @@ export type { OwnTokenElsewhere }
  * do jogador envolvido. A bolsa viaja no token do PRÓPRIO jogador
  * (`Token.moedas`); a de outro nunca sai (`lib/fogFilter.ts`). A oferta leva
  * o nome que o mestre escreveu e o que ESTE jogador carrega — nunca cena.
+ *
+ * O MINIGAME DE DANÇA é aditivo pelo mesmo critério (`protocoloDaDanca.ts`):
+ * o convite só aos escolhidos, os toques de cada um só aos OUTROS que dançam,
+ * e a consequência e a porta ligada nunca saem do mestre.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -1111,6 +1116,8 @@ export type PlayerMessage =
   | PersonagemPlayerMessage
   // LIVRO DE REGRAS: o pedido do livro do sistema, sob demanda (`protocoloDoLivro.ts`).
   | LivroPlayerMessage
+  // MINIGAME DE DANÇA: pronto, lote de toques e placar final (`protocoloDaDanca.ts`).
+  | DancaPlayerMessage
   | MyNotesSetMessage
 
 /**
@@ -1945,6 +1952,8 @@ export type HostMessage =
   | PersonagemHostMessage
   // LIVRO DE REGRAS: as partes do livro pedido, ou a recusa.
   | LivroHostMessage
+  // MINIGAME DE DANÇA: convite, estado, começar, pausa, colegas e desfecho (`protocoloDaDanca.ts`).
+  | DancaHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -3136,6 +3145,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parsePersonagemAjustar(value)
     case 'livro.pedir':
       return parseLivroPedir(value)
+    case 'danca.pronto':
+    case 'danca.toques':
+    case 'danca.fim':
+      return parseDancaPlayerMessage(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
     case 'pin.travel.cancel':

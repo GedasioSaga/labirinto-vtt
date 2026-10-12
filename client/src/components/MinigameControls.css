@@ -1,0 +1,177 @@
+/*
+ * PINO DE MINIGAME no painel do mestre (MinigameControls.tsx). Primitivas
+ * (`.lb-field`, `.lb-label`, `.lb-input`, `.lb-seg`, `.lb-btn`) vêm de
+ * main.css; aqui só o que é deste painel. A largura útil do rail é 232 px
+ * (264 menos 16 de cada lado): tudo foi medido para caber nela.
+ */
+
+.lb-minigame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+/* O jogo não se escolhe (só existe a dança): é texto, não campo. */
+.lb-minigame__jogo {
+  color: var(--lb-color-parchment);
+}
+
+/* Cada bloco do protótipo ("Música", "Quando passa"…) é um grupo de campos
+   com a legenda no mesmo rótulo pequeno do resto do painel. */
+.lb-minigame__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-minigame__grupo > legend {
+  padding: 0;
+  margin-bottom: var(--lb-space-2);
+}
+
+.lb-minigame__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+
+.lb-minigame__radio input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+}
+
+.lb-minigame__radio:has(input:disabled) {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+/* Do tamanho do texto, à esquerda, como no protótipo: não é a ação principal. */
+.lb-minigame__importar {
+  align-self: flex-start;
+}
+
+/* A linha de estado ("Lendo o arquivo…", o nome da música, o erro). Vazia,
+   não ocupa altura: o painel não pula quando ela aparece. */
+.lb-minigame__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.lb-minigame__nota:empty {
+  display: none;
+}
+
+.lb-minigame__nota--erro {
+  color: var(--lb-color-ember);
+}
+
+/* A grade da música importada: o poço fundo das listas do painel. */
+.lb-minigame__grade {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-minigame__medidas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+/* Rótulo em cima do valor, botões à direita: rótulo, valor e dois botões numa
+   linha só passariam dos 206 px úteis do poço ("1ª batida 0,924 s −10 ms +10 ms"). */
+.lb-minigame__medida {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+}
+
+.lb-minigame__medida dt {
+  grid-column: 1;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-minigame__medida dd {
+  margin: 0;
+}
+
+.lb-minigame__valor {
+  grid-column: 1;
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+
+.lb-minigame__botoes {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: var(--lb-space-1);
+}
+
+.lb-minigame__botoes .lb-btn {
+  min-width: 46px;
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Um embaixo do outro SEMPRE: lado a lado não cabem nos 206 px do poço, e
+   o rótulo muda tocando ("Parar", "Toque no tempo: 3 de 8") — com quebra
+   automática os botões pulariam de lugar no meio do uso. */
+.lb-minigame__previa {
+  display: grid;
+  gap: var(--lb-space-1);
+}
+
+/* Sem sala: o recado fica no lugar da dança ao vivo, separado do desafio
+   pela mesma linha (`.lb-danca`), não colado na nota da consequência. */
+.lb-minigame__sem-sala {
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* Aviso que pede ação (a música não deu setas): latão, a cor do que o mestre
+   precisa olhar, não o vermelho do erro — o desafio ainda abre. */
+.lb-minigame__aviso {
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+}
+
+/* "Jogador escolhe" e "Só Diversão" em três colunas de ~70 px: quebram em duas
+   linhas iguais em vez de cortar o texto. */
+.lb-minigame__seg .lb-seg__option {
+  justify-content: center;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* As letras: alvo de 24 px no mínimo, número de largura fixa. */
+.lb-minigame__seg--letras .lb-seg__option {
+  min-height: 30px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+}

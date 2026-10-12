@@ -263,6 +263,37 @@ async fn media_serve_so_a_imagem_da_pasta_da_sala() {
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 
+/// MÚSICA DO MINIGAME: o áudio no teto (15 MB) atravessa a sala inteiro, com o
+/// mime de áudio e os mesmos cabeçalhos da imagem; um byte a mais é 404.
+#[tokio::test]
+async fn media_serve_o_audio_ate_o_teto() {
+    let (addr, room, _sink) = start_server().await;
+    let raiz = std::env::temp_dir().join(format!("labirinto-sala-audio-{}", std::process::id()));
+    let pasta = raiz.join(media::PASTA_DE_MIDIA);
+    std::fs::create_dir_all(&pasta).unwrap();
+    let teto = usize::try_from(media::MIDIA_AUDIO_MAX_BYTES).unwrap();
+    let mut mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00".to_vec();
+    mp3.resize(teto, 0);
+    let id = format!("{}.mp3", media::hash_hex(&mp3));
+    std::fs::write(pasta.join(&id), &mp3).unwrap();
+    mp3.push(0);
+    let id_grande = format!("{}.mp3", media::hash_hex(&mp3));
+    std::fs::write(pasta.join(&id_grande), &mp3).unwrap();
+    room.set_media_dir(pasta.clone());
+
+    let resposta = http_get(addr, &format!("/media/{id}")).await;
+    let (cabecalho, _) = resposta.split_once("\r\n\r\n").unwrap();
+    let cabecalho = cabecalho.to_ascii_lowercase();
+    assert!(cabecalho.starts_with("http/1.1 200"), "{cabecalho}");
+    assert!(cabecalho.contains("content-type: audio/mpeg"));
+    assert!(cabecalho.contains(&format!("content-length: {teto}")), "{cabecalho}");
+    assert!(cabecalho.contains("x-content-type-options: nosniff"));
+    assert!(cabecalho.contains("cache-control: private, max-age=31536000, immutable"));
+    assert!(cabecalho.contains("cross-origin-resource-policy: same-origin"));
+    assert!(http_get(addr, &format!("/media/{id_grande}")).await.starts_with("HTTP/1.1 404"));
+    std::fs::remove_dir_all(&raiz).unwrap();
+}
+
 /// PACOTE DE ANIMAÇÕES: só o que o índice assinado lista sai pela sala, com o
 /// conteúdo conferido; todo o resto é o mesmo 404.
 #[tokio::test]

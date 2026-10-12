@@ -199,7 +199,9 @@ import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
-import { passageOf } from './lib/pins'
+import { passageOf, pinKindChangePatch } from './lib/pins'
+import { MINIGAME_PADRAO, type MinigameDoPino } from './minigames/danca/tipos'
+import type { DancaAoVivo } from './net/dancaNoHost'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
@@ -728,6 +730,8 @@ function App() {
   const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
   // Testes secretos e as respostas: só o mestre vê. O dono é a sessão do host.
   const [secretChecks, setSecretChecks] = useState<SecretCheckState[]>([])
+  // MINIGAME DE DANÇA: a dança como o painel do pino a lê (convite, prontos, placar, desfecho). O dono é a sessão do host.
+  const [danca, setDanca] = useState<DancaAoVivo | null>(null)
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -828,6 +832,7 @@ function App() {
         onPinCluesChange: setPinClues,
         onSecretRevealsChange: setSecretReveals,
         onSecretChecksChange: setSecretChecks,
+        onDancaChange: setDanca,
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
@@ -2413,6 +2418,36 @@ function App() {
   }
 
   /**
+   * MINIGAME aberto no painel: o desafio (gravado inteiro no pino, com
+   * desfazer), a porta que a dança abre (a mesma lista da alavanca) e, com a
+   * sala aberta, a dança ao vivo. Chama só quem está jogando e com a página
+   * aberta: a sessão recusaria o resto (`hostSession.convidarParaDanca`).
+   */
+  const minigamePanel = (pin: Pin) => ({
+    pinId: pin.id,
+    // Pino de minigame sem desafio gravado joga o do protótipo, como a sessão e o disco já fazem.
+    minigame: pin.minigame ?? MINIGAME_PADRAO,
+    onChange: (minigame: MinigameDoPino) => useMapStore.getState().updatePin(pin.id, { minigame }),
+    porta: {
+      value: pin.portaLigada ?? null,
+      options: leverDoorOptions(map),
+      onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
+    },
+    aoVivo:
+      room === null
+        ? null
+        : {
+            players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+            danca,
+            onConvidar: (playerIds: string[]) => hostBridgeRef.current?.convidarParaDanca(pin.id, playerIds) ?? null,
+            onComecar: () => hostBridgeRef.current?.comecarDanca() ?? false,
+            onPausar: () => hostBridgeRef.current?.pausarDanca() ?? false,
+            onRetomar: () => hostBridgeRef.current?.retomarDanca() ?? false,
+            onEncerrar: () => hostBridgeRef.current?.encerrarDanca() ?? false,
+          },
+  })
+
+  /**
    * O destino do pino de viagem aberto no painel: o que ele diz ("Leva a
    * Cripta", "Sem destino") e o que o "Leva a…" oferece. A ligação vive no
    * `adventureStore` — o painel só lê e pede.
@@ -3708,13 +3743,9 @@ function App() {
                   ? useMapStore
                       .getState()
                       // Deixar de ser de viagem também solta o pino da ficha: só a passagem anda com o navio.
-                      // Deixar de ser alavanca solta a porta ligada no mesmo passo do desfazer.
-                      .updatePin(
-                        selectedPin.id,
-                        kind === 'viagem'
-                          ? { kind, portaLigada: undefined }
-                          : { kind, destino: null, presoA: undefined, ...(kind === 'alavanca' ? {} : { portaLigada: undefined }) },
-                      )
+                      // Deixar de ser alavanca ou minigame solta a porta ligada no mesmo passo do
+                      // desfazer; entrar no minigame dá o desafio padrão, sair dele o apaga (`pinKindChangePatch`).
+                      .updatePin(selectedPin.id, pinKindChangePatch(selectedPin, kind))
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               // Só com a sala aberta: sem sala não há jogador para reunir.
@@ -3778,7 +3809,7 @@ function App() {
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:
-                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
+                selectedPin && (selectedPin.kind === 'exclamacao' || selectedPin.kind === 'interrogacao')
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
@@ -3788,7 +3819,7 @@ function App() {
                   : null,
               // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.
               loja:
-                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
+                selectedPin && (selectedPin.kind === 'exclamacao' || selectedPin.kind === 'interrogacao')
                   ? {
                       pinId: selectedPin.id,
                       loja: selectedPin.loja ?? null,
@@ -3806,10 +3837,12 @@ function App() {
                   : null,
               // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
               lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
+              // MINIGAME: o desafio de dança, a porta que ele abre e, com a sala aberta, a dança ao vivo.
+              desafio: selectedPin && selectedPin.kind === 'minigame' ? minigamePanel(selectedPin) : null,
               // CABINE CONTÍNUA: o "!"/"?" leva ao próximo pino da cena; o de
-              // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta; a alavanca não é parada.
+              // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta; alavanca e minigame não são parada.
               cabin:
-                selectedPin && selectedPin.soChegada !== true && selectedPin.kind !== 'alavanca'
+                selectedPin && selectedPin.soChegada !== true && selectedPin.kind !== 'alavanca' && selectedPin.kind !== 'minigame'
                   ? {
                       target: cabinOf(map, selectedPin.id),
                       targets:

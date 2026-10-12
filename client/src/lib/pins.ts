@@ -1,4 +1,5 @@
 import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
+import { MINIGAME_PADRAO, type MinigameDoPino, type MusicaDaDanca } from '../minigames/danca/tipos'
 
 /**
  * Regras do pino de ponto de interesse, compartilhadas pelo editor (render e
@@ -64,6 +65,9 @@ export const PIN_GLYPH: Record<PinKind, string> = {
   viagem: '→',
   // A alavanca também desenha símbolo (`PIN_LEVER_SYMBOL`), nunca este texto.
   alavanca: '/',
+  // O minigame desenha o controle (`PIN_CONTROLE_SYMBOL`); a nota é o texto
+  // das listas de texto puro (pistas do mestre, lugares do jogador).
+  minigame: '♪',
 }
 
 /** Nome de cada tipo na interface do mestre. */
@@ -72,10 +76,82 @@ export const PIN_KIND_LABELS: Record<PinKind, string> = {
   interrogacao: 'Interrogação (?)',
   viagem: 'Viagem',
   alavanca: 'Alavanca',
+  minigame: 'Minigame',
 }
 
-/** Ordem em que os tipos aparecem no painel: os dois de sempre, a viagem e a alavanca por último. */
-export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem', 'alavanca']
+/**
+ * Ordem em que os tipos aparecem no painel: os dois de sempre, a viagem, a
+ * alavanca e o minigame por último — o protótipo aprovado mostra os cinco
+ * nesta ordem.
+ */
+export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem', 'alavanca', 'minigame']
+
+/** O que `pinKindChangePatch` grava: o tipo novo e o que ele solta no mesmo passo do desfazer. */
+export type PinKindChangePatch = Pick<Pin, 'kind'> & Partial<Pick<Pin, 'destino' | 'presoA' | 'portaLigada' | 'minigame'>>
+
+/**
+ * O que muda no pino quando o mestre troca o tipo dele, num passo só do
+ * desfazer. Virar viagem solta a porta ligada e o desafio; sair da viagem
+ * solta o destino e a ficha (só a passagem anda com o navio). A porta ligada
+ * sobrevive entre alavanca e minigame — é a mesma porta, aberta de outro
+ * jeito. Entrar no minigame dá o desafio do protótipo; escolher de novo o
+ * tipo que o pino já tem não apaga o desafio que o mestre montou.
+ */
+export function pinKindChangePatch(pin: Pick<Pin, 'kind' | 'minigame'>, kind: PinKind): PinKindChangePatch {
+  if (kind === 'viagem') return { kind, portaLigada: undefined, minigame: undefined }
+  const minigame = kind !== 'minigame' ? undefined : pin.kind === 'minigame' && pin.minigame !== undefined ? pin.minigame : minigamePadrao()
+  const comPorta = kind === 'alavanca' || kind === 'minigame'
+  return { kind, destino: null, presoA: undefined, minigame, ...(comPorta ? {} : { portaLigada: undefined }) }
+}
+
+/**
+ * Cópia nova de `MINIGAME_PADRAO`: o pino não divide objeto com a constante
+ * nem com outro pino, então nada que mexa num deles alcança o outro.
+ */
+export function minigamePadrao(): MinigameDoPino {
+  return copiarMinigame(MINIGAME_PADRAO)
+}
+
+/** Cópia funda do desafio: quem guarda (o convite da dança, o pino novo) não divide objeto com o original. */
+export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
+  return {
+    ...minigame,
+    musica: copiarMusica(minigame.musica),
+    premio: { ...minigame.premio },
+    consequencia: { ...minigame.consequencia },
+  }
+}
+
+function copiarMusica(musica: MusicaDaDanca): MusicaDaDanca {
+  if (musica.tipo === 'demo') return { tipo: 'demo' }
+  return {
+    ...musica,
+    coreografias: {
+      diversao: musica.coreografias.diversao.map((nota) => ({ ...nota })),
+      expert: musica.coreografias.expert.map((nota) => ({ ...nota })),
+    },
+  }
+}
+
+/**
+ * Dois desafios iguais POR VALOR. O painel grava um objeto novo a cada
+ * mudança; comparar por referência empilharia no desfazer um passo que não
+ * muda nada (gravar o mesmo desafio de novo).
+ */
+export function sameMinigame(a: MinigameDoPino | undefined, b: MinigameDoPino | undefined): boolean {
+  return mesmoDado(a, b)
+}
+
+/** Igualdade profunda de dado JSON (objeto, lista, texto, número, booleano). */
+function mesmoDado(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, i) => mesmoDado(item, b[i]))
+  const chavesA = Object.keys(a).filter((chave) => Reflect.get(a, chave) !== undefined)
+  const chavesB = Object.keys(b).filter((chave) => Reflect.get(b, chave) !== undefined)
+  return chavesA.length === chavesB.length && chavesA.every((chave) => mesmoDado(Reflect.get(a, chave), Reflect.get(b, chave)))
+}
 
 /**
  * O tipo que o atalho `?` dá ao pino selecionado: alterna entre "!" e "?"
@@ -90,8 +166,8 @@ export function pinKindAfterShortcut(kind: PinKind): PinKind | null {
 }
 
 /**
- * O tipo desenha o ícone escolhido (`Pin.icon`)? A viagem desenha a passagem
- * e a alavanca desenha a própria alavanca (`drawPins.ts`, `PlayerPinCard`,
+ * O tipo desenha o ícone escolhido (`Pin.icon`)? A viagem desenha a passagem,
+ * a alavanca a própria alavanca e o minigame o controle (`drawPins.ts`, `PlayerPinCard`,
  * `pinSummary`) — neles a grade "Ícone no mapa" gravaria o campo e abriria um
  * passo no desfazer sem mudar nada na tela, então o painel não a mostra.
  */
@@ -474,6 +550,53 @@ export const PIN_LEVER_SYMBOL: PinSymbolShape = {
 }
 
 /**
+ * Símbolo do MINIGAME: o controle de videogame, com a cruz à esquerda e os
+ * dois botões à direita. Coordenadas do `<symbol id="pinoControle">` do
+ * protótipo aprovado (`docs/design/minigame-danca/prototipo/index.html`),
+ * divididas pelo meio-lado do símbolo (`0.64` do raio da cabeça, como em
+ * `pixi/drawPins.ts`): o pino do app é, ponto por ponto, o do protótipo.
+ * A cabeça é a de latão, como a da alavanca: o desafio é coisa da sala.
+ */
+export const PIN_CONTROLE_SYMBOL: PinSymbolShape = {
+  strokes: [
+    // O corpo do controle, com as duas alças descendo.
+    {
+      points: [
+        { x: -0.6, y: -0.42 },
+        { x: 0.6, y: -0.42 },
+        { x: 0.84, y: -0.22 },
+        { x: 0.98, y: 0.4 },
+        { x: 0.8, y: 0.62 },
+        { x: 0.5, y: 0.46 },
+        { x: -0.5, y: 0.46 },
+        { x: -0.8, y: 0.62 },
+        { x: -0.98, y: 0.4 },
+        { x: -0.84, y: -0.22 },
+      ],
+      closed: true,
+    },
+    // A cruz: o braço deitado e o de pé.
+    {
+      points: [
+        { x: -0.6, y: 0.02 },
+        { x: -0.22, y: 0.02 },
+      ],
+    },
+    {
+      points: [
+        { x: -0.41, y: -0.17 },
+        { x: -0.41, y: 0.21 },
+      ],
+    },
+  ],
+  // Os dois botões, em diagonal.
+  dots: [
+    { x: 0.3, y: 0.1, r: 0.13 },
+    { x: 0.56, y: -0.1, r: 0.13 },
+  ],
+}
+
+/**
  * Só data URL de imagem viaja para o jogador. Caminho de disco do mestre
  * (`C:\...`, `/home/...`, `file://...`) NUNCA sai: quem recorta o mapa
  * (`lib/fogFilter.ts`) apaga o campo quando esta função devolve `false`.
@@ -566,6 +689,8 @@ export function pinSummary(pin: Pin): string {
   if (pin.kind === 'viagem') return typeof pin.escadaId === 'string' && pin.escadaId !== '' ? 'Escada' : 'Pino de viagem'
   // A alavanca também desenha o próprio símbolo, nunca o escolhido.
   if (pin.kind === 'alavanca') return 'Alavanca'
+  // O minigame também: o controle no mapa, e o nome do jogo quando há um.
+  if (pin.kind === 'minigame') return pin.minigame?.jogo === 'danca' ? 'Dança' : 'Minigame'
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
 }

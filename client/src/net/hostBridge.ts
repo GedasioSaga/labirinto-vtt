@@ -112,6 +112,8 @@ import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
 import type { DiceRequest } from '../lib/dice'
 import { areaTriggerEntryLine } from '../lib/areaTriggers'
+import { giveNewItemChange } from '../lib/items'
+import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -283,6 +285,11 @@ export interface HostBridgeDeps {
   onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
   /** TESTES SECRETOS e as respostas, só para o painel do mestre. Sala fechada = `[]`. */
   onSecretChecksChange?: (checks: SecretCheckState[]) => void
+  /**
+   * MINIGAME DE DANÇA: a dança como o painel do mestre a lê (convite, quem
+   * está pronto, placar ao vivo, desfecho), a cada mudança. Sala fechada = `null`.
+   */
+  onDancaChange?: (danca: DancaAoVivo | null) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -569,6 +576,21 @@ export interface HostBridge {
   secretCheck(label: string, playerIds: readonly string[]): number | null
   /** "Encerrar" o teste: quem não respondeu tem o cartão fechado. */
   closeSecretCheck(checkId: string): void
+  /**
+   * MINIGAME DE DANÇA: chama estes jogadores para a dança do pino `pinId`.
+   * O resultado diz quantos foram chamados, ou por que não saiu; `null` com a
+   * sala fechada. O resto chega por `onDancaChange`.
+   */
+  convidarParaDanca(pinId: string, playerIds: readonly string[]): DancaConviteResultado | null
+  /** Todos os prontos começam juntos. `false` = ninguém pronto, fora de fase ou sala fechada. */
+  comecarDanca(): boolean
+  /** "Pausar para todos" / "Retomar para todos". */
+  pausarDanca(): boolean
+  retomarDanca(): boolean
+  /** "Encerrar para todos": sem desfecho, nada ganho nem perdido. */
+  encerrarDanca(): boolean
+  /** A dança de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
+  danca(): DancaAoVivo | null
   /**
    * ABALO POR DISTÂNCIA: a cada jogador em cena, o texto da faixa dele
    * (`hostSession.abalo`). Devolve quantos ouviram em cada faixa, ou `null` com
@@ -874,6 +896,38 @@ function dropText(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} e ${last} caíram`
 }
 
+/** "Ana" / "Ana e Bruno" / "Ana, Bruno e Caio". */
+function listaDeNomes(names: readonly string[]): string {
+  const last = names.at(-1)
+  if (last === undefined) return ''
+  return names.length === 1 ? last : `${names.slice(0, -1).join(', ')} e ${last}`
+}
+
+/**
+ * MINIGAME DE DANÇA: os avisos do mestre no desfecho. Bônus e consequência
+ * "no próximo teste" o app não aplica sozinho (a rolagem não sabe de
+ * atributo): o aviso diz para aplicar à mão. `semFicha`: quem ficou sem o
+ * item porque a ficha dele não está numa cena aberta.
+ */
+export function linhasDoDesfechoDaDanca(sinal: DancaDesfechoSinal, semFicha: readonly string[] = []): string[] {
+  const npc = sinal.npc.trim()
+  const quem = npc === '' ? 'Dança' : `Dança de ${npc}`
+  const todos = sinal.mesa.map((linha) => linha.nome)
+  const naoPassaram = sinal.mesa.filter((linha) => !linha.passou).map((linha) => linha.nome)
+  const linhas: string[] = []
+  if (sinal.todosPassaram) {
+    const onde = sinal.porta?.sceneName === undefined ? '' : ` em ${sinal.porta.sceneName}`
+    linhas.push(`${quem}: todos passaram${sinal.porta === undefined ? '' : ` — a porta abriu${onde}`}`)
+    if (sinal.premio.tipo === 'bonus') linhas.push(`Bônus para ${listaDeNomes(todos)}: ${sinal.premio.texto}. Aplique à mão no próximo teste.`)
+  } else {
+    linhas.push(`${quem}: ${listaDeNomes(naoPassaram)} não ${naoPassaram.length === 1 ? 'passou' : 'passaram'}`)
+    if (sinal.consequencia.tipo === 'teste') linhas.push(`Consequência para ${listaDeNomes(naoPassaram)}: ${sinal.consequencia.texto}. Aplique à mão.`)
+    if (sinal.consequencia.tipo === 'barulho') linhas.push('O barulho chamou atenção.')
+  }
+  if (semFicha.length > 0) linhas.push(`Não deu para entregar "${sinal.premio.texto}" a ${listaDeNomes(semFicha)}: a ficha não está numa cena aberta.`)
+  return linhas
+}
+
 /** O aviso do mestre quando alguém responde ao teste secreto: quem, qual teste e o resultado. */
 export function secretCheckAnswerText(playerName: string, label: string, result: number): string {
   return `${playerName} — ${label}: ${result}`
@@ -924,6 +978,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastPinCluesKey = '{}'
   let lastSecretRevealsKey = '{}'
   let lastSecretChecksKey = '[]'
+  let lastDancaKey = 'null'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -1282,6 +1337,67 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const persistChatLine = (result: HostResult) => {
     const appended = result.chatAppended
     if (appended !== undefined) persistChat(() => deps.appendChat?.(appended.sceneKey, appended.entry))
+  }
+
+  /** DANÇA: o painel do mestre só ouve quando algo mudou (o placar ao vivo muda a cada lote). */
+  const notifyDancaIfChanged = () => {
+    const danca = session === null ? null : session.danca()
+    const key = JSON.stringify(danca)
+    if (key === lastDancaKey) return
+    lastDancaKey = key
+    deps.onDancaChange?.(danca)
+  }
+
+  /** DANÇA: a ficha do jogador que recebe o item do prêmio — a primeira DELE (não emprestada) numa cena aberta. */
+  const fichaDoPremio = (playerId: string): { token: Token; sceneId?: string } | null => {
+    const player = session === null ? undefined : session.listPlayers().find((p) => p.playerId === playerId)
+    if (player === undefined) return null
+    const w = world()
+    for (const tokenId of ownTokenIdsOf(player)) {
+      for (const scene of [w.open, ...w.background]) {
+        const token = scene.map.tokens.find((t) => t.id === tokenId)
+        if (token === undefined) continue
+        return scene === w.open || scene.sceneId === null ? { token } : { token, sceneId: scene.sceneId }
+      }
+    }
+    return null
+  }
+
+  /**
+   * DANÇA: o desfecho no mapa do mestre. A dança é a chave: com todos
+   * passando, a porta ligada é destrancada e aberta (a alavanca, ao contrário,
+   * não mexe em trancada). O item vai para a mochila de cada um, fora do
+   * desfazer como o "Pegar" — foi a mesa, não o mestre. Os jogadores já
+   * receberam o resultado no `outbound`; o snapshot com a porta aberta vem atrás.
+   */
+  const aplicarDesfechoDaDanca = (sinal: DancaDesfechoSinal) => {
+    const porta = sinal.porta
+    if (porta !== undefined) {
+      if (deps.unlockAndOpenDoor !== undefined) deps.unlockAndOpenDoor(porta.wallId, porta.sceneId)
+      else if (porta.sceneId === undefined) deps.applyDoor(porta.wallId, true)
+      else deps.applyDoor(porta.wallId, true, porta.sceneId)
+    }
+    const semFicha: string[] = []
+    for (const item of sinal.itens) {
+      const alvo = fichaDoPremio(item.playerId)
+      const change = alvo === null ? null : giveNewItemChange(alvo.token, item.texto, item.itemId)
+      if (alvo === null || change === null || deps.applyItems === undefined) {
+        semFicha.push(item.nome)
+        continue
+      }
+      deps.applyItems(alvo.sceneId === undefined ? change : { ...change, sceneId: alvo.sceneId })
+    }
+    if (porta !== undefined || sinal.itens.length > semFicha.length) broadcastNow()
+    for (const linha of linhasDoDesfechoDaDanca(sinal, semFicha)) toastSink.push('info', linha)
+  }
+
+  /** DANÇA: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
+  const comandoDaDanca = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
+    if (session === null) return null
+    const result = run(session)
+    void dispatch(result)
+    notifyDancaIfChanged()
+    return result
   }
 
   const notifySecretChecksIfChanged = () => {
@@ -3015,6 +3131,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       toastSink.push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
       notifySecretChecksIfChanged()
     }
+    if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     if (result.waitsChanged === true) onWaitsChanged()
     if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
       // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.
@@ -3027,6 +3144,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     }
     notifyPlayersIfChanged()
+    notifyDancaIfChanged()
     if (wasJoined) return
     if (session.isTable(clientId)) announceTable()
     else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
@@ -3051,7 +3169,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
-    session.disconnect(clientId, at)
+    // DANÇA: quem dançava saiu; os colegas leem o estado novo e, se era o último, sai o desfecho.
+    const result = session.disconnect(clientId, at)
+    void dispatch(result)
+    if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
+    notifyDancaIfChanged()
     forgetScreen(clientId)
     if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
@@ -3247,6 +3369,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPinCluesIfChanged()
       notifySecretRevealsIfChanged()
       notifySecretChecksIfChanged()
+      notifyDancaIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -3568,6 +3691,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifySecretChecksIfChanged()
     },
 
+    convidarParaDanca(pinId, playerIds) {
+      const result = comandoDaDanca((room) => room.convidarParaDanca(pinId, playerIds, world()))
+      return result === null ? null : result.convite
+    },
+
+    comecarDanca() {
+      return comandoDaDanca((room) => room.comecarDanca())?.comecou === true
+    },
+
+    pausarDanca() {
+      return comandoDaDanca((room) => room.pausarDanca())?.ok === true
+    },
+
+    retomarDanca() {
+      return comandoDaDanca((room) => room.retomarDanca())?.ok === true
+    },
+
+    encerrarDanca() {
+      return comandoDaDanca((room) => room.encerrarDanca())?.ok === true
+    },
+
+    danca() {
+      return session === null ? null : session.danca()
+    },
+
     abalo(origem, textos, vizinhas) {
       if (session === null) return null
       const result = session.abalo(origem, textos, vizinhas, world())
@@ -3605,6 +3753,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
+      notifyDancaIfChanged()
       // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.
       armLoanTimer()
       pruneTravelToasts()

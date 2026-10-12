@@ -1,5 +1,6 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
+import type { MinigameDoPino } from '../minigames/danca/tipos'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -457,11 +458,12 @@ export interface NoPiso {
 
 /**
  * "!" (aqui tem algo), "?" (investigue aqui), o pino de VIAGEM (a passagem
- * que leva de uma cena da aventura para outra) e a ALAVANCA (abre ou fecha a
- * porta ligada em `Pin.portaLigada`). Os dois últimos são aditivos — pino
- * gravado antes deles continua sendo "!" ou "?".
+ * que leva de uma cena da aventura para outra), a ALAVANCA (abre ou fecha a
+ * porta ligada em `Pin.portaLigada`) e o MINIGAME (o desafio de dança gravado
+ * em `Pin.minigame`; se todos passarem, abre a mesma `Pin.portaLigada`). Os
+ * três últimos são aditivos — pino gravado antes deles continua sendo "!" ou "?".
  */
-export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem' | 'alavanca'
+export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem' | 'alavanca' | 'minigame'
 
 /**
  * Para onde um pino de viagem leva: a cena de destino e o pino PAR dela, que é
@@ -910,13 +912,22 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   chave?: string
   /**
-   * Só da ALAVANCA: o id da parede-porta DESTE mapa que ela abre ou fecha —
-   * pode ser de outra sala (`lib/lever.ts`). Ausente = alavanca solta, que não
-   * move nada; porta apagada depois vale o mesmo. NUNCA sai no recorte do
-   * jogador (`lib/fogFilter.ts`): a porta pode estar atrás da névoa, e o id
-   * dela diria que ela existe. Sem migração: mapa antigo não tem alavanca.
+   * Só da ALAVANCA ou do MINIGAME: o id da parede-porta DESTE mapa que ela
+   * abre ou fecha (a alavanca) ou que abre quando todos passam no desafio (o
+   * minigame) — pode ser de outra sala (`lib/lever.ts`). Ausente = pino solto,
+   * que não move nada; porta apagada depois vale o mesmo. NUNCA sai no recorte
+   * do jogador (`lib/fogFilter.ts`): a porta pode estar atrás da névoa, e o id
+   * dela diria que ela existe. Sem migração: mapa antigo não tem nenhum dos dois.
    */
   portaLigada?: string
+  /**
+   * Só do MINIGAME: o desafio inteiro (NPC, fala, música, nota mínima, prêmio
+   * e consequência). Lido campo a campo do disco (`lib/mapFile.ts`); pino de
+   * minigame sem ele recebe `MINIGAME_PADRAO`. NUNCA sai no recorte do jogador
+   * (`lib/fogFilter.ts`): o prêmio e a consequência são do mestre, e o convite
+   * leva aos chamados só o que eles precisam. Sem migração: mapa antigo não tem.
+   */
+  minigame?: MinigameDoPino
   /**
    * FECHADURA COM SEGREDO, de qualquer tipo de pino. Fechada, o cartão do
    * jogador pede a combinação e o pino de viagem não deixa passar. NUNCA sai no

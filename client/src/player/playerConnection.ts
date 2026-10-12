@@ -160,6 +160,9 @@ import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas
 import { tokenCardName, type TokenActionNotice } from './tokenCard'
 import { ESPERA_ONDE_MAX_LENGTH, isWaitMinutes, type FimDaEspera } from '../lib/encontroMarcado'
 import { lembrarCena, type CenaLembrada } from './meuCaderno'
+import type { DificuldadeDanca } from '../minigames/danca/tipos'
+import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type DancaPlacarAoVivo, type DancaPlacarFinal, type DancaPlayerMessage } from '../net/protocoloDaDanca'
+import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -546,6 +549,12 @@ export interface PlayerState {
    * em que chegou. `label` é texto puro, como o recado.
    */
   secretCheck?: { id: string; label: string }
+  /**
+   * MINIGAME DE DANÇA: o convite que o mestre mandou a ESTE jogador e tudo o
+   * que chegou depois (estado, começar, pausa, colegas, desfecho), como estado
+   * puro (`player/estadoDaDanca.ts`). Sai com `fecharDanca`, ou com a sala.
+   */
+  danca?: DancaDoJogador
   /**
    * O que houve com o cartão do teste secreto que acabou de fechar: `sent` (a
    * resposta saiu para o mestre) ou `closed` (o mestre encerrou antes). Some
@@ -1314,6 +1323,22 @@ export interface PlayerConnection {
    * com o socket fechado.
    */
   answerSecretCheck(result: number): boolean
+  /**
+   * DANÇA: "Pronto" com a dificuldade escolhida. `false` (nada sai) sem
+   * convite aberto, com a dificuldade que o mestre não permitiu ou com o
+   * socket fechado. Mandar de novo troca a escolha enquanto o convite está aberto.
+   */
+  dancaPronto(dificuldade: DificuldadeDanca): boolean
+  /**
+   * DANÇA: um lote de toques julgados e o placar ao vivo (a tela chama a cada
+   * `DANCA_TOQUES_INTERVALO_MS`). `false` fora da música, depois do fim, com
+   * lote torto (mais de `DANCA_EVENTOS_MAX`, número fora da faixa) ou socket fechado.
+   */
+  dancaToques(lote: { eventos: DancaEvento[]; placar: DancaPlacarAoVivo }): boolean
+  /** DANÇA: o placar final. Uma vez só por dança; depois dele nenhum lote sai. */
+  dancaFim(placar: DancaPlacarFinal): boolean
+  /** DANÇA: a tela fechou o resultado (ou o aviso de encerrada): o estado da dança sai. */
+  fecharDanca(): void
   /**
    * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": pede ao mestre para ver a
    * cena da ficha `tokenId`. O mapa novo vem no snapshot da resposta. `false`
@@ -2896,6 +2921,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     current?.close()
   }
 
+  /**
+   * DANÇA: o lote e o placar passam pela MESMA conferência do host antes de
+   * sair — o que ele recusaria calado não gasta a cota de mensagens do servidor.
+   */
+  function enviarDanca(message: DancaPlayerMessage): boolean {
+    const conferida = parseDancaPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
   function send(message: PlayerMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
     if (isTable && message.type !== 'join' && message.type !== 'ping') return false
@@ -3963,6 +3997,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ note: { id: reply.id, text: reply.text }, call: undefined })
         return
       }
+      case 'danca.convite':
+      case 'danca.estado':
+      case 'danca.comecar':
+      case 'danca.pausa':
+      case 'danca.retoma':
+      case 'danca.encerra':
+      case 'danca.colegas':
+      case 'danca.desfecho': {
+        // A tela da mesa só olha: a dança é de quem o mestre chamou.
+        if (isTable) return
+        const msg = parseDancaHostMessage(data)
+        if (msg === null) return
+        const danca = receberDanca(state.danca, msg, performance.now())
+        if (danca !== state.danca) setState({ danca })
+        return
+      }
       case 'secret.check': {
         // Mesma regra do recado: só com o mapa na tela há onde mostrar o cartão.
         if (state.status !== 'playing') return
@@ -4251,7 +4301,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'kicked':
         writeResume(storage, null)
         clearReconnectTimers()
-        setState({ status: 'kicked', reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -4284,7 +4334,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -4301,7 +4351,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -4313,7 +4363,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'kicked') {
           writeResume(storage, null)
           clearReconnectTimers()
-          setState({ status: 'kicked', reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -4997,6 +5047,34 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (option === undefined || !send({ type: 'seat.claim', tokenId })) return false
       setState({ seatClaim: { id: nextNoticeId++, phase: 'sent', tokenId, name: option.name } })
       return true
+    },
+
+    dancaPronto(dificuldade) {
+      const danca = state.danca
+      if (!dancaAceitaPronto(danca)) return false
+      // "Só Expert" do mestre: o host recusaria calado, e a tela ficaria esperando um Pronto que não valeu.
+      const permitida = danca.convite.permitida
+      if (permitida !== 'escolha' && permitida !== dificuldade) return false
+      if (!send({ type: 'danca.pronto', sessao: danca.sessao, dificuldade })) return false
+      setState({ danca: { ...danca, pronto: dificuldade } })
+      return true
+    },
+
+    dancaToques(lote) {
+      const danca = state.danca
+      if (!dancaNaPista(danca)) return false
+      return enviarDanca({ type: 'danca.toques', sessao: danca.sessao, eventos: lote.eventos, placar: lote.placar })
+    },
+
+    dancaFim(placar) {
+      const danca = state.danca
+      if (!dancaNaPista(danca) || !enviarDanca({ type: 'danca.fim', sessao: danca.sessao, placar })) return false
+      setState({ danca: { ...danca, fimEnviado: true } })
+      return true
+    },
+
+    fecharDanca() {
+      if (state.danca !== undefined) setState({ danca: undefined })
     },
 
     answerSecretCheck(result) {

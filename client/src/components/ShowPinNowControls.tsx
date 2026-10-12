@@ -38,7 +38,7 @@ export function showPinNowCandidates(members: readonly PartyMember[], openSceneI
 /**
  * O painel do pino oferece "Mostrar agora a…": só com a sala aberta (sem sala
  * não há tela de jogador), só no "!" e no "?", e nunca oculto para jogadores
- * — viagem, alavanca e oculto o host não mostra (`pinCardForPlayer`), e o
+ * — viagem, alavanca, minigame e oculto o host não mostra (`pinCardForPlayer`), e o
  * botão só ensinaria o mestre a errar.
  */
 export function canShowPinNow(pin: Pick<Pin, 'kind' | 'secret'>, roomOpen: boolean): boolean {

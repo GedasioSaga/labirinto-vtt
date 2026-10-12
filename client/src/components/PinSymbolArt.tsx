@@ -1,5 +1,5 @@
 import type { PinIcon } from '../types/map'
-import { PIN_LEVER_SYMBOL, PIN_SYMBOLS, PIN_TRAVEL_SYMBOL, type PinSymbolPoint, type PinSymbolShape } from '../lib/pins'
+import { PIN_CONTROLE_SYMBOL, PIN_LEVER_SYMBOL, PIN_SYMBOLS, PIN_TRAVEL_SYMBOL, type PinSymbolPoint, type PinSymbolShape } from '../lib/pins'
 
 interface PinShapeArtProps {
   shape: PinSymbolShape
@@ -85,4 +85,9 @@ export function PinTravelArt({ size = 18 }: { size?: number }) {
 /** A alavanca: base, haste inclinada e punho. */
 export function PinLeverArt({ size = 18 }: { size?: number }) {
   return <PinShapeArt shape={PIN_LEVER_SYMBOL} size={size} />
+}
+
+/** O minigame: o controle de videogame, com a cruz e os dois botões. */
+export function PinControleArt({ size = 18 }: { size?: number }) {
+  return <PinShapeArt shape={PIN_CONTROLE_SYMBOL} size={size} />
 }

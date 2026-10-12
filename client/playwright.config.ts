@@ -28,6 +28,16 @@ const URL_BASE = `http://localhost:${PORTA}`
 const TEMP = process.env.TEMP || process.env.TMP || process.env.TMPDIR || '/tmp'
 const ARTEFATOS_AVULSOS = `${TEMP.replace(/[\\/]+$/, '')}/portao-labirinto/artefatos/avulso-${Date.now()}`
 
+// NAVEGADOR DA MÁQUINA (12/10/2026). O `channel: 'chromium'` lá embaixo pede o
+// Chromium da revisão deste Playwright (chromium-1234), e a máquina pode ter só
+// outra revisão em %LOCALAPPDATA%\ms-playwright — baixar a certa pede
+// autorização. `LAB_NAVEGADOR` aponta o que já existe: o caminho de um
+// chrome.exe (ex.: ...\ms-playwright\chromium-1243\chrome-win64\chrome.exe) ou
+// `msedge` (o Edge instalado). Vazio = o de sempre, sem mudar nada para ninguém.
+const NAVEGADOR = process.env.LAB_NAVEGADOR ?? ''
+const CANAL = NAVEGADOR === '' ? 'chromium' : NAVEGADOR === 'msedge' ? 'msedge' : undefined
+const EXECUTAVEL = NAVEGADOR === '' || NAVEGADOR === 'msedge' ? {} : { executablePath: NAVEGADOR }
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -65,10 +75,10 @@ export default defineConfig({
     // "SwiftShader Device (Subzero)" no padrão). `LAB_SEM_GPU=1` volta ao padrão
     // antigo, para máquina sem GPU utilizável.
     ...(process.env.LAB_SEM_GPU === '1'
-      ? {}
+      ? { launchOptions: EXECUTAVEL }
       : {
-          channel: 'chromium',
-          launchOptions: { args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] },
+          ...(CANAL === undefined ? {} : { channel: CANAL }),
+          launchOptions: { ...EXECUTAVEL, args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] },
         }),
   },
   webServer: {

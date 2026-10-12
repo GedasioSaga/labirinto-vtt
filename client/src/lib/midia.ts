@@ -12,6 +12,9 @@ import { isTokenPhotoData } from './tokenPhoto'
  * (`/media/<id>`, servida pelo Rust em `desktop/src-tauri/src/net/media.rs`),
  * o mestre pela ponte de arquivos do Tauri. A imagem embutida de antes
  * (`data:image/...`) continua valendo onde já valia: quem lê aceita as duas.
+ *
+ * A música importada do minigame usa a mesma pasta e a mesma rota, com
+ * contrato próprio (`idDoAudio`, `ehRefDeAudio`, `MIDIA_AUDIO_MAX_BYTES`).
  */
 
 /** Como a referência começa no dado gravado e nas mensagens. */
@@ -72,6 +75,62 @@ export async function hashHex(bytes: Uint8Array): Promise<string> {
 /** O id do conteúdo; `null` quando os bytes não são de imagem aceita. */
 export async function idDosBytes(bytes: Uint8Array): Promise<string | null> {
   const tipo = tipoDosBytes(bytes)
+  return tipo === null ? null : `${await hashHex(bytes)}.${tipo}`
+}
+
+/*
+ * ÁUDIO DA MESA — a música importada do minigame de dança, servida pela MESMA
+ * rota (`/media/<id>`) e gravada na MESMA pasta, mas com contrato separado do
+ * da imagem: `idDosBytes`, `ehIdDeMidia` e `ehRefDeMidia` continuam só de
+ * imagem, para que a ficha e a mochila nunca aceitem um mp3 no lugar do
+ * retrato. O Rust confere o par (extensão do id, assinatura dos bytes) e o
+ * teto de cada tipo (`TipoDeMidia::teto`).
+ */
+
+/** Teto de um áudio gravado: o mesmo do Rust (`MIDIA_AUDIO_MAX_BYTES`). */
+export const MIDIA_AUDIO_MAX_BYTES = 15 * 1024 * 1024
+
+export type TipoDeAudio = 'mp3' | 'ogg' | 'wav' | 'm4a'
+
+/** `<64 hex minúsculos>.<mp3|ogg|wav|m4a>` — a forma de áudio que o Rust aceita. */
+const FORMA_DO_ID_DE_AUDIO = /^[0-9a-f]{64}\.(mp3|ogg|wav|m4a)$/
+
+/** Os 3 bits altos do 2º byte de um quadro MPEG (com o `FF` antes, 11 bits de sincronia). */
+const BITS_ALTOS_DA_SINCRONIA = 0b1110_0000
+
+export function ehIdDeAudio(value: unknown): value is string {
+  return typeof value === 'string' && FORMA_DO_ID_DE_AUDIO.test(value)
+}
+
+/** `midia:<id>` com id de áudio na forma exata. */
+export function ehRefDeAudio(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith(PREFIXO_DA_REF) && ehIdDeAudio(value.slice(PREFIXO_DA_REF.length))
+}
+
+/** O id de uma referência de áudio válida; `null` para o resto (inclusive a de imagem). */
+export function idDaRefDeAudio(ref: unknown): string | null {
+  return ehRefDeAudio(ref) ? ref.slice(PREFIXO_DA_REF.length) : null
+}
+
+/** O tipo do áudio pela ASSINATURA dos bytes — a mesma regra do Rust (`tipo_dos_bytes`). */
+export function tipoDoAudio(bytes: Uint8Array): TipoDeAudio | null {
+  const comeca = (assinatura: readonly number[], desde = 0): boolean => assinatura.every((byte, i) => bytes[desde + i] === byte)
+  // RIFF....WAVE (o WebP também é RIFF, mas com WEBP no byte 8)
+  if (comeca([0x52, 0x49, 0x46, 0x46]) && comeca([0x57, 0x41, 0x56, 0x45], 8)) return 'wav'
+  // OggS
+  if (comeca([0x4f, 0x67, 0x67, 0x53])) return 'ogg'
+  // ....ftyp: a primeira caixa do MP4, com o tamanho dela nos 4 bytes antes
+  if (comeca([0x66, 0x74, 0x79, 0x70], 4)) return 'm4a'
+  // ID3, ou quadro MPEG direto. O JPEG (`FF D8`) começa com FF mas não tem os 3 bits altos.
+  if (comeca([0x49, 0x44, 0x33])) return 'mp3'
+  const segundo = bytes[1]
+  if (bytes[0] === 0xff && segundo !== undefined && (segundo & BITS_ALTOS_DA_SINCRONIA) === BITS_ALTOS_DA_SINCRONIA) return 'mp3'
+  return null
+}
+
+/** O id do áudio; `null` quando os bytes não são de áudio aceito (imagem inclusive). */
+export async function idDoAudio(bytes: Uint8Array): Promise<string | null> {
+  const tipo = tipoDoAudio(bytes)
   return tipo === null ? null : `${await hashHex(bytes)}.${tipo}`
 }
 

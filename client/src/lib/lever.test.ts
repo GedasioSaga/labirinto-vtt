@@ -35,7 +35,7 @@ function mapa(walls: Wall[], pins: Pin[] = [alavanca()], regions: Region[] = [])
 describe('tipo alavanca', () => {
   it('é um tipo de pino reconhecido, depois dos três de sempre', () => {
     expect(isPinKind('alavanca')).toBe(true)
-    expect(PIN_KIND_ORDER).toEqual(['exclamacao', 'interrogacao', 'viagem', 'alavanca'])
+    expect(PIN_KIND_ORDER.slice(0, 4)).toEqual(['exclamacao', 'interrogacao', 'viagem', 'alavanca'])
   })
 
   it('o resumo do mestre chama a alavanca pelo nome, não por um glifo', () => {
@@ -60,6 +60,13 @@ describe('linkedDoorOf', () => {
     expect(linkedDoorOf(mapa([parede('porta-cripta')]), alavanca())).toBeNull()
     expect(linkedDoorOf(mapa([]), alavanca())).toBeNull()
     expect(linkedDoorOf(mapa([porta('porta-cripta')]), alavanca({ kind: 'exclamacao' }))).toBeNull()
+  })
+
+  it('o pino de MINIGAME também acha a porta ligada, mas o "Acionar" da alavanca não a move', () => {
+    const minigame = alavanca({ kind: 'minigame' })
+    expect(linkedDoorOf(mapa([porta('porta-cripta')]), minigame)?.id).toBe('porta-cripta')
+    const comMinigame = mapa([porta('porta-cripta')], [minigame])
+    expect(pullLever(comMinigame, minigame.id)).toBe(comMinigame)
   })
 })
 

@@ -215,8 +215,8 @@ describe('ícone do ponto de interesse', () => {
     expect(seis).not.toContain(JSON.stringify(PIN_TRAVEL_SYMBOL))
   })
 
-  it('o tipo viagem é o terceiro, ao lado de "!" e "?" (a alavanca vem depois), e tipo desconhecido não passa pela guarda', () => {
-    expect(PIN_KIND_ORDER).toEqual(['exclamacao', 'interrogacao', 'viagem', 'alavanca'])
+  it('o tipo viagem é o terceiro, ao lado de "!" e "?" (a alavanca e o minigame vêm depois), e tipo desconhecido não passa pela guarda', () => {
+    expect(PIN_KIND_ORDER).toEqual(['exclamacao', 'interrogacao', 'viagem', 'alavanca', 'minigame'])
     expect(isPinKind('viagem')).toBe(true)
     expect(isPinKind('portal')).toBe(false)
     expect(isPinKind(undefined)).toBe(false)

@@ -46,6 +46,7 @@ export function rotuloNaEscolha(pin: Pin, stairs: readonly Stair[]): string {
   if (primeiraLinha !== '') return cortarEmPalavra(primeiraLinha)
   if (pin.kind === 'viagem') return 'Passagem'
   if (pin.kind === 'alavanca') return 'Alavanca'
+  if (pin.kind === 'minigame') return 'Minigame'
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon]
   return 'Ponto de interesse'
 }

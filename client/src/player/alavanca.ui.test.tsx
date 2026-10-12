@@ -132,6 +132,7 @@ describe('telas da alavanca', () => {
     act(() => root.render(<PinControls {...painel(null)} />))
     const radios = [...container.querySelectorAll('[role="radio"]')].map((r) => r.textContent)
     expect(radios).toContain('Alavanca')
-    expect(radios.length).toBe(4)
+    // "!", "?", viagem, alavanca e minigame.
+    expect(radios.length).toBe(5)
   })
 })

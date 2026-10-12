@@ -59,7 +59,7 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
 /**
  * O que o JOGADOR recebe da banca: cada mercadoria com nome escrito, só com
  * id, nome, preço e estoque. Mercadoria sem nome (o mestre ainda escrevendo)
- * não sai; pino de viagem e alavanca não são banca. `null` = nada a mostrar.
+ * não sai; pino de viagem, alavanca e minigame não são banca. `null` = nada a mostrar.
  *
  * Quem chama responde por o jogador PODER ver o pino: o recorte da névoa
  * (`lib/fogFilter.ts`) só chama isto para pino que já passou. O cartão do
@@ -67,7 +67,7 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
  * é conferido campo a campo, e item torto não pode quebrar a tela.
  */
 export function lojaParaJogador(pin: Pick<Pin, 'kind' | 'loja'>): LojaItem[] | null {
-  if (pin.kind === 'viagem' || pin.kind === 'alavanca') return null
+  if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.kind === 'minigame') return null
   const itens = (lerLojaDoArquivo(pin.loja) ?? []).filter((item) => item.nome.trim() !== '')
   return itens.length === 0 ? null : itens
 }

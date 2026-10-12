@@ -30,12 +30,12 @@ export function cleanItemName(raw: string): string {
 
 /**
  * O item do pino, quando ele é pegável: nome não vazio e pino "!"/"?" (a
- * passagem e a alavanca não vão para a mochila). `null` = pino que só se lê.
+ * passagem, a alavanca e o minigame não vão para a mochila). `null` = pino que só se lê.
  * Sai numa cópia limpa, com os dados do acervo que estiverem bons
  * (`readPinItem`): o host decide e grava a partir dela, nunca do objeto cru.
  */
 export function itemOfPin(pin: Pick<Pin, 'kind' | 'item'>): PinItem | null {
-  if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.item === undefined) return null
+  if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.kind === 'minigame' || pin.item === undefined) return null
   return readPinItem(pin.item) ?? null
 }
 

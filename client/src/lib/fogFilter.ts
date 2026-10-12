@@ -4455,6 +4455,9 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  *   atrás da névoa, e o id dela diria que ela existe. O jogador recebe o tipo
  *   `alavanca` (o cartão oferece "Puxar") e vê a porta mexer só se ela estiver
  *   no recorte dele.
+ * - `minigame` NUNCA, nem a `portaLigada` dele: o tipo `minigame` vai (o
+ *   cartão avisa que há um desafio), mas NPC, música, prêmio e consequência
+ *   são do mestre — chegam só no convite, aos jogadores chamados.
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
  * - `nome` (o "Nome do local", título do painel da revelação) VAI só junto
@@ -4885,6 +4888,7 @@ export function marcarTrancasParaJogador(
  * - pino de viagem (e a chegada oculta): o cartão de passagem é do mapa, e
  *   mostrá-lo longe ofereceria passar por onde o jogador não está;
  * - alavanca: o cartão dela é o botão de puxar, que só vale de perto.
+ * - minigame: quem chama para o desafio é o mestre, pelo convite.
  *
  * LISTA DO QUE VAI, como em `pinForPlayer`: campo desconhecido não atravessa —
  * nem item, loja, fechadura ou coleção. O nome do local também não: o cartão

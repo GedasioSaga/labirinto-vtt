@@ -1,0 +1,55 @@
+{
+  "erros": [],
+  "rolagem": {
+    "convite-1440": {
+      "pagina": false,
+      "largas": []
+    },
+    "pista-1440": {
+      "pagina": false,
+      "largas": []
+    },
+    "pista-1024": {
+      "pagina": false,
+      "largas": []
+    },
+    "resultado-1440": {
+      "pagina": false,
+      "largas": []
+    },
+    "resultado-1024": {
+      "pagina": false,
+      "largas": []
+    },
+    "convite-390": {
+      "pagina": false,
+      "largas": []
+    },
+    "pista-390": {
+      "pagina": false,
+      "largas": []
+    },
+    "resultado-390": {
+      "pagina": false,
+      "largas": []
+    }
+  },
+  "movimentoReduzido": {
+    "tela": "none",
+    "raiz": "none"
+  },
+  "lotes": 62,
+  "fim": {
+    "precisao": 1,
+    "letra": "S",
+    "falhou": false,
+    "perfeito": 61,
+    "bom": 0,
+    "ok": 0,
+    "errou": 0,
+    "comboMax": 61,
+    "segOk": 0,
+    "segTotal": 0
+  },
+  "tempos": []
+}

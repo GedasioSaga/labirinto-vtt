@@ -19,9 +19,12 @@ function hasDoor(wall: Wall): wall is DoorWall {
   return wall.door !== null
 }
 
-/** A porta que a alavanca move, com o estado de agora. `null` = pino que não é alavanca, solta ou de porta apagada. */
+/**
+ * A porta que a alavanca move (ou que o MINIGAME abre quando todos passam), com
+ * o estado de agora. `null` = pino de outro tipo, solto ou de porta apagada.
+ */
 export function linkedDoorOf(map: Pick<MapData, 'walls'>, pin: Pin): DoorWall | null {
-  if (pin.kind !== 'alavanca' || pin.portaLigada === undefined) return null
+  if ((pin.kind !== 'alavanca' && pin.kind !== 'minigame') || pin.portaLigada === undefined) return null
   const wall = map.walls.find((w) => w.id === pin.portaLigada)
   return wall !== undefined && hasDoor(wall) ? wall : null
 }
@@ -33,7 +36,8 @@ export function linkedDoorOf(map: Pick<MapData, 'walls'>, pin: Pin): DoorWall | 
  */
 export function pullLever(map: MapData, pinId: string): MapData {
   const pin = map.pins.find((p) => p.id === pinId)
-  const wall = pin === undefined ? null : linkedDoorOf(map, pin)
+  // Só a alavanca se puxa: a porta do minigame abre pela dança, nunca pelo "Acionar".
+  const wall = pin === undefined || pin.kind !== 'alavanca' ? null : linkedDoorOf(map, pin)
   if (wall === null || wall.door.locked) return map
   // Sem `mapFactory.setWallDoor` de propósito: `mapFile` importa este módulo
   // e `mapFactory` importa `mapFile` — o ciclo. A normalização de lá

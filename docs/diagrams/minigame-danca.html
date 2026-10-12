@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dança ao vivo · Sequência</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-soft:    #7a8399;
+      --color-rule:    rgba(45,49,66,0.10);
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; color: var(--color-ink); margin-bottom: 0.5rem; }
+    .sub { font-size: 0.9rem; color: var(--color-muted); max-width: 64ch; line-height: 1.5; margin-bottom: 1.5rem; }
+    .sub code { font-family: var(--font-mono); font-size: 0.8rem; }
+    .diagram { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; display: block; }
+    footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid var(--color-rule); font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-soft); letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Sequência · Pino de minigame · dança ao vivo</p>
+    <h1>Do convite ao desfecho da dança</h1>
+    <p class="sub">A rede nunca julga: cada aparelho julga os toques no próprio relógio de áudio e só manda o placar. A consequência e a porta ligada nunca saem do mestre; encerrar antes do fim não tem desfecho.</p>
+
+    <div class="diagram">
+    <svg viewBox="0 0 1000 920" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="minigame-danca-title minigame-danca-desc">
+      <title id="minigame-danca-title">Do convite ao desfecho da dança</title>
+      <desc id="minigame-danca-desc">Diagrama de sequência: o mestre convida os escolhidos, cada um marca Pronto com a dificuldade, o host manda o estado a todos, o mestre começa e cada aparelho toca a música 3 segundos depois, os toques de cada um vão aos outros que dançam a cada 250 ms, cada um manda o placar final, e quando todos terminaram ou saíram o host manda o desfecho a todos e avisa a ponte para abrir a porta e entregar os itens.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#4f5d75" stroke-width="1.2"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- LIFELINES -->
+      <line x1="140" y1="128" x2="140" y2="830" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="400" y1="128" x2="400" y2="830" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="660" y1="128" x2="660" y2="830" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="880" y1="128" x2="880" y2="830" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+
+      <!-- MESSAGES -->
+      <line x1="144" y1="176" x2="396" y2="176" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="404" y1="232" x2="656" y2="232" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <line x1="656" y1="288" x2="404" y2="288" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="404" y1="344" x2="876" y2="344" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="144" y1="400" x2="396" y2="400" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="404" y1="456" x2="876" y2="456" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <line x1="656" y1="512" x2="404" y2="512" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="404" y1="568" x2="876" y2="568" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="656" y1="624" x2="404" y2="624" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 404 664 L 432 664 A 8 8 0 0 1 440 672 L 440 680 A 8 8 0 0 1 432 688 L 404 688" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="404" y1="744" x2="876" y2="744" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <line x1="396" y1="800" x2="144" y2="800" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-open)"/>
+
+      <!-- LABELS -->
+      <rect x="170" y="144" width="201" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="154" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CONVIDARPARADANCA(PINO, ESCOLHIDOS)</text>
+      <text x="270" y="165" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CONGELA O DESAFIO E A PORTA</text>
+      <rect x="435" y="200" width="190" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="210" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.CONVITE</text>
+      <text x="530" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SÓ AOS ESCOLHIDOS · SETAS PRONTAS</text>
+      <rect x="454" y="256" width="152" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="266" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.PRONTO {DIFICULDADE}</text>
+      <text x="530" y="277" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SÓ A PERMITIDA VALE</text>
+      <rect x="430" y="312" width="201" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="322" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.ESTADO</text>
+      <text x="530" y="333" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">A TODOS OS CHAMADOS · ONDANCACHANGE</text>
+      <rect x="172" y="368" width="196" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="378" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">COMECARDANCA()</text>
+      <text x="270" y="389" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">QUEM NÃO ESTÁ PRONTO: ENCERRA FORA</text>
+      <rect x="446" y="424" width="169" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="434" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.COMECAR {EMMS: 3000}</text>
+      <text x="530" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CADA APARELHO TOCA 3 S DEPOIS</text>
+      <rect x="438" y="480" width="185" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="490" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.TOQUES · A CADA ~250 MS</text>
+      <text x="530" y="501" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TOQUES JULGADOS + PLACAR AO VIVO</text>
+      <rect x="443" y="536" width="174" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="546" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.COLEGAS</text>
+      <text x="530" y="557" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AOS OUTROS, NUNCA AO REMETENTE</text>
+      <rect x="435" y="592" width="190" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="602" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.FIM {PLACAR FINAL}</text>
+      <text x="530" y="613" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">QUEDA NO MEIO = SAIU = NÃO PASSOU</text>
+      <rect x="452" y="660" width="200" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="456" y="670" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.08em">TODOS TERMINARAM OU SAÍRAM</text>
+      <text x="456" y="681" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.08em">PASSOU = NÃO FALHOU E NOTA ≥ MÍNIMA</text>
+      <rect x="430" y="712" width="201" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="722" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCA.DESFECHO</text>
+      <text x="530" y="733" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">A MESA + SEU PRÊMIO OU CONSEQUÊNCIA</text>
+      <rect x="159" y="768" width="223" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="778" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DANCADESFECHO (SÓ DO MESTRE)</text>
+      <text x="270" y="789" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PORTA DESTRANCA E ABRE · ITENS · AVISOS</text>
+
+      <!-- HEADERS -->
+      <rect x="60" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="60" y="72" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="68" y="80" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="89.8" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MESTRE</text>
+      <text x="140" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Painel do mestre</text>
+      <text x="140" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">hostBridge.ts</text>
+      <rect x="320" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="320" y="72" width="160" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="328" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="344.2" y="89" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOST</text>
+      <text x="400" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sessão do host</text>
+      <text x="400" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">dancaNoHost.ts</text>
+      <rect x="580" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="580" y="72" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="588" y="80" width="49" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="612.6" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">JOGADOR</text>
+      <text x="660" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Quem dança</text>
+      <text x="660" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">playerConnection.ts</text>
+      <rect x="800" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="800" y="72" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="808" y="80" width="49" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="832.6" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">JOGADOR</text>
+      <text x="880" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Colegas na pista</text>
+      <text x="880" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">estadoDaDanca.ts</text>
+
+      <!-- LEGEND -->
+      <line x1="56" y1="852" x2="944" y2="852" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="56" y="868" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGENDA</text>
+      <line x1="56" y1="888" x2="84" y2="888" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="92" y="892" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Socket ou chamada da ponte</text>
+      <line x1="256" y1="888" x2="284" y2="888" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <text x="292" y="892" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Momento que todos vivem juntos</text>
+      <line x1="472" y1="888" x2="500" y2="888" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow-open)"/>
+      <text x="508" y="892" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Sinal do resultado (nunca vai pela rede)</text>
+    </svg>
+    </div>
+
+    <footer>Fontes: client/src/net/protocoloDaDanca.ts · net/dancaNoHost.ts · net/hostSession.ts · net/hostBridge.ts · player/estadoDaDanca.ts · player/playerConnection.ts</footer>
+  </div>
+</body>
+</html>

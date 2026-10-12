@@ -15,7 +15,7 @@ import { lojaParaJogador, textoDoEstoque } from '../lib/loja'
 import { compraNoticeText } from './compraNotice'
 import type { CompraNotice } from './playerConnection'
 import { stairTravelLabel } from '../lib/stairTravel'
-import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
+import { PinControleArt, PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 import { playerExitPassageOf, unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
@@ -137,11 +137,14 @@ interface PlayerPinCardProps {
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
+/** O cartão do minigame: o jogador sabe que há um desafio, e que quem chama é o mestre. */
+const TEXTO_DO_MINIGAME = 'Desafio de dança. O mestre chama quando for a hora.'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: PinDoCartao): string {
   if (pin.kind === 'viagem') return 'passagem'
   if (pin.kind === 'alavanca') return 'alavanca'
+  if (pin.kind === 'minigame') return 'controle de videogame'
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
   return pin.kind === 'interrogacao' ? 'interrogação' : 'exclamação'
 }
@@ -181,14 +184,15 @@ export function CabecaDoPino({ pin }: { pin: PinDoCartao }) {
   const viagem = pin.kind === 'viagem'
   // A alavanca, como a passagem, desenha o próprio símbolo, nunca o escolhido.
   const alavanca = pin.kind === 'alavanca'
-  const simbolo = !viagem && !alavanca && isPinIcon(pin.icon) ? pin.icon : null
+  const minigame = pin.kind === 'minigame'
+  const simbolo = !viagem && !alavanca && !minigame && isPinIcon(pin.icon) ? pin.icon : null
   return (
     <span
       className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'}
       role="img"
       aria-label={`Símbolo do pino: ${nomeDaCabeca(pin)}`}
     >
-      {viagem ? <PinTravelArt size={16} /> : alavanca ? <PinLeverArt size={16} /> : simbolo !== null ? <PinSymbolArt icon={simbolo} size={16} /> : PIN_GLYPH[pin.kind]}
+      {viagem ? <PinTravelArt size={16} /> : alavanca ? <PinLeverArt size={16} /> : minigame ? <PinControleArt size={16} /> : simbolo !== null ? <PinSymbolArt icon={simbolo} size={16} /> : PIN_GLYPH[pin.kind]}
     </span>
   )
 }
@@ -423,15 +427,20 @@ export function PlayerPinCard({
   // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
   // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
   const alavanca = pin.kind === 'alavanca'
+  // MINIGAME: o desafio (NPC, música, prêmio) nunca chega aqui
+  // (`lib/fogFilter.ts`); quem convida é o mestre, então o cartão só avisa.
+  const minigame = pin.kind === 'minigame'
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
   // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
   // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
-  const icone = !viagem && !alavanca && isPinIcon(pin.icon) ? pin.icon : null
+  const icone = !viagem && !alavanca && !minigame && isPinIcon(pin.icon) ? pin.icon : null
   const nome = viagem
     ? 'Passagem'
     : alavanca
       ? 'Alavanca'
-      : icone !== null
+      : minigame
+        ? 'Minigame'
+        : icone !== null
         ? `Ponto de interesse — ${PIN_ICON_LABELS[icone]}`
         : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
   // O modo vem no recorte (o destino, não). Trancada MUDA não oferece botão
@@ -499,7 +508,7 @@ export function PlayerPinCard({
   const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
   // O nome ao lado da cabeça faz dela o título do cartão: sozinha no topo, ela
   // lia como ícone perdido. Diz o que o pino é, nas palavras do mapa.
-  const titulo = escada !== null ? 'Escada' : viagem ? 'Passagem' : alavanca ? 'Alavanca' : icone !== null ? PIN_ICON_LABELS[icone] : 'Ponto de interesse'
+  const titulo = escada !== null ? 'Escada' : viagem ? 'Passagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : icone !== null ? PIN_ICON_LABELS[icone] : 'Ponto de interesse'
   // A chave vence o modo: escada trancada com a chave na mochila também vira
   // "Usar <chave>" — o host deixa passar (`hostSession`), então o cartão não
   // pode esconder o gesto. Sem chave, a trancada que aceita tentativas pede ao
@@ -630,6 +639,11 @@ export function PlayerPinCard({
           <button type="button" className="pp-pincard__travel" onClick={onPullLever}>
             Puxar a alavanca
           </button>
+        )}
+        {minigame && (
+          // Frase, não botão: o convite chega quando o mestre chamar, e um
+          // botão aqui prometeria um gesto que o jogador não tem.
+          <p className="pp-pincard__locked">{TEXTO_DO_MINIGAME}</p>
         )}
         {semVolta && <span className="pp-pincard__oneway pp-pincard__oneway--card">{ETIQUETA_SO_IDA}</span>}
         {trancada && chave === null && (

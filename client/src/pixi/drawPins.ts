@@ -5,6 +5,7 @@ import {
   PIN_HEAD_OFFSET,
   PIN_HEAD_RADIUS,
   PIN_HEIGHT,
+  PIN_CONTROLE_SYMBOL,
   PIN_LEVER_SYMBOL,
   PIN_SYMBOLS,
   PIN_TRAVEL_SYMBOL,
@@ -122,6 +123,12 @@ function drawLeverHead(graphics: Graphics, pin: Pin, headY: number, k: number): 
   drawShape(graphics, PIN_LEVER_SYMBOL, pin.x, headY, GLYPH_COLOR, k)
 }
 
+/** Cabeça do minigame: a mesma de latão, com o controle em traço escuro no lugar do glifo. */
+function drawControleHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: PIN_OUTLINE })
+  drawShape(graphics, PIN_CONTROLE_SYMBOL, pin.x, headY, GLYPH_COLOR, k)
+}
+
 /** Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada quando não tem par. */
 function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean, k: number): void {
   const linha = unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE
@@ -234,10 +241,12 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       // vez de dividir o espaço com o desenho.
       const viagem = pin.kind === 'viagem'
       const alavanca = pin.kind === 'alavanca'
-      const comSimbolo = viagem || alavanca || isPinIcon(pin.icon)
+      const minigame = pin.kind === 'minigame'
+      const comSimbolo = viagem || alavanca || minigame || isPinIcon(pin.icon)
       if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY, k)
       else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true, k)
       else if (alavanca) drawLeverHead(graphics, pin, headY, k)
+      else if (minigame) drawControleHead(graphics, pin, headY, k)
       else drawMarkerHead(graphics, pin, headY, k)
       drawName(container, pin, headY, k)
 

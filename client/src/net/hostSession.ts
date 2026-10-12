@@ -65,7 +65,10 @@ import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from 
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
-import { passageOf, pinSummary } from '../lib/pins'
+import { copiarMinigame, passageOf, pinSummary } from '../lib/pins'
+import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
+import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
+import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -1131,6 +1134,12 @@ export interface HostResult {
   /** Um jogador respondeu ao teste secreto: o integrador mostra ao MESTRE. Nada disto vai a jogador. */
   secretCheckAnswer?: SecretCheckAnswer
   /**
+   * MINIGAME DE DANÇA: todos os que dançaram terminaram ou saíram. O integrador
+   * destranca e abre a porta ligada, põe os itens nas mochilas e avisa o mestre
+   * (`net/dancaNoHost.ts`). Nada disto vai a jogador: o deles já está em `outbound`.
+   */
+  dancaDesfecho?: DancaDesfechoSinal
+  /**
    * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
    * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
    * cena (sem viagem, a cabine não anda). Nunca vai ao jogador.
@@ -1764,9 +1773,11 @@ export interface HostSession {
   endLoans(ownerId: string): HostResult
   /**
    * A conexão caiu. `at` = quando se ouviu dela por último (a varredura de
-   * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora.
+   * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora. O
+   * resultado só leva algo na DANÇA: quem dançava saiu (o estado aos colegas)
+   * e, se era o último, o desfecho.
    */
-  disconnect(clientId: string, at?: number): void
+  disconnect(clientId: string, at?: number): HostResult
   /**
    * Uma mensagem para `clientId` não saiu (ex.: fila da conexão cheia) e a
    * conexão continua aberta. O recorte que o host conta como entregue a esse
@@ -1929,6 +1940,22 @@ export interface HostSession {
   closeSecretCheck(checkId: string): HostResult
   /** Os testes secretos, do mais antigo ao mais novo, para o painel do MESTRE. */
   secretChecks(): SecretCheckState[]
+  /**
+   * MINIGAME DE DANÇA: `danca.convite` (o desafio do pino `pinId`, congelado
+   * agora) aos escolhidos que estão na sala e jogando, na ordem da sala, até
+   * `DANCA_PARTICIPANTES_MAX`. Recusa pino que não é minigame, dança ativa
+   * (uma por vez) e lista sem ninguém válido.
+   */
+  convidarParaDanca(pinId: string, playerIds: readonly string[], source: HostMapSource): HostResult & { convite: DancaConviteResultado }
+  /** Só os prontos (e na sala) dançam; os outros recebem `danca.encerra` `fora`. `comecou: false` = ninguém pronto. */
+  comecarDanca(): HostResult & { comecou: boolean }
+  /** Pausa e retoma para todos os que dançam. `ok: false` = fora de fase. */
+  pausarDanca(): HostResult & { ok: boolean }
+  retomarDanca(): HostResult & { ok: boolean }
+  /** Encerra a dança ativa sem desfecho: nada foi ganho nem perdido. */
+  encerrarDanca(): HostResult & { ok: boolean }
+  /** A dança como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
+  danca(): DancaAoVivo | null
   /**
    * ABALO POR DISTÂNCIA: a cada jogador que joga e está numa cena agora, o
    * texto da FAIXA dele (`lib/abalo.ts`): `perto` na cena da origem, `andar`
@@ -3319,6 +3346,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // `MAX_SECRET_CHECKS`: sai primeiro o encerrado ou já respondido por todos,
   // e só sem nenhum desses o mais antigo (encerrado, com aviso). O kick tira o jogador.
   const secretChecks = new Map<string, SecretCheckRecord>()
+  // MINIGAME DE DANÇA: a dança ativa (uma por vez) e a última, para o painel.
+  const dancaNoHost = criarDancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
   const lostSecretCheckCard = new Set<string>()
@@ -4582,6 +4611,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
+  /**
+   * DANÇA: o recado (bônus, consequência "no próximo teste") e a pista do
+   * desfecho entram no caderno de cada um. O recado acende o não lido em vez
+   * de abrir cartão por cima do resultado da dança.
+   */
+  const aplicarEfeitosDaDanca = (efeitos: EfeitosDaDanca): Outbound[] => {
+    const outbound: Outbound[] = []
+    for (const nota of efeitos.notas) {
+      const note: NoteEntry = { id: randomId(), text: clampNoteText(nota.texto), at: now() }
+      rememberNote(nota.playerId, note)
+      const clientId = players.get(nota.playerId)?.clientId ?? null // fora do ar: o caderno volta no `notes.book` da entrada
+      if (clientId !== null) outbound.push({ clientId, msg: notebookMessage(notebooks.get(nota.playerId) ?? [note], [note.id]) })
+    }
+    for (const pista of efeitos.pistas) {
+      const clue = rememberClue(pista.playerId, pista.fonte, { title: pista.titulo, text: pista.texto, image: null })
+      const clientId = players.get(pista.playerId)?.clientId ?? null // fora do ar: a pista volta no `clues.book` da entrada
+      if (clientId !== null) outbound.push({ clientId, msg: { type: 'clue.added', clue } })
+    }
+    return outbound
+  }
+
+  /**
+   * DANÇA: depois de tudo que pode tirar o último dançarino da pista (o fim
+   * dele, a queda, a aba nova, a expulsão), o desfecho sai uma vez só, junto.
+   */
+  const comDesfechoDaDanca = (result: HostResult): HostResult => {
+    const desfecho = dancaNoHost.concluirSePronta()
+    if (desfecho === null) return result
+    return { ...result, outbound: [...result.outbound, ...desfecho.outbound, ...aplicarEfeitosDaDanca(desfecho.efeitos)], dancaDesfecho: desfecho.sinal }
+  }
+
   /** VOLTO JÁ como o jogador o lê: fora ou não, e se o pedido DELE ainda espera o mestre. Nada de pino nem cena. */
   const awayMessage = (playerId: string): HostMessage =>
     pendingTravels.has(playerId)
@@ -5164,6 +5224,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // FICHA DE PERSONAGEM: a conexão nova não tem nada; numa aventura, o sistema e os personagens dele saem inteiros.
     personagensEnviados.delete(clientId)
     outbound.push(...personagensUpdate(clientId, playerId, world))
+    // DANÇA: no convite, o convite de novo; no meio da música, a aba nova perdeu a música e sai.
+    outbound.push(...dancaNoHost.entrou(playerId))
     return outbound
   }
 
@@ -8982,6 +9044,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return reply(clientId, { type: 'chat.send.result', reqId, ok: false })
   }
 
+  /**
+   * DANÇA: pronto, lote de toques e placar final. Quem confere sessão, fase e
+   * participante é `dancaNoHost`; o que não vale morre calado.
+   */
+  function handleDanca(clientId: string, msg: DancaPlayerMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (msg.type === 'danca.pronto') return { outbound: dancaNoHost.pronto(playerId, msg) }
+    if (msg.type === 'danca.toques') return { outbound: dancaNoHost.toques(playerId, msg) }
+    return { outbound: dancaNoHost.fim(playerId, msg) }
+  }
+
   /** Cada mensagem já validada vai ao seu tratador. */
   function routeMessage(clientId: string, msg: PlayerMessage, world: HostWorld): HostResult {
     switch (msg.type) {
@@ -9106,6 +9180,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleVehicleLeave(clientId, msg, world)
       case 'chat.send':
         return handleChatSend(clientId, msg, world)
+      case 'danca.pronto':
+      case 'danca.toques':
+      case 'danca.fim':
+        return handleDanca(clientId, msg)
     }
   }
 
@@ -9120,14 +9198,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // Prazo vencido vale ANTES do pedido: o ajudante que já voltou ao mestre não anda mais.
       const expired = expireDue(world)
-      const result = routeMessage(clientId, msg, world)
+      const result = comDesfechoDaDanca(routeMessage(clientId, msg, world))
       return expired.length === 0 ? result : { ...result, outbound: [...expired, ...result.outbound] }
     },
 
     joinWithAccount(clientId, entrada, source) {
       const world = toWorld(source)
       const expired = expireDue(world)
-      const result = handleAccountJoin(clientId, entrada, world)
+      const result = comDesfechoDaDanca(handleAccountJoin(clientId, entrada, world))
       return expired.length === 0 ? result : { ...result, outbound: [...expired, ...result.outbound] }
     },
 
@@ -9999,7 +10077,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     disconnect(clientId, at) {
       tableClients.delete(clientId)
       const playerId = byClient.get(clientId)
-      if (playerId === undefined) return
+      if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
       pausedSent.delete(clientId)
       chatSceneSent.delete(clientId)
@@ -10044,6 +10122,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastSeatOptionsSent.delete(clientId)
       // A conexão nova começa do zero: o recorte que a antiga tinha não vale para ela.
       lastViews.delete(playerId)
+      // DANÇA: quem dançava e caiu não passou; se era o último na pista, sai o desfecho.
+      return comDesfechoDaDanca({ outbound: dancaNoHost.caiu(playerId) })
     },
 
     kick(clientId) {
@@ -10064,7 +10144,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetPlayer(playerId)
       // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
       viewEpoch += 1
-      return reply(clientId, { type: 'kicked' })
+      // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
+      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId)] })
     },
 
     confirmReturn(playerId, previousId, source) {
@@ -10092,10 +10173,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const welcome: HostMessage = { type: 'welcome', playerId: previousId, resumeToken: previous.resumeToken, name: previous.name }
       // O `welcome` apaga a lista no jogador: a chave volta a "nada enviado", e quem segue na espera a recebe de novo.
       lastSeatOptionsSent.delete(clientId)
-      return {
+      return comDesfechoDaDanca({
         outbound: [{ clientId, msg: welcome }, ...entryOutbound(clientId, previousId, world), ...loanBack.outbound],
         ...loansReturnedField(loanBack.returned),
-      }
+      })
     },
 
     denyReturn(playerId) {
@@ -10719,6 +10800,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         answers: Object.fromEntries(check.answers),
         open: check.open,
       }))
+    },
+
+    convidarParaDanca(pinId, playerIds, source) {
+      const world = toWorld(source)
+      const scene = allScenes(world).find((candidate) => candidate.map.pins.some((p) => p.id === pinId))
+      const pin = scene?.map.pins.find((p) => p.id === pinId)
+      if (scene === undefined || pin === undefined || pin.kind !== 'minigame') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      // A porta é congelada agora, como o resto: apagar ou religar no meio da dança não muda a que abre.
+      const door = linkedDoorOf(scene.map, pin)
+      const fundo = backgroundSceneId(scene, world)
+      const porta = door === null ? undefined : { wallId: door.id, ...fundo, ...(fundo.sceneId === undefined ? {} : { sceneName: scene.name }) }
+      const convidados = inRoomOrder(new Set(playerIds))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
+        })
+        .slice(0, DANCA_PARTICIPANTES_MAX)
+      // Pino de minigame sem desafio gravado joga o do protótipo, como o painel e o disco já fazem.
+      const minigame = copiarMinigame(pin.minigame ?? MINIGAME_PADRAO)
+      const { outbound, resultado } = dancaNoHost.convidar({ pinId, minigame, ...(porta === undefined ? {} : { porta }) }, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    comecarDanca() {
+      const outbound = dancaNoHost.comecar()
+      return { outbound: outbound ?? [], comecou: outbound !== null }
+    },
+
+    pausarDanca() {
+      const outbound = dancaNoHost.pausar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarDanca() {
+      const outbound = dancaNoHost.retomar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarDanca() {
+      const outbound = dancaNoHost.encerrar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    danca() {
+      return dancaNoHost.aoVivo()
     },
 
     abalo(origem, textos, vizinhas, source) {

@@ -826,9 +826,14 @@ pub fn is_safe_asset_path(path: &str) -> bool {
         })
 }
 
-/// `/media/{id}`: a imagem de `<appData>/midia` (item do acervo, retrato da
-/// ficha). Toda recusa é o mesmo 404 — id torto, arquivo que falta, grande
-/// demais ou que não confere —, para não ensinar quais ids existem.
+/// `/media/{id}`: a imagem ou o áudio de `<appData>/midia` (item do acervo,
+/// retrato da ficha, música importada do minigame). Toda recusa é o mesmo 404
+/// — id torto, arquivo que falta, grande demais ou que não confere —, para não
+/// ensinar quais ids existem.
+///
+/// O corpo sai inteiro (até `MIDIA_AUDIO_MAX_BYTES`, 15 MB), sem `Range`: o
+/// jogador baixa a música uma vez e a decodifica no aparelho; o limite de corpo
+/// do axum (`DefaultBodyLimit`) vale só para o que CHEGA, não para a resposta.
 async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Response {
     let Some(pasta) = room.media_dir() else {
         return StatusCode::NOT_FOUND.into_response();
@@ -841,11 +846,12 @@ async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Re
 
 /// O nome é o hash do conteúdo: conteúdo novo é nome novo, então o aparelho
 /// guarda por um ano sem perguntar. `private`: cache compartilhado (o da
-/// Cloudflare, no link público) não guarda a imagem de uma mesa.
+/// Cloudflare, no link público) não guarda a mídia de uma mesa.
 const CACHE_DA_MIDIA: &str = "private, max-age=31536000, immutable";
 
-/// `mime` é sempre um `TipoDeMidia::mime` (ASCII fixo). `same-origin`: só a
-/// página do jogador, servida por esta mesma sala, embute a imagem.
+/// `mime` é sempre um `TipoDeMidia::mime` (ASCII fixo; `audio/*` para a
+/// música). `same-origin`: só a página do jogador, servida por esta mesma sala,
+/// embute a imagem ou baixa o áudio.
 fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
     (
         [

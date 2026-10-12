@@ -9,7 +9,8 @@ import { PinColecaoControls, type PinColecaoControlsProps } from './PinColecaoCo
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinLojaControls, type PinLojaControlsProps } from './PinLojaControls'
-import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
+import { MinigameControls, type MinigameControlsProps } from './MinigameControls'
+import { PinControleArt, PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinImageDrop } from './PinImageDrop'
 import { CenarioSection } from '../cenario/CenarioSection'
 import type { CenarioDoPino } from '../cenario/catalogo'
@@ -89,6 +90,12 @@ export interface PinControlsProps {
     onPull: () => void
     pullBlocked: string | null
   } | null
+  /**
+   * MINIGAME aberto no painel: o desafio de dança (quem desafia, música,
+   * dificuldade, nota, porta, prêmio e consequência) e, com a sala aberta, o
+   * "Chamar para dançar". `null` no prop = sem pino aberto, ou pino de outro tipo.
+   */
+  desafio?: MinigameControlsProps | null
   /**
    * O ícone do marcador, no MESMO bloco do tipo e logo abaixo dele: os dois
    * dizem o que aparece na cabeça do pino. `null` = não se aplica (pino de
@@ -290,6 +297,13 @@ function KindMark({ kind }: { kind: PinKind }) {
       </span>
     )
   }
+  if (kind === 'minigame') {
+    return (
+      <span className="lb-pin-glyph" aria-hidden="true">
+        <PinControleArt size={14} />
+      </span>
+    )
+  }
   return (
     <span className="lb-pin-glyph" aria-hidden="true">
       {PIN_GLYPH[kind]}
@@ -339,6 +353,7 @@ export function PinControls({
   item = null,
   attachment = null,
   lever = null,
+  desafio = null,
   iconChoice,
   semHaste = false,
   onSemHasteChange,
@@ -350,12 +365,13 @@ export function PinControls({
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   const alavanca = kind === 'alavanca'
+  const minigame = kind === 'minigame'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
   // saída ligada; a encruzilhada pode ter várias).
   const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : 'Ponto de interesse'}</h2>
+      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : 'Ponto de interesse'}</h2>
       <div className="lb-seg lb-seg--rows" role="radiogroup" aria-label="Tipo do pino">
         {PIN_KIND_ORDER.map((option) => (
           <button
@@ -383,6 +399,12 @@ export function PinControls({
       {travel !== null && <PinTravelControlsFor travel={travel} />}
       {/* A porta ligada é o que a alavanca tem de próprio: logo abaixo do tipo, como o destino da viagem. */}
       {alavanca && description !== null && lever !== null && <PinLeverControls {...lever} />}
+      {minigame && description === null && (
+        <span className="lb-label">Crave o pino; no painel dele você monta o desafio de dança.</span>
+      )}
+      {/* O desafio é o que o minigame tem de próprio: logo abaixo do tipo, como a porta da alavanca.
+          A chave é o pino: rascunho de texto e prévia de música não passam de um desafio a outro. */}
+      {minigame && description !== null && desafio !== null && <MinigameControls key={desafio.pinId} {...desafio} />}
       {description !== null && (
         <>
           {/* A forma do pino no mapa, logo depois do tipo e do ícone (ou do
@@ -430,7 +452,7 @@ export function PinControls({
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {viagem && attachment !== null && <PinAttachControls {...attachment} />}
-          {!viagem && !alavanca && item !== null && <PinItemControls value={item.value} onChange={item.onChange} onTrocarForma={item.onTrocarForma} />}
+          {!viagem && !alavanca && !minigame && item !== null && <PinItemControls value={item.value} onChange={item.onChange} onTrocarForma={item.onTrocarForma} />}
           {/* Quem lê o pino, e de onde. */}
           <PinReachControls
             marco={marco}
@@ -443,7 +465,7 @@ export function PinControls({
           {/* Também é o que o pino É para o jogador: uma peça de coleção. */}
           {colecao !== null && <PinColecaoControls {...colecao} />}
           {/* Também é o que o pino É para o jogador: a banca que ele vê no cartão. */}
-          {!viagem && !alavanca && loja !== null && <PinLojaControlsFor loja={loja} />}
+          {!viagem && !alavanca && !minigame && loja !== null && <PinLojaControlsFor loja={loja} />}
           {cabin !== null && <PinCabinControls {...cabin} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
@@ -465,7 +487,7 @@ export function PinControls({
           {/* Logo depois da imagem: é ela que a animação usa. */}
           {cenario !== undefined && <CenarioSection cenario={cenario.valor} imagem={image} nome={nome} descricao={description ?? ''} onChange={cenario.onChange} />}
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onDelete}>
-            {viagem ? 'Excluir pino de viagem' : alavanca ? 'Excluir alavanca' : 'Excluir ponto de interesse'}
+            {viagem ? 'Excluir pino de viagem' : alavanca ? 'Excluir alavanca' : minigame ? 'Excluir minigame' : 'Excluir ponto de interesse'}
           </button>
           {/* O efeito que não se vê daqui: o par mora em outra cena. */}
           {cenasDosPares.length > 0 && (
