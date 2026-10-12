@@ -1,0 +1,2187 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<title>Pista de Dança</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Pixelify+Sans:wght@500;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* Tema único escuro, como o app: --lb-* são os nomes de client/src/theme.ts.
+   --dz-* é só desta tela: as cores do julgamento e o texto do mundo do jogo (pixel). */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-tide: #79a9cc;
+  --lb-color-arcane: #ab93d6;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, 'Source Serif 4', Constantia, Georgia, serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: Bahnschrift, 'DIN Alternate', Barlow, 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dz-font-pixel: 'Pixelify Sans', var(--lb-font-utility);
+  --dz-perfeito: #f3ba66;
+  --dz-bom: #7fb48a;
+  --dz-ok: #79a9cc;
+  --dz-errou: #e2645a;
+  --dz-gentil: #a2a09a;
+  --dz-palco: #0d0c0f;
+  --dz-topo: 48px;
+  --dz-coluna: clamp(340px, 30vw, 420px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--lb-color-ink); color: var(--lb-color-parchment); font: 13px/1.45 var(--lb-font-sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+p, h1, h2, h3, ul, ol, dl, dd, fieldset { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--lb-color-line-strong); border-radius: 4px; font: 500 10.5px/16px var(--lb-font-utility); color: var(--lb-color-parchment-dim); text-align: center; }
+
+/* botões do app */
+.lb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-btn:active:not(:disabled) { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+.lb-btn:disabled { color: var(--lb-color-parchment-faint); background: transparent; }
+.lb-btn--primary { background: var(--lb-color-brass); border-color: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 600; }
+.lb-btn--primary:active:not(:disabled) { background: var(--lb-color-brass); }
+.lb-btn--ghost { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.lb-btn--block { width: 100%; min-height: 44px; font-size: 14px; }
+.lb-btn--sm { min-height: 28px; padding: 0 9px; font-size: 12px; }
+@media (hover: hover) and (pointer: fine) {
+  .lb-btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-line-strong); }
+  .lb-btn--primary:hover:not(:disabled) { background: var(--lb-color-brass-bright); border-color: var(--lb-color-brass-bright); }
+  .lb-btn--ghost:hover:not(:disabled) { color: var(--lb-color-parchment); }
+}
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.seg button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--lb-color-parchment-dim); font-size: 12px; font-weight: 500; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease); }
+.seg button[aria-pressed="true"] { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel); }
+.rotulo { font: 500 11.5px/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); letter-spacing: 0.02em; }
+.nota { font-size: 12px; color: var(--lb-color-parchment-faint); }
+
+/* topo */
+.app { height: 100vh; height: 100dvh; display: grid; grid-template-rows: var(--dz-topo) 1fr; overflow: hidden; }
+.topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); min-width: 0; }
+.topo__marca { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.wordmark { font: 600 19px/1 var(--lb-font-display); color: var(--lb-color-parchment); }
+.migalhas { display: flex; gap: 6px; align-items: baseline; color: var(--lb-color-parchment-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.migalhas b { color: var(--lb-color-parchment-dim); font-weight: 500; }
+.visao { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* jogador */
+.jogador { display: grid; grid-template-columns: minmax(0, 1fr) var(--dz-coluna); min-height: 0; }
+.palco { position: relative; overflow: hidden; background: var(--dz-palco); min-height: 0; }
+.palco canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); image-rendering: pixelated; image-rendering: crisp-edges; }
+.palco__tag { position: absolute; transform: translate(-50%, 0); font: 500 11px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); padding: 3px 6px; border-radius: var(--lb-radius-full); background: rgba(13, 12, 15, 0.72); white-space: nowrap; pointer-events: none; }
+.palco__tag--voce { color: var(--lb-color-brass-bright); }
+.mesa-mini { position: absolute; left: 12px; top: 12px; display: grid; grid-template-columns: auto auto; gap: 2px 12px; padding: 8px 10px; border-radius: var(--lb-radius-md); background: rgba(13, 12, 15, 0.78); border: 1px solid var(--lb-color-line); font: 500 11.5px/1.35 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.mesa-mini b { font-weight: 500; color: var(--lb-color-parchment); text-align: right; font-variant-numeric: tabular-nums; }
+.coluna { position: relative; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); }
+.tela { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  .tela { animation: tela-entra 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+  @keyframes tela-entra { from { opacity: 0; transform: translateY(6px); } }
+}
+
+/* convite */
+.npc { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; }
+.npc canvas { width: 56px; height: 60px; image-rendering: pixelated; border-radius: var(--lb-radius-md); background: #26221e; border: 1px solid var(--lb-color-line-strong); }
+.npc h1 { font: 600 20px/1.15 var(--lb-font-display); }
+.npc p { color: var(--lb-color-parchment-dim); font-size: 12.5px; }
+.fala { position: relative; padding: 12px 14px; border-radius: var(--lb-radius-lg); background: #1f1a14; border: 1px solid rgba(224, 164, 74, 0.2); color: #ebe0c9; font: 15px/1.5 var(--lb-font-display); }
+.fala::before { content: ''; position: absolute; left: 22px; top: -6px; width: 10px; height: 10px; background: #1f1a14; border-left: 1px solid rgba(224, 164, 74, 0.2); border-top: 1px solid rgba(224, 164, 74, 0.2); transform: rotate(45deg); }
+.cartoes { display: grid; gap: 8px; }
+.cartao { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 12px; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-raised); cursor: pointer; transition: border-color var(--lb-motion-fast) var(--lb-motion-ease), background-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.cartao input { grid-row: span 2; align-self: center; width: 16px; height: 16px; margin: 0; accent-color: var(--lb-color-brass); }
+.cartao b { font: 600 14px/1.3 var(--lb-font-sans); }
+.cartao span { grid-column: 2; color: var(--lb-color-parchment-dim); font-size: 12.5px; }
+.cartao:has(input:checked) { border-color: rgba(224, 164, 74, 0.55); background: var(--lb-color-brass-soft); }
+.cartao:has(input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.cartao[data-travado="1"] { opacity: 0.45; cursor: not-allowed; }
+.trava { font-size: 12px; color: var(--lb-color-brass-bright); }
+.fatos { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; padding: 12px 0; border-block: 1px solid var(--lb-color-line); }
+.fatos dt { font: 500 11.5px/1.5 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.fatos dd { font-size: 12.5px; color: var(--lb-color-parchment); min-width: 0; overflow-wrap: anywhere; }
+.ajustes { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between; }
+.ajuste { display: flex; align-items: center; gap: 8px; }
+.alternar { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 9px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: transparent; color: var(--lb-color-parchment-dim); font-size: 12px; }
+.alternar[aria-checked="true"] span { color: var(--lb-color-brass-bright); }
+.aviso { padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-ember-soft); color: #f0b3ad; font-size: 12.5px; }
+.ok-controle { font-size: 12px; color: var(--lb-color-online); }
+
+/* pista */
+.tela--pista { padding: 0; gap: 0; overflow: hidden; outline: none; }
+.hud { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 12px; padding: 12px 14px 10px; border-bottom: 1px solid var(--lb-color-line); }
+.hud__pontos { font: 500 22px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.hud__prec { font: 500 12px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.barra { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--lb-color-line); overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--lb-color-parchment-faint); transform-origin: left; transform: scaleX(0); }
+.vida { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
+.vida div { height: 6px; border-radius: 3px; background: var(--lb-color-line); overflow: hidden; }
+.vida i { display: block; height: 100%; background: var(--lb-color-online); transform-origin: left; transition: transform 140ms var(--lb-motion-ease), background-color 140ms ease; }
+.vida i[data-baixa="1"] { background: var(--lb-color-ember); }
+.campo { position: relative; flex: 1; min-height: 0; outline: none; touch-action: none; }
+.campo canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.julg { position: absolute; left: 50%; top: 42%; translate: -50% -50%; font: 700 30px/1 var(--dz-font-pixel); letter-spacing: 0.02em; opacity: 0; pointer-events: none; text-shadow: 0 2px 0 #110d0a; white-space: nowrap; }
+.julg[data-j="perfeito"] { color: var(--dz-perfeito); }
+.julg[data-j="bom"] { color: var(--dz-bom); }
+.julg[data-j="ok"] { color: var(--dz-ok); }
+.julg[data-j="errou"], .julg[data-j="soltou"] { color: var(--dz-errou); }
+.julg[data-j="gentil"] { color: var(--dz-gentil); }
+.julg[data-j="segurou"] { color: var(--dz-perfeito); font-size: 20px; }
+.combo { position: absolute; left: 50%; top: calc(42% + 28px); translate: -50% 0; display: flex; align-items: baseline; gap: 6px; pointer-events: none; color: var(--lb-color-parchment); }
+.combo b { font: 700 26px/1 var(--dz-font-pixel); font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #110d0a; }
+.combo span { font: 500 11.5px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.combo[data-alto="1"] b { color: var(--lb-color-brass-bright); }
+.contagem { position: absolute; left: 50%; top: 30%; translate: -50% -50%; font: 700 56px/1 var(--dz-font-pixel); color: var(--lb-color-parchment); opacity: 0; pointer-events: none; text-shadow: 0 3px 0 #110d0a; }
+.pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--lb-color-line); }
+.pad { display: grid; place-items: center; gap: 2px; height: 56px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line-strong); background: var(--lb-color-stone-raised); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; padding: 4px 0; }
+.pad svg { width: 22px; height: 22px; fill: var(--lb-color-parchment-dim); }
+.pad[data-on="1"] { background: var(--lb-color-brass-soft); border-color: var(--lb-color-brass); }
+.pad[data-on="1"] svg { fill: var(--lb-color-brass-bright); }
+.pad[data-lane="0"] svg { rotate: 90deg; }
+.pad[data-lane="2"] svg { rotate: 180deg; }
+.pad[data-lane="3"] svg { rotate: -90deg; }
+.pausa { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px; background: rgba(13, 12, 15, 0.82); backdrop-filter: blur(3px); }
+.pausa__caixa { width: min(100%, 300px); display: grid; gap: 10px; padding: 18px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float); }
+.pausa__caixa h2 { font: 600 17px/1.3 var(--lb-font-display); }
+
+/* calibração */
+.voltar { align-self: flex-start; }
+.titulo { font: 600 20px/1.2 var(--lb-font-display); }
+.pontos { display: flex; gap: 8px; }
+.pontos i { width: 12px; height: 12px; border-radius: 50%; background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line-strong); }
+.pontos i[data-on="1"] { background: var(--lb-color-brass); border-color: var(--lb-color-brass); }
+.regua { position: relative; height: 34px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.regua::before { content: ''; position: absolute; left: 50%; top: 4px; bottom: 4px; width: 1px; background: var(--lb-color-brass); }
+.regua i { position: absolute; top: 9px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--lb-color-tide); }
+.regua__legenda { display: flex; justify-content: space-between; font: 500 11px/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.alvo { min-height: 96px; border-radius: var(--lb-radius-lg); border: 1px dashed var(--lb-color-line-strong); background: transparent; color: var(--lb-color-parchment-dim); font-size: 14px; touch-action: none; user-select: none; }
+.alvo:active { background: var(--lb-color-brass-soft); }
+.manual { display: flex; align-items: center; gap: 8px; }
+.manual output { min-width: 72px; text-align: center; font: 500 16px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+
+/* resultado */
+.res-topo { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.letra { min-width: 72px; font: 700 64px/1 var(--dz-font-pixel); text-align: center; color: var(--lb-color-parchment-dim); text-shadow: 0 3px 0 #110d0a; }
+.letra[data-estado="passou"] { color: var(--lb-color-brass-bright); }
+.letra[data-estado="falhou"] { font-size: 28px; color: var(--lb-color-ember); }
+.res-topo h2 { font: 600 19px/1.25 var(--lb-font-display); }
+.numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.numeros div { padding: 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); }
+.numeros dt { font: 500 11px/1.2 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.numeros dd { font: 500 18px/1.3 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.contas { display: grid; gap: 6px; }
+.contas li { display: grid; grid-template-columns: 72px 1fr 36px; align-items: center; gap: 10px; font-size: 12.5px; }
+.contas li > i { height: 6px; border-radius: 3px; background: var(--lb-color-line); overflow: hidden; }
+.contas li > i > i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); }
+.contas b { font: 500 13px/1 var(--lb-font-utility); text-align: right; font-variant-numeric: tabular-nums; }
+.desfecho { padding: 12px 14px; border-radius: var(--lb-radius-md); font-size: 13px; background: var(--lb-color-stone-raised); }
+.desfecho[data-tom="bom"] { background: var(--lb-color-brass-soft); color: #f5d7a8; }
+.desfecho[data-tom="ruim"] { background: var(--lb-color-ember-soft); color: #f0c0bb; }
+.mesa { display: grid; gap: 4px; }
+.mesa li { display: grid; grid-template-columns: 1fr auto 64px; gap: 10px; font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--lb-color-line); }
+.mesa__letra { font: 700 13px/1.3 var(--dz-font-pixel); color: var(--lb-color-brass-bright); }
+.mesa__num { text-align: right; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-dim); }
+.botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* mestre */
+.mestre { display: grid; grid-template-columns: 360px minmax(0, 1fr) 320px; gap: 16px; padding: 16px; min-height: 0; overflow: auto; }
+.painel { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel); min-width: 0; align-self: start; }
+.painel h2 { font: 600 15px/1.3 var(--lb-font-sans); }
+.painel__cab { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; }
+.painel__cab p { font-size: 12px; color: var(--lb-color-parchment-faint); }
+.campo-f { display: grid; gap: 6px; }
+.campo-f input[type="text"], .campo-f textarea, .campo-f select { width: 100%; min-height: 34px; padding: 7px 10px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-size: 13px; resize: vertical; }
+.campo-f select { appearance: auto; }
+.campo-f :disabled { color: var(--lb-color-parchment-faint); }
+.radio { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.radio input { accent-color: var(--lb-color-brass); margin: 0; }
+.linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.grade-mus { display: grid; gap: 8px; padding: 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.grade-mus dl { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; }
+.grade-mus dt { font: 500 11.5px/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.grade-mus dd { font: 500 13px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.mapa { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mapa svg { width: 100%; height: auto; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: #141417; }
+.tipos { display: flex; flex-wrap: wrap; gap: 14px; }
+.tipos figure { margin: 0; display: grid; justify-items: center; gap: 4px; font-size: 11.5px; color: var(--lb-color-parchment-faint); }
+.tipos figure[data-novo] { color: var(--lb-color-brass-bright); }
+.tipos svg { width: 42px; height: 54px; padding: 4px 6px; border: 0; border-radius: var(--lb-radius-sm); background: #3b3833; }
+.placar li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--lb-color-line); }
+.placar li:last-child { border-bottom: 0; }
+.pl__nome { font-weight: 600; }
+.pl__status { font: 500 11.5px/1.4 var(--lb-font-utility); color: var(--lb-color-parchment-faint); text-align: right; }
+.pl__nums { grid-column: 1 / -1; display: flex; gap: 16px; font: 500 12px/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.pl__nums b { color: var(--lb-color-parchment); font-weight: 500; }
+.pl__vida { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--lb-color-line); overflow: hidden; }
+.pl__vida i { display: block; height: 100%; background: var(--lb-color-online); transform-origin: left; }
+
+@media (max-width: 1180px) {
+  .mestre { grid-template-columns: 340px minmax(0, 1fr); }
+  .mestre .painel--placar { grid-column: 2; }
+  .mestre .mapa { grid-column: 2; grid-row: 1; }
+  .mestre .painel--pino { grid-row: 1 / span 2; }
+}
+@media (max-width: 760px) {
+  :root { --dz-topo: 52px; }
+  .topo { padding: 0 12px; }
+  .migalhas { display: none; }
+  .visao__rotulo { display: none; }
+  .jogador { grid-template-columns: 1fr; grid-template-rows: 34vh minmax(0, 1fr); grid-template-rows: 34dvh minmax(0, 1fr); }
+  .coluna { border-left: 0; border-top: 1px solid var(--lb-color-line); }
+  .tela { padding: 16px; }
+  .pad { height: 72px; }
+  .mesa-mini { left: 8px; top: 8px; padding: 6px 8px; }
+  .mestre { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  .mestre .painel--placar, .mestre .mapa, .mestre .painel--pino { grid-column: 1; grid-row: auto; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <path id="setaForma" d="M-.34-.92H.34V.02H.8L0 .9-.8.02H-.34Z"/>
+    <symbol id="pinoControle" viewBox="0 0 30 40">
+      <line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="15" cy="15" r="11" fill="#f2c14e" stroke="#1b1208" stroke-width="2"/>
+      <g fill="none" stroke="#1b1208" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.78 12.04H19.22L20.91 13.45 21.9 17.82 20.63 19.36 18.52 18.24H11.48L9.37 19.36 8.1 17.82 9.09 13.45Z"/>
+        <path d="M10.78 15.14H13.45M12.11 13.8V16.48"/>
+      </g>
+      <circle cx="17.11" cy="15.7" r=".9" fill="#1b1208"/><circle cx="18.94" cy="14.3" r=".9" fill="#1b1208"/>
+    </symbol>
+  </defs>
+</svg>
+<div class="app" id="app">
+  <header class="topo">
+    <div class="topo__marca">
+      <span class="wordmark">Labirinto</span>
+      <nav class="migalhas" aria-label="Onde você está"><span>Salão Fundo</span><span aria-hidden="true">›</span><b>Porta que dança</b></nav>
+    </div>
+    <div class="visao" role="group" aria-label="Ver como">
+      <span class="visao__rotulo rotulo">Ver como</span>
+      <div class="seg"><button type="button" data-visao="jogador" aria-pressed="true">Jogador</button><button type="button" data-visao="mestre" aria-pressed="false">Mestre</button></div>
+    </div>
+  </header>
+
+  <main class="jogador" id="vJogador">
+    <section class="palco" id="palco" aria-label="Pista de dança: você no centro, Iara e Tomé ao lado, a porta ao fundo">
+      <canvas id="cvPalco" aria-hidden="true"></canvas>
+      <div class="mesa-mini" id="mesaMini" aria-label="Precisão de cada dançarino"><span>Você</span><b>—</b><span>Iara</span><b>—</b><span>Tomé</span><b>—</b></div>
+      <span class="palco__tag palco__tag--voce" id="tagVoce">Você</span>
+      <span class="palco__tag" id="tagIara">Iara</span>
+      <span class="palco__tag" id="tagTome">Tomé</span>
+    </section>
+
+    <section class="coluna" id="coluna" data-tela="convite">
+      <div class="tela" id="tConvite">
+        <div class="npc"><canvas id="retrato" aria-hidden="true"></canvas><div><h1 id="cNpc">Dona Ziza</h1><p>desafia você para uma dança</p></div></div>
+        <p class="fala" id="cFala"></p>
+        <fieldset class="cartoes">
+          <legend class="rotulo" style="margin-bottom:8px">Escolha o ritmo</legend>
+          <label class="cartao"><input type="radio" name="dif" value="diversao" checked><b>Diversão</b><span>Setas só na batida, janela larga e ninguém cai no meio da música.</span></label>
+          <label class="cartao"><input type="radio" name="dif" value="expert"><b>Expert</b><span>Mais setas, saltos e setas para segurar. A vida pode acabar.</span></label>
+          <p class="trava" id="cTrava" hidden></p>
+        </fieldset>
+        <dl class="fatos">
+          <dt id="cAbre">Para abrir a porta</dt><dd id="cNotaMin">Nota B ou melhor</dd>
+          <dt>Prêmio</dt><dd id="cPremio">Chave de latão</dd>
+          <dt>Música</dt><dd id="cMusica"></dd>
+        </dl>
+        <p class="aviso" id="cErro" role="alert" hidden></p>
+        <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bEntrar">Entrar na pista</button>
+        <div class="ajustes">
+          <button type="button" class="lb-btn lb-btn--ghost lb-btn--sm" id="bAtraso">Ajustar atraso <kbd id="cAtraso">0 ms</kbd></button>
+          <button type="button" class="alternar" role="switch" aria-checked="true" data-som>Som do acerto: <span>ligado</span></button>
+        </div>
+        <div class="ajuste"><span class="rotulo" id="lTeclas">Teclas</span><div class="seg" role="group" aria-labelledby="lTeclas"><button type="button" data-teclas="setas" aria-pressed="true">Setas e WASD</button><button type="button" data-teclas="dfjk" aria-pressed="false">Setas e DFJK</button></div></div>
+        <p class="ok-controle" id="cControle" hidden></p>
+        <p class="nota">Iara e Tomé dançam com você, cada um no próprio aparelho. Todos que escolhem a mesma dificuldade recebem as mesmas setas.</p>
+      </div>
+
+      <div class="tela" id="tCalibra" hidden>
+        <button type="button" class="lb-btn lb-btn--ghost lb-btn--sm voltar" id="bVoltarK">‹ Voltar ao convite</button>
+        <h2 class="titulo">Ajustar atraso</h2>
+        <p style="color:var(--lb-color-parchment-dim)">Toque junto com o metrônomo, pelo que você ouve. São 4 batidas para entrar no tempo e 8 para medir. Vale qualquer seta, a barra de espaço ou o quadro abaixo.</p>
+        <div class="pontos" id="kPontos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div><div class="regua" id="kMarcas" aria-hidden="true"></div><div class="regua__legenda" aria-hidden="true"><span>200 ms antes</span><span>na batida</span><span>200 ms depois</span></div></div>
+        <button type="button" class="alvo" id="kAlvo">Toque aqui no tempo</button>
+        <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bCalibra">Começar a medir</button>
+        <p id="kStatus" role="status" style="font-size:13px"></p>
+        <div id="kResultado" hidden><button type="button" class="lb-btn lb-btn--primary" id="bUsar" hidden>Usar</button></div>
+        <div class="manual"><span class="rotulo" style="margin-right:auto">Ajuste à mão</span><button type="button" class="lb-btn lb-btn--sm" id="bMenos" aria-label="Diminuir 5 ms">−5</button><output id="kAjuste">0 ms</output><button type="button" class="lb-btn lb-btn--sm" id="bMais" aria-label="Aumentar 5 ms">+5</button><button type="button" class="lb-btn lb-btn--ghost lb-btn--sm" id="bZerar">Zerar</button></div>
+        <p class="nota">Positivo: as setas chegam mais tarde, para quem ouve com atraso (fone sem fio, TV). O ajuste fica guardado neste aparelho.</p>
+      </div>
+
+      <div class="tela tela--pista" id="tPista" hidden>
+        <div class="hud">
+          <span class="hud__pontos" id="hPontos">0</span>
+          <span class="hud__prec">Precisão <span id="hPrecisao">—</span></span>
+          <button type="button" class="lb-btn lb-btn--sm" id="bPausa">Pausar <kbd>Esc</kbd></button>
+          <div class="vida" id="vida" role="meter" aria-label="Vida" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60" hidden><span class="rotulo">Vida</span><div><i id="vidaBarra"></i></div></div>
+          <div class="barra" aria-hidden="true"><i id="progresso"></i></div>
+        </div>
+        <div class="campo" id="campo" tabindex="-1" aria-label="Trilhas das setas">
+          <canvas id="cvPista" aria-hidden="true"></canvas>
+          <div class="contagem" id="contagem" aria-hidden="true"></div>
+          <div class="julg" id="julg" aria-hidden="true"></div>
+          <div class="combo" id="combo" aria-hidden="true" hidden><b id="comboN">0</b><span>combo</span></div>
+        </div>
+        <div class="pads" role="group" aria-label="Setas para tocar">
+          <button type="button" class="pad" data-lane="0" aria-label="Esquerda"><svg viewBox="-1 -1 2 2" aria-hidden="true"><use href="#setaForma"/></svg><kbd>A</kbd></button>
+          <button type="button" class="pad" data-lane="1" aria-label="Baixo"><svg viewBox="-1 -1 2 2" aria-hidden="true"><use href="#setaForma"/></svg><kbd>S</kbd></button>
+          <button type="button" class="pad" data-lane="2" aria-label="Cima"><svg viewBox="-1 -1 2 2" aria-hidden="true"><use href="#setaForma"/></svg><kbd>W</kbd></button>
+          <button type="button" class="pad" data-lane="3" aria-label="Direita"><svg viewBox="-1 -1 2 2" aria-hidden="true"><use href="#setaForma"/></svg><kbd>D</kbd></button>
+        </div>
+        <div class="pausa" id="pausa" hidden>
+          <div class="pausa__caixa" role="dialog" aria-modal="true" aria-labelledby="pausaTitulo">
+            <h2 id="pausaTitulo">Pausado</h2>
+            <p class="nota">A música para no ponto em que está. Ao continuar, conta 3, 2, 1.</p>
+            <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bContinuar">Continuar</button>
+            <button type="button" class="lb-btn lb-btn--block" id="bRecomecar">Recomeçar a música</button>
+            <button type="button" class="lb-btn lb-btn--ghost lb-btn--block" id="bSair">Sair do desafio</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tela" id="tResultado" hidden>
+        <div class="res-topo"><div class="letra" id="rLetra">A</div><div><h2 id="rTitulo"></h2><p class="nota" id="rMinima"></p></div></div>
+        <dl class="numeros">
+          <div><dt>Precisão</dt><dd id="rPrecisao"></dd></div>
+          <div><dt>Combo máximo</dt><dd id="rCombo"></dd></div>
+          <div><dt>Pontos</dt><dd id="rPontos"></dd></div>
+        </dl>
+        <ul class="contas">
+          <li><span style="color:var(--dz-perfeito)">Perfeito</span><i><i id="rb_perfeito" style="background:var(--dz-perfeito)"></i></i><b id="r_perfeito">0</b></li>
+          <li><span style="color:var(--dz-bom)">Bom</span><i><i id="rb_bom" style="background:var(--dz-bom)"></i></i><b id="r_bom">0</b></li>
+          <li><span style="color:var(--dz-ok)">Ok</span><i><i id="rb_ok" style="background:var(--dz-ok)"></i></i><b id="r_ok">0</b></li>
+          <li><span style="color:var(--dz-errou)">Errou</span><i><i id="rb_errou" style="background:var(--dz-errou)"></i></i><b id="r_errou">0</b></li>
+          <li id="rSegRow"><span>Seguradas</span><span></span><b id="rSeg" style="white-space:nowrap">0</b></li>
+        </ul>
+        <p class="desfecho" id="rDesfecho"></p>
+        <div><p class="rotulo" style="margin-bottom:6px">Na mesa</p><ol class="mesa" id="rMesa"></ol></div>
+        <div class="botoes" id="rBotoes"><button type="button" class="lb-btn lb-btn--primary" id="rPrimario">Dançar de novo</button><button type="button" class="lb-btn" id="rVoltar">Voltar ao convite</button></div>
+      </div>
+    </section>
+  </main>
+
+  <main class="mestre" id="vMestre" hidden>
+    <aside class="painel painel--pino" aria-labelledby="hPino">
+      <div class="painel__cab"><svg width="30" height="40" aria-hidden="true"><use href="#pinoControle"/></svg><div><h2 id="hPino">Pino de minigame</h2><p>Porta que dança (nome que só o mestre vê)</p></div></div>
+      <div class="campo-f"><span class="rotulo">Minigame</span><p>Dança: setas no ritmo</p></div>
+      <div class="campo-f"><label class="rotulo" for="fNpc">Quem desafia</label><input type="text" id="fNpc" value="Dona Ziza" maxlength="40"></div>
+      <div class="campo-f"><label class="rotulo" for="fFala">Fala do desafio</label><textarea id="fFala" rows="3" maxlength="220">Esta porta é surda para chave e cega para força. Só abre para quem tem ginga. Acompanha o meu tempo?</textarea></div>
+      <fieldset class="campo-f">
+        <legend class="rotulo" style="margin-bottom:6px">Música</legend>
+        <label class="radio"><input type="radio" name="musica" value="demo" checked>Faixa demo: Gingado do Salão Fundo (116 BPM)</label>
+        <label class="radio"><input type="radio" name="musica" value="importada" id="rMusImportada" disabled>Arquivo importado</label>
+        <div class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bImportar">Importar música…</button><input type="file" id="fArquivo" accept="audio/*" hidden></div>
+        <p class="nota" id="mMusStatus" role="status" hidden></p>
+        <div class="grade-mus" id="mGrade" hidden>
+          <dl>
+            <dt>Tempo</dt><dd><span id="mBpm">—</span> BPM</dd><dd class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bBpmMenos" aria-label="Tempo menos 0,1 BPM">−0,1</button><button type="button" class="lb-btn lb-btn--sm" id="bBpmMais" aria-label="Tempo mais 0,1 BPM">+0,1</button></dd>
+            <dt>1ª batida</dt><dd id="mFase">—</dd><dd class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bFaseMenos" aria-label="Primeira batida 10 ms antes">−10 ms</button><button type="button" class="lb-btn lb-btn--sm" id="bFaseMais" aria-label="Primeira batida 10 ms depois">+10 ms</button></dd>
+            <dt>Confiança</dt><dd id="mConf">—</dd><dd></dd>
+          </dl>
+          <div class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bConferir">Conferir com metrônomo</button><button type="button" class="lb-btn lb-btn--sm" id="bBater">Bater o tempo</button></div>
+          <p class="nota">Se o metrônomo não casar com a música, toque "Bater o tempo" e acompanhe 8 batidas.</p>
+        </div>
+      </fieldset>
+      <fieldset class="campo-f"><legend class="rotulo" style="margin-bottom:6px">Dificuldade</legend><div class="seg"><button type="button" data-permitida="escolha" aria-pressed="true">Jogador escolhe</button><button type="button" data-permitida="diversao" aria-pressed="false">Só Diversão</button><button type="button" data-permitida="expert" aria-pressed="false">Só Expert</button></div></fieldset>
+      <fieldset class="campo-f"><legend class="rotulo" style="margin-bottom:6px">Nota mínima para passar</legend><div class="seg"><button type="button" data-nota-min="S" aria-pressed="false">S</button><button type="button" data-nota-min="A" aria-pressed="false">A</button><button type="button" data-nota-min="B" aria-pressed="true">B</button><button type="button" data-nota-min="C" aria-pressed="false">C</button><button type="button" data-nota-min="D" aria-pressed="false">D</button></div></fieldset>
+      <fieldset class="campo-f">
+        <legend class="rotulo" style="margin-bottom:6px">Quando passa</legend>
+        <label class="radio"><input type="checkbox" id="fAbrir" checked>Abre a porta ligada (Portão do Salão Fundo)</label>
+        <select id="fPremioTipo" aria-label="Tipo de prêmio"><option value="item">Item na mochila</option><option value="pista">Pista</option><option value="bonus">Bônus no próximo teste</option><option value="nada">Nenhum prêmio</option></select>
+        <input type="text" id="fPremioTexto" value="Chave de latão" aria-label="Prêmio" maxlength="60">
+      </fieldset>
+      <fieldset class="campo-f">
+        <legend class="rotulo" style="margin-bottom:6px">Quando não passa</legend>
+        <select id="fConsTipo" aria-label="Consequência"><option value="teste">Penalidade no próximo teste</option><option value="barulho">Barulho: o mestre narra</option><option value="espera">Só tenta de novo na próxima rodada</option><option value="nada">Nenhuma</option></select>
+        <input type="text" id="fConsTexto" value="−2 no próximo teste de Agilidade" aria-label="Penalidade" maxlength="60">
+        <p class="nota">A consequência nunca tranca a história: a porta sempre aceita outra tentativa.</p>
+      </fieldset>
+    </aside>
+
+    <section class="mapa" aria-labelledby="hMapa">
+      <h2 id="hMapa" style="font:600 15px/1.3 var(--lb-font-sans)">No mapa</h2>
+      <svg viewBox="0 0 400 250" role="img" aria-label="Recorte do mapa: o pino de controle diante da porta que ele abre, ligado a ela por um tracejado">
+        <rect x="186" y="0" width="34" height="62" fill="#3b3833"/>
+        <rect x="40" y="60" width="320" height="165" fill="#3b3833"/>
+        <path d="M190 60H40V225H360V60H216M186 0V60M220 0V60" fill="none" stroke="#c9c2b6" stroke-width="1.5"/>
+        <rect x="190" y="57" width="26" height="6" fill="#8a6a3a" stroke="#1b1208" stroke-width="1"/>
+        <line x1="203" y1="117" x2="203" y2="64" stroke="#f2c14e" stroke-width="1.2" stroke-dasharray="4 3"/>
+        <circle cx="110" cy="180" r="11" fill="#79a9cc" stroke="#1b1208" stroke-width="2"/>
+        <use href="#pinoControle" x="188" y="98" width="30" height="40"/>
+        <text x="222" y="117" fill="#e8e2d0" stroke="#1b1208" stroke-width="3" paint-order="stroke" font-size="11" font-family="Segoe UI, system-ui, sans-serif">Porta que dança</text>
+      </svg>
+      <p class="nota">Mesma cabeça de latão dos pinos de hoje, com o controle em traço escuro. O tracejado liga o pino à porta que ele abre, como na alavanca.</p>
+      <div class="tipos" aria-label="Os tipos de pino lado a lado">
+        <figure><svg viewBox="0 0 30 40" aria-hidden="true"><line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/><circle cx="15" cy="15" r="11" fill="#f2c14e" stroke="#1b1208" stroke-width="2"/><text x="15" y="21.5" text-anchor="middle" font-size="18" font-weight="700" fill="#1b1208" font-family="Segoe UI, sans-serif">!</text></svg><figcaption>Exclamação</figcaption></figure>
+        <figure><svg viewBox="0 0 30 40" aria-hidden="true"><line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/><circle cx="15" cy="15" r="11" fill="#f2c14e" stroke="#1b1208" stroke-width="2"/><text x="15" y="21.5" text-anchor="middle" font-size="18" font-weight="700" fill="#1b1208" font-family="Segoe UI, sans-serif">?</text></svg><figcaption>Interrogação</figcaption></figure>
+        <figure><svg viewBox="0 0 30 40" aria-hidden="true"><line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/><circle cx="15" cy="15" r="11" fill="#1b1208" stroke="#f2c14e" stroke-width="2"/><path d="M15.14 9.79H20.63V20.21H15.14M8.95 15H18.1M15.56 12.47 18.1 15 15.56 17.53" fill="none" stroke="#f2c14e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><figcaption>Viagem</figcaption></figure>
+        <figure><svg viewBox="0 0 30 40" aria-hidden="true"><line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/><circle cx="15" cy="15" r="11" fill="#f2c14e" stroke="#1b1208" stroke-width="2"/><path d="M9.93 19.36H20.07M14.3 19.36 17.82 12.47" fill="none" stroke="#1b1208" stroke-width="1.7" stroke-linecap="round"/><circle cx="18.38" cy="11.34" r="1.55" fill="#1b1208"/></svg><figcaption>Alavanca</figcaption></figure>
+        <figure data-novo><svg viewBox="0 0 30 40" aria-hidden="true"><use href="#pinoControle"/></svg><figcaption>Minigame (novo)</figcaption></figure>
+      </div>
+    </section>
+
+    <aside class="painel painel--placar" aria-labelledby="hPlacar">
+      <h2 id="hPlacar">Placar ao vivo</h2>
+      <ul class="placar" id="mPlacar">
+        <li><span class="pl__nome">Você</span><span class="pl__status">Esperando</span><span class="pl__nums"><span>Precisão <b class="pl__prec">—</b></span><span>Combo <b class="pl__combo">0</b></span></span><span class="pl__vida" role="meter" aria-label="Vida de Você" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span></li>
+        <li><span class="pl__nome">Iara</span><span class="pl__status">Esperando</span><span class="pl__nums"><span>Precisão <b class="pl__prec">—</b></span><span>Combo <b class="pl__combo">0</b></span></span><span class="pl__vida" role="meter" aria-label="Vida de Iara" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span></li>
+        <li><span class="pl__nome">Tomé</span><span class="pl__status">Esperando</span><span class="pl__nums"><span>Precisão <b class="pl__prec">—</b></span><span>Combo <b class="pl__combo">0</b></span></span><span class="pl__vida" role="meter" aria-label="Vida de Tomé" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span></li>
+      </ul>
+      <div class="linha"><button type="button" class="lb-btn" id="mPausar" disabled>Pausar para todos</button><button type="button" class="lb-btn" id="mEncerrar" disabled>Encerrar para todos</button></div>
+      <p class="nota" id="mMotivo">Ninguém está dançando agora. Volte para a visão do jogador e entre na pista.</p>
+    </aside>
+  </main>
+  <p class="sr-only" aria-live="polite" id="anuncio"></p>
+</div>
+<script>
+(() => {
+'use strict';
+/* Pista de Dança: protótipo do minigame do pino de controle do Labirinto.
+   Relógio único: o AudioContext. A música demo é sintetizada aqui mesmo. */
+
+// ------------------------------------------------------------------ utilidades
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const fmtInt = (v) => Math.round(v).toLocaleString('pt-BR');
+const fmtDec = (v, c = 1) => v.toFixed(c).replace('.', ',');
+const fmtPct = (v) => fmtDec(v * 100, 1) + '%';
+const fmtMs = (ms) => { const r = Math.round(ms); return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r) + ' ms'; };
+const ceder = () => new Promise((ok) => setTimeout(ok, 0));
+const movimentoReduzido = matchMedia('(prefers-reduced-motion: reduce)');
+
+function hashTexto(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h;
+}
+/** mulberry32: mesma semente, mesma sequência, em qualquer aparelho. */
+function rngDe(semente) {
+  let a = semente >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function sortearPeso(rng, itens, pesos) {
+  let tot = 0;
+  for (const p of pesos) tot += p;
+  let r = rng() * tot;
+  for (let i = 0; i < itens.length; i++) { r -= pesos[i]; if (r < 0 && pesos[i] > 0) return itens[i]; }
+  for (let i = itens.length - 1; i >= 0; i--) if (pesos[i] > 0) return itens[i];
+  return itens[itens.length - 1];
+}
+function gauss(rng) { let u = 0; while (u === 0) u = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()); }
+
+/** Curva cúbica com os mesmos números do CSS, para o que anda dentro do canvas. */
+function curva(x1, y1, x2, y2) {
+  const bx = (t) => 3 * x1 * t * (1 - t) ** 2 + 3 * x2 * t * t * (1 - t) + t ** 3;
+  const by = (t) => 3 * y1 * t * (1 - t) ** 2 + 3 * y2 * t * t * (1 - t) + t ** 3;
+  return (x) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 26; i++) { const v = bx(t); if (Math.abs(v - x) < 1e-6) break; if (v < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+    return by(t);
+  };
+}
+const EASE_OUT = curva(0.23, 1, 0.32, 1);
+const EASE_IN_OUT = curva(0.77, 0, 0.175, 1);
+
+// ------------------------------------------------------------------ preferências deste aparelho
+const PREFS_CHAVE = 'labirinto.danca.v1';
+const prefs = { ajusteMs: 0, teclas: 'setas', somAcerto: true };
+try {
+  const s = JSON.parse(localStorage.getItem(PREFS_CHAVE) || 'null');
+  if (s && typeof s === 'object') {
+    if (Number.isFinite(s.ajusteMs)) prefs.ajusteMs = clamp(Math.round(s.ajusteMs), -300, 300);
+    if (s.teclas === 'setas' || s.teclas === 'dfjk') prefs.teclas = s.teclas;
+    if (typeof s.somAcerto === 'boolean') prefs.somAcerto = s.somAcerto;
+  }
+} catch { /* sem armazenamento (aba privada, bloqueio): segue com o padrão */ }
+function gravarPrefs() { try { localStorage.setItem(PREFS_CHAVE, JSON.stringify(prefs)); } catch { /* idem */ } }
+
+// ------------------------------------------------------------------ regras do jogo
+const SETAS = [
+  { id: 'esq', nome: 'esquerda', glifo: '←' },
+  { id: 'baixo', nome: 'baixo', glifo: '↓' },
+  { id: 'cima', nome: 'cima', glifo: '↑' },
+  { id: 'dir', nome: 'direita', glifo: '→' },
+];
+/** Números finais das dificuldades (o README repete esta tabela). */
+const DIF = {
+  diversao: {
+    id: 'diversao', nome: 'Diversão',
+    janelas: { perfeito: 60, bom: 110, ok: 160 }, errouCedo: 0,
+    tela: 1.9, vida: false, gapMin: 0.45, porCompasso: 3, limiar: { 4: 0.5 },
+  },
+  expert: {
+    id: 'expert', nome: 'Expert',
+    janelas: { perfeito: 30, bom: 60, ok: 100 }, errouCedo: 160,
+    tela: 1.25, vida: true, gapMin: 0.1, corrida: 8, limiar: { 4: 0.3, 8: 0.5, 16: 0.62 },
+  },
+};
+const PESO = { perfeito: 100, bom: 75, ok: 40, errou: 0 };
+const VIDA = { inicio: 60, max: 100, perfeito: 2, bom: 1, ok: 0, errou: -9, soltou: -6 };
+const LETRAS = [['S', 0.95], ['A', 0.88], ['B', 0.78], ['C', 0.65], ['D', 0]];
+const SOLTAR_TOLERANCIA = 0.12;
+const PONTOS_MAX = 1000000;
+
+/** Julga um toque: delta em ms (negativo = cedo). Borda inclusiva: 60 ms ainda é Perfeito. */
+function julgar(deltaMs, difId) {
+  const d = DIF[difId], a = Math.abs(deltaMs) - 1e-6;
+  if (a <= d.janelas.perfeito) return 'perfeito';
+  if (a <= d.janelas.bom) return 'bom';
+  if (a <= d.janelas.ok) return 'ok';
+  if (deltaMs < 0 && a <= d.errouCedo) return 'errou';
+  return null;
+}
+function letraDe(precisao) { for (const [l, m] of LETRAS) if (precisao >= m - 1e-9) return l; return 'D'; }
+const ordemLetra = (l) => LETRAS.findIndex((x) => x[0] === l);
+
+// ==== SOM:INICIO — bloco autocontido; provas/gerar-provas.cjs extrai daqui até SOM:FIM ====
+const SOM = (() => {
+  const BPM = 116;
+  const PASSO = 60 / BPM / 4;
+  const COMPASSO = PASSO * 16;
+  const ULTIMO = 21;
+  const DURACAO = ULTIMO * COMPASSO + 2.2;
+  const GANHO = 0.42;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const ruidos = new WeakMap();
+  let giro = 0;
+
+  function ruido(ctx) {
+    let b = ruidos.get(ctx);
+    if (!b) {
+      b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d = b.getChannelData(0);
+      let s = 0x2545f491;
+      for (let i = 0; i < d.length; i++) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; d[i] = ((s >>> 0) / 4294967296) * 2 - 1; }
+      ruidos.set(ctx, b);
+    }
+    return b;
+  }
+  function envelope(p, t, pico, ataque, queda) {
+    p.setValueAtTime(0.0001, t);
+    p.exponentialRampToValueAtTime(pico, t + ataque);
+    p.exponentialRampToValueAtTime(0.0001, t + ataque + queda);
+  }
+  function fonteRuido(ctx, t, dur) {
+    const n = ctx.createBufferSource();
+    n.buffer = ruido(ctx);
+    n.loop = true;
+    giro = (giro + 0.173) % 0.7;
+    n.start(t, giro);
+    n.stop(t + dur);
+    return n;
+  }
+  function filtro(ctx, tipo, f, q = 0.7) { const b = ctx.createBiquadFilter(); b.type = tipo; b.frequency.value = f; b.Q.value = q; return b; }
+  function osc(ctx, tipo, f) { const o = ctx.createOscillator(); o.type = tipo; o.frequency.value = f; return o; }
+  /** Ganho que nasce em 0. O padrão do GainNode é 1: quando o início cai bem numa amostra, o som passava
+      1 amostra cheia antes do envelope valer, e isso era o estalo de 7,5 s da faixa demo. */
+  function vca(ctx) { const g = ctx.createGain(); g.gain.value = 0; return g; }
+
+  const INST = {
+    bumbo(ctx, out, t, e) {
+      const o = osc(ctx, 'sine', 150), g = vca(ctx);
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(46, t + 0.12);
+      envelope(g.gain, t, 0.9 * e.v, 0.003, 0.36);
+      o.connect(g).connect(out); o.start(t); o.stop(t + 0.42);
+      const n = fonteRuido(ctx, t, 0.03), f = filtro(ctx, 'lowpass', 2600), gn = vca(ctx);
+      envelope(gn.gain, t, 0.2 * e.v, 0.001, 0.016);
+      n.connect(f).connect(gn).connect(out);
+    },
+    caixa(ctx, out, t, e) {
+      const n = fonteRuido(ctx, t, 0.22), f = filtro(ctx, 'highpass', 1100), g = vca(ctx);
+      envelope(g.gain, t, 0.42 * e.v, 0.002, 0.16);
+      n.connect(f).connect(g).connect(out);
+      const o = osc(ctx, 'triangle', 196), go = vca(ctx);
+      o.frequency.setValueAtTime(196, t); o.frequency.exponentialRampToValueAtTime(150, t + 0.08);
+      envelope(go.gain, t, 0.34 * e.v, 0.002, 0.08);
+      o.connect(go).connect(out); o.start(t); o.stop(t + 0.12);
+    },
+    palma(ctx, out, t, e) {
+      const n = fonteRuido(ctx, t, 0.24), f = filtro(ctx, 'bandpass', 1450, 1.3), g = vca(ctx), p = g.gain;
+      p.setValueAtTime(0.0001, t);
+      for (let i = 0; i < 3; i++) { const ti = t + i * 0.011; p.exponentialRampToValueAtTime(0.5 * e.v, ti + 0.001); p.exponentialRampToValueAtTime(0.06 * e.v, ti + 0.009); }
+      p.exponentialRampToValueAtTime(0.32 * e.v, t + 0.035);
+      p.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      n.connect(f).connect(g).connect(out);
+    },
+    chimbal(ctx, out, t, e) {
+      const d = e.aberto ? 0.24 : 0.04;
+      const n = fonteRuido(ctx, t, d + 0.05), f = filtro(ctx, 'highpass', 7200), g = vca(ctx);
+      envelope(g.gain, t, 0.15 * e.v, 0.001, d);
+      n.connect(f).connect(g).connect(out);
+    },
+    prato(ctx, out, t, e) {
+      const n = fonteRuido(ctx, t, 1.9), f = filtro(ctx, 'highpass', 3800), g = vca(ctx);
+      envelope(g.gain, t, 0.13 * e.v, 0.002, 1.7);
+      n.connect(f).connect(g).connect(out);
+    },
+    baqueta(ctx, out, t, e) {
+      for (const [f, a] of [[1850, 0.3], [2750, 0.12]]) {
+        const o = osc(ctx, 'sine', f), g = vca(ctx);
+        envelope(g.gain, t, a * e.v, 0.001, 0.06);
+        o.connect(g).connect(out); o.start(t); o.stop(t + 0.08);
+      }
+    },
+    baixo(ctx, out, t, e) {
+      const f0 = mtof(e.midi), dur = Math.max(0.1, e.dur);
+      const o = osc(ctx, 'sawtooth', f0), s = osc(ctx, 'sine', f0);
+      const lp = filtro(ctx, 'lowpass', 1500, 5);
+      lp.frequency.setValueAtTime(1500, t); lp.frequency.exponentialRampToValueAtTime(320, t + 0.14);
+      const g = vca(ctx), p = g.gain;
+      p.setValueAtTime(0.0001, t); p.exponentialRampToValueAtTime(0.3 * e.v, t + 0.005);
+      p.exponentialRampToValueAtTime(0.2 * e.v, t + 0.1); p.setValueAtTime(0.2 * e.v, t + dur);
+      p.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+      const gs = vca(ctx); gs.gain.value = 0.9;
+      o.connect(lp); s.connect(gs).connect(lp); lp.connect(g).connect(out);
+      const fim = t + dur + 0.07; o.start(t); s.start(t); o.stop(fim); s.stop(fim);
+    },
+    batida(ctx, out, t, e) {
+      const f = filtro(ctx, 'bandpass', 1700, 0.8), g = vca(ctx);
+      f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(2300, t + 0.05);
+      envelope(g.gain, t, 0.07 * e.v, 0.002, 0.11);
+      f.connect(g).connect(out);
+      for (const m of e.notas) { const o = osc(ctx, 'square', mtof(m)); o.detune.value = ((m % 3) - 1) * 6; o.connect(f); o.start(t); o.stop(t + 0.14); }
+    },
+    melodia(ctx, out, t, e) {
+      const f0 = mtof(e.midi), o = osc(ctx, 'square', f0), tri = osc(ctx, 'triangle', f0 * 2);
+      const vib = osc(ctx, 'sine', 5.5), gv = vca(ctx);
+      gv.gain.setValueAtTime(0, t); gv.gain.linearRampToValueAtTime(7, t + Math.min(0.25, e.dur));
+      vib.connect(gv); gv.connect(o.detune); gv.connect(tri.detune);
+      const lp = filtro(ctx, 'lowpass', 2600, 0.6), g = vca(ctx), p = g.gain, gt = vca(ctx);
+      gt.gain.value = 0.35;
+      p.setValueAtTime(0.0001, t); p.exponentialRampToValueAtTime(0.085 * e.v, t + 0.01);
+      p.setValueAtTime(0.085 * e.v, t + e.dur); p.exponentialRampToValueAtTime(0.0001, t + e.dur + 0.08);
+      o.connect(lp); tri.connect(gt).connect(lp); lp.connect(g).connect(out);
+      const fim = t + e.dur + 0.1;
+      for (const x of [o, tri, vib]) { x.start(t); x.stop(fim); }
+    },
+    tapete(ctx, out, t, e) {
+      const lp = filtro(ctx, 'lowpass', 1100, 0.5), g = vca(ctx), p = g.gain;
+      p.setValueAtTime(0.0001, t); p.exponentialRampToValueAtTime(0.045 * e.v, t + 0.3);
+      p.setValueAtTime(0.045 * e.v, t + e.dur); p.exponentialRampToValueAtTime(0.0001, t + e.dur + 0.45);
+      lp.connect(g).connect(out);
+      for (const m of e.notas) for (const d of [-8, 8]) { const o = osc(ctx, 'sawtooth', mtof(m)); o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + e.dur + 0.5); }
+    },
+  };
+
+  // Mi dórico: Em7 e A se alternando, riff de baixo de dois compassos e um tema pentatônico.
+  const RIFF_A = [[0, 40, 3], [3, 52, 1], [6, 43, 2], [8, 45, 2], [11, 47, 2], [14, 50, 2]];
+  const RIFF_B = [[0, 40, 3], [3, 52, 1], [6, 43, 2], [8, 47, 2], [10, 45, 2], [12, 43, 2], [14, 40, 2]];
+  const FRASE_1 = [[0, 64, 2], [2, 67, 2], [4, 69, 3], [7, 71, 1], [8, 69, 2], [10, 67, 2], [12, 64, 4], [16, 62, 2], [18, 64, 2], [20, 67, 4], [24, 69, 2], [26, 67, 2], [28, 64, 4]];
+  const FRASE_2 = [[0, 71, 2], [2, 74, 2], [4, 71, 2], [6, 69, 2], [8, 67, 4], [12, 69, 2], [14, 71, 2], [16, 76, 4], [20, 74, 2], [22, 71, 2], [24, 69, 3], [27, 67, 1], [28, 64, 4]];
+  const EM7 = [52, 55, 59, 62], LA = [57, 61, 64], SOL = [55, 59, 62], RE = [50, 54, 57];
+
+  /** Seções: 0 contagem · 1-4 entrada · 5-12 balanço com tema · 13-16 pausa com notas longas · 17-20 final · 21 acorde. */
+  function secaoDe(c) { return c === 0 ? 'contagem' : c <= 4 ? 'entrada' : c <= 12 ? 'balanco' : c <= 16 ? 'pausa' : c <= 20 ? 'final' : 'fim'; }
+
+  function eventos() {
+    const ev = [];
+    const add = (c, p, inst, v, extra) => ev.push(Object.assign({ t: (c * 16 + p) * PASSO, c, p, inst, v }, extra));
+    for (let b = 0; b < 4; b++) add(0, b * 4, 'baqueta', b === 0 ? 0.9 : 0.6);
+    for (let c = 1; c <= 20; c++) {
+      const secao = secaoDe(c), par = c % 2 === 0;
+      if (secao === 'pausa') {
+        add(c, 0, 'bumbo', 0.9); add(c, 4, 'palma', 0.8); add(c, 12, 'palma', 0.8);
+        for (const p of [2, 6, 10, 14]) add(c, p, 'chimbal', 0.5, { aberto: true });
+        const longas = { 13: [[0, 40, 8], [8, 43, 8]], 14: [[0, 45, 16]], 15: [[0, 43, 8], [8, 47, 8]], 16: [[0, 50, 8]] }[c];
+        for (const [p, m, d] of longas) add(c, p, 'baixo', 0.85, { midi: m, dur: d * PASSO * 0.96 });
+        add(c, 0, 'tapete', 0.8, { notas: { 13: EM7, 14: LA, 15: SOL, 16: RE }[c], dur: (c === 16 ? 8 : 16) * PASSO });
+        if (c === 16) for (let p = 8; p < 16; p++) add(c, p, 'caixa', 0.35 + 0.06 * (p - 8));
+        continue;
+      }
+      for (const p of secao === 'entrada' ? [0, 8] : [0, 7, 8, 10]) add(c, p, 'bumbo', p === 0 ? 1 : 0.85);
+      add(c, 4, 'caixa', 0.9); add(c, 12, 'caixa', 0.9);
+      if (secao !== 'entrada') add(c, 14, 'caixa', 0.22);
+      if (secao === 'final') { add(c, 4, 'palma', 0.6); add(c, 12, 'palma', 0.6); }
+      for (let p = 0; p < 16; p += secao === 'entrada' ? 2 : 1) add(c, p, 'chimbal', p % 4 === 0 ? 0.6 : p % 2 === 0 ? 0.42 : 0.22, { aberto: p === 14 && !par && secao !== 'entrada' });
+      if (c === 5 || c === 9 || c === 17) add(c, 0, 'prato', 0.8);
+      for (const [p, m, d] of par ? RIFF_B : RIFF_A) add(c, p, 'baixo', 0.8, { midi: m, dur: d * PASSO * 0.92 });
+      if (c >= 3) for (const p of [2, 6, 10, 14]) add(c, p, 'batida', 0.55, { notas: par ? LA : EM7 });
+      if (secao !== 'entrada') {
+        const frase = (c >= 9 && c <= 12) || c >= 19 ? FRASE_2 : FRASE_1;
+        const metade = (c - 1) % 2;
+        for (const [p, m, d] of frase) if (Math.floor(p / 16) === metade) add(c, p % 16, 'melodia', 0.8, { midi: m, dur: d * PASSO * 0.95 });
+      }
+    }
+    add(ULTIMO, 0, 'bumbo', 1); add(ULTIMO, 0, 'prato', 1);
+    add(ULTIMO, 0, 'batida', 0.9, { notas: EM7 });
+    add(ULTIMO, 0, 'baixo', 0.9, { midi: 40, dur: 1.3 });
+    add(ULTIMO, 0, 'tapete', 0.9, { notas: EM7, dur: 1.6 });
+    add(ULTIMO, 0, 'melodia', 0.8, { midi: 76, dur: 1.2 });
+    return ev.sort((a, b) => a.t - b.t);
+  }
+
+  function agendar(ctx, destino, lista, t0) {
+    const pan = { chimbal: 0.3, batida: -0.25, melodia: 0.12, prato: -0.15, palma: 0.08 };
+    const bus = {};
+    for (const k of Object.keys(INST)) {
+      if (pan[k] && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan[k]; p.connect(destino); bus[k] = p; } else bus[k] = destino;
+    }
+    for (const e of lista) INST[e.inst](ctx, bus[e.inst], t0 + e.t, e);
+  }
+
+  async function renderizar(taxa = 48000) {
+    const off = new OfflineAudioContext(2, Math.ceil(taxa * DURACAO), taxa);
+    const g = off.createGain();
+    g.gain.value = GANHO;
+    g.connect(off.destination);
+    agendar(off, g, eventos(), 0);
+    return off.startRendering();
+  }
+
+  /** "Toc" curto de madeira no acerto. Baixo de propósito: não pode cobrir a música. */
+  function acerto(ctx, out, t, forte) {
+    const o = osc(ctx, 'sine', forte ? 1568 : 1319), g = vca(ctx);
+    envelope(g.gain, t, 0.16, 0.001, 0.05);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 0.07);
+  }
+  /** "Tum" abafado no erro; na Diversão sai mais baixo. */
+  function erro(ctx, out, t, gentil) {
+    const o = osc(ctx, 'triangle', 170), lp = filtro(ctx, 'lowpass', 700), g = vca(ctx);
+    o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(85, t + 0.13);
+    envelope(g.gain, t, gentil ? 0.1 : 0.18, 0.004, 0.14);
+    o.connect(lp).connect(g).connect(out); o.start(t); o.stop(t + 0.18);
+  }
+  function clique(ctx, out, t, forte) {
+    const o = osc(ctx, 'sine', forte ? 1760 : 1175), g = vca(ctx);
+    envelope(g.gain, t, forte ? 0.3 : 0.2, 0.001, 0.05);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 0.07);
+  }
+
+  return { BPM, PASSO, COMPASSO, ULTIMO, DURACAO, GANHO, secaoDe, eventos, agendar, renderizar, acerto, erro, clique };
+})();
+// ==== SOM:FIM ====
+
+// ------------------------------------------------------------------ análise de música importada
+const ANALISE = (() => {
+  const HOP = 0.01;
+  /** Ajuste fixo entre o pico do fluxo e o ataque ouvido (medido na faixa demo). */
+  const DESVIO_ATAQUE = 0;
+
+  function coef(tipo, f, q, sr) {
+    const w = 2 * Math.PI * f / sr, cs = Math.cos(w), al = Math.sin(w) / (2 * q);
+    const a0 = 1 + al, a1 = -2 * cs, a2 = 1 - al;
+    let b0, b1, b2;
+    if (tipo === 'lp') { b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = b0; }
+    else if (tipo === 'hp') { b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; }
+    else { b0 = al; b1 = 0; b2 = -al; }
+    return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+  }
+  function energiaPorQuadro(x, c, hop, quadros) {
+    const [b0, b1, b2, a1, a2] = c;
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    const e = new Float32Array(quadros);
+    for (let q = 0, i = 0; q < quadros; q++) {
+      let s = 0;
+      for (let k = 0; k < hop; k++, i++) {
+        const xi = x[i], y = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = xi; y2 = y1; y1 = y; s += y * y;
+      }
+      e[q] = s / hop;
+    }
+    return e;
+  }
+  function autocorr(env, topo) {
+    const n = env.length, acf = new Float32Array(topo + 1);
+    for (let L = 1; L <= topo; L++) { let s = 0; for (let i = 0; i + L < n; i++) s += env[i] * env[i + L]; acf[L] = s / (n - L); }
+    return acf;
+  }
+  function magnitude(env, ciclosPorQuadro) {
+    const w = 2 * Math.PI * ciclosPorQuadro, cw = Math.cos(w), sw = Math.sin(w);
+    let c = 1, s = 0, re = 0, im = 0;
+    for (let i = 0; i < env.length; i++) { re += env[i] * c; im += env[i] * s; const nc = c * cw - s * sw; s = s * cw + c * sw; c = nc; }
+    return { mag: Math.hypot(re, im), ang: Math.atan2(im, re) };
+  }
+
+  function estimarTempo(env, hopS) {
+    const minL = Math.floor(60 / 200 / hopS), maxL = Math.ceil(60 / 60 / hopS);
+    const topo = Math.min(env.length - 2, maxL * 4 + 2);
+    const acf = autocorr(env, topo);
+    const at = (k) => (k >= 1 && k <= topo ? acf[k] : 0);
+    const nota = (L) => {
+      const bpm = 60 / (L * hopS), pri = Math.exp(-0.5 * (Math.log2(bpm / 118) / 0.9) ** 2);
+      return (at(L) + 0.5 * at(2 * L) + 0.25 * at(4 * L)) * pri;
+    };
+    let melhorL = minL, melhor = -Infinity;
+    const todas = [];
+    for (let L = minL; L <= maxL; L++) { const s = nota(L); todas.push(s); if (s > melhor) { melhor = s; melhorL = L; } }
+    const y0 = nota(melhorL - 1), y2 = nota(melhorL + 1), den = y0 - 2 * melhor + y2;
+    const Lf = melhorL + (den !== 0 ? 0.5 * (y0 - y2) / den : 0);
+    const bpm0 = 60 / (Lf * hopS);
+    let melhorMag = -1, bpm = bpm0;
+    for (let b = bpm0 * 0.98; b <= bpm0 * 1.02; b += 0.01) {
+      const m = magnitude(env, (b / 60) * hopS).mag;
+      if (m > melhorMag) { melhorMag = m; bpm = b; }
+    }
+    // Tempo de estúdio quase sempre é inteiro: se o inteiro vizinho explica quase igual, fica com ele.
+    const inteiro = Math.round(bpm);
+    if (Math.abs(inteiro - bpm) < 0.15 && magnitude(env, (inteiro / 60) * hopS).mag >= 0.985 * melhorMag) bpm = inteiro;
+    todas.sort((a, b) => a - b);
+    const med = todas[todas.length >> 1] || 1e-9;
+    return { periodo: 60 / bpm, confianca: clamp((melhor / med - 1) / 3, 0, 1) };
+  }
+
+  function estimarFase(env, grave, hopS, P) {
+    const n = env.length, dur = n * hopS;
+    let fase = (magnitude(env, hopS / P).ang / (2 * Math.PI)) * P;
+    fase = ((fase % P) + P) % P;
+    const pico = (t) => { const i = Math.round(t / hopS); let m = 0; for (let k = i - 1; k <= i + 1; k++) if (k >= 0 && k < n && env[k] > m) m = env[k]; return m; };
+    let melhor = -1, melhorF = fase;
+    for (let d = -0.04; d <= 0.04001; d += 0.002) {
+      const f = (((fase + d) % P) + P) % P;
+      let s = 0;
+      for (let t = f; t < dur; t += P) s += pico(t);
+      if (s > melhor) { melhor = s; melhorF = f; }
+    }
+    let max = 0;
+    for (let i = 0; i < n; i++) if (env[i] > max) max = env[i];
+    let ini = 0;
+    for (let i = 0; i < n; i++) if (env[i] > 0.3 * max) { ini = i * hopS; break; }
+    let primeira = melhorF;
+    while (primeira + P * 0.5 < ini) primeira += P;
+    const soma = [0, 0, 0, 0];
+    for (let k = 0, t = primeira; t < dur; k++, t += P) {
+      const i = Math.round(t / hopS);
+      let m = 0;
+      for (let j = i - 2; j <= i + 2; j++) if (j >= 0 && j < n && grave[j] > m) m = grave[j];
+      soma[k % 4] += m;
+    }
+    return { primeira: primeira + DESVIO_ATAQUE, fase4: soma.indexOf(Math.max(...soma)) };
+  }
+
+  /** Lê o áudio decodificado e devolve BPM, primeira batida e a força dos ataques. Cede a vez entre etapas. */
+  async function analisar(buffer, aoProgredir = () => {}) {
+    const sr = buffer.sampleRate, hop = Math.round(sr * HOP), hopS = hop / sr;
+    const n = buffer.length, quadros = Math.floor(n / hop);
+    const mono = new Float32Array(n);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const d = buffer.getChannelData(c), k = 1 / buffer.numberOfChannels;
+      for (let i = 0; i < n; i++) mono[i] += d[i] * k;
+    }
+    aoProgredir(0.1); await ceder();
+    const fluxos = [], energias = [];
+    for (const [tipo, f, q] of [['lp', 150, 0.707], ['bp', 1400, 0.8], ['hp', 6000, 0.707]]) {
+      const e = energiaPorQuadro(mono, coef(tipo, f, q, sr), hop, quadros);
+      const fl = new Float32Array(quadros);
+      let ant = Math.log1p(1e4 * e[0]);
+      for (let i = 1; i < quadros; i++) { const v = Math.log1p(1e4 * e[i]); fl[i] = Math.max(0, v - ant); ant = v; }
+      fluxos.push(fl); energias.push(e);
+      aoProgredir(0.1 + 0.2 * fluxos.length); await ceder();
+    }
+    const bruto = new Float32Array(quadros);
+    for (let i = 0; i < quadros; i++) bruto[i] = fluxos[0][i] + 0.8 * fluxos[1][i] + 0.5 * fluxos[2][i];
+    const r = Math.round(0.2 / hopS), acum = new Float64Array(quadros + 1);
+    for (let i = 0; i < quadros; i++) acum[i + 1] = acum[i] + bruto[i];
+    const env = new Float32Array(quadros), rms = new Float32Array(quadros);
+    for (let i = 0; i < quadros; i++) {
+      const a = Math.max(0, i - r), b = Math.min(quadros, i + r + 1);
+      env[i] = Math.max(0, bruto[i] - (acum[b] - acum[a]) / (b - a));
+      rms[i] = Math.sqrt(energias[0][i] + energias[1][i] + energias[2][i]);
+    }
+    aoProgredir(0.75); await ceder();
+    const tempo = estimarTempo(env, hopS);
+    aoProgredir(0.9); await ceder();
+    const fase = estimarFase(env, fluxos[0], hopS, tempo.periodo);
+    aoProgredir(1);
+    return {
+      bpm: 60 / tempo.periodo, periodo: tempo.periodo, confianca: tempo.confianca,
+      primeiraBatida: fase.primeira, fase4: fase.fase4, env, rms, hopS, duracao: buffer.duration,
+    };
+  }
+
+  /** Tempo batido à mão: reta pelos toques (mínimos quadrados) dá período e fase juntos. */
+  function ajustarToques(tempos) {
+    if (tempos.length < 4) return null;
+    const ints = [];
+    for (let i = 1; i < tempos.length; i++) ints.push(tempos[i] - tempos[i - 1]);
+    const med = ints.slice().sort((a, b) => a - b)[ints.length >> 1];
+    const k = [0];
+    for (let i = 1; i < tempos.length; i++) k.push(k[i - 1] + Math.max(1, Math.round((tempos[i] - tempos[i - 1]) / med)));
+    const n = k.length, mk = k.reduce((a, b) => a + b, 0) / n, mt = tempos.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (k[i] - mk) * (tempos[i] - mt); den += (k[i] - mk) ** 2; }
+    const P = num / den, a = mt - P * mk;
+    return P > 0.25 && P < 1.5 ? { periodo: P, fase: a } : null;
+  }
+
+  return { analisar, ajustarToques, HOP };
+})();
+
+// ------------------------------------------------------------------ grade de posições e coreografia
+const PESO_INST = { bumbo: 1, caixa: 0.9, palma: 0.85, prato: 0.2, baixo: 0.55, melodia: 0.62, batida: 0.3, chimbal: 0.15, tapete: 0, baqueta: 0 };
+
+/** Faixa demo: cada semicolcheia onde a música toca algo vira posição, com a força do instrumento mais forte. */
+function gradeDemo() {
+  const beatS = SOM.PASSO * 4, porPasso = new Map();
+  for (const e of SOM.eventos()) {
+    if (e.c === 0) continue;
+    const k = e.c * 16 + e.p;
+    let g = porPasso.get(k);
+    if (!g) { g = { t: e.t, sub: e.p % 4 === 0 ? 4 : e.p % 2 === 0 ? 8 : 16, forca: 0, sustain: 0, destaque: false, beatS, compasso: e.c, inst: [] }; porPasso.set(k, g); }
+    const w = PESO_INST[e.inst] * (e.inst === 'caixa' ? Math.min(1, e.v / 0.9) : 1);
+    g.forca = Math.min(1, Math.max(g.forca, w));
+    g.inst.push(e.inst);
+    if (e.inst === 'prato' || (e.inst === 'tapete' && e.c === 13)) g.destaque = true;
+    if (e.inst === 'baixo' && e.dur) g.sustain = Math.max(g.sustain, e.dur);
+  }
+  return Array.from(porPasso.values()).sort((a, b) => a.t - b.t);
+}
+
+/** Música importada: a grade da batida detectada, puxada pela força do ataque em cada ponto. */
+function gradeImportada(an) {
+  const P = an.periodo, fim = an.duracao - 0.8, pts = [];
+  const pico = (t, raio = 0.035) => {
+    const a = Math.max(0, Math.floor((t - raio) / an.hopS)), b = Math.min(an.env.length - 1, Math.ceil((t + raio) / an.hopS));
+    let m = 0; for (let i = a; i <= b; i++) if (an.env[i] > m) m = an.env[i]; return m;
+  };
+  const rmsEm = (t0, t1) => {
+    const a = Math.max(0, Math.floor(t0 / an.hopS)), b = Math.min(an.rms.length - 1, Math.ceil(t1 / an.hopS));
+    let s = 0, c = 0; for (let i = a; i <= b; i++) { s += an.rms[i]; c++; } return c ? s / c : 0;
+  };
+  for (let k = 0; ; k++) {
+    const tb = an.primeiraBatida + k * P;
+    if (tb > fim) break;
+    const noCompasso = (((k - an.fase4) % 4) + 4) % 4;
+    for (let s = 0; s < 4; s++) {
+      const t = tb + (s * P) / 4;
+      if (t > fim) break;
+      pts.push({ t, sub: s === 0 ? 4 : s === 2 ? 8 : 16, bruto: pico(t), forca: 0, sustain: 0, destaque: false, beatS: P, compasso: Math.floor((k - an.fase4 + 4000) / 4), noCompasso: s === 0 ? noCompasso : -1 });
+    }
+  }
+  const ord = pts.map((p) => p.bruto).sort((a, b) => a - b);
+  const ref = ord[Math.floor(ord.length * 0.95)] || 1;
+  for (const p of pts) p.forca = Math.min(1, p.bruto / ref);
+  let ultimoDest = -1e9;
+  for (const p of pts) if (p.noCompasso === 0 && p.forca >= 0.95 && p.t - ultimoDest >= 16 * P - 0.01) { p.destaque = true; ultimoDest = p.t; }
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    if (p.forca < 0.5) continue;
+    let j = i + 1;
+    while (j < pts.length && pts[j].forca < 0.4) j++;
+    const prox = j < pts.length ? pts[j].t : fim, calma = prox - p.t;
+    if (calma >= 1.5 * P && rmsEm(p.t + 0.06, prox - 0.06) >= 0.45 * rmsEm(p.t, p.t + 0.06)) p.sustain = calma;
+  }
+  return pts;
+}
+
+const SALTOS = [[0, 3], [1, 2], [0, 2], [1, 3], [0, 1], [2, 3]];
+const PESOS_SALTO = [5, 3, 1, 1, 1, 1];
+
+/** Coreografia determinística: mesma semente (pino + dificuldade), mesmas setas para todo mundo. */
+function gerarChart(grade, difId, semente) {
+  const d = DIF[difId], rng = rngDe(hashTexto(semente + '|' + difId));
+  let cands = [];
+  if (difId === 'diversao') {
+    const porComp = new Map();
+    for (const g of grade) {
+      if (g.sub !== 4 || g.forca < d.limiar[4]) continue;
+      const l = porComp.get(g.compasso) || [];
+      l.push({ g, r: rng() });
+      porComp.set(g.compasso, l);
+    }
+    for (const l of porComp.values()) {
+      l.sort((a, b) => b.g.forca - a.g.forca || a.r - b.r);
+      for (const x of l.slice(0, d.porCompasso)) cands.push(x.g);
+    }
+    cands.sort((a, b) => a.t - b.t);
+    const fil = [];
+    let ult = -1e9;
+    for (const g of cands) { if (g.t - ult < Math.max(d.gapMin, g.beatS * 0.98)) continue; fil.push(g); ult = g.t; }
+    cands = fil;
+  } else {
+    let ult = -1e9, corrida = 0;
+    for (const g of grade) {
+      if (g.forca < d.limiar[g.sub]) continue;
+      const gap = g.t - ult;
+      if (gap < Math.max(d.gapMin, (g.beatS / 4) * 0.98)) continue;
+      if (gap < g.beatS * 0.3) { corrida++; if (corrida >= d.corrida) continue; } else corrida = 0;
+      cands.push(g); ult = g.t;
+    }
+  }
+  const notas = [], ocupada = [-1, -1, -1, -1], hist = [];
+  let pe = rng() < 0.5 ? 0 : 1, ultT = -1e9;
+  for (const g of cands) {
+    const livre = (l) => ocupada[l] < g.t - 0.02;
+    if (difId === 'expert' && g.destaque) {
+      const pesos = SALTOS.map((s, i) => (livre(s[0]) && livre(s[1]) ? PESOS_SALTO[i] : 0));
+      if (pesos.some((p) => p > 0)) {
+        for (const l of sortearPeso(rng, SALTOS, pesos)) notas.push({ t: g.t, lane: l, len: 0, sub: g.sub });
+        hist.push(-1); ultT = g.t;
+        continue;
+      }
+    }
+    pe = 1 - pe;
+    let cand = pe === 0 ? [0, 1, 2] : [3, 1, 2];
+    const base = [3, 2, 2], rapido = g.t - ultT < 0.2, n = hist.length;
+    let pesos = cand.map((l, i) => {
+      if (!livre(l)) return 0;
+      if (n >= 3 && hist[n - 1] === l && hist[n - 2] === l && hist[n - 3] === l) return 0;
+      if (rapido && hist[n - 1] === l) return 0;
+      if (difId === 'diversao' && n >= 2 && hist[n - 1] === l && hist[n - 2] === l) return base[i] * 0.15;
+      if (n && hist[n - 1] === l) return base[i] * 0.4;
+      return base[i];
+    });
+    if (pesos.every((p) => p === 0)) {
+      cand = [0, 1, 2, 3].filter((l) => livre(l) && !(n >= 3 && hist[n - 1] === l && hist[n - 2] === l && hist[n - 3] === l));
+      if (!cand.length) continue;
+      pesos = cand.map(() => 1);
+    }
+    const lane = sortearPeso(rng, cand, pesos);
+    let len = 0;
+    if (difId === 'expert' && g.sustain >= 1.5 * g.beatS) len = Math.min(g.sustain, 8 * g.beatS) - g.beatS / 2;
+    if (len > 0) ocupada[lane] = g.t + len + 0.08;
+    notas.push({ t: g.t, lane, len, sub: g.sub });
+    hist.push(lane); ultT = g.t;
+  }
+  return notas;
+}
+
+// ------------------------------------------------------------------ jogadores simulados
+const BOTS = [
+  { id: 'iara', nome: 'Iara', sigma: 21, vies: 4, falha: 0.025, segura: 0.94 },
+  { id: 'tome', nome: 'Tomé', sigma: 38, vies: 12, falha: 0.07, segura: 0.82 },
+];
+/** Resultado de cada seta para um bot, decidido antes da música: erra mais onde a coreografia aperta. */
+function simularBot(bot, notas, difId, semente) {
+  const rng = rngDe(hashTexto(semente + '|' + bot.id + '|' + difId));
+  return notas.map((n, i) => {
+    let viz = 0;
+    for (let k = i - 8; k <= i + 8; k++) if (k >= 0 && k < notas.length && Math.abs(notas[k].t - n.t) < 0.6) viz++;
+    const pFalha = bot.falha * (viz > 5 ? 2.4 : 1) * (n.sub === 16 ? 1.7 : 1) * (difId === 'diversao' ? 0.6 : 1);
+    if (rng() < pFalha) return { delta: null, segurou: false };
+    return { delta: gauss(rng) * bot.sigma + bot.vies, segurou: n.len > 0 ? rng() < bot.segura : false };
+  });
+}
+
+// ------------------------------------------------------------------ entrada
+const TECLAS = {
+  setas: { ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3, KeyA: 0, KeyS: 1, KeyW: 2, KeyD: 3 },
+  dfjk: { ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3, KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 },
+};
+const ROTULO_TECLA = { setas: ['A', 'S', 'W', 'D'], dfjk: ['D', 'F', 'J', 'K'] };
+function laneDaTecla(code, modo) { const v = TECLAS[modo][code]; return v === undefined ? -1 : v; }
+/** Controle no mapeamento padrão: direcional, analógico esquerdo e o losango de botões na mesma posição das setas. */
+function lanesDoControle(pad) {
+  const b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
+  const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
+  return [
+    b(14) || b(2) || b(4) || ax < -0.5,
+    b(13) || b(0) || ay > 0.5,
+    b(12) || b(3) || ay < -0.5,
+    b(15) || b(1) || b(5) || ax > 0.5,
+  ];
+}
+
+// ------------------------------------------------------------------ estado da mesa (o mestre muda, o jogador vê)
+const PINO_ID = 'pino-porta-que-danca';
+const config = {
+  npc: 'Dona Ziza',
+  fala: 'Esta porta é surda para chave e cega para força. Só abre para quem tem ginga. Acompanha o meu tempo?',
+  musica: 'demo', permitida: 'escolha', notaMin: 'B', abrirPorta: true,
+  premioTipo: 'item', premioTexto: 'Chave de latão',
+  consTipo: 'teste', consTexto: '−2 no próximo teste de Agilidade',
+};
+const PREMIO_FRASE = { item: (t) => `${t} foi para a sua mochila.`, pista: (t) => `Pista revelada: ${t}`, bonus: (t) => `Bônus guardado: ${t}`, nada: () => 'Sem prêmio além da passagem.' };
+const CONS_FRASE = { nada: () => 'Nada acontece além da porta fechada.', teste: (t) => `Consequência: ${t}.`, barulho: () => 'O barulho chamou atenção. O mestre narra o que vem.', espera: () => 'Dá para tentar de novo na próxima rodada.' };
+let demoBuffer = null, demoPromessa = null, importada = null;
+function pedirDemo() { if (!demoPromessa) demoPromessa = SOM.renderizar(48000).then((b) => (demoBuffer = b)); return demoPromessa; }
+
+// ------------------------------------------------------------------ áudio e relógio
+const AUDIO = { ctx: null, mestre: null, musica: null, efeitos: null, k: null };
+function garantirAudio() {
+  if (!AUDIO.ctx) {
+    const C = window.AudioContext || window.webkitAudioContext;
+    AUDIO.ctx = new C({ latencyHint: 'interactive' });
+    AUDIO.mestre = AUDIO.ctx.createGain(); AUDIO.mestre.connect(AUDIO.ctx.destination);
+    AUDIO.musica = AUDIO.ctx.createGain(); AUDIO.musica.connect(AUDIO.mestre);
+    AUDIO.efeitos = AUDIO.ctx.createGain(); AUDIO.efeitos.gain.value = SOM.GANHO * 2; AUDIO.efeitos.connect(AUDIO.mestre);
+  }
+  return AUDIO.ctx;
+}
+/** Tempo de contexto do som que sai do alto-falante no instante `perf` (ms de performance.now / event.timeStamp). */
+function ouvidoEm(perf) {
+  const ctx = AUDIO.ctx;
+  let est;
+  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) est = ts.contextTime - ts.performanceTime / 1000;
+  else est = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - performance.now() / 1000;
+  if (AUDIO.k === null || Math.abs(est - AUDIO.k) > 0.04) AUDIO.k = est;
+  else AUDIO.k += (est - AUDIO.k) * 0.08;
+  return perf / 1000 + AUDIO.k;
+}
+
+// ------------------------------------------------------------------ dançarinos em pixel art (de costas)
+const DIM = {
+  grande: { perna: 13, tronco: 15, larg: 12, cab: 10, b1: 7, b2: 6, espB: 2, espP: 3, pe: 5, ombro: 6 },
+  pequeno: { perna: 9, tronco: 11, larg: 9, cab: 8, b1: 5, b2: 4, espB: 1, espP: 2, pe: 4, ombro: 4 },
+};
+const VISUAL = {
+  voce: { cabelo: '#3b2a1e', cabeloLuz: '#5d4431', pele: '#c98d62', tunica: '#3f6f8f', tunicaSombra: '#2e546d', calca: '#4b3b2f', bota: '#2a1d14', cinto: '#5a3c22', lenco: '#e2645a', lencoSombra: '#a9473f', estilo: 'curto' },
+  iara: { cabelo: '#1f1612', cabeloLuz: '#3a2a20', pele: '#a8714d', tunica: '#5f7f45', tunicaSombra: '#475f33', calca: '#3b3329', bota: '#231a12', cinto: '#6b4a2a', lenco: null, estilo: 'rabo' },
+  tome: { cabelo: '#8a6a3a', cabeloLuz: '#a8854f', pele: '#d9a57c', tunica: '#6b5590', tunicaSombra: '#52406f', calca: '#3a3240', bota: '#211a20', cinto: '#4a3a2a', lenco: null, estilo: 'gorro', gorro: '#a8473f' },
+};
+const CONTORNO = '#110d0a';
+const ANG = { baixo: [80, 92], fora: [0, -10], cima: [-72, -90], diag: [-38, -50], quadril: [52, 150], agita: [-55, -105], solto: [28, 62] };
+const POSE_PARADA = { bE: 'baixo', bD: 'baixo', agacha: 0, quadril: 0, incl: 0, pulo: 0 };
+
+function poseDe(lanes, lado) {
+  const E = lanes.has(0), B = lanes.has(1), C = lanes.has(2), D = lanes.has(3);
+  const p = { bE: 'baixo', bD: 'baixo', agacha: 0, quadril: 0, incl: 0, pulo: 0 };
+  if (B) { p.agacha = 1; p.bE = p.bD = 'quadril'; p.quadril = lado; }
+  if (C) { p.bE = p.bD = 'cima'; if (!B) p.pulo = 1; }
+  if (E) { p.bE = C ? 'diag' : 'fora'; if (!D && !C) { p.incl = -1; if (!B) p.bD = 'quadril'; } }
+  if (D) { p.bD = C ? 'diag' : 'fora'; if (!E && !C) { p.incl = 1; if (!B) p.bE = 'quadril'; } }
+  return p;
+}
+const poseTropeco = (lado) => ({ bE: lado > 0 ? 'solto' : 'agita', bD: lado > 0 ? 'agita' : 'solto', agacha: 0, quadril: lado, incl: 2 * lado, pulo: 0, tropeco: lado });
+const POSE_OPS = { bE: 'solto', bD: 'baixo', agacha: 0, quadril: 0, incl: 1, pulo: 0 };
+const POSE_CAIU = { bE: 'quadril', bD: 'quadril', agacha: 2, quadril: 0, incl: 0, pulo: 0 };
+
+/** Geometria da figura (pontos em px do palco): o desenho e o gráfico do movimento usam a mesma conta. */
+function pontosFigura(x, y, D, pose, bob) {
+  const ag = pose.agacha ? Math.round(D.perna * (pose.agacha > 1 ? 0.55 : 0.3)) : 0;
+  const qY = y - D.perna + ag + (bob || 0) - (pose.pulo || 0);
+  const qX = x + (pose.quadril || 0);
+  const oY = qY - D.tronco + 1;
+  const inc = pose.incl || 0;
+  const dxTopo = Math.round((inc * D.tronco) / 8);
+  const braco = (lado) => {
+    const [a1, a2] = ANG[lado < 0 ? pose.bE : pose.bD].map((a) => (lado < 0 ? 180 - a : a) * Math.PI / 180);
+    const ox = qX + dxTopo + lado * D.ombro, oy = oY + 1;
+    const cx = ox + Math.cos(a1) * D.b1, cy = oy + Math.sin(a1) * D.b1;
+    return { ombro: [ox, oy], cotovelo: [cx, cy], mao: [cx + Math.cos(a2) * D.b2, cy + Math.sin(a2) * D.b2] };
+  };
+  return { qX, qY, oY, dxTopo, cabX: qX + Math.round((inc * (D.tronco + D.cab * 0.6)) / 8), esq: braco(-1), dir: braco(1), ag };
+}
+
+function desenharFigura(g, x, y, D, pose, V, luz, bob) {
+  const P = pontosFigura(x, y, D, pose, bob);
+  const cabTopo = P.oY - D.cab - 1;
+  for (const passe of [0, 1]) {
+    const R = (px, py, w, h, cor) => {
+      if (passe === 0) { g.fillStyle = CONTORNO; g.fillRect(px - 1, py - 1, w + 2, h + 2); } else { g.fillStyle = cor; g.fillRect(px, py, w, h); }
+    };
+    const L = (x0, y0, x1, y1, esp, cor) => {
+      const s = passe === 0 ? esp + 2 : esp, n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+      g.fillStyle = passe === 0 ? CONTORNO : cor;
+      for (let i = 0; i <= n; i++) g.fillRect(Math.round(x0 + ((x1 - x0) * i) / n - s / 2), Math.round(y0 + ((y1 - y0) * i) / n - s / 2), s, s);
+    };
+    // pernas e botas
+    const pd = D.larg >= 12 ? 3 : 2;
+    for (const lado of [-1, 1]) {
+      const hx = P.qX + lado * pd, hy = P.qY + 1, fx = x + lado * (pd + (P.ag ? 1 : 0));
+      if (pose.tropeco && lado === pose.tropeco) {
+        L(hx, hy, hx + lado * 3, hy + 4, D.espP, V.calca); L(hx + lado * 3, hy + 4, hx + lado * 2, hy + 8, D.espP, V.calca);
+        R(hx + lado * 2 - 2, hy + 7, D.pe - 1, 2, V.bota);
+      } else if (P.ag) {
+        const jx = hx + lado * (P.ag > 4 ? 5 : 3), jy = hy + (y - hy) * 0.5;
+        L(hx, hy, jx, jy, D.espP, V.calca); L(jx, jy, fx, y - 2, D.espP, V.calca);
+        R(lado < 0 ? fx - D.pe + 2 : fx - 1, y - 2, D.pe, 2, V.bota);
+      } else {
+        L(hx, hy, fx, y - 2, D.espP, V.calca);
+        R(lado < 0 ? fx - D.pe + 2 : fx - 1, y - 2, D.pe, 2, V.bota);
+      }
+    }
+    // tronco: paralelogramo, linha a linha (a inclinação sobe do quadril)
+    for (let ry = P.oY; ry <= P.qY; ry++) {
+      const dx = Math.round(((pose.incl || 0) * (P.qY - ry)) / 8), w = ry > P.qY - 3 ? D.larg - 2 : D.larg;
+      R(P.qX - (w >> 1) + dx, ry, w, 1, V.tunica);
+    }
+    // braços: manga da túnica até o cotovelo, pele até a mão
+    for (const b of [P.esq, P.dir]) {
+      L(b.ombro[0], b.ombro[1], b.cotovelo[0], b.cotovelo[1], D.espB + 1, V.tunica);
+      L(b.cotovelo[0], b.cotovelo[1], b.mao[0], b.mao[1], D.espB, V.pele);
+      R(Math.round(b.mao[0]) - 1, Math.round(b.mao[1]) - 1, 2, 2, V.pele);
+    }
+    // pescoço e cabeça (de costas: só cabelo)
+    const hx = P.cabX, w = D.cab;
+    R(hx - 2, P.oY - 2, 4, 2, V.pele);
+    R(hx - (w >> 1) + 1, cabTopo, w - 2, 1, V.cabelo);
+    R(hx - (w >> 1), cabTopo + 1, w, w - 2, V.cabelo);
+    R(hx - (w >> 1) + 1, cabTopo + w - 1, w - 2, 1, V.cabelo);
+    if (V.estilo === 'rabo') L(hx + 1, cabTopo + w - 2, hx + 2 - (pose.incl || 0), cabTopo + w + 4, 2, V.cabelo);
+  }
+  // detalhes, sem contorno
+  const hx = P.cabX, w = D.cab;
+  g.fillStyle = V.tunicaSombra;
+  for (let ry = P.oY + 1; ry < P.qY - 1; ry++) { const dx = Math.round(((pose.incl || 0) * (P.qY - ry)) / 8); g.fillRect(P.qX + dx, ry, 1, 1); g.fillRect(P.qX + (D.larg >> 1) - 2 + dx, ry, 2, 1); }
+  g.fillStyle = V.cinto; g.fillRect(P.qX - (D.larg >> 1) + 1, P.qY - 2, D.larg - 2, 1);
+  g.fillStyle = V.pele; g.fillRect(hx - (w >> 1) - 1, cabTopo + (w >> 1), 1, 2); g.fillRect(hx + (w >> 1), cabTopo + (w >> 1), 1, 2);
+  g.fillStyle = V.cabeloLuz; g.fillRect(hx - (w >> 1) + 2, cabTopo + 1, 3, 1); g.fillRect(hx - (w >> 1) + 1, cabTopo + 2, 1, 2);
+  if (V.estilo === 'gorro') { g.fillStyle = V.gorro; g.fillRect(hx - (w >> 1), cabTopo, w, 3); g.fillStyle = CONTORNO; g.fillRect(hx - (w >> 1), cabTopo + 3, w, 1); }
+  if (V.lenco) {
+    g.fillStyle = V.lenco; g.fillRect(hx - 4, P.oY - 1, 8, 2);
+    const cauda = -(pose.incl || 0) * 2 + (pose.quadril || 0);
+    for (let i = 0; i < 6; i++) { g.fillStyle = i > 3 ? V.lencoSombra : V.lenco; g.fillRect(hx + 2 + Math.round((cauda * i) / 6), P.oY + 1 + i, 2, 1); }
+  }
+  if (luz > 0) {
+    g.fillStyle = `rgba(255,236,200,${0.45 * luz})`;
+    g.fillRect(hx - (w >> 1) + 1, cabTopo - 1, w - 2, 1);
+    g.fillRect(P.qX - (D.larg >> 1) + P.dxTopo, P.oY - 1, 3, 1); g.fillRect(P.qX + (D.larg >> 1) - 3 + P.dxTopo, P.oY - 1, 3, 1);
+  }
+}
+
+// ------------------------------------------------------------------ palco (canvas de baixa resolução, escala inteira)
+const PALCO = { cv: null, g: null, esc: 3, w: 0, h: 0, fundo: null, ladrilhos: [], holofote: [], base: 0, peY: 0 };
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
+
+function medirPalco() {
+  const el = $('#palco'), r = el.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const esc = Math.max(2, Math.round(r.height / 150));
+  const w = Math.ceil(r.width / esc), h = Math.ceil(r.height / esc);
+  if (w === PALCO.w && h === PALCO.h && esc === PALCO.esc) return;
+  Object.assign(PALCO, { esc, w, h });
+  const cv = PALCO.cv;
+  cv.width = w; cv.height = h; cv.style.width = w * esc + 'px'; cv.style.height = h * esc + 'px';
+  PALCO.g.imageSmoothingEnabled = false;
+  prepararCenario(PALCO);
+  const pos = (id, x, y) => { const t = $(id); t.style.left = ((x / w) * 100).toFixed(2) + '%'; t.style.top = ((y / h) * 100).toFixed(2) + '%'; };
+  pos('#tagVoce', w / 2, PALCO.peY + 4); pos('#tagIara', PALCO.botX[0], PALCO.botY + 3); pos('#tagTome', PALCO.botX[1], PALCO.botY + 3);
+}
+
+function prepararCenario(S) {
+  const { w, h } = S;
+  S.base = Math.round(h * 0.6); S.peY = Math.round(h * 0.9); S.botY = Math.round(S.base + (S.peY - S.base) * 0.42);
+  S.botX = [Math.round(w / 2 - Math.min(w * 0.3, 70)), Math.round(w / 2 + Math.min(w * 0.3, 70))];
+  const porta = { cx: Math.round(w / 2), larg: 44, alt: 58 };
+  porta.x0 = porta.cx - porta.larg / 2; porta.topo = S.base - porta.alt;
+  S.porta = porta;
+  const f = document.createElement('canvas'); f.width = w; f.height = h;
+  const g = f.getContext('2d');
+  g.fillStyle = '#141317'; g.fillRect(0, 0, w, h);
+  const tons = ['#1b1a1f', '#1e1c21', '#19181c'];
+  for (let y = 0, row = 0; y < S.base; y += 7, row++) {
+    for (let x = -((row % 2) * 6); x < w; x += 12) { g.fillStyle = tons[(hashTexto(x + ':' + row) >>> 3) % 3]; g.fillRect(x + 1, y + 1, 11, 6); }
+  }
+  // moldura da porta: pedras em volta do vão em arco
+  const vao = (gg, folga) => { gg.beginPath(); gg.moveTo(porta.x0 - folga, S.base); gg.lineTo(porta.x0 - folga, porta.topo + 22); gg.arc(porta.cx, porta.topo + 22, 22 + folga, Math.PI, 0); gg.lineTo(porta.x0 + porta.larg + folga, S.base); gg.closePath(); };
+  g.fillStyle = '#3a352f'; vao(g, 6); g.fill();
+  g.fillStyle = '#26221e'; vao(g, 1); g.fill();
+  g.fillStyle = '#4b453d';
+  for (let a = Math.PI; a <= 2 * Math.PI + 0.01; a += Math.PI / 6) g.fillRect(Math.round(porta.cx + Math.cos(a) * 25), Math.round(porta.topo + 22 + Math.sin(a) * 25), 2, 1);
+  for (let y = porta.topo + 26; y < S.base; y += 7) { g.fillRect(porta.x0 - 6, y, 5, 1); g.fillRect(porta.x0 + porta.larg + 1, y, 5, 1); }
+  g.fillStyle = '#26221e'; g.fillRect(porta.cx - 19, porta.topo - 14, 38, 8);
+  S.vao = vao;
+  // chão em fileiras que crescem para perto (perspectiva barata)
+  S.ladrilhos = [];
+  for (let y = S.base, alt = 3, row = 0; y < h; y += alt, alt = Math.min(14, Math.round(alt * 1.3 + 1)), row++) {
+    const lw = 10 + row * 5, off = (w / 2) % lw - (row % 2 ? lw / 2 : 0);
+    for (let x = off - lw, col = 0; x < w; x += lw, col++) {
+      g.fillStyle = (row + col) % 2 ? '#25211d' : '#1f1c19'; g.fillRect(Math.round(x), y, Math.round(lw), alt);
+      g.fillStyle = '#121110'; g.fillRect(Math.round(x), y, 1, alt);
+      S.ladrilhos.push({ x: Math.round(x) + 1, y: y + 1, w: Math.round(lw) - 1, h: alt - 1, par: (row + col) % 2 });
+    }
+    g.fillStyle = '#121110'; g.fillRect(0, y, w, 1);
+  }
+  g.fillStyle = '#0d0c0e'; g.fillRect(0, S.base - 1, w, 2);
+  const vin = g.createRadialGradient(w / 2, h * 0.55, h * 0.3, w / 2, h * 0.55, Math.max(w, h) * 0.75);
+  vin.addColorStop(0, 'rgba(0,0,0,0)'); vin.addColorStop(1, 'rgba(0,0,0,0.6)');
+  g.fillStyle = vin; g.fillRect(0, 0, w, h);
+  S.fundo = f;
+  // holofote em 4 níveis, pontilhado (Bayer 4x4)
+  S.holofote = [0, 1, 2, 3].map((nivel) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const gg = c.getContext('2d'), img = gg.createImageData(w, h), R = 15 + nivel * 6, topoY = -12;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const k = (y - topoY) / (S.peY - topoY), meia = lerp(4, R, clamp(k, 0, 1)), dx = Math.abs(x - w / 2);
+      // O cone é fraco e só fica forte perto do chão: na altura da porta ele não pode virar textura suja.
+      let I = y <= S.peY ? Math.max(0, 1 - dx / meia) ** 0.8 * (0.1 + 0.07 * nivel) * (0.35 + 0.65 * clamp(k, 0, 1)) : 0;
+      const ex = (x - w / 2) / (R * 1.1), ey = (y - S.peY + 1) / (R * 0.3);
+      if (ex * ex + ey * ey < 1) I = Math.max(I, (1 - (ex * ex + ey * ey)) * (0.75 + 0.08 * nivel));
+      if (I > BAYER[(y & 3) * 4 + (x & 3)]) { const p = (y * w + x) * 4; img.data[p] = 255; img.data[p + 1] = 236; img.data[p + 2] = 200; img.data[p + 3] = 34 + nivel * 6; }
+    }
+    gg.putImageData(img, 0, 0);
+    return c;
+  });
+}
+
+function nivelDoCombo(c) { return c >= 50 ? 3 : c >= 25 ? 2 : c >= 10 ? 1 : 0; }
+
+/** Runas da placa sobre a porta, 5x5: ← ↓ ↑ →. Acendem conforme a música anda, se a nota está passando. */
+const RUNAS = [
+  ['..#..', '.#...', '#####', '.#...', '..#..'],
+  ['..#..', '..#..', '#.#.#', '.###.', '..#..'],
+  ['..#..', '.###.', '#.#.#', '..#..', '..#..'],
+  ['..#..', '...#.', '#####', '...#.', '..#..'],
+];
+/** Estado da porta no tempo `s` (segundos desde que abriu). Usado no desenho e no gráfico do movimento. */
+const PORTA_DUR = 2.4;
+function estadoPorta(s, reduzido) {
+  if (s === null || s < 0) return { runas: [0, 0, 0, 0], fresta: 0, abre: 0, luz: 0 };
+  if (reduzido) { const k = clamp(s / 0.4, 0, 1); return { runas: [k, k, k, k], fresta: 0, abre: k, luz: k }; }
+  const runas = [0, 1, 2, 3].map((i) => clamp((s - i * 0.12) / 0.16, 0, 1));
+  const fresta = clamp((s - 0.6) / 0.3, 0, 1);
+  const abre = EASE_IN_OUT(clamp((s - 0.9) / 1.5, 0, 1));
+  return { runas, fresta, abre, luz: Math.max(fresta * 0.6, abre) };
+}
+
+/** Desenha um quadro do palco a partir de uma cena pura (o jogo e as provas montam a mesma cena). */
+function desenharPalco(S, cena) {
+  const g = S.g, { w, h, porta } = S;
+  g.drawImage(S.fundo, 0, 0);
+  const ep = cena.porta;
+  // vão: luz atrás e as folhas (que deslizam para dentro da parede)
+  g.save(); S.vao(g, 0); g.clip();
+  if (ep.luz > 0) {
+    const grd = g.createLinearGradient(0, porta.topo, 0, S.base);
+    grd.addColorStop(0, `rgba(243,186,102,${0.55 * ep.luz})`); grd.addColorStop(1, `rgba(255,236,200,${0.9 * ep.luz})`);
+    g.fillStyle = grd; g.fillRect(porta.x0, porta.topo, porta.larg, porta.alt);
+  }
+  const meia = porta.larg / 2, desl = Math.round(ep.abre * meia);
+  for (const lado of [-1, 1]) {
+    const x0 = lado < 0 ? porta.x0 - desl : porta.cx + desl;
+    g.fillStyle = '#2c2219'; g.fillRect(x0, porta.topo, meia, porta.alt);
+    g.fillStyle = '#3a2d20'; for (let x = x0 + 2; x < x0 + meia; x += 4) g.fillRect(x, porta.topo, 1, porta.alt);
+    g.fillStyle = '#b9853f'; g.fillRect(x0, porta.topo + 26, meia, 2); g.fillRect(x0, S.base - 10, meia, 2);
+    g.fillStyle = '#e0a44a'; for (let x = x0 + 3; x < x0 + meia; x += 6) { g.fillRect(x, porta.topo + 26, 1, 1); g.fillRect(x, S.base - 10, 1, 1); }
+    g.fillStyle = '#110d0a'; g.fillRect(lado < 0 ? x0 + meia - 1 : x0, porta.topo, 1, porta.alt);
+  }
+  if (ep.fresta > 0 && ep.abre < 0.05) { g.fillStyle = `rgba(255,236,200,${ep.fresta})`; g.fillRect(porta.cx - 1, porta.topo + 8, 2, porta.alt - 8); }
+  g.restore();
+  // luz da porta derramando no chão
+  if (ep.luz > 0.01) {
+    g.fillStyle = `rgba(243,186,102,${0.18 * ep.luz})`;
+    g.beginPath(); g.moveTo(porta.cx - meia * ep.abre, S.base); g.lineTo(porta.cx + meia * ep.abre, S.base); g.lineTo(porta.cx + meia * ep.abre * 2.4, h); g.lineTo(porta.cx - meia * ep.abre * 2.4, h); g.closePath(); g.fill();
+  }
+  // runas da placa: ← ↓ ↑ →
+  RUNAS.forEach((linhas, i) => {
+    const v = Math.max(cena.runas[i] || 0, ep.runas[i]);
+    const rx = porta.cx - 17 + i * 9, ry = porta.topo - 12;
+    g.fillStyle = v > 0.02 ? `rgba(243,186,102,${0.25 + 0.75 * v})` : '#3d352c';
+    linhas.forEach((l, y) => { for (let x = 0; x < 5; x++) if (l[x] === '#') g.fillRect(rx + x, ry + y, 1, 1); });
+  });
+  // chão que acende na batida (combo alto); com movimento reduzido, brilho parado
+  if (cena.chao > 0) {
+    const fase = cena.batida % 1, par = Math.floor(cena.batida) % 2;
+    const a = cena.reduzido ? 0.1 * cena.chao : 0.32 * cena.chao * (1 - fase) ** 2;
+    if (a > 0.005) for (const t of S.ladrilhos) if (t.par === par) { g.fillStyle = t.y % 2 ? `rgba(224,164,74,${a})` : `rgba(121,169,204,${a * 0.8})`; g.fillRect(t.x, t.y, t.w, t.h); }
+  }
+  // holofote: mistura entre dois níveis para trocar sem salto
+  const nv = clamp(cena.holofote, 0, 3), n0 = Math.floor(nv), k = nv - n0;
+  g.globalAlpha = 1 - k; g.drawImage(S.holofote[n0], 0, 0);
+  if (k > 0 && n0 < 3) { g.globalAlpha = k; g.drawImage(S.holofote[n0 + 1], 0, 0); }
+  g.globalAlpha = 1;
+  // dançarinos: os de trás primeiro
+  cena.bots.forEach((b, i) => desenharFigura(g, S.botX[i], S.botY, DIM.pequeno, b.pose, VISUAL[b.id], 0, b.bob));
+  desenharFigura(g, Math.round(w / 2), S.peY, DIM.grande, cena.voce.pose, VISUAL.voce, 0.4 + 0.2 * nv, cena.voce.bob);
+  for (const p of cena.poeira) { g.fillStyle = `rgba(162,160,154,${p.a})`; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+}
+
+// ------------------------------------------------------------------ pista (canvas nítido, com DPR)
+const PISTA = { cv: null, g: null, dpr: 1, w: 0, h: 0, lw: 0, x0: 0, ry: 0, tam: 0, spr: null };
+const COR_SUB = { 4: '#e0a44a', 8: '#79a9cc', 16: '#ab93d6' };
+const COR_JULG = { perfeito: '#f3ba66', bom: '#7fb48a', ok: '#79a9cc', errou: '#e2645a' };
+const ROT = [Math.PI / 2, 0, Math.PI, -Math.PI / 2];
+
+function caminhoSeta(g, s) {
+  g.beginPath();
+  g.moveTo(-0.34 * s, -0.92 * s); g.lineTo(0.34 * s, -0.92 * s); g.lineTo(0.34 * s, 0.02 * s); g.lineTo(0.8 * s, 0.02 * s);
+  g.lineTo(0, 0.9 * s); g.lineTo(-0.8 * s, 0.02 * s); g.lineTo(-0.34 * s, 0.02 * s); g.closePath();
+}
+function spriteSeta(tamPx, rot, fill, stroke, larg) {
+  const c = document.createElement('canvas'); c.width = c.height = Math.ceil(tamPx);
+  const g = c.getContext('2d'), s = tamPx / 2 - larg;
+  g.translate(tamPx / 2, tamPx / 2); g.rotate(rot); g.lineJoin = 'round';
+  caminhoSeta(g, s);
+  if (fill) { g.fillStyle = fill; g.fill(); }
+  g.lineWidth = larg; g.strokeStyle = stroke; g.stroke();
+  return c;
+}
+function medirPista() {
+  const el = $('#campo'), r = el.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  Object.assign(PISTA, { dpr, w: r.width, h: r.height });
+  PISTA.cv.width = Math.round(r.width * dpr); PISTA.cv.height = Math.round(r.height * dpr);
+  PISTA.lw = Math.min(88, (r.width - 16) / 4); PISTA.x0 = (r.width - PISTA.lw * 4) / 2;
+  PISTA.tam = Math.round(PISTA.lw * 0.8); PISTA.ry = r.height - PISTA.tam / 2 - 14;
+  const px = PISTA.tam * dpr, lg = Math.max(2, px * 0.07);
+  PISTA.spr = {
+    nota: Object.fromEntries(Object.entries(COR_SUB).map(([k, cor]) => [k, ROT.map((rt) => spriteSeta(px, rt, cor, '#1b1208', lg))])),
+    morta: ROT.map((rt) => spriteSeta(px, rt, '#5a5853', '#1b1208', lg)),
+    rec: ROT.map((rt) => spriteSeta(px, rt, null, 'rgba(162,160,154,0.55)', lg * 0.8)),
+    recOn: ROT.map((rt) => spriteSeta(px, rt, 'rgba(224,164,74,0.22)', '#f3ba66', lg)),
+  };
+}
+const centroLane = (i) => PISTA.x0 + PISTA.lw * (i + 0.5);
+
+function desenharPista(st, agora) {
+  const g = PISTA.g, P = PISTA;
+  if (!P.spr) return;
+  g.setTransform(P.dpr, 0, 0, P.dpr, 0, 0);
+  g.clearRect(0, 0, P.w, P.h);
+  for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? 'rgba(236,234,228,0.025)' : 'rgba(236,234,228,0.045)'; g.fillRect(P.x0 + i * P.lw + 2, 0, P.lw - 4, P.h); }
+  const s = P.tam;
+  if (jogo.notas) {
+    const pps = (P.ry + s) / DIF[jogo.dif].tela, b = jogo.batidaS;
+    for (let k = Math.ceil((st - jogo.grade0) / b); ; k++) {
+      const t = jogo.grade0 + k * b, y = P.ry - (t - st) * pps;
+      if (y < -4) break;
+      if (y > P.h) continue;
+      const comp = (((k - jogo.fase4) % 4) + 4) % 4 === 0;
+      g.fillStyle = comp ? 'rgba(236,234,228,0.12)' : 'rgba(236,234,228,0.05)';
+      g.fillRect(P.x0 + 4, Math.round(y), P.lw * 4 - 8, 1);
+    }
+  }
+  for (let i = 0; i < 4; i++) g.drawImage(jogo.apertadas[i] ? P.spr.recOn[i] : P.spr.rec[i], centroLane(i) - s / 2, P.ry - s / 2, s, s);
+  if (jogo.notas) {
+    const pps = (P.ry + s) / DIF[jogo.dif].tela, notas = jogo.notas;
+    while (jogo.cursorDesenho < notas.length && notas[jogo.cursorDesenho].t + notas[jogo.cursorDesenho].len < st - 0.8) jogo.cursorDesenho++;
+    for (let i = jogo.cursorDesenho; i < notas.length; i++) {
+      const n = notas[i];
+      let y = P.ry - (n.t - st) * pps;
+      if (y < -s) break;
+      const x = centroLane(n.lane);
+      if (n.len > 0 && n.fimOk !== true) {
+        const yFim = P.ry - (n.t + n.len - st) * pps, morta = n.julg === 'errou' || n.fimOk === false;
+        if (n.segurando) y = P.ry;
+        const bw = s * 0.42;
+        g.fillStyle = morta ? 'rgba(90,88,83,0.5)' : n.segurando ? 'rgba(243,186,102,0.7)' : 'rgba(224,164,74,0.42)';
+        g.fillRect(x - bw / 2, yFim, bw, Math.max(0, y - yFim));
+        g.fillStyle = morta ? '#5a5853' : '#f3ba66'; g.fillRect(x - bw / 2, yFim, bw, 3);
+      }
+      if (n.julg && n.julg !== 'errou' && !(n.len > 0 && n.segurando)) continue;
+      if (n.len > 0 && n.fimOk === true) continue;
+      if (n.julg === 'errou') { g.globalAlpha = 0.4; g.drawImage(P.spr.morta[n.lane], x - s / 2, y - s / 2, s, s); g.globalAlpha = 1; }
+      else g.drawImage(P.spr.nota[n.sub][n.lane], x - s / 2, y - s / 2, s, s);
+    }
+  }
+  const dur = movimentoReduzido.matches ? 120 : 180;
+  for (let i = 0; i < 4; i++) {
+    const e = jogo.efeitos[i];
+    if (!e) continue;
+    const k = (agora - e.inicio) / dur;
+    if (k >= 1 || k < 0) continue;
+    const esc = movimentoReduzido.matches ? 1 : 1 + 0.32 * EASE_OUT(k);
+    g.globalAlpha = (1 - k) * 0.9; g.strokeStyle = COR_JULG[e.julg]; g.lineWidth = 3;
+    g.beginPath(); g.arc(centroLane(i), P.ry, s * 0.56 * esc, 0, Math.PI * 2); g.stroke();
+    g.globalAlpha = 1;
+  }
+}
+
+// ------------------------------------------------------------------ jogo
+const jogo = { fase: 'parado', dif: 'diversao', notas: null, apertadas: [false, false, false, false], efeitos: [null, null, null, null], placar: null, bots: [], voce: null, cursor: 0, cursorDesenho: 0, st: 0, batidaS: 0.5, grade0: 0, fase4: 0, fimS: 0, totalItens: 0, motivo: null, fonte: null, pausadoEm: 0, portaInicio: null, poeira: [], holofote: 0, ultimoQuadro: 0 };
+const fontes = [new Set(), new Set(), new Set(), new Set()];
+
+function novoPlacar() { return { perfeito: 0, bom: 0, ok: 0, errou: 0, segOk: 0, segTotal: 0, combo: 0, comboMax: 0, peso: 0, julgadas: 0, vida: VIDA.inicio }; }
+function novoDancarino() { return { pose: POSE_PARADA, ate: -1, lado: 1, ultimoT: -9, lanes: null, caiu: false }; }
+const emJogo = () => jogo.fase === 'tocando' || jogo.fase === 'pausado' || jogo.fase === 'retomando';
+
+function dancar(d, lane, st, erro, gentil) {
+  if (d.caiu) return;
+  if (erro) { d.lado = -d.lado; d.pose = gentil ? POSE_OPS : poseTropeco(d.lado); d.ate = st + 0.42; if (!gentil && d === jogo.voce && !movimentoReduzido.matches) soltarPoeira(); return; }
+  if (st - d.ultimoT < 0.06 && d.lanes) d.lanes.add(lane); else d.lanes = new Set([lane]);
+  d.ultimoT = st;
+  if (lane === 1) d.lado = -d.lado;
+  d.pose = poseDe(d.lanes, d.lado);
+  d.ate = st + Math.max(0.24, jogo.batidaS * 0.75);
+}
+function soltarPoeira() {
+  const S = PALCO;
+  for (let i = 0; i < 6; i++) jogo.poeira.push({ x: S.w / 2 + (i - 2.5) * 3, y: S.peY - 1, vx: (i - 2.5) * 6, vy: -8 - (i % 3) * 4, a: 0.8 });
+}
+function poseNoTempo(d, st) {
+  if (d.caiu) return { pose: POSE_CAIU, bob: 0 };
+  if (st <= d.ate) return { pose: d.pose, bob: 0 };
+  const fase = jogo.batidaS > 0 ? (((st - jogo.grade0) / jogo.batidaS) % 1 + 1) % 1 : 0;
+  return { pose: POSE_PARADA, bob: !movimentoReduzido.matches && emJogo() && fase < 0.25 ? 1 : 0 };
+}
+
+async function comecarJogo() {
+  const ctx = garantirAudio();
+  await ctx.resume();
+  const usaImportada = config.musica === 'importada' && importada;
+  const buffer = usaImportada ? importada.buffer : await pedirDemo();
+  const grade = usaImportada ? gradeImportada(importada.analise) : gradeDemo();
+  const base = gerarChart(grade, jogo.dif, PINO_ID);
+  jogo.notas = base.map((n) => Object.assign({}, n, { julg: null, segurando: false, fimOk: null }));
+  jogo.totalItens = jogo.notas.reduce((s, n) => s + (n.len > 0 ? 2 : 1), 0);
+  jogo.batidaS = usaImportada ? importada.analise.periodo : SOM.PASSO * 4;
+  jogo.grade0 = usaImportada ? importada.analise.primeiraBatida : 0;
+  jogo.fase4 = usaImportada ? importada.analise.fase4 : 0;
+  const ultima = jogo.notas.reduce((m, n) => Math.max(m, n.t + n.len), 0);
+  jogo.fimS = Math.min(buffer.duration, ultima + 1.2);
+  jogo.placar = novoPlacar(); jogo.voce = novoDancarino();
+  jogo.bots = BOTS.map((b) => ({ bot: b, res: simularBot(b, jogo.notas, jogo.dif, PINO_ID), idx: 0, placar: novoPlacar(), d: novoDancarino(), pend: [] }));
+  jogo.cursor = 0; jogo.cursorDesenho = 0; jogo.efeitos = [null, null, null, null]; jogo.apertadas = [false, false, false, false];
+  fontes.forEach((f) => f.clear());
+  jogo.motivo = null; jogo.portaInicio = null; jogo.poeira = []; jogo.holofote = 0;
+  const primeira = jogo.notas.length ? jogo.notas[0].t : 0;
+  const espera = usaImportada ? Math.max(0, DIF[jogo.dif].tela + 1.2 - primeira) : 0;
+  const fonte = ctx.createBufferSource();
+  fonte.buffer = buffer; fonte.connect(AUDIO.musica);
+  const agora = ctx.currentTime;
+  AUDIO.musica.gain.cancelScheduledValues(agora); AUDIO.musica.gain.setValueAtTime(1, agora);
+  jogo.t0 = agora + 0.25 + espera;
+  fonte.start(jogo.t0);
+  jogo.fonte = fonte;
+  AUDIO.k = null;
+  jogo.fase = 'tocando';
+  jogo.contagem = usaImportada ? null : [1, 2, 3].map((i) => i * jogo.batidaS);
+  atualizarHud(true);
+}
+
+/** Posição da música que ESTE jogador ouve no instante `perf`, já com o atraso dele. */
+const tempoMusica = (perf) => ouvidoEm(perf) - jogo.t0 - prefs.ajusteMs / 1000;
+
+function apertar(lane, perf) {
+  jogo.apertadas[lane] = true;
+  if (jogo.fase !== 'tocando') return;
+  const st = tempoMusica(perf), d = DIF[jogo.dif], alcance = Math.max(d.janelas.ok, d.errouCedo) / 1000;
+  for (let i = jogo.cursor; i < jogo.notas.length; i++) {
+    const n = jogo.notas[i];
+    if (n.t - st > alcance) break;
+    if (n.lane !== lane || n.julg !== null) continue;
+    const deltaMs = (st - n.t) * 1000;
+    if (deltaMs > d.janelas.ok) { registrar(n, 'errou', st); continue; }
+    const j = julgar(deltaMs, jogo.dif);
+    if (!j) return;
+    n.delta = deltaMs;
+    registrar(n, j, st);
+    if (j !== 'errou') { if (n.len > 0) n.segurando = true; if (prefs.somAcerto) SOM.acerto(AUDIO.ctx, AUDIO.efeitos, AUDIO.ctx.currentTime, j === 'perfeito'); }
+    return;
+  }
+}
+function soltar(lane, perf) {
+  jogo.apertadas[lane] = false;
+  if (jogo.fase !== 'tocando') return;
+  const st = tempoMusica(perf);
+  for (let i = jogo.cursor; i < jogo.notas.length; i++) {
+    const n = jogo.notas[i];
+    if (n.t > st + 0.5) break;
+    if (n.lane === lane && n.segurando) { n.segurando = false; fecharSegura(n, st >= n.t + n.len - SOLTAR_TOLERANCIA, st); }
+  }
+}
+function registrar(n, j, st) {
+  n.julg = j;
+  const p = jogo.placar, gentil = !DIF[jogo.dif].vida;
+  p[j]++; p.julgadas++; p.peso += PESO[j];
+  jogo.efeitos[n.lane] = { inicio: performance.now(), julg: j };
+  if (j === 'errou') {
+    p.combo = 0;
+    if (n.len > 0) { n.fimOk = false; p.segTotal++; p.julgadas++; }
+    if (!gentil) mudarVida(VIDA.errou);
+    dancar(jogo.voce, n.lane, st, true, gentil);
+    if (AUDIO.ctx) SOM.erro(AUDIO.ctx, AUDIO.efeitos, AUDIO.ctx.currentTime, gentil);
+  } else {
+    p.combo++; p.comboMax = Math.max(p.comboMax, p.combo);
+    if (!gentil) mudarVida(VIDA[j]);
+    dancar(jogo.voce, n.lane, st, false);
+  }
+  mostrarJulg(j, gentil);
+  atualizarHud();
+}
+function fecharSegura(n, ok, st) {
+  const p = jogo.placar;
+  n.fimOk = ok; p.segTotal++; p.julgadas++;
+  if (ok) { p.segOk++; p.peso += 100; mostrarJulg('segurou'); }
+  else { p.combo = 0; if (DIF[jogo.dif].vida) mudarVida(VIDA.soltou); dancar(jogo.voce, n.lane, st, true, true); mostrarJulg('soltou'); }
+  atualizarHud();
+}
+function mudarVida(dv) {
+  const p = jogo.placar;
+  p.vida = clamp(p.vida + dv, 0, VIDA.max);
+  if (p.vida <= 0 && jogo.fase === 'tocando') terminar('falhou');
+}
+
+function avancarBot(b, st) {
+  const notas = jogo.notas, d = DIF[jogo.dif], p = b.placar;
+  while (b.idx < notas.length && !b.d.caiu) {
+    const n = notas[b.idx], r = b.res[b.idx];
+    const quando = n.t + (r.delta === null ? d.janelas.ok + 20 : r.delta) / 1000;
+    if (quando > st) break;
+    const j = r.delta === null ? 'errou' : julgar(r.delta, jogo.dif) || 'errou';
+    p[j]++; p.julgadas++; p.peso += PESO[j];
+    if (j === 'errou') { p.combo = 0; if (d.vida) p.vida = clamp(p.vida + VIDA.errou, 0, 100); if (n.len > 0) { p.segTotal++; p.julgadas++; } }
+    else { p.combo++; p.comboMax = Math.max(p.comboMax, p.combo); if (d.vida) p.vida = clamp(p.vida + VIDA[j], 0, 100); if (n.len > 0) b.pend.push({ fim: n.t + n.len, ok: r.segurou }); }
+    dancar(b.d, n.lane, st, j === 'errou', !d.vida);
+    if (d.vida && p.vida <= 0) b.d.caiu = true;
+    b.idx++;
+  }
+  b.pend = b.pend.filter((h) => {
+    if (h.fim > st) return true;
+    p.segTotal++; p.julgadas++;
+    if (h.ok) { p.segOk++; p.peso += 100; } else { p.combo = 0; if (d.vida) p.vida = clamp(p.vida + VIDA.soltou, 0, 100); }
+    return false;
+  });
+}
+
+function atualizarJogo(agora) {
+  if (jogo.fase !== 'tocando') return;
+  const st = tempoMusica(agora);
+  jogo.st = st;
+  const tarde = DIF[jogo.dif].janelas.ok / 1000;
+  for (let i = jogo.cursor; i < jogo.notas.length; i++) {
+    const n = jogo.notas[i];
+    if (n.t > st + 0.3) break;
+    if (n.julg === null && st - n.t > tarde) registrar(n, 'errou', st);
+    if (n.segurando && st >= n.t + n.len) { n.segurando = false; fecharSegura(n, true, st); }
+    if (jogo.fase !== 'tocando') return;
+  }
+  while (jogo.cursor < jogo.notas.length && jogo.notas[jogo.cursor].julg !== null && !jogo.notas[jogo.cursor].segurando) jogo.cursor++;
+  for (const b of jogo.bots) avancarBot(b, st);
+  if (st >= jogo.fimS) terminar('fim');
+}
+
+function terminar(motivo) {
+  if (jogo.fase === 'fim' || jogo.fase === 'parado') return;
+  const ctx = AUDIO.ctx;
+  if (ctx.state === 'suspended') ctx.resume();
+  jogo.fase = 'fim'; jogo.motivo = motivo;
+  const agora = ctx.currentTime, g = AUDIO.musica.gain, queda = motivo === 'fim' ? 1.2 : 0.5;
+  g.cancelScheduledValues(agora); g.setValueAtTime(g.value, agora); g.linearRampToValueAtTime(0, agora + queda);
+  try { jogo.fonte.stop(agora + queda + 0.05); } catch { /* já parou */ }
+  if (motivo === 'fim') for (const b of jogo.bots) avancarBot(b, Infinity);
+  fontes.forEach((f) => f.clear()); jogo.apertadas = [false, false, false, false];
+  mostrarResultado();
+}
+
+function precisaoDe(p, total) { const base = total !== undefined ? total : p.julgadas; return base ? p.peso / (base * 100) : 0; }
+
+// ------------------------------------------------------------------ pausa
+function pausar(pelo) {
+  if (jogo.fase !== 'tocando' && jogo.fase !== 'retomando') return;
+  jogo.fase = 'pausado'; jogo.pausadoEm = jogo.st; jogo.pausaDoMestre = pelo === 'mestre';
+  AUDIO.ctx.suspend();
+  fontes.forEach((f) => f.clear()); jogo.apertadas = [false, false, false, false];
+  // Seta segurada no instante da pausa conta como segurada: a pausa não pode punir.
+  for (const n of jogo.notas) if (n.segurando) { n.segurando = false; fecharSegura(n, true, jogo.st); }
+  $('#pausaTitulo').textContent = jogo.pausaDoMestre ? 'O mestre pausou a dança' : 'Pausado';
+  $('#pausa').hidden = false;
+  $('#bContinuar').focus();
+  atualizarMestre(true);
+}
+function retomar() {
+  if (jogo.fase !== 'pausado') return;
+  jogo.fase = 'retomando';
+  $('#pausa').hidden = true;
+  $('#campo').focus();
+  let n = 3;
+  const passo = () => {
+    if (jogo.fase !== 'retomando') return;
+    if (n === 0) { $('#contagem').textContent = ''; AUDIO.k = null; AUDIO.ctx.resume().then(() => { if (jogo.fase === 'retomando') jogo.fase = 'tocando'; }); return; }
+    mostrarContagem(String(n--));
+    setTimeout(passo, 450);
+  };
+  passo();
+  atualizarMestre(true);
+}
+const alternarPausa = () => (jogo.fase === 'pausado' ? retomar() : pausar('jogador'));
+
+// ------------------------------------------------------------------ telas e HUD
+const telas = { convite: '#tConvite', calibra: '#tCalibra', pista: '#tPista', resultado: '#tResultado' };
+let telaAtual = 'convite', visao = 'jogador';
+function irPara(nome) {
+  for (const [k, sel] of Object.entries(telas)) $(sel).hidden = k !== nome;
+  telaAtual = nome;
+  $('#coluna').dataset.tela = nome;
+  if (nome === 'pista') { medirPista(); $('#campo').focus({ preventScroll: true }); }
+  if (nome === 'convite') pintarConvite();
+}
+function mostrarContagem(txt) {
+  const el = $('#contagem');
+  el.textContent = txt;
+  el.getAnimations().forEach((a) => a.cancel());
+  el.animate(movimentoReduzido.matches ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, transform: 'scale(1.08)' }, { opacity: 1, transform: 'scale(1)', offset: 0.3 }, { opacity: 0, transform: 'scale(1)' }], { duration: 440, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' });
+}
+const TEXTO_JULG = { perfeito: 'Perfeito', bom: 'Bom', ok: 'Ok', errou: 'Errou', segurou: 'Segurou', soltou: 'Soltou' };
+function mostrarJulg(j, gentil) {
+  const el = $('#julg');
+  el.textContent = TEXTO_JULG[j];
+  el.dataset.j = j === 'errou' && gentil ? 'gentil' : j;
+  el.getAnimations().forEach((a) => a.cancel());
+  const r = movimentoReduzido.matches;
+  el.animate([
+    { opacity: 1, transform: r ? 'none' : 'scale(1.06)' },
+    { opacity: 1, transform: 'scale(1)', offset: 0.14 },
+    { opacity: 1, transform: 'scale(1)', offset: 0.7 },
+    { opacity: 0, transform: 'scale(1)' },
+  ], { duration: 650, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' });
+}
+let hudCache = {};
+function atualizarHud(forcar) {
+  const p = jogo.placar;
+  if (!p) return;
+  const pontos = Math.round((PONTOS_MAX * p.peso) / (Math.max(1, jogo.totalItens) * 100));
+  const set = (id, v) => { if (forcar || hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } };
+  set('#hPontos', fmtInt(pontos));
+  set('#hPrecisao', p.julgadas ? fmtPct(precisaoDe(p)) : '—');
+  const combo = $('#combo');
+  if (p.combo >= 4) { set('#comboN', String(p.combo)); combo.hidden = false; combo.dataset.alto = p.combo >= 25 ? '1' : '0'; } else combo.hidden = true;
+  $('#vida').hidden = !DIF[jogo.dif].vida;
+  if (DIF[jogo.dif].vida) { const v = $('#vidaBarra'); v.style.transform = `scaleX(${p.vida / 100})`; v.dataset.baixa = p.vida < 25 ? '1' : '0'; $('#vida').setAttribute('aria-valuenow', String(Math.round(p.vida))); }
+}
+
+// ------------------------------------------------------------------ convite
+function pintarConvite() {
+  $('#cNpc').textContent = config.npc || 'Desafiante';
+  $('#cFala').textContent = config.fala;
+  const so = config.permitida === 'diversao' ? 'diversao' : config.permitida === 'expert' ? 'expert' : null;
+  for (const r of $$('input[name="dif"]')) {
+    r.disabled = !!so && r.value !== so;
+    r.closest('.cartao').dataset.travado = r.disabled ? '1' : '0';
+  }
+  if (so) jogo.dif = so;
+  $$('input[name="dif"]').forEach((r) => (r.checked = r.value === jogo.dif));
+  $('#cTrava').hidden = !so;
+  $('#cTrava').textContent = so ? `O mestre deixou só a ${DIF[so].nome}.` : '';
+  $('#cNotaMin').textContent = `Nota ${config.notaMin} ou melhor`;
+  $('#cAbre').textContent = config.abrirPorta ? 'Para abrir a porta' : 'Para ganhar';
+  $('#cPremio').textContent = config.premioTipo === 'nada' ? 'Só a passagem' : config.premioTexto || '—';
+  $('#cMusica').textContent = config.musica === 'importada' && importada ? `${importada.nome}, ${fmtDec(importada.analise.bpm, 1)} BPM` : `Gingado do Salão Fundo (faixa demo), ${SOM.BPM} BPM`;
+  $('#cAtraso').textContent = fmtMs(prefs.ajusteMs);
+  pintarTeclas();
+}
+function pintarTeclas() {
+  $$('[data-teclas]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.teclas === prefs.teclas)));
+  $$('.pad kbd').forEach((k, i) => (k.textContent = ROTULO_TECLA[prefs.teclas][i]));
+  $$('[data-som]').forEach((b) => { b.setAttribute('aria-checked', String(prefs.somAcerto)); b.querySelector('span').textContent = prefs.somAcerto ? 'ligado' : 'desligado'; });
+}
+
+async function entrar() {
+  const b = $('#bEntrar');
+  b.disabled = true; b.textContent = 'Preparando a música…';
+  try {
+    irPara('pista');
+    await comecarJogo();
+  } catch (err) {
+    irPara('convite');
+    $('#cErro').hidden = false;
+    $('#cErro').textContent = 'Não deu para tocar a música neste navegador. Tente de novo; se continuar, troque para a faixa demo.';
+    console.warn(err);
+  } finally { b.disabled = false; b.textContent = 'Entrar na pista'; }
+}
+
+// ------------------------------------------------------------------ resultado
+function mostrarResultado() {
+  const p = jogo.placar, m = jogo.motivo;
+  const precisao = precisaoDe(p, m === 'fim' ? jogo.totalItens : undefined);
+  const letra = letraDe(precisao);
+  const passou = m === 'fim' && ordemLetra(letra) <= ordemLetra(config.notaMin);
+  $('#rLetra').textContent = m === 'falhou' ? 'Falhou' : m === 'mestre' ? '—' : letra;
+  $('#rLetra').dataset.estado = m === 'falhou' ? 'falhou' : passou ? 'passou' : 'nao';
+  $('#rTitulo').textContent = m === 'falhou' ? 'A vida acabou no meio da música' : m === 'mestre' ? 'O mestre encerrou a dança' : passou ? (config.abrirPorta ? 'A porta se abriu' : 'Desafio vencido') : 'Não foi desta vez';
+  $('#rPrecisao').textContent = fmtPct(precisao);
+  $('#rCombo').textContent = String(p.comboMax);
+  $('#rPontos').textContent = fmtInt((PONTOS_MAX * p.peso) / (Math.max(1, jogo.totalItens) * 100));
+  const tot = Math.max(1, p.perfeito + p.bom + p.ok + p.errou);
+  for (const k of ['perfeito', 'bom', 'ok', 'errou']) {
+    $(`#r_${k}`).textContent = String(p[k]);
+    $(`#rb_${k}`).style.transform = `scaleX(${p[k] / tot})`;
+  }
+  $('#rSegRow').hidden = jogo.dif !== 'expert';
+  $('#rSeg').textContent = `${p.segOk} de ${p.segTotal}`;
+  let texto;
+  if (m === 'mestre') texto = 'Nada foi ganho nem perdido.';
+  else if (passou) texto = config.premioTipo === 'nada' ? PREMIO_FRASE.nada() : PREMIO_FRASE[config.premioTipo](config.premioTexto);
+  else texto = `${CONS_FRASE[config.consTipo](config.consTexto)} Falhar não tranca a história: a porta espera outra tentativa.`;
+  $('#rDesfecho').textContent = texto;
+  $('#rDesfecho').dataset.tom = passou ? 'bom' : m === 'mestre' ? 'neutro' : 'ruim';
+  $('#rMinima').textContent = `Precisava de ${config.notaMin} ou melhor.`;
+  const linhas = [{ nome: 'Você', p, total: m === 'fim' ? jogo.totalItens : undefined, caiu: m === 'falhou' }, ...jogo.bots.map((b) => ({ nome: b.bot.nome, p: b.placar, total: jogo.totalItens, caiu: b.d.caiu }))];
+  $('#rMesa').replaceChildren(...linhas.map((l) => {
+    const li = document.createElement('li'), pr = precisaoDe(l.p, l.total);
+    li.innerHTML = `<span class="mesa__nome"></span><span class="mesa__letra"></span><span class="mesa__num"></span>`;
+    li.children[0].textContent = l.nome;
+    li.children[1].textContent = l.caiu ? 'Falhou' : m === 'mestre' ? '—' : letraDe(pr);
+    li.children[2].textContent = fmtPct(pr);
+    return li;
+  }));
+  $('#rBotoes').dataset.passou = passou ? '1' : '0';
+  irPara('resultado');
+  $('#anuncio').textContent = `${$('#rTitulo').textContent}. Precisão ${fmtPct(precisao)}.`;
+  if (passou && config.abrirPorta) jogo.portaInicio = performance.now() + 350;
+  atualizarMestre(true);
+  $('#rPrimario').focus({ preventScroll: true });
+}
+
+// ------------------------------------------------------------------ calibração
+const calib = { ativa: false, toques: [], batidas: [], t0: 0, intervalo: 0.6, timer: 0 };
+function iniciarCalibra() {
+  const ctx = garantirAudio();
+  ctx.resume().then(() => {
+    calib.ativa = true; calib.toques = [];
+    const agora = ctx.currentTime + 0.3;
+    calib.t0 = agora + 4 * calib.intervalo;
+    calib.batidas = Array.from({ length: 8 }, (_, i) => calib.t0 + i * calib.intervalo);
+    for (let i = 0; i < 12; i++) SOM.clique(ctx, AUDIO.efeitos, agora + i * calib.intervalo, i === 0 || i === 4);
+    AUDIO.k = null;
+    $('#kStatus').textContent = 'Escute 4 batidas e comece a tocar na quinta.';
+    $('#kResultado').hidden = true;
+    $('#kMarcas').replaceChildren();
+    $('#bCalibra').disabled = true;
+    pintarPontos(-1);
+    const fim = calib.batidas[7] + 0.5;
+    const passo = () => {
+      if (!calib.ativa) return;
+      const t = ouvidoEm(performance.now());
+      const atual = calib.batidas.findIndex((b) => b > t) - 1;
+      pintarPontos(atual === -2 ? 7 : atual);
+      if (t > fim) return concluirCalibra();
+      calib.timer = requestAnimationFrame(passo);
+    };
+    calib.timer = requestAnimationFrame(passo);
+  });
+}
+function pintarPontos(n) { $$('#kPontos i').forEach((p, i) => (p.dataset.on = i <= n ? '1' : '0')); }
+function toqueCalibra(perf) {
+  if (!calib.ativa) return;
+  const t = ouvidoEm(perf);
+  let melhor = null;
+  for (const b of calib.batidas) if (melhor === null || Math.abs(t - b) < Math.abs(melhor)) melhor = t - b;
+  if (melhor === null || Math.abs(melhor) > 0.25) return;
+  calib.toques.push(melhor * 1000);
+  const m = document.createElement('i');
+  m.style.left = `${50 + (clamp(melhor * 1000, -200, 200) / 200) * 50}%`;
+  $('#kMarcas').append(m);
+}
+function concluirCalibra() {
+  calib.ativa = false;
+  cancelAnimationFrame(calib.timer);
+  $('#bCalibra').disabled = false; $('#bCalibra').textContent = 'Medir de novo';
+  const v = calib.toques.slice().sort((a, b) => a - b);
+  $('#kResultado').hidden = false;
+  if (v.length < 5) {
+    $('#kStatus').textContent = `Poucos toques (${v.length} de 8). Meça de novo tocando em todas as batidas.`;
+    $('#bUsar').hidden = true;
+    return;
+  }
+  const meio = v.length >= 6 ? v.slice(1, -1) : v;
+  const media = meio.reduce((a, b) => a + b, 0) / meio.length;
+  calib.medido = Math.round(media);
+  $('#kStatus').textContent = media >= 0 ? `Seus toques chegam ${Math.round(media)} ms depois do som.` : `Seus toques chegam ${Math.round(-media)} ms antes do som.`;
+  $('#bUsar').hidden = false;
+  $('#bUsar').textContent = `Usar ${fmtMs(calib.medido)}`;
+}
+function definirAjuste(ms) {
+  prefs.ajusteMs = clamp(Math.round(ms), -300, 300);
+  gravarPrefs();
+  $('#kAjuste').textContent = fmtMs(prefs.ajusteMs);
+  $('#cAtraso').textContent = fmtMs(prefs.ajusteMs);
+}
+
+// ------------------------------------------------------------------ mestre
+function atualizarMestre(forcar) {
+  if (visao !== 'mestre' && !forcar) return;
+  const ativo = emJogo();
+  const pB = $('#mPausar'), eB = $('#mEncerrar');
+  pB.disabled = !ativo; eB.disabled = !ativo;
+  pB.textContent = jogo.fase === 'pausado' ? 'Retomar para todos' : 'Pausar para todos';
+  $('#mMotivo').textContent = ativo ? (visao === 'mestre' ? 'Você está na visão do mestre: suas setas passam sem resposta até voltar para a visão do jogador.' : '') : 'Ninguém está dançando agora. Volte para a visão do jogador e entre na pista.';
+  const linhas = [{ nome: 'Você', p: jogo.placar, caiu: jogo.motivo === 'falhou' }, ...jogo.bots.map((b) => ({ nome: b.bot.nome, p: b.placar, caiu: b.d.caiu }))];
+  const status = jogo.fase === 'pausado' ? 'Pausado' : jogo.fase === 'fim' ? 'Terminou' : ativo ? 'Dançando' : 'Esperando';
+  $$('#mPlacar li').forEach((li, i) => {
+    const l = linhas[i] || { p: null };
+    const p = l.p;
+    li.querySelector('.pl__status').textContent = l.caiu ? 'Falhou' : p ? status : 'Esperando';
+    li.querySelector('.pl__prec').textContent = p && p.julgadas ? fmtPct(precisaoDe(p)) : '—';
+    li.querySelector('.pl__combo').textContent = p ? String(p.combo) : '0';
+    const v = li.querySelector('.pl__vida');
+    v.hidden = jogo.dif !== 'expert' || !p;
+    if (p) { v.querySelector('i').style.transform = `scaleX(${p.vida / 100})`; v.setAttribute('aria-valuenow', String(Math.round(p.vida))); }
+  });
+}
+
+function ligarMestre() {
+  const ligar = (id, chave, ev = 'input') => $(id).addEventListener(ev, (e) => { config[chave] = e.target.value; pintarConvite(); });
+  ligar('#fNpc', 'npc'); ligar('#fFala', 'fala'); ligar('#fPremioTexto', 'premioTexto'); ligar('#fConsTexto', 'consTexto');
+  ligar('#fPremioTipo', 'premioTipo', 'change'); ligar('#fConsTipo', 'consTipo', 'change');
+  $('#fPremioTipo').addEventListener('change', () => ($('#fPremioTexto').disabled = config.premioTipo === 'nada'));
+  $('#fConsTipo').addEventListener('change', () => ($('#fConsTexto').disabled = config.consTipo !== 'teste'));
+  $('#fAbrir').addEventListener('change', (e) => { config.abrirPorta = e.target.checked; pintarConvite(); });
+  for (const [grupo, attr] of [['permitida', 'permitida'], ['notaMin', 'nota-min']]) {
+    $$(`[data-${attr}]`).forEach((b) => b.addEventListener('click', () => {
+      config[grupo] = b.dataset[grupo];
+      $$(`[data-${attr}]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      pintarConvite();
+    }));
+  }
+  $$('input[name="musica"]').forEach((r) => r.addEventListener('change', () => { config.musica = r.value; pintarConvite(); }));
+  $('#bImportar').addEventListener('click', () => $('#fArquivo').click());
+  $('#fArquivo').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) importar(f); e.target.value = ''; });
+  $('#bBpmMenos').addEventListener('click', () => mexerGrade(-0.1, 0));
+  $('#bBpmMais').addEventListener('click', () => mexerGrade(0.1, 0));
+  $('#bFaseMenos').addEventListener('click', () => mexerGrade(0, -0.01));
+  $('#bFaseMais').addEventListener('click', () => mexerGrade(0, 0.01));
+  $('#bConferir').addEventListener('click', () => (previa.tipo === 'conferir' ? pararPrevia() : tocarPrevia('conferir')));
+  $('#bBater').addEventListener('click', (e) => baterTempo(e.timeStamp));
+  $('#mPausar').addEventListener('click', () => (jogo.fase === 'pausado' ? retomar() : pausar('mestre')));
+  $('#mEncerrar').addEventListener('click', () => terminar('mestre'));
+}
+
+async function importar(arquivo) {
+  const st = $('#mMusStatus');
+  st.hidden = false; st.textContent = 'Lendo o arquivo…';
+  try {
+    const bytes = await arquivo.arrayBuffer();
+    const dec = new OfflineAudioContext(1, 1, 48000);
+    const buffer = await dec.decodeAudioData(bytes);
+    st.textContent = 'Procurando a batida… 0%';
+    const analise = await ANALISE.analisar(buffer, (k) => (st.textContent = `Procurando a batida… ${Math.round(k * 100)}%`));
+    importada = { nome: arquivo.name.replace(/\.[^.]+$/, ''), buffer, analise, detectado: { bpm: analise.bpm, primeira: analise.primeiraBatida } };
+    $('#rMusImportada').disabled = false; $('#rMusImportada').checked = true; config.musica = 'importada';
+    pintarGrade();
+    pintarConvite();
+  } catch (err) {
+    st.textContent = 'Este arquivo não abriu como áudio. Tente um MP3, OGG ou WAV.';
+    console.warn(err);
+  }
+}
+function pintarGrade() {
+  const a = importada.analise;
+  $('#mMusStatus').textContent = `${importada.nome}: ${fmtDec(a.duracao, 1)} s`;
+  $('#mBpm').textContent = fmtDec(a.bpm, 1);
+  $('#mFase').textContent = fmtDec(a.primeiraBatida, 3) + ' s';
+  $('#mConf').textContent = a.confianca > 0.6 ? 'alta' : a.confianca > 0.3 ? 'média' : 'baixa';
+  $('#mGrade').hidden = false;
+}
+function mexerGrade(dBpm, dFase) {
+  if (!importada) return;
+  const a = importada.analise;
+  const bpm = clamp(a.bpm + dBpm, 50, 220);
+  a.bpm = Math.round(bpm * 10) / 10; a.periodo = 60 / a.bpm;
+  a.primeiraBatida = clamp(a.primeiraBatida + dFase, 0, a.duracao - 1);
+  pintarGrade(); pintarConvite();
+}
+const previa = { tipo: null, fonte: null, t0: 0, toques: [], fim: 0 };
+function tocarPrevia(tipo) {
+  if (!importada) return;
+  pararPrevia();
+  const ctx = garantirAudio(); ctx.resume();
+  const a = importada.analise, inicio = Math.max(0, a.primeiraBatida - 0.5), dur = 12;
+  const f = ctx.createBufferSource(); f.buffer = importada.buffer; f.connect(AUDIO.mestre);
+  const quando = ctx.currentTime + 0.15;
+  f.start(quando, inicio, dur);
+  Object.assign(previa, { tipo, fonte: f, t0: quando - inicio, toques: [], fim: quando + dur });
+  if (tipo === 'conferir') {
+    for (let k = 0, t = a.primeiraBatida; t < inicio + dur; k++, t += a.periodo) if (t >= inicio) SOM.clique(ctx, AUDIO.mestre, previa.t0 + t, ((k - a.fase4) % 4 + 4) % 4 === 0);
+    $('#bConferir').textContent = 'Parar';
+  } else $('#bBater').textContent = 'Toque no tempo: 0 de 8';
+  f.onended = () => { if (previa.fonte === f) pararPrevia(); };
+  AUDIO.k = null;
+}
+function pararPrevia() {
+  if (previa.fonte) { try { previa.fonte.stop(); } catch { /* já parou */ } }
+  previa.fonte = null; previa.tipo = null;
+  $('#bConferir').textContent = 'Conferir com metrônomo';
+  $('#bBater').textContent = 'Bater o tempo';
+}
+function baterTempo(perf) {
+  if (previa.tipo !== 'bater') return tocarPrevia('bater');
+  const t = ouvidoEm(perf) - previa.t0;
+  previa.toques.push(t);
+  $('#bBater').textContent = `Toque no tempo: ${previa.toques.length} de 8`;
+  if (previa.toques.length >= 8) {
+    const r = ANALISE.ajustarToques(previa.toques);
+    pararPrevia();
+    if (!r) { $('#mMusStatus').textContent = 'Os toques ficaram irregulares. Tente de novo, no ritmo da música.'; return; }
+    const a = importada.analise;
+    a.periodo = r.periodo; a.bpm = Math.round((60 / r.periodo) * 10) / 10; a.periodo = 60 / a.bpm;
+    let f = r.fase;
+    while (f - a.periodo > 0) f -= a.periodo;
+    while (f < 0) f += a.periodo;
+    a.primeiraBatida = f;
+    pintarGrade(); pintarConvite();
+  }
+}
+
+// ------------------------------------------------------------------ entrada: teclado, toque, controle
+function fonteApertou(lane, id, perf) {
+  if (visao !== 'jogador') return;
+  if (telaAtual === 'calibra') return toqueCalibra(perf);
+  if (telaAtual !== 'pista') return;
+  if (fontes[lane].has(id)) return;
+  fontes[lane].add(id);
+  apertar(lane, perf);
+}
+function fonteSoltou(lane, id, perf) {
+  if (!fontes[lane].delete(id)) return;
+  if (fontes[lane].size === 0) soltar(lane, perf);
+}
+addEventListener('keydown', (e) => {
+  if (visao !== 'jogador' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Escape' && telaAtual === 'pista' && emJogo()) { e.preventDefault(); alternarPausa(); return; }
+  if (telaAtual === 'calibra' && calib.ativa && (e.code === 'Space' || laneDaTecla(e.code, prefs.teclas) >= 0)) { e.preventDefault(); if (!e.repeat) toqueCalibra(e.timeStamp); return; }
+  if (telaAtual !== 'pista') return;
+  const lane = laneDaTecla(e.code, prefs.teclas);
+  if (lane < 0) return;
+  e.preventDefault();
+  if (!e.repeat) fonteApertou(lane, 'k' + e.code, e.timeStamp);
+});
+addEventListener('keyup', (e) => { const lane = laneDaTecla(e.code, prefs.teclas); if (lane >= 0) fonteSoltou(lane, 'k' + e.code, e.timeStamp); });
+addEventListener('blur', () => fontes.forEach((f, lane) => { if (f.size) { f.clear(); soltar(lane, performance.now()); } }));
+document.addEventListener('visibilitychange', () => { if (document.hidden && jogo.fase === 'tocando') pausar('jogador'); });
+
+const controles = { est: {}, start: {} };
+function lerControles(agora) {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const pad of pads) {
+    if (!pad) continue;
+    const est = lanesDoControle(pad), ant = controles.est[pad.index] || [false, false, false, false];
+    const ts = pad.timestamp && Math.abs(agora - pad.timestamp) < 100 ? pad.timestamp : agora;
+    est.forEach((v, lane) => { if (v && !ant[lane]) fonteApertou(lane, 'g' + pad.index, ts); else if (!v && ant[lane]) fonteSoltou(lane, 'g' + pad.index, ts); });
+    controles.est[pad.index] = est;
+    const start = !!(pad.buttons[9] && pad.buttons[9].pressed);
+    if (start && !controles.start[pad.index] && telaAtual === 'pista' && emJogo()) alternarPausa();
+    controles.start[pad.index] = start;
+  }
+}
+addEventListener('gamepadconnected', (e) => { $('#cControle').hidden = false; $('#cControle').textContent = `Controle conectado: ${e.gamepad.id.replace(/\s*\(.*$/, '').slice(0, 40)}`; });
+addEventListener('gamepaddisconnected', () => ($('#cControle').hidden = true));
+
+function ligarPads() {
+  $$('.pad').forEach((pad, lane) => {
+    pad.addEventListener('pointerdown', (e) => { e.preventDefault(); try { pad.setPointerCapture(e.pointerId); } catch { /* sem captura */ } fonteApertou(lane, 'p' + e.pointerId, e.timeStamp); pad.dataset.on = '1'; });
+    const fim = (e) => { fonteSoltou(lane, 'p' + e.pointerId, e.timeStamp); pad.dataset.on = '0'; };
+    pad.addEventListener('pointerup', fim); pad.addEventListener('pointercancel', fim); pad.addEventListener('lostpointercapture', fim);
+    pad.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+}
+
+// ------------------------------------------------------------------ laço de quadros
+const amostras = { quadros: [], trabalho: [] };
+function quadro(agora) {
+  const ini = performance.now();
+  if (jogo.ultimoQuadro) { amostras.quadros.push(agora - jogo.ultimoQuadro); if (amostras.quadros.length > 1200) amostras.quadros.shift(); }
+  const dt = jogo.ultimoQuadro ? Math.min(0.05, (agora - jogo.ultimoQuadro) / 1000) : 0;
+  jogo.ultimoQuadro = agora;
+  lerControles(agora);
+  atualizarJogo(agora);
+  const st = jogo.fase === 'tocando' ? jogo.st : jogo.fase === 'parado' ? agora / 1000 : jogo.st;
+  if (jogo.contagem && jogo.fase === 'tocando') { const c = jogo.contagem.findIndex((t) => st >= t); if (c === 0) { mostrarContagem(String(3 - (3 - jogo.contagem.length))); jogo.contagem.shift(); } }
+  const combo = jogo.placar ? jogo.placar.combo : 0, alvo = nivelDoCombo(combo);
+  jogo.holofote += (alvo - jogo.holofote) * (1 - Math.exp(-dt / 0.12));
+  jogo.poeira = jogo.poeira.filter((p) => { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 40 * dt; p.a -= dt * 2; return p.a > 0; });
+  if (visao === 'jogador') {
+    const prog = jogo.notas && jogo.notas.length && emJogo() ? clamp(jogo.st / jogo.fimS, 0, 1) : jogo.fase === 'fim' ? 1 : 0;
+    const passouNota = jogo.placar && jogo.placar.julgadas > 0 && ordemLetra(letraDe(precisaoDe(jogo.placar))) <= ordemLetra(config.notaMin);
+    const portaS = jogo.portaInicio !== null ? (agora - jogo.portaInicio) / 1000 : null;
+    const V = poseNoTempo(jogo.voce || novoDancarino(), st);
+    desenharPalco(PALCO, {
+      porta: estadoPorta(portaS, movimentoReduzido.matches),
+      runas: [0, 1, 2, 3].map((i) => (emJogo() && passouNota && prog > i / 4 ? 1 : 0)),
+      chao: alvo >= 2 ? (alvo === 3 ? 1 : 0.7) : 0, batida: (st - jogo.grade0) / jogo.batidaS, reduzido: movimentoReduzido.matches,
+      holofote: jogo.holofote, voce: V,
+      bots: BOTS.map((b, i) => Object.assign({ id: b.id }, poseNoTempo(jogo.bots[i] ? jogo.bots[i].d : novoDancarino(), st))),
+      poeira: jogo.poeira,
+    });
+    if (telaAtual === 'pista') { desenharPista(jogo.st, agora); $('#progresso').style.transform = `scaleX(${prog})`; }
+    if (jogo.placar && (agora | 0) % 200 < 17) pintarMesaMini();
+  } else if ((agora | 0) % 200 < 17) atualizarMestre();
+  amostras.trabalho.push(performance.now() - ini);
+  if (amostras.trabalho.length > 1200) amostras.trabalho.shift();
+  requestAnimationFrame(quadro);
+}
+function pintarMesaMini() {
+  const linhas = [jogo.placar, ...jogo.bots.map((b) => b.placar)];
+  $$('#mesaMini b').forEach((b, i) => (b.textContent = linhas[i] && linhas[i].julgadas ? fmtPct(precisaoDe(linhas[i])) : '—'));
+}
+
+// ------------------------------------------------------------------ retrato da desafiante (pixel art, espelhado)
+function desenharRetrato() {
+  const meia = ['...oooo', '..ohhhh', '.ohhHhh', '.ohhhhh', 'ohhssss', 'ohsssss', 'ohggggs', 'ohgeegs', 'ohsgggs', '.osssss', '.ossSww', '..osSSs', '...oooo', '.orrrrr', 'orrRrrr'];
+  const cores = { o: '#1b1208', h: '#c9c2b6', H: '#8f887c', s: '#d39a70', S: '#a8714d', g: '#e0a44a', e: '#1b1208', w: '#f1e6d2', r: '#e2645a', R: '#a9473f' };
+  const cv = $('#retrato'), g = cv.getContext('2d');
+  cv.width = 14; cv.height = 15;
+  meia.forEach((linha, y) => {
+    const cheia = linha + linha.split('').reverse().join('');
+    [...cheia].forEach((c, x) => { if (cores[c]) { g.fillStyle = cores[c]; g.fillRect(x, y, 1, 1); } });
+  });
+}
+
+// ------------------------------------------------------------------ ligações
+function trocarVisao(v) {
+  visao = v;
+  $$('[data-visao]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.visao === v)));
+  $('#vJogador').hidden = v !== 'jogador';
+  $('#vMestre').hidden = v !== 'mestre';
+  if (v === 'jogador') { medirPalco(); if (telaAtual === 'pista') medirPista(); }
+  atualizarMestre(true);
+}
+function iniciar() {
+  PALCO.cv = $('#cvPalco'); PALCO.g = PALCO.cv.getContext('2d');
+  PISTA.cv = $('#cvPista'); PISTA.g = PISTA.cv.getContext('2d');
+  desenharRetrato();
+  $$('[data-visao]').forEach((b) => b.addEventListener('click', () => trocarVisao(b.dataset.visao)));
+  $$('input[name="dif"]').forEach((r) => r.addEventListener('change', () => { jogo.dif = r.value; }));
+  $('#bEntrar').addEventListener('click', entrar);
+  $('#bAtraso').addEventListener('click', () => { irPara('calibra'); $('#kAjuste').textContent = fmtMs(prefs.ajusteMs); });
+  $('#bVoltarK').addEventListener('click', () => { calib.ativa = false; irPara('convite'); });
+  $('#bCalibra').addEventListener('click', iniciarCalibra);
+  $('#kAlvo').addEventListener('pointerdown', (e) => { e.preventDefault(); toqueCalibra(e.timeStamp); });
+  $('#bUsar').addEventListener('click', () => definirAjuste(calib.medido));
+  $('#bMenos').addEventListener('click', () => definirAjuste(prefs.ajusteMs - 5));
+  $('#bMais').addEventListener('click', () => definirAjuste(prefs.ajusteMs + 5));
+  $('#bZerar').addEventListener('click', () => definirAjuste(0));
+  $$('[data-teclas]').forEach((b) => b.addEventListener('click', () => { prefs.teclas = b.dataset.teclas; gravarPrefs(); pintarTeclas(); }));
+  $$('[data-som]').forEach((b) => b.addEventListener('click', () => { prefs.somAcerto = !prefs.somAcerto; gravarPrefs(); pintarTeclas(); }));
+  $('#bPausa').addEventListener('click', () => alternarPausa());
+  $('#bContinuar').addEventListener('click', retomar);
+  $('#bRecomecar').addEventListener('click', () => { $('#pausa').hidden = true; jogo.fase = 'fim'; try { jogo.fonte.stop(); } catch { /* ok */ } AUDIO.ctx.resume().then(() => { jogo.fase = 'parado'; entrar(); }); });
+  $('#bSair').addEventListener('click', () => { $('#pausa').hidden = true; jogo.fase = 'fim'; try { jogo.fonte.stop(); } catch { /* ok */ } AUDIO.ctx.resume(); jogo.fase = 'parado'; jogo.placar = null; irPara('convite'); });
+  $('#rPrimario').addEventListener('click', () => { jogo.fase = 'parado'; entrar(); });
+  $('#rVoltar').addEventListener('click', () => { jogo.fase = 'parado'; jogo.portaInicio = null; irPara('convite'); });
+  ligarMestre(); ligarPads();
+  new ResizeObserver(() => { medirPalco(); if (telaAtual === 'pista') medirPista(); }).observe($('#vJogador'));
+  pintarConvite();
+  medirPalco();
+  requestAnimationFrame(quadro);
+  (window.requestIdleCallback || ((f) => setTimeout(f, 300)))(() => pedirDemo());
+}
+
+// ------------------------------------------------------------------ ganchos para os testes e as provas (só leitura do protótipo)
+window.PistaDeDanca = {
+  DIF, SOM, ANALISE, PESO, VIDA, BOTS, PINO_ID, config, prefs, jogo, amostras, PALCO,
+  julgar, letraDe, gerarChart, gradeDemo, gradeImportada, simularBot, laneDaTecla, lanesDoControle,
+  poseDe, poseTropeco, pontosFigura, desenharFigura, desenharPalco, estadoPorta, nivelDoCombo, DIM, VISUAL, POSE_PARADA, POSE_OPS, EASE_OUT, EASE_IN_OUT,
+  mostrarJulg, trocarVisao, irPara, terminar, prepararCenario, dancar, poseNoTempo, novoDancarino, atualizarHud, medirPista, tempoMusica: (p) => tempoMusica(p), garantirAudio, importar: (f) => importar(f),
+  get importada() { return importada; },
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+})();
+</script>
+
+</body></html>

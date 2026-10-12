@@ -1,0 +1,99 @@
+{
+  "id": "faixa-demo",
+  "fonte": "docs/design/minigame-danca/provas/som/faixa-demo.ts",
+  "geradoEm": "2026-10-12T16:07:02.752Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.6,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 45.85,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -6.21,
+    "picoVerdadeiroDbtp": -6.21,
+    "lufsIntegrado": -19.97,
+    "lufsCurtoPrazoMax": -19.09,
+    "dcPct": -0.0738,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [
+      {
+        "inicio": 0.08,
+        "fim": 0.517
+      },
+      {
+        "inicio": 0.597,
+        "fim": 1.035
+      },
+      {
+        "inicio": 1.115,
+        "fim": 1.552
+      },
+      {
+        "inicio": 1.632,
+        "fim": 2.069
+      }
+    ],
+    "equilibrioLRdb": -0.04,
+    "centroideHzPorSegundo": [
+      2004,
+      2000,
+      266,
+      307,
+      200,
+      175,
+      182,
+      256,
+      276,
+      230,
+      222,
+      202,
+      220,
+      226,
+      202,
+      239,
+      263,
+      201,
+      228,
+      221,
+      267,
+      268,
+      222,
+      224,
+      213,
+      218,
+      237,
+      127,
+      140,
+      144,
+      146,
+      133,
+      157,
+      169,
+      1600,
+      427,
+      207,
+      252,
+      245,
+      271,
+      208,
+      238,
+      195,
+      182,
+      156,
+      415
+    ],
+    "duracaoNaturalS": 45.6
+  }
+}

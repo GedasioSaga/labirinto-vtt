@@ -1,0 +1,29 @@
+montando a página de renderização (6 transições)...
+
+Mediana do volume integrado das aprovadas (porta, escada-pedra, escada-pedra-descendo, portao-pesado): -18,6 LUFS
+
+transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx    DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB   veredito
+---------------------------  ---------  ---------------  ---------  -----------  ------  ------  -------  -------  -----------  ---------  ------  ---------
+faixa-demo                        -6,2             -6,2      -20,0        -19,1  -0,074       0        0        0            0          4    -0,0   aprovado
+acerto-e-erro                    -16,9            -16,9      -35,5        -36,7  -0,010       0        0        1            0          3     0,0  REPROVADO
+porta (ref)                      -14,6            -14,5      -31,6        -30,2  -0,004       0        0        0            0          4     0,0           
+escada-pedra (ref)                -0,7             -0,7      -18,6        -19,4   0,085       0        0        0            0          0     0,0           
+escada-pedra-descendo (ref)       -0,6             -0,6      -18,6        -19,4   0,085       0        0        0            0          0     0,0           
+portao-pesado (ref)               -2,2             -2,1      -17,1        -16,3   0,051       0        0       11           57          0     0,0           
+
+Centróide espectral por segundo (Hz; mais alto = mais agudo/brilhante):
+  faixa-demo             2004 2000 266 307 200 175 182 256 276 230 222 202 220 226 202 239 263 201 228 221 267 268 222 224 213 218 237 127 140 144 146 133 157 169 1600 427 207 252 245 271 208 238 195 182 156 415
+  acerto-e-erro          667 103
+  porta                  260 251 1349 843 791 445 234 —
+  escada-pedra           — 113 110 120 114 113 108 99 121 113 115 111
+  escada-pedra-descendo  — 113 110 120 114 113 107 98 122 113 116 111
+  portao-pesado          543 281 261 3691 463 561 664 621 603 89 355
+
+faixa-demo: aprovado nas medidas
+  (silêncio total no meio: 0,08–0,52 s, 0,60–1,03 s, 1,11–1,55 s, 1,63–2,07 s; confira se é de propósito)
+  docs/design/minigame-danca/provas/som/faixa-demo.wav · docs/design/minigame-danca/provas/som/faixa-demo-espectrograma.png · docs/design/minigame-danca/provas/som/faixa-demo-medidas.json
+
+acerto-e-erro: REPROVADO
+  - volume -35,5 LUFS está 16,9 LU ABAIXO da mediana das aprovadas (-18,6 LUFS; tolerância ±3 LU): vai soar muito mais baixo que as outras
+  (silêncio total no meio: 0,17–0,35 s, 0,42–0,60 s, 0,78–0,90 s; confira se é de propósito)
+  docs/design/minigame-danca/provas/som/acerto-e-erro.wav · docs/design/minigame-danca/provas/som/acerto-e-erro-espectrograma.png · docs/design/minigame-danca/provas/som/acerto-e-erro-medidas.json

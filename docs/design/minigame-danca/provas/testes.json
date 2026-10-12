@@ -1,0 +1,457 @@
+{
+  "testes": [
+    {
+      "nome": "julgamento nas bordas das janelas (diversao)",
+      "passou": true,
+      "detalhe": "11 casos"
+    },
+    {
+      "nome": "julgamento nas bordas das janelas (expert)",
+      "passou": true,
+      "detalhe": "11 casos"
+    },
+    {
+      "nome": "coreografia determinística (mesma semente, mesmas setas) e semente diferente muda",
+      "passou": true
+    },
+    {
+      "nome": "Diversão: sem saltos, sem seguradas, só tempos fortes, intervalo ≥ 450 ms, ≤ 3 por compasso, nunca 4 iguais seguidas",
+      "passou": true,
+      "detalhe": {
+        "setas": 61,
+        "saltos": 0,
+        "seguradas": 0,
+        "gapMinMs": 517,
+        "maxMesmaSeguida": 2,
+        "mediaPorS": 1.47,
+        "picoPorS4s": 1.75,
+        "maxPorCompasso": 3,
+        "quadros": {
+          "4": 61,
+          "8": 0,
+          "16": 0
+        }
+      }
+    },
+    {
+      "nome": "Expert: tem saltos, seguradas e colcheias/semicolcheias",
+      "passou": true,
+      "detalhe": {
+        "setas": 158,
+        "saltos": 5,
+        "seguradas": 5,
+        "gapMinMs": 129,
+        "maxMesmaSeguida": 2,
+        "mediaPorS": 3.7,
+        "picoPorS4s": 5,
+        "maxPorCompasso": 10,
+        "quadros": {
+          "4": 85,
+          "8": 56,
+          "16": 17
+        }
+      }
+    },
+    {
+      "nome": "faixa demo: toda seta cai num ataque que a música toca",
+      "passou": true
+    },
+    {
+      "nome": "BPM da faixa demo detectado (116)",
+      "passou": true,
+      "detalhe": {
+        "bpm": 116,
+        "erroFaseMs": -9,
+        "confianca": 1
+      }
+    },
+    {
+      "nome": "BPM de cliques sintéticos (95 e 140)",
+      "passou": true,
+      "detalhe": [
+        {
+          "bpmReal": 95,
+          "bpmAchado": 95,
+          "erroFaseMs": -13
+        },
+        {
+          "bpmReal": 140,
+          "bpmAchado": 140,
+          "erroFaseMs": -13
+        }
+      ]
+    },
+    {
+      "nome": "tempo batido à mão (8 toques ~116 BPM)",
+      "passou": true,
+      "detalhe": 116.12
+    },
+    {
+      "nome": "teclado: setas, WASD e DFJK",
+      "passou": true,
+      "detalhe": {
+        "setas": [
+          0,
+          1,
+          2,
+          3,
+          0,
+          1,
+          2,
+          3,
+          -1
+        ],
+        "dfjk": [
+          0,
+          1,
+          2,
+          3,
+          -1,
+          2
+        ]
+      }
+    },
+    {
+      "nome": "controle: direcional, losango de botões e analógico",
+      "passou": true,
+      "detalhe": {
+        "botoes": [
+          2,
+          1,
+          0,
+          3,
+          1,
+          3,
+          0,
+          2
+        ],
+        "eixos": [
+          0,
+          3,
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "nome": "Diversão inteira com toques por teclado (setas e WASD): termina, julga e dá nota",
+      "passou": true,
+      "detalhe": {
+        "letra": "S",
+        "perfeito": 61,
+        "bom": 0,
+        "ok": 0,
+        "errou": 0
+      }
+    },
+    {
+      "nome": "tempo de quadro p95 < 20 ms e nenhuma tarefa longa ≥ 200 ms durante o jogo",
+      "passou": true,
+      "detalhe": {
+        "quadroP50": 16.7,
+        "quadroP95": 16.8,
+        "trabalhoP95": 0.7,
+        "trabalhoMax": 14.1,
+        "quadros": 1200,
+        "tarefasLongas": []
+      }
+    },
+    {
+      "nome": "toque nos botões da tela, tecla K (DFJK) e direcional do controle chegam às trilhas",
+      "passou": true,
+      "detalhe": {
+        "ponteiro": true,
+        "dfjk": true,
+        "controle": true
+      }
+    },
+    {
+      "nome": "Expert: vida zera e encerra com \"Falhou\"",
+      "passou": true,
+      "detalhe": {
+        "marcas": {
+          "ponteiro": true,
+          "dfjk": true,
+          "controle": true
+        },
+        "motivo": "falhou",
+        "vida": 0,
+        "letra": "Falhou",
+        "st": 4.24
+      }
+    },
+    {
+      "nome": "sem rolagem horizontal em 1440, 1024 e 390 (convite, pista, resultado, mestre)",
+      "passou": true,
+      "detalhe": "12 combinações"
+    },
+    {
+      "nome": "sem erro no console",
+      "passou": true,
+      "detalhe": []
+    }
+  ],
+  "puras": {
+    "bordas": {
+      "diversao": [
+        {
+          "ms": 0,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": 60,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": -60,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": 60.01,
+          "esperado": "bom",
+          "obtido": "bom"
+        },
+        {
+          "ms": 110,
+          "esperado": "bom",
+          "obtido": "bom"
+        },
+        {
+          "ms": -110.01,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": 160,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": -160,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": 160.01,
+          "esperado": null,
+          "obtido": null
+        },
+        {
+          "ms": -160.01,
+          "esperado": null,
+          "obtido": null
+        },
+        {
+          "ms": -160.01,
+          "esperado": null,
+          "obtido": null
+        }
+      ],
+      "expert": [
+        {
+          "ms": 0,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": 30,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": -30,
+          "esperado": "perfeito",
+          "obtido": "perfeito"
+        },
+        {
+          "ms": 30.01,
+          "esperado": "bom",
+          "obtido": "bom"
+        },
+        {
+          "ms": 60,
+          "esperado": "bom",
+          "obtido": "bom"
+        },
+        {
+          "ms": -60.01,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": 100,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": -100,
+          "esperado": "ok",
+          "obtido": "ok"
+        },
+        {
+          "ms": 100.01,
+          "esperado": null,
+          "obtido": null
+        },
+        {
+          "ms": -100.01,
+          "esperado": "errou",
+          "obtido": "errou"
+        },
+        {
+          "ms": -160.01,
+          "esperado": null,
+          "obtido": null
+        }
+      ]
+    },
+    "deterministico": true,
+    "sementeMuda": true,
+    "diversao": {
+      "setas": 61,
+      "saltos": 0,
+      "seguradas": 0,
+      "gapMinMs": 517,
+      "maxMesmaSeguida": 2,
+      "mediaPorS": 1.47,
+      "picoPorS4s": 1.75,
+      "maxPorCompasso": 3,
+      "quadros": {
+        "4": 61,
+        "8": 0,
+        "16": 0
+      }
+    },
+    "expert": {
+      "setas": 158,
+      "saltos": 5,
+      "seguradas": 5,
+      "gapMinMs": 129,
+      "maxMesmaSeguida": 2,
+      "mediaPorS": 3.7,
+      "picoPorS4s": 5,
+      "maxPorCompasso": 10,
+      "quadros": {
+        "4": 85,
+        "8": 56,
+        "16": 17
+      }
+    },
+    "casadaDiv": true,
+    "casadaExp": true,
+    "demoBpm": 116,
+    "demoFaseErroMs": -9,
+    "demoConfianca": 1,
+    "sint": [
+      {
+        "bpmReal": 95,
+        "bpmAchado": 95,
+        "erroFaseMs": -13
+      },
+      {
+        "bpmReal": 140,
+        "bpmAchado": 140,
+        "erroFaseMs": -13
+      }
+    ],
+    "toquesBpm": 116.12,
+    "teclas": {
+      "setas": [
+        0,
+        1,
+        2,
+        3,
+        0,
+        1,
+        2,
+        3,
+        -1
+      ],
+      "dfjk": [
+        0,
+        1,
+        2,
+        3,
+        -1,
+        2
+      ]
+    },
+    "controle": [
+      2,
+      1,
+      0,
+      3,
+      1,
+      3,
+      0,
+      2
+    ],
+    "eixos": [
+      0,
+      3,
+      2,
+      1
+    ]
+  },
+  "referencia": {
+    "bpm": 119.75,
+    "primeiraBatida": 0.924,
+    "confianca": 1,
+    "duracao": 41.45,
+    "fase4": 0
+  },
+  "jogada": {
+    "placar": {
+      "perfeito": 61,
+      "bom": 0,
+      "ok": 0,
+      "errou": 0,
+      "segOk": 0,
+      "segTotal": 0,
+      "combo": 61,
+      "comboMax": 61,
+      "peso": 6100,
+      "julgadas": 61,
+      "vida": 60
+    },
+    "motivo": "fim",
+    "letra": "S",
+    "titulo": "A porta se abriu",
+    "quadroP95": 16.8,
+    "quadroP50": 16.7,
+    "trabalhoP95": 0.7,
+    "trabalhoMax": 14.1,
+    "quadros": 1200,
+    "longas": []
+  },
+  "som": {
+    "demo": {
+      "duracaoS": 45.648,
+      "canais": 2,
+      "taxa": 48000,
+      "picoDbfs": -6.27,
+      "picoVerdadeiroDbtp": -6.27,
+      "lufsIntegrado": -19.96,
+      "lufsCurtoPrazoMax": -19.09,
+      "dcPct": -0.0741,
+      "cortes": 0,
+      "equilibrioLRdb": -0.04
+    },
+    "acertoErro": {
+      "duracaoS": 1.3,
+      "canais": 2,
+      "taxa": 48000,
+      "picoDbfs": -16.93,
+      "picoVerdadeiroDbtp": -16.93,
+      "lufsIntegrado": -35.46,
+      "lufsCurtoPrazoMax": -35.97,
+      "dcPct": -0.0124,
+      "cortes": 0,
+      "equilibrioLRdb": 0
+    }
+  },
+  "errosConsole": []
+}
