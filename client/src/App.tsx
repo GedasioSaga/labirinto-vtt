@@ -191,6 +191,7 @@ import { ActionBar } from './components/ActionBar'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { PersonagensDaAventura } from './components/PersonagensSection'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
+import { dancaNoPainel } from './components/dancaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { garantirAventura } from './stores/virarAventura'
@@ -2422,6 +2423,8 @@ function App() {
    * desfazer), a porta que a dança abre (a mesma lista da alavanca) e, com a
    * sala aberta, a dança ao vivo. Chama só quem está jogando e com a página
    * aberta: a sessão recusaria o resto (`hostSession.convidarParaDanca`).
+   * Com a VISÃO DE JOGADOR aberta, a dança ao vivo é a do teste, mesmo com a
+   * sala aberta ao lado (`dancaNoPainel`).
    */
   const minigamePanel = (pin: Pin) => ({
     pinId: pin.id,
@@ -2433,18 +2436,17 @@ function App() {
       options: leverDoorOptions(map),
       onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
     },
-    aoVivo:
-      room === null
-        ? null
-        : {
-            players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
-            danca,
-            onConvidar: (playerIds: string[]) => hostBridgeRef.current?.convidarParaDanca(pin.id, playerIds) ?? null,
-            onComecar: () => hostBridgeRef.current?.comecarDanca() ?? false,
-            onPausar: () => hostBridgeRef.current?.pausarDanca() ?? false,
-            onRetomar: () => hostBridgeRef.current?.retomarDanca() ?? false,
-            onEncerrar: () => hostBridgeRef.current?.encerrarDanca() ?? false,
-          },
+    aoVivo: dancaNoPainel(
+      pin.id,
+      // A ponte de teste é recriada a cada geração: lida na hora de cada comando.
+      { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() },
+      {
+        aberta: room !== null,
+        players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+        danca,
+        ponte: () => hostBridgeRef.current,
+      },
+    ),
   })
 
   /**

@@ -3,8 +3,9 @@ import { SAVED_EXPLORATION_VERSION, SAVED_TABLE_VERSION, type SavedExploration, 
 import { tokenFillColor } from '../../lib/tokenColor'
 import type { MapData, Token } from '../../types/map'
 import type { ToastSink } from '../avisosDaPonte'
+import type { DancaAoVivo } from '../dancaNoHost'
 import { createHostBridge, type HostBridge, type HostBridgeDeps } from '../hostBridge'
-import type { HostWorld } from '../hostSession'
+import type { HostWorld, PlayerInfo } from '../hostSession'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH } from '../protocol'
 import { criarAvisosDeTeste, type AvisosDeTeste } from './avisosDeTeste'
 import { criarCamadaDeTeste, fantasmaDaFicha, mesmoFantasma, type CamadaDeTeste } from './camadaDeTeste'
@@ -79,15 +80,29 @@ export const NOME_PADRAO_DO_TESTE = 'Teste'
 const LETRAS_DO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const TAMANHO_DO_CODIGO = 6
 
+/** Quem está na janela de teste e pode ser chamado (jogando, com a página aberta): o painel da dança o lista. */
+export interface JogadorDoTeste {
+  playerId: string
+  name: string
+}
+
 export interface EstadoDaVisao {
   aberta: boolean
   /** A ficha olhada agora; `null` com a janela fechada. */
   ficha: FichaParaTeste | null
   /** Onde a ficha está no teste, quando o teste a tirou do lugar real; ausente/null = sem fantasma no editor. */
   fantasma?: FantasmaDeTeste | null
+  /**
+   * MINIGAME DE DANÇA: a dança da ponte de TESTE, como o painel do pino a lê.
+   * Com o teste aberto, o painel chama, acompanha e manda por ela, e não pela
+   * da sala. `null` = nenhuma (cada geração e o fechar zeram).
+   */
+  danca: DancaAoVivo | null
+  /** Quem está na janela jogando agora (no teste, só o jogador de teste); vazio = ninguém ainda. */
+  jogadores: readonly JogadorDoTeste[]
 }
 
-export const VISAO_FECHADA: EstadoDaVisao = { aberta: false, ficha: null }
+export const VISAO_FECHADA: EstadoDaVisao = { aberta: false, ficha: null, danca: null, jogadores: [] }
 
 /**
  * O que o teste pode pedir à ponte da sala de verdade: só a leitura. O tipo é
@@ -171,9 +186,28 @@ interface Sessao {
   oculta: boolean
 }
 
-/** A janela aberta na `ficha`; o fantasma só entra no estado quando existe (ausente = sem fantasma no editor). */
-function estadoAberto(ficha: FichaParaTeste, fantasma: FantasmaDeTeste | null): EstadoDaVisao {
-  return fantasma === null ? { aberta: true, ficha } : { aberta: true, ficha, fantasma }
+/**
+ * A janela aberta na `ficha`; o fantasma só entra no estado quando existe
+ * (ausente = sem fantasma no editor). A dança e quem joga vêm de `antes`: só a
+ * ponte de teste os muda (`aoMudarDanca`, `aoMudarJogadores`).
+ */
+function estadoAberto(ficha: FichaParaTeste, fantasma: FantasmaDeTeste | null, antes: Pick<EstadoDaVisao, 'danca' | 'jogadores'>): EstadoDaVisao {
+  const { danca, jogadores } = antes
+  return fantasma === null ? { aberta: true, ficha, danca, jogadores } : { aberta: true, ficha, fantasma, danca, jogadores }
+}
+
+/** Quem pode ser chamado para a dança: jogando e com a página aberta (a sessão recusaria o resto). */
+export function jogadoresDoTeste(lista: readonly PlayerInfo[]): JogadorDoTeste[] {
+  return lista.filter((jogador) => jogador.connected && jogador.status === 'playing').map(({ playerId, name }) => ({ playerId, name }))
+}
+
+/** As duas listas dizem o mesmo: o estado fica com a de antes (mesma referência). */
+function mesmosJogadores(a: readonly JogadorDoTeste[], b: readonly JogadorDoTeste[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((jogador, i) => {
+    const outro = b[i]
+    return outro !== undefined && jogador.playerId === outro.playerId && jogador.name === outro.name
+  })
 }
 
 function errorText(error: unknown): string {
@@ -310,9 +344,29 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
   const avisosDaJanela = criarAvisosDeTeste(deps.avisos)
 
   const mudarEstado = (proximo: EstadoDaVisao) => {
-    if (proximo.aberta === estadoAtual.aberta && proximo.ficha === estadoAtual.ficha && mesmoFantasma(proximo.fantasma, estadoAtual.fantasma)) return
+    if (
+      proximo.aberta === estadoAtual.aberta &&
+      proximo.ficha === estadoAtual.ficha &&
+      mesmoFantasma(proximo.fantasma, estadoAtual.fantasma) &&
+      // A ponte só avisa a dança quando ela mudou (`notifyDancaIfChanged`): a referência basta.
+      proximo.danca === estadoAtual.danca &&
+      mesmosJogadores(proximo.jogadores, estadoAtual.jogadores)
+    )
+      return
     estadoAtual = proximo
     for (const ouvinte of [...ouvintes]) ouvinte()
+  }
+
+  /** A dança da ponte de teste mudou: o painel do pino lê a nova. */
+  const aoMudarDanca = (danca: DancaAoVivo | null) => {
+    mudarEstado({ ...estadoAtual, danca })
+  }
+
+  /** A lista da ponte de teste mudou; o estado só muda quando quem pode ser chamado mudou (o raio, a ficha… não contam). */
+  const aoMudarJogadores = (lista: readonly PlayerInfo[]) => {
+    const jogadores = jogadoresDoTeste(lista)
+    if (mesmosJogadores(jogadores, estadoAtual.jogadores)) return
+    mudarEstado({ ...estadoAtual, jogadores })
   }
 
   const enviar = (s: Sessao, mensagem: MensagemDoHost) => s.canal.enviar(mensagem)
@@ -336,7 +390,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       s.fantasmaAgendado = false
       const ficha = estadoAtual.ficha
       if (sessao !== s || ficha === null) return
-      mudarEstado(estadoAberto(ficha, fantasmaAgora(s)))
+      mudarEstado(estadoAberto(ficha, fantasmaAgora(s), estadoAtual))
     })
   }
 
@@ -373,8 +427,12 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     const daLista = fichaDe(s.tokenId)
     if (daLista === null) return
     encerrarPonte(s, false)
+    // A dança e quem jogava eram da ponte que acabou de sair: o painel volta ao zero até a nova contar.
+    mudarEstado({ ...estadoAtual, danca: null, jogadores: [] })
     s.geracao += 1
     const geracao = s.geracao
+    /** Só a ponte desta geração fala com o painel: a de antes ainda pode avisar enquanto fecha. */
+    const daGeracaoAtual = () => sessao === s && s.geracao === geracao
     const codigo = novoCodigo()
     // Lida a cada geração: abrir, recarregar a janela e trocar de ficha começam com a memória de AGORA do dono.
     const semente = lerSementeDoDono(deps, daLista.id)
@@ -399,12 +457,18 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       loadTable: () => mesaSemente(codigo, nome, ficha.id, s.camada.aplicarNoMundo(deps.getWorld()), semente),
       loadExploration: () => exploradoSemente(nome, cenas),
       onPlayersChange: (jogadores) => {
+        if (!daGeracaoAtual()) return
+        aoMudarJogadores(jogadores)
         if (fatorPendente === null) return
         const jogador = jogadores.find((j) => j.tokenIds.includes(ficha.id))
         if (jogador === undefined) return
         const fator = fatorPendente
         fatorPendente = null
         ponte.setVisionFactor(jogador.playerId, fator)
+      },
+      // MINIGAME DE DANÇA: o painel do pino acompanha a dança do TESTE pelo estado do controlador.
+      onDancaChange: (danca) => {
+        if (daGeracaoAtual()) aoMudarDanca(danca)
       },
       toasts: avisos,
       // O recorte do jogador de teste corre no thread do editor: mais espaçado que o da sala, e parado com a janela escondida.
@@ -466,7 +530,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     // A ficha nova começa com a memória do dono dela: o "Esquecer tudo" era da outra.
     s.semMemoria = false
     // O mundo do teste continua (a camada é da janela): a ficha nova pode já estar fora do lugar nele.
-    mudarEstado(estadoAberto(ficha, fantasmaAgora(s)))
+    mudarEstado(estadoAberto(ficha, fantasmaAgora(s), estadoAtual))
     // Janela ainda carregando: o `ola` dela já começa com a ficha nova.
     if (s.respondeu) iniciarGeracao(s)
   }
@@ -536,7 +600,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       if (mensagem !== null) aoMensagem(s, mensagem)
     })
     sessao = s
-    mudarEstado(estadoAberto(ficha, null))
+    mudarEstado(estadoAberto(ficha, null, VISAO_FECHADA))
     s.janela.abrir(id).catch((error: unknown) => {
       if (sessao !== s) return
       avisosDaJanela.push('error', `Não deu para abrir a janela da Visão de jogador: ${errorText(error)}`)
@@ -584,7 +648,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       if (s === null) return
       const atual = novas.find((ficha) => ficha.id === s.tokenId)
       // Nome ou retrato da ficha olhada mudou no editor: o painel mostra o de agora.
-      if (atual !== undefined) mudarEstado(estadoAberto(atual, estadoAtual.fantasma ?? null))
+      if (atual !== undefined) mudarEstado(estadoAberto(atual, estadoAtual.fantasma ?? null, estadoAtual))
       if (s.respondeu) enviar(s, { de: 'host', tipo: 'fichas', sessao: s.id, fichas: [...novas], fichaSelecionadaId: selecionada })
     },
     ponte: () => sessao?.ponte ?? null,

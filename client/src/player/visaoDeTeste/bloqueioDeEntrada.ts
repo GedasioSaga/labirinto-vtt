@@ -13,15 +13,29 @@ import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react'
  * 3. a guarda do socket (`socketDoCanal.ts`), para o que escapar das duas.
  *
  * Arrastar e soltar (`pointermove`, `pointerup`) e a roda passam sempre: são a
- * câmera, e barrar o soltar deixaria um arrasto do mapa preso.
+ * câmera, e barrar o soltar deixaria um arrasto do mapa preso. A tela da
+ * DANÇA que o mestre abriu também passa inteira (`SELETOR_DA_DANCA`).
  */
 
 /** Dentro da tela do jogador, o que fica livre no Olhar: o mapa (`PlayerView` marca o dele) e os botões de zoom. */
 export const SELETOR_LIVRE_NO_OLHAR = '[data-camera-livre], .pp-zoom'
 
-/** O alvo do evento é parte da câmera (livre no Olhar)? */
+/**
+ * MINIGAME DE DANÇA: a raiz da tela da dança (`DancaOverlay.tsx`). Quem a abre
+ * é o mestre, de propósito, no painel do pino: dentro dela, apertar, clicar e
+ * teclar passam no Olhar (o Pronto, as setas da pista, o "Fechar"). O mapa e a
+ * HUD em volta continuam barrados.
+ */
+export const SELETOR_DA_DANCA = '.lb-danca'
+
+/** O alvo do evento é parte da câmera ou da tela da dança (livres no Olhar)? */
 export function alvoLivreNoOlhar(alvo: EventTarget | null): boolean {
-  return alvo instanceof Element && alvo.closest(SELETOR_LIVRE_NO_OLHAR) !== null
+  return alvo instanceof Element && (alvo.closest(SELETOR_LIVRE_NO_OLHAR) !== null || alvo.closest(SELETOR_DA_DANCA) !== null)
+}
+
+/** A tela da dança está aberta nesta página? */
+function dancaAberta(documento: Document): boolean {
+  return documento.querySelector(SELETOR_DA_DANCA) !== null
 }
 
 /** Teclas que acionam o controle com foco (botão, link): no Olhar elas dão o recado. */
@@ -91,10 +105,14 @@ export function criarBloqueioDoOlhar(ativo: () => boolean, aoBloquear: () => voi
  * Teclas com nada em foco: o alvo é o `body`, fora da árvore do React, e os
  * atalhos da tela do jogador ouvem na `window` (a mochila no "i", os do
  * painel). Barra na captura da `window`, antes de todos. Devolve o desligar.
+ *
+ * Com a tela da DANÇA aberta, a guarda sai do caminho: a pista ouve as setas
+ * na captura da `window` (depois desta guarda, que se instalou antes) e ela
+ * mesma não deixa a tecla seguir para o mapa e os atalhos atrás dela.
  */
 export function instalarGuardaDeTeclado(janela: Window, ativo: () => boolean): () => void {
   const guarda = (evento: KeyboardEvent) => {
-    if (!ativo() || teclaLivre(evento.key)) return
+    if (!ativo() || teclaLivre(evento.key) || dancaAberta(janela.document)) return
     const alvo = evento.target
     const semFoco = alvo === janela.document.body || alvo === janela.document.documentElement || alvo === janela.document || alvo === janela
     if (semFoco) evento.stopImmediatePropagation()

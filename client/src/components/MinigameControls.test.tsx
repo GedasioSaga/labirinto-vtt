@@ -353,7 +353,7 @@ describe('MinigameControls', () => {
 
   it('sem sala: no lugar do "Chamar para dançar", o que falta', () => {
     render(props())
-    expect(container.textContent).toContain('Abra a sala para chamar os jogadores para dançar.')
+    expect(container.textContent).toContain('Abra a sala, ou a Visão de jogador para testar sozinho, para chamar para dançar.')
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Chamar para dançar')).toBe(false)
   })
 

@@ -145,6 +145,22 @@ describe('tela da dança do jogador', () => {
     return achado
   }
 
+  it('sem `raiz`, a tela entra no body (o jogador de sempre); com ela, dentro da caixa dada (a Visão de jogador, embaixo da barra)', () => {
+    montar(danca(), acoesFalsas())
+    expect(document.body.querySelector(':scope > .lb-danca')?.hasAttribute('data-na-caixa')).toBe(false)
+
+    const caixa = document.createElement('div')
+    document.body.append(caixa)
+    act(() => {
+      root.render(<DancaOverlay danca={danca()} playerId={EU} acoes={acoesFalsas()} criarAudio={() => audioFalso()} armazem={armazemVazio()} ambiente={AMBIENTE_PARADO} raiz={caixa} />)
+    })
+    // Na caixa, a altura é a dela (`data-na-caixa`), não a da janela: o pé da tela não fica cortado.
+    expect(caixa.querySelector(':scope > .lb-danca')?.hasAttribute('data-na-caixa')).toBe(true)
+    expect(document.body.querySelector(':scope > .lb-danca')).toBeNull()
+    act(() => root.render(<></>))
+    caixa.remove()
+  })
+
   it('o convite trava o cartão que o mestre não permitiu e avisa quando o som da mesa está desligado', () => {
     useSomStore.setState({ mudo: true })
     montar(danca({ convite: convite({ permitida: 'expert' }) }), acoesFalsas())

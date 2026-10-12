@@ -91,6 +91,26 @@ describe('socketDoCanal', () => {
     expect(recebidas).toHaveLength(3)
   })
 
+  it('DANÇA no Olhar: o Pronto, os toques e o fim saem (o mestre chamou de propósito); o resto continua barrado', async () => {
+    const { socket, host, recebidas } = monta('olhar')
+    await abrir(host)
+    recebidas.length = 0
+
+    const pronto = JSON.stringify({ type: 'danca.pronto', sessao: 'd1', dificuldade: 'diversao' })
+    const toques = JSON.stringify({ type: 'danca.toques', sessao: 'd1', eventos: [], placar: { precisao: 1, combo: 0, vida: 50, julgadas: 0 } })
+    const fim = JSON.stringify({ type: 'danca.fim', sessao: 'd1', placar: { precisao: 1 } })
+    socket.send(pronto)
+    socket.send(toques)
+    socket.send(fim)
+    // Só o que o jogador manda na dança: o resto do jogo (e um tipo do host fingindo ser dele) segue morrendo aqui.
+    socket.send(JSON.stringify({ type: 'token.move', reqId: 'm1', tokenId: 't', x: 1, y: 2 }))
+    socket.send(JSON.stringify({ type: 'danca.convite', sessao: 'd1' }))
+    await entregar()
+
+    expect(recebidas.map((m) => (typeof m === 'object' && m !== null ? Reflect.get(m, 'data') : null))).toEqual([pronto, toques, fim])
+    expect(saiNoOlhar(JSON.stringify({ type: 'door.toggle', wallId: 'w' }))).toBe(false)
+  })
+
   it('nada sai antes de a conexão abrir', async () => {
     const { socket, recebidas } = monta()
     await entregar()

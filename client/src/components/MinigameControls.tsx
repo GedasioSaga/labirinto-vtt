@@ -728,7 +728,7 @@ export function MinigameControls({ pinId, minigame, onChange, porta, aoVivo, cam
         <span className="lb-label">A consequência nunca tranca a história: a porta sempre aceita outra tentativa.</span>
       </fieldset>
       {aoVivo === null ? (
-        <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar os jogadores para dançar.</span>
+        <span className="lb-label lb-minigame__sem-sala">Abra a sala, ou a Visão de jogador para testar sozinho, para chamar para dançar.</span>
       ) : (
         <DancaAoVivoPainel pinId={pinId} {...aoVivo} />
       )}

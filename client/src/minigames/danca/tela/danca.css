@@ -45,6 +45,14 @@
   color-scheme: dark;
   transition: opacity 180ms var(--dz-ease-out);
 }
+/*
+ * Dentro de uma caixa (a Visão de jogador, embaixo da barra do teste): a altura
+ * é a da caixa (o `inset: 0`), não a da janela; com `100dvh` o pé da tela
+ * ficaria cortado pela barra.
+ */
+.lb-danca[data-na-caixa] {
+  height: auto;
+}
 .lb-danca[data-saindo='true'] {
   opacity: 0;
   pointer-events: none;

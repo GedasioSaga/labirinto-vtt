@@ -63,7 +63,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
-import { DancaOverlay } from '../minigames/danca/tela/DancaOverlay'
+import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
 import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
@@ -669,6 +669,13 @@ interface SessionProps {
    * = o jogador de sempre.
    */
   onAcaoNoOlhar?: () => void
+  /**
+   * MINIGAME DE DANÇA na Visão de jogador: de onde a tela da dança baixa a
+   * música importada (a pasta de mídia do mestre, não a rota `/media/` da
+   * sala, que aquela janela não tem) e onde ela entra (a caixa embaixo da
+   * barra do teste). Ausente = o jogador de sempre.
+   */
+  ajustesDaDanca?: AjustesDaTelaDaDanca
 }
 
 /** Ação de uma tela de texto. `primary` é o botão de latão, no máximo um por tela. */
@@ -721,7 +728,7 @@ const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: fa
 const HANDSHAKE_DEADLINE_MS = 8_000
 
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
-export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar }: SessionProps) {
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
   // mesa: pelo servidor da sala no navegador, pelo Rust na janela da Visão de
@@ -2062,7 +2069,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
         {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={() => setRevelacao(null)} />}
         {/* DANÇA: o convite do mestre abre a tela da dança por cima do mapa, até o resultado ou o encerramento. */}
-        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} />}
+        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} {...ajustesDaDanca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {reconnecting}

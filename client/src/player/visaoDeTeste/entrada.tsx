@@ -3,6 +3,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ImagemDaMesa } from '../../components/ImagemDaMesa'
 import { resolverComBase, resolverSoEmbutida } from '../../lib/midia'
+import type { AjustesDaTelaDaDanca } from '../../minigames/danca/tela/DancaOverlay'
+import { FONTES_DO_NAVEGADOR } from '../../minigames/danca/tela/musicaImportada'
 import { abrirCanalDoNavegador, type Canal } from '../../net/visaoDeTeste/canal'
 import { lerMensagemDoHost, SESSAO_VALIDA, type MensagemDaJanela } from '../../net/visaoDeTeste/protocoloDoCanal'
 import type { FichaParaTeste, ModoDoTeste } from '../../net/visaoDeTeste/tipos'
@@ -22,7 +24,7 @@ import { criarSocketDoCanal } from './socketDoCanal'
 //
 // OLHAR x JOGAR: o modo é desta página e vale até ela fechar (trocar de ficha
 // não o muda). No Olhar, o bloqueio da tela e a guarda do socket barram o que
-// seria ação do jogador; no Jogar os dois saem do caminho e tudo chega ao host
+// seria ação do jogador (menos a dança, que o mestre abriu de propósito); no Jogar os dois saem do caminho e tudo chega ao host
 // de teste, que grava na camada de teste, nunca no mapa do mestre. Voltar ao
 // Olhar liga os dois de novo: eles leem o modo a cada evento e a cada envio.
 
@@ -82,6 +84,20 @@ interface Ativa {
 
 const LISTA_VAZIA: Lista = { fichas: [], fichaSelecionadaId: null }
 
+/**
+ * MINIGAME DE DANÇA nesta janela: a música importada vem da pasta de mídia do
+ * mestre (a mesma base das imagens, a `midia` do `config`), porque aqui não há
+ * a rota `/media/` da sala; e a tela da dança entra na caixa da tela do
+ * jogador (`tela`), embaixo da barra, que continua à vista e respondendo.
+ * Sem base, a música baixa do lugar de sempre e falha com a frase dela.
+ */
+function ajustesDaDanca(midia: string | undefined, tela: HTMLDivElement | null): AjustesDaTelaDaDanca {
+  return {
+    ...(midia === undefined ? {} : { fontesDaMusica: { ...FONTES_DO_NAVEGADOR, base: midia } }),
+    ...(tela === null ? {} : { raiz: tela }),
+  }
+}
+
 function Aviso({ children }: { children: ReactNode }) {
   return (
     <main className="pe-page">
@@ -102,6 +118,11 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   const [encerrado, setEncerrado] = useState(false)
   const [modo, setModo] = useState<ModoDoTeste>('olhar')
   const [recado, setRecado] = useState(false)
+  /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança entra. */
+  const [tela, setTela] = useState<HTMLDivElement | null>(null)
+  const midia = geracao === null ? undefined : geracao.midia
+  // Mesma referência enquanto a base e a caixa não mudam: `fontesDaMusica` nova faria a dança baixar a música de novo.
+  const danca = useMemo(() => ajustesDaDanca(midia, tela), [midia, tela])
   /** O modo lido pelo socket e pelo bloqueio a cada evento, sem recriar nenhum dos dois. */
   const modoRef = useRef(modo)
   modoRef.current = modo
@@ -215,7 +236,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
           onFechar={() => enviar({ de: 'janela', tipo: 'pedir-fechar', sessao })}
         />
       )}
-      <div style={TELA} {...bloqueio}>
+      <div ref={setTela} style={TELA} {...bloqueio}>
         {ativa !== null && geracao !== null && ativa.geracao === geracao.geracao ? (
           <ImagemDaMesa.Provider key={ativa.geracao} value={geracao.midia === undefined ? resolverSoEmbutida : resolverComBase(geracao.midia)}>
           <Session
@@ -228,6 +249,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
             onQuit={recomecar}
             storage={ativa.storage}
             onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
+            ajustesDaDanca={danca}
           />
           </ImagemDaMesa.Provider>
         ) : (

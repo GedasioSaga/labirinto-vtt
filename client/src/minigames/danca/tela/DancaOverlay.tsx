@@ -35,7 +35,17 @@ export interface DancaOverlayProps {
   fontesDaMusica?: FontesDaMusica
   armazem?: ArmazemDaDanca | null
   ambiente?: AmbienteDoMotor
+  /**
+   * Onde a tela entra (o portal). Ausente = o `body`: a janela inteira, o
+   * jogador de sempre. A Visão de jogador passa a caixa da tela do jogador,
+   * embaixo da barra do teste: a dança cobre o jogo, e a barra continua à
+   * vista e respondendo.
+   */
+  raiz?: Element
 }
+
+/** O que a página que monta a tela do jogador troca na dança (a Visão de jogador); o resto vem da conexão. */
+export type AjustesDaTelaDaDanca = Pick<DancaOverlayProps, 'fontesDaMusica' | 'raiz'>
 
 /** A tela some com um fade curto antes de o estado da dança sair. */
 const SAIDA_MS = 180
@@ -47,7 +57,7 @@ const SAIDA_MS = 180
  * o Pronto, os lotes de toques e o fim. Uma montagem por sessão de dança.
  */
 export function DancaOverlay(props: DancaOverlayProps) {
-  return createPortal(<TelaDaDanca key={props.danca.sessao} {...props} />, document.body)
+  return createPortal(<TelaDaDanca key={props.danca.sessao} {...props} />, props.raiz ?? document.body)
 }
 
 function usarMovimentoReduzido(): () => boolean {
@@ -78,7 +88,7 @@ function usarMusicaImportada(danca: DancaDoJogador, fontes: FontesDaMusica): { e
 
 type Tela = 'convite' | 'calibra' | 'pista' | 'resultado' | 'encerrada'
 
-function TelaDaDanca({ danca, playerId, acoes, criarAudio = criarAudioDoNavegador, fontesDaMusica = FONTES_DO_NAVEGADOR, armazem, ambiente }: DancaOverlayProps) {
+function TelaDaDanca({ danca, playerId, acoes, criarAudio = criarAudioDoNavegador, fontesDaMusica = FONTES_DO_NAVEGADOR, armazem, ambiente, raiz }: DancaOverlayProps) {
   const acoesRef = useRef(acoes)
   acoesRef.current = acoes
   const reduzido = usarMovimentoReduzido()
@@ -299,7 +309,7 @@ function TelaDaDanca({ danca, playerId, acoes, criarAudio = criarAudioDoNavegado
   })()
 
   return (
-    <div className="lb-danca" data-saindo={saindo} role="dialog" aria-modal="true" aria-label={`Desafio de dança: ${convite.npc || 'Desafiante'}`}>
+    <div className="lb-danca" data-saindo={saindo} data-na-caixa={raiz === undefined ? undefined : ''} role="dialog" aria-modal="true" aria-label={`Desafio de dança: ${convite.npc || 'Desafiante'}`}>
       <Palco motor={motor} colegas={colegas} placares={danca.placares} />
       <section className="dz-coluna" data-tela={tela}>
         {tela === 'convite' && (

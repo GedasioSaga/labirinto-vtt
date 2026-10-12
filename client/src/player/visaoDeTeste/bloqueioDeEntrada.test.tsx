@@ -50,6 +50,12 @@ describe('criarBloqueioDoOlhar', () => {
           </div>
           <button id="hud" onClick={() => cliques('hud')} onPointerDown={() => cliques('hud-apertou')} />
           {createPortal(<button id="mochila" onClick={() => cliques('mochila')} />, document.body)}
+          {createPortal(
+            <div className="lb-danca" role="dialog">
+              <button id="pronto" onClick={() => cliques('pronto')} onPointerDown={() => cliques('pronto-apertou')} />
+            </div>,
+            document.body,
+          )}
         </div>
         <button id="barra" onClick={() => cliques('barra')} />
         {createPortal(<button id="trocar-ficha" onClick={() => cliques('trocar-ficha')} />, document.body)}
@@ -130,6 +136,21 @@ describe('criarBloqueioDoOlhar', () => {
     expect(naTela.mock.calls[0]?.[0]?.key).toBe('Tab')
   })
 
+  it('DANÇA no Olhar: apertar, clicar e Enter dentro da tela da dança passam; a HUD ao lado continua barrada', () => {
+    const naDanca = vi.fn()
+    botao('pronto').addEventListener('keydown', naDanca)
+
+    apertar(botao('pronto'))
+    botao('pronto').click()
+    const enter = teclar(botao('pronto'), 'Enter')
+    botao('hud').click()
+
+    expect(cliques.mock.calls).toEqual([['pronto-apertou'], ['pronto']])
+    expect(enter.defaultPrevented).toBe(false)
+    expect(naDanca).toHaveBeenCalledTimes(1)
+    expect(recado).not.toHaveBeenCalled()
+  })
+
   it('fora do Olhar (Jogar) tudo passa', () => {
     ativo = false
     apertar(botao('hud'))
@@ -178,6 +199,17 @@ describe('instalarGuardaDeTeclado', () => {
   it('fora do Olhar, nada é barrado', () => {
     ativo = false
     teclar(document.body, 'i')
+    expect(atalho).toHaveBeenCalledTimes(1)
+  })
+
+  it('DANÇA no Olhar: com a tela da dança aberta, as setas com nada em foco chegam a ela; fechada, voltam a morrer', () => {
+    const tela = document.createElement('div')
+    tela.className = 'lb-danca'
+    document.body.appendChild(tela)
+    teclar(document.body, 'ArrowLeft')
+    teclar(document.body, 'ArrowLeft', 'keyup')
+    tela.remove()
+    teclar(document.body, 'ArrowLeft')
     expect(atalho).toHaveBeenCalledTimes(1)
   })
 })

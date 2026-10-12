@@ -10,8 +10,9 @@ import type { SocketLike } from '../playerConnection'
  * `onmessage` com o mesmo texto JSON que viria da LAN e `onclose`.
  *
  * GUARDA DO MODO OLHAR: só sai o que o cliente manda sozinho, sem gesto
- * (`MENSAGENS_AUTOMATICAS`). Qualquer pedido de jogador que escape do bloqueio
- * da tela morre aqui, antes de chegar ao host de teste.
+ * (`MENSAGENS_AUTOMATICAS`), mais o que a dança que o mestre abriu manda
+ * (`MENSAGENS_DA_DANCA`). Qualquer outro pedido de jogador que escape do
+ * bloqueio da tela morre aqui, antes de chegar ao host de teste.
  */
 
 /**
@@ -20,6 +21,15 @@ import type { SocketLike } from '../playerConnection'
  * o `view.resync` quando a tela perde o passo. O resto nasce de toque.
  */
 export const MENSAGENS_AUTOMATICAS: ReadonlySet<string> = new Set(['join', 'ping', 'view.patches', 'view.resync'])
+
+/**
+ * MINIGAME DE DANÇA: o que o jogador manda de dentro da dança (o Pronto, os
+ * lotes de toques e o fim). Nascem de toque, mas saem também no Olhar: quem
+ * abriu a dança foi o mestre, de propósito, no painel do pino, e testar a
+ * dança é olhar a tela dela respondendo. Só estes três; o resto do jogo segue
+ * barrado.
+ */
+export const MENSAGENS_DA_DANCA: ReadonlySet<string> = new Set(['danca.pronto', 'danca.toques', 'danca.fim'])
 
 const CONNECTING = 0
 const OPEN = 1
@@ -35,7 +45,7 @@ export function saiNoOlhar(data: string): boolean {
   }
   if (typeof mensagem !== 'object' || mensagem === null) return false
   const tipo: unknown = Reflect.get(mensagem, 'type')
-  return typeof tipo === 'string' && MENSAGENS_AUTOMATICAS.has(tipo)
+  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo))
 }
 
 export interface OpcoesDoSocketDoCanal {
