@@ -148,6 +148,8 @@ function texturasSemSegredo(
     )
   return (map.texturas ?? []).filter((passo) => {
     if (passo.tipo === 'balde') return passo.alvo.tipo === 'regiao' ? !goneRegionIds.has(passo.alvo.id) : drawingIds.has(passo.alvo.id)
+    // A sala secreta não abre buraco na textura: o buraco desenharia a silhueta dela.
+    if (passo.tipo === 'sala') return !goneRegionIds.has(passo.regiao)
     return passo.tipo === 'borracha' || !passo.pontos.some((p) => encosta(p, passo.raio))
   })
 }

@@ -39,7 +39,7 @@ describe('leitura do disco', () => {
     ])
     expect(lidos?.map((p) => p.id)).toEqual(['a', 'e', 'g'])
     // Força acima de 1 é 1.
-    expect(lidos?.[2].forca).toBe(1)
+    expect(lidos?.[2]).toMatchObject({ forca: 1 })
     expect(lerTexturas([])).toBeUndefined()
     expect(lerTexturas('lixo')).toBeUndefined()
   })
@@ -135,7 +135,7 @@ describe('recorte do jogador', () => {
     const lista = [pincel('a', 'floresta', [{ x: 0, y: 0 }, { x: 90, y: 0 }], 2)]
     const vai = texturasParaJogador(lista, conhece, escondido, () => true) ?? []
     expect(vai.length).toBe(2)
-    for (const p of vai) for (const ponto of p.tipo === 'balde' ? [] : p.pontos) expect(escondido(ponto)).toBe(false)
+    for (const p of vai) for (const ponto of p.tipo === 'balde' || p.tipo === 'sala' ? [] : p.pontos) expect(escondido(ponto)).toBe(false)
   })
 
   it('balde só vai se a forma que ele enche saiu no recorte; borracha no começo sai', () => {

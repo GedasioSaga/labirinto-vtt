@@ -1,6 +1,6 @@
 import type { AlvoDoBalde, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada } from '../types/map'
 import { caminhosParaJogador, passoDoRisco, tracosSeTocam } from './penhasco'
-import { pisoLido } from './pisos'
+import { comPiso, pisoDe, pisoLido } from './pisos'
 
 /**
  * TEXTURAS (fatia 4 do plano do relevo de 09/10/2026): a ferramenta em que o
@@ -123,6 +123,10 @@ function lerPincelada(valor: unknown): PinceladaDeTextura | null {
   if (typeof valor !== 'object' || valor === null || !('id' in valor) || !('tipo' in valor)) return null
   const { id, tipo } = valor
   if (typeof id !== 'string' || id === '') return null
+  if (tipo === 'sala') {
+    const regiao = 'regiao' in valor ? valor.regiao : undefined
+    return typeof regiao === 'string' && regiao !== '' ? { id, tipo, regiao, ...pisoLido(valor) } : null
+  }
   const forca = lerForca('forca' in valor ? valor.forca : undefined)
   if (forca === null) return null
   if (tipo === 'balde') {
@@ -273,7 +277,7 @@ export function somarPincelada(
 /** Os ids de textura que os passos usam (pincel e balde). */
 export function texturasUsadas(lista: readonly PinceladaDeTextura[] | undefined): Set<string> {
   const usadas = new Set<string>()
-  for (const item of lista ?? []) if (item.tipo !== 'borracha') usadas.add(item.textura)
+  for (const item of lista ?? []) if (item.tipo === 'pincel' || item.tipo === 'balde') usadas.add(item.textura)
   return usadas
 }
 
@@ -281,13 +285,13 @@ export function texturasUsadas(lista: readonly PinceladaDeTextura[] | undefined)
 export function semTexturaImportada(map: MapData, id: string): MapData {
   const importadas = map.texturasImportadas ?? []
   if (!importadas.some((t) => t.id === id)) return map
-  const passos = (map.texturas ?? []).filter((item) => item.tipo === 'borracha' || item.textura !== id)
+  const passos = (map.texturas ?? []).filter((item) => (item.tipo !== 'pincel' && item.tipo !== 'balde') || item.textura !== id)
   return comTexturas(comTexturasImportadas(map, importadas.filter((t) => t.id !== id)), soComTinta(passos))
 }
 
-/** Borracha no começo da lista não tira nada de ninguém: sai. */
+/** Borracha (e sala) no começo da lista não tira nada de ninguém: sai. */
 function soComTinta<T extends PinceladaDeTextura>(lista: readonly T[]): T[] {
-  const primeira = lista.findIndex((item) => item.tipo !== 'borracha')
+  const primeira = lista.findIndex((item) => item.tipo === 'pincel' || item.tipo === 'balde')
   return primeira < 0 ? [] : lista.slice(primeira)
 }
 
@@ -317,6 +321,11 @@ export function texturasParaJogador(
       if (formaNoRecorte(item.alvo)) saida.push(item)
       continue
     }
+    // A sala que ele não conhece não abre buraco na textura: fica como estava para ele.
+    if (item.tipo === 'sala') {
+      if (formaNoRecorte({ tipo: 'regiao', id: item.regiao })) saida.push(item)
+      continue
+    }
     saida.push(...caminhosParaJogador([item], conhece, escondido))
   }
   const comTinta = soComTinta(saida)
@@ -344,9 +353,39 @@ export function assinaturaDasTexturas(lista: readonly PinceladaDeTextura[] | und
   if (lista === undefined) return ''
   return lista
     .map((item) =>
-      item.tipo === 'balde'
+      item.tipo === 'sala'
+        ? `${item.id}:s:${item.regiao}`
+        : item.tipo === 'balde'
         ? `${item.id}:b:${item.textura}:${item.forca}:${item.alvo.tipo}:${item.alvo.id}`
         : `${item.id}:${item.tipo === 'pincel' ? `p:${item.textura}` : 'e'}:${item.forca}:${item.raio}:${item.pontos.map((p) => `${p.x},${p.y}`).join(' ')}`,
     )
     .join('|')
+}
+
+// ---------------------------------------------------------------------------
+// Sala por cima
+
+/**
+ * SALA POR CIMA DA TEXTURA (pedido de 12/10/2026: "A sala é para ficar acima
+ * das texturas caso a sala tenha sido feito depois de ter colocado a
+ * textura"). A sala nova (id que não existia em `antes`) num piso que já tem
+ * textura ganha um passo `sala` no fim da lista: na pintura ele tira de
+ * dentro dela a textura dos passos de antes (`lib/planoDasTexturas.ts`), e o
+ * que o mestre pintar depois cobre a sala de novo. Vale para toda forma de
+ * criar (ferramenta, colar, duplicar): roda no `withHistory` da store, no
+ * mesmo passo do desfazer da sala. Só salas (`room`): a região comum segue
+ * debaixo da textura, como antes. Nada mudou: `depois` ele mesmo.
+ */
+export function salasPorCimaDasTexturas(antes: MapData, depois: MapData): MapData {
+  const passos = depois.texturas
+  if (passos === undefined || passos.length === 0 || antes.regions === depois.regions) return depois
+  const existiam = new Set(antes.regions.map((r) => r.id))
+  const novos: PinceladaDeTextura[] = []
+  for (const regiao of depois.regions) {
+    if (regiao.room === undefined || existiam.has(regiao.id)) continue
+    const piso = pisoDe(regiao)
+    if (!passos.some((p) => pisoDe(p) === piso)) continue
+    novos.push(comPiso<PinceladaDeTextura>({ id: crypto.randomUUID(), tipo: 'sala', regiao: regiao.id }, piso))
+  }
+  return novos.length === 0 ? depois : { ...depois, texturas: [...passos, ...novos] }
 }

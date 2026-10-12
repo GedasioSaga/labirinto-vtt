@@ -156,7 +156,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
             map.id,
             map.texturas,
             map.texturasImportadas,
-            map.texturas.some((p) => p.tipo === 'balde') ? [map.regions, map.drawings, hidden] : null,
+            // A sala por cima da textura (passo `sala`) também segue a forma da sala.
+            map.texturas.some((p) => p.tipo === 'balde' || p.tipo === 'sala') ? [map.regions, map.drawings, hidden] : null,
             map.width,
             map.height,
             map.grid,

@@ -88,6 +88,7 @@ import {
   limitar,
   nomeDaTextura,
   PREFIXO_IMPORTADA,
+  salasPorCimaDasTexturas,
   semTexturaImportada,
   somarPincelada,
   TAMANHO_DO_PINCEL_MAX,
@@ -1725,7 +1726,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     // PISOS NA MESMA CENA: o que o passo criou nasce no piso em edição (ou no `pisoDoQueNasce`).
     // As paredes presas já saem certas AQUI (o `set` refaria igual): o mapa
     // guardado na edição contínua é o mesmo que vira estado.
-    const nextMap = sincronizarParedesDosDesenhos(prevMap, nascemNoPiso(prevMap, updater(prevMap), pisoDoQueNasce ?? get().pisoAtivo))
+    // SALA POR CIMA DA TEXTURA (`salasPorCimaDasTexturas`): a sala nova num piso com textura ganha o passo dela, no mesmo desfazer.
+    const nextMap = sincronizarParedesDosDesenhos(prevMap, salasPorCimaDasTexturas(prevMap, nascemNoPiso(prevMap, updater(prevMap), pisoDoQueNasce ?? get().pisoAtivo)))
     const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
     typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
     if (continuesTyping) {

@@ -16,7 +16,8 @@ import { caixaDoCaminho, caixasSeTocam, type Caixa } from './texturas'
  * (floresta aqui, areia ali) tem uma camada por textura, e repintar campo por
  * cima da floresta abre uma camada nova só onde precisa.
  *
- * A borracha tira, na força dela, de todas as camadas que já existiam.
+ * A borracha tira, na força dela, de todas as camadas que já existiam. O
+ * passo `sala` é uma borracha na forma da sala, com força cheia.
  */
 
 /** Uma camada: textura e o retângulo de mundo que a máscara dela cobre (já na grade de pixels). */
@@ -119,6 +120,16 @@ export function planoDasTexturas(
       const forma = formaDoBalde(passo.alvo, regioes, desenhos)
       if (forma === null) continue
       brutos.push({ textura: passo.textura, forca: passo.forca, forma: { tipo: 'balde', forma }, caixa: forma.caixa })
+      continue
+    }
+    // SALA POR CIMA (`salasPorCimaDasTexturas`): a sala que nasceu aqui apaga, na
+    // forma inteira dela, a textura dos passos de antes — o chão da sala e o que
+    // está desenhado nele aparecem. Sem recortes: as salas de depois têm o passo
+    // delas. Sala apagada, sem fundo ou fora do recorte não tira nada.
+    if (passo.tipo === 'sala') {
+      const forma = formaDoBalde({ tipo: 'regiao', id: passo.regiao }, regioes, [])
+      if (forma === null) continue
+      brutos.push({ textura: null, forca: 1, forma: { tipo: 'balde', forma: { ...forma, recortes: [] } }, caixa: forma.caixa })
       continue
     }
     if (passo.tipo === 'pincel' && !disponivel(passo.textura)) continue

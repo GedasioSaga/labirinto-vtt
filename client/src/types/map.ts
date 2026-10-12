@@ -2226,7 +2226,10 @@ export interface TracoDePenhasco extends NoPiso {
  * - `pincel`: pinta a `textura` debaixo do caminho;
  * - `borracha`: tira a textura (qualquer uma) debaixo do caminho;
  * - `balde`: enche a parte À VISTA de uma região ou de um desenho pintado (a
- *   forma menos o que está desenhado por cima dela), lida na hora de pintar.
+ *   forma menos o que está desenhado por cima dela), lida na hora de pintar;
+ * - `sala`: a sala `regiao` nasceu aqui, depois dos passos de antes — tira a
+ *   textura deles de dentro dela (o chão da sala fica por cima); o que vem
+ *   depois cobre a sala de novo (`salasPorCimaDasTexturas`, pedido de 12/10/2026).
  * `forca` (0 a 1) é o quanto o passo cobre o que veio antes: 1 cobre tudo.
  * `piso` (`NoPiso`): o piso em que o passo foi feito; ausente = térreo, mapa
  * de antes abre igual. Cada piso pinta só os passos dele (`mapaDoPiso`).
@@ -2235,6 +2238,7 @@ export type PinceladaDeTextura = NoPiso & (
   | { id: string; tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'balde'; textura: string; forca: number; alvo: AlvoDoBalde }
+  | { id: string; tipo: 'sala'; regiao: string }
 )
 
 /** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */

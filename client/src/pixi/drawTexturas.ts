@@ -238,7 +238,8 @@ function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): b
   if (a.mapa.width !== b.mapa.width || a.mapa.height !== b.mapa.height || a.mapa.grid !== b.mapa.grid) return false
   if (!mesmasImportadas(a.importadas ?? SEM_ITENS, b.importadas ?? SEM_ITENS)) return false
   if (a.passos !== b.passos && assinaturaDasTexturas(a.passos) !== assinaturaDasTexturas(b.passos)) return false
-  const temBalde = (b.passos ?? []).some((p) => p.tipo === 'balde')
+  // A sala por cima da textura (passo `sala`) segue a forma da sala, como o balde.
+  const temBalde = (b.passos ?? []).some((p) => p.tipo === 'balde' || p.tipo === 'sala')
   if (!temBalde || (mesmosItens(a.regioes, b.regioes) && mesmosItens(a.desenhos, b.desenhos))) return true
   pedida.formas ??= assinaturaDasFormas(a)
   const formas = assinaturaDasFormas(b)
