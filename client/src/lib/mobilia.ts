@@ -1,4 +1,5 @@
 import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira e cerca como objetos
@@ -18,7 +19,9 @@ import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
  * A cerca é um TRECHO: o clique põe 2 casas; o mestre estica, gira e move com
  * os controles de sempre do objeto, e o glifo reparte os mourões redondos,
  * ligados por um fio, pelo comprimento que ela tiver (`tracosDaCerca`). É o
- * único móvel vazado (`ehMovelVazado`): sem caixa chapada atrás.
+ * único móvel vazado (`ehMovelVazado`): sem caixa chapada atrás. E o único que
+ * CURVA: um arco só, até meia volta, pela alça do meio do fio
+ * (`Prop.mobiliaCurva`, em graus; a alça e o arrasto em `lib/cercaCurva.ts`).
  */
 
 /** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
@@ -222,10 +225,98 @@ const RAIO_DO_MOURAO = 0.45
 /** Lados do polígono do mourão: círculo pequeno, redondo a olho com poucos pontos. */
 const LADOS_DO_MOURAO = 12
 
-/** Mourões da cerca (centros, no referencial do objeto) e o raio de todos eles. */
+/** Pedaço do arco do fio da cerca curva, em radianos: com meia volta numa cerca de 10 casas o fio sai a menos de 0,2 px do arco. */
+const ANGULO_DO_PEDACO_DO_FIO = Math.PI / 64
+/** Pedaço do arco do contorno da cerca curva (clique, borracha, seleção): mais grosso que o do fio, ninguém o vê. */
+const ANGULO_DO_PEDACO_DO_CONTORNO = Math.PI / 32
+
+/** Maior volta da cerca curva, em graus: meia volta, o mesmo limite da escada. */
+export const CERCA_VOLTA_MAXIMA = STAIR_CURVE_MAX_TURN_DEGREES
+
+/**
+ * A volta da cerca na forma única que o mapa guarda: número finito, limitado a
+ * meia volta, e só na cerca; zero (a reta) e qualquer outra coisa viram
+ * `undefined`. É a mesma porta na leitura do arquivo, na edição, na travessia
+ * para o jogador e no desenho.
+ */
+export function normalizarCurvaDaCerca(tipo: TipoMobilia | undefined, valor: unknown): number | undefined {
+  if (tipo !== 'cerca' || typeof valor !== 'number' || !Number.isFinite(valor) || valor === 0) return undefined
+  return Math.max(-CERCA_VOLTA_MAXIMA, Math.min(CERCA_VOLTA_MAXIMA, valor))
+}
+
+/** A volta que vale para o objeto, em graus: 0 fora da cerca, sem curva ou com valor torto. */
+export function voltaDaCerca(prop: Pick<Prop, 'mobilia' | 'mobiliaCurva'>): number {
+  return normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva) ?? 0
+}
+
+/** `prop` com a volta na forma que o mapa guarda: o campo só existe na cerca curva. Mesma referência se nada muda. */
+export function comCurvaGravada(prop: Prop, volta: number | undefined): Prop {
+  if (prop.mobiliaCurva === volta) return prop
+  const { mobiliaCurva: _curva, ...semCurva } = prop
+  return volta === undefined ? semCurva : { ...semCurva, mobiliaCurva: volta }
+}
+
+/** Mourões da cerca (centros, no referencial do objeto), o raio de todos eles e o arco da cerca curva. */
 export interface GeometriaDaCerca {
   mouroes: { x: number; y: number }[]
   raio: number
+  /** O arco que passa pelos centros dos mourões; `null` na cerca reta. */
+  arco: StairArc | null
+}
+
+/** O eixo do trecho, no referencial do objeto: a corda de mourão a mourão das pontas. */
+interface EixoDaCerca {
+  deitada: boolean
+  espessura: number
+  raio: number
+  /** Centro do mourão da primeira ponta, ao longo do comprimento. */
+  primeiro: number
+  /** Comprimento da corda, do centro do primeiro mourão ao do último. */
+  vao: number
+  umaCasa: number
+}
+
+function eixoDaCerca(largura: number, altura: number): EixoDaCerca | null {
+  if (!tamanhoDesenhavel(largura, altura)) return null
+  const deitada = largura >= altura
+  const comprimento = deitada ? largura : altura
+  const espessura = deitada ? altura : largura
+  const raio = espessura * RAIO_DO_MOURAO
+  return {
+    deitada,
+    espessura,
+    raio,
+    primeiro: -comprimento / 2 + raio,
+    vao: comprimento - 2 * raio,
+    umaCasa: espessura / ESPESSURA_DA_CERCA_EM_CASAS,
+  }
+}
+
+/**
+ * A corda da cerca (de mourão a mourão das pontas, no referencial do objeto) e
+ * a normal dela: o lado para onde a volta positiva arqueia — para baixo na
+ * deitada, para a esquerda na em pé (a normal da corda da escada, `stairChord`).
+ * É o que a alça de curvar lê (`lib/cercaCurva.ts`). Tamanho não desenhável não
+ * tem corda.
+ */
+export function cordaDaCerca(largura: number, altura: number): { comprimento: number; normal: { x: number; y: number } } | null {
+  const eixo = eixoDaCerca(largura, altura)
+  if (eixo === null) return null
+  return { comprimento: eixo.vao, normal: eixo.deitada ? { x: 0, y: 1 } : { x: -1, y: 0 } }
+}
+
+/**
+ * O arco da cerca de volta `volta` (graus): passa pelos centros dos mourões das
+ * pontas, com a flecha da escada (`curvaForTurnDegrees`, até meia volta).
+ * `null` na reta — volta zero, inválida ou de flecha pequena demais para se ver
+ * (`CURVE_EPSILON_PX`, a régua da escada).
+ */
+function arcoDaCerca(eixo: EixoDaCerca, volta: number): StairArc | null {
+  const flecha = curvaForTurnDegrees(volta, eixo.vao)
+  if (Math.abs(flecha) < CURVE_EPSILON_PX) return null
+  const { primeiro, vao } = eixo
+  const corda = eixo.deitada ? { x1: primeiro, y1: 0, x2: primeiro + vao, y2: 0 } : { x1: 0, y1: primeiro, x2: 0, y2: primeiro + vao }
+  return stairArcOf(corda, flecha)
 }
 
 /**
@@ -240,38 +331,112 @@ export interface GeometriaDaCerca {
  * mourões e vãos crescem junto, o que também lê bem. Os mourões das pontas
  * encostam na borda do trecho por dentro e os vãos são iguais; mínimo de 2
  * mourões. Tamanho não desenhável não tem geometria (`null`).
+ *
+ * CERCA CURVA (`volta` em graus, `Prop.mobiliaCurva`): os mourões das pontas
+ * ficam onde estão na reta e os outros se repartem pelo ARCO, ~1 casa de arco
+ * entre vizinhos — a cerca curva tem mais mourões que a corda pediria. Sem
+ * volta, a conta é a da reta, número por número.
  */
-export function geometriaDaCerca(largura: number, altura: number): GeometriaDaCerca | null {
-  if (!tamanhoDesenhavel(largura, altura)) return null
-  const deitada = largura >= altura
-  const comprimento = deitada ? largura : altura
-  const espessura = deitada ? altura : largura
-  const raio = espessura * RAIO_DO_MOURAO
-  const primeiro = -comprimento / 2 + raio
-  const vao = comprimento - 2 * raio
-  const umaCasa = espessura / ESPESSURA_DA_CERCA_EM_CASAS
+export function geometriaDaCerca(largura: number, altura: number, volta = 0): GeometriaDaCerca | null {
+  const eixo = eixoDaCerca(largura, altura)
+  if (eixo === null) return null
+  const { deitada, raio, primeiro, vao, umaCasa } = eixo
+  const arco = arcoDaCerca(eixo, volta)
+  if (arco !== null) return { mouroes: mouroesNoArco(arco, eixo), raio, arco }
   const vaos = Math.max(1, Math.round(vao / umaCasa))
   const mouroes: { x: number; y: number }[] = []
   for (let i = 0; i <= vaos; i += 1) {
     const u = primeiro + (vao * i) / vaos
     mouroes.push(deitada ? { x: u, y: 0 } : { x: 0, y: u })
   }
-  return { mouroes, raio }
+  return { mouroes, raio, arco: null }
+}
+
+/** Mourões da cerca curva: as pontas exatas (as da reta) e os do meio a passos iguais de arco. */
+function mouroesNoArco(arco: StairArc, eixo: EixoDaCerca): { x: number; y: number }[] {
+  const { deitada, primeiro, vao, umaCasa } = eixo
+  const vaos = Math.max(1, Math.round((arco.radius * Math.abs(arco.sweep)) / umaCasa))
+  const ponta = (u: number) => (deitada ? { x: u, y: 0 } : { x: 0, y: u })
+  const mouroes = [ponta(primeiro)]
+  for (let i = 1; i < vaos; i += 1) mouroes.push(stairArcPoint(arco, i / vaos))
+  mouroes.push(ponta(primeiro + vao))
+  return mouroes
+}
+
+/** Ponto do círculo do arco no ângulo `angulo` (radianos de tela), a `raio` do centro. */
+function noAngulo(arco: StairArc, angulo: number, raio = arco.radius): { x: number; y: number } {
+  return { x: arco.center.x + Math.cos(angulo) * raio, y: arco.center.y + Math.sin(angulo) * raio }
+}
+
+/**
+ * O fio da cerca curva: entre cada par de mourões vizinhos, o arco de borda a
+ * borda (recuado o ângulo cuja corda é o raio do mourão), em pedaços de no
+ * máximo `ANGULO_DO_PEDACO_DO_FIO`.
+ */
+function fioNoArco(arco: StairArc, vaos: number, raio: number): TracoDoGlifo[] {
+  const sentido = Math.sign(arco.sweep)
+  const recuo = 2 * Math.asin(Math.min(1, raio / (2 * arco.radius)))
+  const passo = arco.sweep / vaos
+  const fio: TracoDoGlifo[] = []
+  for (let i = 0; i < vaos; i += 1) {
+    const de = arco.startAngle + passo * i + sentido * recuo
+    const ate = arco.startAngle + passo * (i + 1) - sentido * recuo
+    if ((ate - de) * sentido <= 0) continue
+    const pedacos = Math.max(1, Math.ceil(Math.abs(ate - de) / ANGULO_DO_PEDACO_DO_FIO))
+    let anterior = noAngulo(arco, de)
+    for (let k = 1; k <= pedacos; k += 1) {
+      const proximo = noAngulo(arco, de + ((ate - de) * k) / pedacos)
+      fio.push({ x1: anterior.x, y1: anterior.y, x2: proximo.x, y2: proximo.y })
+      anterior = proximo
+    }
+  }
+  return fio
+}
+
+/**
+ * Onde a cerca está, como polígono fechado no referencial do objeto: na reta, o
+ * retângulo do objeto (o de sempre); na curva, a mesma faixa DOBRADA no arco —
+ * da espessura do objeto, indo um raio de mourão além de cada mourão da ponta,
+ * como o retângulo vai. É o que o clique, a borracha, a seleção por área e o
+ * destaque de seleção usam na cerca curva (`lib/cercaCurva.ts`). Tamanho não
+ * desenhável não tem contorno (lista vazia).
+ */
+export function contornoDaCerca(largura: number, altura: number, volta: number): { x: number; y: number }[] {
+  const eixo = eixoDaCerca(largura, altura)
+  if (eixo === null) return []
+  const arco = arcoDaCerca(eixo, volta)
+  if (arco === null) {
+    return [
+      { x: -largura / 2, y: -altura / 2 },
+      { x: largura / 2, y: -altura / 2 },
+      { x: largura / 2, y: altura / 2 },
+      { x: -largura / 2, y: altura / 2 },
+    ]
+  }
+  const alem = Math.sign(arco.sweep) * (eixo.raio / arco.radius)
+  const inicio = arco.startAngle - alem
+  const giro = arco.sweep + 2 * alem
+  const pedacos = Math.max(2, Math.ceil(Math.abs(giro) / ANGULO_DO_PEDACO_DO_CONTORNO))
+  const fora = arco.radius + eixo.espessura / 2
+  const dentro = Math.max(0, arco.radius - eixo.espessura / 2)
+  const angulos = Array.from({ length: pedacos + 1 }, (_, k) => inicio + (giro * k) / pedacos)
+  return [...angulos.map((a) => noAngulo(arco, a, fora)), ...[...angulos].reverse().map((a) => noAngulo(arco, a, dentro))]
 }
 
 /**
  * Glifo da cerca: o contorno de cada mourão e UM fio no eixo, em pedaços de
  * borda a borda entre mourões vizinhos (o fio não risca por dentro do
  * círculo). Sem ripas nem caixa atrás (`ehMovelVazado`): o chão aparece entre
- * os mourões.
+ * os mourões. Na cerca curva o fio segue o arco em pedaços curtos (`fioNoArco`).
  */
-function tracosDaCerca(largura: number, altura: number): TracoDoGlifo[] {
-  const geometria = geometriaDaCerca(largura, altura)
+function tracosDaCerca(largura: number, altura: number, volta: number): TracoDoGlifo[] {
+  const geometria = geometriaDaCerca(largura, altura, volta)
   if (geometria === null) return []
-  const { mouroes, raio } = geometria
+  const { mouroes, raio, arco } = geometria
   const deitada = largura >= altura
   const circulo = pontosDaElipse(2 * raio, 2 * raio, LADOS_DO_MOURAO)
   const circulos = mouroes.flatMap((m) => contorno(circulo.map((p) => ({ x: m.x + p.x, y: m.y + p.y }))))
+  if (arco !== null) return [...circulos, ...fioNoArco(arco, mouroes.length - 1, raio)]
   const fio: TracoDoGlifo[] = []
   for (let i = 1; i < mouroes.length; i += 1) {
     const de = mouroes[i - 1]
@@ -381,12 +546,13 @@ function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): Trac
  * - mesa: o tampo, um retângulo recuado;
  * - cadeira: o encosto, uma faixa em cima;
  * - cerca: mourões redondos a cada ~1 casa ligados por um fio
- *   (`tracosDaCerca`), que se repartem quando o mestre estica o trecho.
+ *   (`tracosDaCerca`), que se repartem quando o mestre estica o trecho;
+ *   com `voltaDaCerca` (graus, `Prop.mobiliaCurva`), pelo arco.
  * Na vista de lado (só nos tipos com vista), o glifo é o de lado
  * (`tracosDeLado`); nos outros tipos a vista não muda nada.
  * Tamanho não desenhável (zero, negativo, não finito) não tem traço.
  */
-export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number, vista: VistaMobilia = 'frente'): TracoDoGlifo[] {
+export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number, vista: VistaMobilia = 'frente', voltaDaCerca = 0): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
   if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura)
   const meiaLargura = largura / 2
@@ -425,7 +591,7 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
       ]
     }
     case 'cerca':
-      return tracosDaCerca(largura, altura)
+      return tracosDaCerca(largura, altura, voltaDaCerca)
   }
 }
 
@@ -444,7 +610,9 @@ function comVistaGravada(prop: Prop, vista: 'lado' | undefined): Prop {
  */
 export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
   const vista = normalizarVistaDoMovel(tipo, prop.mobiliaVista)
-  return { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade) }
+  const trocado = { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade) }
+  // A curva é só da cerca: outro tipo não tem arco a guardar.
+  return comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))
 }
 
 /**
@@ -538,7 +706,8 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaPreenchido' in prop) &&
     !('mobiliaCor' in prop) &&
     !('mobiliaCorDaLinha' in prop) &&
-    !('mobiliaVista' in prop)
+    !('mobiliaVista' in prop) &&
+    !('mobiliaCurva' in prop)
   ) {
     return prop
   }
@@ -548,6 +717,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaCor: _cor,
     mobiliaCorDaLinha: _corDaLinha,
     mobiliaVista: _vista,
+    mobiliaCurva: _curva,
     ...comum
   } = prop
   return comum
@@ -564,13 +734,18 @@ function semNadaDeMovel(prop: Prop): Prop {
  */
 export function propMobiliaFromFile(prop: Prop): Prop {
   if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
-  const lido = comVistaGravada(
-    comAparenciaGravada(prop, {
-      preenchido: prop.mobiliaPreenchido !== false,
-      cor: normalizarCorDoMovel(prop.mobiliaCor),
-      corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
-    }),
-    normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista),
+  const lido = comCurvaGravada(
+    comVistaGravada(
+      comAparenciaGravada(prop, {
+        preenchido: prop.mobiliaPreenchido !== false,
+        cor: normalizarCorDoMovel(prop.mobiliaCor),
+        corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
+      }),
+      normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista),
+    ),
+    // CERCA CURVA: só na cerca, número finito até meia volta; o resto some.
+    normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva),
   )
-  return mesmaAparenciaDoMovel(lido, prop) && lido.mobiliaVista === prop.mobiliaVista ? prop : lido
+  const mesmo = mesmaAparenciaDoMovel(lido, prop) && lido.mobiliaVista === prop.mobiliaVista && lido.mobiliaCurva === prop.mobiliaCurva
+  return mesmo ? prop : lido
 }

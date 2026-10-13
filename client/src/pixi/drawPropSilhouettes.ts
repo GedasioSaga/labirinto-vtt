@@ -9,6 +9,7 @@ import {
   pontosDaElipse,
   tracosDoGlifo,
   vistaDoMovel,
+  voltaDaCerca,
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { WALL_COLOR } from './drawWalls'
@@ -67,7 +68,7 @@ const PROP_OWN_COLOR_ALPHA = 1
 /** O que a silhueta usa do objeto: a geometria, o tipo e a aparência do móvel, nunca a imagem. */
 export type PropSilhouette = Pick<
   Prop,
-  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista'
+  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva'
 >
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
@@ -198,11 +199,12 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  * frente ou o de lado conforme a vista), girados
  * com o objeto, num traço só no mesmo fio fino do contorno (e na mesma cor,
  * `edge`) — o glifo nunca pesa mais que a borda do próprio móvel. Objeto comum
- * não tem glifo.
+ * não tem glifo. A cerca curva (`mobiliaCurva`) sai pelo arco: mourões e fio
+ * repartidos nele, iguais no editor e na tela do jogador.
  */
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop))
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop))
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }

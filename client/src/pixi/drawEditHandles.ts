@@ -10,6 +10,7 @@ import { isLocked } from '../lib/itemTransform'
 import { cornerHandleExtent, drawCornerHandle, drawRoomHandles } from './drawRoomHandles'
 import { stairHandles } from '../lib/stairHandles'
 import { stairLength } from '../lib/stairCurve'
+import { alcaDaCurvaDaCerca } from '../lib/cercaCurva'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
@@ -348,7 +349,11 @@ export function drawEditHandles(
 
   if (selection.kind === 'prop') {
     const prop = map.props.find((p) => p.id === selection.id)
-    if (prop && !isLocked(prop)) drawBoxResizeHandles(graphics, propBoundingBox(prop), scale)
+    if (!prop || isLocked(prop)) return
+    drawBoxResizeHandles(graphics, propBoundingBox(prop), scale)
+    // CERCA: além dos cantos (que esticam o trecho), a bolinha vazada de curvar no meio do fio (`lib/cercaCurva.ts`).
+    const alca = alcaDaCurvaDaCerca(prop)
+    if (alca !== null) drawStairCurveHandle(graphics, alca, scale)
     return
   }
 
@@ -388,7 +393,8 @@ function drawStairHandles(graphics: Graphics, stair: Stair, cameraScale: number)
  * vértice e não no do meio de trecho (`HANDLE_MIDPOINT_RADIUS`). Lá ela é um
  * extra (criar ponto); aqui é um dos três gestos da escada, e com o raio menor
  * ela se perdia entre os degraus (visto no print de 10/10/2026). O fundo
- * escuro corta o degrau que passa por baixo.
+ * escuro corta o degrau que passa por baixo. A cerca curva usa a mesma alça,
+ * no meio do fio — o mesmo gesto, a mesma cara.
  */
 function drawStairCurveHandle(graphics: Graphics, point: Point, cameraScale: number): void {
   const ring = STROKE_WEIGHT.thin / cameraScale

@@ -64,6 +64,8 @@ export type GestureMode =
   | 'dragging-stair-body'
   // Alças da escada: ponta, lateral e meio (pixi/stairHandleGesture.ts).
   | 'resizing-stair'
+  // Alça de curvar da cerca (pixi/cercaCurvaGesture.ts).
+  | 'curving-fence'
   | 'dragging-line-point'
   | 'dragging-line-body'
   | 'resizing-drawing-corner'
@@ -369,6 +371,8 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'dragging-light-radius':
     // Alça da escada: mão fechada segurando a alça, como a ponta da linha.
     case 'resizing-stair':
+    // Alça de curvar da cerca: a mesma mão fechada da alça de curvar da escada.
+    case 'curving-fence':
     // Onda 3, item 18 — mesma leitura de `dragging-light-radius`: mão
     // fechada segurando a alça de raio, não o objeto inteiro (`move`).
     case 'resizing-drawing-radius':

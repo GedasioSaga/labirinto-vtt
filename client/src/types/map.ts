@@ -1554,6 +1554,14 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  vista (`TIPOS_COM_VISTA` em `lib/mobilia.ts`): em outro tipo some na leitura
    *  e na travessia, e o desenho ignora. Vai ao jogador junto do tipo. */
   mobiliaVista?: VistaMobilia
+  /** CERCA CURVA (pedido de 13/10/2026): a volta do arco da cerca, em GRAUS com
+   *  sinal — positivo arqueia para baixo (+y) na cerca deitada sem giro e
+   *  para a esquerda (−x) na cerca em pé —, até meia volta (±180). Em graus, e não em px
+   *  de flecha como `Stair.curva`: esticada pelos cantos do objeto, a cerca
+   *  mantém a volta e a flecha cresce com a corda. Ausente = reta, o desenho
+   *  de sempre — sem linha de migração. Vale só na cerca (`lib/mobilia.ts`
+   *  recusa o resto na leitura e na travessia); vai ao jogador junto do tipo. */
+  mobiliaCurva?: number
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado

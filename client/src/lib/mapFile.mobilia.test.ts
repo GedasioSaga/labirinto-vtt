@@ -111,3 +111,23 @@ describe('mapFile: vista do móvel (frente ou lado)', () => {
     expect(objetoComum).not.toHaveProperty('mobiliaVista')
   })
 })
+
+describe('mapFile: cerca curva', () => {
+  it('a volta da cerca vai e volta do disco; a cerca reta grava sem o campo', () => {
+    const [cerca] = deserializeMap(serializeMap(comMovel({ mobilia: 'cerca', width: 80, height: 10, mobiliaCurva: -75 }))).props
+    expect(cerca.mobiliaCurva).toBe(-75)
+    expect(serializeMap(comMovel({ mobilia: 'cerca', width: 80, height: 10 }))).not.toContain('mobiliaCurva')
+  })
+
+  it('curva torta no arquivo some; fora do limite volta a meia volta; em outro tipo some', () => {
+    for (const valor of ['"90"', 'null', '{}', '[]', '0']) {
+      const [cerca] = deserializeMap(`{"id": "torto", "props": [${objeto(`, "mobilia": "cerca", "mobiliaCurva": ${valor}`)}]}`).props
+      expect(cerca.mobilia, valor).toBe('cerca')
+      expect(cerca, valor).not.toHaveProperty('mobiliaCurva')
+    }
+    const [longe] = deserializeMap(`{"id": "torto", "props": [${objeto(', "mobilia": "cerca", "mobiliaCurva": 720')}]}`).props
+    expect(longe.mobiliaCurva).toBe(180)
+    const [mesa] = deserializeMap(`{"id": "torto", "props": [${objeto(', "mobilia": "mesa", "mobiliaCurva": 90')}]}`).props
+    expect(mesa).not.toHaveProperty('mobiliaCurva')
+  })
+})

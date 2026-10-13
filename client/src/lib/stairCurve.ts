@@ -32,8 +32,8 @@ export const STAIR_CURVE_MIN_INNER_RATIO = 0.5
 /** Maior volta da escada curva, em graus: meia volta. Mais que isso é espiral, que tem forma própria. */
 export const STAIR_CURVE_MAX_TURN_DEGREES = 180
 
-/** Curva menor que isto (px de mundo) é invisível: a escada é desenhada reta, com o traço preso ao pixel. */
-const CURVE_EPSILON_PX = 0.5
+/** Curva menor que isto (px de mundo) é invisível: a escada é desenhada reta, com o traço preso ao pixel. A cerca curva usa a mesma régua (`lib/mobilia.ts`). */
+export const CURVE_EPSILON_PX = 0.5
 
 /** Ângulo de cada corda que aproxima o arco no clique, na borracha e na área: numa escada de 5 casas o erro fica abaixo de 0,5 px. */
 const CENTERLINE_CHORD_ANGLE = Math.PI / 32
@@ -188,6 +188,16 @@ export function curvaForTurnDegrees(degrees: number, chordLength: number): numbe
   if (!Number.isFinite(degrees) || !(chordLength > 0)) return 0
   const turn = (Math.max(-STAIR_CURVE_MAX_TURN_DEGREES, Math.min(STAIR_CURVE_MAX_TURN_DEGREES, degrees)) * Math.PI) / 180
   return (chordLength / 2) * Math.tan(turn / 4)
+}
+
+/**
+ * A volta, em graus e com o sinal da flecha, de uma flecha `curva` numa corda
+ * de `chordLength`: a conta inversa de `curvaForTurnDegrees`. Corda que não é
+ * positiva, ou número inválido, não tem volta.
+ */
+export function turnDegreesForCurva(curva: number, chordLength: number): number {
+  if (!Number.isFinite(curva) || !Number.isFinite(chordLength) || !(chordLength > 0)) return 0
+  return (4 * Math.atan((2 * curva) / chordLength) * 180) / Math.PI
 }
 
 /** Comprimento da escada de ponta a ponta: a soma dos lances (na curva, a corda). */

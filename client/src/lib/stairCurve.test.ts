@@ -14,6 +14,7 @@ import {
   STAIR_MAX_LENGTH_CELLS,
   STAIR_MAX_WIDTH_CELLS,
   STAIR_MIN_CELLS,
+  turnDegreesForCurva,
   withStairLength,
 } from './stairCurve'
 
@@ -190,5 +191,18 @@ describe('tamanho: limites e mudança de comprimento', () => {
     expect(withStairLength(reta, 280, 'start')).toBe(reta)
     const zero = escada({ segments: [{ x1: 5, y1: 5, x2: 5, y2: 5 }] })
     expect(withStairLength(zero, 100, 'start')).toBe(zero)
+  })
+})
+
+describe('turnDegreesForCurva — a volta de uma flecha (a conta inversa de curvaForTurnDegrees)', () => {
+  it('ida e volta dão a mesma volta, com o sinal', () => {
+    for (const graus of [-180, -90, -15, 0, 30, 120, 180]) {
+      expect(turnDegreesForCurva(curvaForTurnDegrees(graus, 200), 200)).toBeCloseTo(graus, 9)
+    }
+  })
+
+  it('corda zero ou flecha inválida não tem volta', () => {
+    expect(turnDegreesForCurva(10, 0)).toBe(0)
+    expect(turnDegreesForCurva(Number.NaN, 100)).toBe(0)
   })
 })

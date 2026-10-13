@@ -174,6 +174,18 @@ describe('filterMapForPlayer — mobília desenhada', () => {
     }
   })
 
+  it('a cerca curva chega à Ana com a mesma volta; curva em outro tipo não vira campo', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobilia: 'cerca', width: 80, height: 10, mobiliaCurva: 120 }), 'ana', POSSE, RAIO)
+    expect(out.props).toEqual([{ ...CATRE_DA_ANA, mobilia: 'cerca', width: 80, height: 10, mobiliaCurva: 120 }])
+    const mesa = filterMapForPlayer(mapa({ mobilia: 'mesa', mobiliaCurva: 120 }), 'ana', POSSE, RAIO).map.props
+    expect(mesa).toHaveLength(1)
+    expect(mesa[0]).not.toHaveProperty('mobiliaCurva')
+  })
+
+  it('cerca curva escondida não manda a curva', () => {
+    semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'cerca', mobiliaCurva: 120, secret: true }), 'ana', POSSE, RAIO).map)
+  })
+
   it('cadeira de lado escondida não manda a vista', () => {
     semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'cadeira', mobiliaVista: 'lado', secret: true }), 'ana', POSSE, RAIO).map)
   })

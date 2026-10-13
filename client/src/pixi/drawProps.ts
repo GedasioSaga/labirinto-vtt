@@ -7,6 +7,7 @@ import { useToastStore } from '../stores/toastStore'
 import { drawPropSilhouettes } from './drawPropSilhouettes'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
+import { contornoDaCercaCurva } from '../lib/cercaCurva'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -39,6 +40,36 @@ function strokeDashedRect(graphics: Graphics, x: number, y: number, width: numbe
       const end = Math.min(t + GHOST_DASH_LENGTH, sideLength)
       graphics.moveTo(ax + ux * t, ay + uy * t).lineTo(ax + ux * end, ay + uy * end)
     }
+  }
+  graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
+}
+
+/**
+ * Contorno tracejado de polígono fechado (a cerca curva): o compasso de
+ * `GHOST_DASH_LENGTH` corre pelo perímetro inteiro, sem recomeçar em cada
+ * vértice — a curva tem dezenas de lados curtos, e recomeçar a cada um viraria
+ * linha cheia.
+ */
+function strokeDashedPolygon(graphics: Graphics, points: readonly { x: number; y: number }[]): void {
+  let andado = 0
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    const lado = Math.hypot(b.x - a.x, b.y - a.y)
+    if (lado === 0) continue
+    const ux = (b.x - a.x) / lado
+    const uy = (b.y - a.y) / lado
+    const fase = andado % (2 * GHOST_DASH_LENGTH)
+    // Traço que vinha do lado anterior e ainda não acabou (com fase 0, é o traço que começa em `a`).
+    const resto = GHOST_DASH_LENGTH - fase
+    // O próximo começo de traço, medido a partir de `a`.
+    let t = 2 * GHOST_DASH_LENGTH - fase
+    if (resto > 0) graphics.moveTo(a.x, a.y).lineTo(a.x + ux * Math.min(resto, lado), a.y + uy * Math.min(resto, lado))
+    for (; t < lado; t += 2 * GHOST_DASH_LENGTH) {
+      const fim = Math.min(t + GHOST_DASH_LENGTH, lado)
+      graphics.moveTo(a.x + ux * t, a.y + uy * t).lineTo(a.x + ux * fim, a.y + uy * fim)
+    }
+    andado += lado
   }
   graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
 }
@@ -232,6 +263,13 @@ export function createPropsRenderer(): PropsRenderer {
 
   /** Fantasma do "Oculto no editor" e destaque de seleção, iguais para imagem e móvel. */
   function markPropState(prop: Prop, selectedPropId: string | null): void {
+    // CERCA CURVA: fantasma e destaque contornam a faixa dobrada no arco, não a caixa reta (`lib/cercaCurva.ts`).
+    const curva = contornoDaCercaCurva(prop)
+    if (curva !== null) {
+      if (isHidden(prop)) strokeDashedPolygon(highlightGraphics, curva)
+      if (prop.id === selectedPropId) highlightGraphics.poly(curva.flatMap((p) => [p.x, p.y]), true).stroke({ width: 3, color: SELECTION_COLOR })
+      return
+    }
     const left = prop.x - prop.width / 2
     const top = prop.y - prop.height / 2
     if (isHidden(prop)) strokeDashedRect(highlightGraphics, left, top, prop.width, prop.height)

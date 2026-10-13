@@ -32,7 +32,8 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaVista, comAparenciaDoMovel, mesmaAparenciaDoMovel, movelComOutraVista, movelComOutroTipo, vistaDoMovel,
+  aceitaVista, comAparenciaDoMovel, comCurvaGravada, mesmaAparenciaDoMovel, movelComOutraVista, movelComOutroTipo,
+  normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { carrierIdOf, followStep } from './carry'
@@ -884,6 +885,19 @@ export function trocarVistaDoMovel(map: MapData, propId: string, vista: VistaMob
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !aceitaVista(alvo.mobilia) || vistaDoMovel(alvo) === vista) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraVista(p, vista, map.grid) : p)) }
+}
+
+/**
+ * CERCA CURVA: a volta da cerca `propId` em graus (`undefined` = reta), pela
+ * mesma porta do arquivo (`normalizarCurvaDaCerca`: só na cerca, até meia
+ * volta). Objeto que não é cerca, id que não existe ou a mesma volta devolvem
+ * o MESMO mapa.
+ */
+export function setCurvaDaCerca(map: MapData, propId: string, volta: number | undefined): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'cerca') return map
+  const curvada = comCurvaGravada(alvo, normalizarCurvaDaCerca('cerca', volta))
+  return curvada === alvo ? map : { ...map, props: map.props.map((p) => (p === alvo ? curvada : p)) }
 }
 
 /**

@@ -42,8 +42,8 @@ import { isAxisAlignedRect } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
-import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnRadiusHandle } from './handleHitArea'
-import { canInteractInLayer, stairLayer } from './layers'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
+import { canInteractInLayer, propLayer, stairLayer } from './layers'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
@@ -155,6 +155,10 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
       if (prop && canInteract(prop)) {
         const corner = findBoxCornerHandleAt(propBoundingBox(prop), worldPoint, scale)
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
+        // Alça de curvar da cerca: a mesma condição do pointerdown (`pixi/cercaCurvaGesture.ts`).
+        if (canInteractInLayer(prop, propLayer(prop), map.lockedLayers) && isOnFenceCurveHandle(prop, worldPoint, scale)) {
+          return { kind: 'vertex', corner: null, target: null }
+        }
       }
     }
     let editRegionId: string | null = null

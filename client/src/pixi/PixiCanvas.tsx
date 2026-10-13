@@ -300,6 +300,8 @@ import { isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/room
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
 import { stairHandleLabel } from '../lib/stairHandles'
+import { createCercaCurvaGesture } from './cercaCurvaGesture'
+import { rotuloDaCurvaDaCerca } from '../lib/cercaCurva'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
 import { tokenRadiusOf } from '../lib/doorReach'
@@ -1905,6 +1907,8 @@ export function PixiCanvas({
       const roomRotateGesture = createRoomRotateGesture()
       // Alças da escada selecionada: ponta (comprimento), lateral (largura) e meio (curva).
       const stairHandleGesture = createStairHandleGesture()
+      // Alça de curvar da cerca selecionada (meio do fio), o mesmo gesto da curva da escada.
+      const cercaCurvaGesture = createCercaCurvaGesture()
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -2778,6 +2782,8 @@ export function PixiCanvas({
         | 'dragging-stair-body'
         // Alças da escada selecionada (pixi/stairHandleGesture.ts).
         | 'resizing-stair'
+        // Alça de curvar da cerca selecionada (pixi/cercaCurvaGesture.ts).
+        | 'curving-fence'
         | 'dragging-line-point'
         | 'dragging-line-body'
         // B3 (bug3 "mover e redimensionar"): resize por canto de Drawing
@@ -5927,6 +5933,13 @@ export function PixiCanvas({
               resizingPropSnapshot = map
               return
             }
+            // Cerca: a bolinha do meio do fio curva (pixi/cercaCurvaGesture.ts) — antes do
+            // arrasto do corpo, que pegaria a cerca inteira e a moveria.
+            if (event.button === 0 && cercaCurvaGesture.begin(prop.id, worldPoint, camera.scale)) {
+              mode = 'curving-fence'
+              updateCursor()
+              return
+            }
           }
         }
 
@@ -6719,6 +6732,11 @@ export function PixiCanvas({
           stairHandleGesture.finish()
           mode = 'idle'
         }
+        // Alça de curvar da cerca: o arrasto inteiro vira um Ctrl+Z (`cercaCurvaGesture.finish`).
+        if (mode === 'curving-fence') {
+          cercaCurvaGesture.finish()
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -6925,6 +6943,11 @@ export function PixiCanvas({
         // Alça da escada: o arrasto inteiro vira um Ctrl+Z (`stairHandleGesture.finish`).
         if (mode === 'resizing-stair') {
           stairHandleGesture.finish()
+          mode = 'idle'
+        }
+        // Alça de curvar da cerca: o arrasto inteiro vira um Ctrl+Z (`cercaCurvaGesture.finish`).
+        if (mode === 'curving-fence') {
+          cercaCurvaGesture.finish()
           mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -7376,6 +7399,16 @@ export function PixiCanvas({
             const label = stairHandleLabel(feedback.stair, feedback.handle, map.grid, map.gridShape, map.scale)
             dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, label, computeViewport())
           }
+          return
+        }
+
+        // Alça de curvar da cerca ao vivo: a grade de parede (Alt inverte) encaixa
+        // de 15 em 15°, e a volta aparece junto ao ponteiro, como na escada.
+        if (mode === 'curving-fence') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { snapTargets } = useMapStore.getState()
+          const cerca = cercaCurvaGesture.move(worldPoint, event.altKey ? !snapTargets.wall : snapTargets.wall)
+          if (cerca) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, rotuloDaCurvaDaCerca(cerca), computeViewport())
           return
         }
 
@@ -7927,6 +7960,14 @@ export function PixiCanvas({
         // Shift apertado agora já trava de 15 em 15°, sem esperar o mouse andar.
         // No meio do arrasto da alça da escada, Esc devolve a escada como
         // estava — e só isso, pelo mesmo motivo do giro da sala abaixo.
+        if (mode === 'curving-fence' && event.key === 'Escape') {
+          event.preventDefault()
+          cercaCurvaGesture.cancel()
+          dimensionLabelRenderer.hide()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
         if (mode === 'resizing-stair' && event.key === 'Escape') {
           event.preventDefault()
           stairHandleGesture.cancel()

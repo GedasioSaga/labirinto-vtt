@@ -29,7 +29,8 @@ import { withoutAttachment } from './lightAttachment'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
-import { normalizarCorDoMovel, normalizarVistaDoMovel } from './mobilia'
+import { normalizarCorDoMovel, normalizarCurvaDaCerca, normalizarVistaDoMovel } from './mobilia'
+import { amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
 import { readMoedas } from './troca'
@@ -1031,6 +1032,10 @@ function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
  *
  * O centro exato entra além do centróide dos cantos: com largura não-finita
  * (arquivo estragado) os cantos viram NaN, e é ele que sobra para decidir.
+ *
+ * A CERCA CURVA sai da caixa reta: o arco entra também (pontas, quartos e meio,
+ * `amostrasDaCercaCurva`), para a barriga dela dentro da sala secreta levar a
+ * cerca junto. Na reta, nada muda.
  */
 function propSamplePoints(prop: MapData['props'][number]): RegionPoint[] {
   const center = { x: prop.x, y: prop.y }
@@ -1043,7 +1048,7 @@ function propSamplePoints(prop: MapData['props'][number]): RegionPoint[] {
     { x: prop.x + hw, y: prop.y + hh },
     { x: prop.x - hw, y: prop.y + hh },
   ].map((corner) => rotatePointAround(corner, center, trig))
-  return [center, ...interiorSamples(corners)]
+  return [center, ...interiorSamples(corners), ...amostrasDaCercaCurva(prop)]
 }
 
 /** Desenho de traço (sem área): basta uma ponta escondida para não sair. */
@@ -4758,6 +4763,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
     // com vista vira campo; de frente (o padrão) ou num tipo sem vista, nada.
     const vista = normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista)
     if (vista !== undefined) forPlayer.mobiliaVista = vista
+    // A CURVA da cerca também: o jogador vê o mesmo arco. Só na cerca, número
+    // finito até meia volta (`normalizarCurvaDaCerca`); a reta não vira campo.
+    const curva = normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva)
+    if (curva !== undefined) forPlayer.mobiliaCurva = curva
   }
   // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
   // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então

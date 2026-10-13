@@ -19,9 +19,10 @@
  * (`lib/hoverHitTest.ts`) — os dois têm de concordar, senão o cursor promete
  * um gesto que o clique não faz.
  */
-import type { DrawingPoint, RegionPoint, Stair } from '../types/map'
+import type { DrawingPoint, Prop, RegionPoint, Stair } from '../types/map'
 import type { Point } from '../pixi/world'
 import { stairHandles, type StairHandleKind } from './stairHandles'
+import { alcaDaCurvaDaCerca } from './cercaCurva'
 import { findBoxCornerAt, boxCorners, RESIZE_HANDLE_TOLERANCE, type Box, type Corner } from './objectTransform'
 import { findRoomCornerAt, ROOM_CORNER_HIT_TOLERANCE, type RoomCorner } from './roomOps'
 import { findCurveControlPointAt } from './selectionHitTest'
@@ -127,6 +128,15 @@ export function findStairHandleAt(stair: Stair, point: Point, cameraScale: numbe
   const handles = stairHandles(stair)
   const index = findNearestVertexHandleAt(handles.map((handle) => handle.point), point, cameraScale)
   return index === null ? null : handles[index].kind
+}
+
+/**
+ * Alça de curvar da cerca selecionada (`lib/cercaCurva.ts`) sob o ponteiro, no
+ * zoom `cameraScale`: a tolerância de vértice, a mesma da alça de curvar da escada.
+ */
+export function isOnFenceCurveHandle(prop: Prop, point: Point, cameraScale: number): boolean {
+  const alca = alcaDaCurvaDaCerca(prop)
+  return alca !== null && findNearestVertexHandleAt([alca], point, cameraScale) !== null
 }
 
 /** Alça de raio (Luz, Drawing círculo) sob o ponteiro, no zoom `cameraScale`. */

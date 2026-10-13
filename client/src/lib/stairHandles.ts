@@ -143,16 +143,19 @@ export function dragStairHandle(drag: StairHandleDrag): Stair {
   }
 }
 
+/** A volta junto do ponteiro na alça de curvar: "reta" no zero, senão "curva N°", sem sinal. A cerca curva fala igual (`lib/cercaCurva.ts`). */
+export function curveTurnLabel(degrees: number): string {
+  const rounded = Math.round(Math.abs(degrees))
+  return rounded === 0 ? 'reta' : `curva ${rounded}°`
+}
+
 /**
  * O número junto do ponteiro durante o arrasto, na régua do mapa — a mesma
  * do arrasto de criação da escada (`dimensionLabel`): o comprimento de ponta
  * a ponta, a largura, ou a volta em graus ("reta" no zero).
  */
 export function stairHandleLabel(stair: Stair, handle: StairHandleKind, grid: number, gridShape: GridShape, scale: MapScale): string {
-  if (handle === 'curve') {
-    const degrees = Math.round(Math.abs(stairTurnDegrees(stair)))
-    return degrees === 0 ? 'reta' : `curva ${degrees}°`
-  }
+  if (handle === 'curve') return curveTurnLabel(stairTurnDegrees(stair))
   const middle = stairMiddle(stair)
   const first = stair.segments[0]
   const last = stair.segments[stair.segments.length - 1]

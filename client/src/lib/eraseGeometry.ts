@@ -1,6 +1,7 @@
 import type { Drawing, DrawingPoint, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
+import { contornoDaCercaCurva } from './cercaCurva'
 
 /**
  * Geometria PURA da borracha (Agente D, Fase 4, N1 — "apagar só uma parte ou
@@ -438,7 +439,10 @@ export function eraseDecisionForToken(token: Token, center: Point, radius: numbe
 
 /** Objeto (Prop): caixa `width×height` centrada em `(x, y)` — mesma
  *  convenção de `resizePropBox`/`propBoundingBox` (objectTransform.ts, fora
- *  do meu escopo de escrita, só li a convenção). */
+ *  do meu escopo de escrita, só li a convenção). A CERCA CURVA apaga pela faixa
+ *  dobrada no arco (`lib/cercaCurva.ts`), não pelo retângulo reto. */
 export function eraseDecisionForProp(prop: Prop, center: Point, radius: number): EraseWholeDecision {
+  const curva = contornoDaCercaCurva(prop)
+  if (curva !== null) return circleOverlapsPolygon(center, radius, curva) ? 'remove' : 'keep'
   return circleOverlapsRect(center, radius, prop.x, prop.y, prop.width, prop.height) ? 'remove' : 'keep'
 }

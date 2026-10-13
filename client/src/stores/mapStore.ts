@@ -539,6 +539,10 @@ interface MapStoreState {
   /** Desenho da escada durante o arrasto de uma alça (`pixi/stairHandleGesture.ts`)
    *  — SEM histórico, par de `commitDragHistory(antes)` no pointerup. */
   setStairGeometryLive: (id: string, geometry: mapFactory.StairGeometry) => void
+  /** Volta da cerca (graus; `undefined` = reta) durante o arrasto da alça de
+   *  curvar (`pixi/cercaCurvaGesture.ts`) — SEM histórico, par de
+   *  `commitDragHistory(antes)` no pointerup. */
+  setCurvaDaCercaLive: (id: string, volta: number | undefined) => void
   /** Preferência de sessão da ferramenta Borracha (N1, "apagar parte ou
    *  objeto todo", Fase 4) — SEM histórico, mesma classe de `wallKind`.
    *  'objeto' (default) preserva o comportamento de hoje: `eraseAt`
@@ -2030,6 +2034,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setStairCurveLive: (id, curva) => set((state) => ({ map: mapFactory.setStairCurve(state.map, id, curva) })),
     setStairGeometryLive: (id, geometry) => set((state) => ({ map: mapFactory.setStairGeometry(state.map, id, geometry) })),
+    setCurvaDaCercaLive: (id, volta) => set((state) => ({ map: mapFactory.setCurvaDaCerca(state.map, id, volta) })),
     setEraseMode: (mode) => set({ eraseMode: mode }),
     setFloorShapeKind: (kind) => set({ floorShapeKind: kind }),
     setFloorOp: (op) => set({ floorOp: op }),

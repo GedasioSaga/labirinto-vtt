@@ -58,6 +58,7 @@ import type { MapData } from '../types/map'
 import type { Point } from './world'
 import type { HoverTarget } from '../lib/hoverHitTest'
 import { tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
+import { contornoDaCercaCurva } from '../lib/cercaCurva'
 import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
 import { pieceBounds } from '../lib/floorSdf'
@@ -122,6 +123,9 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: 
     case 'prop': {
       const prop = map.props.find((p) => p.id === target.id)
       if (!prop) return null
+      // CERCA CURVA: o contorno do pairar é a faixa dobrada no arco, a mesma que o clique pega (`lib/cercaCurva.ts`).
+      const curva = contornoDaCercaCurva(prop)
+      if (curva !== null) return { shape: 'polygon', points: curva }
       const box = propBoundingBox(prop)
       return { shape: 'rect', x: box.minX, y: box.minY, w: box.maxX - box.minX, h: box.maxY - box.minY }
     }

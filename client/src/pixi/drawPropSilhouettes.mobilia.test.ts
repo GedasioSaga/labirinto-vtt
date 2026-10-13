@@ -306,3 +306,30 @@ describe('drawPropSilhouettes — cerca vazada', () => {
     expect(strokes(g)).toHaveLength(1)
   })
 })
+
+describe('drawPropSilhouettes — cerca curva', () => {
+  it('a cerca reta sai igual com ou sem o campo da curva', () => {
+    const reta = new Graphics()
+    drawPropSilhouettes(reta, [movel({ mobilia: 'cerca', width: 128, height: 16 })], 1, 1)
+    const zero = new Graphics()
+    drawPropSilhouettes(zero, [movel({ mobilia: 'cerca', width: 128, height: 16, mobiliaCurva: 0 })], 1, 1)
+    expect(pathPoints(strokes(zero)[0], 'lineTo')).toEqual(pathPoints(strokes(reta)[0], 'lineTo'))
+  })
+
+  it('curva: um traço só, com os pedaços do glifo curvo, girados com o objeto', () => {
+    const g = new Graphics()
+    const cerca = movel({ mobilia: 'cerca', width: 240, height: 10, mobiliaCurva: 120, rotation: 90 })
+    expect(drawPropSilhouettes(g, [cerca], 1, 1)).toBe(1)
+    expect(fills(g)).toHaveLength(0)
+    const tracos = strokes(g)
+    expect(tracos).toHaveLength(1)
+    const glifo = tracosDoGlifo('cerca', 240, 10, 'frente', 120)
+    const inicios = pathPoints(tracos[0], 'moveTo')
+    expect(inicios).toHaveLength(glifo.length)
+    // Girado 90° no sentido horário em volta do centro: (x, y) local vira (−y, x).
+    glifo.forEach((t, i) => {
+      expect(inicios[i].x).toBeCloseTo(cerca.x - t.y1, 6)
+      expect(inicios[i].y).toBeCloseTo(cerca.y + t.x1, 6)
+    })
+  })
+})

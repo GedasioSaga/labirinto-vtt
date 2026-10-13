@@ -28,6 +28,7 @@ import { ancestorsOf, subtreeIds } from './roomNesting'
 import { carryAttachedLights } from './lightAttachment'
 import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
+import { contornoDaCercaCurva } from './cercaCurva'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
@@ -247,8 +248,11 @@ function tokenEntity(token: Token, gridSize: number, pinos?: PinosNoToque): Area
 
 /** `prop.x`/`prop.y` é o CENTRO do objeto, não o canto — mesma convenção de
  *  `pixi/propInteraction.ts:6-9` (`findPropAt`), reusada aqui em vez de
- *  redefinida. */
+ *  redefinida. A CERCA CURVA responde pela faixa dobrada no arco
+ *  (`lib/cercaCurva.ts`): a contenção pede o arco inteiro, não a caixa reta. */
 function propEntity(prop: Prop): AreaGeometryEntity {
+  const curva = contornoDaCercaCurva(prop)
+  if (curva !== null) return { kind: 'polygon', points: curva }
   const halfW = prop.width / 2
   const halfH = prop.height / 2
   return { kind: 'rect', minX: prop.x - halfW, maxX: prop.x + halfW, minY: prop.y - halfH, maxY: prop.y + halfH }
