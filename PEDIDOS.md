@@ -1627,3 +1627,16 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 12/10/2026 (com print do protótipo v1 da estrada): "Ao invés de ser um campo amarelo, pode ser um campo verdejante ?"
 - Entendido: trocar o capim dourado por campo verde e viçoso, mantendo o resto (luz de sol, estrada, cercas, clarão). Junto: os "degraus" retos do capim na beira da estrada que aparecem no print.
 - FEITO 12/10/2026: v2 com campo verde e beira da estrada sem degraus. Usuário: "Agora sim, ta perfeito, pode aplicar." Aprovada em `aprovadas.json`, protótipo em `docs/design/transicao-campo-ensolarado/`, commit local (ver git log, "Campo ensolarado") e pacote de animações publicado (sem instalador).
+
+## Pedido de 13/10/2026 (registro literal, com 2 prints)
+> 13/10/2026 (print 1: chão de pedras arredondadas em roseta, tom verde-água claro; print 2: setinha da ferramenta Objeto com Barril, Caixa, Baú, Cama, Mesa, Cadeira): "Eu quero quero que você faça mais uma textura de chão: [Image #1] essa de pedra, eu quero que você faça uma textura de grama amarela e por ultimo quero que faça mais um objeto [Image #2] quero que você faça uma cerca."
+- Entendido: três itens, nesta ordem: (1) textura de chão de pedra no desenho do print 1; (2) textura de grama amarela; (3) objeto Cerca na ferramenta Objeto. Texturas seguem o ritual de [texturas sem estourar]: protótipo em 3 zooms para aprovar antes de aplicar. Plano e perguntas antes.
+- Decisões do usuário (13/10/2026): pedra = pedras soltas (sem a roseta), cinza-pedra escuro; grama amarela = forma do cartão Campo (Verde | Amarelo); cerca = objeto como os outros (clique põe 2 casas, estica/gira com os controles de sempre). Plano aprovado.
+- Em andamento: texturas (Calçamento + Campo Amarelo) sem commit até a página de aprovação; Cerca com commit próprio quando verde. Arquivos separados, dois agentes na main.
+- 13/10/2026, retomado em sessão nova (o usuário reenviou o pedido; mantidas as decisões acima). Cerca e texturas voltaram aos dois agentes.
+- 13/10/2026 (print 3: a Cerca no app, retângulo escuro com borda, duas ripas e mourões em traço): "nossa isso da para melhorar melhor cer um circulo com um fio."
+  - Entendido: a Cerca vista de cima vira mourões redondos (um em cada ponta e um a cada ~1 casa) ligados por um fio fino; sem caixa de silhueta atrás e sem as duas ripas. Alças de esticar/girar/mover continuam. Commit da Cerca só com o desenho novo.
+- 13/10/2026 (print 4: a Cerca nova selecionada, retângulo amarelo com 4 alças nos cantos, mourões redondos e fio): "permita que de para criar cercas curvas que nem as escadas que da para curvar."
+  - Entendido: a Cerca ganha curva como a escada C (alça no meio que arqueia o trecho; pontas paradas). Plano e perguntas antes; Cerca reta já commitada em cbbadf64.
+  - Decisões do usuário (13/10/2026): até meia volta (180°, igual à escada); controle só pela alça no mapa (graus aparecem no arrasto); um arco só por cerca (formas compostas = várias cercas). Plano aprovado.
+- 13/10/2026: Cerca redonda com fio commitada em cbbadf64; cerca curva em d6db5ba2. Texturas Calçamento e Campo Amarelo aprovadas pelo usuário ("aprovo, faz o commit") na página https://claude.ai/artifact/WVMC1T7E31yeRvgiDBSbnj e commitadas. Sem push nem instalador.

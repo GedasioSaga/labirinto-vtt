@@ -11,13 +11,16 @@ function textura(id: string, forma?: { grupo: string; nome: string }): TexturaDo
 }
 
 describe('agruparPorForma', () => {
-  it('a biblioteca embutida: as Lajotas viram um cartão de duas formas, o resto fica de uma', () => {
+  it('a biblioteca embutida: o Campo e as Lajotas viram cartões de duas formas, o resto fica de uma', () => {
     const grupos = agruparPorForma(listarTexturas())
     const lajotas = grupos.find((g) => g.grupo === 'lajotas')
     expect(lajotas?.nome).toBe('Lajotas de pedra')
     expect(lajotas?.formas.map((t) => t.id)).toEqual(['lajotas', 'lajotas-escuras'])
-    expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(1)
-    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas'])
+    const campo = grupos.find((g) => g.grupo === 'grama')
+    expect(campo?.nome).toBe('Campo')
+    expect(campo?.formas.map((t) => t.id)).toEqual(['grama', 'grama-amarela'])
+    expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(2)
+    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento'])
   })
 
   it('mantém a ordem da lista: o grupo fica onde a sua primeira forma aparece', () => {

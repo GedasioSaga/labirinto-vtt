@@ -122,26 +122,46 @@ function duna(u: number, v: number): number {
 // ---------------------------------------------------------------------------
 // Grama / campo: os dois verdes de campo do mapa (#76c577 e #8ac459) em
 // manchas largas, moitas um pouco mais escuras e tufos miúdos com luz.
+// Duas formas, o mesmo campo em duas estações (pedido de 13/10/2026: "uma
+// textura de grama amarela"): a VERDE, a de sempre; a AMARELA, palha dourada
+// nos ouros da areia e da duna do mapa. O desenho é o mesmo (as manchas, as
+// moitas e os tufos caem nos mesmos lugares) e cada cor da Amarela tem a luz
+// da sua par na Verde, então a luz do campo também é a mesma.
 
-const CAMPO_VERDE = rgb('#76c577')
-const CAMPO_AMARELADO = rgb('#8ac459')
-const CAMPO_MOITA = rgb('#62ab64')
+interface TomDoCampo {
+  /** As duas cores das manchas largas. */
+  base: Rgb
+  mancha: Rgb
+  /** As moitas, um pouco mais escuras. */
+  moita: Rgb
+}
 
-function grama(u: number, v: number): number {
-  let c = misturar(CAMPO_VERDE, CAMPO_AMARELADO, passoSuave(0.2, 0.8, fbm(u, v, 2, 4, 31) * 0.5 + 0.5))
-  c = misturar(c, CAMPO_MOITA, passoSuave(0.55, 0.9, fbm(u, v, 5, 3, 32) * 0.5 + 0.5) * 0.7)
-  // Tufos: domos baixos, claros do lado da luz e escuros do outro.
-  let tufo = 0
-  vizinhos(u, v, 26, 33, 0.38, (p) => {
-    const r = 0.3 + hash(p.ix, p.iy, 34) * 0.14
-    const d = Math.hypot(p.dx, p.dy)
-    if (d >= r) return
-    const h = Math.sqrt(1 - (d / r) ** 2)
-    const brilho = luzNaInclinacao((p.dx / r) * 1.4, (p.dy / r) * 1.4) - LUZ_NO_PLANO
-    tufo += brilho * passoSuave(r, r * 0.6, d) * (0.6 + 0.4 * h)
-  })
-  c = luz(c, tufo * 0.1 + (valor(u * 160, v * 160, 160, 35) - 0.5) * 0.04)
-  return empacotar(c)
+const CAMPO_VERDE: TomDoCampo = { base: rgb('#76c577'), mancha: rgb('#8ac459'), moita: rgb('#62ab64') }
+
+/**
+ * Palha contida, de matiz entre o da areia (#cbb57e, ~45°) e o da duna
+ * (#c4a45e, ~41°): a base mais pálida, a mancha um ouro mais quente, a moita
+ * mais funda. Saturação abaixo da do verde, para o campo seco não gritar.
+ */
+const CAMPO_AMARELO: TomDoCampo = { base: rgb('#c0af74'), mancha: rgb('#c9b069'), moita: rgb('#a79665') }
+
+function gramaNoTom({ base, mancha, moita }: TomDoCampo): (u: number, v: number) => number {
+  return (u, v) => {
+    let c = misturar(base, mancha, passoSuave(0.2, 0.8, fbm(u, v, 2, 4, 31) * 0.5 + 0.5))
+    c = misturar(c, moita, passoSuave(0.55, 0.9, fbm(u, v, 5, 3, 32) * 0.5 + 0.5) * 0.7)
+    // Tufos: domos baixos, claros do lado da luz e escuros do outro.
+    let tufo = 0
+    vizinhos(u, v, 26, 33, 0.38, (p) => {
+      const r = 0.3 + hash(p.ix, p.iy, 34) * 0.14
+      const d = Math.hypot(p.dx, p.dy)
+      if (d >= r) return
+      const h = Math.sqrt(1 - (d / r) ** 2)
+      const brilho = luzNaInclinacao((p.dx / r) * 1.4, (p.dy / r) * 1.4) - LUZ_NO_PLANO
+      tufo += brilho * passoSuave(r, r * 0.6, d) * (0.6 + 0.4 * h)
+    })
+    c = luz(c, tufo * 0.1 + (valor(u * 160, v * 160, 160, 35) - 0.5) * 0.04)
+    return empacotar(c)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -889,11 +909,184 @@ function lajotasNoTom({ tons, junta, chanfro }: TomDaLajota): (u: number, v: num
   }
 }
 
+// Calçamento (pedido de 13/10/2026: "mais uma textura de chão... essa de
+// pedra"): pedras arredondadas soltas, sem desenho (a roseta da referência
+// ficou de fora, decisão do usuário), umas duas por casa de lado, assentadas
+// na junta escura das Lajotas escuras (#353432). A pedra no grafite delas
+// (#4a4946), um nada mais clara; cada uma no seu tom e abaulada: a luz de
+// cima à esquerda acende a borda de lá, a de baixo à direita cai na sombra.
+//
+// Cada pedra é a célula de um diagrama de potência (Voronoi com peso) de
+// pontos espalhados sem grade: a pedra de raio maior ganha célula maior. O
+// canto da célula é arredondado pelo mínimo suave das distâncias às bordas, e
+// o ponto procura a sua pedra num lugar um pouco torcido pelo ruído, para a
+// borda serpentear e nenhuma pedra sair polígono.
+
+const CALCAMENTO_CASAS = 8
+const CALCAMENTO_CASA = 1 / CALCAMENTO_CASAS
+/** Raio de cada pedra, em casas: umas duas pedras por casa de lado. */
+const CALCAMENTO_RAIO = [0.165, 0.25] as const
+/** Meia largura da junta, em casas: no `fio`, a cor da junta; no `fim`, a pedra inteira. */
+const CALCAMENTO_JUNTA = { fio: 0.01, fim: 0.03 } as const
+/** O quanto o canto arredonda (o "k" do mínimo suave), em casas. */
+const CALCAMENTO_CANTO = 0.04
+/** O ombro abaulado da pedra (em casas a partir do fio da junta) e a inclinação dele na borda. */
+const CALCAMENTO_OMBRO = 0.14
+const CALCAMENTO_INCLINACAO = 0.6
+/** Quanto a luz do abaulado pesa na cor. */
+const CALCAMENTO_LUZ = 0.2
+/** O quanto a borda da pedra serpenteia, em casas. */
+const CALCAMENTO_TORCAO = 0.05
+/**
+ * Quem pode fazer a borda de um ponto: a pedra cuja célula passa a menos
+ * disto dele, em casas (a junta, o ombro e o canto arredondado cabem com folga).
+ */
+const CALCAMENTO_VIZINHANCA = 0.3
+const CALCAMENTO_TONS: readonly Rgb[] = [rgb('#52514e'), rgb('#4f4e4b'), rgb('#555450'), rgb('#504f4c'), rgb('#53524e'), rgb('#4d4c49')]
+const CALCAMENTO_COR_DA_JUNTA = rgb('#353432')
+
+interface Calcamento {
+  pedras: Espalhamento
+  /** Em cada célula de uma grade fina, as pedras que moram ali ou fazem borda ali. */
+  perto: Cobertura
+}
+
+let calcamentoPronto: Calcamento | null = null
+
+/** A dona do ponto (x, y): a pedra de menor potência (distância² − raio²) entre as de perto. */
+function donaDoPonto(pedras: Espalhamento, x: number, y: number): { indice: number; distancia: number } {
+  let indice = -1
+  let menor = Infinity
+  let distancia = 0
+  pontosPerto(pedras, x, y, CALCAMENTO_CASA, (p, dx, dy, i) => {
+    const potencia = dx * dx + dy * dy - p.r * p.r
+    if (potencia < menor) {
+      menor = potencia
+      indice = i
+      distancia = Math.sqrt(dx * dx + dy * dy)
+    }
+  })
+  return { indice, distancia }
+}
+
+/**
+ * As pedras e, uma vez só, quem chega a cada célula de uma grade fina: o
+ * alcance de cada pedra é o da célula dela (medido numa grade de amostras)
+ * mais a vizinhança da borda. O pixel confere umas poucas pedras em vez das
+ * ~25 de uma casa em volta: o ladrilho de 1024 px saía em 1,5 s.
+ */
+function montarCalcamento(): Calcamento {
+  if (calcamentoPronto !== null) return calcamentoPronto
+  const pedras = espalhar({
+    semente: 401,
+    // Dardos de sobra: o chão fica cheio, sem clareira (a célula do buraco viraria pedra gigante).
+    dardos: 6000,
+    grade: 16,
+    raio: (s) => (CALCAMENTO_RAIO[0] + (CALCAMENTO_RAIO[1] - CALCAMENTO_RAIO[0]) * s) * CALCAMENTO_CASA,
+    fica: () => true,
+    distanciaMinima: (p, q) => p.r + q.r,
+  })
+  const amostras = 32 * CALCAMENTO_CASAS
+  const tamanho = new Float64Array(pedras.pontos.length)
+  for (let j = 0; j < amostras; j += 1) {
+    for (let i = 0; i < amostras; i += 1) {
+      const { indice, distancia } = donaDoPonto(pedras, i / amostras, j / amostras)
+      if (indice >= 0) tamanho[indice] = Math.max(tamanho[indice], distancia)
+    }
+  }
+  // A célula pode passar um pouco da última amostra dela: mais o passo da amostra.
+  const folga = CALCAMENTO_VIZINHANCA * CALCAMENTO_CASA + 2 / amostras
+  const indiceDe = new Map(pedras.pontos.map((p, i) => [p, i]))
+  const perto = cobertura(pedras, (p) => tamanho[indiceDe.get(p) ?? 0] + folga, 8 * CALCAMENTO_CASAS)
+  calcamentoPronto = { pedras, perto }
+  return calcamentoPronto
+}
+
+/** Rascunho por ponto (o ladrilho pinta um ponto por vez): as pedras perto, sem alocar a cada pixel. */
+const CANDIDATAS_MAX = 64
+const candidataDx = new Float64Array(CANDIDATAS_MAX)
+const candidataDy = new Float64Array(CANDIDATAS_MAX)
+const candidataPotencia = new Float64Array(CANDIDATAS_MAX)
+
+function calcamento(u: number, v: number): number {
+  const { pedras, perto } = montarCalcamento()
+  // O lugar torcido onde o ponto procura a sua pedra.
+  const x = u + fbm(u, v, 16, 1, 402) * CALCAMENTO_TORCAO * CALCAMENTO_CASA
+  const y = v + fbm(u, v, 16, 1, 403) * CALCAMENTO_TORCAO * CALCAMENTO_CASA
+  // A dona do ponto: a pedra de menor potência (distância² − raio²).
+  let n = 0
+  let dona = -1
+  let indiceDaDona = 0
+  pontosQueAlcancam(pedras, perto, x, y, (p, dx, dy, i) => {
+    if (n >= CANDIDATAS_MAX) return
+    const potencia = dx * dx + dy * dy - p.r * p.r
+    if (dona < 0 || potencia < candidataPotencia[indiceDaDona]) {
+      dona = i
+      indiceDaDona = n
+    }
+    candidataDx[n] = dx
+    candidataDy[n] = dy
+    candidataPotencia[n] = potencia
+    n += 1
+  })
+  // Ponto sem pedra (a grade sempre tem uma): o tom de base, para nunca sair lixo.
+  if (dona < 0) return empacotar(CALCAMENTO_TONS[0])
+  // Distância (assinada, para dentro) até a borda com cada vizinha; o mínimo
+  // suave delas arredonda o canto, e a média dos rumos aponta para dentro.
+  // (`Math.sqrt` e não `Math.hypot`: o ladrilho de 1024 px faz isto milhões de vezes.)
+  const pdx = candidataDx[indiceDaDona]
+  const pdy = candidataDy[indiceDaDona]
+  const pPot = candidataPotencia[indiceDaDona]
+  const k = CALCAMENTO_CANTO * CALCAMENTO_CASA
+  let menor = Infinity
+  for (let j = 0; j < n; j += 1) {
+    if (j === indiceDaDona) continue
+    const qx = candidataDx[j] - pdx
+    const qy = candidataDy[j] - pdy
+    const distancia = Math.sqrt(qx * qx + qy * qy)
+    const s = (candidataPotencia[j] - pPot) / (2 * distancia)
+    // Guarda a distância à borda e o rumo (de lá para cá) no lugar das contas de antes.
+    candidataPotencia[j] = s
+    candidataDx[j] = qx / distancia
+    candidataDy[j] = qy / distancia
+    if (s < menor) menor = s
+  }
+  let soma = 0
+  let nx = 0
+  let ny = 0
+  for (let j = 0; j < n; j += 1) {
+    if (j === indiceDaDona) continue
+    const s = candidataPotencia[j]
+    if (s > menor + 6 * k) continue
+    const peso = Math.exp(-(s - menor) / k)
+    soma += peso
+    nx += peso * candidataDx[j]
+    ny += peso * candidataDy[j]
+  }
+  // Sem vizinha por perto (não acontece com o chão cheio): o ponto fica no alto da pedra.
+  const borda = soma > 0 ? (menor - k * Math.log(soma)) * CALCAMENTO_CASAS : 1
+  if (soma > 0) {
+    nx /= soma
+    ny /= soma
+  }
+  // A pedra: o tom dela, as manchas largas e o grão.
+  const tons = CALCAMENTO_TONS
+  let c = tons[Math.floor(hash(dona, 0, 404) * tons.length) % tons.length]
+  c = luz(c, (hash(dona, 1, 405) - 0.5) * 0.05 + fbm(u, v, 24, 2, 406) * 0.02 + (valor(u * 900, v * 900, 900, 407) - 0.5) * 0.03)
+  // O abaulado: inclinado no ombro, plano no alto.
+  const inclinacao = CALCAMENTO_INCLINACAO * (1 - passoSuave(CALCAMENTO_JUNTA.fio, CALCAMENTO_JUNTA.fio + CALCAMENTO_OMBRO, borda))
+  c = luz(c, (luzNaInclinacao(nx * inclinacao, ny * inclinacao) - LUZ_NO_PLANO) * CALCAMENTO_LUZ)
+  c = misturar(c, CALCAMENTO_COR_DA_JUNTA, passoSuave(CALCAMENTO_JUNTA.fim, CALCAMENTO_JUNTA.fio, borda) * 0.75)
+  return empacotar(c)
+}
+
 /** A biblioteca inicial, na ordem do painel (do litoral para a montanha). */
 export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'areia', nome: 'Areia', escala: 36, cor: areia },
   { id: 'duna', nome: 'Duna', escala: 64, cor: duna },
-  { id: 'grama', nome: 'Campo', escala: 30, cor: grama },
+  // As formas de um grupo ficam juntas, a primeira é a que o cartão escolhe na primeira vez.
+  { id: 'grama', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Verde' }, cor: gramaNoTom(CAMPO_VERDE) },
+  { id: 'grama-amarela', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Amarelo' }, cor: gramaNoTom(CAMPO_AMARELO) },
   { id: 'floresta', nome: 'Floresta', escala: 40, cor: (u, v) => copas(u, v, FLORESTA) },
   { id: 'bosque', nome: 'Bosque', escala: BOSQUE_ESCALA, lado: LADO_GRANDE, cor: bosque },
   { id: 'pinheiros', nome: 'Pinheiros', escala: 36, cor: (u, v) => copas(u, v, PINHEIROS) },
@@ -904,9 +1097,9 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
   // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
   { id: 'conves', nome: 'Convés', escala: 64, casas: CONVES_CASAS, lado: LADO_MAIOR, cor: conves },
-  // As formas de um grupo ficam juntas, a primeira é a que o cartão escolhe na primeira vez.
   { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Clara' }, cor: lajotasNoTom(LAJOTAS_CLARAS) },
   { id: 'lajotas-escuras', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Escura' }, cor: lajotasNoTom(LAJOTAS_ESCURAS) },
+  { id: 'calcamento', nome: 'Calçamento', escala: 64, casas: CALCAMENTO_CASAS, lado: LADO_MAIOR, cor: calcamento },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

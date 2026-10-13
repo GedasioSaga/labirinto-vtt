@@ -52,7 +52,7 @@ describe('TexturasControls', () => {
   it('mostra a biblioteca inteira, com a escolhida marcada, e um só ponto de Tab no grupo', () => {
     montar()
     const opcoes = radios('Textura')
-    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra'])
+    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra', 'Calçamento'])
     expect(opcoes.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['Floresta'])
     expect(opcoes.filter((b) => b.tabIndex === 0)).toHaveLength(1)
   })
@@ -64,8 +64,8 @@ describe('TexturasControls', () => {
     act(() => radios('Textura')[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
     expect(useMapStore.getState().texturaEscolhida).toBe('floresta')
     act(() => radios('Textura')[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    expect(useMapStore.getState().texturaEscolhida).toBe('lajotas')
-    expect(document.activeElement?.textContent).toBe('Lajotas de pedra')
+    expect(useMapStore.getState().texturaEscolhida).toBe('calcamento')
+    expect(document.activeElement?.textContent).toBe('Calçamento')
   })
 
   it('a borracha esconde a biblioteca; o balde esconde o tamanho', () => {
@@ -199,6 +199,9 @@ describe('TexturasControls', () => {
       tecla(cartao(), 'Home')
       expect(useMapStore.getState().texturaEscolhida).toBe('areia')
       tecla(radios('Textura')[0], 'End')
+      expect(useMapStore.getState().texturaEscolhida).toBe('calcamento')
+      // Um cartão para trás, as Lajotas: a forma de agora, sem abrir o painel.
+      tecla(radios('Textura')[13], 'ArrowLeft')
       expect(useMapStore.getState().texturaEscolhida).toBe('lajotas-escuras')
       expect(palco.querySelector('[role="dialog"]')).toBeNull()
     })

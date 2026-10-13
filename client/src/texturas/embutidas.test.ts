@@ -84,7 +84,7 @@ function rotulo(t: (typeof TEXTURAS_EMBUTIDAS)[number]): string {
 describe('biblioteca inicial de texturas', () => {
   it('tem as texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras'])
+    expect(ids).toEqual(['areia', 'duna', 'grama', 'grama-amarela', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento'])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
   })
@@ -281,3 +281,127 @@ describe('Lajotas de pedra em duas formas, Clara e Escura (pedido de 10/10/2026)
 function luzDaCor(c: number): number {
   return (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255
 }
+
+/** A cor média do ladrilho e a luz de cada pixel. */
+function mediaELuzes(d: Uint8ClampedArray): { r: number; g: number; b: number; croma: number; luzes: number[] } {
+  let r = 0
+  let g = 0
+  let b = 0
+  let croma = 0
+  const luzes: number[] = []
+  for (let i = 0; i < d.length; i += 4) {
+    r += d[i]
+    g += d[i + 1]
+    b += d[i + 2]
+    croma += (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2])) / 255
+    luzes.push(luzDe(d, i))
+  }
+  const n = d.length / 4
+  return { r: r / n, g: g / n, b: b / n, croma: croma / n, luzes }
+}
+
+/** Matiz em graus (0 = vermelho, 60 = amarelo, 120 = verde) de uma cor com r ≥ g ≥ b ou g ≥ r ≥ b. */
+function matiz(r: number, g: number, b: number): number {
+  const maior = Math.max(r, g, b)
+  const menor = Math.min(r, g, b)
+  if (maior === r) return (60 * (g - b)) / (maior - menor)
+  return 60 * (2 + (b - r) / (maior - menor))
+}
+
+function correlacao(a: readonly number[], b: readonly number[]): number {
+  const ma = a.reduce((s, x) => s + x, 0) / a.length
+  const mb = b.reduce((s, x) => s + x, 0) / b.length
+  let cov = 0
+  let va = 0
+  let vb = 0
+  for (let i = 0; i < a.length; i += 1) {
+    cov += (a[i] - ma) * (b[i] - mb)
+    va += (a[i] - ma) ** 2
+    vb += (b[i] - mb) ** 2
+  }
+  return cov / Math.sqrt(va * vb)
+}
+
+describe('Campo em duas formas, Verde e Amarelo (pedido de 13/10/2026)', () => {
+  it('as duas formam o grupo "grama": a verde primeiro, com o mesmo nome de cartão e o mesmo tamanho', () => {
+    expect(texturaDe('grama').forma).toEqual({ grupo: 'grama', nome: 'Verde' })
+    expect(texturaDe('grama-amarela').forma).toEqual({ grupo: 'grama', nome: 'Amarelo' })
+    expect(texturaDe('grama-amarela').nome).toBe(texturaDe('grama').nome)
+    expect(texturaDe('grama-amarela').escala).toBe(texturaDe('grama').escala)
+    expect(texturaDe('grama-amarela').lado).toBe(texturaDe('grama').lado)
+  })
+
+  it('a Verde é pixel a pixel a de antes: mapa salvo com Campo não muda', () => {
+    // Medida na versão de 07a2a7e2, antes da forma Amarela existir.
+    expect(impressaoDigital(pixelsDoLadrilho(texturaDe('grama').cor, 128))).toBe(1018597982)
+  })
+
+  it('a Amarela é palha dourada contida (nem limão nem laranja), com a luz e o desenho da Verde', () => {
+    const verde = mediaELuzes(pixelsDoLadrilho(texturaDe('grama').cor, 128))
+    const amarela = mediaELuzes(pixelsDoLadrilho(texturaDe('grama-amarela').cor, 128))
+    // Dourado: o vermelho passa o verde, que passa bem o azul; matiz entre o
+    // laranja (~30°) e o limão (~58°), longe dos dois.
+    expect(amarela.r).toBeGreaterThan(amarela.g)
+    expect(amarela.g).toBeGreaterThan(amarela.b + 40)
+    const m = matiz(amarela.r, amarela.g, amarela.b)
+    expect(m).toBeGreaterThan(40)
+    expect(m).toBeLessThan(52)
+    // Contida: no máximo a saturação média da Verde.
+    expect(amarela.croma).toBeLessThanOrEqual(verde.croma)
+    // A mesma luz da Verde (o mesmo campo noutra estação)...
+    const luzMedia = (l: readonly number[]) => l.reduce((s, x) => s + x, 0) / l.length
+    expect(Math.abs(luzMedia(amarela.luzes) - luzMedia(verde.luzes))).toBeLessThan(0.04)
+    // ...e o mesmo desenho: manchas, moitas e tufos nos mesmos lugares.
+    expect(correlacao(amarela.luzes, verde.luzes)).toBeGreaterThan(0.85)
+  })
+})
+
+describe('Calçamento (pedido de 13/10/2026)', () => {
+  it('chão de masmorra medido em casas, nítido de perto (128 px por casa)', () => {
+    const calcamento = texturaDe('calcamento')
+    expect(calcamento.nome).toBe('Calçamento')
+    expect(calcamento.casas).toBe(8)
+    expect((calcamento.lado ?? LADO_PADRAO) / (calcamento.casas ?? 1)).toBeGreaterThanOrEqual(128)
+  })
+
+  it('cinza-pedra escuro e neutro: escuro sem ser preto, sem tom', () => {
+    const d = pixelsDoLadrilho(texturaDe('calcamento').cor, 256)
+    const { r, g, b, luzes } = mediaELuzes(d)
+    const media = luzes.reduce((s, x) => s + x, 0) / luzes.length
+    // Na família das Lajotas escuras (#4a4946, luz ~0,28), a pedra um nada mais clara.
+    expect(media).toBeGreaterThan(0.25)
+    expect(media).toBeLessThan(0.32)
+    let menorCanal = 255
+    let maiorCroma = 0
+    for (let i = 0; i < d.length; i += 4) {
+      menorCanal = Math.min(menorCanal, d[i], d[i + 1], d[i + 2])
+      maiorCroma = Math.max(maiorCroma, Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]))
+    }
+    // Sem preto: nem a junta desce do #282828.
+    expect(menorCanal).toBeGreaterThanOrEqual(0x28)
+    // Neutro, um nada quente (o vermelho não fica abaixo do azul): sem tom azulado nem castanho.
+    expect(maiorCroma).toBeLessThanOrEqual(8)
+    expect(r).toBeGreaterThanOrEqual(b)
+    expect(r - b).toBeLessThan(6)
+    expect(g).toBeGreaterThanOrEqual(b)
+  })
+
+  it('pedras soltas, umas duas por casa de lado: a junta escura corta cada fileira umas duas vezes por casa', () => {
+    const calcamento = texturaDe('calcamento')
+    const casas = calcamento.casas ?? 1
+    const amostrasPorCasa = 128
+    const fileiras = 16
+    let juntas = 0
+    for (let k = 0; k < fileiras; k += 1) {
+      const v = (k + 0.37) / fileiras
+      const luzes = Array.from({ length: casas * amostrasPorCasa }, (_, i) => luzDaCor(calcamento.cor((i + 0.5) / (casas * amostrasPorCasa), v)))
+      // Na junta: mais perto da cor da junta (#353432) que da pedra (a mediana da fileira).
+      const pedra = [...luzes].sort((a, b) => a - b)[Math.floor(luzes.length / 2)]
+      const limiar = (pedra + luzDaCor(0x353432)) / 2
+      for (let i = 0; i < luzes.length; i += 1) if (luzes[i] < limiar && luzes[(i + luzes.length - 1) % luzes.length] >= limiar) juntas += 1
+    }
+    const porCasa = juntas / (fileiras * casas)
+    expect(porCasa).toBeGreaterThan(1.5)
+    expect(porCasa).toBeLessThan(2.8)
+  })
+})
