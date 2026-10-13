@@ -219,16 +219,16 @@ describe('Toolbar — Objetos (a mobília numa parte só dela)', () => {
     expect(seguinte?.querySelector('.lb-toolbar__sep')).not.toBeNull()
   })
 
-  it('a setinha abre "Opções de Objetos" com os 6 móveis, cada um com o próprio desenho, e Mesa marcada', () => {
+  it('a setinha abre "Opções de Objetos" com os 7 móveis, cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => buttonsNamed('Opções de Objetos')[0].click())
     expect(Array.from(menuDeObjetos()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))).toEqual(['Objeto'])
     const radios = radiosDoObjeto()
-    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca'])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(6)
-    expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'false', 'true', 'false'])
+    expect(new Set(desenhos).size).toBe(7)
+    expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'false', 'true', 'false', 'false'])
   })
 
   it('escolher Barril muda a preferência, fecha o menu, não troca de ferramenta, e a barra ecoa "Próximo objeto Barril"', () => {
