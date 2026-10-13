@@ -108,7 +108,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
     renderObjeto(MESA)
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
-    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca'])
     expect(tipo.value).toBe('mesa')
 
     escolhe(tipo, 'bau')
@@ -162,6 +162,13 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Padrão da cor"]')?.disabled).toBe(true)
     const corDaLinha = campo('Cor da linha')
     expect(corDaLinha instanceof HTMLInputElement ? corDaLinha.disabled : null).toBe(false)
+  })
+
+  it('a cerca é vazada: sem "Preencher" nem "Cor" (não há fundo a pintar), só a "Cor da linha"', () => {
+    renderObjeto(criarMovel('cerca', { x: 300, y: 200 }, 64, 'c1'))
+    expect(interruptor('Preencher')).toBeNull()
+    expect(campo('Cor')).toBeNull()
+    expect(campo('Cor da linha')).not.toBeNull()
   })
 
   it('"Vista" só aparece para cadeira e baú', () => {

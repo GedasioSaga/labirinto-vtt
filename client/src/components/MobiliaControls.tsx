@@ -5,6 +5,7 @@ import {
   TIPOS_MOBILIA,
   VISTAS_MOBILIA,
   aceitaVista,
+  ehMovelVazado,
   ehTipoMobilia,
   normalizarCorDoMovel,
   vistaDoMovel,
@@ -146,20 +147,25 @@ export function MobiliaControls({ prop, onTipoChange, onVistaChange, onAparencia
           </div>
         </div>
       )}
-      <Toggle label="Preencher" checked={preenchido} onChange={(ligado) => onAparenciaChange(prop.id, { preenchido: ligado })} />
-      {/* Sem "Preencher" não há fundo para a "Cor" pintar: escolher ali não
-          mudaria nada na tela, então o campo fica inerte (e guarda a cor, que
-          volta quando o fundo volta). */}
-      <CampoDeCor
-        id={corId}
-        rotulo="Cor"
-        rotuloDoPadrao="Padrão da cor"
-        corPropria={normalizarCorDoMovel(prop.mobiliaCor)}
-        corPadrao={COR_PADRAO}
-        desabilitado={!preenchido}
-        onEscolher={(cor) => onAparenciaChange(prop.id, { cor })}
-        onPadrao={() => onAparenciaChange(prop.id, { cor: null })}
-      />
+      {/* Móvel vazado (a cerca) não tem fundo: "Preencher" e "Cor" não teriam o que pintar. */}
+      {!ehMovelVazado(tipo) && (
+        <>
+          <Toggle label="Preencher" checked={preenchido} onChange={(ligado) => onAparenciaChange(prop.id, { preenchido: ligado })} />
+          {/* Sem "Preencher" não há fundo para a "Cor" pintar: escolher ali não
+              mudaria nada na tela, então o campo fica inerte (e guarda a cor, que
+              volta quando o fundo volta). */}
+          <CampoDeCor
+            id={corId}
+            rotulo="Cor"
+            rotuloDoPadrao="Padrão da cor"
+            corPropria={normalizarCorDoMovel(prop.mobiliaCor)}
+            corPadrao={COR_PADRAO}
+            desabilitado={!preenchido}
+            onEscolher={(cor) => onAparenciaChange(prop.id, { cor })}
+            onPadrao={() => onAparenciaChange(prop.id, { cor: null })}
+          />
+        </>
+      )}
       <CampoDeCor
         id={corDaLinhaId}
         rotulo="Cor da linha"

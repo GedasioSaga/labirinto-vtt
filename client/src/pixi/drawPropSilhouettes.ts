@@ -4,6 +4,7 @@ import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 import {
   contornoDeLado,
   ehMovelRedondo,
+  ehMovelVazado,
   normalizarCorDoMovel,
   pontosDaElipse,
   tracosDoGlifo,
@@ -231,6 +232,12 @@ export function drawPropSilhouettes(
   for (const prop of props) {
     if (!hasDrawableGeometry(prop)) continue
     const style = silhouetteStyle(prop)
+    if (ehMovelVazado(prop.mobilia)) {
+      // Cerca: sem caixa atrás, só mourões e fio; "Preencher" e "Cor" não têm onde pintar.
+      strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
+      drawn += 1
+      continue
+    }
     const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
     graphics.poly(outline, true)
     if (style.fill !== null) graphics.fill(style.fill)

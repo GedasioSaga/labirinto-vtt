@@ -375,6 +375,16 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6 9.4h12" />
         </>
       )
+    case 'cerca':
+      // Três mourões redondos (um em cada ponta e um no meio) ligados por um fio.
+      return (
+        <>
+          <circle cx="4" cy="12" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="20" cy="12" r="2" />
+          <path d="M6 12h4M14 12h4" />
+        </>
+      )
   }
 }
 

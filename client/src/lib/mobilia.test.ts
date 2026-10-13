@@ -5,7 +5,9 @@ import {
   contornoDeLado,
   criarMovel,
   ehMovelRedondo,
+  ehMovelVazado,
   ehTipoMobilia,
+  geometriaDaCerca,
   LADOS_DA_ELIPSE,
   movelComOutraVista,
   movelComOutroTipo,
@@ -25,16 +27,16 @@ import {
 import type { Prop, TipoMobilia } from '../types/map'
 
 /**
- * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira), o móvel que a ferramenta
+ * MOBÍLIA DESENHADA — o catálogo (barril, caixa, baú, cama, mesa, cadeira, cerca), o móvel que a ferramenta
  * Objetos põe no mapa e o glifo de cada tipo, tudo sem Pixi.
  */
 
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem barril, caixa, baú, cama, mesa e cadeira, nessa ordem, com o nome que a setinha mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira'])
-    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira'])
+  it('tem barril, caixa, baú, cama, mesa, cadeira e cerca, nessa ordem, com o nome que a setinha mostra', () => {
+    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca'])
+    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca'])
   })
 
   it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
@@ -44,7 +46,7 @@ describe('catálogo da mobília', () => {
   })
 
   it('reconhece só os tipos do catálogo', () => {
-    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira']) expect(ehTipoMobilia(tipo)).toBe(true)
+    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca']) expect(ehTipoMobilia(tipo)).toBe(true)
     expect(ehTipoMobilia('dragão')).toBe(false)
     expect(ehTipoMobilia(undefined)).toBe(false)
     expect(ehTipoMobilia(3)).toBe(false)
@@ -161,6 +163,119 @@ describe('tracosDoGlifo — os traços finos dentro da silhueta', () => {
   it('tamanho não desenhável não tem traço', () => {
     expect(tracosDoGlifo('catre', 0, 80)).toEqual([])
     expect(tracosDoGlifo('mesa', Number.NaN, 40)).toEqual([])
+  })
+})
+
+describe('cerca — mourões redondos ligados por um fio', () => {
+  /** Posição de cada mourão ao longo do comprimento (x deitada, y em pé), em ordem. */
+  function posicoes(largura: number, altura: number): number[] {
+    const geometria = geometriaDaCerca(largura, altura)
+    if (geometria === null) throw new Error('cerca sem geometria')
+    const deitada = largura >= altura
+    return geometria.mouroes.map((m) => (deitada ? m.x : m.y)).sort((a, b) => a - b)
+  }
+
+  it('está no catálogo com o nome da setinha e não tem vista de lado', () => {
+    expect(ehTipoMobilia('cerca')).toBe(true)
+    expect(ROTULO_MOBILIA.cerca).toBe('Cerca')
+    expect(NOME_COM_ARTIGO.cerca).toBe('uma cerca')
+    expect(aceitaVista('cerca')).toBe(false)
+    expect(ehMovelRedondo('cerca')).toBe(false)
+  })
+
+  it('o trecho padrão tem 2 casas de comprimento e 1/4 de casa de espessura', () => {
+    const cerca = criarMovel('cerca', { x: 100, y: 100 }, GRADE, 'c')
+    expect(cerca.width).toBe(2 * GRADE)
+    expect(cerca.height).toBe(0.25 * GRADE)
+  })
+
+  it('é o único móvel vazado: sem caixa de silhueta atrás, o chão aparece entre os mourões', () => {
+    expect(ehMovelVazado('cerca')).toBe(true)
+    for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'cerca')) expect(ehMovelVazado(tipo)).toBe(false)
+    expect(ehMovelVazado(undefined)).toBe(false)
+  })
+
+  it('mourão é um círculo pequeno (diâmetro 0,2 a 0,25 casa) no eixo da cerca, dentro do trecho', () => {
+    const geometria = geometriaDaCerca(2 * GRADE, GRADE / 4)
+    if (geometria === null) throw new Error('cerca sem geometria')
+    expect(2 * geometria.raio).toBeGreaterThanOrEqual(0.2 * GRADE)
+    expect(2 * geometria.raio).toBeLessThanOrEqual(0.25 * GRADE)
+    for (const m of geometria.mouroes) {
+      expect(m.y).toBe(0)
+      expect(Math.abs(m.x) + geometria.raio).toBeLessThanOrEqual(GRADE + 1e-9)
+    }
+  })
+
+  it('2 casas: mourão nas duas pontas e um no meio, ~1 casa entre eles', () => {
+    const xs = posicoes(2 * GRADE, GRADE / 4)
+    expect(xs).toHaveLength(3)
+    expect(xs[0]).toBeLessThan(-0.75 * GRADE)
+    expect(xs[2]).toBeGreaterThan(0.75 * GRADE)
+    expect(xs[1]).toBeCloseTo(0, 9)
+    for (let i = 1; i < xs.length; i += 1) {
+      expect(xs[i] - xs[i - 1]).toBeGreaterThan(0.75 * GRADE)
+      expect(xs[i] - xs[i - 1]).toBeLessThan(1.25 * GRADE)
+    }
+  })
+
+  it('esticada para 6 casas: 7 mourões, ~1 casa entre eles', () => {
+    const xs = posicoes(6 * GRADE, GRADE / 4)
+    expect(xs).toHaveLength(7)
+    expect(xs[0]).toBeLessThan(-2.75 * GRADE)
+    expect(xs[6]).toBeGreaterThan(2.75 * GRADE)
+    for (let i = 1; i < xs.length; i += 1) {
+      expect(xs[i] - xs[i - 1]).toBeGreaterThan(0.75 * GRADE)
+      expect(xs[i] - xs[i - 1]).toBeLessThan(1.25 * GRADE)
+    }
+  })
+
+  it('esticada na altura (cerca em pé), corre na vertical do mesmo jeito', () => {
+    const geometria = geometriaDaCerca(GRADE / 4, 6 * GRADE)
+    if (geometria === null) throw new Error('cerca sem geometria')
+    expect(geometria.mouroes).toHaveLength(7)
+    for (const m of geometria.mouroes) expect(m.x).toBe(0)
+  })
+
+  it('curta demais ainda tem os dois mourões das pontas', () => {
+    expect(posicoes(GRADE / 2, GRADE / 4)).toHaveLength(2)
+  })
+
+  it('glifo: um círculo por mourão e UM fio no eixo, de borda a borda entre mourões vizinhos, sem ripas', () => {
+    const largura = 6 * GRADE
+    const altura = GRADE / 4
+    const geometria = geometriaDaCerca(largura, altura)
+    if (geometria === null) throw new Error('cerca sem geometria')
+    const tracos = tracosDoGlifo('cerca', largura, altura)
+    const fio = tracos.filter((t) => t.y1 === 0 && t.y2 === 0)
+    // Fio: um pedaço entre cada par de mourões vizinhos, juntos correndo do primeiro ao último.
+    expect(fio).toHaveLength(geometria.mouroes.length - 1)
+    const xs = posicoes(largura, altura)
+    fio
+      .map((t) => [Math.min(t.x1, t.x2), Math.max(t.x1, t.x2)])
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([de, ate], i) => {
+        expect(de).toBeCloseTo(xs[i] + geometria.raio, 9)
+        expect(ate).toBeCloseTo(xs[i + 1] - geometria.raio, 9)
+      })
+    // O resto são os círculos: todo ponto a `raio` do centro de algum mourão.
+    const circulos = tracos.filter((t) => !fio.includes(t))
+    expect(circulos.length).toBeGreaterThanOrEqual(geometria.mouroes.length * 8)
+    for (const t of circulos) {
+      for (const [x, y] of [[t.x1, t.y1], [t.x2, t.y2]]) {
+        const naBorda = geometria.mouroes.some((m) => Math.abs(Math.hypot(x - m.x, y - m.y) - geometria.raio) < 1e-9)
+        expect(naBorda).toBe(true)
+      }
+    }
+    // Nenhuma ripa: nenhum traço corre o comprimento inteiro.
+    for (const t of tracos) expect(Math.abs(t.x2 - t.x1)).toBeLessThan(1.25 * GRADE)
+  })
+
+  it('tamanho não desenhável não tem traço nem geometria', () => {
+    expect(tracosDoGlifo('cerca', 0, 10)).toEqual([])
+    expect(tracosDoGlifo('cerca', 80, Number.NaN)).toEqual([])
+    expect(tracosDoGlifo('cerca', -80, 10)).toEqual([])
+    expect(geometriaDaCerca(0, 10)).toBeNull()
+    expect(geometriaDaCerca(80, Number.NaN)).toBeNull()
   })
 })
 

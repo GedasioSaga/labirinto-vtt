@@ -1,7 +1,7 @@
 import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
 
 /**
- * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa e cadeira como objetos
+ * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira e cerca como objetos
  * sem imagem, desenhados no estilo do minimapa: a silhueta chapada de todo
  * objeto (`pixi/drawPropSilhouettes.ts`) e, por cima, poucos traços finos que
  * dizem o que o móvel é. Nada de imagem, sombra, hachura ou gradiente.
@@ -14,10 +14,15 @@ import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
  * própria. De frente é o desenho de sempre.
  *
  * A cama guarda o id antigo `catre`: mapas salvos com o catre abrem com a cama.
+ *
+ * A cerca é um TRECHO: o clique põe 2 casas; o mestre estica, gira e move com
+ * os controles de sempre do objeto, e o glifo reparte os mourões redondos,
+ * ligados por um fio, pelo comprimento que ela tiver (`tracosDaCerca`). É o
+ * único móvel vazado (`ehMovelVazado`): sem caixa chapada atrás.
  */
 
 /** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
-export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira']
+export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca']
 
 /** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
@@ -27,6 +32,7 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   catre: 'Cama',
   mesa: 'Mesa',
   cadeira: 'Cadeira',
+  cerca: 'Cerca',
 }
 
 /** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
@@ -37,12 +43,17 @@ export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   catre: 'uma cama',
   mesa: 'uma mesa',
   cadeira: 'uma cadeira',
+  cerca: 'uma cerca',
 }
+
+/** Espessura padrão da cerca, em casas: é a régua dos mourões (`tracosDaCerca`). */
+const ESPESSURA_DA_CERCA_EM_CASAS = 0.25
 
 /**
  * Tamanho padrão em CASAS da grade (largura x altura, sem giro). A cama é em
  * pé (uma pessoa deitada ocupa duas casas), a mesa deitada, o baú mais baixo
- * que uma casa; barril, caixa e cadeira cabem numa casa com folga. O mestre
+ * que uma casa; barril, caixa e cadeira cabem numa casa com folga; a cerca é
+ * um trecho de 2 casas, fino como um mourão visto de cima. O mestre
  * ajusta depois pelos controles de sempre do objeto. É o tamanho de FRENTE; o
  * de lado está em `TAMANHO_DE_LADO_EM_CASAS`.
  */
@@ -53,6 +64,7 @@ const TAMANHO_EM_CASAS: Readonly<Record<TipoMobilia, { largura: number; altura: 
   catre: { largura: 1, altura: 2 },
   mesa: { largura: 2, altura: 1 },
   cadeira: { largura: 0.5, altura: 0.5 },
+  cerca: { largura: 2, altura: ESPESSURA_DA_CERCA_EM_CASAS },
 }
 
 export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
@@ -119,6 +131,14 @@ export function vistaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaVista'>): Vist
 /** Móvel de silhueta redonda (a elipse dentro do retângulo), visto de cima. */
 export function ehMovelRedondo(tipo: TipoMobilia | undefined): boolean {
   return tipo === 'barril'
+}
+
+/**
+ * Móvel VAZADO: sem a caixa chapada da silhueta atrás, só o glifo. É a cerca —
+ * mourões e fio, com o chão aparecendo entre eles (`pixi/drawPropSilhouettes.ts`).
+ */
+export function ehMovelVazado(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'cerca'
 }
 
 /** Lados do polígono que imita a elipse: redondo a olho no zoom máximo, poucos pontos. */
@@ -196,6 +216,74 @@ const ESPESSURA_DO_ASSENTO = 0.14
 const ALTURA_DA_TAMPA_DE_LADO = 0.4
 /** Baú de lado: lados do meio arco da tampa — redondo a olho, poucos pontos. */
 const LADOS_DO_ARCO = 16
+
+/** Cerca: raio do mourão em fração da espessura — 0,45 de 1/4 de casa dá ~0,22 casa de diâmetro. */
+const RAIO_DO_MOURAO = 0.45
+/** Lados do polígono do mourão: círculo pequeno, redondo a olho com poucos pontos. */
+const LADOS_DO_MOURAO = 12
+
+/** Mourões da cerca (centros, no referencial do objeto) e o raio de todos eles. */
+export interface GeometriaDaCerca {
+  mouroes: { x: number; y: number }[]
+  raio: number
+}
+
+/**
+ * Cerca vista de cima: mourões redondos no eixo do trecho, um em cada ponta e
+ * um a cada ~1 casa, ligados por um fio (`tracosDaCerca`). O comprimento é o
+ * lado maior — esticada na altura, a cerca corre na vertical.
+ *
+ * A geometria não recebe a grade, então a régua é a própria ESPESSURA: no
+ * padrão ela é 1/4 de casa, e 1 casa = espessura / ESPESSURA_DA_CERCA_EM_CASAS.
+ * O mestre estica a cerca no comprimento e quase nunca na espessura, então o
+ * espaçamento continua ~1 casa em qualquer tamanho; se engrossar a cerca,
+ * mourões e vãos crescem junto, o que também lê bem. Os mourões das pontas
+ * encostam na borda do trecho por dentro e os vãos são iguais; mínimo de 2
+ * mourões. Tamanho não desenhável não tem geometria (`null`).
+ */
+export function geometriaDaCerca(largura: number, altura: number): GeometriaDaCerca | null {
+  if (!tamanhoDesenhavel(largura, altura)) return null
+  const deitada = largura >= altura
+  const comprimento = deitada ? largura : altura
+  const espessura = deitada ? altura : largura
+  const raio = espessura * RAIO_DO_MOURAO
+  const primeiro = -comprimento / 2 + raio
+  const vao = comprimento - 2 * raio
+  const umaCasa = espessura / ESPESSURA_DA_CERCA_EM_CASAS
+  const vaos = Math.max(1, Math.round(vao / umaCasa))
+  const mouroes: { x: number; y: number }[] = []
+  for (let i = 0; i <= vaos; i += 1) {
+    const u = primeiro + (vao * i) / vaos
+    mouroes.push(deitada ? { x: u, y: 0 } : { x: 0, y: u })
+  }
+  return { mouroes, raio }
+}
+
+/**
+ * Glifo da cerca: o contorno de cada mourão e UM fio no eixo, em pedaços de
+ * borda a borda entre mourões vizinhos (o fio não risca por dentro do
+ * círculo). Sem ripas nem caixa atrás (`ehMovelVazado`): o chão aparece entre
+ * os mourões.
+ */
+function tracosDaCerca(largura: number, altura: number): TracoDoGlifo[] {
+  const geometria = geometriaDaCerca(largura, altura)
+  if (geometria === null) return []
+  const { mouroes, raio } = geometria
+  const deitada = largura >= altura
+  const circulo = pontosDaElipse(2 * raio, 2 * raio, LADOS_DO_MOURAO)
+  const circulos = mouroes.flatMap((m) => contorno(circulo.map((p) => ({ x: m.x + p.x, y: m.y + p.y }))))
+  const fio: TracoDoGlifo[] = []
+  for (let i = 1; i < mouroes.length; i += 1) {
+    const de = mouroes[i - 1]
+    const ate = mouroes[i]
+    fio.push(
+      deitada
+        ? { x1: de.x + raio, y1: 0, x2: ate.x - raio, y2: 0 }
+        : { x1: 0, y1: de.y + raio, x2: 0, y2: ate.y - raio },
+    )
+  }
+  return [...circulos, ...fio]
+}
 
 /** Polígono fechado como traços, um por lado. */
 function contorno(pontos: readonly { x: number; y: number }[]): TracoDoGlifo[] {
@@ -291,7 +379,9 @@ function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): Trac
  * - baú: a linha da tampa e o fecho no meio dela;
  * - catre (a cama): travesseiro na cabeceira e a dobra da coberta;
  * - mesa: o tampo, um retângulo recuado;
- * - cadeira: o encosto, uma faixa em cima.
+ * - cadeira: o encosto, uma faixa em cima;
+ * - cerca: mourões redondos a cada ~1 casa ligados por um fio
+ *   (`tracosDaCerca`), que se repartem quando o mestre estica o trecho.
  * Na vista de lado (só nos tipos com vista), o glifo é o de lado
  * (`tracosDeLado`); nos outros tipos a vista não muda nada.
  * Tamanho não desenhável (zero, negativo, não finito) não tem traço.
@@ -334,6 +424,8 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
         { x1: 0, y1: tampa, x2: 0, y2: tampa + altura * FECHO_DO_BAU },
       ]
     }
+    case 'cerca':
+      return tracosDaCerca(largura, altura)
   }
 }
 

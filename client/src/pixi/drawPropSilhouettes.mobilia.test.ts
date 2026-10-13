@@ -282,3 +282,27 @@ describe('drawPropSilhouettes — vista de lado', () => {
     expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('mesa', 60, 40).length)
   })
 })
+
+describe('drawPropSilhouettes — cerca vazada', () => {
+  it('sem caixa atrás: nenhum preenchimento e só o traço do glifo (mourões e fio), na cor da linha', () => {
+    const g = new Graphics()
+    const cerca = movel({ mobilia: 'cerca', width: 128, height: 16 })
+    expect(drawPropSilhouettes(g, [cerca], 1, 1)).toBe(1)
+    expect(fills(g)).toHaveLength(0)
+    const tracos = strokes(g)
+    expect(tracos).toHaveLength(1)
+    const glifo = tracos[0]
+    if (glifo?.action !== 'stroke') throw new Error('esperava stroke')
+    expect(glifo.data.style.color).toBe(PROP_SILHOUETTE_EDGE_COLOR)
+    expect(glifo.data.style.alpha).toBe(PROP_SILHOUETTE_EDGE_ALPHA)
+    expect(glifo.data.path.instructions.some((i) => i.action === 'poly')).toBe(false)
+    expect(pathPoints(glifo, 'moveTo')).toHaveLength(tracosDoGlifo('cerca', 128, 16).length)
+  })
+
+  it('"Preencher" e "Cor" não trazem a caixa de volta', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'cerca', width: 128, height: 16, mobiliaPreenchido: true, mobiliaCor: '#336699' })], 1, 1)
+    expect(fills(g)).toHaveLength(0)
+    expect(strokes(g)).toHaveLength(1)
+  })
+})

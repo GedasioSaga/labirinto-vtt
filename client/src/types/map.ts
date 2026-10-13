@@ -1576,7 +1576,7 @@ export interface Prop extends PlayerSecret, NoPiso {
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
-export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira'
+export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca'
 
 /** Vista de um móvel com vista (`lib/mobilia.ts`): de frente (o padrão) ou de lado. */
 export type VistaMobilia = 'frente' | 'lado'
