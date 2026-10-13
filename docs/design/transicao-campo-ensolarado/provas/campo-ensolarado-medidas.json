@@ -1,0 +1,44 @@
+{
+  "id": "campo-ensolarado",
+  "fonte": "client/src/animacoes/transicao/campo-ensolarado.ts",
+  "geradoEm": "2026-10-13T01:04:40.724Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.595,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 7.25,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -4.33,
+    "picoVerdadeiroDbtp": -4.33,
+    "lufsIntegrado": -19.8,
+    "lufsCurtoPrazoMax": -18.3,
+    "dcPct": 0.0422,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [],
+    "equilibrioLRdb": 0.17,
+    "centroideHzPorSegundo": [
+      2587,
+      2556,
+      2703,
+      2617,
+      3219,
+      3831,
+      7358,
+      8140
+    ],
+    "duracaoNaturalS": 7
+  }
+}
