@@ -8,6 +8,7 @@ import { drawPropSilhouettes } from './drawPropSilhouettes'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
+import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -101,6 +102,8 @@ export interface PropsView {
 
 export interface PropsRenderer {
   draw: (container: Container, props: Prop[], selectedPropId: string | null, view: PropsView) => void
+  /** Desmonte: as chamas das fogueiras saem do relógio e soltam as formas delas (antes do `app.destroy`). */
+  destruir: () => void
 }
 
 /**
@@ -123,8 +126,14 @@ interface FurnitureEntry {
  * em escopo de módulo. Um cache em escopo de módulo sobreviveria ao
  * destroy()/remount do StrictMode e faria drawProps encontrar sprites já
  * destruídos, pulando o addChild e sumindo com os objetos silenciosamente.
+ *
+ * FOGUEIRA: a chama (`chamasDasFogueiras.ts`) é um nó logo acima do desenho do
+ * móvel, posto na mesma repintura; segue o móvel em posição, fantasma, camada
+ * oculta e remoção, mas não gira com ele. Sem `chamas.movimento` (testes,
+ * exportar imagem) a chama fica parada.
  */
-export function createPropsRenderer(): PropsRenderer {
+export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): PropsRenderer {
+  const chamas = createChamasDasFogueiras(opcoesDasChamas)
   const spriteCache = new Map<string, Sprite>()
   // Móveis da mobília desenhada, por id — mesma vida do `spriteCache`.
   const furnitureCache = new Map<string, FurnitureEntry>()
@@ -169,10 +178,12 @@ export function createPropsRenderer(): PropsRenderer {
 
     highlightGraphics.clear()
 
+    const fogueiras = new Set<string>()
     for (const prop of props) {
       propsById.set(prop.id, prop)
       if (prop.mobilia !== undefined) {
         drawFurniture(container, prop, view)
+        if (prop.mobilia === 'fogueira') fogueiras.add(prop.id)
         markPropState(prop, selectedPropId)
         continue
       }
@@ -227,6 +238,8 @@ export function createPropsRenderer(): PropsRenderer {
       sprite.alpha = propAlpha(prop)
       markPropState(prop, selectedPropId)
     }
+    // Fogueira que sumiu (apagada, outro tipo, camada oculta) leva a chama; o relógio liga ou desliga.
+    chamas.podar(fogueiras)
   }
 
   /**
@@ -259,6 +272,11 @@ export function createPropsRenderer(): PropsRenderer {
     drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution)
     entry.drawing.alpha = propAlpha(prop)
     entry.painted = { prop, cameraScale, rendererResolution }
+    // A chama da fogueira, logo acima do desenho dela (o mesmo fantasma); outro tipo não tem chama.
+    const chama = chamas.colocar(prop, view)
+    if (chama === null) return
+    if (chama.parent !== container) container.addChildAt(chama, container.getChildIndex(entry.drawing) + 1)
+    chama.alpha = propAlpha(prop)
   }
 
   /** Fantasma do "Oculto no editor" e destaque de seleção, iguais para imagem e móvel. */
@@ -278,5 +296,5 @@ export function createPropsRenderer(): PropsRenderer {
     }
   }
 
-  return { draw }
+  return { draw, destruir: chamas.destruir }
 }

@@ -92,7 +92,7 @@ Contorno: a elipse da silhueta (`ehMovelRedondo`), como o barril. O fundo é a "
 | borda de dentro da roda | elipse `0,7w × 0,7h`, 24 lados (`pontosDaElipse`) |
 | juntas das pedras | 8 raios no ângulo `a = (k + 0,5)·45°`, k = 0..7, de (0,35w·cos a, 0,35h·sin a) a (0,5w·cos a, 0,5h·sin a) |
 | lenha | `toraCentrada(0,56m, 0,08m, +35°)` e `toraCentrada(0,56m, 0,08m, −35°)` |
-| chama | base em (0, 0,18m), altura em repouso `H = 0,40m` |
+| chama | base em (0, 0,18m), altura em repouso `H = 0,40m` (ver "Chama sempre em pé") |
 
 ### Lado (1 × 1,25)
 
@@ -102,7 +102,18 @@ Contorno: só as pedras (o resto do retângulo fica sem fundo, como a cadeira em
 | Traço | Geometria |
 |---|---|
 | lenha | `tora((−0,26w, y(0,79)), (0,26w, y(0,56)), 0,07w)` e `tora((0,26w, y(0,79)), (−0,26w, y(0,56)), 0,07w)`; cruzam em y(0,675), escondidas pela base da chama |
-| chama | base em (0, y(0,68)), altura em repouso `H = 0,464h` |
+| chama | base em (0, y(0,68)), altura em repouso `H = 0,464h` (ver "Chama sempre em pé") |
+
+### Chama sempre em pé (**ajuste na aprovação**)
+
+Quando a fogueira gira, pedras e lenha giram com o objeto; a chama e as fagulhas **não** giram: ficam em pé na tela e as fagulhas sobem para cima da tela, nas duas vistas. No app (`chamaDaFogueira` em `lib/mobilia.ts`), a base da chama é `centro + giro(âncora) + (0, desvio)`:
+
+| Vista | âncora (gira com o objeto) | desvio (para baixo na tela, não gira) |
+|---|---|---|
+| Cima | (0, 0): o centro, onde a lenha cruza | 0,18m |
+| Lado | (0, y(0,68)): sobre o X da lenha | 0 |
+
+Sem giro, dá a base da tabela acima. De cima, o centro não sai do lugar com o giro, então a chama fica sempre no meio da roda; de lado, a base anda com a lenha.
 
 ## Distinção entre os glifos de cima
 
@@ -128,17 +139,26 @@ Borda, curvas de Bézier cúbicas (pontos de controle, ponto final):
 
 Miolo: a mesma curva com escala (0,50; 0,56) e deslocada `y − 0,04` (ponta em −0,60, base em −0,04).
 
-Fagulha: círculo de raio `max(1,2 px de tela; 0,022 casa)`.
+Fagulha: círculo de raio `max(1,2 px de tela; 0,022 do lado menor do objeto)` — 0,022 casa no tamanho padrão (1 casa de lado menor nas duas vistas). No app a régua é o lado menor, e não a casa, porque o desenho do móvel não recebe a grade; esticada, a fagulha cresce junto com a chama.
 
 ### Cores (próprias; "Cor" e "Cor da linha" não mudam a chama)
 
 | Parte | Hex | Alpha |
 |---|---|---|
-| chama (borda) | `#d0703c` | 1 |
+| chama (borda) | `#a04a2c` (era `#d0703c` no protótipo) | 1 |
 | miolo | `#f0c98a` | animado (0,72 a 0,996) |
 | fagulha | `#f6dca8` | animado (0 a 0,84) |
 
-A chama é mais vermelha que a porta do mapa (`#d08c3a`), para não ser lida como porta. Contraste WCAG medido: miolo 4,8:1 sobre o fundo padrão da fogueira (#6d4d45) e 2,4:1 sobre o chão padrão (#a8776a); borda 2,2:1 sobre o fundo e só 1,1:1 sobre o chão. De cima a chama está sempre sobre o fundo escuro; de Lado ela fica sobre o chão, e quem dá a leitura é o miolo claro.
+**Ajuste na aprovação:** a borda ficou um tom mais escura e mais quente que `#d0703c`, sem saturar mais, para ter contraste também sobre o chão na vista Lado. Medido (WCAG, mesma conta do protótipo):
+
+| | `#d0703c` (antes) | `#a04a2c` (agora) |
+|---|---|---|
+| matiz / saturação / luminosidade (HSL) | 21,1° / 0,61 / 0,53 | 15,5° / 0,57 / 0,40 |
+| borda sobre o chão padrão (#a8776a), vista Lado | 1,10:1 | **1,57:1** |
+| borda sobre o fundo padrão da fogueira (#6d4d45), vista de cima | 2,17:1 | 1,25:1 |
+| miolo sobre a borda | 2,21:1 | 3,82:1 |
+
+A chama é mais vermelha que a porta do mapa (`#d08c3a`), para não ser lida como porta. O miolo segue com 4,8:1 sobre o fundo padrão da fogueira e 2,4:1 sobre o chão padrão. De cima a borda perde contraste sobre o fundo escuro (1,25:1), mas ali quem dá a leitura é o miolo claro, agora com o dobro do contraste contra a borda; de Lado a borda passa a separar a chama do chão.
 
 Ordem de desenho: fundo → contorno e glifo → borda da chama → miolo → fagulhas.
 
@@ -173,10 +193,12 @@ Vida: `VIDA_DA_FAGULHA = 0,375` do ciclo (900 ms). `p = frac(u − inicio) / 0,3
 
 ## Transporte para o Pixi
 
-- **Desenhar uma vez.** `GraphicsContext` da borda e do miolo em unidade (H = 1), compartilhados por todas as fogueiras. Nada de `clear()` por quadro.
-- **Árvore por fogueira**: `Container` (posição = centro, `rotation` = giro do objeto) → `raiz` (posição = base da chama, `scale = H`) → `borda` e `miolo` (`Graphics` com o contexto compartilhado) e 3 fagulhas (`Graphics` de um círculo; o raio em unidade é recalculado só quando o zoom ou o tamanho mudam).
-- **Por quadro, só números**: `borda.scale.set(sx, sy)`, `miolo.scale.set(sx, sy)`, `miolo.alpha = alpha`, e em cada fagulha `position.set(x, y)`, `alpha` e `visible = alpha > 0,01`.
-- **Ticker**: o callback entra quando o mapa tem ≥ 1 fogueira e sai com 0 fogueiras ou com Menos movimento. Se o app renderiza sob demanda, 30 quadros por segundo bastam para este movimento.
-- **Menos movimento**: `matchMedia('(prefers-reduced-motion: reduce)')`, ouvindo `change`. Com ele ligado, aplica a `POSE_FIXA` uma vez e tira o callback do ticker.
+No app: `client/src/pixi/chamasDasFogueiras.ts`.
+
+- **Desenhar uma vez.** `GraphicsContext` da borda, do miolo e da fagulha, compartilhados por todas as fogueiras da tela. Desenhados a 256 unidades por H (não em H = 1): o Pixi divide a curva com tolerância de ~0,5 unidade, e em H = 1 a chama sairia um losango. Nada de `clear()` por quadro, e o desenho do móvel (`drawPropSilhouettes`) nunca é repintado por causa da chama.
+- **Árvore por fogueira** (com a chama sempre em pé): `Container` (posição = base da chama na tela, **sem** `rotation`) → `borda` e `miolo` (`Graphics` com o contexto compartilhado, `scale = H/256 × pose`) e 3 fagulhas (`Graphics` do círculo; a escala do raio é recalculada só quando o zoom ou o tamanho mudam). No editor o nó fica logo acima do desenho do móvel, com o mesmo alpha (fantasma do "Oculto no editor", "Oculto para jogadores"); no jogador, numa camada logo acima das silhuetas.
+- **Por quadro, só números**: `borda.scale.set(sx, sy)`, `miolo.scale.set(sx, sy)`, `miolo.alpha = alpha`, e em cada fagulha `position.set(x·H, y·H)` e `alpha`. **Sem `visible` por quadro:** no Pixi 8, trocar `visible` marca `structureDidChange` no grupo de render e refaz as instruções do mapa inteiro; fagulha apagada fica com alpha 0 (custa três círculos).
+- **Ticker**: o callback entra quando o mapa (no jogador, a visão) tem ≥ 1 fogueira e sai com 0 fogueiras ou com Menos movimento. Os dois apps renderizam a cada quadro do ticker; não há render sob demanda.
+- **Menos movimento**: `matchMedia('(prefers-reduced-motion: reduce)')`, relido como nas nuvens: a cada passada de desenho do mapa e, com a chama viva, uma vez por segundo. Ligado, aplica a `POSE_FIXA` uma vez e tira o callback do ticker; desligado de novo, a próxima passada religa.
 - **Névoa**: a chama e as fagulhas ficam na mesma camada (ou máscara) dos móveis. Fogueira escondida pela névoa esconde a chama junto.
 - **Testes sugeridos** (sem tela): `poseDaChama(t)` igual a `poseDaChama(t + 2400)` em escala, alpha e alpha das fagulhas (a posição de fagulha apagada pode diferir por arredondamento no instante em que ela morre: compare `alpha·y`, não `y`); faixas de escala e alpha; `reduzir` devolve a pose fixa; sempre 3 fagulhas; fogueiras com ids diferentes têm fases diferentes; glifos de cada tipo e vista com tamanho não desenhável devolvem `[]`.

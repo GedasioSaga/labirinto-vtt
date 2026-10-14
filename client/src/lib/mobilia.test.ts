@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aceitaVista,
+  chamaDaFogueira,
   comAparenciaDoMovel,
   contornoDeLado,
   criarMovel,
@@ -34,9 +35,9 @@ import type { Prop, TipoMobilia } from '../types/map'
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha e aparador, nessa ordem, com o nome que a setinha mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador'])
-    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador'])
+  it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha, aparador e fogueira, nessa ordem, com o nome que a setinha mostra', () => {
+    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira'])
+    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira'])
   })
 
   it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
@@ -46,7 +47,7 @@ describe('catálogo da mobília', () => {
   })
 
   it('reconhece só os tipos do catálogo', () => {
-    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador']) expect(ehTipoMobilia(tipo)).toBe(true)
+    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira']) expect(ehTipoMobilia(tipo)).toBe(true)
     expect(ehTipoMobilia('dragão')).toBe(false)
     expect(ehTipoMobilia(undefined)).toBe(false)
     expect(ehTipoMobilia(3)).toBe(false)
@@ -83,8 +84,10 @@ describe('criarMovel — o móvel que a ferramenta Objetos põe', () => {
 })
 
 describe('silhueta redonda', () => {
-  it('só o barril é redondo', () => {
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril'])
+  it('só o barril e a fogueira (de cima) são redondos', () => {
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira'])
+    expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
+    expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)
   })
 
@@ -433,9 +436,9 @@ function contornoDe(tipo: TipoMobilia, largura: number, altura: number): { x: nu
 }
 
 describe('vista do móvel — frente ou lado, só nos tipos com vista', () => {
-  it('só cadeira, baú, armário de cozinha e aparador aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
-    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador'])
-    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador'])
+  it('só cadeira, baú, armário de cozinha, aparador e fogueira aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
+    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador', 'fogueira'])
+    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira'])
     expect(aceitaVista(undefined)).toBe(false)
     expect(VISTAS_MOBILIA.map((vista) => ROTULO_VISTA[vista])).toEqual(['Frente', 'Lado'])
   })
@@ -674,5 +677,78 @@ describe('armário de cozinha e aparador — encostados na parede, com vista de 
     expect(tracosDoGlifo(futuro, 40, 40)).toEqual([])
     expect(tracosDoGlifo(futuro, 40, 40, 'lado')).toEqual([])
     expect(contornoDeLado(futuro, 40, 40)).toBeNull()
+  })
+})
+
+describe('fogueira — roda de pedras, lenha em X e a chama', () => {
+  it('está no catálogo depois do aparador, redonda de cima, com vista de lado', () => {
+    expect(TIPOS_MOBILIA[TIPOS_MOBILIA.length - 1]).toBe('fogueira')
+    expect(ROTULO_MOBILIA.fogueira).toBe('Fogueira')
+    expect(NOME_COM_ARTIGO.fogueira).toBe('uma fogueira')
+    expect(aceitaVista('fogueira')).toBe(true)
+    expect(ehMovelVazado('fogueira')).toBe(false)
+  })
+
+  it('tamanho padrão: 1 × 1 casa de cima e 1 × 1,25 de lado (a chama cabe dentro)', () => {
+    const fogueira = criarMovel('fogueira', { x: 0, y: 0 }, GRADE, 'f')
+    expect({ width: fogueira.width, height: fogueira.height }).toEqual({ width: GRADE, height: GRADE })
+    const deLado = movelComOutraVista(fogueira, 'lado', GRADE)
+    expect({ width: deLado.width, height: deLado.height }).toEqual({ width: GRADE, height: 1.25 * GRADE })
+  })
+
+  it('de cima: a borda de dentro da roda, 8 juntas até a silhueta e duas toras cruzando no centro', () => {
+    const tracos = tracosDoGlifo('fogueira', 40, 40)
+    // 24 lados da roda + 8 juntas + 2 toras de 4 traços.
+    expect(tracos).toHaveLength(40)
+    const roda = tracos.slice(0, 24)
+    for (const t of roda) expect(Math.hypot(t.x1, t.y1)).toBeCloseTo(14, 9)
+    const juntas = tracos.slice(24, 32)
+    for (const j of juntas) {
+      expect(Math.hypot(j.x1, j.y1)).toBeCloseTo(14, 9)
+      expect(Math.hypot(j.x2, j.y2)).toBeCloseTo(20, 9)
+      // A meio caminho entre os eixos: nenhuma junta em cima do eixo da tela.
+      expect(Math.abs(j.x2)).toBeGreaterThan(1)
+      expect(Math.abs(j.y2)).toBeGreaterThan(1)
+    }
+    const lenha = tracos.slice(32)
+    expect(lenha).toHaveLength(8)
+    // Cada tora é simétrica em volta do centro: a soma dos 4 cantos dá zero.
+    for (const tora of [lenha.slice(0, 4), lenha.slice(4)]) {
+      expect(tora.reduce((soma, t) => soma + t.x1, 0)).toBeCloseTo(0, 9)
+      expect(tora.reduce((soma, t) => soma + t.y1, 0)).toBeCloseTo(0, 9)
+    }
+  })
+
+  it('de lado: só as pedras (4 domos sobre a faixa baixa) e a lenha em X acima delas', () => {
+    const contorno = contornoDe('fogueira', 40, 50)
+    expect(contorno).toHaveLength(2 + 4 * 8 + 1)
+    expect(contorno[0]).toEqual({ x: -20, y: 25 })
+    expect(contorno[contorno.length - 1]).toEqual({ x: 20, y: 25 })
+    // Nada do contorno sobe acima do pico mais alto das pedras (0,79 da altura): o resto fica sem fundo.
+    for (const p of contorno) {
+      expect(p.y).toBeGreaterThanOrEqual((0.79 - 0.5) * 50 - 1e-9)
+      expect(Math.abs(p.x)).toBeLessThanOrEqual(20 + 1e-9)
+    }
+    expect(tracosDoGlifo('fogueira', 40, 50, 'lado')).toHaveLength(8)
+  })
+
+  it('a chama de cima nasce um pouco abaixo do centro, com 0,4 do lado menor de altura', () => {
+    expect(chamaDaFogueira(40, 60)).toEqual({ ancora: { x: 0, y: 0 }, desvio: 0.18 * 40, altura: 0.4 * 40 })
+  })
+
+  it('a chama de lado nasce sobre o X da lenha e a fagulha mais alta ainda cabe no objeto', () => {
+    const chama = chamaDaFogueira(40, 50, 'lado')
+    if (chama === null) throw new Error('fogueira de lado devia ter chama')
+    expect(chama.ancora.x).toBe(0)
+    expect(chama.ancora.y).toBeCloseTo((0.68 - 0.5) * 50, 9)
+    expect(chama.desvio).toBe(0)
+    expect(chama.altura).toBeCloseTo(0.464 * 50, 9)
+    // A fagulha sobe até 1,4 H acima da base.
+    expect(chama.ancora.y - 1.4 * chama.altura).toBeGreaterThanOrEqual(-25)
+  })
+
+  it('tamanho não desenhável não tem chama', () => {
+    expect(chamaDaFogueira(0, 40)).toBeNull()
+    expect(chamaDaFogueira(40, Number.NaN, 'lado')).toBeNull()
   })
 })

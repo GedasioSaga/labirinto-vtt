@@ -2273,7 +2273,15 @@ export function PixiCanvas({
         )
       }
 
-      const propsRenderer = createPropsRenderer()
+      // A chama das fogueiras anima no relógio do Pixi, só com fogueira no mapa
+      // e movimento normal; por quadro mudam só escala, posição e alpha.
+      const propsRenderer = createPropsRenderer({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.chamas = String(estado.chamas)
+          el.dataset.chamasAnimando = String(estado.animando)
+        },
+      })
       const textLabelsRenderer = createTextLabelsRenderer()
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
@@ -8377,6 +8385,8 @@ export function PixiCanvas({
         nomesDosLugares.destruir()
         // As nuvens também (e soltam as texturas delas, que são deste palco só).
         nuvens.destruir()
+        // E as chamas das fogueiras (com as formas compartilhadas delas).
+        propsRenderer.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)

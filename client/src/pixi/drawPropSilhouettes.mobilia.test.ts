@@ -369,3 +369,36 @@ describe('drawPropSilhouettes — armário de cozinha e aparador', () => {
     expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('aparador', 128, 58, 'lado').length)
   })
 })
+
+describe('drawPropSilhouettes — fogueira', () => {
+  it('de cima: silhueta redonda (como o barril) e a roda com a lenha por cima', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'fogueira', width: 40, height: 40 })], 1, 1)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(LADOS_DA_ELIPSE)
+    for (const p of pontos) expect(Math.hypot(p.x - 250, p.y - 200)).toBeCloseTo(20, 6)
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('fogueira', 40, 40).length)
+  })
+
+  it('de lado: o perfil das pedras toma o lugar da elipse', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'fogueira', mobiliaVista: 'lado', width: 64, height: 80 })], 1, 1)
+    const esperado = contornoDe('fogueira', 64, 80)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(esperado.length)
+    pontos.forEach((p, i) => expect(pertoDe(p, 250 + esperado[i].x, 200 + esperado[i].y), `ponto ${i}`).toBe(true))
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(8)
+  })
+
+  it('a chama não entra no desenho do móvel: só fundo, contorno e glifo, na cor do móvel', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'fogueira', width: 40, height: 40, mobiliaCorDaLinha: '#336699' })], 1, 1)
+    expect(fills(g)).toHaveLength(1)
+    const tracos = strokes(g)
+    expect(tracos).toHaveLength(2)
+    for (const traco of tracos) {
+      if (traco.action !== 'stroke') throw new Error('esperava stroke')
+      expect(traco.data.style.color).toBe(0x336699)
+    }
+  })
+})

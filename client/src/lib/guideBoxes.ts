@@ -29,7 +29,7 @@ import { pieceBounds } from './floorSdf'
 import { canInteract } from './itemTransform'
 import { tokenBoundingBox } from './objectTransform'
 import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { ehMovelRedondo } from './mobilia'
+import { ehMovelRedondo, vistaDoMovel } from './mobilia'
 import { mapaDoPiso } from './pisos'
 import { subtreeIds } from './roomNesting'
 import { rotationTrig } from './roomRotation'
@@ -82,7 +82,7 @@ export function guideBoxOfProp(prop: Prop): AreaBounds {
   const { sin, cos } = rotationTrig(prop.rotation ?? 0)
   const halfWidth = prop.width / 2
   const halfHeight = prop.height / 2
-  const round = ehMovelRedondo(prop.mobilia)
+  const round = ehMovelRedondo(prop.mobilia, vistaDoMovel(prop))
   const reachX = round ? Math.hypot(halfWidth * cos, halfHeight * sin) : Math.abs(halfWidth * cos) + Math.abs(halfHeight * sin)
   const reachY = round ? Math.hypot(halfWidth * sin, halfHeight * cos) : Math.abs(halfWidth * sin) + Math.abs(halfHeight * cos)
   return { minX: prop.x - reachX, minY: prop.y - reachY, maxX: prop.x + reachX, maxY: prop.y + reachY }

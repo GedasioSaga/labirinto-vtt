@@ -240,7 +240,8 @@ export function drawPropSilhouettes(
       drawn += 1
       continue
     }
-    const outline = ehMovelRedondo(prop.mobilia) ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
+    // A fogueira é redonda só de cima: de lado vale o perfil das pedras.
+    const outline = ehMovelRedondo(prop.mobilia, vistaDoMovel(prop)) ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
     graphics.poly(outline, true)
     if (style.fill !== null) graphics.fill(style.fill)
     graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })

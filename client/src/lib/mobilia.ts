@@ -3,17 +3,20 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
- * de cozinha e aparador como objetos sem imagem, desenhados no estilo do minimapa: a silhueta chapada de todo
+ * de cozinha, aparador e fogueira como objetos sem imagem, desenhados no estilo do minimapa: a silhueta chapada de todo
  * objeto (`pixi/drawPropSilhouettes.ts`) e, por cima, poucos traços finos que
  * dizem o que o móvel é. Nada de imagem, sombra, hachura ou gradiente.
  *
  * Aqui mora só o que não depende de Pixi: o catálogo, o móvel que a ferramenta
  * Objetos põe no mapa e a geometria do glifo (testados sem tela).
  *
- * Cadeira, baú, armário de cozinha e aparador têm também a VISTA de lado
- * (`TIPOS_COM_VISTA`): a silhueta vira o perfil do móvel (a cadeira em L, o baú
- * com a tampa em arco, a frente do armário e a do aparador) numa pegada
- * própria. De frente é o desenho de sempre.
+ * Cadeira, baú, armário de cozinha, aparador e fogueira têm também a VISTA de
+ * lado (`TIPOS_COM_VISTA`): a silhueta vira o perfil do móvel (a cadeira em L,
+ * o baú com a tampa em arco, a frente do armário e a do aparador, as pedras da
+ * fogueira) numa pegada própria. De frente é o desenho de sempre.
+ *
+ * A fogueira é o único móvel com parte ANIMADA: a chama, numa camada à parte
+ * (`pixi/chamasDasFogueiras.ts`), que nasce de `chamaDaFogueira`.
  *
  * A cama guarda o id antigo `catre`: mapas salvos com o catre abrem com a cama.
  *
@@ -26,7 +29,7 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
  */
 
 /** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
-export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador']
+export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira']
 
 /** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
@@ -40,6 +43,7 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   // Nome inteiro, como o mestre chama: "Armário" sozinho não diz que é o da cozinha.
   armario: 'Armário de cozinha',
   aparador: 'Aparador',
+  fogueira: 'Fogueira',
 }
 
 /** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
@@ -53,6 +57,7 @@ export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   cerca: 'uma cerca',
   armario: 'um armário de cozinha',
   aparador: 'um aparador',
+  fogueira: 'uma fogueira',
 }
 
 /** Espessura padrão da cerca, em casas: é a régua dos mourões (`tracosDaCerca`). */
@@ -78,6 +83,7 @@ const TAMANHO_EM_CASAS: Readonly<Record<TipoMobilia, { largura: number; altura: 
   cerca: { largura: 2, altura: ESPESSURA_DA_CERCA_EM_CASAS },
   armario: { largura: 1, altura: 0.5 },
   aparador: { largura: 2, altura: 0.5 },
+  fogueira: { largura: 1, altura: 1 },
 }
 
 export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
@@ -85,7 +91,7 @@ export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
 }
 
 /** Móvel que tem vista de lado. */
-export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador'>
+export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador' | 'fogueira'>
 
 /**
  * Tipos com "Vista" (Frente | Lado). Lista, não `if` espalhado: outro móvel
@@ -93,7 +99,7 @@ export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 
  * (`TAMANHO_DE_LADO_EM_CASAS`) e o desenho de lado (`contornoDeLado` e
  * `tracosDeLado`) — o compilador cobra os três.
  */
-export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador']
+export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira']
 
 /** O tipo tem vista de lado. Tipo ausente (objeto comum) não tem. */
 export function aceitaVista(tipo: TipoMobilia | undefined): tipo is TipoComVista {
@@ -122,6 +128,8 @@ const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<TipoComVista, { largura: number;
   cadeira: { largura: 0.5, altura: 0.75 },
   armario: { largura: 1, altura: 1.5 },
   aparador: { largura: 2, altura: 0.9 },
+  // Mais alta que larga: a chama e as fagulhas cabem dentro do objeto.
+  fogueira: { largura: 1, altura: 1.25 },
 }
 
 /** Tamanho padrão do tipo na vista, em px de mundo. Vista de lado num tipo sem vista vale como frente. */
@@ -145,9 +153,13 @@ export function vistaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaVista'>): Vist
   return normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista) ?? 'frente'
 }
 
-/** Móvel de silhueta redonda (a elipse dentro do retângulo), visto de cima. */
-export function ehMovelRedondo(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'barril'
+/**
+ * Móvel de silhueta redonda (a elipse dentro do retângulo), visto de cima: o
+ * barril e a fogueira. De lado a fogueira é o perfil das pedras
+ * (`contornoDeLado`), não a elipse.
+ */
+export function ehMovelRedondo(tipo: TipoMobilia | undefined, vista: VistaMobilia = 'frente'): boolean {
+  return tipo === 'barril' || (tipo === 'fogueira' && vista === 'frente')
 }
 
 /**
@@ -273,6 +285,39 @@ const APARADOR_DE_CIMA = { frente: 0.72 }
  * largura.
  */
 const APARADOR_DE_LADO = { baseDoTampo: 0.14, sobraDoTampo: 0.035, rodape: 0.88, topoDoPuxador: 0.38, baseDoPuxador: 0.6, xDoPuxador: 0.045 }
+
+/**
+ * Fogueira vista de cima, dentro da silhueta redonda: a borda de dentro da roda
+ * de pedras (elipse menor, em fração do objeto), as juntas entre as pedras
+ * (raios dela até a silhueta, a meio caminho entre os eixos) e a lenha em X
+ * (comprimento e grossura em fração do lado menor, ângulo em graus de cada tora).
+ */
+const FOGUEIRA_DE_CIMA = { roda: 0.7, juntas: 8, comprimentoDaLenha: 0.56, grossuraDaLenha: 0.08, anguloDaLenha: 35 }
+/** Lados da borda de dentro da roda: a mesma régua da tampa do barril. */
+const LADOS_DA_RODA = LADOS_DA_TAMPA
+/**
+ * Fogueira de lado: 4 pedras em domo, um pouco desiguais (`picos`, o alto de
+ * cada uma em fração da altura a partir de cima), sobre a faixa do `vale`; a
+ * lenha em X (pontas em `x` = ±`xDaLenha`·largura, de `deBaixo` a `deCima` na
+ * altura, grossura em fração da largura). O resto do retângulo fica sem fundo,
+ * como a cadeira em L: a chama sobe sobre o chão.
+ */
+const FOGUEIRA_DE_LADO = {
+  vale: 0.95,
+  picos: [0.81, 0.79, 0.82, 0.8],
+  ladosDaPedra: 8,
+  xDaLenha: 0.26,
+  lenhaDeBaixo: 0.79,
+  lenhaDeCima: 0.56,
+  grossuraDaLenha: 0.07,
+}
+/**
+ * A chama da fogueira (`chamaDaFogueira`): de cima, a base fica a `baseDeCima`
+ * do lado menor abaixo do centro e a altura em repouso é `alturaDeCima` do lado
+ * menor; de lado, a base fica na altura `baseDeLado` (a partir de cima), onde a
+ * lenha cruza, e a altura é `alturaDeLado` da altura do objeto.
+ */
+const CHAMA_DA_FOGUEIRA = { baseDeCima: 0.18, alturaDeCima: 0.4, baseDeLado: 0.68, alturaDeLado: 0.464 }
 
 /** Cerca: raio do mourão em fração da espessura — 0,45 de 1/4 de casa dá ~0,22 casa de diâmetro. */
 const RAIO_DO_MOURAO = 0.45
@@ -512,6 +557,107 @@ function contorno(pontos: readonly { x: number; y: number }[]): TracoDoGlifo[] {
   })
 }
 
+type Ponto = { x: number; y: number }
+
+/**
+ * Tora de `de` a `ate`, com `grossura`: o retângulo em volta do segmento, em 4
+ * traços. Segmento de tamanho zero não tem tora.
+ */
+function tora(de: Ponto, ate: Ponto, grossura: number): TracoDoGlifo[] {
+  const comprimento = Math.hypot(ate.x - de.x, ate.y - de.y)
+  if (comprimento === 0) return []
+  const nx = (-(ate.y - de.y) / comprimento) * (grossura / 2)
+  const ny = ((ate.x - de.x) / comprimento) * (grossura / 2)
+  return contorno([
+    { x: de.x + nx, y: de.y + ny },
+    { x: ate.x + nx, y: ate.y + ny },
+    { x: ate.x - nx, y: ate.y - ny },
+    { x: de.x - nx, y: de.y - ny },
+  ])
+}
+
+/** Tora centrada na origem, inclinada `graus` (positivo = horário na tela). */
+function toraCentrada(comprimento: number, grossura: number, graus: number): TracoDoGlifo[] {
+  const angulo = (graus * Math.PI) / 180
+  const meia = { x: (Math.cos(angulo) * comprimento) / 2, y: (Math.sin(angulo) * comprimento) / 2 }
+  return tora({ x: -meia.x, y: -meia.y }, meia, grossura)
+}
+
+/** Fogueira de cima: a borda de dentro da roda, as juntas entre as pedras e a lenha em X. */
+function tracosDaFogueira(largura: number, altura: number): TracoDoGlifo[] {
+  const { roda, juntas, comprimentoDaLenha, grossuraDaLenha, anguloDaLenha } = FOGUEIRA_DE_CIMA
+  const menorLado = Math.min(largura, altura)
+  const raios: TracoDoGlifo[] = []
+  for (let k = 0; k < juntas; k += 1) {
+    // A meio caminho entre os eixos: nenhuma junta cai em cima da lenha nem do eixo da tela.
+    const angulo = ((k + 0.5) * 2 * Math.PI) / juntas
+    const cos = Math.cos(angulo)
+    const sin = Math.sin(angulo)
+    raios.push({ x1: (roda / 2) * largura * cos, y1: (roda / 2) * altura * sin, x2: (largura / 2) * cos, y2: (altura / 2) * sin })
+  }
+  return [
+    ...contorno(pontosDaElipse(largura * roda, altura * roda, LADOS_DA_RODA)),
+    ...raios,
+    ...toraCentrada(menorLado * comprimentoDaLenha, menorLado * grossuraDaLenha, anguloDaLenha),
+    ...toraCentrada(menorLado * comprimentoDaLenha, menorLado * grossuraDaLenha, -anguloDaLenha),
+  ]
+}
+
+/**
+ * Fogueira de lado: só as pedras, do chão (`altura/2`) ao `vale` e em domos
+ * meia elipse (um por quarto da largura, cada um com o pico dele).
+ */
+function contornoDaFogueiraDeLado(largura: number, altura: number): Ponto[] {
+  const { vale: fracaoDoVale, picos, ladosDaPedra } = FOGUEIRA_DE_LADO
+  const meiaLargura = largura / 2
+  const vale = naAltura(altura, fracaoDoVale)
+  const raio = largura / (2 * picos.length)
+  const pontos: Ponto[] = [
+    { x: -meiaLargura, y: altura / 2 },
+    { x: -meiaLargura, y: vale },
+  ]
+  picos.forEach((pico, i) => {
+    const centro = -meiaLargura + (2 * i + 1) * raio
+    const subida = vale - naAltura(altura, pico)
+    for (let j = 1; j <= ladosDaPedra; j += 1) {
+      const angulo = Math.PI + (Math.PI * j) / ladosDaPedra
+      pontos.push({ x: centro + raio * Math.cos(angulo), y: vale + subida * Math.sin(angulo) })
+    }
+  })
+  pontos.push({ x: meiaLargura, y: altura / 2 })
+  return pontos
+}
+
+/** Fogueira de lado: a lenha em X, cruzando logo abaixo da base da chama. */
+function tracosDaFogueiraDeLado(largura: number, altura: number): TracoDoGlifo[] {
+  const { xDaLenha, lenhaDeBaixo, lenhaDeCima, grossuraDaLenha } = FOGUEIRA_DE_LADO
+  const x = largura * xDaLenha
+  const baixo = naAltura(altura, lenhaDeBaixo)
+  const cima = naAltura(altura, lenhaDeCima)
+  return [...tora({ x: -x, y: baixo }, { x, y: cima }, largura * grossuraDaLenha), ...tora({ x, y: baixo }, { x: -x, y: cima }, largura * grossuraDaLenha)]
+}
+
+/**
+ * Onde a chama da fogueira nasce e o tamanho dela em repouso, no referencial do
+ * objeto (centro na origem, sem giro):
+ * - `ancora`: o ponto que GIRA com o objeto — de cima, o centro da roda (onde a
+ *   lenha cruza); de lado, a base da chama sobre o X da lenha;
+ * - `desvio`: quanto a base fica ABAIXO da âncora na TELA, sem girar — de cima,
+ *   a chama em pé se apoia um pouco abaixo do centro, para o corpo dela cair no
+ *   meio da roda em qualquer giro;
+ * - `altura`: a altura da chama em repouso (`H`).
+ * A chama fica sempre em pé na tela (ajuste do usuário na aprovação): o giro do
+ * objeto move a âncora, nunca vira a chama. Tamanho não desenhável não tem chama.
+ */
+export function chamaDaFogueira(largura: number, altura: number, vista: VistaMobilia = 'frente'): { ancora: Ponto; desvio: number; altura: number } | null {
+  if (!tamanhoDesenhavel(largura, altura)) return null
+  if (vista === 'lado') {
+    return { ancora: { x: 0, y: naAltura(altura, CHAMA_DA_FOGUEIRA.baseDeLado) }, desvio: 0, altura: altura * CHAMA_DA_FOGUEIRA.alturaDeLado }
+  }
+  const menorLado = Math.min(largura, altura)
+  return { ancora: { x: 0, y: 0 }, desvio: menorLado * CHAMA_DA_FOGUEIRA.baseDeCima, altura: menorLado * CHAMA_DA_FOGUEIRA.alturaDeCima }
+}
+
 /** Tamanho finito e positivo: o resto (zero, negativo, NaN de arquivo estragado) não tem o que desenhar. */
 function tamanhoDesenhavel(largura: number, altura: number): boolean {
   return Number.isFinite(largura) && Number.isFinite(altura) && largura > 0 && altura > 0
@@ -555,7 +701,9 @@ function corpoDoAparador(largura: number, altura: number): { meioCorpo: number; 
  * - baú: o corpo embaixo e a tampa em meio arco em cima, do canto de uma parede
  *   ao da outra, com o alto no meio do topo;
  * - armário de cozinha: o retângulo (a frente é reta; o desenho está no glifo);
- * - aparador: o tampo em cima, mais largo que o corpo, que desce até o chão.
+ * - aparador: o tampo em cima, mais largo que o corpo, que desce até o chão;
+ * - fogueira: só as pedras, quatro domos sobre uma faixa baixa; o resto do
+ *   retângulo fica sem fundo (a chama sobe sobre o chão).
  * Tipo sem vista ou tamanho não desenhável devolve `null` (vale o retângulo).
  */
 export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, altura: number): { x: number; y: number }[] | null {
@@ -563,6 +711,8 @@ export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, a
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'fogueira':
+      return contornoDaFogueiraDeLado(largura, altura)
     case 'armario':
       return [
         { x: -meiaLargura, y: -meiaAltura },
@@ -613,12 +763,14 @@ export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, a
 /**
  * O glifo de LADO: as duas pernas da cadeira; a costura entre a tampa e o corpo
  * do baú; a frente do armário de cozinha (`ARMARIO_DE_LADO`) e a do aparador
- * (`APARADOR_DE_LADO`).
+ * (`APARADOR_DE_LADO`); a lenha em X da fogueira (`FOGUEIRA_DE_LADO`).
  */
 function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): TracoDoGlifo[] {
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'fogueira':
+      return tracosDaFogueiraDeLado(largura, altura)
     case 'armario':
       return tracosDoArmarioDeLado(largura, altura)
     case 'aparador': {
@@ -689,7 +841,9 @@ function tracosDoArmarioDeLado(largura: number, altura: number): TracoDoGlifo[] 
  *   com `voltaDaCerca` (graus, `Prop.mobiliaCurva`), pelo arco;
  * - armário de cozinha: o degrau no meio (a frente do armário de cima) e dois
  *   puxadores curtos subindo da frente;
- * - aparador: a borda do tampo, baixa, e o encontro das portas descendo dela.
+ * - aparador: a borda do tampo, baixa, e o encontro das portas descendo dela;
+ * - fogueira: a roda de pedras (a borda de dentro e as juntas) e a lenha em X;
+ *   a chama é animada, numa camada à parte (`pixi/chamasDasFogueiras.ts`).
  * Na vista de lado (só nos tipos com vista), o glifo é o de lado
  * (`tracosDeLado`); nos outros tipos a vista não muda nada.
  * Tamanho não desenhável (zero, negativo, não finito) não tem traço, nem tipo
@@ -750,6 +904,8 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
       const frente = deLadoALado(largura, altura, APARADOR_DE_CIMA.frente)
       return [frente, { x1: 0, y1: frente.y1, x2: 0, y2: meiaAltura }]
     }
+    case 'fogueira':
+      return tracosDaFogueira(largura, altura)
     default:
       return []
   }

@@ -401,6 +401,16 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2 13.3h20M12 13.3V15" />
         </>
       )
+    case 'fogueira':
+      // A roda de pedras (as duas bordas e as juntas entre elas) e a lenha em X no meio.
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="6.3" />
+          <path d="M17.8 14.4l2.5 1.0M14.4 17.8l1.0 2.5M9.6 17.8l-1.0 2.5M6.2 14.4l-2.5 1.0M6.2 9.6l-2.5-1.0M9.6 6.2l-1.0-2.5M14.4 6.2l1.0-2.5M17.8 9.6l2.5-1.0" />
+          <path d="M8.3 9.4l7.4 5.2M8.3 14.6l7.4-5.2" />
+        </>
+      )
   }
 }
 

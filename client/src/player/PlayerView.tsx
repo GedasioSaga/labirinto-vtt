@@ -73,6 +73,7 @@ import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
+import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
@@ -1058,6 +1059,13 @@ interface Scene {
   lastPropsKey: string | null
   propsCount: number
   /**
+   * A CHAMA DAS FOGUEIRAS (`pixi/chamasDasFogueiras.ts`): uma camada logo acima
+   * das silhuetas, dos mesmos objetos que elas (já recortados pela visão). O
+   * relógio só roda com fogueira na vista e movimento normal.
+   */
+  chamas: ChamasDasFogueiras
+  chamasCamada: Container
+  /**
    * OBJETO COM RÓTULO OU IMAGEM (`pixi/drawPropLooks.ts`): a cópia pequena da
    * imagem fica logo acima da silhueta (e abaixo da parede, pela mesma razão
    * dela); o rótulo, junto dos nomes de sala, obedece a "Mostrar nomes".
@@ -2042,6 +2050,8 @@ function PlayerViewDoCanvas({
     // por baixo faria a poção virar um caixote escuro.
     const silhuetas = props.filter((p) => p.item?.imagem === undefined)
     scene.propsCount = drawPropSilhouettes(scene.props, silhuetas, scale, res)
+    // Fogueira que sai da visão (ou da camada visível) leva a chama junto.
+    sincronizarChamas(scene.chamas, scene.chamasCamada, silhuetas, { cameraScale: scale })
     scene.propLooksCount = scene.propLooksRenderer.draw(scene.propImages, scene.propLabels, props, currentMap.grid, scale, latestRef.current.imagemDaMesa)
   }
 
@@ -2769,6 +2779,9 @@ function PlayerViewDoCanvas({
       // Caminho (fora do botão Desenho): por cima da sala inteira, como sempre.
       const paths = new Graphics()
       const props = new Graphics()
+      const chamasCamada = new Container()
+      chamasCamada.label = 'chamas'
+      chamasCamada.eventMode = 'none'
       const propImages = new Container()
       const propLabels = new Container()
       const stairs = new Graphics()
@@ -2898,6 +2911,8 @@ function PlayerViewDoCanvas({
         // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
         // o traço do cômodo onde o móvel encosta (cama, armário, estante).
         props,
+        // A chama das fogueiras logo acima da silhueta delas, ainda sob parede e névoa.
+        chamasCamada,
         propImages,
         stairs,
         walls,
@@ -3002,6 +3017,14 @@ function PlayerViewDoCanvas({
         props,
         lastPropsKey: null,
         propsCount: 0,
+        chamas: createChamasDasFogueiras({
+          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+          aoMudar: (estado) => {
+            el.dataset.chamas = String(estado.chamas)
+            el.dataset.chamasAnimando = String(estado.animando)
+          },
+        }),
+        chamasCamada,
         propImages,
         propLabels,
         propLooksRenderer: createPropLooksRenderer(),
@@ -3740,6 +3763,7 @@ function PlayerViewDoCanvas({
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
         scene.nuvens.destruir()
+        scene.chamas.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
