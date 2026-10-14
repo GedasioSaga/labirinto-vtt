@@ -86,6 +86,44 @@ function fracao(valor: number): number {
   return valor - Math.floor(valor)
 }
 
+/** Pose que o relógio reescreve a cada quadro: com dezenas de fogueiras, nada novo para o coletor de lixo. */
+interface PoseReescrita {
+  escalaX: number
+  escalaY: number
+  alpha: number
+  fagulhas: { x: number; y: number; alpha: number }[]
+}
+
+function novaPose(): PoseReescrita {
+  return { escalaX: 1, escalaY: 1, alpha: ALPHA_DO_MIOLO_PARADO, fagulhas: FAGULHAS.map((fagulha) => ({ x: fagulha.x0, y: -NASCER_DA_FAGULHA, alpha: 0 })) }
+}
+
+/** Escreve em `destino` a pose da chama em movimento (ver `poseDaChama`) e devolve o próprio `destino`. */
+function escreverPose(tempoMs: number, fase: number, destino: PoseReescrita): PoseReescrita {
+  const volta = 2 * Math.PI
+  const u = fracao(tempoMs / CICLO_DA_CHAMA_MS + fase)
+  destino.escalaY = 1 + 0.07 * Math.sin(volta * 2 * u) + 0.035 * Math.sin(volta * 5 * u + 1.3) + 0.015 * Math.sin(volta * 9 * u + 0.4)
+  destino.escalaX = 1 - 0.4 * (destino.escalaY - 1) + 0.02 * Math.sin(volta * 3 * u + 2.1)
+  destino.alpha = Math.min(1, 0.86 + 0.1 * Math.sin(volta * 4 * u + 0.9) + 0.04 * Math.sin(volta * 7 * u + 2.6))
+  for (let i = 0; i < FAGULHAS.length; i += 1) {
+    const fagulha = FAGULHAS[i]
+    const saida = destino.fagulhas[i]
+    const p = fracao(u - fagulha.inicio) / VIDA_DA_FAGULHA
+    if (p >= 1) {
+      saida.x = fagulha.x0
+      saida.y = -NASCER_DA_FAGULHA
+      saida.alpha = 0
+      continue
+    }
+    // Sai rápido e desacelera.
+    const subida = 1 - (1 - p) * (1 - p)
+    saida.x = fagulha.x0 + fagulha.deriva * p + BALANCO_DA_FAGULHA * Math.sin(volta * ONDAS_DA_FAGULHA * p + fagulha.onda)
+    saida.y = -(NASCER_DA_FAGULHA + SUBIDA_DA_FAGULHA * subida)
+    saida.alpha = Math.min(1, p / ACENDER_DA_FAGULHA) * Math.pow(1 - p, APAGAR_DA_FAGULHA)
+  }
+  return destino
+}
+
 /**
  * A pose da chama no instante `tempoMs`, na fase `fase` ([0, 1), a da
  * fogueira). Função pura, o mesmo código do protótipo: o pulso principal é de
@@ -94,23 +132,7 @@ function fracao(valor: number): number {
  */
 export function poseDaChama(tempoMs: number, fase: number, reduzir: boolean): PoseDaChama {
   if (reduzir) return POSE_FIXA
-  const volta = 2 * Math.PI
-  const u = fracao(tempoMs / CICLO_DA_CHAMA_MS + fase)
-  const escalaY = 1 + 0.07 * Math.sin(volta * 2 * u) + 0.035 * Math.sin(volta * 5 * u + 1.3) + 0.015 * Math.sin(volta * 9 * u + 0.4)
-  const escalaX = 1 - 0.4 * (escalaY - 1) + 0.02 * Math.sin(volta * 3 * u + 2.1)
-  const alpha = Math.min(1, 0.86 + 0.1 * Math.sin(volta * 4 * u + 0.9) + 0.04 * Math.sin(volta * 7 * u + 2.6))
-  const fagulhas = FAGULHAS.map((fagulha): PoseDaFagulha => {
-    const p = fracao(u - fagulha.inicio) / VIDA_DA_FAGULHA
-    if (p >= 1) return fagulhaApagada(fagulha)
-    // Sai rápido e desacelera.
-    const subida = 1 - (1 - p) * (1 - p)
-    return {
-      x: fagulha.x0 + fagulha.deriva * p + BALANCO_DA_FAGULHA * Math.sin(volta * ONDAS_DA_FAGULHA * p + fagulha.onda),
-      y: -(NASCER_DA_FAGULHA + SUBIDA_DA_FAGULHA * subida),
-      alpha: Math.min(1, p / ACENDER_DA_FAGULHA) * Math.pow(1 - p, APAGAR_DA_FAGULHA),
-    }
-  })
-  return { escalaX, escalaY, alpha, fagulhas }
+  return escreverPose(tempoMs, fase, novaPose())
 }
 
 /**
@@ -241,6 +263,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   const { movimento, aoMudar } = opcoes
   const agora = movimento?.agora ?? (() => performance.now())
   const chamas = new Map<string, ChamaNoPalco>()
+  // Uma pose só para o quadro inteiro: `aplicar` lê na hora, antes da próxima fogueira reescrever.
+  const poseDoQuadro = novaPose()
   let contextos: { borda: GraphicsContext; miolo: GraphicsContext; fagulha: GraphicsContext } | null = null
   let noRelogio = false
   let parada = movimento === undefined || movimento.reducedMotion()
@@ -290,11 +314,12 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     chama.borda.scale.set(k * pose.escalaX, k * pose.escalaY)
     chama.miolo.scale.set(k * pose.escalaX, k * pose.escalaY)
     chama.miolo.alpha = pose.alpha
-    pose.fagulhas.forEach((fagulha, i) => {
+    for (let i = 0; i < pose.fagulhas.length; i += 1) {
+      const fagulha = pose.fagulhas[i]
       const desenho = chama.fagulhas[i]
       desenho.position.set(fagulha.x * chama.altura, fagulha.y * chama.altura)
       desenho.alpha = fagulha.alpha
-    })
+    }
   }
 
   function remover(id: string): void {
@@ -340,7 +365,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
         chamas.delete(id)
         continue
       }
-      aplicar(chama, poseDaChama(t, chama.fase, false))
+      aplicar(chama, escreverPose(t, chama.fase, poseDoQuadro))
     }
     if (chamas.size === 0) {
       sairDoRelogio()
