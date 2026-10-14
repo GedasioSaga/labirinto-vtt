@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Girassóis</title>
+<style>
+:root { color-scheme: dark; --bg: #16151b; --painel: #1f1d25; --borda: #34313d; --ink: #ece6da; --ink-2: #b4ad9f; --sel: #e2a64a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1400px; margin: 0 auto; display: grid; gap: 36px; }
+h1 { margin: 0; font-size: 28px; font-weight: 600; }
+h2 { margin: 0 0 4px; font-size: 19px; font-weight: 600; }
+p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+section { display: grid; gap: 12px; }
+.lado { display: flex; flex-wrap: wrap; gap: 32px; align-items: start; }
+.objeto { background: var(--painel); border: 1px solid var(--borda); border-radius: 10px; padding: 12px 12px 14px; width: 300px; }
+.objeto .titulo { font-size: 12px; letter-spacing: 0.14em; color: var(--ink-2); margin: 0 0 10px 2px; }
+#painel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+.tile { margin: 0; display: grid; justify-items: center; gap: 4px; padding: 4px; border-radius: 8px; border: 1px solid transparent; }
+.tile canvas { border-radius: 6px; display: block; }
+.tile figcaption { font-size: 13px; color: var(--ink); }
+.tile.novo { border-color: var(--sel); background: #2a2419; }
+.tile.novo figcaption { color: var(--sel); }
+.zooms { display: grid; gap: 14px; }
+.zooms figure, .fileira figure { margin: 0; display: grid; gap: 4px; }
+figcaption { font-size: 13px; color: var(--ink-2); }
+.rolar { overflow-x: auto; }
+canvas { display: block; }
+.fileira { display: flex; flex-wrap: wrap; gap: 12px; }
+.fileira canvas { border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Girassóis</h1>
+    <p>Dois carimbos novos para o painel Objeto: o Girassol (um só) e os Girassóis (um tufo de três) com as cabeças viradas para a luz do mapa (de cima à esquerda). Desenhado com o mesmo código do app: mesma sombra, mesma miniatura do painel, cores dentro da régua de "não estourar".</p>
+  </header>
+  <section>
+    <h2>No painel</h2>
+    <div class="lado">
+      <div class="objeto"><div class="titulo">OBJETO</div><div id="painel"></div></div>
+      <p>Girassol e Girassóis entram como 9º e 10º itens, depois dos Juncos (destacados aqui só para achar).</p>
+    </div>
+  </section>
+  <section>
+    <h2>No mapa, em três zooms</h2>
+    <p>Metade no chão verde, metade na terra clara. Ao lado: árvore, arbusto, juncos e pinheiro para comparar o tamanho. Cada girassol usa um dos 8 desenhos.</p>
+    <div class="zooms">
+      <figure><div class="rolar"><canvas id="mapa-2"></canvas></div><figcaption>longe</figcaption></figure>
+      <figure><div class="rolar"><canvas id="mapa-35"></canvas></div><figcaption>médio</figcaption></figure>
+      <figure><div class="rolar"><canvas id="mapa-6"></canvas></div><figcaption>perto</figcaption></figure>
+    </div>
+  </section>
+  <section>
+    <h2>Girassol (um só): os 8 desenhos</h2>
+    <p>Muda a inclinação da haste, a altura e o giro das pétalas.</p>
+    <div id="oito-um" class="fileira"></div>
+  </section>
+  <section>
+    <h2>Girassóis (o tufo): os 8 desenhos</h2>
+    <p>No mapa, cada tufo sai de um destes, para a roça não parecer clonada: muda quem é o mais alto, a inclinação das hastes e o giro das pétalas.</p>
+    <div id="oito" class="fileira"></div>
+  </section>
+</main>
+<script>/*BUNDLE*/</script>
+</body>
+</html>
