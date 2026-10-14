@@ -1549,7 +1549,7 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  o fio claro translúcido de sempre; presente = a cor, opaca, mesma espessura. */
   mobiliaCorDaLinha?: string
   /** "Vista" do móvel: `'lado'` desenha o perfil (a cadeira em L, o baú com a
-   *  tampa em arco) na pegada de lado. Ausente = de frente, o desenho de sempre
+   *  tampa em arco, a frente do armário de cozinha e a do aparador) na pegada de lado. Ausente = de frente, o desenho de sempre
    *  — sem linha de migração; só o `'lado'` é gravado. Vale só nos tipos com
    *  vista (`TIPOS_COM_VISTA` em `lib/mobilia.ts`): em outro tipo some na leitura
    *  e na travessia, e o desenho ignora. Vai ao jogador junto do tipo. */
@@ -1584,7 +1584,7 @@ export interface Prop extends PlayerSecret, NoPiso {
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
-export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca'
+export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca' | 'armario' | 'aparador'
 
 /** Vista de um móvel com vista (`lib/mobilia.ts`): de frente (o padrão) ou de lado. */
 export type VistaMobilia = 'frente' | 'lado'

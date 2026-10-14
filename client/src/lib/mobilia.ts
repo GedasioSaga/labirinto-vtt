@@ -2,16 +2,17 @@ import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 
 /**
- * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira e cerca como objetos
- * sem imagem, desenhados no estilo do minimapa: a silhueta chapada de todo
+ * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
+ * de cozinha e aparador como objetos sem imagem, desenhados no estilo do minimapa: a silhueta chapada de todo
  * objeto (`pixi/drawPropSilhouettes.ts`) e, por cima, poucos traços finos que
  * dizem o que o móvel é. Nada de imagem, sombra, hachura ou gradiente.
  *
  * Aqui mora só o que não depende de Pixi: o catálogo, o móvel que a ferramenta
  * Objetos põe no mapa e a geometria do glifo (testados sem tela).
  *
- * Cadeira e baú têm também a VISTA de lado (`TIPOS_COM_VISTA`): a silhueta vira
- * o perfil do móvel (a cadeira em L, o baú com a tampa em arco) numa pegada
+ * Cadeira, baú, armário de cozinha e aparador têm também a VISTA de lado
+ * (`TIPOS_COM_VISTA`): a silhueta vira o perfil do móvel (a cadeira em L, o baú
+ * com a tampa em arco, a frente do armário e a do aparador) numa pegada
  * própria. De frente é o desenho de sempre.
  *
  * A cama guarda o id antigo `catre`: mapas salvos com o catre abrem com a cama.
@@ -25,7 +26,7 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
  */
 
 /** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
-export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca']
+export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador']
 
 /** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
@@ -36,6 +37,9 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   mesa: 'Mesa',
   cadeira: 'Cadeira',
   cerca: 'Cerca',
+  // Nome inteiro, como o mestre chama: "Armário" sozinho não diz que é o da cozinha.
+  armario: 'Armário de cozinha',
+  aparador: 'Aparador',
 }
 
 /** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
@@ -47,6 +51,8 @@ export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   mesa: 'uma mesa',
   cadeira: 'uma cadeira',
   cerca: 'uma cerca',
+  armario: 'um armário de cozinha',
+  aparador: 'um aparador',
 }
 
 /** Espessura padrão da cerca, em casas: é a régua dos mourões (`tracosDaCerca`). */
@@ -56,7 +62,9 @@ const ESPESSURA_DA_CERCA_EM_CASAS = 0.25
  * Tamanho padrão em CASAS da grade (largura x altura, sem giro). A cama é em
  * pé (uma pessoa deitada ocupa duas casas), a mesa deitada, o baú mais baixo
  * que uma casa; barril, caixa e cadeira cabem numa casa com folga; a cerca é
- * um trecho de 2 casas, fino como um mourão visto de cima. O mestre
+ * um trecho de 2 casas, fino como um mourão visto de cima; armário de cozinha
+ * e aparador são rasos (meia casa de fundo, encostados na parede), o aparador
+ * com o dobro da frente. O mestre
  * ajusta depois pelos controles de sempre do objeto. É o tamanho de FRENTE; o
  * de lado está em `TAMANHO_DE_LADO_EM_CASAS`.
  */
@@ -68,6 +76,8 @@ const TAMANHO_EM_CASAS: Readonly<Record<TipoMobilia, { largura: number; altura: 
   mesa: { largura: 2, altura: 1 },
   cadeira: { largura: 0.5, altura: 0.5 },
   cerca: { largura: 2, altura: ESPESSURA_DA_CERCA_EM_CASAS },
+  armario: { largura: 1, altura: 0.5 },
+  aparador: { largura: 2, altura: 0.5 },
 }
 
 export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
@@ -75,7 +85,7 @@ export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
 }
 
 /** Móvel que tem vista de lado. */
-export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau'>
+export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador'>
 
 /**
  * Tipos com "Vista" (Frente | Lado). Lista, não `if` espalhado: outro móvel
@@ -83,7 +93,7 @@ export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau'>
  * (`TAMANHO_DE_LADO_EM_CASAS`) e o desenho de lado (`contornoDeLado` e
  * `tracosDeLado`) — o compilador cobra os três.
  */
-export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau']
+export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador']
 
 /** O tipo tem vista de lado. Tipo ausente (objeto comum) não tem. */
 export function aceitaVista(tipo: TipoMobilia | undefined): tipo is TipoComVista {
@@ -103,11 +113,15 @@ export const ROTULO_VISTA: Readonly<Record<VistaMobilia, string>> = {
  * Pegada de LADO em casas (largura x altura, sem giro). O baú de lado é mais
  * estreito que de frente (a profundidade da caixa é menor que o comprimento),
  * com a mesma altura; a cadeira de lado é mais alta que larga, porque o encosto
- * sobe acima do assento.
+ * sobe acima do assento. Armário de cozinha e aparador de lado mostram a FRENTE
+ * do móvel em pé: a mesma largura de cima e a altura do móvel (o armário, com o
+ * de cima, vai a uma casa e meia).
  */
 const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<TipoComVista, { largura: number; altura: number }>> = {
   bau: { largura: 0.6, altura: 0.6 },
   cadeira: { largura: 0.5, altura: 0.75 },
+  armario: { largura: 1, altura: 1.5 },
+  aparador: { largura: 2, altura: 0.9 },
 }
 
 /** Tamanho padrão do tipo na vista, em px de mundo. Vista de lado num tipo sem vista vale como frente. */
@@ -219,6 +233,46 @@ const ESPESSURA_DO_ASSENTO = 0.14
 const ALTURA_DA_TAMPA_DE_LADO = 0.4
 /** Baú de lado: lados do meio arco da tampa — redondo a olho, poucos pontos. */
 const LADOS_DO_ARCO = 16
+
+/**
+ * Armário de cozinha visto de cima: o DEGRAU (a frente do armário de cima, mais
+ * raso que a base, como num guarda-louça) e os dois puxadores da porta de
+ * baixo, riscos curtos que sobem da frente sem tocar o degrau. Alturas em
+ * fração a partir de cima (a parede); `x` em fração da largura.
+ */
+const ARMARIO_DE_CIMA = { degrau: 0.45, pontaDoPuxador: 0.82, xDoPuxador: 0.25 }
+/**
+ * Armário de cozinha de lado — a frente em pé: em cima a portinha do armário de
+ * cima, o nicho aberto (prateleira sem porta), a bancada, duas gavetas com um
+ * puxador cada e o rodapé. Alturas em fração a partir de cima; `x` em fração da
+ * largura (meia portinha, lateral do nicho, meio puxador).
+ */
+const ARMARIO_DE_LADO = {
+  topoDaPortinha: 0.06,
+  baseDaPortinha: 0.25,
+  xDaPortinha: 0.34,
+  fimDoArmarioDeCima: 0.3,
+  xDoNicho: 0.42,
+  bancada: 0.56,
+  puxadorDeCima: 0.655,
+  divisaoDasGavetas: 0.75,
+  puxadorDeBaixo: 0.845,
+  xDoPuxador: 0.08,
+  rodape: 0.94,
+}
+/**
+ * Aparador visto de cima: a borda do tampo sobre as portas, baixa (perto da
+ * frente), e o encontro das duas portas descendo dela até a frente — um T
+ * invertido, como o fecho do baú projetado na frente.
+ */
+const APARADOR_DE_CIMA = { frente: 0.72 }
+/**
+ * Aparador de lado — a frente em pé: o tampo sobra dos dois lados do corpo, as
+ * duas portas se encontram no meio (um puxador de cada lado do encontro) e o
+ * rodapé fecha embaixo. Alturas em fração a partir de cima; `x` em fração da
+ * largura.
+ */
+const APARADOR_DE_LADO = { baseDoTampo: 0.14, sobraDoTampo: 0.035, rodape: 0.88, topoDoPuxador: 0.38, baseDoPuxador: 0.6, xDoPuxador: 0.045 }
 
 /** Cerca: raio do mourão em fração da espessura — 0,45 de 1/4 de casa dá ~0,22 casa de diâmetro. */
 const RAIO_DO_MOURAO = 0.45
@@ -473,6 +527,25 @@ function costuraDoBau(altura: number): number {
   return -altura / 2 + altura * ALTURA_DA_TAMPA_DE_LADO
 }
 
+/** A linha na fração `fracao` da altura, contada de cima (a parede), com o centro na origem. */
+function naAltura(altura: number, fracao: number): number {
+  return (fracao - 0.5) * altura
+}
+
+/** Linha de lado a lado na fração `fracao` da altura. */
+function deLadoALado(largura: number, altura: number, fracao: number): TracoDoGlifo {
+  const y = naAltura(altura, fracao)
+  return { x1: -largura / 2, y1: y, x2: largura / 2, y2: y }
+}
+
+/** Aparador de lado: o meio do corpo (o tampo sobra dos lados) e onde o tampo acaba. */
+function corpoDoAparador(largura: number, altura: number): { meioCorpo: number; baseDoTampo: number } {
+  return {
+    meioCorpo: largura / 2 - largura * APARADOR_DE_LADO.sobraDoTampo,
+    baseDoTampo: naAltura(altura, APARADOR_DE_LADO.baseDoTampo),
+  }
+}
+
 /**
  * A silhueta de LADO (centro na origem, sem giro, sentido horário da tela), que
  * toma o lugar do retângulo:
@@ -480,7 +553,9 @@ function costuraDoBau(altura: number): number {
  *   assento atravessa a largura; as pernas ficam no glifo (`tracosDoGlifo`),
  *   descendo do assento até o chão;
  * - baú: o corpo embaixo e a tampa em meio arco em cima, do canto de uma parede
- *   ao da outra, com o alto no meio do topo.
+ *   ao da outra, com o alto no meio do topo;
+ * - armário de cozinha: o retângulo (a frente é reta; o desenho está no glifo);
+ * - aparador: o tampo em cima, mais largo que o corpo, que desce até o chão.
  * Tipo sem vista ou tamanho não desenhável devolve `null` (vale o retângulo).
  */
 export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, altura: number): { x: number; y: number }[] | null {
@@ -488,6 +563,26 @@ export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, a
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'armario':
+      return [
+        { x: -meiaLargura, y: -meiaAltura },
+        { x: meiaLargura, y: -meiaAltura },
+        { x: meiaLargura, y: meiaAltura },
+        { x: -meiaLargura, y: meiaAltura },
+      ]
+    case 'aparador': {
+      const { meioCorpo, baseDoTampo } = corpoDoAparador(largura, altura)
+      return [
+        { x: -meiaLargura, y: -meiaAltura },
+        { x: meiaLargura, y: -meiaAltura },
+        { x: meiaLargura, y: baseDoTampo },
+        { x: meioCorpo, y: baseDoTampo },
+        { x: meioCorpo, y: meiaAltura },
+        { x: -meioCorpo, y: meiaAltura },
+        { x: -meioCorpo, y: baseDoTampo },
+        { x: -meiaLargura, y: baseDoTampo },
+      ]
+    }
     case 'cadeira': {
       const fimDoEncosto = -meiaLargura + largura * ESPESSURA_DO_ENCOSTO
       const topoDoAssento = -meiaAltura + altura * TOPO_DO_ASSENTO
@@ -515,11 +610,30 @@ export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, a
   }
 }
 
-/** O glifo de LADO: as duas pernas da cadeira; a costura entre a tampa e o corpo do baú. */
+/**
+ * O glifo de LADO: as duas pernas da cadeira; a costura entre a tampa e o corpo
+ * do baú; a frente do armário de cozinha (`ARMARIO_DE_LADO`) e a do aparador
+ * (`APARADOR_DE_LADO`).
+ */
 function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): TracoDoGlifo[] {
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'armario':
+      return tracosDoArmarioDeLado(largura, altura)
+    case 'aparador': {
+      const { meioCorpo, baseDoTampo } = corpoDoAparador(largura, altura)
+      const rodape = naAltura(altura, APARADOR_DE_LADO.rodape)
+      const topoDoPuxador = naAltura(altura, APARADOR_DE_LADO.topoDoPuxador)
+      const baseDoPuxador = naAltura(altura, APARADOR_DE_LADO.baseDoPuxador)
+      const xDoPuxador = largura * APARADOR_DE_LADO.xDoPuxador
+      return [
+        { x1: 0, y1: baseDoTampo, x2: 0, y2: rodape },
+        { x1: -meioCorpo, y1: rodape, x2: meioCorpo, y2: rodape },
+        { x1: -xDoPuxador, y1: topoDoPuxador, x2: -xDoPuxador, y2: baseDoPuxador },
+        { x1: xDoPuxador, y1: topoDoPuxador, x2: xDoPuxador, y2: baseDoPuxador },
+      ]
+    }
     case 'cadeira': {
       const base = baseDoAssento(altura)
       // Cada perna no meio da grossura do encosto, recuada da ponta do assento.
@@ -536,6 +650,31 @@ function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): Trac
   }
 }
 
+/** Armário de cozinha de lado: 12 traços, de cima para baixo (`ARMARIO_DE_LADO`). */
+function tracosDoArmarioDeLado(largura: number, altura: number): TracoDoGlifo[] {
+  const a = ARMARIO_DE_LADO
+  const xDaPortinha = largura * a.xDaPortinha
+  const xDoNicho = largura * a.xDoNicho
+  const xDoPuxador = largura * a.xDoPuxador
+  const fimDoArmarioDeCima = naAltura(altura, a.fimDoArmarioDeCima)
+  const bancada = naAltura(altura, a.bancada)
+  const puxador = (fracao: number): TracoDoGlifo => {
+    const y = naAltura(altura, fracao)
+    return { x1: -xDoPuxador, y1: y, x2: xDoPuxador, y2: y }
+  }
+  return [
+    ...retangulo(-xDaPortinha, naAltura(altura, a.topoDaPortinha), xDaPortinha, naAltura(altura, a.baseDaPortinha)),
+    deLadoALado(largura, altura, a.fimDoArmarioDeCima),
+    { x1: -xDoNicho, y1: fimDoArmarioDeCima, x2: -xDoNicho, y2: bancada },
+    { x1: xDoNicho, y1: fimDoArmarioDeCima, x2: xDoNicho, y2: bancada },
+    deLadoALado(largura, altura, a.bancada),
+    deLadoALado(largura, altura, a.divisaoDasGavetas),
+    puxador(a.puxadorDeCima),
+    puxador(a.puxadorDeBaixo),
+    deLadoALado(largura, altura, a.rodape),
+  ]
+}
+
 /**
  * Os traços finos que dizem o que o móvel é, dentro do retângulo `largura` x
  * `altura` (centro na origem, "cima" = cabeceira/tampa/encosto antes do giro):
@@ -547,10 +686,15 @@ function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): Trac
  * - cadeira: o encosto, uma faixa em cima;
  * - cerca: mourões redondos a cada ~1 casa ligados por um fio
  *   (`tracosDaCerca`), que se repartem quando o mestre estica o trecho;
- *   com `voltaDaCerca` (graus, `Prop.mobiliaCurva`), pelo arco.
+ *   com `voltaDaCerca` (graus, `Prop.mobiliaCurva`), pelo arco;
+ * - armário de cozinha: o degrau no meio (a frente do armário de cima) e dois
+ *   puxadores curtos subindo da frente;
+ * - aparador: a borda do tampo, baixa, e o encontro das portas descendo dela.
  * Na vista de lado (só nos tipos com vista), o glifo é o de lado
  * (`tracosDeLado`); nos outros tipos a vista não muda nada.
- * Tamanho não desenhável (zero, negativo, não finito) não tem traço.
+ * Tamanho não desenhável (zero, negativo, não finito) não tem traço, nem tipo
+ * desconhecido (arquivo de uma versão futura que escapou da leitura): lista
+ * vazia em vez de derrubar o desenho.
  */
 export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number, vista: VistaMobilia = 'frente', voltaDaCerca = 0): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
@@ -592,6 +736,22 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
     }
     case 'cerca':
       return tracosDaCerca(largura, altura, voltaDaCerca)
+    case 'armario': {
+      const degrau = deLadoALado(largura, altura, ARMARIO_DE_CIMA.degrau)
+      const pontaDoPuxador = naAltura(altura, ARMARIO_DE_CIMA.pontaDoPuxador)
+      const xDoPuxador = largura * ARMARIO_DE_CIMA.xDoPuxador
+      return [
+        degrau,
+        { x1: -xDoPuxador, y1: meiaAltura, x2: -xDoPuxador, y2: pontaDoPuxador },
+        { x1: xDoPuxador, y1: meiaAltura, x2: xDoPuxador, y2: pontaDoPuxador },
+      ]
+    }
+    case 'aparador': {
+      const frente = deLadoALado(largura, altura, APARADOR_DE_CIMA.frente)
+      return [frente, { x1: 0, y1: frente.y1, x2: 0, y2: meiaAltura }]
+    }
+    default:
+      return []
   }
 }
 

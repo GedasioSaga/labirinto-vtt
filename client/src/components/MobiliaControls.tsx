@@ -125,7 +125,7 @@ export function MobiliaControls({ prop, onTipoChange, onVistaChange, onAparencia
           ))}
         </select>
       </div>
-      {/* A vista (de frente ou de lado) só existe na cadeira e no baú: vem logo
+      {/* A vista (de frente ou de lado) só existe nos tipos com vista (`TIPOS_COM_VISTA`): vem logo
           depois do "Tipo", que decide se ela aparece. Mesmo segmentado dos
           outros painéis (`lb-seg`), com as duas opções à vista. */}
       {aceitaVista(tipo) && (

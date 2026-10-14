@@ -51,9 +51,9 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './p
  * rede já filtram, mas o desenho não confia: `Color` do Pixi lança com string
  * torta e derrubaria o quadro). Objeto comum ignora esses campos.
  *
- * Cadeira e baú com "Vista" de lado (`mobiliaVista: 'lado'`) trocam o
+ * Os móveis com "Vista" de lado (`mobiliaVista: 'lado'`) trocam o
  * retângulo pelo PERFIL do móvel (`contornoDeLado`: a cadeira em L, o baú com a
- * tampa em arco) e o glifo pelo de lado, com o mesmo giro, as mesmas cores e o
+ * tampa em arco, o aparador com o tampo sobrando) e o glifo pelo de lado, com o mesmo giro, as mesmas cores e o
  * mesmo fio. Nos outros tipos a vista não vale (`vistaDoMovel`).
  */
 export const PROP_SILHOUETTE_FILL_COLOR = 0x000000

@@ -34,9 +34,9 @@ import type { Prop, TipoMobilia } from '../types/map'
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem barril, caixa, baú, cama, mesa, cadeira e cerca, nessa ordem, com o nome que a setinha mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca'])
-    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca'])
+  it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha e aparador, nessa ordem, com o nome que a setinha mostra', () => {
+    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador'])
+    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador'])
   })
 
   it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
@@ -46,7 +46,7 @@ describe('catálogo da mobília', () => {
   })
 
   it('reconhece só os tipos do catálogo', () => {
-    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca']) expect(ehTipoMobilia(tipo)).toBe(true)
+    for (const tipo of ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador']) expect(ehTipoMobilia(tipo)).toBe(true)
     expect(ehTipoMobilia('dragão')).toBe(false)
     expect(ehTipoMobilia(undefined)).toBe(false)
     expect(ehTipoMobilia(3)).toBe(false)
@@ -432,10 +432,10 @@ function contornoDe(tipo: TipoMobilia, largura: number, altura: number): { x: nu
   return contorno
 }
 
-describe('vista do móvel — frente ou lado, só na cadeira e no baú', () => {
-  it('só cadeira e baú aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
-    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau'])
-    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira'])
+describe('vista do móvel — frente ou lado, só nos tipos com vista', () => {
+  it('só cadeira, baú, armário de cozinha e aparador aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
+    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador'])
+    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador'])
     expect(aceitaVista(undefined)).toBe(false)
     expect(VISTAS_MOBILIA.map((vista) => ROTULO_VISTA[vista])).toEqual(['Frente', 'Lado'])
   })
@@ -572,5 +572,107 @@ describe('desenho de lado — cadeira em L e baú com a tampa em arco', () => {
     expect(contornoDeLado('mesa', 40, 40)).toBeNull()
     expect(contornoDeLado(undefined, 40, 40)).toBeNull()
     expect(tracosDoGlifo('cadeira', 0, 40, 'lado')).toEqual([])
+  })
+})
+
+describe('armário de cozinha e aparador — encostados na parede, com vista de lado', () => {
+  const novos: TipoMobilia[] = ['armario', 'aparador']
+
+  it('estão no catálogo com o nome inteiro e o artigo; têm vista, não são redondos nem vazados', () => {
+    expect(ROTULO_MOBILIA.armario).toBe('Armário de cozinha')
+    expect(NOME_COM_ARTIGO.armario).toBe('um armário de cozinha')
+    expect(ROTULO_MOBILIA.aparador).toBe('Aparador')
+    expect(NOME_COM_ARTIGO.aparador).toBe('um aparador')
+    for (const tipo of novos) {
+      expect(aceitaVista(tipo), tipo).toBe(true)
+      expect(ehMovelRedondo(tipo), tipo).toBe(false)
+      expect(ehMovelVazado(tipo), tipo).toBe(false)
+    }
+  })
+
+  it('tamanho padrão: armário 1 × 0,5 casa e aparador 2 × 0,5; de lado, 1 × 1,5 e 2 × 0,9', () => {
+    const armario = criarMovel('armario', { x: 0, y: 0 }, GRADE, 'a')
+    const aparador = criarMovel('aparador', { x: 0, y: 0 }, GRADE, 'p')
+    expect({ width: armario.width, height: armario.height }).toEqual({ width: GRADE, height: 0.5 * GRADE })
+    expect({ width: aparador.width, height: aparador.height }).toEqual({ width: 2 * GRADE, height: 0.5 * GRADE })
+    const armarioDeLado = movelComOutraVista(armario, 'lado', GRADE)
+    const aparadorDeLado = movelComOutraVista(aparador, 'lado', GRADE)
+    expect({ width: armarioDeLado.width, height: armarioDeLado.height }).toEqual({ width: GRADE, height: 1.5 * GRADE })
+    expect({ width: aparadorDeLado.width, height: aparadorDeLado.height }).toEqual({ width: 2 * GRADE, height: 0.9 * GRADE })
+  })
+
+  it('armário de cima: o degrau no meio e dois puxadores curtos subindo da frente, sem tocar o degrau', () => {
+    const [degrau, ...puxadores] = tracosDoGlifo('armario', 40, 20)
+    expect(degrau).toEqual({ x1: -20, y1: expect.closeTo(-1, 9), x2: 20, y2: expect.closeTo(-1, 9) })
+    expect(puxadores).toHaveLength(2)
+    for (const puxador of puxadores) {
+      expect(puxador.x1).toBe(puxador.x2)
+      expect(Math.max(puxador.y1, puxador.y2)).toBe(10)
+      expect(Math.min(puxador.y1, puxador.y2)).toBeGreaterThan(degrau.y1)
+    }
+    expect(puxadores.map((p) => Math.sign(p.x1)).sort((a, b) => a - b)).toEqual([-1, 1])
+  })
+
+  it('aparador de cima: a borda do tampo baixa e o encontro das portas descendo dela até a frente (T invertido)', () => {
+    const [frente, encontro, ...resto] = tracosDoGlifo('aparador', 80, 20)
+    expect(resto).toEqual([])
+    expect(frente.x1).toBe(-40)
+    expect(frente.x2).toBe(40)
+    expect(frente.y1).toBe(frente.y2)
+    expect(frente.y1).toBeCloseTo(4.4, 9)
+    expect(encontro).toEqual({ x1: 0, y1: frente.y1, x2: 0, y2: 10 })
+  })
+
+  it('armário de lado: o retângulo e a frente em 12 traços — portinha, nicho aberto, bancada, duas gavetas e rodapé', () => {
+    expect(contornoDe('armario', 40, 60)).toEqual([
+      { x: -20, y: -30 },
+      { x: 20, y: -30 },
+      { x: 20, y: 30 },
+      { x: -20, y: 30 },
+    ])
+    const tracos = tracosDoGlifo('armario', 40, 60, 'lado')
+    expect(tracos).toHaveLength(12)
+    // De lado a lado: fim do armário de cima, bancada, divisão das gavetas e rodapé.
+    const deLadoALado = tracos.filter((t) => t.y1 === t.y2 && Math.abs(t.x2 - t.x1) === 40).map((t) => t.y1)
+    expect(deLadoALado.map((y) => y / 60 + 0.5)).toEqual([0.3, 0.56, 0.75, 0.94].map((f) => expect.closeTo(f, 9)))
+    // O nicho aberto: duas laterais, do fim do armário de cima à bancada.
+    const laterais = tracos.filter((t) => t.x1 === t.x2 && Math.abs(t.x1) > 16)
+    expect(laterais).toHaveLength(2)
+    for (const lateral of laterais) {
+      expect(lateral.y1).toBeCloseTo(-12, 9)
+      expect(lateral.y2).toBeCloseTo(0.56 * 60 - 30, 9)
+    }
+    // Um puxador curto em cada gaveta, no meio.
+    const puxadores = tracos.filter((t) => t.y1 === t.y2 && Math.abs(t.x2 - t.x1) < 10)
+    expect(puxadores.map((p) => p.y1 / 60 + 0.5)).toEqual([0.655, 0.845].map((f) => expect.closeTo(f, 9)))
+  })
+
+  it('aparador de lado: o tampo sobra dos dois lados do corpo e as portas se encontram no meio', () => {
+    const contorno = contornoDe('aparador', 80, 36)
+    expect(contorno).toHaveLength(8)
+    expect(contorno.slice(0, 2)).toEqual([
+      { x: -40, y: -18 },
+      { x: 40, y: -18 },
+    ])
+    // O corpo, que desce até o chão, é mais estreito que o tampo.
+    const noChao = contorno.filter((p) => p.y === 18)
+    expect(noChao).toHaveLength(2)
+    for (const p of noChao) expect(Math.abs(p.x)).toBeCloseTo(40 - 0.035 * 80, 9)
+
+    const [encontro, rodape, ...puxadores] = tracosDoGlifo('aparador', 80, 36, 'lado')
+    expect(encontro.x1).toBe(0)
+    expect(encontro.x2).toBe(0)
+    expect(rodape.y1).toBe(rodape.y2)
+    expect(encontro.y2).toBeCloseTo(rodape.y1, 9)
+    expect(puxadores).toHaveLength(2)
+    expect(puxadores[0].x1).toBeCloseTo(-puxadores[1].x1, 9)
+  })
+
+  it('tipo desconhecido (arquivo de uma versão futura) não tem traço nem contorno de lado, em vez de derrubar o desenho', () => {
+    // `JSON.parse` devolve `any`: é o tipo torto que um arquivo de outra versão traria.
+    const futuro: TipoMobilia = JSON.parse('"lareira"')
+    expect(tracosDoGlifo(futuro, 40, 40)).toEqual([])
+    expect(tracosDoGlifo(futuro, 40, 40, 'lado')).toEqual([])
+    expect(contornoDeLado(futuro, 40, 40)).toBeNull()
   })
 })

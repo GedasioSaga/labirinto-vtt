@@ -385,6 +385,22 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6 12h4M14 12h4" />
         </>
       )
+    case 'armario':
+      // O degrau no meio (a frente do armário de cima) e os dois puxadores subindo da frente.
+      return (
+        <>
+          <rect x="3" y="7.5" width="18" height="9" />
+          <path d="M3 11.6h18M7.5 16.5v-1.6M16.5 16.5v-1.6" />
+        </>
+      )
+    case 'aparador':
+      // Comprido e raso: a borda do tampo, baixa, e o encontro das portas descendo até a frente.
+      return (
+        <>
+          <rect x="2" y="9" width="20" height="6" />
+          <path d="M2 13.3h20M12 13.3V15" />
+        </>
+      )
   }
 }
 

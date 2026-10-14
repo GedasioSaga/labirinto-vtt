@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
-import type { Prop } from '../types/map'
+import type { Prop, TipoMobilia } from '../types/map'
 import {
   drawPropSilhouettes,
   PROP_SILHOUETTE_EDGE_ALPHA,
@@ -8,7 +8,7 @@ import {
   PROP_SILHOUETTE_FILL_ALPHA,
   PROP_SILHOUETTE_FILL_COLOR,
 } from './drawPropSilhouettes'
-import { contornoDeLado, LADOS_DA_ELIPSE, tracosDoGlifo } from '../lib/mobilia'
+import { contornoDeLado, LADOS_DA_ELIPSE, tracosDoGlifo, type TipoComVista } from '../lib/mobilia'
 
 /**
  * MOBÍLIA DESENHADA na tela do jogador: o móvel com tipo ganha, por cima da
@@ -209,7 +209,7 @@ describe('drawPropSilhouettes — preencher e cor do móvel', () => {
 })
 
 /** Contorno de lado do tipo, centrado na origem (o teste falha alto se vier nulo). */
-function contornoDe(tipo: 'cadeira' | 'bau', largura: number, altura: number): { x: number; y: number }[] {
+function contornoDe(tipo: TipoComVista, largura: number, altura: number): { x: number; y: number }[] {
   const contorno = contornoDeLado(tipo, largura, altura)
   if (contorno === null) throw new Error(`${tipo} devia ter contorno de lado`)
   return contorno
@@ -331,5 +331,41 @@ describe('drawPropSilhouettes — cerca curva', () => {
       expect(inicios[i].x).toBeCloseTo(cerca.x - t.y1, 6)
       expect(inicios[i].y).toBeCloseTo(cerca.y + t.x1, 6)
     })
+  })
+})
+
+describe('drawPropSilhouettes — armário de cozinha e aparador', () => {
+  it('de cima: silhueta retangular e o glifo de cada um', () => {
+    const casos: [TipoMobilia, number, number][] = [
+      ['armario', 64, 32],
+      ['aparador', 128, 32],
+    ]
+    for (const [mobilia, width, height] of casos) {
+      const g = new Graphics()
+      expect(drawPropSilhouettes(g, [movel({ mobilia, width, height })], 1, 1)).toBe(1)
+      expect(fills(g)).toHaveLength(1)
+      expect(silhouettePoints(g)).toHaveLength(4)
+      expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo(mobilia, width, height).length)
+    }
+  })
+
+  it('armário de lado: o retângulo em pé e a frente com 12 traços', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'armario', mobiliaVista: 'lado', width: 64, height: 96 })], 1, 1)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(4)
+    contornoDe('armario', 64, 96).forEach((c, i) => expect(pertoDe(pontos[i], 250 + c.x, 200 + c.y), `ponto ${i}`).toBe(true))
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(12)
+  })
+
+  it('aparador de lado: o perfil com o tampo sobrando, girado com o objeto', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [movel({ mobilia: 'aparador', mobiliaVista: 'lado', width: 128, height: 58, rotation: 90 })], 1, 1)
+    const esperado = contornoDe('aparador', 128, 58)
+    const pontos = silhouettePoints(g)
+    expect(pontos).toHaveLength(8)
+    // Horário na tela (y para baixo): (u, v) vira (−v, u).
+    pontos.forEach((p, i) => expect(pertoDe(p, 250 - esperado[i].y, 200 + esperado[i].x), `ponto ${i}`).toBe(true))
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('aparador', 128, 58, 'lado').length)
   })
 })
