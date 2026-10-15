@@ -1,0 +1,57 @@
+{
+  "id": "portao-de-ferro",
+  "fonte": "client/src/animacoes/transicao/portao-de-ferro.ts",
+  "geradoEm": "2026-10-15T14:16:57.342Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.6,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 9.25,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.79,
+    "picoVerdadeiroDbtp": -2.78,
+    "lufsIntegrado": -19.35,
+    "lufsCurtoPrazoMax": -16.38,
+    "dcPct": 0.0501,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [
+      {
+        "inicio": 3.346,
+        "fim": 6.844,
+        "pulsos": 164
+      },
+      {
+        "inicio": 7.476,
+        "fim": 7.77,
+        "pulsos": 10
+      }
+    ],
+    "silenciosNoMeio": [],
+    "equilibrioLRdb": -1.2,
+    "centroideHzPorSegundo": [
+      508,
+      485,
+      485,
+      935,
+      959,
+      917,
+      783,
+      695,
+      412,
+      634
+    ],
+    "duracaoNaturalS": 9
+  }
+}

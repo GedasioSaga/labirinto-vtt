@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portão de ferro</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  --acento: #3f5f86;
+  --acento-tinta: #ffffff;
+  --foco: #2a6fdb;
+  --raio: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #8fb0d8;
+    --acento-tinta: #0b1420;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #8fb0d8;
+  --acento-tinta: #0b1420;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; }
+/* Mesmas camadas da tela do app (TransicaoTela + transicoes.css). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.granulado { opacity: 0.06; mix-blend-mode: screen; pointer-events: none; }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%); pointer-events: none; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+@media (prefers-reduced-motion: reduce) { button { transition: background-color 160ms ease; } button:active { transform: none; } }
+@media (max-width: 520px) { .tempo { margin-left: 0; width: 100%; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Portão de ferro</h1>
+  <p class="sub">Transição de viagem do pino ou escada · 9 s · protótipo para aprovar (o mesmo código que vai no pacote)</p>
+  <div class="palco" id="palco">
+    <canvas id="cena" aria-label="Animação: chegando a um portão de ferro numa noite de neblina; o trinco solta, as folhas abrem rangendo e a câmera entra na neblina"></canvas>
+    <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
+    <div class="vinheta" aria-hidden="true"></div>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="erro" id="erro" role="alert"></div>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s / 9,0 s</span>
+  </div>
+  <p class="nota">O som só liga com um clique (regra do navegador); ao ligar, a animação recomeça do início. No app, a vinheta, o granulado e a cortina preta são os mesmos desta página.</p>
+</main>
+<script>"use strict";var PortaoDeFerro=(()=>{var ae=Object.defineProperty;var Ge=Object.getOwnPropertyDescriptor;var _e=Object.getOwnPropertyNames;var Ve=Object.prototype.hasOwnProperty;var qe=(e,t)=>{for(var n in t)ae(e,n,{get:t[n],enumerable:!0})},Be=(e,t,n,a)=>{if(t&&typeof t=="object"||typeof t=="function")for(let o of _e(t))!Ve.call(e,o)&&o!==n&&ae(e,o,{get:()=>t[o],enumerable:!(a=Ge(t,o))||a.enumerable});return e};var ze=e=>Be(ae({},"__esModule",{value:!0}),e);var ba={};qe(ba,{PORTAO_DE_FERRO_ABERTO_RAD:()=>se,ROTEIRO_DO_PORTAO_DE_FERRO:()=>ve,anguloDaFolha:()=>k,anguloDoTrinco:()=>we,criarCenaPortaoDeFerro:()=>De,default:()=>Ze,estadoDaCamera:()=>Se,estadoDoAr:()=>Ae,fadeDoPortao:()=>Ce});function F(e){let t=e;return()=>(t=t*16807%2147483647)/2147483647}function ce(e){e.traverse(t=>{let n=t;n.geometry&&n.geometry.dispose();let a=Array.isArray(n.material)?n.material:n.material?[n.material]:[];for(let o of a)o.map?.dispose(),o.dispose()})}var N=e=>Math.min(1,Math.max(0,e)),y=(e,t,n)=>N((e-t)/(n-t)),V=e=>-(Math.cos(Math.PI*e)-1)/2,ie=e=>1-Math.pow(1-e,3),ue=e=>e*e;var ve={duracao:9,fadeInFim:1,freada:2.1,chegadaFim:2.9,passos:[.4,.95,1.5,1.95,2.35,2.8],degrau:1.95,patamar:2.35,trinco:3,aberturaInicio:3.3,aberturaFim:7,travessiaInicio:6.2,travessiaFim:8.6,passosDentro:[6.75,7.3,7.85,8.4],neblinaInicio:7.5,neblinaFim:8.55,fadeOutInicio:8.5,fadeOutFim:9},f=ve,se=1.45,Z=.14,Le=se*.98,W={amplitude:.024,periodo:.95,subida:.07,queda:.42},O=.3,R=.15,I={meiaLargura:1.9,frente:3.35,fundo:-.45},$={meiaLargura:1.7,frente:3.75},Me=1.15,A={lado:.5,x:1.42,altura:2.9},G={largura:Me-.006,alturaNaDobradica:1.83,alturaNoMeio:2.35,ombro:.42,folgaDoChao:.02,barra:.03,montante:.06},q=[[.04,.05],[.6,.04],[.95,.055],[1.62,.04]],le=9,te=1.12,T={olho:1.55,velocidade:1.45,zParada:3.05,zFim:-1.6,zReduzido:3.2,xParado:.02},Ne=T.zParada+T.velocidade*f.freada+T.velocidade*(f.chegadaFim-f.freada)*.5,ne={queda:.022,lado:.012,giro:.004},U={y:1.72,z:0},ye=856343,Ue=66051,We=3818578,ke=1317409,J={base:.075,final:.5},Qe=430*240;function je(e){return V(Math.pow(N(e),.8))}function Ke(e){return e<=0?0:W.amplitude*Math.sin(2*Math.PI*e/W.periodo)*(1-Math.exp(-e/W.subida))*Math.exp(-e/W.queda)}function k(e,t,n){let a=t==="esquerda",o=f.aberturaInicio+(a?Z:0),r=(a?Le:se)*je(y(e,o,f.aberturaFim));return n?r:r+Ke(e-f.aberturaFim-(a?.05:0))}function we(e){let t=ie(y(e,f.trinco-.1,f.trinco+.02)),n=V(y(e,f.trinco+.02,f.trinco+.2));return .78*t-.12*n}function $e(e){let t=T.velocidade;if(e<=f.freada)return t*Math.max(0,e);let n=y(e,f.freada,f.chegadaFim);return t*f.freada+t*(f.chegadaFim-f.freada)*(n-n**3+n**4/2)}function Xe(e){if(e<=f.freada)return 1;let t=y(e,f.freada,f.chegadaFim);return 1-3*t*t+2*t*t*t}function Ye(e){return e*e*(2-e)}function de(e,t){if(e<=t[0])return(e-t[0])/(t[1]-t[0]);for(let a=0;a<t.length-1;a++)if(e<=t[a+1])return a+(e-t[a])/(t[a+1]-t[a]);let n=t.length-1;return n+(e-t[n])/(t[n]-t[n-1])}function me(e,t){return V(y(e,t-.08,t+.18))}function Se(e,t){if(t){let h=O+T.olho;return{x:T.xParado,y:h,z:T.zReduzido,alvoX:0,alvoY:U.y,alvoZ:U.z,giro:0}}let n=y(e,f.travessiaInicio,f.travessiaFim),a=Ne-$e(e)-(T.zParada-T.zFim)*Ye(n),o=R*me(e,f.degrau)+R*me(e,f.patamar),c,r;e<f.travessiaInicio?(c=de(e,f.passos),r=Xe(e)):(c=de(e,f.passosDentro),r=N((4*n-3*n*n)/(4/3))*(1-y(e,f.neblinaFim,f.duracao)));let s=-ne.queda*r*(1+Math.cos(2*Math.PI*c))*.5,u=ne.lado*r*Math.sin(Math.PI*c),i=.005*Math.sin(2*Math.PI*(e-f.chegadaFim)/3.4)*y(e,f.chegadaFim-.2,f.chegadaFim+.6)*(1-y(e,f.travessiaInicio,f.travessiaInicio+.4)),l=T.xParado+u,d=T.olho+o+s+i,m=V(y(e,f.travessiaInicio,f.travessiaInicio+1.3));return{x:l,y:d,z:a,alvoX:l*m,alvoY:U.y+(d-.2-U.y)*m,alvoZ:U.z+(a-8-U.z)*m,giro:ne.giro*r*Math.sin(Math.PI*c)}}function Ae(e){let t=ue(y(e,f.neblinaInicio,f.neblinaFim));return{densidade:J.base+(J.final-J.base)*t,veu:.92*V(y(e,f.neblinaInicio+.25,f.neblinaFim)),luz:1-.45*t}}function Ce(e){return Math.max(1-y(e,0,f.fadeInFim),y(e,f.fadeOutInicio,f.fadeOutFim))}var De=(e,{reduzirMovimento:t})=>{let n=new e.Scene,a=new e.Scene,o=new e.FogExp2(ye,J.base);a.fog=o,n.add(a);let c=new e.PerspectiveCamera(50,1,.1,10),r=new e.PerspectiveCamera(52,1,.05,110);r.name="olho",a.add(r),a.add(new e.AmbientLight(1844531,.3));let s=new e.SpotLight(13161962,1.25,18,.62,.6,1.7);s.name="luz",s.position.set(.5,5.5,3.2),s.target.position.set(0,1,-.6),s.castShadow=!0,s.shadow.mapSize.set(1024,1024),s.shadow.bias=-8e-4,s.shadow.normalBias=.02,s.shadow.camera.near=.5,s.shadow.camera.far=18,a.add(s,s.target);let u=[];Je(e,a),Re(e,a),He(e,a),u.push(...Ee(e,a)),ea(e,a),aa(e,a);let i=fe(e,a,-1),l=fe(e,a,1);u.push(...i.instanciadas,...l.instanciadas);let d=ta(e,a),m=new e.Mesh(new e.PlaneGeometry(4,4),new e.MeshBasicMaterial({color:ke,transparent:!0,opacity:0,depthTest:!1,depthWrite:!1,fog:!1}));m.name="veu",m.position.z=-.2,m.renderOrder=50,m.visible=!1,r.add(m);let h=new e.WebGLRenderTarget(430,240,{type:e.HalfFloatType,minFilter:e.NearestFilter,magFilter:e.NearestFilter,generateMipmaps:!1,depthBuffer:!0}),g={tCena:{value:h.texture},uResolucao:{value:new e.Vector2(430,240)},uTempo:{value:0}},b=new e.Mesh(new e.PlaneGeometry(2,2),new e.ShaderMaterial({uniforms:g,vertexShader:sa,fragmentShader:ca,depthTest:!1,depthWrite:!1}));b.frustumCulled=!1,n.add(b),a.visible=!1;let v=!1;n.onBeforeRender=x=>{v||(v=!0,x.extensions.has("EXT_color_buffer_half_float")||x.extensions.has("EXT_color_buffer_float")||(h.texture.type=e.UnsignedByteType));let S=x.getRenderTarget();a.visible=!0,x.setRenderTarget(h),x.render(a,r),x.setRenderTarget(S),a.visible=!1};let D=-1;function w(x){D<0&&(D=s.intensity),g.uTempo.value=x,i.grupo.rotation.y=k(x,"esquerda",t),l.grupo.rotation.y=-k(x,"direita",t),l.trinco&&(l.trinco.rotation.z=-we(x));let S=Ae(x);o.density=S.densidade,s.intensity=D*S.luz;let C=m.material;C.opacity=S.veu,m.visible=S.veu>.001;let p=Se(x,t);return r.position.set(p.x,p.y,p.z),r.lookAt(p.alvoX,p.alvoY,p.alvoZ),p.giro!==0&&r.rotateZ(p.giro),d.atualizar(x,p.z,S.veu,t),{fade:Ce(x)}}function P(x){let S=Math.max(120,Math.round(Math.sqrt(Qe/x))),C=Math.max(64,Math.round(S*x));h.setSize(C,S),g.uResolucao.value.set(C,S),r.aspect=x,r.fov=x<.8?68:52,r.updateProjectionMatrix(),c.aspect=x,c.updateProjectionMatrix()}function z(){for(let x of u)x.dispose();ce(n),h.dispose()}return{scene:n,camera:c,atualizar:w,ajustarTela:P,criarSom:x=>da(x,t),descartar:z}},Ze=De;function Fe(e,t,n){let a=new e.InstancedMesh(new e.BoxGeometry(1,1,1),t,n.length),o=new e.Matrix4,c=new e.Vector3,r=new e.Quaternion,s=new e.Vector3,u=new e.Vector3(0,0,1);return n.forEach(([i,l,d,m,h,g,b=0],v)=>{r.setFromAxisAngle(u,b),o.compose(c.set(m,h,g),r,s.set(i,l,d)),a.setMatrixAt(v,o)}),a.instanceMatrix.needsUpdate=!0,a.castShadow=!0,a.receiveShadow=!0,a}function Je(e,t){let n=new e.SphereGeometry(60,24,14),a=n.getAttribute("position"),o=new Float32Array(a.count*3),c=new e.Color(ye),r=new e.Color(Ue),s=new e.Color;for(let l=0;l<a.count;l++){let d=a.getY(l)/60;s.copy(c).lerp(r,V(y(d,.02,.55))),o.set([s.r,s.g,s.b],l*3)}n.setAttribute("color",new e.BufferAttribute(o,3));let u=new e.Mesh(n,new e.MeshBasicMaterial({vertexColors:!0,side:e.BackSide,fog:!1,depthWrite:!1}));u.renderOrder=-10,u.frustumCulled=!1,t.add(u);let i=new e.Sprite(new e.SpriteMaterial({map:ra(e),color:8030364,transparent:!0,opacity:.6,depthWrite:!1,fog:!1,blending:e.AdditiveBlending}));i.position.set(-9,13,-45),i.scale.setScalar(20),i.renderOrder=-9,t.add(i)}function X(e,t,n,a,o,c,r){let s=new e.Mesh(new e.PlaneGeometry(t,n),a);return s.rotation.x=-Math.PI/2,s.position.set(o,c,r),s.receiveShadow=!0,s}function Re(e,t){let n=pe(e,61);n.repeat.set(10,6);let a=new e.MeshStandardMaterial({map:n,roughness:1});t.add(X(e,26,16,a,0,0,6));let o=Y(e,13,40,14);o.repeat.set(2,11),t.add(X(e,1.9,10.5,new e.MeshStandardMaterial({map:o,roughness:.95}),0,.003,$.frente+5.25));let c=Oe(e,31);c.repeat.set(2,.4);let r=new e.MeshStandardMaterial({map:c,roughness:.9}),s=Y(e,17,78,18),u=new e.MeshStandardMaterial({map:s,roughness:.88}),i=I.frente-I.fundo;s.repeat.set(I.meiaLargura*2/.95,i/.95);let l=new e.Mesh(new e.BoxGeometry(I.meiaLargura*2,O,i),[r,r,u,r,r,r]);l.position.set(0,O/2,(I.frente+I.fundo)/2),l.receiveShadow=!0,l.castShadow=!0,t.add(l);let d=Y(e,19,74,16);d.repeat.set($.meiaLargura*2/.95,.42);let m=$.frente-I.frente,h=new e.Mesh(new e.BoxGeometry($.meiaLargura*2,R,m),[r,r,new e.MeshStandardMaterial({map:d,roughness:.88}),r,r,r]);h.position.set(0,R/2,I.frente+m/2),h.receiveShadow=!0,h.castShadow=!0,t.add(h);let g=pe(e,67);g.repeat.set(12,18),t.add(X(e,30,40,new e.MeshStandardMaterial({map:g,roughness:1}),0,O,I.fundo-20));let b=Y(e,23,52,16);b.repeat.set(2,36),t.add(X(e,1.6,34,new e.MeshStandardMaterial({map:b,roughness:.95}),0,O+.002,I.fundo-17))}function He(e,t){let n=Ie(e,41);n.repeat.set(1,A.altura);let a=new e.MeshStandardMaterial({map:n,roughness:.92}),o=Oe(e,43);o.repeat.set(.6,.6);let c=new e.MeshStandardMaterial({map:o,roughness:.85});for(let r of[-1,1]){let s=r*A.x,u=new e.Mesh(new e.BoxGeometry(A.lado,A.altura,A.lado),a);u.position.set(s,A.altura/2,0),u.castShadow=!0,u.receiveShadow=!0,t.add(u);let i=[[A.lado+.14,.11,A.altura+.055],[A.lado+.04,.07,A.altura+.145]];for(let[d,m,h]of i){let g=new e.Mesh(new e.BoxGeometry(d,m,d),c);g.position.set(s,h,0),g.castShadow=!0,g.receiveShadow=!0,t.add(g)}let l=new e.Mesh(new e.ConeGeometry(.2,.16,4),c);l.rotation.y=Math.PI/4,l.position.set(s,A.altura+.26,0),l.castShadow=!0,t.add(l)}}function Ee(e,t){let n=A.x+A.lado/2,a=9,o=a-n,c=.8,r=Ie(e,47);r.repeat.set(o/.5,c);let s=new e.MeshStandardMaterial({map:r,roughness:.95}),u=Te(e),i=[],l=[];for(let g of[-1,1]){let b=new e.Mesh(new e.BoxGeometry(o,c,.35),s);b.position.set(g*(n+o/2),c/2,0),b.castShadow=!0,b.receiveShadow=!0,t.add(b);for(let v=n+.16;v<a;v+=.16)i.push([.02,1.25,.02,g*v,c+.625,0]),l.push([g*v,c+1.3]);i.push([o,.035,.03,g*(n+o/2),c+.12,0]),i.push([o,.035,.03,g*(n+o/2),c+1.12,0])}let d=Fe(e,u,i);t.add(d);let m=new e.InstancedMesh(new e.ConeGeometry(.026,.1,4),u,l.length),h=new e.Matrix4;return l.forEach(([g,b],v)=>m.setMatrixAt(v,h.makeTranslation(g,b,0))),m.instanceMatrix.needsUpdate=!0,m.castShadow=!0,t.add(m),[d,m]}function ea(e,t){let n=F(53),a=[new e.MeshStandardMaterial({color:1914148,roughness:1,flatShading:!0}),new e.MeshStandardMaterial({color:2704686,roughness:1,flatShading:!0})],o=new e.IcosahedronGeometry(1,0),c=[[2.35,2.3,.55],[2.15,3.95,.5],[2.75,1,.6]];for(let r of[-1,1])for(let[s,u,i]of c)for(let l=0;l<4;l++){let d=new e.Mesh(o,a[l%2]),m=i*(.55+n()*.45);d.scale.set(m,m*(.7+n()*.3),m),d.position.set(r*(s+(n()-.5)*.5),m*.55,u+(n()-.5)*.5),d.rotation.set(n()*3,n()*3,n()*3),d.castShadow=!0,d.receiveShadow=!0,t.add(d)}}function aa(e,t){let n=F(59),a=na(e,71),o=new e.MeshStandardMaterial({map:a,roughness:1,flatShading:!0}),c=new e.IcosahedronGeometry(1,0);for(let i of[-1,1])for(let l=-2.4-n();l>-26;l-=2.2+n()*1.6){let d=.32+n()*.3,m=new e.Mesh(c,o);m.scale.set(d*1.3,d*.8,d),m.position.set(i*(1.25+n()*.6),O+d*.45,l),m.rotation.set(n()*3,n()*3,n()*3),m.receiveShadow=!0,m.castShadow=!0,t.add(m)}let r=new e.MeshStandardMaterial({color:1053464,roughness:1}),s=[[-3.4,-6.5,4.2],[3.9,-9,4.8],[-2.7,-13,4.4],[4.6,-17,5]],u=new e.Vector3(0,1,0);for(let[i,l,d]of s){let m=new e.Mesh(new e.CylinderGeometry(.07,.16,d,6),r);m.position.set(i,O+d/2,l),m.rotation.z=(n()-.5)*.12,t.add(m);for(let h=0;h<4;h++){let g=new e.Vector3(i,O+d*(.45+h*.13),l),b=n()*Math.PI*2,v=.8+n()*1.1,D=g.clone().add(new e.Vector3(Math.cos(b)*v,.4+n()*.9,Math.sin(b)*v*.6)),w=new e.Mesh(new e.CylinderGeometry(.018,.05,g.distanceTo(D),5),r);w.position.copy(g).lerp(D,.5),w.quaternion.setFromUnitVectors(u,D.clone().sub(g).normalize()),t.add(w)}}}function Te(e){return new e.MeshStandardMaterial({color:1711394,roughness:.5,metalness:.62})}function oe(e){let t=N(e/(G.largura*G.ombro));return G.alturaNaDobradica+(G.alturaNoMeio-G.alturaNaDobradica)*Math.sqrt(1-(1-t)*(1-t))}function fe(e,t,n){let a=new e.Group;a.name=n<0?"folha-esquerda":"folha-direita",a.position.set(n*Me,O+G.folgaDoChao,0),t.add(a);let o=Te(e),c=p=>-n*p,r=G.largura,s=G.barra,u=[],i=[],l=(r-.06)/(le+1);for(let p=0;p<=le+1;p++)i.push(.03+p*l);i.forEach((p,M)=>{let _=M===0||M===i.length-1,L=oe(p)+.01;u.push([_?G.montante:s,L,_?.04:s,c(p),L/2,0])});let d=(i[0]+i[i.length-1])/2,m=i[i.length-1]-i[0];for(let[p,M]of q)u.push([m,M,.03,c(d),p,0]);let h=12;for(let p=0;p<h;p++){let M=r*p/h,_=r*(p+1)/h,L=c(M),H=c(_),E=oe(M),ee=oe(_),Pe=Math.hypot(H-L,ee-E);u.push([Pe+.012,.045,.035,(L+H)/2,(E+ee)/2,0,Math.atan2(ee-E,H-L)])}let g=l/2,b=q[1][0]-q[1][1]/2;for(let p=0;p<i.length-1;p++){let M=(i[p]+i[p+1])/2,_=b-q[0][0];u.push([s*.8,_,s*.8,c(M),q[0][0]+_/2,0])}for(let p of i)for(let M of[q[2][0],q[3][0]])u.push([.034,.034,.03,c(p),M,.022]);let v=Fe(e,o,u);v.name="grade",a.add(v);let D=new e.TorusGeometry(1,.16,3,10,Math.PI),w=new e.InstancedMesh(D,o,i.length-1),P=new e.Matrix4,z=new e.Vector3(g,g,g),x=new e.Quaternion,S=new e.Vector3;for(let p=0;p<i.length-1;p++)P.compose(S.set(c((i[p]+i[p+1])/2),b-g,0),x,z),w.setMatrixAt(p,P);w.instanceMatrix.needsUpdate=!0,w.castShadow=!0,a.add(w);for(let p of[.25,1.45]){let M=new e.Mesh(new e.CylinderGeometry(.03,.03,.14,6),o);M.position.set(0,p,0),M.castShadow=!0,a.add(M)}let C=null;if(n>0){C=new e.Group,C.name="trinco",C.position.set(c(r-.22),te,.035);let p=new e.Mesh(new e.BoxGeometry(.34,.03,.012),o);p.position.set(-.17+.015,0,0),p.castShadow=!0;let M=new e.Mesh(new e.CylinderGeometry(.016,.016,.03,6),o);M.rotation.x=Math.PI/2,C.add(p,M),a.add(C)}else{let p=new e.Mesh(new e.BoxGeometry(.05,.022,.05),o);p.position.set(c(r-.06),te-.026,.035);let M=new e.Mesh(new e.BoxGeometry(.05,.07,.01),o);M.position.set(c(r-.06),te-.005,.058),a.add(p,M)}return{grupo:a,trinco:C,instanciadas:[v,w]}}function ta(e,t){let n=oa(e,83),o=[[.4,.55,1.4,7,1.2,.16],[-.6,.85,-1.9,9,1.9,.26],[.8,1.15,-4.6,12,2.8,.3],[-1.2,1.5,-8.2,16,3.8,.34],[.5,1.9,-12.5,22,5,.36]].map(([c,r,s,u,i,l],d)=>{let m=d===0?n:n.clone();m.offset.set(d*.37,0);let h=new e.Mesh(new e.PlaneGeometry(u,i),new e.MeshBasicMaterial({map:m,color:We,transparent:!0,opacity:l,depthWrite:!1}));return h.position.set(c,O+r,s),h.renderOrder=2+d,t.add(h),{malha:h,x:c,z:s,alfa:l,deriva:.012+d*.004,fase:d*1.7}});return{atualizar(c,r,s,u){let i=u?.4:1;for(let l of o){l.malha.position.x=l.x+Math.sin(c*.25*i+l.fase)*.35;let d=l.malha.material.map;d&&(d.offset.x=l.fase*.2+c*l.deriva*i);let m=N((Math.abs(r-l.z)-.6)/2.4);l.malha.material.opacity=l.alfa*m*(1+.8*s),l.malha.visible=l.malha.material.opacity>.002}}}}function B(e,t){let n=document.createElement("canvas");n.width=e,n.height=t;let a=n.getContext("2d");if(!a)throw new Error("canvas 2D indispon\xEDvel");return[n,a]}function j(e,t,n,a,o){let c=e.getImageData(0,0,t,n);for(let r=0;r<c.data.length;r+=4){let s=(a()-.5)*o;c.data[r]+=s,c.data[r+1]+=s,c.data[r+2]+=s}e.putImageData(c,0,0)}function Q(e,t,n,a,o,c,r){for(let s=0;s<o;s++){let u=a()*t,i=a()*n,l=c[0]+a()*(c[1]-c[0]),d=e.createRadialGradient(u,i,0,u,i,l);d.addColorStop(0,r),d.addColorStop(1,"rgba(0,0,0,0)"),e.fillStyle=d,e.fillRect(0,0,t,n)}}function K(e,t){let n=new e.CanvasTexture(t);return n.wrapS=n.wrapT=e.RepeatWrapping,n}function Ie(e,t){let[n,a]=B(128,256),o=F(t);a.fillStyle="#4e545d",a.fillRect(0,0,128,256);let c=32;for(let r=0;r<256/c;r++){let s=r%2===0?0:32;for(let u=-1;u<2;u++){let i=u*64+s,l=r*c,d=118+Math.round(o()*26);a.fillStyle=`rgb(${d},${d+6},${d+14})`,a.fillRect(i+2,l+2,60,c-4),a.fillStyle="rgba(214,222,232,0.35)",a.fillRect(i+2,l+2,60,2),a.fillStyle="rgba(20,24,30,0.35)",a.fillRect(i+2,l+c-4,60,2)}}return j(a,128,256,o,26),Q(a,128,256,o,10,[10,40],"rgba(20,26,32,0.25)"),K(e,n)}function Oe(e,t){let[n,a]=B(256,256),o=F(t);a.fillStyle="#8c97a4",a.fillRect(0,0,256,256),j(a,256,256,o,30),Q(a,256,256,o,16,[12,50],"rgba(30,36,44,0.28)"),a.strokeStyle="rgba(30,34,40,0.5)",a.lineWidth=1;for(let c=0;c<5;c++){let r=o()*256,s=o()*256;a.beginPath(),a.moveTo(r,s);for(let u=0;u<7;u++)r+=(o()-.5)*18,s+=o()*14,a.lineTo(r,s);a.stroke()}return K(e,n)}function Y(e,t,n,a){let[o,c]=B(256,256),r=F(t);for(let s=0;s<2;s++)for(let u=0;u<2;u++){let i=n+Math.round(r()*a);c.fillStyle=`rgb(${i},${i+4},${i+10})`,c.fillRect(s*128,u*128,128,128)}j(c,256,256,r,28),Q(c,256,256,r,14,[14,60],"rgba(0,0,0,0.3)"),c.fillStyle="rgba(12,14,18,0.85)";for(let s of[0,128])c.fillRect(s,0,3,256),c.fillRect(0,s,256,3);return K(e,o)}function pe(e,t){let[n,a]=B(256,256),o=F(t);a.fillStyle="#1a201b",a.fillRect(0,0,256,256),Q(a,256,256,o,18,[20,70],"rgba(40,52,38,0.4)"),Q(a,256,256,o,12,[16,50],"rgba(6,8,6,0.45)"),a.strokeStyle="rgba(58,74,52,0.7)",a.lineWidth=1,a.beginPath();for(let c=0;c<260;c++){let r=o()*256,s=o()*256;a.moveTo(r,s),a.lineTo(r+(o()-.5)*3,s-2-o()*5)}return a.stroke(),j(a,256,256,o,18),K(e,n)}function na(e,t){let[n,a]=B(128,128),o=F(t);a.fillStyle="#132018",a.fillRect(0,0,128,128);for(let[c,r]of[["rgba(34,54,38,0.9)",160],["rgba(52,76,54,0.8)",70]]){a.fillStyle=c;for(let s=0;s<r;s++)a.fillRect(o()*128,o()*128,2+o()*2,2)}return j(a,128,128,o,16),K(e,n)}function oa(e,t){let[n,a]=B(256,128),o=F(t);a.clearRect(0,0,256,128);for(let s=0;s<46;s++){let u=o()*256,i=40+o()*60,l=18+o()*34;for(let d of[-256,0,256]){let m=a.createRadialGradient(u+d,i,0,u+d,i,l);m.addColorStop(0,"rgba(255,255,255,0.22)"),m.addColorStop(1,"rgba(255,255,255,0)"),a.fillStyle=m,a.fillRect(0,0,256,128)}}a.globalCompositeOperation="destination-in";let c=a.createLinearGradient(0,0,0,128);c.addColorStop(0,"rgba(0,0,0,0)"),c.addColorStop(.35,"rgba(0,0,0,1)"),c.addColorStop(.8,"rgba(0,0,0,1)"),c.addColorStop(1,"rgba(0,0,0,0)"),a.fillStyle=c,a.fillRect(0,0,256,128),a.globalCompositeOperation="source-over";let r=new e.CanvasTexture(n);return r.wrapS=e.RepeatWrapping,r}function ra(e){let[t,n]=B(128,128),a=n.createRadialGradient(64,64,0,64,64,64);return a.addColorStop(0,"rgba(255,255,255,1)"),a.addColorStop(.07,"rgba(255,255,255,0.9)"),a.addColorStop(.11,"rgba(255,255,255,0.35)"),a.addColorStop(.4,"rgba(255,255,255,0.1)"),a.addColorStop(1,"rgba(255,255,255,0)"),n.fillStyle=a,n.fillRect(0,0,128,128),new e.CanvasTexture(t)}var sa=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`,ca=`
+uniform sampler2D tCena;
+uniform vec2 uResolucao;
+uniform float uTempo;
+varying vec2 vUv;
+
+float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
+float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
+float acaso(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
+void main() {
+  vec2 px = floor(vUv * uResolucao);
+  vec4 cor = linearToOutputTexel(texture2D(tCena, (px + 0.5) / uResolucao));
+  float grao = acaso(px + floor(uTempo * 12.0) * 7.31) - 0.5;
+  vec3 c = cor.rgb * (1.0 + grao * 0.14);
+  c = floor(c * 31.0 + bayer4(px)) / 31.0;
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+`,ia=[.5,.56,.58,.7,.66,.34],ua=[.44,.4,.34,.28],he={ressonancias:[[720,12,5],[1290,15,4.2],[2240,19,3],[3350,24,1.6]],taxa:[16,68],volume:.5,pan:.45,semente:41},la={ressonancias:[[650,11,5],[1170,14,4.2],[2010,18,3],[3020,22,1.6]],taxa:[14,60],volume:.4,pan:-.45,semente:43};function da(e,t){let n=e.ctx.createDynamicsCompressor();n.threshold.value=-9,n.knee.value=6,n.ratio.value=12,n.attack.value=.002,n.release.value=.2,n.connect(e.destino);let a={...e,destino:n},o=t?[]:[...f.passos.map((s,u)=>[`passo${u}`,s,i=>xe(a,i,ia[u])]),...f.passosDentro.map((s,u)=>[`dentro${u}`,s,i=>xe(a,i,ua[u])])],c=[["vento",0,s=>ha(a,s)],...o,["ergue",f.trinco-.1,s=>fa(a,s,.1,.06,.25)],["trinco",f.trinco,s=>ge(a,s,.7,.2)],["trinco-assenta",f.trinco+.18,s=>ge(a,s,.22,.2)],["dobradica-direita",f.aberturaInicio,s=>re(a,s,f.aberturaFim+.12-f.aberturaInicio,be("direita",f.aberturaInicio),he)],["dobradica-esquerda",f.aberturaInicio+Z,s=>re(a,s,f.aberturaFim+.12-f.aberturaInicio-Z,be("esquerda",f.aberturaInicio+Z),la)],["assenta",f.aberturaFim+.02,s=>pa(a,s,7,.045)]];if(!t){let s=f.aberturaFim+W.periodo*.42;c.push(["volta",s,u=>re(a,u,.42,ma(24),{...he,volume:.2,taxa:[14,34]})])}let r=new Set;return{atualizar(s){for(let[u,i,l]of c)s>=i&&!r.has(u)&&(r.add(u),l(a.ctx.currentTime))},reiniciar:()=>r.clear()}}function be(e,t){let a=f.aberturaFim+.12,o=new Float32Array(96),c=0;for(let r=0;r<96;r++){let s=t+(a-t)*r/95;o[r]=Math.max(0,k(s+.01,e,!0)-k(s-.01,e,!0)),c=Math.max(c,o[r])}for(let r=0;r<96;r++)o[r]=c>0?o[r]/c:0;return o}function ma(e){let t=new Float32Array(e);for(let n=0;n<e;n++)t[n]=Math.sin(Math.PI*n/(e-1));return t}function re(e,t,n,a,o){let{ctx:c}=e,r=a.length,u=F(o.semente)()*6,i=b=>.6*Math.sin(b*.43+u)+.4*Math.sin(b*1.27+u*2.1),l=new Float32Array(r),d=new Float32Array(r);for(let b=0;b<r;b++){let v=a[b];l[b]=o.taxa[0]+(o.taxa[1]-o.taxa[0])*Math.pow(v,.9)+4*i(b),d[b]=o.volume*Math.pow(v,.7)*(.78+.22*i(b*1.6))}d[0]=0,d[r-1]=0;let m=c.createOscillator();m.type="sawtooth",m.frequency.setValueCurveAtTime(l,t,n);let h=c.createGain();h.gain.value=0,h.gain.setValueCurveAtTime(d,t,n);let g=c.createStereoPanner();g.pan.value=o.pan,h.connect(g).connect(e.destino);for(let[b,v,D]of o.ressonancias){let w=new Float32Array(r);for(let x=0;x<r;x++)w[x]=b*(.84+.3*a[x]+.04*i(x*.7));let P=c.createBiquadFilter();P.type="bandpass",P.Q.value=v,P.frequency.setValueCurveAtTime(w,t,n);let z=c.createGain();z.gain.value=D,m.connect(P).connect(z).connect(h)}m.start(t),m.stop(t+n+.05)}function ge(e,t,n,a){let{ctx:o}=e,c=o.createStereoPanner();c.pan.value=a,c.connect(e.destino);let r=[[610,.3,.22],[1460,.22,.2],[2330,.16,.15],[3190,.12,.1],[4870,.07,.06]];for(let[m,h,g]of r){let b=o.createOscillator();b.frequency.value=m;let v=o.createGain();v.gain.setValueAtTime(1e-4,t),v.gain.exponentialRampToValueAtTime(g*n,t+.003),v.gain.exponentialRampToValueAtTime(1e-4,t+h*3),b.connect(v).connect(c),b.start(t),b.stop(t+h*3+.02)}let s=o.createBufferSource();s.buffer=e.ruido(.08);let u=o.createBiquadFilter();u.type="bandpass",u.frequency.value=2600,u.Q.value=.9;let i=o.createGain();i.gain.setValueAtTime(1e-4,t),i.gain.exponentialRampToValueAtTime(.5*n,t+.002),i.gain.exponentialRampToValueAtTime(1e-4,t+.06),s.connect(u).connect(i).connect(c),s.start(t);let l=o.createOscillator();l.frequency.setValueAtTime(130,t),l.frequency.exponentialRampToValueAtTime(70,t+.14);let d=o.createGain();d.gain.setValueAtTime(1e-4,t),d.gain.exponentialRampToValueAtTime(.35*n,t+.006),d.gain.exponentialRampToValueAtTime(1e-4,t+.18),l.connect(d).connect(c),l.start(t),l.stop(t+.2)}function fa(e,t,n,a,o){let{ctx:c}=e,r=c.createBufferSource();r.buffer=e.ruido(n);let s=c.createBiquadFilter();s.type="bandpass",s.frequency.setValueAtTime(2400,t),s.frequency.linearRampToValueAtTime(3600,t+n),s.Q.value=6;let u=c.createGain();u.gain.setValueAtTime(1e-4,t),u.gain.exponentialRampToValueAtTime(a,t+n*.4),u.gain.exponentialRampToValueAtTime(1e-4,t+n);let i=c.createStereoPanner();i.pan.value=o,r.connect(s).connect(u).connect(i).connect(e.destino),r.start(t)}function pa(e,t,n,a){let{ctx:o}=e,c=F(97);for(let r=0;r<n;r++){let s=t+r*.05+c()*.04,u=o.createOscillator();u.frequency.value=2100+c()*2600;let i=o.createGain(),l=a*(1-r/(n+1));i.gain.setValueAtTime(1e-4,s),i.gain.exponentialRampToValueAtTime(l,s+.003),i.gain.exponentialRampToValueAtTime(1e-4,s+.09);let d=o.createStereoPanner();d.pan.value=(c()-.5)*1.2,u.connect(i).connect(d).connect(e.destino),u.start(s),u.stop(s+.1)}}function ha(e,t){let{ctx:n}=e,a=t+f.duracao-.04,o=n.createGain();o.gain.setValueAtTime(1e-4,t),o.gain.exponentialRampToValueAtTime(.12,t+1.2),o.gain.setValueAtTime(.12,t+f.neblinaInicio),o.gain.linearRampToValueAtTime(.19,t+f.neblinaFim),o.gain.exponentialRampToValueAtTime(1e-4,a),o.connect(e.destino);let c=n.createOscillator();c.frequency.value=.13;let r=n.createGain();r.gain.value=170,c.connect(r);for(let[s,u]of[[-.4,0],[.4,1.37]]){let i=n.createBufferSource();i.buffer=e.ruido(3),i.loop=!0;let l=n.createBiquadFilter();l.type="lowpass",l.frequency.value=420,l.Q.value=.6,r.connect(l.frequency);let d=n.createStereoPanner();d.pan.value=s,i.connect(l).connect(d).connect(o);let m=n.createBiquadFilter();m.type="bandpass",m.frequency.value=1150+s*120,m.Q.value=9;let h=n.createGain();h.gain.value=.18,i.connect(m).connect(h).connect(d),i.start(t,u),i.stop(a+.05)}c.start(t),c.stop(a+.05)}function xe(e,t,n){let{ctx:a}=e,o=a.createBufferSource();o.buffer=e.ruido(.2);let c=a.createBiquadFilter();c.type="lowpass",c.frequency.value=420;let r=a.createGain();r.gain.setValueAtTime(n,t),r.gain.exponentialRampToValueAtTime(.001,t+.16),o.connect(c).connect(r).connect(e.destino),o.start(t);let s=a.createBufferSource();s.buffer=e.ruido(.08);let u=a.createBiquadFilter();u.type="bandpass",u.frequency.value=1800,u.Q.value=2;let i=a.createGain();i.gain.setValueAtTime(n*.35,t+.01),i.gain.exponentialRampToValueAtTime(.001,t+.07),s.connect(u).connect(i).connect(e.destino),s.start(t+.01)}return ze(ba);})();
+</script>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js'
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer.
+THREE.ColorManagement.enabled = false
+const DURACAO = 9
+const criar = window.PortaoDeFerro.default
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const tempo = document.getElementById('tempo')
+const botaoSom = document.getElementById('som')
+const caixaReduzir = document.getElementById('reduzir')
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  const erro = document.getElementById('erro')
+  erro.textContent = 'Este navegador não abriu o WebGL, então a animação não pode tocar aqui.'
+  erro.style.display = 'grid'
+  throw e
+}
+
+// Granulado de fita velha: 160×100 de ruído redesenhado a cada 3 quadros (como no app).
+{
+  const g = document.getElementById('granulado')
+  const ctx = g.getContext('2d')
+  g.width = 160
+  g.height = 100
+  let n = 0
+  const desenhar = () => {
+    if (n++ % 3 === 0) {
+      const img = ctx.createImageData(160, 100)
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+        img.data[i + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+    }
+    requestAnimationFrame(desenhar)
+  }
+  requestAnimationFrame(desenhar)
+}
+
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let inicio = 0
+let tocando = false
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+}
+
+function montar() {
+  cena?.descartar()
+  cena = criar(THREE, { reduzirMovimento: reduzir })
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  if (audio) {
+    // O som da montagem anterior segue tocando no grafo velho: corta a saída dele.
+    audio.volume.disconnect()
+    audio.volume = audio.ctx.createGain()
+    audio.volume.gain.value = somLigado ? 1 : 0
+    audio.volume.connect(audio.ctx.destination)
+    audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  }
+  pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
+  ajustar()
+}
+
+function tick(agora) {
+  const t = (agora - inicio) / 1000
+  if (t >= DURACAO) {
+    // O motor fecha em preto no fim.
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(DURACAO)} s / ${virgula(DURACAO)} s`
+    tocando = false
+    return
+  }
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  if (somLigado) pistas?.atualizar(t)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(DURACAO)} s`
+  requestAnimationFrame(tick)
+}
+
+function tocar() {
+  inicio = performance.now()
+  pistas?.reiniciar()
+  if (!tocando) {
+    tocando = true
+    requestAnimationFrame((agora) => {
+      inicio = agora
+      tick(agora)
+    })
+  }
+}
+
+document.getElementById('repetir').addEventListener('click', tocar)
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  montar()
+  tocar()
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+    pistas = cena.criarSom ? cena.criarSom(audio.kit) : null
+  }
+  somLigado = !somLigado
+  audio.volume.gain.value = somLigado ? 1 : 0
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) tocar()
+})
+
+new ResizeObserver(ajustar).observe(canvas)
+montar()
+tocar()
+</script>
+</body>
+</html>
