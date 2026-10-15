@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Árvore nova</title>
+<style>
+:root { color-scheme: light; --bg: #f3f0e8; --painel: #fbf9f4; --borda: #d9d3c6; --ink: #24211c; --ink-2: #5f584c; --sel: #a5650f; --sel-fundo: #f4e6cf; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; --bg: #16151b; --painel: #1f1d25; --borda: #34313d; --ink: #ece6da; --ink-2: #b4ad9f; --sel: #e2a64a; --sel-fundo: #2a2419; }
+}
+:root[data-theme="dark"] { color-scheme: dark; --bg: #16151b; --painel: #1f1d25; --borda: #34313d; --ink: #ece6da; --ink-2: #b4ad9f; --sel: #e2a64a; --sel-fundo: #2a2419; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1400px; margin: 0 auto; display: grid; gap: 36px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: start; justify-content: space-between; }
+h1 { margin: 0; font-size: 28px; font-weight: 600; }
+h2 { margin: 0 0 4px; font-size: 19px; font-weight: 600; }
+p { margin: 0; color: var(--ink-2); max-width: 72ch; }
+section { display: grid; gap: 12px; }
+button { font: inherit; color: var(--ink); background: var(--painel); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 14px; cursor: pointer; transition: transform 160ms ease-out; }
+button:active { transform: scale(0.97); }
+button:focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
+.lado { display: flex; flex-wrap: wrap; gap: 24px; align-items: start; }
+.objeto { background: var(--painel); border: 1px solid var(--borda); border-radius: 10px; padding: 12px 12px 14px; }
+.objeto .titulo { font-size: 12px; letter-spacing: 0.14em; color: var(--ink-2); margin: 0 0 10px 2px; }
+.painel { display: grid; grid-template-columns: repeat(4, 84px); gap: 8px; }
+.tile { margin: 0; display: grid; justify-items: center; gap: 4px; padding: 4px; border-radius: 8px; border: 1px solid transparent; }
+.tile canvas { border-radius: 6px; display: block; }
+.tile figcaption { font-size: 13px; color: var(--ink); }
+.tile.destaque { border-color: var(--sel); background: var(--sel-fundo); }
+.tile.destaque figcaption { color: var(--sel); }
+.zoom { display: grid; gap: 6px; }
+.par { display: grid; gap: 10px; }
+.par figure, .fileira figure { margin: 0; display: grid; gap: 4px; }
+figcaption { font-size: 13px; color: var(--ink-2); }
+figcaption b { color: var(--ink); font-weight: 600; }
+.rolar { overflow-x: auto; max-width: 100%; }
+canvas { display: block; }
+.fileira { display: flex; flex-wrap: wrap; gap: 12px; }
+.fileira canvas { border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Árvore nova</h1>
+      <p>A Árvore de antes era o Arbusto maior: uma bola de lóbulos sem tronco. A nova tem tronco com raízes à mostra, a copa em dois andares de cachos (dois embaixo, um maior no alto) e a sombra da copa por baixo. Por ser alta, a sombra dela cai longe do pé. Desenhada com o mesmo código do app (a de antes sai do último commit).</p>
+    </div>
+    <button id="tema" type="button" aria-pressed="false">Trocar tema</button>
+  </header>
+  <section>
+    <h2>No painel</h2>
+    <div class="lado">
+      <div class="objeto"><div class="titulo">ANTES</div><div id="painel-antes" class="painel"></div></div>
+      <div class="objeto"><div class="titulo">DEPOIS</div><div id="painel-depois" class="painel"></div></div>
+    </div>
+  </section>
+  <section>
+    <h2>No mapa, em três zooms</h2>
+    <p>Mesma cena nos dois: três árvores (desenhos diferentes), dois arbustos, um pinheiro e uma palmeira. Metade na grama, metade no chão escuro da floresta, como no print.</p>
+    <div class="zoom"><div class="par">
+      <figure><div class="rolar"><canvas id="mapa-antes-2"></canvas></div><figcaption><b>Antes</b> · longe</figcaption></figure>
+      <figure><div class="rolar"><canvas id="mapa-depois-2"></canvas></div><figcaption><b>Depois</b> · longe</figcaption></figure>
+    </div></div>
+    <div class="zoom"><div class="par">
+      <figure><div class="rolar"><canvas id="mapa-antes-35"></canvas></div><figcaption><b>Antes</b> · médio</figcaption></figure>
+      <figure><div class="rolar"><canvas id="mapa-depois-35"></canvas></div><figcaption><b>Depois</b> · médio</figcaption></figure>
+    </div></div>
+    <div class="zoom"><div class="par">
+      <figure><div class="rolar"><canvas id="mapa-antes-6"></canvas></div><figcaption><b>Antes</b> · perto</figcaption></figure>
+      <figure><div class="rolar"><canvas id="mapa-depois-6"></canvas></div><figcaption><b>Depois</b> · perto</figcaption></figure>
+    </div></div>
+  </section>
+  <section>
+    <h2>Os 8 desenhos da árvore nova</h2>
+    <p>Cada árvore no mapa sai de um destes: muda qual cacho de baixo sobe, onde o do alto pende, o contorno dos cachos, a inclinação do tronco e a raiz da direita. A luz fica sempre em cima à esquerda.</p>
+    <div id="oito" class="fileira"></div>
+  </section>
+</main>
+<script>/*BUNDLE*/</script>
+</body>
+</html>

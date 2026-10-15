@@ -163,7 +163,7 @@ function desenharPinheiro(g: CanvasRenderingContext2D, giro: number, semente: nu
 }
 
 // ---------------------------------------------------------------------------
-// Copa redonda (árvore e arbusto): a silhueta é a união de lóbulos em volta
+// Copa redonda (o arbusto, e cada cacho da árvore): a silhueta é a união de lóbulos em volta
 // do miolo, girados pelo giro — cada uma sai com outro contorno. Três camadas
 // chapadas: o escuro inteiro, o médio puxado para a luz e uns brilhos no alto
 // à esquerda. A luz nunca gira com os lóbulos.
@@ -190,14 +190,78 @@ function lobulos(cy: number, raio: number, giro: number, semente: number, encolh
   return lista
 }
 
-function desenharCopa(g: CanvasRenderingContext2D, giro: number, semente: number, tons: TonsDaCopa, cy: number, raio: number): void {
+function desenharCopa(g: CanvasRenderingContext2D, giro: number, semente: number, tons: TonsDaCopa, cy: number, raio: number, cx = 0): void {
   g.fillStyle = css(tons.escuro)
-  circulos(g, lobulos(cy, raio, giro, semente, 1, 0, 0))
+  circulos(g, lobulos(cy, raio, giro, semente, 1, cx, 0))
   g.fillStyle = css(tons.medio)
-  circulos(g, lobulos(cy, raio, giro, semente, 0.78, -raio * 0.12, -raio * 0.15))
+  circulos(g, lobulos(cy, raio, giro, semente, 0.78, cx - raio * 0.12, -raio * 0.15))
   // Brilho: uma copa pequena no alto à esquerda, onde a luz bate em cheio.
   g.fillStyle = css(tons.claro)
-  circulos(g, lobulos(cy, raio, giro, semente, 0.4, -raio * 0.34, -raio * 0.38))
+  circulos(g, lobulos(cy, raio, giro, semente, 0.4, cx - raio * 0.34, -raio * 0.38))
+}
+
+// ---------------------------------------------------------------------------
+// Árvore: o que a separa do arbusto é a ALTURA. O tronco aparece embaixo da
+// copa, com as raízes abrindo no chão; a copa sobe em dois andares de cachos
+// (dois embaixo, um maior no alto, que tampa os de baixo e deixa a costura
+// escura entre eles); por baixo dos cachos, a sombra da própria copa, mais
+// escura, pousa sobre o tronco. Como o desenho é alto, a sombra `em-pe` sai
+// da copa e cai longe do pé — o que vende a altura no mapa. A luz é a de
+// sempre: o cacho da direita mais apagado, o do alto mais aceso.
+
+const ARVORE_SOMBRA_DA_COPA: Rgb = [14, 60, 50]
+
+/** Os tons de um cacho, mais ou menos de frente para a luz. */
+function tonsComLuz(t: TonsDaCopa, f: number): TonsDaCopa {
+  return { escuro: luz(t.escuro, f), medio: luz(t.medio, f), claro: luz(t.claro, f) }
+}
+
+function desenharArvore(g: CanvasRenderingContext2D, giro: number, semente: number): void {
+  const inclina = Math.sin(giro) * 0.035
+  const topoDoTronco = -0.46
+  // Tronco: a metade da luz, com a raiz da esquerda abrindo no chão...
+  g.fillStyle = css(TRONCO)
+  g.beginPath()
+  g.moveTo(0, 0.02)
+  g.lineTo(-0.1, 0.026)
+  g.quadraticCurveTo(-0.046, 0.004, -0.043, -0.1)
+  g.lineTo(-0.033 + inclina, topoDoTronco)
+  g.lineTo(inclina, topoDoTronco)
+  g.closePath()
+  g.fill()
+  // ...e a da sombra, com a raiz da direita mais comprida (cada uma sai de um jeito).
+  const raiz = 0.1 + 0.035 * sorteio(semente, 80)
+  g.fillStyle = css(TRONCO_SOMBRA)
+  g.beginPath()
+  g.moveTo(0, 0.02)
+  g.lineTo(inclina, topoDoTronco)
+  g.lineTo(0.033 + inclina, topoDoTronco)
+  g.lineTo(0.043, -0.1)
+  g.quadraticCurveTo(0.05, 0.004, raiz, 0.03)
+  g.closePath()
+  g.fill()
+
+  // Os cachos: qual dos de baixo sobe um pouco e onde o do alto pende mudam
+  // com a semente; o contorno de cada um gira com o giro.
+  const sobe = sorteio(semente, 81) < 0.5 ? -1 : 1
+  const tamanho = (i: number) => 0.94 + 0.12 * sorteio(semente, 82 + i)
+  const cachos = [
+    { x: -0.215, y: -0.54 + 0.025 * sobe, r: 0.225 * tamanho(0), luz: 0.03 },
+    { x: 0.215, y: -0.54 - 0.025 * sobe, r: 0.225 * tamanho(1), luz: -0.09 },
+    { x: (sorteio(semente, 85) - 0.5) * 0.08, y: -0.83, r: 0.285 * tamanho(2), luz: 0.06 },
+  ]
+  const lobosDoCacho = (i: number) => giro + i * 2.1
+  const sementeDoCacho = (i: number) => semente * 3 + i * 17
+
+  // A sombra por baixo da copa: os cachos de baixo, um pouco mais para baixo
+  // e para a direita, e o miolo entre eles, onde o tronco entra na sombra.
+  g.fillStyle = css(ARVORE_SOMBRA_DA_COPA)
+  circulos(g, [
+    ...lobulos(cachos[0].y + 0.035, cachos[0].r, lobosDoCacho(0), sementeDoCacho(0), 1, cachos[0].x + 0.015, 0),
+    ...lobulos(cachos[1].y + 0.035, cachos[1].r, lobosDoCacho(1), sementeDoCacho(1), 1, cachos[1].x + 0.015, 0),
+    [0.01, -0.5, 0.17],
+  ])
+  cachos.forEach((c, i) => desenharCopa(g, lobosDoCacho(i), sementeDoCacho(i), tonsComLuz(TONS_DA_ARVORE, c.luz), c.y, c.r, c.x))
 }
 
 // ---------------------------------------------------------------------------
@@ -425,7 +489,7 @@ function desenharJuncos(g: CanvasRenderingContext2D, giro: number, semente: numb
 export const CARIMBOS_EMBUTIDOS: readonly DefinicaoDeCarimbo[] = [
   { id: 'pinheiro', nome: 'Pinheiro', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, false) },
   { id: 'pinheiro-nevado', nome: 'Pinheiro com neve', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, true) },
-  { id: 'arvore', nome: 'Árvore', tamanho: 12, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharCopa(g, giro, semente, TONS_DA_ARVORE, -0.4, 0.42) },
+  { id: 'arvore', nome: 'Árvore', tamanho: 15, sombra: 'em-pe', desenhar: desenharArvore },
   { id: 'arbusto', nome: 'Arbusto', tamanho: 6, sombra: 'baixa', desenhar: (g, giro, semente) => desenharCopa(g, giro, semente, TONS_DO_ARBUSTO, -0.3, 0.4) },
   { id: 'palmeira', nome: 'Palmeira', tamanho: 13, sombra: 'em-pe', desenhar: desenharPalmeira },
   { id: 'pedras', nome: 'Pedras', tamanho: 10, sombra: 'baixa', desenhar: desenharPedras },
@@ -446,6 +510,7 @@ export const PALETA_DOS_EMBUTIDOS: readonly Rgb[] = [
   PINHO_FRIO_CLARO,
   PINHO_FRIO_ESCURO,
   ...Object.values(TONS_DA_ARVORE),
+  ARVORE_SOMBRA_DA_COPA,
   ...Object.values(TONS_DO_ARBUSTO),
   PALMEIRA_TRONCO,
   PALMEIRA_TRONCO_SOMBRA,
