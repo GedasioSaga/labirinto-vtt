@@ -66,6 +66,7 @@ const DESENHOS = {
   ),
   varinha: caminho('M4.5 19.5l11-11 M15 4.5l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z'),
   casa: caminho('M4 11l8-6.5 8 6.5 M6.5 9v10.5h11V9'),
+  baixo: caminho('M6 9l6 6 6-6'),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

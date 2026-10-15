@@ -43,10 +43,6 @@ export interface LivroDoMestreProps {
   onProcurar: () => void
   /** A engrenagem (Configurações do mapa), já montada com a janela dela. */
   configuracoes: ReactNode
-  /** Voltar à cena anterior; até a fatia 3 (chip da cena) mora aqui. Ausente = não há para onde voltar. */
-  onVoltarCena?: () => void
-  /** "Ver todas as cenas"; até a fatia 3 mora aqui. */
-  onVerTodasAsCenas?: () => void
   /** Recebe o que o livro tapa do mapa: o livro aberto, ou só a lombada quando a página está recolhida. */
   obstaculoRef?: RefObject<HTMLElement | null>
 }
@@ -257,11 +253,7 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
                 )}
               </Balao>
               <span className="gr-empurra" />
-              {/* Até a fatia 3 (chip da cena), Voltar e "Ver todas as cenas" moram aqui. */}
-              {props.onVoltarCena !== undefined && <BotaoDoTopo nome="Voltar" balao="Voltar à cena anterior" icone="voltar" onClick={props.onVoltarCena} />}
-              {props.onVerTodasAsCenas !== undefined && (
-                <BotaoDoTopo nome="Ver todas as cenas" icone="cenas" aria-haspopup="dialog" onClick={props.onVerTodasAsCenas} />
-              )}
+              {/* Voltar e "Ver todas as cenas" moram no chip da cena, no alto do mapa (ChipDaCena.tsx). */}
               {props.configuracoes}
             </div>
           </div>

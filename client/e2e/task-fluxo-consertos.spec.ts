@@ -90,7 +90,7 @@ test('2. Voltar do andar salva o que foi desenhado nele', async ({ page }) => {
   })
   await page.getByRole('button', { name: 'Novo andar em branco' }).click()
   await page.getByRole('button', { name: 'Entrar no andar' }).click()
-  const back = page.getByRole('button', { name: 'Voltar' })
+  const back = page.getByRole('button', { name: 'Voltar à cena anterior' })
   await expect(back).toBeVisible()
 
   await drawRoomAt(page, 400, 400, 600, 500)
@@ -103,7 +103,7 @@ test('2. Voltar do andar salva o que foi desenhado nele', async ({ page }) => {
 
   await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().setSelection([{ kind: 'prop', id: 'escada' }]))
   await page.getByRole('button', { name: 'Entrar no andar' }).click()
-  await expect(page.getByRole('button', { name: 'Voltar' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Voltar à cena anterior' })).toBeVisible()
   await expect.poll(async () => (await snapshot(page)).regions.length).toBe(1)
 })
 

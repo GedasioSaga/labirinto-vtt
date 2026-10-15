@@ -19,7 +19,6 @@ Parte de: editor aberto, Selecionar, nada selecionado. Vai para: Topo do livro d
 | Campo do novo token | textbox "Nome do novo token" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
 | Adicionar (novo token) | button "Adicionar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
 | Cancelar (novo token) | button "Cancelar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
-| Ver todas as cenas (ícone de expandir) | button "Ver todas as cenas" | (livro do mestre) | Chip da cena, "Ver todas as cenas" (fatia 3) |
 | Engrenagem (Configurações do mapa) | button "Configurações do mapa" | (livro do mestre) | (do bloco) |
 | Faixa "Nada selecionado" | button "Nada selecionado" | (livro do mestre) > clicar tab "Ficha" | Página Ficha, vazio com atalhos (fatia 7) |
 
@@ -39,6 +38,16 @@ Parte de: editor aberto. Vai para: Topo do livro do mestre (ícones) e menu Arqu
 | Importar mapa (pasta) | menuitem "Importar mapa (pasta)…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
 | Início | menuitem "Voltar ao início" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
 | Atalhos do teclado (?) | button "Atalhos do teclado" | (topo do livro do mestre) | (do bloco) |
+
+### Chip da cena
+
+Parte de: editor com aventura (Cripta, cena inicial). Vai para: Chip da cena no alto do mapa (feito). Fatia: 3.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Nome da cena aberta (abre o menu de cenas) | button "/^Cripta/" | (chip da cena, no alto do mapa) | (do bloco) |
+| Menu de cenas por pasta: a cena | menuitem "Cripta" | (chip da cena, no alto do mapa) > clicar button "/^Cripta/" | (do bloco) |
+| Ver todas as cenas (antigo ícone de expandir) | menuitem "Ver todas as cenas" | (chip da cena, no alto do mapa) > clicar button "/^Cripta/" | (do bloco) |
 
 ### Grupo Aventura
 
@@ -869,7 +878,7 @@ Parte de: diálogo aberto pela engrenagem da cena (coluna da direita, Cenas). Va
 
 ### Todas as cenas
 
-Parte de: aberto pelo ícone "Ver todas as cenas". Vai para: Chip da cena, "Ver todas as cenas". Fatia: 3 e 20.
+Parte de: aberto pelo menu do chip da cena, "Ver todas as cenas". Vai para: Chip da cena, "Ver todas as cenas" (feito); a janela muda na 20. Fatia: 3 e 20.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -996,7 +1005,7 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 
 | Controle | Por que não está no spec |
 |---|---|
-| Voltar (cena anterior), no topo do livro do mestre até a fatia 3 | só aparece depois de viajar entre cenas |
+| Voltar à cena anterior (seta do chip da cena, fatia 3) | só aparece depois de viajar entre cenas; ChipDaCena.test.tsx cobre |
 | Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa) | só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro |
 | Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel) | aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho) |
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
@@ -1009,4 +1018,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 546 controles em 62 blocos.
+Total: 548 controles em 63 blocos.

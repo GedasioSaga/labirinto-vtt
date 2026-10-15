@@ -39,10 +39,11 @@ export interface Linha {
 
 /**
  * Onde o caminho começa a procurar. Desde a fatia 2, `esquerda` é o livro do
- * mestre (lombada + página aberta) e `acoes` é o topo dele; item de menu
+ * mestre (lombada + página aberta) e `acoes` é o topo dele; desde a fatia 3,
+ * `chip` é o chip da cena no alto do mapa (Voltar, nome e menu de cenas). Item de menu
  * (`menuitem`) é procurado na tela inteira, porque o menu abre por cima de tudo.
  */
-export type Escopo = 'esquerda' | 'barra' | 'acoes' | 'direita' | 'pagina'
+export type Escopo = 'esquerda' | 'barra' | 'acoes' | 'chip' | 'direita' | 'pagina'
 
 export type Tela = 'mestre' | 'mestre-sala-aberta' | 'jogador'
 
@@ -54,6 +55,8 @@ export interface Preparo {
   readonly selecao?: { readonly tipo: 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'pin' | 'zona'; readonly id: string }[]
   /** Clique que abre o diálogo do bloco, quando ele não está aberto. */
   readonly abrir?: Alvo
+  /** O `abrir` é item de um menu: antes, o gatilho do menu, procurado no escopo dado. */
+  readonly abrirDe?: { readonly escopo: Escopo; readonly gatilho: Alvo }
   /** Escape depois de cada linha (fecha o menu que a linha abriu). */
   readonly escape?: boolean
 }
@@ -108,7 +111,6 @@ export const BLOCOS: readonly Bloco[] = [
       l('Campo do novo token', ['textbox', 'Nome do novo token'], b('Adicionar token')),
       l('Adicionar (novo token)', b('Adicionar'), b('Adicionar token')),
       l('Cancelar (novo token)', b('Cancelar'), b('Adicionar token')),
-      { ...l('Ver todas as cenas (ícone de expandir)', b('Ver todas as cenas')), vai: 'Chip da cena, "Ver todas as cenas" (fatia 3)' },
       l('Engrenagem (Configurações do mapa)', b('Configurações do mapa')),
       { ...l('Faixa "Nada selecionado"', b('Nada selecionado'), marcador('Ficha')), vai: 'Página Ficha, vazio com atalhos (fatia 7)' },
     ],
@@ -127,6 +129,15 @@ export const BLOCOS: readonly Bloco[] = [
       l('Importar mapa (pasta)', menu('Importar mapa (pasta)…'), b('Arquivo')),
       l('Início', menu('Voltar ao início'), b('Arquivo')),
       l('Atalhos do teclado (?)', b('Atalhos do teclado')),
+    ],
+  },
+  {
+    tela: 'mestre', titulo: 'Chip da cena', estado: 'editor com aventura (Cripta, cena inicial)', escopo: 'chip',
+    vai: 'Chip da cena no alto do mapa (feito)', fatia: '3',
+    linhas: [
+      l('Nome da cena aberta (abre o menu de cenas)', b('/^Cripta/')),
+      l('Menu de cenas por pasta: a cena', menu('Cripta'), b('/^Cripta/')),
+      l('Ver todas as cenas (antigo ícone de expandir)', menu('Ver todas as cenas'), b('/^Cripta/')),
     ],
   },
   {
@@ -372,8 +383,9 @@ export const BLOCOS: readonly Bloco[] = [
     ],
   },
   {
-    tela: 'mestre', titulo: 'Todas as cenas', estado: 'aberto pelo ícone "Ver todas as cenas"', escopo: 'pagina', preparo: { abrir: b('Ver todas as cenas') },
-    vai: 'Chip da cena, "Ver todas as cenas"', fatia: '3 e 20',
+    tela: 'mestre', titulo: 'Todas as cenas', estado: 'aberto pelo menu do chip da cena, "Ver todas as cenas"', escopo: 'pagina',
+    preparo: { abrir: menu('Ver todas as cenas'), abrirDe: { escopo: 'chip', gatilho: b('/^Cripta/') } },
+    vai: 'Chip da cena, "Ver todas as cenas" (feito); a janela muda na 20', fatia: '3 e 20',
     linhas: [l('Miniatura da cena', b('/^Cripta, 1 token/'))],
   },
   {
@@ -449,7 +461,7 @@ export const BLOCOS: readonly Bloco[] = [
 
 /** Controles do inventário que este estado de teste NÃO monta, e por quê (vão para a tabela do doc). */
 export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
-  ['Voltar (cena anterior), no topo do livro do mestre até a fatia 3', 'só aparece depois de viajar entre cenas'],
+  ['Voltar à cena anterior (seta do chip da cena, fatia 3)', 'só aparece depois de viajar entre cenas; ChipDaCena.test.tsx cobre'],
   ['Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa)', 'só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro'],
   ['Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel)', 'aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho)'],
   ['Endireitar na sala ou parede solta', 'só com traço torto; coberto no desenho'],

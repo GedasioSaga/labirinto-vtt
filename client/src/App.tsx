@@ -143,6 +143,7 @@ import { MapObjectsSection } from './components/MapObjectsSection'
 import { useLivroDoMestreStore } from './stores/livroDoMestreStore'
 import { SceneSettingsDialog } from './components/SceneSettingsDialog'
 import { SceneOverviewDialog } from './components/SceneOverview'
+import { ChipDaCena } from './components/livro/ChipDaCena'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -707,7 +708,7 @@ function App() {
   const [room, setRoom] = useState<RoomInfo | null>(null)
   /** Cena com a janela "Configurar" aberta; `null` = nenhuma. */
   const [configuringSceneId, setConfiguringSceneId] = useState<string | null>(null)
-  /** "Ver todas as cenas" (ícone de expandir do cabeçalho) aberta. */
+  /** "Ver todas as cenas" (menu do chip da cena) aberta. */
   const [cenasExpandidas, setCenasExpandidas] = useState(false)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   /** Clique direito num token de jogador: o menu dele (Congelar, Enviar mensagem…), em px da caixa do canvas. */
@@ -1347,7 +1348,7 @@ function App() {
   const dismissToast = useToastStore((state) => state.dismiss)
   const pausarAvisos = useToastStore((state) => state.pausar)
   const retomarAvisos = useToastStore((state) => state.retomar)
-  // Cenas da aventura (`stores/adventureStore.ts`). O Voltar da barra leva à
+  // Cenas da aventura (`stores/adventureStore.ts`). O Voltar do chip da cena leva à
   // cena de onde se veio na última troca.
   const adventure = useAdventureStore((state) => state.adventure)
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
@@ -3087,6 +3088,13 @@ function App() {
       </div>
 
       <div className="lb-editor__top" ref={editorTopRef}>
+        {/* CHIP DA CENA (fatia 3): Voltar, o nome da cena aberta e o menu de cenas, acima da barra. */}
+        <ChipDaCena
+          cenas={scenesPanel}
+          onTrocar={handleSelectScene}
+          onVoltar={canGoBackToScene ? handleGoBack : undefined}
+          onVerTodas={() => setCenasExpandidas(true)}
+        />
         <Toolbar
           activeTool={activeTool}
           onSelectTool={armarPelaBarra}
@@ -3144,8 +3152,6 @@ function App() {
         onAtalhos={() => setShortcutsOpen(true)}
         atalhosAbertos={shortcutsOpen}
         onProcurar={procurarNoMapa}
-        onVoltarCena={canGoBackToScene ? handleGoBack : undefined}
-        onVerTodasAsCenas={() => setCenasExpandidas(true)}
         configuracoes={
           <MapSettingsButton
             aparencia="livro"

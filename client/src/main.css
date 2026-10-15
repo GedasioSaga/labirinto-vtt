@@ -979,7 +979,10 @@ body {
   right: 0;
   padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
   display: flex;
-  justify-content: center;
+  /* O chip da cena (fatia 3) no alto e a barra logo abaixo, os dois centrados. */
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lb-space-2);
   pointer-events: none;
 }
 

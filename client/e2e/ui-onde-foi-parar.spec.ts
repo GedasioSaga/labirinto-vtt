@@ -74,6 +74,8 @@ function escopo(page: Page, qual: Escopo): Locator | Page {
     case 'esquerda': return page.getByRole('complementary', { name: 'Livro do mestre' })
     case 'barra': return page.getByRole('toolbar', { name: 'Ferramentas do mapa' })
     case 'acoes': return page.getByRole('complementary', { name: 'Livro do mestre' })
+    // O chip da cena (fatia 3), no alto do mapa: Voltar, o nome e o menu de cenas.
+    case 'chip': return page.getByRole('group', { name: 'Cena aberta' })
     case 'direita': return page.getByRole('complementary', { name: 'Jogo, chat e cenas' })
     case 'pagina': return page
   }
@@ -104,6 +106,8 @@ async function preparar(page: Page, bloco: Bloco): Promise<void> {
     if ((await botao.getAttribute('aria-pressed')) !== 'true') await botao.click()
   }
   if (p.abrir !== undefined && !(await page.getByRole('dialog').first().isVisible())) {
+    // Janela aberta por item de menu ("Ver todas as cenas" do chip): primeiro o gatilho do menu.
+    if (p.abrirDe !== undefined) await achar(escopo(page, p.abrirDe.escopo), p.abrirDe.gatilho).click()
     const abrir = achar(page, p.abrir)
     if (await abrir.isVisible()) await abrir.click()
   }

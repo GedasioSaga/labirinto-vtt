@@ -139,3 +139,55 @@
   .gr-lombada__recolher:active { transform: none; }
 }
 .gr-lombada__marcadores { width: 100%; }
+
+/*
+ * CHIP DA CENA (fatia 3): no alto do mapa, a seta de voltar e o nome da cena
+ * aberta, que abre o menu de cenas. Portado de .chip-cena do protótipo com os
+ * mesmos valores; o nome longo corta só aqui (o balão mostra inteiro).
+ */
+.gr-chip-cena {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-full);
+  box-shadow: var(--lb-shadow-float);
+}
+.gr-chip-cena .gr-bt--ic { border-radius: var(--lb-radius-full); }
+.gr-chip-cena__nome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 12px 0 14px;
+  border: 0;
+  border-radius: var(--lb-radius-full);
+  background: transparent;
+  font: 400 16px/1 var(--lb-font-display);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.gr-chip-cena__texto {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gr-chip-cena__nome small {
+  flex: none;
+  font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans);
+  color: var(--lb-color-parchment-faint);
+}
+.gr-chip-cena__nome .gr-ic { flex: none; width: 16px; height: 16px; color: var(--lb-color-parchment-faint); }
+.gr-chip-cena__nome[aria-expanded="true"] { background: var(--lb-gr-hover); }
+@media (hover: hover) and (pointer: fine) {
+  .gr-chip-cena__nome:hover { background: var(--lb-gr-hover); }
+}
