@@ -1568,6 +1568,15 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  (`lib/mobilia.ts` recusa o resto na leitura e na travessia); vai ao
    *  jogador junto do tipo. */
   mobiliaForma?: Extract<FormaDoTapete, 'redondo'>
+  /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
+   *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
+   *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
+   *  em outro tipo some na leitura e na travessia. Vai ao jogador junto do tipo. */
+  mobiliaCorDoTravesseiro?: string
+  /** Cor do cobertor da cama, da dobra ao pé (a madeira fica à vista nos
+   *  lados e no pé), `#rrggbb` com as mesmas regras de `mobiliaCorDoTravesseiro`.
+   *  Ausente = o desenho de sempre. */
+  mobiliaCorDoCobertor?: string
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado

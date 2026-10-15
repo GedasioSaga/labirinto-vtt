@@ -19,6 +19,9 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
  * (`pixi/chamasDasFogueiras.ts`), que nasce de `chamaDaFogueira`.
  *
  * A cama guarda o id antigo `catre`: mapas salvos com o catre abrem com a cama.
+ * Ela tem TRÊS cores: a "Cor" pinta a madeira, e "Cor do travesseiro" e "Cor
+ * do cobertor" (`Prop.mobiliaCorDoTravesseiro`/`mobiliaCorDoCobertor`) pintam
+ * os tecidos (`regioesDaCama`); sem elas, a cama sai como sempre.
  *
  * A cerca é um TRECHO: o clique põe 2 casas; o mestre estica, gira e move com
  * os controles de sempre do objeto, e o glifo reparte os mourões redondos,
@@ -293,6 +296,8 @@ const RECUO_TRAVESSEIRO = 0.12
 const ALTURA_TRAVESSEIRO = 0.18
 /** Onde a coberta dobra, em fração da altura a partir da cabeceira. */
 const DOBRA_DA_COBERTA = 0.42
+/** O cobertor com cor própria deixa a madeira à vista nos lados e no pé, nesta fração do lado menor. */
+const BEIRA_DA_MOLDURA = 0.07
 /** Recuo do tampo da mesa, em fração do lado menor. */
 const RECUO_TAMPO = 0.18
 /** Onde a tampa do baú fecha, em fração da altura a partir de cima. */
@@ -817,12 +822,51 @@ export function contornoDoTapete(forma: FormaDoTapete, largura: number, altura: 
 
 /**
  * Uma área do desenho que leva cor própria: no tapete, a borda e o medalhão
- * (`'escuro'`, a "Cor" mais escura). Um anel vem num polígono só, com o buraco
- * dentro (`anel`).
+ * (`'escuro'`, a "Cor" mais escura); na cama, o travesseiro e o cobertor. Um
+ * anel vem num polígono só, com o buraco dentro (`anel`).
  */
 export interface RegiaoDoMovel {
   pontos: Ponto[]
-  tom: 'escuro'
+  tom: 'escuro' | 'travesseiro' | 'cobertor'
+}
+
+/**
+ * Áreas de tecido da cama, sobre os MESMOS traços de hoje (o retângulo do
+ * travesseiro e a dobra): o travesseiro é o retângulo dele; o cobertor vai da
+ * dobra ao pé, recuado `BEIRA_DA_MOLDURA` nos lados e no pé (a madeira fica à
+ * vista). Só entra a área que tem cor própria — sem elas a cama sai pixel a
+ * pixel como hoje. Tamanho não desenhável não tem área.
+ */
+export function regioesDaCama(largura: number, altura: number, comTravesseiro: boolean, comCobertor: boolean): RegiaoDoMovel[] {
+  if (!tamanhoDesenhavel(largura, altura)) return []
+  const meiaLargura = largura / 2
+  const meiaAltura = altura / 2
+  const menorLado = Math.min(largura, altura)
+  const recuo = menorLado * RECUO_TRAVESSEIRO
+  const topoDoTravesseiro = -meiaAltura + recuo
+  const dobra = -meiaAltura + altura * DOBRA_DA_COBERTA
+  const beira = menorLado * BEIRA_DA_MOLDURA
+  const regioes: RegiaoDoMovel[] = []
+  if (comCobertor) {
+    regioes.push({ pontos: retanguloXY(-meiaLargura + beira, dobra, meiaLargura - beira, meiaAltura - beira), tom: 'cobertor' })
+  }
+  if (comTravesseiro) {
+    regioes.push({
+      pontos: retanguloXY(-meiaLargura + recuo, topoDoTravesseiro, meiaLargura - recuo, topoDoTravesseiro + altura * ALTURA_TRAVESSEIRO),
+      tom: 'travesseiro',
+    })
+  }
+  return regioes
+}
+
+/** Os quatro cantos de um retângulo alinhado aos eixos, no sentido horário a partir do de cima à esquerda. */
+function retanguloXY(esquerda: number, topo: number, direita: number, base: number): Ponto[] {
+  return [
+    { x: esquerda, y: topo },
+    { x: direita, y: topo },
+    { x: direita, y: base },
+    { x: esquerda, y: base },
+  ]
 }
 
 /**
@@ -1209,7 +1253,8 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
     { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade, forma ?? 'retangular') },
     forma,
   )
-  return comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))
+  // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
+  return semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
 }
 
 /**
@@ -1254,29 +1299,69 @@ export function normalizarCorDoMovel(valor: unknown): string | undefined {
 }
 
 /**
+ * Cor de TECIDO da cama (travesseiro e cobertor): só na cama, e só `#rrggbb`
+ * normalizada (a mesma porta da "Cor"). Em outro tipo, ou cor torta, vira
+ * `undefined`. É a porta da leitura do arquivo, da edição, da travessia para
+ * o jogador e do desenho.
+ */
+export function normalizarCorDeTecido(tipo: TipoMobilia | undefined, valor: unknown): string | undefined {
+  return tipo === 'catre' ? normalizarCorDoMovel(valor) : undefined
+}
+
+/**
+ * Paleta de tecido, um clique para o travesseiro e o cobertor. Tons de pano
+ * tingido, contidos: nenhum passa de ~45% de saturação (HSL), para não
+ * estourar sobre o chão chapado do minimapa. O branco é quebrado (linho), não #fff.
+ */
+export const PALETA_DE_TECIDO: readonly { nome: string; cor: string }[] = [
+  { nome: 'Branco', cor: '#e6e1d6' },
+  { nome: 'Creme', cor: '#d6c49e' },
+  { nome: 'Cinza', cor: '#8c8a84' },
+  { nome: 'Vermelho', cor: '#9a3f36' },
+  { nome: 'Azul', cor: '#46638a' },
+  { nome: 'Verde', cor: '#55704a' },
+  { nome: 'Roxo', cor: '#6c5280' },
+  { nome: 'Castanho', cor: '#7a5838' },
+]
+
+/**
  * Pedido de aparência vindo do painel. Chave ausente = não mexe; `preenchido:
- * true` e cor `null` = volta ao padrão (o campo sai do objeto).
+ * true` e cor `null` = volta ao padrão (o campo sai do objeto). As cores de
+ * tecido só valem na cama: em outro tipo o pedido não muda nada.
  */
 export interface AparenciaDoMovelPatch {
   preenchido?: boolean
   cor?: string | null
   corDaLinha?: string | null
+  corDoTravesseiro?: string | null
+  corDoCobertor?: string | null
 }
 
 interface AparenciaDoMovel {
   preenchido: boolean
   cor: string | undefined
   corDaLinha: string | undefined
+  corDoTravesseiro: string | undefined
+  corDoCobertor: string | undefined
 }
 
 /** `prop` com a aparência na forma que o mapa guarda: cada campo só quando foge do padrão. */
 function comAparenciaGravada(prop: Prop, aparencia: AparenciaDoMovel): Prop {
-  const { mobiliaPreenchido: _preenchido, mobiliaCor: _cor, mobiliaCorDaLinha: _corDaLinha, ...semAparencia } = prop
+  const {
+    mobiliaPreenchido: _preenchido,
+    mobiliaCor: _cor,
+    mobiliaCorDaLinha: _corDaLinha,
+    mobiliaCorDoTravesseiro: _corDoTravesseiro,
+    mobiliaCorDoCobertor: _corDoCobertor,
+    ...semAparencia
+  } = prop
   return {
     ...semAparencia,
     ...(aparencia.preenchido ? {} : { mobiliaPreenchido: false }),
     ...(aparencia.cor === undefined ? {} : { mobiliaCor: aparencia.cor }),
     ...(aparencia.corDaLinha === undefined ? {} : { mobiliaCorDaLinha: aparencia.corDaLinha }),
+    ...(aparencia.corDoTravesseiro === undefined ? {} : { mobiliaCorDoTravesseiro: aparencia.corDoTravesseiro }),
+    ...(aparencia.corDoCobertor === undefined ? {} : { mobiliaCorDoCobertor: aparencia.corDoCobertor }),
   }
 }
 
@@ -1288,20 +1373,36 @@ function corDepoisDoPedido(antes: string | undefined, pedido: string | null | un
 }
 
 /**
- * "Preencher", "Cor" e "Cor da linha" do painel aplicados ao móvel. Cor torta
- * não apaga a cor que havia: o pedido é ignorado, como o arquivo faria.
+ * "Preencher", "Cor", "Cor da linha" e, na cama, "Cor do travesseiro" e "Cor
+ * do cobertor" do painel aplicados ao móvel. Cor torta não apaga a cor que
+ * havia: o pedido é ignorado, como o arquivo faria.
  */
 export function comAparenciaDoMovel(prop: Prop, patch: AparenciaDoMovelPatch): Prop {
   return comAparenciaGravada(prop, {
     preenchido: patch.preenchido ?? prop.mobiliaPreenchido !== false,
     cor: corDepoisDoPedido(prop.mobiliaCor, patch.cor),
     corDaLinha: corDepoisDoPedido(prop.mobiliaCorDaLinha, patch.corDaLinha),
+    corDoTravesseiro: normalizarCorDeTecido(prop.mobilia, corDepoisDoPedido(prop.mobiliaCorDoTravesseiro, patch.corDoTravesseiro)),
+    corDoCobertor: normalizarCorDeTecido(prop.mobilia, corDepoisDoPedido(prop.mobiliaCorDoCobertor, patch.corDoCobertor)),
   })
 }
 
-/** Os dois objetos têm a mesma aparência de móvel ("Preencher", "Cor", "Cor da linha"). */
+/** Os dois objetos têm a mesma aparência de móvel ("Preencher", as três cores da cama, "Cor da linha"). */
 export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
-  return a.mobiliaPreenchido === b.mobiliaPreenchido && a.mobiliaCor === b.mobiliaCor && a.mobiliaCorDaLinha === b.mobiliaCorDaLinha
+  return (
+    a.mobiliaPreenchido === b.mobiliaPreenchido &&
+    a.mobiliaCor === b.mobiliaCor &&
+    a.mobiliaCorDaLinha === b.mobiliaCorDaLinha &&
+    a.mobiliaCorDoTravesseiro === b.mobiliaCorDoTravesseiro &&
+    a.mobiliaCorDoCobertor === b.mobiliaCorDoCobertor
+  )
+}
+
+/** `prop` sem as cores de tecido quando ele não é a cama: elas só valem nela. */
+function semTecidoForaDaCama(prop: Prop): Prop {
+  if (prop.mobilia === 'catre' || (!('mobiliaCorDoTravesseiro' in prop) && !('mobiliaCorDoCobertor' in prop))) return prop
+  const { mobiliaCorDoTravesseiro: _corDoTravesseiro, mobiliaCorDoCobertor: _corDoCobertor, ...semTecido } = prop
+  return semTecido
 }
 
 /**
@@ -1316,7 +1417,9 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaCorDaLinha' in prop) &&
     !('mobiliaVista' in prop) &&
     !('mobiliaCurva' in prop) &&
-    !('mobiliaForma' in prop)
+    !('mobiliaForma' in prop) &&
+    !('mobiliaCorDoTravesseiro' in prop) &&
+    !('mobiliaCorDoCobertor' in prop)
   ) {
     return prop
   }
@@ -1328,6 +1431,8 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaVista: _vista,
     mobiliaCurva: _curva,
     mobiliaForma: _forma,
+    mobiliaCorDoTravesseiro: _corDoTravesseiro,
+    mobiliaCorDoCobertor: _corDoCobertor,
     ...comum
   } = prop
   return comum
@@ -1351,6 +1456,9 @@ export function propMobiliaFromFile(prop: Prop): Prop {
           preenchido: prop.mobiliaPreenchido !== false,
           cor: normalizarCorDoMovel(prop.mobiliaCor),
           corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
+          // CAMA EM TRÊS CORES: só na cama, só `#rrggbb`; o resto some.
+          corDoTravesseiro: normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro),
+          corDoCobertor: normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoCobertor),
         }),
         normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista),
       ),

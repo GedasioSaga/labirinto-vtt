@@ -205,3 +205,18 @@ describe('filterMapForPlayer — tapete', () => {
     semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'tapete', mobiliaForma: 'redondo', secret: true }), 'ana', POSSE, RAIO).map)
   })
 })
+
+describe('filterMapForPlayer — cama em três cores', () => {
+  it('travesseiro e cobertor chegam pintados; cor torta não atravessa, cor curta chega longa', () => {
+    const { map: out } = filterMapForPlayer(mapa({ mobiliaCorDoTravesseiro: '#e6e1d6', mobiliaCorDoCobertor: '#46638a' }), 'ana', POSSE, RAIO)
+    expect(out.props).toEqual([{ ...CATRE_DA_ANA, mobiliaCorDoTravesseiro: '#e6e1d6', mobiliaCorDoCobertor: '#46638a' }])
+    const torta = filterMapForPlayer(mapa({ mobiliaCorDoTravesseiro: 'url(javascript:x)', mobiliaCorDoCobertor: '#A50' }), 'ana', POSSE, RAIO).map
+    expect(torta.props).toEqual([{ ...CATRE_DA_ANA, mobiliaCorDoCobertor: '#aa5500' }])
+  })
+
+  it('cor de tecido fora da cama não atravessa; cama escondida não manda nada', () => {
+    const mesa = filterMapForPlayer(mapa({ mobilia: 'mesa', mobiliaCorDoCobertor: '#46638a' }), 'ana', POSSE, RAIO).map
+    expect(mesa.props[0]).not.toHaveProperty('mobiliaCorDoCobertor')
+    semRastroDoMovel(filterMapForPlayer(mapa({ mobiliaCorDoCobertor: '#46638a', hidden: true }), 'ana', POSSE, RAIO).map)
+  })
+})

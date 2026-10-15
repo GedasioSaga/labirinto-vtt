@@ -23,3 +23,85 @@
   border-color: var(--lb-color-line-strong);
   cursor: not-allowed;
 }
+
+/* CAMA EM TRÊS CORES — a paleta de tecido, debaixo da linha da cor: uma fileira
+   de 9 amostras (Padrão + 8 tons) de 24 px de altura e ~23 de largura, 26 px de
+   centro a centro (WCAG 2.5.8: o alvo de 24 px passa pelo espaçamento). Um
+   ponto de Tab só; as setas andam dentro (MobiliaControls.tsx). */
+.lb-cor-de-tecido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-paleta {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.lb-paleta__amostra {
+  position: relative;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--amostra);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Padrão: a cor da cama riscada na diagonal (não há cor própria). */
+.lb-paleta__amostra--padrao {
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 0.75px),
+      var(--lb-color-parchment-dim) calc(50% - 0.75px),
+      var(--lb-color-parchment-dim) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    ),
+    var(--amostra);
+}
+
+.lb-paleta__amostra:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.lb-paleta__amostra:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* Marcada: anel de latão com a folga da pedra, por dentro (o foco é por fora). */
+.lb-paleta__amostra[aria-checked='true'] {
+  border-color: var(--lb-color-brass);
+  box-shadow: inset 0 0 0 2px var(--lb-color-stone-solid);
+}
+
+.lb-paleta__amostra[aria-checked='true']:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px var(--lb-color-stone-solid),
+    var(--lb-shadow-focus);
+}
+
+.lb-paleta__amostra:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-paleta__amostra:hover:not(:disabled) {
+    border-color: var(--lb-color-brass);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-paleta__amostra:active:not(:disabled) {
+    transform: none;
+  }
+}

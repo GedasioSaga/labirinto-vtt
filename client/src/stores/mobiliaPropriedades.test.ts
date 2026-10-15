@@ -162,3 +162,27 @@ describe('mapStore — forma do tapete', () => {
     expect(passos()).toBe(0)
   })
 })
+
+describe('mapStore — cores de tecido da cama', () => {
+  const CAMA: Prop = criarMovel('catre', { x: 300, y: 200 }, GRADE, 'c1')
+
+  beforeEach(() => prepararMapa([CAMA]))
+
+  it('arrastar no seletor do travesseiro é um passo só; o "Padrão" da paleta é outro', () => {
+    for (const cor of ['#101010', '#202020', '#303030']) useMapStore.getState().setAparenciaDoMovel('c1', { corDoTravesseiro: cor })
+    expect(movel()?.mobiliaCorDoTravesseiro).toBe('#303030')
+    expect(passos()).toBe(1)
+    useMapStore.getState().setAparenciaDoMovel('c1', { corDoTravesseiro: null })
+    expect(movel()).toEqual(CAMA)
+    expect(passos()).toBe(2)
+    useMapStore.getState().undo()
+    useMapStore.getState().undo()
+    expect(movel()).toEqual(CAMA)
+  })
+
+  it('cobertor e travesseiro não emendam um no outro', () => {
+    useMapStore.getState().setAparenciaDoMovel('c1', { corDoTravesseiro: '#e6e1d6' })
+    useMapStore.getState().setAparenciaDoMovel('c1', { corDoCobertor: '#46638a' })
+    expect(passos()).toBe(2)
+  })
+})

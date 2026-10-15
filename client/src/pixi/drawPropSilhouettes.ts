@@ -9,8 +9,10 @@ import {
   ehMovelVazado,
   emOrdemDeDesenho,
   formaDoTapete,
+  normalizarCorDeTecido,
   normalizarCorDoMovel,
   pontosDaElipse,
+  regioesDaCama,
   tracosDoGlifo,
   vistaDoMovel,
   voltaDaCerca,
@@ -67,6 +69,10 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './p
  * abaixo; borda e medalhão (`desenhoDoTapete`) são uma camada a mais de preto
  * ou, com "Cor", a mesma cor mais escura. Essas áreas entram entre o fundo e o
  * fio, para o fio nunca ficar por baixo de uma cor.
+ *
+ * A CAMA pinta o travesseiro e o cobertor com a cor própria de cada um
+ * (`regioesDaCama`), no mesmo lugar entre o fundo e o fio; a "Cor" fica na
+ * madeira. Sem essas cores não há área nenhuma: a cama sai como sempre.
  */
 export const PROP_SILHOUETTE_FILL_COLOR = 0x000000
 export const PROP_SILHOUETTE_FILL_ALPHA = 0.35
@@ -98,6 +104,8 @@ export type PropSilhouette = Pick<
   | 'mobiliaVista'
   | 'mobiliaCurva'
   | 'mobiliaForma'
+  | 'mobiliaCorDoTravesseiro'
+  | 'mobiliaCorDoCobertor'
 >
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
@@ -112,6 +120,9 @@ interface SilhouetteStyle {
   edge: SilhouettePaint
   /** Borda e medalhão do tapete: a "Cor" mais escura, ou mais uma camada de preto sem ela. */
   dark: SilhouettePaint
+  /** Travesseiro e cobertor da cama com cor própria; `null` = pinta com a cama (sem área). */
+  pillow: SilhouettePaint | null
+  blanket: SilhouettePaint | null
 }
 
 const DEFAULT_FILL: SilhouettePaint = { color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA }
@@ -133,13 +144,27 @@ function darker(color: number): number {
 
 /** Aparência de um objeto: a de sempre, ou a que o mestre deu ao móvel. */
 function silhouetteStyle(prop: PropSilhouette): SilhouetteStyle {
-  if (prop.mobilia === undefined) return { fill: DEFAULT_FILL, edge: DEFAULT_EDGE, dark: RUG_DEFAULT_DARK }
+  if (prop.mobilia === undefined) return { fill: DEFAULT_FILL, edge: DEFAULT_EDGE, dark: RUG_DEFAULT_DARK, pillow: null, blanket: null }
   const own = ownPaint(prop.mobiliaCor)
   const defaultFill = prop.mobilia === 'tapete' ? RUG_DEFAULT_FILL : DEFAULT_FILL
   return {
     fill: prop.mobiliaPreenchido === false ? null : (own ?? defaultFill),
     edge: ownPaint(prop.mobiliaCorDaLinha) ?? DEFAULT_EDGE,
     dark: own === null ? RUG_DEFAULT_DARK : { color: darker(own.color), alpha: PROP_OWN_COLOR_ALPHA },
+    pillow: ownPaint(normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro)),
+    blanket: ownPaint(normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoCobertor)),
+  }
+}
+
+/** A tinta de cada área de cor própria; `null` = a área não tem cor própria e fica de fora. */
+function areaPaint(tom: RegiaoDoMovel['tom'], style: SilhouetteStyle): SilhouettePaint | null {
+  switch (tom) {
+    case 'escuro':
+      return style.dark
+    case 'travesseiro':
+      return style.pillow
+    case 'cobertor':
+      return style.blanket
   }
 }
 
@@ -249,10 +274,11 @@ function hasRoundSilhouette(prop: PropSilhouette): boolean {
   return ehMovelRedondo(prop.mobilia, vista) || (prop.mobilia === 'tapete' && vista === 'frente' && formaDoTapete(prop) === 'redondo')
 }
 
-/** As áreas de cor própria do móvel, no referencial dele: a borda e o medalhão do tapete. */
-function furnitureAreas(prop: PropSilhouette): RegiaoDoMovel[] {
-  if (prop.mobilia !== 'tapete') return []
-  return desenhoDoTapete(formaDoTapete(prop), prop.width, prop.height, vistaDoMovel(prop)).regioes
+/** As áreas de cor própria do móvel, no referencial dele: a borda e o medalhão do tapete, os tecidos da cama. */
+function furnitureAreas(prop: PropSilhouette, style: SilhouetteStyle): RegiaoDoMovel[] {
+  if (prop.mobilia === 'tapete') return desenhoDoTapete(formaDoTapete(prop), prop.width, prop.height, vistaDoMovel(prop)).regioes
+  if (prop.mobilia === 'catre') return regioesDaCama(prop.width, prop.height, style.pillow !== null, style.blanket !== null)
+  return []
 }
 
 /**
@@ -261,11 +287,14 @@ function furnitureAreas(prop: PropSilhouette): RegiaoDoMovel[] {
  * aí o contorno precisa ser posto de novo para o fio.
  */
 function fillFurnitureAreas(graphics: Graphics, prop: PropSilhouette, style: SilhouetteStyle, grid: PixelGrid | null): boolean {
-  const areas = furnitureAreas(prop)
-  for (const area of areas) {
-    graphics.poly(flatten(placedPoints(prop, area.pontos, grid)), true).fill(style.dark)
+  let painted = false
+  for (const area of furnitureAreas(prop, style)) {
+    const paint = areaPaint(area.tom, style)
+    if (paint === null) continue
+    graphics.poly(flatten(placedPoints(prop, area.pontos, grid)), true).fill(paint)
+    painted = true
   }
-  return areas.length > 0
+  return painted
 }
 
 /**

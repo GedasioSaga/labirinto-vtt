@@ -2349,7 +2349,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // Só o seletor de UMA cor emenda (o arrasto manda uma cor por quadro, como o
       // da cor do título da Sala); "Preencher" e "Padrão" (null) são um passo cada.
       const chaves = Object.keys(patch)
-      const arrastoDeCor = chaves.length === 1 && (typeof patch.cor === 'string' || typeof patch.corDaLinha === 'string')
+      const arrastoDeCor =
+        chaves.length === 1 &&
+        (typeof patch.cor === 'string' ||
+          typeof patch.corDaLinha === 'string' ||
+          typeof patch.corDoTravesseiro === 'string' ||
+          typeof patch.corDoCobertor === 'string')
       const typingKey = arrastoDeCor ? `prop-mobilia:${id}:${chaves[0]}` : undefined
       withHistory((map) => mapFactory.setAparenciaDoMovel(map, id, patch), typingKey)
     },

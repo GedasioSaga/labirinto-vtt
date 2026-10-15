@@ -234,4 +234,75 @@ describe('painel de propriedades — o móvel selecionado', () => {
     })
     expect(comForma).toEqual(['tapete'])
   })
+
+  /** A paleta de tecido de `rotulo` ("Cor do travesseiro") e as amostras dela. */
+  const paleta = (rotulo: string) => container.querySelector<HTMLElement>(`[role="radiogroup"][aria-label="Paleta: ${rotulo.toLowerCase()}"]`)
+  const amostras = (rotulo: string) => Array.from(paleta(rotulo)?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])
+  const CAMA: Prop = criarMovel('catre', { x: 300, y: 200 }, 64, 'c1')
+
+  it('a cama: "Cor do travesseiro" e "Cor do cobertor" entre "Cor" e "Cor da linha", cada uma com seletor livre e paleta de 9', () => {
+    renderObjeto(CAMA)
+    expect(antes(campo('Cor'), campo('Cor do travesseiro'))).toBe(true)
+    expect(antes(campo('Cor do cobertor'), campo('Cor da linha'))).toBe(true)
+    expect(amostras('Cor do travesseiro').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Padrão (como hoje)', 'Branco', 'Creme', 'Cinza', 'Vermelho', 'Azul', 'Verde', 'Roxo', 'Castanho',
+    ])
+    expect(amostras('Cor do cobertor')).toHaveLength(9)
+    // Sem botão "Padrão" na linha do tecido: só os de "Cor" e "Cor da linha" (que não aparecem sem cor própria).
+    expect(botoes('Padrão')).toHaveLength(0)
+    // Padrão marcado, e é o único ponto de Tab da paleta.
+    expect(amostras('Cor do travesseiro').map((b) => b.getAttribute('aria-checked'))[0]).toBe('true')
+    expect(amostras('Cor do travesseiro').map((b) => b.tabIndex)).toEqual([0, -1, -1, -1, -1, -1, -1, -1, -1])
+  })
+
+  it('clicar numa amostra escolhe a cor; o "Padrão" manda null; o seletor livre manda a cor dele', () => {
+    renderObjeto({ ...CAMA, mobiliaCorDoCobertor: '#46638a' })
+    expect(amostras('Cor do cobertor').find((b) => b.getAttribute('aria-checked') === 'true')?.getAttribute('aria-label')).toBe('Azul')
+    act(() => amostras('Cor do travesseiro')[4]?.click())
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: '#9a3f36' })
+    act(() => amostras('Cor do cobertor')[0]?.click())
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoCobertor: null })
+    escolhe(campo('Cor do travesseiro'), '#123456')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: '#123456' })
+  })
+
+  it('teclado: setas, Home e End andam e escolhem, dando a volta nas pontas', () => {
+    renderObjeto({ ...CAMA, mobiliaCorDoTravesseiro: '#e6e1d6' })
+    const tecla = (indice: number, key: string) =>
+      act(() => {
+        amostras('Cor do travesseiro')[indice]?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+      })
+    expect(amostras('Cor do travesseiro').map((b) => b.tabIndex)[1]).toBe(0)
+    tecla(1, 'ArrowRight')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: '#d6c49e' })
+    tecla(1, 'ArrowLeft')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: null })
+    tecla(0, 'ArrowLeft')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: '#7a5838' })
+    tecla(1, 'End')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: '#7a5838' })
+    tecla(5, 'Home')
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoTravesseiro: null })
+    expect(document.activeElement).toBe(amostras('Cor do travesseiro')[0])
+  })
+
+  it('as setas da paleta não chegam ao atalho do mapa (que empurraria a cama selecionada)', () => {
+    renderObjeto(CAMA)
+    const atalhoDoMapa = vi.fn()
+    window.addEventListener('keydown', atalhoDoMapa)
+    act(() => {
+      amostras('Cor do cobertor')[0]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    })
+    window.removeEventListener('keydown', atalhoDoMapa)
+    expect(onAparenciaChange).toHaveBeenLastCalledWith('c1', { corDoCobertor: '#e6e1d6' })
+    expect(atalhoDoMapa).not.toHaveBeenCalled()
+  })
+
+  it('sem "Preencher" a paleta fica inerte; a paleta é só da cama (nem a "Cor" da cama nem o tapete têm)', () => {
+    renderObjeto({ ...CAMA, mobiliaPreenchido: false })
+    expect(amostras('Cor do travesseiro').every((b) => b.disabled)).toBe(true)
+    renderObjeto(criarMovel('tapete', { x: 300, y: 200 }, 64, 't1'))
+    expect(container.querySelector('.lb-paleta')).toBeNull()
+    expect(campo('Cor do travesseiro')).toBeNull()
+  })
 })

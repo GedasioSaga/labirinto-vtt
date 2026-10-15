@@ -468,3 +468,54 @@ describe('drawPropSilhouettes — tapete', () => {
     expect(Math.abs(Math.max(...ys) - (TAPETE.y + 5))).toBeLessThanOrEqual(0.5)
   })
 })
+
+describe('drawPropSilhouettes — cama em três cores', () => {
+  const CAMA: Prop = { id: 'c1', src: '', x: 250, y: 200, width: 40, height: 80, linkedMapPath: null, mobilia: 'catre' }
+
+  /** As instruções do desenho, comparáveis por valor: ação, cor, alfa, espessura e cada ponto do caminho. */
+  function desenho(props: Prop[], zoom: number, resolucao = 1): string[] {
+    const g = new Graphics()
+    drawPropSilhouettes(g, props, zoom, resolucao)
+    return g.context.instructions.map((i) => {
+      if (i.action === 'texture') return i.action
+      // Lista de chaves permitidas: o estilo e o caminho do Pixi têm referências circulares.
+      return `${i.action} ${JSON.stringify(i.data.style, ['color', 'alpha', 'width'])} ${JSON.stringify(i.data.path.instructions, ['action', 'data'])}`
+    })
+  }
+
+  it('mapa antigo: a cama sem os campos novos sai igual à de cor torta ou vazia, em 24/48/96 px por casa e giro 0/30/90', () => {
+    for (const casa of [24, 48, 96]) {
+      for (const rotation of [0, 30, 90]) {
+        const antiga: Prop = { ...CAMA, width: casa, height: 2 * casa, rotation }
+        const base = desenho([antiga], 1.3)
+        const caso = `${casa}px ${rotation}°`
+        expect(desenho([{ ...antiga, mobiliaCorDoTravesseiro: 'url(x)', mobiliaCorDoCobertor: '' }], 1.3), caso).toEqual(base)
+        expect(desenho([{ ...antiga, mobiliaCorDoTravesseiro: undefined, mobiliaCorDoCobertor: undefined }], 1.3), caso).toEqual(base)
+        // Fundo, fio de fora e glifo: as três pinturas de sempre, nenhuma área a mais.
+        expect(fills(gDe([antiga])).length, caso).toBe(1)
+      }
+    }
+  })
+
+  it('com as duas cores: fundo na madeira, depois o cobertor e o travesseiro, e só então o fio e o glifo', () => {
+    const g = gDe([{ ...CAMA, mobiliaCor: '#7a5838', mobiliaCorDoTravesseiro: '#e6e1d6', mobiliaCorDoCobertor: '#46638a' }])
+    expect(fills(g).map(estilo)).toEqual([
+      { color: 0x7a5838, alpha: 1 },
+      { color: 0x46638a, alpha: 1 },
+      { color: 0xe6e1d6, alpha: 1 },
+    ])
+    expect(g.context.instructions.map((i) => i.action)).toEqual(['fill', 'fill', 'fill', 'stroke', 'stroke'])
+  })
+
+  it('só o travesseiro: uma área a mais; sem "Preencher", nenhuma; em outro tipo, as cores não pintam', () => {
+    expect(fills(gDe([{ ...CAMA, mobiliaCorDoTravesseiro: '#e6e1d6' }]))).toHaveLength(2)
+    expect(fills(gDe([{ ...CAMA, mobiliaPreenchido: false, mobiliaCorDoTravesseiro: '#e6e1d6' }]))).toHaveLength(0)
+    expect(fills(gDe([{ ...CAMA, mobilia: 'mesa', mobiliaCorDoTravesseiro: '#e6e1d6' }]))).toHaveLength(1)
+  })
+})
+
+function gDe(props: Prop[]): Graphics {
+  const g = new Graphics()
+  drawPropSilhouettes(g, props)
+  return g
+}
