@@ -33,16 +33,6 @@ function lerCor(estilo: unknown): Cor {
   return [0, 0, 0, 0]
 }
 
-function dentroDoPoligono(x: number, y: number, poligono: readonly RegionPoint[]): boolean {
-  let dentro = false
-  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i, i += 1) {
-    const a = poligono[i]
-    const b = poligono[j]
-    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) dentro = !dentro
-  }
-  return dentro
-}
-
 function distanciaAoSegmento(x: number, y: number, a: RegionPoint, b: RegionPoint): number {
   const dx = b.x - a.x
   const dy = b.y - a.y
@@ -171,9 +161,41 @@ class PincelFalso {
   closePath(): void {
     this.fechados[this.fechados.length - 1] = true
   }
+  /**
+   * A união dos subcaminhos (o `nonzero` do canvas, com todos no mesmo
+   * sentido), linha a linha: a regra da paridade no centro de
+   * cada texel, sem testar texel por texel (a parede do penhasco é um
+   * polígono de centenas de pontos por faixa).
+   */
   fill(): void {
-    const poligonos = this.caminho
-    this.pintar(lerCor(this.estado.fillStyle), (x, y) => poligonos.some((p) => dentroDoPoligono(x, y, p)))
+    const cor = lerCor(this.estado.fillStyle)
+    const [a, d, e, f] = this.estado.t
+    const { width: largura, height: altura } = this.tela
+    const camada = new Float32Array(largura * altura * 4)
+    const pre = [cor[0] * cor[3], cor[1] * cor[3], cor[2] * cor[3], cor[3]]
+    for (const p of this.caminho) {
+      if (p.length < 3) continue
+      const ys = p.map((q) => q.y * d + f)
+      const j0 = Math.max(0, Math.floor(Math.min(...ys)))
+      const j1 = Math.min(altura - 1, Math.ceil(Math.max(...ys)))
+      for (let j = j0; j <= j1; j += 1) {
+        const y = (j + 0.5 - f) / d
+        const cortes: number[] = []
+        for (let k = 0, m = p.length - 1; k < p.length; m = k, k += 1) {
+          const q = p[k]
+          const r = p[m]
+          if (q.y > y !== r.y > y) cortes.push(((r.x - q.x) * (y - q.y)) / (r.y - q.y) + q.x)
+        }
+        cortes.sort((u, v) => u - v)
+        // Dentro (paridade): o centro do texel em [cortes[2n], cortes[2n + 1]).
+        for (let n = 0; n + 1 < cortes.length; n += 2) {
+          const i0 = Math.max(0, Math.ceil(cortes[n] * a + e - 0.5))
+          const i1 = Math.min(largura - 1, Math.ceil(cortes[n + 1] * a + e - 0.5) - 1)
+          for (let i = i0; i <= i1; i += 1) camada.set(pre, (j * largura + i) * 4)
+        }
+      }
+    }
+    this.compor(camada)
   }
   fillRect(x: number, y: number, largura: number, altura: number): void {
     this.pintar(lerCor(this.estado.fillStyle), (px, py) => px >= x && px < x + largura && py >= y && py < y + altura)
@@ -315,18 +337,20 @@ async function gerar(p: PlanoDoRelevo): Promise<TelaFalsa> {
 }
 
 /**
- * Impressão digital da tela: FNV-1a sobre os bytes dos texels (tamanho junto).
- * Igual só se cada canal de cada texel for igual, bit a bit.
+ * A coluna do meio da parede de um mapa de antes da altura (risco Médio na
+ * costa de baixo inteira, sem a ponta perto), do lábio ao pé, como o
+ * rasterizador da v0.4.24 a pintava nesta tela falsa (capturada em 15/10/2026,
+ * antes do perfil suave): a mesma no mestre (x = 500) e no jogador (x = 400).
+ * Até a v0.4.31 o teste comparava a textura inteira por impressão digital;
+ * com a ponta suave a textura muda de propósito nas pontas, e o meio é o que
+ * o mapa antigo tem de manter.
  */
-function impressao(tela: TelaFalsa): string {
-  const bytes = new Uint8Array(tela.dados.buffer, tela.dados.byteOffset, tela.dados.byteLength)
-  let h = 0x811c9dc5
-  for (let i = 0; i < bytes.length; i += 1) h = Math.imul(h ^ bytes[i], 0x01000193)
-  return `${tela.width}x${tela.height}:${(h >>> 0).toString(16)}`
-}
-
-const IMPRESSAO_DO_MESTRE_V0424 = '251x276:a8396f88'
-const IMPRESSAO_DO_JOGADOR_V0424 = '251x276:161df926'
+const COLUNA_DO_MEIO_V0424: readonly (readonly [number, number, number])[] = [
+  [223, 191, 135], [221, 190, 134], [218, 186, 131], [190, 149, 98], [181, 139, 89], [180, 138, 88], [178, 137, 87],
+  [177, 136, 87], [157, 117, 74], [135, 96, 59], [145, 106, 67], [179, 139, 92], [179, 139, 92], [177, 138, 91],
+  [176, 137, 90], [174, 135, 90], [164, 125, 82], [137, 99, 63], [135, 98, 62], [134, 97, 61], [122, 88, 55],
+  [94, 65, 42], [92, 64, 41], [91, 64, 41], [91, 63, 40], [90, 62, 40],
+]
 
 /** Maior alfa da textura dentro de um retângulo do MUNDO. */
 function maiorAlfaNoMundo(tela: TelaFalsa, p: PlanoDoRelevo, caixa: [number, number, number, number]): number {
@@ -491,8 +515,9 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
   it('a borracha tira o trecho que ela cobre, e o resto do penhasco fica', async () => {
     const p = comRiscos([riscoNaCosta('a', 'riscar', 100, 900, 1000, 40), riscoNaCosta('b', 'apagar', 500, 500, 1000, 200)])
     const tela = await gerar(p)
-    expect(maiorAlfaNoMundo(tela, p, [480, 1040, 520, 1080])).toBeLessThan(PAREDE)
-    expect(maiorAlfaNoMundo(tela, p, [130, 1040, 170, 1080])).toBeGreaterThan(PAREDE)
+    expect(maiorAlfaNoMundo(tela, p, [480, 1010, 520, 1080])).toBeLessThan(PAREDE)
+    // O resto fica (perto da ponta e da borracha, a parede ainda sobe: logo abaixo da costa).
+    expect(maiorAlfaNoMundo(tela, p, [130, 1010, 170, 1030])).toBeGreaterThan(PAREDE)
   })
 
   it('jogador: costa longe do que ele conhece não faz parede, nem no mar que ele vê', async () => {
@@ -519,13 +544,20 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
     expect(maiorAlfaNoMundo(await gerar(daTerra), daTerra, [280, 1040, 320, 1080])).toBeGreaterThan(PAREDE)
   })
 
-  it('mapa de antes da altura (riscos sem o campo): a textura sai IDÊNTICA à da v0.4.24', async () => {
-    // As impressões abaixo saíram do rasterizador da v0.4.24, ANTES da altura
-    // por risco existir: o mapa antigo (todo risco médio) tem de abrir igual,
-    // pixel a pixel, no mestre e no jogador.
-    const riscos = [riscoNaCosta('a', 'riscar', 100, 600, 1000, 40), riscoNaCosta('b', 'riscar', 700, 900, 1000, 60), riscoNaCosta('c', 'apagar', 400, 440, 1000, 80)]
-    expect(impressao(await gerar(comRiscos(riscos)))).toBe(IMPRESSAO_DO_MESTRE_V0424)
-    expect(impressao(await gerar(comRiscos(riscos, { visao: [retangulo(0, 900, 800, 1500)] })))).toBe(IMPRESSAO_DO_JOGADOR_V0424)
+  it('mapa de antes da altura (riscos sem o campo): o meio da parede é o da v0.4.24, ±1 texel e ±2 de cor', async () => {
+    const riscos = [riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40)]
+    const conferir = (cores: [number, number, number][]) => {
+      expect(Math.abs(cores.length - COLUNA_DO_MEIO_V0424.length)).toBeLessThanOrEqual(1)
+      cores.forEach((cor, j) => {
+        const perto = [j - 1, j, j + 1].map((k) => COLUNA_DO_MEIO_V0424[k]).filter((c) => c !== undefined)
+        const igual = perto.some((c) => c.every((canal, n) => Math.abs(canal - cor[n]) <= 2))
+        expect(igual, `linha ${j}: ${cor.map(Math.round).join(',')}`).toBe(true)
+      })
+    }
+    const mestre = comRiscos(riscos)
+    conferir(coresNaColuna(await gerar(mestre), mestre, 500))
+    const jogador = comRiscos(riscos, { visao: [retangulo(0, 900, 800, 1500)] })
+    conferir(coresNaColuna(await gerar(jogador), jogador, 400))
   })
 
   /**
@@ -571,7 +603,7 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
 
     it('cada risco desce a altura dele: Baixo menos que o Médio, Alto mais', async () => {
       const medir = async (altura: TracoDePenhasco['altura']) => {
-        const p = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 200, 800, 1000, 40), altura)])
+        const p = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40), altura)])
         return alturaNaColuna(await gerar(p), p, 500)
       }
       expect(Math.abs((await medir(undefined)) - MEDIA)).toBeLessThan(FOLGA)
@@ -582,7 +614,7 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
     it('as faixas esticam na proporção: o veio e a base molhada continuam lá, no Baixo e no Alto', async () => {
       const soma = (c: readonly number[]) => c[0] + c[1] + c[2]
       for (const altura of ['baixo', 'alto'] as const) {
-        const p = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 200, 800, 1000, 40), altura)])
+        const p = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40), altura)])
         const cores = coresNaColuna(await gerar(p), p, 500)
         // Uma janela da coluna, em frações das faixas do protótipo (de 0 a 18).
         const janela = (de: number, ate: number) => cores.slice(Math.floor((de / 18) * cores.length), Math.ceil((ate / 18) * cores.length)).map(soma)
@@ -595,16 +627,16 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
     })
 
     it('onde riscos de alturas diferentes se sobrepõem, vale o último', async () => {
-      const longo = riscoNaCosta('a', 'riscar', 100, 900, 1000, 40)
-      // Longo o bastante para a rampa de cada emenda chegar ao Alto antes do meio.
-      const altoNoMeio = comAltura(riscoNaCosta('b', 'riscar', 250, 750, 1000, 40), 'alto')
-      const p = comRiscos([longo, altoNoMeio])
+      const longo = riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40)
+      // O Alto por cima da metade da esquerda (a quina da ilha é neutra): longe da emenda, Alto.
+      const altoPorCima = comAltura(riscoNaCosta('b', 'riscar', 0, 600, 1000, 40), 'alto')
+      const p = comRiscos([longo, altoPorCima])
       const tela = await gerar(p)
-      expect(Math.abs(alturaNaColuna(tela, p, 500) - ALTA)).toBeLessThan(FOLGA)
-      expect(Math.abs(alturaNaColuna(tela, p, 150) - MEDIA)).toBeLessThan(FOLGA)
-      // Um Médio largo por cima do Alto volta o meio a Médio.
-      const q = comRiscos([longo, altoNoMeio, riscoNaCosta('c', 'riscar', 300, 700, 1000, 40)])
-      expect(Math.abs(alturaNaColuna(await gerar(q), q, 500) - MEDIA)).toBeLessThan(FOLGA)
+      expect(Math.abs(alturaNaColuna(tela, p, 100) - ALTA)).toBeLessThan(FOLGA)
+      expect(Math.abs(alturaNaColuna(tela, p, 900) - MEDIA)).toBeLessThan(FOLGA)
+      // Um Médio por cima de tudo volta a parede inteira a Médio.
+      const q = comRiscos([longo, altoPorCima, riscoNaCosta('c', 'riscar', 0, 1000, 1000, 40)])
+      expect(Math.abs(alturaNaColuna(await gerar(q), q, 100) - MEDIA)).toBeLessThan(FOLGA)
     })
 
     it('rampa: do Médio ao Alto encostados a parede cresce aos poucos, sem buraco na emenda', async () => {
@@ -623,12 +655,12 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
       const alemDaMedia: [number, number, number, number] = [250, 1600, 350, 1700]
       const medio = comRiscos([riscoNaCosta('a', 'riscar', 100, 900, 1000, 40)])
       expect(maiorAlfaNoMundo(await gerar(medio), medio, alemDaMedia)).toBe(0)
-      const alto = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 100, 900, 1000, 40), 'alto')])
+      const alto = comRiscos([comAltura(riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40), 'alto')])
       expect(maiorAlfaNoMundo(await gerar(alto), alto, alemDaMedia)).toBeGreaterThan(0.1)
     })
 
     it('jogador que conhece a costa vê a parede Alta com a altura do mestre', async () => {
-      const riscos = [comAltura(riscoNaCosta('a', 'riscar', 200, 800, 1000, 40), 'alto')]
+      const riscos = [comAltura(riscoNaCosta('a', 'riscar', 0, 1000, 1000, 40), 'alto')]
       const mestre = comRiscos(riscos)
       const jogador = comRiscos(riscos, { visao: [retangulo(0, 900, 1000, 1500)] })
       expect(alturaNaColuna(await gerar(jogador), jogador, 500)).toBeCloseTo(alturaNaColuna(await gerar(mestre), mestre, 500), 0)
@@ -642,5 +674,96 @@ describe('rasterizarRelevo — penhasco (fatia 3)', () => {
     const riscos = [riscoNaCosta('a', 'riscar', 200, 400, 1000, 40)]
     const acimaDaCosta = comRiscos(riscos, { visao: [retangulo(0, 500, 1000, 960)] })
     expect(maiorAlfaNoMundo(await gerar(acimaDaCosta), acimaDaCosta, [280, 1040, 320, 1080])).toBeLessThan(PAREDE)
+  })
+})
+
+/**
+ * PERFIL SUAVE (pedido de 15/10/2026, prints do usuário): a altura da parede
+ * coluna a coluna, sem degrau seco.
+ * - Caso A: costa íngreme na diagonal, Grande na metade de cima e Médio
+ *   seguindo pela costa mais deitada: a parede pulava de Grande a Médio.
+ * - Caso B: Pequeno que acaba no meio da praia: a parede terminava num corte
+ *   em pé.
+ */
+describe('rasterizarRelevo — perfil suave do penhasco (casos A e B)', { timeout: 60_000 }, () => {
+  const PAREDE = 0.9
+
+  /** Texels de parede (opacos) na coluna `i` da textura: a maior sequência. */
+  function texelsDeParede(tela: TelaFalsa, i: number): number {
+    let maior = 0
+    let seguidos = 0
+    for (let j = 0; j < tela.height; j += 1) {
+      seguidos = tela.alfa(i, j) > PAREDE ? seguidos + 1 : 0
+      maior = Math.max(maior, seguidos)
+    }
+    return maior
+  }
+
+  /** O maior salto de altura entre duas colunas vizinhas com x de mundo entre `de` e `ate`. */
+  function maiorSalto(tela: TelaFalsa, p: PlanoDoRelevo, de: number, ate: number): { salto: number; alturas: number[] } {
+    const alturas: number[] = []
+    for (let i = 0; i < tela.width; i += 1) {
+      const x = (i + 0.5) / p.escala + p.retangulo.x
+      if (x >= de && x <= ate) alturas.push(texelsDeParede(tela, i))
+    }
+    let salto = 0
+    for (let k = 1; k < alturas.length; k += 1) salto = Math.max(salto, Math.abs(alturas[k] - alturas[k - 1]))
+    return { salto, alturas }
+  }
+
+  function risco(id: string, caminho: RegionPoint[], altura?: TracoDePenhasco['altura'], modo: TracoDePenhasco['modo'] = 'riscar', raio = 40): TracoDePenhasco {
+    const pontos: RegionPoint[] = []
+    for (let k = 1; k < caminho.length; k += 1) {
+      const a = caminho[k - 1]
+      const b = caminho[k]
+      const passos = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 10))
+      for (let q = k === 1 ? 0 : 1; q <= passos; q += 1) pontos.push({ x: a.x + ((b.x - a.x) * q) / passos, y: a.y + ((b.y - a.y) * q) / passos })
+    }
+    if (caminho.length === 1) pontos.push(caminho[0])
+    return { id, modo, raio, pontos, ...(altura === undefined ? {} : { altura }) }
+  }
+
+  it('caso A: na costa íngreme o Grande desce até o Médio sem salto de mais de 2 texels entre colunas', async () => {
+    // Costa de baixo: deitada em y = 600 (x de 0 a 400), íngreme (69 graus) até (1000, 2200), mais deitada até (2000, 2400).
+    const terra = regiao('a', [
+      { x: 0, y: 0 },
+      { x: 2000, y: 0 },
+      { x: 2000, y: 2400 },
+      { x: 1000, y: 2200 },
+      { x: 400, y: 600 },
+      { x: 0, y: 600 },
+    ])
+    const grande = risco('g', [{ x: 0, y: 600 }, { x: 400, y: 600 }, { x: 700, y: 1400 }], 'alto')
+    const medio = risco('m', [{ x: 700, y: 1400 }, { x: 1000, y: 2200 }, { x: 1900, y: 2380 }])
+    const p = planoComPenhascos(plano([terra]), [grande, medio], TETO)
+    const { salto, alturas } = maiorSalto(await gerar(p), p, 100, 1990)
+    expect(Math.max(...alturas)).toBeGreaterThan(0)
+    expect(salto, alturas.join(' ')).toBeLessThanOrEqual(2)
+  })
+
+  it('caso B: o Pequeno que acaba na praia desce a 0 aos poucos, sem corte em pé', async () => {
+    const terra = regiao('b', retangulo(0, 0, 2000, 1000))
+    const p = planoComPenhascos(plano([terra]), [risco('p', [{ x: 300, y: 1000 }, { x: 1200, y: 1000 }], 'baixo')], TETO)
+    const { salto, alturas } = maiorSalto(await gerar(p), p, 100, 1900)
+    expect(Math.max(...alturas)).toBeGreaterThan(0)
+    expect(salto, alturas.join(' ')).toBeLessThanOrEqual(2)
+  })
+
+  it('a parede gasta no máximo 3 telas, com quantas alturas, borrachas e pontas houver', async () => {
+    const terra = regiao('c', retangulo(0, 0, 2000, 1000))
+    const semParede = plano([terra])
+    const antes = telas.length
+    await gerar(semParede)
+    const daTerra = telas.length - antes
+    const riscos = [
+      risco('b', [{ x: 100, y: 1000 }, { x: 600, y: 1000 }], 'baixo'),
+      risco('m', [{ x: 600, y: 1000 }, { x: 1100, y: 1000 }]),
+      risco('a', [{ x: 1100, y: 1000 }, { x: 1700, y: 1000 }], 'alto'),
+      risco('e', [{ x: 900, y: 1000 }], undefined, 'apagar', 60),
+    ]
+    const comParede = planoComPenhascos(semParede, riscos, TETO)
+    const depois = telas.length
+    await gerar(comParede)
+    expect(telas.length - depois - daTerra).toBeLessThanOrEqual(3)
   })
 })

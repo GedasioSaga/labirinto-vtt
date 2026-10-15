@@ -4,9 +4,9 @@
  * Médio = a parede de antes, então o mapa antigo abre igual.
  *
  * Prova o caminho do dado: a leitura do arquivo, a assinatura que refaz o
- * relevo, a cor esticada, o plano que cabe a parede mais alta, os degraus da
- * rampa entre alturas vizinhas, o risco que entra na lista e o recorte do
- * jogador (a altura viaja junto do pedaço).
+ * relevo, a cor esticada, o plano que cabe a parede mais alta, o risco que
+ * entra na lista e o recorte do jogador (a altura viaja junto do pedaço). A
+ * rampa entre alturas vizinhas é do perfil da parede (`relevo.perfil.test.ts`).
  */
 import { describe, expect, it } from 'vitest'
 import type { MapData, Region, RegionPoint, Token, TracoDePenhasco } from '../types/map'
@@ -14,7 +14,7 @@ import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 import { filterMapForPlayer } from './fogFilter'
 import { lerPenhascos, riscarPenhasco } from './penhasco'
-import { AJUSTE_DO_PENHASCO, alturaDaParede, corDaParede, degrausDaParede, mesmosPenhascos, planoComPenhascos, planoDoRelevo } from './relevo'
+import { AJUSTE_DO_PENHASCO, alturaDaParede, corDaParede, mesmosPenhascos, planoComPenhascos, planoDoRelevo } from './relevo'
 
 function retangulo(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
   return [
@@ -110,37 +110,6 @@ describe('planoComPenhascos: a textura cabe a parede mais alta', () => {
     expect(alto.retangulo.altura).toBeCloseTo(plano.retangulo.altura + ALTA * 10)
     const baixo = planoComPenhascos(plano, [risco('a', 1000, 2000, 4000, 'baixo')])
     expect(baixo.retangulo.altura).toBeCloseTo(plano.retangulo.altura + BAIXA * 10)
-  })
-})
-
-describe('degrausDaParede: uma altura por risco, com rampa onde duas alturas se encostam', () => {
-  it('só Médio (o mapa de antes): um degrau só, sem rampa', () => {
-    expect(degrausDaParede([risco('a', 0, 500, 1000), { ...risco('b', 200, 300, 1000), modo: 'apagar' }], 10)).toEqual([
-      { altura: MEDIA, niveis: [MEDIA], recuos: [] },
-    ])
-  })
-
-  it('Baixo e Alto longe um do outro: dois degraus, sem rampa entre eles', () => {
-    const degraus = degrausDaParede([risco('b', 0, 100, 1000, 'baixo'), risco('a', 5000, 5100, 1000, 'alto')], 10)
-    expect(degraus.map((d) => d.altura)).toEqual([BAIXA, ALTA])
-    expect(degraus[1]).toEqual({ altura: ALTA, niveis: [ALTA], recuos: [] })
-  })
-
-  it('Médio encostado no Alto: degraus intermediários, cada um recuando de lado a partir do Médio', () => {
-    const degraus = degrausDaParede([risco('m', 0, 500, 1000), risco('a', 500, 1000, 1000, 'alto')], 10)
-    const alturas = degraus.map((d) => d.altura)
-    expect(alturas[0]).toBe(MEDIA)
-    expect(alturas[alturas.length - 1]).toBe(ALTA)
-    // Degraus pequenos o bastante para o borrão da ponta os juntar numa rampa.
-    for (let i = 1; i < alturas.length; i += 1) expect(alturas[i] - alturas[i - 1]).toBeLessThanOrEqual(AJUSTE_DO_PENHASCO.rampa.degrau + 1e-9)
-    // Cada degrau acima do Médio é a terra Alta menos o Médio alargado de lado; quanto mais alto, mais largo o recuo.
-    const recuos = degraus.slice(1).map((d) => {
-      expect(d.niveis).toEqual([ALTA])
-      expect(d.recuos.map((r) => r.nivel)).toEqual([MEDIA])
-      return d.recuos[0].alcance
-    })
-    for (let i = 1; i < recuos.length; i += 1) expect(recuos[i]).toBeGreaterThan(recuos[i - 1])
-    expect(recuos[recuos.length - 1]).toBeCloseTo((ALTA - MEDIA) * AJUSTE_DO_PENHASCO.rampa.inclinacao * 10)
   })
 })
 

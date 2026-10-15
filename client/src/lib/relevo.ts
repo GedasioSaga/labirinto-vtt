@@ -1,6 +1,6 @@
 import type { Drawing, MapData, Region, RegionPoint, TracoDePenhasco } from '../types/map'
-import type { Exploration } from './exploration'
-import { alturaDoTraco, assinaturaDosPenhascos, temRiscoDePenhasco, tracosSeTocam } from './penhasco'
+import { isPointExplored, type Exploration } from './exploration'
+import { alturaDoTraco, assinaturaDosPenhascos, temRiscoDePenhasco } from './penhasco'
 import { isContinente } from './marcadorDeContinente'
 import { readRegionSplit, splitSecondPart } from './regionSplit'
 import { parseHexColor } from './tokenColor'
@@ -152,13 +152,8 @@ export const AJUSTE_DO_PENHASCO = {
   /** Quanto a parede escurece do lábio ao pé: o pé está molhado. */
   escurecePe: 0.2,
   /**
-   * Borrão da borda dos riscos: onde o risco acaba, a parede some aos poucos
-   * em vez de terminar num corte reto.
-   */
-  pontas: 4,
-  /**
-   * Quanto, acima do conhecido do jogador, a costa ainda conta como vista
-   * para a parede nascer (`relevoRaster`): de dentro do mar ele conhece a água
+   * Quanto, além do conhecido do jogador, a costa ainda conta como vista para
+   * a parede nascer (`perfilDoPenhasco`): de dentro do mar ele conhece a água
    * até a beira, e a parede sai da terra logo acima dela.
    */
   alcanceDoConhecido: 2,
@@ -166,22 +161,23 @@ export const AJUSTE_DO_PENHASCO = {
    * ALTURA POR RISCO (pedido de 10/10/2026): a parede de cada risco é a
    * `altura` acima vezes o fator da altura dele, e as faixas esticam na mesma
    * proporção (`corDaParede`), então lábio, veio e base molhada continuam lá.
-   * O Médio é 1: o mapa de antes da altura abre igual. O Baixo ainda passa do
+   * O Médio é 1: o meio da parede do mapa de antes da altura abre igual (as
+   * pontas abertas ganharam a rampa, `rampa`). O Baixo ainda passa do
    * dobro do lábio e lê como rochedo; o Alto (36 px do protótipo, ~6 células
    * no mapa real) fica abaixo do tamanho de uma ilha pequena.
    */
   fator: { baixo: 0.5, medio: 1, alto: 2 },
   /**
-   * A passagem entre dois trechos de alturas diferentes que se encostam: em
-   * vez de um degrau seco, a parede mais alta sobe aos poucos a partir da
-   * emenda, em degraus de no máximo `degrau` px do protótipo, cada um
-   * `inclinacao` vezes mais largo que alto. O degrau é menor que o borrão da
-   * ponta (`pontas`), que funde os degraus numa rampa só; com 4,5 px a escada
-   * ainda aparecia no mapa real (conferido em 10/10/2026). Inclinação 1 (45
-   * graus): do Médio ao Alto a rampa tem ~3 células no mapa real; mais
-   * deitada, um trecho Alto curto entre dois Médios nunca chegaria a Alto.
+   * A RAMPA (pedido de 15/10/2026): px de costa, medidos NA HORIZONTAL, por px
+   * de altura que a parede sobe ou desce (`perfilDoPenhasco`). Vale na emenda
+   * entre duas alturas (o lado mais baixo fica inteiro, o mais alto desce até
+   * ele) e na ponta aberta (a praia segue sem penhasco: a parede desce a 0
+   * DENTRO do risco). Na horizontal porque a parede desce em pé: numa costa
+   * íngreme a rampa medida ao longo dela ficaria espremida em poucas colunas.
+   * 2 (a "média" que o usuário escolheu): Grande↔Médio e Médio→0 em ~6 células
+   * do mapa real, Pequeno→0 em ~3, Grande→0 em ~12.
    */
-  rampa: { degrau: 2, inclinacao: 1 },
+  rampa: 2,
 } as const
 
 /** Altura da parede do risco, em px do protótipo (ausente = Médio). */
@@ -255,6 +251,12 @@ export interface PlanoDoRelevo {
    * (`drawRelevo`); detalhe, tinta fraca e desenho no mar não estão na textura.
    */
   divisores: string[]
+  /**
+   * A COSTA (beira da união com mar de um lado), em cadeias de pontos já
+   * emendadas, inclusive de uma região para a vizinha (`cadeiasDaCosta`): a
+   * parede do penhasco corre ao longo dela (`perfilDoPenhasco`).
+   */
+  costa: CadeiaDaCosta[]
   /**
    * Riscos do pincel de penhasco, na ordem (`lib/penhasco.ts`): a parede nasce
    * na costa debaixo deles. Vazio quando nenhum risco põe penhasco (só
@@ -806,69 +808,329 @@ export function planoComPenhascos(
   return { ...plano, penhascos: [...penhascos], retangulo, escala }
 }
 
-/**
- * Um degrau da parede do penhasco: os texels cuja parede desce pelo menos
- * `altura` px do protótipo. O rasterizador pinta cada profundidade com os
- * degraus que chegam nela, do mais baixo ao mais alto, cada um na cor da SUA
- * altura (`corDaParede`): cada ponto fica com a cor da altura dele, e onde um
- * degrau acaba o de baixo continua por trás (sem fresta na emenda).
- */
-export interface DegrauDaParede {
-  /** Px do protótipo. */
-  altura: number
-  /** As alturas de risco que descem pelo menos isto: o degrau é a união dos riscos delas (`alturaDaParede`). */
-  niveis: number[]
-  /**
-   * A rampa: a terra de cada altura mais baixa que encosta, alargada DE LADO
-   * por `alcance` px de mundo, sai do degrau. De lado porque a parede desce em
-   * pé: a altura de cada coluna é o que conta, e a emenda entre dois trechos
-   * corre ao longo da costa.
-   */
-  recuos: { nivel: number; alcance: number }[]
+// ---------------------------------------------------------------------------
+// PERFIL DO PENHASCO (pedido de 15/10/2026: a altura da parede sem degrau seco)
+
+/** Um trecho contínuo da costa, em px de mundo. Na fechada (a ilha inteira), o último ponto liga de volta ao primeiro. */
+export interface CadeiaDaCosta {
+  pontos: RegionPoint[]
+  fechada: boolean
 }
 
-/** Arredonda a altura de um degrau (em px do protótipo): dois caminhos até a mesma altura dão o mesmo degrau. */
-function alturaDoDegrau(altura: number): number {
-  return Math.round(altura * 1000) / 1000
+/** Pontas a menos disto (px de mundo) são o mesmo ponto: o fim de um pedaço de lado e o começo do seguinte. */
+const MESMO_PONTO = 1e-6
+
+function perto(a: RegionPoint, b: RegionPoint, tolerancia: number): boolean {
+  return Math.abs(a.x - b.x) <= tolerancia && Math.abs(a.y - b.y) <= tolerancia
 }
 
 /**
- * Os degraus da parede destes riscos, do mais baixo ao mais alto (`unidade`:
- * px de mundo por px do protótipo). Uma altura por altura de risco e, entre
- * duas alturas cujos riscos se encostam, os degraus da rampa: a parede mais
- * alta começa na altura da vizinha e sobe aos poucos, longe da emenda. Riscos
- * de alturas diferentes longe um do outro não ganham rampa (nem custo dela).
- * Só Médio (o mapa de antes da altura): um degrau só, sem recuo.
+ * Os pedaços de costa de `bordasDaTerra` emendados em cadeias. Primeiro os
+ * seguidos de um mesmo contorno (o fim de um é o começo do outro); depois as
+ * pontas que se encostam até `tolerancia` px de mundo, virando a cadeia se
+ * preciso: a classificação corta cada lado em pedaços, então onde a costa
+ * passa de uma região para a vizinha as duas pontas ficam a até um pedaço
+ * (mais a fresta) uma da outra. Sem isso a divisa entre duas regiões viraria
+ * ponta de parede. A cadeia que volta ao próprio começo é fechada.
  */
-export function degrausDaParede(penhascos: readonly TracoDePenhasco[], unidade: number): DegrauDaParede[] {
-  const riscos = penhascos.filter((t) => t.modo === 'riscar')
-  const niveis = [...new Set(riscos.map(alturaDaParede))].sort((a, b) => a - b)
-  const { degrau, inclinacao } = AJUSTE_DO_PENHASCO.rampa
-  const comprimento = (de: number, ate: number) => (ate - de) * inclinacao * unidade
-  const encostam = (baixo: number, alto: number) =>
-    riscos.some(
-      (a) =>
-        alturaDaParede(a) === baixo &&
-        riscos.some((b) => alturaDaParede(b) === alto && tracosSeTocam({ pontos: a.pontos, raio: a.raio + comprimento(baixo, alto) }, b)),
-    )
-  const rampas: [number, number][] = []
-  for (let i = 0; i < niveis.length; i += 1) {
-    for (let j = i + 1; j < niveis.length; j += 1) if (encostam(niveis[i], niveis[j])) rampas.push([niveis[i], niveis[j]])
+export function cadeiasDaCosta(segmentos: readonly Segmento[], tolerancia: number): CadeiaDaCosta[] {
+  const pedacos: RegionPoint[][] = []
+  let atual: RegionPoint[] = []
+  for (const { a, b } of segmentos) {
+    const fim = atual[atual.length - 1]
+    if (fim !== undefined && perto(fim, a, MESMO_PONTO)) {
+      atual.push(b)
+    } else {
+      atual = [a, b]
+      pedacos.push(atual)
+    }
   }
-  const alturas = new Set(niveis.map(alturaDoDegrau))
-  for (const [baixo, alto] of rampas) {
-    const partes = Math.max(1, Math.ceil((alto - baixo) / degrau - 1e-9))
-    for (let q = 1; q < partes; q += 1) alturas.add(alturaDoDegrau(baixo + ((alto - baixo) * q) / partes))
+  const cadeias: CadeiaDaCosta[] = []
+  for (let cadeia = pedacos.pop(); cadeia !== undefined; cadeia = pedacos.pop()) {
+    let pontos = cadeia
+    for (let maior = emendarUma(pontos, pedacos, tolerancia); maior !== null; maior = emendarUma(pontos, pedacos, tolerancia)) pontos = maior
+    cadeias.push({ pontos, fechada: pontos.length > 2 && perto(pontos[0], pontos[pontos.length - 1], tolerancia) })
   }
-  return [...alturas]
-    .sort((a, b) => a - b)
-    .map((altura) => ({
-      altura,
-      niveis: niveis.filter((n) => alturaDoDegrau(n) >= altura),
-      recuos: niveis
-        .filter((n) => alturaDoDegrau(n) < altura && rampas.some(([baixo, alto]) => baixo === n && alturaDoDegrau(alto) >= altura))
-        .map((nivel) => ({ nivel, alcance: comprimento(nivel, altura) })),
-    }))
+  return cadeias
+}
+
+/** A cadeia emendada com o primeiro dos `outros` pedaços cuja ponta encosta numa das dela (tirado da lista), ou `null`. */
+function emendarUma(cadeia: readonly RegionPoint[], outros: RegionPoint[][], tolerancia: number): RegionPoint[] | null {
+  const inicio = cadeia[0]
+  const fim = cadeia[cadeia.length - 1]
+  for (let j = 0; j < outros.length; j += 1) {
+    const outro = outros[j]
+    const comeco = outro[0]
+    const final = outro[outro.length - 1]
+    let emendada: RegionPoint[] | null = null
+    if (perto(fim, comeco, tolerancia)) emendada = [...cadeia, ...outro]
+    else if (perto(fim, final, tolerancia)) emendada = [...cadeia, ...[...outro].reverse()]
+    else if (perto(inicio, final, tolerancia)) emendada = [...outro, ...cadeia]
+    else if (perto(inicio, comeco, tolerancia)) emendada = [...[...outro].reverse(), ...cadeia]
+    if (emendada !== null) {
+      outros.splice(j, 1)
+      return emendada
+    }
+  }
+  return null
+}
+
+/** A parede ao longo de uma cadeia da costa: uma amostra a cada texel da textura, mais ou menos. */
+export interface PerfilDaCadeia {
+  /** Onde fica cada amostra, em px de mundo, na ordem da cadeia. */
+  x: Float64Array
+  y: Float64Array
+  /** Quanto a parede desce em cada amostra, em px do protótipo (0 = sem parede ali). */
+  altura: Float64Array
+  fechada: boolean
+}
+
+export interface PerfilDoPenhasco {
+  /** Só as cadeias com alguma parede. */
+  cadeias: PerfilDaCadeia[]
+  /** A maior altura desenhada, em px do protótipo (0 = parede nenhuma). */
+  maisAlta: number
+}
+
+/**
+ * A ALTURA DA PAREDE ao longo da costa: uma por amostra, tirada dos riscos a
+ * cada geração e nunca guardada (o arquivo não muda: altura ausente = Médio).
+ *
+ * 1. A costa perto dos riscos é amostrada a cada texel (`escala`).
+ * 2. A altura CRUA de cada amostra é a do último risco que a cobre (a
+ *    borracha dá 0); sem risco, 0. Mas só onde a parede estaria à vista: a
+ *    costa que não desce para o mar (a beira de cima, o lado em pé da ilha) e
+ *    a que o jogador não conhece são NEUTRAS, não puxam a parede para baixo.
+ *    Assim só a ponta ABERTA (a praia segue sem penhasco) desce a 0; a ponta
+ *    da ilha, a divisa de região (as cadeias já vêm emendadas) e o corte da
+ *    névoa ficam como estavam.
+ * 3. Duas passadas, uma em cada sentido, limitam a inclinação: a altura nunca
+ *    passa da vizinha mais o caminho até ela ÷ `rampa`. O caminho é o
+ *    deslocamento HORIZONTAL onde a parede está à vista (ela desce em pé) e o
+ *    comprimento onde não está (o lado em pé da ilha separa de verdade). Só
+ *    abaixa: o lado mais baixo fica inteiro, o mais alto desce até ele, e a
+ *    rampa da ponta fica dentro do risco (risco curto vira um morrinho).
+ * 4. Desenha 0 onde a costa não desce para o mar e onde o jogador não
+ *    conhece: o mesmo corte seco de antes no limite da névoa.
+ */
+export function perfilDoPenhasco(
+  plano: Pick<PlanoDoRelevo, 'costa' | 'terras' | 'fronteiras' | 'folgaDaFronteira' | 'penhascos' | 'unidade' | 'escala' | 'conhecido'>,
+): PerfilDoPenhasco {
+  const { penhascos, unidade, escala } = plano
+  const caixa = caixaDosRiscos(penhascos)
+  if (caixa === null || !(escala > 0) || !(unidade > 0)) return { cadeias: [], maisAlta: 0 }
+  const passo = 1 / escala
+  const consultas = plano.terras.map(prepararConsulta)
+  // A fresta entre duas regiões vizinhas é terra: o rasterizador a fecha com a mesma folga.
+  const naFresta = pertoDosSegmentos(plano.fronteiras, plano.folgaDaFronteira)
+  const naTerra = (x: number, y: number): boolean => consultas.some((c) => contem(c, { x, y })) || naFresta(x, y)
+  // A mesma folga de antes (o conhecido alargado na textura): uns texels além do que ele vê.
+  const alcance = Math.max(2, Math.ceil(AJUSTE_DO_PENHASCO.alcanceDoConhecido * unidade * escala)) / escala
+  const conhece = plano.conhecido === undefined ? null : conheceNoRelevo(plano.conhecido, alcance)
+  const folga = 2 * passo
+  const cadeias: PerfilDaCadeia[] = []
+  let maisAlta = 0
+  for (const cadeia of plano.costa) {
+    const c = caixaDe(cadeia.pontos)
+    if (c.maxX < caixa.minX - folga || c.minX > caixa.maxX + folga || c.maxY < caixa.minY - folga || c.minY > caixa.maxY + folga) continue
+    const perfil = perfilDaCadeia(cadeia, penhascos, passo, unidade, naTerra, conhece)
+    let maior = 0
+    for (const h of perfil.altura) maior = Math.max(maior, h)
+    if (maior <= 0) continue
+    cadeias.push(perfil)
+    maisAlta = Math.max(maisAlta, maior)
+  }
+  return { cadeias, maisAlta }
+}
+
+function perfilDaCadeia(
+  cadeia: CadeiaDaCosta,
+  penhascos: readonly TracoDePenhasco[],
+  passo: number,
+  unidade: number,
+  naTerra: (x: number, y: number) => boolean,
+  conhece: ((p: RegionPoint) => boolean) | null,
+): PerfilDaCadeia {
+  const { x, y } = amostrarCadeia(cadeia, passo)
+  const n = x.length
+  const dosRiscos = alturasDosRiscos(x, y, penhascos)
+  // À vista: terra logo acima e mar logo abaixo (a regra da beira de baixo: `oQueORiscoCobre`).
+  const aVista = new Uint8Array(n)
+  const conhecida = new Uint8Array(n)
+  const altura = new Float64Array(n)
+  for (let i = 0; i < n; i += 1) {
+    aVista[i] = !naTerra(x[i], y[i] + passo) && naTerra(x[i], y[i] - passo / 2) ? 1 : 0
+    conhecida[i] = conhece === null || conhece({ x: x[i], y: y[i] }) ? 1 : 0
+    const crua = dosRiscos[i]
+    altura[i] = conhecida[i] === 0 ? Infinity : crua > 0 ? crua : aVista[i] === 1 ? 0 : Infinity
+  }
+  const porPx = unidade * AJUSTE_DO_PENHASCO.rampa
+  const custo = (i: number, j: number): number => {
+    const dx = x[j] - x[i]
+    return (aVista[i] === 1 && aVista[j] === 1 ? Math.abs(dx) : Math.hypot(dx, y[j] - y[i])) / porPx
+  }
+  limitarInclinacao(altura, custo, cadeia.fechada)
+  for (let i = 0; i < n; i += 1) if (aVista[i] === 0 || conhecida[i] === 0 || !Number.isFinite(altura[i])) altura[i] = 0
+  return { x, y, altura, fechada: cadeia.fechada }
+}
+
+/** A cadeia em pedaços de até `passo` px de mundo: os pontos dela e os do meio de cada lado. */
+function amostrarCadeia(cadeia: CadeiaDaCosta, passo: number): { x: Float64Array; y: Float64Array } {
+  const xs: number[] = []
+  const ys: number[] = []
+  const { pontos, fechada } = cadeia
+  const lados = fechada ? pontos.length : pontos.length - 1
+  for (let i = 0; i < lados; i += 1) {
+    const a = pontos[i]
+    const b = pontos[(i + 1) % pontos.length]
+    const comprimento = Math.hypot(b.x - a.x, b.y - a.y)
+    if (comprimento === 0) continue
+    const pedacos = Math.ceil(comprimento / passo)
+    for (let k = 0; k < pedacos; k += 1) {
+      xs.push(a.x + ((b.x - a.x) * k) / pedacos)
+      ys.push(a.y + ((b.y - a.y) * k) / pedacos)
+    }
+  }
+  const ultimo = pontos[pontos.length - 1]
+  if (!fechada && ultimo !== undefined) {
+    xs.push(ultimo.x)
+    ys.push(ultimo.y)
+  }
+  return { x: Float64Array.from(xs), y: Float64Array.from(ys) }
+}
+
+/**
+ * A altura do último risco que cobre cada amostra (a borracha dá 0), ou NaN
+ * onde nenhum cobre: os riscos na ordem, cada um por cima dos de antes, como
+ * o pincel pintava. Uma grade das amostras faz cada lado de risco olhar só
+ * as de perto.
+ */
+function alturasDosRiscos(x: Float64Array, y: Float64Array, penhascos: readonly TracoDePenhasco[]): Float64Array {
+  const altura = new Float64Array(x.length).fill(NaN)
+  if (x.length === 0) return altura
+  const lado = Math.max(1, ...penhascos.map((t) => (t.raio > 0 ? t.raio * 2 : 0)))
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (let i = 0; i < x.length; i += 1) {
+    minX = Math.min(minX, x[i])
+    minY = Math.min(minY, y[i])
+    maxX = Math.max(maxX, x[i])
+    maxY = Math.max(maxY, y[i])
+  }
+  const colunas = Math.floor((maxX - minX) / lado) + 1
+  const linhas = Math.floor((maxY - minY) / lado) + 1
+  const grade = new Map<number, number[]>()
+  for (let i = 0; i < x.length; i += 1) {
+    const chave = Math.floor((y[i] - minY) / lado) * colunas + Math.floor((x[i] - minX) / lado)
+    const celula = grade.get(chave)
+    if (celula === undefined) grade.set(chave, [i])
+    else celula.push(i)
+  }
+  for (const traco of penhascos) {
+    if (!(traco.raio > 0) || traco.pontos.length === 0) continue
+    const valor = traco.modo === 'riscar' ? alturaDaParede(traco) : 0
+    const { raio, pontos } = traco
+    const lados = pontos.length === 1 ? 1 : pontos.length - 1
+    for (let k = 0; k < lados; k += 1) {
+      const a = pontos[k]
+      const b = pontos[Math.min(k + 1, pontos.length - 1)]
+      const c0 = Math.max(0, Math.floor((Math.min(a.x, b.x) - raio - minX) / lado))
+      const c1 = Math.min(colunas - 1, Math.floor((Math.max(a.x, b.x) + raio - minX) / lado))
+      const l0 = Math.max(0, Math.floor((Math.min(a.y, b.y) - raio - minY) / lado))
+      const l1 = Math.min(linhas - 1, Math.floor((Math.max(a.y, b.y) + raio - minY) / lado))
+      for (let l = l0; l <= l1; l += 1) {
+        for (let c = c0; c <= c1; c += 1) {
+          for (const i of grade.get(l * colunas + c) ?? []) {
+            if (distanciaAoSegmento(x[i], y[i], a, b) <= raio) altura[i] = valor
+          }
+        }
+      }
+    }
+  }
+  return altura
+}
+
+function distanciaAoSegmento(px: number, py: number, a: RegionPoint, b: RegionPoint): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const comprimento2 = dx * dx + dy * dy
+  const t = comprimento2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / comprimento2))
+  return Math.hypot(px - (a.x + t * dx), py - (a.y + t * dy))
+}
+
+/**
+ * Limita a inclinação, no lugar: `altura[i]` nunca passa de `altura[j] +
+ * custo` do caminho de i a j pela cadeia. Uma passada em cada sentido (duas
+ * voltas na fechada) acha o menor caminho de todas as amostras de uma vez.
+ */
+function limitarInclinacao(altura: Float64Array, custo: (i: number, j: number) => number, fechada: boolean): void {
+  const n = altura.length
+  const fim = fechada ? 2 * n : n
+  for (let k = 1; k < fim; k += 1) {
+    const i = k % n
+    const antes = (k - 1) % n
+    altura[i] = Math.min(altura[i], altura[antes] + custo(antes, i))
+  }
+  for (let k = fim - 2; k >= 0; k -= 1) {
+    const i = k % n
+    const depois = (k + 1) % n
+    altura[i] = Math.min(altura[i], altura[depois] + custo(i, depois))
+  }
+}
+
+/**
+ * "Este ponto está a até `folga` de algum dos segmentos?", para muitas
+ * perguntas seguidas: uma grade dos segmentos faz cada pergunta olhar só os de perto.
+ */
+function pertoDosSegmentos(segmentos: readonly Segmento[], folga: number): (x: number, y: number) => boolean {
+  if (segmentos.length === 0 || !(folga > 0)) return () => false
+  const lado = Math.max(folga * 8, 1)
+  const grade = new Map<string, Segmento[]>()
+  for (const segmento of segmentos) {
+    const { a, b } = segmento
+    for (let l = Math.floor((Math.min(a.y, b.y) - folga) / lado); l <= Math.floor((Math.max(a.y, b.y) + folga) / lado); l += 1) {
+      for (let c = Math.floor((Math.min(a.x, b.x) - folga) / lado); c <= Math.floor((Math.max(a.x, b.x) + folga) / lado); c += 1) {
+        const chave = `${c},${l}`
+        const celula = grade.get(chave)
+        if (celula === undefined) grade.set(chave, [segmento])
+        else celula.push(segmento)
+      }
+    }
+  }
+  return (x, y) => (grade.get(`${Math.floor(x / lado)},${Math.floor(y / lado)}`) ?? []).some(({ a, b }) => distanciaAoSegmento(x, y, a, b) <= folga)
+}
+
+/** Caixa, em px de mundo, dos riscos que põem penhasco (a borracha só tira), com o raio. `null` sem nenhum. */
+function caixaDosRiscos(penhascos: readonly TracoDePenhasco[]): Caixa | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const traco of penhascos) {
+    if (traco.modo !== 'riscar' || !(traco.raio > 0)) continue
+    for (const p of traco.pontos) {
+      minX = Math.min(minX, p.x - traco.raio)
+      minY = Math.min(minY, p.y - traco.raio)
+      maxX = Math.max(maxX, p.x + traco.raio)
+      maxY = Math.max(maxY, p.y + traco.raio)
+    }
+  }
+  return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null
+}
+
+/**
+ * "Este ponto da costa o jogador já conhece?" — a mesma geometria da máscara
+ * do conhecido da névoa (a visão e o explorado), com `alcance` px de mundo de
+ * folga em volta: de dentro do mar ele conhece a água até a beira, e a parede
+ * sai da terra logo acima dela.
+ */
+export function conheceNoRelevo(conhecido: ConhecidoDoRelevo, alcance: number): (p: RegionPoint) => boolean {
+  const visao = conhecido.visao.filter((poligono) => poligono.length >= 3).map(prepararConsulta)
+  const explorado = conhecido.explorado
+  const dentro = (p: RegionPoint): boolean => visao.some((c) => contem(c, p)) || (explorado !== undefined && isPointExplored(explorado, p))
+  return (p) => dentro(p) || DIRECOES_EM_VOLTA.some(([dx, dy]) => dentro({ x: p.x + dx * alcance, y: p.y + dy * alcance }))
 }
 
 /**
@@ -888,7 +1150,10 @@ export function* planoDoRelevoEmPassos(
   const unidade = unidadeDoRelevo(map)
   const passo = PASSO_DA_BORDA * unidade
   const folgaDaBorda = FOLGA_DA_BORDA * unidade
-  const { fronteiras } = bordasDaTerra(terras, passo, folgaDaBorda)
+  const bordas = bordasDaTerra(terras, passo, folgaDaBorda)
+  const { fronteiras } = bordas
+  // Onde a costa passa de uma região para a vizinha, as pontas ficam a até um pedaço (mais a fresta).
+  const costa = cadeiasDaCosta(bordas.costa, passo + folgaDaBorda)
   yield
   const areas = areasPintadas(desenhos, {
     espessura: AJUSTE_DAS_DIVISAS.espessuraMinima * unidade,
@@ -912,6 +1177,7 @@ export function* planoDoRelevoEmPassos(
     fronteiras,
     divisas,
     divisores,
+    costa,
     // Os riscos entram depois, por `planoComPenhascos`.
     penhascos: [],
     retangulo,
