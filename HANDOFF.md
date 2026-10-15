@@ -1657,3 +1657,24 @@ Todas as fases 1-6 (+1b) commitadas na main com push, cada uma com testes, tsc 0
 - 10/10 ~11h10: usuário mandou APLICAR O REDESIGN. Script do workflow agora lê o design de docs/design/consolidado/. Leva 1 = ["0","1","2","3","4"]; depois ["5".."11"], ["12","13","14","15","16a","16b","17"], ["18".."21"]; instalador no fim (perguntar/seguir pedido). Comando de cada leva: Workflow({scriptPath: ~/.claude/projects/C--dev-labirinto/8c450841-90e0-486f-a9d2-0ddba65d04d9/workflows/scripts/ui-consolidada-em-fatias-wf_197acc05-9d3.js, args: {scratchpad, unidades}}).
 - 10/10 ~12h40: Lajotas Escura + painel de formas `694a4221` (aprovada). v0.4.26 PUBLICADA só com ela (`63e1daaf`, build em worktree limpa ../labirinto-rel-0426, já removida com as junções tiradas antes; node_modules intacto). Escada C (alças de comprimento/largura/curva) `f576e033`, fora do instalador: entra na 0.4.27 quando o usuário pedir. Redesign PARADO ("nada do redesign agora").
 - 10/10 12h45: v0.4.27 PUBLICADA (`6d124966`) com a escada C (alças + curva, `f576e033`); latest.json no ar = 0.4.27. Árvore limpa. Redesign segue PARADO até o usuário mandar.
+
+# 15/10/2026 — Redesign + camadas + otimização do jogador (sessão 12fd93df)
+
+## Objetivo
+Aplicar o redesign consolidado (fatias 0-21 de `docs/design/consolidado/PLANO.md`), depois o sistema de camadas (9 por tipo + camadas livres; ocultar, travar, esconder dos jogadores, opacidade, ordem), depois a otimização da textura que demora a carregar para o jogador (rede e Visão de jogador, ao revelar área nova). Decisões e regra de esforço no fim do `PEDIDOS.md`.
+
+## Estado atual
+- Workflow `redesign-em-fatias`, run `wf_b73e7cab-e2e`, script `~/.claude/projects/C--dev-labirinto/12fd93df-07f1-4cd2-a9fb-31535af2c21d/workflows/scripts/redesign-em-fatias-wf_b73e7cab-e2e.js`. Grupo 1 = fatias 0 e 1. Progresso fatia a fatia em `docs/design/consolidado/PROGRESSO.md` (o fechamento de cada fatia escreve e commita).
+- Em paralelo, um agente aplica as cores da Cama (Tapete já em `a9f0e972`).
+- Commits locais sem push: Girassóis, Portão de ferro `7a812148`, Árvore `d7f59c59`, penhasco `ebb55b43`, Tapete `a9f0e972`.
+
+## Próximos passos
+1. Ao terminar o grupo 1 (e a Cama): relançar `Workflow({scriptPath: <script acima>, args: {scratchpad: "C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/12fd93df-07f1-4cd2-a9fb-31535af2c21d/scratchpad", grupos: [["2"],["3"],["4"],["5"],["6"],["7"],["8"],["9"],["10"],["11"],["12"],["13"],["14"],["15"],["16a"],["16b"],["17"],["18","19","20"],["21"]]}})`. Se pausado no meio: `resumeFromRunId` do run interrompido, ou relançar a partir da "Próxima fatia" do PROGRESSO.md.
+2. Push a cada ~5 fatias; instalador só quando o usuário pedir.
+3. Depois da 21: obra das camadas (plano + perguntas), depois a otimização (medir antes).
+
+## Critério de pronto
+Cada fatia: linha no PROGRESSO.md com commit; tsc limpo; suíte de unidade verde (exceto testes de tempo que passam sozinhos); print 1440x900 (390 no jogador) lado a lado com o protótipo em `scratchpad/ui-fatias/<fatia>/`; `e2e/ui-onde-foi-parar.spec.ts` verde.
+
+## Evidência
+- Workflow lançado: task `we5viyvjf`, run `wf_b73e7cab-e2e` (15/10/2026 ~14h10). Sem resultado ainda.
