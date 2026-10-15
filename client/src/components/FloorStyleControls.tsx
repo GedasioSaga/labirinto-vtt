@@ -15,6 +15,14 @@ export interface FloorStyleControlsProps {
   /** O mapa tem peças de chão, linhas ou portas de minimapa. Cor, contorno,
    *  precisão e render fiel só desenham isso; sem nada, mudar não aparece. */
   hasFloorContent: boolean
+  /**
+   * `true`: ids gerados em vez dos fixos (`lb-floor-fill-color`…). Para a cópia
+   * da página Cena quando a Ficha também mostra o "Chão do mapa" (ferramenta
+   * Chão na mão): as duas ficam montadas e o id repetido faria o rótulo de uma
+   * apontar o campo da outra. Os fixos ficam com a Ficha, que é a que as
+   * jornadas usam com a ferramenta armada.
+   */
+  idsProprios?: boolean
 }
 
 const DEFAULT_FRAME_TITLE = 'Mapa'
@@ -32,8 +40,8 @@ const SAMPLE_STEP_OPTIONS: Array<{ value: number; label: string }> = [
 
 /**
  * Estilo do chão do MAPA inteiro (não de uma peça). A criação de peças a
- * partir da imagem de fundo saiu daqui para o menu do botão de imagem da
- * ActionBar, que só existe quando há imagem.
+ * partir da imagem de fundo saiu daqui para o menu Arquivo do livro do mestre
+ * (trecho "Imagem de fundo e conversão"), que só a oferece quando há imagem.
  *
  * Peça mapa-inteiro-enxuto (laudo do painel, rodada 2): cada cor mora na
  * linha do rótulo (`FloorStyleControls.css`), e a frase de mapa sem chão é a
@@ -46,9 +54,15 @@ export function FloorStyleControls({
   onFrameChange,
   defaultFrameRect,
   hasFloorContent,
+  idsProprios = false,
 }: FloorStyleControlsProps) {
   const sampleStep = style.sampleStep ?? DEFAULT_SAMPLE_STEP
-  const semChaoId = `${useId()}-sem-chao`
+  const idGerado = useId()
+  const semChaoId = `${idGerado}-sem-chao`
+  const idDe = (nome: string) => (idsProprios ? `${idGerado}-${nome}` : `lb-${nome}`)
+  const corDoChaoId = idDe('floor-fill-color')
+  const corDoContornoId = idDe('floor-stroke-color')
+  const tituloDaMolduraId = idDe('map-frame-title')
   /** Sem chão no mapa, cor e contorno não aparecem na tela: os dois apontam a frase que diz por quê. */
   const explicaSemChao = hasFloorContent ? undefined : semChaoId
 
@@ -57,11 +71,11 @@ export function FloorStyleControls({
   return (
     <>
       <div className="lb-field lb-floor-linha">
-        <label className="lb-label" htmlFor="lb-floor-fill-color">
+        <label className="lb-label" htmlFor={corDoChaoId}>
           Cor do chão
         </label>
         <CampoDeCorComPipeta
-          id="lb-floor-fill-color"
+          id={corDoChaoId}
           value={style.fillColor}
           aria-describedby={explicaSemChao}
           rotuloDaPipeta="Pegar do mapa a cor do chão"
@@ -77,11 +91,11 @@ export function FloorStyleControls({
       />
       {style.strokeColor !== null && (
         <div className="lb-field lb-floor-linha">
-          <label className="lb-label" htmlFor="lb-floor-stroke-color">
+          <label className="lb-label" htmlFor={corDoContornoId}>
             Cor do contorno
           </label>
           <CampoDeCorComPipeta
-            id="lb-floor-stroke-color"
+            id={corDoContornoId}
             value={style.strokeColor}
             rotuloDaPipeta="Pegar do mapa a cor do contorno"
             onChange={(cor) => onStyleChange({ strokeColor: cor })}
@@ -145,11 +159,11 @@ export function FloorStyleControls({
               />
               {frame !== null && (
                 <div className="lb-field">
-                  <label className="lb-label" htmlFor="lb-map-frame-title">
+                  <label className="lb-label" htmlFor={tituloDaMolduraId}>
                     Título da moldura
                   </label>
                   <input
-                    id="lb-map-frame-title"
+                    id={tituloDaMolduraId}
                     className="lb-input"
                     type="text"
                     value={frame.title}

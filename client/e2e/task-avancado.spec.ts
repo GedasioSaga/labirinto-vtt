@@ -3,6 +3,7 @@
 // nascer fechada quando outro objeto é selecionado.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 const WALL_HINT = 'Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.'
 
@@ -69,6 +70,8 @@ test('2. selecionar outra parede faz o Avançado nascer fechado de novo', async 
 })
 
 test('3. Chão do mapa → Avançado → Render fiel', async ({ page }) => {
+  // "Chão do mapa" mora na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   const inspector = page.locator('.lb-inspector')
   const floor = inspector.locator('section.lb-collapsible').filter({ has: page.getByRole('button', { name: 'Chão do mapa', exact: true }) })
   const floorHeader = inspector.getByRole('button', { name: 'Chão do mapa', exact: true })

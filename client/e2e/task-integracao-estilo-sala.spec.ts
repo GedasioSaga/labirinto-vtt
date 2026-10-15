@@ -82,13 +82,14 @@ test('retângulo selecionado: mudar cor e espessura no painel muda o retângulo,
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addDrawing({
-      id: 'rect_e2e', kind: 'rect', x: 320, y: 256, w: 320, h: 192, color: '#ff0000', width: 6, filled: false, fillAlpha: 0.3,
+      // x 420, não 320: o livro do mestre (fatia 2) cobre a janela até x 326.
+      id: 'rect_e2e', kind: 'rect', x: 420, y: 256, w: 320, h: 192, color: '#ff0000', width: 6, filled: false, fillAlpha: 0.3,
     })
   })
   const drawColorBefore = await storeValue<string>(page, 'drawColor')
   const drawWidthBefore = await storeValue<number>(page, 'drawWidth')
 
-  const edge = await worldToPage(page, 320, 352)
+  const edge = await worldToPage(page, 420, 352)
   await page.mouse.click(edge.x, edge.y)
   await expect.poll(() => selectionKind(page)).toBe('drawing')
 
@@ -116,9 +117,10 @@ test('Sala nova nasce marrom; a cor escolhida com a ferramenta Sala vale só par
   await page.getByRole('button', { name: 'Sala', exact: true }).click()
   await expect(page.locator('#lb-region-color')).toHaveValue('#a8776a')
 
-  await page.mouse.move(box.x + 300, box.y + 300)
+  // De x 400, não 300: o livro do mestre (fatia 2) cobre a janela até x 326.
+  await page.mouse.move(box.x + 400, box.y + 300)
   await page.mouse.down()
-  await page.mouse.move(box.x + 600, box.y + 500, { steps: 5 })
+  await page.mouse.move(box.x + 700, box.y + 500, { steps: 5 })
   await page.mouse.up()
 
   let regions = await storeValue<{ fillColor: string; room?: unknown }[]>(page, 'map.regions')

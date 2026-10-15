@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
 
 test('desenhar Sala com a aba Jogo aberta deixa o Mapa à vista e pede o nome sobre a Sala', async ({ page }) => {
   const gameTab = page.getByRole('tab', { name: 'Jogo' })
-  const mapa = page.getByRole('region', { name: 'Mapa' })
+  const mapa = page.getByRole('complementary', { name: 'Livro do mestre' })
   await gameTab.click()
   await expect(gameTab).toHaveAttribute('aria-selected', 'true')
   // A aba Mapa saiu: o inspetor fica sempre à vista, ao lado do Jogo.

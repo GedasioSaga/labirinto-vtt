@@ -8,6 +8,7 @@
 // O disco é o de mentira de `helpers/tauriFsStub.ts` (sem Tauri no navegador).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { escolherNoArquivo } from './helpers/livroDoMestre'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 import type { Region, Token } from '../src/types/map'
 
@@ -69,7 +70,7 @@ test('1. Início e Criar mapa de novo: o editor abre e desenha', async ({ page }
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
-  await page.getByRole('button', { name: 'Início' }).click()
+  await escolherNoArquivo(page, 'Voltar ao início')
   await page.getByRole('button', { name: 'Criar Mapas' }).click()
   // Seletor de tipo escondido (FEATURES.otherMapTypes): o formulário abre direto.
   await expect(page.getByRole('button', { name: 'Dungeon Map' })).toHaveCount(0)
@@ -141,7 +142,8 @@ test('5. ferramenta Token: clique no mapa pede o nome e cria o token no ponto', 
   expect((await snapshot(page)).activeTool).toBe('select')
   await expect(page.getByRole('button', { name: 'Token', exact: true })).toHaveCount(0)
   await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().setActiveTool('token'))
-  const point = await worldToPage(page, 320, 256)
+  // x 420, não 320: o livro do mestre (fatia 2) cobre o mapa até x 326 da janela.
+  const point = await worldToPage(page, 420, 256)
   await page.mouse.click(point.x, point.y)
 
   const nameInput = page.getByRole('textbox', { name: 'Nome do token no mapa' })
@@ -151,7 +153,7 @@ test('5. ferramenta Token: clique no mapa pede o nome e cria o token no ponto', 
 
   await expect.poll(async () => (await snapshot(page)).tokens.map((t) => t.name)).toEqual(['Ogro'])
   const [token] = (await snapshot(page)).tokens
-  expect(Math.abs(token.x - 320)).toBeLessThanOrEqual(32)
+  expect(Math.abs(token.x - 420)).toBeLessThanOrEqual(32)
   expect(Math.abs(token.y - 256)).toBeLessThanOrEqual(32)
 
   // Esc cancela sem criar nada.
@@ -164,10 +166,11 @@ test('5. ferramenta Token: clique no mapa pede o nome e cria o token no ponto', 
 })
 
 test('6. token travado é selecionável e não se move; oculto no editor continua clicável', async ({ page }) => {
-  await addToken(page, { id: 'travado', name: 'Travado', x: 320, y: 320 }, { locked: true })
+  // x 420, não 320: o livro do mestre (fatia 2) cobre o mapa até x 326 da janela.
+  await addToken(page, { id: 'travado', name: 'Travado', x: 420, y: 320 }, { locked: true })
   await addToken(page, { id: 'oculto', name: 'Oculto', x: 640, y: 320 }, { hidden: true })
 
-  const locked = await worldToPage(page, 320, 320)
+  const locked = await worldToPage(page, 420, 320)
   await page.mouse.move(locked.x, locked.y)
   await page.mouse.down()
   await page.mouse.move(locked.x + 120, locked.y + 60, { steps: 6 })
@@ -175,7 +178,7 @@ test('6. token travado é selecionável e não se move; oculto no editor continu
   const afterDrag = await snapshot(page)
   expect(afterDrag.selection).toEqual([{ kind: 'token', id: 'travado' }])
   const lockedToken = afterDrag.tokens.find((t) => t.id === 'travado')
-  expect([lockedToken?.x, lockedToken?.y]).toEqual([320, 320])
+  expect([lockedToken?.x, lockedToken?.y]).toEqual([420, 320])
 
   const hidden = await worldToPage(page, 640, 320)
   await page.mouse.click(hidden.x, hidden.y)
@@ -188,7 +191,7 @@ test('7. "Mapa salvo" ao salvar e no menu depois de Início; erro também aparec
   await expect(page.getByRole('status').filter({ hasText: 'Mapa salvo' })).toBeVisible()
   await page.evaluate(async () => (await import('/src/stores/toastStore.ts')).useToastStore.setState({ toasts: [] }))
 
-  await page.getByRole('button', { name: 'Início' }).click()
+  await escolherNoArquivo(page, 'Voltar ao início')
   await expect(page.getByRole('button', { name: 'Criar Mapas' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'Mapa salvo' })).toBeVisible()
 

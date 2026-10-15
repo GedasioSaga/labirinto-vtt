@@ -162,7 +162,6 @@ describe('M4 — desabilitado parece desabilitado, e o foco aparece', () => {
     const desabilitado = regra(normal, '.lb-iconbtn:disabled')
     expect(desabilitado.get('opacity')).toBe('0.35')
     expect(desabilitado.get('cursor')).toBe('default')
-    expect(await lerCss('./ActionBar.css')).not.toMatch(/\.lb-iconbtn:disabled\s*\{/)
     expect(await lerCss('./AlignDistributeControls.css')).not.toMatch(/\.lb-iconbtn:disabled\s*\{/)
   })
 
@@ -232,13 +231,6 @@ describe('M10 — menus e confirmações entram de onde foram chamados', () => {
     }
   })
 
-  it('o menu de imagem de fundo nasce da barra, de baixo para cima', async () => {
-    const { normal, reduzido } = separar(await lerCss('./ActionBar.css'))
-    const menu = regra(normal, '.lb-panel.lb-actionbar-menu')
-    expect(menu.get('transform-origin')).toBe('bottom center')
-    expect(menu.get('animation')).toBe(`lb-cenas-menu-entra ${RAPIDO}`)
-    expect(regra(reduzido, '.lb-panel.lb-actionbar-menu').get('animation')).toBe('none')
-  })
 })
 
 describe('M11 — balões de ferramenta: só o primeiro espera', () => {

@@ -967,43 +967,17 @@ body {
   inset: 0;
 }
 
-/* Coluna esquerda: inspetor (rola) + barra de ações (fixa embaixo).
-   Largura travada para nunca invadir o centro do canvas. O mesmo token é lido
-   pelo Toolbar em TypeScript, para o balão de dica saber onde parar. */
-.lb-editor__rail {
-  position: absolute;
-  top: var(--lb-layout-edge-gap);
-  bottom: var(--lb-layout-edge-gap);
-  left: var(--lb-layout-edge-gap);
-  width: var(--lb-layout-rail-width);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--lb-space-3);
-  pointer-events: none;
-}
-
-.lb-editor__rail > * {
-  pointer-events: auto;
-}
-
-/* O inspetor (aba Mapa de antes): só ele mora na esquerda, sobre a barra de ações. */
-.lb-editor__mapa {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
-}
-
 /* A barra de ferramentas centraliza na viewport, mas o padding simétrico do
-   tamanho do rail impede que ela chegue perto dele mesmo na largura mínima —
-   como o padding é igual dos dois lados, o centro visual não se desloca. */
+   tamanho do livro do mestre (components/livro/livro.css) impede que ela
+   chegue perto dele mesmo na largura mínima — como o padding é igual dos dois
+   lados, o centro visual não se desloca. O mesmo token é lido pelo Toolbar em
+   TypeScript, para o balão de dica saber onde parar. */
 .lb-editor__top {
   position: absolute;
   top: var(--lb-layout-edge-gap);
   left: 0;
   right: 0;
-  padding: 0 calc(var(--lb-layout-rail-width) + var(--lb-layout-edge-gap) * 2);
+  padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
   display: flex;
   justify-content: center;
   pointer-events: none;

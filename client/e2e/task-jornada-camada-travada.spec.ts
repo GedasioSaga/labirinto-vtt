@@ -30,6 +30,7 @@
 // dispatchEvent, nada de evento sintético, nada de escrita na store.
 import { expect, test, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /** O Pixi pinta no próximo tick do ticker: o redraw é síncrono na mutação, a
  *  PINTURA não. Mesma espera dos outros specs de pixel deste diretório. */
@@ -67,10 +68,10 @@ function mesmoPixel(a: Foto, b: Foto): boolean {
 // ou seja, a viewport inteira (1280x800).
 // ─────────────────────────────────────────────────────────────
 
-/** A sala. Começa em x=320 para nascer à direita do painel da esquerda
- *  (`--lb-layout-rail-width`, que termina por volta de x=280) e envolve com
- *  folga o centro do canvas, que é onde o token vai nascer. */
-const SALA = { de: { x: 320, y: 192 }, ate: { x: 960, y: 576 } }
+/** A sala. Começa em x=384 para nascer à direita do livro do mestre (fatia 2:
+ *  12 px de margem + lombada 52 + página 262, até x=326) e envolve com folga o
+ *  centro do canvas, que é onde o token vai nascer. */
+const SALA = { de: { x: 384, y: 192 }, ate: { x: 960, y: 576 } }
 
 /** Quanto o arrasto pede de deslocamento: 2 células de grade, para o snap de
  *  corpo (`applySnap(..., 'wall', ...)`) não comer o movimento. */
@@ -147,6 +148,8 @@ async function recorte(page: Page, box: { x: number; y: number }, area: Retangul
  * abre se estiver fechada — é o que a mão do usuário faria.
  */
 async function abrirSecaoCamadas(page: Page): Promise<void> {
+  // "Camadas" mora na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   const secao = page.getByRole('button', { name: 'Camadas', exact: true })
   await expect(secao).toBeVisible()
   if ((await secao.getAttribute('aria-expanded')) !== 'true') await secao.click()

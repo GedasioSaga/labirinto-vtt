@@ -33,6 +33,7 @@
 // o resto do app roda de verdade. Toda afirmação é sobre o que está na tela.
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /** 64x64 px: metade de cima #ff00ff, metade de baixo #00c853. */
 const FOTO_BASE64 =
@@ -216,6 +217,8 @@ async function guardarTokenComFotoNoAcervo(page: Page, nome: string): Promise<vo
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   await expect(page.getByRole('button', { name: 'Trocar imagem...' }), 'a foto não entrou no token').toBeVisible({ timeout: POLL_MS })
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  // A estante mora na página Acervo do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: `Colocar ${nome} no mapa` })).toBeVisible({ timeout: POLL_MS })
 }
 
@@ -246,6 +249,7 @@ test('CONTROLE POSITIVO: token com foto e "Salvar no acervo" põe o item na esta
   test.setTimeout(90_000)
   await discoDoMestre(page)
   await enterEditor(page)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(secaoDoAcervo(page).getByText('Nenhum token no acervo ainda.')).toBeVisible({ timeout: POLL_MS })
 
   await guardarTokenComFotoNoAcervo(page, 'Goblin')
@@ -259,9 +263,12 @@ test('(a) depois de "Adicionar token" sem foto, o acervo diz na tela que guarda 
   await discoDoMestre(page)
   await enterEditor(page)
   const acervo = secaoDoAcervo(page)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(acervo, 'a seção do acervo não está na tela').toBeVisible({ timeout: POLL_MS })
 
   await adicionarToken(page, 'Goblin')
+  // O token novo traz a Ficha à frente; o mestre volta ao marcador Acervo para ler a estante.
+  await abrirPaginaDoLivro(page, 'Acervo')
 
   await expect(
     acervo.getByText(/foto/i).first(),

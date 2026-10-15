@@ -1,10 +1,9 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ActionBar, type ActionBarProps } from './ActionBar'
 import { ExportImageDialog, type ExportImageDialogProps } from './ExportImageDialog'
 
-describe('"Exportar imagem" no rodapé e no diálogo', () => {
+describe('"Exportar imagem": o diálogo (o item do menu Arquivo está em livro/LivroDoMestre.test.tsx)', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -20,23 +19,6 @@ describe('"Exportar imagem" no rodapé e no diálogo', () => {
     container.remove()
     vi.restoreAllMocks()
   })
-
-  function actionBarProps(onExportImage: () => void): ActionBarProps {
-    const noop = vi.fn()
-    return {
-      onSave: noop,
-      onOpen: noop,
-      onImportBackground: noop,
-      onExportFolder: noop,
-      onExportImage,
-      onImportFolder: noop,
-      onGoHome: noop,
-      hasBackgroundImage: false,
-      onFloorFromBackground: noop,
-      onDetailsFromBackground: noop,
-      onRecreateMinimapFromBackground: noop,
-    }
-  }
 
   function dialogProps(overrides: Partial<ExportImageDialogProps> = {}): ExportImageDialogProps {
     return { defaultGrid: true, busy: false, onExport: vi.fn(), onClose: vi.fn(), ...overrides }
@@ -61,16 +43,6 @@ describe('"Exportar imagem" no rodapé e no diálogo', () => {
     if (found.length !== 1) throw new Error(`esperava 1 botão ${name}, achei ${found.length}`)
     return found[0]
   }
-
-  it('o rodapé de ações de arquivo tem o botão "Exportar imagem", ao lado de "Exportar mapa (pasta)"', () => {
-    const onExportImage = vi.fn()
-    act(() => root.render(<ActionBar {...actionBarProps(onExportImage)} />))
-    const item = container.querySelector<HTMLButtonElement>('[role="toolbar"] button[aria-label^="Exportar imagem"]')
-    expect(item).not.toBeNull()
-    expect(container.querySelector('button[aria-label="Exportar mapa (pasta)"]')).not.toBeNull()
-    act(() => item?.click())
-    expect(onExportImage).toHaveBeenCalledTimes(1)
-  })
 
   it('o diálogo se chama "Exportar imagem" e tem as opções de grade e de objetos só do mestre', () => {
     act(() => root.render(<ExportImageDialog {...dialogProps()} />))

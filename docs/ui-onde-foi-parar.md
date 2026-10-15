@@ -10,90 +10,90 @@ O spec `client/e2e/ui-onde-foi-parar.spec.ts` alcança cada linha no app pelo ca
 
 ### Cabeçalho da esquerda
 
-Parte de: editor aberto, Selecionar, nada selecionado. Vai para: Topo do livro do mestre. Fatia: 2.
+Parte de: editor aberto, Selecionar, nada selecionado. Vai para: Topo do livro do mestre (feito). Fatia: 2.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Logo e nome do app | heading "Labirinto" | (coluna da esquerda) | (do bloco) |
-| + Token | button "Adicionar token" | (coluna da esquerda) | (do bloco) |
-| Campo do novo token | textbox "Nome do novo token" | (coluna da esquerda) > clicar button "Adicionar token" | (do bloco) |
-| Adicionar (novo token) | button "Adicionar" | (coluna da esquerda) > clicar button "Adicionar token" | (do bloco) |
-| Cancelar (novo token) | button "Cancelar" | (coluna da esquerda) > clicar button "Adicionar token" | (do bloco) |
-| Ver todas as cenas (ícone de expandir) | button "Ver todas as cenas" | (coluna da esquerda) | Chip da cena, "Ver todas as cenas" (fatia 3) |
-| Engrenagem (Configurações do mapa) | button "Configurações do mapa" | (coluna da esquerda) | (do bloco) |
-| Faixa "Nada selecionado" | button "Nada selecionado" | (coluna da esquerda) | Página Ficha, vazio com atalhos (fatia 7) |
+| Logo e nome do app | heading "Labirinto" | (livro do mestre) | (do bloco) |
+| + Token | button "Adicionar token" | (livro do mestre) | (do bloco) |
+| Campo do novo token | textbox "Nome do novo token" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
+| Adicionar (novo token) | button "Adicionar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
+| Cancelar (novo token) | button "Cancelar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
+| Ver todas as cenas (ícone de expandir) | button "Ver todas as cenas" | (livro do mestre) | Chip da cena, "Ver todas as cenas" (fatia 3) |
+| Engrenagem (Configurações do mapa) | button "Configurações do mapa" | (livro do mestre) | (do bloco) |
+| Faixa "Nada selecionado" | button "Nada selecionado" | (livro do mestre) > clicar tab "Ficha" | Página Ficha, vazio com atalhos (fatia 7) |
 
 ### Ações do mapa
 
-Parte de: editor aberto. Vai para: Topo do livro do mestre (ícones) e menu Arquivo. Fatia: 2.
+Parte de: editor aberto. Vai para: Topo do livro do mestre (ícones) e menu Arquivo (feito). Fatia: 2.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Desfazer | button "Desfazer (Ctrl+Z)" | (barra de ações) | (do bloco) |
-| Refazer | button "Refazer (Ctrl+Y)" | (barra de ações) | (do bloco) |
-| Salvar | button "Salvar" | (barra de ações) | (do bloco) |
-| Abrir... | button "Abrir..." | (barra de ações) | Menu Arquivo |
-| Imagem de fundo (sem imagem: importar) | button "Importar imagem de fundo" | (barra de ações) | Menu Arquivo |
-| Exportar mapa (pasta) | button "Exportar mapa (pasta)" | (barra de ações) | Menu Arquivo |
-| Exportar imagem (PNG) | button "Exportar imagem (PNG)" | (barra de ações) | Menu Arquivo |
-| Importar mapa (pasta) | button "Importar mapa (pasta)" | (barra de ações) | Menu Arquivo |
-| Início | button "Início" | (barra de ações) | Menu Arquivo, "Voltar ao início" |
-| Atalhos do teclado (?) | button "Atalhos do teclado (?)" | (barra de ações) | Ícone "?" no topo do livro |
+| Desfazer | button "Desfazer" | (topo do livro do mestre) | (do bloco) |
+| Refazer | button "Refazer" | (topo do livro do mestre) | (do bloco) |
+| Salvar | button "Salvar" | (topo do livro do mestre) | (do bloco) |
+| Abrir... | menuitem "Abrir…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Imagem de fundo (sem imagem: importar) | menuitem "Importar imagem de fundo…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Exportar mapa (pasta) | menuitem "Exportar mapa (pasta)…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Exportar imagem (PNG) | menuitem "Exportar imagem (PNG)…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Importar mapa (pasta) | menuitem "Importar mapa (pasta)…" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Início | menuitem "Voltar ao início" | (topo do livro do mestre) > clicar button "Arquivo" | (do bloco) |
+| Atalhos do teclado (?) | button "Atalhos do teclado" | (topo do livro do mestre) | (do bloco) |
 
 ### Grupo Aventura
 
-Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do livro do mestre. Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do livro do mestre (casca feita; restilo na 18). Fatia: 2 (casca) e 18 (restilo).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Pinos: busca | searchbox "Buscar pino" | (coluna da esquerda) > clicar button "Pinos" | (do bloco) |
-| Pinos: pino da lista (abre a cena) | button "Altar Cripta" | (coluna da esquerda) > clicar button "Pinos" | (do bloco) |
-| Agenda: Próximo apito | button "Próximo apito" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: Próximo dia | button "Próximo dia" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: nome do evento | textbox "Evento" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: dia | spinbutton "Dia" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: apito | combobox "Apito" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: Soar alarme ao disparar | checkbox "Soar alarme ao disparar" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Agenda: Marcar | button "Marcar" | (coluna da esquerda) > clicar button "Agenda" | (do bloco) |
-| Estado do mundo: Novo estado | button "Novo estado" | (coluna da esquerda) > clicar button "Estado do mundo" | (do bloco) |
+| Pinos: busca | searchbox "Buscar pino" | (livro do mestre) > clicar tab "Aventura" > clicar button "Pinos" | (do bloco) |
+| Pinos: pino da lista (abre a cena) | button "Altar Cripta" | (livro do mestre) > clicar tab "Aventura" > clicar button "Pinos" | (do bloco) |
+| Agenda: Próximo apito | button "Próximo apito" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: Próximo dia | button "Próximo dia" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: nome do evento | textbox "Evento" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: dia | spinbutton "Dia" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: apito | combobox "Apito" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: Soar alarme ao disparar | checkbox "Soar alarme ao disparar" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Agenda: Marcar | button "Marcar" | (livro do mestre) > clicar tab "Aventura" > clicar button "Agenda" | (do bloco) |
+| Estado do mundo: Novo estado | button "Novo estado" | (livro do mestre) > clicar tab "Aventura" > clicar button "Estado do mundo" | (do bloco) |
 
 ### Grupo Esta cena
 
-Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Marcador Cena do livro do mestre, em fichas recolhíveis. Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18). Fatia: 2 (casca) e 18 (restilo).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Objetos do mapa: busca | searchbox "Buscar objeto" | (coluna da esquerda) > clicar button "Objetos do mapa" | Busca do topo do marcador Cena |
-| Objetos do mapa: Ctrl+K põe o cursor na busca | searchbox "Buscar objeto" | (coluna da esquerda) > tecla Control+k | Ctrl+K foca a busca da página Cena |
-| Objetos do mapa: item da lista (Ir até lá) | button "Goblin" | (coluna da esquerda) > clicar button "Objetos do mapa" | (do bloco) |
-| Locais: sala da árvore (enquadra) | button "Salão" | (coluna da esquerda) > clicar button "Locais" | (do bloco) |
-| Território: Quem manda aqui | checkbox "Quem manda aqui" | (coluna da esquerda) > clicar button "Território" | (do bloco) |
-| Território: Alerta da cena | radiogroup "Alerta da cena" | (coluna da esquerda) > clicar button "Território" | (do bloco) |
-| Chão do mapa: Cor do chão | textbox "Cor do chão" | (coluna da esquerda) > clicar button "Chão do mapa" | (do bloco) |
-| Chão do mapa: conta-gotas da cor | button "Pegar do mapa a cor do chão" | (coluna da esquerda) > clicar button "Chão do mapa" | (do bloco) |
-| Chão do mapa: Contorno | checkbox "Contorno" | (coluna da esquerda) > clicar button "Chão do mapa" | (do bloco) |
-| Camadas: Mostrar grade | checkbox "Mostrar grade" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: Grudar Token no centro | checkbox "Grudar Token no centro" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: Grudar Parede na grade | checkbox "Grudar Parede na grade" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: Grudar Objeto na grade | checkbox "Grudar Objeto na grade" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Paredes | button "Ocultar Paredes" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Paredes | button "Travar Paredes" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Portas | button "Ocultar Portas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Portas | button "Travar Portas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Salas | button "Ocultar Salas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Salas | button "Travar Salas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Escadas | button "Ocultar Escadas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Escadas | button "Travar Escadas" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Objetos | button "Ocultar Objetos" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Objetos | button "Travar Objetos" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Decoração | button "Ocultar Decoração" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Decoração | button "Travar Decoração" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Iluminação | button "Ocultar Iluminação" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Iluminação | button "Travar Iluminação" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Tokens | button "Ocultar Tokens" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Tokens | button "Travar Tokens" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Anotações | button "Ocultar Anotações" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Anotações | button "Travar Anotações" | (coluna da esquerda) > clicar button "Camadas" | (do bloco) |
+| Objetos do mapa: busca | searchbox "Buscar objeto" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | Busca do topo do marcador Cena |
+| Objetos do mapa: Ctrl+K põe o cursor na busca | searchbox "Buscar objeto" | (livro do mestre) > tecla Control+k | Ctrl+K foca a busca da página Cena |
+| Objetos do mapa: item da lista (Ir até lá) | button "Goblin" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | (do bloco) |
+| Locais: sala da árvore (enquadra) | button "Salão" | (livro do mestre) > clicar tab "Cena" > clicar button "Locais" | (do bloco) |
+| Território: Quem manda aqui | checkbox "Quem manda aqui" | (livro do mestre) > clicar tab "Cena" > clicar button "Território" | (do bloco) |
+| Território: Alerta da cena | radiogroup "Alerta da cena" | (livro do mestre) > clicar tab "Cena" > clicar button "Território" | (do bloco) |
+| Chão do mapa: Cor do chão | textbox "Cor do chão" | (livro do mestre) > clicar tab "Cena" > clicar button "Chão do mapa" | (do bloco) |
+| Chão do mapa: conta-gotas da cor | button "Pegar do mapa a cor do chão" | (livro do mestre) > clicar tab "Cena" > clicar button "Chão do mapa" | (do bloco) |
+| Chão do mapa: Contorno | checkbox "Contorno" | (livro do mestre) > clicar tab "Cena" > clicar button "Chão do mapa" | (do bloco) |
+| Camadas: Mostrar grade | checkbox "Mostrar grade" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: Grudar Token no centro | checkbox "Grudar Token no centro" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: Grudar Parede na grade | checkbox "Grudar Parede na grade" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: Grudar Objeto na grade | checkbox "Grudar Objeto na grade" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Paredes | button "Ocultar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Paredes | button "Travar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Portas | button "Ocultar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Portas | button "Travar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Salas | button "Ocultar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Salas | button "Travar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Escadas | button "Ocultar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Escadas | button "Travar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Objetos | button "Ocultar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Objetos | button "Travar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Decoração | button "Ocultar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Decoração | button "Travar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Iluminação | button "Ocultar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Iluminação | button "Travar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Tokens | button "Ocultar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Tokens | button "Travar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Anotações | button "Ocultar Anotações" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Anotações | button "Travar Anotações" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 
 ### Camadas do chão
 
@@ -101,19 +101,19 @@ Parte de: peça de chão selecionada. Vai para: Marcador Cena, ficha Camadas do 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Camadas do chão: lista das peças | heading "Camadas do chão" | (coluna da esquerda) | (do bloco) |
+| Camadas do chão: lista das peças | heading "Camadas do chão" | (livro do mestre) | (do bloco) |
 
 ### Acervos
 
-Parte de: editor aberto. Vai para: Marcador Acervo, Tokens e Itens lado a lado. Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor aberto. Vai para: Marcador Acervo (casca feita; Tokens e Itens com seg na 18). Fatia: 2 (casca) e 18 (restilo).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Acervo de tokens | heading "Acervo de tokens" | (coluna da esquerda) | (do bloco) |
-| Acervo de tokens: + Pasta | button "Nova pasta" | (coluna da esquerda) | (do bloco) |
-| Acervo de itens | region "Itens" | (coluna da esquerda) | (do bloco) |
-| Acervo de itens: Categorias | button "Categorias" | (coluna da esquerda) | (do bloco) |
-| Acervo de itens: Novo item | button "Novo item" | (coluna da esquerda) | (do bloco) |
+| Acervo de tokens | heading "Acervo de tokens" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
+| Acervo de tokens: + Pasta | button "Nova pasta" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
+| Acervo de itens | region "Itens" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
+| Acervo de itens: Categorias | button "Categorias" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
+| Acervo de itens: Novo item | button "Novo item" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
 
 ### Botões da barra
 
@@ -187,11 +187,11 @@ Parte de: ferramenta Parede armada, nada selecionado. Vai para: Página Ficha, f
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Parede | heading "Parede" | (coluna da esquerda) | (do bloco) |
-| Parede interna | checkbox "Parede interna" | (coluna da esquerda) | (do bloco) |
-| Espessura da parede | radiogroup "Espessura da parede" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
+| Parede | heading "Parede" | (livro do mestre) | (do bloco) |
+| Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
+| Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Porta
 
@@ -199,9 +199,9 @@ Parte de: ferramenta Porta armada, nada selecionado. Vai para: Página Ficha, fi
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Porta | heading "Ferramenta · Porta" | (coluna da esquerda) | (do bloco) |
-| Abrir na parede | radiogroup "Abrir na parede" | (coluna da esquerda) | (do bloco) |
-| Tipo de porta | radiogroup "Tipo de porta" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Porta | heading "Ferramenta · Porta" | (livro do mestre) | (do bloco) |
+| Abrir na parede | radiogroup "Abrir na parede" | (livro do mestre) | (do bloco) |
+| Tipo de porta | radiogroup "Tipo de porta" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Luz
 
@@ -209,7 +209,7 @@ Parte de: ferramenta Luz armada, nada selecionado. Vai para: Página Ficha, fich
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Luz | heading "Ferramenta · Luz" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Luz | heading "Ferramenta · Luz" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Região
 
@@ -217,13 +217,13 @@ Parte de: ferramenta Região armada, nada selecionado. Vai para: Página Ficha, 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Região | heading "Região" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Hachurado | checkbox "Hachurado" | (coluna da esquerda) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Preenchido | checkbox "Preenchido" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
+| Região | heading "Região" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Sala
 
@@ -231,13 +231,13 @@ Parte de: ferramenta Sala armada, nada selecionado. Vai para: Página Ficha, fic
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Sala | heading "Ferramenta · Sala" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Hachurado | checkbox "Hachurado" | (coluna da esquerda) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Preenchido | checkbox "Preenchido" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Sala | heading "Ferramenta · Sala" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Chão
 
@@ -245,8 +245,8 @@ Parte de: ferramenta Chão armada, nada selecionado. Vai para: Página Ficha, fi
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Chão | heading "Ferramenta · Chão" | (coluna da esquerda) | (do bloco) |
-| Chão do mapa | button "Chão do mapa" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Chão | heading "Ferramenta · Chão" | (livro do mestre) | (do bloco) |
+| Chão do mapa | button "Chão do mapa" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Caminho
 
@@ -254,9 +254,9 @@ Parte de: ferramenta Caminho armada, nada selecionado. Vai para: Página Ficha, 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Caminho | heading "Ferramenta · Caminho" | (coluna da esquerda) | (do bloco) |
-| Cor deste caminho | textbox "Cor deste caminho" | (coluna da esquerda) | (do bloco) |
-| Largura | slider "Largura" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Caminho | heading "Ferramenta · Caminho" | (livro do mestre) | (do bloco) |
+| Cor deste caminho | textbox "Cor deste caminho" | (livro do mestre) | (do bloco) |
+| Largura | slider "Largura" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Penhasco
 
@@ -264,11 +264,11 @@ Parte de: ferramenta Penhasco armada, nada selecionado. Vai para: Página Ficha,
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Penhasco | heading "Ferramenta · Penhasco" | (coluna da esquerda) | (do bloco) |
-| Ao riscar | radiogroup "Ao riscar" | (coluna da esquerda) | (do bloco) |
-| Largura do pincel | radiogroup "Largura do pincel" | (coluna da esquerda) | (do bloco) |
-| Altura do penhasco | radiogroup "Altura do penhasco" | (coluna da esquerda) | (do bloco) |
-| Ligar o relevo | button "Ligar o relevo" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Penhasco | heading "Ferramenta · Penhasco" | (livro do mestre) | (do bloco) |
+| Ao riscar | radiogroup "Ao riscar" | (livro do mestre) | (do bloco) |
+| Largura do pincel | radiogroup "Largura do pincel" | (livro do mestre) | (do bloco) |
+| Altura do penhasco | radiogroup "Altura do penhasco" | (livro do mestre) | (do bloco) |
+| Ligar o relevo | button "Ligar o relevo" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Texturas
 
@@ -276,14 +276,14 @@ Parte de: ferramenta Texturas armada, nada selecionado. Vai para: Página Ficha,
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Texturas | heading "Ferramenta · Texturas" | (coluna da esquerda) | (do bloco) |
-| Ao pintar | radiogroup "Ao pintar" | (coluna da esquerda) | (do bloco) |
-| Textura | radiogroup "Textura" | (coluna da esquerda) | (do bloco) |
-| Colar ou soltar a imagem da nova textura | region "Colar ou soltar a imagem da nova textura" | (coluna da esquerda) | (do bloco) |
-| Escolher imagem… | button "Escolher imagem…" | (coluna da esquerda) | (do bloco) |
-| Procurar texturas novas | button "Procurar texturas novas" | (coluna da esquerda) | (do bloco) |
-| Tamanho do pincel | slider "Tamanho do pincel" | (coluna da esquerda) | (do bloco) |
-| Força | slider "Força" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Texturas | heading "Ferramenta · Texturas" | (livro do mestre) | (do bloco) |
+| Ao pintar | radiogroup "Ao pintar" | (livro do mestre) | (do bloco) |
+| Textura | radiogroup "Textura" | (livro do mestre) | (do bloco) |
+| Colar ou soltar a imagem da nova textura | region "Colar ou soltar a imagem da nova textura" | (livro do mestre) | (do bloco) |
+| Escolher imagem… | button "Escolher imagem…" | (livro do mestre) | (do bloco) |
+| Procurar texturas novas | button "Procurar texturas novas" | (livro do mestre) | (do bloco) |
+| Tamanho do pincel | slider "Tamanho do pincel" | (livro do mestre) | (do bloco) |
+| Força | slider "Força" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Carimbos
 
@@ -291,16 +291,16 @@ Parte de: ferramenta Carimbos armada, nada selecionado. Vai para: Página Ficha,
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Carimbos | heading "Ferramenta · Carimbos" | (coluna da esquerda) | (do bloco) |
-| Ao clicar | radiogroup "Ao clicar" | (coluna da esquerda) | (do bloco) |
-| Objeto | radiogroup "Objeto" | (coluna da esquerda) | (do bloco) |
-| Árvore | radio "Árvore" | (coluna da esquerda) | (do bloco) |
-| Colar ou soltar a imagem do novo carimbo | region "Colar ou soltar a imagem do novo carimbo" | (coluna da esquerda) | (do bloco) |
-| Escolher imagem… | button "Escolher imagem…" | (coluna da esquerda) | (do bloco) |
-| Procurar carimbos novos | button "Procurar carimbos novos" | (coluna da esquerda) | (do bloco) |
-| Tamanho | slider "Tamanho" | (coluna da esquerda) | (do bloco) |
-| Largura do spray | slider "Largura do spray" | (coluna da esquerda) | (do bloco) |
-| Densidade do spray | slider "Densidade do spray" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Carimbos | heading "Ferramenta · Carimbos" | (livro do mestre) | (do bloco) |
+| Ao clicar | radiogroup "Ao clicar" | (livro do mestre) | (do bloco) |
+| Objeto | radiogroup "Objeto" | (livro do mestre) | (do bloco) |
+| Árvore | radio "Árvore" | (livro do mestre) | (do bloco) |
+| Colar ou soltar a imagem do novo carimbo | region "Colar ou soltar a imagem do novo carimbo" | (livro do mestre) | (do bloco) |
+| Escolher imagem… | button "Escolher imagem…" | (livro do mestre) | (do bloco) |
+| Procurar carimbos novos | button "Procurar carimbos novos" | (livro do mestre) | (do bloco) |
+| Tamanho | slider "Tamanho" | (livro do mestre) | (do bloco) |
+| Largura do spray | slider "Largura do spray" | (livro do mestre) | (do bloco) |
+| Densidade do spray | slider "Densidade do spray" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Escada
 
@@ -308,7 +308,7 @@ Parte de: ferramenta Escada armada, nada selecionado. Vai para: Página Ficha, f
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Escada | heading "Ferramenta · Escada" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Escada | heading "Ferramenta · Escada" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Peça
 
@@ -316,7 +316,7 @@ Parte de: ferramenta Peça armada, nada selecionado. Vai para: Página Ficha, fi
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Peça | heading "Ferramenta · Peça" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Peça | heading "Ferramenta · Peça" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Zona oculta
 
@@ -324,7 +324,7 @@ Parte de: ferramenta Zona oculta armada, nada selecionado. Vai para: Página Fic
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Zona oculta | heading "Ferramenta · Zona oculta" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Zona oculta | heading "Ferramenta · Zona oculta" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Pincel de revelar
 
@@ -332,9 +332,9 @@ Parte de: ferramenta Pincel de revelar armada, nada selecionado. Vai para: Pági
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Pincel de revelar | heading "Ferramenta · Pincel de revelar" | (coluna da esquerda) | (do bloco) |
-| Ao pintar | radiogroup "Ao pintar" | (coluna da esquerda) | (do bloco) |
-| Largura do pincel | radiogroup "Largura do pincel" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Pincel de revelar | heading "Ferramenta · Pincel de revelar" | (livro do mestre) | (do bloco) |
+| Ao pintar | radiogroup "Ao pintar" | (livro do mestre) | (do bloco) |
+| Largura do pincel | radiogroup "Largura do pincel" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Objetos
 
@@ -342,7 +342,7 @@ Parte de: ferramenta Objetos armada, nada selecionado. Vai para: Página Ficha, 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Objetos | heading "Ferramenta · Objetos" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Objetos | heading "Ferramenta · Objetos" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Desenho
 
@@ -350,10 +350,10 @@ Parte de: ferramenta Desenho armada, nada selecionado. Vai para: Página Ficha, 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Pincel | heading "Ferramenta · Pincel" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Espessura | slider "Espessura" | (coluna da esquerda) | (do bloco) |
-| Ponta da linha | radiogroup "Ponta da linha" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Pincel | heading "Ferramenta · Pincel" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
+| Ponta da linha | radiogroup "Ponta da linha" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Texto
 
@@ -361,10 +361,10 @@ Parte de: ferramenta Texto armada, nada selecionado. Vai para: Página Ficha, fi
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Texto | heading "Ferramenta · Texto" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Tamanho da fonte | slider "Tamanho da fonte" | (coluna da esquerda) | (do bloco) |
-| Fonte | combobox "Fonte" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Texto | heading "Ferramenta · Texto" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Tamanho da fonte | slider "Tamanho da fonte" | (livro do mestre) | (do bloco) |
+| Fonte | combobox "Fonte" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Pino
 
@@ -372,9 +372,9 @@ Parte de: ferramenta Pino armada, nada selecionado. Vai para: Página Ficha, fic
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Pino | heading "Ferramenta · Pino" | (coluna da esquerda) | (do bloco) |
-| Tipo do pino | radiogroup "Tipo do pino" | (coluna da esquerda) | (do bloco) |
-| Ícone no mapa | radiogroup "Ícone no mapa" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Pino | heading "Ferramenta · Pino" | (livro do mestre) | (do bloco) |
+| Tipo do pino | radiogroup "Tipo do pino" | (livro do mestre) | (do bloco) |
+| Ícone no mapa | radiogroup "Ícone no mapa" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Medir
 
@@ -382,7 +382,7 @@ Parte de: ferramenta Medir armada, nada selecionado. Vai para: Página Ficha, fi
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Medir | heading "Ferramenta · Medir" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Medir | heading "Ferramenta · Medir" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Borracha
 
@@ -390,7 +390,7 @@ Parte de: ferramenta Borracha armada, nada selecionado. Vai para: Página Ficha,
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Ferramenta · Borracha | heading "Ferramenta · Borracha" | (coluna da esquerda) | (do bloco) |
+| Ferramenta · Borracha | heading "Ferramenta · Borracha" | (livro do mestre) | (do bloco) |
 
 ### Faixa da seleção
 
@@ -398,8 +398,8 @@ Parte de: token selecionado no mapa. Vai para: Cabeça da ficha (Apagar e "Mais 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Apagar | button "Apagar token selecionado" | (coluna da esquerda) | (do bloco) |
-| Mais ações | button "Mais ações" | (coluna da esquerda) | (do bloco) |
+| Apagar | button "Apagar token selecionado" | (livro do mestre) | (do bloco) |
+| Mais ações | button "Mais ações" | (livro do mestre) | (do bloco) |
 
 ### Ficha do token
 
@@ -407,33 +407,33 @@ Parte de: token selecionado no mapa. Vai para: Página Ficha: Tipo de ficha, Nom
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Nome | textbox "Nome" | (coluna da esquerda) | (do bloco) |
-| Nome para os jogadores | radiogroup "Nome para os jogadores" | (coluna da esquerda) | (do bloco) |
-| Vida atual | spinbutton "Vida atual" | (coluna da esquerda) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
-| Vida máxima | spinbutton "Vida máxima" | (coluna da esquerda) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
-| Tamanho da ficha | radiogroup "Tamanho da ficha" | (coluna da esquerda) | (do bloco) |
-| Condição: Envenenado | button "Envenenado" | (coluna da esquerda) > clicar button "Condições" | (do bloco) |
-| Condição: Caído | button "Caído" | (coluna da esquerda) > clicar button "Condições" | (do bloco) |
-| Condição: Dormindo | button "Dormindo" | (coluna da esquerda) > clicar button "Condições" | (do bloco) |
-| Condição: Atordoado | button "Atordoado" | (coluna da esquerda) > clicar button "Condições" | (do bloco) |
-| Condição: Invisível | button "Invisível" | (coluna da esquerda) > clicar button "Condições" | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Congelado | checkbox "Congelado" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Avançado: Rotação | spinbutton "Rotação" | (coluna da esquerda) > clicar button "Avançado" | (do bloco) |
-| Avançado: Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) > clicar button "Avançado" | (do bloco) |
-| Cor da ficha | radiogroup "Cor da ficha" | (coluna da esquerda) | (do bloco) |
-| Escolher imagem... | button "Escolher imagem..." | (coluna da esquerda) | (do bloco) |
-| Salvar no acervo | button "Salvar no acervo" | (coluna da esquerda) | (do bloco) |
-| Ficha de NPC | checkbox "Ficha de NPC" | (coluna da esquerda) | (do bloco) |
-| Ficha de jogador | checkbox "Ficha de jogador" | (coluna da esquerda) | (do bloco) |
-| Personagem | combobox "Personagem" | (coluna da esquerda) | (do bloco) |
-| Esta ficha vigia | checkbox "Esta ficha vigia" | (coluna da esquerda) | (do bloco) |
-| Patrulha: Marcar ponto aqui | button "Marcar ponto aqui" | (coluna da esquerda) > clicar button "Patrulha" | (do bloco) |
-| Patrulha: Patrulhar sozinha | button "Patrulhar sozinha" | (coluna da esquerda) > clicar button "Patrulha" | (do bloco) |
-| Patrulha: Avançar patrulha | button "Avançar patrulha" | (coluna da esquerda) > clicar button "Patrulha" | (do bloco) |
-| Esta ficha é um veículo | checkbox "Esta ficha é um veículo" | (coluna da esquerda) | (do bloco) |
-| Piso | spinbutton "Piso" | (coluna da esquerda) | (do bloco) |
+| Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
+| Nome para os jogadores | radiogroup "Nome para os jogadores" | (livro do mestre) | (do bloco) |
+| Vida atual | spinbutton "Vida atual" | (livro do mestre) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
+| Vida máxima | spinbutton "Vida máxima" | (livro do mestre) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
+| Tamanho da ficha | radiogroup "Tamanho da ficha" | (livro do mestre) | (do bloco) |
+| Condição: Envenenado | button "Envenenado" | (livro do mestre) > clicar button "Condições" | (do bloco) |
+| Condição: Caído | button "Caído" | (livro do mestre) > clicar button "Condições" | (do bloco) |
+| Condição: Dormindo | button "Dormindo" | (livro do mestre) > clicar button "Condições" | (do bloco) |
+| Condição: Atordoado | button "Atordoado" | (livro do mestre) > clicar button "Condições" | (do bloco) |
+| Condição: Invisível | button "Invisível" | (livro do mestre) > clicar button "Condições" | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Congelado | checkbox "Congelado" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Avançado: Rotação | spinbutton "Rotação" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
+| Avançado: Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
+| Cor da ficha | radiogroup "Cor da ficha" | (livro do mestre) | (do bloco) |
+| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) | (do bloco) |
+| Salvar no acervo | button "Salvar no acervo" | (livro do mestre) | (do bloco) |
+| Ficha de NPC | checkbox "Ficha de NPC" | (livro do mestre) | (do bloco) |
+| Ficha de jogador | checkbox "Ficha de jogador" | (livro do mestre) | (do bloco) |
+| Personagem | combobox "Personagem" | (livro do mestre) | (do bloco) |
+| Esta ficha vigia | checkbox "Esta ficha vigia" | (livro do mestre) | (do bloco) |
+| Patrulha: Marcar ponto aqui | button "Marcar ponto aqui" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
+| Patrulha: Patrulhar sozinha | button "Patrulhar sozinha" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
+| Patrulha: Avançar patrulha | button "Avançar patrulha" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
+| Esta ficha é um veículo | checkbox "Esta ficha é um veículo" | (livro do mestre) | (do bloco) |
+| Piso | spinbutton "Piso" | (livro do mestre) | (do bloco) |
 
 ### Ficha do pino (!)
 
@@ -441,23 +441,23 @@ Parte de: pino de exclamação selecionado. Vai para: Página Ficha do pino: ess
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo do pino | radiogroup "Tipo do pino" | (coluna da esquerda) | (do bloco) |
-| Só o círculo, sem haste | checkbox "Só o círculo, sem haste" | (coluna da esquerda) | (do bloco) |
-| Nome do local | textbox "Nome do local" | (coluna da esquerda) | (do bloco) |
-| Descrição · o jogador lê | textbox "Descrição · o jogador lê" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Marco: todos veem | checkbox "Marco: todos veem" | (coluna da esquerda) | (do bloco) |
-| Ler só de perto | checkbox "Ler só de perto" | (coluna da esquerda) | (do bloco) |
-| Fechadura com segredo | checkbox "Fechadura com segredo" | (coluna da esquerda) | (do bloco) |
-| Peça de coleção | checkbox "Peça de coleção" | (coluna da esquerda) | (do bloco) |
-| Escolher imagem... | button "Escolher imagem..." | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Ícone no mapa | radiogroup "Ícone no mapa" | (coluna da esquerda) | (do bloco) |
-| Item pegável | checkbox "Item pegável" | (coluna da esquerda) | (do bloco) |
-| Loja com preços | checkbox "Loja com preços" | (coluna da esquerda) | (do bloco) |
-| Cabine contínua: leva a | combobox "Cabine contínua: leva a" | (coluna da esquerda) | (do bloco) |
-| Animação do Cenário | heading "Animação do Cenário" | (coluna da esquerda) | (do bloco) |
-| Excluir ponto de interesse | button "Excluir ponto de interesse" | (coluna da esquerda) | (do bloco) |
+| Tipo do pino | radiogroup "Tipo do pino" | (livro do mestre) | (do bloco) |
+| Só o círculo, sem haste | checkbox "Só o círculo, sem haste" | (livro do mestre) | (do bloco) |
+| Nome do local | textbox "Nome do local" | (livro do mestre) | (do bloco) |
+| Descrição · o jogador lê | textbox "Descrição · o jogador lê" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Marco: todos veem | checkbox "Marco: todos veem" | (livro do mestre) | (do bloco) |
+| Ler só de perto | checkbox "Ler só de perto" | (livro do mestre) | (do bloco) |
+| Fechadura com segredo | checkbox "Fechadura com segredo" | (livro do mestre) | (do bloco) |
+| Peça de coleção | checkbox "Peça de coleção" | (livro do mestre) | (do bloco) |
+| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Ícone no mapa | radiogroup "Ícone no mapa" | (livro do mestre) | (do bloco) |
+| Item pegável | checkbox "Item pegável" | (livro do mestre) | (do bloco) |
+| Loja com preços | checkbox "Loja com preços" | (livro do mestre) | (do bloco) |
+| Cabine contínua: leva a | combobox "Cabine contínua: leva a" | (livro do mestre) | (do bloco) |
+| Animação do Cenário | heading "Animação do Cenário" | (livro do mestre) | (do bloco) |
+| Excluir ponto de interesse | button "Excluir ponto de interesse" | (livro do mestre) | (do bloco) |
 
 ### Ficha do pino de viagem
 
@@ -465,16 +465,16 @@ Parte de: pino de viagem selecionado. Vai para: Página Ficha do pino, ficha "Ma
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Leva a… | button "Leva a…" | (coluna da esquerda) | (do bloco) |
-| Passagem | radiogroup "Passagem" | (coluna da esquerda) | (do bloco) |
-| Transição ao atravessar | heading "Transição ao atravessar" | (coluna da esquerda) | (do bloco) |
-| Nenhuma Chega direto | button "Nenhuma Chega direto" | (coluna da esquerda) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (coluna da esquerda) | (do bloco) |
-| Preso à ficha | combobox "Preso à ficha" | (coluna da esquerda) | (do bloco) |
-| Cabine (elevador, cesto) | combobox "Cabine (elevador, cesto)" | (coluna da esquerda) | (do bloco) |
-| Nova cabine | textbox "Nova cabine" | (coluna da esquerda) | (do bloco) |
-| Criar cabine aqui | button "Criar cabine aqui" | (coluna da esquerda) | (do bloco) |
-| Excluir pino de viagem | button "Excluir pino de viagem" | (coluna da esquerda) | (do bloco) |
+| Leva a… | button "Leva a…" | (livro do mestre) | (do bloco) |
+| Passagem | radiogroup "Passagem" | (livro do mestre) | (do bloco) |
+| Transição ao atravessar | heading "Transição ao atravessar" | (livro do mestre) | (do bloco) |
+| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
+| Preso à ficha | combobox "Preso à ficha" | (livro do mestre) | (do bloco) |
+| Cabine (elevador, cesto) | combobox "Cabine (elevador, cesto)" | (livro do mestre) | (do bloco) |
+| Nova cabine | textbox "Nova cabine" | (livro do mestre) | (do bloco) |
+| Criar cabine aqui | button "Criar cabine aqui" | (livro do mestre) | (do bloco) |
+| Excluir pino de viagem | button "Excluir pino de viagem" | (livro do mestre) | (do bloco) |
 
 ### Ficha da alavanca
 
@@ -482,8 +482,8 @@ Parte de: alavanca selecionada. Vai para: Página Ficha do pino (alavanca com "A
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Abre a porta | combobox "Abre a porta" | (coluna da esquerda) | (do bloco) |
-| Excluir alavanca | button "Excluir alavanca" | (coluna da esquerda) | (do bloco) |
+| Abre a porta | combobox "Abre a porta" | (livro do mestre) | (do bloco) |
+| Excluir alavanca | button "Excluir alavanca" | (livro do mestre) | (do bloco) |
 
 ### Ficha da porta
 
@@ -491,21 +491,21 @@ Parte de: porta selecionada no mapa. Vai para: Página Ficha da porta: Estado, T
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Virar parede sólida | button "Virar parede sólida" | (coluna da esquerda) | (do bloco) |
-| Aberta | checkbox "Aberta" | (coluna da esquerda) | (do bloco) |
-| Trancada | checkbox "Trancada" | (coluna da esquerda) | (do bloco) |
-| Jogador pode espiar | checkbox "Jogador pode espiar" | (coluna da esquerda) | (do bloco) |
-| Secreta | checkbox "Secreta" | (coluna da esquerda) | (do bloco) |
-| Abre por | radiogroup "Abre por" | (coluna da esquerda) | (do bloco) |
-| Animação ao abrir | combobox "Animação ao abrir" | (coluna da esquerda) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (coluna da esquerda) | (do bloco) |
-| Tipo de porta | radiogroup "Tipo de porta" | (coluna da esquerda) | (do bloco) |
-| Parede interna | checkbox "Parede interna" | (coluna da esquerda) | (do bloco) |
-| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (coluna da esquerda) | (do bloco) |
-| Cor da parede | textbox "Cor da parede" | (coluna da esquerda) | (do bloco) |
-| Espessura da parede | radiogroup "Espessura da parede" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
+| Virar parede sólida | button "Virar parede sólida" | (livro do mestre) | (do bloco) |
+| Aberta | checkbox "Aberta" | (livro do mestre) | (do bloco) |
+| Trancada | checkbox "Trancada" | (livro do mestre) | (do bloco) |
+| Jogador pode espiar | checkbox "Jogador pode espiar" | (livro do mestre) | (do bloco) |
+| Secreta | checkbox "Secreta" | (livro do mestre) | (do bloco) |
+| Abre por | radiogroup "Abre por" | (livro do mestre) | (do bloco) |
+| Animação ao abrir | combobox "Animação ao abrir" | (livro do mestre) | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
+| Tipo de porta | radiogroup "Tipo de porta" | (livro do mestre) | (do bloco) |
+| Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
+| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (livro do mestre) | (do bloco) |
+| Cor da parede | textbox "Cor da parede" | (livro do mestre) | (do bloco) |
+| Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
 
 ### Ficha da parede
 
@@ -513,16 +513,16 @@ Parte de: parede selecionada no mapa. Vai para: Página Ficha, gramática nova (
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Parede interna | checkbox "Parede interna" | (coluna da esquerda) | (do bloco) |
-| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (coluna da esquerda) | (do bloco) |
-| Cor da parede | textbox "Cor da parede" | (coluna da esquerda) | (do bloco) |
-| Espessura da parede | radiogroup "Espessura da parede" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
-| Janela (vê, não passa) | checkbox "Janela (vê, não passa)" | (coluna da esquerda) | (do bloco) |
-| Deixa passar (a ficha atravessa) | checkbox "Deixa passar (a ficha atravessa)" | (coluna da esquerda) | (do bloco) |
-| Deixa ver (a visão atravessa) | checkbox "Deixa ver (a visão atravessa)" | (coluna da esquerda) | (do bloco) |
-| Virar porta | button "Virar porta" | (coluna da esquerda) | (do bloco) |
+| Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
+| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (livro do mestre) | (do bloco) |
+| Cor da parede | textbox "Cor da parede" | (livro do mestre) | (do bloco) |
+| Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
+| Janela (vê, não passa) | checkbox "Janela (vê, não passa)" | (livro do mestre) | (do bloco) |
+| Deixa passar (a ficha atravessa) | checkbox "Deixa passar (a ficha atravessa)" | (livro do mestre) | (do bloco) |
+| Deixa ver (a visão atravessa) | checkbox "Deixa ver (a visão atravessa)" | (livro do mestre) | (do bloco) |
+| Virar porta | button "Virar porta" | (livro do mestre) | (do bloco) |
 
 ### Ficha da escada
 
@@ -530,25 +530,25 @@ Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada (Comprim
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Sentido da escada | radiogroup "Sentido da escada" | (coluna da esquerda) | (do bloco) |
-| Forma da escada | radiogroup "Forma da escada" | (coluna da esquerda) | (do bloco) |
-| Tamanho da escada | radiogroup "Tamanho da escada" | (coluna da esquerda) | (do bloco) |
-| Comprimento | textbox "Comprimento" | (coluna da esquerda) | (do bloco) |
-| Diminuir o comprimento | button "Diminuir o comprimento" | (coluna da esquerda) | (do bloco) |
-| Aumentar o comprimento | button "Aumentar o comprimento" | (coluna da esquerda) | (do bloco) |
-| Largura | textbox "Largura" | (coluna da esquerda) | (do bloco) |
-| Diminuir a largura | button "Diminuir a largura" | (coluna da esquerda) | (do bloco) |
-| Aumentar a largura | button "Aumentar a largura" | (coluna da esquerda) | (do bloco) |
-| Curva | slider "Curva" | (coluna da esquerda) | (do bloco) |
-| Leva a | combobox "Leva a" | (coluna da esquerda) | (do bloco) |
-| Passagem da escada | radiogroup "Passagem da escada" | (coluna da esquerda) | (do bloco) |
-| Criar andar de cima | button "Criar andar de cima" | (coluna da esquerda) | (do bloco) |
-| Piso | spinbutton "Piso" | (coluna da esquerda) | (do bloco) |
-| Leva ao piso | spinbutton "Leva ao piso" | (coluna da esquerda) | (do bloco) |
-| Transição ao trocar de piso | heading "Transição ao trocar de piso" | (coluna da esquerda) | (do bloco) |
-| Nenhuma Chega direto | button "Nenhuma Chega direto" | (coluna da esquerda) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
+| Sentido da escada | radiogroup "Sentido da escada" | (livro do mestre) | (do bloco) |
+| Forma da escada | radiogroup "Forma da escada" | (livro do mestre) | (do bloco) |
+| Tamanho da escada | radiogroup "Tamanho da escada" | (livro do mestre) | (do bloco) |
+| Comprimento | textbox "Comprimento" | (livro do mestre) | (do bloco) |
+| Diminuir o comprimento | button "Diminuir o comprimento" | (livro do mestre) | (do bloco) |
+| Aumentar o comprimento | button "Aumentar o comprimento" | (livro do mestre) | (do bloco) |
+| Largura | textbox "Largura" | (livro do mestre) | (do bloco) |
+| Diminuir a largura | button "Diminuir a largura" | (livro do mestre) | (do bloco) |
+| Aumentar a largura | button "Aumentar a largura" | (livro do mestre) | (do bloco) |
+| Curva | slider "Curva" | (livro do mestre) | (do bloco) |
+| Leva a | combobox "Leva a" | (livro do mestre) | (do bloco) |
+| Passagem da escada | radiogroup "Passagem da escada" | (livro do mestre) | (do bloco) |
+| Criar andar de cima | button "Criar andar de cima" | (livro do mestre) | (do bloco) |
+| Piso | spinbutton "Piso" | (livro do mestre) | (do bloco) |
+| Leva ao piso | spinbutton "Leva ao piso" | (livro do mestre) | (do bloco) |
+| Transição ao trocar de piso | heading "Transição ao trocar de piso" | (livro do mestre) | (do bloco) |
+| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 
 ### Ficha da sala
 
@@ -556,40 +556,40 @@ Parte de: sala selecionada no mapa. Vai para: Página Ficha da sala: Sala, O que
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Nome | textbox "Nome" | (coluna da esquerda) | (do bloco) |
-| Fundo do título | checkbox "Fundo do título" | (coluna da esquerda) | (do bloco) |
-| Tamanho do título | slider "Tamanho do título" | (coluna da esquerda) | (do bloco) |
-| Cor do título | textbox "Cor do título" | (coluna da esquerda) | (do bloco) |
-| Orientação do título | radiogroup "Orientação do título" | (coluna da esquerda) | (do bloco) |
-| Largura | spinbutton "Largura" | (coluna da esquerda) | (do bloco) |
-| Altura | spinbutton "Altura" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| −90° | button "−90°" | (coluna da esquerda) | (do bloco) |
-| +90° | button "+90°" | (coluna da esquerda) | (do bloco) |
-| Jogadores veem o nome | checkbox "Jogadores veem o nome" | (coluna da esquerda) | (do bloco) |
-| Teto fechado para jogadores | checkbox "Teto fechado para jogadores" | (coluna da esquerda) | (do bloco) |
-| Cômodo: aparece só depois de visto | checkbox "Cômodo: aparece só depois de visto" | (coluna da esquerda) | (do bloco) |
-| Sala escura | checkbox "Sala escura" | (coluna da esquerda) | (do bloco) |
-| De dentro, vê lá fora | checkbox "De dentro, vê lá fora" | (coluna da esquerda) | (do bloco) |
-| De fora, vê aqui dentro | checkbox "De fora, vê aqui dentro" | (coluna da esquerda) | (do bloco) |
-| Ao entrar, o jogador lê | button "Ao entrar, o jogador lê" | (coluna da esquerda) | (do bloco) |
-| Nota do mestre | button "Nota do mestre" | (coluna da esquerda) | (do bloco) |
-| Facção | button "Facção" | (coluna da esquerda) | (do bloco) |
-| Raio de visão aqui | button "Raio de visão aqui" | (coluna da esquerda) | (do bloco) |
-| Perigo | button "Perigo" | (coluna da esquerda) | (do bloco) |
-| Esteira | button "Esteira" | (coluna da esquerda) | (do bloco) |
-| Criar sala dentro | button "Criar sala dentro" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Hachurado | checkbox "Hachurado" | (coluna da esquerda) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Preenchido | checkbox "Preenchido" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
-| Criar parede na borda | button "Criar parede na borda" | (coluna da esquerda) | (do bloco) |
-| Pintar parte da sala de outra cor | checkbox "Pintar parte da sala de outra cor" | (coluna da esquerda) | (do bloco) |
-| Mais ações: levar ao piso | menuitem "/^Levar ao/" | (coluna da esquerda) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (fatia 8) |
+| Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
+| Fundo do título | checkbox "Fundo do título" | (livro do mestre) | (do bloco) |
+| Tamanho do título | slider "Tamanho do título" | (livro do mestre) | (do bloco) |
+| Cor do título | textbox "Cor do título" | (livro do mestre) | (do bloco) |
+| Orientação do título | radiogroup "Orientação do título" | (livro do mestre) | (do bloco) |
+| Largura | spinbutton "Largura" | (livro do mestre) | (do bloco) |
+| Altura | spinbutton "Altura" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| −90° | button "−90°" | (livro do mestre) | (do bloco) |
+| +90° | button "+90°" | (livro do mestre) | (do bloco) |
+| Jogadores veem o nome | checkbox "Jogadores veem o nome" | (livro do mestre) | (do bloco) |
+| Teto fechado para jogadores | checkbox "Teto fechado para jogadores" | (livro do mestre) | (do bloco) |
+| Cômodo: aparece só depois de visto | checkbox "Cômodo: aparece só depois de visto" | (livro do mestre) | (do bloco) |
+| Sala escura | checkbox "Sala escura" | (livro do mestre) | (do bloco) |
+| De dentro, vê lá fora | checkbox "De dentro, vê lá fora" | (livro do mestre) | (do bloco) |
+| De fora, vê aqui dentro | checkbox "De fora, vê aqui dentro" | (livro do mestre) | (do bloco) |
+| Ao entrar, o jogador lê | button "Ao entrar, o jogador lê" | (livro do mestre) | (do bloco) |
+| Nota do mestre | button "Nota do mestre" | (livro do mestre) | (do bloco) |
+| Facção | button "Facção" | (livro do mestre) | (do bloco) |
+| Raio de visão aqui | button "Raio de visão aqui" | (livro do mestre) | (do bloco) |
+| Perigo | button "Perigo" | (livro do mestre) | (do bloco) |
+| Esteira | button "Esteira" | (livro do mestre) | (do bloco) |
+| Criar sala dentro | button "Criar sala dentro" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
+| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) | (do bloco) |
+| Pintar parte da sala de outra cor | checkbox "Pintar parte da sala de outra cor" | (livro do mestre) | (do bloco) |
+| Mais ações: levar ao piso | menuitem "/^Levar ao/" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (fatia 8) |
 
 ### Ficha da região (não sala)
 
@@ -597,15 +597,15 @@ Parte de: região selecionada no mapa. Vai para: Página Ficha, gramática nova.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Hachurado | checkbox "Hachurado" | (coluna da esquerda) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (coluna da esquerda) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (coluna da esquerda) | (do bloco) |
-| Preenchido | checkbox "Preenchido" | (coluna da esquerda) | (do bloco) |
-| Avançado | button "Avançado" | (coluna da esquerda) | (do bloco) |
-| Criar parede na borda | button "Criar parede na borda" | (coluna da esquerda) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
+| Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
+| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) | (do bloco) |
 
 ### Ficha da luz
 
@@ -613,10 +613,10 @@ Parte de: luz selecionada no mapa. Vai para: Página Ficha, gramática nova. Fat
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Intensidade | slider "Intensidade" | (coluna da esquerda) | (do bloco) |
-| Prender na ficha | combobox "Prender na ficha" | (coluna da esquerda) | (do bloco) |
-| Vista de longe | checkbox "Vista de longe" | (coluna da esquerda) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Intensidade | slider "Intensidade" | (livro do mestre) | (do bloco) |
+| Prender na ficha | combobox "Prender na ficha" | (livro do mestre) | (do bloco) |
+| Vista de longe | checkbox "Vista de longe" | (livro do mestre) | (do bloco) |
 
 ### Ficha da peça (imagem)
 
@@ -624,13 +624,13 @@ Parte de: peça de imagem selecionada. Vai para: Página Ficha, gramática nova.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: barril
 
@@ -638,17 +638,17 @@ Parte de: objeto "m-barril" selecionado no mapa. Vai para: Página Ficha, gramá
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: catre
 
@@ -656,21 +656,21 @@ Parte de: objeto "m-catre" selecionado no mapa. Vai para: Página Ficha, gramát
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor do travesseiro | textbox "Cor do travesseiro" | (coluna da esquerda) | (do bloco) |
-| Paleta: cor do travesseiro | radiogroup "Paleta: cor do travesseiro" | (coluna da esquerda) | (do bloco) |
-| Cor do cobertor | textbox "Cor do cobertor" | (coluna da esquerda) | (do bloco) |
-| Paleta: cor do cobertor | radiogroup "Paleta: cor do cobertor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor do travesseiro | textbox "Cor do travesseiro" | (livro do mestre) | (do bloco) |
+| Paleta: cor do travesseiro | radiogroup "Paleta: cor do travesseiro" | (livro do mestre) | (do bloco) |
+| Cor do cobertor | textbox "Cor do cobertor" | (livro do mestre) | (do bloco) |
+| Paleta: cor do cobertor | radiogroup "Paleta: cor do cobertor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: cerca
 
@@ -678,15 +678,15 @@ Parte de: objeto "m-cerca" selecionado no mapa. Vai para: Página Ficha, gramát
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: armario
 
@@ -694,18 +694,18 @@ Parte de: objeto "m-armario" selecionado no mapa. Vai para: Página Ficha, gram�
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Vista | radiogroup "Vista" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: aparador
 
@@ -713,18 +713,18 @@ Parte de: objeto "m-aparador" selecionado no mapa. Vai para: Página Ficha, gram
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Vista | radiogroup "Vista" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: fogueira
 
@@ -732,18 +732,18 @@ Parte de: objeto "m-fogueira" selecionado no mapa. Vai para: Página Ficha, gram
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Vista | radiogroup "Vista" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do objeto: tapete
 
@@ -751,19 +751,19 @@ Parte de: objeto "m-tapete" selecionado no mapa. Vai para: Página Ficha, gramá
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Tipo | combobox "Tipo" | (coluna da esquerda) | (do bloco) |
-| Vista | radiogroup "Vista" | (coluna da esquerda) | (do bloco) |
-| Forma | radiogroup "Forma" | (coluna da esquerda) | (do bloco) |
-| Preencher | checkbox "Preencher" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (coluna da esquerda) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (coluna da esquerda) | (do bloco) |
-| Travado | checkbox "Travado" | (coluna da esquerda) | (do bloco) |
-| Oculto no editor | checkbox "Oculto no editor" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (coluna da esquerda) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (coluna da esquerda) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (coluna da esquerda) | (do bloco) |
+| Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
+| Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
+| Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
 
 ### Ficha do desenho
 
@@ -771,11 +771,11 @@ Parte de: linha desenhada selecionada. Vai para: Página Ficha, gramática nova 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Endireitar | button "Endireitar" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Espessura | slider "Espessura" | (coluna da esquerda) | (do bloco) |
-| Paredes ao redor | checkbox "Paredes ao redor" | (coluna da esquerda) | (do bloco) |
+| Endireitar | button "Endireitar" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
+| Paredes ao redor | checkbox "Paredes ao redor" | (livro do mestre) | (do bloco) |
 
 ### Ficha do texto
 
@@ -783,11 +783,11 @@ Parte de: texto selecionado. Vai para: Página Ficha, gramática nova. Fatia: 16
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Rótulo de texto | heading "Rótulo de texto" | (coluna da esquerda) | (do bloco) |
-| Cor | textbox "Cor" | (coluna da esquerda) | (do bloco) |
-| Tamanho da fonte | slider "Tamanho da fonte" | (coluna da esquerda) | (do bloco) |
-| Fonte | combobox "Fonte" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (coluna da esquerda) | (do bloco) |
+| Rótulo de texto | heading "Rótulo de texto" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Tamanho da fonte | slider "Tamanho da fonte" | (livro do mestre) | (do bloco) |
+| Fonte | combobox "Fonte" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 
 ### Ficha da peça de chão
 
@@ -795,8 +795,8 @@ Parte de: peça de chão selecionada. Vai para: Página Ficha, gramática nova. 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Apagar peça de chão selecionada | button "Apagar peça de chão selecionada" | (coluna da esquerda) | (do bloco) |
-| Mais ações | button "Mais ações" | (coluna da esquerda) | (do bloco) |
+| Apagar peça de chão selecionada | button "Apagar peça de chão selecionada" | (livro do mestre) | (do bloco) |
+| Mais ações | button "Mais ações" | (livro do mestre) | (do bloco) |
 
 ### Ficha da zona oculta
 
@@ -804,9 +804,9 @@ Parte de: zona oculta selecionada. Vai para: Página Ficha, gramática nova. Fat
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Nome | textbox "Nome" | (coluna da esquerda) | (do bloco) |
-| Revelar para jogadores | checkbox "Revelar para jogadores" | (coluna da esquerda) | (do bloco) |
-| Excluir zona | button "Excluir zona" | (coluna da esquerda) | (do bloco) |
+| Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
+| Revelar para jogadores | checkbox "Revelar para jogadores" | (livro do mestre) | (do bloco) |
+| Excluir zona | button "Excluir zona" | (livro do mestre) | (do bloco) |
 
 ### Seleção múltipla
 
@@ -814,18 +814,18 @@ Parte de: token e parede selecionados juntos. Vai para: Página Ficha com 2 ou m
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Apagar 2 itens selecionados | button "Apagar 2 itens selecionados" | (coluna da esquerda) | (do bloco) |
-| Agrupar (Ctrl+G) | button "Agrupar (Ctrl+G)" | (coluna da esquerda) | (do bloco) |
-| Limpar seleção de área | button "Limpar seleção de área" | (coluna da esquerda) | (do bloco) |
-| Alinhar à esquerda | button "Alinhar à esquerda" | (coluna da esquerda) | (do bloco) |
-| Alinhar ao centro | button "Alinhar ao centro" | (coluna da esquerda) | (do bloco) |
-| Alinhar à direita | button "Alinhar à direita" | (coluna da esquerda) | (do bloco) |
-| Alinhar ao topo | button "Alinhar ao topo" | (coluna da esquerda) | (do bloco) |
-| Alinhar ao meio | button "Alinhar ao meio" | (coluna da esquerda) | (do bloco) |
-| Alinhar à base | button "Alinhar à base" | (coluna da esquerda) | (do bloco) |
-| Distribuir na horizontal | button "Distribuir na horizontal" | (coluna da esquerda) | (do bloco) |
-| Distribuir na vertical | button "Distribuir na vertical" | (coluna da esquerda) | (do bloco) |
-| Oculto para jogadores (1) | checkbox "Oculto para jogadores (1)" | (coluna da esquerda) | (do bloco) |
+| Apagar 2 itens selecionados | button "Apagar 2 itens selecionados" | (livro do mestre) | (do bloco) |
+| Agrupar (Ctrl+G) | button "Agrupar (Ctrl+G)" | (livro do mestre) | (do bloco) |
+| Limpar seleção de área | button "Limpar seleção de área" | (livro do mestre) | (do bloco) |
+| Alinhar à esquerda | button "Alinhar à esquerda" | (livro do mestre) | (do bloco) |
+| Alinhar ao centro | button "Alinhar ao centro" | (livro do mestre) | (do bloco) |
+| Alinhar à direita | button "Alinhar à direita" | (livro do mestre) | (do bloco) |
+| Alinhar ao topo | button "Alinhar ao topo" | (livro do mestre) | (do bloco) |
+| Alinhar ao meio | button "Alinhar ao meio" | (livro do mestre) | (do bloco) |
+| Alinhar à base | button "Alinhar à base" | (livro do mestre) | (do bloco) |
+| Distribuir na horizontal | button "Distribuir na horizontal" | (livro do mestre) | (do bloco) |
+| Distribuir na vertical | button "Distribuir na vertical" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores (1) | checkbox "Oculto para jogadores (1)" | (livro do mestre) | (do bloco) |
 
 ### Configurações do mapa
 
@@ -852,7 +852,6 @@ Parte de: diálogo aberto pela engrenagem. Vai para: Mesmo diálogo, casca nova 
 | Rostos só de perto | checkbox "Rostos só de perto" | (tela) | (do bloco) |
 | Casas | spinbutton "Casas" | (tela) | (do bloco) |
 | Escolher sistema… | button "Escolher sistema…" | (tela) | (do bloco) |
-| Esconder Aventura e Esta cena ao usar ferramenta | checkbox "Esconder Aventura e Esta cena ao usar ferramenta" | (tela) | (do bloco) |
 
 ### Configurar cena
 
@@ -997,8 +996,9 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 
 | Controle | Por que não está no spec |
 |---|---|
-| Voltar (cena anterior), na barra de ações | só aparece depois de viajar entre cenas |
-| Menu "Imagem de fundo e conversão" (Chão a partir da imagem, Linhas e portas, Recriar minimapa) | só com imagem de fundo; sem ela o botão é "Importar imagem de fundo" (coberto) |
+| Voltar (cena anterior), no topo do livro do mestre até a fatia 3 | só aparece depois de viajar entre cenas |
+| Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa) | só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro |
+| Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel) | aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho) |
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
 | Marcas dos jogadores (MarcasDaCena) | só com marcas deixadas por jogadores |
 | Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token) | pedem sala aberta, outra cena ou Estado do mundo com valores |
@@ -1009,4 +1009,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 547 controles em 62 blocos.
+Total: 546 controles em 62 blocos.

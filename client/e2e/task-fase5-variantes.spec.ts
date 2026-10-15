@@ -95,7 +95,7 @@ test('3. setinha da Borracha: escolher "Só uma parte" corta o traço em vez de 
   if (!box) throw new Error('canvas sem bounding box')
 
   await pickTool(page, 'Pincel')
-  await page.mouse.move(box.x + 300, box.y + 400)
+  await page.mouse.move(box.x + 350, box.y + 400)
   await page.mouse.down()
   await page.mouse.move(box.x + 400, box.y + 400, { steps: 10 })
   await page.mouse.move(box.x + 500, box.y + 400, { steps: 10 })
@@ -122,14 +122,14 @@ test('4. painel "Formato da linha": Curva converte a linha selecionada; Reta des
   if (!box) throw new Error('canvas sem bounding box')
 
   await pickTool(page, 'Linha')
-  await page.mouse.move(box.x + 300, box.y + 400)
+  await page.mouse.move(box.x + 350, box.y + 400)
   await page.mouse.down()
   await page.mouse.move(box.x + 500, box.y + 400, { steps: 5 })
   await page.mouse.up()
   expect((await getDrawings(page))[0].kind).toBe('line')
 
   await selectMainTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 400, box.y + 400) // meio da linha
+  await page.mouse.click(box.x + 425, box.y + 400) // meio da linha
 
   // Duas seções distintas usam o rótulo "Reta": LineCapControls ("Ponta da
   // linha") e LineShapeControls ("Formato da linha") — escopar pelo

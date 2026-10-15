@@ -206,10 +206,11 @@ test('6. parede com Ctrl + grade HEXAGONAL + snap de grade LIGADO: segmento fina
     await resetMapHexSnap(page)
     await selectTool(page, 'Parede')
 
-    await page.mouse.move(box.x + 400, box.y + 400)
+    // Origem em x 500, não 400: com dx -100 a ponta caía em x 300, embaixo do livro do mestre (fatia 2, até x 326).
+    await page.mouse.move(box.x + 500, box.y + 400)
     await page.mouse.down()
     await page.keyboard.down('Control')
-    await page.mouse.move(box.x + 400 + dx, box.y + 400 + dy, { steps: 5 })
+    await page.mouse.move(box.x + 500 + dx, box.y + 400 + dy, { steps: 5 })
     await page.mouse.up()
     await page.keyboard.up('Control')
 
@@ -227,10 +228,11 @@ test('7. linha com Ctrl + grade HEXAGONAL + snap de grade LIGADO: segmento final
   await resetMapHexSnap(page)
   await selectTool(page, 'Linha')
 
-  await page.mouse.move(box.x + 400, box.y + 400)
+  // Origem em x 500, não 400: a ponta em x 300 caía embaixo do livro do mestre (fatia 2, até x 326).
+  await page.mouse.move(box.x + 500, box.y + 400)
   await page.mouse.down()
   await page.keyboard.down('Control')
-  await page.mouse.move(box.x + 300, box.y + 300, { steps: 5 })
+  await page.mouse.move(box.x + 400, box.y + 300, { steps: 5 })
   await page.mouse.up()
   await page.keyboard.up('Control')
 

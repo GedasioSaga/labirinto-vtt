@@ -15,6 +15,8 @@ export const ADICIONAR_TOKEN_DICA = 'Põe um token novo, sem foto, no centro da 
 
 /** `id` do campo "Nome do novo token" — o `htmlFor` do rótulo e o alvo do "+ Token" quando o campo já está aberto. */
 export const NOVO_TOKEN_CAMPO_ID = 'lb-new-token-name'
+/** O "+ Token" do topo do livro do mestre: recebe o foco de volta quando o campo fecha. */
+export const BOTAO_NOVO_TOKEN_ID = 'lb-new-token-button'
 
 interface NovoTokenFormProps {
   /** Nome sugerido no campo ("Token 1", "Token 2"…), o `defaultTokenName` que o App já monta. */

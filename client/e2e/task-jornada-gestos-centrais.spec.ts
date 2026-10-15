@@ -351,16 +351,17 @@ test('3b. clique da ferramenta Porta que erra a parede explica na tela por que n
 // Prova na tela: o botão "Apagar região selecionada" continua lá (a sala
 // continua selecionada) e o canto oposto da sala — a âncora de qualquer
 // resize legítimo — continua desenhado no mesmo lugar (a vista não andou).
-const CANTO_SALA = { x: 600, y: 300 } // canto superior direito da sala 300,300→600,500
-const CANTO_ANCORA = { x: 300, y: 500 } // canto oposto: fica parado num resize legítimo
+// Sala de 400,300 a 700,500 (não de 300): o livro do mestre (fatia 2) cobre a janela até x 326.
+const CANTO_SALA = { x: 700, y: 300 } // canto superior direito da sala 400,300→700,500
+const CANTO_ANCORA = { x: 400, y: 500 } // canto oposto: fica parado num resize legítimo
 
 async function desenharSalaESelecionar(page: Page, box: { x: number; y: number }) {
   await ferramenta(page, 'Sala')
-  await arrastar(page, { x: box.x + 300, y: box.y + 300 }, { x: box.x + 600, y: box.y + 500 })
+  await arrastar(page, { x: box.x + 400, y: box.y + 300 }, { x: box.x + 700, y: box.y + 500 })
   // A sala nasce pedindo nome no mapa; Escape fecha o campo sem apagar a sala.
   await page.keyboard.press('Escape')
   await ferramenta(page, 'Selecionar')
-  await page.mouse.click(box.x + 450, box.y + 400)
+  await page.mouse.click(box.x + 550, box.y + 400)
   await expect(page.getByRole('button', { name: /Apagar|Nada selecionado/ })).toHaveText('Apagar região selecionada')
   await page.waitForTimeout(PAINT_MS)
 }

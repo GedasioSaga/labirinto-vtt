@@ -209,11 +209,11 @@ describe('o RPG no lugar novo', () => {
     expect(rootPath).toBe('C:/mesa/arquipelago/arquipelago.json')
   })
 
-  it('zona Aventura do painel esquerdo: nada de Sistema de RPG, Livro de regras nem Personagens', () => {
+  it('página Aventura do livro do mestre: nada de Sistema de RPG, Livro de regras nem Personagens', () => {
     useAdventureStore.getState().virarAventura(null)
     useAdventureStore.getState().setSistemaDeRpg(SISTEMA_ONE_PIECE.id)
     act(() => root.render(<PropertiesPanel {...propsDoPainel(null, { scenes: <p>Cenas da aventura</p> })} />))
-    const zona = Array.from(container.querySelectorAll('.lb-zona')).find((grupo) => grupo.textContent?.startsWith('Aventura'))
+    const zona = container.querySelector('.gr-folha[data-pagina="aventura"]')
     expect(zona?.textContent).toContain('Cenas da aventura')
     expect(zona?.textContent).not.toMatch(/Sistema de RPG|Livro de regras|Personagens/)
   })

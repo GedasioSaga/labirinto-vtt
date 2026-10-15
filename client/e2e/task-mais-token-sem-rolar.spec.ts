@@ -29,8 +29,13 @@ async function nomesDosTokens(page: Page): Promise<string[]> {
   })
 }
 
+/** O corpo que rola da página Ficha do livro do mestre (fatia 2: cada página tem o seu). */
+function corpoDaFicha(page: Page): Locator {
+  return page.locator('.gr-folha[data-pagina="ficha"] .lb-inspector__body')
+}
+
 function rolagemDaColuna(page: Page): Promise<number> {
-  return page.locator('.lb-inspector__body').evaluate((corpo) => corpo.scrollTop)
+  return corpoDaFicha(page).evaluate((corpo) => corpo.scrollTop)
 }
 
 /**
@@ -68,10 +73,10 @@ test('com a ficha de um token aberta, o "+ Token" está na tela sem rolar, e cri
   await expect(maisToken).toBeInViewport({ ratio: 1 })
   expect(await naFrente(maisToken)).toBe(true)
 
-  // A coluna rolada até o Acervo, no pé dela, com a roda do mouse.
-  await page.locator('.lb-inspector__body').hover()
+  // A página Ficha rolada até o pé, com a roda do mouse (o Acervo, que ficava
+  // no pé da coluna, tem página própria desde a fatia 2).
+  await corpoDaFicha(page).hover()
   await page.mouse.wheel(0, 5000)
-  await expect(page.getByRole('heading', { name: 'Acervo de tokens', exact: true })).toBeInViewport()
   await expect.poll(() => rolagemDaColuna(page)).toBeGreaterThan(0)
   await expect(maisToken).toBeInViewport({ ratio: 1 })
   expect(await naFrente(maisToken)).toBe(true)

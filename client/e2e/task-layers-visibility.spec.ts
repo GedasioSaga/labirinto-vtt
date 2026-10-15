@@ -8,6 +8,7 @@
 // clique parou de acertar já prova a camada oculta pros dois lados.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 import type { Wall } from '../src/types/map'
 
 async function getWalls(page: Page): Promise<Wall[]> {
@@ -84,6 +85,8 @@ test('1. ocultar a camada "Paredes" tira a parede do hit-test; mostrar de volta 
   // ação do próximo clique ("Ocultar Paredes" ↔ "Mostrar Paredes") e
   // aria-pressed = camada oculta. A contagem conta TODAS as entidades da
   // camada, visíveis ou não (countEntitiesByLayer) — não muda ao ocultar.
+  // "Camadas" mora na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   const layersSection = page.getByRole('button', { name: 'Camadas', exact: true })
   await expect(layersSection).toHaveAttribute('aria-expanded', 'true')
   const wallsRow = page.getByRole('list', { name: 'Camadas do mapa' }).getByRole('listitem').filter({ hasText: 'Paredes' })

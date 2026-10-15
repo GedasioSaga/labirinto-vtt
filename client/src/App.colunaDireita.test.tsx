@@ -50,19 +50,20 @@ async function abrirOEditor() {
 
 const editor = () => container.querySelector<HTMLElement>('.lb-editor')
 const coluna = () => container.querySelector<HTMLElement>('aside.lb-coldir')
-const mapa = () => container.querySelector<HTMLElement>('.lb-editor__rail [role="region"][aria-label="Mapa"]')
+const livro = () => container.querySelector<HTMLElement>('aside[aria-label="Livro do mestre"]')
 
 describe('App: coluna da direita', () => {
-  it('as Cenas moram na coluna da direita; a esquerda é só o Mapa, sem abas', async () => {
+  it('as Cenas moram na coluna da direita; a esquerda é o livro do mestre, sem as abas Jogo e Chat', async () => {
     await abrirOEditor()
     const direita = coluna()
     expect(direita).not.toBeNull()
     expect(direita?.hidden).toBe(false)
     expect(botao('Cenas', false, direita ?? container)).toBeDefined()
-    // O rail da esquerda: o inspetor numa região "Mapa", sem as Cenas e sem tablist.
-    expect(mapa()).not.toBeNull()
-    expect(botao('Cenas', false, mapa() ?? container)).toBeUndefined()
-    expect(container.querySelector('.lb-editor__rail [role="tablist"]')).toBeNull()
+    // A esquerda: o livro do mestre, sem as Cenas; as abas dele são as páginas, não Jogo e Chat.
+    expect(livro()).not.toBeNull()
+    expect(botao('Cenas', false, livro() ?? container)).toBeUndefined()
+    const abas = Array.from(livro()?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)
+    expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo'])
     // Navegador puro: sem sala, sem as abas Jogo | Chat.
     expect(direita?.querySelector('[role="tablist"]')).toBeNull()
     expect(editor()?.dataset.coldir).toBe('aberta')

@@ -338,7 +338,7 @@ async function montarCenario(page: Page): Promise<Cenario> {
 
   // Maior quadrado centrado na vista que não encosta no painel da esquerda nem
   // na barra de cima — medidos no DOM, não chutados.
-  const trilho = await page.locator('.lb-editor__rail').boundingBox()
+  const trilho = await page.getByRole('complementary', { name: 'Livro do mestre' }).boundingBox()
   const barra = await page.locator('.lb-toolbar').first().boundingBox()
   const bordaEsquerda = trilho ? trilho.x + trilho.width + 16 : caixa.x + 16
   const bordaSuperior = barra ? barra.y + barra.height + 16 : caixa.y + 16

@@ -729,7 +729,7 @@ async function mestreLargaSelecao(mestre: Page): Promise<void> {
 /** Todo nome acessível de controle na tela — só para a falha dizer o que EXISTE hoje. */
 async function controlesNaTela(mestre: Page): Promise<string> {
   const nomes = await mestre
-    .locator('.lb-editor__mapa, [role="tabpanel"]')
+    .locator('.gr-livro, [role="tabpanel"]')
     .locator('button, input, select, [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="combobox"]')
     .evaluateAll((els) =>
       els

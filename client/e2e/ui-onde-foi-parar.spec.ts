@@ -70,10 +70,10 @@ function discoDaAventura(): Record<string, string> {
 
 function escopo(page: Page, qual: Escopo): Locator | Page {
   switch (qual) {
-    // A coluna da esquerda (cabeçalho + inspetor + seções + acervos) não tem papel próprio hoje.
-    case 'esquerda': return page.locator('.lb-inspector')
+    // O livro do mestre (fatia 2): lombada, topo com as ações do mapa e a página aberta.
+    case 'esquerda': return page.getByRole('complementary', { name: 'Livro do mestre' })
     case 'barra': return page.getByRole('toolbar', { name: 'Ferramentas do mapa' })
-    case 'acoes': return page.getByRole('toolbar', { name: 'Ações do mapa' })
+    case 'acoes': return page.getByRole('complementary', { name: 'Livro do mestre' })
     case 'direita': return page.getByRole('complementary', { name: 'Jogo, chat e cenas' })
     case 'pagina': return page
   }
@@ -123,7 +123,8 @@ async function conferirBloco(page: Page, bloco: Bloco): Promise<void> {
         const onde = escopo(page, bloco.escopo)
         for (const clique of linha.caminho) await passo(achar(onde, clique))
         if (linha.tecla !== undefined) await page.keyboard.press(linha.tecla)
-        const alvo = achar(onde, linha.alvo)
+        // O menu (Arquivo) abre por cima de tudo, fora do livro.
+        const alvo = achar(linha.alvo[0] === 'menuitem' ? page : onde, linha.alvo)
         await expect(alvo, `${bloco.titulo} > ${linha.controle}`).toBeVisible()
         if (linha.focado === true) await expect(alvo).toBeFocused()
         if (bloco.preparo?.escape === true || linha.alvo[0] === 'menuitem') await page.keyboard.press('Escape')

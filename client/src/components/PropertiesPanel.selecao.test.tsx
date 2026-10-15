@@ -6,6 +6,8 @@ import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { relevantPropertyGroups } from '../lib/toolProperties'
 import { useMapStore } from '../stores/mapStore'
 import type { FloorPiece, Region, Token, Wall } from '../types/map'
+import { LivroDoMestre, type LivroDoMestreProps } from './livro/LivroDoMestre'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { PropertiesPanel, type PisosWiring } from './PropertiesPanel'
 import { propsDoPainel, type PainelProps } from './propertiesPanelTestProps'
 import type { SelectionSummary } from './SelectionControls'
@@ -41,12 +43,39 @@ function pisosNoTerreo(onLevarSelecaoAoPiso: (piso: number) => void = nada): Pis
   return { onTokenPisoChange: nada, onStairPisosChange: nada, pisoAtivo: 0, onEditarPiso: nada, onLevarSelecaoAoPiso }
 }
 
+const semNada = (): void => {}
+const TOPO_DO_LIVRO: Omit<LivroDoMestreProps, 'children'> = {
+  temSelecao: false,
+  onDesfazer: semNada,
+  onRefazer: semNada,
+  podeDesfazer: false,
+  podeRefazer: false,
+  onSalvar: semNada,
+  arquivo: {
+    onAbrir: semNada,
+    onImportarPasta: semNada,
+    onExportarPasta: semNada,
+    onExportarImagem: semNada,
+    temImagemDeFundo: false,
+    onImportarFundo: semNada,
+    onChaoDoFundo: semNada,
+    onLinhasDoFundo: semNada,
+    onRecriarMinimapa: semNada,
+    onInicio: semNada,
+  },
+  onAtalhos: semNada,
+  atalhosAbertos: false,
+  onProcurar: semNada,
+  configuracoes: <button type="button" aria-label="Configurações do mapa" />,
+}
+
 describe('painel de propriedades — faixa da seleção e ordem por tarefa', () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    useLivroDoMestreStore.setState({ pagina: 'ficha', recolhido: false, novoTokenAberto: false })
     useMapStore.setState({
       map: { ...createEmptyMap('m1', 'Casa', 30, 20, 64), regions: [SALA], tokens: [GUARDA], walls: [PORTA] },
       camera: { x: 0, y: 0, scale: 1 },
@@ -64,13 +93,20 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     container.remove()
   })
 
+  /** O painel dentro do livro do mestre, como o App monta: o "+ Token" mora no topo do livro. */
   function renderPainel(props: PainelProps): void {
-    act(() => root.render(<PropertiesPanel {...props} />))
+    act(() =>
+      root.render(
+        <LivroDoMestre {...TOPO_DO_LIVRO}>
+          <PropertiesPanel {...props} />
+        </LivroDoMestre>,
+      ),
+    )
   }
 
   const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   /** Títulos de seção em ordem de DOM — a ordem do leitor de tela e da coluna. */
-  const titulos = () => Array.from(container.querySelectorAll('.lb-inspector__body h2')).map((h) => (h.textContent ?? '').trim())
+  const titulos = () => Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] h2')).map((h) => (h.textContent ?? '').trim())
   const botoesComTexto = (texto: RegExp) => Array.from(container.querySelectorAll('button')).filter((b) => texto.test(b.textContent ?? ''))
   /** Botões pelo nome acessível (o `aria-label`, senão o texto) — o que o `getByRole` das jornadas lê. */
   const botoesComNome = (nome: RegExp) =>
@@ -80,8 +116,8 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     Array.from(container.querySelectorAll('.lb-inspector__body h2'))
       .find((h) => h.textContent === 'Acervo de tokens')
       ?.closest('section') ?? null
-  /** O cabeçalho do inspetor: fora do corpo que rola, sempre à vista. */
-  const cabecalho = () => container.querySelector<HTMLElement>('.lb-inspector__head')
+  /** O topo do livro do mestre: fora do corpo que rola, sempre à vista. */
+  const cabecalho = () => container.querySelector<HTMLElement>('.gr-pagina__topo')
   /** O "+ Token" do painel, pelo nome que as jornadas clicam. */
   const maisToken = () => botoesComNome(/^Adicionar token$/)[0] ?? null
   const campoNovoToken = () => container.querySelector<HTMLInputElement>('input#lb-new-token-name')
@@ -155,7 +191,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(onRemoveSelected).toHaveBeenCalledTimes(1)
   })
 
-  it('com seleção, sem "Seleção" nem "Nada selecionado": o "+ Token" é um só no painel, no cabeçalho, à vista sem rolar', () => {
+  it('com seleção, sem "Seleção" nem "Nada selecionado": o "+ Token" é um só no livro, no topo, à vista sem rolar', () => {
     renderPainel(painelDaFicha())
     expect(titulos()).not.toContain('Seleção')
     expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
@@ -163,17 +199,19 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
     expect(adicionar[0]?.getAttribute('aria-label')).toBe('Adicionar token')
-    expect((adicionar[0]?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('+ Token')
-    // No cabeçalho, fora do corpo que rola: com a ficha comprida, o Acervo
-    // fica 1500 px abaixo, e o "+ Token" continua onde estava.
+    // O "+" é o ícone de traço do protótipo; o texto lido é "Token".
+    expect((adicionar[0]?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Token')
+    // No topo do livro, fora do corpo que rola: com a ficha comprida, o
+    // "+ Token" continua onde estava.
     expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)
     expect(corpo()?.contains(adicionar[0] ?? null)).toBe(false)
     expect(acervo()?.querySelectorAll('button[aria-label="Adicionar token"]')).toHaveLength(0)
-    // A engrenagem continua na ponta: o "+ Token" vem antes dela.
-    expect(cabecalho()?.lastElementChild?.getAttribute('aria-label')).toBe('Configurações do mapa')
-    expect(cabecalho()?.lastElementChild?.previousElementSibling).toBe(adicionar[0])
-    // O nome do mapa cede o espaço e corta antes das medidas: o ponteiro lê a linha inteira.
-    expect(cabecalho()?.querySelector('.lb-inspector__mapname')?.getAttribute('title')).toBe('Casa · 30×20 · 64px')
+    // A engrenagem fecha a segunda linha do topo, depois do "+ Token".
+    const linha = adicionar[0]?.closest('.gr-linha')
+    expect(linha?.lastElementChild?.getAttribute('aria-label')).toBe('Configurações do mapa')
+    expect(linha?.firstElementChild).toBe(adicionar[0])
+    // O nome do mapa e as medidas moram na linha de baixo do título da página Cena.
+    expect(container.querySelector('.gr-folha[data-pagina="cena"] .gr-sub-pagina')?.textContent).toBe('Casa, 30 × 20 casas de 64 px')
   })
 
   it('"+ Token" com algo selecionado: o campo abre no topo do corpo, logo abaixo da faixa; criar volta a coluna ao topo e devolve o foco ao "+ Token"', () => {
@@ -296,7 +334,8 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(lista).not.toContain('Chão do mapa')
     expect(lista).not.toContain('Camadas')
     expect(lista).not.toContain('Território')
-    expect(lista.at(-1)).toBe('Acervo de tokens')
+    // O Acervo mora na página dele, não no fim da Ficha.
+    expect(lista).not.toContain('Acervo de tokens')
   })
 
   it('sala: Travado e Oculto para jogadores num bloco só, logo depois do bloco Sala; depois Região, Preenchimento e o Avançado (Gatilho e Perigo saíram em 07/10/2026)', () => {
@@ -306,7 +345,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(lista.slice(0, 4)).toEqual(['Sala', 'Sala', 'Região', 'Preenchimento'])
     // Na região o "Oculto para jogadores" não traz mais nada: sem o bloco "Jogadores" à parte.
     expect(lista).not.toContain('Jogadores')
-    const h2 = Array.from(container.querySelectorAll('.lb-inspector__body h2'))
+    const h2 = Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] h2'))
     const travado = h2[1]?.closest('section')
     const interruptores = Array.from(travado?.querySelectorAll('label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
     expect(interruptores).toEqual(['Travado', 'Oculto para jogadores'])
@@ -332,7 +371,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar região selecionada$/)).toHaveLength(1)
   })
 
-  it('peça do chão selecionada: sem "Chão do mapa" nem Camadas, mas "Camadas do chão" (das peças) fica; nada selecionado mostra os dois', () => {
+  it('peça do chão selecionada: sem "Chão do mapa" nem Camadas, mas "Camadas do chão" (das peças) fica; nada selecionado, os três moram na página Cena', () => {
     const peca: FloorPiece = { id: 'p1', shape: { kind: 'rect', cx: 100, cy: 100, w: 64, h: 64 }, op: 'add', modifiers: {} }
     const floorLayers = {
       floor: [peca],
@@ -356,9 +395,9 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(titulos()).toContain('Camadas do chão')
 
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), floorLayers: { ...floorLayers, selectedPieceId: null } }))
-    expect(titulos()).toContain('Chão do mapa')
-    expect(titulos()).toContain('Camadas do chão')
-    expect(titulos()).toContain('Camadas')
+    expect(titulos()).not.toContain('Chão do mapa')
+    const naCena = Array.from(container.querySelectorAll('.gr-folha[data-pagina="cena"] h2')).map((h) => (h.textContent ?? '').trim())
+    expect(naCena).toEqual(expect.arrayContaining(['Chão do mapa', 'Camadas do chão', 'Camadas']))
   })
 
   it('fora da região (texto, escada, pino), o "Jogadores" continua no bloco dele', () => {
@@ -479,41 +518,5 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
     expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)
-  })
-})
-
-/** Um CSS como está no disco, relativo a esta pasta (o mesmo jeito de `PropertiesPanel.botoes.test.ts`). */
-async function lerCss(relativo: string): Promise<string> {
-  const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
-  const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
-  const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
-  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), relativo), 'utf8')
-}
-
-/** As declarações da PRIMEIRA regra cujo seletor é exatamente `seletor`: propriedade → valor. */
-function regra(css: string, seletor: string): Map<string, string> {
-  const semComentarios = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  for (const [, seletores, corpo] of semComentarios.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (seletores.trim() !== seletor) continue
-    return new Map(
-      corpo
-        .split(';')
-        .map((declaracao) => declaracao.split(':'))
-        .filter((partes) => partes.length >= 2)
-        .map(([propriedade, ...valor]) => [propriedade.trim(), valor.join(':').trim()]),
-    )
-  }
-  return new Map()
-}
-
-describe('PropertiesPanel.css — o "+ Token" no cabeçalho', () => {
-  it('encosta na engrenagem pela direita, com o alvo de 36 px dela; a engrenagem perde o empurrão que a levava à ponta', async () => {
-    const css = await lerCss('./PropertiesPanel.css')
-    const mais = regra(css, '.lb-inspector__head > .lb-mais')
-    expect(mais.get('margin-left')).toBe('auto')
-    expect(mais.get('min-height')).toBe('36px')
-    // main.css dá `margin-left: auto` à engrenagem (0,1,0); com duas margens
-    // automáticas o "+ Token" ficaria boiando no meio do cabeçalho.
-    expect(regra(css, '.lb-inspector__head > .lb-mais + .lb-inspector__settings').get('margin-left')).toBe('0')
   })
 })

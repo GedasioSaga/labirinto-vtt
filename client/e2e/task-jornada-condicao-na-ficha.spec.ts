@@ -681,7 +681,7 @@ async function tocar(page: Page, p: Ponto): Promise<void> {
 }
 
 function campoNomeDaFicha(mestre: Page): Locator {
-  return mestre.getByRole('region', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
+  return mestre.getByRole('complementary', { name: 'Livro do mestre' }).getByLabel('Nome', { exact: true })
 }
 
 /** Toque na ficha, no mapa: o painel passa a mostrar o Nome dela. */
@@ -715,7 +715,7 @@ function controleDaCondicao(mestre: Page, condicao: Condicao): Locator {
 async function acharCondicao(mestre: Page, condicao: Condicao): Promise<Locator> {
   const controle = controleDaCondicao(mestre, condicao)
   if (!(await controle.isVisible())) {
-    const abrir = mestre.getByRole('region', { name: 'Mapa' }).getByRole('button', { name: ABRIR_CONDICOES })
+    const abrir = mestre.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: ABRIR_CONDICOES })
     if ((await abrir.count()) > 0 && (await abrir.first().isVisible())) await abrir.first().click()
   }
   await expect(controle, `com a ficha selecionada, a página deveria oferecer a condição "${ROTULO[condicao]}"`).toBeVisible({ timeout: ESPERA })

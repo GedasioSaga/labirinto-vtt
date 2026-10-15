@@ -23,6 +23,7 @@
 // mude estado; toda afirmação é sobre texto visível.
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { escolherNoArquivo } from './helpers/livroDoMestre'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 
 /** Folga para o aviso aparecer depois do clique. */
@@ -78,7 +79,7 @@ test('(b) fora do app, Exportar explica em português que só funciona no app in
   test.setTimeout(60_000)
   await enterEditor(page)
 
-  await clicarNaAcao(page, 'Exportar mapa (pasta)')
+  await escolherNoArquivo(page, 'Exportar mapa (pasta)…')
   const texto = await textoDoAviso(page, 'Exportar')
 
   expect(texto, 'Exportar fora do app mostrou o erro técnico do Tauri em vez de uma frase de gente').not.toMatch(TEXTO_TECNICO)

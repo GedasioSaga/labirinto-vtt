@@ -7,6 +7,7 @@
 // seletor de camada do objeto no novo lugar.
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 async function resetMap(page: Page) {
   await page.evaluate(async () => {
@@ -58,6 +59,8 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('1. sem seleção as duas seções nascem abertas; fechar tira o corpo da tela e abrir traz de volta', async ({ page }) => {
+  // As duas moram na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   for (const title of ['Chão do mapa', 'Camadas'] as const) {
     const header = sectionHeader(page, title)
     const body = await sectionBody(page, header)
@@ -92,7 +95,9 @@ test('1. sem seleção as duas seções nascem abertas; fechar tira o corpo da t
 // 03/10/2026 (pedido "com a Sala selecionada aparece categorias que não são
 // da Sala como o chão do mapa"): com um item selecionado o painel é DO ITEM —
 // "Chão do mapa" e "Camadas" saem; o Acervo continua fechando a coluna.
-test('2. com item selecionado o painel é do item: sem Chão do mapa nem Camadas, Acervo de tokens por último', async ({ page }) => {
+// 15/10/2026 (fatia 2, livro do mestre): o Acervo ganhou página própria; a
+// Ficha com o item selecionado não tem mais o Acervo no pé.
+test('2. com item selecionado a Ficha é do item: sem Chão do mapa nem Camadas, e o Acervo na página dele', async ({ page }) => {
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addToken({ id: 'tokPanel', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
@@ -102,17 +107,17 @@ test('2. com item selecionado o painel é do item: sem Chão do mapa nem Camadas
   for (const title of ['Chão do mapa', 'Camadas'] as const) {
     await expect(sectionHeader(page, title)).toHaveCount(0)
   }
-  await expect(page.getByRole('list', { name: 'Camadas do mapa', includeHidden: true })).toHaveCount(0)
+  const ficha = page.locator('.gr-folha[data-pagina="ficha"]')
+  await expect(ficha.getByRole('list', { name: 'Camadas do mapa', includeHidden: true })).toHaveCount(0)
 
-  // Títulos em ordem de DOM (a do leitor de tela e a da tela, que é uma coluna só).
-  const headings = (await page.locator('.lb-inspector__body h2').allTextContents()).map((text) => text.trim())
-  const tokenIndex = headings.indexOf('Token')
-  const libraryIndex = headings.indexOf('Acervo de tokens')
-  expect(tokenIndex).toBeGreaterThanOrEqual(0)
-  // Um item só, sem lote: nada de seção "Seleção" entre o item e o Acervo.
+  // Títulos da página Ficha em ordem de DOM (a do leitor de tela e a da tela).
+  const headings = (await ficha.locator('h2').allTextContents()).map((text) => text.trim())
+  expect(headings.indexOf('Token')).toBeGreaterThanOrEqual(0)
+  // Um item só, sem lote: nada de seção "Seleção".
   expect(headings).not.toContain('Seleção')
-  expect(libraryIndex).toBeGreaterThan(tokenIndex)
-  expect(libraryIndex).toBe(headings.length - 1)
+  expect(headings).not.toContain('Acervo de tokens')
+  await abrirPaginaDoLivro(page, 'Acervo')
+  await expect(page.getByRole('heading', { name: 'Acervo de tokens', exact: true })).toBeVisible()
 })
 
 test('3. com ferramenta de desenho ativa (Chão) "Chão do mapa" nasce fechada e Camadas nem aparece', async ({ page }) => {
@@ -125,6 +130,7 @@ test('3. com ferramenta de desenho ativa (Chão) "Chão do mapa" nasce fechada e
 })
 
 test('4. interruptores rápidos da grade dentro de Camadas mudam a store', async ({ page }) => {
+  await abrirPaginaDoLivro(page, 'Cena')
   const layersBody = await sectionBody(page, sectionHeader(page, 'Camadas'))
   const quick = layersBody.getByRole('group', { name: 'Grade' })
   await expect(quick).toBeVisible()

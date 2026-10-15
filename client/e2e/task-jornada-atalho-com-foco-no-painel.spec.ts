@@ -34,6 +34,7 @@
 // `loadMap`, como nas vizinhas); toda afirmação é sobre o que está na tela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 import { pickTool } from './helpers/tools'
 
 const PAUSA_ANTES_DE_SOLTAR_MS = 150
@@ -126,6 +127,8 @@ test('CONTROLE: depois de clicar no título CAMADAS (um botão do painel), W já
   test.setTimeout(60_000)
   await expect(botaoDaParede(page)).not.toHaveAttribute('aria-pressed', 'true')
 
+  // "Camadas" mora na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   const tituloCamadas = page.getByRole('button', { name: 'Camadas', exact: true })
   await tituloCamadas.hover()
   await page.waitForTimeout(80)
@@ -143,6 +146,7 @@ test('(a) depois de clicar no interruptor "Mostrar grade" do painel CAMADAS, W p
 
   // O gesto do passeio: a pessoa mexe no painel CAMADAS e, sem voltar ao mapa,
   // aperta W. O interruptor é uma caixa de marcar, não um campo de texto.
+  await abrirPaginaDoLivro(page, 'Cena')
   const interruptor = page.getByRole('group', { name: 'Grade' }).getByText('Mostrar grade', { exact: true })
   await interruptor.scrollIntoViewIfNeeded()
   await interruptor.hover()

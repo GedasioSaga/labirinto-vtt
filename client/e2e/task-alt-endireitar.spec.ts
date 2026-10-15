@@ -7,6 +7,7 @@
 // SEGURADO fica reservado para as guias de medir (pedido 3).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { escolherNoArquivo } from './helpers/livroDoMestre'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 import { pickTool } from './helpers/tools'
 import { ALT_TOQUE_JANELA_MS } from '../src/lib/toqueDeAlt'
@@ -26,8 +27,8 @@ interface Estado {
 }
 
 /** A linha torta do gesto, em px do canvas (mapa novo: câmera na origem, 1 px de tela = 1 px de mundo). */
-const DE = { x: 300, y: 200 }
-const ATE = { x: 360, y: 420 }
+const DE = { x: 400, y: 200 }
+const ATE = { x: 460, y: 420 }
 const MEIO = { x: (DE.x + ATE.x) / 2, y: (DE.y + ATE.y) / 2 }
 
 async function lerEstado(page: Page): Promise<Estado> {
@@ -190,7 +191,7 @@ test('5. Alt tocado no menu depois do Início: o mapa fechado fica como foi salv
   const box = await caixaDoCanvas(page)
   const torta = await desenharESelecionarLinhaTorta(page, box)
 
-  await page.getByRole('button', { name: 'Início', exact: true }).click()
+  await escolherNoArquivo(page, 'Voltar ao início')
   await expect(page.getByRole('button', { name: 'Criar Mapas' })).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(0)
   // O Início só troca a tela: a store segue com a linha torta selecionada, e o mapa acabou de ser salvo.

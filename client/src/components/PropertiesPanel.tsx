@@ -1,10 +1,8 @@
 import type { DrawingTool } from '../types/tools'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
-import { ExpandIcon, LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { PathStyleControls, type PathStyleControlsProps } from './PathStyleControls'
-import { GridQuickToggles, type GridControlsProps } from './GridControls'
-import { MapSettingsButton } from './MapSettingsDialog'
+import type { GridControlsProps } from './GridControls'
 import { CollapsibleSection } from './CollapsibleSection'
 import { TokenPersonagemControls, type TokenPersonagemControlsProps } from './TokenPersonagemControls'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
@@ -12,22 +10,17 @@ import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerCo
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
 import { NadaSelecionado } from './NadaSelecionado'
-import { ADICIONAR_TOKEN, ADICIONAR_TOKEN_DICA, NOVO_TOKEN_CAMPO_ID, NovoTokenForm } from './NovoTokenForm'
-import { BotaoMais } from './BotaoMais'
+import { BOTAO_NOVO_TOKEN_ID, NovoTokenForm } from './NovoTokenForm'
 import { EndireitarControl } from './EndireitarControl'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
-import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
-import type { MovementControlsProps } from './MovementControls'
-import type { ArrivalTextControlsProps } from './ArrivalTextControls'
-import type { SceneFloorControlsProps } from './SceneFloorControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
-import { LayersPanel, type LayersPanelProps } from './LayersPanel'
-import { TerritorioControls, type TerritorioControlsProps } from './TerritorioControls'
+import type { LayersPanelProps } from './LayersPanel'
+import type { TerritorioControlsProps } from './TerritorioControls'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -60,10 +53,6 @@ import { TransicaoSection } from '../transicoes/TransicaoSection'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
-import type { MapScaleControlsProps } from './MapScaleControls'
-import type { FaceRangeControlsProps } from './FaceRangeControls'
-import type { GridAlignControlsProps } from './GridAlignControls'
-import type { MapSizeControlsProps } from './MapSizeControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
 import { MobiliaControls, type MobiliaControlsProps } from './MobiliaControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
@@ -97,7 +86,12 @@ import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
+import { FolhaDoLivro } from './livro/FolhaDoLivro'
+import { PaginaAcervo } from './livro/PaginaAcervo'
+import { PaginaAventura } from './livro/PaginaAventura'
+import { PaginaCena } from './livro/PaginaCena'
 import './PropertiesPanel.css'
 
 interface PropertiesPanelProps {
@@ -119,25 +113,14 @@ interface PropertiesPanelProps {
   perigoDaSala?: ReactNode
   /** SALA EM DUAS CORES da sala selecionada; ausente = sem o bloco. */
   regionSplit?: RegionSplitControlsProps
-  /** Ícone de expandir do cabeçalho: abre todas as cenas em miniatura, agrupadas. Ausente = sem o ícone. */
-  onExpandirCenas?: () => void
   /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
-  /**
-   * Esconde as categorias de navegação (Cenas, Pinos, Estado do mundo,
-   * Objetos do mapa, Marcas, Locais). O App liga com ferramenta na mão ou
-   * objeto selecionado, se o mestre deixou a opção ligada
-   * (`stores/painelCategoriasStore.ts`).
-   */
-  esconderCategorias?: boolean
   mapName: string
   mapWidth: number
   mapHeight: number
   mapGrid: number
-  /** Troca o tamanho do mapa em quadros ("Configurações do mapa > Tamanho do mapa"). */
-  onMapSizeApply: MapSizeControlsProps['onApply']
   activeTool: DrawingTool
   /** F4 (integrador I8) — N2 "painel contextual": saída de
    *  `relevantPropertyGroups` (lib/toolProperties.ts), computada em App.tsx a
@@ -170,19 +153,8 @@ interface PropertiesPanelProps {
   /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
   pathStyle: PathStyleControlsProps
   grid: GridControlsProps
-  mapScale: MapScaleControlsProps
-  /** "Rostos só de perto" da cena, na janela Configurações do mapa. */
-  faceRange: FaceRangeControlsProps
-  gridAlign: GridAlignControlsProps
   layers: LayersPanelProps
   selection: SelectionControlsProps
-  scenarioLink: ScenarioLinkControlsProps
-  /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
-  movement?: MovementControlsProps
-  /** "Texto de chegada" na janela Configurações do mapa; ausente, a seção não aparece. */
-  arrivalText?: ArrivalTextControlsProps
-  /** MAPA POR ANDARES: "Andar do prédio" na janela Configurações do mapa; ausente, a seção não aparece. */
-  sceneFloor?: SceneFloorControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -295,7 +267,7 @@ interface PropertiesPanelProps {
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
   floorPieceControls: Omit<FloorPieceControlsProps, 'piece' | 'floorFillColor'>
-  /** Chão por peças — estilo do chão do mapa (a conversão da imagem fica no menu da ActionBar). */
+  /** Chão por peças — estilo do chão do mapa (a conversão da imagem fica no menu Arquivo do livro do mestre). */
   floorStyle: FloorStyleControlsProps
   /** "Camadas do chão": peças do chão com cor, trava e ordem. Ausente = sem a seção. */
   floorLayers?: FloorLayersListProps
@@ -335,14 +307,11 @@ export interface PisosWiring {
   onLevarSelecaoAoPiso: (piso: number) => void
 }
 
-/** Há o que mostrar: o App passa `undefined` quando a seção não existe (mapa solto, sem aventura). */
-function presente(no: ReactNode): boolean {
-  return no !== undefined && no !== null && typeof no !== 'boolean'
-}
-
 /**
- * Inspetor da coluna esquerda: identidade do mapa aberto e as seções de
- * propriedade. Só compõe — cada seção é responsável pelos próprios controles.
+ * O recheio do livro do mestre (components/livro/LivroDoMestre.tsx): a página
+ * Ficha (o que está na mão ou selecionado) e as páginas Cena, Aventura e
+ * Acervo, cada uma numa `FolhaDoLivro`. Só compõe — cada seção é responsável
+ * pelos próprios controles.
  */
 export function PropertiesPanel({
   scenes,
@@ -353,15 +322,12 @@ export function PropertiesPanel({
   estadoDaLuz,
   perigoDaSala,
   regionSplit,
-  onExpandirCenas,
   rotinaDaFicha,
   objects: objetosDaCena,
-  esconderCategorias = false,
   mapName,
   mapWidth,
   mapHeight,
   mapGrid,
-  onMapSizeApply,
   activeTool,
   groups,
   lineCap,
@@ -374,15 +340,8 @@ export function PropertiesPanel({
   drawingStyle,
   pathStyle,
   grid,
-  mapScale,
-  faceRange,
-  gridAlign,
   layers,
   selection,
-  scenarioLink,
-  movement,
-  arrivalText,
-  sceneFloor,
   selectedWall,
   wallDoor,
   doorKind,
@@ -439,10 +398,6 @@ export function PropertiesPanel({
   acervoDeItens,
   territorio,
 }: PropertiesPanelProps) {
-  // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
-  // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
-  // Depois do primeiro clique no cabeçalho vale o estado lembrado.
-  const mapSectionsOpenByDefault = activeTool === 'select' && selection.selection === null
   // "Que ferramenta está na minha mão?": com uma ferramenta armada e nada
   // selecionado, as seções abaixo são as da ferramenta — mas várias delas são
   // compartilhadas (Sala/Sala Circular/Polígono Regular usam a seção "Região")
@@ -467,15 +422,12 @@ export function PropertiesPanel({
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
   // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
   const doorSelected = selectedWall !== null && selectedWall.door !== null
-  // "+ TOKEN" NO CABEÇALHO: um lugar só (ver `ADICIONAR_TOKEN`), o mesmo com e
-  // sem seleção, fora do corpo que rola. Ele já morou na faixa vazia (que some
-  // quando algo é selecionado) e no título do Acervo (a 1500 px do topo com
-  // uma ficha aberta). O campo do nome nasce no topo do corpo, logo abaixo da
-  // faixa, e não depende da seleção: trocar o item selecionado não apaga o
-  // nome digitado.
-  const [novoTokenAberto, setNovoTokenAberto] = useState(false)
+  // "+ TOKEN" NO TOPO DO LIVRO (LivroDoMestre): um lugar só, o mesmo com e
+  // sem seleção, fora do corpo que rola. O campo do nome nasce no topo da
+  // página Ficha, logo abaixo da faixa, e não depende da seleção: trocar o
+  // item selecionado não apaga o nome digitado.
+  const novoTokenAberto = useLivroDoMestreStore((state) => state.novoTokenAberto)
   const corpoRef = useRef<HTMLDivElement>(null)
-  const maisTokenRef = useRef<HTMLButtonElement>(null)
   // Pendências do commit seguinte: o que só dá para fazer depois que o React
   // tirou o campo da tela e trouxe a ficha do token novo.
   const revelarFichaNovaRef = useRef(false)
@@ -493,46 +445,30 @@ export function PropertiesPanel({
     // botão é o mesmo antes e depois da seleção nova — o cabeçalho não troca.
     if (devolverFocoAoMaisTokenRef.current) {
       devolverFocoAoMaisTokenRef.current = false
-      maisTokenRef.current?.focus()
+      document.getElementById(BOTAO_NOVO_TOKEN_ID)?.focus()
     }
   })
-  const abrirNovoToken = () => {
-    if (!novoTokenAberto) {
-      setNovoTokenAberto(true)
-      return
-    }
-    // Já aberto: o "+ Token" leva de volta ao campo, com o que já foi escrito
-    // (o foco no campo seleciona o nome — digitar troca).
-    document.getElementById(NOVO_TOKEN_CAMPO_ID)?.focus()
-  }
   const confirmarNovoToken = (nome: string) => {
     revelarFichaNovaRef.current = true
     devolverFocoAoMaisTokenRef.current = true
     if (corpoRef.current !== null) corpoRef.current.scrollTop = 0
-    setNovoTokenAberto(false)
+    useLivroDoMestreStore.getState().fecharNovoToken()
     selection.onAddToken(nome)
   }
   const desistirDoNovoToken = () => {
     devolverFocoAoMaisTokenRef.current = true
-    setNovoTokenAberto(false)
+    useLivroDoMestreStore.getState().fecharNovoToken()
   }
-  // GRUPOS DA COLUNA (pedido painel-acervo, fatia 3): abaixo do que está na
-  // mão, o que é da AVENTURA e o que é DESTA CENA, cada um com a sua legenda.
-  // A ordem já era essa; faltava dizer. Grupo sem linha não monta: legenda
-  // solta seria um título de nada. "Esta cena" tem linha quando há os objetos
-  // ou o momento de mapa (Chão do mapa e Camadas; Território vai com Camadas).
-  const legendaId = useId()
-  const legendaAventuraId = `${legendaId}-aventura`
-  const legendaCenaId = `${legendaId}-cena`
-  const objects = esconderCategorias ? undefined : objetosDaCena
-  const temAventura = !esconderCategorias && (presente(scenes) || presente(worldState))
+  // NA FICHA, só o que é da ferramenta ou do item: com a ferramenta Chão na
+  // mão, "Chão do mapa" e "Camadas do chão"; com uma peça de chão
+  // selecionada, "Camadas do chão". O resto da cena mora na página Cena.
   // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
   // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
-  const temCamadasDoChao =
+  const chaoNaFicha = activeTool === 'floor' && groups.has('floorStyle')
+  const camadasDoChaoNaFicha =
     floorLayers !== undefined &&
     (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined) &&
-    (groups.has('floorStyle') || groups.has('floorPiece'))
-  const temCena = presente(objects) || groups.has('floorStyle') || groups.has('layers') || temCamadasDoChao
+    (chaoNaFicha || groups.has('floorPiece'))
 
   const wallStyleSection = (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
@@ -551,53 +487,10 @@ export function PropertiesPanel({
       />
     </ToolPropertiesSection>
   )
-  const linhaDoMapa = `${mapName} · ${mapWidth}×${mapHeight} · ${mapGrid}px`
 
   return (
-    <div className="lb-panel lb-inspector">
-      <header className="lb-inspector__head">
-        <span className="lb-inspector__mark" aria-hidden="true">
-          <LabyrinthMark size={16} />
-        </span>
-        <span className="lb-inspector__id">
-          <h1 className="lb-inspector__wordmark">Labirinto</h1>
-          {/* Com o "+ Token" ao lado, a linha corta antes das medidas: o
-              `title` traz a linha inteira para o ponteiro. */}
-          <span className="lb-inspector__mapname" title={linhaDoMapa}>
-            {linhaDoMapa}
-          </span>
-        </span>
-        {/* Criar no cabeçalho, ao lado da engrenagem, como o "novo" da barra
-            lateral do Linear e do Notion: à vista com qualquer seleção e em
-            qualquer altura da coluna. Fica à mostra com o campo aberto — o
-            cabeçalho não muda de desenho, e o clique leva de volta ao campo. */}
-        <BotaoMais ref={maisTokenRef} nome={ADICIONAR_TOKEN} texto="Token" dica={ADICIONAR_TOKEN_DICA} onClick={abrirNovoToken} />
-        {onExpandirCenas !== undefined && (
-          <button
-            type="button"
-            className="lb-iconbtn lb-tip lb-inspector__settings"
-            aria-label="Ver todas as cenas"
-            data-tip="Ver todas as cenas"
-            aria-haspopup="dialog"
-            onClick={onExpandirCenas}
-          >
-            <ExpandIcon size={16} />
-          </button>
-        )}
-        <MapSettingsButton
-          grid={grid}
-          gridAlign={gridAlign}
-          mapScale={mapScale}
-          faceRange={faceRange}
-          scenarioLink={scenarioLink}
-          movement={movement}
-          mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}
-          sceneFloor={sceneFloor}
-          arrivalText={arrivalText}
-        />
-      </header>
-
-      <div className="lb-inspector__body lb-scroll" ref={corpoRef}>
+    <>
+      <FolhaDoLivro pagina="ficha" corpoRef={corpoRef}>
         {/* Sem nada selecionado, a faixa vazia no mesmo lugar, só com o
             "Nada selecionado". Sem título, como a outra: o primeiro `h2`
             continua sendo o da ferramenta. */}
@@ -1026,76 +919,48 @@ export function PropertiesPanel({
           <AlignDistributeControls {...alignDistribute} />
           <SelectionControls secret={selection.secret} />
         </ToolPropertiesSection>
-        {/* AVENTURA: Cenas, Pinos, Agenda e Estado do mundo, a aventura
-            inteira. Depois do bloco da ferramenta e do objeto: no topo ela
-            roubava o primeiro título da coluna, que é o nome do que está na mão
-            ou do que acabou de ser desenhado (task-jornada-sala-livre.spec.ts,
-            teste 3). A legenda é `<p>`, não `h2`, pelo mesmo motivo — o molde é
-            o `MoreSection` do RoomPanel: `role=group` nomeado pela legenda. */}
-        {temAventura && (
-          <div className="lb-zona" role="group" aria-labelledby={legendaAventuraId}>
-            <p id={legendaAventuraId} className="lb-eyebrow lb-zona__rotulo">
-              Aventura
-            </p>
-            {scenes}
-            {worldState}
-          </div>
+        {/* A ferramenta Chão na mão: o "Chão do mapa" é quem ela mais precisa
+            (ver `chaoNaFicha`); "Camadas do chão" também com uma peça de chão
+            selecionada. A página Cena tem os dois sempre. */}
+        {chaoNaFicha && (
+          <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={false}>
+            <FloorStyleControls {...floorStyle} />
+          </CollapsibleSection>
         )}
-        {/* ESTA CENA: o que é da cena aberta, do que há nela (Objetos do mapa,
-            Marcas, Locais) ao jeito dela (Território, Chão do mapa, Camadas). */}
-        {temCena && (
-          <div className="lb-zona" role="group" aria-labelledby={legendaCenaId}>
-            <p id={legendaCenaId} className="lb-eyebrow lb-zona__rotulo">
-              Esta cena
-            </p>
-            {/* Os objetos DA cena aberta. Sem grupo de ferramenta: é navegação,
-                como as Cenas, e nasce recolhida — com uma ferramenta de desenho
-                na mão ela é só uma linha. */}
-            {objects}
-            {/* FACÇÃO E ALERTA do mapa inteiro. Mesmo grupo das Camadas (é
-                filtro de vista e estado da cena, não ferramenta), antes de
-                "Chão do mapa". Nasce fechada mesmo sem seleção (peça
-                mapa-inteiro-enxuto): o mestre mexe nela durante o jogo, não na
-                primeira tela do mapa; a escolha dele fica lembrada
-                (`lb-section:territorio`). */}
-            {territorio !== undefined && (
-              <ToolPropertiesSection group="layers" groups={groups}>
-                <CollapsibleSection id="territorio" title="Território" defaultOpen={false}>
-                  <TerritorioControls {...territorio} />
-                </CollapsibleSection>
-              </ToolPropertiesSection>
-            )}
-            <ToolPropertiesSection group="floorStyle" groups={groups}>
-              {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
-                  chama "Chão" e dois botões com o mesmo nome confundem leitor de
-                  tela (e o getByRole dos specs). */}
-              <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
-                <FloorStyleControls {...floorStyle} />
-              </CollapsibleSection>
-            </ToolPropertiesSection>
-            {/* "Camadas do chão" é das PEÇAS (ordem, trava, trocar de peça):
-                fica também com uma peça selecionada, quando o "Chão do mapa"
-                acima já saiu. */}
-            {temCamadasDoChao && floorLayers !== undefined && (
-              <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
-                <FloorLayersList {...floorLayers} />
-              </CollapsibleSection>
-            )}
-            <ToolPropertiesSection group="layers" groups={groups}>
-              <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>
-                <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
-              </CollapsibleSection>
-            </ToolPropertiesSection>
-          </div>
+        {camadasDoChaoNaFicha && floorLayers !== undefined && (
+          <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
+            <FloorLayersList {...floorLayers} />
+          </CollapsibleSection>
         )}
-        {/* O Acervo, por último e fora dos grupos: a estante de NPCs é do app,
-            não da aventura nem da cena. Sem `ToolPropertiesSection` e sem
-            `CollapsibleSection`: não pertence a ferramenta nem a seleção
-            nenhuma, e é para estar à mão justamente quando nada está
-            selecionado. */}
-        <TokenLibraryPanel {...tokenLibrary} />
-        {acervoDeItens !== undefined && <AcervoDeItensPanel {...acervoDeItens} />}
-      </div>
-    </div>
+      </FolhaDoLivro>
+      <FolhaDoLivro pagina="cena">
+        <PaginaCena
+          mapName={mapName}
+          mapWidth={mapWidth}
+          mapHeight={mapHeight}
+          mapGrid={mapGrid}
+          objetos={objetosDaCena}
+          territorio={territorio}
+          floorStyle={floorStyle}
+          floorLayers={floorLayers}
+          layers={layers}
+          grid={grid}
+          chaoTambemNaFicha={chaoNaFicha}
+        />
+      </FolhaDoLivro>
+      <FolhaDoLivro pagina="aventura">
+        <PaginaAventura>
+          {scenes}
+          {worldState}
+        </PaginaAventura>
+      </FolhaDoLivro>
+      {/* O Acervo é do app, não da aventura nem da cena. */}
+      <FolhaDoLivro pagina="acervo">
+        <PaginaAcervo>
+          <TokenLibraryPanel {...tokenLibrary} />
+          {acervoDeItens !== undefined && <AcervoDeItensPanel {...acervoDeItens} />}
+        </PaginaAcervo>
+      </FolhaDoLivro>
+    </>
   )
 }

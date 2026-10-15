@@ -5,6 +5,7 @@ import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { addRoom, createEmptyMap } from '../lib/mapFactory'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { relevantPropertyGroups } from '../lib/toolProperties'
+import { useLivroDoMestreStore, type PaginaDoMestre } from '../stores/livroDoMestreStore'
 import { useMapStore } from '../stores/mapStore'
 import { CollapsibleSection } from './CollapsibleSection'
 import { PropertiesPanel } from './PropertiesPanel'
@@ -12,19 +13,15 @@ import { propsDoPainel, type PainelProps } from './propertiesPanelTestProps'
 import type { TerritorioControlsProps } from './TerritorioControls'
 
 /*
- * GRUPOS DA COLUNA (pedido painel-acervo, fatia 3). Abaixo do que está na mão
- * (a seleção, senão a ferramenta), o que é da AVENTURA (Cenas, Pinos, Agenda,
- * Estado do mundo) e o que é DESTA CENA (Objetos do mapa, Marcas, Locais,
- * Território, Chão do mapa, Camadas), cada um com a sua legenda; o Acervo por
- * último, fora dos dois. A ordem já era essa: faltava dizer, para o mestre
- * saber onde procurar sem decorar.
+ * AS PÁGINAS DO LIVRO DO MESTRE (fatia 2 do design consolidado). Os grupos que
+ * a coluna única empilhava viraram páginas, cada uma atrás do seu marcador: a
+ * Ficha (o que está na mão ou selecionado), a Cena (Objetos do mapa, Marcas,
+ * Locais, Território, Chão do mapa, Camadas), a Aventura (Cenas, Pinos,
+ * Agenda, Estado do mundo) e o Acervo. Todas ficam montadas; só a aberta fica
+ * à vista.
  *
  * As seções da aventura são montadas pelo App: aqui entram linhas com o mesmo
  * título no lugar delas, porque o que se prova é ONDE o painel as põe.
- *
- * A legenda é um `<p>`, não um `h2`: o primeiro `h2` visível do corpo é o nome
- * do que está na mão (task-jornada-painel-com-nome-certo, sala-livre), e
- * task-panel-sections lê os `h2` das seções.
  */
 
 const nada = (): void => {}
@@ -64,13 +61,14 @@ const SEM_SELECAO: Partial<PainelProps> = {
 /** A Parede na mão, nada selecionado. */
 const PAREDE_ARMADA: Partial<PainelProps> = { activeTool: 'wall', groups: relevantPropertyGroups('wall') }
 
-describe('painel de propriedades — os grupos Aventura e Esta cena', () => {
+describe('livro do mestre — cada grupo na sua página', () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
     window.localStorage.clear()
+    useLivroDoMestreStore.setState({ pagina: 'ficha', recolhido: false, novoTokenAberto: false })
     useMapStore.setState({
       map: createEmptyMap('m1', 'Cripta do Farol', 30, 20, 64),
       camera: { x: 0, y: 0, scale: 1 },
@@ -94,95 +92,55 @@ describe('painel de propriedades — os grupos Aventura e Esta cena', () => {
   }
 
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
-  /** O grupo pelo nome acessível: `role=group` nomeado pela legenda (`aria-labelledby`). */
-  const grupo = (nome: string): HTMLElement | null =>
-    [...container.querySelectorAll<HTMLElement>('[role="group"]')].find(
-      (g) => texto(document.getElementById(g.getAttribute('aria-labelledby') ?? '')) === nome,
-    ) ?? null
   /** O cabeçalho (botão que abre e fecha) de uma linha. */
   const cabecalho = (titulo: string): HTMLButtonElement | null =>
     [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')].find((b) => texto(b) === titulo) ?? null
   const h2 = (nome: string) => [...container.querySelectorAll('h2')].find((h) => texto(h) === nome) ?? null
-  /** `a` vem antes de `b` no documento. */
-  const antes = (a: Node | null, b: Node | null) => a !== null && b !== null && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
   const primeiroTitulo = () => texto(container.querySelector('.lb-inspector__body h2'))
 
-  it('AVENTURA reúne as linhas da aventura: Cenas, Pinos e Estado do mundo', () => {
+  /** A folha de uma página do livro (aberta ou não). */
+  const folha = (pagina: PaginaDoMestre) => container.querySelector<HTMLElement>(`.gr-folha[data-pagina="${pagina}"]`)
+  const naFolha = (pagina: PaginaDoMestre, titulo: string) => folha(pagina)?.contains(cabecalho(titulo)) === true
+
+  it('cada grupo mora na sua página: Aventura, Cena e Acervo; a Ficha não carrega nenhum deles', () => {
     renderPainel(SEM_SELECAO)
-    const aventura = grupo('Aventura')
-    expect(aventura, 'o painel não tem o grupo "Aventura"').not.toBeNull()
-    for (const titulo of ['Cenas', 'Pinos', 'Estado do mundo']) {
-      expect(cabecalho(titulo), titulo).not.toBeNull()
-      expect(aventura?.contains(cabecalho(titulo)), titulo).toBe(true)
-    }
+    for (const titulo of ['Cenas', 'Pinos', 'Estado do mundo']) expect(naFolha('aventura', titulo), titulo).toBe(true)
+    for (const titulo of ['Objetos do mapa', 'Locais', 'Território', 'Chão do mapa', 'Camadas']) expect(naFolha('cena', titulo), titulo).toBe(true)
+    expect(folha('acervo')?.contains(h2('Acervo de tokens'))).toBe(true)
+    for (const titulo of ['Cenas', 'Objetos do mapa', 'Chão do mapa', 'Camadas']) expect(naFolha('ficha', titulo), titulo).toBe(false)
+    expect(folha('ficha')?.contains(h2('Acervo de tokens'))).toBe(false)
   })
 
-  it('ESTA CENA reúne o que é da cena aberta, e o Acervo vem depois dos dois grupos, fora deles', () => {
+  it('só a página aberta fica à vista; trocar de página não desmonta as outras', () => {
     renderPainel(SEM_SELECAO)
-    const cena = grupo('Esta cena')
-    expect(cena, 'o painel não tem o grupo "Esta cena"').not.toBeNull()
-    for (const titulo of ['Objetos do mapa', 'Locais', 'Território', 'Chão do mapa', 'Camadas']) {
-      expect(cabecalho(titulo), titulo).not.toBeNull()
-      expect(cena?.contains(cabecalho(titulo)), titulo).toBe(true)
-    }
-    // Cenas é a lista da aventura inteira, não desta cena; e a aventura vem antes.
-    expect(cena?.contains(cabecalho('Cenas'))).toBe(false)
-    expect(antes(grupo('Aventura'), cena)).toBe(true)
-    // O Acervo de tokens não é da aventura nem da cena: é a estante do app.
-    const acervo = h2('Acervo de tokens')
-    expect(acervo).not.toBeNull()
-    expect(acervo?.closest('[role="group"]')).toBeNull()
-    expect(antes(cena, acervo)).toBe(true)
+    const abertas = () => (['ficha', 'cena', 'aventura', 'acervo'] as const).filter((p) => folha(p)?.hidden === false)
+    expect(abertas()).toEqual(['ficha'])
+    act(() => useLivroDoMestreStore.getState().abrirPagina('cena'))
+    expect(abertas()).toEqual(['cena'])
+    expect(cabecalho('Cenas'), 'a Aventura continua montada, só escondida').not.toBeNull()
   })
 
-  it('a legenda do grupo é texto e não título: nenhum h2 a mais no corpo', () => {
+  it('a página Cena abre com o título e a linha do mapa: nome, casas e tamanho da casa', () => {
     renderPainel(SEM_SELECAO)
-    for (const nome of ['Aventura', 'Esta cena']) {
-      const legenda = document.getElementById(grupo(nome)?.getAttribute('aria-labelledby') ?? '')
-      expect(legenda?.tagName, nome).toBe('P')
-    }
-    const titulos = [...container.querySelectorAll('h1, h2, h3, h4, h5, h6')].map(texto)
-    expect(titulos).not.toContain('Aventura')
-    expect(titulos).not.toContain('Esta cena')
+    expect(folha('cena')?.querySelector('h2')?.textContent).toBe('Esta cena')
+    expect(folha('cena')?.textContent).toContain('Cripta do Farol, 30 × 20 casas de 64 px')
+    expect(folha('aventura')?.querySelector('h2')?.textContent).toBe('Aventura')
+    expect(folha('acervo')?.querySelector('h2')?.textContent).toBe('Acervo')
   })
 
-  it('sem cenas nem estado do mundo (painel sem aventura) não há grupo "Aventura", nem a legenda solta', () => {
-    renderPainel({ ...SEM_SELECAO, scenes: undefined, worldState: undefined })
-    expect(grupo('Aventura')).toBeNull()
-    expect(container.textContent).not.toContain('Aventura')
-    expect(grupo('Esta cena')).not.toBeNull()
+  it('a página Cena mostra Chão do mapa e Camadas com qualquer ferramenta: sem o "momento de mapa"', () => {
+    renderPainel({ ...PAREDE_ARMADA, objects: OBJETOS })
+    for (const titulo of ['Objetos do mapa', 'Chão do mapa', 'Camadas']) expect(naFolha('cena', titulo), titulo).toBe(true)
   })
 
-  it('só com o Estado do mundo, o grupo "Aventura" existe e tem ele', () => {
-    renderPainel({ ...SEM_SELECAO, scenes: undefined })
-    expect(grupo('Aventura')?.contains(cabecalho('Estado do mundo'))).toBe(true)
+  it('com a ferramenta Chão na mão, a Ficha traz o "Chão do mapa" (é dela)', () => {
+    renderPainel({ activeTool: 'floor', groups: relevantPropertyGroups('floor') })
+    expect(naFolha('ficha', 'Chão do mapa')).toBe(true)
   })
 
-  it('com a Parede armada e sem os objetos da cena, não sobra a legenda "Esta cena" sem linha embaixo', () => {
-    renderPainel(PAREDE_ARMADA)
-    expect(grupo('Esta cena')).toBeNull()
-    expect(container.textContent).not.toContain('Esta cena')
-  })
-
-  it('com a Parede armada, os objetos continuam no grupo da cena (Chão do mapa e Camadas não aparecem)', () => {
-    renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS })
-    expect(grupo('Esta cena')?.contains(cabecalho('Objetos do mapa'))).toBe(true)
-    expect(cabecalho('Chão do mapa')).toBeNull()
-    expect(cabecalho('Camadas')).toBeNull()
-  })
-
-  it('esconderCategorias (opção de 07/10/2026): com a Parede armada somem Aventura, Objetos do mapa e Locais', () => {
-    renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS, esconderCategorias: true })
-    expect(grupo('Aventura')).toBeNull()
-    expect(grupo('Esta cena')).toBeNull()
-    for (const titulo of ['Cenas', 'Pinos', 'Objetos do mapa', 'Locais']) expect(cabecalho(titulo), titulo).toBeNull()
-    expect(h2('Parede')).not.toBeNull()
-  })
-
-  it('GUARDA: com a Parede armada, o primeiro título continua "Parede", acima dos dois grupos', () => {
+  it('GUARDA: com a Parede armada, o primeiro título da Ficha continua "Parede"', () => {
     renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS })
     expect(primeiroTitulo()).toBe('Parede')
-    expect(antes(h2('Parede'), grupo('Aventura'))).toBe(true)
   })
 
   it('o Avançado da Parede mora DENTRO do bloco Parede (é dele: Ponta e canto), como o da ficha', () => {
@@ -274,11 +232,6 @@ describe('PropertiesPanel.css — o desenho dos grupos', () => {
     expect(regra(css, '.lb-zona + .lb-zona').get('border-top')).toBe(FIO)
     // O Acervo, depois do último grupo, ganha o fio que `.lb-section + .lb-section` dava.
     expect(regra(css, '.lb-zona + .lb-section').get('border-top')).toBe(FIO)
-  })
-
-  it('a legenda fica na vertical dos 16 px do conteúdo', async () => {
-    const legenda = regra(await lerCss('./PropertiesPanel.css'), '.lb-zona__rotulo')
-    expect(legenda.get('padding')).toMatch(/^var\(--lb-space-\d\) var\(--lb-space-4\)/)
   })
 
   it('dentro do grupo as linhas se seguem sem fio, que só volta depois de uma seção aberta', async () => {

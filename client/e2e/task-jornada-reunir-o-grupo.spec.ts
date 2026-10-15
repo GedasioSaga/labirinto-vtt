@@ -657,7 +657,7 @@ async function botoesDoPainel(painel: Locator): Promise<string> {
 
 function caixaDoJogador(mestre: Page, jogador: string): Locator {
   // No inspetor (região Mapa): o Jogo, na coluna da direita, pode ter outras caixas com o nome dele.
-  return mestre.getByRole('region', { name: 'Mapa' }).getByRole('checkbox', { name: new RegExp(`\\b${jogador}\\b`) })
+  return mestre.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('checkbox', { name: new RegExp(`\\b${jogador}\\b`) })
 }
 
 /** Abre a lista de reunião pelo botão do painel e confere os três marcados. Devolve o botão "Reunir". */

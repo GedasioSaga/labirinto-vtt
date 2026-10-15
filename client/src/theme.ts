@@ -135,8 +135,14 @@ export const theme = {
    * painel lateral termina para não deixar o balão de dica passar por cima dele.
    */
   layout: {
-    /** Largura da coluna esquerda (inspetor + barra de ações). */
+    /** Largura da coluna da direita (e a medida das dicas do painel). */
     railWidth: '264px',
+    /**
+     * O que o livro do mestre ocupa da borda esquerda: a margem de 12 px mais
+     * a lombada e a página (`gr.larguraLombada` + `gr.larguraPagina`). A barra
+     * de ferramentas começa depois disso.
+     */
+    livroDoMestre: '326px',
     /** Respiro entre painel flutuante e borda da janela. */
     edgeGap: '16px',
   },

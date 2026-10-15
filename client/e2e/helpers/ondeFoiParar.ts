@@ -37,7 +37,11 @@ export interface Linha {
   readonly vai?: string
 }
 
-/** Onde o caminho começa a procurar. */
+/**
+ * Onde o caminho começa a procurar. Desde a fatia 2, `esquerda` é o livro do
+ * mestre (lombada + página aberta) e `acoes` é o topo dele; item de menu
+ * (`menuitem`) é procurado na tela inteira, porque o menu abre por cima de tudo.
+ */
 export type Escopo = 'esquerda' | 'barra' | 'acoes' | 'direita' | 'pagina'
 
 export type Tela = 'mestre' | 'mestre-sala-aberta' | 'jogador'
@@ -69,6 +73,9 @@ export interface Bloco {
 }
 
 const b = (nome: string): Alvo => ['button', nome]
+/** Marcador da lombada do livro do mestre (Ficha, Cena, Aventura, Acervo). */
+const marcador = (nome: string): Alvo => ['tab', nome]
+const menu = (nome: string): Alvo => ['menuitem', nome]
 const cx = (nome: string): Alvo => ['checkbox', nome]
 const rg = (nome: string): Alvo => ['radiogroup', nome]
 const l = (controle: string, alvo: Alvo, ...caminho: Alvo[]): Linha => ({ controle, alvo, caminho })
@@ -94,7 +101,7 @@ export const BLOCOS: readonly Bloco[] = [
   // ─── Coluna da esquerda ────────────────────────────────────────────────
   {
     tela: 'mestre', titulo: 'Cabeçalho da esquerda', estado: 'editor aberto, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Topo do livro do mestre', fatia: '2',
+    vai: 'Topo do livro do mestre (feito)', fatia: '2',
     linhas: [
       l('Logo e nome do app', ['heading', 'Labirinto']),
       l('+ Token', b('Adicionar token')),
@@ -103,61 +110,61 @@ export const BLOCOS: readonly Bloco[] = [
       l('Cancelar (novo token)', b('Cancelar'), b('Adicionar token')),
       { ...l('Ver todas as cenas (ícone de expandir)', b('Ver todas as cenas')), vai: 'Chip da cena, "Ver todas as cenas" (fatia 3)' },
       l('Engrenagem (Configurações do mapa)', b('Configurações do mapa')),
-      { ...l('Faixa "Nada selecionado"', b('Nada selecionado')), vai: 'Página Ficha, vazio com atalhos (fatia 7)' },
+      { ...l('Faixa "Nada selecionado"', b('Nada selecionado'), marcador('Ficha')), vai: 'Página Ficha, vazio com atalhos (fatia 7)' },
     ],
   },
   {
     tela: 'mestre', titulo: 'Ações do mapa', estado: 'editor aberto', escopo: 'acoes',
-    vai: 'Topo do livro do mestre (ícones) e menu Arquivo', fatia: '2',
+    vai: 'Topo do livro do mestre (ícones) e menu Arquivo (feito)', fatia: '2',
     linhas: [
-      l('Desfazer', b('Desfazer (Ctrl+Z)')),
-      l('Refazer', b('Refazer (Ctrl+Y)')),
+      l('Desfazer', b('Desfazer')),
+      l('Refazer', b('Refazer')),
       l('Salvar', b('Salvar')),
-      { ...l('Abrir...', b('Abrir...')), vai: 'Menu Arquivo' },
-      { ...l('Imagem de fundo (sem imagem: importar)', b('Importar imagem de fundo')), vai: 'Menu Arquivo' },
-      { ...l('Exportar mapa (pasta)', b('Exportar mapa (pasta)')), vai: 'Menu Arquivo' },
-      { ...l('Exportar imagem (PNG)', b('Exportar imagem (PNG)')), vai: 'Menu Arquivo' },
-      { ...l('Importar mapa (pasta)', b('Importar mapa (pasta)')), vai: 'Menu Arquivo' },
-      { ...l('Início', b('Início')), vai: 'Menu Arquivo, "Voltar ao início"' },
-      { ...l('Atalhos do teclado (?)', b('Atalhos do teclado (?)')), vai: 'Ícone "?" no topo do livro' },
+      l('Abrir...', menu('Abrir…'), b('Arquivo')),
+      l('Imagem de fundo (sem imagem: importar)', menu('Importar imagem de fundo…'), b('Arquivo')),
+      l('Exportar mapa (pasta)', menu('Exportar mapa (pasta)…'), b('Arquivo')),
+      l('Exportar imagem (PNG)', menu('Exportar imagem (PNG)…'), b('Arquivo')),
+      l('Importar mapa (pasta)', menu('Importar mapa (pasta)…'), b('Arquivo')),
+      l('Início', menu('Voltar ao início'), b('Arquivo')),
+      l('Atalhos do teclado (?)', b('Atalhos do teclado')),
     ],
   },
   {
     tela: 'mestre', titulo: 'Grupo Aventura', estado: 'editor com aventura, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Aventura do livro do mestre', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Marcador Aventura do livro do mestre (casca feita; restilo na 18)', fatia: '2 (casca) e 18 (restilo)',
     linhas: [
-      l('Pinos: busca', ['searchbox', 'Buscar pino'], b('Pinos')),
-      l('Pinos: pino da lista (abre a cena)', b('Altar Cripta'), b('Pinos')),
-      l('Agenda: Próximo apito', b('Próximo apito'), b('Agenda')),
-      l('Agenda: Próximo dia', b('Próximo dia'), b('Agenda')),
-      l('Agenda: nome do evento', ['textbox', 'Evento'], b('Agenda')),
-      l('Agenda: dia', ['spinbutton', 'Dia'], b('Agenda')),
-      l('Agenda: apito', ['combobox', 'Apito'], b('Agenda')),
-      l('Agenda: Soar alarme ao disparar', cx('Soar alarme ao disparar'), b('Agenda')),
-      l('Agenda: Marcar', b('Marcar'), b('Agenda')),
-      l('Estado do mundo: Novo estado', b('Novo estado'), b('Estado do mundo')),
+      l('Pinos: busca', ['searchbox', 'Buscar pino'], marcador('Aventura'), b('Pinos')),
+      l('Pinos: pino da lista (abre a cena)', b('Altar Cripta'), marcador('Aventura'), b('Pinos')),
+      l('Agenda: Próximo apito', b('Próximo apito'), marcador('Aventura'), b('Agenda')),
+      l('Agenda: Próximo dia', b('Próximo dia'), marcador('Aventura'), b('Agenda')),
+      l('Agenda: nome do evento', ['textbox', 'Evento'], marcador('Aventura'), b('Agenda')),
+      l('Agenda: dia', ['spinbutton', 'Dia'], marcador('Aventura'), b('Agenda')),
+      l('Agenda: apito', ['combobox', 'Apito'], marcador('Aventura'), b('Agenda')),
+      l('Agenda: Soar alarme ao disparar', cx('Soar alarme ao disparar'), marcador('Aventura'), b('Agenda')),
+      l('Agenda: Marcar', b('Marcar'), marcador('Aventura'), b('Agenda')),
+      l('Estado do mundo: Novo estado', b('Novo estado'), marcador('Aventura'), b('Estado do mundo')),
     ],
   },
   {
     tela: 'mestre', titulo: 'Grupo Esta cena', estado: 'editor com aventura, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Cena do livro do mestre, em fichas recolhíveis', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18)', fatia: '2 (casca) e 18 (restilo)',
     linhas: [
-      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena' },
+      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena'), b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena' },
       { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca da página Cena' },
-      l('Objetos do mapa: item da lista (Ir até lá)', b('Goblin'), b('Objetos do mapa')),
-      l('Locais: sala da árvore (enquadra)', b('Salão'), b('Locais')),
-      l('Território: Quem manda aqui', cx('Quem manda aqui'), b('Território')),
-      l('Território: Alerta da cena', rg('Alerta da cena'), b('Território')),
-      l('Chão do mapa: Cor do chão', ['textbox', 'Cor do chão'], b('Chão do mapa')),
-      l('Chão do mapa: conta-gotas da cor', b('Pegar do mapa a cor do chão'), b('Chão do mapa')),
-      l('Chão do mapa: Contorno', cx('Contorno'), b('Chão do mapa')),
-      l('Camadas: Mostrar grade', cx('Mostrar grade'), b('Camadas')),
-      l('Camadas: Grudar Token no centro', cx('Grudar Token no centro'), b('Camadas')),
-      l('Camadas: Grudar Parede na grade', cx('Grudar Parede na grade'), b('Camadas')),
-      l('Camadas: Grudar Objeto na grade', cx('Grudar Objeto na grade'), b('Camadas')),
+      l('Objetos do mapa: item da lista (Ir até lá)', b('Goblin'), marcador('Cena'), b('Objetos do mapa')),
+      l('Locais: sala da árvore (enquadra)', b('Salão'), marcador('Cena'), b('Locais')),
+      l('Território: Quem manda aqui', cx('Quem manda aqui'), marcador('Cena'), b('Território')),
+      l('Território: Alerta da cena', rg('Alerta da cena'), marcador('Cena'), b('Território')),
+      l('Chão do mapa: Cor do chão', ['textbox', 'Cor do chão'], marcador('Cena'), b('Chão do mapa')),
+      l('Chão do mapa: conta-gotas da cor', b('Pegar do mapa a cor do chão'), marcador('Cena'), b('Chão do mapa')),
+      l('Chão do mapa: Contorno', cx('Contorno'), marcador('Cena'), b('Chão do mapa')),
+      l('Camadas: Mostrar grade', cx('Mostrar grade'), marcador('Cena'), b('Camadas')),
+      l('Camadas: Grudar Token no centro', cx('Grudar Token no centro'), marcador('Cena'), b('Camadas')),
+      l('Camadas: Grudar Parede na grade', cx('Grudar Parede na grade'), marcador('Cena'), b('Camadas')),
+      l('Camadas: Grudar Objeto na grade', cx('Grudar Objeto na grade'), marcador('Cena'), b('Camadas')),
       ...(['Paredes', 'Portas', 'Salas', 'Escadas', 'Objetos', 'Decoração', 'Iluminação', 'Tokens', 'Anotações'].flatMap((c) => [
-        l(`Camadas: olho de ${c}`, b(`Ocultar ${c}`), b('Camadas')),
-        l(`Camadas: trava de ${c}`, b(`Travar ${c}`), b('Camadas')),
+        l(`Camadas: olho de ${c}`, b(`Ocultar ${c}`), marcador('Cena'), b('Camadas')),
+        l(`Camadas: trava de ${c}`, b(`Travar ${c}`), marcador('Cena'), b('Camadas')),
       ])),
     ],
   },
@@ -168,13 +175,13 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Acervos', estado: 'editor aberto', escopo: 'esquerda',
-    vai: 'Marcador Acervo, Tokens e Itens lado a lado', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Marcador Acervo (casca feita; Tokens e Itens com seg na 18)', fatia: '2 (casca) e 18 (restilo)',
     linhas: [
-      l('Acervo de tokens', ['heading', 'Acervo de tokens']),
-      l('Acervo de tokens: + Pasta', b('Nova pasta')),
-      l('Acervo de itens', ['region', 'Itens']),
-      l('Acervo de itens: Categorias', b('Categorias')),
-      l('Acervo de itens: Novo item', b('Novo item')),
+      l('Acervo de tokens', ['heading', 'Acervo de tokens'], marcador('Acervo')),
+      l('Acervo de tokens: + Pasta', b('Nova pasta'), marcador('Acervo')),
+      l('Acervo de itens', ['region', 'Itens'], marcador('Acervo')),
+      l('Acervo de itens: Categorias', b('Categorias'), marcador('Acervo')),
+      l('Acervo de itens: Novo item', b('Novo item'), marcador('Acervo')),
     ],
   },
 
@@ -354,7 +361,7 @@ export const BLOCOS: readonly Bloco[] = [
   {
     tela: 'mestre', titulo: 'Configurações do mapa', estado: 'diálogo aberto pela engrenagem', escopo: 'pagina', preparo: { abrir: b('Configurações do mapa') },
     vai: 'Mesmo diálogo, casca nova com navegação vertical', fatia: '20',
-    linhas: todos([rg('Formato da grade'), ['textbox', 'Cor da grade'], ['slider', 'Opacidade'], ['slider', 'Espessura'], rg('Estilo da linha da grade'), ['heading', 'Alinhar grade à imagem'], ['spinbutton', 'Unidades por célula'], ['textbox', 'Unidade'], ['spinbutton', 'Casas decimais'], ['combobox', 'Modo de medição'], ['spinbutton', 'Passo máximo (quadrados)'], cx('Fichas ocupam espaço'), ['spinbutton', 'Largura (quadros)'], ['spinbutton', 'Altura (quadros)'], b('Aplicar 30 × 20'), ['textbox', 'Texto de chegada'], cx('Rostos só de perto'), ['spinbutton', 'Casas'], b('Escolher sistema…'), cx('Esconder Aventura e Esta cena ao usar ferramenta')]),
+    linhas: todos([rg('Formato da grade'), ['textbox', 'Cor da grade'], ['slider', 'Opacidade'], ['slider', 'Espessura'], rg('Estilo da linha da grade'), ['heading', 'Alinhar grade à imagem'], ['spinbutton', 'Unidades por célula'], ['textbox', 'Unidade'], ['spinbutton', 'Casas decimais'], ['combobox', 'Modo de medição'], ['spinbutton', 'Passo máximo (quadrados)'], cx('Fichas ocupam espaço'), ['spinbutton', 'Largura (quadros)'], ['spinbutton', 'Altura (quadros)'], b('Aplicar 30 × 20'), ['textbox', 'Texto de chegada'], cx('Rostos só de perto'), ['spinbutton', 'Casas'], b('Escolher sistema…')]),
   },
   {
     tela: 'mestre', titulo: 'Configurar cena', estado: 'diálogo aberto pela engrenagem da cena (coluna da direita, Cenas)', escopo: 'pagina', preparo: { abrir: b('Configurar Cripta') },
@@ -370,7 +377,7 @@ export const BLOCOS: readonly Bloco[] = [
     linhas: [l('Miniatura da cena', b('/^Cripta, 1 token/'))],
   },
   {
-    tela: 'mestre', titulo: 'Atalhos do teclado', estado: 'aberto pelo "?"', escopo: 'pagina', preparo: { abrir: b('Atalhos do teclado (?)') },
+    tela: 'mestre', titulo: 'Atalhos do teclado', estado: 'aberto pelo "?"', escopo: 'pagina', preparo: { abrir: b('Atalhos do teclado') },
     vai: 'Diálogo Atalhos com a lista nova', fatia: '20',
     linhas: [l('Lista de atalhos', ['dialog', 'Atalhos do teclado'])],
   },
@@ -442,8 +449,9 @@ export const BLOCOS: readonly Bloco[] = [
 
 /** Controles do inventário que este estado de teste NÃO monta, e por quê (vão para a tabela do doc). */
 export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
-  ['Voltar (cena anterior), na barra de ações', 'só aparece depois de viajar entre cenas'],
-  ['Menu "Imagem de fundo e conversão" (Chão a partir da imagem, Linhas e portas, Recriar minimapa)', 'só com imagem de fundo; sem ela o botão é "Importar imagem de fundo" (coberto)'],
+  ['Voltar (cena anterior), no topo do livro do mestre até a fatia 3', 'só aparece depois de viajar entre cenas'],
+  ['Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa)', 'só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro'],
+  ['Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel)', 'aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho)'],
   ['Endireitar na sala ou parede solta', 'só com traço torto; coberto no desenho'],
   ['Marcas dos jogadores (MarcasDaCena)', 'só com marcas deixadas por jogadores'],
   ['Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token)', 'pedem sala aberta, outra cena ou Estado do mundo com valores'],

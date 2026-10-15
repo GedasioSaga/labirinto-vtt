@@ -139,7 +139,6 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
       ['Ajustar a luz', botao('Ajustar a luz')],
       ['Piso', campo('Piso')],
       [CARRY_TO_LABEL, botao(CARRY_TO_LABEL)],
-      ['Acervo de tokens', h2('Acervo de tokens')],
     ]
     for (const [nome, el] of marcos) expect(el, `sem "${nome}" no painel`).not.toBeNull()
     const foraDeOrdem = marcos.slice(1).filter(([, el], i) => !antes(marcos[i][1], el)).map(([nome], i) => `${marcos[i][0]} → ${nome}`)
@@ -266,7 +265,8 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     }
     expect(container.querySelectorAll('[role="radiogroup"][aria-label="Cor da ficha"]')).toHaveLength(1)
     expect(grupo('Cor da ficha')?.querySelectorAll('[role="radio"][aria-label="Roxo"]')).toHaveLength(1)
-    for (const nome of ['Escolher imagem...', 'Salvar no acervo', 'Apagar token selecionado', 'Adicionar token']) {
+    // O "Adicionar token" mora no topo do livro do mestre (PropertiesPanel.selecao.test.tsx).
+    for (const nome of ['Escolher imagem...', 'Salvar no acervo', 'Apagar token selecionado']) {
       expect(botoes(nome), nome).toHaveLength(1)
     }
     // A jornada condicao-na-ficha abre as condições pelo botão cujo nome começa por "Condições".

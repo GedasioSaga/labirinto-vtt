@@ -76,11 +76,12 @@ test('1. alinhamento: prop arrastado perto de outro trava exatamente no candidat
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addProp({ id: 'propTarget', src: 'fake.png', x: 600, y: 300, width: 64, height: 64, linkedMapPath: null })
-    mod.useMapStore.getState().addProp({ id: 'propDrag', src: 'fake.png', x: 300, y: 650, width: 64, height: 64, linkedMapPath: null })
+    mod.useMapStore.getState().addProp({ id: 'propDrag', src: 'fake.png', x: 400, y: 650, width: 64, height: 64, linkedMapPath: null })
   })
   await selectTool(page, 'Selecionar')
 
-  await page.mouse.move(box.x + 300, box.y + 650)
+  // x 400, não 300: o livro do mestre (fatia 2) cobre o mapa até x 326 da janela.
+  await page.mouse.move(box.x + 400, box.y + 650)
   await page.mouse.down()
   await page.mouse.move(box.x + 450, box.y + 650, { steps: 5 })
   await page.mouse.move(box.x + 550, box.y + 650, { steps: 5 })
@@ -261,10 +262,10 @@ test('6. alinhamento: vertice de Regiao arrastado perto da borda de outra regiao
       fillPattern: 'solid',
       data: {},
     })
-    // regionDrag: o vertice 0 (300,650) e o que vamos arrastar.
+    // regionDrag: o vertice 0 (400,650) e o que vamos arrastar.
     mod.useMapStore.getState().addRegion({
       id: 'regionDrag',
-      points: [{ x: 300, y: 650 }, { x: 380, y: 650 }, { x: 340, y: 720 }],
+      points: [{ x: 400, y: 650 }, { x: 480, y: 650 }, { x: 440, y: 720 }],
       tag: 'region',
       fillColor: '#3a7ad0',
       fillPattern: 'solid',
@@ -276,10 +277,11 @@ test('6. alinhamento: vertice de Regiao arrastado perto da borda de outra regiao
   // Primeiro clique seleciona a regiao (dentro do triangulo, longe de qualquer
   // vertice) — só depois disso o pointerdown em cima de um vertice entra no
   // modo de arrastar ponto (mesmo padrão do teste 4, com curva).
-  await page.mouse.click(box.x + 340, box.y + 673)
+  await page.mouse.click(box.x + 440, box.y + 673)
   expect(await getSelection(page)).toEqual({ kind: 'region', id: 'regionDrag' })
 
-  await page.mouse.move(box.x + 300, box.y + 650)
+  // x 400, não 300: o livro do mestre (fatia 2) cobre o mapa até x 326 da janela.
+  await page.mouse.move(box.x + 400, box.y + 650)
   await page.mouse.down()
   await page.mouse.move(box.x + 450, box.y + 650, { steps: 5 })
   await page.mouse.move(box.x + 550, box.y + 650, { steps: 5 })
@@ -291,7 +293,7 @@ test('6. alinhamento: vertice de Regiao arrastado perto da borda de outra regiao
   const dragged = regions.find((r) => r.id === 'regionDrag')
   expect(dragged).toBeTruthy()
   expect(dragged!.points[0]).toEqual({ x: 600, y: 650 })
-  expect(dragged!.points.slice(1)).toEqual([{ x: 380, y: 650 }, { x: 340, y: 720 }])
+  expect(dragged!.points.slice(1)).toEqual([{ x: 480, y: 650 }, { x: 440, y: 720 }])
 })
 
 test('7. alinhamento: vertice de Parede solta arrastado perto de outra parede trava exatamente no candidato (mesmo x)', async ({ page }) => {
@@ -302,8 +304,8 @@ test('7. alinhamento: vertice de Parede solta arrastado perto de outra parede tr
     const mod = await import('/src/stores/mapStore.ts')
     // wallTarget: parede solta com um extremo fixo em x=600 serve de candidato de alinhamento.
     mod.useMapStore.getState().addWall({ id: 'wallTarget', x1: 600, y1: 300, x2: 750, y2: 300, blocksLight: true, blocksMove: true, door: null })
-    // wallDrag: o extremo 0 (300,650) e o que vamos arrastar.
-    mod.useMapStore.getState().addWall({ id: 'wallDrag', x1: 300, y1: 650, x2: 380, y2: 650, blocksLight: true, blocksMove: true, door: null })
+    // wallDrag: o extremo 0 (400,650) e o que vamos arrastar.
+    mod.useMapStore.getState().addWall({ id: 'wallDrag', x1: 400, y1: 650, x2: 480, y2: 650, blocksLight: true, blocksMove: true, door: null })
   })
   await selectTool(page, 'Selecionar')
 
@@ -312,10 +314,11 @@ test('7. alinhamento: vertice de Parede solta arrastado perto de outra parede tr
   // vértice (mesmo padrão do teste 6, com região). updateWallPoint é absolute
   // (escreve o ponto calculado direto, sem acumular delta), então só a posição
   // final do cursor importa — mesmo padrão dos testes 1 e 6.
-  await page.mouse.click(box.x + 340, box.y + 650)
+  await page.mouse.click(box.x + 440, box.y + 650)
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: 'wallDrag' })
 
-  await page.mouse.move(box.x + 300, box.y + 650)
+  // x 400, não 300: o livro do mestre (fatia 2) cobre o mapa até x 326 da janela.
+  await page.mouse.move(box.x + 400, box.y + 650)
   await page.mouse.down()
   await page.mouse.move(box.x + 450, box.y + 650, { steps: 5 })
   await page.mouse.move(box.x + 550, box.y + 650, { steps: 5 })
@@ -328,7 +331,7 @@ test('7. alinhamento: vertice de Parede solta arrastado perto de outra parede tr
   expect(dragged).toBeTruthy()
   expect(dragged!.x1).toBe(600)
   expect(dragged!.y1).toBe(650)
-  expect(dragged!.x2).toBe(380)
+  expect(dragged!.x2).toBe(480)
   expect(dragged!.y2).toBe(650)
 })
 

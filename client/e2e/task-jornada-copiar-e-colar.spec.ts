@@ -69,6 +69,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Drawing, MapData, Region } from '../src/types/map'
 import { esconderColunaDireita, mostrarColunaDireita } from './helpers/colunaDireita'
+import { escolherNoArquivo } from './helpers/livroDoMestre'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 // Permissão de clipboard: colar pela área de transferência do sistema é uma
@@ -675,7 +676,7 @@ test('6. Ctrl+C no Salão, Início, abre o "Mapa Avulso", Ctrl+V cola o desenho 
   await page.keyboard.press('Control+c')
 
   // Início salva e volta ao menu; de lá, o outro mapa pela lista.
-  await page.getByRole('toolbar', { name: 'Ações do mapa' }).getByRole('button', { name: 'Início', exact: true }).click()
+  await escolherNoArquivo(page, 'Voltar ao início')
   await abrirDaLista(page, AVULSO)
   await editorMostraChao(page, 'vermelhoEscuro', AVULSO)
   expect((await editor(page)).laranja.n, `o "${AVULSO}" começa sem laranja`).toBeLessThanOrEqual(RESIDUO)

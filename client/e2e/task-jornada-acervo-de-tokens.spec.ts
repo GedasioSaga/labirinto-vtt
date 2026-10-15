@@ -40,6 +40,7 @@
 // nome e foto, e o apagar que pergunta antes.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro, escolherNoArquivo } from './helpers/livroDoMestre'
 
 /** 64x64 px: metade de cima #ff00ff, metade de baixo #00c853 — as mesmas duas
  *  cores de `task-jornada-token-com-foto.spec.ts`, para "a foto está
@@ -336,6 +337,7 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   // "Trocar imagem..." no lugar de "Escolher imagem..." é a prova VISÍVEL de
   // que a foto entrou no token.
+  await abrirPaginaDoLivro(page, 'Ficha')
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 }
 
@@ -369,7 +371,9 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
 
   // ── o item aparece com NOME e MINIATURA ──────────────────────────────────
+  await abrirPaginaDoLivro(page, 'Acervo')
   const goblinNoAcervo = page.getByRole('button', { name: 'Colocar Goblin no mapa' })
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(goblinNoAcervo).toBeVisible({ timeout: 15_000 })
   const miniatura = page.getByRole('img', { name: 'Foto de Goblin' })
   await expect(miniatura).toBeVisible()
@@ -382,17 +386,21 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   // ── um SEGUNDO item, com OUTRA foto: sem ele, trazer o item errado passa ──
   await criarTokenComFoto(page, 'Orc')
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   const orcNoAcervo = page.getByRole('button', { name: 'Colocar Orc no mapa' })
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(orcNoAcervo).toBeVisible({ timeout: 15_000 })
 
   // ── OUTRO MAPA, mesma sessão: o acervo é do app, não do mapa ─────────────
-  await page.getByRole('button', { name: 'Início' }).click()
+  await escolherNoArquivo(page, 'Voltar ao início')
   await criarOutroMapa(page)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(goblinNoAcervo).toBeVisible({ timeout: 15_000 })
 
   // ── APP REINICIADO: é isto que separa "está no disco" de "está na memória" ─
   await page.reload()
   await criarOutroMapa(page)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(goblinNoAcervo).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('img', { name: 'Foto de Goblin' })).toBeVisible()
 
@@ -402,6 +410,7 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   await goblinNoAcervo.click()
 
   await expect(page.locator('#lb-token-name')).toHaveValue('Goblin', { timeout: 15_000 })
+  await abrirPaginaDoLivro(page, 'Ficha')
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 
   const token = await ondeEstaOToken(page)
@@ -422,8 +431,10 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   // ── e o Orc chega com a foto DELE (metades trocadas), não com a do goblin ─
   // Os dois sentidos juntos pegam "sempre o primeiro item" e "sempre o
   // último", além de "o item vizinho".
+  await abrirPaginaDoLivro(page, 'Acervo')
   await orcNoAcervo.click()
   await expect(page.locator('#lb-token-name')).toHaveValue('Orc', { timeout: 15_000 })
+  await abrirPaginaDoLivro(page, 'Ficha')
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
   const orc = await ondeEstaOToken(page)
   const centroDoOrc = { x: caixa.x + orc.x, y: caixa.y + orc.y }
@@ -445,25 +456,32 @@ test('2. apagar do acervo pergunta antes, e o que foi apagado não volta quando 
 
   await criarTokenComFoto(page, 'Orc')
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   const orcNoAcervo = page.getByRole('button', { name: 'Colocar Orc no mapa' })
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(orcNoAcervo).toBeVisible({ timeout: 15_000 })
 
   // ── pergunta antes, e desistir deixa tudo como estava ────────────────────
   await page.getByRole('button', { name: 'Apagar Orc do acervo' }).click()
   await expect(page.getByRole('button', { name: 'Manter no acervo' })).toBeVisible()
   await page.getByRole('button', { name: 'Manter no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(orcNoAcervo).toBeVisible()
 
   // ── confirmar apaga de verdade, e o painel fica com o estado vazio ───────
   await page.getByRole('button', { name: 'Apagar Orc do acervo' }).click()
   await page.getByRole('button', { name: 'Apagar Orc para sempre' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(orcNoAcervo).toHaveCount(0)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByText('Nenhum token no acervo ainda.')).toBeVisible()
 
   // ── e some do disco, não só da tela ──────────────────────────────────────
   await page.reload()
   await criarOutroMapa(page)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Orc no mapa' })).toHaveCount(0)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByText('Nenhum token no acervo ainda.')).toBeVisible()
 })
 
@@ -478,6 +496,7 @@ test('3. acervo.json ilegível não derruba a tela: o editor abre, o acervo apar
 
   // A tela abre inteira: a barra de ações e o inspetor continuam lá.
   await expect(page.getByRole('button', { name: 'Adicionar token', exact: true })).toBeVisible()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByText('Não foi possível ler o acervo de tokens', { exact: false })).toBeVisible({ timeout: 15_000 })
   expect(erros, `o acervo ilegível não pode derrubar a tela; erros: ${erros.join(' | ')}`).toEqual([])
 })

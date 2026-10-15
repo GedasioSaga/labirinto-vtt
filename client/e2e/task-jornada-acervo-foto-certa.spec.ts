@@ -26,6 +26,7 @@
 // solto). Toda afirmação é sobre o que está DESENHADO na tela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /**
  * Duas fotos 64x64 de cor CHAPADA, geradas como PNG de verdade.
@@ -320,7 +321,9 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
  */
 async function guardarNoAcervoELimparOMapa(page: Page, nome: string): Promise<void> {
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: `Colocar ${nome} no mapa` })).toBeVisible({ timeout: 15_000 })
+  await abrirPaginaDoLivro(page, 'Ficha')
   await page.getByRole('button', { name: 'Apagar token selecionado' }).click()
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
 }
@@ -370,7 +373,9 @@ test('CONTROLE POSITIVO: com dois NPCs na estante, o que a pessoa escolhe vem co
   await criarTokenComFoto(page, 'Verde')
   await guardarNoAcervoELimparOMapa(page, 'Verde')
 
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Vermelho no mapa' })).toBeVisible()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Verde no mapa' })).toBeVisible()
 
   // Miniatura que CARREGOU de verdade, uma por item: sem isto os dois itens
@@ -386,9 +391,12 @@ test('CONTROLE POSITIVO: com dois NPCs na estante, o que a pessoa escolhe vem co
   // ── a pessoa clica no SEGUNDO da estante ─────────────────────────────────
   const caixa = await page.locator('canvas').boundingBox()
   if (!caixa) throw new Error('canvas sem bounding box')
+  await abrirPaginaDoLivro(page, 'Acervo')
   await page.getByRole('button', { name: 'Colocar Verde no mapa' }).click()
 
   await expect(page.locator('#lb-token-name')).toHaveValue('Verde', { timeout: 15_000 })
+  // O que nasce do Acervo deixa o Acervo aberto (fatia 2); a foto está na Ficha.
+  await abrirPaginaDoLivro(page, 'Ficha')
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 
   const token = await ondeEstaOUltimoToken(page)
@@ -450,6 +458,7 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
   // ── o bicho nasce com a foto vermelha e vai para a estante ───────────────
   await criarTokenComFoto(page, 'Bicho')
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Bicho no mapa' })).toBeVisible({ timeout: 15_000 })
 
   const bicho = await ondeEstaOUltimoToken(page)
@@ -462,6 +471,7 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
   ).toBe(true)
 
   // ── ela troca a foto: agora o bicho é o verde ────────────────────────────
+  await abrirPaginaDoLivro(page, 'Ficha')
   await page.getByRole('button', { name: 'Trocar imagem...' }).click()
   const depoisDaTroca = await esperarCorNaTela(page, centro.x, centro.y, VERDE, 8_000)
 
@@ -474,13 +484,16 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
 
   // ── ela guarda de novo, achando que está guardando a cara nova ───────────
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Bicho (2) no mapa' })).toBeVisible({ timeout: 15_000 })
 
   // ── mapa limpo, para o token que vier da estante ser o único desenhado ───
+  await abrirPaginaDoLivro(page, 'Ficha')
   await page.getByRole('button', { name: 'Apagar token selecionado' }).click()
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
 
   // ── o disco estava certo o tempo todo: o item novo volta VERDE ───────────
+  await abrirPaginaDoLivro(page, 'Acervo')
   await page.getByRole('button', { name: 'Colocar Bicho (2) no mapa' }).click()
   await expect(page.locator('#lb-token-name')).toHaveValue('Bicho (2)', { timeout: 15_000 })
 

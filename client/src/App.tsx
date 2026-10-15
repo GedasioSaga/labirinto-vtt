@@ -140,7 +140,7 @@ import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
 import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
-import { usePainelCategoriasStore } from './stores/painelCategoriasStore'
+import { useLivroDoMestreStore } from './stores/livroDoMestreStore'
 import { SceneSettingsDialog } from './components/SceneSettingsDialog'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { MarcasDaCena } from './components/MarcasDaCena'
@@ -187,7 +187,10 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import type { RevealToControlsProps } from './components/PlayerSecretControls'
-import { ActionBar } from './components/ActionBar'
+import { LivroDoMestre } from './components/livro/LivroDoMestre'
+import { chaveDaSelecao, useFichaAFrente, type AlvoDaFicha } from './components/livro/useFichaAFrente'
+import type { DrawingTool } from './types/tools'
+import { MapSettingsButton } from './components/MapSettingsDialog'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { PersonagensDaAventura } from './components/PersonagensSection'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
@@ -490,6 +493,12 @@ function applyCaravanMoves(moves: readonly AppliedMove[]): void {
  * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
  * painéis sobre o canvas.
  */
+/** A ferramenta e a seleção de agora, lidas da store fora do render (o gesto do ponteiro). */
+function lerAlvoDaFicha(): AlvoDaFicha {
+  const estado = useMapStore.getState()
+  return { ferramenta: estado.activeTool, selecao: chaveDaSelecao(estado.selection, estado.selectedPinId, estado.selectedConcealZoneId) }
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>('menu')
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -507,7 +516,6 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
-  const categoriasSoSemSelecao = usePainelCategoriasStore((state) => state.soSemSelecao)
   // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
   const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
@@ -515,7 +523,7 @@ function App() {
   const mapGroups = useMapStore((state) => state.itemGroups[state.map.id] ?? NO_GROUPS)
   const removeSelected = useMapStore((state) => state.removeSelected)
   // Onda 3, item 20 (Frente D) — histórico deixa de ser invisível: botões
-  // de desfazer/refazer na ActionBar, desabilitados com past/future vazio.
+  // de desfazer/refazer no topo do livro do mestre, desabilitados com past/future vazio.
   const canUndo = useMapStore((state) => state.past.length > 0)
   const canRedo = useMapStore((state) => state.future.length > 0)
   const undo = useMapStore((state) => state.undo)
@@ -745,6 +753,22 @@ function App() {
   const [chatUnread, setChatUnread] = useState<ChatUnread>(NO_CHAT_UNREAD)
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
   const [objectSearchRequest, setObjectSearchRequest] = useState(0)
+  /** "Procurar" do livro do mestre e Ctrl+K: a página Cena aberta, com "Objetos do mapa" aberta e o cursor na busca. */
+  const procurarNoMapa = () => {
+    useLivroDoMestreStore.getState().abrirPagina('cena')
+    setObjectSearchRequest((request) => request + 1)
+  }
+  /** Grade e encaixe: os atalhos das Camadas (página Cena) e a janela Configurações do mapa. */
+  const gridControls = {
+    showGrid,
+    onShowGridChange: setShowGrid,
+    gridShape,
+    onGridShapeChange: setGridShapeAction,
+    snapTargets,
+    onSnapTargetChange: setSnapTarget,
+    gridSettings: map.gridSettings,
+    onGridSettingsChange: setGridSettings,
+  }
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
   const initiativeValues = useInitiativeStore((state) => state.values)
   const initiativeTurn = useInitiativeStore((state) => state.turn)
@@ -1446,7 +1470,7 @@ function App() {
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
   const editorTopRef = useRef<HTMLDivElement | null>(null)
-  const editorRailRef = useRef<HTMLDivElement | null>(null)
+  const editorRailRef = useRef<HTMLElement | null>(null)
   const rightColumnRef = useRef<HTMLElement | null>(null)
   /** A raiz do editor: leva `--lb-topo-altura`, a altura da barra de ferramentas (os avisos descem para baixo dela). */
   const editorRootRef = useRef<HTMLDivElement | null>(null)
@@ -1737,6 +1761,20 @@ function App() {
   const amarrarAoEstado = (amarra: AmarraDeEstado) => useAdventureStore.getState().amarrarAoEstado(amarra)
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
+  // A FICHA VEM À FRENTE quando o mestre arma uma ferramenta ou seleciona
+  // algo (protótipo: armar e selecionar), também repetindo o gesto; pelo
+  // ponteiro ela entra animada. O que nasce do Acervo (o "+" ou arrastar até
+  // o mapa) deixa o Acervo aberto para pôr o próximo: o marcador Ficha ganha o ponto.
+  const { marcarSelecaoDoAcervo, armarPeloPonteiro, apertarNoMapa } = useFichaAFrente(
+    activeTool,
+    chaveDaSelecao(selection, selectedPinId, selectedConcealZoneId),
+    lerAlvoDaFicha,
+    'select',
+  )
+  const armarPelaBarra = (tool: DrawingTool) => {
+    armarPeloPonteiro(tool)
+    setActiveTool(tool)
+  }
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
   // "Objetos do mapa": a linha do objeto selecionado fica marcada na lista.
   const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
@@ -2761,7 +2799,7 @@ function App() {
       })
       if (!pressed) return
       event.preventDefault()
-      setObjectSearchRequest((request) => request + 1)
+      procurarNoMapa()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -3002,7 +3040,8 @@ function App() {
           inteiro depois de o pedido dele já ter sido respondido. Primeiro no
           DOM também põe os avisos que esperam resposta no começo do Tab. */}
       {toastStack}
-      <div className="lb-editor__canvas" ref={canvasHostRef}>
+      {/* Em captura, antes do mapa: o gesto que seleciona traz a Ficha animada (`useFichaAFrente`). */}
+      <div className="lb-editor__canvas" ref={canvasHostRef} onPointerDownCapture={(event) => apertarNoMapa(event)}>
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
           onBackgroundImageSizeChange={setBackgroundImageSize}
@@ -3050,7 +3089,7 @@ function App() {
       <div className="lb-editor__top" ref={editorTopRef}>
         <Toolbar
           activeTool={activeTool}
-          onSelectTool={setActiveTool}
+          onSelectTool={armarPelaBarra}
           lastDrawingTool={lastDrawingTool}
           variantBindings={{
             doorKind: { value: doorKind, onChange: setDoorKind },
@@ -3069,7 +3108,7 @@ function App() {
             mobiliaTipo: { value: mobiliaTipo, onChange: setMobiliaTipo },
             roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
             roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
-            drawShape: { value: activeTool, onChange: setActiveTool },
+            drawShape: { value: activeTool, onChange: armarPelaBarra },
           }}
         />
         {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
@@ -3079,10 +3118,80 @@ function App() {
         {!rightOpen && npcsPauseButton()}
       </div>
 
-      <div className="lb-editor__rail" ref={editorRailRef}>
-        {/* Só o inspetor na esquerda: Jogo, Chat e Cenas moram na coluna da direita. */}
-        {/* `div` com papel de região, e não `section`: as jornadas acham seções pela tag. */}
-        <div className="lb-editor__mapa" role="region" aria-label="Mapa">
+      {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
+          Ficha, Cena, Aventura e Acervo e o topo com as ações do mapa (a
+          antiga barra de ações). Jogo, Chat e Cenas moram na coluna da direita. */}
+      <LivroDoMestre
+        obstaculoRef={editorRailRef}
+        temSelecao={selection.length > 0 || selectedPinId !== null || selectedConcealZone !== null}
+        onDesfazer={undo}
+        onRefazer={redo}
+        podeDesfazer={canUndo}
+        podeRefazer={canRedo}
+        onSalvar={handleSave}
+        arquivo={{
+          onAbrir: handleOpen,
+          onImportarPasta: handleImportFolder,
+          onExportarPasta: handleExportFolder,
+          onExportarImagem: () => setExportImageState({ busy: false, error: null }),
+          temImagemDeFundo: map.background.type === 'image' && map.background.src !== '',
+          onImportarFundo: handleImportBackground,
+          onChaoDoFundo: () => void handleFloorFromBackground(),
+          onLinhasDoFundo: () => void handleDetailsFromBackground(),
+          onRecriarMinimapa: () => void handleMinimapFromBackground(),
+          onInicio: handleGoHome,
+        }}
+        onAtalhos={() => setShortcutsOpen(true)}
+        atalhosAbertos={shortcutsOpen}
+        onProcurar={procurarNoMapa}
+        onVoltarCena={canGoBackToScene ? handleGoBack : undefined}
+        onVerTodasAsCenas={() => setCenasExpandidas(true)}
+        configuracoes={
+          <MapSettingsButton
+            aparencia="livro"
+            grid={gridControls}
+            mapScale={{
+              scale: map.scale,
+              onScaleChange: (patch) => setMapScale({ ...map.scale, ...patch }),
+              measurementMode: map.measurementMode,
+              onMeasurementModeChange: setMeasurementMode,
+              gridShape,
+            }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
+            arrivalText={arrivalTextSettings}
+            sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
+            faceRange={{
+              faceRangeCells: faceRangeCellsOrNull(map.faceRangeCells),
+              onFaceRangeCellsChange: setFaceRangeCells,
+            }}
+            gridAlign={{
+              backgroundFilename:
+                map.background.type === 'image' && map.background.src
+                  ? (map.background.src.split(/[\\/]/).pop() ?? null)
+                  : null,
+              imageWidth: backgroundImageSize?.width ?? null,
+              imageHeight: backgroundImageSize?.height ?? null,
+              cellSize: map.grid,
+              offset: map.gridOffset ?? { x: 0, y: 0 },
+              onOffsetChange: setGridOffset,
+              // 2 chamadas = 2 entradas de histórico (Ctrl+Z desfaz offset e
+              // cellSize separadamente) — aceito de propósito, mesma decisão
+              // já documentada no CONTRATO do agente C5: sem ação combinada,
+              // é o preço de reusar as duas actions atômicas que já existem.
+              onApply: (cellSize, offset) => {
+                setGridCellSize(cellSize)
+                setGridOffset(offset)
+              },
+              onPreviewChange: setGridAlignPreview,
+            }}
+            scenarioLink={{
+              scenarioLink: map.scenarioLink,
+              onScenarioLinkChange: setScenarioLink,
+            }}
+            mapSize={{ width: map.width, height: map.height, onApply: setMapSize }}
+          />
+        }
+      >
           <PropertiesPanel
             scenes={
               <>
@@ -3162,7 +3271,6 @@ function App() {
                 <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
-            onExpandirCenas={() => setCenasExpandidas(true)}
             regionSplit={
               selectedRegion?.room === undefined
                 ? undefined
@@ -3203,7 +3311,6 @@ function App() {
                 />
               )
             }
-            esconderCategorias={categoriasSoSemSelecao && (activeTool !== 'select' || selection.length > 0 || selectedPinId !== null)}
             objects={
               <>
                 <MapObjectsSection
@@ -3230,7 +3337,6 @@ function App() {
             mapWidth={map.width}
             mapHeight={map.height}
             mapGrid={map.grid}
-            onMapSizeApply={setMapSize}
             activeTool={activeTool}
             groups={propertyGroups}
             lineCap={
@@ -3350,50 +3456,7 @@ function App() {
               widthCells: pathWidthCells,
               onWidthCellsChange: setPathWidthCells,
             }}
-            grid={{
-              showGrid,
-              onShowGridChange: setShowGrid,
-              gridShape,
-              onGridShapeChange: setGridShapeAction,
-              snapTargets,
-              onSnapTargetChange: setSnapTarget,
-              gridSettings: map.gridSettings,
-              onGridSettingsChange: setGridSettings,
-            }}
-            mapScale={{
-              scale: map.scale,
-              onScaleChange: (patch) => setMapScale({ ...map.scale, ...patch }),
-              measurementMode: map.measurementMode,
-              onMeasurementModeChange: setMeasurementMode,
-              gridShape,
-            }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
-            arrivalText={arrivalTextSettings}
-            sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
-            faceRange={{
-              faceRangeCells: faceRangeCellsOrNull(map.faceRangeCells),
-              onFaceRangeCellsChange: setFaceRangeCells,
-            }}
-            gridAlign={{
-              backgroundFilename:
-                map.background.type === 'image' && map.background.src
-                  ? (map.background.src.split(/[\\/]/).pop() ?? null)
-                  : null,
-              imageWidth: backgroundImageSize?.width ?? null,
-              imageHeight: backgroundImageSize?.height ?? null,
-              cellSize: map.grid,
-              offset: map.gridOffset ?? { x: 0, y: 0 },
-              onOffsetChange: setGridOffset,
-              // 2 chamadas = 2 entradas de histórico (Ctrl+Z desfaz offset e
-              // cellSize separadamente) — aceito de propósito, mesma decisão
-              // já documentada no CONTRATO do agente C5: sem ação combinada,
-              // é o preço de reusar as duas actions atômicas que já existem.
-              onApply: (cellSize, offset) => {
-                setGridCellSize(cellSize)
-                setGridOffset(offset)
-              },
-              onPreviewChange: setGridAlignPreview,
-            }}
+            grid={gridControls}
             layers={{
               hiddenLayers: map.hiddenLayers,
               lockedLayers: map.lockedLayers,
@@ -3413,10 +3476,6 @@ function App() {
               defaultTokenName: mapFactory.nextTokenName(map.tokens),
               onAddToken: handleAddToken,
               onRemoveSelected: removeSelected,
-            }}
-            scenarioLink={{
-              scenarioLink: map.scenarioLink,
-              onScenarioLinkChange: setScenarioLink,
             }}
             selectedWall={selectedWall}
             wallDoor={{
@@ -3877,8 +3936,14 @@ function App() {
               pastas: acervoPastas,
               aviso: acervoAviso,
               podeOrganizar: acervoPodeOrganizar,
-              onPlace: (item) => void handlePlaceFromLibrary(item),
-              onDropOnMap: handleDropFromLibrary,
+              onPlace: (item) => {
+                marcarSelecaoDoAcervo()
+                void handlePlaceFromLibrary(item)
+              },
+              onDropOnMap: (item, clientX, clientY) => {
+                marcarSelecaoDoAcervo()
+                return handleDropFromLibrary(item, clientX, clientY)
+              },
               onDelete: (item) => void handleDeleteFromLibrary(item),
               onCriarPasta: (nome) => void handleCriarPasta(nome),
               onMover: (item, pasta) => void handleMoverNoAcervo(item, pasta),
@@ -3892,7 +3957,10 @@ function App() {
                 return change !== null && aplicarItensDoMestre(change)
               },
               onErro: (mensagem) => useToastStore.getState().push('error', mensagem),
-              onSoltarNoMapa: handleSoltarItemNoMapa,
+              onSoltarNoMapa: (item, clientX, clientY, comoPino) => {
+                marcarSelecaoDoAcervo()
+                return handleSoltarItemNoMapa(item, clientX, clientY, comoPino)
+              },
             }}
             territorio={{
               filtroLigado: filtroFaccoes,
@@ -3986,28 +4054,7 @@ function App() {
               pincel: pincelNasCamadas,
             }}
           />
-        </div>
-        <ActionBar
-          onSave={handleSave}
-          onOpen={handleOpen}
-          onImportBackground={handleImportBackground}
-          onExportFolder={handleExportFolder}
-          onExportImage={() => setExportImageState({ busy: false, error: null })}
-          onImportFolder={handleImportFolder}
-          onGoHome={handleGoHome}
-          onGoBack={canGoBackToScene ? handleGoBack : undefined}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          onUndo={undo}
-          onRedo={redo}
-          hasBackgroundImage={map.background.type === 'image' && map.background.src !== ''}
-          onFloorFromBackground={() => void handleFloorFromBackground()}
-          onDetailsFromBackground={() => void handleDetailsFromBackground()}
-          onRecreateMinimapFromBackground={() => void handleMinimapFromBackground()}
-          onShowShortcuts={() => setShortcutsOpen(true)}
-          shortcutsOpen={shortcutsOpen}
-        />
-      </div>
+      </LivroDoMestre>
 
       <RightColumn
         open={rightOpen}

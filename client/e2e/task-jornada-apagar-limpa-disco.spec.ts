@@ -27,6 +27,7 @@
 // `evaluate` que mude estado do app.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /** 64x64 px, vermelho chapado — PNG de verdade, para o pipeline de
  *  `lib/imageImport.ts` rodar inteiro e gravar bytes de verdade na pasta. */
@@ -252,13 +253,16 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
 /** Guarda o token na estante e tira a peça do mapa. */
 async function guardarNoAcervoELimparOMapa(page: Page, nome: string): Promise<void> {
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: `Colocar ${nome} no mapa` })).toBeVisible({ timeout: 15_000 })
+  await abrirPaginaDoLivro(page, 'Ficha')
   await page.getByRole('button', { name: 'Apagar token selecionado' }).click()
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
 }
 
 /** Apagar pelo caminho da tela: o × do item, e a confirmação que repete o nome. */
 async function apagarDaEstante(page: Page, nome: string): Promise<void> {
+  await abrirPaginaDoLivro(page, 'Acervo')
   await page.getByRole('button', { name: `Apagar ${nome} do acervo` }).click()
   await page.getByRole('button', { name: `Apagar ${nome} para sempre` }).click()
 }
@@ -285,9 +289,11 @@ test('CONTROLE POSITIVO: apagar um NPC da estante tira as fotos DELE da pasta e 
 
   // ── ela apaga o Goblin, pelo caminho da tela ─────────────────────────────
   await apagarDaEstante(page, 'Goblin')
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Goblin no mapa' })).toHaveCount(0)
 
   // ── o Orc continua inteiro NA TELA: nome e miniatura que carrega ─────────
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Orc no mapa' })).toBeVisible()
   const miniaturaDoOrc = page.getByRole('img', { name: 'Foto de Orc' })
   await expect(miniaturaDoOrc).toBeVisible()
@@ -338,7 +344,9 @@ test('quando a foto não pôde ser apagada do disco, a tela tem de dizer — e n
 
   // ── ela apaga, e a tela responde como se tivesse dado tudo certo ─────────
   await apagarDaEstante(page, 'Goblin')
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Goblin no mapa' })).toHaveCount(0)
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByText('Nenhum token no acervo ainda.')).toBeVisible()
 
   // ── mas a foto continua lá, e vai continuar para sempre ──────────────────

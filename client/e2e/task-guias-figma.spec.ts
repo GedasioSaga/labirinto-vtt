@@ -25,8 +25,8 @@ const PINTURA_MS = 300
 
 /** Sala redonda: centro (800, 200), raio 100 → caixa [700..900] × [100..300]. */
 const CENTRO_DA_REDONDA_X = 800
-/** Sala retangular [300..500] × [450..650]; pega-se perto do canto, longe do meio. */
-const PEGA = { x: 320, y: 470 }
+/** Sala retangular [300..500] × [450..650]; pega-se perto do canto da direita, longe do meio (o da esquerda fica embaixo do livro do mestre, que cobre a janela até x 326). */
+const PEGA = { x: 480, y: 470 }
 /** Faixa entre as duas salas (a redonda acaba em y = 300, a retangular começa em 450). */
 const Y_ENTRE_AS_SALAS = 375
 

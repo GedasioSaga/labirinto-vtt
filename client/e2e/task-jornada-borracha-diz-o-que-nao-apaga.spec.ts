@@ -45,7 +45,8 @@ interface Ponto {
 }
 
 /** Peça de chão do teste: retângulo das colunas 5..12 e linhas 4..9. */
-const CHAO_DE = { x: 5 * GRADE, y: 4 * GRADE }
+// Coluna 6, não 5: a 5 (x 320) fica embaixo do livro do mestre (fatia 2), que cobre a janela até x 326.
+const CHAO_DE = { x: 6 * GRADE, y: 4 * GRADE }
 const CHAO_ATE = { x: 12 * GRADE, y: 9 * GRADE }
 const MEIO_DO_CHAO = { x: 8 * GRADE + GRADE / 2, y: 6 * GRADE + GRADE / 2 }
 /** Traço à mão, longe do chão, na horizontal. */

@@ -19,6 +19,7 @@
  */
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { escolherNoArquivo } from './helpers/livroDoMestre'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 
 /** Palavras que qualquer versão razoável da pergunta tem de conter. */
@@ -95,7 +96,7 @@ test('a pergunta do Ctrl+O oferece uma saída para não perder o desenho', async
 test('o botão "Abrir..." da barra pergunta antes de descartar a sala não salva', async ({ page }) => {
   await desenharSalaSemSalvar(page)
 
-  await page.getByRole('button', { name: 'Abrir...' }).click()
+  await escolherNoArquivo(page, 'Abrir…')
 
   await expect(
     page.getByText(TEXTO_DA_PERGUNTA).first(),

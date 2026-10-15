@@ -72,6 +72,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { Drawing, MapData, Pin, Region, Token, Wall } from '../src/types/map'
 import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -522,7 +523,7 @@ async function aproximarNaEntrada(page: Page): Promise<void> {
 }
 
 function campoNome(page: Page): Locator {
-  return page.getByRole('region', { name: 'Mapa' }).getByLabel('Nome', { exact: true })
+  return page.getByRole('complementary', { name: 'Livro do mestre' }).getByLabel('Nome', { exact: true })
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -532,6 +533,8 @@ function campoNome(page: Page): Locator {
 /** Clique no botão que abre a lista; devolve o painel dela. */
 async function abrirLista(page: Page): Promise<Locator> {
   await esconderColunaDireita(page)
+  // Fatia 2: "Objetos do mapa" mora na página Cena do livro do mestre.
+  await abrirPaginaDoLivro(page, 'Cena')
   const botao = page.getByRole('button', { name: BOTAO_DA_LISTA }).first()
   await expect(botao, 'a tela do mestre deveria ter um botão "Lista de objetos" / "Objetos do mapa"').toBeVisible({ timeout: ESPERA })
   if ((await botao.getAttribute('aria-expanded')) !== 'true') await botao.click()

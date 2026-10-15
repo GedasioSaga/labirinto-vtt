@@ -24,8 +24,8 @@ const BORDA_QUE_SE_VE = 750
 const MESA_EM_PE: Prop = { id: 'mesa', src: '', x: 800, y: 200, width: 200, height: 100, linkedMapPath: null, mobilia: 'mesa', rotation: 90 }
 const ESCADA_EM_PE: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 800, y1: 100, x2: 800, y2: 300 }], stepWidth: 100 }
 
-/** Sala retangular [300..500] × [450..650]; pega-se perto do canto, longe do nome. */
-const PEGA = { x: 320, y: 470 }
+/** Sala retangular [300..500] × [450..650]; pega-se perto do canto da direita, longe do nome (o da esquerda fica embaixo do livro do mestre, que cobre a janela até x 326). */
+const PEGA = { x: 480, y: 470 }
 /**
  * +452 leva a borda esquerda da sala (300) a 752: 2 px da borda que se vê e
  * 52 px de qualquer âncora da caixa antiga (700/800/900 da mesa sem giro, 800

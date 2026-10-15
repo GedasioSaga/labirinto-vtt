@@ -39,8 +39,8 @@ interface Estado {
 }
 
 /** A linha torta do gesto, em px do canvas (mapa novo: câmera na origem, 1 px de tela = 1 px de mundo). */
-const DE = { x: 300, y: 200 }
-const ATE = { x: 360, y: 420 }
+const DE = { x: 400, y: 200 }
+const ATE = { x: 460, y: 420 }
 const MEIO = { x: (DE.x + ATE.x) / 2, y: (DE.y + ATE.y) / 2 }
 
 /** Bem mais que a vida do fantasma: se ele fosse aparecer, já teria aparecido e sumido. */

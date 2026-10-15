@@ -135,8 +135,8 @@ function ChevronDownIcon() {
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)
-/** Primeiro x livre à direita do painel lateral. */
-const HINT_MIN_LEFT = parseFloat(theme.layout.railWidth) + EDGE_GAP * 2
+/** Primeiro x livre à direita do livro do mestre. */
+const HINT_MIN_LEFT = parseFloat(theme.layout.livroDoMestre) + EDGE_GAP
 
 /* ---------------------------------------------- eco da escolha de variante */
 

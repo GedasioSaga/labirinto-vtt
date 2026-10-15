@@ -60,6 +60,7 @@
 // mapa e que a linha "Salas" conta a sala desenhada. Sem ele, o vermelho dos
 // testes 2 a 4 poderia ser a infraestrutura quebrada, e não a feature ausente.
 import { test, expect, type Page } from '@playwright/test'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. Fuso fixo para a hora
 // da cópia ser conferível daqui.
@@ -246,6 +247,8 @@ async function salvar(page: Page): Promise<void> {
 async function conferirSalasNaTela(page: Page, n: number, porque: string): Promise<void> {
   const abaMapa = page.getByRole('tab', { name: 'Mapa' })
   if ((await abaMapa.count()) > 0) await abaMapa.click()
+  // "Camadas" mora na página Cena do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(page, 'Cena')
   const cabecalho = page.getByRole('button', { name: 'Camadas', exact: true })
   await expect(cabecalho, 'o painel do editor deveria ter a seção "Camadas"').toBeVisible({ timeout: ESPERA })
   if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()

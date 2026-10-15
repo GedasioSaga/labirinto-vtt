@@ -605,7 +605,7 @@ async function primeiroVisivel(candidatos: Locator[], ate: number): Promise<Loca
  * Termina com o botão "Soltar" visível na aba Mapa.
  */
 async function mestrePrendeLuzNaFicha(mestre: Page, pontos: { ficha: Ponto; luz: Ponto }): Promise<void> {
-  const painel = mestre.getByRole('region', { name: 'Mapa' })
+  const painel = mestre.getByRole('complementary', { name: 'Livro do mestre' })
   await tocar(mestre, pontos.luz)
   await expect(painel.getByRole('slider', { name: 'Intensidade' }), 'tocar a luz com Selecionar deveria abrir o painel "Luz"').toBeVisible({ timeout: ESPERA })
 
@@ -660,7 +660,7 @@ test('1. controle: Ana vê a ficha e o halo; o mestre seleciona a luz e arrasta 
 
   // Tocar a luz abre o painel dela: é o ponto de partida da feature.
   await tocar(page, noMestre.luz)
-  await expect(page.getByRole('region', { name: 'Mapa' }).getByRole('slider', { name: 'Intensidade' }), 'tocar a luz deveria abrir "Intensidade"').toBeVisible({ timeout: ESPERA })
+  await expect(page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('slider', { name: 'Intensidade' }), 'tocar a luz deveria abrir "Intensidade"').toBeVisible({ timeout: ESPERA })
 
   // Arrastar a ficha funciona hoje, no editor e na tela de Ana; a luz solta fica onde está.
   const emAnaAntes = await centros(ana, J1)
@@ -720,7 +720,7 @@ test('6. soltar: depois de "Soltar" a ficha anda sozinha e a luz fica onde estav
   const escala = escalaDaTela(inicio)
   await mestrePrendeLuzNaFicha(page, inicio)
 
-  const painel = page.getByRole('region', { name: 'Mapa' })
+  const painel = page.getByRole('complementary', { name: 'Livro do mestre' })
   const soltar = painel.getByRole('button', { name: SOLTAR }).first()
   await soltar.click()
   await expect(soltar, '"Soltar" deveria desprender e sumir do painel').toBeHidden({ timeout: ESPERA })

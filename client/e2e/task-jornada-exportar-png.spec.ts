@@ -376,6 +376,8 @@ async function marcar(controle: Locator, ligado: boolean, descricao: string): Pr
 async function exportarImagem(mestre: Mestre, opcoes: { grade: boolean; mestre: boolean }): Promise<Foto> {
   const { page } = mestre
   const antes = (await arquivosRecebidos(mestre)).length
+  // O item mora no menu Arquivo do topo do livro do mestre (fatia 2): um clique abre o menu.
+  await page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: 'Arquivo', exact: true }).click()
   const item = itemExportarImagem(page)
   await expect(item, 'o editor deveria ter um item "Exportar imagem"').toBeVisible({ timeout: ESPERA })
   await item.click()
@@ -568,8 +570,8 @@ test('1. controle: o mapa abre com chão, grade, ficha visível e ficha oculta n
   test.setTimeout(180_000)
   await mestreAbreOMapa(page)
 
-  // O rodapé de ações de arquivo existe e tem a exportação de hoje (a de pasta).
-  await expect(page.getByRole('button', { name: 'Exportar mapa (pasta)' }), 'o rodapé de ações de arquivo deveria estar no editor').toBeVisible({ timeout: ESPERA })
+  // As ações de arquivo existem: o menu Arquivo do topo do livro do mestre (fatia 2), com a exportação de pasta.
+  await expect(page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: 'Arquivo', exact: true }), 'o menu Arquivo deveria estar no editor').toBeVisible({ timeout: ESPERA })
 
   // A mesma função que vai ler o PNG exportado enxerga tudo na foto da tela.
   await expect

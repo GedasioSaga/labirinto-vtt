@@ -28,6 +28,7 @@
 // toda afirmação é sobre texto VISÍVEL na tela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /** Trecho do aviso que `lib/tokenLibrary.ts` (`SEM_FOTO_PARA_SALVAR`) manda
  *  para a tela por `App.tsx` (`reportFileError`). A jornada cobra o PEDAÇO que
@@ -208,7 +209,9 @@ test('CONTROLE POSITIVO: mandar guardar um token sem foto responde na tela, e a 
   await expect(aviso).toBeVisible({ timeout: 15_000 })
 
   // E o token NÃO entrou na estante: o estado vazio continua lá.
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByText('Nenhum token no acervo ainda.')).toBeVisible()
+  await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Goblin no mapa' })).toHaveCount(0)
 })
 

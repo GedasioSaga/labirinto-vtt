@@ -106,3 +106,40 @@ describe('painel de propriedades — mapa inteiro sem seleção', () => {
     expect(cabecalho('Território').getAttribute('aria-expanded')).toBe('true')
   })
 })
+
+describe('painel de propriedades — a ferramenta Chão na mão', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    const mapa = createEmptyMap('m1', 'Cripta do Farol', 30, 20, 64)
+    useMapStore.setState({
+      map: { ...mapa, floorStyle: { ...mapa.floorStyle, strokeColor: '#222222' } },
+      camera: { x: 0, y: 0, scale: 1 },
+      selection: EMPTY_SELECTION,
+      past: [],
+      future: [],
+    })
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('o "Chão do mapa" da Ficha e o da página Cena não repetem id: cada rótulo aponta o campo da própria página', () => {
+    act(() => root.render(<PropertiesPanel {...propsDoPainel(null, { activeTool: 'floor', groups: relevantPropertyGroups('floor') })} />))
+    const ids = [...container.querySelectorAll('[id]')].map((el) => el.id)
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
+    const rotulos = [...container.querySelectorAll('label')].filter((l) => l.textContent?.trim() === 'Cor do chão')
+    expect(rotulos).toHaveLength(2)
+    for (const rotulo of rotulos) {
+      const campo = document.getElementById(rotulo.htmlFor)
+      expect(campo?.closest('.gr-folha')).toBe(rotulo.closest('.gr-folha'))
+    }
+  })
+})

@@ -28,6 +28,8 @@ export interface MarcadoresProps<P extends string> {
   controla: string
   /** Livro recolhido: a fita some e o marcador aberto volta à cor gravada. */
   recolhido?: boolean
+  /** `false`: a fita pula para a página nova sem deslizar (troca pelo teclado, de uso constante). */
+  animar?: boolean
 }
 
 /**
@@ -37,7 +39,7 @@ export interface MarcadoresProps<P extends string> {
  * no marcador aberto. A fita é movida direto no elemento, sem render: a
  * primeira posição e o movimento reduzido chegam sem animação.
  */
-export function Marcadores<P extends string>({ rotulo, paginas, atual, onTrocar, controla, recolhido }: MarcadoresProps<P>) {
+export function Marcadores<P extends string>({ rotulo, paginas, atual, onTrocar, controla, recolhido, animar = true }: MarcadoresProps<P>) {
   const lista = useRef<HTMLDivElement>(null)
   const fita = useRef<HTMLSpanElement>(null)
   const jaPosicionou = useRef(false)
@@ -46,7 +48,7 @@ export function Marcadores<P extends string>({ rotulo, paginas, atual, onTrocar,
     const aberto = lista.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
     const elemento = fita.current
     if (!aberto || !elemento) return
-    const semAnimar = !jaPosicionou.current || movimentoReduzido()
+    const semAnimar = !jaPosicionou.current || !animar || movimentoReduzido()
     jaPosicionou.current = true
     if (semAnimar) elemento.classList.add('gr-sem-anim')
     elemento.style.transform = `translateY(${aberto.offsetTop}px)`

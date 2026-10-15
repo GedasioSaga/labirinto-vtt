@@ -99,9 +99,9 @@ test('4. arrasto contínuo com borracha apaga várias paredes sob o cursor', asy
   if (!box) throw new Error('canvas sem bounding box')
 
   await selectTool(page, 'Parede')
-  await page.mouse.move(box.x + 300, box.y + 300)
+  await page.mouse.move(box.x + 350, box.y + 300)
   await page.mouse.down()
-  await page.mouse.move(box.x + 300, box.y + 340, { steps: 5 })
+  await page.mouse.move(box.x + 350, box.y + 340, { steps: 5 })
   await page.mouse.up()
 
   await page.mouse.move(box.x + 500, box.y + 300)
@@ -111,7 +111,7 @@ test('4. arrasto contínuo com borracha apaga várias paredes sob o cursor', asy
   expect((await getMapState(page)).walls.length).toBe(2)
 
   await selectTool(page, 'Borracha')
-  await page.mouse.move(box.x + 300, box.y + 320)
+  await page.mouse.move(box.x + 350, box.y + 320)
   await page.mouse.down()
   await page.mouse.move(box.x + 400, box.y + 320, { steps: 5 })
   await page.mouse.move(box.x + 500, box.y + 320, { steps: 5 })

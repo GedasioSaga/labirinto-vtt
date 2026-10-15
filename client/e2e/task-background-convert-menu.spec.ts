@@ -1,6 +1,7 @@
-// E2E do menu "Imagem de fundo e conversão" da barra de baixo: os três botões
-// de conversão saíram do painel de Chão e agora só existem, pelo botão de
-// imagem, quando o mapa tem imagem de fundo. Prova o caminho de UI inteiro
+// E2E de "Imagem de fundo e conversão", hoje um trecho do menu Arquivo do topo
+// do livro do mestre (fatia 2; antes era um botão da barra de baixo): os três
+// botões de conversão saíram do painel de Chão e agora só existem, no menu,
+// quando o mapa tem imagem de fundo. Prova o caminho de UI inteiro
 // até a store: menu -> "Chão a partir da imagem" -> peças de chão criadas.
 //
 // A imagem é gerada no próprio navegador (canvas -> data URL), sem arquivo de
@@ -71,12 +72,15 @@ async function loadGreenFloorBackground(page: Page, withDetails = false) {
   )
 }
 
+/** O menu Arquivo do topo do livro do mestre (fatia 2): a imagem de fundo e as conversões moram nele. */
+function arquivo(page: Page) {
+  return page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: 'Arquivo', exact: true })
+}
+
 async function chooseMenuItem(page: Page, name: string) {
-  const trigger = page
-    .getByRole('toolbar', { name: 'Ações do mapa' })
-    .getByRole('button', { name: 'Imagem de fundo e conversão', exact: true })
+  const trigger = arquivo(page)
   await trigger.click()
-  const menu = page.getByRole('menu', { name: 'Imagem de fundo e conversão' })
+  const menu = page.getByRole('menu', { name: 'Arquivo' })
   await expect(menu).toBeVisible()
   await menu.getByRole('menuitem', { name, exact: true }).click()
   await expect(menu).toHaveCount(0)
@@ -97,30 +101,34 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('1. sem imagem o botão só importa; com imagem abre o menu e "Chão a partir da imagem" cria peças', async ({ page }) => {
-  const actions = page.getByRole('toolbar', { name: 'Ações do mapa' })
-  // Sem imagem: nome de importar, sem menu, e os botões de conversão não estão mais no painel.
-  const importButton = actions.getByRole('button', { name: 'Importar imagem de fundo', exact: true })
-  await expect(importButton).toBeVisible()
-  await expect(importButton).not.toHaveAttribute('aria-haspopup', /.*/)
+  const trigger = arquivo(page)
+  const menu = page.getByRole('menu', { name: 'Arquivo' })
+  const conversoes = menu.getByRole('menuitem', { name: /a partir da imagem|Recriar minimapa/ })
+  // Sem imagem: o menu só importa uma, e os botões de conversão não estão no painel nem no menu.
+  await trigger.click()
+  await expect(menu.getByRole('menuitem', { name: 'Importar imagem de fundo…', exact: true })).toBeVisible()
+  await expect(conversoes).toHaveCount(0)
   await expect(page.getByRole('button', { name: /a partir da imagem/ })).toHaveCount(0)
   await expect(page.getByText('Importe uma imagem de fundo para usar.')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
 
   await loadGreenFloorBackground(page)
   expect(await getFloor(page)).toEqual([])
 
-  const trigger = actions.getByRole('button', { name: 'Imagem de fundo e conversão', exact: true })
   await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
   await expect(trigger).toHaveAttribute('aria-expanded', 'false')
   await trigger.click()
 
-  const menu = page.getByRole('menu', { name: 'Imagem de fundo e conversão' })
   await expect(menu).toBeVisible()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-  await expect(menu.getByRole('menuitem')).toHaveCount(4)
-  await expect(menu.getByRole('menuitem', { name: 'Trocar imagem de fundo', exact: true })).toBeFocused()
+  const trocar = menu.getByRole('menuitem', { name: 'Trocar imagem de fundo…', exact: true })
+  await expect(trocar).toBeVisible()
+  await expect(conversoes).toHaveCount(3)
 
+  // As setas andam pelo menu: da troca de imagem, a seta para baixo chega ao chão.
   const floorItem = menu.getByRole('menuitem', { name: 'Chão a partir da imagem', exact: true })
-  await expect(floorItem).toHaveAccessibleDescription('Cria o chão por peças seguindo as áreas da imagem.')
+  await trocar.focus()
   await page.keyboard.press('ArrowDown')
   await expect(floorItem).toBeFocused()
   await floorItem.click()
@@ -151,11 +159,9 @@ test('1. sem imagem o botão só importa; com imagem abre o menu e "Chão a part
 
 test('2. Esc fecha o menu, devolve o foco ao botão e não cria nada', async ({ page }) => {
   await loadGreenFloorBackground(page)
-  const trigger = page
-    .getByRole('toolbar', { name: 'Ações do mapa' })
-    .getByRole('button', { name: 'Imagem de fundo e conversão', exact: true })
+  const trigger = arquivo(page)
   await trigger.click()
-  const menu = page.getByRole('menu', { name: 'Imagem de fundo e conversão' })
+  const menu = page.getByRole('menu', { name: 'Arquivo' })
   await expect(menu).toBeVisible()
 
   await page.keyboard.press('Escape')

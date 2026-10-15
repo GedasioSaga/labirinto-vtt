@@ -10,7 +10,9 @@ import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTextControls'
 import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
-import { PainelCategoriasControls } from './PainelCategoriasControls'
+import { Balao } from './grimorio/Balao'
+import { Botao } from './grimorio/Botao'
+import { IconeDoLivro } from './livro/icones'
 import { SistemaDeRpgDoMapa } from './SistemaDeRpgControls'
 import { FEATURES } from '../lib/features'
 import { theme } from '../theme'
@@ -174,7 +176,6 @@ export function MapSettingsDialog({
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
           {/* Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela. */}
           <SistemaDeRpgDoMapa />
-          <PainelCategoriasControls />
         </div>
       </div>
     </div>,
@@ -183,7 +184,15 @@ export function MapSettingsDialog({
 }
 
 /** Engrenagem do cabeçalho do painel: abre a janela e devolve o foco a ela ao fechar. */
-export function MapSettingsButton({ showScenarioLink, ...props }: MapSettingsProps & ScenarioLinkVisibility) {
+export function MapSettingsButton({
+  showScenarioLink,
+  aparencia = 'painel',
+  ...props
+}: MapSettingsProps &
+  ScenarioLinkVisibility & {
+    /** `livro`: a engrenagem do topo do livro do mestre (Grimório), com balão. */
+    aparencia?: 'painel' | 'livro'
+  }) {
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
@@ -192,6 +201,33 @@ export function MapSettingsButton({ showScenarioLink, ...props }: MapSettingsPro
     buttonRef.current?.focus()
   }
 
+  const janela = open && <MapSettingsDialog {...props} showScenarioLink={showScenarioLink} onClose={close} />
+  if (aparencia === 'livro') {
+    return (
+      <>
+        <Balao texto="Configurações do mapa">
+          {(gatilho) => (
+            <Botao
+              soIcone
+              tamanho="p"
+              aria-label="Configurações do mapa"
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              {...gatilho}
+              ref={(no) => {
+                gatilho.ref(no)
+                buttonRef.current = no
+              }}
+              onClick={() => setOpen(true)}
+            >
+              <IconeDoLivro nome="engrenagem" />
+            </Botao>
+          )}
+        </Balao>
+        {janela}
+      </>
+    )
+  }
   return (
     <>
       <button
@@ -211,7 +247,7 @@ export function MapSettingsButton({ showScenarioLink, ...props }: MapSettingsPro
       >
         <SettingsIcon size={18} />
       </button>
-      {open && <MapSettingsDialog {...props} showScenarioLink={showScenarioLink} onClose={close} />}
+      {janela}
     </>
   )
 }

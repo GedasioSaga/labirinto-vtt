@@ -22,6 +22,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Pin, Token } from '../src/types/map'
 import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -364,6 +365,8 @@ test('o mestre ouve o dado e a passagem de verdade; o pino de viagem do editor f
 
   // EDITOR: o pino de viagem leva a VISTA do mestre à Cripta. Nenhuma ficha andou: nada toca.
   await esconderColunaDireita(mestre)
+  // "Pinos" mora na página Aventura do livro do mestre (fatia 2).
+  await abrirPaginaDoLivro(mestre, 'Aventura')
   await mestre.getByRole('button', { name: 'Pinos', exact: true }).click()
   await mestre.getByRole('list', { name: 'Pinos da aventura' }).getByRole('button').filter({ hasText: PINO_A }).click()
   await mestre.getByRole('group', { name: 'Destino da viagem' }).getByRole('button', { name: `Ir para ${CENA_B}` }).click()
