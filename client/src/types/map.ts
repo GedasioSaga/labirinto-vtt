@@ -1563,6 +1563,11 @@ export interface Prop extends PlayerSecret, NoPiso {
    *  de sempre — sem linha de migração. Vale só na cerca (`lib/mobilia.ts`
    *  recusa o resto na leitura e na travessia); vai ao jogador junto do tipo. */
   mobiliaCurva?: number
+  /** TAPETE (pedido de 15/10/2026): a "Forma" do tapete. Só `'redondo'` é
+   *  gravado; ausente = retangular — sem linha de migração. Vale só no tapete
+   *  (`lib/mobilia.ts` recusa o resto na leitura e na travessia); vai ao
+   *  jogador junto do tipo. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'>
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
@@ -1585,10 +1590,13 @@ export interface Prop extends PlayerSecret, NoPiso {
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
-export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca' | 'armario' | 'aparador' | 'fogueira'
+export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca' | 'armario' | 'aparador' | 'fogueira' | 'tapete'
 
 /** Vista de um móvel com vista (`lib/mobilia.ts`): de frente (o padrão) ou de lado. */
 export type VistaMobilia = 'frente' | 'lado'
+
+/** "Forma" do tapete (`lib/mobilia.ts`): retangular (o padrão) ou redondo. Só o redondo é gravado. */
+export type FormaDoTapete = 'retangular' | 'redondo'
 
 export interface DrawingPoint {
   x: number

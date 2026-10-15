@@ -131,3 +131,19 @@ describe('mapFile: cerca curva', () => {
     expect(mesa).not.toHaveProperty('mobiliaCurva')
   })
 })
+
+describe('mapFile: tapete', () => {
+  it('o tapete redondo vai e volta do disco; o retangular grava sem o campo', () => {
+    const [redondo] = deserializeMap(serializeMap(comMovel({ mobilia: 'tapete', mobiliaForma: 'redondo' }))).props
+    expect(redondo.mobiliaForma).toBe('redondo')
+    expect(serializeMap(comMovel({ mobilia: 'tapete' }))).not.toContain('mobiliaForma')
+  })
+
+  it('forma torta ou em outro tipo some na leitura; o objeto fica', () => {
+    const [torto] = deserializeMap(`{"id": "torto", "props": [${objeto(', "mobilia": "tapete", "mobiliaForma": "oval"')}]}`).props
+    expect(torto.mobilia).toBe('tapete')
+    expect(torto).not.toHaveProperty('mobiliaForma')
+    const [mesa] = deserializeMap(`{"id": "torto", "props": [${objeto(', "mobilia": "mesa", "mobiliaForma": "redondo"')}]}`).props
+    expect(mesa).not.toHaveProperty('mobiliaForma')
+  })
+})

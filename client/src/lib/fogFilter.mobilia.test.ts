@@ -190,3 +190,18 @@ describe('filterMapForPlayer — mobília desenhada', () => {
     semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'cadeira', mobiliaVista: 'lado', secret: true }), 'ana', POSSE, RAIO).map)
   })
 })
+
+describe('filterMapForPlayer — tapete', () => {
+  it('o tapete redondo chega redondo; o retangular (o padrão) não vira campo', () => {
+    const redondo = filterMapForPlayer(mapa({ mobilia: 'tapete', mobiliaForma: 'redondo' }), 'ana', POSSE, RAIO).map
+    expect(redondo.props).toEqual([{ ...CATRE_DA_ANA, mobilia: 'tapete', mobiliaForma: 'redondo' }])
+    const retangular = filterMapForPlayer(mapa({ mobilia: 'tapete' }), 'ana', POSSE, RAIO).map
+    expect(retangular.props[0]).not.toHaveProperty('mobiliaForma')
+  })
+
+  it('forma em outro tipo não atravessa; tapete escondido não manda nada', () => {
+    const mesa = filterMapForPlayer(mapa({ mobilia: 'mesa', mobiliaForma: 'redondo' }), 'ana', POSSE, RAIO).map
+    expect(mesa.props[0]).not.toHaveProperty('mobiliaForma')
+    semRastroDoMovel(filterMapForPlayer(mapa({ mobilia: 'tapete', mobiliaForma: 'redondo', secret: true }), 'ana', POSSE, RAIO).map)
+  })
+})

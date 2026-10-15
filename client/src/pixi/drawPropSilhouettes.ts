@@ -3,13 +3,18 @@ import type { Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 import {
   contornoDeLado,
+  contornoDoTapete,
+  desenhoDoTapete,
   ehMovelRedondo,
   ehMovelVazado,
+  emOrdemDeDesenho,
+  formaDoTapete,
   normalizarCorDoMovel,
   pontosDaElipse,
   tracosDoGlifo,
   vistaDoMovel,
   voltaDaCerca,
+  type RegiaoDoMovel,
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { WALL_COLOR } from './drawWalls'
@@ -55,6 +60,13 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './p
  * retângulo pelo PERFIL do móvel (`contornoDeLado`: a cadeira em L, o baú com a
  * tampa em arco, o aparador com o tampo sobrando) e o glifo pelo de lado, com o mesmo giro, as mesmas cores e o
  * mesmo fio. Nos outros tipos a vista não vale (`vistaDoMovel`).
+ *
+ * O TAPETE vai primeiro (`emOrdemDeDesenho`): fica no chão, por baixo de todo
+ * objeto. Sem "Cor" o fundo dele escurece o chão menos que o dos outros
+ * móveis (`RUG_FILL_ALPHA`), para o móvel posto em cima ainda sair um tom
+ * abaixo; borda e medalhão (`desenhoDoTapete`) são uma camada a mais de preto
+ * ou, com "Cor", a mesma cor mais escura. Essas áreas entram entre o fundo e o
+ * fio, para o fio nunca ficar por baixo de uma cor.
  */
 export const PROP_SILHOUETTE_FILL_COLOR = 0x000000
 export const PROP_SILHOUETTE_FILL_ALPHA = 0.35
@@ -64,11 +76,28 @@ export const PROP_SILHOUETTE_EDGE_ALPHA = 0.5
 export const PROP_SILHOUETTE_EDGE_SCREEN_PX = 1
 /** Cor escolhida pelo mestre sai chapada: opaca, sem a transparência do padrão. */
 const PROP_OWN_COLOR_ALPHA = 1
+/** Fundo do tapete sem "Cor": mais claro que o dos outros móveis (0,35), o móvel em cima dele sai um tom abaixo. */
+export const RUG_FILL_ALPHA = 0.2
+/** Borda e medalhão do tapete sem "Cor": mais uma camada de preto por cima do fundo (0,2 + 0,22 dá ~0,38 do chão). */
+export const RUG_DARK_ALPHA = 0.22
+/** Borda e medalhão do tapete com "Cor": cada canal da cor x 0,70 (o mesmo matiz, mais perto do preto). */
+const RUG_DARK_KEEP = 0.7
 
 /** O que a silhueta usa do objeto: a geometria, o tipo e a aparência do móvel, nunca a imagem. */
 export type PropSilhouette = Pick<
   Prop,
-  'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaPreenchido' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva'
+  | 'x'
+  | 'y'
+  | 'width'
+  | 'height'
+  | 'rotation'
+  | 'mobilia'
+  | 'mobiliaPreenchido'
+  | 'mobiliaCor'
+  | 'mobiliaCorDaLinha'
+  | 'mobiliaVista'
+  | 'mobiliaCurva'
+  | 'mobiliaForma'
 >
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
@@ -81,10 +110,14 @@ interface SilhouettePaint {
 interface SilhouetteStyle {
   fill: SilhouettePaint | null
   edge: SilhouettePaint
+  /** Borda e medalhão do tapete: a "Cor" mais escura, ou mais uma camada de preto sem ela. */
+  dark: SilhouettePaint
 }
 
 const DEFAULT_FILL: SilhouettePaint = { color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA }
 const DEFAULT_EDGE: SilhouettePaint = { color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA }
+const RUG_DEFAULT_FILL: SilhouettePaint = { color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_FILL_ALPHA }
+const RUG_DEFAULT_DARK: SilhouettePaint = { color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_DARK_ALPHA }
 
 /** A cor própria do móvel, ou `null` se ausente ou torta (vale o padrão). */
 function ownPaint(value: unknown): SilhouettePaint | null {
@@ -92,12 +125,21 @@ function ownPaint(value: unknown): SilhouettePaint | null {
   return color === null ? null : { color, alpha: PROP_OWN_COLOR_ALPHA }
 }
 
+/** A cor com cada canal x `RUG_DARK_KEEP`: o tom escuro da borda e do medalhão do tapete. */
+function darker(color: number): number {
+  const channel = (shift: number): number => Math.round(((color >> shift) & 0xff) * RUG_DARK_KEEP)
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0)
+}
+
 /** Aparência de um objeto: a de sempre, ou a que o mestre deu ao móvel. */
 function silhouetteStyle(prop: PropSilhouette): SilhouetteStyle {
-  if (prop.mobilia === undefined) return { fill: DEFAULT_FILL, edge: DEFAULT_EDGE }
+  if (prop.mobilia === undefined) return { fill: DEFAULT_FILL, edge: DEFAULT_EDGE, dark: RUG_DEFAULT_DARK }
+  const own = ownPaint(prop.mobiliaCor)
+  const defaultFill = prop.mobilia === 'tapete' ? RUG_DEFAULT_FILL : DEFAULT_FILL
   return {
-    fill: prop.mobiliaPreenchido === false ? null : (ownPaint(prop.mobiliaCor) ?? DEFAULT_FILL),
+    fill: prop.mobiliaPreenchido === false ? null : (own ?? defaultFill),
     edge: ownPaint(prop.mobiliaCorDaLinha) ?? DEFAULT_EDGE,
+    dark: own === null ? RUG_DEFAULT_DARK : { color: darker(own.color), alpha: PROP_OWN_COLOR_ALPHA },
   }
 }
 
@@ -159,24 +201,71 @@ function flatten(points: readonly Point[]): number[] {
  *
  * Alinhado aos eixos, cada vértice encosta no pixel físico: sem isso o contorno
  * de 1 px cai entre dois pixels e vira 2 px cinza (`pixelAlign.ts`). Girado em
- * outro ângulo, a borda é diagonal e não há pixel a encostar. O perfil de lado,
- * depois de encostar, perde os vértices que caíram no mesmo pixel; se de tão
- * pequeno sobrar menos que um triângulo, sai sem encostar (o retângulo segue
- * como sempre foi).
+ * outro ângulo, a borda é diagonal e não há pixel a encostar. O perfil de lado
+ * (e o tapete, que tem contorno próprio), depois de encostar, perde os
+ * vértices que caíram no mesmo pixel; se de tão pequeno sobrar menos que um
+ * triângulo, sai sem encostar (o retângulo segue como sempre foi).
  */
 function silhouettePolygon(prop: PropSilhouette, grid: PixelGrid): number[] {
-  const trig = rotationTrig(prop.rotation ?? 0)
-  const center = { x: prop.x, y: prop.y }
-  const sideOutline = vistaDoMovel(prop) === 'lado' ? contornoDeLado(prop.mobilia, prop.width, prop.height) : null
-  const rotated = (sideOutline ?? rectangleOffsets(prop.width, prop.height)).map((offset) =>
-    rotatePointAround({ x: prop.x + offset.x, y: prop.y + offset.y }, center, trig),
-  )
-  const axisAligned = trig.sin === 0 || trig.cos === 0
-  if (!axisAligned) return flatten(rotated)
+  const own = ownOutline(prop)
+  const rotated = placedPoints(prop, own ?? rectangleOffsets(prop.width, prop.height), null)
+  if (!isAxisAligned(prop)) return flatten(rotated)
   const aligned = rotated.map((p) => ({ x: alignToPixel(p.x, grid), y: alignToPixel(p.y, grid) }))
-  if (sideOutline === null) return flatten(aligned)
+  if (own === null) return flatten(aligned)
   const distinct = withoutRepeatedNeighbours(aligned)
   return flatten(distinct.length >= MIN_POLYGON_POINTS ? distinct : rotated)
+}
+
+/** Giro em quarto de volta exato: as bordas retas correm nos eixos da tela. */
+function isAxisAligned(prop: PropSilhouette): boolean {
+  const trig = rotationTrig(prop.rotation ?? 0)
+  return trig.sin === 0 || trig.cos === 0
+}
+
+/**
+ * Pontos do referencial do objeto (centro na origem, sem giro) girados com ele.
+ * Com `grid` e alinhado aos eixos, cada vértice encosta no pixel físico; sem
+ * `grid` (curva) ou girado em outro ângulo, devolve os pontos girados.
+ */
+function placedPoints(prop: PropSilhouette, offsets: readonly Point[], grid: PixelGrid | null): Point[] {
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const center = { x: prop.x, y: prop.y }
+  const rotated = offsets.map((offset) => rotatePointAround({ x: prop.x + offset.x, y: prop.y + offset.y }, center, trig))
+  if (grid === null || !isAxisAligned(prop)) return rotated
+  return rotated.map((p) => ({ x: alignToPixel(p.x, grid), y: alignToPixel(p.y, grid) }))
+}
+
+/** O contorno do móvel quando não é o retângulo do objeto: o perfil de lado ou o tapete. `null` = o retângulo. */
+function ownOutline(prop: PropSilhouette): Point[] | null {
+  const vista = vistaDoMovel(prop)
+  if (vista === 'lado') return contornoDeLado(prop.mobilia, prop.width, prop.height, formaDoTapete(prop))
+  if (prop.mobilia === 'tapete') return contornoDoTapete(formaDoTapete(prop), prop.width, prop.height, vista)
+  return null
+}
+
+/** Silhueta curva (a elipse inscrita): o barril, a fogueira de cima e o tapete redondo de cima. */
+function hasRoundSilhouette(prop: PropSilhouette): boolean {
+  const vista = vistaDoMovel(prop)
+  return ehMovelRedondo(prop.mobilia, vista) || (prop.mobilia === 'tapete' && vista === 'frente' && formaDoTapete(prop) === 'redondo')
+}
+
+/** As áreas de cor própria do móvel, no referencial dele: a borda e o medalhão do tapete. */
+function furnitureAreas(prop: PropSilhouette): RegiaoDoMovel[] {
+  if (prop.mobilia !== 'tapete') return []
+  return desenhoDoTapete(formaDoTapete(prop), prop.width, prop.height, vistaDoMovel(prop)).regioes
+}
+
+/**
+ * Pinta as áreas de cor própria por cima do fundo, cada uma alinhada ao pixel
+ * como a silhueta (`grid: null` na silhueta curva). Devolve se pintou alguma:
+ * aí o contorno precisa ser posto de novo para o fio.
+ */
+function fillFurnitureAreas(graphics: Graphics, prop: PropSilhouette, style: SilhouetteStyle, grid: PixelGrid | null): boolean {
+  const areas = furnitureAreas(prop)
+  for (const area of areas) {
+    graphics.poly(flatten(placedPoints(prop, area.pontos, grid)), true).fill(style.dark)
+  }
+  return areas.length > 0
 }
 
 /**
@@ -204,7 +293,7 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  */
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop))
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop))
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }
@@ -231,7 +320,8 @@ export function drawPropSilhouettes(
   const grid = pixelGrid(cameraScale, rendererResolution, PROP_SILHOUETTE_EDGE_SCREEN_PX)
   const edgeWidth = strokeWidthInWorld(grid)
   let drawn = 0
-  for (const prop of props) {
+  // O tapete fica no chão: pintado antes, por baixo de todo objeto.
+  for (const prop of emOrdemDeDesenho(props)) {
     if (!hasDrawableGeometry(prop)) continue
     const style = silhouetteStyle(prop)
     if (ehMovelVazado(prop.mobilia)) {
@@ -241,9 +331,14 @@ export function drawPropSilhouettes(
       continue
     }
     // A fogueira é redonda só de cima: de lado vale o perfil das pedras.
-    const outline = ehMovelRedondo(prop.mobilia, vistaDoMovel(prop)) ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
+    const round = hasRoundSilhouette(prop)
+    const outline = round ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
     graphics.poly(outline, true)
-    if (style.fill !== null) graphics.fill(style.fill)
+    if (style.fill !== null) {
+      graphics.fill(style.fill)
+      // Áreas de cor própria entre o fundo e o fio; depois delas o contorno volta para o fio.
+      if (fillFurnitureAreas(graphics, prop, style, round ? null : grid)) graphics.poly(outline, true)
+    }
     graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })
     strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
     drawn += 1

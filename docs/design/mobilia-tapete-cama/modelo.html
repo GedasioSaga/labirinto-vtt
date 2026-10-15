@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tapete e cama</title>
+<style>
+/* Página: tokens próprios, claro e escuro. O mapa (bancada #2b2b2b) e o painel ficam
+   no escuro do app em qualquer tema: o Labirinto só tem o tema de pedra e latão. */
+:root {
+  color-scheme: light;
+  --bg: #f3f0e9;
+  --cartao: #fbfaf6;
+  --ink: #23211d;
+  --ink-2: #4f4b44;
+  --ink-3: #6f6a62;
+  --rule: #d9d3c7;
+  --destaque: #8a5a14;
+  --bancada: #2b2b2b;
+  --f-display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* Tokens do APP (client/src/theme.ts), copiados como estão: o painel do mock usa só estes. */
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --lb-font-utility: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Small", "Segoe UI", system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #161618;
+    --cartao: #1e1e21;
+    --ink: #eceae4;
+    --ink-2: #b9b6ae;
+    --ink-3: #94918a;
+    --rule: #303035;
+    --destaque: #e0a44a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161618;
+  --cartao: #1e1e21;
+  --ink: #eceae4;
+  --ink-2: #b9b6ae;
+  --ink-3: #94918a;
+  --rule: #303035;
+  --destaque: #e0a44a;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; padding: 0 16px 64px; }
+.coluna { max-width: 1080px; margin-inline: auto; display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.05; letter-spacing: -0.005em; }
+h2 { font-size: 23px; line-height: 1.15; }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; max-width: 70ch; }
+.rotulo { font-family: var(--f-display); font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+code { font-family: var(--f-mono); font-size: 0.88em; }
+
+header.abertura { display: grid; gap: 12px; padding-top: 32px; }
+.abertura p { color: var(--ink-2); font-size: 16px; }
+section { display: grid; gap: 14px; min-width: 0; }
+.cabeca { display: grid; gap: 6px; }
+.cabeca p { color: var(--ink-2); }
+.bancada { background: var(--bancada); border-radius: 6px; padding: 16px; display: grid; gap: 16px; min-width: 0; color: #d9d5cc; }
+.rolar { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.rolar canvas { display: block; }
+figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
+figcaption { font-size: 13px; color: #a8a49b; }
+figcaption b { color: #ece6da; font-weight: 600; }
+.lado-a-lado { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.nota { font-size: 13.5px; color: var(--ink-2); }
+.nota strong { color: var(--ink); }
+
+/* Tira de camas: cada uma com a legenda das três cores. */
+.camas { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px 12px; }
+.cama-figura { display: grid; gap: 6px; justify-items: start; }
+.cama-figura figcaption { line-height: 1.35; }
+.cama-figura .hoje { color: var(--lb-color-brass); font-weight: 600; }
+.prova { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 13px; color: #c9c4b9; }
+.prova .ok { color: #9fd0a6; font-weight: 600; }
+.prova .falhou { color: #f0a097; font-weight: 600; }
+
+/* Alternar de página (fora do estilo do app: é controle do protótipo). */
+.alternar { font: 500 14px/1 var(--f-body); color: #ece6da; background: #34322f; border: 1px solid #4a4640; border-radius: 6px; padding: 10px 14px; min-height: 40px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; transition: transform 140ms var(--ease-out), border-color 160ms ease; -webkit-tap-highlight-color: transparent; }
+.alternar:active { transform: scale(0.97); }
+.alternar:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; }
+.alternar .luz { width: 10px; height: 10px; border-radius: 50%; background: #4a4640; transition: background-color 160ms ease; }
+.alternar[aria-pressed="true"] { border-color: var(--lb-color-brass); }
+.alternar[aria-pressed="true"] .luz { background: var(--lb-color-brass); }
+
+/* ------------------------------------------------------------ painel do app (mock) */
+.mock { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.mock-par { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.lb-inspector { width: 264px; max-width: 100%; flex: none; background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); color: var(--lb-color-parchment); font-family: var(--lb-font-sans); font-size: var(--lb-font-size-md); line-height: 1.45; overflow: hidden; }
+.lb-section { display: flex; flex-direction: column; gap: var(--lb-space-3); padding: var(--lb-space-4); }
+.lb-section + .lb-section { border-top: 1px solid var(--lb-color-line); }
+.lb-section__row { display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-3); }
+.lb-eyebrow { margin: 0; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.lb-field { display: flex; flex-direction: column; gap: var(--lb-space-2); }
+.lb-label { font-size: var(--lb-font-size-sm); font-weight: 500; color: var(--lb-color-parchment-dim); }
+.lb-input { width: 100%; min-height: 38px; padding: 0 var(--lb-space-3); border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); color: var(--lb-color-parchment); font-family: inherit; font-size: var(--lb-font-size-md); transition: border-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-input:hover { border-color: var(--lb-color-line-strong); }
+.lb-input:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: var(--lb-shadow-focus); }
+.lb-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--lb-space-1); padding: var(--lb-space-1); border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
+.lb-seg__option { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--lb-space-2) var(--lb-space-1); border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: transparent; color: var(--lb-color-parchment-dim); font-family: inherit; font-size: var(--lb-font-size-sm); font-weight: 500; cursor: pointer; transition: background var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease); -webkit-tap-highlight-color: transparent; }
+.lb-seg__option[aria-checked="true"] { background: var(--lb-color-brass-soft); border-color: rgba(224, 164, 74, 0.28); color: var(--lb-color-brass); }
+.lb-seg__option:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.lb-seg__option svg { display: block; opacity: 0.8; }
+.lb-seg__option[aria-checked="true"] svg { opacity: 1; }
+.lb-switch { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-3); min-height: 30px; cursor: pointer; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); user-select: none; }
+.lb-switch__input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; appearance: none; -webkit-appearance: none; cursor: inherit; }
+.lb-switch__track { position: relative; flex: none; width: 34px; height: 20px; border-radius: var(--lb-radius-full); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line-strong); transition: background var(--lb-motion-base) var(--lb-motion-ease), border-color var(--lb-motion-base) var(--lb-motion-ease); }
+.lb-switch__track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--lb-radius-full); background: var(--lb-color-parchment-faint); pointer-events: none; transition: transform var(--lb-motion-base) var(--lb-motion-ease), background var(--lb-motion-base) var(--lb-motion-ease); }
+.lb-switch__track:has(> .lb-switch__input:checked) { background: var(--lb-color-brass); border-color: var(--lb-color-brass); }
+.lb-switch__track:has(> .lb-switch__input:checked)::after { transform: translateX(14px); background: var(--lb-color-brass-contrast); }
+.lb-switch__track:has(> .lb-switch__input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.lb-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 var(--lb-space-3); border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-family: inherit; font-size: var(--lb-font-size-md); font-weight: 500; cursor: pointer; transition: background var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-btn:active:not(:disabled) { transform: scale(0.97); }
+.lb-btn[hidden] { display: none; }
+.lb-btn--ghost { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.lb-btn:focus-visible, .lb-iconbtn:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.lb-iconbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid transparent; border-radius: var(--lb-radius-md); background: transparent; color: var(--lb-color-parchment-dim); cursor: pointer; transition: background var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-iconbtn:active:not(:disabled) { transform: scale(0.97); }
+.lb-iconbtn[aria-pressed="true"] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass); border-color: rgba(224, 164, 74, 0.28); }
+.lb-iconbtn svg { display: block; }
+.lb-swatch { position: relative; flex: none; width: 34px; height: 34px; padding: 0; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md); background: none; cursor: pointer; overflow: hidden; appearance: none; -webkit-appearance: none; }
+.lb-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.lb-swatch::-webkit-color-swatch { border: none; border-radius: 0; }
+.lb-swatch:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.lb-swatch:disabled { opacity: 0.5; cursor: not-allowed; }
+.lb-campo-cor { display: inline-flex; flex: none; align-items: center; gap: 2px; }
+.lb-campo-cor:has(> .lb-iconbtn[aria-pressed="true"]) > input { border-color: var(--lb-color-brass); }
+.lb-mobilia__color { display: flex; align-items: center; gap: var(--lb-space-2); }
+@media (hover: hover) and (pointer: fine) {
+  .lb-seg__option:hover:not([aria-checked="true"]) { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); }
+  .lb-btn--ghost:hover { background: var(--lb-color-stone-raised); border-color: var(--lb-color-line); color: var(--lb-color-parchment); }
+  .lb-iconbtn:hover:not([aria-pressed="true"]) { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); }
+  .lb-swatch:hover:not(:disabled) { border-color: var(--lb-color-brass); }
+  .lb-switch:hover .lb-switch__track { border-color: var(--lb-color-brass); }
+  .lb-paleta__amostra:hover:not(:disabled) { border-color: var(--lb-color-brass); }
+}
+
+/* NOVO: a paleta de tecido. Uma linha de 9 amostras (Padrão + 8 tons) de 24 px de altura e
+   ~23 de largura, com 26 px de centro a centro (WCAG 2.5.8: o alvo de 24 px passa pelo espaçamento);
+   debaixo da linha da cor; um só ponto de Tab (setas andam dentro). */
+.lb-cor-de-tecido { display: flex; flex-direction: column; gap: var(--lb-space-2); }
+.lb-paleta { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+/* Padrão: a cor da cama riscada na diagonal (não há cor própria). */
+.lb-paleta__amostra--padrao { background: linear-gradient(to top right, transparent calc(50% - 0.75px), var(--lb-color-parchment-dim) calc(50% - 0.75px), var(--lb-color-parchment-dim) calc(50% + 0.75px), transparent calc(50% + 0.75px)), var(--amostra); }
+.lb-paleta__amostra { position: relative; height: 24px; min-width: 0; padding: 0; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); background: var(--amostra); cursor: pointer; transition: border-color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); -webkit-tap-highlight-color: transparent; }
+.lb-paleta__amostra:active:not(:disabled) { transform: scale(0.94); }
+.lb-paleta__amostra:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+/* Marcada: anel de latão com a folga da pedra, por dentro (o foco é por fora). */
+.lb-paleta__amostra[aria-checked="true"] { border-color: var(--lb-color-brass); box-shadow: inset 0 0 0 2px var(--lb-color-stone-solid); }
+.lb-paleta__amostra[aria-checked="true"]:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-color-stone-solid), var(--lb-shadow-focus); }
+.lb-paleta__amostra:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .lb-btn:active:not(:disabled), .lb-iconbtn:active:not(:disabled), .lb-paleta__amostra:active:not(:disabled), .alternar:active { transform: none; }
+}
+
+.previa { display: grid; gap: 8px; }
+.previa canvas { display: block; border-radius: 4px; }
+.previa canvas.mirando { cursor: crosshair; }
+.dica-pipeta { font-size: 12.5px; color: #e0a44a; min-height: 1.4em; }
+
+/* Lista da setinha "Objeto" (mock da do print): só as últimas opções e a nova. */
+.lista-objeto { width: 226px; flex: none; background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); padding: 8px 6px; font-family: var(--lb-font-sans); color: var(--lb-color-parchment); }
+.lista-objeto .lb-eyebrow { padding: 2px 8px 6px; }
+.opcao { display: grid; grid-template-columns: 22px 1fr; gap: 2px 10px; align-items: start; padding: 8px; border: 1px solid transparent; border-radius: var(--lb-radius-md); }
+.opcao svg { margin-top: 2px; color: var(--lb-color-parchment-dim); }
+.opcao b { font-weight: 400; font-size: var(--lb-font-size-md); }
+.opcao span { grid-column: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.35; }
+.opcao.nova { background: var(--lb-color-brass-soft); border-color: rgba(224, 164, 74, 0.28); }
+.opcao.nova b, .opcao.nova svg { color: var(--lb-color-brass); }
+.icones { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--lb-color-parchment-dim); }
+
+.duvidas { display: grid; gap: 10px; padding-left: 20px; margin: 0; color: var(--ink-2); }
+.duvidas strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<main class="coluna">
+  <header class="abertura">
+    <span class="rotulo">Protótipo para aprovar · Objeto</span>
+    <h1>Tapete novo e a cama em três cores</h1>
+    <p>O tapete deita no chão, por baixo de qualquer móvel: borda, losango no meio e franja nas pontas curtas. A "Cor" pinta o campo; borda e losango são a mesma cor mais escura. A cama ganha "Cor do travesseiro" e "Cor do cobertor", com uma paleta de tecido a um clique. Tudo aqui é desenhado com o código do mapa (o glifo da cama, a elipse, o fio de 1 px de tela), empacotado do app.</p>
+  </header>
+
+  <section aria-labelledby="t-mapa">
+    <div class="cabeca">
+      <span class="rotulo">1 · No mapa, de cima</span>
+      <h2 id="t-mapa">Tapetes no chão, em três zooms</h2>
+      <p>Mesa com cadeiras no tapete padrão (sem "Cor"); tapete redondo vinho com um barril; tapete azul girado 25° com um baú; um oval verde (o redondo esticado) com uma cadeira; tapete de pé de cama ocre por baixo das duas camas (a da direita com travesseiro branco e cobertor vermelho). Na lista do mapa os tapetes vêm <em>depois</em> dos móveis; a regra de desenho os põe embaixo assim mesmo.</p>
+    </div>
+    <div class="bancada">
+      <div class="lado-a-lado">
+        <figure><div class="rolar"><canvas id="sala-24" role="img" aria-label="Sala com os tapetes a 24 pixels por casa"></canvas></div><figcaption><b>24 px</b> por casa (longe)</figcaption></figure>
+        <figure><div class="rolar"><canvas id="sala-48" role="img" aria-label="Sala com os tapetes a 48 pixels por casa"></canvas></div><figcaption><b>48 px</b> por casa</figcaption></figure>
+      </div>
+      <figure><div class="rolar"><canvas id="sala-96" role="img" aria-label="Sala com os tapetes a 96 pixels por casa"></canvas></div><figcaption><b>96 px</b> por casa (perto)</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-lado">
+    <div class="cabeca">
+      <span class="rotulo">2 · Vista Lado</span>
+      <h2 id="t-lado">De lado: a faixa deitada no chão</h2>
+      <p>De lado o tapete é uma faixa baixa no chão, com a borda vista de quina nas duas pontas e, no retangular, dois fios de franja caindo até o chão. Pegada de lado: a largura de cima por 1/4 de casa (a altura da cerca, para o clique pegar). Ao lado, a cadeira e o baú de lado de hoje, para a escala.</p>
+    </div>
+    <div class="bancada">
+      <figure><div class="rolar"><canvas id="lado-48" role="img" aria-label="Tapetes de lado a 48 pixels por casa, com cadeira e baú de lado"></canvas></div><figcaption><b>48 px</b> por casa · retangular padrão, retangular vinho, redondo padrão, cadeira e baú de lado</figcaption></figure>
+      <figure><div class="rolar"><canvas id="lado-96" role="img" aria-label="Tapetes de lado a 96 pixels por casa"></canvas></div><figcaption><b>96 px</b> por casa</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-cama">
+    <div class="cabeca">
+      <span class="rotulo">3 · Cama</span>
+      <h2 id="t-cama">Travesseiro e cobertor com cor própria</h2>
+      <p>Os traços são os mesmos de hoje (o retângulo do travesseiro e a dobra da coberta). O travesseiro pinta o retângulo dele; o cobertor vai da dobra até o pé. A "Cor" de sempre continua pintando o resto: a cabeceira e a moldura de madeira. A primeira cama é a de hoje.</p>
+    </div>
+    <div class="bancada">
+      <div class="prova" id="prova"></div>
+      <div class="camas" id="camas"></div>
+      <div class="lado-a-lado" style="align-items:center">
+        <button type="button" class="alternar" id="moldura" aria-pressed="true"><span class="luz" aria-hidden="true"></span>Madeira à vista nos lados e no pé</button>
+        <span class="nota" style="color:#a8a49b">Ligado (proposta): o cobertor deixa uma beira de madeira de 0,07 casa nos lados e no pé, e a "Cor" vira de fato a moldura. Desligado: o cobertor cobre de lado a lado, até a borda. Vale também no mapa da seção 1. Nos dois, a cama sem as cores novas é a de hoje.</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-painel">
+    <div class="cabeca">
+      <span class="rotulo">4 · Painel do objeto</span>
+      <h2 id="t-painel">A seção "Móvel", com os controles novos</h2>
+      <p>Mesmo estilo do painel do app (tokens de <code>theme.ts</code>). Tudo aqui funciona: troque a forma e a vista do tapete, clique nas amostras da paleta, use o seletor livre, "Padrão" volta ao de hoje, e a pipeta pega a cor da prévia. No tapete, trocar a forma põe o tamanho padrão da forma nova, como trocar o tipo.</p>
+    </div>
+    <div class="bancada">
+      <div class="mock">
+        <div class="mock-par">
+          <div class="lb-inspector" id="painel-tapete"></div>
+          <div class="previa"><canvas id="previa-tapete" role="img" aria-label="Prévia do tapete selecionado com uma mesa em cima"></canvas><div class="dica-pipeta" id="dica-tapete" aria-live="polite"></div></div>
+        </div>
+        <div class="mock-par">
+          <div class="lb-inspector" id="painel-cama"></div>
+          <div class="previa"><canvas id="previa-cama" role="img" aria-label="Prévia da cama selecionada e a cama de hoje"></canvas><div class="dica-pipeta" id="dica-cama" aria-live="polite"></div></div>
+        </div>
+      </div>
+      <div class="lado-a-lado">
+        <div class="lista-objeto" aria-label="Lista da ferramenta Objeto">
+          <p class="lb-eyebrow">Objeto</p>
+          <div id="lista"></div>
+        </div>
+        <div style="display:grid;gap:10px">
+          <span class="rotulo" style="color:#a8a49b">Ícone, no traço de icons.tsx (18, 24 e 36 px)</span>
+          <div class="icones" id="icones"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-duvidas">
+    <div class="cabeca">
+      <span class="rotulo">5 · Para decidir</span>
+      <h2 id="t-duvidas">Escolhas que fiz e o que falta você dizer</h2>
+    </div>
+    <ol class="duvidas">
+      <li><strong>Tapete redondo sem franja.</strong> Franja em volta toda, no zoom de longe, vira uma roda dentada, e a roda dentada já é a leitura da fogueira (8 juntas). O redondo fica com a borda em anel e o losango.</li>
+      <li><strong>Lado = deitado no chão.</strong> A outra leitura seria o tapete pendurado na parede (tapeçaria, mostrando o desenho de cima com a franja embaixo). Fiz o deitado; diga se quer o pendurado.</li>
+      <li><strong>Cama: madeira à vista ou cobertor de lado a lado?</strong> O botão na seção 3 mostra as duas. Recomendo a madeira à vista: é ela que faz a "Cor" ler como moldura de madeira. Os traços são os de hoje nas duas, e a cama antiga sai igual nas duas.</li>
+      <li><strong>Paleta só no travesseiro e no cobertor</strong>, como pedido. A "Cor" da cama e a do tapete seguem com o seletor de hoje.</li>
+    </ol>
+  </section>
+</main>
+<script>/*BUNDLE*/</script>
+</body>
+</html>

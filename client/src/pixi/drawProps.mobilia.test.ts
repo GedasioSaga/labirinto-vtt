@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics, Sprite } from 'pixi.js'
-import { createPropsRenderer } from './drawProps'
+import { createPropsRenderer, FLOOR_LABEL } from './drawProps'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { PROP_SILHOUETTE_EDGE_SCREEN_PX } from './drawPropSilhouettes'
 import { MAX_SCALE, MIN_SCALE } from './world'
@@ -138,5 +138,50 @@ describe('createPropsRenderer — mobília desenhada', () => {
     createPropsRenderer().draw(container, [movel()], 'catre', ZOOM_1)
     const destaque = container.children.find((c): c is Graphics => c instanceof Graphics && c.label !== 'mobilia')
     expect(destaque?.context.instructions.filter((i) => i.action === 'stroke')).toHaveLength(1)
+  })
+})
+
+describe('createPropsRenderer — tapete no chão', () => {
+  const tapete = (extra: Partial<Prop> = {}): Prop => movel({ id: 't1', width: 120, height: 80, mobilia: 'tapete', ...extra })
+  const mesa = (extra: Partial<Prop> = {}): Prop => movel({ id: 'm1', width: 80, height: 40, mobilia: 'mesa', ...extra })
+  const chao = (container: Container): Container | undefined => container.children.find((c) => c.label === FLOOR_LABEL)
+
+  it('o tapete mora no chão, no índice 0 dos objetos, abaixo da mesa que vem antes na lista', () => {
+    const container = new Container()
+    createPropsRenderer().draw(container, [mesa(), tapete()], null, ZOOM_1)
+    expect(container.getChildIndex(chao(container) ?? new Container())).toBe(0)
+    expect(chao(container)?.children.filter((c) => c.label === 'mobilia')).toHaveLength(1)
+    expect(desenhosDoMovel(container)).toHaveLength(1)
+  })
+
+  it('móvel e imagem postos depois continuam por cima do chão', () => {
+    const container = new Container()
+    const renderer = createPropsRenderer()
+    renderer.draw(container, [tapete()], null, ZOOM_1)
+    const deImagem: Prop = { id: 'img', src: 'x.png', x: 100, y: 100, width: 40, height: 40, linkedMapPath: null }
+    renderer.draw(container, [tapete(), mesa(), deImagem], null, ZOOM_1)
+    expect(container.children[0]?.label).toBe(FLOOR_LABEL)
+    expect(container.children.some((c) => c instanceof Sprite)).toBe(true)
+    expect(desenhosDoMovel(container)).toHaveLength(1)
+  })
+
+  it('mapa sem tapete não ganha o chão; trocar o tipo leva o desenho para fora dele e o apagar o tira', () => {
+    const container = new Container()
+    const renderer = createPropsRenderer()
+    renderer.draw(container, [mesa()], null, ZOOM_1)
+    expect(chao(container)).toBeUndefined()
+
+    renderer.draw(container, [tapete({ id: 'm1' })], null, ZOOM_1)
+    expect(chao(container)?.children).toHaveLength(1)
+    expect(desenhosDoMovel(container)).toHaveLength(0)
+
+    renderer.draw(container, [mesa()], null, ZOOM_1)
+    expect(chao(container)?.children).toHaveLength(0)
+    expect(desenhosDoMovel(container)).toHaveLength(1)
+
+    renderer.draw(container, [tapete({ id: 't2' })], null, ZOOM_1)
+    renderer.draw(container, [], null, ZOOM_1)
+    expect(chao(container)?.children).toHaveLength(0)
+    expect(desenhosDoMovel(container)).toHaveLength(0)
   })
 })

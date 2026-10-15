@@ -139,3 +139,26 @@ describe('Móvel: trocar a vista', () => {
     expect(passos()).toBe(2)
   })
 })
+
+describe('mapStore — forma do tapete', () => {
+  const TAPETE: Prop = { ...criarMovel('tapete', { x: 300, y: 200 }, GRADE, 't1'), rotation: 30 }
+
+  beforeEach(() => prepararMapa([TAPETE, MESA]))
+
+  it('o tapete fica redondo no mesmo centro e giro, no tamanho do redondo, num passo do desfazer', () => {
+    useMapStore.getState().trocarFormaDoTapete('t1', 'redondo')
+    expect(movel()).toEqual({ ...TAPETE, mobiliaForma: 'redondo', width: 2 * GRADE, height: 2 * GRADE })
+    expect(passos()).toBe(1)
+    useMapStore.getState().undo()
+    expect(movel()).toEqual(TAPETE)
+  })
+
+  it('a mesma forma, outro tipo ou id que não existe: nada muda e nada entra no desfazer', () => {
+    const antes = useMapStore.getState().map
+    useMapStore.getState().trocarFormaDoTapete('t1', 'retangular')
+    useMapStore.getState().trocarFormaDoTapete('m1', 'redondo')
+    useMapStore.getState().trocarFormaDoTapete('sumiu', 'redondo')
+    expect(useMapStore.getState().map).toBe(antes)
+    expect(passos()).toBe(0)
+  })
+})

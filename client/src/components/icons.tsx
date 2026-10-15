@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
-import type { TipoMobilia } from '../types/map'
+import type { FormaDoTapete, TipoMobilia } from '../types/map'
 
 interface IconProps {
   size?: number
@@ -411,7 +411,21 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M8.3 9.4l7.4 5.2M8.3 14.6l7.4-5.2" />
         </>
       )
+    case 'tapete':
+      // O corpo, o losango do medalhão e três fios de franja em cada ponta curta.
+      return (
+        <>
+          <rect x="4.5" y="6" width="15" height="12" />
+          <path d="M12 8.6l4.4 3.4-4.4 3.4-4.4-3.4z" />
+          <path d="M4.5 8.5H2.5M4.5 12H2.5M4.5 15.5H2.5M19.5 8.5h2M19.5 12h2M19.5 15.5h2" />
+        </>
+      )
   }
+}
+
+/** A "Forma" do tapete no painel: o retângulo deitado ou o círculo, só a silhueta. */
+export function FormaDoTapeteIcon({ forma, ...props }: IconProps & { forma: FormaDoTapete }) {
+  return <Icon {...props}>{forma === 'redondo' ? <circle cx="12" cy="12" r="7.5" /> : <rect x="3" y="6.5" width="18" height="11" />}</Icon>
 }
 
 export function BrushIcon(props: IconProps) {

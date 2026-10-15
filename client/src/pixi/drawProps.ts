@@ -77,6 +77,8 @@ function strokeDashedPolygon(graphics: Graphics, points: readonly { x: number; y
 
 /** Rótulo do `Graphics` de cada móvel da mobília desenhada (achado pelos testes e pelo inspetor do Pixi). */
 export const FURNITURE_LABEL = 'mobilia'
+/** Rótulo do `Container` do CHÃO: os tapetes, sempre no índice 0 dos objetos, por baixo de sprite e móvel. */
+export const FLOOR_LABEL = 'chao-dos-objetos'
 
 /** Transparência do objeto no editor: fantasma do "Oculto no editor", meio apagado se "Oculto para jogadores". */
 function propAlpha(prop: Prop): number {
@@ -131,6 +133,11 @@ interface FurnitureEntry {
  * móvel, posto na mesma repintura; segue o móvel em posição, fantasma, camada
  * oculta e remoção, mas não gira com ele. Sem `chamas.movimento` (testes,
  * exportar imagem) a chama fica parada.
+ *
+ * TAPETE: o desenho dele mora no `Container` do chão (`FLOOR_LABEL`), no
+ * índice 0 dos objetos — todo sprite e todo móvel novo entra com
+ * `addChildAt(…, 0)`, então o chão volta ao fundo no fim de cada `draw`. Dentro
+ * do chão os tapetes seguem a ordem da lista, como na tela do jogador.
  */
 export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): PropsRenderer {
   const chamas = createChamasDasFogueiras(opcoesDasChamas)
@@ -139,6 +146,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   const furnitureCache = new Map<string, FurnitureEntry>()
   const highlightGraphics = new Graphics()
   let highlightAttached = false
+  const floor = new Container()
+  floor.label = FLOOR_LABEL
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
   // mesmo toast de erro a cada `draw()` (chamado a cada mudança relevante do
   // mapa, não só uma vez). Fechado por closure igual `spriteCache`: nasce
@@ -170,7 +179,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
     for (const [id, { drawing }] of furnitureCache) {
       if (!furnitureIds.has(id)) {
-        container.removeChild(drawing)
+        // Do chão (tapete) ou dos objetos: sai de onde estiver.
+        drawing.removeFromParent()
         drawing.destroy()
         furnitureCache.delete(id)
       }
@@ -240,6 +250,12 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
     // Fogueira que sumiu (apagada, outro tipo, camada oculta) leva a chama; o relógio liga ou desliga.
     chamas.podar(fogueiras)
+    // O chão volta ao fundo: o que entrou agora com `addChildAt(…, 0)` passou por
+    // baixo dele. Mapa sem tapete nunca ganha o chão (a lista de filhos fica a de sempre).
+    if (floor.children.length > 0) {
+      if (floor.parent !== container) container.addChildAt(floor, 0)
+      else if (container.getChildIndex(floor) !== 0) container.setChildIndex(floor, 0)
+    }
   }
 
   /**
@@ -256,7 +272,12 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       drawing.label = FURNITURE_LABEL
       entry = { drawing, painted: null }
       furnitureCache.set(prop.id, entry)
-      container.addChildAt(drawing, 0)
+    }
+    // O tapete mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
+    if (prop.mobilia === 'tapete') {
+      if (entry.drawing.parent !== floor) floor.addChild(entry.drawing)
+    } else if (entry.drawing.parent !== container) {
+      container.addChildAt(entry.drawing, 0)
     }
     const { painted } = entry
     const { cameraScale, rendererResolution } = view

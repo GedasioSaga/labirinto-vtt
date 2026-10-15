@@ -7,6 +7,8 @@ import {
   PROP_SILHOUETTE_EDGE_COLOR,
   PROP_SILHOUETTE_FILL_ALPHA,
   PROP_SILHOUETTE_FILL_COLOR,
+  RUG_DARK_ALPHA,
+  RUG_FILL_ALPHA,
 } from './drawPropSilhouettes'
 import { contornoDeLado, LADOS_DA_ELIPSE, tracosDoGlifo, type TipoComVista } from '../lib/mobilia'
 
@@ -400,5 +402,69 @@ describe('drawPropSilhouettes — fogueira', () => {
       if (traco.action !== 'stroke') throw new Error('esperava stroke')
       expect(traco.data.style.color).toBe(0x336699)
     }
+  })
+})
+
+describe('drawPropSilhouettes — tapete', () => {
+  const TAPETE: Prop = { id: 't1', src: '', x: 250, y: 200, width: 120, height: 80, linkedMapPath: null, mobilia: 'tapete' }
+  const MESA: Prop = { id: 'm1', src: '', x: 250, y: 200, width: 80, height: 40, linkedMapPath: null, mobilia: 'mesa' }
+
+  it('fica no chão: pintado antes da mesa mesmo vindo depois dela na lista (tela do jogador)', () => {
+    const g = new Graphics()
+    expect(drawPropSilhouettes(g, [MESA, TAPETE])).toBe(2)
+    const [primeiro] = fills(g)
+    // O fundo do tapete (0,2) sai primeiro; o da mesa (0,35) depois.
+    expect(estilo(primeiro)).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_FILL_ALPHA })
+    expect(estilo(fills(g).at(-1))).toEqual({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
+  })
+
+  it('sem "Cor": fundo a 0,2 e borda e medalhão com mais uma camada de preto a 0,22', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [TAPETE])
+    expect(fills(g).map(estilo)).toEqual([
+      { color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_FILL_ALPHA },
+      { color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_DARK_ALPHA },
+      { color: PROP_SILHOUETTE_FILL_COLOR, alpha: RUG_DARK_ALPHA },
+    ])
+    // O fio de fora e o glifo, depois das áreas.
+    expect(g.context.instructions.map((i) => i.action)).toEqual(['fill', 'fill', 'fill', 'stroke', 'stroke'])
+  })
+
+  it('com "Cor": o campo na cor, opaco; borda e medalhão a mesma cor com cada canal x 0,70', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [{ ...TAPETE, mobiliaCor: '#a06432' }])
+    const escuro = (Math.round(0xa0 * 0.7) << 16) | (Math.round(0x64 * 0.7) << 8) | Math.round(0x32 * 0.7)
+    expect(fills(g).map(estilo)).toEqual([
+      { color: 0xa06432, alpha: 1 },
+      { color: escuro, alpha: 1 },
+      { color: escuro, alpha: 1 },
+    ])
+  })
+
+  it('sem "Preencher": só o fio e o glifo, nenhuma área', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [{ ...TAPETE, mobiliaPreenchido: false, mobiliaCor: '#a06432' }])
+    expect(fills(g)).toHaveLength(0)
+    expect(strokes(g)).toHaveLength(2)
+  })
+
+  it('a silhueta do retangular recua a franja; o glifo leva os 24 fios dela', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [TAPETE])
+    const xs = silhouettePoints(g).map((p) => p.x)
+    expect(Math.min(...xs)).toBeGreaterThan(TAPETE.x - TAPETE.width / 2)
+    expect(Math.max(...xs)).toBeLessThan(TAPETE.x + TAPETE.width / 2)
+    expect(pathPoints(strokes(g)[1], 'moveTo')).toHaveLength(tracosDoGlifo('tapete', 120, 80).length)
+  })
+
+  it('redondo: a silhueta é a elipse; de lado, a faixa no chão', () => {
+    const g = new Graphics()
+    drawPropSilhouettes(g, [{ ...TAPETE, width: 80, height: 80, mobiliaForma: 'redondo' }])
+    expect(silhouettePoints(g)).toHaveLength(LADOS_DA_ELIPSE)
+    drawPropSilhouettes(g, [{ ...TAPETE, height: 10, mobiliaVista: 'lado' }])
+    const ys = silhouettePoints(g).map((p) => p.y)
+    expect(Math.min(...ys)).toBeGreaterThan(TAPETE.y)
+    // O chão a meio pixel no máximo: alinhado aos eixos, o vértice encosta no pixel físico.
+    expect(Math.abs(Math.max(...ys) - (TAPETE.y + 5))).toBeLessThanOrEqual(0.5)
   })
 })

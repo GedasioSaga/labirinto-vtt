@@ -1,5 +1,7 @@
 import { useId } from 'react'
 import {
+  FORMAS_DO_TAPETE,
+  ROTULO_FORMA,
   ROTULO_MOBILIA,
   ROTULO_VISTA,
   TIPOS_MOBILIA,
@@ -7,15 +9,17 @@ import {
   aceitaVista,
   ehMovelVazado,
   ehTipoMobilia,
+  formaDoTapete,
   normalizarCorDoMovel,
   vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from '../lib/mobilia'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
-import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
+import { FormaDoTapeteIcon } from './icons'
 
 function hexDaCor(cor: number): string {
   return `#${cor.toString(16).padStart(6, '0')}`
@@ -35,6 +39,8 @@ export interface MobiliaControlsProps {
   onTipoChange: (id: string, tipo: TipoMobilia) => void
   /** Cadeira e baú: troca a vista (Frente | Lado) no lugar; o tamanho vai para o padrão da vista nova. */
   onVistaChange: (id: string, vista: VistaMobilia) => void
+  /** Tapete: troca a forma (Retangular | Redondo) no lugar; o tamanho vai para o padrão da forma nova. */
+  onFormaChange: (id: string, forma: FormaDoTapete) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -91,7 +97,7 @@ function CampoDeCor({ id, rotulo, rotuloDoPadrao, corPropria, corPadrao, desabil
  * trava com "Travado": como na seção "Objeto", ele segura o gesto no mapa, não
  * o painel.
  */
-export function MobiliaControls({ prop, onTipoChange, onVistaChange, onAparenciaChange }: MobiliaControlsProps) {
+export function MobiliaControls({ prop, onTipoChange, onVistaChange, onFormaChange, onAparenciaChange }: MobiliaControlsProps) {
   const baseId = useId()
   const tipo = prop.mobilia
   if (tipo === undefined) return null
@@ -100,6 +106,7 @@ export function MobiliaControls({ prop, onTipoChange, onVistaChange, onAparencia
   const corId = `${baseId}-cor`
   const corDaLinhaId = `${baseId}-cor-da-linha`
   const vista = vistaDoMovel(prop)
+  const forma = formaDoTapete(prop)
   const preenchido = prop.mobiliaPreenchido !== false
 
   return (
@@ -142,6 +149,28 @@ export function MobiliaControls({ prop, onTipoChange, onVistaChange, onAparencia
                 onClick={() => onVistaChange(prop.id, opcao)}
               >
                 {ROTULO_VISTA[opcao]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* A forma só existe no tapete: logo depois da vista, o mesmo segmentado,
+          com a silhueta de cada forma em cima do nome. */}
+      {tipo === 'tapete' && (
+        <div className="lb-field">
+          <span className="lb-label">Forma</span>
+          <div className="lb-seg" role="radiogroup" aria-label="Forma">
+            {FORMAS_DO_TAPETE.map((opcao) => (
+              <button
+                key={opcao}
+                type="button"
+                role="radio"
+                aria-checked={forma === opcao}
+                className="lb-seg__option"
+                onClick={() => onFormaChange(prop.id, opcao)}
+              >
+                <FormaDoTapeteIcon forma={opcao} size={16} strokeWidth={1.8} />
+                {ROTULO_FORMA[opcao]}
               </button>
             ))}
           </div>

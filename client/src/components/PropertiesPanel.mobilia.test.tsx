@@ -28,6 +28,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
   const onTipoChange = vi.fn<MobiliaControlsProps['onTipoChange']>()
   const onAparenciaChange = vi.fn<MobiliaControlsProps['onAparenciaChange']>()
   const onVistaChange = vi.fn<MobiliaControlsProps['onVistaChange']>()
+  const onFormaChange = vi.fn<MobiliaControlsProps['onFormaChange']>()
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -35,6 +36,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
     onTipoChange.mockClear()
     onAparenciaChange.mockClear()
     onVistaChange.mockClear()
+    onFormaChange.mockClear()
     useMapStore.setState({
       map: { ...createEmptyMap('m1', 'Casa', 30, 20, 64), props: [MESA, DE_IMAGEM] },
       camera: { x: 0, y: 0, scale: 1 },
@@ -62,7 +64,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
             groups: relevantPropertyGroups('select', { prop: true }),
             selection: { selection: { kind: 'prop', count: 1 }, defaultTokenName: 'Token 1', onAddToken: nada, onRemoveSelected: nada },
             selectedProp: prop,
-            propMobilia: { onTipoChange, onAparenciaChange, onVistaChange },
+            propMobilia: { onTipoChange, onAparenciaChange, onVistaChange, onFormaChange },
           })}
         />,
       ),
@@ -108,7 +110,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
     renderObjeto(MESA)
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
-    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira'])
+    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
     expect(tipo.value).toBe('mesa')
 
     escolhe(tipo, 'bau')
@@ -171,12 +173,12 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(campo('Cor da linha')).not.toBeNull()
   })
 
-  it('"Vista" só aparece para cadeira, baú, armário de cozinha, aparador e fogueira', () => {
+  it('"Vista" só aparece para cadeira, baú, armário de cozinha, aparador, fogueira e tapete', () => {
     const comVista = TIPOS_MOBILIA.filter((tipo) => {
       renderObjeto(criarMovel(tipo, { x: 300, y: 200 }, 64, 'c1'))
       return vista() !== null
     })
-    expect(comVista).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira'])
+    expect(comVista).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete'])
   })
 
   it('a cadeira: "Vista" vem entre "Tipo" e "Preencher", marca Frente e o clique em Lado manda a vista', () => {
@@ -204,5 +206,32 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(campo('Tipo')).toBeNull()
     expect(interruptor('Preencher')).toBeNull()
     expect(vista()).toBeNull()
+  })
+
+  /** O grupo "Forma" (Retangular | Redondo) do tapete e uma opção dele pelo texto. */
+  const forma = () => container.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Forma"]')
+  const opcaoDeForma = (nome: string) => Array.from(forma()?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []).find((b) => texto(b) === nome) ?? null
+
+  it('o tapete: "Forma" vem logo depois da "Vista", marca Retangular e o clique em Redondo manda a forma', () => {
+    renderObjeto(criarMovel('tapete', { x: 300, y: 200 }, 64, 't1'))
+    expect(cabecalho()).toBe('Tapete')
+    expect(antes(vista(), forma())).toBe(true)
+    expect(antes(forma(), interruptor('Preencher'))).toBe(true)
+    expect(opcaoDeForma('Retangular')?.getAttribute('aria-checked')).toBe('true')
+    expect(opcaoDeForma('Redondo')?.getAttribute('aria-checked')).toBe('false')
+    expect(opcaoDeForma('Redondo')?.querySelector('svg')).not.toBeNull()
+
+    act(() => opcaoDeForma('Redondo')?.click())
+    expect(onFormaChange).toHaveBeenCalledWith('t1', 'redondo')
+  })
+
+  it('o tapete redondo marca Redondo; nenhum outro móvel tem "Forma"', () => {
+    renderObjeto({ ...criarMovel('tapete', { x: 300, y: 200 }, 64, 't1'), mobiliaForma: 'redondo' })
+    expect(opcaoDeForma('Redondo')?.getAttribute('aria-checked')).toBe('true')
+    const comForma = TIPOS_MOBILIA.filter((tipo) => {
+      renderObjeto(criarMovel(tipo, { x: 300, y: 200 }, 64, 'c1'))
+      return forma() !== null
+    })
+    expect(comForma).toEqual(['tapete'])
   })
 })

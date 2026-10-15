@@ -29,7 +29,7 @@ import { withoutAttachment } from './lightAttachment'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
-import { normalizarCorDoMovel, normalizarCurvaDaCerca, normalizarVistaDoMovel } from './mobilia'
+import { normalizarCorDoMovel, normalizarCurvaDaCerca, normalizarFormaDoTapete, normalizarVistaDoMovel } from './mobilia'
 import { amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
@@ -4767,6 +4767,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
     // finito até meia volta (`normalizarCurvaDaCerca`); a reta não vira campo.
     const curva = normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva)
     if (curva !== undefined) forPlayer.mobiliaCurva = curva
+    // A FORMA do tapete também: o redondo chega redondo. Só `'redondo'` e só no
+    // tapete (`normalizarFormaDoTapete`); o retangular (o padrão) não vira campo.
+    const forma = normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma)
+    if (forma !== undefined) forPlayer.mobiliaForma = forma
   }
   // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
   // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então

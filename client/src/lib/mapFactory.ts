@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alertaDaCena, limitarFaccao } from './faccoes'
@@ -32,8 +32,8 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaVista, comAparenciaDoMovel, comCurvaGravada, mesmaAparenciaDoMovel, movelComOutraVista, movelComOutroTipo,
-  normalizarCurvaDaCerca, vistaDoMovel,
+  aceitaVista, comAparenciaDoMovel, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
+  movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { carrierIdOf, followStep } from './carry'
@@ -885,6 +885,19 @@ export function trocarVistaDoMovel(map: MapData, propId: string, vista: VistaMob
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !aceitaVista(alvo.mobilia) || vistaDoMovel(alvo) === vista) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraVista(p, vista, map.grid) : p)) }
+}
+
+/**
+ * "Forma" do painel do tapete (Retangular | Redondo): o tamanho vai para o
+ * padrão da forma nova na vista atual, na grade do mapa; centro, giro, vista,
+ * camada, cores, trava e rótulo ficam (`movelComOutraForma`). A mesma forma,
+ * outro tipo ou id que não existe devolvem o MESMO mapa — a store usa isso
+ * para não empilhar passo vazio no desfazer.
+ */
+export function trocarFormaDoTapete(map: MapData, propId: string, forma: FormaDoTapete): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'tapete' || formaDoTapete(alvo) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraForma(p, forma, map.grid) : p)) }
 }
 
 /**

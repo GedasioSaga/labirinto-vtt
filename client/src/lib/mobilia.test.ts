@@ -35,9 +35,9 @@ import type { Prop, TipoMobilia } from '../types/map'
 const GRADE = 40
 
 describe('catálogo da mobília', () => {
-  it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha, aparador e fogueira, nessa ordem, com o nome que a setinha mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira'])
-    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira'])
+  it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha, aparador, fogueira e tapete, nessa ordem, com o nome que a setinha mostra', () => {
+    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
+    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
   })
 
   it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
@@ -436,9 +436,9 @@ function contornoDe(tipo: TipoMobilia, largura: number, altura: number): { x: nu
 }
 
 describe('vista do móvel — frente ou lado, só nos tipos com vista', () => {
-  it('só cadeira, baú, armário de cozinha, aparador e fogueira aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
-    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador', 'fogueira'])
-    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira'])
+  it('só cadeira, baú, armário de cozinha, aparador, fogueira e tapete aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
+    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete'])
+    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete'])
     expect(aceitaVista(undefined)).toBe(false)
     expect(VISTAS_MOBILIA.map((vista) => ROTULO_VISTA[vista])).toEqual(['Frente', 'Lado'])
   })
@@ -682,7 +682,7 @@ describe('armário de cozinha e aparador — encostados na parede, com vista de 
 
 describe('fogueira — roda de pedras, lenha em X e a chama', () => {
   it('está no catálogo depois do aparador, redonda de cima, com vista de lado', () => {
-    expect(TIPOS_MOBILIA[TIPOS_MOBILIA.length - 1]).toBe('fogueira')
+    expect(TIPOS_MOBILIA[TIPOS_MOBILIA.indexOf('aparador') + 1]).toBe('fogueira')
     expect(ROTULO_MOBILIA.fogueira).toBe('Fogueira')
     expect(NOME_COM_ARTIGO.fogueira).toBe('uma fogueira')
     expect(aceitaVista('fogueira')).toBe(true)

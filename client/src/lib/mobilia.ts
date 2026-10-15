@@ -1,4 +1,4 @@
-import type { Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 
 /**
@@ -26,10 +26,16 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
  * único móvel vazado (`ehMovelVazado`): sem caixa chapada atrás. E o único que
  * CURVA: um arco só, até meia volta, pela alça do meio do fio
  * (`Prop.mobiliaCurva`, em graus; a alça e o arrasto em `lib/cercaCurva.ts`).
+ *
+ * O TAPETE fica no CHÃO: por baixo de todo objeto, no editor e na tela do
+ * jogador (`emOrdemDeDesenho`), e o clique pega primeiro o que está em cima
+ * dele. Tem "Forma" (retangular ou redondo, `Prop.mobiliaForma`) e vista de
+ * lado (a faixa deitada no chão); a "Cor" pinta o campo e a borda e o
+ * medalhão saem a mesma cor mais escura (`desenhoDoTapete`).
  */
 
 /** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
-export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira']
+export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
 
 /** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
@@ -44,6 +50,7 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   armario: 'Armário de cozinha',
   aparador: 'Aparador',
   fogueira: 'Fogueira',
+  tapete: 'Tapete',
 }
 
 /** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
@@ -58,6 +65,7 @@ export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   armario: 'um armário de cozinha',
   aparador: 'um aparador',
   fogueira: 'uma fogueira',
+  tapete: 'um tapete',
 }
 
 /** Espessura padrão da cerca, em casas: é a régua dos mourões (`tracosDaCerca`). */
@@ -71,9 +79,10 @@ const ESPESSURA_DA_CERCA_EM_CASAS = 0.25
  * e aparador são rasos (meia casa de fundo, encostados na parede), o aparador
  * com o dobro da frente. O mestre
  * ajusta depois pelos controles de sempre do objeto. É o tamanho de FRENTE; o
- * de lado está em `TAMANHO_DE_LADO_EM_CASAS`.
+ * de lado está em `TAMANHO_DE_LADO_EM_CASAS`. O tapete tem tamanho por forma
+ * (`TAMANHO_DO_TAPETE_EM_CASAS`).
  */
-const TAMANHO_EM_CASAS: Readonly<Record<TipoMobilia, { largura: number; altura: number }>> = {
+const TAMANHO_EM_CASAS: Readonly<Record<Exclude<TipoMobilia, 'tapete'>, { largura: number; altura: number }>> = {
   barril: { largura: 0.7, altura: 0.7 },
   caixa: { largura: 0.8, altura: 0.8 },
   bau: { largura: 1, altura: 0.6 },
@@ -91,15 +100,16 @@ export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
 }
 
 /** Móvel que tem vista de lado. */
-export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador' | 'fogueira'>
+export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador' | 'fogueira' | 'tapete'>
 
 /**
  * Tipos com "Vista" (Frente | Lado). Lista, não `if` espalhado: outro móvel
  * entra acrescentando o tipo aqui, o tamanho de lado dele
  * (`TAMANHO_DE_LADO_EM_CASAS`) e o desenho de lado (`contornoDeLado` e
- * `tracosDeLado`) — o compilador cobra os três.
+ * `tracosDeLado`) — o compilador cobra os três. O tapete de lado é a faixa
+ * deitada no chão, com o tamanho por forma (`TAMANHO_DO_TAPETE_EM_CASAS`).
  */
-export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira']
+export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete']
 
 /** O tipo tem vista de lado. Tipo ausente (objeto comum) não tem. */
 export function aceitaVista(tipo: TipoMobilia | undefined): tipo is TipoComVista {
@@ -123,7 +133,7 @@ export const ROTULO_VISTA: Readonly<Record<VistaMobilia, string>> = {
  * do móvel em pé: a mesma largura de cima e a altura do móvel (o armário, com o
  * de cima, vai a uma casa e meia).
  */
-const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<TipoComVista, { largura: number; altura: number }>> = {
+const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<Exclude<TipoComVista, 'tapete'>, { largura: number; altura: number }>> = {
   bau: { largura: 0.6, altura: 0.6 },
   cadeira: { largura: 0.5, altura: 0.75 },
   armario: { largura: 1, altura: 1.5 },
@@ -132,10 +142,70 @@ const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<TipoComVista, { largura: number;
   fogueira: { largura: 1, altura: 1.25 },
 }
 
-/** Tamanho padrão do tipo na vista, em px de mundo. Vista de lado num tipo sem vista vale como frente. */
-function tamanhoPadrao(tipo: TipoMobilia, vista: VistaMobilia, grade: number): { width: number; height: number } {
-  const tamanho = vista === 'lado' && aceitaVista(tipo) ? TAMANHO_DE_LADO_EM_CASAS[tipo] : TAMANHO_EM_CASAS[tipo]
+/**
+ * Tamanho padrão do TAPETE em casas (largura x altura, sem giro). O retangular
+ * cabe uma mesa de 2 x 1 com as cadeiras em volta; o redondo é o círculo de 2
+ * (esticado, vira oval). De lado é a faixa deitada no chão: a mesma largura e
+ * 1/4 de casa de altura (a da cerca), para o clique ainda pegar.
+ */
+const TAMANHO_DO_TAPETE_EM_CASAS: Readonly<Record<FormaDoTapete, Readonly<Record<VistaMobilia, { largura: number; altura: number }>>>> = {
+  retangular: { frente: { largura: 3, altura: 2 }, lado: { largura: 3, altura: 0.25 } },
+  redondo: { frente: { largura: 2, altura: 2 }, lado: { largura: 2, altura: 0.25 } },
+}
+
+/**
+ * Tamanho padrão do tipo na vista, em px de mundo. Vista de lado num tipo sem
+ * vista vale como frente. `forma` só vale no tapete.
+ */
+function tamanhoPadrao(tipo: TipoMobilia, vista: VistaMobilia, grade: number, forma: FormaDoTapete = 'retangular'): { width: number; height: number } {
+  const tamanho =
+    tipo === 'tapete'
+      ? TAMANHO_DO_TAPETE_EM_CASAS[forma][vista]
+      : vista === 'lado' && aceitaVista(tipo)
+        ? TAMANHO_DE_LADO_EM_CASAS[tipo]
+        : TAMANHO_EM_CASAS[tipo]
   return { width: tamanho.largura * grade, height: tamanho.altura * grade }
+}
+
+/** Ordem em que o painel oferece as formas do tapete. */
+export const FORMAS_DO_TAPETE: readonly FormaDoTapete[] = ['retangular', 'redondo']
+
+/** Nome de cada forma no painel. */
+export const ROTULO_FORMA: Readonly<Record<FormaDoTapete, string>> = {
+  retangular: 'Retangular',
+  redondo: 'Redondo',
+}
+
+/**
+ * A forma do tapete na forma única que o mapa guarda: só `'redondo'`, e só no
+ * tapete; qualquer outra coisa (`'retangular'`, que é o padrão, texto torto,
+ * outro tipo) vira `undefined`. É a mesma porta na leitura do arquivo, na
+ * edição, na travessia para o jogador e no desenho.
+ */
+export function normalizarFormaDoTapete(tipo: TipoMobilia | undefined, valor: unknown): 'redondo' | undefined {
+  return tipo === 'tapete' && valor === 'redondo' ? 'redondo' : undefined
+}
+
+/** A forma que vale para o objeto: `'redondo'` só no tapete redondo; o resto é `'retangular'`. */
+export function formaDoTapete(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): FormaDoTapete {
+  return normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma) ?? 'retangular'
+}
+
+/** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo. Mesma referência se nada muda. */
+function comFormaGravada(prop: Prop, forma: 'redondo' | undefined): Prop {
+  if (prop.mobiliaForma === forma) return prop
+  const { mobiliaForma: _forma, ...semForma } = prop
+  return forma === undefined ? semForma : { ...semForma, mobiliaForma: forma }
+}
+
+/**
+ * Ordem de desenho: o tapete fica no CHÃO, por baixo de todo objeto (os
+ * tapetes na ordem da lista, depois o resto na ordem de sempre). Sem tapete,
+ * devolve a mesma lista.
+ */
+export function emOrdemDeDesenho<T extends Pick<Prop, 'mobilia'>>(props: readonly T[]): readonly T[] {
+  if (!props.some((p) => p.mobilia === 'tapete')) return props
+  return [...props.filter((p) => p.mobilia === 'tapete'), ...props.filter((p) => p.mobilia !== 'tapete')]
 }
 
 /**
@@ -663,6 +733,190 @@ function tamanhoDesenhavel(largura: number, altura: number): boolean {
   return Number.isFinite(largura) && Number.isFinite(altura) && largura > 0 && altura > 0
 }
 
+/**
+ * Tapete visto de cima, em fração do LADO MENOR (`S`): franja nas duas pontas
+ * curtas, faixa da borda, medalhão em losango (as pontas dele em fração do
+ * campo de dentro da borda) e o miolo do losango. `fios` é quantos fios a
+ * franja tem em cada ponta: número fixo, como as juntas da fogueira, para a
+ * franja não virar borrão de longe nem ficar rala de perto.
+ */
+const TAPETE_DE_CIMA = { franja: 0.06, fios: 12, borda: 0.12, medalhaoAoLongo: 0.42, medalhaoAtravessado: 0.62, miolo: 0.45 }
+/** Tapete redondo: borda em fração do lado menor; o losango em fração do raio de dentro. Sem franja: em volta toda, viraria roda dentada (a leitura da fogueira). */
+const TAPETE_REDONDO = { borda: 0.12, medalhao: 0.6 }
+/**
+ * Tapete de lado (deitado no chão): a faixa ocupa de `topo` (fração da altura,
+ * de cima) até o chão; franja e borda em fração da LARGURA (3 casas dão a mesma
+ * franja de 0,12 casa da vista de cima). Os dois fios de cada ponta caem até o chão.
+ */
+const TAPETE_DE_LADO = { topo: 0.6, franja: 0.04, borda: 0.08, fioDeCima: 0.7, fioDeBaixo: 0.86, pontaDoFioDeBaixo: 0.75 }
+
+/** Eixo do tapete retangular: o comprimento corre em x quando ele é mais largo que alto. */
+interface EixoDoTapete {
+  /** Meio comprimento do corpo (sem a franja) e meia largura. */
+  corpoU: number
+  corpoV: number
+  franja: number
+  borda: number
+  /** Ponto no referencial do objeto a partir de (ao longo, atravessado). */
+  p: (u: number, v: number) => Ponto
+}
+
+function eixoDoTapete(largura: number, altura: number): EixoDoTapete {
+  const deitado = largura >= altura
+  const comprimento = deitado ? largura : altura
+  const lado = deitado ? altura : largura
+  const franja = lado * TAPETE_DE_CIMA.franja
+  return {
+    corpoU: comprimento / 2 - franja,
+    corpoV: lado / 2,
+    franja,
+    borda: lado * TAPETE_DE_CIMA.borda,
+    p: (u, v) => (deitado ? { x: u, y: v } : { x: v, y: u }),
+  }
+}
+
+/** O eixo do tapete redondo: x ao longo, y atravessado, sem franja (só para o losango). */
+const EIXO_SEM_GIRO: Pick<EixoDoTapete, 'p'> = { p: (u, v) => ({ x: u, y: v }) }
+
+function retanguloUV(e: Pick<EixoDoTapete, 'p'>, u: number, v: number): Ponto[] {
+  return [e.p(-u, -v), e.p(u, -v), e.p(u, v), e.p(-u, v)]
+}
+
+function losangoUV(e: Pick<EixoDoTapete, 'p'>, u: number, v: number): Ponto[] {
+  return [e.p(u, 0), e.p(0, v), e.p(-u, 0), e.p(0, -v)]
+}
+
+/** Losango do medalhão e o miolo, nos meios-eixos (ao longo, atravessado) do campo de dentro. */
+function medalhaoDoTapete(e: Pick<EixoDoTapete, 'p'>, campoU: number, campoV: number, aoLongo: number, atravessado: number): { fora: Ponto[]; miolo: Ponto[] } {
+  const u = campoU * aoLongo
+  const v = campoV * atravessado
+  return { fora: losangoUV(e, u, v), miolo: losangoUV(e, u * TAPETE_DE_CIMA.miolo, v * TAPETE_DE_CIMA.miolo) }
+}
+
+/**
+ * Silhueta do tapete (o que leva o fundo e o fio de fora): de cima, o corpo
+ * sem a franja (a franja é vazada, o chão aparece entre os fios, como na cerca)
+ * ou a elipse do redondo; de lado, a faixa deitada. `null` = tamanho não desenhável.
+ */
+export function contornoDoTapete(forma: FormaDoTapete, largura: number, altura: number, vista: VistaMobilia): Ponto[] | null {
+  if (!tamanhoDesenhavel(largura, altura)) return null
+  if (vista === 'lado') {
+    const corpo = largura / 2 - (forma === 'retangular' ? largura * TAPETE_DE_LADO.franja : 0)
+    const topo = naAltura(altura, TAPETE_DE_LADO.topo)
+    return [
+      { x: -corpo, y: topo },
+      { x: corpo, y: topo },
+      { x: corpo, y: altura / 2 },
+      { x: -corpo, y: altura / 2 },
+    ]
+  }
+  if (forma === 'redondo') return pontosDaElipse(largura, altura)
+  const e = eixoDoTapete(largura, altura)
+  return retanguloUV(e, e.corpoU, e.corpoV)
+}
+
+/**
+ * Uma área do desenho que leva cor própria: no tapete, a borda e o medalhão
+ * (`'escuro'`, a "Cor" mais escura). Um anel vem num polígono só, com o buraco
+ * dentro (`anel`).
+ */
+export interface RegiaoDoMovel {
+  pontos: Ponto[]
+  tom: 'escuro'
+}
+
+/**
+ * Anel num polígono só: a volta de fora num sentido e a de dentro no outro,
+ * ligadas por uma ponte. O Pixi (earcut) fura o meio sem `cut()`.
+ */
+function anel(fora: readonly Ponto[], dentro: readonly Ponto[]): Ponto[] {
+  return [...fora, fora[0], dentro[0], ...[...dentro].reverse().slice(0, -1), dentro[0]]
+}
+
+/**
+ * O tapete visto de cima ou de lado: as áreas em tom escuro (o anel da borda e
+ * o losango do medalhão; de lado, as duas tiras da borda vista de quina) e os
+ * traços do glifo (a beira de dentro da borda, o losango, o miolo e a franja —
+ * 12 fios em cada ponta curta do retangular; o redondo não tem franja).
+ * Tamanho não desenhável, ou pequeno demais para caber a borda, não tem desenho.
+ */
+export function desenhoDoTapete(forma: FormaDoTapete, largura: number, altura: number, vista: VistaMobilia): { regioes: RegiaoDoMovel[]; tracos: TracoDoGlifo[] } {
+  if (!tamanhoDesenhavel(largura, altura)) return { regioes: [], tracos: [] }
+  if (vista === 'lado') return tapeteDeLado(forma, largura, altura)
+  return forma === 'redondo' ? tapeteRedondo(largura, altura) : tapeteRetangular(largura, altura)
+}
+
+function tapeteRedondo(largura: number, altura: number): { regioes: RegiaoDoMovel[]; tracos: TracoDoGlifo[] } {
+  const borda = Math.min(largura, altura) * TAPETE_REDONDO.borda
+  const campoU = largura / 2 - borda
+  const campoV = altura / 2 - borda
+  if (campoU <= 0 || campoV <= 0) return { regioes: [], tracos: [] }
+  const dentro = pontosDaElipse(campoU * 2, campoV * 2)
+  const { fora, miolo } = medalhaoDoTapete(EIXO_SEM_GIRO, campoU, campoV, TAPETE_REDONDO.medalhao, TAPETE_REDONDO.medalhao)
+  return {
+    regioes: [
+      { pontos: anel(pontosDaElipse(largura, altura), dentro), tom: 'escuro' },
+      { pontos: fora, tom: 'escuro' },
+    ],
+    tracos: [...contorno(dentro), ...contorno(fora), ...contorno(miolo)],
+  }
+}
+
+function tapeteRetangular(largura: number, altura: number): { regioes: RegiaoDoMovel[]; tracos: TracoDoGlifo[] } {
+  const e = eixoDoTapete(largura, altura)
+  const campoU = e.corpoU - e.borda
+  const campoV = e.corpoV - e.borda
+  if (campoU <= 0 || campoV <= 0) return { regioes: [], tracos: [] }
+  const campo = retanguloUV(e, campoU, campoV)
+  const { fora, miolo } = medalhaoDoTapete(e, campoU, campoV, TAPETE_DE_CIMA.medalhaoAoLongo, TAPETE_DE_CIMA.medalhaoAtravessado)
+  const franja: TracoDoGlifo[] = []
+  const passo = (2 * e.corpoV) / TAPETE_DE_CIMA.fios
+  for (let i = 0; i < TAPETE_DE_CIMA.fios; i += 1) {
+    const v = -e.corpoV + (i + 0.5) * passo
+    for (const ponta of [-1, 1]) {
+      const a = e.p(ponta * e.corpoU, v)
+      const b = e.p(ponta * (e.corpoU + e.franja), v)
+      franja.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+    }
+  }
+  return {
+    regioes: [
+      { pontos: anel(retanguloUV(e, e.corpoU, e.corpoV), campo), tom: 'escuro' },
+      { pontos: fora, tom: 'escuro' },
+    ],
+    tracos: [...contorno(campo), ...contorno(fora), ...contorno(miolo), ...franja],
+  }
+}
+
+/** De lado: a faixa no chão, a borda vista de quina nas duas pontas e, no retangular, os fios caindo até o chão. */
+function tapeteDeLado(forma: FormaDoTapete, largura: number, altura: number): { regioes: RegiaoDoMovel[]; tracos: TracoDoGlifo[] } {
+  const franja = forma === 'retangular' ? largura * TAPETE_DE_LADO.franja : 0
+  const corpo = largura / 2 - franja
+  const dentro = corpo - largura * TAPETE_DE_LADO.borda
+  if (dentro <= 0) return { regioes: [], tracos: [] }
+  const topo = naAltura(altura, TAPETE_DE_LADO.topo)
+  const chao = altura / 2
+  const regioes: RegiaoDoMovel[] = []
+  const tracos: TracoDoGlifo[] = []
+  for (const ponta of [-1, 1]) {
+    regioes.push({
+      pontos: [
+        { x: ponta * corpo, y: topo },
+        { x: ponta * dentro, y: topo },
+        { x: ponta * dentro, y: chao },
+        { x: ponta * corpo, y: chao },
+      ],
+      tom: 'escuro',
+    })
+    tracos.push({ x1: ponta * dentro, y1: topo, x2: ponta * dentro, y2: chao })
+    if (franja > 0) {
+      tracos.push({ x1: ponta * corpo, y1: naAltura(altura, TAPETE_DE_LADO.fioDeCima), x2: ponta * (largura / 2), y2: chao })
+      tracos.push({ x1: ponta * corpo, y1: naAltura(altura, TAPETE_DE_LADO.fioDeBaixo), x2: ponta * (corpo + franja * TAPETE_DE_LADO.pontaDoFioDeBaixo), y2: chao })
+    }
+  }
+  return { regioes, tracos }
+}
+
 /** Cadeira de lado: a linha de baixo do assento, de onde as pernas descem. */
 function baseDoAssento(altura: number): number {
   return -altura / 2 + altura * TOPO_DO_ASSENTO + altura * ESPESSURA_DO_ASSENTO
@@ -703,14 +957,23 @@ function corpoDoAparador(largura: number, altura: number): { meioCorpo: number; 
  * - armário de cozinha: o retângulo (a frente é reta; o desenho está no glifo);
  * - aparador: o tampo em cima, mais largo que o corpo, que desce até o chão;
  * - fogueira: só as pedras, quatro domos sobre uma faixa baixa; o resto do
- *   retângulo fica sem fundo (a chama sobe sobre o chão).
+ *   retângulo fica sem fundo (a chama sobe sobre o chão);
+ * - tapete: a faixa deitada no chão, embaixo do objeto (`contornoDoTapete`,
+ *   na `forma` dele; o retangular recua a franja nas pontas).
  * Tipo sem vista ou tamanho não desenhável devolve `null` (vale o retângulo).
  */
-export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, altura: number): { x: number; y: number }[] | null {
+export function contornoDeLado(
+  tipo: TipoMobilia | undefined,
+  largura: number,
+  altura: number,
+  forma: FormaDoTapete = 'retangular',
+): { x: number; y: number }[] | null {
   if (!aceitaVista(tipo) || !tamanhoDesenhavel(largura, altura)) return null
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'tapete':
+      return contornoDoTapete(forma, largura, altura, 'lado')
     case 'fogueira':
       return contornoDaFogueiraDeLado(largura, altura)
     case 'armario':
@@ -763,12 +1026,15 @@ export function contornoDeLado(tipo: TipoMobilia | undefined, largura: number, a
 /**
  * O glifo de LADO: as duas pernas da cadeira; a costura entre a tampa e o corpo
  * do baú; a frente do armário de cozinha (`ARMARIO_DE_LADO`) e a do aparador
- * (`APARADOR_DE_LADO`); a lenha em X da fogueira (`FOGUEIRA_DE_LADO`).
+ * (`APARADOR_DE_LADO`); a lenha em X da fogueira (`FOGUEIRA_DE_LADO`); a
+ * borda de quina e os fios do tapete (`desenhoDoTapete`).
  */
-function tracosDeLado(tipo: TipoComVista, largura: number, altura: number): TracoDoGlifo[] {
+function tracosDeLado(tipo: TipoComVista, largura: number, altura: number, forma: FormaDoTapete): TracoDoGlifo[] {
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'tapete':
+      return desenhoDoTapete(forma, largura, altura, 'lado').tracos
     case 'fogueira':
       return tracosDaFogueiraDeLado(largura, altura)
     case 'armario':
@@ -843,16 +1109,25 @@ function tracosDoArmarioDeLado(largura: number, altura: number): TracoDoGlifo[] 
  *   puxadores curtos subindo da frente;
  * - aparador: a borda do tampo, baixa, e o encontro das portas descendo dela;
  * - fogueira: a roda de pedras (a borda de dentro e as juntas) e a lenha em X;
- *   a chama é animada, numa camada à parte (`pixi/chamasDasFogueiras.ts`).
+ *   a chama é animada, numa camada à parte (`pixi/chamasDasFogueiras.ts`);
+ * - tapete: a beira de dentro da borda, o losango do medalhão com o miolo e,
+ *   no retangular (`forma`), a franja nas pontas curtas (`desenhoDoTapete`).
  * Na vista de lado (só nos tipos com vista), o glifo é o de lado
  * (`tracosDeLado`); nos outros tipos a vista não muda nada.
  * Tamanho não desenhável (zero, negativo, não finito) não tem traço, nem tipo
  * desconhecido (arquivo de uma versão futura que escapou da leitura): lista
  * vazia em vez de derrubar o desenho.
  */
-export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number, vista: VistaMobilia = 'frente', voltaDaCerca = 0): TracoDoGlifo[] {
+export function tracosDoGlifo(
+  tipo: TipoMobilia,
+  largura: number,
+  altura: number,
+  vista: VistaMobilia = 'frente',
+  voltaDaCerca = 0,
+  forma: FormaDoTapete = 'retangular',
+): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
-  if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura)
+  if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura, forma)
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   const menorLado = Math.min(largura, altura)
@@ -906,6 +1181,8 @@ export function tracosDoGlifo(tipo: TipoMobilia, largura: number, altura: number
     }
     case 'fogueira':
       return tracosDaFogueira(largura, altura)
+    case 'tapete':
+      return desenhoDoTapete(forma, largura, altura, 'frente').tracos
     default:
       return []
   }
@@ -926,21 +1203,36 @@ function comVistaGravada(prop: Prop, vista: 'lado' | undefined): Prop {
  */
 export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
   const vista = normalizarVistaDoMovel(tipo, prop.mobiliaVista)
-  const trocado = { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade) }
-  // A curva é só da cerca: outro tipo não tem arco a guardar.
+  // A forma é só do tapete, como a curva é só da cerca: outro tipo não tem o que guardar.
+  const forma = normalizarFormaDoTapete(tipo, prop.mobiliaForma)
+  const trocado = comFormaGravada(
+    { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade, forma ?? 'retangular') },
+    forma,
+  )
   return comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))
 }
 
 /**
  * A "Vista" do painel (Frente | Lado): o mesmo móvel na outra vista. O tamanho
- * vai para o padrão do tipo nessa vista; centro, giro, camada, trava, ocultos,
- * piso, rótulo e aparência ficam. Só `'lado'` é gravado. Tipo sem vista
- * devolve o mesmo objeto.
+ * vai para o padrão do tipo nessa vista (no tapete, o da forma dele); centro,
+ * giro, camada, trava, ocultos, piso, rótulo e aparência ficam. Só `'lado'` é
+ * gravado. Tipo sem vista devolve o mesmo objeto.
  */
 export function movelComOutraVista(prop: Prop, vista: VistaMobilia, grade: number): Prop {
   const tipo = prop.mobilia
   if (!aceitaVista(tipo)) return prop
-  return { ...comVistaGravada(prop, vista === 'lado' ? 'lado' : undefined), ...tamanhoPadrao(tipo, vista, grade) }
+  return { ...comVistaGravada(prop, vista === 'lado' ? 'lado' : undefined), ...tamanhoPadrao(tipo, vista, grade, formaDoTapete(prop)) }
+}
+
+/**
+ * A "Forma" do painel (Retangular | Redondo), só no tapete: o mesmo tapete na
+ * outra forma, no tamanho padrão dela na vista atual (como trocar o tipo).
+ * Centro, giro, vista, camada, trava, ocultos, piso, rótulo e aparência ficam.
+ * Só `'redondo'` é gravado. Outro tipo devolve o mesmo objeto.
+ */
+export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {
+  if (prop.mobilia !== 'tapete') return prop
+  return { ...comFormaGravada(prop, forma === 'redondo' ? 'redondo' : undefined), ...tamanhoPadrao('tapete', vistaDoMovel(prop), grade, forma) }
 }
 
 /** Cor que o móvel aceita: `#rgb` ou `#rrggbb`, sem nada em volta. */
@@ -1023,7 +1315,8 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaCor' in prop) &&
     !('mobiliaCorDaLinha' in prop) &&
     !('mobiliaVista' in prop) &&
-    !('mobiliaCurva' in prop)
+    !('mobiliaCurva' in prop) &&
+    !('mobiliaForma' in prop)
   ) {
     return prop
   }
@@ -1034,6 +1327,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaCorDaLinha: _corDaLinha,
     mobiliaVista: _vista,
     mobiliaCurva: _curva,
+    mobiliaForma: _forma,
     ...comum
   } = prop
   return comum
@@ -1050,18 +1344,26 @@ function semNadaDeMovel(prop: Prop): Prop {
  */
 export function propMobiliaFromFile(prop: Prop): Prop {
   if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
-  const lido = comCurvaGravada(
-    comVistaGravada(
-      comAparenciaGravada(prop, {
-        preenchido: prop.mobiliaPreenchido !== false,
-        cor: normalizarCorDoMovel(prop.mobiliaCor),
-        corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
-      }),
-      normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista),
+  const lido = comFormaGravada(
+    comCurvaGravada(
+      comVistaGravada(
+        comAparenciaGravada(prop, {
+          preenchido: prop.mobiliaPreenchido !== false,
+          cor: normalizarCorDoMovel(prop.mobiliaCor),
+          corDaLinha: normalizarCorDoMovel(prop.mobiliaCorDaLinha),
+        }),
+        normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista),
+      ),
+      // CERCA CURVA: só na cerca, número finito até meia volta; o resto some.
+      normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva),
     ),
-    // CERCA CURVA: só na cerca, número finito até meia volta; o resto some.
-    normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva),
+    // TAPETE: só `'redondo'`, e só no tapete; o resto some.
+    normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma),
   )
-  const mesmo = mesmaAparenciaDoMovel(lido, prop) && lido.mobiliaVista === prop.mobiliaVista && lido.mobiliaCurva === prop.mobiliaCurva
+  const mesmo =
+    mesmaAparenciaDoMovel(lido, prop) &&
+    lido.mobiliaVista === prop.mobiliaVista &&
+    lido.mobiliaCurva === prop.mobiliaCurva &&
+    lido.mobiliaForma === prop.mobiliaForma
   return mesmo ? prop : lido
 }
