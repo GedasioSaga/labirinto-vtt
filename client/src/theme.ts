@@ -209,6 +209,47 @@ export const theme = {
      */
     tipDelay: '320ms',
   },
+
+  /**
+   * GRIMÓRIO — o design consolidado (protótipo em
+   * docs/design/consolidado/prototipo/css/grimorio.css, onde estes mesmos
+   * valores se chamam `--gr-*`). Aqui ganham o prefixo do app e viram
+   * `--lb-gr-*`; quem os usa é `components/grimorio/grimorio.css`. O teste
+   * `components/grimorio/grimorio.tokens.test.ts` confere cada valor contra o
+   * protótipo: mudar um lado sem o outro quebra o teste.
+   *
+   * Materiais: papel escuro da página, cartão da ficha, couro da lombada,
+   * gravado (o dourado apagado do ícone em relevo), metal dos rebites e latão
+   * da fita e da placa. Filete é a linha de 1 px; nunca há contorno grosso.
+   */
+  gr: {
+    /** Saída rápida que assenta sem passar do fim (entradas, indicadores). */
+    easeOut: 'cubic-bezier(0.23, 1, 0.32, 1)',
+    /** A página que recolhe e a folha que desce: curva de gaveta. */
+    easeDrawer: 'cubic-bezier(0.32, 0.72, 0, 1)',
+    /** Indicador que acompanha um clique de uso constante: anda na hora. */
+    durMove: '150ms',
+    durPanel: '260ms',
+    papelAlto: '#1b1711',
+    papelBaixo: '#13100c',
+    cartao: '#211c15',
+    cartaoAlto: '#29231a',
+    campo: '#15120e',
+    filete: 'rgba(236, 234, 228, 0.09)',
+    fileteForte: 'rgba(236, 234, 228, 0.16)',
+    fileteLatao: 'rgba(224, 164, 74, 0.26)',
+    couro: { 1: '#17100a', 2: '#251a11', 3: '#2f2216' },
+    gravado: '#c8b089',
+    gravadoForte: '#ead6ae',
+    metalClaro: '#c7d1d9',
+    metalMedio: '#8a949c',
+    metalEscuro: '#3e454b',
+    latao: { 1: '#f6cb84', 2: '#e0a44a', 3: '#b87d2e' },
+    hover: 'rgba(255, 236, 200, 0.06)',
+    hoverForte: 'rgba(255, 236, 200, 0.1)',
+    larguraLombada: '52px',
+    larguraPagina: '262px',
+  },
 } as const
 
 type TokenTree = { [key: string]: string | TokenTree }
