@@ -27,7 +27,7 @@
 // `evaluate` que mude estado do app.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
-import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
+import { abrirPaginaDoLivro, abrirNoMapa } from './helpers/livroDoMestre'
 
 /** 64x64 px, vermelho chapado — PNG de verdade, para o pipeline de
  *  `lib/imageImport.ts` rodar inteiro e gravar bytes de verdade na pasta. */
@@ -246,12 +246,14 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
   await campo.press('Enter')
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 }
 
 /** Guarda o token na estante e tira a peça do mapa. */
 async function guardarNoAcervoELimparOMapa(page: Page, nome: string): Promise<void> {
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: `Colocar ${nome} no mapa` })).toBeVisible({ timeout: 15_000 })

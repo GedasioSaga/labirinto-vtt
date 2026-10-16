@@ -11,7 +11,12 @@ export interface TokenSceneCarryControlsProps {
   owned: boolean
   /** "Levar" confirmado. `false` = não deu, e o formulário fica aberto com o aviso. */
   onCarry(sceneId: string, pinId: string | null): boolean
+  /** Dentro da ficha "Levar para outra cena" (fatia 9): destino e "Levar agora" já à vista, sem o botão que abre o formulário. */
+  direto?: boolean
 }
+
+/** O botão de levar quando o formulário já nasce aberto na ficha (o "Levar agora" do protótipo). */
+export const CARRY_NOW_LABEL = 'Levar agora'
 
 /** O rótulo do botão que abre o formulário. */
 export const CARRY_TO_LABEL = 'Levar para…'
@@ -27,7 +32,7 @@ export const CARRY_OWNED_HINT = 'Ficha de jogador: leve pelo "Mandar para…" do
  * do "Mandar para…" do Grupo (`SceneSendForm`): cena e chegada, Enter leva,
  * Esc cancela, e o foco volta ao botão.
  */
-export function TokenSceneCarryControls({ tokenName, destinations, owned, onCarry }: TokenSceneCarryControlsProps) {
+export function TokenSceneCarryControls({ tokenName, destinations, owned, onCarry, direto = false }: TokenSceneCarryControlsProps) {
   const formId = useId()
   const [open, setOpen] = useState(false)
   const openerRef = useRef<HTMLButtonElement | null>(null)
@@ -38,6 +43,24 @@ export function TokenSceneCarryControls({ tokenName, destinations, owned, onCarr
     return (
       <section className="lb-section">
         <p className="lb-field__hint">{CARRY_OWNED_HINT}</p>
+      </section>
+    )
+  }
+
+  if (direto) {
+    return (
+      <section className="lb-section">
+        <SceneSendForm
+          title={`Levar ${name} para…`}
+          ariaLabel={`Levar ${name} para outra cena`}
+          submitLabel={CARRY_NOW_LABEL}
+          failedText={CARRY_FAILED}
+          destinations={destinations}
+          onSend={onCarry}
+          // Levada, a ficha sai da cena junto com o formulário: não há o que fechar.
+          onClose={() => undefined}
+          direto
+        />
       </section>
     )
   }

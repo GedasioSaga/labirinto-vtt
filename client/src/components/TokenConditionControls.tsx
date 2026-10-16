@@ -17,10 +17,15 @@ export interface TokenConditionControlsProps {
   conditions: readonly TokenCondition[]
   /** Um clique: marca a condição se ela não está na ficha, desmarca se está. */
   onToggleCondition: (condition: TokenCondition) => void
+  /** Dentro da ficha "Condições" (fatia 9): as pastilhas sempre à vista, sem a linha "+". */
+  embutido?: boolean
 }
 
 /** O mestre precisa saber que a marca NÃO é anotação só dele — diferente de "Oculto para jogadores", ela sai para quem vê a ficha. */
 export const CONDICOES_HINT = 'Aparece em cima da ficha, também na tela dos jogadores que a veem.'
+
+/** A nota fixa sob os chips da ficha "Condições" (fatia 9), com o texto do protótipo. */
+export const CONDICOES_NOTA = 'Aparecem sobre a ficha, também para os jogadores.'
 
 /** Chave da escolha lembrada: a mesma família `lb-section:<id>` de `CollapsibleSection`. */
 const PREFIXO_LEMBRADO = 'lb-section:'
@@ -83,6 +88,8 @@ export interface OpcionalDaFichaProps {
   resumo?: string
   /** A frase que explica a linha: a dica sob demanda (P3) a mostra num balão ao pairar ou focar a linha. */
   dicaId?: string
+  /** Já mora numa ficha com o mesmo título (fatia 9): sem a linha, o corpo sempre à vista. */
+  embutido?: boolean
   children: ReactNode
 }
 
@@ -106,8 +113,9 @@ export interface OpcionalDaFichaProps {
  * Abrir e fechar é gesto frequente: o corpo aparece de uma vez, sem animar a
  * altura; só o sinal troca, em 110 ms (TokenControls.css).
  */
-export function OpcionalDaFicha({ rotulo, preenchido, aberta, onAbertaChange, resumo, dicaId, children }: OpcionalDaFichaProps) {
+export function OpcionalDaFicha({ rotulo, preenchido, aberta, onAbertaChange, resumo, dicaId, embutido = false, children }: OpcionalDaFichaProps) {
   const corpoId = `${useId()}-corpo`
+  if (embutido) return <div className="lb-token-opt__body">{children}</div>
   const mostrar = preenchido || aberta
   return (
     <>
@@ -200,19 +208,27 @@ function TokenConditionArt({ condition }: { condition: TokenCondition }) {
  * Duas colunas de pastilha + nome, como a legenda de um mapa (`lb-seg--pairs`):
  * em três colunas "Envenenado" não cabia na largura do rail.
  */
-export function TokenConditionControls({ conditions, onToggleCondition }: TokenConditionControlsProps) {
+export function TokenConditionControls({ conditions, onToggleCondition, embutido = false }: TokenConditionControlsProps) {
   const [aberta, lembrarAberta] = useSecaoLembrada('ficha-condicoes')
   const dicaId = useId()
   return (
     <section className="lb-section lb-token-opt">
-      <OpcionalDaFicha rotulo="Condições" preenchido={conditions.length > 0} aberta={aberta} onAbertaChange={lembrarAberta} dicaId={dicaId}>
-        <div className="lb-seg lb-seg--pairs" role="group" aria-label="Condições da ficha" aria-describedby={dicaId}>
+      <OpcionalDaFicha
+        rotulo="Condições"
+        preenchido={conditions.length > 0}
+        aberta={aberta}
+        onAbertaChange={lembrarAberta}
+        dicaId={dicaId}
+        embutido={embutido}
+      >
+        {/* Embutida na ficha "Condições": os chips do protótipo; solta, as pastilhas em duas colunas. */}
+        <div className={embutido ? 'gr-chips' : 'lb-seg lb-seg--pairs'} role="group" aria-label="Condições da ficha" aria-describedby={dicaId}>
           {TOKEN_CONDITION_ORDER.map((condition) => (
             <button
               key={condition}
               type="button"
               aria-pressed={conditions.includes(condition)}
-              className="lb-seg__option"
+              className={embutido ? 'gr-chip' : 'lb-seg__option'}
               onClick={() => {
                 // Quem mexe nas condições está usando o bloco: ele fica aberto,
                 // também quando a última marca sai — as pastilhas não somem
@@ -227,8 +243,9 @@ export function TokenConditionControls({ conditions, onToggleCondition }: TokenC
           ))}
         </div>
       </OpcionalDaFicha>
-      <p id={dicaId} className="lb-field__hint">
-        {CONDICOES_HINT}
+      {/* Embutida, a nota fica à vista sob os chips (protótipo); solta, é a dica sob demanda da linha. */}
+      <p id={dicaId} className={embutido ? 'gr-nota' : 'lb-field__hint'}>
+        {embutido ? CONDICOES_NOTA : CONDICOES_HINT}
       </p>
     </section>
   )

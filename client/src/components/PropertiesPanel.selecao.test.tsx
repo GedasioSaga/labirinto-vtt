@@ -306,27 +306,27 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Apagar token selecionado$/)).toHaveLength(1)
   })
 
-  it('ficha: Travado e Oculto logo depois de Condições, Rotação no Avançado da mesma seção; Chão do mapa e Camadas saem, o Acervo fica por último', () => {
+  it('ficha: Travado e Oculto na ficha "No mapa", depois de Condições, Rotação no Avançado da mesma seção; Chão do mapa e Camadas saem, o Acervo fica por último', () => {
     renderPainel(painelDaFicha())
     const lista = titulos()
-    // Condições é uma linha "+" sem título (peça ficha-em-ordem-de-tarefa): a
-    // âncora é o bloco dela, e o bloco seguinte é o da transformação, com o
-    // título que não repete o "Token" do Nome (peça ux-ficha-grupos).
-    const condicoes = container.querySelector('.lb-inspector__body [aria-label="Condições da ficha"]')?.closest('section')
+    // Fatia 9: Condições e a transformação moram em fichas recolhíveis, nesta ordem.
+    const condicoes = container.querySelector('.lb-inspector__body [aria-label="Condições da ficha"]')?.closest('.gr-ficha')
     expect(condicoes).toBeTruthy()
-    const transformacao = condicoes?.nextElementSibling
+    const noMapa = condicoes?.nextElementSibling
+    expect(noMapa?.querySelector('.gr-ficha__tit')?.textContent).toBe('No mapa')
+    const transformacao = noMapa?.querySelector('.lb-item-transform--raros')
     expect(transformacao?.querySelector('h2')?.textContent).toBe('Trava e visibilidade')
-    expect(antes(container.querySelector('.lb-inspector__body h2'), condicoes)).toBe(true)
-    const interruptores = Array.from(transformacao?.querySelectorAll(':scope > label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
-    expect(interruptores).toEqual(['Travado', 'Oculto para jogadores'])
-    // Rotação e "Oculto no editor", raros numa ficha, no Avançado recolhido da própria seção.
-    const avancado = transformacao?.querySelector('h3 > button')
+    // Fatia 9: a trava virou botões de ícone que ligam e desligam (protótipo), no lugar dos interruptores.
+    const icones = Array.from(transformacao?.querySelectorAll('[role="group"] > button[aria-pressed]') ?? []).map((b) => (b.textContent ?? '').trim())
+    expect(icones).toEqual(['Travado', 'Oculto para jogadores'])
+    // Rotação e "Oculto no editor", raros numa ficha, no Avançado recolhido no fim de "No mapa".
+    const avancado = noMapa?.querySelector('.lb-item-transform--avancado h3 > button')
     expect(avancado?.textContent).toBe('Avançado')
     expect(avancado?.getAttribute('aria-expanded')).toBe('false')
     const recolhido = document.getElementById(avancado?.getAttribute('aria-controls') ?? 'sem-id')
     expect(recolhido?.textContent).toContain('Rotação')
     expect(recolhido?.textContent).toContain('Oculto no editor')
-    // "Ficha de jogador" foi para junto de "Ficha de NPC", fora dos gestos de mesa.
+    // "Ficha de jogador" ao lado de "Ficha de NPC", no tipo de ficha, fora dos gestos de mesa.
     expect(transformacao?.textContent).not.toContain('Ficha de jogador')
     const rotulo = (texto: string) => Array.from(container.querySelectorAll('label')).find((l) => (l.textContent ?? '').includes(texto))
     expect(antes(rotulo('Ficha de NPC'), rotulo('Ficha de jogador'))).toBe(true)

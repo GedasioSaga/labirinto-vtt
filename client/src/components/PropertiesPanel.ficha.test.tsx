@@ -1,28 +1,31 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { useMapStore } from '../stores/mapStore'
 import type { Token } from '../types/map'
 import { PropertiesPanel, type PisosWiring } from './PropertiesPanel'
 import { propsDoPainel, type PainelProps } from './propertiesPanelTestProps'
 import { RotinaDaFichaControls } from './RotinaDaFichaControls'
-import { CARRY_TO_LABEL } from './TokenSceneCarryControls'
+import { LEVAR_JUNTO_SEM_FICHA } from './TokenCarryControls'
+import { TOKEN_NPC_HINT } from './TokenNpcControls'
+import { PLAYER_CHARACTER_HINT } from './TokenPlayerCharacterControls'
+import { CONDICOES_NOTA } from './TokenConditionControls'
+import { CARRY_NOW_LABEL, CARRY_TO_LABEL } from './TokenSceneCarryControls'
 
 /*
- * A FICHA EM ORDEM DE TAREFA (peça ficha-em-ordem-de-tarefa), na costura com o
- * `PropertiesPanel` de verdade, no molde do painel Design do Figma UI3 com uma
- * camada selecionada: os FIXOS primeiro (quem é, vida, tamanho, condições,
- * Travado e "Oculto para jogadores", cor, foto, NPC | jogador), os OPCIONAIS de
- * comportamento depois (vigia, patrulha, levar junto, veículo, rotina, luzes),
- * uma linha cada enquanto vazios, e Piso e "Levar para…" por último. Rotação e
- * "Oculto no editor" moram no Avançado recolhido da própria seção. O que a
- * ficha já tem nasce aberto no lugar dele.
+ * A FICHA DO TOKEN (fatia 9 do design consolidado), na costura com o
+ * `PropertiesPanel` de verdade: o tipo de ficha logo abaixo da cabeça; as
+ * fichas recolhíveis Nome e Condições (abertas), No mapa e Levar para outra
+ * cena (fechadas, com o resumo); e os cartões de Comportamento, cada um com a
+ * sua sub-ficha e o "voltar". Nenhum controle sumiu: cada um mudou de lugar. A
+ * Vida saiu (D: vem da ficha do sistema na fatia 10).
  */
 
 const GUARDA: Token = { id: 'guarda', characterId: null, name: 'Guarda', x: 320, y: 320, size: 1, image: null }
-/** A mesma ficha com tudo o que os opcionais guardam: marca, vigia, rota, veículo — e girada e oculta no editor. */
+/** A mesma ficha com tudo o que os comportamentos guardam: marca, vigia, rota, veículo — e girada e oculta no editor. */
 const GUARDA_CHEIO: Token = {
   ...GUARDA,
   conditions: ['envenenado'],
@@ -44,13 +47,14 @@ function daAventura(ficha: Token): Partial<PainelProps> {
   }
 }
 
-describe('painel de propriedades — a ficha em ordem de tarefa', () => {
+describe('painel de propriedades — a ficha do token (fatia 9)', () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
     window.localStorage.clear()
+    useLivroDoMestreStore.setState({ subFicha: null })
     useMapStore.setState({
       map: { ...createEmptyMap('m1', 'Casa', 30, 20, 64), tokens: [GUARDA] },
       camera: { x: 0, y: 0, scale: 1 },
@@ -67,6 +71,7 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     act(() => root.unmount())
     container.remove()
     window.localStorage.clear()
+    useLivroDoMestreStore.setState({ subFicha: null })
   })
 
   function renderFicha(ficha: Token = GUARDA, extra: Partial<PainelProps> = {}): void {
@@ -75,7 +80,7 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
         <PropertiesPanel
           {...propsDoPainel(ficha, {
             selection: { selection: { kind: 'token', count: 1 }, defaultTokenName: 'Token 1', onAddToken: nada, onRemoveSelected: nada },
-            tokenTransform: { onRotationChange: nada, onLockedChange: nada, onHiddenChange: nada, onSecretChange: nada },
+            tokenTransform: { onRotationChange: nada, onLockedChange: nada, onCongeladoChange: nada, onHiddenChange: nada, onSecretChange: nada },
             // Como o App liga: pisos e veículo presentes.
             pisos: PISOS,
             tokenVehicle: { options: [], onSeatsChange: nada, onPassengerChange: nada },
@@ -86,209 +91,233 @@ describe('painel de propriedades — a ficha em ordem de tarefa', () => {
     )
   }
 
-  const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
-  /**
-   * Os títulos do bloco da ficha, em ordem de DOM: os `h2` do corpo fora dos
-   * grupos Aventura e Esta cena (`.lb-zona`) e fora do Acervo — o que está na
-   * mão, e só ele.
-   */
-  function titulosDaFicha(): string[] {
-    return Array.from(corpo()?.querySelectorAll('h2') ?? [])
-      .filter((h) => h.closest('.lb-zona') === null && h.closest('.lb-acervo-painel') === null)
-      .map(texto)
-  }
-  const interruptor = (rotulo: string) => Array.from(container.querySelectorAll('label.lb-switch')).find((l) => texto(l) === rotulo) ?? null
-  /** Pelo nome acessível: o `aria-label` (o "+ Token" se lê "Adicionar token") ou o texto. */
   const botoes = (nome: string) =>
     Array.from(container.querySelectorAll('button')).filter((b) => b.getAttribute('aria-label') === nome || texto(b) === nome)
   const botao = (nome: string) => botoes(nome)[0] ?? null
-  const rotulo = (nome: string) => Array.from(container.querySelectorAll('.lb-label')).find((l) => texto(l) === nome) ?? null
-  /** O controle ligado ao `<label>` de texto `nome`. */
-  const campo = (nome: string) => {
-    const label = Array.from(container.querySelectorAll('label')).find((l) => texto(l) === nome)
-    return label?.htmlFor ? document.getElementById(label.htmlFor) : null
-  }
-  const grupo = (nome: string) => container.querySelector(`[role="radiogroup"][aria-label="${nome}"]`)
-  const avancado = () => Array.from(container.querySelectorAll<HTMLButtonElement>('h3 > button')).find((b) => texto(b) === 'Avançado') ?? null
-  const h2 = (nome: string) => Array.from(corpo()?.querySelectorAll('h2') ?? []).find((h) => texto(h) === nome) ?? null
+  const caixa = (nome: string) =>
+    Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')).find((c) => texto(c.closest('label')) === nome) ?? null
+  /** O cabeçalho de cada ficha recolhível, na ordem do documento. */
+  const cabecalhos = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.gr-ficha__cab'))
+  const cabecalho = (titulo: string) => cabecalhos().find((b) => texto(b.querySelector('.gr-ficha__tit')) === titulo) ?? null
+  const corpoDa = (titulo: string) => document.getElementById(cabecalho(titulo)?.getAttribute('aria-controls') ?? 'sem-id')
+  const cartoes = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.gr-cartao'))
+  const cartao = (rotulo: string) => cartoes().find((c) => texto(c.querySelector('.gr-cartao__rot')) === rotulo) ?? null
+  const resumoDo = (rotulo: string) => texto(cartao(rotulo)?.querySelector('.gr-cartao__resumo'))
+  const grupo = (nome: string) => container.querySelector(`[aria-label="${nome}"]`)
   /** `a` vem antes de `b` no documento. */
   const antes = (a: Node | null, b: Node | null) => a !== null && b !== null && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-  /** O corpo que a linha "+" (ou o cabeçalho) abre, pelo `aria-controls`. */
-  const corpoDe = (linha: Element | null) => document.getElementById(linha?.getAttribute('aria-controls') ?? 'sem-id')
+  const abrirCartao = (rotulo: string) => act(() => cartao(rotulo)?.click())
 
-  it('fixos primeiro, opcionais depois: a ordem da ficha, de "Nome" a "Levar para…"', () => {
+  it('na ordem do protótipo: tipo de ficha, Nome, Condições, No mapa, Levar para outra cena e, por último, os cartões de Comportamento', () => {
     renderFicha(GUARDA, daAventura(GUARDA))
-    const marcos: [string, Element | null][] = [
-      ['Nome', campo('Nome')],
-      ['Vida atual', campo('Vida atual')],
-      ['Tamanho da ficha', grupo('Tamanho da ficha')],
-      ['Condições', botao('Condições')],
-      ['Travado', interruptor('Travado')],
-      ['Oculto para jogadores', interruptor('Oculto para jogadores')],
-      ['Avançado', avancado()],
-      ['Cor da ficha', grupo('Cor da ficha')],
-      ['Escolher imagem...', botao('Escolher imagem...')],
-      ['Ficha de NPC', interruptor('Ficha de NPC')],
-      ['Ficha de jogador', interruptor('Ficha de jogador')],
-      ['Esta ficha vigia', interruptor('Esta ficha vigia')],
-      ['Patrulha', botao('Patrulha')],
-      ['Vai junto de', rotulo('Vai junto de')],
-      ['Esta ficha é um veículo', interruptor('Esta ficha é um veículo')],
-      ['Rotina', rotulo('Rotina')],
-      ['Ajustar a luz', botao('Ajustar a luz')],
-      ['Piso', campo('Piso')],
-      [CARRY_TO_LABEL, botao(CARRY_TO_LABEL)],
-    ]
-    for (const [nome, el] of marcos) expect(el, `sem "${nome}" no painel`).not.toBeNull()
-    const foraDeOrdem = marcos.slice(1).filter(([, el], i) => !antes(marcos[i][1], el)).map(([nome], i) => `${marcos[i][0]} → ${nome}`)
-    expect(foraDeOrdem).toEqual([])
-    // Com a ficha selecionada o painel é dela: o chão do mapa não vaza.
-    expect(h2('Chão do mapa')).toBeNull()
+    expect(cabecalhos().map((b) => texto(b.querySelector('.gr-ficha__tit')))).toEqual(['Nome', 'Condições', 'No mapa', 'Levar para outra cena'])
+    expect(antes(grupo('Tipo de ficha'), cabecalho('Nome'))).toBe(true)
+    const titulo = Array.from(container.querySelectorAll('h3')).find((h) => h.classList.contains('gr-titulo-secao'))
+    expect(texto(titulo)).toContain('Comportamento')
+    expect(antes(cabecalho('Levar para outra cena'), titulo ?? null)).toBe(true)
+    expect(cartoes().map((c) => texto(c.querySelector('.gr-cartao__rot')))).toEqual(['Vigia', 'Patrulha', 'Levar junto', 'Veículo', 'Rotina', 'Luzes', 'Piso'])
   })
 
-  it('título de bloco só onde há grupo de campos, cada um uma vez: 7 na ficha nova (eram 12)', () => {
-    renderFicha()
-    expect(titulosDaFicha()).toEqual(['Token', 'Vida', 'Tamanho da ficha', 'Trava e visibilidade', 'Imagem do token', 'Comportamento', 'Piso'])
-    for (const sumiu of ['Condições', 'Vigia', 'Patrulha', 'Levar junto', 'Veículo', 'Cor da ficha']) {
-      expect(titulosDaFicha()).not.toContain(sumiu)
+  it('a Vida saiu da ficha (D): sem "Vida atual", "Vida máxima" nem "Jogadores veem a barra"', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    for (const nome of ['Vida atual', 'Vida máxima', 'Jogadores veem a barra', 'Vida']) {
+      expect(Array.from(container.querySelectorAll('label, h2, h3, .gr-ficha__tit')).filter((l) => texto(l) === nome), nome).toHaveLength(0)
     }
   })
 
-  it('opcional vazio fechado: Condições, Patrulha e o Avançado com aria-expanded="false" e o controle de verdade dentro', () => {
+  it('Nome e Condições nascem abertas; No mapa e Levar, fechadas com o resumo; a escolha vale para o próximo token', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    expect(cabecalhos().map((b) => b.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'false', 'false'])
+    expect(texto(cabecalho('No mapa')?.querySelector('.gr-ficha__resumo'))).toBe('1 quadrado')
+    expect(corpoDa('No mapa')?.hasAttribute('inert')).toBe(true)
+    act(() => cabecalho('No mapa')?.click())
+    expect(cabecalho('No mapa')?.getAttribute('aria-expanded')).toBe('true')
+    act(() => root.unmount())
+    root = createRoot(container)
+    renderFicha({ ...GUARDA, id: 'outro', name: 'Outro' })
+    expect(cabecalho('No mapa')?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('No mapa: Trava e visibilidade, Tamanho, Cor e Imagem; Rotação e "Oculto no editor" no Avançado, aberto só na ficha girada', () => {
     renderFicha()
-    const fechados = [botao('Condições'), botao('Patrulha'), avancado()]
-    expect(fechados.map(texto)).toEqual(['Condições', 'Patrulha', 'Avançado'])
-    for (const linha of fechados) {
-      expect(linha?.getAttribute('aria-expanded')).toBe('false')
-      const aberto = corpoDe(linha)
-      expect(aberto?.hidden).toBe(true)
-      expect(aberto?.querySelector('button, input')).not.toBeNull()
+    const noMapa = corpoDa('No mapa')
+    // Trava e visibilidade: três botões de ícone (cadeado, floco, olho fechado) que ligam e desligam, como no protótipo.
+    const trava = noMapa?.querySelector('[role="group"][aria-label="Trava e visibilidade"]')
+    expect(Array.from(trava?.querySelectorAll('button.gr-icone-tg') ?? []).map(texto)).toEqual(['Travado', 'Congelado', 'Oculto para jogadores'])
+    for (const nome of ['Travado', 'Congelado', 'Oculto para jogadores']) {
+      expect(botao(nome)?.getAttribute('aria-pressed'), nome).toBe('false')
+      expect(botao(nome)?.querySelector('svg'), nome).not.toBeNull()
     }
-    // O Avançado guarda justamente os raros da ficha.
-    const doAvancado = corpoDe(avancado())
-    expect(doAvancado?.contains(campo('Rotação'))).toBe(true)
-    expect(doAvancado?.contains(interruptor('Oculto no editor'))).toBe(true)
-  })
-
-  it('o "+" e o Avançado abrem no clique: as pastilhas e a Rotação aparecem no lugar', () => {
-    renderFicha()
-    act(() => botao('Condições')?.click())
-    expect(botao('Condições')?.getAttribute('aria-expanded')).toBe('true')
-    expect(corpoDe(botao('Condições'))?.hidden).toBe(false)
-    expect(botao('Envenenado')).not.toBeNull()
-
-    act(() => avancado()?.click())
-    expect(avancado()?.getAttribute('aria-expanded')).toBe('true')
-    expect(corpoDe(avancado())?.hidden).toBe(false)
-    expect(campo('Rotação')).not.toBeNull()
-  })
-
-  it('Travado e "Oculto para jogadores" à vista na seção da transformação; Rotação e "Oculto no editor" só no Avançado', () => {
-    renderFicha()
-    const transformacao = interruptor('Travado')?.closest('section')
-    expect(transformacao?.querySelector('h2')?.textContent).toBe('Trava e visibilidade')
-    expect(interruptor('Oculto para jogadores')?.closest('section')).toBe(transformacao)
-    // Visíveis: fora de qualquer corpo recolhido.
-    expect(interruptor('Travado')?.closest('[hidden]')).toBeNull()
-    expect(interruptor('Oculto para jogadores')?.closest('[hidden]')).toBeNull()
-    // Raros: dentro do Avançado fechado, que é a última linha da mesma seção.
-    expect(campo('Rotação')?.closest('[hidden]')).not.toBeNull()
-    expect(interruptor('Oculto no editor')?.closest('[hidden]')).not.toBeNull()
-    expect(transformacao?.contains(avancado())).toBe(true)
-  })
-
-  it('o que a ficha já tem nasce aberto no lugar dele: marca, vigia, rota, veículo e o Avançado da ficha girada', () => {
-    renderFicha(GUARDA_CHEIO)
-    // Condições com marca: as pastilhas à vista, a linha vira cabeçalho parado.
-    expect(container.querySelector('[aria-label="Condições da ficha"]')?.closest('[hidden]')).toBeNull()
-    expect(botao('Condições')).toBeNull()
-    // Vigia ligada: as escolhas embaixo do interruptor.
-    expect(grupo('Para onde olha')?.closest('section')).toBe(interruptor('Esta ficha vigia')?.closest('section'))
-    // Rota: o resumo no cabeçalho e os botões à vista.
-    expect(botao('Patrulha')).toBeNull()
-    expect(botao('Avançar patrulha')?.closest('[hidden]')).toBeNull()
-    // Veículo: os lugares embaixo do interruptor.
-    expect(rotulo('Lugares')?.closest('section')).toBe(interruptor('Esta ficha é um veículo')?.closest('section'))
-    // Girada e oculta no editor: o Avançado nasce aberto.
-    expect(avancado()?.getAttribute('aria-expanded')).toBe('true')
-    expect(campo('Rotação')?.closest('[hidden]')).toBeNull()
-    // E cada um continua no lugar dele na ordem.
-    expect(antes(interruptor('Ficha de jogador'), interruptor('Esta ficha vigia'))).toBe(true)
-    expect(antes(grupo('Para onde olha'), botao('Avançar patrulha'))).toBe(true)
-    expect(antes(botao('Avançar patrulha'), interruptor('Esta ficha é um veículo'))).toBe(true)
-  })
-
-  it('outra ficha selecionada: o Avançado nasce de novo, fechado', () => {
-    renderFicha()
-    act(() => avancado()?.click())
-    expect(avancado()?.getAttribute('aria-expanded')).toBe('true')
-    renderFicha({ ...GUARDA, id: 'ogro', name: 'Ogro' })
+    expect(caixa('Travado')).toBeNull()
+    for (const nome of ['Tamanho da ficha', 'Cor da ficha']) expect(noMapa?.querySelector(`[role="radiogroup"][aria-label="${nome}"]`), nome).not.toBeNull()
+    for (const nome of ['Escolher imagem...', 'Salvar no acervo']) expect(noMapa?.contains(botao(nome)), nome).toBe(true)
+    const avancado = () => Array.from(noMapa?.querySelectorAll<HTMLButtonElement>('button') ?? []).find((b) => texto(b) === 'Avançado') ?? null
     expect(avancado()?.getAttribute('aria-expanded')).toBe('false')
+    // O Avançado é o último grupo de "No mapa", depois da Imagem.
+    const imagem = botao('Salvar no acervo')
+    const ultimo = avancado()
+    if (imagem === null || ultimo === null || trava === null || trava === undefined) throw new Error('faltam a Trava, a Imagem ou o Avançado')
+    expect(trava.compareDocumentPosition(imagem) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(imagem.compareDocumentPosition(ultimo) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    act(() => root.unmount())
+    root = createRoot(container)
+    renderFicha(GUARDA_CHEIO)
+    expect(Array.from(corpoDa('No mapa')?.querySelectorAll('button') ?? []).find((b) => texto(b) === 'Avançado')?.getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('os opcionais de comportamento vazios são uma linha cada, sem título próprio (o do grupo basta) e sem nada embaixo', () => {
-    renderFicha(GUARDA, daAventura(GUARDA))
-    for (const nome of ['Esta ficha vigia', 'Esta ficha é um veículo']) {
-      const secao = interruptor(nome)?.closest('section')
-      expect(secao?.classList.contains('lb-token-linha'), nome).toBe(true)
-      expect(secao?.querySelector('h2'), nome).toBeNull()
-      expect(secao?.children, nome).toHaveLength(1)
-    }
-    for (const nome of ['Vai junto de', 'Rotina']) {
-      const secao = rotulo(nome)?.closest('section')
-      expect(secao?.classList.contains('lb-token-linha'), nome).toBe(true)
-      expect(secao?.querySelector('h2'), nome).toBeNull()
-    }
-    const patrulha = botao('Patrulha')?.closest('section')
-    expect(patrulha?.classList.contains('lb-token-opt')).toBe(true)
-    expect(patrulha?.querySelector('h2')).toBeNull()
+  it('Tipo de ficha: "Ficha de NPC" e "Ficha de jogador" lado a lado, independentes, cada uma com a dica como descrição', () => {
+    const onNpcChange = vi.fn()
+    const onPlayerCharacterChange = vi.fn()
+    renderFicha(GUARDA, { tokenNpc: { onNpcChange }, tokenPlayerCharacter: { onPlayerCharacterChange } })
+    const tipo = grupo('Tipo de ficha')
+    const npc = caixa('Ficha de NPC')
+    const jogador = caixa('Ficha de jogador')
+    expect(tipo?.contains(npc)).toBe(true)
+    expect(tipo?.contains(jogador)).toBe(true)
+    expect(texto(document.getElementById(npc?.getAttribute('aria-describedby') ?? 'x'))).toBe(TOKEN_NPC_HINT)
+    expect(texto(document.getElementById(jogador?.getAttribute('aria-describedby') ?? 'x'))).toBe(PLAYER_CHARACTER_HINT)
+    act(() => npc?.click())
+    act(() => jogador?.click())
+    expect(onNpcChange).toHaveBeenCalledWith(true)
+    expect(onPlayerCharacterChange).toHaveBeenCalledWith(true)
   })
 
-  it('"Vai junto de" e "Rotina" sem o que escolher: linhas apagadas com o motivo, sem controle falso', () => {
-    renderFicha(GUARDA, daAventura(GUARDA))
-    const linhas = Array.from(container.querySelectorAll('.lb-token-par--vazio'))
-    expect(linhas.map((linha) => texto(linha.querySelector('.lb-label')))).toEqual(['Vai junto de', 'Rotina'])
-    expect(linhas[0]?.textContent).toContain('Sem outra ficha na cena')
-    expect(linhas[1]?.textContent).toContain('Estado do mundo')
-    for (const linha of linhas) expect(linha.querySelector('button, select, input')).toBeNull()
-  })
-
-  it('contrato das jornadas: nenhum nome da ficha sumiu nem dobrou', () => {
+  it('cartões: o resumo diz o estado, e o que a ficha já tem fica marcado (vigia, rota, veículo)', () => {
+    renderFicha(GUARDA_CHEIO)
+    expect(resumoDo('Vigia')).toBe('Olha norte')
+    expect(resumoDo('Patrulha')).toBe('2 pontos · no ponto 1')
+    expect(resumoDo('Veículo')).toBe('2 lugares')
+    for (const rotulo of ['Vigia', 'Patrulha', 'Veículo']) expect(cartao(rotulo)?.classList.contains('gr-e-ligado'), rotulo).toBe(true)
+    act(() => root.unmount())
+    root = createRoot(container)
     renderFicha()
-    expect(texto(corpo()?.querySelector('h2'))).toBe('Token')
-    expect(campo('Nome')).not.toBeNull()
-    const nomePublico = grupo('Nome para os jogadores')
+    expect([resumoDo('Vigia'), resumoDo('Patrulha'), resumoDo('Veículo')]).toEqual(['Desligada', 'Sem rota', 'Não é veículo'])
+    expect(cartoes().some((c) => c.classList.contains('gr-e-ligado'))).toBe(false)
+  })
+
+  it('o cartão abre a sub-ficha: a cabeça do item sai, o controle de verdade aparece, e voltar devolve a ficha com o foco no cartão', () => {
+    renderFicha()
+    expect(botao('Apagar token selecionado')).not.toBeNull()
+    abrirCartao('Vigia')
+    const voltar = botao('Voltar para Guarda')
+    expect(voltar).not.toBeNull()
+    expect(document.activeElement).toBe(voltar)
+    expect(botao('Apagar token selecionado')).toBeNull()
+    expect(texto(container.querySelector('.gr-subficha .gr-cabeca__tipo'))).toBe('Comportamento de Guarda')
+    expect(caixa('Esta ficha vigia')).not.toBeNull()
+    act(() => voltar?.click())
+    expect(caixa('Esta ficha vigia')).toBeNull()
+    expect(botao('Apagar token selecionado')).not.toBeNull()
+    expect(document.activeElement).toBe(cartao('Vigia'))
+  })
+
+  it('Patrulha, Veículo e Piso: a sub-ficha mostra os controles de antes, sem a linha "+" repetindo o título', () => {
+    renderFicha(GUARDA_CHEIO)
+    abrirCartao('Patrulha')
+    expect(botao('Marcar ponto aqui')).not.toBeNull()
+    expect(Array.from(container.querySelectorAll('button[aria-expanded]')).filter((b) => texto(b).startsWith('Patrulha'))).toHaveLength(0)
+    act(() => botao('Voltar para Guarda')?.click())
+    abrirCartao('Veículo')
+    expect(caixa('Esta ficha é um veículo')?.checked).toBe(true)
+    act(() => botao('Voltar para Guarda')?.click())
+    abrirCartao('Piso')
+    expect(container.querySelector('input[aria-label="Piso"], label + input')).not.toBeNull()
+  })
+
+  it('Esc na sub-ficha volta à ficha do token, sem largar a seleção', () => {
+    renderFicha()
+    abrirCartao('Patrulha')
+    expect(botao('Voltar para Guarda')).not.toBeNull()
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(botao('Voltar para Guarda')).toBeNull()
+    expect(cartao('Patrulha')).not.toBeNull()
+    expect(document.activeElement).toBe(cartao('Patrulha'))
+  })
+
+  it('selecionar de novo (o gesto que puxa a página Ficha) fecha a sub-ficha, como no protótipo', () => {
+    renderFicha()
+    abrirCartao('Vigia')
+    act(() => useLivroDoMestreStore.getState().abrirPagina('ficha'))
+    expect(botao('Voltar para Guarda')).toBeNull()
+    expect(cartao('Vigia')).not.toBeNull()
+  })
+
+  it('sem o que mostrar, o cartão fica apagado com o motivo: "Levar junto" sem outra ficha na cena, "Luzes" sem luz', () => {
+    renderFicha()
+    expect(cartao('Levar junto')?.disabled).toBe(true)
+    expect(resumoDo('Levar junto')).toBe(LEVAR_JUNTO_SEM_FICHA)
+    expect(cartao('Luzes')?.disabled).toBe(true)
+    expect(resumoDo('Luzes')).toBe('Nenhuma luz na ficha')
+  })
+
+  it('Rotina sem estado do mundo: a sub-ficha diz por quê, sem controle falso; a tocha presa abre "Ajustar a luz"', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    abrirCartao('Rotina')
+    const vazia = container.querySelector('.lb-token-par--vazio')
+    expect(vazia?.textContent).toContain('Estado do mundo')
+    expect(vazia?.querySelector('button, select, input')).toBeNull()
+    act(() => botao('Voltar para Guarda')?.click())
+    expect(resumoDo('Luzes')).toBe('Presa, vai junto')
+    abrirCartao('Luzes')
+    expect(botao('Ajustar a luz')).not.toBeNull()
+  })
+
+  it('o cartão aberto que deixa de valer (as luzes zeraram) fecha a sub-ficha de verdade: a cabeça volta, e uma luz nova não a reabre', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    abrirCartao('Luzes')
+    expect(botao('Ajustar a luz')).not.toBeNull()
+    // O token foi arrastado para longe da luz solta (ou um Ctrl+Z): nenhuma luz.
+    renderFicha(GUARDA)
+    expect(useLivroDoMestreStore.getState().subFicha).toBeNull()
+    expect(botao('Apagar token selecionado')).not.toBeNull()
+    expect(cartao('Luzes')?.disabled).toBe(true)
+    // A luz volta para baixo do token: a ficha continua a do token.
+    renderFicha(GUARDA, daAventura(GUARDA))
+    expect(botao('Voltar para Guarda')).toBeNull()
+    expect(botao('Apagar token selecionado')).not.toBeNull()
+  })
+
+  it('Condições: chips do protótipo e a nota à vista, com os mesmos botões de ligar e desligar', () => {
+    const onToggleCondition = vi.fn()
+    renderFicha(GUARDA, { tokenCondition: { onToggleCondition } })
+    const grupoDeCondicoes = container.querySelector('[role="group"][aria-label="Condições da ficha"]')
+    expect(grupoDeCondicoes?.classList.contains('gr-chips')).toBe(true)
+    const caido = Array.from(grupoDeCondicoes?.querySelectorAll('button') ?? []).find((b) => texto(b) === 'Caído')
+    expect(caido?.classList.contains('gr-chip')).toBe(true)
+    expect(caido?.getAttribute('aria-pressed')).toBe('false')
+    act(() => caido?.click())
+    expect(onToggleCondition).toHaveBeenCalledWith('caido')
+    const nota = corpoDa('Condições')?.querySelector('.gr-nota')
+    expect(texto(nota)).toBe(CONDICOES_NOTA)
+    expect(grupoDeCondicoes?.getAttribute('aria-describedby')).toBe(nota?.id)
+  })
+
+  it('Levar para outra cena: o destino e o "Levar agora" já à vista quando a ficha abre, sem o botão de abrir', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    const levar = corpoDa('Levar para outra cena')
+    expect(levar?.querySelector('form select')).not.toBeNull()
+    expect(Array.from(levar?.querySelectorAll('label') ?? []).map(texto)).toContain('Destino')
+    expect(levar?.contains(botao(CARRY_NOW_LABEL))).toBe(true)
+    expect(botao(CARRY_TO_LABEL)).toBeNull()
+    expect(botao('Cancelar')).toBeNull()
+  })
+
+  it('contrato das jornadas: cada nome da ficha existe uma vez, no lugar novo', () => {
+    renderFicha(GUARDA, daAventura(GUARDA))
+    expect(container.querySelectorAll('#lb-token-name')).toHaveLength(1)
+    const nomePublico = container.querySelector('[role="radiogroup"][aria-label="Nome para os jogadores"]')
     expect(Array.from(nomePublico?.querySelectorAll('[role="radio"]') ?? []).map(texto)).toEqual(['O mesmo', 'Outro', 'Nenhum'])
-    for (const nome of ['Vida atual', 'Vida máxima']) {
-      expect(Array.from(container.querySelectorAll('label')).filter((l) => texto(l) === nome), nome).toHaveLength(1)
-    }
-    expect(container.querySelectorAll('[role="radiogroup"][aria-label="Cor da ficha"]')).toHaveLength(1)
-    expect(grupo('Cor da ficha')?.querySelectorAll('[role="radio"][aria-label="Roxo"]')).toHaveLength(1)
-    // O "Adicionar token" mora no topo do livro do mestre (PropertiesPanel.selecao.test.tsx).
-    for (const nome of ['Escolher imagem...', 'Salvar no acervo', 'Apagar token selecionado']) {
+    expect(container.querySelectorAll('[role="radiogroup"][aria-label="Cor da ficha"] [role="radio"][aria-label="Roxo"]')).toHaveLength(1)
+    for (const nome of ['Escolher imagem...', 'Salvar no acervo', 'Apagar token selecionado', CARRY_NOW_LABEL, 'Travado', 'Congelado', 'Oculto para jogadores']) {
       expect(botoes(nome), nome).toHaveLength(1)
     }
-    // A jornada condicao-na-ficha abre as condições pelo botão cujo nome começa por "Condições".
-    const abrirCondicoes = /^\s*condi[çc](ão|ao|ões|oes)\b/i
-    expect(Array.from(container.querySelectorAll('button')).filter((b) => abrirCondicoes.test(texto(b)))).toHaveLength(1)
-    for (const nome of ['Travado', 'Oculto para jogadores']) {
-      expect(Array.from(container.querySelectorAll('label.lb-switch')).filter((l) => texto(l) === nome), nome).toHaveLength(1)
+    // As condições à vista com a ficha aberta (a jornada condicao-na-ficha só abre "Condições" se não as vê).
+    expect(container.querySelector('[role="group"][aria-label="Condições da ficha"]')).not.toBeNull()
+    for (const nome of ['Ficha de NPC', 'Ficha de jogador']) {
+      expect(Array.from(container.querySelectorAll('label')).filter((l) => texto(l) === nome), nome).toHaveLength(1)
     }
-  })
-
-  it('a Cor é uma linha de seis amostras no grupo "Cor da ficha", com "Roxo" pelo nome', () => {
-    renderFicha()
-    const cores = grupo('Cor da ficha')
-    expect(cores?.querySelectorAll('[role="radio"]')).toHaveLength(6)
-    expect(cores?.querySelector('[role="radio"][aria-label="Roxo"]')).not.toBeNull()
-    expect(cores?.closest('section')?.querySelector('h2')).toBeNull()
-  })
-
-  it('"Ficha de NPC" e "Ficha de jogador" abrem o grupo "Comportamento", uma logo depois da outra', () => {
-    renderFicha()
-    const npc = interruptor('Ficha de NPC')?.closest('section')
-    expect(npc?.previousElementSibling).toBe(h2('Comportamento'))
-    expect(npc?.nextElementSibling).toBe(interruptor('Ficha de jogador')?.closest('section'))
   })
 })

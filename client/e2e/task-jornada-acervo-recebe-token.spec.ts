@@ -33,7 +33,7 @@
 // o resto do app roda de verdade. Toda afirmação é sobre o que está na tela.
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
-import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
+import { abrirPaginaDoLivro, abrirNoMapa } from './helpers/livroDoMestre'
 
 /** 64x64 px: metade de cima #ff00ff, metade de baixo #00c853. */
 const FOTO_BASE64 =
@@ -214,6 +214,7 @@ async function adicionarToken(page: Page, nome: string): Promise<void> {
 /** O caminho que JÁ enche o acervo: token com foto → "Salvar no acervo". */
 async function guardarTokenComFotoNoAcervo(page: Page, nome: string): Promise<void> {
   await adicionarToken(page, nome)
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   await expect(page.getByRole('button', { name: 'Trocar imagem...' }), 'a foto não entrou no token').toBeVisible({ timeout: POLL_MS })
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()

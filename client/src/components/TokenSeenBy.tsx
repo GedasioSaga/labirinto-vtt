@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
+import { IconeDoLivro } from './livro/icones'
 
 export interface TokenSeenByProps {
   tokenId: string
@@ -19,6 +20,9 @@ export function seenByText(names: readonly string[] | null): string | null {
  * guarda, e a resposta está no painel. Redesenha a cada recorte que sai pelo
  * fio — no arrasto também —, só este bloco, sem re-renderizar o app.
  *
+ * Na ficha do token (fatia 9) é a linha `.visto-por` do protótipo: o olho na
+ * cor de "em linha" e a frase, logo abaixo do tipo de ficha.
+ *
  * O snapshot é a FRASE (string), não o array: `useSyncExternalStore` compara
  * por `Object.is`, e um array novo a cada leitura redesenharia sem parar.
  */
@@ -26,5 +30,10 @@ export function TokenSeenBy({ tokenId, watch, read }: TokenSeenByProps) {
   const snapshot = useCallback(() => seenByText(read(tokenId)), [read, tokenId])
   const text = useSyncExternalStore(watch, snapshot)
   if (text === null) return null
-  return <p className="lb-label">{text}</p>
+  return (
+    <p className="lb-label lb-visto-por">
+      <IconeDoLivro nome="olho" />
+      <span>{text}</span>
+    </p>
+  )
 }

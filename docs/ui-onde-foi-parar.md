@@ -428,37 +428,36 @@ Parte de: token selecionado no mapa. Vai para: Cabeça da ficha: retrato ou meda
 
 ### Ficha do token
 
-Parte de: token selecionado no mapa. Vai para: Página Ficha: Tipo de ficha, Nome, Condições, No mapa, Levar para outra cena, cartões de Comportamento. Fatia: 9.
+Parte de: token selecionado no mapa. Vai para: Página Ficha: Tipo de ficha, Nome, Condições, No mapa, Levar para outra cena, cartões de Comportamento (feito). Fatia: 9.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
-| Nome para os jogadores | radiogroup "Nome para os jogadores" | (livro do mestre) | (do bloco) |
-| Vida atual | spinbutton "Vida atual" | (livro do mestre) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
-| Vida máxima | spinbutton "Vida máxima" | (livro do mestre) | Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D) |
-| Tamanho da ficha | radiogroup "Tamanho da ficha" | (livro do mestre) | (do bloco) |
-| Condição: Envenenado | button "Envenenado" | (livro do mestre) > clicar button "Condições" | (do bloco) |
-| Condição: Caído | button "Caído" | (livro do mestre) > clicar button "Condições" | (do bloco) |
-| Condição: Dormindo | button "Dormindo" | (livro do mestre) > clicar button "Condições" | (do bloco) |
-| Condição: Atordoado | button "Atordoado" | (livro do mestre) > clicar button "Condições" | (do bloco) |
-| Condição: Invisível | button "Invisível" | (livro do mestre) > clicar button "Condições" | (do bloco) |
-| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
-| Congelado | checkbox "Congelado" | (livro do mestre) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Avançado: Rotação | spinbutton "Rotação" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
-| Avançado: Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
-| Cor da ficha | radiogroup "Cor da ficha" | (livro do mestre) | (do bloco) |
-| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) | (do bloco) |
-| Salvar no acervo | button "Salvar no acervo" | (livro do mestre) | (do bloco) |
 | Ficha de NPC | checkbox "Ficha de NPC" | (livro do mestre) | (do bloco) |
 | Ficha de jogador | checkbox "Ficha de jogador" | (livro do mestre) | (do bloco) |
-| Personagem | combobox "Personagem" | (livro do mestre) | (do bloco) |
-| Esta ficha vigia | checkbox "Esta ficha vigia" | (livro do mestre) | (do bloco) |
-| Patrulha: Marcar ponto aqui | button "Marcar ponto aqui" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
-| Patrulha: Patrulhar sozinha | button "Patrulhar sozinha" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
-| Patrulha: Avançar patrulha | button "Avançar patrulha" | (livro do mestre) > clicar button "Patrulha" | (do bloco) |
-| Esta ficha é um veículo | checkbox "Esta ficha é um veículo" | (livro do mestre) | (do bloco) |
-| Piso | spinbutton "Piso" | (livro do mestre) | (do bloco) |
+| Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
+| Nome para os jogadores | radiogroup "Nome para os jogadores" | (livro do mestre) | (do bloco) |
+| Condição: Envenenado | button "Envenenado" | (livro do mestre) | (do bloco) |
+| Condição: Caído | button "Caído" | (livro do mestre) | (do bloco) |
+| Condição: Dormindo | button "Dormindo" | (livro do mestre) | (do bloco) |
+| Condição: Atordoado | button "Atordoado" | (livro do mestre) | (do bloco) |
+| Condição: Invisível | button "Invisível" | (livro do mestre) | (do bloco) |
+| Travado | button "Travado" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Congelado | button "Congelado" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Oculto para jogadores | button "Oculto para jogadores" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Tamanho da ficha | radiogroup "Tamanho da ficha" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Cor da ficha | radiogroup "Cor da ficha" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Salvar no acervo | button "Salvar no acervo" | (livro do mestre) > clicar button "/^No mapa/" | (do bloco) |
+| Avançado: Rotação | spinbutton "Rotação" | (livro do mestre) > clicar button "/^No mapa/" > clicar button "Avançado" | (do bloco) |
+| Avançado: Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) > clicar button "/^No mapa/" > clicar button "Avançado" | (do bloco) |
+| Personagem | combobox "Personagem" | (livro do mestre) > clicar button "/^Personagem/" | (do bloco) |
+| Vigia: Esta ficha vigia | checkbox "Esta ficha vigia" | (livro do mestre) > clicar button "/^Vigia/" | (do bloco) |
+| Patrulha: Marcar ponto aqui | button "Marcar ponto aqui" | (livro do mestre) > clicar button "/^Patrulha/" | (do bloco) |
+| Patrulha: Patrulhar sozinha | button "Patrulhar sozinha" | (livro do mestre) > clicar button "/^Patrulha/" | (do bloco) |
+| Patrulha: Avançar patrulha | button "Avançar patrulha" | (livro do mestre) > clicar button "/^Patrulha/" | (do bloco) |
+| Veículo: Esta ficha é um veículo | checkbox "Esta ficha é um veículo" | (livro do mestre) > clicar button "/^Veículo/" | (do bloco) |
+| Piso | spinbutton "Piso" | (livro do mestre) > clicar button "/^Piso/" | (do bloco) |
+| Voltar da sub-ficha | button "Voltar para Goblin" | (livro do mestre) > clicar button "/^Vigia/" | (do bloco) |
 
 ### Ficha do pino (!)
 
@@ -1100,7 +1099,8 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel) | aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho) |
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
 | Marcas dos jogadores (MarcasDaCena) | só com marcas deixadas por jogadores |
-| Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token) | pedem sala aberta, outra cena ou Estado do mundo com valores |
+| Visto por / Ninguém vê (abaixo do tipo de ficha), Levar para outra cena (ficha), Rotina e Luzes (cartões de Comportamento) do token | pedem sala aberta, outra cena ou Estado do mundo com valores; PropertiesPanel.ficha.test.tsx abre Rotina e Luzes |
+| Vida do token (Vida atual, Vida máxima, Jogadores veem a barra) | saiu da ficha do token na fatia 9 (D): a vida passa a vir da ficha do sistema na fatia 10; a barra no mapa e o dado salvo continuam |
 | Livro de regras (página Mesa; e Grupo com a sala fechada) | só com sistema de RPG que tem livro |
 | Divisor "Altura das Cenas" (coluna da direita) | saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho |
 | Grupo do mestre (fatia 5): sob o título de cada cena, o pedido de passagem ("Deixar ir: <nome>", "Não: <nome>") | pede um jogador que viajou até um pino de passagem ligado a outra cena; GrupoCompacto.test.tsx e PartySection.test.tsx alcançam os dois botões sob o título da cena (o resto do Grupo com jogadores está no estado "mestre com jogadores") |
@@ -1109,4 +1109,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 608 controles em 67 blocos.
+Total: 607 controles em 67 blocos.

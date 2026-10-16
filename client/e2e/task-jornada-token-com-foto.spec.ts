@@ -45,6 +45,7 @@ import { test, expect, type Page, type WebSocketRoute } from '@playwright/test'
 import { createHostSession, type HostSession, type Outbound } from '../src/net/hostSession'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirNoMapa } from './helpers/livroDoMestre'
 import { installTauriFsStub } from './helpers/tauriFsStub'
 import type { MapData, Token } from '../src/types/map'
 import type { HostMessage } from '../src/net/protocol'
@@ -274,6 +275,7 @@ test('1. token com foto no editor do mestre é redondo, com moldura, e a foto n�
   // A foto entra pelo caminho da pessoa: painel -> "Escolher imagem..." ->
   // diálogo do sistema -> importTokenImage. O painel passando a oferecer
   // "Trocar imagem..." é a prova VISÍVEL de que a foto entrou no token.
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 

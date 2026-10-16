@@ -28,7 +28,7 @@
 // toda afirmação é sobre texto VISÍVEL na tela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
-import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
+import { abrirPaginaDoLivro, abrirNoMapa } from './helpers/livroDoMestre'
 
 /** Trecho do aviso que `lib/tokenLibrary.ts` (`SEM_FOTO_PARA_SALVAR`) manda
  *  para a tela por `App.tsx` (`reportFileError`). A jornada cobra o PEDAÇO que
@@ -189,6 +189,7 @@ async function criarTokenSemFoto(page: Page, nome: string): Promise<void> {
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
   // A prova VISÍVEL de que o token não tem foto: o painel oferece "Escolher
   // imagem..." e não "Trocar imagem..." (components/TokenImageControls.tsx).
+  await abrirNoMapa(page)
   await expect(page.getByRole('button', { name: 'Escolher imagem...' })).toBeVisible()
 }
 
@@ -202,6 +203,7 @@ test('CONTROLE POSITIVO: mandar guardar um token sem foto responde na tela, e a 
   await enterEditor(page)
 
   await criarTokenSemFoto(page, 'Goblin')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
 
   // O aviso aparece — o clique não pode ser um botão que não faz nada.
@@ -237,6 +239,7 @@ test('o aviso de "sem foto" continua na tela enquanto a pessoa vai atrás da ima
   await enterEditor(page)
 
   await criarTokenSemFoto(page, 'Goblin')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
 
   const aviso = page.getByText(O_QUE_FAZER, { exact: false })

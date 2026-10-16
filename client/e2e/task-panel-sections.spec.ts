@@ -112,7 +112,11 @@ test('2. com item selecionado a Ficha é do item: sem Chão do mapa nem Camadas,
 
   // Títulos da página Ficha em ordem de DOM (a do leitor de tela e a da tela).
   const headings = (await ficha.locator('h2').allTextContents()).map((text) => text.trim())
-  expect(headings.indexOf('Token')).toBeGreaterThanOrEqual(0)
+  // Fatia 9: a ficha do item são as fichas recolhíveis dele, nesta ordem
+  // (o "Token" de antes virou o título "Nome" da primeira).
+  const titulosDasFichas = (await ficha.locator('.gr-ficha__tit').allTextContents()).map((text) => text.trim())
+  expect(titulosDasFichas.slice(0, 3)).toEqual(['Nome', 'Condições', 'No mapa'])
+  await expect(ficha.getByRole('group', { name: 'Tipo de ficha' })).toBeVisible()
   // Um item só, sem lote: nada de seção "Seleção".
   expect(headings).not.toContain('Seleção')
   expect(headings).not.toContain('Acervo de tokens')

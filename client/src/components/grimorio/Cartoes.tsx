@@ -100,10 +100,12 @@ export function SubFicha({ voltarPara, onVoltar, icone, titulo, tipo, instantane
     const folha = raiz.current
     if (instantanea || folha === null || typeof folha.animate !== 'function') return
     const reduzido = movimentoReduzido()
-    folha.animate(
+    const entrada = folha.animate(
       reduzido ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateX(8px)' }, { opacity: 1, transform: 'none' }],
       { duration: reduzido ? ENTRADA_REDUZIDA_MS : ENTRADA_DE_LADO_MS, easing: reduzido ? 'ease' : theme.gr.easeOut },
     )
+    // Desmontou no meio (ou o StrictMode remontou): a entrada não fica correndo em dobro.
+    return () => entrada.cancel()
     // Só ao montar: a folha entra uma vez.
   }, [])
   return (

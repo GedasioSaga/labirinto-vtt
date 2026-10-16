@@ -26,3 +26,13 @@ export async function escolherNoArquivo(page: Page, item: string): Promise<void>
   await livroDoMestre(page).getByRole('button', { name: 'Arquivo', exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
+
+/**
+ * Abre a ficha recolhível "No mapa" da ficha do token (fatia 9: nasce fechada,
+ * como no protótipo), onde moram Trava, Tamanho, Cor e Imagem. A escolha fica
+ * lembrada, então chamar com ela já aberta não faz nada.
+ */
+export async function abrirNoMapa(page: Page): Promise<void> {
+  const cabecalho = page.getByRole('button', { name: /^No mapa/ })
+  if ((await cabecalho.getAttribute('aria-expanded')) !== 'true') await cabecalho.click()
+}

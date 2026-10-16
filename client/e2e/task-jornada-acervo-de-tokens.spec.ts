@@ -40,7 +40,7 @@
 // nome e foto, e o apagar que pergunta antes.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
-import { abrirPaginaDoLivro, escolherNoArquivo } from './helpers/livroDoMestre'
+import { abrirPaginaDoLivro, escolherNoArquivo, abrirNoMapa } from './helpers/livroDoMestre'
 
 /** 64x64 px: metade de cima #ff00ff, metade de baixo #00c853 — as mesmas duas
  *  cores de `task-jornada-token-com-foto.spec.ts`, para "a foto está
@@ -334,6 +334,7 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
   await campo.press('Enter')
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   // "Trocar imagem..." no lugar de "Escolher imagem..." é a prova VISÍVEL de
   // que a foto entrou no token.
@@ -368,6 +369,7 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   await criarTokenComFoto(page, 'Goblin')
 
   // ── salvar no acervo ─────────────────────────────────────────────────────
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
 
   // ── o item aparece com NOME e MINIATURA ──────────────────────────────────
@@ -385,6 +387,7 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
 
   // ── um SEGUNDO item, com OUTRA foto: sem ele, trazer o item errado passa ──
   await criarTokenComFoto(page, 'Orc')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   const orcNoAcervo = page.getByRole('button', { name: 'Colocar Orc no mapa' })
@@ -455,6 +458,7 @@ test('2. apagar do acervo pergunta antes, e o que foi apagado não volta quando 
   await enterEditor(page)
 
   await criarTokenComFoto(page, 'Orc')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   const orcNoAcervo = page.getByRole('button', { name: 'Colocar Orc no mapa' })

@@ -86,7 +86,6 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
     tokenColor: { onColorChange: nada },
     tokenSize: { onSizeChange: nada },
     // Grupo mundo: vida, condição e vigia da ficha (as ligações de App.tsx).
-    tokenHealth: { onHealthChange: nada },
     tokenCondition: { onToggleCondition: nada },
     tokenWatch: { onWatchChange: nada },
     // Grupo mundo (onda 3): rota de patrulha e "Vai junto de" (levar ficha junto), sem rota nem vínculo.

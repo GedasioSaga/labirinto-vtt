@@ -43,7 +43,7 @@ const { arrivalSpot } = await import('../lib/pinTravel')
 const { partyDestinations, PARTY_CENTER_LABEL } = await import('../lib/party')
 const { PropertiesPanel } = await import('./PropertiesPanel')
 const { propsDoPainel } = await import('./propertiesPanelTestProps')
-const { CARRY_OWNED_HINT, CARRY_TO_LABEL } = await import('./TokenSceneCarryControls')
+const { CARRY_OWNED_HINT, CARRY_NOW_LABEL } = await import('./TokenSceneCarryControls')
 
 const ALCAPAO: Pin = { id: 'alcapao', x: 1500, y: 900, kind: 'viagem', description: 'Alçapão', image: null, destino: null }
 
@@ -148,9 +148,8 @@ describe('"Levar para…" no painel de propriedades', () => {
     expect(nomeDoPorao).toBeDefined()
     renderPainel('zumbi', [DIEGO])
 
-    const abrir = botao(CARRY_TO_LABEL)
-    expect(abrir).toBeDefined()
-    act(() => abrir?.click())
+    // Fatia 9: na ficha "Levar para outra cena" o destino e o "Levar agora" já estão à vista, sem clique a mais.
+    expect(botao(CARRY_NOW_LABEL)).toBeDefined()
     const form = container.querySelector('form[aria-label="Levar Zumbi para outra cena"]')
     expect(form).not.toBeNull()
     const [cena, chegada] = Array.from(form?.querySelectorAll('select') ?? [])
@@ -164,7 +163,7 @@ describe('"Levar para…" no painel de propriedades', () => {
     if (slot?.status !== 'ok') throw new Error('o Térreo deveria estar de fundo')
     const esperado = arrivalSpot(slot.map, ALCAPAO, 1)
     escolher(chegada, 'alcapao')
-    act(() => botao('Levar')?.click())
+    act(() => botao(CARRY_NOW_LABEL)?.click())
 
     expect(tokensDaCena(porao).map((t) => t.id)).toEqual(['diego'])
     expect(tokensDaCena(terreo).filter((t) => t.id === 'zumbi').map((t) => [t.name, t.x, t.y])).toEqual([['Zumbi', esperado.x, esperado.y]])
@@ -174,14 +173,14 @@ describe('"Levar para…" no painel de propriedades', () => {
   it('ficha do Diego (dono na sala): o painel não oferece "Levar para…" e aponta o "Mandar para…" do Grupo', () => {
     montarAventura()
     renderPainel('diego', [DIEGO])
-    expect(botao(CARRY_TO_LABEL)).toBeUndefined()
+    expect(botao(CARRY_NOW_LABEL)).toBeUndefined()
     expect(container.textContent).toContain(CARRY_OWNED_HINT)
   })
 
   it('a mesma ficha, sem jogador na sala com ela, ganha "Levar para…"', () => {
     montarAventura()
     renderPainel('diego', [])
-    expect(botao(CARRY_TO_LABEL)).toBeDefined()
+    expect(botao(CARRY_NOW_LABEL)).toBeDefined()
     expect(container.textContent).not.toContain(CARRY_OWNED_HINT)
   })
 
@@ -193,7 +192,7 @@ describe('"Levar para…" no painel de propriedades', () => {
     renderPainel('diego', [])
     const nomes = Array.from(container.querySelectorAll<HTMLInputElement>('#lb-token-name')).map((campo) => campo.value)
     expect(nomes).toEqual(['ficha-diego'])
-    expect(botao(CARRY_TO_LABEL)).toBeDefined()
+    expect(botao(CARRY_NOW_LABEL)).toBeDefined()
   })
 
   it('mapa solto (sem aventura): o painel da ficha abre sem "Levar para…"', () => {
@@ -205,6 +204,6 @@ describe('"Levar para…" no painel de propriedades', () => {
     expect(ligacaoDoApp([]).destinations).toEqual([])
     // O painel da ficha está lá (o interruptor de NPC dela aparece): só o "Levar para…" falta.
     expect(container.textContent).toContain('Ficha de NPC')
-    expect(botao(CARRY_TO_LABEL)).toBeUndefined()
+    expect(botao(CARRY_NOW_LABEL)).toBeUndefined()
   })
 })

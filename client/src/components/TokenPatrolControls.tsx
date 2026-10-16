@@ -25,6 +25,8 @@ export interface TokenPatrolControlsProps {
   esperandoMestre?: boolean
   /** "Seguir": solta a ficha que espera o mestre. */
   onSeguir?: () => void
+  /** Já mora numa ficha com o título "Patrulha" (a sub-ficha do cartão, fatia 9): sem a linha "+", tudo à vista. */
+  embutido?: boolean
 }
 
 const MODOS: ReadonlyArray<{ valor: ModoDaPatrulha; rotulo: string }> = [
@@ -42,7 +44,8 @@ export const PATRULHA_HINT = 'Marque a ronda de um NPC e faça-o andar por ela s
 /** Pontos mínimos para haver para onde andar. */
 const MIN_POINTS_TO_ADVANCE = 2
 
-function patrolSummary(patrol: TokenPatrol): string {
+/** "3 pontos · no ponto 2": o resumo da rota, no cabeçalho preenchido e no cartão da ficha (fatia 9). */
+export function patrolSummary(patrol: TokenPatrol): string {
   const count = patrol.pontos.length
   const points = count === 1 ? '1 ponto' : `${count} pontos`
   return `${points} · no ponto ${patrol.atual + 1}`
@@ -76,6 +79,7 @@ export function TokenPatrolControls({
   onAbrirPonto,
   esperandoMestre = false,
   onSeguir,
+  embutido = false,
 }: TokenPatrolControlsProps) {
   const [aberta, lembrarAberta] = useSecaoLembrada('ficha-patrulha')
   const reasonId = useId()
@@ -117,6 +121,7 @@ export function TokenPatrolControls({
         onAbertaChange={lembrarAberta}
         resumo={patrol === null ? undefined : patrolSummary(patrol)}
         dicaId={dicaId}
+        embutido={embutido}
       >
         {onPatrulhar !== undefined && (
           <button

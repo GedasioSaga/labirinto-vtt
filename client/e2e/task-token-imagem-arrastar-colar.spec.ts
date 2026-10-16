@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { abrirNoMapa } from './helpers/livroDoMestre'
 
 // IMAGEM DO TOKEN POR ARRASTAR E COLAR — o mesmo que o painel do pino ganhou
 // (commit d485e232): acima do "Escolher imagem..." / "Trocar imagem..." fica a
@@ -181,6 +182,8 @@ test('imagem do token: soltar e colar usam o mesmo caminho do "Trocar imagem..."
   await campo.pressSequentially('Kael', { delay: 20 })
   await campo.press('Enter')
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
+  // "No mapa" nasce fechada (fatia 9): a imagem do token mora nela.
+  await abrirNoMapa(page)
   const area = page.getByRole('region', { name: 'Colar ou soltar imagem do token' })
   await expect(area).toBeVisible()
   await expect(area).toContainText('Arraste uma imagem para cá')

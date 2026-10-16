@@ -20,6 +20,13 @@ export interface SceneSendFormProps {
   /** Confirmado. `false` = não deu, e o formulário fica aberto com o aviso. */
   onSend(sceneId: string, pinId: string | null): boolean
   onClose(): void
+  /**
+   * Já aberto dentro de uma ficha que tem o próprio título ("Levar para outra
+   * cena", fatia 9): sem o título, sem "Cancelar", sem tomar o foco ao montar,
+   * a primeira lista chamada "Destino", e o Esc fica com o app (não há o que
+   * cancelar). Enviar continua igual.
+   */
+  direto?: boolean
 }
 
 /**
@@ -34,7 +41,7 @@ export interface SceneSendFormProps {
  * lista "Cena" e leva o foco à "Chegada", que já tem os pinos de lá. Com o
  * campo vazio, Enter envia como sempre. Esc com texto só limpa a busca.
  */
-export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, destinations, onSend, onClose }: SceneSendFormProps) {
+export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, destinations, onSend, onClose, direto = false }: SceneSendFormProps) {
   const baseId = useId()
   const [sceneId, setSceneId] = useState(destinations[0]?.sceneId ?? '')
   const [arrival, setArrival] = useState(CENTER)
@@ -50,10 +57,12 @@ export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, desti
   const found = searching ? searchScenes(destinations, query) : []
 
   useEffect(() => {
+    // Direto na ficha, o formulário nasce com a ficha aberta: o foco fica no cabeçalho que a abriu.
+    if (direto) return
     // Com busca, o foco nasce nela: digitar já filtra. Sem ela, na lista "Cena".
     const first = searchRef.current ?? sceneRef.current
     first?.focus()
-  }, [])
+  }, [direto])
 
   /** Escolher pela busca: a cena vai para a lista "Cena", a chegada volta ao centro e o foco vai para ela. */
   const choose = (destination: PartyDestination) => {
@@ -117,7 +126,7 @@ export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, desti
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Escape') return
+    if (event.key !== 'Escape' || direto) return
     // Esc fecha sem mandar; não pode chegar ao canvas (Esc lá troca a ferramenta).
     event.preventDefault()
     event.stopPropagation()
@@ -126,7 +135,7 @@ export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, desti
 
   return (
     <form className="lb-party__send" aria-label={ariaLabel} onSubmit={submit} onKeyDown={onKeyDown}>
-      <span className="lb-label">{title}</span>
+      {!direto && <span className="lb-label">{title}</span>}
       {showSearch && (
         <>
           <SceneSearchField
@@ -159,7 +168,7 @@ export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, desti
         </>
       )}
       <label className="lb-label" htmlFor={`${baseId}-scene`}>
-        Cena
+        {direto ? 'Destino' : 'Cena'}
       </label>
       <select
         id={`${baseId}-scene`}
@@ -205,9 +214,11 @@ export function SceneSendForm({ title, ariaLabel, submitLabel, failedText, desti
         </p>
       )}
       <div className="lb-party__actions">
-        <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
-          Cancelar
-        </button>
+        {!direto && (
+          <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
+            Cancelar
+          </button>
+        )}
         <button type="submit" className="lb-btn lb-btn--primary">
           {submitLabel}
         </button>

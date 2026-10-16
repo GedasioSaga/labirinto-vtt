@@ -139,6 +139,8 @@ const DESENHOS = {
   ),
   carta: caminho('M4 6.5h16v11H4z M4 7l8 6 8-6'),
   seta: caminho('M4.5 12h14 M13 6.5l5.5 5.5-5.5 5.5'),
+  /** "Travado" (a trava da ficha do token). */
+  cadeado: caminho('M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3'),
   floco: caminho('M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5'),
   /** O floco riscado: "Descongelar". */
   degelo: caminho('M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5 M3.5 20.5l17-17'),
@@ -149,6 +151,23 @@ const DESENHOS = {
   regua: caminho('M3.5 16.5l13-13 4 4-13 13z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2'),
   /** Voltar da sub-ficha para a ficha do item. */
   esq: caminho('M15 6l-6 6 6 6'),
+  /* Ficha do token (fatia 9): Condições e os cartões de Comportamento. */
+  estrela: caminho('M12 4l2.3 4.9 5.2.6-3.9 3.6 1.1 5.2L12 15.7l-4.7 2.6 1.1-5.2-3.9-3.6 5.2-.6z'),
+  elo: caminho('M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'),
+  carroca: (
+    <>
+      {caminho('M3.5 14.5h17 M5.5 14.5V9h13v5.5 M9 9V6h6v3')}
+      <circle cx="7.5" cy="17.5" r="2" />
+      <circle cx="16.5" cy="17.5" r="2" />
+    </>
+  ),
+  relogio: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      {caminho('M12 7.5V12l3 2')}
+    </>
+  ),
+  lampiao: caminho('M9 4.5h6 M12 2.5v2 M8 8.5h8l-1 10H9z M8 8.5l1.2-4h5.6l1.2 4 M12 12v3'),
   pessoa: (
     <>
       <circle cx="12" cy="8" r="3.5" />

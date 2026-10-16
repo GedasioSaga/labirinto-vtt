@@ -281,21 +281,29 @@ export const BLOCOS: readonly Bloco[] = [
     linhas: [l('Apagar', b('Apagar token selecionado')), l('Mais ações', b('Mais ações'))],
   },
   {
-    tela: 'mestre', titulo: 'Ficha do token', estado: 'token selecionado no mapa', escopo: 'esquerda', preparo: sel('token', 't1'),
-    vai: 'Página Ficha: Tipo de ficha, Nome, Condições, No mapa, Levar para outra cena, cartões de Comportamento', fatia: '9',
+    tela: 'mestre', titulo: 'Ficha do token', estado: 'token selecionado no mapa', escopo: 'esquerda',
+    // Esc depois de cada linha: na sub-ficha de um cartão ele volta à ficha (o cartão seguinte fica à vista); fora dela, larga a seleção, que o preparo refaz.
+    preparo: { ...sel('token', 't1'), escape: true },
+    vai: 'Página Ficha: Tipo de ficha, Nome, Condições, No mapa, Levar para outra cena, cartões de Comportamento (feito)', fatia: '9',
     linhas: [
+      ...todos([cx('Ficha de NPC'), cx('Ficha de jogador')]),
       ...todos([['textbox', 'Nome'], rg('Nome para os jogadores')]),
-      ...todos([['spinbutton', 'Vida atual'], ['spinbutton', 'Vida máxima']]).map((x) => ({ ...x, vai: 'Sai na fatia 9; a vida vem da ficha do sistema (fatia 10, D)' })),
-      ...todos([rg('Tamanho da ficha')]),
-      ...['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível'].map((c) => l(`Condição: ${c}`, b(c), b('Condições'))),
-      ...todos([cx('Travado'), cx('Congelado'), cx('Oculto para jogadores')]),
-      l('Avançado: Rotação', ['spinbutton', 'Rotação'], b('Avançado')),
-      l('Avançado: Oculto no editor', cx('Oculto no editor'), b('Avançado')),
-      ...todos([rg('Cor da ficha'), b('Escolher imagem...'), b('Salvar no acervo'), cx('Ficha de NPC'), cx('Ficha de jogador'), ['combobox', 'Personagem'], cx('Esta ficha vigia')]),
-      l('Patrulha: Marcar ponto aqui', b('Marcar ponto aqui'), b('Patrulha')),
-      l('Patrulha: Patrulhar sozinha', b('Patrulhar sozinha'), b('Patrulha')),
-      l('Patrulha: Avançar patrulha', b('Avançar patrulha'), b('Patrulha')),
-      ...todos([cx('Esta ficha é um veículo'), ['spinbutton', 'Piso']]),
+      // Condições nasce aberta (protótipo): as pastilhas à vista, sem clique.
+      ...['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível'].map((c) => l(`Condição: ${c}`, b(c))),
+      // "No mapa" nasce fechada; o nome do cabeçalho leva o resumo ("No mapa 1 quadrado") enquanto ela está fechada.
+      // Trava e visibilidade: botões de ícone (cadeado, floco, olho fechado), como no protótipo.
+      ...todos([b('Travado'), b('Congelado'), b('Oculto para jogadores'), rg('Tamanho da ficha'), rg('Cor da ficha'), b('Escolher imagem...'), b('Salvar no acervo')], b('/^No mapa/')),
+      l('Avançado: Rotação', ['spinbutton', 'Rotação'], b('/^No mapa/'), b('Avançado')),
+      l('Avançado: Oculto no editor', cx('Oculto no editor'), b('/^No mapa/'), b('Avançado')),
+      // Os cartões de Comportamento abrem a sub-ficha; o nome do cartão leva o resumo ("Vigia Desligada").
+      l('Personagem', ['combobox', 'Personagem'], b('/^Personagem/')),
+      l('Vigia: Esta ficha vigia', cx('Esta ficha vigia'), b('/^Vigia/')),
+      l('Patrulha: Marcar ponto aqui', b('Marcar ponto aqui'), b('/^Patrulha/')),
+      l('Patrulha: Patrulhar sozinha', b('Patrulhar sozinha'), b('/^Patrulha/')),
+      l('Patrulha: Avançar patrulha', b('Avançar patrulha'), b('/^Patrulha/')),
+      l('Veículo: Esta ficha é um veículo', cx('Esta ficha é um veículo'), b('/^Veículo/')),
+      l('Piso', ['spinbutton', 'Piso'], b('/^Piso/')),
+      l('Voltar da sub-ficha', b('Voltar para Goblin'), b('/^Vigia/')),
     ],
   },
   {
@@ -537,7 +545,8 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
   ['Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel)', 'aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho)'],
   ['Endireitar na sala ou parede solta', 'só com traço torto; coberto no desenho'],
   ['Marcas dos jogadores (MarcasDaCena)', 'só com marcas deixadas por jogadores'],
-  ['Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token)', 'pedem sala aberta, outra cena ou Estado do mundo com valores'],
+  ['Visto por / Ninguém vê (abaixo do tipo de ficha), Levar para outra cena (ficha), Rotina e Luzes (cartões de Comportamento) do token', 'pedem sala aberta, outra cena ou Estado do mundo com valores; PropertiesPanel.ficha.test.tsx abre Rotina e Luzes'],
+  ['Vida do token (Vida atual, Vida máxima, Jogadores veem a barra)', 'saiu da ficha do token na fatia 9 (D): a vida passa a vir da ficha do sistema na fatia 10; a barra no mapa e o dado salvo continuam'],
   ['Livro de regras (página Mesa; e Grupo com a sala fechada)', 'só com sistema de RPG que tem livro'],
   ['Divisor "Altura das Cenas" (coluna da direita)', 'saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho'],
   [

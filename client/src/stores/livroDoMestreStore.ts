@@ -45,12 +45,20 @@ interface LivroDoMestreState {
    * pela seleção, a troca é na hora.
    */
   trocaAnimada: boolean
+  /**
+   * O cartão aberto em ficha própria na página Ficha (fatia 9): de qual item
+   * e qual cartão ("vigia", "patrulha"). Como o `E.sub` do protótipo, cai a
+   * cada gesto que puxa a página (selecionar, armar, trocar de página, "+ Token").
+   */
+  subFicha: { item: string; cartao: string } | null
   /** Abre a página pedida e tira a página de dentro da lombada, se estava recolhida. */
   abrirPagina: (pagina: PaginaDoMestre, animada?: boolean) => void
   setRecolhido: (recolhido: boolean) => void
   /** O "+ Token": a página Ficha, aberta, com o campo do nome. */
   abrirNovoToken: () => void
   fecharNovoToken: () => void
+  abrirSubFicha: (item: string, cartao: string) => void
+  fecharSubFicha: () => void
 }
 
 export const useLivroDoMestreStore = create<LivroDoMestreState>((set) => ({
@@ -58,8 +66,11 @@ export const useLivroDoMestreStore = create<LivroDoMestreState>((set) => ({
   recolhido: false,
   novoTokenAberto: false,
   trocaAnimada: false,
-  abrirPagina: (pagina, animada = false) => set({ pagina, recolhido: false, trocaAnimada: animada }),
+  subFicha: null,
+  abrirPagina: (pagina, animada = false) => set({ pagina, recolhido: false, trocaAnimada: animada, subFicha: null }),
   setRecolhido: (recolhido) => set({ recolhido }),
-  abrirNovoToken: () => set({ pagina: 'ficha', recolhido: false, novoTokenAberto: true, trocaAnimada: false }),
+  abrirNovoToken: () => set({ pagina: 'ficha', recolhido: false, novoTokenAberto: true, trocaAnimada: false, subFicha: null }),
   fecharNovoToken: () => set({ novoTokenAberto: false }),
+  abrirSubFicha: (item, cartao) => set({ subFicha: { item, cartao } }),
+  fecharSubFicha: () => set({ subFicha: null }),
 }))

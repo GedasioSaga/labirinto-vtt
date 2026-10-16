@@ -26,7 +26,7 @@
 // solto). Toda afirmação é sobre o que está DESENHADO na tela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
-import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
+import { abrirPaginaDoLivro, abrirNoMapa } from './helpers/livroDoMestre'
 
 /**
  * Duas fotos 64x64 de cor CHAPADA, geradas como PNG de verdade.
@@ -310,6 +310,7 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
   await campo.press('Enter')
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Escolher imagem...' }).click()
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 }
@@ -320,6 +321,7 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
  * acervo depois ser o único desenhado e a medida de pixel não ter vizinho.
  */
 async function guardarNoAcervoELimparOMapa(page: Page, nome: string): Promise<void> {
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: `Colocar ${nome} no mapa` })).toBeVisible({ timeout: 15_000 })
@@ -457,6 +459,7 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
 
   // ── o bicho nasce com a foto vermelha e vai para a estante ───────────────
   await criarTokenComFoto(page, 'Bicho')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Bicho no mapa' })).toBeVisible({ timeout: 15_000 })
@@ -472,6 +475,7 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
 
   // ── ela troca a foto: agora o bicho é o verde ────────────────────────────
   await abrirPaginaDoLivro(page, 'Ficha')
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Trocar imagem...' }).click()
   const depoisDaTroca = await esperarCorNaTela(page, centro.x, centro.y, VERDE, 8_000)
 
@@ -483,6 +487,7 @@ test('a foto que a pessoa acabou de escolher tem de ser a que aparece no token a
     .toBe(true)
 
   // ── ela guarda de novo, achando que está guardando a cara nova ───────────
+  await abrirNoMapa(page)
   await page.getByRole('button', { name: 'Salvar no acervo' }).click()
   await abrirPaginaDoLivro(page, 'Acervo')
   await expect(page.getByRole('button', { name: 'Colocar Bicho (2) no mapa' })).toBeVisible({ timeout: 15_000 })

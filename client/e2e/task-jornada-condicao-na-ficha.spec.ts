@@ -76,6 +76,7 @@ import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { pickTool } from './helpers/tools'
+import { abrirNoMapa } from './helpers/livroDoMestre'
 import { abrirAbaJogo, esconderColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
@@ -782,6 +783,7 @@ test('1. controle: Ana vê as duas fichas; o toque seleciona e o Escape larga; s
 
   // Uma mudança de aparência que EXISTE hoje (Cor da ficha) é vista pelo método, na ficha certa, nas duas telas.
   await selecionarFicha(page, mesa.noMestre, 'ogro')
+  await abrirNoMapa(page)
   const roxo = page.getByRole('radiogroup', { name: 'Cor da ficha' }).getByRole('radio', { name: 'Roxo', exact: true })
   await roxo.click()
   await expect(roxo).toHaveAttribute('aria-checked', 'true')

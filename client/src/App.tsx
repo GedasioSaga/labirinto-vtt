@@ -3610,11 +3610,6 @@ function App() {
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
               onDetach: (lightId) => setLightAttachment(lightId, null),
             }}
-            tokenHealth={{
-              // Mesmo caminho da cor e do tamanho: cada número confirmado é um
-              // Ctrl+Z. `null` tira a barra da ficha.
-              onHealthChange: (health) => selectedToken && updateToken(selectedToken.id, { health }),
-            }}
             tokenCondition={{
               // Alterna sobre o estado ATUAL da ficha no store (não sobre a
               // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.

@@ -1,0 +1,121 @@
+/*
+ * FICHA DO TOKEN (fatia 9 do design consolidado): o tipo de ficha, o "Visto
+ * por", as fichas recolhíveis e os cartões de Comportamento do protótipo. O
+ * recheio de cada ficha são os controles de antes (`lb-*`), que aqui viram
+ * trechos do cartão na voz do Grimório, como na seleção múltipla (fatia 8).
+ */
+
+/* O respiro do corpo da página do protótipo (`.pagina__corpo`). */
+.lb-ficha-do-token {
+  padding: 0 12px 20px 14px;
+}
+
+/* "Tipo de ficha": o seg do protótipo (margem -2px 0 12px). Cada lado é uma
+   caixa de marcar (as duas marcas são independentes no app), com a aparência
+   da opção escolhida do `.gr-seg__op[aria-checked='true']`. */
+.lb-tipo-de-ficha {
+  margin: -2px 0 12px;
+}
+.lb-tipo-de-ficha__op {
+  cursor: pointer;
+  user-select: none;
+}
+.lb-tipo-de-ficha__op:has(input:checked) {
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.lb-tipo-de-ficha__op:has(input:focus-visible) {
+  box-shadow: var(--lb-shadow-focus);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lb-tipo-de-ficha__op:hover:not(:has(input:checked)) {
+    color: var(--lb-color-parchment);
+    background: var(--lb-gr-hover);
+  }
+}
+
+/* "Visto por": o olho na cor de "em linha" e a frase (`.visto-por`). */
+.lb-visto-por {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 12px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-visto-por .gr-ic {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--lb-color-online);
+}
+
+/* Os cartões de Comportamento logo depois das fichas. */
+.lb-ficha-do-token > .gr-fichas + .gr-titulo-secao {
+  margin-top: 18px;
+}
+
+/* As seções de antes viram trechos do cartão, sem o respiro nem o fio. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-section,
+.lb-ficha-do-token .gr-ficha__dentro .lb-section + .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
+}
+.lb-ficha-do-token .gr-ficha__dentro .lb-section + .lb-section {
+  margin-top: 14px;
+}
+/* O corpo do opcional embutido (Condições, Patrulha) sem o respiro de linha. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-token-opt__body {
+  padding: 0;
+  gap: 10px;
+}
+
+/* O nome de cada trecho ("Trava e visibilidade", "Tamanho da ficha") na voz
+   do `.gr-campo__rot`, e não a legenda em caixa alta de seção. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-eyebrow {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* As ajudas na voz da `.gr-nota`. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-field__hint {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Botões com a pedra quente e o filete do `.gr-bt`. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-btn {
+  min-height: 32px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete-forte);
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  font-weight: 500;
+}
+/* Os secundários (Marcar ponto aqui, Remover imagem) leem como botão, como os `.gr-bt` da Patrulha no protótipo. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-btn--ghost {
+  border-color: var(--lb-gr-filete);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Campos e segs de antes no poço do `.gr-entrada` e do `.gr-seg`. */
+.lb-ficha-do-token .gr-ficha__dentro .lb-input {
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete);
+  background: var(--lb-gr-campo);
+}
+.lb-ficha-do-token .gr-ficha__dentro .lb-seg {
+  border-radius: 8px;
+  border: 1px solid var(--lb-gr-filete);
+  background: var(--lb-gr-campo);
+}

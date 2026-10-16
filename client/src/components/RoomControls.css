@@ -10,7 +10,7 @@
 
 /* Largura | Altura numa linha só (o W | H do Figma). `minmax(0, 1fr)`: sem ele o
    campo de número não encolhe abaixo da largura intrínseca e a linha vaza do
-   rail de 264 px — o mesmo cuidado de `.lb-health`. */
+   rail de 264 px. */
 .lb-room-dims {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

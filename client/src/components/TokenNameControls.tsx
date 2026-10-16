@@ -9,6 +9,8 @@ export interface TokenNameControlsProps {
   publicName: Token['publicName']
   /** `undefined` = "O mesmo", texto = "Outro", `null` = "Nenhum". */
   onPublicNameChange: (publicName: Token['publicName']) => void
+  /** Dentro da ficha "Nome" (fatia 9): o título "Token" repetiria o da ficha. */
+  semTitulo?: boolean
 }
 
 const PUBLIC_NAME_OPTIONS: Array<{ mode: TokenPublicNameMode; label: string }> = [
@@ -35,7 +37,7 @@ function publicNameFor(mode: TokenPublicNameMode, current: Token['publicName']):
  * "Outro" grava ao sair dela (Tab, clique fora ou Enter) — uma entrada de
  * Ctrl+Z por nome, não uma por tecla; Esc desiste do que foi digitado.
  */
-export function TokenNameControls({ name, onNameChange, publicName, onPublicNameChange }: TokenNameControlsProps) {
+export function TokenNameControls({ name, onNameChange, publicName, onPublicNameChange, semTitulo = false }: TokenNameControlsProps) {
   const otherId = useId()
   const hintId = useId()
   const mode = tokenPublicNameMode(publicName)
@@ -50,7 +52,7 @@ export function TokenNameControls({ name, onNameChange, publicName, onPublicName
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Token</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Token</h2>}
       <div className="lb-field">
         <label className="lb-label" htmlFor="lb-token-name">
           Nome

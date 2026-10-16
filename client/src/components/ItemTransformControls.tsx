@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { RevealToControls, type RevealToControlsProps } from './PlayerSecretControls'
 import { Toggle } from './Toggle'
+import { IconeDoLivro, type NomeDoIcone } from './livro/icones'
 import './ItemTransformControls.css'
 
 export interface ItemTransformControlsProps {
@@ -48,6 +49,40 @@ export interface ItemTransformControlsProps {
    * de um clique. Default `false`: Objeto, Sala e Região continuam como estão.
    */
   rarosNoAvancado?: boolean
+  /**
+   * Só uma metade da seção (ficha do token, fatia 9): `trava` é o grupo "Trava
+   * e visibilidade" em botões de ícone (cadeado, floco, olho fechado, como no
+   * protótipo), e `avancado` é o Avançado sozinho, que a ficha "No mapa" põe
+   * no fim, depois da Imagem. Só vale com `rarosNoAvancado`; ausente, a seção
+   * inteira com os interruptores, como antes.
+   */
+  parte?: 'trava' | 'avancado'
+}
+
+interface IconeDaTravaProps {
+  rotulo: string
+  icone: NomeDoIcone
+  ligado: boolean
+  onChange: (ligado: boolean) => void
+  /** A frase que separa o "Congelado" do "Travado": descrição (leitor de tela) e balão nativo. */
+  dica?: { id: string; texto: string }
+}
+
+/** Liga e desliga com um clique (`aria-pressed`): o mesmo dado e o mesmo handler do interruptor. */
+function IconeDaTrava({ rotulo, icone, ligado, onChange, dica }: IconeDaTravaProps) {
+  return (
+    <button
+      type="button"
+      className="gr-icone-tg"
+      aria-pressed={ligado}
+      aria-describedby={dica?.id}
+      title={dica?.texto}
+      onClick={() => onChange(!ligado)}
+    >
+      <IconeDoLivro nome={icone} />
+      <span>{rotulo}</span>
+    </button>
+  )
 }
 
 /** O que a Rotação muda numa ficha: a foto gira; o disco sem foto é redondo e fica igual. */
@@ -116,6 +151,7 @@ export function ItemTransformControls({
   onSecretChange,
   reveal = null,
   rarosNoAvancado = false,
+  parte,
 }: ItemTransformControlsProps) {
   const congeladoHintId = useId()
   // React.useId(): duas seções deste componente podem coexistir no DOM em
@@ -147,6 +183,47 @@ export function ItemTransformControls({
     if (temRaroMarcado) setPedidoDeAbrir((pedido) => pedido + 1)
   }
 
+  const avancado = (
+    <AdvancedSection nasceAberta={nasceAberto} pedidoDeAbrir={pedidoDeAbrir}>
+      {rotation !== undefined && onRotationChange !== undefined && (
+        <AdvancedField hint={ROTACAO_DA_FICHA_HINT}>{(hintId) => campoDeRotacao(hintId)}</AdvancedField>
+      )}
+      {hidden !== undefined && onHiddenChange !== undefined && (
+        <AdvancedField hint={OCULTO_NO_EDITOR_HINT}>{(hintId) => chaveOcultoNoEditor(hintId)}</AdvancedField>
+      )}
+    </AdvancedSection>
+  )
+
+  if (rarosNoAvancado && parte === 'avancado') return <section className="lb-section lb-item-transform--avancado">{avancado}</section>
+  if (rarosNoAvancado && parte === 'trava') {
+    return (
+      <section className="lb-section lb-item-transform--raros">
+        <h2 className="lb-eyebrow">{title}</h2>
+        <div className="gr-icones" role="group" aria-label={title}>
+          <IconeDaTrava rotulo="Travado" icone="cadeado" ligado={locked} onChange={onLockedChange} />
+          {congelado !== undefined && onCongeladoChange !== undefined && (
+            <IconeDaTrava
+              rotulo="Congelado"
+              icone="floco"
+              ligado={congelado}
+              onChange={onCongeladoChange}
+              dica={{ id: congeladoHintId, texto: CONGELADO_HINT }}
+            />
+          )}
+          {secret !== undefined && onSecretChange !== undefined && (
+            <IconeDaTrava rotulo="Oculto para jogadores" icone="olhoFechado" ligado={secret} onChange={onSecretChange} />
+          )}
+        </div>
+        {congelado !== undefined && onCongeladoChange !== undefined && (
+          <p id={congeladoHintId} className="lb-sr-only">
+            {CONGELADO_HINT}
+          </p>
+        )}
+        {reveal !== null && secret === true && <RevealToControls {...reveal} />}
+      </section>
+    )
+  }
+
   return (
     <section className={rarosNoAvancado ? 'lb-section lb-item-transform--raros' : 'lb-section'}>
       <h2 className="lb-eyebrow">{title}</h2>
@@ -166,16 +243,7 @@ export function ItemTransformControls({
         <Toggle label="Oculto para jogadores" checked={secret} onChange={onSecretChange} />
       )}
       {reveal !== null && secret === true && <RevealToControls {...reveal} />}
-      {rarosNoAvancado && (
-        <AdvancedSection nasceAberta={nasceAberto} pedidoDeAbrir={pedidoDeAbrir}>
-          {rotation !== undefined && onRotationChange !== undefined && (
-            <AdvancedField hint={ROTACAO_DA_FICHA_HINT}>{(hintId) => campoDeRotacao(hintId)}</AdvancedField>
-          )}
-          {hidden !== undefined && onHiddenChange !== undefined && (
-            <AdvancedField hint={OCULTO_NO_EDITOR_HINT}>{(hintId) => chaveOcultoNoEditor(hintId)}</AdvancedField>
-          )}
-        </AdvancedSection>
-      )}
+      {rarosNoAvancado && avancado}
     </section>
   )
 }
