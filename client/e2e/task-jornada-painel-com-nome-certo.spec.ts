@@ -15,6 +15,7 @@
 // PRIMEIRO, entre apertar a ferramenta e o primeiro traço.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 
 test.use({ trace: 'off', video: 'off' })
 
@@ -48,14 +49,17 @@ interface Ferramenta {
   botao: string
   /** Letra do atalho, o outro caminho até o MESMO comando. */
   tecla: string
+  /** Botão da barra que fica apertado quando a ferramenta mora num menu
+   *  (fatia 6: salas e Região no botão "Sala"). Sem ele, é o próprio botão. */
+  barra?: string
 }
 
 const FERRAMENTAS: Record<string, Ferramenta> = {
-  regiao: { botao: 'Região', tecla: 'g' },
+  regiao: { botao: 'Região', tecla: 'g', barra: 'Sala' },
   parede: { botao: 'Parede', tecla: 'w' },
-  salaCircular: { botao: 'Sala Circular', tecla: 'j' },
+  salaCircular: { botao: 'Sala Circular', tecla: 'j', barra: 'Sala' },
   sala: { botao: 'Sala', tecla: 'n' },
-  poligonoRegular: { botao: 'Polígono Regular', tecla: 'q' },
+  poligonoRegular: { botao: 'Polígono Regular', tecla: 'q', barra: 'Sala' },
 }
 
 /** minúscula, sem acento — o título aparece em CAIXA ALTA por CSS (`.lb-eyebrow`). */
@@ -87,7 +91,7 @@ async function primeiroTituloDoPainel(page: Page): Promise<string> {
 async function ativarPorTecla(page: Page, ferramenta: Ferramenta): Promise<void> {
   await page.locator('canvas').first().waitFor()
   await page.keyboard.press(ferramenta.tecla)
-  await expect(page.getByRole('button', { name: ferramenta.botao, exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: ferramenta.barra ?? ferramenta.botao, exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
@@ -95,8 +99,8 @@ async function ativarPorTecla(page: Page, ferramenta: Ferramenta): Promise<void>
 
 /** Ativa clicando no botão da barra e confirma na tela que ele ficou apertado. */
 async function ativarPorClique(page: Page, ferramenta: Ferramenta): Promise<void> {
-  const botao = page.getByRole('button', { name: ferramenta.botao, exact: true })
-  await botao.click()
+  await pickTool(page, ferramenta.botao)
+  const botao = page.getByRole('button', { name: ferramenta.barra ?? ferramenta.botao, exact: true })
   await expect(botao).toHaveAttribute('aria-pressed', 'true')
 }
 

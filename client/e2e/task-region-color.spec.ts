@@ -4,6 +4,7 @@
 // via mapStore, interagindo com o swatch de cor real do painel lateral.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Region } from '../src/types/map'
 
 async function getRegions(page: Page): Promise<Region[]> {
@@ -23,7 +24,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Região') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 function regionColorInput(page: Page) {

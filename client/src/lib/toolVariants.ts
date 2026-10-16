@@ -6,6 +6,7 @@ import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
 import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
 import type { BrushMode } from './baldeDeTinta'
+import type { ToolClusterId } from '../components/labels'
 import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from './mobilia'
 
 /**
@@ -450,8 +451,58 @@ export const DRAWING_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawSha
 
 /** Grupos do menu do botão Desenho: Forma e, abaixo, as variantes prontas da forma corrente. */
 export function drawingClusterGroups(shape: DrawingTool): ToolVariantGroup[] {
-  const entry = TOOL_VARIANTS[shape]
-  return entry && entry.available ? [DRAWING_SHAPE_GROUP, ...entry.groups] : [DRAWING_SHAPE_GROUP]
+  return clusterVariantGroups('drawing', shape)
+}
+
+/** "Do centro até a borda (J)"; sem letra (Sala livre), só a frase. */
+function comAtalho(frase: string, tool: DrawingTool): string {
+  return TOOL_SHORTCUTS[tool] ? `${frase} (${TOOL_SHORTCUTS[tool]})` : frase
+}
+
+/**
+ * Grupo "Forma" do botão Sala (fatia 6): as quatro salas e a Região, com os
+ * nomes curtos do protótipo. Usa o eixo `drawShape` de propósito: como no
+ * Desenho, escolher a forma ATIVA a ferramenta (o binding é a ferramenta ativa
+ * + `onSelectTool`), e a troca já deixa rastro no ícone e na dica.
+ */
+export const SALA_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
+  storeKey: 'drawShape',
+  label: 'Forma',
+  options: [
+    { id: 'room', label: 'Retângulo', value: 'room', description: comAtalho('De canto a canto', 'room') },
+    { id: 'roomCircle', label: 'Circular', value: 'roomCircle', description: comAtalho('Do centro até a borda', 'roomCircle') },
+    { id: 'roomPolygon', label: 'Polígono', value: 'roomPolygon', description: comAtalho('Lados iguais, do centro para fora', 'roomPolygon') },
+    { id: 'roomFree', label: 'Livre', value: 'roomFree', description: comAtalho('Canto a canto, no formato que quiser', 'roomFree') },
+    { id: 'region', label: 'Região', value: 'region', description: comAtalho('Área pintada, sem parede', 'region') },
+  ],
+}
+
+/** Grupo "Colocar" do botão Objeto: o móvel desenhado ou uma imagem (a Peça). Mesmo eixo `drawShape`. */
+export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
+  storeKey: 'drawShape',
+  label: 'Colocar',
+  options: [
+    { id: 'mobilia', label: 'Móvel', value: 'mobilia', description: comAtalho('Um móvel desenhado do catálogo', 'mobilia') },
+    { id: 'prop', label: 'Imagem', value: 'prop', description: comAtalho('Uma imagem sua, que vira peça', 'prop') },
+  ],
+}
+
+const CLUSTER_SHAPE_GROUP: Record<ToolClusterId, Extract<ToolVariantGroup, { storeKey: 'drawShape' }>> = {
+  drawing: DRAWING_SHAPE_GROUP,
+  sala: SALA_SHAPE_GROUP,
+  objeto: OBJETO_KIND_GROUP,
+}
+
+/** O rótulo da ferramenta dentro do botão que a agrupa ("Circular" no botão Sala). */
+export function clusterOptionLabel(clusterId: ToolClusterId, tool: DrawingTool): string | undefined {
+  return CLUSTER_SHAPE_GROUP[clusterId].options.find((option) => option.value === tool)?.label
+}
+
+/** Grupos do menu de um botão que agrupa ferramentas: a escolha da ferramenta e, abaixo, as variantes prontas dela. */
+export function clusterVariantGroups(clusterId: ToolClusterId, tool: DrawingTool): ToolVariantGroup[] {
+  const shapeGroup = CLUSTER_SHAPE_GROUP[clusterId]
+  const entry = TOOL_VARIANTS[tool]
+  return entry && entry.available ? [shapeGroup, ...entry.groups] : [shapeGroup]
 }
 
 /** Só as entradas com variante pronta — o que `ToolVariantMenu`/`Toolbar`

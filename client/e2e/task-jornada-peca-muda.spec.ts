@@ -200,7 +200,8 @@ test.describe('Ferramenta Peça nunca falha em silêncio', () => {
     await enterEditor(page)
 
     await pickTool(page, 'Peça')
-    await expect(botaoDaBarra(page, 'Peça')).toHaveAttribute('aria-pressed', 'true')
+    // Peça mora no menu do botão "Objeto" (fatia 6); é ele que fica apertado.
+    await expect(botaoDaBarra(page, 'Objeto')).toHaveAttribute('aria-pressed', 'true')
 
     // Linha de base DEPOIS de ativar a Peça: a dica da ferramenta já está na
     // tela, então ela não conta como "texto novo" do clique.
@@ -229,7 +230,7 @@ test.describe('Ferramenta Peça nunca falha em silêncio', () => {
 
     // 2. A pessoa não fica presa: a marcação de ativo sai da Peça e volta para
     //    Selecionar (caminho escolhido por esta jornada — ver cabeçalho).
-    await expect(botaoDaBarra(page, 'Peça'), 'ferramenta Peça continua marcada como ativa depois de falhar').toHaveAttribute(
+    await expect(botaoDaBarra(page, 'Objeto'), 'ferramenta Peça continua marcada como ativa depois de falhar').toHaveAttribute(
       'aria-pressed',
       'false',
     )

@@ -411,17 +411,6 @@ body {
   transition-duration: 0ms;
 }
 
-/* Só o primeiro balão de um passeio espera. Quando ele aparece, o Toolbar marca
-   a barra com `data-tip-quente`, e os vizinhos abrem na hora e sem movimento
-   (os vizinhos estão a 40 px e os balões são mais largos que isso: um balão
-   entrando devagar ao lado do que acabou de sair se leria como dois). Mesma
-   língua das dicas do inspetor (lib/dicaDoPainel.ts). */
-.lb-toolbar[data-tip-quente] .lb-tip::after,
-.lb-toolbar[data-tip-quente] .lb-tip::before {
-  transition-delay: 0ms;
-  transition-duration: 0ms;
-}
-
 /* Botão com o próprio menu aberto (aria-expanded): quem responde é o menu, e o
    balão sai na hora. Sem isto, o balão do botão de imagem de fundo ficava atrás
    do menu que o botão abriu, com o texto vazando pela borda. O pairar continua
@@ -979,10 +968,23 @@ body {
   right: 0;
   padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
   display: flex;
-  /* O chip da cena (fatia 3) no alto e a barra logo abaixo, os dois centrados. */
+  /* O chip da cena (fatia 3) no alto, centrado. A barra de ferramentas mora no pé (fatia 6). */
   flex-direction: column;
   align-items: center;
   gap: var(--lb-space-2);
+  pointer-events: none;
+}
+
+/* Pé do mapa: a barra de ferramentas, centrada entre os dois livros com o
+   mesmo padding simétrico do topo (design consolidado, fatia 6). */
+.lb-editor__base {
+  position: absolute;
+  bottom: var(--lb-layout-edge-gap);
+  left: 0;
+  right: 0;
+  padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
+  display: flex;
+  justify-content: center;
   pointer-events: none;
 }
 
@@ -1003,25 +1005,50 @@ body {
 
 /* --------------------------------------------------------- barra de ferramentas */
 
-/* `backdrop-filter` faz da barra um stacking context, então os tooltips dos
-   botões ficam presos dentro dela. Sem este z-index o balão da ferramenta
-   ativa — irmão posterior no DOM — pinta por cima deles no hover.
-   `flex-wrap: wrap` é a metade que falta do fix de D2: com `.lb-toolbar-dock`
-   já limitado à largura central disponível (acima), a barra agora tem onde
-   quebrar — a UNIDADE de quebra é o grupo (`.lb-toolbar__group`, abaixo), não
-   o botão avulso, para nunca deixar um separador órfão numa borda de linha. */
+/* Fatia 6 (design consolidado): faixa de couro com ícones gravados, rebites
+   nas pontas e a placa de latão na ferramenta armada. Só filete de 1 px e
+   sombra, nenhum contorno grosso.
+   `--lb-ferr` é o lado do botão: 38 px, o do protótipo, quando cabe. Com o
+   grupo Terreno sempre à vista (decisão 6 do plano) são 19 botões, e entre os
+   dois livros eles só cabem numa fileira com 32 px a partir de 1440 (abaixo
+   de 1560) e 28 px abaixo de 1366.
+   `flex-wrap: wrap` segue como a rede de segurança de D2: com `.lb-toolbar-dock`
+   limitado à largura central, a UNIDADE de quebra é o grupo
+   (`.lb-toolbar__group`), nunca o botão avulso — nada de separador órfão. */
 .lb-toolbar {
+  --lb-ferr: 38px;
+  --lb-ferr-icone: 20px;
   position: relative;
   z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--lb-space-1);
-  padding: var(--lb-space-1);
+  padding: 7px 14px;
   max-width: 100%;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2) 45%, var(--lb-gr-couro-1));
+  box-shadow: var(--lb-shadow-float), inset 0 1px 0 rgba(255, 236, 200, 0.08), inset 0 0 0 1px rgba(199, 209, 217, 0.1);
 }
 
-/* Cada grupo de TOOLBAR_SLOTS (components/labels.ts) vira uma dessas — largura
+/* Rebites das pontas, como na moldura da revelação. */
+.lb-toolbar::before,
+.lb-toolbar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: var(--lb-radius-full);
+  background: radial-gradient(circle at 35% 30%, var(--lb-gr-metal-claro) 0 1px, var(--lb-gr-metal-medio) 1.6px, var(--lb-gr-metal-escuro) 2.6px);
+  pointer-events: none;
+}
+.lb-toolbar::before { left: 5px; }
+.lb-toolbar::after { right: 5px; }
+
+/* Cada grupo de TOOLBAR_GROUPS (components/labels.ts) vira uma dessas — largura
    mínima intacta (`flex-wrap: nowrap` interno, nunca quebra NO MEIO de um
    grupo) e é o próprio grupo que migra pra linha seguinte quando a barra
    (acima) não tem mais espaço na linha atual. */
@@ -1029,41 +1056,98 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: var(--lb-space-1);
+  gap: 2px;
 }
 
-/* Divisor entre grupos de ferramentas. O sinal primário de agrupamento é o
-   espaço — a margem dobra o respiro do `gap` da barra, então os grupos se
-   separam mesmo para quem não repara no traço —, e o traço confirma. Na versão
-   anterior os dois eram fracos demais: 4px de margem contra 4px de gap não
-   criava intervalo nenhum, e 0.16 de alpha sumia. */
+/* Divisor entre grupos: risco escuro com a luz de 1 px ao lado, gravado no
+   couro. O espaço (6 px de cada lado) é o sinal primário; o risco confirma. */
 .lb-toolbar__sep {
   width: 1px;
-  height: 22px;
-  margin: 0 var(--lb-space-2);
-  background: var(--lb-color-line-divider);
+  height: 26px;
+  margin: 0 6px;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: 1px 0 0 rgba(255, 236, 200, 0.07);
 }
 
-/* Abaixo de 1366px o vão entre os dois livros (~596px a 1280) é mais estreito
-   que o grupo de construção, que não quebra por dentro: sem apertar, Pessoa,
-   Zona oculta e Dissolver vazavam por cima do livro da mesa e tapavam os canais
-   do Chat. Botão menor e respiro menor fazem o grupo caber sem mudar a ordem. */
+/* Botão da ferramenta: o ícone gravado no couro. Armado, o ícone ganha a cor
+   de tinta sobre a placa de latão (que fica por baixo, `z-index` 0). */
+.lb-ferr {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--lb-ferr);
+  height: var(--lb-ferr);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lb-gr-gravado);
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  user-select: none;
+  transition:
+    color var(--lb-motion-fast) ease,
+    background-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.lb-ferr svg {
+  width: var(--lb-ferr-icone);
+  height: var(--lb-ferr-icone);
+  filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.6)) drop-shadow(0 1px 0 rgba(255, 236, 200, 0.08));
+}
+.lb-ferr:active { transform: scale(0.94); }
+.lb-ferr[aria-pressed='true'] { color: var(--lb-color-brass-contrast); }
+.lb-ferr[aria-pressed='true'] svg { filter: drop-shadow(0 1px 0 rgba(255, 245, 225, 0.35)); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-ferr:hover:not([aria-pressed='true']) {
+    background: var(--lb-gr-hover);
+    color: var(--lb-gr-gravado-forte);
+  }
+}
+
+/* A placa de latão: uma só, desliza até a ferramenta armada. A posição vem do
+   Toolbar (`transform`); some enquanto não foi posta (`data-posta`). */
+.lb-toolbar__placa {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--lb-ferr);
+  height: var(--lb-ferr);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--lb-gr-dur-move) var(--lb-gr-ease-out);
+}
+.lb-toolbar__placa[data-posta] { opacity: 1; }
+
+@media (max-width: 1559px) {
+  .lb-toolbar { --lb-ferr: 32px; --lb-ferr-icone: 18px; }
+}
+
 @media (max-width: 1365px) {
-  .lb-toolbar,
-  .lb-toolbar__group { gap: 2px; }
-  .lb-toolbar .lb-iconbtn { width: 32px; height: 32px; }
-  .lb-toolbar__sep { margin: 0 var(--lb-space-1); }
+  .lb-toolbar { --lb-ferr: 28px; --lb-ferr-icone: 17px; padding: 6px 12px; }
+  .lb-toolbar__sep { margin: 0 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-toolbar__placa { transition: none; }
 }
 
 /* Balão da ferramenta ativa. `left` e `--lb-hint-arrow` vêm medidos do Toolbar:
-   o balão nasce sob o ícone que o disparou e recua se não couber, e nesse caso
-   a seta desliza dentro dele para continuar apontando o ícone.
+   o balão nasce sobre o ícone que o disparou (a barra mora no pé do mapa desde
+   a fatia 6) e recua se não couber, e nesse caso a seta desliza dentro dele
+   para continuar apontando o ícone.
    `width: max-content` mantém a largura intrínseca estável, que é o que o
    componente mede antes de decidir a posição. */
 .lb-hint {
   position: absolute;
   z-index: 1;
-  top: calc(100% + 10px);
+  bottom: calc(100% + 10px);
   margin: 0;
   width: max-content;
   max-width: 420px;
@@ -1090,19 +1174,18 @@ body {
     opacity var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
-/* O ponteiro parado sobre um ícone desenha ~27px para baixo e cobriria a
-   primeira linha do texto. Em vez de afastar o balão para sempre — o que o
-   descolaria da barra no estado em que o usuário mais o vê, com o mouse já no
-   canvas —, ele sai do caminho só enquanto o ponteiro está na barra. Desce o
-   bastante para limpar também a faixa do tooltip de hover.
+/* O balão do botão (grimório, 8 px acima do ícone) ocupa a mesma faixa da
+   dica. Em vez de afastar a dica para sempre — o que a descolaria da barra no
+   estado em que o usuário mais a vê, com o mouse já no canvas —, ela sobe do
+   caminho só enquanto o ponteiro está na barra, o bastante para limpar o balão.
    `:has(:focus-visible)` cobre a navegação por teclado sem reagir ao foco que
    sobra depois de um clique de mouse. */
 .lb-toolbar:hover ~ .lb-hint {
-  transform: translateY(34px);
+  transform: translateY(-40px);
 }
 
 .lb-toolbar:has(:focus-visible) ~ .lb-hint {
-  transform: translateY(34px);
+  transform: translateY(-40px);
 }
 
 /* Apontar para OUTRA ferramenta empilhava duas caixas sem hierarquia: o tooltip
@@ -1112,32 +1195,33 @@ body {
    Enquanto o ponteiro está sobre um ícone que não é o ativo, quem manda é o
    tooltip dele — a dica persistente sai de cena. Sobre o ícone ativo as duas
    falam da mesma ferramenta, então ambas ficam. */
-.lb-toolbar:has(.lb-iconbtn:hover:not([aria-pressed='true'])) ~ .lb-hint {
+.lb-toolbar:has(.lb-ferr:hover:not([aria-pressed='true'])) ~ .lb-hint {
   opacity: 0;
 }
 
-.lb-toolbar:has(.lb-iconbtn:focus-visible:not([aria-pressed='true'])) ~ .lb-hint {
+.lb-toolbar:has(.lb-ferr:focus-visible:not([aria-pressed='true'])) ~ .lb-hint {
   opacity: 0;
 }
 
-/* Menu da setinha aberto: ele abre na mesma faixa sob a barra, e a dica ficava
-   atrás dele, vazando pelo vidro e pelas laterais. Enquanto o menu está
-   aberto, só ele fala; fechou, a dica volta. */
+/* Menu das variantes aberto: ele abre na mesma faixa sobre a barra, e a dica
+   ficava atrás dele, vazando pelas laterais. Enquanto o menu está aberto, só
+   ele fala; fechou, a dica volta. */
 .lb-toolbar:has(.lb-toolvariant-menu) ~ .lb-hint {
   opacity: 0;
 }
 
+/* A seta da dica aponta para baixo, para o ícone na barra. */
 .lb-hint::before {
   content: '';
   position: absolute;
-  top: -5px;
+  bottom: -5px;
   left: var(--lb-hint-arrow, 50%);
   width: 9px;
   height: 9px;
   margin-left: -5px;
   background: var(--lb-color-stone);
-  border-left: 1px solid var(--lb-color-line-panel);
-  border-top: 1px solid var(--lb-color-line-panel);
+  border-right: 1px solid var(--lb-color-line-panel);
+  border-bottom: 1px solid var(--lb-color-line-panel);
   transform: rotate(45deg);
 }
 
@@ -1148,50 +1232,62 @@ body {
   display: inline-flex;
 }
 
+/* O cantinho de variantes (fatia 6): o triângulo de 5 px no canto do botão é o
+   desenho; a área de toque é o canto de 14 px, que continua um `<button>` com
+   nome próprio ("Opções de …") para o teclado e o leitor de tela. Clique
+   direito ou segurar o botão abrem o mesmo menu (Toolbar.tsx). */
 .lb-toolvariant-arrow {
   position: absolute;
-  right: -3px;
-  bottom: -3px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
+  right: 0;
+  bottom: 0;
+  /* Até 12 px: o cantinho não pode chegar ao centro do botão de 28 px (o
+     clique no meio do ícone arma a ferramenta, não abre o menu). */
+  width: 12px;
+  height: 12px;
   padding: 0;
-  border: 1px solid var(--lb-color-line-panel);
-  border-radius: var(--lb-radius-full);
-  background: var(--lb-color-stone);
-  color: var(--lb-color-parchment-dim);
+  border: 0;
+  border-radius: 0 0 8px 0;
+  background: transparent;
+  color: var(--lb-gr-gravado);
   cursor: pointer;
   z-index: 3;
 }
 
-.lb-toolvariant-arrow:hover,
-.lb-toolvariant-arrow[aria-expanded='true'] {
-  background: var(--lb-color-brass-soft);
-  color: var(--lb-color-brass);
+.lb-toolvariant-arrow::before {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+  opacity: 0.55;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  transition: opacity var(--lb-motion-fast) ease;
 }
 
-.lb-toolvariant-arrow svg {
-  display: block;
+/* Na placa de latão o triângulo é da cor de tinta do ícone armado. */
+.lb-ferr[aria-pressed='true'] + .lb-toolvariant-arrow { color: var(--lb-color-brass-contrast); }
+
+.lb-toolvariant-arrow[aria-expanded='true']::before { opacity: 1; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-toolvariant-arrow:hover::before { opacity: 1; }
 }
 
-/* O menu aqui é da setinha, irmã do botão da ferramenta, mas o par é um
-   controle só: com o menu aberto, o balão do botão também sai, como o de todo
-   botão com o próprio menu aberto (`.lb-tip[aria-expanded='true']`, no bloco
-   do tooltip). Sem isto, o ponteiro de volta ao botão acendia o balão atrás do
-   menu, e o pedaço que passa da borda esquerda dele ficava à vista. */
-.lb-toolvariant-anchor:has(> .lb-toolvariant-arrow[aria-expanded='true']) > .lb-tip::after,
-.lb-toolvariant-anchor:has(> .lb-toolvariant-arrow[aria-expanded='true']) > .lb-tip::before {
+/* O menu das variantes é do cantinho, irmão do botão da ferramenta, mas o par
+   é um controle só: com o menu aberto, nenhum balão do grimório aparece (o
+   balão nasce na mesma faixa sobre a barra e ficaria atrás do menu, com a
+   borda à vista). O balão mora no `body` (portal), daí o `:has` na raiz. */
+body:has(.lb-toolvariant-menu) > .gr-balao {
   opacity: 0;
-  transition-delay: 0ms;
   transition-duration: 0ms;
 }
 
 /* O popover é uma FILEIRA de colunas (uma só, na maioria das ferramentas), e
-   o orçamento de altura é o que sobra da janela abaixo do topo dele. Quem mede
-   o topo é `ToolVariantMenu.tsx`, que entrega o número em
-   `--lb-toolvariant-topo`; o respiro até a borda de baixo é o mesmo
+   abre PARA CIMA da barra (fatia 6): o orçamento de altura é o que sobra da
+   janela acima da âncora. Quem mede o topo da âncora é `ToolVariantMenu.tsx`,
+   que entrega o número em `--lb-toolvariant-teto`; o respiro até a borda de cima é o mesmo
    `--lb-layout-edge-gap` dos outros painéis flutuantes.
 
    O piso de 160px é para janela curta demais (ou barra que quebrou em duas
@@ -1206,7 +1302,7 @@ body {
    que estiver atrás. */
 .lb-toolvariant-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 0;
   z-index: 20;
   display: flex;
@@ -1219,22 +1315,22 @@ body {
   gap: var(--lb-space-3);
   min-width: 170px;
   padding: var(--lb-space-2);
-  max-height: max(160px, calc(100vh - var(--lb-toolvariant-topo, 0px) - var(--lb-layout-edge-gap)));
+  max-height: max(160px, calc(var(--lb-toolvariant-teto, 100vh) - 6px - var(--lb-layout-edge-gap)));
   overscroll-behavior: contain;
-  /* Brota do canto da setinha que o abriu, como o menu da parede e o "…" da
-     cena. Só opacidade e escala: com a origem no topo, a escala não mexe no
-     topo que `ToolVariantMenu.tsx` mede, e transform não muda scrollHeight
-     nem offsetWidth, as outras duas medidas dele. */
-  transform-origin: top left;
+  /* Brota do canto do botão que o abriu, como o menu da parede e o "…" da
+     cena. Só opacidade e escala: a origem fica embaixo, colada na âncora que
+     `ToolVariantMenu.tsx` mede, e transform não muda scrollHeight nem
+     offsetWidth, as outras duas medidas dele. */
+  transform-origin: bottom left;
   animation: lb-cenas-menu-entra var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 /* Abre para a esquerda quando abrir para a direita passaria da janela — o
-   mesmo cuidado da borda de baixo, no outro eixo. */
+   mesmo cuidado da borda de cima, no outro eixo. */
 .lb-toolvariant-menu--direita {
   left: auto;
   right: 0;
-  transform-origin: top right;
+  transform-origin: bottom right;
 }
 
 @media (prefers-reduced-motion: reduce) {

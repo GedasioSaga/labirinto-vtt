@@ -7,6 +7,7 @@
 // como prova negativa antes do fix existir).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 
 async function resetMap(page: Page) {
   await page.evaluate(async () => {
@@ -18,7 +19,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | 'Região') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

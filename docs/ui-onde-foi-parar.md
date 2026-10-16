@@ -126,7 +126,7 @@ Parte de: editor aberto. Vai para: Marcador Acervo (casca feita; Tokens e Itens 
 
 ### Botões da barra
 
-Parte de: editor aberto. Vai para: Barra nova: Escolher / Construir / Terreno / Esconder e revelar / Anotar (Sala junta 5 formas, Objeto junta mobília e peça). Fatia: 6.
+Parte de: editor aberto. Vai para: Barra no pé do mapa: Escolher / Construir / Terreno / Esconder e revelar / Anotar (feito na fatia 6). Fatia: 6.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -134,26 +134,28 @@ Parte de: editor aberto. Vai para: Barra nova: Escolher / Construir / Terreno / 
 | Parede | button "Parede" | (barra de ferramentas) | (do bloco) |
 | Porta | button "Porta" | (barra de ferramentas) | (do bloco) |
 | Luz | button "Luz" | (barra de ferramentas) | (do bloco) |
-| Região | button "Região" | (barra de ferramentas) | (do bloco) |
 | Sala | button "Sala" | (barra de ferramentas) | (do bloco) |
-| Sala Circular | button "Sala Circular" | (barra de ferramentas) | (do bloco) |
-| Polígono Regular | button "Polígono Regular" | (barra de ferramentas) | (do bloco) |
-| Sala livre | button "Sala livre" | (barra de ferramentas) | (do bloco) |
 | Chão | button "Chão" | (barra de ferramentas) | (do bloco) |
 | Caminho | button "Caminho" | (barra de ferramentas) | (do bloco) |
 | Penhasco | button "Penhasco" | (barra de ferramentas) | (do bloco) |
 | Texturas | button "Texturas" | (barra de ferramentas) | (do bloco) |
 | Carimbos | button "Carimbos" | (barra de ferramentas) | (do bloco) |
 | Escada | button "Escada" | (barra de ferramentas) | (do bloco) |
-| Peça | button "Peça" | (barra de ferramentas) | (do bloco) |
+| Objeto | button "Objeto" | (barra de ferramentas) | (do bloco) |
 | Zona oculta | button "Zona oculta" | (barra de ferramentas) | (do bloco) |
 | Pincel de revelar | button "Pincel de revelar" | (barra de ferramentas) | (do bloco) |
-| Objetos | button "Objetos" | (barra de ferramentas) | (do bloco) |
 | Desenho | button "Desenho" | (barra de ferramentas) | (do bloco) |
 | Texto | button "Texto" | (barra de ferramentas) | (do bloco) |
 | Pino | button "Pino" | (barra de ferramentas) | (do bloco) |
 | Medir | button "Medir" | (barra de ferramentas) | (do bloco) |
 | Borracha | button "Borracha" | (barra de ferramentas) | (do bloco) |
+| Sala: Forma Retângulo | radio "Retângulo" | (barra de ferramentas) > clicar button "Opções de Sala" | (do bloco) |
+| Sala: Forma Circular | radio "Circular" | (barra de ferramentas) > clicar button "Opções de Sala" | (do bloco) |
+| Sala: Forma Polígono | radio "Polígono" | (barra de ferramentas) > clicar button "Opções de Sala" | (do bloco) |
+| Sala: Forma Livre | radio "Livre" | (barra de ferramentas) > clicar button "Opções de Sala" | (do bloco) |
+| Sala: Forma Região | radio "Região" | (barra de ferramentas) > clicar button "Opções de Sala" | (do bloco) |
+| Objeto: Colocar Móvel | radio "Móvel" | (barra de ferramentas) > clicar button "Opções de Objeto" | (do bloco) |
+| Objeto: Colocar Imagem | radio "Imagem" | (barra de ferramentas) > clicar button "Opções de Objeto" | (do bloco) |
 
 ### Variantes da barra (setinhas)
 
@@ -163,28 +165,28 @@ Parte de: editor aberto. Vai para: Cantinho do botão (clique direito ou segurar
 |---|---|---|---|
 | Parede: Tipo de parede | radiogroup "Tipo de parede" | (tela) > clicar button "Opções de Parede" | (do bloco) |
 | Porta: Tipo de porta | radiogroup "Tipo de porta" | (tela) > clicar button "Opções de Porta" | (do bloco) |
-| Região: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Região" | (do bloco) |
-| Sala: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Sala" | (do bloco) |
-| Sala Circular: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Sala Circular" | (do bloco) |
-| Polígono Regular: Lados do polígono | radiogroup "Lados do polígono" | (tela) > clicar button "Opções de Polígono Regular" | (do bloco) |
-| Sala livre: Criar (Sala / Parede) | radiogroup "Criar" | (tela) > clicar button "Opções de Sala livre" | (do bloco) |
-| Sala livre: Arredondar | radiogroup "Arredondar" | (tela) > clicar button "Opções de Sala livre" | (do bloco) |
+| Região: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Sala" > clicar radio "Região" > clicar button "Opções de Sala" | (do bloco) |
+| Sala: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Sala" > clicar radio "Retângulo" > clicar button "Opções de Sala" | (do bloco) |
+| Sala Circular: Preenchimento | radiogroup "Preenchimento" | (tela) > clicar button "Opções de Sala" > clicar radio "Circular" > clicar button "Opções de Sala" | (do bloco) |
+| Polígono Regular: Lados do polígono | radiogroup "Lados do polígono" | (tela) > clicar button "Opções de Sala" > clicar radio "Polígono" > clicar button "Opções de Sala" | (do bloco) |
+| Sala livre: Criar (Sala / Parede) | radiogroup "Criar" | (tela) > clicar button "Opções de Sala" > clicar radio "Livre" > clicar button "Opções de Sala" | (do bloco) |
+| Sala livre: Arredondar | radiogroup "Arredondar" | (tela) > clicar button "Opções de Sala" > clicar radio "Livre" > clicar button "Opções de Sala" | (do bloco) |
 | Chão: Forma | radiogroup "Forma" | (tela) > clicar button "Opções de Chão" | (do bloco) |
 | Chão: Tinta | radiogroup "Tinta" | (tela) > clicar button "Opções de Chão" | (do bloco) |
 | Chão: Tamanho do pincel | radiogroup "Tamanho do pincel" | (tela) > clicar button "Opções de Chão" | (do bloco) |
 | Chão: Operação | radiogroup "Operação" | (tela) > clicar button "Opções de Chão" | (do bloco) |
 | Escada: Tamanho | radiogroup "Tamanho" | (tela) > clicar button "Opções de Escada" | (do bloco) |
-| Objetos: Barril | radio "Barril" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Caixa | radio "Caixa" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Baú | radio "Baú" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Cama | radio "Cama" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Mesa | radio "Mesa" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Cadeira | radio "Cadeira" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Cerca | radio "Cerca" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Armário de cozinha | radio "Armário de cozinha" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Aparador | radio "Aparador" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Fogueira | radio "Fogueira" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
-| Objetos: Tapete | radio "Tapete" | (tela) > clicar button "Opções de Objetos" | (do bloco) |
+| Objetos: Barril | radio "Barril" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Caixa | radio "Caixa" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Baú | radio "Baú" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Cama | radio "Cama" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Mesa | radio "Mesa" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Cadeira | radio "Cadeira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Cerca | radio "Cerca" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Armário de cozinha | radio "Armário de cozinha" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Aparador | radio "Aparador" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Fogueira | radio "Fogueira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Tapete | radio "Tapete" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Desenho: Forma (7 formas) | radiogroup "Forma" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
 | Desenho: Modo (Traço livre / Balde) | radiogroup "Modo" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
 | Desenho: Textura do traço | radiogroup "Textura do traço" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
@@ -1093,4 +1095,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 592 controles em 67 blocos.
+Total: 594 controles em 67 blocos.

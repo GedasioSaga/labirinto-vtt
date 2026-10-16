@@ -80,6 +80,8 @@ const one = (selector: string) => {
 }
 
 const balloon = () => one('.lb-hint')
+/** O observador do balão da dica (o que olha o próprio balão), entre os vivos. */
+const observadorDoBalao = () => liveObservers().find((o) => o.targets.has(balloon()))
 
 const runFrames = () => {
   const pending = frames
@@ -115,9 +117,10 @@ describe('Toolbar — medida do balão depois de montar (com ResizeObserver)', (
     render('select')
     expect(rectSpy).not.toHaveBeenCalled()
     expect(balloon().style.visibility).toBe('hidden')
-    // Observa a barra, o balão e o botão da ferramenta ativa.
-    const [observer] = liveObservers()
-    expect(observer).toBeDefined()
+    // Observa a barra, o balão e o botão da ferramenta ativa. (A placa de latão
+    // tem o observador dela, só da faixa: fica de fora desta conta.)
+    const observer = observadorDoBalao()
+    if (!observer) throw new Error('nenhum observador olha o balão da dica')
     expect(observer.targets.has(balloon())).toBe(true)
     expect(observer.targets.has(one('.lb-toolbar-dock'))).toBe(true)
     expect(observer.targets.has(one('[aria-pressed="true"]'))).toBe(true)
@@ -155,8 +158,8 @@ describe('Toolbar — medida do balão depois de montar (com ResizeObserver)', (
     })
     canvas.remove()
     expect(document.body.querySelector('.lb-hint')).toBeNull()
-    expect(liveObservers()).toHaveLength(0)
-    expect(frames).toHaveLength(0)
+    // Sobra só o observador da placa de latão (fatia 6), que olha a faixa e não o balão.
+    expect(liveObservers().filter((o) => !o.targets.has(one('.lb-toolbar')))).toHaveLength(0)
     expect(rectSpy).not.toHaveBeenCalled()
   })
 

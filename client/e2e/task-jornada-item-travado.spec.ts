@@ -16,6 +16,7 @@
 // task4-selection-pixel-diff.spec.ts: recorte do canvas, byte a byte.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import { esconderColunaDireita } from './helpers/colunaDireita'
 
 /** Cor padrão de região nova (mapFactory) — fica com o "mar", a região de
@@ -44,7 +45,8 @@ const MAR: Triangulo = [
   { x: 340, y: 170 },
   // 1200, não 1220: recolhido, o livro da mesa (fatia 4) deixa a lombada até x=1216.
   { x: 1200, y: 170 },
-  { x: 780, y: 720 },
+  // 680, não 720: a barra de ferramentas mora no pé do mapa desde a fatia 6.
+  { x: 780, y: 680 },
 ]
 const ILHA: Triangulo = [
   { x: 700, y: 320 },
@@ -86,7 +88,7 @@ function checkboxTravado(page: Page) {
 }
 
 async function selecionarFerramenta(page: Page, label: 'Selecionar' | 'Região') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 /** Desenha um triângulo: 3 cliques nos vértices + duplo clique no último

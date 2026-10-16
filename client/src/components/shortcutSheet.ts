@@ -80,11 +80,11 @@ export const DOCUMENTED_ACTIONS: Record<Action['kind'], true> = {
 }
 
 /**
- * Grupos da barra (`TOOLBAR_SLOTS`) que viram "Construir": Selecionar e o
- * grupo da planta (parede, porta, salas, chão...). Os seguintes — Desenho,
- * Texto, Pino, Medir, Borracha — são "Desenhar e anotar".
+ * Grupos da barra (`TOOLBAR_SLOTS`) que viram "Construir": Escolher,
+ * Construir, Terreno e Esconder e revelar. O último — Anotar: Desenho, Texto,
+ * Pino, Medir, Borracha — é "Desenhar e anotar".
  */
-const TOOLBAR_GROUPS_TO_BUILD = 2
+const TOOLBAR_GROUPS_TO_BUILD = 4
 
 function toolRow(tool: DrawingTool, hidden: ReadonlySet<DrawingTool>): ShortcutRow | null {
   const letter = TOOL_SHORTCUTS[tool]

@@ -1,12 +1,23 @@
-import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ComponentType, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react'
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
-import { ROOM_FREE_WALL_HINT, TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
+import {
+  ROOM_FREE_WALL_HINT,
+  TOOLBAR_GROUPS,
+  TOOL_CLUSTERS,
+  TOOL_HINTS,
+  TOOL_LABELS,
+  clusterIdOf,
+  clusterOfTool,
+  type ToolClusterId,
+  type ToolbarSlot,
+} from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { placeHint, type HintPlacement } from './hintPlacement'
 import {
   TOOL_VARIANTS,
-  drawingClusterGroups,
+  clusterOptionLabel,
+  clusterVariantGroups,
   hasVariantEcho,
   toolHasVariantAxis,
   variantEcho,
@@ -14,6 +25,8 @@ import {
   type ToolVariantStoreKey,
 } from '../lib/toolVariants'
 import { ToolVariantMenu, readVariantValue, type ToolVariantBindings } from './ToolVariantMenu'
+import { Balao } from './grimorio/Balao'
+import { movimentoReduzido } from './grimorio/comum'
 import {
   BrushIcon,
   CircleIcon,
@@ -108,32 +121,6 @@ function menuIconFor(tool: DrawingTool): ReactNode {
   return Icon ? <Icon size={MENU_ICON_SIZE} /> : null
 }
 
-/**
- * Setinha de variantes — canto do botão principal. Ícone LOCAL de propósito:
- * `components/icons.tsx` é arquivo de integrador/fundação (fora do escopo de
- * escrita desta tarefa), então não recebe entrada nova. Mesma convenção de
- * contorno das demais famílias de ícone do app: viewBox 24, sem fill,
- * strokeWidth 1.6.
- */
-function ChevronDownIcon() {
-  return (
-    <svg
-      width={9}
-      height={9}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.6}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M5 9l7 7 7-7" />
-    </svg>
-  )
-}
-
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)
 /** Primeiro x livre à direita do livro do mestre. */
 const HINT_MIN_LEFT = parseFloat(theme.layout.livroDoMestre) + EDGE_GAP
@@ -169,8 +156,10 @@ const VARIANT_MARK_STYLE: CSSProperties = {
   height: '7px',
   borderRadius: theme.radius.full,
   background: theme.color.brass,
-  boxShadow: `0 0 0 2px ${theme.color.stoneSunken}`,
+  // O anel tem a cor do couro da barra: separa o ponto do botão sem contorno.
+  boxShadow: `0 0 0 2px ${theme.gr.couro[2]}`,
   pointerEvents: 'none',
+  zIndex: 2,
 }
 
 /** Rótulo do eco: mesma legenda de seção do resto do app (`.lb-eyebrow`), só
@@ -205,84 +194,70 @@ function echoLineStyle(withSeparator: boolean): CSSProperties {
 const ECHO_LINE_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.base), easing: theme.motion.ease }
 const ECHO_MARK_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.fast), easing: theme.motion.ease }
 
-/* --------------------------------------------------------- balão aquecido */
-
-/** Tempo parado sobre um ícone antes do PRIMEIRO balão: o mesmo que o CSS segura (`--lb-motion-tip-delay`). */
-const ESPERA_DO_PRIMEIRO_MS = Number.parseFloat(theme.motion.tipDelay)
+/* ------------------------------------------------------- placa de latão */
 
 /**
- * Depois que o ponteiro sai dos ícones, o vizinho ainda abre na hora durante
- * esta janela. Atravessar o vão de 4 px entre dois ícones leva bem menos.
+ * Segurar o botão por este tempo abre as variantes, como o clique direito
+ * (protótipo consolidado: 450 ms). Mais curto, um clique demorado viraria menu.
  */
-const JANELA_DO_VIZINHO_MS = 300
-
-/** Marca da barra aquecida, lida pelo main.css (`.lb-toolbar[data-tip-quente]`). */
-const ATRIBUTO_QUENTE = 'data-tip-quente'
+const SEGURAR_PARA_VARIANTES_MS = 450
 
 /**
- * Balão aquecido (catálogo de convenções, "Dica de ferramenta": pairar espera,
- * e o vizinho aparece na hora). O CSS segura cada balão `ESPERA_DO_PRIMEIRO_MS`;
- * quando o primeiro aparece, a barra ganha `data-tip-quente` e o CSS passa a
- * mostrar os vizinhos sem espera e sem movimento. Saindo dos ícones, a barra
- * esfria depois de `JANELA_DO_VIZINHO_MS`. Mesma conta das dicas do inspetor
- * (`lib/dicaDoPainel.ts`), com os números desta barra.
+ * A placa de latão: uma só, desliza até o botão da ferramenta armada
+ * (protótipo consolidado, fatia 6). Propósito do movimento: mostrar de onde a
+ * ferramenta saiu e para onde foi, quando a troca nasce de um clique na barra.
+ * Pela tecla ela troca na hora — atalho de uso constante não anima —, e também
+ * na primeira posição, quando a barra muda de tamanho e com movimento reduzido.
  *
- * O atributo é escrito direto no elemento, sem estado do React: passar o mouse
- * pela barra não re-renderiza nada. Toque não aquece: no dedo não existe
- * pairar, e um toque não é passeio de ponteiro pela barra.
+ * Só `transform` (com a curva e os 150 ms de `--lb-gr-ease-out`/`--lb-gr-dur-move`,
+ * no CSS), escrito direto no elemento: armar uma ferramenta não re-renderiza
+ * nada a mais por causa dela. A medida sai num quadro de animação ou no
+ * ResizeObserver, nunca dentro do commit (ver o balão da dica, abaixo).
  */
-function useBalaoQuente(barraRef: RefObject<HTMLDivElement | null>): void {
+function usePlacaDeLatao(
+  barraRef: RefObject<HTMLDivElement | null>,
+  placaRef: RefObject<HTMLSpanElement | null>,
+  ferramenta: DrawingTool,
+  animarProxima: RefObject<boolean>,
+): void {
+  // Barra que muda de tamanho (janela, quebra de linha): a placa acompanha sem deslizar.
   useEffect(() => {
     const barra = barraRef.current
-    if (!barra) return
-    let aquecer: ReturnType<typeof setTimeout> | null = null
-    let esfriar: ReturnType<typeof setTimeout> | null = null
+    if (!barra || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => moverPlaca(barra, placaRef.current, false))
+    observer.observe(barra)
+    return () => observer.disconnect()
+  }, [barraRef, placaRef])
 
-    const pararDeAquecer = () => {
-      if (aquecer === null) return
-      clearTimeout(aquecer)
-      aquecer = null
-    }
-    const pararDeEsfriar = () => {
-      if (esfriar === null) return
-      clearTimeout(esfriar)
-      esfriar = null
-    }
-    /** O alvo é um ícone com balão desta barra, ou fica dentro de um (o desenho em svg). */
-    const sobreBalao = (alvo: EventTarget | null) => alvo instanceof Element && barra.contains(alvo) && alvo.closest('.lb-tip') !== null
+  useEffect(() => {
+    const animar = animarProxima.current
+    animarProxima.current = false
+    const quadro = requestAnimationFrame(() => moverPlaca(barraRef.current, placaRef.current, animar))
+    return () => cancelAnimationFrame(quadro)
+  }, [ferramenta, barraRef, placaRef, animarProxima])
+}
 
-    const aoEntrar = (evento: PointerEvent) => {
-      if (evento.pointerType === 'touch' || !sobreBalao(evento.target)) return
-      pararDeEsfriar()
-      if (barra.hasAttribute(ATRIBUTO_QUENTE) || aquecer !== null) return
-      aquecer = setTimeout(() => {
-        aquecer = null
-        barra.setAttribute(ATRIBUTO_QUENTE, '')
-      }, ESPERA_DO_PRIMEIRO_MS)
-    }
-
-    const aoSair = (evento: PointerEvent) => {
-      // Do botão para o desenho dele, ou direto para o vizinho: continua sobre um balão.
-      if (evento.pointerType === 'touch' || !sobreBalao(evento.target) || sobreBalao(evento.relatedTarget)) return
-      pararDeAquecer()
-      if (!barra.hasAttribute(ATRIBUTO_QUENTE)) return
-      pararDeEsfriar()
-      esfriar = setTimeout(() => {
-        esfriar = null
-        barra.removeAttribute(ATRIBUTO_QUENTE)
-      }, JANELA_DO_VIZINHO_MS)
-    }
-
-    barra.addEventListener('pointerover', aoEntrar)
-    barra.addEventListener('pointerout', aoSair)
-    return () => {
-      barra.removeEventListener('pointerover', aoEntrar)
-      barra.removeEventListener('pointerout', aoSair)
-      pararDeAquecer()
-      pararDeEsfriar()
-      barra.removeAttribute(ATRIBUTO_QUENTE)
-    }
-  }, [barraRef])
+function moverPlaca(barra: HTMLDivElement | null, placa: HTMLSpanElement | null, animar: boolean): void {
+  if (!barra || !placa) return
+  const botao = barra.querySelector<HTMLElement>('.lb-ferr[aria-pressed="true"]')
+  // Ferramenta fora da barra (o Token, com a flag ligada por atalho): nenhuma placa.
+  if (!botao) {
+    placa.removeAttribute('data-posta')
+    return
+  }
+  const caixa = barra.getBoundingClientRect()
+  const alvo = botao.getBoundingClientRect()
+  const x = alvo.left - caixa.left - barra.clientLeft
+  const y = alvo.top - caixa.top - barra.clientTop
+  const naHora = !animar || !placa.hasAttribute('data-posta') || movimentoReduzido()
+  if (naHora) placa.style.transition = 'none'
+  placa.style.transform = `translate(${x}px, ${y}px)`
+  placa.setAttribute('data-posta', '')
+  if (naHora) {
+    // Lê o layout para o navegador aplicar a posição sem transição antes de devolvê-la.
+    void placa.offsetWidth
+    placa.style.transition = ''
+  }
 }
 
 /** Posição da barra e eixo tocados pela última escolha de variante. */
@@ -291,48 +266,45 @@ interface VariantChoice {
   storeKey: ToolVariantStoreKey
 }
 
-/** O que uma posição da barra desenha: nome, ícone, dica, ação e menu. */
+/** O que uma posição da barra desenha: nome, ícone, balão, ação e menu. */
 interface SlotView {
   label: string
   Icon: ComponentType<{ size?: number }>
   pressed: boolean
-  tip: string
+  /** Texto do balão ("Sala: Circular"); o atalho e o grupo vão à parte. */
+  texto: string
+  /** Letra da ferramenta que o clique arma. Sala livre e Caminho nasceram sem letra (`lib/keymap.ts`). */
+  atalho: string | undefined
   target: DrawingTool
-  /** Grupos do popover da setinha; `null` = sem setinha. */
+  /** Grupos do popover das variantes; `null` = sem cantinho. */
   groups: ToolVariantGroup[] | null
   iconFor?: (tool: DrawingTool) => ReactNode
 }
 
-/**
- * Dica com o atalho entre parênteses — só quando a ferramenta TEM atalho. Sala
- * livre e Caminho nasceram sem letra (`lib/keymap.ts`), e "Sala livre ()"
- * sugeria um atalho que não existe.
- */
-function tipWithShortcut(text: string, tool: DrawingTool): string {
-  const shortcut = TOOL_SHORTCUTS[tool]
-  return shortcut ? `${text} (${shortcut})` : text
-}
+/** A última ferramenta usada de cada botão que agrupa ferramentas — é o que o clique no botão arma. */
+type UltimaDoGrupo = Record<ToolClusterId, DrawingTool>
 
-function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: DrawingTool): SlotView | null {
+function slotView(slot: ToolbarSlot, activeTool: DrawingTool, ultima: UltimaDoGrupo): SlotView | null {
   const clusterId = clusterIdOf(slot)
   if (clusterId) {
     const cluster = TOOL_CLUSTERS[clusterId]
     const pressed = cluster.tools.includes(activeTool)
     // O ícone diz o que o clique fará (D5): a forma ativa, ou a última usada.
-    const shape = pressed ? activeTool : lastDrawingTool
+    const shape = pressed ? activeTool : ultima[clusterId]
     const Icon = TOOL_ICONS[shape]
     if (!Icon) return null
     return {
       label: cluster.label,
       Icon,
       pressed,
-      tip: tipWithShortcut(`${cluster.label}: ${TOOL_LABELS[shape]}`, shape),
+      texto: `${cluster.label}: ${clusterOptionLabel(clusterId, shape) ?? TOOL_LABELS[shape] ?? shape}`,
+      atalho: TOOL_SHORTCUTS[shape] || undefined,
       target: shape,
-      groups: drawingClusterGroups(shape),
+      groups: clusterVariantGroups(clusterId, shape),
       iconFor: menuIconFor,
     }
   }
-  const tool = slot as DrawingTool
+  const tool = slot as DrawingTool // clusterIdOf deu null: a posição é uma ferramenta avulsa
   const Icon = TOOL_ICONS[tool]
   const label = TOOL_LABELS[tool]
   // TOOLBAR_SLOTS só lista ferramentas com ícone e rótulo — se faltar, é bug
@@ -343,7 +315,8 @@ function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: D
     label,
     Icon,
     pressed: activeTool === tool,
-    tip: tipWithShortcut(label, tool),
+    texto: label,
+    atalho: TOOL_SHORTCUTS[tool] || undefined,
     target: tool,
     groups: variantEntry && variantEntry.available ? variantEntry.groups : null,
   }
@@ -377,12 +350,19 @@ function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: D
  * caminho do helper `e2e/helpers/tools.ts` (`pickTool`) — e em uma tecla
  * (P/L/U/C/O/R/A, D4).
  *
- * Setinha de variantes (Fase 4, N1): cada ferramenta com `available: true` em
- * `TOOL_VARIANTS` ganha uma SEGUNDA `<button>`, irmã da principal (nunca
- * aninhada — dois `<button>` um dentro do outro é HTML inválido), com nome
- * acessível próprio (`Opções de <nome>`) que abre um popover
- * (`ToolVariantMenu`). O clique no CORPO do botão principal só chama
- * `onSelectTool`, e a setinha só existe para quem tem opção pronta.
+ * Cantinho de variantes (Fase 4, N1; visual da fatia 6): cada ferramenta com
+ * `available: true` em `TOOL_VARIANTS` ganha uma SEGUNDA `<button>`, irmã da
+ * principal (nunca aninhada — dois `<button>` um dentro do outro é HTML
+ * inválido), desenhada como o triângulo no canto do botão, com nome acessível
+ * próprio (`Opções de <nome>`) que abre um popover (`ToolVariantMenu`). Clique
+ * direito ou segurar o botão principal abrem o mesmo popover e armam a
+ * ferramenta (protótipo consolidado); o clique no CORPO só chama `onSelectTool`.
+ *
+ * Fatia 6: barra no pé do mapa, em faixa de couro com 5 grupos (Escolher,
+ * Construir, Terreno, Esconder e revelar, Anotar), placa de latão na
+ * ferramenta armada e balão com o atalho em tecla e o nome do grupo. Sala
+ * (4 salas + Região) e Objeto (móvel + Peça) viraram botões que agrupam
+ * ferramentas, como o Desenho; as letras de cada uma não mudaram.
  */
 export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBindings }: ToolbarProps) {
   /**
@@ -401,6 +381,18 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    * a frase acompanha; se virar um valor sem rótulo no menu, a frase some.
    */
   const [variantChoice, setVariantChoice] = useState<VariantChoice | null>(null)
+  /**
+   * Última ferramenta de Sala e de Objeto, lembrada pela barra durante a sessão
+   * (a do Desenho vem do mapStore, `lastDrawingTool`). Também acompanha a
+   * troca por tecla: apertar J e voltar ao Selecionar deixa o botão Sala na
+   * Circular, como o Desenho faz com a forma.
+   */
+  const [ultimasLocais, setUltimasLocais] = useState<Omit<UltimaDoGrupo, 'drawing'>>({ sala: 'room', objeto: 'mobilia' })
+  const grupoDaAtiva = clusterOfTool(activeTool)
+  if (grupoDaAtiva && grupoDaAtiva !== 'drawing' && ultimasLocais[grupoDaAtiva] !== activeTool) {
+    setUltimasLocais({ ...ultimasLocais, [grupoDaAtiva]: activeTool })
+  }
+  const ultima: UltimaDoGrupo = { drawing: lastDrawingTool, ...ultimasLocais }
   if (hintTool !== activeTool) {
     setHintTool(activeTool)
     setHintDismissed(false)
@@ -420,9 +412,20 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
   const dockRef = useRef<HTMLDivElement>(null)
   const hintRef = useRef<HTMLParagraphElement>(null)
   const activeButtonRef = useRef<HTMLButtonElement>(null)
-  /** A barra em si (`.lb-toolbar`): é nela que o balão aquecido escreve o atributo. */
+  /** A barra em si (`.lb-toolbar`): a placa de latão se mede contra ela. */
   const barraRef = useRef<HTMLDivElement>(null)
-  useBalaoQuente(barraRef)
+  const placaRef = useRef<HTMLSpanElement>(null)
+  /** A próxima troca de ferramenta veio de um gesto na barra: a placa desliza (pela tecla, troca na hora). */
+  const animarPlaca = useRef(false)
+  usePlacaDeLatao(barraRef, placaRef, activeTool, animarPlaca)
+  /** Relógio do "segurar para ver as variantes"; `null` = ninguém segurando. */
+  const segurando = useRef<number | null>(null)
+  const pararDeSegurar = () => {
+    if (segurando.current === null) return
+    window.clearTimeout(segurando.current)
+    segurando.current = null
+  }
+  useEffect(() => pararDeSegurar, [])
   /** Os dois pedaços do eco — a frase no balão e o ponto no botão —, só para a
    *  animação de entrada. */
   const echoRef = useRef<HTMLSpanElement>(null)
@@ -556,22 +559,37 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     : // Ainda sem medida: some, mas continua ocupando layout para poder ser medido.
       { visibility: 'hidden' }
 
+  /** Clique direito ou segurar: abre as variantes e arma a ferramenta, como no protótipo. */
+  const abrirVariantesPeloGesto = (slot: ToolbarSlot, view: SlotView) => {
+    pararDeSegurar()
+    setOpenVariantSlot(slot)
+    if (view.pressed) return
+    animarPlaca.current = true
+    onSelectTool(view.target)
+  }
+  const comecarASegurar = (evento: ReactPointerEvent<HTMLButtonElement>, slot: ToolbarSlot, view: SlotView) => {
+    pararDeSegurar()
+    if (evento.button !== 0 || !view.groups) return
+    segurando.current = window.setTimeout(() => abrirVariantesPeloGesto(slot, view), SEGURAR_PARA_VARIANTES_MS)
+  }
+
   return (
     <div className="lb-toolbar-dock" ref={dockRef}>
-      <div ref={barraRef} className="lb-panel lb-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
-        {TOOLBAR_SLOTS.map((group, index) => (
+      <div ref={barraRef} className="lb-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
+        <span ref={placaRef} className="lb-toolbar__placa" aria-hidden="true" />
+        {TOOLBAR_GROUPS.map((group, index) => (
           // Grupo inteiro é a unidade de quebra de linha — ver comentário do
           // componente. O separador mora dentro do grupo que ele abre, então
           // os dois sempre migram juntos para a linha seguinte.
-          <div className="lb-toolbar__group" key={group[0]}>
+          <div className="lb-toolbar__group" key={group.nome} role="group" aria-label={group.nome}>
             {index > 0 && <span className="lb-toolbar__sep" aria-hidden="true" />}
-            {group.map((slot) => {
-              const view = slotView(slot, activeTool, lastDrawingTool)
+            {group.slots.map((slot) => {
+              const view = slotView(slot, activeTool, ultima)
               if (!view) return null
               const { Icon } = view
               const menuOpen = openVariantSlot === slot
               return (
-                // Âncora do par botão+setinha. A setinha é um `<button>` IRMÃO
+                // Âncora do par botão+cantinho. O cantinho é um `<button>` IRMÃO
                 // do principal (nunca aninhado), então o clique no corpo do
                 // botão principal só chama `onSelectTool`, nunca abre o popover.
                 <div
@@ -581,23 +599,51 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                     if (node) variantAnchorRefs.current.set(slot, node)
                     else variantAnchorRefs.current.delete(slot)
                   }}
+                  onContextMenu={(event) => {
+                    if (!view.groups) return
+                    event.preventDefault()
+                    abrirVariantesPeloGesto(slot, view)
+                  }}
                 >
-                  <button
-                    // A dica da ferramenta ativa ancora no botão que está
-                    // pressionado — no grupo Desenho, o próprio botão do grupo.
-                    ref={view.pressed ? activeButtonRef : undefined}
-                    type="button"
-                    className="lb-iconbtn lb-tip"
-                    aria-label={view.label}
-                    aria-pressed={view.pressed}
-                    // Onda 1, item 6 do plano — atalho invisível é atalho
-                    // inexistente. `aria-label` fica intocado; só o balão de
-                    // dica ganha a letra.
-                    data-tip={view.tip}
-                    onClick={() => onSelectTool(view.target)}
-                  >
-                    <Icon />
-                  </button>
+                  <Balao texto={view.texto} atalho={view.atalho} grupo={group.nome}>
+                    {(gatilho) => (
+                      <button
+                        // A dica da ferramenta ativa ancora no botão que está
+                        // pressionado — num botão que agrupa, o próprio botão.
+                        ref={(node) => {
+                          gatilho.ref(node)
+                          if (view.pressed) activeButtonRef.current = node
+                        }}
+                        type="button"
+                        className="lb-ferr"
+                        // O nome acessível é só o rótulo (os e2e leem com
+                        // `exact`); a letra vai no balão, como tecla.
+                        aria-label={view.label}
+                        aria-pressed={view.pressed}
+                        aria-describedby={gatilho['aria-describedby']}
+                        onPointerEnter={gatilho.onPointerEnter}
+                        onPointerLeave={() => {
+                          gatilho.onPointerLeave()
+                          pararDeSegurar()
+                        }}
+                        onPointerDown={(event) => {
+                          gatilho.onPointerDown()
+                          comecarASegurar(event, slot, view)
+                        }}
+                        onPointerUp={pararDeSegurar}
+                        onPointerCancel={pararDeSegurar}
+                        onFocus={gatilho.onFocus}
+                        onBlur={gatilho.onBlur}
+                        onKeyDown={gatilho.onKeyDown}
+                        onClick={() => {
+                          animarPlaca.current = true
+                          onSelectTool(view.target)
+                        }}
+                      >
+                        <Icon />
+                      </button>
+                    )}
+                  </Balao>
                   {view.groups && (
                     <button
                       ref={(node) => {
@@ -615,9 +661,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                         event.stopPropagation()
                         setOpenVariantSlot((current) => (current === slot ? null : slot))
                       }}
-                    >
-                      <ChevronDownIcon />
-                    </button>
+                    />
                   )}
                   {echo && variantChoice?.slot === slot && (
                     // Onde a escolha PEGOU. Sem isto a fileira de botões fica

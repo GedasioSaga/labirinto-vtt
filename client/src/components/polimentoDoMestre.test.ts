@@ -214,12 +214,12 @@ describe('M9 — o fundo da janela escurece num esmaecer curto', () => {
 })
 
 describe('M10 — menus e confirmações entram de onde foram chamados', () => {
-  it('o menu da setinha cresce do canto do botão, dos dois lados', async () => {
+  it('o menu das variantes cresce do canto do botão, dos dois lados (abre para cima da barra, fatia 6)', async () => {
     const { normal, reduzido } = separar(await lerCss('../main.css'))
     const menu = regra(normal, '.lb-toolvariant-menu')
-    expect(menu.get('transform-origin')).toBe('top left')
+    expect(menu.get('transform-origin')).toBe('bottom left')
     expect(menu.get('animation')).toBe(`lb-cenas-menu-entra ${RAPIDO}`)
-    expect(regra(normal, '.lb-toolvariant-menu--direita').get('transform-origin')).toBe('top right')
+    expect(regra(normal, '.lb-toolvariant-menu--direita').get('transform-origin')).toBe('bottom right')
     expect(regra(reduzido, '.lb-toolvariant-menu').get('animation')).toBe('none')
   })
 
@@ -241,12 +241,11 @@ describe('M11 — balões de ferramenta: só o primeiro espera', () => {
     expect(regra(normal, '.lb-tip:hover::before, .lb-tip:focus-visible::before').get('transition-delay')).toBe('var(--lb-motion-tip-delay)')
   })
 
-  it('o foco do teclado e a barra aquecida trazem o balão na hora, sem espera e sem movimento', async () => {
+  // A barra aquecida da barra de ferramentas saiu daqui na fatia 6: o balão dela é o do
+  // grimório (Balao.tsx), provado em Toolbar.balaoQuente.test.tsx.
+  it('o foco do teclado traz o balão na hora, sem espera e sem movimento', async () => {
     const { normal } = separar(await lerCss('../main.css'))
-    for (const seletor of [
-      '.lb-tip:focus-visible::after, .lb-tip:focus-visible::before',
-      '.lb-toolbar[data-tip-quente] .lb-tip::after, .lb-toolbar[data-tip-quente] .lb-tip::before',
-    ]) {
+    for (const seletor of ['.lb-tip:focus-visible::after, .lb-tip:focus-visible::before']) {
       const instantaneo = regra(normal, seletor)
       expect(instantaneo.get('transition-delay'), seletor).toBe('0ms')
       expect(instantaneo.get('transition-duration'), seletor).toBe('0ms')
@@ -296,15 +295,13 @@ describe('M11 — balões de ferramenta: só o primeiro espera', () => {
     expect(posicao(normal, seletor)).toBeGreaterThan(posicao(normal, '.lb-tip:focus-visible::after, .lb-tip:focus-visible::before'))
   })
 
-  it('na barra de ferramentas o menu é da setinha: o balão do botão irmão também sai com ele aberto', async () => {
+  it('na barra de ferramentas o menu é do cantinho: com ele aberto, nenhum balão sai na frente', async () => {
     const { normal } = separar(await lerCss('../main.css'))
-    // O menu nasce 6 px abaixo da âncora, colado à esquerda; o balão do botão
-    // nasce 8 px abaixo, centrado nele, e o pedaço que passa da borda esquerda
-    // do menu ficaria à vista atrás dele.
-    const par = ".lb-toolvariant-anchor:has(> .lb-toolvariant-arrow[aria-expanded='true']) > .lb-tip"
-    const aberto = regra(normal, `${par}::after, ${par}::before`)
+    // O menu nasce 6 px acima da âncora, colado à esquerda; o balão do botão
+    // nasce 8 px acima, centrado nele, e o pedaço que passa da borda esquerda
+    // do menu ficaria à vista atrás dele. O balão do grimório mora no body.
+    const aberto = regra(normal, 'body:has(.lb-toolvariant-menu) > .gr-balao')
     expect(aberto.get('opacity')).toBe('0')
-    expect(aberto.get('transition-delay')).toBe('0ms')
     expect(aberto.get('transition-duration')).toBe('0ms')
   })
 })

@@ -382,9 +382,9 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
   /**
    * Orçamento de altura e número de colunas, medidos na tela.
    *
-   * O TypeScript contribui com UMA medida — `--lb-toolvariant-topo`, a
-   * distância entre o topo da janela e o topo do popover, que depende de em
-   * qual fileira da barra a setinha caiu. O orçamento (`max-height`) é conta de
+   * O TypeScript contribui com UMA medida — `--lb-toolvariant-teto`, a
+   * distância entre o topo da janela e o topo da âncora (o menu abre para
+   * cima dela), que depende de em qual fileira da barra o botão caiu. O orçamento (`max-height`) é conta de
    * CSS a partir dela, com o respiro de borda vindo do mesmo
    * `--lb-layout-edge-gap` dos outros painéis flutuantes: a régua de
    * espaçamento continua morando num lugar só.
@@ -399,8 +399,11 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
     const raiz = rootRef.current
     if (!raiz) return
     const ajustar = () => {
-      const topo = Math.max(0, Math.round(raiz.getBoundingClientRect().top))
-      raiz.style.setProperty('--lb-toolvariant-topo', `${topo}px`)
+      // A barra mora no pé do mapa (fatia 6) e o menu abre PARA CIMA: o
+      // orçamento é o que sobra entre o topo da janela e o topo da âncora.
+      const ancoraDoTeto = raiz.offsetParent ?? raiz
+      const teto = Math.max(0, Math.round(ancoraDoTeto.getBoundingClientRect().top))
+      raiz.style.setProperty('--lb-toolvariant-teto', `${teto}px`)
       if (raiz.scrollHeight > raiz.clientHeight) setColunas((atual) => Math.min(atual + 1, MAXIMO_DE_COLUNAS))
       // A largura cresce junto com as colunas, então a borda da direita vira
       // um risco novo — e menu cortado à direita é o mesmo defeito de menu

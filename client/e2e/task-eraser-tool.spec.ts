@@ -3,6 +3,7 @@
 // pra montar o estado e prova o resultado lendo map.* depois da interação no canvas.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Region } from '../src/types/map'
 
 type MapState = {
@@ -28,7 +29,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Região' | 'Borracha') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

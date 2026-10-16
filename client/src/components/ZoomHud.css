@@ -15,7 +15,8 @@
   position: absolute;
   /* Ao lado da coluna da direita, nunca embaixo dela (livro/livro.css). */
   right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
-  bottom: var(--lb-layout-edge-gap);
+  /* Acima da barra de ferramentas, que mora no pé do mapa (fatia 6; App.tsx mede). */
+  bottom: calc(var(--lb-layout-edge-gap) + var(--lb-base-altura, 0px) + var(--lb-space-2));
   display: inline-flex;
   align-items: center;
   gap: var(--lb-space-2);

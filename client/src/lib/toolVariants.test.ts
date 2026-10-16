@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   DRAWING_SHAPE_GROUP,
+  OBJETO_KIND_GROUP,
+  SALA_SHAPE_GROUP,
+  clusterOptionLabel,
+  clusterVariantGroups,
   drawingClusterGroups,
   readyToolVariants,
   TOOL_VARIANTS,
@@ -9,7 +13,7 @@ import {
   type ToolVariantGroup,
 } from './toolVariants'
 import { TOOL_SHORTCUTS } from './keymap'
-import { DRAWING_TOOLS } from '../components/labels'
+import { DRAWING_TOOLS, TOOL_CLUSTERS } from '../components/labels'
 import type { DrawingTool } from '../types/tools'
 
 /** Toda ferramenta com variante — pronta ou não — precisa existir em
@@ -247,5 +251,30 @@ describe('DRAWING_SHAPE_GROUP e drawingClusterGroups (botão Desenho)', () => {
         }
       }
     }
+  })
+})
+
+describe('botões que agrupam ferramentas na barra (fatia 6: Sala e Objeto)', () => {
+  it('Sala: Forma lista as quatro salas e a Região, na ordem do botão, com a letra de cada uma', () => {
+    expect(SALA_SHAPE_GROUP.options.map((o) => o.value)).toEqual(TOOL_CLUSTERS.sala.tools)
+    expect(SALA_SHAPE_GROUP.options.map((o) => o.label)).toEqual(['Retângulo', 'Circular', 'Polígono', 'Livre', 'Região'])
+    for (const option of SALA_SHAPE_GROUP.options) {
+      const letra = TOOL_SHORTCUTS[option.value]
+      if (letra) expect(option.description, option.id).toContain(`(${letra})`)
+      else expect(option.description, option.id).not.toContain('(')
+    }
+  })
+
+  it('Objeto: Colocar tem o móvel e a imagem (a Peça, B)', () => {
+    expect(OBJETO_KIND_GROUP.options.map((o) => o.value)).toEqual(TOOL_CLUSTERS.objeto.tools)
+    expect(OBJETO_KIND_GROUP.options.map((o) => o.label)).toEqual(['Móvel', 'Imagem'])
+    expect(clusterOptionLabel('objeto', 'prop')).toBe('Imagem')
+  })
+
+  it('o menu traz a escolha da ferramenta e, abaixo, as variantes prontas dela', () => {
+    expect(clusterVariantGroups('sala', 'roomFree').map((g) => g.label)).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento'])
+    expect(clusterVariantGroups('objeto', 'mobilia').map((g) => g.label)).toEqual(['Colocar', 'Objeto'])
+    expect(clusterVariantGroups('objeto', 'prop').map((g) => g.label)).toEqual(['Colocar'])
+    expect(clusterVariantGroups('drawing', 'line')).toEqual(drawingClusterGroups('line'))
   })
 })

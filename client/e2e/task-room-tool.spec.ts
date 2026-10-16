@@ -19,6 +19,7 @@
 // coordenada de mundo = offset do canvas.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Region } from '../src/types/map'
 
 type MapState = {
@@ -53,7 +54,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Sala' | 'Parede' | 'Região' | 'Polígono Regular') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 function wallByEdge(walls: Wall[], regionId: string, edgeIndex: number): Wall {

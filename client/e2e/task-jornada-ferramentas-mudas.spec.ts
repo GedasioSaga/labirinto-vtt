@@ -19,6 +19,7 @@
 // (mesmo cuidado de task-many-regions.spec.ts).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 
 type Rgb = [number, number, number]
 
@@ -83,8 +84,9 @@ async function reiniciarMapa(page: Page) {
   })
 }
 
+/** Arma pela barra; Região mora no menu do botão "Sala" desde a fatia 6. */
 function ferramenta(page: Page, rotulo: string) {
-  return page.getByRole('button', { name: rotulo, exact: true })
+  return { click: () => pickTool(page, rotulo) }
 }
 
 /** O painel mostra o mesmo cabeçalho em mais de uma seção (Token tem "Nome" e

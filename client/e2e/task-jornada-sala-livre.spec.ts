@@ -23,18 +23,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import { esconderColunaDireita } from './helpers/colunaDireita'
+import { pickTool } from './helpers/tools'
 
 test.use({ trace: 'off', video: 'off' })
 
 /** Coluna da esquerda (PropertiesPanel) — o corpo rolável, sem o cabeçalho. */
 const PAINEL = '.lb-inspector__body'
-
-/**
- * Como o usuário acharia a ferramenta na barra. Regex (e não texto exato) de
- * propósito: quem implementar pode chamá-la "Sala livre", "Sala Livre" ou
- * "Sala de formato livre" — a jornada cobra a FERRAMENTA, não o rótulo exato.
- */
-const NOME_DA_FERRAMENTA = /sala\s+(de\s+formato\s+)?livre/i
 
 /**
  * Os 5 cantos da sala de formato livre — irregular de propósito: não é
@@ -148,15 +142,9 @@ const limiarDeParede = (fundo: number, referencia: number): number => fundo + (r
  * É AQUI que a jornada fica vermelha hoje: nenhum botão da barra tem esse nome.
  */
 async function abrirSalaLivre(page: Page): Promise<void> {
-  const botao = page.getByRole('button', { name: NOME_DA_FERRAMENTA }).first()
-  await expect(
-    botao,
-    'A barra não tem nenhuma ferramenta chamada "Sala livre" (procurado por ' +
-      String(NOME_DA_FERRAMENTA) +
-      '). Hoje só existem Sala (1 arrasto = retângulo), Sala Circular e Polígono Regular; ' +
-      'desenhar canto a canto só existe na Região, que não faz parede nem é Sala.',
-  ).toBeVisible({ timeout: 5000 })
-  await botao.click()
+  // Desde a fatia 6 a Sala livre é a forma "Livre" do menu do botão Sala.
+  await pickTool(page, 'Sala livre')
+  const botao = page.getByRole('button', { name: 'Sala', exact: true })
   await expect(botao, 'a ferramenta de Sala livre não ficou apertada depois do clique').toHaveAttribute(
     'aria-pressed',
     'true',

@@ -9,8 +9,10 @@ import {
   SALA_TRAVADA_NAO_ABRE_TEXT,
   SELECTION_LABELS,
   STAIR_CLICK_WITHOUT_DRAG_TEXT,
+  TOOLBAR_GROUPS,
   TOOLBAR_SLOTS,
   TOOL_CLUSTERS,
+  clusterOfTool,
   TOOL_HINTS,
   TOOL_LABELS,
   toolsOfSlot,
@@ -99,5 +101,17 @@ describe('avisos do "Abrir para o corredor"', () => {
       expect(texto).toMatch(/nada foi aberto/i)
       expect(texto).toMatch(/tente de novo/i)
     }
+  })
+})
+
+describe('grupos da barra (fatia 6)', () => {
+  it('5 grupos com nome, e cada ferramenta sabe em que botão que agrupa ela mora', () => {
+    expect(TOOLBAR_GROUPS.map((g) => g.nome)).toEqual(['Escolher', 'Construir', 'Terreno', 'Esconder e revelar', 'Anotar'])
+    expect(TOOLBAR_SLOTS).toEqual(TOOLBAR_GROUPS.map((g) => g.slots))
+    expect(clusterOfTool('roomCircle')).toBe('sala')
+    expect(clusterOfTool('region')).toBe('sala')
+    expect(clusterOfTool('prop')).toBe('objeto')
+    expect(clusterOfTool('line')).toBe('drawing')
+    expect(clusterOfTool('wall')).toBeNull()
   })
 })

@@ -42,7 +42,9 @@ test('2. setinha → Elipse: ativa a elipse, a dica diz Elipse e o arrasto cria 
   expect((await storeState(page)).activeTool).toBe('ellipse')
   const desenho = page.getByRole('button', { name: 'Desenho', exact: true })
   await expect(desenho).toHaveAttribute('aria-pressed', 'true')
-  await expect(desenho).toHaveAttribute('data-tip', /Elipse/)
+  // O balão do grimório (fatia 6) diz a forma que o botão arma.
+  await desenho.hover()
+  await expect(page.getByRole('tooltip')).toContainText('Desenho: Elipse')
 
   await page.mouse.move(box.x + 400, box.y + 400)
   await page.mouse.down()
@@ -61,7 +63,10 @@ test('3. tecla R ativa o retângulo; depois de Selecionar, o clique em Desenho v
   await page.getByRole('button', { name: 'Selecionar', exact: true }).click()
   const desenho = page.getByRole('button', { name: 'Desenho', exact: true })
   await expect(desenho).toHaveAttribute('aria-pressed', 'false')
-  await expect(desenho).toHaveAttribute('data-tip', 'Desenho: Retângulo (R)')
+  await desenho.hover()
+  const balao = page.getByRole('tooltip')
+  await expect(balao).toContainText('Desenho: Retângulo')
+  await expect(balao).toContainText('R')
 
   await desenho.click()
   const state = await storeState(page)

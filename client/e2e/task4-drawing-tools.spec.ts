@@ -4,6 +4,7 @@
 // para o que este teste cobre e o que continua não coberto (o binário/webview Tauri em si).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Light, Region, Token } from '../src/types/map'
 
 type MapState = {
@@ -39,7 +40,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | 'Região') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

@@ -26,6 +26,7 @@
  *     não escala com o raio: num raio grande os lados retos aparecem.
  */
 import { test, expect, type Page } from '@playwright/test'
+import { pickTool } from './helpers/tools'
 
 test.use({ trace: 'off', video: 'off' })
 
@@ -236,7 +237,7 @@ async function abrirEditor(page: Page): Promise<void> {
 }
 
 async function ferramenta(page: Page, nome: string): Promise<void> {
-  await page.getByRole('button', { name: nome, exact: true }).click()
+  await pickTool(page, nome)
   await page.waitForTimeout(250)
 }
 

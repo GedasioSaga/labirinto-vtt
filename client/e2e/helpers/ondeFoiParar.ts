@@ -205,8 +205,13 @@ export const BLOCOS: readonly Bloco[] = [
   // ─── Barra de ferramentas ──────────────────────────────────────────────
   {
     tela: 'mestre', titulo: 'Botões da barra', estado: 'editor aberto', escopo: 'barra',
-    vai: 'Barra nova: Escolher / Construir / Terreno / Esconder e revelar / Anotar (Sala junta 5 formas, Objeto junta mobília e peça)', fatia: '6',
-    linhas: todos(['Selecionar', 'Parede', 'Porta', 'Luz', 'Região', 'Sala', 'Sala Circular', 'Polígono Regular', 'Sala livre', 'Chão', 'Caminho', 'Penhasco', 'Texturas', 'Carimbos', 'Escada', 'Peça', 'Zona oculta', 'Pincel de revelar', 'Objetos', 'Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'].map(b)),
+    vai: 'Barra no pé do mapa: Escolher / Construir / Terreno / Esconder e revelar / Anotar (feito na fatia 6)', fatia: '6',
+    linhas: [
+      ...todos(['Selecionar', 'Parede', 'Porta', 'Luz', 'Sala', 'Chão', 'Caminho', 'Penhasco', 'Texturas', 'Carimbos', 'Escada', 'Objeto', 'Zona oculta', 'Pincel de revelar', 'Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'].map(b)),
+      // Desde a fatia 6 as salas e a Região moram no botão Sala, e o móvel e a Peça no botão Objeto.
+      ...['Retângulo', 'Circular', 'Polígono', 'Livre', 'Região'].map((o) => l(`Sala: Forma ${o}`, ['radio', o], b('Opções de Sala'))),
+      ...['Móvel', 'Imagem'].map((o) => l(`Objeto: Colocar ${o}`, ['radio', o], b('Opções de Objeto'))),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Variantes da barra (setinhas)', estado: 'editor aberto', escopo: 'pagina', preparo: { escape: true },
@@ -214,18 +219,19 @@ export const BLOCOS: readonly Bloco[] = [
     linhas: [
       l('Parede: Tipo de parede', rg('Tipo de parede'), b('Opções de Parede')),
       l('Porta: Tipo de porta', rg('Tipo de porta'), b('Opções de Porta')),
-      l('Região: Preenchimento', rg('Preenchimento'), b('Opções de Região')),
-      l('Sala: Preenchimento', rg('Preenchimento'), b('Opções de Sala')),
-      l('Sala Circular: Preenchimento', rg('Preenchimento'), b('Opções de Sala Circular')),
-      l('Polígono Regular: Lados do polígono', rg('Lados do polígono'), b('Opções de Polígono Regular')),
-      l('Sala livre: Criar (Sala / Parede)', rg('Criar'), b('Opções de Sala livre')),
-      l('Sala livre: Arredondar', rg('Arredondar'), b('Opções de Sala livre')),
+      // Forma do botão Sala: o rádio arma e fecha o menu; reabrir mostra as opções da forma armada.
+      l('Região: Preenchimento', rg('Preenchimento'), b('Opções de Sala'), ['radio', 'Região'], b('Opções de Sala')),
+      l('Sala: Preenchimento', rg('Preenchimento'), b('Opções de Sala'), ['radio', 'Retângulo'], b('Opções de Sala')),
+      l('Sala Circular: Preenchimento', rg('Preenchimento'), b('Opções de Sala'), ['radio', 'Circular'], b('Opções de Sala')),
+      l('Polígono Regular: Lados do polígono', rg('Lados do polígono'), b('Opções de Sala'), ['radio', 'Polígono'], b('Opções de Sala')),
+      l('Sala livre: Criar (Sala / Parede)', rg('Criar'), b('Opções de Sala'), ['radio', 'Livre'], b('Opções de Sala')),
+      l('Sala livre: Arredondar', rg('Arredondar'), b('Opções de Sala'), ['radio', 'Livre'], b('Opções de Sala')),
       l('Chão: Forma', rg('Forma'), b('Opções de Chão')),
       l('Chão: Tinta', rg('Tinta'), b('Opções de Chão')),
       l('Chão: Tamanho do pincel', rg('Tamanho do pincel'), b('Opções de Chão')),
       l('Chão: Operação', rg('Operação'), b('Opções de Chão')),
       l('Escada: Tamanho', rg('Tamanho'), b('Opções de Escada')),
-      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objetos'))),
+      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto'))),
       l('Desenho: Forma (7 formas)', rg('Forma'), b('Opções de Desenho')),
       l('Desenho: Modo (Traço livre / Balde)', rg('Modo'), b('Opções de Desenho')),
       l('Desenho: Textura do traço', rg('Textura do traço'), b('Opções de Desenho')),

@@ -6,6 +6,7 @@
 // 5. objeto "Oculto no editor" aparece como fantasma e continua clicável.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 
 type Rgb = [number, number, number]
 
@@ -147,7 +148,7 @@ test('Sala nova nasce marrom; a cor escolhida com a ferramenta Sala vale só par
   expect(regions.map((r) => r.fillColor)).toEqual(['#a8776a', '#aa5500'])
 
   // Região continua com a cor dela.
-  await page.getByRole('button', { name: 'Região', exact: true }).click()
+  await pickTool(page, 'Região')
   await expect(page.locator('#lb-region-color')).toHaveValue('#3a7ad0')
 })
 

@@ -1475,6 +1475,8 @@ function App() {
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
   const editorTopRef = useRef<HTMLDivElement | null>(null)
+  /** O pé do mapa com a barra de ferramentas (fatia 6): também tapa o canvas. */
+  const editorBaseRef = useRef<HTMLDivElement | null>(null)
   const editorRailRef = useRef<HTMLElement | null>(null)
   const rightColumnRef = useRef<HTMLElement | null>(null)
   /** A raiz do editor: leva `--lb-topo-altura`, a altura da barra de ferramentas (os avisos descem para baixo dela). */
@@ -1489,7 +1491,7 @@ function App() {
     if (host === null) return []
     const base = host.getBoundingClientRect()
     // Os dois livros dizem o que tapam: o livro aberto, ou só a lombada com a página recolhida.
-    return [editorTopRef.current, editorRailRef.current, rightColumnRef.current].flatMap((el) => {
+    return [editorTopRef.current, editorBaseRef.current, editorRailRef.current, rightColumnRef.current].flatMap((el) => {
       if (el === null) return []
       const r = el.getBoundingClientRect()
       return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
@@ -2776,10 +2778,17 @@ function App() {
   useEffect(() => {
     if (screen !== 'editor') return
     const top = editorTopRef.current
+    const base = editorBaseRef.current
     const root = editorRootRef.current
     if (top === null || root === null || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => root.style.setProperty('--lb-topo-altura', `${top.offsetHeight}px`))
+    // A barra de ferramentas mora no pé (fatia 6): o zoom e os dados sobem acima
+    // dela por `--lb-base-altura`, que também cresce quando a barra quebra.
+    const observer = new ResizeObserver(() => {
+      root.style.setProperty('--lb-topo-altura', `${top.offsetHeight}px`)
+      if (base !== null) root.style.setProperty('--lb-base-altura', `${base.offsetHeight}px`)
+    })
     observer.observe(top)
+    if (base !== null) observer.observe(base)
     return () => observer.disconnect()
   }, [screen])
 
@@ -3100,6 +3109,16 @@ function App() {
           onVoltar={canGoBackToScene ? handleGoBack : undefined}
           onVerTodas={() => setCenasExpandidas(true)}
         />
+        {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
+            mestre narrar; fora do fluxo da barra, para ela não pular de lugar
+            quando o botão aparece. */}
+        {/* Com o livro da mesa aberto ele mora no alto da página Grupo (e no "Mais da sala"). No
+            navegador puro, sem sala nem página Grupo, fica aqui também com o livro aberto. */}
+        {(!rightOpen || sala === undefined) && npcsPauseButton()}
+      </div>
+
+      {/* BARRA DE FERRAMENTAS (fatia 6 do design consolidado): no pé do mapa, entre os dois livros. */}
+      <div className="lb-editor__base" ref={editorBaseRef}>
         <Toolbar
           activeTool={activeTool}
           onSelectTool={armarPelaBarra}
@@ -3124,12 +3143,6 @@ function App() {
             drawShape: { value: activeTool, onChange: armarPelaBarra },
           }}
         />
-        {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
-            mestre narrar; fora do fluxo da barra, para ela não pular de lugar
-            quando o botão aparece. */}
-        {/* Com o livro da mesa aberto ele mora no alto da página Grupo (e no "Mais da sala"). No
-            navegador puro, sem sala nem página Grupo, fica aqui também com o livro aberto. */}
-        {(!rightOpen || sala === undefined) && npcsPauseButton()}
       </div>
 
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com

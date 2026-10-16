@@ -62,17 +62,65 @@ function render(
   return onSelectTool
 }
 
+
 const buttonsNamed = (name: string) =>
   Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).filter((b) => b.getAttribute('aria-label') === name)
 
-const desenho = () => {
-  const [button] = buttonsNamed('Desenho')
-  if (!button) throw new Error('botão Desenho ausente')
+const botao = (name: string) => {
+  const [button] = buttonsNamed(name)
+  if (!button) throw new Error(`botão ${name} ausente`)
   return button
 }
 
+const desenho = () => botao('Desenho')
+
+/**
+ * O balão do grimório de um botão da barra: o foco pelo teclado abre na hora
+ * (no jsdom todo foco conta como de teclado). Devolve o texto e a tecla.
+ */
+function balaoDe(button: HTMLButtonElement): { texto: string; tecla: string | null } {
+  // Um Tab antes do foco: depois de um clique, o jsdom deixa de contar o foco como de teclado.
+  act(() => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    button.focus()
+  })
+  const balao = document.body.querySelector('[role="tooltip"].gr-balao')
+  const lido = { texto: balao?.querySelector('span')?.textContent ?? '', tecla: balao?.querySelector('kbd')?.textContent ?? null }
+  act(() => button.blur())
+  return lido
+}
+
+const menu = (nome: string) => document.body.querySelector(`[role="group"][aria-label="Opções de ${nome}"]`)
+const gruposDoMenu = (nome: string) =>
+  Array.from(menu(nome)?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
+const radiosDe = (nome: string, grupo: string) =>
+  Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
+
+describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
+  it('5 grupos com nome, na ordem: Escolher, Construir, Terreno, Esconder e revelar, Anotar', () => {
+    render('select', 'brush')
+    const grupos = Array.from(document.body.querySelectorAll('.lb-toolbar [role="group"]'))
+    expect(grupos.map((g) => g.getAttribute('aria-label'))).toEqual(['Escolher', 'Construir', 'Terreno', 'Esconder e revelar', 'Anotar'])
+    const nomes = grupos.map((g) => Array.from(g.querySelectorAll('.lb-ferr')).map((b) => b.getAttribute('aria-label')))
+    expect(nomes).toEqual([
+      ['Selecionar'],
+      ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Caminho', 'Objeto', 'Luz'],
+      ['Penhasco', 'Texturas', 'Carimbos'],
+      ['Zona oculta', 'Pincel de revelar'],
+      ['Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'],
+    ])
+  })
+
+  it('a placa de latão é uma só, decorativa, e só aparece depois de posta', () => {
+    render('wall', 'brush')
+    const placas = document.body.querySelectorAll('.lb-toolbar__placa')
+    expect(placas).toHaveLength(1)
+    expect(placas[0]?.getAttribute('aria-hidden')).toBe('true')
+  })
+})
+
 describe('Toolbar — botão Desenho', () => {
-  it('não existe botão com nome de forma, e existe 1 "Desenho" com 1 setinha', () => {
+  it('não existe botão com nome de forma, e existe 1 "Desenho" com 1 cantinho', () => {
     render('select', 'brush')
     for (const shape of TOOL_CLUSTERS.drawing.tools) {
       expect(buttonsNamed(TOOL_LABELS[shape] ?? shape), shape).toHaveLength(0)
@@ -84,48 +132,42 @@ describe('Toolbar — botão Desenho', () => {
     expect(buttonsNamed('Texto')).toHaveLength(1)
   })
 
-  it('activeTool=line: aria-pressed e tip "Desenho: Linha (L)"', () => {
+  it('activeTool=line: aria-pressed e balão "Desenho: Linha" com a tecla L', () => {
     render('line', 'brush')
     expect(desenho().getAttribute('aria-pressed')).toBe('true')
-    expect(desenho().getAttribute('data-tip')).toBe('Desenho: Linha (L)')
+    expect(balaoDe(desenho())).toEqual({ texto: 'Desenho: Linha', tecla: 'L' })
   })
 
   it('com Selecionar ativo e lastDrawingTool=rect, o botão não está pressionado e o clique ativa rect', () => {
     const onSelectTool = render('select', 'rect')
     expect(desenho().getAttribute('aria-pressed')).toBe('false')
-    expect(desenho().getAttribute('data-tip')).toBe('Desenho: Retângulo (R)')
+    expect(balaoDe(desenho())).toEqual({ texto: 'Desenho: Retângulo', tecla: 'R' })
     act(() => desenho().click())
     expect(onSelectTool).toHaveBeenCalledWith('rect')
   })
 
-  it('a setinha abre "Opções de Desenho" com Forma (7, com ícone) e, no Pincel, Modo e Textura do traço', () => {
+  it('o cantinho abre "Opções de Desenho" com Forma (7, com ícone) e, no Pincel, Modo e Textura do traço', () => {
     render('brush', 'brush')
-    act(() => buttonsNamed('Opções de Desenho')[0].click())
-    const menu = document.body.querySelector('[role="group"][aria-label="Opções de Desenho"]')
-    expect(menu).not.toBeNull()
-    const radiogroups = Array.from(menu?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
-    expect(radiogroups).toEqual(['Forma', 'Modo', 'Textura do traço'])
-    const shapes = menu?.querySelectorAll('[role="radiogroup"][aria-label="Forma"] [role="radio"]') ?? []
-    expect(Array.from(shapes).map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Pincel', 'Linha', 'Curva', 'Círculo', 'Elipse', 'Retângulo', 'Polígono',
-    ])
-    expect(Array.from(shapes).every((r) => r.querySelector('svg'))).toBe(true)
+    act(() => botao('Opções de Desenho').click())
+    expect(menu('Desenho')).not.toBeNull()
+    expect(gruposDoMenu('Desenho')).toEqual(['Forma', 'Modo', 'Textura do traço'])
+    const shapes = radiosDe('Desenho', 'Forma')
+    expect(shapes.map((r) => r.getAttribute('aria-label'))).toEqual(['Pincel', 'Linha', 'Curva', 'Círculo', 'Elipse', 'Retângulo', 'Polígono'])
+    expect(shapes.every((r) => r.querySelector('svg'))).toBe(true)
   })
 
   it('com a Linha, o menu só tem Forma; escolher Elipse ativa a ferramenta e fecha', () => {
     const onSelectTool = render('line', 'line')
-    act(() => buttonsNamed('Opções de Desenho')[0].click())
-    const menu = () => document.body.querySelector('[role="group"][aria-label="Opções de Desenho"]')
-    expect(Array.from(menu()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))).toEqual(['Forma'])
-    const ellipse = menu()?.querySelector<HTMLButtonElement>('[role="radio"][aria-label="Elipse"]')
-    act(() => ellipse?.click())
+    act(() => botao('Opções de Desenho').click())
+    expect(gruposDoMenu('Desenho')).toEqual(['Forma'])
+    act(() => radiosDe('Desenho', 'Forma').find((r) => r.getAttribute('aria-label') === 'Elipse')?.click())
     expect(onSelectTool).toHaveBeenCalledWith('ellipse')
-    expect(menu()).toBeNull()
+    expect(menu('Desenho')).toBeNull()
   })
 
   it('a descrição da opção vai para aria-describedby, fora do nome acessível (D10)', () => {
     render('line', 'line')
-    act(() => buttonsNamed('Opções de Desenho')[0].click())
+    act(() => botao('Opções de Desenho').click())
     const line = document.body.querySelector<HTMLButtonElement>('[role="radio"][aria-label="Linha"]')
     const descId = line?.getAttribute('aria-describedby')
     expect(descId).toBeTruthy()
@@ -133,55 +175,84 @@ describe('Toolbar — botão Desenho', () => {
   })
 })
 
+describe('Toolbar — botão Sala (as quatro salas e a Região)', () => {
+  it('não existe botão com nome de forma de sala; existe 1 "Sala" com 1 cantinho', () => {
+    render('select', 'brush')
+    for (const shape of TOOL_CLUSTERS.sala.tools.filter((tool) => tool !== 'room')) {
+      expect(buttonsNamed(TOOL_LABELS[shape] ?? shape), shape).toHaveLength(0)
+    }
+    expect(buttonsNamed('Sala')).toHaveLength(1)
+    expect(buttonsNamed('Opções de Sala')).toHaveLength(1)
+  })
+
+  it('o menu tem Forma com os nomes curtos; escolher Circular arma a Sala Circular e fecha', () => {
+    const onSelectTool = render('select', 'brush')
+    act(() => botao('Opções de Sala').click())
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento'])
+    expect(radiosDe('Sala', 'Forma').map((r) => r.getAttribute('aria-label'))).toEqual(['Retângulo', 'Circular', 'Polígono', 'Livre', 'Região'])
+    act(() => radiosDe('Sala', 'Forma').find((r) => r.getAttribute('aria-label') === 'Circular')?.click())
+    expect(onSelectTool).toHaveBeenCalledWith('roomCircle')
+    expect(menu('Sala')).toBeNull()
+  })
+
+  it('a última forma usada (até pela tecla) é a que o clique no botão arma de novo', () => {
+    const onSelectTool = render('roomPolygon', 'brush')
+    expect(botao('Sala').getAttribute('aria-pressed')).toBe('true')
+    render('select', 'brush', onSelectTool)
+    expect(botao('Sala').getAttribute('aria-pressed')).toBe('false')
+    act(() => botao('Sala').click())
+    expect(onSelectTool).toHaveBeenCalledWith('roomPolygon')
+  })
+
+  it('com o Polígono, o menu traz também os lados; com a Região, o preenchimento', () => {
+    render('roomPolygon', 'brush')
+    act(() => botao('Opções de Sala').click())
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento', 'Lados do polígono'])
+  })
+})
+
 describe('Toolbar — dica de ferramenta sem atalho', () => {
   // Sala livre, Caminho e Objetos nasceram sem letra (lib/keymap.ts). A dica dizia
   // "Sala: Sala livre ()": o parêntese vazio sugeria um atalho que não existe.
-  it.each<DrawingTool>(['roomFree', 'path', 'mobilia'])('%s: a dica não tem parêntese vazio', (tool) => {
+  it.each<[DrawingTool, string]>([
+    ['roomFree', 'Sala'],
+    ['path', 'Caminho'],
+    ['mobilia', 'Objeto'],
+  ])('%s: o balão não promete tecla', (tool, nomeDoBotao) => {
     render(tool, 'brush')
-    const dicas = Array.from(document.body.querySelectorAll<HTMLElement>('[data-tip]')).map((el) => el.getAttribute('data-tip') ?? '')
-    const daFerramenta = dicas.filter((dica) => dica.includes(TOOL_LABELS[tool] ?? tool))
-    expect(daFerramenta.length, `nenhuma dica fala de ${tool}: ${dicas.join(' | ')}`).toBeGreaterThan(0)
-    for (const dica of daFerramenta) expect(dica).not.toContain('()')
+    const lido = balaoDe(botao(nomeDoBotao))
+    expect(lido.texto).not.toContain('()')
+    expect(lido.tecla).toBeNull()
   })
 
-  it('ferramenta com atalho continua com a letra entre parênteses', () => {
+  it('ferramenta com atalho mostra a letra como tecla', () => {
     render('line', 'brush')
-    expect(desenho().getAttribute('data-tip')).toBe('Desenho: Linha (L)')
+    expect(balaoDe(desenho()).tecla).toBe('L')
   })
 })
 
 describe('Toolbar — Sala livre: Parede e Arredondar', () => {
-  const menuDaSalaLivre = () => document.body.querySelector('[role="group"][aria-label="Opções de Sala livre"]')
-  const radiosDe = (grupo: string) =>
-    Array.from(menuDaSalaLivre()?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
-
-  it('a setinha da Sala livre oferece Criar (Sala ou Parede) e Arredondar, acima do preenchimento', () => {
+  it('com a Sala livre, o menu da Sala oferece Criar (Sala ou Parede) e Arredondar, acima do preenchimento', () => {
     render('roomFree', 'brush')
-    act(() => buttonsNamed('Opções de Sala livre')[0].click())
-
-    const radiogroups = Array.from(menuDaSalaLivre()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
-    expect(radiogroups).toEqual(['Criar', 'Arredondar', 'Preenchimento'])
-    expect(radiosDe('Criar').map((r) => r.getAttribute('aria-label'))).toEqual(['Sala', 'Parede'])
-    expect(radiosDe('Arredondar').map((r) => r.getAttribute('aria-label'))).toEqual(['Desligado', 'Ligado'])
+    act(() => botao('Opções de Sala').click())
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento'])
+    expect(radiosDe('Sala', 'Criar').map((r) => r.getAttribute('aria-label'))).toEqual(['Sala', 'Parede'])
+    expect(radiosDe('Sala', 'Arredondar').map((r) => r.getAttribute('aria-label'))).toEqual(['Desligado', 'Ligado'])
     // O padrão é o de hoje: Sala, cantos vivos.
-    expect(radiosDe('Criar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
-    expect(radiosDe('Arredondar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+    expect(radiosDe('Sala', 'Criar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
+    expect(radiosDe('Sala', 'Arredondar').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false'])
   })
 
   it('escolher Parede e ligar Arredondar escreve nas preferências e fecha o menu', () => {
     const roomFreeKind: ToolVariantBindings['roomFreeKind'] = { value: 'sala', onChange: vi.fn() }
     const roomFreeRounded: ToolVariantBindings['roomFreeRounded'] = { value: false, onChange: vi.fn() }
     render('roomFree', 'brush', vi.fn(), { roomFreeKind, roomFreeRounded })
-
-    act(() => buttonsNamed('Opções de Sala livre')[0].click())
-    const parede = radiosDe('Criar').find((r) => r.getAttribute('aria-label') === 'Parede')
-    act(() => parede?.click())
+    act(() => botao('Opções de Sala').click())
+    act(() => radiosDe('Sala', 'Criar').find((r) => r.getAttribute('aria-label') === 'Parede')?.click())
     expect(roomFreeKind.onChange).toHaveBeenCalledWith('parede')
-    expect(menuDaSalaLivre()).toBeNull()
-
-    act(() => buttonsNamed('Opções de Sala livre')[0].click())
-    const ligado = radiosDe('Arredondar').find((r) => r.getAttribute('aria-label') === 'Ligado')
-    act(() => ligado?.click())
+    expect(menu('Sala')).toBeNull()
+    act(() => botao('Opções de Sala').click())
+    act(() => radiosDe('Sala', 'Arredondar').find((r) => r.getAttribute('aria-label') === 'Ligado')?.click())
     expect(roomFreeRounded.onChange).toHaveBeenCalledWith(true)
   })
 
@@ -194,36 +265,22 @@ describe('Toolbar — Sala livre: Parede e Arredondar', () => {
   })
 })
 
-describe('Toolbar — Objetos (a mobília numa parte só dela)', () => {
-  const objetos = () => {
-    const [button] = buttonsNamed('Objetos')
-    if (!button) throw new Error('botão Objetos ausente')
-    return button
-  }
-  const menuDeObjetos = () => document.body.querySelector('[role="group"][aria-label="Opções de Objetos"]')
-  const radiosDoObjeto = () =>
-    Array.from(menuDeObjetos()?.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Objeto"] [role="radio"]') ?? [])
-
-  it('1 botão "Objetos" com 1 setinha, num grupo só dele entre a construção e o Desenho', () => {
+describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
+  it('1 botão "Objeto" com 1 cantinho, na construção; Objetos e Peça não são mais botões', () => {
     render('select', 'brush')
-    expect(buttonsNamed('Objetos')).toHaveLength(1)
-    expect(buttonsNamed('Opções de Objetos')).toHaveLength(1)
-    const grupo = objetos().closest('.lb-toolbar__group')
-    if (!grupo) throw new Error('grupo do botão Objetos ausente')
-    expect(grupo.querySelectorAll('.lb-toolvariant-anchor')).toHaveLength(1)
-    expect(grupo.querySelector('.lb-toolbar__sep')).not.toBeNull()
-    // A Peça (imagem) segue na construção, logo antes; o Desenho vem logo depois, com o separador dele.
-    expect(grupo.previousElementSibling?.querySelector('button[aria-label="Peça"]')).not.toBeNull()
-    const seguinte = grupo.nextElementSibling
-    expect(seguinte?.querySelector('button[aria-label="Desenho"]')).not.toBeNull()
-    expect(seguinte?.querySelector('.lb-toolbar__sep')).not.toBeNull()
+    expect(buttonsNamed('Objeto')).toHaveLength(1)
+    expect(buttonsNamed('Opções de Objeto')).toHaveLength(1)
+    expect(buttonsNamed('Objetos')).toHaveLength(0)
+    expect(buttonsNamed('Peça')).toHaveLength(0)
+    expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('a setinha abre "Opções de Objetos" com os 11 móveis, cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 11 móveis, cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
-    act(() => buttonsNamed('Opções de Objetos')[0].click())
-    expect(Array.from(menuDeObjetos()?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))).toEqual(['Objeto'])
-    const radios = radiosDoObjeto()
+    act(() => botao('Opções de Objeto').click())
+    expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Objeto'])
+    expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
+    const radios = radiosDe('Objeto', 'Objeto')
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
@@ -234,11 +291,10 @@ describe('Toolbar — Objetos (a mobília numa parte só dela)', () => {
   it('escolher Barril muda a preferência, fecha o menu, não troca de ferramenta, e a barra ecoa "Próximo objeto Barril"', () => {
     const mobiliaTipo: ToolVariantBindings['mobiliaTipo'] = { value: 'mesa', onChange: vi.fn() }
     const onSelectTool = render('select', 'brush', vi.fn(), { mobiliaTipo })
-    act(() => buttonsNamed('Opções de Objetos')[0].click())
-    const barril = radiosDoObjeto().find((r) => r.getAttribute('aria-label') === 'Barril')
-    act(() => barril?.click())
+    act(() => botao('Opções de Objeto').click())
+    act(() => radiosDe('Objeto', 'Objeto').find((r) => r.getAttribute('aria-label') === 'Barril')?.click())
     expect(mobiliaTipo.onChange).toHaveBeenCalledWith('barril')
-    expect(menuDeObjetos()).toBeNull()
+    expect(menu('Objeto')).toBeNull()
     expect(onSelectTool).not.toHaveBeenCalled()
     // O App grava a escolha no mapStore e a barra re-renderiza com o valor novo.
     render('select', 'brush', onSelectTool, { mobiliaTipo: { value: 'barril', onChange: mobiliaTipo.onChange } })
@@ -247,12 +303,56 @@ describe('Toolbar — Objetos (a mobília numa parte só dela)', () => {
     expect(balao).toContain('Barril')
   })
 
-  it('o botão ativa a ferramenta; ativa, fica pressionada e a dica ensina o clique no mapa', () => {
+  it('o botão ativa o móvel; ativo, fica pressionado e a dica ensina o clique no mapa', () => {
     const onSelectTool = render('select', 'brush')
-    act(() => objetos().click())
+    act(() => botao('Objeto').click())
     expect(onSelectTool).toHaveBeenCalledWith('mobilia')
     render('mobilia', 'brush', onSelectTool)
-    expect(objetos().getAttribute('aria-pressed')).toBe('true')
+    expect(botao('Objeto').getAttribute('aria-pressed')).toBe('true')
     expect(document.body.querySelector('.lb-hint')?.textContent).toContain('clique no mapa')
+  })
+
+  it('Imagem arma a Peça (B), e o botão passa a mostrar a Peça', () => {
+    const onSelectTool = render('select', 'brush')
+    act(() => botao('Opções de Objeto').click())
+    act(() => radiosDe('Objeto', 'Colocar').find((r) => r.getAttribute('aria-label') === 'Imagem')?.click())
+    expect(onSelectTool).toHaveBeenCalledWith('prop')
+    render('prop', 'brush', onSelectTool)
+    expect(balaoDe(botao('Objeto'))).toEqual({ texto: 'Objeto: Imagem', tecla: 'B' })
+  })
+})
+
+describe('Toolbar — clique direito e segurar abrem as variantes', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('clique direito no botão abre o menu e arma a ferramenta', () => {
+    const onSelectTool = render('select', 'brush')
+    const evento = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    act(() => botao('Porta').dispatchEvent(evento))
+    expect(evento.defaultPrevented).toBe(true)
+    expect(menu('Porta')).not.toBeNull()
+    expect(onSelectTool).toHaveBeenCalledWith('door')
+  })
+
+  it('ferramenta sem variantes deixa o clique direito em paz', () => {
+    render('select', 'brush')
+    const evento = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    act(() => botao('Luz').dispatchEvent(evento))
+    expect(evento.defaultPrevented).toBe(false)
+  })
+
+  it('segurar o botão abre o menu; soltar antes do tempo é só um clique', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    render('wall', 'brush')
+    act(() => botao('Parede').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })))
+    act(() => vi.advanceTimersByTime(300))
+    act(() => botao('Parede').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerType: 'mouse' })))
+    act(() => vi.advanceTimersByTime(600))
+    expect(menu('Parede')).toBeNull()
+    act(() => botao('Parede').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })))
+    act(() => vi.advanceTimersByTime(450))
+    expect(menu('Parede')).not.toBeNull()
   })
 })

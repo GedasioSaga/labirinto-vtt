@@ -20,6 +20,7 @@ import { createHostSession } from '../src/net/hostSession'
 import type { HostMessage } from '../src/net/protocol'
 import type { MapData, RegionPoint } from '../src/types/map'
 import { abrirAventuraDeMentira } from './helpers/mestreDeMentira'
+import { moraNumMenu, pickTool } from './helpers/tools'
 import { BLOCOS, type Alvo, type Bloco, type Escopo, type Tela } from './helpers/ondeFoiParar'
 
 test.use({ trace: 'off', video: 'off' })
@@ -104,7 +105,9 @@ async function preparar(page: Page, bloco: Bloco): Promise<void> {
   else if (p.ferramenta === undefined && bloco.escopo === 'esquerda') await selecionar(page, [])
   if (p.ferramenta !== undefined) {
     const botao = achar(escopo(page, 'barra'), ['button', p.ferramenta])
-    if ((await botao.getAttribute('aria-pressed')) !== 'true') await botao.click()
+    // As salas, a Região, a Peça e o móvel moram nos menus de Sala e Objeto (fatia 6): arma pelo rádio, porque o botão lembra a última forma.
+    if (moraNumMenu(p.ferramenta)) await pickTool(page, p.ferramenta)
+    else if ((await botao.getAttribute('aria-pressed')) !== 'true') await botao.click()
   }
   if (p.abrir !== undefined && !(await page.getByRole('dialog').first().isVisible())) {
     // Janela aberta por item de menu ("Ver todas as cenas" do chip): primeiro o gatilho do menu.

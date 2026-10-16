@@ -5,6 +5,7 @@
 // para o precedente deste padrão e o que ele cobre/não cobre.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Light, Region, Token, Prop } from '../src/types/map'
 
 type MapState = {
@@ -48,7 +49,7 @@ async function resetMap(page: Page) {
 }
 
 async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | 'Região') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 function deleteButton(page: Page) {
@@ -182,7 +183,8 @@ test('6. clique em área vazia desseleciona: botão volta a "Nada selecionado" e
   await page.mouse.click(box.x + 400, box.y + 400)
   expect(await getSelection(page)).not.toBeNull()
 
-  await page.mouse.click(box.x + 900, box.y + 700)
+  // y 600, não 700: a barra de ferramentas mora no pé do mapa desde a fatia 6.
+  await page.mouse.click(box.x + 900, box.y + 600)
 
   expect(await getSelection(page)).toBeNull()
   await expect(deleteButton(page)).toHaveText('Nada selecionado')

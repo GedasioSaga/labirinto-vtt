@@ -144,53 +144,79 @@ export interface ToolCluster {
   tools: DrawingTool[]
 }
 
-export type ToolClusterId = 'drawing'
+export type ToolClusterId = 'drawing' | 'sala' | 'objeto'
 
 export const TOOL_CLUSTERS: Record<ToolClusterId, ToolCluster> = {
   // Ordem do usuário. Cada forma continua sendo uma ferramenta própria, com a
   // sua letra (P/L/U/C/O/R/A em lib/keymap.ts).
   drawing: { label: 'Desenho', tools: ['brush', 'line', 'curve', 'circle', 'ellipse', 'rect', 'polygon'] },
+  // Design consolidado, fatia 6: as quatro formas de sala e a Região dividem um
+  // botão. Cada uma segue ferramenta própria, com a mesma letra (N/J/Q/G).
+  sala: { label: 'Sala', tools: ['room', 'roomCircle', 'roomPolygon', 'roomFree', 'region'] },
+  // O móvel desenhado e a imagem (Peça, B) são as duas maneiras de pôr um objeto.
+  objeto: { label: 'Objeto', tools: ['mobilia', 'prop'] },
 }
 
 /** Uma posição da barra: uma ferramenta, ou um grupo (`cluster:<id>`). */
 export type ToolbarSlot = DrawingTool | `cluster:${ToolClusterId}`
 
+/** Um grupo da barra: o nome (que o balão de cada botão mostra) e as posições. */
+export interface ToolbarGroup {
+  nome: string
+  slots: ToolbarSlot[]
+}
+
 /**
- * Posições da barra agrupadas por intenção — a barra desenha um separador
- * entre grupos. `token` fica fora de propósito (FEATURES.tokenTool).
+ * Posições da barra agrupadas por intenção, na ordem do protótipo consolidado
+ * (fatia 6) — a barra desenha um separador entre grupos. `token` fica fora de
+ * propósito (FEATURES.tokenTool).
  */
-export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
-  ['select'],
-  // floor (chão por peças) fica junto das Salas: mesma camada 'salas'.
-  // concealZone (A5) no fim do grupo: não desloca os botões que já existiam.
-  // roomFree entra logo depois das outras Salas: é a quarta forma da MESMA
-  // entidade, e ficar ao lado delas é o que faz o usuário achar a ferramenta
-  // no lugar onde já procura por sala.
-  // Caminho fica colado no Chão, e NÃO dentro do grupo Desenho: quem quer uma
+export const TOOLBAR_GROUPS: ToolbarGroup[] = [
+  { nome: 'Escolher', slots: ['select'] },
+  // Caminho fica com a construção, e NÃO dentro do Desenho: quem quer uma
   // trilha de terra procura onde mora o piso, não onde moram linha e polígono
-  // — e, ao contrário das formas do grupo, cada caminho carrega a própria cor.
+  // — e, ao contrário das formas do Desenho, cada caminho carrega a própria cor.
+  { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'path', 'cluster:objeto', 'light'] },
+  // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
+  { nome: 'Terreno', slots: ['penhasco', 'texturas', 'carimbos'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
-  // O Penhasco fica com o terreno, logo depois do Caminho: é mais uma coisa do
-  // chão do mapa (a costa), e não anotação.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'penhasco', 'texturas', 'carimbos', 'stair', 'prop', 'concealZone', 'revealBrush'],
-  // Objetos (a mobília desenhada) numa parte só dele, pedido do usuário: o
-  // móvel não é construção nem anotação, e o separador dos dois lados é o que
-  // faz o mestre achá-lo de relance. A Peça (imagem) segue na construção.
-  ['mobilia'],
+  { nome: 'Esconder e revelar', slots: ['concealZone', 'revealBrush'] },
   // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
-  ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
+  { nome: 'Anotar', slots: ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'] },
 ]
+
+/** As posições de cada grupo, na ordem da barra. */
+export const TOOLBAR_SLOTS: ToolbarSlot[][] = TOOLBAR_GROUPS.map((grupo) => grupo.slots)
+
+type ClusterSlot = `cluster:${ToolClusterId}`
+
+/** Record exaustivo: um grupo novo em `ToolClusterId` sem entrada aqui é erro de tsc. */
+const CLUSTER_OF_SLOT: Record<ClusterSlot, ToolClusterId> = {
+  'cluster:drawing': 'drawing',
+  'cluster:sala': 'sala',
+  'cluster:objeto': 'objeto',
+}
+
+function isClusterSlot(slot: ToolbarSlot): slot is ClusterSlot {
+  return slot.startsWith('cluster:')
+}
 
 /** Id do grupo quando a posição é um grupo, `null` quando é uma ferramenta. */
 export function clusterIdOf(slot: ToolbarSlot): ToolClusterId | null {
-  return slot === 'cluster:drawing' ? 'drawing' : null
+  return isClusterSlot(slot) ? CLUSTER_OF_SLOT[slot] : null
+}
+
+const CLUSTER_IDS: readonly ToolClusterId[] = ['drawing', 'sala', 'objeto']
+
+/** O grupo de ferramentas que contém esta ferramenta, ou `null` se ela é avulsa. */
+export function clusterOfTool(tool: DrawingTool): ToolClusterId | null {
+  return CLUSTER_IDS.find((id) => TOOL_CLUSTERS[id].tools.includes(tool)) ?? null
 }
 
 /** Ferramentas de uma posição, na ordem: o grupo expande, a ferramenta vale por si. */
 export function toolsOfSlot(slot: ToolbarSlot): DrawingTool[] {
-  const clusterId = clusterIdOf(slot)
-  return clusterId ? TOOL_CLUSTERS[clusterId].tools : [slot as DrawingTool]
+  return isClusterSlot(slot) ? TOOL_CLUSTERS[CLUSTER_OF_SLOT[slot]].tools : [slot]
 }
 
 /**

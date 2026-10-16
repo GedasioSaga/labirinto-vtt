@@ -205,9 +205,9 @@ test('régua: em Sala livre a mesma sequência fecha o traçado e a sala continu
   const box = await cantoDoCanvas(page)
   const mapaVazio = await fotografarSondas(page, box)
 
-  const botao = page.getByRole('button', { name: 'Sala livre', exact: true })
-  await botao.click()
-  await expect(botao).toHaveAttribute('aria-pressed', 'true')
+  await pickTool(page, 'Sala livre')
+  // Sala livre mora no menu do botão "Sala" (fatia 6); é ele que fica apertado.
+  await expect(page.getByRole('button', { name: 'Sala', exact: true })).toHaveAttribute('aria-pressed', 'true')
   for (const canto of CANTOS) await clicarVertice(page, box, canto)
   await page.keyboard.press('Enter')
   await page.waitForTimeout(PAINT_MS)
