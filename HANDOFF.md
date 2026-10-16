@@ -1677,4 +1677,7 @@ Aplicar o redesign consolidado (fatias 0-21 de `docs/design/consolidado/PLANO.md
 Cada fatia: linha no PROGRESSO.md com commit; tsc limpo; suíte de unidade verde (exceto testes de tempo que passam sozinhos); print 1440x900 (390 no jogador) lado a lado com o protótipo em `scratchpad/ui-fatias/<fatia>/`; `e2e/ui-onde-foi-parar.spec.ts` verde.
 
 ## Evidência
-- Workflow lançado: task `we5viyvjf`, run `wf_b73e7cab-e2e` (15/10/2026 ~14h10). Sem resultado ainda.
+- Grupo 1 (run `wf_b73e7cab-e2e`) terminou: fatia 0 = `a750dda5`, fatia 1 = `cf3ebf53`; 4 agentes, 0 erro, ~764k tokens de subagente, 70 min.
+- Fatias 2 a 21 lançadas em 15/10/2026 ~15h20 (run `wf_30ffc5e9-7a0`): o agente da fatia 2 caiu por falta de rede (ENOTFOUND) após 58 min / 475k tokens, deixando o trabalho não commitado no working tree (livro do mestre em `client/src/components/livro/`, `livroDoMestreStore.ts`, ActionBar e PainelCategorias removidos).
+- Relançado ~16h20: task `wlysqzhi3`, run `wf_a276d562-8a6`, args com `"retomar": ["2"]` (o script ganhou o modo RETOMADA: o agente lê o diff e termina, sem recomeçar). Se pausar de novo: com fatia aberta no working tree, relançar com `retomar: ["<fatia>"]` e os grupos a partir dela; sem nada aberto, relançar a partir da "Próxima fatia" do PROGRESSO.md, sem `retomar`.
+- Disco C: estava com ~6 GB livres (a suíte deu ENOSPC uma vez). Com autorização do mestre, `desktop/src-tauri/target/debug` (17,2 GB, recompilável) foi apagado em 15/10: 21,0 GB livres. `target/release` intacto.
