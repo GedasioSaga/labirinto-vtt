@@ -301,7 +301,7 @@ async function mestreAbreAventura(mestre: Page, mapa: MapData): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
   await mostrarColunaDireita(mestre)
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -309,7 +309,7 @@ async function mestreAbreAventura(mestre: Page, mapa: MapData): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>": o jogador passa a jogar, e só quem joga pode ser chamado. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const card = mestre.locator('#lb-rail-panel-room .lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDoToken}` }), `${jogador} deveria ficar com ${nomeDoToken}`).toBeVisible()

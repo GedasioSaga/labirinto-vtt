@@ -90,7 +90,7 @@ export function SistemaDeRpgControls({ sistema, sistemaId, onAbrirSistemas, past
         {sistema === undefined ? 'Escolher sistema…' : pasta?.herda === true ? 'Trocar sistema da pasta…' : 'Trocar sistema…'}
       </button>
       {pasta !== undefined && <BlocoDaPasta pasta={pasta} onTrocarModo={onTrocarModo} />}
-      <p className="lb-field__hint">As fichas dos personagens seguem o sistema. Livro de regras e Personagens ficam na aba Jogo.</p>
+      <p className="lb-field__hint">As fichas dos personagens seguem o sistema. No livro da mesa, o Livro de regras fica na página Mesa e os Personagens, na página Grupo.</p>
     </section>
   )
 }

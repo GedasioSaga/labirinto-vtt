@@ -13,23 +13,20 @@ import './ControleDeSom.css'
  * de quem ouve) e nunca vai pela rede.
  *
  * Serve às duas telas: no jogador flutua sobre o mapa, na pilha do canto de
- * baixo à direita (`.pp-som`, player.css); no mestre fica no cabeçalho da sala
- * (`RoomPanel`). O popover não é modal — o mapa segue vivo atrás — e fecha com
- * Esc (o foco volta ao alto-falante), com o toque fora e com o foco saindo.
+ * baixo à direita (`.pp-som`, player.css); no mestre (livro da mesa, fatia 4)
+ * a barra e o mudo ficam à vista (`ficha`): na ficha "Som da mesa" da página
+ * Mesa e no pop do botão Som do topo da Sala (`TopoDaSala`). O popover do
+ * jogador não é modal — o mapa segue vivo atrás — e fecha com Esc (o foco
+ * volta ao alto-falante), com o toque fora e com o foco saindo.
  */
 
-export type VarianteDoControleDeSom = 'flutuante' | 'painel'
+export type VarianteDoControleDeSom = 'flutuante' | 'ficha'
 
 export interface ControleDeSomProps {
-  /** `flutuante`: botão de toque de 44 px sobre o mapa do jogador. `painel`: o botão compacto do mestre. */
+  /** `flutuante`: botão de toque de 44 px sobre o mapa do jogador, que abre o popover. `ficha`: a barra e o mudo à vista, sem botão. */
   variante: VarianteDoControleDeSom
   /** Classe a mais na raiz: onde o controle mora na tela de quem monta (no jogador, `.pp-som`). */
   className?: string
-  /**
-   * Texto à vista ao lado do alto-falante, que também lhe dá o nome e aumenta
-   * o alvo do clique (no mestre: "Som da mesa"). Sem ele, o nome é "Som".
-   */
-  legenda?: string
   /**
    * Quem toca a amostra. Padrão: `tocarAmostra`, que respeita mudo, volume e
    * destravamento, mas fica fora do intervalo mínimo dos sons do jogo.
@@ -104,11 +101,11 @@ function medirDesvio(raiz: HTMLElement, popover: HTMLElement): Desvio {
 }
 
 /** O alto-falante é mais vazado que o + e o − do zoom: 22 px no botão de 46 lhe dão o mesmo peso. */
-const TAMANHO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 22, painel: 16 }
-/** Sobre o mapa, o traço do + e do − do zoom; no painel, o da família de ícones. */
-const TRACO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 2, painel: 1.6 }
+const TAMANHO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 22, ficha: 16 }
+/** Sobre o mapa, o traço do + e do − do zoom; no livro, o da família de ícones. */
+const TRACO_DO_ICONE: Record<VarianteDoControleDeSom, number> = { flutuante: 2, ficha: 1.6 }
 
-export function ControleDeSom({ variante, className, legenda, tocar = tocarAmostra, destravar = destravarAudioNoPrimeiroGesto }: ControleDeSomProps) {
+export function ControleDeSom({ variante, className, tocar = tocarAmostra, destravar = destravarAudioNoPrimeiroGesto }: ControleDeSomProps) {
   const volume = useSomStore((estado) => estado.volume)
   const mudo = useSomStore((estado) => estado.mudo)
   const [abertura, setAbertura] = useState<Abertura | null>(null)
@@ -117,12 +114,13 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarAmost
   const gatilhoRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const barraRef = useRef<HTMLInputElement>(null)
-  const gatilhoId = useId()
   const popoverId = useId()
   const tituloId = useId()
   const dicaId = useId()
   const barraId = useId()
   const aberto = abertura !== null
+  // Na ficha a barra está sempre à vista: soltar a alça toca a amostra do mesmo jeito.
+  const barraAVista = variante === 'ficha' || aberto
   const percentual = percentualDoVolume(volume)
   /** Nada sai: mudo, ou a barra no 0%. A mesma regra cala os sons e o bipe. */
   const calado = estaCalado({ volume, mudo })
@@ -166,7 +164,7 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarAmost
   // volume final.
   useEffect(() => {
     const barra = barraRef.current
-    if (!aberto || barra === null) return
+    if (!barraAVista || barra === null) return
     let segurando = false
     let devendo = false
     const aoApertarTecla = (evento: HTMLElementEventMap['keydown']): void => {
@@ -191,7 +189,7 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarAmost
       barra.removeEventListener('change', aoSoltar)
       barra.removeEventListener('keyup', aoSoltarTecla)
     }
-  }, [aberto, tocar])
+  }, [barraAVista, tocar])
 
   // O toque fora e o foco que sai (Tab) fecham, sem roubar o gesto: o arrasto do mapa segue.
   useEffect(() => {
@@ -251,24 +249,66 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarAmost
     fechar(true)
   }
 
-  const classes = ['lb-som', `lb-som--${variante}`, legenda === undefined ? undefined : 'lb-som--com-legenda', className]
-    .filter((classe) => classe !== undefined && classe !== '')
-    .join(' ')
+  const classes = ['lb-som', `lb-som--${variante}`, className].filter((classe) => classe !== undefined && classe !== '').join(' ')
+
+  const botaoMudo = (
+    <button
+      type="button"
+      className="lb-som__mudo"
+      aria-label="Mudo"
+      aria-pressed={mudo}
+      title={mudo ? 'Tirar do mudo' : 'Mudo'}
+      onClick={alternarMudo}
+    >
+      {mudo ? <SomMudoIcon {...icone} /> : <SomIcon {...icone} />}
+    </button>
+  )
+  const barra = (
+    <input
+      ref={barraRef}
+      id={barraId}
+      className="lb-som__barra"
+      type="range"
+      min={0}
+      max={100}
+      step={1}
+      value={percentual}
+      aria-valuetext={`${percentual}%`}
+      // A parte cheia do trilho vai até a alça (o primeiro fundo do `.lb-som__barra`).
+      style={{ backgroundSize: `${percentual}% 4px, 100% 4px` }}
+      onChange={(evento) => mudarVolume(Number(evento.currentTarget.value))}
+    />
+  )
+
+  // Na ficha (mestre): a barra vem antes do mudo, também no DOM, para o pop do
+  // botão Som pôr o foco nela ao abrir, como o popover do jogador faz.
+  if (variante === 'ficha') {
+    return (
+      <div ref={raizRef} className={classes} data-mudo={mudo} onKeyDown={aoTeclar}>
+        <div className="lb-som__cabeca">
+          <label className="lb-som__legenda" htmlFor={barraId}>
+            Volume
+          </label>
+          <span className="lb-som__valor" aria-hidden="true">
+            {mudo ? 'Mudo' : `${percentual}%`}
+          </span>
+        </div>
+        <div className="lb-som__linha">
+          {barra}
+          {botaoMudo}
+        </div>
+        <p className="lb-som__dica">Sons baixos de clima, só neste computador.</p>
+      </div>
+    )
+  }
 
   return (
     <div ref={raizRef} className={classes} onKeyDown={aoTeclar}>
-      {legenda !== undefined && (
-        <label className="lb-som__legenda" htmlFor={gatilhoId}>
-          {legenda}
-        </label>
-      )}
       <button
         ref={gatilhoRef}
-        id={gatilhoId}
         type="button"
-        className={variante === 'painel' ? 'lb-btn lb-btn--compact lb-som__gatilho' : 'lb-som__gatilho'}
-        // Com legenda à vista, o nome é ela (`<label for>`): quem lê e quem fala o comando de voz dizem o mesmo.
-        aria-label={legenda === undefined ? 'Som' : undefined}
+        className="lb-som__gatilho"
+        aria-label="Som"
         aria-haspopup="dialog"
         aria-expanded={aberto}
         aria-controls={aberto ? popoverId : undefined}
@@ -301,33 +341,11 @@ export function ControleDeSom({ variante, className, legenda, tocar = tocarAmost
             </span>
           </div>
           <div className="lb-som__linha">
-            <button
-              type="button"
-              className="lb-som__mudo"
-              aria-label="Mudo"
-              aria-pressed={mudo}
-              title={mudo ? 'Tirar do mudo' : 'Mudo'}
-              onClick={alternarMudo}
-            >
-              {mudo ? <SomMudoIcon {...icone} /> : <SomIcon {...icone} />}
-            </button>
+            {botaoMudo}
             <label className="lb-som__rotulo" htmlFor={barraId}>
               Volume
             </label>
-            <input
-              ref={barraRef}
-              id={barraId}
-              className="lb-som__barra"
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={percentual}
-              aria-valuetext={`${percentual}%`}
-              // A parte cheia do trilho vai até a alça (o primeiro fundo do `.lb-som__barra`).
-              style={{ backgroundSize: `${percentual}% 4px, 100% 4px` }}
-              onChange={(evento) => mudarVolume(Number(evento.currentTarget.value))}
-            />
+            {barra}
           </div>
           <p id={dicaId} className="lb-som__dica">
             Sons baixos de clima.

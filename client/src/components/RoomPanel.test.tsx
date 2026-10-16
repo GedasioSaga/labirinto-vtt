@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
 import { abrirFicha } from './grupoTeste'
+import { TopoDaSala } from './livro/TopoDaSala'
 import { FIREWALL_HINT, LASER_HINT, PLAN_HINT, RoomPanel, TUNNEL_WARNING, assignOptionLabel, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl, tokenDotColor } from './RoomPanel'
 
 const noop = vi.fn()
@@ -20,19 +21,35 @@ function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
   return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
+/**
+ * O pop "Convidar jogadores" do topo da Sala (livro da mesa, fatia 4): o
+ * túnel, os endereços da rede local, o QR e a nota do firewall moram nele.
+ */
 function renderWithTunnel(tunnel: TunnelState): string {
-  return renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={tunnel} {...handlers} />)
+  Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  try {
+    act(() => root.render(<TopoDaSala room={ROOM} players={[]} tunnel={tunnel} {...handlers} />))
+    act(() => [...container.querySelectorAll('button')].find((b) => b.textContent === 'Convidar')?.click())
+    const pop = document.querySelector('[role="dialog"][aria-label="Convidar jogadores"]')
+    return `${container.innerHTML}${pop?.outerHTML ?? ''}`
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+  }
 }
 
 describe('RoomPanel', () => {
-  it('botão Laser aparece com a sala aberta e reflete o estado em aria-pressed', () => {
-    const off = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
-    expect(off).toMatch(/<button[^>]*aria-pressed="false"[^>]*>Laser<\/button>/)
+  it('botão Laser aparece com a sala aberta (topo da Sala) e reflete o estado em aria-pressed', () => {
+    const off = renderToStaticMarkup(<TopoDaSala room={ROOM} players={[]} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
+    expect(off).toMatch(/<button[^>]*aria-pressed="false"[^>]*><svg.*?<\/svg>Laser<\/button>/)
     expect(off).toContain(LASER_HINT)
-    const on = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} laserOn onToggleLaser={noop} />)
-    expect(on).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Laser<\/button>/)
-    const closed = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
-    expect(closed).not.toContain('>Laser<')
+    const on = renderToStaticMarkup(<TopoDaSala room={ROOM} players={[]} tunnel={IDLE} {...handlers} laserOn onToggleLaser={noop} />)
+    expect(on).toMatch(/<button[^>]*aria-pressed="true"[^>]*><svg.*?<\/svg>Laser<\/button>/)
+    const closed = renderToStaticMarkup(<TopoDaSala room={null} players={[]} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
+    expect(closed).not.toContain('Laser<')
   })
 
   it('B3: quem aguarda tem o raio de visão à vista com o valor efetivo; sem cena, nada de planta nem dica', () => {
@@ -94,21 +111,25 @@ describe('RoomPanel', () => {
     expect(colors.size).toBeGreaterThan(1)
   })
 
-  it('sem sala mostra só Abrir sala e a dica', () => {
-    const html = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
+  it('sem sala o topo mostra Abrir sala e a Rede (a dica do firewall no pop), e a página Grupo a mesa vazia', () => {
+    const html = renderToStaticMarkup(<TopoDaSala room={null} players={[]} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Abrir sala')
-    expect(html).not.toContain('Fechar sala')
+    expect(html).toContain('Fechada')
+    expect(html).not.toContain('Mais da sala')
     expect(html).not.toContain('Tornar pública')
-    expect(html).toContain(FIREWALL_HINT)
+    expect(html).toMatch(/aria-haspopup="dialog"[^>]*><svg.*?<\/svg>Rede<\/button>/)
+    expect(renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)).toContain('A mesa está vazia')
   })
 
-  it('com sala mostra código, URLs, QR e jogadores; Expulsar só para quem está conectado', () => {
+  it('com sala mostra código (topo), URLs e QR (Convidar) e jogadores (Grupo); Expulsar só para quem está conectado', () => {
     const players = [player(), player({ playerId: 'p2', clientId: null, name: 'Bia', connected: false, tokenIds: ['t2'] })]
+    const topo = renderToStaticMarkup(<TopoDaSala room={ROOM} players={players} tunnel={IDLE} {...handlers} />)
+    expect(topo).toContain('aria-label="Código da sala AB12CD. Clique para copiar"')
+    expect(topo).toContain('aria-label="Mais da sala"')
+    const convite = renderWithTunnel(IDLE)
+    expect(convite).toContain('http://10.0.0.2:7777')
+    expect(convite).toContain('alt="QR da sala"')
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={players} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
-    expect(html).toContain('Fechar sala')
-    expect(html).toContain('AB12CD')
-    expect(html).toContain('http://10.0.0.2:7777')
-    expect(html).toContain('alt="QR da sala"')
     // "Bia — aguardando · desconectado": o nome à vista, o status inteiro para o leitor de tela.
     expect(html).toMatch(/>Bia<\/strong><span class="lb-sr-only"> — aguardando · desconectado<\/span>/)
     // A linha fechada da Bia diz o personagem; o "Remover Ladino" mora na aba Ficha (RoomPanel.compacta.test.tsx).
@@ -117,10 +138,9 @@ describe('RoomPanel', () => {
     expect(html.split('>Expulsar</button>').length - 1).toBe(1)
   })
 
-  it('idle: botão Tornar pública habilitado e dica do firewall rotulada como rede local', () => {
+  it('idle: botão Tornar pública habilitado e a dica do firewall no pop Convidar', () => {
     const html = renderWithTunnel(IDLE)
-    expect(html).toMatch(/<button type="button" class="lb-btn lb-btn--block">Tornar pública<\/button>/)
-    expect(html).toContain('Rede local')
+    expect(html).toMatch(/<button type="button" class="gr-bt gr-bt--p gr-bt--largo">Tornar pública<\/button>/)
     expect(html).toContain(FIREWALL_HINT)
     expect(html).not.toContain('Link público')
   })
@@ -128,7 +148,7 @@ describe('RoomPanel', () => {
   it('downloading: porcentagem com role status e botão desabilitado', () => {
     expect(downloadLabel(0.426)).toBe('Baixando cloudflared 43%')
     const html = renderWithTunnel({ kind: 'downloading', progress: 0.43 })
-    expect(html).toContain('<p class="lb-label" role="status">Baixando cloudflared 43%</p>')
+    expect(html).toContain('<p class="gr-nota" role="status">Baixando cloudflared 43%</p>')
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Tornar pública<\/button>/)
   })
 

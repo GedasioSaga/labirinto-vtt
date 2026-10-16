@@ -115,7 +115,7 @@ describe('hostBridge: retomar a mesa', () => {
     await m.bridge.start({ resume: false })
     m.entra('c1', 'Ana')
     expect(m.bridge.players()[0]).toMatchObject({ status: 'waiting', tokenIds: [] })
-    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual(['Ana entrou e está sem personagem. Abra a aba Jogo para atribuir um.'])
+    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual(['Ana entrou e está sem personagem. Abra o Grupo, no livro da mesa, para atribuir um.'])
   })
 
   it('start() sem opção também é a mesa de hoje', async () => {

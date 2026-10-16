@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TravelLogEntry } from '../lib/travelLog'
-import { RoomPanel } from './RoomPanel'
+import { PaginaMesa } from './livro/PaginaMesa'
 import { TRAVEL_LOG_EMPTY, TRAVEL_UNDO_FAILED, TravelLogSection } from './TravelLogSection'
 
 const as2210 = new Date(2026, 8, 23, 22, 10).getTime()
@@ -102,7 +102,7 @@ describe('TravelLogSection (diário de viagens do mestre)', () => {
   })
 })
 
-describe('RoomPanel com o diário', () => {
+describe('Página Mesa com o diário', () => {
   const noop = vi.fn()
   const handlers = {
     onStart: noop,
@@ -120,16 +120,18 @@ describe('RoomPanel com o diário', () => {
   }
   const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 
-  it('sala aberta com `travelLog`: o diário aparece na aba Jogo', () => {
-    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={{ kind: 'idle' }} {...handlers} travelLog={{ entries: DIARIO, onUndo: () => true }} />)
+  it('sala aberta com `travelLog`: o diário aparece na ficha da página Mesa, com as viagens no resumo', () => {
+    const html = renderToStaticMarkup(<PaginaMesa room={ROOM} players={[]} {...handlers} travelLog={{ entries: DIARIO, onUndo: () => true }} />)
     expect(html).toContain('Diário de viagens')
     expect(html).toContain('Ana: Salão → Cripta')
+    expect(html).toContain(`${DIARIO.length} viage`)
   })
 
-  it('sala fechada ou sem `travelLog`: nada de diário', () => {
-    const fechada = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={[]} tunnel={{ kind: 'idle' }} {...handlers} travelLog={{ entries: DIARIO, onUndo: () => true }} />)
-    expect(fechada).not.toContain('Diário')
-    const semDiario = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={{ kind: 'idle' }} {...handlers} />)
+  it('sala fechada: a ficha só diz que abre com a sala; sem `travelLog` (mapa solto), nada de diário', () => {
+    const fechada = renderToStaticMarkup(<PaginaMesa room={null} players={[]} {...handlers} travelLog={{ entries: DIARIO, onUndo: () => true }} />)
+    expect(fechada).not.toContain('Ana: Salão → Cripta')
+    expect(fechada).toContain('Abre junto com a sala.')
+    const semDiario = renderToStaticMarkup(<PaginaMesa room={ROOM} players={[]} {...handlers} />)
     expect(semDiario).not.toContain('Diário')
   })
 })

@@ -4,13 +4,15 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
-import { RoomPanel, VISAO_DE_JOGADOR_AJUDA, type RoomPanelProps } from './RoomPanel'
+import { VISAO_DE_JOGADOR_AJUDA, type RoomPanelProps } from './RoomPanel'
+import { PaginaMesa } from './livro/PaginaMesa'
+import { TopoDaSala } from './livro/TopoDaSala'
 
 /*
- * VISÃO DE JOGADOR no painel da sala (maquete 1A, 1B e 1C): o botão logo
- * abaixo de "Abrir sala" (com a linha de ajuda) ou do código da sala aberta,
- * a lista de fichas presa a ele e o estado "Janela aberta". Sem a prop, o
- * painel fica exatamente como era.
+ * VISÃO DE JOGADOR no livro da mesa (maquete 1A, 1B e 1C; lugar novo na
+ * fatia 4): o botão no topo da Sala fechada, logo abaixo de "Abrir sala", e
+ * na ficha "Visão de jogador" da página Mesa (com a linha de ajuda); a lista
+ * de fichas presa a ele e o estado "Janela aberta". Sem a prop, nada aparece.
  */
 
 const noop = vi.fn()
@@ -51,33 +53,30 @@ function visao(overrides: Partial<VisaoDeJogadorNoPainel> = {}): VisaoDeJogadorN
 }
 
 describe('RoomPanel — Visão de jogador', () => {
-  it('sem a prop, nenhum botão novo nas duas formas da sala', () => {
-    expect(renderToStaticMarkup(<RoomPanel {...BASE} />)).not.toContain('Visão de jogador')
-    expect(renderToStaticMarkup(<RoomPanel {...BASE} room={ROOM} />)).not.toContain('Visão de jogador')
+  it('sem a prop, nenhum botão novo no topo da Sala nem na página Mesa, nas duas formas da sala', () => {
+    expect(renderToStaticMarkup(<TopoDaSala {...BASE} />)).not.toContain('Visão de jogador')
+    expect(renderToStaticMarkup(<TopoDaSala {...BASE} room={ROOM} />)).not.toContain('Visão de jogador')
+    expect(renderToStaticMarkup(<PaginaMesa {...BASE} />)).not.toContain('Visão de jogador')
   })
 
-  it('sala fechada: logo abaixo de "Abrir sala", com a linha de ajuda ligada ao botão, antes da nota da rede', () => {
-    const html = renderToStaticMarkup(<RoomPanel {...BASE} visaoDeJogador={visao()} />)
+  it('sala fechada: no topo, logo abaixo de "Abrir sala" e antes da Rede, sem a linha de ajuda', () => {
+    const html = renderToStaticMarkup(<TopoDaSala {...BASE} visaoDeJogador={visao()} />)
     const abrir = html.indexOf('Abrir sala')
     const botao = html.indexOf('Visão de jogador')
-    const ajuda = html.indexOf(VISAO_DE_JOGADOR_AJUDA)
     expect(abrir).toBeGreaterThan(-1)
     expect(botao).toBeGreaterThan(abrir)
-    expect(ajuda).toBeGreaterThan(botao)
-    expect(html.indexOf('Rede local')).toBeGreaterThan(ajuda)
-    const describedby = /<button[^>]*aria-describedby="([^"]+)"[^>]*>.*?Visão de jogador/.exec(html)?.[1]
-    expect(describedby).toBeDefined()
-    expect(html).toContain(`<p id="${describedby}" class="lb-room__visao-ajuda">${VISAO_DE_JOGADOR_AJUDA}</p>`)
+    expect(html.indexOf('Rede<')).toBeGreaterThan(botao)
+    expect(html).not.toContain(VISAO_DE_JOGADOR_AJUDA)
     expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"/)
   })
 
-  it('sala aberta: logo abaixo do código, antes do Som da mesa, sem a linha de ajuda', () => {
-    const html = renderToStaticMarkup(<RoomPanel {...BASE} room={ROOM} visaoDeJogador={visao()} />)
-    const codigo = html.indexOf('K7Q2XM')
-    const botao = html.indexOf('Visão de jogador')
-    expect(botao).toBeGreaterThan(codigo)
-    expect(html.indexOf('Som da mesa')).toBeGreaterThan(botao)
-    expect(html).not.toContain(VISAO_DE_JOGADOR_AJUDA)
+  it('página Mesa: a ficha Visão de jogador traz o botão com a linha de ajuda ligada a ele, nas duas formas da sala', () => {
+    for (const room of [null, ROOM]) {
+      const html = renderToStaticMarkup(<PaginaMesa {...BASE} room={room} visaoDeJogador={visao()} />)
+      const describedby = /<button[^>]*aria-describedby="([^"]+)"[^>]*>.*?Visão de jogador/.exec(html)?.[1]
+      expect(describedby).toBeDefined()
+      expect(html).toContain('<p id="' + describedby + '" class="lb-room__visao-ajuda">' + VISAO_DE_JOGADOR_AJUDA + '</p>')
+    }
   })
 
   describe('interação', () => {
@@ -114,7 +113,7 @@ describe('RoomPanel — Visão de jogador', () => {
 
     it('abre a lista presa ao botão; escolher a ficha abre a janela de teste com ela', () => {
       const v = visao()
-      act(() => root.render(<RoomPanel {...BASE} visaoDeJogador={v} />))
+      act(() => root.render(<TopoDaSala {...BASE} visaoDeJogador={v} />))
       clicar(botao())
       expect(botao().getAttribute('aria-expanded')).toBe('true')
       expect(botao().getAttribute('aria-controls')).toBe(lista()?.id)
@@ -130,7 +129,7 @@ describe('RoomPanel — Visão de jogador', () => {
     })
 
     it('pelo teclado a lista aparece parada; clicar de novo no botão fecha', () => {
-      act(() => root.render(<RoomPanel {...BASE} visaoDeJogador={visao()} />))
+      act(() => root.render(<TopoDaSala {...BASE} visaoDeJogador={visao()} />))
       clicar(botao(), 0)
       expect(lista()?.getAttribute('data-abertura')).toBe('teclado')
       clicar(botao())
@@ -139,7 +138,7 @@ describe('RoomPanel — Visão de jogador', () => {
 
     it('janela aberta: latão com a ficha à direita; clicar traz a janela para a frente, e o × fecha devolvendo o foco', () => {
       const v = visao({ aberta: true, fichaAberta: 'Grog' })
-      act(() => root.render(<RoomPanel {...BASE} room={ROOM} visaoDeJogador={v} />))
+      act(() => root.render(<PaginaMesa {...BASE} room={ROOM} visaoDeJogador={v} />))
       expect(botao().classList.contains('lb-room__visao-botao--aberta')).toBe(true)
       expect(botao().getAttribute('aria-label')).toBe('Visão de jogador: mostrar a janela de Grog')
       expect(botao().hasAttribute('aria-expanded')).toBe(false)
@@ -157,12 +156,12 @@ describe('RoomPanel — Visão de jogador', () => {
     })
 
     it('a janela abrindo por outro caminho fecha a lista, e ela não volta sozinha quando a janela fecha', () => {
-      act(() => root.render(<RoomPanel {...BASE} visaoDeJogador={visao()} />))
+      act(() => root.render(<TopoDaSala {...BASE} visaoDeJogador={visao()} />))
       clicar(botao())
       expect(lista()).not.toBeNull()
-      act(() => root.render(<RoomPanel {...BASE} visaoDeJogador={visao({ aberta: true, fichaAberta: 'Lyra Ventoleste' })} />))
+      act(() => root.render(<TopoDaSala {...BASE} visaoDeJogador={visao({ aberta: true, fichaAberta: 'Lyra Ventoleste' })} />))
       expect(lista()).toBeNull()
-      act(() => root.render(<RoomPanel {...BASE} visaoDeJogador={visao()} />))
+      act(() => root.render(<TopoDaSala {...BASE} visaoDeJogador={visao()} />))
       expect(lista()).toBeNull()
     })
   })

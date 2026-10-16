@@ -1,6 +1,6 @@
 /*
- * CHAT DOS JOGADORES na tela do mestre — o painel da aba Chat da coluna da
- * direita (RightColumn). A moldura é a `.lb-panel`; aqui só a grade:
+ * CHAT DOS JOGADORES na tela do mestre — a página Chat do livro da mesa
+ * (livro/LivroDaMesa.tsx), que tira a moldura da `.lb-panel`; aqui só a grade:
  * canais em cima, o log ocupando o meio e o campo (ou o aviso de só leitura)
  * embaixo. Mesma linguagem dos Dados: fundo chapado escuro, linha fina clara,
  * latão no que importa — aqui, a menção ao mestre.

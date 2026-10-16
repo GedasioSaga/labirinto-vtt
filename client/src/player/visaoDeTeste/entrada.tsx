@@ -267,7 +267,7 @@ const sessao = sessaoDaJanela(window)
 createRoot(raiz).render(
   <StrictMode>
     {sessao === null ? (
-      <Aviso>Esta janela abre pelo botão Visão de jogador, na aba Jogo do editor.</Aviso>
+      <Aviso>Esta janela abre pelo botão Visão de jogador, no livro da mesa do editor.</Aviso>
     ) : (
       <VisaoDeJogador sessao={sessao} canal={abrirCanalDoNavegador()} />
     )}

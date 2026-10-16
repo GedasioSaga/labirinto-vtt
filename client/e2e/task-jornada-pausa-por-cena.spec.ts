@@ -328,7 +328,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await expect.poll(() => estaDestacada(entradaDaCena(lista, CENA_A)), { message: `a aventura deveria abrir na cena "${CENA_A}"` }).toBe(true)
   await expect(entradaDaCena(lista, CENA_B), `a lista de Cenas deveria ter "${CENA_B}"`).toBeVisible()
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -372,7 +372,7 @@ async function mestreAbreCena(mestre: Page, nome: string): Promise<void> {
 
 /** Aba Jogo, card do jogador, "Atribuir <ficha>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()

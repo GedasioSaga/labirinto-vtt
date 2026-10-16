@@ -864,7 +864,7 @@ Parte de: diálogo aberto pela engrenagem. Vai para: Mesmo diálogo, casca nova 
 
 ### Configurar cena
 
-Parte de: diálogo aberto pela engrenagem da cena (coluna da direita, Cenas). Vai para: Configurar cena com navegação vertical; Relevo, Nomes dos lugares e Nuvens na seção "Mapa vivo". Fatia: 20.
+Parte de: diálogo aberto pela engrenagem da cena (livro da mesa, página Cenas). Vai para: Configurar cena com navegação vertical; Relevo, Nomes dos lugares e Nuvens na seção "Mapa vivo". Fatia: 20.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -892,69 +892,77 @@ Parte de: aberto pelo "?". Vai para: Diálogo Atalhos com a lista nova. Fatia: 2
 |---|---|---|---|
 | Lista de atalhos | dialog "Atalhos do teclado" | (tela) | (do bloco) |
 
-### Coluna da direita, sala fechada
+### Livro da mesa, sala fechada
 
-Parte de: app do mestre, aba Jogo, sala fechada. Vai para: Livro da mesa: topo da Sala (sala fechada) e marcadores Grupo e Mesa. Fatia: 4 e 5.
+Parte de: app do mestre, sala fechada. Vai para: Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); o Grupo muda na 5. Fatia: 4 e 5.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Aba Jogo | tab "Jogo" | (coluna da direita) | (do bloco) |
-| Abrir sala | button "Abrir sala" | (coluna da direita) | Topo do livro da mesa |
-| Visão de jogador | button "Visão de jogador" | (coluna da direita) | Topo do livro da mesa e marcador Mesa |
-| Personagens: + Personagem | button "+ Personagem" | (coluna da direita) > clicar button "Personagens" | (do bloco) |
-| Personagens: Importar personagens | button "Importar personagens…" | (coluna da direita) > clicar button "Personagens" | (do bloco) |
-| Contas: Só com conta | checkbox "Só com conta" | (coluna da direita) > clicar button "Contas dos jogadores" | (do bloco) |
-| Contas: nome da nova conta | textbox "Nome do jogador" | (coluna da direita) > clicar button "Contas dos jogadores" | (do bloco) |
-| Contas: PIN | textbox "PIN" | (coluna da direita) > clicar button "Contas dos jogadores" | (do bloco) |
-| Contas: + Conta | button "+ Conta" | (coluna da direita) > clicar button "Contas dos jogadores" | (do bloco) |
-| Esconder a coluna da direita | button "Esconder a coluna da direita" | (coluna da direita) | Seta no pé da lombada |
-| Divisor "Altura das Cenas" | separator "Altura das Cenas" | (coluna da direita) | Some: Cenas vira marcador próprio |
+| Marcador Grupo (a aba Jogo de antes) | tab "Grupo" | (livro da mesa) | (do bloco) |
+| Abrir sala | button "Abrir sala" | (livro da mesa) | (do bloco) |
+| Visão de jogador | button "Visão de jogador" | (livro da mesa) | (do bloco) |
+| Rede local (a dica do firewall) | dialog "Rede local" | (livro da mesa) > clicar button "Rede" | (do bloco) |
+| Personagens: + Personagem | button "+ Personagem" | (livro da mesa) > clicar tab "Grupo" > clicar button "Personagens" | (do bloco) |
+| Personagens: Importar personagens | button "Importar personagens…" | (livro da mesa) > clicar tab "Grupo" > clicar button "Personagens" | (do bloco) |
+| Contas: Só com conta | checkbox "Só com conta" | (livro da mesa) > clicar tab "Grupo" > clicar button "Contas dos jogadores" | (do bloco) |
+| Contas: nome da nova conta | textbox "Nome do jogador" | (livro da mesa) > clicar tab "Grupo" > clicar button "Contas dos jogadores" | (do bloco) |
+| Contas: PIN | textbox "PIN" | (livro da mesa) > clicar tab "Grupo" > clicar button "Contas dos jogadores" | (do bloco) |
+| Contas: + Conta | button "+ Conta" | (livro da mesa) > clicar tab "Grupo" > clicar button "Contas dos jogadores" | (do bloco) |
+| Mesa: Teste secreto (sem jogadores, Pedir teste apagado) | button "Pedir teste" | (livro da mesa) > clicar tab "Mesa" | (do bloco) |
+| Mesa: Visão de jogador | button "/^Visão de jogador.*Teste/" | (livro da mesa) > clicar tab "Mesa" | (do bloco) |
+| Mesa: Som da mesa (volume) | slider "Volume" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Som da mesa/" | (do bloco) |
+| Mesa: Som da mesa (mudo) | button "Mudo" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Som da mesa/" | (do bloco) |
+| Recolher a página (Esconder a coluna da direita de antes) | button "Recolher a página" | (livro da mesa) | Seta no pé da lombada (feito) |
 
 ### Chat do mestre
 
-Parte de: sala fechada. Vai para: Marcador Chat do livro da mesa. Fatia: 4.
+Parte de: sala fechada. Vai para: Marcador Chat do livro da mesa (feito). Fatia: 4.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Aba Chat: Ir para Jogo | button "Ir para Jogo" | (coluna da direita) > clicar tab "Chat" | (do bloco) |
+| Chat sem sala: o convite com Abrir sala (no lugar do "Ir para Jogo") | region "Chat dos jogadores" | (livro da mesa) > clicar tab "Chat" | Página Chat, "O chat abre junto com a sala" + Abrir sala |
 
 ### Cenas
 
-Parte de: aventura aberta, coluna da direita. Vai para: Marcador Cenas do livro da mesa. Fatia: 4.
+Parte de: aventura aberta, livro da mesa. Vai para: Marcador Cenas do livro da mesa (feito). Fatia: 4.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Cripta | button "Cripta" | (coluna da direita) | (do bloco) |
-| Renomear Cripta | button "Renomear Cripta" | (coluna da direita) | (do bloco) |
-| Mover Cripta para… | button "Mover Cripta para…" | (coluna da direita) | (do bloco) |
-| Planta de Cripta | button "Planta de Cripta" | (coluna da direita) | (do bloco) |
-| Configurar Cripta | button "Configurar Cripta" | (coluna da direita) | (do bloco) |
-| + Nova cena | button "+ Nova cena" | (coluna da direita) | (do bloco) |
-| Revisar aventura | button "Revisar aventura" | (coluna da direita) | (do bloco) |
-| Mais ações da cena: Duplicar | menuitem "Duplicar" | (coluna da direita) > clicar button "Mais ações de Cripta" | (do bloco) |
-| Mais ações da cena: Subir | menuitem "Subir" | (coluna da direita) > clicar button "Mais ações de Cripta" | (do bloco) |
-| Mais ações da cena: Descer | menuitem "Descer" | (coluna da direita) > clicar button "Mais ações de Cripta" | (do bloco) |
-| Mais ações da cena: É a cena inicial | menuitem "É a cena inicial" | (coluna da direita) > clicar button "Mais ações de Cripta" | (do bloco) |
-| Mais ações da cena: Apagar cena… | menuitem "Apagar cena…" | (coluna da direita) > clicar button "Mais ações de Cripta" | (do bloco) |
+| Cripta | button "Cripta" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Renomear Cripta | button "Renomear Cripta" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Mover Cripta para… | button "Mover Cripta para…" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Planta de Cripta | button "Planta de Cripta" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Configurar Cripta | button "Configurar Cripta" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| + Nova cena | button "+ Nova cena" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Revisar aventura | button "Revisar aventura" | (livro da mesa) > clicar tab "Cenas" | (do bloco) |
+| Mais ações da cena: Duplicar | menuitem "Duplicar" | (livro da mesa) > clicar tab "Cenas" > clicar button "Mais ações de Cripta" | (do bloco) |
+| Mais ações da cena: Subir | menuitem "Subir" | (livro da mesa) > clicar tab "Cenas" > clicar button "Mais ações de Cripta" | (do bloco) |
+| Mais ações da cena: Descer | menuitem "Descer" | (livro da mesa) > clicar tab "Cenas" > clicar button "Mais ações de Cripta" | (do bloco) |
+| Mais ações da cena: É a cena inicial | menuitem "É a cena inicial" | (livro da mesa) > clicar tab "Cenas" > clicar button "Mais ações de Cripta" | (do bloco) |
+| Mais ações da cena: Apagar cena… | menuitem "Apagar cena…" | (livro da mesa) > clicar tab "Cenas" > clicar button "Mais ações de Cripta" | (do bloco) |
 
 ## Mestre com a sala aberta
 
-### Coluna da direita, sala aberta
+### Livro da mesa, sala aberta
 
-Parte de: sala aberta (código ONDE01), aba Jogo. Vai para: Livro da mesa: topo da Sala (código, Mais da sala, Laser, Som, Convidar) e página Mesa. Fatia: 4.
+Parte de: sala aberta (código ONDE01), página Grupo. Vai para: Livro da mesa: topo da Sala (código, Mais da sala, Laser, Som, Convidar) e página Mesa (feito). Fatia: 4.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Código da sala | heading "Sala" | (coluna da direita) | Topo do livro da mesa, código para copiar |
-| Laser do mestre | button "Laser" | (coluna da direita) | Topo do livro da mesa |
-| Som da mesa | button "Som da mesa" | (coluna da direita) | Botão Som do topo e página Mesa |
-| Ruído | button "Ruído" | (coluna da direita) | Página Mesa |
-| Alcance do ruído | combobox "Alcance do ruído" | (coluna da direita) | Página Mesa |
-| Grupo | heading "Grupo" | (coluna da direita) | Marcador Grupo |
-| Diário de viagens | heading "Diário de viagens" | (coluna da direita) | Página Mesa |
-| Tela da mesa: Cena na tela | combobox "Cena na tela" | (coluna da direita) | Página Mesa |
-| Convidar jogadores: Tornar pública | button "Tornar pública" | (coluna da direita) | Botão Convidar do topo |
-| Fechar sala | button "Fechar sala" | (coluna da direita) | Menu "Mais da sala" do topo, com confirmação |
+| Código da sala (copia ao clicar) | button "/^Código da sala ONDE01/" | (livro da mesa) | (do bloco) |
+| Laser do mestre | button "Laser" | (livro da mesa) | (do bloco) |
+| Som da mesa (pop do botão Som) | slider "Volume" | (livro da mesa) > clicar button "Som" | (do bloco) |
+| Grupo | heading "Grupo" | (livro da mesa) > clicar tab "Grupo" | (do bloco) |
+| Convidar jogadores: Tornar pública | button "Tornar pública" | (livro da mesa) > clicar button "Convidar" | (do bloco) |
+| Convidar jogadores: o pop com o QR, os endereços na rede local e a dica do firewall | dialog "Convidar jogadores" | (livro da mesa) > clicar button "Convidar" | (do bloco) |
+| Mais da sala: Visão de jogador | menuitem "Visão de jogador…" | (livro da mesa) > clicar button "Mais da sala" | (do bloco) |
+| Mais da sala: Fechar sala | menuitem "Fechar sala…" | (livro da mesa) > clicar button "Mais da sala" | (do bloco) |
+| Fechar sala: a confirmação | alertdialog "Fechar a sala?" | (livro da mesa) > clicar button "Mais da sala" > clicar menuitem "Fechar sala…" | (do bloco) |
+| Mesa: Teste secreto | button "/^Teste secreto/" | (livro da mesa) > clicar tab "Mesa" | (do bloco) |
+| Mesa: Ruído | button "Ruído" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Ruído/" | (do bloco) |
+| Mesa: Alcance do ruído | combobox "Alcance do ruído" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Ruído/" | (do bloco) |
+| Mesa: Diário de viagens | button "/^Diário de viagens/" | (livro da mesa) > clicar tab "Mesa" | (do bloco) |
+| Mesa: Tela da mesa, Cena na tela | combobox "Cena na tela" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Tela da mesa/" | (do bloco) |
 
 ## Jogador (celular, 390 px)
 
@@ -1011,11 +1019,12 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
 | Marcas dos jogadores (MarcasDaCena) | só com marcas deixadas por jogadores |
 | Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token) | pedem sala aberta, outra cena ou Estado do mundo com valores |
-| Livro de regras | só com sistema de RPG que tem livro |
+| Livro de regras (página Mesa; e Grupo com a sala fechada) | só com sistema de RPG que tem livro |
+| Divisor "Altura das Cenas" (coluna da direita) | saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho |
 | Grupo do mestre: as 25+ ações por jogador, Pedindo, Chegando, Congelar/Pausar cena | pedem jogador conectado; ficam para a fatia 5, que traz o spec do grupo |
-| Teste secreto | só com jogadores na sala |
-| Pausa geral dos NPCs | só com NPC andando |
+| Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa | só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto) |
+| Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala") | só com NPC andando; TopoDaSala.test.tsx cobre o item do menu |
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 548 controles em 63 blocos.
+Total: 556 controles em 63 blocos.

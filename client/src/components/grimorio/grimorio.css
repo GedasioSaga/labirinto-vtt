@@ -310,6 +310,8 @@ select.gr-entrada option { background: #1d1913; }
   animation: gr-pop 160ms var(--lb-gr-ease-out) both;
 }
 .gr-pop.gr-sai { animation: gr-pop-sai 110ms ease-out both; }
+/* a caixa só recebe o foco quando não há campo dentro (a nota "Rede local"): sem anel, o conteúdo já está à vista */
+.gr-pop:focus { outline: none; }
 .gr-pop__tit { font: 400 15px/1.2 var(--lb-font-display); padding: 6px 8px 8px; margin: 0; }
 .gr-pop__corpo { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 10px; }
 .gr-menu__item {

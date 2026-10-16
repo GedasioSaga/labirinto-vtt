@@ -175,8 +175,8 @@ const VIEW_GROUP: ShortcutGroup = {
     { what: 'Passar a vez da iniciativa', combo: { keys: ['Shift', 'N'] }, action: { kind: 'nextTurn' } },
     // PAUSA GERAL: o mesmo "Pausar NPCs" da barra de cima (`PAUSE_NPCS_SHORTCUT`).
     { what: 'Pausar ou retomar os NPCs andando', combo: { keys: ['Shift', 'P'] }, action: { kind: 'pauseNpcs' } },
-    // COLUNA DA DIREITA: fora do mapa de teclas, quem ouve é o App (`RIGHT_COLUMN_SHORTCUT`).
-    { what: 'Esconder ou mostrar a coluna da direita', combo: { keys: ['Shift', 'J'] } },
+    // LIVRO DA MESA: fora do mapa de teclas, quem ouve é o livro (`RIGHT_COLUMN_SHORTCUT`, livro/LivroDaMesa.tsx).
+    { what: 'Recolher ou abrir a página do livro da mesa', combo: { keys: ['Shift', 'J'] } },
     // Os três abaixo são gestos do canvas, fora do mapa de teclas:
     // `resolveMapWheel` (roda = zoom), Espaço armando o pan e o L do laser.
     { what: 'Aproximar e afastar', combo: { keys: [], mouse: 'roda do mouse' } },

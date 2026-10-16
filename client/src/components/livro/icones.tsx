@@ -3,10 +3,12 @@ import type { ReactNode } from 'react'
 /*
  * Os ícones de traço do livro do mestre, com os mesmos desenhos do protótipo
  * (docs/design/consolidado/prototipo/js/icones.js): 24 px de caixa, traço de
- * 1,6 na cor do texto. Só os que a lombada e o topo usam.
+ * 1,6 na cor do texto. Só os que as lombadas, os topos e a página Mesa usam.
  */
 
 const caminho = (d: string) => <path d={d} />
+/** O pontinho cheio do protótipo (reticências, os dados da Mesa). */
+const ponto = (x: number, y: number) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1.1} fill="currentColor" stroke="none" />
 
 /** A engrenagem de 8 dentes do protótipo, calculada uma vez. */
 function dentesDaEngrenagem(): string {
@@ -67,6 +69,66 @@ const DESENHOS = {
   varinha: caminho('M4.5 19.5l11-11 M15 4.5l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z'),
   casa: caminho('M4 11l8-6.5 8 6.5 M6.5 9v10.5h11V9'),
   baixo: caminho('M6 9l6 6 6-6'),
+  // Livro da mesa (fatia 4): lombada, topo da Sala e página Mesa.
+  mesa: (
+    <>
+      <rect x="4.5" y="4.5" width="15" height="15" rx="3" />
+      {ponto(9, 9)}
+      {ponto(12, 12)}
+      {ponto(15, 15)}
+    </>
+  ),
+  grupo: (
+    <>
+      <circle cx="9" cy="9" r="3" />
+      <circle cx="16.5" cy="8.2" r="2.4" />
+      {caminho('M3.5 18.5c.8-2.8 2.8-4.3 5.5-4.3s4.7 1.5 5.5 4.3 M15.6 13.3c2.4-.2 4.2 1.1 4.9 3.7')}
+    </>
+  ),
+  chat: caminho('M4.5 5.5h15v10.5H10l-4 3.5v-3.5H4.5z'),
+  recolherDir: caminho('M11 7l5 5-5 5 M6 7l5 5-5 5'),
+  reticencias: (
+    <>
+      {ponto(6, 12)}
+      {ponto(12, 12)}
+      {ponto(18, 12)}
+    </>
+  ),
+  olho: (
+    <>
+      {caminho('M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z')}
+      <circle cx="12" cy="12" r="2.8" />
+    </>
+  ),
+  olhoFechado: caminho('M3.5 3.5l17 17 M10.6 5.6A10 10 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-2.6 3.4 M6.4 6.9C3.9 8.6 2.5 12 2.5 12s3.5 6.5 9.5 6.5a9.6 9.6 0 0 0 4.2-1 M9.9 10a2.8 2.8 0 0 0 4 4'),
+  laser: (
+    <>
+      <circle cx="12" cy="12" r="2.2" />
+      {caminho('M12 3v4M12 17v4M3 12h4M17 12h4')}
+    </>
+  ),
+  som: caminho('M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z M15.5 9a4.2 4.2 0 0 1 0 6 M18 6.5a7.8 7.8 0 0 1 0 11'),
+  somMudo: caminho('M4.5 9.5h3.5l4.5-4v13l-4.5-4H4.5z M16 9.5l5 5 M21 9.5l-5 5'),
+  convidar: (
+    <>
+      <circle cx="9.5" cy="8.5" r="3.2" />
+      {caminho('M3.5 19c.8-3 3.1-4.6 6-4.6s5.2 1.6 6 4.6 M18.5 7.5v6 M15.5 10.5h6')}
+    </>
+  ),
+  copiar: caminho('M8.5 8.5h11v11h-11z M15.5 8.5v-4h-11v11h4'),
+  caderno: caminho('M6 3.5h11.5a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6z M9 3.5v17 M12 8h4 M12 11.5h4'),
+  rota: (
+    <>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="18" r="2" />
+      {caminho('M8 6h6.5a3 3 0 0 1 0 6h-5a3 3 0 0 0 0 6H16')}
+    </>
+  ),
+  pausa: caminho('M8 5.5v13M16 5.5v13'),
+  ruido: caminho('M4 12h1.5 M8 8.5v7 M11.5 5.5v13 M15 8.5v7 M18.5 11v2'),
+  monitor: caminho('M3.5 5h17v11h-17z M8.5 20h7 M12 16v4'),
+  livro: caminho('M12 6.5c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13c-3-.5-6 0-8 1.5z M12 6.5v13'),
+  dispensar: caminho('M14.5 4.5h4v15h-4 M9.5 8l-4 4 4 4 M5.5 12h10'),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

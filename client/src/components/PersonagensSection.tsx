@@ -10,6 +10,7 @@ import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { comAventura } from '../stores/virarAventura'
 import { CollapsibleSection } from './CollapsibleSection'
 import { ImagemOuIniciais } from './FichaPecas'
+import { IconeDoLivro } from './livro/icones'
 import './FichaDePersonagem.css'
 
 export interface PersonagensSectionProps {
@@ -148,6 +149,32 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLiv
 export interface PersonagensDaAventuraProps {
   /** Mapa solto: pergunta e vira aventura antes de criar ou importar (`garantirAventura`). `true` = pode seguir. */
   garantirAventura: () => Promise<boolean>
+  /**
+   * O "Livro de regras" acima dos Personagens. No livro da mesa só com a sala
+   * fechada (com ela aberta ele mora na página Mesa, `BotaoDoLivroDeRegras`).
+   * Padrão: com o livro.
+   */
+  comLivro?: boolean
+}
+
+/** Abre o livro do sistema em uso; `undefined` quando o sistema não tem livro (ou o mapa não tem sistema). */
+function useAbrirLivroDeRegras(): (() => void) | undefined {
+  const sistemaId = useAdventureStore(sistemaAtivo)
+  const biblioteca = useRpgStore((state) => state.biblioteca)
+  const sistema = sistemaPorId(biblioteca, sistemaId)
+  return sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined
+}
+
+/** "Livro de regras" sozinho, para a página Mesa do livro da mesa; some quando o sistema não tem livro. */
+export function BotaoDoLivroDeRegras() {
+  const abrirLivro = useAbrirLivroDeRegras()
+  if (abrirLivro === undefined) return null
+  return (
+    <button type="button" className="gr-bt gr-bt--p lb-rpg__livro-mesa" onClick={abrirLivro}>
+      <IconeDoLivro nome="livro" />
+      Livro de regras
+    </button>
+  )
 }
 
 /**
@@ -156,12 +183,13 @@ export interface PersonagensDaAventuraProps {
  * herda, senão os da aventura; nenhum no mapa solto), a biblioteca de
  * sistemas e as janelas (`RpgDialogs`).
  */
-export function PersonagensDaAventura({ garantirAventura }: PersonagensDaAventuraProps) {
+export function PersonagensDaAventura({ garantirAventura, comLivro = true }: PersonagensDaAventuraProps) {
   const sistemaId = useAdventureStore(sistemaAtivo)
   const personagens = useAdventureStore(personagensAtivos)
   const nomeDaPasta = useAdventureStore((state) => (herdaDaPasta(state) && state.pasta !== null ? state.pasta.nome : undefined))
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const carregarBiblioteca = useRpgStore((state) => state.carregarBiblioteca)
+  const abrirLivro = useAbrirLivroDeRegras()
   // Sistema importado só se acha depois de ler a pasta: lida uma vez, na primeira vez que a seção aparece.
   useEffect(() => {
     void carregarBiblioteca()
@@ -174,7 +202,7 @@ export function PersonagensDaAventura({ garantirAventura }: PersonagensDaAventur
       sistemaId={sistemaId}
       personagens={personagens}
       nomeDaPasta={nomeDaPasta}
-      onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
+      onAbrirLivro={comLivro ? abrirLivro : undefined}
       onAbrirFicha={(id) => useRpgStore.getState().abrirFicha(id)}
       onCriar={() => {
         if (sistema === undefined) return

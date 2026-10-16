@@ -353,17 +353,15 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(mandarBruno.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('a aba começa pelo código, pelo Laser e pelo Grupo; convite (link, endereços, QR) e Fechar sala vêm depois', () => {
+  it('a página Grupo é só o Grupo: código, Laser, convite (link, endereços, QR) e Fechar sala moram no topo da Sala (livro da mesa)', () => {
     render()
     const secao = grupo()
-    const codigo = Array.from(container.querySelectorAll('strong')).find((s) => s.textContent === ROOM.code)
-    if (!codigo) throw new Error('sem o código da sala')
-    const qr = container.querySelector('img[alt="QR da sala"]')
-    if (!qr) throw new Error('sem o QR da sala')
-    expect(antes(codigo, secao)).toBe(true)
-    expect(antes(botao(container, 'Laser'), secao)).toBe(true)
-    expect(antes(secao, botao(container, 'Tornar pública'))).toBe(true)
-    expect(antes(secao, qr)).toBe(true)
-    expect(antes(secao, botao(container, 'Fechar sala'))).toBe(true)
+    // O Grupo abre a página: nada de montar a mesa antes dele.
+    expect(secao.parentElement?.firstElementChild).toBe(secao)
+    expect(container.textContent).not.toContain(ROOM.code)
+    expect(container.querySelector('img[alt="QR da sala"]')).toBeNull()
+    for (const fora of ['Laser', 'Tornar pública', 'Fechar sala']) {
+      expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === fora), fora).toBe(false)
+    }
   })
 })

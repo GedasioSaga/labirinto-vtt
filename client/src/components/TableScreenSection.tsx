@@ -13,6 +13,8 @@ export interface TableScreenSectionProps {
   /** Quantas telas estão conectadas. */
   screens: number
   onSceneChange(key: string | null): void
+  /** Dentro da ficha "Tela da mesa" (página Mesa): o título é o da ficha. */
+  semTitulo?: boolean
 }
 
 const SELECT_ID = 'lb-room-table-scene'
@@ -30,13 +32,13 @@ export function tableScreensLabel(screens: number): string {
  * que ela mostra. A tela mostra só o que o grupo já viu daquela cena — nunca o
  * nome dela (esse nome é só do mestre, aqui no seletor).
  */
-export function TableScreenSection({ url, scenes, sceneKey, screens, onSceneChange }: TableScreenSectionProps) {
+export function TableScreenSection({ url, scenes, sceneKey, screens, onSceneChange, semTitulo = false }: TableScreenSectionProps) {
   // Cena escolhida que fechou (saiu do cache, a aventura trocou): a opção
   // fica, marcada, para o seletor não mentir mostrando "Nenhuma".
   const missing = sceneKey !== null && !scenes.some((scene) => scene.key === sceneKey)
   return (
     <div className="lb-field">
-      <h3 className="lb-eyebrow">Tela da mesa</h3>
+      {!semTitulo && <h3 className="lb-eyebrow">Tela da mesa</h3>}
       <p className="lb-label">Abra este link na TV ou no projetor. Ela mostra só o que o grupo já viu da cena escolhida, sem nada do mestre.</p>
       {url !== null && (
         <>

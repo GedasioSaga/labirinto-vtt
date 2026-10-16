@@ -263,7 +263,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
   await esperaEditorNa(mestre, COZINHA)
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -303,7 +303,7 @@ function botoesDeAtribuir(card: Locator): Locator {
 
 /** Aba Jogo → card → "Atribuir <ficha>" (um clique); sem o botão, a lista "Atribuir token". */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(mestre, jogador)
   const botao = card.getByRole('button', { name: new RegExp(`Atribuir ${escapar(nomeDaFicha)}$`) })
   if ((await botao.count()) > 0) {
@@ -431,7 +431,7 @@ test('1. controle: sete entram, seis recebem a ficha da Cozinha, Gina espera e o
 test('2. o card da Gina oferece primeiro "Biblioteca · Atribuir Livro" e nenhum botão com ficha de dono nem o Mordomo', async ({ browser, page, baseURL }) => {
   test.setTimeout(300_000)
   await mesaMontada(browser, page, baseURL ?? '')
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(page, GINA)
   await expect(card, 'a aba Jogo deveria mostrar o card da Gina').toBeVisible({ timeout: ESPERA })
 
@@ -449,7 +449,7 @@ test('2. o card da Gina oferece primeiro "Biblioteca · Atribuir Livro" e nenhum
 test('3. um clique em "Atribuir Livro": o celular da Gina abre na Biblioteca e o editor fica na Cozinha', async ({ browser, page, baseURL }) => {
   test.setTimeout(300_000)
   const { gina } = await mesaMontada(browser, page, baseURL ?? '')
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(page, GINA)
   const livro = card.getByRole('button', { name: /Atribuir Livro\b/ })
   await expect(livro.first(), 'o card da Gina deveria oferecer "Atribuir Livro" em um clique (ficha livre da Biblioteca)').toBeVisible({ timeout: ESPERA })
@@ -469,7 +469,7 @@ test('3. um clique em "Atribuir Livro": o celular da Gina abre na Biblioteca e o
 test('4. "Machado — de Bruno" na lista pede confirmação e Cancelar mantém Bruno com o Machado', async ({ browser, page, baseURL }) => {
   test.setTimeout(300_000)
   const { bruno } = await mesaMontada(browser, page, baseURL ?? '')
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(page, GINA)
   const lista = card.getByRole('combobox', { name: 'Atribuir token' })
   await expect(lista, 'o card da Gina deveria ter a lista "Atribuir token"').toBeVisible({ timeout: ESPERA })

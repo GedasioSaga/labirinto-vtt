@@ -76,7 +76,8 @@ export function Pop({ aberto, gatilho, onFechar, lado = 'baixo', tipo = 'menu', 
     pop.style.left = `${Math.max(MARGEM_DA_TELA, Math.min(window.innerWidth - largura - MARGEM_DA_TELA, p.x))}px`
     pop.style.top = `${Math.max(MARGEM_DA_TELA, Math.min(window.innerHeight - altura - MARGEM_DA_TELA, p.y))}px`
     pop.style.setProperty('--gr-origem', p.origem)
-    const primeiro = tipo === 'menu' ? itensDoMenu(pop)[0] : focaveisEm(pop)[0]
+    // Pop só de leitura (a nota "Rede local"): o foco vai à própria caixa, para o Esc fechar.
+    const primeiro = tipo === 'menu' ? itensDoMenu(pop)[0] : (focaveisEm(pop)[0] ?? pop)
     primeiro?.focus({ preventScroll: true })
   }, [aberto, gatilho, lado, tipo])
 
@@ -140,6 +141,7 @@ export function Pop({ aberto, gatilho, onFechar, lado = 'baixo', tipo = 'menu', 
       className={classes('gr-pop', saindo && 'gr-sai')}
       role={tipo === 'menu' ? 'menu' : 'dialog'}
       aria-label={rotulo}
+      tabIndex={-1}
       inert={saindo}
       onKeyDown={teclar}
       onClick={clicar}

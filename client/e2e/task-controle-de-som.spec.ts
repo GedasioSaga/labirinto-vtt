@@ -430,44 +430,37 @@ async function mestreAbreASala(mestre: Page): Promise<void> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
 }
 
-test('mestre: "Som da mesa" abaixo do cabeçalho da sala abre o popover inteiro dentro do painel, e as setas regulam', async ({ page }) => {
+test('mestre: o botão "Som" do topo da Sala (livro da mesa) abre o pop "Som da mesa" inteiro na tela, e as setas regulam', async ({ page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1280, height: 800 })
   await mestreAbreASala(page)
-  const sala = page.locator('.lb-room')
-  const som = sala.getByRole('button', { name: 'Som da mesa' })
+  // Desde a fatia 4 do design consolidado o Som mora no topo da Sala, ao lado do Laser e do Convidar.
+  const livro = page.getByRole('complementary', { name: 'Livro da mesa' })
+  const som = livro.getByRole('button', { name: 'Som', exact: true })
   await expect(som).toBeVisible()
-  // O cabeçalho continua numa linha só: SALA e o código inteiros (um botão a mais nele quebrava o código).
-  const codigo = sala.locator('.lb-room__code')
-  const eyebrow = sala.locator('.lb-room__head .lb-eyebrow')
-  const linhaDoCodigo = await caixa(codigo)
-  expect(linhaDoCodigo.height).toBeLessThan(36)
-  expect((await caixa(eyebrow)).height).toBeLessThan(20)
-  // Entre o cabeçalho e o Ruído, alinhado à direita da coluna.
-  const ruido = sala.getByRole('button', { name: 'Ruído', exact: true })
+  // O código fica inteiro na linha de cima; Laser, Som e Convidar dividem a de baixo.
+  const linhaDoCodigo = await caixa(livro.getByRole('button', { name: /^Código da sala/ }))
+  expect(linhaDoCodigo.height).toBeLessThan(40)
   const caixaDoSom = await caixa(som)
   expect(caixaDoSom.y).toBeGreaterThan(linhaDoCodigo.y + linhaDoCodigo.height)
-  expect(caixaDoSom.y + caixaDoSom.height).toBeLessThan((await caixa(ruido)).y)
-  expect(Math.abs(caixaDoSom.x + caixaDoSom.width - ((await caixa(ruido)).x + (await caixa(ruido)).width))).toBeLessThanOrEqual(1)
+  expect(Math.abs(caixaDoSom.y - (await caixa(livro.getByRole('button', { name: 'Laser', exact: true }))).y)).toBeLessThanOrEqual(1)
 
-  // A legenda também abre: o alvo do clique é a linha. Clique de mouse abre com a entrada curta, não "pelo teclado".
-  await sala.getByText('Som da mesa', { exact: true }).click()
+  await som.click()
+  await expect(som).toHaveAttribute('aria-expanded', 'true')
   const popover = page.getByRole('dialog', { name: 'Som da mesa' })
   await expect(popover).toBeVisible()
-  await expect(popover).toHaveAttribute('data-abertura', 'ponteiro')
   await esperarAEntrada(popover)
-  // O painel da sala rola por dentro: o popover tem de caber nele, sem corte e sem barra de rolagem de lado.
-  const caixaDaSala = await caixa(sala)
+  // O pop abre por cima do mapa: inteiro na tela, sem corte.
   const caixaDoPopover = await caixa(popover)
-  expect(caixaDoPopover.x).toBeGreaterThanOrEqual(caixaDaSala.x)
-  expect(caixaDoPopover.x + caixaDoPopover.width).toBeLessThanOrEqual(caixaDaSala.x + caixaDaSala.width)
-  expect(caixaDoPopover.y + caixaDoPopover.height).toBeLessThanOrEqual(caixaDaSala.y + caixaDaSala.height)
-  expect(await sala.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  expect(caixaDoPopover.x).toBeGreaterThanOrEqual(0)
+  expect(caixaDoPopover.y).toBeGreaterThanOrEqual(0)
+  expect(caixaDoPopover.x + caixaDoPopover.width).toBeLessThanOrEqual(1280)
+  expect(caixaDoPopover.y + caixaDoPopover.height).toBeLessThanOrEqual(800)
   await test.info().attach('mestre-popover.png', { body: await page.screenshot(), contentType: 'image/png' })
 
   const barra = popover.getByRole('slider', { name: 'Volume' })
@@ -479,6 +472,7 @@ test('mestre: "Som da mesa" abaixo do cabeçalho da sala abre o popover inteiro 
   const mudo = popover.getByRole('button', { name: 'Mudo' })
   await mudo.click()
   await expect(mudo).toHaveAttribute('aria-pressed', 'true')
+  // Mudo: o botão Som do topo leva o alto-falante cortado.
   await expect(som).toHaveAttribute('data-estado', 'mudo')
   // Clicar no mapa fecha o popover.
   await page.mouse.click(700, 400)

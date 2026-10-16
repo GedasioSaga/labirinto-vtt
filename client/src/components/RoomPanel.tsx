@@ -19,19 +19,19 @@ import { formatNoteTime } from '../player/PlayerNotebook'
 import type { MapData, Region, TokenContract } from '../types/map'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { CluesSection, type CluesSectionProps } from './CluesSection'
-import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckSection'
+import type { SecretCheckSectionProps } from './SecretCheckSection'
 import type { PartySectionProps } from './PartySection'
 import { GrupoCompacto } from './GrupoCompacto'
 import type { CenaNaOrdem } from '../lib/grupoPorCena'
 import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
 import { CampaignClockSection, type CampaignClockSectionProps } from './CampaignClockSection'
-import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
-import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
+import type { TableScreenSectionProps } from './TableScreenSection'
+import type { TravelLogSectionProps } from './TravelLogSection'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
-import { ControleDeSom, TITULO_DO_SOM } from './ControleDeSom'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
 import { EscolherFichaDeTeste, RetratoDaFicha, type AberturaDaEscolha } from './EscolherFichaDeTeste'
+import { Botao } from './grimorio/Botao'
 import { CloseIcon, EyeIcon } from './icons'
 
 export interface RoomPanelToken {
@@ -161,8 +161,8 @@ export interface RoomPanelProps {
    */
   visaoDeJogador?: VisaoDeJogadorNoPainel
   /**
-   * "Livro de regras" e "Personagens" (`PersonagensDaAventura`), logo abaixo
-   * da Sala, com ela fechada ou aberta. Ausente = sem a seção.
+   * "Personagens" e "Contas dos jogadores" (`PersonagensDaAventura`), no fim da
+   * página Grupo, com a sala fechada ou aberta. Ausente = sem a seção.
    */
   rpg?: ReactNode
 }
@@ -194,7 +194,7 @@ export const GIVE_MAP_HINT = 'Só quem recebe passa a conhecer essas salas, de q
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
-export const EMPTY_GROUP_HINT = 'Nenhum jogador ainda. Mostre o código da sala ou o QR, mais abaixo.'
+export const EMPTY_GROUP_HINT = 'Nenhum jogador ainda. Passe o código da sala ou mostre o QR do Convidar, no alto.'
 export const NO_TOKENS_HINT = 'Nenhuma ficha no mapa para dar. Crie uma com "Adicionar token", na aba Mapa.'
 
 /** SVG vindo do Rust vira data URL: `<img>` não executa script do SVG. */
@@ -399,79 +399,78 @@ export function groupCountLabel(total: number, waiting: number): string {
   return total === 1 ? '1 jogador' : `${total} jogadores`
 }
 
-function FirewallHint() {
-  return (
-    <p className="lb-room__hint">
-      <span className="lb-eyebrow">Rede local</span>
-      {FIREWALL_HINT}
-    </p>
-  )
+/** "Rede local": o que fazer quando o celular não abre o link (no pop Rede, sala fechada, e no Convidar). */
+export function FirewallHint() {
+  return <p className="gr-nota lb-room__rede">{FIREWALL_HINT}.</p>
 }
 
-function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelProps, 'tunnel' | 'onStartTunnel' | 'onStopTunnel'>) {
+/** "Tornar pública" (túnel), com o download, a conexão, o erro e o link pronto com o QR dele. Mora no pop Convidar. */
+export function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelProps, 'tunnel' | 'onStartTunnel' | 'onStopTunnel'>) {
   if (tunnel.kind === 'ready') {
     return (
-      <div className="lb-field lb-room__public">
-        <span className="lb-label">Link público</span>
+      <div className="gr-campo lb-room__public">
+        <span className="gr-campo__rot">Link público</span>
         <strong className="lb-room__link">{tunnel.url}</strong>
         <img className="lb-room__qr" src={qrDataUrl(tunnel.qrSvg)} alt="QR do link público" />
         <p className="lb-room__warning">{TUNNEL_WARNING}</p>
-        <button type="button" className="lb-btn lb-btn--block" onClick={onStopTunnel}>
+        <Botao largo tamanho="p" onClick={onStopTunnel}>
           Encerrar link público
-        </button>
+        </Botao>
       </div>
     )
   }
   const busy = tunnel.kind === 'downloading' || tunnel.kind === 'connecting'
   return (
-    <div className="lb-field">
+    <div className="gr-campo">
       {tunnel.kind === 'error' && (
         <p className="lb-room__error" role="alert">
           {tunnel.message}
         </p>
       )}
       {tunnel.kind === 'downloading' && (
-        <p className="lb-label" role="status">
+        <p className="gr-nota" role="status">
           {downloadLabel(tunnel.progress)}
         </p>
       )}
       {tunnel.kind === 'connecting' && (
-        <p className="lb-label" role="status">
+        <p className="gr-nota" role="status">
           Conectando ao túnel…
         </p>
       )}
-      <button type="button" className="lb-btn lb-btn--block" onClick={onStartTunnel} disabled={busy}>
+      <Botao largo tamanho="p" onClick={onStartTunnel} disabled={busy}>
         Tornar pública
-      </button>
+      </Botao>
       {/* Download (55 MB) e conexão podem levar dezenas de segundos: o mestre precisa poder desistir. */}
       {busy && (
-        <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onStopTunnel}>
+        <Botao largo tamanho="p" variante="fantasma" onClick={onStopTunnel}>
           Cancelar
-        </button>
+        </Botao>
       )}
     </div>
   )
 }
 
-/** Botão "Ruído" (arma o próximo clique no mapa) e a lista do alcance. */
-function NoiseControl({ armed, rangeCells, onToggle, onRangeChange }: NoiseControlProps) {
+/** Botão "Ruído" (arma o próximo clique no mapa) e a lista do alcance: a ficha Ruído da página Mesa. */
+export function NoiseControl({ armed, rangeCells, onToggle, onRangeChange }: NoiseControlProps) {
   const rangeId = 'lb-room-noise-range'
   return (
-    <div className="lb-field">
-      <button type="button" className={armed ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={armed} onClick={onToggle}>
+    <div className="lb-room__ruido">
+      <Botao largo aria-pressed={armed} onClick={onToggle}>
         {NOISE_BUTTON_LABEL}
-      </button>
-      <label className="lb-label" htmlFor={rangeId}>
-        Alcance do ruído
-      </label>
-      <select id={rangeId} className="lb-input" value={String(rangeCells)} onChange={(event) => onRangeChange(Number(event.target.value))}>
-        {NOISE_RANGE_OPTIONS.map((option) => (
-          <option key={option.cells} value={String(option.cells)}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <p className="lb-label">{NOISE_HINT}</p>
+      </Botao>
+      <div className="gr-campo">
+        <label className="gr-campo__rot" htmlFor={rangeId}>
+          Alcance do ruído
+        </label>
+        <select id={rangeId} className="gr-entrada" value={String(rangeCells)} onChange={(event) => onRangeChange(Number(event.target.value))}>
+          {NOISE_RANGE_OPTIONS.map((option) => (
+            <option key={option.cells} value={String(option.cells)}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="gr-nota">{NOISE_HINT}</p>
     </div>
   )
 }
@@ -591,7 +590,7 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
  * no próprio painel: Retomar devolve as fichas pelo nome, "Mesa nova" é a sala
  * de hoje, "Voltar" desiste sem abrir nada.
  */
-function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTableNames' | 'onStart'>) {
+export function OpenRoom({ savedTableNames, onStart, convite = false }: Pick<RoomPanelProps, 'savedTableNames' | 'onStart'> & { convite?: boolean }) {
   const [asking, setAsking] = useState(false)
   const resumeRef = useRef<HTMLButtonElement>(null)
   const openRef = useRef<HTMLButtonElement>(null)
@@ -608,18 +607,19 @@ function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTable
   }, [asking])
 
   if (!asking || savedTableNames === undefined || savedTableNames === null) {
-    return (
-      <button
-        ref={openRef}
-        type="button"
-        className="lb-btn lb-btn--primary lb-btn--block"
-        onClick={() => {
-          if (savedTableNames === undefined || savedTableNames === null) onStart(false)
-          else setAsking(true)
-        }}
-      >
+    const abrir = () => {
+      if (savedTableNames === undefined || savedTableNames === null) onStart(false)
+      else setAsking(true)
+    }
+    // No topo da Sala é a ação da folha (latão, alto, a linha toda); no Chat sem sala, o convite pequeno.
+    return convite ? (
+      <Botao ref={openRef} variante="latao" tamanho="p" onClick={abrir}>
         Abrir sala
-      </button>
+      </Botao>
+    ) : (
+      <Botao ref={openRef} variante="primario" tamanho="alto" largo onClick={abrir}>
+        Abrir sala
+      </Botao>
     )
   }
   const answer = (resume: boolean) => {
@@ -627,25 +627,25 @@ function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTable
     onStart(resume)
   }
   return (
-    <div className="lb-field" role="group" aria-labelledby={titleId}>
+    <div className="lb-room__retomar" role="group" aria-labelledby={titleId}>
       <strong id={titleId}>Retomar a mesa?</strong>
-      <p className="lb-label">Quem voltar com o mesmo nome reencontra a própria ficha: {savedTableNames}.</p>
-      <button ref={resumeRef} type="button" className="lb-btn lb-btn--primary lb-btn--block" onClick={() => answer(true)}>
+      <p className="gr-nota">Quem voltar com o mesmo nome reencontra a própria ficha: {savedTableNames}.</p>
+      <Botao ref={resumeRef} variante="primario" largo onClick={() => answer(true)}>
         Retomar a mesa
-      </button>
-      <button type="button" className="lb-btn lb-btn--block" onClick={() => answer(false)}>
+      </Botao>
+      <Botao largo onClick={() => answer(false)}>
         Mesa nova
-      </button>
-      <button
-        type="button"
-        className="lb-btn lb-btn--ghost lb-btn--block"
+      </Botao>
+      <Botao
+        variante="fantasma"
+        largo
         onClick={() => {
           backRef.current = true
           setAsking(false)
         }}
       >
         Voltar
-      </button>
+      </Botao>
     </div>
   )
 }
@@ -665,19 +665,19 @@ function retratoDaFichaAberta(nome: string, fichas: readonly FichaParaTeste[]): 
 
 interface VisaoDeJogadorBotaoProps {
   visao: VisaoDeJogadorNoPainel
-  /** Com a sala fechada, a linha de ajuda embaixo. */
-  comAjuda: boolean
+  /** `topo`: o botão pequeno do topo da Sala (sala fechada). `ficha`: a linha toda, com a ajuda embaixo (página Mesa). */
+  variante: 'topo' | 'ficha'
 }
 
 /**
- * VISÃO DE JOGADOR no painel da sala: o botão secundário (a pedra do
- * `.lb-btn`, ao lado do latão de "Abrir sala") que abre a lista de fichas
+ * VISÃO DE JOGADOR no livro da mesa: o botão que abre a lista de fichas
  * colada a ele; escolher abre a janela de teste. Com a janela aberta, o botão
  * fica em latão-suave com a ficha à direita e clicar traz a janela para a
  * frente — uma janela de cada vez: trocar de ficha é na própria janela. O ×
  * ao lado fecha a janela.
  */
-function VisaoDeJogadorBotao({ visao, comAjuda }: VisaoDeJogadorBotaoProps) {
+export function VisaoDeJogadorBotao({ visao, variante }: VisaoDeJogadorBotaoProps) {
+  const comAjuda = variante === 'ficha'
   const [escolha, setEscolha] = useState<{ ancora: HTMLElement; abertura: AberturaDaEscolha } | null>(null)
   const botaoRef = useRef<HTMLButtonElement>(null)
   const ajudaId = useId()
@@ -702,11 +702,11 @@ function VisaoDeJogadorBotao({ visao, comAjuda }: VisaoDeJogadorBotaoProps) {
     setEscolha({ ancora: evento.currentTarget, abertura: evento.detail === 0 ? 'teclado' : 'ponteiro' })
   }
 
-  const classes = ['lb-btn', 'lb-btn--block', 'lb-room__visao-botao']
+  const classes = ['gr-bt', variante === 'topo' ? 'gr-bt--p' : 'gr-bt--largo', 'lb-room__visao-botao']
   if (aberta) classes.push('lb-room__visao-botao--aberta')
 
   return (
-    <div className="lb-room__visao">
+    <div className={variante === 'topo' ? 'lb-room__visao lb-room__visao--topo' : 'lb-room__visao'}>
       {/* Com a janela aberta, o botão e o × dividem a mesma pílula: o nome da ficha não perde lugar para um botão ao lado. */}
       <div className={aberta ? 'lb-room__visao-linha lb-room__visao-linha--aberta' : 'lb-room__visao-linha'}>
         <button
@@ -1461,6 +1461,15 @@ export function VisionFields({
   )
 }
 
+/**
+ * PÁGINA GRUPO do livro da mesa (fatia 4 do design consolidado): quem está na
+ * mesa e onde. Com a sala aberta, o Grupo (`GrupoCompacto`, restilo na fatia
+ * 5); fechada, o aviso da mesa vazia e o Livro de regras. Personagens e Contas
+ * dos jogadores (`rpg`) vêm no fim, nas duas. O que monta a mesa (Abrir sala,
+ * código, Laser, Som, Convidar, Fechar sala) mora no topo do livro
+ * (`livro/TopoDaSala.tsx`); as ferramentas da sessão, na página Mesa
+ * (`livro/PaginaMesa.tsx`). As três leem as mesmas `RoomPanelProps`.
+ */
 export function RoomPanel({
   room,
   players,
@@ -1468,14 +1477,7 @@ export function RoomPanel({
   party,
   initiative,
   clock,
-  travelLog,
   confronto,
-  tunnel,
-  savedTableNames,
-  onStart,
-  onStop,
-  onStartTunnel,
-  onStopTunnel,
   onAssign,
   onUnassign,
   onLend,
@@ -1493,12 +1495,7 @@ export function RoomPanel({
   onShareMap,
   giftScenes = [],
   onGiveMap,
-  laserOn = false,
-  onToggleLaser,
-  table,
   clues,
-  secretCheck,
-  noise,
   flags = FEATURES,
   cenaAberta = null,
   ordemDasCenas,
@@ -1508,21 +1505,18 @@ export function RoomPanel({
   pausedScenes,
   onPausarCena,
   onAnswerTravel,
-  visaoDeJogador,
   rpg,
 }: RoomPanelProps) {
-  const inviteId = useId()
-  // Escondidos da aba Jogo por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
+  // Escondidos por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
   const iniciativaVisivel = flags.iniciativa ? initiative : undefined
   const relogioVisivel = flags.relogioDaCampanha ? clock : undefined
   if (room === null) {
     return (
-      <section className="lb-panel lb-section lb-room lb-scroll">
-        <h2 className="lb-eyebrow">Sala</h2>
-        <OpenRoom savedTableNames={savedTableNames} onStart={onStart} />
-        {/* Logo abaixo de "Abrir sala", em peso secundário: o par lê como ação principal e ação ao lado. */}
-        {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda />}
-        <FirewallHint />
+      <section className="lb-section lb-room">
+        <div className="gr-vazio">
+          <p className="gr-vazio__tit">A mesa está vazia</p>
+          <p>Abra a sala e passe o código para os jogadores entrarem pelo celular.</p>
+        </div>
         {/* Ficha e regra também valem sem sala: o mestre prepara antes de abrir a mesa. */}
         {rpg}
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
@@ -1532,39 +1526,7 @@ export function RoomPanel({
     )
   }
   return (
-    <section className="lb-panel lb-section lb-room lb-scroll">
-      {/* Uma linha: o código (o que o jogador digita para entrar) e o Laser, que se usa a cena toda. */}
-      <div className="lb-room__head">
-        <h2 className="lb-eyebrow">Sala</h2>
-        <strong className="lb-room__code" title="Código da sala">
-          {room.code}
-        </strong>
-        {onToggleLaser !== undefined && (
-          <button
-            type="button"
-            className={laserOn ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
-            aria-pressed={laserOn}
-            title={LASER_HINT}
-            onClick={onToggleLaser}
-          >
-            Laser
-          </button>
-        )}
-      </div>
-
-      {/* Logo abaixo do código, sem a linha de ajuda: o cabeçalho não tem lugar para mais um botão. */}
-      {visaoDeJogador !== undefined && <VisaoDeJogadorBotao visao={visaoDeJogador} comAjuda={false} />}
-
-      {/* Livro de regras e Personagens logo abaixo da Sala, no mesmo lugar da sala fechada. */}
-      {rpg}
-
-      {/* SOM DA MESA: volume e mudo dos sons de clima neste computador. Linha própria e curta:
-          o cabeçalho já ocupa a coluna inteira, e um botão a mais quebrava o código em duas linhas. */}
-      <ControleDeSom variante="painel" legenda={TITULO_DO_SOM} />
-
-      {noise !== undefined && <NoiseControl {...noise} />}
-
-      {/* O Grupo logo abaixo: é o que o mestre consulta a cada cena. Convite e Fechar sala são de montar e desmontar a mesa. */}
+    <section className="lb-section lb-room">
       <GrupoCompacto
         cenaAberta={cenaAberta}
         ordemDasCenas={ordemDasCenas}
@@ -1599,16 +1561,11 @@ export function RoomPanel({
       {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
       {flags.painelPistas && players.length > 0 && <CluesSection {...clues} />}
 
-      {/* O teste secreto é de cena, como as pistas: fica perto do Grupo, não no fim da aba. */}
-      {players.length > 0 && secretCheck !== undefined && <SecretCheckSection {...secretCheck} />}
-
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
       {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
 
       {/* O relógio depois da iniciativa: anda entre as cenas, não a cada vez. */}
       {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
-
-      {travelLog !== undefined && <TravelLogSection {...travelLog} />}
 
       {/* CONFRONTO da cena aberta: ação de mesa, logo depois de quem está onde. */}
       {flags.confronto && confronto !== undefined && (
@@ -1618,29 +1575,8 @@ export function RoomPanel({
         </div>
       )}
 
-      {table !== undefined && <TableScreenSection {...table} />}
-
-      <section className="lb-room__invite" aria-labelledby={inviteId}>
-        <h3 id={inviteId} className="lb-eyebrow">
-          Convidar jogadores
-        </h3>
-        <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
-        <div className="lb-field">
-          <span className="lb-label">Endereços na rede local</span>
-          <ul className="lb-room__urls">
-            {room.urls.map((url) => (
-              <li key={url}>{url}</li>
-            ))}
-          </ul>
-          {tunnel.kind !== 'ready' && <img className="lb-room__qr" src={qrDataUrl(room.qrSvg)} alt="QR da sala" />}
-          <FirewallHint />
-        </div>
-      </section>
-
-      <button type="button" className="lb-btn lb-btn--danger lb-btn--block" onClick={onStop}>
-        Fechar sala
-      </button>
+      {/* Personagens e Contas no fim: o Grupo é o que o mestre consulta a cada cena. */}
+      {rpg}
     </section>
   )
 }
-

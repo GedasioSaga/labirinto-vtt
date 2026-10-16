@@ -60,7 +60,7 @@ import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type AppliedItems, type AppliedMove, type MasterChatState, type PinClueState, type PlayerInfo, type SecretCheckState } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
-import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
+import { giftScenesOf, OpenRoom, RoomPanel, roomPanelTokensOf, type RoomPanelProps } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
 import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
@@ -91,7 +91,12 @@ import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
-import { RightColumn, useRightColumnOpen, type RightColumnTab, type RightColumnTabDef } from './components/RightColumn'
+import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { PaginaMesa } from './components/livro/PaginaMesa'
+import { TopoDaSala } from './components/livro/TopoDaSala'
+import { Acoes } from './components/grimorio/Botao'
+import { useLivroDaMesaStore } from './stores/livroDaMesaStore'
+import { contarPedindo } from './lib/grupoPorCena'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
 import type { Bounds } from './pixi/world'
@@ -193,7 +198,7 @@ import { chaveDaSelecao, useFichaAFrente, type AlvoDaFicha } from './components/
 import type { DrawingTool } from './types/tools'
 import { MapSettingsButton } from './components/MapSettingsDialog'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
-import { PersonagensDaAventura } from './components/PersonagensSection'
+import { BotaoDoLivroDeRegras, PersonagensDaAventura } from './components/PersonagensSection'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
@@ -746,11 +751,10 @@ function App() {
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
-  // COLUNA DA DIREITA: a aba de cima (Jogo | Chat), aberta ou escondida
-  // (lembrado), as Cenas abertas ou recolhidas e o que o chat ainda não leu.
-  const [rightTab, setRightTab] = useState<RightColumnTab>('room')
-  const [rightOpen, setRightOpen] = useRightColumnOpen()
-  const [scenesOpen, setScenesOpen] = useState(true)
+  // LIVRO DA MESA (fatia 4): a página aberta (Grupo, Chat, Cenas, Mesa), a
+  // página à vista ou recolhida na lombada (lembrado) e o que o chat ainda não leu.
+  const paginaDaMesa = useLivroDaMesaStore((state) => state.pagina)
+  const [rightOpen, setRightOpen] = useLivroDaMesaAberto()
   const [chatUnread, setChatUnread] = useState<ChatUnread>(NO_CHAT_UNREAD)
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
   const [objectSearchRequest, setObjectSearchRequest] = useState(0)
@@ -1042,6 +1046,11 @@ function App() {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
   }
+  /** "Abrir sala" do livro da mesa (topo e Chat): a sala que abre mostra o Grupo, onde os jogadores vão aparecendo. */
+  const abrirSalaPeloLivro = (resume: boolean) => {
+    useLivroDaMesaStore.getState().abrirPagina('grupo')
+    void handleStartRoom(resume)
+  }
   const handleStopRoom = async () => {
     await hostBridgeRef.current?.stop()
     setRoom(null)
@@ -1115,52 +1124,43 @@ function App() {
           chosen: secretReveals[itemId] ?? [],
           onChange: (chosen) => hostBridgeRef.current?.setSecretReveal(itemId, chosen),
         }
-  /**
-   * As abas "Jogo | Chat" da coluna da direita. Fora do Tauri não há sala
-   * possível (nem Jogo nem conversa): sem abas, as Cenas ficam com a coluna.
-   */
-  const rightColumnTabs = (): RightColumnTabDef[] => {
-    if (!isTauri()) return []
-    return [
-      { id: 'room', label: 'Jogo', panel: roomPanelNode() },
-      {
-        id: 'chat',
-        label: 'Chat',
-        unread: chatUnread,
-        // A conversa vive na sessão: sem sala, o convite para abri-la na aba Jogo.
-        panel:
-          room === null ? (
-            <section className="lb-panel lb-coldir__vazio" aria-label="Chat dos jogadores">
-              <p>O chat dos jogadores abre junto com a sala.</p>
-              <button type="button" className="lb-btn" onClick={() => setRightTab('room')}>
-                Ir para Jogo
-              </button>
-            </section>
-          ) : (
-            <MasterChatPanel
-              chat={masterChat}
-              faces={chatFaces()}
-              active={rightOpen && rightTab === 'chat'}
-              onUnreadChange={setChatUnread}
-              onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false}
-              onDelete={(sceneKey, id) => hostBridgeRef.current?.masterChatDelete(sceneKey, id)}
+  /** A página Chat do livro da mesa: a conversa vive na sessão; sem sala, o convite para abri-la. */
+  const chatDaMesa = (): ReactNode =>
+    room === null ? (
+      <section className="lb-mchat-vazio" aria-label="Chat dos jogadores">
+        <div className="gr-vazio">
+          <p className="gr-vazio__tit">O chat abre junto com a sala</p>
+          <p>Quando os jogadores entrarem, a conversa de cada cena aparece aqui.</p>
+          <Acoes>
+            <OpenRoom
+              convite
+              savedTableNames={savedTableNames()}
+              onStart={abrirSalaPeloLivro}
             />
-          ),
-      },
-    ]
-  }
-  /** O painel da aba Jogo (só no Tauri). */
-  const roomPanelNode = (): ReactNode => {
+          </Acoes>
+        </div>
+      </section>
+    ) : (
+      <MasterChatPanel
+        chat={masterChat}
+        faces={chatFaces()}
+        active={rightOpen && paginaDaMesa === 'chat'}
+        onUnreadChange={setChatUnread}
+        onSend={(text) => hostBridgeRef.current?.masterChatSend(text) ?? false}
+        onDelete={(sceneKey, id) => hostBridgeRef.current?.masterChatDelete(sceneKey, id)}
+      />
+    )
+  /** O que o livro da mesa sabe da sala (só no Tauri): o topo da Sala, a página Grupo e a página Mesa leem daqui. */
+  const salaProps = (): RoomPanelProps => {
     const world = roomPanelWorld()
     const members = partyMembers(roomPlayers, world)
     // CONGELAR FICHA: toda ficha na mão de um jogador — a própria, a emprestada, o ajudante.
     const fichasDeJogador = roomPlayers.flatMap((player) => player.tokenIds)
-    return (
-      <RoomPanel
-        room={room}
-        players={roomPlayers}
-        tokens={roomPanelTokensOf(world)}
-        party={{
+    return {
+        room: room,
+        players: roomPlayers,
+        tokens: roomPanelTokensOf(world),
+        party: {
           members,
           destinations: partyDestinations(world, adventure?.scenes),
           onGoTo: (member) => {
@@ -1212,8 +1212,8 @@ function App() {
               notificarPontes((ponte) => ponte.notifyMapChanged())
             },
           },
-        }}
-        initiative={{
+        },
+        initiative: {
           tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
           values: initiativeValues[map.id] ?? NO_INITIATIVE_VALUES,
           turnTokenId: turnTokenIdOn(initiativeTurn, map),
@@ -1221,13 +1221,13 @@ function App() {
           onStart: () => startTurn(map.id, map.tokens),
           onNext: () => advanceTurn(map.id, map.tokens),
           onStop: () => useInitiativeStore.getState().stop(),
-        }}
+        },
         // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
-        travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
+        travelLog: adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel },
         // CONFRONTO da cena aberta. Grava como mudança de MESA
         // (`applyPlayerChange`): fora do Ctrl+Z do editor, e o host manda
         // a faixa nova no broadcast que toda mudança do mapa dispara.
-        confronto={{
+        confronto: {
           fichas: map.tokens.map((t) => ({ id: t.id, nome: t.name })),
           confronto: map.confronto,
           onIniciar: (fila, passo) => {
@@ -1241,15 +1241,15 @@ function App() {
             useMapStore.getState().applyPlayerChange((m) => comConfronto(m, proximo))
           },
           onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
-        }}
-        clock={{
+        },
+        clock: {
           hour: clockHour,
           outdoor: map.externa === true,
           onAdvanceHour: () => useClockStore.getState().advanceHour(),
           onNextPeriod: () => useClockStore.getState().nextPeriod(),
           onOutdoorChange: setOutdoor,
-        }}
-        clues={hostCluesProps({
+        },
+        clues: hostCluesProps({
           world,
           members,
           clues: pinClues,
@@ -1257,56 +1257,56 @@ function App() {
           stopFollow: () => useFollowStore.getState().stop(),
           goToPoint: (sceneId, point) => useAdventureStore.getState().goToPoint(sceneId, point),
           setPinAudience: (pinId, playerIds) => hostBridgeRef.current?.setPinAudience(pinId, playerIds),
-        })}
-        secretCheck={{
+        }),
+        secretCheck: {
           players: roomPlayers.map((player) => ({ playerId: player.playerId, name: player.name, playing: player.status === 'playing' })),
           checks: secretChecks,
           onAsk: (label, playerIds) => hostBridgeRef.current?.secretCheck(label, playerIds) ?? null,
           onClose: (checkId) => hostBridgeRef.current?.closeSecretCheck(checkId),
-        }}
+        },
         // GRUPO POR CENA: a cena aberta primeiro, depois a ordem da lista Cenas; no mapa solto, um grupo com o nome do mapa.
-        cenaAberta={adventure === null ? null : activeSceneId}
-        ordemDasCenas={adventure === null ? [] : scenesPanel.map((scene) => ({ id: scene.id, name: scene.name }))}
-        mapName={map.name}
-        onIrACena={handleSelectScene}
+        cenaAberta: adventure === null ? null : activeSceneId,
+        ordemDasCenas: adventure === null ? [] : scenesPanel.map((scene) => ({ id: scene.id, name: scene.name })),
+        mapName: map.name,
+        onIrACena: handleSelectScene,
         // Congelar a cena: mudança de MESA, como o "Congelar todos" (fora do Ctrl+Z).
-        onCongelarCena={(tokenIds, congelar) => {
+        onCongelarCena: (tokenIds, congelar) => {
           useAdventureStore.getState().congelarFichas(new Set(tokenIds), congelar)
           notificarPontes((ponte) => ponte.notifyMapChanged())
-        }}
-        pausedScenes={pausedScenes}
-        onPausarCena={room === null ? undefined : handleToggleScenePause}
-        onAnswerTravel={(requestId, allow) => hostBridgeRef.current?.answerTravel(requestId, allow)}
-        tunnel={tunnel}
-        savedTableNames={savedTableNames()}
-        onStart={(resume) => void handleStartRoom(resume)}
-        onStop={() => void handleStopRoom()}
-        onStartTunnel={() => void hostBridgeRef.current?.startTunnel()}
-        onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
-        onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
-        onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
-        onLend={(playerId, tokenId, terms) => hostBridgeRef.current?.lendToken(playerId, tokenId, terms)}
-        onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
-        onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
-        onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
-        onHandOver={(playerId, heirId) => hostBridgeRef.current?.handOverPlayer(playerId, heirId)}
-        onLendTokens={(ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId)}
-        onEndLoans={(ownerId) => hostBridgeRef.current?.endLoans(ownerId)}
-        onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
-        onVisionFactorChange={(playerId, factor) => hostBridgeRef.current?.setVisionFactor(playerId, factor)}
-        onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
-        onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
-        onGiveGroupView={(playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null}
-        onShareMap={(fromPlayerId, toPlayerId) => hostBridgeRef.current?.shareMap(fromPlayerId, toPlayerId) ?? false}
-        giftScenes={giftScenesOf(world)}
-        onGiveMap={(playerId, sceneId, roomIds) => hostBridgeRef.current?.giveRoomsMap(playerId, sceneId, roomIds) ?? 0}
-        laserOn={laserToggled}
-        onToggleLaser={() => {
+        },
+        pausedScenes: pausedScenes,
+        onPausarCena: room === null ? undefined : handleToggleScenePause,
+        onAnswerTravel: (requestId, allow) => hostBridgeRef.current?.answerTravel(requestId, allow),
+        tunnel: tunnel,
+        savedTableNames: savedTableNames(),
+        onStart: abrirSalaPeloLivro,
+        onStop: () => void handleStopRoom(),
+        onStartTunnel: () => void hostBridgeRef.current?.startTunnel(),
+        onStopTunnel: () => void hostBridgeRef.current?.stopTunnel(),
+        onAssign: (playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId),
+        onUnassign: (playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId),
+        onLend: (playerId, tokenId, terms) => hostBridgeRef.current?.lendToken(playerId, tokenId, terms),
+        onKick: (clientId) => void hostBridgeRef.current?.kick(clientId),
+        onStoreTokens: (playerId) => hostBridgeRef.current?.storeTokens(playerId),
+        onDismiss: (playerId) => hostBridgeRef.current?.dismissPlayer(playerId),
+        onHandOver: (playerId, heirId) => hostBridgeRef.current?.handOverPlayer(playerId, heirId),
+        onLendTokens: (ownerId, borrowerId) => hostBridgeRef.current?.lendTokens(ownerId, borrowerId),
+        onEndLoans: (ownerId) => hostBridgeRef.current?.endLoans(ownerId),
+        onVisionRadiusChange: (playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius),
+        onVisionFactorChange: (playerId, factor) => hostBridgeRef.current?.setVisionFactor(playerId, factor),
+        onRevealPlan: (playerId) => hostBridgeRef.current?.revealPlan(playerId),
+        onHidePlan: (playerId) => hostBridgeRef.current?.hidePlan(playerId),
+        onGiveGroupView: (playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null,
+        onShareMap: (fromPlayerId, toPlayerId) => hostBridgeRef.current?.shareMap(fromPlayerId, toPlayerId) ?? false,
+        giftScenes: giftScenesOf(world),
+        onGiveMap: (playerId, sceneId, roomIds) => hostBridgeRef.current?.giveRoomsMap(playerId, sceneId, roomIds) ?? 0,
+        laserOn: laserToggled,
+        onToggleLaser: () => {
           // Laser e Ruído disputam o mesmo clique no mapa: ligar um desliga o outro.
           useNoiseStore.getState().setArmed(false)
           useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)
-        }}
-        table={{
+        },
+        table: {
           url: room === null || room.urls[0] === undefined || tableKey === null ? null : tableScreenUrl(room.urls[0], room.code, tableKey),
           scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
           sceneKey: tableScene,
@@ -1315,8 +1315,8 @@ function App() {
             setTableScene(key)
             hostBridgeRef.current?.setTableScene(key)
           },
-        }}
-        noise={{
+        },
+        noise: {
           armed: noiseArmed,
           rangeCells: noiseRangeCells,
           onToggle: () => {
@@ -1324,9 +1324,9 @@ function App() {
             useNoiseStore.getState().setArmed(!useNoiseStore.getState().armed)
           },
           onRangeChange: (cells) => useNoiseStore.getState().setRangeCells(cells),
-        }}
+        },
         // VISÃO DE JOGADOR: com ou sem sala, o teste é à parte da mesa.
-        visaoDeJogador={{
+        visaoDeJogador: {
           aberta: estadoDaVisao.aberta,
           fichaAberta: estadoDaVisao.ficha?.nome ?? null,
           fichas: fichasDaVisao,
@@ -1334,16 +1334,16 @@ function App() {
           onAbrir: (tokenId) => visaoDeTeste.abrir(tokenId),
           onMostrar: () => visaoDeTeste.mostrar(),
           onFechar: () => visaoDeTeste.fechar(),
-        }}
-        // LIVRO DE REGRAS e PERSONAGENS: logo abaixo da Sala, também no mapa solto (pergunta antes de virar aventura).
-        rpg={
+        },
+        // PERSONAGENS e CONTAS no fim da página Grupo, também no mapa solto (pergunta antes de virar aventura).
+        // O Livro de regras vem junto só com a sala fechada: aberta, ele mora na página Mesa.
+        rpg: (
           <>
-            <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} />
+            <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} comLivro={room === null} />
             <ContasDosJogadoresDoApp />
           </>
-        }
-      />
-    )
+        ),
+    }
   }
   const dismissToast = useToastStore((state) => state.dismiss)
   const pausarAvisos = useToastStore((state) => state.pausar)
@@ -1387,13 +1387,14 @@ function App() {
   /**
    * "Pausar NPCs": congela rotina e patrulha andando para o mestre narrar. Na
    * barra de cima (fora do fluxo dela, para não pular de lugar quando aparece)
-   * ou, com a coluna da direita aberta, no alto da coluna (`extraClass`).
+   * com o livro da mesa recolhido; aberto, ele mora no alto da página Grupo
+   * (`AvisoDosNpcs`) e no "Mais da sala".
    */
-  const npcsPauseButton = (extraClass?: string): ReactNode =>
+  const npcsPauseButton = (): ReactNode =>
     algumNpcAndando && (
       <button
         type="button"
-        className={extraClass === undefined ? 'lb-btn lb-npcs-pausa' : `lb-btn lb-npcs-pausa ${extraClass}`}
+        className="lb-btn lb-npcs-pausa"
         aria-pressed={npcsPausados}
         aria-keyshortcuts={PAUSE_NPCS_SHORTCUT}
         title={`${npcsPausados ? 'Retomar' : 'Pausar'} os NPCs que andam sozinhos (${PAUSE_NPCS_SHORTCUT})`}
@@ -1484,10 +1485,8 @@ function App() {
     const host = canvasHostRef.current
     if (host === null) return []
     const base = host.getBoundingClientRect()
-    // A coluna da direita escondida (`hidden`) não tapa nada.
-    const right = rightColumnRef.current
-    const rightShown = right !== null && !right.hidden ? right : null
-    return [editorTopRef.current, editorRailRef.current, rightShown].flatMap((el) => {
+    // Os dois livros dizem o que tapam: o livro aberto, ou só a lombada com a página recolhida.
+    return [editorTopRef.current, editorRailRef.current, rightColumnRef.current].flatMap((el) => {
       if (el === null) return []
       const r = el.getBoundingClientRect()
       return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
@@ -2769,7 +2768,7 @@ function App() {
   }, [screen, handleSave, handleOpen])
 
   // Altura da barra de ferramentas na raiz do editor (`--lb-topo-altura`): com
-  // a coluna da direita aberta, os avisos descem para logo abaixo dela
+  // o livro da mesa aberto, os avisos descem para logo abaixo dela
   // (Toast.css). Ela quebra em mais linhas na janela estreita, daí medir.
   useEffect(() => {
     if (screen !== 'editor') return
@@ -3032,6 +3031,9 @@ function App() {
     )
   }
 
+  // A sala do livro da mesa só existe no Tauri: no navegador puro o livro fica só com as Cenas.
+  const sala = isTauri() ? salaProps() : undefined
+
   return (
     <div className="lb-editor" ref={editorRootRef} data-coldir={rightOpen ? 'aberta' : 'escondida'}>
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -3122,13 +3124,14 @@ function App() {
         {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
             mestre narrar; fora do fluxo da barra, para ela não pular de lugar
             quando o botão aparece. */}
-        {/* Com a coluna da direita aberta ele mora no alto dela: aqui cairia em cima. */}
-        {!rightOpen && npcsPauseButton()}
+        {/* Com o livro da mesa aberto ele mora no alto da página Grupo (e no "Mais da sala"). No
+            navegador puro, sem sala nem página Grupo, fica aqui também com o livro aberto. */}
+        {(!rightOpen || sala === undefined) && npcsPauseButton()}
       </div>
 
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
           Ficha, Cena, Aventura e Acervo e o topo com as ações do mapa (a
-          antiga barra de ações). Jogo, Chat e Cenas moram na coluna da direita. */}
+          antiga barra de ações). Grupo, Chat, Cenas e Mesa moram no livro da mesa. */}
       <LivroDoMestre
         obstaculoRef={editorRailRef}
         temSelecao={selection.length > 0 || selectedPinId !== null || selectedConcealZone !== null}
@@ -4062,17 +4065,27 @@ function App() {
           />
       </LivroDoMestre>
 
-      <RightColumn
-        open={rightOpen}
-        onOpenChange={setRightOpen}
-        tabs={rightColumnTabs()}
-        active={rightTab}
-        onActiveChange={setRightTab}
-        unread={chatUnread}
-        scenesOpen={scenesOpen}
-        columnRef={rightColumnRef}
-        top={rightOpen && npcsPauseButton('lb-npcs-pausa--coluna')}
-        scenes={
+      {/* LIVRO DA MESA (fatia 4 do design consolidado): a lombada com Grupo,
+          Chat, Cenas e Mesa e o topo da Sala. Fora do Tauri não há sala
+          possível: o livro fica só com as Cenas. */}
+      <LivroDaMesa
+        aberto={rightOpen}
+        onAbertoChange={setRightOpen}
+        obstaculoRef={rightColumnRef}
+        pedidos={contarPedindo(roomPlayers, sala?.party?.members)}
+        naoLidas={chatUnread}
+        topo={sala === undefined ? undefined : <TopoDaSala {...sala} npcs={algumNpcAndando ? { pausados: npcsPausados, onAlternar: alternarPausaDosNpcs } : undefined} />}
+        grupo={
+          sala === undefined ? undefined : (
+            <>
+              {algumNpcAndando && <AvisoDosNpcs pausados={npcsPausados} onAlternar={alternarPausaDosNpcs} atalho={PAUSE_NPCS_SHORTCUT} />}
+              <RoomPanel {...sala} />
+            </>
+          )
+        }
+        chat={sala === undefined ? undefined : chatDaMesa()}
+        mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
+        cenas={
           <ScenesSection
             scenes={scenesPanel}
             onSelect={handleSelectScene}
@@ -4136,9 +4149,6 @@ function App() {
             towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
             // Revisor da aventura: o conserto entra no desfazer da cena aberta, ou marca a de fundo para salvar.
             onFix={consertarNaAventura}
-            // Na coluna da direita a lista não empurra mais a ficha do item: nasce aberta.
-            // Aberta ou recolhida, a coluna reparte a altura por isso.
-            onOpenChange={setScenesOpen}
             onConfigure={setConfiguringSceneId}
           />
         }

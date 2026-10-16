@@ -76,7 +76,8 @@ function escopo(page: Page, qual: Escopo): Locator | Page {
     case 'acoes': return page.getByRole('complementary', { name: 'Livro do mestre' })
     // O chip da cena (fatia 3), no alto do mapa: Voltar, o nome e o menu de cenas.
     case 'chip': return page.getByRole('group', { name: 'Cena aberta' })
-    case 'direita': return page.getByRole('complementary', { name: 'Jogo, chat e cenas' })
+    // O livro da mesa (fatia 4): lombada com Grupo, Chat, Cenas e Mesa, o topo da Sala e a página aberta.
+    case 'direita': return page.getByRole('complementary', { name: 'Livro da mesa' })
     case 'pagina': return page
   }
 }
@@ -125,13 +126,14 @@ async function conferirBloco(page: Page, bloco: Bloco): Promise<void> {
       await test.step(linha.controle, async () => {
         await preparar(page, bloco)
         const onde = escopo(page, bloco.escopo)
-        for (const clique of linha.caminho) await passo(achar(onde, clique))
+        // Menu, diálogo e pop abrem por cima de tudo, fora do livro.
+        const porCima = (papel: Alvo[0]) => papel === 'menuitem' || papel === 'dialog' || papel === 'alertdialog'
+        for (const clique of linha.caminho) await passo(achar(porCima(clique[0]) ? page : onde, clique))
         if (linha.tecla !== undefined) await page.keyboard.press(linha.tecla)
-        // O menu (Arquivo) abre por cima de tudo, fora do livro.
-        const alvo = achar(linha.alvo[0] === 'menuitem' ? page : onde, linha.alvo)
+        const alvo = achar(porCima(linha.alvo[0]) || linha.noPop === true ? page : onde, linha.alvo)
         await expect(alvo, `${bloco.titulo} > ${linha.controle}`).toBeVisible()
         if (linha.focado === true) await expect(alvo).toBeFocused()
-        if (bloco.preparo?.escape === true || linha.alvo[0] === 'menuitem') await page.keyboard.press('Escape')
+        if (bloco.preparo?.escape === true || linha.alvo[0] === 'menuitem' || linha.noPop === true) await page.keyboard.press('Escape')
       })
     }
     // Diálogo do bloco fecha no fim, para o bloco seguinte partir do editor.
@@ -161,12 +163,12 @@ test('mestre: cada controle do inventário está no caminho anotado (editor, bar
   expect(erros).toEqual([])
 })
 
-test('mestre com a sala aberta: código, Laser, Som, Ruído, Grupo, Mesa, Convidar e Fechar sala', async ({ page }) => {
+test('mestre com a sala aberta: código, Laser, Som, Convidar, Mais da sala (Fechar sala), Grupo e Mesa', async ({ page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1440, height: 900 })
   const erros = vigiarErros(page)
   await abrirAventuraDeMentira(page, discoDaAventura(), AVENTURA, CODIGO)
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   await page.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(page.getByText(CODIGO).first()).toBeVisible()
   for (const bloco of blocosDa('mestre-sala-aberta')) await conferirBloco(page, bloco)

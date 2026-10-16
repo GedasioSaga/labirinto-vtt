@@ -100,10 +100,11 @@ describe('M1 — apertar afunda, e a borda acompanha o fundo', () => {
   it('botões, ícones, abas, cartões e linhas animam transform e border-color no tempo curto', async () => {
     const { normal } = separar(await lerCss('../main.css'))
     const transicao = (seletor: string) => regra(normal, seletor).get('transition') ?? ''
-    for (const seletor of ['.lb-btn', '.lb-iconbtn', '.lb-railtabs__tab', '.lb-menucard', '.lb-maplist__item']) {
+    // As abas Jogo | Chat (`.lb-railtabs__tab`) saíram com a coluna da direita: os marcadores do livro da mesa são do grimorio.css.
+    for (const seletor of ['.lb-btn', '.lb-iconbtn', '.lb-menucard', '.lb-maplist__item']) {
       expect(transicao(seletor), seletor).toContain(`transform ${RAPIDO}`)
     }
-    for (const seletor of ['.lb-iconbtn', '.lb-seg__option', '.lb-seg--pairs .lb-seg__option', '.lb-railtabs__tab', '.lb-maplist__item', '.lb-cenas__item']) {
+    for (const seletor of ['.lb-iconbtn', '.lb-seg__option', '.lb-seg--pairs .lb-seg__option', '.lb-maplist__item', '.lb-cenas__item']) {
       expect(transicao(seletor), seletor).toContain(`border-color ${RAPIDO}`)
     }
   })
@@ -113,7 +114,6 @@ describe('M1 — apertar afunda, e a borda acompanha o fundo', () => {
     const apertos: [string, string][] = [
       ['.lb-btn:active:not(:disabled)', 'scale(0.97)'],
       ['.lb-iconbtn:active:not(:disabled)', 'scale(0.97)'],
-      ['.lb-railtabs__tab:active', 'scale(0.97)'],
       ['.lb-menucard:active:not(:disabled)', 'scale(0.985)'],
       // O cartão de mapa é um <div> com quatro botões e o campo de renomear
       // dentro: só o botão que abre o mapa afunda o cartão.

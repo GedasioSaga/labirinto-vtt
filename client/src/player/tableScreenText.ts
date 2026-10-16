@@ -22,7 +22,7 @@ export function tableScreenText(state: Pick<PlayerState, 'status' | 'error'>, co
     case 'waiting':
     case 'playing':
       // `playing` sem mapa é o instante antes do primeiro snapshot.
-      return { text: 'Tela da mesa conectada. O mestre escolhe a cena que aparece aqui, na aba Jogo.', tone: 'info', action: null, retry: false }
+      return { text: 'Tela da mesa conectada. O mestre escolhe a cena que aparece aqui, na página Mesa.', tone: 'info', action: null, retry: false }
     case 'kicked':
       return { text: 'O mestre desconectou esta tela.', tone: 'info', action: 'change_code', retry: false }
     case 'closed':
@@ -36,7 +36,7 @@ export function tableScreenText(state: Pick<PlayerState, 'status' | 'error'>, co
       if (reason === 'bad_code') return { text: `Código de sala incorreto (${code}). Confira com o mestre.`, tone: 'error', action: 'change_code', retry: false }
       // Link sem a chave da tela (código digitado à mão, link de outra sala): trocar o código não resolve.
       if (reason === 'bad_table_key')
-        return { text: 'Este link não abre a tela da mesa. Abra nesta tela o link que aparece na aba Jogo do mestre.', tone: 'error', action: null, retry: false }
+        return { text: 'Este link não abre a tela da mesa. Abra nesta tela o link que aparece na ficha Tela da mesa do mestre.', tone: 'error', action: null, retry: false }
       if (reason === 'table_full') return { text: 'A sala já tem telas da mesa demais. Feche uma delas e tente de novo.', tone: 'error', action: 'reconnect', retry: false }
       return { text: `Erro: ${reason}`, tone: 'error', action: 'change_code', retry: false }
     }

@@ -11,20 +11,18 @@
   font-family: var(--lb-font-sans, system-ui, sans-serif);
 }
 
-/* No mestre a raiz fica no fluxo da linha; o popover se prende a ela. */
-.lb-som--painel {
-  position: relative;
-}
-
-/* Com legenda (no mestre): uma linha inteira, o texto à esquerda e o alto-falante à direita. */
-.lb-som--com-legenda {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* No mestre (livro da mesa): a barra e o mudo à vista, na ficha "Som da mesa" e no pop do botão Som. */
+.lb-som--ficha {
+  display: grid;
   gap: 8px;
 }
 
-/* A pele do rótulo de campo do painel (`.lb-label`); clicar nele também abre o popover. */
+.lb-som--ficha .lb-som__barra {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* O nome da barra, à vista na ficha: a pele do rótulo de campo do livro (`.gr-campo__rot`). */
 .lb-som__legenda {
   font-size: var(--lb-font-size-sm, 11.5px);
   font-weight: var(--lb-font-weight-medium, 500);
@@ -33,6 +31,7 @@
 }
 
 /* ------------------------------------------------- gatilho flutuante (jogador) */
+/* Só o jogador tem gatilho: no mestre a barra mora na ficha e no pop do topo da Sala. */
 
 /*
  * A pele do zoom — pedra com filete de latão, o mesmo raio e a mesma sombra —:
@@ -100,24 +99,6 @@
   outline-offset: 2px;
 }
 
-/* ------------------------------------------------------ gatilho do painel (mestre) */
-
-/* O botão compacto da linha do Laser (`lb-btn lb-btn--compact`), quadrado em volta do ícone. */
-.lb-som--painel .lb-som__gatilho {
-  width: 28px;
-  padding: 0;
-}
-
-.lb-som--painel .lb-som__gatilho[aria-expanded='true'] {
-  color: var(--lb-color-brass-bright, #f3ba66);
-  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
-  border-color: var(--lb-color-brass, #e0a44a);
-}
-
-.lb-som--painel .lb-som__gatilho[data-estado='mudo'] {
-  color: var(--lb-color-parchment-dim, #a2a09a);
-}
-
 /* ------------------------------------------------------------------- popover */
 
 /*
@@ -170,14 +151,6 @@
     bottom: 0;
     transform-origin: bottom right;
   }
-}
-
-/* No mestre abre para BAIXO, dentro do painel da sala: estreito o bastante para a coluna de 264 px. */
-.lb-som--painel .lb-som__pop {
-  top: calc(100% + 6px);
-  right: 0;
-  width: 216px;
-  transform-origin: top right;
 }
 
 @keyframes lb-som-entra {
@@ -288,8 +261,8 @@
   outline-offset: 2px;
 }
 
-/* No mestre o ponteiro é fino: o alvo da linha de botões do painel. */
-.lb-som--painel .lb-som__mudo {
+/* No mestre o ponteiro é fino: o alvo da linha de botões do livro. */
+.lb-som--ficha .lb-som__mudo {
   width: 32px;
   height: 32px;
 }
@@ -370,26 +343,27 @@
 }
 
 /* Mudo: a barra guarda o volume, apagada; mexer nela tira do mudo. */
-.lb-som__pop[data-mudo='true'] .lb-som__barra {
+.lb-som__pop[data-mudo='true'] .lb-som__barra,
+.lb-som--ficha[data-mudo='true'] .lb-som__barra {
   opacity: 0.5;
 }
 
-/* No mestre: a barra e a alça do painel (`.lb-range`), 24 px de alvo. */
-.lb-som--painel .lb-som__barra {
+/* No mestre: a barra e a alça do livro, 24 px de alvo. */
+.lb-som--ficha .lb-som__barra {
   height: 24px;
 }
 
-.lb-som--painel .lb-som__barra::-webkit-slider-runnable-track {
+.lb-som--ficha .lb-som__barra::-webkit-slider-runnable-track {
   height: 14px;
 }
 
-.lb-som--painel .lb-som__barra::-webkit-slider-thumb {
+.lb-som--ficha .lb-som__barra::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-width: 0;
 }
 
-.lb-som--painel .lb-som__barra::-moz-range-thumb {
+.lb-som--ficha .lb-som__barra::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-width: 0;

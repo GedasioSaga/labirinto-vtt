@@ -641,7 +641,7 @@ test('com o teto ligado, o jogador vê a silhueta da construção e não o que e
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
   // O mestre abre a sala.
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   await page.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(page.getByText(CODE)).toBeVisible()
 

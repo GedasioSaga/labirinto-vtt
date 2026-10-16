@@ -191,3 +191,135 @@
 @media (hover: hover) and (pointer: fine) {
   .gr-chip-cena__nome:hover { background: var(--lb-gr-hover); }
 }
+
+/*
+ * LIVRO DA MESA (fatia 4): o espelho do livro do mestre na borda direita.
+ * Portado de .livro--dir, .sala-titulo, .sala-estado, .placa-codigo,
+ * .aviso-npc e .vazio do protótipo, com os mesmos valores.
+ */
+
+/* O que o livro toma da borda direita, para o zoom, o piso, os dados, os avisos
+   e o espelho da tela do jogador andarem para o lado em vez de ficar embaixo
+   dele. No `:root` porque o espelho vai para o `body` por portal. Recolhido,
+   sobra a lombada. */
+:root { --lb-coldir-espaco: 0px; }
+:root:has(.lb-editor[data-coldir='aberta']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
+:root:has(.lb-editor[data-coldir='escondida']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
+
+.gr-livro--dir { right: 12px; flex-direction: row-reverse; }
+.gr-livro--dir .gr-lombada {
+  border-radius: 0 var(--lb-radius-lg) var(--lb-radius-lg) 0;
+  background: linear-gradient(270deg, var(--lb-gr-couro-1), var(--lb-gr-couro-3) 55%, var(--lb-gr-couro-2));
+}
+.gr-livro--dir.gr-e-recolhido .gr-lombada { border-radius: var(--lb-radius-lg); }
+.gr-livro--dir .gr-pagina-trilho { margin-left: 0; margin-right: -1px; }
+.gr-livro--dir .gr-pagina {
+  border-left: 1px solid var(--lb-gr-filete);
+  border-right: 0;
+  border-radius: var(--lb-radius-lg) 0 0 var(--lb-radius-lg);
+}
+.gr-livro--dir.gr-e-recolhido .gr-pagina { transform: translateX(100%); }
+/* recolher e abrir pelo teclado (Shift+J): troca na hora, como a coluna de antes */
+.gr-livro--dir[data-troca='teclado'] .gr-pagina,
+.gr-livro--dir[data-troca='teclado'] .gr-lombada__recolher svg { transition: none; }
+
+/* as folhas da direita rolam sozinhas; a do Chat é cheia (a conversa rola dentro e o envio fica no pé) */
+.gr-folha__rolo { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.gr-folha--cheia { min-height: 0; }
+
+/* o topo da Sala */
+.gr-linha--entre { justify-content: space-between; }
+.gr-linha--quebra { flex-wrap: wrap; row-gap: 6px; }
+.gr-sala-titulo { font: 400 19px/1.1 var(--lb-font-display); margin: 0; color: var(--lb-color-parchment); }
+.gr-sala-estado { display: flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.gr-ponto-off { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--lb-color-parchment-faint); flex: none; }
+
+/* a placa de metal com o código, que copia ao clicar */
+.gr-placa-codigo {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3b4248, #2a3035 60%, #22272b);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 0 rgba(199, 209, 217, 0.25), 0 1px 2px rgba(0, 0, 0, 0.5);
+  font: 600 16px/1 var(--lb-font-utility);
+  letter-spacing: 0.12em;
+  color: #e8eef2;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.gr-placa-codigo:active { transform: scale(0.97); }
+.gr-placa-codigo .gr-ic { width: 15px; height: 15px; color: var(--lb-gr-metal-claro); }
+.gr-placa-codigo:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+/* reflexo que corre uma vez quando a sala abre (momento raro: 1x por sessão) */
+.gr-placa-codigo.gr-brilha::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 244, 222, 0.55) 50%, transparent);
+  transform: translateX(-120%);
+  animation: gr-reflexo 700ms var(--lb-gr-ease-out) 120ms both;
+}
+@keyframes gr-reflexo { to { transform: translateX(320%); } }
+
+/* "NPCs andando sozinhos", no alto da página Grupo */
+.gr-aviso-npc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
+  margin: 12px 12px 0 14px;
+  border-radius: 8px;
+  background: rgba(121, 169, 204, 0.1);
+  border: 1px solid rgba(121, 169, 204, 0.25);
+  font-size: var(--lb-font-size-sm);
+}
+.gr-aviso-npc .gr-ic { width: 16px; height: 16px; flex: none; color: var(--lb-color-tide); }
+
+/* mesa vazia, chat sem sala: o convite em tracejado */
+.gr-vazio {
+  border: 1px dashed var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-md);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gr-vazio .gr-vazio__tit { font: 400 16px/1.25 var(--lb-font-display); color: var(--lb-color-parchment); margin: 0; }
+.gr-vazio p { margin: 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+/* as páginas da direita no papel do livro: os painéis de antes perdem a moldura de cartão */
+.gr-livro--dir .lb-room { padding: 12px 12px 20px 14px; }
+.gr-livro--dir .lb-mchat { flex: 1; min-height: 0; background: none; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.gr-livro--dir .lb-mchat-vazio { padding: 12px 12px 20px 14px; }
+.gr-livro--dir .lb-cenas-pagina { padding: 4px 4px 12px; }
+.lb-mesa { padding: 0 12px 20px 14px; }
+.lb-mesa__pe { margin-top: 12px; }
+.lb-room__ruido,
+.lb-room__retomar { display: flex; flex-direction: column; gap: 10px; }
+.lb-room__retomar .gr-nota { color: var(--lb-color-parchment-dim); }
+.lb-room__fechar-aviso { margin: 0 0 16px; color: var(--lb-color-parchment-dim); line-height: 1.45; }
+/* o QR no pop Convidar: o papel claro do protótipo, para o celular ler de perto */
+.gr-pop .lb-room__qr {
+  box-sizing: border-box;
+  width: 132px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f3efe6;
+  align-self: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gr-livro--dir.gr-e-recolhido .gr-pagina { transform: none; }
+  .gr-placa-codigo.gr-brilha::after { display: none; }
+  .gr-placa-codigo:active { transform: none; }
+}

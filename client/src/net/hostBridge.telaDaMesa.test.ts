@@ -59,7 +59,7 @@ describe('hostBridge e a tela da mesa', () => {
     t.emit('net:message', { clientId: 'tv', msg: tela(t.bridge) })
     expect(t.sentTo('tv')).toEqual([{ type: 'lobby.waiting' }])
     expect(t.onTableScreensChange).toHaveBeenLastCalledWith(1)
-    expect(useToastStore.getState().toasts.map((toast) => toast.text)).toEqual(['A tela da mesa conectou. Escolha a cena dela na aba Jogo.'])
+    expect(useToastStore.getState().toasts.map((toast) => toast.text)).toEqual(['A tela da mesa conectou. Escolha a cena dela na página Mesa, em Tela da mesa.'])
   })
 
   it('escolher a cena manda o recorte na hora, sem o nome do mapa', async () => {

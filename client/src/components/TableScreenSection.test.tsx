@@ -2,8 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TunnelState } from '../net/hostBridge'
-import { RoomPanel } from './RoomPanel'
+import { PaginaMesa } from './livro/PaginaMesa'
 import { TABLE_LINK_WARNING, TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 
 const CENAS = [
@@ -79,7 +78,7 @@ describe('TableScreenSection (aba Jogo)', () => {
   })
 })
 
-describe('RoomPanel com a seção da tela da mesa', () => {
+describe('Página Mesa com a tela da mesa', () => {
   const noop = vi.fn()
   const handlers = {
     onStart: noop,
@@ -96,12 +95,14 @@ describe('RoomPanel com a seção da tela da mesa', () => {
     clues: { rows: [], onCenter: noop, onToggle: noop },
   }
   const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777/player'], qrSvg: '<svg/>' }
-  const IDLE: TunnelState = { kind: 'idle' }
 
-  it('com a sala aberta, a seção aparece; fechada, não', () => {
-    const aberta = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} table={props()} />)
+  it('página Mesa: com a sala aberta, a ficha "Tela da mesa" traz o link e a cena; fechada, só diz que abre com a sala', () => {
+    const aberta = renderToStaticMarkup(<PaginaMesa room={ROOM} players={[]} {...handlers} table={props()} />)
     expect(aberta).toContain('Tela da mesa')
-    const fechada = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={[]} tunnel={IDLE} {...handlers} table={props()} />)
-    expect(fechada).not.toContain('Tela da mesa')
+    expect(aberta).toContain('Cena na tela')
+    const fechada = renderToStaticMarkup(<PaginaMesa room={null} players={[]} {...handlers} table={props()} />)
+    expect(fechada).toContain('Tela da mesa')
+    expect(fechada).not.toContain('Cena na tela')
+    expect(fechada).toContain('Abre junto com a sala.')
   })
 })

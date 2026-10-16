@@ -1664,7 +1664,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const announceTable = () => {
     const text =
       session?.tableScene() === null
-        ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
+        ? 'A tela da mesa conectou. Escolha a cena dela na página Mesa, em Tela da mesa.'
         : 'A tela da mesa conectou.'
     toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
   }
@@ -1712,7 +1712,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     const text =
       player.status === 'waiting'
-        ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
+        ? `${player.name} entrou e está sem personagem. Abra o Grupo, no livro da mesa, para atribuir um.`
         : `${player.name} voltou para a sala.`
     toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
   }

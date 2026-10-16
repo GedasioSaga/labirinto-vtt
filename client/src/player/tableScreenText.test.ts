@@ -4,7 +4,8 @@ import { tableScreenText } from './tableScreenText'
 describe('tableScreenText (tela da mesa fora do mapa)', () => {
   it('espera diz onde o mestre escolhe a cena, sem nome de cena nenhum', () => {
     const t = tableScreenText({ status: 'waiting' }, 'AB12CD')
-    expect(t.text).toContain('aba Jogo')
+    // Desde o livro da mesa (fatia 4) a cena da TV se escolhe na página Mesa.
+    expect(t.text).toContain('página Mesa')
     expect(t.tone).toBe('info')
     expect(t.action).toBeNull()
   })
@@ -20,10 +21,10 @@ describe('tableScreenText (tela da mesa fora do mapa)', () => {
     expect(tableScreenText({ status: 'error', error: 'table_full' }, 'AB12CD').text).toContain('telas')
   })
 
-  it('link sem a chave da tela (ou de outra sala): manda abrir o link da aba Jogo, sem insistir nem pedir código', () => {
+  it('link sem a chave da tela (ou de outra sala): manda abrir o link da ficha Tela da mesa, sem insistir nem pedir código', () => {
     const t = tableScreenText({ status: 'error', error: 'bad_table_key' }, 'AB12CD')
     expect(t).toMatchObject({ tone: 'error', action: null, retry: false })
-    expect(t.text).toContain('aba Jogo')
+    expect(t.text).toContain('Tela da mesa')
     expect(t.text).not.toContain('bad_table_key')
   })
 

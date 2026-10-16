@@ -9,7 +9,7 @@ import './MasterChatPanel.css'
 
 /**
  * CHAT DOS JOGADORES na tela do mestre (fatia D de docs/plano-chat.md): o
- * painel da aba Chat da coluna da direita (`RightColumn`). O mestre lê o
+ * página Chat do livro da mesa (`livro/LivroDaMesa.tsx`). O mestre lê o
  * Global e cada cena com conversa; escreve só no Global (a cena é só leitura
  * para ele). Cada linha é texto do React — nunca HTML, nunca link automático.
  * O que chegou com o canal fora da vista conta como não lido; a menção ao
@@ -83,7 +83,7 @@ function unreadOf(channel: Channel, seen: ReadonlySet<string> | undefined, resto
   return channel.messages.filter((entry) => entry.fromMaster !== true && seen?.has(entry.id) !== true && restored?.has(entry.id) !== true)
 }
 
-function unreadLabel(count: number, mention: boolean): string {
+export function unreadLabel(count: number, mention: boolean): string {
   const novas = count === 1 ? '1 nova' : `${count} novas`
   return mention ? `${novas}, menciona você` : novas
 }

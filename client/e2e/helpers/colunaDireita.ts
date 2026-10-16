@@ -1,36 +1,47 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 /**
- * COLUNA DA DIREITA do mestre (Jogo | Chat em cima, Cenas embaixo). Ela flutua
- * sobre o lado direito do mapa, como o rail sobre o esquerdo. As jornadas que
- * clicam, arrastam ou leem pixels do mapa nesse lado escondem a coluna antes
- * — é o que o mestre faz para ver mais mapa (botão ou Shift+J) — e a mostram
- * de novo para usar o Jogo, o Chat ou as Cenas.
+ * LIVRO DA MESA do mestre (fatia 4 do design consolidado), que substituiu a
+ * coluna da direita (Jogo | Chat em cima, Cenas embaixo): lombada com os
+ * marcadores Grupo, Chat, Cenas e Mesa, o topo da Sala fixo e a página que
+ * recolhe para dentro da lombada. As jornadas que clicam, arrastam ou leem
+ * pixels do mapa nesse lado recolhem a página antes — é o que o mestre faz
+ * para ver mais mapa (seta da lombada ou Shift+J) — e a abrem de novo para
+ * usar o Grupo, o Chat, as Cenas ou a Mesa. A lombada fica: só a página sai.
  *
- * Antes havia as abas "Mapa | Jogo" no rail da esquerda: "voltar para a aba
- * Mapa" escondia o painel Jogo e deixava o mapa livre. O equivalente agora é
- * esconder a coluna.
+ * A antiga aba Jogo virou o marcador Grupo (com o topo da Sala acima de toda
+ * página); as Cenas, que moravam sempre à vista embaixo das abas, viraram o
+ * marcador Cenas.
  */
 
-const coluna = (page: Page) => page.locator('aside.lb-coldir')
+export type PaginaDaMesa = 'Grupo' | 'Chat' | 'Cenas' | 'Mesa'
 
-/** Esconde a coluna, se estiver aberta. Fora do editor (sem coluna), não faz nada. */
+export function livroDaMesa(page: Page): Locator {
+  return page.getByRole('complementary', { name: 'Livro da mesa' })
+}
+
+/** Abre a página pelo marcador da lombada (que também tira a página de dentro da lombada). */
+export async function abrirPaginaDaMesa(page: Page, pagina: PaginaDaMesa): Promise<void> {
+  const marcador = livroDaMesa(page).getByRole('tab', { name: pagina })
+  await marcador.click()
+  await expect(marcador).toHaveAttribute('aria-selected', 'true')
+  await expect(livroDaMesa(page).getByRole('button', { name: 'Recolher a página' })).toBeVisible()
+}
+
+/** Recolhe a página para dentro da lombada, se estiver aberta. Fora do editor (sem livro), não faz nada. */
 export async function esconderColunaDireita(page: Page): Promise<void> {
-  const esconder = page.getByRole('button', { name: 'Esconder a coluna da direita' })
-  if (!(await esconder.isVisible())) return
-  await esconder.click()
-  await expect(coluna(page)).toBeHidden()
+  const recolher = livroDaMesa(page).getByRole('button', { name: 'Recolher a página' })
+  if (!(await recolher.isVisible())) return
+  await recolher.click()
+  await expect(livroDaMesa(page).getByRole('button', { name: 'Abrir a página' })).toBeVisible()
 }
 
-/** Mostra a coluna, se estiver escondida. */
+/** Abre o livro na página Cenas: as Cenas eram o que a coluna da direita mostrava sempre. */
 export async function mostrarColunaDireita(page: Page): Promise<void> {
-  const reabrir = page.getByRole('button', { name: /^Mostrar a coluna da direita/ })
-  if (await reabrir.isVisible()) await reabrir.click()
-  await expect(coluna(page)).toBeVisible()
+  await abrirPaginaDaMesa(page, 'Cenas')
 }
 
-/** Mostra a coluna e escolhe a aba Jogo (o painel da sala, do grupo, da iniciativa…). */
+/** A antiga aba Jogo: o livro aberto na página Grupo (a sala, o grupo, a iniciativa…). */
 export async function abrirAbaJogo(page: Page): Promise<void> {
-  await mostrarColunaDireita(page)
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await abrirPaginaDaMesa(page, 'Grupo')
 }

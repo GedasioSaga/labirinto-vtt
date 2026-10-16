@@ -18,7 +18,7 @@
 .lb-toaststack {
   position: absolute;
   top: var(--lb-layout-edge-gap);
-  /* Ao lado da coluna da direita, nunca em cima dela (RightColumn.css). */
+  /* Ao lado da coluna da direita, nunca em cima dela (livro/livro.css). */
   right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   z-index: 30;
   display: flex;

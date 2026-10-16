@@ -6,6 +6,8 @@ export interface TravelLogSectionProps {
   entries: TravelLogEntry[]
   /** "Desfazer" da última viagem de um jogador. `false` = não deu, e a linha mostra o aviso. */
   onUndo(entryId: string): boolean
+  /** Dentro da ficha "Diário de viagens" (página Mesa): o título é o da ficha. */
+  semTitulo?: boolean
 }
 
 export const TRAVEL_LOG_TITLE = 'Diário de viagens'
@@ -18,9 +20,10 @@ export const TRAVEL_UNDO_FAILED = 'Não deu para desfazer: a ficha ou a cena mud
  * última viagem de cada jogador — desfazer uma do meio deixaria a ficha numa
  * cena de onde ela já saiu. Só o mestre vê: nada disto vai ao jogador.
  */
-export function TravelLogSection({ entries, onUndo }: TravelLogSectionProps) {
+export function TravelLogSection({ entries, onUndo, semTitulo = false }: TravelLogSectionProps) {
   const headingId = useId()
   const headingRef = useRef<HTMLHeadingElement | null>(null)
+  const sectionRef = useRef<HTMLElement | null>(null)
   const [failedId, setFailedId] = useState<string | null>(null)
   const undoable = undoableTravelIds(entries)
 
@@ -30,15 +33,23 @@ export function TravelLogSection({ entries, onUndo }: TravelLogSectionProps) {
       return
     }
     setFailedId(null)
-    // A linha desfeita sai com o botão que tinha o foco: o teclado volta ao título do diário, não ao topo da página.
-    requestAnimationFrame(() => headingRef.current?.focus())
+    // A linha desfeita sai com o botão que tinha o foco: o teclado volta ao título do diário (na ficha, ao diário), não ao topo da página.
+    requestAnimationFrame(() => (semTitulo ? sectionRef.current : headingRef.current)?.focus())
   }
 
   return (
-    <section className="lb-party lb-travel-log" aria-labelledby={headingId}>
-      <h3 id={headingId} ref={headingRef} className="lb-eyebrow" tabIndex={-1}>
-        {TRAVEL_LOG_TITLE}
-      </h3>
+    <section
+      ref={sectionRef}
+      className="lb-party lb-travel-log"
+      aria-labelledby={semTitulo ? undefined : headingId}
+      aria-label={semTitulo ? TRAVEL_LOG_TITLE : undefined}
+      tabIndex={semTitulo ? -1 : undefined}
+    >
+      {!semTitulo && (
+        <h3 id={headingId} ref={headingRef} className="lb-eyebrow" tabIndex={-1}>
+          {TRAVEL_LOG_TITLE}
+        </h3>
+      )}
       {entries.length === 0 ? (
         <p className="lb-label">{TRAVEL_LOG_EMPTY}</p>
       ) : (

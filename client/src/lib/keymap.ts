@@ -94,10 +94,11 @@ export const NEXT_TURN_SHORTCUT = 'Shift+N'
 export const PAUSE_NPCS_SHORTCUT = 'Shift+P'
 
 /**
- * Esconde ou mostra a coluna da direita (Jogo, Chat e Cenas), no mesmo formato.
- * J de Jogo, a primeira aba dela; Shift+J estava livre e segue a família dos
- * Shift+letra do mestre (Shift+N, Shift+P). Fora do `resolveShortcut`: quem
- * ouve é o App, dono da coluna (`isRightColumnShortcut`).
+ * Recolhe ou abre a página do livro da mesa (Grupo, Chat, Cenas e Mesa), no mesmo formato.
+ * J de Jogo, a primeira aba da coluna da direita que o livro substituiu;
+ * Shift+J estava livre e segue a família dos Shift+letra do mestre (Shift+N,
+ * Shift+P). Fora do `resolveShortcut`: quem ouve é o próprio livro
+ * (`isRightColumnShortcut`, livro/LivroDaMesa.tsx).
  */
 export const RIGHT_COLUMN_SHORTCUT = 'Shift+J'
 

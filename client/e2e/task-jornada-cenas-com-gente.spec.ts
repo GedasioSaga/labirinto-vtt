@@ -319,7 +319,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await expect(entradaDaCena(lista, CENA_A), `a lista de Cenas deveria ter "${CENA_A}"`).toBeVisible()
   await expect(entradaDaCena(lista, CENA_B), `a lista de Cenas deveria ter "${CENA_B}"`).toBeVisible()
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -358,7 +358,7 @@ function selo(linha: Locator): Locator {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -619,7 +619,7 @@ test('1. controle: as duas cenas estão na lista Cenas, cada jogador vê a próp
   // "desconectado" no painel Jogo (é o que o teste 5 usa; sem isto, o vermelho
   // dele poderia ser o fio de mentira, e não a lista Cenas).
   await bruno.contexto.close()
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   const cards = page.locator('#lb-rail-panel-room .lb-field')
   await expect(cards.filter({ hasText: `${J2} —` }), `fechada a página, o painel Jogo deveria mostrar ${J2} desconectado`).toContainText('desconectado', { timeout: ESPERA })
   await expect(cards.filter({ hasText: `${J1} —` }), `${J1} continua na mesa`).toContainText(/· conectado/)

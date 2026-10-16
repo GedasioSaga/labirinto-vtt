@@ -50,6 +50,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
+import { mostrarColunaDireita } from './helpers/colunaDireita'
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -240,6 +241,8 @@ async function mestreAbreAventura(page: Page): Promise<Locator> {
 
 /** A seção "Cenas" da aba Mapa, aberta (mesmo gesto de task-jornada-cenas-com-gente). */
 async function secaoCenas(page: Page): Promise<Locator> {
+  // Desde a fatia 4 as Cenas são uma página do livro da mesa: abrir a página antes.
+  await mostrarColunaDireita(page)
   const painel = page.getByRole('region', { name: 'Cenas' })
   const cabecalho = painel.getByRole('button', { name: 'Cenas', exact: true })
   await expect(cabecalho, 'a coluna da direita deveria ter a seção "Cenas"').toBeVisible({ timeout: 10_000 })

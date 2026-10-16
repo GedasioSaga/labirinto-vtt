@@ -231,7 +231,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -239,7 +239,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const painel = mestre.locator('#lb-rail-panel-room')
   const card = painel.locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
@@ -372,7 +372,8 @@ test('o mestre lê o Global e as duas cenas, fala no Global e o @mestre acende',
   // A aba Chat do mestre mostra o que não leu e a menção.
   const botao = mestre.getByRole('tab', { name: /^Chat/ })
   await expect(botao).toBeVisible({ timeout: ESPERA })
-  await expect(botao).toHaveAccessibleName('Chat (3 novas, menciona você)')
+  // O marcador Chat do livro da mesa lê o contador depois do nome (fatia 4).
+  await expect(botao).toHaveAccessibleName(/^Chat\s*, 3 novas, menciona você$/)
   await mestre.screenshot({ path: 'test-results/chat-do-mestre-1-botao.png' })
   await botao.click()
   const painel = painelDoChat(mestre)

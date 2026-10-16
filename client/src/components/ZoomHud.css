@@ -13,7 +13,7 @@
 
 .lb-zoomhud {
   position: absolute;
-  /* Ao lado da coluna da direita, nunca embaixo dela (RightColumn.css). */
+  /* Ao lado da coluna da direita, nunca embaixo dela (livro/livro.css). */
   right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   bottom: var(--lb-layout-edge-gap);
   display: inline-flex;

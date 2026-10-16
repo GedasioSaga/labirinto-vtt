@@ -70,8 +70,13 @@ const SALA_DA_CRIPTA: Retangulo = { x1: 448, y1: 192, x2: 576, y2: 512 }
 /** Ponto de chão da sala A, longe do rótulo (centro) e da parede, para ler a cor do chão. */
 const CHAO_DA_SALA_A: Ponto = { x: 410, y: 360 }
 
-/** Proporção largura/altura acima da qual a caixa é "a sala deitada da cena A". */
-const PROPORCAO_SO_A = 1.8
+/**
+ * Proporção largura/altura acima da qual a caixa é "a sala deitada da cena A".
+ * A sala é 2,5; aproximada, os livros cortam as laterais e a leitura cai para
+ * ~1,8 (a lombada do livro da mesa, fatia 4, tomou mais 32 px). As duas salas
+ * juntas dão ~1,0, então 1,5 ainda separa os casos com folga.
+ */
+const PROPORCAO_SO_A = 1.5
 /** Proporção abaixo da qual a caixa é "a sala em pé da Cripta". */
 const PROPORCAO_SO_CRIPTA = 0.6
 /** Uma linha/coluna só entra na caixa com pelo menos isto de pixels de chão — ruído de antisserrilhado fica fora. */

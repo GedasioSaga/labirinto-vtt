@@ -42,7 +42,8 @@ type Triangulo = readonly [Ponto, Ponto, Ponto]
  */
 const MAR: Triangulo = [
   { x: 340, y: 170 },
-  { x: 1220, y: 170 },
+  // 1200, não 1220: recolhido, o livro da mesa (fatia 4) deixa a lombada até x=1216.
+  { x: 1200, y: 170 },
   { x: 780, y: 720 },
 ]
 const ILHA: Triangulo = [

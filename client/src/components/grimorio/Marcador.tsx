@@ -12,8 +12,11 @@ export interface PaginaDoMarcador<P extends string> {
    * o ponto apagado, pronto para acender com transição.
    */
   ponto?: boolean
-  /** Contador vermelho (pedidos, mensagens não lidas); zero esconde. */
-  conta?: number
+  /**
+   * Contador vermelho (pedidos, mensagens não lidas); zero ou vazio esconde.
+   * Texto curto quando o número diz mais ("@3": alguma menciona o mestre).
+   */
+  conta?: number | string
   /** Como o contador é lido ("1 pedido", "3 não lidas"). */
   rotuloDaConta?: string
 }

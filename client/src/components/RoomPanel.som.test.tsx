@@ -1,9 +1,8 @@
 /**
- * SOM DA MESA no mestre (pedido "sons", fatia 3): uma linha curta "Som da
- * mesa" com o alto-falante, logo abaixo do cabeçalho da sala e acima do Ruído.
- * O cabeçalho (SALA, código, Laser) já ocupa a largura toda da coluna: um
- * botão a mais nele quebrava o código em duas linhas. Sem sala não há som de
- * mesa para regular.
+ * SOM DA MESA no mestre (pedido "sons"; lugar novo na fatia 4 do design
+ * consolidado): o botão "Som" do topo da Sala, com a sala aberta, abre o pop
+ * "Som da mesa" com a barra e o mudo; a página Mesa tem a ficha "Som da mesa"
+ * com o volume no resumo e os mesmos controles à vista.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -11,15 +10,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import { PREFERENCIA_DE_SOM_PADRAO, useSomStore } from '../stores/somStore'
 import { TITULO_DO_SOM } from './ControleDeSom'
-import { NOISE_BUTTON_LABEL, RoomPanel } from './RoomPanel'
+import { PaginaMesa } from './livro/PaginaMesa'
+import { TopoDaSala } from './livro/TopoDaSala'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onVisionFactorChange: noop, onRevealPlan: noop, onHidePlan: noop, clues: { rows: [], onCenter: noop, onToggle: noop } }
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop }
 const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
-const NOISE = { armed: false, rangeCells: 12, onToggle: noop, onRangeChange: noop }
 
-describe('RoomPanel: Som da mesa', () => {
+describe('Som da mesa no livro da mesa', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -37,44 +36,39 @@ describe('RoomPanel: Som da mesa', () => {
     container.remove()
   })
 
-  /** O alto-falante: o botão que a legenda "Som da mesa" nomeia. */
+  /** O botão "Som" do topo, que abre o pop "Som da mesa". */
   function som(): HTMLButtonElement | null {
-    const legenda = Array.from(container.querySelectorAll('label')).find((rotulo) => rotulo.textContent === TITULO_DO_SOM)
-    const alvo = legenda === undefined ? null : document.getElementById(legenda.htmlFor)
-    return alvo instanceof HTMLButtonElement ? alvo : null
+    return Array.from(container.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="dialog"]')).find((b) => b.textContent === 'Som') ?? null
   }
 
-  function antes(a: Node, b: Node): boolean {
-    return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-  }
-
-  it('com a sala aberta, "Som da mesa" fica entre o cabeçalho e o Ruído, fora da linha do código e do Laser', () => {
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} onToggleLaser={noop} noise={NOISE} />))
+  it('com a sala aberta, o botão Som do topo abre o pop "Som da mesa" com a barra (com o foco) e o mudo', () => {
+    act(() => root.render(<TopoDaSala room={ROOM} players={[]} tunnel={IDLE} {...handlers} onToggleLaser={noop} />))
     const botao = som()
-    if (botao === null) throw new Error('sem o alto-falante "Som da mesa"')
-    const cabecalho = container.querySelector('.lb-room__head')
-    if (cabecalho === null) throw new Error('sem o cabeçalho da sala')
-    expect(cabecalho.contains(botao)).toBe(false)
-    expect(Array.from(cabecalho.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Laser'])
-    const ruido = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === NOISE_BUTTON_LABEL)
-    if (ruido === undefined) throw new Error('sem o Ruído')
-    expect(antes(cabecalho, botao)).toBe(true)
-    expect(antes(botao, ruido)).toBe(true)
-    expect(botao.closest('.lb-som')?.classList.contains('lb-som--painel')).toBe(true)
+    if (botao === null) throw new Error('sem o botão Som')
+    expect(botao.textContent).toBe('Som')
+    expect(botao.getAttribute('aria-haspopup')).toBe('dialog')
+    act(() => botao.click())
+    expect(botao.getAttribute('aria-expanded')).toBe('true')
+    const pop = document.querySelector(`[role="dialog"][aria-label="${TITULO_DO_SOM}"]`)
+    const barra = pop?.querySelector('input[type="range"]')
+    expect(barra).not.toBeNull()
+    expect(pop?.querySelector('button[aria-label="Mudo"]')).not.toBeNull()
+    expect(document.activeElement).toBe(barra)
   })
 
-  it('o alto-falante abre o popover "Som da mesa" com volume e mudo', () => {
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} onToggleLaser={noop} />))
-    act(() => som()?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })))
-    const dialogo = container.querySelector('[role="dialog"]')
-    expect(document.getElementById(dialogo?.getAttribute('aria-labelledby') ?? '')?.textContent).toBe(TITULO_DO_SOM)
-    expect(dialogo?.querySelector('input[type="range"]')).not.toBeNull()
-    expect(dialogo?.querySelector('button[aria-label="Mudo"]')).not.toBeNull()
+  it('a página Mesa tem a ficha "Som da mesa": o volume no resumo, a barra e o mudo dentro', () => {
+    act(() => root.render(<PaginaMesa room={ROOM} players={[]} />))
+    const cabecalho = Array.from(container.querySelectorAll('.gr-ficha__cab')).find((b) => b.textContent?.startsWith(TITULO_DO_SOM))
+    if (cabecalho === undefined) throw new Error('sem a ficha Som da mesa')
+    expect(cabecalho.querySelector('.gr-ficha__resumo')?.textContent).toBe(`${Math.round(PREFERENCIA_DE_SOM_PADRAO.volume * 100)}%`)
+    const ficha = cabecalho.closest('.gr-ficha')
+    expect(ficha?.querySelector('input[type="range"]')).not.toBeNull()
+    act(() => ficha?.querySelector<HTMLButtonElement>('button[aria-label="Mudo"]')?.click())
+    expect(cabecalho.querySelector('.gr-ficha__resumo')?.textContent).toBe('Mudo')
   })
 
-  it('sem sala aberta não há alto-falante', () => {
-    act(() => root.render(<RoomPanel room={null} players={[]} tokens={[]} tunnel={IDLE} {...handlers} />))
+  it('sem sala aberta o topo não tem o botão Som', () => {
+    act(() => root.render(<TopoDaSala room={null} players={[]} tunnel={IDLE} {...handlers} />))
     expect(som()).toBeNull()
-    expect(container.querySelector('.lb-som')).toBeNull()
   })
 })

@@ -1,17 +1,16 @@
 /**
- * "Ruído" na aba Jogo: o botão arma o ruído (o próximo clique no mapa o
- * dispara) e a lista escolhe até onde ele chega. Sem o handler, nada aparece.
+ * "Ruído" na ficha Ruído da página Mesa (livro da mesa): o botão arma o ruído
+ * (o próximo clique no mapa o dispara) e a lista escolhe até onde ele chega.
+ * Sem o handler, nada aparece.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TunnelState } from '../net/hostBridge'
-import { NOISE_BUTTON_LABEL, RoomPanel } from './RoomPanel'
+import { NOISE_BUTTON_LABEL } from './RoomPanel'
+import { PaginaMesa } from './livro/PaginaMesa'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onVisionFactorChange: noop, onRevealPlan: noop, onHidePlan: noop, clues: { rows: [], onCenter: noop, onToggle: noop } }
 const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
-const IDLE: TunnelState = { kind: 'idle' }
 
 describe('RoomPanel: Ruído', () => {
   let container: HTMLDivElement
@@ -36,17 +35,17 @@ describe('RoomPanel: Ruído', () => {
   it('o botão mostra se está armado e o clique pede para armar', () => {
     const onToggle = vi.fn()
     const noise = { armed: false, rangeCells: 12, onToggle, onRangeChange: noop }
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} noise={noise} />))
+    act(() => root.render(<PaginaMesa room={ROOM} players={[]} noise={noise} />))
     expect(botao()?.getAttribute('aria-pressed')).toBe('false')
     act(() => botao()?.click())
     expect(onToggle).toHaveBeenCalledTimes(1)
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} noise={{ ...noise, armed: true }} />))
+    act(() => root.render(<PaginaMesa room={ROOM} players={[]} noise={{ ...noise, armed: true }} />))
     expect(botao()?.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('o alcance tem rótulo e devolve o número de casas escolhido', () => {
     const onRangeChange = vi.fn()
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} noise={{ armed: false, rangeCells: 12, onToggle: noop, onRangeChange }} />))
+    act(() => root.render(<PaginaMesa room={ROOM} players={[]} noise={{ armed: false, rangeCells: 12, onToggle: noop, onRangeChange }} />))
     const lista = container.querySelector('select[aria-label="Alcance do ruído"], select#lb-room-noise-range')
     expect(lista).not.toBeNull()
     if (!(lista instanceof HTMLSelectElement)) throw new Error('esperava select')
@@ -61,7 +60,7 @@ describe('RoomPanel: Ruído', () => {
   })
 
   it('sem o handler (sala sem ruído) o botão não aparece', () => {
-    act(() => root.render(<RoomPanel room={ROOM} players={[]} tokens={[]} tunnel={IDLE} {...handlers} />))
+    act(() => root.render(<PaginaMesa room={ROOM} players={[]} />))
     expect(botao()).toBeUndefined()
   })
 })

@@ -86,7 +86,7 @@ export function GatherControls({ candidates, onGather }: GatherControlsProps) {
           <span className="lb-label">Quem vem para cá</span>
           {candidates.length === 0 ? (
             <span className="lb-label" id={hintId}>
-              Nenhum jogador tem ficha. Atribua as fichas na aba Jogo.
+              Nenhum jogador tem ficha. Atribua as fichas no Grupo, no livro da mesa.
             </span>
           ) : (
             <ul className="lb-gather__list">

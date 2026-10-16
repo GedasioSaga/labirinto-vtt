@@ -299,17 +299,24 @@ describe('ControleDeSom', () => {
     root = createRoot(container)
   })
 
-  it('com legenda, o texto ao lado nomeia o alto-falante e também abre o popover', () => {
-    montar({ variante: 'painel', legenda: TITULO_DO_SOM })
-    const legenda = container.querySelector('label')
-    const botao = container.querySelector('button')
-    expect(legenda?.textContent).toBe(TITULO_DO_SOM)
-    expect(legenda?.htmlFor).toBe(botao?.id)
-    // O nome vem da legenda à vista; o "Som" escondido ficaria diferente do que se lê.
-    expect(botao?.hasAttribute('aria-label')).toBe(false)
-    expect(container.firstElementChild?.classList.contains('lb-som--com-legenda')).toBe(true)
-    act(() => legenda?.click())
-    expect(dialogo()).not.toBeNull()
+  it('na ficha (mestre): a barra e o mudo à vista, sem botão; a barra vem antes no DOM e soltar toca a amostra', () => {
+    const { tocar } = montar({ variante: 'ficha' })
+    const raiz = container.firstElementChild
+    expect(raiz?.classList.contains('lb-som--ficha')).toBe(true)
+    expect(container.querySelector('button[aria-label="Som"]')).toBeNull()
+    const naFicha = container.querySelector<HTMLInputElement>('input[type="range"]')
+    const mudoNaFicha = container.querySelector<HTMLButtonElement>('button[aria-label="Mudo"]')
+    if (naFicha === null || mudoNaFicha === null) throw new Error('sem a barra ou o mudo na ficha')
+    // O pop do botão Som do topo põe o foco no primeiro campo: tem de ser a barra.
+    expect(naFicha.compareDocumentPosition(mudoNaFicha) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.querySelector(`label[for="${naFicha.id}"]`)?.textContent).toBe('Volume')
+    act(() => {
+      naFicha.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(tocar).toHaveBeenCalledWith(SOM_DE_AMOSTRA)
+    act(() => mudoNaFicha.click())
+    expect(useSomStore.getState().mudo).toBe(true)
+    expect(raiz?.getAttribute('data-mudo')).toBe('true')
   })
 
   it('preso à margem da tela: o popover que passaria do alto desce até a margem, e volta a medir quando a tela muda', () => {
@@ -361,17 +368,13 @@ describe('ControleDeSom', () => {
     expect(dialogo()?.style.translate).toBe('')
   })
 
-  it('a variante flutuante é o botão de toque do jogador; a de painel usa o botão compacto do mestre', () => {
+  it('a variante flutuante é o botão de toque do jogador', () => {
     montar({ className: 'pp-som' })
     const raiz = container.firstElementChild
     expect(raiz?.classList.contains('lb-som')).toBe(true)
     expect(raiz?.classList.contains('lb-som--flutuante')).toBe(true)
     expect(raiz?.classList.contains('pp-som')).toBe(true)
     expect(gatilho().classList.contains('lb-btn')).toBe(false)
-    montar({ variante: 'painel' })
-    expect(container.firstElementChild?.classList.contains('lb-som--painel')).toBe(true)
-    expect(gatilho().classList.contains('lb-btn')).toBe(true)
-    expect(gatilho().classList.contains('lb-btn--compact')).toBe(true)
   })
 })
 

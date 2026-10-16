@@ -2,12 +2,12 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
-import { RoomPanel, type RoomPanelProps } from './RoomPanel'
+import { TopoDaSala, type TopoDaSalaProps } from './livro/TopoDaSala'
 
 /**
- * "Abrir sala" com mesa guardada pergunta "Retomar a mesa?": Retomar devolve
- * as fichas pelo nome; "Mesa nova" é a sala de hoje. Sem mesa guardada, abre
- * direto, como sempre.
+ * "Abrir sala" (topo da Sala do livro da mesa) com mesa guardada pergunta
+ * "Retomar a mesa?": Retomar devolve as fichas pelo nome; "Mesa nova" é a sala
+ * de hoje. Sem mesa guardada, abre direto, como sempre.
  */
 
 const IDLE: TunnelState = { kind: 'idle' }
@@ -28,32 +28,10 @@ describe('RoomPanel: Retomar a mesa?', () => {
     container.remove()
   })
 
-  const render = (props: Partial<RoomPanelProps>) => {
+  const render = (props: Partial<TopoDaSalaProps>) => {
     const onStart = vi.fn()
     const noop = vi.fn()
-    act(() =>
-      root.render(
-        <RoomPanel
-          room={null}
-          players={[]}
-          tokens={[]}
-          tunnel={IDLE}
-          onStart={onStart}
-          onStop={noop}
-          onStartTunnel={noop}
-          onStopTunnel={noop}
-          onAssign={noop}
-          onUnassign={noop}
-          onKick={noop}
-          onVisionRadiusChange={noop}
-          onVisionFactorChange={noop}
-          onRevealPlan={noop}
-          onHidePlan={noop}
-          clues={{ rows: [], onCenter: noop, onToggle: noop }}
-          {...props}
-        />,
-      ),
-    )
+    act(() => root.render(<TopoDaSala room={null} players={[]} tunnel={IDLE} onStart={onStart} onStop={noop} onStartTunnel={noop} onStopTunnel={noop} {...props} />))
     return onStart
   }
 

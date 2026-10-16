@@ -326,7 +326,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -343,7 +343,7 @@ function cardDeJogador(mestre: Page, jogador: string): Locator {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>" — o clique de um toque que o painel oferece. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDoToken: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(mestre, jogador)
   await card.getByRole('button', { name: `Atribuir ${nomeDoToken}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDoToken}` }), `${jogador} deveria ficar com ${nomeDoToken}`).toBeVisible()
@@ -360,7 +360,8 @@ function linhaDoGrupo(mestre: Page, jogador: string): Locator {
  * região/lista/grupo/tabela/log com nome acessível "Diário de viagens".
  */
 async function secaoDiario(mestre: Page): Promise<Locator> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  // Desde a fatia 4 do design consolidado o diário mora na página Mesa do livro da mesa.
+  await mestre.getByRole('tab', { name: 'Mesa' }).click()
   const painel = painelJogo(mestre)
   await expect(painel.getByText(CODIGO).first(), 'a aba Jogo deveria estar aberta, com a sala').toBeVisible({ timeout: ESPERA })
   const cabecalho = painel.getByRole('button', { name: DIARIO })

@@ -345,7 +345,7 @@ test('Visão de jogador sem sala: o mestre chama o jogador de teste, dança no O
   expect(await portaNoEditor(mestre), 'a porta do editor deveria começar fechada e trancada').toEqual({ open: false, locked: true })
 
   // 1. Aba Jogo, SEM abrir sala: "Visão de jogador" → a ficha → o popup abre.
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await expect(mestre.getByRole('button', { name: 'Abrir sala' }), 'a jornada é sem sala: "Abrir sala" deveria estar à vista').toBeVisible()
   await mestre.getByRole('button', { name: /Visão de jogador/ }).click()
   const escolha = mestre.getByRole('dialog', { name: 'Escolher a ficha' })

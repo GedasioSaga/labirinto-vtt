@@ -207,7 +207,7 @@
 
 .lb-dice-dock {
   position: absolute;
-  /* Ao lado da coluna da direita, nunca embaixo dela (RightColumn.css). */
+  /* Ao lado da coluna da direita, nunca embaixo dela (livro/livro.css). */
   right: calc(var(--lb-layout-edge-gap, 12px) + var(--lb-coldir-espaco, 0px));
   /* O zoom (ZoomHud) mora no mesmo canto: a pilha começa acima dele. */
   bottom: calc(var(--lb-layout-edge-gap, 12px) * 2 + 36px);

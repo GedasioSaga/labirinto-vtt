@@ -359,7 +359,7 @@ async function mestreAbreACena(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
 
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -371,7 +371,7 @@ function painelJogo(mestre: Page): Locator {
 
 /** Aba Jogo, card da jogadora, "Atribuir <ficha>" — o clique que o painel oferece hoje. */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const card = painelJogo(mestre).locator('.lb-field').filter({ hasText: `${jogador} —` })
   await card.getByRole('button', { name: `Atribuir ${nomeDaFicha}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${nomeDaFicha}` }), `${jogador} deveria ficar com ${nomeDaFicha}`).toBeVisible()

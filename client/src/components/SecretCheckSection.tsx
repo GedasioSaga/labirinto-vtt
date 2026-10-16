@@ -17,6 +17,8 @@ export interface SecretCheckSectionProps {
   /** Pede o teste. Devolve quantos foram pedidos, ou `null` com a sala fechada. */
   onAsk(label: string, playerIds: string[]): number | null
   onClose(checkId: string): void
+  /** Dentro da ficha "Teste secreto" (página Mesa): o título é o da ficha. */
+  semTitulo?: boolean
 }
 
 /** O que falta para pedir, dito junto ao campo com problema. */
@@ -45,7 +47,7 @@ function answerLine(name: string, result: number | undefined, open: boolean): st
  * nome ou sem ninguém marcado diz o que falta junto ao campo e leva o foco ao
  * primeiro erro; o erro some assim que o campo fica certo.
  */
-export function SecretCheckSection({ players, checks, onAsk, onClose }: SecretCheckSectionProps) {
+export function SecretCheckSection({ players, checks, onAsk, onClose, semTitulo = false }: SecretCheckSectionProps) {
   const headingId = useId()
   const labelId = useId()
   const labelErrorId = useId()
@@ -96,10 +98,12 @@ export function SecretCheckSection({ players, checks, onAsk, onClose }: SecretCh
   }
 
   return (
-    <section className="lb-secret-check" aria-labelledby={headingId}>
-      <h3 id={headingId} className="lb-eyebrow">
-        Teste secreto
-      </h3>
+    <section className="lb-secret-check" aria-labelledby={semTitulo ? undefined : headingId} aria-label={semTitulo ? 'Teste secreto' : undefined}>
+      {!semTitulo && (
+        <h3 id={headingId} className="lb-eyebrow">
+          Teste secreto
+        </h3>
+      )}
       <form className="lb-secret-check__form" onSubmit={ask} noValidate>
         <label className="lb-label" htmlFor={labelId}>
           Teste

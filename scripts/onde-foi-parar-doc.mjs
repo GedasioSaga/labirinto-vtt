@@ -11,7 +11,7 @@ import { BLOCOS, FORA_DO_ESPECIFICADO } from '../client/e2e/helpers/ondeFoiParar
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)))
 const TELAS = { mestre: 'Mestre (editor, 1440x900)', 'mestre-sala-aberta': 'Mestre com a sala aberta', jogador: 'Jogador (celular, 390 px)' }
-const ESCOPOS = { esquerda: 'livro do mestre', barra: 'barra de ferramentas', acoes: 'topo do livro do mestre', chip: 'chip da cena, no alto do mapa', direita: 'coluna da direita', pagina: 'tela' }
+const ESCOPOS = { esquerda: 'livro do mestre', barra: 'barra de ferramentas', acoes: 'topo do livro do mestre', chip: 'chip da cena, no alto do mapa', direita: 'livro da mesa', pagina: 'tela' }
 
 const celula = (texto) => String(texto).replaceAll('|', '\\|')
 const alvo = ([papel, nome]) => `${papel} "${nome}"`

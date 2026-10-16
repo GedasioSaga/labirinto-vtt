@@ -629,7 +629,7 @@ function WaitingScreen({ code, typedName, hostName, seatOptions, seatClaim, onCl
       {seconds >= NUDGE_AFTER_SECONDS && (
         // Frase pronta para mandar no grupo: diz ONDE o mestre clica, porque
         // "avisa lá" sem endereço devolve o jogador para a mesma espera.
-        <p className="pe-hint">Demorou? Peça ao mestre para abrir a aba Jogo e escolher um personagem para {shownName}.</p>
+        <p className="pe-hint">Demorou? Peça ao mestre para abrir o Grupo e escolher um personagem para {shownName}.</p>
       )}
       <SeatPicker options={seatOptions} claim={seatClaim} onClaim={onClaimSeat} />
       <div className="pe-actions">

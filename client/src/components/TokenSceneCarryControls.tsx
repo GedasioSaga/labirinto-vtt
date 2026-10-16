@@ -19,7 +19,7 @@ export const CARRY_TO_LABEL = 'Levar para…'
 export const CARRY_FAILED = 'Não deu para levar: a cena ou a ficha mudou. Escolha de novo.'
 
 /** Por que a ficha de jogador não tem o botão: o caminho dela é outro. */
-export const CARRY_OWNED_HINT = 'Ficha de jogador: leve pelo "Mandar para…" do Grupo, na aba Jogo.'
+export const CARRY_OWNED_HINT = 'Ficha de jogador: leve pelo "Mandar para…" do Grupo, no livro da mesa.'
 
 /**
  * "Levar para…" da ficha SEM DONO (NPC, monstro): muda a ficha de cena sem

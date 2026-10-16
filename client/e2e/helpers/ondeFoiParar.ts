@@ -17,7 +17,7 @@
  */
 
 export type Papel =
-  | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'heading' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
+  | 'alertdialog' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'heading' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
   | 'region' | 'searchbox' | 'separator' | 'slider' | 'spinbutton' | 'tab' | 'textbox'
 
 /** [papel ARIA, nome acessível]. */
@@ -33,6 +33,8 @@ export interface Linha {
   /** O controle em si: tem de estar visível (e focado, com `focado`). */
   readonly alvo: Alvo
   readonly focado?: boolean
+  /** O alvo mora num pop aberto pelo caminho (Som, Convidar, Rede do topo da Sala): procurado na tela inteira, e Esc fecha depois. */
+  readonly noPop?: boolean
   /** Destino no design consolidado, quando difere do destino do bloco. */
   readonly vai?: string
 }
@@ -40,8 +42,10 @@ export interface Linha {
 /**
  * Onde o caminho começa a procurar. Desde a fatia 2, `esquerda` é o livro do
  * mestre (lombada + página aberta) e `acoes` é o topo dele; desde a fatia 3,
- * `chip` é o chip da cena no alto do mapa (Voltar, nome e menu de cenas). Item de menu
- * (`menuitem`) é procurado na tela inteira, porque o menu abre por cima de tudo.
+ * `chip` é o chip da cena no alto do mapa (Voltar, nome e menu de cenas); desde
+ * a fatia 4, `direita` é o livro da mesa (lombada, topo da Sala e a página
+ * aberta). Item de menu (`menuitem`) e diálogo (`dialog`, `alertdialog`) são
+ * procurados na tela inteira, porque abrem por cima de tudo.
  */
 export type Escopo = 'esquerda' | 'barra' | 'acoes' | 'chip' | 'direita' | 'pagina'
 
@@ -55,7 +59,7 @@ export interface Preparo {
   readonly selecao?: { readonly tipo: 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'pin' | 'zona'; readonly id: string }[]
   /** Clique que abre o diálogo do bloco, quando ele não está aberto. */
   readonly abrir?: Alvo
-  /** O `abrir` é item de um menu: antes, o gatilho do menu, procurado no escopo dado. */
+  /** Antes do `abrir`, o clique que o põe à vista: o gatilho do menu (item de menu) ou o marcador da página onde ele mora, procurado no escopo dado. */
   readonly abrirDe?: { readonly escopo: Escopo; readonly gatilho: Alvo }
   /** Escape depois de cada linha (fecha o menu que a linha abriu). */
   readonly escape?: boolean
@@ -375,7 +379,7 @@ export const BLOCOS: readonly Bloco[] = [
     linhas: todos([rg('Formato da grade'), ['textbox', 'Cor da grade'], ['slider', 'Opacidade'], ['slider', 'Espessura'], rg('Estilo da linha da grade'), ['heading', 'Alinhar grade à imagem'], ['spinbutton', 'Unidades por célula'], ['textbox', 'Unidade'], ['spinbutton', 'Casas decimais'], ['combobox', 'Modo de medição'], ['spinbutton', 'Passo máximo (quadrados)'], cx('Fichas ocupam espaço'), ['spinbutton', 'Largura (quadros)'], ['spinbutton', 'Altura (quadros)'], b('Aplicar 30 × 20'), ['textbox', 'Texto de chegada'], cx('Rostos só de perto'), ['spinbutton', 'Casas'], b('Escolher sistema…')]),
   },
   {
-    tela: 'mestre', titulo: 'Configurar cena', estado: 'diálogo aberto pela engrenagem da cena (coluna da direita, Cenas)', escopo: 'pagina', preparo: { abrir: b('Configurar Cripta') },
+    tela: 'mestre', titulo: 'Configurar cena', estado: 'diálogo aberto pela engrenagem da cena (livro da mesa, página Cenas)', escopo: 'pagina', preparo: { abrir: b('Configurar Cripta'), abrirDe: { escopo: 'direita', gatilho: marcador('Cenas') } },
     vai: 'Configurar cena com navegação vertical; Relevo, Nomes dos lugares e Nuvens na seção "Mapa vivo"', fatia: '20',
     linhas: [
       ...todos([['spinbutton', 'Visão nesta cena (quadrados)'], cx('Cena escura'), rg('Tipo de mapa'), cx('Relevo'), cx('Nomes dos lugares'), cx('Nuvens')]),
@@ -394,50 +398,58 @@ export const BLOCOS: readonly Bloco[] = [
     linhas: [l('Lista de atalhos', ['dialog', 'Atalhos do teclado'])],
   },
 
-  // ─── Coluna da direita ────────────────────────────────────────────────
+  // ─── Livro da mesa (direita) ──────────────────────────────────────────
   {
-    tela: 'mestre', titulo: 'Coluna da direita, sala fechada', estado: 'app do mestre, aba Jogo, sala fechada', escopo: 'direita',
-    vai: 'Livro da mesa: topo da Sala (sala fechada) e marcadores Grupo e Mesa', fatia: '4 e 5',
+    tela: 'mestre', titulo: 'Livro da mesa, sala fechada', estado: 'app do mestre, sala fechada', escopo: 'direita',
+    vai: 'Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); o Grupo muda na 5', fatia: '4 e 5',
     linhas: [
-      l('Aba Jogo', ['tab', 'Jogo']),
-      { ...l('Abrir sala', b('Abrir sala')), vai: 'Topo do livro da mesa' },
-      { ...l('Visão de jogador', b('Visão de jogador')), vai: 'Topo do livro da mesa e marcador Mesa' },
-      l('Personagens: + Personagem', b('+ Personagem'), b('Personagens')),
-      l('Personagens: Importar personagens', b('Importar personagens…'), b('Personagens')),
-      l('Contas: Só com conta', cx('Só com conta'), b('Contas dos jogadores')),
-      l('Contas: nome da nova conta', ['textbox', 'Nome do jogador'], b('Contas dos jogadores')),
-      l('Contas: PIN', ['textbox', 'PIN'], b('Contas dos jogadores')),
-      l('Contas: + Conta', b('+ Conta'), b('Contas dos jogadores')),
-      { ...l('Esconder a coluna da direita', b('Esconder a coluna da direita')), vai: 'Seta no pé da lombada' },
-      { ...l('Divisor "Altura das Cenas"', ['separator', 'Altura das Cenas']), vai: 'Some: Cenas vira marcador próprio' },
+      l('Marcador Grupo (a aba Jogo de antes)', marcador('Grupo')),
+      l('Abrir sala', b('Abrir sala')),
+      l('Visão de jogador', b('Visão de jogador')),
+      { ...l('Rede local (a dica do firewall)', ['dialog', 'Rede local'], b('Rede')), noPop: true },
+      l('Personagens: + Personagem', b('+ Personagem'), marcador('Grupo'), b('Personagens')),
+      l('Personagens: Importar personagens', b('Importar personagens…'), marcador('Grupo'), b('Personagens')),
+      l('Contas: Só com conta', cx('Só com conta'), marcador('Grupo'), b('Contas dos jogadores')),
+      l('Contas: nome da nova conta', ['textbox', 'Nome do jogador'], marcador('Grupo'), b('Contas dos jogadores')),
+      l('Contas: PIN', ['textbox', 'PIN'], marcador('Grupo'), b('Contas dos jogadores')),
+      l('Contas: + Conta', b('+ Conta'), marcador('Grupo'), b('Contas dos jogadores')),
+      l('Mesa: Teste secreto (sem jogadores, Pedir teste apagado)', b('Pedir teste'), marcador('Mesa')),
+      l('Mesa: Visão de jogador', b('/^Visão de jogador.*Teste/'), marcador('Mesa')),
+      l('Mesa: Som da mesa (volume)', ['slider', 'Volume'], marcador('Mesa'), b('/^Som da mesa/')),
+      l('Mesa: Som da mesa (mudo)', b('Mudo'), marcador('Mesa'), b('/^Som da mesa/')),
+      { ...l('Recolher a página (Esconder a coluna da direita de antes)', b('Recolher a página')), vai: 'Seta no pé da lombada (feito)' },
     ],
   },
   {
-    tela: 'mestre', titulo: 'Chat do mestre', estado: 'sala fechada', escopo: 'direita', vai: 'Marcador Chat do livro da mesa', fatia: '4',
-    linhas: [l('Aba Chat: Ir para Jogo', b('Ir para Jogo'), ['tab', 'Chat'])],
+    tela: 'mestre', titulo: 'Chat do mestre', estado: 'sala fechada', escopo: 'direita', vai: 'Marcador Chat do livro da mesa (feito)', fatia: '4',
+    linhas: [{ ...l('Chat sem sala: o convite com Abrir sala (no lugar do "Ir para Jogo")', ['region', 'Chat dos jogadores'], marcador('Chat')), vai: 'Página Chat, "O chat abre junto com a sala" + Abrir sala' }],
   },
   {
-    tela: 'mestre', titulo: 'Cenas', estado: 'aventura aberta, coluna da direita', escopo: 'direita',
-    vai: 'Marcador Cenas do livro da mesa', fatia: '4',
+    tela: 'mestre', titulo: 'Cenas', estado: 'aventura aberta, livro da mesa', escopo: 'direita',
+    vai: 'Marcador Cenas do livro da mesa (feito)', fatia: '4',
     linhas: [
-      ...todos([b('Cripta'), b('Renomear Cripta'), b('Mover Cripta para…'), b('Planta de Cripta'), b('Configurar Cripta'), b('+ Nova cena'), b('Revisar aventura')]),
-      ...['Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) => l(`Mais ações da cena: ${m}`, ['menuitem', m], b('Mais ações de Cripta'))),
+      ...todos([b('Cripta'), b('Renomear Cripta'), b('Mover Cripta para…'), b('Planta de Cripta'), b('Configurar Cripta'), b('+ Nova cena'), b('Revisar aventura')], marcador('Cenas')),
+      ...['Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) => l(`Mais ações da cena: ${m}`, ['menuitem', m], marcador('Cenas'), b('Mais ações de Cripta'))),
     ],
   },
   {
-    tela: 'mestre-sala-aberta', titulo: 'Coluna da direita, sala aberta', estado: 'sala aberta (código ONDE01), aba Jogo', escopo: 'direita',
-    vai: 'Livro da mesa: topo da Sala (código, Mais da sala, Laser, Som, Convidar) e página Mesa', fatia: '4',
+    tela: 'mestre-sala-aberta', titulo: 'Livro da mesa, sala aberta', estado: 'sala aberta (código ONDE01), página Grupo', escopo: 'direita',
+    vai: 'Livro da mesa: topo da Sala (código, Mais da sala, Laser, Som, Convidar) e página Mesa (feito)', fatia: '4',
     linhas: [
-      { ...l('Código da sala', ['heading', 'Sala']), vai: 'Topo do livro da mesa, código para copiar' },
-      { ...l('Laser do mestre', b('Laser')), vai: 'Topo do livro da mesa' },
-      { ...l('Som da mesa', b('Som da mesa')), vai: 'Botão Som do topo e página Mesa' },
-      { ...l('Ruído', b('Ruído')), vai: 'Página Mesa' },
-      { ...l('Alcance do ruído', ['combobox', 'Alcance do ruído']), vai: 'Página Mesa' },
-      { ...l('Grupo', ['heading', 'Grupo']), vai: 'Marcador Grupo', },
-      { ...l('Diário de viagens', ['heading', 'Diário de viagens']), vai: 'Página Mesa' },
-      { ...l('Tela da mesa: Cena na tela', ['combobox', 'Cena na tela']), vai: 'Página Mesa' },
-      { ...l('Convidar jogadores: Tornar pública', b('Tornar pública')), vai: 'Botão Convidar do topo' },
-      { ...l('Fechar sala', b('Fechar sala')), vai: 'Menu "Mais da sala" do topo, com confirmação' },
+      l('Código da sala (copia ao clicar)', b('/^Código da sala ONDE01/')),
+      l('Laser do mestre', b('Laser')),
+      { ...l('Som da mesa (pop do botão Som)', ['slider', 'Volume'], b('Som')), noPop: true },
+      l('Grupo', ['heading', 'Grupo'], marcador('Grupo')),
+      { ...l('Convidar jogadores: Tornar pública', b('Tornar pública'), b('Convidar')), noPop: true },
+      { ...l('Convidar jogadores: o pop com o QR, os endereços na rede local e a dica do firewall', ['dialog', 'Convidar jogadores'], b('Convidar')), noPop: true },
+      l('Mais da sala: Visão de jogador', menu('Visão de jogador…'), b('Mais da sala')),
+      l('Mais da sala: Fechar sala', menu('Fechar sala…'), b('Mais da sala')),
+      { ...l('Fechar sala: a confirmação', ['alertdialog', 'Fechar a sala?'], b('Mais da sala'), menu('Fechar sala…')), noPop: true },
+      l('Mesa: Teste secreto', b('/^Teste secreto/'), marcador('Mesa')),
+      l('Mesa: Ruído', b('Ruído'), marcador('Mesa'), b('/^Ruído/')),
+      l('Mesa: Alcance do ruído', ['combobox', 'Alcance do ruído'], marcador('Mesa'), b('/^Ruído/')),
+      l('Mesa: Diário de viagens', b('/^Diário de viagens/'), marcador('Mesa')),
+      l('Mesa: Tela da mesa, Cena na tela', ['combobox', 'Cena na tela'], marcador('Mesa'), b('/^Tela da mesa/')),
     ],
   },
 
@@ -467,10 +479,11 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
   ['Endireitar na sala ou parede solta', 'só com traço torto; coberto no desenho'],
   ['Marcas dos jogadores (MarcasDaCena)', 'só com marcas deixadas por jogadores'],
   ['Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token)', 'pedem sala aberta, outra cena ou Estado do mundo com valores'],
-  ['Livro de regras', 'só com sistema de RPG que tem livro'],
+  ['Livro de regras (página Mesa; e Grupo com a sala fechada)', 'só com sistema de RPG que tem livro'],
+  ['Divisor "Altura das Cenas" (coluna da direita)', 'saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho'],
   ['Grupo do mestre: as 25+ ações por jogador, Pedindo, Chegando, Congelar/Pausar cena', 'pedem jogador conectado; ficam para a fatia 5, que traz o spec do grupo'],
-  ['Teste secreto', 'só com jogadores na sala'],
-  ['Pausa geral dos NPCs', 'só com NPC andando'],
+  ['Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa', 'só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto)'],
+  ['Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala")', 'só com NPC andando; TopoDaSala.test.tsx cobre o item do menu'],
   ['Depende do estado (porta, luz, zona, pino)', 'só com Estado do mundo criado'],
   ['Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro', 'pedem sistema de RPG, colegas ou histórico; as abas estão cobertas'],
 ]

@@ -470,7 +470,7 @@ test('duas salas olhadas do mesmo jeito: o que o jogador viu tem de ficar lembra
   await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toBeVisible()
 
   // 4. O mestre abre a sala.
-  await page.getByRole('tab', { name: 'Jogo' }).click()
+  await page.getByRole('tab', { name: 'Grupo' }).click()
   await page.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(page.getByText(CODE)).toBeVisible()
 

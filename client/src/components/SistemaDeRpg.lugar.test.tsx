@@ -156,14 +156,14 @@ describe('o RPG no lugar novo', () => {
     expect(() => botao('Trocar sistema…')).not.toThrow()
   })
 
-  it('aba Jogo: "Personagens" logo abaixo da Sala, com a sala fechada e aberta, também no mapa solto', () => {
+  it('página Grupo do livro da mesa: "Personagens" no fim, com a sala fechada (depois da mesa vazia) e aberta (depois do Grupo), também no mapa solto', () => {
     const rpg = <PersonagensDaAventura garantirAventura={async () => true} />
     const fechada = renderToStaticMarkup(<RoomPanel {...SALA_FECHADA} rpg={rpg} />)
-    expect(fechada.indexOf('Personagens')).toBeGreaterThan(fechada.indexOf('Rede local'))
-    expect(fechada.indexOf('Rede local')).toBeGreaterThan(fechada.indexOf('Abrir sala'))
+    expect(fechada.indexOf('Personagens')).toBeGreaterThan(fechada.indexOf('A mesa está vazia'))
+    expect(fechada.indexOf('A mesa está vazia')).toBeGreaterThan(-1)
     const aberta = renderToStaticMarkup(<RoomPanel {...SALA_FECHADA} room={{ code: 'K7Q2XM', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }} rpg={rpg} />)
-    expect(aberta.indexOf('Personagens')).toBeGreaterThan(aberta.indexOf('K7Q2XM'))
-    expect(aberta.indexOf('Som da mesa')).toBeGreaterThan(aberta.indexOf('Personagens'))
+    expect(aberta.indexOf('Personagens')).toBeGreaterThan(aberta.indexOf('>Grupo<'))
+    expect(aberta.indexOf('>Grupo<')).toBeGreaterThan(-1)
     // Mapa solto, sem sistema: a lista existe e diz onde escolher o sistema.
     act(() => root.render(<PersonagensDaAventura garantirAventura={async () => true} />))
     act(() => botao('Personagens').click())

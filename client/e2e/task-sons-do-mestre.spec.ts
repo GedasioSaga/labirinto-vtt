@@ -275,7 +275,8 @@ async function mestreAtribuiAFicha(mestre: Page): Promise<void> {
 /** Abre o "Som da mesa" e aperta o Mudo; fecha com Esc. */
 async function mestreAlternaOMudo(mestre: Page, mudoDepois: boolean): Promise<void> {
   await abrirAbaJogo(mestre)
-  await mestre.locator('.lb-room').getByRole('button', { name: 'Som da mesa' }).click()
+  // O botão Som do topo da Sala (livro da mesa, fatia 4) abre o pop "Som da mesa".
+  await mestre.getByRole('complementary', { name: 'Livro da mesa' }).getByRole('button', { name: 'Som', exact: true }).click()
   const popover = mestre.getByRole('dialog', { name: 'Som da mesa' })
   await expect(popover).toBeVisible()
   const mudo = popover.getByRole('button', { name: 'Mudo' })

@@ -258,7 +258,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
@@ -266,7 +266,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
 
 /** Aba Jogo, card do jogador, "Atribuir <token>". */
 async function mestreAtribui(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const card = mestre.locator('#lb-rail-panel-room').locator('.lb-field').filter({ hasText: `${JOGADOR} —` })
   await card.getByRole('button', { name: `Atribuir ${TOKEN}` }).click()
   await expect(card.getByRole('button', { name: `Remover ${TOKEN}` }), `${JOGADOR} deveria ficar com ${TOKEN}`).toBeVisible()
@@ -274,7 +274,7 @@ async function mestreAtribui(mestre: Page): Promise<void> {
 
 /** Grupo > linha de Fábio > "Mandar para…" > Cena Porão, Chegada Alçapão > Mandar. */
 async function mestreMandaAoPorao(mestre: Page): Promise<void> {
-  await mestre.getByRole('tab', { name: 'Jogo' }).click()
+  await mestre.getByRole('tab', { name: 'Grupo' }).click()
   const grupo = mestre.locator('#lb-rail-panel-room').getByRole('region', { name: 'Grupo', exact: true })
   const linha = grupo.getByRole('listitem').filter({ hasText: JOGADOR })
   await linha.getByRole('button', { name: /^Mandar para(…|\.\.\.)$/ }).click()

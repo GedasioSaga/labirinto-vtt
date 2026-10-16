@@ -1044,6 +1044,17 @@ body {
   background: var(--lb-color-line-divider);
 }
 
+/* Abaixo de 1366px o vão entre os dois livros (~596px a 1280) é mais estreito
+   que o grupo de construção, que não quebra por dentro: sem apertar, Pessoa,
+   Zona oculta e Dissolver vazavam por cima do livro da mesa e tapavam os canais
+   do Chat. Botão menor e respiro menor fazem o grupo caber sem mudar a ordem. */
+@media (max-width: 1365px) {
+  .lb-toolbar,
+  .lb-toolbar__group { gap: 2px; }
+  .lb-toolbar .lb-iconbtn { width: 32px; height: 32px; }
+  .lb-toolbar__sep { margin: 0 var(--lb-space-1); }
+}
+
 /* Balão da ferramenta ativa. `left` e `--lb-hint-arrow` vêm medidos do Toolbar:
    o balão nasce sob o ícone que o disparou e recua se não couber, e nesse caso
    a seta desliza dentro dele para continuar apontando o ícone.
@@ -2000,10 +2011,9 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 /* Painel da sala (só no Tauri): cartão próprio no rail, rola por dentro para
    nunca empurrar conteúdo para fora do cartão nem cobrir o canvas. */
 .lb-room {
+  /* Mora numa página do livro da mesa, que rola sozinha (fatia 4): sem teto de altura. */
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 45vh;
-  overflow: auto;
   overflow-wrap: anywhere;
   /* 8 px e não os 12 de uma seção: o Grupo de sete precisa de cada linha (aba Jogo compacta). */
   gap: var(--lb-space-2);
@@ -3747,77 +3757,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   flex: none;
   font-size: 0.85em;
   color: var(--lb-color-parchment-dim);
-}
-
-/* Abas Jogo | Chat no alto da coluna da direita (RightColumn, só no Tauri). Visual do segmented. */
-.lb-railtabs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: var(--lb-space-1);
-  padding: var(--lb-space-1);
-  flex: none;
-}
-
-.lb-railtabs__tab {
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: var(--lb-radius-md);
-  background: transparent;
-  color: var(--lb-color-parchment-dim);
-  font-family: inherit;
-  font-size: var(--lb-font-size-md);
-  font-weight: var(--lb-font-weight-medium);
-  cursor: pointer;
-  transition:
-    background var(--lb-motion-fast) var(--lb-motion-ease),
-    border-color var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
-}
-
-.lb-railtabs__tab:hover {
-  background: var(--lb-color-stone-hover);
-  color: var(--lb-color-parchment);
-}
-
-/* O mesmo aperto dos botões (.lb-btn). A troca pelas setas não passa por
-   :active, então o teclado não ganha movimento. */
-.lb-railtabs__tab:active {
-  transform: scale(0.97);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lb-railtabs__tab:active {
-    transform: none;
-  }
-}
-
-.lb-railtabs__tab[aria-selected='true'] {
-  background: var(--lb-color-brass-soft);
-  border-color: rgba(224, 164, 74, 0.28);
-  color: var(--lb-color-brass);
-}
-
-.lb-railtabs__panel {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
-}
-
-.lb-railtabs__panel[hidden] {
-  display: none;
-}
-
-/* Painel da aba: ocupa toda a altura entre as abas e as Cenas. */
-.lb-railtabs__panel--fill {
-  flex: 1 1 auto;
-}
-
-.lb-railtabs__panel--fill > .lb-room {
-  flex: 1 1 auto;
-  max-height: none;
 }
 
 .lb-actionbar {
@@ -7073,8 +7012,8 @@ html.lb-arrastando-cena * {
 .lb-npcs-pausa {
   position: absolute;
   top: 0;
-  /* Coluna da direita escondida: ao lado do botão que a reabre. Aberta, o
-     botão mora no alto dela (RightColumn.css). */
+  /* Livro da mesa recolhido: ao lado da lombada. Aberto, o botão mora no alto
+     da página Grupo (AvisoDosNpcs, livro/LivroDaMesa.tsx). */
   right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
   pointer-events: auto;
   box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);

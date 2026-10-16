@@ -54,8 +54,8 @@ const PAGINAS: readonly { id: PaginaDoMestre; rotulo: string; icone: NomeDoIcone
   { id: 'acervo', rotulo: 'Acervo', icone: 'acervo' },
 ]
 
-/** A folha nova assenta de 4 px em 150 ms (o `.pagina__corpo.entra` do protótipo); com movimento reduzido, só aparece. */
-function entrarFolha(folha: HTMLElement | null): void {
+/** A folha nova assenta de 4 px em 150 ms (o `.pagina__corpo.entra` do protótipo); com movimento reduzido, só aparece. Vale para os dois livros. */
+export function entrarFolha(folha: HTMLElement | null): void {
   if (folha === null || typeof folha.animate !== 'function') return
   const reduzido = movimentoReduzido()
   folha.animate(
