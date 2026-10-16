@@ -76,9 +76,9 @@ describe('RoomPanel: emprestar ficha como ajudante', () => {
     return achado
   }
 
-  /** Abre a ficha da Duda na aba Ficha e o formulário do ajudante, que mora nela. */
+  /** Abre a ficha da Duda na parte Ações (bloco Ficha) e o formulário do ajudante, que mora nela. */
   function abrirEmprestimo(): void {
-    abrirFicha(container, 'Duda', 'ficha')
+    abrirFicha(container, 'Duda', 'acoes')
     act(() => botao('Emprestar como ajudante…').click())
   }
 

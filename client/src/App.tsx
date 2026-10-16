@@ -95,6 +95,7 @@ import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/li
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
 import { Acoes } from './components/grimorio/Botao'
+import { Fichas } from './components/grimorio/Ficha'
 import { useLivroDaMesaStore } from './stores/livroDaMesaStore'
 import { contarPedindo } from './lib/grupoPorCena'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -1338,10 +1339,12 @@ function App() {
         // PERSONAGENS e CONTAS no fim da página Grupo, também no mapa solto (pergunta antes de virar aventura).
         // O Livro de regras vem junto só com a sala fechada: aberta, ele mora na página Mesa.
         rpg: (
-          <>
-            <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} comLivro={room === null} />
-            <ContasDosJogadoresDoApp />
-          </>
+          <div className="lb-grupo-fichas">
+            <Fichas>
+              <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} comLivro={room === null} />
+              <ContasDosJogadoresDoApp />
+            </Fichas>
+          </div>
         ),
     }
   }

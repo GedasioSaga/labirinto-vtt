@@ -186,10 +186,16 @@ describe('GrupoCompacto', () => {
     expect(container.querySelector('.lb-party__count')?.textContent).toBe('1 esperando personagem')
   })
 
-  it('10 jogadores com nomes longos: uma linha de um botão cada, nome e personagem inteiros no title, selos à vista', () => {
+  it('10 jogadores com nomes longos: uma linha de um botão cada (mais Ir lá e Recado ao lado), nome e personagem inteiros no title, selos à vista', () => {
     render()
     expect(container.querySelectorAll('li.lb-grupo__item')).toHaveLength(9)
-    for (const li of Array.from(container.querySelectorAll('li.lb-grupo__item'))) expect(li.querySelectorAll('button')).toHaveLength(1)
+    for (const li of Array.from(container.querySelectorAll('li.lb-grupo__item'))) {
+      // A linha é o botão que abre a ficha; do lado, só as duas ações rápidas (fatia 5).
+      expect(li.querySelectorAll('button.lb-grupo__linha')).toHaveLength(1)
+      const rapidas = Array.from(li.querySelectorAll('.gr-jogador__rapidas button')).map((b) => b.getAttribute('aria-label') ?? '')
+      expect(rapidas.every((nome) => nome.startsWith('Ir lá: ') || nome.startsWith('Recado para'))).toBe(true)
+      expect(li.querySelectorAll('button')).toHaveLength(1 + rapidas.length)
+    }
     const maria = linhaDoJogador(container, NOME_LONGO)
     expect(maria.querySelector('.lb-player__name')?.getAttribute('title')).toBe(NOME_LONGO)
     expect(maria.querySelector('.lb-grupo__personagem')?.getAttribute('title')).toBe(PERSONAGEM_LONGO)
@@ -197,7 +203,7 @@ describe('GrupoCompacto', () => {
     // Léo caiu há 4 min: fica na cena da ficha, apagado, com o selo.
     const leo = linhaDoJogador(container, 'Léo')
     expect(cena('Salão').contains(leo)).toBe(true)
-    expect(leo.className).toContain('lb-party__item--away')
+    expect(leo.getAttribute('data-presenca')).toBe('fora')
     expect(leo.textContent).toContain('fora 4 min')
     expect(leo.querySelector('.lb-grupo__presenca')?.getAttribute('data-presenca')).toBe('fora')
     expect(linhaDoJogador(container, 'Ingrid').querySelector('.lb-player__congelado')?.textContent).toBe('congelado')
@@ -253,9 +259,11 @@ describe('GrupoCompacto', () => {
     expect(botaoDaLinha(container, 'Caio').getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('.lb-grupo__ficha')).toHaveLength(1)
     const ficha = fichaDoJogador(container, 'Caio')
-    const irLa = botao(ficha, 'Ir lá')
-    act(() => irLa.focus())
-    const evento = tecla(irLa, 'Escape')
+    // Esc de dentro da ficha (aqui, do seg das partes) fecha e devolve o foco à linha.
+    const parte = ficha.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]')
+    if (!parte) throw new Error('sem a parte escolhida')
+    act(() => parte.focus())
+    const evento = tecla(parte, 'Escape')
     expect(evento.defaultPrevented).toBe(true)
     expect(ficha.isConnected).toBe(false)
     expect(document.activeElement).toBe(botaoDaLinha(container, 'Caio'))
@@ -282,24 +290,27 @@ describe('GrupoCompacto', () => {
     expect(ficha.isConnected).toBe(false)
   })
 
-  it('as abas da ficha andam pelas setas, e o foco vai junto', () => {
+  it('as partes da ficha (seg Ações · Mochila · Visão · Ficha) andam pelas setas, e o foco vai junto', () => {
     render()
     const ficha = abrirFicha(container, 'Saga', 'mochila')
-    const abas = Array.from(ficha.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
-    expect(abas.map((aba) => [aba.textContent, aba.getAttribute('aria-selected'), aba.tabIndex])).toEqual([
+    const partes = () => Array.from(ficha.querySelectorAll<HTMLButtonElement>('[role="radio"]'))
+    expect(ficha.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Parte da ficha de Saga')
+    expect(partes().map((parte) => [parte.textContent, parte.getAttribute('aria-checked'), parte.tabIndex])).toEqual([
+      ['Ações', 'false', -1],
       ['Mochila', 'true', 0],
       ['Visão', 'false', -1],
       ['Ficha', 'false', -1],
     ])
-    tecla(abas[0] as HTMLButtonElement, 'ArrowRight')
-    const visao = Array.from(ficha.querySelectorAll<HTMLButtonElement>('[role="tab"]'))[1]
-    expect(visao?.getAttribute('aria-selected')).toBe('true')
+    tecla(partes()[1] as HTMLButtonElement, 'ArrowRight')
+    const visao = partes()[2]
+    expect(visao?.getAttribute('aria-checked')).toBe('true')
     expect(document.activeElement).toBe(visao)
-    expect(ficha.querySelector('[role="tabpanel"]')?.textContent).toContain('Fator de visão')
+    expect(ficha.querySelector('.gr-jogador__parte')?.textContent).toContain('Fator de visão')
     tecla(visao as HTMLButtonElement, 'End')
-    expect(ficha.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(Array.from(ficha.querySelectorAll('[role="tab"]'))[2]?.id)
+    expect(partes()[3]?.getAttribute('aria-checked')).toBe('true')
+    expect(ficha.querySelector('.gr-jogador__parte')?.getAttribute('data-parte')).toBe('ficha')
     tecla(document.activeElement as Element, 'ArrowRight')
-    expect(Array.from(ficha.querySelectorAll('[role="tab"]'))[0]?.getAttribute('aria-selected')).toBe('true')
+    expect(partes()[0]?.getAttribute('aria-checked')).toBe('true')
   })
 
   it('atalhos da cena: Ir à cena, Congelar a cena e Pausar a cena chamam com a cena e as fichas dela', () => {
@@ -354,11 +365,12 @@ describe('GrupoCompacto', () => {
     expect(alterna.getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('a ficha aberta: o pedido de passagem no topo e as cinco ações com o nome acessível de sempre', () => {
+  it('o pedido de passagem fica sob o título da cena, à vista sem abrir a ficha; "Ir lá: <nome>" na linha, um nome por jogador', () => {
     render()
-    const ficha = abrirFicha(container, NOME_LONGO)
-    expect(ficha.querySelector('.lb-grupo__pendencia')?.textContent).toContain('Pediu passagem')
-    act(() => botao(ficha, 'Ir lá').click())
+    const maria = linhaDoJogador(container, NOME_LONGO)
+    const cripta = cena('Cripta')
+    expect(cripta.querySelector('.lb-grupo__pendencia')?.textContent).toContain('pediu passagem')
+    act(() => botao(maria, `Ir lá: ${NOME_LONGO}`).click())
     expect(spies.onGoTo).toHaveBeenCalledWith(expect.objectContaining({ playerId: 'maria' }))
   })
   it('quem acabou de ganhar ficha sai de Chegando com a ficha aberta na aba Ficha', () => {
@@ -366,25 +378,26 @@ describe('GrupoCompacto', () => {
     const enzoComFicha = JOGADORES.map((p) => (p.playerId === 'enzo' ? { ...p, status: 'playing' as const, tokenIds: ['t-enzo'], sceneId: 's-cripta', sceneName: 'Cripta' } : p))
     render({}, enzoComFicha)
     expect(botaoDaLinha(container, 'Enzo').getAttribute('aria-expanded')).toBe('true')
-    const aba = fichaDoJogador(container, 'Enzo').querySelector('[role="tab"][aria-selected="true"]')
-    expect(aba?.textContent).toBe('Ficha')
+    const parte = fichaDoJogador(container, 'Enzo').querySelector('[role="radio"][aria-checked="true"]')
+    expect(parte?.textContent).toBe('Ficha')
   })
-  it('o pedido de passagem responde pela ficha, com os botões do aviso de cada tipo', () => {
+  it('o pedido de passagem responde ali, com os botões do aviso de cada tipo e o nome do jogador no nome acessível', () => {
     const onAnswerTravel = vi.fn()
     const comPedido = (tipo: 'comum' | 'trancada' | 'barrada') =>
       JOGADORES.map((p) => (p.playerId === 'maria' ? { ...p, travelRequest: { requestId: 'r-maria', toSceneName: 'Salão', tipo } } : p))
     render({ onAnswerTravel }, comPedido('comum'))
-    const ficha = abrirFicha(container, NOME_LONGO)
-    const pedido = ficha.querySelector('[role="group"][aria-label^="Pedido de passagem"]')
-    expect(pedido?.textContent).toContain('Passagem → Salão')
-    act(() => botao(ficha, 'Deixar ir').click())
+    const pedido = cena('Cripta').querySelector('[role="group"][aria-label^="Pedido de passagem"]')
+    if (!pedido) throw new Error('sem o pedido de passagem na cena')
+    expect(pedido.textContent).toContain('pede passagem para Salão')
+    // "Deixar ir: <nome>": o aviso flutuante tem os mesmos botões, e os dois não se confundem.
+    act(() => botao(pedido, `Deixar ir: ${NOME_LONGO}`).click())
     expect(onAnswerTravel).toHaveBeenCalledWith('r-maria', true)
-    act(() => botao(ficha, 'Não').click())
+    act(() => botao(pedido, `Não: ${NOME_LONGO}`).click())
     expect(onAnswerTravel).toHaveBeenLastCalledWith('r-maria', false)
 
     render({ onAnswerTravel }, comPedido('trancada'))
-    expect(botao(fichaDoJogador(container, NOME_LONGO), 'Liberar uma vez')).toBeTruthy()
+    expect(botao(cena('Cripta'), `Liberar uma vez: ${NOME_LONGO}`)).toBeTruthy()
     render({ onAnswerTravel }, comPedido('barrada'))
-    expect(botao(fichaDoJogador(container, NOME_LONGO), 'A barra aguenta')).toBeTruthy()
+    expect(botao(cena('Cripta'), `A barra aguenta: ${NOME_LONGO}`)).toBeTruthy()
   })
 })

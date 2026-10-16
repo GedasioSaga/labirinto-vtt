@@ -92,7 +92,7 @@ describe('PartySection: destino marcado', () => {
     act(() => {
       root.render(<RoomPanel room={{ code: 'GRUPO1', urls: [], qrSvg: '<svg/>' }} players={JOGADORES} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />)
     })
-    const linhas = [...container.querySelectorAll('li.lb-party__item')]
+    const linhas = [...container.querySelectorAll('li.lb-grupo__item')]
     expect(linhas).toHaveLength(3)
     // A marca mora no alto da ficha aberta de quem marcou.
     expect(abrirFicha(container, 'Caio').textContent).not.toContain(DESTINATION_MARKED_LABEL)

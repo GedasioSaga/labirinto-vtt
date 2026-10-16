@@ -894,7 +894,7 @@ Parte de: aberto pelo "?". Vai para: Diálogo Atalhos com a lista nova. Fatia: 2
 
 ### Livro da mesa, sala fechada
 
-Parte de: app do mestre, sala fechada. Vai para: Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); o Grupo muda na 5. Fatia: 4 e 5.
+Parte de: app do mestre, sala fechada. Vai para: Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); Personagens e Contas viram fichas recolhidas no fim do Grupo (fatia 5, feito). Fatia: 4 e 5.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -964,6 +964,72 @@ Parte de: sala aberta (código ONDE01), página Grupo. Vai para: Livro da mesa: 
 | Mesa: Diário de viagens | button "/^Diário de viagens/" | (livro da mesa) > clicar tab "Mesa" | (do bloco) |
 | Mesa: Tela da mesa, Cena na tela | combobox "Cena na tela" | (livro da mesa) > clicar tab "Mesa" > clicar button "/^Tela da mesa/" | (do bloco) |
 
+## Mestre com jogadores na sala
+
+### Grupo: alto, Chegando, cena e linha
+
+Parte de: sala aberta; Ana na Cripta, Bruno chegando sem ficha, Caio fora. Vai para: Busca com o chip Pedindo; Chegando aberto; cena com Ir à cena, Congelar e Pausar no título; linha com Ir lá e Recado; Congelar todos no pé. Fatia: 5.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Buscar jogador | searchbox "Buscar jogador" | (livro da mesa) | (do bloco) |
+| Pedindo (chip do alto) | button "/^Pedindo/" | (livro da mesa) | (do bloco) |
+| Chegando: Atribuir a ficha livre | button "/Atribuir Goblin$/" | (livro da mesa) | (do bloco) |
+| Chegando: lista Atribuir token | combobox "Atribuir token" | (livro da mesa) | (do bloco) |
+| Chegando: Emprestar como ajudante | button "Emprestar como ajudante…" | (livro da mesa) | (do bloco) |
+| Chegando: Expulsar | button "Expulsar" | (livro da mesa) | (do bloco) |
+| Cena: recolher e abrir | button "/^Cripta.*jogadores/" | (livro da mesa) | (do bloco) |
+| Ir à cena Cripta | button "Ir à cena Cripta" | (livro da mesa) | (do bloco) |
+| Congelar a cena Cripta | button "Congelar a cena Cripta" | (livro da mesa) | (do bloco) |
+| Pausar a cena Cripta | button "Pausar a cena Cripta" | (livro da mesa) | (do bloco) |
+| Ir lá: Ana | button "Ir lá: Ana" | (livro da mesa) | (do bloco) |
+| Recado para Ana | button "Recado para Ana" | (livro da mesa) | (do bloco) |
+| Congelar todos (pé) | button "Congelar todos" | (livro da mesa) | (do bloco) |
+
+### Grupo: ficha de Ana, cada parte do seg
+
+Parte de: Ana jogando na Cripta, ficha aberta. Vai para: Seg Ações · Mochila · Visão · Ficha dentro da ficha aberta. Fatia: 5.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Seguir | button "Seguir" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Mandar para… | button "Mandar para…" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Ver tela de Ana | button "Ver tela de Ana" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Dar o que o grupo viu | button "Dar o que o grupo viu" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Passar o mapa de Ana a | combobox "Passar o mapa de Ana a" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Dar um mapa a Ana | button "Dar um mapa a Ana" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Emprestar como ajudante… | button "Emprestar como ajudante…" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Expulsar | button "Expulsar" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ações" | (do bloco) |
+| Dar item a Ana | button "Dar item a Ana" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Mochila" | (do bloco) |
+| Moedas de Ana | button "Moedas de Ana" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Mochila" | (do bloco) |
+| Propor troca a Ana | button "Propor troca a Ana" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Mochila" | (do bloco) |
+| Raio de visão | slider "Raio de visão" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Visão" | (do bloco) |
+| Fator de visão | slider "Fator de visão" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Visão" | (do bloco) |
+| Revelar planta | button "Revelar planta" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Visão" | (do bloco) |
+| Esconder de novo | button "Esconder de novo" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Visão" | (do bloco) |
+| Remover Guerreira | button "Remover Guerreira" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ficha" | (do bloco) |
+| Atribuir token | combobox "Atribuir token" | (livro da mesa) > clicar button "/Ana — jogando/" > clicar radio "Ficha" | (do bloco) |
+
+### Grupo: ficha de Caio, fora da mesa
+
+Parte de: Caio desconectado com ficha na Cripta, ficha aberta. Vai para: Parte Ações, blocos Ficha e Sair da mesa; parte Ficha. Fatia: 5.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Guardar ficha | button "Guardar ficha" | (livro da mesa) > clicar button "/Caio — jogando/" > clicar radio "Ações" | (do bloco) |
+| Emprestar ficha a | combobox "Emprestar ficha a" | (livro da mesa) > clicar button "/Caio — jogando/" > clicar radio "Ações" | (do bloco) |
+| Passar fichas e mapa a | combobox "Passar fichas e mapa a" | (livro da mesa) > clicar button "/Caio — jogando/" > clicar radio "Ações" | (do bloco) |
+| Dispensar | button "Dispensar" | (livro da mesa) > clicar button "/Caio — jogando/" > clicar radio "Ações" | (do bloco) |
+| Remover Ladino | button "Remover Ladino" | (livro da mesa) > clicar button "/Caio — jogando/" > clicar radio "Ficha" | (do bloco) |
+
+### Grupo: pé depois de congelar
+
+Parte de: a mesa congelada pelo Congelar todos. Vai para: Descongelar todos no pé do Grupo. Fatia: 5.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Descongelar todos | button "Descongelar todos" | (livro da mesa) > clicar button "Congelar todos" | (do bloco) |
+
 ## Jogador (celular, 390 px)
 
 ### Jogador: barra de cima e cantos
@@ -1021,10 +1087,10 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token) | pedem sala aberta, outra cena ou Estado do mundo com valores |
 | Livro de regras (página Mesa; e Grupo com a sala fechada) | só com sistema de RPG que tem livro |
 | Divisor "Altura das Cenas" (coluna da direita) | saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho |
-| Grupo do mestre: as 25+ ações por jogador, Pedindo, Chegando, Congelar/Pausar cena | pedem jogador conectado; ficam para a fatia 5, que traz o spec do grupo |
+| Grupo do mestre (fatia 5): sob o título de cada cena, o pedido de passagem ("Deixar ir: <nome>", "Não: <nome>") | pede um jogador que viajou até um pino de passagem ligado a outra cena; GrupoCompacto.test.tsx e PartySection.test.tsx alcançam os dois botões sob o título da cena (o resto do Grupo com jogadores está no estado "mestre com jogadores") |
 | Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa | só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto) |
 | Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala") | só com NPC andando; TopoDaSala.test.tsx cobre o item do menu |
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 556 controles em 63 blocos.
+Total: 592 controles em 67 blocos.

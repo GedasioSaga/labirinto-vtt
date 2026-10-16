@@ -129,6 +129,26 @@ const DESENHOS = {
   monitor: caminho('M3.5 5h17v11h-17z M8.5 20h7 M12 16v4'),
   livro: caminho('M12 6.5c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13c-3-.5-6 0-8 1.5z M12 6.5v13'),
   dispensar: caminho('M14.5 4.5h4v15h-4 M9.5 8l-4 4 4 4 M5.5 12h10'),
+  // Os da página Grupo (fatia 5): linha do jogador, título de cada cena e o pé da lista.
+  mira: (
+    <>
+      <circle cx="12" cy="12" r="6.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      {caminho('M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3')}
+    </>
+  ),
+  carta: caminho('M4 6.5h16v11H4z M4 7l8 6 8-6'),
+  seta: caminho('M4.5 12h14 M13 6.5l5.5 5.5-5.5 5.5'),
+  floco: caminho('M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5'),
+  /** O floco riscado: "Descongelar". */
+  degelo: caminho('M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5 M3.5 20.5l17-17'),
+  seguir: caminho('M4.5 12h10 M10.5 7l5 5-5 5 M19.5 5v14'),
+  pessoa: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      {caminho('M5 20c1-3.8 3.6-5.6 7-5.6s6 1.8 7 5.6')}
+    </>
+  ),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

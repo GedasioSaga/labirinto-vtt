@@ -20,18 +20,36 @@ export async function abrirAventuraDeMentira(page: Page, arquivos: Record<string
       const campos = (valor: unknown): Record<string, unknown> => (typeof valor === 'object' && valor !== null ? Object.fromEntries(Object.entries(valor)) : {})
       let proximoId = 0
       const janela = window as unknown as Record<string, unknown>
+      // Os ouvintes de evento (`net:message`, `net:peer`) guardados, para o spec fazer jogador entrar e cair.
+      type Ouvinte = (evento: { event: string; id: number; payload: unknown }) => void
+      const callbacks = new Map<number, Ouvinte>()
+      const ouvintes = new Map<number, { event: string; handler: Ouvinte }>()
+      janela.__emitTauri = (event: string, payload: unknown) => {
+        for (const [id, ouvinte] of ouvintes) if (ouvinte.event === event) ouvinte.handler({ event, id, payload })
+      }
       janela.isTauri = true
       janela.__TAURI_INTERNALS__ = {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { windowLabel: 'main', label: 'main' } },
         convertFileSrc: (caminho: string) => String(caminho),
-        transformCallback: () => ++proximoId,
+        transformCallback: (cb: Ouvinte) => {
+          proximoId += 1
+          callbacks.set(proximoId, cb)
+          return proximoId
+        },
         invoke: async (cmd: string, args: unknown, options?: { headers?: Record<string, string> }) => {
           const a = campos(args)
           switch (cmd) {
             case 'net_start_room':
               return { code: codigo, urls: ['http://192.168.0.7:1420/player.html'], qrSvg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' }
-            case 'plugin:event|listen':
-              return Number(a.handler)
+            case 'plugin:event|listen': {
+              const id = Number(a.handler)
+              const cb = callbacks.get(id)
+              if (cb !== undefined) ouvintes.set(id, { event: String(a.event), handler: cb })
+              return id
+            }
+            case 'plugin:event|unlisten':
+              ouvintes.delete(Number(a.eventId))
+              return null
             case 'plugin:path|resolve_directory':
               return 'C:/appdata'
             case 'plugin:path|join':

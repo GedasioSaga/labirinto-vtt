@@ -232,13 +232,13 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     const bruno = linha('Bruno')
     expect(bruno.textContent).toContain('Machado')
     expect(cenaDe(bruno)).toBe(COZINHA)
-    // Fechada, a linha é um botão só: o que se faz com ele mora na ficha.
-    expect(botoes(bruno)).toHaveLength(1)
+    // Fechada, a linha é um botão só (mais as rápidas Ir lá e Recado, fatia 5): o resto mora na ficha.
+    expect(botoes(bruno).filter((nome) => !nome.startsWith('Ir lá: ') && !nome.startsWith('Recado para'))).toHaveLength(1)
     expect(botaoDaLinha(container, 'Bruno').getAttribute('aria-expanded')).toBe('false')
     expect(bruno.querySelector('input, select')).toBeNull()
     expect(bruno.textContent).not.toContain('Revelar planta')
     expect(bruno.textContent).not.toContain('Expulsar')
-    const bolinha = bruno.querySelector<HTMLElement>('.lb-party__dot')
+    const bolinha = bruno.querySelector<HTMLElement>('.lb-grupo__avatar')
     expect(bolinha?.style.background).toBe(corCss('#ff5a00'))
 
     // Quem caiu: o selo "fora" à vista, e o status inteiro no cartão (leitor de tela e régua).
@@ -271,7 +271,7 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(spies.onRevealPlan).toHaveBeenCalledWith('p2')
     clicar(botao(ficha, 'Esconder de novo'))
     expect(spies.onHidePlan).toHaveBeenCalledWith('p2')
-    escolherAba(ficha, 'ficha')
+    escolherAba(ficha, 'acoes')
     clicar(botao(ficha, 'Expulsar'))
     expect(spies.onKick).toHaveBeenCalledWith('c2')
   })

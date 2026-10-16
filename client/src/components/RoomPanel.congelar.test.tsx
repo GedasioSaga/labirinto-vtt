@@ -57,15 +57,15 @@ const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
 const botao = (nome: string) => Array.from(container.querySelectorAll('button')).find((b) => texto(b) === nome) ?? null
 
 describe('Grupo — congelar a mesa', () => {
-  it('ninguém congelado: só "Congelar todos", no alto do Grupo; o clique congela', () => {
+  it('ninguém congelado: só "Congelar todos", no pé do Grupo; o clique congela', () => {
     const onChange = vi.fn()
     render(mundo(), { todas: false, alguma: false, onChange })
     const congelar = botao('Congelar todos')
     if (congelar === null) throw new Error('sem o "Congelar todos"')
-    // No alto do Grupo: dentro dele, antes da lista das pessoas.
+    // No pé do Grupo (fatia 5): dentro dele, depois da lista das pessoas.
     expect(container.querySelector('section.lb-party')?.contains(congelar)).toBe(true)
-    const lista = container.querySelector('ul.lb-party__list')
-    expect(lista !== null && (congelar.compareDocumentPosition(lista) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
+    const lista = container.querySelector('ul.lb-grupo__lista')
+    expect(lista !== null && (congelar.compareDocumentPosition(lista) & Node.DOCUMENT_POSITION_PRECEDING) !== 0).toBe(true)
     expect(botao('Descongelar todos')).toBeNull()
     act(() => congelar?.click())
     expect(onChange).toHaveBeenCalledWith(true)
@@ -87,7 +87,7 @@ describe('Grupo — congelar a mesa', () => {
 
   it('a linha de quem está congelado diz "congelado"; a de quem não está, não', () => {
     render(mundo({ congelado: true }), { todas: false, alguma: true, onChange: vi.fn() })
-    const linhas = Array.from(container.querySelectorAll('li.lb-party__item'))
+    const linhas = Array.from(container.querySelectorAll('li.lb-grupo__item'))
     const ana = linhas.find((l) => l.textContent?.includes('Ana'))
     const bia = linhas.find((l) => l.textContent?.includes('Bia'))
     expect(ana?.querySelector('.lb-player__congelado')?.textContent).toBe('congelado')

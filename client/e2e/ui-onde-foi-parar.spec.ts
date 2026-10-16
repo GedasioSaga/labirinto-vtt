@@ -130,7 +130,9 @@ async function conferirBloco(page: Page, bloco: Bloco): Promise<void> {
         const porCima = (papel: Alvo[0]) => papel === 'menuitem' || papel === 'dialog' || papel === 'alertdialog'
         for (const clique of linha.caminho) await passo(achar(porCima(clique[0]) ? page : onde, clique))
         if (linha.tecla !== undefined) await page.keyboard.press(linha.tecla)
-        const alvo = achar(porCima(linha.alvo[0]) || linha.noPop === true ? page : onde, linha.alvo)
+        // A ficha aberta de um jogador (bloco com `dentro`): o mesmo nome em outro cartão não conta.
+        const dentro = bloco.dentro === undefined ? onde : achar(onde, bloco.dentro)
+        const alvo = achar(porCima(linha.alvo[0]) || linha.noPop === true ? page : dentro, linha.alvo)
         await expect(alvo, `${bloco.titulo} > ${linha.controle}`).toBeVisible()
         if (linha.focado === true) await expect(alvo).toBeFocused()
         if (bloco.preparo?.escape === true || linha.alvo[0] === 'menuitem' || linha.noPop === true) await page.keyboard.press('Escape')
@@ -172,6 +174,81 @@ test('mestre com a sala aberta: código, Laser, Som, Convidar, Mais da sala (Fec
   await page.getByRole('button', { name: 'Abrir sala' }).click()
   await expect(page.getByText(CODIGO).first()).toBeVisible()
   for (const bloco of blocosDa('mestre-sala-aberta')) await conferirBloco(page, bloco)
+  expect(erros).toEqual([])
+})
+
+/**
+ * A aventura de sempre com uma segunda cena (o "Mandar para…" só aparece com
+ * outra cena para onde mandar) e uma ficha para cada jogador que ganha uma:
+ * Ana e Caio; Bruno fica em Chegando.
+ */
+function discoComJogadores(): Record<string, string> {
+  const mapa = cenaComTudo()
+  const ficha = (id: string, name: string, x: number) => ({ id, characterId: null, name, x, y: 300, size: 1, image: null })
+  const aventura = {
+    version: 1, id: 'adv_onde', name: AVENTURA, startSceneId: 'scene_onde',
+    scenes: [{ id: 'scene_onde', name: AVENTURA, file: 'map.json' }, { id: 'scene_porao', name: 'Porão', file: 'porao.json' }],
+  }
+  return {
+    [`${PASTA}/map.json`]: serializeMap({ ...mapa, tokens: [...mapa.tokens, ficha('t-ana', 'Guerreira', 400), ficha('t-caio', 'Ladino', 450)] }),
+    [`${PASTA}/porao.json`]: serializeMap(createEmptyMap('map_porao', 'Porão', 20, 12, 50)),
+    [`${PASTA}/adventure.json`]: JSON.stringify(aventura, null, 2),
+  }
+}
+
+/** Um evento do transporte Rust (`net:message`, `net:peer`), pelo `__emitTauri` que o mestreDeMentira põe na janela. */
+async function emitir(page: Page, evento: string, payload: unknown): Promise<void> {
+  // A janela do app não declara o __emitTauri: é o init script do mestreDeMentira que o põe.
+  await page.evaluate(({ e, p }) => (window as unknown as { __emitTauri(e: string, p: unknown): void }).__emitTauri(e, p), { e: evento, p: payload })
+}
+
+/** "Atribuir token" de quem está em Chegando: a lista com as fichas da cena. */
+async function atribuir(page: Page, jogador: string, ficha: string): Promise<void> {
+  const livro = escopo(page, 'direita')
+  const lista = livro.locator('.gr-chegando', { hasText: jogador }).getByRole('combobox', { name: 'Atribuir token' })
+  const texto = (await lista.locator('option', { hasText: ficha }).first().textContent()) ?? ficha
+  await lista.selectOption({ label: texto.trim() })
+  await expect(livro.getByRole('button', { name: `Remover ${ficha}` })).toBeVisible()
+}
+
+/** O anel de foco do teclado: o controle recebe o foco pelo Tab (é aí que :focus-visible vale) e o box-shadow não pode ser 'none'. */
+async function anelDeFoco(page: Page, alvo: Locator): Promise<string> {
+  await alvo.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(alvo).toBeFocused()
+  return alvo.evaluate((el) => getComputedStyle(el).boxShadow)
+}
+
+test('mestre com jogadores: Grupo com Ana na cena, Bruno chegando e Caio fora; cada parte da ficha', async ({ page }) => {
+  test.setTimeout(150_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const erros = vigiarErros(page)
+  await abrirAventuraDeMentira(page, discoComJogadores(), AVENTURA, CODIGO)
+  await page.getByRole('tab', { name: 'Grupo' }).click()
+  await page.getByRole('button', { name: 'Abrir sala' }).click()
+  await expect(page.getByText(CODIGO).first()).toBeVisible()
+  for (const [c, nome] of [['c1', 'Ana'], ['c2', 'Bruno'], ['c3', 'Caio']]) await emitir(page, 'net:message', { clientId: c, msg: { type: 'join', code: CODIGO, name: nome } })
+  // Quem fica calado mais de 6 s cai (HOST_STALE_AFTER_MS): Ana e Bruno mandam ping o teste todo; Caio, até cair.
+  await page.evaluate(() => {
+    const janela = window as unknown as { __emitTauri(e: string, p: unknown): void; __pings: string[] } // idem: o __emitTauri do mestreDeMentira
+    janela.__pings = ['c1', 'c2', 'c3']
+    setInterval(() => { for (const c of janela.__pings) janela.__emitTauri('net:message', { clientId: c, msg: { type: 'ping' } }) }, 1_500)
+  })
+  await atribuir(page, 'Ana', 'Guerreira')
+  await atribuir(page, 'Caio', 'Ladino')
+  await page.evaluate(() => { (window as unknown as { __pings: string[] }).__pings = ['c1', 'c2'] }) // idem
+  await emitir(page, 'net:peer', { clientId: 'c3', event: 'disconnected' })
+  await expect(escopo(page, 'direita').getByRole('button', { name: /Caio — jogando · desconectado/ })).toBeVisible()
+
+  // Foco do teclado nos botões de antes dentro do Grupo (o lb-btn com o visual novo): o anel aparece.
+  const livro = escopo(page, 'direita')
+  expect(await anelDeFoco(page, livro.getByRole('button', { name: 'Emprestar como ajudante…' }).first()), 'Emprestar como ajudante… sem anel de foco').not.toBe('none')
+  const primario = livro.locator('.gr-grupo .lb-btn--primary').first()
+  // O primário soma o brilho de cima (inset) ao anel (0 0 0 4px).
+  if ((await primario.count()) > 0) expect(await anelDeFoco(page, primario), 'botão primário do Grupo sem anel de foco').toMatch(/inset.*0px 0px 0px 4px|0px 0px 0px 4px.*inset/)
+
+  for (const bloco of blocosDa('mestre-com-jogadores')) await conferirBloco(page, bloco)
   expect(erros).toEqual([])
 })
 

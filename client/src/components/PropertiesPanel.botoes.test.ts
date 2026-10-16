@@ -72,10 +72,11 @@ describe('linhas de botões do painel: um vão e um alvo mínimo só', () => {
 
   it('cartão do jogador: as ações quebram de linha com o vão do token em vez de vazar', async () => {
     const css = await lerCss('../main.css')
-    // A barra de ações da ficha aberta (Grupo compacto).
-    const acoes = regra(css, '.lb-grupo__acoes')
+    // A barra de ações da ficha aberta (Grupo compacto) saiu do main.css na fatia 5 e
+    // segue a gramática do protótipo aprovado (`.acoes` do grimorio.css: vão de 6 px).
+    const acoes = regra(await lerCss('./livro/grupo.css'), '.gr-jogador__acoes')
     expect(acoes.get('flex-wrap')).toBe('wrap')
-    expect(acoes.get('gap')).toBe(VAO)
+    expect(acoes.get('gap')).toBe('6px')
     expect(regra(css, '.lb-player__line--acoes').get('gap')).toBe(VAO)
     expect(regra(css, '.lb-player__quick').get('gap')).toBe(VAO)
     const fichas = regra(css, '.lb-player__tokens')

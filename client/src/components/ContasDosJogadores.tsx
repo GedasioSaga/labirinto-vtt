@@ -3,7 +3,9 @@ import { NOME_DA_CONTA_MAX, PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, type ContaDeJogado
 import type { Personagem } from '../lib/personagem'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { useContasStore } from '../stores/contasStore'
-import { CollapsibleSection } from './CollapsibleSection'
+import { useAbertaGuardada } from './CollapsibleSection'
+import { Ficha } from './grimorio/Ficha'
+import { IconeDoLivro } from './livro/icones'
 import './ContasDosJogadores.css'
 
 export interface ContasDosJogadoresProps {
@@ -47,6 +49,7 @@ const DICA_DO_PIN = `De ${PIN_MIN_DIGITOS} a ${PIN_MAX_DIGITOS} números.`
  */
 export function ContasDosJogadores(props: ContasDosJogadoresProps) {
   const { contas, soComConta, podeGravar, aviso, onSoComConta } = props
+  const [aberta, setAberta] = useAbertaGuardada('contas-dos-jogadores', false)
   const [erro, setErro] = useState<string | null>(null)
   const soComContaId = useId()
 
@@ -60,7 +63,7 @@ export function ContasDosJogadores(props: ContasDosJogadoresProps) {
   }
 
   return (
-    <CollapsibleSection id="contas-dos-jogadores" title="Contas dos jogadores" defaultOpen={false} contagem={contas.length} headingLevel={3}>
+    <Ficha titulo="Contas dos jogadores" icone={<IconeDoLivro nome="pessoa" />} resumo={contas.length > 0 ? String(contas.length) : undefined} aberta={aberta} onAlternar={setAberta}>
       <div className="lb-contas">
         {aviso !== null && (
           <p className="lb-field__error" role="alert">
@@ -101,7 +104,7 @@ export function ContasDosJogadores(props: ContasDosJogadoresProps) {
         )}
         <NovaConta podeGravar={podeGravar} onCriar={props.onCriar} />
       </div>
-    </CollapsibleSection>
+    </Ficha>
   )
 }
 

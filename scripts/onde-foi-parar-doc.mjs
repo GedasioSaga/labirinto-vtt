@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { BLOCOS, FORA_DO_ESPECIFICADO } from '../client/e2e/helpers/ondeFoiParar.ts'
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)))
-const TELAS = { mestre: 'Mestre (editor, 1440x900)', 'mestre-sala-aberta': 'Mestre com a sala aberta', jogador: 'Jogador (celular, 390 px)' }
+const TELAS = { mestre: 'Mestre (editor, 1440x900)', 'mestre-sala-aberta': 'Mestre com a sala aberta', 'mestre-com-jogadores': 'Mestre com jogadores na sala', jogador: 'Jogador (celular, 390 px)' }
 const ESCOPOS = { esquerda: 'livro do mestre', barra: 'barra de ferramentas', acoes: 'topo do livro do mestre', chip: 'chip da cena, no alto do mapa', direita: 'livro da mesa', pagina: 'tela' }
 
 const celula = (texto) => String(texto).replaceAll('|', '\\|')

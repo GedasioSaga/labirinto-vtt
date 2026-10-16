@@ -112,7 +112,7 @@ describe('PartySection: "Recado" para um jogador só', () => {
     abrirFicha(container, 'Gabi')
     expect(botao('Recado para Gabi')).toBeUndefined()
     render(vi.fn((): PlayerNoteDelivery => 'sent'))
-    expect(botao('Recado para Gabi')?.textContent).toBe('Recado')
+    expect(botao('Recado para Gabi')).toBeDefined()
     abrirFicha(container, 'Elisa')
     expect(botao('Recado para Elisa')).toBeDefined()
     abrirFicha(container, 'Caio')

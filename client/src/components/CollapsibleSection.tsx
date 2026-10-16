@@ -57,6 +57,20 @@ function writeStoredOpen(id: string, open: boolean) {
 }
 
 /**
+ * A mesma lembrança de aberta/fechada (`lb-section:<id>`) para quem trocou a
+ * seção pela ficha do Grimório (`grimorio/Ficha`, fatia 5): quem deixou
+ * "Personagens" aberto continua achando aberto.
+ */
+export function useAbertaGuardada(id: string, inicial: boolean): readonly [boolean, (aberta: boolean) => void] {
+  const [guardada, setGuardada] = useState<boolean | null>(() => readStoredOpen(id))
+  const alternar = (aberta: boolean) => {
+    setGuardada(aberta)
+    writeStoredOpen(id, aberta)
+  }
+  return [guardada ?? inicial, alternar] as const
+}
+
+/**
  * Seção do painel que abre e fecha pelo cabeçalho. O cabeçalho é um `<button>`
  * de verdade (teclado e leitor de tela de graça) com `aria-expanded` e
  * `aria-controls` apontando para o corpo. O corpo fechado sai do DOM via

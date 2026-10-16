@@ -46,9 +46,10 @@ export function fichaDoJogador(escopo: ParentNode, nome: string): HTMLElement {
 /** Escolhe a aba na ficha aberta (sem nada se já estiver nela). */
 export function escolherAba(ficha: HTMLElement, aba: AbaDaFicha): void {
   const rotulo = ABA_ROTULO[aba]
-  const botao = Array.from(ficha.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((tab) => tab.textContent === rotulo)
-  if (!botao) throw new Error(`a ficha não tem a aba "${rotulo}"`)
-  if (botao.getAttribute('aria-selected') !== 'true') act(() => botao.click())
+  // O seg da ficha (fatia 5): cada parte é um rádio, escolhido com `aria-checked`.
+  const botao = Array.from(ficha.querySelectorAll<HTMLButtonElement>('[role="radio"]')).find((opcao) => opcao.textContent === rotulo)
+  if (!botao) throw new Error(`a ficha não tem a parte "${rotulo}"`)
+  if (botao.getAttribute('aria-checked') !== 'true') act(() => botao.click())
 }
 
 /** Abre a ficha do jogador (se fechada) e, com `aba`, escolhe a aba. Devolve a ficha. */

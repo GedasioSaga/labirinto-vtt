@@ -51,15 +51,17 @@ const SETAS = new Set(['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'])
 /**
  * Teclado de um grupo de opções (`role="radiogroup"`): as setas levam o foco à
  * vizinha e já a escolhem, dando a volta nas pontas (o seg e as cores do
- * protótipo). Vai no `onKeyDown` do grupo.
+ * protótipo); Home e End vão à primeira e à última (as abas que o seg da
+ * ficha do jogador substituiu já faziam isso). Vai no `onKeyDown` do grupo.
  */
 export function andarPelosRadios(evento: KeyboardEvent<HTMLElement>): void {
-  if (!SETAS.has(evento.key)) return
+  const pontas = evento.key === 'Home' || evento.key === 'End'
+  if (!SETAS.has(evento.key) && !pontas) return
   const radios = Array.from(evento.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'))
   const atual = radios.findIndex((radio) => radio === evento.target)
   if (atual < 0) return
   const passo = SETAS_QUE_VOLTAM.has(evento.key) ? -1 : 1
-  const proximo = radios[(atual + passo + radios.length) % radios.length]
+  const proximo = pontas ? radios[evento.key === 'Home' ? 0 : radios.length - 1] : radios[(atual + passo + radios.length) % radios.length]
   evento.preventDefault()
   proximo.focus()
   proximo.click()

@@ -69,7 +69,7 @@ function render(players: PlayerInfo[], extra: Partial<RoomPanelProps>) {
 
 /** O que se faz com quem saiu mora na aba Ficha da ficha dele: abre antes de procurar. */
 function abrir(nome: string): void {
-  abrirFicha(container, nome, 'ficha')
+  abrirFicha(container, nome, 'acoes')
 }
 
 function botao(label: string): HTMLButtonElement | undefined {

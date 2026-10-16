@@ -1,0 +1,182 @@
+/*
+ * PÁGINA GRUPO do livro da mesa (fatia 5 do design consolidado): a gramática
+ * do protótipo (docs/design/consolidado/prototipo/css/grimorio.css, blocos
+ * .grupo-cena, .pedido, .jogador, .item, .bola) com o prefixo `gr-`. Os
+ * controles de dentro da ficha que vêm de antes (atribuir, emprestar, passar,
+ * mapa, visão, mochila) ainda usam `lb-btn`/`lb-input`/`lb-chip`: aqui, e só
+ * dentro do Grupo, eles vestem o mesmo cartão do `gr-bt`. Filete de 1 px,
+ * nada estourado.
+ */
+
+.gr-grupo { gap: 0; }
+
+/* ------------------------------------------------------------------ topo: busca e "Pedindo" */
+.gr-grupo__topo { gap: 8px; }
+.gr-busca { position: relative; flex: 1; min-width: 0; }
+.gr-busca > .gr-ic { position: absolute; left: 9px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--lb-color-parchment-faint); pointer-events: none; }
+.gr-busca > .gr-entrada { padding-left: 32px; }
+.gr-grupo__topo > .gr-chip { flex: none; }
+.gr-grupo__topo > .gr-chip:disabled { opacity: 0.55; cursor: default; }
+
+/* ------------------------------------------------------------------ grupos: Chegando e uma cena cada */
+.gr-grupo-cena { margin-top: 12px; }
+.gr-grupo-cena__cab { display: flex; align-items: center; gap: 2px; min-height: 30px; }
+.gr-grupo-cena__alterna {
+  display: flex; align-items: baseline; gap: 4px; flex: 1; min-width: 0; min-height: 28px;
+  padding: 0 4px 0 0; border-radius: 6px; text-align: left;
+  background: none; border: 0; color: inherit; cursor: pointer;
+}
+.gr-grupo-cena__alterna:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.gr-grupo-cena__nome {
+  margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 400 15px/1.2 var(--lb-font-display); color: var(--lb-color-parchment);
+}
+.gr-grupo-cena__conta { flex: none; margin-left: 2px; font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.gr-grupo-cena__aqui { flex: none; align-self: center; width: 6px; height: 6px; margin-left: 2px; border-radius: 50%; background: var(--lb-color-brass); }
+/* a seta gira quando o grupo abre, no tempo do recolher */
+.gr-grupo-cena__seta {
+  align-self: center; flex: none; width: 12px; height: 12px; margin-left: 2px;
+  color: var(--lb-color-parchment-faint); transform: rotate(90deg);
+  transition: transform 200ms var(--lb-gr-ease-out);
+}
+.gr-grupo-cena[data-recolhida] .gr-grupo-cena__seta { transform: none; }
+.gr-grupo-cena__alterna[data-instant] .gr-grupo-cena__seta { transition: none; }
+
+/* recolher a cena: a altura vai de 1fr a 0fr pela grade, sem medir nada em JS */
+.gr-grupo-cena__corpo { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 200ms var(--lb-gr-ease-drawer); }
+.gr-grupo-cena[data-recolhida] .gr-grupo-cena__corpo { grid-template-rows: 0fr; transition-duration: 150ms; }
+.gr-grupo-cena__corpo[data-instant] { transition: none; }
+/* `clip` com margem: o anel de foco da linha não é cortado na borda do grupo */
+.gr-grupo-cena__dentro { min-height: 0; overflow: clip; overflow-clip-margin: 4px; }
+
+.gr-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+
+/* ------------------------------------------------------------------ o pedido de passagem, sob o título da cena */
+.gr-pedido {
+  display: flex; flex-direction: column; gap: 8px; margin: 6px 0; padding: 10px; border-radius: 9px;
+  background: var(--lb-color-brass-soft); border: 1px solid var(--lb-gr-filete-latao);
+}
+.gr-pedido p { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment); }
+.gr-pedido b { color: var(--lb-color-brass-bright); font-weight: 600; }
+.gr-pedido__nota { color: var(--lb-color-parchment-dim); }
+
+/* ------------------------------------------------------------------ itens e bolas */
+.gr-item { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 6px; border-radius: 7px; }
+.gr-item__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gr-item__nome { display: block; min-width: 0; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-item__nome .lb-player__name { font-weight: 400; color: inherit; }
+.gr-item__sub { display: block; min-width: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-bola {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font: 600 11px/1 var(--lb-font-utility); color: #101214; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+/* sem ficha no mapa: o anel vazio, a letra apagada */
+.gr-bola[data-vazia] { background: transparent; color: var(--lb-color-parchment-faint); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte); }
+.gr-ponto { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lb-color-online); }
+.gr-ponto[data-presenca='fora'] { background: transparent; border: 1px solid var(--lb-color-parchment-faint); }
+.gr-ponto[data-presenca='congelado'] { background: var(--lb-color-tide); }
+
+/* ------------------------------------------------------------------ a linha do jogador */
+.gr-jogador { border-radius: 9px; transition: background-color var(--lb-motion-fast) ease; }
+.gr-jogador.gr-e-aberto { background: var(--lb-gr-cartao); box-shadow: inset 0 0 0 1px var(--lb-gr-filete); }
+.gr-grupo .gr-jogador .lb-grupo__jogador { gap: 0; }
+.gr-jogador__linha { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 4px 4px 6px; }
+.gr-jogador__abrir {
+  display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; min-height: 36px; padding: 0;
+  border-radius: 7px; background: none; border: 0; color: inherit; text-align: left; cursor: pointer;
+}
+.gr-jogador__abrir:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.gr-jogador[data-presenca='fora'] .gr-item__nome { color: var(--lb-color-parchment-dim); }
+.gr-jogador[data-presenca='fora'] .gr-bola { opacity: 0.55; }
+.gr-jogador__rapidas { display: flex; flex: none; gap: 0; opacity: 0.85; }
+.gr-jogador__rapidas .gr-bt[aria-expanded='true'] { opacity: 1; background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+
+/* os selos não encolhem: o nome corta antes deles, que são o que pede atenção */
+.gr-selos { display: flex; flex: none; gap: 4px; }
+.gr-selo { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: var(--lb-radius-full); font-size: var(--lb-font-size-xs); line-height: 1.4; white-space: nowrap; }
+.gr-selo--pede { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.gr-selo--fora { color: var(--lb-color-parchment-faint); box-shadow: inset 0 0 0 1px var(--lb-gr-filete); }
+.gr-selo--gelo { background: rgba(121, 169, 204, 0.12); color: var(--lb-color-tide); }
+.gr-selo--neutro { color: var(--lb-color-parchment-dim); box-shadow: inset 0 0 0 1px var(--lb-gr-filete); }
+
+/* o recado, logo abaixo da linha */
+.gr-jogador__recado { display: flex; flex-direction: column; gap: 6px; padding: 0 10px 10px; }
+
+/* ------------------------------------------------------------------ a ficha aberta */
+/* abre sob a linha: a altura vai de 0fr a 1fr (200 ms) e volta mais rápido (150 ms) */
+.gr-jogador__ficha {
+  display: grid; grid-template-rows: 1fr; opacity: 1;
+  transition: grid-template-rows 200ms var(--lb-gr-ease-drawer), opacity 160ms ease;
+}
+@starting-style {
+  .gr-jogador__ficha { grid-template-rows: 0fr; opacity: 0; }
+}
+.gr-jogador__ficha[data-estado='fechando'] { grid-template-rows: 0fr; opacity: 0; transition-duration: 150ms, 120ms; }
+.gr-jogador__ficha[data-instant] { transition: none; }
+.gr-jogador__ficha-dentro { min-height: 0; overflow: clip; overflow-clip-margin: 4px; display: flex; flex-direction: column; gap: 10px; padding: 2px 10px 12px; }
+.gr-jogador__parte { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.gr-jogador__bloco { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* bloco sem nada dentro (o sub-controle não se aplica a este jogador) não deixa o título solto */
+.gr-jogador__bloco:has(> .gr-jogador__acoes:empty) { display: none; }
+.gr-jogador__h { margin: 4px 0 0; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.gr-jogador__acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+/* formulário e lista de dentro ocupam a linha inteira; botão fica do tamanho dele */
+.gr-jogador__acoes > :not(.gr-bt):not(.lb-btn) { flex-basis: 100%; min-width: 0; }
+
+/* ------------------------------------------------------------------ Chegando */
+.gr-chegando { display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; }
+.gr-chegando__corpo { display: flex; flex-direction: column; gap: 8px; padding: 0 6px 0 44px; }
+
+/* ------------------------------------------------------------------ pé: congelar a mesa */
+.gr-grupo__pe { margin-top: 12px; }
+.gr-grupo__degelo .gr-ic { color: var(--lb-color-tide); }
+.gr-grupo .gr-vazio { margin-top: 4px; }
+/* Personagens e Contas no fim da página, recolhidas */
+.lb-grupo-fichas { margin-top: 14px; }
+
+/* ------------------------------------------------------------------ os controles de antes, no cartão novo */
+.gr-grupo .lb-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 0 9px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  border: 1px solid var(--lb-gr-filete-forte); box-shadow: none;
+  font-size: var(--lb-font-size-sm); font-weight: 500; white-space: nowrap;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.gr-grupo .lb-btn:active:not(:disabled) { transform: scale(0.97); }
+.gr-grupo .lb-btn:disabled { opacity: 0.45; }
+.gr-grupo .lb-btn--primary:not(:disabled),
+.gr-grupo .lb-btn--primary:disabled {
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440);
+  color: var(--lb-color-brass-contrast); border-color: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); font-weight: 600;
+}
+/* O box-shadow: none acima (0,2,0) venceria o anel global de :focus-visible (0,1,0): devolve o foco do teclado. */
+.gr-grupo .lb-btn:focus-visible { box-shadow: var(--lb-shadow-focus); }
+.gr-grupo .lb-btn--primary:focus-visible { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--lb-shadow-focus); }.gr-grupo .lb-btn--ghost:not(:disabled) { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.gr-grupo .lb-btn--danger:not(:disabled) { background: transparent; border-color: rgba(226, 100, 90, 0.4); color: #f0897f; }
+.gr-grupo .lb-input {
+  min-height: 28px; padding: 4px 8px; border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete-forte); color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm); box-shadow: none;
+}
+.gr-grupo .lb-input:focus-visible { border-color: var(--lb-gr-filete-latao); box-shadow: var(--lb-shadow-focus); }
+.gr-grupo .lb-range { accent-color: var(--lb-color-brass); }
+.gr-grupo .lb-chip { background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-gr-filete-forte); color: var(--lb-color-parchment); }
+.gr-grupo .lb-player__note,
+.gr-grupo .lb-field__hint { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-faint); }
+
+@media (hover: hover) and (pointer: fine) {
+  .gr-jogador:not(.gr-e-aberto):hover { background: var(--lb-gr-hover); }
+  .gr-grupo-cena__alterna:hover .gr-grupo-cena__nome { color: var(--lb-color-brass-bright); }
+  .gr-grupo .lb-btn:hover:not(:disabled) { background: var(--lb-gr-hover-forte); border-color: var(--lb-gr-filete-forte); }
+  .gr-grupo .lb-btn--primary:hover:not(:disabled) { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-1) 40%, var(--lb-gr-latao-2)); }
+  .gr-grupo .lb-btn--danger:hover:not(:disabled) { background: var(--lb-color-ember-soft); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gr-grupo-cena__corpo, .gr-grupo-cena__seta { transition: none; }
+  /* a ficha troca na hora, só o esmaecer curto fica */
+  .gr-jogador__ficha { transition: opacity 120ms ease; }
+  .gr-jogador__ficha[data-estado='fechando'] { grid-template-rows: 0fr; }
+}

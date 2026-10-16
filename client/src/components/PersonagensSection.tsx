@@ -8,8 +8,9 @@ import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { herdaDaPasta, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { comAventura } from '../stores/virarAventura'
-import { CollapsibleSection } from './CollapsibleSection'
+import { useAbertaGuardada } from './CollapsibleSection'
 import { ImagemOuIniciais } from './FichaPecas'
+import { Ficha } from './grimorio/Ficha'
 import { IconeDoLivro } from './livro/icones'
 import './FichaDePersonagem.css'
 
@@ -47,6 +48,7 @@ export function resumoDaImportacao(resultado: ResultadoDaImportacao): string {
  * porque personagens e sistema moram no `adventure.json`.
  */
 export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar, nomeDaPasta }: PersonagensSectionProps) {
+  const [aberta, setAberta] = useAbertaGuardada('personagens', false)
   const [apagando, setApagando] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
   const [estado, setEstado] = useState<{ tipo: 'ok' | 'erro'; texto: string; avisos: string[] } | null>(null)
@@ -71,8 +73,8 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLiv
           Livro de regras
         </button>
       )}
-      {/* h3: a aba Jogo já tem o h2 "Sala" acima. */}
-      <CollapsibleSection id="personagens" title="Personagens" defaultOpen={false} contagem={personagens.length} headingLevel={3}>
+      {/* h3: o livro da mesa já tem o h2 "Sala" acima. Recolhida, com a contagem no resumo. */}
+      <Ficha titulo="Personagens" icone={<IconeDoLivro nome="ficha" />} resumo={personagens.length > 0 ? String(personagens.length) : undefined} aberta={aberta} onAlternar={setAberta}>
         <div className="lb-rpg">
           {/* Mexer aqui é mexer em todos os mapas da pasta: o mestre precisa saber antes do −/+. */}
           {nomeDaPasta !== undefined && <p className="lb-field__hint">Da pasta &quot;{nomeDaPasta}&quot;: a mesma ficha em todos os mapas dela.</p>}
@@ -141,7 +143,7 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLiv
             </div>
           )}
         </div>
-      </CollapsibleSection>
+      </Ficha>
     </>
   )
 }

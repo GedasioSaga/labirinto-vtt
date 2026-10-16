@@ -85,7 +85,7 @@ describe('RoomPanel: passar o mapa de um jogador a outro', () => {
    */
   function abrirMais(nome: string): void {
     if (card(nome).closest('li') === null) return
-    abrirFicha(container, nome, 'visao')
+    abrirFicha(container, nome, 'acoes')
   }
 
   function listaDePassar(nome: string): HTMLSelectElement | null {

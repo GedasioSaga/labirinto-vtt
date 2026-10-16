@@ -7,7 +7,7 @@ import type { TunnelState } from '../net/hostBridge'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { MapData, Pin, Token } from '../types/map'
 import { FOLLOW_LABEL, MIRROR_LABEL, mirrorLabel, SEND_TO_LABEL, sendDestinationsFor, type PartySectionProps } from './PartySection'
-import { abrirFicha, linhaDoJogador } from './grupoTeste'
+import { abrirFicha, escolherAba, linhaDoJogador } from './grupoTeste'
 import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
 function ficha(id: string, color: string | undefined, x = 100, y = 100): Token {
@@ -138,18 +138,19 @@ describe('Grupo na aba Jogo', () => {
   it('é uma região com nome "Grupo": uma linha por jogador em jogo, e quem espera num cartão antes das cenas', () => {
     grupo()
     const html = container.innerHTML
-    expect(html).toMatch(/<section class="lb-party lb-grupo" aria-labelledby="([^"]+)"><div class="lb-party__head"><h3 id="\1" class="lb-eyebrow">Grupo<\/h3>/)
-    expect(container.querySelectorAll('li.lb-party__item')).toHaveLength(3)
+    // O título é só do leitor de tela (fatia 5): à vista, o marcador Grupo da lombada já diz onde se está.
+    expect(html).toMatch(/<section class="lb-party lb-grupo gr-grupo" aria-labelledby="([^"]+)"><div class="lb-sr-only"><h3 id="\1">Grupo<\/h3>/)
+    expect(container.querySelectorAll('li.lb-grupo__item')).toHaveLength(3)
     // Carla espera: cartão aberto em "Chegando", fora das listas, antes delas.
     expect(html.indexOf('>Carla</strong>')).toBeGreaterThan(html.indexOf('>Grupo</h3>'))
-    expect(html.indexOf('>Carla</strong>')).toBeLessThan(html.indexOf('<ul class="lb-party__list lb-grupo__lista">'))
+    expect(html.indexOf('>Carla</strong>')).toBeLessThan(html.indexOf('<ul class="lb-grupo__lista gr-lista">'))
   })
 
   it('bolinha na cor da ficha, cada um no grupo da cena dele, "fora" só para quem caiu e o status inteiro para o leitor de tela', () => {
     grupo()
     const html = container.innerHTML
-    expect(html).toContain('style="background: rgb(60, 255, 0);"')
-    expect(html).toContain('style="background: rgb(255, 90, 0);"')
+    expect(html).toContain('style="background: rgb(60, 255, 0);')
+    expect(html).toContain('style="background: rgb(255, 90, 0);')
     expect(html).toMatch(/>Ana<\/strong><span class="lb-sr-only"> — jogando · conectado<\/span>/)
     expect(html).toMatch(/>Bruno<\/strong><span class="lb-sr-only"> — jogando · desconectado<\/span>/)
     expect(cenaDe('Ana')).toBe('Salao')
@@ -160,16 +161,18 @@ describe('Grupo na aba Jogo', () => {
 
   it('"Ir lá" e "Mandar para…" só para quem tem ficha no mapa', () => {
     grupo()
-    for (const nome of ['Ana', 'Bruno']) {
-      const botoes = nomes(abrirFicha(container, nome))
-      expect(botoes).toContain('Ir lá')
-      expect(botoes).toContain(SEND_TO_LABEL)
-    }
     // Dora: a linha diz que ela está sem ficha no mapa, e a ficha não tem para onde ir nem o que mandar.
+    // (Lida antes de abrir as outras: a ficha aberta de quem caiu lista os colegas, Dora inclusive.)
     expect(linhaDoJogador(container, 'Dora').textContent).toContain('sem ficha no mapa')
-    const dora = abrirFicha(container, 'Dora', 'mochila')
-    expect(nomes(dora)).not.toContain('Ir lá')
+    // "Ir lá" mora na linha (ação rápida, fatia 5); "Mandar para…", na parte Ações da ficha.
+    for (const nome of ['Ana', 'Bruno']) {
+      expect(nomes(linhaDoJogador(container, nome))).toContain(`Ir lá: ${nome}`)
+      expect(nomes(abrirFicha(container, nome, 'acoes'))).toContain(SEND_TO_LABEL)
+    }
+    const dora = abrirFicha(container, 'Dora', 'acoes')
+    expect(nomes(linhaDoJogador(container, 'Dora'))).not.toContain('Ir lá: Dora')
     expect(nomes(dora)).not.toContain(SEND_TO_LABEL)
+    escolherAba(dora, 'mochila')
     expect(dora.textContent).toContain('sem ficha no mapa')
     // O formulário só abre no clique: nenhuma escolha de chegada à vista.
     expect(container.textContent).not.toContain(PARTY_CENTER_LABEL)

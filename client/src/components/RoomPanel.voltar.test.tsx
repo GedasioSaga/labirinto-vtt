@@ -71,7 +71,7 @@ describe('RoomPanel: quem foi embora', () => {
     const onStoreTokens = vi.fn()
     const onDismiss = vi.fn()
     render([player({ clientId: null, connected: false })], { onStoreTokens, onDismiss })
-    abrirFicha(container, 'Fábio', 'ficha')
+    abrirFicha(container, 'Fábio', 'acoes')
     const guardar = botao('Guardar ficha')
     const dispensar = botao('Dispensar')
     if (guardar === undefined || dispensar === undefined) throw new Error('esperava "Guardar ficha" e "Dispensar"')
@@ -85,7 +85,7 @@ describe('RoomPanel: quem foi embora', () => {
 
   it('fora com a ficha já guardada: diz qual, e não oferece guardar de novo', () => {
     render([player({ clientId: null, connected: false, status: 'waiting', tokenIds: [], storedTokenNames: ['Escudo'] })], { onStoreTokens: vi.fn(), onDismiss: vi.fn() })
-    abrirFicha(container, 'Fábio', 'ficha')
+    abrirFicha(container, 'Fábio', 'acoes')
     expect(container.textContent).toContain('Ficha guardada: Escudo')
     expect(botao('Guardar ficha')).toBeUndefined()
     expect(botao('Dispensar')).toBeDefined()
@@ -94,7 +94,7 @@ describe('RoomPanel: quem foi embora', () => {
   it('conectado: sem "Guardar ficha" nem "Dispensar"; o "Expulsar" de sempre', () => {
     render([player()], { onStoreTokens: vi.fn(), onDismiss: vi.fn() })
     // No Grupo compacto, o que se faz com quem saiu e o "Expulsar" moram na aba Ficha.
-    abrirFicha(container, 'Fábio', 'ficha')
+    abrirFicha(container, 'Fábio', 'acoes')
     expect(botao('Guardar ficha')).toBeUndefined()
     expect(botao('Dispensar')).toBeUndefined()
     expect(botao('Expulsar')).toBeDefined()

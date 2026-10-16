@@ -42,7 +42,7 @@ describe('RoomPanel: Dar o que o grupo viu', () => {
 
   /** Abre a ficha na aba Visão, onde o botão mora. */
   function abrirMais(nome: string): void {
-    abrirFicha(container, nome, 'visao')
+    abrirFicha(container, nome, 'acoes')
   }
 
   it('aparece só para quem joga; o clique chama com o id e o aviso diz quantos colegas', () => {

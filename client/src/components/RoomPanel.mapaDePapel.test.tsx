@@ -132,7 +132,7 @@ describe('RoomPanel: dar um mapa de papel', () => {
       ),
     )
     // GRUPO COMPACTO: o "Dar um mapa a…" mora na aba Visão da ficha, fechada por padrão.
-    abrirFicha(container, 'Ana', 'visao')
+    abrirFicha(container, 'Ana', 'acoes')
   }
 
   function botao(texto: string): HTMLButtonElement {

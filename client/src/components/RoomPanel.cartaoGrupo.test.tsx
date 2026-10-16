@@ -144,8 +144,9 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
 
   /** O painel da aba escolhida na ficha. */
   function painelDaAba(ficha: HTMLElement): HTMLElement {
-    const painel = ficha.querySelector<HTMLElement>('[role="tabpanel"]')
-    if (!painel) throw new Error('a ficha não tem painel de aba')
+    // A parte escolhida no seg da ficha (fatia 5).
+    const painel = ficha.querySelector<HTMLElement>('.gr-jogador__parte')
+    if (!painel) throw new Error('a ficha não tem a parte escolhida')
     return painel
   }
 
@@ -175,15 +176,18 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
     })
   }
 
-  it('fechada, a linha é um botão só; aberta, as ações de toda cena no topo e as abas Mochila · Visão · Ficha', () => {
+  it('fechada, a linha é um botão só com Ir lá e Recado ao lado; aberta, o seg Ações · Mochila · Visão · Ficha', () => {
     render()
-    expect(botoes(linha('Bruno'))).toHaveLength(1)
-    const ficha = abrirFicha(container, 'Bruno')
-    const acoes = ficha.querySelector('.lb-grupo__acoes')
-    if (acoes === null) throw new Error('sem a barra de ações da ficha')
-    expect(botoes(acoes)).toEqual(['Ir lá', 'Seguir', 'Ver tela de Bruno', 'Recado para Bruno', 'Mandar para…'])
-    const abas = Array.from(ficha.querySelectorAll('[role="tablist"] [role="tab"]')).map((aba) => aba.textContent)
-    expect(abas).toEqual(['Mochila', 'Visão', 'Ficha'])
+    const rapidas = linha('Bruno').querySelector('.gr-jogador__rapidas')
+    if (rapidas === null) throw new Error('sem as ações rápidas da linha')
+    expect(botoes(rapidas)).toEqual(['Ir lá: Bruno', 'Recado para Bruno'])
+    expect(botoes(linha('Bruno'))).toHaveLength(3)
+    const ficha = abrirFicha(container, 'Bruno', 'acoes')
+    const partes = Array.from(ficha.querySelectorAll('[role="radiogroup"] [role="radio"]')).map((parte) => parte.textContent)
+    expect(partes).toEqual(['Ações', 'Mochila', 'Visão', 'Ficha'])
+    // As ações de toda cena, na parte Ações, na ordem do protótipo: mover, ver.
+    const nomes = botoes(painelDaAba(ficha))
+    expect(nomes.slice(0, 3)).toEqual(['Seguir', 'Mandar para…', 'Ver tela de Bruno'])
   })
 
   it('"Remover" é o × discreto no chip da ficha, longe da linha e das ações', () => {
@@ -228,49 +232,50 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
     expect(vazios(doBruno)).toEqual([])
   })
 
-  it('Ir lá, Seguir e Ver tela ficam juntos, num grupo com nome', () => {
+  it('Seguir e Mandar para… ficam juntos em "Mover"; Ver tela e o que se dá de mapa, em "Ver"', () => {
     render()
-    const acompanhar = abrirFicha(container, 'Bruno').querySelector('[role="group"][aria-label="Acompanhar Bruno"]')
-    if (acompanhar === null) throw new Error('sem o grupo "Acompanhar Bruno"')
-    expect(botoes(acompanhar)).toEqual(['Ir lá', 'Seguir', 'Ver tela de Bruno'])
+    const ficha = abrirFicha(container, 'Bruno', 'acoes')
+    const bloco = (titulo: string) => Array.from(ficha.querySelectorAll('.gr-jogador__bloco')).find((b) => b.querySelector('.gr-jogador__h')?.textContent === titulo)
+    const mover = bloco('Mover')
+    if (mover === undefined) throw new Error('sem o bloco "Mover"')
+    expect(botoes(mover)).toEqual(['Seguir', 'Mandar para…'])
+    const ver = bloco('Ver')
+    if (ver === undefined) throw new Error('sem o bloco "Ver"')
+    expect(botoes(ver)).toContain('Ver tela de Bruno')
+    expect(botoes(ver)).toContain(GROUP_VIEW_LABEL)
   })
 
-  it('a ficha traz o resto em abas com nome, e Expulsar por último na aba Ficha, separado', () => {
+  it('a ficha traz o resto em partes com nome, e Expulsar por último em Ações, no bloco "Sair da mesa"', () => {
     render()
     const ficha = abrirFicha(container, 'Bruno')
-    const lista = ficha.querySelector('[role="tablist"]')
-    expect(lista?.getAttribute('aria-label')).toBe('Ficha de Bruno')
+    expect(ficha.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Parte da ficha de Bruno')
 
     escolherAba(ficha, 'mochila')
     const mochila = painelDaAba(ficha)
-    expect(mochila.getAttribute('aria-labelledby')).toBe(Array.from(ficha.querySelectorAll('[role="tab"]')).find((aba) => aba.textContent === 'Mochila')?.id)
+    expect(mochila.getAttribute('data-parte')).toBe('mochila')
     for (const nome of ['Dar item a Bruno', 'Moedas de Bruno', 'Propor troca a Bruno', 'Tirar Corda de Bruno', 'Devolver ao chão Corda de Bruno']) {
       expect(botoes(mochila)).toContain(nome)
     }
 
-    escolherAba(ficha, 'visao')
-    expect(botoes(painelDaAba(ficha))).toContain(GROUP_VIEW_LABEL)
-
-    escolherAba(ficha, 'ficha')
+    escolherAba(ficha, 'acoes')
     const nomes = botoes(painelDaAba(ficha))
+    expect(nomes).toContain(GROUP_VIEW_LABEL)
     expect(nomes).toContain('Emprestar como ajudante…')
     expect(nomes[nomes.length - 1]).toBe('Expulsar')
     const expulsar = botao(painelDaAba(ficha), 'Expulsar')
-    expect(expulsar.closest('.lb-player__perigo')).not.toBeNull()
+    expect(expulsar.closest('.gr-jogador__bloco')?.querySelector('.gr-jogador__h')?.textContent).toBe('Sair da mesa')
   })
 
-  it('nas abas, o que abre formulário tem cara de botão: compacto e sólido, nunca texto solto', () => {
+  it('nas partes, o que abre formulário tem cara de botão: compacto e sólido, nunca texto solto', () => {
     render()
-    const ficha = abrirFicha(container, 'Bruno', 'visao')
-    for (const nome of [GROUP_VIEW_LABEL, 'Dar um mapa a Bruno']) {
-      const acao = botao(ficha, nome)
-      expect(`${nome}: ${acao.className}`).toContain('lb-btn--compact')
-      expect(`${nome}: ${acao.className}`).not.toContain('lb-btn--ghost')
+    const ficha = abrirFicha(container, 'Bruno', 'acoes')
+    // O botão do Grimório (gr-bt pequeno) e os de antes (lb-btn compacto), nunca o fantasma.
+    const solido = (nome: string) => {
+      const classe = botao(ficha, nome).className
+      expect(`${nome}: ${classe}`).toMatch(/gr-bt--p|lb-btn--compact/)
+      expect(`${nome}: ${classe}`).not.toMatch(/lb-btn--ghost|gr-bt--fantasma/)
     }
-    escolherAba(ficha, 'ficha')
-    const ajudante = botao(ficha, 'Emprestar como ajudante…')
-    expect(ajudante.className).toContain('lb-btn--compact')
-    expect(ajudante.className).not.toContain('lb-btn--ghost')
+    for (const nome of [GROUP_VIEW_LABEL, 'Dar um mapa a Bruno', 'Emprestar como ajudante…']) solido(nome)
   })
 
   it('as ações das abas agem: Dar item entrega; "Dar o que o grupo viu" avisa ali mesmo', () => {
@@ -282,7 +287,7 @@ describe('cartão do jogador no Grupo: ações agrupadas por intenção', () => 
     digitar(item, 'Tocha')
     clicar(botao(ficha, 'Dar'))
     expect(spies.onItem).toHaveBeenLastCalledWith({ kind: 'dar', nome: 'Tocha', member: expect.objectContaining({ playerId: 'p-bruno' }) })
-    escolherAba(ficha, 'visao')
+    escolherAba(ficha, 'acoes')
     clicar(botao(ficha, GROUP_VIEW_LABEL))
     expect(spies.onGiveGroupView).toHaveBeenCalledWith('p-bruno')
     expect(painelDaAba(ficha).querySelector('[role="status"]')?.textContent).toBe('Bruno recebeu o que 2 colegas viram')

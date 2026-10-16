@@ -17,7 +17,7 @@
  */
 
 export type Papel =
-  | 'alertdialog' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'heading' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
+  | 'alertdialog' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'group' | 'heading' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
   | 'region' | 'searchbox' | 'separator' | 'slider' | 'spinbutton' | 'tab' | 'textbox'
 
 /** [papel ARIA, nome acessível]. */
@@ -49,7 +49,7 @@ export interface Linha {
  */
 export type Escopo = 'esquerda' | 'barra' | 'acoes' | 'chip' | 'direita' | 'pagina'
 
-export type Tela = 'mestre' | 'mestre-sala-aberta' | 'jogador'
+export type Tela = 'mestre' | 'mestre-sala-aberta' | 'mestre-com-jogadores' | 'jogador'
 
 /** Estado de partida do bloco, refeito antes de CADA linha. */
 export interface Preparo {
@@ -71,6 +71,8 @@ export interface Bloco {
   /** De onde o bloco parte, em palavras. */
   readonly estado: string
   readonly escopo: Escopo
+  /** O alvo é procurado DENTRO deste elemento do escopo (a ficha aberta de um jogador), depois do caminho: o mesmo nome em outro cartão não conta. */
+  readonly dentro?: Alvo
   readonly preparo?: Preparo
   /** Para onde o bloco vai no design consolidado (protótipo, ONDE + PLANO §1). */
   readonly vai: string
@@ -401,7 +403,7 @@ export const BLOCOS: readonly Bloco[] = [
   // ─── Livro da mesa (direita) ──────────────────────────────────────────
   {
     tela: 'mestre', titulo: 'Livro da mesa, sala fechada', estado: 'app do mestre, sala fechada', escopo: 'direita',
-    vai: 'Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); o Grupo muda na 5', fatia: '4 e 5',
+    vai: 'Livro da mesa: topo da Sala (sala fechada), páginas Grupo e Mesa (feito); Personagens e Contas viram fichas recolhidas no fim do Grupo (fatia 5, feito)', fatia: '4 e 5',
     linhas: [
       l('Marcador Grupo (a aba Jogo de antes)', marcador('Grupo')),
       l('Abrir sala', b('Abrir sala')),
@@ -453,6 +455,47 @@ export const BLOCOS: readonly Bloco[] = [
     ],
   },
 
+  // ─── Grupo com jogadores (fatia 5) ────────────────────────────────────
+  {
+    tela: 'mestre-com-jogadores', titulo: 'Grupo: alto, Chegando, cena e linha', estado: 'sala aberta; Ana na Cripta, Bruno chegando sem ficha, Caio fora', escopo: 'direita',
+    vai: 'Busca com o chip Pedindo; Chegando aberto; cena com Ir à cena, Congelar e Pausar no título; linha com Ir lá e Recado; Congelar todos no pé', fatia: '5',
+    linhas: [
+      l('Buscar jogador', ['searchbox', 'Buscar jogador']),
+      l('Pedindo (chip do alto)', b('/^Pedindo/')),
+      l('Chegando: Atribuir a ficha livre', b('/Atribuir Goblin$/')),
+      l('Chegando: lista Atribuir token', ['combobox', 'Atribuir token']),
+      l('Chegando: Emprestar como ajudante', b('Emprestar como ajudante…')),
+      l('Chegando: Expulsar', b('Expulsar')),
+      l('Cena: recolher e abrir', b('/^Cripta.*jogadores/')),
+      ...todos([b('Ir à cena Cripta'), b('Congelar a cena Cripta'), b('Pausar a cena Cripta')]),
+      ...todos([b('Ir lá: Ana'), b('Recado para Ana')]),
+      l('Congelar todos (pé)', b('Congelar todos')),
+    ],
+  },
+  {
+    tela: 'mestre-com-jogadores', titulo: 'Grupo: ficha de Ana, cada parte do seg', estado: 'Ana jogando na Cripta, ficha aberta', escopo: 'direita', dentro: ['group', 'Ficha de Ana'],
+    vai: 'Seg Ações · Mochila · Visão · Ficha dentro da ficha aberta', fatia: '5',
+    linhas: [
+      ...todos([b('Seguir'), b('Mandar para…'), b('Ver tela de Ana'), b('Dar o que o grupo viu'), ['combobox', 'Passar o mapa de Ana a'], b('Dar um mapa a Ana'), b('Emprestar como ajudante…'), b('Expulsar')], b('/Ana — jogando/'), ['radio', 'Ações']),
+      ...todos([b('Dar item a Ana'), b('Moedas de Ana'), b('Propor troca a Ana')], b('/Ana — jogando/'), ['radio', 'Mochila']),
+      ...todos([['slider', 'Raio de visão'], ['slider', 'Fator de visão'], b('Revelar planta'), b('Esconder de novo')], b('/Ana — jogando/'), ['radio', 'Visão']),
+      ...todos([b('Remover Guerreira'), ['combobox', 'Atribuir token']], b('/Ana — jogando/'), ['radio', 'Ficha']),
+    ],
+  },
+  {
+    tela: 'mestre-com-jogadores', titulo: 'Grupo: ficha de Caio, fora da mesa', estado: 'Caio desconectado com ficha na Cripta, ficha aberta', escopo: 'direita', dentro: ['group', 'Ficha de Caio'],
+    vai: 'Parte Ações, blocos Ficha e Sair da mesa; parte Ficha', fatia: '5',
+    linhas: [
+      ...todos([b('Guardar ficha'), ['combobox', 'Emprestar ficha a'], ['combobox', 'Passar fichas e mapa a'], b('Dispensar')], b('/Caio — jogando/'), ['radio', 'Ações']),
+      l('Remover Ladino', b('Remover Ladino'), b('/Caio — jogando/'), ['radio', 'Ficha']),
+    ],
+  },
+  {
+    tela: 'mestre-com-jogadores', titulo: 'Grupo: pé depois de congelar', estado: 'a mesa congelada pelo Congelar todos', escopo: 'direita',
+    vai: 'Descongelar todos no pé do Grupo', fatia: '5',
+    linhas: [l('Descongelar todos', b('Descongelar todos'), b('Congelar todos'))],
+  },
+
   // ─── Tela do jogador ──────────────────────────────────────────────────
   {
     tela: 'jogador', titulo: 'Jogador: barra de cima e cantos', estado: 'jogador no celular (390 px), painel fechado', escopo: 'pagina',
@@ -481,7 +524,10 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
   ['Visto por / Ninguém vê, Levar para..., Rotina, Luzes nesta ficha (token)', 'pedem sala aberta, outra cena ou Estado do mundo com valores'],
   ['Livro de regras (página Mesa; e Grupo com a sala fechada)', 'só com sistema de RPG que tem livro'],
   ['Divisor "Altura das Cenas" (coluna da direita)', 'saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho'],
-  ['Grupo do mestre: as 25+ ações por jogador, Pedindo, Chegando, Congelar/Pausar cena', 'pedem jogador conectado; ficam para a fatia 5, que traz o spec do grupo'],
+  [
+    'Grupo do mestre (fatia 5): sob o título de cada cena, o pedido de passagem ("Deixar ir: <nome>", "Não: <nome>")',
+    'pede um jogador que viajou até um pino de passagem ligado a outra cena; GrupoCompacto.test.tsx e PartySection.test.tsx alcançam os dois botões sob o título da cena (o resto do Grupo com jogadores está no estado "mestre com jogadores")',
+  ],
   ['Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa', 'só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto)'],
   ['Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala")', 'só com NPC andando; TopoDaSala.test.tsx cobre o item do menu'],
   ['Depende do estado (porta, luz, zona, pino)', 'só com Estado do mundo criado'],
