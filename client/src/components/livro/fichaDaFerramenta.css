@@ -1,0 +1,111 @@
+/*
+ * FICHA DA FERRAMENTA (fatia 7 do design consolidado): na página Ficha, com uma
+ * ferramenta armada e nada selecionado, a cabeça do Grimório (medalha, nome,
+ * dica e tecla) e um cartão plano com os campos da ferramenta, como no
+ * protótipo (`pagFichaFerr`, docs/design/consolidado/prototipo/js/app.js).
+ *
+ * Os controles de sempre entram no cartão sem a moldura deles: a seção vira só
+ * uma pilha de campos e o rótulo de cada um ganha a voz do `.gr-campo__rot`.
+ * Tudo escopado em `.lb-ficha-ferramenta`: o mesmo controle com um item
+ * selecionado continua como estava até a fatia do item (8, 15 e 16).
+ */
+
+/* O respiro do corpo da página do protótipo (`.pagina__corpo`). */
+.lb-ficha-ferramenta {
+  padding: 12px 12px 20px 14px;
+}
+
+.lb-ficha-ferramenta .gr-ficha__dentro {
+  padding-bottom: 14px;
+}
+
+/* Ferramenta sem nada para ajustar antes de criar (o Token, fora da barra):
+   só a cabeça, sem um cartão vazio embaixo. */
+.lb-ficha-ferramenta .gr-ficha:not(:has(.gr-ficha__dentro > *)) {
+  display: none;
+}
+
+/* A seção de antes, sem o respiro nem o fio: o cartão já é a moldura. */
+.lb-ficha-ferramenta .lb-section,
+.lb-ficha-ferramenta .lb-section + .lb-section {
+  padding: 0;
+  gap: 12px;
+  border-top: 0;
+}
+
+/* O rótulo de um campo (o título que nomeia a escolha logo abaixo dele): a
+   voz do `.gr-campo__rot`, em caixa normal, a 6 px do controle como no
+   protótipo — e não a legenda em caixa alta de seção. */
+.lb-ficha-ferramenta .lb-eyebrow {
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--lb-color-parchment-dim);
+}
+.lb-ficha-ferramenta .lb-section > .lb-eyebrow {
+  margin-bottom: -6px;
+}
+
+/* O título de BLOCO de antes ("Parede", "Região", "Preenchimento", "Caminho",
+   "Estilo de desenho", "Traço da linha"): cada linha embaixo dele já tem o
+   próprio rótulo, e a cabeça já diz o nome da ferramenta. Some da vista e fica
+   para o leitor de tela, que continua achando a seção pelo título. */
+.lb-ficha-ferramenta .lb-section > .lb-eyebrow:has(+ .lb-section__row, + .lb-field, + .lb-switch) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* As escolhas de antes (`.lb-seg`) e as bibliotecas de texturas e carimbos na
+   pastilha do `.gr-seg`: o poço escuro com o fio do cartão, e a marcada em
+   relevo com o filete de latão, a mesma marca das variantes logo acima. */
+.lb-ficha-ferramenta .lb-seg,
+.lb-ficha-ferramenta .lb-texturas__grade,
+.lb-ficha-ferramenta .lb-carimbos__grade {
+  gap: 2px;
+  padding: 2px;
+  border-color: var(--lb-gr-filete);
+  border-radius: 8px;
+  background: var(--lb-gr-campo);
+}
+.lb-ficha-ferramenta .lb-seg__option {
+  min-height: 28px;
+  padding: 5px 6px;
+  border-radius: 6px;
+}
+.lb-ficha-ferramenta .lb-seg__option[aria-checked='true'],
+.lb-ficha-ferramenta .lb-texturas__opcao[aria-checked='true'],
+.lb-ficha-ferramenta .lb-carimbos__opcao[aria-checked='true'] {
+  background: var(--lb-gr-cartao-alto);
+  border-color: transparent;
+  color: var(--lb-color-parchment);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.lb-ficha-ferramenta .lb-seg__option[aria-checked='true'] svg {
+  color: var(--lb-color-brass-bright);
+}
+
+/* Grade só de nomes (os lados do polígono): sem o ícone em cima, a célula não
+   precisa da altura dele. */
+.lb-ficha-ferramenta .gr-seg--grade .gr-seg__op:not(:has(> svg)) {
+  min-height: 34px;
+}
+
+/* "Camadas do chão" no cartão do Chão: o rótulo de campo em cima da lista. */
+.lb-ficha-ferramenta__camadas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lb-ficha-ferramenta__camadas > h3 {
+  margin: 0;
+  font-weight: var(--lb-font-weight-regular);
+}

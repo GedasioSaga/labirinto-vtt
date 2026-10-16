@@ -20,7 +20,8 @@ Parte de: editor aberto, Selecionar, nada selecionado. Vai para: Topo do livro d
 | Adicionar (novo token) | button "Adicionar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
 | Cancelar (novo token) | button "Cancelar" | (livro do mestre) > clicar button "Adicionar token" | (do bloco) |
 | Engrenagem (Configurações do mapa) | button "Configurações do mapa" | (livro do mestre) | (do bloco) |
-| Faixa "Nada selecionado" | button "Nada selecionado" | (livro do mestre) > clicar tab "Ficha" | Página Ficha, vazio com atalhos (fatia 7) |
+| Faixa "Nada selecionado" | button "Nada selecionado" | (livro do mestre) > clicar tab "Ficha" | Página Ficha, vazio com atalhos (feito, fatia 7) |
+| Neste mapa: um exemplo de cada tipo da cena | button "/^Goblin/" | (livro do mestre) > clicar tab "Ficha" | Página Ficha, vazio: "Neste mapa" (novo, fatia 7) |
 
 ### Ações do mapa
 
@@ -194,11 +195,11 @@ Parte de: editor aberto. Vai para: Cantinho do botão (clique direito ou segurar
 
 ### Ficha da ferramenta: Parede
 
-Parte de: ferramenta Parede armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Parede armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Parede | heading "Parede" | (livro do mestre) | (do bloco) |
+| Ferramenta · Parede | heading "Ferramenta · Parede" | (livro do mestre) | (do bloco) |
 | Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
 | Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
 | Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
@@ -206,7 +207,7 @@ Parte de: ferramenta Parede armada, nada selecionado. Vai para: Página Ficha, f
 
 ### Ficha da ferramenta: Porta
 
-Parte de: ferramenta Porta armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Porta armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -216,7 +217,7 @@ Parte de: ferramenta Porta armada, nada selecionado. Vai para: Página Ficha, fi
 
 ### Ficha da ferramenta: Luz
 
-Parte de: ferramenta Luz armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Luz armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -224,11 +225,12 @@ Parte de: ferramenta Luz armada, nada selecionado. Vai para: Página Ficha, fich
 
 ### Ficha da ferramenta: Região
 
-Parte de: ferramenta Região armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Região armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Região | heading "Região" | (livro do mestre) | (do bloco) |
+| Ferramenta · Região | heading "Ferramenta · Região" | (livro do mestre) | (do bloco) |
+| Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
 | Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
@@ -238,11 +240,12 @@ Parte de: ferramenta Região armada, nada selecionado. Vai para: Página Ficha, 
 
 ### Ficha da ferramenta: Sala
 
-Parte de: ferramenta Sala armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Sala armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Sala | heading "Ferramenta · Sala" | (livro do mestre) | (do bloco) |
+| Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
 | Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
@@ -252,16 +255,19 @@ Parte de: ferramenta Sala armada, nada selecionado. Vai para: Página Ficha, fic
 
 ### Ficha da ferramenta: Chão
 
-Parte de: ferramenta Chão armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Chão armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Chão | heading "Ferramenta · Chão" | (livro do mestre) | (do bloco) |
-| Chão do mapa | button "Chão do mapa" | (livro do mestre) | (do bloco) |
+| Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
+| Tinta | radiogroup "Tinta" | (livro do mestre) | (do bloco) |
+| Operação | radiogroup "Operação" | (livro do mestre) | (do bloco) |
+| Chão do mapa | button "Chão do mapa" | (livro do mestre) > clicar button "Ir para Cena" | Página Cena, pela nota "Ir para Cena" da ficha do Chão (feito, fatia 7) |
 
 ### Ficha da ferramenta: Caminho
 
-Parte de: ferramenta Caminho armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Caminho armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -271,7 +277,7 @@ Parte de: ferramenta Caminho armada, nada selecionado. Vai para: Página Ficha, 
 
 ### Ficha da ferramenta: Penhasco
 
-Parte de: ferramenta Penhasco armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (biblioteca em grade de cartões). Fatia: 7.
+Parte de: ferramenta Penhasco armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta com a biblioteca em grade de cartões (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -283,7 +289,7 @@ Parte de: ferramenta Penhasco armada, nada selecionado. Vai para: Página Ficha,
 
 ### Ficha da ferramenta: Texturas
 
-Parte de: ferramenta Texturas armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (biblioteca em grade de cartões). Fatia: 7.
+Parte de: ferramenta Texturas armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta com a biblioteca em grade de cartões (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -298,7 +304,7 @@ Parte de: ferramenta Texturas armada, nada selecionado. Vai para: Página Ficha,
 
 ### Ficha da ferramenta: Carimbos
 
-Parte de: ferramenta Carimbos armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (biblioteca em grade de cartões). Fatia: 7.
+Parte de: ferramenta Carimbos armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta com a biblioteca em grade de cartões (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -315,23 +321,25 @@ Parte de: ferramenta Carimbos armada, nada selecionado. Vai para: Página Ficha,
 
 ### Ficha da ferramenta: Escada
 
-Parte de: ferramenta Escada armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Escada armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Escada | heading "Ferramenta · Escada" | (livro do mestre) | (do bloco) |
+| Tamanho | radiogroup "Tamanho" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Peça
 
-Parte de: ferramenta Peça armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Peça armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Peça | heading "Ferramenta · Peça" | (livro do mestre) | (do bloco) |
+| Colocar | radiogroup "Colocar" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Zona oculta
 
-Parte de: ferramenta Zona oculta armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Zona oculta armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -339,7 +347,7 @@ Parte de: ferramenta Zona oculta armada, nada selecionado. Vai para: Página Fic
 
 ### Ficha da ferramenta: Pincel de revelar
 
-Parte de: ferramenta Pincel de revelar armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Pincel de revelar armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -349,26 +357,31 @@ Parte de: ferramenta Pincel de revelar armada, nada selecionado. Vai para: Pági
 
 ### Ficha da ferramenta: Objetos
 
-Parte de: ferramenta Objetos armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Objetos armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Objetos | heading "Ferramenta · Objetos" | (livro do mestre) | (do bloco) |
+| Colocar | radiogroup "Colocar" | (livro do mestre) | (do bloco) |
+| Objeto | radiogroup "Objeto" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Desenho
 
-Parte de: ferramenta Desenho armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Desenho armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Pincel | heading "Ferramenta · Pincel" | (livro do mestre) | (do bloco) |
+| Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
+| Modo | radiogroup "Modo" | (livro do mestre) | (do bloco) |
+| Textura do traço | radiogroup "Textura do traço" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
 | Ponta da linha | radiogroup "Ponta da linha" | (livro do mestre) | (do bloco) |
 
 ### Ficha da ferramenta: Texto
 
-Parte de: ferramenta Texto armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Texto armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -379,7 +392,7 @@ Parte de: ferramenta Texto armada, nada selecionado. Vai para: Página Ficha, fi
 
 ### Ficha da ferramenta: Pino
 
-Parte de: ferramenta Pino armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Pino armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -389,7 +402,7 @@ Parte de: ferramenta Pino armada, nada selecionado. Vai para: Página Ficha, fic
 
 ### Ficha da ferramenta: Medir
 
-Parte de: ferramenta Medir armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Medir armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -397,11 +410,12 @@ Parte de: ferramenta Medir armada, nada selecionado. Vai para: Página Ficha, fi
 
 ### Ficha da ferramenta: Borracha
 
-Parte de: ferramenta Borracha armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta (cabeça com dica e kbd). Fatia: 7.
+Parte de: ferramenta Borracha armada, nada selecionado. Vai para: Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito). Fatia: 7.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Ferramenta · Borracha | heading "Ferramenta · Borracha" | (livro do mestre) | (do bloco) |
+| Modo | radiogroup "Modo" | (livro do mestre) | (do bloco) |
 
 ### Faixa da seleção
 
@@ -1095,4 +1109,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 594 controles em 67 blocos.
+Total: 608 controles em 67 blocos.

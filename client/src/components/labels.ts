@@ -135,6 +135,49 @@ export const ROOM_FREE_WALL_HINT =
   'Clique ponto a ponto para traçar a parede. Duplo clique ou Enter termina (mín. 2 pontos); termine no primeiro ponto para fechar o contorno. Backspace/Ctrl+Z tira o último ponto, Esc cancela.'
 
 /**
+ * A dica curta da cabeça da ficha da ferramenta (página Ficha, fatia 7 do
+ * design consolidado), embaixo do nome: o gesto em uma linha. A instrução
+ * inteira continua no balão da barra (`TOOL_HINTS`); aqui ela seria um
+ * parágrafo em cima dos campos. Os textos são os do protótipo, acertados para
+ * o gesto que o app faz de verdade (a escada e a zona se arrastam).
+ */
+export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
+  wall: 'Clique e arraste no mapa para traçar.',
+  door: 'Clique numa parede para abrir a porta nela.',
+  light: 'Clique no mapa para acender uma luz.',
+  region: 'Clique ponto a ponto; duplo clique fecha.',
+  room: 'Arraste no mapa para desenhar a sala.',
+  roomCircle: 'Arraste do centro até a borda.',
+  roomPolygon: 'Arraste do centro até a borda.',
+  roomFree: 'Clique canto a canto; duplo clique fecha.',
+  stair: 'Arraste no mapa para desenhar o lance.',
+  token: 'Clique no mapa para pôr um token.',
+  prop: 'Clique no mapa e escolha a imagem.',
+  brush: 'Desenhe à mão sobre o mapa.',
+  line: 'Arraste de um ponto ao outro.',
+  circle: 'Arraste do centro para fora.',
+  ellipse: 'Arraste do centro para fora.',
+  rect: 'Arraste de um canto ao outro.',
+  polygon: 'Clique vértice a vértice; duplo clique fecha.',
+  curve: 'Arraste para desenhar a curva.',
+  text: 'Clique no mapa para pôr o texto.',
+  measure: 'Arraste no mapa para medir.',
+  eraser: 'Clique ou arraste sobre o que quer apagar.',
+  floor: 'Pinte o chão direto no mapa.',
+  path: 'Clique ponto a ponto; duplo clique termina.',
+  concealZone: 'Arraste a área que os jogadores não veem.',
+  revealBrush: 'Pinte o mapa durante o jogo.',
+  penhasco: 'Risque a costa onde quer o rochedo.',
+  texturas: 'Pinte a textura por cima do mapa.',
+  carimbos: 'Clique para soltar; arraste para espalhar.',
+  pin: 'Clique no mapa para fincar o pino.',
+  mobilia: 'Clique no mapa para colocar.',
+}
+
+/** A Sala livre em "Criar: Parede" (a setinha ou a ficha): o mesmo traçado, com outro fim. */
+export const DICA_DA_FICHA_SALA_LIVRE_PAREDE = 'Clique ponto a ponto; duplo clique termina.'
+
+/**
  * Botão da barra que agrupa várias ferramentas (plano de 15/09/2026, fatia 2).
  * O nome acessível é fixo (`label`); o ícone e o `data-tip` mostram a forma
  * que o clique vai ativar.

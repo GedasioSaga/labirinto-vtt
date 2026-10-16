@@ -153,6 +153,7 @@ import { ChipDaCena } from './components/livro/ChipDaCena'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
+import type { ToolVariantBindings } from './components/ToolVariantMenu'
 import { framePlace, goToMapObject } from './stores/mapObjectNavigation'
 import { fontesDaBusca, irAoAchado, mandarFichaPara } from './stores/buscaDoMestre'
 import { ligacaoLevarFicha } from './stores/levarFicha'
@@ -3046,6 +3047,28 @@ function App() {
   // A sala do livro da mesa só existe no Tauri: no navegador puro o livro fica só com as Cenas.
   const sala = isTauri() ? salaProps() : undefined
 
+  // As preferências da PRÓXIMA peça por eixo de variante: o cantinho da barra e
+  // a ficha da ferramenta (página Ficha) leem e escrevem as mesmas.
+  const variantBindings: ToolVariantBindings = {
+    doorKind: { value: doorKind, onChange: setDoorKind },
+    wallKind: { value: wallKind, onChange: setWallKind },
+    regionFillPattern: { value: regionFillPattern, onChange: setRegionFillPattern },
+    polygonSides: { value: polygonSides, onChange: setPolygonSides },
+    stairSizePreset: { value: stairSizePreset, onChange: setStairSizePreset },
+    drawTexture: { value: drawTexture, onChange: setDrawTexture },
+    brushMode: { value: brushMode, onChange: setBrushMode },
+    eraseMode: { value: eraseMode, onChange: setEraseMode },
+    floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
+    floorOp: { value: floorOp, onChange: setFloorOp },
+    floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
+    floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
+    floorCamada: { value: floorCamada, onChange: setFloorCamada },
+    mobiliaTipo: { value: mobiliaTipo, onChange: setMobiliaTipo },
+    roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
+    roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
+    drawShape: { value: activeTool, onChange: armarPelaBarra },
+  }
+
   return (
     <div className="lb-editor" ref={editorRootRef} data-coldir={rightOpen ? 'aberta' : 'escondida'}>
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -3119,30 +3142,7 @@ function App() {
 
       {/* BARRA DE FERRAMENTAS (fatia 6 do design consolidado): no pé do mapa, entre os dois livros. */}
       <div className="lb-editor__base" ref={editorBaseRef}>
-        <Toolbar
-          activeTool={activeTool}
-          onSelectTool={armarPelaBarra}
-          lastDrawingTool={lastDrawingTool}
-          variantBindings={{
-            doorKind: { value: doorKind, onChange: setDoorKind },
-            wallKind: { value: wallKind, onChange: setWallKind },
-            regionFillPattern: { value: regionFillPattern, onChange: setRegionFillPattern },
-            polygonSides: { value: polygonSides, onChange: setPolygonSides },
-            stairSizePreset: { value: stairSizePreset, onChange: setStairSizePreset },
-            drawTexture: { value: drawTexture, onChange: setDrawTexture },
-            brushMode: { value: brushMode, onChange: setBrushMode },
-            eraseMode: { value: eraseMode, onChange: setEraseMode },
-            floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
-            floorOp: { value: floorOp, onChange: setFloorOp },
-            floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
-            floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
-            floorCamada: { value: floorCamada, onChange: setFloorCamada },
-            mobiliaTipo: { value: mobiliaTipo, onChange: setMobiliaTipo },
-            roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
-            roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
-            drawShape: { value: activeTool, onChange: armarPelaBarra },
-          }}
-        />
+        <Toolbar activeTool={activeTool} onSelectTool={armarPelaBarra} lastDrawingTool={lastDrawingTool} variantBindings={variantBindings} />
       </div>
 
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
@@ -3336,6 +3336,8 @@ function App() {
                 />
               )
             }
+            nesteMapa={{ map, onIr: goToMapObject }}
+            variantes={variantBindings}
             objects={
               <>
                 <MapObjectsSection

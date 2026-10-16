@@ -84,7 +84,7 @@ button:where([class^='gr-'], [class*=' gr-']):disabled { cursor: not-allowed; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .gr-cabeca__med svg { width: 22px; height: 22px; stroke-width: 1.8; }
-.gr-cabeca__nome { font: 400 19px/1.15 var(--lb-font-display); color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.gr-cabeca__nome { margin: 0; font: 400 19px/1.15 var(--lb-font-display); color: var(--lb-color-parchment); overflow-wrap: anywhere; }
 .gr-cabeca__tipo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-top: 2px; }
 .gr-cabeca__acoes { display: flex; gap: 2px; align-self: start; }
 .gr-cabeca > .gr-kbd { align-self: start; margin-top: 4px; }
@@ -154,7 +154,9 @@ button:where([class^='gr-'], [class*=' gr-']):disabled { cursor: not-allowed; }
 .gr-seg__op--ic { flex: 0 0 38px; }
 .gr-seg__op--ic svg { width: 17px; height: 17px; }
 .gr-seg--grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
-.gr-seg--grade .gr-seg__op { flex-direction: column; min-height: 50px; gap: 3px; font-size: var(--lb-font-size-xs); padding: 4px 2px; }
+.gr-seg--grade .gr-seg__op { flex-direction: column; min-height: 50px; gap: 3px; font-size: var(--lb-font-size-xs); padding: 4px 2px; white-space: normal; }
+/* nome que não cabe na célula ("Armário de cozinha") quebra em duas linhas, em vez de cortar as duas pontas */
+.gr-seg--grade .gr-seg__op > span { text-align: center; line-height: 1.15; }
 .gr-seg--grade .gr-seg__op svg { width: 20px; height: 20px; }
 .gr-seg--grade .gr-seg__op .gr-kbd { border: 0; padding: 0; min-width: 0; font-size: 9.5px; color: var(--lb-color-parchment-faint); }
 .gr-seg--icone .gr-seg__op { min-height: 34px; }

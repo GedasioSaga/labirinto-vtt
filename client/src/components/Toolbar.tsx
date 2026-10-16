@@ -27,39 +27,7 @@ import {
 import { ToolVariantMenu, readVariantValue, type ToolVariantBindings } from './ToolVariantMenu'
 import { Balao } from './grimorio/Balao'
 import { movimentoReduzido } from './grimorio/comum'
-import {
-  BrushIcon,
-  CircleIcon,
-  ConcealZoneIcon,
-  CurveIcon,
-  CursorIcon,
-  DoorIcon,
-  EllipseIcon,
-  EraserIcon,
-  FloorIcon,
-  LightIcon,
-  LineIcon,
-  MeasureIcon,
-  ObjetosIcon,
-  PathIcon,
-  PenhascoIcon,
-  TexturasIcon,
-  CarimbosIcon,
-  PinIcon,
-  PolygonIcon,
-  PropIcon,
-  RectIcon,
-  RegionIcon,
-  RegularPolygonIcon,
-  RevealBrushIcon,
-  RoomCircleIcon,
-  RoomFreeIcon,
-  RoomIcon,
-  StairIcon,
-  TextIcon,
-  TokenIcon,
-  WallIcon,
-} from './icons'
+import { TOOL_ICONS } from './toolIcons'
 
 interface ToolbarProps {
   activeTool: DrawingTool
@@ -75,42 +43,6 @@ interface ToolbarProps {
    * um segundo caminho de UI até o MESMO estado, não um estado novo.
    */
   variantBindings: ToolVariantBindings
-}
-
-// Partial, não Record<DrawingTool, ...>: assim uma futura extensão de
-// DrawingTool não força entrada aqui antes do ícone existir.
-const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>> = {
-  select: CursorIcon,
-  wall: WallIcon,
-  door: DoorIcon,
-  light: LightIcon,
-  region: RegionIcon,
-  room: RoomIcon,
-  roomCircle: RoomCircleIcon,
-  roomPolygon: RegularPolygonIcon,
-  roomFree: RoomFreeIcon,
-  floor: FloorIcon,
-  path: PathIcon,
-  stair: StairIcon,
-  token: TokenIcon,
-  prop: PropIcon,
-  brush: BrushIcon,
-  line: LineIcon,
-  circle: CircleIcon,
-  ellipse: EllipseIcon,
-  rect: RectIcon,
-  polygon: PolygonIcon,
-  curve: CurveIcon,
-  text: TextIcon,
-  measure: MeasureIcon,
-  eraser: EraserIcon,
-  concealZone: ConcealZoneIcon,
-  revealBrush: RevealBrushIcon,
-  penhasco: PenhascoIcon,
-  texturas: TexturasIcon,
-  carimbos: CarimbosIcon,
-  pin: PinIcon,
-  mobilia: ObjetosIcon,
 }
 
 /** Tamanho do ícone dentro de uma opção do grupo Forma. */

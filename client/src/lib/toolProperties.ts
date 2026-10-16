@@ -166,39 +166,28 @@ const PAREDES_AO_REDOR_KINDS: ReadonlySet<Exclude<Drawing['kind'], 'text'>> = ne
 const EMPTY_SELECTION: ToolPropertiesSelection = {}
 
 /**
- * Ferramentas cuja PRÓPRIA seção de propriedade já imprime, letra por letra, o
- * nome que o botão delas tem na barra: `wall` → `WallStyleControls` ("Parede"),
- * `region` → `RegionStyleControls` ("Região"). Nessas duas o painel já se
- * apresenta sozinho — repetir o nome viraria dois títulos idênticos colados.
- *
- * O resto da barra NÃO tem essa sorte: `room`/`roomCircle`/`roomPolygon`
- * reaproveitam a mesma `RegionStyleControls`, então com Sala ativa o primeiro
- * título do painel é "REGIÃO", que é o nome de OUTRA ferramenta da barra — o
- * usuário lê e acha que apertou o botão errado (passeio cego, jornada
- * `task-jornada-painel-com-nome-certo.spec.ts`). Escada/Peça/Luz são piores
- * ainda: abrem em "SELEÇÃO DE ÁREA", que não fala da ferramenta nenhuma.
- */
-const TOOLS_NAMED_BY_THEIR_OWN_SECTION: ReadonlySet<DrawingTool> = new Set<DrawingTool>(['wall', 'region'])
-
-/**
- * Qual ferramenta o painel precisa NOMEAR no próprio topo, antes de qualquer
- * seção — `null` quando não precisa de nenhum título extra. Puro: só decide
- * QUEM é nomeado; o texto visível sai de `TOOL_LABELS`
+ * De qual ferramenta é a ficha da página Ficha (fatia 7 do design
+ * consolidado): a cabeça dela vem antes de qualquer seção, com o nome que o
+ * botão tem na barra — `null` quando a página não é de ferramenta nenhuma.
+ * Puro: só decide QUEM é nomeado; o texto visível sai de `TOOL_LABELS`
  * (`components/labels.ts`, a mesma fonte do rótulo do botão da barra — é o
  * chamador quem traduz, porque `lib/` não depende de `components/`).
  *
- * Duas exceções, as duas por "o painel já diz isso":
- * - `hasSelection` — com algo selecionado o painel é do ITEM selecionado
+ * Sem a cabeça, as seções compartilhadas falavam pela ferramenta: com Sala
+ * ativa o primeiro título era "REGIÃO", o nome de OUTRA ferramenta da barra
+ * (passeio cego, jornada `task-jornada-painel-com-nome-certo.spec.ts`), e
+ * Escada/Peça/Luz abriam em "SELEÇÃO DE ÁREA". Agora toda ferramenta tem a
+ * cabeça, inclusive Parede e Região, cujas seções também diziam o nome.
+ *
+ * Duas exceções:
+ * - `hasSelection` — com algo selecionado a ficha é do ITEM selecionado
  *   (Sala/Token/Parede… já abrem com o nome do item no topo), não da
  *   ferramenta que por acaso está armada.
- * - `select` e as de `TOOLS_NAMED_BY_THEIR_OWN_SECTION` — Selecionar não cria
- *   nada (o painel ali é do mapa), e Parede/Região já são o título da própria
- *   seção.
+ * - `select` — Selecionar não cria nada: a página mostra o "Nada selecionado".
  */
 export function panelHeadingTool(activeTool: DrawingTool, hasSelection: boolean): DrawingTool | null {
   if (hasSelection) return null
   if (activeTool === 'select') return null
-  if (TOOLS_NAMED_BY_THEIR_OWN_SECTION.has(activeTool)) return null
   return activeTool
 }
 

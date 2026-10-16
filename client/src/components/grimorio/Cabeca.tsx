@@ -13,15 +13,26 @@ export interface CabecaProps {
   acoes?: ReactNode
   /** Tecla da ferramenta, no lugar das ações (ficha da ferramenta). */
   atalho?: string
+  /**
+   * O nome é o título da página (`h2`): quem navega por títulos chega na
+   * ficha por ele. Sem isto ele é texto, como no cartão do pino do jogador.
+   */
+  comoTitulo?: boolean
+  /** Dito só ao leitor de tela, antes do nome ("Ferramenta · "): o nome sozinho não diz que é a ferramenta na mão. */
+  prefixoOculto?: string
 }
 
 /** Topo da ficha (o `.cabeca`): marca, nome em serifa, tipo e as ações. */
-export function Cabeca({ marca, nome, tipo, onde, acoes, atalho }: CabecaProps) {
+export function Cabeca({ marca, nome, tipo, onde, acoes, atalho, comoTitulo = false, prefixoOculto }: CabecaProps) {
+  const Nome = comoTitulo ? 'h2' : 'div'
   return (
     <div className="gr-cabeca">
       {marca}
       <div>
-        <div className="gr-cabeca__nome">{nome}</div>
+        <Nome className="gr-cabeca__nome">
+          {prefixoOculto && <span className="gr-sr">{prefixoOculto}</span>}
+          {nome}
+        </Nome>
         <div className="gr-cabeca__tipo">{onde ? `${tipo} · ${onde}` : tipo}</div>
       </div>
       {acoes && <div className="gr-cabeca__acoes">{acoes}</div>}

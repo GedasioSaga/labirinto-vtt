@@ -131,15 +131,13 @@ describe('painel de propriedades — a ferramenta Chão na mão', () => {
     container.remove()
   })
 
-  it('o "Chão do mapa" da Ficha e o da página Cena não repetem id: cada rótulo aponta o campo da própria página', () => {
+  it('com a ferramenta Chão na mão, o "Chão do mapa" mora só na página Cena: um rótulo, apontando o campo dela, e nenhum id repetido', () => {
     act(() => root.render(<PropertiesPanel {...propsDoPainel(null, { activeTool: 'floor', groups: relevantPropertyGroups('floor') })} />))
     const ids = [...container.querySelectorAll('[id]')].map((el) => el.id)
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
     const rotulos = [...container.querySelectorAll('label')].filter((l) => l.textContent?.trim() === 'Cor do chão')
-    expect(rotulos).toHaveLength(2)
-    for (const rotulo of rotulos) {
-      const campo = document.getElementById(rotulo.htmlFor)
-      expect(campo?.closest('.gr-folha')).toBe(rotulo.closest('.gr-folha'))
-    }
+    expect(rotulos).toHaveLength(1)
+    const campo = document.getElementById(rotulos[0]?.htmlFor ?? '')
+    expect(campo?.closest('.gr-folha')?.getAttribute('data-pagina')).toBe('cena')
   })
 })

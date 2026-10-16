@@ -9,7 +9,9 @@ import { PropLayerControls, type PropLayerControlsProps } from './PropLayerContr
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
-import { NadaSelecionado } from './NadaSelecionado'
+import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
+import { FichaDaFerramenta } from './livro/FichaDaFerramenta'
+import type { ToolVariantBindings } from './ToolVariantMenu'
 import { BOTAO_NOVO_TOKEN_ID, NovoTokenForm } from './NovoTokenForm'
 import { EndireitarControl } from './EndireitarControl'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
@@ -65,7 +67,7 @@ import { FEATURES } from '../lib/features'
 import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
 import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
-import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
+import type { FloorStyleControlsProps } from './FloorStyleControls'
 import { FloorLayersList, type FloorLayersListProps } from './FloorLayersList'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTriggerControls'
@@ -85,7 +87,6 @@ import { roomLabelStyleOf } from '../lib/roomLabelStyle'
 import { pinKindShowsIcon } from '../lib/pins'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
-import { TOOL_LABELS } from './labels'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { FolhaDoLivro } from './livro/FolhaDoLivro'
@@ -117,6 +118,17 @@ interface PropertiesPanelProps {
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
+  /**
+   * "Neste mapa" da página Ficha sem seleção (fatia 7): a cena aberta e o mesmo
+   * "ir até" da lista de objetos (seleciona e leva a câmera). Ausente = sem a lista.
+   */
+  nesteMapa?: NadaSelecionadoProps['nesteMapa']
+  /**
+   * As preferências da PRÓXIMA peça (forma, tinta, tamanho...), as mesmas do
+   * cantinho da barra (App.tsx): a ficha da ferramenta mostra os eixos que os
+   * controles de sempre não têm. Ausente = só os controles de sempre.
+   */
+  variantes?: ToolVariantBindings
   mapName: string
   mapWidth: number
   mapHeight: number
@@ -308,6 +320,37 @@ export interface PisosWiring {
 }
 
 /**
+ * Ferramenta armada e nada selecionado: as seções da ferramenta dentro da
+ * ficha dela (fatia 7), com "Camadas do chão" no fim do cartão do Chão — é nela
+ * que se vê onde a primeira pincelada cai. Sem ferramenta a nomear (Selecionar
+ * na mão, ou algo selecionado): as seções soltas, como sempre.
+ */
+function MolduraDaFicha({
+  ferramenta,
+  variantes,
+  camadasDoChao,
+  children,
+}: {
+  ferramenta: DrawingTool | null
+  variantes?: ToolVariantBindings
+  camadasDoChao?: FloorLayersListProps
+  children: ReactNode
+}) {
+  if (ferramenta === null) return <>{children}</>
+  return (
+    <FichaDaFerramenta ferramenta={ferramenta} variantes={variantes}>
+      {children}
+      {camadasDoChao !== undefined && (
+        <div className="lb-ficha-ferramenta__camadas">
+          <h3 className="gr-campo__rot">Camadas do chão</h3>
+          <FloorLayersList {...camadasDoChao} />
+        </div>
+      )}
+    </FichaDaFerramenta>
+  )
+}
+
+/**
  * O recheio do livro do mestre (components/livro/LivroDoMestre.tsx): a página
  * Ficha (o que está na mão ou selecionado) e as páginas Cena, Aventura e
  * Acervo, cada uma numa `FolhaDoLivro`. Só compõe — cada seção é responsável
@@ -324,6 +367,8 @@ export function PropertiesPanel({
   regionSplit,
   rotinaDaFicha,
   objects: objetosDaCena,
+  nesteMapa,
+  variantes,
   mapName,
   mapWidth,
   mapHeight,
@@ -398,21 +443,17 @@ export function PropertiesPanel({
   acervoDeItens,
   territorio,
 }: PropertiesPanelProps) {
-  // "Que ferramenta está na minha mão?": com uma ferramenta armada e nada
-  // selecionado, as seções abaixo são as da ferramenta — mas várias delas são
-  // compartilhadas (Sala/Sala Circular/Polígono Regular usam a seção "Região")
-  // ou nem existem (Escada/Peça abrem em "Seleção de área"), e o primeiro
-  // título do painel acabava dizendo o nome de OUTRA ferramenta da barra.
-  // `panelHeadingTool` decide QUEM nomear (e quando calar); o rótulo visível é
-  // o mesmo `TOOL_LABELS` do botão da barra, para o painel repetir letra por
-  // letra o que o usuário acabou de apertar. Zona oculta aberta conta como
-  // seleção: `ConcealZoneControls` já é o título "Zona oculta".
+  // "Que ferramenta está na minha mão?" (fatia 7 do design consolidado): com
+  // uma ferramenta armada e nada selecionado, a página Ficha é a FICHA DA
+  // FERRAMENTA — a cabeça com o nome dela (o mesmo `TOOL_LABELS` do botão da
+  // barra, letra por letra), a dica e a tecla, e os controles num cartão. Com
+  // Selecionar na mão, o convite "Nada selecionado". `panelHeadingTool` decide
+  // QUEM a cabeça nomeia (ninguém, com algo selecionado). Zona oculta aberta
+  // conta como seleção: `ConcealZoneControls` já é o título "Zona oculta".
   // Pino e zona oculta não entram no resumo `selection.selection`, mas estão
-  // selecionados: a faixa do topo não pode dizer "Nada selecionado" em cima
-  // do cartão deles.
+  // selecionados: a página não pode dizer "Nada selecionado" em cima do cartão deles.
   const algoSelecionado = selection.selection !== null || concealZone !== null || pinSelected
-  const headingTool = panelHeadingTool(activeTool, algoSelecionado)
-  const toolHeading = headingTool === null ? undefined : TOOL_LABELS[headingTool]
+  const ferramentaDaFicha = panelHeadingTool(activeTool, algoSelecionado)
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
   // A faixa da seleção remonta quando o item muda (o menu aberto não passa de um item para o outro).
@@ -460,15 +501,15 @@ export function PropertiesPanel({
     useLivroDoMestreStore.getState().fecharNovoToken()
   }
   // NA FICHA, só o que é da ferramenta ou do item: com a ferramenta Chão na
-  // mão, "Chão do mapa" e "Camadas do chão"; com uma peça de chão
-  // selecionada, "Camadas do chão". O resto da cena mora na página Cena.
+  // mão ou uma peça de chão selecionada, "Camadas do chão". O "Chão do mapa"
+  // (cor, contorno e moldura do mapa inteiro) e o resto da cena moram na
+  // página Cena; a ficha do Chão leva até lá pela nota "Ir para Cena".
   // Com o pincel/balde na mão a lista aparece mesmo sem chão: é nela que se
   // vê onde a primeira pincelada vai cair ("Camada 1 · pinte para criar").
-  const chaoNaFicha = activeTool === 'floor' && groups.has('floorStyle')
   const camadasDoChaoNaFicha =
     floorLayers !== undefined &&
     (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined) &&
-    (chaoNaFicha || groups.has('floorPiece'))
+    ((activeTool === 'floor' && groups.has('floorStyle')) || groups.has('floorPiece'))
 
   const wallStyleSection = (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
@@ -491,10 +532,6 @@ export function PropertiesPanel({
   return (
     <>
       <FolhaDoLivro pagina="ficha" corpoRef={corpoRef}>
-        {/* Sem nada selecionado, a faixa vazia no mesmo lugar, só com o
-            "Nada selecionado". Sem título, como a outra: o primeiro `h2`
-            continua sendo o da ferramenta. */}
-        {!algoSelecionado && <NadaSelecionado />}
         {/* A faixa da seleção, fixa no topo do corpo: o que está selecionado,
             Apagar e "Mais ações" à vista em qualquer altura da coluna. Sem
             título, então o primeiro `h2` continua sendo o do item. `key`: outro
@@ -520,9 +557,12 @@ export function PropertiesPanel({
             actionsHint={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
           />
         )}
-        {/* O campo do "+ Token" do cabeçalho: logo abaixo da faixa, o mais
-            perto do botão que o abriu e acima do que estiver selecionado. Sem
-            título, para o primeiro `h2` continuar sendo o do item. */}
+        {/* O campo do "+ Token" do cabeçalho: o mais perto do botão que o
+            abriu — no alto da página sem seleção (como no protótipo), logo
+            abaixo da faixa com algo selecionado. Sempre nesta posição entre os
+            filhos: selecionar com o campo aberto não o remonta, e o nome
+            digitado fica. Sem título, para o primeiro `h2` continuar sendo o
+            da ferramenta ou do item. */}
         {novoTokenAberto && (
           <NovoTokenForm
             className="lb-section"
@@ -531,21 +571,18 @@ export function PropertiesPanel({
             onCancel={desistirDoNovoToken}
           />
         )}
+        {/* Selecionar na mão e nada selecionado: o convite com os atalhos e
+            um exemplo de cada tipo da cena (fatia 7). */}
+        {!algoSelecionado && ferramentaDaFicha === null && <NadaSelecionado nesteMapa={nesteMapa} />}
         {/* Endireitar (pedido 5): aparece sozinho quando há Linha, Parede solta
             ou Caminho torto na seleção. Logo depois da faixa e fora das seções
             de ferramenta, porque vale para os três; sem título, para o primeiro
             `h2` continuar sendo o do item. */}
         <EndireitarControl />
-        {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
-            ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
-            títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que
-            são propriedades e não o nome do que está na mão — mesmo padrão de
-            `FloorPieceControls` ("Peça de chão · Retângulo"). */}
-        {toolHeading && (
-          <section className="lb-section">
-            <h2 className="lb-eyebrow">Ferramenta · {toolHeading}</h2>
-          </section>
-        )}
+        {/* Ferramenta armada e nada selecionado: as seções dela entram no
+            cartão da ficha da ferramenta, embaixo da cabeça (fatia 7). Com
+            algo selecionado, as seções do item, como antes. */}
+        <MolduraDaFicha ferramenta={ferramentaDaFicha} variantes={variantes} camadasDoChao={camadasDoChaoNaFicha ? floorLayers : undefined}>
         {/* Sala no topo: o nome é o que o usuário quer mexer logo depois de
             desenhar, e no fim do painel ele precisava rolar para achar. */}
         {selectedRegion?.room && (
@@ -919,15 +956,11 @@ export function PropertiesPanel({
           <AlignDistributeControls {...alignDistribute} />
           <SelectionControls secret={selection.secret} />
         </ToolPropertiesSection>
-        {/* A ferramenta Chão na mão: o "Chão do mapa" é quem ela mais precisa
-            (ver `chaoNaFicha`); "Camadas do chão" também com uma peça de chão
-            selecionada. A página Cena tem os dois sempre. */}
-        {chaoNaFicha && (
-          <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={false}>
-            <FloorStyleControls {...floorStyle} />
-          </CollapsibleSection>
-        )}
-        {camadasDoChaoNaFicha && floorLayers !== undefined && (
+        </MolduraDaFicha>
+        {/* Uma peça de chão selecionada: "Camadas do chão" no pé da ficha dela.
+            Com a ferramenta Chão na mão a lista mora no cartão da ferramenta
+            (`MolduraDaFicha`); a página Cena tem as duas sempre. */}
+        {algoSelecionado && camadasDoChaoNaFicha && floorLayers !== undefined && (
           <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>
             <FloorLayersList {...floorLayers} />
           </CollapsibleSection>
@@ -945,7 +978,6 @@ export function PropertiesPanel({
           floorLayers={floorLayers}
           layers={layers}
           grid={grid}
-          chaoTambemNaFicha={chaoNaFicha}
         />
       </FolhaDoLivro>
       <FolhaDoLivro pagina="aventura">

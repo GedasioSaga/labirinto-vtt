@@ -19,8 +19,6 @@ export interface PaginaCenaProps {
   floorLayers?: FloorLayersListProps
   layers: LayersPanelProps
   grid: GridControlsProps
-  /** A Ficha também mostra o "Chão do mapa" (ferramenta Chão na mão): a cópia daqui usa ids próprios. */
-  chaoTambemNaFicha?: boolean
 }
 
 /**
@@ -30,7 +28,7 @@ export interface PaginaCenaProps {
  * a página mostra tudo sempre, sem o "momento de mapa" que escondia seções
  * conforme a ferramenta: quem abriu o marcador Cena veio ver a cena.
  */
-export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid, chaoTambemNaFicha = false }: PaginaCenaProps) {
+export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid }: PaginaCenaProps) {
   // Com o pincel do chão na mão a lista aparece mesmo sem peça: é nela que se vê onde a primeira pincelada cai.
   const temCamadasDoChao = floorLayers !== undefined && (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined)
   return (
@@ -46,7 +44,7 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
         )}
         {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se chama "Chão". */}
         <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen>
-          <FloorStyleControls {...floorStyle} idsProprios={chaoTambemNaFicha} />
+          <FloorStyleControls {...floorStyle} />
         </CollapsibleSection>
         {temCamadasDoChao && (
           <CollapsibleSection id="floor-layers" title="Camadas do chão" defaultOpen>

@@ -7,6 +7,7 @@ import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { BrushMode } from '../lib/baldeDeTinta'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
+import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
 
 /** Tamanho do desenho do móvel ao lado de cada opção de Objetos — o mesmo dos ícones do grupo Forma. */
@@ -116,13 +117,13 @@ const GrupoInativo = createContext(false)
  * descrição vai para `aria-describedby`: se a descrição entrasse no nome,
  * "Linha" casaria com "... linha reta" e um seletor `exact` falharia (D10).
  */
-function VariantOption<V>({
+function VariantOption({
   option,
   checked,
   icon,
   onPick,
 }: {
-  option: ToolVariantOption<V>
+  option: Pick<OpcaoDoEixo, 'label' | 'description'>
   checked: boolean
   icon?: ReactNode
   onPick: () => void
@@ -165,30 +166,107 @@ function VariantOption<V>({
   )
 }
 
-/** Um grupo de botões-rádio para UM eixo — genérico em `V` (o tipo do
- *  `value` da opção), reaproveitado por todos os `storeKey`. Type-safe
- *  sem `as`: o chamador (`GroupOptions` abaixo) só instancia isto dentro do
- *  `case` de switch certo, onde o TypeScript já estreitou `group.options`
- *  para `ToolVariantOption<V>[]` e a `binding` correspondente para o mesmo `V`. */
-function renderOptions<V>(
+/** Uma opção de um eixo, já sem o tipo do valor: o que a tela mostra dela. */
+export interface OpcaoDoEixo {
+  /** O `id` do catálogo (lib/toolVariants.ts): chave estável, nunca o rótulo. */
+  id: string
+  label: string
+  description: string
+  /** O móvel de cima (Objetos) ou o ícone da ferramenta (grupo Forma). */
+  icon?: ReactNode
+  /** Grupo Forma: a letra que arma aquela ferramenta (`lib/keymap.ts`). */
+  atalho?: string
+}
+
+/**
+ * Um eixo de variante pronto para a tela, sem o tipo do valor: as opções, a
+ * marcada e o que fazer quando outra é escolhida. Mora aqui porque o cantinho
+ * da barra e a ficha da ferramenta (página Ficha) mostram os MESMOS eixos, com a
+ * mesma leitura e a mesma escrita na store — duas telas, uma regra.
+ */
+export interface EixoDaVariante {
+  opcoes: readonly OpcaoDoEixo[]
+  /** `id` da opção que vale agora; `null` quando o valor da store não está no catálogo. */
+  marcada: string | null
+  escolher: (id: string) => void
+}
+
+/** Genérico em `V` (o tipo do `value` da opção). Type-safe sem `as`: só é
+ *  chamado dentro do `case` certo de `eixoDaVariante`, onde o TypeScript já
+ *  estreitou `group.options` e a binding correspondente para o mesmo `V`. */
+function eixo<V>(
   options: ToolVariantOption<V>[],
   value: V,
   onChange: (value: V) => void,
-  onPicked: () => void,
-  iconFor?: (value: V) => ReactNode,
-) {
-  return options.map((option) => (
-    <VariantOption
-      key={option.id}
-      option={option}
-      checked={value === option.value}
-      icon={iconFor?.(option.value)}
-      onPick={() => {
-        onChange(option.value)
-        onPicked()
-      }}
-    />
-  ))
+  enfeite?: (value: V) => Pick<OpcaoDoEixo, 'icon' | 'atalho'>,
+): EixoDaVariante {
+  return {
+    opcoes: options.map((option) => ({ id: option.id, label: option.label, description: option.description, ...enfeite?.(option.value) })),
+    marcada: options.find((option) => option.value === value)?.id ?? null,
+    escolher: (id) => {
+      const escolhida = options.find((option) => option.id === id)
+      if (escolhida !== undefined) onChange(escolhida.value)
+    },
+  }
+}
+
+/**
+ * O eixo `group.storeKey` lido de `bindings`. `iconFor` só vale para o grupo
+ * Forma (`drawShape`): ali a opção é uma ferramenta da barra, com o ícone e a
+ * letra dela. O grupo Objeto (`mobiliaTipo`) desenha o móvel de cima sozinho.
+ */
+export function eixoDaVariante(
+  group: ToolVariantGroup,
+  bindings: ToolVariantBindings,
+  iconFor?: (tool: DrawingTool) => ReactNode,
+): EixoDaVariante {
+  switch (group.storeKey) {
+    case 'doorKind':
+      return eixo(group.options, bindings.doorKind.value, bindings.doorKind.onChange)
+    case 'wallKind':
+      // Wall['wallKind'] === undefined significa 'exterior' — convenção
+      // documentada em types/map.ts (Wall.wallKind) e replicada em
+      // WallStyleControlsProps ("`undefined` conta como 'exterior'").
+      // Normalizado só pra achar a opção marcada; nunca repassado assim pro
+      // `onChange`, que já exige NonNullable (mesma assinatura de
+      // setWallKind/setWallKindForWall em mapStore.ts).
+      return eixo(group.options, bindings.wallKind.value ?? 'exterior', bindings.wallKind.onChange)
+    case 'regionFillPattern':
+      return eixo(group.options, bindings.regionFillPattern.value, bindings.regionFillPattern.onChange)
+    case 'polygonSides':
+      return eixo(group.options, bindings.polygonSides.value, bindings.polygonSides.onChange)
+    case 'stairSizePreset':
+      return eixo(group.options, bindings.stairSizePreset.value, bindings.stairSizePreset.onChange)
+    case 'drawTexture':
+      return eixo(group.options, bindings.drawTexture.value, bindings.drawTexture.onChange)
+    case 'brushMode':
+      return eixo(group.options, bindings.brushMode.value, bindings.brushMode.onChange)
+    case 'eraseMode':
+      return eixo(group.options, bindings.eraseMode.value, bindings.eraseMode.onChange)
+    case 'floorShapeKind':
+      return eixo(group.options, bindings.floorShapeKind.value, bindings.floorShapeKind.onChange)
+    case 'floorOp':
+      return eixo(group.options, bindings.floorOp.value, bindings.floorOp.onChange)
+    case 'floorPolygonSides':
+      return eixo(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange)
+    case 'floorBrushSize':
+      return eixo(group.options, bindings.floorBrushSize.value, bindings.floorBrushSize.onChange)
+    case 'floorCamada':
+      return eixo(group.options, bindings.floorCamada.value, bindings.floorCamada.onChange)
+    case 'roomFreeKind':
+      return eixo(group.options, bindings.roomFreeKind.value, bindings.roomFreeKind.onChange)
+    case 'roomFreeRounded':
+      return eixo(group.options, bindings.roomFreeRounded.value, bindings.roomFreeRounded.onChange)
+    case 'mobiliaTipo':
+      return eixo(group.options, bindings.mobiliaTipo.value, bindings.mobiliaTipo.onChange, (tipo) => ({
+        icon: <MobiliaIcon tipo={tipo} size={MOBILIA_ICON_SIZE} />,
+      }))
+    case 'drawShape':
+      return eixo(group.options, bindings.drawShape.value, bindings.drawShape.onChange, (tool) => ({
+        icon: iconFor?.(tool),
+        atalho: TOOL_SHORTCUTS[tool] || undefined,
+      }))
+  }
 }
 
 function GroupOptions({
@@ -202,58 +280,23 @@ function GroupOptions({
   onPicked: () => void
   iconFor?: (tool: DrawingTool) => ReactNode
 }) {
-  switch (group.storeKey) {
-    case 'doorKind':
-      return <>{renderOptions(group.options, bindings.doorKind.value, bindings.doorKind.onChange, onPicked)}</>
-    case 'wallKind': {
-      // Wall['wallKind'] === undefined significa 'exterior' — convenção
-      // documentada em types/map.ts (Wall.wallKind) e replicada em
-      // WallStyleControlsProps ("`undefined` conta como 'exterior'").
-      // Normalizado só pra comparação de aria-checked abaixo; nunca
-      // repassado assim pro `onChange`, que já exige NonNullable (mesma
-      // assinatura de setWallKind/setWallKindForWall em mapStore.ts).
-      const wallKindValue = bindings.wallKind.value ?? 'exterior'
-      return <>{renderOptions(group.options, wallKindValue, bindings.wallKind.onChange, onPicked)}</>
-    }
-    case 'regionFillPattern':
-      return <>{renderOptions(group.options, bindings.regionFillPattern.value, bindings.regionFillPattern.onChange, onPicked)}</>
-    case 'polygonSides':
-      return <>{renderOptions(group.options, bindings.polygonSides.value, bindings.polygonSides.onChange, onPicked)}</>
-    case 'stairSizePreset':
-      return <>{renderOptions(group.options, bindings.stairSizePreset.value, bindings.stairSizePreset.onChange, onPicked)}</>
-    case 'drawTexture':
-      return <>{renderOptions(group.options, bindings.drawTexture.value, bindings.drawTexture.onChange, onPicked)}</>
-    case 'brushMode':
-      return <>{renderOptions(group.options, bindings.brushMode.value, bindings.brushMode.onChange, onPicked)}</>
-    case 'eraseMode':
-      return <>{renderOptions(group.options, bindings.eraseMode.value, bindings.eraseMode.onChange, onPicked)}</>
-    case 'floorShapeKind':
-      return <>{renderOptions(group.options, bindings.floorShapeKind.value, bindings.floorShapeKind.onChange, onPicked)}</>
-    case 'floorOp':
-      return <>{renderOptions(group.options, bindings.floorOp.value, bindings.floorOp.onChange, onPicked)}</>
-    case 'floorPolygonSides':
-      return <>{renderOptions(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange, onPicked)}</>
-    case 'floorBrushSize':
-      return <>{renderOptions(group.options, bindings.floorBrushSize.value, bindings.floorBrushSize.onChange, onPicked)}</>
-    case 'floorCamada':
-      return <>{renderOptions(group.options, bindings.floorCamada.value, bindings.floorCamada.onChange, onPicked)}</>
-    case 'roomFreeKind':
-      return <>{renderOptions(group.options, bindings.roomFreeKind.value, bindings.roomFreeKind.onChange, onPicked)}</>
-    case 'roomFreeRounded':
-      return <>{renderOptions(group.options, bindings.roomFreeRounded.value, bindings.roomFreeRounded.onChange, onPicked)}</>
-    case 'mobiliaTipo':
-      return (
-        <>
-          {renderOptions(group.options, bindings.mobiliaTipo.value, bindings.mobiliaTipo.onChange, onPicked, (tipo) => (
-            <MobiliaIcon tipo={tipo} size={MOBILIA_ICON_SIZE} />
-          ))}
-        </>
-      )
-    case 'drawShape':
-      return <>{renderOptions(group.options, bindings.drawShape.value, bindings.drawShape.onChange, onPicked, iconFor)}</>
-    default:
-      return null
-  }
+  const { opcoes, marcada, escolher } = eixoDaVariante(group, bindings, iconFor)
+  return (
+    <>
+      {opcoes.map((opcao) => (
+        <VariantOption
+          key={opcao.id}
+          option={opcao}
+          checked={opcao.id === marcada}
+          icon={opcao.icon}
+          onPick={() => {
+            escolher(opcao.id)
+            onPicked()
+          }}
+        />
+      ))}
+    </>
+  )
 }
 
 /**

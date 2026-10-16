@@ -129,7 +129,9 @@ export function CollapsibleSection({
   }
 
   return (
-    <section className="lb-section lb-collapsible">
+    // `data-secao`: o endereço estável da seção para quem leva até ela (a nota
+    // "Ir para Cena" da ficha do Chão põe o foco no "Chão do mapa").
+    <section className="lb-section lb-collapsible" data-secao={id}>
       <Heading className="lb-collapsible__heading">
         <button
           type="button"

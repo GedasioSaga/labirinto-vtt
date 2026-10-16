@@ -1,11 +1,15 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { ChevronDownIcon } from '../icons'
 import './grimorio.css'
 
 export interface NotaProps {
   children: ReactNode
-  /** Link "ir" no fim da frase ("Ir para Cena", "Abrir configurações"). */
-  ir?: { rotulo: string; onClick: () => void }
+  /**
+   * Link "ir" no fim da frase ("Ir para Cena", "Abrir configurações"). O
+   * evento diz se veio do ponteiro (`detail > 0`) ou do teclado: a troca de
+   * página só anima pelo ponteiro.
+   */
+  ir?: { rotulo: string; onClick: (evento: MouseEvent<HTMLButtonElement>) => void }
 }
 
 /** Frase de ajuda apagada dentro de uma ficha (o `.nota`). */

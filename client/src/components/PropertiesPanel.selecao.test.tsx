@@ -455,18 +455,19 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(selecaoH2?.closest('section')?.querySelectorAll('button')).toHaveLength(0)
   })
 
-  it('nada selecionado: a faixa vazia ocupa o topo do corpo, só com "Nada selecionado" desabilitado; o "+ Token" fica no cabeçalho', () => {
+  it('nada selecionado: o convite "Nada selecionado" (desabilitado) abre o corpo; o "+ Token" fica no cabeçalho', () => {
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: selecao(null) }))
     expect(container.querySelector('[role="toolbar"]')).toBeNull()
-    const faixa = corpo()?.firstElementChild
-    expect(faixa?.classList.contains('lb-semsel')).toBe(true)
+    const vazio = corpo()?.firstElementChild
+    expect(vazio?.classList.contains('lb-ficha-vazia')).toBe(true)
     // O texto exato, o papel de botão e o desabilitado são o contrato das jornadas (clique no vazio).
     const nadaSel = botoesComTexto(/Nada selecionado/)
     expect(nadaSel).toHaveLength(1)
     expect(nadaSel[0]?.textContent).toBe('Nada selecionado')
     expect(nadaSel[0]?.disabled).toBe(true)
-    expect(faixa?.contains(nadaSel[0] ?? null)).toBe(true)
-    expect(faixa?.querySelectorAll('button')).toHaveLength(1)
+    expect(vazio?.contains(nadaSel[0] ?? null)).toBe(true)
+    // Sem a cena ("Neste mapa" ausente), o convite não tem outro botão.
+    expect(vazio?.querySelectorAll('button')).toHaveLength(1)
     // O "+ Token" no mesmo lugar de quando há seleção — e um só no painel (o Acervo não repete).
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
@@ -475,15 +476,16 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/Apagar/)).toHaveLength(0)
   })
 
-  it('"+ Token" sem seleção: o campo abre logo abaixo da faixa vazia, e Enter cria com o nome sugerido', () => {
+  it('"+ Token" sem seleção: o campo abre no alto da página, acima do convite (como no protótipo), e Enter cria com o nome sugerido', () => {
     const onAddToken = vi.fn<(nome: string) => void>()
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), selection: { ...selecao(null), onAddToken } }))
     act(() => maisToken()?.click())
     const campo = campoNovoToken()
     expect(campo?.value).toBe('Token 1')
     expect(document.activeElement).toBe(campo)
-    // Logo abaixo da faixa, antes do resto da coluna.
-    expect(corpo()?.children[1]?.contains(campo)).toBe(true)
+    // O primeiro do corpo, antes do "Nada selecionado" e do resto.
+    expect(corpo()?.children[0]?.contains(campo)).toBe(true)
+    expect(corpo()?.children[1]?.classList.contains('lb-ficha-vazia')).toBe(true)
     act(() => campo?.form?.requestSubmit())
     expect(onAddToken).toHaveBeenCalledWith('Token 1')
     expect(document.activeElement).toBe(maisToken())
@@ -503,18 +505,21 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(document.activeElement).toBe(maisToken())
   })
 
-  it('ferramenta armada sem seleção: a faixa vazia no topo, e o primeiro título continua o da ferramenta', () => {
+  it('ferramenta armada sem seleção: a ficha da ferramenta no topo, com o nome dela no primeiro título, e sem o "Nada selecionado"', () => {
     renderPainel(propsDoPainel(null, { activeTool: 'room', groups: relevantPropertyGroups('room'), selection: selecao(null) }))
     expect(container.querySelector('[role="toolbar"]')).toBeNull()
-    expect(corpo()?.firstElementChild?.classList.contains('lb-semsel')).toBe(true)
-    expect(botoesComTexto(/^Nada selecionado$/)).toHaveLength(1)
+    expect(corpo()?.firstElementChild?.classList.contains('lb-ficha-ferramenta')).toBe(true)
+    expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
+    // "Ferramenta · " só para o leitor de tela; à vista, "Sala" em serifa na cabeça.
     expect(titulos()[0]).toBe('Ferramenta · Sala')
+    // Os controles da ferramenta moram no cartão embaixo da cabeça.
+    expect(corpo()?.querySelector('.lb-ficha-ferramenta .gr-ficha')?.textContent).toContain('Preenchido')
   })
 
   it('pino selecionado (fora do resumo da seleção): a faixa não diz "Nada selecionado", e o "+ Token" continua no cabeçalho', () => {
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select', { pin: true }), selection: selecao(null), pinSelected: true }))
     expect(botoesComTexto(/Nada selecionado/)).toHaveLength(0)
-    expect(container.querySelector('.lb-semsel')).toBeNull()
+    expect(container.querySelector('.lb-ficha-vazia')).toBeNull()
     const adicionar = botoesComNome(/adicionar token/i)
     expect(adicionar).toHaveLength(1)
     expect(cabecalho()?.contains(adicionar[0] ?? null)).toBe(true)

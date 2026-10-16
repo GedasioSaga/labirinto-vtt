@@ -525,6 +525,16 @@ export function StairIcon(props: IconProps) {
  * dentro), `NewMapIcon` (retângulo + cruz do lado de fora) e `DungeonMapIcon`
  * (retângulo + T interno) — aqui o retângulo fica vazio, só com a diagonal.
  */
+/** Balde de tinta (forma "Balde" do Chão): o mesmo desenho do protótipo consolidado. */
+export function BaldeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 9.5h14l-1.5 10h-11z" />
+      <path d="M6.5 9.5c0-2.8 2.5-5 5.5-5s5.5 2.2 5.5 5" />
+    </Icon>
+  )
+}
+
 export function RectIcon(props: IconProps) {
   return (
     <Icon {...props}>

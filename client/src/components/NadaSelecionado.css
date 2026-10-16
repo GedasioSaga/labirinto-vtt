@@ -1,72 +1,126 @@
 /*
- * NadaSelecionado — a faixa do topo do corpo sem seleção. É a faixa da seleção
- * (SelectionHeader.css) vazia: o mesmo lugar, o mesmo fundo, a mesma linha de
- * baixo e a mesma altura (4 + 44 + 4 px e a linha). Selecionar e largar troca
- * o que ela diz sem a coluna pular. Só `var(--lb-*)` de theme.ts.
+ * NadaSelecionado — a página Ficha com Selecionar na mão e nada selecionado
+ * (fatia 7 do design consolidado, `vazioSelecionar` do protótipo): o convite
+ * tracejado (`.gr-vazio`, livro.css) com os atalhos e, embaixo, "Neste mapa".
+ * Só `var(--lb-*)` de theme.ts.
  */
 
-/* Gruda no topo do corpo que rola, como a faixa da seleção: o estado fica à
-   vista em qualquer altura da coluna. O mesmo recuo da faixa da seleção (16 px
-   à esquerda, 12 à direita): "Nada selecionado" começa onde começa o ícone do
-   item quando há seleção. */
-.lb-semsel {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--lb-space-2);
-  /* A altura da faixa da seleção, que vem dos 44 px dos botões dela. Aqui só
-     há texto, e a faixa encolheria para a altura dele: selecionar e largar
-     puxaria a coluna 28 px para cima e para baixo. */
-  min-height: calc(44px + 2 * var(--lb-space-1) + 1px);
-  padding: var(--lb-space-1) var(--lb-space-3) var(--lb-space-1) var(--lb-space-4);
-  background: var(--lb-color-stone-sunken);
-  border-bottom: 1px solid var(--lb-color-line);
+/* O respiro do corpo da página do protótipo (`.pagina__corpo`). */
+.lb-ficha-vazia {
+  padding: 12px 12px 20px 14px;
 }
 
-/* Rolada a coluna, a faixa ganha a sombra da faixa da seleção: mostra que o
-   painel passa POR BAIXO dela. Ligada à rolagem, não ao tempo — não é
-   movimento. */
-@supports (animation-timeline: scroll()) {
-  .lb-semsel {
-    animation: lb-semsel-sombra linear both;
-    animation-timeline: scroll(nearest block);
-    animation-range: 0 var(--lb-space-6);
-  }
-
-  @keyframes lb-semsel-sombra {
-    to {
-      box-shadow: var(--lb-shadow-md);
-    }
-  }
-}
-
-/* O que o Tab (ou `scrollIntoView`) traz para a vista para abaixo da faixa, e
-   não atrás dela — a mesma conta da faixa da seleção. */
-.lb-inspector__body:has(> .lb-semsel) {
-  scroll-padding-top: calc(44px + 2 * var(--lb-space-1) + 1px + var(--lb-space-2));
-}
-
-/* Estado, não ação: o texto apagado do estado vazio do painel (o mesmo do
-   acervo vazio), alinhado aos 16 px do conteúdo das seções, sem caixa e sem o
-   cursor de proibido do botão desabilitado. Continua um <button disabled>: é
-   contrato das jornadas (ver NadaSelecionado.tsx). */
-.lb-semsel__estado {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
+/* "Nada selecionado" é o título do convite, na serifa do protótipo, mas
+   continua um <button disabled> — contrato das jornadas (NadaSelecionado.tsx).
+   Sem caixa, sem o apagado do desabilitado e sem o cursor de proibido: é
+   estado, não ação. `:disabled` no seletor para vencer o cursor da base do
+   Grimório (grimorio.css). */
+.lb-ficha-vazia__estado,
+.lb-ficha-vazia__estado:disabled {
+  align-self: flex-start;
   padding: 0;
   border: 0;
   background: none;
-  color: var(--lb-color-parchment-faint);
-  font-family: inherit;
-  font-size: var(--lb-font-size-sm);
-  line-height: var(--lb-font-leading-tight);
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: default;
+}
+
+.lb-ficha-vazia__atalhos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-ficha-vazia__atalhos dt,
+.lb-ficha-vazia__atalhos dd {
+  margin: 0;
+}
+/* As teclas na mesma largura, a da maior ("Ctrl K"), como no protótipo. */
+.lb-ficha-vazia__atalhos dt > .gr-kbd {
+  display: block;
+  text-align: center;
+}
+
+.lb-ficha-vazia__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 8px;
+  font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display);
+  color: var(--lb-color-parchment);
+}
+.lb-ficha-vazia__titulo small {
+  font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-ficha-vazia__lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-ficha-vazia__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lb-ficha-vazia__item:hover {
+    background: var(--lb-gr-hover);
+  }
+}
+.lb-ficha-vazia__item:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-ficha-vazia__ic {
+  flex: none;
+  display: grid;
+  color: var(--lb-gr-gravado);
+}
+
+.lb-ficha-vazia__txt {
+  flex: 1;
+  min-width: 0;
+}
+.lb-ficha-vazia__nome {
+  display: block;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+.lb-ficha-vazia__sub {
+  display: block;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A divisa "para baixo" do app deitada vira a "para a direita" do protótipo. */
+.lb-ficha-vazia__seta {
+  flex: none;
+  display: grid;
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+}
+.lb-ficha-vazia__seta svg {
+  width: 16px;
+  height: 16px;
 }

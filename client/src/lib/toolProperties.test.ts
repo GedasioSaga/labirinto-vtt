@@ -288,12 +288,12 @@ describe('panelHeadingTool — o painel abre com o nome da ferramenta que está 
     }
   })
 
-  it('Parede e Região não ganham título extra: a própria seção delas já imprime esse nome', () => {
-    expect(panelHeadingTool('wall', false)).toBeNull()
-    expect(panelHeadingTool('region', false)).toBeNull()
+  it('Parede e Região também ganham a cabeça da ficha da ferramenta (fatia 7): toda ferramenta tem a dela', () => {
+    expect(panelHeadingTool('wall', false)).toBe('wall')
+    expect(panelHeadingTool('region', false)).toBe('region')
   })
 
-  it('Selecionar não ganha título: não cria nada, o painel ali é do mapa', () => {
+  it('Selecionar não ganha título: não cria nada, a página mostra o "Nada selecionado"', () => {
     expect(panelHeadingTool('select', false)).toBeNull()
   })
 

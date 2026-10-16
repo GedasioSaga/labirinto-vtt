@@ -149,5 +149,8 @@ test('Apagar escada tem rótulo; escolher ferramenta de criação limpa a seleç
     return mod.useMapStore.getState().selection
   })
   expect(selection).toEqual([])
-  await expect(page.getByRole('button', { name: 'Nada selecionado', exact: true })).toBeVisible()
+  // Fatia 7 (ficha da ferramenta): sem seleção e com a Luz na mão, a página
+  // Ficha é a ficha da Luz — e o botão de apagar a escada saiu junto com ela.
+  await expect(page.getByRole('heading', { name: 'Ferramenta · Luz', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Apagar/ })).toHaveCount(0)
 })

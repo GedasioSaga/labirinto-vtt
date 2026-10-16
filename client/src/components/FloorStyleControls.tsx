@@ -15,14 +15,6 @@ export interface FloorStyleControlsProps {
   /** O mapa tem peças de chão, linhas ou portas de minimapa. Cor, contorno,
    *  precisão e render fiel só desenham isso; sem nada, mudar não aparece. */
   hasFloorContent: boolean
-  /**
-   * `true`: ids gerados em vez dos fixos (`lb-floor-fill-color`…). Para a cópia
-   * da página Cena quando a Ficha também mostra o "Chão do mapa" (ferramenta
-   * Chão na mão): as duas ficam montadas e o id repetido faria o rótulo de uma
-   * apontar o campo da outra. Os fixos ficam com a Ficha, que é a que as
-   * jornadas usam com a ferramenta armada.
-   */
-  idsProprios?: boolean
 }
 
 const DEFAULT_FRAME_TITLE = 'Mapa'
@@ -54,15 +46,14 @@ export function FloorStyleControls({
   onFrameChange,
   defaultFrameRect,
   hasFloorContent,
-  idsProprios = false,
 }: FloorStyleControlsProps) {
   const sampleStep = style.sampleStep ?? DEFAULT_SAMPLE_STEP
-  const idGerado = useId()
-  const semChaoId = `${idGerado}-sem-chao`
-  const idDe = (nome: string) => (idsProprios ? `${idGerado}-${nome}` : `lb-${nome}`)
-  const corDoChaoId = idDe('floor-fill-color')
-  const corDoContornoId = idDe('floor-stroke-color')
-  const tituloDaMolduraId = idDe('map-frame-title')
+  const semChaoId = `${useId()}-sem-chao`
+  // Ids fixos: o "Chão do mapa" mora só na página Cena (a ficha do Chão leva
+  // até lá pela nota "Ir para Cena"), então não há segunda cópia montada.
+  const corDoChaoId = 'lb-floor-fill-color'
+  const corDoContornoId = 'lb-floor-stroke-color'
+  const tituloDaMolduraId = 'lb-map-frame-title'
   /** Sem chão no mapa, cor e contorno não aparecem na tela: os dois apontam a frase que diz por quê. */
   const explicaSemChao = hasFloorContent ? undefined : semChaoId
 

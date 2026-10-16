@@ -118,7 +118,8 @@ export const BLOCOS: readonly Bloco[] = [
       l('Adicionar (novo token)', b('Adicionar'), b('Adicionar token')),
       l('Cancelar (novo token)', b('Cancelar'), b('Adicionar token')),
       l('Engrenagem (Configurações do mapa)', b('Configurações do mapa')),
-      { ...l('Faixa "Nada selecionado"', b('Nada selecionado'), marcador('Ficha')), vai: 'Página Ficha, vazio com atalhos (fatia 7)' },
+      { ...l('Faixa "Nada selecionado"', b('Nada selecionado'), marcador('Ficha')), vai: 'Página Ficha, vazio com atalhos (feito, fatia 7)' },
+      { ...l('Neste mapa: um exemplo de cada tipo da cena', b('/^Goblin/'), marcador('Ficha')), vai: 'Página Ficha, vazio: "Neste mapa" (novo, fatia 7)' },
     ],
   },
   {
@@ -240,31 +241,37 @@ export const BLOCOS: readonly Bloco[] = [
   },
 
   // ─── Ficha da ferramenta (nada selecionado) ───────────────────────────
+  // Fatia 7: a cabeça (heading "Ferramenta · X", com "X" à vista) e, no
+  // cartão, os controles de sempre mais as variantes que só moravam no
+  // cantinho da barra (Forma, Tinta, Modo...). O "Chão do mapa" saiu da Ficha:
+  // a nota "Ir para Cena" leva até ele (última linha do bloco, que muda a página).
   ...([
-    ['Parede', [['heading', 'Parede'], cx('Parede interna'), rg('Espessura da parede'), ['slider', 'Ajuste fino'], b('Avançado')]],
+    ['Parede', [['heading', 'Ferramenta · Parede'], cx('Parede interna'), rg('Espessura da parede'), ['slider', 'Ajuste fino'], b('Avançado')]],
     ['Porta', [['heading', 'Ferramenta · Porta'], rg('Abrir na parede'), rg('Tipo de porta')]],
     ['Luz', [['heading', 'Ferramenta · Luz']]],
-    ['Região', [['heading', 'Região'], ...REGIAO_ESTILO]],
-    ['Sala', [['heading', 'Ferramenta · Sala'], ...REGIAO_ESTILO]],
-    ['Chão', [['heading', 'Ferramenta · Chão'], b('Chão do mapa')]],
+    ['Região', [['heading', 'Ferramenta · Região'], rg('Forma'), ...REGIAO_ESTILO]],
+    ['Sala', [['heading', 'Ferramenta · Sala'], rg('Forma'), ...REGIAO_ESTILO]],
+    ['Chão', [['heading', 'Ferramenta · Chão'], rg('Forma'), rg('Tinta'), rg('Operação')]],
     ['Caminho', [['heading', 'Ferramenta · Caminho'], ['textbox', 'Cor deste caminho'], ['slider', 'Largura']]],
     ['Penhasco', [['heading', 'Ferramenta · Penhasco'], rg('Ao riscar'), rg('Largura do pincel'), rg('Altura do penhasco'), b('Ligar o relevo')]],
     ['Texturas', [['heading', 'Ferramenta · Texturas'], rg('Ao pintar'), rg('Textura'), ['region', 'Colar ou soltar a imagem da nova textura'], b('Escolher imagem…'), b('Procurar texturas novas'), ['slider', 'Tamanho do pincel'], ['slider', 'Força']]],
     ['Carimbos', [['heading', 'Ferramenta · Carimbos'], rg('Ao clicar'), rg('Objeto'), ['radio', 'Árvore'], ['region', 'Colar ou soltar a imagem do novo carimbo'], b('Escolher imagem…'), b('Procurar carimbos novos'), ['slider', 'Tamanho'], ['slider', 'Largura do spray'], ['slider', 'Densidade do spray']]],
-    ['Escada', [['heading', 'Ferramenta · Escada']]],
-    ['Peça', [['heading', 'Ferramenta · Peça']]],
+    ['Escada', [['heading', 'Ferramenta · Escada'], rg('Tamanho')]],
+    ['Peça', [['heading', 'Ferramenta · Peça'], rg('Colocar')]],
     ['Zona oculta', [['heading', 'Ferramenta · Zona oculta']]],
     ['Pincel de revelar', [['heading', 'Ferramenta · Pincel de revelar'], rg('Ao pintar'), rg('Largura do pincel')]],
-    ['Objetos', [['heading', 'Ferramenta · Objetos']]],
-    ['Desenho', [['heading', 'Ferramenta · Pincel'], ['textbox', 'Cor'], ['slider', 'Espessura'], rg('Ponta da linha')]],
+    ['Objetos', [['heading', 'Ferramenta · Objetos'], rg('Colocar'), rg('Objeto')]],
+    ['Desenho', [['heading', 'Ferramenta · Pincel'], rg('Forma'), rg('Modo'), rg('Textura do traço'), ['textbox', 'Cor'], ['slider', 'Espessura'], rg('Ponta da linha')]],
     ['Texto', [['heading', 'Ferramenta · Texto'], ['textbox', 'Cor'], ['slider', 'Tamanho da fonte'], ['combobox', 'Fonte']]],
     ['Pino', [['heading', 'Ferramenta · Pino'], rg('Tipo do pino'), rg('Ícone no mapa')]],
     ['Medir', [['heading', 'Ferramenta · Medir']]],
-    ['Borracha', [['heading', 'Ferramenta · Borracha']]],
+    ['Borracha', [['heading', 'Ferramenta · Borracha'], rg('Modo')]],
   ] as const).map(([nome, alvos]): Bloco => ({
     tela: 'mestre', titulo: `Ficha da ferramenta: ${nome}`, estado: `ferramenta ${nome} armada, nada selecionado`, escopo: 'esquerda', preparo: ferramenta(nome),
-    vai: nome === 'Penhasco' || nome === 'Texturas' || nome === 'Carimbos' ? 'Página Ficha, ficha da ferramenta (biblioteca em grade de cartões)' : 'Página Ficha, ficha da ferramenta (cabeça com dica e kbd)', fatia: '7',
-    linhas: todos(alvos),
+    vai: nome === 'Penhasco' || nome === 'Texturas' || nome === 'Carimbos' ? 'Página Ficha, ficha da ferramenta com a biblioteca em grade de cartões (feito)' : 'Página Ficha, ficha da ferramenta: cabeça com dica e tecla (feito)', fatia: '7',
+    linhas: nome === 'Chão'
+      ? [...todos(alvos), { ...l('Chão do mapa', b('Chão do mapa'), b('Ir para Cena')), vai: 'Página Cena, pela nota "Ir para Cena" da ficha do Chão (feito, fatia 7)' }]
+      : todos(alvos),
   })),
 
   // ─── Ficha da seleção ─────────────────────────────────────────────────

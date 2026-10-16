@@ -120,13 +120,20 @@ test('2. com item selecionado a Ficha é do item: sem Chão do mapa nem Camadas,
   await expect(page.getByRole('heading', { name: 'Acervo de tokens', exact: true })).toBeVisible()
 })
 
-test('3. com ferramenta de desenho ativa (Chão) "Chão do mapa" nasce fechada e Camadas nem aparece', async ({ page }) => {
+// 16/10/2026 (fatia 7, ficha da ferramenta): com o Chão na mão a Ficha é a
+// ficha da ferramenta — forma, tinta e operação do PRÓXIMO chão. O "Chão do
+// mapa" (cor, contorno e moldura do mapa inteiro) não ocupa mais a Ficha nem
+// fechado: mora na página Cena, a um clique da nota "Ir para Cena".
+test('3. com ferramenta de desenho ativa (Chão) a Ficha é da ferramenta: "Chão do mapa" e Camadas ficam na página Cena, a um clique da nota', async ({ page }) => {
   await page.getByRole('button', { name: 'Chão', exact: true }).click()
 
-  const floorHeader = sectionHeader(page, 'Chão do mapa')
-  await expect(floorHeader).toHaveAttribute('aria-expanded', 'false')
-  await expect(await sectionBody(page, floorHeader)).toBeHidden()
+  await expect(sectionHeader(page, 'Chão do mapa')).toHaveCount(0)
   await expect(sectionHeader(page, 'Camadas')).toHaveCount(0)
+
+  await page.locator('.lb-inspector').getByRole('button', { name: 'Ir para Cena', exact: true }).click()
+  const floorHeader = sectionHeader(page, 'Chão do mapa')
+  await expect(floorHeader).toHaveAttribute('aria-expanded', 'true')
+  await expect(await sectionBody(page, floorHeader)).toBeVisible()
 })
 
 test('4. interruptores rápidos da grade dentro de Camadas mudam a store', async ({ page }) => {

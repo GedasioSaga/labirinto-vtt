@@ -133,14 +133,19 @@ describe('livro do mestre — cada grupo na sua página', () => {
     for (const titulo of ['Objetos do mapa', 'Chão do mapa', 'Camadas']) expect(naFolha('cena', titulo), titulo).toBe(true)
   })
 
-  it('com a ferramenta Chão na mão, a Ficha traz o "Chão do mapa" (é dela)', () => {
+  it('com a ferramenta Chão na mão, a Ficha leva ao "Chão do mapa" da página Cena pela nota, sem repetir o bloco (fatia 7)', () => {
     renderPainel({ activeTool: 'floor', groups: relevantPropertyGroups('floor') })
-    expect(naFolha('ficha', 'Chão do mapa')).toBe(true)
+    expect(naFolha('ficha', 'Chão do mapa')).toBe(false)
+    expect(naFolha('cena', 'Chão do mapa')).toBe(true)
+    const irParaCena = [...(folha('ficha')?.querySelectorAll('button') ?? [])].find((b) => texto(b) === 'Ir para Cena')
+    expect(irParaCena, 'a nota do Chão leva à página Cena').toBeDefined()
+    act(() => irParaCena?.click())
+    expect(useLivroDoMestreStore.getState().pagina).toBe('cena')
   })
 
-  it('GUARDA: com a Parede armada, o primeiro título da Ficha continua "Parede"', () => {
+  it('GUARDA: com a Parede armada, o primeiro título da Ficha é o da ficha da Parede', () => {
     renderPainel({ ...PAREDE_ARMADA, scenes: CENAS_E_PINOS, objects: OBJETOS })
-    expect(primeiroTitulo()).toBe('Parede')
+    expect(primeiroTitulo()).toBe('Ferramenta · Parede')
   })
 
   it('o Avançado da Parede mora DENTRO do bloco Parede (é dele: Ponta e canto), como o da ficha', () => {
