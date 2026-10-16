@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SelectionHeader, deleteLabelFor } from './SelectionHeader'
+import { CabecaDaSelecao, deleteLabelFor } from './livro/CabecaDaSelecao'
 import { WallDoorControls } from './WallDoorControls'
 import { StairControls } from './StairControls'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
@@ -31,17 +31,17 @@ function buttonByText(text: string): HTMLButtonElement | undefined {
   return [...container.querySelectorAll('button')].find((b) => b.textContent === text)
 }
 
-// O "Apagar" saiu de SelectionControls para a faixa da seleção (SelectionHeader):
-// o texto do botão continua o mesmo, letra por letra.
-describe('SelectionHeader — botão Apagar', () => {
+// O "Apagar" saiu de SelectionControls para a cabeça da ficha (CabecaDaSelecao,
+// fatia 8): o texto do botão continua o mesmo, letra por letra.
+describe('CabecaDaSelecao — botão Apagar', () => {
   const renderHeader = (kind: 'stair' | 'token') =>
     render(
-      <SelectionHeader
-        identity={{ icon: kind, type: kind === 'stair' ? 'Escada' : 'Token', name: null }}
-        deleteLabel={deleteLabelFor({ kind, count: 1 })}
-        onDelete={vi.fn()}
-        actions={[]}
-        actionsHint={null}
+      <CabecaDaSelecao
+        identidade={{ icon: kind, type: kind === 'stair' ? 'Escada' : 'Token', name: null }}
+        rotuloApagar={deleteLabelFor({ kind, count: 1 })}
+        onApagar={vi.fn()}
+        acoes={[]}
+        notaDasAcoes={null}
       />,
     )
 

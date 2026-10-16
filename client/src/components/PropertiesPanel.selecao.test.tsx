@@ -176,7 +176,9 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const onRemoveSelected = vi.fn()
     renderPainel(painelDaFicha({ selection: selecao({ kind: 'token', count: 1 }, onRemoveSelected) }))
 
-    const faixa = corpo()?.firstElementChild
+    // A cabeça da ficha (fatia 8): o primeiro bloco do corpo é a barra das ações dela.
+    const faixa = corpo()?.firstElementChild?.firstElementChild
+    expect(faixa?.classList.contains('gr-cabeca')).toBe(true)
     expect(faixa?.getAttribute('role')).toBe('toolbar')
     expect(faixa?.getAttribute('aria-label')).toBe('Ações da seleção')
     expect(faixa?.textContent).toContain('Guarda')
@@ -245,7 +247,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(onAddToken).toHaveBeenCalledWith('Token 1')
     // O App seleciona o token que nasceu: a faixa vazia dá lugar à faixa dele.
     renderPainel(painelDaFicha({ selection: { ...selecao({ kind: 'token', count: 1 }), onAddToken } }))
-    expect(corpo()?.firstElementChild?.getAttribute('role')).toBe('toolbar')
+    expect(corpo()?.firstElementChild?.firstElementChild?.getAttribute('role')).toBe('toolbar')
     // O mesmo botão, no mesmo lugar, com o foco.
     expect(maisToken()).toBe(botao)
     expect(document.activeElement).toBe(botao)
@@ -291,7 +293,8 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(botoesComTexto(/^Levar ao/)).toHaveLength(0)
 
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Mais ações"]')?.click())
-    const itens = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    // O menu do Grimório abre num portal, no `body`.
+    const itens = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
     expect(itens.map((item) => item.textContent)).toEqual(['Levar ao 1º piso', 'Levar ao 1º subsolo'])
     act(() => itens[0]?.click())
     expect(onLevar).toHaveBeenCalledWith(1)
@@ -452,6 +455,9 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     )
     const selecaoH2 = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Seleção')
     expect(selecaoH2?.closest('section')?.textContent).toContain('Oculto para jogadores (3)')
+    // Na gramática da ficha (fatia 8): o essencial dos vários itens logo abaixo da cabeça.
+    expect(corpo()?.children[1]?.classList.contains('lb-ficha-multipla')).toBe(true)
+    expect(selecaoH2?.closest('.gr-essencial')).not.toBeNull()
     expect(selecaoH2?.closest('section')?.querySelectorAll('button')).toHaveLength(0)
   })
 

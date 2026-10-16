@@ -1,0 +1,326 @@
+import { Fragment, useId, useRef, useState, type ReactElement } from 'react'
+import type { Drawing, FloorPiece, Light, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
+import { ROTULO_MOBILIA } from '../../lib/mobilia'
+import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
+import { mapObjectKey, mapObjectOf } from '../../lib/mapObjects'
+import { TOKEN_COLOR_DEFAULT } from '../../lib/tokenColor'
+import { useMapStore } from '../../stores/mapStore'
+import type { SelectionSummary } from '../SelectionControls'
+import { deleteSelectionLabel } from '../labels'
+import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
+import { BrushIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
+import { Balao } from '../grimorio/Balao'
+import { Botao } from '../grimorio/Botao'
+import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
+import { MenuItem, MenuNota, MenuSeparador, Pop } from '../grimorio/Pop'
+import { IconeDoLivro, type NomeDoIcone } from './icones'
+import './fichaDaSelecao.css'
+
+/** De que tipo é o que está selecionado — decide o ícone da medalha. */
+export type SelectionIconKind =
+  | 'room'
+  | 'region'
+  | 'token'
+  | 'wall'
+  | 'door'
+  | 'light'
+  | 'stair'
+  | 'prop'
+  | 'mobilia'
+  | 'text'
+  | 'drawing'
+  | 'floor'
+  | 'several'
+
+/** O que a cabeça diz da seleção. */
+export type SelectionIdentity = IdentidadeComum | IdentidadeDeMovel
+
+interface IdentidadeBase {
+  /** O tipo, com o nome do botão da ferramenta que cria a coisa ("Sala", "Porta", "Token"). */
+  type: string
+  /** O nome do item, quando ele tem um; `null` = a cabeça diz só o tipo. */
+  name: string | null
+}
+
+interface IdentidadeComum extends IdentidadeBase {
+  icon: Exclude<SelectionIconKind, 'mobilia'>
+}
+
+/** Móvel desenhado: a medalha leva o desenho DAQUELE móvel, o mesmo da setinha da ferramenta Objeto. */
+interface IdentidadeDeMovel extends IdentidadeBase {
+  icon: 'mobilia'
+  mobilia: TipoMobilia
+}
+
+/** Os itens que o painel já recebe; com UM item selecionado, só um deles não é `null`. */
+export interface SelectedItems {
+  region: Region | null
+  token: Token | null
+  wall: Wall | null
+  prop: Prop | null
+  light: Light | null
+  stair: Stair | null
+  textLabel: Extract<Drawing, { kind: 'text' }> | null
+  floorPiece: FloorPiece | null
+}
+
+/** Texto vazio (sala sem nome, rótulo em branco) não é nome: a cabeça cai no tipo. */
+function nameOrNull(text: string | undefined): string | null {
+  const trimmed = text?.trim() ?? ''
+  return trimmed === '' ? null : trimmed
+}
+
+/**
+ * Tipo e nome da seleção. O tipo repete o rótulo do botão da barra que cria a
+ * coisa: quem desenhou com "Sala" lê "Sala", não "Região". Vários itens não
+ * têm um tipo só, então a cabeça conta quantos são.
+ */
+export function selectionIdentity(summary: SelectionSummary, items: SelectedItems): SelectionIdentity {
+  if (summary.count > 1) return { icon: 'several', type: 'Seleção', name: `${summary.count} itens` }
+  switch (summary.kind) {
+    case 'region': {
+      const room = items.region?.room
+      if (room !== undefined) return { icon: 'room', type: 'Sala', name: nameOrNull(room.name) }
+      return { icon: 'region', type: 'Região', name: null }
+    }
+    case 'token':
+      return { icon: 'token', type: 'Token', name: nameOrNull(items.token?.name) }
+    case 'wall':
+      return items.wall?.door ? { icon: 'door', type: 'Porta', name: null } : { icon: 'wall', type: 'Parede', name: null }
+    case 'light':
+      return { icon: 'light', type: 'Luz', name: null }
+    case 'stair':
+      return { icon: 'stair', type: 'Escada', name: null }
+    case 'prop': {
+      const mobilia = items.prop?.mobilia
+      if (mobilia !== undefined) return { icon: 'mobilia', type: ROTULO_MOBILIA[mobilia], name: null, mobilia }
+      return { icon: 'prop', type: 'Peça', name: null }
+    }
+    case 'drawing':
+      // Rótulo de texto se chama pelo que diz; a primeira linha basta para achar.
+      return items.textLabel !== null
+        ? { icon: 'text', type: 'Texto', name: nameOrNull(items.textLabel.text.split('\n')[0]) }
+        : { icon: 'drawing', type: 'Desenho', name: null }
+    case 'floor':
+      return { icon: 'floor', type: 'Peça de chão', name: null }
+  }
+}
+
+/**
+ * Nome do botão Apagar — o MESMO de antes, letra por letra: os testes e2e o
+ * procuram pelo nome e pelo texto (`toHaveText('Apagar parede selecionada')`).
+ */
+export function deleteLabelFor(summary: SelectionSummary): string {
+  return summary.count === 1 ? deleteSelectionLabel(summary.kind) : `Apagar ${summary.count} itens selecionados`
+}
+
+/** Um item do menu "Mais ações". */
+export interface SelectionAction {
+  /** Texto do item e o nome acessível dele ("Levar ao 1º piso"). */
+  label: string
+  onSelect: () => void
+  /** Presente = o item fica no lugar, apagado, e diz por que não age agora. */
+  disabledReason?: string
+  /** Tecla desenhada à direita, a que faz o mesmo sem abrir o menu ("Alt"). */
+  atalho?: string
+  /** O que o item faz, na linha de baixo. Com `disabledReason`, o motivo vence. */
+  detalhe?: string
+  icone?: NomeDoIcone
+  /** Itens do mesmo assunto ficam juntos; um fio separa um assunto do seguinte. */
+  grupo: string
+  /** A nota do pé do menu também explica este item (a frase do "Levar ao piso"). */
+  explicadoPelaNota?: boolean
+}
+
+/**
+ * PISOS NA MESMA CENA — "Levar ao piso" da seleção inteira, um piso acima e um
+ * abaixo do piso em edição. Na ponta da faixa de pisos o item continua no
+ * menu, apagado, com o motivo: o mestre aprende onde ele mora.
+ */
+export function floorActions(pisoAtivo: number, onLevar: (piso: number) => void): SelectionAction[] {
+  const acima = pisoAtivo + 1
+  const abaixo = pisoAtivo - 1
+  return [
+    {
+      label: `Levar ao ${nomeDoPiso(acima)}`,
+      onSelect: () => onLevar(acima),
+      disabledReason: acima > PISO_MAX ? 'Não há piso acima deste.' : undefined,
+      icone: 'cenas',
+      grupo: 'piso',
+      explicadoPelaNota: true,
+    },
+    {
+      label: `Levar ao ${nomeDoPiso(abaixo)}`,
+      onSelect: () => onLevar(abaixo),
+      disabledReason: abaixo < PISO_MIN ? 'Não há subsolo abaixo deste.' : undefined,
+      icone: 'cenas',
+      grupo: 'piso',
+      explicadoPelaNota: true,
+    },
+  ]
+}
+
+/**
+ * ENDIREITAR (pedido 5): o clique faz o mesmo que tocar o Alt, num passo só de
+ * Ctrl+Z. Quem monta só o põe no menu quando o clique mudaria alguma coisa
+ * (`selectEndireitarMudaria`): Linha, Parede solta ou Caminho tortos.
+ */
+export function endireitarAction(onEndireitar: () => void): SelectionAction {
+  return { label: 'Endireitar', onSelect: onEndireitar, atalho: 'Alt', detalhe: 'Sem mudar o tamanho', icone: 'regua', grupo: 'forma' }
+}
+
+/** As salas de uma porta ("Adega e Corredor"), da cena aberta; vazio para o resto. */
+export function useOndeDaPorta(paredeId: string | null): string {
+  return useMapStore((state) => (paredeId === null ? '' : (mapObjectOf(state.map, mapObjectKey('door', paredeId))?.detail ?? '')))
+}
+
+/** A cor do disco de um token sem cor própria: a mesma do mapa. */
+const COR_DO_TOKEN_PADRAO = `#${TOKEN_COLOR_DEFAULT.toString(16).padStart(6, '0')}`
+const MAIS_ACOES = 'Mais ações'
+/** A tecla de "Apagar a seleção", com o nome que a tela de atalhos usa (`shortcutSheet.ts`). */
+const TECLA_DE_APAGAR = 'Delete'
+
+export interface CabecaDaSelecaoProps {
+  identidade: SelectionIdentity
+  /** Token selecionado: o retrato na cor dele, com as iniciais, no lugar da medalha. */
+  token?: Pick<Token, 'name' | 'color'> | null
+  /** Onde o item está (as salas de uma porta), depois do tipo. */
+  onde?: string
+  /** Nome acessível (e texto) do Apagar: `deleteLabelFor`. */
+  rotuloApagar: string
+  onApagar: () => void
+  /** Itens do "Mais ações", por assunto. Vazio = o botão não aparece (menu sem ação é controle falso). */
+  acoes: readonly SelectionAction[]
+  /** Frase no pé do menu, ligada aos itens com `explicadoPelaNota`. */
+  notaDasAcoes: string | null
+}
+
+/**
+ * CABEÇA DA FICHA da seleção (fatia 8 do design consolidado, o `.cabeca` do
+ * protótipo): retrato do token ou medalha de latão com o ícone do tipo, o nome
+ * em serifa, o tipo (e onde) embaixo, e à direita Apagar (Del) e "Mais ações",
+ * o menu das ações raras de cada tipo ("Levar ao piso", "Endireitar").
+ *
+ * O nome não é título (`h2`) de propósito: o primeiro título da página
+ * continua sendo o do item ("Sala", "Ficha"), que as jornadas leem. A cabeça
+ * é a barra das ações (`toolbar`) descrita pelo nome: os botões ficam na
+ * ordem do Tab, e as setas continuam sendo atalho do mapa.
+ */
+export function CabecaDaSelecao({ identidade, token, onde, rotuloApagar, onApagar, acoes, notaDasAcoes }: CabecaDaSelecaoProps) {
+  const [menuAberto, setMenuAberto] = useState(false)
+  const gatilho = useRef<HTMLButtonElement | null>(null)
+  const notaId = useId()
+  const nome = identidade.name ?? identidade.type
+  const marca =
+    token !== undefined && token !== null ? (
+      <CabecaRetrato cor={token.color ?? COR_DO_TOKEN_PADRAO} iniciais={iniciaisDaFicha(nome)} />
+    ) : (
+      <CabecaMedalha>{iconeDoTipo(identidade)}</CabecaMedalha>
+    )
+  return (
+    <div className="lb-cabeca-da-selecao">
+      <Cabeca
+        marca={marca}
+        nome={nome}
+        tipo={identidade.name === null ? undefined : identidade.type}
+        onde={onde === '' ? undefined : onde}
+        rotuloDasAcoes="Ações da seleção"
+        acoes={
+          <>
+            <Balao texto={rotuloApagar} atalho="Del">
+              {(propsDoBalao) => (
+                <Botao soIcone aria-label={rotuloApagar} aria-keyshortcuts={TECLA_DE_APAGAR} {...propsDoBalao} onClick={onApagar}>
+                  <IconeDoLivro nome="lixo" />
+                  {/* O texto do botão, para quem lê pelo texto (`toHaveText`); a vista tem só o ícone. */}
+                  <span className="gr-sr">{rotuloApagar}</span>
+                </Botao>
+              )}
+            </Balao>
+            {acoes.length > 0 && (
+              <Balao texto={MAIS_ACOES}>
+                {(propsDoBalao) => (
+                  <Botao
+                    soIcone
+                    aria-label={MAIS_ACOES}
+                    aria-haspopup="menu"
+                    aria-expanded={menuAberto}
+                    {...propsDoBalao}
+                    ref={(no) => {
+                      propsDoBalao.ref(no)
+                      gatilho.current = no
+                    }}
+                    onClick={() => setMenuAberto((aberto) => !aberto)}
+                  >
+                    <IconeDoLivro nome="reticencias" />
+                  </Botao>
+                )}
+              </Balao>
+            )}
+          </>
+        }
+      />
+      {acoes.length > 0 && (
+        <Pop aberto={menuAberto} gatilho={gatilho} onFechar={() => setMenuAberto(false)} rotulo={MAIS_ACOES}>
+          {acoes.map((acao, indice) => (
+            <Fragment key={acao.label}>
+              {indice > 0 && acoes[indice - 1]?.grupo !== acao.grupo && <MenuSeparador />}
+              <MenuItem
+                icone={acao.icone === undefined ? undefined : <IconeDoLivro nome={acao.icone} />}
+                atalho={acao.atalho}
+                detalhe={acao.disabledReason ?? acao.detalhe}
+                disabled={acao.disabledReason !== undefined}
+                descritoPor={acao.explicadoPelaNota === true && notaDasAcoes !== null ? notaId : undefined}
+                onClick={acao.onSelect}
+              >
+                {acao.label}
+              </MenuItem>
+            </Fragment>
+          ))}
+          {notaDasAcoes !== null && <MenuNota id={notaId}>{notaDasAcoes}</MenuNota>}
+        </Pop>
+      )}
+    </div>
+  )
+}
+
+/** O desenho da medalha: o mesmo do botão da ferramenta que cria a coisa (do móvel, o da setinha). */
+function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
+  switch (identidade.icon) {
+    case 'room':
+      return <RoomIcon />
+    case 'region':
+      return <RegionIcon />
+    case 'token':
+      return <TokenIcon />
+    case 'wall':
+      return <WallIcon />
+    case 'door':
+      return <DoorIcon />
+    case 'light':
+      return <LightIcon />
+    case 'stair':
+      return <StairIcon />
+    case 'prop':
+      return <PropIcon />
+    case 'mobilia':
+      return <MobiliaIcon tipo={identidade.mobilia} />
+    case 'text':
+      return <TextIcon />
+    case 'drawing':
+      return <BrushIcon />
+    case 'floor':
+      return <FloorIcon />
+    case 'several':
+      return <VariosIcon />
+  }
+}
+
+/** Vários itens: duas folhas, uma atrás da outra (traço da família de `icons.tsx`). */
+function VariosIcon(): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect x="4" y="8.5" width="11.5" height="11.5" rx="1.5" />
+      <path d="M8.5 8.5V5.5c0-.6.4-1 1-1h9c.6 0 1 .4 1 1v9c0 .6-.4 1-1 1h-3" />
+    </svg>
+  )
+}

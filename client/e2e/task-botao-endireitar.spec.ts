@@ -1,9 +1,9 @@
-// E2E do pedido 5 (30/09/2026), fatia 3: o botão "Endireitar" do painel e a
-// linha da tela de atalhos. O botão é a porta de entrada visível do Alt
-// tocado: aparece sozinho com uma linha torta selecionada, logo abaixo da
-// faixa da seleção, endireita num passo de Ctrl+Z e some quando a linha já
-// está reta. A tela de atalhos ensina o gesto: "Alt (tocar)", porque o Alt
-// segurado é das guias de medir (pedido 3).
+// E2E do pedido 5 (30/09/2026), fatia 3: o "Endireitar" do painel e a linha da
+// tela de atalhos. É a porta de entrada visível do Alt tocado: desde a fatia 8
+// do design consolidado, um item do "Mais ações" da cabeça da ficha, que só
+// aparece com uma linha torta selecionada, endireita num passo de Ctrl+Z e
+// some quando a linha já está reta. A tela de atalhos ensina o gesto: "Alt
+// (tocar)", porque o Alt segurado é das guias de medir (pedido 3).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import { installTauriFsStub } from './helpers/tauriFsStub'
@@ -87,9 +87,16 @@ async function desenharESelecionarLinhaTorta(page: Page, box: Caixa): Promise<Li
   return torta
 }
 
-/** O botão, onde ele mora: a seção logo depois da faixa da seleção, no corpo do painel. */
-function botaoEndireitar(page: Page) {
-  return page.locator('.lb-inspector__body .lb-selhead + section').getByRole('button', { name: 'Endireitar', exact: true })
+/**
+ * Onde ele mora desde a fatia 8 do design consolidado: um item do "Mais
+ * ações" da cabeça da ficha (o menu abre num portal, por cima de tudo).
+ */
+async function abrirMaisAcoes(page: Page) {
+  await page.locator('.lb-inspector__body').getByRole('button', { name: 'Mais ações', exact: true }).click()
+}
+
+function itemEndireitar(page: Page) {
+  return page.getByRole('menuitem', { name: 'Endireitar', exact: true })
 }
 
 test.beforeEach(async ({ page }) => {
@@ -99,36 +106,42 @@ test.beforeEach(async ({ page }) => {
   await resetMap(page)
 })
 
-test('1. linha torta selecionada: o botão aparece abaixo da faixa, o clique endireita num passo e ele some; Ctrl+Z traz os dois de volta', async ({ page }) => {
+test('1. linha torta selecionada: "Endireitar" no "Mais ações" da cabeça, o clique endireita num passo e o item some; Ctrl+Z traz os dois de volta', async ({ page }) => {
   const box = await caixaDoCanvas(page)
   const torta = await desenharESelecionarLinhaTorta(page, box)
   const antes = await lerEstado(page)
 
-  const botao = botaoEndireitar(page)
-  await expect(botao).toBeVisible()
-  await botao.click()
+  await abrirMaisAcoes(page)
+  await expect(itemEndireitar(page)).toBeVisible()
+  await itemEndireitar(page).click()
 
   const depois = await lerEstado(page)
   const reta = linhaPorId(depois, torta.id)
   expect(Math.abs(reta.x1 - reta.x2)).toBeLessThanOrEqual(0.01)
   expect(depois.passosDeDesfazer).toBe(antes.passosDeDesfazer + 1)
-  // Com a linha reta não há o que endireitar: botão na tela tem de fazer alguma coisa.
-  await expect(botao).toHaveCount(0)
+  // Com a linha reta não há o que endireitar: item no menu tem de fazer alguma coisa.
+  await abrirMaisAcoes(page)
+  await expect(page.getByRole('menu', { name: 'Mais ações' })).toBeVisible()
+  await expect(itemEndireitar(page)).toHaveCount(0)
+  // Esc no menu só fecha o menu: a seleção fica.
+  await page.keyboard.press('Escape')
+  expect((await lerEstado(page)).selecionados).toEqual([torta.id])
 
   await page.keyboard.press('Control+z')
   const desfeito = await lerEstado(page)
   expect(linhaPorId(desfeito, torta.id)).toEqual(torta)
-  await expect(botao).toBeVisible()
+  await abrirMaisAcoes(page)
+  await expect(itemEndireitar(page)).toBeVisible()
 })
 
-test('2. parar o ponteiro no botão abre o balão que ensina o atalho e o desfazer', async ({ page }) => {
+test('2. o item ensina a tecla (Alt, à vista) e diz o que faz', async ({ page }) => {
   const box = await caixaDoCanvas(page)
   await desenharESelecionarLinhaTorta(page, box)
 
-  await botaoEndireitar(page).hover()
-  const balao = page.locator('.lb-inspector__body .lb-field__hint[data-dica="aberta"]')
-  await expect(balao).toBeVisible()
-  await expect(balao).toHaveText('Deixa a linha em pé ou deitada, sem mudar o tamanho. Atalho: tocar o Alt. Ctrl+Z desfaz.')
+  await abrirMaisAcoes(page)
+  const item = itemEndireitar(page)
+  await expect(item.locator('kbd')).toHaveText('Alt')
+  await expect(item).toHaveAccessibleDescription('Sem mudar o tamanho')
 })
 
 test('3. a tela de atalhos ensina o toque: "Endireitar a linha selecionada", Alt (tocar)', async ({ page }) => {

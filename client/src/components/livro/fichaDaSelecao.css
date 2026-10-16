@@ -1,0 +1,54 @@
+/*
+ * FICHA DA SELEÇÃO (fatia 8 do design consolidado): a cabeça do Grimório no
+ * alto da página Ficha com algo selecionado, e a seleção múltipla na gramática
+ * da ficha (decisão 4.1): o que vale para todos os itens num bloco essencial.
+ * O recheio de cada tipo continua como estava até a fatia dele (9 a 16).
+ */
+
+/* O respiro do corpo da página do protótipo (`.pagina__corpo`), o mesmo da ficha da ferramenta. */
+.lb-cabeca-da-selecao {
+  padding: 12px 12px 0 14px;
+}
+
+/* Vários itens: a cabeça conta quantos; embaixo, o essencial. */
+.lb-ficha-multipla {
+  padding: 0 12px 20px 14px;
+}
+
+/* Nenhum dos três tem o que mostrar (sem área, sem alinhar, sem o lote): sem cartão vazio. */
+.lb-ficha-multipla:not(:has(.gr-ficha__dentro > *)) {
+  display: none;
+}
+
+/* As seções de antes viram trechos do cartão, sem o respiro nem o fio. */
+.lb-ficha-multipla .lb-section,
+.lb-ficha-multipla .lb-section + .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
+}
+.lb-ficha-multipla .lb-section + .lb-section {
+  margin-top: 14px;
+}
+
+/* O nome de cada trecho ("Seleção de área", "Alinhar e distribuir") na voz do
+   `.gr-campo__rot`, em caixa normal, e não a legenda em caixa alta de seção. */
+.lb-ficha-multipla .lb-eyebrow {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Agrupar e Limpar com a pedra quente e o filete do `.gr-bt`. */
+.lb-ficha-multipla .lb-btn {
+  min-height: 32px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete-forte);
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  font-weight: 500;
+}

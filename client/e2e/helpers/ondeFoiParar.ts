@@ -276,8 +276,8 @@ export const BLOCOS: readonly Bloco[] = [
 
   // ─── Ficha da seleção ─────────────────────────────────────────────────
   {
-    tela: 'mestre', titulo: 'Faixa da seleção', estado: 'token selecionado no mapa', escopo: 'esquerda', preparo: sel('token', 't1'),
-    vai: 'Cabeça da ficha (Apagar e "Mais ações")', fatia: '8',
+    tela: 'mestre', titulo: 'Cabeça da ficha da seleção', estado: 'token selecionado no mapa', escopo: 'esquerda', preparo: sel('token', 't1'),
+    vai: 'Cabeça da ficha: retrato ou medalha, nome, tipo, Apagar e "Mais ações" (feito)', fatia: '8',
     linhas: [l('Apagar', b('Apagar token selecionado')), l('Mais ações', b('Mais ações'))],
   },
   {
@@ -336,7 +336,7 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([cx('Jogadores veem o nome'), cx('Teto fechado para jogadores'), cx('Cômodo: aparece só depois de visto'), cx('Sala escura'), cx('De dentro, vê lá fora'), cx('De fora, vê aqui dentro')]),
       ...todos([b('Ao entrar, o jogador lê'), b('Nota do mestre'), b('Facção'), b('Raio de visão aqui'), b('Perigo'), b('Esteira'), b('Criar sala dentro')]),
       ...todos([cx('Travado'), cx('Oculto para jogadores'), ...REGIAO_ESTILO, b('Criar parede na borda'), cx('Pintar parte da sala de outra cor')]),
-      { ...l('Mais ações: levar ao piso', ['menuitem', '/^Levar ao/'], b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (fatia 8)' },
+      { ...l('Mais ações: levar ao piso', ['menuitem', '/^Levar ao/'], b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (feito, fatia 8)' },
     ],
   },
   {
@@ -364,7 +364,10 @@ export const BLOCOS: readonly Bloco[] = [
   {
     tela: 'mestre', titulo: 'Ficha do desenho', estado: 'linha desenhada selecionada', escopo: 'esquerda', preparo: sel('drawing', 'dr1'),
     vai: 'Página Ficha, gramática nova (Endireitar no "Mais ações")', fatia: '16b',
-    linhas: todos([b('Endireitar'), cx('Oculto para jogadores'), ['textbox', 'Cor'], ['slider', 'Espessura'], cx('Paredes ao redor')]),
+    linhas: [
+      { ...l('Endireitar', menu('Endireitar'), b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (feito, fatia 8)' },
+      ...todos([cx('Oculto para jogadores'), ['textbox', 'Cor'], ['slider', 'Espessura'], cx('Paredes ao redor')]),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha do texto', estado: 'texto selecionado', escopo: 'esquerda', preparo: sel('drawing', 'tx1'),
@@ -383,7 +386,7 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Seleção múltipla', estado: 'token e parede selecionados juntos', escopo: 'esquerda', preparo: { selecao: [{ tipo: 'token', id: 't1' }, { tipo: 'wall', id: 'w1' }] },
-    vai: 'Página Ficha com 2 ou mais itens', fatia: '8',
+    vai: 'Página Ficha com 2 ou mais itens: cabeça que conta quantos e o essencial com o que vale para todos (feito)', fatia: '8',
     linhas: todos([b('Apagar 2 itens selecionados'), b('Agrupar (Ctrl+G)'), b('Limpar seleção de área'), b('Alinhar à esquerda'), b('Alinhar ao centro'), b('Alinhar à direita'), b('Alinhar ao topo'), b('Alinhar ao meio'), b('Alinhar à base'), b('Distribuir na horizontal'), b('Distribuir na vertical'), cx('Oculto para jogadores (1)')]),
   },
 

@@ -74,7 +74,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
   const corpo = () => container.querySelector<HTMLElement>('.lb-inspector__body')
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
   const h2 = (nome: string) => Array.from(corpo()?.querySelectorAll('h2') ?? []).find((h) => texto(h) === nome) ?? null
-  const cabecalho = () => texto(container.querySelector('.lb-selhead__name'))
+  const cabecalho = () => texto(container.querySelector('.lb-cabeca-da-selecao .gr-cabeca__nome'))
   /** O controle ligado ao `<label>` de texto `nome`. */
   const campo = (nome: string) => {
     const label = Array.from(container.querySelectorAll('label')).find((l) => texto(l) === nome)

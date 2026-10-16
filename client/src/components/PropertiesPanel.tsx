@@ -8,12 +8,13 @@ import { TokenPersonagemControls, type TokenPersonagemControlsProps } from './To
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
-import { SelectionHeader, deleteLabelFor, floorActions, selectionIdentity } from './SelectionHeader'
+import { CabecaDaSelecao, deleteLabelFor, endireitarAction, floorActions, selectionIdentity, useOndeDaPorta } from './livro/CabecaDaSelecao'
+import { Essencial } from './grimorio/Cartoes'
 import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
 import { FichaDaFerramenta } from './livro/FichaDaFerramenta'
 import type { ToolVariantBindings } from './ToolVariantMenu'
 import { BOTAO_NOVO_TOKEN_ID, NovoTokenForm } from './NovoTokenForm'
-import { EndireitarControl } from './EndireitarControl'
+import { selectEndireitarMudaria, useMapStore } from '../stores/mapStore'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
@@ -463,6 +464,28 @@ export function PropertiesPanel({
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
   // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
   const doorSelected = selectedWall !== null && selectedWall.door !== null
+  // "MAIS AÇÕES" DA CABEÇA (fatia 8): as ações raras da seleção, por assunto.
+  // Endireitar só entra quando o clique mudaria alguma coisa (Linha, Parede
+  // solta ou Caminho tortos), como o botão que ele substitui; "Levar ao piso"
+  // vale para qualquer seleção, com a ligação de pisos montada.
+  const endireitarMudaria = useMapStore(selectEndireitarMudaria)
+  const endireitarSelecionados = useMapStore((state) => state.endireitarSelecionados)
+  const ondeDaPorta = useOndeDaPorta(doorSelected ? selectedWall.id : null)
+  const acoesDaSelecao = [
+    ...(endireitarMudaria ? [endireitarAction(() => endireitarSelecionados())] : []),
+    ...(pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)),
+  ]
+  // VÁRIOS ITENS na gramática da ficha (decisão 4.1): o que vale para todos —
+  // seleção de área, alinhar e o "Oculto para jogadores" em lote — num bloco
+  // essencial logo abaixo da cabeça. Com um item só, as mesmas seções no fim.
+  const variosSelecionados = selection.selection !== null && selection.selection.count > 1
+  const controlesDeVarios = groups.has('selection') ? (
+    <>
+      <AreaSelectionControls {...areaSelection} />
+      <AlignDistributeControls {...alignDistribute} />
+      <SelectionControls secret={selection.secret} />
+    </>
+  ) : null
   // "+ TOKEN" NO TOPO DO LIVRO (LivroDoMestre): um lugar só, o mesmo com e
   // sem seleção, fora do corpo que rola. O campo do nome nasce no topo da
   // página Ficha, logo abaixo da faixa, e não depende da seleção: trocar o
@@ -532,14 +555,14 @@ export function PropertiesPanel({
   return (
     <>
       <FolhaDoLivro pagina="ficha" corpoRef={corpoRef}>
-        {/* A faixa da seleção, fixa no topo do corpo: o que está selecionado,
-            Apagar e "Mais ações" à vista em qualquer altura da coluna. Sem
-            título, então o primeiro `h2` continua sendo o do item. `key`: outro
-            item selecionado reabre a faixa com o menu fechado. */}
+        {/* A cabeça da ficha (fatia 8): retrato ou medalha, nome, tipo, Apagar
+            e "Mais ações". Sem título, então o primeiro `h2` continua sendo o
+            do item. `key`: outro item selecionado reabre a cabeça com o menu
+            fechado. */}
         {selection.selection !== null && (
-          <SelectionHeader
+          <CabecaDaSelecao
             key={selectionKey}
-            identity={selectionIdentity(selection.selection, {
+            identidade={selectionIdentity(selection.selection, {
               region: selectedRegion,
               token: selectedToken,
               wall: selectedWall,
@@ -549,12 +572,12 @@ export function PropertiesPanel({
               textLabel: selectedTextLabel,
               floorPiece: selectedFloorPiece,
             })}
-            deleteLabel={deleteLabelFor(selection.selection)}
-            onDelete={selection.onRemoveSelected}
-            // PISOS NA MESMA CENA: parede, sala, chão, luz, objeto, desenho —
-            // tudo sobe ou desce um piso pelo menu, sem ocupar a coluna.
-            actions={pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)}
-            actionsHint={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
+            token={selection.selection.count === 1 && selection.selection.kind === 'token' ? selectedToken : null}
+            onde={ondeDaPorta}
+            rotuloApagar={deleteLabelFor(selection.selection)}
+            onApagar={selection.onRemoveSelected}
+            acoes={acoesDaSelecao}
+            notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
           />
         )}
         {/* O campo do "+ Token" do cabeçalho: o mais perto do botão que o
@@ -574,11 +597,11 @@ export function PropertiesPanel({
         {/* Selecionar na mão e nada selecionado: o convite com os atalhos e
             um exemplo de cada tipo da cena (fatia 7). */}
         {!algoSelecionado && ferramentaDaFicha === null && <NadaSelecionado nesteMapa={nesteMapa} />}
-        {/* Endireitar (pedido 5): aparece sozinho quando há Linha, Parede solta
-            ou Caminho torto na seleção. Logo depois da faixa e fora das seções
-            de ferramenta, porque vale para os três; sem título, para o primeiro
-            `h2` continuar sendo o do item. */}
-        <EndireitarControl />
+        {variosSelecionados && controlesDeVarios !== null && (
+          <div className="lb-ficha-multipla">
+            <Essencial>{controlesDeVarios}</Essencial>
+          </div>
+        )}
         {/* Ferramenta armada e nada selecionado: as seções dela entram no
             cartão da ficha da ferramenta, embaixo da cabeça (fatia 7). Com
             algo selecionado, as seções do item, como antes. */}
@@ -947,15 +970,10 @@ export function PropertiesPanel({
             )}
           </ToolPropertiesSection>
         )}
-        {/* "Levar ao piso" e Apagar moram na faixa do topo, e o "Nada
-            selecionado" também; o "Adicionar token" é o "+ Token" do
-            cabeçalho. Aqui fica só o que é de vários itens: seleção de área,
-            alinhar e o "Oculto para jogadores" em lote. */}
-        <ToolPropertiesSection group="selection" groups={groups}>
-          <AreaSelectionControls {...areaSelection} />
-          <AlignDistributeControls {...alignDistribute} />
-          <SelectionControls secret={selection.secret} />
-        </ToolPropertiesSection>
+        {/* "Levar ao piso" e Apagar moram na cabeça; o "Adicionar token" é o
+            "+ Token" do topo do livro. Com vários itens, o que é de vários
+            mora no essencial lá em cima; com um, aqui no fim. */}
+        {!variosSelecionados && controlesDeVarios}
         </MolduraDaFicha>
         {/* Uma peça de chão selecionada: "Camadas do chão" no pé da ficha dela.
             Com a ferramenta Chão na mão a lista mora no cartão da ferramenta

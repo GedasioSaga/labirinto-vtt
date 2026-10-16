@@ -143,6 +143,12 @@ const DESENHOS = {
   /** O floco riscado: "Descongelar". */
   degelo: caminho('M12 3v18 M4.2 7.5l15.6 9 M4.2 16.5l15.6-9 M9.5 4.5L12 7l2.5-2.5 M9.5 19.5L12 17l2.5 2.5 M3.5 20.5l17-17'),
   seguir: caminho('M4.5 12h10 M10.5 7l5 5-5 5 M19.5 5v14'),
+  /** Apagar a seleção (cabeça da ficha). */
+  lixo: caminho('M4.5 7h15 M9.5 7V4.5h5V7 M6.5 7l1 12.5h9l1-12.5 M10.5 10.5v6 M13.5 10.5v6'),
+  /** Endireitar (Mais ações). */
+  regua: caminho('M3.5 16.5l13-13 4 4-13 13z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2'),
+  /** Voltar da sub-ficha para a ficha do item. */
+  esq: caminho('M15 6l-6 6 6 6'),
   pessoa: (
     <>
       <circle cx="12" cy="8" r="3.5" />

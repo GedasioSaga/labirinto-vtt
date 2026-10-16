@@ -417,9 +417,9 @@ Parte de: ferramenta Borracha armada, nada selecionado. Vai para: Página Ficha,
 | Ferramenta · Borracha | heading "Ferramenta · Borracha" | (livro do mestre) | (do bloco) |
 | Modo | radiogroup "Modo" | (livro do mestre) | (do bloco) |
 
-### Faixa da seleção
+### Cabeça da ficha da seleção
 
-Parte de: token selecionado no mapa. Vai para: Cabeça da ficha (Apagar e "Mais ações"). Fatia: 8.
+Parte de: token selecionado no mapa. Vai para: Cabeça da ficha: retrato ou medalha, nome, tipo, Apagar e "Mais ações" (feito). Fatia: 8.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -614,7 +614,7 @@ Parte de: sala selecionada no mapa. Vai para: Página Ficha da sala: Sala, O que
 | Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
 | Criar parede na borda | button "Criar parede na borda" | (livro do mestre) | (do bloco) |
 | Pintar parte da sala de outra cor | checkbox "Pintar parte da sala de outra cor" | (livro do mestre) | (do bloco) |
-| Mais ações: levar ao piso | menuitem "/^Levar ao/" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (fatia 8) |
+| Mais ações: levar ao piso | menuitem "/^Levar ao/" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (feito, fatia 8) |
 
 ### Ficha da região (não sala)
 
@@ -796,7 +796,7 @@ Parte de: linha desenhada selecionada. Vai para: Página Ficha, gramática nova 
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Endireitar | button "Endireitar" | (livro do mestre) | (do bloco) |
+| Endireitar | menuitem "Endireitar" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (feito, fatia 8) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
@@ -835,7 +835,7 @@ Parte de: zona oculta selecionada. Vai para: Página Ficha, gramática nova. Fat
 
 ### Seleção múltipla
 
-Parte de: token e parede selecionados juntos. Vai para: Página Ficha com 2 ou mais itens. Fatia: 8.
+Parte de: token e parede selecionados juntos. Vai para: Página Ficha com 2 ou mais itens: cabeça que conta quantos e o essencial com o que vale para todos (feito). Fatia: 8.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|

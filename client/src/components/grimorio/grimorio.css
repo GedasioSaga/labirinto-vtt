@@ -329,6 +329,39 @@ select.gr-entrada option { background: #1d1913; }
 .gr-menu__item small { display: block; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
 .gr-menu__sep { height: 1px; background: var(--lb-gr-filete); margin: 5px 4px; }
 .gr-menu__rot { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); padding: 6px 10px 2px; }
+/* a nota do pé do menu ("Levar ao piso"): estreita, para o menu não alargar por causa dela */
+.gr-menu__nota { max-width: 236px; margin: 4px 0 0; padding: 6px 10px 4px; border-top: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-xs); line-height: 1.4; color: var(--lb-color-parchment-faint); }
+
+/* ------------------------------------------------------------------ gramática da ficha: essencial, cartões e sub-ficha */
+.gr-essencial { margin-bottom: 8px; }
+.gr-essencial > .gr-ficha__dentro { padding-top: 12px; }
+.gr-titulo-secao {
+  font: 400 15px/1.2 var(--lb-font-display); color: var(--lb-color-parchment);
+  margin: 18px 0 8px; display: flex; align-items: baseline; gap: 8px;
+}
+.gr-titulo-secao small { font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.gr-cartoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gr-cartao {
+  position: relative; min-height: 76px; padding: 9px 6px 8px; border-radius: 9px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+  background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete);
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.gr-cartao:active:not(:disabled) { transform: scale(0.97); }
+.gr-cartao:disabled { opacity: 0.55; }
+.gr-cartao > svg { width: 20px; height: 20px; color: var(--lb-gr-gravado); }
+.gr-cartao__rot { font-size: var(--lb-font-size-sm); font-weight: 500; color: var(--lb-color-parchment); line-height: 1.15; }
+.gr-cartao__resumo { font-size: 10.5px; color: var(--lb-color-parchment-faint); line-height: 1.2; }
+.gr-cartao.gr-e-ligado { border-color: var(--lb-gr-filete-latao); }
+.gr-cartao.gr-e-ligado > svg { color: var(--lb-color-brass-bright); }
+.gr-cartao.gr-e-ligado::after { content: ''; position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--lb-color-brass); }
+.gr-voltar-sub {
+  display: inline-flex; align-items: center; gap: 4px; margin: -2px 0 10px -6px;
+  min-height: 28px; padding: 0 8px 0 4px; border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.gr-voltar-sub svg { width: 16px; height: 16px; }
 
 /* ------------------------------------------------------------------ diálogo */
 .gr-dlg-fundo {
@@ -383,6 +416,8 @@ select.gr-entrada option { background: #1d1913; }
   .gr-menu__item:hover:not(:disabled) { background: var(--lb-gr-hover-forte); }
   .gr-menu__item--perigo:hover { background: var(--lb-color-ember-soft); }
   .gr-num__passo:hover { background: var(--lb-gr-hover); }
+  .gr-cartao:hover:not(:disabled) { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); }
+  .gr-voltar-sub:hover { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
 }
 
 /* ------------------------------------------------------------------ movimento reduzido: some o deslocamento, fica a troca de opacidade */
@@ -390,7 +425,7 @@ select.gr-entrada option { background: #1d1913; }
   .gr-fita { transition: none; }
   .gr-ficha.gr-e-nova, .gr-pop, .gr-dlg { animation-name: gr-fade; }
   .gr-ficha__corpo, .gr-ficha__seta, .gr-subgrupo > summary svg, .gr-liga__trilho::after { transition-duration: 0ms; }
-  .gr-bt:active, .gr-seg__op:active, .gr-chip:active, .gr-marcador:active, .gr-icone-tg:active, .gr-cor:active, .gr-num__passo:active { transform: none; }
+  .gr-bt:active, .gr-seg__op:active, .gr-chip:active, .gr-marcador:active, .gr-icone-tg:active, .gr-cor:active, .gr-num__passo:active, .gr-cartao:active { transform: none; }
   .gr-torrada { transition: opacity 120ms ease; }
   @starting-style { .gr-torrada { transform: none; } }
 }

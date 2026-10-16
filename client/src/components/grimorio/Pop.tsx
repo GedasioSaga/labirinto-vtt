@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Tecla } from './Botao'
 import { SAIDA_DO_POP_MS, classes, focaveisEm, movimentoReduzido } from './comum'
@@ -100,6 +100,9 @@ export function Pop({ aberto, gatilho, onFechar, lado = 'baixo', tipo = 'menu', 
   }
 
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    // Com o foco no menu, tecla nenhuma vira atalho do mapa: as setas moveriam
+    // a seleção, o Del a apagaria, uma letra trocaria a ferramenta.
+    if (tipo === 'menu') evento.stopPropagation()
     if (evento.key === 'Escape') {
       evento.preventDefault()
       evento.stopPropagation()
@@ -162,12 +165,20 @@ export interface MenuItemProps {
   perigo?: boolean
   /** Fica no lugar de sempre, apagado e pulado pelas setas. */
   disabled?: boolean
+  /** Id de uma frase de fora do item que também o descreve (a nota no pé do menu). */
+  descritoPor?: string
   onClick: () => void
   children: ReactNode
 }
 
-/** Linha do menu (o `.menu__item`). */
-export function MenuItem({ icone, atalho, detalhe, perigo, disabled, onClick, children }: MenuItemProps) {
+/**
+ * Linha do menu (o `.menu__item`). O nome acessível é só o texto do item: o
+ * detalhe embaixo vira a descrição, e a tecla desenhada fica fora dos dois
+ * (é para os olhos; `getByRole('menuitem', { name })` acha o item pelo nome).
+ */
+export function MenuItem({ icone, atalho, detalhe, perigo, disabled, descritoPor, onClick, children }: MenuItemProps) {
+  const id = useId()
+  const descricao = [detalhe ? `${id}-detalhe` : null, descritoPor ?? null].filter((parte) => parte !== null).join(' ')
   return (
     <button
       type="button"
@@ -175,12 +186,14 @@ export function MenuItem({ icone, atalho, detalhe, perigo, disabled, onClick, ch
       className={classes('gr-menu__item', perigo && 'gr-menu__item--perigo')}
       tabIndex={-1}
       disabled={disabled}
+      aria-labelledby={`${id}-nome`}
+      aria-describedby={descricao === '' ? undefined : descricao}
       onClick={onClick}
     >
       {icone}
       <span>
-        {children}
-        {detalhe && <small>{detalhe}</small>}
+        <span id={`${id}-nome`}>{children}</span>
+        {detalhe && <small id={`${id}-detalhe`}>{detalhe}</small>}
       </span>
       {atalho && <Tecla>{atalho}</Tecla>}
     </button>
@@ -189,6 +202,15 @@ export function MenuItem({ icone, atalho, detalhe, perigo, disabled, onClick, ch
 
 export function MenuSeparador() {
   return <div className="gr-menu__sep" role="separator" />
+}
+
+/** Frase de ajuda no pé do menu; os itens que ela explica a ligam pelo `descritoPor`. */
+export function MenuNota({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <p id={id} className="gr-menu__nota" role="presentation">
+      {children}
+    </p>
+  )
 }
 
 /** Legenda pequena de um trecho do menu ("Esta cena"). */
