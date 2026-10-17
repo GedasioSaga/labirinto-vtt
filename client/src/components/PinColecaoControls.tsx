@@ -75,10 +75,19 @@ function NumeroDaPeca({ id, label, value, onCommit }: { id: string; label: strin
  * inteiro — que só o jogador que juntar todas as peças lê. Nada disso vai no
  * recorte: o jogador recebe só o progresso dele, do host.
  */
-export function PinColecaoControls({ colecao, onChange, nomes, temCartao }: PinColecaoControlsProps) {
+export function PinColecaoControls({
+  colecao,
+  onChange,
+  nomes,
+  temCartao,
+  embutido = false,
+}: PinColecaoControlsProps & {
+  /** Dentro da ficha do recurso (fatia 12): sem o interruptor, que lá é o "Tirar do pino". */
+  embutido?: boolean
+}) {
   return (
     <div className="lb-field">
-      <Toggle label="Peça de coleção" checked={colecao !== null} onChange={(on) => onChange(on ? { nome: '', parte: 1, total: 2 } : undefined)} />
+      {!embutido && <Toggle label="Peça de coleção" checked={colecao !== null} onChange={(on) => onChange(on ? { nome: '', parte: 1, total: 2 } : undefined)} />}
       {colecao !== null && (
         <>
           <label className="lb-label" htmlFor={NOME_ID}>

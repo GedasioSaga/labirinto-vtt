@@ -1,18 +1,20 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PinKind } from '../types/map'
-import { PinControls, type PinControlsProps } from './PinControls'
+import type { PinKind } from '../../types/map'
+import { PinControls } from '../PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './FichaDoPino'
 
 /**
- * Painel do pino: "Só o círculo, sem haste". É propriedade do pino aberto (não
- * preferência do próximo), vale para qualquer tipo e fica no topo das opções,
- * logo depois da aparência do pino (tipo e ícone), antes do texto.
+ * Ficha do pino (fatia 12), "Só o círculo, sem haste": é propriedade do pino
+ * aberto (não preferência do próximo), vale para qualquer tipo e mora na ficha
+ * recolhida "Aparência", que nasce fechada como no protótipo. Portado de
+ * `PinControls.semHaste.test.tsx`, do painel de antes.
  */
 
 const ROTULO = 'Só o círculo, sem haste'
 
-describe('PinControls: só o círculo, sem haste', () => {
+describe('FichaDoPino: só o círculo, sem haste', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -26,10 +28,12 @@ describe('PinControls: só o círculo, sem haste', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    window.localStorage.clear()
   })
 
-  function render(extra: Partial<PinControlsProps>): void {
-    const props: PinControlsProps = {
+  function render(extra: Partial<FichaDoPinoProps>): void {
+    const props: FichaDoPinoProps = {
+      pinId: 'pin-1',
       kind: 'exclamacao',
       onKindChange: () => {},
       description: 'Baú',
@@ -43,11 +47,11 @@ describe('PinControls: só o círculo, sem haste', () => {
       image: null,
       onChooseImage: () => {},
       onClearImage: () => {},
-      onDelete: () => {},
       iconChoice: null,
+      quemVe: null,
       ...extra,
     }
-    act(() => root.render(<PinControls {...props} />))
+    act(() => root.render(<FichaDoPino {...props} />))
   }
 
   /** O checkbox do interruptor com este rótulo, ou `null` se ele não está na tela. */
@@ -55,6 +59,12 @@ describe('PinControls: só o círculo, sem haste', () => {
     const label = Array.from(container.querySelectorAll('label.lb-switch')).find((l) => l.querySelector('span')?.textContent === rotulo)
     const input = label?.querySelector('input')
     return input instanceof HTMLInputElement ? input : null
+  }
+
+  /** O cabeçalho da ficha recolhida "Aparência" (o nome dele leva o resumo). */
+  function cabecalhoDaAparencia(): HTMLButtonElement | null {
+    const botao = Array.from(container.querySelectorAll('button[aria-expanded]')).find((b) => (b.textContent ?? '').includes('Aparência'))
+    return botao instanceof HTMLButtonElement ? botao : null
   }
 
   it('ligar chama o pino sem haste; desligar devolve a haste', () => {
@@ -87,21 +97,43 @@ describe('PinControls: só o círculo, sem haste', () => {
     expect(interruptor(ROTULO)).not.toBeNull()
   })
 
-  it('fica antes da descrição: a forma do pino vem antes do texto', () => {
+  it('mora na ficha "Aparência", que nasce fechada: a forma do pino é aparência, fora do essencial', () => {
     render({ onSemHasteChange: () => {} })
     const toggle = interruptor(ROTULO)
-    const descricao = container.querySelector('#lb-pin-description')
-    if (!toggle || !descricao) throw new Error('faltou o interruptor ou a descrição')
-    expect(toggle.compareDocumentPosition(descricao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('sem pino aberto não aparece: é do pino, não preferência do próximo', () => {
-    render({ description: null, onSemHasteChange: () => {} })
-    expect(interruptor(ROTULO)).toBeNull()
+    const cabecalho = cabecalhoDaAparencia()
+    if (!toggle || !cabecalho) throw new Error('faltou o interruptor ou a ficha "Aparência"')
+    expect(cabecalho.getAttribute('aria-expanded')).toBe('false')
+    expect(cabecalho.closest('.gr-ficha')?.contains(toggle)).toBe(true)
   })
 
   it('sem quem grave a escolha, o interruptor não entra', () => {
     render({ semHaste: false })
+    expect(interruptor(ROTULO)).toBeNull()
+  })
+
+  it('sem pino aberto (a ferramenta Pino na mão) não aparece: é do pino, não preferência do próximo', () => {
+    act(() =>
+      root.render(
+        <PinControls
+          kind="exclamacao"
+          onKindChange={() => {}}
+          description={null}
+          onDescriptionChange={() => {}}
+          locked={false}
+          onLockedChange={() => {}}
+          marco={false}
+          onMarcoChange={() => {}}
+          lerDePerto={null}
+          onLerDePertoChange={() => {}}
+          image={null}
+          onChooseImage={() => {}}
+          onClearImage={() => {}}
+          onDelete={() => {}}
+          iconChoice={null}
+          onSemHasteChange={() => {}}
+        />,
+      ),
+    )
     expect(interruptor(ROTULO)).toBeNull()
   })
 })

@@ -10,7 +10,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { PinItem } from '../types/map'
 import { ITEM_QUANTIDADE_MAX } from '../lib/items'
 import { DadosDoItemNoMapa, ItemNoChaoControls } from './ItemNoMapaControls'
-import { PinControls, type PinControlsProps } from './PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './livro/FichaDoPino'
 
 beforeAll(() => {
   Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -107,8 +107,8 @@ describe('imagem do item no chão', () => {
   })
 })
 
-/** O mínimo que o painel do pino pede (o molde de `PinControls.icone.test.tsx`). */
-function propsDoPino(): PinControlsProps {
+/** O mínimo que a ficha do pino pede (o molde de `livro/FichaDoPino.test.tsx`). */
+function propsDoPino(): FichaDoPinoProps {
   return {
     kind: 'exclamacao',
     onKindChange: () => {},
@@ -123,8 +123,9 @@ function propsDoPino(): PinControlsProps {
     image: null,
     onChooseImage: () => {},
     onClearImage: () => {},
-    onDelete: () => {},
     iconChoice: { icon: 'item', onIconChange: () => {}, pinSelected: true },
+    pinId: 'pocao',
+    quemVe: null,
   }
 }
 
@@ -134,7 +135,7 @@ describe('pino de item no painel do pino', () => {
     const onTrocarForma = vi.fn()
     act(() =>
       root.render(
-        <PinControls
+        <FichaDoPino
           {...propsDoPino()}
           item={{ value: POCAO, onChange, onTrocarForma }}
         />,
@@ -151,7 +152,7 @@ describe('pino de item no painel do pino', () => {
   it('o pino "!" de antes, só com o nome, fica como era: sem pilha nem troca', () => {
     act(() =>
       root.render(
-        <PinControls
+        <FichaDoPino
           {...propsDoPino()}
           item={{ value: { nome: 'Chave' }, onChange: vi.fn(), onTrocarForma: vi.fn() }}
         />,

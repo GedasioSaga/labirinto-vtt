@@ -167,7 +167,8 @@ export interface MenuItemProps {
   disabled?: boolean
   /** Id de uma frase de fora do item que também o descreve (a nota no pé do menu). */
   descritoPor?: string
-  onClick: () => void
+  /** O evento diz se a escolha veio do mouse (`detail > 0`) ou do teclado (0). */
+  onClick: (evento: MouseEvent<HTMLButtonElement>) => void
   children: ReactNode
 }
 

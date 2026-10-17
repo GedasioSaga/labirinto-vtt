@@ -192,6 +192,23 @@ const DESENHOS = {
   ),
   pulso: caminho('M3.5 12.5h4l2.5-6 4 11 2.5-5h4'),
   troca: caminho('M4.5 8.5h14l-3.5-3.5 M19.5 15.5h-14l3.5 3.5'),
+  // A ficha do pino (fatia 12): os tipos, os recursos e o "Tirar do pino".
+  exclamacao: caminho('M12 5v9.5 M12 18.6v.2'),
+  interrogacao: caminho('M9 9a3 3 0 1 1 4.3 2.7c-.8.4-1.3 1-1.3 1.9V15 M12 18.6v.2'),
+  viagem: caminho('M5.5 19.5L12 4l6.5 15.5L12 16z'),
+  alavanca: (
+    <>
+      {caminho('M5 19.5h14 M12 19.5l4-12.5')}
+      <circle cx="16.6" cy="5.6" r="2" />
+    </>
+  ),
+  play: caminho('M7.5 5.5l11 6.5-11 6.5z'),
+  filme: caminho('M4 6.5h16v13H4z M4 10.5h16 M8 6.5l-1.5 4 M13 6.5l-1.5 4 M18 6.5l-1.5 4'),
+  joia: caminho('M7 4.5h10l3.5 4.5L12 20 3.5 9z M3.5 9h17 M9.5 4.5L12 9l2.5-4.5'),
+  peca: caminho('M5 8h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H5z'),
+  loja: caminho('M4.5 9.5l1.5-5h12l1.5 5 M4.5 9.5v10h15v-10 M4.5 9.5h15 M10 19.5v-5h4v5'),
+  cabine: caminho('M6.5 3.5h11v17h-11z M12 3.5v17 M8.3 9.5l1.2-1.4 1.2 1.4 M13.3 14.5l1.2 1.4 1.2-1.4'),
+  x: caminho('M6.5 6.5l11 11M17.5 6.5l-11 11'),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

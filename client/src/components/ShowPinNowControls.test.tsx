@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PinControls, type PinControlsProps } from './PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './livro/FichaDoPino'
 import { SHOW_PIN_NOW_LABEL, ShowPinNowControls, canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './ShowPinNowControls'
 import type { PartyMember } from '../lib/party'
 
@@ -72,8 +72,9 @@ describe('ShowPinNowControls', () => {
     expect(botao('Cancelar')).toBe(document.activeElement)
   })
 
-  it('no painel do pino, aparece com a sala aberta e some sem ela', () => {
-    const base: PinControlsProps = {
+  it('na ficha do pino (Na mesa), aparece com a sala aberta e some sem ela', () => {
+    const base: FichaDoPinoProps = {
+      pinId: 'carta',
       kind: 'exclamacao',
       onKindChange: () => {},
       description: 'Carta',
@@ -87,12 +88,12 @@ describe('ShowPinNowControls', () => {
       image: null,
       onChooseImage: () => {},
       onClearImage: () => {},
-      onDelete: () => {},
       iconChoice: null,
+      quemVe: null,
     }
-    act(() => root.render(<PinControls {...base} showNow={{ pinId: 'carta', candidates: [GABI], onShow: vi.fn() }} />))
+    act(() => root.render(<FichaDoPino {...base} showNow={{ pinId: 'carta', candidates: [GABI], onShow: vi.fn() }} />))
     expect(container.textContent).toContain(SHOW_PIN_NOW_LABEL)
-    act(() => root.render(<PinControls {...base} showNow={null} />))
+    act(() => root.render(<FichaDoPino {...base} showNow={null} />))
     expect(container.textContent).not.toContain(SHOW_PIN_NOW_LABEL)
   })
 })

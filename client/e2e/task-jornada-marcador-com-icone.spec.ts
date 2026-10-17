@@ -160,6 +160,17 @@ async function cravarMarcador(page: Page, caixa: { x: number; y: number }, ponto
   ).toBeVisible({ timeout: 5000 })
 }
 
+/**
+ * Desde a fatia 12 o "Ícone no mapa" do marcador cravado mora na ficha
+ * "Aparência", que nasce fechada (miolo inert): abre pelo cabeçalho, se precisar.
+ */
+async function abrirAparencia(page: Page): Promise<void> {
+  const cabecalho = page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: /^Aparência/ })
+  await expect(cabecalho, 'o painel do marcador cravado não tem a ficha "Aparência"').toBeVisible({ timeout: 5000 })
+  if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
+  await expect(cabecalho, 'a ficha "Aparência" não abriu no clique do cabeçalho').toHaveAttribute('aria-expanded', 'true')
+}
+
 test('CONTROLE POSITIVO: o mapa abre e o marcador genérico de hoje aparece onde o mestre crava', async ({ page }) => {
   test.setTimeout(120_000)
   const erros: string[] = []
@@ -231,6 +242,7 @@ test('dois marcadores com ícones diferentes desenham diferente entre si e difer
   // PROVA 1 e 2 — escolher o ícone BAÚ muda o desenho do marcador de P2.
   // Mesmo ponto, mesma seleção, mesmo fundo: o que mudou foi o ícone.
   // ---------------------------------------------------------------------
+  await abrirAparencia(page)
   const bau = await controlePorNome(page, ICONE_BAU, 'ícone de baú no painel do marcador')
   await bau.click()
   await page.waitForTimeout(PINTURA_MS)
@@ -250,6 +262,7 @@ test('dois marcadores com ícones diferentes desenham diferente entre si e difer
     'o marcador genérico cravado no terceiro ponto saiu com foto diferente dos outros dois: a comparação entre pontos não é confiável',
   ).toBe(true)
 
+  await abrirAparencia(page)
   const armadilha = await controlePorNome(page, ICONE_ARMADILHA, 'ícone de armadilha no painel do marcador')
   await armadilha.click()
   await page.waitForTimeout(PINTURA_MS)

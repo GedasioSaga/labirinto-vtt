@@ -51,7 +51,11 @@ describe('PinTravelControls: motivo do bloqueio', () => {
     container.remove()
   })
 
-  const grupoMotivo = (): HTMLElement | null => container.querySelector('[role="radiogroup"][aria-labelledby="lb-pin-travel-reason"]')
+  // Pelo nome do grupo (o rótulo visível), não por um id: o seg do grimório gera o dele.
+  const grupoMotivo = (): HTMLElement | null =>
+    Array.from(container.querySelectorAll<HTMLElement>('[role="radiogroup"]')).find(
+      (grupo) => document.getElementById(grupo.getAttribute('aria-labelledby') ?? '')?.textContent === 'Por que está fechada',
+    ) ?? null
   const opcoes = (): HTMLButtonElement[] => Array.from(grupoMotivo()?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])
 
   it('trancada: as cinco escolhas, na ordem, com a atual marcada', () => {

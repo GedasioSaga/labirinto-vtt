@@ -660,9 +660,22 @@ function caixaDoJogador(mestre: Page, jogador: string): Locator {
   return mestre.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('checkbox', { name: new RegExp(`\\b${jogador}\\b`) })
 }
 
+/**
+ * Abre pelo cabeçalho uma ficha recolhível do painel do pino, se estiver fechada.
+ * Desde a fatia 12 "Reunir o grupo aqui" mora na ficha "Na mesa", que nasce
+ * fechada (miolo inert): a pessoa abre a ficha antes de procurar o botão.
+ */
+async function abrirFichaDoPainel(painel: Locator, titulo: string): Promise<void> {
+  const cabecalho = painel.getByRole('button', { name: new RegExp(`^${titulo}`) })
+  await expect(cabecalho, `o painel do pino deveria ter a ficha "${titulo}". Controles do painel hoje: ${await botoesDoPainel(painel)}`).toBeVisible({ timeout: ESPERA })
+  if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
+  await expect(cabecalho, `a ficha "${titulo}" não abriu no clique do cabeçalho`).toHaveAttribute('aria-expanded', 'true')
+}
+
 /** Abre a lista de reunião pelo botão do painel e confere os três marcados. Devolve o botão "Reunir". */
 async function mestreAbreListaDeReuniao(mestre: Page): Promise<Locator> {
   const painel = await mestreAbrePainelDoPino(mestre)
+  await abrirFichaDoPainel(painel, 'Na mesa')
   const botao = mestre.getByRole('button', { name: REUNIR_O_GRUPO })
   await expect(botao, `o painel do pino "!" deveria ter "Reunir o grupo aqui". Controles do painel hoje: ${await botoesDoPainel(painel)}`).toBeVisible({ timeout: ESPERA })
   await botao.click()

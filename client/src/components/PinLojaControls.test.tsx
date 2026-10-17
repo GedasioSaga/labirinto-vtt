@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LojaItem, PinKind } from '../types/map'
-import { PinControls } from './PinControls'
+import { FichaDoPino } from './livro/FichaDoPino'
 import { PinLojaControls } from './PinLojaControls'
 
 /**
@@ -102,7 +102,7 @@ describe('PinLojaControls', () => {
   })
 })
 
-describe('PinControls: a loja no painel do pino', () => {
+describe('FichaDoPino: a loja na ficha do pino', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -121,7 +121,9 @@ describe('PinControls: a loja no painel do pino', () => {
   function painel(kind: PinKind): void {
     act(() =>
       root.render(
-        <PinControls
+        <FichaDoPino
+          key={kind}
+          pinId="botica"
           kind={kind}
           onKindChange={() => {}}
           description="Botica"
@@ -132,26 +134,36 @@ describe('PinControls: a loja no painel do pino', () => {
           onChooseImage={() => {}}
           onImageBlob={() => {}}
           onClearImage={() => {}}
-          onDelete={() => {}}
           marco={false}
           onMarcoChange={() => {}}
           lerDePerto={null}
           onLerDePertoChange={() => {}}
           iconChoice={null}
+          quemVe={null}
           loja={{ pinId: 'botica', loja: null, onChange: () => {} }}
         />,
       ),
     )
   }
 
-  it('o "!" e o "?" oferecem "Loja com preços"; a viagem e a alavanca não', () => {
+  /** Os recursos que o "+ Adicionar ao pino" oferece; sem o botão, nenhum. */
+  function oferecidos(): string[] {
+    const mais = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Adicionar ao pino')
+    if (mais === undefined) return []
+    act(() => mais.click())
+    return [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent ?? '')
+  }
+
+  const ofereceLoja = (): boolean => oferecidos().some((item) => item.includes('Loja com preços'))
+
+  it('o "!" e o "?" oferecem "Loja com preços" no "+ Adicionar ao pino"; a viagem e a alavanca não', () => {
     painel('exclamacao')
-    expect(container.textContent).toContain('Loja com preços')
+    expect(ofereceLoja()).toBe(true)
     painel('interrogacao')
-    expect(container.textContent).toContain('Loja com preços')
+    expect(ofereceLoja()).toBe(true)
     painel('viagem')
-    expect(container.textContent).not.toContain('Loja com preços')
+    expect(ofereceLoja()).toBe(false)
     painel('alavanca')
-    expect(container.textContent).not.toContain('Loja com preços')
+    expect(ofereceLoja()).toBe(false)
   })
 })

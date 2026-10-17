@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 /**
  * COLEÇÃO DE PISTAS do lado do mestre, pela costura inteira que o `App.tsx`
- * monta: pino aberto → `pinColecaoPanel` → `PinControls` → `PinColecaoControls`
+ * monta: pino aberto → `pinColecaoPanel` → `FichaDoPino` → `PinColecaoControls`
  * → pino no mapa. Os testes de `PinColecaoControls` provam o componente
- * sozinho; este quebra se a peça sair do `PinControls` ou se o `App.tsx`
+ * sozinho; este quebra se a peça sair da `FichaDoPino` ou se o `App.tsx`
  * deixar de entregá-la.
  */
 import { act } from 'react'
@@ -13,7 +13,7 @@ import appSource from '../App.tsx?raw'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import type { Pin, PinColecao } from '../types/map'
-import { PinControls } from './PinControls'
+import { FichaDoPino } from './livro/FichaDoPino'
 import { pinColecaoPanel } from './pinColecaoPanel'
 
 const FOTO = 'data:image/png;base64,QklMSEVURQ=='
@@ -52,7 +52,8 @@ function renderPainel(pinId: string): void {
   const pins = useMapStore.getState().map.pins
   act(() =>
     root.render(
-      <PinControls
+      <FichaDoPino
+        pinId={pin.id}
         kind={pin.kind}
         onKindChange={vi.fn()}
         description={pin.description}
@@ -68,17 +69,25 @@ function renderPainel(pinId: string): void {
         onChooseImage={vi.fn()}
         onImageBlob={vi.fn()}
         onClearImage={vi.fn()}
-        onDelete={vi.fn()}
+        quemVe={null}
         colecao={pinColecaoPanel(pin, pins)}
       />,
     ),
   )
 }
 
-function interruptor(): HTMLInputElement {
-  const achado = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find((i) => i.closest('label')?.textContent?.includes('Peça de coleção'))
-  if (achado === undefined) throw new Error('sem o interruptor "Peça de coleção" no painel do pino')
+function botao(texto: string): HTMLButtonElement {
+  const achado = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === texto)
+  if (achado === undefined) throw new Error(`sem o botão "${texto}" na ficha do pino`)
   return achado
+}
+
+/** "+ Adicionar ao pino" > "Peça de coleção": o menu dos recursos da ficha do pino. */
+function porAPeca(): void {
+  act(() => botao('Adicionar ao pino').click())
+  const item = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((i) => i.textContent?.includes('Peça de coleção'))
+  if (item === undefined) throw new Error('sem "Peça de coleção" no menu')
+  act(() => item.click())
 }
 
 function dica(): string | null | undefined {
@@ -86,14 +95,14 @@ function dica(): string | null | undefined {
 }
 
 describe('painel do pino: a peça de coleção chega ao mapa', () => {
-  it('ligar "Peça de coleção" no painel grava a peça no pino do mapa; as outras coleções da cena viram sugestão', () => {
+  it('"+ Adicionar ao pino" > "Peça de coleção" grava a peça no pino do mapa; as outras coleções da cena viram sugestão; "Tirar do pino" apaga', () => {
     useMapStore.getState().loadMap({ ...createEmptyMap('m1', '', 10, 10, 50), pins: [pino('a', 'Letra A'), pino('b', 'Letra B', null, { nome: 'Mapa de Drenagem', parte: 1, total: 4 })] })
     renderPainel('a')
-    act(() => interruptor().click())
+    porAPeca()
     expect(pinoNoMapa('a').colecao).toEqual({ nome: '', parte: 1, total: 2 })
     renderPainel('a')
     expect([...container.querySelectorAll('datalist option')].map((o) => o.getAttribute('value'))).toEqual(['Mapa de Drenagem'])
-    act(() => interruptor().click())
+    act(() => botao('Tirar do pino').click())
     expect(pinoNoMapa('a').colecao).toBeUndefined()
   })
 

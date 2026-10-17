@@ -12,6 +12,8 @@ import { TransicaoSection } from '../transicoes/TransicaoSection'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { DoorKeyField } from './WallDoorControls'
 import { SceneChoice, SceneSearchField } from './SceneSearch'
+import { CampoSeg, type OpcaoDoSeg } from './grimorio/CampoSeg'
+import { IconeDoLivro } from './livro/icones'
 
 /** Uma saída do pino, como o painel a mostra. */
 export interface PinTravelExitView {
@@ -128,8 +130,17 @@ const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
 const CENAS_LISTA_ID = 'lb-pin-travel-scene-list'
 const PINOS_ID = 'lb-pin-travel-pins'
-const PASSAGEM_ID = 'lb-pin-travel-passage'
-const MOTIVO_ID = 'lb-pin-travel-reason'
+/** A Passagem, no seg do grimório (o `.seg` do protótipo). */
+const OPCOES_DA_PASSAGEM: readonly OpcaoDoSeg<PinPassage>[] = PIN_PASSAGE_ORDER.map((passagem) => ({ valor: passagem, rotulo: PIN_PASSAGE_LABELS[passagem] }))
+
+/** O "Trancada" sem motivo: o seg pede um valor de texto para a opção que grava `undefined`. */
+const SEM_MOTIVO = 'trancada'
+type EscolhaDoMotivo = PinBlockReason | typeof SEM_MOTIVO
+
+const OPCOES_DO_MOTIVO: readonly OpcaoDoSeg<EscolhaDoMotivo>[] = [
+  { valor: SEM_MOTIVO, rotulo: PIN_BLOCK_REASON_NONE_LABEL },
+  ...PIN_BLOCK_REASON_ORDER.map((motivo) => ({ valor: motivo, rotulo: PIN_BLOCK_REASON_LABELS[motivo] })),
+]
 const NOME_ID = 'lb-pin-travel-exit-name'
 const MAO_UNICA_ID = 'lb-pin-travel-one-way'
 const BUSCA_ID = 'lb-pin-travel-search'
@@ -309,7 +320,15 @@ export function PinTravelControls({
   onDaVistaChange,
   transicao,
   onTransicaoChange,
-}: PinTravelControlsProps) {
+  parte = 'tudo',
+}: PinTravelControlsProps & {
+  /**
+   * Que pedaço mostrar (fatia 12): `essencial` = destino, saídas, passagem e
+   * a escolha da cena; `mais` = o raro da ficha "Mais da viagem" (os dois
+   * lados, dá vista e a transição); `tudo` = os dois juntos, como antes.
+   */
+  parte?: 'tudo' | 'essencial' | 'mais'
+}) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   const [busca, setBusca] = useState('')
   /** "+ Cena nova…": o nome digitado, e se o mestre tentou criar com ele vazio. */
@@ -411,7 +430,8 @@ export function PinTravelControls({
   }
 
   const aoTeclar = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!aberta) return
+    // A seta já andou num seg (Passagem, motivo): não é a da lista de cenas.
+    if (!aberta || event.defaultPrevented) return
     // Esc e setas param aqui: no window, Esc largaria o pino inteiro e a seta
     // moveria o que estiver selecionado no mapa.
     if (event.key === 'Escape') {
@@ -464,10 +484,28 @@ export function PinTravelControls({
 
   // Antes de todo o resto: a chegada oculta não tem destino para escolher.
   // Os hooks acima rodam igual (a ordem deles não pode mudar entre renders).
-  if (arrivalOnly) return <SoChegada origem={principal?.travel ?? null} />
+  if (arrivalOnly) return parte === 'mais' ? null : <SoChegada origem={principal?.travel ?? null} />
+
+  // MAIS DA VIAGEM: outra instância, com o estado dela; a escolha da cena fica no essencial.
+  if (parte === 'mais') {
+    return (
+      <div className="lb-travel lb-travel--mais">
+        {/* Os dois interruptores lado a lado; as dicas e o campo de casas, embaixo, na linha inteira (main.css). */}
+        <div className="lb-travel__interruptores">
+          <DoisLados passage={passage} exits={exits} onChange={onBothSidesChange} />
+          {onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
+            <DaVista casas={daVista} encruzilhada={encruzilhada} onChange={onDaVistaChange} />
+          )}
+        </div>
+        {onTransicaoChange !== undefined && <TransicaoSection transicao={transicao} onChange={onTransicaoChange} origem="pino" />}
+      </div>
+    )
+  }
+  const tudo = parte === 'tudo'
 
   return (
-    <div className={`lb-travel lb-travel--${estado}`} role="group" aria-label="Destino da viagem" onKeyDown={aoTeclar}>
+    // No essencial da ficha do pino, sem a moldura: a ficha já é o cartão.
+    <div className={`lb-travel lb-travel--${estado}${tudo ? '' : ' lb-travel--embutido'}`} role="group" aria-label="Destino da viagem" onKeyDown={aoTeclar}>
       {!encruzilhada && principal !== undefined && (
         <>
           <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
@@ -561,23 +599,7 @@ export function PinTravelControls({
           volta tem o modo dela, no pino par — e para todas as saídas dele.
           Mesmo segmented em linhas do "Tipo do pino": "Pede ao mestre" não
           cabe em um terço do poço. */}
-      <span className="lb-label" id={PASSAGEM_ID}>
-        Passagem
-      </span>
-      <div className="lb-seg lb-seg--rows" role="radiogroup" aria-labelledby={PASSAGEM_ID}>
-        {PIN_PASSAGE_ORDER.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={passage === option}
-            className="lb-seg__option"
-            onClick={() => onPassageChange(option)}
-          >
-            {PIN_PASSAGE_LABELS[option]}
-          </button>
-        ))}
-      </div>
+      <CampoSeg rotulo="Passagem" opcoes={OPCOES_DA_PASSAGEM} valor={passage} onChange={onPassageChange} />
       {passage === 'trancada' && onAcceptsAttemptsChange !== undefined && (
         // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
         // abaixo do modo que ele qualifica.
@@ -605,31 +627,20 @@ export function PinTravelControls({
 
       {/* "Cortar a corda": o modo acima vale só para este pino, e trancar a
           volta pedia abrir a outra cena no meio da perseguição. */}
-      <DoisLados passage={passage} exits={exits} onChange={onBothSidesChange} />
+      {tudo && <DoisLados passage={passage} exits={exits} onChange={onBothSidesChange} />}
 
       {/* MOTIVO DO BLOQUEIO: só com a passagem trancada. O jogador lê a
           escolha no cartão ("Desabou") no lugar do "Está trancada"; nos
           outros modos o motivo fica guardado e volta se o mestre trancar de novo. */}
       {passage === 'trancada' && (
-        <>
-          <span className="lb-label" id={MOTIVO_ID}>
-            Por que está fechada
-          </span>
-          <div className="lb-seg lb-seg--rows" role="radiogroup" aria-labelledby={MOTIVO_ID}>
-            {[undefined, ...PIN_BLOCK_REASON_ORDER].map((option) => (
-              <button
-                key={option ?? 'trancada'}
-                type="button"
-                role="radio"
-                aria-checked={motivo === option}
-                className="lb-seg__option"
-                onClick={() => onMotivoChange(option)}
-              >
-                {option === undefined ? PIN_BLOCK_REASON_NONE_LABEL : PIN_BLOCK_REASON_LABELS[option]}
-              </button>
-            ))}
-          </div>
-        </>
+        // A escolha da lista (o cartão do jogador lê o nome dela), e não o
+        // texto livre do protótipo; em seg que quebra a linha, como a Passagem.
+        <CampoSeg
+          rotulo="Por que está fechada"
+          opcoes={OPCOES_DO_MOTIVO}
+          valor={motivo ?? SEM_MOTIVO}
+          onChange={(escolhido) => onMotivoChange(escolhido === SEM_MOTIVO ? undefined : escolhido)}
+        />
       )}
 
       {/* PASSE: o que abre a catraca para quem tem o item ou a marca do mestre. */}
@@ -638,12 +649,12 @@ export function PinTravelControls({
       )}
 
       {/* ESPIAR: só com a saída principal ligada — é por ela que o jogador olha. */}
-      {onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
+      {tudo && onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
         <DaVista casas={daVista} encruzilhada={encruzilhada} onChange={onDaVistaChange} />
       )}
 
       {/* TRANSIÇÃO ESPECIAL: a animação que o jogador vê ao atravessar. */}
-      {onTransicaoChange !== undefined && <TransicaoSection transicao={transicao} onChange={onTransicaoChange} origem="pino" />}
+      {tudo && onTransicaoChange !== undefined && <TransicaoSection transicao={transicao} onChange={onTransicaoChange} origem="pino" />}
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
@@ -796,8 +807,10 @@ function DoisLados({ passage, exits, onChange }: DoisLadosProps) {
   const deLa = ligadas.length === 1 ? `o de ${cenas}` : `os de ${cenas}`
   return (
     <>
-      <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" aria-describedby={DOIS_LADOS_ID} onClick={() => onChange(!trancados)}>
-        {trancados ? 'Destrancar os dois lados' : 'Trancar os dois lados'}
+      {/* O cartãozinho de ícone do grimório (o `icones` do protótipo), ao lado do "Dá vista". */}
+      <button type="button" className="gr-icone-tg" aria-describedby={DOIS_LADOS_ID} onClick={() => onChange(!trancados)}>
+        <IconeDoLivro nome="cadeado" />
+        <span>{trancados ? 'Destrancar os dois lados' : 'Trancar os dois lados'}</span>
       </button>
       <p id={DOIS_LADOS_ID} className="lb-travel__hint">
         {trancados ? `Este pino e ${deLa} voltam a pedir a você.` : `Tranca este pino e ${deLa} de uma vez.`}
@@ -827,12 +840,13 @@ function DaVista({ casas, encruzilhada, onChange }: DaVistaProps) {
     <>
       <button
         type="button"
-        className="lb-btn lb-btn--ghost lb-btn--block"
+        className="gr-icone-tg"
         aria-pressed={ligado}
         aria-describedby={efeito}
         onClick={() => onChange(ligado ? null : DA_VISTA_PADRAO_CASAS)}
       >
-        Dá vista
+        <IconeDoLivro nome="olho" />
+        <span>Dá vista</span>
       </button>
       {ligado && (
         <>

@@ -5,7 +5,8 @@ import { AUDIO_NAO_E_AUDIO } from '../lib/midiaNoDisco'
 import type { AnaliseDaMusica, AudioDecodificado, MusicaPreparada } from '../minigames/danca/analise'
 import { MINIGAME_PADRAO, type MinigameDoPino, type MusicaDaDanca, type NotaDaDanca } from '../minigames/danca/tipos'
 import { esquecerMusicasNaMemoria, MinigameControls, MUSICA_ERROS, type CaminhoDaMusica, type MinigameControlsProps } from './MinigameControls'
-import { PinControls, type PinControlsProps } from './PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './livro/FichaDoPino'
+import { PinControls } from './PinControls'
 
 /**
  * O DESAFIO DE DANÇA no painel do pino: cada campo grava no pino, importar uma
@@ -357,8 +358,9 @@ describe('MinigameControls', () => {
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Chamar para dançar')).toBe(false)
   })
 
-  it('no PinControls: o pino de minigame aberto mostra o desafio logo abaixo do tipo', () => {
-    const base: PinControlsProps = {
+  it('na ficha do pino: o pino de minigame aberto mostra o desafio no essencial', () => {
+    const base: FichaDoPinoProps = {
+      pinId: PIN,
       kind: 'minigame',
       onKindChange: () => {},
       description: '',
@@ -372,17 +374,17 @@ describe('MinigameControls', () => {
       image: null,
       onChooseImage: () => {},
       onClearImage: () => {},
-      onDelete: () => {},
       iconChoice: null,
+      quemVe: null,
     }
-    act(() => root.render(<PinControls {...base} desafio={props()} />))
+    act(() => root.render(<FichaDoPino {...base} desafio={props()} />))
     expect(container.textContent).toContain('Quem desafia')
     expect(container.textContent).toContain('Nota mínima para passar')
     // Outro tipo, mesmos props: nada do desafio.
-    act(() => root.render(<PinControls {...base} kind="exclamacao" desafio={props()} />))
+    act(() => root.render(<FichaDoPino {...base} kind="exclamacao" desafio={props()} />))
     expect(container.textContent).not.toContain('Quem desafia')
-    // Nenhum pino aberto: só o recado de cravar.
-    act(() => root.render(<PinControls {...base} description={null} desafio={null} />))
+    // Nenhum pino aberto (a ferramenta Pino armada): só o recado de cravar.
+    act(() => root.render(<PinControls {...base} description={null} onDelete={() => {}} desafio={null} />))
     expect(container.textContent).toContain('Crave o pino; no painel dele você monta o desafio de dança.')
   })
 })

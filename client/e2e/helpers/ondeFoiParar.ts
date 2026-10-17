@@ -96,7 +96,10 @@ const PAREDE_ESTILO: Alvo[] = [cx('Parede interna'), b('Pegar do mapa a cor da p
 const REGIAO_ESTILO: Alvo[] = [['textbox', 'Cor'], cx('Hachurado'), rg('Espessura do contorno'), ['slider', 'Ajuste fino'], cx('Preenchido'), b('Avançado')]
 const OBJETO_COMUM: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oculto no editor'), cx('Oculto para jogadores'), rg('Camada do objeto selecionado'), ['textbox', 'Rótulo para jogadores'], cx('Mostrar imagem ao jogador')]
 const TRANSICAO = (titulo: string): Alvo[] => [['heading', titulo], b('Nenhuma Chega direto'), b('Procurar animações novas')]
-const PINO_COMUM: Alvo[] = [rg('Tipo do pino'), cx('Só o círculo, sem haste'), ['textbox', 'Nome do local'], ['textbox', 'Descrição · o jogador lê'], cx('Travado'), cx('Marco: todos veem'), cx('Ler só de perto'), cx('Fechadura com segredo'), cx('Peça de coleção'), b('Escolher imagem...'), cx('Oculto para jogadores')]
+// FICHA DO PINO (fatia 12): o essencial à vista, a aparência na ficha recolhida e os recursos pelo "+ Adicionar ao pino".
+const PINO_ESSENCIAL: Alvo[] = [rg('Tipo do pino'), ['textbox', 'Nome do local'], ['textbox', 'Descrição · o jogador lê'], cx('Oculto para jogadores'), cx('Marco: todos veem'), cx('Ler só de perto')]
+const PINO_APARENCIA: Alvo[] = [cx('Só o círculo, sem haste'), cx('Travado'), b('Escolher imagem...')]
+const PINO_RECURSOS: Alvo[] = ['Animação do cenário', 'Item pegável', 'Fechadura com segredo', 'Peça de coleção', 'Loja com preços', 'Cabine contínua'].map((nome) => menu(nome))
 
 const sel = (tipo: NonNullable<Preparo['selecao']>[number]['tipo'], id: string): Preparo => ({ selecao: [{ tipo, id }] })
 const ferramenta = (nome: string): Preparo => ({ ferramenta: nome })
@@ -308,17 +311,30 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha do pino (!)', estado: 'pino de exclamação selecionado', escopo: 'esquerda', preparo: sel('pin', 'pin-e'),
-    vai: 'Página Ficha do pino: essencial + "+ Adicionar ao pino" + Mais da viagem, Aparência, Na mesa', fatia: '12',
-    linhas: todos([...PINO_COMUM, rg('Ícone no mapa'), cx('Item pegável'), cx('Loja com preços'), ['combobox', 'Cabine contínua: leva a'], ['heading', 'Animação do Cenário'], b('Excluir ponto de interesse')]),
+    vai: 'Página Ficha do pino: essencial + "+ Adicionar ao pino" + Aparência, Na mesa (feito)', fatia: '12',
+    linhas: [
+      // O essencial, sem clique; o Excluir mora na cabeça da ficha.
+      ...todos([...PINO_ESSENCIAL, b('Excluir ponto de interesse')]),
+      // A ficha recolhida "Aparência" (o nome do cabeçalho leva o resumo, daí a expressão).
+      ...todos([...PINO_APARENCIA, rg('Ícone no mapa')], b('/^Aparência/')),
+      // Cada recurso entra pelo menu "+ Adicionar ao pino" e ganha ficha própria, com "Tirar do pino".
+      ...todos(PINO_RECURSOS, b('Adicionar ao pino')),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha do pino de viagem', estado: 'pino de viagem selecionado', escopo: 'esquerda', preparo: sel('pin', 'pin-v'),
-    vai: 'Página Ficha do pino, ficha "Mais da viagem"', fatia: '12',
-    linhas: todos([b('Leva a…'), rg('Passagem'), ...TRANSICAO('Transição ao atravessar'), ['combobox', 'Preso à ficha'], ['combobox', 'Cabine (elevador, cesto)'], ['textbox', 'Nova cabine'], b('Criar cabine aqui'), b('Excluir pino de viagem')]),
+    vai: 'Página Ficha do pino: destino e Passagem no essencial, o resto na ficha "Mais da viagem" (feito)', fatia: '12',
+    linhas: [
+      ...todos([b('Leva a…'), rg('Passagem'), b('Excluir pino de viagem')]),
+      ...todos(
+        [...TRANSICAO('Transição ao atravessar'), ['combobox', 'Preso à ficha'], ['combobox', 'Cabine (elevador, cesto)'], ['textbox', 'Nova cabine'], b('Criar cabine aqui')],
+        b('/^Mais da viagem/'),
+      ),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da alavanca', estado: 'alavanca selecionada', escopo: 'esquerda', preparo: sel('pin', 'pin-a'),
-    vai: 'Página Ficha do pino (alavanca com "Acionar agora")', fatia: '12',
+    vai: 'Página Ficha do pino (alavanca com "Acionar agora") (feito)', fatia: '12',
     linhas: todos([['combobox', 'Abre a porta'], b('Excluir alavanca')]),
   },
   {

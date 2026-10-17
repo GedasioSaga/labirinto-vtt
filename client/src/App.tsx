@@ -3818,6 +3818,7 @@ function App() {
               onWidthChange: setRevealBrushWidth,
             }}
             pin={{
+              pinId: selectedPin?.id,
               kind: selectedPin?.kind ?? pinKind,
               // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele
               // guarda a preferência do próximo — mesmo padrão de DoorKindControls.

@@ -12,6 +12,8 @@ export interface PinLockControlsProps {
   onChange: (lock: PinLock | undefined) => void
   /** Portas trancadas da cena, a mais perto primeiro (e a já ligada, mesmo destrancada). */
   doors: readonly PinLockDoorOption[]
+  /** Dentro da ficha do recurso (fatia 12): sem o interruptor, que lá é o "Tirar do pino". */
+  embutido?: boolean
 }
 
 const ANSWER_ID = 'lb-pin-lock-answer'
@@ -38,16 +40,18 @@ function without(lock: PinLock, key: 'aberta' | 'abrePorta'): PinLock {
  * porta trancada que acertar destranca junto. A combinação fica só no mapa
  * dele: o jogador vê a forma e as casas, e o host confere a tentativa.
  */
-export function PinLockControls({ lock, onChange, doors }: PinLockControlsProps) {
+export function PinLockControls({ lock, onChange, doors, embutido = false }: PinLockControlsProps) {
   const certa = lock === null ? '' : normalizeLockAnswer(lock.resposta)
   const volanteComLetra = lock !== null && lock.forma === 'volantes' && certa !== '' && !/^[0-9]+$/.test(certa)
   return (
     <div className="lb-field">
-      <Toggle
-        label="Fechadura com segredo"
-        checked={lock !== null}
-        onChange={(on) => onChange(on ? { resposta: '', forma: 'teclado' } : undefined)}
-      />
+      {!embutido && (
+        <Toggle
+          label="Fechadura com segredo"
+          checked={lock !== null}
+          onChange={(on) => onChange(on ? { resposta: '', forma: 'teclado' } : undefined)}
+        />
+      )}
       {lock !== null && (
         <>
           <label className="lb-label" htmlFor={ANSWER_ID}>

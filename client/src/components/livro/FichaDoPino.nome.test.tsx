@@ -1,16 +1,18 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PinControls, type PinControlsProps } from './PinControls'
+import { PinControls } from '../PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './FichaDoPino'
 
 /**
- * "Nome do local" no painel do pino: sete "?" iguais no mapa do crime, e o
- * mestre escreve "Faca" num deles para achar depois. Desde 09/10/2026 é também
- * o título que o jogador lê no painel da revelação (antes era "Nome (só
- * mestre)"), e a "Nota do mestre" do pino saiu.
+ * "Nome do local" no essencial da ficha do pino (fatia 12): sete "?" iguais no
+ * mapa do crime, e o mestre escreve "Faca" num deles para achar depois. Desde
+ * 09/10/2026 é também o título que o jogador lê no painel da revelação (antes
+ * era "Nome (só mestre)"), e a "Nota do mestre" do pino saiu. Portado de
+ * `PinControls.nome.test.tsx`, do painel de antes.
  */
 
-describe('PinControls: nome do local', () => {
+describe('FichaDoPino: nome do local', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -24,10 +26,12 @@ describe('PinControls: nome do local', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    window.localStorage.clear()
   })
 
-  function render(extra: Partial<PinControlsProps>): void {
-    const props: PinControlsProps = {
+  function render(extra: Partial<FichaDoPinoProps>): void {
+    const props: FichaDoPinoProps = {
+      pinId: 'pin-1',
       kind: 'interrogacao',
       onKindChange: () => {},
       description: 'Uma lâmina suja de sangue.',
@@ -41,17 +45,18 @@ describe('PinControls: nome do local', () => {
       image: null,
       onChooseImage: () => {},
       onClearImage: () => {},
-      onDelete: () => {},
       iconChoice: null,
+      quemVe: null,
       ...extra,
     }
-    act(() => root.render(<PinControls {...props} />))
+    act(() => root.render(<FichaDoPino {...props} />))
   }
 
+  /** O campo do rótulo "Nome do local", ligado pelo `for` ou dentro do próprio rótulo. */
   function campoNome(): HTMLInputElement | null {
     const label = Array.from(container.querySelectorAll('label')).find((l) => l.textContent === 'Nome do local')
     const id = label?.getAttribute('for')
-    const input = id ? document.getElementById(id) : null
+    const input = id ? document.getElementById(id) : label?.querySelector('input')
     return input instanceof HTMLInputElement ? input : null
   }
 
@@ -89,8 +94,30 @@ describe('PinControls: nome do local', () => {
     expect(onNomeChange).toHaveBeenLastCalledWith('Faca')
   })
 
-  it('sem pino selecionado, não há campo de nome', () => {
-    render({ description: null, nome: '', onNomeChange: () => {} })
+  it('sem pino aberto (a ferramenta Pino na mão), não há campo de nome', () => {
+    act(() =>
+      root.render(
+        <PinControls
+          kind="interrogacao"
+          onKindChange={() => {}}
+          description={null}
+          onDescriptionChange={() => {}}
+          nome=""
+          onNomeChange={() => {}}
+          locked={false}
+          onLockedChange={() => {}}
+          marco={false}
+          onMarcoChange={() => {}}
+          lerDePerto={null}
+          onLerDePertoChange={() => {}}
+          image={null}
+          onChooseImage={() => {}}
+          onClearImage={() => {}}
+          onDelete={() => {}}
+          iconChoice={null}
+        />,
+      ),
+    )
     expect(campoNome()).toBeNull()
     expect(container.textContent).not.toContain('Nome do local')
   })

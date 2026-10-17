@@ -8,8 +8,9 @@ import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
-import { CabecaDaSelecao, deleteLabelFor, doorActions, endireitarAction, floorActions, selectionIdentity, useOndeDaPorta } from './livro/CabecaDaSelecao'
+import { CabecaDaSelecao, EXCLUIR_PINO, deleteLabelFor, doorActions, endireitarAction, floorActions, pinIdentity, selectionIdentity, useOndeDaPorta, useOndeDoPino } from './livro/CabecaDaSelecao'
 import { FichaDaPorta } from './livro/FichaDaPorta'
+import { FichaDoPino } from './livro/FichaDoPino'
 import { Essencial } from './grimorio/Cartoes'
 import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
 import { FichaDaFerramenta } from './livro/FichaDaFerramenta'
@@ -282,8 +283,12 @@ interface PropertiesPanelProps {
   concealZone: ConcealZoneControlsProps | null
   /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
   concealBrush: ConcealBrushControlsProps
-  /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
-  pin: Omit<PinControlsProps, 'iconChoice'>
+  /**
+   * Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel.
+   * Com `pinId` (o pino aberto) o painel vira a FICHA DO PINO (fatia 12);
+   * sem ele, fica o painel de antes.
+   */
+  pin: Omit<PinControlsProps, 'iconChoice'> & { pinId?: string }
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
   pinIcon: Omit<PinIconControlsProps, 'pinSelected'>
   /** Há um pino aberto no painel — conta como seleção para o título do topo. */
@@ -443,6 +448,8 @@ export function PropertiesPanel({
   // Pino e zona oculta não entram no resumo `selection.selection`, mas estão
   // selecionados: a página não pode dizer "Nada selecionado" em cima do cartão deles.
   const algoSelecionado = selection.selection !== null || concealZone !== null || pinSelected
+  // PINO SELECIONADO (fatia 12): a cabeça com o tipo, o nome e o Excluir, e a ficha própria.
+  const pinoAberto = pinSelected && pin.pinId !== undefined && pin.description !== null ? { pinId: pin.pinId, description: pin.description } : null
   const ferramentaDaFicha = panelHeadingTool(activeTool, algoSelecionado)
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
@@ -462,6 +469,8 @@ export function PropertiesPanel({
   const endireitarMudaria = useMapStore(selectEndireitarMudaria)
   const endireitarSelecionados = useMapStore((state) => state.endireitarSelecionados)
   const ondeDaPorta = useOndeDaPorta(doorSelected ? selectedWall.id : null)
+  // A sala do pino aberto, depois do tipo na cabeça ("Ponto de interesse · Cais do Porto").
+  const ondeDoPino = useOndeDoPino(pinoAberto === null ? null : pinoAberto.pinId)
   const acoesDaSelecao = [
     ...(portaSelecionada === null ? [] : doorActions(portaSelecionada, wallDoor)),
     ...(endireitarMudaria ? [endireitarAction(() => endireitarSelecionados())] : []),
@@ -579,6 +588,21 @@ export function PropertiesPanel({
             notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
           />
         )}
+        {/* O pino fica fora do resumo da seleção: a cabeça dele sai do próprio pino (fatia 12). */}
+        {pinoAberto !== null && selection.selection === null && (
+          <CabecaDaSelecao
+            key={`pin:${pinoAberto.pinId}`}
+            identidade={pinIdentity(pin.kind, pin.nome ?? '')}
+            onde={ondeDoPino}
+            rotuloApagar={EXCLUIR_PINO[pin.kind]}
+            onApagar={pin.onDelete}
+            // Sem o "Mais ações" de propósito (o dossiê da fatia 12 aceita):
+            // "Reunir no pino" e "Mostrar o cartão a…" moram na ficha "Na mesa",
+            // e abri-la de fora com o foco no controle pede um canal novo com a ficha.
+            acoes={[]}
+            notaDasAcoes={null}
+          />
+        )}
         {/* O campo do "+ Token" do cabeçalho: o mais perto do botão que o
             abriu — no alto da página sem seleção (como no protótipo), logo
             abaixo da faixa com algo selecionado. Sempre nesta posição entre os
@@ -676,19 +700,35 @@ export function PropertiesPanel({
         <ToolPropertiesSection group="carimbos" groups={groups}>
           <CarimbosControls />
         </ToolPropertiesSection>
-        {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
-            que o mestre quer mexer logo depois de cravar o pino. */}
+        {/* Perto do topo pelo mesmo motivo da Sala: o pino recém-cravado é o
+            que o mestre quer mexer logo depois. Com um pino aberto, a FICHA DO
+            PINO (fatia 12: essencial, recursos e fichas recolhidas; a cabeça
+            fica lá em cima); sem pino aberto (a ferramenta Pino na mão), o
+            tipo e o ícone do próximo pino, em `PinControls`. */}
         <ToolPropertiesSection group="pin" groups={groups}>
-          {/* Tipo e ícone num bloco só: o ícone mora logo abaixo do tipo, dentro
-              de `PinControls`. Viagem e alavanca têm símbolo próprio (a
-              passagem, a alavanca): a grade de ícones não faria nada nelas,
-              então `iconChoice` fica nulo para as duas. */}
-          <PinControls {...pin} iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null} />
-          {estadoDoPino}
+          {/* Viagem e alavanca têm símbolo próprio (a passagem, a alavanca): a
+              grade de ícones não faria nada nelas, então `iconChoice` fica
+              nulo para as duas. */}
+          {pinoAberto !== null ? (
+            <FichaDoPino
+              key={pinoAberto.pinId}
+              {...pin}
+              pinId={pinoAberto.pinId}
+              description={pinoAberto.description}
+              iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null}
+              quemVe={groups.has('playerVisibility') ? playerSecret : null}
+              estadoDoPino={estadoDoPino}
+            />
+          ) : (
+            <>
+              <PinControls {...pin} iconChoice={pinKindShowsIcon(pin.kind) ? { ...pinIcon, pinSelected } : null} />
+              {estadoDoPino}
+            </>
+          )}
         </ToolPropertiesSection>
         {/* Escada, desenho, texto e pino: "Jogadores" logo depois do bloco do
             item, onde sempre esteve. A região o tem lá em cima, junto do Travado. */}
-        {!selectedRegion && playerSecret && (
+        {!selectedRegion && playerSecret && pinoAberto === null && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />
           </ToolPropertiesSection>

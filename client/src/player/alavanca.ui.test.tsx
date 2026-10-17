@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PinControls, type PinControlsProps } from '../components/PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from '../components/livro/FichaDoPino'
 import { buildPin } from '../lib/mapFactory'
 import type { Pin } from '../types/map'
 import { PlayerPinCard } from './PlayerPinCard'
@@ -13,8 +13,9 @@ import { PlayerPinCard } from './PlayerPinCard'
 
 const ALAVANCA: Pin = { ...buildPin('alav', { x: 100, y: 100 }, 'alavanca'), description: 'Uma alavanca enferrujada.' }
 
-function painel(lever: PinControlsProps['lever']): PinControlsProps {
+function painel(lever: FichaDoPinoProps['lever']): FichaDoPinoProps {
   return {
+    pinId: 'alav',
     kind: 'alavanca',
     onKindChange: vi.fn(),
     description: '',
@@ -28,8 +29,8 @@ function painel(lever: PinControlsProps['lever']): PinControlsProps {
     image: null,
     onChooseImage: vi.fn(),
     onClearImage: vi.fn(),
-    onDelete: vi.fn(),
     iconChoice: null,
+    quemVe: null,
     lever,
   }
 }
@@ -83,7 +84,7 @@ describe('telas da alavanca', () => {
       { id: 'p1', label: 'Porta 1 · Cripta' },
       { id: 'p2', label: 'Porta 2' },
     ]
-    act(() => root.render(<PinControls {...painel({ value: null, options: opcoes, onChange, onPull: vi.fn(), pullBlocked: null })} />))
+    act(() => root.render(<FichaDoPino {...painel({ value: null, options: opcoes, onChange, onPull: vi.fn(), pullBlocked: null })} />))
     expect(container.querySelector('h2')?.textContent).toBe('Alavanca')
     const select = lista()
     expect(container.querySelector(`label[for="${select.id}"]`)?.textContent).toBe('Abre a porta')
@@ -98,7 +99,7 @@ describe('telas da alavanca', () => {
   it('painel: com porta ligada, "Acionar agora" aciona; "Nenhuma" manda null', () => {
     const onChange = vi.fn()
     const onPull = vi.fn()
-    act(() => root.render(<PinControls {...painel({ value: 'p1', options: [{ id: 'p1', label: 'Porta 1' }], onChange, onPull, pullBlocked: null })} />))
+    act(() => root.render(<FichaDoPino {...painel({ value: 'p1', options: [{ id: 'p1', label: 'Porta 1' }], onChange, onPull, pullBlocked: null })} />))
     expect(lista().value).toBe('p1')
     act(() => botao('Acionar agora').click())
     expect(onPull).toHaveBeenCalledTimes(1)
@@ -112,7 +113,7 @@ describe('telas da alavanca', () => {
   it('painel: porta trancada desliga "Acionar agora" e diz por quê', () => {
     act(() =>
       root.render(
-        <PinControls
+        <FichaDoPino
           {...painel({ value: 'p1', options: [{ id: 'p1', label: 'Porta 1' }], onChange: vi.fn(), onPull: vi.fn(), pullBlocked: 'A porta ligada está trancada: a alavanca não a move.' })}
         />,
       ),
@@ -122,17 +123,17 @@ describe('telas da alavanca', () => {
   })
 
   it('painel: mapa sem porta desliga a lista e ensina o que fazer', () => {
-    act(() => root.render(<PinControls {...painel({ value: null, options: [], onChange: vi.fn(), onPull: vi.fn(), pullBlocked: null })} />))
+    act(() => root.render(<FichaDoPino {...painel({ value: null, options: [], onChange: vi.fn(), onPull: vi.fn(), pullBlocked: null })} />))
     expect(lista().disabled).toBe(true)
     expect(container.textContent).toContain('Ponha uma porta no mapa para ligar a alavanca.')
     expect(botoes().map((b) => b.textContent)).not.toContain('Acionar agora')
   })
 
   it('painel: a alavanca é um dos tipos do pino', () => {
-    act(() => root.render(<PinControls {...painel(null)} />))
-    const radios = [...container.querySelectorAll('[role="radio"]')].map((r) => r.textContent)
+    act(() => root.render(<FichaDoPino {...painel(null)} />))
+    // O nome de cada tipo: no aria-label os só de ícone ("!", "?", minigame), no texto Viagem e Alavanca.
+    const radios = [...container.querySelectorAll('[role="radiogroup"][aria-label="Tipo do pino"] [role="radio"]')].map((r) => r.getAttribute('aria-label') ?? r.textContent)
     expect(radios).toContain('Alavanca')
-    // "!", "?", viagem, alavanca e minigame.
     expect(radios.length).toBe(5)
   })
 })

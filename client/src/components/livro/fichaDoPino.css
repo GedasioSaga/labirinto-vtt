@@ -1,0 +1,81 @@
+/*
+ * FICHA DO PINO (fatia 12 do design consolidado): os acertos do
+ * consolidado.css (`.recursos`, `.rec__pe`, `.rec-mais`) na ficha do pino.
+ */
+
+/* O respiro da página, o mesmo da ficha da porta (o essencial e as fichas não encostam na lombada). */
+.lb-ficha-do-pino { padding: 0 12px 20px 14px; }
+
+/* Os recursos ligados, logo abaixo do essencial; sem nenhum, o bloco nem existe. */
+.lb-recursos { margin-bottom: 8px; }
+.lb-recursos .gr-ficha__resumo { color: var(--lb-color-brass, var(--lb-color-brass-bright)); }
+
+/* O pé de cada recurso: "Tirar do pino" à direita, depois de um filete. */
+.lb-rec__pe {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px solid var(--lb-gr-filete);
+}
+
+/* "+ Adicionar ao pino": a linha tracejada de latão, que convida sem pesar. */
+.lb-ficha-do-pino .lb-rec-mais {
+  width: 100%;
+  justify-content: flex-start;
+  margin: 0 0 8px;
+  background: transparent;
+  border: 1px dashed var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-ficha-do-pino .lb-rec-mais:hover { background: var(--lb-color-brass-soft); }
+}
+
+/* As seções de antes viram trechos da ficha, sem o respiro nem o fio. */
+.lb-ficha-do-pino .gr-ficha__dentro .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
+}
+
+/* A viagem no essencial e no "Mais da viagem": a ficha já é o cartão, sem a moldura nem a régua de antes. */
+.lb-ficha-do-pino .lb-travel--embutido,
+.lb-ficha-do-pino .lb-travel--mais {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/*
+ * Tipo: "!", "?" e o minigame de ícone, Viagem e Alavanca em texto inteiro.
+ * Os cinco não cabem numa linha da ficha (204 px por dentro); o seg quebra em
+ * vez de cortar o nome, e todas as opções crescem para fechar cada linha (sem
+ * ícone sozinho num canto da segunda).
+ */
+.lb-ficha-do-pino .gr-seg[aria-label='Tipo do pino'] { flex-wrap: wrap; }
+.lb-ficha-do-pino .gr-seg[aria-label='Tipo do pino'] .gr-seg__op { flex: 1 0 auto; }
+.lb-ficha-do-pino .gr-seg[aria-label='Tipo do pino'] .gr-seg__op--ic { flex: 1 0 38px; }
+
+/* Passagem (quatro modos) e o motivo (cinco): o seg quebra a linha em vez de cortar "Pede ao mestre". */
+.lb-ficha-do-pino .lb-travel .gr-seg { flex-wrap: wrap; }
+.lb-ficha-do-pino .lb-travel .gr-seg__op { flex: 1 0 auto; }
+
+/* "Trancar os dois lados" e "Dá vista" lado a lado; a dica e o campo de casas de cada um, embaixo, na linha inteira. */
+.lb-travel__interruptores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: 6px;
+}
+.lb-travel__interruptores:empty { display: none; }
+.lb-travel__interruptores > :not(.gr-icone-tg) { grid-column: 1 / -1; }
+
+/*
+ * A ficha do recurso já se chama "Animação do cenário": o título de dentro
+ * some da vista e do mapa de títulos, e continua dando o nome da seção
+ * (`aria-labelledby` lê nó escondido).
+ */
+.lb-ficha-do-pino .lb-cenario-secao > h3 { display: none; }

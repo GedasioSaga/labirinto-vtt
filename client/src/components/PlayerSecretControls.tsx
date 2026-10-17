@@ -50,13 +50,28 @@ export interface PlayerSecretControlsProps {
  * a lista escolhe quem recebe. Com o oculto ligado a lista some — ninguém
  * recebe de qualquer jeito, e mostrar as caixas marcadas diria o contrário.
  */
-export function PlayerSecretControls({ secret, onSecretChange, audience = null, reveal = null }: PlayerSecretControlsProps) {
-  return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Jogadores</h2>
+export function PlayerSecretControls({
+  secret,
+  onSecretChange,
+  audience = null,
+  reveal = null,
+  embutido = false,
+}: PlayerSecretControlsProps & {
+  /** No essencial da ficha do pino (fatia 12): só os controles, sem a seção nem o título "Jogadores". */
+  embutido?: boolean
+}) {
+  const controles = (
+    <>
       <Toggle label="Oculto para jogadores" checked={secret} onChange={onSecretChange} />
       {audience !== null && !secret && <PinAudienceControls {...audience} />}
       {reveal !== null && secret && <RevealToControls {...reveal} />}
+    </>
+  )
+  if (embutido) return controles
+  return (
+    <section className="lb-section">
+      <h2 className="lb-eyebrow">Jogadores</h2>
+      {controles}
     </section>
   )
 }

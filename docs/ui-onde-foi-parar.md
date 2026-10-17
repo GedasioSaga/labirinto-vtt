@@ -461,48 +461,48 @@ Parte de: token selecionado no mapa. Vai para: Página Ficha: Tipo de ficha, Nom
 
 ### Ficha do pino (!)
 
-Parte de: pino de exclamação selecionado. Vai para: Página Ficha do pino: essencial + "+ Adicionar ao pino" + Mais da viagem, Aparência, Na mesa. Fatia: 12.
+Parte de: pino de exclamação selecionado. Vai para: Página Ficha do pino: essencial + "+ Adicionar ao pino" + Aparência, Na mesa (feito). Fatia: 12.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo do pino | radiogroup "Tipo do pino" | (livro do mestre) | (do bloco) |
-| Só o círculo, sem haste | checkbox "Só o círculo, sem haste" | (livro do mestre) | (do bloco) |
 | Nome do local | textbox "Nome do local" | (livro do mestre) | (do bloco) |
 | Descrição · o jogador lê | textbox "Descrição · o jogador lê" | (livro do mestre) | (do bloco) |
-| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Marco: todos veem | checkbox "Marco: todos veem" | (livro do mestre) | (do bloco) |
 | Ler só de perto | checkbox "Ler só de perto" | (livro do mestre) | (do bloco) |
-| Fechadura com segredo | checkbox "Fechadura com segredo" | (livro do mestre) | (do bloco) |
-| Peça de coleção | checkbox "Peça de coleção" | (livro do mestre) | (do bloco) |
-| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Ícone no mapa | radiogroup "Ícone no mapa" | (livro do mestre) | (do bloco) |
-| Item pegável | checkbox "Item pegável" | (livro do mestre) | (do bloco) |
-| Loja com preços | checkbox "Loja com preços" | (livro do mestre) | (do bloco) |
-| Cabine contínua: leva a | combobox "Cabine contínua: leva a" | (livro do mestre) | (do bloco) |
-| Animação do Cenário | heading "Animação do Cenário" | (livro do mestre) | (do bloco) |
 | Excluir ponto de interesse | button "Excluir ponto de interesse" | (livro do mestre) | (do bloco) |
+| Só o círculo, sem haste | checkbox "Só o círculo, sem haste" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Escolher imagem... | button "Escolher imagem..." | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Ícone no mapa | radiogroup "Ícone no mapa" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Animação do cenário | menuitem "Animação do cenário" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
+| Item pegável | menuitem "Item pegável" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
+| Fechadura com segredo | menuitem "Fechadura com segredo" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
+| Peça de coleção | menuitem "Peça de coleção" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
+| Loja com preços | menuitem "Loja com preços" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
+| Cabine contínua | menuitem "Cabine contínua" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
 
 ### Ficha do pino de viagem
 
-Parte de: pino de viagem selecionado. Vai para: Página Ficha do pino, ficha "Mais da viagem". Fatia: 12.
+Parte de: pino de viagem selecionado. Vai para: Página Ficha do pino: destino e Passagem no essencial, o resto na ficha "Mais da viagem" (feito). Fatia: 12.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Leva a… | button "Leva a…" | (livro do mestre) | (do bloco) |
 | Passagem | radiogroup "Passagem" | (livro do mestre) | (do bloco) |
-| Transição ao atravessar | heading "Transição ao atravessar" | (livro do mestre) | (do bloco) |
-| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
-| Preso à ficha | combobox "Preso à ficha" | (livro do mestre) | (do bloco) |
-| Cabine (elevador, cesto) | combobox "Cabine (elevador, cesto)" | (livro do mestre) | (do bloco) |
-| Nova cabine | textbox "Nova cabine" | (livro do mestre) | (do bloco) |
-| Criar cabine aqui | button "Criar cabine aqui" | (livro do mestre) | (do bloco) |
 | Excluir pino de viagem | button "Excluir pino de viagem" | (livro do mestre) | (do bloco) |
+| Transição ao atravessar | heading "Transição ao atravessar" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Preso à ficha | combobox "Preso à ficha" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Cabine (elevador, cesto) | combobox "Cabine (elevador, cesto)" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Nova cabine | textbox "Nova cabine" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
+| Criar cabine aqui | button "Criar cabine aqui" | (livro do mestre) > clicar button "/^Mais da viagem/" | (do bloco) |
 
 ### Ficha da alavanca
 
-Parte de: alavanca selecionada. Vai para: Página Ficha do pino (alavanca com "Acionar agora"). Fatia: 12.
+Parte de: alavanca selecionada. Vai para: Página Ficha do pino (alavanca com "Acionar agora") (feito). Fatia: 12.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|

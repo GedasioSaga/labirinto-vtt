@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PinControls } from '../components/PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from '../components/livro/FichaDoPino'
 import { abrirFicha } from '../components/grupoTeste'
 import { RoomPanel, roomPanelTokensOf } from '../components/RoomPanel'
 import { createEmptyMap, buildPin } from '../lib/mapFactory'
@@ -88,10 +88,11 @@ describe('telas do item pegável', () => {
     expect(container.textContent).toContain('Ninguém encostado em você.')
   })
 
-  it('painel do pino: liga "Item pegável" com nome e "Pega sem pedir"', () => {
+  it('ficha do pino: "+ Adicionar ao pino" põe o "Item pegável", com nome e "Pega sem pedir"; "Tirar do pino" tira', () => {
     const onItemChange = vi.fn()
-    const base = {
-      kind: 'exclamacao' as const,
+    const base: FichaDoPinoProps = {
+      pinId: 'chave',
+      kind: 'exclamacao',
       onKindChange: vi.fn(),
       description: '',
       onDescriptionChange: vi.fn(),
@@ -104,8 +105,8 @@ describe('telas do item pegável', () => {
       image: null,
       onChooseImage: vi.fn(),
       onClearImage: vi.fn(),
-      onDelete: vi.fn(),
       iconChoice: null,
+      quemVe: null,
     }
     // O interruptor é o `Toggle` da casa: checkbox nativo dentro do rótulo.
     const interruptor = (texto: string): HTMLInputElement => {
@@ -114,16 +115,25 @@ describe('telas do item pegável', () => {
       if (!(input instanceof HTMLInputElement)) throw new Error(`sem interruptor "${texto}"`)
       return input
     }
-    act(() => root.render(<PinControls {...base} item={{ value: null, onChange: onItemChange }} />))
-    expect(interruptor('Item pegável').checked).toBe(false)
-    act(() => interruptor('Item pegável').click())
+    const botaoDaFicha = (texto: string): HTMLButtonElement => {
+      const achado = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === texto)
+      if (achado === undefined) throw new Error(`sem botão "${texto}" na ficha do pino`)
+      return achado
+    }
+    act(() => root.render(<FichaDoPino {...base} item={{ value: null, onChange: onItemChange }} />))
+    // Desligado, o item mora no menu "+ Adicionar ao pino", não na ficha.
+    expect(container.querySelector('input[aria-label="Nome do item"]')).toBeNull()
+    act(() => botaoDaFicha('Adicionar ao pino').click())
+    const porItem = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.textContent?.includes('Item pegável'))
+    if (porItem === undefined) throw new Error('sem "Item pegável" no menu')
+    act(() => porItem.click())
     expect(onItemChange).toHaveBeenLastCalledWith({ nome: 'Item' })
-    act(() => root.render(<PinControls {...base} item={{ value: { nome: 'Chave do Escudo' }, onChange: onItemChange }} />))
+    act(() => root.render(<FichaDoPino {...base} item={{ value: { nome: 'Chave do Escudo' }, onChange: onItemChange }} />))
     const campo = container.querySelector('input[aria-label="Nome do item"]')
     expect(campo instanceof HTMLInputElement ? campo.value : null).toBe('Chave do Escudo')
     act(() => interruptor('Pega sem pedir ao mestre').click())
     expect(onItemChange).toHaveBeenLastCalledWith({ nome: 'Chave do Escudo', livre: true })
-    act(() => interruptor('Item pegável').click())
+    act(() => botaoDaFicha('Tirar do pino').click())
     expect(onItemChange).toHaveBeenLastCalledWith(null)
   })
 })

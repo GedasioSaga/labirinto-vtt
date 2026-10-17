@@ -8,11 +8,15 @@ export interface CampoTextoProps {
   placeholder?: string
   /** Caixa de várias linhas (o `area` do protótipo, 3 linhas e altura ajustável). */
   multilinha?: boolean
+  /** Id fixo do campo, para quem já o achava por ele; ausente = um gerado. */
+  id?: string
+  maxLength?: number
 }
 
 /** Texto (o `texto`/`area` do protótipo): rótulo em cima, clicar nele foca o campo. */
-export function CampoTexto({ rotulo, valor, onChange, placeholder, multilinha }: CampoTextoProps) {
-  const id = useId()
+export function CampoTexto({ rotulo, valor, onChange, placeholder, multilinha, id: idFixo, maxLength }: CampoTextoProps) {
+  const idGerado = useId()
+  const id = idFixo ?? idGerado
   return (
     <div className="gr-campo">
       <label className="gr-campo__rot" htmlFor={id}>
@@ -23,6 +27,7 @@ export function CampoTexto({ rotulo, valor, onChange, placeholder, multilinha }:
           id={id}
           className="gr-entrada"
           rows={3}
+          maxLength={maxLength}
           placeholder={placeholder}
           value={valor}
           onChange={(evento) => onChange(evento.currentTarget.value)}
@@ -33,6 +38,7 @@ export function CampoTexto({ rotulo, valor, onChange, placeholder, multilinha }:
           className="gr-entrada"
           type="text"
           autoComplete="off"
+          maxLength={maxLength}
           placeholder={placeholder}
           value={valor}
           onChange={(evento) => onChange(evento.currentTarget.value)}

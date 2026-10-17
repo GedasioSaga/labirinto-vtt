@@ -1,12 +1,12 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PinControls, type PinControlsProps } from './PinControls'
+import { FichaDoPino, type FichaDoPinoProps } from './FichaDoPino'
 
 /**
  * PINO PRESO A UMA FICHA, lado do PAINEL do mestre: no pino de viagem aberto,
- * "Preso à ficha" escolhe a ficha que ele acompanha (navio, carroça, elevador)
- * ou "Nenhuma". Pino "!"/"?" não oferece a escolha.
+ * "Preso à ficha" (na ficha Mais da viagem) escolhe a ficha que ele acompanha
+ * (navio, carroça, elevador) ou "Nenhuma". Pino "!"/"?" não oferece a escolha.
  */
 let container: HTMLDivElement
 let root: Root
@@ -21,10 +21,12 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  window.localStorage.clear()
 })
 
-function base(extra: Partial<PinControlsProps>): PinControlsProps {
+function base(extra: Partial<FichaDoPinoProps>): FichaDoPinoProps {
   return {
+    pinId: 'cais',
     kind: 'viagem',
     onKindChange: () => {},
     description: '',
@@ -38,14 +40,14 @@ function base(extra: Partial<PinControlsProps>): PinControlsProps {
     image: null,
     onChooseImage: () => {},
     onClearImage: () => {},
-    onDelete: () => {},
     iconChoice: null,
+    quemVe: null,
     ...extra,
   }
 }
 
-function render(props: PinControlsProps) {
-  act(() => root.render(<PinControls {...props} />))
+function render(props: FichaDoPinoProps) {
+  act(() => root.render(<FichaDoPino {...props} />))
 }
 
 function campo(): HTMLSelectElement {
@@ -68,8 +70,8 @@ const OPCOES = [
   { id: 'carroca', label: 'Carroça' },
 ]
 
-describe('PinControls: preso à ficha', () => {
-  it('lista "Nenhuma" e as fichas do mapa, com a atual escolhida', () => {
+describe('FichaDoPino: preso à ficha', () => {
+  it('lista "Nenhuma" e as fichas do mapa, com a atual escolhida, na ficha Mais da viagem', () => {
     render(base({ attachment: { value: 'carroca', options: OPCOES, onChange: () => {} } }))
     const select = campo()
     expect([...select.options].map((o) => [o.value, o.textContent])).toEqual([
@@ -79,6 +81,8 @@ describe('PinControls: preso à ficha', () => {
     ])
     expect(select.value).toBe('carroca')
     expect(container.textContent).toContain('anda junto')
+    const cabecalho = [...container.querySelectorAll<HTMLElement>('.gr-ficha__cab')].find((cab) => cab.querySelector('.gr-ficha__tit')?.textContent === 'Mais da viagem')
+    expect(cabecalho?.closest('.gr-ficha')?.contains(select)).toBe(true)
   })
 
   it('escolher uma ficha prende; escolher "Nenhuma" solta', () => {
@@ -104,8 +108,8 @@ describe('PinControls: preso à ficha', () => {
     expect(container.textContent).toContain('Ponha uma ficha no mapa')
   })
 
-  it('pino "!" não oferece a escolha', () => {
-    render(base({ kind: 'exclamacao', attachment: null }))
+  it('pino "!" não oferece a escolha, nem recebendo as fichas', () => {
+    render(base({ kind: 'exclamacao', attachment: { value: null, options: OPCOES, onChange: () => {} } }))
     expect([...container.querySelectorAll('label')].some((l) => l.textContent?.trim() === 'Preso à ficha')).toBe(false)
   })
 })

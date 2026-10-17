@@ -1,8 +1,9 @@
 import { Fragment, useId, useRef, useState, type ReactElement } from 'react'
-import type { DoorState, Drawing, FloorPiece, Light, MapData, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
+import type { DoorState, Drawing, FloorPiece, Light, MapData, PinKind, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
 import { ROTULO_MOBILIA } from '../../lib/mobilia'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
 import { salasDaPorta } from '../../lib/mapObjects'
+import { findContainingRoom } from '../../lib/roomNesting'
 import { TOKEN_COLOR_DEFAULT } from '../../lib/tokenColor'
 import { useMapStore } from '../../stores/mapStore'
 import type { SelectionSummary } from '../SelectionControls'
@@ -31,10 +32,11 @@ export type SelectionIconKind =
   | 'text'
   | 'drawing'
   | 'floor'
+  | 'pin'
   | 'several'
 
 /** O que a cabeça diz da seleção. */
-export type SelectionIdentity = IdentidadeComum | IdentidadeDeMovel
+export type SelectionIdentity = IdentidadeComum | IdentidadeDeMovel | IdentidadeDoPino
 
 interface IdentidadeBase {
   /** O tipo, com o nome do botão da ferramenta que cria a coisa ("Sala", "Porta", "Token"). */
@@ -44,13 +46,19 @@ interface IdentidadeBase {
 }
 
 interface IdentidadeComum extends IdentidadeBase {
-  icon: Exclude<SelectionIconKind, 'mobilia'>
+  icon: Exclude<SelectionIconKind, 'mobilia' | 'pin'>
 }
 
 /** Móvel desenhado: a medalha leva o desenho DAQUELE móvel, o mesmo da setinha da ferramenta Objeto. */
 interface IdentidadeDeMovel extends IdentidadeBase {
   icon: 'mobilia'
   mobilia: TipoMobilia
+}
+
+/** Pino (fatia 12): a medalha leva o ícone do tipo, o mesmo "!", "?", viagem ou alavanca do seletor. */
+interface IdentidadeDoPino extends IdentidadeBase {
+  icon: 'pin'
+  pinKind: PinKind
 }
 
 /** Os itens que o painel já recebe; com UM item selecionado, só um deles não é `null`. */
@@ -113,6 +121,41 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
  */
 export function deleteLabelFor(summary: SelectionSummary): string {
   return summary.count === 1 ? deleteSelectionLabel(summary.kind) : `Apagar ${summary.count} itens selecionados`
+}
+
+/** O título de cada tipo de pino, o mesmo de antes: as jornadas acham a ficha por ele. */
+export const TITULO_DO_PINO: Record<PinKind, string> = {
+  exclamacao: 'Ponto de interesse',
+  interrogacao: 'Ponto de interesse',
+  viagem: 'Pino de viagem',
+  alavanca: 'Alavanca',
+  minigame: 'Minigame',
+}
+
+/** O Excluir do pino, letra por letra o botão de antes (os testes e2e o procuram pelo nome). */
+export const EXCLUIR_PINO: Record<PinKind, string> = {
+  exclamacao: 'Excluir ponto de interesse',
+  interrogacao: 'Excluir ponto de interesse',
+  viagem: 'Excluir pino de viagem',
+  alavanca: 'Excluir alavanca',
+  minigame: 'Excluir minigame',
+}
+
+/**
+ * PINO SELECIONADO (fatia 12): ele não entra no resumo `selection.selection`,
+ * então a identidade sai do próprio pino — o tipo pelo título, e o nome do local.
+ */
+export function pinIdentity(kind: PinKind, nome: string): SelectionIdentity {
+  return { icon: 'pin', type: TITULO_DO_PINO[kind], name: nameOrNull(nome), pinKind: kind }
+}
+
+/** O ícone de cada tipo de pino, na medalha da cabeça e no Tipo da ficha (o minigame não está no protótipo: fica o "play"). */
+export const ICONE_DO_PINO: Record<PinKind, NomeDoIcone> = {
+  exclamacao: 'exclamacao',
+  interrogacao: 'interrogacao',
+  viagem: 'viagem',
+  alavanca: 'alavanca',
+  minigame: 'play',
 }
 
 /** Um item do menu "Mais ações". */
@@ -195,6 +238,18 @@ export function ondeDaPorta(map: MapData, paredeId: string): string {
 /** `ondeDaPorta` na cena aberta; vazio sem porta selecionada. */
 export function useOndeDaPorta(paredeId: string | null): string {
   return useMapStore((state) => (paredeId === null ? '' : ondeDaPorta(state.map, paredeId)))
+}
+
+/** A Sala com nome onde o pino está ("Cais do Porto", o local do protótipo); vazio fora de sala ou para id que não existe. */
+export function ondeDoPino(map: MapData, pinId: string): string {
+  const pino = map.pins.find((p) => p.id === pinId)
+  if (pino === undefined) return ''
+  return findContainingRoom(map.regions, [{ x: pino.x, y: pino.y }])?.room?.name.trim() ?? ''
+}
+
+/** `ondeDoPino` na cena aberta; vazio sem pino aberto. */
+export function useOndeDoPino(pinId: string | null): string {
+  return useMapStore((state) => (pinId === null ? '' : ondeDoPino(state.map, pinId)))
 }
 
 /** A cor do disco de um token sem cor própria: a mesma do mapa. */
@@ -335,6 +390,8 @@ function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
       return <BrushIcon />
     case 'floor':
       return <FloorIcon />
+    case 'pin':
+      return <IconeDoLivro nome={ICONE_DO_PINO[identidade.pinKind]} />
     case 'several':
       return <VariosIcon />
   }

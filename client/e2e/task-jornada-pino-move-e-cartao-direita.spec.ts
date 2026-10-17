@@ -128,6 +128,18 @@ function interruptor(page: Page, rotulo: string): Locator {
   return page.locator('label.lb-switch').filter({ hasText: rotulo })
 }
 
+/**
+ * Abre pelo cabeçalho uma ficha recolhível do painel do pino, se estiver
+ * fechada (fechada, o miolo é inert e o interruptor não recebe o clique).
+ * Desde a fatia 12 o "Travado" mora na ficha "Aparência", que nasce fechada.
+ */
+async function abrirFichaDoPino(page: Page, titulo: string): Promise<void> {
+  const cabecalho = page.getByRole('complementary', { name: 'Livro do mestre' }).getByRole('button', { name: new RegExp(`^${titulo}`) })
+  await expect(cabecalho, `o painel do pino não tem a ficha "${titulo}"`).toBeVisible({ timeout: 5000 })
+  if ((await cabecalho.getAttribute('aria-expanded')) === 'false') await cabecalho.click()
+  await expect(cabecalho, `a ficha "${titulo}" não abriu no clique do cabeçalho`).toHaveAttribute('aria-expanded', 'true')
+}
+
 /** Clique de ponteiro no trilho. Falha dizendo o que a tela oferece hoje. */
 async function clicarInterruptor(page: Page, rotulo: string, oQueEra: string): Promise<void> {
   const alvo = interruptor(page, rotulo)
@@ -287,6 +299,7 @@ test('2. pino travado não sai do lugar quando arrastado, mas continua clicável
   await page.getByRole('button', { name: 'Selecionar', exact: true }).click()
   await tocarComoPessoa(page, origem.x, origem.y)
 
+  await abrirFichaDoPino(page, 'Aparência')
   await clicarInterruptor(page, 'Travado', 'interruptor "Travado" no painel do ponto de interesse')
   await expect(
     interruptor(page, 'Travado').locator('input'),

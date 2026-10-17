@@ -13,7 +13,7 @@ export interface PinLojaControlsProps {
 
 const HINT_ID = 'lb-pin-loja-hint'
 
-const idAleatorio = (): string => `item_${crypto.randomUUID()}`
+export const idAleatorio = (): string => `item_${crypto.randomUUID()}`
 
 /** A mercadoria sem o estoque: ausente é "sem conta", e ausente não é `undefined` gravado. */
 function semEstoque(item: LojaItem): LojaItem {
@@ -37,7 +37,15 @@ function estoqueDigitado(texto: string): number | null | undefined {
  * (vazio = não acaba). O jogador vê a lista no cartão e toca "Quero"; o pedido
  * chega na caixa "Pedidos" com "Vender" e "Não".
  */
-export function PinLojaControls({ loja, onChange, novoId = idAleatorio }: PinLojaControlsProps) {
+export function PinLojaControls({
+  loja,
+  onChange,
+  novoId = idAleatorio,
+  embutido = false,
+}: PinLojaControlsProps & {
+  /** Dentro da ficha do recurso (fatia 12): sem o interruptor, que lá é o "Tirar do pino". */
+  embutido?: boolean
+}) {
   const trocar = (indice: number, item: LojaItem) => {
     if (loja === null) return
     onChange(loja.map((atual, i) => (i === indice ? item : atual)))
@@ -49,12 +57,14 @@ export function PinLojaControls({ loja, onChange, novoId = idAleatorio }: PinLoj
   }
   return (
     <div className="lb-field">
-      <Toggle
-        label="Loja com preços"
-        checked={loja !== null}
-        describedBy={loja === null ? undefined : HINT_ID}
-        onChange={(on) => onChange(on ? [novaMercadoria(novoId())] : undefined)}
-      />
+      {!embutido && (
+        <Toggle
+          label="Loja com preços"
+          checked={loja !== null}
+          describedBy={loja === null ? undefined : HINT_ID}
+          onChange={(on) => onChange(on ? [novaMercadoria(novoId())] : undefined)}
+        />
+      )}
       {loja !== null && (
         <>
           <ul className="lb-loja" aria-label="Mercadorias da loja">

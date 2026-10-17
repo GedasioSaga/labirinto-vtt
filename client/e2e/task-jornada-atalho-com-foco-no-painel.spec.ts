@@ -176,11 +176,12 @@ test('(b) com o pino selecionado e o foco no painel dele, ? troca o tipo do pino
   // O painel é mesmo o DO pino selecionado: o campo de descrição só existe com pino concreto.
   await expect(page.getByLabel('Descrição')).toBeVisible()
 
-  // Foco no painel, FORA de campo de texto: o título "Ponto de interesse".
-  const titulo = page.getByRole('heading', { name: 'Ponto de interesse', exact: true })
-  await titulo.hover()
+  // Foco no painel, FORA de campo de texto: o rótulo "Tipo" do essencial da ficha do pino
+  // (fatia 12: o título "Ponto de interesse" ficou só para o leitor de tela; a cabeça mostra o tipo).
+  const rotuloDoTipo = page.locator('section.lb-ficha-do-pino').getByText('Tipo', { exact: true })
+  await rotuloDoTipo.hover()
   await page.waitForTimeout(80)
-  await titulo.click()
+  await rotuloDoTipo.click()
   // "?" como o dedo aperta: Shift + a tecla da barra.
   await page.keyboard.press('Shift+Slash')
 

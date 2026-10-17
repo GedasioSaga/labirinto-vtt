@@ -701,8 +701,10 @@ test('4. apagar o pino de chegada deixa o pino da cena A sem destino, dito no pa
   const chegada = await esperarDesenho(page, m.paletaCripta, 'perto do centro', 'o pino de chegada deveria estar no centro da Cripta')
   if (chegada.centro === null) throw new Error('chegada sem centro')
 
-  const painelDaChegada = await abrirPainelDoPino(page, chegada.centro, 'abrir o pino de chegada para apagá-lo')
-  const apagar = await controlePorNome(painelDaChegada, page, APAGAR_PINO, 'o painel do pino de chegada deveria ter como apagá-lo')
+  await abrirPainelDoPino(page, chegada.centro, 'abrir o pino de chegada para apagá-lo')
+  // Desde a fatia 12 o Excluir mora na CABEÇA da ficha do pino, acima da seção do essencial: procura no livro do mestre, que tem as duas.
+  const fichaDaChegada = page.getByRole('complementary', { name: 'Livro do mestre' })
+  const apagar = await controlePorNome(fichaDaChegada, page, APAGAR_PINO, 'o painel do pino de chegada deveria ter como apagá-lo')
   await apagar.click()
   await expect
     .poll(async () => (await lerCanvas(page, m.paletaCripta)).novo.noCentro, { timeout: 10_000, message: 'depois de apagar, o pino de chegada deveria sumir do centro da Cripta' })

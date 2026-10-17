@@ -19,6 +19,8 @@ export interface FichaProps {
   nova?: boolean
   /** Nível do título; 3 porque a ficha mora dentro de uma página que já tem título. */
   nivel?: 2 | 3 | 4
+  /** Id do botão do cabeçalho: quem monta põe o foco nele (o recurso do pino que acabou de entrar). */
+  idDoCabecalho?: string
   children: ReactNode
 }
 
@@ -27,7 +29,7 @@ export interface FichaProps {
  * título; fechada, o miolo fica `inert`, fora do Tab e do leitor de tela, e o
  * acordeão anima a altura pela grade (`0fr` → `1fr`).
  */
-export function Ficha({ titulo, icone, resumo, aberta, abertaInicial = false, onAlternar, plana, nova, nivel = 3, children }: FichaProps) {
+export function Ficha({ titulo, icone, resumo, aberta, abertaInicial = false, onAlternar, plana, nova, nivel = 3, idDoCabecalho, children }: FichaProps) {
   const id = useId()
   const [abertaLocal, setAbertaLocal] = useState(abertaInicial)
   const estaAberta = aberta ?? abertaLocal
@@ -39,7 +41,7 @@ export function Ficha({ titulo, icone, resumo, aberta, abertaInicial = false, on
   return (
     <section className={classes('gr-ficha', estaAberta && 'gr-e-aberta', plana && 'gr-ficha--plana', nova && 'gr-e-nova')}>
       <Titulo className="gr-ficha__h">
-        <button type="button" className="gr-ficha__cab" aria-expanded={estaAberta} aria-controls={id} onClick={alternar}>
+        <button type="button" id={idDoCabecalho} className="gr-ficha__cab" aria-expanded={estaAberta} aria-controls={id} onClick={alternar}>
           {icone && <span className="gr-ficha__med">{icone}</span>}
           <span className="gr-ficha__tit">{titulo}</span>
           {resumo && <span className="gr-ficha__resumo">{resumo}</span>}

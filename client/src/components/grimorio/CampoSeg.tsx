@@ -13,7 +13,7 @@ export interface OpcaoDoSeg<V extends string> {
 }
 
 export interface CampoSegProps<V extends string> {
-  /** Rótulo visível em cima. Sem ele, `nomeAcessivel` dá o nome ao grupo. */
+  /** Rótulo visível em cima. Sem ele, ou quando o grupo tem outro nome ("Tipo do pino"), `nomeAcessivel` dá o nome. */
   rotulo?: string
   nomeAcessivel?: string
   opcoes: readonly OpcaoDoSeg<V>[]
@@ -41,8 +41,8 @@ export function CampoSeg<V extends string>({ rotulo, nomeAcessivel, opcoes, valo
       <div
         className={classes('gr-seg', forma === 'grade' && 'gr-seg--grade', forma === 'icone' && 'gr-seg--icone')}
         role="radiogroup"
-        aria-labelledby={rotulo ? rotuloId : undefined}
-        aria-label={rotulo ? undefined : nomeAcessivel}
+        aria-labelledby={rotulo && nomeAcessivel === undefined ? rotuloId : undefined}
+        aria-label={nomeAcessivel}
         onKeyDown={andarPelosRadios}
       >
         {opcoes.map((opcao, indice) => (
