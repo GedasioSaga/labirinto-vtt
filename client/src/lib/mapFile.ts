@@ -15,9 +15,11 @@ import {
   isPinBlockReason,
   isPinIcon,
   isPinKind,
+  isPinEscala,
   isPinPassage,
   isPinReadDistance,
   minigamePadrao,
+  normalizarCorDoPino,
 } from './pins'
 import {
   DIFICULDADES_DANCA,
@@ -713,6 +715,11 @@ function deserializeMapFields(json: string): MapData {
       // volta AUSENTE — o pino de sempre, com haste. O `...p` acima copiaria o
       // valor cru.
       semHaste: p.semHaste === true ? true : undefined,
+      // COR E TAMANHO (fatia 14): campos NOVOS e OPCIONAIS. Cor só `#rrggbb`
+      // (gravada minúscula); tamanho só número na faixa e diferente de 1. O
+      // resto volta AUSENTE — o latão e o tamanho de sempre.
+      cor: normalizarCorDoPino(p.cor),
+      escala: isPinEscala(p.escala) && p.escala !== 1 ? p.escala : undefined,
       // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
       longe: undefined,
       soMarco: undefined,

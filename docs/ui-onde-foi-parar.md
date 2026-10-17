@@ -472,6 +472,11 @@ Parte de: pino de exclamação selecionado. Vai para: Página Ficha do pino: ess
 | Marco: todos veem | checkbox "Marco: todos veem" | (livro do mestre) | (do bloco) |
 | Ler só de perto | checkbox "Ler só de perto" | (livro do mestre) | (do bloco) |
 | Excluir ponto de interesse | button "Excluir ponto de interesse" | (livro do mestre) | (do bloco) |
+| Cor do pino | radiogroup "Cor do pino" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Outra cor… | textbox "Outra cor…" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor padrão | button "Cor padrão" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Tamanho | slider "Tamanho" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Tamanho padrão | button "Tamanho padrão" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Só o círculo, sem haste | checkbox "Só o círculo, sem haste" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Escolher imagem... | button "Escolher imagem..." | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -1140,4 +1145,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 631 controles em 68 blocos.
+Total: 636 controles em 68 blocos.

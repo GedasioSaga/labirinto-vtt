@@ -1,7 +1,7 @@
 import type { MapData } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
-import { pinSizeScale } from '../lib/pins'
+import { pinSizeFloorFor, pinSizeScale } from '../lib/pins'
 import { resolveHighlightedRegionId } from './drawRegions'
 import { hazardsOf } from '../lib/hazards'
 import { conveyorsOf } from '../lib/conveyors'
@@ -221,8 +221,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'pins':
       // `map.marcas`: o bilhete que um jogador deixou é desenhado junto dos pinos.
       // O zoom só entra pelo fator de tamanho mínimo: 1 de perto (o zoom não
-      // repinta), maior que 1 de longe (o pino cresce para não sumir).
-      return [map.pins, map.marcas, hidden, snapshot.selectedPinId, pinSizeScale(cameraScale), ...snapshot.travel]
+      // repinta), maior que 1 de longe (o pino cresce para não sumir). O piso do
+      // pino reduzido (fatia 14) só entra quando há pino reduzido no mapa.
+      return [map.pins, map.marcas, hidden, snapshot.selectedPinId, pinSizeScale(cameraScale), pinSizeFloorFor(map.pins, cameraScale), ...snapshot.travel]
     case 'textLabels':
       return [map.drawings, hidden, selectedId('drawing')]
     case 'handles':

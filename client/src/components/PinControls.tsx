@@ -109,6 +109,19 @@ export interface PinControlsProps {
   semHaste?: boolean
   onSemHasteChange?: (semHaste: boolean) => void
   /**
+   * COR DA CABEÇA do pino aberto (`Pin.cor`, `#rrggbb`); `null` = o latão de
+   * sempre. `onCorChange(null)` é "Cor padrão" (grava AUSENTE). Sem o
+   * callback, sem o controle — a mesma regra do `semHaste`.
+   */
+  cor?: string | null
+  onCorChange?: (cor: string | null) => void
+  /**
+   * TAMANHO do pino aberto (`Pin.escala`, 0,5 a 3); 1 = o de sempre.
+   * `onEscalaChange(null)` é "Padrão" (grava AUSENTE). Sem o callback, sem o controle.
+   */
+  escala?: number
+  onEscalaChange?: (escala: number | null) => void
+  /**
    * FECHADURA COM SEGREDO do pino aberto no painel (qualquer tipo). `null` =
    * nenhum pino aberto: não há fechadura para editar.
    */

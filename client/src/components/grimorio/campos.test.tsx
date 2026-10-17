@@ -238,6 +238,26 @@ describe('CampoFaixa (deslizante)', () => {
   })
 })
 
+describe('CampoFaixa com formatar', () => {
+  it('o texto formatado manda no output e no aria-valuetext', () => {
+    montar(<CampoFaixa rotulo="Tamanho" valor={1.5} min={0.5} max={3} passo={0.25} unidade="x" formatar={(v) => `${String(v).replace('.', ',')}x`} onChange={() => {}} />)
+    expect(um('output').textContent).toBe('1,5x')
+    expect(um<HTMLInputElement>('input[type="range"]').getAttribute('aria-valuetext')).toBe('1,5x')
+  })
+})
+
+describe('CampoCor com onPadrao e extra', () => {
+  it('"Cor padrão" chama onPadrao (não onChange) e o extra mora dentro da paleta', () => {
+    const onChange = vi.fn()
+    const onPadrao = vi.fn()
+    montar(<CampoCor rotulo="Cor" opcoes={[{ valor: '#ffffff' }]} valor="" onChange={onChange} onPadrao={onPadrao} extra={<input type="color" aria-label="Outra" />} />)
+    expect(um('.gr-cores').querySelector('input[type="color"]')).not.toBeNull()
+    act(() => um<HTMLButtonElement>('.gr-bt').click())
+    expect(onPadrao).toHaveBeenCalledTimes(1)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('CampoCor, CampoChips, CampoTexto e CampoSel', () => {
   it('cores: radiogroup com nome falado, escolha sem diferença de maiúscula, setas e "Cor padrão"', () => {
     const onChange = vi.fn()

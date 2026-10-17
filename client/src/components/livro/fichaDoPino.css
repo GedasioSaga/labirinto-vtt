@@ -79,3 +79,21 @@
  * (`aria-labelledby` lê nó escondido).
  */
 .lb-ficha-do-pino .lb-cenario-secao > h3 { display: none; }
+
+/*
+ * "Outra cor…" (fatia 14): o seletor nativo no tamanho da bolinha da paleta.
+ * Sem cor própria, mostra as cores da paleta em roda (o convite a escolher);
+ * com cor fora da paleta, mostra a cor e o aro de latão de marcada.
+ */
+.lb-pin-outra-cor {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: conic-gradient(#e2645a, #e0a44a, #7fb48a, #79a9cc, #ab93d6, #e2645a);
+}
+.lb-pin-outra-cor::-webkit-color-swatch-wrapper { padding: 0; }
+.lb-pin-outra-cor::-webkit-color-swatch { border: 0; border-radius: 50%; opacity: 0; }
+.lb-pin-outra-cor--marcada::-webkit-color-swatch { opacity: 1; }
+.lb-pin-outra-cor--marcada { outline: 1.5px solid var(--lb-color-brass); outline-offset: 2.5px; }

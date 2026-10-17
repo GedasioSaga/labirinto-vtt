@@ -35,6 +35,7 @@ import { PinTravelControls } from '../PinTravelControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from '../PlayerSecretControls'
 import { Toggle } from '../Toggle'
 import { ICONE_DO_PINO, TITULO_DO_PINO } from './CabecaDaSelecao'
+import { CorDoPino, TamanhoDoPino } from './CorETamanhoDoPino'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import './fichaDoPino.css'
@@ -485,6 +486,10 @@ function FichasDoPino({
   iconChoice,
   semHaste = false,
   onSemHasteChange,
+  cor = null,
+  onCorChange,
+  escala = 1,
+  onEscalaChange,
   locked,
   onLockedChange,
   image,
@@ -506,6 +511,9 @@ function FichasDoPino({
       )}
       <FichaDoPinoLembrada id="aparencia" titulo="Aparência" icone="olho" resumo={locked ? 'Travado' : undefined}>
         {!viagem && iconChoice !== null && <PinIconControls {...iconChoice} glyph={PIN_GLYPH[kind]} />}
+        {/* Cor e tamanho (fatia 14): de todo tipo de pino, logo abaixo do que aparece na cabeça. */}
+        {onCorChange !== undefined && <CorDoPino cor={cor} onCorChange={onCorChange} />}
+        {onEscalaChange !== undefined && <TamanhoDoPino escala={escala} onEscalaChange={onEscalaChange} />}
         {onSemHasteChange !== undefined && (
           <>
             <Toggle label="Só o círculo, sem haste" checked={semHaste} onChange={onSemHasteChange} describedBy="lb-pin-sem-haste-hint" />

@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Botao } from './Botao'
 import { andarPelosRadios } from './comum'
 import './grimorio.css'
@@ -18,12 +18,19 @@ export interface CampoCorProps {
   onChange: (valor: string) => void
   /** Mostra "Cor padrão", que volta a esta cor. */
   padrao?: string
+  /**
+   * Mostra "Cor padrão" e chama isto no clique, em vez de `onChange(padrao)`:
+   * para quem grava o padrão como AUSENTE (o pino, fatia 14), não como uma cor.
+   */
+  onPadrao?: () => void
+  /** Controle a mais no fim da paleta, antes do "Cor padrão" ("Outra cor…"). */
+  extra?: ReactNode
 }
 
 const mesmaCor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 /** Paleta de bolinhas (o `.cores`): um `radiogroup`, setas escolhem a vizinha. */
-export function CampoCor({ rotulo, nomeAcessivel, opcoes, valor, onChange, padrao }: CampoCorProps) {
+export function CampoCor({ rotulo, nomeAcessivel, opcoes, valor, onChange, padrao, onPadrao, extra }: CampoCorProps) {
   const rotuloId = useId()
   const escolhida = opcoes.findIndex((opcao) => mesmaCor(opcao.valor, valor))
   const focavel = escolhida < 0 ? 0 : escolhida
@@ -54,10 +61,17 @@ export function CampoCor({ rotulo, nomeAcessivel, opcoes, valor, onChange, padra
             onClick={() => onChange(opcao.valor)}
           />
         ))}
-        {padrao !== undefined && (
-          <Botao variante="fantasma" tamanho="p" onClick={() => onChange(padrao)}>
+        {extra}
+        {onPadrao !== undefined ? (
+          <Botao variante="fantasma" tamanho="p" onClick={onPadrao}>
             Cor padrão
           </Botao>
+        ) : (
+          padrao !== undefined && (
+            <Botao variante="fantasma" tamanho="p" onClick={() => onChange(padrao)}>
+              Cor padrão
+            </Botao>
+          )
         )}
       </div>
     </div>

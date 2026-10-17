@@ -1,5 +1,6 @@
 import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
 import { MINIGAME_PADRAO, type MinigameDoPino, type MusicaDaDanca } from '../minigames/danca/tipos'
+import { parseHexColor } from './tokenColor'
 
 /**
  * Regras do pino de ponto de interesse, compartilhadas pelo editor (render e
@@ -32,6 +33,82 @@ export const PIN_MIN_SCREEN_HEIGHT = 16
 export function pinSizeScale(cameraScale: number): number {
   if (!Number.isFinite(cameraScale) || cameraScale <= 0) return 1
   return Math.max(1, PIN_MIN_SCREEN_HEIGHT / (PIN_HEIGHT * cameraScale))
+}
+
+/** Tamanho do pino (`Pin.escala`, fatia 14): de metade a três vezes o de sempre. */
+export const PIN_ESCALA_MIN = 0.5
+export const PIN_ESCALA_MAX = 3
+/** Passo do deslizante "Tamanho" da Aparência. */
+export const PIN_ESCALA_PASSO = 0.25
+/** A cor de fábrica da cabeça (o latão): escolher esta é voltar ao padrão. */
+export const PIN_COR_PADRAO = '#f2c14e'
+/** Paleta da Aparência: a mesma do protótipo consolidado (a do campo Cor do token). */
+export const PIN_CORES: readonly string[] = ['#d9d2c0', '#c98a5b', '#e2645a', '#e0a44a', '#7fb48a', '#79a9cc', '#ab93d6', '#5b6670']
+
+/** Escala que o arquivo pode guardar: número finito na faixa. */
+export function isPinEscala(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= PIN_ESCALA_MIN && value <= PIN_ESCALA_MAX
+}
+
+/** Fator de tamanho do pino; ausente ou torto (arquivo editado à mão, host antigo) = 1. */
+export function escalaDoPino(pin: Pick<Pin, 'escala'>): number {
+  return isPinEscala(pin.escala) ? pin.escala : 1
+}
+
+/**
+ * Piso do pino REDUZIDO (`Pin.escala` < 1), como fator de mundo: ele também não
+ * fica abaixo de `PIN_MIN_SCREEN_HEIGHT` na tela — no celular afastado, o "?"
+ * do pino 0,5 virava um risco de 6 px. `pinSizeScale` só garante o piso ao
+ * pino 1x; a escala menor, aplicada por cima, furava esse piso. Nunca menor que
+ * `PIN_ESCALA_MIN` (nenhum pino desce disso, e o zoom de perto não repinta à
+ * toa). Câmera inválida devolve 0: sem piso, o fator de sempre.
+ */
+export function pinSizeFloor(cameraScale: number): number {
+  if (!Number.isFinite(cameraScale) || cameraScale <= 0) return 0
+  return Math.max(PIN_ESCALA_MIN, PIN_MIN_SCREEN_HEIGHT / (PIN_HEIGHT * cameraScale))
+}
+
+/**
+ * O piso que importa para ESTES pinos: `pinSizeFloor` só quando algum é
+ * reduzido; sem nenhum, 0 — e o zoom de perto não repinta pino à toa.
+ */
+export function pinSizeFloorFor(pins: readonly Pick<Pin, 'escala'>[], cameraScale: number): number {
+  return pins.some((pin) => escalaDoPino(pin) < 1) ? pinSizeFloor(cameraScale) : 0
+}
+
+/**
+ * Fator de mundo com que ESTE pino é desenhado e tocado: o do zoom
+ * (`pinSizeScale`) vezes a escala dele, sem descer do piso (`pinSizeFloor`). O
+ * pino de escala 1 ou maior nunca bate no piso — o fator do zoom já o garante
+ * —, então só o reduzido muda, e só quando ficaria pequeno demais na tela.
+ */
+export function fatorDoPino(pin: Pick<Pin, 'escala'>, sizeScale: number, sizeFloor = 0): number {
+  const piso = Number.isFinite(sizeFloor) && sizeFloor > 0 ? sizeFloor : 0
+  return Math.max(sizeScale * escalaDoPino(pin), piso)
+}
+
+/** `#rrggbb` minúsculo, ou `undefined` para qualquer outra coisa. */
+export function normalizarCorDoPino(value: unknown): string | undefined {
+  return typeof value === 'string' && parseHexColor(value) !== null ? value.toLowerCase() : undefined
+}
+
+/**
+ * O que a Aparência grava em `Pin.cor`: `null` ("Cor padrão"), cor torta ou o
+ * próprio latão de fábrica viram AUSENTE — o arquivo de um mapa antigo sai igual.
+ */
+export function corDoPinoParaGravar(cor: string | null): string | undefined {
+  const normalizada = normalizarCorDoPino(cor)
+  return normalizada === PIN_COR_PADRAO ? undefined : normalizada
+}
+
+/** O que a Aparência grava em `Pin.escala`: `null` ("Padrão"), 1 ou valor fora da faixa viram AUSENTE. */
+export function escalaDoPinoParaGravar(escala: number | null): number | undefined {
+  return isPinEscala(escala) && escala !== 1 ? escala : undefined
+}
+
+/** Cor da cabeça como número `0xRRGGBB`, ou `null` = o latão de sempre. */
+export function corDoPino(pin: Pick<Pin, 'cor'>): number | null {
+  return parseHexColor(pin.cor)
 }
 
 /**
@@ -612,20 +689,27 @@ export function isPlayerSafePinImage(image: string | null): image is string {
  * `tolerance` para o dedo — no celular o alvo real é o dedo, não o desenho.
  * `sizeScale` é o mesmo fator do desenho (`pinSizeScale`): o alvo é o pino
  * como ele APARECE, crescido no zoom afastado, e não o de tamanho de mundo.
+ * `sizeFloor` é o piso do pino reduzido (`pinSizeFloor`), o mesmo do desenho.
  */
-export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin | null {
+export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1, sizeFloor = 0): Pin | null {
   for (let i = pins.length - 1; i >= 0; i--) {
-    if (pinHit(pins[i], point, tolerance, sizeScale)) return pins[i]
+    if (pinHit(pins[i], point, tolerance, sizeScale, sizeFloor)) return pins[i]
   }
   return null
 }
 
 /**
  * O ponto cai na cabeça ou na haste do pino (só na cabeça, sem haste), com a
- * folga `tolerance`. `sizeScale` é o fator do desenho (`pinSizeScale`): o pino
- * como ele APARECE.
+ * folga `tolerance`. `sizeScale` e `sizeFloor` são os do desenho
+ * (`fatorDoPino`): o pino como ele APARECE.
  */
-function pinHit(pin: Pin, point: RegionPoint, tolerance: number, sizeScale: number): boolean {
+function pinHit(pin: Pin, point: RegionPoint, rawTolerance: number, rawSizeScale: number, sizeFloor: number): boolean {
+  // Tamanho do pino (fatia 14): o alvo cresce e encolhe com o desenho. No pino
+  // menor que o de sempre a folga encolhe junto, senão ela passaria do teto de
+  // `PIN_TAP_MAX_HEAD_RADII` cabeças e abriria o pino tocando o chão ao lado.
+  const sizeScale = fatorDoPino(pin, rawSizeScale, sizeFloor)
+  const relativo = rawSizeScale > 0 ? sizeScale / rawSizeScale : escalaDoPino(pin)
+  const tolerance = rawTolerance * Math.min(1, relativo)
   const headRadius = PIN_HEAD_RADIUS * sizeScale
   const headOffset = PIN_HEAD_OFFSET * sizeScale
   const height = PIN_HEIGHT * sizeScale
@@ -645,14 +729,15 @@ function pinHit(pin: Pin, point: RegionPoint, tolerance: number, sizeScale: numb
  * centro da cabeça); no empate — dois pinos cravados no mesmo ponto — o de
  * cima primeiro, como em `findPinAt`. É o que deixa o toque do jogador
  * alcançar o pino de baixo: com um só, `findPinAt` escondia o outro para sempre.
- * `sizeScale` como em `findPinAt`.
+ * `sizeScale` e `sizeFloor` como em `findPinAt`.
  */
-export function findPinsAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin[] {
-  const headOffset = PIN_HEAD_OFFSET * sizeScale
+export function findPinsAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1, sizeFloor = 0): Pin[] {
   const hits: { pin: Pin; distance: number }[] = []
   for (let i = pins.length - 1; i >= 0; i--) {
     const pin = pins[i]
-    if (pinHit(pin, point, tolerance, sizeScale)) hits.push({ pin, distance: Math.hypot(point.x - pin.x, point.y - pin.y + headOffset) })
+    // A distância mede até o centro da cabeça DESTE pino, já no tamanho dele.
+    const headOffset = PIN_HEAD_OFFSET * fatorDoPino(pin, sizeScale, sizeFloor)
+    if (pinHit(pin, point, tolerance, sizeScale, sizeFloor)) hits.push({ pin, distance: Math.hypot(point.x - pin.x, point.y - pin.y + headOffset) })
   }
   // `sort` é estável: no empate fica a ordem de cima para baixo montada acima.
   return hits.sort((a, b) => a.distance - b.distance).map((hit) => hit.pin)

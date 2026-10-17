@@ -446,6 +446,21 @@ describe('createShapesRedrawer', () => {
     expect(take()).toEqual(['walls', 'stairs', 'lights', 'pins'])
   })
 
+  it('pino reduzido (escala 0,5): abaixo de ~94% o zoom repinta para ele não descer do piso de tela; bem perto, não', () => {
+    const { redraw, take } = setup()
+    const pino = { id: 'p1', x: 50, y: 50, kind: 'exclamacao' as const, description: '', image: null, escala: 0.5 }
+    const map = { ...buildMap(), pins: [pino] }
+    redraw(snapshot(map, { cameraScale: 4 }))
+    take()
+    redraw(snapshot(map, { cameraScale: 3 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights'])
+    // 0,8 e 0,6: o fator do zoom segue 1, mas o 0,5 ficaria abaixo do piso.
+    redraw(snapshot(map, { cameraScale: 0.8 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights', 'pins'])
+    redraw(snapshot(map, { cameraScale: 0.6 }))
+    expect(take()).toEqual(['walls', 'stairs', 'lights', 'pins'])
+  })
+
   it('filtro "Quem manda aqui": desligado nunca repinta; ligar pinta, e com ele ligado a sala movida repinta a facção', () => {
     const { redraw, take } = setup()
     const map = buildMap()

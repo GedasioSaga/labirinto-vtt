@@ -211,7 +211,7 @@ import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
-import { passageOf, pinKindChangePatch } from './lib/pins'
+import { corDoPinoParaGravar, escalaDoPino, escalaDoPinoParaGravar, passageOf, pinKindChangePatch } from './lib/pins'
 import { MINIGAME_PADRAO, type MinigameDoPino } from './minigames/danca/tipos'
 import type { DancaAoVivo } from './net/dancaNoHost'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
@@ -3873,6 +3873,14 @@ function App() {
               semHaste: selectedPin?.semHaste === true,
               onSemHasteChange: (semHaste) =>
                 selectedPin && useMapStore.getState().updatePin(selectedPin.id, { semHaste: semHaste ? true : undefined }),
+              // COR E TAMANHO (fatia 14): o padrão (latão, tamanho 1) grava
+              // AUSENTE, para o arquivo de um mapa antigo sair igual.
+              cor: selectedPin?.cor ?? null,
+              onCorChange: (cor) =>
+                selectedPin && useMapStore.getState().updatePin(selectedPin.id, { cor: corDoPinoParaGravar(cor) }),
+              escala: selectedPin ? escalaDoPino(selectedPin) : 1,
+              onEscalaChange: (escala) =>
+                selectedPin && useMapStore.getState().updatePin(selectedPin.id, { escala: escalaDoPinoParaGravar(escala) }),
               // FECHADURA COM SEGREDO: a combinação fica neste mapa; o host confere a tentativa.
               lock: selectedPin
                 ? {

@@ -4,7 +4,7 @@ import { drawingLayer, isLayerLocked, isLayerVisible, pinLayer, regionLayer, tok
 import { canInteract } from './itemTransform'
 import { isEditableTarget, type ShortcutEvent } from './keymap'
 import { pointsBoundingBox, tokenBoundingBox } from './objectTransform'
-import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, escalaDoPino, pinSummary } from './pins'
 import { pinFocusPoint } from './pinTravel'
 import { isStairPin } from './stairTravel'
 import { isPointInPolygon } from './selectionHitTest'
@@ -217,8 +217,11 @@ function doorEntry(map: MapData, wall: Wall, rooms: readonly NamedRoom[]): MapOb
  * o vão até a ponta é chão, e a caixa não pode pegar o que ninguém vê.
  */
 function pinBounds(pin: Pin): Bounds {
-  const bottom = pin.semHaste === true ? pin.y - PIN_HEAD_OFFSET + PIN_HEAD_RADIUS : pin.y
-  return { minX: pin.x - PIN_HEAD_RADIUS, minY: pin.y - PIN_HEIGHT, maxX: pin.x + PIN_HEAD_RADIUS, maxY: bottom }
+  // Tamanho do pino (fatia 14): a caixa cresce com o desenho e o toque.
+  const e = escalaDoPino(pin)
+  const raio = PIN_HEAD_RADIUS * e
+  const bottom = pin.semHaste === true ? pin.y - (PIN_HEAD_OFFSET - PIN_HEAD_RADIUS) * e : pin.y
+  return { minX: pin.x - raio, minY: pin.y - PIN_HEIGHT * e, maxX: pin.x + raio, maxY: bottom }
 }
 
 function pinEntry(map: MapData, pin: Pin): MapObjectEntry {

@@ -10,9 +10,12 @@ import {
   PIN_SYMBOLS,
   PIN_TRAVEL_SYMBOL,
   cleanPinName,
+  corDoPino,
+  fatorDoPino,
   isPinIcon,
   type PinSymbolShape,
 } from '../lib/pins'
+import { contraste } from '../lib/nomesDosLugares'
 import { SELECTION_COLOR } from './constants'
 
 export interface PinsRenderer {
@@ -25,6 +28,7 @@ export interface PinsRenderer {
    * `sizeScale`: quantas vezes o pino cresce no mundo para manter a altura
    * mínima de tela no zoom afastado (`pinSizeScale` de `lib/pins.ts`). O toque
    * tem de usar o MESMO fator em `findPinAt`, senão o alvo não é o desenho.
+   * `sizeFloor`: o piso do pino reduzido (`pinSizeFloor`), idem no toque.
    */
   draw: (
     container: Container,
@@ -32,6 +36,7 @@ export interface PinsRenderer {
     selectedId: string | null,
     unlinkedIds?: ReadonlySet<string>,
     sizeScale?: number,
+    sizeFloor?: number,
   ) => void
 }
 
@@ -89,11 +94,11 @@ const TRAVEL_LINE_UNLINKED = 0x8a8478
  * mais um `Text` por pino (ver o aviso de `TexturePool.returnTexture` no
  * cabeçalho deste arquivo).
  */
-function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: number, color: number, k: number): void {
+function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: number, color: number, k: number, alpha = 1): void {
   const raio = SYMBOL_RADIUS * k
   const px = (n: number) => cx + n * raio
   const py = (n: number) => cy + n * raio
-  const traco = { width: SYMBOL_WIDTH * k, color, cap: 'round', join: 'round' } as const
+  const traco = { width: SYMBOL_WIDTH * k, color, alpha, cap: 'round', join: 'round' } as const
 
   for (const stroke of shape.strokes) {
     const [primeiro, ...resto] = stroke.points
@@ -107,33 +112,79 @@ function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: nu
     graphics.circle(px(ring.x), py(ring.y), ring.r * raio).stroke(traco)
   }
   for (const dot of shape.dots ?? []) {
-    graphics.circle(px(dot.x), py(dot.y), dot.r * raio).fill({ color })
+    graphics.circle(px(dot.x), py(dot.y), dot.r * raio).fill({ color, alpha })
   }
 }
 
+/** Tinta clara do pino colorido escuro: a mesma letra clara do nome. */
+const PIN_INK_LIGHT = 0xe8e2d0
+
+/**
+ * Cores da cabeça cheia (marcador, alavanca, minigame). Sem `Pin.cor`, o latão
+ * de sempre com tinta e contorno escuros — exatamente o desenho de antes. Com
+ * cor, a tinta do glifo, do símbolo e do contorno é a escura ou a clara, a que
+ * contrastar mais com a cabeça: escuro some sobre cinza-chumbo, claro some
+ * sobre o pergaminho.
+ */
+interface CoresDaCabeca {
+  fill: number
+  ink: number
+}
+
+const CORES_DE_SEMPRE: CoresDaCabeca = { fill: PIN_FILL, ink: GLYPH_COLOR }
+
+function coresDaCabeca(pin: Pin): CoresDaCabeca {
+  const fill = corDoPino(pin)
+  if (fill === null) return CORES_DE_SEMPRE
+  const ink = contraste(fill, GLYPH_COLOR) >= contraste(fill, PIN_INK_LIGHT) ? GLYPH_COLOR : PIN_INK_LIGHT
+  return { fill, ink }
+}
+
+/** Cabeça cheia com contorno: no pino sem cor, o contorno escuro de sempre. */
+function drawFilledHead(graphics: Graphics, pin: Pin, headY: number, k: number, cores: CoresDaCabeca): void {
+  const contorno = cores === CORES_DE_SEMPRE ? PIN_OUTLINE : cores.ink
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: cores.fill }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: contorno })
+}
+
 /** Cabeça do marcador ("!" e "?"): latão com contorno escuro e, se escolhido, o símbolo em traço escuro. */
-function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: PIN_OUTLINE })
-  if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, GLYPH_COLOR, k)
+function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number, k: number, cores: CoresDaCabeca): void {
+  drawFilledHead(graphics, pin, headY, k, cores)
+  if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, cores.ink, k)
 }
 
 /** Cabeça da alavanca: a mesma de latão do marcador, com a alavanca em traço escuro no lugar do glifo. */
-function drawLeverHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: PIN_OUTLINE })
-  drawShape(graphics, PIN_LEVER_SYMBOL, pin.x, headY, GLYPH_COLOR, k)
+function drawLeverHead(graphics: Graphics, pin: Pin, headY: number, k: number, cores: CoresDaCabeca): void {
+  drawFilledHead(graphics, pin, headY, k, cores)
+  drawShape(graphics, PIN_LEVER_SYMBOL, pin.x, headY, cores.ink, k)
 }
 
 /** Cabeça do minigame: a mesma de latão, com o controle em traço escuro no lugar do glifo. */
-function drawControleHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: PIN_OUTLINE })
-  drawShape(graphics, PIN_CONTROLE_SYMBOL, pin.x, headY, GLYPH_COLOR, k)
+function drawControleHead(graphics: Graphics, pin: Pin, headY: number, k: number, cores: CoresDaCabeca): void {
+  drawFilledHead(graphics, pin, headY, k, cores)
+  drawShape(graphics, PIN_CONTROLE_SYMBOL, pin.x, headY, cores.ink, k)
 }
 
-/** Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada quando não tem par. */
+/**
+ * Passagem COLORIDA sem par: a própria cor, a meia opacidade. O mestre vê a cor
+ * que escolheu e ainda lê "não leva a lugar nenhum" pelo apagado.
+ */
+const TRAVEL_UNLINKED_ALPHA = 0.5
+
+/**
+ * Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada
+ * quando não tem par. A COR do pino pinta a linha, não a cabeça: o negativo é
+ * o que lê "passagem" ao lado dos marcadores. Sem par, o pino sem cor troca a
+ * tinta pelo cinza de sempre; o colorido mantém a cor e apaga por opacidade.
+ */
 function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean, k: number): void {
-  const linha = unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: TRAVEL_HEAD_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: linha })
-  drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha, k)
+  const cor = corDoPino(pin)
+  const linha = cor ?? (unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE)
+  const alpha = unlinked && cor !== null ? TRAVEL_UNLINKED_ALPHA : 1
+  graphics
+    .circle(pin.x, headY, PIN_HEAD_RADIUS * k)
+    .fill({ color: TRAVEL_HEAD_FILL })
+    .stroke({ width: PIN_OUTLINE_WIDTH * k, color: linha, alpha })
+  drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha, k, alpha)
 }
 
 /** Traço do aro da chegada oculta: metade do contorno normal, fino como a parede do minimapa. */
@@ -148,8 +199,10 @@ const ARRIVAL_DOT_RADIUS = PIN_HEAD_RADIUS * 0.22
  * mestre sabe de relance que este pino não existe para o jogador.
  */
 function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).stroke({ width: ARRIVAL_RING_WIDTH * k, color: TRAVEL_LINE })
-  graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS * k).fill({ color: TRAVEL_LINE })
+  // Vazada continua vazada: a cor do pino pinta o aro e o ponto.
+  const linha = corDoPino(pin) ?? TRAVEL_LINE
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).stroke({ width: ARRIVAL_RING_WIDTH * k, color: linha })
+  graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS * k).fill({ color: linha })
 }
 
 /** O nome do mestre: letra pequena e clara, a da parede do minimapa — rótulo, não chamariz. */
@@ -173,11 +226,13 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
   const showNames = options.showNames === true
   const graphics = new Graphics()
   const glyphs = new Map<string, Text>()
+  /** Tinta com que cada glifo foi pintado por último (nasce `GLYPH_COLOR`). */
+  const glyphInk = new Map<string, number>()
   // Mesma regra dos glifos: um `Text` por id, nunca destruído (só invisível).
   const names = new Map<string, Text>()
 
   /** O nome ao lado da cabeça, à direita e na altura dela; sem nome, o rótulo some. */
-  function drawName(container: Container, pin: Pin, headY: number, k: number): void {
+  function drawName(container: Container, pin: Pin, headY: number, k: number, kp: number): void {
     const nome = showNames ? cleanPinName(pin.nome) : ''
     let label = names.get(pin.id)
     if (nome === '') {
@@ -192,7 +247,9 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
     if (label.parent !== container) container.addChild(label)
     label.text = nome
     // Cresce junto com o pino (`sizeScale`): senão a cabeça maior cobre o nome.
-    label.position.set(pin.x + (PIN_HEAD_RADIUS + NAME_GAP) * k, headY)
+    // O tamanho do pino (`kp`, fatia 14) afasta o nome da cabeça maior, mas a
+    // letra segue a do zoom: rótulo, não chamariz.
+    label.position.set(pin.x + (PIN_HEAD_RADIUS + NAME_GAP) * kp, headY)
     label.scale.set(k)
     label.visible = true
   }
@@ -203,6 +260,7 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
     selectedId: string | null,
     unlinkedIds?: ReadonlySet<string>,
     sizeScale = 1,
+    sizeFloor = 0,
   ): void {
     if (graphics.parent !== container) container.addChildAt(graphics, 0)
     graphics.clear()
@@ -218,11 +276,15 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
     }
 
     for (const pin of pins) {
-      const headY = pin.y - PIN_HEAD_OFFSET * k
+      // Tamanho do pino (fatia 14): o fator do zoom vezes a escala DESTE pino
+      // (1 no pino sem escala, e o desenho fica exatamente o de antes), sem o
+      // reduzido descer do piso de tela.
+      const kp = fatorDoPino(pin, k, sizeFloor)
+      const headY = pin.y - PIN_HEAD_OFFSET * kp
       if (pin.id === selectedId) {
         graphics
-          .circle(pin.x, headY, (PIN_HEAD_RADIUS + SELECTED_RING_GAP) * k)
-          .stroke({ width: SELECTED_RING_WIDTH * k, color: SELECTION_COLOR })
+          .circle(pin.x, headY, (PIN_HEAD_RADIUS + SELECTED_RING_GAP) * kp)
+          .stroke({ width: SELECTED_RING_WIDTH * kp, color: SELECTION_COLOR })
       }
       // Haste: da ponta cravada até o meio da cabeça, para a gota ler como uma peça só.
       // O pino "só o círculo" (`semHaste`) pula a haste e NADA mais muda: a
@@ -232,8 +294,8 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       if (pin.semHaste !== true) {
         graphics
           .moveTo(pin.x, pin.y)
-          .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * k)
-          .stroke({ width: (PIN_OUTLINE_WIDTH + 2) * k, color: PIN_OUTLINE, cap: 'round' })
+          .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * kp)
+          .stroke({ width: (PIN_OUTLINE_WIDTH + 2) * kp, color: PIN_OUTLINE, cap: 'round' })
       }
 
       // Com símbolo (escolhido, ou a passagem do pino de viagem), é ELE que
@@ -243,12 +305,13 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       const alavanca = pin.kind === 'alavanca'
       const minigame = pin.kind === 'minigame'
       const comSimbolo = viagem || alavanca || minigame || isPinIcon(pin.icon)
-      if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY, k)
-      else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true, k)
-      else if (alavanca) drawLeverHead(graphics, pin, headY, k)
-      else if (minigame) drawControleHead(graphics, pin, headY, k)
-      else drawMarkerHead(graphics, pin, headY, k)
-      drawName(container, pin, headY, k)
+      const cores = coresDaCabeca(pin)
+      if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY, kp)
+      else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true, kp)
+      else if (alavanca) drawLeverHead(graphics, pin, headY, kp, cores)
+      else if (minigame) drawControleHead(graphics, pin, headY, kp, cores)
+      else drawMarkerHead(graphics, pin, headY, kp, cores)
+      drawName(container, pin, headY, k, kp)
 
       let glyph = glyphs.get(pin.id)
       if (!glyph) {
@@ -259,11 +322,19 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
         })
         glyph.anchor.set(0.5)
         glyphs.set(pin.id, glyph)
+        glyphInk.set(pin.id, GLYPH_COLOR)
       }
       if (glyph.parent !== container) container.addChild(glyph)
       glyph.text = PIN_GLYPH[pin.kind]
+      // A tinta do glifo segue a cor da cabeça. O `Text` é o mesmo de sempre
+      // (nunca recriado, ver o cabeçalho): troca-se só o `fill`, e só quando
+      // muda, para não refazer a textura a cada desenho.
+      if (glyphInk.get(pin.id) !== cores.ink) {
+        glyph.style.fill = cores.ink
+        glyphInk.set(pin.id, cores.ink)
+      }
       glyph.position.set(pin.x, headY)
-      glyph.scale.set(k)
+      glyph.scale.set(kp)
       glyph.visible = !comSimbolo
     }
   }

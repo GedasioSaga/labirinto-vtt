@@ -204,7 +204,7 @@ import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
-import { findPinAt, pinKindAfterShortcut, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -1951,12 +1951,14 @@ export function PixiCanvas({
        */
       const paintPins = () => {
         const { map, selectedPinId } = sceneState()
+        // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
         pinsRenderer.draw(
           pinsContainer,
           visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
           selectedPinId,
           unlinkedTravelPinIds(useAdventureStore.getState(), map),
           pinSizeScale(camera.scale),
+          pinSizeFloorFor(map.pins, camera.scale),
         )
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
@@ -4039,7 +4041,7 @@ export function PixiCanvas({
         if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
         const clickable = visiblePins(doPisoEmEdicao(map).pins, map.hiddenLayers).filter((pin) => !pin.hidden)
         // O alvo é o pino como aparece: crescido no zoom afastado, com a folga limitada ao tamanho dele.
-        return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale))
+        return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
       }
 
       /**

@@ -142,6 +142,20 @@ const BLOCKED_MOVE_TOAST_MS = 8000
 /** A textura que a ferramenta Texturas escolhe quando a escolhida some (a mais usada no continente). */
 const TEXTURA_ESCOLHIDA_PADRAO = 'floresta'
 
+/**
+ * Chave de agrupamento do desfazer para o patch do pino que vem de um ARRASTO:
+ * o deslizante "Tamanho" e o seletor nativo de "Outra cor…" mudam o valor a
+ * cada passo, e cada passo viraria um Ctrl+Z. Patch só de escala (ou só de
+ * cor) do mesmo pino, em sequência, é um passo só; qualquer outro, um por mudança.
+ */
+function chaveDoArrastoDoPino(id: string, patch: object): string | undefined {
+  const campos = Object.keys(patch)
+  if (campos.length !== 1) return undefined
+  if (campos[0] === 'escala') return `pin-escala:${id}`
+  if (campos[0] === 'cor') return `pin-cor:${id}`
+  return undefined
+}
+
 /** A textura existe para ESTA cena: da biblioteca (ou do pacote que este aparelho tem) ou importada nela. */
 function texturaNaCena(map: MapData, id: string): boolean {
   return texturaDoCatalogo(id) !== null || (map.texturasImportadas ?? []).some((t) => t.id === id)
@@ -1083,7 +1097,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'minigame' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'semHaste' | 'cor' | 'escala' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'minigame' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
   ) => void
   /**
    * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
@@ -2577,7 +2591,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
-      withHistory((map) => mapFactory.updatePin(map, id, patch))
+      withHistory((map) => mapFactory.updatePin(map, id, patch), chaveDoArrastoDoPino(id, patch))
     },
     pullLever: (pinId) => {
       if (pullLever(get().map, pinId) === get().map) return

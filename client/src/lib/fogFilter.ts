@@ -19,7 +19,7 @@ import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
-import { blockReasonOf, isPinIcon, isPinReadDistance, isPlayerSafePinImage, passageOf } from './pins'
+import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
@@ -4490,6 +4490,8 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  * - `semHaste` ("só o círculo") VAI, e só `true`: é a forma do pino, e o
  *   jogador desenha e toca o pino com o mesmo renderer e o mesmo `findPinAt`
  *   do mestre. Não diz nada da cena.
+ * - `cor` e `escala` (fatia 14) VÃO, só hex válido e só escala na faixa: o
+ *   mesmo motivo do `semHaste`.
  */
 function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean, oneWay?: ReadonlySet<string>): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
@@ -4522,6 +4524,11 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // Só o círculo: o mapa do jogador tira a haste igual ao do mestre. Só `true`
   // atravessa — valor torto de arquivo editado à mão fica no host.
   if (pin.semHaste === true) forPlayer.semHaste = true
+  // Cor e tamanho (fatia 14): forma do pino, como o "só o círculo". Só valor
+  // válido atravessa; o renderer do jogador ainda limita o que chega.
+  const cor = normalizarCorDoPino(pin.cor)
+  if (cor !== undefined) forPlayer.cor = cor
+  if (isPinEscala(pin.escala) && pin.escala !== 1) forPlayer.escala = pin.escala
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret

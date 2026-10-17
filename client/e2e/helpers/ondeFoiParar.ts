@@ -98,7 +98,8 @@ const OBJETO_COMUM: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oc
 const TRANSICAO = (titulo: string): Alvo[] => [['heading', titulo], b('Nenhuma Chega direto'), b('Procurar animações novas')]
 // FICHA DO PINO (fatia 12): o essencial à vista, a aparência na ficha recolhida e os recursos pelo "+ Adicionar ao pino".
 const PINO_ESSENCIAL: Alvo[] = [rg('Tipo do pino'), ['textbox', 'Nome do local'], ['textbox', 'Descrição · o jogador lê'], cx('Oculto para jogadores'), cx('Marco: todos veem'), cx('Ler só de perto')]
-const PINO_APARENCIA: Alvo[] = [cx('Só o círculo, sem haste'), cx('Travado'), b('Escolher imagem...')]
+// COR E TAMANHO DO PINO (fatia 14): a paleta com "Outra cor…" e "Cor padrão", e o deslizante com o "Padrão" dele.
+const PINO_APARENCIA: Alvo[] = [rg('Cor do pino'), ['textbox', 'Outra cor…'], b('Cor padrão'), ['slider', 'Tamanho'], b('Tamanho padrão'), cx('Só o círculo, sem haste'), cx('Travado'), b('Escolher imagem...')]
 // ANIMAÇÃO DO CENÁRIO (fatia 13): as câmeras só de ícone (o nome vai no leitor de tela) e os efeitos que ligam e desligam.
 const CENARIO_CAMERAS = ['De baixo para cima', 'De cima para baixo', 'Da esquerda para a direita', 'Da direita para a esquerda', 'Aproximar']
 const CENARIO_EFEITOS = ['Névoa', 'Raios de sol', 'Partículas', 'Som do vento']

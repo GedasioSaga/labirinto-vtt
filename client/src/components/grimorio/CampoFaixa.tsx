@@ -10,6 +10,8 @@ export interface CampoFaixaProps {
   passo?: number
   /** Unidade depois do número ("%", "px"). */
   unidade?: string
+  /** Texto do valor (no `<output>` e no `aria-valuetext`); manda mais que a `unidade` ("1,5x"). */
+  formatar?: (valor: number) => string
 }
 
 /**
@@ -17,9 +19,9 @@ export interface CampoFaixaProps {
  * PageUp/PageDown e Home/End já andam pelo teclado e o valor muda durante o
  * arrasto, não só ao soltar. O número aparece à direita do rótulo.
  */
-export function CampoFaixa({ rotulo, valor, onChange, min, max, passo = 1, unidade }: CampoFaixaProps) {
+export function CampoFaixa({ rotulo, valor, onChange, min, max, passo = 1, unidade, formatar }: CampoFaixaProps) {
   const id = useId()
-  const texto = unidade ? `${valor} ${unidade}` : String(valor)
+  const texto = formatar ? formatar(valor) : unidade ? `${valor} ${unidade}` : String(valor)
   return (
     <div className="gr-campo">
       <div className="gr-campo__rot">

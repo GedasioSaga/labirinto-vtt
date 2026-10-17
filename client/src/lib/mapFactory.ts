@@ -2099,7 +2099,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'minigame' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'semHaste' | 'cor' | 'escala' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'passe' | 'mudo' | 'motivo' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada' | 'minigame' | 'marco' | 'lerDePerto' | 'segredo' | 'colecao' | 'loja' | 'daVista' | 'transicao' | 'cenario'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -2118,6 +2118,9 @@ export function updatePin(
     // Sem haste: opcional, só `true` liga. Desligar o que nunca foi ligado
     // (`undefined` sobre ausente) não é mudança.
     next.semHaste === pin.semHaste &&
+    // Cor e tamanho (fatia 14): opcionais; voltar ao padrão o que já era padrão não é mudança.
+    next.cor === pin.cor &&
+    next.escala === pin.escala &&
     next.description === pin.description &&
     // Nome só do mestre: opcional, `undefined` = sem nome.
     next.nome === pin.nome &&

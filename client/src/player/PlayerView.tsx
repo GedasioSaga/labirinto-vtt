@@ -21,7 +21,7 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { visionSegments } from '../lib/visibility'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { findStairPinAt } from '../lib/selectionHitTest'
-import { findPinAt, findPinsAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { findPinAt, findPinsAt, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
 import { itemNoChaoNoPonto } from '../lib/itemNoMapa'
@@ -1167,6 +1167,8 @@ interface Scene {
   marksKey: ContentKey
   /** Fator de tamanho mínimo com que os pinos foram pintados por último (`pinSizeScale`). */
   pinsSizeScale: number
+  /** Piso do pino reduzido com que os pinos foram pintados por último (`pinSizeFloor`). */
+  pinsSizeFloor: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -2167,7 +2169,7 @@ function PlayerViewDoCanvas({
     // O pino à vista (no tamanho desenhado) ou, no lance de uma escada que leva a outro
     // andar, o pino invisível dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
     const pin =
-      findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale)) ??
+      findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale), pinSizeFloor(scale)) ??
       findStairPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scale)
     return pin === null ? null : pin.id
   }
@@ -2213,15 +2215,28 @@ function PlayerViewDoCanvas({
    */
   function paintPins(scene: Scene, pins: readonly Pin[]): void {
     const sizeScale = pinSizeScale(scene.camera.scale)
+    const sizeFloor = pinSizeFloorFor(pins, scene.camera.scale)
     scene.pinsSizeScale = sizeScale
-    scene.pinsRenderer.draw(scene.pins, pins, null, undefined, sizeScale)
+    scene.pinsSizeFloor = sizeFloor
+    scene.pinsRenderer.draw(scene.pins, pins, null, undefined, sizeScale, sizeFloor)
   }
 
-  /** Zoom: os pinos só repintam quando o fator de tamanho mínimo muda (de perto ele é sempre 1). */
+  /**
+   * Os pinos pintados já não servem a este zoom: mudou o fator de tamanho
+   * mínimo (de perto ele é sempre 1) ou o piso do pino reduzido (sem pino
+   * reduzido ele é sempre 0; de perto, sempre `PIN_ESCALA_MIN`).
+   */
+  function pinsForaDoZoom(scene: Scene, pins: readonly Pin[]): boolean {
+    const scale = scene.camera.scale
+    return pinSizeScale(scale) !== scene.pinsSizeScale || pinSizeFloorFor(pins, scale) !== scene.pinsSizeFloor
+  }
+
+  /** Zoom: os pinos só repintam quando o tamanho deles na tela muda (`pinsForaDoZoom`). */
   function redrawPinsForZoom(scene: Scene): void {
-    if (pinSizeScale(scene.camera.scale) === scene.pinsSizeScale) return
     const map = latestRef.current.map
-    paintPins(scene, visiblePins(map.pins ?? [], map.hiddenLayers))
+    const pins = visiblePins(map.pins ?? [], map.hiddenLayers)
+    if (!pinsForaDoZoom(scene, pins)) return
+    paintPins(scene, pins)
   }
 
   /**
@@ -2234,7 +2249,13 @@ function PlayerViewDoCanvas({
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
     const scale = scene.camera.scale
-    const ids = findPinsAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale)).map(
+    const ids = findPinsAt(
+      visiblePins(map.pins ?? [], map.hiddenLayers),
+      point,
+      pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale),
+      pinSizeScale(scale),
+      pinSizeFloor(scale),
+    ).map(
       (pin) => pin.id,
     )
     // O pino invisível da escada que leva a outro andar entra por último, como em `pinAtScreen`.
@@ -2505,7 +2526,7 @@ function PlayerViewDoCanvas({
     const pins = visiblePins(currentMap.pins ?? [], hidden)
     // Antes do `||`: o portão dos pinos guarda o que viu mesmo quando o zoom já pede a repintura.
     const pinsChanged = contentChanged(scene.pinsKey, [currentMap.pins, hidden], () => JSON.stringify(pins))
-    if (pinsChanged || pinSizeScale(scene.camera.scale) !== scene.pinsSizeScale) paintPins(scene, pins)
+    if (pinsChanged || pinsForaDoZoom(scene, pins)) paintPins(scene, pins)
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
     // destruído antes de ser renderizado (3 redraws por movimento: otimista,
@@ -3075,6 +3096,7 @@ function PlayerViewDoCanvas({
         marks,
         marksKey: emptyContentKey(),
         pinsSizeScale: 1,
+        pinsSizeFloor: 0,
         concealed,
         lastConcealed: null,
         concealedCount: 0,

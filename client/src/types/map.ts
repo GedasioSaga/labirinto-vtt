@@ -850,6 +850,21 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   semHaste?: true
   /**
+   * COR DO PINO (fatia 14): pinta a cabeça (`#rrggbb`, minúsculo). O glifo, o
+   * símbolo e o contorno trocam sozinhos para tinta clara ou escura pelo
+   * contraste (`pixi/drawPins.ts`). Ausente = o latão de sempre, sem migração.
+   * O disco só aceita hex válido (`lib/mapFile.ts`). VAI ao jogador
+   * (`lib/fogFilter.ts`): é forma, não conta nada da cena.
+   */
+  cor?: string
+  /**
+   * TAMANHO DO PINO (fatia 14): multiplica o desenho e o toque, de 0,5 a 3
+   * (`PIN_ESCALA_MIN`/`PIN_ESCALA_MAX`, `lib/pins.ts`). A ponta continua em
+   * `x`/`y`. Ausente = 1, o tamanho de sempre; o disco grava só valor na faixa
+   * e diferente de 1. VAI ao jogador, como a cor.
+   */
+  escala?: number
+  /**
    * SÓ NO RECORTE DO JOGADOR: o pino é "só de perto" e a ficha dele está
    * longe, então a descrição e a imagem ficaram no host. O cartão diz "Chegue
    * mais perto para ler". O mestre nunca grava este campo.
