@@ -52,10 +52,14 @@ export function DrawingStyleControls({
   fontFamily,
   onFontFamilyChange,
   showFontSize,
-}: DrawingStyleControlsProps) {
+  semTitulo = false,
+}: DrawingStyleControlsProps & {
+  /** No essencial da ficha do desenho (fatia 16b): sem o título, que a ficha põe só para o leitor de tela. */
+  semTitulo?: boolean
+}) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">{target === 'selected' ? 'Estilo do desenho selecionado' : 'Estilo de desenho'}</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">{target === 'selected' ? 'Estilo do desenho selecionado' : 'Estilo de desenho'}</h2>}
 
       <div className="lb-section__row">
         <label className="lb-label" htmlFor="lb-draw-color">

@@ -586,7 +586,7 @@ Parte de: parede selecionada no mapa. Vai para: Página Ficha da parede: Cor, Es
 
 ### Ficha da escada
 
-Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada (Comprimento, Largura e Curva na ficha; alças no mapa). Fatia: 16b e 17.
+Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17). Fatia: 16b e 17.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -600,15 +600,15 @@ Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada (Comprim
 | Diminuir a largura | button "Diminuir a largura" | (livro do mestre) | (do bloco) |
 | Aumentar a largura | button "Aumentar a largura" | (livro do mestre) | (do bloco) |
 | Curva | slider "Curva" | (livro do mestre) | (do bloco) |
-| Leva a | combobox "Leva a" | (livro do mestre) | (do bloco) |
-| Passagem da escada | radiogroup "Passagem da escada" | (livro do mestre) | (do bloco) |
-| Criar andar de cima | button "Criar andar de cima" | (livro do mestre) | (do bloco) |
-| Piso | spinbutton "Piso" | (livro do mestre) | (do bloco) |
-| Leva ao piso | spinbutton "Leva ao piso" | (livro do mestre) | (do bloco) |
-| Transição ao trocar de piso | heading "Transição ao trocar de piso" | (livro do mestre) | (do bloco) |
-| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Leva a | combobox "Leva a" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Passagem da escada | radiogroup "Passagem da escada" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Criar andar de cima | button "Criar andar de cima" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Piso | spinbutton "Piso" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Leva ao piso | spinbutton "Leva ao piso" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Transição ao trocar de piso | heading "Transição ao trocar de piso" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
 
 ### Ficha da sala
 
@@ -653,19 +653,20 @@ Parte de: sala selecionada no mapa. Vai para: Página Ficha da sala: Sala, O que
 
 ### Ficha da região (não sala)
 
-Parte de: região selecionada no mapa. Vai para: Página Ficha, gramática nova. Fatia: 16b.
+Parte de: região selecionada no mapa. Vai para: Página Ficha da região: Cor, Hachurado, Preenchido e Avançado no essencial (a Aparência da sala); Trava aberta; Gatilho fechada (feito). Fatia: 16b.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
 | Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
 | Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
-| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
+| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) > clicar button "Avançado" | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) > clicar button "/^Trava/" | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) > clicar button "/^Trava/" | (do bloco) |
+| Gatilho da área | radiogroup "Gatilho da área" | (livro do mestre) > clicar button "/^Gatilho/" | (do bloco) |
 
 ### Ficha da luz
 
@@ -827,23 +828,36 @@ Parte de: objeto "m-tapete" selecionado no mapa. Vai para: Página Ficha do obje
 
 ### Ficha do desenho
 
-Parte de: linha desenhada selecionada. Vai para: Página Ficha, gramática nova (Endireitar no "Mais ações"). Fatia: 16b.
+Parte de: linha desenhada selecionada. Vai para: Página Ficha do desenho: Cor, Espessura, Formato da linha e Oculto no essencial; Traço e Paredes fechadas; Endireitar no "Mais ações" (feito). Fatia: 16b.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Endireitar | menuitem "Endireitar" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (feito, fatia 8) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
-| Paredes ao redor | checkbox "Paredes ao redor" | (livro do mestre) | (do bloco) |
+| Formato da linha | radiogroup "Formato da linha" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+| Estilo do traço | radiogroup "Estilo do traço" | (livro do mestre) > clicar button "/^Traço/" | (do bloco) |
+| Ponta da linha | radiogroup "Ponta da linha" | (livro do mestre) > clicar button "/^Traço/" | (do bloco) |
+| Paredes ao redor | checkbox "Paredes ao redor" | (livro do mestre) > clicar button "/^Paredes/" | (do bloco) |
 
-### Ficha do texto
+### Ficha do caminho
 
-Parte de: texto selecionado. Vai para: Página Ficha, gramática nova. Fatia: 16b.
+Parte de: caminho selecionado. Vai para: Página Ficha do desenho, variante do caminho: Cor, Espessura e Oculto no essencial, sem Paredes (feito). Fatia: 16b.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Rótulo de texto | heading "Rótulo de texto" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
+| Espessura | slider "Espessura" | (livro do mestre) | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
+
+### Ficha do texto
+
+Parte de: texto selecionado. Vai para: Página Ficha do texto: o campo do texto (com nome, "Texto"), Cor, Tamanho da fonte, Fonte e Oculto no essencial (feito). Fatia: 16b.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Texto | textbox "Texto" | (livro do mestre) | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Tamanho da fonte | slider "Tamanho da fonte" | (livro do mestre) | (do bloco) |
 | Fonte | combobox "Fonte" | (livro do mestre) | (do bloco) |
@@ -851,12 +865,25 @@ Parte de: texto selecionado. Vai para: Página Ficha, gramática nova. Fatia: 16
 
 ### Ficha da peça de chão
 
-Parte de: peça de chão selecionada. Vai para: Página Ficha, gramática nova. Fatia: 16b.
+Parte de: peça de chão (retângulo) selecionada. Vai para: Página Ficha da peça de chão: Travar, Operação e Cor no essencial; Medidas aberta; Borda e Ordem fechadas (feito). Fatia: 16b.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Apagar peça de chão selecionada | button "Apagar peça de chão selecionada" | (livro do mestre) | (do bloco) |
 | Mais ações | button "Mais ações" | (livro do mestre) | (do bloco) |
+| Travar peça | checkbox "Travar peça" | (livro do mestre) | (do bloco) |
+| Operação da peça de chão | radiogroup "Operação da peça de chão" | (livro do mestre) | (do bloco) |
+| Cor desta peça | textbox "Cor desta peça" | (livro do mestre) | (do bloco) |
+| Centro X (px) | spinbutton "Centro X (px)" | (livro do mestre) > clicar button "/^Medidas/" | (do bloco) |
+| Centro Y (px) | spinbutton "Centro Y (px)" | (livro do mestre) > clicar button "/^Medidas/" | (do bloco) |
+| Largura (px) | spinbutton "Largura (px)" | (livro do mestre) > clicar button "/^Medidas/" | (do bloco) |
+| Altura (px) | spinbutton "Altura (px)" | (livro do mestre) > clicar button "/^Medidas/" | (do bloco) |
+| Rotação (graus) | spinbutton "Rotação (graus)" | (livro do mestre) > clicar button "/^Medidas/" | (do bloco) |
+| Arredondar (px) | spinbutton "Arredondar (px)" | (livro do mestre) > clicar button "/^Borda/" | (do bloco) |
+| Borda irregular | checkbox "Borda irregular" | (livro do mestre) > clicar button "/^Borda/" | (do bloco) |
+| Descer | button "Descer" | (livro do mestre) > clicar button "/^Ordem/" | (do bloco) |
+| Subir | button "Subir" | (livro do mestre) > clicar button "/^Ordem/" | (do bloco) |
+| Apagar peça de chão | button "Apagar peça de chão" | (livro do mestre) > clicar button "/^Ordem/" | (do bloco) |
 
 ### Ficha da zona oculta
 
@@ -1146,5 +1173,9 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Item no chão (essencial da ficha do objeto: Nome do item, Quantidade, Pega sem pedir ao mestre) | só com objeto que é item pegável (o estado de teste não tem); ItemNoMapaControls.test.tsx cobre os campos. Desde a fatia 16a o item fica no essencial, e "No mapa" (aberta) segue com Rotação, Travado, Oculto e Camada |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
+| Ficha do desenho (fatia 16b): Preenchido e Opacidade da forma (retângulo, elipse) no essencial; com "Paredes ao redor" ligado, Aparência das paredes, cor, Passagem pelas paredes e Soltar, na ficha Paredes | o estado de teste só tem a linha dr1, com as paredes desligadas; FichasDosItens16b.test.tsx cobre a forma e ParedesAoRedorControls.test.tsx cobre as paredes ligadas |
+| Ficha da peça de chão (fatia 16b): Voltar à cor do chão, os campos da Borda irregular ligada (Intensidade, Tamanho do dente, Semente) e as medidas das outras formas (raios, Lados, largura em cada ponto, vértices; blocos sem Rotação) | o estado de teste só tem o retângulo f1, sem cor própria nem borda irregular; FichasDosItens16b.test.tsx cobre a cor própria e a borda irregular |
+| Ficha da região (fatia 16b): "Mostrar aos jogadores", na ficha Gatilho | só aparece com um gatilho escolhido (a região r1 não tem); AreaTriggerControls.test.tsx cobre |
+| Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 636 controles em 68 blocos.
+Total: 656 controles em 69 blocos.

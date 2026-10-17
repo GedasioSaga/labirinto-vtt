@@ -15,6 +15,11 @@ export interface PisoControlsProps {
   pisoAtivo?: number
   /** Só na escada que liga pisos: "Editar o 1º piso" leva o editor ao outro lado dela. */
   onEditarPiso?: (piso: number) => void
+  /**
+   * Dentro da ficha "Para onde leva" da escada: a ficha já tem título, então o
+   * h2 "Piso" sai (o campo segue rotulado "Piso"). Ausente = o título de antes.
+   */
+  semTitulo?: boolean
 }
 
 export const PISO_HINT = 'O jogador vê só o piso da ficha dele. 0 é o térreo; negativo, subsolo.'
@@ -77,7 +82,7 @@ function CampoDePiso({ label, value, podeFicarVazio, describedBy, onCommit }: Ca
  * o piso a que ela leva. Efeito imediato, com Ctrl+Z (quem grava passa por
  * `withHistory`). Plano em `docs/planos/pisos-na-mesma-cena.md`.
  */
-export function PisoControls({ piso, onPisoChange, levaAoPiso, onLevaAoPisoChange, pisoAtivo, onEditarPiso }: PisoControlsProps) {
+export function PisoControls({ piso, onPisoChange, levaAoPiso, onLevaAoPisoChange, pisoAtivo, onEditarPiso, semTitulo = false }: PisoControlsProps) {
   const hintId = useId()
   const levaHintId = useId()
   const escada = levaAoPiso !== undefined && onLevaAoPisoChange !== undefined
@@ -85,7 +90,7 @@ export function PisoControls({ piso, onPisoChange, levaAoPiso, onLevaAoPisoChang
   const outroLado = levaAoPiso === undefined || levaAoPiso === null || levaAoPiso === piso ? null : pisoAtivo === levaAoPiso ? piso : levaAoPiso
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Piso</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Piso</h2>}
       <CampoDePiso
         label="Piso"
         value={piso}

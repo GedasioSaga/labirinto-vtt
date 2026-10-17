@@ -21,7 +21,7 @@ export interface FloorPieceControlsProps {
   onRemove: () => void
 }
 
-const SHAPE_TITLES: Record<FloorShape['kind'], string> = {
+export const SHAPE_TITLES: Record<FloorShape['kind'], string> = {
   rect: 'Retângulo',
   ellipse: 'Elipse',
   polygon: 'Polígono regular',
@@ -149,11 +149,15 @@ function ShapeFields({ shape, onShapeChange }: { shape: FloorShape; onShapeChang
   }
 }
 
+/** Trechos da ficha da peça de chão (fatia 16b). Ausente, a seção inteira de antes. */
+export type ParteDaPecaDeChao = 'essencial' | 'medidas' | 'borda' | 'ordem'
+
 /**
  * Peça de chão SELECIONADA: operação, medidas da forma, rotação, arredondar,
  * borda irregular, ordem e apagar. Toda edição passa por `onChange` com
  * histórico (`updateFloorPiece`) — mesmo contrato de campo numérico de
- * `StairControls` (1 entrada de undo por valor digitado).
+ * `StairControls` (1 entrada de undo por valor digitado). Com `parte`, só o
+ * trecho daquela ficha da peça de chão, sem o título (fatia 16b).
  */
 export function FloorPieceControls({
   piece,
@@ -164,8 +168,11 @@ export function FloorPieceControls({
   onChange,
   onReorder,
   onRemove,
-}: FloorPieceControlsProps) {
+  parte,
+}: FloorPieceControlsProps & { parte?: ParteDaPecaDeChao }) {
   const noise = piece.modifiers.noise
+  // Sem `parte`, tudo, na ordem de sempre; com ela, só os campos daquele trecho.
+  const mostra = (trecho: ParteDaPecaDeChao) => parte === undefined || parte === trecho
 
   const setNoiseEnabled = (enabled: boolean) => {
     const modifiers = { ...piece.modifiers }
@@ -180,108 +187,124 @@ export function FloorPieceControls({
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Peça de chão · {SHAPE_TITLES[piece.shape.kind]}</h2>
+      {parte === undefined && <h2 className="lb-eyebrow">Peça de chão · {SHAPE_TITLES[piece.shape.kind]}</h2>}
 
       {/* Travada, a peça não arrasta nem responde ao clique no mapa; destrava
           aqui ou pelo cadeado em "Camadas do chão". */}
-      <Toggle label="Travar peça" checked={piece.locked === true} onChange={(checked) => onChange({ locked: checked || undefined })} />
+      {mostra('essencial') && (
+        <Toggle label="Travar peça" checked={piece.locked === true} onChange={(checked) => onChange({ locked: checked || undefined })} />
+      )}
 
-      <div className="lb-field">
-        <span className="lb-label">Operação</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Operação da peça de chão">
-          {OP_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={piece.op === option.value}
-              className="lb-seg__option"
-              onClick={() => onChange({ op: option.value })}
-            >
-              {option.label}
-            </button>
-          ))}
+      {mostra('essencial') && (
+        <div className="lb-field">
+          <span className="lb-label">Operação</span>
+          <div className="lb-seg" role="radiogroup" aria-label="Operação da peça de chão">
+            {OP_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={piece.op === option.value}
+                className="lb-seg__option"
+                onClick={() => onChange({ op: option.value })}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <ShapeFields shape={piece.shape} onShapeChange={(shape) => onChange({ shape })} />
+      {mostra('medidas') && <ShapeFields shape={piece.shape} onShapeChange={(shape) => onChange({ shape })} />}
 
       {/* Cor SÓ desta peça — é o que faz um caminho ter uma cor e o chão em
           volta ter outra. Enquanto ela não existe, o swatch mostra a cor do
           chão do mapa (o que está na tela), para a pessoa mexer a partir do
           que vê em vez de partir de um preto vindo do nada. */}
-      <div className="lb-field">
-        <label className="lb-label" htmlFor="lb-floor-piece-color">
-          Cor desta peça
-        </label>
-        <CampoDeCorComPipeta
-          id="lb-floor-piece-color"
-          value={piece.fillColor ?? floorFillColor}
-          onChange={(cor) => onChange({ fillColor: cor })}
-        />
-      </div>
-      {piece.fillColor !== undefined && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={() => onChange({ fillColor: undefined })}>
-          Voltar à cor do chão
-        </button>
+      {mostra('essencial') && (
+        <>
+          <div className="lb-field">
+            <label className="lb-label" htmlFor="lb-floor-piece-color">
+              Cor desta peça
+            </label>
+            <CampoDeCorComPipeta
+              id="lb-floor-piece-color"
+              value={piece.fillColor ?? floorFillColor}
+              onChange={(cor) => onChange({ fillColor: cor })}
+            />
+          </div>
+          {piece.fillColor !== undefined && (
+            <button type="button" className="lb-btn lb-btn--block" onClick={() => onChange({ fillColor: undefined })}>
+              Voltar à cor do chão
+            </button>
+          )}
+        </>
       )}
 
       {/* Blocos não giram: a peça é feita de célula da grade, e um giro de
           alguns graus a tiraria da grade sem nada para colocar no lugar. */}
-      {piece.shape.kind !== 'blocos' && (
+      {mostra('medidas') && piece.shape.kind !== 'blocos' && (
         <NumberField id="lb-floor-rotation" label="Rotação (graus)" value={piece.rotation ?? 0} onChange={(rotation) => onChange({ rotation })} />
       )}
-      <NumberField
-        id="lb-floor-rounding"
-        label="Arredondar (px)"
-        value={piece.modifiers.rounding ?? 0}
-        min={0}
-        onChange={(rounding) => onChange({ modifiers: { ...piece.modifiers, rounding } })}
-      />
-
-      <Toggle label="Borda irregular" checked={noise !== undefined} onChange={setNoiseEnabled} />
-      {noise && (
+      {mostra('borda') && (
         <>
           <NumberField
-            id="lb-floor-noise-amplitude"
-            label="Intensidade (px)"
-            value={noise.amplitude}
+            id="lb-floor-rounding"
+            label="Arredondar (px)"
+            value={piece.modifiers.rounding ?? 0}
             min={0}
-            onChange={(amplitude) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, amplitude } } })}
+            onChange={(rounding) => onChange({ modifiers: { ...piece.modifiers, rounding } })}
           />
-          <NumberField
-            id="lb-floor-noise-scale"
-            label="Tamanho do dente (px)"
-            value={noise.scale}
-            min={MIN_SIZE}
-            onChange={(scale) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, scale } } })}
-          />
-          <NumberField
-            id="lb-floor-noise-seed"
-            label="Semente"
-            value={noise.seed}
-            onChange={(seed) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, seed: Math.round(seed) } } })}
-          />
+
+          <Toggle label="Borda irregular" checked={noise !== undefined} onChange={setNoiseEnabled} />
+          {noise && (
+            <>
+              <NumberField
+                id="lb-floor-noise-amplitude"
+                label="Intensidade (px)"
+                value={noise.amplitude}
+                min={0}
+                onChange={(amplitude) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, amplitude } } })}
+              />
+              <NumberField
+                id="lb-floor-noise-scale"
+                label="Tamanho do dente (px)"
+                value={noise.scale}
+                min={MIN_SIZE}
+                onChange={(scale) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, scale } } })}
+              />
+              <NumberField
+                id="lb-floor-noise-seed"
+                label="Semente"
+                value={noise.seed}
+                onChange={(seed) => onChange({ modifiers: { ...piece.modifiers, noise: { ...noise, seed: Math.round(seed) } } })}
+              />
+            </>
+          )}
         </>
       )}
 
-      <div className="lb-field">
-        <span className="lb-label">
-          Ordem de aplicação: {index + 1} de {count}
-        </span>
-        <div className="lb-seg">
-          <button type="button" className="lb-seg__option" disabled={index <= 0} onClick={() => onReorder(-1)}>
-            Descer
-          </button>
-          <button type="button" className="lb-seg__option" disabled={index >= count - 1} onClick={() => onReorder(1)}>
-            Subir
-          </button>
-        </div>
-      </div>
+      {mostra('ordem') && (
+        <>
+          <div className="lb-field">
+            <span className="lb-label">
+              Ordem de aplicação: {index + 1} de {count}
+            </span>
+            <div className="lb-seg">
+              <button type="button" className="lb-seg__option" disabled={index <= 0} onClick={() => onReorder(-1)}>
+                Descer
+              </button>
+              <button type="button" className="lb-seg__option" disabled={index >= count - 1} onClick={() => onReorder(1)}>
+                Subir
+              </button>
+            </div>
+          </div>
 
-      <button type="button" className="lb-btn lb-btn--block lb-btn--danger" onClick={onRemove}>
-        Apagar peça de chão
-      </button>
+          <button type="button" className="lb-btn lb-btn--block lb-btn--danger" onClick={onRemove}>
+            Apagar peça de chão
+          </button>
+        </>
+      )}
     </section>
   )
 }

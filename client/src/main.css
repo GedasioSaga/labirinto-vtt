@@ -920,6 +920,10 @@ body {
 
 .lb-stroke-preview__line {
   width: 100%;
+  /* O caminho selecionado chega com a largura dele (50 px numa grade de 50):
+     sem o teto, o traço vazava da caixa de 28 px. Acima da caixa, a amostra
+     enche a caixa inteira, e o número ao lado diz o valor. */
+  max-height: 100%;
   border-radius: var(--lb-radius-full);
 }
 

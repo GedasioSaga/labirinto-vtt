@@ -34,7 +34,15 @@ export interface LineShapeControlsProps {
  * relatório do Agente B) — este componente só apresenta os 2 estados
  * possíveis e o gesto de trocar entre eles.
  */
-export function LineShapeControls({ kind, onConvertToCurve, onConvertToLine }: LineShapeControlsProps) {
+export function LineShapeControls({
+  kind,
+  onConvertToCurve,
+  onConvertToLine,
+  semTitulo = false,
+}: LineShapeControlsProps & {
+  /** No essencial da ficha do desenho (fatia 16b): sem o título da seção; o rótulo do campo faz as vezes dele. */
+  semTitulo?: boolean
+}) {
   const lineDisabled = kind === 'line' || !onConvertToLine
   const lineTitle = kind === 'curve' && !onConvertToLine
     ? 'Esta curva já tem pontos de controle extras — voltar para reta descartaria esses pontos.'
@@ -42,8 +50,9 @@ export function LineShapeControls({ kind, onConvertToCurve, onConvertToLine }: L
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Formato da linha</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Formato da linha</h2>}
       <div className="lb-field">
+        {semTitulo && <span className="lb-label">Formato</span>}
         <div className="lb-seg" role="radiogroup" aria-label="Formato da linha">
           <button
             type="button"

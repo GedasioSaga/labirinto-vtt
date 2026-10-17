@@ -407,7 +407,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(naCena).toEqual(expect.arrayContaining(['Chão do mapa', 'Camadas do chão', 'Camadas']))
   })
 
-  it('fora da região (texto, escada, pino), o "Jogadores" continua no bloco dele', () => {
+  it('texto (fatia 16b): o "Oculto para jogadores" mora no essencial da ficha do texto, junto do item, e não num bloco "Jogadores" à parte', () => {
     renderPainel(
       propsDoPainel(null, {
         groups: relevantPropertyGroups('select', { textLabel: true }),
@@ -416,8 +416,9 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
         playerSecret: { secret: false, onSecretChange: nada },
       }),
     )
-    const jogadores = Array.from(container.querySelectorAll('.lb-inspector__body h2')).find((h) => h.textContent === 'Jogadores')
-    expect(jogadores?.closest('section')?.textContent).toContain('Oculto para jogadores')
+    const titulos2 = Array.from(container.querySelectorAll('.lb-inspector__body h2')).map((h) => h.textContent)
+    expect(titulos2).not.toContain('Jogadores')
+    expect(container.querySelector('.lb-ficha-do-texto .gr-essencial')?.textContent).toContain('Oculto para jogadores')
     expect(corpo()?.firstElementChild?.textContent).toContain('Cuidado')
   })
 

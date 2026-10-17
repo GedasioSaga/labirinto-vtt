@@ -360,12 +360,31 @@ function StairTravelSection({
  * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
  * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
  */
-export function StairControls({ direction, onDirectionChange, shape, onShapeChange, stepWidth, onStepWidthChange, grid, travel, tamanho }: StairControlsProps) {
+export function StairControls({
+  direction,
+  onDirectionChange,
+  shape,
+  onShapeChange,
+  stepWidth,
+  onStepWidthChange,
+  grid,
+  travel,
+  tamanho,
+  parte,
+}: StairControlsProps & {
+  /**
+   * Na ficha da escada (fatia 16b): `'essencial'` é o Sentido, a Forma, o
+   * Tamanho e os números; `'destino'`, o "Leva a" da aventura. Ausente, a
+   * seção inteira com o título, como antes.
+   */
+  parte?: 'essencial' | 'destino'
+}) {
   const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
+  if (parte === 'destino') return travel === null ? null : <StairTravelSection {...travel} direction={direction} />
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Escada</h2>
+      {parte === undefined && <h2 className="lb-eyebrow">Escada</h2>}
       {/* Segmento Sobe | Desce (auditoria 14/09): o toggle "Sobe (desmarcado =
           desce)" pedia para ler a regra antes de clicar. A miniatura é a placa
           que vai para o mapa, com o patamar no topo (28/09; antes era um galão
@@ -471,7 +490,7 @@ export function StairControls({ direction, onDirectionChange, shape, onShapeChan
         />
       )}
 
-      {travel !== null && <StairTravelSection {...travel} direction={direction} />}
+      {parte === undefined && travel !== null && <StairTravelSection {...travel} direction={direction} />}
     </section>
   )
 }

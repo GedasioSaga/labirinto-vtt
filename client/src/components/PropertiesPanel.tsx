@@ -27,6 +27,11 @@ import {
 import { FichaDaParede } from './livro/FichaDaParede'
 import { FichaDaPorta } from './livro/FichaDaPorta'
 import { FichaDoObjeto } from './livro/FichaDoObjeto'
+import { FichaDoDesenho } from './livro/FichaDoDesenho'
+import { FichaDoTexto } from './livro/FichaDoTexto'
+import { FichaDaPecaDeChao } from './livro/FichaDaPecaDeChao'
+import { FichaDaRegiao } from './livro/FichaDaRegiao'
+import { FichaDaEscada } from './livro/FichaDaEscada'
 import { FichaDoPino } from './livro/FichaDoPino'
 import { Essencial } from './grimorio/Cartoes'
 import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
@@ -37,7 +42,7 @@ import { selectEndireitarMudaria, useMapStore } from '../stores/mapStore'
 import type { WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
-import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
+import type { TextLabelControlsProps } from './TextLabelControls'
 import {
   RegionJoinField,
   RegionLinkWallsButton,
@@ -67,7 +72,7 @@ import type { TokenLightsControlsProps } from './TokenLightsControls'
 import type { TokenSeenByProps } from './TokenSeenBy'
 import { FichaDoToken } from './livro/FichaDoToken'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
-import { StairControls, type StairControlsProps } from './StairControls'
+import type { StairControlsProps } from './StairControls'
 import { LEVAR_AO_PISO_HINT, PisoControls } from './PisoControls'
 import { TransicaoSection } from '../transicoes/TransicaoSection'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
@@ -84,7 +89,7 @@ import { RegionSplitControls, type RegionSplitControlsProps } from './RegionSpli
 import { FEATURES } from '../lib/features'
 import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
 import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
-import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
+import type { FloorPieceControlsProps } from './FloorPieceControls'
 import type { FloorStyleControlsProps } from './FloorStyleControls'
 import { FloorLayersList, type FloorLayersListProps } from './FloorLayersList'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
@@ -511,13 +516,14 @@ export function PropertiesPanel({
     ...(acaoDoCorredor === null ? [] : [acaoDoCorredor]),
     ...(pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)),
   ]
-  // FICHA DA SALA (fatia 15): os blocos que a região usa entram nas fichas
-  // Aparência e Trava, sem título próprio. A região que não é Sala e as
-  // ferramentas Sala e Região continuam com eles soltos, mais abaixo.
+  // FICHAS DA SALA (fatia 15) E DA REGIÃO (16b): os blocos que a região usa
+  // entram, sem título próprio, nas fichas Aparência e Trava da Sala e no
+  // essencial e na ficha Trava da região que não é Sala. As ferramentas Sala
+  // e Região continuam com eles soltos, mais abaixo.
   // `key` pelo id: outra região selecionada faz o Avançado nascer fechado.
-  // `naSala`: o Avançado da ficha Aparência é o subgrupo do protótipo e leva
-  // também a Espessura do contorno e o "Criar parede na borda" (que saem do
-  // `RegionStyleControls` com `contornoNoAvancado`). Fora da sala, como sempre.
+  // `naSala` (na ficha, Sala ou não): o Avançado é o subgrupo do protótipo e
+  // leva também a Espessura do contorno e o "Criar parede na borda" (que saem
+  // do `RegionStyleControls` com `contornoNoAvancado`). Na ferramenta, como sempre.
   const avancadoDaRegiao = (naSala: boolean) => (
     <AdvancedSection key={selectedRegion?.id ?? 'region-tool'} variante={naSala ? 'subgrupo' : undefined}>
       {naSala && strokeWidth !== undefined && onStrokeWidthChange && (
@@ -536,36 +542,44 @@ export function PropertiesPanel({
       {naSala && onLinkWalls && <RegionLinkWallsButton onLinkWalls={onLinkWalls} />}
     </AdvancedSection>
   )
-  const aparenciaDaSala =
-    salaSelecionada === null || (!groups.has('regionStyle') && !groups.has('fill')) ? undefined : (
+  const aparenciaDaRegiao =
+    selectedRegion === null || (!groups.has('regionStyle') && !groups.has('fill')) ? undefined : (
       <>
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           <RegionStyleControls {...regionStyle} semTitulo contornoNoAvancado />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="fill" groups={groups}>
           <FillControls {...fill} semTitulo />
-          {regionSplit && <RegionSplitControls key={salaSelecionada.id} {...regionSplit} semTitulo />}
+          {/* "Pintar parte da sala de outra cor" é só da Sala, como antes. */}
+          {regionSplit && salaSelecionada !== null && <RegionSplitControls key={salaSelecionada.id} {...regionSplit} semTitulo />}
         </ToolPropertiesSection>
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           {avancadoDaRegiao(true)}
         </ToolPropertiesSection>
       </>
     )
-  const travaDaSala =
-    salaSelecionada === null || !groups.has('itemTransform') ? undefined : (
-      <ItemTransformControls
-        title="Sala"
-        semTitulo
-        locked={!!salaSelecionada.locked}
-        secret={regionSecret?.secret}
-        onSecretChange={regionSecret?.onSecretChange}
-        {...regionTransform}
-      />
-    )
+  const aparenciaDaSala = salaSelecionada === null ? undefined : aparenciaDaRegiao
+  // O Oculto da região (grupo `playerVisibility`) mora ao lado do Travado: na
+  // região ele não traz mais nada (a lista "Quem vê" é só do pino, e o
+  // "Revelar para…", só da escada).
+  const travaDaRegiao: ItemTransformControlsProps | undefined =
+    selectedRegion === null || !groups.has('itemTransform')
+      ? undefined
+      : {
+          title: salaSelecionada === null ? 'Região' : 'Sala',
+          locked: !!selectedRegion.locked,
+          secret: regionSecret?.secret,
+          onSecretChange: regionSecret?.onSecretChange,
+          ...regionTransform,
+        }
+  const travaDaSala = salaSelecionada === null || travaDaRegiao === undefined ? undefined : <ItemTransformControls {...travaDaRegiao} semTitulo />
   // VÁRIOS ITENS na gramática da ficha (decisão 4.1): o que vale para todos —
   // seleção de área, alinhar e o "Oculto para jogadores" em lote — num bloco
   // essencial logo abaixo da cabeça. Com um item só, as mesmas seções no fim.
   const variosSelecionados = selection.selection !== null && selection.selection.count > 1
+  // DESENHO SELECIONADO (fatia 16b): linha, curva, pincel, formas e caminho
+  // na ficha própria. A ferramenta armada segue com os blocos soltos.
+  const desenhoSelecionado = !variosSelecionados && selectedTextLabel === null && groups.has('drawingStyle') && drawingStyle.target === 'selected'
   const controlesDeVarios = groups.has('selection') ? (
     <>
       <AreaSelectionControls {...areaSelection} />
@@ -766,25 +780,18 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
-        {/* Região que não é Sala, em ordem de tarefa: travar e esconder dos
-            jogadores logo depois do bloco do item (eram a 20ª e a 14ª
-            rolagem), num bloco só, como na ficha; depois a aparência (Região +
-            Preenchimento), o Gatilho e, por último, o Avançado. A Sala tem os
-            mesmos blocos nas fichas Trava e Aparência. */}
+        {/* REGIÃO QUE NÃO É SALA (fatia 16b): a ficha própria — no essencial a
+            aparência que a Sala tem na ficha Aparência (Cor, Hachurado,
+            Preenchido, Opacidade e o Avançado com o contorno); "Trava" aberta
+            (Travado e Oculto para jogadores) e "Gatilho" recolhida. A
+            ferramenta Região segue com os blocos soltos, mais abaixo. */}
         {selectedRegion && !selectedRegion.room && (
-          <ToolPropertiesSection group="itemTransform" groups={groups}>
-            <ItemTransformControls
-              title="Região"
-              locked={!!selectedRegion.locked}
-              // O "Oculto para jogadores" da região (grupo `playerVisibility`)
-              // mora aqui, ao lado do Travado, e não num bloco "Jogadores" à
-              // parte: na região ele não traz mais nada (a lista "Quem vê" é
-              // só do pino, e o "Revelar para…", só da escada).
-              secret={regionSecret?.secret}
-              onSecretChange={regionSecret?.onSecretChange}
-              {...regionTransform}
-            />
-          </ToolPropertiesSection>
+          <FichaDaRegiao
+            key={selectedRegion.id}
+            aparencia={aparenciaDaRegiao}
+            trava={travaDaRegiao}
+            gatilho={areaTrigger !== null && groups.has('playerVisibility') ? areaTrigger : undefined}
+          />
         )}
         {concealZone && (
           <ToolPropertiesSection group="concealZone" groups={groups}>
@@ -829,9 +836,10 @@ export function PropertiesPanel({
             </>
           )}
         </ToolPropertiesSection>
-        {/* Escada, desenho, texto e pino: "Jogadores" logo depois do bloco do
-            item, onde sempre esteve. A região o tem lá em cima, junto do Travado. */}
-        {!selectedRegion && playerSecret && pinoAberto === null && (
+        {/* "Jogadores" logo depois do bloco do item, onde sempre esteve, no
+            que ainda não tem ficha própria. A região o tem na ficha Trava; o
+            desenho, o texto e a escada, no essencial da ficha deles (16b). */}
+        {!selectedRegion && playerSecret && pinoAberto === null && !desenhoSelecionado && selectedTextLabel === null && selectedStair === null && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />
           </ToolPropertiesSection>
@@ -842,23 +850,41 @@ export function PropertiesPanel({
         <ToolPropertiesSection group="pathStyle" groups={groups}>
           <PathStyleControls {...pathStyle} />
         </ToolPropertiesSection>
-        <ToolPropertiesSection group="drawingStyle" groups={groups}>
-          <DrawingStyleControls {...drawingStyle} />
-        </ToolPropertiesSection>
-        {lineCap && (
-          <ToolPropertiesSection group="lineCap" groups={groups}>
-            <LineCapControls {...lineCap} />
-            {lineShape && <LineShapeControls {...lineShape} />}
-          </ToolPropertiesSection>
+        {/* DESENHO SELECIONADO (fatia 16b): a ficha própria — o essencial (Cor,
+            Espessura, Formato, Preenchido, Opacidade e o Oculto) e as fichas
+            Traço e Paredes. Com a ferramenta armada, os blocos soltos. */}
+        {desenhoSelecionado ? (
+          <FichaDoDesenho
+            estilo={drawingStyle}
+            preenchimento={groups.has('fill') ? fill : undefined}
+            formato={groups.has('lineCap') && lineCap !== null && lineShape !== null ? lineShape : undefined}
+            traco={groups.has('lineCap') && lineCap !== null ? lineCap : undefined}
+            paredes={groups.has('paredesAoRedor') ? (paredesAoRedor ?? undefined) : undefined}
+            jogadores={groups.has('playerVisibility') && playerSecret !== null ? playerSecret : undefined}
+          />
+        ) : (
+          <>
+            <ToolPropertiesSection group="drawingStyle" groups={groups}>
+              <DrawingStyleControls {...drawingStyle} />
+            </ToolPropertiesSection>
+            {lineCap && (
+              <ToolPropertiesSection group="lineCap" groups={groups}>
+                <LineCapControls {...lineCap} />
+                {lineShape && <LineShapeControls {...lineShape} />}
+              </ToolPropertiesSection>
+            )}
+            {/* PAREDES AO REDOR: logo depois do traço, que é de onde as paredes nascem. */}
+            {paredesAoRedor && (
+              <ToolPropertiesSection group="paredesAoRedor" groups={groups}>
+                <ParedesAoRedorControls {...paredesAoRedor} />
+              </ToolPropertiesSection>
+            )}
+          </>
         )}
-        {/* PAREDES AO REDOR: logo depois do traço, que é de onde as paredes nascem. */}
-        {paredesAoRedor && (
-          <ToolPropertiesSection group="paredesAoRedor" groups={groups}>
-            <ParedesAoRedorControls {...paredesAoRedor} />
-          </ToolPropertiesSection>
-        )}
-        {/* A Sala selecionada tem estes dois (e o Duas cores) na ficha Aparência. */}
-        {!selectedRegion?.room && (
+        {/* A Sala selecionada tem estes dois (e o Duas cores) na ficha
+            Aparência; a região que não é Sala e as formas selecionadas, no
+            essencial da ficha delas (16b). Aqui, só a ferramenta. */}
+        {selectedRegion === null && !desenhoSelecionado && (
           <>
             <ToolPropertiesSection group="regionStyle" groups={groups}>
               <RegionStyleControls {...regionStyle} />
@@ -869,12 +895,12 @@ export function PropertiesPanel({
             </ToolPropertiesSection>
           </>
         )}
-        {/* GATILHO DE ÁREA: decide o que o jogador recebe ao entrar. Região e
-            Sala, não só Sala. */}
-        {selectedRegion && areaTrigger && (FEATURES.gatilhoDeArea || selectedRegion.room === undefined) && (
+        {/* GATILHO DE ÁREA da Sala, atrás da flag. O da região que não é Sala
+            mora na ficha Gatilho dela (16b). */}
+        {salaSelecionada !== null && areaTrigger && FEATURES.gatilhoDeArea && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <section className="lb-section">
-              <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
+              <AreaTriggerControls key={salaSelecionada.id} {...areaTrigger} />
             </section>
           </ToolPropertiesSection>
         )}
@@ -885,8 +911,9 @@ export function PropertiesPanel({
             {perigoDaSala}
           </ToolPropertiesSection>
         )}
-        {/* Por último no bloco da região (a Sala o tem no fim da Aparência). */}
-        {!selectedRegion?.room && (
+        {/* Por último no bloco da ferramenta Região (a Sala e a região
+            selecionada o têm na ficha, no fim da aparência). */}
+        {selectedRegion === null && (
           <ToolPropertiesSection group="regionStyle" groups={groups}>
             {avancadoDaRegiao(false)}
           </ToolPropertiesSection>
@@ -894,22 +921,27 @@ export function PropertiesPanel({
         <ToolPropertiesSection group="polygonSides" groups={groups}>
           <PolygonSidesControls {...polygonSides} />
         </ToolPropertiesSection>
+        {/* TEXTO SELECIONADO (fatia 16b): tudo no essencial da ficha. */}
         {selectedTextLabel && (
           <ToolPropertiesSection group="textLabel" groups={groups}>
-            <TextLabelControls
-              text={selectedTextLabel.text}
-              color={selectedTextLabel.color}
-              fontSize={selectedTextLabel.fontSize}
-              fontFamily={selectedTextLabel.fontFamily ?? DEFAULT_TEXT_FONT_FAMILY}
-              {...textLabel}
+            <FichaDoTexto
+              rotulo={{
+                text: selectedTextLabel.text,
+                color: selectedTextLabel.color,
+                fontSize: selectedTextLabel.fontSize,
+                fontFamily: selectedTextLabel.fontFamily ?? DEFAULT_TEXT_FONT_FAMILY,
+                ...textLabel,
+              }}
+              jogadores={groups.has('playerVisibility') && playerSecret !== null ? playerSecret : undefined}
             />
           </ToolPropertiesSection>
         )}
+        {/* PEÇA DE CHÃO SELECIONADA (fatia 16b): a ficha própria; "Camadas do
+            chão" segue no pé. A cor do chão do mapa vem de `floorStyle`, que
+            este painel já recebe: o swatch da peça sem cor própria mostra ela. */}
         {selectedFloorPiece && (
           <ToolPropertiesSection group="floorPiece" groups={groups}>
-            {/* A cor do chão do mapa vem de `floorStyle`, que este painel já
-                recebe: o swatch da peça sem cor própria mostra ela. */}
-            <FloorPieceControls piece={selectedFloorPiece} floorFillColor={floorStyle.style.fillColor} {...floorPieceControls} />
+            <FichaDaPecaDeChao controles={{ piece: selectedFloorPiece, floorFillColor: floorStyle.style.fillColor, ...floorPieceControls }} />
           </ToolPropertiesSection>
         )}
         {/* Porta selecionada: o que se mexe na porta (aberta, trancada, tipo)
@@ -1021,32 +1053,45 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
+        {/* ESCADA SELECIONADA (fatia 16b, a ficha base que a fatia 17 usa): o
+            essencial (Sentido, Forma, Tamanho, Comprimento, Largura e Curva, ou
+            o Diâmetro na espiral, e o Oculto) e a ficha "Para onde leva" (o
+            Leva a da aventura, o Piso e a Transição). TRANSIÇÃO ESPECIAL em
+            toda escada: vale para a que leva a outro piso desta cena e para a
+            que leva a outra cena (o pino invisível dela lê a da escada). A de
+            enfeite mostra a galeria com o aviso. */}
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
-            <StairControls direction={selectedStair.direction} shape={selectedStair.shape} {...stairControls} />
-            {pisos !== undefined && (
-              <PisoControls
-                key={`piso-${selectedStair.id}`}
-                piso={pisoDe(selectedStair)}
-                onPisoChange={(piso) => pisos.onStairPisosChange(selectedStair.id, { piso })}
-                levaAoPiso={selectedStair.levaAoPiso ?? null}
-                onLevaAoPisoChange={(levaAoPiso) => pisos.onStairPisosChange(selectedStair.id, { levaAoPiso })}
-                pisoAtivo={pisos.pisoAtivo}
-                onEditarPiso={pisos.onEditarPiso}
-              />
-            )}
-            {/* TRANSIÇÃO ESPECIAL em toda escada: vale para a que leva a outro
-                piso desta cena e para a que leva a outra cena (o pino invisível
-                dela lê a da escada). A de enfeite mostra a galeria com o aviso. */}
-            {pisos?.onStairTransicaoChange !== undefined && (
-              <TransicaoSection
-                key={`transicao-${selectedStair.id}`}
-                transicao={selectedStair.transicao}
-                onChange={(transicao) => pisos.onStairTransicaoChange?.(selectedStair.id, transicao)}
-                origem="escada"
-                semDestino={selectedStair.levaAoPiso === undefined && !stairControls.travel?.linkedSceneId}
-              />
-            )}
+            <FichaDaEscada
+              controles={{ direction: selectedStair.direction, shape: selectedStair.shape, ...stairControls }}
+              levaAoPiso={selectedStair.levaAoPiso}
+              jogadores={groups.has('playerVisibility') && playerSecret !== null ? playerSecret : undefined}
+              piso={
+                pisos === undefined ? undefined : (
+                  <PisoControls
+                    key={`piso-${selectedStair.id}`}
+                    piso={pisoDe(selectedStair)}
+                    onPisoChange={(piso) => pisos.onStairPisosChange(selectedStair.id, { piso })}
+                    levaAoPiso={selectedStair.levaAoPiso ?? null}
+                    onLevaAoPisoChange={(levaAoPiso) => pisos.onStairPisosChange(selectedStair.id, { levaAoPiso })}
+                    pisoAtivo={pisos.pisoAtivo}
+                    onEditarPiso={pisos.onEditarPiso}
+                    semTitulo
+                  />
+                )
+              }
+              transicao={
+                pisos?.onStairTransicaoChange === undefined ? undefined : (
+                  <TransicaoSection
+                    key={`transicao-${selectedStair.id}`}
+                    transicao={selectedStair.transicao}
+                    onChange={(transicao) => pisos.onStairTransicaoChange?.(selectedStair.id, transicao)}
+                    origem="escada"
+                    semDestino={selectedStair.levaAoPiso === undefined && !stairControls.travel?.linkedSceneId}
+                  />
+                )
+              }
+            />
           </ToolPropertiesSection>
         )}
         {/* "Levar ao piso" e Apagar moram na cabeça; o "Adicionar token" é o

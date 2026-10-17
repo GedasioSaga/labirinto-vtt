@@ -1,6 +1,6 @@
 import type { DrawingCap, DrawingDash } from '../types/map'
 
-const CAP_OPTIONS: Array<{ value: DrawingCap; label: string }> = [
+export const CAP_OPTIONS: Array<{ value: DrawingCap; label: string }> = [
   { value: 'round', label: 'Arredondada' },
   { value: 'butt', label: 'Reta' },
   { value: 'square', label: 'Quadrada' },
@@ -12,7 +12,7 @@ const CAP_OPTIONS: Array<{ value: DrawingCap; label: string }> = [
  * a mesma ideia. "Contínua" no lugar de "Sólida" porque o que é sólido aqui
  * é o traço, não a malha.
  */
-const DASH_OPTIONS: Array<{ value: DrawingDash; label: string }> = [
+export const DASH_OPTIONS: Array<{ value: DrawingDash; label: string }> = [
   { value: 'solid', label: 'Contínua' },
   { value: 'dashed', label: 'Tracejada' },
   { value: 'dotted', label: 'Pontilhada' },
@@ -60,10 +60,18 @@ export interface LineCapControlsProps {
  * `'round'`/`'solid'` antes de passar — os mesmos defaults que o render
  * aplica (`drawDrawings.ts`, `lib/dashPattern.ts`).
  */
-export function LineCapControls({ cap, onCapChange, dash = null }: LineCapControlsProps) {
+export function LineCapControls({
+  cap,
+  onCapChange,
+  dash = null,
+  semTitulo = false,
+}: LineCapControlsProps & {
+  /** Na ficha "Traço" do desenho selecionado (fatia 16b): sem o título, que é o da ficha. */
+  semTitulo?: boolean
+}) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Traço da linha</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Traço da linha</h2>}
 
       {dash && (
         <div className="lb-field">

@@ -61,8 +61,11 @@ function cenaComTudo(): MapData {
       },
     ],
     drawings: [
-      { id: 'dr1', kind: 'line', x1: 100, y1: 600, x2: 300, y2: 650, color: '#ffffff', width: 3 },
+      // Com `cap`: sem a chave o painel não monta o Traço nem o Formato (App.tsx, `'cap' in selectedDrawing`).
+      { id: 'dr1', kind: 'line', x1: 100, y1: 600, x2: 300, y2: 650, color: '#ffffff', width: 3, cap: 'round' },
       { id: 'tx1', kind: 'text', x: 400, y: 700, text: 'Aviso', color: '#ffffff', fontSize: 20 },
+      // Caminho da ferramenta Caminho (fatia 16b): a ficha do desenho na variante sem Paredes.
+      { id: 'pa1', kind: 'path', points: [{ x: 700, y: 900 }, { x: 1000, y: 900 }], color: '#c9a36b', width: 50 },
     ],
     floor: [{ id: 'f1', shape: { kind: 'rect', cx: 1300, cy: 800, w: 100, h: 100 }, op: 'add', modifiers: {} }],
     concealZones: [{ id: 'z1', points: quadrado(1100, 700, 100), name: 'Segredo', revealed: false }],

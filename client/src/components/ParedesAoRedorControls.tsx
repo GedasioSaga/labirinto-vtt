@@ -123,7 +123,11 @@ export function ParedesAoRedorControls({
   onSoltar,
   disabled = false,
   motivoDesabilitado,
-}: ParedesAoRedorControlsProps) {
+  semTitulo = false,
+}: ParedesAoRedorControlsProps & {
+  /** Na ficha "Paredes" do desenho selecionado (fatia 16b): sem o título, que é o da ficha. */
+  semTitulo?: boolean
+}) {
   const id = useId()
   const dicaInterruptorId = `${id}-interruptor`
   const motivoId = `${id}-motivo`
@@ -207,7 +211,7 @@ export function ParedesAoRedorControls({
         gesto.current = 'teclado'
       }}
     >
-      <h2 className="lb-eyebrow">Paredes</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Paredes</h2>}
       <Toggle
         label="Paredes ao redor"
         checked={ativo}

@@ -10,6 +10,8 @@ export interface TextLabelControlsProps {
   onFontSizeChange: (size: number) => void
   fontFamily: string
   onFontFamilyChange: (fontFamily: string) => void
+  /** Na ficha do texto (fatia 16b): sem o título "Rótulo de texto", que a ficha põe só para o leitor de tela. */
+  semTitulo?: boolean
 }
 
 /** Conteúdo, cor, tamanho e família da fonte do rótulo de texto selecionado. */
@@ -22,12 +24,19 @@ export function TextLabelControls({
   onFontSizeChange,
   fontFamily,
   onFontFamilyChange,
+  semTitulo = false,
 }: TextLabelControlsProps) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Rótulo de texto</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Rótulo de texto</h2>}
 
+      {/* O campo do texto tinha só o título da seção em volta (pendência da
+          fatia 0): agora tem nome próprio, para o leitor de tela e para quem
+          lê a ficha, onde o título não aparece. */}
       <div className="lb-field">
+        <label className="lb-label" htmlFor="lb-text-content">
+          Texto
+        </label>
         <input
           id="lb-text-content"
           className="lb-input"

@@ -398,8 +398,12 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da escada', estado: 'escada selecionada no mapa', escopo: 'esquerda', preparo: sel('stair', 's1'),
-    vai: 'Página Ficha da escada (Comprimento, Largura e Curva na ficha; alças no mapa)', fatia: '16b e 17',
-    linhas: todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['textbox', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['textbox', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], ['combobox', 'Leva a'], rg('Passagem da escada'), b('Criar andar de cima'), ['spinbutton', 'Piso'], ['spinbutton', 'Leva ao piso'], ...TRANSICAO('Transição ao trocar de piso'), cx('Oculto para jogadores')]),
+    vai: 'Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17)', fatia: '16b e 17',
+    linhas: [
+      ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['textbox', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['textbox', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
+      // "Para onde leva" nasce fechada; o nome do cabeçalho leva o resumo ("Para onde leva Lugar nenhum", "Piso 2").
+      ...todos([['combobox', 'Leva a'], rg('Passagem da escada'), b('Criar andar de cima'), ['spinbutton', 'Piso'], ['spinbutton', 'Leva ao piso'], ...TRANSICAO('Transição ao trocar de piso')], b('/^Para onde leva/')),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da sala', estado: 'sala selecionada no mapa', escopo: 'esquerda', preparo: sel('region', 'sala1'),
@@ -421,8 +425,15 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da região (não sala)', estado: 'região selecionada no mapa', escopo: 'esquerda', preparo: sel('region', 'r1'),
-    vai: 'Página Ficha, gramática nova', fatia: '16b',
-    linhas: todos([cx('Travado'), cx('Oculto para jogadores'), ...REGIAO_ESTILO, b('Criar parede na borda')]),
+    vai: 'Página Ficha da região: Cor, Hachurado, Preenchido e Avançado no essencial (a Aparência da sala); Trava aberta; Gatilho fechada (feito)', fatia: '16b',
+    linhas: [
+      ...todos([['textbox', 'Cor'], cx('Hachurado'), cx('Preenchido'), b('Avançado')]),
+      // A Espessura do contorno e o "Criar parede na borda" moram no Avançado, como na Aparência da sala.
+      ...todos([rg('Espessura do contorno'), ['slider', 'Ajuste fino'], b('Criar parede na borda')], b('Avançado')),
+      // "Trava" nasce aberta (travar é gesto de mesa); "Gatilho" nasce fechada, com o resumo ("Gatilho Nenhum").
+      ...todos([cx('Travado'), cx('Oculto para jogadores')], b('/^Trava/')),
+      l('Gatilho da área', rg('Gatilho da área'), b('/^Gatilho/')),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da luz', estado: 'luz selecionada no mapa', escopo: 'esquerda', preparo: sel('light', 'l1'),
@@ -444,21 +455,36 @@ export const BLOCOS: readonly Bloco[] = [
   MOVEL('m-tapete', [rg('Vista'), rg('Forma')], [cx('Preencher'), ['textbox', 'Cor']]),
   {
     tela: 'mestre', titulo: 'Ficha do desenho', estado: 'linha desenhada selecionada', escopo: 'esquerda', preparo: sel('drawing', 'dr1'),
-    vai: 'Página Ficha, gramática nova (Endireitar no "Mais ações")', fatia: '16b',
+    vai: 'Página Ficha do desenho: Cor, Espessura, Formato da linha e Oculto no essencial; Traço e Paredes fechadas; Endireitar no "Mais ações" (feito)', fatia: '16b',
     linhas: [
       { ...l('Endireitar', menu('Endireitar'), b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (feito, fatia 8)' },
-      ...todos([cx('Oculto para jogadores'), ['textbox', 'Cor'], ['slider', 'Espessura'], cx('Paredes ao redor')]),
+      ...todos([['textbox', 'Cor'], ['slider', 'Espessura'], rg('Formato da linha'), cx('Oculto para jogadores')]),
+      // As fichas nascem fechadas; o nome do cabeçalho leva o resumo ("Traço Contínua", "Paredes Desligadas").
+      ...todos([rg('Estilo do traço'), rg('Ponta da linha')], b('/^Traço/')),
+      l('Paredes ao redor', cx('Paredes ao redor'), b('/^Paredes/')),
     ],
   },
   {
-    tela: 'mestre', titulo: 'Ficha do texto', estado: 'texto selecionado', escopo: 'esquerda', preparo: sel('drawing', 'tx1'),
-    vai: 'Página Ficha, gramática nova', fatia: '16b',
-    linhas: todos([['heading', 'Rótulo de texto'], ['textbox', 'Cor'], ['slider', 'Tamanho da fonte'], ['combobox', 'Fonte'], cx('Oculto para jogadores')]),
+    tela: 'mestre', titulo: 'Ficha do caminho', estado: 'caminho selecionado', escopo: 'esquerda', preparo: sel('drawing', 'pa1'),
+    vai: 'Página Ficha do desenho, variante do caminho: Cor, Espessura e Oculto no essencial, sem Paredes (feito)', fatia: '16b',
+    linhas: todos([['textbox', 'Cor'], ['slider', 'Espessura'], cx('Oculto para jogadores')]),
   },
   {
-    tela: 'mestre', titulo: 'Ficha da peça de chão', estado: 'peça de chão selecionada', escopo: 'esquerda', preparo: sel('floor', 'f1'),
-    vai: 'Página Ficha, gramática nova', fatia: '16b',
-    linhas: todos([b('Apagar peça de chão selecionada'), b('Mais ações')]),
+    tela: 'mestre', titulo: 'Ficha do texto', estado: 'texto selecionado', escopo: 'esquerda', preparo: sel('drawing', 'tx1'),
+    vai: 'Página Ficha do texto: o campo do texto (com nome, "Texto"), Cor, Tamanho da fonte, Fonte e Oculto no essencial (feito)', fatia: '16b',
+    linhas: todos([['textbox', 'Texto'], ['textbox', 'Cor'], ['slider', 'Tamanho da fonte'], ['combobox', 'Fonte'], cx('Oculto para jogadores')]),
+  },
+  {
+    tela: 'mestre', titulo: 'Ficha da peça de chão', estado: 'peça de chão (retângulo) selecionada', escopo: 'esquerda', preparo: sel('floor', 'f1'),
+    vai: 'Página Ficha da peça de chão: Travar, Operação e Cor no essencial; Medidas aberta; Borda e Ordem fechadas (feito)', fatia: '16b',
+    linhas: [
+      ...todos([b('Apagar peça de chão selecionada'), b('Mais ações')]),
+      ...todos([cx('Travar peça'), rg('Operação da peça de chão'), ['textbox', 'Cor desta peça']]),
+      // "Medidas" nasce aberta (mexer no tamanho é o gesto comum); "Borda" e "Ordem" nascem fechadas, com o resumo ("Borda Reta", "Ordem 1 de 1").
+      ...todos([['spinbutton', 'Centro X (px)'], ['spinbutton', 'Centro Y (px)'], ['spinbutton', 'Largura (px)'], ['spinbutton', 'Altura (px)'], ['spinbutton', 'Rotação (graus)']], b('/^Medidas/')),
+      ...todos([['spinbutton', 'Arredondar (px)'], cx('Borda irregular')], b('/^Borda/')),
+      ...todos([b('Descer'), b('Subir'), b('Apagar peça de chão')], b('/^Ordem/')),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da zona oculta', estado: 'zona oculta selecionada', escopo: 'esquerda', preparo: sel('zona', 'z1'),
@@ -642,4 +668,14 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
     'só com objeto que é item pegável (o estado de teste não tem); ItemNoMapaControls.test.tsx cobre os campos. Desde a fatia 16a o item fica no essencial, e "No mapa" (aberta) segue com Rotação, Travado, Oculto e Camada',
   ],
   ['Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro', 'pedem sistema de RPG, colegas ou histórico; as abas estão cobertas'],
+  [
+    'Ficha do desenho (fatia 16b): Preenchido e Opacidade da forma (retângulo, elipse) no essencial; com "Paredes ao redor" ligado, Aparência das paredes, cor, Passagem pelas paredes e Soltar, na ficha Paredes',
+    'o estado de teste só tem a linha dr1, com as paredes desligadas; FichasDosItens16b.test.tsx cobre a forma e ParedesAoRedorControls.test.tsx cobre as paredes ligadas',
+  ],
+  [
+    'Ficha da peça de chão (fatia 16b): Voltar à cor do chão, os campos da Borda irregular ligada (Intensidade, Tamanho do dente, Semente) e as medidas das outras formas (raios, Lados, largura em cada ponto, vértices; blocos sem Rotação)',
+    'o estado de teste só tem o retângulo f1, sem cor própria nem borda irregular; FichasDosItens16b.test.tsx cobre a cor própria e a borda irregular',
+  ],
+  ['Ficha da região (fatia 16b): "Mostrar aos jogadores", na ficha Gatilho', 'só aparece com um gatilho escolhido (a região r1 não tem); AreaTriggerControls.test.tsx cobre'],
+  ['Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta', 'pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para'],
 ]

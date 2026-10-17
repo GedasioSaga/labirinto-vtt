@@ -76,4 +76,16 @@ describe('PisoControls', () => {
     expect(campo('Leva ao piso').value).toBe('')
     expect(campo('Piso').value).toBe('2')
   })
+
+  it('sem título (dentro da ficha da escada): nada de h2 "Piso", os campos ficam', () => {
+    render({ piso: 1, onPisoChange: vi.fn(), levaAoPiso: 2, onLevaAoPisoChange: vi.fn(), semTitulo: true })
+    expect(container.querySelector('h2')).toBeNull()
+    expect(campo('Piso').value).toBe('1')
+    expect(campo('Leva ao piso').value).toBe('2')
+  })
+
+  it('com título (ficha do token, padrão): o h2 "Piso" de antes continua', () => {
+    render({ piso: 0, onPisoChange: vi.fn() })
+    expect(container.querySelector('h2')?.textContent).toBe('Piso')
+  })
 })
