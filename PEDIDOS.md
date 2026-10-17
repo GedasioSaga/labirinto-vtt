@@ -1695,3 +1695,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 16/10/2026: "Sobre a parte do Relevo ajeitado vocÊ pode criar um inslador para isso? No caso instalar tudo que aconteceu antes do redesign."
 - Entendido: instalador a partir de `84b756a4`, o último commit antes do redesign (penhasco suave `ebb55b43`, Árvore, Girassóis, Portão de ferro, Tapete, cores da Cama), sem nenhuma fatia do redesign. Usuário escolheu publicar com atualização automática.
 - FEITO 16/10/2026: v0.4.32 publicada (https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.32) a partir do branch `release/v0.4.32` (commit `a8e60c4d` = `84b756a4` + versão). setup.exe, .sig, .msi e latest.json no release; assinatura conferida pelo script, gitleaks sem vazamento, `latest.json` de releases/latest responde 0.4.32. A main recebeu a mesma subida de versão (0.4.32), então a próxima release sai da main como 0.4.33 com o redesign.
+
+## Pedido de 17/10/2026 (registro literal, com print das portas do protótipo consolidado: retângulo creme e retângulo vermelho na parede)
+> 17/10/2026: "Uma pergunta no artefato consolidado, as portas estão assim [Image #3], pelo que eu vi aqui do que você fez, elas ainda estão como antes, voc~e ainda vai mexer nelas ?"
+- Entendido: no protótipo, a porta no mapa é um retângulo pequeno e chapado na parede (creme; vermelho quando trancada). No app ela continua com o desenho antigo: o dossiê da fatia 11 decidiu sozinho não trocar, citando o estilo Resident Evil, sem perguntar ao usuário. Nenhuma fatia restante (17-21) mexe nisso.
+- Proposta: trocar o desenho da porta parada em `client/src/pixi/drawDoors.ts` pelo do protótipo (compatível com o estilo RE: pequeno, chapado, sem hachura), ~10-15 M tokens. Quando fazer: aguarda decisão do usuário (fim do redesign ou semana nova, depois de 21/10 23h).
+- 17/10/2026 12h31: redesign pausado a pedido do usuário depois da fatia 16b (`10ffa20d`); próxima fatia 17.
