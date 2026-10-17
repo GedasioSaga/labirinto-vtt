@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { PinItem, PinKind, PinLock } from '../../types/map'
-import type { CenarioDoPino } from '../../cenario/catalogo'
+import { movimentoInfo, type CenarioDoPino } from '../../cenario/catalogo'
 import { CenarioSection } from '../../cenario/CenarioSection'
+import { useEstilosDeCenario, type EstiloDeCenario } from '../../cenario/estilosDeCenario'
 import { novaMercadoria } from '../../lib/loja'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_NOME_MAX_LENGTH } from '../../lib/pins'
 import { useToastStore } from '../../stores/toastStore'
@@ -203,7 +204,7 @@ function interruptorDo(id: Recurso, props: FichaDoPinoProps, guardados: Guardado
 }
 
 /** O que a ficha fechada diz do recurso, numa palavra (o protótipo); sem resumo, nada. */
-function resumoDo(id: Recurso, props: FichaDoPinoProps): string | undefined {
+function resumoDo(id: Recurso, props: FichaDoPinoProps, estilos: readonly EstiloDeCenario[]): string | undefined {
   switch (id) {
     case 'item': {
       const nome = props.item?.value?.nome.trim() ?? ''
@@ -221,7 +222,12 @@ function resumoDo(id: Recurso, props: FichaDoPinoProps): string | undefined {
       const quantas = props.loja?.loja?.length ?? 0
       return quantas === 1 ? '1 mercadoria' : `${quantas} mercadorias`
     }
-    case 'cenario':
+    case 'cenario': {
+      // O nome da câmera, ou do estilo do pacote, como no protótipo; ainda sem "quando" não há resumo.
+      const cenario = props.cenario?.valor
+      if (cenario === undefined) return undefined
+      return estilos.find((e) => e.id === cenario.estilo)?.nome ?? movimentoInfo(cenario.movimento).nome
+    }
     case 'cabine':
       return undefined
   }
@@ -358,6 +364,7 @@ function RecursosDoPino(props: FichaDoPinoProps) {
   const maisRef = useRef<HTMLButtonElement | null>(null)
   const [menuAberto, setMenuAberto] = useState(false)
   // Os que entraram pelo menu com a ficha aberta: nascem abertos.
+  const estilos = useEstilosDeCenario()
   const [entraram, setEntraram] = useState<ReadonlySet<Recurso>>(() => new Set())
   const [novo, setNovo] = useState<Recurso | null>(null)
   const [foco, setFoco] = useState<FocoPendente | null>(null)
@@ -423,7 +430,7 @@ function RecursosDoPino(props: FichaDoPinoProps) {
                 key={def.id}
                 titulo={def.rotulo}
                 icone={<IconeDoLivro nome={def.icone} />}
-                resumo={resumoDo(def.id, props)}
+                resumo={resumoDo(def.id, props, estilos)}
                 abertaInicial={entraram.has(def.id)}
                 nova={novo === def.id}
                 idDoCabecalho={`${baseId}-${def.id}`}

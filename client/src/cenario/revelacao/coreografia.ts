@@ -73,6 +73,8 @@ export function medirEPosicionar(p: PecasDaRevelacao, imagem: MedidasDaImagem | 
     espacoDoPular: comPular ? ESPACO_DO_PULAR : 0,
     alturaDoPainel: (largura, minima, maxima) => {
       if (!painel) return 0
+      // Sem soltar a altura da medida anterior, o offsetHeight devolve ela mesma e o painel nunca cresce (fonte ou largura nova).
+      painel.style.height = ''
       painel.style.width = `${largura}px`
       painel.style.minHeight = `${minima}px`
       painel.style.maxHeight = `${maxima}px`

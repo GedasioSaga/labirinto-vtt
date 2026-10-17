@@ -483,6 +483,34 @@ Parte de: pino de exclamação selecionado. Vai para: Página Ficha do pino: ess
 | Loja com preços | menuitem "Loja com preços" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
 | Cabine contínua | menuitem "Cabine contínua" | (livro do mestre) > clicar button "Adicionar ao pino" | (do bloco) |
 
+### Ficha do pino (!) com cenário
+
+Parte de: pino de exclamação com imagem e animação do cenário selecionado. Vai para: Ficha "Animação do cenário" na ficha do pino: prévia viva no topo (Assistir/Parar, Ver grande, duração), Estilo, Câmera, Efeitos, Duração e Quando (feito). Fatia: 13.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Assistir | button "Assistir" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Ver grande | button "Ver grande" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Prévia da animação do cenário | img "Prévia da animação do cenário" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Estilo | combobox "Estilo" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Câmera dentro da moldura | radiogroup "Câmera dentro da moldura" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| De baixo para cima | radio "De baixo para cima" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| De cima para baixo | radio "De cima para baixo" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Da esquerda para a direita | radio "Da esquerda para a direita" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Da direita para a esquerda | radio "Da direita para a esquerda" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Aproximar | radio "Aproximar" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Névoa | button "Névoa" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Raios de sol | button "Raios de sol" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Partículas | button "Partículas" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Som do vento | button "Som do vento" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Duração (segundos) | textbox "Duração (segundos)" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Quando o jogador vê | combobox "Quando o jogador vê" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Tirar do pino | button "Tirar do pino" | (livro do mestre) > clicar button "/^Animação do cenário/" | (do bloco) |
+| Ver grande: janela "Animação do cenário · <local>" | dialog "/^Animação do cenário/" | (livro do mestre) > clicar button "/^Animação do cenário/" > clicar button "Ver grande" | (do bloco) |
+| Ver grande: Esc fecha e o foco volta | button "Ver grande" | (livro do mestre) > clicar button "/^Animação do cenário/" > clicar button "Ver grande" > tecla Escape | (do bloco) |
+| Assistir: vira Parar | button "Parar" | (livro do mestre) > clicar button "/^Animação do cenário/" > clicar button "Assistir" | (do bloco) |
+
 ### Ficha do pino de viagem
 
 Parte de: pino de viagem selecionado. Vai para: Página Ficha do pino: destino e Passagem no essencial, o resto na ficha "Mais da viagem" (feito). Fatia: 12.
@@ -1112,4 +1140,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 610 controles em 67 blocos.
+Total: 631 controles em 68 blocos.

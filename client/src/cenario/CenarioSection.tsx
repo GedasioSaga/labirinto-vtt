@@ -1,6 +1,10 @@
 import { useEffect, useId, useState } from 'react'
 import { BotaoProcurarAnimacoes } from '../components/ProcurarAnimacoes'
-import { Toggle } from '../components/Toggle'
+import { CampoChips, type OpcaoDeChip } from '../components/grimorio/CampoChips'
+import { CampoSeg, type OpcaoDoSeg } from '../components/grimorio/CampoSeg'
+import { CampoSel, type OpcaoDoSel } from '../components/grimorio/CampoTexto'
+import { Nota } from '../components/grimorio/Nota'
+import { IconeDoLivro } from '../components/livro/icones'
 import {
   CENARIO_DURACAO_MAX_S,
   CENARIO_DURACAO_MIN_S,
@@ -13,7 +17,8 @@ import {
 } from './catalogo'
 import { CenarioPreviewDialog } from './CenarioPreviewDialog'
 import { useEstilosDeCenario } from './estilosDeCenario'
-import './cenario.css'
+import { PreviaDoCenario } from './PreviaDoCenario'
+import './previaDoCenario.css'
 
 interface CenarioSectionProps {
   cenario: CenarioDoPino | undefined
@@ -27,13 +32,23 @@ interface CenarioSectionProps {
 
 type Quando = 'nao' | CenarioDoPino['quando']
 
-const QUANDO: Array<{ valor: Quando; nome: string }> = [
-  { valor: 'nao', nome: 'Não, só o cartão' },
-  { valor: 'primeira', nome: 'Só da primeira vez' },
-  { valor: 'sempre', nome: 'Sempre' },
+const QUANDO: readonly OpcaoDoSel<Quando>[] = [
+  { valor: 'nao', rotulo: 'Não, só o cartão' },
+  { valor: 'primeira', rotulo: 'Só da primeira vez' },
+  { valor: 'sempre', rotulo: 'Sempre' },
 ]
 
-/** Seta que mostra o sentido do movimento (ou o "aproximar") no cartão da galeria. */
+/** Os efeitos da panorâmica, ícones que ligam e desligam. */
+type Efeito = 'nevoa' | 'raios' | 'particulas' | 'som'
+
+const EFEITOS: readonly OpcaoDeChip<Efeito>[] = [
+  { valor: 'nevoa', rotulo: 'Névoa', icone: <IconeDoLivro nome="nevoa" /> },
+  { valor: 'raios', rotulo: 'Raios de sol', icone: <IconeDoLivro nome="luz" /> },
+  { valor: 'particulas', rotulo: 'Partículas', icone: <IconeDoLivro nome="estrela" /> },
+  { valor: 'som', rotulo: 'Som do vento', icone: <IconeDoLivro nome="som" /> },
+]
+
+/** Seta que mostra o sentido do movimento (ou o "aproximar"). */
 function SetaDoMovimento({ id }: { id: MovimentoId }) {
   const caminho: Record<MovimentoId, string> = {
     sobe: 'M8 13V3M4 7l4-4 4 4',
@@ -49,46 +64,26 @@ function SetaDoMovimento({ id }: { id: MovimentoId }) {
   )
 }
 
-function ExpandirIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
-    </svg>
-  )
-}
+/** A câmera dentro da moldura: os movimentos só de ícone (o nome vai no balão e no leitor de tela). */
+const CAMERAS: readonly OpcaoDoSeg<MovimentoId>[] = MOVIMENTOS.map((m) => ({ valor: m.id, rotulo: m.nome, icone: <SetaDoMovimento id={m.id} />, soIcone: true }))
 
 /** Valor do seletor "Estilo" para a panorâmica embutida: nenhum id válido é vazio. */
 const PANORAMICA = ''
 
 /**
- * ANIMAÇÃO DO CENÁRIO no painel do pino "!": quando toca (nunca, só da
- * primeira vez, sempre), qual estilo, quanto tempo e — na panorâmica — qual
- * movimento e quais efeitos. Cada movimento, e cada estilo do pacote, tem o
- * botão de assistir inteiro numa janela.
+ * ANIMAÇÃO DO CENÁRIO na ficha do pino "!": a prévia viva no topo (Assistir,
+ * Ver grande, a duração), o estilo, a câmera e os efeitos da panorâmica, a
+ * duração e quando o jogador vê (nunca, só da primeira vez, sempre).
  */
 export function CenarioSection({ cenario, imagem, nome = '', descricao = '', onChange }: CenarioSectionProps) {
   const tituloId = useId()
-  const quandoId = useId()
-  const estiloId = useId()
-  const duracaoId = useId()
-  const dicaId = useId()
-  const [previa, setPrevia] = useState<CenarioDoPino | null>(null)
+  const [grande, setGrande] = useState(false)
   const quando: Quando = cenario?.quando ?? 'nao'
-  const estilos = useEstilosDeCenario()
-  const estiloGravado = cenario?.estilo
-  const estilo = estiloGravado === undefined ? null : (estilos.find((e) => e.id === estiloGravado) ?? null)
-  // Id de um pacote que este app ainda não baixou: a opção diz isso em vez de
-  // virar "Panorâmica" calada — o seletor não mente sobre o pino.
-  const naoInstalado = estiloGravado !== undefined && estilo === null ? estiloGravado : null
-
-  function mudar(patch: Partial<CenarioDoPino>) {
-    onChange({ ...(cenario ?? CENARIO_PADRAO), ...patch })
-  }
 
   function escolherQuando(valor: Quando) {
     if (valor === quando) return
     if (valor === 'nao') onChange(undefined)
-    else mudar({ quando: valor })
+    else onChange({ ...(cenario ?? CENARIO_PADRAO), quando: valor })
   }
 
   return (
@@ -97,104 +92,80 @@ export function CenarioSection({ cenario, imagem, nome = '', descricao = '', onC
         Animação do Cenário
       </h3>
       {imagem === null ? (
-        <p className="lb-travel__hint">Coloque uma imagem no pino para animar o cenário.</p>
+        <Nota>Coloque uma imagem no pino para animar o cenário.</Nota>
       ) : (
         <>
-          <div className="lb-seg" role="radiogroup" aria-labelledby={quandoId}>
-            <span id={quandoId} className="lb-sr-only">
-              Quando o jogador vê
-            </span>
-            {QUANDO.map((opcao) => (
-              <button
-                key={opcao.valor}
-                type="button"
-                role="radio"
-                aria-checked={quando === opcao.valor}
-                className="lb-seg__option"
-                onClick={() => escolherQuando(opcao.valor)}
-              >
-                {opcao.nome}
-              </button>
-            ))}
-          </div>
           {cenario !== undefined && (
             <>
-              <div className="lb-field">
-                <label className="lb-label" htmlFor={estiloId}>
-                  Estilo
-                </label>
-                <select
-                  id={estiloId}
-                  className="lb-input"
-                  value={estiloGravado ?? PANORAMICA}
-                  onChange={(event) => onChange(cenarioComEstilo(cenario, event.target.value === PANORAMICA ? null : event.target.value))}
-                >
-                  <option value={PANORAMICA}>Panorâmica</option>
-                  {estilos.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nome}
-                    </option>
-                  ))}
-                  {naoInstalado !== null && <option value={naoInstalado}>Não instalado ({naoInstalado})</option>}
-                </select>
-                <BotaoProcurarAnimacoes />
-              </div>
-              {naoInstalado !== null && <p className="lb-travel__hint">Este estilo ainda não chegou neste app. Até chegar, o jogador vê a panorâmica abaixo.</p>}
-              {estilo !== null ? (
-                <button type="button" className="lb-btn lb-btn--ghost" aria-label={`Assistir ${estilo.nome}`} onClick={() => setPrevia(cenario)}>
-                  Assistir inteira
-                </button>
-              ) : (
-                <ul className="lb-cenario-secao__movimentos">
-                  {MOVIMENTOS.map((m) => (
-                    <li key={m.id} className="lb-cenario-mov" data-escolhido={cenario.movimento === m.id}>
-                      <button type="button" className="lb-cenario-mov__escolher" aria-pressed={cenario.movimento === m.id} onClick={() => mudar({ movimento: m.id })}>
-                        <span className="lb-cenario-mov__seta">
-                          <SetaDoMovimento id={m.id} />
-                        </span>
-                        {m.nome}
-                      </button>
-                      <button
-                        type="button"
-                        className="lb-iconbtn lb-iconbtn--sm"
-                        aria-label={`Assistir ${m.nome}`}
-                        title="Assistir inteira"
-                        onClick={() => setPrevia({ ...cenario, movimento: m.id })}
-                      >
-                        <ExpandirIcon />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <DuracaoDoCenario
-                key={`${estiloGravado ?? PANORAMICA}|${cenario.movimento}`}
-                inputId={duracaoId}
-                dicaId={dicaId}
-                duracaoS={cenario.duracaoS}
-                naturalS={estilo !== null ? estilo.duracaoNaturalS : CENARIO_DURACAO_NATURAL_S}
-                onChange={(duracaoS) => mudar({ duracaoS })}
-              />
-              {/* Névoa, raios, partículas e vento são da panorâmica: num estilo do pacote não mudam nada. */}
-              {estilo === null && (
-                <>
-                  <Toggle label="Névoa" checked={cenario.nevoa} onChange={(nevoa) => mudar({ nevoa })} />
-                  <Toggle label="Raios de sol" checked={cenario.raios} onChange={(raios) => mudar({ raios })} />
-                  <Toggle label="Partículas (pólen e folhas)" checked={cenario.particulas} onChange={(particulas) => mudar({ particulas })} />
-                  <Toggle label="Som do vento" checked={cenario.som} onChange={(som) => mudar({ som })} />
-                </>
-              )}
+              <PreviaDoCenario imagem={imagem} cenario={cenario} nome={nome} descricao={descricao} onVerGrande={() => setGrande(true)} />
+              <CamposDoCenario cenario={cenario} onChange={onChange} />
+            </>
+          )}
+          <CampoSel rotulo="Quando o jogador vê" opcoes={QUANDO} valor={quando} onChange={escolherQuando} />
+          {cenario !== undefined && (
+            <>
               <p className="lb-travel__hint">
                 {cenario.quando === 'sempre'
                   ? 'Toca toda vez que o jogador abre este pino; depois vem o cartão.'
                   : 'Toca na primeira vez que o jogador abre este pino; depois, só o cartão (com "Ver animação").'}
               </p>
+              <CenarioPreviewDialog aberto={grande} imagem={imagem} cenario={cenario} nome={nome} descricao={descricao} onClose={() => setGrande(false)} />
             </>
           )}
-          {previa && <CenarioPreviewDialog imagem={imagem} cenario={previa} nome={nome} descricao={descricao} onClose={() => setPrevia(null)} />}
         </>
       )}
     </section>
+  )
+}
+
+/** Estilo (com o "Procurar animações novas"), câmera e efeitos da panorâmica, e a duração. */
+function CamposDoCenario({ cenario, onChange }: { cenario: CenarioDoPino; onChange: (cenario: CenarioDoPino) => void }) {
+  const duracaoId = useId()
+  const dicaId = useId()
+  const estilos = useEstilosDeCenario()
+  const estiloGravado = cenario.estilo
+  const estilo = estiloGravado === undefined ? null : (estilos.find((e) => e.id === estiloGravado) ?? null)
+  // Id de um pacote que este app ainda não baixou: a opção diz isso em vez de
+  // virar "Panorâmica" calada; o seletor não mente sobre o pino.
+  const naoInstalado = estiloGravado !== undefined && estilo === null ? estiloGravado : null
+  const opcoesDeEstilo: OpcaoDoSel<string>[] = [
+    { valor: PANORAMICA, rotulo: 'Panorâmica' },
+    ...estilos.map((e) => ({ valor: e.id, rotulo: e.nome })),
+    ...(naoInstalado !== null ? [{ valor: naoInstalado, rotulo: `Não instalado (${naoInstalado})` }] : []),
+  ]
+  const efeitos = EFEITOS.filter((e) => cenario[e.valor]).map((e) => e.valor)
+
+  function mudar(patch: Partial<CenarioDoPino>) {
+    onChange({ ...cenario, ...patch })
+  }
+
+  return (
+    <>
+      <CampoSel rotulo="Estilo" opcoes={opcoesDeEstilo} valor={estiloGravado ?? PANORAMICA} onChange={(id) => onChange(cenarioComEstilo(cenario, id === PANORAMICA ? null : id))} />
+      <BotaoProcurarAnimacoes />
+      {naoInstalado !== null && <Nota>Este estilo ainda não chegou neste app. Até chegar, o jogador vê a panorâmica.</Nota>}
+      {/* Câmera, névoa, raios, partículas e vento são da panorâmica: num estilo do pacote não mudam nada. */}
+      {estilo === null && (
+        <>
+          <CampoSeg rotulo="Câmera dentro da moldura" forma="icone" opcoes={CAMERAS} valor={cenario.movimento} onChange={(movimento) => mudar({ movimento })} />
+          <CampoChips
+            rotulo="Efeitos"
+            forma="icones"
+            opcoes={EFEITOS}
+            valores={efeitos}
+            onChange={(ligados) => mudar({ nevoa: ligados.includes('nevoa'), raios: ligados.includes('raios'), particulas: ligados.includes('particulas'), som: ligados.includes('som') })}
+          />
+        </>
+      )}
+      <DuracaoDoCenario
+        key={`${estiloGravado ?? PANORAMICA}|${cenario.movimento}`}
+        inputId={duracaoId}
+        dicaId={dicaId}
+        duracaoS={cenario.duracaoS}
+        naturalS={estilo !== null ? estilo.duracaoNaturalS : CENARIO_DURACAO_NATURAL_S}
+        onChange={(duracaoS) => mudar({ duracaoS })}
+      />
+    </>
   )
 }
 
@@ -232,15 +203,16 @@ function DuracaoDoCenario({ inputId, dicaId, duracaoS, naturalS, onChange }: Dur
   }
 
   return (
-    <div className="lb-field lb-cenario-secao__duracao">
-      <label className="lb-label" htmlFor={inputId}>
+    <div className="gr-campo">
+      <label className="gr-campo__rot" htmlFor={inputId}>
         Duração (segundos)
       </label>
       <input
         id={inputId}
-        className="lb-input"
+        className="gr-entrada"
         type="text"
         inputMode="decimal"
+        autoComplete="off"
         placeholder={String(naturalS)}
         aria-describedby={dicaId}
         value={texto}

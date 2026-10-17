@@ -17,7 +17,7 @@
  */
 
 export type Papel =
-  | 'alertdialog' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'group' | 'heading' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
+  | 'alertdialog' | 'button' | 'checkbox' | 'combobox' | 'dialog' | 'group' | 'heading' | 'img' | 'list' | 'menuitem' | 'radio' | 'radiogroup'
   | 'region' | 'searchbox' | 'separator' | 'slider' | 'spinbutton' | 'tab' | 'textbox'
 
 /** [papel ARIA, nome acessível]. */
@@ -99,7 +99,10 @@ const TRANSICAO = (titulo: string): Alvo[] => [['heading', titulo], b('Nenhuma C
 // FICHA DO PINO (fatia 12): o essencial à vista, a aparência na ficha recolhida e os recursos pelo "+ Adicionar ao pino".
 const PINO_ESSENCIAL: Alvo[] = [rg('Tipo do pino'), ['textbox', 'Nome do local'], ['textbox', 'Descrição · o jogador lê'], cx('Oculto para jogadores'), cx('Marco: todos veem'), cx('Ler só de perto')]
 const PINO_APARENCIA: Alvo[] = [cx('Só o círculo, sem haste'), cx('Travado'), b('Escolher imagem...')]
-const PINO_RECURSOS: Alvo[] = ['Animação do cenário', 'Item pegável', 'Fechadura com segredo', 'Peça de coleção', 'Loja com preços', 'Cabine contínua'].map((nome) => menu(nome))
+// ANIMAÇÃO DO CENÁRIO (fatia 13): as câmeras só de ícone (o nome vai no leitor de tela) e os efeitos que ligam e desligam.
+const CENARIO_CAMERAS = ['De baixo para cima', 'De cima para baixo', 'Da esquerda para a direita', 'Da direita para a esquerda', 'Aproximar']
+const CENARIO_EFEITOS = ['Névoa', 'Raios de sol', 'Partículas', 'Som do vento']
+const PINO_RECURSOS: Alvo[] =['Animação do cenário', 'Item pegável', 'Fechadura com segredo', 'Peça de coleção', 'Loja com preços', 'Cabine contínua'].map((nome) => menu(nome))
 
 const sel = (tipo: NonNullable<Preparo['selecao']>[number]['tipo'], id: string): Preparo => ({ selecao: [{ tipo, id }] })
 const ferramenta = (nome: string): Preparo => ({ ferramenta: nome })
@@ -319,6 +322,28 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([...PINO_APARENCIA, rg('Ícone no mapa')], b('/^Aparência/')),
       // Cada recurso entra pelo menu "+ Adicionar ao pino" e ganha ficha própria, com "Tirar do pino".
       ...todos(PINO_RECURSOS, b('Adicionar ao pino')),
+    ],
+  },
+  {
+    tela: 'mestre', titulo: 'Ficha do pino (!) com cenário', estado: 'pino de exclamação com imagem e animação do cenário selecionado', escopo: 'esquerda', preparo: sel('pin', 'pin-c'),
+    vai: 'Ficha "Animação do cenário" na ficha do pino: prévia viva no topo (Assistir/Parar, Ver grande, duração), Estilo, Câmera, Efeitos, Duração e Quando (feito)', fatia: '13',
+    linhas: [
+      // A ficha do recurso nasce recolhida; o nome do cabeçalho leva o resumo (o nome da câmera ou do estilo).
+      ...todos(
+        [
+          b('Assistir'), b('Ver grande'), ['img', 'Prévia da animação do cenário'],
+          ['combobox', 'Estilo'], b('Procurar animações novas'),
+          rg('Câmera dentro da moldura'), ...CENARIO_CAMERAS.map((nome): Alvo => ['radio', nome]),
+          ...CENARIO_EFEITOS.map((nome) => b(nome)),
+          ['textbox', 'Duração (segundos)'], ['combobox', 'Quando o jogador vê'], b('Tirar do pino'),
+        ],
+        b('/^Animação do cenário/'),
+      ),
+      // "Ver grande" abre a janela com o mesmo palco; Esc fecha e o foco volta ao botão.
+      { ...l('Ver grande: janela "Animação do cenário · <local>"', ['dialog', '/^Animação do cenário/'], b('/^Animação do cenário/'), b('Ver grande')), noPop: true },
+      { ...l('Ver grande: Esc fecha e o foco volta', b('Ver grande'), b('/^Animação do cenário/'), b('Ver grande')), tecla: 'Escape', focado: true },
+      // Por último: tocando, o "Assistir" vira "Parar" (e volta sozinho no fim, em até 5 s).
+      l('Assistir: vira Parar', b('Parar'), b('/^Animação do cenário/'), b('Assistir')),
     ],
   },
   {

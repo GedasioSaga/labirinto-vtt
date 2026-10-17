@@ -1,12 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimacaoCenario } from '../AnimacaoCenario'
 import type { CenarioDoPino } from '../catalogo'
 import { aplicarEstado, medirEPosicionar, type MedidasDaImagem, type PecasDaRevelacao } from './coreografia'
-import type { Layout } from './layout'
+import type { Layout, Retangulo } from './layout'
 import { criarSomDaRevelacao, type SomDaRevelacao } from './som'
 import {
   CURSOR_SOME_DEPOIS_S,
   FECHAR_EM_S,
+  FIM_DA_REVELACAO,
   PARA_O_RELOGIO_S,
   estadoNoTempo,
   filaDeSons,
@@ -35,6 +36,27 @@ export interface RevelacaoDoLocalProps {
   previa?: boolean
   /** Muda o valor para recomeçar do zero. */
   rodada?: number
+  /**
+   * Prévia parada (o palco da ficha do pino): nasce no último quadro, tudo
+   * aberto e escrito, sem tocar, sem contexto de áudio, sem vento e sem aquecimento.
+   */
+  parada?: boolean
+  /** Instante em que `onFim` avisa (uma vez). Padrão: o fim da revelação, 4,6 s. */
+  fimEmS?: number
+  /** A revelação chegou a `fimEmS` (a prévia volta ao botão Assistir). */
+  onFim?: () => void
+  /** Movimento reduzido decidido por quem monta (a prévia lê a preferência a cada "Assistir"). Padrão: a preferência do sistema ao montar. */
+  reduzir?: boolean
+  /**
+   * Instante (`performance.now()`) de onde o relógio conta: o clique no
+   * "Assistir". A demora até a revelação ficar pronta não empurra a coreografia
+   * nem o `fimEmS`. Padrão: o instante em que ela começa a tocar.
+   */
+  inicioMs?: number
+  /** Onde o grupo (moldura + postigo) assentou, em px do palco: a prévia ajusta a altura dela por ele. */
+  onMedir?: (grupo: Retangulo) => void
+  /** Selo por cima da imagem, no canto da vista (a pílula "Vento" da prévia). */
+  sobreAImagem?: ReactNode
   /** O jogador apertou "Fechar" (ou Esc depois de tudo aberto). */
   onFechar?: () => void
 }
@@ -93,7 +115,7 @@ const proximoQuadro = () => new Promise<void>((ok) => requestAnimationFrame(() =
  * letra. A câmera dentro da moldura é a panorâmica de sempre
  * (`AnimacaoCenario` com `emMoldura`), na duração que o mestre escolheu.
  */
-export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = false, rodada = 0, onFechar }: RevelacaoDoLocalProps) {
+export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = false, rodada = 0, parada = false, fimEmS = FIM_DA_REVELACAO, onFim, onFechar, reduzir: reduzirPedido, inicioMs, onMedir, sobreAImagem }: RevelacaoDoLocalProps) {
   const temNome = nome.trim() !== ''
   // Espaço e linha em branco nas pontas não viram tecla nem pausa.
   const texto = descricao.trim()
@@ -101,7 +123,8 @@ export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = fal
   const temPainel = temNome || temTexto
   const src = imagem?.src ?? null
   const [medidas, setMedidas] = useState<MedidasDaImagem | null>(null)
-  const [reduzir] = useState(prefereMenosMovimento)
+  const [reduzirAoMontar] = useState(prefereMenosMovimento)
+  const reduzir = reduzirPedido ?? reduzirAoMontar
   const [fechar, setFechar] = useState(false)
   const [pulado, setPulado] = useState(false)
   const pronto = src === null || medidas !== null
@@ -129,6 +152,10 @@ export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = fal
   const pularRef = useRef<HTMLButtonElement>(null)
   const onFecharRef = useRef(onFechar)
   onFecharRef.current = onFechar
+  const onFimRef = useRef(onFim)
+  onFimRef.current = onFim
+  const onMedirRef = useRef(onMedir)
+  onMedirRef.current = onMedir
   const volumeRef = useRef(volume)
   volumeRef.current = volume
   const somRef = useRef<SomDaRevelacao | null>(null)
@@ -190,19 +217,26 @@ export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = fal
       medidas: semImagem ? null : (medidas ?? MEDIDAS_PADRAO),
       temPainel,
       comPular: !previa,
+      // Lido ao criar: o fim de uma rodada não muda no meio dela.
+      fimEmS,
+      inicioMs,
       texto: { feito: feitoRef.current, falta: faltaRef.current, cursor: cursorRef.current, rolagem: rolagemRef.current, paragrafo: textoRef.current },
       quandoVirarFechar: () => setFechar(true),
       quandoPular: () => setPulado(true),
       quandoFechar: () => onFecharRef.current?.(),
+      quandoFim: () => onFimRef.current?.(),
+      quandoMedir: (grupo) => onMedirRef.current?.(grupo),
     })
     setFechar(false)
     setPulado(false)
-    // Som só fora do movimento reduzido: lá o texto chega inteiro, sem rajada de teclas, e não há porta.
-    if (!reduzir && fila.length > 0) somRef.current = criarSomDaRevelacao(volumeRef.current)
+    // Som só fora do movimento reduzido (lá o texto chega inteiro, sem rajada de teclas, e não há porta)
+    // e nunca na prévia parada, que não toca nada.
+    if (!reduzir && !parada && fila.length > 0) somRef.current = criarSomDaRevelacao(volumeRef.current)
     relogio.som = somRef.current
     acoesRef.current = { pularOuFechar: () => relogio.pularOuFechar(), completar: () => relogio.completarTexto() }
     relogio.medir()
-    void relogio.aquecerEComecar()
+    if (parada) relogio.irParaOFim()
+    else void relogio.aquecerEComecar()
     const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => relogio.medir()) : null
     observador?.observe(raiz)
     return () => {
@@ -213,7 +247,7 @@ export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = fal
       somRef.current = null
     }
     // `medidas` muda uma vez (a imagem carregou) e já está em `pronto`; trocar de pino remonta pelo `key` de quem chama.
-  }, [pronto, rodada, reduzir, previa])
+  }, [pronto, rodada, reduzir, previa, parada])
 
   useEffect(() => {
     if (previa) return
@@ -239,7 +273,16 @@ export function RevelacaoDoLocal({ imagem, nome, descricao, volume, previa = fal
               <div ref={quadroRef} className="lb-revelacao__quadro">
                 <canvas ref={molduraImagemRef} className="lb-revelacao__moldura" aria-hidden="true" />
                 <div ref={vistaRef} className="lb-revelacao__vista">
-                  <AnimacaoCenario imagem={imagem.src} cenario={imagem.cenario} volume={volume} emMoldura pularParaOFim={pulado} rodada={rodada} />
+                  {/* Parada: o último quadro e nada de vento (ele liga ao montar com `som`, mesmo no volume 0). */}
+                  <AnimacaoCenario
+                    imagem={imagem.src}
+                    cenario={parada ? { ...imagem.cenario, som: false } : imagem.cenario}
+                    volume={parada ? 0 : volume}
+                    emMoldura
+                    pularParaOFim={pulado || parada}
+                    rodada={rodada}
+                  />
+                  {sobreAImagem}
                 </div>
               </div>
               {temPainel && (
@@ -318,10 +361,15 @@ interface OpcoesDoRelogio {
   medidas: MedidasDaImagem | null
   temPainel: boolean
   comPular: boolean
+  fimEmS: number
+  /** De onde o relógio conta (`performance.now()`); sem ele, do instante em que começa. */
+  inicioMs: number | undefined
   texto: PecasDoTexto
   quandoVirarFechar: () => void
   quandoPular: () => void
   quandoFechar: () => void
+  quandoFim: () => void
+  quandoMedir: (grupo: Retangulo) => void
 }
 
 /**
@@ -344,6 +392,7 @@ class Relogio {
   private letrasNaTela = -1
   private virouFechar = false
   private fechado = false
+  private fimAvisado = false
   /** Muda quando o aquecimento é abandonado (pular no meio dele): o laço antigo para de mexer. */
   private geracao = 0
   private tamanhoMedido = ''
@@ -364,6 +413,7 @@ class Relogio {
     // A altura do painel é a do texto INTEIRO: antes da primeira letra, o resto já ocupa o lugar (transparente).
     if (this.letrasNaTela < 0) this.escreverAte(0)
     this.layout = medirEPosicionar(this.pecas, this.o.medidas, this.o.temPainel, this.o.comPular) ?? this.layout
+    if (this.layout !== null) this.o.quandoMedir(this.layout.grupo)
     if (!this.rodando && !this.aquecendo) this.desenhar(this.ultimoT)
   }
 
@@ -389,7 +439,7 @@ class Relogio {
   }
 
   private comecar(): void {
-    this.t0 = performance.now()
+    this.t0 = this.o.inicioMs ?? performance.now()
     this.desenhar(0)
     this.acordar()
   }
@@ -411,7 +461,12 @@ class Relogio {
     const t = (performance.now() - this.t0) / 1000
     this.desenhar(t)
     if (!this.pulado && !this.o.reduzir) this.som?.agendar(this.o.fila, t, this.textoCompleto)
-    const dormir = t > PARA_O_RELOGIO_S || (this.pulado && this.virouFechar)
+    if (!this.fimAvisado && t >= this.o.fimEmS) {
+      this.fimAvisado = true
+      this.o.quandoFim()
+    }
+    // Um fim depois do relógio parar (a prévia grande de um cenário longo) mantém o relógio acordado até ele.
+    const dormir = (t > PARA_O_RELOGIO_S && this.fimAvisado) || (this.pulado && this.virouFechar)
     if (dormir) {
       this.rodando = false
       return
@@ -450,13 +505,19 @@ class Relogio {
     this.seguirOCursor()
   }
 
-  /** Texto maior que o painel: a rolagem acompanha a linha que está sendo escrita. */
+  /**
+   * Texto maior que o painel: a rolagem acompanha a linha que está sendo escrita,
+   * para baixo e para cima. Tocar de novo (a prévia, o "Repetir") recomeça do
+   * alto, mesmo com a rolagem deixada no fim do texto pelo último quadro.
+   */
   private seguirOCursor(): void {
     const { rolagem, cursor, paragrafo } = this.o.texto
     if (!rolagem || !cursor || !paragrafo || rolagem.scrollHeight <= rolagem.clientHeight + 1) return
     const linha = cursor.offsetHeight || 20
-    const fundoDoCursor = paragrafo.offsetTop + cursor.offsetTop + linha * 1.5
+    const topoDoCursor = paragrafo.offsetTop + cursor.offsetTop
+    const fundoDoCursor = topoDoCursor + linha * 1.5
     if (fundoDoCursor > rolagem.scrollTop + rolagem.clientHeight) rolagem.scrollTop = fundoDoCursor - rolagem.clientHeight
+    else if (topoDoCursor < rolagem.scrollTop) rolagem.scrollTop = Math.max(0, topoDoCursor - linha)
   }
 
   /** Clique no painel durante a escrita: o texto inteiro aparece, sem tocar as teclas que faltavam. */
@@ -465,6 +526,13 @@ class Relogio {
     this.textoCompleto = true
     this.fimDoTexto = this.ultimoT
     this.acordar()
+  }
+
+  /** Prévia parada: desenha o último quadro (tudo aberto e escrito) e não acorda o laço. */
+  irParaOFim(): void {
+    this.pulado = true
+    this.fimAvisado = true
+    this.desenhar(PARA_O_RELOGIO_S)
   }
 
   /** "Pular" leva ao último quadro (tudo aberto e escrito); depois vira "Fechar". */

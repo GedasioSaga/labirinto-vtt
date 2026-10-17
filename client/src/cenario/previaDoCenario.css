@@ -1,0 +1,223 @@
+/*
+ * ANIMAÇÃO DO CENÁRIO na ficha do pino "!": a seção, e a PRÉVIA VIVA (palco da
+ * ficha e "Ver grande"), um pedaço de mapa escurecido com a revelação de
+ * verdade dentro, desenhada num tamanho virtual e encolhida. Medidas e cores
+ * do protótipo (consolidado.css, .cena).
+ */
+.lb-cenario-secao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lb-cena {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lb-cena__palco {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: 8px;
+  /* Chão de mapa: grade fina sobre a pedra fria, 7% da largura como no protótipo. */
+  background-color: #2a3238;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 7cqw 7cqw;
+}
+
+.lb-cena--grande .lb-cena__palco {
+  border-radius: 10px;
+}
+
+/* O mapa escurece por baixo da moldura: entra com o Assistir e fica no último quadro. */
+.lb-cena__veu {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 38%, rgba(14, 11, 8, 0.6), rgba(8, 7, 6, 0.9));
+}
+
+.lb-cena__veu[data-entra='true'] {
+  animation: lb-cena-veu 300ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes lb-cena-veu {
+  from {
+    opacity: 0;
+  }
+}
+
+.lb-cena__virtual {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+/*
+ * A revelação dentro da prévia, no visual do protótipo (.cena). Tudo é medido
+ * na tela e dividido pela escala do virtual (--lb-cena-escala, posta pelo
+ * PreviaDoCenario), e os cqw são da largura do palco: as mesmas contas servem
+ * à ficha e ao "Ver grande". A tela do jogador não passa por aqui.
+ */
+.lb-cena .lb-revelacao {
+  --madeira: var(--lb-cena-madeira, 7px);
+  --metal: var(--lb-cena-metal, 4px);
+}
+
+/* O postigo é papel com borda de madeira, sem a moldura de madeira e metal do jogador. */
+.lb-cena .lb-revelacao__painel {
+  padding: 0;
+}
+
+.lb-cena .lb-revelacao__painel-moldura,
+.lb-cena .lb-revelacao__painel-sombra,
+.lb-cena .lb-revelacao__papel-fundo {
+  display: none;
+}
+
+.lb-cena .lb-revelacao__papel {
+  margin: 0 4%;
+  padding: calc(3.4cqw / var(--lb-cena-escala, 1)) calc(4cqw / var(--lb-cena-escala, 1)) calc(3.8cqw / var(--lb-cena-escala, 1));
+  border: calc(max(3px, 1.3cqw) / var(--lb-cena-escala, 1)) solid #4a3220;
+  border-radius: calc(3px / var(--lb-cena-escala, 1));
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  box-shadow:
+    inset 0 0 0 calc(1px / var(--lb-cena-escala, 1)) rgba(224, 164, 74, 0.2),
+    0 calc(6px / var(--lb-cena-escala, 1)) calc(14px / var(--lb-cena-escala, 1)) rgba(0, 0, 0, 0.5);
+}
+
+/* A prévia é inerte (ninguém rola com a roda): a rolagem só segue o cursor, e um arredondamento de 1 px não acende a barra. */
+.lb-cena .lb-revelacao__rolagem {
+  overflow-y: hidden;
+}
+
+.lb-cena .lb-revelacao__cabeca {
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.lb-cena .lb-revelacao__nome {
+  margin: 0 0 0.35em;
+  color: var(--lb-color-parchment);
+  font: 400 calc(clamp(13px, 5.6cqw, 28px) / var(--lb-cena-escala, 1)) / 1.15 var(--lb-font-display);
+  letter-spacing: normal;
+}
+
+.lb-cena .lb-revelacao__texto {
+  min-height: 2.9em;
+  color: var(--lb-color-parchment-dim);
+  font: 400 calc(clamp(10.5px, 3.4cqw, 16px) / var(--lb-cena-escala, 1)) / 1.45 var(--lb-font-sans);
+}
+
+/* Cursor em bloco de latão, como no protótipo (o do jogador é um traço). */
+.lb-cena .lb-revelacao__cursor::after {
+  left: 0.05em;
+  bottom: -0.14em;
+  width: 0.45em;
+  height: 1em;
+  opacity: 0.9;
+  background: var(--lb-color-brass);
+}
+
+/* "Som do vento": a pílula no canto da vista; as barras só oscilam enquanto toca. */
+.lb-cena__vento {
+  position: absolute;
+  top: 5%;
+  right: 3%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.6em;
+  border: calc(1px / var(--lb-cena-escala, 1)) solid var(--lb-gr-filete-forte);
+  border-radius: 999px;
+  background: rgba(10, 9, 7, 0.62);
+  color: var(--lb-color-parchment);
+  font: 500 calc(clamp(9px, 2.7cqw, 13px) / var(--lb-cena-escala, 1)) / 1 var(--lb-font-utility);
+  pointer-events: none;
+}
+
+.lb-cena__vento svg {
+  width: 1.1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
+
+.lb-cena__barras {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: calc(1.5px / var(--lb-cena-escala, 1));
+  height: 0.9em;
+}
+
+.lb-cena__barras i {
+  width: calc(2px / var(--lb-cena-escala, 1));
+  height: 100%;
+  border-radius: calc(1px / var(--lb-cena-escala, 1));
+  background: var(--lb-color-brass);
+  transform: scaleY(0.4);
+  transform-origin: 50% 100%;
+}
+
+/* Oscilação contínua: ease-in-out simétrico (a "onda" do app), só enquanto toca. */
+.lb-cena__vento[data-tocando='true'] .lb-cena__barras i {
+  animation: lb-cena-barra 520ms cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
+}
+
+.lb-cena__vento[data-tocando='true'] .lb-cena__barras i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.lb-cena__vento[data-tocando='true'] .lb-cena__barras i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+@keyframes lb-cena-barra {
+  from {
+    transform: scaleY(0.35);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.lb-cena__acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-cena__dur {
+  margin-left: auto;
+  font: 500 10.5px/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cena__veu[data-entra='true'] {
+    animation-duration: 200ms;
+    animation-timing-function: ease;
+  }
+
+  .lb-cena__vento[data-tocando='true'] .lb-cena__barras i {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
+
+/* Câmera: os botões de ícone na altura dos do protótipo (28 px), não nos 34 do seg de ícones. */
+.lb-cenario-secao .gr-seg--icone .gr-seg__op {
+  min-height: 28px;
+}

@@ -54,6 +54,11 @@ function cenaComTudo(): MapData {
       { id: 'pin-e', x: 700, y: 650, kind: 'exclamacao', description: 'Altar', image: null },
       { id: 'pin-v', x: 800, y: 650, kind: 'viagem', description: 'Saída', image: null },
       { id: 'pin-a', x: 900, y: 650, kind: 'alavanca', description: 'Alavanca', image: null },
+      // Com imagem e animação do cenário: a ficha "Animação do cenário" já nasce no pino (fatia 13).
+      {
+        id: 'pin-c', x: 1000, y: 650, kind: 'exclamacao', description: 'Caixas suspeitas', image: PNG_1PX,
+        cenario: { quando: 'primeira', movimento: 'sobe', nevoa: true, raios: true, particulas: true, som: true },
+      },
     ],
     drawings: [
       { id: 'dr1', kind: 'line', x1: 100, y1: 600, x2: 300, y2: 650, color: '#ffffff', width: 3 },

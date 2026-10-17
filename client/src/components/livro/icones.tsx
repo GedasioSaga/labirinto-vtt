@@ -209,6 +209,13 @@ const DESENHOS = {
   loja: caminho('M4.5 9.5l1.5-5h12l1.5 5 M4.5 9.5v10h15v-10 M4.5 9.5h15 M10 19.5v-5h4v5'),
   cabine: caminho('M6.5 3.5h11v17h-11z M12 3.5v17 M8.3 9.5l1.2-1.4 1.2 1.4 M13.3 14.5l1.2 1.4 1.2-1.4'),
   x: caminho('M6.5 6.5l11 11M17.5 6.5l-11 11'),
+  nevoa: caminho('M4 9h12 M7 12.5h13 M4 16h10'),
+  luz: (
+    <>
+      <circle cx="12" cy="12" r="3.5" />
+      {caminho('M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8')}
+    </>
+  ),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

@@ -11,6 +11,8 @@ export interface DialogoProps {
   onFechar: () => void
   /** 420 px, para confirmações e escolhas curtas; o padrão é 760. */
   pequeno?: boolean
+  /** 640 px e a altura da janela: a prévia grande do cenário, que cabe numa tela de 900 px sem rolar. */
+  cena?: boolean
   /**
    * Confirmação destrutiva: vira `alertdialog`, o clique no fundo não fecha e o
    * foco começa em `focoInicial` (o botão seguro, "Cancelar").
@@ -26,7 +28,7 @@ export interface DialogoProps {
  * entra ao abrir e volta a quem abriu ao fechar; o Tab circula só dentro; Esc
  * fecha; clicar no fundo fecha (menos no `alerta`). Entra em 220 ms e sai em 140.
  */
-export function Dialogo({ aberto, titulo, onFechar, pequeno, alerta, focoInicial, children }: DialogoProps) {
+export function Dialogo({ aberto, titulo, onFechar, pequeno, cena, alerta, focoInicial, children }: DialogoProps) {
   const tituloId = useId()
   const corpo = useRef<HTMLDivElement>(null)
   const fechar = useRef<HTMLButtonElement>(null)
@@ -98,7 +100,7 @@ export function Dialogo({ aberto, titulo, onFechar, pequeno, alerta, focoInicial
       }}
     >
       <div
-        className={classes('gr-dlg', pequeno && 'gr-dlg--p')}
+        className={classes('gr-dlg', pequeno && 'gr-dlg--p', cena && 'gr-dlg--cena')}
         role={alerta ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-labelledby={tituloId}

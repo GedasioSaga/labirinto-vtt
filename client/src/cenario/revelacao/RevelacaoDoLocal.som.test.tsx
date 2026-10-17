@@ -81,6 +81,38 @@ const pular = () => act(() => document.querySelector<HTMLButtonElement>('.lb-rev
 /** Barramento das teclas que levou o corte (fade a 0). */
 const teclasCortadas = (ctx: AudioContextFalso) => ctx.ganhos.filter((g) => g.gain.value === GANHO_TECLAS && g.gain.setTargetAtTime.mock.calls.some(([alvo]) => alvo === 0))
 
+describe('RevelacaoDoLocal: prévia parada e fim', () => {
+  it('parada: último quadro com o texto inteiro, sem contexto de áudio nem quadro vivo', () => {
+    abrir({ previa: true, parada: true })
+    expect(contextos).toHaveLength(0)
+    expect(quadros.size).toBe(0)
+    expect(document.querySelector('.lb-revelacao__texto span')?.textContent).toBe(DESCRICAO)
+    quadro(1500)
+    expect(contextos).toHaveLength(0)
+  })
+
+  it('onFim avisa uma vez no fimEmS e o relógio dorme depois', () => {
+    const onFim = vi.fn()
+    abrir({ previa: true, fimEmS: 2, onFim })
+    quadro(1000)
+    expect(onFim).not.toHaveBeenCalled()
+    quadro(2100)
+    expect(onFim).toHaveBeenCalledTimes(1)
+    quadro(6000)
+    expect(onFim).toHaveBeenCalledTimes(1)
+    expect(quadros.size).toBe(0)
+  })
+
+  it('inicioMs: o relógio conta desde o clique, não desde que a revelação ficou pronta', () => {
+    const onFim = vi.fn()
+    // O clique foi em 0; a revelação só monta 1 s depois (página ocupada).
+    quadro(1000)
+    abrir({ previa: true, fimEmS: 2, onFim, inicioMs: 0 })
+    quadro(2100)
+    expect(onFim).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('RevelacaoDoLocal: som', () => {
   it('toca as teclas no volume da mesa e fecha o contexto ao desmontar, sem timer nem quadro vivo', () => {
     const base = abrirEContarTimers()
