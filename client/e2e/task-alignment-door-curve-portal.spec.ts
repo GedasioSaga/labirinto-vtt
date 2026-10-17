@@ -107,7 +107,9 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
   await page.mouse.click(box.x + 525, box.y + 400)
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: 'wallDoor' })
 
-  await page.getByRole('button', { name: 'Virar porta', exact: true }).click()
+  // "Virar porta" mora no "Mais ações" da cabeça desde a fatia 16a.
+  await page.getByRole('button', { name: 'Mais ações', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Virar porta', exact: true }).click()
   // "Virar porta" cria porta de tamanho padrão (32 px) no MEIO da parede,
   // partindo-a em 3 pedaços — antes o lado inteiro virava porta (bug P10).
   let { walls } = await getMapSnapshot(page)

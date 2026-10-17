@@ -193,95 +193,112 @@ function tomDaCamaPadrao(): string {
 }
 const COR_DA_CAMA_PADRAO = tomDaCamaPadrao()
 
+/** O pedaço do móvel que a ficha do objeto põe em cada lugar: o essencial (o que a peça É) ou a ficha Aparência. */
+export type ParteDoMovel = 'essencial' | 'aparencia'
+
 /**
  * MÓVEL — o que só o móvel desenhado (objeto com `mobilia`) tem: o tipo, a
- * vista (só cadeira e baú) e a aparência da silhueta. Objeto de imagem não
- * mostra a seção. Mora acima de "Objeto" (Rotação, Travado, Oculto) porque é o
- * que diz o que a peça É; o resto vale para qualquer objeto. Nenhum controle
- * trava com "Travado": como na seção "Objeto", ele segura o gesto no mapa, não
- * o painel.
+ * vista (só os tipos com vista), a forma (só o tapete) e a aparência da
+ * silhueta. Objeto de imagem não mostra nada. Na ficha do objeto (fatia 16a)
+ * vem em dois pedaços: `essencial` (Tipo, Vista e Forma: o que diz o que a
+ * peça É) e `aparencia` (Preencher, Cor, as cores da cama e Cor da linha, na
+ * ficha Aparência). Nenhum controle trava com "Travado": ele segura o gesto no
+ * mapa, não o painel.
  */
-export function MobiliaControls({ prop, onTipoChange, onVistaChange, onFormaChange, onAparenciaChange }: MobiliaControlsProps) {
+export function MobiliaControls({
+  parte,
+  prop,
+  onTipoChange,
+  onVistaChange,
+  onFormaChange,
+  onAparenciaChange,
+}: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
   const tipo = prop.mobilia
   if (tipo === undefined) return null
 
-  const tipoId = `${baseId}-tipo`
+  if (parte === 'essencial') {
+    const tipoId = `${baseId}-tipo`
+    const vista = vistaDoMovel(prop)
+    const forma = formaDoTapete(prop)
+    return (
+      <section className="lb-section">
+        <div className="lb-field">
+          <label className="lb-label" htmlFor={tipoId}>
+            Tipo
+          </label>
+          <select
+            id={tipoId}
+            className="lb-input"
+            value={tipo}
+            onChange={(event) => {
+              const novo = event.target.value
+              if (ehTipoMobilia(novo)) onTipoChange(prop.id, novo)
+            }}
+          >
+            {TIPOS_MOBILIA.map((opcao) => (
+              <option key={opcao} value={opcao}>
+                {ROTULO_MOBILIA[opcao]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* A vista (de frente ou de lado) só existe nos tipos com vista (`TIPOS_COM_VISTA`): vem logo
+            depois do "Tipo", que decide se ela aparece. Mesmo segmentado dos
+            outros painéis (`lb-seg`), com as duas opções à vista. */}
+        {aceitaVista(tipo) && (
+          <div className="lb-field">
+            <span className="lb-label">Vista</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Vista">
+              {VISTAS_MOBILIA.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={vista === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onVistaChange(prop.id, opcao)}
+                >
+                  {ROTULO_VISTA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* A forma só existe no tapete: logo depois da vista, o mesmo segmentado,
+            com a silhueta de cada forma em cima do nome. */}
+        {tipo === 'tapete' && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DO_TAPETE.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={forma === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaChange(prop.id, opcao)}
+                >
+                  <FormaDoTapeteIcon forma={opcao} size={16} strokeWidth={1.8} />
+                  {ROTULO_FORMA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )
+  }
+
   const corId = `${baseId}-cor`
   const corDaLinhaId = `${baseId}-cor-da-linha`
-  const vista = vistaDoMovel(prop)
-  const forma = formaDoTapete(prop)
   const preenchido = prop.mobiliaPreenchido !== false
   // O que o tecido pinta sem cor própria: a "Cor" da cama, ou o tom da cama padrão no chão padrão.
   const corDaCama = normalizarCorDoMovel(prop.mobiliaCor) ?? COR_DA_CAMA_PADRAO
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Móvel</h2>
-      <div className="lb-field">
-        <label className="lb-label" htmlFor={tipoId}>
-          Tipo
-        </label>
-        <select
-          id={tipoId}
-          className="lb-input"
-          value={tipo}
-          onChange={(event) => {
-            const novo = event.target.value
-            if (ehTipoMobilia(novo)) onTipoChange(prop.id, novo)
-          }}
-        >
-          {TIPOS_MOBILIA.map((opcao) => (
-            <option key={opcao} value={opcao}>
-              {ROTULO_MOBILIA[opcao]}
-            </option>
-          ))}
-        </select>
-      </div>
-      {/* A vista (de frente ou de lado) só existe nos tipos com vista (`TIPOS_COM_VISTA`): vem logo
-          depois do "Tipo", que decide se ela aparece. Mesmo segmentado dos
-          outros painéis (`lb-seg`), com as duas opções à vista. */}
-      {aceitaVista(tipo) && (
-        <div className="lb-field">
-          <span className="lb-label">Vista</span>
-          <div className="lb-seg" role="radiogroup" aria-label="Vista">
-            {VISTAS_MOBILIA.map((opcao) => (
-              <button
-                key={opcao}
-                type="button"
-                role="radio"
-                aria-checked={vista === opcao}
-                className="lb-seg__option"
-                onClick={() => onVistaChange(prop.id, opcao)}
-              >
-                {ROTULO_VISTA[opcao]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {/* A forma só existe no tapete: logo depois da vista, o mesmo segmentado,
-          com a silhueta de cada forma em cima do nome. */}
-      {tipo === 'tapete' && (
-        <div className="lb-field">
-          <span className="lb-label">Forma</span>
-          <div className="lb-seg" role="radiogroup" aria-label="Forma">
-            {FORMAS_DO_TAPETE.map((opcao) => (
-              <button
-                key={opcao}
-                type="button"
-                role="radio"
-                aria-checked={forma === opcao}
-                className="lb-seg__option"
-                onClick={() => onFormaChange(prop.id, opcao)}
-              >
-                <FormaDoTapeteIcon forma={opcao} size={16} strokeWidth={1.8} />
-                {ROTULO_FORMA[opcao]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {/* Móvel vazado (a cerca) não tem fundo: "Preencher" e "Cor" não teriam o que pintar. */}
       {!ehMovelVazado(tipo) && (
         <>

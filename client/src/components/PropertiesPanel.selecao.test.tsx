@@ -421,7 +421,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(corpo()?.firstElementChild?.textContent).toContain('Cuidado')
   })
 
-  it('porta (fatia 11): o essencial com o Estado e as fichas Quem abre, Aparência e Parede em volta; parede lisa continua Parede antes de Porta', () => {
+  it('porta (fatia 11): o essencial com o Estado e as fichas Quem abre, Aparência e Parede em volta; parede lisa (fatia 16a) com a ficha Parede e o Virar porta no Mais ações', () => {
     renderPainel(
       propsDoPainel(null, {
         groups: relevantPropertyGroups('select', { wall: true, wallHasDoor: true }),
@@ -444,7 +444,13 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
         selection: selecao({ kind: 'wall', count: 1 }),
       }),
     )
-    expect(titulos().slice(0, 2)).toEqual(['Parede', 'Porta'])
+    // Parede lisa (fatia 16a): a ficha própria, com o título "Parede" e a ficha "Tipo";
+    // "Virar porta" saiu do corpo para o "Mais ações" da cabeça.
+    expect(titulos()).toEqual(['Parede'])
+    const fichasDaParede = Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] .gr-ficha__tit')).map((t) => t.textContent)
+    expect(fichasDaParede).toContain('Tipo')
+    expect(botoesComTexto(/^Virar porta$/)).toHaveLength(0)
+    expect(container.querySelector('button[aria-label="Mais ações"]')).not.toBeNull()
   })
 
   it('vários itens: a faixa conta quantos e apaga todos de uma vez', () => {

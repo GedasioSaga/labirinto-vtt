@@ -94,7 +94,9 @@ const todos = (alvos: readonly Alvo[], ...caminho: Alvo[]): Linha[] => alvos.map
 
 const PAREDE_ESTILO: Alvo[] = [cx('Parede interna'), b('Pegar do mapa a cor da parede'), ['textbox', 'Cor da parede'], rg('Espessura da parede'), ['slider', 'Ajuste fino'], b('Avançado')]
 const REGIAO_ESTILO: Alvo[] = [['textbox', 'Cor'], cx('Hachurado'), rg('Espessura do contorno'), ['slider', 'Ajuste fino'], cx('Preenchido'), b('Avançado')]
-const OBJETO_COMUM: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oculto no editor'), cx('Oculto para jogadores'), rg('Camada do objeto selecionado'), ['textbox', 'Rótulo para jogadores'], cx('Mostrar imagem ao jogador')]
+// FICHA DO OBJETO (fatia 16a): "No mapa" nasce aberta (trava, visibilidade e camada à vista); "Para os jogadores" nasce fechada.
+const OBJETO_NO_MAPA: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oculto no editor'), cx('Oculto para jogadores'), rg('Camada do objeto selecionado')]
+const OBJETO_JOGADORES: Alvo[] = [['textbox', 'Rótulo para jogadores'], cx('Mostrar imagem ao jogador')]
 const TRANSICAO = (titulo: string): Alvo[] => [['heading', titulo], b('Nenhuma Chega direto'), b('Procurar animações novas')]
 // FICHA DO PINO (fatia 12): o essencial à vista, a aparência na ficha recolhida e os recursos pelo "+ Adicionar ao pino".
 const PINO_ESSENCIAL: Alvo[] = [rg('Tipo do pino'), ['textbox', 'Nome do local'], ['textbox', 'Descrição · o jogador lê'], cx('Oculto para jogadores'), cx('Marco: todos veem'), cx('Ler só de perto')]
@@ -107,10 +109,15 @@ const PINO_RECURSOS: Alvo[] =['Animação do cenário', 'Item pegável', 'Fechad
 
 const sel = (tipo: NonNullable<Preparo['selecao']>[number]['tipo'], id: string): Preparo => ({ selecao: [{ tipo, id }] })
 const ferramenta = (nome: string): Preparo => ({ ferramenta: nome })
-const MOVEL = (id: string, extras: Alvo[]): Bloco => ({
+/** Móvel: o que ele é (Tipo, Vista, Forma) no essencial; as cores na ficha Aparência, fechada (o nome do cabeçalho leva o resumo: "Aparência Padrão"). */
+const MOVEL = (id: string, essencial: Alvo[], aparencia: Alvo[]): Bloco => ({
   tela: 'mestre', titulo: `Ficha do objeto: ${id.replace('m-', '')}`, estado: `objeto "${id}" selecionado no mapa`, escopo: 'esquerda', preparo: sel('prop', id),
-  vai: 'Página Ficha, gramática nova (decisão 4.1)', fatia: '16a',
-  linhas: todos([['combobox', 'Tipo'], ...extras, ['textbox', 'Cor da linha'], ...OBJETO_COMUM]),
+  vai: 'Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito)', fatia: '16a',
+  linhas: [
+    ...todos([['combobox', 'Tipo'], ...essencial, ...OBJETO_NO_MAPA]),
+    ...todos([...aparencia, ['textbox', 'Cor da linha']], b('/^Aparência/')),
+    ...todos(OBJETO_JOGADORES, b('/^Para os jogadores/')),
+  ],
 })
 
 export const BLOCOS: readonly Bloco[] = [
@@ -379,8 +386,15 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da parede', estado: 'parede selecionada no mapa', escopo: 'esquerda', preparo: sel('wall', 'w1'),
-    vai: 'Página Ficha, gramática nova (decisão 4.1)', fatia: '16a',
-    linhas: todos([...PAREDE_ESTILO, cx('Janela (vê, não passa)'), cx('Deixa passar (a ficha atravessa)'), cx('Deixa ver (a visão atravessa)'), b('Virar porta')]),
+    vai: 'Página Ficha da parede: Cor, Espessura, Ajuste fino e Avançado no essencial; O que a parede deixa e Tipo fechadas (feito)', fatia: '16a',
+    linhas: [
+      ...todos([b('Pegar do mapa a cor da parede'), ['textbox', 'Cor da parede'], rg('Espessura da parede'), ['slider', 'Ajuste fino'], b('Avançado')]),
+      // As fichas nascem fechadas; o nome do cabeçalho leva o resumo ("O que a parede deixa Nada", "Tipo Externa").
+      ...todos([cx('Janela (vê, não passa)'), cx('Deixa passar (a ficha atravessa)'), cx('Deixa ver (a visão atravessa)')], b('/^O que a parede deixa/')),
+      l('Parede interna', cx('Parede interna'), b('/^Tipo/')),
+      // "Virar porta" muda a forma do item: mora no "Mais ações", como o "Virar parede sólida" da porta.
+      { ...l('Virar porta', menu('Virar porta'), b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (feito, fatia 16a)' },
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da escada', estado: 'escada selecionada no mapa', escopo: 'esquerda', preparo: sel('stair', 's1'),
@@ -412,21 +426,22 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da luz', estado: 'luz selecionada no mapa', escopo: 'esquerda', preparo: sel('light', 'l1'),
-    vai: 'Página Ficha, gramática nova', fatia: '16a',
-    linhas: todos([['textbox', 'Cor'], ['slider', 'Intensidade'], ['combobox', 'Prender na ficha'], cx('Vista de longe')]),
+    vai: 'Página Ficha da luz: Cor, Intensidade e Vista de longe no essencial; Presa a uma ficha aberta; Depende do estado fechada (feito)', fatia: '16a',
+    // A ficha "Presa a uma ficha" nasce aberta (prender a tocha é gesto de mesa): nenhum clique.
+    linhas: todos([['textbox', 'Cor'], ['slider', 'Intensidade'], cx('Vista de longe'), ['combobox', 'Prender na ficha']]),
   },
   {
     tela: 'mestre', titulo: 'Ficha da peça (imagem)', estado: 'peça de imagem selecionada', escopo: 'esquerda', preparo: sel('prop', 'p-img'),
-    vai: 'Página Ficha, gramática nova', fatia: '16a',
-    linhas: todos(OBJETO_COMUM),
+    vai: 'Página Ficha do objeto: No mapa aberta; Para os jogadores fechada; a imagem solta não tem essencial (feito)', fatia: '16a',
+    linhas: [...todos(OBJETO_NO_MAPA), ...todos(OBJETO_JOGADORES, b('/^Para os jogadores/'))],
   },
-  MOVEL('m-barril', [cx('Preencher'), ['textbox', 'Cor']]),
-  MOVEL('m-catre', [cx('Preencher'), ['textbox', 'Cor'], ['textbox', 'Cor do travesseiro'], rg('Paleta: cor do travesseiro'), ['textbox', 'Cor do cobertor'], rg('Paleta: cor do cobertor')]),
-  MOVEL('m-cerca', []),
-  MOVEL('m-armario', [rg('Vista'), cx('Preencher'), ['textbox', 'Cor']]),
-  MOVEL('m-aparador', [rg('Vista'), cx('Preencher'), ['textbox', 'Cor']]),
-  MOVEL('m-fogueira', [rg('Vista'), cx('Preencher'), ['textbox', 'Cor']]),
-  MOVEL('m-tapete', [rg('Vista'), rg('Forma'), cx('Preencher'), ['textbox', 'Cor']]),
+  MOVEL('m-barril', [], [cx('Preencher'), ['textbox', 'Cor']]),
+  MOVEL('m-catre', [], [cx('Preencher'), ['textbox', 'Cor'], ['textbox', 'Cor do travesseiro'], rg('Paleta: cor do travesseiro'), ['textbox', 'Cor do cobertor'], rg('Paleta: cor do cobertor')]),
+  MOVEL('m-cerca', [], []),
+  MOVEL('m-armario', [rg('Vista')], [cx('Preencher'), ['textbox', 'Cor']]),
+  MOVEL('m-aparador', [rg('Vista')], [cx('Preencher'), ['textbox', 'Cor']]),
+  MOVEL('m-fogueira', [rg('Vista')], [cx('Preencher'), ['textbox', 'Cor']]),
+  MOVEL('m-tapete', [rg('Vista'), rg('Forma')], [cx('Preencher'), ['textbox', 'Cor']]),
   {
     tela: 'mestre', titulo: 'Ficha do desenho', estado: 'linha desenhada selecionada', escopo: 'esquerda', preparo: sel('drawing', 'dr1'),
     vai: 'Página Ficha, gramática nova (Endireitar no "Mais ações")', fatia: '16b',
@@ -447,7 +462,8 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da zona oculta', estado: 'zona oculta selecionada', escopo: 'esquerda', preparo: sel('zona', 'z1'),
-    vai: 'Página Ficha, gramática nova', fatia: '16a',
+    vai: 'Página Ficha da zona: cabeça com o Excluir zona; Nome, Revelar para jogadores e Revelar para… no essencial; Depende do estado fechada (feito)', fatia: '16a',
+    // O "Excluir zona" agora é o Apagar da cabeça, com o mesmo nome acessível.
     linhas: todos([['textbox', 'Nome'], cx('Revelar para jogadores'), b('Excluir zona')]),
   },
   {
@@ -621,5 +637,9 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
   ['Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa', 'só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto)'],
   ['Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala")', 'só com NPC andando; TopoDaSala.test.tsx cobre o item do menu'],
   ['Depende do estado (porta, luz, zona, pino)', 'só com Estado do mundo criado'],
+  [
+    'Item no chão (essencial da ficha do objeto: Nome do item, Quantidade, Pega sem pedir ao mestre)',
+    'só com objeto que é item pegável (o estado de teste não tem); ItemNoMapaControls.test.tsx cobre os campos. Desde a fatia 16a o item fica no essencial, e "No mapa" (aberta) segue com Rotação, Travado, Oculto e Camada',
+  ],
   ['Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro', 'pedem sistema de RPG, colegas ou histórico; as abas estão cobertas'],
 ]

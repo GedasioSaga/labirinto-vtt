@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DoorState } from '../../types/map'
-import { WallDoorControls } from '../WallDoorControls'
+import { FichaDaParede } from './FichaDaParede'
 import { FichaDaPorta } from './FichaDaPorta'
 
 let container: HTMLDivElement
@@ -22,7 +22,7 @@ afterEach(() => {
 
 function renderDoor(door: DoorState | null) {
   const handlers = { onToggleDoor: vi.fn(), onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleSemEspiar: vi.fn(), onToggleSecret: vi.fn(), onRevealPassage: vi.fn(), onOpensFromChange: vi.fn() }
-  act(() => root.render(door === null ? <WallDoorControls door={null} {...handlers} /> : <FichaDaPorta door={door} {...handlers} onKindChange={vi.fn()} />))
+  act(() => root.render(door === null ? <FichaDaParede estilo={{ wallKind: undefined, onWallKindChange: vi.fn() }} /> : <FichaDaPorta door={door} {...handlers} onKindChange={vi.fn()} />))
   return handlers
 }
 

@@ -36,6 +36,9 @@ const LINE_STYLE_OPTIONS: Array<{ value: WallLineStyle; label: string }> = [
   { value: 'straight', label: 'Reta' },
 ]
 
+/** O pedaço do bloco que a ficha da parede selecionada põe em cada lugar (ver `parte`). */
+export type ParteDaParede = 'essencial' | 'deixa' | 'tipo'
+
 export interface WallStyleControlsProps {
   /** `undefined` conta como 'exterior' — mesmo default do schema (ver
    *  Wall.wallKind em types/map.ts). */
@@ -109,6 +112,14 @@ export interface WallStyleControlsProps {
   avancado?: ReactNode
   /** Sem o título "Parede": dentro da ficha "Parede em volta" da porta, que já tem o seu. */
   semTitulo?: boolean
+  /**
+   * Só um pedaço do bloco, para a ficha da parede selecionada (fatia 16a):
+   * `essencial` é a cor, a espessura, o ajuste fino e o Avançado; `deixa` é o
+   * que atravessa a parede (Janela, Deixa passar, Deixa ver); `tipo` é
+   * "Parede interna". Sem título em nenhum deles. Ausente, o bloco inteiro,
+   * como antes: a ferramenta Parede e a ficha "Parede em volta" da porta.
+   */
+  parte?: ParteDaParede
 }
 
 /**
@@ -135,6 +146,7 @@ export function WallStyleControls({
   cor,
   avancado,
   semTitulo = false,
+  parte,
 }: WallStyleControlsProps) {
   // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
   // objeto só), mas quem desenha é `WallLineStyleField`, no Avançado.
@@ -144,24 +156,28 @@ export function WallStyleControls({
   // degrau marcado mentir. Clicar num degrau volta para o fio de planta.
   const activePreset = typeof thickness === 'string' ? thickness : thickness === undefined ? 'medium' : null
   const worldWidth = wallWorldWidth(thickness)
+  // Sem `parte`, o bloco inteiro na ordem de sempre; com ela, só os trechos daquele pedaço.
+  const mostra = (pedaco: ParteDaParede) => parte === undefined || parte === pedaco
   return (
     <section className="lb-section">
-      {!semTitulo && <h2 className="lb-eyebrow">Parede</h2>}
-      <Toggle
-        label="Parede interna"
-        checked={wallKind === 'interior'}
-        onChange={(checked) => onWallKindChange(checked ? 'interior' : 'exterior')}
-      />
-      {onJanelaChange && (
+      {parte === undefined && !semTitulo && <h2 className="lb-eyebrow">Parede</h2>}
+      {mostra('tipo') && (
+        <Toggle
+          label="Parede interna"
+          checked={wallKind === 'interior'}
+          onChange={(checked) => onWallKindChange(checked ? 'interior' : 'exterior')}
+        />
+      )}
+      {mostra('deixa') && onJanelaChange && (
         <Toggle label="Janela (vê, não passa)" checked={janela === true} onChange={onJanelaChange} />
       )}
-      {passagem && (
+      {mostra('deixa') && passagem && (
         <>
           <Toggle label="Deixa passar (a ficha atravessa)" checked={passagem.deixaPassar} onChange={passagem.onDeixaPassarChange} />
           <Toggle label="Deixa ver (a visão atravessa)" checked={passagem.deixaVer} onChange={passagem.onDeixaVerChange} />
         </>
       )}
-      {cor && (
+      {mostra('essencial') && cor && (
         <div className="lb-section__row">
           <label className="lb-label" htmlFor={WALL_COLOR_INPUT_ID}>
             Cor da parede
@@ -181,73 +197,77 @@ export function WallStyleControls({
           </div>
         </div>
       )}
-      {/* Painel enxuto (pedido de 30/09/2026, fatia 1): a frase do limite saiu
-          de baixo do slider, onde ocupava três linhas fixas, e virou a dica
-          deste campo. O rótulo continua o PRIMEIRO filho do campo, porque é
-          ele que ganha o "?" (main.css, dicas sob demanda), e o grupo aponta
-          a frase por `aria-describedby`, que é o contrato de
-          `lib/dicaDoPainel.ts`. Ela mora aqui porque explica o par: os degraus
-          são o fio de planta, e o ajuste fino logo abaixo vai além deles. Sem
-          handler o grupo se diz desligado, e a frase volta ao fluxo à vista
-          (dica de controle morto não abre). */}
-      <div className="lb-field">
-        <span className="lb-label">Espessura</span>
-        <div
-          className="lb-seg"
-          role="radiogroup"
-          aria-label="Espessura da parede"
-          aria-describedby={WALL_WIDTH_HINT_ID}
-          aria-disabled={onThicknessChange ? undefined : true}
-        >
-          {THICKNESS_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={activePreset === value}
-              className="lb-seg__option"
-              disabled={!onThicknessChange}
-              // Ausência de onThicknessChange é caso legítimo (call site
-              // ainda não integrado, ver doc de WallStyleControlsProps) — o
-              // botão já nasce disabled acima, então este `?.` nunca dispara
-              // silenciosamente num controle que parece ativo.
-              onClick={() => onThicknessChange?.(value)}
+      {mostra('essencial') && (
+        <>
+          {/* Painel enxuto (pedido de 30/09/2026, fatia 1): a frase do limite saiu
+              de baixo do slider, onde ocupava três linhas fixas, e virou a dica
+              deste campo. O rótulo continua o PRIMEIRO filho do campo, porque é
+              ele que ganha o "?" (main.css, dicas sob demanda), e o grupo aponta
+              a frase por `aria-describedby`, que é o contrato de
+              `lib/dicaDoPainel.ts`. Ela mora aqui porque explica o par: os degraus
+              são o fio de planta, e o ajuste fino logo abaixo vai além deles. Sem
+              handler o grupo se diz desligado, e a frase volta ao fluxo à vista
+              (dica de controle morto não abre). */}
+          <div className="lb-field">
+            <span className="lb-label">Espessura</span>
+            <div
+              className="lb-seg"
+              role="radiogroup"
+              aria-label="Espessura da parede"
+              aria-describedby={WALL_WIDTH_HINT_ID}
+              aria-disabled={onThicknessChange ? undefined : true}
             >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="lb-field__hint" id={WALL_WIDTH_HINT_ID}>
-          No ajuste fino a parede vai até {WALL_WIDTH_WORLD_MAX} px, uma célula inteira de muralha. Acompanha o zoom do mapa.
-        </p>
-      </div>
-      <div className="lb-field">
-        <div className="lb-section__row">
-          <label className="lb-label" htmlFor={WALL_WIDTH_INPUT_ID}>
-            Ajuste fino
-          </label>
-          <span className="lb-num">{worldWidth} px</span>
-        </div>
-        <input
-          id={WALL_WIDTH_INPUT_ID}
-          className="lb-range"
-          type="range"
-          min={WALL_WIDTH_WORLD_MIN}
-          max={WALL_WIDTH_WORLD_MAX}
-          step={1}
-          value={worldWidth}
-          disabled={!onThicknessChange}
-          // Sem `aria-label`: o nome acessível vem do <label for> visível
-          // ("Ajuste fino", o mesmo nome do slider de Região), então o que se
-          // lê na tela e o que o leitor de tela anuncia são a mesma palavra.
-          // Antes era "Grossura", sinônimo de "Espessura" logo acima: dois
-          // nomes para a mesma propriedade.
-          // Mesmo `?.` guardado dos degraus: sem o handler o controle já nasce
-          // desabilitado, então isto nunca é um arrasto que não faz nada.
-          onChange={(event) => onThicknessChange?.(Number(event.target.value))}
-        />
-      </div>
-      {avancado}
+              {THICKNESS_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={activePreset === value}
+                  className="lb-seg__option"
+                  disabled={!onThicknessChange}
+                  // Ausência de onThicknessChange é caso legítimo (call site
+                  // ainda não integrado, ver doc de WallStyleControlsProps) — o
+                  // botão já nasce disabled acima, então este `?.` nunca dispara
+                  // silenciosamente num controle que parece ativo.
+                  onClick={() => onThicknessChange?.(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="lb-field__hint" id={WALL_WIDTH_HINT_ID}>
+              No ajuste fino a parede vai até {WALL_WIDTH_WORLD_MAX} px, uma célula inteira de muralha. Acompanha o zoom do mapa.
+            </p>
+          </div>
+          <div className="lb-field">
+            <div className="lb-section__row">
+              <label className="lb-label" htmlFor={WALL_WIDTH_INPUT_ID}>
+                Ajuste fino
+              </label>
+              <span className="lb-num">{worldWidth} px</span>
+            </div>
+            <input
+              id={WALL_WIDTH_INPUT_ID}
+              className="lb-range"
+              type="range"
+              min={WALL_WIDTH_WORLD_MIN}
+              max={WALL_WIDTH_WORLD_MAX}
+              step={1}
+              value={worldWidth}
+              disabled={!onThicknessChange}
+              // Sem `aria-label`: o nome acessível vem do <label for> visível
+              // ("Ajuste fino", o mesmo nome do slider de Região), então o que se
+              // lê na tela e o que o leitor de tela anuncia são a mesma palavra.
+              // Antes era "Grossura", sinônimo de "Espessura" logo acima: dois
+              // nomes para a mesma propriedade.
+              // Mesmo `?.` guardado dos degraus: sem o handler o controle já nasce
+              // desabilitado, então isto nunca é um arrasto que não faz nada.
+              onChange={(event) => onThicknessChange?.(Number(event.target.value))}
+            />
+          </div>
+          {avancado}
+        </>
+      )}
     </section>
   )
 }

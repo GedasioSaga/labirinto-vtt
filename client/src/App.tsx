@@ -3803,12 +3803,14 @@ function App() {
             }
             concealZone={
               selectedConcealZone && {
+                id: selectedConcealZone.id,
                 name: selectedConcealZone.name,
                 onNameChange: (name) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { name }),
                 revealed: selectedConcealZone.revealed,
                 onRevealedChange: (revealed) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { revealed }),
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
                 reveal: secretRevealFor(selectedConcealZone.id),
+                porEstado: selectedConcealZone.porEstado,
               }
             }
             concealBrush={{

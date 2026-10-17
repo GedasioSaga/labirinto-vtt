@@ -163,9 +163,16 @@ describe('"Depende do estado" no painel de propriedades', () => {
   })
 
   it('luz: amarrar à Maré com "baixa → Apagada" e trocar apaga a lâmpada', () => {
+    const resumoDoEstado = () =>
+      Array.from(container.querySelectorAll('.gr-ficha'))
+        .find((f) => f.querySelector('.gr-ficha__tit')?.textContent === 'Depende do estado')
+        ?.querySelector('.gr-ficha__resumo')?.textContent
     renderPainelDaLuz()
+    // O resumo da ficha fechada, como na porta: o painel repassa `Light.porEstado`.
+    expect(resumoDoEstado()).toBe('Sempre')
     escolher('Depende do estado', mare)
     renderPainelDaLuz()
+    expect(resumoDoEstado()).toBe('Muda com o estado')
     escolher('baixa', 'apagada')
     expect(lampada().apagada).toBeUndefined()
 

@@ -11,12 +11,16 @@ export interface PropLayerControlsProps {
  * Saiu da seção Camadas e mora junto dos controles do objeto: é propriedade
  * DESTE item, não do mapa. Prop é o único tipo com override de camada
  * (Prop.layer, types/map.ts), por isso não existe para outros `kind`.
+ *
+ * Mora na ficha "No mapa" do objeto (fatia 16a), que já tem título: o bloco
+ * trocou o dele pelo rótulo curto "Camada", e o grupo segue com o nome
+ * inteiro para o leitor de tela.
  */
 export function PropLayerControls({ prop, onSetPropLayer }: PropLayerControlsProps) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Camada do objeto selecionado</h2>
       <div className="lb-field">
+        <span className="lb-label">Camada</span>
         <div className="lb-seg" role="radiogroup" aria-label="Camada do objeto selecionado">
           {PROP_LAYER_OPTIONS.map((option) => {
             const active = propLayer(prop) === option

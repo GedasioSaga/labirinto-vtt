@@ -1,0 +1,21 @@
+/*
+ * FICHAS DA PAREDE, DA LUZ, DO OBJETO E DA ZONA OCULTA (fatia 16a): o respiro
+ * da ficha da porta e do token (o essencial e as fichas não encostam na
+ * lombada), e as seções de antes viram trechos do cartão, sem o respiro nem o
+ * fio, como a "Parede em volta" da porta.
+ */
+.lb-ficha-da-parede,
+.lb-ficha-da-luz,
+.lb-ficha-do-objeto,
+.lb-ficha-da-zona {
+  padding: 0 12px 20px 14px;
+}
+
+.lb-ficha-da-parede .gr-ficha__dentro .lb-section,
+.lb-ficha-da-luz .gr-ficha__dentro .lb-section,
+.lb-ficha-do-objeto .gr-ficha__dentro .lb-section,
+.lb-ficha-da-zona .gr-ficha__dentro .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
+}

@@ -70,21 +70,3 @@ export function DoorKeyField({
     </label>
   )
 }
-
-/**
- * "Virar porta" da parede lisa selecionada. A porta selecionada tem ficha
- * própria (`livro/FichaDaPorta.tsx`, fatia 11): aberta, trancada, secreta,
- * quem abre e a aparência moram lá, e "Virar parede sólida" no "Mais ações"
- * da cabeça. As props são a ligação inteira da porta (o App monta uma vez e a
- * ficha usa o resto).
- */
-export function WallDoorControls({ door, onToggleDoor }: WallDoorControlsProps) {
-  return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Porta</h2>
-      <button type="button" className="lb-btn lb-btn--block" onClick={onToggleDoor}>
-        {door === null ? 'Virar porta' : 'Virar parede sólida'}
-      </button>
-    </section>
-  )
-}

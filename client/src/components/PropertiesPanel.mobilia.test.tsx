@@ -99,11 +99,14 @@ describe('painel de propriedades — o móvel selecionado', () => {
     })
   }
 
-  it('a mesa: o cabeçalho diz "Mesa" e a seção "Móvel" vem antes de "Objeto"', () => {
+  it('a mesa: o cabeçalho diz "Mesa"; o essencial (Tipo) vem antes das fichas Aparência e No mapa', () => {
     renderObjeto(MESA)
     expect(cabecalho()).toBe('Mesa')
+    // O título "Móvel" fica só para o leitor de tela; o "Objeto" de antes virou a ficha "No mapa".
     expect(h2('Móvel')).not.toBeNull()
-    expect(antes(h2('Móvel'), h2('Objeto'))).toBe(true)
+    expect(h2('Objeto')).toBeNull()
+    expect(antes(campo('Tipo'), interruptor('Preencher'))).toBe(true)
+    expect(antes(interruptor('Preencher'), interruptor('Travado'))).toBe(true)
   })
 
   it('"Tipo" oferece o catálogo, marca o tipo de agora e troca pelo id do móvel', () => {

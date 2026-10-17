@@ -18,13 +18,13 @@ export const PROP_PLAYER_HINT = 'Só quem enxerga o objeto recebe. Oculto, sob t
  * OBJETO COM RÓTULO OU IMAGEM — o que o jogador fica sabendo do objeto
  * selecionado além da silhueta. Efeito imediato e sem botão Salvar, como o
  * nome da ficha (`TokenNameControls`) e os interruptores de "Travado"/"Oculto".
+ * Mora na ficha "Para os jogadores" do objeto (fatia 16a), que já tem o título.
  */
 export function PropPlayerControls({ label, showImage, onLabelChange, onShowImageChange }: PropPlayerControlsProps) {
   const inputId = useId()
   const hintId = useId()
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Para os jogadores</h2>
       <div className="lb-field">
         <label className="lb-label" htmlFor={inputId}>
           Rótulo para jogadores

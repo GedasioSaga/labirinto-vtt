@@ -71,6 +71,7 @@ describe('Revelar para…', () => {
       act(() =>
         root.render(
           <ConcealZoneControls
+            id="z1"
             name="Tapete"
             onNameChange={() => undefined}
             revealed={revealed}

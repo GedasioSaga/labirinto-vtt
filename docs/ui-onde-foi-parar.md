@@ -569,20 +569,20 @@ Parte de: porta selecionada no mapa. Vai para: Página Ficha da porta: Estado, T
 
 ### Ficha da parede
 
-Parte de: parede selecionada no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: parede selecionada no mapa. Vai para: Página Ficha da parede: Cor, Espessura, Ajuste fino e Avançado no essencial; O que a parede deixa e Tipo fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
 | Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (livro do mestre) | (do bloco) |
 | Cor da parede | textbox "Cor da parede" | (livro do mestre) | (do bloco) |
 | Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
 | Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
 | Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
-| Janela (vê, não passa) | checkbox "Janela (vê, não passa)" | (livro do mestre) | (do bloco) |
-| Deixa passar (a ficha atravessa) | checkbox "Deixa passar (a ficha atravessa)" | (livro do mestre) | (do bloco) |
-| Deixa ver (a visão atravessa) | checkbox "Deixa ver (a visão atravessa)" | (livro do mestre) | (do bloco) |
-| Virar porta | button "Virar porta" | (livro do mestre) | (do bloco) |
+| Janela (vê, não passa) | checkbox "Janela (vê, não passa)" | (livro do mestre) > clicar button "/^O que a parede deixa/" | (do bloco) |
+| Deixa passar (a ficha atravessa) | checkbox "Deixa passar (a ficha atravessa)" | (livro do mestre) > clicar button "/^O que a parede deixa/" | (do bloco) |
+| Deixa ver (a visão atravessa) | checkbox "Deixa ver (a visão atravessa)" | (livro do mestre) > clicar button "/^O que a parede deixa/" | (do bloco) |
+| Parede interna | checkbox "Parede interna" | (livro do mestre) > clicar button "/^Tipo/" | (do bloco) |
+| Virar porta | menuitem "Virar porta" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (feito, fatia 16a) |
 
 ### Ficha da escada
 
@@ -669,18 +669,18 @@ Parte de: região selecionada no mapa. Vai para: Página Ficha, gramática nova.
 
 ### Ficha da luz
 
-Parte de: luz selecionada no mapa. Vai para: Página Ficha, gramática nova. Fatia: 16a.
+Parte de: luz selecionada no mapa. Vai para: Página Ficha da luz: Cor, Intensidade e Vista de longe no essencial; Presa a uma ficha aberta; Depende do estado fechada (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
 | Intensidade | slider "Intensidade" | (livro do mestre) | (do bloco) |
-| Prender na ficha | combobox "Prender na ficha" | (livro do mestre) | (do bloco) |
 | Vista de longe | checkbox "Vista de longe" | (livro do mestre) | (do bloco) |
+| Prender na ficha | combobox "Prender na ficha" | (livro do mestre) | (do bloco) |
 
 ### Ficha da peça (imagem)
 
-Parte de: peça de imagem selecionada. Vai para: Página Ficha, gramática nova. Fatia: 16a.
+Parte de: peça de imagem selecionada. Vai para: Página Ficha do objeto: No mapa aberta; Para os jogadores fechada; a imagem solta não tem essencial (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -689,141 +689,141 @@ Parte de: peça de imagem selecionada. Vai para: Página Ficha, gramática nova.
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: barril
 
-Parte de: objeto "m-barril" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-barril" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: catre
 
-Parte de: objeto "m-catre" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-catre" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor do travesseiro | textbox "Cor do travesseiro" | (livro do mestre) | (do bloco) |
-| Paleta: cor do travesseiro | radiogroup "Paleta: cor do travesseiro" | (livro do mestre) | (do bloco) |
-| Cor do cobertor | textbox "Cor do cobertor" | (livro do mestre) | (do bloco) |
-| Paleta: cor do cobertor | radiogroup "Paleta: cor do cobertor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor do travesseiro | textbox "Cor do travesseiro" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Paleta: cor do travesseiro | radiogroup "Paleta: cor do travesseiro" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor do cobertor | textbox "Cor do cobertor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Paleta: cor do cobertor | radiogroup "Paleta: cor do cobertor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: cerca
 
-Parte de: objeto "m-cerca" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-cerca" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: armario
 
-Parte de: objeto "m-armario" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-armario" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
 | Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: aparador
 
-Parte de: objeto "m-aparador" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-aparador" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
 | Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: fogueira
 
-Parte de: objeto "m-fogueira" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-fogueira" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
 | Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do objeto: tapete
 
-Parte de: objeto "m-tapete" selecionado no mapa. Vai para: Página Ficha, gramática nova (decisão 4.1). Fatia: 16a.
+Parte de: objeto "m-tapete" selecionado no mapa. Vai para: Página Ficha do objeto: Tipo, Vista e Forma no essencial; No mapa aberta; Aparência e Para os jogadores fechadas (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Tipo | combobox "Tipo" | (livro do mestre) | (do bloco) |
 | Vista | radiogroup "Vista" | (livro do mestre) | (do bloco) |
 | Forma | radiogroup "Forma" | (livro do mestre) | (do bloco) |
-| Preencher | checkbox "Preencher" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Cor da linha | textbox "Cor da linha" | (livro do mestre) | (do bloco) |
 | Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
 | Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
-| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) | (do bloco) |
-| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) | (do bloco) |
+| Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
+| Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
 ### Ficha do desenho
 
@@ -860,7 +860,7 @@ Parte de: peça de chão selecionada. Vai para: Página Ficha, gramática nova. 
 
 ### Ficha da zona oculta
 
-Parte de: zona oculta selecionada. Vai para: Página Ficha, gramática nova. Fatia: 16a.
+Parte de: zona oculta selecionada. Vai para: Página Ficha da zona: cabeça com o Excluir zona; Nome, Revelar para jogadores e Revelar para… no essencial; Depende do estado fechada (feito). Fatia: 16a.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -1144,6 +1144,7 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Teste secreto com jogadores (Teste, Para quem, Pedir teste, Encerrar), na ficha Teste secreto da página Mesa | só com jogadores na sala; sem eles a ficha mostra o aviso e o Pedir teste apagado (coberto) |
 | Pausa geral dos NPCs (faixa no alto da página Grupo e "Pausar todos os NPCs" no "Mais da sala") | só com NPC andando; TopoDaSala.test.tsx cobre o item do menu |
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
+| Item no chão (essencial da ficha do objeto: Nome do item, Quantidade, Pega sem pedir ao mestre) | só com objeto que é item pegável (o estado de teste não tem); ItemNoMapaControls.test.tsx cobre os campos. Desde a fatia 16a o item fica no essencial, e "No mapa" (aberta) segue com Rotação, Travado, Oculto e Camada |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
 Total: 636 controles em 68 blocos.

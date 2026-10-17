@@ -5,12 +5,13 @@ import { PathStyleControls, type PathStyleControlsProps } from './PathStyleContr
 import type { GridControlsProps } from './GridControls'
 import { CollapsibleSection } from './CollapsibleSection'
 import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
-import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
-import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
+import type { PropLayerControlsProps } from './PropLayerControls'
+import type { PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import {
   CabecaDaSelecao,
   EXCLUIR_PINO,
+  EXCLUIR_ZONA,
   deleteLabelFor,
   doorActions,
   endireitarAction,
@@ -20,8 +21,12 @@ import {
   useAcaoAbrirCorredor,
   useOndeDaPorta,
   useOndeDoPino,
+  virarPortaAction,
+  zonaIdentity,
 } from './livro/CabecaDaSelecao'
+import { FichaDaParede } from './livro/FichaDaParede'
 import { FichaDaPorta } from './livro/FichaDaPorta'
+import { FichaDoObjeto } from './livro/FichaDoObjeto'
 import { FichaDoPino } from './livro/FichaDoPino'
 import { Essencial } from './grimorio/Cartoes'
 import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
@@ -29,7 +34,7 @@ import { FichaDaFerramenta } from './livro/FichaDaFerramenta'
 import type { ToolVariantBindings } from './ToolVariantMenu'
 import { BOTAO_NOVO_TOKEN_ID, NovoTokenForm } from './NovoTokenForm'
 import { selectEndireitarMudaria, useMapStore } from '../stores/mapStore'
-import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
+import type { WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
@@ -69,7 +74,7 @@ import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { pisoDe } from '../lib/pisos'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
-import { MobiliaControls, type MobiliaControlsProps } from './MobiliaControls'
+import type { MobiliaControlsProps } from './MobiliaControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { AvisoParedePresa, ParedesAoRedorControls, type AvisoParedePresaProps, type ParedesAoRedorControlsProps } from './ParedesAoRedorControls'
@@ -93,7 +98,7 @@ import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { AcervoDeItensPanel, type AcervoDeItensPanelProps } from './AcervoDeItensPanel'
-import { ItemNoChaoControls, type ItemNoChaoControlsProps } from './ItemNoMapaControls'
+import type { ItemNoChaoControlsProps } from './ItemNoMapaControls'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
 import { roomLabelStyleOf } from '../lib/roomLabelStyle'
@@ -281,7 +286,7 @@ interface PropertiesPanelProps {
     Required<Pick<RoomControlsProps, 'onRaioDeVisaoChange'>>
   selectedLight: Light | null
   /** `onVistaDeLongeChange` obrigatória pelo mesmo motivo de `room.onRaioDeVisaoChange`. */
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge'> &
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge' | 'porEstado'> &
     Required<Pick<LightControlsProps, 'onVistaDeLongeChange'>>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
@@ -500,6 +505,8 @@ export function PropertiesPanel({
   const ondeDoPino = useOndeDoPino(pinoAberto === null ? null : pinoAberto.pinId)
   const acoesDaSelecao = [
     ...(portaSelecionada === null ? [] : doorActions(portaSelecionada, wallDoor)),
+    // "Virar porta" da parede lisa (fatia 16a): saiu do corpo da ficha, como o "Virar parede sólida" da porta.
+    ...(selectedWall !== null && portaSelecionada === null && groups.has('wallDoor') ? [virarPortaAction(wallDoor.onToggleDoor)] : []),
     ...(endireitarMudaria ? [endireitarAction(() => endireitarSelecionados())] : []),
     ...(acaoDoCorredor === null ? [] : [acaoDoCorredor]),
     ...(pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)),
@@ -619,21 +626,23 @@ export function PropertiesPanel({
     ((activeTool === 'floor' && groups.has('floorStyle')) || groups.has('floorPiece'))
 
   // `semTitulo`: dentro da ficha "Parede em volta" da porta, que já tem o seu.
+  // O Avançado da parede ("Ponta e canto"), montado uma vez: o bloco inteiro
+  // (ferramenta, vários itens, "Parede em volta" da porta) e a ficha da parede
+  // selecionada usam o mesmo. A chave pelo id: outra parede faz ele nascer fechado.
+  const avancadoDaParede = (
+    <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
+      <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
+        {(hintId) => <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />}
+      </AdvancedField>
+    </AdvancedSection>
+  )
   const secaoDaParede = (semTitulo: boolean) => (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
       <WallStyleControls
         {...wallStyle}
         semTitulo={semTitulo}
-        // A última linha do bloco Parede, sem fio (fatia 3): "Ponta e canto" é
-        // da parede. `key` pelo id: outra parede selecionada faz o Avançado
-        // nascer fechado.
-        avancado={
-          <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
-            <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
-              {(hintId) => <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />}
-            </AdvancedField>
-          </AdvancedSection>
-        }
+        // A última linha do bloco Parede, sem fio (fatia 3): "Ponta e canto" é da parede.
+        avancado={avancadoDaParede}
       />
     </ToolPropertiesSection>
   )
@@ -678,6 +687,20 @@ export function PropertiesPanel({
             // Sem o "Mais ações" de propósito (o dossiê da fatia 12 aceita):
             // "Reunir no pino" e "Mostrar o cartão a…" moram na ficha "Na mesa",
             // e abri-la de fora com o foco no controle pede um canal novo com a ficha.
+            acoes={[]}
+            notaDasAcoes={null}
+          />
+        )}
+        {/* A zona oculta também fica fora do resumo da seleção: a cabeça sai da
+            própria zona (fatia 16a), com o "Excluir zona" de antes. A tecla
+            Delete não apaga a zona, então o Apagar não anuncia o atalho. */}
+        {concealZone !== null && selection.selection === null && pinoAberto === null && groups.has('concealZone') && (
+          <CabecaDaSelecao
+            key={concealZone.id}
+            identidade={zonaIdentity(concealZone.name)}
+            rotuloApagar={EXCLUIR_ZONA}
+            onApagar={concealZone.onDelete}
+            semAtalho
             acoes={[]}
             notaDasAcoes={null}
           />
@@ -765,8 +788,7 @@ export function PropertiesPanel({
         )}
         {concealZone && (
           <ToolPropertiesSection group="concealZone" groups={groups}>
-            <ConcealZoneControls {...concealZone} />
-            {estadoDaZona}
+            <ConcealZoneControls {...concealZone} estado={estadoDaZona} />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="revealBrush" groups={groups}>
@@ -890,9 +912,8 @@ export function PropertiesPanel({
             <FloorPieceControls piece={selectedFloorPiece} floorFillColor={floorStyle.style.fillColor} {...floorPieceControls} />
           </ToolPropertiesSection>
         )}
-        {/* Parede lisa: "Parede" primeiro, "Virar porta" depois. Porta
-            selecionada: o que se mexe na porta (aberta, trancada, tipo) vem
-            antes da espessura da parede em que ela mora. */}
+        {/* Porta selecionada: o que se mexe na porta (aberta, trancada, tipo)
+            vem antes da espessura da parede em que ela mora. */}
         {/* Parede presa a um desenho: o aviso no lugar de Parede/Porta (o
             grupo `paredePresa` já tira os controles de parede do painel). */}
         {paredePresa && (
@@ -900,11 +921,17 @@ export function PropertiesPanel({
             <AvisoParedePresa {...paredePresa} />
           </ToolPropertiesSection>
         )}
-        {!doorSelected && secaoDaParede(false)}
-        {selectedWall !== null && portaSelecionada === null && (
-          <ToolPropertiesSection group="wallDoor" groups={groups}>
-            <WallDoorControls door={null} {...wallDoor} />
+        {/* PAREDE LISA SELECIONADA (fatia 16a): a ficha própria — o essencial
+            (Cor, Espessura, Ajuste fino e o Avançado) e as fichas "O que a
+            parede deixa" e "Tipo"; "Virar porta" foi para o "Mais ações" da
+            cabeça. A ferramenta Parede e a seleção de vários seguem com o bloco
+            inteiro. */}
+        {selectedWall !== null && !doorSelected ? (
+          <ToolPropertiesSection group="wallStyle" groups={groups}>
+            <FichaDaParede estilo={{ ...wallStyle, avancado: avancadoDaParede }} />
           </ToolPropertiesSection>
+        ) : (
+          !doorSelected && secaoDaParede(false)
         )}
         {/* PORTA SELECIONADA (fatia 11): a ficha própria — essencial (Estado,
             Trancada, Secreta, Espiar) e as fichas Quem abre, Aparência (com o
@@ -932,27 +959,21 @@ export function PropertiesPanel({
               tipo na própria ficha (Aparência). */}
           {!doorSelected && (activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
         </ToolPropertiesSection>
+        {/* O OBJETO SELECIONADO (fatia 16a): a ficha própria — o essencial diz o
+            que a peça é (móvel ou item no chão) e as fichas Aparência, No mapa
+            e Para os jogadores. A chave: outro objeto nasce do zero (o rascunho
+            do nome do item vai junto). */}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
-            {/* ITEM NO CHÃO: a imagem do item não é móvel nem tem "imagem ao
-                jogador" própria — a imagem do item já é o que ele vê. */}
-            {selectedProp.item !== undefined && itemNoChao !== undefined ? (
-              <ItemNoChaoControls key={selectedProp.id} item={selectedProp.item} {...itemNoChao} />
-            ) : (
-              <MobiliaControls prop={selectedProp} {...propMobilia} />
-            )}
-            <ItemTransformControls
-              title={selectedProp.item !== undefined ? 'Imagem no chão' : 'Objeto'}
-              rotation={selectedProp.rotation ?? 0}
-              locked={!!selectedProp.locked}
-              hidden={!!selectedProp.hidden}
-              secret={!!selectedProp.secret}
-              {...propTransform}
+            <FichaDoObjeto
+              key={selectedProp.id}
+              prop={selectedProp}
+              mobilia={propMobilia}
+              itemNoChao={itemNoChao}
+              transform={propTransform}
+              onSetPropLayer={onSetPropLayer}
+              player={propPlayer}
             />
-            <PropLayerControls prop={selectedProp} onSetPropLayer={onSetPropLayer} />
-            {selectedProp.item === undefined && (
-              <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
-            )}
           </ToolPropertiesSection>
         )}
         {/* A FICHA DO TOKEN (fatia 9): tipo de ficha, as fichas Nome,
@@ -994,9 +1015,10 @@ export function PropertiesPanel({
               intensity={selectedLight.intensity}
               attachedTokenId={selectedLight.attachedTokenId ?? null}
               vistaDeLonge={selectedLight.vistaDeLonge === true}
+              porEstado={selectedLight.porEstado}
               {...lightControls}
+              estado={estadoDaLuz}
             />
-            {estadoDaLuz}
           </ToolPropertiesSection>
         )}
         {selectedStair && (

@@ -10,7 +10,7 @@ import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorr
 import type { SelectionSummary } from '../SelectionControls'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, deleteSelectionLabel, rotuloAbrirParaOCorredor } from '../labels'
 import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
-import { BrushIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
+import { BrushIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
 import { Balao } from '../grimorio/Balao'
 import { Botao } from '../grimorio/Botao'
 import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
@@ -34,6 +34,7 @@ export type SelectionIconKind =
   | 'drawing'
   | 'floor'
   | 'pin'
+  | 'zona'
   | 'several'
 
 /** O que a cabeça diz da seleção. */
@@ -150,6 +151,23 @@ export function pinIdentity(kind: PinKind, nome: string): SelectionIdentity {
   return { icon: 'pin', type: TITULO_DO_PINO[kind], name: nameOrNull(nome), pinKind: kind }
 }
 
+/** O tipo da zona oculta: o título do bloco de antes, que as jornadas procuram. */
+const TIPO_DA_ZONA = 'Zona oculta'
+
+/** O Excluir da zona, letra por letra o botão de antes (os testes e2e o procuram pelo nome). */
+export const EXCLUIR_ZONA = 'Excluir zona'
+
+/**
+ * ZONA OCULTA ABERTA (fatia 16a): como o pino, fica fora do resumo
+ * "selection.selection", então a identidade sai da própria zona. Ela nasce
+ * chamada "Zona oculta", o mesmo nome do tipo: aí a cabeça diz só o tipo, sem
+ * repetir a palavra embaixo.
+ */
+export function zonaIdentity(nome: string): SelectionIdentity {
+  const proprio = nameOrNull(nome)
+  return { icon: 'zona', type: TIPO_DA_ZONA, name: proprio === TIPO_DA_ZONA ? null : proprio }
+}
+
 /** O ícone de cada tipo de pino, na medalha da cabeça e no Tipo da ficha (o minigame não está no protótipo: fica o "play"). */
 export const ICONE_DO_PINO: Record<PinKind, NomeDoIcone> = {
   exclamacao: 'exclamacao',
@@ -229,6 +247,15 @@ export function doorActions(
     { label: porta.locked ? 'Destrancar' : 'Trancar', onSelect: handlers.onToggleLocked, icone: 'cadeado', grupo: 'porta' },
     { label: 'Virar parede sólida', onSelect: handlers.onToggleDoor, icone: 'parede', grupo: 'forma' },
   ]
+}
+
+/**
+ * PAREDE LISA SELECIONADA (fatia 16a): "Virar porta" saiu do corpo da ficha
+ * para o "Mais ações", como o "Virar parede sólida" da porta — muda a forma do
+ * item. O mesmo handler do botão de antes.
+ */
+export function virarPortaAction(onToggleDoor: () => void): SelectionAction {
+  return { label: 'Virar porta', onSelect: onToggleDoor, icone: 'porta', grupo: 'forma' }
 }
 
 /** O que a store diz do "Abrir para o corredor" da Sala selecionada. */
@@ -336,6 +363,12 @@ export interface CabecaDaSelecaoProps {
   acoes: readonly SelectionAction[]
   /** Frase no pé do menu, ligada aos itens com `explicadoPelaNota`. */
   notaDasAcoes: string | null
+  /**
+   * Item que a tecla Delete não apaga (a zona oculta: o "deleteSelected" do
+   * mapa atende só a seleção e o pino). O Apagar fica sem o balão "Del" e sem
+   * "aria-keyshortcuts", para a cabeça não prometer um atalho que não existe.
+   */
+  semAtalho?: boolean
 }
 
 /**
@@ -349,7 +382,7 @@ export interface CabecaDaSelecaoProps {
  * é a barra das ações (`toolbar`) descrita pelo nome: os botões ficam na
  * ordem do Tab, e as setas continuam sendo atalho do mapa.
  */
-export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, onApagar, acoes, notaDasAcoes }: CabecaDaSelecaoProps) {
+export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, onApagar, acoes, notaDasAcoes, semAtalho = false }: CabecaDaSelecaoProps) {
   const [menuAberto, setMenuAberto] = useState(false)
   const gatilho = useRef<HTMLButtonElement | null>(null)
   const notaId = useId()
@@ -370,9 +403,9 @@ export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, 
         rotuloDasAcoes="Ações da seleção"
         acoes={
           <>
-            <Balao texto={rotuloApagar} atalho="Del">
+            <Balao texto={rotuloApagar} atalho={semAtalho ? undefined : 'Del'}>
               {(propsDoBalao) => (
-                <Botao soIcone aria-label={rotuloApagar} aria-keyshortcuts={TECLA_DE_APAGAR} {...propsDoBalao} onClick={onApagar}>
+                <Botao soIcone aria-label={rotuloApagar} aria-keyshortcuts={semAtalho ? undefined : TECLA_DE_APAGAR} {...propsDoBalao} onClick={onApagar}>
                   <IconeDoLivro nome="lixo" />
                   {/* O texto do botão, para quem lê pelo texto (`toHaveText`); a vista tem só o ícone. */}
                   <span className="gr-sr">{rotuloApagar}</span>
@@ -455,6 +488,8 @@ function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
       return <FloorIcon />
     case 'pin':
       return <IconeDoLivro nome={ICONE_DO_PINO[identidade.pinKind]} />
+    case 'zona':
+      return <ConcealZoneIcon />
     case 'several':
       return <VariosIcon />
   }
