@@ -296,7 +296,19 @@ function campoRotacao(page: Page) {
   return page.locator(PAINEL).getByLabel(/^\s*rota[cç][aã]o/i).first()
 }
 
+/**
+ * Abre, se estiver fechada, uma ficha da sala pelo cabeçalho. Desde a fatia 15,
+ * Rotação e −90°/+90° moram em "Medidas e título" e o Travado em "Trava",
+ * fichas que nascem fechadas (o miolo fechado fica fora do alcance).
+ */
+async function abrirFichaDaSala(page: Page, titulo: RegExp) {
+  const cabecalho = page.locator(PAINEL).getByRole('button', { name: titulo })
+  await expect(cabecalho, `a ficha da sala não tem a ficha ${titulo}`).toBeVisible({ timeout: ESPERA_CONTROLE })
+  if ((await cabecalho.getAttribute('aria-expanded')) !== 'true') await cabecalho.click()
+}
+
 async function esperarCampoRotacao(page: Page) {
+  await abrirFichaDaSala(page, /^Medidas e título/)
   const campo = campoRotacao(page)
   await expect(campo, 'o painel da sala não tem o campo "Rotação"').toBeVisible({ timeout: ESPERA_CONTROLE })
   return campo
@@ -514,6 +526,7 @@ test('7. sala travada não mostra a alça de girar e o campo Rotação fica desa
   // num app que nunca desenhou alça nenhuma.
   await acharAlca(page)
 
+  await abrirFichaDaSala(page, /^Trava$/)
   const linhaTravado = page.locator(`${PAINEL} label.lb-switch`).filter({ hasText: /travad|trancad/i }).first()
   await expect(linhaTravado, 'o painel da sala não tem o interruptor "Travado"').toBeVisible({ timeout: ESPERA_CONTROLE })
   // O input real é invisível (pointer-events:none); o usuário clica no trilho.

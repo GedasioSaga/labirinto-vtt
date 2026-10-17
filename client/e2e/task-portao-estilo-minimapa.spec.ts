@@ -174,8 +174,13 @@ test('3. chão da sala é chapado — e o portão reprova a hachura, que a Invar
   ).toBe(true)
 
   // CONTROLE POSITIVO: ligar "Hachurado" é exatamente o visual proibido.
+  // Na sala recém-desenhada, ele mora na ficha "Aparência", que nasce fechada (fatia 15).
+  const aparencia = page.getByRole('button', { name: /^Aparência/ })
+  if ((await aparencia.getAttribute('aria-expanded')) !== 'true') await aparencia.click()
   const hachura = interruptor(page, 'Hachurado')
-  await hachura.check({ force: true })
+  // O input real é invisível; o clique vai no trilho e, sem force, espera a ficha acabar de abrir.
+  await page.locator('label.lb-switch').filter({ hasText: 'Hachurado' }).locator('.lb-switch__track').click()
+  await expect(hachura).toBeChecked()
   await page.waitForTimeout(PAINT_MS)
   expect(
     await estaChapado(page, dentro.x, dentro.y, dentro.width, dentro.height),

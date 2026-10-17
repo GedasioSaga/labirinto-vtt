@@ -99,8 +99,12 @@ function temPontaNaQuina(w: Wall): boolean {
   ].some((p) => Math.hypot(p.x - CANTO_A.x, p.y - CANTO_A.y) <= FOLGA)
 }
 
-function botaoAbrir(page: Page) {
-  return page.getByRole('button', { name: 'Abrir para o corredor (1)', exact: true })
+/** Desde a fatia 15, "Abrir para o corredor" mora no "Mais ações" da cabeça da ficha da sala: abre o menu e devolve o item. */
+async function itemAbrir(page: Page) {
+  const maisAcoes = page.getByRole('button', { name: 'Mais ações', exact: true })
+  await expect(maisAcoes).toBeVisible()
+  if ((await maisAcoes.getAttribute('aria-expanded')) !== 'true') await maisAcoes.click()
+  return page.getByRole('menuitem', { name: 'Abrir para o corredor (1)', exact: true })
 }
 
 test.beforeEach(async ({ page }) => {
@@ -129,10 +133,10 @@ test('imagem 4: o painel conta 1 corredor, o clique abre a quina e para as linha
   // A quina de cima à esquerda ainda fecha a Sala.
   expect(antes.daSala.some(temPontaNaQuina)).toBe(true)
 
-  const botao = botaoAbrir(page)
-  await expect(botao).toBeVisible()
-  await expect(botao).toBeEnabled()
-  await botao.click()
+  const item = await itemAbrir(page)
+  await expect(item).toBeVisible()
+  await expect(item).toBeEnabled()
+  await item.click()
 
   const depois = await lerEstado(page)
   expect(depois.passosDeDesfazer).toBe(antes.passosDeDesfazer + 1)
@@ -141,12 +145,19 @@ test('imagem 4: o painel conta 1 corredor, o clique abre a quina e para as linha
   for (const linha of depois.soltas) expect(pontaNaBorda(linha)).not.toBeNull()
   expect(depois.daSala.some(temPontaNaQuina)).toBe(false)
   await expect(page.locator('.lb-toast__text', { hasText: `Vão aberto entre ${antes.sala.room.name} e o corredor. Ctrl+Z desfaz.` })).toBeVisible()
-  // Nada mais a abrir: botão na tela sempre faz alguma coisa.
-  await expect(page.getByRole('button', { name: /^Abrir para/ })).toHaveCount(0)
+  // Nada mais a abrir: item na tela sempre faz alguma coisa. Sem outra ação, nem o "Mais ações" aparece.
+  const maisAcoes = page.getByRole('button', { name: 'Mais ações', exact: true })
+  if (await maisAcoes.isVisible()) {
+    if ((await maisAcoes.getAttribute('aria-expanded')) !== 'true') await maisAcoes.click()
+    await expect(page.getByRole('menuitem', { name: /^Abrir para/ })).toHaveCount(0)
+    // Fecha o menu clicando no chão da Sala, que a mantém selecionada.
+    await page.mouse.click(box.x + NO_CHAO.x, box.y + NO_CHAO.y)
+  }
+  await expect(page.getByRole('menuitem', { name: /^Abrir para/ })).toHaveCount(0)
 
   await page.keyboard.press('Control+z')
   const desfeito = await lerEstado(page)
   expect(desfeito.soltas).toEqual(antes.soltas)
   expect(desfeito.daSala).toEqual(antes.daSala)
-  await expect(botao).toBeVisible()
+  await expect(await itemAbrir(page)).toBeVisible()
 })

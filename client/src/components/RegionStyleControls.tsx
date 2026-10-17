@@ -137,6 +137,15 @@ export interface RegionStyleControlsProps {
    * um contorno serrilhado/pixelado (ex.: extraído de imagem) numa curva limpa.
    */
   onSmoothRegion?: () => void
+  /** Dentro de um cartão que já tem título (a ficha Aparência da sala): sem o "Região". */
+  semTitulo?: boolean
+  /**
+   * A Espessura do contorno e o "Criar parede na borda" moram no Avançado de
+   * quem monta (a ficha Aparência da sala, como no protótipo), com
+   * `RegionStrokeWidthFields` e `RegionLinkWallsButton`: aqui ficam só a cor e
+   * o Hachurado. Default `false`: tudo aqui, como sempre.
+   */
+  contornoNoAvancado?: boolean
 }
 
 /**
@@ -156,15 +165,14 @@ export function RegionStyleControls({
   strokeWidth,
   onStrokeWidthChange,
   onLinkWalls,
+  semTitulo = false,
+  contornoNoAvancado = false,
 }: RegionStyleControlsProps) {
   // `strokeJoin` e `onSmoothRegion` continuam no tipo (o chamador monta um
   // objeto só), mas quem desenha é `RegionJoinField`/`RegionSmoothButton`, no Avançado.
-  const showStrokeWidth = strokeWidth !== undefined && onStrokeWidthChange !== undefined
-  const activeStrokePreset = strokeWidth !== undefined ? regionStrokePresetForWidth(strokeWidth) : undefined
-
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Região</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Região</h2>}
       <div className="lb-section__row">
         <label className="lb-label" htmlFor="lb-region-color">
           Cor
@@ -181,52 +189,70 @@ export function RegionStyleControls({
         onChange={(checked) => onPatternChange(checked ? 'hatch' : 'solid')}
       />
 
-      {showStrokeWidth && (
-        <div className="lb-field">
-          <span className="lb-label">Espessura do contorno</span>
-          <div className="lb-seg" role="radiogroup" aria-label="Espessura do contorno">
-            {STROKE_PRESET_ORDER.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                role="radio"
-                aria-checked={activeStrokePreset === preset}
-                className="lb-seg__option"
-                onClick={() => onStrokeWidthChange?.(REGION_STROKE_WIDTH_BY_PRESET[preset])}
-              >
-                {STROKE_PRESET_LABELS[preset]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {showStrokeWidth && (
-        <div className="lb-field">
-          <div className="lb-section__row">
-            <label className="lb-label" htmlFor="lb-region-strokewidth">
-              Ajuste fino
-            </label>
-            <span className="lb-num">{strokeWidth} px</span>
-          </div>
-          <input
-            id="lb-region-strokewidth"
-            className="lb-range"
-            type="range"
-            min={REGION_STROKE_WIDTH_MIN}
-            max={REGION_STROKE_WIDTH_MAX}
-            step={1}
-            value={strokeWidth}
-            onChange={(event) => onStrokeWidthChange?.(Number(event.target.value))}
-          />
-        </div>
+      {!contornoNoAvancado && strokeWidth !== undefined && onStrokeWidthChange !== undefined && (
+        <RegionStrokeWidthFields strokeWidth={strokeWidth} onStrokeWidthChange={onStrokeWidthChange} />
       )}
 
-      {onLinkWalls && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={onLinkWalls}>
-          Criar parede na borda
-        </button>
-      )}
+      {!contornoNoAvancado && onLinkWalls && <RegionLinkWallsButton onLinkWalls={onLinkWalls} />}
     </section>
+  )
+}
+
+export interface RegionStrokeWidthFieldsProps {
+  strokeWidth: number
+  onStrokeWidthChange: (strokeWidth: number) => void
+}
+
+/** "Espessura do contorno" (Fino/Médio/Grosso) e o "Ajuste fino" logo abaixo: dentro de `RegionStyleControls`, ou no Avançado da ficha Aparência da sala. */
+export function RegionStrokeWidthFields({ strokeWidth, onStrokeWidthChange }: RegionStrokeWidthFieldsProps) {
+  const activeStrokePreset = regionStrokePresetForWidth(strokeWidth)
+  return (
+    <>
+      <div className="lb-field">
+        <span className="lb-label">Espessura do contorno</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Espessura do contorno">
+          {STROKE_PRESET_ORDER.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              role="radio"
+              aria-checked={activeStrokePreset === preset}
+              className="lb-seg__option"
+              onClick={() => onStrokeWidthChange(REGION_STROKE_WIDTH_BY_PRESET[preset])}
+            >
+              {STROKE_PRESET_LABELS[preset]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="lb-field">
+        <div className="lb-section__row">
+          <label className="lb-label" htmlFor="lb-region-strokewidth">
+            Ajuste fino
+          </label>
+          <span className="lb-num">{strokeWidth} px</span>
+        </div>
+        <input
+          id="lb-region-strokewidth"
+          className="lb-range"
+          type="range"
+          min={REGION_STROKE_WIDTH_MIN}
+          max={REGION_STROKE_WIDTH_MAX}
+          step={1}
+          value={strokeWidth}
+          onChange={(event) => onStrokeWidthChange(Number(event.target.value))}
+        />
+      </div>
+    </>
+  )
+}
+
+/** "Criar parede na borda": preenche as arestas da região sem parede com um clique. */
+export function RegionLinkWallsButton({ onLinkWalls }: { onLinkWalls: () => void }) {
+  return (
+    <button type="button" className="lb-btn lb-btn--block" onClick={onLinkWalls}>
+      Criar parede na borda
+    </button>
   )
 }
 

@@ -8,7 +8,19 @@ import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
-import { CabecaDaSelecao, EXCLUIR_PINO, deleteLabelFor, doorActions, endireitarAction, floorActions, pinIdentity, selectionIdentity, useOndeDaPorta, useOndeDoPino } from './livro/CabecaDaSelecao'
+import {
+  CabecaDaSelecao,
+  EXCLUIR_PINO,
+  deleteLabelFor,
+  doorActions,
+  endireitarAction,
+  floorActions,
+  pinIdentity,
+  selectionIdentity,
+  useAcaoAbrirCorredor,
+  useOndeDaPorta,
+  useOndeDoPino,
+} from './livro/CabecaDaSelecao'
 import { FichaDaPorta } from './livro/FichaDaPorta'
 import { FichaDoPino } from './livro/FichaDoPino'
 import { Essencial } from './grimorio/Cartoes'
@@ -21,7 +33,14 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
-import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
+import {
+  RegionJoinField,
+  RegionLinkWallsButton,
+  RegionSmoothButton,
+  RegionStrokeWidthFields,
+  RegionStyleControls,
+  type RegionStyleControlsProps,
+} from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
 import type { LayersPanelProps } from './LayersPanel'
@@ -250,8 +269,12 @@ interface PropertiesPanelProps {
     | 'foraVeDentro'
     | 'faccao'
     | 'raioDeVisao'
-    // O painel passa o id da Sala selecionada; o resto do "Abrir para o corredor" vem da store.
+    // O painel passa o id da Sala selecionada (a dica da pílula lê a store por ele).
     | 'salaId'
+    // As fichas Aparência e Trava levam os blocos que o painel já monta para a região.
+    | 'aparencia'
+    | 'resumoDaAparencia'
+    | 'trava'
   > &
     // Obrigatória aqui (opcional no RoomControls): sem ela o campo "Raio de
     // visão aqui" some do painel, e esquecê-la no App tem de quebrar o tipo.
@@ -452,7 +475,7 @@ export function PropertiesPanel({
   const pinoAberto = pinSelected && pin.pinId !== undefined && pin.description !== null ? { pinId: pin.pinId, description: pin.description } : null
   const ferramentaDaFicha = panelHeadingTool(activeTool, algoSelecionado)
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
-  const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
+  const { strokeJoin, onStrokeJoinChange, onSmoothRegion, strokeWidth, onStrokeWidthChange, onLinkWalls } = regionStyle
   // A faixa da seleção remonta quando o item muda (o menu aberto não passa de um item para o outro).
   const selectedItem = selectedRegion ?? selectedToken ?? selectedWall ?? selectedProp ?? selectedLight ?? selectedStair ?? selectedTextLabel ?? selectedFloorPiece
   const selectionKey = selection.selection === null ? '' : `${selection.selection.kind}:${selection.selection.count}:${selectedItem?.id ?? ''}`
@@ -468,14 +491,70 @@ export function PropertiesPanel({
   // vale para qualquer seleção, com a ligação de pisos montada.
   const endireitarMudaria = useMapStore(selectEndireitarMudaria)
   const endireitarSelecionados = useMapStore((state) => state.endireitarSelecionados)
+  // "Abrir para o corredor" da Sala selecionada (fatia 15: saiu do corpo da
+  // ficha para o "Mais ações"); a conta e o motivo vêm da store.
+  const salaSelecionada = selectedRegion?.room === undefined ? null : selectedRegion
+  const acaoDoCorredor = useAcaoAbrirCorredor(salaSelecionada === null ? null : salaSelecionada.id)
   const ondeDaPorta = useOndeDaPorta(doorSelected ? selectedWall.id : null)
   // A sala do pino aberto, depois do tipo na cabeça ("Ponto de interesse · Cais do Porto").
   const ondeDoPino = useOndeDoPino(pinoAberto === null ? null : pinoAberto.pinId)
   const acoesDaSelecao = [
     ...(portaSelecionada === null ? [] : doorActions(portaSelecionada, wallDoor)),
     ...(endireitarMudaria ? [endireitarAction(() => endireitarSelecionados())] : []),
+    ...(acaoDoCorredor === null ? [] : [acaoDoCorredor]),
     ...(pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)),
   ]
+  // FICHA DA SALA (fatia 15): os blocos que a região usa entram nas fichas
+  // Aparência e Trava, sem título próprio. A região que não é Sala e as
+  // ferramentas Sala e Região continuam com eles soltos, mais abaixo.
+  // `key` pelo id: outra região selecionada faz o Avançado nascer fechado.
+  // `naSala`: o Avançado da ficha Aparência é o subgrupo do protótipo e leva
+  // também a Espessura do contorno e o "Criar parede na borda" (que saem do
+  // `RegionStyleControls` com `contornoNoAvancado`). Fora da sala, como sempre.
+  const avancadoDaRegiao = (naSala: boolean) => (
+    <AdvancedSection key={selectedRegion?.id ?? 'region-tool'} variante={naSala ? 'subgrupo' : undefined}>
+      {naSala && strokeWidth !== undefined && onStrokeWidthChange && (
+        <RegionStrokeWidthFields strokeWidth={strokeWidth} onStrokeWidthChange={onStrokeWidthChange} />
+      )}
+      {strokeJoin !== undefined && onStrokeJoinChange && (
+        <AdvancedField hint="Define se os vértices do contorno ficam arredondados ou em quina.">
+          {(hintId) => <RegionJoinField strokeJoin={strokeJoin} onStrokeJoinChange={onStrokeJoinChange} describedBy={hintId} />}
+        </AdvancedField>
+      )}
+      {onSmoothRegion && (
+        <AdvancedField hint="Simplifica e arredonda o contorno inteiro de uma vez; Ctrl+Z desfaz.">
+          {(hintId) => <RegionSmoothButton onSmoothRegion={onSmoothRegion} describedBy={hintId} />}
+        </AdvancedField>
+      )}
+      {naSala && onLinkWalls && <RegionLinkWallsButton onLinkWalls={onLinkWalls} />}
+    </AdvancedSection>
+  )
+  const aparenciaDaSala =
+    salaSelecionada === null || (!groups.has('regionStyle') && !groups.has('fill')) ? undefined : (
+      <>
+        <ToolPropertiesSection group="regionStyle" groups={groups}>
+          <RegionStyleControls {...regionStyle} semTitulo contornoNoAvancado />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="fill" groups={groups}>
+          <FillControls {...fill} semTitulo />
+          {regionSplit && <RegionSplitControls key={salaSelecionada.id} {...regionSplit} semTitulo />}
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="regionStyle" groups={groups}>
+          {avancadoDaRegiao(true)}
+        </ToolPropertiesSection>
+      </>
+    )
+  const travaDaSala =
+    salaSelecionada === null || !groups.has('itemTransform') ? undefined : (
+      <ItemTransformControls
+        title="Sala"
+        semTitulo
+        locked={!!salaSelecionada.locked}
+        secret={regionSecret?.secret}
+        onSecretChange={regionSecret?.onSecretChange}
+        {...regionTransform}
+      />
+    )
   // VÁRIOS ITENS na gramática da ficha (decisão 4.1): o que vale para todos —
   // seleção de área, alinhar e o "Oculto para jogadores" em lote — num bloco
   // essencial logo abaixo da cabeça. Com um item só, as mesmas seções no fim.
@@ -657,20 +736,22 @@ export function PropertiesPanel({
               foraVeDentro={selectedRegion.room.foraVeDentro === true}
               faccao={selectedRegion.room.faccao ?? ''}
               raioDeVisao={selectedRegion.room.raioDeVisao ?? null}
+              aparencia={aparenciaDaSala}
+              resumoDaAparencia={regionStyle.pattern === 'hatch' ? 'Hachurado' : 'Sólido'}
+              trava={travaDaSala}
               {...room}
             />
           </ToolPropertiesSection>
         )}
-        {/* Sala e Região, em ordem de tarefa: travar e esconder dos jogadores
-            logo depois do bloco do item (eram a 20ª e a 14ª rolagem), num bloco
-            só, como na ficha; depois a aparência (Região + Preenchimento), o
-            Gatilho, o Perigo que se alastra e, por último, o Avançado. */}
-        {selectedRegion && (
+        {/* Região que não é Sala, em ordem de tarefa: travar e esconder dos
+            jogadores logo depois do bloco do item (eram a 20ª e a 14ª
+            rolagem), num bloco só, como na ficha; depois a aparência (Região +
+            Preenchimento), o Gatilho e, por último, o Avançado. A Sala tem os
+            mesmos blocos nas fichas Trava e Aparência. */}
+        {selectedRegion && !selectedRegion.room && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             <ItemTransformControls
-              // Rótulo segue o que o usuário chama a coisa: desenhada pela
-              // ferramenta Sala é "Sala", pela ferramenta Região é "Região".
-              title={selectedRegion.room ? 'Sala' : 'Região'}
+              title="Região"
               locked={!!selectedRegion.locked}
               // O "Oculto para jogadores" da região (grupo `playerVisibility`)
               // mora aqui, ao lado do Travado, e não num bloco "Jogadores" à
@@ -754,21 +835,20 @@ export function PropertiesPanel({
             <ParedesAoRedorControls {...paredesAoRedor} />
           </ToolPropertiesSection>
         )}
-        <ToolPropertiesSection group="regionStyle" groups={groups}>
-          <RegionStyleControls {...regionStyle} />
-        </ToolPropertiesSection>
-        {/* Preenchimento junto da Região: as duas dizem como a área aparece. */}
-        <ToolPropertiesSection group="fill" groups={groups}>
-          <FillControls {...fill} />
-        </ToolPropertiesSection>
+        {/* A Sala selecionada tem estes dois (e o Duas cores) na ficha Aparência. */}
+        {!selectedRegion?.room && (
+          <>
+            <ToolPropertiesSection group="regionStyle" groups={groups}>
+              <RegionStyleControls {...regionStyle} />
+            </ToolPropertiesSection>
+            {/* Preenchimento junto da Região: as duas dizem como a área aparece. */}
+            <ToolPropertiesSection group="fill" groups={groups}>
+              <FillControls {...fill} />
+            </ToolPropertiesSection>
+          </>
+        )}
         {/* GATILHO DE ÁREA: decide o que o jogador recebe ao entrar. Região e
             Sala, não só Sala. */}
-        {/* SALA EM DUAS CORES: logo depois do Preenchimento, que é o fundo que ela divide. */}
-        {selectedRegion?.room && regionSplit && (
-          <ToolPropertiesSection group="fill" groups={groups}>
-            <RegionSplitControls key={selectedRegion.id} {...regionSplit} />
-          </ToolPropertiesSection>
-        )}
         {selectedRegion && areaTrigger && (FEATURES.gatilhoDeArea || selectedRegion.room === undefined) && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <section className="lb-section">
@@ -783,22 +863,12 @@ export function PropertiesPanel({
             {perigoDaSala}
           </ToolPropertiesSection>
         )}
-        <ToolPropertiesSection group="regionStyle" groups={groups}>
-          {/* Por último no bloco da região. `key` pelo id: outra região
-              selecionada faz o Avançado nascer fechado. */}
-          <AdvancedSection key={selectedRegion?.id ?? 'region-tool'}>
-            {strokeJoin !== undefined && onStrokeJoinChange && (
-              <AdvancedField hint="Define se os vértices do contorno ficam arredondados ou em quina.">
-                {(hintId) => <RegionJoinField strokeJoin={strokeJoin} onStrokeJoinChange={onStrokeJoinChange} describedBy={hintId} />}
-              </AdvancedField>
-            )}
-            {onSmoothRegion && (
-              <AdvancedField hint="Simplifica e arredonda o contorno inteiro de uma vez; Ctrl+Z desfaz.">
-                {(hintId) => <RegionSmoothButton onSmoothRegion={onSmoothRegion} describedBy={hintId} />}
-              </AdvancedField>
-            )}
-          </AdvancedSection>
-        </ToolPropertiesSection>
+        {/* Por último no bloco da região (a Sala o tem no fim da Aparência). */}
+        {!selectedRegion?.room && (
+          <ToolPropertiesSection group="regionStyle" groups={groups}>
+            {avancadoDaRegiao(false)}
+          </ToolPropertiesSection>
+        )}
         <ToolPropertiesSection group="polygonSides" groups={groups}>
           <PolygonSidesControls {...polygonSides} />
         </ToolPropertiesSection>

@@ -16,6 +16,8 @@ export interface RegionSplitControlsProps {
   /** A divisão da sala selecionada; `undefined` = uma cor só. */
   split: RegionSplit | undefined
   onChange: (split: RegionSplit | null) => void
+  /** Dentro de um cartão que já tem título (a ficha Aparência da sala): sem o "Duas cores". */
+  semTitulo?: boolean
 }
 
 /**
@@ -23,10 +25,10 @@ export interface RegionSplitControlsProps {
  * sala e o lado de lá pega a segunda cor. Direção em pé, deitada ou diagonal;
  * o controle "Onde corta" anda a reta de um lado ao outro.
  */
-export function RegionSplitControls({ split, onChange }: RegionSplitControlsProps) {
+export function RegionSplitControls({ split, onChange, semTitulo = false }: RegionSplitControlsProps) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Duas cores</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Duas cores</h2>}
       <Toggle
         label="Pintar parte da sala de outra cor"
         checked={split !== undefined}

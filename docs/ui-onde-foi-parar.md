@@ -612,43 +612,43 @@ Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada (Comprim
 
 ### Ficha da sala
 
-Parte de: sala selecionada no mapa. Vai para: Página Ficha da sala: Sala, O que veem, Acrescentar, Aparência, Medidas e título, Trava. Fatia: 15.
+Parte de: sala selecionada no mapa. Vai para: Página Ficha da sala: Sala, O que os jogadores veem e Acrescentar abertas; Aparência, Medidas e título e Trava fechadas (feito). Fatia: 15.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Nome | textbox "Nome" | (livro do mestre) | (do bloco) |
-| Fundo do título | checkbox "Fundo do título" | (livro do mestre) | (do bloco) |
-| Tamanho do título | slider "Tamanho do título" | (livro do mestre) | (do bloco) |
-| Cor do título | textbox "Cor do título" | (livro do mestre) | (do bloco) |
-| Orientação do título | radiogroup "Orientação do título" | (livro do mestre) | (do bloco) |
-| Largura | spinbutton "Largura" | (livro do mestre) | (do bloco) |
-| Altura | spinbutton "Altura" | (livro do mestre) | (do bloco) |
-| Rotação | spinbutton "Rotação" | (livro do mestre) | (do bloco) |
-| −90° | button "−90°" | (livro do mestre) | (do bloco) |
-| +90° | button "+90°" | (livro do mestre) | (do bloco) |
+| Ao entrar, o jogador lê | textbox "Ao entrar, o jogador lê" | (livro do mestre) | (do bloco) |
 | Jogadores veem o nome | checkbox "Jogadores veem o nome" | (livro do mestre) | (do bloco) |
 | Teto fechado para jogadores | checkbox "Teto fechado para jogadores" | (livro do mestre) | (do bloco) |
 | Cômodo: aparece só depois de visto | checkbox "Cômodo: aparece só depois de visto" | (livro do mestre) | (do bloco) |
 | Sala escura | checkbox "Sala escura" | (livro do mestre) | (do bloco) |
 | De dentro, vê lá fora | checkbox "De dentro, vê lá fora" | (livro do mestre) | (do bloco) |
 | De fora, vê aqui dentro | checkbox "De fora, vê aqui dentro" | (livro do mestre) | (do bloco) |
-| Ao entrar, o jogador lê | button "Ao entrar, o jogador lê" | (livro do mestre) | (do bloco) |
 | Nota do mestre | button "Nota do mestre" | (livro do mestre) | (do bloco) |
 | Facção | button "Facção" | (livro do mestre) | (do bloco) |
 | Raio de visão aqui | button "Raio de visão aqui" | (livro do mestre) | (do bloco) |
 | Perigo | button "Perigo" | (livro do mestre) | (do bloco) |
 | Esteira | button "Esteira" | (livro do mestre) | (do bloco) |
 | Criar sala dentro | button "Criar sala dentro" | (livro do mestre) | (do bloco) |
-| Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
-| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Cor | textbox "Cor" | (livro do mestre) | (do bloco) |
-| Hachurado | checkbox "Hachurado" | (livro do mestre) | (do bloco) |
-| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
-| Preenchido | checkbox "Preenchido" | (livro do mestre) | (do bloco) |
-| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
-| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) | (do bloco) |
-| Pintar parte da sala de outra cor | checkbox "Pintar parte da sala de outra cor" | (livro do mestre) | (do bloco) |
+| Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Hachurado | checkbox "Hachurado" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Preenchido | checkbox "Preenchido" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Pintar parte da sala de outra cor | checkbox "Pintar parte da sala de outra cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Espessura do contorno | radiogroup "Espessura do contorno" | (livro do mestre) > clicar button "/^Aparência/" > clicar button "Avançado" | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) > clicar button "/^Aparência/" > clicar button "Avançado" | (do bloco) |
+| Criar parede na borda | button "Criar parede na borda" | (livro do mestre) > clicar button "/^Aparência/" > clicar button "Avançado" | (do bloco) |
+| Largura | spinbutton "Largura" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Altura | spinbutton "Altura" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Rotação | spinbutton "Rotação" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| −90° | button "−90°" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| +90° | button "+90°" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Fundo do título | checkbox "Fundo do título" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Tamanho do título | slider "Tamanho do título" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Cor do título | textbox "Cor do título" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Orientação do título | radiogroup "Orientação do título" | (livro do mestre) > clicar button "/^Medidas e título/" | (do bloco) |
+| Travado | checkbox "Travado" | (livro do mestre) > clicar button "/^Trava$/" | (do bloco) |
+| Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) > clicar button "/^Trava$/" | (do bloco) |
 | Mais ações: levar ao piso | menuitem "/^Levar ao/" | (livro do mestre) > clicar button "Mais ações" | "Mais ações" da cabeça da ficha (feito, fatia 8) |
 
 ### Ficha da região (não sala)
@@ -1134,6 +1134,7 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa) | só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro |
 | Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel) | aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho) |
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
+| Abrir para o corredor (no "Mais ações" da ficha da sala desde a fatia 15) | só com corredor a abrir ou parede encostando na borda da sala; task-abrir-para-o-corredor.spec.ts abre o vão pelo item do menu, e CabecaDaSelecao.abrirCorredor.test.tsx cobre o item apagado com o motivo (sala travada, secreta, uma linha só) |
 | Marcas dos jogadores (MarcasDaCena) | só com marcas deixadas por jogadores |
 | Visto por / Ninguém vê (abaixo do tipo de ficha), Levar para outra cena (ficha), Rotina e Luzes (cartões de Comportamento) do token | pedem sala aberta, outra cena ou Estado do mundo com valores; PropertiesPanel.ficha.test.tsx abre Rotina e Luzes |
 | Vida do token (Vida atual, Vida máxima, Jogadores veem a barra) | saiu da ficha do token na fatia 9 (D); desde a fatia 10 a barra no mapa lê o HP da ficha do sistema ligada no cartão "Personagem" (o ajuste é na própria ficha: "Abrir ficha" > HP). Mestre vê sempre; jogador vê a das fichas de jogador e das que controla, só a proporção. A vida antiga fica no arquivo sem uso. task-jornada-barra-de-vida.spec.ts cobre |

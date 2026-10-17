@@ -76,6 +76,8 @@ test('Sala selecionada: botão "Suavizar contorno" arredonda o contorno e retra�
   const inspector = page.locator('.lb-inspector')
   const smooth = page.getByRole('button', { name: 'Suavizar contorno', exact: true })
   const advanced = inspector.getByRole('button', { name: 'Avançado', exact: true })
+  // Desde a fatia 15 o Avançado da Sala mora na ficha "Aparência", que nasce fechada.
+  await inspector.getByRole('button', { name: /^Aparência/ }).click()
   await expect(smooth).toHaveCount(0)
   await expect(advanced).toHaveAttribute('aria-expanded', 'false')
   await advanced.click()

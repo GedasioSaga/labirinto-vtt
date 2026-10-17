@@ -68,8 +68,8 @@ function render(p: RoomControlsProps, key = 'salao'): RoomControlsProps {
   return p
 }
 
-/** Os opcionais, na ordem em que o mestre os lê. */
-const OPCIONAIS = ['Ao entrar, o jogador lê', 'Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira'] as const
+/** Os opcionais da ficha Acrescentar, na ordem do protótipo ("Ao entrar" virou campo fixo da ficha Sala). */
+const OPCIONAIS = ['Nota do mestre', 'Facção', 'Raio de visão aqui', 'Perigo', 'Esteira'] as const
 
 /** A linha "+" de um opcional recolhido (o botão cujo texto é o nome do campo). */
 function linha(rotulo: string): HTMLButtonElement | null {
@@ -110,24 +110,29 @@ function antes(a: Element, b: Element): boolean {
   return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 }
 
-describe('RoomControls: a sala na ordem da tarefa', () => {
-  it('Nome, Largura | Altura, Rotação, os quatro interruptores e, por último, o que se acrescenta', () => {
+describe('RoomControls: a ficha da sala na ordem do protótipo', () => {
+  it('Sala (Nome, Ao entrar), O que os jogadores veem, Acrescentar (chips) e, fechada, Medidas e título', () => {
     render(props())
     const ordem: Element[] = [
       campo('Nome'),
-      campo('Largura'),
-      campo('Altura'),
-      campo('Rotação'),
+      campo('Ao entrar, o jogador lê'),
       interruptor('Jogadores veem o nome'),
       interruptor('Teto fechado para jogadores'),
       interruptor('Cômodo: aparece só depois de visto'),
       interruptor('Sala escura'),
       ...OPCIONAIS.map(linhaObrigatoria),
       linhaObrigatoria('Criar sala dentro'),
+      campo('Largura'),
+      campo('Altura'),
+      campo('Rotação'),
     ]
     ordem.slice(1).forEach((el, i) => {
       expect(antes(ordem[i] as Element, el), `fora de ordem: ${i} → ${i + 1}`).toBe(true)
     })
+    // As três de cima nascem abertas; Medidas e título, fechada (Aparência e Trava vêm do painel).
+    const cabecalhos = [...container.querySelectorAll('.gr-ficha__cab')]
+    expect(cabecalhos.map((c) => c.querySelector('.gr-ficha__tit')?.textContent)).toEqual(['Sala', 'O que os jogadores veem', 'Acrescentar', 'Medidas e título'])
+    expect(cabecalhos.map((c) => c.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'true', 'false'])
   })
 
   it('Largura e Altura moram no MESMO par, numa linha; Rotação, −90° e +90° dividem a linha seguinte', () => {
@@ -145,13 +150,13 @@ describe('RoomControls: a sala na ordem da tarefa', () => {
     for (const rotulo of ['Teto fechado para jogadores', 'Cômodo: aparece só depois de visto', 'Sala escura']) {
       const input = interruptor(rotulo)
       const dica = document.getElementById(input.getAttribute('aria-describedby') ?? '')
-      expect(dica?.classList.contains('lb-field__hint'), rotulo).toBe(true)
+      expect(dica?.classList.contains('gr-nota'), rotulo).toBe(true)
       expect(input.closest('label')?.nextElementSibling, rotulo).toBe(dica)
     }
   })
 })
 
-describe('RoomControls: opcional vazio = uma linha com "+"', () => {
+describe('RoomControls: opcional vazio = um chip "+"', () => {
   it('cada opcional vazio é um botão recolhido, com o nome do campo, que controla o campo escondido', () => {
     render(props())
     for (const rotulo of OPCIONAIS) {
@@ -186,8 +191,8 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
 
   it('o foco vai para o controle de cada campo: caixa de texto, número, o perigo marcado, a esteira marcada', () => {
     render(props())
-    act(() => linhaObrigatoria('Ao entrar, o jogador lê').click())
-    expect(document.activeElement).toBe(campo('Ao entrar, o jogador lê'))
+    act(() => linhaObrigatoria('Nota do mestre').click())
+    expect(document.activeElement).toBe(campo('Nota do mestre'))
     act(() => linhaObrigatoria('Facção').click())
     expect(document.activeElement).toBe(campo('Facção'))
     act(() => linhaObrigatoria('Raio de visão aqui').click())
@@ -241,9 +246,8 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     }
   })
 
-  it('só espaço não conta como texto: a linha continua recolhida', () => {
-    render(props({ textoAoEntrar: '   ', notaDoMestre: '\n' }))
-    expect(linha('Ao entrar, o jogador lê')).not.toBeNull()
+  it('só espaço não conta como texto: o chip continua recolhido', () => {
+    render(props({ notaDoMestre: '\n' }))
     expect(linha('Nota do mestre')).not.toBeNull()
   })
 
@@ -312,10 +316,9 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(linha('Facção')).not.toBeNull()
   })
 
-  it('a dica do campo continua no DOM, ligada ao campo e à linha "+" pelo mesmo id', () => {
+  it('a dica do campo continua no DOM, ligada ao campo e ao chip "+" pelo mesmo id', () => {
     render(props())
     const casos: Array<[string, string]> = [
-      ['Ao entrar, o jogador lê', 'Aparece só para quem entra'],
       ['Nota do mestre', 'Nunca vai para a tela dos jogadores'],
       ['Facção', 'Quem manda aqui'],
       ['Raio de visão aqui', 'Vazio usa o raio do jogador'],
@@ -325,7 +328,6 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
       expect(idDaLinha, rotulo).toBeTruthy()
       expect(campo(rotulo).getAttribute('aria-describedby'), rotulo).toBe(idDaLinha)
       const dica = document.getElementById(idDaLinha ?? '')
-      expect(dica?.classList.contains('lb-field__hint'), rotulo).toBe(true)
       expect(dica?.textContent, rotulo).toContain(trecho)
     }
   })
@@ -338,7 +340,7 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
     expect(p.onCreateRoomInside).toHaveBeenCalledTimes(1)
   })
 
-  it('sem nenhum opcional ligado, não sobra lista vazia nem linha "+"', () => {
+  it('sem nenhum opcional ligado, não sobra a ficha Acrescentar nem chip "+"', () => {
     render(
       props({
         onTextoAoEntrarChange: undefined,
@@ -350,7 +352,7 @@ describe('RoomControls: opcional vazio = uma linha com "+"', () => {
         onCreateRoomInside: undefined,
       }),
     )
-    expect(container.querySelector('.lb-room-extras')).toBeNull()
-    expect(container.querySelector('.lb-room-opt__add')).toBeNull()
+    expect([...container.querySelectorAll('.gr-ficha__tit')].map((t) => t.textContent)).not.toContain('Acrescentar')
+    expect(container.querySelector('.gr-chip--mais')).toBeNull()
   })
 })

@@ -12,9 +12,9 @@ import { propsDoPainel } from './propertiesPanelTestProps'
 
 /*
  * A costura do "Abrir para o corredor" (pedido 4 de 30/09/2026, fatia 3) com o
- * painel DE VERDADE: o painel diz ao bloco da Sala de que Sala ele é, e a
- * linha faz o resto pela store. O App não passa conta nem callback — é de
- * outra trilha, e a ação já mora na store (`abrirSalaParaCorredores`).
+ * painel DE VERDADE: desde a fatia 15 ele é um item do "Mais ações" da cabeça
+ * da Sala (`useAcaoAbrirCorredor`), e o item faz o resto pela store. O App não
+ * passa conta nem callback — a ação já mora na store (`abrirSalaParaCorredores`).
  */
 
 function parede(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
@@ -57,27 +57,34 @@ describe('painel de propriedades — "Abrir para o corredor"', () => {
     const props = propsDoPainel(null, {
       groups: relevantPropertyGroups('select', { region: true, regionIsRoom: true }),
       selectedRegion: sala,
+      selection: { selection: { kind: 'region', count: 1 }, defaultTokenName: 'Token 1', onAddToken: () => {}, onRemoveSelected: () => {} },
     })
     act(() => root.render(<PropertiesPanel {...props} />))
   }
 
-  const linhaAbrir = () => [...container.querySelectorAll('button')].find((b) => b.textContent?.startsWith('Abrir para'))
+  const maisAcoes = () => container.querySelector<HTMLButtonElement>('button[aria-label="Mais ações"]')
+  /** Abre o "Mais ações" (quando a cabeça o tem) e devolve o item do corredor; o menu abre num balão. */
+  function itemAbrir(): HTMLElement | undefined {
+    const mais = maisAcoes()
+    if (mais !== null && mais.getAttribute('aria-expanded') !== 'true') act(() => mais.click())
+    return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.startsWith('Abrir para'))
+  }
 
-  it('Sala da imagem 4 selecionada: a linha "(1)" mora no bloco da Sala, e o clique abre num passo do desfazer', () => {
+  it('Sala da imagem 4 selecionada: o item "(1)" mora no "Mais ações" da cabeça, fora do corpo da ficha, e o clique abre num passo do desfazer', () => {
     renderSala(salaCom([A, B]))
-    const linha = linhaAbrir()
-    if (linha === undefined) throw new Error('o painel da Sala não tem a linha "Abrir para o corredor"')
-    expect(linha.textContent).toBe('Abrir para o corredor (1)')
-    expect(linha.closest('section')?.querySelector('h2')?.textContent).toBe('Sala')
+    const item = itemAbrir()
+    if (item === undefined) throw new Error('o "Mais ações" da Sala não tem o item "Abrir para o corredor"')
+    expect(item.textContent).toContain('Abrir para o corredor (1)')
+    expect(container.querySelector('.lb-ficha-da-sala')?.contains(item)).toBe(false)
 
-    act(() => linha.click())
+    act(() => item.click())
     expect(useMapStore.getState().past).toHaveLength(1)
-    expect(linhaAbrir()).toBeUndefined()
+    expect(itemAbrir()).toBeUndefined()
   })
 
-  it('Sala sem corredor encostando: o bloco da Sala não tem a linha', () => {
+  it('Sala sem corredor encostando: o "Mais ações" não tem o item', () => {
     renderSala(salaCom([]))
     expect(container.querySelector('#lb-room-name')).not.toBeNull()
-    expect(linhaAbrir()).toBeUndefined()
+    expect(itemAbrir()).toBeUndefined()
   })
 })

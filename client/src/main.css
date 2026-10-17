@@ -1907,13 +1907,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   border-color: var(--lb-color-brass);
 }
 
-/* RoomControls.css dá um degrau a mais depois do interruptor que tem frase,
-   para a frase não se ler como legenda do de baixo. Com a frase no balão, o
-   próximo interruptor volta ao passo curto do grupo. */
-.lb-room-switch:has(> .lb-field__hint[data-dica]) + * {
-  margin-top: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .lb-inspector__body .lb-field__hint[data-dica='aberta'][data-dica-entrada],
   .lb-inspector__body .lb-field__hint[data-dica-lado='acima'][data-dica-entrada] {

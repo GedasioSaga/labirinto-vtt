@@ -70,6 +70,12 @@ describe('RoomControls: texto ao entrar e nota do mestre', () => {
     expect(campo('Nota do mestre').value).toBe('Mímico na panela.')
   })
 
+  it('a ajuda de "Ao entrar" é uma frase só, ligada ao campo (a ficha Sala do protótipo é curta)', () => {
+    render()
+    const dica = document.getElementById(campo('Ao entrar, o jogador lê').getAttribute('aria-describedby') ?? '')
+    expect(dica?.textContent?.trim()).toBe('Aparece na primeira vez que o jogador entra.')
+  })
+
   it('digitar em cada campo avisa o callback dele, e só o dele', () => {
     const props = render()
     digitar(campo('Ao entrar, o jogador lê'), 'Cheiro de pão.')

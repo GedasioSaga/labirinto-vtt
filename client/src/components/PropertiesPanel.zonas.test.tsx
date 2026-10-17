@@ -160,7 +160,7 @@ describe('livro do mestre — cada grupo na sua página', () => {
     expect(document.getElementById(avancado?.getAttribute('aria-controls') ?? '')?.querySelector('[aria-label="Ponta e canto da parede"]')).not.toBeNull()
   })
 
-  it('o Avançado da Região continua linha do item; Perigo saiu da Sala (07/10/2026)', () => {
+  it('o Avançado da Sala mora no fim da ficha Aparência; Perigo saiu da Sala (07/10/2026)', () => {
     const { region, walls } = buildRoomFromDraft('sala', ['s0', 's1', 's2', 's3'], { x: 0, y: 0 }, { x: 320, y: 256 }, undefined, undefined, 'Sala 1')
     const map = addRoom(createEmptyMap('m_sala', 'Casa', 30, 20, 64), region, walls)
     useMapStore.setState({ map })
@@ -178,7 +178,39 @@ describe('livro do mestre — cada grupo na sua página', () => {
     const avancado = cabecalho('Avançado')
     expect(avancado).not.toBeNull()
     expect(h2('Perigo')).toBeNull()
-    expect(avancado?.closest('.lb-collapsible')?.parentElement?.classList.contains('lb-inspector__body')).toBe(true)
+    expect(avancado?.closest('.gr-ficha')?.querySelector('.gr-ficha__tit')?.textContent).toBe('Aparência')
+  })
+
+  it('o Avançado da Sala é o subgrupo do protótipo e guarda a Espessura do contorno e o "Criar parede na borda"', () => {
+    const { region, walls } = buildRoomFromDraft('sala', ['s0', 's1', 's2', 's3'], { x: 0, y: 0 }, { x: 320, y: 256 }, undefined, undefined, 'Sala 1')
+    const map = addRoom(createEmptyMap('m_sala', 'Casa', 30, 20, 64), region, walls)
+    useMapStore.setState({ map })
+    renderPainel({
+      ...SEM_SELECAO,
+      groups: relevantPropertyGroups('select', { region: true, regionIsRoom: true }),
+      selectedRegion: map.regions.find((r) => r.id === 'sala') ?? null,
+      regionStyle: {
+        color: '#ffffff',
+        onColorChange: nada,
+        pattern: 'solid',
+        onPatternChange: nada,
+        strokeWidth: 2,
+        onStrokeWidthChange: nada,
+        strokeJoin: 'round',
+        onStrokeJoinChange: nada,
+        onLinkWalls: nada,
+      },
+    })
+    const avancado = cabecalho('Avançado')
+    expect(avancado?.closest('section')?.classList.contains('lb-advanced--subgrupo')).toBe(true)
+    const dentro = document.getElementById(avancado?.getAttribute('aria-controls') ?? '')
+    expect(dentro?.querySelector('[aria-label="Espessura do contorno"]'), 'Fino/Médio/Grosso no Avançado').not.toBeNull()
+    expect(dentro?.querySelector('#lb-region-strokewidth'), 'o Ajuste fino no Avançado').not.toBeNull()
+    expect([...(dentro?.querySelectorAll('button') ?? [])].some((b) => texto(b) === 'Criar parede na borda')).toBe(true)
+    // Uma vez só na ficha: nada disso sobra fora do Avançado.
+    const aparencia = avancado?.closest('.gr-ficha')
+    expect(aparencia?.querySelectorAll('[aria-label="Espessura do contorno"]').length).toBe(1)
+    expect([...(aparencia?.querySelectorAll('button') ?? [])].filter((b) => texto(b) === 'Criar parede na borda').length).toBe(1)
   })
 
   it('GUARDA: com uma Sala selecionada, o primeiro título continua "Sala"', () => {

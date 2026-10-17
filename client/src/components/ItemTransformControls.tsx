@@ -57,6 +57,8 @@ export interface ItemTransformControlsProps {
    * inteira com os interruptores, como antes.
    */
   parte?: 'trava' | 'avancado'
+  /** Dentro de um cartão que já tem título (a ficha Trava da sala): sem o título do bloco. */
+  semTitulo?: boolean
 }
 
 interface IconeDaTravaProps {
@@ -152,6 +154,7 @@ export function ItemTransformControls({
   reveal = null,
   rarosNoAvancado = false,
   parte,
+  semTitulo = false,
 }: ItemTransformControlsProps) {
   const congeladoHintId = useId()
   // React.useId(): duas seções deste componente podem coexistir no DOM em
@@ -198,7 +201,7 @@ export function ItemTransformControls({
   if (rarosNoAvancado && parte === 'trava') {
     return (
       <section className="lb-section lb-item-transform--raros">
-        <h2 className="lb-eyebrow">{title}</h2>
+        {!semTitulo && <h2 className="lb-eyebrow">{title}</h2>}
         <div className="gr-icones" role="group" aria-label={title}>
           <IconeDaTrava rotulo="Travado" icone="cadeado" ligado={locked} onChange={onLockedChange} />
           {congelado !== undefined && onCongeladoChange !== undefined && (
@@ -226,7 +229,7 @@ export function ItemTransformControls({
 
   return (
     <section className={rarosNoAvancado ? 'lb-section lb-item-transform--raros' : 'lb-section'}>
-      <h2 className="lb-eyebrow">{title}</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">{title}</h2>}
       {!rarosNoAvancado && campoDeRotacao()}
       <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
       {congelado !== undefined && onCongeladoChange !== undefined && (

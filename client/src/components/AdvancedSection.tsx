@@ -12,6 +12,13 @@ export interface AdvancedSectionProps {
   nasceAberta?: boolean
   /** Muda de valor para ABRIR a seção de fora (um Ctrl+Z que traz o valor de volta): o `openRequest` de `CollapsibleSection`. */
   pedidoDeAbrir?: number
+  /**
+   * `'subgrupo'`: o visual do `.subgrupo` do protótipo (fio tracejado em cima,
+   * linha baixa em texto pequeno, seta à esquerda), dentro de uma ficha da
+   * gramática nova (a Aparência da sala). O comportamento não muda: é o mesmo
+   * botão com `aria-expanded`. Ausente: a linha de seção de sempre.
+   */
+  variante?: 'subgrupo'
 }
 
 /**
@@ -24,10 +31,18 @@ export interface AdvancedSectionProps {
  * Quem quer que ela volte a nascer fechada ao trocar de objeto passa `key`
  * com o id do objeto: o estado aberto é só do componente montado.
  */
-export function AdvancedSection({ children, nasceAberta = false, pedidoDeAbrir }: AdvancedSectionProps) {
+export function AdvancedSection({ children, nasceAberta = false, pedidoDeAbrir, variante }: AdvancedSectionProps) {
   if (Children.toArray(children).length === 0) return null
   return (
-    <CollapsibleSection id="advanced" title="Avançado" defaultOpen={nasceAberta} persist={false} headingLevel={3} openRequest={pedidoDeAbrir}>
+    <CollapsibleSection
+      id="advanced"
+      title="Avançado"
+      defaultOpen={nasceAberta}
+      persist={false}
+      headingLevel={3}
+      openRequest={pedidoDeAbrir}
+      className={variante === 'subgrupo' ? 'lb-advanced--subgrupo' : undefined}
+    >
       {children}
     </CollapsibleSection>
   )

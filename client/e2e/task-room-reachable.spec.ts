@@ -60,7 +60,9 @@ test('1. criar Sala pela barra: região nasce com room.shape "rect" e o painel "
   const heading = page.getByRole('heading', { name: 'Sala', level: 2 })
   await expect(heading).toBeVisible()
   // shape 'rect' também mostra os campos numéricos de largura/altura
-  // (RoomControls.tsx) — sem isso o painel apareceu, mas incompleto.
+  // (RoomControls.tsx) — sem isso o painel apareceu, mas incompleto. Desde a
+  // fatia 15 eles moram na ficha "Medidas e título", que nasce fechada.
+  await page.getByRole('button', { name: /^Medidas e título/ }).click()
   await expect(page.getByLabel('Largura')).toBeVisible()
   await expect(page.getByLabel('Altura')).toBeVisible()
 })

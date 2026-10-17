@@ -12,6 +12,8 @@ export interface FillControlsProps {
    */
   fillAlpha?: number
   onFillAlphaChange?: (fillAlpha: number) => void
+  /** Dentro de um cartão que já tem título (a ficha Aparência da sala): sem o "Preenchimento". */
+  semTitulo?: boolean
 }
 
 /**
@@ -35,12 +37,12 @@ export interface FillControlsProps {
  * Não decide a fonte — mesmo padrão de `LineCapControls`/`RegionStyleControls`.
  * Ver CONTRATO no relatório do F4-N2.
  */
-export function FillControls({ filled, onFilledChange, fillAlpha, onFillAlphaChange }: FillControlsProps) {
+export function FillControls({ filled, onFilledChange, fillAlpha, onFillAlphaChange, semTitulo = false }: FillControlsProps) {
   const showAlpha = fillAlpha !== undefined && onFillAlphaChange !== undefined
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Preenchimento</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Preenchimento</h2>}
       <Toggle label="Preenchido" checked={filled} onChange={onFilledChange} />
       {showAlpha && filled && (
         <div className="lb-field">

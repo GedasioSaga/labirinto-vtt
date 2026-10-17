@@ -1,12 +1,15 @@
 /*
- * RoomControls — o bloco da Sala no formato do painel de propriedades do
- * Figma UI3 (aba Design, camada selecionada): o que se mexe logo depois de
- * desenhar vem primeiro, os números andam em par, e o opcional vazio é UMA
- * linha com "+" que abre o campo de verdade ("Click Add stroke in the Stroke
- * section", help.figma.com). Primitivas (`.lb-field`, `.lb-input`, `.lb-switch`,
- * o anel de foco) vêm de main.css, como em SelectionHeader.css. Só
- * `var(--lb-*)` de theme.ts — zero hex, zero sombra solta.
+ * FICHA DA SALA (fatia 15 do design consolidado): as seis fichas lembradas e o
+ * que é só da sala — o par Largura | Altura, o estilo do título, o interruptor
+ * com ajuda curta e o campo que entra pelo chip "+". Cartão, chip, campo e
+ * nota vêm de grimorio.css; as primitivas de antes (`.lb-field`, `.lb-input`,
+ * `.lb-switch`, o anel de foco), de main.css. Só `var(--lb-*)` de theme.ts.
  */
+
+/* O respiro da página, o mesmo da ficha da porta (as fichas não encostam na lombada). */
+.lb-ficha-da-sala {
+  padding: 0 12px 20px 14px;
+}
 
 /* Largura | Altura numa linha só (o W | H do Figma). `minmax(0, 1fr)`: sem ele o
    campo de número não encolhe abaixo da largura intrínseca e a linha vaza do
@@ -17,8 +20,7 @@
   gap: var(--lb-space-2);
 }
 
-/* Estilo do título: fundo, tamanho, cor e orientação logo abaixo do Nome,
-   lidos como um grupo só — o mesmo respiro curto dos interruptores. */
+/* Estilo do título: fundo, tamanho, cor e orientação lidos como um grupo só. */
 .lb-room-title {
   display: flex;
   flex-direction: column;
@@ -32,149 +34,108 @@
   gap: var(--lb-space-2);
 }
 
-/* Os quatro interruptores da sala lidos como UM grupo: entre eles, menos
-   respiro que entre campos (a linha do interruptor já tem folga própria). */
-.lb-room-switches {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-1);
-}
-
-/* Interruptor + a frase que explica: a frase colada embaixo do rótulo dela,
-   e não a meio caminho do interruptor seguinte. Rótulo e frase continuam
-   irmãos, na ordem de antes. */
-.lb-room-switch {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Depois de uma frase, o interruptor seguinte ganha mais um degrau de respiro:
-   com o vão de 4 px só, a frase ficava tão perto do rótulo de baixo quanto do
-   dela (~6 px e ~10 px) e se lia como legenda de qualquer um dos dois. Agora
-   ~6 px a prendem ao dela e ~14 px a separam do próximo. Só onde há frase:
-   dois interruptores sem frase continuam no passo curto. Margem, não padding
-   no rótulo: o alvo do interruptor não muda de tamanho. */
-.lb-room-switch + * {
-  margin-top: var(--lb-space-1);
-}
-
-/* O que se ACRESCENTA à sala, abaixo do que ela é: uma lista quieta, separada
-   do resto por uma linha fina, como as seções vazias do Figma. */
-.lb-room-extras {
-  display: flex;
-  flex-direction: column;
-  padding-top: var(--lb-space-1);
-  border-top: 1px solid var(--lb-color-line);
-}
-
-/* A linha "+": a linha inteira é o botão (alvo largo). A margem negativa deixa
-   o texto alinhado aos rótulos de cima e o fundo do hover transbordar um
-   pouco para os lados, dentro do respiro da seção; o "+" termina na mesma
-   coluna dos trilhos dos interruptores. */
-.lb-room-opt__add {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lb-space-3);
-  /* Botão não estica sozinho como um bloco: a largura é a da coluna mais o
-     transbordo das duas margens negativas. */
-  width: calc(100% + 2 * var(--lb-space-2));
-  /* 28 px: a lista de acréscimos é para varrer com o olho, não para ler; acima
-     do mínimo de 24 px da WCAG 2.5.8, na largura inteira da coluna. */
-  min-height: 28px;
-  margin: 0 calc(-1 * var(--lb-space-2));
-  padding: 0 var(--lb-space-2);
-  border: 0;
-  border-radius: var(--lb-radius-sm);
-  background: transparent;
-  /* Opcional vazio lê mais apagado que o que já está preenchido (o título
-     cinza das seções vazias do Figma); o ponteiro o acende. */
-  color: var(--lb-color-parchment-dim);
-  font-family: inherit;
-  font-size: var(--lb-font-size-md);
-  line-height: var(--lb-font-leading-tight);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background var(--lb-motion-fast) var(--lb-motion-ease),
-    color var(--lb-motion-fast) var(--lb-motion-ease);
-}
-
-/* "Criar sala dentro" era um `.lb-btn` de 34 px: virou linha "+", mas o alvo
-   não encolhe (invariante do painel). */
-.lb-room-opt__add--acao {
-  min-height: 34px;
-}
-
-.lb-room-opt__add:hover {
-  background: var(--lb-color-stone-hover);
-  color: var(--lb-color-parchment);
-}
-
-.lb-room-opt__add:active {
-  background: var(--lb-color-stone-sunken);
-}
-
-.lb-room-opt__plus {
-  flex: none;
+/* Interruptor com ajuda curta (o `.liga` com `.liga__ajuda` do protótipo), o
+   mesmo da Secreta da porta: rótulo e trilho numa linha, a ajuda a 2 px
+   embaixo, só na coluna do texto (não passa por baixo do trilho). */
+.lb-ficha-da-sala .lb-switch-com-ajuda {
   display: grid;
-  place-items: center;
-  color: var(--lb-color-parchment-faint);
-  transition:
-    color var(--lb-motion-fast) var(--lb-motion-ease),
-    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  grid-template-columns: 1fr 34px;
+  gap: 2px var(--lb-space-3);
+  padding: 4px 0;
 }
 
-.lb-room-opt__plus svg {
-  display: block;
+.lb-ficha-da-sala .lb-switch-com-ajuda > .lb-switch {
+  grid-column: 1 / -1;
+  min-height: 0;
 }
 
-/* O "+" em latão diz "isto acrescenta" quando o ponteiro ou o foco chegam. */
-.lb-room-opt__add:hover .lb-room-opt__plus,
-.lb-room-opt__add:focus-visible .lb-room-opt__plus {
-  color: var(--lb-color-brass);
+.lb-ficha-da-sala .lb-switch-com-ajuda > .gr-nota {
+  grid-column: 1;
+  line-height: 1.4;
 }
 
-/* Apertar responde na hora (Emil: encolher um pouco no `:active`). */
-.lb-room-opt__add:active .lb-room-opt__plus {
-  transform: scale(0.9);
+/* As seções que o painel monta (Região, Preenchimento, Duas cores, Travado)
+   viram trechos do cartão, sem o respiro nem o fio. */
+.lb-ficha-da-sala .gr-ficha__dentro .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
 }
 
-/* Indisponível ("Abrir para o corredor" numa Sala travada ou secreta): fica no
-   lugar, esmaecido, com o motivo escrito embaixo, e não acende nem afunda,
-   porque o clique não faz nada — a pele do `.lb-btn:disabled`. Vem depois do
-   pairar e do aperto para vencer na mesma especificidade. */
-.lb-room-opt__add:disabled {
-  background: transparent;
-  color: var(--lb-color-parchment-faint);
-  cursor: not-allowed;
+/* O Avançado da Aparência (`AdvancedSection variante="subgrupo"`) é o
+   `.subgrupo` do protótipo (o `.gr-subgrupo` do grimório): fio tracejado em
+   cima, linha de 28 px em texto pequeno e apagado, a seta à esquerda. O botão
+   continua o da CollapsibleSection (h3, `aria-expanded`); só muda a cara.
+   Mesmo peso da regra acima e depois dela no arquivo: o fio tracejado vence. */
+.lb-ficha-da-sala .gr-ficha__dentro .lb-advanced--subgrupo {
+  gap: 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--lb-gr-filete-forte);
+  box-shadow: none;
 }
 
-.lb-room-opt__add:disabled .lb-room-opt__plus {
-  color: var(--lb-color-parchment-faint);
-  transform: none;
+.lb-advanced--subgrupo .lb-collapsible__toggle {
+  justify-content: flex-start;
+  gap: 6px;
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
 }
 
-/* O campo aberto no meio da lista: um respiro em volta para não encostar nas
-   linhas "+" vizinhas. Abre de uma vez, sem animação — abrir campo é gesto
-   frequente, e animar só atrasaria a digitação. */
-.lb-room-opt__body {
-  padding: var(--lb-space-1) 0 var(--lb-space-2);
+.lb-advanced--subgrupo .lb-collapsible__titulo {
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
 }
 
-/* `hidden` vence qualquer `display` de autor que um dia caia aqui (o mesmo
-   cuidado de `.lb-collapsible__body[hidden]` em main.css). */
-.lb-room-opt__body[hidden] {
-  display: none;
+.lb-advanced--subgrupo .lb-collapsible__chevron {
+  order: -1;
+  color: inherit;
+  transition: transform 200ms var(--lb-gr-ease-out);
+}
+
+.lb-advanced--subgrupo .lb-collapsible__body {
+  gap: 12px;
+  padding-top: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lb-room-opt__add,
-  .lb-room-opt__plus {
-    transition: none;
+  .lb-advanced--subgrupo .lb-collapsible__chevron {
+    transition-duration: 0ms;
   }
+}
 
-  .lb-room-opt__add:active .lb-room-opt__plus {
-    transform: none;
+/* O "+" do chip: o ícone do livro não tem tamanho próprio (quem o usa dá), e
+   fica no corpo do texto pequeno do chip. */
+.lb-ficha-da-sala .gr-chip .gr-ic {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+/* "Dentro de": de que sala esta é, só para ler; o nome da mãe mais claro. */
+.lb-sala-dentro {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-sala-dentro b {
+  font-weight: 500;
+  color: var(--lb-color-parchment);
+}
+
+/* `hidden` vence qualquer `display` de autor (o cuidado de `.lb-collapsible__body[hidden]`). */
+.lb-sala-opcional[hidden] {
+  display: none;
+}
+
+/* O campo aberto pelo chip, pelo mouse: sobe 4 px e acende (`gr-entra`, a entrada da ficha nova do pino). */
+.lb-sala-opcional.gr-e-nova {
+  animation: gr-entra 180ms var(--lb-gr-ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-sala-opcional.gr-e-nova {
+    animation: none;
   }
 }

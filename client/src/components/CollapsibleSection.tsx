@@ -30,6 +30,8 @@ export interface CollapsibleSectionProps {
   /** Avisa quem monta a seção se ela está aberta, na montagem e a cada troca
    *  (a coluna da direita dá a altura toda às abas quando Cenas recolhe). */
   onOpenChange?: (open: boolean) => void
+  /** Classe a mais na `<section>`, para uma variante visual (o subgrupo do Avançado na ficha da sala). */
+  className?: string
   children: ReactNode
 }
 
@@ -95,6 +97,7 @@ export function CollapsibleSection({
   openRequest,
   contagem,
   onOpenChange,
+  className,
   children,
 }: CollapsibleSectionProps) {
   const [storedOpen, setStoredOpen] = useState<boolean | null>(() => (persist ? readStoredOpen(id) : null))
@@ -131,7 +134,7 @@ export function CollapsibleSection({
   return (
     // `data-secao`: o endereço estável da seção para quem leva até ela (a nota
     // "Ir para Cena" da ficha do Chão põe o foco no "Chão do mapa").
-    <section className="lb-section lb-collapsible" data-secao={id}>
+    <section className={className === undefined ? 'lb-section lb-collapsible' : `lb-section lb-collapsible ${className}`} data-secao={id}>
       <Heading className="lb-collapsible__heading">
         <button
           type="button"

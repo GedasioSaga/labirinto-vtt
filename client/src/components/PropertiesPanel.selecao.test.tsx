@@ -341,16 +341,20 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(lista).not.toContain('Acervo de tokens')
   })
 
-  it('sala: Travado e Oculto para jogadores num bloco só, logo depois do bloco Sala; depois Região, Preenchimento e o Avançado (Gatilho e Perigo saíram em 07/10/2026)', () => {
+  it('sala (fatia 15): Travado e Oculto para jogadores na ficha Trava; Região, Preenchimento e o Avançado na Aparência (Gatilho e Perigo saíram em 07/10/2026)', () => {
     const onSecretChange = vi.fn<(secret: boolean) => void>()
     renderPainel(painelDaSala({ playerSecret: { secret: false, onSecretChange } }))
     const lista = titulos()
-    expect(lista.slice(0, 4)).toEqual(['Sala', 'Sala', 'Região', 'Preenchimento'])
+    // Um título só, o da ficha da sala; os blocos de antes viraram fichas dela, sem título próprio.
+    expect(lista.slice(0, 2)).toEqual(['Sala'])
     // Na região o "Oculto para jogadores" não traz mais nada: sem o bloco "Jogadores" à parte.
     expect(lista).not.toContain('Jogadores')
     const h2 = Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] h2'))
-    const travado = h2[1]?.closest('section')
-    const interruptores = Array.from(travado?.querySelectorAll('label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
+    const titulosDasFichas = Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] .gr-ficha__tit')).map((t) => t.textContent)
+    // O painel de teste não liga os interruptores da sala: sem a ficha "O que os jogadores veem".
+    expect(titulosDasFichas).toEqual(['Sala', 'Acrescentar', 'Aparência', 'Medidas e título', 'Trava'])
+    const ficha = (titulo: string) => Array.from(container.querySelectorAll('.gr-ficha')).find((f) => f.querySelector('.gr-ficha__tit')?.textContent === titulo)
+    const interruptores = Array.from(ficha('Trava')?.querySelectorAll('label.lb-switch') ?? []).map((l) => (l.textContent ?? '').trim())
     expect(interruptores).toEqual(['Travado', 'Oculto para jogadores'])
     // Um "Oculto para jogadores" só no painel, e é ele que grava o segredo.
     const ocultos = Array.from(container.querySelectorAll('label.lb-switch')).filter((l) => (l.textContent ?? '').includes('Oculto para jogadores'))
@@ -358,8 +362,8 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     act(() => ocultos[0]?.querySelector('input')?.click())
     expect(onSecretChange).toHaveBeenCalledWith(true)
 
-    const preenchimento = h2[3]
-    const avancado = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Avançado'))
+    const preenchimento = Array.from(ficha('Aparência')?.querySelectorAll('label.lb-switch') ?? []).find((l) => (l.textContent ?? '').trim() === 'Preenchido')
+    const avancado = Array.from(ficha('Aparência')?.querySelectorAll('button') ?? []).find((b) => b.textContent?.includes('Avançado'))
     expect(container.querySelector('[role="radiogroup"][aria-label="Gatilho da área"]')).toBeNull()
     expect(h2.find((h) => h.textContent === 'Perigo')).toBeUndefined()
     expect(antes(preenchimento, avancado)).toBe(true)

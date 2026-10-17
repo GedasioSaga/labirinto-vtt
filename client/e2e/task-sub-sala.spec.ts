@@ -178,6 +178,8 @@ test('largura da Casa no painel: a porta continua sobre a parede de baixo', asyn
   await putDoor(page, 256, 576)
   await page.keyboard.press('v')
   await clickWorld(page, 400, 400)
+  // A Largura mora na ficha "Medidas e título", que nasce fechada (fatia 15).
+  await page.getByRole('button', { name: /^Medidas e título/ }).click()
   await page.locator('#lb-room-width').fill('768')
   const [resized] = await regions(page)
   const maxX = Math.max(...resized.points.map((p) => p.x))

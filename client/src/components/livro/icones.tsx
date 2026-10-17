@@ -43,6 +43,8 @@ const DESENHOS = {
     </>
   ),
   mais: caminho('M12 5v14 M5 12h14'),
+  sala: caminho('M10.5 18.5h-6v-13h15v13h-6'),
+  chao: caminho('M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z'),
   busca: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />

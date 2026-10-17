@@ -389,12 +389,19 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da sala', estado: 'sala selecionada no mapa', escopo: 'esquerda', preparo: sel('region', 'sala1'),
-    vai: 'Página Ficha da sala: Sala, O que veem, Acrescentar, Aparência, Medidas e título, Trava', fatia: '15',
+    vai: 'Página Ficha da sala: Sala, O que os jogadores veem e Acrescentar abertas; Aparência, Medidas e título e Trava fechadas (feito)', fatia: '15',
     linhas: [
-      ...todos([['textbox', 'Nome'], cx('Fundo do título'), ['slider', 'Tamanho do título'], ['textbox', 'Cor do título'], rg('Orientação do título'), ['spinbutton', 'Largura'], ['spinbutton', 'Altura'], ['spinbutton', 'Rotação'], b('−90°'), b('+90°')]),
+      // Ficha "Sala", aberta: o nome e o texto ao entrar sempre à vista (o texto deixou de ser um "+").
+      ...todos([['textbox', 'Nome'], ['textbox', 'Ao entrar, o jogador lê']]),
       ...todos([cx('Jogadores veem o nome'), cx('Teto fechado para jogadores'), cx('Cômodo: aparece só depois de visto'), cx('Sala escura'), cx('De dentro, vê lá fora'), cx('De fora, vê aqui dentro')]),
-      ...todos([b('Ao entrar, o jogador lê'), b('Nota do mestre'), b('Facção'), b('Raio de visão aqui'), b('Perigo'), b('Esteira'), b('Criar sala dentro')]),
-      ...todos([cx('Travado'), cx('Oculto para jogadores'), ...REGIAO_ESTILO, b('Criar parede na borda'), cx('Pintar parte da sala de outra cor')]),
+      // "Acrescentar", aberta: cada chip "+" leva o nome do campo que abre; "Criar sala dentro" age na hora.
+      ...todos([b('Nota do mestre'), b('Facção'), b('Raio de visão aqui'), b('Perigo'), b('Esteira'), b('Criar sala dentro')]),
+      // As outras três nascem fechadas; o nome do cabeçalho leva o resumo ("Aparência Sólido", "Medidas e título 600 × 500 px").
+      ...todos([['textbox', 'Cor'], cx('Hachurado'), cx('Preenchido'), cx('Pintar parte da sala de outra cor'), b('Avançado')], b('/^Aparência/')),
+      // A Espessura do contorno e o "Criar parede na borda" moram no Avançado da Aparência, como no protótipo.
+      ...todos([rg('Espessura do contorno'), ['slider', 'Ajuste fino'], b('Criar parede na borda')], b('/^Aparência/'), b('Avançado')),
+      ...todos([['spinbutton', 'Largura'], ['spinbutton', 'Altura'], ['spinbutton', 'Rotação'], b('−90°'), b('+90°'), cx('Fundo do título'), ['slider', 'Tamanho do título'], ['textbox', 'Cor do título'], rg('Orientação do título')], b('/^Medidas e título/')),
+      ...todos([cx('Travado'), cx('Oculto para jogadores')], b('/^Trava$/')),
       { ...l('Mais ações: levar ao piso', ['menuitem', '/^Levar ao/'], b('Mais ações')), vai: '"Mais ações" da cabeça da ficha (feito, fatia 8)' },
     ],
   },
@@ -595,6 +602,10 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
   ['Menu Arquivo com imagem de fundo (Trocar imagem, Chão a partir da imagem, Linhas e portas, Recriar minimapa)', 'só com imagem de fundo; sem ela o item é "Importar imagem de fundo…" (coberto); LivroDoMestre.test.tsx cobre os quatro'],
   ['Configurações do mapa: "Esconder Aventura e Esta cena ao usar ferramenta" (Categorias do painel)', 'aposentada na fatia 2: Aventura e Cena viraram páginas do livro, e quem tinha a escolha salva não quebra (a chave sai do aparelho)'],
   ['Endireitar na sala ou parede solta', 'só com traço torto; coberto no desenho'],
+  [
+    'Abrir para o corredor (no "Mais ações" da ficha da sala desde a fatia 15)',
+    'só com corredor a abrir ou parede encostando na borda da sala; task-abrir-para-o-corredor.spec.ts abre o vão pelo item do menu, e CabecaDaSelecao.abrirCorredor.test.tsx cobre o item apagado com o motivo (sala travada, secreta, uma linha só)',
+  ],
   ['Marcas dos jogadores (MarcasDaCena)', 'só com marcas deixadas por jogadores'],
   ['Visto por / Ninguém vê (abaixo do tipo de ficha), Levar para outra cena (ficha), Rotina e Luzes (cartões de Comportamento) do token', 'pedem sala aberta, outra cena ou Estado do mundo com valores; PropertiesPanel.ficha.test.tsx abre Rotina e Luzes'],
   [

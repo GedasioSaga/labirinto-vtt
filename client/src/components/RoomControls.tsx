@@ -4,15 +4,17 @@ import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
-import type { MotivoSemCorredor, bloqueioDaSala } from '../lib/abrirCorredor'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import { isDefaultRoomLabelStyle, type RoomLabelStyle, type RoomLabelStylePatch } from '../lib/roomLabelStyle'
-import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, selectNomeNaPilula, useMapStore } from '../stores/mapStore'
-import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, rotuloAbrirParaOCorredor } from './labels'
+import { selectNomeNaPilula, useMapStore } from '../stores/mapStore'
 import { Toggle } from './Toggle'
 import { RoomLabelStyleControls } from './RoomLabelStyleControls'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
 import { ConveyorControls, type ConveyorControlsProps } from './ConveyorControls'
+import { classes } from './grimorio/comum'
+import { Fichas } from './grimorio/Ficha'
+import { FichaLembrada, type FichaLembradaProps } from './livro/FichaLembrada'
+import { IconeDoLivro } from './livro/icones'
 import './RoomControls.css'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
@@ -107,14 +109,21 @@ export interface RoomControlsProps {
   parentName?: string
   /** "Criar sala dentro": arma a ferramenta Sala com esta sala como mãe. Ausente omite o botão. */
   onCreateRoomInside?: () => void
-  /** Id da Sala no mapa. Liga a linha "Abrir para o corredor", que lê a store
-   *  direto (a conta e o motivo) e chama `abrirSalaParaCorredores`: quem monta
-   *  o painel só diz de que Sala ele é. Ausente omite a linha. */
+  /** Id da Sala no mapa: a dica da pílula ("Nomes dos lugares") lê a store por
+   *  ele. "Abrir para o corredor" mora no "Mais ações" da cabeça desde a fatia
+   *  15 (`abrirCorredorAction`, montado em `PropertiesPanel`). */
   salaId?: string
-  /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o bloco. */
+  /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o opcional. */
   hazard?: HazardControlsProps
-  /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o bloco. */
+  /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o opcional. */
   conveyor?: ConveyorControlsProps
+  /** Ficha APARÊNCIA: Região, Preenchimento, Duas cores e o Avançado, que o
+   *  painel monta sem título (os mesmos blocos da região). Ausente omite a ficha. */
+  aparencia?: ReactNode
+  /** O resumo da Aparência fechada: "Sólido" ou "Hachurado". */
+  resumoDaAparencia?: string
+  /** Ficha TRAVA: Travado e Oculto para jogadores, montados pelo painel sem título. Ausente omite a ficha. */
+  trava?: ReactNode
 }
 
 interface RoomRotationFieldProps {
@@ -355,95 +364,8 @@ function useEstiloProprioDaSala(salaId: string | undefined, labelStyle: RoomLabe
   return outraSala ? agora : congelado.valor || agora
 }
 
-/** O "+" das linhas de opcional: só desenho (quem dá nome à linha é o texto dela), no traço da família de `icons.tsx`. */
-function PlusGlyph() {
-  return (
-    <span className="lb-room-opt__plus" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" focusable="false">
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    </span>
-  )
-}
-
-/** O desenho da linha "Abrir para o corredor": uma parede com um vão no meio, vista
- *  de cima, no traço do "+". Mora no mesmo encaixe dele (`.lb-room-opt__plus`), para
- *  ter a mesma coluna, a mesma cor e o mesmo aperto. Só desenho, como o "+". */
-function VaoGlyph() {
-  return (
-    <span className="lb-room-opt__plus" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" focusable="false">
-        <path d="M3 12h6M15 12h6M9 8v8M15 8v8" />
-      </svg>
-    </span>
-  )
-}
-
-/** A frase embaixo da linha desabilitada, por bloqueio da Sala. `Record`: bloqueio
- *  novo em `lib/abrirCorredor.ts` sem frase aqui não compila. */
-const MOTIVO_SEM_VAO: Record<NonNullable<ReturnType<typeof bloqueioDaSala>>, string> = {
-  secreta: MOTIVO_SALA_SECRETA_SEM_VAO,
-  travada: MOTIVO_SALA_TRAVADA_SEM_VAO,
-}
-
-interface AbrirParaOCorredorProps {
-  /** Corredores (par de linhas) que o clique abre. Com 0 a linha só é montada
-   *  desabilitada, com o motivo do desenho (`semCorredor`). */
-  corredores: number
-  /** Sala secreta ou travada: a linha fica desabilitada, com o motivo escrito. */
-  bloqueio: ReturnType<typeof bloqueioDaSala>
-  /** Parede encostando sem formar corredor: o que acertar no desenho. */
-  semCorredor: MotivoSemCorredor | null
-  onAbrir: () => void
-}
-
-/** A frase embaixo da linha desabilitada, ou `null` com ela habilitada. Sem corredor vale o
- *  motivo do desenho: enquanto ele não muda, destravar a Sala não abriria nada. */
-function motivoDaLinha({ corredores, bloqueio, semCorredor }: Omit<AbrirParaOCorredorProps, 'onAbrir'>): string | null {
-  if (corredores === 0) return semCorredor === null ? null : MOTIVO_SEM_CORREDOR[semCorredor]
-  return bloqueio === null ? null : MOTIVO_SEM_VAO[bloqueio]
-}
-
-/**
- * "Abrir para o corredor" (pedido 4 de 30/09/2026): a parede da Sala abre entre
- * as duas linhas de cada corredor que encosta nela e as linhas param na borda
- * (`lib/abrirCorredor.ts`), num passo só de Ctrl+Z. É UMA ação, como "Criar sala
- * dentro" logo acima: a linha inteira é o botão, com o alvo de 34 px.
- *
- * Sala secreta ou travada, ou parede encostando que não forma corredor (relato
- * de 01/10/2026, "ainda não consigo ver"): a linha fica no lugar, desabilitada,
- * com o motivo escrito embaixo e ligado a ela por `aria-describedby`. Porta ou
- * parede travada no caminho só aparecem no clique, que recusa e diz por quê
- * (`mapStore.abrirSalaParaCorredores`).
- *
- * Sem animação de entrada nem de saída: a linha aparece ao selecionar a Sala
- * (gesto de toda hora) e some com o próprio clique, quando o vão já está no
- * mapa e o aviso diz o que mudou — movimento ali só atrasaria.
- */
-function AbrirParaOCorredor({ corredores, bloqueio, semCorredor, onAbrir }: AbrirParaOCorredorProps) {
-  const motivoId = `${useId()}-motivo`
-  const motivo = motivoDaLinha({ corredores, bloqueio, semCorredor })
-  return (
-    <div className="lb-room-opt">
-      <button
-        type="button"
-        className="lb-room-opt__add lb-room-opt__add--acao"
-        // Sem corredor o clique não teria o que abrir, com ou sem frase.
-        disabled={motivo !== null || corredores === 0}
-        aria-describedby={motivo === null ? undefined : motivoId}
-        onClick={onAbrir}
-      >
-        <span>{rotuloAbrirParaOCorredor(corredores)}</span>
-        <VaoGlyph />
-      </button>
-      {motivo !== null && (
-        <p className="lb-field__hint" id={motivoId}>
-          {motivo}
-        </p>
-      )}
-    </div>
-  )
-}
+/** Chave da escolha lembrada de cada ficha: a família `lb-section:<id>` das seções recolhíveis. */
+const PREFIXO_LEMBRADO = 'lb-section:ficha-sala-'
 
 /** O primeiro controle que o teclado alcança dentro do campo recém-aberto. */
 const CONTROLE_FOCAVEL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
@@ -453,106 +375,145 @@ function temTexto(texto: string | undefined): boolean {
   return (texto ?? '').trim() !== ''
 }
 
-interface OpcionalDaSalaProps {
-  /** O nome do campo, igual ao rótulo que ele mostra aberto: a linha e o campo são a mesma coisa. */
+/** O sistema pede movimento reduzido? Sem `matchMedia` (o jsdom dos testes) conta como não. */
+function movimentoReduzido(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Um opcional da ficha Acrescentar: chip "+" enquanto vazio, o campo de verdade depois. */
+interface Opcional {
+  /** O nome do chip, igual ao rótulo do campo aberto: o chip e o campo são a mesma coisa. */
   rotulo: string
   /** Já tem valor: nasce aberto, e abre sozinho se o valor chegar depois (um desfazer, por exemplo). */
   preenchido: boolean
-  /** A frase que explica o campo, lida também pela linha "+" antes de abrir. */
+  /** A frase que explica o campo, lida também pelo chip antes de abrir. */
   dicaId?: string
-  children: ReactNode
+  campo: ReactNode
+}
+
+interface AcrescimosProps {
+  opcionais: readonly Opcional[]
+  /** "Criar sala dentro": um chip que age na hora (arma a ferramenta Sala com esta sala como mãe). */
+  onCreateRoomInside?: () => void
 }
 
 /**
- * Opcional da Sala no molde do Figma UI3 ("Click Add stroke in the Stroke
- * section"): vazio, é UMA linha com "+"; o "+" abre o campo de verdade já com
- * o foco nele, para a próxima tecla ir para o campo. Com valor, nasce aberto.
+ * Ficha ACRESCENTAR (o `extras` do protótipo): vazio, cada opcional é um chip
+ * "+"; o chip abre o campo de verdade ACIMA dos chips, já com o foco nele, para
+ * a próxima tecla ir para o campo. Com valor, nasce aberto.
  *
  * Fechado, o campo continua no DOM sob `hidden` (o molde de
  * `CollapsibleSection`): fora da vista e da ordem de Tab, mas com a frase que
- * o explica no mesmo lugar, ligada ao campo e à linha "+" por
- * `aria-describedby`. Aberto uma vez, fica aberto até a sala sair do painel,
- * mesmo esvaziado: apagar o texto (ou escolher "Nenhum" no perigo) não pode
- * sumir com o campo debaixo do cursor. O painel remonta a cada sala (`key` em
- * `PropertiesPanel`), e aí volta a valer o que está gravado.
+ * o explica ligada ao chip por `aria-describedby`. Aberto uma vez, fica aberto
+ * até a sala sair do painel, mesmo esvaziado: apagar o texto (ou escolher
+ * "Nenhum" no perigo) não pode sumir com o campo debaixo do cursor. O painel
+ * remonta a cada sala (`key` em `PropertiesPanel`), e aí volta a valer o que
+ * está gravado.
+ *
+ * MOVIMENTO: aberto pelo mouse, o campo sobe 4 px e acende em 180 ms
+ * (`gr-entra`, a entrada da ficha nova do pino) e mostra onde o chip foi
+ * parar. Pelo teclado, ou com movimento reduzido, aparece na hora: o foco já
+ * diz onde ele está, e animar atrasaria a próxima tecla.
  */
-function OpcionalDaSala({ rotulo, preenchido, dicaId, children }: OpcionalDaSalaProps) {
-  const corpoId = `${useId()}-corpo`
-  const corpoRef = useRef<HTMLDivElement>(null)
-  const [aberto, setAberto] = useState(preenchido)
+function Acrescimos({ opcionais, onCreateRoomInside }: AcrescimosProps) {
+  const baseId = useId()
+  const idDoCampo = (indice: number) => `${baseId}-opcional-${indice}`
+  const [abertos, setAbertos] = useState<ReadonlySet<string>>(
+    () => new Set(opcionais.filter((opcional) => opcional.preenchido).map((opcional) => opcional.rotulo)),
+  )
   // Valor que chega com o campo fechado (um desfazer) abre o campo — ajuste de
   // estado no próprio render, o molde do React para estado que segue uma prop.
-  if (preenchido && !aberto) setAberto(true)
-  // Só o clique no "+" leva o foco: o valor que chega por fora abre o campo
-  // sem roubar o foco de quem está em outro lugar.
-  const focarAoAbrir = useRef(false)
+  const chegaram = opcionais.filter((opcional) => opcional.preenchido && !abertos.has(opcional.rotulo))
+  if (chegaram.length > 0) setAbertos(new Set([...abertos, ...chegaram.map((opcional) => opcional.rotulo)]))
+  // Só o chip leva o foco, e só o clique de mouse anima: o valor que chega por
+  // fora abre o campo sem roubar o foco de quem está em outro lugar.
+  const [recemAberto, setRecemAberto] = useState<{ rotulo: string; animar: boolean } | null>(null)
+  const focarAoAbrir = useRef<string | null>(null)
 
-  // Antes da pintura: o botão "+" some neste mesmo commit, e o foco não pode
-  // ficar um quadro no `body` (o anel piscaria e a tecla seguinte se perderia).
+  // Antes da pintura: o chip some neste mesmo commit, e o foco não pode ficar
+  // um quadro no `body` (o anel piscaria e a tecla seguinte se perderia).
   useLayoutEffect(() => {
-    if (!aberto || !focarAoAbrir.current) return
-    focarAoAbrir.current = false
-    corpoRef.current?.querySelector<HTMLElement>(CONTROLE_FOCAVEL)?.focus()
-  }, [aberto])
+    const id = focarAoAbrir.current
+    if (id === null) return
+    focarAoAbrir.current = null
+    document.getElementById(id)?.querySelector<HTMLElement>(CONTROLE_FOCAVEL)?.focus()
+  }, [abertos])
+
+  const abrir = (opcional: Opcional, indice: number, peloMouse: boolean) => {
+    focarAoAbrir.current = idDoCampo(indice)
+    setRecemAberto({ rotulo: opcional.rotulo, animar: peloMouse && !movimentoReduzido() })
+    setAbertos(new Set([...abertos, opcional.rotulo]))
+  }
+  const temChip = onCreateRoomInside !== undefined || opcionais.some((opcional) => !abertos.has(opcional.rotulo))
 
   return (
-    <div className="lb-room-opt">
-      {!aberto && (
-        <button
-          type="button"
-          className="lb-room-opt__add"
-          aria-expanded={false}
-          aria-controls={corpoId}
-          aria-describedby={dicaId}
-          onClick={() => {
-            focarAoAbrir.current = true
-            setAberto(true)
-          }}
+    <>
+      {opcionais.map((opcional, indice) => (
+        <div
+          key={opcional.rotulo}
+          id={idDoCampo(indice)}
+          className={classes('lb-sala-opcional', recemAberto !== null && recemAberto.animar && recemAberto.rotulo === opcional.rotulo && 'gr-e-nova')}
+          hidden={!abertos.has(opcional.rotulo)}
         >
-          <span>{rotulo}</span>
-          <PlusGlyph />
-        </button>
+          {opcional.campo}
+        </div>
+      ))}
+      {temChip && (
+        <div className="gr-chips">
+          {opcionais.map((opcional, indice) =>
+            abertos.has(opcional.rotulo) ? null : (
+              <button
+                key={opcional.rotulo}
+                type="button"
+                className="gr-chip gr-chip--mais"
+                aria-expanded={false}
+                aria-controls={idDoCampo(indice)}
+                aria-describedby={opcional.dicaId}
+                // `detail` 0 = Enter ou Espaço: pelo teclado o campo entra sem animar.
+                onClick={(evento) => abrir(opcional, indice, evento.detail > 0)}
+              >
+                <IconeDoLivro nome="mais" />
+                {opcional.rotulo}
+              </button>
+            ),
+          )}
+          {onCreateRoomInside !== undefined && (
+            <button type="button" className="gr-chip gr-chip--mais" onClick={onCreateRoomInside}>
+              <IconeDoLivro nome="mais" />
+              Criar sala dentro
+            </button>
+          )}
+        </div>
       )}
-      <div id={corpoId} ref={corpoRef} className="lb-room-opt__body" hidden={!aberto}>
-        {children}
-      </div>
-    </div>
+    </>
   )
 }
 
 /** Por que a Sala retangular torta está sem largura/altura, e como tê-las de volta. */
 const NOTA_SALA_TORTA = 'Largura e altura voltam quando a sala fica reta: 0°, 90°, 180° ou −90°.'
 
+/** Ficha da sala com a escolha lembrada (Sala, O que veem e Acrescentar nascem abertas; as outras, fechadas, como no protótipo). */
+function FichaDaSalaLembrada(props: Omit<FichaLembradaProps, 'prefixo'>) {
+  return <FichaLembrada prefixo={PREFIXO_LEMBRADO} {...props} />
+}
+
 /**
- * Identidade e dimensão de uma Sala (`Region.room` definido). Resize por
- * canto arrastável vive em `pixi/drawRoomHandles.ts` (desenho) +
- * `lib/roomOps.ts` (`findRoomCornerAt`, hit-test, chamado pelo PixiCanvas) —
- * os campos numéricos aqui e o arrasto de canto convergem na MESMA função de
- * geometria (`lib/roomOps.ts` → `resizeRoomCorner`/`resizeRoomDimensions`),
- * então os dois jeitos de redimensionar nunca divergem.
+ * FICHA DA SALA (fatia 15 do design consolidado, docs/design/consolidado/PLANO.md):
+ * sem bloco essencial, seis fichas lembradas — Sala (o nome, o texto ao entrar
+ * e de que sala ela é), O que os jogadores veem (os interruptores, com ajuda
+ * curta), Acrescentar (os opcionais em chips "+"), Aparência, Medidas e título
+ * e Trava. As três de cima nascem abertas; as outras, fechadas com o resumo.
+ * Os controles e os handlers são os de antes: muda o lugar e o visual.
+ * "Endireitar" e "Abrir para o corredor" moram no "Mais ações" da cabeça.
  *
- * `width`/`height` já vêm calculados pelo chamador via `roomDimensions`
- * (`lib/roomOps.ts`) a partir de `region.points` — este componente só exibe
- * e repassa o número editado, não faz geometria.
+ * `width`/`height` já vêm calculados pelo chamador (`roomDimensions`, em
+ * `lib/roomOps.ts`): os campos e o arrasto de canto convergem na mesma função
+ * de geometria, e a Rotação é o par numérico da alça de girar do mapa (os dois
+ * terminam em `lib/mapFactory.ts` → `rotateRegion`).
  *
- * O Nome aqui nunca ganha foco sozinho: logo depois de desenhar, o nome é
- * pedido num campo sobre a própria Sala (`pixi/PixiCanvas.tsx`). Um foco
- * escondido neste painel fazia a próxima tecla de atalho (V) renomear a Sala.
- *
- * A Rotação vale para toda Sala, de qualquer forma, e é o par numérico da
- * alça de girar do mapa (`pixi/roomRotateGesture.ts`): os dois terminam em
- * `lib/mapFactory.ts` → `rotateRegion`, então nunca divergem.
- *
- * ORDEM DA TAREFA (o painel de propriedades do Figma UI3, aba Design): o que
- * se mexe logo depois de desenhar vem primeiro — Nome, Largura | Altura numa
- * linha, Rotação —, depois os interruptores do que o jogador vê, e por último
- * o que se ACRESCENTA à sala (texto ao entrar, nota, facção, raio de visão,
- * perigo, esteira, sala dentro), cada um vazio numa linha só com "+"
- * (`OpcionalDaSala`). As duas ações fecham a lista, cada uma numa linha:
- * "Criar sala dentro" e, só quando há corredor encostando, "Abrir para o
- * corredor" — a última, para sumir e aparecer sem mexer nas outras.
- * Até 26/09/2026 Largura, Altura e Rotação moravam depois de todos esses, a
- * 8–10 giros de roda do topo em 1280x800.
+ * O Nome nunca ganha foco sozinho: logo depois de desenhar, o nome é pedido
+ * num campo sobre a própria Sala (`pixi/PixiCanvas.tsx`). Um foco escondido
+ * neste painel fazia a próxima tecla de atalho (V) renomear a Sala.
  */
 export function RoomControls({
   name,
@@ -596,27 +557,23 @@ export function RoomControls({
   salaId,
   hazard,
   conveyor,
+  aparencia,
+  resumoDaAparencia,
+  trava,
 }: RoomControlsProps) {
-  // "Abrir para o corredor" lê a store direto: a conta muda quando o mestre
-  // desenha ou mexe numa linha com o painel aberto, sem passar pelo App.
-  const corredoresParaAbrir = useMapStore((state) => (salaId === undefined ? 0 : selectCorredoresParaAbrir(state, salaId)))
-  const bloqueioParaAbrir = useMapStore((state) => (salaId === undefined ? null : selectBloqueioParaAbrir(state, salaId)))
-  const semCorredor = useMapStore((state) => (salaId === undefined ? null : selectMotivoSemCorredor(state, salaId)))
-  // Também da store: ligar a chave "Nomes dos lugares" no Configurar cena, ou
-  // apagar o nome, troca o estilo do título pela dica sem passar pelo App.
+  // Da store: ligar a chave "Nomes dos lugares" no Configurar cena, ou apagar
+  // o nome, troca o estilo do título pela dica sem passar pelo App.
   const nomeNaPilula = useMapStore((state) => salaId !== undefined && selectNomeNaPilula(state, salaId))
   const estiloProprio = useEstiloProprioDaSala(salaId, labelStyle)
-  const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
-  // Com corredor a abrir, ou com parede encostando que não forma corredor (aí desabilitada, com o motivo).
-  const mostraAbrir = corredoresParaAbrir > 0 || semCorredor !== null
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
   const comodoHintId = `${baseId}-comodo-hint`
+  const darkHintId = `${baseId}-dark-hint`
+  const foraVeDentroHintId = `${baseId}-fora-ve-dentro-hint`
   const enterTextId = `${baseId}-texto-ao-entrar`
   const enterHintId = `${baseId}-texto-ao-entrar-hint`
   const noteId = `${baseId}-nota-do-mestre`
   const noteHintId = `${baseId}-nota-do-mestre-hint`
-  const darkHintId = `${baseId}-dark-hint`
   const faccaoId = `${baseId}-faccao`
   const faccaoHintId = `${baseId}-faccao-hint`
   const faccaoListId = `${baseId}-faccao-lista`
@@ -625,293 +582,264 @@ export function RoomControls({
   const showRoof = roof !== undefined && onRoofChange !== undefined
   const showComodo = onComodoChange !== undefined
   const showDark = dark !== undefined && onDarkChange !== undefined
-  const dentroVeForaHintId = `${baseId}-dentro-ve-fora-hint`
-  const foraVeDentroHintId = `${baseId}-fora-ve-dentro-hint`
   const showDentroVeFora = dentroVeFora !== undefined && onDentroVeForaChange !== undefined
   const showForaVeDentro = foraVeDentro !== undefined && onForaVeDentroChange !== undefined
+  const temInterruptores = showNameToggle || showRoof || showComodo || showDark || showDentroVeFora || showForaVeDentro
   // O teto vence (`lib/fogFilter.ts`): o interruptor guarda a escolha, mas fica apagado enquanto o teto estiver ligado.
   const tetoTapaInterior = roof === true
-  const hasExtras =
-    onTextoAoEntrarChange !== undefined ||
-    onNotaDoMestreChange !== undefined ||
-    onFaccaoChange !== undefined ||
-    onRaioDeVisaoChange !== undefined ||
-    hazard !== undefined ||
-    conveyor !== undefined ||
-    mostraAbrir ||
-    onCreateRoomInside !== undefined
+  const mostraDimensoes = shape === 'rect' && axisAligned
+  const temEstiloDoTitulo = labelStyle !== undefined && onLabelStyleChange !== undefined
+
+  // Os opcionais da ficha Acrescentar, na ordem do protótipo.
+  const opcionais: Opcional[] = []
+  if (onNotaDoMestreChange !== undefined) {
+    opcionais.push({
+      rotulo: 'Nota do mestre',
+      preenchido: temTexto(notaDoMestre),
+      dicaId: noteHintId,
+      campo: (
+        <div className="gr-campo">
+          <label className="gr-campo__rot" htmlFor={noteId}>
+            Nota do mestre
+          </label>
+          <textarea
+            id={noteId}
+            className="gr-entrada"
+            rows={3}
+            maxLength={ROOM_TEXT_MAX_LENGTH}
+            value={notaDoMestre ?? ''}
+            aria-describedby={noteHintId}
+            onChange={(event) => onNotaDoMestreChange(event.target.value)}
+          />
+          <p className="gr-nota" id={noteHintId}>
+            Só você lê. Nunca vai para a tela dos jogadores.
+          </p>
+        </div>
+      ),
+    })
+  }
+  if (onFaccaoChange !== undefined) {
+    // A facção herdada do distrito também conta como valor: a sala TEM dono, e
+    // o campo aberto é o que mostra de quem ela herda.
+    opcionais.push({
+      rotulo: 'Facção',
+      preenchido: temTexto(faccao) || faccaoHerdada !== undefined,
+      dicaId: faccaoHintId,
+      campo: (
+        <div className="gr-campo">
+          <label className="gr-campo__rot" htmlFor={faccaoId}>
+            Facção
+          </label>
+          <input
+            id={faccaoId}
+            className="gr-entrada"
+            maxLength={FACCAO_MAX_LENGTH}
+            value={faccao ?? ''}
+            placeholder={faccaoHerdada}
+            list={faccaoListId}
+            aria-describedby={faccaoHintId}
+            onChange={(event) => onFaccaoChange(event.target.value)}
+          />
+          <datalist id={faccaoListId}>
+            {(faccoesConhecidas ?? []).map((nome) => (
+              <option key={nome} value={nome} />
+            ))}
+          </datalist>
+          <p className="gr-nota" id={faccaoHintId}>
+            {faccaoHerdada !== undefined && (faccao ?? '').trim() === ''
+              ? `Herda do distrito: ${faccaoHerdada}. Só você vê.`
+              : 'Quem manda aqui. Só você vê; as salas de dentro herdam.'}
+          </p>
+        </div>
+      ),
+    })
+  }
+  if (onRaioDeVisaoChange !== undefined) {
+    opcionais.push({
+      rotulo: 'Raio de visão aqui',
+      preenchido: raioDeVisao !== undefined && raioDeVisao !== null,
+      dicaId: raioHintId,
+      campo: <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} hintId={raioHintId} />,
+    })
+  }
+  if (hazard !== undefined) opcionais.push({ rotulo: 'Perigo', preenchido: hazard.kind !== null, campo: <HazardControls {...hazard} /> })
+  // Mecânica da sala como o perigo: sem direção ("Nenhuma") é um chip; com esteira ligada nasce aberta, com o Avançar à mão.
+  if (conveyor !== undefined) opcionais.push({ rotulo: 'Esteira', preenchido: conveyor.direction !== null, campo: <ConveyorControls {...conveyor} /> })
+
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Sala</h2>
-
-      {parentName !== undefined && (
-        <p className="lb-label" data-testid="room-parent">
-          Dentro de: {parentName}
-        </p>
-      )}
-
-      <div className="lb-field">
-        <label className="lb-label" htmlFor="lb-room-name">
-          Nome
-        </label>
-        <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
-      </div>
-
-      {/* Sala com estilo próprio (mapa Continente de antes da pílula) mostra os
-          controles mesmo com a pílula: esconder o que o mestre já escolheu
-          parece que o estilo se perdeu. Sem estilo próprio, fica só a dica. */}
-      {labelStyle !== undefined && onLabelStyleChange !== undefined && (!nomeNaPilula || estiloProprio) && (
-        <RoomLabelStyleControls style={labelStyle} onChange={onLabelStyleChange} />
-      )}
-      {/* O estilo gravado continua na sala: desligar a chave traz a plaquinha de volta como era. */}
-      {labelStyle !== undefined && onLabelStyleChange !== undefined && nomeNaPilula && (
-        <p className="lb-field__hint" data-testid="nome-na-pilula">
-          {estiloProprio
-            ? 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. O estilo do título acima continua guardado e volta quando essa chave é desligada em Configurar cena.'
-            : 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. Para mudar o estilo do título, desligue essa chave em Configurar cena.'}
-        </p>
-      )}
-
-      {shape === 'rect' && axisAligned && (
-        <div className="lb-room-dims">
-          <div className="lb-field">
-            <label className="lb-label" htmlFor="lb-room-width">
-              Largura
+    <div className="lb-ficha-da-sala">
+      {/* O título da ficha para o leitor de tela; na tela, a cabeça já diz "Sala". */}
+      <h2 className="gr-sr">Sala</h2>
+      <Fichas>
+        <FichaDaSalaLembrada id="sala" titulo="Sala" icone="sala" padrao>
+          <div className="gr-campo">
+            <label className="gr-campo__rot" htmlFor="lb-room-name">
+              Nome
             </label>
-            <div className="lb-inputgroup">
-              <input
-                id="lb-room-width"
-                className="lb-input"
-                type="number"
-                min={MIN_ROOM_DIMENSION}
-                step={1}
-                value={Math.round(width)}
-                onChange={(event) => onWidthChange(Number(event.target.value))}
-              />
-              <span className="lb-inputgroup__suffix">px</span>
-            </div>
+            <input id="lb-room-name" className="gr-entrada" value={name} onChange={(event) => onNameChange(event.target.value)} />
           </div>
-
-          <div className="lb-field">
-            <label className="lb-label" htmlFor="lb-room-height">
-              Altura
-            </label>
-            <div className="lb-inputgroup">
-              <input
-                id="lb-room-height"
-                className="lb-input"
-                type="number"
-                min={MIN_ROOM_DIMENSION}
-                step={1}
-                value={Math.round(height)}
-                onChange={(event) => onHeightChange(Number(event.target.value))}
-              />
-              <span className="lb-inputgroup__suffix">px</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <RoomRotationField
-        rotation={rotation}
-        onRotationChange={onRotationChange}
-        onRotateBy={onRotateBy}
-        locked={locked}
-        note={shape === 'rect' && !axisAligned ? NOTA_SALA_TORTA : undefined}
-      />
-
-      {(showNameToggle || showRoof || showComodo || showDark || showDentroVeFora || showForaVeDentro) && (
-        <div className="lb-room-switches">
-          {showNameToggle && (
-            <Toggle
-              label="Jogadores veem o nome"
-              checked={!nameHiddenFromPlayers}
-              onChange={(visible) => onNameHiddenFromPlayersChange(!visible)}
-            />
-          )}
-
-          {showRoof && (
-            <div className="lb-room-switch">
-              <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
-              <p className="lb-field__hint" id={roofHintId}>
-                De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
-              </p>
-            </div>
-          )}
-
-          {showComodo && (
-            <div className="lb-room-switch">
-              <Toggle label="Cômodo: aparece só depois de visto" checked={comodo === true} onChange={onComodoChange} describedBy={comodoHintId} />
-              <p className="lb-field__hint" id={comodoHintId}>
-                O jogador não vê este cômodo até entrar ou olhar pela porta. Depois ele fica lembrado, mais apagado, com os pinos de
-                dentro.
-              </p>
-            </div>
-          )}
-
-          {showDark && (
-            <div className="lb-room-switch">
-              <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
-              <p className="lb-field__hint" id={darkHintId}>
-                Aqui dentro o jogador só vê a casa em volta da ficha e o que uma Luz ilumina. Você continua vendo tudo.
-              </p>
-            </div>
-          )}
-
-          {showDentroVeFora && (
-            <div className="lb-room-switch">
-              <Toggle label="De dentro, vê lá fora" checked={dentroVeFora} onChange={onDentroVeForaChange} describedBy={dentroVeForaHintId} />
-              <p className="lb-field__hint" id={dentroVeForaHintId}>
-                Com a ficha aqui dentro, o jogador enxerga através das paredes desta sala. Elas continuam barrando o passo.
-              </p>
-            </div>
-          )}
-
-          {showForaVeDentro && (
-            <div className="lb-room-switch">
-              <Toggle
-                label="De fora, vê aqui dentro"
-                checked={foraVeDentro}
-                onChange={onForaVeDentroChange}
-                describedBy={foraVeDentroHintId}
-                disabled={tetoTapaInterior}
-              />
-              <p className="lb-field__hint" id={foraVeDentroHintId}>
-                {tetoTapaInterior
-                  ? 'O teto fechado esconde o interior de quem está fora. Desligue o teto para usar.'
-                  : 'Quem está fora enxerga o interior através das paredes desta sala. Elas continuam barrando o passo.'}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {hasExtras && (
-        <div className="lb-room-extras">
           {onTextoAoEntrarChange !== undefined && (
-            <OpcionalDaSala rotulo="Ao entrar, o jogador lê" preenchido={temTexto(textoAoEntrar)} dicaId={enterHintId}>
-              <div className="lb-field">
-                <label className="lb-label" htmlFor={enterTextId}>
-                  Ao entrar, o jogador lê
-                </label>
-                <textarea
-                  id={enterTextId}
-                  className="lb-input lb-textarea"
-                  rows={3}
-                  maxLength={ROOM_TEXT_MAX_LENGTH}
-                  value={textoAoEntrar ?? ''}
-                  aria-describedby={enterHintId}
-                  onChange={(event) => onTextoAoEntrarChange(event.target.value)}
-                />
-                <p className="lb-field__hint" id={enterHintId}>
-                  Aparece só para quem entra, na primeira vez. Tocar no nome da sala mostra de novo.
+            <div className="gr-campo">
+              <label className="gr-campo__rot" htmlFor={enterTextId}>
+                Ao entrar, o jogador lê
+              </label>
+              <textarea
+                id={enterTextId}
+                className="gr-entrada"
+                rows={3}
+                maxLength={ROOM_TEXT_MAX_LENGTH}
+                placeholder="O que o jogador lê ao entrar"
+                value={textoAoEntrar ?? ''}
+                aria-describedby={enterHintId}
+                onChange={(event) => onTextoAoEntrarChange(event.target.value)}
+              />
+              <p className="gr-nota" id={enterHintId}>
+                Aparece na primeira vez que o jogador entra.
+              </p>
+            </div>
+          )}
+          {parentName !== undefined && (
+            <p className="lb-sala-dentro" data-testid="room-parent">
+              Dentro de: <b>{parentName}</b>
+            </p>
+          )}
+        </FichaDaSalaLembrada>
+
+        {temInterruptores && (
+          <FichaDaSalaLembrada id="veem" titulo="O que os jogadores veem" icone="olho" padrao>
+            {showNameToggle && (
+              <Toggle label="Jogadores veem o nome" checked={!nameHiddenFromPlayers} onChange={(visible) => onNameHiddenFromPlayersChange(!visible)} />
+            )}
+            {showRoof && (
+              <div className="lb-switch-com-ajuda">
+                <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
+                <p className="gr-nota" id={roofHintId}>
+                  Quem está fora não vê o que há dentro.
                 </p>
               </div>
-            </OpcionalDaSala>
-          )}
-
-          {onNotaDoMestreChange !== undefined && (
-            <OpcionalDaSala rotulo="Nota do mestre" preenchido={temTexto(notaDoMestre)} dicaId={noteHintId}>
-              <div className="lb-field">
-                <label className="lb-label" htmlFor={noteId}>
-                  Nota do mestre
-                </label>
-                <textarea
-                  id={noteId}
-                  className="lb-input lb-textarea"
-                  rows={3}
-                  maxLength={ROOM_TEXT_MAX_LENGTH}
-                  value={notaDoMestre ?? ''}
-                  aria-describedby={noteHintId}
-                  onChange={(event) => onNotaDoMestreChange(event.target.value)}
-                />
-                <p className="lb-field__hint" id={noteHintId}>
-                  Só você lê. Nunca vai para a tela dos jogadores.
+            )}
+            {showComodo && (
+              <div className="lb-switch-com-ajuda">
+                <Toggle label="Cômodo: aparece só depois de visto" checked={comodo === true} onChange={onComodoChange} describedBy={comodoHintId} />
+                <p className="gr-nota" id={comodoHintId}>
+                  Depois de visto, fica lembrado, mais apagado.
                 </p>
               </div>
-            </OpcionalDaSala>
-          )}
-
-          {onFaccaoChange !== undefined && (
-            // A facção herdada do distrito também conta como valor: a sala TEM
-            // dono, e o campo aberto é o que mostra de quem ela herda.
-            <OpcionalDaSala rotulo="Facção" preenchido={temTexto(faccao) || faccaoHerdada !== undefined} dicaId={faccaoHintId}>
-              <div className="lb-field">
-                <label className="lb-label" htmlFor={faccaoId}>
-                  Facção
-                </label>
-                <input
-                  id={faccaoId}
-                  className="lb-input"
-                  maxLength={FACCAO_MAX_LENGTH}
-                  value={faccao ?? ''}
-                  placeholder={faccaoHerdada}
-                  list={faccaoListId}
-                  aria-describedby={faccaoHintId}
-                  onChange={(event) => onFaccaoChange(event.target.value)}
-                />
-                <datalist id={faccaoListId}>
-                  {(faccoesConhecidas ?? []).map((nome) => (
-                    <option key={nome} value={nome} />
-                  ))}
-                </datalist>
-                <p className="lb-field__hint" id={faccaoHintId}>
-                  {faccaoHerdada !== undefined && (faccao ?? '').trim() === ''
-                    ? `Herda do distrito: ${faccaoHerdada}. Só você vê.`
-                    : 'Quem manda aqui. Só você vê; as salas de dentro herdam.'}
+            )}
+            {showDark && (
+              <div className="lb-switch-com-ajuda">
+                <Toggle label="Sala escura" checked={dark} onChange={onDarkChange} describedBy={darkHintId} />
+                <p className="gr-nota" id={darkHintId}>
+                  Só se vê com luz.
                 </p>
               </div>
-            </OpcionalDaSala>
-          )}
+            )}
+            {showDentroVeFora && <Toggle label="De dentro, vê lá fora" checked={dentroVeFora} onChange={onDentroVeForaChange} />}
+            {showForaVeDentro && (
+              <div className="lb-switch-com-ajuda">
+                <Toggle
+                  label="De fora, vê aqui dentro"
+                  checked={foraVeDentro}
+                  onChange={onForaVeDentroChange}
+                  describedBy={tetoTapaInterior ? foraVeDentroHintId : undefined}
+                  disabled={tetoTapaInterior}
+                />
+                {/* Estado, não ajuda: com o teto ligado, o motivo de estar apagado. */}
+                {tetoTapaInterior && (
+                  <p className="gr-nota" id={foraVeDentroHintId}>
+                    O teto fechado esconde o interior de quem está fora. Desligue o teto para usar.
+                  </p>
+                )}
+              </div>
+            )}
+          </FichaDaSalaLembrada>
+        )}
 
-          {onRaioDeVisaoChange !== undefined && (
-            <OpcionalDaSala rotulo="Raio de visão aqui" preenchido={raioDeVisao !== undefined && raioDeVisao !== null} dicaId={raioHintId}>
-              <RoomVisionRadiusField raioDeVisao={raioDeVisao ?? null} onRaioDeVisaoChange={onRaioDeVisaoChange} hintId={raioHintId} />
-            </OpcionalDaSala>
-          )}
+        {(opcionais.length > 0 || onCreateRoomInside !== undefined) && (
+          <FichaDaSalaLembrada id="extras" titulo="Acrescentar" icone="mais" padrao>
+            <Acrescimos opcionais={opcionais} onCreateRoomInside={onCreateRoomInside} />
+          </FichaDaSalaLembrada>
+        )}
 
-          {hazard !== undefined && (
-            <OpcionalDaSala rotulo="Perigo" preenchido={hazard.kind !== null}>
-              <HazardControls {...hazard} />
-            </OpcionalDaSala>
-          )}
+        {aparencia !== undefined && (
+          <FichaDaSalaLembrada id="aparencia" titulo="Aparência" icone="chao" padrao={false} resumo={resumoDaAparencia}>
+            {aparencia}
+          </FichaDaSalaLembrada>
+        )}
 
-          {conveyor !== undefined && (
-            // Mecânica da sala como o perigo: sem direção ("Nenhuma") é uma
-            // linha "+"; com esteira ligada nasce aberta, com o Avançar à mão.
-            <OpcionalDaSala rotulo="Esteira" preenchido={conveyor.direction !== null}>
-              <ConveyorControls {...conveyor} />
-            </OpcionalDaSala>
-          )}
+        <FichaDaSalaLembrada
+          id="medidas"
+          titulo="Medidas e título"
+          icone="regua"
+          padrao={false}
+          resumo={mostraDimensoes ? `${Math.round(width)} × ${Math.round(height)} px` : undefined}
+        >
+          {mostraDimensoes && (
+            <div className="lb-room-dims">
+              <div className="lb-field">
+                <label className="lb-label" htmlFor="lb-room-width">
+                  Largura
+                </label>
+                <div className="lb-inputgroup">
+                  <input
+                    id="lb-room-width"
+                    className="lb-input"
+                    type="number"
+                    min={MIN_ROOM_DIMENSION}
+                    step={1}
+                    value={Math.round(width)}
+                    onChange={(event) => onWidthChange(Number(event.target.value))}
+                  />
+                  <span className="lb-inputgroup__suffix">px</span>
+                </div>
+              </div>
 
-          {onCreateRoomInside !== undefined && (
-            // Já é UMA ação: a linha "+" age na hora (arma a ferramenta Sala
-            // com esta sala como mãe), sem campo a abrir. `--acao`: o alvo não
-            // encolhe — era um botão de 34 px de altura.
-            <button type="button" className="lb-room-opt__add lb-room-opt__add--acao" onClick={onCreateRoomInside}>
-              <span>Criar sala dentro</span>
-              <PlusGlyph />
-            </button>
+              <div className="lb-field">
+                <label className="lb-label" htmlFor="lb-room-height">
+                  Altura
+                </label>
+                <div className="lb-inputgroup">
+                  <input
+                    id="lb-room-height"
+                    className="lb-input"
+                    type="number"
+                    min={MIN_ROOM_DIMENSION}
+                    step={1}
+                    value={Math.round(height)}
+                    onChange={(event) => onHeightChange(Number(event.target.value))}
+                  />
+                  <span className="lb-inputgroup__suffix">px</span>
+                </div>
+              </div>
+            </div>
           )}
+          <RoomRotationField
+            rotation={rotation}
+            onRotationChange={onRotationChange}
+            onRotateBy={onRotateBy}
+            locked={locked}
+            note={shape === 'rect' && !axisAligned ? NOTA_SALA_TORTA : undefined}
+          />
+          {/* Sala com estilo próprio (mapa Continente de antes da pílula) mostra os
+              controles mesmo com a pílula: esconder o que o mestre já escolheu
+              parece que o estilo se perdeu. Sem estilo próprio, fica só a dica. */}
+          {temEstiloDoTitulo && (!nomeNaPilula || estiloProprio) && <RoomLabelStyleControls style={labelStyle} onChange={onLabelStyleChange} />}
+          {/* O estilo gravado continua na sala: desligar a chave traz a plaquinha de volta como era. */}
+          {temEstiloDoTitulo && nomeNaPilula && (
+            <p className="lb-field__hint" data-testid="nome-na-pilula">
+              {estiloProprio
+                ? 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. O estilo do título acima continua guardado e volta quando essa chave é desligada em Configurar cena.'
+                : 'O nome aparece na pílula de “Nomes dos lugares”, com tamanho e cor da cena. Para mudar o estilo do título, desligue essa chave em Configurar cena.'}
+            </p>
+          )}
+        </FichaDaSalaLembrada>
 
-          {salaId !== undefined && mostraAbrir && (
-            // Some quando não há o que abrir — nada encostando na Sala, ou tudo
-            // já aberto: botão habilitado na tela sempre faz alguma coisa. Com
-            // parede encostando que não forma corredor, fica desabilitada e diz
-            // o que acertar no desenho. Por último de propósito: visto no app,
-            // acima de "Criar sala dentro" o clique fazia a linha sumir e
-            // "Criar sala dentro" subir para debaixo do ponteiro (um segundo
-            // clique armaria a ferramenta Sala); aqui, sumir ou aparecer não
-            // mexe em linha nenhuma.
-            <AbrirParaOCorredor
-              corredores={corredoresParaAbrir}
-              bloqueio={bloqueioParaAbrir}
-              semCorredor={semCorredor}
-              onAbrir={() => abrirSalaParaCorredores(salaId)}
-            />
-          )}
-        </div>
-      )}
-    </section>
+        {trava !== undefined && (
+          <FichaDaSalaLembrada id="trava" titulo="Trava" icone="cadeado" padrao={false}>
+            {trava}
+          </FichaDaSalaLembrada>
+        )}
+      </Fichas>
+    </div>
   )
 }

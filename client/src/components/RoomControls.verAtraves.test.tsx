@@ -56,15 +56,15 @@ const DENTRO = 'De dentro, vê lá fora'
 const FORA = 'De fora, vê aqui dentro'
 
 describe('RoomControls — ver através das paredes', () => {
-  it('mostra os dois interruptores desligados, cada um com a explicação ligada a ele', () => {
+  it('mostra os dois interruptores desligados, sem frase de ajuda (a ajuda curta do protótipo não tem)', () => {
     render({ dentroVeFora: false, onDentroVeForaChange: vi.fn(), foraVeDentro: false, onForaVeDentroChange: vi.fn() })
     const dentro = interruptor(DENTRO)
     const fora = interruptor(FORA)
     expect(dentro?.checked).toBe(false)
     expect(fora?.checked).toBe(false)
     expect(fora?.disabled).toBe(false)
-    expect(dicaDe(dentro)).toContain('barrando o passo')
-    expect(dicaDe(fora)).toContain('interior')
+    expect(dicaDe(dentro)).toBe('')
+    expect(dicaDe(fora)).toBe('')
   })
 
   it('ligar cada um chama o callback dele com true; ligado aparece marcado', () => {

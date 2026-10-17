@@ -55,7 +55,7 @@ describe('"Sala escura" no painel da Sala', () => {
     const toggle = interruptor('Sala escura')
     expect(toggle?.checked).toBe(false)
     const hint = toggle?.getAttribute('aria-describedby')
-    expect(hint ? document.getElementById(hint)?.textContent : null).toContain('o que uma Luz ilumina')
+    expect(hint ? document.getElementById(hint)?.textContent : null).toContain('Só se vê com luz')
     act(() => toggle?.click())
     expect(onDarkChange).toHaveBeenCalledWith(true)
   })

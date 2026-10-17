@@ -4,10 +4,11 @@ import { ROTULO_MOBILIA } from '../../lib/mobilia'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
 import { salasDaPorta } from '../../lib/mapObjects'
 import { findContainingRoom } from '../../lib/roomNesting'
+import type { MotivoSemCorredor, bloqueioDaSala } from '../../lib/abrirCorredor'
 import { TOKEN_COLOR_DEFAULT } from '../../lib/tokenColor'
-import { useMapStore } from '../../stores/mapStore'
+import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, useMapStore } from '../../stores/mapStore'
 import type { SelectionSummary } from '../SelectionControls'
-import { deleteSelectionLabel } from '../labels'
+import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, deleteSelectionLabel, rotuloAbrirParaOCorredor } from '../labels'
 import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
 import { BrushIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
 import { Balao } from '../grimorio/Balao'
@@ -228,6 +229,68 @@ export function doorActions(
     { label: porta.locked ? 'Destrancar' : 'Trancar', onSelect: handlers.onToggleLocked, icone: 'cadeado', grupo: 'porta' },
     { label: 'Virar parede sólida', onSelect: handlers.onToggleDoor, icone: 'parede', grupo: 'forma' },
   ]
+}
+
+/** O que a store diz do "Abrir para o corredor" da Sala selecionada. */
+export interface ContaDoCorredor {
+  /** Corredores (par de linhas) que o clique abre. */
+  corredores: number
+  /** Sala secreta ou travada: o item fica apagado, com o motivo. */
+  bloqueio: ReturnType<typeof bloqueioDaSala>
+  /** Parede encostando sem formar corredor: o que acertar no desenho. */
+  semCorredor: MotivoSemCorredor | null
+}
+
+/** A frase do item apagado, por bloqueio da Sala. `Record`: bloqueio novo em `lib/abrirCorredor.ts` sem frase aqui não compila. */
+const MOTIVO_SEM_VAO: Record<NonNullable<ReturnType<typeof bloqueioDaSala>>, string> = {
+  secreta: MOTIVO_SALA_SECRETA_SEM_VAO,
+  travada: MOTIVO_SALA_TRAVADA_SEM_VAO,
+}
+
+/** Por que o clique não abriria nada agora. Sem corredor vale o motivo do desenho: enquanto ele não muda, destravar a Sala não abriria nada. */
+function motivoParaNaoAbrir({ corredores, bloqueio, semCorredor }: ContaDoCorredor): string | undefined {
+  if (corredores === 0) return semCorredor === null ? undefined : MOTIVO_SEM_CORREDOR[semCorredor]
+  return bloqueio === null ? undefined : MOTIVO_SEM_VAO[bloqueio]
+}
+
+/** O item só entra no menu com corredor a abrir, ou com parede encostando que não forma corredor (aí apagado, com o motivo). */
+function mostraAbrirCorredor({ corredores, semCorredor }: Pick<ContaDoCorredor, 'corredores' | 'semCorredor'>): boolean {
+  return corredores > 0 || semCorredor !== null
+}
+
+/**
+ * ABRIR PARA O CORREDOR (pedido 4 de 30/09/2026; no "Mais ações" desde a fatia
+ * 15): a parede da Sala abre entre as duas linhas de cada corredor que encosta
+ * nela e as linhas param na borda, num passo só de Ctrl+Z
+ * (`mapStore.abrirSalaParaCorredores`). Sala secreta ou travada, ou parede
+ * encostando que não forma corredor: o item fica no lugar, apagado, com o
+ * motivo. Porta ou parede travada no caminho só aparecem no clique, que recusa
+ * e diz por quê.
+ */
+export function abrirCorredorAction(conta: ContaDoCorredor, onAbrir: () => void): SelectionAction {
+  return {
+    label: rotuloAbrirParaOCorredor(conta.corredores),
+    onSelect: onAbrir,
+    disabledReason: motivoParaNaoAbrir(conta),
+    icone: 'porta',
+    grupo: 'forma',
+  }
+}
+
+/**
+ * O item "Abrir para o corredor" da Sala `salaId`, ou `null` sem nada a mostrar
+ * (sem Sala, ou nada encostando nela). A conta e o motivo vêm da store e mudam
+ * quando o mestre desenha ou mexe numa linha com a ficha aberta, sem passar
+ * pelo App.
+ */
+export function useAcaoAbrirCorredor(salaId: string | null): SelectionAction | null {
+  const corredores = useMapStore((state) => (salaId === null ? 0 : selectCorredoresParaAbrir(state, salaId)))
+  const bloqueio = useMapStore((state) => (salaId === null ? null : selectBloqueioParaAbrir(state, salaId)))
+  const semCorredor = useMapStore((state) => (salaId === null ? null : selectMotivoSemCorredor(state, salaId)))
+  const abrirSalaParaCorredores = useMapStore((state) => state.abrirSalaParaCorredores)
+  const conta = { corredores, bloqueio, semCorredor }
+  if (salaId === null || !mostraAbrirCorredor(conta)) return null
+  return abrirCorredorAction(conta, () => abrirSalaParaCorredores(salaId))
 }
 
 /** As salas de uma porta ligadas por '↔' ("Cais do Porto ↔ corredor", a linha do protótipo); vazio para o resto. */

@@ -1,19 +1,20 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildRoomFromDraft } from '../lib/drawingFactory'
-import { addDoorOnWall, addRoom, createEmptyMap } from '../lib/mapFactory'
-import { useMapStore } from '../stores/mapStore'
-import { useToastStore } from '../stores/toastStore'
-import type { MapData, Region, Wall } from '../types/map'
-import { MOTIVO_SEM_CORREDOR, PORTA_NO_ENCOSTE_TEXT, avisoDoCorredorAberto } from './labels'
-import { RoomControls, type RoomControlsProps } from './RoomControls'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { buildRoomFromDraft } from '../../lib/drawingFactory'
+import { addDoorOnWall, addRoom, createEmptyMap } from '../../lib/mapFactory'
+import { useMapStore } from '../../stores/mapStore'
+import { useToastStore } from '../../stores/toastStore'
+import type { MapData, Region, Wall } from '../../types/map'
+import { MOTIVO_SEM_CORREDOR, PORTA_NO_ENCOSTE_TEXT, avisoDoCorredorAberto } from '../labels'
+import { useAcaoAbrirCorredor } from './CabecaDaSelecao'
 
 /**
- * "Abrir para o corredor" no painel da Sala (pedido 4 de 30/09/2026, fatia 3).
- * A linha de ação lê a store direto (quantos corredores o clique abre e por
- * que a Sala recusaria) e chama `abrirSalaParaCorredores`: o App não passa
- * nada, o painel só diz de que Sala é (`salaId`). A conta é de CORREDORES, par
+ * "Abrir para o corredor" da Sala (pedido 4 de 30/09/2026, fatia 3; no "Mais
+ * ações" da cabeça desde a fatia 15). O item lê a store direto (quantos
+ * corredores o clique abre e por que a Sala recusaria) e chama
+ * `abrirSalaParaCorredores`: o App não passa nada, o painel só diz de que Sala
+ * é (`useAcaoAbrirCorredor(salaId)`). A conta é de CORREDORES, par
  * de linhas, não de paredes — a imagem 4 tem duas linhas e mostra "(1)". Com
  * tudo aberto a linha some: botão na tela sempre faz alguma coisa, e o segundo
  * clique não tem como gravar um passo vazio no desfazer. Com parede solta
@@ -98,26 +99,34 @@ function carregar(map: MapData): void {
   useToastStore.setState({ toasts: [] })
 }
 
-/** O painel da Sala como o PropertiesPanel o monta: com o id dela e o "Criar sala dentro". */
-function render(overrides: Partial<RoomControlsProps> = {}): void {
-  const props: RoomControlsProps = {
-    name: 'Sala 3',
-    onNameChange: vi.fn(),
-    shape: 'rect',
-    axisAligned: true,
-    width: 600,
-    height: 500,
-    onWidthChange: vi.fn(),
-    onHeightChange: vi.fn(),
-    rotation: 0,
-    onRotationChange: vi.fn(),
-    onRotateBy: vi.fn(),
-    locked: false,
-    salaId: 'sala',
-    onCreateRoomInside: vi.fn(),
-    ...overrides,
-  }
-  act(() => root.render(<RoomControls {...props} />))
+/**
+ * O item como o "Mais ações" o mostra: o nome, apagado com o motivo ligado por
+ * `aria-describedby`, e o clique que chama `onSelect`. Quem dá a conta, o
+ * motivo, o clique e se o item existe é o hook de verdade, lendo a store; o
+ * menu de verdade fica em `PropertiesPanel.abrirCorredor.test.tsx`.
+ */
+function ItemDoCorredor({ salaId }: { salaId: string | null }) {
+  const acao = useAcaoAbrirCorredor(salaId)
+  if (acao === null) return null
+  const motivoId = 'motivo-do-corredor'
+  return (
+    <>
+      <button
+        type="button"
+        disabled={acao.disabledReason !== undefined}
+        aria-describedby={acao.disabledReason === undefined ? undefined : motivoId}
+        onClick={acao.onSelect}
+      >
+        {acao.label}
+      </button>
+      {acao.disabledReason !== undefined && <p id={motivoId}>{acao.disabledReason}</p>}
+    </>
+  )
+}
+
+/** O item da Sala `salaId` (a do mapa de teste, por padrão), como o painel o monta. */
+function render(salaId: string | null = 'sala'): void {
+  act(() => root.render(<ItemDoCorredor salaId={salaId} />))
 }
 
 function linhaAbrir(): HTMLButtonElement | undefined {
@@ -140,18 +149,14 @@ function avisos(): string[] {
   return useToastStore.getState().toasts.map((t) => t.text)
 }
 
-describe('RoomControls: "Abrir para o corredor"', () => {
-  it('imagem 4: duas linhas são UM corredor — a linha diz "(1)" e fecha a lista, depois de "Criar sala dentro"', () => {
+describe('"Abrir para o corredor" no "Mais ações" da Sala', () => {
+  it('imagem 4: duas linhas são UM corredor — o item diz "(1)" e está habilitado', () => {
     carregar(salaCom([A, B]))
     render()
     const linha = linhaObrigatoria()
     expect(linha.textContent).toBe('Abrir para o corredor (1)')
     expect(linha.disabled).toBe(false)
     expect(linha.getAttribute('aria-describedby')).toBeNull()
-    // Última: quando some (o clique abriu tudo) ou aparece (o mestre desenhou o
-    // corredor), nenhuma outra linha desliza para debaixo do ponteiro.
-    const acoes = [...container.querySelectorAll('.lb-room-extras button')].map((b) => b.textContent)
-    expect(acoes.slice(-2)).toEqual(['Criar sala dentro', 'Abrir para o corredor (1)'])
   })
 
   it('dois corredores: a conta concorda com o número', () => {
@@ -222,7 +227,7 @@ describe('RoomControls: "Abrir para o corredor"', () => {
 
   it('Sala travada sem corredor: vale o motivo do desenho (o da trava aparece quando houver corredor)', () => {
     carregar(comRegiao(salaCom([C1]), { locked: true }))
-    render({ locked: true })
+    render()
     const linha = linhaObrigatoria()
     expect(linha.disabled).toBe(true)
     expect(motivoDa(linha)).toBe(MOTIVO_SEM_CORREDOR['uma-linha'])
@@ -251,21 +256,17 @@ describe('RoomControls: "Abrir para o corredor"', () => {
 
   it('sem o id da Sala (quem monta o painel sem ela), não há linha — mesmo com corredor no mapa', () => {
     carregar(salaCom([A, B]))
-    render({ salaId: undefined })
+    render(null)
     expect(linhaAbrir()).toBeUndefined()
   })
 
   it('Sala travada, ela ou a camada Salas: a linha fica, desabilitada, com o motivo escrito e ligado a ela', () => {
     const salaTravada = comRegiao(salaCom([A, B]), { locked: true })
     const camadaTravada: MapData = { ...salaCom([A, B]), lockedLayers: ['salas'] }
-    // `locked` do painel é o Travado da própria Sala; a camada travada não o liga.
-    const casos: [MapData, boolean][] = [
-      [salaTravada, true],
-      [camadaTravada, false],
-    ]
-    for (const [travada, locked] of casos) {
+    // Travada a própria Sala ou a camada Salas: o mesmo motivo, lido da store.
+    for (const travada of [salaTravada, camadaTravada]) {
       carregar(travada)
-      render({ locked })
+      render()
       const linha = linhaObrigatoria()
       expect(linha.textContent).toBe('Abrir para o corredor (1)')
       expect(linha.disabled).toBe(true)
