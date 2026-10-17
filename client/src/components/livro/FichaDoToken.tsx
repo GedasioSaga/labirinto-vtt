@@ -13,7 +13,7 @@ import { selectedTokenSize, TOKEN_SIZE_OPTIONS } from '../../lib/tokenSize'
 import { vehicleOf } from '../../lib/vehicle'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { Cartao, Cartoes, SubFicha } from '../grimorio/Cartoes'
-import { Ficha, Fichas } from '../grimorio/Ficha'
+import { Fichas } from '../grimorio/Ficha'
 import { ItemTransformControls, type ItemTransformControlsProps } from '../ItemTransformControls'
 import { PisoControls } from '../PisoControls'
 import type { PisosWiring } from '../PropertiesPanel'
@@ -32,6 +32,7 @@ import { TokenSeenBy, type TokenSeenByProps } from '../TokenSeenBy'
 import { TokenSizeControls, type TokenSizeControlsProps } from '../TokenSizeControls'
 import { TokenVehicleControls, type TokenVehicleControlsProps } from '../TokenVehicleControls'
 import { TokenWatchControls, type TokenWatchControlsProps } from '../TokenWatchControls'
+import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import './fichaDoToken.css'
 
@@ -71,51 +72,9 @@ export interface FichaDoTokenProps {
 /** Chave da escolha lembrada de cada ficha: a família `lb-section:<id>` das seções recolhíveis. */
 const PREFIXO_LEMBRADO = 'lb-section:ficha-token-'
 
-/** localStorage pode faltar ou lançar (janela privada): sem escolha gravada vale a do protótipo. */
-function lerAberta(id: string, padrao: boolean): boolean {
-  try {
-    const gravada = window.localStorage.getItem(PREFIXO_LEMBRADO + id)
-    return gravada === null ? padrao : gravada === '1'
-  } catch {
-    return padrao
-  }
-}
-
-function gravarAberta(id: string, aberta: boolean): void {
-  try {
-    window.localStorage.setItem(PREFIXO_LEMBRADO + id, aberta ? '1' : '0')
-  } catch {
-    // Sem armazenamento a escolha vale enquanto a ficha estiver montada.
-  }
-}
-
-interface FichaLembradaProps {
-  id: string
-  titulo: string
-  icone: NomeDoIcone
-  /** Aberta sem escolha gravada (Nome e Condições abertas, como no protótipo). */
-  padrao: boolean
-  resumo?: string
-  children: ReactNode
-}
-
-/** Ficha recolhível cuja escolha vale para todo token e entre sessões: o mestre abre "No mapa" uma vez. */
-function FichaLembrada({ id, titulo, icone, padrao, resumo, children }: FichaLembradaProps) {
-  const [aberta, setAberta] = useState(() => lerAberta(id, padrao))
-  return (
-    <Ficha
-      titulo={titulo}
-      icone={<IconeDoLivro nome={icone} />}
-      resumo={resumo}
-      aberta={aberta}
-      onAlternar={(nova) => {
-        setAberta(nova)
-        gravarAberta(id, nova)
-      }}
-    >
-      {children}
-    </Ficha>
-  )
+/** Ficha do token com a escolha lembrada (Nome e Condições nascem abertas, como no protótipo). */
+function FichaDoTokenLembrada(props: Omit<FichaLembradaProps, 'prefixo'>) {
+  return <FichaLembrada prefixo={PREFIXO_LEMBRADO} {...props} />
 }
 
 interface TipoDeFichaProps {
@@ -393,11 +352,11 @@ export function FichaDoToken(props: FichaDoTokenProps) {
       {/* Primeiro depois do tipo: é a pergunta que o mestre faz em voz alta no meio da cena. */}
       {props.tokenSeenBy !== undefined && <TokenSeenBy tokenId={token.id} {...props.tokenSeenBy} />}
       <Fichas>
-        <FichaLembrada id="nome" titulo="Nome" icone="ficha" padrao resumo={resumoDoNome(token)}>
+        <FichaDoTokenLembrada id="nome" titulo="Nome" icone="ficha" padrao resumo={resumoDoNome(token)}>
           {/* `key` pela ficha: o "Outro nome" digitado e não confirmado não passa para a ficha seguinte. */}
           <TokenNameControls key={token.id} name={token.name} publicName={token.publicName} {...props.tokenName} semTitulo />
-        </FichaLembrada>
-        <FichaLembrada
+        </FichaDoTokenLembrada>
+        <FichaDoTokenLembrada
           id="condicoes"
           titulo="Condições"
           icone="estrela"
@@ -405,8 +364,8 @@ export function FichaDoToken(props: FichaDoTokenProps) {
           resumo={condicoes.length === 0 ? 'Nenhuma' : condicoes.map((condicao) => TOKEN_CONDITION_LABELS[condicao]).join(', ')}
         >
           <TokenConditionControls conditions={condicoes} {...props.tokenCondition} embutido />
-        </FichaLembrada>
-        <FichaLembrada id="no-mapa" titulo="No mapa" icone="cena" padrao={false} resumo={resumoDoTamanho(token)}>
+        </FichaDoTokenLembrada>
+        <FichaDoTokenLembrada id="no-mapa" titulo="No mapa" icone="cena" padrao={false} resumo={resumoDoTamanho(token)}>
           {props.comTrava && <ItemTransformControls key={`trava-${token.id}`} {...transformacao} parte="trava" />}
           <TokenSizeControls size={selectedTokenSize(token)} {...props.tokenSize} />
           <TokenColorControls color={selectedTokenColor(token)} {...props.tokenColor} />
@@ -414,9 +373,9 @@ export function FichaDoToken(props: FichaDoTokenProps) {
           <TokenImageControls image={tokenPhotoRef(token)} {...props.tokenImage} />
           {/* O Avançado fecha "No mapa", como no protótipo. `key`: outra ficha selecionada o faz nascer de novo (aberto se ELA estiver girada ou oculta no editor). */}
           {props.comTrava && <ItemTransformControls key={`avancado-${token.id}`} {...transformacao} parte="avancado" />}
-        </FichaLembrada>
+        </FichaDoTokenLembrada>
         {levar !== undefined && levar.destinations.length > 0 && (
-          <FichaLembrada id="levar" titulo="Levar para outra cena" icone="seta" padrao={false}>
+          <FichaDoTokenLembrada id="levar" titulo="Levar para outra cena" icone="seta" padrao={false}>
             {/* `key`: outra ficha selecionada recomeça do primeiro destino, sem a escolha da anterior. */}
             <TokenSceneCarryControls
               key={`levar-${token.id}`}
@@ -426,7 +385,7 @@ export function FichaDoToken(props: FichaDoTokenProps) {
               onCarry={(sceneId, pinId) => levar.onCarry(token.id, sceneId, pinId)}
               direto
             />
-          </FichaLembrada>
+          </FichaDoTokenLembrada>
         )}
       </Fichas>
       <Cartoes titulo="Comportamento">

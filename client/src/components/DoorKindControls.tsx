@@ -55,7 +55,8 @@ export interface DoorKindControlsProps {
   onKindChange: (kind: DoorKind) => void
 }
 
-const OPTIONS: Array<{ kind: DoorKind; label: string }> = [
+/** Os três tipos, na ordem do seletor (a ficha da porta usa a mesma lista). */
+export const DOOR_KIND_OPTIONS: ReadonlyArray<{ kind: DoorKind; label: string }> = [
   { kind: 'normal', label: 'Normal' },
   { kind: 'double', label: 'Dupla' },
   { kind: 'gate', label: 'Portão' },
@@ -82,7 +83,7 @@ export function DoorKindControls({ kind, onKindChange }: DoorKindControlsProps) 
     <section className="lb-section">
       <h2 className="lb-eyebrow">Tipo de porta</h2>
       <div className="lb-seg" role="radiogroup" aria-label="Tipo de porta">
-        {OPTIONS.map((option) => (
+        {DOOR_KIND_OPTIONS.map((option) => (
           <button
             key={option.kind}
             type="button"

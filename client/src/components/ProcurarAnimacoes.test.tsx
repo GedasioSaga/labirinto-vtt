@@ -5,7 +5,7 @@ import { CENARIO_PADRAO } from '../cenario/catalogo'
 import { CenarioSection } from '../cenario/CenarioSection'
 import { esquecerPacoteCarregado } from '../lib/pacoteDeAnimacoes'
 import { TransicaoSection } from '../transicoes/TransicaoSection'
-import { WallDoorControls } from './WallDoorControls'
+import { FichaDaPorta } from './livro/FichaDaPorta'
 
 /**
  * "Procurar animações novas" nas três galerias: só no app (Tauri), e o
@@ -53,9 +53,9 @@ const botoesDeProcurar = () => Array.from(container.querySelectorAll('button')).
 const galerias = {
   transicao: () => <TransicaoSection transicao={undefined} onChange={() => {}} origem="pino" />,
   porta: () => (
-    <WallDoorControls
+    <FichaDaPorta
       door={{ open: false, locked: false, kind: 'normal' }}
-      onToggleDoor={() => {}}
+      onKindChange={() => {}}
       onToggleOpen={() => {}}
       onToggleLocked={() => {}}
       onToggleSemEspiar={() => {}}

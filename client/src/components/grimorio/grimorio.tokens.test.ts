@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { lerCss } from '../../player/cssDoJogador.testkit'
-import { themeCss } from '../../theme'
+import { theme, themeCss } from '../../theme'
+import { GIRAR_DURACAO_MS, GIRAR_FECHAR_DURACAO_MS } from '../../portas/animacoesDePorta'
 
 /*
  * Fidelidade ao protótipo aprovado e higiene do CSS novo. O protótipo é a
@@ -81,5 +82,19 @@ describe('grimorio.css', () => {
     expect(classes.filter((nome) => !nome.startsWith('gr-'))).toEqual([])
     const animacoes = Array.from(css.matchAll(/@keyframes\s+([\w-]+)/g), (m) => m[1])
     expect(animacoes.filter((nome) => !nome.startsWith('gr-'))).toEqual([])
+  })
+})
+
+describe('folha da porta (fatia 11)', () => {
+  it('o tempo e a curva de abrir são os do protótipo, e o giro do mapa usa os mesmos números', async () => {
+    const prototipo = semComentarios(await lerCss('../../../docs/design/consolidado/prototipo/css/consolidado.css'))
+    const doPrototipo = new Map(declaracoes(prototipo, '--cs-'))
+    const css = themeCss()
+    expect(css).toContain(`--lb-gr-porta-abre: ${doPrototipo.get('--cs-porta-abre')};`)
+    expect(css).toContain(`--lb-gr-ease-porta: ${doPrototipo.get('--cs-ease-porta')};`)
+    // O protótipo fecha em 260 ms pelo JS (app.js, atualizarPorta).
+    expect(css).toContain('--lb-gr-porta-fecha: 260ms;')
+    expect(`${GIRAR_DURACAO_MS}ms`).toBe(theme.gr.portaAbre)
+    expect(`${GIRAR_FECHAR_DURACAO_MS}ms`).toBe(theme.gr.portaFecha)
   })
 })

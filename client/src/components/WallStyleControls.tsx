@@ -107,6 +107,8 @@ export interface WallStyleControlsProps {
    * fechado a cada parede).
    */
   avancado?: ReactNode
+  /** Sem o título "Parede": dentro da ficha "Parede em volta" da porta, que já tem o seu. */
+  semTitulo?: boolean
 }
 
 /**
@@ -132,6 +134,7 @@ export function WallStyleControls({
   passagem,
   cor,
   avancado,
+  semTitulo = false,
 }: WallStyleControlsProps) {
   // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
   // objeto só), mas quem desenha é `WallLineStyleField`, no Avançado.
@@ -143,7 +146,7 @@ export function WallStyleControls({
   const worldWidth = wallWorldWidth(thickness)
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Parede</h2>
+      {!semTitulo && <h2 className="lb-eyebrow">Parede</h2>}
       <Toggle
         label="Parede interna"
         checked={wallKind === 'interior'}

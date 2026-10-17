@@ -1,7 +1,7 @@
 import type { Graphics, Ticker } from 'pixi.js'
 import type { DoorState, Wall } from '../types/map'
-import { animacaoDePorta, type AnimacaoDePorta } from '../portas/animacoesDePorta'
-import { easeInOutCubic } from '../transicoes/curvas'
+import { animacaoDePorta, duracaoDoSentido, type AnimacaoDePorta } from '../portas/animacoesDePorta'
+import { easeOutCubic } from '../transicoes/curvas'
 import { drawDoors, type PortaAnimando } from './drawDoors'
 
 /**
@@ -50,12 +50,14 @@ interface Pintura {
 }
 
 /**
- * Ponto do caminho em `agora`. A curva é a de movimento NA tela (acelera e
- * assenta), a mesma `easeInOutCubic` das transições (`transicoes/curvas.ts`).
+ * Ponto do caminho em `agora`. A curva é `easeOutCubic`, o
+ * `cubic-bezier(0.33, 1, 0.68, 1)` da medalha da ficha (`gr.easePorta` no
+ * `theme.ts`): a folha responde ao clique na hora e assenta sem passar do fim,
+ * e mapa e medalha andam no mesmo passo.
  */
 function pontoDoCaminho(caminho: Caminho, agora: number): { progresso: number; terminou: boolean } {
   const t = caminho.duracao <= 0 ? 1 : Math.min(1, Math.max(0, (agora - caminho.inicio) / caminho.duracao))
-  return { progresso: caminho.de + (caminho.para - caminho.de) * easeInOutCubic(t), terminou: t >= 1 }
+  return { progresso: caminho.de + (caminho.para - caminho.de) * easeOutCubic(t), terminou: t >= 1 }
 }
 
 /** Animação da porta, ou `null`: sem escolha, id que este app não conhece, ou porta secreta (é tracejada aberta ou fechada). */
@@ -106,7 +108,8 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     }
     const para = door.open ? 1 : 0
     const de = anterior === undefined ? 1 - para : pontoDoCaminho(anterior, agora).progresso
-    caminhos.set(id, { de, para, inicio: agora, duracao: animacao.duracaoMs * Math.abs(para - de), animacao })
+    // O que falta anda no tempo do sentido NOVO: fechar no meio do abrir usa a duração de fechar.
+    caminhos.set(id, { de, para, inicio: agora, duracao: duracaoDoSentido(animacao, para === 1) * Math.abs(para - de), animacao })
     ligarRelogio()
   }
 

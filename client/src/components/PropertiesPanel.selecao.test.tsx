@@ -417,7 +417,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(corpo()?.firstElementChild?.textContent).toContain('Cuidado')
   })
 
-  it('porta: Porta e Tipo de porta antes de Parede; parede lisa continua Parede antes de Porta', () => {
+  it('porta (fatia 11): o essencial com o Estado e as fichas Quem abre, Aparência e Parede em volta; parede lisa continua Parede antes de Porta', () => {
     renderPainel(
       propsDoPainel(null, {
         groups: relevantPropertyGroups('select', { wall: true, wallHasDoor: true }),
@@ -425,7 +425,11 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
         selection: selecao({ kind: 'wall', count: 1 }),
       }),
     )
-    expect(titulos().slice(0, 3)).toEqual(['Porta', 'Tipo de porta', 'Parede'])
+    const fichas = Array.from(container.querySelectorAll('.gr-folha[data-pagina="ficha"] .gr-ficha__tit')).map((t) => t.textContent)
+    expect(fichas).toEqual(['Quem abre', 'Aparência', 'Parede em volta'])
+    // O tipo mora na Aparência e a parede na sua ficha: nenhum título solto de antes.
+    expect(titulos()).toEqual([])
+    expect(container.querySelector('.lb-ficha-da-porta [role="radiogroup"]')?.textContent).toContain('Aberta')
     expect(corpo()?.firstElementChild?.textContent).toContain('Porta')
     expect(botoesComTexto(/^Apagar parede selecionada$/)).toHaveLength(1)
 

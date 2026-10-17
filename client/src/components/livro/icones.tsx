@@ -174,6 +174,24 @@ const DESENHOS = {
       {caminho('M5 20c1-3.8 3.6-5.6 7-5.6s6 1.8 7 5.6')}
     </>
   ),
+  /* Ficha da porta (fatia 11): o estado, as fichas e o "Mais ações". */
+  parede: caminho('M3.5 6.5h17v11h-17z M3.5 12h17 M9 6.5V12 M15 12v5.5'),
+  porta: (
+    <>
+      {caminho('M6.5 20.5V4.5h11v16 M4 20.5h16')}
+      {ponto(14.6, 12.6)}
+    </>
+  ),
+  portaAberta: caminho('M2.5 16h5 M16.5 16h5 M7.5 16l3.1-8.5'),
+  portaFechada: caminho('M2.5 16h5 M16.5 16h5 M7.5 16h9'),
+  chave: (
+    <>
+      <circle cx="8" cy="15.5" r="3.5" />
+      {caminho('M10.5 13l8-8 M16 7.5l2.5 2.5 M13.8 9.7l1.8 1.8')}
+    </>
+  ),
+  pulso: caminho('M3.5 12.5h4l2.5-6 4 11 2.5-5h4'),
+  troca: caminho('M4.5 8.5h14l-3.5-3.5 M19.5 15.5h-14l3.5 3.5'),
 } satisfies Record<string, ReactNode>
 
 export type NomeDoIcone = keyof typeof DESENHOS

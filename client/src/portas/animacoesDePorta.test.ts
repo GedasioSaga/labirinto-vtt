@@ -89,13 +89,15 @@ describe('registro de animações de porta — embutidas', () => {
     expect(c.maxX).toBeCloseTo(79, 9)
   })
 
-  it('girar a 0,5: a folha está a 45° da dobradiça de (x1,y1), ainda quase sólida', () => {
+  it('girar a 0,5: a folha está a 35° (metade dos 70) da dobradiça de (x1,y1), ainda quase sólida', () => {
     const g = desenhar('girar', 0.5)
     const folha = caixa(fills(g)[0])
-    // Dobradiça em (20, 0); ponta livre em 20 + 60·cos45 ≈ 62,4, para o lado da normal (y > 0).
-    expect(folha.maxX).toBeGreaterThan(62)
-    expect(folha.maxX).toBeLessThan(66)
-    expect(folha.maxY).toBeGreaterThan(42)
+    // Dobradiça em (20, 0); ponta livre em 20 + 60·cos35 ≈ 69,1 e 60·sen35 ≈ 34,4
+    // para o lado da normal (y > 0), mais a meia espessura da folha.
+    expect(folha.maxX).toBeGreaterThan(69)
+    expect(folha.maxX).toBeLessThan(72)
+    expect(folha.maxY).toBeGreaterThan(34)
+    expect(folha.maxY).toBeLessThan(38)
     expect(alphaDo(fills(g)[0])).toBeCloseTo(1 - 0.5 ** 3, 9)
   })
 

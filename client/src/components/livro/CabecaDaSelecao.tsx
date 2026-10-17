@@ -1,8 +1,8 @@
 import { Fragment, useId, useRef, useState, type ReactElement } from 'react'
-import type { Drawing, FloorPiece, Light, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
+import type { DoorState, Drawing, FloorPiece, Light, MapData, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
 import { ROTULO_MOBILIA } from '../../lib/mobilia'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
-import { mapObjectKey, mapObjectOf } from '../../lib/mapObjects'
+import { salasDaPorta } from '../../lib/mapObjects'
 import { TOKEN_COLOR_DEFAULT } from '../../lib/tokenColor'
 import { useMapStore } from '../../stores/mapStore'
 import type { SelectionSummary } from '../SelectionControls'
@@ -14,6 +14,7 @@ import { Botao } from '../grimorio/Botao'
 import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
 import { MenuItem, MenuNota, MenuSeparador, Pop } from '../grimorio/Pop'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
+import { MedalhaDaPorta, type MedalhaDaPortaProps } from './MedalhaDaPorta'
 import './fichaDaSelecao.css'
 
 /** De que tipo é o que está selecionado — decide o ícone da medalha. */
@@ -169,9 +170,31 @@ export function endireitarAction(onEndireitar: () => void): SelectionAction {
   return { label: 'Endireitar', onSelect: onEndireitar, atalho: 'Alt', detalhe: 'Sem mudar o tamanho', icone: 'regua', grupo: 'forma' }
 }
 
-/** As salas de uma porta ("Adega e Corredor"), da cena aberta; vazio para o resto. */
+/**
+ * PORTA SELECIONADA (fatia 11): "Abrir agora"/"Fechar agora" e
+ * "Trancar"/"Destrancar" com o rótulo do que o clique FAZ, e "Virar parede
+ * sólida", que muda a forma do item (outro assunto, depois do fio). Os mesmos
+ * handlers do bloco essencial da ficha: trancar fecha e abrir destranca.
+ */
+export function doorActions(
+  porta: Pick<DoorState, 'open' | 'locked'>,
+  handlers: { onToggleOpen: () => void; onToggleLocked: () => void; onToggleDoor: () => void },
+): SelectionAction[] {
+  return [
+    { label: porta.open ? 'Fechar agora' : 'Abrir agora', onSelect: handlers.onToggleOpen, icone: 'porta', grupo: 'porta' },
+    { label: porta.locked ? 'Destrancar' : 'Trancar', onSelect: handlers.onToggleLocked, icone: 'cadeado', grupo: 'porta' },
+    { label: 'Virar parede sólida', onSelect: handlers.onToggleDoor, icone: 'parede', grupo: 'forma' },
+  ]
+}
+
+/** As salas de uma porta ligadas por '↔' ("Cais do Porto ↔ corredor", a linha do protótipo); vazio para o resto. */
+export function ondeDaPorta(map: MapData, paredeId: string): string {
+  return salasDaPorta(map, paredeId).join(' ↔ ')
+}
+
+/** `ondeDaPorta` na cena aberta; vazio sem porta selecionada. */
 export function useOndeDaPorta(paredeId: string | null): string {
-  return useMapStore((state) => (paredeId === null ? '' : (mapObjectOf(state.map, mapObjectKey('door', paredeId))?.detail ?? '')))
+  return useMapStore((state) => (paredeId === null ? '' : ondeDaPorta(state.map, paredeId)))
 }
 
 /** A cor do disco de um token sem cor própria: a mesma do mapa. */
@@ -184,6 +207,8 @@ export interface CabecaDaSelecaoProps {
   identidade: SelectionIdentity
   /** Token selecionado: o retrato na cor dele, com as iniciais, no lugar da medalha. */
   token?: Pick<Token, 'name' | 'color'> | null
+  /** Porta selecionada: a medalha mostra a folha, que gira quando ela abre ou fecha. */
+  porta?: MedalhaDaPortaProps['porta'] | null
   /** Onde o item está (as salas de uma porta), depois do tipo. */
   onde?: string
   /** Nome acessível (e texto) do Apagar: `deleteLabelFor`. */
@@ -206,7 +231,7 @@ export interface CabecaDaSelecaoProps {
  * é a barra das ações (`toolbar`) descrita pelo nome: os botões ficam na
  * ordem do Tab, e as setas continuam sendo atalho do mapa.
  */
-export function CabecaDaSelecao({ identidade, token, onde, rotuloApagar, onApagar, acoes, notaDasAcoes }: CabecaDaSelecaoProps) {
+export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, onApagar, acoes, notaDasAcoes }: CabecaDaSelecaoProps) {
   const [menuAberto, setMenuAberto] = useState(false)
   const gatilho = useRef<HTMLButtonElement | null>(null)
   const notaId = useId()
@@ -215,7 +240,7 @@ export function CabecaDaSelecao({ identidade, token, onde, rotuloApagar, onApaga
     token !== undefined && token !== null ? (
       <CabecaRetrato cor={token.color ?? COR_DO_TOKEN_PADRAO} iniciais={iniciaisDaFicha(nome)} />
     ) : (
-      <CabecaMedalha>{iconeDoTipo(identidade)}</CabecaMedalha>
+      <CabecaMedalha>{porta !== undefined && porta !== null ? <MedalhaDaPorta porta={porta} /> : iconeDoTipo(identidade)}</CabecaMedalha>
     )
   return (
     <div className="lb-cabeca-da-selecao">

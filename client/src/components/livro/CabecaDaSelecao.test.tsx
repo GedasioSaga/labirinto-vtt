@@ -1,16 +1,19 @@
 import { act, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createEmptyMap } from '../../lib/mapFactory'
 import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
-import type { Drawing, Prop, Region, Token, Wall } from '../../types/map'
+import type { DoorState, Drawing, Prop, Region, Token, Wall } from '../../types/map'
 // Os itens do menu moram num portal, no `body`: as buscas abaixo olham o documento inteiro.
 import { MobiliaIcon, PropIcon } from '../icons'
 import { TOOL_LABELS } from '../labels'
 import {
   CabecaDaSelecao,
   deleteLabelFor,
+  doorActions,
   endireitarAction,
   floorActions,
+  ondeDaPorta,
   selectionIdentity,
   type CabecaDaSelecaoProps,
   type SelectedItems,
@@ -144,8 +147,36 @@ describe('CabecaDaSelecao', () => {
     montar({ identidade: { icon: 'wall', type: 'Parede', name: null } })
     expect(container.querySelector('.gr-cabeca__nome')?.textContent).toBe('Parede')
     expect(container.querySelector('.gr-cabeca__tipo')).toBeNull()
-    montar({ identidade: { icon: 'door', type: 'Porta', name: null }, onde: 'Adega e Corredor' })
-    expect(container.querySelector('.gr-cabeca__tipo')?.textContent).toBe('Adega e Corredor')
+    montar({ identidade: { icon: 'door', type: 'Porta', name: null }, onde: 'Adega ↔ Corredor' })
+    expect(container.querySelector('.gr-cabeca__tipo')?.textContent).toBe('Adega ↔ Corredor')
+  })
+
+  it("as salas da porta vêm ligadas por '↔', como no protótipo; uma sala só, ela; solta ou sem porta, nada", () => {
+    const sala = (id: string, nome: string, x1: number, x2: number): Region => ({
+      id,
+      points: [
+        { x: x1, y: 0 },
+        { x: x2, y: 0 },
+        { x: x2, y: 500 },
+        { x: x1, y: 500 },
+      ],
+      tag: '',
+      fillColor: '#1e8c8c',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: nome },
+    })
+    const porta = (id: string, x: number, y: number): Wall => ({ id, x1: x, y1: y, x2: x, y2: y + 100, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } })
+    const mapa = {
+      ...createEmptyMap('map_portas', 'Portas', 40, 16, 50),
+      regions: [sala('r-cais', 'Cais do Porto', 0, 500), sala('r-corredor', 'corredor', 500, 900)],
+      walls: [porta('w-meio', 500, 200), porta('w-dentro', 200, 100), porta('w-longe', 3000, 3000), { ...porta('w-lisa', 0, 0), door: null }],
+    }
+    expect(ondeDaPorta(mapa, 'w-meio')).toBe('Cais do Porto ↔ corredor')
+    expect(ondeDaPorta(mapa, 'w-dentro')).toBe('Cais do Porto')
+    expect(ondeDaPorta(mapa, 'w-longe')).toBe('')
+    expect(ondeDaPorta(mapa, 'w-lisa')).toBe('')
+    expect(ondeDaPorta(mapa, 'nao-existe')).toBe('')
   })
 
   it('token: retrato na cor dele com as iniciais; os outros tipos, medalha de latão', () => {
@@ -258,5 +289,83 @@ describe('CabecaDaSelecao', () => {
         window.removeEventListener('keydown', atalhoDoMapa)
       }
     })
+  })
+})
+
+describe('CabecaDaSelecao — porta (fatia 11)', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  function montarPorta(porta: Pick<DoorState, 'open' | 'locked' | 'secret' | 'animacao'>) {
+    act(() =>
+      root.render(
+        <CabecaDaSelecao identidade={{ icon: 'door', type: 'Porta', name: null }} porta={porta} rotuloApagar="Apagar parede selecionada" onApagar={() => {}} acoes={[]} notaDasAcoes={null} />,
+      ),
+    )
+  }
+  const medalha = () => container.querySelector<SVGSVGElement>('.gr-cabeca__med .lb-medalha-porta')
+
+  it('a medalha mostra a folha fechada, aberta e trancada', () => {
+    montarPorta({ open: false, locked: false, animacao: 'girar' })
+    expect(medalha()?.dataset.estado).toBe('fechada')
+    expect(medalha()?.hasAttribute('data-trancada')).toBe(false)
+    montarPorta({ open: true, locked: false, animacao: 'girar' })
+    expect(medalha()?.dataset.estado).toBe('aberta')
+    montarPorta({ open: false, locked: true, animacao: 'girar' })
+    expect(medalha()?.hasAttribute('data-trancada')).toBe(true)
+  })
+
+  it('os tempos da folha são os da animação da porta (o mapa anda junto); sem animação ou secreta, troca na hora', () => {
+    const tempos = () => [medalha()?.style.getPropertyValue('--lb-porta-abre'), medalha()?.style.getPropertyValue('--lb-porta-fecha')]
+    montarPorta({ open: false, locked: false, animacao: 'girar' })
+    expect(tempos()).toEqual(['300ms', '260ms'])
+    montarPorta({ open: false, locked: false, animacao: 'deslizar' })
+    expect(tempos()).toEqual(['240ms', '240ms'])
+    montarPorta({ open: false, locked: false })
+    expect(tempos()).toEqual(['0ms', '0ms'])
+    montarPorta({ open: false, locked: false, secret: true, animacao: 'girar' })
+    expect(tempos()).toEqual(['0ms', '0ms'])
+    montarPorta({ open: false, locked: false, animacao: 'leque-2' })
+    expect(tempos()).toEqual(['0ms', '0ms'])
+  })
+
+  it('movimento reduzido: a folha só pisca quando a porta muda, nunca na montagem nem sem animação', () => {
+    const animate = vi.fn()
+    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: animate })
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: (consulta: string) => ({ matches: consulta.includes('reduce') }) })
+    try {
+      montarPorta({ open: false, locked: false, animacao: 'girar' })
+      expect(animate).not.toHaveBeenCalled()
+      montarPorta({ open: true, locked: false, animacao: 'girar' })
+      expect(animate).toHaveBeenCalledTimes(1)
+      expect(animate).toHaveBeenCalledWith([{ opacity: 0.35 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' })
+      montarPorta({ open: false, locked: false })
+      expect(animate).toHaveBeenCalledTimes(1)
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'animate')
+      Reflect.deleteProperty(window, 'matchMedia')
+    }
+  })
+
+  it('doorActions: o rótulo diz o que o clique faz; Virar parede sólida fica no outro assunto', () => {
+    const ligado = { onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleDoor: vi.fn() }
+    expect(doorActions({ open: false, locked: false }, ligado).map((acao) => acao.label)).toEqual(['Abrir agora', 'Trancar', 'Virar parede sólida'])
+    const acoes = doorActions({ open: true, locked: true }, ligado)
+    expect(acoes.map((acao) => acao.label)).toEqual(['Fechar agora', 'Destrancar', 'Virar parede sólida'])
+    expect(acoes.map((acao) => acao.grupo)).toEqual(['porta', 'porta', 'forma'])
+    for (const acao of acoes) acao.onSelect()
+    expect([ligado.onToggleOpen, ligado.onToggleLocked, ligado.onToggleDoor].map((f) => f.mock.calls.length)).toEqual([1, 1, 1])
   })
 })

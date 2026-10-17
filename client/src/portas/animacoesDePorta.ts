@@ -50,6 +50,12 @@ export interface AnimacaoDePorta {
   /** Duração de fechada a aberta. Meio caminho (inverteu no meio) leva a fração que falta. */
   duracaoMs: number
   /**
+   * Duração de aberta a fechada, quando é outra (o giro fecha mais depressa do
+   * que abre). Ausente = `duracaoMs`. Só as embutidas a usam: o contrato do
+   * pacote (`lib/pacoteDeAnimacoes.ts`) segue com uma duração só.
+   */
+  duracaoFecharMs?: number
+  /**
    * Desenha a porta num ponto do caminho: `progresso` 0 = fechada, 1 = aberta,
    * já com a curva aplicada (quem anima é `pixi/animadorDePortas.ts`).
    * `abrindo` diz para onde vai. Só ACRESCENTA ao `g`: as outras portas estão
@@ -97,8 +103,11 @@ export function desenharBatente(g: Graphics, porta: PortaParaDesenho): void {
   g.stroke({ width: porta.contorno, color: porta.cor, join: 'miter' })
 }
 
-/** Ângulo da folha aberta em "Girar na dobradiça": perpendicular à parede. */
-export const GIRO_ABERTA_RAD = Math.PI / 2
+/**
+ * Ângulo da folha aberta em "Girar na dobradiça": 70 graus, o mesmo da
+ * medalha da ficha (`components/livro/MedalhaDaPorta.tsx`), que gira junto.
+ */
+export const GIRO_ABERTA_RAD = (70 * Math.PI) / 180
 
 /**
  * "Girar na dobradiça": a folha gira em torno da ponta de (x1,y1) até ficar
@@ -141,15 +150,23 @@ function desenharDeslizar(g: Graphics, porta: PortaParaDesenho, progresso: numbe
 /**
  * Durações: a porta é movimento NO mapa, visto algumas dezenas de vezes por
  * sessão — fica na faixa de gaveta/modal (200-500 ms), puxada para baixo para
- * não atrasar quem está andando. O giro anda mais chão que o deslize.
+ * não atrasar quem está andando. O giro anda mais chão que o deslize, e
+ * fecha mais depressa do que abre (300/260 ms, os do protótipo aprovado: os
+ * tokens `gr.portaAbre`/`gr.portaFecha` do `theme.ts` dizem o mesmo à medalha).
  */
-export const GIRAR_DURACAO_MS = 280
+export const GIRAR_DURACAO_MS = 300
+export const GIRAR_FECHAR_DURACAO_MS = 260
 export const DESLIZAR_DURACAO_MS = 240
 
 export const ANIMACOES_EMBUTIDAS: readonly AnimacaoDePorta[] = [
-  { id: 'girar', nome: 'Girar na dobradiça', duracaoMs: GIRAR_DURACAO_MS, desenhar: desenharGirar },
+  { id: 'girar', nome: 'Girar na dobradiça', duracaoMs: GIRAR_DURACAO_MS, duracaoFecharMs: GIRAR_FECHAR_DURACAO_MS, desenhar: desenharGirar },
   { id: 'deslizar', nome: 'Deslizar', duracaoMs: DESLIZAR_DURACAO_MS, desenhar: desenharDeslizar },
 ]
+
+/** Duração do caminho inteiro no sentido pedido: abrir usa `duracaoMs`; fechar, `duracaoFecharMs` quando há. */
+export function duracaoDoSentido(animacao: AnimacaoDePorta, abrindo: boolean): number {
+  return abrindo ? animacao.duracaoMs : (animacao.duracaoFecharMs ?? animacao.duracaoMs)
+}
 
 /** Embutidas primeiro, na ordem acima; as de fora depois, na ordem em que chegaram. */
 let lista: readonly AnimacaoDePorta[] = ANIMACOES_EMBUTIDAS

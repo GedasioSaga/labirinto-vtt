@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { Graphics, Ticker } from 'pixi.js'
 import { createAnimadorDePortas, type MovimentoDasPortas } from './animadorDePortas'
 import { drawDoors } from './drawDoors'
-import { DESLIZAR_DURACAO_MS, GIRAR_DURACAO_MS } from '../portas/animacoesDePorta'
+import { DESLIZAR_DURACAO_MS, GIRAR_DURACAO_MS, GIRAR_FECHAR_DURACAO_MS } from '../portas/animacoesDePorta'
+import { easeOutCubic } from '../transicoes/curvas'
 import type { DoorState, Wall } from '../types/map'
+
+/** Onde a folha está no meio do tempo: a curva de saída já andou 7/8 do caminho. */
+const NO_MEIO_DO_TEMPO = easeOutCubic(0.5)
 
 /**
  * PORTA ANIMADA NO MAPA: a porta que troca `open` anda de um estado ao outro
@@ -135,11 +139,12 @@ describe('animadorDePortas — o caminho', () => {
     expect(faixa(fills(g)[0], 'x').min).toBeCloseTo(fechada.min, 9)
     expect(faixa(fills(g)[0], 'x').max).toBeCloseTo(fechada.max, 9)
 
-    // Meio do tempo: a curva passa por 0,5 — sobra a metade presa à ponta de (x2,y2).
+    // Meio do tempo: a curva de saída responde na hora e já andou 7/8 — sobra
+    // 1/8 da folha preso à ponta de (x2,y2).
     quadro(DESLIZAR_DURACAO_MS / 2)
     const meio = faixa(fills(g)[0], 'x')
     expect(meio.max).toBeCloseTo(fechada.max, 9)
-    expect(meio.min).toBeCloseTo(fechada.min + (fechada.max - fechada.min) / 2, 9)
+    expect(meio.min).toBeCloseTo(fechada.min + (fechada.max - fechada.min) * NO_MEIO_DO_TEMPO, 9)
 
     quadro(DESLIZAR_DURACAO_MS / 2)
     expect(desenho(g)).toEqual(referencia(porta({ open: true })))
@@ -166,11 +171,41 @@ describe('animadorDePortas — o caminho', () => {
     animador.desenhar(g, [porta({ animacao: 'girar' })])
     animador.desenhar(g, [porta({ animacao: 'girar', open: true })])
     quadro(GIRAR_DURACAO_MS / 2)
-    // A 45° a folha de 60 cobre ~42 de altura; parada ela tem só a espessura (5).
+    // No meio do tempo a folha já girou 7/8 dos 70° (~61°): a de 60 cobre ~52
+    // de altura; parada ela tem só a espessura (5).
     const altura = faixa(fills(g)[0], 'y')
     expect(altura.max - altura.min).toBeGreaterThan(30)
     quadro(GIRAR_DURACAO_MS / 2)
     expect(desenho(g)).toEqual(referencia(porta({ animacao: 'girar', open: true })))
+    expect(ticker.count).toBe(0)
+  })
+
+  it('"Girar na dobradiça" fecha mais depressa do que abre: 260 ms contra 300', () => {
+    const { movimento, ticker, quadro } = relogio()
+    const g = new Graphics()
+    const animador = createAnimadorDePortas(movimento)
+    animador.desenhar(g, [porta({ animacao: 'girar', open: true })])
+    animador.desenhar(g, [porta({ animacao: 'girar' })])
+    quadro(GIRAR_FECHAR_DURACAO_MS - 1)
+    expect(ticker.count).toBe(1)
+    quadro(1)
+    expect(desenho(g)).toEqual(referencia(porta({ animacao: 'girar' })))
+    expect(ticker.count).toBe(0)
+  })
+
+  it('"Girar" invertido no meio do abrir volta no tempo de FECHAR que falta, sem quique', () => {
+    const { movimento, ticker, quadro } = relogio()
+    const g = new Graphics()
+    const animador = createAnimadorDePortas(movimento)
+    animador.desenhar(g, [porta({ animacao: 'girar' })])
+    animador.desenhar(g, [porta({ animacao: 'girar', open: true })])
+    quadro(GIRAR_DURACAO_MS / 2)
+    animador.desenhar(g, [porta({ animacao: 'girar' })])
+    // Faltam 7/8 do caminho de volta, no ritmo de fechar (260 ms o caminho inteiro).
+    quadro(GIRAR_FECHAR_DURACAO_MS * NO_MEIO_DO_TEMPO - 1)
+    expect(ticker.count).toBe(1)
+    quadro(1)
+    expect(desenho(g)).toEqual(referencia(porta({ animacao: 'girar' })))
     expect(ticker.count).toBe(0)
   })
 
@@ -186,8 +221,8 @@ describe('animadorDePortas — o caminho', () => {
     animador.desenhar(g, [porta()])
     // Sem salto: a folha continua onde estava no quadro da inversão.
     expect(faixa(fills(g)[0], 'x').min).toBeCloseTo(noMeio.min, 9)
-    // Faltava metade do caminho: metade da duração basta para chegar.
-    quadro(DESLIZAR_DURACAO_MS / 2)
+    // Faltavam 7/8 do caminho: 7/8 da duração bastam para chegar.
+    quadro(DESLIZAR_DURACAO_MS * NO_MEIO_DO_TEMPO)
     expect(desenho(g)).toEqual(referencia(porta()))
     expect(ticker.count).toBe(0)
   })

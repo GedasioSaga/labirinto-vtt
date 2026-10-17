@@ -1,0 +1,64 @@
+/*
+ * FICHA DA PORTA (fatia 11 do design consolidado): a medalha com a folha que
+ * gira (o `.cabeca__med--porta` e o `.porta-folha` do consolidado.css) e os
+ * acertos da ficha. Os tempos de cada porta chegam pelo svg
+ * (`--lb-porta-abre`/`--lb-porta-fecha`, os da animação escolhida, 0 ms sem
+ * animação); os tokens `--lb-gr-porta-*` são a reserva.
+ */
+
+/* 26 px e traço de 1,8 no lugar dos 22 px dos outros ícones da medalha. */
+.gr-cabeca__med .lb-medalha-porta { width: 26px; height: 26px; }
+
+.lb-medalha-porta__folha {
+  fill: currentColor;
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  transform: rotate(0deg);
+  /* Fechando: o tempo de fechar. A cor (trancar) acompanha no tempo base. */
+  transition:
+    transform var(--lb-porta-fecha, var(--lb-gr-porta-fecha)) var(--lb-gr-ease-porta),
+    fill var(--lb-motion-base) ease;
+}
+
+/* Abrindo: a regra do estado novo traz o tempo de abrir (o CSS usa o tempo de quem chega). */
+.lb-medalha-porta[data-estado='aberta'] .lb-medalha-porta__folha {
+  transform: rotate(-70deg);
+  transition-duration: var(--lb-porta-abre, var(--lb-gr-porta-abre)), var(--lb-motion-base);
+}
+
+/* Trancada: o vermelho escuro que lê sobre o latão (o #8f2f27 do protótipo). */
+.lb-medalha-porta[data-trancada] .lb-medalha-porta__folha { fill: #8f2f27; }
+
+/* O respiro da página, o mesmo da ficha do token (o essencial e as fichas não encostam na lombada). */
+.lb-ficha-da-porta { padding: 0 12px 20px 14px; }
+
+/*
+ * Interruptor com ajuda (a Secreta): o `.liga` com `.liga__ajuda` do protótipo.
+ * O rótulo e o trilho numa linha, a ajuda logo embaixo, a 2 px, só na coluna
+ * do texto (não passa por baixo do trilho). O respiro de 4 px em cima e embaixo
+ * é o do `.liga`.
+ */
+.lb-switch-com-ajuda {
+  display: grid;
+  grid-template-columns: 1fr 34px;
+  gap: 2px var(--lb-space-3);
+  padding: 4px 0;
+}
+.lb-switch-com-ajuda > .lb-switch { grid-column: 1 / -1; min-height: 0; }
+.lb-switch-com-ajuda > .gr-nota { grid-column: 1; line-height: 1.4; }
+
+/* As seções de antes (Parede, Abre com) viram trechos do cartão, sem o respiro nem o fio. */
+.lb-ficha-da-porta .gr-ficha__dentro .lb-section {
+  padding: 0;
+  gap: 10px;
+  border-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sem giro: a folha troca na hora (o piscar de opacidade vem do JS); a cor ainda passa. */
+  .lb-medalha-porta__folha,
+  .lb-medalha-porta[data-estado='aberta'] .lb-medalha-porta__folha {
+    transition: fill var(--lb-motion-base) ease;
+  }
+}

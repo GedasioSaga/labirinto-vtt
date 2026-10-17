@@ -236,6 +236,15 @@ export const theme = {
     /** Indicador que acompanha um clique de uso constante: anda na hora. */
     durMove: '150ms',
     durPanel: '260ms',
+    /**
+     * A folha da porta (fatia 11): abre em 300 ms e fecha em 260, numa saída
+     * que responde na hora e assenta sem passar do fim (o `--cs-porta-abre` e
+     * o `--cs-ease-porta` do consolidado.css). O giro do mapa
+     * (`portas/animacoesDePorta.ts`) usa os mesmos números.
+     */
+    portaAbre: '300ms',
+    portaFecha: '260ms',
+    easePorta: 'cubic-bezier(0.33, 1, 0.68, 1)',
     papelAlto: '#1b1711',
     papelBaixo: '#13100c',
     cartao: '#211c15',

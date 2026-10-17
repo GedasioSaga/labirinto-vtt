@@ -8,7 +8,8 @@ import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
-import { CabecaDaSelecao, deleteLabelFor, endireitarAction, floorActions, selectionIdentity, useOndeDaPorta } from './livro/CabecaDaSelecao'
+import { CabecaDaSelecao, deleteLabelFor, doorActions, endireitarAction, floorActions, selectionIdentity, useOndeDaPorta } from './livro/CabecaDaSelecao'
+import { FichaDaPorta } from './livro/FichaDaPorta'
 import { Essencial } from './grimorio/Cartoes'
 import { NadaSelecionado, type NadaSelecionadoProps } from './NadaSelecionado'
 import { FichaDaFerramenta } from './livro/FichaDaFerramenta'
@@ -452,6 +453,8 @@ export function PropertiesPanel({
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
   // A seção "Parede" muda de lugar conforme o item (ordem por tarefa): montada uma vez só.
   const doorSelected = selectedWall !== null && selectedWall.door !== null
+  // A porta selecionada (fatia 11): a ficha própria, a medalha e o "Mais ações" leem dela.
+  const portaSelecionada = selectedWall === null ? null : selectedWall.door
   // "MAIS AÇÕES" DA CABEÇA (fatia 8): as ações raras da seleção, por assunto.
   // Endireitar só entra quando o clique mudaria alguma coisa (Linha, Parede
   // solta ou Caminho tortos), como o botão que ele substitui; "Levar ao piso"
@@ -460,6 +463,7 @@ export function PropertiesPanel({
   const endireitarSelecionados = useMapStore((state) => state.endireitarSelecionados)
   const ondeDaPorta = useOndeDaPorta(doorSelected ? selectedWall.id : null)
   const acoesDaSelecao = [
+    ...(portaSelecionada === null ? [] : doorActions(portaSelecionada, wallDoor)),
     ...(endireitarMudaria ? [endireitarAction(() => endireitarSelecionados())] : []),
     ...(pisos === undefined ? [] : floorActions(pisos.pisoAtivo, pisos.onLevarSelecaoAoPiso)),
   ]
@@ -526,10 +530,12 @@ export function PropertiesPanel({
     (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined) &&
     ((activeTool === 'floor' && groups.has('floorStyle')) || groups.has('floorPiece'))
 
-  const wallStyleSection = (
+  // `semTitulo`: dentro da ficha "Parede em volta" da porta, que já tem o seu.
+  const secaoDaParede = (semTitulo: boolean) => (
     <ToolPropertiesSection group="wallStyle" groups={groups}>
       <WallStyleControls
         {...wallStyle}
+        semTitulo={semTitulo}
         // A última linha do bloco Parede, sem fio (fatia 3): "Ponta e canto" é
         // da parede. `key` pelo id: outra parede selecionada faz o Avançado
         // nascer fechado.
@@ -565,6 +571,7 @@ export function PropertiesPanel({
               floorPiece: selectedFloorPiece,
             })}
             token={selection.selection.count === 1 && selection.selection.kind === 'token' ? selectedToken : null}
+            porta={portaSelecionada}
             onde={ondeDaPorta}
             rotuloApagar={deleteLabelFor(selection.selection)}
             onApagar={selection.onRemoveSelected}
@@ -783,11 +790,24 @@ export function PropertiesPanel({
             <AvisoParedePresa {...paredePresa} />
           </ToolPropertiesSection>
         )}
-        {!doorSelected && wallStyleSection}
-        {selectedWall && (
+        {!doorSelected && secaoDaParede(false)}
+        {selectedWall !== null && portaSelecionada === null && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
-            <WallDoorControls door={selectedWall.door} {...wallDoor} />
-            {selectedWall.door !== null && estadoDaPorta}
+            <WallDoorControls door={null} {...wallDoor} />
+          </ToolPropertiesSection>
+        )}
+        {/* PORTA SELECIONADA (fatia 11): a ficha própria — essencial (Estado,
+            Trancada, Secreta, Espiar) e as fichas Quem abre, Aparência (com o
+            tipo), Parede em volta e Depende do estado. */}
+        {portaSelecionada !== null && (
+          <ToolPropertiesSection group="wallDoor" groups={groups}>
+            <FichaDaPorta
+              door={portaSelecionada}
+              {...wallDoor}
+              onKindChange={doorKind.onKindChange}
+              paredeEmVolta={groups.has('wallStyle') ? secaoDaParede(true) : undefined}
+              estadoDaPorta={estadoDaPorta}
+            />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="doorKind" groups={groups}>
@@ -798,10 +818,10 @@ export function PropertiesPanel({
           {activeTool === 'door' && <DoorModeControls {...doorMode} />}
           {/* Não existe porta normal/dupla/portão de um buraco: com o vão
               escolhido a seção "Tipo de porta" sairia oferecendo uma escolha
-              que o clique seguinte ignoraria. */}
-          {(activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
+              que o clique seguinte ignoraria. A porta selecionada escolhe o
+              tipo na própria ficha (Aparência). */}
+          {!doorSelected && (activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
         </ToolPropertiesSection>
-        {doorSelected && wallStyleSection}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             {/* ITEM NO CHÃO: a imagem do item não é móvel nem tem "imagem ao

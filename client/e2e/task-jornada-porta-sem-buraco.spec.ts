@@ -123,6 +123,8 @@ async function salaComPortaoTrocadoParaNormal(page: Page) {
   // Seleciona a porta recém-criada e troca o tipo NO PAINEL.
   await ferramenta(page, 'Selecionar')
   await page.mouse.click(box.x + 576, box.y + ARESTA_Y)
+  // O tipo da porta selecionada mora na ficha "Aparência" (fatia 11), que nasce fechada.
+  await page.getByRole('button', { name: /^Aparência/ }).click()
   const portao = page.getByRole('radio', { name: 'Portão', exact: true })
   await expect(portao).toBeChecked()
   const normal = page.getByRole('radio', { name: 'Normal', exact: true })

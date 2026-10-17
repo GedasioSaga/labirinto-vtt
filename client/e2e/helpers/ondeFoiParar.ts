@@ -323,8 +323,17 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da porta', estado: 'porta selecionada no mapa', escopo: 'esquerda', preparo: sel('wall', 'd1'),
-    vai: 'Página Ficha da porta: Estado, Trancada, Secreta, Espiar + Quem abre, Aparência, Parede em volta, Depende do estado', fatia: '11',
-    linhas: todos([b('Virar parede sólida'), cx('Aberta'), cx('Trancada'), cx('Jogador pode espiar'), cx('Secreta'), rg('Abre por'), ['combobox', 'Animação ao abrir'], b('Procurar animações novas'), rg('Tipo de porta'), ...PAREDE_ESTILO]),
+    vai: 'Página Ficha da porta: Estado, Trancada, Secreta, Espiar + Quem abre, Aparência, Parede em volta, Depende do estado (feito)', fatia: '11',
+    linhas: [
+      // O essencial, sem clique: o Estado é um seg (Aberta/Fechada com ícone) e os interruptores de sempre.
+      ...todos([rg('Estado'), ['radio', 'Aberta'], cx('Trancada'), cx('Secreta'), cx('Jogador pode espiar')]),
+      // As fichas nascem fechadas; o nome do cabeçalho leva o resumo ("Quem abre Os dois lados").
+      l('Quem abre: Abre por', rg('Abre por'), b('/^Quem abre/')),
+      ...todos([rg('Tipo de porta'), ['combobox', 'Animação ao abrir'], b('Procurar animações novas')], b('/^Aparência/')),
+      ...todos(PAREDE_ESTILO, b('/^Parede em volta/')),
+      // "Mais ações" da cabeça: abrir, trancar e virar parede (o menu fica aberto entre as linhas).
+      ...todos([menu('Abrir agora'), menu('Trancar'), menu('Virar parede sólida')], b('Mais ações')),
+    ],
   },
   {
     tela: 'mestre', titulo: 'Ficha da parede', estado: 'parede selecionada no mapa', escopo: 'esquerda', preparo: sel('wall', 'w1'),

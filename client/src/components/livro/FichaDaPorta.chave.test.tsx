@@ -1,11 +1,11 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DoorState } from '../types/map'
-import { WallDoorControls } from './WallDoorControls'
+import type { DoorState } from '../../types/map'
+import { FichaDaPorta } from './FichaDaPorta'
 
 /** CHAVE ABRE PORTA no editor: a porta trancada ganha "Abre com", o nome do item que a destranca. */
-describe('WallDoorControls — "Abre com"', () => {
+describe('FichaDaPorta — "Abre com"', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -22,7 +22,7 @@ describe('WallDoorControls — "Abre com"', () => {
   })
 
   const render = (door: DoorState, onKeyChange = vi.fn()) => {
-    act(() => root.render(<WallDoorControls door={door} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSemEspiar={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onKeyChange={onKeyChange} onOpensFromChange={vi.fn()} />))
+    act(() => root.render(<FichaDaPorta door={door} onKindChange={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSemEspiar={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onKeyChange={onKeyChange} onOpensFromChange={vi.fn()} />))
     return onKeyChange
   }
   const campo = () => container.querySelector('input[aria-label="Abre com"]')

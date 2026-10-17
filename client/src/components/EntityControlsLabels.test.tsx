@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CabecaDaSelecao, deleteLabelFor } from './livro/CabecaDaSelecao'
-import { WallDoorControls } from './WallDoorControls'
+import { FichaDaPorta } from './livro/FichaDaPorta'
 import { StairControls } from './StairControls'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { WallLineStyleField, WallStyleControls } from './WallStyleControls'
@@ -88,16 +88,17 @@ describe('Ponta e canto — mora no Avançado (fatia 3)', () => {
   })
 })
 
-describe('WallDoorControls — rótulos fixos', () => {
+describe('FichaDaPorta — rótulos fixos', () => {
   it.each([
     [false, false],
     [true, true],
-  ])('open=%s locked=%s: sempre "Aberta" e "Trancada"', (open, locked) => {
-    render(<WallDoorControls door={{ open, locked, kind: 'normal' }} onToggleDoor={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSemEspiar={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onOpensFromChange={vi.fn()} />)
+  ])('open=%s locked=%s: sempre "Aberta", "Fechada" e "Trancada"', (open, locked) => {
+    render(<FichaDaPorta door={{ open, locked, kind: 'normal' }} onKindChange={vi.fn()} onToggleOpen={vi.fn()} onToggleLocked={vi.fn()} onToggleSemEspiar={vi.fn()} onToggleSecret={vi.fn()} onRevealPassage={vi.fn()} onOpensFromChange={vi.fn()} />)
     const text = container.textContent ?? ''
     expect(text).toContain('Aberta')
     expect(text).toContain('Trancada')
-    expect(text).not.toContain('Fechada')
+    // As duas opções do Estado ficam sempre à vista; nenhum rótulo troca com o estado.
+    expect(text).toContain('Fechada')
     expect(text).not.toContain('Destrancada')
   })
 })

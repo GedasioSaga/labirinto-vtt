@@ -511,25 +511,28 @@ Parte de: alavanca selecionada. Vai para: Página Ficha do pino (alavanca com "A
 
 ### Ficha da porta
 
-Parte de: porta selecionada no mapa. Vai para: Página Ficha da porta: Estado, Trancada, Secreta, Espiar + Quem abre, Aparência, Parede em volta, Depende do estado. Fatia: 11.
+Parte de: porta selecionada no mapa. Vai para: Página Ficha da porta: Estado, Trancada, Secreta, Espiar + Quem abre, Aparência, Parede em volta, Depende do estado (feito). Fatia: 11.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Virar parede sólida | button "Virar parede sólida" | (livro do mestre) | (do bloco) |
-| Aberta | checkbox "Aberta" | (livro do mestre) | (do bloco) |
+| Estado | radiogroup "Estado" | (livro do mestre) | (do bloco) |
+| Aberta | radio "Aberta" | (livro do mestre) | (do bloco) |
 | Trancada | checkbox "Trancada" | (livro do mestre) | (do bloco) |
-| Jogador pode espiar | checkbox "Jogador pode espiar" | (livro do mestre) | (do bloco) |
 | Secreta | checkbox "Secreta" | (livro do mestre) | (do bloco) |
-| Abre por | radiogroup "Abre por" | (livro do mestre) | (do bloco) |
-| Animação ao abrir | combobox "Animação ao abrir" | (livro do mestre) | (do bloco) |
-| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) | (do bloco) |
-| Tipo de porta | radiogroup "Tipo de porta" | (livro do mestre) | (do bloco) |
-| Parede interna | checkbox "Parede interna" | (livro do mestre) | (do bloco) |
-| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (livro do mestre) | (do bloco) |
-| Cor da parede | textbox "Cor da parede" | (livro do mestre) | (do bloco) |
-| Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) | (do bloco) |
-| Ajuste fino | slider "Ajuste fino" | (livro do mestre) | (do bloco) |
-| Avançado | button "Avançado" | (livro do mestre) | (do bloco) |
+| Jogador pode espiar | checkbox "Jogador pode espiar" | (livro do mestre) | (do bloco) |
+| Quem abre: Abre por | radiogroup "Abre por" | (livro do mestre) > clicar button "/^Quem abre/" | (do bloco) |
+| Tipo de porta | radiogroup "Tipo de porta" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Animação ao abrir | combobox "Animação ao abrir" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Parede interna | checkbox "Parede interna" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Pegar do mapa a cor da parede | button "Pegar do mapa a cor da parede" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Cor da parede | textbox "Cor da parede" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Espessura da parede | radiogroup "Espessura da parede" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Ajuste fino | slider "Ajuste fino" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Avançado | button "Avançado" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
+| Abrir agora | menuitem "Abrir agora" | (livro do mestre) > clicar button "Mais ações" | (do bloco) |
+| Trancar | menuitem "Trancar" | (livro do mestre) > clicar button "Mais ações" | (do bloco) |
+| Virar parede sólida | menuitem "Virar parede sólida" | (livro do mestre) > clicar button "Mais ações" | (do bloco) |
 
 ### Ficha da parede
 
@@ -1109,4 +1112,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Depende do estado (porta, luz, zona, pino) | só com Estado do mundo criado |
 | Jogador: Ficha, Grupo, Meus personagens em outra cena, abas Caderno/Lugares/Dados por dentro | pedem sistema de RPG, colegas ou histórico; as abas estão cobertas |
 
-Total: 607 controles em 67 blocos.
+Total: 610 controles em 67 blocos.

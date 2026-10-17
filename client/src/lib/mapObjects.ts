@@ -147,14 +147,28 @@ function roomHasDoorAt(room: NamedRoom, point: Point, tolerance: number): boolea
 }
 
 /** As salas da porta, por nome, em ordem alfabética: "Adega e Corredor". */
-function doorRooms(rooms: readonly NamedRoom[], grid: number, wall: Wall): string {
+function doorRoomNames(rooms: readonly NamedRoom[], grid: number, wall: Wall): string[] {
   const middle = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
   const tolerance = grid * DOOR_ROOM_TOLERANCE_CELLS
   const names = new Set<string>()
   for (const room of rooms) {
     if (room.id === wall.regionId || roomHasDoorAt(room, middle, tolerance)) names.add(room.name)
   }
-  return [...names].sort(COLLATOR.compare).join(' e ')
+  return [...names].sort(COLLATOR.compare)
+}
+
+function doorRooms(rooms: readonly NamedRoom[], grid: number, wall: Wall): string {
+  return doorRoomNames(rooms, grid, wall).join(' e ')
+}
+
+/**
+ * As salas de uma porta, as mesmas da lista "Objetos do mapa", em ordem
+ * alfabética; vazio para parede lisa, porta solta ou id que não existe. A
+ * cabeça da ficha liga as duas com '↔' (`CabecaDaSelecao.ondeDaPorta`).
+ */
+export function salasDaPorta(map: MapData, wallId: string): string[] {
+  const wall = map.walls.find((w) => w.id === wallId)
+  return wall !== undefined && wall.door !== null ? doorRoomNames(namedRoomsOf(map.regions), map.grid, wall) : []
 }
 
 /** A linha de uma Sala (`null` para região comum ou sem ponto). Exportada para a busca em todas as cenas (`lib/buscaNaAventura.ts`). */

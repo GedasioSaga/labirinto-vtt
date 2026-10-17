@@ -3,7 +3,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TerritorioControls } from '../components/TerritorioControls'
 import { TOKEN_NPC_HINT, TokenNpcControls } from '../components/TokenNpcControls'
-import { WallDoorControls } from '../components/WallDoorControls'
 import { ESPERA_DO_PRIMEIRO_MS, JANELA_DO_VIZINHO_MS, classificarDicas, instalarDicasDoPainel, posicionarBalao } from './dicaDoPainel'
 
 /**
@@ -164,19 +163,12 @@ describe('classificarDicas — quais frases viram balão', () => {
   })
 
   it('campo com um só controle descrito: a linha é o campo (rótulo e controle); com dois, cada controle é a sua linha', () => {
-    montar(
-      createElement(WallDoorControls, {
-        key: 'porta',
-        door: { open: false, locked: false, kind: 'normal' },
-        onToggleDoor: () => {},
-        onToggleOpen: () => {},
-        onToggleLocked: () => {},
-        onToggleSemEspiar: () => {},
-        onToggleSecret: () => {},
-        onRevealPassage: () => {},
-        onOpensFromChange: () => {},
-      }),
-    )
+    // Campo com dois controles descritos (o molde do bloco antigo da porta: um
+    // interruptor e um segmento, cada um com a sua frase).
+    const campoDuplo = document.createElement('div')
+    campoDuplo.className = 'lb-field'
+    campoDuplo.innerHTML = `<label class="lb-switch"><span>Secreta</span><span class="lb-switch__track"><input class="lb-switch__input" type="checkbox" aria-describedby="secreta-dica" /></span></label><p class="lb-field__hint" id="secreta-dica">Os jogadores veem parede até você revelar.</p><div class="lb-seg" role="radiogroup" aria-label="Abre por" aria-describedby="lado-dica"><button type="button" role="radio" aria-checked="true" class="lb-seg__option">Os dois lados</button></div><p class="lb-field__hint" id="lado-dica">Qualquer jogador encostado abre.</p>`
+    corpo.appendChild(campoDuplo)
     const campoUnico = document.createElement('div')
     campoUnico.className = 'lb-field'
     campoUnico.innerHTML = `<label class="lb-label" for="piso">Piso</label><input id="piso" aria-describedby="piso-dica" /><p class="lb-field__hint" id="piso-dica">O jogador vê só o piso da ficha dele.</p>`

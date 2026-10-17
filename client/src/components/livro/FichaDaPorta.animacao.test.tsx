@@ -1,9 +1,9 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DoorState } from '../types/map'
-import { esquecerAnimacoesDePortaDeFora, registrarAnimacaoDePorta } from '../portas/animacoesDePorta'
-import { WallDoorControls } from './WallDoorControls'
+import type { DoorState } from '../../types/map'
+import { esquecerAnimacoesDePortaDeFora, registrarAnimacaoDePorta } from '../../portas/animacoesDePorta'
+import { FichaDaPorta } from './FichaDaPorta'
 
 /**
  * PORTA ANIMADA: "Animação ao abrir" no painel da porta. A lista vem do
@@ -29,7 +29,7 @@ const FECHADA: DoorState = { open: false, locked: false, kind: 'normal' }
 
 function render(door: DoorState, onAnimacaoChange?: (id: string | null) => void) {
   const handlers = { onToggleDoor: vi.fn(), onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleSemEspiar: vi.fn(), onToggleSecret: vi.fn(), onRevealPassage: vi.fn(), onOpensFromChange: vi.fn() }
-  act(() => root.render(<WallDoorControls door={door} {...handlers} onAnimacaoChange={onAnimacaoChange} />))
+  act(() => root.render(<FichaDaPorta door={door} {...handlers} onKindChange={vi.fn()} onAnimacaoChange={onAnimacaoChange} />))
 }
 
 /** O `<select>` que o rótulo "Animação ao abrir" aponta (`htmlFor`). */
@@ -50,7 +50,7 @@ function escolher(select: HTMLSelectElement, valor: string): void {
   })
 }
 
-describe('WallDoorControls: animação ao abrir', () => {
+describe('FichaDaPorta: animação ao abrir', () => {
   it('porta sem o campo mostra "Sem animação" e lista as embutidas', () => {
     render(FECHADA, vi.fn())
     const select = seletor()

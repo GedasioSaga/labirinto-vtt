@@ -119,25 +119,27 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
   // A porta nova fica selecionada: o painel segue mostrando Aberta/Trancada.
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: door!.id })
 
-  // O checkbox real fica visualmente coberto pelo track decorativo do Toggle (span
-  // com o desenho do interruptor) — force:true clica direto no input, igual o usuário
-  // clicando em cima do interruptor visual faria.
-  // Rótulo fixo "Aberta" (nomeia o estado LIGADO); porta nova começa desmarcada.
-  const aberta = page.getByRole('checkbox', { name: 'Aberta', exact: true })
-  await expect(aberta).not.toBeChecked()
-  await aberta.click({ force: true })
+  // Estado é um seg na ficha da porta (fatia 11): "Aberta" e "Fechada" sempre à
+  // vista, rótulos fixos; porta nova começa fechada.
+  const aberta = page.getByRole('radio', { name: 'Aberta', exact: true })
+  await expect(aberta).toHaveAttribute('aria-checked', 'false')
+  await aberta.click()
   ;({ walls } = await getMapSnapshot(page))
   const doorId = door!.id
   door = walls.find((w) => w.id === doorId)
   expect(door?.door?.open).toBe(true)
-  await expect(aberta).toBeChecked()
+  await expect(aberta).toHaveAttribute('aria-checked', 'true')
 
   // Aberta + Trancada não existe: trancar fecha, e abrir de novo destranca.
+  // O checkbox real fica visualmente coberto pelo track decorativo do Toggle (span
+  // com o desenho do interruptor) — force:true clica direto no input, igual o usuário
+  // clicando em cima do interruptor visual faria.
   const trancada = page.getByRole('checkbox', { name: 'Trancada', exact: true })
   await trancada.click({ force: true })
   ;({ walls } = await getMapSnapshot(page))
   expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: false, locked: true })
-  await aberta.click({ force: true })
+  await expect(aberta).toHaveAttribute('aria-checked', 'false')
+  await aberta.click()
   ;({ walls } = await getMapSnapshot(page))
   expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: true, locked: false })
 })
