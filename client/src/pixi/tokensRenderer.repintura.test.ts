@@ -119,7 +119,6 @@ describe('createTokensRenderer — só repinta a ficha que mudou', () => {
     ['oculta para jogadores', { secret: true }],
     ['congelada', { congelado: true }],
     ['condição', { conditions: ['envenenado'] }],
-    ['vida', { health: { current: 3, max: 10, shownToPlayers: false } }],
   ]
   it.each(campos)('mudar %s repinta só a ficha mudada', (_campo, mudanca) => {
     const container = new Container()
@@ -130,6 +129,31 @@ describe('createTokensRenderer — só repinta a ficha que mudou', () => {
     const mudadas = fichas.map((t) => (t.id === 'b' ? { ...t, ...mudanca } : t))
 
     expect(fichasRepintadas(container, donos, () => renderer.draw(container, mudadas, GRID, null, 1))).toEqual(['b'])
+  })
+
+  // BARRA DE VIDA (fatia 10): a vida vem da ficha do sistema, por fora do token,
+  // num mapa refeito a cada desenho — conta o VALOR, não o objeto.
+  const comVida = (renderer: ReturnType<typeof createTokensRenderer>, container: Container, fichas: Token[], vidaDeB: number) =>
+    renderer.draw(container, fichas, GRID, null, 1, null, undefined, undefined, undefined, new Map([['b', { atual: vidaDeB, maximo: 10 }]]))
+
+  it('mudar a vida da ficha ligada repinta só a ficha mudada, com o MESMO token', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+    const fichas = tresFichas()
+    comVida(renderer, container, fichas, 10)
+    const donos = donosDosWrappers(container)
+
+    expect(fichasRepintadas(container, donos, () => comVida(renderer, container, fichas, 3))).toEqual(['b'])
+  })
+
+  it('a mesma vida num mapa novo não repinta ninguém', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+    const fichas = tresFichas()
+    comVida(renderer, container, fichas, 7)
+    const donos = donosDosWrappers(container)
+
+    expect(fichasRepintadas(container, donos, () => comVida(renderer, container, fichas, 7))).toEqual([])
   })
 
   it('a seleção que troca repinta só a ficha que saiu e a que entrou', () => {

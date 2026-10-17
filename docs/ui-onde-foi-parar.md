@@ -1100,7 +1100,7 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Endireitar na sala ou parede solta | só com traço torto; coberto no desenho |
 | Marcas dos jogadores (MarcasDaCena) | só com marcas deixadas por jogadores |
 | Visto por / Ninguém vê (abaixo do tipo de ficha), Levar para outra cena (ficha), Rotina e Luzes (cartões de Comportamento) do token | pedem sala aberta, outra cena ou Estado do mundo com valores; PropertiesPanel.ficha.test.tsx abre Rotina e Luzes |
-| Vida do token (Vida atual, Vida máxima, Jogadores veem a barra) | saiu da ficha do token na fatia 9 (D): a vida passa a vir da ficha do sistema na fatia 10; a barra no mapa e o dado salvo continuam |
+| Vida do token (Vida atual, Vida máxima, Jogadores veem a barra) | saiu da ficha do token na fatia 9 (D); desde a fatia 10 a barra no mapa lê o HP da ficha do sistema ligada no cartão "Personagem" (o ajuste é na própria ficha: "Abrir ficha" > HP). Mestre vê sempre; jogador vê a das fichas de jogador e das que controla, só a proporção. A vida antiga fica no arquivo sem uso. task-jornada-barra-de-vida.spec.ts cobre |
 | Livro de regras (página Mesa; e Grupo com a sala fechada) | só com sistema de RPG que tem livro |
 | Divisor "Altura das Cenas" (coluna da direita) | saiu na fatia 4: as Cenas viraram uma página do livro da mesa e não há mais altura a repartir; a chave guardada sai do aparelho |
 | Grupo do mestre (fatia 5): sob o título de cada cena, o pedido de passagem ("Deixar ir: <nome>", "Não: <nome>") | pede um jogador que viajou até um pino de passagem ligado a outra cena; GrupoCompacto.test.tsx e PartySection.test.tsx alcançam os dois botões sob o título da cena (o resto do Grupo com jogadores está no estado "mestre com jogadores") |

@@ -1169,19 +1169,23 @@ export interface RegionSplit {
 }
 
 /**
- * Vida da ficha — é o que desenha a barra fina SOB ela no mapa ("ninguém sabe
- * quanto falta para o monstro cair sem o mestre narrar"). Regras de leitura,
- * de gravação e do recorte do jogador em `lib/tokenHealth.ts`.
+ * Vida no token — a barra fina SOB ele no mapa ("ninguém sabe quanto falta
+ * para o monstro cair sem o mestre narrar").
+ *
+ * Desde a fatia 10 (decisão D) a barra do MESTRE lê a ficha do sistema ligada
+ * ao token (`lib/vidaDaFicha.ts`), e este formato só viaja ao JOGADOR: o
+ * recorte (`lib/fogFilter.ts`) põe aqui a PROPORÇÃO, em centésimos. A vida que
+ * o mestre digitava no token antes da fatia 9 fica no arquivo sem uso (4.4).
  */
 export interface TokenHealth {
-  /** Pontos de vida agora, de 0 a `max`. */
+  /** Agora, de 0 a `max` (no jogador, centésimos). */
   current: number
-  /** Pontos de vida cheios, 1 ou mais. */
+  /** Cheia, 1 ou mais (no jogador, 100). */
   max: number
   /**
-   * Os JOGADORES veem a barra desta ficha. `false` (o padrão) = só o mestre:
-   * a vida inteira fica fora do recorte do jogador (`lib/fogFilter.ts`). Com
-   * `true` o jogador recebe a PROPORÇÃO, nunca os pontos (`healthForPlayer`).
+   * Na vida antiga do token: a escolha "Jogadores veem a barra", hoje sem uso.
+   * No que chega ao jogador, sempre `true`. Quem vê é a regra da decisão 4.3
+   * (`barraVistaPeloJogador`).
    */
   shownToPlayers: boolean
 }
@@ -1288,10 +1292,11 @@ export interface Token extends PlayerSecret, NoPiso {
   x: number
   y: number
   size: number
-  /** `undefined`/`null` === ficha sem barra de vida (aparência idêntica à de
-   *  antes deste campo) — sem linha de migração, mesmo padrão de
-   *  `rotation`/`color`. Mapa do disco chega cru: quem lê passa por
-   *  `readTokenHealth` (`lib/tokenHealth.ts`). */
+  /** No mapa do mestre: a vida antiga digitada no token, guardada SEM USO desde
+   *  a fatia 10 (decisão 4.4: a barra lê a ficha do sistema, `lib/vidaDaFicha.ts`;
+   *  fica no arquivo para dar para voltar atrás, e nunca vai ao jogador). No
+   *  recorte do jogador: a proporção da barra que ele pode ver. Sem migração.
+   *  Quem lê do jogador passa por `readTokenHealth` (`lib/tokenHealth.ts`). */
   health?: TokenHealth | null
   /** Caminho absoluto da imagem importada (mesmo pipeline de Prop.src).
    *  null = círculo genérico, render idêntico ao de drawTokens.ts:10-18.

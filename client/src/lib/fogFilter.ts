@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, Wall, WatchAlert } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { importadasParaJogador, texturasParaJogador } from './texturas'
@@ -7,7 +7,7 @@ import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
-import { healthForPlayer } from './tokenHealth'
+import { barraVistaPeloJogador, type BarrasParaJogador } from './vidaDaFicha'
 import { tokenConditionsOf } from './tokenConditions'
 import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 import { carrierIdOf } from './carry'
@@ -1395,6 +1395,8 @@ interface TokenCut {
   embarcavel?: boolean
   /** MAPA DE CONTINENTE: a cor do pino que ESTE recorte decidiu (`pinoOf`); `undefined` = ficha de sempre. */
   pino?: string
+  /** BARRA DE VIDA: a proporção que ESTE recorte decidiu (`barraVistaPeloJogador`); `undefined` = sem barra. */
+  health?: TokenHealth
 }
 
 /**
@@ -1412,7 +1414,9 @@ interface TokenCut {
  * - `rotation`: presente (0 inclusive) é a frente da ficha — nunca vira ausente.
  * - `color`: só `#rrggbb`; texto torto no campo não sai.
  * - `conditions`: só os ids da lista (`tokenConditionsOf`).
- * - `health`: só a que o mestre mostra, e em proporção (`healthForPlayer`).
+ * - `health`: só a deste recorte (`cut.health`): a PROPORÇÃO da ficha do
+ *   sistema ligada, na ficha de jogador ou na que ele controla (`lib/vidaDaFicha.ts`).
+ *   A vida antiga gravada no token (`Token.health` do mapa) nunca sai.
  * - `alerta`: só a marca deste recorte; a gravada no mapa e o cone (`vigia`) ficam.
  * - `secret`: a tela do dono pinta a própria ficha secreta mais apagada.
  * - `mochila`: só a do DONO, item a item com id e nome (`readCarriedItems`).
@@ -1457,8 +1461,7 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (parseHexColor(token.color) !== null) forPlayer.color = token.color
   const conditions = tokenConditionsOf(token)
   if (conditions.length > 0) forPlayer.conditions = conditions
-  const health = healthForPlayer(token.health)
-  if (health !== null) forPlayer.health = health
+  if (cut.health !== undefined) forPlayer.health = { ...cut.health }
   if (cut.alert !== null) forPlayer.alerta = cut.alert
   if (token.secret !== undefined) forPlayer.secret = token.secret
   if (cut.isOwner) {
@@ -1922,6 +1925,9 @@ export function pisoDoGrupo(
  * `companions`: nome e cor de cada jogador da mesa (`CompanionMarks`). A ficha
  * de outro jogador que SAI no recorte leva a marca dele; ausente = nenhuma
  * ficha sai marcada.
+ * `barras`: BARRA DE VIDA — por token, a proporção da ficha do sistema ligada
+ * (`barrasParaJogador`, montado pelo host, que tem os personagens). Ausente =
+ * nenhuma ficha sai com barra.
  */
 export function filterMapForPlayer(
   mapaInteiro: MapData,
@@ -1941,6 +1947,7 @@ export function filterMapForPlayer(
   seenMarks?: ReadonlySet<string>,
   oneWayExits?: OneWayExits,
   companions?: CompanionMarks,
+  barras?: BarrasParaJogador,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -1962,6 +1969,7 @@ export function filterMapForPlayer(
     // MAPA DE CONTINENTE: a cor de cada pino de jogador (vazio fora do Continente).
     // Só a cor sai, e só na ficha que já atravessa (`pino` em `tokenForPlayer`).
     pinoOf: coresDosPinos(mapaInteiro, ownership),
+    barras,
   })
 }
 
@@ -2004,6 +2012,12 @@ export interface PlayerOnlyView {
    * cada jogador (a neutra no lugar, `corDoDono: false`).
    */
   pinoOf?: ReadonlyMap<string, string>
+  /**
+   * BARRA DE VIDA: a proporção de cada token com ficha (`barrasParaJogador`).
+   * Sai na ficha de jogador e na que este recorte controla; a de NPC alheio,
+   * não (decisão 4.3). Ausente = nenhuma ficha sai com barra.
+   */
+  barras?: BarrasParaJogador
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -2051,7 +2065,7 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras }: PlayerOnlyView = {},
 ): PlayerMapView {
   /**
    * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
@@ -2062,7 +2076,7 @@ export function filterMapForGroup(
    */
   const map = mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans))
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -3590,6 +3604,9 @@ export function filterMapForGroup(
       aBordo: playerId !== undefined && own ? aboardOf(t.id) : undefined,
       embarcavel: playerId !== undefined && !shadow && boardable.has(t.id),
       pino: own || !disfarcada ? pinoOf?.get(t.id) : undefined,
+      // BARRA DE VIDA: a ficha de jogador (para todos) e a que ele controla. Vulto e
+      // ficha disfarçada de outro saem sem ela: a barra diria que há um jogador por trás.
+      health: own || !disfarcada ? barraVistaPeloJogador(barras?.get(t.id), own) : undefined,
     })
     return shadow ? asShadow(seen) : seen
   })

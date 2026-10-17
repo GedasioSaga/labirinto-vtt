@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MapData, Token } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
+import type { BarrasParaJogador } from './vidaDaFicha'
 import { createEmptyMap } from './mapFactory'
 
 const RAIO = 700
@@ -40,12 +41,16 @@ function mapaCom(tokens: Token[]): MapData {
 /** Duda é dona de "arco"; o NPC está a 200 px dela, dentro da visão. */
 const posse = { duda: ['arco'] }
 
-function tokensDaDuda(tokens: Token[]): Token[] {
-  return filterMapForPlayer(mapaCom(tokens), 'duda', posse, RAIO).map.tokens
+/** BARRA DE VIDA (fatia 10): a proporção da ficha do sistema que o host monta para o recorte. */
+const BARRA_DO_ARCO: BarrasParaJogador = new Map([['arco', { proporcao: { current: 50, max: 100, shownToPlayers: true }, deJogador: true }]])
+
+function tokensDaDuda(tokens: Token[], barras?: BarrasParaJogador): Token[] {
+  // Os 13 opcionais do meio (memória, portas, pinos...) não entram nesta régua.
+  return filterMapForPlayer(mapaCom(tokens), 'duda', posse, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, barras).map.tokens
 }
 
-function recebida(tokens: Token[], id: string): Token {
-  const achada = tokensDaDuda(tokens).find((t) => t.id === id)
+function recebida(tokens: Token[], id: string, barras?: BarrasParaJogador): Token {
+  const achada = tokensDaDuda(tokens, barras).find((t) => t.id === id)
   if (achada === undefined) throw new Error(`a ficha ${id} não chegou ao recorte`)
   return achada
 }
@@ -120,12 +125,12 @@ describe('recorte: a ficha sai por lista branca', () => {
           imageData: FOTO,
           image: 'C:/mestre/fotos/arco.png',
           conditions: ['envenenado'],
-          health: { current: 5, max: 10, shownToPlayers: true },
           secret: true,
           mochila: [{ id: 'chave', nome: 'Chave da ponte' }],
         }),
       ],
       'arco',
+      BARRA_DO_ARCO,
     )
     expect(arco).toEqual({
       id: 'arco',

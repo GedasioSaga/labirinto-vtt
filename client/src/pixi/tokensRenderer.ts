@@ -2,11 +2,12 @@ import { Container, Sprite, Graphics, Text, Assets, Texture, type Ticker } from 
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
-import type { Token, TokenHealth } from '../types/map'
+import type { Token } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from './constants'
 import { drawTokenCircle, tokenCircleRadius } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
-import { readTokenHealth } from '../lib/tokenHealth'
+import type { HealthAmount } from '../lib/tokenHealth'
+import { mesmaVida, type VidaDaFicha, type VidasDaCena } from '../lib/vidaDaFicha'
 import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
@@ -142,6 +143,9 @@ export interface TokensRenderer {
    * `pinos`: MAPA DE CONTINENTE — a cor (`#rrggbb`) de cada ficha de jogador,
    * que é desenhada como o pino no lugar do disco (`lib/marcadorDeContinente.ts`):
    * só o nome embaixo, sem vida, condições nem anel da vez. Omitido = nenhuma.
+   * `vidas`: BARRA DE VIDA — a vida da ficha do sistema ligada a cada token
+   * (`lib/vidaDaFicha.ts`, `vidasDaCena`); o mestre vê a de toda ficha ligada.
+   * Omitido = nenhuma barra. `Token.health` (a vida antiga do token) não é lido.
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -158,6 +162,7 @@ export interface TokensRenderer {
     awayTokenIds?: ReadonlySet<string>,
     glide?: TokenGlideContext,
     pinos?: ReadonlyMap<string, string>,
+    vidas?: VidasDaCena,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -184,6 +189,7 @@ interface ScaleTween {
 
 const NO_REMOTE_MOVES: ReadonlySet<string> = new Set()
 const NO_PINS: ReadonlyMap<string, string> = new Map()
+const SEM_VIDAS: VidasDaCena = new Map()
 
 /** Anel de seleção no chão do pino, em px de tela: a elipse de um anel deitado, na mesma inclinação do pino. */
 const MARCADOR_SELECAO_RX = 15
@@ -215,9 +221,10 @@ function applyTurnPulse(ring: Graphics, k: number): void {
  * A ficha entra pela REFERÊNCIA: a store troca o objeto a cada mudança e
  * conserva o das fichas que não mudaram (`moveTokenLive`, `setTokenPosition`),
  * então a referência cobre todo campo que o desenho lê — cor, foto, tamanho,
- * giro, nome, vida, condições, oculta, secreta, congelada. O resto vem de
- * fora da ficha: a grade (raio), a seleção, a vez e o Volto já. O zoom não
- * entra: ele só muda a escala do nome, refeita a cada `draw` e em `setCameraScale`.
+ * giro, nome, condições, oculta, secreta, congelada. O resto vem de fora da
+ * ficha: a grade (raio), a seleção, a vez, o Volto já e a vida da ficha do
+ * sistema (comparada por VALOR: o mapa de vidas é refeito a cada desenho). O
+ * zoom não entra: ele só muda a escala do nome, refeita a cada `draw` e em `setCameraScale`.
  */
 interface TokenPaint {
   token: Token
@@ -227,26 +234,21 @@ interface TokenPaint {
   away: boolean
   /** MAPA DE CONTINENTE: a cor do pino; `null` = disco ou foto de sempre. */
   pino: string | null
+  /** BARRA DE VIDA: a vida da ficha ligada; `null` = sem barra. */
+  vida: VidaDaFicha | null
 }
 
 /** A última pintura da ficha ainda vale para estas entradas? */
-function paintIsCurrent(
-  painted: TokenPaint | null,
-  token: Token,
-  gridSize: number,
-  selected: boolean,
-  isTurn: boolean,
-  away: boolean,
-  pino: string | null,
-): boolean {
+function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean {
   return (
     painted !== null &&
-    painted.token === token &&
-    painted.gridSize === gridSize &&
-    painted.selected === selected &&
-    painted.isTurn === isTurn &&
-    painted.away === away &&
-    painted.pino === pino
+    painted.token === agora.token &&
+    painted.gridSize === agora.gridSize &&
+    painted.selected === agora.selected &&
+    painted.isTurn === agora.isTurn &&
+    painted.away === agora.away &&
+    painted.pino === agora.pino &&
+    mesmaVida(painted.vida, agora.vida)
   )
 }
 
@@ -598,7 +600,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
    * nome continuar por cima de tudo que é da ficha. Destruir Graphics é seguro
    * aqui — o cuidado de nunca destruir no meio da sessão é do `Text`.
    */
-  function syncHealthBar(entry: TokenEntry, health: TokenHealth | null, radius: number): void {
+  function syncHealthBar(entry: TokenEntry, health: HealthAmount | null, radius: number): void {
     if (health === null) {
       if (entry.bar) {
         entry.wrapper.removeChild(entry.bar)
@@ -681,6 +683,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     awayTokenIds: ReadonlySet<string> = NO_AWAY_TOKENS,
     glide?: TokenGlideContext,
     pinos: ReadonlyMap<string, string> = NO_PINS,
+    vidas: VidasDaCena = SEM_VIDAS,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
@@ -776,10 +779,13 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const pino = pinos.get(token.id) ?? null
       if (pino !== null && canAnimate()) pinosGirando.add(token.id)
       else pinosGirando.delete(token.id)
+      // BARRA DE VIDA: o pino do continente não leva vida, então a dele não conta.
+      const vida = pino === null ? (vidas.get(token.id) ?? null) : null
+      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA. O pulso da vez sempre repinta: é ele
       // que arma a animação do anel.
-      if (!pulse && paintIsCurrent(entry.painted, token, gridSize, selected, isTurn, away, pino)) continue
+      if (!pulse && paintIsCurrent(entry.painted, pintura)) continue
 
       const ghost = isHidden(token)
       entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
@@ -788,7 +794,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         // Já na pose de agora: o pino recém-nascido não espera o próximo quadro para ter pirâmide.
         // Parado (movimento reduzido, exportação), é a pose fixa, e só aqui ela é desenhada.
         if (entry.marcador !== null) posarVistaDoMarcador(entry.marcador, now, !pinosGirando.has(token.id))
-        entry.painted = { token, gridSize, selected, isTurn, away, pino }
+        entry.painted = pintura
         applyLabelSizing(entry)
         continue
       }
@@ -902,11 +908,10 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         outlineRadius = radius
       }
 
-      // Barra de vida SOB o disco, e o nome logo abaixo dela. `readTokenHealth`
-      // porque o mapa do disco chega cru: vida com lixo não desenha barra.
-      const health = readTokenHealth(token.health)
-      syncHealthBar(entry, health, outlineRadius)
-      entry.label.position.set(0, tokenLabelTop(outlineRadius, health !== null))
+      // Barra de vida SOB o disco, e o nome logo abaixo dela. A vida é a da
+      // ficha do sistema ligada ao token (`vidas`); sem ficha, sem barra.
+      syncHealthBar(entry, vida === null ? null : { current: vida.atual, max: vida.maximo }, outlineRadius)
+      entry.label.position.set(0, tokenLabelTop(outlineRadius, vida !== null))
 
       // hidden === "Oculto no editor" (organização de cena do mestre). Antes
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
@@ -938,7 +943,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const renamed = entry.label.text !== token.name
       entry.label.text = token.name
       if (born || renamed) changedLabels += 1
-      entry.painted = { token, gridSize, selected, isTurn, away, pino: null }
+      entry.painted = pintura
       applyLabelSizing(entry)
     }
     if (glides.size > 0 || pinosGirando.size > 0) startTicking()

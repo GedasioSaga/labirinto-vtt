@@ -58,14 +58,16 @@ function camadaDe(marcador: Container, index: 1 | 2 | 3): Graphics {
 
 const giroDe = (marcador: Container): Graphics => camadaDe(marcador, 2)
 
-const ANA = ficha('ana', { health: { current: 3, max: 10, shownToPlayers: true }, conditions: ['caido'] })
+const ANA = ficha('ana', { conditions: ['caido'] })
 const NPC = ficha('npc', { x: 300 })
 const PINOS = new Map([['ana', '#64b5f6']])
+/** A vida da ficha do sistema ligada à Ana (`lib/vidaDaFicha.ts`). */
+const VIDA_DA_ANA = new Map([['ana', { atual: 3, maximo: 10 }]])
 
 describe('tokensRenderer — mapa de continente', () => {
   it('a ficha de jogador vira pino: o disco, a vida e o nome da ficha somem; o nome vai no pino', () => {
     const container = new Container()
-    createTokensRenderer().draw(container, [ANA, NPC], GRID, null, 1, null, undefined, undefined, PINOS)
+    createTokensRenderer().draw(container, [ANA, NPC], GRID, null, 1, null, undefined, undefined, PINOS, VIDA_DA_ANA)
     const ana = wrapperDe(container, 0)
     const marcador = marcadorDe(ana)
     expect(marcador?.visible).toBe(true)

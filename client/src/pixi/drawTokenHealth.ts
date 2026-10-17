@@ -1,6 +1,5 @@
 import type { Graphics } from 'pixi.js'
-import type { TokenHealth } from '../types/map'
-import { healthFraction, healthState, type HealthState } from '../lib/tokenHealth'
+import { healthFraction, healthState, type HealthAmount, type HealthState } from '../lib/tokenHealth'
 
 /**
  * BARRA DE VIDA da ficha — o mesmo desenho no mapa do mestre
@@ -74,7 +73,7 @@ export interface HealthBarLayout {
 }
 
 /** Geometria da barra de uma ficha de raio `radius` (px de mundo), centrada sob o disco. */
-export function healthBarLayout(radius: number, health: TokenHealth): HealthBarLayout {
+export function healthBarLayout(radius: number, health: HealthAmount): HealthBarLayout {
   const width = 2 * radius * HEALTH_BAR_WIDTH_RATIO
   const inner = Math.max(0, width - 2 * HEALTH_BAR_INSET)
   const innerHeight = HEALTH_BAR_HEIGHT - 2 * HEALTH_BAR_INSET
@@ -96,7 +95,7 @@ export function healthBarLayout(radius: number, health: TokenHealth): HealthBarL
  * posiciona nem destrói nada: o Graphics mora dentro da ficha, que já está no
  * centro do token.
  */
-export function drawTokenHealthBar(graphics: Graphics, radius: number, health: TokenHealth | null): void {
+export function drawTokenHealthBar(graphics: Graphics, radius: number, health: HealthAmount | null): void {
   graphics.clear()
   if (health === null) return
   const bar = healthBarLayout(radius, health)

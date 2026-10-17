@@ -1,29 +1,28 @@
-// JORNADA DE USUÁRIO da BARRA DE VIDA NA FICHA (item 14 de
-// docs/features-candidatas-2026-09-21.md) — escrita para SAIR VERMELHA no
-// código de hoje. É a régua da feature, não a feature.
+// JORNADA DE USUÁRIO da BARRA DE VIDA NA FICHA — reescrita na fatia 10 do
+// design consolidado (docs/design/consolidado/PLANO.md, decisão D): a vida
+// deixou de ser digitada no token e passou a vir da FICHA DO SISTEMA ligada a
+// ele (o HP do One Piece). É a régua da feature, não a feature.
 //
 // A DOR: "Ninguém sabe quanto falta para o monstro cair sem o mestre narrar."
 //
-// A FEATURE:
-//   - com uma ficha selecionada, o mestre informa no painel dela a VIDA ATUAL e
-//     a VIDA MÁXIMA;
-//   - uma barra FINA aparece SOB a ficha, no mapa; ela é discreta (pinta menos
-//     que a própria ficha e não a cobre) e muda quando a vida muda;
-//   - a barra é de CADA ficha: dar vida ao monstro não desenha nada sob a ficha
-//     do herói;
-//   - o mestre escolhe, ficha por ficha, se os JOGADORES veem a barra; o
-//     mestre sempre vê. Barra oculta não aparece na tela do jogador e os
-//     números dela não viajam até ele (o jogador nunca recebe o que o mestre
-//     escondeu — mesma regra da névoa em HANDOFF.md/PEDIDOS.md).
+// A FEATURE (fatia 10):
+//   - o mestre liga o token a um personagem (cartão "Personagem" da ficha do
+//     token); a barra FINA aparece SOB o token, no mapa, com o HP da ficha. Sem
+//     ficha ligada, sem barra;
+//   - a barra é discreta (pinta menos que o token e não o cobre), é de CADA
+//     token e muda quando o HP da ficha muda — pelo mestre (Abrir ficha, "-150"
+//     no HP) ou pela sala (a jogadora digita o dano na ficha dela), na hora;
+//   - quem vê (decisão 4.3): o mestre sempre; o jogador vê a barra das fichas de
+//     JOGADOR e das que controla, a de NPC não, e só a proporção — os números
+//     do monstro não viajam até ele (a regra da névoa: o jogador nunca recebe o
+//     que o mestre esconde);
+//   - a vida antiga gravada no token (`Token.health`) fica no arquivo sem uso
+//     (decisão 4.4; `lib/fogFilter.vidaDaFicha.test.ts` cobre que não viaja).
 //
-// ONDE ISSO MORRE HOJE:
-//   - `src/types/map.ts:413` — `Token` não tem campo de vida (só nome,
-//     posição, tamanho, imagem, rotação, cor, travado, oculto, segredo);
-//   - `src/components/PropertiesPanel.tsx:403-427` — o painel da ficha só
-//     oferece Nome, Tamanho, Cor, Imagem e Rotação/Travado/Ocultos; não há
-//     onde digitar vida;
-//   - `src/pixi/tokensRenderer.ts:325-343` — a ficha é disco + contorno +
-//     rótulo com o nome logo abaixo (`radius + 2`); nada mais é desenhado.
+// ONDE MORA: `lib/vidaDaFicha.ts` (token → personagem → recurso de vida com
+// atual e máximo); `pixi/tokensRenderer.ts` desenha com as vidas que o
+// `PixiCanvas` monta da aventura; `net/hostSession.ts` entrega ao recorte
+// (`lib/fogFilter.ts`) só a proporção.
 //
 // COMO ESTE ARQUIVO PROVA, sem mentir (mesmo preparo de
 // task-jornada-painel-do-grupo.spec.ts e task-jornada-viagem-do-jogador.spec.ts):
@@ -33,61 +32,51 @@
 //   vira `net:message` na página do mestre, e o `net_send` do mestre volta ao
 //   socket dela por `exposeFunction`. A sessão do host é a do app
 //   (`net/hostBridge.ts`), sem estado injetado.
-//   DISCO DE MENTIRA COM A CENA PRONTA: uma cena com duas fichas (Lu, da Ana,
-//   verde-limão; Og, o monstro, laranja) vem de um `adventure.json` no disco
-//   falso do Tauri e é aberta pelo menu ("Carregar Mapa existente").
-//   GESTO REAL NA AÇÃO SOB TESTE. Clique do ponteiro na ficha (ferramenta
-//   Selecionar), clique no campo, Ctrl+A, dígitos tecla a tecla, Tab para sair
-//   do campo, Escape para largar a seleção. Os únicos `evaluate` são o repasse
-//   do transporte e a LEITURA de pixel (decodifica a foto num canvas solto e
-//   pergunta `elementFromPoint`).
+//   DISCO DE MENTIRA COM A CENA PRONTA: uma cena com dois tokens (Lu, da Ana,
+//   verde-limão; Og, o monstro, laranja) e uma aventura com o sistema One Piece
+//   e dois personagens — Lu (jogador, HP 10/10) e Og (NPC, HP 173/419) — vem
+//   de um `adventure.json` no disco falso do Tauri e é aberta pelo menu
+//   ("Carregar Mapa existente"). Os tokens nascem SEM ficha ligada: a foto de
+//   referência é a tela sem barra nenhuma.
+//   GESTO REAL NA AÇÃO SOB TESTE. Clique do ponteiro no token (ferramenta
+//   Selecionar), escolha do personagem na lista "Personagem", "Abrir ficha",
+//   clique no HP, Ctrl+A, ajuste tecla a tecla e Enter; Escape larga a seleção.
+//   Os únicos `evaluate` são o repasse do transporte e a LEITURA de pixel
+//   (decodifica a foto num canvas solto e pergunta `elementFromPoint`).
 //   PROVA NA TELA, POR DIFERENÇA DE FOTO. A régua não dita a cor nem o
-//   desenho da barra: ela acha cada ficha pela cor dela na foto (centro e
+//   desenho da barra: ela acha cada token pela cor dele na foto (centro e
 //   raio), fotografa a tela ANTES e DEPOIS, e conta os pixels que mudaram numa
-//   faixa logo ABAIXO da ficha (de 0,45 a 2,6 raios do centro, 1,8 raio para
-//   cada lado) e numa faixa igual logo ACIMA. "Apareceu uma barra sob a ficha"
+//   faixa logo ABAIXO do token (de 0,45 a 2,6 raios do centro, 1,8 raio para
+//   cada lado) e numa faixa igual logo ACIMA. "Apareceu uma barra sob o token"
 //   = a faixa de baixo mudou bastante e mais que o dobro da de cima. O
 //   controle positivo prova que, sem ninguém mexer, as faixas não mudam sozinhas
-//   e que selecionar e largar (Escape) a ficha devolve a tela igual — sem isso,
+//   e que selecionar e largar (Escape) o token devolve a tela igual — sem isso,
 //   "mudou" poderia ser ruído ou realce de seleção. Se a câmera se mexer entre
-//   as duas fotos (centro da ficha andou mais de 2 px), a régua falha dizendo
+//   as duas fotos (centro do token andou mais de 2 px), a régua falha dizendo
 //   isso, em vez de ler câmera como barra.
 //   FRAMES. Com o socket roteado, o que a página da Ana recebe é o que a rota
 //   entrega; a régua só anota (`Rede.enviados`) para cobrar que os números da
-//   vida oculta do monstro (173 de 419, escolhidos para não colidir com
-//   coordenada nenhuma da cena) não viajem.
+//   vida do monstro (173 de 419, escolhidos para não colidir com coordenada
+//   nenhuma da cena) não viajem.
 //
 // SUPOSIÇÕES (as únicas que esta régua dita além das frases do pedido):
-//   - os campos ficam no painel da ficha selecionada, na aba Mapa do rail, e
-//     são campos de número ou de texto com nome acessível "Vida atual" e "Vida
-//     máxima" (`VIDA_ATUAL`/`VIDA_MAXIMA` aceitam também "PV atual", "Pontos de
-//     vida", "Vida total", "Máxima");
-//   - o valor digitado vale ao sair do campo com Tab;
-//   - a escolha "os jogadores veem a barra" é, por ficha, um interruptor
-//     (checkbox/switch) cujo nome fala de barra ou vida E de jogadores/mesa
-//     ("Jogadores veem a barra", "Mostrar vida aos jogadores" — ou o inverso,
-//     "Esconder a barra dos jogadores"), OU um grupo de opções (radiogroup ou
-//     lista) com nome de barra/vida e as opções "Jogadores/Todos" e "Só o
-//     mestre/Oculta". O "Oculto para jogadores" que já existe é da FICHA
-//     inteira e fica de fora;
-//   - Escape larga a seleção da ficha (é o que o editor faz hoje,
-//     `pixi/PixiCanvas.tsx:5288-5306`), e o painel da ficha some.
+//   - a ficha do token tem o cartão "Personagem" com a lista "Personagem" e o
+//     botão "Abrir ficha" (fatia 9); a ficha do sistema abre num diálogo com o
+//     nome do personagem e fecha no botão "Fechar";
+//   - na ficha (do mestre e da jogadora), o HP é um botão "HP <atual> de
+//     <máximo>. Ajustar" que abre o ajuste rápido com o campo "HP"; "-150" e
+//     Enter tira 150 (lib/ajusteDaFicha.ts);
+//   - a jogadora abre a ficha dela no botão "Ficha de personagem" e fecha em
+//     "Fechar a ficha";
+//   - Escape larga a seleção do token (`pixi/PixiCanvas.tsx`), e o painel dele some.
 //
-// CONTROLE POSITIVO (verde hoje): teste 1. A mesa monta, Ana recebe a ficha,
-// as duas telas mostram as duas fichas, as faixas não mudam sozinhas, e
-// selecionar Og pelo clique abre o painel da ficha que o Escape fecha, sem
-// deixar rastro na foto. Os testes 2 a 5 cobram a feature e morrem hoje ao
-// procurar o campo de vida no painel.
+// CONTROLE POSITIVO: teste 1. A mesa monta, Ana recebe o token, as duas telas
+// mostram os dois tokens, as faixas não mudam sozinhas, e selecionar Og pelo
+// clique abre o painel que o Escape fecha, sem deixar rastro na foto.
 import { test, expect, type Browser, type BrowserContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token, Wall } from '../src/types/map'
-
-// 16/10/2026 (fatia 9 do design consolidado): "Vida atual" e "Vida máxima"
-// saíram da ficha do token; a barra no mapa e `Token.health` ficaram. A fatia 10
-// liga a barra à ficha do sistema e reescreve esta jornada pelo caminho novo.
-// Até lá o arquivo inteiro fica como fixme, em vez de vermelho na main.
-test.fixme(() => true, 'Fatia 10 (docs/design/consolidado/PLANO.md): os campos de Vida saíram do painel na fatia 9; a jornada volta pela ficha do sistema')
 
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
@@ -150,12 +139,21 @@ function paredesDaBorda(): Wall[] {
  */
 const DESCANSO: Ponto = { x: 1000, y: 790 }
 
-/** Vidas escolhidas para a régua. As do monstro oculto não colidem com coordenada nenhuma da cena. */
-const VIDA_CHEIA = { atual: 10, maxima: 10 }
-const VIDA_POUCA = { atual: 3, maxima: 10 }
-const VIDA_DO_MONSTRO = { atual: 7, maxima: 10 }
-const VIDA_DO_HEROI = { atual: 6, maxima: 10 }
+/**
+ * O HP das fichas do sistema (One Piece) na aventura. Os do monstro não
+ * colidem com coordenada nenhuma da cena: a varredura dos frames procura por eles.
+ */
+const VIDA_DO_HEROI = { atual: 10, maxima: 10 }
 const VIDA_OCULTA = { atual: 173, maxima: 419 }
+/** O mestre tira 150 de Og na ficha: 173 vira 23 (de 41% para 5% da barra, e a cor muda). */
+const DANO_DO_MESTRE = '-150'
+const VIDA_FERIDA = { atual: 23, maxima: 419 }
+/** A Ana tira 7 de Lu na ficha dela: 10 vira 3. */
+const DANO_DA_SALA = '-7'
+const VIDA_DA_SALA = { atual: 3, maxima: 10 }
+
+/** Os personagens da aventura têm o nome dos tokens; o id é o que a lista "Personagem" grava. */
+const ID_PERSONAGEM: Readonly<Record<string, string>> = { [HEROI]: 'p-lu', [MONSTRO]: 'p-og' }
 
 /**
  * Teto de cada teste. Medido na calibração de 23/09 com a máquina carregada
@@ -189,15 +187,6 @@ const MUDANCA_MIN_ABS = 20
 /** Discreta: a barra pinta menos que a ficha inteira (π r²) e deixa pelo menos 85% do disco à vista. */
 const DISCO_QUE_FICA = 0.85
 
-const VIDA_ATUAL = /vida atual|^\s*vida\s*$|pv atua|pontos de vida( atuais)?\s*$/i
-const VIDA_MAXIMA = /vida m[áa]x|vida total|pv m[áa]x|^\s*m[áa]xim[ao]\s*$/i
-const FALA_DE_BARRA = /barra|vida/i
-const FALA_DE_JOGADOR = /jogador|mesa|todos/i
-const POLARIDADE_OCULTA = /escond|ocult|s[óo]\s*(o|para o)?\s*mestre|n[ãa]o/i
-const OPCAO_JOGADORES_VEEM = /jogador|todos|mesa|vis[ií]vel|mostrar/i
-const OPCAO_SO_O_MESTRE = /s[óo]\s*(o|para o)?\s*mestre|ocult|escond|n[ãa]o/i
-const OCULTO_DA_FICHA_INTEIRA = /^oculto para jogadores$/i
-
 // ───────────────────────────────────────────────────────────────────────────
 // A cena no disco: duas fichas no chão verde-água
 // ───────────────────────────────────────────────────────────────────────────
@@ -222,6 +211,12 @@ function discoDaCena(): Record<string, string> {
     name: AVENTURA,
     startSceneId: ID_CENA,
     scenes: [{ id: ID_CENA, name: CENA, file: 'map.json' }],
+    // A ficha do sistema: One Piece (embutido no app), HP de atual e máximo.
+    sistemaDeRpg: 'one-piece',
+    personagens: [
+      { id: ID_PERSONAGEM[HEROI], tipo: 'jogador', nome: HEROI, recursos: { hp: VIDA_DO_HEROI.atual }, maximos: { hp: VIDA_DO_HEROI.maxima } },
+      { id: ID_PERSONAGEM[MONSTRO], tipo: 'npc', nome: MONSTRO, recursos: { hp: VIDA_OCULTA.atual }, maximos: { hp: VIDA_OCULTA.maxima } },
+    ],
   }
   return {
     [`${PASTA}/map.json`]: serializeMap(mapa),
@@ -711,25 +706,25 @@ async function esperaBarraSob(ref: Referencia, qual: 'heroi' | 'monstro', oQue: 
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Os gestos do mestre no painel da ficha
+// Os gestos: o mestre na ficha do token e na ficha do sistema; a Ana na dela
 // ───────────────────────────────────────────────────────────────────────────
 
 const apagarFicha = (mestre: Page): Locator => mestre.getByRole('button', { name: 'Apagar token selecionado' })
 
-/** Aba Mapa, ferramenta Selecionar, clique no centro da ficha: o painel dela abre. */
+/** Ferramenta Selecionar, clique no centro do token: o painel dele abre. */
 async function mestreSelecionaFicha(mestre: Page, ficha: Ficha, nome: string): Promise<void> {
   await mestre.getByRole('button', { name: 'Selecionar', exact: true }).click()
   await mestre.mouse.click(Math.round(ficha.x), Math.round(ficha.y))
   await mestre.mouse.move(DESCANSO.x, DESCANSO.y, { steps: 5 })
-  await expect(apagarFicha(mestre), `clicar em ${nome} (${Math.round(ficha.x)}, ${Math.round(ficha.y)}) deveria abrir o painel da ficha`).toBeVisible({ timeout: ESPERA })
+  await expect(apagarFicha(mestre), `clicar em ${nome} (${Math.round(ficha.x)}, ${Math.round(ficha.y)}) deveria abrir o painel do token`).toBeVisible({ timeout: ESPERA })
 }
 
-/** Escape larga a seleção; o painel da ficha some e o realce sai da foto. */
+/** Escape larga a seleção; o painel do token some e o realce sai da foto. */
 async function mestreLargaSelecao(mestre: Page): Promise<void> {
   await mestre.mouse.move(DESCANSO.x, DESCANSO.y, { steps: 5 })
   await mestre.keyboard.press('Escape')
   if (await apagarFicha(mestre).isVisible()) await mestre.keyboard.press('Escape')
-  await expect(apagarFicha(mestre), 'Escape deveria largar a ficha selecionada').toBeHidden({ timeout: ESPERA })
+  await expect(apagarFicha(mestre), 'Escape deveria largar o token selecionado').toBeHidden({ timeout: ESPERA })
 }
 
 /** Todo nome acessível de controle na tela — só para a falha dizer o que EXISTE hoje. */
@@ -739,7 +734,7 @@ async function controlesNaTela(mestre: Page): Promise<string> {
     .locator('button, input, select, [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="combobox"]')
     .evaluateAll((els) =>
       els
-        .filter((el) => (el as HTMLElement).offsetParent !== null || el.getClientRects().length > 0)
+        .filter((el) => (el as HTMLElement).offsetParent !== null || el.getClientRects().length > 0) // o seletor só pega controles HTML (button, input, select…)
         .map((el) => {
           const id = el.getAttribute('id')
           const rotulo = id ? document.querySelector(`label[for="${id}"]`)?.textContent : null
@@ -751,114 +746,60 @@ async function controlesNaTela(mestre: Page): Promise<string> {
   return Array.from(new Set(nomes)).join(' | ') || '(nenhum)'
 }
 
-function campoDeVida(mestre: Page, nome: RegExp): Locator {
-  return mestre.getByRole('spinbutton', { name: nome }).or(mestre.getByRole('textbox', { name: nome }))
+/** Com o token selecionado: o cartão "Personagem" da ficha do token, aberto, e a lista dele. */
+async function cartaoPersonagem(mestre: Page, oQue: string): Promise<Locator> {
+  const lista = mestre.getByRole('combobox', { name: 'Personagem', exact: true })
+  if (!(await lista.isVisible())) await mestre.getByRole('button', { name: /^Personagem/ }).first().click()
+  const achou = await lista.waitFor({ state: 'visible', timeout: ESPERA }).then(
+    () => true,
+    () => false,
+  )
+  if (!achou) expect(false, `${oQue}: a ficha do token deveria ter o cartão "Personagem" com a lista. O que o painel oferece hoje: ${await controlesNaTela(mestre)}`).toBe(true)
+  return lista
 }
 
-/** Clique no campo, Ctrl+A, dígitos tecla a tecla, Tab para sair. */
-async function digitarNoCampo(mestre: Page, campo: Locator, valor: number): Promise<void> {
-  await campo.click()
-  await mestre.keyboard.press('Control+A')
-  await mestre.keyboard.type(String(valor), { delay: 25 })
-  await mestre.keyboard.press('Tab')
-}
-
-/** Com a ficha selecionada, informa vida atual e máxima no painel dela. */
-async function informarVida(mestre: Page, vida: { atual: number; maxima: number }, oQue: string): Promise<void> {
-  const atual = campoDeVida(mestre, VIDA_ATUAL)
-  const maxima = campoDeVida(mestre, VIDA_MAXIMA)
-  const achou = await expect
-    .poll(async () => (await atual.count()) > 0 && (await maxima.count()) > 0, { timeout: ESPERA })
-    .toBe(true)
-    .then(() => true)
-    .catch(() => false)
-  if (!achou) {
-    expect(
-      false,
-      `${oQue}: com a ficha selecionada, o painel deveria ter os campos "Vida atual" e "Vida máxima". ` +
-        `Achados: atual=${await atual.count()}, máxima=${await maxima.count()}. O que o painel oferece hoje: ${await controlesNaTela(mestre)}`,
-    ).toBe(true)
-  }
-  // Máxima antes da atual: um app que limita a atual à máxima não corta o 173 de 419.
-  await digitarNoCampo(mestre, maxima.first(), vida.maxima)
-  await digitarNoCampo(mestre, atual.first(), vida.atual)
-  await expect(maxima.first(), `${oQue}: a vida máxima deveria ficar ${vida.maxima}`).toHaveValue(String(vida.maxima))
-  await expect(atual.first(), `${oQue}: a vida atual deveria ficar ${vida.atual}`).toHaveValue(String(vida.atual))
-}
-
-/**
- * Com a ficha selecionada, escolhe se os jogadores veem a barra dela. Aceita
- * um interruptor (checkbox/switch) que fale de barra/vida e de jogadores, em
- * qualquer polaridade, ou um grupo de opções/lista com nome de barra/vida.
- */
-async function jogadoresVeemABarra(mestre: Page, veem: boolean, oQue: string): Promise<void> {
-  const chaves = mestre.getByRole('checkbox').or(mestre.getByRole('switch'))
-  const total = await chaves.count()
-  for (let i = 0; i < total; i += 1) {
-    const chave = chaves.nth(i)
-    if (!(await chave.isVisible()) && !(await chave.locator('xpath=ancestor::label[1]').isVisible().catch(() => false))) continue
-    const nome = await nomeAcessivel(chave)
-    if (OCULTO_DA_FICHA_INTEIRA.test(nome) || !FALA_DE_BARRA.test(nome) || !FALA_DE_JOGADOR.test(nome)) continue
-    const desejado = POLARIDADE_OCULTA.test(nome) ? !veem : veem
-    if ((await chave.isChecked()) !== desejado) {
-      // O checkbox nativo do `Toggle` fica visualmente escondido: o clique de pessoa é no rótulo.
-      const rotulo = chave.locator('xpath=ancestor::label[1]')
-      if ((await rotulo.count()) > 0 && !(await chave.isVisible())) await rotulo.click()
-      else await chave.click()
-    }
-    await expect.poll(() => chave.isChecked(), { timeout: ESPERA, message: `${oQue}: "${nome}" deveria ficar ${desejado ? 'ligado' : 'desligado'}` }).toBe(desejado)
-    return
-  }
-
-  const grupo = mestre.getByRole('radiogroup', { name: FALA_DE_BARRA })
-  if ((await grupo.count()) > 0) {
-    const opcoes = grupo.first().getByRole('radio')
-    const n = await opcoes.count()
-    for (let i = 0; i < n; i += 1) {
-      const nome = await nomeAcessivel(opcoes.nth(i))
-      const serve = veem ? OPCAO_JOGADORES_VEEM.test(nome) && !OPCAO_SO_O_MESTRE.test(nome) : OPCAO_SO_O_MESTRE.test(nome)
-      if (!serve) continue
-      await opcoes.nth(i).click()
-      await expect(opcoes.nth(i), `${oQue}: a opção "${nome}" deveria ficar marcada`).toBeChecked({ timeout: ESPERA })
-      return
-    }
-  }
-
-  const lista = mestre.getByRole('combobox', { name: FALA_DE_BARRA })
-  if ((await lista.count()) > 0) {
-    const textos = await lista.first().locator('option').allTextContents()
-    const escolhida = textos.find((t) => (veem ? OPCAO_JOGADORES_VEEM.test(t) && !OPCAO_SO_O_MESTRE.test(t) : OPCAO_SO_O_MESTRE.test(t)))
-    if (escolhida !== undefined) {
-      await lista.first().selectOption({ label: escolhida.trim() })
-      return
-    }
-  }
-
-  expect(
-    false,
-    `${oQue}: com a ficha selecionada, o painel deveria deixar o mestre escolher se os jogadores veem a barra dela ` +
-      `(interruptor que fale de barra/vida e de jogadores, ou opções "Jogadores" / "Só o mestre"). O que o painel oferece hoje: ${await controlesNaTela(mestre)}`,
-  ).toBe(true)
-}
-
-async function nomeAcessivel(el: Locator): Promise<string> {
-  return el.evaluate((e) => {
-    const aria = e.getAttribute('aria-label')
-    if (aria) return aria
-    const rotuladoPor = e.getAttribute('aria-labelledby')
-    if (rotuladoPor) return rotuladoPor.split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? '').join(' ').trim()
-    const id = e.getAttribute('id')
-    const porFor = id ? document.querySelector(`label[for="${id}"]`)?.textContent : null
-    return (porFor ?? e.closest('label')?.textContent ?? e.textContent ?? '').replace(/\s+/g, ' ').trim()
-  })
-}
-
-/** Seleciona a ficha, informa a vida (e, se pedido, quem vê a barra) e larga a seleção. */
-async function darVida(mestre: Page, ficha: Ficha, nome: string, vida: { atual: number; maxima: number }, veem?: boolean): Promise<void> {
+/** Seleciona o token, liga a ficha do sistema de mesmo nome pela lista "Personagem" e larga a seleção. */
+async function mestreLigaFicha(mestre: Page, ficha: Ficha, nome: string): Promise<void> {
   await mestreSelecionaFicha(mestre, ficha, nome)
-  await informarVida(mestre, vida, `vida de ${nome}`)
-  if (veem !== undefined) await jogadoresVeemABarra(mestre, veem, `barra de ${nome}`)
+  const lista = await cartaoPersonagem(mestre, `ligar ${nome}`)
+  await lista.selectOption({ label: nome })
+  await expect(lista, `${nome} deveria ficar ligado ao personagem "${nome}"`).toHaveValue(ID_PERSONAGEM[nome] ?? '')
   await mestreLargaSelecao(mestre)
+}
+
+/** Numa ficha aberta (do mestre ou da jogadora): o botão do HP, o campo "HP", o ajuste tecla a tecla e Enter. */
+async function ajustarHP(page: Page, ficha: Locator, ajuste: string, depois: string, oQue: string): Promise<void> {
+  const botao = ficha.getByRole('button', { name: /^HP \d+ de \d+\. Ajustar$/ })
+  await expect(botao, `${oQue}: a ficha deveria mostrar o HP com "Ajustar"`).toBeVisible({ timeout: ESPERA })
+  await botao.click()
+  const campo = ficha.getByRole('textbox', { name: 'HP', exact: true })
+  await campo.click()
+  await page.keyboard.press('Control+A')
+  await page.keyboard.type(ajuste, { delay: 25 })
+  await page.keyboard.press('Enter')
+  await expect(ficha.getByRole('button', { name: `HP ${depois}. Ajustar` }), `${oQue}: depois de "${ajuste}" o HP deveria ficar ${depois}`).toBeVisible({ timeout: ESPERA })
+}
+
+/** O mestre abre a ficha do sistema pelo token ("Abrir ficha"), tira vida no HP, fecha e larga a seleção. */
+async function mestreAjustaVida(mestre: Page, ficha: Ficha, nome: string, ajuste: string, depois: string): Promise<void> {
+  await mestreSelecionaFicha(mestre, ficha, nome)
+  await cartaoPersonagem(mestre, `abrir a ficha de ${nome}`)
+  await mestre.getByRole('button', { name: 'Abrir ficha', exact: true }).click()
+  const janela = mestre.getByRole('dialog', { name: nome })
+  await expect(janela, `"Abrir ficha" deveria abrir a ficha de ${nome}`).toBeVisible({ timeout: ESPERA })
+  await ajustarHP(mestre, janela, ajuste, depois, `HP de ${nome} na ficha do mestre`)
+  await janela.getByRole('button', { name: 'Fechar', exact: true }).click()
+  await expect(janela, 'a ficha deveria fechar').toBeHidden({ timeout: ESPERA })
+  await mestreLargaSelecao(mestre)
+}
+
+/** A jogadora abre a própria ficha ("Ficha de personagem"), tira vida no HP e fecha. */
+async function jogadoraAjustaVida(ana: Page, ajuste: string, depois: string): Promise<void> {
+  await ana.getByRole('button', { name: 'Ficha de personagem', exact: true }).click()
+  const ficha = ana.locator('.pp-ficha')
+  await ajustarHP(ana, ficha, ajuste, depois, `HP de ${HEROI} na ficha da ${JOGADORA}`)
+  await ficha.getByRole('button', { name: 'Fechar a ficha', exact: true }).click()
+  await expect(ficha, `${JOGADORA}: a ficha deveria fechar`).toBeHidden({ timeout: ESPERA })
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -954,75 +895,93 @@ test('1. CONTROLE POSITIVO: as duas telas mostram as duas fichas, as faixas não
   expect(erros, 'o app do mestre jogou erro').toEqual([])
 })
 
-test('2. o mestre informa vida atual e máxima de Og e uma barra fina e discreta aparece sob a ficha dele, e só dele', async ({ browser, page: mestre, baseURL }) => {
+test('2. o mestre liga Og à ficha dele e uma barra fina e discreta aparece sob o token, e só sob ele', async ({ browser, page: mestre, baseURL }) => {
   test.setTimeout(TEMPO_DE_TESTE)
   const mesa = await mesaMontada(browser, mestre, baseURL ?? '')
   const ref = mesa.noMestre
 
-  await darVida(mestre, ref.monstro, MONSTRO, VIDA_DO_MONSTRO)
+  await mestreLigaFicha(mestre, ref.monstro, MONSTRO)
 
-  const barra = await esperaBarraSob(ref, 'monstro', `depois de ${MONSTRO} receber ${VIDA_DO_MONSTRO.atual}/${VIDA_DO_MONSTRO.maxima}, uma barra deveria aparecer SOB a ficha dele no mapa do mestre`, ESPERA_TELA)
+  const barra = await esperaBarraSob(ref, 'monstro', `depois de ligar ${MONSTRO} à ficha dele (HP ${VIDA_OCULTA.atual}/${VIDA_OCULTA.maxima}), uma barra deveria aparecer SOB o token no mapa do mestre`, ESPERA_TELA)
 
-  // Discreta: pinta menos que a ficha inteira e não cobre o disco.
+  // Discreta: pinta menos que o token inteiro e não cobre o disco.
   const areaDaFicha = Math.PI * ref.monstro.r * ref.monstro.r
-  expect(barra.sob, `a barra pinta mais que a própria ficha (${barra.sob} pixels contra ${Math.round(areaDaFicha)}): não é discreta — ${barra.leitura}`).toBeLessThan(areaDaFicha)
+  expect(barra.sob, `a barra pinta mais que o próprio token (${barra.sob} pixels contra ${Math.round(areaDaFicha)}): não é discreta — ${barra.leitura}`).toBeLessThan(areaDaFicha)
   expect(barra.d.depois.monstro?.n ?? 0, `a barra cobriu o disco de ${MONSTRO} — ${barra.leitura}`).toBeGreaterThanOrEqual(DISCO_QUE_FICA * (barra.d.antes.monstro?.n ?? 0))
 
-  // De CADA ficha: sob Lu nada mudou.
+  // De CADA token: sob Lu, que segue sem ficha, nada mudou.
   const f = await faixasAgora(ref)
-  expect(f.sobHeroi, `dar vida a ${MONSTRO} desenhou algo sob ${HEROI} também — ${f.leitura}`).toBeLessThanOrEqual(RESIDUO)
+  expect(f.sobHeroi, `ligar ${MONSTRO} desenhou algo sob ${HEROI} também — ${f.leitura}`).toBeLessThanOrEqual(RESIDUO)
 })
 
-test('3. mudar a vida atual de Og de cheia para pouca muda a barra, que continua lá', async ({ browser, page: mestre, baseURL }) => {
+test('3. o mestre tira vida de Og na ficha do sistema e a barra muda na hora, e continua lá', async ({ browser, page: mestre, baseURL }) => {
   test.setTimeout(TEMPO_DE_TESTE)
   const mesa = await mesaMontada(browser, mestre, baseURL ?? '')
   const ref = mesa.noMestre
 
-  await darVida(mestre, ref.monstro, MONSTRO, VIDA_CHEIA)
-  await esperaBarraSob(ref, 'monstro', `com ${VIDA_CHEIA.atual}/${VIDA_CHEIA.maxima}, a barra deveria aparecer sob ${MONSTRO}`, ESPERA_TELA)
+  await mestreLigaFicha(mestre, ref.monstro, MONSTRO)
+  await esperaBarraSob(ref, 'monstro', `com a ficha ligada (${VIDA_OCULTA.atual}/${VIDA_OCULTA.maxima}), a barra deveria aparecer sob ${MONSTRO}`, ESPERA_TELA)
   await mestre.waitForTimeout(PINTURA_MS)
-  const cheia = await fotografar(mestre)
+  const antes = await fotografar(mestre)
 
-  await darVida(mestre, ref.monstro, MONSTRO, VIDA_POUCA)
+  await mestreAjustaVida(mestre, ref.monstro, MONSTRO, DANO_DO_MESTRE, `${VIDA_FERIDA.atual} de ${VIDA_FERIDA.maxima}`)
 
-  // A barra continua lá (comparada à tela sem vida nenhuma)...
-  await esperaBarraSob(ref, 'monstro', `com ${VIDA_POUCA.atual}/${VIDA_POUCA.maxima}, a barra deveria continuar sob ${MONSTRO}`, ESPERA_TELA)
+  // A barra continua lá (comparada à tela sem barra nenhuma)...
+  await esperaBarraSob(ref, 'monstro', `com ${VIDA_FERIDA.atual}/${VIDA_FERIDA.maxima}, a barra deveria continuar sob ${MONSTRO}`, ESPERA_TELA)
   // ...e não é a mesma de antes.
   const minimo = mudancaMinima(ref.monstro)
   await expect
     .poll(
       async () => {
         await mestre.waitForTimeout(PINTURA_MS)
-        const d = await compararFotos(mestre, cheia, await fotografar(mestre), [faixaSob(ref.monstro)])
+        const d = await compararFotos(mestre, antes, await fotografar(mestre), [faixaSob(ref.monstro)])
         const camera = cameraParada(d)
         if (camera !== null) return `a câmera mexeu (${camera})`
-        return d.mudados[0] >= minimo ? 'a barra mudou' : `a barra de ${VIDA_POUCA.atual}/${VIDA_POUCA.maxima} está igual à de ${VIDA_CHEIA.atual}/${VIDA_CHEIA.maxima}: ${d.mudados[0]} pixels mudados (mínimo ${Math.round(minimo)})`
+        return d.mudados[0] >= minimo ? 'a barra mudou' : `a barra de ${VIDA_FERIDA.atual}/${VIDA_FERIDA.maxima} está igual à de ${VIDA_OCULTA.atual}/${VIDA_OCULTA.maxima}: ${d.mudados[0]} pixels mudados (mínimo ${Math.round(minimo)})`
       },
-      { timeout: ESPERA_TELA, message: `baixar a vida de ${MONSTRO} de ${VIDA_CHEIA.atual} para ${VIDA_POUCA.atual} deveria mudar a barra na tela` },
+      { timeout: ESPERA_TELA, message: `tirar ${DANO_DO_MESTRE} do HP de ${MONSTRO} na ficha deveria mudar a barra no mapa` },
     )
     .toBe('a barra mudou')
 })
 
-test('4. o mestre deixa os jogadores verem a barra de Lu e Ana vê a barra sob a própria ficha', async ({ browser, page: mestre, baseURL }) => {
+test('4. Lu ligado à ficha de jogador: Ana vê a barra sob o próprio token, e o dano que ela digita na ficha dela muda a barra no mapa do mestre na hora', async ({ browser, page: mestre, baseURL }) => {
   test.setTimeout(TEMPO_DE_TESTE)
   const mesa = await mesaMontada(browser, mestre, baseURL ?? '')
 
-  await darVida(mestre, mesa.noMestre.heroi, HEROI, VIDA_DO_HEROI, true)
+  await mestreLigaFicha(mestre, mesa.noMestre.heroi, HEROI)
 
   await esperaBarraSob(mesa.noMestre, 'heroi', `o mestre deveria ver a barra sob ${HEROI}`, ESPERA_TELA)
-  await esperaBarraSob(mesa.naAna, 'heroi', `${JOGADORA} deveria ver a barra sob ${HEROI}, que o mestre deixou visível aos jogadores`, ESPERA_TELA)
+  await esperaBarraSob(mesa.naAna, 'heroi', `${JOGADORA} deveria ver a barra sob ${HEROI}, a ficha de jogador dela`, ESPERA_TELA)
+
+  await mestre.waitForTimeout(PINTURA_MS)
+  const cheia = await fotografar(mestre)
+  await jogadoraAjustaVida(mesa.ana.page, DANO_DA_SALA, `${VIDA_DA_SALA.atual} de ${VIDA_DA_SALA.maxima}`)
+
+  const minimo = mudancaMinima(mesa.noMestre.heroi)
+  await expect
+    .poll(
+      async () => {
+        await mestre.waitForTimeout(PINTURA_MS)
+        const d = await compararFotos(mestre, cheia, await fotografar(mestre), [faixaSob(mesa.noMestre.heroi)])
+        const camera = cameraParada(d)
+        if (camera !== null) return `a câmera mexeu (${camera})`
+        return d.mudados[0] >= minimo ? 'a barra mudou' : `a barra de ${HEROI} no mestre não mudou: ${d.mudados[0]} pixels mudados (mínimo ${Math.round(minimo)})`
+      },
+      { timeout: ESPERA_TELA, message: `o "${DANO_DA_SALA}" que ${JOGADORA} digitou na ficha dela deveria mudar a barra de ${HEROI} no mapa do mestre` },
+    )
+    .toBe('a barra mudou')
 })
 
-test('5. a barra de Og fica só para o mestre: Ana vê a barra de Lu mas nada sob Og, e os números de Og não chegam a ela', async ({ browser, page: mestre, baseURL }) => {
+test('5. a barra de Og (NPC) fica só para o mestre: Ana vê a barra de Lu mas nada sob Og, e os números de Og não chegam a ela', async ({ browser, page: mestre, baseURL }) => {
   test.setTimeout(TEMPO_DE_TESTE + 60_000)
   const mesa = await mesaMontada(browser, mestre, baseURL ?? '')
 
-  // Og primeiro, oculto; depois Lu, visível. Quando a barra de Lu chegar à Ana, a mudança de Og já passou pelo fio.
-  await darVida(mestre, mesa.noMestre.monstro, MONSTRO, VIDA_OCULTA, false)
-  await darVida(mestre, mesa.noMestre.heroi, HEROI, VIDA_DO_HEROI, true)
+  // Og primeiro; depois Lu. Quando a barra de Lu chegar à Ana, a ligação de Og já passou pelo fio.
+  await mestreLigaFicha(mestre, mesa.noMestre.monstro, MONSTRO)
+  await mestreLigaFicha(mestre, mesa.noMestre.heroi, HEROI)
 
   // O mestre vê as duas barras.
-  await esperaBarraSob(mesa.noMestre, 'monstro', `o mestre sempre vê a barra de ${MONSTRO}, mesmo oculta aos jogadores`, ESPERA_TELA)
+  await esperaBarraSob(mesa.noMestre, 'monstro', `o mestre sempre vê a barra de ${MONSTRO}, mesmo sendo NPC`, ESPERA_TELA)
   await esperaBarraSob(mesa.noMestre, 'heroi', `o mestre deveria ver a barra de ${HEROI}`, ESPERA_TELA)
 
   // Ana vê a de Lu (prova que as mudanças chegaram)...
@@ -1031,8 +990,8 @@ test('5. a barra de Og fica só para o mestre: Ana vê a barra de Lu mas nada so
   // ...e nada sob Og.
   const f = await faixasAgora(mesa.naAna)
   expect(cameraParada(f.d), `${JOGADORA}: a câmera mexeu`).toBeNull()
-  expect(f.sobMonstro, `${JOGADORA} vê algo sob ${MONSTRO}, cuja barra o mestre deixou só para ele — ${f.leitura}`).toBeLessThanOrEqual(RESIDUO)
+  expect(f.sobMonstro, `${JOGADORA} vê algo sob ${MONSTRO}, um NPC que ela não controla — ${f.leitura}`).toBeLessThanOrEqual(RESIDUO)
 
-  // E os números da vida oculta nunca viajaram até ela.
-  expect(vazamentoDaVidaOculta(mesa.ana.frames), `a vida oculta de ${MONSTRO} (${VIDA_OCULTA.atual}/${VIDA_OCULTA.maxima}) foi entregue a ${JOGADORA}`).toBeNull()
+  // E os números da vida do monstro nunca viajaram até ela.
+  expect(vazamentoDaVidaOculta(mesa.ana.frames), `a vida de ${MONSTRO} (${VIDA_OCULTA.atual}/${VIDA_OCULTA.maxima}) foi entregue a ${JOGADORA}`).toBeNull()
 })

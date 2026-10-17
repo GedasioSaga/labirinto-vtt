@@ -11,7 +11,9 @@ import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
-import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
+import { personagensAtivos, pinTravelOf, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
+import { useRpgStore } from '../stores/rpgStore'
+import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
@@ -1681,6 +1683,17 @@ export function PixiCanvas({
        */
       const pinosDaCena = (map: MapData): ReadonlyMap<string, string> =>
         exportScene === null ? coresDosPinos(map, useDonosDasFichasStore.getState().posse) : new Map()
+      /**
+       * BARRA DE VIDA: a vida da ficha do sistema ligada a cada token
+       * (`lib/vidaDaFicha.ts`) — os personagens e o sistema EM USO, os mesmos da
+       * ficha. O mestre vê a de toda ficha ligada; sem ficha, sem barra.
+       */
+      const vidasDoMapa = (map: MapData): VidasDaCena => {
+        const aventura = useAdventureStore.getState()
+        const sistemaId = sistemaAtivo(aventura)
+        const sistema = sistemaId === undefined ? null : (useRpgStore.getState().biblioteca.find((candidato) => candidato.id === sistemaId) ?? null)
+        return vidasDaCena(map.tokens, personagensAtivos(aventura), sistema)
+      }
       /** O mesmo, para o clique, o hover e o laço: a ficha que é pino responde no pino inteiro, cabeça incluída. */
       const pinosNoToque = (map: MapData): PinosNoToque | undefined => {
         const cores = pinosDaCena(map)
@@ -2234,6 +2247,7 @@ export function PixiCanvas({
           awayTokenIds,
           glide,
           pinosDaCena(map),
+          vidasDoMapa(map),
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -2645,6 +2659,15 @@ export function PixiCanvas({
       )
       const unsubscribeDonos = useDonosDasFichasStore.subscribe((state, previous) => {
         if (state.posse !== previous.posse) redrawTokens()
+      })
+      // BARRA DE VIDA: a ficha mudou (o dano digitado pelo mestre ou pela sala, a
+      // transformação ligada) ou o sistema trocou — a barra repinta na hora. O
+      // renderer só repinta o token cuja vida mudou de valor.
+      const unsubscribeVidaDasFichas = useAdventureStore.subscribe((state, previous) => {
+        if (personagensAtivos(state) !== personagensAtivos(previous) || sistemaAtivo(state) !== sistemaAtivo(previous)) redrawTokens()
+      })
+      const unsubscribeSistemas = useRpgStore.subscribe((state, previous) => {
+        if (state.biblioteca !== previous.biblioteca) redrawTokens()
       })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
@@ -8365,6 +8388,8 @@ export function PixiCanvas({
         unsubscribeAwayTokens()
         unsubscribeContinente()
         unsubscribeDonos()
+        unsubscribeVidaDasFichas()
+        unsubscribeSistemas()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

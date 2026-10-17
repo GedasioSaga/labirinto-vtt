@@ -203,6 +203,7 @@ import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
+import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -4191,6 +4192,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const companionMarks = (): CompanionMarks => new Map([...players.values()].map((p) => [p.playerId, { name: p.name, color: signalColor(p.playerId) }]))
 
   /**
+   * BARRA DE VIDA: por token deste mapa, a proporção da ficha do sistema ligada
+   * (`lib/vidaDaFicha.ts`). Só a proporção chega ao recorte; quem a vê (ficha de
+   * jogador, ou a que ele controla) o recorte decide. Sem ficha no mundo, nenhuma.
+   */
+  const barrasDoMapa = (map: MapData, world: HostWorld): BarrasParaJogador | undefined =>
+    world.rpg === undefined ? undefined : barrasParaJogador(map.tokens, world.rpg.personagens, world.rpg.sistema)
+
+  /**
    * Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. O
    * filtro usa o explorado e as portas lembradas de antes desta visão (a visão
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
@@ -4257,6 +4266,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memory.marcas,
       oneWay,
       companionMarks(),
+      barrasDoMapa(map, world),
     )
     // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
     // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
@@ -4815,7 +4825,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // cor automática de cada um (`corDoDono: false`): na mesa ela denunciaria quem
     // é quem, como a do sinal (`SIGNAL_NEUTRAL_COLOR`). A "Cor" da ficha vale.
     const pinoOf = coresDosPinos(map, ownership, { corDoDono: false })
-    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf })
+    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf, barras: barrasDoMapa(map, world) })
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta e sala secreta, e o interior de prédio de teto
     // fechado para o grupo sai dela.

@@ -2,12 +2,17 @@
  * BARRA DE VIDA — o desenho no mapa do mestre. Uma barra FINA logo SOB a
  * ficha, que não cobre o disco, é de CADA ficha e muda quando a vida muda
  * (régua e2e: `e2e/task-jornada-barra-de-vida.spec.ts`, testes 2 e 3).
+ *
+ * Desde a fatia 10 a vida vem da ficha do sistema ligada ao token
+ * (`lib/vidaDaFicha.ts`), pelo parâmetro `vidas` do `draw`. A vida antiga
+ * gravada no token (`Token.health`) fica no arquivo e não desenha nada.
  */
 import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics, Text } from 'pixi.js'
-import { createTokensRenderer } from './tokensRenderer'
+import { createTokensRenderer, type TokensRenderer } from './tokensRenderer'
 import { HEALTH_BAR_COLORS, HEALTH_BAR_LABEL, healthBarLayout, tokenLabelTop } from './drawTokenHealth'
 import type { Token, TokenHealth } from '../types/map'
+import type { VidaDaFicha } from '../lib/vidaDaFicha'
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `mocked://${path}`,
@@ -17,13 +22,17 @@ const GRID = 64
 /** Raio do disco genérico no editor: meia célula menos 2 (`tokensRenderer.ts`). */
 const RAIO = GRID / 2 - 2
 
-function ficha(id: string, health?: TokenHealth): Token {
-  const token: Token = { id, characterId: null, name: id, x: 100, y: 200, size: 1, image: null }
-  if (health !== undefined) token.health = health
-  return token
+function ficha(id: string, extra: Partial<Token> = {}): Token {
+  return { id, characterId: null, name: id, x: 100, y: 200, size: 1, image: null, ...extra }
 }
 
-const vida = (current: number, max: number): TokenHealth => ({ current, max, shownToPlayers: false })
+const vida = (atual: number, maximo: number): VidaDaFicha => ({ atual, maximo })
+const amount = (current: number, max: number) => ({ current, max })
+
+/** O desenho do editor com as vidas das fichas ligadas (o resto no padrão). */
+function desenhar(renderer: TokensRenderer, container: Container, tokens: Token[], vidas: Record<string, VidaDaFicha> = {}): void {
+  renderer.draw(container, tokens, GRID, null, undefined, null, undefined, undefined, undefined, new Map(Object.entries(vidas)))
+}
 
 function barraDe(wrapper: Container): Graphics | undefined {
   return wrapper.children.find((c): c is Graphics => c instanceof Graphics && c.label === HEALTH_BAR_LABEL)
@@ -35,10 +44,10 @@ function rotuloDe(wrapper: Container): Text {
   return label
 }
 
-describe('createTokensRenderer — barra de vida', () => {
-  it('ficha sem vida não ganha barra: os mesmos 4 filhos de sempre e o nome colado no disco', () => {
+describe('createTokensRenderer — barra de vida da ficha do sistema', () => {
+  it('ficha sem ficha do sistema não ganha barra: os mesmos 4 filhos de sempre e o nome colado no disco', () => {
     const container = new Container()
-    createTokensRenderer().draw(container, [ficha('og')], GRID, null)
+    desenhar(createTokensRenderer(), container, [ficha('og')])
     const wrapper = container.children[0]
     expect(barraDe(wrapper)).toBeUndefined()
     // visual, anel, nome e as marcas de condição (sempre presentes, vazias sem condição).
@@ -46,9 +55,16 @@ describe('createTokensRenderer — barra de vida', () => {
     expect(rotuloDe(wrapper).position.y).toBe(RAIO + 2)
   })
 
-  it('ficha com vida ganha uma barra FINA logo abaixo do disco, centrada e mais estreita que ele', () => {
+  it('a vida antiga gravada no token (decisão 4.4) fica no arquivo e não desenha barra', () => {
     const container = new Container()
-    createTokensRenderer().draw(container, [ficha('og', vida(7, 10))], GRID, null)
+    const antiga: TokenHealth = { current: 7, max: 10, shownToPlayers: true }
+    desenhar(createTokensRenderer(), container, [ficha('og', { health: antiga })])
+    expect(barraDe(container.children[0])).toBeUndefined()
+  })
+
+  it('ficha ligada com vida ganha uma barra FINA logo abaixo do disco, centrada e mais estreita que ele', () => {
+    const container = new Container()
+    desenhar(createTokensRenderer(), container, [ficha('og')], { og: vida(7, 10) })
     const barra = barraDe(container.children[0])
     expect(barra, 'a ficha com vida deveria ter a barra').toBeDefined()
     const caixa = barra?.getLocalBounds()
@@ -64,54 +80,57 @@ describe('createTokensRenderer — barra de vida', () => {
 
   it('o nome desce para baixo da barra, sem os dois se atropelarem', () => {
     const container = new Container()
-    createTokensRenderer().draw(container, [ficha('og', vida(7, 10))], GRID, null)
+    desenhar(createTokensRenderer(), container, [ficha('og')], { og: vida(7, 10) })
     const wrapper = container.children[0]
     const barra = barraDe(wrapper)
     expect(rotuloDe(wrapper).position.y).toBeGreaterThanOrEqual(barra?.getLocalBounds().maxY ?? Number.POSITIVE_INFINITY)
   })
 
-  it('a barra é de CADA ficha: dar vida ao monstro não desenha nada sob o herói', () => {
+  it('a barra é de CADA ficha: a vida do monstro não desenha nada sob o herói', () => {
     const container = new Container()
-    createTokensRenderer().draw(container, [ficha('lu'), ficha('og', vida(7, 10))], GRID, null)
+    desenhar(createTokensRenderer(), container, [ficha('lu'), ficha('og')], { og: vida(7, 10) })
     expect(barraDe(container.children[0])).toBeUndefined()
     expect(barraDe(container.children[1])).toBeDefined()
   })
 
-  it('mudar a vida redesenha a MESMA barra, menor; tirar a vida tira a barra e devolve o nome ao lugar', () => {
+  it('a ficha mudou (dano pela sala): o MESMO token redesenha a MESMA barra, menor; desligar a ficha tira a barra', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
-    renderer.draw(container, [ficha('og', vida(10, 10))], GRID, null)
+    const og = ficha('og')
+    desenhar(renderer, container, [og], { og: vida(10, 10) })
     const wrapper = container.children[0]
     const cheia = barraDe(wrapper)
     const larguraCheia = cheia?.getLocalBounds().width ?? 0
 
-    renderer.draw(container, [ficha('og', vida(3, 10))], GRID, null)
+    // O token é o MESMO objeto: só a ficha do sistema mudou.
+    desenhar(renderer, container, [og], { og: vida(3, 10) })
     expect(barraDe(wrapper)).toBe(cheia)
     // A trilha continua do mesmo tamanho: o que encolhe é o preenchimento.
     expect(barraDe(wrapper)?.getLocalBounds().width).toBeCloseTo(larguraCheia, 6)
     const preenchimentos = (cheia?.context.instructions ?? []).filter((i) => i.action === 'fill')
     expect(preenchimentos.length).toBeGreaterThanOrEqual(2)
 
-    renderer.draw(container, [ficha('og')], GRID, null)
+    desenhar(renderer, container, [og])
     expect(barraDe(wrapper)).toBeUndefined()
     expect(cheia?.destroyed).toBe(true)
     expect(wrapper.children).toHaveLength(4)
     expect(rotuloDe(wrapper).position.y).toBe(RAIO + 2)
   })
 
-  it('vida gravada com lixo (mapa editado à mão) não desenha barra nem derruba o mapa', () => {
+  it('HP grande da ficha (600 mil) desenha a proporção certa, sem teto escondido', () => {
     const container = new Container()
-    const lixo = { current: 'muita', max: 10 } as unknown as TokenHealth
-    expect(() => createTokensRenderer().draw(container, [ficha('og', lixo)], GRID, null)).not.toThrow()
-    expect(barraDe(container.children[0])).toBeUndefined()
+    desenhar(createTokensRenderer(), container, [ficha('og')], { og: vida(300_000, 600_000) })
+    expect(barraDe(container.children[0])).toBeDefined()
+    const metade = healthBarLayout(RAIO, amount(300_000, 600_000))
+    expect(metade.fillWidth).toBeCloseTo(healthBarLayout(RAIO, amount(5, 10)).fillWidth, 6)
   })
 })
 
 describe('healthBarLayout — a geometria da barra', () => {
   it('o preenchimento acompanha a vida e a cor muda de estado', () => {
-    const cheia = healthBarLayout(RAIO, vida(10, 10))
-    const pouca = healthBarLayout(RAIO, vida(3, 10))
-    const quase = healthBarLayout(RAIO, vida(2, 10))
+    const cheia = healthBarLayout(RAIO, amount(10, 10))
+    const pouca = healthBarLayout(RAIO, amount(3, 10))
+    const quase = healthBarLayout(RAIO, amount(2, 10))
     expect(pouca.fillWidth).toBeLessThan(cheia.fillWidth)
     expect(pouca.fillWidth).toBeCloseTo(cheia.fillWidth * 0.3, 6)
     expect(cheia.color).toBe(HEALTH_BAR_COLORS.fine)
@@ -120,13 +139,13 @@ describe('healthBarLayout — a geometria da barra', () => {
   })
 
   it('vivo com um fio de vida ainda mostra um ponto de barra; zero mostra a trilha vazia', () => {
-    const fio = healthBarLayout(RAIO, vida(1, 419))
+    const fio = healthBarLayout(RAIO, amount(1, 419))
     expect(fio.fillWidth).toBeGreaterThan(0)
-    expect(healthBarLayout(RAIO, vida(0, 10)).fillWidth).toBe(0)
+    expect(healthBarLayout(RAIO, amount(0, 10)).fillWidth).toBe(0)
   })
 
   it('o nome começa colado no disco sem barra e abaixo da barra com ela', () => {
-    const layout = healthBarLayout(RAIO, vida(7, 10))
+    const layout = healthBarLayout(RAIO, amount(7, 10))
     expect(tokenLabelTop(RAIO, false)).toBe(RAIO + 2)
     expect(tokenLabelTop(RAIO, true)).toBeGreaterThanOrEqual(layout.y + layout.height)
   })
