@@ -5,6 +5,7 @@ import { ImagemDaMesa } from '../../components/ImagemDaMesa'
 import { resolverComBase, resolverSoEmbutida } from '../../lib/midia'
 import type { AjustesDaTelaDaDanca } from '../../minigames/danca/tela/DancaOverlay'
 import { FONTES_DO_NAVEGADOR } from '../../minigames/danca/tela/musicaImportada'
+import type { AjustesDaTelaDaPesca } from '../../minigames/pesca/tela/PescaOverlay'
 import { abrirCanalDoNavegador, type Canal } from '../../net/visaoDeTeste/canal'
 import { lerMensagemDoHost, SESSAO_VALIDA, type MensagemDaJanela } from '../../net/visaoDeTeste/protocoloDoCanal'
 import type { FichaParaTeste, ModoDoTeste } from '../../net/visaoDeTeste/tipos'
@@ -118,11 +119,13 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   const [encerrado, setEncerrado] = useState(false)
   const [modo, setModo] = useState<ModoDoTeste>('olhar')
   const [recado, setRecado] = useState(false)
-  /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança entra. */
+  /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança e a da pesca entram. */
   const [tela, setTela] = useState<HTMLDivElement | null>(null)
   const midia = geracao === null ? undefined : geracao.midia
   // Mesma referência enquanto a base e a caixa não mudam: `fontesDaMusica` nova faria a dança baixar a música de novo.
   const danca = useMemo(() => ajustesDaDanca(midia, tela), [midia, tela])
+  // Sem a caixa, a pesca (fixed, z-index 10000) iria para o `body` e cobriria a barra do teste.
+  const pesca = useMemo<AjustesDaTelaDaPesca>(() => (tela === null ? {} : { raiz: tela }), [tela])
   /** O modo lido pelo socket e pelo bloqueio a cada evento, sem recriar nenhum dos dois. */
   const modoRef = useRef(modo)
   modoRef.current = modo
@@ -250,6 +253,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
             storage={ativa.storage}
             onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
             ajustesDaDanca={danca}
+            ajustesDaPesca={pesca}
           />
           </ImagemDaMesa.Provider>
         ) : (
