@@ -96,7 +96,14 @@ As metas abaixo foram escritas antes de calibrar e não mudaram depois.
 | Normal | bronze ≥ 70% | **99,5%** | 85% | 42% | 960 / 1121 / 1316 | 73,3% |
 | Extremo | bronze entre 15% e 40% | **73%** (fora da meta) | 43,5% | 17% | 578 / 756 / 918 | 51,9% |
 
-O teste do Extremo falha de propósito: as medalhas não foram mexidas porque o usuário pediu só a troca das balas. Se ele quiser a dificuldade de antes, a saída é subir os limiares das medalhas. O texto abaixo ainda fala em 6 balas onde descreve a primeira versão.
+O usuário escolheu manter a dificuldade aprovada subindo as medalhas (calculadas pelo robô, em múltiplos de 25): **Normal 1025 / 1200 / 1350** e **Extremo 850 / 950 / 1075**. Com elas o robô volta para:
+
+| 12 balas, medalhas novas | Bronze | Prata | Ouro |
+|---|---|---|---|
+| Normal | **79,5%** | 29,5% | 8,5% |
+| Extremo | **23%** | 6,5% | 1% |
+
+`gerar-provas.cjs` volta a 24 de 24. O texto abaixo ainda fala em 6 balas e nas medalhas antigas onde descreve a primeira versão.
 
 Outros números do robô:
 

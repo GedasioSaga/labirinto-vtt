@@ -2,20 +2,20 @@ montando a página de renderização (5 transições)...
 
 Mediana do volume integrado das aprovadas (porta, escada-pedra, escada-pedra-descendo, portao-pesado): -18,6 LUFS
 
-transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx    DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB  veredito
----------------------------  ---------  ---------------  ---------  -----------  ------  ------  -------  -------  -----------  ---------  ------  --------
-sons-do-tiro                      -2,7             -1,9      -19,6        -19,1   0,002       0        0        0            0         11     0,0  aprovado
-porta (ref)                      -15,9            -15,7      -31,5        -30,1  -0,003       0        0        0            0          4     0,0          
-escada-pedra (ref)                -0,6             -0,6      -18,6        -19,4   0,085       0        0        0            0          0     0,0          
-escada-pedra-descendo (ref)       -0,5             -0,5      -18,6        -19,4   0,085       0        0        0            0          0     0,0          
-portao-pesado (ref)               -2,2             -2,2      -17,0        -16,3   0,067       0        0       10           57          0     0,0          
+transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx   DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB  veredito
+---------------------------  ---------  ---------------  ---------  -----------  -----  ------  -------  -------  -----------  ---------  ------  --------
+sons-do-tiro                      -2,7             -1,9      -19,6        -19,1  0,002       0        0        0            0         11     0,0  aprovado
+porta (ref)                      -10,7            -10,6      -31,2        -29,9  0,007       0        0        0            0          4     0,0          
+escada-pedra (ref)                -0,6             -0,6      -18,6        -19,4  0,085       0        0        0            0          0     0,0          
+escada-pedra-descendo (ref)       -0,7             -0,7      -18,6        -19,4  0,084       0        0        0            0          0     0,0          
+portao-pesado (ref)               -1,9             -1,9      -17,1        -16,3  0,055       0        0       10           59          0     0,0          
 
 Centróide espectral por segundo (Hz; mais alto = mais agudo/brilhante):
   sons-do-tiro           566 545 484 934 2807 2224 859 3284 2936 899 752 741
-  porta                  247 257 1337 843 787 446 264 —
-  escada-pedra           — 113 111 121 115 113 108 97 124 114 116 111
-  escada-pedra-descendo  — 114 111 121 115 113 108 98 123 113 116 112
-  portao-pesado          444 280 248 3596 475 568 666 621 611 92 341
+  porta                  270 265 1566 843 777 430 281 —
+  escada-pedra           — 114 111 121 116 114 108 98 124 114 117 112
+  escada-pedra-descendo  — 114 110 120 114 113 108 98 122 113 116 112
+  portao-pesado          512 309 286 4017 472 563 669 622 607 91 381
 
 sons-do-tiro: aprovado nas medidas
   (silêncio total no meio: 2,66–3,01 s, 3,15–3,51 s, 4,14–4,21 s, 4,84–4,91 s, 5,54–5,61 s, 6,24–6,31 s, 6,94–7,01 s, 7,05–7,26 s, 7,30–7,61 s, 8,54–8,66 s, 8,80–9,21 s; confira se é de propósito)

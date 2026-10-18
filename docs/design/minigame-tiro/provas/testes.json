@@ -14,13 +14,13 @@
       "nome": "robô humano no Normal: bronze em >= 70% de 200 rodadas",
       "passou": true,
       "detalhe": {
-        "bronze": "99.5%",
-        "prata": "85%",
-        "ouro": "42%",
+        "bronze": "79.5%",
+        "prata": "29.5%",
+        "ouro": "8.5%",
         "medalhas": [
-          850,
-          1000,
-          1150
+          1025,
+          1200,
+          1350
         ],
         "pontos": {
           "p10": 960,
@@ -32,15 +32,15 @@
     },
     {
       "nome": "robô humano no Extremo: bronze entre 15% e 40% de 200 rodadas",
-      "passou": false,
+      "passou": true,
       "detalhe": {
-        "bronze": "73%",
-        "prata": "43.5%",
-        "ouro": "17%",
+        "bronze": "23%",
+        "prata": "6.5%",
+        "ouro": "1%",
         "medalhas": [
-          675,
-          775,
-          875
+          850,
+          950,
+          1075
         ],
         "pontos": {
           "p10": 578,
@@ -164,7 +164,7 @@
       }
     },
     {
-      "nome": "gráfico do movimento: balas entre 0 e 6 e só sobem para 6 na recarga; pontos só mudam com acerto; mira sem teleporte (<= 600 px/s); trilhos em velocidade constante; nada proibido no Normal; fim no tempo certo",
+      "nome": "gráfico do movimento: balas entre 0 e 12 e só sobem para 12 na recarga; pontos só mudam com acerto; mira sem teleporte (<= 600 px/s); trilhos em velocidade constante; nada proibido no Normal; fim no tempo certo",
       "passou": true,
       "detalhe": [
         {
@@ -187,7 +187,7 @@
           "trilhoVariou": 0,
           "proibNoNormal": false,
           "pontos": 817,
-          "medalha": "prata"
+          "medalha": null
         }
       ]
     },
@@ -297,7 +297,7 @@
         "campos": {
           "nome": "Velho Bargo",
           "topo": "Tenda do Estampido",
-          "meta": "Prata no Normal: 1000 pontos em 40 s."
+          "meta": "Prata no Normal: 1200 pontos em 40 s."
         }
       }
     },
@@ -332,7 +332,7 @@
         "campos": {
           "nome": "Velho Bargo",
           "topo": "Tenda do Estampido",
-          "meta": "Prata no Normal: 1000 pontos em 40 s."
+          "meta": "Prata no Normal: 1200 pontos em 40 s."
         }
       }
     },
@@ -341,7 +341,7 @@
       "passou": true,
       "detalhe": {
         "pontos": 1035,
-        "medalha": "prata",
+        "medalha": "bronze",
         "tiros": 55,
         "acertos": 40,
         "recargas": 4,
@@ -356,7 +356,7 @@
         "intervaloP50": 16.7,
         "intervaloP95": 16.8,
         "trabalhoP95": 0.6,
-        "trabalhoMax": 5.7,
+        "trabalhoMax": 7,
         "tarefasLongas": []
       }
     },
@@ -371,7 +371,7 @@
       "detalhe": {
         "quadros": 15,
         "proibidoAcertado": 1,
-        "medalha": "ouro",
+        "medalha": "bronze",
         "pontos": 1163
       }
     },
@@ -423,13 +423,13 @@
   ],
   "robo": {
     "normal": {
-      "bronze": 0.995,
-      "prata": 0.85,
-      "ouro": 0.42,
+      "bronze": 0.795,
+      "prata": 0.295,
+      "ouro": 0.085,
       "medalhas": [
-        850,
-        1000,
-        1150
+        1025,
+        1200,
+        1350
       ],
       "pontos": {
         "p10": 960,
@@ -442,13 +442,13 @@
       "secosPorRodada": 1.99
     },
     "extremo": {
-      "bronze": 0.73,
-      "prata": 0.435,
-      "ouro": 0.17,
+      "bronze": 0.23,
+      "prata": 0.065,
+      "ouro": 0.01,
       "medalhas": [
-        675,
-        775,
-        875
+        850,
+        950,
+        1075
       ],
       "pontos": {
         "p10": 578,
@@ -466,13 +466,13 @@
     "intervaloP50": 16.7,
     "intervaloP95": 16.8,
     "trabalhoP95": 0.6,
-    "trabalhoMax": 5.7,
+    "trabalhoMax": 7,
     "tarefasLongas": []
   },
   "folha": {
     "quadros": 15,
     "proibidoAcertado": 1,
-    "medalha": "ouro",
+    "medalha": "bronze",
     "pontos": 1163
   },
   "grafico": [
@@ -486,7 +486,7 @@
     {
       "dif": "extremo",
       "pontos": 817,
-      "medalha": "prata",
+      "medalha": null,
       "precisao": 0.55,
       "amostras": 321
     }
