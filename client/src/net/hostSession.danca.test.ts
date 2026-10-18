@@ -8,8 +8,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
-import { minigamePadrao } from '../lib/pins'
-import type { MinigameDoPino } from '../minigames/danca/tipos'
+import { minigamePadrao, minigamePadraoDo } from '../lib/pins'
+import type { MinigameDanca } from '../minigames/danca/tipos'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 import type { DancaPlacarFinal } from './protocoloDaDanca'
@@ -19,7 +19,7 @@ const CODE = 'AB12CD'
 const ficha = (id: string, x: number): Token => ({ id, characterId: null, name: `ficha-${id}`, x, y: 200, size: 1, image: null })
 const PORTA: Wall = { id: 'porta-ziza', x1: 900, y1: 0, x2: 900, y2: 1000, blocksLight: true, blocksMove: true, door: { open: false, locked: true, kind: 'normal' } }
 
-function pino(extra: Partial<MinigameDoPino> = {}, portaLigada: string | undefined = PORTA.id): Pin {
+function pino(extra: Partial<MinigameDanca> = {}, portaLigada: string | undefined = PORTA.id): Pin {
   const base: Pin = { ...buildPin('pino-danca', { x: 300, y: 300 }, 'minigame'), minigame: { ...minigamePadrao(), ...extra } }
   return portaLigada === undefined ? base : { ...base, portaLigada }
 }
@@ -101,6 +101,13 @@ describe('danca: convite', () => {
     expect(s.convidarParaDanca('pino-danca', ['inventado'], world)).toEqual({ outbound: [], convite: { ok: false, motivo: 'ninguem' } })
     sessaoDe(s.convidarParaDanca('pino-danca', [ana], world))
     expect(s.convidarParaDanca('pino-danca', [ana], world)).toEqual({ outbound: [], convite: { ok: false, motivo: 'ocupada' } })
+  })
+
+  it('pino de minigame com a PESCA: não chama para dançar, e nenhuma mensagem sai', () => {
+    const pesca: Pin = { ...buildPin('pino-danca', { x: 300, y: 300 }, 'minigame'), minigame: minigamePadraoDo('pesca') }
+    const { s, world, ana, bruno } = mesa(pesca)
+    expect(s.convidarParaDanca('pino-danca', [ana, bruno], world)).toEqual({ outbound: [], convite: { ok: false, motivo: 'pino' } })
+    expect(s.danca()).toBeNull()
   })
 
   it('música importada: as duas coreografias prontas vão no convite (o jogador nunca recalcula)', () => {

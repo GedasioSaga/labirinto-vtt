@@ -5,7 +5,7 @@ import {
   LETRAS_DANCA,
   type DificuldadeDanca,
   type LetraDanca,
-  type MinigameDoPino,
+  type MinigameDanca,
   type MusicaDaDanca,
   type NotaDaDanca,
   type TrilhaDanca,
@@ -63,9 +63,9 @@ const MOTIVOS_DO_FIM: readonly DancaMotivoDoFim[] = ['fora', 'mestre', 'saiu']
 const JULGAMENTOS: readonly Julgamento[] = ['perfeito', 'bom', 'ok', 'errou']
 const TRILHAS: readonly TrilhaDanca[] = [0, 1, 2, 3]
 const SUBDIVISOES: readonly NotaDaDanca['sub'][] = [4, 8, 16]
-const PREMIOS: readonly MinigameDoPino['premio']['tipo'][] = ['item', 'pista', 'bonus', 'nada']
-const CONSEQUENCIAS: readonly MinigameDoPino['consequencia']['tipo'][] = ['teste', 'barulho', 'espera', 'nada']
-const PERMITIDAS: readonly MinigameDoPino['permitida'][] = ['escolha', ...DIFICULDADES_DANCA]
+const PREMIOS: readonly MinigameDanca['premio']['tipo'][] = ['item', 'pista', 'bonus', 'nada']
+const CONSEQUENCIAS: readonly MinigameDanca['consequencia']['tipo'][] = ['teste', 'barulho', 'espera', 'nada']
+const PERMITIDAS: readonly MinigameDanca['permitida'][] = ['escolha', ...DIFICULDADES_DANCA]
 
 export interface DancaParticipante {
   playerId: string
@@ -107,9 +107,9 @@ export interface DancaConviteMessage {
   pinId: string
   npc: string
   fala: string
-  permitida: MinigameDoPino['permitida']
+  permitida: MinigameDanca['permitida']
   notaMin: LetraDanca
-  premio: MinigameDoPino['premio']
+  premio: MinigameDanca['premio']
   musica: MusicaDaDanca
   participantes: DancaParticipante[]
 }
@@ -162,7 +162,7 @@ export interface DancaDesfechoMessage {
   portaAberta: boolean
   mesa: DancaLinhaDaMesa[]
   /** O que é DESTE jogador: o prêmio só com todos passando; a consequência só para quem não passou. */
-  seu: { passou: boolean; premio?: MinigameDoPino['premio']; consequencia?: MinigameDoPino['consequencia'] }
+  seu: { passou: boolean; premio?: MinigameDanca['premio']; consequencia?: MinigameDanca['consequencia'] }
 }
 
 export type DancaHostMessage =
@@ -306,12 +306,12 @@ function lerMusica(value: unknown): MusicaDaDanca | null {
   return { tipo: 'arquivo', midia: value.midia, nome: value.nome, bpm, primeiraBatida, fase4, duracaoS, coreografias: { diversao, expert } }
 }
 
-function lerPremio(value: unknown): MinigameDoPino['premio'] | null {
+function lerPremio(value: unknown): MinigameDanca['premio'] | null {
   const tipo = isRecord(value) ? umDaLista(PREMIOS, value.tipo) : undefined
   return tipo === undefined || !isRecord(value) || !textoEntre(value.texto, 0, TEXTO_CURTO_MAX) ? null : { tipo, texto: value.texto }
 }
 
-function lerConsequencia(value: unknown): MinigameDoPino['consequencia'] | null {
+function lerConsequencia(value: unknown): MinigameDanca['consequencia'] | null {
   const tipo = isRecord(value) ? umDaLista(CONSEQUENCIAS, value.tipo) : undefined
   return tipo === undefined || !isRecord(value) || !textoEntre(value.texto, 0, TEXTO_CURTO_MAX) ? null : { tipo, texto: value.texto }
 }

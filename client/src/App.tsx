@@ -212,7 +212,8 @@ import { imageExportFileName, type ImageExportOptions, type MapImageExporter } f
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { corDoPinoParaGravar, escalaDoPino, escalaDoPinoParaGravar, passageOf, pinKindChangePatch } from './lib/pins'
-import { MINIGAME_PADRAO, type MinigameDoPino } from './minigames/danca/tipos'
+import { MINIGAME_PADRAO } from './minigames/danca/tipos'
+import type { MinigameDoPino } from './minigames/tipos'
 import type { DancaAoVivo } from './net/dancaNoHost'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
@@ -2466,7 +2467,9 @@ function App() {
   /**
    * MINIGAME aberto no painel: o desafio (gravado inteiro no pino, com
    * desfazer), a porta que a dança abre (a mesma lista da alavanca) e, com a
-   * sala aberta, a dança ao vivo. Chama só quem está jogando e com a página
+   * sala aberta, a dança ao vivo. O painel escolhe pelo jogo do pino: a pesca
+   * ainda não tem painel nem ao vivo (`MinigameControls`), e o `dancaNoPainel`
+   * só chama para dançar o pino de dança (`hostSession.convidarParaDanca`). Chama só quem está jogando e com a página
    * aberta: a sessão recusaria o resto (`hostSession.convidarParaDanca`).
    * Com a VISÃO DE JOGADOR aberta, a dança ao vivo é a do teste, mesmo com a
    * sala aberta ao lado (`dancaNoPainel`).

@@ -20,6 +20,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
+import type { MinigameVisivel } from '../minigames/tipos'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
@@ -4478,8 +4479,10 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  *   `alavanca` (o cartão oferece "Puxar") e vê a porta mexer só se ela estiver
  *   no recorte dele.
  * - `minigame` NUNCA, nem a `portaLigada` dele: o tipo `minigame` vai (o
- *   cartão avisa que há um desafio), mas NPC, música, prêmio e consequência
- *   são do mestre — chegam só no convite, aos jogadores chamados.
+ *   cartão avisa que há um desafio), mas NPC, fala, lago, música, prêmio e
+ *   consequência são do mestre — chegam só no convite, aos jogadores chamados.
+ *   Em troca vai `minigameVisivel`, montado AQUI: só o jogo e como ele começa
+ *   (o cartão oferece "Pescar" ou avisa que o mestre chama).
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
  * - `nome` (o "Nome do local", título do painel da revelação) VAI só junto
@@ -4609,7 +4612,22 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // de perto" com a ficha longe sai vazio: a banca também não vai.
   const loja = readable ? lojaParaJogador(pin) : null
   if (loja !== null) forPlayer.loja = loja
+  // MINIGAME: do desafio sai só o jogo e como ele começa, montados aqui — um
+  // `minigameVisivel` gravado no mapa do mestre não é copiado.
+  if (pin.kind === 'minigame') forPlayer.minigameVisivel = minigameVisivelDe(pin)
   return forPlayer
+}
+
+/**
+ * O jogo e a entrada do pino de minigame, pela lista do que vai. Pino sem
+ * desafio gravado joga a dança (como o host e o disco já fazem), e a dança
+ * sempre começa pelo mestre. Valor torto (mapa montado sem passar pelo disco)
+ * cai na dança e no mestre: o cartão nunca oferece começar sozinho por engano.
+ */
+function minigameVisivelDe(pin: Pin): MinigameVisivel {
+  const minigame = pin.minigame
+  if (minigame === undefined || minigame.jogo !== 'pesca') return { jogo: 'danca', entrada: 'mestre' }
+  return { jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }
 }
 
 /**

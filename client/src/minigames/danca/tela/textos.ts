@@ -1,7 +1,7 @@
 import type { DancaDesfechoMessage, DancaMotivoDoFim, DancaStatus } from '../../../net/protocoloDaDanca'
 import type { MotivoDoFim } from '../partida'
 import { BPM_DEMO } from '../som'
-import type { MinigameDoPino, MusicaDaDanca } from '../tipos'
+import type { MinigameDanca, MusicaDaDanca } from '../tipos'
 
 /**
  * TEXTOS DA TELA DA DANÇA: números no jeito brasileiro e as frases do convite,
@@ -25,7 +25,7 @@ export function textoDaMusica(musica: MusicaDaDanca): string {
 }
 
 /** O prêmio como o convite mostra. A pista não aparece antes de ganhar: o texto dela é o próprio segredo. */
-export function textoDoPremio(premio: MinigameDoPino['premio']): string {
+export function textoDoPremio(premio: MinigameDanca['premio']): string {
   if (premio.tipo === 'nada') return 'Nenhum'
   if (premio.tipo === 'pista') return 'Uma pista do mestre'
   return premio.texto || (premio.tipo === 'item' ? 'Um item' : 'Um bônus')
@@ -85,14 +85,14 @@ export function tituloDoResultado(motivo: MotivoDoFim, desfecho: Omit<DancaDesfe
   return 'Não foi desta vez'
 }
 
-const FRASE_DO_PREMIO: Record<MinigameDoPino['premio']['tipo'], (texto: string) => string> = {
+const FRASE_DO_PREMIO: Record<MinigameDanca['premio']['tipo'], (texto: string) => string> = {
   item: (t) => `${t || 'O item'} foi para a sua mochila.`,
   pista: (t) => `Pista anotada no seu caderno: ${t}`,
   bonus: (t) => `Bônus anotado no seu caderno: ${t}. O mestre aplica no próximo teste.`,
   nada: () => 'Sem prêmio além da passagem.',
 }
 
-const FRASE_DA_CONSEQUENCIA: Record<MinigameDoPino['consequencia']['tipo'], (texto: string) => string> = {
+const FRASE_DA_CONSEQUENCIA: Record<MinigameDanca['consequencia']['tipo'], (texto: string) => string> = {
   teste: (t) => `Anotado no seu caderno: ${t}. O mestre aplica no próximo teste.`,
   barulho: () => 'O barulho chamou atenção. O mestre narra o que vem.',
   espera: () => 'Dá para tentar de novo na próxima rodada.',

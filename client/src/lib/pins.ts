@@ -1,5 +1,7 @@
 import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
-import { MINIGAME_PADRAO, type MinigameDoPino, type MusicaDaDanca } from '../minigames/danca/tipos'
+import { MINIGAME_PADRAO, type MinigameDanca, type MusicaDaDanca } from '../minigames/danca/tipos'
+import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from '../minigames/pesca/tipos'
+import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { parseHexColor } from './tokenColor'
 
 /**
@@ -182,20 +184,49 @@ export function pinKindChangePatch(pin: Pick<Pin, 'kind' | 'minigame'>, kind: Pi
 }
 
 /**
- * Cópia nova de `MINIGAME_PADRAO`: o pino não divide objeto com a constante
- * nem com outro pino, então nada que mexa num deles alcança o outro.
+ * Cópia nova de `MINIGAME_PADRAO` (a dança, o jogo de quem acaba de virar
+ * minigame): o pino não divide objeto com a constante nem com outro pino,
+ * então nada que mexa num deles alcança o outro.
  */
-export function minigamePadrao(): MinigameDoPino {
+export function minigamePadrao(): MinigameDanca {
   return copiarMinigame(MINIGAME_PADRAO)
 }
 
-/** Cópia funda do desafio: quem guarda (o convite da dança, o pino novo) não divide objeto com o original. */
+/** Cópia nova do desafio do protótipo de cada jogo. */
+export function minigamePadraoDo(jogo: JogoDoMinigame): MinigameDoPino {
+  switch (jogo) {
+    case 'danca':
+      return minigamePadrao()
+    case 'pesca':
+      return copiarMinigame(MINIGAME_PESCA_PADRAO)
+  }
+}
+
+/**
+ * O "Jogo" do painel do mestre: trocar de jogo põe o desafio padrão do outro
+ * (nada de um jogo serve no outro: música e nota mínima não existem na pesca,
+ * lago e lances não existem na dança). O mesmo jogo devolve o desafio como
+ * está — escolher de novo a opção marcada não apaga o que o mestre montou.
+ */
+export function trocarJogoDoMinigame(minigame: MinigameDoPino, jogo: JogoDoMinigame): MinigameDoPino {
+  return minigame.jogo === jogo ? minigame : minigamePadraoDo(jogo)
+}
+
+/** Cópia funda do desafio: quem guarda (o convite, o pino novo) não divide objeto com o original. */
+export function copiarMinigame(minigame: MinigameDanca): MinigameDanca
+export function copiarMinigame(minigame: MinigamePesca): MinigamePesca
+export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino
 export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
-  return {
-    ...minigame,
-    musica: copiarMusica(minigame.musica),
-    premio: { ...minigame.premio },
-    consequencia: { ...minigame.consequencia },
+  switch (minigame.jogo) {
+    case 'danca':
+      return {
+        ...minigame,
+        musica: copiarMusica(minigame.musica),
+        premio: { ...minigame.premio },
+        consequencia: { ...minigame.consequencia },
+      }
+    case 'pesca':
+      return { ...minigame, premio: { ...minigame.premio }, consequencia: { ...minigame.consequencia } }
   }
 }
 
@@ -775,7 +806,10 @@ export function pinSummary(pin: Pin): string {
   // A alavanca também desenha o próprio símbolo, nunca o escolhido.
   if (pin.kind === 'alavanca') return 'Alavanca'
   // O minigame também: o controle no mapa, e o nome do jogo quando há um.
-  if (pin.kind === 'minigame') return pin.minigame?.jogo === 'danca' ? 'Dança' : 'Minigame'
+  if (pin.kind === 'minigame') {
+    const jogo = pin.minigame?.jogo
+    return jogo === 'danca' ? 'Dança' : jogo === 'pesca' ? 'Pesca' : 'Minigame'
+  }
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
 }

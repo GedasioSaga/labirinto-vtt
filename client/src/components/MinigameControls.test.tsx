@@ -3,7 +3,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUDIO_NAO_E_AUDIO } from '../lib/midiaNoDisco'
 import type { AnaliseDaMusica, AudioDecodificado, MusicaPreparada } from '../minigames/danca/analise'
-import { MINIGAME_PADRAO, type MinigameDoPino, type MusicaDaDanca, type NotaDaDanca } from '../minigames/danca/tipos'
+import { MINIGAME_PADRAO, type MinigameDanca, type MusicaDaDanca, type NotaDaDanca } from '../minigames/danca/tipos'
+import { MINIGAME_PESCA_PADRAO } from '../minigames/pesca/tipos'
 import { esquecerMusicasNaMemoria, MinigameControls, MUSICA_ERROS, type CaminhoDaMusica, type MinigameControlsProps } from './MinigameControls'
 import { FichaDoPino, type FichaDoPinoProps } from './livro/FichaDoPino'
 import { PinControls } from './PinControls'
@@ -133,11 +134,13 @@ describe('MinigameControls', () => {
     for (let i = 0; i < 6; i += 1) await act(async () => {})
   }
 
-  function ultimo(onChange: MinigameControlsProps['onChange']): MinigameDoPino {
+  function ultimo(onChange: MinigameControlsProps['onChange']): MinigameDanca {
     const chamadas = vi.mocked(onChange).mock.calls
     const ultima = chamadas.at(-1)
     if (ultima === undefined) throw new Error('nada gravado')
-    return ultima[0]
+    const gravado = ultima[0]
+    if (gravado.jogo !== 'danca') throw new Error('o painel da dança gravou outro jogo')
+    return gravado
   }
 
   it('quem desafia e a fala gravam ao sair do campo, não a cada letra', () => {
@@ -320,7 +323,7 @@ describe('MinigameControls', () => {
   })
 
   it('pino editado no meio da dança: o desfecho mostra o prêmio e a consequência do convite, não os do pino de agora', () => {
-    const editado: MinigameDoPino = { ...MINIGAME_PADRAO, premio: { tipo: 'item', texto: 'Moeda de ouro' }, consequencia: { tipo: 'espera', texto: '' } }
+    const editado: MinigameDanca = { ...MINIGAME_PADRAO, premio: { tipo: 'item', texto: 'Moeda de ouro' }, consequencia: { tipo: 'espera', texto: '' } }
     const final = { precisao: 0.5, letra: 'D', falhou: true, perfeito: 1, bom: 1, ok: 1, errou: 9, comboMax: 2, segOk: 0, segTotal: 0 } as const
     render(
       props({
@@ -386,5 +389,15 @@ describe('MinigameControls', () => {
     // Nenhum pino aberto (a ferramenta Pino armada): só o recado de cravar.
     act(() => root.render(<PinControls {...base} description={null} onDelete={() => {}} desafio={null} />))
     expect(container.textContent).toContain('Crave o pino; no painel dele você monta o desafio de dança.')
+  })
+
+  it('pino de pesca (antes do painel dela): só o aviso, nenhum campo da dança e nada gravado', () => {
+    const p = props({ minigame: { ...MINIGAME_PESCA_PADRAO } })
+    render(p)
+    expect(container.textContent).toContain('Pesca: painel em construção')
+    expect(container.textContent).not.toContain('Quem desafia')
+    expect(container.textContent).not.toContain('Chamar para dançar')
+    expect(container.querySelectorAll('input, select, textarea, button')).toHaveLength(0)
+    expect(p.onChange).not.toHaveBeenCalled()
   })
 })

@@ -10816,7 +10816,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       const scene = allScenes(world).find((candidate) => candidate.map.pins.some((p) => p.id === pinId))
       const pin = scene?.map.pins.find((p) => p.id === pinId)
-      if (scene === undefined || pin === undefined || pin.kind !== 'minigame') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      // Pino de minigame sem desafio gravado joga o do protótipo, como o painel e o disco já fazem.
+      // Só o pino de DANÇA chama para dançar: a pesca tem o convite dela.
+      const desafio = pin?.kind === 'minigame' ? (pin.minigame ?? MINIGAME_PADRAO) : null
+      if (scene === undefined || pin === undefined || desafio === null || desafio.jogo !== 'danca') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
       // A porta é congelada agora, como o resto: apagar ou religar no meio da dança não muda a que abre.
       const door = linkedDoorOf(scene.map, pin)
       const fundo = backgroundSceneId(scene, world)
@@ -10827,8 +10830,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
         })
         .slice(0, DANCA_PARTICIPANTES_MAX)
-      // Pino de minigame sem desafio gravado joga o do protótipo, como o painel e o disco já fazem.
-      const minigame = copiarMinigame(pin.minigame ?? MINIGAME_PADRAO)
+      const minigame = copiarMinigame(desafio)
       const { outbound, resultado } = dancaNoHost.convidar({ pinId, minigame, ...(porta === undefined ? {} : { porta }) }, convidados)
       return { outbound, convite: resultado }
     },

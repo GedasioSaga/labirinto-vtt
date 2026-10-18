@@ -30,12 +30,24 @@ import {
   PREMIO_TEXTO_MAX_LENGTH,
   type ConsequenciaDanca,
   type DificuldadeDanca,
-  type MinigameDoPino,
+  type MinigameDanca,
   type MusicaDaDanca,
   type NotaDaDanca,
   type PremioDanca,
   type TrilhaDanca,
 } from '../minigames/danca/tipos'
+import {
+  DIFICULDADES_PESCA,
+  ENTRADAS_PESCA,
+  LAGO_MAX_LENGTH,
+  LANCES_MAX,
+  LANCES_MIN,
+  MINIGAME_PESCA_PADRAO,
+  PESCA_TEXTO_MAX_LENGTH,
+  type DificuldadePesca,
+  type MinigamePesca,
+} from '../minigames/pesca/tipos'
+import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
 import { readPinColecao } from './colecao'
@@ -134,6 +146,7 @@ function entityList<T>(value: T[] | undefined): T[] {
 const PREMIOS_DANCA: readonly PremioDanca[] = ['item', 'pista', 'bonus', 'nada']
 const CONSEQUENCIAS_DANCA: readonly ConsequenciaDanca[] = ['teste', 'barulho', 'espera', 'nada']
 const PERMITIDAS_DANCA: readonly ('escolha' | DificuldadeDanca)[] = ['escolha', ...DIFICULDADES_DANCA]
+const PERMITIDAS_PESCA: readonly ('escolha' | DificuldadePesca)[] = ['escolha', ...DIFICULDADES_PESCA]
 const TRILHAS_DANCA: readonly TrilhaDanca[] = [0, 1, 2, 3]
 const SUBDIVISOES_DANCA: readonly NotaDaDanca['sub'][] = [4, 8, 16]
 /** A batida que abre o compasso: uma das quatro. */
@@ -228,13 +241,57 @@ function lerMusicaDaDanca(valor: unknown): MusicaDaDanca {
 
 /**
  * MINIGAME do pino, como vem do disco. Campo a campo, como `readPinLock`: o
- * torto cai no valor de `MINIGAME_PADRAO` e o resto do desafio fica. Só volta
+ * torto cai no valor padrão do jogo (`MINIGAME_PADRAO` na dança,
+ * `MINIGAME_PESCA_PADRAO` na pesca) e o resto do desafio fica. Só volta
  * `undefined` (e o pino ganha o padrão inteiro) quando não há desafio nenhum
  * — não é objeto, ou o jogo não é um que este app conheça (versão futura).
  * Campo desconhecido não entra: o desafio é montado aqui, nunca copiado.
  */
 export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined {
-  if (!ehObjetoDoArquivo(valor) || campoDoArquivo(valor, 'jogo') !== 'danca') return undefined
+  if (!ehObjetoDoArquivo(valor)) return undefined
+  const jogo = campoDoArquivo(valor, 'jogo')
+  if (jogo === 'danca') return lerDancaDoArquivo(valor)
+  if (jogo === 'pesca') return lerPescaDoArquivo(valor)
+  return undefined
+}
+
+/**
+ * A PESCA do disco. Textos aparados e cortados nos tetos de `pesca/tipos.ts`;
+ * `lances` fora de 1..5 vem para a ponta mais perto (e o quebrado, para o
+ * inteiro mais perto) — o mestre que gravou 9 queria muitos, não o padrão;
+ * o que não é número volta o padrão. `entrada` e `permitida` fora da lista
+ * voltam o padrão. Prêmio e consequência são só texto: um `tipo` que viesse
+ * no arquivo não entra.
+ */
+function lerPescaDoArquivo(valor: object): MinigamePesca {
+  const padrao = MINIGAME_PESCA_PADRAO
+  return {
+    jogo: 'pesca',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), FALA_MAX_LENGTH, padrao.fala),
+    lago: textoDoArquivo(campoDoArquivo(valor, 'lago'), LAGO_MAX_LENGTH, padrao.lago),
+    entrada: umDaLista(ENTRADAS_PESCA, campoDoArquivo(valor, 'entrada')) ?? padrao.entrada,
+    lances: lancesDoArquivo(campoDoArquivo(valor, 'lances'), padrao.lances),
+    permitida: umDaLista(PERMITIDAS_PESCA, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
+    premio: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'premio'), padrao.premio.texto) },
+    consequencia: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'consequencia'), padrao.consequencia.texto) },
+  }
+}
+
+/** Lances da pesca: número finito, arredondado e preso em `LANCES_MIN`..`LANCES_MAX`; o resto, o padrão. */
+function lancesDoArquivo(valor: unknown, padrao: number): number {
+  if (!ehNumeroFinito(valor)) return padrao
+  return Math.min(LANCES_MAX, Math.max(LANCES_MIN, Math.round(valor)))
+}
+
+/** O `{ texto }` do prêmio e da consequência da pesca: objeto que não é objeto, ou texto que não é texto, volta o padrão. */
+function textoDeObjetoDoArquivo(valor: unknown, padrao: string): string {
+  if (!ehObjetoDoArquivo(valor)) return padrao
+  return textoDoArquivo(campoDoArquivo(valor, 'texto'), PESCA_TEXTO_MAX_LENGTH, padrao)
+}
+
+/** A DANÇA do disco, como sempre foi lida (mapa antigo abre igual). */
+function lerDancaDoArquivo(valor: object): MinigameDanca {
   const padrao = MINIGAME_PADRAO
   const premio = campoDoArquivo(valor, 'premio')
   const consequencia = campoDoArquivo(valor, 'consequencia')
@@ -753,6 +810,8 @@ function deserializeMapFields(json: string): MapData {
       // que preste ganha o padrão (sem ele não haveria o que propor); em outro
       // tipo de pino o campo é sobra e não entra (o `...p` copiaria o cru).
       minigame: p.kind === 'minigame' ?(lerMinigameDoArquivo(p.minigame) ?? minigamePadrao()) : undefined,
+      // `minigameVisivel` é só do recorte do jogador: arquivo que o traga não o põe no mapa do mestre.
+      minigameVisivel: undefined,
       // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
       // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
       // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`

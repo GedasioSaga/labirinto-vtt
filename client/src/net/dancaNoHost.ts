@@ -1,5 +1,5 @@
 import { passouDaNota } from '../minigames/danca/regras'
-import type { DificuldadeDanca, LetraDanca, MinigameDoPino } from '../minigames/danca/tipos'
+import type { DificuldadeDanca, LetraDanca, MinigameDanca } from '../minigames/danca/tipos'
 import {
   DANCA_COMECAR_EM_MS,
   type DancaColegasMessage,
@@ -54,7 +54,7 @@ export interface PortaDaDanca {
  */
 export interface DancaCongelada {
   pinId: string
-  minigame: MinigameDoPino
+  minigame: MinigameDanca
   porta?: PortaDaDanca
 }
 
@@ -85,8 +85,8 @@ export interface DancaAoVivo {
    * mestre pode editar o pino no meio da dança, e o desfecho do painel tem de
    * dizer o mesmo que os avisos e o que foi aplicado.
    */
-  premio: MinigameDoPino['premio']
-  consequencia: MinigameDoPino['consequencia']
+  premio: MinigameDanca['premio']
+  consequencia: MinigameDanca['consequencia']
   participantes: DancaParticipanteNoMestre[]
   desfecho?: { todosPassaram: boolean; portaAberta: boolean }
 }
@@ -103,8 +103,8 @@ export interface DancaDesfechoSinal {
   npc: string
   todosPassaram: boolean
   porta?: PortaDaDanca
-  premio: MinigameDoPino['premio']
-  consequencia: MinigameDoPino['consequencia']
+  premio: MinigameDanca['premio']
+  consequencia: MinigameDanca['consequencia']
   mesa: { playerId: string; nome: string; passou: boolean; letra: DancaLinhaDaMesa['letra']; precisao: number }[]
   /** Prêmio `item` com todos passando: o id novo do item de cada um. A ponte acha a ficha dele e grava a mochila. */
   itens: { playerId: string; nome: string; itemId: string; texto: string }[]

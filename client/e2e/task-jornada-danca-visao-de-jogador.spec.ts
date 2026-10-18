@@ -26,7 +26,7 @@
 import { test as base, expect, type Page } from '@playwright/test'
 import { buildPin, createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
-import { MINIGAME_PADRAO, type MinigameDoPino } from '../src/minigames/danca/tipos'
+import { MINIGAME_PADRAO, type MinigameDanca } from '../src/minigames/danca/tipos'
 import { contentBounds, fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token, Wall } from '../src/types/map'
 import { NOME_DO_CANAL } from '../src/net/visaoDeTeste/canal'
@@ -84,7 +84,7 @@ function parede(id: string, x1: number, y1: number, x2: number, y2: number, door
   return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door }
 }
 
-function mapaDaDanca(minigame: MinigameDoPino): MapData {
+function mapaDaDanca(minigame: MinigameDanca): MapData {
   const base = createEmptyMap('map_ziza', AVENTURA, COLUNAS, LINHAS, GRADE)
   const pino: Pin = { ...buildPin(ID_DO_PINO, POS_PINO, 'minigame'), minigame, portaLigada: ID_DA_PORTA }
   const ficha: Token = { id: 'tok-lanterna', characterId: null, name: TOKEN, x: POS_TOKEN.x, y: POS_TOKEN.y, size: 1, image: null, color: '#3cff00' }
@@ -262,7 +262,7 @@ function instalarEspiaoDoCanal(nomeDoCanal: string): void {
     modulos ??= Promise.all([import('/src/net/protocoloDaDanca.ts'), import('/src/minigames/danca/coreografia.ts'), import('/src/minigames/danca/tela/partidaDoConvite.ts')])
     return modulos
   }
-  let convite: { pinId: string; musica: MinigameDoPino['musica'] } | null = null
+  let convite: { pinId: string; musica: MinigameDanca['musica'] } | null = null
   let fila: Promise<void> = Promise.resolve()
 
   const receber = async (msgBruta: unknown, recebidoEm: number): Promise<void> => {

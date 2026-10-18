@@ -19,10 +19,11 @@ import {
   PREMIO_TEXTO_MAX_LENGTH,
   type ConsequenciaDanca,
   type DificuldadeDanca,
-  type MinigameDoPino,
+  type MinigameDanca,
   type MusicaDaDanca,
   type PremioDanca,
 } from '../minigames/danca/tipos'
+import type { MinigameDoPino } from '../minigames/tipos'
 import { DANCA_DURACAO_MAX_S } from '../net/protocoloDaDanca'
 import { DancaAoVivoPainel, type DancaAoVivoProps } from './DancaAoVivo'
 import './MinigameControls.css'
@@ -106,7 +107,7 @@ export function avisoDeSemSetas(vazias: readonly DificuldadeDanca[]): string | n
 
 const NOME_DA_DIFICULDADE: Record<DificuldadeDanca, string> = { diversao: 'Diversão', expert: 'Expert' }
 
-const PERMITIDAS: readonly { valor: MinigameDoPino['permitida']; rotulo: string }[] = [
+const PERMITIDAS: readonly { valor: MinigameDanca['permitida']; rotulo: string }[] = [
   { valor: 'escolha', rotulo: 'Jogador escolhe' },
   { valor: 'diversao', rotulo: 'Só Diversão' },
   { valor: 'expert', rotulo: 'Só Expert' },
@@ -172,7 +173,7 @@ function frase(erro: unknown): string {
 }
 
 /** As dificuldades que alguém pode jogar com esta escolha do mestre. */
-function dificuldadesEmJogo(permitida: MinigameDoPino['permitida']): readonly DificuldadeDanca[] {
+function dificuldadesEmJogo(permitida: MinigameDanca['permitida']): readonly DificuldadeDanca[] {
   return permitida === 'escolha' ? DIFICULDADES_DANCA : [permitida]
 }
 
@@ -306,7 +307,7 @@ function Pastilhas<T extends string>({ rotulo, opcoes, valor, onChange, classe =
 interface SecaoDaMusicaProps {
   pinId: string
   musica: MusicaDaDanca
-  permitida: MinigameDoPino['permitida']
+  permitida: MinigameDanca['permitida']
   onMusica(musica: MusicaDaDanca): void
   caminho: CaminhoDaMusica
 }
@@ -614,9 +615,30 @@ export interface MinigameControlsProps {
   caminho?: CaminhoDaMusica
 }
 
-export function MinigameControls({ pinId, minigame, onChange, porta, aoVivo, caminho = CAMINHO_DO_APP }: MinigameControlsProps) {
+/**
+ * O painel do jogo gravado no pino. A pesca ainda não tem painel (fase 4 do
+ * plano da pesca): mostra só o aviso, sem campo que grave nada no pino.
+ */
+export function MinigameControls(props: MinigameControlsProps) {
+  const { minigame } = props
+  if (minigame.jogo === 'pesca') {
+    return (
+      <div className="lb-minigame">
+        <div className="lb-field">
+          <span className="lb-label">Jogo</span>
+          <span className="lb-minigame__jogo">Pesca: painel em construção</span>
+        </div>
+      </div>
+    )
+  }
+  return <PainelDaDanca {...props} minigame={minigame} />
+}
+
+type PainelDaDancaProps = Omit<MinigameControlsProps, 'minigame'> & { minigame: MinigameDanca }
+
+function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAMINHO_DO_APP }: PainelDaDancaProps) {
   const baseId = useId()
-  const mudar = (patch: Partial<MinigameDoPino>) => onChange({ ...minigame, ...patch })
+  const mudar = (patch: Partial<MinigameDanca>) => onChange({ ...minigame, ...patch })
   const portaAtual = porta.value !== null && porta.options.some((o) => o.id === porta.value) ? porta.value : ''
   const semPorta = porta.options.length === 0
   const id = (nome: string) => `${baseId}-${nome}`

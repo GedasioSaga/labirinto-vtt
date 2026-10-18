@@ -1,6 +1,6 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
-import type { MinigameDoPino } from '../minigames/danca/tipos'
+import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -936,13 +936,23 @@ export interface Pin extends PlayerSecret, NoPiso {
    */
   portaLigada?: string
   /**
-   * Só do MINIGAME: o desafio inteiro (NPC, fala, música, nota mínima, prêmio
-   * e consequência). Lido campo a campo do disco (`lib/mapFile.ts`); pino de
-   * minigame sem ele recebe `MINIGAME_PADRAO`. NUNCA sai no recorte do jogador
-   * (`lib/fogFilter.ts`): o prêmio e a consequência são do mestre, e o convite
-   * leva aos chamados só o que eles precisam. Sem migração: mapa antigo não tem.
+   * Só do MINIGAME: o desafio inteiro do jogo escolhido — a dança (NPC, fala,
+   * música, nota mínima, prêmio e consequência) ou a pesca (NPC, fala, lago,
+   * como começa, lances, prêmio e consequência). Lido campo a campo do disco
+   * (`lib/mapFile.ts`); pino de minigame sem ele recebe `MINIGAME_PADRAO` (a
+   * dança). NUNCA sai no recorte do jogador (`lib/fogFilter.ts`): o prêmio e
+   * a consequência são do mestre, e o convite leva aos chamados só o que eles
+   * precisam. Sem migração: mapa antigo não tem.
    */
   minigame?: MinigameDoPino
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de minigame: o jogo e como ele
+   * começa (`{ jogo, entrada }`), para o cartão saber se oferece "Pescar" ou
+   * avisa que o mestre chama. `lib/fogFilter.ts` o monta a partir de
+   * `minigame`; o mestre nunca o grava e `lib/mapFile.ts` o apaga de um
+   * arquivo que o traga.
+   */
+  minigameVisivel?: MinigameVisivel
   /**
    * FECHADURA COM SEGREDO, de qualquer tipo de pino. Fechada, o cartão do
    * jogador pede a combinação e o pino de viagem não deixa passar. NUNCA sai no

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FALA_MAX_LENGTH, MINIGAME_PADRAO, NPC_MAX_LENGTH, PREMIO_TEXTO_MAX_LENGTH, type MinigameDoPino } from '../minigames/danca/tipos'
+import { FALA_MAX_LENGTH, MINIGAME_PADRAO, NPC_MAX_LENGTH, PREMIO_TEXTO_MAX_LENGTH, type MinigameDanca } from '../minigames/danca/tipos'
+import { LAGO_MAX_LENGTH, MINIGAME_PESCA_PADRAO, PESCA_TEXTO_MAX_LENGTH, type MinigamePesca } from '../minigames/pesca/tipos'
 import type { Pin } from '../types/map'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
@@ -13,7 +14,7 @@ import { deserializeMap, serializeMap } from './mapFile'
 
 const MIDIA = `midia:${'a'.repeat(64)}.mp3`
 
-const IMPORTADO: MinigameDoPino = {
+const IMPORTADO: MinigameDanca = {
   jogo: 'danca',
   npc: 'Seu Lula',
   fala: 'Dança comigo?',
@@ -46,6 +47,20 @@ function lerPino(minigame: string, kind = 'minigame'): Pin {
 
 function comMusica(musica: unknown): string {
   return JSON.stringify({ ...IMPORTADO, musica })
+}
+
+/** O desafio lido, que tem de ser a dança: a música só existe nela. */
+function dancaLida(minigame: string): MinigameDanca {
+  const lido = lerPino(minigame).minigame
+  if (lido?.jogo !== 'danca') throw new Error(`esperava a dança, veio ${JSON.stringify(lido)}`)
+  return lido
+}
+
+/** O desafio lido, que tem de ser a pesca. */
+function pescaLida(minigame: string): MinigamePesca {
+  const lido = lerPino(minigame).minigame
+  if (lido?.jogo !== 'pesca') throw new Error(`esperava a pesca, veio ${JSON.stringify(lido)}`)
+  return lido
 }
 
 describe('mapFile: minigame', () => {
@@ -135,10 +150,10 @@ describe('mapFile: minigame', () => {
       'demo',
     ]
     for (const musica of tortas) {
-      expect(lerPino(comMusica(musica)).minigame?.musica, JSON.stringify(musica)).toEqual({ tipo: 'demo' })
+      expect(dancaLida(comMusica(musica)).musica, JSON.stringify(musica)).toEqual({ tipo: 'demo' })
     }
     // NaN e Infinity não existem em JSON: chegam do disco como `null`.
-    expect(lerPino(comMusica({ ...boa, bpm: Number.NaN })).minigame?.musica).toEqual({ tipo: 'demo' })
+    expect(dancaLida(comMusica({ ...boa, bpm: Number.NaN })).musica).toEqual({ tipo: 'demo' })
   })
 
   it('nota torta da coreografia é descartada e as boas ficam', () => {
@@ -151,9 +166,9 @@ describe('mapFile: minigame', () => {
         expert: [{ ...boa, t: 3, extra: 'x' }],
       },
     }
-    const lida = lerPino(comMusica(musica)).minigame?.musica
-    expect(lida?.tipo).toBe('arquivo')
-    if (lida?.tipo !== 'arquivo') return
+    const lida = dancaLida(comMusica(musica)).musica
+    expect(lida.tipo).toBe('arquivo')
+    if (lida.tipo !== 'arquivo') return
     expect(lida.coreografias.diversao).toEqual([boa])
     expect(lida.coreografias.expert).toEqual([{ ...boa, t: 3 }])
   })
@@ -174,5 +189,135 @@ describe('mapFile: minigame', () => {
     const antigo = deserializeMap(`{"id": "antigo", "pins": [{"id": "p", "x": 1, "y": 2, "kind": "exclamacao", "description": "", "image": null}]}`)
     expect(antigo.pins[0].minigame).toBeUndefined()
     expect(serializeMap(antigo)).not.toContain('minigame')
+  })
+})
+
+/**
+ * PESCA no disco: o mesmo campo `minigame`, com `jogo: 'pesca'` e a validação
+ * dela. Sem isto uma pesca salva voltava como dança ao reabrir o mapa. A
+ * dança gravada antes da pesca existir abre e grava igual, byte a byte.
+ */
+const PESCA: MinigamePesca = {
+  jogo: 'pesca',
+  npc: 'Dona Cota',
+  fala: 'Joga a rede, menino.',
+  lago: 'Lagoa Seca',
+  entrada: 'pino',
+  lances: 5,
+  permitida: 'extremo',
+  premio: { texto: 'Um anzol de prata.' },
+  consequencia: { texto: 'O barco afunda um palmo.' },
+}
+
+function mapaComPino(pino: Pin) {
+  return { ...createEmptyMap('map_m', 'M', 5, 5, 64), pins: [pino] }
+}
+
+describe('mapFile: minigame de pesca', () => {
+  it('a pesca vai e volta do disco igual, e não vira dança', () => {
+    const gravado = serializeMap(mapaComPino({ id: 'm', x: 64, y: 64, kind: 'minigame', description: '', image: null, minigame: PESCA }))
+    const lido = deserializeMap(gravado)
+    expect(lido.pins[0].minigame).toEqual(PESCA)
+    expect(serializeMap(lido)).toBe(gravado)
+  })
+
+  it('a dança gravada antes da pesca abre e grava igual, byte a byte', () => {
+    const pino: Pin = { id: 'm', x: 64, y: 64, kind: 'minigame', description: '', image: null, portaLigada: 'porta-1', minigame: IMPORTADO }
+    const gravado = serializeMap(mapaComPino(pino))
+    const lido = deserializeMap(gravado)
+    expect(JSON.stringify(lido.pins[0])).toBe(JSON.stringify(pino))
+    expect(serializeMap(lido)).toBe(gravado)
+    expect(serializeMap(lido)).not.toContain('pesca')
+    // O padrão da dança (pino de minigame sem desafio) também continua o mesmo.
+    expect(JSON.stringify(lerPino('').minigame)).toBe(JSON.stringify(MINIGAME_PADRAO))
+  })
+
+  it('pesca sem nada além do jogo ganha o padrão da pesca, em cópia', () => {
+    const lida = pescaLida('{"jogo": "pesca"}')
+    expect(lida).toEqual(MINIGAME_PESCA_PADRAO)
+    expect(lida).not.toBe(MINIGAME_PESCA_PADRAO)
+    expect(lida.premio).not.toBe(MINIGAME_PESCA_PADRAO.premio)
+    expect(lida.consequencia).not.toBe(MINIGAME_PESCA_PADRAO.consequencia)
+  })
+
+  it('campo torto cai no padrão da pesca e o resto do desafio fica', () => {
+    const lida = pescaLida(
+      JSON.stringify({
+        jogo: 'pesca',
+        npc: 42,
+        fala: '   Joga a linha   ',
+        lago: null,
+        entrada: 'sozinho',
+        lances: '3',
+        permitida: 'diversao',
+        premio: 'chave',
+        consequencia: { texto: false },
+        extra: 'campo desconhecido',
+      }),
+    )
+    expect(lida).toEqual({ ...MINIGAME_PESCA_PADRAO, fala: 'Joga a linha' })
+    expect(JSON.stringify(lida)).not.toContain('campo desconhecido')
+  })
+
+  it('lances fora de 1..5 vão para a ponta mais perto; quebrado arredonda; o que não é número volta o padrão', () => {
+    const casos: [unknown, number][] = [
+      [0, 1],
+      [-4, 1],
+      [9, 5],
+      [1e9, 5],
+      [2.4, 2],
+      [2.6, 3],
+      [4, 4],
+      [null, MINIGAME_PESCA_PADRAO.lances],
+      ['5', MINIGAME_PESCA_PADRAO.lances],
+      [true, MINIGAME_PESCA_PADRAO.lances],
+    ]
+    for (const [lances, esperado] of casos) {
+      expect(pescaLida(JSON.stringify({ ...PESCA, lances })).lances, JSON.stringify(lances)).toBe(esperado)
+    }
+  })
+
+  it('entrada e dificuldade permitida: só os valores da pesca', () => {
+    expect(pescaLida(JSON.stringify({ ...PESCA, entrada: 'mestre' })).entrada).toBe('mestre')
+    expect(pescaLida(JSON.stringify({ ...PESCA, entrada: 'PINO' })).entrada).toBe('mestre')
+    for (const permitida of ['escolha', 'normal', 'extremo'] as const) {
+      expect(pescaLida(JSON.stringify({ ...PESCA, permitida })).permitida).toBe(permitida)
+    }
+    for (const permitida of ['expert', 'diversao', '', 7]) {
+      expect(pescaLida(JSON.stringify({ ...PESCA, permitida })).permitida, String(permitida)).toBe('escolha')
+    }
+  })
+
+  it('textos aparados e cortados nos limites de pesca/tipos.ts', () => {
+    const lida = pescaLida(
+      JSON.stringify({
+        ...PESCA,
+        npc: `  ${'n'.repeat(NPC_MAX_LENGTH + 30)}  `,
+        fala: 'f'.repeat(FALA_MAX_LENGTH + 30),
+        lago: 'l'.repeat(LAGO_MAX_LENGTH + 30),
+        premio: { texto: 'p'.repeat(PESCA_TEXTO_MAX_LENGTH + 30) },
+        consequencia: { texto: 'c'.repeat(PESCA_TEXTO_MAX_LENGTH + 30) },
+      }),
+    )
+    expect(lida.npc).toBe('n'.repeat(NPC_MAX_LENGTH))
+    expect(lida.fala).toHaveLength(FALA_MAX_LENGTH)
+    expect(lida.lago).toHaveLength(LAGO_MAX_LENGTH)
+    expect(lida.premio.texto).toHaveLength(PESCA_TEXTO_MAX_LENGTH)
+    expect(lida.consequencia.texto).toHaveLength(PESCA_TEXTO_MAX_LENGTH)
+    // Em branco vale: o mestre pode apagar o prêmio.
+    expect(pescaLida(JSON.stringify({ ...PESCA, premio: { texto: '   ' } })).premio).toEqual({ texto: '' })
+  })
+
+  it('campo da dança numa pesca não entra (música, nota mínima, tipo do prêmio)', () => {
+    const lida = pescaLida(JSON.stringify({ ...PESCA, musica: { tipo: 'demo' }, notaMin: 'S', premio: { tipo: 'item', texto: 'Anzol' } }))
+    expect(lida).toEqual({ ...PESCA, premio: { texto: 'Anzol' } })
+    expect(Object.keys(lida.premio)).toEqual(['texto'])
+  })
+
+  it('`minigameVisivel` vindo no arquivo não entra no mapa do mestre', () => {
+    const json = `{"id": "x", "pins": [{"id": "m", "x": 1, "y": 2, "kind": "minigame", "description": "", "image": null, "minigameVisivel": {"jogo": "pesca", "entrada": "pino"}, "minigame": ${JSON.stringify(PESCA)}}]}`
+    const lido = deserializeMap(json)
+    expect(lido.pins[0].minigameVisivel).toBeUndefined()
+    expect(serializeMap(lido)).not.toContain('minigameVisivel')
   })
 })

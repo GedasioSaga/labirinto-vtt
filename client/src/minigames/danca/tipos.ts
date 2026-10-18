@@ -52,10 +52,11 @@ export type PremioDanca = 'item' | 'pista' | 'bonus' | 'nada'
 export type ConsequenciaDanca = 'teste' | 'barulho' | 'espera' | 'nada'
 
 /**
- * O que fica gravado no pino de minigame (`Pin.minigame`). Nunca vai no
- * snapshot do jogador: chega só no convite, aos jogadores chamados.
+ * O que fica gravado no pino de minigame (`Pin.minigame`) quando o jogo é a
+ * dança — um dos lados de `MinigameDoPino` (`minigames/tipos.ts`). Nunca vai
+ * no snapshot do jogador: chega só no convite, aos jogadores chamados.
  */
-export interface MinigameDoPino {
+export interface MinigameDanca {
   jogo: 'danca'
   /** Quem desafia (nome do NPC). */
   npc: string
@@ -75,7 +76,7 @@ export const FALA_MAX_LENGTH = 220
 export const PREMIO_TEXTO_MAX_LENGTH = 60
 
 /** O que o mestre ganha ao escolher o tipo minigame: o desafio do protótipo. */
-export const MINIGAME_PADRAO: MinigameDoPino = {
+export const MINIGAME_PADRAO: MinigameDanca = {
   jogo: 'danca',
   npc: 'Dona Ziza',
   fala: 'Esta porta é surda para chave e cega para força. Só abre para quem tem ginga. Acompanha o meu tempo?',

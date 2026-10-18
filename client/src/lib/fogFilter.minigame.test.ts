@@ -5,6 +5,7 @@
  * chegam só no convite, aos chamados; o id da porta diria que ela existe.
  */
 import { describe, expect, it } from 'vitest'
+import type { MinigamePesca } from '../minigames/pesca/tipos'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { buildPin, createEmptyMap } from './mapFactory'
@@ -59,5 +60,64 @@ describe('filterMapForPlayer — minigame', () => {
     const out = filterMapForPlayer(mapa([desafio({ secret: true })]), 'p1', DONOS, RAIO)
     expect(out.map.pins).toEqual([])
     expect(JSON.stringify(out)).not.toContain('pista de dança')
+  })
+})
+
+/**
+ * PESCA no recorte: do desafio sai só `minigameVisivel` (o jogo e como ele
+ * começa), para o cartão saber se oferece "Pescar". NPC, fala, lago, lances,
+ * dificuldade, prêmio e consequência ficam no mestre.
+ */
+const PESCA_SECRETA: MinigamePesca = {
+  jogo: 'pesca',
+  npc: 'Seu Tonho',
+  fala: 'Quem pesca aqui paga pedágio.',
+  lago: 'Brejo Escondido',
+  entrada: 'pino',
+  lances: 4,
+  permitida: 'extremo',
+  premio: { texto: 'Mapa da gruta submersa' },
+  consequencia: { texto: 'Sanguessugas no tornozelo' },
+}
+
+function pinoDoJogador(pino: Pin): Pin {
+  const achado = filterMapForPlayer(mapa([pino]), 'p1', DONOS, RAIO).map.pins.find((p) => p.id === pino.id)
+  if (achado === undefined) throw new Error('o pino não chegou ao jogador')
+  return achado
+}
+
+describe('filterMapForPlayer — minigame de pesca', () => {
+  it('a pesca de "jogador toca no pino" chega como { jogo, entrada } e nada mais do desafio', () => {
+    const pino = pinoDoJogador(desafio({ minigame: PESCA_SECRETA }))
+    expect(pino.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
+    expect(Object.keys(pino.minigameVisivel ?? {}).sort()).toEqual(['entrada', 'jogo'])
+    expect('minigame' in pino).toBe(false)
+  })
+
+  it('a pesca de "mestre chama" diz mestre', () => {
+    expect(pinoDoJogador(desafio({ minigame: { ...PESCA_SECRETA, entrada: 'mestre' } })).minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'mestre' })
+  })
+
+  it('a dança (e o pino sem desafio gravado, que joga a dança) sempre começa pelo mestre', () => {
+    expect(pinoDoJogador(desafio()).minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
+    expect(pinoDoJogador(desafio({ minigame: undefined })).minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
+  })
+
+  it('outro tipo de pino não ganha o campo', () => {
+    const ponto = { ...buildPin('ponto', { x: 220, y: 200 }, 'exclamacao'), description: 'Um banco.' }
+    expect('minigameVisivel' in pinoDoJogador(ponto)).toBe(false)
+  })
+
+  it('SEGURANÇA: nada da pesca além do jogo e da entrada aparece no pacote', () => {
+    const texto = JSON.stringify(filterMapForPlayer(mapa([desafio({ minigame: PESCA_SECRETA })]), 'p1', DONOS, RAIO))
+    for (const segredo of ['Seu Tonho', 'pedágio', 'Brejo Escondido', 'gruta submersa', 'Sanguessugas', 'extremo', '"lances"', '"lago"', '"fala"', '"premio"', '"consequencia"', '"npc"', '"permitida"']) {
+      expect(texto, segredo).not.toContain(segredo)
+    }
+  })
+
+  it('um `minigameVisivel` gravado no mapa do mestre não é copiado: o recorte monta o dele', () => {
+    // Pino de dança com um `minigameVisivel` mentiroso (arquivo editado à mão): sai dança e mestre.
+    const pino = pinoDoJogador(desafio({ minigameVisivel: { jogo: 'pesca', entrada: 'pino' } }))
+    expect(pino.minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
   })
 })

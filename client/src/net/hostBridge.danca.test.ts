@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import { minigamePadrao } from '../lib/pins'
-import type { MinigameDoPino } from '../minigames/danca/tipos'
+import type { MinigameDanca } from '../minigames/danca/tipos'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Token, Wall } from '../types/map'
 import { createHostBridge, linhasDoDesfechoDaDanca } from './hostBridge'
@@ -21,7 +21,7 @@ const ROOM = { code: 'D4NC4R', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>
 const ficha = (id: string, x: number): Token => ({ id, characterId: null, name: id, x, y: 200, size: 1, image: null, mochila: [{ id: 'velho', nome: 'Corda' }] })
 const PORTA: Wall = { id: 'porta-ziza', x1: 900, y1: 0, x2: 900, y2: 1000, blocksLight: true, blocksMove: true, door: { open: false, locked: true, kind: 'normal' } }
 
-function mapa(extra: Partial<MinigameDoPino> = {}): MapData {
+function mapa(extra: Partial<MinigameDanca> = {}): MapData {
   const pino = { ...buildPin('pino-danca', { x: 300, y: 300 }, 'minigame'), portaLigada: PORTA.id, minigame: { ...minigamePadrao(), ...extra } }
   return { ...createEmptyMap('m', 'Salão', 1000, 1000, 50), walls: [PORTA], pins: [pino], tokens: [ficha('ficha-gabi', 100), ficha('ficha-ana', 200)] }
 }

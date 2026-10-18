@@ -6,7 +6,7 @@ import { useSomStore } from '../../../../stores/somStore'
 import { themeCss } from '../../../../theme'
 import { notasDaMusica } from '../../coreografia'
 import { letraDe } from '../../regras'
-import { MINIGAME_PADRAO, type DificuldadeDanca, type MinigameDoPino } from '../../tipos'
+import { MINIGAME_PADRAO, type DificuldadeDanca, type MinigameDanca } from '../../tipos'
 import { DancaOverlay, type AcoesDaDanca } from '../DancaOverlay'
 
 /**
@@ -28,7 +28,7 @@ const COLEGAS = [
   { playerId: 'tome', nome: 'Tomé', dificuldade: 'expert' as DificuldadeDanca, precisao: 0.86 },
 ]
 const TECLA = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight']
-const permitida = (parametros.get('permitida') ?? 'escolha') as MinigameDoPino['permitida']
+const permitida = (parametros.get('permitida') ?? 'escolha') as MinigameDanca['permitida']
 
 interface Vitrine {
   comecar(): void

@@ -32,7 +32,7 @@
 import { test as base, expect, type Browser, type BrowserContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
 import { buildPin, createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
-import { MINIGAME_PADRAO, type MinigameDoPino, type NotaDaDanca, type TrilhaDanca } from '../src/minigames/danca/tipos'
+import { MINIGAME_PADRAO, type MinigameDanca, type NotaDaDanca, type TrilhaDanca } from '../src/minigames/danca/tipos'
 import { contentBounds, fitCamera } from '../src/pixi/world'
 import type { MapData, Pin, Token, Wall } from '../src/types/map'
 import { mostrarColunaDireita } from './helpers/colunaDireita'
@@ -100,7 +100,7 @@ function parede(id: string, x1: number, y1: number, x2: number, y2: number, door
   return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door }
 }
 
-function mapaDaDanca(minigame: MinigameDoPino): MapData {
+function mapaDaDanca(minigame: MinigameDanca): MapData {
   const base = createEmptyMap('map_ziza', AVENTURA, COLUNAS, LINHAS, GRADE)
   const pino: Pin = { ...buildPin(ID_DO_PINO, POS_PINO, 'minigame'), minigame, portaLigada: ID_DA_PORTA }
   return {
@@ -133,7 +133,7 @@ const DURACAO_DA_MUSICA_S = 5
 const TRILHAS: readonly TrilhaDanca[] = [0, 1, 2, 3]
 const COREOGRAFIA: NotaDaDanca[] = [1, 1.5, 2, 2.5, 3, 3.5].map((t, i) => ({ t, lane: TRILHAS[i % TRILHAS.length] ?? 0, len: 0, sub: 4 }))
 
-const MUSICA_IMPORTADA: MinigameDoPino = {
+const MUSICA_IMPORTADA: MinigameDanca = {
   ...MINIGAME_PADRAO,
   musica: {
     tipo: 'arquivo',
@@ -419,7 +419,7 @@ function instalarAutoTocador({ nome, toca }: { nome: string; toca: boolean }): v
     modulos ??= Promise.all([import('/src/net/protocoloDaDanca.ts'), import('/src/minigames/danca/coreografia.ts'), import('/src/minigames/danca/tela/partidaDoConvite.ts')])
     return modulos
   }
-  let convite: { pinId: string; musica: MinigameDoPino['musica'] } | null = null
+  let convite: { pinId: string; musica: MinigameDanca['musica'] } | null = null
   let fila: Promise<void> = Promise.resolve()
 
   const receber = async (texto: string, recebidoEm: number): Promise<void> => {
