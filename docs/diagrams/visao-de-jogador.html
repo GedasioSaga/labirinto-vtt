@@ -61,12 +61,12 @@
 <div class="wrap">
   <p class="eyebrow">Labirinto · ferramenta do mestre</p>
   <h1>Visão de jogador: o teste roda ao lado do jogo, nunca dentro dele</h1>
-  <p class="subtitle">O host de teste mora na janela do editor e lê o mundo vivo com uma camada descartável por cima. A segunda janela é a tela real do jogador. Tudo que o teste muda vai para a camada; nada volta para as stores, para a sala real nem para o arquivo.</p>
+  <p class="subtitle">O host de teste mora na janela do editor e lê o mundo vivo com uma camada descartável por cima. A segunda janela é a tela real do jogador. Tudo que o teste muda vai para a camada; nada volta para as stores, para a sala real nem para o arquivo. A dança e a pesca do pino vêm do painel do mestre pela ponte de teste, e as telas delas passam no Olhar; tocar no pino para pescar (<code>pesca.pedir</code>) só vale no Jogar.</p>
 
   <div class="diagram">
     <svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="visao-de-jogador-title visao-de-jogador-desc">
       <title id="visao-de-jogador-title">Arquitetura da Visão de jogador</title>
-      <desc id="visao-de-jogador-desc">Arquitetura em que o editor alimenta uma ponte de teste com o mundo vivo mais uma camada descartável, a tela real do jogador numa segunda janela conversa com ela por um canal, e os pedidos e o fantasma voltam só como avisos e desenho no editor.</desc>
+      <desc id="visao-de-jogador-desc">Arquitetura em que o editor alimenta uma ponte de teste com o mundo vivo mais uma camada descartável, a tela real do jogador numa segunda janela conversa com ela por um canal, e os pedidos e o fantasma voltam só como avisos e desenho no editor; a dança e a pesca do pino passam no Olhar, e pedir a pesca pelo pino só no Jogar.</desc>
       <defs>
         <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
           <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -203,7 +203,7 @@
       <rect x="680" y="118" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
       <text x="694" y="127" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
       <text x="772" y="148" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Barra do teste</text>
-      <text x="772" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Olhar bloqueia, menos a dança</text>
+      <text x="772" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Olhar só deixa dança e pesca</text>
 
       <!-- Tela real do jogador -->
       <rect x="672" y="240" width="200" height="64" rx="6" fill="#f5f5f5"/>

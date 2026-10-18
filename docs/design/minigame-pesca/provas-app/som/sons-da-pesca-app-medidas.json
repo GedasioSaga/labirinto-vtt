@@ -1,0 +1,66 @@
+{
+  "id": "sons-da-pesca-app",
+  "fonte": "docs/design/minigame-pesca/provas-app/som/sons-da-pesca-app.ts",
+  "geradoEm": "2026-10-18T21:52:25.858Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.6,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 6.65,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -1.77,
+    "picoVerdadeiroDbtp": -1.77,
+    "lufsIntegrado": -19.2,
+    "lufsCurtoPrazoMax": -18.79,
+    "dcPct": 0.0001,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [
+      1.503
+    ],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [
+      {
+        "inicio": 1.252,
+        "fim": 1.5
+      },
+      {
+        "inicio": 1.603,
+        "fim": 2.2
+      },
+      {
+        "inicio": 2.423,
+        "fim": 2.6
+      },
+      {
+        "inicio": 3.566,
+        "fim": 3.8
+      },
+      {
+        "inicio": 5.182,
+        "fim": 5.6
+      }
+    ],
+    "equilibrioLRdb": 0,
+    "centroideHzPorSegundo": [
+      1510,
+      675,
+      1997,
+      2406,
+      1206,
+      486,
+      217
+    ],
+    "duracaoNaturalS": 6.4
+  }
+}

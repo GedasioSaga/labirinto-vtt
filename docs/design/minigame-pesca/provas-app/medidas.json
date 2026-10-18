@@ -1,0 +1,396 @@
+{
+  "geradoEm": "2026-10-18T21:51:10.182Z",
+  "testes": [
+    {
+      "nome": "mesma semente = mesmos 40 lances do robô humano; outra semente = outros",
+      "passou": true
+    },
+    {
+      "nome": "normal: peixe dentro de 0..1 em todos os 221598 passos de puxada",
+      "passou": true,
+      "detalhe": {
+        "min": 0.03,
+        "max": 0.97
+      }
+    },
+    {
+      "nome": "normal: a barra nunca passa do topo nem do fundo",
+      "passou": true,
+      "detalhe": {
+        "topoMax": 1
+      }
+    },
+    {
+      "nome": "normal: medidor sobe a cada passo com o peixe dentro e nunca sobe com ele fora",
+      "passou": true,
+      "detalhe": {
+        "naoSubiuDentro": 0,
+        "subiuFora": 0
+      }
+    },
+    {
+      "nome": "normal: nenhum lance passou de 150 s",
+      "passou": true
+    },
+    {
+      "nome": "extremo: peixe dentro de 0..1 em todos os 179508 passos de puxada",
+      "passou": true,
+      "detalhe": {
+        "min": 0.03,
+        "max": 0.97
+      }
+    },
+    {
+      "nome": "extremo: a barra nunca passa do topo nem do fundo",
+      "passou": true,
+      "detalhe": {
+        "topoMax": 1
+      }
+    },
+    {
+      "nome": "extremo: medidor sobe a cada passo com o peixe dentro e nunca sobe com ele fora",
+      "passou": true,
+      "detalhe": {
+        "naoSubiuDentro": 0,
+        "subiuFora": 0
+      }
+    },
+    {
+      "nome": "extremo: nenhum lance passou de 150 s",
+      "passou": true
+    },
+    {
+      "nome": "som do app: nenhum corte, nenhum clique, pico verdadeiro <= -1 dBTP (cada som na força máxima, a sequência e a puxada)",
+      "passou": false,
+      "detalhe": {
+        "picoMaxDbtp": -0.91,
+        "acimaDoLimite": [
+          "splash -0.91 dBTP"
+        ]
+      }
+    },
+    {
+      "nome": "folha de contato com 12 a 16 quadros",
+      "passou": true,
+      "detalhe": {
+        "quadros": 14
+      }
+    },
+    {
+      "nome": "travada: p95 do intervalo de quadro na puxada <= 20 ms e nenhuma tarefa longa >= 200 ms",
+      "passou": true,
+      "detalhe": {
+        "quadros": 1611,
+        "p95IntervaloMs": 16.8,
+        "p95TrabalhoMs": 0.5,
+        "maxTrabalhoMs": 1.4,
+        "tarefasLongas200": 0,
+        "longas": [],
+        "resultados": [
+          "pegou",
+          "pegou",
+          "pegou"
+        ],
+        "duracaoS": 50.2,
+        "onde": "vitrine ?tela=jogo&lances=3, 1440x900, Edge sem janela, som ligado, robô da vitrine"
+      }
+    },
+    {
+      "nome": "nenhum erro no console das páginas",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "conferir-som (scripts/conferir-som.cjs) aprova o som do app",
+      "passou": true,
+      "detalhe": {
+        "codigo": 0,
+        "veredito": "aprovado nas medidas",
+        "aviso": "medir não é ouvir: ouça som/*.wav"
+      }
+    }
+  ],
+  "metas": {
+    "normal": {
+      "meta": ">= 70% pegos",
+      "valorPct": 99.6,
+      "bateu": true
+    },
+    "extremo": {
+      "meta": "entre 15% e 40% pegos",
+      "valorPct": 12.1,
+      "bateu": false
+    }
+  },
+  "erros": [],
+  "roboHumano": {
+    "modelo": {
+      "reacaoMedia": 0.25,
+      "reacaoDesvio": 0.06,
+      "reacaoMin": 0.12,
+      "erroLeitura": 0.03,
+      "olhada": 0.15,
+      "passosPorDecisao": 2,
+      "forcaMin": 0.35,
+      "forcaMax": 0.95,
+      "erroSoltar": 0.06
+    },
+    "lancesPorDificuldade": 240,
+    "semente": "provas-app-2026-10-18",
+    "motor": "client/src/minigames/pesca/tela/motor.ts (MotorDaPesca, passo fixo 1/120 s, sorteio do peixe pelo lance como no jogo)",
+    "normal": {
+      "lances": 240,
+      "pegouPct": 99.6,
+      "escapouPct": 0.4,
+      "fugiuPct": 0,
+      "pegouDasPuxadasPct": 99.6,
+      "perfeitos": 34,
+      "puxadaMediaPegouS": 7.7,
+      "forcaMediaDoLance": 0.64,
+      "reacaoFisgadaS": {
+        "media": 0.244,
+        "p95": 0.346,
+        "max": 0.406,
+        "min": 0.12,
+        "janela": 0.9
+      },
+      "tempoEsgotado": 0,
+      "porPeixe": {
+        "Enguia de caverna": "45/45 pegos, 0 fugiram",
+        "Lume-de-poça": "36/36 pegos, 0 fugiram",
+        "Bagre-de-pedra": "42/43 pegos, 0 fugiram",
+        "Piaba-ossuda": "47/47 pegos, 0 fugiram",
+        "Carpa-runa": "42/42 pegos, 0 fugiram",
+        "Truta-do-fosso": "27/27 pegos, 0 fugiram"
+      }
+    },
+    "extremo": {
+      "lances": 240,
+      "pegouPct": 12.1,
+      "escapouPct": 87.9,
+      "fugiuPct": 0,
+      "pegouDasPuxadasPct": 12.1,
+      "perfeitos": 8,
+      "puxadaMediaPegouS": 8.3,
+      "forcaMediaDoLance": 0.65,
+      "reacaoFisgadaS": {
+        "media": 0.244,
+        "p95": 0.349,
+        "max": 0.417,
+        "min": 0.12,
+        "janela": 0.5
+      },
+      "tempoEsgotado": 0,
+      "porPeixe": {
+        "Lampreia-de-cobre": "0/17 pegos, 0 fugiram",
+        "Truta-do-fosso": "6/25 pegos, 0 fugiram",
+        "Enguia de caverna": "0/34 pegos, 0 fugiram",
+        "Carpa-runa": "21/42 pegos, 0 fugiram",
+        "Esturjão-de-cristal": "0/12 pegos, 0 fugiram",
+        "Bagre-de-pedra": "2/16 pegos, 0 fugiram",
+        "Coroa-do-Abismo": "0/2 pegos, 0 fugiram",
+        "Piaba-ossuda": "0/45 pegos, 0 fugiram",
+        "Lume-de-poça": "0/38 pegos, 0 fugiram",
+        "Linguado-espectro": "0/9 pegos, 0 fugiram"
+      }
+    }
+  },
+  "sensibilidadeExtremo": {
+    "reação 200 ± 50 ms": {
+      "pegouPct": 17.9,
+      "fugiuPct": 0
+    },
+    "reação 150 ± 40 ms": {
+      "pegouPct": 27.9,
+      "fugiuPct": 0
+    },
+    "reação 250 ± 60 ms, sem erro de leitura": {
+      "pegouPct": 14.6,
+      "fugiuPct": 0
+    },
+    "reação 120 ms fixa, sem erro (o robô do protótipo)": {
+      "pegouPct": 41.7,
+      "fugiuPct": 0
+    }
+  },
+  "grafico": [
+    {
+      "dif": "normal",
+      "nota": "primeira puxada",
+      "lance": 1,
+      "peixe": "Enguia de caverna",
+      "fim": "pegou",
+      "t": 6.8,
+      "perfeito": false,
+      "amostras": 69
+    },
+    {
+      "dif": "extremo",
+      "nota": "primeira puxada",
+      "lance": 1,
+      "peixe": "Lampreia-de-cobre",
+      "fim": "escapou",
+      "t": 2.4,
+      "perfeito": false,
+      "amostras": 24
+    },
+    {
+      "dif": "extremo",
+      "nota": "primeira que pegou",
+      "lance": 2,
+      "peixe": "Truta-do-fosso",
+      "fim": "pegou",
+      "t": 7,
+      "perfeito": false,
+      "amostras": 70
+    }
+  ],
+  "som": {
+    "taxa": 48000,
+    "ganho": "GANHO do som.ts (barramento fx da tela), volume 1",
+    "porSom": {
+      "lance": {
+        "picoDbfs": -6.67,
+        "picoVerdadeiroDbtp": -6.5,
+        "lufsIntegrado": -21.4,
+        "lufsCurtoPrazoMax": -22.82,
+        "dcPct": 0.0001,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "splash": {
+        "picoDbfs": -0.91,
+        "picoVerdadeiroDbtp": -0.91,
+        "lufsIntegrado": -19.46,
+        "lufsCurtoPrazoMax": -21.89,
+        "dcPct": 0.0042,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "beliscada": {
+        "picoDbfs": -9.53,
+        "picoVerdadeiroDbtp": -9.52,
+        "lufsIntegrado": null,
+        "lufsCurtoPrazoMax": -27.01,
+        "dcPct": 0.0156,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "fisgada": {
+        "picoDbfs": -5.08,
+        "picoVerdadeiroDbtp": -5.07,
+        "lufsIntegrado": null,
+        "lufsCurtoPrazoMax": -17.58,
+        "dcPct": 0.0011,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "catraca": {
+        "picoDbfs": -5.32,
+        "picoVerdadeiroDbtp": -5.12,
+        "lufsIntegrado": null,
+        "lufsCurtoPrazoMax": -25.36,
+        "dcPct": 0.0075,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "pegou": {
+        "picoDbfs": -3.62,
+        "picoVerdadeiroDbtp": -3.62,
+        "lufsIntegrado": -17.82,
+        "lufsCurtoPrazoMax": -19.19,
+        "dcPct": 0.0039,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "escapou": {
+        "picoDbfs": -2.55,
+        "picoVerdadeiroDbtp": -2.55,
+        "lufsIntegrado": -20.35,
+        "lufsCurtoPrazoMax": -20.65,
+        "dcPct": -0.0168,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      },
+      "bau": {
+        "picoDbfs": -7.56,
+        "picoVerdadeiroDbtp": -7.52,
+        "lufsIntegrado": -15.21,
+        "lufsCurtoPrazoMax": -16.91,
+        "dcPct": 0.0006,
+        "cortes": 0,
+        "cliques": 0,
+        "silenciosNoMeio": 0
+      }
+    },
+    "sequencia": {
+      "picoDbfs": -2.55,
+      "picoVerdadeiroDbtp": -2.55,
+      "lufsIntegrado": -19.19,
+      "lufsCurtoPrazoMax": -18.79,
+      "dcPct": 0.0014,
+      "cortes": 0,
+      "cliques": 0,
+      "silenciosNoMeio": 5
+    },
+    "puxadaNormalDoGrafico": {
+      "picoDbfs": -3.62,
+      "picoVerdadeiroDbtp": -3.62,
+      "lufsIntegrado": -23.96,
+      "lufsCurtoPrazoMax": -23.86,
+      "dcPct": 0.0008,
+      "cortes": 0,
+      "cliques": 0,
+      "silenciosNoMeio": 15,
+      "eventos": 16,
+      "catracas": 15
+    }
+  },
+  "folha": {
+    "quadros": 14,
+    "rotulos": [
+      "t = 0,21 s · Lance: parado",
+      "t = 0,97 s · Segurando: força 40%",
+      "t = 1,46 s · Segurando: força 76%",
+      "t = 1,78 s · Soltou: a boia voa (83%)",
+      "t = 2,27 s · Boia na água: espera",
+      "t = 3,32 s · Espera: a boia balança",
+      "t = 5,24 s · Fisgada: \"!\"",
+      "t = 5,87 s · Puxada: medidor 37%",
+      "t = 7,39 s · Puxada: medidor 60%",
+      "t = 9,39 s · Puxada: medidor 82%",
+      "t = 10,74 s · Fim da puxada: pegou",
+      "t = 11,33 s · O peixe vem para a mão",
+      "t = 11,83 s · Resultado: Truta-do-fosso, 33 cm",
+      "t = 13,36 s · Cesto"
+    ],
+    "condicoesPuladas": 1
+  },
+  "travada": {
+    "quadros": 1611,
+    "p95IntervaloMs": 16.8,
+    "p95TrabalhoMs": 0.5,
+    "maxTrabalhoMs": 1.4,
+    "tarefasLongas200": 0,
+    "longas": [],
+    "resultados": [
+      "pegou",
+      "pegou",
+      "pegou"
+    ],
+    "duracaoS": 50.2,
+    "onde": "vitrine ?tela=jogo&lances=3, 1440x900, Edge sem janela, som ligado, robô da vitrine"
+  },
+  "conferirSom": {
+    "codigo": 0,
+    "veredito": "aprovado nas medidas",
+    "aviso": "medir não é ouvir: ouça som/*.wav"
+  }
+}
