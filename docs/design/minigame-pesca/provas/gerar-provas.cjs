@@ -81,12 +81,26 @@ async function main() {
     const x1 = S.simular('extremo', 'lampreia', 'semente-a', S.politicaSegue(0.12)), x2 = S.simular('extremo', 'lampreia', 'semente-a', S.politicaSegue(0.12))
     const b1 = S.simular('normal', 'carpa-runa', 'semente-b', S.politicaSegue(0.12))
     const robo = {}
+    /* Robô que joga como gente (regra de teste de jogos, 18/10/2026): reação 250 ± 60 ms com piso de 120 ms,
+       erro de leitura ± 0,03 da coluna, relê o peixe a cada 0,15 s e decide a 60 Hz. O mesmo do provas-app. */
+    const humano = (sem) => {
+      const r = S.rngDe('humano|' + sem), hist = []
+      const gauss = () => { let u = 0; while (u === 0) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()) }
+      const reacao = () => Math.max(0.12, 0.25 + 0.06 * gauss())
+      let olhadaEm = -Infinity, atraso = 0.25, erro = 0, seg = false, n = 0
+      return (e) => {
+        hist.push(e.p.y)
+        if (e.t - olhadaEm >= 0.15) { olhadaEm = e.t; atraso = reacao(); erro = 0.03 * gauss() }
+        if (n++ % 2 === 0) { const visto = hist[Math.max(0, hist.length - 1 - Math.round(atraso / S.DT))] + erro; seg = visto > e.b.y + e.b.tam / 2 + e.b.v * 0.12 }
+        return seg
+      }
+    }
     for (const dif of ['normal', 'extremo']) {
       const lista = S.cardapio(dif), por = {}
       let peg = 0, perf = 0, tempo = 0
       const N = 240
       for (let i = 0; i < N; i++) {
-        const p = lista[i % lista.length], r = S.simular(dif, p.id, `robo|${dif}|${i}`, S.politicaSegue(0.12))
+        const p = lista[i % lista.length], r = S.simular(dif, p.id, `robo|${dif}|${i}`, humano(`${dif}|${i}`))
         const k = por[p.id] || (por[p.id] = { tentou: 0, pegou: 0 }); k.tentou++
         if (r.fim === 'pegou') { peg++; k.pegou++; tempo += r.t; if (r.perfeito) perf++ }
       }
@@ -104,8 +118,8 @@ async function main() {
   })
   ok('mesma semente = mesma puxada (Normal e Extremo); outra semente = outra puxada', puras.mesma && puras.outra)
   R.robo = puras.robo
-  ok('robô que segue o peixe pega a maioria no Normal (>= 75%)', puras.robo.normal.taxa >= 0.75, { taxa: pct(puras.robo.normal.taxa) + '%', perfeitas: puras.robo.normal.perfeitas, tempoMedioS: puras.robo.normal.tempoMedioS })
-  ok('mesmo robô pega bem menos no Extremo, mas pega (entre 5% e Normal − 30 pontos)', puras.robo.extremo.taxa > 0.05 && puras.robo.extremo.taxa <= puras.robo.normal.taxa - 0.3, { taxa: pct(puras.robo.extremo.taxa) + '%', porPeixe: puras.robo.extremo.porPeixe })
+  ok('robô humano (reação 250 ms, erro de leitura) pega >= 70% no Normal', puras.robo.normal.taxa >= 0.7, { taxa: pct(puras.robo.normal.taxa) + '%', perfeitas: puras.robo.normal.perfeitas, tempoMedioS: puras.robo.normal.tempoMedioS })
+  ok('mesmo robô humano pega entre 15% e 40% no Extremo', puras.robo.extremo.taxa >= 0.15 && puras.robo.extremo.taxa <= 0.4, { taxa: pct(puras.robo.extremo.taxa) + '%', porPeixe: puras.robo.extremo.porPeixe })
   ok('raros e lendário nunca saem no Normal (6.000 sorteios)', puras.foraNoNormal === 0, { foraNoNormal: puras.foraNoNormal })
   ok('no Extremo longe saem raros e o lendário; lendário nunca com lance até 60%', (puras.extremoLonge.raro || 0) > 0 && (puras.extremoLonge.lendario || 0) > 0 && puras.lendarioPerto === 0, { extremoLonge: puras.extremoLonge, lendarioPerto: puras.lendarioPerto })
   ok('medidor zerado = escapou', puras.foge.fim === 'escapou' && puras.foge.medidorFinal === 0, puras.foge)

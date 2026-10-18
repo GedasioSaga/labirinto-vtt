@@ -88,7 +88,7 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
 .aviso { padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-ember-soft); color: #f0b3ad; font-size: 12.5px; }
 
 /* topo */
-.app { height: 100vh; height: 100dvh; display: grid; grid-template-rows: var(--pz-topo) 1fr; overflow: hidden; }
+.app { height: 100%; display: grid; grid-template-rows: var(--pz-topo) 1fr; overflow: hidden; }
 .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); min-width: 0; }
 .topo__marca { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
 .wordmark { font: 600 19px/1 var(--lb-font-display); color: var(--lb-color-parchment); }
@@ -387,7 +387,7 @@ const SIM = (() => {
       bau: { chance: 0.2, aparece: [1.2, 3.5], vida: 6, encher: 1.4 } },
     extremo: { nome: 'Extremo', barra: 0.15, subida: 3.4, gravidade: 2.9, vBarra: 1.7, quique: 0.4,
       vPeixe: 0.75, mola: 38, intervalo: [0.4, 1.1], tremor: 1.0,
-      ganho: 0.22, perda: 0.3, inicio: 0.3,
+      ganho: 0.22, perda: 0.22, inicio: 0.5,
       janela: 0.5, espera: [1.8, 5.0], beliscadas: 3, ciclo: 1.0,
       bau: { chance: 0.3, aparece: [1.0, 3.0], vida: 4, encher: 1.8 } },
   };

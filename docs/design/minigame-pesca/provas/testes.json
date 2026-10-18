@@ -5,30 +5,30 @@
       "passou": true
     },
     {
-      "nome": "robô que segue o peixe pega a maioria no Normal (>= 75%)",
+      "nome": "robô humano (reação 250 ms, erro de leitura) pega >= 70% no Normal",
       "passou": true,
       "detalhe": {
         "taxa": "100%",
-        "perfeitas": 92,
-        "tempoMedioS": 6
+        "perfeitas": 35,
+        "tempoMedioS": 7.7
       }
     },
     {
-      "nome": "mesmo robô pega bem menos no Extremo, mas pega (entre 5% e Normal − 30 pontos)",
+      "nome": "mesmo robô humano pega entre 15% e 40% no Extremo",
       "passou": true,
       "detalhe": {
-        "taxa": "36.7%",
+        "taxa": "28.3%",
         "porPeixe": {
           "carpa-runa": "96%",
-          "enguia": "33%",
-          "lume": "29%",
-          "piaba": "17%",
-          "bagre": "17%",
-          "truta": "96%",
-          "linguado": "42%",
-          "lampreia": "4%",
-          "esturjao": "21%",
-          "coroa": "13%"
+          "enguia": "0%",
+          "lume": "17%",
+          "piaba": "8%",
+          "bagre": "13%",
+          "truta": "79%",
+          "linguado": "38%",
+          "lampreia": "0%",
+          "esturjao": "8%",
+          "coroa": "25%"
         }
       }
     },
@@ -138,7 +138,7 @@
         "quadros": 280,
         "intervaloP50": 16.7,
         "intervaloP95": 16.8,
-        "trabalhoP95": 0.5,
+        "trabalhoP95": 0.4,
         "trabalhoMax": 0.7,
         "tarefasLongas": []
       }
@@ -149,8 +149,8 @@
       "detalhe": {
         "linhas": [
           "Você: lançando",
-          "Iara: puxando 40%",
-          "Tomé: puxando 40%"
+          "Iara: puxando 63%",
+          "Tomé: puxando 39%"
         ],
         "parado": true,
         "overlay": true,
@@ -184,8 +184,8 @@
   "robo": {
     "normal": {
       "taxa": 1,
-      "perfeitas": 92,
-      "tempoMedioS": 6,
+      "perfeitas": 35,
+      "tempoMedioS": 7.7,
       "porPeixe": {
         "carpa-runa": "100%",
         "enguia": "100%",
@@ -196,20 +196,20 @@
       }
     },
     "extremo": {
-      "taxa": 0.36666666666666664,
-      "perfeitas": 14,
-      "tempoMedioS": 9.6,
+      "taxa": 0.2833333333333333,
+      "perfeitas": 18,
+      "tempoMedioS": 8.3,
       "porPeixe": {
         "carpa-runa": "96%",
-        "enguia": "33%",
-        "lume": "29%",
-        "piaba": "17%",
-        "bagre": "17%",
-        "truta": "96%",
-        "linguado": "42%",
-        "lampreia": "4%",
-        "esturjao": "21%",
-        "coroa": "13%"
+        "enguia": "0%",
+        "lume": "17%",
+        "piaba": "8%",
+        "bagre": "13%",
+        "truta": "79%",
+        "linguado": "38%",
+        "lampreia": "0%",
+        "esturjao": "8%",
+        "coroa": "25%"
       }
     }
   },
@@ -217,7 +217,7 @@
     "quadros": 280,
     "intervaloP50": 16.7,
     "intervaloP95": 16.8,
-    "trabalhoP95": 0.5,
+    "trabalhoP95": 0.4,
     "trabalhoMax": 0.7,
     "tarefasLongas": []
   },
@@ -235,10 +235,10 @@
     },
     {
       "dif": "extremo",
-      "fim": "escapou",
-      "t": 18,
+      "fim": "pegou",
+      "t": 3.6,
       "perfeito": false,
-      "amostras": 182
+      "amostras": 37
     }
   ],
   "som": {

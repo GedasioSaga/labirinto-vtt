@@ -45,7 +45,7 @@ A coluna de água vai de 0 (fundo) a 1 (topo); velocidades em coluna por segundo
 | Peixe: mola até o alvo | 20 | 38 |
 | Peixe: novo alvo a cada | 0,9 a 1,8 s | 0,4 a 1,1 s |
 | Peixe: trancos erráticos | 0,3 por s | 1,0 por s (+3 no lendário) |
-| Medidor: começa / enche / esvazia | 30% / +15% por s / −11% por s | 30% / +22% por s / −30% por s |
+| Medidor: começa / enche / esvazia | 30% / +15% por s / −11% por s | **50%** / +22% por s / **−22% por s** (era 30% / −30%; mudado em 18/10/2026, ver abaixo) |
 | Janela da fisgada | 0,9 s | 0,5 s |
 | Espera até morder | 1,5 a 4,0 s (+20% no lance mais longo) | 1,8 a 5,0 s (+20%) |
 | Beliscadas falsas | 0 ou 1 | 0 a 3 |
@@ -97,3 +97,10 @@ No Normal o robô pega os 6 em 100%: lá a diferença entre peixes é tempo, nã
 8. Não houve desenho no Figma (plugin desligado): este protótipo é a peça de revisão.
 
 Página publicada (privada): https://claude.ai/artifact/JLNZJ5jms8oXrWbFvFoWU4
+
+## Ajuste do Extremo (18/10/2026)
+
+Com o robô que joga como gente (reação 250 ± 60 ms, erro de leitura ± 0,03, regra de teste de jogos), o Extremo do app pegava só 12% e 7 dos 10 peixes nunca saíam: o medidor começava em 30% e esvaziava 30% por segundo, então 1 s fora da barra perdia o peixe. O usuário escolheu "facilitar um pouco". Mudou só o medidor do Extremo: começa em **50%** e esvazia **22% por segundo**. Peixe, barra e velocidade ficaram iguais.
+
+- Robô humano no Extremo: ~28% pegos (provas do protótipo 28,3%; varredura com 80 tentativas por peixe: todos saem às vezes, o mais difícil é a piaba-ossuda com 4%). Normal segue em ~100%.
+- Os testes do `provas/gerar-provas.cjs` trocaram o robô rápido (reação 0,12 s, sem erro) pelo robô humano, com as metas Normal >= 70% e Extremo entre 15% e 40%: 16 de 16.
