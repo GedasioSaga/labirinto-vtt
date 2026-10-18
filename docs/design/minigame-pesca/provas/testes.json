@@ -1,0 +1,261 @@
+{
+  "testes": [
+    {
+      "nome": "mesma semente = mesma puxada (Normal e Extremo); outra semente = outra puxada",
+      "passou": true
+    },
+    {
+      "nome": "robô que segue o peixe pega a maioria no Normal (>= 75%)",
+      "passou": true,
+      "detalhe": {
+        "taxa": "100%",
+        "perfeitas": 92,
+        "tempoMedioS": 6
+      }
+    },
+    {
+      "nome": "mesmo robô pega bem menos no Extremo, mas pega (entre 5% e Normal − 30 pontos)",
+      "passou": true,
+      "detalhe": {
+        "taxa": "36.7%",
+        "porPeixe": {
+          "carpa-runa": "96%",
+          "enguia": "33%",
+          "lume": "29%",
+          "piaba": "17%",
+          "bagre": "17%",
+          "truta": "96%",
+          "linguado": "42%",
+          "lampreia": "4%",
+          "esturjao": "21%",
+          "coroa": "13%"
+        }
+      }
+    },
+    {
+      "nome": "raros e lendário nunca saem no Normal (6.000 sorteios)",
+      "passou": true,
+      "detalhe": {
+        "foraNoNormal": 0
+      }
+    },
+    {
+      "nome": "no Extremo longe saem raros e o lendário; lendário nunca com lance até 60%",
+      "passou": true,
+      "detalhe": {
+        "extremoLonge": {
+          "incomum": 1536,
+          "raro": 1227,
+          "comum": 3070,
+          "lendario": 167
+        },
+        "lendarioPerto": 0
+      }
+    },
+    {
+      "nome": "medidor zerado = escapou",
+      "passou": true,
+      "detalhe": {
+        "fim": "escapou",
+        "t": 3.38,
+        "medidorFinal": 0
+      }
+    },
+    {
+      "nome": "teclado: Espaço, Seta para cima e W seguram e soltam o lance",
+      "passou": true,
+      "detalhe": [
+        {
+          "carregou": true,
+          "forca": 0.43,
+          "depois": "voo"
+        },
+        {
+          "carregou": true,
+          "forca": 0.43,
+          "depois": "voo"
+        },
+        {
+          "carregou": true,
+          "forca": 0.43,
+          "depois": "voo"
+        }
+      ]
+    },
+    {
+      "nome": "toque na tela (pointerdown/pointerup, touch-action none) segura e solta",
+      "passou": true,
+      "detalhe": {
+        "carregou": true,
+        "depois": "voo",
+        "touchAction": "none"
+      }
+    },
+    {
+      "nome": "controle falso (Gamepad API): A e RT seguram, Start pausa",
+      "passou": true,
+      "detalhe": {
+        "botaoA": true,
+        "depoisA": "voo",
+        "gatilhoRT": true,
+        "startPausa": true,
+        "escContinua": true
+      }
+    },
+    {
+      "nome": "fisgada perdida = peixe foge (resultado \"Fugiu\")",
+      "passou": true,
+      "detalhe": {
+        "viuFisgada": true,
+        "aindaAberta": true,
+        "tipo": "fugiu",
+        "tela": "resultado",
+        "titulo": "Fugiu"
+      }
+    },
+    {
+      "nome": "apertar durante a espera recolhe a linha vazia e volta ao lance",
+      "passou": true,
+      "detalhe": {
+        "antes": "espera",
+        "depois": "cedo",
+        "volta": "lance"
+      }
+    },
+    {
+      "nome": "pesca inteira no Normal por eventos de teclado em tempo real termina com \"Pegou\"",
+      "passou": true,
+      "detalhe": {
+        "tipo": "pegou",
+        "peixe": "Piaba-ossuda",
+        "s": 10.3
+      }
+    },
+    {
+      "nome": "quadro durante a puxada: p95 do intervalo <= 20 ms e nenhuma tarefa longa >= 200 ms",
+      "passou": true,
+      "detalhe": {
+        "quadros": 280,
+        "intervaloP50": 16.7,
+        "intervaloP95": 16.8,
+        "trabalhoP95": 0.5,
+        "trabalhoMax": 0.7,
+        "tarefasLongas": []
+      }
+    },
+    {
+      "nome": "mestre: placar ao vivo com você e 2 simulados; pausar, continuar, encerrar e reabrir valem para todos; campos mudam o convite",
+      "passou": true,
+      "detalhe": {
+        "linhas": [
+          "Você: lançando",
+          "Iara: puxando 40%",
+          "Tomé: puxando 40%"
+        ],
+        "parado": true,
+        "overlay": true,
+        "voltou": true,
+        "encerrou": {
+          "tela": "resultado",
+          "tipo": "encerrado",
+          "bots": [
+            "encerrado",
+            "encerrado"
+          ],
+          "botao": "Reabrir para todos",
+          "pescarDesligado": true
+        },
+        "reabriu": true,
+        "nomeNoConvite": "Dona Ziza",
+        "lagoNoTopo": "Cisterna Negra"
+      }
+    },
+    {
+      "nome": "sem rolagem horizontal em 1440, 1024 e 390 px (lance, puxada, resultado, mestre)",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "nenhum erro no console",
+      "passou": true,
+      "detalhe": []
+    }
+  ],
+  "robo": {
+    "normal": {
+      "taxa": 1,
+      "perfeitas": 92,
+      "tempoMedioS": 6,
+      "porPeixe": {
+        "carpa-runa": "100%",
+        "enguia": "100%",
+        "lume": "100%",
+        "piaba": "100%",
+        "bagre": "100%",
+        "truta": "100%"
+      }
+    },
+    "extremo": {
+      "taxa": 0.36666666666666664,
+      "perfeitas": 14,
+      "tempoMedioS": 9.6,
+      "porPeixe": {
+        "carpa-runa": "96%",
+        "enguia": "33%",
+        "lume": "29%",
+        "piaba": "17%",
+        "bagre": "17%",
+        "truta": "96%",
+        "linguado": "42%",
+        "lampreia": "4%",
+        "esturjao": "21%",
+        "coroa": "13%"
+      }
+    }
+  },
+  "desempenho": {
+    "quadros": 280,
+    "intervaloP50": 16.7,
+    "intervaloP95": 16.8,
+    "trabalhoP95": 0.5,
+    "trabalhoMax": 0.7,
+    "tarefasLongas": []
+  },
+  "folha": {
+    "quadros": 15,
+    "peixe": "Enguia de caverna"
+  },
+  "grafico": [
+    {
+      "dif": "normal",
+      "fim": "pegou",
+      "t": 6.6,
+      "perfeito": false,
+      "amostras": 68
+    },
+    {
+      "dif": "extremo",
+      "fim": "escapou",
+      "t": 18,
+      "perfeito": false,
+      "amostras": 182
+    }
+  ],
+  "som": {
+    "duracaoS": 6.4,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.55,
+    "picoVerdadeiroDbtp": -2.55,
+    "lufsIntegrado": -19.21,
+    "lufsCurtoPrazoMax": -18.79,
+    "dcPct": -0.0021,
+    "cortes": 0,
+    "equilibrioLRdb": 0
+  },
+  "errosConsole": [],
+  "conferirSom": {
+    "codigo": 0,
+    "veredito": "aprovado nas medidas"
+  }
+}

@@ -1,0 +1,1273 @@
+<title>Poço de Pesca</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Pixelify+Sans:wght@500;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-tide: #79a9cc;
+  --lb-color-arcane: #ab93d6;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, 'Source Serif 4', Georgia, serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --lb-font-utility: Bahnschrift, 'DIN Alternate', Barlow, 'Segoe UI Variable Small', 'Segoe UI', sans-serif;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --pz-font-pixel: 'Pixelify Sans', var(--lb-font-utility);
+  --pz-caverna: #0d0c0f;
+  --pz-agua: #0f2a33;
+  --pz-comum: var(--lb-color-parchment-dim);
+  --pz-incomum: var(--lb-color-tide);
+  --pz-raro: var(--lb-color-arcane);
+  --pz-lendario: var(--lb-color-brass-bright);
+  --pz-topo: 48px;
+  --pz-coluna: clamp(340px, 30vw, 420px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--lb-color-ink); color: var(--lb-color-parchment); font: 13px/1.45 var(--lb-font-sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+p, h1, h2, h3, ul, ol, dl, dd, fieldset { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+fieldset { border: 0; padding: 0; min-width: 0; }
+legend { padding: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--lb-color-line-strong); border-radius: 4px; font: 500 10.5px/16px var(--lb-font-utility); color: var(--lb-color-parchment-dim); text-align: center; }
+
+/* botões do app */
+.lb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.lb-btn:active:not(:disabled) { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+.lb-btn:disabled { color: var(--lb-color-parchment-faint); background: transparent; }
+.lb-btn--primary { background: var(--lb-color-brass); border-color: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 600; }
+.lb-btn--primary:active:not(:disabled) { background: var(--lb-color-brass); }
+.lb-btn--primary:disabled { background: transparent; border-color: var(--lb-color-line); }
+.lb-btn--ghost { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.lb-btn--block { width: 100%; min-height: 44px; font-size: 14px; }
+.lb-btn--sm { min-height: 28px; padding: 0 9px; font-size: 12px; }
+@media (hover: hover) and (pointer: fine) {
+  .lb-btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-line-strong); }
+  .lb-btn--primary:hover:not(:disabled) { background: var(--lb-color-brass-bright); border-color: var(--lb-color-brass-bright); }
+  .lb-btn--ghost:hover:not(:disabled) { color: var(--lb-color-parchment); }
+}
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.seg button { min-height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--lb-color-parchment-dim); font-size: 12px; font-weight: 500; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease); }
+.seg button[aria-pressed="true"] { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel); }
+.rotulo { font: 500 11.5px/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); letter-spacing: 0.02em; }
+.nota { font-size: 12px; color: var(--lb-color-parchment-faint); }
+.aviso { padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-ember-soft); color: #f0b3ad; font-size: 12.5px; }
+
+/* topo */
+.app { height: 100%; display: grid; grid-template-rows: var(--pz-topo) 1fr; overflow: hidden; }
+.topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); min-width: 0; }
+.topo__marca { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.wordmark { font: 600 19px/1 var(--lb-font-display); color: var(--lb-color-parchment); }
+.migalhas { display: flex; gap: 6px; align-items: baseline; color: var(--lb-color-parchment-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.migalhas b { color: var(--lb-color-parchment-dim); font-weight: 500; }
+.visao { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* jogador */
+.jogador { display: grid; grid-template-columns: minmax(0, 1fr) var(--pz-coluna); min-height: 0; }
+.palco { position: relative; overflow: hidden; background: var(--pz-caverna); min-height: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.palco canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); image-rendering: pixelated; image-rendering: crisp-edges; }
+.mesa-mini { position: absolute; left: 12px; top: 12px; display: grid; grid-template-columns: auto auto; gap: 2px 12px; padding: 8px 10px; border-radius: var(--lb-radius-md); background: rgba(13, 12, 15, 0.78); border: 1px solid var(--lb-color-line); font: 500 11.5px/1.35 var(--lb-font-utility); color: var(--lb-color-parchment-dim); pointer-events: none; }
+.mesa-mini b { font-weight: 500; color: var(--lb-color-parchment); font-variant-numeric: tabular-nums; }
+.palco__lago { position: absolute; right: 12px; top: 12px; font: 500 11.5px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); padding: 5px 8px; border-radius: var(--lb-radius-full); background: rgba(13, 12, 15, 0.72); pointer-events: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coluna { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-left: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); }
+.tela { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow-y: auto; overflow-x: hidden; }
+
+/* convite */
+.npc { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: start; }
+.npc canvas { width: 56px; height: 60px; image-rendering: pixelated; border-radius: var(--lb-radius-md); background: #26221e; border: 1px solid var(--lb-color-line-strong); }
+.npc h1 { font: 600 17px/1.25 var(--lb-font-display); overflow-wrap: anywhere; }
+.npc p { font-size: 12px; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+.fala { position: relative; padding: 12px 14px; border-radius: var(--lb-radius-lg); background: #1f1a14; border: 1px solid rgba(224, 164, 74, 0.2); color: #ebe0c9; font: 15px/1.5 var(--lb-font-display); overflow-wrap: anywhere; }
+.cartoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cartao { position: relative; display: grid; gap: 4px; align-content: start; padding: 12px; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-raised); cursor: pointer; transition: border-color var(--lb-motion-fast) var(--lb-motion-ease), background-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.cartao input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.cartao b { font: 600 14px/1.2 var(--lb-font-sans); }
+.cartao span { font-size: 12px; line-height: 1.4; color: var(--lb-color-parchment-dim); }
+.cartao:has(input:checked) { border-color: var(--lb-color-brass); background: #29231a; }
+.cartao:has(input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.cartao:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
+.premios { display: grid; gap: 8px; }
+.premios div { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.premios dd { font-size: 13px; overflow-wrap: anywhere; }
+.cesto { display: flex; flex-wrap: wrap; gap: 6px; }
+.cesto li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; border-radius: var(--lb-radius-full); background: var(--lb-color-stone-raised); font-size: 12px; color: var(--lb-color-parchment-dim); }
+.cesto canvas { image-rendering: pixelated; }
+.linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.teclas { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; color: var(--lb-color-parchment-faint); }
+
+/* jogo */
+.tela--jogo { padding: 14px; gap: 10px; overflow: hidden; }
+.hud { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: start; }
+.hud__fase { font: 600 16px/1.3 var(--lb-font-sans); font-variant-numeric: tabular-nums; }
+.hud__fase[data-tom="alerta"] { color: var(--lb-color-brass-bright); }
+.hud__fase[data-tom="ruim"] { color: #f0b3ad; }
+.hud__fase[data-tom="bom"] { color: #b6dcbd; }
+.hud__dica { grid-column: 1 / -1; font-size: 12.5px; color: var(--lb-color-parchment-dim); min-height: 2.9em; }
+.campo { position: relative; flex: 1; min-height: 0; width: 100%; padding: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-sunken); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: border-color var(--lb-motion-fast) var(--lb-motion-ease), background-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.campo[data-seg="1"] { border-color: rgba(127, 180, 138, 0.45); background: #151a17; }
+.campo canvas { image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; }
+
+/* resultado */
+.tela--resultado h2 { font: 600 22px/1.2 var(--lb-font-display); }
+.tela--resultado h2[data-tom="ruim"] { color: #f0b3ad; }
+.res__sub { font-size: 13px; color: var(--lb-color-parchment-dim); margin-top: 2px; overflow-wrap: anywhere; }
+.placa { display: grid; place-items: center; border-radius: var(--lb-radius-lg); background: #0b1d23; border: 1px solid var(--lb-color-line); overflow: hidden; }
+.placa canvas { width: 100%; max-width: 384px; height: auto; aspect-ratio: 64 / 34; image-rendering: pixelated; image-rendering: crisp-edges; }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
+.etq { padding: 2px 8px; border-radius: var(--lb-radius-full); font: 500 11.5px/1.6 var(--lb-font-utility); border: 1px solid currentColor; }
+.etq[data-r="comum"] { color: var(--pz-comum); }
+.etq[data-r="incomum"] { color: var(--pz-incomum); }
+.etq[data-r="raro"] { color: var(--pz-raro); }
+.etq[data-r="lendario"] { color: var(--pz-lendario); }
+.etq[data-r="perfeito"] { color: #b6dcbd; }
+.numeros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.numeros div { padding: 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); min-width: 0; }
+.numeros dd { font: 600 18px/1.25 var(--lb-font-utility); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.estrelas { color: var(--lb-color-brass-bright); letter-spacing: 1px; }
+.estrelas i { font-style: normal; color: #4a4740; }
+.desfecho { padding: 12px 14px; border-radius: var(--lb-radius-md); font-size: 13px; background: var(--lb-color-stone-raised); overflow-wrap: anywhere; }
+.desfecho[data-tom="bom"] { background: rgba(127, 180, 138, 0.12); color: #cfe6d3; }
+.desfecho[data-tom="ruim"] { background: var(--lb-color-ember-soft); color: #f0b3ad; }
+.botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@keyframes entrar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes estrela { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .tela--resultado[data-entrou="1"] > * { animation: entrar 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .tela--resultado[data-entrou="1"] > :nth-child(2) { animation-delay: 40ms; }
+  .tela--resultado[data-entrou="1"] > :nth-child(n+3) { animation-delay: 80ms; }
+  .tela--resultado[data-entrou="1"] .estrelas span { display: inline-block; animation: estrela 180ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .estrelas span:nth-child(2) { animation-delay: 60ms !important; }
+  .estrelas span:nth-child(3) { animation-delay: 120ms !important; }
+  .estrelas span:nth-child(4) { animation-delay: 180ms !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tela--resultado[data-entrou="1"] { animation: aparecer 200ms ease both; }
+  @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* pausa */
+.pausa { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(8, 8, 10, 0.62); z-index: 5; }
+.pausa__caixa { width: min(100%, 300px); display: grid; gap: 10px; padding: 18px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float); }
+.pausa__caixa h2 { font: 600 16px/1.3 var(--lb-font-sans); }
+
+/* mestre */
+.mestre { display: grid; grid-template-columns: 360px minmax(0, 1fr) 320px; gap: 16px; padding: 16px; min-height: 0; overflow: auto; }
+.painel { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: var(--lb-radius-lg); background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel); min-width: 0; align-self: start; }
+.painel h2 { font: 600 15px/1.3 var(--lb-font-sans); }
+.painel__cab { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; }
+.painel__cab p { font-size: 12px; color: var(--lb-color-parchment-faint); overflow-wrap: anywhere; }
+.campo-f { display: grid; gap: 6px; }
+.campo-f input[type="text"], .campo-f textarea, .campo-f select { width: 100%; min-height: 34px; padding: 7px 10px; border-radius: var(--lb-radius-md); border: 1px solid var(--lb-color-line); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); font-size: 13px; resize: vertical; }
+.campo-f select { appearance: auto; }
+fieldset:disabled .campo-f { opacity: 0.5; }
+.grupo { display: grid; gap: 14px; }
+.mapa { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mapa svg { width: 100%; height: auto; border-radius: var(--lb-radius-lg); border: 1px solid var(--lb-color-line); background: #141417; }
+.mapa text { font: 500 11px var(--lb-font-utility); fill: #858480; }
+.placar li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--lb-color-line); }
+.placar li:last-child { border-bottom: 0; }
+.pl__nome { font-weight: 600; }
+.pl__status { font: 500 11.5px/1.4 var(--lb-font-utility); color: var(--lb-color-parchment-dim); text-align: right; overflow-wrap: anywhere; }
+.pl__nums { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; font: 500 12px/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.pl__nums b { color: var(--lb-color-parchment); font-weight: 500; }
+.pl__medidor { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--lb-color-line); overflow: hidden; }
+.pl__medidor i { display: block; height: 100%; background: var(--lb-color-online); transform-origin: left; transform: scaleX(0); transition: transform 250ms linear; }
+@media (prefers-reduced-motion: reduce) { .pl__medidor i { transition: none; } }
+
+@media (max-width: 1180px) {
+  .mestre { grid-template-columns: 340px minmax(0, 1fr); }
+  .mestre .painel--placar { grid-column: 2; }
+  .mestre .mapa { grid-column: 2; grid-row: 1; }
+  .mestre .painel--pino { grid-row: 1 / span 2; }
+}
+@media (max-width: 760px) {
+  :root { --pz-topo: 52px; }
+  .topo { padding: 0 12px; }
+  .migalhas { display: none; }
+  .visao__rotulo { display: none; }
+  .jogador { grid-template-columns: minmax(0, 1fr); grid-template-rows: 30vh minmax(0, 1fr); grid-template-rows: 30dvh minmax(0, 1fr); }
+  .coluna { border-left: 0; border-top: 1px solid var(--lb-color-line); }
+  .tela { padding: 16px; }
+  .tela--jogo { padding: 12px; }
+  .mesa-mini { left: 8px; top: 8px; padding: 6px 8px; }
+  .palco__lago { right: 8px; top: 8px; }
+  .mestre { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  .mestre .painel--pino, .mestre .mapa, .mestre .painel--placar { grid-column: 1; grid-row: auto; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="pinoControle" viewBox="0 0 30 40">
+      <line x1="15" y1="38" x2="15" y2="15" stroke="#1b1208" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="15" cy="15" r="11" fill="#f2c14e" stroke="#1b1208" stroke-width="2"/>
+      <g fill="none" stroke="#1b1208" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.78 12.04H19.22L20.91 13.45 21.9 17.82 20.63 19.36 18.52 18.24H11.48L9.37 19.36 8.1 17.82 9.09 13.45Z"/>
+        <path d="M10.78 15.14H13.45M12.11 13.8V16.48"/>
+      </g>
+      <circle cx="17.11" cy="15.7" r=".9" fill="#1b1208"/><circle cx="18.94" cy="14.3" r=".9" fill="#1b1208"/>
+    </symbol>
+  </defs>
+</svg>
+<div class="app" id="app">
+  <header class="topo">
+    <div class="topo__marca">
+      <span class="wordmark">Labirinto</span>
+      <nav class="migalhas" aria-label="Onde você está"><span>Salão Fundo</span><span aria-hidden="true">›</span><b data-lago>Poço Afogado</b></nav>
+    </div>
+    <div class="visao" role="group" aria-label="Ver como">
+      <span class="visao__rotulo rotulo">Ver como</span>
+      <div class="seg"><button type="button" data-visao="jogador" aria-pressed="true">Jogador</button><button type="button" data-visao="mestre" aria-pressed="false">Mestre</button></div>
+    </div>
+  </header>
+
+  <main class="jogador" id="vJogador">
+    <section class="palco" id="palco" aria-label="Lago da caverna: você na pedra da margem, a linha e a boia na água">
+      <canvas id="cvLago" aria-hidden="true"></canvas>
+      <div class="mesa-mini" id="mesaMini" aria-label="O que cada um está fazendo"><span>Você</span><b id="mmVoce">no convite</b><span>Iara</span><b id="mmIara">—</b><span>Tomé</span><b id="mmTome">—</b></div>
+      <span class="palco__lago" data-lago>Poço Afogado</span>
+    </section>
+
+    <aside class="coluna">
+      <section class="tela" id="tConvite" aria-labelledby="cNome">
+        <div class="npc"><canvas id="cvNpc" width="14" height="15" aria-hidden="true"></canvas><div><h1 id="cNome">Bento, o barqueiro</h1><p>desafia você no <span data-lago>Poço Afogado</span></p></div></div>
+        <p class="fala" id="cFala"></p>
+        <fieldset>
+          <legend class="rotulo" style="margin-bottom:8px">Dificuldade</legend>
+          <div class="cartoes">
+            <label class="cartao"><input type="radio" name="dif" value="normal"><b>Normal</b><span>Barra larga, peixe calmo, tempo para fisgar. Seis peixes do poço.</span></label>
+            <label class="cartao"><input type="radio" name="dif" value="extremo"><b>Extremo</b><span>Barra curta, peixe arisco, fisgada rápida. Três raros e um lendário só aqui.</span></label>
+          </div>
+          <p class="nota" id="cDifNota" hidden style="margin-top:6px"></p>
+        </fieldset>
+        <dl class="premios">
+          <div><dt class="rotulo">Se pegar</dt><dd id="cPremio"></dd></div>
+          <div><dt class="rotulo">Se escapar</dt><dd id="cCons"></dd></div>
+        </dl>
+        <div><p class="rotulo" style="margin-bottom:6px">Seu cesto</p><ul class="cesto" id="cCesto"></ul></div>
+        <p class="aviso" id="cAviso" hidden></p>
+        <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bPescar">Ir pescar</button>
+        <div class="linha"><button type="button" class="lb-btn lb-btn--sm" id="bSom" aria-pressed="true">Som ligado</button></div>
+        <p class="teclas">Segurar: <kbd>Espaço</kbd><kbd>↑</kbd><kbd>W</kbd>, clique, toque ou <kbd>A</kbd>/<kbd>RT</kbd> no controle. Pausa: <kbd>Esc</kbd> ou <kbd>Start</kbd>.</p>
+      </section>
+
+      <section class="tela tela--jogo" id="tJogo" hidden aria-label="Pescando">
+        <div class="hud">
+          <p class="hud__fase" id="hFase">Lance</p>
+          <button type="button" class="lb-btn lb-btn--sm" id="bPausa">Pausar <kbd>Esc</kbd></button>
+          <p class="hud__dica" id="hDica"></p>
+        </div>
+        <button type="button" class="campo" id="campo" aria-label="Segurar: mede a força do lance, fisga e sobe a barra verde"><canvas id="cvInstr" width="84" height="200" aria-hidden="true"></canvas></button>
+        <p class="teclas">Segure <kbd>Espaço</kbd><kbd>↑</kbd><kbd>W</kbd>, o mouse, o dedo na tela ou <kbd>A</kbd>/<kbd>RT</kbd>.</p>
+        <p class="sr-only" aria-live="polite" id="vivo"></p>
+      </section>
+
+      <section class="tela tela--resultado" id="tResultado" hidden aria-labelledby="rTitulo">
+        <div><h2 id="rTitulo">Pegou!</h2><p class="res__sub" id="rSub"></p></div>
+        <div class="placa"><canvas id="cvPeixe" width="64" height="34" aria-hidden="true"></canvas></div>
+        <div class="etiquetas" id="rEtq"></div>
+        <dl class="numeros" id="rNums"></dl>
+        <p class="nota" id="rBau" hidden></p>
+        <p class="desfecho" id="rDesfecho"></p>
+        <div class="botoes"><button type="button" class="lb-btn lb-btn--primary" id="rDeNovo">Lançar de novo</button><button type="button" class="lb-btn" id="rVoltar">Voltar ao convite</button></div>
+      </section>
+    </aside>
+
+    <div class="pausa" id="pausa" hidden role="dialog" aria-modal="true" aria-labelledby="pTitulo">
+      <div class="pausa__caixa">
+        <h2 id="pTitulo">Pausado</h2>
+        <p class="nota" id="pTexto">A linha fica parada onde está.</p>
+        <button type="button" class="lb-btn lb-btn--primary" id="bContinuar">Continuar</button>
+        <button type="button" class="lb-btn" id="bDesistir">Desistir deste lance</button>
+      </div>
+    </div>
+  </main>
+
+  <main class="mestre" id="vMestre" hidden>
+    <section class="painel painel--pino" aria-labelledby="hPino">
+      <div class="painel__cab"><svg width="30" height="40" aria-hidden="true"><use href="#pinoControle"/></svg><div><h2 id="hPino">Pino de minigame</h2><p>Margem do <span data-lago>Poço Afogado</span> (nome que só o mestre vê)</p></div></div>
+      <div class="campo-f"><span class="rotulo" id="rJogo">Jogo</span><div class="seg" role="group" aria-labelledby="rJogo" id="segJogo"><button type="button" data-jogo="danca" aria-pressed="false">Dança</button><button type="button" data-jogo="pesca" aria-pressed="true">Pesca</button></div>
+        <p class="nota" id="notaJogo" hidden>A dança tem protótipo próprio (docs/design/minigame-danca). Aqui só a pesca roda: com Dança marcada, o jogador vê o convite fechado.</p></div>
+      <fieldset class="grupo" id="fsPesca">
+        <label class="campo-f"><span class="rotulo">Quem desafia</span><input type="text" id="mNome" maxlength="40"></label>
+        <label class="campo-f"><span class="rotulo">Fala</span><textarea id="mFala" rows="3" maxlength="240"></textarea></label>
+        <label class="campo-f"><span class="rotulo">Nome do lago</span><input type="text" id="mLago" maxlength="40"></label>
+        <label class="campo-f"><span class="rotulo">Dificuldade permitida</span><select id="mDif"><option value="escolha">O jogador escolhe</option><option value="normal">Só Normal</option><option value="extremo">Só Extremo</option></select></label>
+        <label class="campo-f"><span class="rotulo">Prêmio (pegou)</span><input type="text" id="mPremio" maxlength="140"></label>
+        <label class="campo-f"><span class="rotulo">Consequência (escapou ou fugiu)</span><input type="text" id="mCons" maxlength="140"></label>
+      </fieldset>
+    </section>
+    <section class="mapa" aria-label="Recorte do mapa">
+      <svg viewBox="0 0 400 250" role="img" aria-labelledby="tMapa">
+        <title id="tMapa">Recorte do mapa: o pino de minigame na margem do lago</title>
+        <g fill="#232228" stroke="#4a4852" stroke-width="1">
+          <rect x="24" y="44" width="118" height="92"/>
+          <rect x="142" y="76" width="64" height="24"/>
+          <path d="M206 28H376V222H206Z"/>
+        </g>
+        <path d="M228 98C228 72 262 58 300 62C340 66 360 92 356 130C352 176 316 202 276 198C240 194 222 162 228 128Z" fill="#15323b" stroke="#2f5f6b"/>
+        <g fill="#8a6a3a"><rect x="140" y="82" width="4" height="12"/><rect x="204" y="82" width="4" height="12"/><rect x="70" y="134" width="14" height="4"/></g>
+        <text x="34" y="62">Salão Fundo</text>
+        <text x="296" y="136" text-anchor="middle" data-lago-svg>Poço Afogado</text>
+        <use href="#pinoControle" x="212" y="102" width="30" height="40"/>
+      </svg>
+      <p class="nota">Pino de minigame (ícone de controle) na margem. O jogador que pisa nele vê o convite do desafiante.</p>
+    </section>
+    <section class="painel painel--placar" aria-labelledby="hPlacar">
+      <h2 id="hPlacar">Placar ao vivo</h2>
+      <ul class="placar" id="placar"></ul>
+      <div class="botoes"><button type="button" class="lb-btn" id="bPausaTodos">Pausar para todos</button><button type="button" class="lb-btn" id="bEncerrar">Encerrar para todos</button></div>
+      <p class="nota">Iara e Tomé são simulados. No app, cada um pesca no próprio aparelho.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+/* Poço de Pesca: protótipo do minigame de pesca do pino de controle do Labirinto.
+   A simulação é passo fixo de 1/120 s (bloco SIM, puro); o desenho é pixel art em canvas. */
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const fmtDec = (v, c = 1) => v.toFixed(c).replace('.', ',');
+const movimentoReduzido = matchMedia('(prefers-reduced-motion: reduce)');
+
+// ==== SIM:INICIO — puro, sem DOM; provas/gerar-provas.cjs e o afinador rodam este bloco
+const SIM = (() => {
+  const DT = 1 / 120;
+  const lim = (v, a, b) => Math.min(b, Math.max(a, v));
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  const rngDe = (s) => mulberry32(hash(String(s)));
+  const entre = (r, a, b) => a + (b - a) * r();
+
+  /* Posições em fração da coluna de água (0 = fundo, 1 = topo); velocidades em coluna/s. */
+  const DIF = {
+    normal: { nome: 'Normal', barra: 0.24, subida: 3.0, gravidade: 2.3, vBarra: 1.4, quique: 0.4,
+      vPeixe: 0.6, mola: 20, intervalo: [0.9, 1.8], tremor: 0.3,
+      ganho: 0.15, perda: 0.11, inicio: 0.3,
+      janela: 0.9, espera: [1.5, 4.0], beliscadas: 1, ciclo: 1.4,
+      bau: { chance: 0.2, aparece: [1.2, 3.5], vida: 6, encher: 1.4 } },
+    extremo: { nome: 'Extremo', barra: 0.15, subida: 3.4, gravidade: 2.9, vBarra: 1.7, quique: 0.4,
+      vPeixe: 0.75, mola: 38, intervalo: [0.4, 1.1], tremor: 1.0,
+      ganho: 0.22, perda: 0.3, inicio: 0.3,
+      janela: 0.5, espera: [1.8, 5.0], beliscadas: 3, ciclo: 1.0,
+      bau: { chance: 0.3, aparece: [1.0, 3.0], vida: 4, encher: 1.8 } },
+  };
+  /* Comportamento: como o peixe escolhe o próximo alvo, e multiplicadores de intervalo, mola e velocidade. */
+  const COMP = {
+    misto: { int: 1, mola: 1, vel: 1, alvo: (p, r) => p.y + (r() * 2 - 1) * 0.45 },
+    disparado: { int: 2.0, mola: 2.2, vel: 1.1, alvo: (p, r) => { let a = p.y; for (let i = 0; i < 8 && Math.abs(a - p.y) < 0.3; i++) a = 0.05 + r() * 0.9; return a; } },
+    suave: { int: 1.2, mola: 0.5, vel: 0.55, alvo: (p, r) => { p.fase += 0.7 + r() * 0.8; return 0.5 + Math.sin(p.fase) * 0.4; } },
+    afunda: { int: 1, mola: 1, vel: 1, alvo: (p, r) => (r() < 0.18 ? 0.55 + r() * 0.4 : 0.04 + Math.pow(r(), 1.8) * 0.5) },
+    flutua: { int: 1, mola: 1, vel: 1, alvo: (p, r) => (r() < 0.18 ? 0.05 + r() * 0.4 : 0.96 - Math.pow(r(), 1.8) * 0.5) },
+  };
+  /* Cores da arte: contorno, dorso, corpo, ventre, barbatana, detalhe. */
+  const PEIXES = [
+    { id: 'carpa-runa', nome: 'Carpa-runa', comp: 'misto', rar: 'comum', cm: [24, 58], vel: 1, onde: 'ambos', arte: { L: 16, A: 7, cauda: 'garfo', padrao: 'runa', cor: ['#1b1208', '#8a5a22', '#c98a36', '#e8c27a', '#a8652a', '#79a9cc'] } },
+    { id: 'enguia', nome: 'Enguia de caverna', comp: 'suave', rar: 'comum', cm: [40, 95], vel: 0.95, onde: 'ambos', arte: { L: 22, A: 4, perfil: 'longo', cauda: 'fina', cor: ['#0e1210', '#2f3a26', '#4a5a36', '#9aa77a', '#3a4630', '#9aa77a'], olho: '#d9d4c7' } },
+    { id: 'lume', nome: 'Lume-de-poça', comp: 'flutua', rar: 'comum', cm: [7, 16], vel: 1.05, onde: 'ambos', arte: { L: 9, A: 5, cauda: 'leque', extra: 'isca', cor: ['#120f14', '#3a3350', '#5b5079', '#8d82ad', '#463d63', '#f3ba66'], olho: '#f3ba66' } },
+    { id: 'piaba', nome: 'Piaba-ossuda', comp: 'disparado', rar: 'comum', cm: [10, 22], vel: 1, onde: 'ambos', arte: { L: 11, A: 5, cauda: 'garfo', padrao: 'ossos', cor: ['#0f0f12', '#2a2a30', '#3c3c44', '#55555e', '#50505a', '#d9d4c7'], olho: '#e2645a' } },
+    { id: 'bagre', nome: 'Bagre-de-pedra', comp: 'afunda', rar: 'incomum', cm: [35, 90], vel: 1.1, onde: 'ambos', arte: { L: 17, A: 6, cauda: 'leque', extra: 'bigode', cor: ['#121110', '#4a4640', '#6b665d', '#a29b8c', '#57524a', '#c9c0ad'] } },
+    { id: 'truta', nome: 'Truta-do-fosso', comp: 'misto', rar: 'incomum', cm: [20, 46], vel: 1.2, onde: 'ambos', arte: { L: 15, A: 5, cauda: 'garfo', padrao: 'pintas', cor: ['#10141a', '#4f6170', '#8fa3b0', '#e0c4bc', '#6d808e', '#2a3540'] } },
+    { id: 'linguado', nome: 'Linguado-espectro', comp: 'afunda', rar: 'raro', cm: [28, 55], vel: 1.15, onde: 'extremo', arte: { L: 13, A: 8, perfil: 'oval', cauda: 'leque', padrao: 'pintas', cor: ['#1a1424', '#6e5d92', '#ab93d6', '#d8cdf0', '#8a77b5', '#eee6ff'] } },
+    { id: 'lampreia', nome: 'Lampreia-de-cobre', comp: 'disparado', rar: 'raro', cm: [45, 100], vel: 1, onde: 'extremo', arte: { L: 22, A: 4, perfil: 'longo', cauda: 'fina', extra: 'ventosa', cor: ['#170d08', '#7a3e1c', '#b8642e', '#e09a5c', '#8f4a22', '#f3ba66'] } },
+    { id: 'esturjao', nome: 'Esturjão-de-cristal', comp: 'suave', rar: 'raro', cm: [70, 150], vel: 0.95, onde: 'extremo', arte: { L: 22, A: 6, cauda: 'garfo', padrao: 'placas', cor: ['#0b1620', '#3b6d8f', '#79a9cc', '#c3e0f2', '#5a8db0', '#e8f6ff'] } },
+    { id: 'coroa', nome: 'Coroa-do-Abismo', comp: 'misto', rar: 'lendario', cm: [140, 210], vel: 2.1, tremor: 3, onde: 'extremo', arte: { L: 22, A: 9, cauda: 'leque', extra: 'coroa', cor: ['#07080a', '#1c2230', '#2b3346', '#4a5670', '#232a3a', '#f2c14e'], olho: '#e2645a' } },
+  ];
+  const peixePorId = (id) => PEIXES.find((p) => p.id === id);
+  const cardapio = (dif) => PEIXES.filter((p) => p.onde === 'ambos' || p.onde === dif);
+  /* Peso no sorteio pela distância do lance (0 a 1): longe favorece o melhor; o lendário só passa de 0,6. */
+  function pesoDe(p, dist) {
+    if (p.rar === 'comum') return 10 * (1.3 - 0.6 * dist);
+    if (p.rar === 'incomum') return 6 * (0.7 + 0.6 * dist);
+    if (p.rar === 'raro') return 2.5 * (0.3 + 1.4 * dist);
+    return dist <= 0.6 ? 0 : 2 * ((dist - 0.6) / 0.4);
+  }
+  const forcaNoTempo = (t, ciclo) => { const f = (t / ciclo) % 2; return f < 1 ? f : 2 - f; };
+  const faixa = (dist) => (dist >= 0.8 ? 'longe' : dist >= 0.4 ? 'medio' : 'perto');
+  const estrelas = (dist, perfeito) => 1 + (dist >= 0.4 ? 1 : 0) + (dist >= 0.8 ? 1 : 0) + (perfeito ? 1 : 0);
+  function sortear(dif, dist, semente) {
+    const r = rngDe(semente + '|peixe'), lista = cardapio(dif), pesos = lista.map((p) => pesoDe(p, dist));
+    let x = r() * pesos.reduce((a, b) => a + b, 0), i = 0;
+    while (i < lista.length - 1 && x >= pesos[i]) { x -= pesos[i]; i++; }
+    const p = lista[i], d = DIF[dif];
+    const cm = Math.round(p.cm[0] + (p.cm[1] - p.cm[0]) * Math.pow(r(), 1.6 - 0.9 * dist));
+    const espera = entre(r, d.espera[0], d.espera[1]) * (1 + dist * 0.2);
+    const n = Math.floor(r() * (d.beliscadas + 1)), beliscadas = [];
+    for (let k = 0; k < n; k++) beliscadas.push(0.5 + r() * Math.max(0.1, espera - 1.0));
+    beliscadas.sort((a, b) => a - b);
+    return { peixe: p, cm, espera, beliscadas };
+  }
+  function novaPuxada(dif, peixe, semente) {
+    const d = DIF[dif], r = rngDe(semente + '|puxada');
+    const e = { dif, d, peixe, c: COMP[peixe.comp], r, t: 0, fim: null, perfeito: true, dentro: true,
+      b: { y: 0, v: 0, tam: d.barra }, p: { y: d.barra * 0.5, v: 0, alvo: d.barra * 0.5, prox: 0.6, fase: r() * 6.28 }, m: d.inicio, bau: null };
+    if (r() < d.bau.chance) e.bau = { em: entre(r, d.bau.aparece[0], d.bau.aparece[1]), y: 0.1 + r() * 0.8, prog: 0, estado: 'espera' };
+    return e;
+  }
+  function passo(e, seg) {
+    if (e.fim) return e.fim;
+    const { d, c, p, b, r, peixe } = e, dt = DT;
+    e.t += dt;
+    if (e.t >= p.prox) { p.alvo = lim(c.alvo(p, r), 0.03, 0.97); p.prox = e.t + entre(r, d.intervalo[0], d.intervalo[1]) * c.int / peixe.vel; }
+    if (e.t > 0.6) {
+      const k = d.mola * c.mola * peixe.vel, vmax = d.vPeixe * c.vel * peixe.vel, tremor = d.tremor + (peixe.tremor || 0);
+      p.v += ((p.alvo - p.y) * k - p.v * 1.6 * Math.sqrt(k)) * dt;
+      if (tremor && r() < tremor * dt) p.v += (r() * 2 - 1) * vmax * 0.9;
+      p.v = lim(p.v, -vmax, vmax); p.y += p.v * dt;
+      if (p.y < 0.03) { p.y = 0.03; p.v = Math.abs(p.v) * 0.3; } else if (p.y > 0.97) { p.y = 0.97; p.v = -Math.abs(p.v) * 0.3; }
+    }
+    b.v = lim(b.v + (seg ? d.subida : -d.gravidade) * dt, -d.vBarra, d.vBarra);
+    b.y += b.v * dt;
+    if (b.y <= 0) { b.y = 0; b.v = b.v < -0.3 ? -b.v * d.quique : 0; } else if (b.y >= 1 - b.tam) { b.y = 1 - b.tam; b.v = Math.min(0, b.v); }
+    const dentro = p.y >= b.y && p.y <= b.y + b.tam, u = e.bau;
+    let bauDentro = false;
+    if (u && u.estado === 'espera' && e.t >= u.em) u.estado = 'visivel';
+    if (u && u.estado === 'visivel') {
+      bauDentro = u.y >= b.y && u.y <= b.y + b.tam;
+      u.prog = lim(u.prog + (bauDentro ? dt : -dt * 0.5) / d.bau.encher, 0, 1);
+      if (u.prog >= 1) u.estado = 'pego'; else if (e.t >= u.em + d.bau.vida) u.estado = 'sumiu';
+    }
+    e.dentro = dentro;
+    if (dentro) e.m += d.ganho * dt; else { e.perfeito = false; if (!bauDentro) e.m -= d.perda * dt; }
+    if (e.m >= 1) { e.m = 1; e.fim = 'pegou'; } else if (e.m <= 0) { e.m = 0; e.fim = 'escapou'; }
+    if (e.fim && u) u.estado = u.estado === 'espera' ? 'nunca' : u.estado === 'visivel' ? 'sumiu' : u.estado;
+    return e.fim;
+  }
+  /* Robô simples: vê o peixe com atraso (reação humana) e segura quando ele está acima do meio da barra. */
+  function politicaSegue(atraso = 0.12) {
+    const fila = [], n = Math.round(atraso / DT);
+    return (e) => { fila.push(e.p.y); if (fila.length > 600) fila.splice(0, 300); const y = fila[Math.max(0, fila.length - 1 - n)]; return y > e.b.y + e.b.tam / 2 + e.b.v * 0.12; };
+  }
+  const politicaFoge = () => (e) => e.p.y < 0.5;
+  function simular(dif, peixeId, semente, politica, maxS = 90) {
+    const e = novaPuxada(dif, peixePorId(peixeId), semente), amostras = [];
+    for (let i = 0; !e.fim && e.t < maxS; i++) {
+      if (i % 12 === 0) amostras.push([Math.round(e.t * 10) / 10, e.p.y, e.b.y, e.b.y + e.b.tam, e.m]);
+      passo(e, politica(e));
+    }
+    amostras.push([Math.round(e.t * 100) / 100, e.p.y, e.b.y, e.b.y + e.b.tam, e.m]);
+    return { fim: e.fim || 'tempo', t: e.t, perfeito: e.fim === 'pegou' && e.perfeito, bau: e.bau ? e.bau.estado : null, amostras };
+  }
+  return { DT, DIF, COMP, PEIXES, rngDe, peixePorId, cardapio, pesoDe, forcaNoTempo, faixa, estrelas, sortear, novaPuxada, passo, politicaSegue, politicaFoge, simular };
+})();
+// ==== SIM:FIM
+
+// ==== SOM:INICIO — bloco autocontido; provas/gerar-provas.cjs extrai daqui até SOM:FIM ====
+const SOM = (() => {
+  const GANHO = 1.7;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const ruidos = new WeakMap();
+  let giro = 0;
+  function ruido(ctx) {
+    let b = ruidos.get(ctx);
+    if (!b) {
+      b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d = b.getChannelData(0);
+      let s = 0x2545f491;
+      for (let i = 0; i < d.length; i++) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; d[i] = ((s >>> 0) / 4294967296) * 2 - 1; }
+      ruidos.set(ctx, b);
+    }
+    return b;
+  }
+  function envelope(p, t, pico, ataque, queda) {
+    p.setValueAtTime(0.0001, t);
+    p.exponentialRampToValueAtTime(pico, t + ataque);
+    p.exponentialRampToValueAtTime(0.0001, t + ataque + queda);
+  }
+  function fonteRuido(ctx, t, dur) {
+    const n = ctx.createBufferSource();
+    n.buffer = ruido(ctx); n.loop = true;
+    giro = (giro + 0.173) % 0.7;
+    n.start(t, giro); n.stop(t + dur);
+    return n;
+  }
+  function filtro(ctx, tipo, f, q = 0.7) { const b = ctx.createBiquadFilter(); b.type = tipo; b.frequency.value = f; b.Q.value = q; return b; }
+  function osc(ctx, tipo, f) { const o = ctx.createOscillator(); o.type = tipo; o.frequency.value = f; return o; }
+  /** Ganho que nasce em 0 (o padrão do GainNode é 1 e deixava passar 1 amostra cheia antes do envelope). */
+  function vca(ctx) { const g = ctx.createGain(); g.gain.value = 0; return g; }
+  function tom(ctx, out, tipo, f, t, pico, ataque, queda, corte) {
+    const o = osc(ctx, tipo, f), g = vca(ctx);
+    envelope(g.gain, t, pico, ataque, queda);
+    if (corte) o.connect(filtro(ctx, 'lowpass', corte)).connect(g); else o.connect(g);
+    g.connect(out); o.start(t); o.stop(t + ataque + queda + 0.03);
+    return o;
+  }
+  /** Zunido da linha: ruído em passa-banda que sobe e desce, com um assobio fino por baixo. */
+  function lance(ctx, out, t) {
+    const n = fonteRuido(ctx, t, 0.62), f = filtro(ctx, 'bandpass', 1200, 4), g = vca(ctx);
+    f.frequency.setValueAtTime(1200, t); f.frequency.exponentialRampToValueAtTime(5200, t + 0.18); f.frequency.exponentialRampToValueAtTime(1500, t + 0.56);
+    envelope(g.gain, t, 0.9, 0.06, 0.5);
+    n.connect(f).connect(g).connect(out);
+    const o = tom(ctx, out, 'sine', 900, t, 0.07, 0.05, 0.5);
+    o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(1900, t + 0.2); o.frequency.exponentialRampToValueAtTime(1100, t + 0.55);
+  }
+  /** Boia caindo: chuá de ruído que fecha o filtro e um "bloop" grave. */
+  function splash(ctx, out, t, forca = 1) {
+    const n = fonteRuido(ctx, t, 0.5), f = filtro(ctx, 'lowpass', 2600, 0.8), g = vca(ctx);
+    f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(380, t + 0.4);
+    envelope(g.gain, t, 0.45 * forca, 0.004, 0.42);
+    n.connect(f).connect(g).connect(out);
+    const o = tom(ctx, out, 'sine', 340, t + 0.01, 0.3 * forca, 0.005, 0.15);
+    o.frequency.setValueAtTime(340, t + 0.01); o.frequency.exponentialRampToValueAtTime(110, t + 0.15);
+  }
+  /** Beliscada: plic curto e baixo, para dar a falsa esperança. */
+  function beliscada(ctx, out, t) {
+    const o = tom(ctx, out, 'sine', 720, t, 0.2, 0.003, 0.07);
+    o.frequency.setValueAtTime(720, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.07);
+  }
+  /** "!" da fisgada: dois bipes quadrados subindo. */
+  function fisgada(ctx, out, t) {
+    tom(ctx, out, 'square', 988, t, 0.28, 0.003, 0.1, 3800);
+    tom(ctx, out, 'square', 1480, t + 0.07, 0.28, 0.003, 0.12, 3800);
+  }
+  /** Um dente da catraca do molinete; o jogo toca um por trecho de barra subido. */
+  function catraca(ctx, out, t, v = 1) {
+    const n = fonteRuido(ctx, t, 0.03), f = filtro(ctx, 'bandpass', 3400, 5), g = vca(ctx);
+    envelope(g.gain, t, 1.4 * v, 0.001, 0.02);
+    n.connect(f).connect(g).connect(out);
+  }
+  /** Pegou: arpejo curto em triângulo com a oitava de baixo em quadrada. */
+  function pegou(ctx, out, t) {
+    [72, 76, 79, 84].forEach((m, i) => {
+      const d = i * 0.075, dur = i === 3 ? 0.42 : 0.1;
+      tom(ctx, out, 'triangle', mtof(m), t + d, 0.34, 0.006, dur);
+      tom(ctx, out, 'square', mtof(m - 12), t + d, 0.06, 0.006, dur, 2000);
+    });
+  }
+  /** Escapou: tom que despenca com vibrato e a linha frouxa. */
+  function escapou(ctx, out, t) {
+    const o = tom(ctx, out, 'triangle', 520, t, 0.34, 0.01, 0.52), lfo = osc(ctx, 'sine', 9), prof = ctx.createGain();
+    o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(190, t + 0.5);
+    prof.gain.value = 18; lfo.connect(prof).connect(o.frequency); lfo.start(t); lfo.stop(t + 0.6);
+    const s = tom(ctx, out, 'sawtooth', 150, t, 0.14, 0.004, 0.3, 700);
+    s.frequency.setValueAtTime(150, t); s.frequency.exponentialRampToValueAtTime(90, t + 0.3);
+  }
+  /** Baú: quatro sinos subindo. */
+  function bau(ctx, out, t) { [1568, 2093, 2637, 3136].forEach((f, i) => tom(ctx, out, 'sine', f, t + i * 0.06, 0.16, 0.004, 0.5)); }
+  /** Linha do tempo das provas: um ciclo inteiro com todos os sons. */
+  const SEQ = [['lance', 0.1], ['splash', 0.75, 0.9], ['beliscada', 1.5], ['fisgada', 2.2]];
+  for (let k = 0; k < 18; k++) SEQ.push(['catraca', 2.6 + k * 0.055, 0.7 + (k % 3) * 0.1]);
+  SEQ.push(['bau', 3.8], ['pegou', 4.5], ['escapou', 5.6]);
+  const DURACAO_SEQ = 6.4;
+  const SONS = { lance, splash, beliscada, fisgada, catraca, pegou, escapou, bau };
+  function sequencia(ctx, out, t0) { for (const [nome, t, v] of SEQ) SONS[nome](ctx, out, t0 + t, v); }
+  return { GANHO, SEQ, DURACAO_SEQ, SONS, sequencia, ...SONS };
+})();
+// ==== SOM:FIM ====
+
+// ------------------------------------------------------------------ estado
+const PINO_ID = 'pino-poco-afogado';
+const PREFS_CHAVE = 'labirinto.pesca.prefs';
+const prefs = { dif: 'normal', som: true };
+try {
+  const s = JSON.parse(localStorage.getItem(PREFS_CHAVE) || 'null');
+  if (s && typeof s === 'object') { if (s.dif === 'normal' || s.dif === 'extremo') prefs.dif = s.dif; if (typeof s.som === 'boolean') prefs.som = s.som; }
+} catch { /* sem armazenamento: segue com o padrão */ }
+function gravarPrefs() { try { localStorage.setItem(PREFS_CHAVE, JSON.stringify(prefs)); } catch { /* idem */ } }
+
+const config = {
+  jogo: 'pesca', nome: 'Bento, o barqueiro', lago: 'Poço Afogado', permitida: 'escolha',
+  fala: 'Faz vinte anos que ninguém tira nada que preste deste poço. Joga a linha. Se o que morder for grande, segura firme.',
+  premio: 'Quem trouxer o maior peixe leva a chave da comporta.',
+  consequencia: 'Linha vazia: a vez passa e o barqueiro conta para a mesa inteira.',
+  pausaTodos: false, aberto: true,
+};
+const FASES_ATIVAS = new Set(['lance', 'voo', 'espera', 'fisgada', 'puxada', 'cedo', 'final']);
+const jogo = { fase: 'convite', dif: prefs.dif, n: 0, t: 0, tFase: 0, carregando: false, tCarga: 0, forca: 0, dist: 0, semente: '', sorteio: null, puxada: null, belIdx: 0, beliscou: -9, reacao: 0, resultado: null, pausado: false, manual: false, carretel: 0, giro: 0, reduzido: movimentoReduzido.matches };
+movimentoReduzido.addEventListener('change', () => (jogo.reduzido = movimentoReduzido.matches));
+const cesto = [];
+const amostras = { intervalos: [], trabalho: [] };
+const DUR = { voo: () => (jogo.reduzido ? 0.2 : 0.55), final: () => (jogo.reduzido ? 0.5 : 1.2) };
+const RARIDADE = { comum: 'Comum', incomum: 'Incomum', raro: 'Raro', lendario: 'Lendário' };
+const FAIXA = { perto: 'Perto', medio: 'Médio', longe: 'Longe' };
+const ITENS_BAU = ['3 moedas de prata', 'uma isca de cobre', 'um anzol de osso', 'um frasco de tinta de lula', 'uma pérola turva', '12 moedas de cobre', 'um mapa molhado', 'uma runa rachada'];
+function itensDoBau(semente) { const r = SIM.rngDe(semente + '|bau'), a = Math.floor(r() * ITENS_BAU.length); let b = Math.floor(r() * ITENS_BAU.length); if (b === a) b = (b + 3) % ITENS_BAU.length; return [ITENS_BAU[a], ITENS_BAU[b]]; }
+const difEfetiva = () => (config.permitida === 'escolha' ? prefs.dif : config.permitida);
+
+// ------------------------------------------------------------------ áudio
+const AUDIO = { ctx: null, mestre: null, fx: null };
+const sons = [];
+function garantirAudio() {
+  if (AUDIO.ctx) { if (AUDIO.ctx.state === 'suspended') AUDIO.ctx.resume().catch(() => {}); return; }
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (!C) return;
+  try {
+    AUDIO.ctx = new C();
+    AUDIO.mestre = AUDIO.ctx.createGain(); AUDIO.mestre.gain.value = prefs.som ? 1 : 0; AUDIO.mestre.connect(AUDIO.ctx.destination);
+    AUDIO.fx = AUDIO.ctx.createGain(); AUDIO.fx.gain.value = SOM.GANHO; AUDIO.fx.connect(AUDIO.mestre);
+  } catch { AUDIO.ctx = null; }
+}
+function tocar(nome, v) {
+  if (sons.length < 400) sons.push([nome, Math.round(jogo.t * 1000) / 1000]);
+  if (!AUDIO.ctx || !prefs.som || jogo.manual) return;
+  SOM[nome](AUDIO.ctx, AUDIO.fx, AUDIO.ctx.currentTime + 0.005, v);
+}
+
+// ------------------------------------------------------------------ máquina do jogador
+function entrarFase(f) { jogo.fase = f; jogo.tFase = 0; }
+function comecar() {
+  if (!config.aberto || config.jogo !== 'pesca' || config.pausaTodos) return;
+  jogo.dif = difEfetiva(); jogo.pausado = false; jogo.carregando = false; jogo.forca = 0; jogo.puxada = null; jogo.resultado = null;
+  soltarTudo(); entrarFase('lance'); irPara('jogo');
+}
+function apertou() {
+  garantirAudio();
+  if (jogo.fase === 'lance') { jogo.carregando = true; jogo.tCarga = 0; jogo.forca = 0; }
+  else if (jogo.fase === 'espera') { tocar('splash', 0.35); entrarFase('cedo'); }
+  else if (jogo.fase === 'fisgada') fisgar();
+}
+function soltou() { if (jogo.fase === 'lance' && jogo.carregando) lancar(); }
+function lancar() {
+  jogo.carregando = false; jogo.dist = Math.max(0.05, jogo.forca); jogo.n++;
+  jogo.semente = `${PINO_ID}|${jogo.dif}|${jogo.n}`;
+  jogo.sorteio = SIM.sortear(jogo.dif, jogo.dist, jogo.semente);
+  jogo.belIdx = 0; jogo.beliscou = -9; jogo.puxada = null;
+  tocar('lance'); entrarFase('voo');
+}
+function fisgar() {
+  jogo.reacao = jogo.tFase;
+  jogo.puxada = SIM.novaPuxada(jogo.dif, jogo.sorteio.peixe, jogo.semente);
+  jogo.carretel = 0; entrarFase('puxada');
+}
+function passoJogo(dt) {
+  jogo.tFase += dt;
+  const d = SIM.DIF[jogo.dif], f = jogo.fase;
+  if (f === 'lance') { if (jogo.carregando) { jogo.tCarga += dt; jogo.forca = SIM.forcaNoTempo(jogo.tCarga, d.ciclo); } }
+  else if (f === 'voo') { if (jogo.tFase >= DUR.voo()) { tocar('splash', 0.6 + jogo.dist * 0.4); entrarFase('espera'); } }
+  else if (f === 'espera') {
+    const s = jogo.sorteio, b = s.beliscadas[jogo.belIdx];
+    if (b !== undefined && jogo.tFase >= b) { jogo.belIdx++; jogo.beliscou = jogo.tFase; tocar('beliscada'); }
+    if (jogo.tFase >= s.espera) { entrarFase('fisgada'); tocar('fisgada'); }
+  } else if (f === 'fisgada') { if (jogo.tFase >= d.janela) terminar('fugiu'); }
+  else if (f === 'puxada') {
+    const e = jogo.puxada, bauAntes = e.bau && e.bau.estado, yAntes = e.b.y;
+    SIM.passo(e, segurando());
+    const subiu = e.b.y - yAntes;
+    jogo.giro += subiu * 40;
+    if (subiu > 0) { jogo.carretel += subiu; if (jogo.carretel >= 0.06) { jogo.carretel = 0; tocar('catraca', 0.6 + Math.min(0.4, e.b.v * 0.3)); } }
+    if (e.bau && bauAntes !== 'pego' && e.bau.estado === 'pego') tocar('bau');
+    if (e.fim) terminar(e.fim);
+  } else if (f === 'cedo') { if (jogo.tFase >= 1.1) entrarFase('lance'); }
+  else if (f === 'final') { if (jogo.tFase >= DUR.final()) mostrarResultado(); }
+}
+function terminar(tipo) {
+  const s = jogo.sorteio, e = jogo.puxada;
+  const r = { tipo, dif: jogo.dif, peixe: s ? s.peixe : null, cm: s ? s.cm : 0, dist: jogo.dist, faixa: SIM.faixa(jogo.dist), reacao: jogo.reacao, tempo: e ? e.t : 0, perfeito: !!(e && e.fim === 'pegou' && e.perfeito), bau: null, itens: null, estrelas: 0 };
+  if (e && e.bau && (e.bau.estado === 'pego' || e.bau.estado === 'sumiu')) r.bau = e.bau.estado === 'pego' ? (tipo === 'pegou' ? 'pego' : 'perdido') : 'sumiu';
+  if (r.bau === 'pego') r.itens = itensDoBau(jogo.semente);
+  if (tipo === 'pegou') { r.estrelas = SIM.estrelas(jogo.dist, r.perfeito); cesto.push({ peixe: r.peixe, cm: r.cm, estrelas: r.estrelas }); tocar('pegou'); }
+  else if (tipo !== 'encerrado') tocar('escapou');
+  jogo.resultado = r; jogo.carregando = false;
+  if (tipo === 'encerrado') { mostrarResultado(); return; }
+  entrarFase('final');
+}
+
+// ------------------------------------------------------------------ jogadores simulados
+const bots = [
+  { id: 'iara', nome: 'Iara', atraso: 0.13, reacao: 0.34 },
+  { id: 'tome', nome: 'Tomé', atraso: 0.22, reacao: 0.46 },
+].map((b, i) => Object.assign(b, { fase: 'lance', tFase: -0.8 * (i + 1), n: 0, alvo: 1, reacaoAgora: b.reacao, dist: 0, semente: '', sorteio: null, puxada: null, politica: null, resultado: null, cesto: [], dif: 'normal' }));
+const difDoBot = (b) => (config.permitida === 'escolha' ? (b.id === 'iara' ? 'extremo' : 'normal') : config.permitida);
+function novoLanceBot(b) {
+  const r = SIM.rngDe(`${b.id}|carga|${b.n}`);
+  b.dif = difDoBot(b); b.alvo = 0.5 + r() * 0.9; b.reacaoAgora = b.reacao + (r() - 0.5) * 0.16; b.fase = 'lance'; b.tFase = 0;
+}
+function passoBot(b, dt) {
+  b.tFase += dt;
+  const d = SIM.DIF[b.dif];
+  if (b.fase === 'lance' && b.tFase >= b.alvo) {
+    b.dist = Math.max(0.05, SIM.forcaNoTempo(b.alvo, d.ciclo)); b.n++; b.semente = `${PINO_ID}|${b.id}|${b.dif}|${b.n}`;
+    b.sorteio = SIM.sortear(b.dif, b.dist, b.semente); b.puxada = null; b.fase = 'voo'; b.tFase = 0;
+  } else if (b.fase === 'voo' && b.tFase >= 0.55) { b.fase = 'espera'; b.tFase = 0; }
+  else if (b.fase === 'espera' && b.tFase >= b.sorteio.espera) { b.fase = 'fisgada'; b.tFase = 0; }
+  else if (b.fase === 'fisgada' && b.tFase >= Math.min(b.reacaoAgora, d.janela)) {
+    if (b.reacaoAgora <= d.janela) { b.puxada = SIM.novaPuxada(b.dif, b.sorteio.peixe, b.semente); b.politica = SIM.politicaSegue(b.atraso); b.fase = 'puxada'; b.tFase = 0; }
+    else fimBot(b, 'fugiu');
+  } else if (b.fase === 'puxada') { SIM.passo(b.puxada, b.politica(b.puxada)); if (b.puxada.fim) fimBot(b, b.puxada.fim); }
+  else if (b.fase === 'final' && b.tFase >= 3.5) novoLanceBot(b);
+}
+function fimBot(b, tipo) {
+  b.resultado = { tipo, peixe: b.sorteio.peixe, cm: b.sorteio.cm };
+  if (tipo === 'pegou') b.cesto.push({ peixe: b.sorteio.peixe, cm: b.sorteio.cm });
+  b.fase = 'final'; b.tFase = 0;
+}
+
+// ------------------------------------------------------------------ relógio
+function tick() {
+  if (config.pausaTodos) return;
+  const dt = SIM.DT;
+  if (!jogo.pausado) jogo.t += dt;
+  if (!jogo.pausado && FASES_ATIVAS.has(jogo.fase)) passoJogo(dt);
+  if (config.aberto) for (const b of bots) passoBot(b, dt);
+}
+/** Para testes e provas: avança N segundos em passos fixos; a política (robô) segura pela fonte "robo". */
+function rodar(segundos, politica) {
+  const n = Math.round(segundos / SIM.DT);
+  for (let i = 0; i < n; i++) {
+    if (politica && jogo.fase === 'puxada') { const q = politica(jogo.puxada); if (q && !fontes.has('robo')) fonteApertou('robo'); else if (!q && fontes.has('robo')) fonteSoltou('robo'); }
+    tick();
+  }
+}
+
+// ------------------------------------------------------------------ entrada
+const fontes = new Set();
+const segurando = () => fontes.size > 0;
+const podeSegurar = () => visao === 'jogador' && telaAtual === 'jogo' && !jogo.pausado && !config.pausaTodos;
+function fonteApertou(id) { if (!podeSegurar()) return; const primeiro = fontes.size === 0; fontes.add(id); if (primeiro) apertou(); }
+function fonteSoltou(id) { if (!fontes.delete(id)) return; if (fontes.size === 0) soltou(); }
+function soltarTudo() { if (!fontes.size) return; fontes.clear(); soltou(); }
+const TECLAS = new Set(['Space', 'ArrowUp', 'KeyW']);
+addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Escape' && visao === 'jogador' && telaAtual === 'jogo') { e.preventDefault(); alternarPausa(); return; }
+  if (!TECLAS.has(e.code) || !podeSegurar()) return;
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+  e.preventDefault();
+  if (!e.repeat) fonteApertou('k' + e.code);
+});
+addEventListener('keyup', (e) => { if (TECLAS.has(e.code)) fonteSoltou('k' + e.code); });
+addEventListener('blur', soltarTudo);
+document.addEventListener('visibilitychange', () => { if (document.hidden && telaAtual === 'jogo' && !jogo.pausado) alternarPausa(); });
+function ligarSegurar(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button > 0 || !podeSegurar()) return;
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch { /* sem captura */ }
+    fonteApertou('p' + e.pointerId);
+  });
+  const fim = (e) => fonteSoltou('p' + e.pointerId);
+  el.addEventListener('pointerup', fim); el.addEventListener('pointercancel', fim); el.addEventListener('lostpointercapture', fim);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+const pads = {};
+function lerControles() {
+  const lista = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const pad of lista) {
+    if (!pad) continue;
+    const b = pad.buttons, id = 'g' + pad.index, ant = pads[id] || { seg: false, a: false, start: false };
+    const a = !!(b[0] && b[0].pressed), seg = a || !!(b[7] && (b[7].pressed || b[7].value > 0.35)), start = !!(b[9] && b[9].pressed);
+    if (seg && !ant.seg) fonteApertou(id); else if (!seg && ant.seg) fonteSoltou(id);
+    if (a && !ant.a && visao === 'jogador' && !config.pausaTodos) { if (telaAtual === 'convite' && !$('#bPescar').disabled) comecar(); else if (telaAtual === 'resultado' && !$('#rDeNovo').disabled) comecar(); }
+    if (start && !ant.start && telaAtual === 'jogo') alternarPausa();
+    pads[id] = { seg, a, start };
+  }
+}
+
+// ------------------------------------------------------------------ pixel art
+const W = 240, H = 135, AGUA = 86, PX = 30, PY = 63, MAO = [35, 53];
+const IW = 84, IH = 200, CX = 22, CW = 28, CY = 10, CH = 180, MX = 59, MW = 6;
+function pix(g, cor, x, y, w = 1, h = 1) { g.fillStyle = cor; g.fillRect(Math.round(x), Math.round(y), w, h); }
+function mapa(g, linhas, pal, x, y, s = 1) { linhas.forEach((l, j) => { for (let i = 0; i < l.length; i++) { const c = pal[l[i]]; if (c) pix(g, c, x + i * s, y + j * s, s, s); } }); }
+const BAU = ['.ooooooo.', 'ommmmmmmo', 'obbbbbbbo', 'ommmkmmmo', 'ommmmmmmo', 'ommmmmmmo', '.ooooooo.'];
+const BAU_PAL = { o: '#1b1208', m: '#8a5a22', b: '#c9963f', k: '#f2c14e' };
+const BOIA = ['.a.', 'rrr', 'rwr', 'bbb', '.b.'];
+const BOIA_PAL = { a: '#eceae4', r: '#e2645a', w: '#f6e7d0', b: '#f2c14e' };
+const PEIXINHO = ['..ooo....o', '.olllo..oo', 'oelllloool', 'olllllllol', '.olllo..oo', '..ooo....o'];
+const PEIXINHO_PAL = { o: '#1b1208', l: '#eceae4', e: '#1b1208' };
+const EXCLAMA = ['oooo', 'okko', 'okko', 'okko', 'okko', 'okko', 'okko', 'okko', 'oooo', '....', 'oooo', 'okko', 'oooo'];
+const sprites = new Map();
+/** Peixe gerado em código a partir dos parâmetros da arte (corpo, cauda, barbatana, padrão, extra). */
+function spriteDoPeixe(px) {
+  if (sprites.has(px.id)) return sprites.get(px.id);
+  const a = px.arte, L = a.L, A = a.A, topo = a.extra === 'coroa' || a.extra === 'isca' ? 3 : 0, ox = a.extra === 'bigode' ? 3 : 1;
+  const w = L + ox + 1, h = A + 2 + topo + (a.extra === 'bigode' ? 2 : 0), cy = topo + 1 + (A - 1) / 2;
+  const m = new Uint8Array(w * h);
+  const ler = (x, y) => (x >= 0 && y >= 0 && x < w && y < h ? m[y * w + x] : 0);
+  const por = (x, y, c) => { if (x >= 0 && y >= 0 && x < w && y < h) m[y * w + x] = c; };
+  const cauda = Math.max(2, Math.round(L * (a.cauda === 'fina' ? 0.2 : 0.25))), Lb = L - cauda;
+  const meia = (x) => {
+    const u = (x + 0.5) / Lb;
+    if (a.perfil === 'longo') return (A / 2) * Math.min(1, (x + 1) / 3);
+    if (a.perfil === 'oval') return (A / 2) * Math.sqrt(Math.max(0.05, 1 - Math.pow(2 * u - 1, 2)));
+    return (A / 2) * Math.pow(Math.sin(Math.PI * (0.1 + u * 0.75)), 0.6);
+  };
+  for (let x = 0; x < Lb; x++) { const hh = meia(x); for (let y = 0; y < h; y++) { const dy = y - cy; if (Math.abs(dy) <= hh + 0.25) por(ox + x, y, dy < -hh * 0.3 ? 2 : dy > hh * 0.4 ? 4 : 3); } }
+  const hJ = meia(Lb - 1);
+  for (let k = 0; k < cauda; k++) {
+    const f = (k + 1) / cauda;
+    for (let y = 0; y < h; y++) {
+      const dy = Math.abs(y - cy);
+      const on = a.cauda === 'fina' ? dy <= hJ * (1 - f) + 0.3 : a.cauda === 'leque' ? dy <= 0.6 + f * (A / 2 + 0.5) : (dy <= 0.6 + f * (A / 2 + 0.5) && dy >= f * (A / 2) * 0.75 - 0.2) || (k === 0 && dy <= 1);
+      if (on) por(ox + Lb + k, y, 5);
+    }
+  }
+  if (a.perfil !== 'longo') for (let x = Math.round(Lb * 0.35); x <= Math.round(Lb * 0.6); x++) { const y = Math.round(cy - meia(x) - 0.75); if (!ler(ox + x, y)) por(ox + x, y, 5); }
+  const yc = Math.round(cy);
+  if (a.padrao === 'runa') { const xr = ox + Math.round(Lb * 0.52); [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1], [1, -1]].forEach(([i, j]) => por(xr + i, yc + j, 6)); }
+  if (a.padrao === 'pintas') for (let x = 2; x < Lb - 1; x++) for (let y = 0; y < h; y++) { const c = ler(ox + x, y); if ((c === 2 || c === 3) && ((x * 7 + y * 13) % 5 === 0)) por(ox + x, y, 6); }
+  if (a.padrao === 'ossos') { for (let x = 2; x < Lb; x++) { if (ler(ox + x, yc)) por(ox + x, yc, 6); if (x % 2 === 0) for (let y = 0; y < h; y++) { const c = ler(ox + x, y); if (c >= 2 && c <= 4 && Math.abs(y - cy) < meia(x) - 0.2) por(ox + x, y, 6); } } }
+  if (a.padrao === 'placas') for (let x = 2; x < Lb; x += 3) por(ox + x, Math.round(cy - meia(x) * 0.55), 6);
+  const corpo = m.slice();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!corpo[y * w + x] && ((x > 0 && corpo[y * w + x - 1]) || (x < w - 1 && corpo[y * w + x + 1]) || (y > 0 && corpo[(y - 1) * w + x]) || (y < h - 1 && corpo[(y + 1) * w + x]))) m[y * w + x] = 1;
+  const yTopo = (x) => Math.round(cy - meia(x));
+  if (a.extra === 'isca') { const t = yTopo(2); por(ox + 2, t - 2, 1); por(ox + 1, t - 3, 1); por(ox, t - 3, 6); por(ox - 1 < 0 ? 0 : ox - 1, t - 2, 6); }
+  if (a.extra === 'bigode') { por(ox - 1, yc + 1, 6); por(ox - 2, yc + 2, 6); por(ox - 3, yc + 3, 6); por(ox - 1, yc + 2, 6); por(ox - 1, yc + 3, 6); }
+  if (a.extra === 'ventosa') { por(ox - 1, yc - 1, 6); por(ox - 1, yc, 6); por(ox - 1, yc + 1, 6); por(ox, yc, 1); }
+  if (a.extra === 'coroa') { const b = yTopo(4) - 2, x0 = ox + 2; for (let i = 0; i < 6; i++) por(x0 + i, b, 6); [0, 2, 5].forEach((i) => por(x0 + i, b - 1, 6)); por(x0 + 3, b, 8); por(x0, b - 2, 6); por(x0 + 5, b - 2, 6); }
+  const xo = ox + Math.max(1, Math.round(Lb * 0.16));
+  por(xo, Math.round(cy - meia(xo - ox) * 0.3), 7);
+  const pal = [null, a.cor[0], a.cor[1], a.cor[2], a.cor[3], a.cor[4], a.cor[5], a.olho || '#120d08', '#e2645a'];
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = m[y * w + x]; if (v) pix(g, pal[v], x, y); }
+  const sp = { c, w, h };
+  sprites.set(px.id, sp);
+  return sp;
+}
+
+let fundo = null;
+const RUNAS = [[150, 40, [[0, 0], [0, 1], [0, 2], [0, 3], [1, 1], [2, 0]]], [178, 33, [[0, 0], [1, 1], [2, 2], [2, 0], [0, 2], [1, 3]]], [206, 44, [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2], [1, 3]]]];
+const MARGEM = [[0, 64], [18, 62], [44, 64], [58, 68], [64, 76], [68, 88], [66, 135], [0, 135]];
+function topoMargem(x) { for (let i = 0; i < 5; i++) { const [x0, y0] = MARGEM[i], [x1, y1] = MARGEM[i + 1]; if (x >= x0 && x <= x1) return Math.round(lerp(y0, y1, (x - x0) / Math.max(1, x1 - x0))); } return AGUA; }
+function montarFundo() {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), r = SIM.rngDe('caverna');
+  pix(g, '#0d0c0f', 0, 0, W, H);
+  pix(g, '#16141a', 0, 0, W, AGUA);
+  for (let y = 24; y < AGUA; y++) { const l = Math.sqrt(Math.max(0, 1 - Math.pow((y - AGUA) / 62, 2))) * 72; pix(g, '#0b0a0d', 150 - l, y, l * 2, 1); }
+  for (let i = 0; i < 420; i++) pix(g, r() < 0.5 ? '#1c1a21' : '#110f14', Math.floor(r() * W), Math.floor(r() * AGUA));
+  for (let i = 0; i < 11; i++) {
+    const x = Math.floor(8 + i * 22 + r() * 10), len = 6 + Math.floor(r() * 16), lw = 3 + Math.floor(r() * 4);
+    for (let k = 0; k < len; k++) { const ww = Math.max(1, Math.round(lw * (1 - k / len))); pix(g, '#211f26', x - (ww >> 1), k, ww); pix(g, '#2c2932', x - (ww >> 1), k); }
+  }
+  RUNAS.forEach(([x, y, pts]) => pts.forEach(([a, b]) => pix(g, 'rgba(121,169,204,0.3)', x + a, y + b)));
+  [['#0f2a33', AGUA], ['#0d252d', AGUA + 10], ['#0b2027', AGUA + 22], ['#091a20', AGUA + 35]].forEach(([cor, y]) => pix(g, cor, 0, y, W, H - y));
+  for (let y = AGUA + 2; y < AGUA + 14; y += 2) { const l = 60 - (y - AGUA) * 3; pix(g, 'rgba(5,10,12,0.45)', 150 - l, y, l * 2, 1); }
+  pix(g, '#2f5f6b', 0, AGUA, W, 1);
+  for (let k = 0; k < 16; k++) { const ww = Math.max(1, Math.round(6 * (k / 16))); pix(g, '#1f1d23', 226 - (ww >> 1), AGUA - 16 + k, ww); }
+  for (let x = 0; x <= 68; x++) { const t = topoMargem(x); pix(g, '#24212a', x, t, 1, H - t); pix(g, '#3a363f', x, t); }
+  for (let i = 0; i < 60; i++) { const x = Math.floor(r() * 64), y = topoMargem(x) + 2 + Math.floor(r() * (H - topoMargem(x) - 2)); pix(g, r() < 0.5 ? '#2b2831' : '#1d1b22', x, y); }
+  pix(g, '#3a2a1a', 9, 50, 2, 14);
+  return c;
+}
+function anel(g, cx, cy, r, alfa) { const n = Math.max(8, Math.round(r * 4)); g.fillStyle = `rgba(143,199,212,${alfa})`; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.3), 1, 1); } }
+function respingo(g, cx, cy, tau, semente, n, forca) {
+  if (tau < 0 || tau > 1) return;
+  g.fillStyle = '#9fd0da';
+  for (let i = 0; i < n; i++) {
+    const h1 = ((semente * 9301 + i * 49297) % 233280) / 233280, h2 = ((i * 7919 + semente * 104729) % 1000) / 1000, s = tau * 0.6;
+    const x = cx + (h1 - 0.5) * 34 * forca * s, y = cy - ((14 + h2 * 20) * forca * s - 60 * s * s);
+    if (y <= cy) g.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
+}
+function linhaPix(g, cor, pts) { g.fillStyle = cor; for (const [x, y] of pts) g.fillRect(Math.round(x), Math.round(y), 1, 1); }
+function curva(a, b, c, n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 1.6) + 4) { const o = []; for (let i = 0; i <= n; i++) { const t = i / n, u = 1 - t; o.push([u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]]); } return o; }
+function pescador(g) {
+  pix(g, '#2a2730', PX - 3, PY - 3, 2, 3); pix(g, '#2a2730', PX + 1, PY - 3, 2, 3);
+  pix(g, '#3d4f63', PX - 4, PY - 11, 8, 8); pix(g, '#2f3d4d', PX - 4, PY - 5, 8, 2);
+  pix(g, '#d9b48f', PX - 2, PY - 14, 5, 3); pix(g, '#1b1208', PX + 1, PY - 13);
+  pix(g, '#c9963f', PX - 4, PY - 15, 9, 1); pix(g, '#c9963f', PX - 2, PY - 17, 5, 2);
+  pix(g, '#3d4f63', PX + 2, PY - 10, 3, 2); pix(g, '#d9b48f', MAO[0] - 1, MAO[1] - 1, 2, 2);
+}
+/** Cena do lago a partir do estado do jogo (as provas chamam esta mesma função). */
+function desenharLago(g, J) {
+  if (!fundo) fundo = montarFundo();
+  g.drawImage(fundo, 0, 0);
+  const t = J.t, red = J.reduzido, f = J.fase, e = J.puxada, res = J.resultado;
+  const chama = red ? 1 : 0.85 + Math.sin(t * 11) * 0.08 + Math.sin(t * 23.7) * 0.07;
+  const brilho = g.createRadialGradient(10, 46, 2, 10, 46, 46);
+  brilho.addColorStop(0, `rgba(243,186,102,${0.2 * chama})`); brilho.addColorStop(1, 'rgba(243,186,102,0)');
+  g.fillStyle = brilho; g.fillRect(0, 0, 70, 100);
+  pix(g, '#e2645a', 8, 46, 4, 4); pix(g, '#f3ba66', 9, chama > 0.9 ? 44 : 45, 2, 3);
+  const tAgua = red ? 0 : t;
+  for (let i = 0; i < 14; i++) { const x = 70 + (((i * 37 + tAgua * (i % 2 ? 6 : -5)) % 170) + 170) % 170, y = AGUA + 3 + (i % 5) * 9 + (i % 3); pix(g, 'rgba(47,95,107,0.55)', x, y, 3 + (i % 4), 1); }
+  pescador(g);
+  const bx = 100 + J.dist * 118;
+  let ang = -1.0, dobra = 0, boia = null, folga = 10;
+  if (f === 'lance' || f === 'convite') { ang = -1.0 - (J.carregando ? J.forca * 1.1 : 0); boia = null; }
+  else if (f === 'voo') {
+    const tau = clamp(J.tFase / DUR.voo(), 0, 1);
+    ang = tau < 0.25 ? lerp(-2.1, -0.35, tau / 0.25) : lerp(-0.35, -0.7, (tau - 0.25) / 0.75);
+    const p0 = [MAO[0] + Math.cos(ang) * 22, MAO[1] + Math.sin(ang) * 22];
+    boia = [lerp(p0[0], bx, tau), lerp(p0[1], AGUA - 3, tau) - (red ? 0 : Math.sin(Math.PI * tau) * 30)]; folga = 0;
+  } else if (f === 'espera' || f === 'cedo' || (f === 'fisgada')) {
+    ang = f === 'fisgada' && J.tFase < 0.12 ? -1.15 : -0.7;
+    let by = AGUA - 3 + (red ? 0 : Math.round(Math.sin(t * 2.2) * 0.7));
+    const tb = J.tFase - J.beliscou;
+    if (f === 'espera' && tb >= 0 && tb < 0.3) { by += 2; anel(g, bx + 1, AGUA, 2 + tb * 18, 0.6 * (1 - tb / 0.3)); }
+    if (f === 'fisgada') { by += 3; for (let k = 0; k < 2; k++) { const rr = ((J.tFase * 20 + k * 6) % 12) + 2; anel(g, bx + 1, AGUA, rr, 0.7 * (1 - rr / 14)); } }
+    if (f === 'espera' && J.tFase < 0.5) { respingo(g, bx + 1, AGUA, J.tFase / 0.5, J.n + 1, 10, 0.6 + J.dist * 0.4); anel(g, bx + 1, AGUA, 2 + J.tFase * 16, 0.6 * (1 - J.tFase / 0.5)); }
+    if (f === 'cedo') { const tau = clamp(J.tFase / 0.4, 0, 1); boia = [lerp(bx, MAO[0] + 12, tau), lerp(by, MAO[1] - 4, tau) - Math.sin(Math.PI * tau) * 8]; folga = 4; }
+    else boia = [bx, by];
+  } else if ((f === 'puxada' || f === 'final' || f === 'resultado') && e && res?.tipo !== 'fugiu') {
+    const p = e.p, sx = bx + Math.sin(t * 1.7) * 5 + (p.y - 0.5) * 14, sy = AGUA + 6 + (1 - p.y) * 30;
+    if (!e.fim || f === 'puxada') {
+      for (let k = -5; k <= 5; k++) pix(g, 'rgba(4,14,18,0.75)', sx + k, sy + (Math.abs(k) > 3 ? 1 : 0), 1, Math.abs(k) > 3 ? 1 : 3);
+      ang = -0.95; dobra = 4 + (segurandoAgora(J) ? 3 : 0) + (red ? 0 : Math.sin(t * 17) * 0.8);
+      boia = [lerp(bx, sx, 0.4), AGUA - 2 + (p.y > 0.75 ? 0 : 1) + (red ? 0 : Math.round(Math.sin(t * 30) * Math.min(1, Math.abs(p.v))))]; folga = 1;
+      if (p.y > 0.72 && !red) { const k = Math.floor(t / 0.6); respingo(g, boia[0], AGUA, (t - k * 0.6) / 0.6, k, 6, 0.6); }
+    } else if (res && res.tipo === 'pegou') {
+      ang = -1.25; boia = null;
+      const sp = spriteDoPeixe(res.peixe), tau = red ? 1 : clamp(J.fase === 'final' ? J.tFase / 0.7 : 1, 0, 1);
+      const x = lerp(bx, PX - sp.w / 2, tau), y = lerp(AGUA - 6, PY - 22 - sp.h, tau) - (red ? 0 : Math.sin(Math.PI * tau) * 24);
+      g.drawImage(sp.c, Math.round(x), Math.round(y));
+      if (tau >= 1) { const fase2 = Math.floor(t * 6) % 2; [[-3, 2], [sp.w + 2, 0], [sp.w / 2, -3]].forEach(([dx, dy], i) => { if ((i + fase2) % 2 === 0) pix(g, '#f3ba66', Math.round(PX - sp.w / 2 + dx), Math.round(PY - 22 - sp.h + dy)); }); }
+      if (f === 'final' && J.tFase < 0.4) respingo(g, bx, AGUA, J.tFase / 0.4, 7, 12, 1);
+    } else {
+      ang = -0.6; folga = 14; boia = [bx, AGUA - 3 + (red ? 0 : Math.round(Math.sin(t * 2.2) * 0.7))];
+      const tf = f === 'final' ? J.tFase : 2; if (tf < 1.2) anel(g, bx + 1, AGUA, 3 + tf * 14, 0.6 * (1 - tf / 1.2));
+    }
+  } else if (res && res.tipo === 'fugiu') {
+    ang = -0.6; folga = 14; boia = [bx, AGUA - 3];
+    const tf = f === 'final' ? J.tFase : 2; if (tf < 1.2) anel(g, bx + 1, AGUA, 3 + tf * 14, 0.6 * (1 - tf / 1.2));
+  }
+  const ponta = [MAO[0] + Math.cos(ang) * 22, MAO[1] + Math.sin(ang) * 22 + dobra];
+  const meio = [MAO[0] + Math.cos(ang) * 11, MAO[1] + Math.sin(ang) * 11 + dobra * 0.25];
+  linhaPix(g, '#7a5a3a', curva(MAO, ponta, meio));
+  if (boia) {
+    const ctl = [(ponta[0] + boia[0]) / 2, Math.max(ponta[1], boia[1]) + folga];
+    linhaPix(g, 'rgba(217,212,199,0.7)', curva(ponta, [boia[0] + 1, boia[1]], ctl));
+    mapa(g, BOIA, BOIA_PAL, Math.round(boia[0]), Math.round(boia[1]));
+  }
+  if (f === 'fisgada') {
+    const dy = red ? 0 : Math.round(2 * Math.max(0, 1 - J.tFase / 0.12));
+    pix(g, '#1b1208', PX - 4, PY - 36 + dy, 8, 15); pix(g, '#f2c14e', PX - 3, PY - 35 + dy, 6, 13);
+    mapa(g, EXCLAMA.slice(1, 12).map((l) => l.replace(/o/g, '.')), { k: '#1b1208' }, PX - 2, PY - 34 + dy);
+  }
+}
+const segurandoAgora = (J) => J === jogo && segurando();
+function corMedidor(m) {
+  const a = m < 0.5 ? [226, 100, 90] : [224, 164, 74], b = m < 0.5 ? [224, 164, 74] : [127, 180, 138], k = m < 0.5 ? m * 2 : (m - 0.5) * 2;
+  return `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], k))).join(',')})`;
+}
+const yCol = (v) => CY + CH - v * CH;
+function carretel(g, x, y, ang) {
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; pix(g, '#6b665d', x + Math.cos(a) * 4, y + Math.sin(a) * 4); }
+  pix(g, '#a29b8c', x, y);
+  linhaPix(g, '#c9963f', [1, 2, 3, 4, 5].map((k) => [x + Math.cos(ang) * k, y + Math.sin(ang) * k]));
+  pix(g, '#f2c14e', x + Math.cos(ang) * 6, y + Math.sin(ang) * 6, 2, 2);
+}
+/** Instrumento da coluna: força do lance, espera, "!" da fisgada e a barra de pesca. */
+function desenharInstr(g, J) {
+  g.clearRect(0, 0, IW, IH);
+  pix(g, '#2b2730', CX - 3, CY - 3, CW + 6, CH + 6); pix(g, '#3d3843', CX - 3, CY - 3, CW + 6, 1);
+  pix(g, '#2b2730', MX - 3, CY - 3, MW + 6, CH + 6); pix(g, '#3d3843', MX - 3, CY - 3, MW + 6, 1);
+  pix(g, '#0f2a33', CX, CY, CW, 60); pix(g, '#0c232b', CX, CY + 60, CW, 60); pix(g, '#0a1c22', CX, CY + 120, CW, 60);
+  pix(g, '#141417', MX, CY, MW, CH);
+  const f = J.fase, e = J.puxada, res = J.resultado;
+  if (!J.reduzido) for (let i = 0; i < 6; i++) pix(g, '#1f4b56', CX + 3 + ((i * 7) % (CW - 6)), CY + CH - 2 - ((J.t * 12 + i * 31) % (CH - 4)));
+  if ((f === 'puxada' || f === 'final' || f === 'resultado') && e && (!res || res.tipo !== 'fugiu')) {
+    const b = e.b, y0 = Math.round(yCol(b.y + b.tam)), y1 = Math.round(yCol(b.y));
+    pix(g, e.dentro ? 'rgba(143,199,154,0.9)' : 'rgba(107,154,118,0.8)', CX, y0, CW, y1 - y0);
+    pix(g, '#c4e6c9', CX, y0, CW, 1); pix(g, '#c4e6c9', CX, y1 - 1, CW, 1);
+    if (e.bau && e.bau.estado === 'visivel') { const by = Math.round(yCol(e.bau.y)) - 3; mapa(g, BAU, BAU_PAL, CX + 1, by); pix(g, '#141417', CX + 1, by + 8, 9, 2); pix(g, '#f2c14e', CX + 1, by + 8, Math.round(9 * e.bau.prog), 2); }
+    const ondula = J.reduzido ? 0 : Math.round(Math.sin(J.t * 9) * 1.2);
+    mapa(g, PEIXINHO, PEIXINHO_PAL, CX + 9 + ondula, Math.round(yCol(e.p.y)) - 3);
+    const mh = Math.round(e.m * CH); pix(g, corMedidor(e.m), MX, CY + CH - mh, MW, mh);
+  } else if (f === 'fisgada') {
+    const dy = J.reduzido ? 0 : Math.round(3 * Math.max(0, 1 - J.tFase / 0.12)), d = SIM.DIF[J.dif];
+    mapa(g, EXCLAMA, { o: '#1b1208', k: '#f2c14e' }, CX + 10, CY + 50 + dy, 2);
+    const resto = clamp(1 - J.tFase / d.janela, 0, 1), mh = Math.round(resto * CH);
+    pix(g, '#e2645a', MX, CY + CH - mh, MW, mh);
+  } else if (f === 'espera' || ((f === 'final' || f === 'resultado') && res && res.tipo === 'fugiu')) {
+    pix(g, '#2f5f6b', CX, CY + 18, CW, 1);
+    const tb = J.tFase - J.beliscou, dip = f === 'espera' && tb >= 0 && tb < 0.3 ? 2 : 0;
+    const bob = J.reduzido ? 0 : Math.round(Math.sin(J.t * 2.2) * 0.8);
+    linhaPix(g, 'rgba(217,212,199,0.6)', Array.from({ length: 12 }, (_, i) => [CX + 15, CY + i]));
+    mapa(g, BOIA, BOIA_PAL, CX + 14, CY + 15 + bob + dip);
+  } else {
+    const v = f === 'lance' ? J.forca : J.dist;
+    pix(g, 'rgba(121,169,204,0.12)', CX, yCol(0.4), CW, CH * 0.4);
+    pix(g, 'rgba(224,164,74,0.12)', CX, yCol(0.8), CW, CH * 0.4);
+    pix(g, 'rgba(127,180,138,0.16)', CX, CY, CW, CH * 0.2);
+    pix(g, 'rgba(236,234,228,0.35)', CX, Math.round(yCol(0.4)), CW, 1); pix(g, 'rgba(236,234,228,0.35)', CX, Math.round(yCol(0.8)), CW, 1);
+    const h = Math.round(v * CH), cor = v >= 0.8 ? '#7fb48a' : v >= 0.4 ? '#e0a44a' : '#79a9cc';
+    if (h > 0) { pix(g, cor, CX + 6, CY + CH - h, CW - 12, h); pix(g, '#eceae4', CX + 6, CY + CH - h, CW - 12, 1); }
+  }
+  carretel(g, 9, CY + CH - 10, J.giro);
+}
+function desenharNpc(g) {
+  g.clearRect(0, 0, 14, 15);
+  mapa(g, ['....hhhhhh....', '...hhhhhhhh...', '..bbbbbbbbbb..', '...pppppppp...', '...pdpppdpp...', '...pppppppp...', '..wppnpppppw..', '..wwwwwwwwww..', '..wwwwmmwwww..', '...wwwwwwww...', '....wwwwww....', '..cccwwwwccc..', '.cccccwwccccc.', '.cccccccccccc.', '.cccccccccccc.'],
+    { h: '#3d4f63', b: '#2f3d4d', p: '#c8946a', d: '#1b1208', n: '#a8724f', w: '#d9d4c7', m: '#8a5a3a', c: '#5b4a36' }, 0, 0);
+}
+function desenharPlaca(g, r) {
+  g.clearRect(0, 0, 64, 34);
+  pix(g, '#0f2a33', 0, 0, 64, 34); pix(g, '#0c232b', 0, 14, 64, 10); pix(g, '#0a1c22', 0, 24, 64, 10);
+  for (let i = 0; i < 9; i++) pix(g, 'rgba(47,95,107,0.6)', (i * 23) % 60 + 2, 4 + (i * 7) % 26, 2 + (i % 3), 1);
+  if (!r || !r.peixe || r.tipo === 'fugiu' || r.tipo === 'encerrado') { anel(g, 32, 18, 8, 0.5); anel(g, 32, 18, 4, 0.7); return; }
+  const sp = spriteDoPeixe(r.peixe), s = sp.w * 2 <= 60 && sp.h * 2 <= 32 ? 2 : 1;
+  g.imageSmoothingEnabled = false;
+  if (r.tipo === 'pegou') g.drawImage(sp.c, Math.round(32 - (sp.w * s) / 2), Math.round(17 - (sp.h * s) / 2), sp.w * s, sp.h * s);
+  else { g.globalAlpha = 0.35; g.filter = 'brightness(0)'; g.drawImage(sp.c, Math.round(32 - (sp.w * s) / 2), Math.round(17 - (sp.h * s) / 2), sp.w * s, sp.h * s); g.filter = 'none'; g.globalAlpha = 1; }
+}
+
+// ------------------------------------------------------------------ telas
+let visao = 'jogador', telaAtual = 'convite';
+const TELAS = { convite: '#tConvite', jogo: '#tJogo', resultado: '#tResultado' };
+function irPara(t) {
+  telaAtual = t;
+  for (const [k, s] of Object.entries(TELAS)) $(s).hidden = k !== t;
+  if (t !== 'jogo') soltarTudo();
+  if (t === 'convite') pintarConvite();
+  if (t === 'jogo') { medir(); requestAnimationFrame(() => { if (telaAtual === 'jogo' && visao === 'jogador') $('#campo').focus({ preventScroll: true }); }); }
+  atualizarPausa();
+}
+function trocarVisao(v) {
+  visao = v;
+  $$('[data-visao]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.visao === v)));
+  $('#vJogador').hidden = v !== 'jogador'; $('#vMestre').hidden = v !== 'mestre';
+  if (v !== 'jogador') soltarTudo(); else { medir(); if (telaAtual === 'convite') pintarConvite(); }
+  pintarPlacar();
+}
+function pintarConvite() {
+  $('#cNome').textContent = config.nome || 'Alguém sem nome';
+  $('#cFala').textContent = config.fala || '…';
+  $('#cPremio').textContent = config.premio || 'Nada combinado.';
+  $('#cCons').textContent = config.consequencia || 'Nada combinado.';
+  const dif = difEfetiva();
+  $$('input[name="dif"]').forEach((i) => { i.checked = i.value === dif; i.disabled = config.permitida !== 'escolha' && i.value !== config.permitida; });
+  const nota = $('#cDifNota');
+  nota.hidden = config.permitida === 'escolha';
+  nota.textContent = config.permitida === 'normal' ? 'O mestre liberou só o Normal neste pino.' : 'O mestre liberou só o Extremo neste pino.';
+  const aviso = config.jogo !== 'pesca' ? 'O mestre trocou este pino para a dança. Neste protótipo só a pesca roda.' : !config.aberto ? 'O mestre encerrou a pesca neste pino.' : config.pausaTodos ? 'O mestre pausou a pesca. Espere ele continuar.' : '';
+  $('#cAviso').hidden = !aviso; $('#cAviso').textContent = aviso;
+  $('#bPescar').disabled = !!aviso;
+  pintarCesto($('#cCesto'));
+}
+function pintarCesto(ul) {
+  ul.replaceChildren();
+  if (!cesto.length) { const li = document.createElement('li'); li.textContent = 'Vazio por enquanto'; ul.append(li); return; }
+  cesto.slice(-6).reverse().forEach((c) => {
+    const li = document.createElement('li'), cv = document.createElement('canvas'), sp = spriteDoPeixe(c.peixe);
+    cv.width = sp.w; cv.height = sp.h; cv.style.width = sp.w + 'px'; cv.style.height = sp.h + 'px'; cv.getContext('2d').drawImage(sp.c, 0, 0);
+    li.append(cv, `${c.peixe.nome}, ${c.cm} cm`); ul.append(li);
+  });
+}
+function estrelasHtml(n) { return `<span class="estrelas" role="img" aria-label="Qualidade ${n} de 4">${'<span>★</span>'.repeat(n)}${'<i>★</i>'.repeat(4 - n)}</span>`; }
+function pintarResultado() {
+  const r = jogo.resultado, t = $('#tResultado');
+  const titulos = { pegou: 'Pegou!', escapou: 'Escapou', fugiu: 'Fugiu', encerrado: 'Pesca encerrada pelo mestre' };
+  $('#rTitulo').textContent = titulos[r.tipo];
+  $('#rTitulo').dataset.tom = r.tipo === 'pegou' ? 'bom' : 'ruim';
+  $('#rSub').textContent = r.tipo === 'pegou' ? r.peixe.nome : r.tipo === 'escapou' ? `O medidor zerou. Era um(a) ${r.peixe.nome}.` : r.tipo === 'fugiu' ? 'Algo mordeu e foi embora: a fisgada passou da janela.' : 'O mestre fechou o pino no meio do lance.';
+  desenharPlaca($('#cvPeixe').getContext('2d'), r);
+  const etq = $('#rEtq'); etq.replaceChildren();
+  const tag = (txt, rr) => { const s = document.createElement('span'); s.className = 'etq'; s.dataset.r = rr; s.textContent = txt; etq.append(s); };
+  if (r.tipo === 'pegou') { tag(RARIDADE[r.peixe.rar], r.peixe.rar); if (r.perfeito) tag('Captura perfeita: +1 estrela', 'perfeito'); tag(SIM.DIF[r.dif].nome, 'comum'); }
+  etq.hidden = !etq.children.length;
+  const nums = [];
+  if (r.tipo === 'pegou') nums.push(['Tamanho', `${r.cm} cm`], ['Qualidade', estrelasHtml(r.estrelas)]);
+  if (r.tipo !== 'encerrado') nums.push(['Lance', `${FAIXA[r.faixa]}, ${Math.round(r.dist * 100)}%`]);
+  if (r.tipo === 'pegou' || r.tipo === 'escapou') nums.push(['Puxada', `${fmtDec(r.tempo)} s`], ['Reação', `${fmtDec(r.reacao, 2)} s`]);
+  $('#rNums').innerHTML = nums.map(([k, v]) => `<div><dt class="rotulo">${k}</dt><dd>${v}</dd></div>`).join('');
+  const bau = $('#rBau');
+  bau.hidden = !r.bau;
+  bau.textContent = r.bau === 'pego' ? `Baú: ${r.itens.join(' e ')}.` : r.bau === 'perdido' ? 'Baú: você segurou o baú, mas ele foi junto com o peixe.' : 'Baú: apareceu e sumiu antes de encher.';
+  const des = $('#rDesfecho');
+  if (r.tipo === 'encerrado') { des.textContent = 'Sem prêmio e sem consequência.'; des.dataset.tom = ''; }
+  else if (r.tipo === 'pegou') { des.textContent = `Prêmio: ${config.premio || 'nada combinado.'}`; des.dataset.tom = 'bom'; }
+  else { des.textContent = `Consequência: ${config.consequencia || 'nada combinado.'}`; des.dataset.tom = 'ruim'; }
+  $('#rDeNovo').disabled = !config.aberto || config.pausaTodos || config.jogo !== 'pesca';
+  t.dataset.entrou = '0'; void t.offsetWidth; t.dataset.entrou = '1';
+}
+function mostrarResultado() { jogo.fase = 'resultado'; pintarResultado(); irPara('resultado'); $('#rDeNovo').focus({ preventScroll: true }); }
+
+const TEXTO_FAIXA = {
+  normal: { perto: 'Perto: peixe miúdo, 1 estrela.', medio: 'Médio: 2 estrelas, mais incomuns.', longe: 'Longe: 3 estrelas e os maiores.' },
+  extremo: { perto: 'Perto: peixe miúdo, 1 estrela.', medio: 'Médio: 2 estrelas; os raros começam.', longe: 'Longe: 3 estrelas; raros e o lendário moram aqui.' },
+};
+function textoHud() {
+  const f = jogo.fase, d = SIM.DIF[jogo.dif], pct = (v) => `${Math.round(v * 100)}%`;
+  if (f === 'lance') return jogo.carregando ? [`Força ${pct(jogo.forca)}`, TEXTO_FAIXA[jogo.dif][SIM.faixa(jogo.forca)], ''] : ['Lance', 'Segure para encher a força e solte para lançar. Mais longe, peixe melhor e mais estrelas.', ''];
+  if (f === 'voo') return [`Lançou: ${FAIXA[SIM.faixa(jogo.dist)].toLowerCase()}, ${pct(jogo.dist)}`, 'A boia vai cair na água.', ''];
+  if (f === 'espera') return ['Esperando', 'Aperte quando aparecer o !. Antes disso a linha volta vazia.', ''];
+  if (f === 'cedo') return ['Puxou cedo', 'A linha voltou vazia. Lance de novo.', 'ruim'];
+  if (f === 'fisgada') return ['Fisgou! Aperte já', `Você tem ${fmtDec(d.janela)} s.`, 'alerta'];
+  if (f === 'puxada') {
+    const e = jogo.puxada;
+    return [`Medidor ${pct(e.m)}`, e.bau && e.bau.estado === 'visivel' ? 'Baú na água! Segure-o dentro da barra até encher. Enquanto ele estiver na barra, o medidor não cai.' : 'Segure para subir a barra verde e mantenha o peixe dentro dela. Cheio, pegou; vazio, escapou.', e.dentro ? 'bom' : ''];
+  }
+  if (f === 'final') { const r = jogo.resultado; return r.tipo === 'pegou' ? ['Pegou!', r.peixe.nome, 'bom'] : r.tipo === 'escapou' ? ['Escapou', 'O medidor zerou.', 'ruim'] : ['Fugiu', 'Demorou para fisgar.', 'ruim']; }
+  return ['', '', ''];
+}
+let hudAnt = '', faseAnt = '', hudT = 0;
+function atualizarHud(agora) {
+  if (telaAtual !== 'jogo') return;
+  if (jogo.fase === 'puxada' && agora - hudT < 100 && faseAnt === 'puxada') return;
+  hudT = agora;
+  const [a, b, tom] = textoHud(), k = a + '|' + b + '|' + tom;
+  if (k !== hudAnt) { hudAnt = k; $('#hFase').textContent = a; $('#hDica').textContent = b; $('#hFase').dataset.tom = tom; }
+  if (jogo.fase !== faseAnt) { faseAnt = jogo.fase; if (jogo.fase !== 'puxada') $('#vivo').textContent = a; else $('#vivo').textContent = 'Puxando. Segure para subir a barra.'; }
+  $('#campo').dataset.seg = segurando() ? '1' : '0';
+}
+
+// ------------------------------------------------------------------ placar
+function estadoTexto(x, ehVoce) {
+  const f = x.fase;
+  if (ehVoce && (f === 'convite' || (f === 'resultado' && !x.resultado))) return 'no convite';
+  if (f === 'encerrado') return 'encerrado';
+  if (f === 'lance' || f === 'voo') return 'lançando';
+  if (f === 'espera') return 'esperando';
+  if (f === 'cedo') return 'puxou cedo';
+  if (f === 'fisgada') return 'fisgou!';
+  if (f === 'puxada') return `puxando ${Math.round(x.puxada.m * 100)}%`;
+  const r = x.resultado;
+  if (!r) return '—';
+  return r.tipo === 'pegou' ? `pegou ${r.peixe.nome}` : r.tipo === 'escapou' ? 'escapou' : r.tipo === 'fugiu' ? 'fugiu' : 'encerrado';
+}
+function linhasPlacar() {
+  const voce = { nome: 'Você', st: estadoTexto(jogo, true), m: jogo.fase === 'puxada' ? jogo.puxada.m : 0, cesto, dif: jogo.dif };
+  return [voce, ...bots.map((b) => ({ nome: b.nome, st: config.aberto ? estadoTexto(b) : 'encerrado', m: b.fase === 'puxada' ? b.puxada.m : 0, cesto: b.cesto, dif: b.dif }))];
+}
+function pintarPlacar() {
+  const ls = linhasPlacar();
+  $('#mmVoce').textContent = ls[0].st; $('#mmIara').textContent = ls[1].st; $('#mmTome').textContent = ls[2].st;
+  if (visao !== 'mestre') return;
+  const ul = $('#placar');
+  if (ul.children.length !== ls.length) ul.innerHTML = ls.map(() => '<li><span class="pl__nome"></span><span class="pl__status"></span><span class="pl__medidor"><i></i></span><span class="pl__nums"></span></li>').join('');
+  ls.forEach((l, i) => {
+    const li = ul.children[i], maior = l.cesto.reduce((a, c) => (!a || c.cm > a.cm ? c : a), null);
+    li.querySelector('.pl__nome').textContent = l.nome;
+    li.querySelector('.pl__status').textContent = l.st;
+    li.querySelector('.pl__medidor i').style.transform = `scaleX(${l.m.toFixed(3)})`;
+    li.querySelector('.pl__medidor i').style.background = corMedidor(l.m);
+    li.querySelector('.pl__nums').innerHTML = `<span>Cesto <b>${l.cesto.length}</b></span><span>Maior <b>${maior ? `${maior.peixe.nome}, ${maior.cm} cm` : '—'}</b></span><span>${SIM.DIF[l.dif].nome}</span>`;
+  });
+}
+
+// ------------------------------------------------------------------ pausa e mestre
+function alternarPausa() {
+  if (config.pausaTodos) return;
+  if (jogo.pausado) { retomar(); return; }
+  if (!FASES_ATIVAS.has(jogo.fase)) return;
+  jogo.pausado = true; soltarTudo(); atualizarPausa();
+}
+function retomar() { jogo.pausado = false; atualizarPausa(); $('#campo').focus({ preventScroll: true }); }
+function atualizarPausa() {
+  const mostra = telaAtual === 'jogo' && (jogo.pausado || config.pausaTodos);
+  $('#pausa').hidden = !mostra;
+  $('#pTitulo').textContent = config.pausaTodos ? 'O mestre pausou a pesca' : 'Pausado';
+  $('#pTexto').textContent = config.pausaTodos ? 'Tudo parado para todos, a linha também. Volta quando o mestre continuar.' : 'A linha fica parada onde está.';
+  $('#bContinuar').hidden = $('#bDesistir').hidden = config.pausaTodos;
+  if (mostra && !config.pausaTodos && visao === 'jogador') $('#bContinuar').focus({ preventScroll: true });
+}
+function ligarMestre() {
+  const campos = [['#mNome', 'nome'], ['#mFala', 'fala'], ['#mLago', 'lago'], ['#mPremio', 'premio'], ['#mCons', 'consequencia']];
+  for (const [s, k] of campos) { const el = $(s); el.value = config[k]; el.addEventListener('input', () => { config[k] = el.value; if (k === 'lago') pintarLago(); pintarConvite(); }); }
+  $('#mDif').value = config.permitida;
+  $('#mDif').addEventListener('change', (e) => { config.permitida = e.target.value; pintarConvite(); });
+  $$('#segJogo button').forEach((b) => b.addEventListener('click', () => {
+    config.jogo = b.dataset.jogo;
+    $$('#segJogo button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $('#fsPesca').disabled = config.jogo !== 'pesca'; $('#notaJogo').hidden = config.jogo === 'pesca';
+    pintarConvite();
+  }));
+  $('#bPausaTodos').addEventListener('click', () => {
+    config.pausaTodos = !config.pausaTodos;
+    $('#bPausaTodos').textContent = config.pausaTodos ? 'Continuar para todos' : 'Pausar para todos';
+    soltarTudo(); atualizarPausa(); pintarConvite(); if (telaAtual === 'resultado') pintarResultado();
+  });
+  $('#bEncerrar').addEventListener('click', () => {
+    config.aberto = !config.aberto;
+    $('#bEncerrar').textContent = config.aberto ? 'Encerrar para todos' : 'Reabrir para todos';
+    if (!config.aberto) {
+      config.pausaTodos = false; $('#bPausaTodos').textContent = 'Pausar para todos'; $('#bPausaTodos').disabled = true;
+      jogo.pausado = false;
+      if (FASES_ATIVAS.has(jogo.fase) && jogo.fase !== 'final') terminar('encerrado'); else if (jogo.fase === 'final') mostrarResultado();
+      bots.forEach((b) => { b.fase = 'encerrado'; b.puxada = null; });
+    } else { $('#bPausaTodos').disabled = false; bots.forEach(novoLanceBot); }
+    atualizarPausa(); pintarConvite(); if (telaAtual === 'resultado') pintarResultado(); pintarPlacar();
+  });
+}
+function pintarLago() {
+  const nome = config.lago || 'Lago sem nome';
+  $$('[data-lago]').forEach((el) => (el.textContent = nome));
+  $('[data-lago-svg]').textContent = nome;
+}
+
+// ------------------------------------------------------------------ tamanho e quadro
+const gLago = $('#cvLago').getContext('2d'), gInstr = $('#cvInstr').getContext('2d');
+$('#cvLago').width = W; $('#cvLago').height = H;
+function encaixar(cv, w, h, cw, ch) { let s = Math.min(cw / w, ch / h); s = s >= 2 ? Math.floor(s) : Math.max(0.5, s); cv.style.width = Math.round(w * s) + 'px'; cv.style.height = Math.round(h * s) + 'px'; }
+function medir() {
+  const p = $('#palco'); if (p.clientWidth) encaixar($('#cvLago'), W, H, p.clientWidth, p.clientHeight);
+  const c = $('#campo'); if (c.clientWidth) encaixar($('#cvInstr'), IW, IH, c.clientWidth - 8, c.clientHeight - 8);
+}
+let ultimo = 0, acum = 0, placarT = 0;
+function quadro(agora) {
+  requestAnimationFrame(quadro);
+  const t0 = performance.now(), intervalo = ultimo ? agora - ultimo : 0, dt = ultimo ? Math.min(0.1, intervalo / 1000) : 0;
+  ultimo = agora;
+  lerControles();
+  if (!jogo.manual) { acum += dt; let n = 0; while (acum >= SIM.DT && n < 24) { acum -= SIM.DT; tick(); n++; } }
+  if (visao === 'jogador') { desenharLago(gLago, jogo); if (telaAtual === 'jogo') desenharInstr(gInstr, jogo); atualizarHud(agora); }
+  if (agora - placarT > 250) { placarT = agora; pintarPlacar(); }
+  if (jogo.fase === 'puxada' && !jogo.manual && !jogo.pausado && intervalo) {
+    if (amostras.intervalos.length > 6000) { amostras.intervalos.splice(0, 3000); amostras.trabalho.splice(0, 3000); }
+    amostras.intervalos.push(intervalo); amostras.trabalho.push(performance.now() - t0);
+  }
+}
+
+function iniciar() {
+  desenharNpc($('#cvNpc').getContext('2d'));
+  $$('[data-visao]').forEach((b) => b.addEventListener('click', () => trocarVisao(b.dataset.visao)));
+  $$('input[name="dif"]').forEach((i) => i.addEventListener('change', () => { if (i.checked) { prefs.dif = i.value; gravarPrefs(); } }));
+  $('#bPescar').addEventListener('click', comecar);
+  $('#bSom').setAttribute('aria-pressed', String(prefs.som)); $('#bSom').textContent = prefs.som ? 'Som ligado' : 'Som desligado';
+  $('#bSom').addEventListener('click', () => {
+    prefs.som = !prefs.som; gravarPrefs(); garantirAudio();
+    if (AUDIO.mestre) AUDIO.mestre.gain.setTargetAtTime(prefs.som ? 1 : 0, AUDIO.ctx.currentTime, 0.02);
+    $('#bSom').setAttribute('aria-pressed', String(prefs.som)); $('#bSom').textContent = prefs.som ? 'Som ligado' : 'Som desligado';
+  });
+  $('#bPausa').addEventListener('click', alternarPausa);
+  $('#bContinuar').addEventListener('click', retomar);
+  $('#bDesistir').addEventListener('click', () => { jogo.pausado = false; jogo.fase = 'convite'; jogo.resultado = null; irPara('convite'); });
+  $('#rDeNovo').addEventListener('click', comecar);
+  $('#rVoltar').addEventListener('click', () => { jogo.fase = 'convite'; irPara('convite'); });
+  ligarSegurar($('#campo')); ligarSegurar($('#palco'));
+  addEventListener('pointerdown', garantirAudio, { capture: true, passive: true });
+  ligarMestre(); pintarLago(); pintarConvite();
+  new ResizeObserver(medir).observe($('#app'));
+  medir();
+  requestAnimationFrame(quadro);
+}
+
+// ------------------------------------------------------------------ ganchos para os testes e as provas (só leitura do protótipo)
+window.PocoDePesca = {
+  SIM, SOM, config, prefs, jogo, bots, cesto, amostras, sons, W, H, IW, IH,
+  tick, rodar, comecar, fonteApertou, fonteSoltou, segurando, irPara, trocarVisao, terminar, mostrarResultado,
+  desenharLago, desenharInstr, desenharPlaca, spriteDoPeixe, pintarPlacar, estadoTexto,
+  get tela() { return telaAtual; }, get visao() { return visao; },
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+})();
+</script>

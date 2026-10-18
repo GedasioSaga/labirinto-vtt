@@ -1,0 +1,22 @@
+montando a página de renderização (5 transições)...
+
+Mediana do volume integrado das aprovadas (porta, escada-pedra, escada-pedra-descendo, portao-pesado): -18,6 LUFS
+
+transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx    DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB  veredito
+---------------------------  ---------  ---------------  ---------  -----------  ------  ------  -------  -------  -----------  ---------  ------  --------
+sons-da-pesca                     -1,8             -1,8      -19,2        -18,8   0,000       0        0        1            0          5     0,0  aprovado
+porta (ref)                      -14,8            -14,8      -31,4        -30,0  -0,014       0        0        0            0          4     0,0          
+escada-pedra (ref)                -0,6             -0,6      -18,6        -19,4   0,085       0        0        0            0          0     0,0          
+escada-pedra-descendo (ref)       -0,7             -0,7      -18,6        -19,4   0,085       0        0        0            0          0     0,0          
+portao-pesado (ref)               -2,2             -2,1      -17,1        -16,3   0,011       0        0        9           60          0     0,0          
+
+Centróide espectral por segundo (Hz; mais alto = mais agudo/brilhante):
+  sons-da-pesca          1510 675 1997 2406 1206 486 217
+  porta                  227 222 1415 843 768 385 233 —
+  escada-pedra           — 113 110 120 114 113 108 98 123 113 116 111
+  escada-pedra-descendo  — 113 110 120 115 113 107 98 122 113 116 111
+  portao-pesado          495 302 276 3854 462 561 664 623 602 95 386
+
+sons-da-pesca: aprovado nas medidas
+  (silêncio total no meio: 1,25–1,50 s, 1,60–2,20 s, 2,42–2,60 s, 3,57–3,80 s, 5,18–5,60 s; confira se é de propósito)
+  docs/design/minigame-pesca/provas/som/sons-da-pesca.wav · docs/design/minigame-pesca/provas/som/sons-da-pesca-espectrograma.png · docs/design/minigame-pesca/provas/som/sons-da-pesca-medidas.json
