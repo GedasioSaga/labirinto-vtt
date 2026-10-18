@@ -1,0 +1,525 @@
+{
+  "metas": {
+    "normalMin": 0.7,
+    "extremoMin": 0.15,
+    "extremoMax": 0.4,
+    "rodadas": 200
+  },
+  "testes": [
+    {
+      "nome": "mesma semente = mesma rodada (Normal e Extremo); outra semente = outra rodada",
+      "passou": true
+    },
+    {
+      "nome": "robô humano no Normal: bronze em >= 70% de 200 rodadas",
+      "passou": true,
+      "detalhe": {
+        "bronze": "80%",
+        "prata": "31%",
+        "ouro": "8%",
+        "medalhas": [
+          850,
+          1000,
+          1150
+        ],
+        "pontos": {
+          "p10": 815,
+          "p50": 941,
+          "p90": 1130
+        },
+        "precisao": "72.3%"
+      }
+    },
+    {
+      "nome": "robô humano no Extremo: bronze entre 15% e 40% de 200 rodadas",
+      "passou": true,
+      "detalhe": {
+        "bronze": "25.5%",
+        "prata": "7%",
+        "ouro": "1%",
+        "medalhas": [
+          675,
+          775,
+          875
+        ],
+        "pontos": {
+          "p10": 482,
+          "p50": 605,
+          "p90": 738
+        },
+        "precisao": "49.5%",
+        "proibidosPorRodada": 0.55
+      }
+    },
+    {
+      "nome": "robô nunca reage em zero: reação mínima >= 130 ms, média 250 ± 20 ms, desvio 60 ± 15 ms",
+      "passou": true,
+      "detalhe": {
+        "n": 39107,
+        "min": 0.13,
+        "media": 0.251,
+        "dp": 0.059
+      }
+    },
+    {
+      "nome": "alvo proibido só existe no Extremo (200 agendas de cada)",
+      "passou": true,
+      "detalhe": {
+        "normal": {
+          "anel": 4946,
+          "goblin": 4261,
+          "garrafa": 2658,
+          "rato": 1218,
+          "morcego": 1209,
+          "moeda": 1023
+        },
+        "extremo": {
+          "gato": 997,
+          "anel": 5926,
+          "goblin": 4270,
+          "aldeao": 1795,
+          "garrafa": 3185,
+          "rato": 1485,
+          "morcego": 1459,
+          "moeda": 1001
+        }
+      }
+    },
+    {
+      "nome": "Extremo: alvos menores e mais rápidos, mais surgindo, recarga mais lenta, menos tempo",
+      "passou": true,
+      "detalhe": {
+        "escala": [
+          1,
+          0.75
+        ],
+        "velocidade": [
+          1,
+          1.5
+        ],
+        "alvosPorSegundo": [
+          1.91,
+          3.14
+        ],
+        "recarga": [
+          1,
+          1.6
+        ],
+        "tempo": [
+          40,
+          32
+        ]
+      }
+    },
+    {
+      "nome": "atirar sem bala dá clique seco e não conta tiro",
+      "passou": true,
+      "detalhe": {
+        "antesSeco": {
+          "balas": 0,
+          "tiros": 6
+        },
+        "seco": {
+          "balas": 0,
+          "tiros": 6,
+          "secos": 1,
+          "evento": "seco"
+        },
+        "durante": true,
+        "travado": {
+          "tiros": 6,
+          "evento": 1
+        },
+        "recarga": {
+          "balas": 6,
+          "pronto": true,
+          "recargas": 1
+        }
+      }
+    },
+    {
+      "nome": "recarga repõe 6 balas; tiro durante a recarga não sai",
+      "passou": true,
+      "detalhe": {
+        "antesSeco": {
+          "balas": 0,
+          "tiros": 6
+        },
+        "seco": {
+          "balas": 0,
+          "tiros": 6,
+          "secos": 1,
+          "evento": "seco"
+        },
+        "durante": true,
+        "travado": {
+          "tiros": 6,
+          "evento": 1
+        },
+        "recarga": {
+          "balas": 6,
+          "pronto": true,
+          "recargas": 1
+        }
+      }
+    },
+    {
+      "nome": "gráfico do movimento: balas entre 0 e 6 e só sobem para 6 na recarga; pontos só mudam com acerto; mira sem teleporte (<= 600 px/s); trilhos em velocidade constante; nada proibido no Normal; fim no tempo certo",
+      "passou": true,
+      "detalhe": [
+        {
+          "dif": "normal",
+          "amostras": 401,
+          "fimEm": 40,
+          "falhas": [],
+          "maxVelMira": 468,
+          "trilhoVariou": 0,
+          "proibNoNormal": false,
+          "pontos": 1153,
+          "medalha": "ouro"
+        },
+        {
+          "dif": "extremo",
+          "amostras": 321,
+          "fimEm": 32,
+          "falhas": [],
+          "maxVelMira": 355,
+          "trilhoVariou": 0,
+          "proibNoNormal": false,
+          "pontos": 884,
+          "medalha": "ouro"
+        }
+      ]
+    },
+    {
+      "nome": "mouse: mira segue o ponteiro, clique esquerdo atira e acerta, botão direito recarrega",
+      "passou": true,
+      "detalhe": {
+        "mira": true,
+        "tiros": 1,
+        "acertos": 1,
+        "balas": 5,
+        "direitoRecarrega": true
+      }
+    },
+    {
+      "nome": "teclado: Espaço atira na mira, setas mexem a mira, R recarrega até 6, Esc pausa e continua",
+      "passou": true,
+      "detalhe": {
+        "espaco": true,
+        "setaAndouPx": 42,
+        "rIniciou": true,
+        "balasDepois": 6,
+        "pausou": true,
+        "parado": true,
+        "voltou": true
+      }
+    },
+    {
+      "nome": "toque: toca onde atira (touch-action none) e o botão Recarregar da tela recarrega",
+      "passou": true,
+      "detalhe": {
+        "miraNoToque": true,
+        "tiros": 1,
+        "acertos": 1,
+        "touchAction": "none",
+        "botaoRecarrega": true
+      }
+    },
+    {
+      "nome": "controle falso (Gamepad API): analógico mira, RT e A atiram, X recarrega, Start pausa e volta",
+      "passou": true,
+      "detalhe": {
+        "analogicoAndouPx": 60,
+        "rtAtira": true,
+        "aAtira": true,
+        "xRecarrega": true,
+        "startPausa": true,
+        "startVolta": true
+      }
+    },
+    {
+      "nome": "prefers-reduced-motion desliga o tremor de tela no tiro (o coice fica de 1 px)",
+      "passou": true,
+      "detalhe": {
+        "tiros": 1,
+        "tremor": 0,
+        "coice": 1
+      }
+    },
+    {
+      "nome": "mestre: placar ao vivo com você e 2 simulados (pontos, precisão, balas, tempo); pausar, continuar, encerrar e reabrir valem para todos",
+      "passou": true,
+      "detalhe": {
+        "linhas": [
+          "Você: atirando | Pontos 0 Precisão — Balas 6/6 Tempo 0:40 Normal",
+          "Iara: atirando | Pontos 308 Precisão 75% Balas 6/6 Tempo 0:20 Extremo",
+          "Tomé: atirando | Pontos 255 Precisão 79% Balas 4/6 Tempo 0:28 Normal"
+        ],
+        "parado": true,
+        "overlay": true,
+        "voltou": true,
+        "encerrou": {
+          "tela": "resultado",
+          "tipo": "encerrado",
+          "bots": [
+            "encerrado",
+            "encerrado"
+          ],
+          "botao": "Reabrir para todos",
+          "deNovoDesligado": true
+        },
+        "reabriu": true,
+        "chama": {
+          "antes": true,
+          "aviso": "A barraca abre quando o mestre chamar.",
+          "chamarVisivel": true,
+          "depois": true,
+          "bots": [
+            "contagem",
+            "contagem"
+          ]
+        },
+        "tentativas": {
+          "tela": "resultado",
+          "deNovoDesligado": true,
+          "motivo": "Acabaram as suas tentativas. O mestre pode liberar mais no painel do pino.",
+          "liberouDeNovo": true
+        },
+        "fechado": {
+          "desligado": true,
+          "aviso": "O mestre marcou Dança neste pino: a barraca de tiro está fechada.",
+          "campos": true,
+          "nota": "A dança tem protótipo próprio (docs/design/minigame-danca). Aqui só o tiro roda: com Dança marcada, o jogador vê o convite fechado.",
+          "pesca": "O mestre marcou Pesca neste pino: a barraca de tiro está fechada.",
+          "reabre": true
+        },
+        "campos": {
+          "nome": "Velho Bargo",
+          "topo": "Tenda do Estampido",
+          "meta": "Prata no Normal: 1000 pontos em 40 s."
+        }
+      }
+    },
+    {
+      "nome": "mestre: \"Mestre chama\" fecha o convite até o chamado; tentativas acabam e voltam; Dança ou Pesca fecham o convite com o motivo; campos mudam convite, topo e meta",
+      "passou": true,
+      "detalhe": {
+        "chama": {
+          "antes": true,
+          "aviso": "A barraca abre quando o mestre chamar.",
+          "chamarVisivel": true,
+          "depois": true,
+          "bots": [
+            "contagem",
+            "contagem"
+          ]
+        },
+        "tentativas": {
+          "tela": "resultado",
+          "deNovoDesligado": true,
+          "motivo": "Acabaram as suas tentativas. O mestre pode liberar mais no painel do pino.",
+          "liberouDeNovo": true
+        },
+        "fechado": {
+          "desligado": true,
+          "aviso": "O mestre marcou Dança neste pino: a barraca de tiro está fechada.",
+          "campos": true,
+          "nota": "A dança tem protótipo próprio (docs/design/minigame-danca). Aqui só o tiro roda: com Dança marcada, o jogador vê o convite fechado.",
+          "pesca": "O mestre marcou Pesca neste pino: a barraca de tiro está fechada.",
+          "reabre": true
+        },
+        "campos": {
+          "nome": "Velho Bargo",
+          "topo": "Tenda do Estampido",
+          "meta": "Prata no Normal: 1000 pontos em 40 s."
+        }
+      }
+    },
+    {
+      "nome": "rodada inteira no Normal em tempo real, jogada por eventos de mouse e tecla R, chega ao resultado",
+      "passou": true,
+      "detalhe": {
+        "pontos": 900,
+        "medalha": "bronze",
+        "tiros": 48,
+        "acertos": 35,
+        "recargas": 7,
+        "s": 42.2
+      }
+    },
+    {
+      "nome": "quadro durante a rodada: p95 do intervalo <= 20 ms e nenhuma tarefa longa >= 200 ms",
+      "passou": true,
+      "detalhe": {
+        "quadros": 2399,
+        "intervaloP50": 16.7,
+        "intervaloP95": 16.8,
+        "trabalhoP95": 0.6,
+        "trabalhoMax": 7.5,
+        "tarefasLongas": []
+      }
+    },
+    {
+      "nome": "sem rolagem horizontal em 1440, 1024 e 390 px (convite, rodada, resultado, mestre)",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "folha de contato com 12 a 16 quadros, inclusive o alvo proibido acertado no Extremo",
+      "passou": true,
+      "detalhe": {
+        "quadros": 15,
+        "proibidoAcertado": 1,
+        "medalha": "prata",
+        "pontos": 1013
+      }
+    },
+    {
+      "nome": "som do catálogo medido: pico verdadeiro <= -1 dBTP, nenhuma amostra cortada, nenhum clique",
+      "passou": true,
+      "detalhe": {
+        "duracaoS": 11.2,
+        "picoDbfs": -2.7,
+        "picoVerdadeiroDbtp": -1.28,
+        "lufsIntegrado": -19.83,
+        "lufsCurtoPrazoMax": -19.55,
+        "dcPct": 0.0059,
+        "cortes": 0,
+        "equilibrioLRdb": 0,
+        "cliques": 0
+      }
+    },
+    {
+      "nome": "som de uma rodada inteira medido (tiros encostados): pico verdadeiro <= -1 dBTP, nenhuma amostra cortada",
+      "passou": true,
+      "detalhe": {
+        "duracaoS": 43.5,
+        "picoDbfs": -2.46,
+        "picoVerdadeiroDbtp": -1.51,
+        "lufsIntegrado": -19.54,
+        "lufsCurtoPrazoMax": -18.79,
+        "dcPct": 0.0171,
+        "cortes": 0,
+        "equilibrioLRdb": 0,
+        "cliques": 0,
+        "cliquesEm": [],
+        "sons": 127
+      }
+    },
+    {
+      "nome": "nenhum erro no console",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "conferir-som do catálogo: aprovado nas medidas (pico, cortes, cliques, DC e volume perto da mediana das aprovadas)",
+      "passou": true,
+      "detalhe": {
+        "codigo": 0,
+        "veredito": "aprovado nas medidas"
+      }
+    }
+  ],
+  "robo": {
+    "normal": {
+      "bronze": 0.8,
+      "prata": 0.31,
+      "ouro": 0.08,
+      "medalhas": [
+        850,
+        1000,
+        1150
+      ],
+      "pontos": {
+        "p10": 815,
+        "p50": 941,
+        "p90": 1130
+      },
+      "precisaoMedia": 0.723,
+      "tirosPorRodada": 50.1,
+      "proibidosPorRodada": 0,
+      "secosPorRodada": 3.9
+    },
+    "extremo": {
+      "bronze": 0.255,
+      "prata": 0.07,
+      "ouro": 0.01,
+      "medalhas": [
+        675,
+        775,
+        875
+      ],
+      "pontos": {
+        "p10": 482,
+        "p50": 605,
+        "p90": 738
+      },
+      "precisaoMedia": 0.495,
+      "tirosPorRodada": 36.3,
+      "proibidosPorRodada": 0.55,
+      "secosPorRodada": 2.92
+    }
+  },
+  "desempenho": {
+    "quadros": 2399,
+    "intervaloP50": 16.7,
+    "intervaloP95": 16.8,
+    "trabalhoP95": 0.6,
+    "trabalhoMax": 7.5,
+    "tarefasLongas": []
+  },
+  "folha": {
+    "quadros": 15,
+    "proibidoAcertado": 1,
+    "medalha": "prata",
+    "pontos": 1013
+  },
+  "grafico": [
+    {
+      "dif": "normal",
+      "pontos": 1153,
+      "medalha": "ouro",
+      "precisao": 0.788,
+      "amostras": 401
+    },
+    {
+      "dif": "extremo",
+      "pontos": 884,
+      "medalha": "ouro",
+      "precisao": 0.657,
+      "amostras": 321
+    }
+  ],
+  "som": {
+    "catalogo": {
+      "duracaoS": 11.2,
+      "picoDbfs": -2.7,
+      "picoVerdadeiroDbtp": -1.28,
+      "lufsIntegrado": -19.83,
+      "lufsCurtoPrazoMax": -19.55,
+      "dcPct": 0.0059,
+      "cortes": 0,
+      "equilibrioLRdb": 0,
+      "cliques": 0
+    },
+    "rodada": {
+      "duracaoS": 43.5,
+      "picoDbfs": -2.46,
+      "picoVerdadeiroDbtp": -1.51,
+      "lufsIntegrado": -19.54,
+      "lufsCurtoPrazoMax": -18.79,
+      "dcPct": 0.0171,
+      "cortes": 0,
+      "equilibrioLRdb": 0,
+      "cliques": 0,
+      "cliquesEm": [],
+      "sons": 127
+    }
+  },
+  "errosConsole": [],
+  "conferirSom": {
+    "codigo": 0,
+    "veredito": "aprovado nas medidas"
+  }
+}

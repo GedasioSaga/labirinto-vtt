@@ -1,0 +1,254 @@
+{
+  "catalogo": {
+    "duracaoS": 11.2,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.7,
+    "picoVerdadeiroDbtp": -1.28,
+    "lufsIntegrado": -19.83,
+    "lufsCurtoPrazoMax": -19.55,
+    "dcPct": 0.0059,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [
+      {
+        "inicio": 2.658,
+        "fim": 3.006
+      },
+      {
+        "inicio": 3.147,
+        "fim": 3.506
+      },
+      {
+        "inicio": 4.137,
+        "fim": 4.206
+      },
+      {
+        "inicio": 4.837,
+        "fim": 4.906
+      },
+      {
+        "inicio": 5.537,
+        "fim": 5.606
+      },
+      {
+        "inicio": 6.237,
+        "fim": 6.306
+      },
+      {
+        "inicio": 6.937,
+        "fim": 7.006
+      },
+      {
+        "inicio": 7.053,
+        "fim": 7.256
+      },
+      {
+        "inicio": 7.303,
+        "fim": 7.606
+      },
+      {
+        "inicio": 8.537,
+        "fim": 8.656
+      },
+      {
+        "inicio": 8.797,
+        "fim": 9.206
+      }
+    ],
+    "equilibrioLRdb": 0,
+    "centroideHzPorSegundo": [
+      566,
+      545,
+      484,
+      960,
+      2618,
+      2121,
+      750,
+      3252,
+      2891,
+      899,
+      752,
+      741
+    ]
+  },
+  "rodada": {
+    "duracaoS": 43.5,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.46,
+    "picoVerdadeiroDbtp": -1.51,
+    "lufsIntegrado": -19.54,
+    "lufsCurtoPrazoMax": -18.79,
+    "dcPct": 0.0171,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [
+      10.509,
+      20.4,
+      24.884,
+      34.367,
+      37.649
+    ],
+    "trensDePulsos": [
+      {
+        "inicio": 6.959,
+        "fim": 6.959,
+        "pulsos": 1
+      },
+      {
+        "inicio": 10.059,
+        "fim": 10.059,
+        "pulsos": 1
+      },
+      {
+        "inicio": 10.259,
+        "fim": 10.259,
+        "pulsos": 1
+      }
+    ],
+    "silenciosNoMeio": [
+      {
+        "inicio": 2.658,
+        "fim": 2.948
+      },
+      {
+        "inicio": 3.578,
+        "fim": 3.639
+      },
+      {
+        "inicio": 4.269,
+        "fim": 4.514
+      },
+      {
+        "inicio": 7.628,
+        "fim": 7.698
+      },
+      {
+        "inicio": 10.878,
+        "fim": 10.948
+      },
+      {
+        "inicio": 12.961,
+        "fim": 13.189
+      },
+      {
+        "inicio": 13.819,
+        "fim": 13.998
+      },
+      {
+        "inicio": 15.153,
+        "fim": 15.223
+      },
+      {
+        "inicio": 16.153,
+        "fim": 16.223
+      },
+      {
+        "inicio": 19.819,
+        "fim": 19.89
+      },
+      {
+        "inicio": 20.819,
+        "fim": 20.889
+      },
+      {
+        "inicio": 21.03,
+        "fim": 21.573
+      },
+      {
+        "inicio": 25.302,
+        "fim": 25.373
+      },
+      {
+        "inicio": 28.545,
+        "fim": 28.831
+      },
+      {
+        "inicio": 29.761,
+        "fim": 29.831
+      },
+      {
+        "inicio": 29.972,
+        "fim": 30.264
+      },
+      {
+        "inicio": 31.22,
+        "fim": 31.331
+      },
+      {
+        "inicio": 33.486,
+        "fim": 33.673
+      },
+      {
+        "inicio": 33.72,
+        "fim": 33.856
+      },
+      {
+        "inicio": 34.786,
+        "fim": 34.856
+      },
+      {
+        "inicio": 36.986,
+        "fim": 37.048
+      },
+      {
+        "inicio": 38.911,
+        "fim": 38.981
+      },
+      {
+        "inicio": 40.961,
+        "fim": 41.073
+      }
+    ],
+    "equilibrioLRdb": 0,
+    "centroideHzPorSegundo": [
+      566,
+      615,
+      925,
+      1048,
+      2981,
+      706,
+      1968,
+      1457,
+      1304,
+      2530,
+      3376,
+      2480,
+      1043,
+      1266,
+      1653,
+      3281,
+      1060,
+      1248,
+      3511,
+      1315,
+      2999,
+      968,
+      1233,
+      1071,
+      3786,
+      1097,
+      2369,
+      1173,
+      3078,
+      2830,
+      2698,
+      991,
+      1054,
+      2700,
+      1377,
+      1347,
+      921,
+      2739,
+      3269,
+      1016,
+      929,
+      961,
+      759,
+      758
+    ]
+  }
+}

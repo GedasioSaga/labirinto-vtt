@@ -1,0 +1,22 @@
+montando a página de renderização (5 transições)...
+
+Mediana do volume integrado das aprovadas (porta, escada-pedra, escada-pedra-descendo, portao-pesado): -18,6 LUFS
+
+transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx   DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB  veredito
+---------------------------  ---------  ---------------  ---------  -----------  -----  ------  -------  -------  -----------  ---------  ------  --------
+sons-do-tiro                      -2,7             -1,9      -19,6        -19,1  0,002       0        0        0            0         11     0,0  aprovado
+porta (ref)                      -17,0            -16,9      -31,6        -30,2  0,002       0        0        0            0          4     0,0          
+escada-pedra (ref)                -0,5             -0,5      -18,6        -19,4  0,084       0        0        0            0          0     0,0          
+escada-pedra-descendo (ref)       -0,3             -0,3      -18,6        -19,4  0,085       0        0        0            0          0     0,0          
+portao-pesado (ref)               -2,2             -2,1      -17,1        -16,3  0,016       0        0       10           59          0     0,0          
+
+Centróide espectral por segundo (Hz; mais alto = mais agudo/brilhante):
+  sons-do-tiro           566 545 484 934 2807 2224 859 3284 2936 899 752 741
+  porta                  290 296 1270 843 800 471 251 —
+  escada-pedra           — 114 111 122 117 114 109 99 124 115 118 113
+  escada-pedra-descendo  — 116 112 123 117 115 110 99 125 115 118 114
+  portao-pesado          523 299 272 3864 472 559 668 622 604 89 353
+
+sons-do-tiro: aprovado nas medidas
+  (silêncio total no meio: 2,66–3,01 s, 3,15–3,51 s, 4,14–4,21 s, 4,84–4,91 s, 5,54–5,61 s, 6,24–6,31 s, 6,94–7,01 s, 7,05–7,26 s, 7,30–7,61 s, 8,54–8,66 s, 8,80–9,21 s; confira se é de propósito)
+  docs/design/minigame-tiro/provas/som/sons-do-tiro.wav · docs/design/minigame-tiro/provas/som/sons-do-tiro-espectrograma.png · docs/design/minigame-tiro/provas/som/sons-do-tiro-medidas.json

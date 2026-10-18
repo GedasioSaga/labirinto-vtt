@@ -1,0 +1,93 @@
+{
+  "id": "sons-do-tiro",
+  "fonte": "docs/design/minigame-tiro/provas/som/sons-do-tiro.ts",
+  "geradoEm": "2026-10-18T21:34:12.797Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.59,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 11.45,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.74,
+    "picoVerdadeiroDbtp": -1.89,
+    "lufsIntegrado": -19.59,
+    "lufsCurtoPrazoMax": -19.14,
+    "dcPct": 0.0023,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [
+      {
+        "inicio": 2.658,
+        "fim": 3.006
+      },
+      {
+        "inicio": 3.147,
+        "fim": 3.506
+      },
+      {
+        "inicio": 4.137,
+        "fim": 4.206
+      },
+      {
+        "inicio": 4.837,
+        "fim": 4.906
+      },
+      {
+        "inicio": 5.537,
+        "fim": 5.606
+      },
+      {
+        "inicio": 6.237,
+        "fim": 6.306
+      },
+      {
+        "inicio": 6.937,
+        "fim": 7.006
+      },
+      {
+        "inicio": 7.053,
+        "fim": 7.256
+      },
+      {
+        "inicio": 7.303,
+        "fim": 7.606
+      },
+      {
+        "inicio": 8.538,
+        "fim": 8.656
+      },
+      {
+        "inicio": 8.797,
+        "fim": 9.206
+      }
+    ],
+    "equilibrioLRdb": 0,
+    "centroideHzPorSegundo": [
+      566,
+      545,
+      484,
+      934,
+      2807,
+      2224,
+      859,
+      3284,
+      2936,
+      899,
+      752,
+      741
+    ],
+    "duracaoNaturalS": 11.2
+  }
+}
