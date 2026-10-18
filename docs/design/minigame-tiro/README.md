@@ -89,6 +89,15 @@ As metas abaixo foram escritas antes de calibrar e não mudaram depois.
 | Normal | bronze ≥ 70% | **80%** | 31% | 8% | 815 / 941 / 1130 | 72,3% |
 | Extremo | bronze entre 15% e 40% | **25,5%** | 7% | 1% | 482 / 605 / 738 | 49,5% |
 
+**18/10/2026: tambor passou para 12 balas** (pedido do usuário ao aprovar: "ao invés de 6 balas coloque 12, e só isso"). Nada mais mudou. Com 12 balas o robô recarrega menos e a rodada ficou mais fácil:
+
+| 12 balas, 200 rodadas | Meta | Bronze | Prata | Ouro | Pontos p10 / p50 / p90 | Precisão média |
+|---|---|---|---|---|---|---|
+| Normal | bronze ≥ 70% | **99,5%** | 85% | 42% | 960 / 1121 / 1316 | 73,3% |
+| Extremo | bronze entre 15% e 40% | **73%** (fora da meta) | 43,5% | 17% | 578 / 756 / 918 | 51,9% |
+
+O teste do Extremo falha de propósito: as medalhas não foram mexidas porque o usuário pediu só a troca das balas. Se ele quiser a dificuldade de antes, a saída é subir os limiares das medalhas. O texto abaixo ainda fala em 6 balas onde descreve a primeira versão.
+
 Outros números do robô:
 
 - **Tiros por rodada:** 50,1 no Normal e 36,3 no Extremo.

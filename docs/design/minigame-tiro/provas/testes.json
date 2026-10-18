@@ -14,48 +14,48 @@
       "nome": "robô humano no Normal: bronze em >= 70% de 200 rodadas",
       "passou": true,
       "detalhe": {
-        "bronze": "80%",
-        "prata": "31%",
-        "ouro": "8%",
+        "bronze": "99.5%",
+        "prata": "85%",
+        "ouro": "42%",
         "medalhas": [
           850,
           1000,
           1150
         ],
         "pontos": {
-          "p10": 815,
-          "p50": 941,
-          "p90": 1130
+          "p10": 960,
+          "p50": 1121,
+          "p90": 1316
         },
-        "precisao": "72.3%"
+        "precisao": "73.3%"
       }
     },
     {
       "nome": "robô humano no Extremo: bronze entre 15% e 40% de 200 rodadas",
-      "passou": true,
+      "passou": false,
       "detalhe": {
-        "bronze": "25.5%",
-        "prata": "7%",
-        "ouro": "1%",
+        "bronze": "73%",
+        "prata": "43.5%",
+        "ouro": "17%",
         "medalhas": [
           675,
           775,
           875
         ],
         "pontos": {
-          "p10": 482,
-          "p50": 605,
-          "p90": 738
+          "p10": 578,
+          "p50": 756,
+          "p90": 918
         },
-        "precisao": "49.5%",
-        "proibidosPorRodada": 0.55
+        "precisao": "51.9%",
+        "proibidosPorRodada": 0.75
       }
     },
     {
       "nome": "robô nunca reage em zero: reação mínima >= 130 ms, média 250 ± 20 ms, desvio 60 ± 15 ms",
       "passou": true,
       "detalhe": {
-        "n": 39107,
+        "n": 37348,
         "min": 0.13,
         "media": 0.251,
         "dp": 0.059
@@ -117,47 +117,47 @@
       "detalhe": {
         "antesSeco": {
           "balas": 0,
-          "tiros": 6
+          "tiros": 12
         },
         "seco": {
           "balas": 0,
-          "tiros": 6,
+          "tiros": 12,
           "secos": 1,
           "evento": "seco"
         },
         "durante": true,
         "travado": {
-          "tiros": 6,
+          "tiros": 12,
           "evento": 1
         },
         "recarga": {
-          "balas": 6,
+          "balas": 12,
           "pronto": true,
           "recargas": 1
         }
       }
     },
     {
-      "nome": "recarga repõe 6 balas; tiro durante a recarga não sai",
+      "nome": "recarga repõe 12 balas; tiro durante a recarga não sai",
       "passou": true,
       "detalhe": {
         "antesSeco": {
           "balas": 0,
-          "tiros": 6
+          "tiros": 12
         },
         "seco": {
           "balas": 0,
-          "tiros": 6,
+          "tiros": 12,
           "secos": 1,
           "evento": "seco"
         },
         "durante": true,
         "travado": {
-          "tiros": 6,
+          "tiros": 12,
           "evento": 1
         },
         "recarga": {
-          "balas": 6,
+          "balas": 12,
           "pronto": true,
           "recargas": 1
         }
@@ -172,10 +172,10 @@
           "amostras": 401,
           "fimEm": 40,
           "falhas": [],
-          "maxVelMira": 468,
+          "maxVelMira": 454,
           "trilhoVariou": 0,
           "proibNoNormal": false,
-          "pontos": 1153,
+          "pontos": 1553,
           "medalha": "ouro"
         },
         {
@@ -183,11 +183,11 @@
           "amostras": 321,
           "fimEm": 32,
           "falhas": [],
-          "maxVelMira": 355,
+          "maxVelMira": 392,
           "trilhoVariou": 0,
           "proibNoNormal": false,
-          "pontos": 884,
-          "medalha": "ouro"
+          "pontos": 817,
+          "medalha": "prata"
         }
       ]
     },
@@ -198,18 +198,18 @@
         "mira": true,
         "tiros": 1,
         "acertos": 1,
-        "balas": 5,
+        "balas": 11,
         "direitoRecarrega": true
       }
     },
     {
-      "nome": "teclado: Espaço atira na mira, setas mexem a mira, R recarrega até 6, Esc pausa e continua",
+      "nome": "teclado: Espaço atira na mira, setas mexem a mira, R recarrega até 12, Esc pausa e continua",
       "passou": true,
       "detalhe": {
         "espaco": true,
         "setaAndouPx": 42,
         "rIniciou": true,
-        "balasDepois": 6,
+        "balasDepois": 12,
         "pausou": true,
         "parado": true,
         "voltou": true
@@ -252,9 +252,9 @@
       "passou": true,
       "detalhe": {
         "linhas": [
-          "Você: atirando | Pontos 0 Precisão — Balas 6/6 Tempo 0:40 Normal",
-          "Iara: atirando | Pontos 308 Precisão 75% Balas 6/6 Tempo 0:20 Extremo",
-          "Tomé: atirando | Pontos 255 Precisão 79% Balas 4/6 Tempo 0:28 Normal"
+          "Você: atirando | Pontos 0 Precisão — Balas 12/12 Tempo 0:40 Normal",
+          "Iara: atirando | Pontos 248 Precisão 47% Balas 9/12 Tempo 0:20 Extremo",
+          "Tomé: atirando | Pontos 355 Precisão 83% Balas 6/12 Tempo 0:28 Normal"
         ],
         "parado": true,
         "overlay": true,
@@ -340,11 +340,11 @@
       "nome": "rodada inteira no Normal em tempo real, jogada por eventos de mouse e tecla R, chega ao resultado",
       "passou": true,
       "detalhe": {
-        "pontos": 900,
-        "medalha": "bronze",
-        "tiros": 48,
-        "acertos": 35,
-        "recargas": 7,
+        "pontos": 1035,
+        "medalha": "prata",
+        "tiros": 55,
+        "acertos": 40,
+        "recargas": 4,
         "s": 42.2
       }
     },
@@ -356,7 +356,7 @@
         "intervaloP50": 16.7,
         "intervaloP95": 16.8,
         "trabalhoP95": 0.6,
-        "trabalhoMax": 7.5,
+        "trabalhoMax": 5.7,
         "tarefasLongas": []
       }
     },
@@ -371,8 +371,8 @@
       "detalhe": {
         "quadros": 15,
         "proibidoAcertado": 1,
-        "medalha": "prata",
-        "pontos": 1013
+        "medalha": "ouro",
+        "pontos": 1163
       }
     },
     {
@@ -380,11 +380,11 @@
       "passou": true,
       "detalhe": {
         "duracaoS": 11.2,
-        "picoDbfs": -2.7,
-        "picoVerdadeiroDbtp": -1.28,
-        "lufsIntegrado": -19.83,
-        "lufsCurtoPrazoMax": -19.55,
-        "dcPct": 0.0059,
+        "picoDbfs": -2.62,
+        "picoVerdadeiroDbtp": -1.88,
+        "lufsIntegrado": -19.71,
+        "lufsCurtoPrazoMax": -19.34,
+        "dcPct": 0.0065,
         "cortes": 0,
         "equilibrioLRdb": 0,
         "cliques": 0
@@ -395,11 +395,11 @@
       "passou": true,
       "detalhe": {
         "duracaoS": 43.5,
-        "picoDbfs": -2.46,
-        "picoVerdadeiroDbtp": -1.51,
-        "lufsIntegrado": -19.54,
-        "lufsCurtoPrazoMax": -18.79,
-        "dcPct": 0.0171,
+        "picoDbfs": -2.3,
+        "picoVerdadeiroDbtp": -1.25,
+        "lufsIntegrado": -19.29,
+        "lufsCurtoPrazoMax": -18.43,
+        "dcPct": 0.0097,
         "cortes": 0,
         "equilibrioLRdb": 0,
         "cliques": 0,
@@ -423,42 +423,42 @@
   ],
   "robo": {
     "normal": {
-      "bronze": 0.8,
-      "prata": 0.31,
-      "ouro": 0.08,
+      "bronze": 0.995,
+      "prata": 0.85,
+      "ouro": 0.42,
       "medalhas": [
         850,
         1000,
         1150
       ],
       "pontos": {
-        "p10": 815,
-        "p50": 941,
-        "p90": 1130
+        "p10": 960,
+        "p50": 1121,
+        "p90": 1316
       },
-      "precisaoMedia": 0.723,
-      "tirosPorRodada": 50.1,
+      "precisaoMedia": 0.733,
+      "tirosPorRodada": 58.2,
       "proibidosPorRodada": 0,
-      "secosPorRodada": 3.9
+      "secosPorRodada": 1.99
     },
     "extremo": {
-      "bronze": 0.255,
-      "prata": 0.07,
-      "ouro": 0.01,
+      "bronze": 0.73,
+      "prata": 0.435,
+      "ouro": 0.17,
       "medalhas": [
         675,
         775,
         875
       ],
       "pontos": {
-        "p10": 482,
-        "p50": 605,
-        "p90": 738
+        "p10": 578,
+        "p50": 756,
+        "p90": 918
       },
-      "precisaoMedia": 0.495,
-      "tirosPorRodada": 36.3,
-      "proibidosPorRodada": 0.55,
-      "secosPorRodada": 2.92
+      "precisaoMedia": 0.519,
+      "tirosPorRodada": 43.9,
+      "proibidosPorRodada": 0.75,
+      "secosPorRodada": 1.52
     }
   },
   "desempenho": {
@@ -466,50 +466,50 @@
     "intervaloP50": 16.7,
     "intervaloP95": 16.8,
     "trabalhoP95": 0.6,
-    "trabalhoMax": 7.5,
+    "trabalhoMax": 5.7,
     "tarefasLongas": []
   },
   "folha": {
     "quadros": 15,
     "proibidoAcertado": 1,
-    "medalha": "prata",
-    "pontos": 1013
+    "medalha": "ouro",
+    "pontos": 1163
   },
   "grafico": [
     {
       "dif": "normal",
-      "pontos": 1153,
+      "pontos": 1553,
       "medalha": "ouro",
-      "precisao": 0.788,
+      "precisao": 0.81,
       "amostras": 401
     },
     {
       "dif": "extremo",
-      "pontos": 884,
-      "medalha": "ouro",
-      "precisao": 0.657,
+      "pontos": 817,
+      "medalha": "prata",
+      "precisao": 0.55,
       "amostras": 321
     }
   ],
   "som": {
     "catalogo": {
       "duracaoS": 11.2,
-      "picoDbfs": -2.7,
-      "picoVerdadeiroDbtp": -1.28,
-      "lufsIntegrado": -19.83,
-      "lufsCurtoPrazoMax": -19.55,
-      "dcPct": 0.0059,
+      "picoDbfs": -2.62,
+      "picoVerdadeiroDbtp": -1.88,
+      "lufsIntegrado": -19.71,
+      "lufsCurtoPrazoMax": -19.34,
+      "dcPct": 0.0065,
       "cortes": 0,
       "equilibrioLRdb": 0,
       "cliques": 0
     },
     "rodada": {
       "duracaoS": 43.5,
-      "picoDbfs": -2.46,
-      "picoVerdadeiroDbtp": -1.51,
-      "lufsIntegrado": -19.54,
-      "lufsCurtoPrazoMax": -18.79,
-      "dcPct": 0.0171,
+      "picoDbfs": -2.3,
+      "picoVerdadeiroDbtp": -1.25,
+      "lufsIntegrado": -19.29,
+      "lufsCurtoPrazoMax": -18.43,
+      "dcPct": 0.0097,
       "cortes": 0,
       "equilibrioLRdb": 0,
       "cliques": 0,

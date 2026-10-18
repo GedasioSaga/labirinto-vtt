@@ -317,7 +317,7 @@ fieldset:disabled .campo-f { opacity: 0.5; }
           </svg>
           <div class="arma__lado">
             <button type="button" class="lb-btn lb-btn--block" id="bRecarregar">Recarregar <kbd>R</kbd></button>
-            <p class="balas" id="hBalas">6 de 6 balas no tambor</p>
+            <p class="balas" id="hBalas">12 de 12 balas no tambor</p>
           </div>
         </div>
         <div class="escada" id="hEscada"></div>
@@ -417,7 +417,7 @@ const pctTxt = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—');
 
 // ==== SIM:INICIO — bloco puro (sem DOM); provas/gerar-provas.cjs roda daqui até SIM:FIM ====
 const SIM = (() => {
-  const DT = 1 / 120, W = 256, H = 144, BALAS = 6, SUBIR = 0.14;
+  const DT = 1 / 120, W = 256, H = 144, BALAS = 12, SUBIR = 0.14;
   const Y = { t1: 36, t2: 66, pop: 100, chao: 114 };
   const POP_X = [42, 100, 158, 214], BORDA = [14, 242];
   const DIF = {
@@ -783,7 +783,7 @@ function gravarPrefs() { try { localStorage.setItem(PREFS_CHAVE, JSON.stringify(
 
 const config = {
   jogo: 'tiro', nome: 'Tia Ferrolha', barraca: 'Barraca do Ferrolho', inicio: 'pino', chamado: false, tentativas: 3, permitida: 'escolha', meta: 'bronze',
-  fala: 'Seis balas no tambor e a fileira não para. Derruba bastante coisa e o prêmio é seu. No Extremo, o aldeão e o gato de lata são da casa: esses não.',
+  fala: 'Doze balas no tambor e a fileira não para. Derruba bastante coisa e o prêmio é seu. No Extremo, o aldeão e o gato de lata são da casa: esses não.',
   premio: 'Quem passar leva a lanterna de latão da barraca.',
   consequencia: 'Não passou: paga a rodada de cerveja de cogumelo da mesa.',
   aberto: true, pausaTodos: false,
@@ -1087,7 +1087,7 @@ function efeito(e) {
   } else if (e.nome === 'seco') { J.nega = 0.35; dica('Tambor vazio: R, botão direito, X ou o botão Recarregar.', true); }
   else if (e.nome === 'travado') dica('Recarregando: o tiro sai quando o tambor fechar.');
   else if (e.nome === 'recarga') dica('Recarregando…');
-  else if (e.nome === 'pronto') dica('Seis balas no tambor.');
+  else if (e.nome === 'pronto') dica(`${BALAS} balas no tambor.`);
   else if (e.nome === 'fim') dica('Fim da rodada.');
 }
 
@@ -1211,7 +1211,7 @@ function pintarEscada(el, dif, pontos) {
 }
 function pintarHudFixo() {
   const g = $('#tGiro');
-  if (!g.firstChild) g.innerHTML = Array.from({ length: 6 }, (_, i) => { const a = (i * 60 - 90) * Math.PI / 180; return `<circle class="camara" r="8" cx="${(Math.cos(a) * 18).toFixed(2)}" cy="${(Math.sin(a) * 18).toFixed(2)}"/>`; }).join('');
+  if (!g.firstChild) g.innerHTML = Array.from({ length: BALAS }, (_, i) => { const a = (i * (360 / BALAS) - 90) * Math.PI / 180; return `<circle class="camara" r="4.6" cx="${(Math.cos(a) * 22).toFixed(2)}" cy="${(Math.sin(a) * 22).toFixed(2)}"/>`; }).join('');
   $('#hProib').hidden = J.dif !== 'extremo';
   HUD.cache = {};
 }
@@ -1228,7 +1228,7 @@ function atualizarHud() {
   pôr($('#hCombo'), 'combo', `${R.combo} <small>×${fmtDec(SIM.mult(R.combo)).replace(',0', '')}</small>`, 'innerHTML');
   pôr($('#hPrec'), 'prec', pctTxt(R.acertos, R.tiros));
   $$('#tGiro .camara').forEach((c, i) => pôr(c.dataset, 'cam' + i, i < R.balas ? '1' : '0', 'cheia'));
-  pôr($('#tGiro').style, 'giro', `rotate(${-60 * J.giro}deg)`, 'transform');
+  pôr($('#tGiro').style, 'giro', `rotate(${-(360 / BALAS) * J.giro}deg)`, 'transform');
   pôr($('#tCarga').style, 'carga', String(R.recarga > 0 ? (219.9 * (R.recarga / R.D.recarga)).toFixed(1) : 219.9), 'strokeDashoffset');
   pôr($('#tambor').dataset, 'nega', J.nega > 0 ? '1' : '0', 'nega');
   const b = $('#bRecarregar'), podeRec = J.fase === 'rodada' && R.recarga <= 0 && R.balas < BALAS;

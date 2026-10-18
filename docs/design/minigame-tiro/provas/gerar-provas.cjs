@@ -103,7 +103,7 @@ async function main() {
     }
     // munição, direto na simulação
     const M = S.criarRodada('normal', 'municao'), passos = (s, ent) => { for (let i = 0; i < Math.round(s / S.DT); i++) S.passo(M, ent && i === 0 ? ent : { x: M.mira.x, y: M.mira.y }) }
-    for (let k = 0; k < 6; k++) passos(0.3, { x: 128, y: 3, atirar: true })
+    for (let k = 0; k < S.BALAS; k++) passos(0.3, { x: 128, y: 3, atirar: true })
     const antesSeco = { balas: M.balas, tiros: M.tiros }
     passos(0.3, { x: 128, y: 3, atirar: true })
     const seco = { balas: M.balas, tiros: M.tiros, secos: M.secos, evento: M.ev[M.ev.length - 1].nome }
@@ -126,8 +126,8 @@ async function main() {
   const D = puras.DIF
   ok('Extremo: alvos menores e mais rápidos, mais surgindo, recarga mais lenta, menos tempo', D.extremo.escala < D.normal.escala && D.extremo.vel >= 1.4 * D.normal.vel && puras.ritmo.extremo >= 1.4 * puras.ritmo.normal && D.extremo.recarga > D.normal.recarga && D.extremo.tempo < D.normal.tempo && D.extremo.janela[1] < D.normal.janela[0], { escala: [D.normal.escala, D.extremo.escala], velocidade: [D.normal.vel, D.extremo.vel], alvosPorSegundo: [puras.ritmo.normal, puras.ritmo.extremo], recarga: [D.normal.recarga, D.extremo.recarga], tempo: [D.normal.tempo, D.extremo.tempo] })
   const mu = puras.municao
-  ok('atirar sem bala dá clique seco e não conta tiro', mu.antesSeco.balas === 0 && mu.antesSeco.tiros === 6 && mu.seco.tiros === 6 && mu.seco.secos === 1 && mu.seco.evento === 'seco', mu)
-  ok('recarga repõe 6 balas; tiro durante a recarga não sai', mu.durante && mu.travado.tiros === 6 && mu.travado.evento === 1 && mu.recarga.balas === 6 && mu.recarga.pronto, mu)
+  ok('atirar sem bala dá clique seco e não conta tiro', mu.antesSeco.balas === 0 && mu.antesSeco.tiros === 12 && mu.seco.tiros === 12 && mu.seco.secos === 1 && mu.seco.evento === 'seco', mu)
+  ok('recarga repõe 12 balas; tiro durante a recarga não sai', mu.durante && mu.travado.tiros === 12 && mu.travado.evento === 1 && mu.recarga.balas === 12 && mu.recarga.pronto, mu)
 
   // ---------- 2. gráfico do movimento: dados a cada 0,1 s, propriedades viram teste
   const graf = await page.evaluate(() => {
@@ -140,8 +140,8 @@ async function main() {
     for (let i = 1; i < am.length; i++) {
       const [t0, x0, y0, b0, p0] = am[i - 1], [t1, x1, y1, b1, p1] = am[i]
       const no = ev.filter((e) => e.t > t0 - 1e-6 && e.t <= t1 + 1e-6)
-      if (b1 < 0 || b1 > 6) falhas.push(`balas ${b1} em ${t1}`)
-      if (b1 > b0 && (b1 !== 6 || !no.some((e) => e.nome === 'pronto'))) falhas.push(`balas subiram sem recarga em ${t1}`)
+      if (b1 < 0 || b1 > 12) falhas.push(`balas ${b1} em ${t1}`)
+      if (b1 > b0 && (b1 !== 12 ||!no.some((e) => e.nome === 'pronto'))) falhas.push(`balas subiram sem recarga em ${t1}`)
       if (p1 !== p0 && !no.some((e) => e.nome === 'acerto' || e.nome === 'proibido')) falhas.push(`pontos mudaram sem acerto em ${t1}`)
       if (p1 < p0 && !no.some((e) => e.nome === 'proibido')) falhas.push(`pontos caíram sem proibido em ${t1}`)
       maxVel = Math.max(maxVel, Math.hypot(x1 - x0, y1 - y0) / (t1 - t0))
@@ -162,7 +162,7 @@ async function main() {
     const proibNoNormal = g.dif === 'normal' && am.some((a) => a[7].some((x) => x[1] === 'aldeao' || x[1] === 'gato'))
     return { dif: g.dif, amostras: am.length, fimEm: am[am.length - 1][0], falhas: falhas.slice(0, 5), maxVelMira: Math.round(maxVel), trilhoVariou, proibNoNormal, pontos: g.pontos, medalha: g.medalha }
   })
-  ok('gráfico do movimento: balas entre 0 e 6 e só sobem para 6 na recarga; pontos só mudam com acerto; mira sem teleporte (<= 600 px/s); trilhos em velocidade constante; nada proibido no Normal; fim no tempo certo', props.every((p, i) => !p.falhas.length && p.maxVelMira <= 600 && !p.trilhoVariou && !p.proibNoNormal && Math.abs(p.fimEm - graf[i].tempo) < 0.02 && p.amostras >= graf[i].tempo * 10), props)
+  ok('gráfico do movimento: balas entre 0 e 12 e só sobem para 12 na recarga; pontos só mudam com acerto; mira sem teleporte (<= 600 px/s); trilhos em velocidade constante; nada proibido no Normal; fim no tempo certo', props.every((p, i) => !p.falhas.length && p.maxVelMira <= 600 && !p.trilhoVariou && !p.proibNoNormal && Math.abs(p.fimEm - graf[i].tempo) < 0.02 && p.amostras >= graf[i].tempo * 10), props)
 
   // ---------- 3. entrada: mouse, teclado, toque e controle falso (passo fixo)
   const entrada = await page.evaluate(async () => {
@@ -216,8 +216,8 @@ async function main() {
     return out
   })
   const em = entrada.mouse, et = entrada.teclado, eq = entrada.toque, ec = entrada.controle
-  ok('mouse: mira segue o ponteiro, clique esquerdo atira e acerta, botão direito recarrega', em.mira && em.tiros === 1 && em.acertos === 1 && em.balas === 5 && em.direitoRecarrega, em)
-  ok('teclado: Espaço atira na mira, setas mexem a mira, R recarrega até 6, Esc pausa e continua', et.espaco && et.setaAndouPx > 40 && et.rIniciou && et.balasDepois === 6 && et.pausou && et.parado && et.voltou, et)
+  ok('mouse: mira segue o ponteiro, clique esquerdo atira e acerta, botão direito recarrega', em.mira && em.tiros === 1 && em.acertos === 1 && em.balas === 11 && em.direitoRecarrega, em)
+  ok('teclado: Espaço atira na mira, setas mexem a mira, R recarrega até 12, Esc pausa e continua', et.espaco && et.setaAndouPx > 40 && et.rIniciou && et.balasDepois === 12 && et.pausou && et.parado && et.voltou, et)
   ok('toque: toca onde atira (touch-action none) e o botão Recarregar da tela recarrega', eq.miraNoToque && eq.tiros === 1 && eq.acertos === 1 && eq.touchAction === 'none' && eq.botaoRecarrega, eq)
   ok('controle falso (Gamepad API): analógico mira, RT e A atiram, X recarrega, Start pausa e volta', ec.analogicoAndouPx > 20 && ec.rtAtira && ec.aAtira && ec.xRecarrega && ec.startPausa && ec.startVolta, ec)
 
@@ -329,7 +329,7 @@ async function main() {
       const r = J.R
       g.font = '600 13px Segoe UI, sans-serif'
       if (r) {
-        for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(14 + i * 14, 303, 5, 0, Math.PI * 2); g.fillStyle = i < r.balas ? '#d9a84f' : '#0f0f12'; g.fill(); g.strokeStyle = '#4a4852'; g.stroke() }
+        for (let i = 0; i < 12; i++) { g.beginPath(); g.arc(14 + i * 12, 303, 4.5, 0, Math.PI * 2); g.fillStyle = i < r.balas ? '#d9a84f' : '#0f0f12'; g.fill(); g.strokeStyle = '#4a4852'; g.stroke() }
         g.fillStyle = '#eceae4'; g.fillText(`Pontos ${r.pontos}   Combo ×${String(S.mult(r.combo)).replace('.', ',')} (${r.combo})   Tempo ${Math.max(0, Math.ceil(r.D.tempo - r.t))} s${r.recarga > 0 ? '   recarregando' : ''}`, 100, 308)
       } else { g.fillStyle = '#a2a09a'; g.fillText('Convite: a feirante atrás do balcão, a barraca vazia', 10, 308) }
       quadros.push({ c, rotulo, tempo: r ? `t = ${(J.fase === 'contagem' ? -(1.2 - J.tFase) : r.t).toFixed(2).replace('.', ',')} s` : 'antes da rodada' })
@@ -348,7 +348,7 @@ async function main() {
     novoEv('erro'); B.rodar(S.DT * 4); cap('Erro: poeira e buraco na parede')
     ate(() => J.R.balas === 0 && J.R.recarga <= 0); J.fila.atirar = 1; B.rodar(S.DT * 2); cap('Sem bala: clique seco (não conta tiro)')
     J.fila.recarregar = true; B.rodar(0.35); cap('Recarga: arma abaixada, tambor girando')
-    ate(() => J.R.ev.length && J.R.ev[J.R.ev.length - 1].nome === 'pronto', 3); B.rodar(S.DT * 2); cap('Engatilhou: seis balas')
+    ate(() => J.R.ev.length && J.R.ev[J.R.ev.length - 1].nome === 'pronto', 3); B.rodar(S.DT * 2); cap('Engatilhou: doze balas')
     ate(() => J.R.combo >= 5); cap('Combo de 5: pontos valem ×1,5')
     ate(() => J.fase === 'fim'); B.rodar(0.1); cap('Sino: fim da rodada')
     B.rodar(1.0); const res = J.resultado

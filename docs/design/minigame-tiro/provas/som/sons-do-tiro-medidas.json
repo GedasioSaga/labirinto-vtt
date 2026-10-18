@@ -1,7 +1,7 @@
 {
   "id": "sons-do-tiro",
   "fonte": "docs/design/minigame-tiro/provas/som/sons-do-tiro.ts",
-  "geradoEm": "2026-10-18T21:34:12.797Z",
+  "geradoEm": "2026-10-18T21:42:46.471Z",
   "veredito": "aprovado",
   "motivos": [],
   "referencia": {
@@ -11,7 +11,7 @@
       "escada-pedra-descendo",
       "portao-pesado"
     ],
-    "medianaLufsIntegrado": -18.59,
+    "medianaLufsIntegrado": -18.6,
     "toleranciaLU": 3
   },
   "medidas": {
