@@ -178,7 +178,7 @@ describe('MinigameControls', () => {
   it('a pastilha marcada é a do pino', () => {
     render(props({ minigame: { ...MINIGAME_PADRAO, permitida: 'diversao', notaMin: 'C' } }))
     const marcadas = Array.from(container.querySelectorAll('[role="radio"][aria-checked="true"]')).map((b) => b.textContent)
-    expect(marcadas).toEqual(['Só Diversão', 'C'])
+    expect(marcadas).toEqual(['Dança', 'Só Diversão', 'C'])
   })
 
   it('"Abre a porta": as portas da cena, a escolha grava e "Nenhuma" solta', () => {
@@ -388,16 +388,64 @@ describe('MinigameControls', () => {
     expect(container.textContent).not.toContain('Quem desafia')
     // Nenhum pino aberto (a ferramenta Pino armada): só o recado de cravar.
     act(() => root.render(<PinControls {...base} description={null} onDelete={() => {}} desafio={null} />))
-    expect(container.textContent).toContain('Crave o pino; no painel dele você monta o desafio de dança.')
+    expect(container.textContent).toContain('Crave o pino; no painel dele você escolhe o jogo (dança ou pesca) e monta o desafio.')
   })
 
-  it('pino de pesca (antes do painel dela): só o aviso, nenhum campo da dança e nada gravado', () => {
+  it('a escolha do jogo: Pesca põe o desafio padrão da pesca, Dança volta ao da dança, e o jogo marcado não grava', () => {
+    const p = props()
+    render(p)
+    act(() => botao('Dança').click())
+    expect(p.onChange).not.toHaveBeenCalled()
+    act(() => botao('Pesca').click())
+    expect(vi.mocked(p.onChange).mock.calls.at(-1)?.[0]).toEqual(MINIGAME_PESCA_PADRAO)
+    const q = props({ minigame: { ...MINIGAME_PESCA_PADRAO } })
+    render(q)
+    act(() => botao('Dança').click())
+    expect(vi.mocked(q.onChange).mock.calls.at(-1)?.[0]).toEqual(MINIGAME_PADRAO)
+  })
+
+  it('pino de pesca: os campos dela gravam no pino, sem música, nota mínima nem porta', () => {
     const p = props({ minigame: { ...MINIGAME_PESCA_PADRAO } })
     render(p)
-    expect(container.textContent).toContain('Pesca: painel em construção')
-    expect(container.textContent).not.toContain('Quem desafia')
+    const pesca = () => {
+      const gravado = vi.mocked(p.onChange).mock.calls.at(-1)?.[0]
+      if (gravado?.jogo !== 'pesca') throw new Error('o painel da pesca gravou outro jogo')
+      return gravado
+    }
+    expect(Array.from(container.querySelectorAll('[role="radio"][aria-checked="true"]')).map((b) => b.textContent)).toEqual(['Pesca', 'Mestre chama', '3', 'Jogador escolhe'])
+    digitarESair(campo('Quem desafia', HTMLInputElement), 'Dona Cida')
+    expect(pesca().npc).toBe('Dona Cida')
+    digitarESair(campo('Nome do lago', HTMLInputElement), 'Lagoa Funda')
+    expect(pesca().lago).toBe('Lagoa Funda')
+    digitarESair(campo('Fala do desafio', HTMLTextAreaElement), 'Joga aí.')
+    expect(pesca().fala).toBe('Joga aí.')
+    act(() => botao('Jogador toca no pino').click())
+    expect(pesca().entrada).toBe('pino')
+    act(() => botao('5').click())
+    expect(pesca().lances).toBe(5)
+    act(() => botao('Só Extremo').click())
+    expect(pesca().permitida).toBe('extremo')
+    digitarESair(campo('Prêmio (pegou ao menos um peixe)', HTMLInputElement), 'Uma moeda')
+    expect(pesca().premio).toEqual({ texto: 'Uma moeda' })
+    digitarESair(campo('Consequência (cesto vazio)', HTMLInputElement), 'Perde a vez')
+    expect(pesca().consequencia).toEqual({ texto: 'Perde a vez' })
+    expect(container.textContent).toContain('Só texto: aparece no convite e no cesto do jogador.')
+    expect(container.textContent).not.toContain('Nota mínima')
+    expect(container.textContent).not.toContain('Abre a porta')
+    expect(container.querySelector('input[type="file"]')).toBeNull()
     expect(container.textContent).not.toContain('Chamar para dançar')
-    expect(container.querySelectorAll('input, select, textarea, button')).toHaveLength(0)
-    expect(p.onChange).not.toHaveBeenCalled()
+  })
+
+  it('pino de pesca sem sala: diz o que falta; com a sala, a pesca ao vivo do pino', () => {
+    render(props({ minigame: { ...MINIGAME_PESCA_PADRAO } }))
+    expect(container.textContent).toContain('Abra a sala para acompanhar a pesca e chamar quem pesca.')
+    render(
+      props({
+        minigame: { ...MINIGAME_PESCA_PADRAO },
+        aoVivoDaPesca: { players: [{ playerId: 'p1', name: 'Bia' }], pesca: null, onConvidar: vi.fn(() => null), onPausar: vi.fn(() => true), onRetomar: vi.fn(() => true), onEncerrar: vi.fn(() => true) },
+      }),
+    )
+    expect(container.textContent).toContain('Pesca ao vivo')
+    expect(botao('Chamar para pescar')).toBeDefined()
   })
 })

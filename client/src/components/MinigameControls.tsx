@@ -23,9 +23,21 @@ import {
   type MusicaDaDanca,
   type PremioDanca,
 } from '../minigames/danca/tipos'
-import type { MinigameDoPino } from '../minigames/tipos'
+import {
+  LAGO_MAX_LENGTH,
+  LANCES_MAX,
+  LANCES_MIN,
+  PESCA_TEXTO_MAX_LENGTH,
+  type DificuldadePesca,
+  type EntradaPesca,
+  type MinigamePesca,
+} from '../minigames/pesca/tipos'
+import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
+import { trocarJogoDoMinigame } from '../lib/pins'
 import { DANCA_DURACAO_MAX_S } from '../net/protocoloDaDanca'
 import { DancaAoVivoPainel, type DancaAoVivoProps } from './DancaAoVivo'
+import { PescaAoVivoPainel } from './PescaAoVivo'
+import type { PescaNoPainel } from './pescaNoPainel'
 import './MinigameControls.css'
 
 /**
@@ -125,6 +137,27 @@ const CONSEQUENCIAS: readonly { valor: ConsequenciaDanca; rotulo: string }[] = [
   { valor: 'barulho', rotulo: 'Barulho: o mestre narra' },
   { valor: 'espera', rotulo: 'Só tenta de novo na próxima rodada' },
   { valor: 'nada', rotulo: 'Nenhuma' },
+]
+
+const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
+  { valor: 'danca', rotulo: 'Dança' },
+  { valor: 'pesca', rotulo: 'Pesca' },
+]
+
+const ENTRADAS: readonly { valor: EntradaPesca; rotulo: string }[] = [
+  { valor: 'mestre', rotulo: 'Mestre chama' },
+  { valor: 'pino', rotulo: 'Jogador toca no pino' },
+]
+
+const LANCES: readonly { valor: string; rotulo: string }[] = Array.from({ length: LANCES_MAX - LANCES_MIN + 1 }, (_, i) => {
+  const n = String(LANCES_MIN + i)
+  return { valor: n, rotulo: n }
+})
+
+const PERMITIDAS_PESCA: readonly { valor: 'escolha' | DificuldadePesca; rotulo: string }[] = [
+  { valor: 'escolha', rotulo: 'Jogador escolhe' },
+  { valor: 'normal', rotulo: 'Só Normal' },
+  { valor: 'extremo', rotulo: 'Só Extremo' },
 ]
 
 // ------------------------------------------------------------------ memória da música
@@ -611,27 +644,107 @@ export interface MinigameControlsProps {
   porta: PortaDoMinigame
   /** Sala aberta: "Chamar para dançar" e a dança ao vivo. `null` = sem sala. */
   aoVivo: Omit<DancaAoVivoProps, 'pinId'> | null
+  /** Sala aberta: a pesca ao vivo deste pino (`pescaNoPainel`). `null` ou ausente = sem sala. */
+  aoVivoDaPesca?: PescaNoPainel | null
   /** O teste troca; o app usa o disco e o Web Audio de verdade. */
   caminho?: CaminhoDaMusica
 }
 
 /**
- * O painel do jogo gravado no pino. A pesca ainda não tem painel (fase 4 do
- * plano da pesca): mostra só o aviso, sem campo que grave nada no pino.
+ * O painel do jogo gravado no pino: no topo, a escolha Dança | Pesca (trocar
+ * põe o desafio padrão do outro jogo; o Ctrl+Z do `updatePin` desfaz), e
+ * embaixo os campos do jogo escolhido.
  */
 export function MinigameControls(props: MinigameControlsProps) {
-  const { minigame } = props
-  if (minigame.jogo === 'pesca') {
-    return (
-      <div className="lb-minigame">
-        <div className="lb-field">
-          <span className="lb-label">Jogo</span>
-          <span className="lb-minigame__jogo">Pesca: painel em construção</span>
-        </div>
+  const { minigame, onChange } = props
+  return (
+    <div className="lb-minigame">
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Jogo</legend>
+        <Pastilhas
+          rotulo="Jogo"
+          opcoes={JOGOS}
+          valor={minigame.jogo}
+          // O jogo que já está: nada grava (um passo de desfazer que não muda nada só confundiria o Ctrl+Z).
+          onChange={(jogo) => jogo !== minigame.jogo && onChange(trocarJogoDoMinigame(minigame, jogo))}
+        />
+      </fieldset>
+      {minigame.jogo === 'pesca' ? <PainelDaPesca {...props} minigame={minigame} /> : <PainelDaDanca {...props} minigame={minigame} />}
+    </div>
+  )
+}
+
+type PainelDaPescaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaPesca'> & { minigame: MinigamePesca }
+
+/**
+ * A pesca do pino, na ordem do protótipo aprovado (visão "Mestre"): quem
+ * desafia, a fala, o lago, como começa, os lances, a dificuldade, o prêmio e
+ * a consequência. Sem música, nota mínima nem porta: a pesca não abre nada.
+ */
+function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPescaProps) {
+  const baseId = useId()
+  const mudar = (patch: Partial<MinigamePesca>) => onChange({ ...minigame, ...patch })
+  const id = (nome: string) => `${baseId}-${nome}`
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('npc')}>
+          Quem desafia
+        </label>
+        <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
       </div>
-    )
-  }
-  return <PainelDaDanca {...props} minigame={minigame} />
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('fala')}>
+          Fala do desafio
+        </label>
+        <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('lago')}>
+          Nome do lago
+        </label>
+        <CampoDeTexto id={id('lago')} valor={minigame.lago} max={LAGO_MAX_LENGTH} onCommit={(lago) => mudar({ lago })} />
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Como começa</legend>
+        <Pastilhas rotulo="Como começa" opcoes={ENTRADAS} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
+        <span className="lb-label">
+          {minigame.entrada === 'mestre' ? 'Você chama quem pesca, daqui do painel.' : 'O jogador encostado no pino toca em "Pescar" e começa sozinho.'}
+        </span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Lances por pesca</legend>
+        <Pastilhas
+          rotulo="Lances por pesca"
+          opcoes={LANCES}
+          valor={String(minigame.lances)}
+          onChange={(lances) => mudar({ lances: Number(lances) })}
+          classe="lb-minigame__seg--letras"
+        />
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Dificuldade</legend>
+        <Pastilhas rotulo="Dificuldade" opcoes={PERMITIDAS_PESCA} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">O que vale</legend>
+        <label className="lb-label" htmlFor={id('premio')}>
+          Prêmio (pegou ao menos um peixe)
+        </label>
+        <CampoDeTexto id={id('premio')} valor={minigame.premio.texto} max={PESCA_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ premio: { texto } })} />
+        <label className="lb-label" htmlFor={id('consequencia')}>
+          Consequência (cesto vazio)
+        </label>
+        <CampoDeTexto id={id('consequencia')} valor={minigame.consequencia.texto} max={PESCA_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ consequencia: { texto } })} />
+        <span className="lb-label">Só texto: aparece no convite e no cesto do jogador. A pesca não abre porta nem entrega item; o peixe fica no cesto.</span>
+      </fieldset>
+      {aoVivoDaPesca === null || aoVivoDaPesca === undefined ? (
+        <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar a pesca{minigame.entrada === 'mestre' ? ' e chamar quem pesca' : ''}.</span>
+      ) : (
+        <PescaAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDaPesca} />
+      )}
+    </>
+  )
 }
 
 type PainelDaDancaProps = Omit<MinigameControlsProps, 'minigame'> & { minigame: MinigameDanca }
@@ -643,11 +756,7 @@ function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAM
   const semPorta = porta.options.length === 0
   const id = (nome: string) => `${baseId}-${nome}`
   return (
-    <div className="lb-minigame">
-      <div className="lb-field">
-        <span className="lb-label">Jogo</span>
-        <span className="lb-minigame__jogo">Dança: setas no ritmo</span>
-      </div>
+    <>
       <div className="lb-field">
         <label className="lb-label" htmlFor={id('npc')}>
           Quem desafia
@@ -754,6 +863,6 @@ function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAM
       ) : (
         <DancaAoVivoPainel pinId={pinId} {...aoVivo} />
       )}
-    </div>
+    </>
   )
 }

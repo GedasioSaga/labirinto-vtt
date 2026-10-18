@@ -203,6 +203,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { BotaoDoLivroDeRegras, PersonagensDaAventura } from './components/PersonagensSection'
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
+import { pescaNoPainel } from './components/pescaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { garantirAventura } from './stores/virarAventura'
@@ -215,6 +216,7 @@ import { corDoPinoParaGravar, escalaDoPino, escalaDoPinoParaGravar, passageOf, p
 import { MINIGAME_PADRAO } from './minigames/danca/tipos'
 import type { MinigameDoPino } from './minigames/tipos'
 import type { DancaAoVivo } from './net/dancaNoHost'
+import type { PescaAoVivo } from './net/pescaNoHost'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
@@ -751,6 +753,8 @@ function App() {
   const [secretChecks, setSecretChecks] = useState<SecretCheckState[]>([])
   // MINIGAME DE DANÇA: a dança como o painel do pino a lê (convite, prontos, placar, desfecho). O dono é a sessão do host.
   const [danca, setDanca] = useState<DancaAoVivo | null>(null)
+  // MINIGAME DE PESCA: cada pino com pesca (quem pesca, o vivo, os cestos), como o painel lê. O dono é a sessão do host.
+  const [pescas, setPescas] = useState<PescaAoVivo[]>([])
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -867,6 +871,7 @@ function App() {
         onSecretRevealsChange: setSecretReveals,
         onSecretChecksChange: setSecretChecks,
         onDancaChange: setDanca,
+        onPescaChange: setPescas,
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
@@ -2467,8 +2472,9 @@ function App() {
   /**
    * MINIGAME aberto no painel: o desafio (gravado inteiro no pino, com
    * desfazer), a porta que a dança abre (a mesma lista da alavanca) e, com a
-   * sala aberta, a dança ao vivo. O painel escolhe pelo jogo do pino: a pesca
-   * ainda não tem painel nem ao vivo (`MinigameControls`), e o `dancaNoPainel`
+   * sala aberta, o jogo ao vivo. O painel escolhe pelo jogo do pino
+   * (`MinigameControls`): a pesca ao vivo sai de `pescaNoPainel` (só a sala,
+   * por enquanto; a Visão de jogador entra na fase 5), e o `dancaNoPainel`
    * só chama para dançar o pino de dança (`hostSession.convidarParaDanca`). Chama só quem está jogando e com a página
    * aberta: a sessão recusaria o resto (`hostSession.convidarParaDanca`).
    * Com a VISÃO DE JOGADOR aberta, a dança ao vivo é a do teste, mesmo com a
@@ -2495,6 +2501,12 @@ function App() {
         ponte: () => hostBridgeRef.current,
       },
     ),
+    aoVivoDaPesca: pescaNoPainel(pin.id, {
+      aberta: room !== null,
+      players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+      pescas,
+      ponte: () => hostBridgeRef.current,
+    }),
   })
 
   /**

@@ -379,7 +379,7 @@ export function PinControls({ kind, onKindChange, iconChoice }: PinControlsProps
       {!viagem && iconChoice !== null && <PinIconControls {...iconChoice} glyph={PIN_GLYPH[kind]} />}
       {viagem && <span className="lb-label">Crave o pino; no painel dele você escolhe para onde ele leva.</span>}
       {alavanca && <span className="lb-label">Crave a alavanca; no painel dela você escolhe a porta que ela abre.</span>}
-      {minigame && <span className="lb-label">Crave o pino; no painel dele você monta o desafio de dança.</span>}
+      {minigame && <span className="lb-label">Crave o pino; no painel dele você escolhe o jogo (dança ou pesca) e monta o desafio.</span>}
     </section>
   )
 }

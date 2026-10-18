@@ -134,11 +134,22 @@ interface PlayerPinCardProps {
   onBarrar?: (on: boolean) => void
   /** ANIMAÇÃO DO CENÁRIO: "Ver animação" na foto do pino "!" que tem uma. Ausente = sem o botão. */
   onVerAnimacao?: () => void
+  /**
+   * PESCA "Jogador toca no pino": "Pescar" pede o convite ao mestre. Apagado
+   * com a ficha longe (`longe`, a mesma regra do item no chão). Ausente = o
+   * cartão só diz como se pesca ali.
+   */
+  onPescar?: () => void
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
 /** O cartão do minigame: o jogador sabe que há um desafio, e que quem chama é o mestre. */
 const TEXTO_DO_MINIGAME = 'Desafio de dança. O mestre chama quando for a hora.'
+/** Pesca que o mestre chama: o cartão não oferece gesto, como a dança. */
+const TEXTO_DA_PESCA_DO_MESTRE = 'Pesca. O mestre chama quando for a hora.'
+/** Pesca "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no pino e toque em "Pescar".'
+const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: PinDoCartao): string {
@@ -320,6 +331,7 @@ export function PlayerPinCard({
   peekWaiting = false,
   onBarrar,
   onVerAnimacao,
+  onPescar,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -430,6 +442,9 @@ export function PlayerPinCard({
   // MINIGAME: o desafio (NPC, música, prêmio) nunca chega aqui
   // (`lib/fogFilter.ts`); quem convida é o mestre, então o cartão só avisa.
   const minigame = pin.kind === 'minigame'
+  // Do desafio, só o jogo e como começa chegam (`minigameVisivel`): a pesca
+  // "Jogador toca no pino" é o único minigame com gesto aqui.
+  const pesca = minigame && pin.minigameVisivel?.jogo === 'pesca' ? pin.minigameVisivel.entrada : null
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
   // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
   // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
@@ -640,10 +655,21 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {minigame && (
+        {minigame && pesca === null && (
           // Frase, não botão: o convite chega quando o mestre chamar, e um
           // botão aqui prometeria um gesto que o jogador não tem.
           <p className="pp-pincard__locked">{TEXTO_DO_MINIGAME}</p>
+        )}
+        {pesca === 'mestre' && <p className="pp-pincard__locked">{TEXTO_DA_PESCA_DO_MESTRE}</p>}
+        {pesca === 'pino' && onPescar === undefined && <p className="pp-pincard__locked">{TEXTO_DA_PESCA_NO_PINO}</p>}
+        {pesca === 'pino' && onPescar !== undefined && (
+          // Sem confirmação, como o "Pegar": o convite que volta já pergunta a dificuldade.
+          <>
+            <button type="button" className="pp-pincard__travel" disabled={longe} onClick={onPescar}>
+              Pescar
+            </button>
+            {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_PESCA}</p>}
+          </>
         )}
         {semVolta && <span className="pp-pincard__oneway pp-pincard__oneway--card">{ETIQUETA_SO_IDA}</span>}
         {trancada && chave === null && (

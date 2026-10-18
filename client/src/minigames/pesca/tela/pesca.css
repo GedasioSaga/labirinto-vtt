@@ -1,0 +1,695 @@
+/*
+ * TELA DA PESCA (jogador): fiel ao protótipo aprovado em 18/10/2026
+ * (docs/design/minigame-pesca/prototipo). As cores e medidas do app vêm dos
+ * tokens --lb-* (theme.ts); as --pz-* são só desta tela: a caverna, as
+ * raridades e o verde da barra. Tudo sob .lb-pesca, com classes pz-*, porque
+ * a página do jogador não carrega main.css e o player.css já tem nomes
+ * genéricos. O protótipo não usa a fonte pixel: nada a carregar aqui.
+ */
+
+.lb-pesca {
+  --pz-caverna: #0d0c0f;
+  --pz-comum: var(--lb-color-parchment-dim);
+  --pz-incomum: var(--lb-color-tide);
+  --pz-raro: var(--lb-color-arcane);
+  --pz-lendario: var(--lb-color-brass-bright);
+  --pz-bom: #b6dcbd;
+  --pz-ruim: #f0b3ad;
+  --pz-texto-fala: #ebe0c9;
+  --pz-fundo-fala: #1f1a14;
+  /* O verde da barra de captura (arte.ts, corMedidor) e o fundo do campo enquanto segura. */
+  --pz-verde: #7fb48a;
+  --pz-campo-segurando: #151a17;
+  --pz-coluna: clamp(340px, 30vw, 420px);
+  --pz-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--pz-coluna);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 13px/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  transition: opacity 180ms var(--pz-ease-out);
+}
+/* Dentro de uma caixa (a Visão de jogador): a altura é a da caixa, não a da janela. */
+.lb-pesca[data-na-caixa] {
+  height: auto;
+}
+.lb-pesca[data-saindo='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lb-pesca {
+    animation: pz-aparece 220ms var(--pz-ease-out);
+  }
+}
+@keyframes pz-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+.lb-pesca *,
+.lb-pesca *::before,
+.lb-pesca *::after {
+  box-sizing: border-box;
+}
+.lb-pesca button,
+.lb-pesca input {
+  font: inherit;
+  color: inherit;
+}
+.lb-pesca button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-pesca button:disabled {
+  cursor: not-allowed;
+}
+.lb-pesca :focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.lb-pesca :is(p, h1, h2, h3, ul, ol, dl, dd, fieldset) {
+  margin: 0;
+}
+.lb-pesca :is(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+.lb-pesca fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.lb-pesca legend {
+  padding: 0;
+}
+.lb-pesca kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 4px;
+  font: 500 10.5px/16px var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+.pz-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- botões */
+
+.pz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.pz-btn:active:not(:disabled) {
+  background: var(--lb-color-stone-sunken);
+  transform: scale(0.97);
+}
+.pz-btn:disabled {
+  color: var(--lb-color-parchment-faint);
+  background: transparent;
+}
+.pz-btn--primario {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 600;
+}
+.pz-btn--primario:active:not(:disabled) {
+  background: var(--lb-color-brass);
+}
+.pz-btn--primario:disabled {
+  background: transparent;
+  border-color: var(--lb-color-line);
+}
+.pz-btn--bloco {
+  width: 100%;
+  min-height: 44px;
+  font-size: 14px;
+}
+.pz-btn--sm {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pz-btn:hover:not(:disabled) {
+    background: var(--lb-color-stone-hover);
+    border-color: var(--lb-color-line-strong);
+  }
+  .pz-btn--primario:hover:not(:disabled) {
+    background: var(--lb-color-brass-bright);
+    border-color: var(--lb-color-brass-bright);
+  }
+}
+@media (pointer: coarse) {
+  .pz-btn--sm {
+    min-height: 44px;
+  }
+}
+
+.pz-rotulo {
+  font: 500 11.5px/1.3 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  letter-spacing: 0.02em;
+}
+.pz-legenda {
+  margin-bottom: 8px;
+}
+.pz-nota {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.pz-nota--dif {
+  margin-top: 6px;
+}
+.pz-aviso {
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  color: var(--pz-ruim);
+  font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- lago */
+
+.pz-palco {
+  position: relative;
+  overflow: hidden;
+  background: var(--pz-caverna);
+  min-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pz-palco canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.pz-mesa {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  max-width: calc(60% - 12px);
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-md);
+  background: color-mix(in srgb, var(--pz-caverna) 78%, transparent);
+  border: 1px solid var(--lb-color-line);
+  font: 500 11.5px/1.35 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  pointer-events: none;
+}
+.pz-mesa span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pz-mesa b {
+  font-weight: 500;
+  color: var(--lb-color-parchment);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.pz-palco__lago {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  max-width: 40%;
+  padding: 5px 8px;
+  border-radius: var(--lb-radius-full);
+  background: color-mix(in srgb, var(--pz-caverna) 72%, transparent);
+  font: 500 11.5px/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- coluna */
+
+.pz-coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-left: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+}
+.pz-tela {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* convite */
+.pz-npc {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.pz-npc__retrato {
+  width: 56px;
+  height: 60px;
+  image-rendering: pixelated;
+  border-radius: var(--lb-radius-md);
+  background: #26221e;
+  border: 1px solid var(--lb-color-line-strong);
+}
+.pz-npc h1 {
+  font: 600 17px/1.25 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+.pz-npc p {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+  overflow-wrap: anywhere;
+}
+.pz-fala {
+  padding: 12px 14px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--pz-fundo-fala);
+  border: 1px solid color-mix(in srgb, var(--lb-color-brass) 20%, transparent);
+  color: var(--pz-texto-fala);
+  font: 15px/1.5 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+.pz-cartoes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pz-cartao {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 12px;
+  border-radius: var(--lb-radius-lg);
+  border: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-raised);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.pz-cartao input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.pz-cartao b {
+  font: 600 14px/1.2 var(--lb-font-sans);
+}
+.pz-cartao span {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment-dim);
+}
+.pz-cartao:has(input:checked) {
+  border-color: var(--lb-color-brass);
+  background: #29231a;
+}
+.pz-cartao:has(input:focus-visible) {
+  box-shadow: var(--lb-shadow-focus);
+}
+.pz-cartao:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pz-premios {
+  display: grid;
+  gap: 8px;
+}
+.pz-premios div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+.pz-premios dd {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.pz-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* Texto corrido com teclas dentro: quebra como frase (em flex, o ponto final ficava sozinho na linha). */
+.pz-teclas {
+  font-size: 12px;
+  line-height: 22px;
+  color: var(--lb-color-parchment-faint);
+}
+.pz-teclas kbd {
+  margin: 0 1px;
+}
+
+/* o lance */
+.pz-tela--jogo {
+  padding: 14px;
+  gap: 10px;
+  overflow: hidden;
+}
+.pz-hud {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+}
+.pz-hud__pausa {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: start;
+}
+.pz-hud__fase {
+  font: 600 16px/1.3 var(--lb-font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.pz-hud__fase[data-tom='alerta'] {
+  color: var(--lb-color-brass-bright);
+}
+.pz-hud__fase[data-tom='ruim'] {
+  color: var(--pz-ruim);
+}
+.pz-hud__fase[data-tom='bom'] {
+  color: var(--pz-bom);
+}
+.pz-hud__dica {
+  grid-column: 1 / -1;
+  min-height: 2.9em;
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+.pz-campo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Sem transição: segurar e soltar acontece várias vezes por segundo, e o retorno tem de ser na hora. */
+}
+.pz-campo[data-seg='1'] {
+  border-color: color-mix(in srgb, var(--pz-verde) 45%, transparent);
+  background: var(--pz-campo-segurando);
+}
+.pz-campo canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+
+/* resultado, cesto e encerrada */
+.pz-tela--resultado h2 {
+  font: 600 22px/1.2 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+.pz-tela--resultado h2[data-tom='ruim'] {
+  color: var(--pz-ruim);
+}
+.pz-res__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+.pz-placa {
+  display: grid;
+  place-items: center;
+  border-radius: var(--lb-radius-lg);
+  background: #0b1d23;
+  border: 1px solid var(--lb-color-line);
+  overflow: hidden;
+}
+.pz-placa canvas {
+  width: 100%;
+  max-width: 384px;
+  height: auto;
+  aspect-ratio: 64 / 34;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.pz-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pz-etq {
+  padding: 2px 8px;
+  border-radius: var(--lb-radius-full);
+  font: 500 11.5px/1.6 var(--lb-font-utility);
+  border: 1px solid currentColor;
+}
+.pz-etq[data-r='comum'] {
+  color: var(--pz-comum);
+}
+.pz-etq[data-r='incomum'] {
+  color: var(--pz-incomum);
+}
+.pz-etq[data-r='raro'] {
+  color: var(--pz-raro);
+}
+.pz-etq[data-r='lendario'] {
+  color: var(--pz-lendario);
+}
+.pz-etq[data-r='perfeito'] {
+  color: var(--pz-bom);
+}
+.pz-numeros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.pz-numeros div {
+  padding: 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  min-width: 0;
+}
+.pz-numeros dd {
+  font: 600 18px/1.25 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.pz-estrelas {
+  color: var(--lb-color-brass-bright);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.pz-estrelas span {
+  display: inline-block;
+}
+.pz-estrelas i {
+  font-style: normal;
+  color: #4a4740;
+}
+.pz-maior {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+.pz-maior b {
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+}
+.pz-cesto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pz-cesto li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+.pz-cesto li > span:first-of-type {
+  overflow-wrap: anywhere;
+}
+.pz-cesto canvas {
+  image-rendering: pixelated;
+}
+.pz-desfecho {
+  padding: 12px 14px;
+  border-radius: var(--lb-radius-md);
+  font-size: 13px;
+  background: var(--lb-color-stone-raised);
+  overflow-wrap: anywhere;
+}
+.pz-desfecho[data-tom='bom'] {
+  background: color-mix(in srgb, var(--pz-verde) 12%, transparent);
+  color: #cfe6d3;
+}
+.pz-desfecho[data-tom='ruim'] {
+  background: var(--lb-color-ember-soft);
+  color: var(--pz-ruim);
+}
+
+/*
+ * Entrada do resultado: raro (uma vez por lance), então ganha uma cascata
+ * curta do protótipo. Só opacidade e transform; o botão já responde durante.
+ */
+@keyframes pz-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes pz-estrela {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pz-tela--resultado > * {
+    animation: pz-entra 220ms var(--pz-ease-out) both;
+  }
+  .pz-tela--resultado > :nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .pz-tela--resultado > :nth-child(n + 3) {
+    animation-delay: 80ms;
+  }
+  .pz-tela--resultado .pz-numeros .pz-estrelas span {
+    animation: pz-estrela 180ms var(--pz-ease-out) both;
+  }
+  .pz-tela--resultado .pz-numeros .pz-estrelas span:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .pz-tela--resultado .pz-numeros .pz-estrelas span:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .pz-tela--resultado .pz-numeros .pz-estrelas span:nth-child(4) {
+    animation-delay: 180ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pz-tela--resultado {
+    animation: pz-aparece 200ms ease both;
+  }
+}
+
+/* pausa */
+.pz-pausa {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--pz-caverna) 62%, transparent);
+}
+.pz-pausa__caixa {
+  width: min(100%, 300px);
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line-panel);
+  box-shadow: var(--lb-shadow-float);
+}
+.pz-pausa__caixa h2 {
+  font: 600 16px/1.3 var(--lb-font-sans);
+}
+
+/* ---------------------------------------------------------------- celular */
+
+@media (max-width: 760px) {
+  .lb-pesca {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 30vh minmax(0, 1fr);
+    grid-template-rows: 30dvh minmax(0, 1fr);
+  }
+  .pz-coluna {
+    border-left: 0;
+    border-top: 1px solid var(--lb-color-line);
+  }
+  .pz-tela {
+    padding: 16px;
+  }
+  .pz-tela--jogo {
+    padding: 12px;
+  }
+  .pz-mesa {
+    left: 8px;
+    top: 8px;
+    padding: 6px 8px;
+  }
+  .pz-palco__lago {
+    right: 8px;
+    top: 8px;
+  }
+}

@@ -1,6 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pin } from '../types/map'
 import { PlayerPinCard } from './PlayerPinCard'
 
@@ -31,9 +31,11 @@ describe('PlayerPinCard: minigame', () => {
     container.remove()
   })
 
-  function render(pin: Pin): void {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} stairs={[]} />))
+  function render(pin: Pin, extra: { onPescar?: () => void; longe?: boolean } = {}): void {
+    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} stairs={[]} {...extra} />))
   }
+
+  const acoes = (): HTMLButtonElement[] => Array.from(container.querySelectorAll('button')).filter((b) => !b.className.includes('close'))
 
   it('mostra o controle, o título e o aviso, sem botão de ação', () => {
     render(pino())
@@ -52,5 +54,31 @@ describe('PlayerPinCard: minigame', () => {
   it('ícone que sobrou de quando era "!" não troca o controle', () => {
     render(pino({ icon: 'bau' }))
     expect(container.querySelector('.pp-pincard__title')?.textContent).toBe('Minigame')
+  })
+
+  it('dança pelo recorte (`minigameVisivel`): igual a hoje, só o aviso', () => {
+    render(pino({ minigameVisivel: { jogo: 'danca', entrada: 'mestre' } }), { onPescar: vi.fn() })
+    expect(container.textContent).toContain('Desafio de dança. O mestre chama quando for a hora.')
+    expect(acoes()).toEqual([])
+  })
+
+  it('pesca que o mestre chama: só o aviso, sem botão', () => {
+    render(pino({ minigameVisivel: { jogo: 'pesca', entrada: 'mestre' } }), { onPescar: vi.fn() })
+    expect(container.textContent).toContain('Pesca. O mestre chama quando for a hora.')
+    expect(container.textContent).not.toContain('Desafio de dança')
+    expect(acoes()).toEqual([])
+  })
+
+  it('pesca "Jogador toca no pino": "Pescar" pede a pesca; com a ficha longe, apagado e dizendo por quê', () => {
+    const onPescar = vi.fn()
+    render(pino({ minigameVisivel: { jogo: 'pesca', entrada: 'pino' } }), { onPescar })
+    const [pescar] = acoes()
+    expect(pescar.textContent).toBe('Pescar')
+    expect(pescar.disabled).toBe(false)
+    act(() => pescar.click())
+    expect(onPescar).toHaveBeenCalledTimes(1)
+    render(pino({ minigameVisivel: { jogo: 'pesca', entrada: 'pino' } }), { onPescar, longe: true })
+    expect(acoes()[0].disabled).toBe(true)
+    expect(container.textContent).toContain('Chegue mais perto para pescar.')
   })
 })
