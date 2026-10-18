@@ -69,6 +69,8 @@ import { copiarMinigame, passageOf, pinSummary } from '../lib/pins'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
+import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
+import { PESCA_PARTICIPANTES_MAX, type PescaPlayerMessage } from './protocoloDaPesca'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -1958,6 +1960,21 @@ export interface HostSession {
   /** A dança como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
   danca(): DancaAoVivo | null
   /**
+   * MINIGAME DE PESCA ("Mestre chama"): `pesca.convite` (o desafio do pino
+   * `pinId`) aos escolhidos que estão na sala e jogando, na ordem da sala, até
+   * `PESCA_PARTICIPANTES_MAX`. Entram na sessão do pino se ela ainda tem
+   * alguém pescando; senão abre outra. Recusa pino que não é de pesca e lista
+   * sem ninguém válido (quem já pesca em algum pino não conta).
+   */
+  convidarParaPesca(pinId: string, playerIds: readonly string[], source: HostMapSource): HostResult & { convite: PescaConviteResultado }
+  /** Pausa e retoma a pesca do pino para todos que estão nela. `ok: false` = sem sessão naquela fase. */
+  pausarPesca(pinId: string): HostResult & { ok: boolean }
+  retomarPesca(pinId: string): HostResult & { ok: boolean }
+  /** Encerra a pesca do pino: quem ainda estava no jogo recebe `pesca.encerra`. Sem efeito nenhum. */
+  encerrarPesca(pinId: string): HostResult & { ok: boolean }
+  /** Cada pino com pesca (aberta, pausada ou a última encerrada), como o painel do MESTRE lê. */
+  pesca(): PescaAoVivo[]
+  /**
    * ABALO POR DISTÂNCIA: a cada jogador que joga e está numa cena agora, o
    * texto da FAIXA dele (`lib/abalo.ts`): `perto` na cena da origem, `andar`
    * nas cenas de `vizinhas`, `longe` no resto. Faixa com texto vazio não manda
@@ -3349,6 +3366,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const secretChecks = new Map<string, SecretCheckRecord>()
   // MINIGAME DE DANÇA: a dança ativa (uma por vez) e a última, para o painel.
   const dancaNoHost = criarDancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
+  // MINIGAME DE PESCA: uma sessão por pino (a de agora ou a última), para o painel.
+  const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
   const lostSecretCheckCard = new Set<string>()
@@ -5236,6 +5255,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...personagensUpdate(clientId, playerId, world))
     // DANÇA: no convite, o convite de novo; no meio da música, a aba nova perdeu a música e sai.
     outbound.push(...dancaNoHost.entrou(playerId))
+    // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
+    outbound.push(...pescaNoHost.entrou(playerId))
     return outbound
   }
 
@@ -9066,6 +9087,49 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: dancaNoHost.fim(playerId, msg) }
   }
 
+  /**
+   * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
+   * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
+   * sem pausa, pino de pesca que chega ao recorte DELE e uma ficha dele
+   * encostada (`tokenReachesPin`, a mesma da alavanca e do item no chão). O
+   * resto (sessão, fase, participante) é de `pescaNoHost`; o que não vale
+   * morre calado.
+   */
+  function handlePesca(clientId: string, msg: PescaPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    switch (msg.type) {
+      case 'pesca.pedir':
+        return pedirPesca(playerId, msg.pinId, world)
+      case 'pesca.pronto':
+        return { outbound: pescaNoHost.pronto(playerId, msg) }
+      case 'pesca.vivo':
+        return { outbound: pescaNoHost.vivo(playerId, msg) }
+      case 'pesca.lance':
+        return { outbound: pescaNoHost.lance(playerId, msg) }
+      case 'pesca.fim':
+        return { outbound: pescaNoHost.fim(playerId, msg) }
+    }
+  }
+
+  function pedirPesca(playerId: string, pinId: string, world: HostWorld): HostResult {
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'pesca') return { outbound: [] }
+    const memory = memoryFor(playerId, map, world)
+    // "Quem vê" entra no recorte: pino que não chega a este jogador não se pede.
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return { outbound: [] }
+    const { outbound } = pescaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    return { outbound }
+  }
+
   /** Cada mensagem já validada vai ao seu tratador. */
   function routeMessage(clientId: string, msg: PlayerMessage, world: HostWorld): HostResult {
     switch (msg.type) {
@@ -9194,6 +9258,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'danca.toques':
       case 'danca.fim':
         return handleDanca(clientId, msg)
+      case 'pesca.pedir':
+      case 'pesca.pronto':
+      case 'pesca.vivo':
+      case 'pesca.lance':
+      case 'pesca.fim':
+        return handlePesca(clientId, msg, world)
     }
   }
 
@@ -10133,7 +10203,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // A conexão nova começa do zero: o recorte que a antiga tinha não vale para ela.
       lastViews.delete(playerId)
       // DANÇA: quem dançava e caiu não passou; se era o último na pista, sai o desfecho.
-      return comDesfechoDaDanca({ outbound: dancaNoHost.caiu(playerId) })
+      // PESCA: quem pescava e caiu sai; quem estava só convidado recebe o convite de novo ao voltar.
+      return comDesfechoDaDanca({ outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId)] })
     },
 
     kick(clientId) {
@@ -10155,7 +10226,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
       viewEpoch += 1
       // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
-      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId)] })
+      // PESCA: o expulso sai da pesca (do convite, ou da água).
+      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId)] })
     },
 
     confirmReturn(playerId, previousId, source) {
@@ -10857,6 +10929,42 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     danca() {
       return dancaNoHost.aoVivo()
+    },
+
+    convidarParaPesca(pinId, playerIds, source) {
+      const world = toWorld(source)
+      const pin = allScenes(world)
+        .flatMap((scene) => scene.map.pins)
+        .find((p) => p.id === pinId)
+      const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
+      if (desafio === undefined || desafio.jogo !== 'pesca') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      const convidados = inRoomOrder(new Set(playerIds))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
+        })
+        .slice(0, PESCA_PARTICIPANTES_MAX)
+      const { outbound, resultado } = pescaNoHost.convidar({ pinId, minigame: copiarMinigame(desafio) }, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    pausarPesca(pinId) {
+      const outbound = pescaNoHost.pausar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarPesca(pinId) {
+      const outbound = pescaNoHost.retomar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarPesca(pinId) {
+      const outbound = pescaNoHost.encerrar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    pesca() {
+      return pescaNoHost.aoVivo()
     },
 
     abalo(origem, textos, vizinhas, source) {

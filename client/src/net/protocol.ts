@@ -40,6 +40,7 @@ import {
 } from './protocoloDoPersonagem'
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
+import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 
 export type { OwnTokenElsewhere }
 
@@ -375,6 +376,10 @@ export type { OwnTokenElsewhere }
  * O MINIGAME DE DANÇA é aditivo pelo mesmo critério (`protocoloDaDanca.ts`):
  * o convite só aos escolhidos, os toques de cada um só aos OUTROS que dançam,
  * e a consequência e a porta ligada nunca saem do mestre.
+ *
+ * O MINIGAME DE PESCA também (`protocoloDaPesca.ts`): o convite só a quem
+ * entra (o chamado pelo mestre, ou quem pediu de perto do pino), e o que cada
+ * um faz na água vai só ao mestre.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -1118,6 +1123,8 @@ export type PlayerMessage =
   | LivroPlayerMessage
   // MINIGAME DE DANÇA: pronto, lote de toques e placar final (`protocoloDaDanca.ts`).
   | DancaPlayerMessage
+  // MINIGAME DE PESCA: pedir, pronto, vivo, lance e cesto (`protocoloDaPesca.ts`).
+  | PescaPlayerMessage
   | MyNotesSetMessage
 
 /**
@@ -1954,6 +1961,8 @@ export type HostMessage =
   | LivroHostMessage
   // MINIGAME DE DANÇA: convite, estado, começar, pausa, colegas e desfecho (`protocoloDaDanca.ts`).
   | DancaHostMessage
+  // MINIGAME DE PESCA: convite, estado, pausa e encerramento (`protocoloDaPesca.ts`).
+  | PescaHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -3149,6 +3158,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'danca.toques':
     case 'danca.fim':
       return parseDancaPlayerMessage(value)
+    case 'pesca.pedir':
+    case 'pesca.pronto':
+    case 'pesca.vivo':
+    case 'pesca.lance':
+    case 'pesca.fim':
+      return parsePescaPlayerMessage(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
     case 'pin.travel.cancel':

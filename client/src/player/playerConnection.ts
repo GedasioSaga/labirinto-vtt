@@ -163,6 +163,16 @@ import { lembrarCena, type CenaLembrada } from './meuCaderno'
 import type { DificuldadeDanca } from '../minigames/danca/tipos'
 import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type DancaPlacarAoVivo, type DancaPlacarFinal, type DancaPlayerMessage } from '../net/protocoloDaDanca'
 import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
+import type { DificuldadePesca } from '../minigames/pesca/tipos'
+import {
+  parsePescaHostMessage,
+  parsePescaPlayerMessage,
+  PESCA_VIVO_INTERVALO_MS,
+  type PescaDesfechoDoLance,
+  type PescaPlayerMessage,
+  type PescaVivo,
+} from '../net/protocoloDaPesca'
+import { pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance, type PescaDoJogador } from './estadoDaPesca'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -555,6 +565,13 @@ export interface PlayerState {
    * puro (`player/estadoDaDanca.ts`). Sai com `fecharDanca`, ou com a sala.
    */
   danca?: DancaDoJogador
+  /**
+   * MINIGAME DE PESCA: o convite (do mestre, ou a volta do "Pescar" deste
+   * jogador), o que chegou depois (estado, pausa, encerramento) e os lances
+   * que ele já mandou, como estado puro (`player/estadoDaPesca.ts`). Sai com
+   * `fecharPesca`, ou com a sala.
+   */
+  pesca?: PescaDoJogador
   /**
    * O que houve com o cartão do teste secreto que acabou de fechar: `sent` (a
    * resposta saiu para o mestre) ou `closed` (o mestre encerrou antes). Some
@@ -1340,6 +1357,34 @@ export interface PlayerConnection {
   /** DANÇA: a tela fechou o resultado (ou o aviso de encerrada): o estado da dança sai. */
   fecharDanca(): void
   /**
+   * PESCA ("Jogador toca no pino"): pede para pescar no pino `pinId`. O
+   * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
+   * fora do jogo, com pino que não é de pesca "Jogador toca no pino" no mapa
+   * dele, com uma pesca aberta na tela ou com o socket fechado.
+   */
+  pedirPesca(pinId: string): boolean
+  /**
+   * PESCA: "Ir pescar" com a dificuldade escolhida — daí em diante ele está
+   * pescando. `false` sem convite aberto, com a dificuldade que o mestre não
+   * permitiu, com Pronto já mandado ou com o socket fechado.
+   */
+  prontoPesca(dificuldade: DificuldadePesca): boolean
+  /**
+   * PESCA: o que a tela mostra agora (fase, lance k de N, medidor), para o
+   * placar do mestre. No máximo um a cada `PESCA_VIVO_INTERVALO_MS`: o de
+   * antes do prazo não sai (`false`), e o próximo leva o valor novo.
+   */
+  vivoPesca(vivo: Omit<PescaVivo, 'de'>): boolean
+  /** PESCA: o desfecho de um lance; o peixe do `pegou` entra no cesto. Uma vez por lance. */
+  lancePesca(lance: { lance: number } & PescaDesfechoDoLance): boolean
+  /** PESCA: acabaram os lances — o cesto vai ao mestre. Uma vez só; depois dele nada sai. */
+  fimPesca(): boolean
+  /**
+   * PESCA: a tela fechou. No meio da pesca, o cesto que já tem vai ao mestre
+   * (ele desistiu dos lances que faltavam); depois o estado da pesca sai.
+   */
+  fecharPesca(): void
+  /**
    * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": pede ao mestre para ver a
    * cena da ficha `tokenId`. O mapa novo vem no snapshot da resposta. `false`
    * (e nada sai) quando a ficha não está na lista de fora ou o socket caiu.
@@ -1872,6 +1917,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  /** PESCA: `performance.now()` do último `pesca.vivo` que saiu (no máximo 4 por segundo). */
+  let ultimoVivoDaPesca = Number.NEGATIVE_INFINITY
   let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearMapSharedTimer(): void {
@@ -2927,6 +2974,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    */
   function enviarDanca(message: DancaPlayerMessage): boolean {
     const conferida = parseDancaPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
+  /** PESCA: a mesma conferência do host antes de sair, como a dança. */
+  function enviarPesca(message: PescaPlayerMessage): boolean {
+    const conferida = parsePescaPlayerMessage(message)
     return conferida !== null && send(conferida)
   }
 
@@ -4013,6 +4066,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (danca !== state.danca) setState({ danca })
         return
       }
+      case 'pesca.convite':
+      case 'pesca.estado':
+      case 'pesca.pausa':
+      case 'pesca.retoma':
+      case 'pesca.encerra': {
+        // A tela da mesa só olha: a pesca é de quem entrou nela.
+        if (isTable) return
+        const msg = parsePescaHostMessage(data)
+        if (msg === null) return
+        const pesca = receberPesca(state.pesca, msg, performance.now())
+        if (pesca !== state.pesca) setState({ pesca })
+        return
+      }
       case 'secret.check': {
         // Mesma regra do recado: só com o mapa na tela há onde mostrar o cartão.
         if (state.status !== 'playing') return
@@ -4301,7 +4367,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'kicked':
         writeResume(storage, null)
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -4334,7 +4400,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -4351,7 +4417,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -4363,7 +4429,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'kicked') {
           writeResume(storage, null)
           clearReconnectTimers()
-          setState({ status: 'kicked', danca: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -5075,6 +5141,60 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     fecharDanca() {
       if (state.danca !== undefined) setState({ danca: undefined })
+    },
+
+    pedirPesca(pinId) {
+      if (state.status !== 'playing') return false
+      // Uma pesca por vez na tela: a aberta fecha antes de pedir outra.
+      if (state.pesca !== undefined && state.pesca.encerrada === undefined && !state.pesca.fimEnviado) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'minigame' || pin.minigameVisivel?.jogo !== 'pesca' || pin.minigameVisivel.entrada !== 'pino') return false
+      return enviarPesca({ type: 'pesca.pedir', pinId })
+    },
+
+    prontoPesca(dificuldade) {
+      const pesca = state.pesca
+      if (!pescaAceitaPronto(pesca)) return false
+      // "Só Extremo" do mestre: o host recusaria calado, e a tela ficaria pescando sem placar.
+      const permitida = pesca.convite.permitida
+      if (permitida !== 'escolha' && permitida !== dificuldade) return false
+      if (!enviarPesca({ type: 'pesca.pronto', sessao: pesca.sessao, dificuldade })) return false
+      setState({ pesca: { ...pesca, pronto: dificuldade } })
+      return true
+    },
+
+    vivoPesca(vivo) {
+      const pesca = state.pesca
+      if (!pescaNaAgua(pesca)) return false
+      const agora = performance.now()
+      if (agora - ultimoVivoDaPesca < PESCA_VIVO_INTERVALO_MS) return false
+      if (!enviarPesca({ type: 'pesca.vivo', sessao: pesca.sessao, ...vivo, de: pesca.convite.lances })) return false
+      ultimoVivoDaPesca = agora
+      return true
+    },
+
+    lancePesca(lance) {
+      const pesca = state.pesca
+      if (!pescaNaAgua(pesca)) return false
+      const registrada = registrarLance(pesca, lance)
+      if (registrada === null || !enviarPesca({ type: 'pesca.lance', sessao: pesca.sessao, ...lance })) return false
+      setState({ pesca: registrada })
+      return true
+    },
+
+    fimPesca() {
+      const pesca = state.pesca
+      if (!pescaNaAgua(pesca) || !enviarPesca({ type: 'pesca.fim', sessao: pesca.sessao, cesto: pesca.cesto })) return false
+      setState({ pesca: { ...pesca, fimEnviado: true } })
+      return true
+    },
+
+    fecharPesca() {
+      const pesca = state.pesca
+      if (pesca === undefined) return
+      // Desistiu no meio: o mestre fica sabendo do cesto que ele tem, em vez de vê-lo pescando para sempre.
+      if (pescaNaAgua(pesca)) enviarPesca({ type: 'pesca.fim', sessao: pesca.sessao, cesto: pesca.cesto })
+      setState({ pesca: undefined })
     },
 
     answerSecretCheck(result) {
