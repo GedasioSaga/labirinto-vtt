@@ -28,14 +28,25 @@ export const SELETOR_LIVRE_NO_OLHAR = '[data-camera-livre], .pp-zoom'
  */
 export const SELETOR_DA_DANCA = '.lb-danca'
 
-/** O alvo do evento é parte da câmera ou da tela da dança (livres no Olhar)? */
+/**
+ * MINIGAME DE PESCA: a raiz da tela da pesca (`PescaOverlay.tsx`). Abre pelo
+ * convite do mestre ou pelo "Pescar" do próprio jogador de teste: dentro
+ * dela, apertar, clicar e teclar passam no Olhar (a dificuldade, o lance, a
+ * puxada, o "Fechar"), como na dança.
+ */
+export const SELETOR_DA_PESCA = '.lb-pesca'
+
+/** As telas de minigame, livres no Olhar. */
+const SELETOR_DOS_MINIGAMES = `${SELETOR_DA_DANCA}, ${SELETOR_DA_PESCA}`
+
+/** O alvo do evento é parte da câmera ou da tela de um minigame (livres no Olhar)? */
 export function alvoLivreNoOlhar(alvo: EventTarget | null): boolean {
-  return alvo instanceof Element && (alvo.closest(SELETOR_LIVRE_NO_OLHAR) !== null || alvo.closest(SELETOR_DA_DANCA) !== null)
+  return alvo instanceof Element && (alvo.closest(SELETOR_LIVRE_NO_OLHAR) !== null || alvo.closest(SELETOR_DOS_MINIGAMES) !== null)
 }
 
-/** A tela da dança está aberta nesta página? */
-function dancaAberta(documento: Document): boolean {
-  return documento.querySelector(SELETOR_DA_DANCA) !== null
+/** A tela da dança ou da pesca está aberta nesta página? */
+function minigameAberto(documento: Document): boolean {
+  return documento.querySelector(SELETOR_DOS_MINIGAMES) !== null
 }
 
 /** Teclas que acionam o controle com foco (botão, link): no Olhar elas dão o recado. */
@@ -106,13 +117,13 @@ export function criarBloqueioDoOlhar(ativo: () => boolean, aoBloquear: () => voi
  * atalhos da tela do jogador ouvem na `window` (a mochila no "i", os do
  * painel). Barra na captura da `window`, antes de todos. Devolve o desligar.
  *
- * Com a tela da DANÇA aberta, a guarda sai do caminho: a pista ouve as setas
+ * Com a tela da DANÇA ou da PESCA aberta, a guarda sai do caminho: o jogo ouve as teclas
  * na captura da `window` (depois desta guarda, que se instalou antes) e ela
  * mesma não deixa a tecla seguir para o mapa e os atalhos atrás dela.
  */
 export function instalarGuardaDeTeclado(janela: Window, ativo: () => boolean): () => void {
   const guarda = (evento: KeyboardEvent) => {
-    if (!ativo() || teclaLivre(evento.key) || dancaAberta(janela.document)) return
+    if (!ativo() || teclaLivre(evento.key) || minigameAberto(janela.document)) return
     const alvo = evento.target
     const semFoco = alvo === janela.document.body || alvo === janela.document.documentElement || alvo === janela.document || alvo === janela
     if (semFoco) evento.stopImmediatePropagation()

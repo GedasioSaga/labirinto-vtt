@@ -190,7 +190,7 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
     await ponteReal.start()
 
     const janela = await abrirJanela(ANA.id)
-    expect(controlador.estado()).toEqual({ aberta: true, ficha: expect.objectContaining({ id: ANA.id, dono: 'Bia' }), danca: null, jogadores: [] })
+    expect(controlador.estado()).toEqual({ aberta: true, ficha: expect.objectContaining({ id: ANA.id, dono: 'Bia' }), danca: null, pesca: [], jogadores: [] })
 
     await vi.waitFor(() => expect(janela.conexao().getState().ownTokens).toEqual([ANA.id]))
     const estado = janela.conexao().getState()
@@ -206,7 +206,7 @@ describe('Visão de jogador — controlador + ponte de teste + cliente de verdad
     controlador.fechar()
     await vi.waitFor(() => expect(janela.conexao().getState().status).toBe('closed'))
     expect(janelaFalsa.fechar).toHaveBeenCalledTimes(1)
-    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, jogadores: [] })
+    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, pesca: [], jogadores: [] })
     expect(controlador.ponte()).toBeNull()
 
     // A mesa de verdade não soube de nada.

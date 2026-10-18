@@ -1,17 +1,12 @@
 import type { HostBridge } from '../net/hostBridge'
 import type { PescaAoVivo } from '../net/pescaNoHost'
+import type { EstadoDaVisao } from '../net/visaoDeTeste/visaoDeTeste'
+import { PREFIXO_DO_TESTE } from './dancaNoPainel'
 import type { JogadorDaPesca, PescaAoVivoProps } from './PescaAoVivo'
 
 /**
- * POR ONDE O PAINEL DO PINO CHAMA A PESCA (irmão do `dancaNoPainel.ts`).
- * Por enquanto só a ponte da SALA de verdade.
- *
- * PONTO DE ENCAIXE DA VISÃO DE JOGADOR (fase 5 do plano da pesca): quando a
- * ponte de teste ganhar a pesca, `pescaNoPainel` recebe um `TesteDaPesca`
- * ({ estado, ponte }) ANTES da sala e, com o teste aberto, devolve
- * `pescaPela(pinId, { players: jogadores do teste com o PREFIXO_DO_TESTE,
- * pescas: estado.pesca, ponte: teste.ponte })` — como `dancaNoPainel` faz.
- * O resto (o painel, os comandos) não muda.
+ * POR ONDE O PAINEL DO PINO CHAMA A PESCA (irmão do `dancaNoPainel.ts`): a
+ * ponte de TESTE quando a Visão de jogador está aberta, senão a da SALA.
  */
 
 /** Os comandos da pesca que o painel manda (a ponte da sala; a de teste terá os mesmos). */
@@ -44,7 +39,22 @@ function pescaPela(pinId: string, fonte: FonteDaPesca): PescaNoPainel {
   }
 }
 
-/** A pesca ao vivo do painel do pino `pinId`; `null` = sala fechada (o painel pede para abrir). */
-export function pescaNoPainel(pinId: string, sala: SalaDaPesca): PescaNoPainel | null {
+/** A VISÃO DE JOGADOR: o estado do teste e a ponte DELE (outra a cada geração). */
+export interface TesteDaPesca {
+  estado: EstadoDaVisao
+  ponte: () => PonteDaPesca | null
+}
+
+/**
+ * A pesca ao vivo do painel do pino `pinId`. Com a Visão de jogador aberta, a
+ * do TESTE (mesmo com a sala aberta ao lado): quem o painel chama é o jogador
+ * de teste, com o mesmo prefixo da dança. `null` = sala fechada e sem teste
+ * (o painel pede para abrir).
+ */
+export function pescaNoPainel(pinId: string, teste: TesteDaPesca, sala: SalaDaPesca): PescaNoPainel | null {
+  if (teste.estado.aberta) {
+    const players = teste.estado.jogadores.map(({ playerId, name }) => ({ playerId, name: `${PREFIXO_DO_TESTE}${name}` }))
+    return pescaPela(pinId, { players, pescas: teste.estado.pesca, ponte: teste.ponte })
+  }
   return sala.aberta ? pescaPela(pinId, sala) : null
 }

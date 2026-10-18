@@ -70,7 +70,7 @@ import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
-import { PESCA_PARTICIPANTES_MAX, type PescaPlayerMessage } from './protocoloDaPesca'
+import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -9100,7 +9100,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     switch (msg.type) {
       case 'pesca.pedir':
-        return pedirPesca(playerId, msg.pinId, world)
+        return pedirPesca(clientId, playerId, msg.pinId, world)
       case 'pesca.pronto':
         return { outbound: pescaNoHost.pronto(playerId, msg) }
       case 'pesca.vivo':
@@ -9112,21 +9112,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
-  function pedirPesca(playerId: string, pinId: string, world: HostWorld): HostResult {
+  function pedirPesca(clientId: string, playerId: string, pinId: string, world: HostWorld): HostResult {
     const record = players.get(playerId)
+    // Fora do jogo (mesa, removido) morre calado: não há tela para o aviso.
     if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    // O resto volta com o motivo curto: sem isto o cartão fechava e o jogador ficava esperando um convite que não vem.
+    const recusa = (motivo: PescaMotivoDaRecusa): HostResult => reply(clientId, { type: 'pesca.recusado', pinId, motivo })
     const scene = sceneFor(playerId, world)
-    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
     const map = scene.map
     const pin = map.pins.find((p) => p.id === pinId)
-    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'pesca') return { outbound: [] }
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'pesca') return recusa('indisponivel')
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: pino que não chega a este jogador não se pede.
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
-    if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
+    if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return { outbound: [] }
-    const { outbound } = pescaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    const { outbound, resultado } = pescaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    if (!resultado.ok) return recusa(resultado.motivo === 'ocupado' ? 'ocupado' : 'indisponivel')
     return { outbound }
   }
 

@@ -123,7 +123,23 @@ export interface PescaEncerraMessage {
   motivo: PescaMotivoDoFim
 }
 
-export type PescaHostMessage = PescaConviteMessage | PescaEstadoMessage | PescaPausaMessage | PescaEncerraMessage
+/**
+ * Por que o host não deixou o jogador pescar no pino ("Jogador toca no pino"):
+ * longe = nenhuma ficha dele encostada; ocupado = ele já pesca noutro pino;
+ * indisponivel = o resto (cena em pausa, pino que mudou ou sumiu do recorte).
+ */
+export type PescaMotivoDaRecusa = 'longe' | 'ocupado' | 'indisponivel'
+
+export const PESCA_MOTIVOS_DA_RECUSA: readonly PescaMotivoDaRecusa[] = ['longe', 'ocupado', 'indisponivel']
+
+/** A recusa do `pesca.pedir`: sem sessão (nenhuma começou), só o pino e o motivo curto. */
+export interface PescaRecusadoMessage {
+  type: 'pesca.recusado'
+  pinId: string
+  motivo: PescaMotivoDaRecusa
+}
+
+export type PescaHostMessage = PescaConviteMessage | PescaEstadoMessage | PescaPausaMessage | PescaEncerraMessage | PescaRecusadoMessage
 
 export interface PescaPedirMessage {
   type: 'pesca.pedir'
@@ -243,7 +259,13 @@ function lerTexto(value: unknown, max: number): { texto: string } | null {
 
 /** Do mestre, no jogador. O host é de confiança, mas a mensagem torta cai inteira em vez de virar meia tela. */
 export function parsePescaHostMessage(value: unknown): PescaHostMessage | null {
-  if (!isRecord(value) || !sessaoValida(value.sessao)) return null
+  if (!isRecord(value)) return null
+  // A recusa vem antes de haver sessão: é a única sem `sessao`.
+  if (value.type === 'pesca.recusado') {
+    const motivo = umDaLista(PESCA_MOTIVOS_DA_RECUSA, value.motivo)
+    return idValido(value.pinId) && motivo !== undefined ? { type: 'pesca.recusado', pinId: value.pinId, motivo } : null
+  }
+  if (!sessaoValida(value.sessao)) return null
   const sessao = value.sessao
   switch (value.type) {
     case 'pesca.convite': {

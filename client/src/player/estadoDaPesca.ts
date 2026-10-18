@@ -5,6 +5,7 @@ import type {
   PescaDesfechoDoLance,
   PescaEstadoMessage,
   PescaHostMessage,
+  PescaMotivoDaRecusa,
   PescaMotivoDoFim,
 } from '../net/protocoloDaPesca'
 
@@ -39,7 +40,25 @@ export interface PescaDoJogador {
  * zero; o mesmo convite de novo (a volta da conexão) guarda o que já houve. O
  * resto só vale para a sessão que está na tela — de outra, é atrasada e cai.
  */
-export function receberPesca(atual: PescaDoJogador | undefined, msg: PescaHostMessage, agora: number): PescaDoJogador | undefined {
+/** O que o host manda DENTRO de uma sessão (a recusa vem antes de haver uma: `textoDaRecusaDaPesca`). */
+export type PescaDaSessaoMessage = Exclude<PescaHostMessage, { type: 'pesca.recusado' }>
+
+/** Quanto o aviso da recusa fica na tela. */
+export const PESCA_RECUSA_AVISO_MS = 4000
+
+/** O aviso curto quando o host não deixou pescar no pino (o cartão já fechou). */
+export function textoDaRecusaDaPesca(motivo: PescaMotivoDaRecusa): string {
+  switch (motivo) {
+    case 'longe':
+      return 'Chegue mais perto do pino para pescar.'
+    case 'ocupado':
+      return 'Você já está pescando.'
+    case 'indisponivel':
+      return 'Não dá para pescar aí agora.'
+  }
+}
+
+export function receberPesca(atual: PescaDoJogador | undefined, msg: PescaDaSessaoMessage, agora: number): PescaDoJogador | undefined {
   if (msg.type === 'pesca.convite') {
     const { type: _type, ...convite } = msg
     if (atual !== undefined && atual.sessao === msg.sessao) return { ...atual, convite }

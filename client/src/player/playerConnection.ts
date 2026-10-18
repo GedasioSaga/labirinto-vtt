@@ -171,8 +171,9 @@ import {
   type PescaDesfechoDoLance,
   type PescaPlayerMessage,
   type PescaVivo,
+  type PescaMotivoDaRecusa,
 } from '../net/protocoloDaPesca'
-import { pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance, type PescaDoJogador } from './estadoDaPesca'
+import { PESCA_RECUSA_AVISO_MS, pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance, type PescaDoJogador } from './estadoDaPesca'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -572,6 +573,8 @@ export interface PlayerState {
    * `fecharPesca`, ou com a sala.
    */
   pesca?: PescaDoJogador
+  /** PESCA "Jogador toca no pino": o host não deixou (`pesca.recusado`); some sozinho em `PESCA_RECUSA_AVISO_MS`. */
+  pescaRecusada?: { id: number; pinId: string; motivo: PescaMotivoDaRecusa }
   /**
    * O que houve com o cartão do teste secreto que acabou de fechar: `sent` (a
    * resposta saiu para o mestre) ou `closed` (o mestre encerrou antes). Some
@@ -4070,11 +4073,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'pesca.estado':
       case 'pesca.pausa':
       case 'pesca.retoma':
-      case 'pesca.encerra': {
+      case 'pesca.encerra':
+      case 'pesca.recusado': {
         // A tela da mesa só olha: a pesca é de quem entrou nela.
         if (isTable) return
         const msg = parsePescaHostMessage(data)
         if (msg === null) return
+        if (msg.type === 'pesca.recusado') {
+          if (state.status !== 'playing') return
+          const id = nextNoticeId++
+          setState({ pescaRecusada: { id, pinId: msg.pinId, motivo: msg.motivo } })
+          setTimeout(() => {
+            // Só apaga o próprio aviso: uma recusa nova no meio tem o seu tempo.
+            if (state.pescaRecusada?.id === id) setState({ pescaRecusada: undefined })
+          }, PESCA_RECUSA_AVISO_MS)
+          return
+        }
         const pesca = receberPesca(state.pesca, msg, performance.now())
         if (pesca !== state.pesca) setState({ pesca })
         return

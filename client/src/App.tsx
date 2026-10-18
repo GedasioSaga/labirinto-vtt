@@ -2473,12 +2473,11 @@ function App() {
    * MINIGAME aberto no painel: o desafio (gravado inteiro no pino, com
    * desfazer), a porta que a dança abre (a mesma lista da alavanca) e, com a
    * sala aberta, o jogo ao vivo. O painel escolhe pelo jogo do pino
-   * (`MinigameControls`): a pesca ao vivo sai de `pescaNoPainel` (só a sala,
-   * por enquanto; a Visão de jogador entra na fase 5), e o `dancaNoPainel`
-   * só chama para dançar o pino de dança (`hostSession.convidarParaDanca`). Chama só quem está jogando e com a página
-   * aberta: a sessão recusaria o resto (`hostSession.convidarParaDanca`).
-   * Com a VISÃO DE JOGADOR aberta, a dança ao vivo é a do teste, mesmo com a
-   * sala aberta ao lado (`dancaNoPainel`).
+   * (`MinigameControls`): a pesca ao vivo sai de `pescaNoPainel`, e o
+   * `dancaNoPainel` só chama para dançar o pino de dança
+   * (`hostSession.convidarParaDanca`). Chama só quem está jogando e com a
+   * página aberta: a sessão recusaria o resto. Com a VISÃO DE JOGADOR aberta,
+   * a dança e a pesca ao vivo são as do teste, mesmo com a sala aberta ao lado.
    */
   const minigamePanel = (pin: Pin) => ({
     pinId: pin.id,
@@ -2501,7 +2500,7 @@ function App() {
         ponte: () => hostBridgeRef.current,
       },
     ),
-    aoVivoDaPesca: pescaNoPainel(pin.id, {
+    aoVivoDaPesca: pescaNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       pescas,

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MinigameControls } from '../../../../components/MinigameControls'
 import type { PescaAoVivo, PescaParticipanteNoMestre } from '../../../../net/pescaNoHost'
-import type { PescaHostMessage, PescaStatus } from '../../../../net/protocoloDaPesca'
-import { receberPesca, registrarLance, type PescaDoJogador } from '../../../../player/estadoDaPesca'
+import type { PescaStatus } from '../../../../net/protocoloDaPesca'
+import { receberPesca, registrarLance, type PescaDaSessaoMessage, type PescaDoJogador } from '../../../../player/estadoDaPesca'
 import { useSomStore } from '../../../../stores/somStore'
 import { themeCss } from '../../../../theme'
 import type { MinigameDoPino } from '../../../tipos'
@@ -51,7 +51,7 @@ const ouvintes = new Set<() => void>()
 function emitir(): void {
   for (const o of ouvintes) o()
 }
-function enviar(msg: PescaHostMessage): void {
+function enviar(msg: PescaDaSessaoMessage): void {
   atual = receberPesca(atual, msg, performance.now())
   emitir()
 }

@@ -31,6 +31,13 @@ export const MENSAGENS_AUTOMATICAS: ReadonlySet<string> = new Set(['join', 'ping
  */
 export const MENSAGENS_DA_DANCA: ReadonlySet<string> = new Set(['danca.pronto', 'danca.toques', 'danca.fim'])
 
+/**
+ * MINIGAME DE PESCA: idem para a tela da pesca que o mestre abriu pelo convite
+ * (a dificuldade, o andamento, cada lance e o cesto). O `pesca.pedir` NÃO está
+ * aqui: tocar no pino é agir como o jogador, e no Olhar só o Jogar faz isso.
+ */
+export const MENSAGENS_DA_PESCA: ReadonlySet<string> = new Set(['pesca.pronto', 'pesca.vivo', 'pesca.lance', 'pesca.fim'])
+
 const CONNECTING = 0
 const OPEN = 1
 const CLOSED = 3
@@ -45,7 +52,7 @@ export function saiNoOlhar(data: string): boolean {
   }
   if (typeof mensagem !== 'object' || mensagem === null) return false
   const tipo: unknown = Reflect.get(mensagem, 'type')
-  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo))
+  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo) || MENSAGENS_DA_PESCA.has(tipo))
 }
 
 export interface OpcoesDoSocketDoCanal {

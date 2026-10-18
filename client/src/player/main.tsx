@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { FormEvent, ReactNode } from 'react'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
+import { textoDaRecusaDaPesca } from './estadoDaPesca'
 import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
@@ -1967,6 +1968,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               />
             )}
           </div>
+        )}
+        {/* PESCA no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.pescaRecusada && (
+          <p key={state.pescaRecusada.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDaPesca(state.pescaRecusada.motivo)}
+          </p>
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">

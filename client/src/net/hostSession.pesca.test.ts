@@ -119,23 +119,31 @@ describe('pesca na sessão: jogador toca no pino', () => {
     expect(s.pesca()[0]).toMatchObject({ pinId: PINO, entrada: 'pino', participantes: [{ nome: 'Ana', status: 'convidado' }] })
   })
 
-  it('longe do pino: recusado calado (a mesma distância do item no chão)', () => {
+  it('longe do pino: recusado com o motivo, só para quem pediu (a mesma distância do item no chão)', () => {
     const { s, de } = mesa([pinoDePesca({ entrada: 'pino' })])
-    expect(de('c-bruno', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual([])
+    const r = de('c-bruno', { type: 'pesca.pedir', pinId: PINO })
+    expect(r.outbound).toEqual([{ clientId: 'c-bruno', msg: { type: 'pesca.recusado', pinId: PINO, motivo: 'longe' } }])
     expect(s.pesca()).toEqual([])
   })
 
-  it('pino de "Mestre chama", pino de dança e pino oculto: recusados calados', () => {
+  it('pino de "Mestre chama", pino de dança e pino oculto: recusados como indisponível, sem sessão', () => {
+    const indisponivel = [{ clientId: 'c-ana', msg: { type: 'pesca.recusado', pinId: PINO, motivo: 'indisponivel' } }]
     const mestre = mesa([pinoDePesca({ entrada: 'mestre' })])
-    expect(mestre.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual([])
+    expect(mestre.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual(indisponivel)
     expect(mestre.s.pesca()).toEqual([])
 
     const danca = mesa([{ ...buildPin(PINO, { x: 300, y: 300 }, 'minigame'), minigame: minigamePadraoDo('danca') }])
-    expect(danca.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual([])
+    expect(danca.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual(indisponivel)
 
     const oculto = mesa([pinoDePesca({ entrada: 'pino' }, { secret: true })])
-    expect(oculto.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual([])
+    expect(oculto.de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual(indisponivel)
     expect(oculto.s.pesca()).toEqual([])
+  })
+
+  it('pedir de novo já pescando: recusado como ocupado', () => {
+    const { de } = mesa([pinoDePesca({ entrada: 'pino' })])
+    de('c-ana', { type: 'pesca.pedir', pinId: PINO })
+    expect(de('c-ana', { type: 'pesca.pedir', pinId: PINO }).outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'pesca.recusado', pinId: PINO, motivo: 'ocupado' } }])
   })
 
   it('o recorte do jogador diz o modo do pino, e nada do desafio', () => {

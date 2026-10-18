@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import type { PeixeNoCesto, PescaConviteMessage } from '../net/protocoloDaPesca'
 import type { Pin } from '../types/map'
-import { pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance } from './estadoDaPesca'
+import { PESCA_RECUSA_AVISO_MS, pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance, textoDaRecusaDaPesca } from './estadoDaPesca'
 import { createPlayerConnection, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -170,6 +170,31 @@ describe('pesca no cliente do jogador', () => {
     // Mensagem torta cai inteira.
     socket.receive({ ...CONVITE, sessao: 's2', lances: 9 })
     expect(pesca()?.sessao).toBe('s1')
+  })
+
+  it('recusa do pedido: o aviso com o motivo aparece e some sozinho; recusa torta cai', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { connection, socket, pesca } = conectado()
+      expect(connection.pedirPesca('pino-pesca')).toBe(true)
+      socket.receive({ type: 'pesca.recusado', pinId: 'pino-pesca', motivo: 'longe' })
+      expect(connection.getState().pescaRecusada).toMatchObject({ pinId: 'pino-pesca', motivo: 'longe' })
+      expect(pesca()).toBeUndefined()
+      // Pode pedir de novo: a recusa não deixa pesca aberta para trás.
+      expect(connection.pedirPesca('pino-pesca')).toBe(true)
+      vi.advanceTimersByTime(PESCA_RECUSA_AVISO_MS)
+      expect(connection.getState().pescaRecusada).toBeUndefined()
+      socket.receive({ type: 'pesca.recusado', pinId: 'pino-pesca', motivo: 'porque-sim' })
+      expect(connection.getState().pescaRecusada).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('o aviso de cada motivo é curto e diz o que fazer', () => {
+    expect(textoDaRecusaDaPesca('longe')).toBe('Chegue mais perto do pino para pescar.')
+    expect(textoDaRecusaDaPesca('ocupado')).toBe('Você já está pescando.')
+    expect(textoDaRecusaDaPesca('indisponivel')).toBe('Não dá para pescar aí agora.')
   })
 
   it('sair da sala limpa a pesca', () => {

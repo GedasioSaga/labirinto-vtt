@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createPortal } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { criarBloqueioDoOlhar, instalarGuardaDeTeclado } from './bloqueioDeEntrada'
+import { alvoLivreNoOlhar, criarBloqueioDoOlhar, instalarGuardaDeTeclado } from './bloqueioDeEntrada'
 
 /**
  * O bloqueio do modo Olhar em volta da tela do jogador: a HUD (e os portais
@@ -211,5 +211,32 @@ describe('instalarGuardaDeTeclado', () => {
     tela.remove()
     teclar(document.body, 'ArrowLeft')
     expect(atalho).toHaveBeenCalledTimes(1)
+  })
+
+  it('PESCA no Olhar: com a tela da pesca aberta, o Espaço com nada em foco chega a ela; fechada, volta a morrer', () => {
+    const tela = document.createElement('div')
+    tela.className = 'lb-pesca'
+    document.body.appendChild(tela)
+    teclar(document.body, ' ')
+    teclar(document.body, ' ', 'keyup')
+    tela.remove()
+    teclar(document.body, ' ')
+    expect(atalho).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('alvoLivreNoOlhar', () => {
+  it('dentro da tela da dança ou da PESCA, o alvo é livre; na HUD, não', () => {
+    const pesca = document.createElement('div')
+    pesca.className = 'lb-pesca'
+    const botao = document.createElement('button')
+    pesca.appendChild(botao)
+    const hud = document.createElement('button')
+    document.body.append(pesca, hud)
+    expect(alvoLivreNoOlhar(botao)).toBe(true)
+    expect(alvoLivreNoOlhar(hud)).toBe(false)
+    expect(alvoLivreNoOlhar(null)).toBe(false)
+    pesca.remove()
+    hud.remove()
   })
 })

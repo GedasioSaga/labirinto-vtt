@@ -176,4 +176,9 @@ describe('saiNoOlhar', () => {
     expect(saiNoOlhar('null')).toBe(false)
     expect(saiNoOlhar('{')).toBe(false)
   })
+
+  it('PESCA: o que sai de dentro da tela da pesca passa; o pedido de tocar no pino, não (é agir como o jogador)', () => {
+    for (const type of ['pesca.pronto', 'pesca.vivo', 'pesca.lance', 'pesca.fim']) expect(saiNoOlhar(JSON.stringify({ type }))).toBe(true)
+    expect(saiNoOlhar(JSON.stringify({ type: 'pesca.pedir', pinId: 'p' }))).toBe(false)
+  })
 })
