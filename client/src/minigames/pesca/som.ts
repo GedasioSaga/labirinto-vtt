@@ -110,9 +110,10 @@ export function splash(ctx: BaseAudioContext, out: AudioNode, t: number, forca =
   const g = vca(ctx)
   f.frequency.setValueAtTime(2600, t)
   f.frequency.exponentialRampToValueAtTime(380, t + 0.4)
-  envelope(g.gain, t, 0.45 * forca, 0.004, 0.42)
+  // 0,43 e 0,29 (eram 0,45 e 0,3): com o lance a 100% o splash passava 0,09 dB do teto de −1 dBTP.
+  envelope(g.gain, t, 0.43 * forca, 0.004, 0.42)
   n.connect(f).connect(g).connect(out)
-  const o = tom(ctx, out, 'sine', 340, t + 0.01, 0.3 * forca, 0.005, 0.15)
+  const o = tom(ctx, out, 'sine', 340, t + 0.01, 0.29 * forca, 0.005, 0.15)
   o.frequency.setValueAtTime(340, t + 0.01)
   o.frequency.exponentialRampToValueAtTime(110, t + 0.15)
 }

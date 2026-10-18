@@ -12,10 +12,11 @@ import {
   pesoDe,
   politicaFoge,
   politicaSegue,
+  rngDe,
   simular,
   sortear,
 } from './sim'
-import type { DificuldadeSim, Peixe, Raridade } from './sim'
+import type { DificuldadeSim, Peixe, Politica, Raridade } from './sim'
 
 /**
  * Os números conferidos aqui são os de docs/design/minigame-pesca/provas/testes.json,
@@ -36,6 +37,41 @@ interface Robo {
   porPeixe: Record<string, number>
 }
 
+/**
+ * Robô que joga como gente (regra de teste de jogos, 18/10/2026): reação 250 ± 60 ms com piso de
+ * 120 ms, erro de leitura ± 0,03 da coluna, relê o peixe a cada 0,15 s e decide a 60 Hz. É o mesmo
+ * de docs/design/minigame-pesca/provas/gerar-provas.cjs, com a mesma semente.
+ */
+function politicaHumana(semente: string): Politica {
+  const r = rngDe('humano|' + semente)
+  const gauss = (): number => {
+    let u = 0
+    while (u === 0) u = r()
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r())
+  }
+  const reacao = (): number => Math.max(0.12, 0.25 + 0.06 * gauss())
+  const visto: number[] = []
+  let olhadaEm = -Infinity
+  let atraso = 0.25
+  let erro = 0
+  let segura = false
+  let n = 0
+  return (e) => {
+    visto.push(e.p.y)
+    if (e.t - olhadaEm >= 0.15) {
+      olhadaEm = e.t
+      atraso = reacao()
+      erro = 0.03 * gauss()
+    }
+    if (n++ % 2 === 0) {
+      const y = visto[Math.max(0, visto.length - 1 - Math.round(atraso / DT_SIM))] + erro
+      segura = y > e.b.y + e.b.tam / 2 + e.b.v * 0.12
+    }
+    return segura
+  }
+}
+const DT_SIM = 1 / 120
+
 function rodarRobo(dif: DificuldadeSim): Robo {
   const lista = cardapio(dif)
   const N = 240
@@ -45,7 +81,7 @@ function rodarRobo(dif: DificuldadeSim): Robo {
   const pegou: Record<string, number> = {}
   for (let i = 0; i < N; i++) {
     const p = lista[i % lista.length]
-    const r = simular(dif, p.id, `robo|${dif}|${i}`, politicaSegue(0.12))
+    const r = simular(dif, p.id, `robo|${dif}|${i}`, politicaHumana(`${dif}|${i}`))
     tentou[p.id] = (tentou[p.id] ?? 0) + 1
     if (r.fim === 'pegou') {
       pegos++
@@ -79,27 +115,26 @@ describe('semente', () => {
   })
 })
 
-describe('robô que segue o peixe, 240 puxadas', () => {
+describe('robô que joga como gente, 240 puxadas', () => {
   const normal = rodarRobo('normal')
   const extremo = rodarRobo('extremo')
 
-  it('Normal pega a maioria (>= 75%)', () => {
-    expect(normal.taxa).toBeGreaterThanOrEqual(0.75)
+  it('Normal: pega >= 70%', () => {
+    expect(normal.taxa).toBeGreaterThanOrEqual(0.7)
   })
 
-  it('Extremo pega bem menos, mas pega (entre 5% e Normal - 30 pontos)', () => {
-    expect(extremo.taxa).toBeGreaterThan(0.05)
-    expect(extremo.taxa).toBeLessThanOrEqual(normal.taxa - 0.3)
-    expect(extremo.pegos).toBeGreaterThan(0)
+  it('Extremo: pega entre 15% e 40%', () => {
+    expect(extremo.taxa).toBeGreaterThanOrEqual(0.15)
+    expect(extremo.taxa).toBeLessThanOrEqual(0.4)
   })
 
-  it('bate exato com o protótipo: 100% e 92 perfeitas no Normal, 36,7% no Extremo', () => {
+  it('bate exato com o protótipo (medidor do Extremo 50% e −22%/s): 100% e 35 perfeitas no Normal, 28,3% no Extremo', () => {
     expect(normal.pegos).toBe(240)
-    expect(normal.perfeitas).toBe(92)
-    expect(extremo.pegos).toBe(88)
+    expect(normal.perfeitas).toBe(35)
+    expect(extremo.pegos).toBe(68)
     expect(extremo.porPeixe).toEqual({
-      'carpa-runa': 96, enguia: 33, lume: 29, piaba: 17, bagre: 17,
-      truta: 96, linguado: 42, lampreia: 4, esturjao: 21, coroa: 13,
+      'carpa-runa': 96, enguia: 0, lume: 17, piaba: 8, bagre: 13,
+      truta: 79, linguado: 38, lampreia: 0, esturjao: 8, coroa: 25,
     })
   })
 })

@@ -4,18 +4,18 @@ Mediana do volume integrado das aprovadas (porta, escada-pedra, escada-pedra-des
 
 transição                    pico dBFS  pico verd. dBTP  LUFS int.  LUFS 3s máx   DC %  cortes  cliques  ataques  pulsos trem  silêncios  L−R dB  veredito
 ---------------------------  ---------  ---------------  ---------  -----------  -----  ------  -------  -------  -----------  ---------  ------  --------
-sons-da-pesca-app                 -1,8             -1,8      -19,2        -18,8  0,000       0        0        1            0          5     0,0  aprovado
-porta (ref)                      -15,3            -15,3      -31,6        -30,2  0,004       0        0        0            0          4     0,0          
-escada-pedra (ref)                -0,6             -0,6      -18,6        -19,4  0,084       0        0        0            0          0     0,0          
+sons-da-pesca-app                 -2,1             -2,1      -19,2        -18,8  0,000       0        0        1            0          5     0,0  aprovado
+porta (ref)                      -12,2            -12,2      -31,2        -30,0  0,020       0        0        0            0          4     0,0          
+escada-pedra (ref)                -0,6             -0,6      -18,6        -19,4  0,085       0        0        0            0          0     0,0          
 escada-pedra-descendo (ref)       -0,8             -0,8      -18,6        -19,4  0,085       0        0        0            0          0     0,0          
-portao-pesado (ref)               -2,2             -2,2      -17,1        -16,3  0,031       0        0        9           59          0     0,0          
+portao-pesado (ref)               -2,2             -2,2      -17,1        -16,3  0,095       0        0       11           57          0     0,0          
 
 Centróide espectral por segundo (Hz; mais alto = mais agudo/brilhante):
-  sons-da-pesca-app      1510 675 1997 2406 1206 486 217
-  porta                  280 285 1278 843 793 470 250 —
-  escada-pedra           — 113 110 120 115 113 108 98 123 113 116 111
-  escada-pedra-descendo  — 114 111 121 115 114 108 99 123 114 117 112
-  portao-pesado          379 281 263 4137 475 578 668 621 609 93 327
+  sons-da-pesca-app      1536 675 1997 2406 1206 486 217
+  porta                  256 266 1226 843 763 361 287 —
+  escada-pedra           — 113 110 120 114 113 108 98 123 113 116 111
+  escada-pedra-descendo  — 113 110 120 114 112 108 98 122 113 115 111
+  portao-pesado          489 285 287 3690 475 571 666 622 602 89 338
 
 sons-da-pesca-app: aprovado nas medidas
   (silêncio total no meio: 1,25–1,50 s, 1,60–2,20 s, 2,42–2,60 s, 3,57–3,80 s, 5,18–5,60 s; confira se é de propósito)

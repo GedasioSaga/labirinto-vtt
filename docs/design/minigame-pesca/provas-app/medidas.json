@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-10-18T21:51:10.182Z",
+  "geradoEm": "2026-10-18T22:18:33.747Z",
   "testes": [
     {
       "nome": "mesma semente = mesmos 40 lances do robô humano; outra semente = outros",
@@ -33,7 +33,7 @@
       "passou": true
     },
     {
-      "nome": "extremo: peixe dentro de 0..1 em todos os 179508 passos de puxada",
+      "nome": "extremo: peixe dentro de 0..1 em todos os 330606 passos de puxada",
       "passou": true,
       "detalhe": {
         "min": 0.03,
@@ -61,12 +61,10 @@
     },
     {
       "nome": "som do app: nenhum corte, nenhum clique, pico verdadeiro <= -1 dBTP (cada som na força máxima, a sequência e a puxada)",
-      "passou": false,
+      "passou": true,
       "detalhe": {
-        "picoMaxDbtp": -0.91,
-        "acimaDoLimite": [
-          "splash -0.91 dBTP"
-        ]
+        "picoMaxDbtp": -1.25,
+        "acimaDoLimite": []
       }
     },
     {
@@ -83,7 +81,7 @@
         "quadros": 1611,
         "p95IntervaloMs": 16.8,
         "p95TrabalhoMs": 0.5,
-        "maxTrabalhoMs": 1.4,
+        "maxTrabalhoMs": 1,
         "tarefasLongas200": 0,
         "longas": [],
         "resultados": [
@@ -118,8 +116,8 @@
     },
     "extremo": {
       "meta": "entre 15% e 40% pegos",
-      "valorPct": 12.1,
-      "bateu": false
+      "valorPct": 32.5,
+      "bateu": true
     }
   },
   "erros": [],
@@ -166,50 +164,50 @@
     },
     "extremo": {
       "lances": 240,
-      "pegouPct": 12.1,
-      "escapouPct": 87.9,
+      "pegouPct": 32.5,
+      "escapouPct": 67.5,
       "fugiuPct": 0,
-      "pegouDasPuxadasPct": 12.1,
-      "perfeitos": 8,
-      "puxadaMediaPegouS": 8.3,
+      "pegouDasPuxadasPct": 32.5,
+      "perfeitos": 22,
+      "puxadaMediaPegouS": 7.8,
       "forcaMediaDoLance": 0.65,
       "reacaoFisgadaS": {
-        "media": 0.244,
-        "p95": 0.349,
-        "max": 0.417,
+        "media": 0.25,
+        "p95": 0.346,
+        "max": 0.451,
         "min": 0.12,
         "janela": 0.5
       },
       "tempoEsgotado": 0,
       "porPeixe": {
-        "Lampreia-de-cobre": "0/17 pegos, 0 fugiram",
-        "Truta-do-fosso": "6/25 pegos, 0 fugiram",
-        "Enguia de caverna": "0/34 pegos, 0 fugiram",
-        "Carpa-runa": "21/42 pegos, 0 fugiram",
-        "Esturjão-de-cristal": "0/12 pegos, 0 fugiram",
-        "Bagre-de-pedra": "2/16 pegos, 0 fugiram",
-        "Coroa-do-Abismo": "0/2 pegos, 0 fugiram",
-        "Piaba-ossuda": "0/45 pegos, 0 fugiram",
-        "Lume-de-poça": "0/38 pegos, 0 fugiram",
-        "Linguado-espectro": "0/9 pegos, 0 fugiram"
+        "Lampreia-de-cobre": "1/15 pegos, 0 fugiram",
+        "Truta-do-fosso": "22/27 pegos, 0 fugiram",
+        "Enguia de caverna": "3/36 pegos, 0 fugiram",
+        "Carpa-runa": "32/39 pegos, 0 fugiram",
+        "Esturjão-de-cristal": "1/12 pegos, 0 fugiram",
+        "Bagre-de-pedra": "5/20 pegos, 0 fugiram",
+        "Linguado-espectro": "3/11 pegos, 0 fugiram",
+        "Lume-de-poça": "6/36 pegos, 0 fugiram",
+        "Piaba-ossuda": "4/42 pegos, 0 fugiram",
+        "Coroa-do-Abismo": "1/2 pegos, 0 fugiram"
       }
     }
   },
   "sensibilidadeExtremo": {
     "reação 200 ± 50 ms": {
-      "pegouPct": 17.9,
+      "pegouPct": 43.3,
       "fugiuPct": 0
     },
     "reação 150 ± 40 ms": {
-      "pegouPct": 27.9,
+      "pegouPct": 66.7,
       "fugiuPct": 0
     },
     "reação 250 ± 60 ms, sem erro de leitura": {
-      "pegouPct": 14.6,
+      "pegouPct": 37.9,
       "fugiuPct": 0
     },
     "reação 120 ms fixa, sem erro (o robô do protótipo)": {
-      "pegouPct": 41.7,
+      "pegouPct": 89.6,
       "fugiuPct": 0
     }
   },
@@ -230,9 +228,9 @@
       "lance": 1,
       "peixe": "Lampreia-de-cobre",
       "fim": "escapou",
-      "t": 2.4,
+      "t": 7.3,
       "perfeito": false,
-      "amostras": 24
+      "amostras": 73
     },
     {
       "dif": "extremo",
@@ -240,9 +238,9 @@
       "lance": 2,
       "peixe": "Truta-do-fosso",
       "fim": "pegou",
-      "t": 7,
-      "perfeito": false,
-      "amostras": 70
+      "t": 2.3,
+      "perfeito": true,
+      "amostras": 23
     }
   ],
   "som": {
@@ -260,11 +258,11 @@
         "silenciosNoMeio": 0
       },
       "splash": {
-        "picoDbfs": -0.91,
-        "picoVerdadeiroDbtp": -0.91,
-        "lufsIntegrado": -19.46,
-        "lufsCurtoPrazoMax": -21.89,
-        "dcPct": 0.0042,
+        "picoDbfs": -1.25,
+        "picoVerdadeiroDbtp": -1.25,
+        "lufsIntegrado": -19.79,
+        "lufsCurtoPrazoMax": -22.22,
+        "dcPct": 0.0041,
         "cortes": 0,
         "cliques": 0,
         "silenciosNoMeio": 0
@@ -333,9 +331,9 @@
     "sequencia": {
       "picoDbfs": -2.55,
       "picoVerdadeiroDbtp": -2.55,
-      "lufsIntegrado": -19.19,
+      "lufsIntegrado": -19.22,
       "lufsCurtoPrazoMax": -18.79,
-      "dcPct": 0.0014,
+      "dcPct": 0.0013,
       "cortes": 0,
       "cliques": 0,
       "silenciosNoMeio": 5
@@ -356,20 +354,20 @@
   "folha": {
     "quadros": 14,
     "rotulos": [
-      "t = 0,21 s · Lance: parado",
-      "t = 0,97 s · Segurando: força 40%",
-      "t = 1,46 s · Segurando: força 76%",
-      "t = 1,78 s · Soltou: a boia voa (83%)",
-      "t = 2,27 s · Boia na água: espera",
-      "t = 3,32 s · Espera: a boia balança",
-      "t = 5,24 s · Fisgada: \"!\"",
-      "t = 5,87 s · Puxada: medidor 37%",
-      "t = 7,39 s · Puxada: medidor 60%",
-      "t = 9,39 s · Puxada: medidor 82%",
-      "t = 10,74 s · Fim da puxada: pegou",
-      "t = 11,33 s · O peixe vem para a mão",
-      "t = 11,83 s · Resultado: Truta-do-fosso, 33 cm",
-      "t = 13,36 s · Cesto"
+      "t = 0,19 s · Lance: parado",
+      "t = 0,96 s · Segurando: força 40%",
+      "t = 1,44 s · Segurando: força 76%",
+      "t = 1,75 s · Soltou: a boia voa (82%)",
+      "t = 2,24 s · Boia na água: espera",
+      "t = 3,30 s · Espera: a boia balança",
+      "t = 5,21 s · Fisgada: \"!\"",
+      "t = 5,84 s · Puxada: medidor 37%",
+      "t = 7,36 s · Puxada: medidor 60%",
+      "t = 9,36 s · Puxada: medidor 82%",
+      "t = 10,69 s · Fim da puxada: pegou",
+      "t = 11,30 s · O peixe vem para a mão",
+      "t = 11,78 s · Resultado: Truta-do-fosso, 33 cm",
+      "t = 13,29 s · Cesto"
     ],
     "condicoesPuladas": 1
   },
@@ -377,7 +375,7 @@
     "quadros": 1611,
     "p95IntervaloMs": 16.8,
     "p95TrabalhoMs": 0.5,
-    "maxTrabalhoMs": 1.4,
+    "maxTrabalhoMs": 1,
     "tarefasLongas200": 0,
     "longas": [],
     "resultados": [

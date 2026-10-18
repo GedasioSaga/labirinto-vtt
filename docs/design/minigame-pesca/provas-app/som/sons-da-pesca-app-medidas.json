@@ -1,7 +1,7 @@
 {
   "id": "sons-da-pesca-app",
   "fonte": "docs/design/minigame-pesca/provas-app/som/sons-da-pesca-app.ts",
-  "geradoEm": "2026-10-18T21:52:25.858Z",
+  "geradoEm": "2026-10-18T22:19:48.981Z",
   "veredito": "aprovado",
   "motivos": [],
   "referencia": {
@@ -18,9 +18,9 @@
     "duracaoS": 6.65,
     "canais": 2,
     "taxa": 48000,
-    "picoDbfs": -1.77,
-    "picoVerdadeiroDbtp": -1.77,
-    "lufsIntegrado": -19.2,
+    "picoDbfs": -2.11,
+    "picoVerdadeiroDbtp": -2.11,
+    "lufsIntegrado": -19.22,
     "lufsCurtoPrazoMax": -18.79,
     "dcPct": 0.0001,
     "cortes": 0,
@@ -53,7 +53,7 @@
     ],
     "equilibrioLRdb": 0,
     "centroideHzPorSegundo": [
-      1510,
+      1536,
       675,
       1997,
       2406,

@@ -82,7 +82,9 @@ export const DIF: Readonly<Record<DificuldadeSim, ParametrosDaDificuldade>> = {
   extremo: {
     nome: 'Extremo', barra: 0.15, subida: 3.4, gravidade: 2.9, vBarra: 1.7, quique: 0.4,
     vPeixe: 0.75, mola: 38, intervalo: [0.4, 1.1], tremor: 1.0,
-    ganho: 0.22, perda: 0.3, inicio: 0.3,
+    // Medidor do Extremo mais generoso (18/10/2026, pedido do usuário): era 30% e −30%/s, e o robô
+    // que joga como gente pegava 12%; com 50% e −22%/s pega ~28% e todo peixe sai às vezes.
+    ganho: 0.22, perda: 0.22, inicio: 0.5,
     janela: 0.5, espera: [1.8, 5.0], beliscadas: 3, ciclo: 1.0,
     bau: { chance: 0.3, aparece: [1.0, 3.0], vida: 4, encher: 1.8 },
   },
