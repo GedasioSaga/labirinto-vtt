@@ -1728,3 +1728,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - 18/10/2026: 12 balas deixaram o jogo fácil (robô: bronze 99,5% Normal, 73% Extremo). Usuário escolheu subir as medalhas para manter a dificuldade aprovada: Normal 1025/1200/1350, Extremo 850/950/1075 (robô volta a 79,5% e 23% de bronze). Protótipo republicado no mesmo link, 24 de 24 testes.
 > 18/10/2026: "Quando terminar o de pesca, você para deixa o de tiro parado."
 - Entendido: o tiro no app fica PARADO (protótipo aprovado, 12 balas, medalhas novas; nada em `client/`). Fecho a pesca e paro. Retomar só quando o usuário pedir (plano + perguntas antes, com o registro de jogos).
+
+## Pedido de 18/10/2026 (registro literal) — telhado da sala
+> 18/10/2026: "Eu quero que você faça um prototipo em html para mim, de como você faria o telhado de uma sala, tipo uma pessoa vendo de fora, ela viria um telhado e quando entrasse na casa ele viria a sala mesmo ,acha que consegue fazer um telhado para botar em cima?"
+- Entendido: protótipo HTML avulso (`docs/design/telhado/`), nada em `client/` ainda. Fora da casa o pino vê o telhado; ao passar pela porta o telhado some e a sala aparece; ao sair ele volta.
+- Decisões do usuário (18/10/2026): visão de cima, igual ao mapa (telhado de 4 águas, cada face com um tom, sem listra de telha); o telhado some suave em ~0,3 s e sobe de leve, e volta igual ao sair. Sem recomendador nem conselho.
+- 18/10/2026: protótipo pronto em `docs/design/telhado/` (fonte, provas e 5 decisões em aberto no `README.md`). 22 de 22 provas: telhado some em 225 ms depois de cruzar a porta, volta em 225 ms, só a porta deixa passar, mordomo escondido de fora, quadro p95 16,8 ms. Aguardando o usuário andar com o pino e aprovar.

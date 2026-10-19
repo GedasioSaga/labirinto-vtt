@@ -1,0 +1,110 @@
+{
+  "geradoEm": "2026-10-19T02:37:32.501Z",
+  "resultados": [
+    {
+      "nome": "parede da sala segura o pino",
+      "ok": true
+    },
+    {
+      "nome": "porta da sala deixa entrar e sair",
+      "ok": true
+    },
+    {
+      "nome": "depósito: parede segura, porta deixa entrar",
+      "ok": true
+    },
+    {
+      "nome": "árvore bloqueia a casa",
+      "ok": true
+    },
+    {
+      "nome": "começa fora com os dois telhados fechados",
+      "ok": true
+    },
+    {
+      "nome": "caminho até dentro da sala existe",
+      "ok": true
+    },
+    {
+      "nome": "telhado fica fechado enquanto o pino está fora",
+      "ok": true,
+      "detalhe": "12 amostras fora"
+    },
+    {
+      "nome": "telhado some em até 300 ms depois de cruzar a porta",
+      "ok": true,
+      "detalhe": "225 ms"
+    },
+    {
+      "nome": "telhado só desce (não pisca) ao entrar",
+      "ok": true
+    },
+    {
+      "nome": "telhado do depósito não mexe quando entra na sala",
+      "ok": true
+    },
+    {
+      "nome": "status diz que está na sala",
+      "ok": true
+    },
+    {
+      "nome": "telhado volta em até 300 ms depois de sair",
+      "ok": true,
+      "detalhe": "225 ms"
+    },
+    {
+      "nome": "dentro, o telhado fica aberto",
+      "ok": true
+    },
+    {
+      "nome": "entrar e sair rápido: telhado vira sem pular",
+      "ok": true,
+      "detalhe": "maior salto 0.294, mínimo 0.012"
+    },
+    {
+      "nome": "entrar no depósito abre só o telhado dele",
+      "ok": true
+    },
+    {
+      "nome": "jogador de fora não vê o mordomo",
+      "ok": true,
+      "detalhe": "pixel 102,65,51"
+    },
+    {
+      "nome": "mestre vê o mordomo por baixo do telhado",
+      "ok": true,
+      "detalhe": "pixel 90,64,90"
+    },
+    {
+      "nome": "jogador de dentro vê o mordomo",
+      "ok": true,
+      "detalhe": "pixel 85,64,110"
+    },
+    {
+      "nome": "quadro p95 <= 20 ms andando pela trilha",
+      "ok": true,
+      "detalhe": "p95 16.8 ms em 361 quadros"
+    },
+    {
+      "nome": "nenhuma tarefa longa >= 200 ms",
+      "ok": true,
+      "detalhe": "maior 0 ms"
+    },
+    {
+      "nome": "celular 390 px sem rolagem para o lado",
+      "ok": true,
+      "detalhe": "390 <= 390"
+    },
+    {
+      "nome": "sem erro no console",
+      "ok": true,
+      "detalhe": ""
+    }
+  ],
+  "desempenho": {
+    "p95": 16.799999999999272,
+    "quadros": 361,
+    "maiorTarefaLonga": 0,
+    "salasVisitadas": 6
+  }
+}

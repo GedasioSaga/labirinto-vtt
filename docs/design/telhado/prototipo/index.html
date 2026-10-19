@@ -1,0 +1,808 @@
+<title>Telhado da Sala</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: uma coluna centrada; o mapa é o protagonista, controles numa barra acima e o estado do pino logo abaixo */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --acento-texto: #fff8f2;
+    --moldura: #1d211c;
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .pagina {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 22px;
+  }
+  .cabeca { display: grid; gap: 6px; }
+  .rotulo-topo {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--acento);
+  }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(2rem, 6vw, 2.6rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 60ch; color: var(--suave); font-size: 1.02rem; }
+
+  .palco { display: grid; gap: 12px; }
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+
+  .segmentado {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 9px;
+    background: var(--superficie);
+  }
+  .segmentado button {
+    font: 500 0.9rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active { transform: scale(0.97); }
+
+  .tempo { display: inline-flex; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--suave); }
+  .tempo output {
+    min-width: 4.5ch;
+    font-variant-numeric: tabular-nums;
+    color: var(--texto);
+    font-weight: 600;
+  }
+  .tempo input { width: 140px; accent-color: var(--acento); }
+
+  .botao {
+    margin-left: auto;
+    font: 500 0.9rem/1 var(--f-texto);
+    color: var(--texto);
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out);
+  }
+  .botao:active { transform: scale(0.97); }
+
+  :where(button, input, canvas):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .moldura {
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+    max-width: 100%;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  canvas:focus-visible { outline-offset: -3px; }
+
+  .rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--linha);
+    background: var(--superficie);
+    color: var(--texto);
+    transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+  }
+  .chip::before {
+    content: "";
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--suave);
+  }
+  .chip[data-dentro="true"] { background: var(--acento); border-color: var(--acento); color: var(--acento-texto); }
+  .chip[data-dentro="true"]::before { background: var(--acento-texto); }
+  .dica { margin: 0; font-size: 0.88rem; color: var(--suave); }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+
+  .notas { display: grid; gap: 8px; border-top: 1px solid var(--linha); padding-top: 18px; }
+  .notas h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .notas ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; max-width: 65ch; }
+  .notas li::marker { color: var(--acento); }
+
+  @media (max-width: 520px) {
+    .botao { margin-left: 0; }
+    .tempo input { width: 120px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .botao { transition: background-color 160ms ease, color 160ms ease; }
+    .segmentado button:active, .botao:active { transform: none; }
+  }
+</style>
+
+<main class="pagina">
+  <header class="cabeca">
+    <p class="rotulo-topo">Protótipo · Labirinto</p>
+    <h1>Telhado da sala</h1>
+    <p class="lead">De fora, o pino vê o telhado. Quando passa pela porta, o telhado some e a sala aparece. Quando sai, o telhado volta e cobre tudo de novo.</p>
+  </header>
+
+  <section class="palco" aria-label="Mapa de teste">
+    <div class="barra">
+      <div class="segmentado" role="radiogroup" aria-label="Ver como">
+        <button type="button" role="radio" id="visao-jogador" aria-checked="true" data-visao="jogador">Jogador</button>
+        <button type="button" role="radio" id="visao-mestre" aria-checked="false" data-visao="mestre">Mestre</button>
+      </div>
+      <label class="tempo" for="tempo">Tempo do telhado
+        <input type="range" id="tempo" min="100" max="800" step="50" value="300">
+        <output id="tempo-valor" for="tempo">300 ms</output>
+      </label>
+      <button type="button" class="botao" id="reiniciar">Voltar ao início</button>
+    </div>
+
+    <div class="moldura">
+      <canvas id="mapa" tabindex="0" aria-label="Mapa visto de cima com uma casa, um depósito e o seu pino. Clique numa casa do mapa ou use as setas para andar."></canvas>
+    </div>
+
+    <div class="rodape">
+      <span class="chip" id="status" data-dentro="false" aria-live="polite">Fora da casa · vendo os telhados</span>
+      <p class="dica">Clique numa casa do mapa para andar até ela, ou use <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>.</p>
+    </div>
+  </section>
+
+  <section class="notas">
+    <h2>O que reparar</h2>
+    <ul>
+      <li>Tem alguém dentro da sala. De fora você não vê; entre pela porta de baixo para descobrir.</li>
+      <li>Só a porta deixa passar. A parede segura o pino, igual ao mapa do app.</li>
+      <li>O depósito, à direita, tem telhado de duas águas em ardósia e porta do lado esquerdo.</li>
+      <li>Em <strong>Mestre</strong>, os telhados ficam transparentes: o mestre sempre enxerga o que tem dentro.</li>
+      <li>Achou o telhado rápido ou lento? Mexa no <strong>Tempo do telhado</strong> e me diga o número.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const CASA = 40;
+  const COLUNAS = 16;
+  const LINHAS = 12;
+  const LARG = COLUNAS * CASA;
+  const ALT = LINHAS * CASA;
+  const TAU = Math.PI * 2;
+
+  const BEIRAL = 8;               // quanto o telhado passa da parede, em px
+  const PASSO_MS = 170;           // tempo do pino para andar uma casa
+  const ERGUER_PX = 6;            // o telhado sobe um pouco enquanto some
+  const ERGUER_ESCALA = 0.035;
+  const OPACIDADE_MESTRE = 0.32;  // o mestre vê o telhado como vidro fosco
+  const MARCA_MS = 450;           // quanto tempo a marca do clique fica na casa
+  const MARGEM_IMAGEM = 16;       // folga da imagem do telhado para a chaminé e a borda
+
+  const COR = {
+    grama: '#56693f', gradeFora: 'rgba(255,255,255,0.05)', terra: '#8b7b57', pedra: '#a39a84',
+    parede: '#25211d', porta: '#dccb9f',
+    pisoSala: '#9a7653', pisoDeposito: '#8a867d', gradeDentro: 'rgba(0,0,0,0.08)',
+    copa: '#34512f', copaLuz: '#44643b', sombra: 'rgba(8,10,6,0.28)', sombraTelhado: 'rgba(10,12,6,0.32)',
+    rotuloSala: 'rgba(255,248,236,0.62)',
+  };
+  // Cada água do telhado tem um tom; a luz vem de cima à esquerda. Sem desenho de telha (listra vira hachura).
+  const BARRO = { oeste: '#a7735c', norte: '#97654f', sul: '#7b4f3e', leste: '#6b4436', espigao: '#8a5a46', cumeeira: '#c4927a', beiral: '#3e271f' };
+  const ARDOSIA = { norte: '#7c828a', sul: '#5f646b', cumeeira: '#a2a8af', beiral: '#373b40' };
+
+  const SALAS = [
+    { id: 'sala', nome: 'Sala', ondeEsta: 'Na sala', x: 2, y: 2, w: 7, h: 5, porta: { lado: 's', pos: 5 }, telhado: 'quatro-aguas', piso: COR.pisoSala },
+    { id: 'deposito', nome: 'Depósito', ondeEsta: 'No depósito', x: 11, y: 3, w: 4, h: 3, porta: { lado: 'o', pos: 4 }, telhado: 'duas-aguas', piso: COR.pisoDeposito },
+  ];
+  const ARVORES = [[0, 0], [14, 0], [0, 6], [1, 10], [12, 8], [14, 10]];
+  const TRILHAS = [
+    [[5, 6.6], [5, 12]],
+    [[5, 9], [10, 9], [10, 4], [10.6, 4]],
+  ];
+  const MORDOMO = { cx: 7, cy: 4 };
+  const MOVEIS = [
+    [2, 2], [3, 2], [4, 2], [2, 3], [2, 4], [2, 5],      // planta, lareira, sofá
+    [7, 2], [8, 2], [7, 3], [8, 3], [8, 4], [8, 5], [8, 6], // mesa com cadeiras, estante
+    [13, 3], [14, 3], [13, 5], [14, 5],                  // caixotes e barris do depósito
+  ];
+  const INICIO = [5, 10];
+  const DIRECOES = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+  const chave = (x, y) => x + ',' + y;
+  const bloqueadas = new Set([...ARVORES, ...MOVEIS, [MORDOMO.cx, MORDOMO.cy]].map(([x, y]) => chave(x, y)));
+  const centro = (c) => c * CASA + CASA / 2;
+  const limitar = (v, a, b) => Math.min(b, Math.max(a, v));
+  const suavizar = (k) => 1 - Math.pow(1 - k, 4);
+
+  const tela = document.getElementById('mapa');
+  const ctx = tela.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  tela.width = LARG * dpr;
+  tela.height = ALT * dpr;
+
+  const movimentoReduzido = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let relogioManual = null;
+  const agora = () => (relogioManual === null ? performance.now() : relogioManual);
+
+  let visao = 'jogador';
+  let tempoTelhado = 300;
+  let fila = [];
+  let direcaoSegurada = null;
+  let teclaSegurada = null;
+  let casaSobMouse = null;
+  let marca = null;
+
+  const pino = { cx: INICIO[0], cy: INICIO[1], x: centro(INICIO[0]), y: centro(INICIO[1]), de: null, para: null, t0: 0, livreDesde: -Infinity };
+  const telhados = Object.fromEntries(SALAS.map((s) => [s.id, { alpha: 1, de: 1, para: 1, t0: 0 }]));
+
+  // ---------- regras do mapa ----------
+
+  function casaDentro(sala, cx, cy) {
+    return cx >= sala.x && cx < sala.x + sala.w && cy >= sala.y && cy < sala.y + sala.h;
+  }
+  function pontoDentro(sala, x, y) {
+    return x > sala.x * CASA && x < (sala.x + sala.w) * CASA && y > sala.y * CASA && y < (sala.y + sala.h) * CASA;
+  }
+  function portaDe(sala) {
+    const { lado, pos } = sala.porta;
+    if (lado === 's') return { dentro: [pos, sala.y + sala.h - 1], fora: [pos, sala.y + sala.h] };
+    if (lado === 'n') return { dentro: [pos, sala.y], fora: [pos, sala.y - 1] };
+    if (lado === 'o') return { dentro: [sala.x, pos], fora: [sala.x - 1, pos] };
+    return { dentro: [sala.x + sala.w - 1, pos], fora: [sala.x + sala.w, pos] };
+  }
+  const mesmaCasa = (a, b) => a[0] === b[0] && a[1] === b[1];
+
+  function podePassar(de, para) {
+    const [px, py] = para;
+    if (px < 0 || py < 0 || px >= COLUNAS || py >= LINHAS) return false;
+    if (bloqueadas.has(chave(px, py))) return false;
+    for (const sala of SALAS) {
+      const saiu = casaDentro(sala, de[0], de[1]);
+      const entrou = casaDentro(sala, px, py);
+      if (saiu === entrou) continue;
+      const { dentro, fora } = portaDe(sala);
+      const pelaPorta = saiu ? mesmaCasa(de, dentro) && mesmaCasa(para, fora) : mesmaCasa(de, fora) && mesmaCasa(para, dentro);
+      if (!pelaPorta) return false;
+    }
+    return true;
+  }
+
+  function caminhoAte(origem, destino) {
+    const veio = new Map([[chave(...origem), null]]);
+    const aberta = [origem];
+    while (aberta.length) {
+      const atual = aberta.shift();
+      if (mesmaCasa(atual, destino)) break;
+      for (const [dx, dy] of DIRECOES) {
+        const prox = [atual[0] + dx, atual[1] + dy];
+        const k = chave(...prox);
+        if (veio.has(k) || !podePassar(atual, prox)) continue;
+        veio.set(k, atual);
+        aberta.push(prox);
+      }
+    }
+    if (!veio.has(chave(...destino))) return null;
+    const passos = [];
+    for (let c = destino; c && !mesmaCasa(c, origem); c = veio.get(chave(...c))) passos.unshift(c);
+    return passos;
+  }
+
+  // ---------- movimento ----------
+
+  function proximoPasso() {
+    const aqui = [pino.cx, pino.cy];
+    let prox = null;
+    if (fila.length) prox = fila.shift();
+    else if (direcaoSegurada) prox = [aqui[0] + direcaoSegurada[0], aqui[1] + direcaoSegurada[1]];
+    if (!prox) return null;
+    if (!podePassar(aqui, prox)) { fila = []; return null; }
+    return prox;
+  }
+
+  function atualizarPino(t) {
+    if (pino.para && t >= pino.t0 + PASSO_MS) {
+      [pino.cx, pino.cy] = pino.para;
+      pino.livreDesde = pino.t0 + PASSO_MS;
+      pino.de = pino.para = null;
+    }
+    if (!pino.para) {
+      const prox = proximoPasso();
+      if (prox) {
+        pino.de = [pino.cx, pino.cy];
+        pino.para = prox;
+        // emenda um passo no outro sem tranco quando o pino já vinha andando
+        pino.t0 = t - pino.livreDesde < 40 ? pino.livreDesde : t;
+      }
+    }
+    if (pino.para) {
+      const k = limitar((t - pino.t0) / PASSO_MS, 0, 1);
+      pino.x = centro(pino.de[0] + (pino.para[0] - pino.de[0]) * k);
+      pino.y = centro(pino.de[1] + (pino.para[1] - pino.de[1]) * k);
+    } else {
+      pino.x = centro(pino.cx);
+      pino.y = centro(pino.cy);
+    }
+  }
+
+  function atualizarTelhados(t) {
+    for (const sala of SALAS) {
+      const e = telhados[sala.id];
+      const alvo = pontoDentro(sala, pino.x, pino.y) ? 0 : 1;
+      if (alvo !== e.para) { e.de = e.alpha; e.para = alvo; e.t0 = t; }
+      const k = limitar((t - e.t0) / tempoTelhado, 0, 1);
+      e.alpha = e.de + (e.para - e.de) * suavizar(k);
+    }
+  }
+
+  // ---------- desenho ----------
+
+  function retArredondado(g, x, y, w, h, r) {
+    g.beginPath();
+    if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h);
+  }
+  function circulo(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+  function elipse(g, x, y, rx, ry) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); }
+
+  function desenharGrade(x, y, w, h, cor) {
+    ctx.beginPath();
+    for (let gx = Math.ceil(x / CASA) * CASA; gx <= x + w; gx += CASA) { ctx.moveTo(gx + 0.5, y); ctx.lineTo(gx + 0.5, y + h); }
+    for (let gy = Math.ceil(y / CASA) * CASA; gy <= y + h; gy += CASA) { ctx.moveTo(x, gy + 0.5); ctx.lineTo(x + w, gy + 0.5); }
+    ctx.strokeStyle = cor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function desenharSoleira(sala) {
+    const { lado, pos } = sala.porta;
+    const a = pos * CASA + 6;
+    ctx.fillStyle = COR.pedra;
+    if (lado === 's') retArredondado(ctx, a, (sala.y + sala.h) * CASA + 2, CASA - 12, 18, 3);
+    if (lado === 'n') retArredondado(ctx, a, sala.y * CASA - 20, CASA - 12, 18, 3);
+    if (lado === 'o') retArredondado(ctx, sala.x * CASA - 20, a, 18, CASA - 12, 3);
+    if (lado === 'l') retArredondado(ctx, (sala.x + sala.w) * CASA + 2, a, 18, CASA - 12, 3);
+    ctx.fill();
+  }
+
+  function desenharTerreno() {
+    ctx.fillStyle = COR.grama;
+    ctx.fillRect(0, 0, LARG, ALT);
+    desenharGrade(0, 0, LARG, ALT, COR.gradeFora);
+    ctx.save();
+    ctx.strokeStyle = COR.terra;
+    ctx.lineWidth = 22;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const trilha of TRILHAS) {
+      ctx.beginPath();
+      trilha.forEach(([cx, cy], i) => (i ? ctx.lineTo(centro(cx), centro(cy)) : ctx.moveTo(centro(cx), centro(cy))));
+      ctx.stroke();
+    }
+    ctx.restore();
+    for (const sala of SALAS) desenharSoleira(sala);
+  }
+
+  function desenharPiso(sala) {
+    const x = sala.x * CASA, y = sala.y * CASA, w = sala.w * CASA, h = sala.h * CASA;
+    ctx.fillStyle = sala.piso;
+    ctx.fillRect(x, y, w, h);
+    desenharGrade(x, y, w, h, COR.gradeDentro);
+  }
+
+  function desenharRotuloSala(texto, x, y) {
+    ctx.save();
+    ctx.font = '600 12px "Barlow Condensed", "Arial Narrow", sans-serif';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
+    ctx.fillStyle = COR.rotuloSala;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(texto.toUpperCase(), x, y);
+    ctx.restore();
+  }
+
+  function desenharInteriorSala(t) {
+    desenharPiso(SALAS[0]);
+    // planta no canto
+    ctx.fillStyle = '#6e4a34'; circulo(ctx, 100, 101, 9);
+    ctx.fillStyle = '#4d6b3c'; circulo(ctx, 97, 98, 8); circulo(ctx, 104, 97, 7); circulo(ctx, 101, 104, 7);
+    // lareira na parede de cima (a chaminé do telhado fica bem em cima dela)
+    ctx.fillStyle = '#78726a'; ctx.fillRect(124, 80, 72, 22);
+    ctx.fillStyle = '#231a15'; ctx.fillRect(138, 82, 44, 14);
+    const chama = movimentoReduzido.matches ? 0.7 : 0.62 + 0.16 * Math.sin(t / 140) + 0.08 * Math.sin(t / 53);
+    const brilho = ctx.createRadialGradient(160, 92, 2, 160, 96, 34);
+    brilho.addColorStop(0, `rgba(240,160,80,${0.55 * chama})`);
+    brilho.addColorStop(1, 'rgba(240,160,80,0)');
+    ctx.fillStyle = brilho; ctx.fillRect(122, 80, 76, 56);
+    ctx.fillStyle = `rgba(232,128,54,${0.75 + 0.25 * chama})`; elipse(ctx, 160, 91, 12, 4);
+    // tapete
+    ctx.fillStyle = '#7a3d37'; ctx.fillRect(140, 136, 130, 90);
+    ctx.strokeStyle = '#9e5649'; ctx.lineWidth = 1.5; ctx.strokeRect(147.5, 143.5, 115, 75);
+    // mesinha de centro
+    ctx.fillStyle = '#5e4128'; retArredondado(ctx, 182, 166, 46, 30, 3); ctx.fill();
+    // sofá encostado na parede da esquerda, virado para a lareira
+    ctx.fillStyle = '#4c5866'; retArredondado(ctx, 88, 138, 26, 88, 5); ctx.fill();
+    ctx.fillStyle = '#3c4652'; ctx.fillRect(88, 142, 8, 80);
+    ctx.fillStyle = '#44505d'; ctx.fillRect(88, 138, 26, 8); ctx.fillRect(88, 218, 26, 8);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(96, 181, 18, 1.5);
+    // mesa redonda com cadeiras
+    ctx.fillStyle = '#7d5a38';
+    for (const [x, y] of [[320, 93], [320, 147], [293, 120], [347, 120]]) { retArredondado(ctx, x - 6, y - 6, 12, 12, 2); ctx.fill(); }
+    ctx.fillStyle = '#6a482c'; circulo(ctx, 320, 120, 17);
+    ctx.strokeStyle = '#503520'; ctx.lineWidth = 1.5; ctx.stroke();
+    // estante na parede da direita
+    ctx.fillStyle = '#5b3f2b'; ctx.fillRect(344, 178, 14, 92);
+    ctx.fillStyle = '#3e2a1d'; ctx.fillRect(344, 208, 14, 2); ctx.fillRect(344, 239, 14, 2);
+    ctx.fillStyle = '#7b4038'; ctx.fillRect(347, 184, 8, 18);
+    ctx.fillStyle = '#46606e'; ctx.fillRect(347, 246, 8, 18);
+    desenharRotuloSala('Sala', 90, 272);
+  }
+
+  function desenharInteriorDeposito() {
+    desenharPiso(SALAS[1]);
+    for (const x of [524, 564]) {
+      ctx.fillStyle = '#7b5b3b'; ctx.fillRect(x, 124, 32, 32);
+      ctx.strokeStyle = '#5a4029'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.75, 124.75, 30.5, 30.5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath(); ctx.moveTo(x + 3, 127); ctx.lineTo(x + 29, 153); ctx.moveTo(x + 29, 127); ctx.lineTo(x + 3, 153); ctx.stroke();
+    }
+    for (const x of [540, 580]) {
+      ctx.fillStyle = '#6c4c31'; circulo(ctx, x, 220, 14);
+      ctx.strokeStyle = '#4a3322'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, 220, 8, 0, TAU); ctx.stroke();
+    }
+    desenharRotuloSala('Depósito', 448, 232);
+  }
+
+  function desenharParedes(sala) {
+    const x0 = sala.x * CASA, y0 = sala.y * CASA, x1 = x0 + sala.w * CASA, y1 = y0 + sala.h * CASA;
+    const { lado: ladoPorta, pos } = sala.porta;
+    const v0 = pos * CASA, v1 = v0 + CASA;
+    const lados = { n: [[x0, y0], [x1, y0]], l: [[x1, y0], [x1, y1]], s: [[x0, y1], [x1, y1]], o: [[x0, y0], [x0, y1]] };
+    ctx.save();
+    ctx.strokeStyle = COR.parede;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    const segmento = (a, b) => { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); };
+    for (const [lado, [a, b]] of Object.entries(lados)) {
+      if (lado !== ladoPorta) { segmento(a, b); continue; }
+      if (a[1] === b[1]) { segmento(a, [v0, a[1]]); segmento([v1, a[1]], b); }
+      else { segmento(a, [a[0], v0]); segmento([a[0], v1], b); }
+    }
+    ctx.stroke();
+    // a porta é um retângulo pequeno e chapado na abertura da parede
+    ctx.fillStyle = COR.porta;
+    const [a, b] = lados[ladoPorta];
+    if (a[1] === b[1]) ctx.fillRect(v0 + 5, a[1] - 3, CASA - 10, 6);
+    else ctx.fillRect(a[0] - 3, v0 + 5, 6, CASA - 10);
+    ctx.restore();
+  }
+
+  function retanguloTelhado(sala) {
+    return {
+      x0: sala.x * CASA - BEIRAL, y0: sala.y * CASA - BEIRAL,
+      x1: (sala.x + sala.w) * CASA + BEIRAL, y1: (sala.y + sala.h) * CASA + BEIRAL,
+    };
+  }
+
+  function agua(g, pontos, cor, sombraDe, sombraPara) {
+    g.beginPath();
+    pontos.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.closePath();
+    g.fillStyle = cor;
+    g.fill();
+    // a beira de cada água fica um pouco mais escura que a cumeeira: dá volume sem riscar a telha
+    const grad = g.createLinearGradient(sombraDe[0], sombraDe[1], sombraPara[0], sombraPara[1]);
+    grad.addColorStop(0, 'rgba(0,0,0,0.13)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fill();
+  }
+
+  function linha(g, a, b, cor, largura) {
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+    g.strokeStyle = cor; g.lineWidth = largura; g.lineCap = 'round'; g.stroke();
+  }
+
+  function desenharQuatroAguas(g, r) {
+    const { x0, y0, x1, y1 } = r;
+    const meia = (y1 - y0) / 2;
+    const cy = (y0 + y1) / 2;
+    const ra = x0 + meia, rb = x1 - meia;
+    agua(g, [[x0, y0], [x1, y0], [rb, cy], [ra, cy]], BARRO.norte, [x0, y0], [x0, cy]);
+    agua(g, [[x0, y1], [x1, y1], [rb, cy], [ra, cy]], BARRO.sul, [x0, y1], [x0, cy]);
+    agua(g, [[x0, y0], [ra, cy], [x0, y1]], BARRO.oeste, [x0, cy], [ra, cy]);
+    agua(g, [[x1, y0], [rb, cy], [x1, y1]], BARRO.leste, [x1, cy], [rb, cy]);
+    for (const [a, b] of [[[x0, y0], [ra, cy]], [[x0, y1], [ra, cy]], [[x1, y0], [rb, cy]], [[x1, y1], [rb, cy]]]) linha(g, a, b, BARRO.espigao, 1.6);
+    linha(g, [ra, cy], [rb, cy], BARRO.cumeeira, 2.2);
+    g.strokeStyle = BARRO.beiral; g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y0 + 0.75, x1 - x0 - 1.5, y1 - y0 - 1.5);
+    // chaminé em cima da lareira, com a sombra caindo na água norte
+    g.fillStyle = 'rgba(28,14,8,0.30)'; g.fillRect(155, 105, 24, 22);
+    g.fillStyle = '#6e4e41'; g.fillRect(148, 98, 24, 22);
+    g.fillStyle = '#8a6656'; g.fillRect(148, 98, 24, 2); g.fillRect(148, 98, 2, 22);
+    g.fillStyle = '#21160f'; g.fillRect(153, 103, 14, 12);
+  }
+
+  function desenharDuasAguas(g, r) {
+    const { x0, y0, x1, y1 } = r;
+    const cy = (y0 + y1) / 2;
+    agua(g, [[x0, y0], [x1, y0], [x1, cy], [x0, cy]], ARDOSIA.norte, [x0, y0], [x0, cy]);
+    agua(g, [[x0, cy], [x1, cy], [x1, y1], [x0, y1]], ARDOSIA.sul, [x0, y1], [x0, cy]);
+    linha(g, [x0 + 1, cy], [x1 - 1, cy], ARDOSIA.cumeeira, 2.2);
+    g.strokeStyle = ARDOSIA.beiral; g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y0 + 0.75, x1 - x0 - 1.5, y1 - y0 - 1.5);
+  }
+
+  // O telhado vira uma imagem pronta: assim ele some inteiro, sem as emendas das águas aparecerem no meio do caminho.
+  function criarImagemTelhado(sala) {
+    const r = retanguloTelhado(sala);
+    const w = r.x1 - r.x0 + MARGEM_IMAGEM * 2;
+    const h = r.y1 - r.y0 + MARGEM_IMAGEM * 2;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(w * dpr);
+    c.height = Math.ceil(h * dpr);
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, (MARGEM_IMAGEM - r.x0) * dpr, (MARGEM_IMAGEM - r.y0) * dpr);
+    if (sala.telhado === 'quatro-aguas') desenharQuatroAguas(g, r); else desenharDuasAguas(g, r);
+    return { canvas: c, x: r.x0 - MARGEM_IMAGEM, y: r.y0 - MARGEM_IMAGEM, w, h, r };
+  }
+  const imagensTelhado = Object.fromEntries(SALAS.map((s) => [s.id, criarImagemTelhado(s)]));
+
+  function desenharTelhado(sala) {
+    const e = telhados[sala.id];
+    const img = imagensTelhado[sala.id];
+    const visivel = e.alpha * (visao === 'mestre' ? OPACIDADE_MESTRE : 1);
+    if (visivel < 0.004) return;
+    const subida = movimentoReduzido.matches ? 0 : 1 - e.alpha;
+    const { r } = img;
+    ctx.save();
+    ctx.globalAlpha = visivel;
+    if (visao !== 'mestre') {
+      ctx.fillStyle = COR.sombraTelhado;
+      ctx.fillRect(r.x0 + 6 + 6 * subida, r.y0 + 8 + 8 * subida, r.x1 - r.x0, r.y1 - r.y0);
+    }
+    const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2, escala = 1 + ERGUER_ESCALA * subida;
+    ctx.translate(cx, cy - ERGUER_PX * subida);
+    ctx.scale(escala, escala);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(img.canvas, img.x, img.y, img.w, img.h);
+    ctx.restore();
+  }
+
+  function desenharArvore(cx, cy) {
+    const x = centro(cx), y = centro(cy);
+    ctx.fillStyle = COR.sombra; elipse(ctx, x + 5, y + 6, 18, 16);
+    ctx.fillStyle = COR.copa;
+    circulo(ctx, x, y, 15); circulo(ctx, x - 7, y + 3, 11); circulo(ctx, x + 7, y - 2, 12); circulo(ctx, x + 2, y + 8, 11);
+    ctx.fillStyle = COR.copaLuz; circulo(ctx, x - 4, y - 5, 9);
+  }
+
+  function desenharFicha(x, y, cor, letra, rotulo) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'; elipse(ctx, x + 2, y + 4, 15, 13);
+    ctx.beginPath(); ctx.arc(x, y, 15, 0, TAU);
+    ctx.fillStyle = cor; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#f1ead8'; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fbf7ee';
+    ctx.font = '700 15px "Barlow Condensed", "Arial Narrow", sans-serif';
+    ctx.fillText(letra, x, y + 1);
+    ctx.font = '600 10px "Barlow", system-ui, sans-serif';
+    const w = ctx.measureText(rotulo).width + 10;
+    ctx.fillStyle = 'rgba(22,20,16,0.78)'; retArredondado(ctx, x - w / 2, y + 18, w, 14, 7); ctx.fill();
+    ctx.fillStyle = '#f1ead8'; ctx.fillText(rotulo, x, y + 25.5);
+    ctx.restore();
+  }
+
+  function desenharMarcas(t) {
+    if (casaSobMouse) {
+      ctx.strokeStyle = 'rgba(255,250,240,0.32)'; ctx.lineWidth = 1.5;
+      retArredondado(ctx, casaSobMouse[0] * CASA + 3, casaSobMouse[1] * CASA + 3, CASA - 6, CASA - 6, 4); ctx.stroke();
+    }
+    if (marca) {
+      const k = (t - marca.t) / MARCA_MS;
+      if (k >= 1) { marca = null; return; }
+      const a = (1 - k) * 0.9;
+      ctx.strokeStyle = marca.ok ? `rgba(241,234,216,${a})` : `rgba(214,96,76,${a})`;
+      ctx.lineWidth = 2;
+      retArredondado(ctx, marca.cx * CASA + 4, marca.cy * CASA + 4, CASA - 8, CASA - 8, 4); ctx.stroke();
+    }
+  }
+
+  function desenhar(t) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    desenharTerreno();
+    desenharInteriorSala(t);
+    desenharInteriorDeposito();
+    for (const sala of SALAS) desenharParedes(sala);
+    desenharFicha(centro(MORDOMO.cx), centro(MORDOMO.cy), '#55406e', 'M', 'Mordomo');
+    for (const sala of SALAS) desenharTelhado(sala);
+    for (const [cx, cy] of ARVORES) desenharArvore(cx, cy);
+    desenharMarcas(t);
+    desenharFicha(pino.x, pino.y, '#2f6d8c', 'V', 'Você');
+  }
+
+  // ---------- interface ----------
+
+  const status = document.getElementById('status');
+  let salaAnterior;
+  function atualizarStatus() {
+    const sala = SALAS.find((s) => pontoDentro(s, pino.x, pino.y)) || null;
+    const id = sala ? sala.id : null;
+    if (id === salaAnterior) return;
+    salaAnterior = id;
+    status.dataset.dentro = sala ? 'true' : 'false';
+    status.textContent = sala ? `${sala.ondeEsta} · telhado aberto` : 'Fora da casa · vendo os telhados';
+  }
+
+  function quadro(t) {
+    atualizarPino(t);
+    atualizarTelhados(t);
+    atualizarStatus();
+    desenhar(t);
+  }
+  function laco() {
+    quadro(agora());
+    requestAnimationFrame(laco);
+  }
+
+  function casaDoEvento(e) {
+    const caixa = tela.getBoundingClientRect();
+    const x = ((e.clientX - caixa.left) / caixa.width) * LARG;
+    const y = ((e.clientY - caixa.top) / caixa.height) * ALT;
+    return [limitar(Math.floor(x / CASA), 0, COLUNAS - 1), limitar(Math.floor(y / CASA), 0, LINHAS - 1)];
+  }
+
+  tela.addEventListener('pointermove', (e) => { casaSobMouse = e.pointerType === 'mouse' ? casaDoEvento(e) : null; });
+  tela.addEventListener('pointerleave', () => { casaSobMouse = null; });
+  tela.addEventListener('click', (e) => {
+    const destino = casaDoEvento(e);
+    const origem = pino.para || [pino.cx, pino.cy];
+    const passos = caminhoAte(origem, destino);
+    fila = passos || [];
+    direcaoSegurada = null;
+    marca = { cx: destino[0], cy: destino[1], t: agora(), ok: !!passos };
+  });
+
+  const TECLAS = {
+    ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1],
+    ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0],
+  };
+  window.addEventListener('keydown', (e) => {
+    const d = TECLAS[e.code];
+    if (!d || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target instanceof Element && e.target.closest('input, textarea, select, [role="radio"]')) return;
+    e.preventDefault();
+    if (!e.repeat) {
+      const origem = pino.para || [pino.cx, pino.cy];
+      fila = [[origem[0] + d[0], origem[1] + d[1]]];
+    }
+    direcaoSegurada = d;
+    teclaSegurada = e.code;
+  });
+  window.addEventListener('keyup', (e) => { if (e.code === teclaSegurada) { direcaoSegurada = null; teclaSegurada = null; } });
+  window.addEventListener('blur', () => { direcaoSegurada = null; teclaSegurada = null; });
+
+  const botoesVisao = document.querySelectorAll('[data-visao]');
+  function definirVisao(v) {
+    visao = v;
+    botoesVisao.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.visao === v)));
+  }
+  botoesVisao.forEach((b) => b.addEventListener('click', () => definirVisao(b.dataset.visao)));
+  document.querySelector('[role="radiogroup"]').addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    const proximo = visao === 'jogador' ? 'mestre' : 'jogador';
+    definirVisao(proximo);
+    document.getElementById('visao-' + proximo).focus();
+  });
+
+  const controleTempo = document.getElementById('tempo');
+  const valorTempo = document.getElementById('tempo-valor');
+  function definirTempo(ms) {
+    tempoTelhado = ms;
+    controleTempo.value = String(ms);
+    valorTempo.textContent = ms + ' ms';
+  }
+  controleTempo.addEventListener('input', () => definirTempo(Number(controleTempo.value)));
+
+  function reiniciar() {
+    [pino.cx, pino.cy] = INICIO;
+    pino.de = pino.para = null;
+    pino.livreDesde = -Infinity;
+    fila = [];
+    direcaoSegurada = null;
+    for (const e of Object.values(telhados)) Object.assign(e, { alpha: 1, de: 1, para: 1, t0: 0 });
+  }
+  document.getElementById('reiniciar').addEventListener('click', reiniciar);
+
+  // Gancho para as provas automáticas (relógio parado, passo a passo). Não muda nada para quem joga.
+  window.__telhado = {
+    congelarRelogio(t = 0) { relogioManual = t; },
+    soltarRelogio() { relogioManual = null; },
+    avancar(ms) { relogioManual += ms; quadro(relogioManual); },
+    teleportar(cx, cy) { reiniciar(); [pino.cx, pino.cy] = [cx, cy]; quadro(agora()); },
+    andar(dx, dy) { fila = [[pino.cx + dx, pino.cy + dy]]; },
+    irPara(cx, cy) { const p = caminhoAte([pino.cx, pino.cy], [cx, cy]); fila = p || []; return !!p; },
+    podePassar,
+    amostra() {
+      return {
+        x: pino.x, y: pino.y, casa: [pino.cx, pino.cy],
+        telhados: Object.fromEntries(SALAS.map((s) => [s.id, telhados[s.id].alpha])),
+        status: status.textContent,
+      };
+    },
+    definirTempo, definirVisao,
+    PASSO_MS,
+  };
+
+  requestAnimationFrame(laco);
+})();
+</script>
