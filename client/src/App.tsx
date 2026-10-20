@@ -3736,6 +3736,7 @@ function App() {
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onLabelStyleChange: (patch) => selectedRegion && useMapStore.getState().setRoomLabelStyle(selectedRegion.id, patch),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onRoofStyleChange: (patch) => selectedRegion && useMapStore.getState().setRoomRoofStyle(selectedRegion.id, patch),
               onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),

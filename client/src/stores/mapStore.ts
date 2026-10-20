@@ -1029,6 +1029,8 @@ interface MapStoreState {
   setRoomLabelStyle: (id: string, patch: RoomLabelStylePatch) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** MODELO E COR DO TELHADO da Sala (`RoomMeta.modeloDoTeto` / `corDoTeto`), com histórico. */
+  setRoomRoofStyle: (id: string, patch: mapFactory.RoomRoofStylePatch) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
   setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
@@ -2491,6 +2493,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
+    },
+    setRoomRoofStyle: (id, patch) => {
+      if (mapFactory.setRoomRoofStyle(get().map, id, patch) === get().map) return
+      // O seletor nativo de cor dispara a cada arraste: "Outra cor…" emenda num passo só de Ctrl+Z.
+      const typingKey = patch.modelo === undefined && patch.cor !== undefined && patch.cor !== null ? `room-roof-color:${id}` : undefined
+      withHistory((map) => mapFactory.setRoomRoofStyle(map, id, patch), typingKey)
     },
     setRoomComodo: (id, comodo) => {
       if (mapFactory.setRoomComodo(get().map, id, comodo) === get().map) return

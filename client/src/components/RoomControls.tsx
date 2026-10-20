@@ -8,6 +8,9 @@ import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net
 import { isDefaultRoomLabelStyle, type RoomLabelStyle, type RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import { selectNomeNaPilula, useMapStore } from '../stores/mapStore'
 import { Toggle } from './Toggle'
+import { EstiloDoTelhado } from './EstiloDoTelhado'
+import type { RoomRoofStylePatch } from '../lib/mapFactory'
+import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { RoomLabelStyleControls } from './RoomLabelStyleControls'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
 import { ConveyorControls, type ConveyorControlsProps } from './ConveyorControls'
@@ -49,6 +52,12 @@ export interface RoomControlsProps {
    *  interruptor com o nome negado sem motivo. Ausente omite o toggle. */
   roof?: boolean
   onRoofChange?: (roof: boolean) => void
+  /** MODELO E COR DO TELHADO — `RoomMeta.modeloDoTeto` / `corDoTeto` como estão
+   *  no mapa (`undefined` === telha barro). Aparecem só com o teto ligado e
+   *  `onRoofStyleChange`. */
+  modeloDoTeto?: ModeloDoTeto
+  corDoTeto?: string
+  onRoofStyleChange?: (patch: RoomRoofStylePatch) => void
   /** CÔMODO LEMBRADO — `RoomMeta.comodo`, toggle direto e desligado por
    *  padrão, como o do teto logo acima. Ligar um desliga o outro (quem garante
    *  é `lib/mapFactory.ts`). Sem `onComodoChange` o toggle não aparece. */
@@ -524,6 +533,9 @@ export function RoomControls({
   onLabelStyleChange,
   roof,
   onRoofChange,
+  modeloDoTeto,
+  corDoTeto,
+  onRoofStyleChange,
   comodo,
   onComodoChange,
   textoAoEntrar,
@@ -716,6 +728,13 @@ export function RoomControls({
                 <p className="gr-nota" id={roofHintId}>
                   Quem está fora não vê o que há dentro.
                 </p>
+                {roof === true && onRoofStyleChange !== undefined && (
+                  <EstiloDoTelhado
+                    modelo={modeloDoTeto ?? MODELO_PADRAO_DO_TETO}
+                    cor={corDoTetoOuPadrao(modeloDoTeto ?? MODELO_PADRAO_DO_TETO, corDoTeto)}
+                    onChange={onRoofStyleChange}
+                  />
+                )}
               </div>
             )}
             {showComodo && (

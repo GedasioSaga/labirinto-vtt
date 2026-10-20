@@ -3723,7 +3723,9 @@ export function filterMapForGroup(
           r.room.faccao === undefined &&
           r.room.raioDeVisao === undefined &&
           r.room.dentroVeFora === undefined &&
-          r.room.foraVeDentro === undefined
+          r.room.foraVeDentro === undefined &&
+          r.room.modeloDoTeto === undefined &&
+          r.room.corDoTeto === undefined
         )
           return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -3741,6 +3743,8 @@ export function filterMapForGroup(
           raioDeVisao: _raio,
           dentroVeFora: _dentroVeFora,
           foraVeDentro: _foraVeDentro,
+          modeloDoTeto,
+          corDoTeto,
           ...room
         } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
@@ -3757,6 +3761,10 @@ export function filterMapForGroup(
             ...room,
             name: nameHidden ? '' : r.room.name,
             roof: roofClosed ? true : undefined,
+            // MODELO E COR DO TELHADO: o jogador pinta o telhado com eles
+            // (`pixi/telhadosRenderer.ts`). Seguem o `roof`: só com o teto fechado.
+            ...(roofClosed && modeloDoTeto !== undefined ? { modeloDoTeto } : {}),
+            ...(roofClosed && corDoTeto !== undefined ? { corDoTeto } : {}),
             dark: undefined,
             ...(showText ? { textoAoEntrar: clampRoomText(textoAoEntrar) } : {}),
           },

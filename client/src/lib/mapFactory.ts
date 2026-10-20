@@ -5,6 +5,7 @@ import type {
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alertaDaCena, limitarFaccao } from './faccoes'
+import { MODELO_PADRAO_DO_TETO, corDaPaleta, corDoTetoOuPadrao, corDoTetoValida, corPadraoDoModelo, type ModeloDoTeto } from './telhado/paletas'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1929,6 +1930,40 @@ export function setRoomRoof(map: MapData, id: string, roof: boolean): MapData {
     ...map,
     regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, roof, ...semComodo } } : r)),
   }
+}
+
+/** O que o painel muda no telhado: o modelo, a cor (`null` volta à cor padrão do modelo) ou os dois. */
+export interface RoomRoofStylePatch {
+  modelo?: ModeloDoTeto
+  cor?: string | null
+}
+
+/** MODELO E COR DO TELHADO (`RoomMeta.modeloDoTeto` / `corDoTeto`). Grava só o
+ * que difere do padrão (`undefined` === telha, e a cor === a primeira do
+ * modelo), para o arquivo de um mapa que nunca mexeu nisso sair igual. Trocar
+ * de modelo larga a cor que era da paleta do modelo de antes (ela vira a padrão
+ * do novo); cor livre continua. Cor inválida no patch é ignorada. Mesmo contrato
+ * de `setRoomRoof`: região comum, id inexistente ou nada diferente NA TELA
+ * devolve o mesmo `map`. */
+export function setRoomRoofStyle(map: MapData, id: string, patch: RoomRoofStylePatch): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  const antes = region.room
+  const modeloAntes: ModeloDoTeto = antes.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
+  const modelo: ModeloDoTeto = patch.modelo ?? modeloAntes
+  let cor = antes.corDoTeto
+  if (patch.cor === null) cor = undefined
+  else if (patch.cor !== undefined && corDoTetoValida(patch.cor)) cor = patch.cor.toLowerCase()
+  else if (modelo !== modeloAntes && cor !== undefined && corDaPaleta(modeloAntes, cor) !== null) cor = undefined
+  if (cor !== undefined && cor === corPadraoDoModelo(modelo)) cor = undefined
+  if (modelo === modeloAntes && corDoTetoOuPadrao(modelo, cor) === corDoTetoOuPadrao(modeloAntes, antes.corDoTeto)) return map
+  const { modeloDoTeto: _modelo, corDoTeto: _cor, ...semEstilo } = antes
+  const room: RoomMeta = {
+    ...semEstilo,
+    ...(modelo === MODELO_PADRAO_DO_TETO ? {} : { modeloDoTeto: modelo }),
+    ...(cor === undefined ? {} : { corDoTeto: cor }),
+  }
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room } : r)) }
 }
 
 /** CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto" (`RoomMeta.comodo`).

@@ -271,6 +271,8 @@ interface PropertiesPanelProps {
     | 'nameHiddenFromPlayers'
     | 'labelStyle'
     | 'roof'
+    | 'modeloDoTeto'
+    | 'corDoTeto'
     | 'comodo'
     | 'textoAoEntrar'
     | 'notaDoMestre'
@@ -765,6 +767,8 @@ export function PropertiesPanel({
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               labelStyle={roomLabelStyleOf(selectedRegion.room)}
               roof={!!selectedRegion.room.roof}
+              modeloDoTeto={selectedRegion.room.modeloDoTeto}
+              corDoTeto={selectedRegion.room.corDoTeto}
               comodo={selectedRegion.room.comodo === true}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}

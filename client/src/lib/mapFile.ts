@@ -50,6 +50,7 @@ import {
 import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
+import { MODELOS_DO_TETO, corDoTetoValida } from './telhado/paletas'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
@@ -499,6 +500,19 @@ function roomLabelStyleFromFile(region: Region): Region {
   return { ...region, room: sanitizeRoomLabelStyle(room) }
 }
 
+/** MODELO E COR DO TELHADO — campos NOVOS e OPCIONAIS: ausentes continuam
+ *  ausentes (telha barro). Modelo que não é 'telhas'/'madeira' e cor que não é
+ *  `#rrggbb` SAEM, em vez de chegar ao desenho do jogador. */
+function roomRoofStyleFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('modeloDoTeto' in room || 'corDoTeto' in room)) return region
+  const modeloOk = !('modeloDoTeto' in room) || MODELOS_DO_TETO.some((m) => m === room.modeloDoTeto)
+  const corOk = !('corDoTeto' in room) || corDoTetoValida(room.corDoTeto)
+  if (modeloOk && corOk) return region
+  const { modeloDoTeto, corDoTeto, ...semEstilo } = room
+  return { ...region, room: { ...semEstilo, ...(modeloOk ? { modeloDoTeto } : {}), ...(corOk ? { corDoTeto } : {}) } }
+}
+
 function roomVisionRadiusFromFile(region: Region): Region {
   const room = region.room
   if (!room || typeof room !== 'object' || !('raioDeVisao' in room)) return region
@@ -619,7 +633,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))))))),
+      roomRoofStyleFromFile(roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha

@@ -359,6 +359,15 @@ export interface RoomMeta {
    *  `undefined` === false (sem teto, comportamento idêntico ao de hoje) —
    *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
   roof?: boolean
+  /** MODELO DO TELHADO (`lib/telhado/paletas.ts`): telha colonial ou tábuas de
+   *  madeira, desenhado por `texturas/telhado.ts`. Só vale com `roof` ligado.
+   *  `undefined` === 'telhas' (o padrão da casa), sem migração; o setter grava
+   *  só 'madeira' e `lib/mapFile.ts` descarta valor desconhecido. */
+  modeloDoTeto?: 'telhas' | 'madeira'
+  /** COR DO TELHADO, `#rrggbb`: uma das 6 do modelo ou cor livre.
+   *  `undefined` === a primeira cor do modelo (telha barro `#8a5a46`), sem
+   *  migração; `lib/mapFile.ts` descarta cor inválida. */
+  corDoTeto?: string
   /**
    * CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto". O jogador NÃO
    * recebe a Sala (nem silhueta, nem nome, nem pino, desenho ou escada de
