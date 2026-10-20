@@ -15,6 +15,7 @@ import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
 import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
 import { createTelhadosRenderer, type TelhadosRenderer } from '../pixi/telhadosRenderer'
+import { portasDeFora, portasNoTelhado, salasComTetoDe } from '../lib/telhado/portasDeFora'
 import type { PlayerHazard } from '../lib/hazards'
 import { drawHazardAreas } from '../pixi/drawHazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -1183,6 +1184,18 @@ interface Scene {
   roofCut: Graphics
   lastRoofCut: RegionPoint[][] | null
   peekedRoofsCount: number
+  /**
+   * PORTA POR CIMA DO TELHADO: as portas de fora dos telhados à vista, acima
+   * deles (`lib/telhado/portasDeFora.ts`). Graphics próprio, então animador
+   * próprio: um animador guarda um Graphics só.
+   */
+  portasNoTelhado: Graphics
+  animadorDasPortasNoTelhado: AnimadorDePortas
+  lastPortasNoTelhadoKey: string | null
+  /** Polígono de cada telhado da última olhada: o que está sumindo já saiu do pacote, e a porta dele segue por cima até o fim do fade. */
+  tetosDasPortas: Map<string, readonly RegionPoint[]>
+  /** O fade dos telhados andava no quadro anterior: o seguinte ainda refaz as portas (o telhado que acabou de sumir solta a dele). */
+  portasNoTelhadoNoFade: boolean
   /** Contornos do último avistamento (`lastSeen.ts`): logo abaixo das fichas, sem toque. */
   lastSeen: Container
   lastSeenMemory: LastSeenMemory
@@ -2145,6 +2158,37 @@ function PlayerViewDoCanvas({
   }
 
   /**
+   * PORTA POR CIMA DO TELHADO (pedido de 20/10/2026): de fora, o telhado cobria
+   * a porta e o jogador não achava por onde entrar. As portas de fora dos
+   * telhados à vista sobem para `portasNoTelhado`, com o mesmo desenho e a mesma
+   * animação da camada `doors` — o retângulo é chapado, sem alfa, então a cópia
+   * em cima da porta de verdade não muda o desenho. Só a porta que o jogador vê
+   * ou já viu (`lib/telhado/portasDeFora.ts`). Barata: roda a cada quadro
+   * enquanto um telhado desbota (`tickPortasNoTelhado`).
+   */
+  function redrawPortasNoTelhado(scene: Scene): void {
+    const { map: currentMap, vision: currentVision, explored: currentExplored, porAtravessar: toCross } = latestRef.current
+    // As mesmas paredes da camada `doors` (o recorte devolve o mesmo resultado para a mesma entrada).
+    const walls = wallsOnVisibleLayers(scene.culler.cull(currentMap, currentVision, currentExplored).walls, currentMap.hiddenLayers)
+    const visiveis = scene.telhados.idsVisiveis()
+    // O telhado que está sumindo já saiu do pacote (a ficha entrou): o polígono dele vem da olhada anterior.
+    const tetos = new Map(salasComTetoDe(visibleRegions(currentMap.regions, currentMap.hiddenLayers)).map((s) => [s.id, s.points]))
+    for (const [id, pontos] of scene.tetosDasPortas) if (visiveis.has(id) && !tetos.has(id)) tetos.set(id, pontos)
+    scene.tetosDasPortas = tetos
+    const salas = [...tetos].map(([id, points]) => ({ id, points }))
+    const portas = portasNoTelhado(portasDeFora(walls, salas, currentMap.grid), visiveis, currentVision, currentExplored)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    // Mesma receita de chave de `redrawWallsLayer`: a porta que troca `open` muda a chave e anima.
+    const key = JSON.stringify([portas, scale, res, toCross])
+    if (key === scene.lastPortasNoTelhadoKey) return
+    scene.lastPortasNoTelhadoKey = key
+    scene.animadorDasPortasNoTelhado.desenhar(scene.portasNoTelhado, portas, null, scale, res, new Set(toCross))
+    const el = containerRef.current
+    if (el) el.dataset.portasNoTelhado = String(portas.length)
+  }
+
+  /**
    * Luz do mestre na tela do jogador: o halo para na parede em vez de
    * atravessar. O recorte é o MESMO raycast da visão (`visionSegments` +
    * `computeVisibility`, dentro de `drawLights`), sobre as paredes que o
@@ -2407,6 +2451,7 @@ function PlayerViewDoCanvas({
     redrawPropsLayer(scene)
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
+    redrawPortasNoTelhado(scene)
     redrawDoorHints(scene)
     redrawPinsForZoom(scene)
     redrawFarLights(scene)
@@ -2584,6 +2629,8 @@ function PlayerViewDoCanvas({
       scene.lastRoofCut = currentGlimpses
       applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
     }
+    // Depois dos telhados: o que acabou de sair do pacote ainda está sumindo e segura a porta dele por cima.
+    redrawPortasNoTelhado(scene)
 
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
@@ -2958,6 +3005,9 @@ function PlayerViewDoCanvas({
       const peekedRoofs = new Container()
       peekedRoofs.eventMode = 'none'
       const peekMask = new Graphics()
+      const portasNoTelhado = new Graphics()
+      portasNoTelhado.label = 'portasNoTelhado'
+      portasNoTelhado.eventMode = 'none'
       const pins = new Container()
       const marks = new Graphics()
       const lastSeen = new Container()
@@ -3038,6 +3088,9 @@ function PlayerViewDoCanvas({
         // O telhado espiado pela porta, no mesmo andar do telhado, com o buraco da visão.
         peekedRoofs,
         peekMask,
+        // PORTA POR CIMA DO TELHADO: a porta de fora que o jogador vê ou já viu,
+        // acima do telhado (senão ele não acha por onde entrar) e abaixo de nomes, pinos e fichas.
+        portasNoTelhado,
         // NOMES DOS LUGARES acima da névoa (só o lugar já conhecido tem pílula,
         // `lugaresConhecidos`) e abaixo de bilhete, pino e ficha, que seguem legíveis por cima.
         nomesDosLugares.camada,
@@ -3182,6 +3235,11 @@ function PlayerViewDoCanvas({
         roofCut,
         lastRoofCut: null,
         peekedRoofsCount: 0,
+        portasNoTelhado,
+        animadorDasPortasNoTelhado: createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion }),
+        lastPortasNoTelhadoKey: null,
+        tetosDasPortas: new Map(),
+        portasNoTelhadoNoFade: false,
         lastSeen,
         lastSeenMemory: EMPTY_LAST_SEEN,
         ghostViews: new Map(),
@@ -3260,6 +3318,16 @@ function PlayerViewDoCanvas({
       // refazem no próprio passo: com eles, não sobra nada para cá.
       const tickZoomLayers = () => syncZoomLayers(scene)
       app.ticker.add(tickZoomLayers)
+
+      // PORTA POR CIMA DO TELHADO: enquanto um telhado desbota, as portas dele
+      // são refeitas a cada quadro, e mais um quadro depois do fim — o telhado
+      // que acabou de sumir solta a porta. Parado, não faz nada.
+      const tickPortasNoTelhado = () => {
+        const noFade = scene.telhados.animando() > 0
+        if (noFade || scene.portasNoTelhadoNoFade) redrawPortasNoTelhado(scene)
+        scene.portasNoTelhadoNoFade = noFade
+      }
+      app.ticker.add(tickPortasNoTelhado)
 
       // Ficha arrastada na faixa da borda: o mapa rola a cada quadro, com o dedo parado ou não,
       // e a ficha continua sob o dedo. Só a câmera desta tela — nada vai pela rede até soltar.
@@ -3834,6 +3902,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickCameraGlide)
         app.ticker.remove(tickZoomLayers)
+        app.ticker.remove(tickPortasNoTelhado)
         app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickDestinations)
@@ -3848,6 +3917,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickMarcadores)
         app.ticker.remove(tickRevisit)
         scene.animadorDePortas.cancelar()
+        scene.animadorDasPortasNoTelhado.cancelar()
         scene.telhados.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()

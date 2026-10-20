@@ -733,8 +733,13 @@ type WallLine = Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>
 /** Frações do comprimento amostradas por `wallLineSamples`. */
 const WALL_LINE_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
 
-/** Pontas, quartos e meio da parede: bastam para dizer que ela corre SOBRE um contorno, e não só o cruza. */
-function wallLineSamples(wall: Wall): RegionPoint[] {
+/**
+ * Pontas, quartos e meio da parede: bastam para dizer que ela corre SOBRE um contorno, e não só o cruza.
+ *
+ * EXPORTADO para a PORTA POR CIMA DO TELHADO (`lib/telhado/portasDeFora.ts`):
+ * "a porta está na borda do prédio" é a mesma pergunta do vão aqui.
+ */
+export function wallLineSamples(wall: Wall): RegionPoint[] {
   return WALL_LINE_FRACTIONS.map((t) => ({ x: wall.x1 + (wall.x2 - wall.x1) * t, y: wall.y1 + (wall.y2 - wall.y1) * t }))
 }
 

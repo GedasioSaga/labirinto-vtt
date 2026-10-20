@@ -97,6 +97,12 @@ export interface TelhadosRenderer {
   desenhar: (telhados: readonly TelhadoParaDesenhar[], mapaId: string) => void
   /** Telhados em transição agora (para o e2e e os testes). */
   animando: () => number
+  /**
+   * Ids dos telhados com algo à vista (progresso > 0), INCLUSIVE o que está
+   * sumindo: a porta de fora desenhada por cima (`lib/telhado/portasDeFora.ts`)
+   * não pisca debaixo do telhado durante os 300 ms do fade.
+   */
+  idsVisiveis: () => ReadonlySet<string>
   /** Texturas pintadas desde a criação (para o teste do cache). */
   pintadas: () => number
   destruir: () => void
@@ -516,6 +522,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     guardarFoto,
     desenhar,
     animando: () => [...telhados.values()].filter((t) => t.caminho !== null).length,
+    idsVisiveis: () => new Set([...telhados.values()].filter((t) => t.progresso > 0 && !t.raiz.destroyed).map((t) => t.id)),
     pintadas: () => pintadas,
     destruir: () => {
       limpar()

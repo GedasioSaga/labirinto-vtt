@@ -222,6 +222,34 @@ describe('telhadosRenderer — fade', () => {
     expect(topo(m.camada).alpha).toBe(1)
   })
 
+  it('idsVisiveis: o telhado que sai continua visível durante o fade e solta quando o progresso chega a 0', () => {
+    const m = montar()
+    m.renderer.desenhar([m.casa()], 'mapa')
+    expect([...m.renderer.idsVisiveis()]).toEqual(['casa'])
+    m.renderer.desenhar([], 'mapa')
+    expect([...m.renderer.idsVisiveis()]).toEqual(['casa'])
+    m.quadro(DURACAO_DO_TELHADO_MS - 1)
+    expect([...m.renderer.idsVisiveis()]).toEqual(['casa'])
+    m.quadro(1)
+    expect([...m.renderer.idsVisiveis()]).toEqual([])
+  })
+
+  it('idsVisiveis: o teto que volta só conta depois de começar a aparecer; sem movimento, some na hora', () => {
+    const m = montar()
+    m.renderer.desenhar([m.casa()], 'mapa')
+    m.renderer.desenhar([], 'mapa')
+    m.quadro(DURACAO_DO_TELHADO_MS)
+    m.renderer.desenhar([m.casa()], 'mapa')
+    expect([...m.renderer.idsVisiveis()]).toEqual([])
+    m.quadro(DURACAO_DO_TELHADO_MS / 2)
+    expect([...m.renderer.idsVisiveis()]).toEqual(['casa'])
+
+    const editor = montar({ semMovimento: true })
+    editor.renderer.desenhar([editor.casa()], 'mapa')
+    editor.renderer.desenhar([], 'mapa')
+    expect([...editor.renderer.idsVisiveis()]).toEqual([])
+  })
+
   it('trocar de camada (espiar pela porta) muda o telhado de lugar sem animar', () => {
     const m = montar()
     const espiada = new Container()

@@ -64,7 +64,7 @@
     <div class="rolagem">
     <svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="telhado-title telhado-desc">
       <title id="telhado-title">Telhado da sala: do painel do mestre à tela do jogador</title>
-      <desc id="telhado-desc">O mestre escolhe modelo e cor do telhado no painel da Sala; o estilo fica no RoomMeta, chega ao jogador pelo filtro só com o teto fechado, e o renderer dos telhados pinta a textura e faz o fade tanto na tela do jogador quanto no editor, onde dois botões ligam o telhado e o deixam transparente.</desc>
+      <desc id="telhado-desc">O mestre escolhe modelo e cor do telhado no painel da Sala; o estilo fica no RoomMeta, chega ao jogador pelo filtro só com o teto fechado, e o renderer dos telhados pinta a textura e faz o fade tanto na tela do jogador quanto no editor, onde dois botões ligam o telhado e o deixam transparente. Na tela do jogador, as portas de fora já vistas sobem para uma camada acima do telhado.</desc>
       <defs>
         <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
         <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
@@ -83,6 +83,7 @@
       <line x1="460" y1="252" x2="520" y2="252" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
       <line x1="372" y1="380" x2="372" y2="284" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
       <line x1="612" y1="284" x2="612" y2="380" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="852" y1="284" x2="852" y2="380" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
 
       <!-- Rótulos das setas (máscara opaca, 8px acima ou ao lado) -->
       <rect x="232" y="60" width="36" height="12" rx="2" fill="#f5f5f5"/>
@@ -103,6 +104,8 @@
       <text x="384" y="333" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">LIGA · ALFA</text>
       <rect x="620" y="324" width="72" height="12" rx="2" fill="#f5f5f5"/>
       <text x="624" y="333" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">1 POR TAREFA</text>
+      <rect x="860" y="324" width="112" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="864" y="333" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">IDS VISÍVEIS · NÉVOA</text>
 
       <!-- Linha 1: painel, store, dado, filtro -->
       <rect x="40" y="48" width="180" height="64" rx="6" fill="#f5f5f5"/>
@@ -170,11 +173,18 @@
       <text x="610" y="416" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pintura da textura</text>
       <text x="610" y="432" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">texturas/telhado.ts</text>
 
+      <rect x="760" y="380" width="180" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="760" y="380" width="180" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1.2"/>
+      <rect x="768" y="386" width="24" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="780" y="395" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LIB</text>
+      <text x="850" y="416" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Portas de fora</text>
+      <text x="850" y="432" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lib/telhado/portasDeFora.ts</text>
+
       <!-- Legenda -->
       <line x1="40" y1="492" x2="960" y2="492" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
       <text x="40" y="516" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
       <rect x="140" y="506" width="16" height="12" rx="2" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
-      <text x="164" y="516" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">peça nova do fade</text>
+      <text x="164" y="516" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">fade · porta de fora</text>
       <rect x="300" y="506" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
       <text x="324" y="516" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">estado guardado</text>
       <line x1="448" y1="512" x2="480" y2="512" stroke="#2e5aa8" stroke-width="1" marker-end="url(#arrow-link)"/>
@@ -188,6 +198,7 @@
       <li>O estilo só vai para o jogador com o teto <em>fechado</em>; Sala sem teto ou aberta não manda modelo nem cor.</li>
       <li>A textura tem no máximo 1 milhão de pixels e é pintada uma por tarefa, com placa lisa no lugar até ficar pronta (nenhuma trava de 200 ms).</li>
       <li>Ao sair da Sala, o telhado volta por cima de uma foto do interior tirada antes da névoa chegar; a foto é destruída no fim do fade.</li>
+      <li>Porta de fora (20/10/2026): a porta na borda de uma Sala com teto, com o outro lado fora de qualquer Sala com teto, é desenhada de novo na camada <code>portasNoTelhado</code>, acima do telhado, só se o jogador vê ou já viu o ponto meia casa para fora dela. O telhado que ainda está sumindo (<code>idsVisiveis</code>) segura a porta por cima até o fim do fade.</li>
     </ul>
   </div>
 </body>

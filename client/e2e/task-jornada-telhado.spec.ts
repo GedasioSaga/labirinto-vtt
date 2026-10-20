@@ -34,6 +34,10 @@
 //      do fade a mobília ainda aparece por baixo dele (sem a foto o interior
 //      sumiria no mesmo quadro em que o telhado começa a voltar) — e nenhum
 //      quadro da transição fica mais escuro que o telhado e o interior.
+//   PORTA DE FORA (pedido de 20/10/2026): uma parede solta sobre a borda de baixo
+//      da Sala, à direita do vão, ganha uma porta FECHADA por gesto. De fora (no
+//      passo 3 e de novo depois do 5) a porta aparece por cima do telhado: a
+//      média do recorte dela fica perto da cor da porta e longe da do telhado.
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import { installTauriFsStub } from './helpers/tauriFsStub'
@@ -64,6 +68,31 @@ const PONTO_DA_SALA: Ponto = { x: 500, y: 330 }
 const FORA: Ponto = { x: 640, y: 540 }
 const DENTRO: Ponto = { x: 640, y: 340 }
 
+/**
+ * PORTA DE FORA: parede solta de uma casa sobre a borda de baixo da Sala, longe
+ * do caminho da ficha (x = 640 ± o raio dela) e abaixo das amostras, com a porta
+ * no meio. O lado de fora dela (meia casa abaixo, (736, 416)) fica a ~160 px de
+ * FORA: na lanterna. (A ficha para onde a régua de `lerTela` manda, perto de
+ * (600, 600) do mapa; de lá ele fica a ~230 px, ainda dentro dos 250.)
+ */
+const PAREDE_DA_PORTA = { de: { x: 704, y: SALA.y1 }, ate: { x: 768, y: SALA.y1 } }
+const PORTA: Ponto = { x: 736, y: SALA.y1 }
+/** Linha do meio da tela, sem botão nenhum à direita: lá a ponta direita da moldura é a do mapa. */
+const LINHA_DO_MEIO = 400
+/** Porta normal: vão de 32 px do mapa, desenhado em 60% dele (`pixi/drawDoors.ts`). */
+const MEIO_DA_PORTA_NO_MAPA = (32 * 0.6) / 2
+/**
+ * O recorte pula o meio da porta (o ponto claro de PORTAS POR ATRAVESSAR tem
+ * 1,5 px de tela de raio) e fica 1 px longe da ponta; na espessura, 1 px para
+ * cada lado do meio (a porta tem 5 px de tela).
+ */
+const PULO_DO_MEIO_PX = 2.5
+const FOLGA_DA_PONTA_PX = 1
+const MEIA_FAIXA_PX = 1
+/** Cor da porta fechada (`DOOR_COLOR`, `pixi/drawDoors.ts`). */
+const COR_DA_PORTA: Rgb = { r: 0xd0, g: 0x8c, b: 0x3a }
+/** Longe da cor do telhado: a porta e a madeira verde ficam a 131 uma da outra. */
+const LONGE_DO_TELHADO = 60
 /** Verde da madeira (`lib/telhado/paletas.ts`). */
 const VERDE_DA_MADEIRA: Rgb = { r: 0x4d, g: 0x5f, b: 0x4f }
 /** Média do telhado perto da cor escolhida: a luz das águas e a fresta mexem no tom, a média fica. */
@@ -233,6 +262,79 @@ function recorteNaTela(regua: Regua, r: Retangulo): Retangulo {
 }
 
 const cruza = (a: Retangulo, b: Retangulo) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+
+/** As duas metades da porta na tela (sem o meio, onde pode estar o ponto claro), em px de CSS do canvas. */
+function recortesDaPorta(regua: Regua): Retangulo[] {
+  const c = paraTela(regua, PORTA)
+  const ponta = MEIO_DA_PORTA_NO_MAPA * regua.escala - FOLGA_DA_PONTA_PX
+  const faixa = { y0: c.y - MEIA_FAIXA_PX, y1: c.y + MEIA_FAIXA_PX }
+  return [
+    { x0: c.x - ponta, x1: c.x - PULO_DO_MEIO_PX, ...faixa },
+    { x0: c.x + PULO_DO_MEIO_PX, x1: c.x + ponta, ...faixa },
+  ]
+}
+
+/**
+ * Régua só para a PORTA DE FORA, que é pequena (uns 11 × 5 px de tela). A de
+ * `lerTela` erra uns 20 px nesta tela — na linha 700 a ponta esquerda cai na
+ * sombra do painel do jogador e a direita no botão de zoom —, o que não tira as
+ * amostras grandes de cima do telhado, mas tiraria o recorte de cima da porta.
+ * Esta mede a moldura pela ALTURA (topo e fundo na coluna da moldura) e a ponta
+ * direita numa linha do meio, onde não há botão.
+ */
+async function reguaPelaAltura(page: Page, b64: string): Promise<Regua> {
+  const box = await caixaDoCanvas(page)
+  const moldura = await page.evaluate(
+    async ({ foto, larguraCss, limiarMoldura, linha, coluna }) => {
+      const blob = await (await fetch(`data:image/png;base64,${foto}`)).blob()
+      const bmp = await createImageBitmap(blob)
+      const tela = document.createElement('canvas')
+      tela.width = bmp.width
+      tela.height = bmp.height
+      const ctx = tela.getContext('2d')
+      if (!ctx) throw new Error('sem contexto 2d para ler a foto')
+      ctx.drawImage(bmp, 0, 0)
+      const { data, width, height } = ctx.getImageData(0, 0, bmp.width, bmp.height)
+      const k = bmp.width / larguraCss
+      const escuro = (px: number, py: number): boolean => {
+        const i = (py * width + px) * 4
+        return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2] < limiarMoldura
+      }
+      const px = Math.round(coluna * k)
+      let topo = -1
+      let fundo = -1
+      for (let y = 0; y < height; y += 1) {
+        if (!escuro(px, y)) continue
+        if (topo < 0) topo = y
+        fundo = y
+      }
+      const py = Math.round(linha * k)
+      let direita = -1
+      for (let x = 0; x < width; x += 1) if (escuro(x, py)) direita = x
+      return { topo: topo / k, fundo: fundo / k, direita: direita / k }
+    },
+    { foto: b64, larguraCss: box.width, limiarMoldura: LIMIAR_DA_MOLDURA, linha: LINHA_DO_MEIO, coluna: COLUNA_DA_MOLDURA },
+  )
+  const escala = (moldura.fundo - moldura.topo + 1) / MUNDO.h
+  if (!(escala > 0.5 && escala < 0.7)) throw new Error(`a moldura do mapa não foi reconhecida pela altura (escala ${escala.toFixed(3)})`)
+  return { origem: { x: moldura.direita + 1 - MUNDO.w * escala, y: moldura.topo }, escala }
+}
+
+/** Média de cor das duas metades da porta numa foto nova da tela do jogador. */
+async function corDaPorta(page: Page, painel: Retangulo): Promise<Rgb> {
+  const foto = await fotografar(page)
+  const recortes = recortesDaPorta(await reguaPelaAltura(page, foto))
+  for (const r of recortes) expect(cruza(r, painel), 'o recorte da porta encosta no painel do jogador: contaria pixel de interface').toBe(false)
+  const [a, b] = await mediaDaFoto(page, foto, recortes)
+  return { r: (a.r + b.r) / 2, g: (a.g + b.g) / 2, b: (a.b + b.b) / 2 }
+}
+
+function conferirAPortaDeFora(porta: Rgb, quando: string): void {
+  const relato = `${quando}: média da porta ${hex(porta)} (porta ${hex(COR_DA_PORTA)}, telhado ${hex(VERDE_DA_MADEIRA)})`
+  test.info().annotations.push({ type: 'porta de fora', description: relato })
+  expect(distancia(porta, COR_DA_PORTA), `${relato} — a porta não aparece por cima do telhado`).toBeLessThan(PERTO_DA_COR)
+  expect(distancia(porta, VERDE_DA_MADEIRA), `${relato} — o recorte da porta ainda mostra o telhado`).toBeGreaterThan(LONGE_DO_TELHADO)
+}
 
 async function arrastar(page: Page, de: Ponto, ate: Ponto, passos = 14): Promise<void> {
   await page.mouse.move(de.x, de.y)
@@ -425,6 +527,14 @@ async function construirACasa(page: Page) {
   await opacidade.press('End')
   await arrastar(page, noCanvas(box, { x: MOBILIA.x0, y: MOBILIA.y0 }), noCanvas(box, { x: MOBILIA.x1, y: MOBILIA.y1 }))
   await page.keyboard.press('Escape')
+  // PORTA DE FORA: a parede solta sobre a borda de baixo e a porta (fechada, como nasce) no meio dela.
+  await pickTool(page, 'Parede')
+  await arrastar(page, noCanvas(box, PAREDE_DA_PORTA.de), noCanvas(box, PAREDE_DA_PORTA.ate))
+  await page.keyboard.press('Escape')
+  await pickTool(page, 'Porta')
+  await page.mouse.click(box.x + PORTA.x, box.y + PORTA.y)
+  await page.waitForTimeout(PINTURA_MS)
+  await page.keyboard.press('Escape')
   return box
 }
 
@@ -534,6 +644,8 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   expect(distancia(deFora, VERDE_DA_MADEIRA), `de fora, o telhado não está na madeira verde — ${corDeFora}`).toBeLessThan(PERTO_DA_COR)
   expect(deFora.g > deFora.r && deFora.g > deFora.b, `de fora, o verde não manda no telhado — ${corDeFora}`).toBe(true)
   expect(deFora.magenta, `de fora, a mobília vaza pelo telhado — ${corDeFora}`).toBeLessThan(0.01)
+  // PORTA DE FORA: o lado de fora dela está na lanterna, então ela aparece por cima do telhado.
+  conferirAPortaDeFora(await corDaPorta(jogador, painel), 'de fora, antes de entrar')
 
   // 4. Entra: o telhado some em no máximo 300 ms depois de começar a sumir.
   await amostrarQuadros(jogador, amostraNaTela, AMOSTRAGEM_MS)
@@ -577,6 +689,8 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   // A foto da sala: com o telhado já voltando, a mobília continua por baixo dele em algum quadro.
   const comInteriorPorBaixo = saindo.filter((q, i) => i >= j0 && distancia(q, deDentro) > MUDOU && q.magenta >= 0.5 * deDentro.magenta).length
   expect(comInteriorPorBaixo, `o interior sumiu no mesmo quadro em que o telhado começou a voltar (sem a foto da sala) — ${relatorio}`).toBeGreaterThan(0)
+  // PORTA DE FORA de novo, com o telhado de volta.
+  conferirAPortaDeFora(await corDaPorta(jogador, painel), 'de fora, depois de sair')
 
   // Prints de layout: editor 1440 com o painel da Sala, jogador 1440 e 390 de fora.
   await page.setViewportSize({ width: 1440, height: 900 })
