@@ -176,7 +176,7 @@ export interface RegionsRendererOptions {
    * silhueta chapada, e a sala de teto ABERTO chega sem o campo — marcar ali
    * seria contar ao jogador uma decisão que é do mestre.
    */
-  roofMarker?: boolean
+  roofMarker?: boolean | (() => boolean)
 }
 
 /**
@@ -224,7 +224,9 @@ function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
  */
 export function createRegionsRenderer(options: RegionsRendererOptions = {}): RegionsRenderer {
   const cache = new Map<string, { fill: Graphics; stroke: Graphics }>()
-  const roofMarker = options.roofMarker === true
+  // Função: o editor desliga a marca quando mostra o telhado desenhado (`stores/telhadosNoEditor.ts`).
+  const marcaDoTeto = typeof options.roofMarker === 'function' ? options.roofMarker : () => options.roofMarker === true
+  let roofMarker = marcaDoTeto()
   // Redesenho parcial: o que cada Graphics pintou da última vez. A store é
   // imutável (`moveRegion` só recria a sala movida), então mesma referência =
   // pintura idêntica — arrastar 1 sala repinta só ela. O destaque e a largura
@@ -247,6 +249,12 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
 
   function draw(layers: RegionLayers, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
     const outlineWidth = selectionOutlineWidth(resolveCameraScale(layers.strokes, cameraScale))
+    // A marca do teto mudou: toda borda repinta (o portão por referência não veria a troca).
+    const marcaAgora = marcaDoTeto()
+    if (marcaAgora !== roofMarker) {
+      roofMarker = marcaAgora
+      paintedStroke.clear()
+    }
     const visibleRegions = regions.filter((region) => !isDegenerateRegion(region.points))
     const currentIds = new Set(visibleRegions.map((r) => r.id))
 

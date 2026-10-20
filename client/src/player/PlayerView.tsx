@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
-import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
+import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import type { RoofPeek } from '../lib/fogFilter'
@@ -13,6 +13,8 @@ import { countExploredCells, forEachExploredNotch, forEachExploredRun } from '..
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
+import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
+import { createTelhadosRenderer, type TelhadosRenderer } from '../pixi/telhadosRenderer'
 import type { PlayerHazard } from '../lib/hazards'
 import { drawHazardAreas } from '../pixi/drawHazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -335,15 +337,6 @@ const DOOR_HINT_WIDTH_PX = 10
 /** Raio do toque na porta, em px de TELA: dedo em celular erra por alguns px. */
 const DOOR_TAP_TOLERANCE_PX = 18
 const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
-/**
- * TETO DE CONSTRUÇÃO — o telhado visto de cima. Tom de madeira escura, bem
- * acima do preto da névoa (para o prédio ler como objeto, e não como buraco) e
- * bem abaixo do chão iluminado, porque teto não é lugar iluminado por lanterna.
- */
-export const ROOF_COLOR = 0x52483f
-/** Aresta do telhado: um passo mais claro, para o contorno do prédio ler contra a névoa. */
-const ROOF_EDGE_COLOR = 0x6e6055
-const ROOF_EDGE_WIDTH = 3
 
 // `pointerId`: o dedo (ou mouse) dono do gesto. Com dois dedos na tela, o
 // passo e o soltar do OUTRO dedo não mexem neste gesto.
@@ -1176,10 +1169,12 @@ interface Scene {
   /** Luz vista de longe (`pixi/drawFarLights.ts`): ponto aceso ACIMA da névoa; tamanho em px de tela. */
   farLights: Graphics
   lastFarLightsKey: string | null
-  /** Silhueta dos prédios de teto fechado: chapada acima da névoa. */
-  roofs: Graphics
+  /** Telhado dos prédios de teto fechado, acima da névoa (`telhados` desenha nela). */
+  roofs: Container
   /** Telhado dos prédios espiados pela porta aberta, recortado por `peekMask` (máscara inversa). */
-  peekedRoofs: Graphics
+  peekedRoofs: Container
+  /** TELHADOS DESENHADOS: um Sprite por Sala de teto, com o fade de entrar e sair (`pixi/telhadosRenderer.ts`). */
+  telhados: TelhadosRenderer
   /** A visão de quem espia: o buraco no telhado dos prédios espiados. */
   peekMask: Graphics
   lastRoofsKey: string | null
@@ -1488,28 +1483,39 @@ function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
 }
 
 /**
- * TETO DE CONSTRUÇÃO — a silhueta do prédio, pintada CHAPADA acima da névoa.
+ * TETO DE CONSTRUÇÃO — o telhado do prédio, desenhado (telha ou madeira, na
+ * cor da Sala) acima da névoa por `pixi/telhadosRenderer.ts`.
  *
  * Sala com `room.roof` só chega aqui quando o teto está FECHADO para este
- * jogador: o recorte do mestre (`lib/fogFilter.ts`) manda o polígono e mais
- * nada de dentro — prop, desenho, escada, pino, luz, token alheio e o chão do
- * interior nem entram no pacote. Então este preenchimento não está ESCONDENDO
- * nada: debaixo dele não existe nada para esconder. Ele fica acima da névoa de
- * propósito, porque um prédio não some quando a lanterna não alcança o telhado:
- * quem está na rua vê a construção inteira.
+ * jogador: o recorte do mestre (`lib/fogFilter.ts`) manda o polígono, o modelo
+ * e a cor, e mais nada de dentro — prop, desenho, escada, pino, luz, token
+ * alheio e o chão do interior nem entram no pacote. Então o telhado não está
+ * ESCONDENDO nada: debaixo dele não existe nada para esconder. Ele fica acima
+ * da névoa de propósito, porque um prédio não some quando a lanterna não
+ * alcança o telhado: quem está na rua vê a construção inteira.
+ *
+ * Teto que sai do pacote (a ficha entrou) desbota; o que volta aparece, com a
+ * foto da sala por baixo (`fotografarTelhadosQueFecham`).
  */
-function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined): void {
+function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined, mapaId: string): void {
   const roofs = regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3)
   const peekedIds = new Set(peek?.roofIds ?? [])
   const peekVision = (peek?.vision ?? []).filter((poly) => poly.length >= 3)
   // Sem visão de quem espia não há o que recortar: o telhado sai inteiro.
   const peeked = peekVision.length === 0 ? [] : roofs.filter((r) => peekedIds.has(r.id))
   const whole = peeked.length === 0 ? roofs : roofs.filter((r) => !peekedIds.has(r.id))
-  const key = JSON.stringify([whole.map((r) => r.points), peeked.map((r) => r.points), peeked.length === 0 ? [] : peekVision])
+  const estilo = (r: Region) => [r.room?.modeloDoTeto ?? null, r.room?.corDoTeto ?? null]
+  const key = JSON.stringify([mapaId, whole.map((r) => [r.id, r.points, estilo(r)]), peeked.map((r) => [r.id, r.points, estilo(r)]), peeked.length === 0 ? [] : peekVision])
   if (key === scene.lastRoofsKey) return
   scene.lastRoofsKey = key
-  paintRoofs(scene.roofs, whole)
-  paintRoofs(scene.peekedRoofs, peeked)
+  const peekedSet = new Set(peeked.map((r) => r.id))
+  scene.telhados.desenhar(
+    roofs.map((r) => {
+      const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
+      return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: peekedSet.has(r.id) ? scene.peekedRoofs : scene.roofs }
+    }),
+    mapaId,
+  )
   // VER PELA PORTA ABERTA: o telhado do prédio espiado continua lá, com um
   // buraco no formato da visão de quem está no vão — máscara INVERSA pelo
   // mesmo motivo da névoa (`redrawFog`): `cut` falha com buraco saindo da forma.
@@ -1522,13 +1528,72 @@ function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined
   scene.peekedRoofsCount = peeked.length
 }
 
-function paintRoofs(layer: Graphics, roofs: readonly Region[]): void {
-  layer.clear()
-  for (const region of roofs) layer.poly(region.points, true)
-  if (roofs.length > 0) {
-    layer.fill({ color: ROOF_COLOR, alpha: 1 })
-    layer.stroke({ width: ROOF_EDGE_WIDTH, color: ROOF_EDGE_COLOR, alpha: 1 })
+/** Folga da foto em volta do polígono: o beiral e a sombra do telhado (px do mapa). */
+const FOLGA_DA_FOTO = 24
+/** Lado máximo da foto da sala, em pixels da textura. */
+const LADO_MAXIMO_DA_FOTO = 2048
+
+/**
+ * FOTO DA SALA. Quando a ficha sai, o host para de mandar o interior no mesmo
+ * pacote que fecha o teto: sem nada por baixo, o telhado apareceria sobre a
+ * névoa preta. Antes de qualquer camada mudar, fotografa-se o que está na tela
+ * na área de cada teto que vai fechar (as fichas ficam de fora: elas já estão
+ * em outro lugar), recortada pelo polígono, e o renderer a deixa debaixo do
+ * telhado até ele terminar de aparecer.
+ */
+function fotografarTelhadosQueFecham(scene: Scene, map: MapData): void {
+  const roofs = visibleRegions(map.regions, map.hiddenLayers).filter((r) => roomHasRoof(r.room) && r.points.length >= 3)
+  const fechando = scene.telhados.vaoAparecer(
+    roofs.map((r) => r.id),
+    map.id,
+  )
+  for (const id of fechando) {
+    const region = roofs.find((r) => r.id === id)
+    const foto = region === undefined ? null : fotografarArea(scene, region.points)
+    if (foto !== null) scene.telhados.guardarFoto(id, foto)
   }
+}
+
+function fotografarArea(scene: Scene, points: readonly RegionPoint[]): Container | null {
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  const x = Math.floor(Math.min(...xs) - FOLGA_DA_FOTO)
+  const y = Math.floor(Math.min(...ys) - FOLGA_DA_FOTO)
+  const w = Math.ceil(Math.max(...xs) + FOLGA_DA_FOTO) - x
+  const h = Math.ceil(Math.max(...ys) + FOLGA_DA_FOTO) - y
+  if (!(w > 0 && h > 0 && Number.isFinite(w) && Number.isFinite(h))) return null
+  const resolution = Math.min(scene.app.renderer.resolution * scene.camera.scale, LADO_MAXIMO_DA_FOTO / Math.max(w, h))
+  const { world, tokens, lastSeen } = scene
+  const posicao = { x: world.position.x, y: world.position.y }
+  const escala = { x: world.scale.x, y: world.scale.y }
+  const fichasVisiveis = tokens.visible
+  const lembrancaVisivel = lastSeen.visible
+  let textura: Texture | null = null
+  try {
+    // O mundo sem a câmera: o recorte é em px do mapa, seja qual for o zoom.
+    world.position.set(0, 0)
+    world.scale.set(1)
+    tokens.visible = false
+    lastSeen.visible = false
+    textura = scene.app.renderer.generateTexture({ target: world, frame: new Rectangle(x, y, w, h), resolution })
+  } catch {
+    // Sem GPU (contexto perdido) não há foto: o telhado aparece mesmo assim, só que sobre a névoa.
+    textura = null
+  } finally {
+    world.position.set(posicao.x, posicao.y)
+    world.scale.set(escala.x, escala.y)
+    tokens.visible = fichasVisiveis
+    lastSeen.visible = lembrancaVisivel
+  }
+  if (textura === null) return null
+  const foto = new Container()
+  const imagem = new Sprite(textura)
+  imagem.position.set(x, y)
+  imagem.scale.set(w / textura.width, h / textura.height)
+  const recorte = new Graphics().poly(points.map((p) => ({ x: p.x, y: p.y })), true).fill({ color: 0xffffff })
+  foto.addChild(imagem, recorte)
+  imagem.mask = recorte
+  return foto
 }
 
 /**
@@ -2375,6 +2440,8 @@ function PlayerViewDoCanvas({
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
+    // Antes de qualquer camada mudar: a foto da sala cujo teto vai fechar.
+    fotografarTelhadosQueFecham(scene, currentMap)
     const worldWidth = currentMap.width * currentMap.grid
     const worldHeight = currentMap.height * currentMap.grid
 
@@ -2512,7 +2579,7 @@ function PlayerViewDoCanvas({
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
-    redrawRoofs(scene, regions, currentPeek)
+    redrawRoofs(scene, regions, currentPeek, currentMap.id)
     if (currentGlimpses !== scene.lastRoofCut) {
       scene.lastRoofCut = currentGlimpses
       applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
@@ -2884,10 +2951,12 @@ function PlayerViewDoCanvas({
       const visionMask = new Graphics()
       const concealed = new Graphics()
       const farLights = new Graphics()
-      const roofs = new Graphics()
+      const roofs = new Container()
+      roofs.eventMode = 'none'
       // Máscara do telhado: mora no mundo (acompanha a câmera, como `gridMask`).
       const roofCut = new Graphics()
-      const peekedRoofs = new Graphics()
+      const peekedRoofs = new Container()
+      peekedRoofs.eventMode = 'none'
       const peekMask = new Graphics()
       const pins = new Container()
       const marks = new Graphics()
@@ -3104,6 +3173,9 @@ function PlayerViewDoCanvas({
         lastFarLightsKey: null,
         roofs,
         peekedRoofs,
+        telhados: createTelhadosRenderer({
+          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion, escalaDaTela: () => sceneRef.current?.camera.scale ?? 1 },
+        }),
         peekMask,
         lastRoofsKey: null,
         roofsCount: 0,
@@ -3776,6 +3848,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickMarcadores)
         app.ticker.remove(tickRevisit)
         scene.animadorDePortas.cancelar()
+        scene.telhados.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
         // A textura do relevo também não.

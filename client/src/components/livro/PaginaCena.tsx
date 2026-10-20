@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { CollapsibleSection } from '../CollapsibleSection'
 import { FloorLayersList, type FloorLayersListProps } from '../FloorLayersList'
 import { FloorStyleControls, type FloorStyleControlsProps } from '../FloorStyleControls'
-import { GridQuickToggles, type GridControlsProps } from '../GridControls'
+import { GridQuickToggles, TelhadosQuickToggles, type GridControlsProps } from '../GridControls'
 import { LayersPanel, type LayersPanelProps } from '../LayersPanel'
 import { TerritorioControls, type TerritorioControlsProps } from '../TerritorioControls'
 import { TituloDaPagina } from './FolhaDoLivro'
@@ -52,7 +52,12 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
           </CollapsibleSection>
         )}
         <CollapsibleSection id="layers" title="Camadas" defaultOpen>
-          <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
+          <LayersPanel {...layers} quickToggles={
+              <>
+                <GridQuickToggles {...grid} />
+                <TelhadosQuickToggles />
+              </>
+            } />
         </CollapsibleSection>
       </div>
     </>

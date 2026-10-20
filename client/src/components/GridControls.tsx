@@ -3,6 +3,7 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import { GridShapePicker } from './GridShapePicker'
 import { Toggle } from './Toggle'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
+import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
 
 const LINE_STYLES: Array<{ value: GridSettings['lineStyle']; label: string }> = [
   { value: 'solid', label: 'Sólida' },
@@ -63,6 +64,24 @@ export function GridQuickToggles({ showGrid, onShowGridChange, snapTargets, onSn
           onChange={(on) => onSnapTargetChange(kind, on)}
         />
       ))}
+    </div>
+  )
+}
+
+/**
+ * TELHADOS NO EDITOR: "Telhados" mostra o telhado de cada Sala com teto (como o
+ * jogador de fora vê) e "Transparente" o deixa a 32%, para o mestre enxergar o
+ * que tem dentro. Começam ligados a cada abertura do editor
+ * (`stores/telhadosNoEditor.ts`); sem telhado, fica o contorno da marca do teto.
+ */
+export function TelhadosQuickToggles() {
+  const ligados = useTelhadosNoEditor((state) => state.ligados)
+  const transparentes = useTelhadosNoEditor((state) => state.transparentes)
+  const { setLigados, setTransparentes } = useTelhadosNoEditor.getState()
+  return (
+    <div className="lb-quick-toggles" role="group" aria-label="Telhados">
+      <Toggle label="Telhados" checked={ligados} onChange={setLigados} />
+      <Toggle label="Transparente" checked={transparentes} onChange={setTransparentes} disabled={!ligados} />
     </div>
   )
 }

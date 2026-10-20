@@ -298,7 +298,10 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // interior — ver a docstring de `eraseAt`). A função segue exportada e testada
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/roomOps'
+import { isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
+import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
+import { ALFA_DO_TELHADO_TRANSPARENTE, useTelhadosNoEditor } from '../stores/telhadosNoEditor'
+import { createTelhadosRenderer } from './telhadosRenderer'
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
 import { stairHandleLabel } from '../lib/stairHandles'
@@ -1213,6 +1216,13 @@ export function PixiCanvas({
       // marca por cima do mapa —, abaixo das alças e do contorno da seleção, e
       // depois dos pinos: a exportação de imagem esconde tudo daqui pra cima.
       // Sem evento nenhum (o `world` já poda, e o fantasma nem está no mapa).
+      // TELHADOS: o telhado de cada Sala com teto, como o jogador de fora vê, a 32%
+      // ("Transparente") ou opaco. Grupo de render próprio: o alpha vale para o
+      // telhado inteiro, sem as emendas da sombra aparecerem. Sem evento.
+      const telhadosContainer = new Container()
+      telhadosContainer.eventMode = 'none'
+      telhadosContainer.interactiveChildren = false
+      telhadosContainer.enableRenderGroup()
       const fantasmaDeTesteContainer = new Container()
       fantasmaDeTesteContainer.eventMode = 'none'
       fantasmaDeTesteContainer.interactiveChildren = false
@@ -1298,6 +1308,7 @@ export function PixiCanvas({
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
+        telhadosContainer,
         fantasmaDeTesteContainer,
         straightenGhostGraphics,
         floorSelectionGraphics,
@@ -1886,7 +1897,24 @@ export function PixiCanvas({
       const paintRegions = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        regionsRenderer.draw(regionLayers, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
+        const regioes = visibleRegions(map.regions, map.hiddenLayers)
+        regionsRenderer.draw(regionLayers, regioes, resolveHighlightedRegionId(map.walls, single), camera.scale)
+        paintTelhados(regioes, map.id)
+      }
+
+      /** TELHADOS no editor: os botões Telhados e Transparente (`stores/telhadosNoEditor.ts`). */
+      const paintTelhados = (regioes: Region[], mapaId: string) => {
+        const { ligados, transparentes } = useTelhadosNoEditor.getState()
+        telhadosContainer.visible = ligados
+        telhadosContainer.alpha = transparentes ? ALFA_DO_TELHADO_TRANSPARENTE : 1
+        const salas = ligados ? regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3) : []
+        telhadosRenderer.desenhar(
+          salas.map((r) => {
+            const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
+            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: telhadosContainer }
+          }),
+          mapaId,
+        )
       }
 
       const paintDrawings = () => {
@@ -2308,7 +2336,11 @@ export function PixiCanvas({
       // instância faria um gesto apagar o rótulo do outro.
       const tokenDragDistanceRenderer = createMeasurementIndicatorRenderer()
       // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
-      const regionsRenderer = createRegionsRenderer({ roofMarker: true })
+      // Com os telhados desenhados à mostra, a marca do teto sai (os dois diriam a mesma coisa).
+      // Cada abertura do editor começa com os telhados ligados e transparentes.
+      useTelhadosNoEditor.getState().reiniciar()
+      const regionsRenderer = createRegionsRenderer({ roofMarker: () => !useTelhadosNoEditor.getState().ligados })
+      const telhadosRenderer = createTelhadosRenderer()
       const roomNamesRenderer = createRoomNamesRenderer()
       // O campo de nome sobre o canvas imita a plaquinha: enquanto ele está aberto,
       // nem a plaquinha nem a pílula da sala aparecem (o nome velho por trás dele).
@@ -2638,6 +2670,10 @@ export function PixiCanvas({
       })
       // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
       // pelo mesmo portão do redesenho parcial (só ela repinta).
+      // Os botões dos telhados repintam as salas (marca do teto) e os telhados.
+      const unsubscribeTelhados = useTelhadosNoEditor.subscribe(() => {
+        if (!destroyed) paintRegions()
+      })
       const unsubscribeTerritorio = useTerritorioStore.subscribe((state, previous) => {
         if (state.filtroLigado !== previous.filtroLigado) redrawShapes()
       })
@@ -8384,6 +8420,8 @@ export function PixiCanvas({
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTerritorio()
+        unsubscribeTelhados()
+        telhadosRenderer.destruir()
         unsubscribePontoAberto()
         unsubscribeTokens()
         unsubscribeTurn()

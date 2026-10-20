@@ -1,4 +1,4 @@
-import type { Graphics } from 'pixi.js'
+import type { Container, Graphics } from 'pixi.js'
 import type { RegionPoint } from '../types/map'
 
 /**
@@ -10,7 +10,7 @@ import type { RegionPoint } from '../types/map'
  *
  * Sem cone, o telhado fica sem máscara nenhuma: inteiro, como sempre.
  */
-export function applyRoofCut(roofs: Graphics, cut: Graphics, glimpses: readonly RegionPoint[][]): void {
+export function applyRoofCut(roofs: Container, cut: Graphics, glimpses: readonly RegionPoint[][]): void {
   cut.clear()
   const shapes = glimpses.filter((ring) => ring.length >= 3)
   if (shapes.length === 0) {

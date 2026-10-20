@@ -6,7 +6,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { RoofPeek } from '../lib/fogFilter'
 import type { MapData, Region, RegionPoint } from '../types/map'
 import { DEFAULT_PLAYER_SETTINGS } from './PlayerPanel'
-import { PlayerView, ROOF_COLOR } from './PlayerView'
+import { PlayerView } from './PlayerView'
 
 /**
  * VER PELA PORTA ABERTA, na TELA. `lib/fogFilter.verPelaPorta.test.ts` prova o
@@ -76,17 +76,30 @@ const VISAO: RegionPoint[][] = [CONE]
 const ESPIADA: RoofPeek = { roofIds: ['casa'], vision: VISAO }
 const SEM_FICHAS: string[] = []
 
-type Instrucao = Graphics['context']['instructions'][number]
-
-function ehTelhado(i: Instrucao): boolean {
-  return i.action === 'fill' && i.data.style.color === ROOF_COLOR
-}
-
-/** Os vértices de cada `poly` pintado nas instruções da camada, planos (x, y, x, y, …). */
-function poligonos(camada: Graphics): number[][] {
-  return camada.context.instructions.flatMap((i) =>
+/** Os vértices de cada `poly` pintado nas instruções do Graphics, planos (x, y, x, y, …). */
+function poligonosDo(g: Graphics): number[][] {
+  return g.context.instructions.flatMap((i) =>
     i.action === 'fill' ? i.data.path.instructions.filter((p) => p.action === 'poly').map((p) => planarDoPixi(p.data[0])) : [],
   )
+}
+
+/** Cada telhado da camada (`pixi/telhadosRenderer.ts`): a raiz rotulada `telhado:<id>`. */
+function telhadosDa(camada: Container): Container[] {
+  // String(): o Pixi tipa `label` como texto, mas o padrão em tempo de execução é null.
+  return camada.children.filter((c) => String(c.label).startsWith('telhado:'))
+}
+
+/**
+ * O polígono de cada telhado da camada, lido do CORPO (o último filho da raiz
+ * guarda o corpo). Sem 2D no jsdom a textura não fica pronta, e o corpo é o
+ * chapado na cor da sala — um Graphics com o polígono.
+ */
+function poligonos(camada: Container): number[][] {
+  return telhadosDa(camada).flatMap((raiz) => {
+    const topo = raiz.children[raiz.children.length - 1]
+    const corpo = topo?.children[0]
+    return corpo instanceof Graphics ? poligonosDo(corpo) : []
+  })
 }
 
 /** O Pixi guarda o `poly` como veio: lista de pontos `{ x, y }` ou lista plana de números. */
@@ -105,8 +118,8 @@ function mundo(): Container {
   return world
 }
 
-function camadasDeTelhado(): Graphics[] {
-  return mundo().children.filter((c): c is Graphics => c instanceof Graphics && c.context.instructions.some(ehTelhado))
+function camadasDeTelhado(): Container[] {
+  return mundo().children.filter((c) => telhadosDa(c).length > 0)
 }
 
 describe('PlayerView — telhado recortado pela visão de quem espia pela porta', () => {
@@ -176,7 +189,7 @@ describe('PlayerView — telhado recortado pela visão de quem espia pela porta'
     const mascara = espiada.mask
     expect(mascara).toBeInstanceOf(Graphics)
     if (!(mascara instanceof Graphics)) return
-    expect(poligonos(mascara)).toEqual([planar(CONE)])
+    expect(poligonosDo(mascara)).toEqual([planar(CONE)])
   })
 
   it('sem a espiada, todo telhado sai inteiro, sem máscara nenhuma', async () => {
