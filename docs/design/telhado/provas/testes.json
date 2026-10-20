@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-10-19T02:37:32.501Z",
+  "geradoEm": "2026-10-20T00:14:31.218Z",
   "resultados": [
     {
       "nome": "parede da sala segura o pino",
@@ -68,12 +68,12 @@
     {
       "nome": "jogador de fora não vê o mordomo",
       "ok": true,
-      "detalhe": "pixel 102,65,51"
+      "detalhe": "pixel 95,60,45"
     },
     {
       "nome": "mestre vê o mordomo por baixo do telhado",
       "ok": true,
-      "detalhe": "pixel 90,64,90"
+      "detalhe": "pixel 88,62,88"
     },
     {
       "nome": "jogador de dentro vê o mordomo",
@@ -83,12 +83,65 @@
     {
       "nome": "quadro p95 <= 20 ms andando pela trilha",
       "ok": true,
-      "detalhe": "p95 16.8 ms em 361 quadros"
+      "detalhe": "p95 16.8 ms em 360 quadros"
     },
     {
       "nome": "nenhuma tarefa longa >= 200 ms",
       "ok": true,
       "detalhe": "maior 0 ms"
+    },
+    {
+      "nome": "a sala começa no padrão: telha colonial barro",
+      "ok": true,
+      "detalhe": "{\"modelo\":\"telhas\",\"cor\":\"#8a5a46\"}"
+    },
+    {
+      "nome": "6 cores por modelo, com nome",
+      "ok": true
+    },
+    {
+      "nome": "clicar Telhas e Azul colonial muda o teto da casa em L",
+      "ok": true,
+      "detalhe": "{\"modelo\":\"telhas\",\"cor\":\"#4a5868\"}, pixel 93,110,129"
+    },
+    {
+      "nome": "trocar para Madeira leva à cor padrão dela; Verde pinta o telhado de verde",
+      "ok": true,
+      "detalhe": "pixel 88,108,90"
+    },
+    {
+      "nome": "\"Outra cor…\" aplica a cor livre e mostra o nome dela",
+      "ok": true,
+      "detalhe": "outra cor (#3f7fbf), pixel 72,143,214"
+    },
+    {
+      "nome": "seta para a direita escolhe a próxima cor e leva o foco junto",
+      "ok": true,
+      "detalhe": "{\"cor\":\"#5f4532\",\"foco\":\"Nogueira\"}"
+    },
+    {
+      "nome": "tocar de novo em \"Outra cor…\" volta à última cor livre",
+      "ok": true,
+      "detalhe": "#3f7fbf"
+    },
+    {
+      "nome": "trocar o teto de uma casa não mexe nas outras",
+      "ok": true
+    },
+    {
+      "nome": "gerar o telhado de uma sala de 1024 × 1024 em até 50 ms",
+      "ok": true,
+      "detalhe": "retângulo telhas 38.6 ms, retângulo madeira 43.0 ms, L telhas 33.4 ms, L madeira 33.0 ms, octógono telhas 34.1 ms, octógono madeira 40.6 ms"
+    },
+    {
+      "nome": "trocando de cor andando: nenhuma tarefa longa >= 200 ms",
+      "ok": true,
+      "detalhe": "maior 0 ms; maior quadro 16.8 ms; troca mais cara 6.0 ms"
+    },
+    {
+      "nome": "trocando de cor andando: quadro p95 <= 20 ms",
+      "ok": true,
+      "detalhe": "p95 16.8 ms em 378 quadros, 24 trocas"
     },
     {
       "nome": "celular 390 px sem rolagem para o lado",
@@ -102,9 +155,113 @@
     }
   ],
   "desempenho": {
-    "p95": 16.799999999999272,
-    "quadros": 361,
+    "p95": 16.799999999999727,
+    "quadros": 360,
     "maiorTarefaLonga": 0,
-    "salasVisitadas": 6
+    "salasVisitadas": 7
+  },
+  "geracao": [
+    {
+      "forma": "retângulo",
+      "modelo": "telhas",
+      "mediana": 38.59999996423721,
+      "pior": 40.30000001192093
+    },
+    {
+      "forma": "retângulo",
+      "modelo": "madeira",
+      "mediana": 43,
+      "pior": 51.5
+    },
+    {
+      "forma": "L",
+      "modelo": "telhas",
+      "mediana": 33.40000003576279,
+      "pior": 33.69999998807907
+    },
+    {
+      "forma": "L",
+      "modelo": "madeira",
+      "mediana": 33,
+      "pior": 38
+    },
+    {
+      "forma": "octógono",
+      "modelo": "telhas",
+      "mediana": 34.10000002384186,
+      "pior": 36.59999996423721
+    },
+    {
+      "forma": "octógono",
+      "modelo": "madeira",
+      "mediana": 40.60000002384186,
+      "pior": 45.59999996423721
+    }
+  ],
+  "geracaoNoMapa": [
+    {
+      "sala": "sala",
+      "modelo": "telhas",
+      "cor": "#8a5a46",
+      "ms": 3.400000035762787,
+      "largura": 298,
+      "altura": 218
+    },
+    {
+      "sala": "deposito",
+      "modelo": "telhas",
+      "cor": "#656b72",
+      "ms": 1.300000011920929,
+      "largura": 178,
+      "altura": 138
+    },
+    {
+      "sala": "casa",
+      "modelo": "madeira",
+      "cor": "#8b6b47",
+      "ms": 7.800000011920929,
+      "largura": 298,
+      "altura": 258
+    },
+    {
+      "sala": "casa",
+      "modelo": "telhas",
+      "cor": "#8a5a46",
+      "ms": 3.699999988079071,
+      "largura": 298,
+      "altura": 258
+    },
+    {
+      "sala": "casa",
+      "modelo": "telhas",
+      "cor": "#4a5868",
+      "ms": 3.300000011920929,
+      "largura": 298,
+      "altura": 258
+    },
+    {
+      "sala": "casa",
+      "modelo": "madeira",
+      "cor": "#4d5f4f",
+      "ms": 3.900000035762787,
+      "largura": 298,
+      "altura": 258
+    },
+    {
+      "sala": "casa",
+      "modelo": "madeira",
+      "cor": "#3f7fbf",
+      "ms": 4,
+      "largura": 298,
+      "altura": 258
+    }
+  ],
+  "trocando": {
+    "p95": 16.799999999999272,
+    "maiorQuadro": 16.80000000000109,
+    "quadros": 378,
+    "maiorTarefaLonga": 0,
+    "maiorTroca": 6,
+    "trocas": 24
   }
 }

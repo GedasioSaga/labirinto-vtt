@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-  /* Layout: uma coluna centrada; o mapa é o protagonista, controles numa barra acima e o estado do pino logo abaixo */
+  /* Layout: uma coluna centrada; o mapa é o protagonista, controles numa barra acima, o estado do pino logo abaixo e o telhado de cada casa depois */
   :root {
     --bg: #eceee8;
     --superficie: #f7f8f4;
@@ -14,6 +14,7 @@
     --acento: #8f513d;
     --acento-texto: #fff8f2;
     --moldura: #1d211c;
+    --grama: #56693f;
     --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
     --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -72,11 +73,13 @@
 
   .segmentado {
     display: inline-flex;
+    flex-wrap: wrap;
     padding: 3px;
     gap: 2px;
     border: 1px solid var(--linha);
     border-radius: 9px;
     background: var(--superficie);
+    width: fit-content;
   }
   .segmentado button {
     font: 500 0.9rem/1 var(--f-texto);
@@ -165,8 +168,17 @@
     color: var(--texto);
   }
 
-  .notas { display: grid; gap: 8px; border-top: 1px solid var(--linha); padding-top: 18px; }
-  .notas h2 {
+  /* Telhado de cada casa: casa e modelo lado a lado, as cores embaixo, cada amostra é o telhado de verdade em miniatura */
+  .telhados {
+    display: grid;
+    gap: 16px;
+    padding: 16px 16px 18px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+  }
+  .telhados-cabeca { display: grid; gap: 2px; }
+  .telhados h2, .notas h2 {
     margin: 0;
     font-family: var(--f-titulo);
     font-weight: 600;
@@ -174,16 +186,66 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+  .campos { display: flex; flex-wrap: wrap; gap: 14px 28px; }
+  .campo { display: grid; gap: 7px; align-content: start; }
+  .campo-rotulo { font-size: 0.85rem; font-weight: 500; color: var(--suave); }
+  .campo-rotulo output { color: var(--texto); font-weight: 600; }
+  .amostras { display: flex; flex-wrap: wrap; gap: 8px; }
+  .amostra, .amostra-livre {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 46px;
+    padding: 0;
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    background: var(--grama);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), box-shadow 160ms ease;
+  }
+  .amostra img, .amostra-livre img {
+    width: 46px;
+    height: auto;
+    filter: drop-shadow(2px 3px 0 rgba(10, 12, 6, 0.32));
+    pointer-events: none;
+  }
+  .amostra[aria-checked="true"], .amostra-livre[data-ativo="true"] {
+    box-shadow: 0 0 0 2px var(--superficie), 0 0 0 4px var(--texto);
+  }
+  .amostra:active, .amostra-livre:active { transform: scale(0.97); }
+  .amostra-livre { background: var(--bg); border-style: dashed; }
+  .amostra-livre[data-usada="true"] { background: var(--grama); border-style: solid; }
+  .amostra-livre .mais { font: 600 1.3rem/1 var(--f-texto); color: var(--suave); pointer-events: none; }
+  .amostra-livre[data-usada="true"] .mais { display: none; }
+  .amostra-livre:not([data-usada="true"]) img { display: none; }
+  .amostra-livre input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .amostra-livre:focus-within { outline: 2px solid var(--acento); outline-offset: 2px; }
+  .legenda-livre { font-size: 0.8rem; color: var(--suave); text-align: center; }
+  .livre { display: grid; gap: 3px; justify-items: center; }
+
+  .notas { display: grid; gap: 8px; border-top: 1px solid var(--linha); padding-top: 18px; }
   .notas ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; max-width: 65ch; }
   .notas li::marker { color: var(--acento); }
 
   @media (max-width: 520px) {
     .botao { margin-left: 0; }
     .tempo input { width: 120px; }
+    .amostra, .amostra-livre { width: 50px; height: 42px; }
+    .amostra img, .amostra-livre img { width: 42px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .segmentado button, .botao { transition: background-color 160ms ease, color 160ms ease; }
-    .segmentado button:active, .botao:active { transform: none; }
+    .segmentado button, .botao, .amostra, .amostra-livre { transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+    .segmentado button:active, .botao:active, .amostra:active, .amostra-livre:active { transform: none; }
   }
 </style>
 
@@ -191,12 +253,12 @@
   <header class="cabeca">
     <p class="rotulo-topo">Protótipo · Labirinto</p>
     <h1>Telhado da sala</h1>
-    <p class="lead">De fora, o pino vê o telhado. Quando passa pela porta, o telhado some e a sala aparece. Quando sai, o telhado volta e cobre tudo de novo.</p>
+    <p class="lead">De fora, o pino vê o telhado. Quando passa pela porta, o telhado some e a sala aparece. Quando sai, o telhado volta e cobre tudo de novo. Cada casa tem telha ou madeira, na cor que o mestre escolher.</p>
   </header>
 
   <section class="palco" aria-label="Mapa de teste">
     <div class="barra">
-      <div class="segmentado" role="radiogroup" aria-label="Ver como">
+      <div class="segmentado" role="radiogroup" aria-label="Ver como" id="grupo-visao">
         <button type="button" role="radio" id="visao-jogador" aria-checked="true" data-visao="jogador">Jogador</button>
         <button type="button" role="radio" id="visao-mestre" aria-checked="false" data-visao="mestre">Mestre</button>
       </div>
@@ -208,7 +270,7 @@
     </div>
 
     <div class="moldura">
-      <canvas id="mapa" tabindex="0" aria-label="Mapa visto de cima com uma casa, um depósito e o seu pino. Clique numa casa do mapa ou use as setas para andar."></canvas>
+      <canvas id="mapa" tabindex="0" aria-label="Mapa visto de cima com uma sala, um depósito, uma casa em L e o seu pino. Clique numa casa do mapa ou use as setas para andar."></canvas>
     </div>
 
     <div class="rodape">
@@ -217,62 +279,706 @@
     </div>
   </section>
 
+  <section class="telhados" aria-labelledby="telhados-titulo">
+    <div class="telhados-cabeca">
+      <h2 id="telhados-titulo">Telhado de cada casa</h2>
+      <p class="dica">Escolha a casa, o modelo e a cor. O telhado muda na hora no mapa.</p>
+    </div>
+    <div class="campos">
+      <div class="campo">
+        <span class="campo-rotulo" id="rotulo-casa">Casa</span>
+        <div class="segmentado" role="radiogroup" aria-labelledby="rotulo-casa" id="grupo-casa">
+          <button type="button" role="radio" data-casa="sala" aria-checked="true">Sala</button>
+          <button type="button" role="radio" data-casa="deposito" aria-checked="false" tabindex="-1">Depósito</button>
+          <button type="button" role="radio" data-casa="casa" aria-checked="false" tabindex="-1">Casa em L</button>
+        </div>
+      </div>
+      <div class="campo">
+        <span class="campo-rotulo" id="rotulo-modelo">Modelo</span>
+        <div class="segmentado" role="radiogroup" aria-labelledby="rotulo-modelo" id="grupo-modelo">
+          <button type="button" role="radio" data-modelo="telhas" aria-checked="true">Telhas</button>
+          <button type="button" role="radio" data-modelo="madeira" aria-checked="false" tabindex="-1">Madeira</button>
+        </div>
+      </div>
+    </div>
+    <div class="campo">
+      <span class="campo-rotulo" id="rotulo-cor">Cor: <output id="nome-cor">Barro</output></span>
+      <div class="amostras">
+        <div class="amostras" role="radiogroup" aria-labelledby="rotulo-cor" id="grupo-cor"></div>
+        <div class="livre">
+          <label class="amostra-livre" id="amostra-livre" data-ativo="false" data-usada="false">
+            <img alt="" id="miniatura-livre">
+            <span class="mais" aria-hidden="true">+</span>
+            <input type="color" id="cor-livre" value="#7a6a58" aria-label="Outra cor para o telhado">
+          </label>
+          <span class="legenda-livre" aria-hidden="true">Outra cor…</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="notas">
     <h2>O que reparar</h2>
     <ul>
       <li>Tem alguém dentro da sala. De fora você não vê; entre pela porta de baixo para descobrir.</li>
       <li>Só a porta deixa passar. A parede segura o pino, igual ao mapa do app.</li>
-      <li>O depósito, à direita, tem telhado de duas águas em ardósia e porta do lado esquerdo.</li>
+      <li>A casa em L, embaixo à direita, tem as águas calculadas: o rincão sai da quina de dentro e sobe em diagonal até onde as cumeeiras se encontram. A porta fica do lado esquerdo.</li>
+      <li>O depósito, à direita, agora tem quatro águas, como toda sala retangular.</li>
       <li>Em <strong>Mestre</strong>, os telhados ficam transparentes: o mestre sempre enxerga o que tem dentro.</li>
-      <li>Achou o telhado rápido ou lento? Mexa no <strong>Tempo do telhado</strong> e me diga o número.</li>
+      <li>Me diga três coisas: a telha e a tábua leem bem neste tamanho? Alguma cor estoura? A casa em L ficou natural?</li>
     </ul>
   </section>
 </main>
+
+<script id="telhado-lib">
+// Gerado por montar.cjs (esbuild 0.28.2) a partir de client/src. Não edite aqui.
+var TelhadoLab = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // docs/design/telhado/prototipo/entrada.js
+  var entrada_exports = {};
+  __export(entrada_exports, {
+    BEIRAL_PX: () => BEIRAL_PX,
+    COR_PADRAO_DO_TETO: () => COR_PADRAO_DO_TETO,
+    MODELOS_DO_TETO: () => MODELOS_DO_TETO,
+    MODELO_PADRAO_DO_TETO: () => MODELO_PADRAO_DO_TETO,
+    NOME_DO_MODELO: () => NOME_DO_MODELO,
+    PALETA_DO_TETO: () => PALETA_DO_TETO,
+    aguaNoPonto: () => aguaNoPonto,
+    corDaPaleta: () => corDaPaleta,
+    corDoTetoOuPadrao: () => corDoTetoOuPadrao,
+    corDoTetoValida: () => corDoTetoValida,
+    corPadraoDoModelo: () => corPadraoDoModelo,
+    dentroDoPoligono: () => dentroDoPoligono,
+    escalaDoTelhado: () => escalaDoTelhado,
+    pintarTelhado: () => pintarTelhado,
+    prepararAguas: () => prepararAguas
+  });
+
+  // client/src/lib/telhado/aguas.ts
+  var BEIRAL_PX = 8;
+  function novaAmostraDaAgua() {
+    return { agua: -1, dist: 0, aoLongo: 0, vizinha: -1, ateEmenda: Infinity, rincao: false };
+  }
+  var PERTO = 1e-9;
+  function pontoUsavel(p) {
+    if (typeof p !== "object" || p === null) return false;
+    const { x, y } = p;
+    return typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y);
+  }
+  function prepararAguas(pontos) {
+    if (!Array.isArray(pontos)) return null;
+    const limpos = [];
+    for (const p of pontos) {
+      if (!pontoUsavel(p)) continue;
+      const ultimo = limpos[limpos.length - 1];
+      if (ultimo === void 0 || Math.hypot(p.x - ultimo.x, p.y - ultimo.y) > PERTO) limpos.push(p);
+    }
+    while (limpos.length > 1 && Math.hypot(limpos[0].x - limpos[limpos.length - 1].x, limpos[0].y - limpos[limpos.length - 1].y) <= PERTO) limpos.pop();
+    const n = limpos.length;
+    if (n < 3) return null;
+    let areaDupla = 0;
+    for (let i = 0; i < n; i += 1) {
+      const a = limpos[i];
+      const b = limpos[(i + 1) % n];
+      areaDupla += a.x * b.y - b.x * a.y;
+    }
+    if (!(Math.abs(areaDupla) > 1e-6)) return null;
+    const lado = areaDupla > 0 ? 1 : -1;
+    const ax = new Float64Array(n);
+    const ay = new Float64Array(n);
+    const dx = new Float64Array(n);
+    const dy = new Float64Array(n);
+    const comprimento = new Float64Array(n);
+    const nx = new Float64Array(n);
+    const ny = new Float64Array(n);
+    const regua = new Float64Array(n);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < n; i += 1) {
+      const a = limpos[i];
+      const b = limpos[(i + 1) % n];
+      const c = Math.hypot(b.x - a.x, b.y - a.y);
+      ax[i] = a.x;
+      ay[i] = a.y;
+      dx[i] = (b.x - a.x) / c;
+      dy[i] = (b.y - a.y) / c;
+      comprimento[i] = c;
+      nx[i] = -dy[i] * lado;
+      ny[i] = dx[i] * lado;
+      regua[i] = a.x * dx[i] + a.y * dy[i];
+      minX = Math.min(minX, a.x);
+      minY = Math.min(minY, a.y);
+      maxX = Math.max(maxX, a.x);
+      maxY = Math.max(maxY, a.y);
+    }
+    const concavo = new Uint8Array(n);
+    const anterior = new Int32Array(n);
+    for (let i = 0; i < n; i += 1) {
+      anterior[i] = (i - 1 + n) % n;
+      const virada = dx[anterior[i]] * dy[i] - dy[anterior[i]] * dx[i];
+      concavo[i] = virada * lado < -1e-9 ? 1 : 0;
+    }
+    return { n, ax, ay, dx, dy, comprimento, nx, ny, concavo, anterior, regua, minX, minY, maxX, maxY, s: new Float64Array(n), t: new Float64Array(n) };
+  }
+  function dentroDoPoligono(g, x, y) {
+    let dentro = false;
+    const { n, ax, ay } = g;
+    for (let i = 0, j = n - 1; i < n; j = i, i += 1) {
+      if (ay[i] > y !== ay[j] > y) {
+        const xc = ax[j] + (y - ay[j]) * (ax[i] - ax[j]) / (ay[i] - ay[j]);
+        if (x < xc) dentro = !dentro;
+      }
+    }
+    return dentro;
+  }
+  function cruzamentosDaLinha(g, y, saida) {
+    const { n, ax, ay } = g;
+    let k = 0;
+    for (let i = 0, j = n - 1; i < n; j = i, i += 1) {
+      if (ay[i] > y !== ay[j] > y) {
+        saida[k] = ax[j] + (y - ay[j]) * (ax[i] - ax[j]) / (ay[i] - ay[j]);
+        k += 1;
+      }
+    }
+    for (let i = 1; i < k; i += 1) {
+      const v = saida[i];
+      let j = i - 1;
+      while (j >= 0 && saida[j] > v) {
+        saida[j + 1] = saida[j];
+        j -= 1;
+      }
+      saida[j + 1] = v;
+    }
+    return k;
+  }
+  function distanciaAteEmenda(g, a, b, folgaDeAltura) {
+    const ex = g.nx[a] - g.nx[b];
+    const ey = g.ny[a] - g.ny[b];
+    const k = Math.sqrt(ex * ex + ey * ey);
+    return k > 1e-9 ? folgaDeAltura / k : Infinity;
+  }
+  function amostrarAgua(g, x, y, dentro, alcanceFora, saida) {
+    const n = g.n;
+    const { ax, ay, dx, dy, nx, ny, comprimento, concavo, anterior, s, t } = g;
+    const sinal = dentro ? 1 : -1;
+    let melhor = Infinity;
+    let dona = -1;
+    let segundo = Infinity;
+    let donaDoSegundo = -1;
+    let folgaInterna = Infinity;
+    let rivalInterna = -1;
+    for (let i = 0; i < n; i += 1) {
+      const px = x - ax[i];
+      const py = y - ay[i];
+      const ti = px * dx[i] + py * dy[i];
+      const si = px * nx[i] + py * ny[i];
+      t[i] = ti;
+      s[i] = si;
+      const valor = sinal * si;
+      if (ti >= 0 && ti <= comprimento[i] && valor >= 0) {
+        if (valor < melhor) {
+          if (i !== dona) {
+            segundo = melhor;
+            donaDoSegundo = dona;
+          }
+          melhor = valor;
+          dona = i;
+          folgaInterna = Infinity;
+          rivalInterna = -1;
+        } else if (i !== dona && valor < segundo) {
+          segundo = valor;
+          donaDoSegundo = i;
+        }
+      }
+    }
+    const tipo = dentro ? 1 : 0;
+    for (let i = 0; i < n; i += 1) {
+      if (concavo[i] !== tipo) continue;
+      const a = anterior[i];
+      if (t[a] > comprimento[a] && t[i] < 0) {
+        const va = sinal * s[a];
+        const vi = sinal * s[i];
+        const o = va >= vi ? a : i;
+        const valor = va >= vi ? va : vi;
+        if (valor < melhor) {
+          if (o !== dona) {
+            segundo = melhor;
+            donaDoSegundo = dona;
+          }
+          melhor = valor;
+          dona = o;
+          folgaInterna = Math.abs(va - vi);
+          rivalInterna = o === a ? i : a;
+        } else if (o !== dona && valor < segundo) {
+          segundo = valor;
+          donaDoSegundo = o;
+        }
+      }
+    }
+    if (dentro && dona < 0) {
+      let perto = Infinity;
+      for (let i = 0; i < n; i += 1) {
+        const k = Math.min(Math.max(t[i], 0), comprimento[i]);
+        const ex = x - (ax[i] + dx[i] * k);
+        const ey = y - (ay[i] + dy[i] * k);
+        const d = ex * ex + ey * ey;
+        if (d < perto) {
+          perto = d;
+          dona = i;
+        }
+      }
+      if (dona < 0) return false;
+    }
+    if (!dentro && (dona < 0 || melhor > alcanceFora)) {
+      saida.agua = -1;
+      saida.dist = dona < 0 ? -Infinity : -melhor;
+      return false;
+    }
+    saida.agua = dona;
+    saida.dist = s[dona];
+    saida.aoLongo = t[dona];
+    saida.vizinha = -1;
+    saida.ateEmenda = Infinity;
+    saida.rincao = false;
+    if (rivalInterna >= 0) {
+      saida.ateEmenda = distanciaAteEmenda(g, dona, rivalInterna, folgaInterna);
+      saida.vizinha = rivalInterna;
+      saida.rincao = dentro;
+    }
+    if (donaDoSegundo >= 0) {
+      const d = distanciaAteEmenda(g, dona, donaDoSegundo, segundo - melhor);
+      if (d < saida.ateEmenda) {
+        saida.ateEmenda = d;
+        saida.vizinha = donaDoSegundo;
+        saida.rincao = !dentro;
+      }
+    }
+    return true;
+  }
+  var AMOSTRA = novaAmostraDaAgua();
+  var SEM_AGUA = { agua: -1, altura: 0, aoLongo: 0, vizinha: -1, ateEmenda: Infinity, rincao: false };
+  function aguaNoPonto(g, x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return SEM_AGUA;
+    if (!amostrarAgua(g, x, y, dentroDoPoligono(g, x, y), BEIRAL_PX, AMOSTRA)) return SEM_AGUA;
+    return {
+      agua: AMOSTRA.agua,
+      altura: AMOSTRA.dist + BEIRAL_PX,
+      aoLongo: AMOSTRA.aoLongo,
+      vizinha: AMOSTRA.vizinha,
+      ateEmenda: AMOSTRA.ateEmenda,
+      rincao: AMOSTRA.rincao
+    };
+  }
+
+  // client/src/lib/telhado/paletas.ts
+  var MODELOS_DO_TETO = ["telhas", "madeira"];
+  var NOME_DO_MODELO = {
+    telhas: "Telhas",
+    madeira: "Madeira"
+  };
+  var PALETA_DO_TETO = {
+    telhas: [
+      { id: "barro", nome: "Barro", hex: "#8a5a46" },
+      { id: "terracota-escura", nome: "Terracota escura", hex: "#6a3f33" },
+      { id: "ardosia", nome: "Ardósia", hex: "#656b72" },
+      { id: "verde-musgo", nome: "Verde musgo", hex: "#606a50" },
+      { id: "azul-colonial", nome: "Azul colonial", hex: "#4a5868" },
+      { id: "preto", nome: "Preto", hex: "#35373b" }
+    ],
+    madeira: [
+      { id: "carvalho", nome: "Carvalho", hex: "#8b6b47" },
+      { id: "nogueira", nome: "Nogueira", hex: "#5f4532" },
+      { id: "pinho-claro", nome: "Pinho claro", hex: "#a3875f" },
+      { id: "cinza-envelhecido", nome: "Cinza envelhecido", hex: "#7b776e" },
+      { id: "vermelho-celeiro", nome: "Vermelho celeiro", hex: "#733d33" },
+      { id: "verde", nome: "Verde", hex: "#4d5f4f" }
+    ]
+  };
+  var MODELO_PADRAO_DO_TETO = "telhas";
+  var COR_PADRAO_DO_TETO = PALETA_DO_TETO.telhas[0].hex;
+  var COR_HEX = /^#[0-9a-f]{6}$/i;
+  function corDoTetoValida(cor) {
+    return typeof cor === "string" && COR_HEX.test(cor);
+  }
+  function corPadraoDoModelo(modelo) {
+    return PALETA_DO_TETO[modelo][0].hex;
+  }
+  function corDoTetoOuPadrao(modelo, cor) {
+    return corDoTetoValida(cor) ? cor.toLowerCase() : corPadraoDoModelo(modelo);
+  }
+  function corDaPaleta(modelo, hex) {
+    const alvo = hex.toLowerCase();
+    return PALETA_DO_TETO[modelo].find((c) => c.hex === alvo) ?? null;
+  }
+
+  // client/src/texturas/ruido.ts
+  function hash(ix, iy, semente) {
+    let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iy | 0, 668265263) ^ Math.imul(semente | 0, 1442695041);
+    h = Math.imul(h ^ h >>> 13, 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function limitar01(t) {
+    return t < 0 ? 0 : t > 1 ? 1 : t;
+  }
+  function passoSuave(a, b, t) {
+    const x = limitar01((t - a) / (b - a));
+    return x * x * (3 - 2 * x);
+  }
+  var LUZ = (() => {
+    const l = [-1, -1, 1.35];
+    const n = Math.hypot(l[0], l[1], l[2]);
+    return [l[0] / n, l[1] / n, l[2] / n];
+  })();
+  var LUZ_NO_PLANO = LUZ[2];
+  function rgb(hex) {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+
+  // client/src/texturas/telhado.ts
+  var CURSO_DA_TELHA_PX = 10;
+  var LARGURA_DA_TELHA_PX = 13;
+  var LARGURA_DA_TABUA_PX = 15;
+  var MAXIMO_DE_PIXELS_DO_TELHADO = 2048 * 2048;
+  var ESCALA_MAXIMA = 4;
+  var LUZ_X = -1 / Math.hypot(1, 0.45);
+  var LUZ_Y = -0.45 / Math.hypot(1, 0.45);
+  var FORCA_DA_LUZ_NA_AGUA = 0.15;
+  var LUZ_SOMADA = 24;
+  var BLOCO_PX = 16;
+  var FAIXA_DA_CUMEEIRA_PX = 2.4;
+  var TAU = Math.PI * 2;
+  var SEMENTE_DA_TELHA = 7103;
+  var SEMENTE_DA_TABUA = 9241;
+  var SEMENTE_DO_GRAO = 3313;
+  var PASSOS_DO_PERFIL = 256;
+  var PERFIL_COS = new Float64Array(PASSOS_DO_PERFIL);
+  var PERFIL_SEN = new Float64Array(PASSOS_DO_PERFIL);
+  var LUZ_NA_FILEIRA = new Float64Array(PASSOS_DO_PERFIL);
+  for (let i = 0; i < PASSOS_DO_PERFIL; i += 1) {
+    const f = (i + 0.5) / PASSOS_DO_PERFIL;
+    PERFIL_COS[i] = Math.cos(f * TAU);
+    PERFIL_SEN[i] = Math.sin(f * TAU);
+    LUZ_NA_FILEIRA[i] = -0.18 * passoSuave(0.6, 1, f) + 0.045 * (1 - passoSuave(0, 0.18, f));
+  }
+  var PASSOS_DO_SENO = 1024;
+  var SENO = new Float64Array(PASSOS_DO_SENO);
+  for (let i = 0; i < PASSOS_DO_SENO; i += 1) SENO[i] = Math.sin((i + 0.5) / PASSOS_DO_SENO * TAU);
+  var SENO_POR_RADIANO = PASSOS_DO_SENO / TAU;
+  function seno(x) {
+    return SENO[(x * SENO_POR_RADIANO | 0) & PASSOS_DO_SENO - 1];
+  }
+  var LADO_DO_GRAO = 64;
+  var GRAO = new Float64Array(LADO_DO_GRAO * LADO_DO_GRAO);
+  for (let y = 0; y < LADO_DO_GRAO; y += 1) {
+    for (let x = 0; x < LADO_DO_GRAO; x += 1) GRAO[y * LADO_DO_GRAO + x] = (hash(x, y, SEMENTE_DO_GRAO) - 0.5) * 0.03;
+  }
+  var MEMORIA = new Float64Array(16);
+  var M_COLUNA = 0;
+  var M_FILEIRA = 1;
+  var M_TOM_DA_TELHA = 2;
+  var M_J0 = 3;
+  var M_B0 = 4;
+  var M_B1 = 5;
+  var M_TABUA = 6;
+  var M_COMPRIMENTO = 7;
+  var M_DESLOCAMENTO = 8;
+  var M_TABUA_DO_PEDACO = 9;
+  var M_PEDACO = 10;
+  var M_SORTEIO = 11;
+  function esquecer() {
+    MEMORIA.fill(Number.NaN);
+  }
+  function escalaDoTelhado(larguraMundo, alturaMundo, escala) {
+    let k = Number.isFinite(escala) && escala > 0 ? Math.min(escala, ESCALA_MAXIMA) : 1;
+    const cabe = (e) => Math.ceil(larguraMundo * e) * Math.ceil(alturaMundo * e) <= MAXIMO_DE_PIXELS_DO_TELHADO;
+    if (!cabe(k)) {
+      k = Math.sqrt(MAXIMO_DE_PIXELS_DO_TELHADO / (larguraMundo * alturaMundo));
+      while (k > 0.01 && !cabe(k)) k *= 0.99;
+    }
+    return k;
+  }
+  function luzDaTelha(v, u, luzAoLongo) {
+    const ru = u / LARGURA_DA_TELHA_PX;
+    const coluna = Math.floor(ru);
+    const i = (ru - coluna) * PASSOS_DO_PERFIL | 0;
+    const crista = 0.5 + 0.5 * PERFIL_COS[i];
+    const rv = (v + 1.5 * crista) / CURSO_DA_TELHA_PX;
+    const fileira = Math.floor(rv);
+    const m = MEMORIA;
+    if (m[M_COLUNA] !== coluna || m[M_FILEIRA] !== fileira) {
+      m[M_COLUNA] = coluna;
+      m[M_FILEIRA] = fileira;
+      m[M_TOM_DA_TELHA] = (hash(coluna, fileira, SEMENTE_DA_TELHA) - 0.5) * 0.1;
+    }
+    return 0.05 + // devolve a média para perto do tom escolhido (sombra e canal escurecem em média)
+    PERFIL_SEN[i] * luzAoLongo * 0.14 - // o lado da telha virado para a luz
+    (1 - crista) * 0.09 + // o canal é mais fundo
+    LUZ_NA_FILEIRA[(rv - fileira) * PASSOS_DO_PERFIL | 0] + m[M_TOM_DA_TELHA];
+  }
+  function bordaDaTabua(j) {
+    return j * LARGURA_DA_TABUA_PX + (hash(j, 0, SEMENTE_DA_TABUA) - 0.5) * LARGURA_DA_TABUA_PX * 0.5;
+  }
+  function rampa(a, inverso, t) {
+    const x = (t - a) * inverso;
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    return x * x * (3 - 2 * x);
+  }
+  function luzDaMadeira(v, u, luzAoLongo) {
+    const m = MEMORIA;
+    const j0 = Math.floor(u / LARGURA_DA_TABUA_PX);
+    if (m[M_J0] !== j0) {
+      m[M_J0] = j0;
+      m[M_B0] = bordaDaTabua(j0);
+      m[M_B1] = bordaDaTabua(j0 + 1);
+    }
+    const b0 = m[M_B0];
+    const b1 = m[M_B1];
+    let j = j0;
+    let inicio = b0;
+    let fim = b1;
+    if (u < b0) {
+      j = j0 - 1;
+      inicio = bordaDaTabua(j);
+      fim = b0;
+    } else if (u >= b1) {
+      j = j0 + 1;
+      inicio = b1;
+      fim = bordaDaTabua(j0 + 2);
+    }
+    const naTabua = u - inicio;
+    const ateFim = fim - u;
+    if (m[M_TABUA] !== j) {
+      m[M_TABUA] = j;
+      m[M_COMPRIMENTO] = 110 + hash(j, 1, SEMENTE_DA_TABUA) * 90;
+      m[M_DESLOCAMENTO] = hash(j, 2, SEMENTE_DA_TABUA);
+    }
+    const comprimento = m[M_COMPRIMENTO];
+    const sv = v / comprimento + m[M_DESLOCAMENTO];
+    const pedaco = Math.floor(sv);
+    const noPedaco = sv - pedaco;
+    const ateTopo = (noPedaco < 0.5 ? noPedaco : 1 - noPedaco) * comprimento;
+    if (m[M_TABUA_DO_PEDACO] !== j || m[M_PEDACO] !== pedaco) {
+      m[M_TABUA_DO_PEDACO] = j;
+      m[M_PEDACO] = pedaco;
+      m[M_SORTEIO] = hash(j, pedaco, SEMENTE_DA_TABUA + 3);
+    }
+    const sorteio = m[M_SORTEIO];
+    const fase = sorteio * TAU;
+    let luz = 0.025 + // devolve a média ao tom escolhido (a fresta escurece em média)
+    (sorteio - 0.5) * 0.16 + // cada tábua um tom
+    seno(naTabua * 0.85 + seno(v * 0.04 + fase) * 1.8 + fase) * 0.035 + // veio
+    seno(v * 0.02 + fase * 1.7) * 0.03;
+    if (naTabua < 2.2 || ateFim < 2.2) {
+      luz += luzAoLongo * 0.05 * (rampa(0.8, 1 / 1.4, naTabua) - rampa(0.8, 1 / 1.4, ateFim));
+      luz -= 0.32 * (1 - rampa(0.2, 1 / 0.8, naTabua < ateFim ? naTabua : ateFim));
+    }
+    if (ateTopo < 0.8) luz -= 0.2 * (1 - rampa(0.15, 1 / 0.65, ateTopo));
+    return luz;
+  }
+  function luzDoDesenho(pincel, agua, v, u) {
+    return pincel.luzDaAgua[agua] + (pincel.madeira ? luzDaMadeira(v, u, pincel.luzAoLongo[agua]) : luzDaTelha(v, u, pincel.luzAoLongo[agua]));
+  }
+  function pintarPixel(pincel, o, x, y, agua, v, u, vizinha, ate, rincao) {
+    let luz = luzDoDesenho(pincel, agua, v, u);
+    if (vizinha >= 0 && ate < FAIXA_DA_CUMEEIRA_PX) {
+      const k = pincel.k;
+      if (ate * k < 0.5) {
+        const g = pincel.geo;
+        const peso = 0.5 + ate * k;
+        const outra = luzDoDesenho(pincel, vizinha, g.s[vizinha] + BEIRAL_PX, g.t[vizinha] + g.regua[vizinha]);
+        luz = luz * peso + outra * (1 - peso);
+      }
+      if (rincao) luz -= 0.12 * (1 - passoSuave(0.4, 1.7, ate));
+      else luz += 0.1 * (1 - passoSuave(0.9, FAIXA_DA_CUMEEIRA_PX, ate));
+    }
+    if (v < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, v));
+    luz += GRAO[(Math.floor(y * 2) & LADO_DO_GRAO - 1) * LADO_DO_GRAO + (Math.floor(x * 2) & LADO_DO_GRAO - 1)];
+    const somada = LUZ_SOMADA * luz;
+    const p = pincel.pixels;
+    p[o] = pincel.baseR * (1 + luz) + somada;
+    p[o + 1] = pincel.baseG * (1 + luz) + somada;
+    p[o + 2] = pincel.baseB * (1 + luz) + somada;
+    const cobertura = v * pincel.k + 0.5;
+    p[o + 3] = cobertura >= 1 ? 255 : cobertura * 255;
+  }
+  function pintarCorrida(pincel, o, x, y, passo, agua, v, u, passoV, passoU, quantos) {
+    const p = pincel.pixels;
+    const { baseR, baseG, baseB, k, madeira } = pincel;
+    const luzDaAgua = pincel.luzDaAgua[agua];
+    const luzAoLongo = pincel.luzAoLongo[agua];
+    const linhaDoGrao = (Math.floor(y * 2) & LADO_DO_GRAO - 1) * LADO_DO_GRAO;
+    let gx = x * 2;
+    const passoDoGrao = passo * 2;
+    for (let i = 0; i < quantos; i += 1, o += 4) {
+      let luz = luzDaAgua + (madeira ? luzDaMadeira(v, u, luzAoLongo) : luzDaTelha(v, u, luzAoLongo));
+      if (v < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, v));
+      luz += GRAO[linhaDoGrao + (Math.floor(gx) & LADO_DO_GRAO - 1)];
+      const somada = LUZ_SOMADA * luz;
+      p[o] = baseR * (1 + luz) + somada;
+      p[o + 1] = baseG * (1 + luz) + somada;
+      p[o + 2] = baseB * (1 + luz) + somada;
+      const cobertura = v * k + 0.5;
+      p[o + 3] = cobertura >= 1 ? 255 : cobertura * 255;
+      v += passoV;
+      u += passoU;
+      gx += passoDoGrao;
+    }
+  }
+  function pintarDaAmostra(pincel, o, x, y, a) {
+    pintarPixel(pincel, o, x, y, a.agua, a.dist + BEIRAL_PX, a.aoLongo + pincel.geo.regua[a.agua], a.vizinha, a.ateEmenda, a.rincao);
+  }
+  function pintarTelhado(poligono, modelo, corHex, escala = 1) {
+    const geo = prepararAguas(poligono);
+    if (geo === null) return { largura: 0, altura: 0, origemX: 0, origemY: 0, escala: escalaDoTelhado(1, 1, escala), pixels: new Uint8ClampedArray(0) };
+    const modeloUsado = modelo === "madeira" ? "madeira" : "telhas";
+    const [baseR, baseG, baseB] = rgb(corDoTetoOuPadrao(modeloUsado, corHex));
+    const margem = BEIRAL_PX + 1;
+    const origemX = Math.floor(geo.minX - margem);
+    const origemY = Math.floor(geo.minY - margem);
+    const larguraMundo = Math.ceil(geo.maxX + margem) - origemX;
+    const alturaMundo = Math.ceil(geo.maxY + margem) - origemY;
+    const k = escalaDoTelhado(larguraMundo, alturaMundo, escala);
+    const largura = Math.ceil(larguraMundo * k);
+    const altura = Math.ceil(alturaMundo * k);
+    const pixels = new Uint8ClampedArray(largura * altura * 4);
+    const n = geo.n;
+    const luzDaAgua = new Float64Array(n);
+    const luzAoLongo = new Float64Array(n);
+    for (let i = 0; i < n; i += 1) {
+      luzDaAgua[i] = (-geo.nx[i] * LUZ_X - geo.ny[i] * LUZ_Y) * FORCA_DA_LUZ_NA_AGUA;
+      luzAoLongo[i] = geo.dx[i] * LUZ_X + geo.dy[i] * LUZ_Y;
+    }
+    const pincel = { geo, madeira: modeloUsado === "madeira", k, baseR, baseG, baseB, luzDaAgua, luzAoLongo, pixels };
+    esquecer();
+    const ponta = novaAmostraDaAgua();
+    const outraPonta = novaAmostraDaAgua();
+    const cruzamentos = new Float64Array(n);
+    const passo = 1 / k;
+    const alcance = BEIRAL_PX + 0.5 * passo;
+    const folgaDoBloco = FAIXA_DA_CUMEEIRA_PX + 1;
+    const { regua, nx, dx } = geo;
+    for (let py = 0; py < altura; py += 1) {
+      const y = origemY + (py + 0.5) * passo;
+      const total = cruzamentosDaLinha(geo, y, cruzamentos);
+      let proximo = 0;
+      let dentro = false;
+      let px0 = 0;
+      while (px0 < largura) {
+        const x0 = origemX + (px0 + 0.5) * passo;
+        while (proximo < total && cruzamentos[proximo] <= x0) {
+          dentro = !dentro;
+          proximo += 1;
+        }
+        const temPonta = amostrarAgua(geo, x0, y, dentro, alcance, ponta);
+        if (!temPonta) {
+          const vazios = (-ponta.dist - alcance) * k;
+          px0 += Number.isFinite(vazios) && vazios > 1 ? Math.ceil(vazios) : 1;
+          continue;
+        }
+        const px1 = Math.min(px0 + BLOCO_PX, largura) - 1;
+        const x1 = origemX + (px1 + 0.5) * passo;
+        const cruzaParede = proximo < total && cruzamentos[proximo] <= x1;
+        if (!cruzaParede && temPonta && ponta.ateEmenda >= folgaDoBloco && amostrarAgua(geo, x1, y, dentro, alcance, outraPonta) && outraPonta.agua === ponta.agua && outraPonta.vizinha === ponta.vizinha && outraPonta.ateEmenda >= folgaDoBloco) {
+          const a = ponta.agua;
+          pintarCorrida(pincel, (py * largura + px0) * 4, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1);
+          px0 = px1 + 1;
+          continue;
+        }
+        pintarDaAmostra(pincel, (py * largura + px0) * 4, x0, y, ponta);
+        let dentroAqui = dentro;
+        let proximoAqui = proximo;
+        for (let px = px0 + 1; px <= px1; px += 1) {
+          const x = origemX + (px + 0.5) * passo;
+          while (proximoAqui < total && cruzamentos[proximoAqui] <= x) {
+            dentroAqui = !dentroAqui;
+            proximoAqui += 1;
+          }
+          if (amostrarAgua(geo, x, y, dentroAqui, alcance, outraPonta)) pintarDaAmostra(pincel, (py * largura + px) * 4, x, y, outraPonta);
+        }
+        px0 = px1 + 1;
+      }
+    }
+    return { largura, altura, origemX, origemY, escala: k, pixels };
+  }
+  return __toCommonJS(entrada_exports);
+})();
+</script><!-- /telhado-lib -->
 
 <script>
 (() => {
   'use strict';
 
+  const L = window.TelhadoLab;
+
   const CASA = 40;
-  const COLUNAS = 16;
-  const LINHAS = 12;
+  const COLUNAS = 20;
+  const LINHAS = 15;
   const LARG = COLUNAS * CASA;
   const ALT = LINHAS * CASA;
   const TAU = Math.PI * 2;
 
-  const BEIRAL = 8;               // quanto o telhado passa da parede, em px
   const PASSO_MS = 170;           // tempo do pino para andar uma casa
   const ERGUER_PX = 6;            // o telhado sobe um pouco enquanto some
   const ERGUER_ESCALA = 0.035;
   const OPACIDADE_MESTRE = 0.32;  // o mestre vê o telhado como vidro fosco
+  const ALFA_SOMBRA_TELHADO = 0.32;
   const MARCA_MS = 450;           // quanto tempo a marca do clique fica na casa
-  const MARGEM_IMAGEM = 16;       // folga da imagem do telhado para a chaminé e a borda
+  const IMAGENS_GUARDADAS = 30;   // telhados prontos guardados (trocar de cor e voltar é instantâneo)
 
   const COR = {
     grama: '#56693f', gradeFora: 'rgba(255,255,255,0.05)', terra: '#8b7b57', pedra: '#a39a84',
     parede: '#25211d', porta: '#dccb9f',
-    pisoSala: '#9a7653', pisoDeposito: '#8a867d', gradeDentro: 'rgba(0,0,0,0.08)',
-    copa: '#34512f', copaLuz: '#44643b', sombra: 'rgba(8,10,6,0.28)', sombraTelhado: 'rgba(10,12,6,0.32)',
+    pisoSala: '#9a7653', pisoDeposito: '#8a867d', pisoCasa: '#8d7a62', gradeDentro: 'rgba(0,0,0,0.08)',
+    copa: '#34512f', copaLuz: '#44643b', sombra: 'rgba(8,10,6,0.28)', sombraTelhado: '#0a0c06',
     rotuloSala: 'rgba(255,248,236,0.62)',
   };
-  // Cada água do telhado tem um tom; a luz vem de cima à esquerda. Sem desenho de telha (listra vira hachura).
-  const BARRO = { oeste: '#a7735c', norte: '#97654f', sul: '#7b4f3e', leste: '#6b4436', espigao: '#8a5a46', cumeeira: '#c4927a', beiral: '#3e271f' };
-  const ARDOSIA = { norte: '#7c828a', sul: '#5f646b', cumeeira: '#a2a8af', beiral: '#373b40' };
 
+  // Cada sala é um polígono em casas do mapa; a porta é a passagem entre uma casa de dentro e uma de fora.
   const SALAS = [
-    { id: 'sala', nome: 'Sala', ondeEsta: 'Na sala', x: 2, y: 2, w: 7, h: 5, porta: { lado: 's', pos: 5 }, telhado: 'quatro-aguas', piso: COR.pisoSala },
-    { id: 'deposito', nome: 'Depósito', ondeEsta: 'No depósito', x: 11, y: 3, w: 4, h: 3, porta: { lado: 'o', pos: 4 }, telhado: 'duas-aguas', piso: COR.pisoDeposito },
+    { id: 'sala', nome: 'Sala', ondeEsta: 'Na sala', pontos: [[2, 2], [9, 2], [9, 7], [2, 7]], porta: { dentro: [5, 6], fora: [5, 7] }, piso: COR.pisoSala, chamine: true },
+    { id: 'deposito', nome: 'Depósito', ondeEsta: 'No depósito', pontos: [[11, 3], [15, 3], [15, 6], [11, 6]], porta: { dentro: [11, 4], fora: [10, 4] }, piso: COR.pisoDeposito },
+    { id: 'casa', nome: 'Casa em L', ondeEsta: 'Na casa em L', pontos: [[11, 8], [18, 8], [18, 11], [14, 11], [14, 14], [11, 14]], porta: { dentro: [11, 9], fora: [10, 9] }, piso: COR.pisoCasa },
   ];
-  const ARVORES = [[0, 0], [14, 0], [0, 6], [1, 10], [12, 8], [14, 10]];
+  // Teto de cada sala: a sala começa no padrão (telha barro); as outras mostram os dois modelos de cara.
+  const tetos = {
+    sala: { modelo: L.MODELO_PADRAO_DO_TETO, cor: L.COR_PADRAO_DO_TETO },
+    deposito: { modelo: 'telhas', cor: L.PALETA_DO_TETO.telhas[2].hex },
+    casa: { modelo: 'madeira', cor: L.PALETA_DO_TETO.madeira[0].hex },
+  };
+  const ARVORES = [[0, 0], [14, 0], [0, 6], [1, 10], [17, 3], [19, 7], [18, 13], [7, 13]];
   const TRILHAS = [
-    [[5, 6.6], [5, 12]],
-    [[5, 9], [10, 9], [10, 4], [10.6, 4]],
+    [[5, 6.6], [5, 15]],
+    [[5, 9], [10.6, 9]],
+    [[10, 9], [10, 4], [10.6, 4]],
   ];
   const MORDOMO = { cx: 7, cy: 4 };
   const MOVEIS = [
     [2, 2], [3, 2], [4, 2], [2, 3], [2, 4], [2, 5],      // planta, lareira, sofá
     [7, 2], [8, 2], [7, 3], [8, 3], [8, 4], [8, 5], [8, 6], // mesa com cadeiras, estante
     [13, 3], [14, 3], [13, 5], [14, 5],                  // caixotes e barris do depósito
+    [15, 9], [16, 9], [17, 8], [13, 12], [13, 13],       // mesa e baú da casa em L, cama na perna
   ];
   const INICIO = [5, 10];
   const DIRECOES = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -307,18 +1013,32 @@
 
   // ---------- regras do mapa ----------
 
+  function dentroDoPoligono(pontos, x, y) {
+    let dentro = false;
+    for (let i = 0, j = pontos.length - 1; i < pontos.length; j = i, i += 1) {
+      const [xi, yi] = pontos[i];
+      const [xj, yj] = pontos[j];
+      if ((yi > y) !== (yj > y) && x < xj + ((y - yj) * (xi - xj)) / (yi - yj)) dentro = !dentro;
+    }
+    return dentro;
+  }
+  function sobreAParede(pontos, x, y) {
+    for (let i = 0; i < pontos.length; i += 1) {
+      const [ax, ay] = pontos[i];
+      const [bx, by] = pontos[(i + 1) % pontos.length];
+      const vx = bx - ax, vy = by - ay;
+      const k = limitar(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+      if (Math.hypot(x - (ax + vx * k), y - (ay + vy * k)) < 1e-6) return true;
+    }
+    return false;
+  }
   function casaDentro(sala, cx, cy) {
-    return cx >= sala.x && cx < sala.x + sala.w && cy >= sala.y && cy < sala.y + sala.h;
+    return dentroDoPoligono(sala.pontos, cx + 0.5, cy + 0.5);
   }
+  // Estritamente dentro: em cima da linha da parede (na porta) ainda conta como fora.
   function pontoDentro(sala, x, y) {
-    return x > sala.x * CASA && x < (sala.x + sala.w) * CASA && y > sala.y * CASA && y < (sala.y + sala.h) * CASA;
-  }
-  function portaDe(sala) {
-    const { lado, pos } = sala.porta;
-    if (lado === 's') return { dentro: [pos, sala.y + sala.h - 1], fora: [pos, sala.y + sala.h] };
-    if (lado === 'n') return { dentro: [pos, sala.y], fora: [pos, sala.y - 1] };
-    if (lado === 'o') return { dentro: [sala.x, pos], fora: [sala.x - 1, pos] };
-    return { dentro: [sala.x + sala.w - 1, pos], fora: [sala.x + sala.w, pos] };
+    const cx = x / CASA, cy = y / CASA;
+    return dentroDoPoligono(sala.pontos, cx, cy) && !sobreAParede(sala.pontos, cx, cy);
   }
   const mesmaCasa = (a, b) => a[0] === b[0] && a[1] === b[1];
 
@@ -330,7 +1050,7 @@
       const saiu = casaDentro(sala, de[0], de[1]);
       const entrou = casaDentro(sala, px, py);
       if (saiu === entrou) continue;
-      const { dentro, fora } = portaDe(sala);
+      const { dentro, fora } = sala.porta;
       const pelaPorta = saiu ? mesmaCasa(de, dentro) && mesmaCasa(para, fora) : mesmaCasa(de, fora) && mesmaCasa(para, dentro);
       if (!pelaPorta) return false;
     }
@@ -412,6 +1132,16 @@
   }
   function circulo(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
   function elipse(g, x, y, rx, ry) { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); }
+  function caminhoDaSala(g, sala) {
+    g.beginPath();
+    sala.pontos.forEach(([x, y], i) => (i ? g.lineTo(x * CASA, y * CASA) : g.moveTo(x * CASA, y * CASA)));
+    g.closePath();
+  }
+  function caixaDaSala(sala) {
+    const xs = sala.pontos.map((p) => p[0] * CASA), ys = sala.pontos.map((p) => p[1] * CASA);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+    return { x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+  }
 
   function desenharGrade(x, y, w, h, cor) {
     ctx.beginPath();
@@ -423,13 +1153,13 @@
   }
 
   function desenharSoleira(sala) {
-    const { lado, pos } = sala.porta;
-    const a = pos * CASA + 6;
+    const { dentro, fora } = sala.porta;
+    const dx = fora[0] - dentro[0], dy = fora[1] - dentro[1];
     ctx.fillStyle = COR.pedra;
-    if (lado === 's') retArredondado(ctx, a, (sala.y + sala.h) * CASA + 2, CASA - 12, 18, 3);
-    if (lado === 'n') retArredondado(ctx, a, sala.y * CASA - 20, CASA - 12, 18, 3);
-    if (lado === 'o') retArredondado(ctx, sala.x * CASA - 20, a, 18, CASA - 12, 3);
-    if (lado === 'l') retArredondado(ctx, (sala.x + sala.w) * CASA + 2, a, 18, CASA - 12, 3);
+    if (dy === 1) retArredondado(ctx, fora[0] * CASA + 6, fora[1] * CASA + 2, CASA - 12, 18, 3);
+    if (dy === -1) retArredondado(ctx, fora[0] * CASA + 6, (fora[1] + 1) * CASA - 20, CASA - 12, 18, 3);
+    if (dx === -1) retArredondado(ctx, (fora[0] + 1) * CASA - 20, fora[1] * CASA + 6, 18, CASA - 12, 3);
+    if (dx === 1) retArredondado(ctx, fora[0] * CASA + 2, fora[1] * CASA + 6, 18, CASA - 12, 3);
     ctx.fill();
   }
 
@@ -452,10 +1182,15 @@
   }
 
   function desenharPiso(sala) {
-    const x = sala.x * CASA, y = sala.y * CASA, w = sala.w * CASA, h = sala.h * CASA;
+    caminhoDaSala(ctx, sala);
     ctx.fillStyle = sala.piso;
-    ctx.fillRect(x, y, w, h);
-    desenharGrade(x, y, w, h, COR.gradeDentro);
+    ctx.fill();
+    const c = caixaDaSala(sala);
+    ctx.save();
+    caminhoDaSala(ctx, sala);
+    ctx.clip();
+    desenharGrade(c.x0, c.y0, c.x1 - c.x0, c.y1 - c.y0, COR.gradeDentro);
+    ctx.restore();
   }
 
   function desenharRotuloSala(texto, x, y) {
@@ -521,117 +1256,141 @@
     desenharRotuloSala('Depósito', 448, 232);
   }
 
+  function desenharInteriorCasa() {
+    desenharPiso(SALAS[2]);
+    // tapete na quina do L
+    ctx.fillStyle = '#5d4a6b'; ctx.fillRect(476, 372, 72, 64);
+    ctx.strokeStyle = '#7a6589'; ctx.lineWidth = 1.5; ctx.strokeRect(482.5, 378.5, 59, 51);
+    // mesa comprida com dois bancos
+    ctx.fillStyle = '#6f5032'; retArredondado(ctx, 604, 366, 72, 28, 3); ctx.fill();
+    ctx.fillStyle = '#5a3f26'; ctx.fillRect(608, 356, 64, 6); ctx.fillRect(608, 398, 64, 6);
+    // baú no canto de cima à direita
+    ctx.fillStyle = '#7a5434'; ctx.fillRect(684, 326, 30, 26);
+    ctx.fillStyle = '#b39a5c'; ctx.fillRect(684, 336, 30, 3);
+    // cama encostada na parede da direita da perna
+    ctx.fillStyle = '#6b4a2f'; ctx.fillRect(522, 486, 34, 74);
+    ctx.fillStyle = '#d9cfb8'; ctx.fillRect(525, 489, 28, 16);
+    ctx.fillStyle = '#7f8e6a'; ctx.fillRect(525, 507, 28, 50);
+    desenharRotuloSala('Casa em L', 452, 552);
+  }
+
+  function aberturaDaPorta(sala) {
+    const { dentro, fora } = sala.porta;
+    if (dentro[0] !== fora[0]) {
+      const x = Math.max(dentro[0], fora[0]);
+      return { vertical: true, a: [x, dentro[1]], b: [x, dentro[1] + 1] };
+    }
+    const y = Math.max(dentro[1], fora[1]);
+    return { vertical: false, a: [dentro[0], y], b: [dentro[0] + 1, y] };
+  }
+
   function desenharParedes(sala) {
-    const x0 = sala.x * CASA, y0 = sala.y * CASA, x1 = x0 + sala.w * CASA, y1 = y0 + sala.h * CASA;
-    const { lado: ladoPorta, pos } = sala.porta;
-    const v0 = pos * CASA, v1 = v0 + CASA;
-    const lados = { n: [[x0, y0], [x1, y0]], l: [[x1, y0], [x1, y1]], s: [[x0, y1], [x1, y1]], o: [[x0, y0], [x0, y1]] };
+    const vao = aberturaDaPorta(sala);
     ctx.save();
     ctx.strokeStyle = COR.parede;
     ctx.lineWidth = 4;
     ctx.lineCap = 'square';
     ctx.beginPath();
-    const segmento = (a, b) => { ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); };
-    for (const [lado, [a, b]] of Object.entries(lados)) {
-      if (lado !== ladoPorta) { segmento(a, b); continue; }
-      if (a[1] === b[1]) { segmento(a, [v0, a[1]]); segmento([v1, a[1]], b); }
-      else { segmento(a, [a[0], v0]); segmento([a[0], v1], b); }
+    const segmento = (a, b) => { ctx.moveTo(a[0] * CASA, a[1] * CASA); ctx.lineTo(b[0] * CASA, b[1] * CASA); };
+    const n = sala.pontos.length;
+    for (let i = 0; i < n; i += 1) {
+      const a = sala.pontos[i], b = sala.pontos[(i + 1) % n];
+      const temVao = vao.vertical
+        ? a[0] === b[0] && a[0] === vao.a[0] && Math.min(a[1], b[1]) <= vao.a[1] && Math.max(a[1], b[1]) >= vao.b[1]
+        : a[1] === b[1] && a[1] === vao.a[1] && Math.min(a[0], b[0]) <= vao.a[0] && Math.max(a[0], b[0]) >= vao.b[0];
+      if (!temVao) { segmento(a, b); continue; }
+      const pertoDeA = Math.hypot(vao.a[0] - a[0], vao.a[1] - a[1]) < Math.hypot(vao.b[0] - a[0], vao.b[1] - a[1]);
+      const [p, q] = pertoDeA ? [vao.a, vao.b] : [vao.b, vao.a];
+      segmento(a, p);
+      segmento(q, b);
     }
     ctx.stroke();
     // a porta é um retângulo pequeno e chapado na abertura da parede
     ctx.fillStyle = COR.porta;
-    const [a, b] = lados[ladoPorta];
-    if (a[1] === b[1]) ctx.fillRect(v0 + 5, a[1] - 3, CASA - 10, 6);
-    else ctx.fillRect(a[0] - 3, v0 + 5, 6, CASA - 10);
+    if (vao.vertical) ctx.fillRect(vao.a[0] * CASA - 3, vao.a[1] * CASA + 5, 6, CASA - 10);
+    else ctx.fillRect(vao.a[0] * CASA + 5, vao.a[1] * CASA - 3, CASA - 10, 6);
     ctx.restore();
   }
 
-  function retanguloTelhado(sala) {
-    return {
-      x0: sala.x * CASA - BEIRAL, y0: sala.y * CASA - BEIRAL,
-      x1: (sala.x + sala.w) * CASA + BEIRAL, y1: (sala.y + sala.h) * CASA + BEIRAL,
-    };
-  }
+  // ---------- telhado: textura do app, gerada uma vez por sala e por modelo/cor ----------
 
-  function agua(g, pontos, cor, sombraDe, sombraPara) {
-    g.beginPath();
-    pontos.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-    g.closePath();
-    g.fillStyle = cor;
-    g.fill();
-    // a beira de cada água fica um pouco mais escura que a cumeeira: dá volume sem riscar a telha
-    const grad = g.createLinearGradient(sombraDe[0], sombraDe[1], sombraPara[0], sombraPara[1]);
-    grad.addColorStop(0, 'rgba(0,0,0,0.13)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = grad;
-    g.fill();
-  }
-
-  function linha(g, a, b, cor, largura) {
-    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
-    g.strokeStyle = cor; g.lineWidth = largura; g.lineCap = 'round'; g.stroke();
-  }
-
-  function desenharQuatroAguas(g, r) {
-    const { x0, y0, x1, y1 } = r;
-    const meia = (y1 - y0) / 2;
-    const cy = (y0 + y1) / 2;
-    const ra = x0 + meia, rb = x1 - meia;
-    agua(g, [[x0, y0], [x1, y0], [rb, cy], [ra, cy]], BARRO.norte, [x0, y0], [x0, cy]);
-    agua(g, [[x0, y1], [x1, y1], [rb, cy], [ra, cy]], BARRO.sul, [x0, y1], [x0, cy]);
-    agua(g, [[x0, y0], [ra, cy], [x0, y1]], BARRO.oeste, [x0, cy], [ra, cy]);
-    agua(g, [[x1, y0], [rb, cy], [x1, y1]], BARRO.leste, [x1, cy], [rb, cy]);
-    for (const [a, b] of [[[x0, y0], [ra, cy]], [[x0, y1], [ra, cy]], [[x1, y0], [rb, cy]], [[x1, y1], [rb, cy]]]) linha(g, a, b, BARRO.espigao, 1.6);
-    linha(g, [ra, cy], [rb, cy], BARRO.cumeeira, 2.2);
-    g.strokeStyle = BARRO.beiral; g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y0 + 0.75, x1 - x0 - 1.5, y1 - y0 - 1.5);
-    // chaminé em cima da lareira, com a sombra caindo na água norte
+  // Chaminé em cima da lareira, com a sombra caindo na água norte (coordenadas do mapa).
+  function desenharChamine(g) {
     g.fillStyle = 'rgba(28,14,8,0.30)'; g.fillRect(155, 105, 24, 22);
     g.fillStyle = '#6e4e41'; g.fillRect(148, 98, 24, 22);
     g.fillStyle = '#8a6656'; g.fillRect(148, 98, 24, 2); g.fillRect(148, 98, 2, 22);
     g.fillStyle = '#21160f'; g.fillRect(153, 103, 14, 12);
   }
 
-  function desenharDuasAguas(g, r) {
-    const { x0, y0, x1, y1 } = r;
-    const cy = (y0 + y1) / 2;
-    agua(g, [[x0, y0], [x1, y0], [x1, cy], [x0, cy]], ARDOSIA.norte, [x0, y0], [x0, cy]);
-    agua(g, [[x0, cy], [x1, cy], [x1, y1], [x0, y1]], ARDOSIA.sul, [x0, y1], [x0, cy]);
-    linha(g, [x0 + 1, cy], [x1 - 1, cy], ARDOSIA.cumeeira, 2.2);
-    g.strokeStyle = ARDOSIA.beiral; g.lineWidth = 1.5; g.strokeRect(x0 + 0.75, y0 + 0.75, x1 - x0 - 1.5, y1 - y0 - 1.5);
+  const imagensProntas = new Map();
+  const temposDeGeracao = [];
+  const poligonoDaSala = (sala) => sala.pontos.map(([x, y]) => ({ x: x * CASA, y: y * CASA }));
+
+  function canvasDosPixels(img) {
+    const c = document.createElement('canvas');
+    c.width = img.largura;
+    c.height = img.altura;
+    c.getContext('2d').putImageData(new ImageData(img.pixels, img.largura, img.altura), 0, 0);
+    return c;
   }
 
   // O telhado vira uma imagem pronta: assim ele some inteiro, sem as emendas das águas aparecerem no meio do caminho.
-  function criarImagemTelhado(sala) {
-    const r = retanguloTelhado(sala);
-    const w = r.x1 - r.x0 + MARGEM_IMAGEM * 2;
-    const h = r.y1 - r.y0 + MARGEM_IMAGEM * 2;
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(w * dpr);
-    c.height = Math.ceil(h * dpr);
-    const g = c.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, (MARGEM_IMAGEM - r.x0) * dpr, (MARGEM_IMAGEM - r.y0) * dpr);
-    if (sala.telhado === 'quatro-aguas') desenharQuatroAguas(g, r); else desenharDuasAguas(g, r);
-    return { canvas: c, x: r.x0 - MARGEM_IMAGEM, y: r.y0 - MARGEM_IMAGEM, w, h, r };
+  function criarImagemTelhado(sala, teto) {
+    const t0 = performance.now();
+    const img = L.pintarTelhado(poligonoDaSala(sala), teto.modelo, teto.cor, dpr);
+    const ms = performance.now() - t0;
+    if (!img.largura) return null;
+    const canvas = canvasDosPixels(img);
+    if (sala.chamine) {
+      const g = canvas.getContext('2d');
+      g.setTransform(img.escala, 0, 0, img.escala, -img.origemX * img.escala, -img.origemY * img.escala);
+      desenharChamine(g);
+    }
+    // A sombra no chão é a mesma silhueta (com chaminé), pintada de escuro.
+    const sombra = document.createElement('canvas');
+    sombra.width = canvas.width;
+    sombra.height = canvas.height;
+    const gs = sombra.getContext('2d');
+    gs.drawImage(canvas, 0, 0);
+    gs.globalCompositeOperation = 'source-in';
+    gs.fillStyle = COR.sombraTelhado;
+    gs.fillRect(0, 0, sombra.width, sombra.height);
+    const caixa = caixaDaSala(sala);
+    temposDeGeracao.push({ sala: sala.id, modelo: teto.modelo, cor: teto.cor, ms, largura: img.largura, altura: img.altura });
+    return { canvas, sombra, x: img.origemX, y: img.origemY, w: img.largura / img.escala, h: img.altura / img.escala, cx: caixa.cx, cy: caixa.cy };
   }
-  const imagensTelhado = Object.fromEntries(SALAS.map((s) => [s.id, criarImagemTelhado(s)]));
+
+  function telhadoDaSala(sala) {
+    const teto = tetos[sala.id];
+    const k = `${sala.id}|${teto.modelo}|${teto.cor}|${dpr}`;
+    let img = imagensProntas.get(k);
+    if (img === undefined) {
+      img = criarImagemTelhado(sala, teto);
+      if (imagensProntas.size >= IMAGENS_GUARDADAS) imagensProntas.delete(imagensProntas.keys().next().value);
+    } else {
+      imagensProntas.delete(k); // volta para o fim da fila: a usada agora é a última a sair
+    }
+    imagensProntas.set(k, img);
+    return img;
+  }
 
   function desenharTelhado(sala) {
     const e = telhados[sala.id];
-    const img = imagensTelhado[sala.id];
     const visivel = e.alpha * (visao === 'mestre' ? OPACIDADE_MESTRE : 1);
     if (visivel < 0.004) return;
+    const img = telhadoDaSala(sala);
+    if (!img) return;
     const subida = movimentoReduzido.matches ? 0 : 1 - e.alpha;
-    const { r } = img;
     ctx.save();
-    ctx.globalAlpha = visivel;
     if (visao !== 'mestre') {
-      ctx.fillStyle = COR.sombraTelhado;
-      ctx.fillRect(r.x0 + 6 + 6 * subida, r.y0 + 8 + 8 * subida, r.x1 - r.x0, r.y1 - r.y0);
+      ctx.globalAlpha = visivel * ALFA_SOMBRA_TELHADO;
+      ctx.drawImage(img.sombra, img.x + 6 + 6 * subida, img.y + 8 + 8 * subida, img.w, img.h);
     }
-    const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2, escala = 1 + ERGUER_ESCALA * subida;
-    ctx.translate(cx, cy - ERGUER_PX * subida);
+    ctx.globalAlpha = visivel;
+    const escala = 1 + ERGUER_ESCALA * subida;
+    ctx.translate(img.cx, img.cy - ERGUER_PX * subida);
     ctx.scale(escala, escala);
-    ctx.translate(-cx, -cy);
+    ctx.translate(-img.cx, -img.cy);
     ctx.drawImage(img.canvas, img.x, img.y, img.w, img.h);
     ctx.restore();
   }
@@ -681,6 +1440,7 @@
     desenharTerreno();
     desenharInteriorSala(t);
     desenharInteriorDeposito();
+    desenharInteriorCasa();
     for (const sala of SALAS) desenharParedes(sala);
     desenharFicha(centro(MORDOMO.cx), centro(MORDOMO.cy), '#55406e', 'M', 'Mordomo');
     for (const sala of SALAS) desenharTelhado(sala);
@@ -703,6 +1463,8 @@
   }
 
   function quadro(t) {
+    // Telhado trocado entra pronto no quadro seguinte, esteja ele à vista ou não.
+    for (const sala of SALAS) telhadoDaSala(sala);
     atualizarPino(t);
     atualizarTelhados(t);
     atualizarStatus();
@@ -756,7 +1518,7 @@
     botoesVisao.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.visao === v)));
   }
   botoesVisao.forEach((b) => b.addEventListener('click', () => definirVisao(b.dataset.visao)));
-  document.querySelector('[role="radiogroup"]').addEventListener('keydown', (e) => {
+  document.getElementById('grupo-visao').addEventListener('keydown', (e) => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
     e.preventDefault();
     const proximo = visao === 'jogador' ? 'mestre' : 'jogador';
@@ -783,6 +1545,127 @@
   }
   document.getElementById('reiniciar').addEventListener('click', reiniciar);
 
+  // ---------- telhado de cada casa: modelo e cor ----------
+
+  const grupoCasa = document.getElementById('grupo-casa');
+  const grupoModelo = document.getElementById('grupo-modelo');
+  const grupoCor = document.getElementById('grupo-cor');
+  const nomeCor = document.getElementById('nome-cor');
+  const amostraLivre = document.getElementById('amostra-livre');
+  const miniaturaLivre = document.getElementById('miniatura-livre');
+  const corLivre = document.getElementById('cor-livre');
+  let salaEscolhida = 'sala';
+
+  // Cada amostra é o telhado de verdade, numa casinha de 30 × 20 px: mostra o modelo e a cor juntos.
+  const miniaturas = new Map();
+  const CASINHA = [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }, { x: 0, y: 20 }];
+  function miniatura(modelo, cor) {
+    const k = modelo + '|' + cor;
+    if (!miniaturas.has(k)) {
+      const img = L.pintarTelhado(CASINHA, modelo, cor, 2);
+      miniaturas.set(k, img.largura ? canvasDosPixels(img).toDataURL('image/png') : '');
+    }
+    return miniaturas.get(k);
+  }
+
+  function marcarGrupo(grupo, atributo, valor) {
+    for (const b of grupo.querySelectorAll('[role="radio"]')) {
+      const marcado = b.dataset[atributo] === valor;
+      b.setAttribute('aria-checked', String(marcado));
+      b.tabIndex = marcado ? 0 : -1;
+    }
+  }
+
+  function atualizarControles() {
+    const teto = tetos[salaEscolhida];
+    marcarGrupo(grupoCasa, 'casa', salaEscolhida);
+    marcarGrupo(grupoModelo, 'modelo', teto.modelo);
+    marcarGrupo(grupoCor, 'cor', teto.cor);
+    const daPaleta = L.corDaPaleta(teto.modelo, teto.cor);
+    // Sem cor da paleta marcada (cor livre), a primeira amostra é a que recebe o Tab.
+    if (!daPaleta && grupoCor.firstElementChild) grupoCor.firstElementChild.tabIndex = 0;
+    amostraLivre.dataset.ativo = String(!daPaleta);
+    if (!daPaleta) {
+      amostraLivre.dataset.usada = 'true';
+      miniaturaLivre.src = miniatura(teto.modelo, teto.cor);
+    } else if (amostraLivre.dataset.usada === 'true') {
+      miniaturaLivre.src = miniatura(teto.modelo, corLivre.value);
+    }
+    nomeCor.textContent = daPaleta ? daPaleta.nome : `outra cor (${teto.cor})`;
+    if (!daPaleta) corLivre.value = teto.cor;
+  }
+
+  function montarAmostras() {
+    const teto = tetos[salaEscolhida];
+    grupoCor.replaceChildren(...L.PALETA_DO_TETO[teto.modelo].map((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'amostra';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-label', c.nome);
+      b.title = c.nome;
+      b.dataset.cor = c.hex;
+      const im = document.createElement('img');
+      im.alt = '';
+      im.src = miniatura(teto.modelo, c.hex);
+      b.append(im);
+      b.addEventListener('click', () => escolherCor(c.hex));
+      return b;
+    }));
+    atualizarControles();
+  }
+
+  function definirTeto(id, modelo, cor) {
+    const m = modelo === 'madeira' ? 'madeira' : 'telhas';
+    tetos[id] = { modelo: m, cor: L.corDoTetoOuPadrao(m, cor) };
+  }
+  function escolherCasa(id) {
+    salaEscolhida = id;
+    montarAmostras();
+  }
+  // Trocar o modelo leva à cor padrão dele; uma cor livre continua a mesma.
+  function escolherModelo(modelo) {
+    const teto = tetos[salaEscolhida];
+    if (teto.modelo === modelo) return;
+    const livre = !L.corDaPaleta(teto.modelo, teto.cor);
+    definirTeto(salaEscolhida, modelo, livre ? teto.cor : L.corPadraoDoModelo(modelo));
+    montarAmostras();
+  }
+  function escolherCor(cor) {
+    definirTeto(salaEscolhida, tetos[salaEscolhida].modelo, cor);
+    atualizarControles();
+  }
+
+  // Setas andam e escolhem dentro de cada grupo (Home e End vão às pontas), como um radiogroup nativo.
+  function ligarSetas(grupo, escolher) {
+    grupo.addEventListener('keydown', (e) => {
+      const itens = [...grupo.querySelectorAll('[role="radio"]')];
+      const atual = itens.indexOf(document.activeElement);
+      if (atual < 0) return;
+      let alvo = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') alvo = (atual + 1) % itens.length;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') alvo = (atual - 1 + itens.length) % itens.length;
+      if (e.key === 'Home') alvo = 0;
+      if (e.key === 'End') alvo = itens.length - 1;
+      if (alvo === null) return;
+      e.preventDefault();
+      escolher(itens[alvo]);
+      const depois = [...grupo.querySelectorAll('[role="radio"]')];
+      (depois[alvo] || depois[0]).focus();
+    });
+  }
+  grupoCasa.querySelectorAll('[data-casa]').forEach((b) => b.addEventListener('click', () => escolherCasa(b.dataset.casa)));
+  grupoModelo.querySelectorAll('[data-modelo]').forEach((b) => b.addEventListener('click', () => escolherModelo(b.dataset.modelo)));
+  ligarSetas(grupoCasa, (b) => escolherCasa(b.dataset.casa));
+  ligarSetas(grupoModelo, (b) => escolherModelo(b.dataset.modelo));
+  ligarSetas(grupoCor, (b) => escolherCor(b.dataset.cor));
+  corLivre.addEventListener('input', () => escolherCor(corLivre.value));
+  // A amostra livre lembra a última cor: tocar nela já aplica essa cor (o seletor abre junto para ajustar).
+  corLivre.addEventListener('click', () => {
+    if (amostraLivre.dataset.usada === 'true' && amostraLivre.dataset.ativo !== 'true') escolherCor(corLivre.value);
+  });
+  montarAmostras();
+
   // Gancho para as provas automáticas (relógio parado, passo a passo). Não muda nada para quem joga.
   window.__telhado = {
     congelarRelogio(t = 0) { relogioManual = t; },
@@ -800,6 +1683,21 @@
       };
     },
     definirTempo, definirVisao,
+    // Troca o teto de uma sala e já gera a imagem; devolve quanto custou (ms).
+    definirTeto(id, modelo, cor) {
+      definirTeto(id, modelo, cor);
+      if (id === salaEscolhida) montarAmostras();
+      const t0 = performance.now();
+      telhadoDaSala(SALAS.find((s) => s.id === id));
+      return performance.now() - t0;
+    },
+    tetos() { return JSON.parse(JSON.stringify(tetos)); },
+    temposDeGeracao() { return temposDeGeracao.slice(); },
+    pixel(x, y) {
+      const d = ctx.getImageData(Math.floor(x * dpr), Math.floor(y * dpr), 1, 1).data;
+      return [d[0], d[1], d[2]];
+    },
+    lib: L,
     PASSO_MS,
   };
 
