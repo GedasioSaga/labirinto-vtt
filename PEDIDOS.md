@@ -1750,6 +1750,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 20/10/2026: "E não tem opção de desligar o telhado para o mestre, tem que te essa opção, um opção global, ok ?" — logo depois: "Pode continuar fazendo, achei a opção do telhado"
 - Entendido: pedido da opção global caiu; o usuário achou o botão Telhados em Cena > Camadas.
 - Decisões do usuário (20/10/2026) sobre a porta: só as portas de fora (sala com teto para lado sem teto; porta entre duas salas com teto fica escondida); desenho igual ao de dentro (aberta, fechada, trancada, anima igual); só aparece a porta que o jogador vê ou já viu. Editor do mestre fora desta vez. Plano aprovado: `~/.claude/plans/temporal-napping-shell.md`.
+- 20/10/2026: feito em `c1de522c` e PUBLICADA v0.4.35 (https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.4.35) a partir da main `b40f2735`. setup.exe, .sig, .msi e latest.json no release; gitleaks sem vazamento; `latest.json` de releases/latest responde 0.4.35. Aguardando o usuário jogar.
 
 ## Pedido de 20/10/2026 (registro literal) — voltar à tela principal pelo selo
 > 20/10/2026: "Uma coisa que eu percebi do redesign, eu não consigo volta para a tela principal" — e, com o print do selo dourado no alto da lombada do livro do mestre: "bota ao apertar aqui, eu volto para o menu principal"
