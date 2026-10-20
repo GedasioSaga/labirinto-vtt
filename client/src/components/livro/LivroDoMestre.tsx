@@ -170,9 +170,14 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
       ref={livro}
     >
       <div className="gr-lombada" ref={lombada}>
-        <span className="gr-lombada__selo" aria-hidden="true">
-          <IconeDoLivro nome="selo" />
-        </span>
+        {/* O selo é a porta de saída (pedido de 20/10/2026): o mesmo "Voltar ao início" do menu Arquivo. */}
+        <Balao texto="Voltar ao início">
+          {(gatilho) => (
+            <button type="button" className="gr-lombada__selo" aria-label="Voltar ao início" {...gatilho} onClick={arquivo.onInicio}>
+              <IconeDoLivro nome="selo" />
+            </button>
+          )}
+        </Balao>
         <div
           className="gr-lombada__marcadores"
           onPointerDownCapture={() => {

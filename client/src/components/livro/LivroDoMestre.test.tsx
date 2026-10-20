@@ -168,6 +168,16 @@ describe('LivroDoMestre — lombada, recolher e topo', () => {
     expect(gatilho?.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('o selo no alto da lombada volta ao início, o mesmo "Voltar ao início" do menu Arquivo', () => {
+    const acoes = arquivo()
+    render({ arquivo: acoes })
+    const selo = container.querySelector<HTMLButtonElement>('.gr-lombada__selo')
+    expect(selo?.tagName).toBe('BUTTON')
+    expect(selo?.getAttribute('aria-label')).toBe('Voltar ao início')
+    act(() => selo?.click())
+    expect(acoes.onInicio).toHaveBeenCalledTimes(1)
+  })
+
   it('com imagem de fundo, o menu Arquivo troca a imagem e oferece as três conversões', () => {
     const acoes = arquivo({ temImagemDeFundo: true })
     render({ arquivo: acoes })

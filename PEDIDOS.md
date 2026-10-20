@@ -1750,3 +1750,8 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 > 20/10/2026: "E não tem opção de desligar o telhado para o mestre, tem que te essa opção, um opção global, ok ?" — logo depois: "Pode continuar fazendo, achei a opção do telhado"
 - Entendido: pedido da opção global caiu; o usuário achou o botão Telhados em Cena > Camadas.
 - Decisões do usuário (20/10/2026) sobre a porta: só as portas de fora (sala com teto para lado sem teto; porta entre duas salas com teto fica escondida); desenho igual ao de dentro (aberta, fechada, trancada, anima igual); só aparece a porta que o jogador vê ou já viu. Editor do mestre fora desta vez. Plano aprovado: `~/.claude/plans/temporal-napping-shell.md`.
+
+## Pedido de 20/10/2026 (registro literal) — voltar à tela principal pelo selo
+> 20/10/2026: "Uma coisa que eu percebi do redesign, eu não consigo volta para a tela principal" — e, com o print do selo dourado no alto da lombada do livro do mestre: "bota ao apertar aqui, eu volto para o menu principal"
+- Entendido: hoje o "Voltar ao início" só existe no fim do menu Arquivo (ícone de pasta), e o selo no alto da lombada (`LivroDoMestre.tsx`, `gr-lombada__selo`) é só enfeite. Ele vira botão: um clique salva o mapa e volta ao menu principal (o mesmo `handleGoHome` do "Voltar ao início"), com balão "Voltar ao início". O item do menu Arquivo continua.
+- 20/10/2026: feito. O selo virou botão "Voltar ao início" (balão com o mesmo nome; clareia no hover, encolhe 5% no clique, anel de foco no teclado). Conferido: tsc limpo; `components/livro` 197 de 197; `e2e/task-selo-volta-ao-inicio.spec.ts` verde (selo 30x30 sem borda do navegador, clique leva ao menu com "Criar Mapas").

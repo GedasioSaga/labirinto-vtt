@@ -58,8 +58,16 @@
   color: var(--lb-color-brass-contrast);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.6);
   margin-bottom: 26px;
+  padding: 0;
+  border: 0;
+  transition: filter var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
 .gr-lombada__selo svg { width: 18px; height: 18px; stroke-width: 1.8; }
+.gr-lombada__selo:active { transform: scale(0.95); }
+.gr-lombada__selo:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+@media (hover: hover) and (pointer: fine) {
+  .gr-lombada__selo:hover { filter: brightness(1.12); }
+}
 
 .gr-lombada__pe { margin-top: auto; }
 .gr-lombada__recolher {
@@ -137,6 +145,7 @@
   .gr-livro.gr-e-recolhido .gr-pagina { transform: none; }
   .gr-lombada__recolher svg { transition-duration: 0ms; }
   .gr-lombada__recolher:active { transform: none; }
+  .gr-lombada__selo:active { transform: none; }
 }
 .gr-lombada__marcadores { width: 100%; }
 
