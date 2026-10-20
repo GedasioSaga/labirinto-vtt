@@ -1,0 +1,3262 @@
+<title>Objetos do Mapa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-fontes media="print" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: o mapa é o protagonista (à esquerda no computador), o painel do objeto ao lado (folha de baixo no celular) e o catálogo embaixo. Cores e fontes do protótipo do telhado, já aprovado. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --acento-texto: #fff8f2;
+    --moldura: #1d211c;
+    --fundo-amostra: #a8776a;
+    --folha-sombra: 0 -10px 30px rgba(18, 22, 18, 0.22);
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-gaveta: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+      --folha-sombra: 0 -10px 30px rgba(0, 0, 0, 0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+    --folha-sombra: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-block: 28px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 22px;
+  }
+  .cabeca { display: grid; gap: 6px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.6rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 62ch; color: var(--suave); font-size: 1.02rem; }
+  h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+  }
+
+  .obra { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 960px) {
+    .obra { grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; }
+  }
+
+  .palco { display: grid; gap: 10px; min-width: 0; }
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; justify-content: space-between; }
+
+  .segmentado {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    max-width: 100%;
+  }
+  .segmentado button {
+    font: 500 0.92rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 10px 14px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active { transform: scale(0.97); }
+
+  .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .zoom button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--linha);
+    border-radius: 9px;
+    background: var(--superficie);
+    color: var(--texto);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms ease;
+  }
+  .zoom button:active { transform: scale(0.97); }
+  .zoom button:disabled { opacity: 0.4; cursor: default; transform: none; }
+  .zoom button svg { width: 16px; height: 16px; }
+  .zoom .valor {
+    width: auto;
+    min-width: 62px;
+    padding: 0 8px;
+    font: 600 0.9rem/1 var(--f-texto);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(button, input, canvas, [tabindex]):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .moldura {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+  }
+  #mapa {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    cursor: grab;
+    touch-action: none;
+  }
+  #mapa[data-sobre="objeto"] { cursor: pointer; }
+  #mapa[data-arrastando="true"] { cursor: grabbing; }
+  #mapa:focus-visible { outline-offset: -3px; }
+  .dica { margin: 0; font-size: 0.86rem; color: var(--suave); }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+  .erro-canvas { margin: 0; padding: 24px; color: #f1e6dc; }
+
+  /* Painel do objeto: coluna fixa no computador, folha de baixo no celular */
+  .painel {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+  }
+  @media (min-width: 960px) {
+    .painel { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+    .alca, .fechar { display: none; }
+  }
+  .alca {
+    justify-self: center;
+    width: 64px;
+    height: 22px;
+    margin: -10px 0 -6px;
+    display: grid;
+    place-items: center;
+    cursor: grab;
+    touch-action: none;
+  }
+  .alca span { width: 38px; height: 5px; border-radius: 3px; background: var(--linha); }
+  .painel-vazio { display: grid; gap: 6px; }
+  .painel-vazio p { margin: 0; color: var(--suave); }
+  .painel-objeto { display: grid; gap: 14px; }
+  .painel-objeto[hidden], .painel-vazio[hidden] { display: none; }
+  .painel-cabeca { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .painel-cabeca h2 { outline: none; }
+  .painel-sub { margin: 2px 0 0; font-size: 0.86rem; color: var(--suave); }
+  .fechar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    margin: -4px -6px 0 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--suave);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 160ms ease;
+  }
+  .fechar:active { transform: scale(0.97); }
+  .fechar svg { width: 18px; height: 18px; }
+  .previa { margin: 0; display: grid; gap: 4px; }
+  .previa canvas {
+    display: block;
+    width: 100%;
+    height: 190px;
+    border-radius: 9px;
+    background: var(--fundo-amostra);
+  }
+  .previa figcaption { font-size: 0.8rem; color: var(--suave); }
+
+  .campos { display: grid; gap: 18px; }
+  .campos:empty { display: none; }
+  .campo { display: grid; gap: 8px; }
+  .campo-rotulo { font-size: 0.86rem; font-weight: 500; color: var(--suave); }
+  .campo-rotulo output { color: var(--texto); font-weight: 600; }
+  .amostras { display: flex; flex-wrap: wrap; gap: 8px; }
+  .amostra {
+    position: relative;
+    width: 52px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    background: var(--fundo-amostra);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 160ms var(--ease-out), box-shadow 160ms ease;
+  }
+  .amostra canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+  .amostra[aria-checked="true"] { box-shadow: 0 0 0 2px var(--superficie), 0 0 0 4px var(--texto); }
+  .amostra:active { transform: scale(0.97); }
+  .curva { display: flex; align-items: center; gap: 12px; }
+  .curva input { flex: 1; min-width: 0; accent-color: var(--acento); height: 28px; }
+
+  @media (max-width: 959px) {
+    .painel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      max-height: min(62vh, 560px);
+      overflow: auto;
+      overscroll-behavior: contain;
+      border-radius: 16px 16px 0 0;
+      border-bottom: 0;
+      padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      box-shadow: var(--folha-sombra);
+      transform: translateY(calc(100% + 24px));
+      transition: transform 200ms var(--ease-out), visibility 0s linear 200ms;
+      visibility: hidden;
+    }
+    .painel[data-aberto="true"] {
+      transform: translateY(0);
+      transition: transform 260ms var(--ease-gaveta), visibility 0s;
+      visibility: visible;
+    }
+    .painel[data-arrastando="true"] { transition: none; }
+    .painel-vazio { display: none; }
+    .previa canvas { height: 118px; }
+  }
+
+  /* Catálogo: os 11 móveis lado a lado; no celular rola só a faixa, nunca a página */
+  .catalogo { display: grid; gap: 10px; }
+  .catalogo-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  .cartoes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 959px) {
+    .cartoes {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x proximity;
+      overscroll-behavior-x: contain;
+      padding-bottom: 6px;
+      margin-inline: -2px;
+      padding-inline: 2px;
+    }
+    .cartoes li { flex: 0 0 120px; scroll-snap-align: start; }
+  }
+  .cartao {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+    padding: 6px 6px 9px;
+    text-align: left;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .cartao canvas { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; background: var(--fundo-amostra); }
+  .cartao-nome { font-weight: 600; font-size: 0.92rem; line-height: 1.2; padding-inline: 3px; }
+  .cartao-mat { font-size: 0.78rem; color: var(--suave); line-height: 1.25; padding-inline: 3px; }
+  .cartao[aria-pressed="true"] { border-color: var(--texto); box-shadow: 0 0 0 1px var(--texto); }
+  .cartao:active { transform: scale(0.97); }
+
+  .notas { display: grid; gap: 10px; border-top: 1px solid var(--linha); padding-top: 18px; }
+  .notas-colunas { display: grid; gap: 18px; }
+  @media (min-width: 760px) { .notas-colunas { grid-template-columns: 1fr 1fr; } }
+  .notas h3 { margin: 0 0 6px; font: 600 1rem/1.3 var(--f-texto); }
+  .notas ul { margin: 0; padding-left: 1.1em; display: grid; gap: 5px; max-width: 62ch; color: var(--suave); }
+  .notas li::marker { color: var(--acento); }
+  .notas strong { color: var(--texto); font-weight: 600; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .segmentado button:not([aria-checked="true"]):hover { color: var(--texto); }
+    .zoom button:not(:disabled):hover, .cartao:hover { border-color: var(--suave); }
+    .fechar:hover { background: var(--bg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .zoom button, .amostra, .cartao, .fechar { transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+    .segmentado button:active, .zoom button:active, .amostra:active, .cartao:active, .fechar:active { transform: none; }
+    .painel, .painel[data-aberto="true"] { transition: visibility 0s; }
+  }
+</style>
+
+<main class="pagina">
+  <header class="cabeca">
+    <h1>Objetos do Mapa</h1>
+    <p class="lead">Os 11 móveis do painel Objetos com textura e volume, desenhados pelo código. Troque o desenho para comparar e toque num objeto para escolher o material. Nada se mexe: a fogueira também é parada.</p>
+  </header>
+
+  <div class="obra">
+    <section class="palco" aria-label="Sala de exemplo">
+      <div class="barra">
+        <div class="segmentado" role="radiogroup" aria-label="Desenho dos objetos" id="grupo-estilo">
+          <button type="button" role="radio" aria-checked="true" data-estilo="cima" tabindex="0">De cima com volume</button>
+          <button type="button" role="radio" aria-checked="false" data-estilo="34" tabindex="-1">3/4</button>
+        </div>
+        <div class="zoom" role="group" aria-label="Zoom do mapa">
+          <button type="button" id="zoom-menos" aria-label="Afastar">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8h10"/></svg>
+          </button>
+          <button type="button" id="zoom-valor" class="valor" aria-label="Voltar o zoom para 100%">100%</button>
+          <button type="button" id="zoom-mais" aria-label="Aproximar">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8h10M8 3v10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="moldura">
+        <canvas id="mapa" tabindex="0" aria-label="Sala de exemplo com os 11 móveis. Setas andam pelo mapa, mais e menos mudam o zoom. Para escolher um objeto pelo teclado, use o catálogo abaixo." aria-describedby="dica-mapa"></canvas>
+      </div>
+      <p class="dica" id="dica-mapa">Arraste para andar pelo mapa. Roda do mouse, pinça ou <kbd>+</kbd> <kbd>−</kbd> para o zoom, de 50% a 200% como no app.</p>
+    </section>
+
+    <aside class="painel" id="painel" aria-labelledby="painel-titulo" data-aberto="false">
+      <div class="alca" id="alca" aria-hidden="true"><span></span></div>
+      <div class="painel-vazio" id="painel-vazio">
+        <h2>Material e opções</h2>
+        <p>Toque num objeto do mapa ou do catálogo. O material e as opções dele aparecem aqui.</p>
+      </div>
+      <div class="painel-objeto" id="painel-objeto" hidden>
+        <div class="painel-cabeca">
+          <div>
+            <h2 id="painel-titulo" tabindex="-1">Objeto</h2>
+            <p class="painel-sub" id="painel-sub"></p>
+          </div>
+          <button type="button" class="fechar" id="fechar" aria-label="Fechar">
+            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg>
+          </button>
+        </div>
+        <figure class="previa">
+          <canvas id="previa" aria-hidden="true"></canvas>
+          <figcaption id="previa-legenda">De perto</figcaption>
+        </figure>
+        <div id="ranhuras" class="campos"></div>
+        <div id="opcoes" class="campos"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="catalogo" aria-labelledby="catalogo-titulo">
+    <div class="catalogo-cabeca">
+      <h2 id="catalogo-titulo">Catálogo</h2>
+      <p class="dica">Os 11 móveis no desenho escolhido. Tocar num deles mostra o objeto no mapa.</p>
+    </div>
+    <ul class="cartoes" id="cartoes"></ul>
+  </section>
+
+  <section class="notas" aria-labelledby="notas-titulo">
+    <h2 id="notas-titulo">O que olhar</h2>
+    <div class="notas-colunas">
+      <div>
+        <h3>Para comparar</h3>
+        <ul>
+          <li><strong>De cima com volume</strong> é o mapa de hoje: o móvel visto reto de cima, com luz vindo de cima à esquerda, borda chanfrada e sombra no chão.</li>
+          <li><strong>3/4</strong> mostra o tampo e a frente do móvel, como em Zelda e Stardew. Fica mais alto que a pegada e cobre um pouco o que está atrás.</li>
+          <li>O zoom vai de 50% a 200%, como no app. A textura foi feita para ler nos dois extremos.</li>
+          <li>Vista de frente ou de lado, tapete redondo e cerca curva continuam como opções do objeto.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Perguntas para você</h3>
+        <ul>
+          <li>Qual dos dois desenhos vai para o app?</li>
+          <li>As listas de material fazem sentido? Falta ou sobra algum?</li>
+          <li>Algum material ficou escuro, claro ou chamativo demais no seu chão?</li>
+          <li>A fogueira parada, só com brasa e brilho, está boa? Na vista 3/4 ela tem uma chama baixa desenhada, também parada.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script id="objetos-lib">
+/*
+ * OBJETOS DO MAPA — textura e volume dos 11 móveis, desenhados pelo código.
+ *
+ * Nada de imagem: cada móvel é uma lista de PEÇAS (tampo, aro, travesseiro,
+ * pedra...). Cada peça tem uma forma dada por distância (negativa dentro), um
+ * chanfro (o bisel: a borda arredonda até `bisel` px para dentro) e um
+ * material. A pintura é por pixel, como a do telhado (`client/src/texturas/
+ * telhado.ts`): a textura do material dá a variação de tom, a normal do
+ * chanfro dá a luz (de cima à esquerda, a mesma do telhado e do relevo), e a
+ * sombra no chão sai da mesma forma, afastada para baixo à direita pela altura.
+ *
+ * Duas vistas, com as MESMAS peças:
+ * - 'cima' (de cima com volume): tudo no chão, o volume vem da luz, do
+ *   chanfro e da sombra;
+ * - '34' (3/4): o tampo sobe pela altura do móvel e a frente aparece embaixo
+ *   dele (`face: 'frente'`, mais escura que o tampo).
+ *
+ * Cor contida de propósito (pedido de 09/10: "não ficar estourado"): toda
+ * variação de textura é pequena (alguns %), o veio nunca é reto (reta fina vira
+ * hachura) e os tons partem dos do telhado aprovado em 19/10.
+ *
+ * Mesma entrada, mesma imagem: nenhum `Math.random`, todo sorteio é `hash`.
+ */
+// eslint-disable-next-line no-var, no-unused-vars
+var Objetos = (function () {
+  'use strict'
+
+  /** Px do mapa por casa no zoom 100% (o protótipo usa 56; o app aceita qualquer grade). */
+  const G = 56
+  const TAU = Math.PI * 2
+
+  // ---------- ruído (o mesmo hash de texturas/ruido.ts) ----------
+
+  function hash(ix, iy, semente) {
+    let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iy | 0, 668265263) ^ Math.imul(semente | 0, 1442695041)
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    h ^= h >>> 16
+    return (h >>> 0) / 4294967296
+  }
+
+  /** Tabela de 256 x 256 valores sorteados uma vez: o ruído suave lê dela em vez de sortear por pixel. */
+  const LADO_DA_TABELA = 256
+  const MASCARA = LADO_DA_TABELA - 1
+  const TABELA = new Float32Array(LADO_DA_TABELA * LADO_DA_TABELA)
+  for (let y = 0; y < LADO_DA_TABELA; y += 1) {
+    for (let x = 0; x < LADO_DA_TABELA; x += 1) TABELA[y * LADO_DA_TABELA + x] = hash(x, y, 4219) - 0.5
+  }
+
+  /** Ruído de valor suave, entre -0,5 e 0,5, com período de 256 unidades (maior que qualquer móvel). */
+  function ruido(x, y) {
+    const xf = Math.floor(x)
+    const yf = Math.floor(y)
+    let fx = x - xf
+    let fy = y - yf
+    fx = fx * fx * (3 - 2 * fx)
+    fy = fy * fy * (3 - 2 * fy)
+    const x0 = xf & MASCARA
+    const x1 = (xf + 1) & MASCARA
+    const y0 = (yf & MASCARA) * LADO_DA_TABELA
+    const y1 = ((yf + 1) & MASCARA) * LADO_DA_TABELA
+    const a = TABELA[y0 + x0]
+    const b = TABELA[y0 + x1]
+    const c = TABELA[y1 + x0]
+    const d = TABELA[y1 + x1]
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+  }
+
+  /**
+   * A inclinação do ruído no ponto (a derivada exata da mesma interpolação),
+   * em `INCLINACAO`. Uma leitura só no lugar das quatro de uma diferença:
+   * o amassado do lençol e do cobertor é a maior parte do custo da cama.
+   */
+  const INCLINACAO = new Float64Array(2)
+  function inclinacaoDoRuido(x, y) {
+    const xf = Math.floor(x)
+    const yf = Math.floor(y)
+    const fx = x - xf
+    const fy = y - yf
+    const sx = fx * fx * (3 - 2 * fx)
+    const sy = fy * fy * (3 - 2 * fy)
+    const x0 = xf & MASCARA
+    const x1 = (xf + 1) & MASCARA
+    const y0 = (yf & MASCARA) * LADO_DA_TABELA
+    const y1 = ((yf + 1) & MASCARA) * LADO_DA_TABELA
+    const a = TABELA[y0 + x0]
+    const b = TABELA[y0 + x1]
+    const c = TABELA[y1 + x0]
+    const d = TABELA[y1 + x1]
+    const k = a - b - c + d
+    INCLINACAO[0] = 6 * fx * (1 - fx) * (b - a + k * sy)
+    INCLINACAO[1] = 6 * fy * (1 - fy) * (c - a + k * sx)
+  }
+
+  const limitar = (t, a, b) => (t < a ? a : t > b ? b : t)
+  const suave01 = (t) => {
+    const x = limitar(t, 0, 1)
+    return x * x * (3 - 2 * x)
+  }
+  const misturar = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+  const escalar = (c, k) => [c[0] * k, c[1] * k, c[2] * k]
+  function rgb(hex) {
+    const n = parseInt(hex.slice(1), 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+
+  // ---------- formas: distância com sinal (negativa dentro), em px do mapa ----------
+
+  function caixa(x0, y0, x1, y1, raio = 0) {
+    const cx = (x0 + x1) / 2
+    const cy = (y0 + y1) / 2
+    const r = Math.min(raio, (x1 - x0) / 2, (y1 - y0) / 2)
+    const hx = (x1 - x0) / 2 - r
+    const hy = (y1 - y0) / 2 - r
+    return {
+      b: [x0, y0, x1, y1],
+      d(x, y) {
+        const qx = Math.abs(x - cx) - hx
+        const qy = Math.abs(y - cy) - hy
+        const ox = qx > 0 ? qx : 0
+        const oy = qy > 0 ? qy : 0
+        const dentro = qx > qy ? qx : qy
+        return Math.sqrt(ox * ox + oy * oy) + (dentro < 0 ? dentro : 0) - r
+      },
+    }
+  }
+
+  function elipse(cx, cy, rx, ry, angulo = 0) {
+    const c = Math.cos(angulo)
+    const s = Math.sin(angulo)
+    const ex = Math.sqrt(rx * rx * c * c + ry * ry * s * s)
+    const ey = Math.sqrt(rx * rx * s * s + ry * ry * c * c)
+    const menor = Math.min(rx, ry)
+    return {
+      b: [cx - ex, cy - ey, cx + ex, cy + ey],
+      d(x, y) {
+        let px = x - cx
+        let py = y - cy
+        if (angulo !== 0) {
+          const u = px * c + py * s
+          py = -px * s + py * c
+          px = u
+        }
+        // Aproximação de distância à elipse (a de Inigo Quilez): boa perto da borda, onde importa.
+        const k0 = Math.sqrt((px * px) / (rx * rx) + (py * py) / (ry * ry))
+        const k1 = Math.sqrt((px * px) / (rx * rx * rx * rx) + (py * py) / (ry * ry * ry * ry))
+        return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -menor
+      },
+    }
+  }
+
+  function capsula(ax, ay, bx, by, r) {
+    const dx = bx - ax
+    const dy = by - ay
+    const l2 = dx * dx + dy * dy || 1e-9
+    return {
+      b: [Math.min(ax, bx) - r, Math.min(ay, by) - r, Math.max(ax, bx) + r, Math.max(ay, by) + r],
+      d(x, y) {
+        const px = x - ax
+        const py = y - ay
+        let h = (px * dx + py * dy) / l2
+        h = h < 0 ? 0 : h > 1 ? 1 : h
+        const qx = px - dx * h
+        const qy = py - dy * h
+        return Math.sqrt(qx * qx + qy * qy) - r
+      },
+    }
+  }
+
+  function poligono(pts) {
+    const n = pts.length
+    const X = new Float64Array(n)
+    const Y = new Float64Array(n)
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (let i = 0; i < n; i += 1) {
+      X[i] = pts[i][0]
+      Y[i] = pts[i][1]
+      x0 = Math.min(x0, X[i])
+      y0 = Math.min(y0, Y[i])
+      x1 = Math.max(x1, X[i])
+      y1 = Math.max(y1, Y[i])
+    }
+    return {
+      b: [x0, y0, x1, y1],
+      d(x, y) {
+        let d = (x - X[0]) * (x - X[0]) + (y - Y[0]) * (y - Y[0])
+        let s = 1
+        for (let i = 0, j = n - 1; i < n; j = i, i += 1) {
+          const ex = X[j] - X[i]
+          const ey = Y[j] - Y[i]
+          const wx = x - X[i]
+          const wy = y - Y[i]
+          let h = (wx * ex + wy * ey) / (ex * ex + ey * ey || 1e-12)
+          h = h < 0 ? 0 : h > 1 ? 1 : h
+          const bx = wx - ex * h
+          const by = wy - ey * h
+          const dd = bx * bx + by * by
+          if (dd < d) d = dd
+          const c1 = y >= Y[i]
+          const c2 = y < Y[j]
+          const c3 = ex * wy > ey * wx
+          if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) s = -s
+        }
+        return s * Math.sqrt(d)
+      },
+    }
+  }
+
+  const uniao = (a, b) => ({
+    b: [Math.min(a.b[0], b.b[0]), Math.min(a.b[1], b.b[1]), Math.max(a.b[2], b.b[2]), Math.max(a.b[3], b.b[3])],
+    d: (x, y) => Math.min(a.d(x, y), b.d(x, y)),
+  })
+  const menos = (a, b) => ({ b: a.b, d: (x, y) => Math.max(a.d(x, y), -b.d(x, y)) })
+  const dentroDe = (a, b) => ({
+    b: [Math.max(a.b[0], b.b[0]), Math.max(a.b[1], b.b[1]), Math.min(a.b[2], b.b[2]), Math.min(a.b[3], b.b[3])],
+    d: (x, y) => Math.max(a.d(x, y), b.d(x, y)),
+  })
+  const anel = (cx, cy, rxF, ryF, rxD, ryD) => menos(elipse(cx, cy, rxF, ryF), elipse(cx, cy, rxD, ryD))
+
+  /** Tábua reta de `larg` px entre dois pontos (pontas retas). */
+  function barra(ax, ay, bx, by, larg) {
+    const dx = bx - ax
+    const dy = by - ay
+    const l = Math.hypot(dx, dy) || 1
+    const nx = (-dy / l) * (larg / 2)
+    const ny = (dx / l) * (larg / 2)
+    return poligono([[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]])
+  }
+
+  /**
+   * Lateral de um cilindro em pé na vista 3/4: do arco da frente do topo (a `H`
+   * px de altura) ao arco da frente da base. `raio(z)` é o fator do raio na
+   * altura z (o bojo do barril).
+   */
+  /**
+   * Lateral de um cilindro reto (mourão, beira do tapete redondo): retângulo até a base mais o arco da base.
+   * A parte de cima fica escondida pela tampa, pintada por cima; sem polígono, sai muitas vezes mais barato.
+   */
+  const ladoReto = (cx, cy, rx, ry, H) => uniao(caixa(cx - rx, cy - H, cx + rx, cy), elipse(cx, cy, rx, ry))
+
+  function ladoDoCilindro(cx, cy, rx, ry, H, raio, n = 16) {
+    const pts = []
+    for (let k = n; k >= 0; k -= 1) {
+      const z = (H * k) / n
+      pts.push([cx + rx * raio(z), cy - z])
+    }
+    for (let k = 1; k < n; k += 1) {
+      const a = (Math.PI * k) / n
+      pts.push([cx + rx * raio(0) * Math.cos(a), cy + ry * raio(0) * Math.sin(a)])
+    }
+    for (let k = 0; k <= n; k += 1) {
+      const z = (H * k) / n
+      pts.push([cx - rx * raio(z), cy - z])
+    }
+    for (let k = n - 1; k > 0; k -= 1) {
+      const a = (Math.PI * k) / n
+      pts.push([cx + rx * raio(H) * Math.cos(a), cy - H + ry * raio(H) * Math.sin(a)])
+    }
+    return poligono(pts)
+  }
+
+  /** Faixa em volta de um cilindro em pé (o aro), entre as alturas `za` e `zb`, na vista 3/4. */
+  function faixaDoCilindro(cx, cy, rx, ry, za, zb, raio, n = 18) {
+    const pts = []
+    for (let k = 0; k <= n; k += 1) {
+      const a = (Math.PI * k) / n
+      pts.push([cx + rx * raio(zb) * Math.cos(a), cy - zb + ry * raio(zb) * Math.sin(a)])
+    }
+    for (let k = n; k >= 0; k -= 1) {
+      const a = (Math.PI * k) / n
+      pts.push([cx + rx * raio(za) * Math.cos(a), cy - za + ry * raio(za) * Math.sin(a)])
+    }
+    return poligono(pts)
+  }
+
+  /** Chama parada em forma de gota: base embaixo, ponta `alt` px acima. */
+  function gota(cx, base, larg, alt, n = 32) {
+    const pts = []
+    for (let k = 0; k < n; k += 1) {
+      const t = (TAU * k) / n
+      pts.push([cx + (larg / 2) * Math.sin(t) * Math.pow(Math.abs(Math.sin(t / 2)), 1.4), base - (alt * (1 + Math.cos(t))) / 2])
+    }
+    return poligono(pts)
+  }
+
+  // ---------- materiais ----------
+
+  /**
+   * Cada material tem nome, classe (que escolhe a textura) e o tom em luz
+   * neutra. Madeiras com os tons do telhado de madeira (19/10); cerejeira e
+   * madeira velha completam. Tecidos e pedras contidos, sem cor de fruta.
+   */
+  const MATERIAIS = {
+    carvalho: { nome: 'Carvalho', classe: 'madeira', cor: '#8b6b47' },
+    nogueira: { nome: 'Nogueira', classe: 'madeira', cor: '#5f4532' },
+    pinho: { nome: 'Pinho', classe: 'madeira', cor: '#a3875f' },
+    cerejeira: { nome: 'Cerejeira', classe: 'madeira', cor: '#7c4b37' },
+    velha: { nome: 'Madeira velha', classe: 'madeira', cor: '#7b776e' },
+    ferro: { nome: 'Ferro', classe: 'metal', cor: '#4c4e51' },
+    latao: { nome: 'Latão', classe: 'metal', cor: '#9c8044' },
+    linho: { nome: 'Linho cru', classe: 'tecido', fio: 'linho', cor: '#c1b59c' },
+    vinho: { nome: 'Lã vinho', classe: 'tecido', fio: 'la', cor: '#6d3337' },
+    azul: { nome: 'Lã azul', classe: 'tecido', fio: 'la', cor: '#41526a' },
+    musgo: { nome: 'Lã musgo', classe: 'tecido', fio: 'la', cor: '#5a6344' },
+    ocre: { nome: 'Lã ocre', classe: 'tecido', fio: 'la', cor: '#977842' },
+    granito: { nome: 'Granito', classe: 'pedra', tipo: 'granito', cor: '#7e7b76' },
+    arenito: { nome: 'Arenito', classe: 'pedra', tipo: 'arenito', cor: '#9a8669' },
+    ardosia: { nome: 'Ardósia', classe: 'pedra', tipo: 'ardosia', cor: '#585d61' },
+    palha: { nome: 'Palha', classe: 'palha', cor: '#b0995f' },
+    corda: { nome: 'Corda', classe: 'corda', cor: '#a08a62' },
+    arame: { nome: 'Arame', classe: 'metal', cor: '#56585b' },
+    lenhaCarvalho: { nome: 'Carvalho', classe: 'casca', cor: '#55453a' },
+    lenhaPinho: { nome: 'Pinho', classe: 'casca', cor: '#6c4c3a' },
+    lenhaBetula: { nome: 'Bétula', classe: 'casca', tipo: 'betula', cor: '#cbc4b4' },
+    // Escolhas que usam a madeira do próprio móvel (assento da cadeira, varas da cerca).
+    mesma: { nome: 'Madeira', classe: 'ref' },
+    varas: { nome: 'Varas', classe: 'ref' },
+  }
+  for (const m of Object.values(MATERIAIS)) if (m.cor) m.rgb = rgb(m.cor)
+
+  /** Materiais fixos, que o mestre não escolhe. */
+  const LENCOL = { nome: 'Lençol', classe: 'tecido', fio: 'linho', rgb: rgb('#cbc2ad') }
+  const PREGO = { nome: 'Prego', classe: 'metal', rgb: rgb('#3a3b3d') }
+  const BURACO = { nome: 'Fechadura', classe: 'liso', rgb: rgb('#1e1814') }
+  const CINZA = { nome: 'Cinza', classe: 'brasas', rgb: rgb('#625c55') }
+  const CHAMA = { nome: 'Chama', classe: 'chama', rgb: rgb('#d88a44') }
+  const CREME = [232, 223, 202]
+
+  const MADEIRAS = ['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha']
+  const METAIS = ['ferro', 'latao']
+  const TECIDOS = ['linho', 'vinho', 'azul', 'musgo', 'ocre']
+
+  const r = (id, nome, opcoes, padrao) => ({ id, nome, opcoes, padrao })
+  /** As escolhas de material de cada móvel (a cama tem as três cores de hoje: madeira, cobertor e travesseiro). */
+  const RANURAS = {
+    barril: [r('madeira', 'Madeira', MADEIRAS, 'carvalho'), r('aros', 'Aros', METAIS, 'ferro')],
+    caixa: [r('madeira', 'Madeira', MADEIRAS, 'pinho')],
+    bau: [r('madeira', 'Madeira', MADEIRAS, 'nogueira'), r('ferragens', 'Ferragens', METAIS, 'latao')],
+    catre: [r('madeira', 'Madeira', MADEIRAS, 'carvalho'), r('cobertor', 'Cobertor', TECIDOS, 'vinho'), r('travesseiro', 'Travesseiro', TECIDOS, 'linho')],
+    mesa: [r('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+    cadeira: [r('madeira', 'Madeira', MADEIRAS, 'carvalho'), r('assento', 'Assento', ['mesma', 'palha'], 'palha')],
+    cerca: [r('madeira', 'Mourões', MADEIRAS, 'carvalho'), r('ligacao', 'Entre os mourões', ['varas', 'corda', 'arame'], 'varas')],
+    armario: [r('madeira', 'Madeira', MADEIRAS, 'pinho'), r('puxadores', 'Puxadores', METAIS, 'ferro')],
+    aparador: [r('madeira', 'Madeira', MADEIRAS, 'nogueira'), r('puxadores', 'Puxadores', METAIS, 'latao')],
+    fogueira: [r('pedras', 'Pedras', ['granito', 'arenito', 'ardosia'], 'granito'), r('lenha', 'Lenha', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+    tapete: [r('tecido', 'Tecido', TECIDOS, 'azul')],
+  }
+
+  const TIPOS = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
+  const ROTULO = {
+    barril: 'Barril', caixa: 'Caixa', bau: 'Baú', catre: 'Cama', mesa: 'Mesa', cadeira: 'Cadeira', cerca: 'Cerca',
+    armario: 'Armário de cozinha', aparador: 'Aparador', fogueira: 'Fogueira', tapete: 'Tapete',
+  }
+  /** Os mesmos de `TIPOS_COM_VISTA` (client/src/lib/mobilia.ts:115). */
+  const TIPOS_COM_VISTA = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete']
+  /** Tamanhos padrão em casas, copiados de `lib/mobilia.ts` (frente, lado e tapete por forma). */
+  const TAMANHO_EM_CASAS = {
+    barril: [0.7, 0.7], caixa: [0.8, 0.8], bau: [1, 0.6], catre: [1, 2], mesa: [2, 1], cadeira: [0.5, 0.5],
+    cerca: [2, 0.25], armario: [1, 0.5], aparador: [2, 0.5], fogueira: [1, 1],
+  }
+  const TAMANHO_DE_LADO_EM_CASAS = { bau: [0.6, 0.6], cadeira: [0.5, 0.75], armario: [1, 1.5], aparador: [2, 0.9], fogueira: [1, 1.25] }
+  const TAMANHO_DO_TAPETE_EM_CASAS = { retangular: { frente: [3, 2], lado: [3, 0.25] }, redondo: { frente: [2, 2], lado: [2, 0.25] } }
+
+  const aceitaVista = (tipo) => TIPOS_COM_VISTA.includes(tipo)
+  function tamanhoEmCasas(tipo, vista, forma) {
+    if (tipo === 'tapete') return TAMANHO_DO_TAPETE_EM_CASAS[forma === 'redondo' ? 'redondo' : 'retangular'][vista === 'lado' ? 'lado' : 'frente']
+    if (vista === 'lado' && aceitaVista(tipo)) return TAMANHO_DE_LADO_EM_CASAS[tipo]
+    return TAMANHO_EM_CASAS[tipo]
+  }
+
+  // ---------- texturas: cada uma soma variação de luz (e às vezes troca a cor) no ponto ----------
+  // `s` = [r, g, b, luz, emissão, alfa]. (u, v) = coordenadas do material: u ao longo do veio.
+
+  function texMadeira(u, v, x, y, p, s) {
+    const W = p.tabua
+    let j = 0
+    let dentro = 99
+    let fora = 99
+    if (W > 0) {
+      const fv = v / W
+      j = Math.floor(fv)
+      dentro = (fv - j) * W
+      fora = W - dentro
+    }
+    const hj = hash(j, p.semente, 811)
+    let luz = (hj - 0.5) * 0.12
+    // Veio: linhas ao longo da tábua, onduladas pelo ruído (veio reto e fino vira hachura no zoom 50%).
+    const onda = ruido(u * 0.03 + hj * 97, j * 3.7 + p.semente) * 9 + ruido(u * 0.09 + 40, v * 0.05 + j * 5.1) * 2.2
+    luz += Math.sin((v + onda) * 3.3) * 0.026
+    luz += ruido(u * 0.018 + hj * 31, v * 0.22 + j * 9) * 0.1
+    luz += ruido(u * 0.35 + p.semente * 3, v * 2.4) * 0.05
+    if (W > 0) {
+      // Emenda de topo de vez em quando, em lugar sorteado por tábua.
+      const L = 60 + hash(j, p.semente, 812) * 90
+      const uu = u / L + hash(j, p.semente, 813)
+      const fu = (uu - Math.floor(uu)) * L
+      const ateTopo = fu < L - fu ? fu : L - fu
+      if (ateTopo < 0.7) luz -= 0.22 * (1 - ateTopo / 0.7)
+      // Fresta escura entre tábuas; a beira de cima pega um pouco de luz.
+      const ate = dentro < fora ? dentro : fora
+      if (ate < 0.75) luz -= 0.3 * (1 - ate / 0.75) * (1 - ate / 0.75)
+      else if (dentro < 1.6) luz += 0.03
+    }
+    s[3] += luz
+  }
+
+  /** Topo de madeira cortada (mourão, ponta da tora): anéis em volta do centro. */
+  function texTopo(u, v, x, y, p, s) {
+    const cx = p.centro[0]
+    const cy = p.centro[1]
+    const raio = Math.hypot(x - cx, y - cy) + ruido(x * 0.2 + p.semente, y * 0.2) * 1.4
+    s[3] += Math.sin(raio * 4.2) * 0.035 + ruido(x * 0.6, y * 0.6) * 0.05 + 0.06
+  }
+
+  function texMetal(u, v, x, y, p, s) {
+    s[3] += ruido(u * 0.16 + p.semente * 7, v * 0.16) * 0.12 + ruido(u * 0.05, v * 1.3 + p.semente) * 0.05 + ruido(u * 0.7, v * 0.7) * 0.03
+  }
+
+  function texTecido(u, v, x, y, p, s) {
+    if (p.mat.fio === 'linho') {
+      const tela = ((Math.floor(u * 1.4) + Math.floor(v * 1.4)) & 1) === 1 ? 0.012 : -0.012
+      s[3] += ruido(u * 0.05 + p.semente * 5, v * 1.15) * 0.08 + ruido(u * 0.6, v * 0.6) * 0.04 + tela
+    } else {
+      s[3] += ruido(u * 0.5 + p.semente * 5, v * 0.5) * 0.08 + ruido(u * 0.12, v * 0.12 + p.semente) * 0.07 + Math.sin((u + v) * 2.6) * 0.012
+    }
+  }
+
+  function texPedra(u, v, x, y, p, s) {
+    const t = p.mat.tipo
+    let luz = ruido(u * 0.09 + p.semente * 13, v * 0.09) * 0.16 + (hash(p.semente, 1, 707) - 0.5) * 0.12
+    if (t === 'granito') {
+      luz += ruido(u * 0.4, v * 0.4) * 0.06
+      const h = hash(Math.floor(u * 1.5), Math.floor(v * 1.5), p.semente)
+      if (h > 0.93) luz -= 0.17
+      else if (h < 0.05) luz += 0.11
+    } else if (t === 'arenito') {
+      luz += ruido(u * 1.1, v * 1.1) * 0.06 + ruido(u * 0.03, v * 0.45 + p.semente) * 0.07
+    } else {
+      luz += ruido(u * 0.04, v * 0.55 + p.semente) * 0.09 + ruido(u * 0.35, v * 0.35) * 0.03
+    }
+    s[3] += luz
+  }
+
+  /** Palha trançada em cesto: fios de 1,4 px, cada quadrado de 2,8 px vira de lado. */
+  function texPalha(u, v, x, y, p, s) {
+    const c = 2.8
+    const i = Math.floor(u / c)
+    const j = Math.floor(v / c)
+    const deitada = ((i + j) & 1) === 0
+    const atravessa = deitada ? v : u
+    const aoLongo = deitada ? u : v
+    const k = atravessa / (c / 2)
+    const fk = k - Math.floor(k)
+    let luz = (Math.sin(fk * Math.PI) - 0.64) * 0.2 + (hash(i, j, 77) - 0.5) * 0.07
+    const fe = aoLongo / c - Math.floor(aoLongo / c)
+    const borda = fe < 1 - fe ? fe : 1 - fe
+    if (borda < 0.16) luz -= 0.13 * (1 - borda / 0.16)
+    s[3] += luz
+  }
+
+  function texCorda(u, v, x, y, p, s) {
+    s[3] += Math.sin((u * 0.75 + v * 1.25) * 1.6) * 0.09 + ruido(u * 0.6, v * 0.6) * 0.05
+  }
+
+  /** Casca da lenha. Bétula: branca com riscos escuros de través; as outras: fendas ao longo da tora. */
+  function texCasca(u, v, x, y, p, s) {
+    if (p.mat.tipo === 'betula') {
+      let luz = ruido(u * 0.08 + p.semente * 3, v * 0.3) * 0.08
+      const marca = ruido(u * 0.55 + p.semente * 9, v * 0.07 + p.semente)
+      if (marca > 0.2) luz -= 0.4 * Math.min(1, (marca - 0.2) / 0.08)
+      s[3] += luz
+    } else {
+      const fenda = ruido(u * 0.07 + p.semente * 5, v * 0.9 + p.semente)
+      let luz = fenda * 0.22 + ruido(u * 0.5, v * 0.5) * 0.06
+      if (fenda < -0.12) luz -= 0.16
+      s[3] += luz
+    }
+  }
+
+  const BRASA_CARVAO = [44, 34, 28]
+  const BRASA_VIVA = [158, 64, 38]
+  const BRASA_QUENTE = [208, 118, 58]
+
+  /** Cor da brasa por "calor" de 0 a 1: carvão, vermelho apagado e laranja só no miolo. */
+  function corDaBrasa(q) {
+    return q < 0.5 ? misturar(BRASA_CARVAO, BRASA_VIVA, q * 2) : misturar(BRASA_VIVA, BRASA_QUENTE, (q - 0.5) * 2)
+  }
+
+  /** Lenha: a casca, queimada perto do centro do fogo, com brasa parada nas partes mais quentes. */
+  function texLenha(u, v, x, y, p, s) {
+    texCasca(u, v, x, y, p, s)
+    const f = p.fogo
+    const d = Math.hypot(x - f[0], y - f[1])
+    if (d >= f[2]) return
+    const k = 1 - d / f[2]
+    s[3] -= 0.5 * k
+    const n = ruido(x * 0.8 + 5, y * 0.8) + k * 0.5 - 0.42
+    if (n > 0) {
+      const q = Math.min(1, n / 0.35)
+      const c = corDaBrasa(q * 0.85)
+      const t = Math.min(1, n / 0.12)
+      s[0] += (c[0] - s[0]) * t
+      s[1] += (c[1] - s[1]) * t
+      s[2] += (c[2] - s[2]) * t
+      s[4] = t * (0.3 + 0.6 * q)
+    }
+  }
+
+  /** Leito de cinza com brasas paradas: mais brasa no meio, carvão em volta. */
+  function texBrasas(u, v, x, y, p, s) {
+    const b = p.brasas
+    const rr = Math.hypot(x - b[0], y - b[1]) / b[2]
+    const n = ruido(x * 0.3 + 11, y * 0.3) + ruido(x * 0.85 + 3, y * 0.85 + 7) * 0.5
+    s[3] += ruido(x * 0.12, y * 0.12) * 0.16 + n * 0.08 + (rr - 0.5) * 0.06
+    const calor = (1 - rr) * 1.1 + n * 0.8 - 0.68
+    if (calor > 0) {
+      const q = Math.min(1, calor / 0.55)
+      const t = Math.min(1, calor / 0.18)
+      const c = corDaBrasa(q)
+      s[0] += (c[0] - s[0]) * t
+      s[1] += (c[1] - s[1]) * t
+      s[2] += (c[2] - s[2]) * t
+      s[4] = t * (0.25 + 0.65 * q)
+    }
+  }
+
+  /** Chama parada: cor pela altura dentro da gota, some na ponta. */
+  function texChama(u, v, x, y, p, s) {
+    const c = p.chama
+    const f = limitar((c.base - y) / c.alt, 0, 1)
+    const cor = misturar(c.de, c.ate, f)
+    const n = ruido(x * 0.35 + 3, y * 0.18) * 0.12
+    s[0] = cor[0] * (1 + n)
+    s[1] = cor[1] * (1 + n)
+    s[2] = cor[2] * (1 + n)
+    s[4] = 1
+    s[5] = 1 - suave01((f - 0.62) / 0.38) * 0.85
+  }
+
+  /** Quanto um pixel de lado 1/S está dentro de uma área a `dist` px da borda (negativo dentro): a borda sai suave sem supersample. */
+  function cobre(dist, S) {
+    const k = 0.5 - dist * S
+    return k <= 0 ? 0 : k >= 1 ? 1 : k
+  }
+
+  /** Puxa a cor do ponto (s[0..2]) para `c` em `k`; nada a fazer quando k é 0, o caso da maior parte do tapete. */
+  function tingir(s, c, k) {
+    if (k <= 0) return
+    s[0] += (c[0] - s[0]) * k
+    s[1] += (c[1] - s[1]) * k
+    s[2] += (c[2] - s[2]) * k
+  }
+
+  /** O desenho do tapete: campo, borda com fio claro, medalhão com miolo e cantos. Bordas das áreas suavizadas pelo tamanho do pixel. */
+  function texTapete(u, v, x, y, p, s) {
+    const t = p.tapete
+    const S = p.S
+    s[0] = t.campo[0]
+    s[1] = t.campo[1]
+    s[2] = t.campo[2]
+    let de
+    if (t.redondo) {
+      const raio = Math.sqrt((x / t.hw) * (x / t.hw) + (y / t.hh) * (y / t.hh))
+      de = (1 - raio) * t.menor
+      const rm = t.medalhao
+      const dm = (raio - rm) * t.menor
+      tingir(s, t.escuro, cobre(dm, S))
+      tingir(s, t.claro, cobre(Math.abs(dm) - 0.5, S))
+      tingir(s, t.miolo, cobre((raio - rm * 0.42) * t.menor, S))
+      tingir(s, t.escuro, cobre(Math.abs((raio - rm * 0.2) * t.menor) - 0.5, S) * 0.7)
+    } else {
+      const ax = Math.abs(x)
+      const ay = Math.abs(y)
+      de = Math.min(t.hw - ax, t.hh - ay)
+      const g = t.geo
+      const q = ax / g.mx + ay / g.my
+      const dm = (q - 1) * g.escalaM
+      const dc = ((g.fhw - ax) / g.cx + (g.fhh - ay) / g.cy - 1) * g.escalaC
+      tingir(s, t.escuro, cobre(dc, S))
+      tingir(s, t.claro, cobre(Math.abs(dc) - 0.45, S))
+      tingir(s, t.escuro, cobre(dm, S))
+      tingir(s, t.claro, cobre(Math.abs(dm) - 0.5, S))
+      tingir(s, t.miolo, cobre((q / 0.42 - 1) * g.escalaM * 0.42, S))
+    }
+    const B = t.borda
+    const kB = cobre(de - B, S)
+    tingir(s, t.escuro, kB)
+    if (kB > 0) tingir(s, t.meio, cobre(Math.abs(de - B / 2) - 0.45, S) * kB)
+    tingir(s, t.claro, cobre(Math.abs(de - B - 0.75) - 0.55, S))
+    s[3] += ruido(u * 0.5 + 9, v * 0.5) * 0.08 + ruido(u * 0.12, v * 0.12 + 3) * 0.06 + Math.sin((u + v) * 2.6) * 0.012
+  }
+
+  /** As medidas do medalhão e dos cantos do tapete retangular, calculadas uma vez por tapete (não por pixel). */
+  function geometriaDoTapete(hw, hh, borda) {
+    const fhw = hw - borda
+    const fhh = hh - borda
+    const mx = 0.42 * fhw
+    const my = 0.62 * fhh
+    const cx = 0.24 * fhw
+    const cy = 0.36 * fhh
+    return { fhw, fhh, mx, my, cx, cy, escalaM: (mx * my) / Math.hypot(mx, my), escalaC: (cx * cy) / Math.hypot(cx, cy) }
+  }
+
+  /** O tapete de lado: a faixa deitada, com a borda escura nas pontas e um fio claro. */
+  function texTapeteLado(u, v, x, y, p, s) {
+    const t = p.tapete
+    const S = p.S
+    const de = t.hw - Math.abs(x)
+    s[0] = t.campo[0]
+    s[1] = t.campo[1]
+    s[2] = t.campo[2]
+    tingir(s, t.escuro, cobre(de - t.borda, S))
+    tingir(s, t.claro, cobre(Math.abs(de - t.borda - 0.7) - 0.5, S))
+    s[3] += ruido(u * 0.5 + 9, v * 0.5) * 0.08 + ruido(u * 0.12, v * 0.12 + 3) * 0.05
+  }
+
+  /** Franja: fios de 1,6 px saindo da ponta, cada um de um comprimento. */
+  function texFranja(u, v, x, y, p, s) {
+    const f = p.franja
+    const k = Math.floor(y / 1.6)
+    const fy = y / 1.6 - k
+    let alfa = limitar((0.6 - Math.abs(fy - 0.5)) * 4, 0, 1)
+    const fora = Math.abs(x) - f.corpo
+    const comprimento = f.comprimento * (0.72 + 0.28 * hash(k, f.lado, 515))
+    alfa *= limitar((comprimento - fora) * p.S + 0.5, 0, 1)
+    s[5] = alfa
+    s[3] += ruido(x * 0.3, k * 3.1) * 0.08 + (hash(k, f.lado, 516) - 0.5) * 0.08
+  }
+
+  const TEXTURA = {
+    madeira: texMadeira, metal: texMetal, tecido: texTecido, pedra: texPedra, palha: texPalha, corda: texCorda,
+    casca: texCasca, brasas: texBrasas, chama: texChama, liso: null,
+  }
+
+  // ---------- luz ----------
+
+  /** De onde vem a luz: cima à esquerda, um pouco mais da esquerda (a do telhado), 52° acima do chão. */
+  const LX = -0.62
+  const LY = -0.48
+  const LZ = 0.62
+  /** A mesma direção só no chão, para saber de que lado a borda faz sombra. */
+  const RX = -0.79
+  const RY = -0.61
+  /** Meio-caminho entre a luz e o olho: onde o metal brilha. */
+  const HX = -0.344
+  const HY = -0.267
+  const HZ = 0.9
+  const FORCA_DA_LUZ = 0.9
+  /** Parte somada (não multiplicada) da variação de textura: madeira escura ainda mostra o veio (como no telhado). */
+  const LUZ_SOMADA = 22
+  /** A frente de um móvel na vista 3/4 recebe menos luz que o tampo. */
+  const FRENTE = 0.74
+  /** Sombra no chão: quanto ela anda (para baixo à direita) por px de altura do móvel. */
+  const SOMBRA_X = 0.27
+  const SOMBRA_Y = 0.21
+  const SOMBRA_COR = [14, 11, 8]
+
+  /** Uma peça pronta para pintar. */
+  function P(forma, mat, o = {}) {
+    const p = {
+      forma, mat, dx: 0, dy: 0, bisel: 1, eixo: 0, tabua: 8, semente: 1, contorno: 0.22, face: 'topo',
+      luz: 0, tom: 1, alfa: 1, suave: 0, ruga: 0,
+    }
+    Object.assign(p, o)
+    p.base = escalar(mat.rgb, p.tom)
+    if (p.tex === undefined) p.tex = TEXTURA[mat.classe] || null
+    if (p.metal === undefined) p.metal = mat.classe === 'metal' ? 0.42 : 0
+    p.su = p.semente * 37.17
+    p.sv = p.semente * 11.31
+    return p
+  }
+
+  const SAIDA = new Float32Array(6)
+  const E = 0.3
+
+  function pintarParte(alvo, p) {
+    const { buf, W, H, x0, y0, S } = alvo
+    const f = p.forma
+    const b = f.b
+    const inv = 1 / S
+    const largAA = p.suave > 0 ? p.suave * S : 1
+    const folga = p.suave + 2 * inv
+    const px0 = Math.max(0, Math.floor((b[0] + p.dx - folga - x0) * S))
+    const px1 = Math.min(W, Math.ceil((b[2] + p.dx + folga - x0) * S))
+    const py0 = Math.max(0, Math.floor((b[1] + p.dy - folga - y0) * S))
+    const py1 = Math.min(H, Math.ceil((b[3] + p.dy + folga - y0) * S))
+    if (px1 <= px0 || py1 <= py0) return
+    p.S = S
+    const [br, bg, bb] = p.base
+    const { bisel, tex, metal, contorno, ruga, alfa, luz: luzFixa } = p
+    const cosE = Math.cos(p.eixo)
+    const sinE = Math.sin(p.eixo)
+    const frente = p.face === 'frente'
+    const cil = p.cilindro
+    const polar = p.polar
+    const curva = p.curvaY
+    const rec = p.recesso
+    const KR = 0.11
+    const M = alvo.sombra
+    for (let py = py0; py < py1; py += 1) {
+      const y = y0 + (py + 0.5) * inv - p.dy
+      let o = (py * W + px0) * 4
+      for (let px = px0; px < px1; px += 1, o += 4) {
+        // Pintando da frente para trás: pixel já coberto pelas peças de cima não precisa de textura nem de luz.
+        const resta = 1 - buf[o + 3]
+        if (resta <= 0.004) continue
+        const x = x0 + (px + 0.5) * inv - p.dx
+        const d = f.d(x, y)
+        let cob = 0.5 - (d * S) / largAA
+        if (cob <= 0) continue
+        if (cob > 1) cob = 1
+        const t = -d
+        let nx = 0
+        let ny = 0
+        if (bisel > 0 && t < bisel) {
+          const gx = f.d(x + E, y) - f.d(x - E, y)
+          const gy = f.d(x, y + E) - f.d(x, y - E)
+          const gl = Math.sqrt(gx * gx + gy * gy)
+          if (gl > 1e-6) {
+            let q = (bisel - (t > 0 ? t : 0)) / bisel
+            if (q > 0.95) q = 0.95
+            const inc = q / Math.sqrt(1 - q * q) / gl
+            nx = inc * gx
+            ny = inc * gy
+          }
+        }
+        if (ruga > 0) {
+          inclinacaoDoRuido(x * KR + p.su, y * KR)
+          nx -= INCLINACAO[0] * KR * ruga
+          ny -= INCLINACAO[1] * KR * ruga
+        }
+        if (curva) {
+          let q = (y - curva.c) / curva.r
+          q = q > 0.97 ? 0.97 : q < -0.97 ? -0.97 : q
+          ny += (curva.forca * q) / Math.sqrt(1 - q * q)
+        }
+        let u
+        let v
+        if (polar) {
+          const rx = x - polar.cx
+          const ry = y - polar.cy
+          u = Math.sqrt(rx * rx + ry * ry)
+          v = Math.atan2(ry, rx) * polar.r
+        } else if (cil) {
+          u = y
+          v = Math.asin(limitar((x - cil.cx) / cil.r, -1, 1)) * cil.r
+        } else {
+          u = x * cosE + y * sinE
+          v = -x * sinE + y * cosE
+        }
+        u += p.su
+        v += p.sv
+        SAIDA[0] = br
+        SAIDA[1] = bg
+        SAIDA[2] = bb
+        SAIDA[3] = luzFixa
+        SAIDA[4] = 0
+        SAIDA[5] = 1
+        if (tex) tex(u, v, x, y, p, SAIDA)
+        const nlen = Math.sqrt(nx * nx + ny * ny + 1)
+        const nl = (nx * LX + ny * LY + LZ) / nlen
+        let fl = 1 + FORCA_DA_LUZ * (nl - LZ)
+        let qc = 0
+        if (cil) {
+          qc = limitar((x - cil.cx) / cil.r, -1, 1)
+          fl *= 0.88 - 0.27 * qc - 0.17 * qc * qc
+        } else if (frente) fl *= FRENTE
+        if (rec) {
+          const sh = limitar(0.5 + f.d(x + RX * rec.k, y + RY * rec.k) / 0.9, 0, 1)
+          fl *= 1 - rec.forca * sh
+        }
+        if (contorno > 0 && t < 0.85) fl *= 1 - contorno * (1 - (t > 0 ? t : 0) / 0.85)
+        fl = fl < 0.28 ? 0.28 : fl > 1.5 ? 1.5 : fl
+        const luz = SAIDA[3]
+        const somada = LUZ_SOMADA * luz
+        let cr = (SAIDA[0] * (1 + luz) + somada) * fl
+        let cg = (SAIDA[1] * (1 + luz) + somada) * fl
+        let cb = (SAIDA[2] * (1 + luz) + somada) * fl
+        if (metal > 0) {
+          const nh = cil ? 1 - Math.abs(qc + 0.42) * 1.6 : (nx * HX + ny * HY + HZ) / nlen
+          if (nh > 0) {
+            const brilho = Math.pow(nh, 18) * metal * 255
+            cr += brilho
+            cg += brilho * 0.96
+            cb += brilho * 0.88
+          }
+        }
+        const em = SAIDA[4]
+        if (em > 0) {
+          cr += (SAIDA[0] - cr) * em
+          cg += (SAIDA[1] - cg) * em
+          cb += (SAIDA[2] - cb) * em
+        }
+        cr = cr < 0 ? 0 : cr > 255 ? 255 : cr
+        cg = cg < 0 ? 0 : cg > 255 ? 255 : cg
+        cb = cb < 0 ? 0 : cb > 255 ? 255 : cb
+        const a = cob * alfa * SAIDA[5]
+        if (a <= 0) continue
+        // Por baixo do que já está pintado; a sombra das peças de cima (M) escurece só a cor.
+        const k = resta * a
+        const m = k * M[o >> 2]
+        buf[o] += cr * m
+        buf[o + 1] += cg * m
+        buf[o + 2] += cb * m
+        buf[o + 3] += k
+      }
+    }
+  }
+
+  /**
+   * Sombra que a peça faz nas peças de baixo (o travesseiro no lençol, a cinta
+   * na tampa). Como a pintura vai da frente para trás, a sombra é guardada
+   * num multiplicador por pixel que as peças pintadas depois (as de baixo) usam.
+   */
+  function projetar(alvo, p) {
+    const { sombra: M, W, H, x0, y0, S } = alvo
+    const { dist, forca } = p.projeta
+    const su = p.projeta.suave || 0.9
+    const ox = -RX * dist
+    const oy = -RY * dist
+    const f = p.forma
+    const b = f.b
+    const inv = 1 / S
+    const px0 = Math.max(0, Math.floor((b[0] + p.dx + ox - su * 2 - x0) * S))
+    const px1 = Math.min(W, Math.ceil((b[2] + p.dx + ox + su * 2 - x0) * S))
+    const py0 = Math.max(0, Math.floor((b[1] + p.dy + oy - su * 2 - y0) * S))
+    const py1 = Math.min(H, Math.ceil((b[3] + p.dy + oy + su * 2 - y0) * S))
+    for (let py = py0; py < py1; py += 1) {
+      const y = y0 + (py + 0.5) * inv - p.dy - oy
+      for (let px = px0; px < px1; px += 1) {
+        const x = x0 + (px + 0.5) * inv - p.dx - ox
+        const k = suave01(0.5 - f.d(x, y) / (2 * su))
+        if (k <= 0) continue
+        M[py * W + px] *= 1 - forca * k
+      }
+    }
+  }
+
+  /** Quantos px de altura cada amostra da sombra cobre: a sombra é a forma arrastada do pé até o topo, não só o topo afastado. */
+  const PASSO_DA_SOMBRA = 7
+  const BORDA_DA_SOMBRA_NO_PE = 0.8
+
+  /**
+   * Sombra no chão: a forma da peça arrastada do pé (no chão) até a altura
+   * `z`, para baixo à direita; fica mais suave quanto mais longe do pé.
+   * Assim a sombra de um armário alto sai do pé dele, não flutua ao lado.
+   * Sombras que se cruzam não somam.
+   */
+  function pintarSombras(alvo, sombras) {
+    const { buf, W, H, x0, y0, S } = alvo
+    const mapa = new Float32Array(W * H)
+    const inv = 1 / S
+    for (const s of sombras) {
+      const ox = SOMBRA_X * s.z
+      const oy = SOMBRA_Y * s.z
+      const su = s.suave ?? BORDA_DA_SOMBRA_NO_PE + 0.09 * s.z
+      const fo = s.forca ?? Math.max(0.16, 0.34 - 0.0022 * s.z)
+      const n = !s.solta && s.z > PASSO_DA_SOMBRA ? Math.min(8, Math.ceil(s.z / PASSO_DA_SOMBRA)) : 0
+      const su0 = Math.min(su, BORDA_DA_SOMBRA_NO_PE)
+      const b = s.forma.b
+      const px0 = Math.max(0, Math.floor((b[0] + Math.min(0, ox) - su * 2 - x0) * S))
+      const px1 = Math.min(W, Math.ceil((b[2] + Math.max(0, ox) + su * 2 - x0) * S))
+      const py0 = Math.max(0, Math.floor((b[1] + Math.min(0, oy) - su * 2 - y0) * S))
+      const py1 = Math.min(H, Math.ceil((b[3] + Math.max(0, oy) + su * 2 - y0) * S))
+      for (let py = py0; py < py1; py += 1) {
+        const y = y0 + (py + 0.5) * inv
+        for (let px = px0; px < px1; px += 1) {
+          const x = x0 + (px + 0.5) * inv
+          let k = 0.5 - s.forma.d(x - ox, y - oy) / (2 * su)
+          for (let j = 0; j < n; j += 1) {
+            const t = j / n
+            const suJ = su0 + (su - su0) * t
+            const kj = 0.5 - s.forma.d(x - ox * t, y - oy * t) / (2 * suJ)
+            if (kj > k) k = kj
+          }
+          if (k <= 0) continue
+          const a = fo * suave01(k)
+          const i = py * W + px
+          if (a > mapa[i]) mapa[i] = a
+        }
+      }
+    }
+    for (let i = 0, o = 0; i < mapa.length; i += 1, o += 4) {
+      const a = mapa[i]
+      if (a <= 0) continue
+      buf[o] = SOMBRA_COR[0] * a
+      buf[o + 1] = SOMBRA_COR[1] * a
+      buf[o + 2] = SOMBRA_COR[2] * a
+      buf[o + 3] = a
+    }
+  }
+
+  /** Brilho quente parado em volta da fogueira (por cima do chão, por baixo das pedras). */
+  function pintarBrilhos(alvo, brilhos) {
+    const { buf, W, H, x0, y0, S } = alvo
+    const inv = 1 / S
+    for (const g of brilhos) {
+      const px0 = Math.max(0, Math.floor((g.cx - g.r - x0) * S))
+      const px1 = Math.min(W, Math.ceil((g.cx + g.r - x0) * S))
+      const py0 = Math.max(0, Math.floor((g.cy - g.r - y0) * S))
+      const py1 = Math.min(H, Math.ceil((g.cy + g.r - y0) * S))
+      for (let py = py0; py < py1; py += 1) {
+        const y = y0 + (py + 0.5) * inv
+        for (let px = px0; px < px1; px += 1) {
+          const x = x0 + (px + 0.5) * inv
+          const k = 1 - Math.hypot((x - g.cx) / g.r, (y - g.cy) / (g.r * (g.achatar || 1)))
+          if (k <= 0) continue
+          const a = g.forca * k * k
+          const o = (py * W + px) * 4
+          const ia = 1 - a
+          buf[o] = g.cor[0] * a + buf[o] * ia
+          buf[o + 1] = g.cor[1] * a + buf[o + 1] * ia
+          buf[o + 2] = g.cor[2] * a + buf[o + 2] * ia
+          buf[o + 3] = a + buf[o + 3] * ia
+        }
+      }
+    }
+  }
+
+  // ---------- os móveis ----------
+
+  const contato = (forma, forca = 0.3) => ({ forma, z: 0, suave: 1.3, forca })
+  const faceDe = (c) => (c.tres ? 'frente' : 'topo')
+  const QUARTO = Math.PI / 2
+
+  function barril(c, s) {
+    const { hw, hh } = c
+    const H = c.g * 0.62
+    const mad = c.m.madeira
+    const aro = c.m.aros
+    const R = Math.min(hw, hh)
+    const polar = { cx: 0, cy: 0, r: R }
+    s.sombras.push({ forma: elipse(0, 0, hw, hh), z: H }, contato(elipse(0, 0, hw, hh)))
+    if (!c.tres) {
+      // De cima: o bojo (aduelas saindo do centro), dois aros, a borda das aduelas e a tampa afundada.
+      s.partes.push(
+        P(elipse(0, 0, hw, hh), mad, { polar, tabua: 5.6, bisel: R * 0.3, semente: 3 }),
+        P(anel(0, 0, hw * 0.985, hh * 0.985, hw * 0.93, hh * 0.93), aro, { bisel: 0.9, contorno: 0.3, semente: 4 }),
+        P(anel(0, 0, hw * 0.885, hh * 0.885, hw * 0.835, hh * 0.835), aro, { bisel: 0.8, contorno: 0.3, semente: 5 }),
+        P(anel(0, 0, hw * 0.836, hh * 0.836, hw * 0.7, hh * 0.7), mad, { polar, tabua: 5.6, bisel: 1, luz: 0.07, semente: 3 }),
+        P(elipse(0, 0, hw * 0.705, hh * 0.705), mad, { tabua: hh * 0.47, bisel: 0.5, recesso: { k: 2.4, forca: 0.36 }, semente: 6, tom: 0.93 }),
+        P(elipse(hw * 0.3, hh * 0.2, R * 0.09, R * 0.09), mad, { tabua: 0, bisel: R * 0.09, tom: 0.62, contorno: 0.15 }),
+      )
+      return
+    }
+    const raio = (z) => 0.9 + 0.1 * Math.sin((Math.PI * z) / H)
+    const cil = { cx: 0, r: hw }
+    s.partes.push(P(ladoDoCilindro(0, 0, hw, hh, H, raio), mad, { face: 'frente', cilindro: cil, tabua: 5.6, bisel: 0, semente: 3, contorno: 0.2 }))
+    for (const [za, zb] of [[0.12 * H, 0.21 * H], [0.79 * H, 0.88 * H]]) {
+      s.partes.push(P(faixaDoCilindro(0, 0, hw * 1.012, hh * 1.012, za, zb, raio), aro, { face: 'frente', cilindro: cil, bisel: 0.7, contorno: 0.25, semente: 4 }))
+    }
+    const k = raio(H)
+    const dy = -H
+    s.partes.push(
+      P(anel(0, 0, hw * k, hh * k, hw * k * 0.78, hh * k * 0.78), mad, { dy, polar, tabua: 5.6, bisel: 1, luz: 0.07, semente: 3 }),
+      P(elipse(0, 0, hw * k * 0.785, hh * k * 0.785), mad, { dy, tabua: hh * 0.42, bisel: 0.5, recesso: { k: 2.4, forca: 0.36 }, semente: 6, tom: 0.93 }),
+      P(elipse(hw * 0.27, hh * 0.18, R * 0.085, R * 0.085), mad, { dy, tabua: 0, bisel: R * 0.085, tom: 0.62, contorno: 0.15 }),
+    )
+  }
+
+  /** Um lado de caixote: moldura de 4 tábuas, tábuas afundadas no meio e o X das ripas por cima. */
+  function caixote(L, x0, y0, x1, y1, mad, o, sem) {
+    const m = Math.min(x1 - x0, y1 - y0) * 0.17
+    const ix0 = x0 + m
+    const iy0 = y0 + m
+    const ix1 = x1 - m
+    const iy1 = y1 - m
+    const dentro = caixa(ix0, iy0, ix1, iy1)
+    L.push(P(dentro, mad, { ...o, tabua: (iy1 - iy0) / 3, bisel: 0.5, recesso: { k: 2, forca: 0.34 }, tom: 0.9, semente: sem }))
+    const larg = m * 0.9
+    const a1 = Math.atan2(iy1 - iy0, ix1 - ix0)
+    L.push(P(dentroDe(barra(ix0, iy0, ix1, iy1, larg), dentro), mad, { ...o, eixo: a1, tabua: 0, bisel: 0.9, semente: sem + 1 }))
+    L.push(P(dentroDe(barra(ix1, iy0, ix0, iy1, larg), dentro), mad, { ...o, eixo: Math.PI - a1, tabua: 0, bisel: 0.9, semente: sem + 2, projeta: { dist: 1.1, forca: 0.3, suave: 0.7 } }))
+    L.push(P(caixa(x0, y0, ix0, y1, 0.6), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1, semente: sem + 3 }))
+    L.push(P(caixa(ix1, y0, x1, y1, 0.6), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1, semente: sem + 4 }))
+    L.push(P(caixa(ix0, y0, ix1, iy0, 0.3), mad, { ...o, tabua: 0, bisel: 1, semente: sem + 5 }))
+    L.push(P(caixa(ix0, iy1, ix1, y1, 0.3), mad, { ...o, tabua: 0, bisel: 1, semente: sem + 6 }))
+    for (const [px, py] of [[x0 + m / 2, y0 + m / 2], [x1 - m / 2, y0 + m / 2], [x0 + m / 2, y1 - m / 2], [x1 - m / 2, y1 - m / 2]]) {
+      L.push(P(elipse(px, py, 0.6, 0.6), PREGO, { ...o, bisel: 0.6, contorno: 0, metal: 0.2 }))
+    }
+  }
+
+  function caixaDeMadeira(c, s) {
+    const { hw, hh } = c
+    const H = c.g * 0.5
+    s.sombras.push({ forma: caixa(-hw, -hh, hw, hh), z: H }, contato(caixa(-hw, -hh, hw, hh)))
+    if (!c.tres) {
+      caixote(s.partes, -hw, -hh, hw, hh, c.m.madeira, {}, 10)
+      return
+    }
+    caixote(s.partes, -hw, hh - H, hw, hh, c.m.madeira, { face: 'frente' }, 20)
+    caixote(s.partes, -hw, -hh, hw, hh, c.m.madeira, { dy: -H }, 10)
+  }
+
+  function bau(c, s) {
+    if (c.vista === 'lado') return bauDeLado(c, s)
+    const { hw, hh, w, h } = c
+    const H = c.g * 0.55
+    const mad = c.m.madeira
+    const fer = c.m.ferragens
+    s.sombras.push({ forma: caixa(-hw, -hh, hw, hh, 2), z: H }, contato(caixa(-hw, -hh, hw, hh, 2)))
+    const tampa = (o, arco) => {
+      s.partes.push(P(caixa(-hw, -hh, hw, hh, 2), mad, { ...o, tabua: h / 4, bisel: 1.2, curvaY: arco, semente: 2 }))
+      for (const sx of [-1, 1]) {
+        const xc = sx * 0.3 * w
+        s.partes.push(P(caixa(xc - 0.045 * w, -hh, xc + 0.045 * w, hh, 0.5), fer, { ...o, bisel: 0.8, curvaY: arco, projeta: { dist: 0.8, forca: 0.25, suave: 0.7 }, semente: 3 + sx }))
+        for (const fy of [-0.32, 0, 0.32]) s.partes.push(P(elipse(xc, fy * h, 0.9, 0.9), fer, { ...o, bisel: 0.9, contorno: 0.1, tom: 0.9 }))
+      }
+      const cw = 0.13 * w
+      const ch = 0.2 * h
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const xa = sx * hw
+        const ya = sy * hh
+        s.partes.push(P(poligono([[xa, ya], [xa - sx * cw, ya], [xa, ya - sy * ch]]), fer, { ...o, bisel: 0.7, curvaY: arco, contorno: 0.2 }))
+      }
+    }
+    if (!c.tres) {
+      tampa({}, { c: 0, r: hh, forca: 0.55 })
+      // Fecho na frente, com o buraco da fechadura.
+      s.partes.push(P(caixa(-0.065 * w, hh - 0.26 * h, 0.065 * w, hh + 0.6, 0.8), fer, { bisel: 0.9, projeta: { dist: 0.9, forca: 0.3 } }))
+      s.partes.push(P(elipse(0, hh - 0.12 * h, 0.75, 1.15), BURACO, { bisel: 0, contorno: 0 }))
+      return
+    }
+    const costura = hh - H * 0.62
+    const frente = { face: 'frente' }
+    s.partes.push(P(caixa(-hw, costura, hw, hh, 0.6), mad, { ...frente, tabua: (hh - costura) / 3, bisel: 0.8, semente: 8 }))
+    s.partes.push(P(caixa(-hw, hh - H, hw, costura, 0.8), mad, { ...frente, tabua: (costura - hh + H) / 2, bisel: 0.8, curvaY: { c: costura, r: costura - hh + H, forca: 0.9 }, semente: 9 }))
+    for (const sx of [-1, 1]) {
+      const xc = sx * 0.3 * w
+      s.partes.push(P(caixa(xc - 0.045 * w, costura + 0.4, xc + 0.045 * w, hh, 0.4), fer, { ...frente, bisel: 0.7, projeta: { dist: 0.7, forca: 0.25 } }))
+      s.partes.push(P(caixa(xc - 0.045 * w, hh - H, xc + 0.045 * w, costura - 0.4, 0.4), fer, { ...frente, bisel: 0.7, curvaY: { c: costura, r: costura - hh + H, forca: 0.9 } }))
+    }
+    for (const sx of [-1, 1]) s.partes.push(P(caixa(sx > 0 ? hw - 0.12 * w : -hw, hh - 0.36 * H, sx > 0 ? hw : -hw + 0.12 * w, hh, 0.4), fer, { ...frente, bisel: 0.7 }))
+    s.partes.push(P(caixa(-0.065 * w, costura - 3, 0.065 * w, costura + 5.5, 0.8), fer, { ...frente, bisel: 0.9, projeta: { dist: 0.9, forca: 0.3 } }))
+    s.partes.push(P(elipse(0, costura + 2, 0.75, 1.15), BURACO, { bisel: 0, contorno: 0 }))
+    tampa({ dy: -H }, { c: 0, r: hh, forca: 0.35 })
+  }
+
+  /** Baú de lado: o corpo, a tampa em arco com a cinta de ferro e a alça na lateral. */
+  function bauDeLado(c, s) {
+    const { hw, hh, h } = c
+    const mad = c.m.madeira
+    const fer = c.m.ferragens
+    const face = faceDe(c)
+    const costura = -hh + h * 0.4
+    const raio = costura + hh
+    const corpo = caixa(-hw, costura, hw, hh, 0.6)
+    const arco = dentroDe(elipse(0, costura, hw, raio), caixa(-hw, -hh - 1, hw, costura + 0.5))
+    sombraDeLado(c, s, uniao(corpo, arco), 12)
+    s.partes.push(P(corpo, mad, { face, tabua: (hh - costura) / 3, bisel: 0.9, semente: 8 }))
+    s.partes.push(P(arco, mad, { face, tabua: raio / 2, bisel: 1, semente: 9 }))
+    s.partes.push(P(dentroDe(anel(0, costura, hw, raio, hw - 2.4, raio - 2.4), caixa(-hw, -hh - 1, hw, costura)), fer, { face, bisel: 0.8, contorno: 0.25 }))
+    s.partes.push(P(caixa(-hw, costura - 0.4, hw, costura + 1.6, 0.3), fer, { face, bisel: 0.6, tom: 0.92 }))
+    const ya = costura + (hh - costura) * 0.5
+    s.partes.push(P(caixa(-3.4, ya - 3.4, 3.4, ya - 1.6, 0.5), fer, { face, bisel: 0.6 }))
+    s.partes.push(P(anel(0, ya + 0.2, 3.1, 3.1, 1.9, 1.9), fer, { face, bisel: 0.6, projeta: { dist: 0.8, forca: 0.3 } }))
+    for (const sx of [-1, 1]) {
+      const xa = sx * hw
+      s.partes.push(P(poligono([[xa, hh], [xa - sx * 5, hh], [xa, hh - 5]]), fer, { face, bisel: 0.6 }))
+    }
+  }
+
+  function cama(c, s) {
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const zM = c.g * 0.34
+    const zH = c.g * 0.72
+    const zF = c.g * 0.44
+    const zR = c.g * 0.24
+    const yCab = -hh + 0.075 * h
+    const yPe = hh - 0.05 * h
+    const beira = 0.07 * w
+    const poste = 0.13 * w
+    s.sombras.push(
+      { forma: caixa(-hw, -hh, hw, hh, 1.5), z: zM },
+      { forma: caixa(-hw, -hh, hw, yCab), z: zH },
+      { forma: caixa(-hw, yPe, hw, hh), z: zF },
+      contato(caixa(-hw, -hh, hw, hh, 1.5)),
+    )
+    const tres = c.tres
+    const dM = tres ? -zM : 0
+    const cama3 = (z) => (tres ? -z : 0)
+    const L = s.partes
+    const cabeceira = () => {
+      if (tres) {
+        L.push(P(caixa(-hw, yCab - zH, hw, yCab, 0.6), mad, { face: 'frente', tabua: zH / 3.4, bisel: 0.9, semente: 30 }))
+        for (const x0 of [-hw, hw - poste]) L.push(P(caixa(x0, yCab - zH - 3, x0 + poste, yCab, 0.8), mad, { face: 'frente', eixo: QUARTO, tabua: 0, bisel: 1.2, semente: 31 }))
+      }
+      L.push(P(caixa(-hw, -hh, hw, yCab, 1), mad, { dy: cama3(zH), tabua: 0, bisel: 1.3, semente: 32, projeta: tres ? undefined : { dist: 3.2, forca: 0.32, suave: 1.6 } }))
+      for (const x0 of [-hw, hw - poste]) L.push(P(caixa(x0, -hh, x0 + poste, -hh + poste, 1.5), mad, { dy: cama3(zH + 3), tabua: 0, bisel: 2.4, semente: 33 }))
+    }
+    if (tres) cabeceira()
+    L.push(P(caixa(-hw, tres ? yCab : -hh, hw, hh, 1.5), mad, { dy: cama3(zR), eixo: QUARTO, tabua: 0, bisel: 1.1, semente: 34 }))
+    L.push(P(caixa(-hw + beira, yCab, hw - beira, yPe, 2), LENCOL, { dy: dM, bisel: 2.4, ruga: 1.2, semente: 35 }))
+    const yTr = yCab + 1.5
+    L.push(P(caixa(-hw + 0.12 * w, yTr, hw - 0.12 * w, yTr + 0.16 * h, 4), c.m.travesseiro, { dy: dM - (tres ? 1 : 0), bisel: 0.07 * h, ruga: 1.5, semente: 36, projeta: { dist: 1.6, forca: 0.3, suave: 1.2 } }))
+    const yDobra = -hh + 0.42 * h
+    L.push(P(caixa(-hw + beira * 0.6, yDobra, hw - beira * 0.6, yPe + 0.5, 2), c.m.cobertor, { dy: dM - (tres ? 0.5 : 0), bisel: 2.6, ruga: 2.2, eixo: QUARTO, semente: 37, projeta: { dist: 1.2, forca: 0.28 } }))
+    L.push(P(caixa(-hw + beira * 0.6 - 0.3, yDobra - 0.5, hw - beira * 0.6 + 0.3, yDobra + 0.075 * h, 2), c.m.cobertor, { dy: dM - (tres ? 1 : 0), tom: 1.1, bisel: 2.4, ruga: 1, semente: 38, projeta: { dist: 1.4, forca: 0.34 } }))
+    if (tres) {
+      L.push(P(caixa(-hw, hh - zF, hw, hh, 0.6), mad, { face: 'frente', tabua: zF / 3, bisel: 0.9, semente: 39 }))
+      for (const x0 of [-hw, hw - poste]) L.push(P(caixa(x0, hh - zF - 3, x0 + poste, hh, 0.8), mad, { face: 'frente', eixo: QUARTO, tabua: 0, bisel: 1.2, semente: 40 }))
+    }
+    L.push(P(caixa(-hw, yPe, hw, hh, 1), mad, { dy: cama3(zF), tabua: 0, bisel: 1.2, semente: 41 }))
+    for (const x0 of [-hw, hw - poste]) L.push(P(caixa(x0, hh - poste, x0 + poste, hh, 1.5), mad, { dy: cama3(zF + 3), tabua: 0, bisel: 2.4, semente: 42 }))
+    if (!tres) cabeceira()
+  }
+
+  function mesa(c, s) {
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const H = c.g * 0.5
+    const esp = 4
+    const ponta = 0.06 * w
+    s.sombras.push({ forma: caixa(-hw, -hh, hw, hh, 1.5), z: H, solta: true })
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const lx = sx * (hw - 0.065 * w)
+      const ly = sy * (hh - 0.1 * h)
+      s.sombras.push(contato(caixa(lx - 3, ly - 3, lx + 3, ly + 3), 0.32), { forma: caixa(lx - 2.5, ly - 2.5, lx + 2.5, ly + 2.5), z: H - 4, forca: 0.26 })
+    }
+    const tampo = (o) => {
+      s.partes.push(P(caixa(-hw + ponta, -hh, hw - ponta, hh, 0), mad, { ...o, tabua: h / 4.2, bisel: 1.2, semente: 50 }))
+      s.partes.push(P(caixa(-hw, -hh, -hw + ponta, hh, 1.5), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1.3, semente: 51 }))
+      s.partes.push(P(caixa(hw - ponta, -hh, hw, hh, 1.5), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1.3, semente: 52 }))
+    }
+    if (!c.tres) {
+      tampo({})
+      return
+    }
+    const frente = { face: 'frente' }
+    const yf = hh - 2
+    s.partes.push(P(caixa(-hw + 0.09 * w, yf - (H - esp), hw - 0.09 * w, yf - (H - esp) + 0.17 * c.g, 0.4), mad, { ...frente, tabua: 0, bisel: 0.7, tom: 0.8, semente: 53 }))
+    for (const sx of [-1, 1]) {
+      const x0 = sx < 0 ? -hw + 0.035 * w : hw - 0.035 * w - 0.06 * w
+      s.partes.push(P(caixa(x0, yf - (H - esp), x0 + 0.06 * w, yf, 0.5), mad, { ...frente, eixo: QUARTO, tabua: 0, bisel: 0.9, tom: 0.86, semente: 54 + sx }))
+    }
+    s.partes.push(P(caixa(-hw, hh - H, hw, hh - H + esp, 0.6), mad, { ...frente, tabua: 0, bisel: 0.8, semente: 56 }))
+    tampo({ dy: -H })
+  }
+
+  function assento(L, c, o, x0, y0, x1, y1) {
+    const mad = c.m.madeira
+    if (c.m.assento.classe === 'palha') {
+      const m = Math.min(x1 - x0, y1 - y0) * 0.16
+      L.push(P(menos(caixa(x0, y0, x1, y1, 1.4), caixa(x0 + m, y0 + m, x1 - m, y1 - m)), mad, { ...o, tabua: 0, bisel: 0.9, semente: 61 }))
+      L.push(P(caixa(x0 + m, y0 + m, x1 - m, y1 - m, 0.4), c.m.assento, { ...o, bisel: 0.7, recesso: { k: 1.2, forca: 0.3 }, contorno: 0.1, semente: 62 }))
+    } else {
+      L.push(P(caixa(x0, y0, x1, y1, 1.4), mad, { ...o, tabua: (y1 - y0) / 2, bisel: 1.1, semente: 61 }))
+    }
+  }
+
+  function cadeira(c, s) {
+    if (c.vista === 'lado') return cadeiraDeLado(c, s)
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const zS = c.g * 0.27
+    const zE = c.g * 0.62
+    const yAss = -hh + 0.18 * h
+    const yTrilho = -hh + 0.16 * h
+    const posteL = 0.18 * w
+    s.sombras.push({ forma: caixa(-hw, yAss, hw, hh, 1.4), z: zS, solta: true }, { forma: caixa(-hw, -hh, hw, yTrilho, 1.2), z: zE, solta: true })
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const lx = sx * (hw - 2.2)
+      const ly = sy * (hh - 2.2)
+      s.sombras.push(contato(caixa(lx - 1.8, ly - 1.8, lx + 1.8, ly + 1.8), 0.3), { forma: caixa(lx - 1.6, ly - 1.6, lx + 1.6, ly + 1.6), z: sy < 0 ? zE : zS, forca: 0.24 })
+    }
+    const L = s.partes
+    if (!c.tres) {
+      assento(L, c, {}, -hw, yAss, hw, hh)
+      L.push(P(caixa(-hw, -hh, hw, yTrilho, 1.2), mad, { tabua: 0, bisel: 1.2, semente: 63, projeta: { dist: (zE - zS) * 0.3, forca: 0.32, suave: 1.4 } }))
+      for (const x0 of [-hw, hw - posteL]) L.push(P(caixa(x0, -hh, x0 + posteL, -hh + 0.2 * h, 1.2), mad, { tabua: 0, bisel: 1.6, semente: 64 }))
+      return
+    }
+    const frente = { face: 'frente' }
+    const yb = yTrilho
+    for (const x0 of [-hw, hw - posteL]) L.push(P(caixa(x0, yb - zE, x0 + posteL, yb - zS + 2, 0.6), mad, { ...frente, eixo: QUARTO, tabua: 0, bisel: 0.9, semente: 65 }))
+    L.push(P(caixa(-hw, yb - zE, hw, yb - zE + 5, 0.8), mad, { ...frente, tabua: 0, bisel: 1, semente: 66 }))
+    L.push(P(caixa(-hw + posteL, yb - zE + 9.5, hw - posteL, yb - zE + 13, 0.6), mad, { ...frente, tabua: 0, bisel: 0.8, tom: 0.95, semente: 67 }))
+    L.push(P(caixa(-hw, -hh, hw, yb, 1), mad, { dy: -zE, tabua: 0, bisel: 1.1, semente: 68 }))
+    assento(L, c, { dy: -zS }, -hw, yAss, hw, hh)
+    L.push(P(caixa(-hw, hh - zS, hw, hh - zS + 2.6, 0.5), mad, { ...frente, tabua: 0, bisel: 0.7, semente: 69 }))
+    for (const x0 of [-hw + 0.5, hw - 0.5 - 0.16 * w]) L.push(P(caixa(x0, hh - zS + 2.6, x0 + 0.16 * w, hh, 0.4), mad, { ...frente, eixo: QUARTO, tabua: 0, bisel: 0.7, tom: 0.85, semente: 70 }))
+    L.push(P(caixa(-hw + 0.16 * w, hh - 5.5, hw - 0.16 * w, hh - 3.8, 0.3), mad, { ...frente, tabua: 0, bisel: 0.5, tom: 0.78, semente: 71 }))
+  }
+
+  /** Cadeira de lado: o L do encosto e do assento, as duas pernas e a travessa. */
+  function cadeiraDeLado(c, s) {
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const face = faceDe(c)
+    const fimEncosto = -hw + w * 0.2
+    const topoAss = -hh + h * 0.5
+    const baseAss = topoAss + h * 0.14
+    const recuo = (w * 0.2) / 2
+    const poste = caixa(-hw, -hh, fimEncosto, hh, 1)
+    const sentar = caixa(fimEncosto - 0.5, topoAss, hw, baseAss, 1)
+    const perna = caixa(hw - recuo - 1.8, baseAss - 0.5, hw - recuo + 1.8, hh, 0.6)
+    sombraDeLado(c, s, uniao(uniao(poste, sentar), perna), 10)
+    s.partes.push(P(caixa(fimEncosto - 0.5, hh - 9, hw - recuo, hh - 7.2, 0.3), mad, { face, tabua: 0, bisel: 0.5, tom: 0.82, semente: 72 }))
+    s.partes.push(P(perna, mad, { face, eixo: QUARTO, tabua: 0, bisel: 0.8, semente: 73 }))
+    s.partes.push(P(poste, mad, { face, eixo: QUARTO, tabua: 0, bisel: 1, semente: 74 }))
+    s.partes.push(P(sentar, mad, { face, tabua: 0, bisel: 1, semente: 75 }))
+    if (c.m.assento.classe === 'palha') s.partes.push(P(caixa(fimEncosto, topoAss - 1.6, hw - 1.4, topoAss + 0.6, 0.6), c.m.assento, { face, bisel: 0.6, contorno: 0.1 }))
+  }
+
+  /** Mourões a cada ~1 casa pela reta ou pelo arco (a mesma régua de `tracosDaCerca` do app). */
+  function geometriaDaCerca(c) {
+    const esp = Math.min(c.h, c.g * 0.25)
+    const rp = 0.45 * esp
+    const L = Math.max(0, c.w - 2 * rp)
+    const teta = (limitar(c.curva, 0, 180) * Math.PI) / 180
+    const pontos = []
+    if (teta < 0.02) {
+      const n = Math.max(2, Math.ceil(L / c.g) + 1)
+      for (let i = 0; i < n; i += 1) pontos.push([-L / 2 + (L * i) / (n - 1), 0])
+    } else {
+      const R = L / 2 / Math.sin(teta / 2)
+      const cy = R * Math.cos(teta / 2)
+      const n = Math.max(2, Math.ceil((R * teta) / (c.g * 0.85)) + 1)
+      for (let i = 0; i < n; i += 1) {
+        const a = -Math.PI / 2 - teta / 2 + (teta * i) / (n - 1)
+        pontos.push([R * Math.cos(a), cy + R * Math.sin(a)])
+      }
+    }
+    return { pontos, rp }
+  }
+
+  function encurtar(a, b, k) {
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const l = Math.hypot(dx, dy) || 1
+    return [a[0] + (dx / l) * k, a[1] + (dy / l) * k, b[0] - (dx / l) * k, b[1] - (dy / l) * k]
+  }
+
+  function cerca(c, s) {
+    const { pontos, rp } = geometriaDaCerca(c)
+    const H = c.g * 0.72
+    const mad = c.m.madeira
+    const lig = c.ids.ligacao
+    const L = s.partes
+    const segs = []
+    for (let i = 0; i + 1 < pontos.length; i += 1) segs.push([pontos[i], pontos[i + 1]])
+    for (const [px, py] of pontos) s.sombras.push({ forma: elipse(px, py, rp, rp), z: H }, contato(elipse(px, py, rp, rp)))
+    for (const [a, b] of segs) {
+      const [ax, ay, bx, by] = encurtar(a, b, rp * 0.5)
+      s.sombras.push({ forma: capsula(ax, ay, bx, by, lig === 'arame' ? 0.6 : 1.6), z: H * 0.7, forca: lig === 'arame' ? 0.18 : 0.26, solta: true })
+    }
+    const topo = (px, py, i, dy) => {
+      L.push(P(anel(px, py, rp, rp, rp * 0.8, rp * 0.8), mad, { dy, polar: { cx: px, cy: py, r: rp }, tabua: 2.4, bisel: 1, tom: 0.66, semente: 80 + i }))
+      L.push(P(elipse(px, py, rp * 0.81, rp * 0.81), mad, { dy, tex: texTopo, centro: [px, py], bisel: 0.9, semente: 90 + i }))
+    }
+    const ligacao = (a, b, i, z) => {
+      const [ax, ay, bx, by] = encurtar(a, b, rp * 0.55)
+      const ang = Math.atan2(by - ay, bx - ax)
+      if (lig === 'varas') {
+        for (const zv of z === null ? [0] : [0.68 * H, 0.34 * H]) {
+          L.push(P(capsula(ax, ay - zv, bx, by - zv, 1.8), mad, { eixo: ang, tabua: 0, bisel: 0.9, contorno: 0.26, tom: 0.94, semente: 100 + i }))
+        }
+      } else if (lig === 'corda') {
+        const zc = z === null ? 0 : 0.78 * H
+        const mx = (ax + bx) / 2
+        const my = (ay + by) / 2 - zc + (z === null ? 0 : 2.6)
+        L.push(P(capsula(ax, ay - zc, mx, my, 1.3), c.m.ligacao, { eixo: ang, bisel: 1.3, contorno: 0.18, semente: 110 + i }))
+        L.push(P(capsula(mx, my, bx, by - zc, 1.3), c.m.ligacao, { eixo: ang, bisel: 1.3, contorno: 0.18, semente: 111 + i }))
+      } else {
+        const alturas = z === null ? [-0.7, 0.7] : [0.8 * H, 0.45 * H]
+        for (const zv of alturas) {
+          const oy = z === null ? zv : -zv
+          L.push(P(capsula(ax, ay + oy, bx, by + oy, 0.55), c.m.ligacao, { eixo: ang, bisel: 0.55, contorno: 0.1, semente: 120 + i }))
+        }
+      }
+    }
+    if (!c.tres) {
+      segs.forEach(([a, b], i) => ligacao(a, b, i, null))
+      pontos.forEach(([px, py], i) => topo(px, py, i, 0))
+      return
+    }
+    const elementos = []
+    pontos.forEach(([px, py], i) => elementos.push({
+      y: py,
+      desenhar: () => {
+        L.push(P(ladoReto(px, py, rp, rp, H), mad, { face: 'frente', cilindro: { cx: px, r: rp }, tabua: 0, bisel: 0, tom: 0.92, contorno: 0.2, semente: 70 + i }))
+        topo(px, py, i, -H)
+      },
+    }))
+    segs.forEach(([a, b], i) => elementos.push({ y: (a[1] + b[1]) / 2 - 0.01, desenhar: () => ligacao(a, b, i, H) }))
+    elementos.sort((p, q) => p.y - q.y).forEach((e) => e.desenhar())
+  }
+
+  function armario(c, s) {
+    if (c.vista === 'lado') return armarioDeLado(c, s)
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const pux = c.m.puxadores
+    const zB = c.g * 0.9
+    const zA = c.g * 1.52
+    const yDegrau = -hh + 0.45 * h
+    s.sombras.push({ forma: caixa(-hw, -hh, hw, hh, 1), z: zB }, { forma: caixa(-hw, -hh, hw, yDegrau, 1), z: zA }, contato(caixa(-hw, -hh, hw, hh, 1)))
+    const L = s.partes
+    if (!c.tres) {
+      L.push(P(caixa(-hw, yDegrau - 1, hw, hh, 1), mad, { tabua: 6.5, bisel: 1.3, semente: 130 }))
+      L.push(P(caixa(-hw, -hh, hw, yDegrau, 1), mad, { tabua: 0, bisel: 1.4, semente: 131, projeta: { dist: (zA - zB) * 0.3, forca: 0.33, suave: 2.2 } }))
+      for (const sx of [-1, 1]) {
+        const xc = sx * 0.25 * w
+        L.push(P(caixa(xc - 0.8, hh - 0.18 * h, xc + 0.8, hh + 1.2, 0.5), pux, { bisel: 0.7, contorno: 0.2, projeta: { dist: 0.8, forca: 0.3 } }))
+      }
+      return
+    }
+    const frente = { face: 'frente' }
+    const topoFrente = hh - zB
+    L.push(P(caixa(-hw, topoFrente, hw, hh, 0.5), mad, { ...frente, tabua: 0, bisel: 0.6, tom: 0.88, semente: 132 }))
+    L.push(P(caixa(-hw - 0.6, topoFrente, hw + 0.6, topoFrente + 3, 0.6), mad, { ...frente, tabua: 0, bisel: 0.8, luz: 0.04, semente: 133 }))
+    gavetas(L, mad, pux, frente, -hw, topoFrente + 3.8, hw, hh - 4.5, w)
+    L.push(P(caixa(-hw + 1, hh - 4.5, hw - 1, hh, 0.3), mad, { ...frente, tabua: 0, bisel: 0.4, tom: 0.58, semente: 134 }))
+    L.push(P(caixa(-hw, -hh, hw, hh, 1), mad, { dy: -zB, tabua: 6.5, bisel: 1.3, semente: 130 }))
+    const topoA = yDegrau - zA
+    const baseA = yDegrau - zB
+    const nicho = baseA - 0.42 * (zA - zB)
+    L.push(P(caixa(-hw, topoA, hw, baseA, 0.5), mad, { ...frente, tabua: 0, bisel: 0.6, tom: 0.9, semente: 135 }))
+    L.push(P(caixa(-hw + 3, nicho, hw - 3, baseA, 0.3), mad, { ...frente, tabua: 0, bisel: 0, tom: 0.42, recesso: { k: 3.5, forca: 0.4 }, contorno: 0, semente: 136 }))
+    L.push(P(caixa(-0.34 * w, topoA + 3, 0.34 * w, nicho - 2.2, 1), mad, { ...frente, eixo: QUARTO, tabua: 0, bisel: 1.4, semente: 137 }))
+    L.push(P(elipse(0.25 * w, (topoA + nicho) / 2, 1.1, 1.1), pux, { ...frente, bisel: 1.1, contorno: 0.1, projeta: { dist: 0.8, forca: 0.3 } }))
+    L.push(P(caixa(-hw - 0.6, topoA, hw + 0.6, topoA + 2.2, 0.5), mad, { ...frente, tabua: 0, bisel: 0.7, luz: 0.05, semente: 138 }))
+    L.push(P(caixa(-hw, -hh, hw, yDegrau, 1), mad, { dy: -zA, tabua: 0, bisel: 1.4, semente: 131 }))
+  }
+
+  /** Duas gavetas em relevo, cada uma com um puxador deitado no meio. */
+  function gavetas(L, mad, pux, o, x0, y0, x1, y1, w) {
+    const meio = (y0 + y1) / 2
+    for (const [a, b] of [[y0 + 0.7, meio - 0.7], [meio + 0.7, y1 - 0.7]]) {
+      L.push(P(caixa(x0 + 2.2, a, x1 - 2.2, b, 1), mad, { ...o, tabua: 0, bisel: 1.3, semente: 140 + Math.round(a) }))
+      const yc = (a + b) / 2
+      L.push(P(caixa(-0.08 * w, yc - 1, 0.08 * w, yc + 1, 0.8), pux, { ...o, bisel: 0.9, contorno: 0.15, projeta: { dist: 0.8, forca: 0.3 } }))
+    }
+  }
+
+  /** Armário de cozinha de lado: a frente em pé, como em `ARMARIO_DE_LADO` (lib/mobilia.ts:337). */
+  function armarioDeLado(c, s) {
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const pux = c.m.puxadores
+    const o = { face: faceDe(c) }
+    const nA = (f) => -hh + f * h
+    sombraDeLado(c, s, caixa(-hw, -hh, hw, hh, 1), 18)
+    const L = s.partes
+    L.push(P(caixa(-hw, -hh, hw, hh, 0.6), mad, { ...o, tabua: 0, bisel: 0.8, tom: 0.88, semente: 150 }))
+    L.push(P(caixa(-hw, -hh, hw, nA(0.04), 0.5), mad, { ...o, tabua: 0, bisel: 0.7, luz: 0.05, semente: 151 }))
+    L.push(P(caixa(-0.34 * w, nA(0.06), 0.34 * w, nA(0.25), 1), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1.4, semente: 152 }))
+    L.push(P(elipse(0.25 * w, nA(0.155), 1.1, 1.1), pux, { ...o, bisel: 1.1, contorno: 0.1, projeta: { dist: 0.8, forca: 0.3 } }))
+    L.push(P(caixa(-hw, nA(0.285), hw, nA(0.31), 0.3), mad, { ...o, tabua: 0, bisel: 0.6, luz: 0.04, semente: 153 }))
+    L.push(P(caixa(-0.42 * w, nA(0.31), 0.42 * w, nA(0.555), 0.3), mad, { ...o, tabua: 0, bisel: 0, tom: 0.42, recesso: { k: 3.5, forca: 0.4 }, contorno: 0, semente: 154 }))
+    L.push(P(caixa(-hw - 0.4, nA(0.555), hw + 0.4, nA(0.59), 0.5), mad, { ...o, tabua: 0, bisel: 0.8, luz: 0.05, semente: 155 }))
+    gavetas(L, mad, pux, o, -hw, nA(0.59), hw, nA(0.94), w)
+    L.push(P(caixa(-hw + 1, nA(0.94), hw - 1, hh, 0.3), mad, { ...o, tabua: 0, bisel: 0.4, tom: 0.58, semente: 156 }))
+  }
+
+  /** Duas portas em relevo que se encontram no meio, com um puxador em pé de cada lado do encontro. */
+  function portasDoAparador(L, mad, pux, o, x0, y0, x1, y1, w) {
+    for (const [a, b] of [[x0 + 2, -0.7], [0.7, x1 - 2]]) L.push(P(caixa(a, y0 + 2, b, y1 - 1.5, 1), mad, { ...o, eixo: QUARTO, tabua: 0, bisel: 1.3, semente: 160 + Math.round(a) }))
+    const xp = 0.045 * w
+    const ya = y0 + (y1 - y0) * 0.3
+    const yb = y0 + (y1 - y0) * 0.58
+    for (const sx of [-1, 1]) L.push(P(caixa(sx * xp - 0.9, ya, sx * xp + 0.9, yb, 0.6), pux, { ...o, bisel: 0.8, contorno: 0.15, projeta: { dist: 0.8, forca: 0.3 } }))
+  }
+
+  function aparador(c, s) {
+    if (c.vista === 'lado') return aparadorDeLado(c, s)
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const pux = c.m.puxadores
+    const H = c.g * 0.62
+    const esp = 5
+    const sobra = 0.035 * w
+    s.sombras.push({ forma: caixa(-hw, -hh, hw, hh, 1.2), z: H }, contato(caixa(-hw + sobra, -hh, hw - sobra, hh)))
+    const L = s.partes
+    if (!c.tres) {
+      L.push(P(caixa(-hw, -hh, hw, hh, 1.4), mad, { tabua: 7, bisel: 1.6, semente: 170 }))
+      for (const sx of [-1, 1]) {
+        const xc = sx * 0.045 * w
+        L.push(P(caixa(xc - 0.8, hh - 0.28 * h, xc + 0.8, hh + 1, 0.5), pux, { bisel: 0.7, contorno: 0.2, projeta: { dist: 0.8, forca: 0.3 } }))
+      }
+      return
+    }
+    const frente = { face: 'frente' }
+    const topoCorpo = hh - (H - esp)
+    const rodape = hh - 0.12 * (H - esp)
+    L.push(P(caixa(-hw + sobra, topoCorpo, hw - sobra, hh, 0.4), mad, { ...frente, tabua: 0, bisel: 0.6, tom: 0.88, semente: 171 }))
+    portasDoAparador(L, mad, pux, frente, -hw + sobra, topoCorpo, hw - sobra, rodape, w)
+    L.push(P(caixa(-hw + sobra, rodape, hw - sobra, hh, 0.3), mad, { ...frente, tabua: 0, bisel: 0.4, tom: 0.58, semente: 172 }))
+    L.push(P(caixa(-hw, hh - H, hw, hh - H + esp, 0.8), mad, { ...frente, tabua: 0, bisel: 0.9, luz: 0.03, semente: 173 }))
+    L.push(P(caixa(-hw, -hh, hw, hh, 1.4), mad, { dy: -H, tabua: 7, bisel: 1.6, semente: 170 }))
+  }
+
+  /** Aparador de lado: o tampo sobrando dos dois lados, as portas, os puxadores e o rodapé (`APARADOR_DE_LADO`). */
+  function aparadorDeLado(c, s) {
+    const { hw, hh, w, h } = c
+    const mad = c.m.madeira
+    const pux = c.m.puxadores
+    const o = { face: faceDe(c) }
+    const nA = (f) => -hh + f * h
+    const meioCorpo = hw - 0.035 * w
+    const tampo = caixa(-hw, -hh, hw, nA(0.14), 0.8)
+    const corpo = caixa(-meioCorpo, nA(0.14), meioCorpo, hh, 0.4)
+    sombraDeLado(c, s, uniao(tampo, corpo), 12)
+    const L = s.partes
+    L.push(P(corpo, mad, { ...o, tabua: 0, bisel: 0.6, tom: 0.88, semente: 180 }))
+    portasDoAparador(L, mad, pux, o, -meioCorpo, nA(0.14), meioCorpo, nA(0.88), w)
+    L.push(P(caixa(-meioCorpo, nA(0.88), meioCorpo, hh, 0.3), mad, { ...o, tabua: 0, bisel: 0.4, tom: 0.58, semente: 181 }))
+    L.push(P(tampo, mad, { ...o, tabua: 0, bisel: 1, luz: 0.03, semente: 182 }))
+  }
+
+  /** Chama parada em três camadas, do laranja de fora ao amarelo baixo do miolo. */
+  function chama(L, cx, base, larg, alt) {
+    const camadas = [
+      [1, 1, [214, 124, 58], [178, 74, 42], 0.9],
+      [0.62, 0.66, [232, 164, 82], [214, 120, 58], 0.95],
+      [0.3, 0.32, [242, 206, 136], [234, 170, 92], 1],
+    ]
+    for (const [kl, ka, de, ate, alfa] of camadas) {
+      L.push(P(gota(cx, base, larg * kl, alt * ka), CHAMA, { tex: texChama, chama: { base, alt: alt * ka, de, ate }, bisel: 0, contorno: 0, suave: 1.1, alfa }))
+    }
+  }
+
+  function fogueira(c, s) {
+    if (c.vista === 'lado') return fogueiraDeLado(c, s)
+    const { hw, hh } = c
+    const R = Math.min(hw, hh)
+    const pedra = c.m.pedras
+    const lenha = c.m.lenha
+    const tres = c.tres
+    s.brilhos.push({ cx: 0, cy: tres ? -4 : 0, r: c.g * 1.15, cor: [214, 124, 58], forca: 0.16, achatar: 0.85 })
+    const pedras = []
+    const raioMedio = 0.81
+    for (let i = 0; i < 8; i += 1) {
+      const a = ((i + 0.5) / 8) * TAU + (hash(i, 3, 901) - 0.5) * 0.18
+      const tang = 0.33 * R * (0.9 + 0.2 * hash(i, 4, 901))
+      const rad = 0.21 * R * (0.9 + 0.2 * hash(i, 5, 901))
+      const px = Math.cos(a) * hw * raioMedio
+      const py = Math.sin(a) * hh * raioMedio
+      pedras.push({ px, py, a, tang, rad, i })
+      s.sombras.push({ forma: elipse(px, py, tang, rad, a + QUARTO), z: 7, forca: 0.3 })
+    }
+    const L = s.partes
+    const dyChao = tres ? -1 : 0
+    const desenharPedra = (p) => {
+      const ry = tres ? p.rad * 1.3 : p.rad
+      L.push(P(elipse(p.px, p.py, p.tang, ry, p.a + QUARTO), pedra, { dy: tres ? -ry * 0.55 : 0, bisel: Math.min(p.tang, ry) * 0.92, contorno: 0.2, semente: 200 + p.i }))
+    }
+    L.push(P(elipse(0, 0, hw * 0.76, hh * 0.76), CINZA, { dy: dyChao, tex: texBrasas, brasas: [0, 0, R * 0.76], bisel: 0, contorno: 0, semente: 210 }))
+    if (tres) pedras.filter((p) => p.py < 0).sort((a, b) => a.py - b.py).forEach(desenharPedra)
+    const comprimento = 0.56 * 2 * R
+    const raio = 0.058 * 2 * R
+    const dyLenha = tres ? -raio - 1 : 0
+    for (const [k, graus] of [[0, 35], [1, -35]]) {
+      const ang = (graus * Math.PI) / 180
+      const ax = (-Math.cos(ang) * comprimento) / 2
+      const ay = (-Math.sin(ang) * comprimento) / 2
+      L.push(P(capsula(ax, ay, -ax, -ay, raio), lenha, { dy: dyLenha, eixo: ang, tex: texLenha, fogo: [0, 0, R * 0.42], bisel: raio, contorno: 0.2, semente: 220 + k, projeta: k ? { dist: 1.2, forca: 0.35 } : undefined }))
+    }
+    L.push(P(elipse(0, 0, 3.4, 2.7), CINZA, { dy: dyLenha - raio * 0.6, tex: texBrasas, brasas: [0, 0, 2.2], bisel: 0, contorno: 0, suave: 0.8, semente: 230 }))
+    if (tres) {
+      chama(L, 0, dyLenha - raio * 0.4, 0.36 * 2 * R, 0.44 * c.g)
+      pedras.filter((p) => p.py >= 0).sort((a, b) => a.py - b.py).forEach(desenharPedra)
+    } else pedras.forEach(desenharPedra)
+  }
+
+  /** Fogueira de lado: quatro pedras em domo na frente, lenha em X, brasa e a chama parada (`FOGUEIRA_DE_LADO`). */
+  function fogueiraDeLado(c, s) {
+    const { hw, hh, w, h } = c
+    const pedra = c.m.pedras
+    const lenha = c.m.lenha
+    const face = faceDe(c)
+    const nA = (f) => -hh + f * h
+    const picos = [0.81, 0.79, 0.82, 0.8]
+    const formas = picos.map((pico, i) => {
+      const cx = (-0.375 + 0.25 * i) * w
+      const topo = nA(pico)
+      return elipse(cx, (topo + hh) / 2 + 0.6, 0.155 * w, (hh - topo) / 2 + 0.6)
+    })
+    sombraDeLado(c, s, formas.reduce(uniao), 7)
+    s.brilhos.push({ cx: 0, cy: nA(0.72), r: c.g * 0.95, cor: [214, 124, 58], forca: 0.14, achatar: 0.8 })
+    const L = s.partes
+    const raio = 0.035 * w * 1.3
+    for (const [k, sx] of [[0, 1], [1, -1]]) {
+      L.push(P(capsula(-sx * 0.26 * w, nA(0.79), sx * 0.26 * w, nA(0.56), raio), lenha, { face, eixo: Math.atan2(nA(0.56) - nA(0.79), 2 * sx * 0.26 * w), tex: texLenha, fogo: [0, nA(0.675), 0.2 * w], bisel: raio, contorno: 0.2, semente: 240 + k, projeta: k ? { dist: 1, forca: 0.3 } : undefined }))
+    }
+    L.push(P(elipse(0, nA(0.735), 6.5, 2.6), CINZA, { tex: texBrasas, brasas: [0, nA(0.735), 6], bisel: 0, contorno: 0, suave: 0.8, semente: 250 }))
+    chama(L, 0, nA(0.7), 0.32 * w, 0.46 * h)
+    formas.forEach((forma, i) => L.push(P(forma, pedra, { face, bisel: Math.min(0.155 * w, 6) * 0.9, contorno: 0.2, semente: 260 + i })))
+  }
+
+  /** Cores do desenho do tapete a partir do tecido: borda e medalhão mais escuros (como no app, x0,70), fio claro puxado para o creme. */
+  function coresDoTapete(base) {
+    return {
+      campo: base,
+      escuro: escalar(base, 0.7),
+      meio: escalar(base, 0.8),
+      claro: misturar(base, CREME, 0.38),
+      miolo: misturar(base, CREME, 0.2),
+    }
+  }
+
+  function tapete(c, s) {
+    const { hw, hh, w } = c
+    const tecido = c.m.tecido
+    const cores = coresDoTapete(tecido.rgb)
+    const L = s.partes
+    if (c.vista === 'lado') {
+      const face = faceDe(c)
+      const fr = 0.04 * w
+      const topo = -hh + 0.6 * c.h
+      const corpoHW = hw - fr
+      sombraDeLado(c, s, caixa(-corpoHW, topo, corpoHW, hh), 2)
+      for (const lado of [-1, 1]) {
+        L.push(P(caixa(lado < 0 ? -hw : corpoHW - 1, hh - 1.6, lado < 0 ? -corpoHW + 1 : hw, hh, 0), MATERIAIS.linho, { face, tex: texFranja, franja: { corpo: corpoHW, comprimento: fr, lado }, bisel: 0, contorno: 0, eixo: 0 }))
+      }
+      L.push(P(caixa(-corpoHW, topo, corpoHW, hh, 0.8), tecido, { face, tex: texTapeteLado, tapete: { ...cores, hw: corpoHW, borda: 0.08 * w }, bisel: 0.9, contorno: 0.18 }))
+      return
+    }
+    const redondo = c.forma === 'redondo'
+    const tres = c.tres
+    const esp = 1.6
+    const dy = tres ? -esp : 0
+    if (redondo) {
+      const corpo = elipse(0, 0, hw, hh)
+      s.sombras.push({ forma: corpo, z: 1.5, forca: 0.22, suave: 1.2 })
+      if (tres) L.push(P(ladoReto(0, 0, hw, hh, esp), tecido, { face: 'frente', tom: 0.62, bisel: 0, contorno: 0.1 }))
+      L.push(P(corpo, tecido, { dy, tex: texTapete, tapete: { ...cores, redondo: true, hw, hh, menor: Math.min(hw, hh), borda: 0.24 * Math.min(hw, hh), medalhao: 0.6 }, bisel: 1.4, contorno: 0.16 }))
+      return
+    }
+    const fr = 0.06 * w
+    const corpoHW = hw - fr
+    const corpo = caixa(-corpoHW, -hh, corpoHW, hh, 1.2)
+    s.sombras.push({ forma: corpo, z: 1.5, forca: 0.22, suave: 1.2 })
+    for (const lado of [-1, 1]) {
+      const x0 = lado < 0 ? -hw : corpoHW - 1
+      const x1 = lado < 0 ? -corpoHW + 1 : hw
+      L.push(P(caixa(x0, -hh + 1.5, x1, hh - 1.5, 0), MATERIAIS.linho, { tex: texFranja, franja: { corpo: corpoHW, comprimento: fr, lado }, bisel: 0, contorno: 0 }))
+    }
+    if (tres) L.push(P(caixa(-corpoHW, hh - esp, corpoHW, hh, 0.4), tecido, { face: 'frente', tom: 0.62, bisel: 0, contorno: 0.1 }))
+    L.push(P(corpo, tecido, { dy, tex: texTapete, tapete: { ...cores, hw: corpoHW, hh, borda: 0.12 * Math.min(2 * corpoHW, 2 * hh), menor: Math.min(corpoHW, hh), geo: geometriaDoTapete(corpoHW, hh, 0.12 * Math.min(2 * corpoHW, 2 * hh)) }, bisel: 1.4, contorno: 0.16 }))
+  }
+
+  /**
+   * Sombra de um móvel na vista de lado: de cima, o recorte em pé faz sombra
+   * afastada como os outros; em 3/4 ele está de pé no chão, então a sombra é
+   * uma mancha curta na base.
+   */
+  function sombraDeLado(c, s, forma, altura) {
+    if (c.tres) {
+      const b = forma.b
+      const largura = (b[2] - b[0]) / 2
+      s.sombras.push({ forma: elipse((b[0] + b[2]) / 2 + 1.5, b[3] - 0.5, largura * 0.98, Math.max(2.2, largura * 0.12)), z: 0, suave: 1.6, forca: 0.32 })
+    } else {
+      s.sombras.push({ forma, z: altura }, contato(forma, 0.24))
+    }
+  }
+
+  const CONSTRUTORES = {
+    barril, caixa: caixaDeMadeira, bau, catre: cama, mesa, cadeira, cerca, armario, aparador, fogueira, tapete,
+  }
+
+  // ---------- a imagem de cada móvel ----------
+
+  /** O material de cada escolha; "Madeira" do assento e "Varas" da cerca usam a madeira do próprio móvel. */
+  function materiaisDe(tipo, escolhidos) {
+    const ids = {}
+    const m = {}
+    for (const rr of RANURAS[tipo]) {
+      const id = escolhidos && MATERIAIS[escolhidos[rr.id]] && rr.opcoes.includes(escolhidos[rr.id]) ? escolhidos[rr.id] : rr.padrao
+      ids[rr.id] = id
+    }
+    for (const rr of RANURAS[tipo]) {
+      const id = ids[rr.id]
+      m[rr.id] = MATERIAIS[id].classe === 'ref' ? MATERIAIS[ids.madeira] : MATERIAIS[id]
+    }
+    return { ids, m }
+  }
+
+  function montar(def) {
+    const w = def.largura
+    const h = def.altura
+    const { ids, m } = materiaisDe(def.tipo, def.materiais)
+    const c = {
+      w, h, hw: w / 2, hh: h / 2, g: G, tres: def.estilo === '34',
+      vista: aceitaVista(def.tipo) && def.vista === 'lado' ? 'lado' : 'frente',
+      forma: def.forma === 'redondo' ? 'redondo' : 'retangular', curva: def.curva || 0, m, ids,
+    }
+    const saida = { partes: [], sombras: [], brilhos: [] }
+    CONSTRUTORES[def.tipo](c, saida)
+    return saida
+  }
+
+  function chaveDe(def) {
+    const { ids } = materiaisDe(def.tipo, def.materiais)
+    const mats = RANURAS[def.tipo].map((rr) => ids[rr.id]).join(',')
+    return [def.tipo, def.largura.toFixed(2), def.altura.toFixed(2), def.vista || 'frente', def.forma || 'retangular', def.curva || 0, def.estilo, mats].join('|')
+  }
+
+  function unir(b, x0, y0, x1, y1) {
+    if (x0 < b[0]) b[0] = x0
+    if (y0 < b[1]) b[1] = y0
+    if (x1 > b[2]) b[2] = x1
+    if (y1 > b[3]) b[3] = y1
+  }
+
+  /**
+   * Ruído de arredondamento: meio tom para cima ou para baixo, sorteado por
+   * pixel. Sem ele, o brilho da fogueira e a borda da sombra (degradês longos
+   * e fracos) viram anéis de 8 bits.
+   */
+  const LADO_DO_PONTILHADO = 64
+  const PONTILHADO = new Float32Array(LADO_DO_PONTILHADO * LADO_DO_PONTILHADO * 2)
+  for (let i = 0; i < PONTILHADO.length; i += 1) PONTILHADO[i] = hash(i, 17, 9001) - 0.5
+
+  /**
+   * Pinta as peças da frente para trás (a última da lista fica por cima) e
+   * depois o chão (sombras e brilho) por baixo de tudo; devolve o canvas.
+   */
+  function pintarCena(W, H, x0, y0, S, partes, sombras, brilhos) {
+    const alvo = { buf: new Float32Array(W * H * 4), sombra: new Float32Array(W * H).fill(1), W, H, x0, y0, S }
+    for (let i = partes.length - 1; i >= 0; i -= 1) {
+      const p = partes[i]
+      pintarParte(alvo, p)
+      if (p.projeta) projetar(alvo, p)
+    }
+    const chao = { buf: new Float32Array(W * H * 4), W, H, x0, y0, S }
+    pintarSombras(chao, sombras)
+    pintarBrilhos(chao, brilhos)
+    const buf = alvo.buf
+    const baixo = chao.buf
+    const imagem = new ImageData(W, H)
+    const d = imagem.data
+    for (let py = 0, o = 0; py < H; py += 1) {
+      const linha = (py & (LADO_DO_PONTILHADO - 1)) * LADO_DO_PONTILHADO
+      for (let px = 0; px < W; px += 1, o += 4) {
+        const resta = 1 - buf[o + 3]
+        const a = buf[o + 3] + resta * baixo[o + 3]
+        if (a <= 0.002) continue
+        const q = (linha + (px & (LADO_DO_PONTILHADO - 1))) * 2
+        const pr = PONTILHADO[q]
+        d[o] = (buf[o] + resta * baixo[o]) / a + pr
+        d[o + 1] = (buf[o + 1] + resta * baixo[o + 1]) / a + pr
+        d[o + 2] = (buf[o + 2] + resta * baixo[o + 2]) / a + pr
+        d[o + 3] = a * 255 + PONTILHADO[q + 1]
+      }
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = W
+    canvas.height = H
+    canvas.getContext('2d').putImageData(imagem, 0, 0)
+    return canvas
+  }
+
+  /**
+   * Gera a imagem do móvel em `S` pixels por px do mapa. Devolve o canvas e
+   * onde ele fica em relação ao centro do móvel (`ox`, `oy`, em px do mapa),
+   * a caixa das peças (sem a sombra, para a seleção) e quanto tempo levou.
+   */
+  function gerarSprite(def, S) {
+    const t0 = performance.now()
+    const cena = montar(def)
+    const pecas = [Infinity, Infinity, -Infinity, -Infinity]
+    for (const p of cena.partes) unir(pecas, p.forma.b[0] + p.dx, p.forma.b[1] + p.dy, p.forma.b[2] + p.dx, p.forma.b[3] + p.dy)
+    const tudo = pecas.slice()
+    for (const s of cena.sombras) {
+      const su = (s.suave ?? 0.8 + 0.09 * s.z) * 2
+      const b = s.forma.b
+      unir(tudo, b[0] - su, b[1] - su, b[2] + su, b[3] + su)
+      unir(tudo, b[0] + SOMBRA_X * s.z - su, b[1] + SOMBRA_Y * s.z - su, b[2] + SOMBRA_X * s.z + su, b[3] + SOMBRA_Y * s.z + su)
+    }
+    for (const g of cena.brilhos) unir(tudo, g.cx - g.r, g.cy - g.r, g.cx + g.r, g.cy + g.r)
+    const x0 = Math.floor(tudo[0] - 1)
+    const y0 = Math.floor(tudo[1] - 1)
+    const W = Math.max(1, Math.ceil((tudo[2] + 1 - x0) * S))
+    const H = Math.max(1, Math.ceil((tudo[3] + 1 - y0) * S))
+    const canvas = pintarCena(W, H, x0, y0, S, cena.partes, cena.sombras, cena.brilhos)
+    return {
+      canvas, S, ox: x0, oy: y0, largura: W / S, altura: H / S, pecas, niveis: [canvas],
+      formas: cena.partes.map((p) => [p.forma, p.dx, p.dy]),
+      ms: performance.now() - t0,
+    }
+  }
+
+  /** O ponto (px do mapa, relativo ao centro do móvel) cai numa peça? Clique no chão dentro do arco da cerca não pega a cerca. */
+  function acertou(sprite, x, y, folga = 2) {
+    for (const [f, dx, dy] of sprite.formas) if (f.d(x - dx, y - dy) < folga) return true
+    return false
+  }
+
+  /**
+   * A imagem na resolução mais perto da pedida, nunca menor: metade, um quarto
+   * e um oitavo saem da anterior pela média (o veio fino não cintila no zoom 50%).
+   */
+  function nivel(sprite, escala) {
+    let k = 0
+    while (k < 3 && sprite.S / 2 ** (k + 1) >= escala * 0.98) k += 1
+    for (let i = 1; i <= k; i += 1) {
+      if (sprite.niveis[i]) continue
+      const anterior = sprite.niveis[i - 1]
+      const c = document.createElement('canvas')
+      c.width = Math.max(1, Math.ceil(anterior.width / 2))
+      c.height = Math.max(1, Math.ceil(anterior.height / 2))
+      const ctx = c.getContext('2d')
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(anterior, 0, 0, c.width, c.height)
+      sprite.niveis[i] = c
+    }
+    return { canvas: sprite.niveis[k], escala: sprite.S / 2 ** k }
+  }
+
+  /** Amostra do material para o botão: um pedaço de verdade, com a mesma textura e luz. */
+  function gerarAmostra(id, madeira, S, larg = 52, alt = 44) {
+    const t0 = performance.now()
+    const bruto = MATERIAIS[id]
+    const mat = bruto.classe === 'ref' ? MATERIAIS[madeira] || MATERIAIS.carvalho : bruto
+    const partes = []
+    const sombras = []
+    const cx = larg / 2
+    const cy = alt / 2
+    const classe = bruto.classe === 'ref' ? (id === 'varas' ? 'varas' : 'madeira') : mat.classe
+    if (classe === 'madeira') {
+      const f = caixa(5, 6, larg - 5, alt - 6, 2)
+      partes.push(P(f, mat, { tabua: 8.5, bisel: 1.6, semente: 7 }))
+      sombras.push({ forma: f, z: 6 })
+    } else if (classe === 'varas') {
+      for (const [k, y] of [[0, cy - 6], [1, cy + 6]]) {
+        const f = capsula(6, y, larg - 6, y, 3.4)
+        partes.push(P(f, mat, { tabua: 0, bisel: 3.4, semente: 8 + k }))
+        sombras.push({ forma: f, z: 5 })
+      }
+    } else if (classe === 'metal') {
+      const f = caixa(7, 8, larg - 7, alt - 8, 2.5)
+      partes.push(P(f, mat, { bisel: 2.6, semente: 9 }))
+      for (const px of [12, larg - 12]) partes.push(P(elipse(px, cy, 2, 2), mat, { bisel: 2, tom: 0.9, contorno: 0.1 }))
+      sombras.push({ forma: f, z: 5 })
+    } else if (classe === 'tecido') {
+      const f = caixa(5, 6, larg - 5, alt - 6, 6)
+      partes.push(P(f, mat, { bisel: 7, ruga: 2, semente: 10 }))
+      sombras.push({ forma: f, z: 5 })
+    } else if (classe === 'pedra') {
+      const f = elipse(cx, cy, 18, 13, -0.15)
+      partes.push(P(f, mat, { bisel: 12, semente: 11 }))
+      sombras.push({ forma: f, z: 8 })
+    } else if (classe === 'palha') {
+      const f = caixa(6, 7, larg - 6, alt - 7, 2)
+      partes.push(P(f, mat, { bisel: 1.2, semente: 12 }))
+      sombras.push({ forma: f, z: 4 })
+    } else if (classe === 'corda') {
+      const f = capsula(6, cy, larg - 6, cy, 4.2)
+      partes.push(P(f, mat, { bisel: 4.2, semente: 13 }))
+      sombras.push({ forma: f, z: 4 })
+    } else if (classe === 'casca') {
+      for (const [k, y] of [[0, cy - 7], [1, cy + 6]]) {
+        const f = capsula(8, y, larg - 8, y, 5)
+        partes.push(P(f, mat, { tabua: 0, bisel: 5, semente: 14 + k }))
+        sombras.push({ forma: f, z: 5 })
+      }
+    }
+    const x0 = 0
+    const y0 = 0
+    const W = Math.ceil(larg * S)
+    const H = Math.ceil(alt * S)
+    const canvas = pintarCena(W, H, x0, y0, S, partes, sombras, [])
+    return { canvas, ms: performance.now() - t0 }
+  }
+
+  return {
+    G, TIPOS, ROTULO, RANURAS, MATERIAIS, TIPOS_COM_VISTA,
+    aceitaVista, tamanhoEmCasas, materiaisDe, chaveDe, gerarSprite, gerarAmostra, nivel, acertou,
+  }
+})()
+
+</script><!-- /objetos-lib -->
+<script id="objetos-pagina">
+/*
+ * Página do protótipo: a sala de exemplo (no estilo do mapa do app: chão
+ * chapado, parede fina, porta pequena), a câmera com o zoom do app (50% a
+ * 200%), o painel do objeto (folha de baixo no celular) e o catálogo.
+ *
+ * A imagem de cada móvel é gerada UMA vez por móvel + material + desenho
+ * (`Objetos.gerarSprite`) e guardada; cada quadro só cola as imagens prontas.
+ * Nada se mexe sozinho: a tela só é redesenhada quando algo muda.
+ */
+;(function () {
+  'use strict'
+  const T0 = performance.now()
+  const { G, ROTULO, RANURAS, MATERIAIS } = Objetos
+
+  // As fontes chegam sem segurar o script: o mapa não espera a rede.
+  for (const l of document.querySelectorAll('link[data-fontes]')) l.media = 'all'
+
+  const dpr = () => Math.min(3, window.devicePixelRatio || 1)
+  /**
+   * Pixels de imagem por px do mapa. Pelo menos 2 (a textura fina, como a
+   * trama do linho, é feita com folga e reduzida, então não serrilha) e no
+   * máximo 3 (a cama, a imagem mais cara, sai em ~45 ms; a 4 passaria de 50).
+   */
+  const S_MIN = 2
+  const S_MAX = 3
+  const resolucaoPara = (k) => Math.min(S_MAX, Math.max(S_MIN, Math.ceil(k * 1.5 - 0.01)))
+  /** Depois de quanto tempo parada a câmera pode gastar tempo gerando a imagem mais nítida. */
+  const CAMERA_PARADA_MS = 180
+  const ZOOM_MIN = 0.5
+  const ZOOM_MAX = 2
+  const PASSOS_DO_ZOOM = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2]
+  const COR_FORA = '#1c1e1b'
+  const COR_PAREDE = '#d8d2c4'
+  const COR_PORTA = '#d08c3a'
+  const COR_GRADE = 'rgba(255, 255, 255, 0.09)'
+  const COR_SELECAO = '#f4ecdc'
+  const PAREDE_PX = 2
+  const PORTA_PX = 5
+  const ARRASTO_MINIMO_PX = 6
+  const reduzMovimento = window.matchMedia('(prefers-reduced-motion: reduce)')
+  const modoFolha = window.matchMedia('(max-width: 959px)')
+
+  // ---------- a sala de exemplo (em casas) ----------
+
+  const AREAS = [
+    { id: 'casa', x: 0, y: 0, w: 8, h: 8, chao: '#a8776a' },
+    { id: 'patio', x: 8, y: 0, w: 5, h: 8, chao: '#857655' },
+  ]
+  const COR_DO_CHAO = Object.fromEntries(AREAS.map((a) => [a.id, a.chao]))
+  const MAPA_W = 13 * G
+  const MAPA_H = 8 * G
+  const PAREDES = [
+    [0, 0, 13, 0], [13, 0, 13, 8], [13, 8, 11, 8], [10, 8, 0, 8], [0, 8, 0, 0], [8, 0, 8, 8],
+  ]
+  const PORTAS = [
+    { x: 8, y: 5.5, vertical: true },
+    { x: 3.5, y: 8, vertical: false },
+  ]
+  const INICIAIS = [
+    { id: 'tapete', tipo: 'tapete', cx: 4.5, cy: 3.85 },
+    { id: 'cama', tipo: 'catre', cx: 0.56, cy: 1.06 },
+    { id: 'bau', tipo: 'bau', cx: 0.56, cy: 2.64 },
+    { id: 'armario', tipo: 'armario', cx: 2.1, cy: 0.28, encostado: true },
+    { id: 'aparador', tipo: 'aparador', cx: 4.6, cy: 0.28, encostado: true },
+    { id: 'mesa', tipo: 'mesa', cx: 4.5, cy: 4.02 },
+    { id: 'cadeira', tipo: 'cadeira', cx: 4.5, cy: 3.18 },
+    { id: 'barril', tipo: 'barril', cx: 0.44, cy: 7.5 },
+    { id: 'caixa', tipo: 'caixa', cx: 1.36, cy: 7.52 },
+    { id: 'fogueira', tipo: 'fogueira', cx: 10.5, cy: 4.75 },
+    { id: 'cerca-curva', tipo: 'cerca', cx: 10.5, cy: 5.1, casas: 3, curva: 150, materiais: { madeira: 'pinho', ligacao: 'corda' } },
+    { id: 'cerca', tipo: 'cerca', cx: 10.5, cy: 1.5 },
+  ]
+
+  function medir(obj) {
+    const [w, h] = Objetos.tamanhoEmCasas(obj.tipo, obj.vista, obj.forma)
+    obj.largura = (obj.casas || w) * G
+    obj.altura = h * G
+    // Móvel encostado na parede de cima mantém a beira de cima quando muda de tamanho (o app mantém o centro).
+    if (obj.encostado && obj.topo !== undefined) obj.cy = obj.topo + obj.altura / 2
+  }
+
+  function criarObjeto(o) {
+    const obj = {
+      id: o.id, tipo: o.tipo, cx: o.cx * G, cy: o.cy * G, vista: 'frente', forma: 'retangular', curva: o.curva || 0,
+      casas: o.casas || null, encostado: !!o.encostado, area: o.cx >= 8 ? 'patio' : 'casa', materiais: {},
+    }
+    for (const r of RANURAS[o.tipo]) obj.materiais[r.id] = (o.materiais && o.materiais[r.id]) || r.padrao
+    medir(obj)
+    if (obj.encostado) obj.topo = obj.cy - obj.altura / 2
+    return obj
+  }
+
+  const objetos = INICIAIS.map(criarObjeto)
+  const porId = new Map(objetos.map((o) => [o.id, o]))
+  /** O objeto de cada tipo no catálogo (a cerca do catálogo é a reta). */
+  const doCatalogo = Objetos.TIPOS.map((tipo) => objetos.find((o) => o.tipo === tipo && !o.curva))
+
+  // ---------- estado e imagens ----------
+
+  const estado = { estilo: 'cima', zoom: 1, panX: 0, panY: 0, selecionado: null }
+  const cache = new Map()
+  const tempos = []
+  let primeiraPintura = null
+  let primeiraPinturaDesdeAbertura = null
+  /** Quando a sala ficou toda na resolução certa (desde a abertura da página). */
+  let salaNitida = null
+  /** Quanto cada quadro levou para desenhar (os últimos 600), para a prova de travada. */
+  const duracoes = []
+  const desenhados = new Map()
+
+  function defDe(obj, estilo = estado.estilo) {
+    return { tipo: obj.tipo, largura: obj.largura, altura: obj.altura, vista: obj.vista, forma: obj.forma, curva: obj.curva, estilo, materiais: { ...obj.materiais } }
+  }
+
+  function gerar(def, chave, S) {
+    const sp = Objetos.gerarSprite(def, S)
+    sp.chave = chave
+    cache.set(`${chave}@${S}`, sp)
+    tempos.push({ chave, S, ms: sp.ms })
+    return sp
+  }
+
+  /**
+   * A imagem do objeto para a escala de tela `k` (px de tela por px do mapa).
+   * Se já existe uma pelo menos tão nítida, usa. Se só existe uma menos
+   * nítida, usa ela agora e pede a melhor para quando a câmera parar (gerar
+   * no meio do gesto travaria o zoom). Se não existe nenhuma, gera já.
+   * Sem `k`, serve qualquer uma (clique e seleção só precisam da forma).
+   */
+  function spriteDe(obj, estilo = estado.estilo, k = null) {
+    const def = defDe(obj, estilo)
+    const chave = Objetos.chaveDe(def)
+    const alvo = k === null ? S_MIN : resolucaoPara(k)
+    for (let S = alvo; S <= S_MAX; S += 1) {
+      const sp = cache.get(`${chave}@${S}`)
+      if (sp) return sp
+    }
+    for (let S = alvo - 1; S >= 1; S -= 1) {
+      const sp = cache.get(`${chave}@${S}`)
+      if (sp) {
+        pedirMaisNitida(def, chave, alvo)
+        return sp
+      }
+    }
+    if (primeiraPintura === null && k !== null) {
+      // Primeira pintura: a sala aparece já com tudo em 1x (4 vezes mais rápido) e fica nítida aos poucos, logo em seguida.
+      pedirMaisNitida(def, chave, alvo)
+      return gerar(def, chave, 1)
+    }
+    return gerar(def, chave, alvo)
+  }
+
+  // Fila de imagens para depois: as mais nítidas (zoom) primeiro, depois o outro desenho.
+  const fila = []
+  const naFila = new Set()
+  let ultimoMovimento = 0
+  let filaAgendada = false
+  function enfileirar(def, chave, S, frente) {
+    const id = `${chave}@${S}`
+    if (cache.has(id) || naFila.has(id)) return
+    naFila.add(id)
+    if (frente) fila.unshift({ def, chave, S, id })
+    else fila.push({ def, chave, S, id })
+    agendarFila()
+  }
+  const pedirMaisNitida = (def, chave, S) => enfileirar(def, chave, S, true)
+  function agendarFila(espera = 0) {
+    if (filaAgendada || fila.length === 0) return
+    filaAgendada = true
+    setTimeout(trabalharNaFila, espera)
+  }
+  /** Uma imagem por vez, só com a câmera parada: nenhuma tarefa longa, nenhum quadro perdido no gesto. */
+  function trabalharNaFila() {
+    filaAgendada = false
+    const parada = performance.now() - ultimoMovimento
+    if (parada < CAMERA_PARADA_MS) {
+      agendarFila(CAMERA_PARADA_MS - parada)
+      return
+    }
+    const item = fila.shift()
+    if (!item) return
+    naFila.delete(item.id)
+    if (!cache.has(item.id)) {
+      gerar(item.def, item.chave, item.S)
+      if (item.def.estilo === estado.estilo) aposGerar(item.chave)
+    }
+    agendarFila()
+  }
+  /** Imagem mais nítida pronta: redesenha o mapa e, se for dele, a prévia e o cartão. */
+  function aposGerar(chave) {
+    pedirQuadro()
+    const atual = (o) => Objetos.chaveDe(defDe(o)) === chave
+    if (estado.selecionado && atual(estado.selecionado)) desenharPrevia(estado.selecionado)
+    for (const o of doCatalogo) if (atual(o)) atualizarCartao(o)
+  }
+  const cameraMexeu = () => {
+    ultimoMovimento = performance.now()
+  }
+
+  function emOrdem() {
+    return [...objetos].sort((a, b) => {
+      const ta = a.tipo === 'tapete'
+      const tb = b.tipo === 'tapete'
+      if (ta !== tb) return ta ? -1 : 1
+      return a.cy + a.altura / 2 - (b.cy + b.altura / 2) || a.cx - b.cx
+    })
+  }
+
+  // ---------- mapa ----------
+
+  const mapa = document.getElementById('mapa')
+  const ctx = mapa.getContext('2d')
+  if (!ctx) {
+    mapa.replaceWith(Object.assign(document.createElement('p'), { className: 'erro-canvas', textContent: 'Este navegador não desenha em canvas 2D, então o mapa não aparece. Abra num Chrome, Edge, Firefox ou Safari atual.' }))
+    return
+  }
+  let cssW = 0
+  let cssH = 0
+  let quadroPedido = false
+
+  function pedirQuadro() {
+    if (quadroPedido) return
+    quadroPedido = true
+    requestAnimationFrame(desenhar)
+  }
+
+  function desenhar() {
+    const inicio = performance.now()
+    quadroPedido = false
+    const d = dpr()
+    const W = mapa.width
+    const H = mapa.height
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.fillStyle = COR_FORA
+    ctx.fillRect(0, 0, W, H)
+    const k = estado.zoom * d
+    const ox = estado.panX * d
+    const oy = estado.panY * d
+    const X = (cx) => Math.round(ox + cx * G * k)
+    const Y = (cy) => Math.round(oy + cy * G * k)
+    for (const a of AREAS) {
+      ctx.fillStyle = a.chao
+      ctx.fillRect(X(a.x), Y(a.y), X(a.x + a.w) - X(a.x), Y(a.y + a.h) - Y(a.y))
+    }
+    ctx.fillStyle = COR_GRADE
+    const linha = Math.max(1, Math.round(d))
+    for (const a of AREAS) {
+      for (let i = 1; i < a.w; i += 1) ctx.fillRect(X(a.x + i), Y(a.y), linha, Y(a.y + a.h) - Y(a.y))
+      for (let j = 1; j < a.h; j += 1) ctx.fillRect(X(a.x), Y(a.y + j), X(a.x + a.w) - X(a.x), linha)
+    }
+    ctx.fillStyle = COR_PAREDE
+    const pw = Math.max(1, Math.round(PAREDE_PX * d))
+    for (const [ax, ay, bx, by] of PAREDES) {
+      const x0 = X(Math.min(ax, bx))
+      const x1 = X(Math.max(ax, bx))
+      const y0 = Y(Math.min(ay, by))
+      const y1 = Y(Math.max(ay, by))
+      if (ay === by) ctx.fillRect(x0 - pw / 2, y0 - pw / 2, x1 - x0 + pw, pw)
+      else ctx.fillRect(x0 - pw / 2, y0 - pw / 2, pw, y1 - y0 + pw)
+    }
+    ctx.fillStyle = COR_PORTA
+    const tw = Math.max(2, Math.round(PORTA_PX * d))
+    const comprimento = Math.round(0.6 * G * k)
+    for (const p of PORTAS) {
+      if (p.vertical) ctx.fillRect(X(p.x) - tw / 2, Y(p.y) - comprimento / 2, tw, comprimento)
+      else ctx.fillRect(X(p.x) - comprimento / 2, Y(p.y) - tw / 2, comprimento, tw)
+    }
+    ctx.setTransform(k, 0, 0, k, ox, oy)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    desenhados.clear()
+    let tudoNitido = true
+    for (const obj of emOrdem()) {
+      const sp = spriteDe(obj, estado.estilo, k)
+      const nv = Objetos.nivel(sp, k)
+      ctx.drawImage(nv.canvas, obj.cx + sp.ox, obj.cy + sp.oy, sp.largura, sp.altura)
+      desenhados.set(obj.id, sp.chave)
+      if (sp.S < resolucaoPara(k)) tudoNitido = false
+    }
+    if (tudoNitido && salaNitida === null && primeiraPintura !== null) salaNitida = performance.now()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    const sel = estado.selecionado
+    if (sel) {
+      const sp = spriteDe(sel)
+      const m = 4 * d
+      const x0 = ox + (sel.cx + sp.pecas[0]) * k - m
+      const y0 = oy + (sel.cy + sp.pecas[1]) * k - m
+      const x1 = ox + (sel.cx + sp.pecas[2]) * k + m
+      const y1 = oy + (sel.cy + sp.pecas[3]) * k + m
+      ctx.lineWidth = 3 * d
+      ctx.strokeStyle = 'rgba(12, 10, 8, 0.45)'
+      ctx.setLineDash([])
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0)
+      ctx.lineWidth = 1.5 * d
+      ctx.strokeStyle = COR_SELECAO
+      ctx.setLineDash([5 * d, 4 * d])
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0)
+      ctx.setLineDash([])
+    }
+    const fim = performance.now()
+    duracoes.push(fim - inicio)
+    if (duracoes.length > 600) duracoes.shift()
+    if (primeiraPintura === null) {
+      primeiraPintura = fim - T0
+      primeiraPinturaDesdeAbertura = fim
+    }
+  }
+
+  function limitarCamera() {
+    cameraMexeu()
+    const margem = 64
+    const mw = MAPA_W * estado.zoom
+    const mh = MAPA_H * estado.zoom
+    estado.panX = Math.min(cssW - margem, Math.max(margem - mw, estado.panX))
+    estado.panY = Math.min(cssH - margem, Math.max(margem - mh, estado.panY))
+  }
+
+  function zoomEm(sx, sy, z) {
+    const novo = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z))
+    const wx = (sx - estado.panX) / estado.zoom
+    const wy = (sy - estado.panY) / estado.zoom
+    estado.zoom = novo
+    estado.panX = sx - wx * novo
+    estado.panY = sy - wy * novo
+    limitarCamera()
+    atualizarZoom()
+    pedirQuadro()
+  }
+
+  function passoDeZoom(direcao) {
+    const z = estado.zoom
+    const alvo = direcao > 0 ? PASSOS_DO_ZOOM.find((p) => p > z + 0.01) ?? ZOOM_MAX : [...PASSOS_DO_ZOOM].reverse().find((p) => p < z - 0.01) ?? ZOOM_MIN
+    zoomEm(cssW / 2, cssH / 2, alvo)
+  }
+
+  const zoomValor = document.getElementById('zoom-valor')
+  const zoomMenos = document.getElementById('zoom-menos')
+  const zoomMais = document.getElementById('zoom-mais')
+  function atualizarZoom() {
+    zoomValor.textContent = `${Math.round(estado.zoom * 100)}%`
+    zoomMenos.disabled = estado.zoom <= ZOOM_MIN + 1e-6
+    zoomMais.disabled = estado.zoom >= ZOOM_MAX - 1e-6
+  }
+  zoomMenos.addEventListener('click', () => passoDeZoom(-1))
+  zoomMais.addEventListener('click', () => passoDeZoom(1))
+  zoomValor.addEventListener('click', () => zoomEm(cssW / 2, cssH / 2, 1))
+
+  let medido = false
+  /** O maior zoom (até 100%) em que a sala inteira cabe no mapa. */
+  const zoomQueCabe = (w, h) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(1, Math.floor(Math.min((w - 24) / MAPA_W, (h - 24) / MAPA_H) * 20) / 20)))
+
+  function ajustarTamanho() {
+    const w = mapa.clientWidth
+    const h = mapa.clientHeight
+    if (!w || !h) return
+    const centroX = medido ? (cssW / 2 - estado.panX) / estado.zoom : MAPA_W / 2
+    const centroY = medido ? (cssH / 2 - estado.panY) / estado.zoom : MAPA_H / 2
+    if (!medido) estado.zoom = zoomQueCabe(w, h)
+    cssW = w
+    cssH = h
+    mapa.width = Math.round(w * dpr())
+    mapa.height = Math.round(h * dpr())
+    estado.panX = cssW / 2 - centroX * estado.zoom
+    estado.panY = cssH / 2 - centroY * estado.zoom
+    medido = true
+    limitarCamera()
+    atualizarZoom()
+    desenhar()
+  }
+
+  function objetoEm(sx, sy) {
+    const wx = (sx - estado.panX) / estado.zoom
+    const wy = (sy - estado.panY) / estado.zoom
+    const lista = emOrdem()
+    for (let i = lista.length - 1; i >= 0; i -= 1) {
+      const o = lista[i]
+      if (Objetos.acertou(spriteDe(o), wx - o.cx, wy - o.cy, 3 / estado.zoom)) return o
+    }
+    return null
+  }
+
+  // Arrastar anda pelo mapa; toque sem arrastar escolhe o objeto; dois dedos fazem pinça.
+  const ponteiros = new Map()
+  let gesto = null
+  const posicao = (e) => {
+    const r = mapa.getBoundingClientRect()
+    return { x: e.clientX - r.left, y: e.clientY - r.top }
+  }
+  mapa.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    mapa.setPointerCapture(e.pointerId)
+    const p = posicao(e)
+    ponteiros.set(e.pointerId, p)
+    if (ponteiros.size === 1) {
+      gesto = { tipo: 'toque', x0: p.x, y0: p.y, panX: estado.panX, panY: estado.panY, moveu: false }
+    } else if (ponteiros.size === 2) {
+      const [a, b] = [...ponteiros.values()]
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2
+      gesto = { tipo: 'pinca', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: estado.zoom, wx: (mx - estado.panX) / estado.zoom, wy: (my - estado.panY) / estado.zoom }
+    }
+  })
+  mapa.addEventListener('pointermove', (e) => {
+    const p = posicao(e)
+    if (!ponteiros.has(e.pointerId)) {
+      if (e.pointerType === 'mouse') mapa.dataset.sobre = objetoEm(p.x, p.y) ? 'objeto' : ''
+      return
+    }
+    ponteiros.set(e.pointerId, p)
+    if (!gesto) return
+    if (gesto.tipo === 'toque') {
+      const dx = p.x - gesto.x0
+      const dy = p.y - gesto.y0
+      if (!gesto.moveu && Math.hypot(dx, dy) > ARRASTO_MINIMO_PX) {
+        gesto.moveu = true
+        mapa.dataset.arrastando = 'true'
+      }
+      if (gesto.moveu) {
+        estado.panX = gesto.panX + dx
+        estado.panY = gesto.panY + dy
+        limitarCamera()
+        pedirQuadro()
+      }
+    } else if (gesto.tipo === 'pinca' && ponteiros.size >= 2) {
+      const [a, b] = [...ponteiros.values()]
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2
+      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, (gesto.z0 * Math.hypot(a.x - b.x, a.y - b.y)) / gesto.d0))
+      estado.zoom = z
+      estado.panX = mx - gesto.wx * z
+      estado.panY = my - gesto.wy * z
+      limitarCamera()
+      atualizarZoom()
+      pedirQuadro()
+    }
+  })
+  function soltar(e) {
+    if (!ponteiros.has(e.pointerId)) return
+    const p = posicao(e)
+    ponteiros.delete(e.pointerId)
+    if (gesto && gesto.tipo === 'toque' && !gesto.moveu && e.type === 'pointerup') {
+      const obj = objetoEm(p.x, p.y)
+      if (obj) selecionar(obj, { origem: 'mapa' })
+      else fecharPainel()
+    }
+    if (ponteiros.size === 0) {
+      gesto = null
+      mapa.dataset.arrastando = 'false'
+    } else if (gesto && gesto.tipo === 'pinca') gesto = null
+  }
+  mapa.addEventListener('pointerup', soltar)
+  mapa.addEventListener('pointercancel', soltar)
+  mapa.addEventListener('wheel', (e) => {
+    e.preventDefault()
+    const p = posicao(e)
+    const fator = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0018))
+    zoomEm(p.x, p.y, estado.zoom * fator)
+  }, { passive: false })
+  mapa.addEventListener('keydown', (e) => {
+    const passo = 48
+    const acoes = {
+      ArrowLeft: () => { estado.panX += passo },
+      ArrowRight: () => { estado.panX -= passo },
+      ArrowUp: () => { estado.panY += passo },
+      ArrowDown: () => { estado.panY -= passo },
+    }
+    if (acoes[e.key]) {
+      e.preventDefault()
+      acoes[e.key]()
+      limitarCamera()
+      pedirQuadro()
+    } else if (e.key === '+' || e.key === '=') {
+      e.preventDefault()
+      passoDeZoom(1)
+    } else if (e.key === '-' || e.key === '_') {
+      e.preventDefault()
+      passoDeZoom(-1)
+    } else if (e.key === '0') {
+      e.preventDefault()
+      zoomEm(cssW / 2, cssH / 2, 1)
+    }
+  })
+
+  // ---------- grupos de opção (setas trocam, uma parada só do Tab) ----------
+
+  function radioGrupo(grupo, aoEscolher) {
+    const botoes = () => [...grupo.querySelectorAll('[role="radio"]')]
+    const marcar = (alvo) => {
+      for (const b of botoes()) {
+        const sim = b === alvo
+        b.setAttribute('aria-checked', String(sim))
+        b.tabIndex = sim ? 0 : -1
+      }
+    }
+    grupo.addEventListener('click', (e) => {
+      const b = e.target.closest('[role="radio"]')
+      if (!b || !grupo.contains(b) || b.getAttribute('aria-checked') === 'true') return
+      marcar(b)
+      aoEscolher(b)
+    })
+    grupo.addEventListener('keydown', (e) => {
+      const lista = botoes()
+      const i = lista.indexOf(document.activeElement)
+      if (i < 0) return
+      let j = null
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % lista.length
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + lista.length) % lista.length
+      else if (e.key === 'Home') j = 0
+      else if (e.key === 'End') j = lista.length - 1
+      if (j === null) return
+      e.preventDefault()
+      lista[j].focus()
+      marcar(lista[j])
+      aoEscolher(lista[j])
+    })
+    return { marcar }
+  }
+
+  const el = (tag, classe, texto) => {
+    const n = document.createElement(tag)
+    if (classe) n.className = classe
+    if (texto !== undefined) n.textContent = texto
+    return n
+  }
+
+  // ---------- desenho escolhido ----------
+
+  const grupoEstilo = document.getElementById('grupo-estilo')
+  radioGrupo(grupoEstilo, (b) => definirEstilo(b.dataset.estilo))
+
+  function definirEstilo(estilo) {
+    if (estilo !== 'cima' && estilo !== '34') return
+    estado.estilo = estilo
+    for (const b of grupoEstilo.querySelectorAll('[role="radio"]')) {
+      const sim = b.dataset.estilo === estilo
+      b.setAttribute('aria-checked', String(sim))
+      b.tabIndex = sim ? 0 : -1
+    }
+    for (const o of objetos) spriteDe(o, estilo, estado.zoom * dpr())
+    desenhar()
+    atualizarCatalogo()
+    if (estado.selecionado) desenharPrevia(estado.selecionado)
+  }
+
+  // ---------- painel do objeto ----------
+
+  const painel = document.getElementById('painel')
+  const painelVazio = document.getElementById('painel-vazio')
+  const painelObjeto = document.getElementById('painel-objeto')
+  const titulo = document.getElementById('painel-titulo')
+  const sub = document.getElementById('painel-sub')
+  const ranhuras = document.getElementById('ranhuras')
+  const opcoes = document.getElementById('opcoes')
+  const previa = document.getElementById('previa')
+  const legendaPrevia = document.getElementById('previa-legenda')
+  let quemAbriu = null
+
+  function atualizarInerte() {
+    painel.inert = modoFolha.matches && painel.dataset.aberto !== 'true'
+  }
+  modoFolha.addEventListener('change', atualizarInerte)
+
+  const casas = (px) => (px / G).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  function tamanhoEmTexto(obj) {
+    const base = `${casas(obj.largura)} × ${casas(obj.altura)} casa${obj.largura / G === 1 && obj.altura / G === 1 ? '' : 's'}`
+    if (obj.tipo === 'cerca') return obj.curva > 0 ? `${base}, curva de ${obj.curva}°` : `${base}, reta`
+    return base
+  }
+
+  function selecionar(obj, { origem = 'mapa', viaTeclado = false, centrar = false } = {}) {
+    estado.selecionado = obj
+    quemAbriu = viaTeclado ? document.activeElement : null
+    montarPainel(obj)
+    painel.dataset.aberto = 'true'
+    atualizarInerte()
+    if (centrar && !estaNaTela(obj)) centrarEm(obj)
+    if (modoFolha.matches) mostrarMapaAcimaDaFolha()
+    marcarCatalogo()
+    pedirQuadro()
+    if (viaTeclado) titulo.focus({ preventScroll: modoFolha.matches })
+    else if (origem === 'mapa' && !modoFolha.matches) painel.scrollTop = 0
+  }
+
+  function fecharPainel() {
+    if (!estado.selecionado) return
+    estado.selecionado = null
+    painel.dataset.aberto = 'false'
+    painel.style.transform = ''
+    painelObjeto.hidden = true
+    painelVazio.hidden = false
+    atualizarInerte()
+    marcarCatalogo()
+    pedirQuadro()
+    if (quemAbriu && document.contains(quemAbriu)) quemAbriu.focus()
+    quemAbriu = null
+  }
+  document.getElementById('fechar').addEventListener('click', fecharPainel)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && estado.selecionado) {
+      e.preventDefault()
+      fecharPainel()
+    }
+  })
+
+  /** O objeto inteiro (com folga de 12 px) está dentro do mapa? Então escolher pelo catálogo não mexe na câmera. */
+  function estaNaTela(obj) {
+    const sp = spriteDe(obj)
+    const folga = 12
+    const x0 = estado.panX + (obj.cx + sp.pecas[0]) * estado.zoom
+    const y0 = estado.panY + (obj.cy + sp.pecas[1]) * estado.zoom
+    const x1 = estado.panX + (obj.cx + sp.pecas[2]) * estado.zoom
+    const y1 = estado.panY + (obj.cy + sp.pecas[3]) * estado.zoom
+    return x0 >= folga && y0 >= folga && x1 <= cssW - folga && y1 <= cssH - folga
+  }
+
+  /** No celular a folha cobre a metade de baixo: rola a página até o mapa ficar inteiro acima dela. */
+  function mostrarMapaAcimaDaFolha() {
+    requestAnimationFrame(() => {
+      const r = mapa.getBoundingClientRect()
+      const topoDaFolha = window.innerHeight - painel.offsetHeight
+      if (r.top >= 8 && r.bottom <= topoDaFolha - 8) return
+      window.scrollBy({ top: r.top - 8, behavior: reduzMovimento.matches ? 'auto' : 'smooth' })
+    })
+  }
+
+  function centrarEm(obj) {
+    const alvoX = cssW / 2 - obj.cx * estado.zoom
+    const alvoY = cssH / 2 - obj.cy * estado.zoom
+    const deX = estado.panX
+    const deY = estado.panY
+    if (reduzMovimento.matches) {
+      estado.panX = alvoX
+      estado.panY = alvoY
+      limitarCamera()
+      pedirQuadro()
+      return
+    }
+    const inicio = performance.now()
+    const DURACAO = 220
+    const passo = (agora) => {
+      const t = Math.min(1, (agora - inicio) / DURACAO)
+      const e = 1 - Math.pow(1 - t, 3)
+      estado.panX = deX + (alvoX - deX) * e
+      estado.panY = deY + (alvoY - deY) * e
+      limitarCamera()
+      desenhar()
+      if (t < 1) requestAnimationFrame(passo)
+    }
+    requestAnimationFrame(passo)
+  }
+
+  const amostras = new Map()
+  function amostraDe(id, madeira) {
+    const chave = MATERIAIS[id].classe === 'ref' ? `${id}:${madeira}` : id
+    let a = amostras.get(chave)
+    if (!a) {
+      a = Objetos.gerarAmostra(id, madeira, Math.min(3, Math.max(1, Math.ceil(dpr()))))
+      amostras.set(chave, a)
+    }
+    return a
+  }
+
+  function pintarAmostra(botao, obj) {
+    const canvas = botao.querySelector('canvas')
+    const a = amostraDe(botao.dataset.mat, obj.materiais.madeira)
+    canvas.width = a.canvas.width
+    canvas.height = a.canvas.height
+    canvas.getContext('2d').drawImage(a.canvas, 0, 0)
+  }
+
+  function campoDeMaterial(obj, r) {
+    const campo = el('div', 'campo')
+    const rotulo = el('span', 'campo-rotulo')
+    rotulo.id = `rotulo-${r.id}`
+    const saida = el('output', '', MATERIAIS[obj.materiais[r.id]].nome)
+    rotulo.append(`${r.nome}: `, saida)
+    const grupo = el('div', 'amostras')
+    grupo.setAttribute('role', 'radiogroup')
+    grupo.setAttribute('aria-labelledby', rotulo.id)
+    grupo.dataset.ranhura = r.id
+    for (const id of r.opcoes) {
+      const b = el('button', 'amostra')
+      b.type = 'button'
+      b.setAttribute('role', 'radio')
+      const sim = obj.materiais[r.id] === id
+      b.setAttribute('aria-checked', String(sim))
+      b.tabIndex = sim ? 0 : -1
+      b.setAttribute('aria-label', MATERIAIS[id].nome)
+      b.title = MATERIAIS[id].nome
+      b.dataset.mat = id
+      b.append(el('canvas'))
+      pintarAmostra(b, obj)
+      grupo.append(b)
+    }
+    radioGrupo(grupo, (b) => escolherMaterial(obj, r.id, b.dataset.mat, saida))
+    campo.append(rotulo, grupo)
+    return campo
+  }
+
+  function escolherMaterial(obj, ranhura, id, saida) {
+    obj.materiais[ranhura] = id
+    if (saida) saida.textContent = MATERIAIS[id].nome
+    if (ranhura === 'madeira') {
+      for (const b of ranhuras.querySelectorAll('.amostra')) if (MATERIAIS[b.dataset.mat].classe === 'ref') pintarAmostra(b, obj)
+    }
+    mudou(obj)
+  }
+
+  /** Algo do objeto mudou: gera a imagem nova já, redesenha o mapa, a prévia e o cartão. */
+  function mudou(obj) {
+    desenhar()
+    // O outro desenho deste objeto fica pronto em segundo plano, para a troca de desenho ser na hora.
+    const outro = defDe(obj, estado.estilo === 'cima' ? '34' : 'cima')
+    enfileirar(outro, Objetos.chaveDe(outro), resolucaoPara(estado.zoom * dpr()), false)
+    if (estado.selecionado === obj) {
+      sub.textContent = tamanhoEmTexto(obj)
+      desenharPrevia(obj)
+    }
+    atualizarCartao(obj)
+  }
+
+  function grupoSegmentado(rotuloTexto, id, valores, atual, aoEscolher) {
+    const campo = el('div', 'campo')
+    const rotulo = el('span', 'campo-rotulo', rotuloTexto)
+    rotulo.id = `rotulo-${id}`
+    const grupo = el('div', 'segmentado')
+    grupo.setAttribute('role', 'radiogroup')
+    grupo.setAttribute('aria-labelledby', rotulo.id)
+    grupo.id = `grupo-${id}`
+    for (const [valor, nome] of valores) {
+      const b = el('button', '', nome)
+      b.type = 'button'
+      b.setAttribute('role', 'radio')
+      b.setAttribute('aria-checked', String(valor === atual))
+      b.tabIndex = valor === atual ? 0 : -1
+      b.dataset.valor = valor
+      grupo.append(b)
+    }
+    radioGrupo(grupo, (b) => aoEscolher(b.dataset.valor))
+    campo.append(rotulo, grupo)
+    return campo
+  }
+
+  function opcoesDe(obj) {
+    const lista = []
+    if (Objetos.aceitaVista(obj.tipo)) {
+      lista.push(grupoSegmentado('Vista', 'vista', [['frente', 'Frente'], ['lado', 'Lado']], obj.vista, (v) => {
+        obj.vista = v
+        medir(obj)
+        mudou(obj)
+      }))
+    }
+    if (obj.tipo === 'tapete') {
+      lista.push(grupoSegmentado('Forma', 'forma', [['retangular', 'Retangular'], ['redondo', 'Redondo']], obj.forma, (v) => {
+        obj.forma = v
+        medir(obj)
+        mudou(obj)
+      }))
+    }
+    if (obj.tipo === 'cerca') {
+      const campo = el('div', 'campo')
+      const rotulo = el('label', 'campo-rotulo')
+      rotulo.htmlFor = 'curva'
+      const saida = el('output', '', obj.curva > 0 ? `${obj.curva}°` : 'Reta')
+      rotulo.append('Curva: ', saida)
+      const linha = el('div', 'curva')
+      const entrada = el('input')
+      Object.assign(entrada, { type: 'range', id: 'curva', min: '0', max: '180', step: '5', value: String(obj.curva) })
+      entrada.setAttribute('aria-valuetext', obj.curva > 0 ? `${obj.curva} graus` : 'reta')
+      let pendente = false
+      entrada.addEventListener('input', () => {
+        obj.curva = Number(entrada.value)
+        saida.textContent = obj.curva > 0 ? `${obj.curva}°` : 'Reta'
+        entrada.setAttribute('aria-valuetext', obj.curva > 0 ? `${obj.curva} graus` : 'reta')
+        if (pendente) return
+        pendente = true
+        requestAnimationFrame(() => {
+          pendente = false
+          mudou(obj)
+        })
+      })
+      linha.append(entrada)
+      campo.append(rotulo, linha)
+      lista.push(campo)
+    }
+    return lista
+  }
+
+  function montarPainel(obj) {
+    painelVazio.hidden = true
+    painelObjeto.hidden = false
+    titulo.textContent = obj.id === 'cerca-curva' ? 'Cerca (curva)' : ROTULO[obj.tipo]
+    sub.textContent = tamanhoEmTexto(obj)
+    ranhuras.replaceChildren(...RANURAS[obj.tipo].map((r) => campoDeMaterial(obj, r)))
+    opcoes.replaceChildren(...opcoesDe(obj))
+    desenharPrevia(obj)
+  }
+
+  function desenharPrevia(obj) {
+    const d = dpr()
+    const w = previa.clientWidth
+    const h = previa.clientHeight
+    if (!w || !h) return
+    previa.width = Math.round(w * d)
+    previa.height = Math.round(h * d)
+    const c = previa.getContext('2d')
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.fillStyle = COR_DO_CHAO[obj.area]
+    c.fillRect(0, 0, previa.width, previa.height)
+    const forma = spriteDe(obj)
+    const escala = Math.min(2, (w - 20) / forma.largura, (h - 16) / forma.altura)
+    const k = escala * d
+    const sp = spriteDe(obj, estado.estilo, k)
+    const nv = Objetos.nivel(sp, k)
+    c.imageSmoothingEnabled = true
+    c.imageSmoothingQuality = 'high'
+    c.drawImage(nv.canvas, (previa.width - sp.largura * k) / 2, (previa.height - sp.altura * k) / 2, sp.largura * k, sp.altura * k)
+    const pct = Math.round(escala * 100)
+    legendaPrevia.textContent = pct >= 200 ? 'De perto, no zoom de 200%' : `De perto, no zoom de ${pct}% (o maior que cabe aqui)`
+  }
+
+  // Folha de baixo no celular: arrastar pela alça desce junto com o dedo; soltar depois da metade ou num arremesso fecha.
+  {
+    let arrasto = null
+    const comecar = (e) => {
+      if (!modoFolha.matches || painel.dataset.aberto !== 'true' || e.target.closest('button')) return
+      arrasto = { y0: e.clientY, t0: performance.now(), dy: 0, id: e.pointerId }
+      e.currentTarget.setPointerCapture(e.pointerId)
+      painel.dataset.arrastando = 'true'
+    }
+    const mover = (e) => {
+      if (!arrasto || e.pointerId !== arrasto.id) return
+      arrasto.dy = Math.max(0, e.clientY - arrasto.y0)
+      painel.style.transform = `translateY(${arrasto.dy}px)`
+    }
+    const terminar = (e) => {
+      if (!arrasto || e.pointerId !== arrasto.id) return
+      const velocidade = arrasto.dy / Math.max(1, performance.now() - arrasto.t0)
+      const fecha = arrasto.dy > Math.min(140, painel.offsetHeight * 0.35) || (velocidade > 0.5 && arrasto.dy > 12)
+      painel.dataset.arrastando = 'false'
+      painel.style.transform = ''
+      arrasto = null
+      if (fecha) fecharPainel()
+    }
+    for (const alvo of [document.getElementById('alca'), painel.querySelector('.painel-cabeca')]) {
+      alvo.addEventListener('pointerdown', comecar)
+      alvo.addEventListener('pointermove', mover)
+      alvo.addEventListener('pointerup', terminar)
+      alvo.addEventListener('pointercancel', terminar)
+    }
+  }
+
+  // ---------- catálogo ----------
+
+  const cartoes = document.getElementById('cartoes')
+  const cartaoDe = new Map()
+
+  function nomesDosMateriais(obj) {
+    return RANURAS[obj.tipo].map((r) => MATERIAIS[obj.materiais[r.id]].nome).join(', ')
+  }
+
+  function montarCatalogo() {
+    for (const obj of doCatalogo) {
+      const li = el('li')
+      const b = el('button', 'cartao')
+      b.type = 'button'
+      b.setAttribute('aria-pressed', 'false')
+      b.dataset.id = obj.id
+      const canvas = el('canvas')
+      canvas.setAttribute('aria-hidden', 'true')
+      const nome = el('span', 'cartao-nome', ROTULO[obj.tipo])
+      const mat = el('span', 'cartao-mat', nomesDosMateriais(obj))
+      b.append(canvas, nome, mat)
+      b.addEventListener('click', (e) => selecionar(obj, { origem: 'catalogo', viaTeclado: e.detail === 0, centrar: true }))
+      li.append(b)
+      cartoes.append(li)
+      cartaoDe.set(obj.id, { b, canvas, mat })
+    }
+  }
+
+  function atualizarCartao(obj) {
+    const c = cartaoDe.get(obj.id)
+    if (!c) return
+    c.mat.textContent = nomesDosMateriais(obj)
+    const d = dpr()
+    const w = c.canvas.clientWidth
+    const h = c.canvas.clientHeight
+    if (!w || !h) return
+    c.canvas.width = Math.round(w * d)
+    c.canvas.height = Math.round(h * d)
+    const g = c.canvas.getContext('2d')
+    g.fillStyle = COR_DO_CHAO[obj.area]
+    g.fillRect(0, 0, c.canvas.width, c.canvas.height)
+    const forma = spriteDe(obj)
+    const escala = Math.min(1.25, (w - 10) / forma.largura, (h - 8) / forma.altura)
+    const k = escala * d
+    const sp = spriteDe(obj, estado.estilo, k)
+    const nv = Objetos.nivel(sp, k)
+    g.imageSmoothingEnabled = true
+    g.imageSmoothingQuality = 'high'
+    g.drawImage(nv.canvas, (c.canvas.width - sp.largura * k) / 2, (c.canvas.height - sp.altura * k) / 2, sp.largura * k, sp.altura * k)
+  }
+
+  function atualizarCatalogo() {
+    for (const obj of doCatalogo) atualizarCartao(obj)
+  }
+
+  function marcarCatalogo() {
+    for (const [id, c] of cartaoDe) c.b.setAttribute('aria-pressed', String(estado.selecionado !== null && estado.selecionado.id === id))
+  }
+
+  // ---------- início ----------
+
+  montarCatalogo()
+  atualizarInerte()
+  ajustarTamanho()
+  atualizarCatalogo()
+  new ResizeObserver(() => {
+    if (mapa.clientWidth !== cssW || mapa.clientHeight !== cssH) ajustarTamanho()
+  }).observe(mapa)
+  new ResizeObserver(() => {
+    atualizarCatalogo()
+    if (estado.selecionado) desenharPrevia(estado.selecionado)
+  }).observe(cartoes)
+
+  // Depois da primeira pintura, gera o outro desenho aos poucos (uma imagem por vez), para a troca ser na hora.
+  {
+    const S = resolucaoPara(estado.zoom * dpr())
+    const outro = estado.estilo === 'cima' ? '34' : 'cima'
+    for (const o of objetos) {
+      const def = defDe(o, outro)
+      enfileirar(def, Objetos.chaveDe(def), S, false)
+    }
+  }
+
+  // ---------- gancho para as provas (gerar-provas.cjs) ----------
+
+  window.__objetos = {
+    S_MIN,
+    S_MAX,
+    get resolucaoAtual() { return resolucaoPara(estado.zoom * dpr()) },
+    get primeiraPintura() { return primeiraPintura },
+    get primeiraPinturaDesdeAbertura() { return primeiraPinturaDesdeAbertura },
+    get salaNitida() { return salaNitida },
+    inicioDoScript: T0,
+    duracoes: () => duracoes.slice(),
+    get filaPendente() { return fila.length },
+    tempos: () => tempos.slice(),
+    estado: () => ({ estilo: estado.estilo, zoom: estado.zoom, panX: estado.panX, panY: estado.panY, selecionado: estado.selecionado && estado.selecionado.id }),
+    objetos: () => objetos.map((o) => ({ id: o.id, tipo: o.tipo, desenhado: desenhados.get(o.id) || null, cx: o.cx, cy: o.cy, largura: o.largura, altura: o.altura, materiais: { ...o.materiais }, vista: o.vista, forma: o.forma, curva: o.curva })),
+    /** Centro do objeto na tela, em px CSS do canvas. */
+    ondeNaTela: (id) => {
+      const o = porId.get(id)
+      return { x: estado.panX + o.cx * estado.zoom, y: estado.panY + o.cy * estado.zoom }
+    },
+    /** Média de cor dos pixels do mapa na caixa do objeto (para provar que algo mudou no desenho). */
+    corNoMapa: (id) => {
+      const o = porId.get(id)
+      const sp = spriteDe(o)
+      const d = dpr()
+      const k = estado.zoom * d
+      const x0 = Math.max(0, Math.floor(estado.panX * d + (o.cx + sp.pecas[0]) * k))
+      const y0 = Math.max(0, Math.floor(estado.panY * d + (o.cy + sp.pecas[1]) * k))
+      const x1 = Math.min(mapa.width, Math.ceil(estado.panX * d + (o.cx + sp.pecas[2]) * k))
+      const y1 = Math.min(mapa.height, Math.ceil(estado.panY * d + (o.cy + sp.pecas[3]) * k))
+      if (x1 <= x0 || y1 <= y0) return null
+      const px = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data
+      let r = 0
+      let g = 0
+      let b = 0
+      const n = px.length / 4
+      for (let i = 0; i < px.length; i += 4) {
+        r += px[i]
+        g += px[i + 1]
+        b += px[i + 2]
+      }
+      return { r: r / n, g: g / n, b: b / n, pixels: n }
+    },
+    definirEstilo,
+    zoomEm: (z) => zoomEm(cssW / 2, cssH / 2, z),
+    andar: (dx, dy) => {
+      estado.panX += dx
+      estado.panY += dy
+      limitarCamera()
+      pedirQuadro()
+    },
+    selecionar: (id) => selecionar(porId.get(id), { origem: 'catalogo', centrar: false }),
+    fechar: fecharPainel,
+    redesenhar: desenhar,
+    /** Volta a câmera para a sala inteira, como ao abrir. */
+    enquadrar: () => {
+      estado.zoom = zoomQueCabe(cssW, cssH)
+      estado.panX = cssW / 2 - (MAPA_W / 2) * estado.zoom
+      estado.panY = cssH / 2 - (MAPA_H / 2) * estado.zoom
+      limitarCamera()
+      atualizarZoom()
+      desenhar()
+    },
+    /** Gera uma imagem avulsa e mede: tempo, pixels cobertos e cor (saturação e brilho dos pixels opacos). */
+    gerar: (def, S) => {
+      const sp = Objetos.gerarSprite(def, S)
+      const dados = sp.canvas.getContext('2d').getImageData(0, 0, sp.canvas.width, sp.canvas.height).data
+      let opacos = 0
+      let somaSat = 0
+      let somaLum = 0
+      const sats = []
+      for (let i = 0; i < dados.length; i += 4) {
+        if (dados[i + 3] < 242) continue
+        const r = dados[i] / 255
+        const g = dados[i + 1] / 255
+        const b = dados[i + 2] / 255
+        const mx = Math.max(r, g, b)
+        const mn = Math.min(r, g, b)
+        const sat = mx > 0 ? (mx - mn) / mx : 0
+        opacos += 1
+        somaSat += sat
+        somaLum += 0.2126 * r + 0.7152 * g + 0.0722 * b
+        if (opacos % 7 === 0) sats.push(sat)
+      }
+      sats.sort((a, b) => a - b)
+      const areaPegada = def.largura * def.altura * S * S
+      return {
+        ms: sp.ms, largura: sp.canvas.width, altura: sp.canvas.height, opacos, cobertura: opacos / areaPegada,
+        satMedia: opacos ? somaSat / opacos : 0, sat95: sats.length ? sats[Math.floor(sats.length * 0.95)] : 0, lumMedia: opacos ? somaLum / opacos : 0,
+      }
+    },
+    /** Todas as combinações: cada tipo x cada material de cada escolha x desenho x vista x forma. */
+    combinacoes: () => {
+      const lista = new Map()
+      for (const tipo of Objetos.TIPOS) {
+        const vistas = Objetos.aceitaVista(tipo) ? ['frente', 'lado'] : ['frente']
+        const formas = tipo === 'tapete' ? ['retangular', 'redondo'] : ['retangular']
+        const curvas = tipo === 'cerca' ? [0, 150] : [0]
+        for (const estilo of ['cima', '34']) for (const vista of vistas) for (const forma of formas) for (const curva of curvas) {
+          const [w, h] = Objetos.tamanhoEmCasas(tipo, vista, forma)
+          const largura = (tipo === 'cerca' && curva ? 3 : w) * G
+          const padrao = Object.fromEntries(RANURAS[tipo].map((r) => [r.id, r.padrao]))
+          for (const r of RANURAS[tipo]) for (const id of r.opcoes) {
+            const def = { tipo, largura, altura: h * G, vista, forma, curva, estilo, materiais: { ...padrao, [r.id]: id } }
+            lista.set(Objetos.chaveDe(def), def)
+          }
+        }
+      }
+      return [...lista.values()]
+    },
+    /** Imagens prontas para as folhas de prova: cada def num ladrilho do chão, na escala pedida. */
+    ladrilhos: (defs, escala) => defs.map((def) => {
+      const sp = Objetos.gerarSprite(def, Math.max(1, Math.ceil(escala)))
+      const pad = 6
+      const c = document.createElement('canvas')
+      c.width = Math.ceil(sp.largura * escala + pad * 2)
+      c.height = Math.ceil(sp.altura * escala + pad * 2)
+      const g = c.getContext('2d')
+      g.fillStyle = def.chao || '#a8776a'
+      g.fillRect(0, 0, c.width, c.height)
+      g.imageSmoothingQuality = 'high'
+      g.drawImage(Objetos.nivel(sp, escala).canvas, pad, pad, sp.largura * escala, sp.altura * escala)
+      return c.toDataURL('image/png')
+    }),
+  }
+})()
+
+</script><!-- /objetos-pagina -->

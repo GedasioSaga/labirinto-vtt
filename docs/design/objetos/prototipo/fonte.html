@@ -1,0 +1,426 @@
+<title>Objetos do Mapa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-fontes media="print" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: o mapa é o protagonista (à esquerda no computador), o painel do objeto ao lado (folha de baixo no celular) e o catálogo embaixo. Cores e fontes do protótipo do telhado, já aprovado. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --acento-texto: #fff8f2;
+    --moldura: #1d211c;
+    --fundo-amostra: #a8776a;
+    --folha-sombra: 0 -10px 30px rgba(18, 22, 18, 0.22);
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-gaveta: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+      --folha-sombra: 0 -10px 30px rgba(0, 0, 0, 0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --acento-texto: #1c100b; --moldura: #0a0c0a;
+    --folha-sombra: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-block: 28px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 22px;
+  }
+  .cabeca { display: grid; gap: 6px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.6rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 62ch; color: var(--suave); font-size: 1.02rem; }
+  h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+  }
+
+  .obra { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 960px) {
+    .obra { grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; }
+  }
+
+  .palco { display: grid; gap: 10px; min-width: 0; }
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; justify-content: space-between; }
+
+  .segmentado {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    max-width: 100%;
+  }
+  .segmentado button {
+    font: 500 0.92rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 10px 14px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active { transform: scale(0.97); }
+
+  .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .zoom button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--linha);
+    border-radius: 9px;
+    background: var(--superficie);
+    color: var(--texto);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms ease;
+  }
+  .zoom button:active { transform: scale(0.97); }
+  .zoom button:disabled { opacity: 0.4; cursor: default; transform: none; }
+  .zoom button svg { width: 16px; height: 16px; }
+  .zoom .valor {
+    width: auto;
+    min-width: 62px;
+    padding: 0 8px;
+    font: 600 0.9rem/1 var(--f-texto);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(button, input, canvas, [tabindex]):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .moldura {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+  }
+  #mapa {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    cursor: grab;
+    touch-action: none;
+  }
+  #mapa[data-sobre="objeto"] { cursor: pointer; }
+  #mapa[data-arrastando="true"] { cursor: grabbing; }
+  #mapa:focus-visible { outline-offset: -3px; }
+  .dica { margin: 0; font-size: 0.86rem; color: var(--suave); }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+  .erro-canvas { margin: 0; padding: 24px; color: #f1e6dc; }
+
+  /* Painel do objeto: coluna fixa no computador, folha de baixo no celular */
+  .painel {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 12px;
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+  }
+  @media (min-width: 960px) {
+    .painel { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+    .alca, .fechar { display: none; }
+  }
+  .alca {
+    justify-self: center;
+    width: 64px;
+    height: 22px;
+    margin: -10px 0 -6px;
+    display: grid;
+    place-items: center;
+    cursor: grab;
+    touch-action: none;
+  }
+  .alca span { width: 38px; height: 5px; border-radius: 3px; background: var(--linha); }
+  .painel-vazio { display: grid; gap: 6px; }
+  .painel-vazio p { margin: 0; color: var(--suave); }
+  .painel-objeto { display: grid; gap: 14px; }
+  .painel-objeto[hidden], .painel-vazio[hidden] { display: none; }
+  .painel-cabeca { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .painel-cabeca h2 { outline: none; }
+  .painel-sub { margin: 2px 0 0; font-size: 0.86rem; color: var(--suave); }
+  .fechar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    margin: -4px -6px 0 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--suave);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 160ms ease;
+  }
+  .fechar:active { transform: scale(0.97); }
+  .fechar svg { width: 18px; height: 18px; }
+  .previa { margin: 0; display: grid; gap: 4px; }
+  .previa canvas {
+    display: block;
+    width: 100%;
+    height: 190px;
+    border-radius: 9px;
+    background: var(--fundo-amostra);
+  }
+  .previa figcaption { font-size: 0.8rem; color: var(--suave); }
+
+  .campos { display: grid; gap: 18px; }
+  .campos:empty { display: none; }
+  .campo { display: grid; gap: 8px; }
+  .campo-rotulo { font-size: 0.86rem; font-weight: 500; color: var(--suave); }
+  .campo-rotulo output { color: var(--texto); font-weight: 600; }
+  .amostras { display: flex; flex-wrap: wrap; gap: 8px; }
+  .amostra {
+    position: relative;
+    width: 52px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    background: var(--fundo-amostra);
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 160ms var(--ease-out), box-shadow 160ms ease;
+  }
+  .amostra canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+  .amostra[aria-checked="true"] { box-shadow: 0 0 0 2px var(--superficie), 0 0 0 4px var(--texto); }
+  .amostra:active { transform: scale(0.97); }
+  .curva { display: flex; align-items: center; gap: 12px; }
+  .curva input { flex: 1; min-width: 0; accent-color: var(--acento); height: 28px; }
+
+  @media (max-width: 959px) {
+    .painel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      max-height: min(62vh, 560px);
+      overflow: auto;
+      overscroll-behavior: contain;
+      border-radius: 16px 16px 0 0;
+      border-bottom: 0;
+      padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+      box-shadow: var(--folha-sombra);
+      transform: translateY(calc(100% + 24px));
+      transition: transform 200ms var(--ease-out), visibility 0s linear 200ms;
+      visibility: hidden;
+    }
+    .painel[data-aberto="true"] {
+      transform: translateY(0);
+      transition: transform 260ms var(--ease-gaveta), visibility 0s;
+      visibility: visible;
+    }
+    .painel[data-arrastando="true"] { transition: none; }
+    .painel-vazio { display: none; }
+    .previa canvas { height: 118px; }
+  }
+
+  /* Catálogo: os 11 móveis lado a lado; no celular rola só a faixa, nunca a página */
+  .catalogo { display: grid; gap: 10px; }
+  .catalogo-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  .cartoes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 959px) {
+    .cartoes {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x proximity;
+      overscroll-behavior-x: contain;
+      padding-bottom: 6px;
+      margin-inline: -2px;
+      padding-inline: 2px;
+    }
+    .cartoes li { flex: 0 0 120px; scroll-snap-align: start; }
+  }
+  .cartao {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+    padding: 6px 6px 9px;
+    text-align: left;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .cartao canvas { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; background: var(--fundo-amostra); }
+  .cartao-nome { font-weight: 600; font-size: 0.92rem; line-height: 1.2; padding-inline: 3px; }
+  .cartao-mat { font-size: 0.78rem; color: var(--suave); line-height: 1.25; padding-inline: 3px; }
+  .cartao[aria-pressed="true"] { border-color: var(--texto); box-shadow: 0 0 0 1px var(--texto); }
+  .cartao:active { transform: scale(0.97); }
+
+  .notas { display: grid; gap: 10px; border-top: 1px solid var(--linha); padding-top: 18px; }
+  .notas-colunas { display: grid; gap: 18px; }
+  @media (min-width: 760px) { .notas-colunas { grid-template-columns: 1fr 1fr; } }
+  .notas h3 { margin: 0 0 6px; font: 600 1rem/1.3 var(--f-texto); }
+  .notas ul { margin: 0; padding-left: 1.1em; display: grid; gap: 5px; max-width: 62ch; color: var(--suave); }
+  .notas li::marker { color: var(--acento); }
+  .notas strong { color: var(--texto); font-weight: 600; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .segmentado button:not([aria-checked="true"]):hover { color: var(--texto); }
+    .zoom button:not(:disabled):hover, .cartao:hover { border-color: var(--suave); }
+    .fechar:hover { background: var(--bg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .zoom button, .amostra, .cartao, .fechar { transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+    .segmentado button:active, .zoom button:active, .amostra:active, .cartao:active, .fechar:active { transform: none; }
+    .painel, .painel[data-aberto="true"] { transition: visibility 0s; }
+  }
+</style>
+
+<main class="pagina">
+  <header class="cabeca">
+    <h1>Objetos do Mapa</h1>
+    <p class="lead">Os 11 móveis do painel Objetos com textura e volume, desenhados pelo código. Troque o desenho para comparar e toque num objeto para escolher o material. Nada se mexe: a fogueira também é parada.</p>
+  </header>
+
+  <div class="obra">
+    <section class="palco" aria-label="Sala de exemplo">
+      <div class="barra">
+        <div class="segmentado" role="radiogroup" aria-label="Desenho dos objetos" id="grupo-estilo">
+          <button type="button" role="radio" aria-checked="true" data-estilo="cima" tabindex="0">De cima com volume</button>
+          <button type="button" role="radio" aria-checked="false" data-estilo="34" tabindex="-1">3/4</button>
+        </div>
+        <div class="zoom" role="group" aria-label="Zoom do mapa">
+          <button type="button" id="zoom-menos" aria-label="Afastar">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8h10"/></svg>
+          </button>
+          <button type="button" id="zoom-valor" class="valor" aria-label="Voltar o zoom para 100%">100%</button>
+          <button type="button" id="zoom-mais" aria-label="Aproximar">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8h10M8 3v10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="moldura">
+        <canvas id="mapa" tabindex="0" aria-label="Sala de exemplo com os 11 móveis. Setas andam pelo mapa, mais e menos mudam o zoom. Para escolher um objeto pelo teclado, use o catálogo abaixo." aria-describedby="dica-mapa"></canvas>
+      </div>
+      <p class="dica" id="dica-mapa">Arraste para andar pelo mapa. Roda do mouse, pinça ou <kbd>+</kbd> <kbd>−</kbd> para o zoom, de 50% a 200% como no app.</p>
+    </section>
+
+    <aside class="painel" id="painel" aria-labelledby="painel-titulo" data-aberto="false">
+      <div class="alca" id="alca" aria-hidden="true"><span></span></div>
+      <div class="painel-vazio" id="painel-vazio">
+        <h2>Material e opções</h2>
+        <p>Toque num objeto do mapa ou do catálogo. O material e as opções dele aparecem aqui.</p>
+      </div>
+      <div class="painel-objeto" id="painel-objeto" hidden>
+        <div class="painel-cabeca">
+          <div>
+            <h2 id="painel-titulo" tabindex="-1">Objeto</h2>
+            <p class="painel-sub" id="painel-sub"></p>
+          </div>
+          <button type="button" class="fechar" id="fechar" aria-label="Fechar">
+            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg>
+          </button>
+        </div>
+        <figure class="previa">
+          <canvas id="previa" aria-hidden="true"></canvas>
+          <figcaption id="previa-legenda">De perto</figcaption>
+        </figure>
+        <div id="ranhuras" class="campos"></div>
+        <div id="opcoes" class="campos"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="catalogo" aria-labelledby="catalogo-titulo">
+    <div class="catalogo-cabeca">
+      <h2 id="catalogo-titulo">Catálogo</h2>
+      <p class="dica">Os 11 móveis no desenho escolhido. Tocar num deles mostra o objeto no mapa.</p>
+    </div>
+    <ul class="cartoes" id="cartoes"></ul>
+  </section>
+
+  <section class="notas" aria-labelledby="notas-titulo">
+    <h2 id="notas-titulo">O que olhar</h2>
+    <div class="notas-colunas">
+      <div>
+        <h3>Para comparar</h3>
+        <ul>
+          <li><strong>De cima com volume</strong> é o mapa de hoje: o móvel visto reto de cima, com luz vindo de cima à esquerda, borda chanfrada e sombra no chão.</li>
+          <li><strong>3/4</strong> mostra o tampo e a frente do móvel, como em Zelda e Stardew. Fica mais alto que a pegada e cobre um pouco o que está atrás.</li>
+          <li>O zoom vai de 50% a 200%, como no app. A textura foi feita para ler nos dois extremos.</li>
+          <li>Vista de frente ou de lado, tapete redondo e cerca curva continuam como opções do objeto.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Perguntas para você</h3>
+        <ul>
+          <li>Qual dos dois desenhos vai para o app?</li>
+          <li>As listas de material fazem sentido? Falta ou sobra algum?</li>
+          <li>Algum material ficou escuro, claro ou chamativo demais no seu chão?</li>
+          <li>A fogueira parada, só com brasa e brilho, está boa? Na vista 3/4 ela tem uma chama baixa desenhada, também parada.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script id="objetos-lib">
+/*__OBJETOS__*/
+</script><!-- /objetos-lib -->
+<script id="objetos-pagina">
+/*__PAGINA__*/
+</script><!-- /objetos-pagina -->

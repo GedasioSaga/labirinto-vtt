@@ -1,0 +1,145 @@
+{
+  "geradoEm": "2026-10-20T23:56:44.356Z",
+  "passou": 19,
+  "total": 19,
+  "resultados": [
+    {
+      "n": 1,
+      "nome": "Primeira pintura da sala inteira (computador, tela 1x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "137.1 ms desde que o HTML chegou (122.6 ms desde o script; 326.4 ms desde o pedido da página, com 189.3 ms de abrir o navegador frio e ler o arquivo); tudo em 1x na primeira pintura, nítida (2x) 382.7 ms depois que o HTML chegou; meta ≤ 300 ms"
+    },
+    {
+      "n": 2,
+      "nome": "Cada imagem gerada em até 50 ms, a 2 px por px do mapa (zoom até 133% na tela comum)",
+      "ok": true,
+      "detalhe": "242 imagens; mais lenta 27.9 ms (cerca 34 frente curva 150 nogueira+varas); p95 19.1 ms"
+    },
+    {
+      "n": 3,
+      "nome": "Cada imagem gerada em até 50 ms, a 3 px por px do mapa (zoom maior e tela 2x)",
+      "ok": true,
+      "detalhe": "242 imagens; mais lenta 40.2 ms (catre cima frente carvalho+vinho+linho); p95 31.9 ms"
+    },
+    {
+      "n": 4,
+      "nome": "Toda combinação objeto × material × desenho × vista × forma desenha algo",
+      "ok": true,
+      "detalhe": "242 combinações; menor cobertura 25% da pegada (cerca cima frente carvalho+arame); 0 abaixo de 20%"
+    },
+    {
+      "n": 5,
+      "nome": "Cor contida: em cada móvel, 95% dos pixels com saturação até 0.62",
+      "ok": true,
+      "detalhe": "mais saturado 0.59 (aparador cima frente cerejeira+latao); 0 acima. Fogueira fora da regra (brasa e chama): 0.70"
+    },
+    {
+      "n": 6,
+      "nome": "Nenhum móvel some de tão escuro (brilho médio ≥ 0,12)",
+      "ok": true,
+      "detalhe": "mais escuro 0.17 (armario 34 lado nogueira+ferro)"
+    },
+    {
+      "n": 7,
+      "nome": "Clicar no móvel no mapa abre o painel dele; clicar no chão fecha",
+      "ok": true,
+      "detalhe": "clique na mesa: mesa (\"Mesa\"); clique no chão: null"
+    },
+    {
+      "n": 8,
+      "nome": "Clicar numa amostra de material troca o móvel no mapa, o rótulo e o cartão (11 de 11)",
+      "ok": true,
+      "detalhe": "11/11; menor mudança de cor média 20.2"
+    },
+    {
+      "n": 9,
+      "nome": "Seta para a direita no grupo de amostras troca o material; cada grupo tem uma parada de Tab só",
+      "ok": true,
+      "detalhe": "madeira do barril: nogueira para pinho; paradas por grupo: 1, 1"
+    },
+    {
+      "n": 10,
+      "nome": "Vista Frente/Lado (6 tipos), tapete redondo e curva da cerca continuam e mudam o desenho",
+      "ok": true,
+      "detalhe": "cadeira de lado 28×42 px; tapete redondo 112×112; cerca curva 90°; Vista aparece em 6/6 (cadeira, bau, armario, aparador, fogueira, tapete)"
+    },
+    {
+      "n": 11,
+      "nome": "O botão 3/4 troca o desenho dos 12 móveis da sala; De cima volta todos",
+      "ok": true,
+      "detalhe": "12/12 trocaram (clique a imagem pronta: 36 ms com a ida e volta do Playwright); 0 ficaram no 3/4 na volta"
+    },
+    {
+      "n": 12,
+      "nome": "Enter no cartão abre o painel com foco no título; Esc fecha e o foco volta ao cartão",
+      "ok": true,
+      "detalhe": "foco ao abrir: painel-titulo; depois do Esc: cartão bau, painel aberto=false"
+    },
+    {
+      "n": 13,
+      "nome": "p95 do quadro ≤ 17 ms andando e dando zoom (roda + arrasto, nos dois desenhos)",
+      "ok": true,
+      "detalhe": "desenhar o mapa: p95 0.3 ms, pior 2 ms em 148 quadros; intervalo entre quadros: p95 16.7 ms"
+    },
+    {
+      "n": 14,
+      "nome": "Primeira pintura no celular (390 px, tela 2x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "136.9 ms (138.4 ms desde o pedido), tudo em 1x; nítida (2x) 547.8 ms depois que o HTML chegou"
+    },
+    {
+      "n": 15,
+      "nome": "Sem rolagem para o lado no celular de 390 px",
+      "ok": true,
+      "detalhe": "scrollWidth 390 para tela de 390"
+    },
+    {
+      "n": 16,
+      "nome": "Celular: tocar no cartão abre a folha de baixo com o mapa visível acima; arrastar a alça para baixo fecha",
+      "ok": true,
+      "detalhe": "aberta: topo 321 px de 844, mapa inteiro acima dela (8 a 230 px); depois do arrasto: aberta=false, inerte=true, topo 868 px"
+    },
+    {
+      "n": 17,
+      "nome": "Tema escuro do sistema troca o fundo e o texto; data-theme=\"light\" força o claro",
+      "ok": true,
+      "detalhe": "brilho do fundo escuro 0.08, do texto 0.90; com data-theme=light o fundo vai a 0.93"
+    },
+    {
+      "n": 18,
+      "nome": "Nenhuma tarefa longa ≥ 200 ms (abrir, tocar, trocar, andar e gerar todas as combinações)",
+      "ok": true,
+      "detalhe": "tarefas acima de 50 ms: 4, a maior 138 ms"
+    },
+    {
+      "n": 19,
+      "nome": "Nenhum erro no console",
+      "ok": true,
+      "detalhe": "0 erros nas 3 páginas"
+    }
+  ],
+  "tempos": {
+    "primeiraPinturaComputadorMs": 137.1,
+    "primeiraPinturaComputadorDesdeOPedidoMs": 326.4,
+    "salaNitidaComputadorMs": 382.7,
+    "primeiraPinturaCelularMs": 136.9,
+    "salaNitidaCelularMs": 547.8,
+    "combinacoes": 242,
+    "gerarS2": {
+      "piorMs": 27.9,
+      "p95Ms": 19.1
+    },
+    "gerarS3": {
+      "piorMs": 40.2,
+      "p95Ms": 31.9
+    },
+    "quadroP95Ms": 0.3,
+    "intervaloP95Ms": 16.7
+  },
+  "imagens": [
+    "folha-contato.png",
+    "folha-materiais.png",
+    "desktop-1440.png",
+    "celular-390.png"
+  ]
+}
