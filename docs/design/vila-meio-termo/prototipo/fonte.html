@@ -1,0 +1,277 @@
+<title>Vila meio-termo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" data-fontes media="print" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* A moldura é a mesma do protótipo anterior (aprovada): o que muda é só o mapa. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --moldura: #2c3326;
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 16px;
+  }
+  .cabeca { display: grid; gap: 4px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 64ch; color: var(--suave); font-size: 1.02rem; }
+  h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.15;
+  }
+
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+  .barra .empurra { margin-left: auto; }
+  @media (max-width: 640px) { .barra .empurra { margin-left: 0; } }
+
+  .segmentado {
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+  }
+  .segmentado button, .chave {
+    font: 500 0.95rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 0 14px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  /* 4 modos a 390 px: os botões encolhem antes de quebrar a linha */
+  @media (max-width: 440px) {
+    .segmentado { display: flex; width: 100%; flex-wrap: wrap; }
+    .segmentado button { flex: 1 1 auto; padding: 0 8px; font-size: 0.9rem; }
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active, .chave:active { transform: scale(0.97); }
+
+  .chaves { display: inline-flex; gap: 6px; }
+  .chave {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--linha);
+    background: var(--superficie);
+    border-radius: 10px;
+    padding: 0 14px 0 12px;
+    min-height: 44px;
+  }
+  .chave .marca {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--suave);
+    display: grid;
+    place-items: center;
+  }
+  .chave .marca svg { width: 12px; height: 12px; opacity: 0; }
+  .chave[aria-pressed="true"] { color: var(--texto); }
+  .chave[aria-pressed="true"] .marca { background: var(--texto); border-color: var(--texto); }
+  .chave[aria-pressed="true"] .marca svg { opacity: 1; color: var(--bg); }
+  .chave:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+  .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .zoom button {
+    min-width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    font: 600 0.9rem/1 var(--f-texto);
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms ease;
+  }
+  .zoom button:active { transform: scale(0.97); }
+  .zoom button:disabled { opacity: 0.4; cursor: default; transform: none; }
+  .zoom button svg { width: 16px; height: 16px; }
+  .zoom .valor { min-width: 64px; padding: 0 8px; font-variant-numeric: tabular-nums; }
+  .zoom .texto { padding: 0 12px; font-weight: 500; }
+
+  :where(button, canvas, [tabindex]):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .moldura {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+  }
+  #mapa {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    max-height: 82svh;
+    cursor: grab;
+    touch-action: none;
+  }
+  #mapa[data-arrastando="true"] { cursor: grabbing; }
+  #mapa:focus-visible { outline-offset: -3px; }
+  @media (max-width: 640px) { #mapa { aspect-ratio: 4 / 5; max-height: 70svh; } }
+
+  .rodape-do-mapa { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline; }
+  .estado { margin: 0; font-weight: 600; font-size: 0.95rem; }
+  .dica { margin: 0; font-size: 0.86rem; color: var(--suave); max-width: 70ch; }
+  .aviso { margin: 0; font-size: 0.86rem; color: var(--acento); }
+  .aviso[hidden] { display: none; }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+  .erro-canvas { margin: 0; padding: 24px; color: #f1e6dc; }
+
+  .explica { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); margin-top: 8px; }
+  @media (min-width: 900px) { .explica { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+  .explica section { display: grid; gap: 10px; align-content: start; }
+  .mudancas ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 62ch; }
+  .mudancas li::marker { color: var(--acento); }
+  .casas-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .casa {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 6px 12px 6px 8px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    font: 500 0.95rem/1.2 var(--f-texto);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms ease;
+  }
+  .casa:active { transform: scale(0.97); }
+  .casa:disabled { opacity: 0.45; cursor: default; transform: none; }
+  .casa canvas { width: 32px; height: 32px; flex: none; }
+  .casa small { display: block; color: var(--suave); font-size: 0.8rem; }
+  @media (hover: hover) and (pointer: fine) {
+    .casa:not(:disabled):hover, .chave:not(:disabled):hover, .zoom button:not(:disabled):hover { border-color: var(--suave); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .chave, .zoom button, .casa { transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+    .segmentado button:active, .chave:active, .zoom button:active, .casa:active { transform: none; }
+  }
+</style>
+
+<div class="pagina">
+  <header class="cabeca">
+    <h1>A mesma vila, no meio do caminho</h1>
+    <p class="lead">Os objetos com o material da Textura e o chão, a árvore e os caminhos do Estilo Mother, numa paleta que fica entre os dois. Ande com o pino e troque entre os quatro modos para comparar com a mesma câmera.</p>
+  </header>
+
+  <div class="barra">
+    <div class="segmentado" role="radiogroup" aria-label="Versão do mapa">
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-modo="antes">Hoje</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-modo="depois">Textura</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-modo="mother">Estilo Mother</button>
+      <button type="button" role="radio" aria-checked="true" tabindex="0" data-modo="meio">Meio-termo</button>
+    </div>
+    <div class="chaves">
+      <button type="button" class="chave" id="b-grade" aria-pressed="true"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Grade</button>
+      <button type="button" class="chave" id="b-nomes" aria-pressed="false"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Nomes</button>
+    </div>
+    <div class="zoom empurra">
+      <button type="button" id="z-menos" aria-label="Afastar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10"/></svg></button>
+      <button type="button" id="z-valor" class="valor" aria-label="Zoom atual; tocar volta para 100%">100%</button>
+      <button type="button" id="z-mais" aria-label="Aproximar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M8 3v10"/></svg></button>
+      <button type="button" id="z-enquadrar" class="texto">Ver a vila</button>
+    </div>
+  </div>
+
+  <div class="moldura">
+    <canvas id="mapa" tabindex="0" aria-label="Mapa da vila. Setas ou W A S D andam com o pino; toque no chão para o pino ir até lá." aria-describedby="dica"></canvas>
+  </div>
+  <div class="rodape-do-mapa">
+    <p class="estado" id="estado" aria-live="polite">Na praça.</p>
+    <p class="aviso" id="aviso" hidden>Em Hoje fica só o mapa de hoje: os nomes e a ida às portas voltam em Textura, Estilo Mother e Meio-termo.</p>
+  </div>
+  <p class="dica" id="dica">Ande com as <kbd>setas</kbd> ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>. No toque ou no clique, o pino vai até o ponto tocado. Arraste para mover o mapa; roda do mouse ou pinça para o zoom.</p>
+
+  <div class="explica">
+    <section class="mudancas" aria-labelledby="t-mudou">
+      <h2 id="t-mudou">O que vem de cada lado</h2>
+      <ul>
+        <li>Da Textura: barril, caixa, baú, banco, carroça, barracas, troncos, fogueira, lampião e quadro, com o veio da madeira, o aro de ferro e o latão. O poço também, agora no meio de um campo florido.</li>
+        <li>Da Textura: a porta de batente escuro, folha de tábua, dobradiças e degrau de pedra, polida com veio de madeira, soleira e um ponto de luz na maçaneta.</li>
+        <li>Do Estilo Mother: a árvore de copa redonda, as lajes da porta até a praça, as jardineiras, o arco do portão com a flor, as placas de seta, o barranco e as trilhas de terra.</li>
+        <li>Do Estilo Mother: a grama com tufos e flores em grupinhos. O chão é gerado ponto a ponto, então nenhum pedaço se repete.</li>
+        <li>Telhados do app, em telha e madeira, e a palha do Estilo Mother no estábulo, todos com chaminé.</li>
+        <li>No meio: verde fresco, pedra clara e quente, terra alaranjada mais calma, contorno fino no escuro da própria cor e um grão leve na madeira, na pedra e na telha.</li>
+        <li>As casas, as portas, as placas e a colisão ficam onde estavam. Ao entrar pela porta, o telhado some e a casa aparece por dentro.</li>
+      </ul>
+    </section>
+    <section aria-labelledby="t-casas">
+      <h2 id="t-casas">As casas</h2>
+      <p class="dica">Toque numa casa para o pino ir até a porta dela.</p>
+      <div class="casas-lista" id="casas"></div>
+    </section>
+  </div>
+</div>
+
+<script>/*__TELHADO__*/</script>
+<script>/*__OBJETOS__*/</script>
+<script>/*__VILA__*/</script>
+<script>/*__MOTHER__*/</script>
+<script>/*__MEIO__*/</script>
+<script>/*__PAGINA__*/</script>
