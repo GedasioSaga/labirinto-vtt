@@ -1,0 +1,761 @@
+{
+  "data": "2026-10-21T17:38:56.194Z",
+  "navegador": "Chromium 153.0.8010.12 sem tela (headless), esta máquina",
+  "metas": {
+    "PRIMEIRA_PINTURA_MAX_MS": 400,
+    "P95_QUADRO_MAX_MS": 20,
+    "TAREFA_LONGA_MS": 200,
+    "PORTA_MIN": {
+      "menor": 18,
+      "maior": 24
+    },
+    "SEMENTES": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "PECAS_MIN": 25,
+    "PECAS_MAX": 35,
+    "TELHADO_MAX_MS": 320,
+    "PISO_DE_LUMINANCIA": 0.04,
+    "PALETA_MIN": 8,
+    "PALETA_MAX": 40
+  },
+  "total": 34,
+  "passaram": 34,
+  "resultados": [
+    {
+      "n": 1,
+      "nome": "Nenhuma cor escrita no mother.js fora do bloco PALETA",
+      "ok": true,
+      "detalhe": "bloco PALETA com 41 valores hex declarados; 0 cores fora dele"
+    },
+    {
+      "n": 2,
+      "nome": "Primeira pintura do mapa inteiro no Estilo Mother (computador, tela 1x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "158.1 ms (meta ≤ 400); abre em mother; etapas: cenario 18.7, chao 24.8, telhados 35.6, sombras 1.5, pecas 5.5, desenho 4.9 ms"
+    },
+    {
+      "n": 3,
+      "nome": "A paleta tem entre 8 e 40 cores base",
+      "ok": true,
+      "detalhe": "27 cores base; com realce, sombra, contorno e traço derivados são 135 tons ao todo"
+    },
+    {
+      "n": 4,
+      "nome": "Todo contorno da paleta é colorido, nunca preto (luminância ≥ 0.065)",
+      "ok": true,
+      "detalhe": "o mais escuro é o de telhaAzul, #1f4493, luminância 0.065"
+    },
+    {
+      "n": 5,
+      "nome": "A praça tem entre 25 e 35 peças",
+      "ok": true,
+      "detalhe": "34 peças (1 poco, 2 banco, 3 barraca, 2 barril, 2 caixa, 1 bau, 1 fogueira, 2 tronco, 1 carroca, 3 lampiao, 1 quadro, 4 vaso, 8 arvore, 1 arco, 2 jardineira); fora da conta: 2 placas de direção, 5 sebes, 31 árvores fora do barranco"
+    },
+    {
+      "n": 6,
+      "nome": "Cada porta tem pelo menos 18 x 24 px no zoom 100%",
+      "ok": true,
+      "detalhe": "Taverna 36 x 24; Casa da Guilda 36 x 24; Ferraria 24 x 36; Boticário 24 x 36; Empório 36 x 24; Templo 36 x 24; Estábulo 36 x 24"
+    },
+    {
+      "n": 7,
+      "nome": "Nenhuma peça cobre a porta nem fica na frente dela (até 30 px para fora)",
+      "ok": true,
+      "detalhe": "7 de 7 portas livres"
+    },
+    {
+      "n": 8,
+      "nome": "Nenhuma peça em cima dos caminhos das portas; nada (peça, sebe, barranco, casa) em cima das 4 estradas",
+      "ok": true,
+      "detalhe": "11 caminhos livres na largura inteira"
+    },
+    {
+      "n": 9,
+      "nome": "A folha de cada porta aparece por cima do telhado (cor do pixel, zoom 100%)",
+      "ok": true,
+      "detalhe": "Taverna 0, Casa da Guilda 0, Ferraria 0, Boticário 0, Empório 0, Templo 0, Estábulo 0 (diferença de cor; meta ≤ 40)"
+    },
+    {
+      "n": 10,
+      "nome": "Nenhum pixel do mapa abaixo da luminância 0.04 (contorno nunca preto)",
+      "ok": true,
+      "detalhe": "vila inteira: 0 de 1158522 abaixo, mais escuro 0.059 (rgb 90, 63, 45); porta da taverna, 260%: 0 de 1158522 abaixo, mais escuro 0.062 (rgb 117, 50, 33); poço, 260%: 0 de 1158522 abaixo, mais escuro 0.064 (rgb 111, 58, 17)"
+    },
+    {
+      "n": 11,
+      "nome": "Os 3 modos trocam o mapa com a mesma câmera e voltar ao Estilo Mother dá a mesma imagem",
+      "ok": true,
+      "detalhe": "digitais Mother 2737048441, Hoje 883963534, Textura 2803321948, Mother de novo 2737048441"
+    },
+    {
+      "n": 12,
+      "nome": "No Hoje, Nomes e as casas ficam desabilitados com o motivo escrito; na Textura voltam",
+      "ok": true,
+      "detalhe": "Hoje {\"nomes\":true,\"aviso\":true,\"casa\":true}; Textura {\"nomes\":true,\"aviso\":true}"
+    },
+    {
+      "n": 13,
+      "nome": "As setas andam pelos 3 modos com o foco junto (e dão a volta)",
+      "ok": true,
+      "detalhe": "Mother, ← ← ← →: depois/depois, antes/antes, mother/mother, antes/antes"
+    },
+    {
+      "n": 14,
+      "nome": "Grade liga e desliga (ligada ao abrir)",
+      "ok": true,
+      "detalhe": "digitais 2737048441 → 1247622902 → 2737048441"
+    },
+    {
+      "n": 15,
+      "nome": "Nomes escreve o nome das casas no mapa",
+      "ok": true,
+      "detalhe": "aria-pressed true"
+    },
+    {
+      "n": 16,
+      "nome": "Os botões de zoom mudam o zoom e 100% volta para 100%",
+      "ok": true,
+      "detalhe": "100% → 126% → 80% → 100%"
+    },
+    {
+      "n": 17,
+      "nome": "Setas e WASD andam com o pino",
+      "ok": true,
+      "detalhe": "→ 77.3 px em 0,5 s; W -64 px em 0,4 s"
+    },
+    {
+      "n": 18,
+      "nome": "O barranco segura o pino; a saída do oeste deixa passar",
+      "ok": true,
+      "detalhe": "descendo 0,9 s contra o barranco sul: parou em y = 773 (barranco em 792); pela saída do oeste chegou a x = -149 (barranco em -40)"
+    },
+    {
+      "n": 19,
+      "nome": "A parede da casa segura o pino (fora da porta)",
+      "ok": true,
+      "detalhe": "subindo 0,9 s contra a taverna: parou em y = 211 (parede em 198)"
+    },
+    {
+      "n": 20,
+      "nome": "A porta deixa passar: o pino entra na taverna",
+      "ok": true,
+      "detalhe": "y = 122.7"
+    },
+    {
+      "n": 21,
+      "nome": "O telhado some em até 320 ms depois que o pino cruza a parede, e a sala aparece",
+      "ok": true,
+      "detalhe": "283.3 ms; pixel do telhado {\"r\":75,\"g\":114,\"b\":197} → assoalho {\"r\":248,\"g\":200,\"b\":144}"
+    },
+    {
+      "n": 22,
+      "nome": "Saindo pela porta, o telhado volta",
+      "ok": true,
+      "detalhe": "progresso 0"
+    },
+    {
+      "n": 23,
+      "nome": "Clique no chão leva o pino até o ponto",
+      "ok": true,
+      "detalhe": "parou a 2.8 px do ponto clicado"
+    },
+    {
+      "n": 24,
+      "nome": "O botão da casa leva o pino até lá dentro, pela porta",
+      "ok": true,
+      "detalhe": "Templo 2.5 s; Estábulo 3 s"
+    },
+    {
+      "n": 25,
+      "nome": "Sem travada andando e dando zoom: intervalo entre quadros p95 ≤ 20 ms",
+      "ok": true,
+      "detalhe": "p95 16.7 ms em 217 quadros (maior 33.3 ms); desenhar o mapa p95 14.4 ms. Na página já lida pelas provas de pixel: p95 16.8 ms, desenhar p95 20.1 ms"
+    },
+    {
+      "n": 26,
+      "nome": "Nenhuma tarefa longa ≥ 200 ms (abrir, gerar 2x, andar e zoom; e a outra página, que também trocou de modo)",
+      "ok": true,
+      "detalhe": "página nova: nenhuma acima de 50 ms; página lida: nenhuma acima de 50 ms"
+    },
+    {
+      "n": 27,
+      "nome": "Existe caminho pelo chão andável do pino até dentro das 7 casas e até as 4 saídas",
+      "ok": true,
+      "detalhe": "casas 7 de 7; saídas Estrada do Sul sim, Trilha do Bosque sim, Saída do Leste sim, Saída do Oeste sim"
+    },
+    {
+      "n": 28,
+      "nome": "Robô com 250 ms de atraso e erro de direção chega às 7 portas e entra, nas 5 sementes (Estilo Mother)",
+      "ok": true,
+      "detalhe": "35 de 35; tempo mediano 3.6 s, pior 6.4 s; 1 vezes empacou e refez o caminho"
+    },
+    {
+      "n": 29,
+      "nome": "Mesma entrada, mesma imagem (duas aberturas, mesma câmera)",
+      "ok": true,
+      "detalhe": "4159608534 e 4159608534"
+    },
+    {
+      "n": 30,
+      "nome": "Primeira pintura no celular (390 px, tela 2x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "153 ms (meta ≤ 400)"
+    },
+    {
+      "n": 31,
+      "nome": "Celular de 390 px: sem rolagem para o lado",
+      "ok": true,
+      "detalhe": "largura do conteúdo 390 px, janela 390 px"
+    },
+    {
+      "n": 32,
+      "nome": "No celular, o mapa abre num zoom em que a porta continua com pelo menos 18 x 24 px na tela",
+      "ok": true,
+      "detalhe": "zoom 75%: porta com 27 x 18 px na tela"
+    },
+    {
+      "n": 33,
+      "nome": "Toque no chão leva o pino até o ponto (celular)",
+      "ok": true,
+      "detalhe": "de (518,462) até (439,424); alvo (438,422)"
+    },
+    {
+      "n": 34,
+      "nome": "Nenhum erro no console (computador, robô, segunda abertura e celular)",
+      "ok": true,
+      "detalhe": "0 erros"
+    }
+  ],
+  "paleta": [
+    {
+      "nome": "grama",
+      "base": "#86eab8",
+      "realce": "#adf1c2",
+      "sombra": "#66ca98",
+      "contorno": "#2ea268",
+      "linha": "#4db882",
+      "lumContorno": 0.2742097930689763
+    },
+    {
+      "nome": "terra",
+      "base": "#f8b868",
+      "realce": "#f8c878",
+      "sombra": "#e8a058",
+      "contorno": "#a3510d",
+      "linha": "#c97c36",
+      "lumContorno": 0.13700447853229225
+    },
+    {
+      "nome": "praca",
+      "base": "#d8f8e8",
+      "realce": "#e8fcf4",
+      "sombra": "#c8e8d8",
+      "contorno": "#15d374",
+      "linha": "#77dfab",
+      "lumContorno": 0.48008914863898133
+    },
+    {
+      "nome": "barranco",
+      "base": "#b87058",
+      "realce": "#d08870",
+      "sombra": "#a06040",
+      "contorno": "#7b3326",
+      "linha": "#8f4c34",
+      "lumContorno": 0.06718547285103287
+    },
+    {
+      "nome": "agua",
+      "base": "#68b0d8",
+      "realce": "#8cdce1",
+      "sombra": "#3198d2",
+      "contorno": "#176089",
+      "linha": "#257fb1",
+      "lumContorno": 0.10354043324479112
+    },
+    {
+      "nome": "rosa",
+      "base": "#f4a8d8",
+      "realce": "#f9d1e3",
+      "sombra": "#f16ec1",
+      "contorno": "#bf0f7e",
+      "linha": "#db43a3",
+      "lumContorno": 0.12924371801712534
+    },
+    {
+      "nome": "amarelo",
+      "base": "#f8e060",
+      "realce": "#faea8c",
+      "sombra": "#fbca20",
+      "contorno": "#9f790d",
+      "linha": "#d2a617",
+      "lumContorno": 0.2107473104460287
+    },
+    {
+      "nome": "violeta",
+      "base": "#b078e0",
+      "realce": "#db9de9",
+      "sombra": "#9341da",
+      "contorno": "#6819ac",
+      "linha": "#802fc5",
+      "lumContorno": 0.06616875267687122
+    },
+    {
+      "nome": "branco",
+      "base": "#f8f8f0",
+      "realce": "#f7f7ee",
+      "sombra": "#e7e4c4",
+      "contorno": "#b5a93f",
+      "linha": "#d1c988",
+      "lumContorno": 0.38558572520554923
+    },
+    {
+      "nome": "laranja",
+      "base": "#f86830",
+      "realce": "#fa945c",
+      "sombra": "#e93302",
+      "contorno": "#8e230b",
+      "linha": "#c02c06",
+      "lumContorno": 0.06977008538999636
+    },
+    {
+      "nome": "madeiraClara",
+      "base": "#f8c890",
+      "realce": "#fbe0bb",
+      "sombra": "#e0a870",
+      "contorno": "#b5580f",
+      "linha": "#cd8444",
+      "lumContorno": 0.16837693684369306
+    },
+    {
+      "nome": "madeira",
+      "base": "#d09060",
+      "realce": "#daae83",
+      "sombra": "#c16531",
+      "contorno": "#7e3b1a",
+      "linha": "#a35227",
+      "lumContorno": 0.07638130474020785
+    },
+    {
+      "nome": "madeiraEscura",
+      "base": "#a06828",
+      "realce": "#c58731",
+      "sombra": "#734218",
+      "contorno": "#703b12",
+      "linha": "#723f15",
+      "lumContorno": 0.0661634639297127
+    },
+    {
+      "nome": "reboco",
+      "base": "#f8f8d8",
+      "realce": "#fbfbe9",
+      "sombra": "#f1eca1",
+      "contorno": "#d3c015",
+      "linha": "#e4d862",
+      "lumContorno": 0.516023006533773
+    },
+    {
+      "nome": "pedra",
+      "base": "#c4d0c8",
+      "realce": "#dee4df",
+      "sombra": "#9eb9a7",
+      "contorno": "#4d7d5d",
+      "linha": "#7a9e86",
+      "lumContorno": 0.1703532524221677
+    },
+    {
+      "nome": "metal",
+      "base": "#7a8a8c",
+      "realce": "#93a19f",
+      "sombra": "#586e71",
+      "contorno": "#374e51",
+      "linha": "#496063",
+      "lumContorno": 0.06855084569137466
+    },
+    {
+      "nome": "folha",
+      "base": "#48c088",
+      "realce": "#6acc8b",
+      "sombra": "#2f9c69",
+      "contorno": "#1a6a45",
+      "linha": "#268659",
+      "lumContorno": 0.10957351412914886
+    },
+    {
+      "nome": "folhaEscura",
+      "base": "#38a878",
+      "realce": "#4bc378",
+      "sombra": "#257e58",
+      "contorno": "#155b3d",
+      "linha": "#1e6e4c",
+      "lumContorno": 0.07978522286787033
+    },
+    {
+      "nome": "fogo",
+      "base": "#f89820",
+      "realce": "#f9b44d",
+      "sombra": "#da6b01",
+      "contorno": "#82410a",
+      "linha": "#b25805",
+      "lumContorno": 0.08548334495865426
+    },
+    {
+      "nome": "papel",
+      "base": "#f8f0c0",
+      "realce": "#fcfae8",
+      "sombra": "#f5de86",
+      "contorno": "#cc9e10",
+      "linha": "#e3c151",
+      "lumContorno": 0.3732849944412279
+    },
+    {
+      "nome": "telhaAzul",
+      "base": "#7896d6",
+      "realce": "#9bc8e1",
+      "sombra": "#436fce",
+      "contorno": "#1f4493",
+      "linha": "#335cb3",
+      "lumContorno": 0.06532134744533116
+    },
+    {
+      "nome": "telhaAzulClara",
+      "base": "#94bce4",
+      "realce": "#b9e3ed",
+      "sombra": "#5e9ddd",
+      "contorno": "#1b5ea1",
+      "linha": "#4081c2",
+      "lumContorno": 0.1081162787820714
+    },
+    {
+      "nome": "telhaCinza",
+      "base": "#a8b0b8",
+      "realce": "#c1cacd",
+      "sombra": "#8191a2",
+      "contorno": "#45586b",
+      "linha": "#667789",
+      "lumContorno": 0.09306192855043618
+    },
+    {
+      "nome": "telhaTerracota",
+      "base": "#e08058",
+      "realce": "#e7a57f",
+      "sombra": "#da4b21",
+      "contorno": "#8d270f",
+      "linha": "#b73b19",
+      "lumContorno": 0.07148247792051243
+    },
+    {
+      "nome": "telhaVerde",
+      "base": "#a0c878",
+      "realce": "#bbd599",
+      "sombra": "#81bd46",
+      "contorno": "#507b25",
+      "linha": "#6b9f37",
+      "lumContorno": 0.16004962704140038
+    },
+    {
+      "nome": "palha",
+      "base": "#f8d850",
+      "realce": "#f8f080",
+      "sombra": "#e8c040",
+      "contorno": "#b07810",
+      "linha": "#cfa02a",
+      "lumContorno": 0.22700458490610526
+    },
+    {
+      "nome": "ardosia",
+      "base": "#687878",
+      "realce": "#a0b0a8",
+      "sombra": "#586868",
+      "contorno": "#364f4f",
+      "linha": "#495d5d",
+      "lumContorno": 0.06940747308467757
+    }
+  ],
+  "robo": [
+    {
+      "semente": 1,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3.23,
+      "replanos": 0,
+      "andou": 466
+    },
+    {
+      "semente": 1,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.43,
+      "replanos": 0,
+      "andou": 506
+    },
+    {
+      "semente": 1,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.17,
+      "replanos": 0,
+      "andou": 615
+    },
+    {
+      "semente": 1,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.87,
+      "replanos": 0,
+      "andou": 429
+    },
+    {
+      "semente": 1,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.67,
+      "replanos": 0,
+      "andou": 548
+    },
+    {
+      "semente": 1,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.45,
+      "replanos": 0,
+      "andou": 200
+    },
+    {
+      "semente": 1,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.8,
+      "replanos": 0,
+      "andou": 623
+    },
+    {
+      "semente": 2,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 6.43,
+      "replanos": 1,
+      "andou": 648
+    },
+    {
+      "semente": 2,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.58,
+      "replanos": 0,
+      "andou": 503
+    },
+    {
+      "semente": 2,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.17,
+      "replanos": 0,
+      "andou": 631
+    },
+    {
+      "semente": 2,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.8,
+      "replanos": 0,
+      "andou": 449
+    },
+    {
+      "semente": 2,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.88,
+      "replanos": 0,
+      "andou": 501
+    },
+    {
+      "semente": 2,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 2.03,
+      "replanos": 0,
+      "andou": 265
+    },
+    {
+      "semente": 2,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.53,
+      "replanos": 0,
+      "andou": 594
+    },
+    {
+      "semente": 3,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 2.82,
+      "replanos": 0,
+      "andou": 417
+    },
+    {
+      "semente": 3,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.55,
+      "replanos": 0,
+      "andou": 520
+    },
+    {
+      "semente": 3,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.87,
+      "replanos": 0,
+      "andou": 670
+    },
+    {
+      "semente": 3,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.9,
+      "replanos": 0,
+      "andou": 434
+    },
+    {
+      "semente": 3,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.28,
+      "replanos": 0,
+      "andou": 475
+    },
+    {
+      "semente": 3,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.53,
+      "replanos": 0,
+      "andou": 212
+    },
+    {
+      "semente": 3,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.22,
+      "replanos": 0,
+      "andou": 534
+    },
+    {
+      "semente": 4,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3,
+      "replanos": 0,
+      "andou": 415
+    },
+    {
+      "semente": 4,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.62,
+      "replanos": 0,
+      "andou": 511
+    },
+    {
+      "semente": 4,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.32,
+      "replanos": 0,
+      "andou": 625
+    },
+    {
+      "semente": 4,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 3.2,
+      "replanos": 0,
+      "andou": 435
+    },
+    {
+      "semente": 4,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.5,
+      "replanos": 0,
+      "andou": 494
+    },
+    {
+      "semente": 4,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.67,
+      "replanos": 0,
+      "andou": 237
+    },
+    {
+      "semente": 4,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 3.8,
+      "replanos": 0,
+      "andou": 510
+    },
+    {
+      "semente": 5,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3.17,
+      "replanos": 0,
+      "andou": 411
+    },
+    {
+      "semente": 5,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 4.02,
+      "replanos": 0,
+      "andou": 520
+    },
+    {
+      "semente": 5,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.48,
+      "replanos": 0,
+      "andou": 617
+    },
+    {
+      "semente": 5,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 3.33,
+      "replanos": 0,
+      "andou": 432
+    },
+    {
+      "semente": 5,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.72,
+      "replanos": 0,
+      "andou": 474
+    },
+    {
+      "semente": 5,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.9,
+      "replanos": 0,
+      "andou": 200
+    },
+    {
+      "semente": 5,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 3.65,
+      "replanos": 0,
+      "andou": 439
+    }
+  ]
+}
