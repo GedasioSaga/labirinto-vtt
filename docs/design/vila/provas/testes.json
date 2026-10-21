@@ -1,0 +1,483 @@
+{
+  "data": "2026-10-21T15:13:10.785Z",
+  "navegador": "Chromium 153.0.8010.12 sem tela (headless), esta máquina",
+  "metas": {
+    "PRIMEIRA_PINTURA_MAX_MS": 400,
+    "P95_QUADRO_MAX_MS": 20,
+    "TAREFA_LONGA_MS": 200,
+    "PORTA_MIN": {
+      "menor": 18,
+      "maior": 24
+    },
+    "SEMENTES": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "PECAS_MIN": 25,
+    "PECAS_MAX": 35,
+    "TELHADO_MAX_MS": 320
+  },
+  "total": 29,
+  "passaram": 29,
+  "resultados": [
+    {
+      "n": 1,
+      "nome": "Primeira pintura do mapa inteiro (computador, tela 1x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "188.4 ms (meta ≤ 400); etapas: ladrilhos 38.5, chao 4.4, telhados 30.2, sombras 1.7, pecas 59, pecas2 5.2, desenho 3.4 ms"
+    },
+    {
+      "n": 2,
+      "nome": "A praça tem entre 25 e 35 peças",
+      "ok": true,
+      "detalhe": "31 peças (1 poco, 2 banco, 3 barraca, 2 barril, 2 caixa, 1 bau, 1 fogueira, 2 tronco, 1 carroca, 3 lampiao, 1 quadro, 4 vaso, 8 arvore); fora da conta: 2 placas de direção, 63 árvores fora do muro, 53 móveis dentro das casas"
+    },
+    {
+      "n": 3,
+      "nome": "Cada porta tem pelo menos 18 x 24 px no zoom 100%",
+      "ok": true,
+      "detalhe": "Taverna 36 x 24; Casa da Guilda 36 x 24; Ferraria 24 x 36; Boticário 24 x 36; Empório 36 x 24; Templo 36 x 24; Estábulo 36 x 24 (hoje: 5 x 5)"
+    },
+    {
+      "n": 4,
+      "nome": "Nenhuma peça cobre a porta nem fica na frente dela (até 30 px para fora)",
+      "ok": true,
+      "detalhe": "7 de 7 portas livres"
+    },
+    {
+      "n": 5,
+      "nome": "Nenhuma peça em cima dos caminhos das portas nem das duas estradas",
+      "ok": true,
+      "detalhe": "9 caminhos livres na largura inteira"
+    },
+    {
+      "n": 6,
+      "nome": "A folha de cada porta aparece por cima do telhado (cor do pixel, zoom 100%)",
+      "ok": true,
+      "detalhe": "Taverna 0, Casa da Guilda 0, Ferraria 0, Boticário 0, Empório 0, Templo 0, Estábulo 0 (diferença de cor; meta ≤ 40)"
+    },
+    {
+      "n": 7,
+      "nome": "Antes troca o mapa pelo de hoje e Depois volta ao mesmo desenho",
+      "ok": true,
+      "detalhe": "digitais 2803321948 → 883963534 → 2803321948"
+    },
+    {
+      "n": 8,
+      "nome": "No Antes, Nomes e as casas ficam desabilitados com o motivo escrito",
+      "ok": true,
+      "detalhe": "{\"nomes\":true,\"aviso\":true,\"casa\":true}"
+    },
+    {
+      "n": 9,
+      "nome": "A seta troca Antes/Depois quando o foco está nos botões",
+      "ok": true,
+      "detalhe": "seta esquerda → antes"
+    },
+    {
+      "n": 10,
+      "nome": "Grade liga e desliga (ligada ao abrir)",
+      "ok": true,
+      "detalhe": "digitais 2803321948 → 3375205137 → 2803321948"
+    },
+    {
+      "n": 11,
+      "nome": "Nomes escreve o nome das casas no mapa",
+      "ok": true,
+      "detalhe": "aria-pressed true"
+    },
+    {
+      "n": 12,
+      "nome": "Os botões de zoom mudam o zoom e 100% volta para 100%",
+      "ok": true,
+      "detalhe": "100% → 126% → 80% → 100%"
+    },
+    {
+      "n": 13,
+      "nome": "Setas e WASD andam com o pino",
+      "ok": true,
+      "detalhe": "→ 82.7 px em 0,5 s; W -64 px em 0,4 s"
+    },
+    {
+      "n": 14,
+      "nome": "A parede da casa segura o pino (fora da porta)",
+      "ok": true,
+      "detalhe": "subindo 0,9 s contra a taverna: parou em y = 211 (parede em 198)"
+    },
+    {
+      "n": 15,
+      "nome": "A porta deixa passar: o pino entra na taverna",
+      "ok": true,
+      "detalhe": "y = 120"
+    },
+    {
+      "n": 16,
+      "nome": "O telhado some em até 320 ms depois que o pino cruza a parede, e a sala aparece",
+      "ok": true,
+      "detalhe": "283.3 ms; pixel do telhado {\"r\":11,\"g\":44,\"b\":81} → assoalho {\"r\":129,\"g\":99,\"b\":65}"
+    },
+    {
+      "n": 17,
+      "nome": "Saindo pela porta, o telhado volta",
+      "ok": true,
+      "detalhe": "progresso 0"
+    },
+    {
+      "n": 18,
+      "nome": "Clique no chão leva o pino até o ponto",
+      "ok": true,
+      "detalhe": "parou a 2.5 px do ponto clicado"
+    },
+    {
+      "n": 19,
+      "nome": "O botão da casa leva o pino até lá dentro, pela porta",
+      "ok": true,
+      "detalhe": "Templo 2.4 s; Estábulo 2.9 s"
+    },
+    {
+      "n": 20,
+      "nome": "Sem travada andando e dando zoom: intervalo entre quadros p95 ≤ 20 ms",
+      "ok": true,
+      "detalhe": "p95 16.8 ms em 228 quadros (maior 33.3 ms); desenhar o mapa p95 18.2 ms"
+    },
+    {
+      "n": 21,
+      "nome": "Nenhuma tarefa longa ≥ 200 ms na sessão inteira (abrir, gerar 2x, andar, zoom)",
+      "ok": true,
+      "detalhe": "maior 59 ms; 1 acima de 50 ms"
+    },
+    {
+      "n": 22,
+      "nome": "Existe caminho pelo chão andável do pino até dentro das 7 casas",
+      "ok": true,
+      "detalhe": "7 de 7"
+    },
+    {
+      "n": 23,
+      "nome": "Robô com 250 ms de atraso e erro de direção chega às 7 portas e entra, nas 5 sementes",
+      "ok": true,
+      "detalhe": "35 de 35; tempo mediano 3.6 s, pior 6.4 s; 1 vezes empacou e refez o caminho"
+    },
+    {
+      "n": 24,
+      "nome": "Mesma entrada, mesma imagem (duas aberturas, mesma câmera)",
+      "ok": true,
+      "detalhe": "2258292579 e 2258292579"
+    },
+    {
+      "n": 25,
+      "nome": "Primeira pintura no celular (390 px, tela 2x), desde que o HTML chegou",
+      "ok": true,
+      "detalhe": "191.9 ms (meta ≤ 400)"
+    },
+    {
+      "n": 26,
+      "nome": "Celular de 390 px: sem rolagem para o lado",
+      "ok": true,
+      "detalhe": "largura do conteúdo 390 px, janela 390 px"
+    },
+    {
+      "n": 27,
+      "nome": "No celular, o mapa abre num zoom em que a porta continua com pelo menos 18 x 24 px na tela",
+      "ok": true,
+      "detalhe": "zoom 75%: porta com 27 x 18 px na tela"
+    },
+    {
+      "n": 28,
+      "nome": "Toque no chão leva o pino até o ponto (celular)",
+      "ok": true,
+      "detalhe": "de (518,462) até (439,424); alvo (438,422)"
+    },
+    {
+      "n": 29,
+      "nome": "Nenhum erro no console (computador, robô, segunda abertura e celular)",
+      "ok": true,
+      "detalhe": "0 erros"
+    }
+  ],
+  "robo": [
+    {
+      "semente": 1,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3.23,
+      "replanos": 0,
+      "andou": 466
+    },
+    {
+      "semente": 1,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.43,
+      "replanos": 0,
+      "andou": 506
+    },
+    {
+      "semente": 1,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.17,
+      "replanos": 0,
+      "andou": 615
+    },
+    {
+      "semente": 1,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.87,
+      "replanos": 0,
+      "andou": 429
+    },
+    {
+      "semente": 1,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.68,
+      "replanos": 0,
+      "andou": 519
+    },
+    {
+      "semente": 1,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 2.35,
+      "replanos": 0,
+      "andou": 263
+    },
+    {
+      "semente": 1,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.8,
+      "replanos": 0,
+      "andou": 623
+    },
+    {
+      "semente": 2,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 6.43,
+      "replanos": 1,
+      "andou": 648
+    },
+    {
+      "semente": 2,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.58,
+      "replanos": 0,
+      "andou": 503
+    },
+    {
+      "semente": 2,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.17,
+      "replanos": 0,
+      "andou": 631
+    },
+    {
+      "semente": 2,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.8,
+      "replanos": 0,
+      "andou": 449
+    },
+    {
+      "semente": 2,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.73,
+      "replanos": 0,
+      "andou": 514
+    },
+    {
+      "semente": 2,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.08,
+      "replanos": 0,
+      "andou": 171
+    },
+    {
+      "semente": 2,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.53,
+      "replanos": 0,
+      "andou": 594
+    },
+    {
+      "semente": 3,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 2.82,
+      "replanos": 0,
+      "andou": 417
+    },
+    {
+      "semente": 3,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.55,
+      "replanos": 0,
+      "andou": 520
+    },
+    {
+      "semente": 3,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.87,
+      "replanos": 0,
+      "andou": 670
+    },
+    {
+      "semente": 3,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 2.9,
+      "replanos": 0,
+      "andou": 434
+    },
+    {
+      "semente": 3,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.28,
+      "replanos": 0,
+      "andou": 475
+    },
+    {
+      "semente": 3,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.38,
+      "replanos": 0,
+      "andou": 191
+    },
+    {
+      "semente": 3,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 4.22,
+      "replanos": 0,
+      "andou": 534
+    },
+    {
+      "semente": 4,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3,
+      "replanos": 0,
+      "andou": 415
+    },
+    {
+      "semente": 4,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 3.62,
+      "replanos": 0,
+      "andou": 511
+    },
+    {
+      "semente": 4,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.32,
+      "replanos": 0,
+      "andou": 625
+    },
+    {
+      "semente": 4,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 3.2,
+      "replanos": 0,
+      "andou": 435
+    },
+    {
+      "semente": 4,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 4.85,
+      "replanos": 0,
+      "andou": 662
+    },
+    {
+      "semente": 4,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.37,
+      "replanos": 0,
+      "andou": 186
+    },
+    {
+      "semente": 4,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 3.8,
+      "replanos": 0,
+      "andou": 510
+    },
+    {
+      "semente": 5,
+      "casa": "Taverna",
+      "ok": true,
+      "tempo": 3.17,
+      "replanos": 0,
+      "andou": 411
+    },
+    {
+      "semente": 5,
+      "casa": "Casa da Guilda",
+      "ok": true,
+      "tempo": 4.02,
+      "replanos": 0,
+      "andou": 520
+    },
+    {
+      "semente": 5,
+      "casa": "Ferraria",
+      "ok": true,
+      "tempo": 4.48,
+      "replanos": 0,
+      "andou": 617
+    },
+    {
+      "semente": 5,
+      "casa": "Boticário",
+      "ok": true,
+      "tempo": 3.33,
+      "replanos": 0,
+      "andou": 432
+    },
+    {
+      "semente": 5,
+      "casa": "Empório",
+      "ok": true,
+      "tempo": 3.82,
+      "replanos": 0,
+      "andou": 487
+    },
+    {
+      "semente": 5,
+      "casa": "Templo",
+      "ok": true,
+      "tempo": 1.5,
+      "replanos": 0,
+      "andou": 172
+    },
+    {
+      "semente": 5,
+      "casa": "Estábulo",
+      "ok": true,
+      "tempo": 3.65,
+      "replanos": 0,
+      "andou": 439
+    }
+  ]
+}
