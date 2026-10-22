@@ -25,6 +25,7 @@ import {
   type ToolVariantStoreKey,
 } from '../lib/toolVariants'
 import { ToolVariantMenu, readVariantValue, type ToolVariantBindings } from './ToolVariantMenu'
+import { ComSaida } from './grimorio/ComSaida'
 import { Balao } from './grimorio/Balao'
 import { movimentoReduzido } from './grimorio/comum'
 import { TOOL_ICONS } from './toolIcons'
@@ -605,6 +606,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                     // quem anuncia a mudança é o balão, que é `role="status"`.
                     <span ref={markRef} aria-hidden="true" style={VARIANT_MARK_STYLE} />
                   )}
+                  <ComSaida>
                   {view.groups && menuOpen && (
                     <ToolVariantMenu
                       title={view.label}
@@ -622,6 +624,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                       }}
                     />
                   )}
+                  </ComSaida>
                 </div>
               )
             })}

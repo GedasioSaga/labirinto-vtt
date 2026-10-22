@@ -7,8 +7,11 @@ import { theme } from '../../theme'
  * desmontar o elemento: os números são os mesmos dos dois lados.
  */
 
-/** `.gr-pop.gr-sai` (gr-pop-sai, 110 ms). */
-export const SAIDA_DO_POP_MS = 110
+/**
+ * `.gr-pop.gr-sai` e `.gr-anima.gr-sai` (transição de 120 ms). Transição, e não
+ * keyframe: reabrir no meio da saída volta do ponto em que estava, sem piscar.
+ */
+export const SAIDA_DO_POP_MS = 120
 /** `.gr-dlg-fundo.gr-sai` (gr-fade-sai, 140 ms). */
 export const SAIDA_DO_DIALOGO_MS = 140
 /** `.gr-balao` some na mesma transição de opacidade com que aparece. */

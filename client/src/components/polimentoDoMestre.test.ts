@@ -190,8 +190,11 @@ describe('M9 — o fundo da janela escurece num esmaecer curto', () => {
     expect(veu.get('background')).toBe('rgba(0, 0, 0, 0.32)')
     expect(veu.get('animation')).toBe(`lb-fundo-entra ${BASE}`)
     expect(compacto(normal)).toContain('@keyframes lb-fundo-entra { from { opacity: 0; } }')
-    // Atalhos abre pela tecla "?": nem a caixa nem o véu animam.
-    expect(regra(normal, '.lb-dialog-backdrop:has(> .lb-shortcuts)::before').get('animation')).toBe('none')
+    // Atalhos abre pela tecla "?": nem a caixa nem o véu animam. Desde a fatia 20
+    // ela está na casca do Grimório (`Dialogo semEntrada`), e a regra mora lá.
+    const grimorio = separar(await lerCss('./grimorio/grimorio.css')).normal
+    expect(regra(grimorio, '.gr-dlg-fundo--parado').get('animation')).toBe('none')
+    expect(regra(grimorio, '.gr-dlg-fundo--parado .gr-dlg').get('animation')).toBe('none')
     expect(regra(reduzido, '.lb-dialog-backdrop::before').get('animation')).toBe('none')
   })
 

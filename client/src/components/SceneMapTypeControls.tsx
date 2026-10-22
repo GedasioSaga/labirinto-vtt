@@ -45,23 +45,9 @@ const OPCOES: readonly { tipo: TipoDeMapa; rotulo: string }[] = [
  * "Mapa-mundi" das Configurações do mapa, mora aqui, dentro do Continente.
  * Escolha única no padrão `lb-seg` de `DoorKindControls`.
  */
-export function SceneMapTypeControls({
-  tipo,
-  onTipoChange,
-  caravana,
-  onCaravanaChange,
-  relevo = false,
-  onRelevoChange,
-  nomesDosLugares = false,
-  onNomesDosLugaresChange,
-  nuvens = false,
-  onNuvensChange,
-}: SceneMapTypeControlsProps) {
+export function SceneMapTypeControls({ tipo, onTipoChange, caravana, onCaravanaChange }: SceneMapTypeControlsProps) {
   const tipoHintId = useId()
   const caravanaHintId = useId()
-  const relevoHintId = useId()
-  const nomesHintId = useId()
-  const nuvensHintId = useId()
   return (
     <section className="lb-section lb-cena-config__tipo">
       <h2 className="lb-eyebrow">Tipo de mapa</h2>
@@ -92,6 +78,44 @@ export function SceneMapTypeControls({
           </p>
         </div>
       )}
+    </section>
+  )
+}
+
+/** O "Mapa vivo" tem o que mostrar: pelo menos uma das chaves veio com quem a muda. */
+export function temMapaVivo(props: SceneMapTypeControlsProps): boolean {
+  return props.onRelevoChange !== undefined || props.onNomesDosLugaresChange !== undefined || props.onNuvensChange !== undefined
+}
+
+/** "Mapa vivo: ligado" quando alguma chave que aparece está ligada. */
+export function mapaVivoLigado(props: SceneMapTypeControlsProps): boolean {
+  return (
+    (props.onRelevoChange !== undefined && props.relevo === true) ||
+    (props.onNomesDosLugaresChange !== undefined && props.nomesDosLugares === true) ||
+    (props.onNuvensChange !== undefined && props.nuvens === true)
+  )
+}
+
+/**
+ * Seção "Mapa vivo" do "Configurar cena" (fatia 20): as chaves do que se mexe
+ * sozinho no mapa (Relevo, Nomes dos lugares, Nuvens), que antes ficavam
+ * embaixo do Tipo de mapa. Mesmas props do Tipo de mapa: cada chave só aparece
+ * com quem a muda, e a chave que a fatia do relevo trouxer entra aqui.
+ */
+export function SceneMapaVivoControls({
+  relevo = false,
+  onRelevoChange,
+  nomesDosLugares = false,
+  onNomesDosLugaresChange,
+  nuvens = false,
+  onNuvensChange,
+}: SceneMapTypeControlsProps) {
+  const relevoHintId = useId()
+  const nomesHintId = useId()
+  const nuvensHintId = useId()
+  return (
+    <section className="lb-section">
+      <h2 className="lb-eyebrow">Mapa vivo</h2>
       {onRelevoChange !== undefined && (
         <div className="lb-field">
           <Toggle label="Relevo" checked={relevo} describedBy={relevoHintId} onChange={onRelevoChange} />

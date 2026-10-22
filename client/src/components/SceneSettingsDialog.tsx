@@ -1,8 +1,7 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { CloseIcon } from './icons'
+import { Dialogo } from './grimorio/Dialogo'
+import { NavegacaoVertical, type SecaoDaNavegacao } from './grimorio/NavegacaoVertical'
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
-import { SceneMapTypeControls, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
+import { SceneMapaVivoControls, SceneMapTypeControls, temMapaVivo, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
 
 /** Raio em px que o jogador usa quando a cena não diz nada (`DEFAULT_VISION_RADIUS`, `net/hostBridge.ts`). */
 export const RAIO_PADRAO_PX = 700
@@ -21,6 +20,8 @@ export interface SceneSettingsDialogProps {
   vision: Required<Pick<SceneVisionControlsProps, 'dark' | 'onDarkChange'>> & SceneVisionControlsProps
   /** "Tipo de mapa" (Normal | Continente) e a caravana dentro do Continente. Ausente omite a seção. */
   mapType?: SceneMapTypeControlsProps
+  /** A seção que abre à vista (`SECAO_MAPA_VIVO`); ausente ou sem conteúdo, a primeira. */
+  secaoInicial?: string
   onClose: () => void
 }
 
@@ -67,66 +68,26 @@ export function VisionPreview({ cells, dark }: { cells: number; dark: boolean })
   )
 }
 
-const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+/** A seção "Mapa vivo": o atalho da página Cena abre a janela já nela. */
+export const SECAO_MAPA_VIVO = 'mapa-vivo'
 
 /**
  * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena,
- * com o radar ao lado, e o "Tipo de mapa" embaixo (09/10/2026). Abre pelo
- * botão de engrenagem na linha da cena.
+ * com o radar ao lado, o "Tipo de mapa" (09/10/2026) e o "Mapa vivo" (fatia
+ * 20: Relevo, Nomes dos lugares, Nuvens). Abre pelo botão de engrenagem na
+ * linha da cena, e pelo "Mapa vivo" da página Cena.
+ *
+ * Casca do Grimório: `Dialogo` com a navegação vertical; os controles são os
+ * de antes. O foco entra no campo da visão, o que se mexe mais.
  */
-export function SceneSettingsDialog({ sceneName, cellPx, vision, mapType, onClose }: SceneSettingsDialogProps) {
-  const titleId = useId()
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const pressStartedOnBackdrop = useRef(false)
+export function SceneSettingsDialog({ sceneName, cellPx, vision, mapType, secaoInicial, onClose }: SceneSettingsDialogProps) {
   const { cells, padrao } = raioEmQuadrados(vision.visionCells, cellPx)
-
-  useEffect(() => {
-    dialogRef.current?.querySelector<HTMLElement>('input')?.focus()
-  }, [])
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    // Janela modal: nenhuma tecla daqui vale como atalho do editor.
-    event.stopPropagation()
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-    if (event.key !== 'Tab') return
-    const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
-    if (items.length === 0) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
-  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
-    if (pressStartedOnBackdrop.current && event.target === event.currentTarget) onClose()
-    pressStartedOnBackdrop.current = false
-  }
-
-  return createPortal(
-    <div
-      className="lb-dialog-backdrop"
-      onMouseDown={(event) => (pressStartedOnBackdrop.current = event.target === event.currentTarget)}
-      onClick={onBackdropClick}
-    >
-      <div ref={dialogRef} className="lb-panel lb-dialog lb-cena-config" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}>
-        <header className="lb-dialog__head">
-          <h2 id={titleId} className="lb-dialog__title">
-            Configurar {sceneName}
-          </h2>
-          <button type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
-            <CloseIcon size={16} />
-          </button>
-        </header>
-        <div className="lb-dialog__body lb-scroll lb-cena-config__corpo">
+  const secoes: SecaoDaNavegacao[] = [
+    {
+      id: 'visao',
+      rotulo: 'Visão',
+      conteudo: (
+        <div className="lb-cena-config__corpo">
           <SceneVisionControls {...vision} />
           <figure className="lb-cena-config__radar">
             <VisionPreview cells={cells} dark={vision.dark} />
@@ -135,11 +96,20 @@ export function SceneSettingsDialog({ sceneName, cellPx, vision, mapType, onClos
               {vision.dark ? ' Cena escura: fora da casa da ficha, só o que uma Luz ilumina.' : ''} Vezes o fator de cada jogador.
             </figcaption>
           </figure>
-          {/* Depois da visão: o foco inicial continua no campo da visão, o que se mexe mais. */}
-          {mapType !== undefined && <SceneMapTypeControls {...mapType} />}
         </div>
-      </div>
-    </div>,
-    document.body,
+      ),
+    },
+  ]
+  if (mapType !== undefined) {
+    secoes.push({ id: 'tipo', rotulo: 'Tipo de mapa', conteudo: <SceneMapTypeControls {...mapType} /> })
+    // Sem chave nenhuma, a seção não aparece vazia.
+    if (temMapaVivo(mapType)) secoes.push({ id: SECAO_MAPA_VIVO, rotulo: 'Mapa vivo', conteudo: <SceneMapaVivoControls {...mapType} /> })
+  }
+  const inicial = secoes.some((secao) => secao.id === secaoInicial) ? secaoInicial : undefined
+
+  return (
+    <Dialogo aberto titulo={`Configurar ${sceneName}`} onFechar={onClose} classe="lb-cena-config">
+      <NavegacaoVertical rotulo="Seções da configuração da cena" secoes={secoes} secaoInicial={inicial} />
+    </Dialogo>
   )
 }

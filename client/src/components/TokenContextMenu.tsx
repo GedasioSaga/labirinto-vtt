@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import type { PlayerNoteDelivery } from '../net/hostSession'
 import { useToastStore } from '../stores/toastStore'
 import { NoteForm } from './ScenesSection'
+import { classes } from './grimorio/comum'
+import type { ComSaidaFilho } from './grimorio/ComSaida'
 
 /** Quem joga com o token: a mensagem do menu vai só a ele. */
 export interface JogadorDoToken {
@@ -44,7 +46,7 @@ export function mensagemDoTokenFeedback(name: string, delivery: PlayerNoteDelive
  * setas com volta, Home/End, Esc fecha e devolve o foco, clique fora fecha.
  * "Enviar mensagem…" troca os itens pelo campo do recado (`NoteForm`).
  */
-export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogadores, onMensagem, onClose }: TokenContextMenuProps) {
+export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogadores, onMensagem, onClose, saindo = false }: TokenContextMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   // Quem tinha o foco antes de o menu abrir: o Esc devolve a ele.
@@ -69,6 +71,8 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
   }, [x, y, escrevendoPara])
 
   useEffect(() => {
+    // Saindo, o menu já fechou: o clique fora não o fecha de novo.
+    if (saindo) return
     // `pointerdown`, como no menu da porta: fecha antes de o clique acertar o que está por baixo.
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return
@@ -76,7 +80,7 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
     }
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [onClose])
+  }, [onClose, saindo])
 
   const enviar = (jogador: JogadorDoToken, text: string) => {
     if (onMensagem === undefined) return
@@ -140,7 +144,8 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
   return (
     <div
       ref={menuRef}
-      className={escrevendoPara === null ? 'lb-panel lb-portamenu' : 'lb-panel lb-portamenu lb-tokenmenu--escrevendo'}
+      className={classes('lb-panel lb-portamenu gr-anima', escrevendoPara !== null && 'lb-tokenmenu--escrevendo', saindo && 'gr-sai')}
+      inert={saindo}
       role={escrevendoPara === null ? 'menu' : 'dialog'}
       aria-label={`Token: ${tokenName}`}
       style={{ left: x, top: y }}

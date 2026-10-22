@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
+import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -8503,10 +8504,13 @@ export function PixiCanvas({
     // nome fica num irmão para o React nunca reconciliar filhos do Pixi.
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {doorMenu && (
-        // `key`: outra porta (ou a mesma de novo) remonta o menu, e o foco volta ao primeiro item.
-        <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
-      )}
+      {/* Fechado, o menu ainda sai em 120 ms (`ComSaida`). */}
+      <ComSaida>
+        {doorMenu && (
+          // `key`: outra porta (ou a mesma de novo) remonta o menu, e o foco volta ao primeiro item.
+          <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
+        )}
+      </ComSaida>
       {nameEditor && editorPosition && editorCamera && (
         <input
           // Trocar de alvo remonta o campo, para o autoFocus valer de novo.

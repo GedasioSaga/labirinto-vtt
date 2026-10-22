@@ -190,7 +190,7 @@ describe('SceneOverviewDialog', () => {
 
   it('clique no fundo fecha; clique dentro da janela não fecha', () => {
     const { onClose } = render()
-    const fundo = document.body.querySelector<HTMLElement>('.lb-dialog-backdrop')
+    const fundo = document.body.querySelector<HTMLElement>('.gr-dlg-fundo')
     const aberta = janela()
     if (!fundo || !aberta) throw new Error('janela não abriu')
     act(() => {

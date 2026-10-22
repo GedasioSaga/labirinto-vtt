@@ -2,6 +2,7 @@ import { act, useRef, useState, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Balao } from './Balao'
+import { SAIDA_DO_POP_MS } from './comum'
 import { Dialogo } from './Dialogo'
 import { MenuItem, Pop } from './Pop'
 import { Torrada } from './Torrada'
@@ -103,7 +104,7 @@ describe('Pop (menu)', () => {
     expect(document.activeElement).toBe(botao('Mais ações'))
     expect(botao('Mais ações').getAttribute('aria-expanded')).toBe('false')
     expect(um('.gr-pop').classList.contains('gr-sai')).toBe(true)
-    passar(110)
+    passar(SAIDA_DO_POP_MS)
     expect(no('.gr-pop')).toBeNull()
   })
 
@@ -114,7 +115,7 @@ describe('Pop (menu)', () => {
     act(() => botao('ApagarDel').click())
     expect(aoEscolher).toHaveBeenCalledWith('apagar')
     expect(document.activeElement).toBe(botao('Mais ações'))
-    passar(110)
+    passar(SAIDA_DO_POP_MS)
     act(() => botao('Mais ações').click())
     act(() => {
       botao('Fora').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))

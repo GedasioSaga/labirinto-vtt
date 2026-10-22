@@ -60,6 +60,49 @@
   }
 }
 
+/*
+ * TORRADA (fatia 20): o aviso de informação ou de erro na casca do Grimório
+ * (`.gr-torrada`, grimorio.css): papel escuro, filete, o "Desfazer" em latão.
+ * Entra e sai por transição e não pela animação acima: a saída existe (a pilha
+ * guarda a cópia do que some, Toast.tsx) e, no canto de cima à direita, ela
+ * chega e vai pela direita, e não por baixo como no pé do mapa.
+ */
+.lb-toaststack .lb-toast.gr-torrada {
+  flex-wrap: wrap;
+  max-width: 100%;
+  padding: 6px 6px 6px 14px;
+  animation: none;
+}
+
+@starting-style {
+  .lb-toaststack .lb-toast.gr-torrada {
+    transform: translateX(10px);
+  }
+}
+
+.lb-toaststack .lb-toast.gr-torrada.gr-sai {
+  transform: translateX(6px);
+}
+
+.gr-torrada .gr-torrada__msg {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lb-toast--error.gr-torrada {
+  border-color: var(--lb-color-ember);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-toaststack .lb-toast.gr-torrada,
+  .lb-toaststack .lb-toast.gr-torrada.gr-sai {
+    transform: none;
+  }
+}
+
 .lb-toast__body {
   flex: 1;
   display: flex;

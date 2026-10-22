@@ -1,6 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { SettingsIcon, CloseIcon } from './icons'
+import { useRef, useState } from 'react'
+import { SettingsIcon } from './icons'
 import { GridControls, type GridControlsProps } from './GridControls'
 import { GridAlignControls, type GridAlignControlsProps } from './GridAlignControls'
 import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
@@ -12,10 +11,11 @@ import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorCo
 import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { Balao } from './grimorio/Balao'
 import { Botao } from './grimorio/Botao'
+import { Dialogo } from './grimorio/Dialogo'
+import { NavegacaoVertical, type SecaoDaNavegacao } from './grimorio/NavegacaoVertical'
 import { IconeDoLivro } from './livro/icones'
 import { SistemaDeRpgDoMapa } from './SistemaDeRpgControls'
 import { FEATURES } from '../lib/features'
-import { theme } from '../theme'
 
 export interface MapSettingsProps {
   grid: GridControlsProps
@@ -44,32 +44,14 @@ interface ScenarioLinkVisibility {
   showSceneFloor?: boolean
 }
 
-const FOCUSABLE =
-  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-
-/**
- * Entrada da janela: opacidade e escala de 0,95 a 1, como as outras janelas
- * (Exportar imagem, Visão geral, Corte da Torre). Tempo e curva vêm do tema; o
- * véu escuro atrás entra no mesmo tempo (`.lb-dialog-backdrop::before`).
- */
-const ENTRADA_QUADROS: Keyframe[] = [
-  { opacity: 0, transform: 'scale(0.95)' },
-  { opacity: 1, transform: 'scale(1)' },
-]
-const ENTRADA_TEMPO: KeyframeAnimationOptions = { duration: Number.parseFloat(theme.motion.base), easing: theme.motion.ease }
-
-function focusablesIn(root: HTMLElement | null): HTMLElement[] {
-  return root ? Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)) : []
-}
-
 /**
  * Janela "Configurações do mapa": o que é do mapa inteiro e se mexe pouco
  * (formato e estilo da grade, alinhamento à imagem, medição, tamanho, link de cenário)
  * sai do painel lateral e mora aqui.
  *
- * Vai por portal para o `body` porque o painel usa `backdrop-filter`, que faz
- * dele o bloco de contenção de `position: fixed` — dentro dele a janela ficaria
- * presa na coluna de 264px.
+ * Casca do Grimório (fatia 20): o `Dialogo` (portal no `body`, foco preso,
+ * Esc e fundo fecham, o foco volta a quem abriu) com a navegação vertical à
+ * esquerda. As seções e os controles de dentro são os de antes, na mesma ordem.
  */
 export function MapSettingsDialog({
   onClose,
@@ -85,101 +67,45 @@ export function MapSettingsDialog({
   showScenarioLink = FEATURES.scenarioLink,
   showSceneFloor = FEATURES.andarDoPredio,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
-  const titleId = useId()
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const bodyRef = useRef<HTMLDivElement>(null)
-  // Fecha só se o clique COMEÇOU no fundo: arrastar um slider da janela e
-  // soltar fora dispara `click` no ancestral comum, que é o próprio fundo.
-  const pressStartedOnBackdrop = useRef(false)
   const hasBackgroundImage = gridAlign.imageWidth !== null && gridAlign.imageHeight !== null
-
-  useEffect(() => {
-    const [first] = focusablesIn(bodyRef.current)
-    ;(first ?? dialogRef.current)?.focus()
-    const box = dialogRef.current
-    // `animate` não existe em jsdom, e quem pediu menos movimento não recebe nenhum.
-    if (box && typeof box.animate === 'function' && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      box.animate(ENTRADA_QUADROS, ENTRADA_TEMPO)
-    }
-  }, [])
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    // Janela modal: nenhuma tecla daqui vale como atalho do editor (Delete
-    // apagando a seleção, letras trocando de ferramenta, Esc desmarcando).
-    event.stopPropagation()
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-    if (event.key !== 'Tab') return
-    const items = focusablesIn(dialogRef.current)
-    if (items.length === 0) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
-  function onBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
-    pressStartedOnBackdrop.current = event.target === event.currentTarget
-  }
-
-  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
-    if (pressStartedOnBackdrop.current && event.target === event.currentTarget) onClose()
-    pressStartedOnBackdrop.current = false
-  }
-
-  return createPortal(
-    <div className="lb-dialog-backdrop" onMouseDown={onBackdropMouseDown} onClick={onBackdropClick}>
-      <div
-        ref={dialogRef}
-        className="lb-panel lb-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-      >
-        <header className="lb-dialog__head">
-          <h2 id={titleId} className="lb-dialog__title">
-            Configurações do mapa
-          </h2>
-          <button type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
-            <CloseIcon size={16} />
-          </button>
-        </header>
-        <div ref={bodyRef} className="lb-dialog__body lb-scroll">
-          <GridControls {...grid} />
-          {hasBackgroundImage ? (
-            <GridAlignControls {...gridAlign} />
-          ) : (
-            <section className="lb-section">
-              <h2 className="lb-eyebrow">Alinhar grade à imagem</h2>
-              <p className="lb-field__hint">
-                Importe uma imagem de fundo pela barra de baixo para ajustar a grade às casas desenhadas nela.
-              </p>
-            </section>
-          )}
+  const secoes: SecaoDaNavegacao[] = [
+    { id: 'grade', rotulo: 'Grade', conteudo: <GridControls {...grid} /> },
+    {
+      id: 'alinhar',
+      rotulo: 'Alinhar à imagem',
+      conteudo: hasBackgroundImage ? (
+        <GridAlignControls {...gridAlign} />
+      ) : (
+        <section className="lb-section">
+          <h2 className="lb-eyebrow">Alinhar grade à imagem</h2>
+          <p className="lb-field__hint">Importe uma imagem de fundo pela barra de baixo para ajustar a grade às casas desenhadas nela.</p>
+        </section>
+      ),
+    },
+    {
+      id: 'medicao',
+      rotulo: 'Medição',
+      conteudo: (
+        <>
           <MapScaleControls {...mapScale} />
           {/* Logo depois da Medição: o passo máximo conta com a mesma régua. */}
           {movement && <MovementControls {...movement} />}
-          <MapSizeControls {...mapSize} />
-          {arrivalText && <ArrivalTextControls {...arrivalText} />}
-          {showSceneFloor && sceneFloor && <SceneFloorControls {...sceneFloor} />}
-          {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
-          {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
-          {/* Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela. */}
-          <SistemaDeRpgDoMapa />
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </>
+      ),
+    },
+    { id: 'tamanho', rotulo: 'Tamanho do mapa', conteudo: <MapSizeControls {...mapSize} /> },
+  ]
+  if (arrivalText) secoes.push({ id: 'chegada', rotulo: 'Texto de chegada', conteudo: <ArrivalTextControls {...arrivalText} /> })
+  if (showSceneFloor && sceneFloor) secoes.push({ id: 'andar', rotulo: 'Andar do prédio', conteudo: <SceneFloorControls {...sceneFloor} /> })
+  if (faceRange !== undefined) secoes.push({ id: 'rostos', rotulo: 'Rostos', conteudo: <FaceRangeControls {...faceRange} /> })
+  if (showScenarioLink) secoes.push({ id: 'cenario', rotulo: 'Link de cenário', conteudo: <ScenarioLinkControls {...scenarioLink} /> })
+  // Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela.
+  secoes.push({ id: 'sistema', rotulo: 'Sistema de RPG', conteudo: <SistemaDeRpgDoMapa /> })
+
+  return (
+    <Dialogo aberto titulo="Configurações do mapa" onFechar={onClose}>
+      <NavegacaoVertical rotulo="Seções das configurações do mapa" secoes={secoes} />
+    </Dialogo>
   )
 }
 

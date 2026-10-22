@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { FEATURES } from '../lib/features'
-import { hiddenTools, resolveShortcut, TOOL_SHORTCUTS, type ShortcutEvent } from '../lib/keymap'
+import { hiddenTools, isRightColumnShortcut, resolveShortcut, TOOL_SHORTCUTS, type ShortcutEvent } from '../lib/keymap'
+import { isFindObjectShortcut } from '../lib/mapObjects'
 import { ALT_TOQUE_JANELA_MS, classificarSolturaDoAlt } from '../lib/toqueDeAlt'
 import type { DrawingTool } from '../types/tools'
 import { TOOL_LABELS, TOOLBAR_SLOTS, toolsOfSlot } from './labels'
-import { DOCUMENTED_ACTIONS, shortcutColumns, type ShortcutRow } from './shortcutSheet'
+import { DOCUMENTED_ACTIONS, SHORTCUT_COLUMN_TITLES, shortcutColumns, type ShortcutRow } from './shortcutSheet'
 
 // A tela de atalhos não pode prometer tecla que não faz nada (nem esquecer
 // uma que faz). Este arquivo aperta cada linha da tela no mapa de teclas de
@@ -128,6 +129,53 @@ describe('shortcutSheet — o que a tela de atalhos mostra', () => {
     const question = allRows().filter((row) => row.combo.keys.includes('?'))
     expect(question.map((row) => row.action?.kind).sort()).toEqual(['showShortcuts', 'togglePinType'])
     for (const row of question) expect(row.what.toLowerCase()).toContain('pino')
+  })
+
+  it('duas colunas como no protótipo: Ferramentas (letras da barra e variantes) e Geral (o resto)', () => {
+    const colunas = shortcutColumns()
+    expect(colunas).toHaveLength(SHORTCUT_COLUMN_TITLES.length)
+    expect([...SHORTCUT_COLUMN_TITLES]).toEqual(['Ferramentas', 'Geral'])
+    const [ferramentas, geral] = colunas
+    expect(ferramentas.map((group) => group.title)).toEqual(['Construir', 'Desenhar e anotar', 'Barra de ferramentas'])
+    expect(geral.map((group) => group.title)).toEqual(['Editar', 'Arquivo', 'Vista', 'Traço ponto a ponto'])
+    expect(geral.flatMap((group) => group.rows).some((row) => toolOf(row) !== null)).toBe(false)
+  })
+
+  it('atalhos de fora do mapa de teclas que existem de verdade estão na tela, e o tratamento real os aceita', () => {
+    const rows = allRows()
+    const linha = (what: string) => {
+      const achada = rows.find((row) => row.what === what)
+      if (achada === undefined) throw new Error(`sem a linha "${what}"`)
+      return achada
+    }
+    // Ctrl+K: o App abre a busca do topo (`isFindObjectShortcut`).
+    const procurar = linha('Procurar no mapa')
+    expect(procurar.combo.keys).toEqual(['Ctrl', 'K'])
+    expect(isFindObjectShortcut(pressOf(procurar))).toBe(true)
+    // Shift+J: o livro da mesa recolhe (`isRightColumnShortcut`).
+    const livro = linha('Recolher ou abrir a página do livro da mesa')
+    expect(isRightColumnShortcut(pressOf(livro))).toBe(true)
+    // Ctrl+Shift+Z refaz, além do Ctrl+Y (o mapa de teclas aceita os dois).
+    const refazer = rows.filter((row) => row.what === 'Refazer').map((row) => row.combo.keys.join('+'))
+    expect(refazer).toEqual(['Ctrl+Y', 'Ctrl+Shift+Z'])
+    // O cantinho da barra abre as variantes pelo clique direito e por segurar (Toolbar.tsx, onContextMenu e SEGURAR_PARA_VARIANTES_MS).
+    expect(linha('Abrir as variantes da ferramenta').combo).toEqual({ keys: [], mouse: 'clique direito ou segurar o botão' })
+  })
+
+  it('toda combinação com Ctrl que o mapa de teclas aceita está na tela', () => {
+    const naTela = new Set(allRows().map((row) => row.combo.keys.join('+')))
+    const aperto = (key: string, shiftKey: boolean) => ({ key, ctrlKey: true, metaKey: false, shiftKey, altKey: false, targetTagName: '' })
+    for (const letra of 'abcdefghijklmnopqrstuvwxyz0'.split('')) {
+      const semShift = resolveShortcut(aperto(letra, false))
+      if (semShift !== null || isFindObjectShortcut(aperto(letra, false))) {
+        expect(naTela.has(`Ctrl+${letra.toUpperCase()}`), `Ctrl+${letra.toUpperCase()} funciona e não está na tela`).toBe(true)
+      }
+      // Com Shift, só conta quando o Shift muda o que a tecla faz (Ctrl+Shift+Z refaz, Ctrl+Shift+G desagrupa).
+      const comShift = resolveShortcut(aperto(letra, true))
+      if (comShift !== null && JSON.stringify(comShift) !== JSON.stringify(semShift)) {
+        expect(naTela.has(`Ctrl+Shift+${letra.toUpperCase()}`), `Ctrl+Shift+${letra.toUpperCase()} funciona e não está na tela`).toBe(true)
+      }
+    }
   })
 
   it('agrupada por assunto: vários grupos com título, nenhum vazio, nenhuma linha comprida', () => {

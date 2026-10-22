@@ -9,6 +9,7 @@ import type { BrushMode } from '../lib/baldeDeTinta'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
+import type { ComSaidaFilho } from './grimorio/ComSaida'
 
 /** Tamanho do desenho do móvel ao lado de cada opção de Objetos — o mesmo dos ícones do grupo Forma. */
 const MOBILIA_ICON_SIZE = 16
@@ -142,6 +143,8 @@ function VariantOption({
       aria-checked={checked}
       aria-label={option.label}
       aria-describedby={descId}
+      // Na grade de duas colunas a descrição sai da vista; o balão nativo a mostra a quem para o ponteiro.
+      title={option.description}
       className={icon ? 'lb-toolvariant-menu__option lb-toolvariant-menu__option--icon' : 'lb-toolvariant-menu__option'}
       disabled={inativo}
       onClick={onPick}
@@ -403,7 +406,7 @@ export function dividirEmColunas(groups: ToolVariantGroup[], quantas: number): T
  * clique OU teclado de graça: a setinha é um `<button>` nativo, e Enter/Space
  * nele já disparam `onClick` sem nenhum código extra aqui.
  */
-export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, iconFor }: ToolVariantMenuProps) {
+export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, iconFor, saindo = false }: ToolVariantMenuProps & ComSaidaFilho) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [colunas, setColunas] = useState(1)
   const [ancorarPelaDireita, setAncorarPelaDireita] = useState(false)
@@ -463,15 +466,18 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
     return () => window.removeEventListener('resize', ajustar)
   }, [colunas])
 
-  const classes = ['lb-panel', 'lb-scroll', 'lb-toolvariant-menu']
+  // `gr-anima`: entra e sai em 150/120 ms com a curva do app; a saída é do `ComSaida` em volta (Toolbar.tsx).
+  const classes = ['lb-panel', 'lb-scroll', 'lb-toolvariant-menu', 'gr-anima']
   if (colunasDeGrupos.length > 1) classes.push('lb-toolvariant-menu--multi')
   if (ancorarPelaDireita) classes.push('lb-toolvariant-menu--direita')
+  if (saindo) classes.push('gr-sai')
 
   return (
     <div
       ref={rootRef}
       tabIndex={-1}
       className={classes.join(' ')}
+      inert={saindo}
       role="group"
       aria-label={`Opções de ${title}`}
       onKeyDown={(event) => {

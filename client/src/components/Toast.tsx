@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { FormEvent, RefObject } from 'react'
+import type { FormEvent, ReactNode, RefObject } from 'react'
 import { GRUPO_DO_TESTE } from '../net/visaoDeTeste/avisosDeTeste'
 import type { ToastMessage, ToastResposta } from '../stores/toastStore'
 import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
+import { Torrada } from './grimorio/Torrada'
 import './Toast.css'
 
 interface ToastProps {
@@ -84,20 +85,147 @@ export function Toast({ toasts, onDismiss, onPausar, onRetomar }: ToastProps) {
     escrever: (id, texto) => setTextos((atual) => ({ ...Object.fromEntries(Object.entries(atual).filter(([chave]) => vivos.has(chave))), [id]: texto })),
   }
 
-  if (toasts.length === 0) return null
+  const { saindo, saiu } = useTorradasSaindo(toasts)
+
+  if (toasts.length === 0 && saindo.length === 0) return null
+
+  const itens: ReactNode[] = agruparAvisos(toasts).map((item) =>
+    item.tipo === 'aviso' ? (
+      ehTorrada(item.toast) ? (
+        <TorradaDoAviso key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+      ) : (
+        <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+      )
+    ) : (
+      <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} rascunhos={rascunhos} />
+    ),
+  )
+  // A torrada que sai fica onde estava enquanto some: a pilha só fecha o vão depois.
+  for (const { toast, indice } of saindo) {
+    itens.splice(Math.min(indice, itens.length), 0, <TorradaDoAviso key={toast.id} toast={toast} onDismiss={onDismiss} rascunhos={rascunhos} aoSair={saiu} />)
+  }
 
   return (
     <RespostasEmCurso.Provider value={respostasEmCurso}>
       <div ref={pilhaRef} className="lb-toaststack">
-        {agruparAvisos(toasts).map((item) =>
-          item.tipo === 'aviso' ? (
-            <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
-          ) : (
-            <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} rascunhos={rascunhos} />
-          ),
-        )}
+        {itens}
       </div>
     </RespostasEmCurso.Provider>
+  )
+}
+
+/**
+ * Aviso de informação ou de erro, sem campo de resposta: a torrada do Grimório
+ * (fatia 20). Pedidos, instruções e os avisos da janela de teste seguem na
+ * casca deles: esperam resposta, não somem sozinhos.
+ */
+export function ehTorrada(toast: ToastMessage): boolean {
+  return (toast.kind === 'info' || toast.kind === 'error') && toast.grupo !== GRUPO_DO_TESTE && toast.resposta === undefined
+}
+
+interface TorradaSaindo {
+  toast: ToastMessage
+  /** Onde estava na pilha: a saída acontece no mesmo lugar. */
+  indice: number
+}
+
+/**
+ * As torradas que a store acabou de tirar (prazo vencido, ×, Desfazer), que
+ * ainda ficam na tela enquanto a transição de saída do CSS corre. A store não
+ * espera: o aviso já saiu dela, e a pilha guarda só a cópia do que some. A
+ * conta é feita no render, e não num efeito: o nó da torrada nunca sai do DOM
+ * no meio (sairia e voltaria do zero, sem a saída).
+ */
+function useTorradasSaindo(toasts: readonly ToastMessage[]): { saindo: readonly TorradaSaindo[]; saiu: (id: string) => void } {
+  const [saindo, setSaindo] = useState<readonly TorradaSaindo[]>([])
+  const [anteriores, setAnteriores] = useState(toasts)
+  if (anteriores !== toasts) {
+    const vivos = new Set(toasts.map((toast) => toast.id))
+    const foram = anteriores.flatMap((toast, indice) => (!vivos.has(toast.id) && ehTorrada(toast) ? [{ toast, indice }] : []))
+    // O aviso que voltou com o mesmo id (o mesmo erro de novo) não está mais saindo.
+    const ficam = saindo.filter((item) => !vivos.has(item.toast.id))
+    setAnteriores(toasts)
+    if (foram.length > 0 || ficam.length !== saindo.length) setSaindo([...ficam, ...foram])
+  }
+  const saiu = useCallback((id: string) => setSaindo((atual) => atual.filter((item) => item.toast.id !== id)), [])
+  return { saindo, saiu }
+}
+
+interface TorradaDoAvisoProps {
+  toast: ToastMessage
+  onDismiss: (id: string) => void
+  rascunhos: Rascunhos
+  /** Saindo: a pilha a tira quando a transição de saída acaba. */
+  aoSair?: (id: string) => void
+}
+
+function TorradaDoAviso({ toast, onDismiss, rascunhos, aoSair }: TorradaDoAvisoProps) {
+  const raiz = useRef<HTMLDivElement>(null)
+  const saindo = aoSair !== undefined
+
+  useLayoutEffect(() => {
+    const caixa = raiz.current
+    if (aoSair === undefined || caixa === null) return
+    // O foco não fica num aviso que já saiu: a pilha volta a correr (`usePausaEnquantoLe`).
+    const focado = document.activeElement
+    if (focado instanceof HTMLElement && caixa.contains(focado)) focado.blur()
+    // Espera a transição de saída que o CSS acabou de ligar; sem transição, sai já.
+    const transicoes = typeof caixa.getAnimations === 'function' ? caixa.getAnimations() : []
+    if (transicoes.length === 0) {
+      aoSair(toast.id)
+      return
+    }
+    let valendo = true
+    Promise.all(transicoes.map((transicao) => transicao.finished)).then(
+      () => {
+        if (valendo) aoSair(toast.id)
+      },
+      // Cancelada: o aviso voltou (o mesmo id de novo) e não está mais saindo.
+      () => {},
+    )
+    return () => {
+      valendo = false
+    }
+  }, [aoSair, toast.id])
+
+  return (
+    <Torrada
+      ref={raiz}
+      className={`lb-toast lb-toast--${toast.kind}`}
+      papel={toast.kind === 'info' ? 'status' : 'alert'}
+      duracaoMs={null}
+      saindo={saindo}
+      mensagem={
+        <>
+          <span className="lb-toast__text">{toast.text}</span>
+          {toast.detalhe !== undefined && <DetalheVivo ler={toast.detalhe} />}
+        </>
+      }
+      // O primeiro botão é a resposta esperada ("Desfazer"), em latão; os outros, fantasma.
+      acoes={
+        <>
+          <AcoesDoAviso
+            toast={toast}
+            rascunhos={rascunhos}
+            classeDoPrimeiro="gr-bt gr-bt--latao gr-bt--p"
+            classeDosOutros="gr-bt gr-bt--fantasma gr-bt--p"
+            onResponder={() => onDismiss(toast.id)}
+          />
+          {/* O × de sempre (mesmo nome e mesmo texto do aviso solto), no fim da torrada. */}
+          <button
+            type="button"
+            className="lb-toast__dismiss"
+            onClick={() => {
+              onDismiss(toast.id)
+              toast.onDismiss?.()
+            }}
+            aria-label="Dispensar aviso"
+          >
+            ×
+          </button>
+        </>
+      }
+    />
   )
 }
 
@@ -368,8 +496,10 @@ function DetalheVivo({ ler }: { ler: () => string }) {
 interface AcoesDoAvisoProps {
   toast: ToastMessage
   rascunhos: Rascunhos
-  /** Classe do primeiro botão (a resposta esperada); os outros são sempre fantasma. */
+  /** Classe do primeiro botão (a resposta esperada); os outros são fantasma. */
   classeDoPrimeiro: string
+  /** Classe dos outros botões; padrão o fantasma da casca antiga. */
+  classeDosOutros?: string
   /** Tira o aviso da tela (e, na caixa, lembra o foco): a pergunta respondida não pode ficar clicável. */
   onResponder: () => void
 }
@@ -388,7 +518,7 @@ interface AcoesDoAvisoProps {
  * Campo com `enviar` (o "Responder" do chamado): vira o botão de
  * `RespostaNoAviso`, depois dos outros.
  */
-function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, onResponder }: AcoesDoAvisoProps) {
+function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, classeDosOutros = 'lb-btn lb-btn--ghost', onResponder }: AcoesDoAvisoProps) {
   const campoId = useId()
   const campo = toast.resposta
   if (toast.actions === undefined && campo === undefined) return null
@@ -417,7 +547,7 @@ function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, onResponder }: Acoes
           <button
             key={action.label}
             type="button"
-            className={index === 0 ? classeDoPrimeiro : 'lb-btn lb-btn--ghost'}
+            className={index === 0 ? classeDoPrimeiro : classeDosOutros}
             onClick={() => {
               if (action.mantem !== true) onResponder()
               // Aviso sem campo acima dos botões chama como sempre chamou: sem argumento.

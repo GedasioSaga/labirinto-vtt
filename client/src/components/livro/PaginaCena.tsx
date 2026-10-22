@@ -6,6 +6,7 @@ import { GridQuickToggles, TelhadosQuickToggles, type GridControlsProps } from '
 import { LayersPanel, type LayersPanelProps } from '../LayersPanel'
 import { TerritorioControls, type TerritorioControlsProps } from '../TerritorioControls'
 import { Fichas } from '../grimorio/Ficha'
+import { Nota } from '../grimorio/Nota'
 import { FichaDaPagina } from './FichaDaPagina'
 import { TituloDaPagina } from './FolhaDoLivro'
 
@@ -21,6 +22,14 @@ export interface PaginaCenaProps {
   floorLayers?: FloorLayersListProps
   layers: LayersPanelProps
   grid: GridControlsProps
+  /** Leitura do "Mapa vivo" da cena e quem abre o "Configurar cena" nessa seção; ausente, a linha não aparece. */
+  mapaVivo?: MapaVivoDaCena
+}
+
+export interface MapaVivoDaCena {
+  /** Alguma chave do Mapa vivo (Relevo, Nomes dos lugares, Nuvens) está ligada. */
+  ligado: boolean
+  onAbrir: () => void
 }
 
 const contarPecas = (n: number): string => (n === 1 ? '1 peça' : `${n} peças`)
@@ -40,12 +49,18 @@ function resumoDasCamadas(layers: LayersPanelProps): string {
  * delas, os mesmos controles. A página mostra tudo sempre, sem o "momento de mapa" que escondia
  * seções conforme a ferramenta: quem abriu o marcador Cena veio ver a cena.
  */
-export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid }: PaginaCenaProps) {
+export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid, mapaVivo }: PaginaCenaProps) {
   // Com o pincel do chão na mão a lista aparece mesmo sem peça: é nela que se vê onde a primeira pincelada cai.
   const temCamadasDoChao = floorLayers !== undefined && (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined)
   return (
     <>
       <TituloDaPagina titulo="Esta cena" sub={`${mapName}, ${mapWidth} × ${mapHeight} casas de ${mapGrid} px`} />
+      {/* Só leitura: as chaves moram no "Configurar cena", seção Mapa vivo, que o link abre. */}
+      {mapaVivo !== undefined && (
+        <div className="gr-paginas__mapa-vivo">
+          <Nota ir={{ rotulo: 'Configurar', onClick: mapaVivo.onAbrir }}>Mapa vivo: {mapaVivo.ligado ? 'ligado' : 'desligado'}.</Nota>
+        </div>
+      )}
       <div className="lb-zona gr-paginas">
         <Fichas>
           {objetos}

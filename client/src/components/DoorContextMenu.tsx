@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useMapStore } from '../stores/mapStore'
+import type { ComSaidaFilho } from './grimorio/ComSaida'
 
 export interface DoorContextMenuProps {
   /** A parede-porta clicada com o botão direito. */
@@ -26,8 +27,12 @@ const EDGE_GAP_PX = 8
  * e devolve o foco a quem o tinha, clique fora fecha. Cada item é um passo do
  * desfazer (as mesmas ações do painel da porta).
  */
-export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps) {
-  const door = useMapStore((state) => state.map.walls.find((w) => w.id === wallId)?.door ?? null)
+export function DoorContextMenu({ wallId, x, y, onClose, saindo = false }: DoorContextMenuProps & ComSaidaFilho) {
+  const doorAgora = useMapStore((state) => state.map.walls.find((w) => w.id === wallId)?.door ?? null)
+  // Saindo, o menu mostra a porta de quando fechou: "Abrir" não vira "Fechar" no meio da saída.
+  const [doorDaSaida, setDoorDaSaida] = useState(doorAgora)
+  if (!saindo && doorDaSaida !== doorAgora) setDoorDaSaida(doorAgora)
+  const door = saindo ? doorDaSaida : doorAgora
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   // Quem tinha o foco antes de o menu abrir: o Esc devolve a ele.
@@ -35,8 +40,8 @@ export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps)
 
   // A porta sumiu por baixo do menu (Ctrl+Z, outra ação): não há mais o que editar.
   useEffect(() => {
-    if (door === null) onClose()
-  }, [door, onClose])
+    if (door === null && !saindo) onClose()
+  }, [door, onClose, saindo])
 
   // Só ao abrir: o foco não volta ao primeiro item a cada render.
   useEffect(() => {
@@ -55,6 +60,8 @@ export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps)
   }, [x, y])
 
   useEffect(() => {
+    // Saindo, o menu já fechou: o clique fora não o fecha de novo.
+    if (saindo) return
     // `pointerdown`, como no menu da cena: fecha antes de o clique acertar o que está por baixo.
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return
@@ -62,7 +69,7 @@ export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps)
     }
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [onClose])
+  }, [onClose, saindo])
 
   if (door === null) return null
 
@@ -123,7 +130,8 @@ export function DoorContextMenu({ wallId, x, y, onClose }: DoorContextMenuProps)
   return (
     <div
       ref={menuRef}
-      className="lb-panel lb-portamenu"
+      className={saindo ? 'lb-panel lb-portamenu gr-anima gr-sai' : 'lb-panel lb-portamenu gr-anima'}
+      inert={saindo}
       role="menu"
       aria-label="Porta"
       style={{ left: x, top: y }}
