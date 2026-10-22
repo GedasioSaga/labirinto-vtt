@@ -3,7 +3,9 @@ import { Graphics } from 'pixi.js'
 import {
   ANIMACOES_EMBUTIDAS,
   CONTORNO_DA_PORTA,
+  curvaDoSentido,
   desenharBatente,
+  duracaoDoSentido,
   desenharFolhaFechada,
   DURACAO_DE_ANIMACAO_MAX_MS,
   ESCURO_DA_SOMBRA,
@@ -19,6 +21,7 @@ import {
   registrarAnimacaoDePorta,
   type PortaParaDesenho,
 } from './animacoesDePorta'
+import { easeOutCubic } from '../transicoes/curvas'
 import type { DoorState } from '../types/map'
 
 afterEach(() => esquecerAnimacoesDePortaDeFora())
@@ -267,6 +270,47 @@ describe('registro de animações de porta — de fora (pacote, Fase B)', () => 
       expect(animacao !== null && 'som' in animacao).toBe(false)
     }
   })
+
+  it('tempo de fechar e curvas do pacote: válidos ficam (copiados), e cada sentido usa os seus', () => {
+    const curvaAbrir = [0.2, 0, 0.4, 1]
+    const curvaFechar = [0.5, 0, 0.8, 0.4]
+    expect(registrarAnimacaoDePorta(deFora({ duracaoFecharMs: 220, curvaAbrir, curvaFechar }))).toBe(true)
+    const animacao = animacaoDePorta('pacote-x')
+    if (animacao === null) throw new Error('a animação deveria estar no registro')
+    expect(animacao.duracaoFecharMs).toBe(220)
+    expect(duracaoDoSentido(animacao, true)).toBe(400)
+    expect(duracaoDoSentido(animacao, false)).toBe(220)
+    expect(animacao.curvaAbrir).toEqual(curvaAbrir)
+    expect(animacao.curvaFechar).toEqual(curvaFechar)
+    // Cópia: o pacote mexer no array depois não muda a curva registrada.
+    curvaAbrir[1] = -5
+    expect(animacao.curvaAbrir).toEqual([0.2, 0, 0.4, 1])
+    expect(curvaDoSentido(animacao, true)).not.toBe(easeOutCubic)
+  })
+
+  it.each<unknown>([0, -1, DURACAO_DE_ANIMACAO_MAX_MS + 1, '260', Number.NaN, Number.POSITIVE_INFINITY, null])(
+    'tempo de fechar torto (%j): a animação entra e fecha no tempo de abrir',
+    (torto) => {
+      expect(registrarAnimacaoDePorta(deFora({ duracaoFecharMs: torto }))).toBe(true)
+      const animacao = animacaoDePorta('pacote-x')
+      if (animacao === null) throw new Error('a animação deveria estar no registro')
+      expect('duracaoFecharMs' in animacao).toBe(false)
+      expect(duracaoDoSentido(animacao, false)).toBe(animacao.duracaoMs)
+    },
+  )
+
+  it.each<unknown>([[0.3, -0.2, 0.6, 1], [0.3, 0.2, 1.4, 1], [0.3, 0.2, 0.6], 'ease-out', [Number.NaN, 0, 1, 1], null])(
+    'curva torta (%j): a animação entra e anda na curva de sempre nos dois sentidos',
+    (torta) => {
+      expect(registrarAnimacaoDePorta(deFora({ curvaAbrir: torta, curvaFechar: torta }))).toBe(true)
+      const animacao = animacaoDePorta('pacote-x')
+      if (animacao === null) throw new Error('a animação deveria estar no registro')
+      expect(animacao.curvaAbrir).toBeUndefined()
+      expect(animacao.curvaFechar).toBeUndefined()
+      expect(curvaDoSentido(animacao, true)).toBe(easeOutCubic)
+      expect(curvaDoSentido(animacao, false)).toBe(easeOutCubic)
+    },
+  )
 
   it('pacote sem som (cliente e pacote de antes do campo): entra igual, mudo', () => {
     registrarAnimacaoDePorta(deFora())
