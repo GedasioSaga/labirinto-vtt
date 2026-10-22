@@ -99,6 +99,23 @@ describe('CampoSeg (radiogroup)', () => {
     expect(aoMudar.mock.calls.map((c) => c[0])).toEqual(['hex', 'tri', 'quad', 'tri', 'hex'])
   })
 
+  it('a tecla que o grupo usou não chega ao window (o mapa a leria como empurrão); a que ele não usa, chega', () => {
+    const noWindow = vi.fn((evento: KeyboardEvent) => evento.key)
+    window.addEventListener('keydown', noWindow)
+    try {
+      montar(<SegControlado />)
+      const radios = () => todos('[role="radio"]')
+      teclar(radios()[0], 'ArrowRight')
+      teclar(radios()[1], 'End')
+      teclar(radios()[2], 'Home')
+      expect(noWindow).not.toHaveBeenCalled()
+      teclar(radios()[0], 'w')
+      expect(noWindow.mock.results.map((r) => r.value)).toEqual(['w'])
+    } finally {
+      window.removeEventListener('keydown', noWindow)
+    }
+  })
+
   it('opção só de ícone leva o rótulo como nome; sem rótulo visível o grupo usa nomeAcessivel', () => {
     montar(
       <CampoSeg
@@ -329,8 +346,15 @@ describe('CampoCor, CampoChips, CampoTexto e CampoSel', () => {
     const cores = todos('[role="radio"]')
     expect(cores.map((c) => c.getAttribute('aria-label'))).toEqual(['Branco', 'Cor #d6d0c2'])
     expect(cores.map((c) => c.getAttribute('aria-checked'))).toEqual(['true', 'false'])
-    teclar(cores[0], 'ArrowRight')
+    const noWindow = vi.fn()
+    window.addEventListener('keydown', noWindow)
+    try {
+      teclar(cores[0], 'ArrowRight')
+    } finally {
+      window.removeEventListener('keydown', noWindow)
+    }
     expect(onChange).toHaveBeenLastCalledWith('#d6d0c2')
+    expect(noWindow).not.toHaveBeenCalled()
     act(() => um<HTMLButtonElement>('.gr-bt').click())
     expect(onChange).toHaveBeenLastCalledWith('#ffffff')
   })

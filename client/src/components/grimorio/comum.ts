@@ -53,6 +53,11 @@ const SETAS = new Set(['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'])
  * vizinha e já a escolhem, dando a volta nas pontas (o seg e as cores do
  * protótipo); Home e End vão à primeira e à última (as abas que o seg da
  * ficha do jogador substituiu já faziam isso). Vai no `onKeyDown` do grupo.
+ *
+ * A tecla usada aqui para no grupo: o mapa (`PixiCanvas`) ouve o teclado no
+ * `window` e faria da mesma seta um empurrão da seleção — a escada trocava de
+ * sentido e andava uma casa no mesmo toque. O `preventDefault` não basta, o
+ * mapa não o lê.
  */
 export function andarPelosRadios(evento: KeyboardEvent<HTMLElement>): void {
   const pontas = evento.key === 'Home' || evento.key === 'End'
@@ -63,6 +68,7 @@ export function andarPelosRadios(evento: KeyboardEvent<HTMLElement>): void {
   const passo = SETAS_QUE_VOLTAM.has(evento.key) ? -1 : 1
   const proximo = pontas ? radios[evento.key === 'Home' ? 0 : radios.length - 1] : radios[(atual + passo + radios.length) % radios.length]
   evento.preventDefault()
+  evento.stopPropagation()
   proximo.focus()
   proximo.click()
 }
