@@ -170,12 +170,95 @@ describe('Toast na Torrada do Grimório', () => {
     expect(torradas()[0].contains(document.activeElement)).toBe(false)
   })
 
-  it('pedidos e instruções não viram torrada: esperam resposta e não saem animados', () => {
-    const pedido: ToastMessage = { id: 'i1', kind: 'instrucao', text: 'Ana quer passar', actions: [{ label: 'Deixar ir', run: () => {} }] }
-    mostrar([pedido])
+})
+
+/**
+ * Os avisos de instrução (os que esperam a pessoa: pedidos soltos, "Abra a
+ * sala antes…", "A borracha não apaga o chão…") também na torrada. A store
+ * continua mandando no prazo (a instrução não tem nenhum), o papel continua
+ * `alert` (o leitor de tela interrompe: o gesto dela não foi adiante) e a
+ * resposta esperada continua de latão.
+ *
+ * EXCEÇÃO, de propósito: as caixas agrupadas ("Pedidos (N)", e o "Pedidos (1)"
+ * de `sempreEmCaixa`, como a oferta de troca com o "Desfazer") ficam na casca
+ * de hoje. Uma caixa é uma `region` com título vivo, várias linhas e "Deixar
+ * todos"; a torrada é de um aviso só.
+ */
+describe('Instrução na Torrada do Grimório', () => {
+  const PEDIDO: ToastMessage = { id: 'i1', kind: 'instrucao', text: 'Ana quer passar', actions: [{ label: 'Deixar ir', run: () => {} }, { label: 'Não', run: () => {} }] }
+
+  it('a instrução solta é torrada, com papel alert, a classe de instrução e a resposta esperada em latão', () => {
+    mostrar([PEDIDO])
+    const [torrada] = torradas()
+    expect(torradas()).toHaveLength(1)
+    expect(torrada.getAttribute('role')).toBe('alert')
+    expect(torrada.classList.contains('lb-toast--instrucao')).toBe(true)
+    expect(torrada.querySelector('.lb-toast__text')?.textContent).toBe('Ana quer passar')
+    const latao = Array.from(torrada.querySelectorAll('button')).filter((b) => b.classList.contains('gr-bt--latao'))
+    expect(latao.map((b) => b.textContent)).toEqual(['Deixar ir'])
+  })
+
+  it('sem prazo: um minuto depois a instrução continua na tela, sem sair, até alguém responder', () => {
+    mostrar([PEDIDO])
+    passar(60_000)
+    expect(torradas()).toHaveLength(1)
+    expect(torradas()[0].classList.contains('gr-sai')).toBe(false)
+  })
+
+  it('respondida, a store a tira e ela sai animada no lugar onde estava, inerte', () => {
+    comTransicao()
+    const deixar = vi.fn()
+    const onDismiss = vi.fn()
+    mostrar([{ ...PEDIDO, actions: [{ label: 'Deixar ir', run: deixar }] }, SALVO], onDismiss)
+    const antes = torradas()[0]
+    act(() => Array.from(antes.querySelectorAll('button')).find((b) => b.textContent === 'Deixar ir')?.click())
+    expect(deixar).toHaveBeenCalledTimes(1)
+    expect(onDismiss).toHaveBeenCalledWith('i1')
+    mostrar([SALVO])
+    expect(torradas()[0]).toBe(antes)
+    expect(antes.classList.contains('gr-sai')).toBe(true)
+    expect(antes.hasAttribute('inert')).toBe(true)
+  })
+
+  it('o chamado com "Responder" na torrada: o campo abre na linha e "Enviar" manda o texto e tira o aviso', () => {
+    const enviar = vi.fn()
+    const onDismiss = vi.fn()
+    mostrar([{ id: 'c1', kind: 'instrucao', text: 'Carla chama o mestre', grupo: 'Chamados', resposta: { rotulo: 'Responder', maxLength: 80, enviar } }], onDismiss)
+    expect(torradas()).toHaveLength(1)
+    const responder = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Responder')
+    act(() => responder?.click())
+    const campo = container.querySelector<HTMLInputElement>('input[aria-label="Resposta para Carla chama o mestre"]')
+    if (campo === null) throw new Error('o campo de resposta não abriu')
+    expect(document.activeElement).toBe(campo)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(campo, ' Já vou ')
+      campo.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const enviarBotao = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Enviar')
+    expect(enviarBotao?.className).toContain('gr-bt--latao')
+    act(() => enviarBotao?.click())
+    expect(enviar).toHaveBeenCalledWith('Já vou')
+    expect(onDismiss).toHaveBeenCalledWith('c1')
+  })
+
+  it('EXCEÇÃO: a caixa "Pedidos (1)" da oferta de troca fica na casca de hoje, e o "Desfazer" desfaz e tira a linha', () => {
+    const desfazer = vi.fn()
+    const onDismiss = vi.fn()
+    const oferta: ToastMessage = {
+      id: 't1',
+      kind: 'instrucao',
+      text: 'Oferta a Ana: 3 moedas de ouro',
+      actions: [{ label: 'Desfazer', run: desfazer }],
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    }
+    mostrar([oferta], onDismiss)
     expect(torradas()).toHaveLength(0)
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Ana quer passar')
-    mostrar([])
-    expect(container.querySelector('.lb-toaststack')).toBeNull()
+    const caixa = container.querySelector<HTMLElement>('[role="region"][aria-label="Pedidos (1)"]')
+    if (caixa === null) throw new Error('sem a caixa "Pedidos (1)"')
+    expect(caixa.querySelector('[aria-live="polite"]')?.textContent).toBe('Pedidos (1)')
+    act(() => Array.from(caixa.querySelectorAll('button')).find((b) => b.textContent === 'Desfazer')?.click())
+    expect(desfazer).toHaveBeenCalledTimes(1)
+    expect(onDismiss).toHaveBeenCalledWith('t1')
   })
 })

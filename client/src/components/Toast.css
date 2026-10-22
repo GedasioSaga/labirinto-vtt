@@ -96,6 +96,23 @@
   border-color: var(--lb-color-ember);
 }
 
+/* A instrução na torrada (o aviso que ESPERA a pessoa, sem prazo): o mesmo
+   latão e o mesmo tingido da casca antiga (`.lb-toast--instrucao`, abaixo),
+   sobre o papel escuro da torrada. Duas classes: o `background` da
+   `.gr-torrada` apagaria o tingido com uma só. */
+.lb-toast--instrucao.gr-torrada {
+  border-color: var(--lb-color-brass);
+  background-image: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft));
+}
+
+/* O campo de resposta (acima dos botões, ou o do "Responder" aberto) toma a
+   linha inteira da torrada: ao lado do texto, ele ficaria da largura de uma
+   palavra. */
+.gr-torrada > .lb-toast__resposta,
+.gr-torrada > .lb-toast__actions:has(.lb-toast__reply) {
+  flex: 1 1 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-toaststack .lb-toast.gr-torrada,
   .lb-toaststack .lb-toast.gr-torrada.gr-sai {

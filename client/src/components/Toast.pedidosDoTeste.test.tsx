@@ -70,7 +70,7 @@ describe('Toast: a caixa "Pedidos do teste"', () => {
 
   /** Os botões de latão (a resposta esperada cheia) dentro de um cartão ou caixa. */
   function deLatao(dentro: HTMLElement): string[] {
-    return [...dentro.querySelectorAll('.lb-btn--primary')].map((b) => b.textContent ?? '')
+    return [...dentro.querySelectorAll('.lb-btn--primary, .gr-bt--latao')].map((b) => b.textContent ?? '')
   }
 
   it('um pedido do teste: "Pedidos do teste (1)" com a variante do teste, e a resposta neutra', () => {
@@ -120,8 +120,8 @@ describe('Toast: a caixa "Pedidos do teste"', () => {
     if (cartaoDoTeste === undefined || cartaoReal === undefined) throw new Error('faltam os dois cartões soltos')
     expect(cartaoDoTeste.className).toBe('lb-panel lb-toast lb-toast--teste')
     expect(deLatao(cartaoDoTeste)).toEqual([])
-    // O real, solto, como sempre: instrução com a resposta de latão.
-    expect(cartaoReal.className).toBe('lb-panel lb-toast lb-toast--instrucao')
+    // O real, solto, na torrada: instrução com a resposta de latão.
+    expect(cartaoReal.className).toBe('gr-torrada lb-toast lb-toast--instrucao')
     expect(deLatao(cartaoReal)).toEqual(['Deixar ir'])
 
     const fechar = cartaoDoTeste.querySelector<HTMLButtonElement>('button[aria-label="Dispensar aviso"]')

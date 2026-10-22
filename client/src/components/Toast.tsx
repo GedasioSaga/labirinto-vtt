@@ -54,6 +54,8 @@ interface ToastProps {
  * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`. O pedido da
  * porta trancada (`sempreEmCaixa`) abre a caixa mesmo sozinho: "Pedidos (1)".
  *
+ * O aviso solto (fora de caixa) vai na torrada do Grimório — ver `ehTorrada`.
+ *
  * Os pedidos da janela de teste (`GRUPO_DO_TESTE`, Visão de jogador) vêm na
  * caixa "Pedidos do teste", com a variante `lb-toast--teste` no lugar da
  * `lb-toast--instrucao`: tracejado neutro e nenhum botão de latão. O latão é de
@@ -98,7 +100,7 @@ export function Toast({ toasts, onDismiss, onPausar, onRetomar }: ToastProps) {
         ehTorrada(item.toast) ? (
           <TorradaDoAviso key={chave} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
         ) : (
-          <AvisoSolto key={chave} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+          <AvisoSoltoDoTeste key={chave} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
         )
       ) : (
         <CaixaDeAvisos key={chave} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} rascunhos={rascunhos} />
@@ -122,12 +124,19 @@ export function Toast({ toasts, onDismiss, onPausar, onRetomar }: ToastProps) {
 }
 
 /**
- * Aviso de informação ou de erro, sem campo de resposta: a torrada do Grimório
- * (fatia 20). Pedidos, instruções e os avisos da janela de teste seguem na
- * casca deles: esperam resposta, não somem sozinhos.
+ * Todo aviso solto vai na torrada do Grimório (fatia 20): informação, erro e
+ * instrução, com ou sem campo de resposta. O prazo continua o da store (a
+ * instrução não tem nenhum) e o papel o de sempre (`TorradaDoAviso`).
+ *
+ * Ficam na casca antiga, de propósito:
+ * - as CAIXAS agrupadas ("Pedidos (N)", e "Pedidos (1)" com `sempreEmCaixa`,
+ *   como a oferta de troca e o seu "Desfazer"): são uma `region` com título
+ *   vivo, linhas e "Deixar todos", e não um aviso; a torrada é de um aviso só;
+ * - o pedido da janela de teste fora da caixa (`GRUPO_DO_TESTE`): tracejado
+ *   neutro e latão nenhum, para nunca se passar por pedido da mesa.
  */
 export function ehTorrada(toast: ToastMessage): boolean {
-  return (toast.kind === 'info' || toast.kind === 'error') && toast.grupo !== GRUPO_DO_TESTE && toast.resposta === undefined
+  return toast.grupo !== GRUPO_DO_TESTE
 }
 
 /** A chave de um item da pilha na tela: o id do aviso, ou o grupo da caixa. */
@@ -278,6 +287,7 @@ function TorradaDoAviso({ toast, onDismiss, rascunhos, aoSair }: TorradaDoAvisoP
             rascunhos={rascunhos}
             classeDoPrimeiro="gr-bt gr-bt--latao gr-bt--p"
             classeDosOutros="gr-bt gr-bt--fantasma gr-bt--p"
+            classeDoEnviar="gr-bt gr-bt--latao gr-bt--p"
             onResponder={() => onDismiss(toast.id)}
           />
           {/* O × de sempre (mesmo nome e mesmo texto do aviso solto), no fim da torrada. */}
@@ -419,17 +429,19 @@ interface AvisoSoltoProps {
   rascunhos: Rascunhos
 }
 
-function AvisoSolto({ toast, onDismiss, rascunhos }: AvisoSoltoProps) {
-  // Pedido do teste sem a caixa (o grupo só leva pedidos, `avisosDeTeste.ts`): a variante do teste no lugar da de instrução.
-  const doTeste = toast.grupo === GRUPO_DO_TESTE
+/**
+ * O pedido da janela de teste fora da caixa (o grupo só leva pedidos,
+ * `avisosDeTeste.ts`, e eles abrem a caixa mesmo sozinhos): o cartão com a
+ * variante do teste, e não a torrada (ver `ehTorrada`).
+ */
+function AvisoSoltoDoTeste({ toast, onDismiss, rascunhos }: AvisoSoltoProps) {
   return (
-    <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${doTeste ? 'teste' : toast.kind}`}>
+    <div role={toast.kind === 'info' ? 'status' : 'alert'} className="lb-panel lb-toast lb-toast--teste">
       <div className="lb-toast__body">
         <span className="lb-toast__text">{toast.text}</span>
         {toast.detalhe !== undefined && <DetalheVivo ler={toast.detalhe} />}
-        {/* O primeiro botão é a resposta esperada (latão); os outros, a
-            alternativa. No teste, latão nenhum: a resposta é neutra. */}
-        <AcoesDoAviso toast={toast} rascunhos={rascunhos} classeDoPrimeiro={doTeste ? 'lb-btn' : 'lb-btn lb-btn--primary'} onResponder={() => onDismiss(toast.id)} />
+        {/* No teste, latão nenhum: a resposta é neutra. */}
+        <AcoesDoAviso toast={toast} rascunhos={rascunhos} classeDoPrimeiro="lb-btn" onResponder={() => onDismiss(toast.id)} />
       </div>
       <button
         type="button"
@@ -567,8 +579,10 @@ interface AcoesDoAvisoProps {
   rascunhos: Rascunhos
   /** Classe do primeiro botão (a resposta esperada); os outros são fantasma. */
   classeDoPrimeiro: string
-  /** Classe dos outros botões; padrão o fantasma da casca antiga. */
+  /** Classe dos outros botões; padrão o fantasma da casca antiga. Vale também para o "Responder" e o "Cancelar" do campo. */
   classeDosOutros?: string
+  /** Classe do "Enviar" do campo de resposta aberto; padrão o da casca antiga. */
+  classeDoEnviar?: string
   /** Tira o aviso da tela (e, na caixa, lembra o foco): a pergunta respondida não pode ficar clicável. */
   onResponder: () => void
 }
@@ -587,7 +601,7 @@ interface AcoesDoAvisoProps {
  * Campo com `enviar` (o "Responder" do chamado): vira o botão de
  * `RespostaNoAviso`, depois dos outros.
  */
-function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, classeDosOutros = 'lb-btn lb-btn--ghost', onResponder }: AcoesDoAvisoProps) {
+function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, classeDosOutros = 'lb-btn lb-btn--ghost', classeDoEnviar = 'lb-btn', onResponder }: AcoesDoAvisoProps) {
   const campoId = useId()
   const campo = toast.resposta
   if (toast.actions === undefined && campo === undefined) return null
@@ -627,7 +641,16 @@ function AcoesDoAviso({ toast, rascunhos, classeDoPrimeiro, classeDosOutros = 'l
             {action.label}
           </button>
         ))}
-        {campoQueEnvia !== undefined && <RespostaNoAviso id={toast.id} texto={toast.text} resposta={campoQueEnvia} onEnviada={onResponder} />}
+        {campoQueEnvia !== undefined && (
+          <RespostaNoAviso
+            id={toast.id}
+            texto={toast.text}
+            resposta={campoQueEnvia}
+            onEnviada={onResponder}
+            classeDosBotoes={classeDosOutros}
+            classeDoEnviar={classeDoEnviar}
+          />
+        )}
       </div>
     </>
   )
@@ -640,6 +663,9 @@ interface RespostaNoAvisoProps {
   texto: string
   resposta: ToastResposta
   onEnviada: () => void
+  /** "Responder", "Cancelar" e as respostas prontas: a classe dos botões secundários de quem monta. */
+  classeDosBotoes: string
+  classeDoEnviar: string
 }
 
 /**
@@ -651,7 +677,7 @@ interface RespostaNoAvisoProps {
  * troca de forma (aviso solto ↔ caixa) esta linha é desmontada e a nova
  * recomeça dali — aberta, com o rascunho, e com o foco se ele estava no campo.
  */
-function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProps) {
+function RespostaNoAviso({ id, texto, resposta, onEnviada, classeDosBotoes, classeDoEnviar }: RespostaNoAvisoProps) {
   const memoria = useContext(RespostasEmCurso)
   const [aberta, setAberta] = useState(() => memoria.has(id))
   const [rascunho, setRascunho] = useState(() => memoria.get(id)?.rascunho ?? '')
@@ -712,7 +738,7 @@ function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProp
 
   if (!aberta) {
     return (
-      <button ref={botaoRef} type="button" className="lb-btn lb-btn--ghost" onClick={abrir}>
+      <button ref={botaoRef} type="button" className={classeDosBotoes} onClick={abrir}>
         {resposta.rotulo}
       </button>
     )
@@ -735,13 +761,13 @@ function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProp
           fechar()
         }}
       />
-      <button type="submit" className="lb-btn" disabled={rascunho.trim() === ''}>
+      <button type="submit" className={classeDoEnviar} disabled={rascunho.trim() === ''}>
         Enviar
       </button>
-      <button type="button" className="lb-btn lb-btn--ghost" onClick={fechar}>
+      <button type="button" className={classeDosBotoes} onClick={fechar}>
         Cancelar
       </button>
-      <RespostasProntas recentes={resposta.recentes?.() ?? []} onEscolher={responderCom} />
+      <RespostasProntas recentes={resposta.recentes?.() ?? []} onEscolher={responderCom} classeDosBotoes={classeDosBotoes} />
     </form>
   )
 }
@@ -749,6 +775,7 @@ function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProp
 interface RespostasProntasProps {
   recentes: readonly string[]
   onEscolher: (texto: string) => void
+  classeDosBotoes: string
 }
 
 /**
@@ -756,12 +783,12 @@ interface RespostasProntasProps {
  * motivo de agora há pouco num toque, sem redigitar. Sem nenhum, nada — um
  * grupo vazio só faria o leitor de tela anunciar um nome sem conteúdo.
  */
-function RespostasProntas({ recentes, onEscolher }: RespostasProntasProps) {
+function RespostasProntas({ recentes, onEscolher, classeDosBotoes }: RespostasProntasProps) {
   if (recentes.length === 0) return null
   return (
     <div role="group" aria-label="Motivos recentes" className="lb-toast__recentes">
       {recentes.map((texto) => (
-        <button key={texto} type="button" className="lb-btn lb-btn--ghost" onClick={() => onEscolher(texto)}>
+        <button key={texto} type="button" className={classeDosBotoes} onClick={() => onEscolher(texto)}>
           {texto}
         </button>
       ))}
