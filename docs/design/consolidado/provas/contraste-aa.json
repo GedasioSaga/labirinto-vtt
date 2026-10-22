@@ -1,0 +1,173 @@
+{
+  "medidos": 275,
+  "semMedida": [],
+  "excecoes": [
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)",
+      "porque": "filete de 1 px do protótipo; rótulo, texto e anel de foco identificam o campo"
+    },
+    {
+      "tela": "mestre: página Cenas",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)",
+      "porque": "filete de 1 px do protótipo; rótulo, texto e anel de foco identificam o campo"
+    },
+    {
+      "tela": "mestre: diálogo Configurar cena",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)",
+      "porque": "filete de 1 px do protótipo; rótulo, texto e anel de foco identificam o campo"
+    },
+    {
+      "tela": "jogador: Painel",
+      "tipo": "componente",
+      "onde": "input.pp-input",
+      "texto": "",
+      "razao": 1.57,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)",
+      "porque": "filete de 1 px do protótipo; rótulo, texto e anel de foco identificam o campo"
+    }
+  ],
+  "reprovados": [],
+  "piores": [
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: página Cenas",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: diálogo Configurar cena",
+      "tipo": "componente",
+      "onde": "input.lb-input",
+      "texto": "",
+      "razao": 1.27,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "jogador: Painel",
+      "tipo": "componente",
+      "onde": "input.pp-input",
+      "texto": "",
+      "razao": 1.57,
+      "minimo": 3,
+      "cor": "rgb(236,234,228)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "p.gr-nota",
+      "texto": "Aparecem sobre a ficha, também para os j",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-ficha__resumo",
+      "texto": "1 quadrado",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-cartao__resumo",
+      "texto": "Sem personagem",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-cartao__resumo",
+      "texto": "Desligada",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-cartao__resumo",
+      "texto": "Sem rota",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-cartao__resumo",
+      "texto": "Não é veículo",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: ficha do token",
+      "tipo": "texto",
+      "onde": "span.gr-cartao__resumo",
+      "texto": "Sem rotina",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    },
+    {
+      "tela": "mestre: página Cenas",
+      "tipo": "texto",
+      "onde": "p.gr-nota",
+      "texto": "Aparecem sobre a ficha, também para os j",
+      "razao": 4.52,
+      "minimo": 4.5,
+      "cor": "rgb(133,132,128)",
+      "fundo": "rgb(33,28,21)"
+    }
+  ]
+}
