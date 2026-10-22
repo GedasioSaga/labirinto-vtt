@@ -1,6 +1,8 @@
 import type { PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
-import type { Point } from '../pixi/world'
-import { andarPeloTrajeto, TENTAR_DE_NOVO_MS, trajetoAte } from './andarPeloCaminho'
+import { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
+import type { Andarilho } from './caminhamento/andarilho'
+import { type AvisoDoNpc, avisoDepoisDeChegar, avisoDoFim, type MotorDosNpcs, motorImediato, type PortaDoNpc, TiqueDosNpcs } from './caminhamento/tiqueDosNpcs'
+import { estaCongelada } from './congelar'
 import type { EstadoDoMundo } from './estadoDoMundo'
 import type { CenaDaRotina, MovimentoDaRotina } from './rotinaDoNpc'
 
@@ -29,10 +31,16 @@ export const ESPERA_NO_POSTO_MS = 2000
 export interface FichaAndando {
   /** Índice, em `postosEmOrdem`, do posto para onde ela anda agora. */
   destino: number
-  /** Parada no posto (ou à espera de caminho): não anda antes deste instante. */
+  /** Parada no posto (ou depois de desistir de um): não anda antes deste instante. */
   esperaAte: number
-  /** Os cantos que faltam até o posto (o último é ele). Ausente: calcular no próximo passo. */
-  trajeto?: readonly Point[]
+  /**
+   * O trecho rumo ao posto, no motor (`lib/caminhamento/andarilho.ts`); o do
+   * posto anterior enquanto ela espera, com as portas que ficou de fechar.
+   * Ausente: começar no próximo passo.
+   */
+  andarilho?: Andarilho
+  /** Desistiu de um posto e por quê (porta trancada, ficha no caminho): para o mestre ver. */
+  aviso?: AvisoDoNpc
 }
 
 export { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
@@ -45,15 +53,30 @@ export function passoEmPx(grid: number, casasPorSegundo: number = CASAS_POR_SEGU
   return (grid * casasPorSegundo * PASSO_DA_ROTINA_MS) / 1000
 }
 
+/** O nome do pedido de caminho da rotina de `tokenId` na agenda do motor (a patrulha usa outro). */
+export function chaveDaRotina(tokenId: string): string {
+  return `rotina:${tokenId}`
+}
+
+/** O motor de quem não passa um: cada caminho sai no mesmo tique. */
+const MOTOR_IMEDIATO = motorImediato()
+
 /**
  * Retomar depois da PAUSA GERAL dos NPCs: cada espera anda para a frente o
  * tempo que ficou pausado — quem estava parado no posto termina a parada, em
- * vez de sair correndo porque o relógio de parede seguiu. Mesmo mapa quando
- * não há o que adiar. Serve à rotina e à patrulha.
+ * vez de sair correndo porque o relógio de parede seguiu; a espera do trecho
+ * (porta trancada, ficha no caminho) também. Mesmo mapa quando não há o que
+ * adiar. Serve à rotina e à patrulha.
  */
-export function adiarEsperas<T extends { esperaAte: number }>(andando: ReadonlyMap<string, T>, ms: number): ReadonlyMap<string, T> {
+export function adiarEsperas<T extends { esperaAte: number; andarilho?: Andarilho }>(andando: ReadonlyMap<string, T>, ms: number): ReadonlyMap<string, T> {
   if (ms <= 0 || andando.size === 0) return andando
-  return new Map([...andando].map(([id, ficha]): [string, T] => [id, { ...ficha, esperaAte: ficha.esperaAte + ms }]))
+  return new Map(
+    [...andando].map(([id, ficha]): [string, T] => {
+      const { andarilho } = ficha
+      const trecho = andarilho === undefined ? {} : { andarilho: { ...andarilho, esperaAte: andarilho.esperaAte + ms } }
+      return [id, { ...ficha, esperaAte: ficha.esperaAte + ms, ...trecho }]
+    }),
+  )
 }
 
 /**
@@ -106,17 +129,36 @@ export function desligarRotina(andando: RotinasAndando, tokenId: string): Rotina
   return next
 }
 
+/** O resultado de um tique da rotina: o que aplicar no mapa e o estado novo de quem anda. */
+export interface TiqueDaRotina {
+  movimentos: MovimentoDaRotina[]
+  /** Portas que os NPCs abriram e fecharam, cena a cena (`comPortaDoNpc`), fora do Ctrl+Z como o passo. */
+  portas: PortaDoNpc[]
+  andando: RotinasAndando
+}
+
+/** A ficha mirando o posto seguinte, depois de chegar a este ou de desistir dele. */
+function rumoAoSeguinte(destino: number, total: number, esperaAte: number, andarilho: Andarilho | undefined, aviso: AvisoDoNpc | undefined): FichaAndando {
+  return { destino: (destino + 1) % total, esperaAte, ...(andarilho === undefined ? {} : { andarilho }), ...(aviso === undefined ? {} : { aviso }) }
+}
+
 /**
  * Um tique do relógio: o movimento de cada ficha com a rotina ligada.
- * - posto na mesma cena: um passo rumo a ele pelo caminho em grade
- *   (`lib/andarPeloCaminho.ts`): contorna parede, passa por porta aberta;
- * - sem caminho até ele (porta fechada): fica onde está, sem pular, e procura
- *   de novo em `TENTAR_DE_NOVO_MS`;
- * - posto noutra cena carregada: vai de uma vez para lá (`transferToken`);
+ * - posto na mesma cena: um passo rumo a ele pelo motor de caminhos
+ *   (`lib/caminhamento/`): contorna parede e as outras fichas (o jogador
+ *   inclusive, que nunca é empurrado), abre a porta destrancada diante de si
+ *   e a fecha atrás; nunca pula;
+ * - sem caminho (porta trancada, ficha tapando, sala sem saída): espera e
+ *   tenta de novo; sem jeito, DESISTE do posto com o motivo (`aviso`), espera
+ *   `TENTAR_DE_NOVO_MS` e segue para o próximo — no loop seguinte tenta de novo;
+ * - posto noutra cena carregada: vai de uma vez para lá (`transferToken`),
+ *   fechando antes a porta que deixou aberta nesta (com alguém no vão, fica);
  * - posto em cena fora do ar: fica de fora do loop, a ficha não some;
- * - ficha em `fixas` (um jogador segura) ou esperando no posto: não anda;
+ * - ficha em `fixas` (um jogador segura), congelada pelo mestre ou esperando
+ *   no posto: não anda;
  * - ficha que sumiu ou perdeu a rotina: desliga.
  * Ao chegar ao posto, espera `ESPERA_NO_POSTO_MS` e mira o próximo.
+ * `motor`: a agenda de caminhos do editor; sem ele, cada caminho sai no mesmo tique.
  */
 export function darPassoDaRotina(
   cenas: readonly CenaDaRotina[],
@@ -124,15 +166,20 @@ export function darPassoDaRotina(
   estados: readonly EstadoDoMundo[],
   now: number,
   fixas: ReadonlySet<string> = new Set(),
-): { movimentos: MovimentoDaRotina[]; andando: RotinasAndando } {
+  motor: MotorDosNpcs = MOTOR_IMEDIATO,
+): TiqueDaRotina {
   const movimentos: MovimentoDaRotina[] = []
   const next = new Map<string, FichaAndando>()
   const carregadas = new Set(cenas.map((cena) => cena.sceneId))
+  const mundo = new TiqueDosNpcs(motor, now)
   for (const [tokenId, ficha] of andando) {
     const achada = acharFicha(cenas, tokenId)
     const rotina = achada?.token.rotina
-    if (achada === null || rotina === undefined || rotina.postos.length === 0) continue
-    if (fixas.has(tokenId) || now < ficha.esperaAte) {
+    if (achada === null || rotina === undefined || rotina.postos.length === 0) {
+      motor.agenda.cancelar(chaveDaRotina(tokenId))
+      continue
+    }
+    if (fixas.has(tokenId) || estaCongelada(achada.token) || now < ficha.esperaAte) {
       next.set(tokenId, ficha)
       continue
     }
@@ -145,25 +192,23 @@ export function darPassoDaRotina(
     }
     const posto = postos[passo]
     const { cena, token } = achada
-    const proximo = { destino: (passo + 1) % postos.length, esperaAte: now + ESPERA_NO_POSTO_MS }
     if (posto.sceneId !== cena.sceneId) {
+      // O trecho fica nesta cena: o que ele deixou aberto aqui fecha antes de ela ir.
+      mundo.sair(chaveDaRotina(tokenId), cena.sceneId, cena.map, tokenId, ficha.andarilho)
       movimentos.push({ tokenId, de: cena.sceneId, para: posto.sceneId, x: posto.x, y: posto.y })
-      next.set(tokenId, proximo)
+      next.set(tokenId, rumoAoSeguinte(passo, postos.length, now + ESPERA_NO_POSTO_MS, undefined, avisoDepoisDeChegar(ficha.aviso, posto)))
       continue
     }
-    const aqui = { x: token.x, y: token.y }
-    const trajeto = trajetoAte(aqui, posto, ficha.trajeto, cena.map)
-    if (trajeto === null) {
-      // Sem caminho (porta fechada): parada onde está, sem pular, até a próxima tentativa.
-      next.set(tokenId, { destino: passo, esperaAte: now + TENTAR_DE_NOVO_MS })
+    const tique = mundo.andar(chaveDaRotina(tokenId), cena.sceneId, cena.map, tokenId, posto, ficha.andarilho, passoEmPx(cena.map.grid))
+    if (tique === null) {
+      next.set(tokenId, ficha)
       continue
     }
-    const { para, resta } = andarPeloTrajeto(aqui, trajeto, passoEmPx(cena.map.grid))
-    if (para.x !== token.x || para.y !== token.y) {
-      movimentos.push({ tokenId, de: cena.sceneId, para: cena.sceneId, x: para.x, y: para.y })
-    }
-    const chegou = resta.length === 0 && para.x === posto.x && para.y === posto.y
-    next.set(tokenId, chegou ? proximo : { destino: passo, esperaAte: ficha.esperaAte, trajeto: resta })
+    const { para, andarilho } = tique
+    if (para.x !== token.x || para.y !== token.y) movimentos.push({ tokenId, de: cena.sceneId, para: cena.sceneId, x: para.x, y: para.y })
+    if (tique.situacao === 'chegou') next.set(tokenId, rumoAoSeguinte(passo, postos.length, now + ESPERA_NO_POSTO_MS, andarilho, avisoDepoisDeChegar(ficha.aviso, posto)))
+    else if (tique.situacao === 'desistiu') next.set(tokenId, rumoAoSeguinte(passo, postos.length, now + TENTAR_DE_NOVO_MS, andarilho, avisoDoFim(andarilho.fim, posto, now) ?? ficha.aviso))
+    else next.set(tokenId, { ...ficha, destino: passo, andarilho })
   }
-  return { movimentos, andando: next }
+  return { movimentos, portas: mundo.portas, andando: next }
 }

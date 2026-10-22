@@ -5,9 +5,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { EstadoDoMundo } from './estadoDoMundo'
-import { findTokenPath, segmentsIntersect } from './collision'
+import { comPortasDoNpc, type PortaDoNpc } from './caminhamento/tiqueDosNpcs'
+import { findTokenPath, segmentsIntersect, wallBlocksToken } from './collision'
 import { createEmptyMap } from './mapFactory'
-import { ESPERA_NO_POSTO_MS, PASSO_DA_ROTINA_MS, TENTAR_DE_NOVO_MS, darPassoDaRotina, desligarRotina, ligarRotina, passoEmPx, type RotinasAndando } from './rotinaAndando'
+import { ESPERA_NO_POSTO_MS, PASSO_DA_ROTINA_MS, darPassoDaRotina, desligarRotina, ligarRotina, passoEmPx, type RotinasAndando } from './rotinaAndando'
 import { moverNaCena, type CenaDaRotina } from './rotinaDoNpc'
 import type { MapData, Token, Wall } from '../types/map'
 
@@ -36,10 +37,16 @@ function capela(): CenaDaRotina[] {
   return [{ sceneId: 'capela', map: mapa('capela', [tobias(100, 100, rotina)]) }]
 }
 
-/** Um tique do relógio: planeja, aplica nas cenas (mesma cena só) e devolve tudo. */
+/** Um tique do relógio: planeja, aplica nas cenas (passos na mesma cena e portas, como o editor) e devolve tudo. */
 function tique(cenas: CenaDaRotina[], andando: RotinasAndando, now: number, fixas?: ReadonlySet<string>) {
   const passo = darPassoDaRotina(cenas, andando, ESTADOS, now, fixas)
-  const depois = cenas.map((c) => ({ sceneId: c.sceneId, map: moverNaCena(c.map, passo.movimentos) }))
+  const depois = cenas.map((c) => ({
+    sceneId: c.sceneId,
+    map: comPortasDoNpc(
+      moverNaCena(c.map, passo.movimentos),
+      passo.portas.filter((p) => p.sceneId === c.sceneId),
+    ),
+  }))
   return { ...passo, cenas: depois }
 }
 
@@ -51,17 +58,29 @@ function ondeEsta(cenas: CenaDaRotina[]): { cena: string; x: number; y: number }
   return undefined
 }
 
-/** Roda `n` tiques seguidos a partir de `inicio` e anota onde o Tobias passou. */
+/**
+ * Roda `n` tiques seguidos a partir de `inicio` e anota onde o Tobias passou,
+ * as portas que ele mexeu e cada passo que cruzou parede ou porta fechada
+ * (conferido com as paredes do começo daquele tique).
+ */
 function rodar(cenas: CenaDaRotina[], andando: RotinasAndando, inicio: number, n: number) {
   const trilha: Array<{ x: number; y: number }> = []
+  const portas: PortaDoNpc[] = []
+  const cruzou: string[] = []
   let estado = { cenas, andando }
   for (let i = 0; i < n; i += 1) {
+    const antes = ondeEsta(estado.cenas)
     const r = tique(estado.cenas, estado.andando, inicio + i * PASSO_DA_ROTINA_MS)
-    estado = { cenas: r.cenas, andando: r.andando }
     const at = ondeEsta(r.cenas)
+    const walls = estado.cenas.find((c) => c.sceneId === antes?.cena)?.map.walls ?? []
+    if (antes !== undefined && at !== undefined && antes.cena === at.cena) {
+      for (const w of walls) if (wallBlocksToken(w) && segmentsIntersect(antes, at, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 })) cruzou.push(`tique ${i}: ${w.id}`)
+    }
+    portas.push(...r.portas)
+    estado = { cenas: r.cenas, andando: r.andando }
     if (at !== undefined) trilha.push({ x: at.x, y: at.y })
   }
-  return { ...estado, trilha }
+  return { ...estado, trilha, portas, cruzou }
 }
 
 describe('agendador da rotina: liga', () => {
@@ -317,27 +336,55 @@ describe('agendador da rotina: desvia de parede e nunca teleporta', () => {
     semPuloNemParede([{ x: 224, y: 224 }, ...r.trilha], walls)
   })
 
-  it('porta fechada no único caminho: fica parada e tenta de novo; aberta a porta, segue', () => {
-    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
-    const fechada = comPorta({ open: false, locked: false, kind: 'normal' })
-    const aberta = comPorta({ open: true, locked: false, kind: 'normal' })
-    const cenas = sala(fechada, { x: 224, y: 96 }, { x: 608, y: 96 })
-    const parada = darPassoDaRotina(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), ESTADOS, 0)
-    expect(parada.movimentos).toEqual([])
-    expect(parada.andando.get('tobias')?.esperaAte).toBe(TENTAR_DE_NOVO_MS)
-    expect(darPassoDaRotina(cenas, parada.andando, ESTADOS, TENTAR_DE_NOVO_MS).movimentos).toEqual([])
-    const r = rodar(comParedes(cenas, aberta), parada.andando, TENTAR_DE_NOVO_MS, 80)
+  // Decisão do usuário (22/10/2026): o NPC abre a porta destrancada diante de si
+  // e a fecha atrás; trancada ele não abre e avisa o mestre. Antes ele parava
+  // diante de qualquer porta fechada.
+  const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
+  const FECHADA = { open: false, locked: false, kind: 'normal' } as const
+  const TRANCADA = { open: false, locked: true, kind: 'normal' } as const
+  /** Da Aurora até o Meio passando pela porta: ~28 passos e dois tiques na porta, antes de a espera no posto acabar. */
+  const ATE_O_MEIO = 40
+
+  it('porta fechada no único caminho: abre diante dela, passa, fecha atrás de si e chega — uma vez cada', () => {
+    const cenas = sala(comPorta(FECHADA), { x: 224, y: 96 }, { x: 608, y: 96 })
+    const r = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, ATE_O_MEIO)
     expect(r.trilha).toContainEqual({ x: 608, y: 96 })
-    semPuloNemParede([{ x: 224, y: 96 }, ...r.trilha], aberta)
+    expect(r.portas).toEqual([
+      { sceneId: 'capela', wallId: 'porta', aberta: true },
+      { sceneId: 'capela', wallId: 'porta', aberta: false },
+    ])
+    expect(r.cruzou).toEqual([])
+    expect(r.cenas[0]?.map.walls.find((w) => w.id === 'porta')?.door?.open).toBe(false)
+    semPuloNemParede([{ x: 224, y: 96 }, ...r.trilha], [])
   })
 
-  it('porta fecha no meio do caminho: a ficha para do lado de cá, sem atravessar', () => {
-    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
-    const fechada = comPorta({ open: false, locked: false, kind: 'normal' })
+  it('porta trancada no único caminho: não abre nem pula, desiste do posto com o motivo; destrancada, segue e o aviso some', () => {
+    const cenas = sala(comPorta(TRANCADA), { x: 224, y: 96 }, { x: 608, y: 96 })
+    const parada = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, 30)
+    expect(parada.trilha.every((p) => p.x === 224 && p.y === 96)).toBe(true)
+    expect(parada.portas).toEqual([])
+    expect(parada.andando.get('tobias')?.aviso).toMatchObject({ motivo: 'porta-trancada', portas: ['porta'], fichas: [], x: 608, y: 96 })
+    const r = rodar(comParedes(parada.cenas, comPorta(FECHADA)), parada.andando, 30 * PASSO_DA_ROTINA_MS, 60)
+    expect(r.trilha).toContainEqual({ x: 608, y: 96 })
+    expect(r.andando.get('tobias')?.aviso).toBeUndefined()
+    expect(r.cruzou).toEqual([])
+  })
+
+  it('o mestre tranca a porta no meio do caminho: a ficha para do lado de cá, sem atravessar', () => {
     const cenas = sala(comPorta({ open: true, locked: false, kind: 'normal' }), { x: 224, y: 96 }, { x: 608, y: 96 })
     const ida = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, 3)
-    const r = rodar(comParedes(ida.cenas, fechada), ida.andando, 3 * PASSO_DA_ROTINA_MS, 60)
+    const r = rodar(comParedes(ida.cenas, comPorta(TRANCADA)), ida.andando, 3 * PASSO_DA_ROTINA_MS, 60)
     expect(r.trilha.every((p) => p.x < 384)).toBe(true)
-    semPuloNemParede(r.trilha, fechada)
+    expect(r.portas).toEqual([])
+    semPuloNemParede(r.trilha, comPorta(TRANCADA))
+  })
+
+  it('o mestre fecha (sem trancar) a porta no meio do caminho: ela abre de novo, passa e chega', () => {
+    const cenas = sala(comPorta({ open: true, locked: false, kind: 'normal' }), { x: 224, y: 96 }, { x: 608, y: 96 })
+    const ida = rodar(cenas, ligarRotina(new Map(), cenas, 'tobias', ESTADOS, 0), 0, 3)
+    const r = rodar(comParedes(ida.cenas, comPorta(FECHADA)), ida.andando, 3 * PASSO_DA_ROTINA_MS, ATE_O_MEIO)
+    expect(r.trilha).toContainEqual({ x: 608, y: 96 })
+    expect(r.portas.map((p) => p.aberta)).toEqual([true, false])
+    expect(r.cruzou).toEqual([])
   })
 })

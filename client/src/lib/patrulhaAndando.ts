@@ -1,6 +1,8 @@
-import type { Point } from '../pixi/world'
 import type { MapData, ModoDaPatrulha, PassoDaPatrulha, Token, TokenPatrol } from '../types/map'
-import { andarPeloTrajeto, TENTAR_DE_NOVO_MS, trajetoAte } from './andarPeloCaminho'
+import { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
+import type { Andarilho } from './caminhamento/andarilho'
+import { type AvisoDoNpc, avisoDepoisDeChegar, avisoDoFim, type MotorDosNpcs, motorImediato, type MudancaDePorta, TiqueDosNpcs } from './caminhamento/tiqueDosNpcs'
+import { estaCongelada } from './congelar'
 import { passosDoPonto, tokenPatrolOf, VELOCIDADE_PADRAO } from './npcPatrol'
 import { PASSO_DA_ROTINA_MS, passoEmPx } from './rotinaAndando'
 
@@ -14,10 +16,11 @@ export { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
  * falar, sumir...) antes de seguir, em circuito (1-2-3-1) ou em vai-e-volta
  * (1-2-3-2-1). Até o mestre tocar "Parar".
  *
- * O trecho até o ponto anda pelo caminho em grade, com a mesma regra da rotina
- * (`lib/andarPeloCaminho.ts`): contorna parede, passa por porta aberta, e sem
- * caminho a ficha NÃO pula — fica onde está e tenta de novo a cada
- * `TENTAR_DE_NOVO_MS`.
+ * O trecho até o ponto anda pelo motor de caminhos, como a rotina
+ * (`lib/caminhamento/`): contorna parede e as outras fichas, abre a porta
+ * destrancada diante de si e a fecha atrás, e a ficha NUNCA pula. Sem jeito de
+ * chegar (porta trancada, ficha tapando), desiste do ponto com o motivo
+ * (`aviso`), espera `TENTAR_DE_NOVO_MS` e segue a ronda sem a macro dele.
  *
  * Diferente da rotina, não depende de aventura nem de estado do mundo: a rota
  * é da ficha, na cena aberta. Por isso o agendador recebe só o MAPA aberto —
@@ -40,10 +43,12 @@ export interface FichaPatrulhando {
   destino: number
   /** No vai-e-volta, para que lado da rota ela segue (1 = rumo ao último). No circuito, sempre 1. */
   sentido: 1 | -1
-  /** Parada no ponto (ou à espera de caminho): não anda antes deste instante. */
+  /** Parada no ponto (ou depois de desistir de um): não anda antes deste instante. */
   esperaAte: number
-  /** Os cantos que faltam do trecho atual, o último é o ponto. Ausente: calcular no próximo passo. */
-  trajeto?: readonly Point[]
+  /** O trecho rumo ao ponto, no motor (`lib/caminhamento/andarilho.ts`); o do ponto anterior enquanto ela faz a macro. Ausente: começar no próximo passo. */
+  andarilho?: Andarilho
+  /** Desistiu de um ponto e por quê (porta trancada, ficha no caminho): para o mestre ver. */
+  aviso?: AvisoDoNpc
   /** Fazendo a macro do ponto `ponto`: o próximo passo a fazer é `passo`. Ausente: andando. */
   noPonto?: { ponto: number; passo: number }
   /** Parada no passo "Esperar o mestre": só sai com `seguirPatrulha` ("Seguir" no painel). */
@@ -101,11 +106,25 @@ function modoDa(rota: TokenPatrol): ModoDaPatrulha {
 }
 
 /** A rota de patrulha andável da ficha `tokenId` no mapa: com 2 pontos ou mais. */
-function rotaAndavel(map: MapData, tokenId: string): { x: number; y: number; fala: string | undefined; rota: TokenPatrol } | null {
+function rotaAndavel(map: MapData, tokenId: string): { x: number; y: number; fala: string | undefined; congelada: boolean; rota: TokenPatrol } | null {
   const token = map.tokens.find((t) => t.id === tokenId)
   const rota = token === undefined ? null : tokenPatrolOf(token)
   if (token === undefined || rota === null || rota.pontos.length < 2) return null
-  return { x: token.x, y: token.y, fala: token.fala, rota }
+  return { x: token.x, y: token.y, fala: token.fala, congelada: estaCongelada(token), rota }
+}
+
+/** O nome do pedido de caminho da patrulha de `tokenId` na agenda do motor (a rotina usa outro). */
+export function chaveDaPatrulha(tokenId: string): string {
+  return `patrulha:${tokenId}`
+}
+
+/** A patrulha anda só no mapa aberto: é a única cena do tique dela. */
+const MAPA_ABERTO = 'aberto'
+const MOTOR_IMEDIATO = motorImediato()
+
+/** A ficha rumo ao ponto `seguinte`, com o trecho e o aviso que ficam. */
+function rumoA(seguinte: { indice: number; sentido: 1 | -1 }, esperaAte: number, andarilho: Andarilho, aviso: AvisoDoNpc | undefined): FichaPatrulhando {
+  return { destino: seguinte.indice, sentido: seguinte.sentido, esperaAte, andarilho, ...(aviso === undefined ? {} : { aviso }) }
 }
 
 /**
@@ -219,9 +238,13 @@ function temEfeito(efeitos: EfeitosDosPassos): boolean {
  * trecho, pelo caminho em grade. Ao chegar, o ponto vira o `atual` e a macro
  * dele começa no mesmo tique (`executarPassos`, com os passos de `passosDe`);
  * acabada a macro, ela segue. A fala acaba quando a ficha volta a andar.
- * - sem caminho até o ponto: não anda e procura de novo em `TENTAR_DE_NOVO_MS`;
- * - ficha em `paradas` (um jogador segura, o mestre arrasta), esperando ou à espera do mestre: nada;
+ * - sem jeito de chegar ao ponto: desiste dele com o motivo (`aviso`) e, depois
+ *   de `TENTAR_DE_NOVO_MS`, segue para o seguinte da ronda;
+ * - ficha em `paradas` (um jogador segura, o mestre arrasta), congelada pelo
+ *   mestre, esperando ou à espera do mestre: nada;
  * - ficha que saiu do mapa, perdeu a rota ou ficou com menos de 2 pontos: para.
+ * `portas`: as que as fichas abriram e fecharam, para aplicar no mapa.
+ * `motor`: a agenda de caminhos do editor; sem ele, cada caminho sai no mesmo tique.
  */
 export function darPassoDaPatrulha(
   map: MapData,
@@ -229,13 +252,18 @@ export function darPassoDaPatrulha(
   now: number,
   paradas: ReadonlySet<string> = new Set(),
   passosDe: PassosDoPonto = passosDaRota,
-): { movimentos: MovimentoDaPatrulha[]; andando: PatrulhasAndando } {
+  motor: MotorDosNpcs = MOTOR_IMEDIATO,
+): { movimentos: MovimentoDaPatrulha[]; portas: MudancaDePorta[]; andando: PatrulhasAndando } {
   const movimentos: MovimentoDaPatrulha[] = []
   const next = new Map<string, FichaPatrulhando>()
+  const mundo = new TiqueDosNpcs(motor, now)
   for (const [tokenId, ficha] of andando) {
     const achada = rotaAndavel(map, tokenId)
-    if (achada === null) continue
-    if (paradas.has(tokenId) || segurada(ficha, now)) {
+    if (achada === null) {
+      motor.agenda.cancelar(chaveDaPatrulha(tokenId))
+      continue
+    }
+    if (paradas.has(tokenId) || achada.congelada || segurada(ficha, now)) {
       next.set(tokenId, ficha)
       continue
     }
@@ -261,34 +289,33 @@ export function darPassoDaPatrulha(
     const destino = Math.min(estado.destino, rota.pontos.length - 1)
     const ponto = rota.pontos[destino]
     if (ponto === undefined) continue
-    const trajeto = trajetoAte(aqui, ponto, estado.trajeto, map)
-    if (trajeto === null) {
-      // Sem caminho (porta fechada): parada onde está, sem pular, até a próxima tentativa.
-      if (temEfeito(efeitos)) movimentos.push({ tokenId, ...aqui, ...efeitos })
-      const { trajeto: _velho, ...resto } = estado
-      next.set(tokenId, { ...resto, destino, esperaAte: now + TENTAR_DE_NOVO_MS })
-      continue
-    }
     const velocidade = estado.velocidadeDoTrecho ?? rota.velocidade ?? VELOCIDADE_PADRAO
-    const { para, resta } = andarPeloTrajeto(aqui, trajeto, passoEmPx(map.grid, velocidade))
-    const chegou = resta.length === 0 && para.x === ponto.x && para.y === ponto.y
+    const tique = mundo.andar(chaveDaPatrulha(tokenId), MAPA_ABERTO, map, tokenId, ponto, estado.andarilho, passoEmPx(map.grid, velocidade))
+    if (tique === null) continue
+    const { para, andarilho } = tique
     const andou = para.x !== aqui.x || para.y !== aqui.y
     // Voltou a andar: a fala acaba.
     if (andou && (achada.fala !== undefined || efeitos.fala !== undefined)) efeitos = { ...efeitos, fala: null }
-    if (!chegou) {
+    const seguinte = proximoPonto(destino, estado.sentido, rota.pontos.length, modoDa(rota))
+    if (tique.situacao === 'desistiu') {
+      // Não chegou: o ponto não vira o atual nem faz a macro, e a velocidade do trecho acaba com ele.
       if (andou || temEfeito(efeitos)) movimentos.push({ tokenId, x: para.x, y: para.y, ...efeitos })
-      next.set(tokenId, { ...estado, destino, trajeto: resta })
+      next.set(tokenId, rumoA(seguinte, now + TENTAR_DE_NOVO_MS, andarilho, avisoDoFim(andarilho.fim, ponto, now) ?? estado.aviso))
+      continue
+    }
+    if (tique.situacao !== 'chegou') {
+      if (andou || temEfeito(efeitos)) movimentos.push({ tokenId, x: para.x, y: para.y, ...efeitos })
+      next.set(tokenId, { ...estado, destino, andarilho })
       continue
     }
 
     // Chegou: o ponto vira o atual, a velocidade do trecho acaba e a macro dele começa já.
-    const seguinte = proximoPonto(destino, estado.sentido, rota.pontos.length, modoDa(rota))
     const ex = executarPassos(passosDe(rota, destino), 0, now)
     efeitos = { ...efeitos, ...ex.efeitos }
     if (andou || rota.atual !== destino || temEfeito(efeitos)) movimentos.push({ tokenId, x: para.x, y: para.y, atual: destino, ...efeitos })
-    next.set(tokenId, depoisDosPassos({ destino: seguinte.indice, sentido: seguinte.sentido, esperaAte: now }, destino, ex))
+    next.set(tokenId, depoisDosPassos(rumoA(seguinte, now, andarilho, avisoDepoisDeChegar(estado.aviso, ponto)), destino, ex))
   }
-  return { movimentos, andando: next }
+  return { movimentos, portas: mundo.portas.map(({ wallId, aberta }) => ({ wallId, aberta })), andando: next }
 }
 
 /** A direção do cone da vigia (0 = leste) para a frente `graus` da ficha (0 = para cima). */

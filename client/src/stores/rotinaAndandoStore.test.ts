@@ -142,6 +142,87 @@ describe('rotina ligada: o NPC anda sozinho', () => {
   })
 })
 
+/**
+ * Parede de alto a baixo em x = 200, entre a Aurora (100,100) e a Brasa
+ * (300,100), com a porta no vão y 50..150. Devolve as trocas da porta (aberta
+ * ou não) que o mapa aberto viu, na ordem.
+ */
+function comPortaNoMeio(locked: boolean): { trocas: boolean[]; pararDeOlhar: () => void } {
+  const porta = { open: false, locked, kind: 'normal' } as const
+  useMapStore.getState().addWalls([
+    { id: 'p-norte', x1: 200, y1: 0, x2: 200, y2: 50, blocksLight: true, blocksMove: true, door: null },
+    { id: 'porta', x1: 200, y1: 50, x2: 200, y2: 150, blocksLight: true, blocksMove: true, door: porta },
+    { id: 'p-sul', x1: 200, y1: 150, x2: 200, y2: 1000, blocksLight: true, blocksMove: true, door: null },
+  ])
+  const trocas: boolean[] = []
+  const aberta = () => useMapStore.getState().map.walls.find((w) => w.id === 'porta')?.door?.open
+  let antes = aberta()
+  const pararDeOlhar = useMapStore.subscribe(() => {
+    const agora = aberta()
+    if (agora !== antes && agora !== undefined) trocas.push(agora)
+    antes = agora
+  })
+  return { trocas, pararDeOlhar }
+}
+
+describe('rotina pelo motor de caminhos, no editor', () => {
+  it('porta destrancada no caminho: abre diante dele e fecha atrás, uma vez cada, e chega; nada disso entra no Ctrl+Z', () => {
+    montar()
+    const { trocas, pararDeOlhar } = comPortaNoMeio(false)
+    const desfazer = useMapStore.getState().past.length
+    useRotinaAndandoStore.getState().ligar('tobias')
+    const xs: number[] = []
+    for (let tique = 0; tique < 40 && fichaDe(useMapStore.getState().map, 'tobias')?.x !== 300; tique += 1) {
+      vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+      xs.push(fichaDe(useMapStore.getState().map, 'tobias')?.x ?? Number.NaN)
+    }
+    pararDeOlhar()
+    expect(fichaDe(useMapStore.getState().map, 'tobias')).toEqual(expect.objectContaining({ x: 300, y: 100 }))
+    expect(trocas).toEqual([true, false])
+    expect(useMapStore.getState().map.walls.find((w) => w.id === 'porta')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    expect(useMapStore.getState().past.length).toBe(desfazer)
+    // Sem teleporte: nenhum tique anda mais que o passo.
+    xs.forEach((x, i) => expect(Math.abs(x - (xs[i - 1] ?? 100))).toBeLessThanOrEqual(PASSO + 1e-9))
+    expect(useRotinaAndandoStore.getState().andando.get('tobias')?.aviso).toBeUndefined()
+  })
+
+  it('porta trancada: não abre, ele fica do lado de cá e o motivo fica no estado da rotina; destrancada, ele passa e o aviso some', () => {
+    montar()
+    const { trocas, pararDeOlhar } = comPortaNoMeio(true)
+    useRotinaAndandoStore.getState().ligar('tobias')
+    const xs: number[] = []
+    for (let tique = 0; tique < 20; tique += 1) {
+      vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+      xs.push(fichaDe(useMapStore.getState().map, 'tobias')?.x ?? Number.NaN)
+    }
+    expect(trocas).toEqual([])
+    expect(xs.every((x) => x < 200)).toBe(true)
+    expect(useRotinaAndandoStore.getState().andando.get('tobias')?.aviso).toEqual(
+      expect.objectContaining({ motivo: 'porta-trancada', portas: ['porta'], fichas: [], x: 300, y: 100 }),
+    )
+    // O motivo é da sessão: a ficha no mapa não ganha campo.
+    expect(Object.keys(fichaDe(useMapStore.getState().map, 'tobias') ?? {}).sort()).toEqual(['characterId', 'id', 'image', 'name', 'npc', 'rotina', 'size', 'x', 'y'])
+    useMapStore.getState().setWallDoor('porta', { open: false, locked: false, kind: 'normal' })
+    for (let tique = 0; tique < 80 && fichaDe(useMapStore.getState().map, 'tobias')?.x !== 300; tique += 1) vi.advanceTimersByTime(PASSO_DA_ROTINA_MS)
+    pararDeOlhar()
+    expect(fichaDe(useMapStore.getState().map, 'tobias')).toEqual(expect.objectContaining({ x: 300, y: 100 }))
+    expect(trocas).toEqual([true, false])
+    expect(useRotinaAndandoStore.getState().andando.get('tobias')?.aviso).toBeUndefined()
+  })
+
+  it('ficha congelada pelo mestre não anda, com a rotina ligada', () => {
+    montar()
+    const tobias = fichaDe(useMapStore.getState().map, 'tobias')
+    if (tobias === undefined) throw new Error('sem o Tobias')
+    useMapStore.getState().removeToken('tobias')
+    useMapStore.getState().addToken({ ...tobias, congelado: true })
+    useRotinaAndandoStore.getState().ligar('tobias')
+    vi.advanceTimersByTime(5 * PASSO_DA_ROTINA_MS)
+    expect(fichaDe(useMapStore.getState().map, 'tobias')).toEqual(expect.objectContaining({ x: 100, y: 100 }))
+    expect(useRotinaAndandoStore.getState().andando.has('tobias')).toBe(true)
+  })
+})
+
 describe('desligar', () => {
   it('desligada, para onde está e o relógio para', () => {
     montar()

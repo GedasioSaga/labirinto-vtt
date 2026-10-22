@@ -46,7 +46,7 @@ export function trajetoAte(aqui: Point, destino: Point, guardado: readonly Point
  * centro de uma casa de 45 px, irracional na grade hexagonal), e a chegada é
  * por igualdade exata.
  */
-export function andarPeloTrajeto(aqui: Point, trajeto: readonly Point[], passo: number): { para: Point; resta: readonly Point[] } {
+export function andarPeloTrajeto<T extends Point>(aqui: Point, trajeto: readonly T[], passo: number): { para: Point; resta: readonly T[] } {
   const alvo = trajeto[0]
   if (alvo === undefined) return { para: aqui, resta: trajeto }
   const dist = Math.hypot(alvo.x - aqui.x, alvo.y - aqui.y)
