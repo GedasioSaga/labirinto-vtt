@@ -77,6 +77,18 @@ export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1
  */
 export const DOOR_TO_CROSS_COLOR = DOOR_EDGE_COLOR
 export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
+/**
+ * O ponto com a porta ANDANDO: o que está debaixo dele muda a cada quadro
+ * (folha, chão, miolo), então ele vira dois tons e um dos dois sempre
+ * contrasta: o miolo escuro do ponto parado e, em volta, um anel na cor da
+ * porta que cresce até este tanto de tela no meio do caminho e volta. Sobre a
+ * folha, o escuro cai na faixa clara e o anel no contorno escuro; sobre o chão
+ * ou o miolo da aberta, o anel. O miolo escuro some no último trecho
+ * (`DOOR_TO_CROSS_CORE_FADE_FROM` até 1). Nos extremos é o ponto da porta
+ * parada (escuro em 0, cor da porta em 1), sem salto ao começar e ao parar.
+ */
+export const DOOR_TO_CROSS_RING_SCREEN_PX = 1
+export const DOOR_TO_CROSS_CORE_FADE_FROM = 0.75
 
 /**
  * Renderer da camada 'portas' — ver `lib/layers.ts:wallLayer`. Recebe a MESMA
@@ -121,7 +133,7 @@ export function drawDoors(
   animando: ReadonlyMap<string, PortaAnimando> = NENHUMA_ANIMANDO,
 ): void {
   graphics.clear()
-  const dotRadius = DOOR_TO_CROSS_DOT_SCREEN_PX / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
+  const screenPx = 1 / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
   const thicknessPixel = pixelGrid(cameraScale, rendererResolution, DOOR_THICKNESS_SCREEN_PX)
   const edgePixel = pixelGrid(cameraScale, rendererResolution, DOOR_EDGE_SCREEN_PX)
   // O centro se alinha pela caixa de FORA (folha + contorno): com o contorno
@@ -182,12 +194,10 @@ export function drawDoors(
       borda: edge,
       corDaBorda: DOOR_EDGE_COLOR,
     }
-    const emAnimacao = animando.get(wall.id)
-    if (secreta) {
-      traceSecretDashes(graphics, porta)
-    } else if (emAnimacao === undefined || !desenharAnimando(graphics, emAnimacao, porta)) {
-      drawDoorAtRest(graphics, porta, filled)
-    }
+    const emAnimacao = secreta ? undefined : animando.get(wall.id)
+    const animou = emAnimacao !== undefined && desenharAnimando(graphics, emAnimacao, porta)
+    if (secreta) traceSecretDashes(graphics, porta)
+    else if (!animou) drawDoorAtRest(graphics, porta, filled)
     if (ring > 0) {
       traceDoorRect(graphics, cx, cy, ux, uy, outerHalfLength + ring / 2, outerHalfThickness + ring / 2)
       graphics.stroke({ width: ring, color: DOOR_LOCKED_COLOR, join: 'miter' })
@@ -203,11 +213,29 @@ export function drawDoors(
       graphics.fill({ color }).stroke({ width: edge, color: DOOR_EDGE_COLOR, join: 'miter' })
     }
 
-    if (!secreta && toCross.has(wall.id)) graphics.circle(cx, cy, dotRadius).fill({ color: filled ? DOOR_TO_CROSS_COLOR : color })
+    if (!secreta && toCross.has(wall.id)) drawToCrossDot(graphics, cx, cy, screenPx, color, animou ? emAnimacao.progresso : filled ? 0 : 1)
   }
 }
 
 const NO_DOORS_TO_CROSS: ReadonlySet<string> = new Set()
+
+/**
+ * O ponto de PORTAS POR ATRAVESSAR em `progresso` (0 = a cara da fechada, 1 = a
+ * da aberta; a porta parada passa 0 ou 1). Disco na cor da porta de raio `DOT
+ * + RING × sen(π·p)` e, por cima, o miolo escuro de raio `DOT`, que encolhe
+ * suave a partir de `CORE_FADE_FROM` até sumir em 1. Em 0 só o escuro (o disco
+ * claro, do mesmo tamanho, fica coberto e nem é pintado); em 1 só o claro.
+ */
+function drawToCrossDot(graphics: Graphics, cx: number, cy: number, screenPx: number, doorColor: number, progresso: number): void {
+  const p = Math.min(1, Math.max(0, progresso))
+  // sen(π) dá 1e-16, não 0: os extremos saem exatos, e o ponto parado continua uma instrução só.
+  const onda = p <= 0 || p >= 1 ? 0 : Math.sin(Math.PI * p)
+  const ring = (DOOR_TO_CROSS_DOT_SCREEN_PX + DOOR_TO_CROSS_RING_SCREEN_PX * onda) * screenPx
+  const fade = Math.min(1, Math.max(0, (p - DOOR_TO_CROSS_CORE_FADE_FROM) / (1 - DOOR_TO_CROSS_CORE_FADE_FROM)))
+  const core = DOOR_TO_CROSS_DOT_SCREEN_PX * (1 - fade * fade * (3 - 2 * fade)) * screenPx
+  if (ring > core) graphics.circle(cx, cy, ring).fill({ color: doorColor })
+  if (core > 0) graphics.circle(cx, cy, core).fill({ color: DOOR_TO_CROSS_COLOR })
+}
 
 /**
  * PORTA DE UM LADO (`door.opensFrom`), só no editor — o jogador nunca recebe o
