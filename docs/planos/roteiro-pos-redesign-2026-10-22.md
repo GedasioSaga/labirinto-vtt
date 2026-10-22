@@ -21,6 +21,7 @@ Decisões:
 - **Camadas padrão novas:** "Terreno" (textura, relevo, carimbos, nuvens) e "Telhados"; texto e caminho ficam em "Anotações". Tudo pode ser movido.
 - **Camadas livres, nomeadas pelo mestre:** MODELO COMPARTILHADO da aventura (nomes e ordem numa lista só). O estado (oculta, travada, opacidade, jogadores veem) é POR CENA.
 - Num lugar só: página Cena do livro do mestre (hoje seção "Camadas").
+- Plano detalhado aprovado em 22/10/2026 depois de nova rodada de grilling (13 camadas padrão, 8 fatias): `docs/planos/camadas-fase3-2026-10-22.md`.
 
 Aceite (antes de codar): mapa antigo abre idêntico; camada oculta só para jogadores nunca chega ao jogador (`lib/fogFilter.ts`); travada respeitada também por pino, linha, marcador, textura e carimbo; arrastar item para outra camada funciona e desfaz; ordem de render do editor e do jogador seguem a lista; `isMapShape` do jogador aceita mapa sem os campos novos; custo de `filterByLayer` medido (quadro p95 <= 20 ms).
 
