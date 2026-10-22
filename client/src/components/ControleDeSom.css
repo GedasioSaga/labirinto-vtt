@@ -380,8 +380,11 @@
     animation: none;
   }
 
+  /* O seletor do flutuante pesa mais que `.lb-som__gatilho svg`: sem repeti-lo
+     aqui, o ícone do jogador seguia encolhendo em 110 ms (e2e task-movimento-reduzido). */
   .lb-som__gatilho,
   .lb-som__gatilho svg,
+  .lb-som--flutuante .lb-som__gatilho svg,
   .lb-som__mudo {
     transition: none;
   }

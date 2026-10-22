@@ -222,7 +222,7 @@ select.gr-entrada option { background: #1d1913; }
 
 .gr-num { display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); height: 32px; }
 .gr-num__passo { height: 30px; color: var(--lb-color-parchment-dim); display: grid; place-items: center; border-radius: 5px; transition: background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
-.gr-num__passo:active { transform: scale(0.92); }
+.gr-num__passo:active { transform: scale(0.96); }
 /* no limite o passo apaga e não afunda: apertar não faz nada, e o botão não finge que fez */
 .gr-num__passo[aria-disabled='true'] { color: var(--lb-color-parchment-faint); cursor: not-allowed; }
 .gr-num__passo[aria-disabled='true']:active { transform: none; }
@@ -241,7 +241,7 @@ select.gr-entrada option { background: #1d1913; }
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
-.gr-cor:active { transform: scale(0.9); }
+.gr-cor:active { transform: scale(0.95); }
 .gr-cor[aria-checked='true']::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--lb-color-brass); }
 .gr-cor-nome { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-left: 4px; }
 
@@ -272,7 +272,7 @@ select.gr-entrada option { background: #1d1913; }
 .gr-marcador__ponto {
   position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%;
   background: var(--lb-color-brass-bright); box-shadow: 0 0 0 2px var(--lb-gr-couro-2);
-  opacity: 0; transform: scale(0.6);
+  opacity: 0; transform: scale(0.9);
   transition: opacity var(--lb-motion-base) ease, transform var(--lb-motion-base) var(--lb-gr-ease-out);
 }
 .gr-marcador__ponto.gr-vis { opacity: 1; transform: scale(1); }
@@ -404,7 +404,10 @@ select.gr-entrada option { background: #1d1913; }
 /* Navegação vertical das janelas de configuração: lista à esquerda, que fica parada enquanto o conteúdo rola. */
 .gr-dlg-duas { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; align-items: start; }
 .gr-nav-vertical { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+/* O botão da vez leva `gr-e-davez` e os outros nenhuma classe: o reset de botão do topo (`[class^='gr-']`) não os pega, e sem
+   isto eles saíam com o fundo cinza e a borda do navegador (medido no e2e task-contraste-aa: 2,29:1). */
 .gr-nav-vertical button {
+  font: inherit; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
   text-align: left; min-height: 34px; padding: 0 10px; border-radius: 7px; color: var(--lb-color-parchment-dim);
   transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
 }
@@ -466,7 +469,10 @@ select.gr-entrada option { background: #1d1913; }
 /* ------------------------------------------------------------------ movimento reduzido: some o deslocamento, fica a troca de opacidade */
 @media (prefers-reduced-motion: reduce) {
   .gr-fita { transition: none; }
-  .gr-ficha.gr-e-nova, .gr-dlg { animation-name: gr-fade; }
+  /* fade de no máximo 140 ms: o teto do movimento reduzido é 160 (e2e task-movimento-reduzido) */
+  .gr-ficha.gr-e-nova, .gr-dlg { animation-name: gr-fade; animation-duration: 140ms; }
+  .gr-dlg-fundo { animation-duration: 140ms; }
+  .gr-marcador__ponto { transition: opacity 120ms ease; }
   /* pop e menus trocam na hora: o JS já os tira sem esperar a saída */
   .gr-pop, .gr-anima { transition: none; }
   @starting-style { .gr-pop, .gr-anima { opacity: 1; transform: none; } }

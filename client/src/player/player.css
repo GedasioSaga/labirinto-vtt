@@ -6848,7 +6848,8 @@ button.pp-colecao__casa:focus-visible {
   margin: 0 0 0 2px;
   color: inherit;
   border-color: currentColor;
-  opacity: 0.7;
+  /* 0,7 dava 4,37:1 sobre o couro da faixa (e2e task-contraste-aa); 0,8 passa do 4,5. */
+  opacity: 0.8;
 }
 
 /* Sem teclado à mão (celular, tablet), as teclas só ocupariam lugar. */
