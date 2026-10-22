@@ -26,10 +26,9 @@ describe('corDaPorta: o que entra no campo', () => {
     expect(corPropriaDaPorta({ cor: 'red' })).toBeNull()
   })
 
-  it('o arrasto do seletor agrupa por porta; "Cor padrão" é um passo próprio', () => {
-    expect(chaveDaCorDaPorta('w1', '#79a9cc')).toBe('porta-cor:w1')
-    expect(chaveDaCorDaPorta('w1', '#79a9cd')).toBe(chaveDaCorDaPorta('w1', '#79a9cc'))
-    expect(chaveDaCorDaPorta('w2', '#79a9cc')).not.toBe(chaveDaCorDaPorta('w1', '#79a9cc'))
-    expect(chaveDaCorDaPorta('w1', null)).toBeUndefined()
+  it('só o arrasto do seletor agrupa, por porta; paleta e "Cor padrão" são um passo cada', () => {
+    expect(chaveDaCorDaPorta('w1', true)).toBe('porta-cor:w1')
+    expect(chaveDaCorDaPorta('w2', true)).not.toBe(chaveDaCorDaPorta('w1', true))
+    expect(chaveDaCorDaPorta('w1', false)).toBeUndefined()
   })
 })

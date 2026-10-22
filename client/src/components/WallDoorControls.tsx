@@ -28,6 +28,12 @@ export interface WallDoorControlsProps {
    * seletor não aparece.
    */
   onAnimacaoChange?: (id: string | null) => void
+  /**
+   * COR DA PORTA (fatia 22): `#rrggbb` da paleta ou de "Outra cor…", ou `null`
+   * = "Cor padrão" (campo ausente, o laranja de sempre). `doSeletor`: veio do
+   * arrasto do seletor nativo, que manda uma cor por quadro. Sem ele, o campo não aparece.
+   */
+  onCorChange?: (cor: string | null, doSeletor?: boolean) => void
 }
 
 /**

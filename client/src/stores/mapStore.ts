@@ -945,7 +945,12 @@ interface MapStoreState {
    *  forma no lugar, tamanho padrão da forma nova. Um passo no desfazer; a
    *  mesma forma ou outro tipo não entram. */
   trocarFormaDoTapete: (id: string, forma: FormaDoTapete) => void
-  setWallDoor: (id: string, door: DoorState | null) => void
+  /**
+   * `typingKey`: a mesma chave em passos seguidos é UM Ctrl+Z — o seletor
+   * nativo de "Cor da porta" manda uma cor por quadro do arrasto
+   * (`porta-cor:<id>`, `lib/corDaPorta.ts:chaveDaCorDaPorta`). Ausente = um passo por mudança.
+   */
+  setWallDoor: (id: string, door: DoorState | null, typingKey?: string) => void
   setWallKindForWall: (id: string, kind: Wall['wallKind']) => void
   /** `kind` decide tanto `door.kind` da porta nova quanto o comprimento do
    *  vão (`DOOR_LENGTH_BY_KIND[kind]`, calculado aqui no store antes de
@@ -2382,7 +2387,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (mapFactory.trocarFormaDoTapete(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDoTapete(map, id, forma))
     },
-    setWallDoor: (id, door) => withHistory((map) => mapFactory.setWallDoor(map, id, door)),
+    setWallDoor: (id, door, typingKey) => withHistory((map) => mapFactory.setWallDoor(map, id, door), typingKey),
     setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),
     setWallThicknessForWall: (id, thickness) => withHistory((map) => mapFactory.setWallThicknessForWall(map, id, thickness)),
     setWallLineStyleForWall: (id, lineStyle) => withHistory((map) => mapFactory.setWallLineStyleForWall(map, id, lineStyle)),
