@@ -1221,6 +1221,7 @@ export function PixiCanvas({
       // ("Transparente") ou opaco. Grupo de render próprio: o alpha vale para o
       // telhado inteiro, sem as emendas da sombra aparecerem. Sem evento.
       const telhadosContainer = new Container()
+      telhadosContainer.label = 'telhados'
       telhadosContainer.eventMode = 'none'
       telhadosContainer.interactiveChildren = false
       telhadosContainer.enableRenderGroup()

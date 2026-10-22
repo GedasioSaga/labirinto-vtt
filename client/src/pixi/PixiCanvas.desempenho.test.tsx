@@ -211,12 +211,16 @@ describe('PixiCanvas — o mundo fora da árvore de eventos e em grupos de rende
     // próprio, existe desde a montagem (escondida fora do Continente).
     const nuvens = descendentes(mundo()).find((no) => no.label === 'nuvens') ?? null
     expect(nuvens).not.toBeNull()
+    // Os TELHADOS (commit a64c7cb3) são grupo próprio: o alpha vale para o telhado
+    // inteiro e o fade de 300 ms não repinta o resto do mundo.
+    const telhados = descendentes(mundo()).find((no) => no.label === 'telhados') ?? null
+    expect(telhados).not.toBeNull()
 
     expect(mundo().eventMode).toBe('none')
     expect(mundo().isRenderGroup).toBe(true)
     const grupos = descendentes(mundo()).filter((no) => no.isRenderGroup)
-    expect(grupos).toHaveLength(8)
-    for (const proprio of [hover, rascunho, guia, rotulo, fantasma, camadaDoTeste, previaDosCarimbos, nuvens]) expect(grupos).toContain(proprio)
+    expect(grupos).toHaveLength(9)
+    for (const proprio of [hover, rascunho, guia, rotulo, fantasma, camadaDoTeste, previaDosCarimbos, nuvens, telhados]) expect(grupos).toContain(proprio)
   })
 
   it('os ouvintes continuam no stage: o hover segue o ponteiro e o arrasto move a ficha', async () => {
