@@ -184,6 +184,12 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
     inputRef.current?.focus()
   }
 
+  /** Fechada, a lista sai com a pergunta dentro; guardada, ela reapareceria ao reabrir, sem o foco no primeiro jogador. */
+  const alternar = (abrir: boolean) => {
+    setAberta(abrir)
+    if (!abrir) setSendPrompt(null)
+  }
+
   const clearSearch = () => {
     setQuery('')
     inputRef.current?.focus()
@@ -209,7 +215,10 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
       consume(event)
       if (event.shiftKey) {
         const target = canSend ? targetOf(enterTarget) : null
-        if (target !== null) openSendPrompt(enterKey, target)
+        if (target === null) return
+        // A pergunta mora na lista: recolhida à mão, a ficha abre para ela nascer à vista, com o foco.
+        if (!aberta) setAberta(true)
+        openSendPrompt(enterKey, target)
         return
       }
       goTo(enterTarget)
@@ -487,7 +496,7 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
       resumoForaDoNome
       secao={ID_DA_FICHA}
       aberta={aberta}
-      onAlternar={setAberta}
+      onAlternar={alternar}
       aVista={field}
     >
       {aberta ? list : null}

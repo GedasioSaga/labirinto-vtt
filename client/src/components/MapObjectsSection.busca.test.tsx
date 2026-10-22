@@ -96,6 +96,11 @@ function abrir(): void {
   if (cabecalho().getAttribute('aria-expanded') !== 'true') act(() => cabecalho().click())
 }
 
+/** Recolhe a ficha pelo cabeçalho, como o mestre faz à mão. */
+function fechar(): void {
+  if (cabecalho().getAttribute('aria-expanded') === 'true') act(() => cabecalho().click())
+}
+
 function busca(): HTMLInputElement {
   const campo = corpo().querySelector<HTMLInputElement>('input[type="search"]')
   if (campo === null) throw new Error('sem o campo de busca')
@@ -153,7 +158,7 @@ function titulosDosGrupos(): string[] {
 }
 
 describe('MapObjectsSection: busca em todas as cenas', () => {
-  it('busca do topo com a ficha fechada: digitar abre a lista com o achado de outra cena, e o Enter vai lá', () => {
+  it('digitar na busca do topo abre a ficha fechada com o achado de outra cena, e o Enter vai lá', () => {
     const props = render()
     expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
     expect(busca().placeholder).toBe('Sala, pino ou ficha, em qualquer cena')
@@ -183,7 +188,7 @@ describe('MapObjectsSection: busca em todas as cenas', () => {
     expect(corpo().textContent).not.toContain('Shift+Enter')
   })
 
-  it('sala aberta, ficha fechada: Shift+Enter na busca do topo pergunta quem vai e manda a ficha para a sala da outra cena', () => {
+  it('sala aberta: digitar abre a ficha, e o Shift+Enter na busca do topo pergunta quem vai e manda a ficha para a sala da outra cena', () => {
     const onSendHere = vi.fn(() => ({ ok: true, mensagem: 'Ana foi para Sala do Trono.' }))
     const props = render({ senders: JOGADORES, onSendHere })
     digitar(busca(), 'trono')
@@ -195,6 +200,48 @@ describe('MapObjectsSection: busca em todas as cenas', () => {
     expect(onSendHere).toHaveBeenCalledWith('ana', { sceneId: 's-cripta', objectKey: 'room:r-trono', name: 'Sala do Trono' })
     expect(corpo().textContent).toContain('Ana foi para Sala do Trono.')
     expect(document.activeElement).toBe(busca())
+  })
+
+  it('ficha recolhida à mão depois de digitar: o Enter na busca do topo ainda vai ao achado de outra cena', () => {
+    const props = render()
+    digitar(busca(), 'vigia')
+    fechar()
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
+    const enter = tecla(busca(), 'Enter')
+    expect(enter.defaultPrevented).toBe(true)
+    expect(props.onGoTo).not.toHaveBeenCalled()
+    expect(props.onGoToOther).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(props.onGoToOther ?? vi.fn()).mock.calls[0][0]).toMatchObject({ sceneId: 's-cripta', objectKey: 'token:k-vigia' })
+  })
+
+  it('sala aberta, ficha recolhida à mão depois de digitar: Shift+Enter reabre a ficha com a pergunta e o foco no primeiro jogador', () => {
+    const onSendHere = vi.fn(() => ({ ok: true, mensagem: 'Bia foi para Sala do Trono.' }))
+    const props = render({ senders: JOGADORES, onSendHere })
+    digitar(busca(), 'trono')
+    fechar()
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
+    const shiftEnter = tecla(busca(), 'Enter', true)
+    expect(shiftEnter.defaultPrevented).toBe(true)
+    expect(props.onGoToOther).not.toHaveBeenCalled()
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(corpo().querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Mandar quem para Sala do Trono?')
+    expect(document.activeElement?.textContent).toContain('Ana')
+    act(() => botaoPorNome('Bia').click())
+    expect(onSendHere).toHaveBeenCalledWith('bia', { sceneId: 's-cripta', objectKey: 'room:r-trono', name: 'Sala do Trono' })
+    expect(corpo().textContent).toContain('Bia foi para Sala do Trono.')
+  })
+
+  it('fechar a ficha com a pergunta aberta a descarta: reabrir não a traz de volta sem o foco', () => {
+    const onSendHere = vi.fn(() => ({ ok: true, mensagem: '' }))
+    render({ senders: JOGADORES, onSendHere })
+    digitar(busca(), 'trono')
+    tecla(busca(), 'Enter', true)
+    expect(corpo().querySelector('[role="group"]')).not.toBeNull()
+    fechar()
+    abrir()
+    expect(corpo().querySelector('[role="group"]')).toBeNull()
+    expect(botaoPorNome('Mandar ficha para Sala do Trono').getAttribute('aria-expanded')).toBe('false')
+    expect(onSendHere).not.toHaveBeenCalled()
   })
 
   it('sem sala aberta, a busca não fala do Shift+Enter', () => {
