@@ -31,15 +31,17 @@ function colorOf(instruction: Instruction): number {
 }
 
 describe('drawDoors: seta da porta de um lado', () => {
-  it("'right': a seta fica embaixo, toda fora do retângulo da porta, na cor da porta", () => {
+  it("'right': a seta fica embaixo, toda fora da porta (passando o contorno), na cor da porta", () => {
     const g = new Graphics()
     drawDoors(g, [porta({ opensFrom: 'right' })])
     const todos = fills(g)
-    expect(todos).toHaveLength(2)
-    const seta = todos[1]
+    // O contorno e a cor da folha, e a seta.
+    expect(todos).toHaveLength(3)
+    const seta = todos[2]
     const ys = ysOf(seta)
     expect(ys.length).toBe(3)
-    expect(ys.every((y) => y > 0)).toBe(true)
+    // A folha vai até 2,5 de mundo (4 px + meio contorno): a seta começa depois disso.
+    expect(ys.every((y) => y > 2.5)).toBe(true)
     expect(colorOf(seta)).toBe(DOOR_COLOR)
   })
 
@@ -47,14 +49,14 @@ describe('drawDoors: seta da porta de um lado', () => {
     const g = new Graphics()
     drawDoors(g, [porta({ opensFrom: 'left' })])
     const todos = fills(g)
-    expect(todos).toHaveLength(2)
-    expect(ysOf(todos[1]).every((y) => y < 0)).toBe(true)
+    expect(todos).toHaveLength(3)
+    expect(ysOf(todos[2]).every((y) => y < -2.5)).toBe(true)
   })
 
   it('a ponta da seta aponta para a porta (é o vértice mais perto da linha)', () => {
     const g = new Graphics()
     drawDoors(g, [porta({ opensFrom: 'right' })])
-    const ys = ysOf(fills(g)[1])
+    const ys = ysOf(fills(g)[2])
     const ponta = Math.min(...ys)
     // Um vértice só na ponta; os dois da base ficam mais longe da porta, lado a lado.
     expect(ys.filter((y) => y === ponta)).toHaveLength(1)
@@ -64,6 +66,6 @@ describe('drawDoors: seta da porta de um lado', () => {
   it('porta dos dois lados continua sem seta', () => {
     const g = new Graphics()
     drawDoors(g, [porta({})])
-    expect(fills(g)).toHaveLength(1)
+    expect(fills(g)).toHaveLength(2)
   })
 })

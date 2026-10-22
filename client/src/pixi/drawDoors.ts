@@ -1,21 +1,36 @@
 import type { Graphics } from 'pixi.js'
 import type { DoorState, Wall } from '../types/map'
 import { corPropriaDaPorta } from '../lib/corDaPorta'
-import { desenharBatente, tracarRetanguloDaPorta as traceDoorRect, type AnimacaoDePorta, type PortaParaDesenho } from '../portas/animacoesDePorta'
+import {
+  CONTORNO_DA_PORTA,
+  desenharBatente,
+  desenharFolhaFechada,
+  pintarFolha,
+  tracarRetanguloDaPorta as traceDoorRect,
+  type AnimacaoDePorta,
+  type PecaDaFolha,
+  type PortaParaDesenho,
+} from '../portas/animacoesDePorta'
 import { SELECTION_COLOR } from './constants'
 import { selectionOutlineWidth } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 
 /**
- * Cor de porta destrancada — o mesmo laranja de sempre, para mapa salvo não
- * trocar de cor ao abrir. Trancada é vermelha.
+ * DESENHO DA PORTA DE 22/10/2026 (o `.mapa .porta-folha` do protótipo
+ * consolidado, escolhido pelo usuário: "eu prefiro ela assim"): a folha é uma
+ * barra CREME com contorno escuro que enche o vão até a parede; trancada é a
+ * mesma barra em vermelho (o `--lb-color-ember`). Mapa salvo não muda: a cor
+ * sai do estado, não do arquivo.
  */
-export const DOOR_COLOR = 0xd08c3a
-export const DOOR_LOCKED_COLOR = 0xc0392b
+export const DOOR_COLOR = 0xd9d2c0
+export const DOOR_LOCKED_COLOR = 0xe2645a
+/** O contorno escuro da folha, 1 px de TELA centrado na borda dela (como o `stroke-width: 1` do SVG). */
+export const DOOR_EDGE_COLOR = CONTORNO_DA_PORTA
+export const DOOR_EDGE_SCREEN_PX = 1
 
 /**
  * A cor com que a porta é pintada: a própria (`DoorState.cor`, fatia 22) nos
- * três estados; sem ela, o laranja de sempre e o vermelho da trancada.
+ * três estados; sem ela, o creme de sempre e o vermelho da trancada.
  */
 export function corDaPortaNoMapa(door: Pick<DoorState, 'cor' | 'locked'>): number {
   return corPropriaDaPorta(door) ?? (door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR)
@@ -23,62 +38,65 @@ export function corDaPortaNoMapa(door: Pick<DoorState, 'cor' | 'locked'>): numbe
 
 /**
  * TRANCADA COM COR PRÓPRIA: a cor já não diz "trancada", então a porta ganha
- * um contorno vermelho POR FORA do retângulo e um cadeado pequeno no meio.
- * Tudo chapado e opaco, em px de TELA: a cópia da porta por cima do telhado
- * (`player/PlayerView.tsx`) pinta o mesmo desenho em cima, e alfa somaria.
+ * um contorno vermelho POR FORA do contorno escuro e um cadeado pequeno no
+ * meio. Tudo chapado e opaco, em px de TELA: a cópia da porta por cima do
+ * telhado (`player/PlayerView.tsx`) pinta o mesmo desenho em cima, e alfa somaria.
  */
 export const DOOR_LOCKED_RING_SCREEN_PX = 1.5
-/** Corpo do cadeado (largura x altura) e alça, em px de tela; o cadeado inteiro fica em ~8 px. */
-export const DOOR_PADLOCK_BODY_W_SCREEN_PX = 7
+/**
+ * O CADEADO (o do protótipo `docs/design/porta-animacoes`): corpo de 6 por 5 px
+ * de tela, alça de raio 1,75 px e traço de 1 px, fixos na tela (nunca crescem
+ * com o zoom). Corpo creme e traço vermelho: lê sobre qualquer cor de porta,
+ * até a vermelha, onde o traço some e o corpo claro fica.
+ */
+export const DOOR_PADLOCK_BODY_W_SCREEN_PX = 6
 export const DOOR_PADLOCK_BODY_H_SCREEN_PX = 5
-export const DOOR_PADLOCK_SHACKLE_R_SCREEN_PX = 2
-export const DOOR_PADLOCK_STROKE_SCREEN_PX = 1.25
-/**
- * Corpo claro com traço vermelho: lê sobre qualquer cor de porta, até a
- * vermelha, e sobre o chão escuro. O claro da pastilha do cadeado da ficha
- * (`drawTokenLock.ts`), e não o creme do ponto de atravessar: as duas marcas
- * não se confundem.
- */
-export const DOOR_PADLOCK_FILL = 0xe6e6e6
+export const DOOR_PADLOCK_SHACKLE_R_SCREEN_PX = 1.75
+export const DOOR_PADLOCK_STROKE_SCREEN_PX = 1
+export const DOOR_PADLOCK_FILL = 0xf4ead8
 
 /**
- * Visual "minimapa do Resident Evil" (15/09/2026): a porta é um retângulo
- * pequeno e chapado no vão, alinhado à parede. O comprimento acompanha o vão
- * (fração dele, em mundo); a espessura fica fixa na TELA, como a parede, para a
- * porta continuar legível de longe e não virar um bloco de perto.
+ * A folha enche o VÃO INTEIRO, de parede a parede (antes, 60% dele, com folga
+ * até a parede). A espessura fica fixa na TELA, como a parede, para a porta
+ * continuar legível de longe e não virar um bloco de perto.
  */
-export const DOOR_LENGTH_RATIO = 0.6
-export const DOOR_THICKNESS_SCREEN_PX = 5
-/** Porta aberta: só o contorno do retângulo, nesta espessura de tela. */
-export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1.5
+export const DOOR_LENGTH_RATIO = 1
+export const DOOR_THICKNESS_SCREEN_PX = 4
+/**
+ * Porta aberta: a mesma caixa, com o miolo vazado em escuro; sobra um traço
+ * claro desta espessura de tela de cada lado (`desenharBatente`).
+ */
+export const DOOR_OPEN_OUTLINE_SCREEN_PX = 1
 
 /**
- * PORTAS POR ATRAVESSAR (só na tela do jogador): ponto claro no meio da porta
- * cujo outro lado ainda está na névoa para ele. Raio em px de TELA, menor que
- * a meia espessura da porta, para caber dentro do retângulo em qualquer zoom:
- * marca discreta de minimapa, sem ícone nem halo.
+ * PORTAS POR ATRAVESSAR (só na tela do jogador): ponto no meio da porta cujo
+ * outro lado ainda está na névoa para ele. Escuro sobre a folha fechada (como
+ * no protótipo); na aberta, cujo miolo já é escuro, sai na cor da porta. Raio
+ * em px de TELA, que cabe na espessura em qualquer zoom: marca discreta de
+ * minimapa, sem ícone nem halo.
  */
-export const DOOR_TO_CROSS_COLOR = 0xf4ead8
+export const DOOR_TO_CROSS_COLOR = DOOR_EDGE_COLOR
 export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
 
 /**
  * Renderer da camada 'portas' — ver `lib/layers.ts:wallLayer`. Recebe a MESMA
  * lista de walls já filtrada por `visibleWalls` que `drawWalls.ts` recebe; o
  * loop ignora toda `wall.door === null`. A linha da parede com porta não é
- * desenhada (o vão é da porta), então o retângulo fica sozinho no vão.
+ * desenhada (o vão é da porta), então a folha fica sozinha no vão.
  *
  * `door.kind` (normal, dupla, portão) continua no dado e no painel, mas todos
- * aparecem como o mesmo retângulo: no minimapa o que importa é o estado.
- *  - fechada: preenchido laranja;
- *  - trancada: preenchido vermelho (aberta + trancada também fica vermelha
- *    preenchida: o cadeado vale mais que a folha);
- *  - aberta: só contorno laranja.
+ * aparecem como a mesma folha: no minimapa o que importa é o estado.
+ *  - fechada: barra creme cheia, contorno escuro;
+ *  - trancada: a barra vermelha (aberta + trancada também fica cheia: o
+ *    cadeado vale mais que a folha);
+ *  - aberta: a caixa com o miolo escuro (`desenharBatente`).
  *
- * COR PRÓPRIA (`door.cor`, fatia 22): a cor dela no lugar do laranja e do
- * vermelho, nos três estados (`corDaPortaNoMapa`). A trancada ganha o contorno
- * vermelho por fora e o cadeado no meio; a secreta tracejada e a seta de um lado
- * usam a mesma cor, e a secreta trancada leva só o cadeado (o contorno juntaria
- * os traços num retângulo). Sem cor própria, nada disso: o desenho de sempre.
+ * COR PRÓPRIA (`door.cor`, fatia 22): a cor dela no lugar do creme e do
+ * vermelho, nos três estados (`corDaPortaNoMapa`), e o contorno escuro fica. A
+ * trancada ganha o contorno vermelho por fora e o cadeado no meio; a secreta
+ * tracejada e a seta de um lado usam a mesma cor. Porta secreta nunca leva
+ * cadeado (o contorno juntaria os traços num retângulo, e o cadeado diria
+ * "porta" onde o jogador vê parede).
  *
  * Porta de sala secreta não chega aqui para o jogador (fogFilter.ts corta a
  * parede) e o editor desenha igual às outras, como antes. PORTA SECRETA
@@ -86,7 +104,7 @@ export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
  * fogFilter.ts); no editor sai tracejada (`traceSecretDashes`).
  *
  * `toCross` (PORTAS POR ATRAVESSAR, só o jogador passa): ids das portas que
- * levam o ponto claro no meio. O editor não passa e desenha como sempre.
+ * levam o ponto no meio. O editor não passa e desenha como sempre.
  *
  * `animando` (PORTA ANIMADA, `pixi/animadorDePortas.ts`): ids das portas no
  * meio do abrir/fechar, desenhadas pela animação escolhida em vez do estado.
@@ -105,7 +123,13 @@ export function drawDoors(
   graphics.clear()
   const dotRadius = DOOR_TO_CROSS_DOT_SCREEN_PX / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
   const thicknessPixel = pixelGrid(cameraScale, rendererResolution, DOOR_THICKNESS_SCREEN_PX)
+  const edgePixel = pixelGrid(cameraScale, rendererResolution, DOOR_EDGE_SCREEN_PX)
+  // O centro se alinha pela caixa de FORA (folha + contorno): com o contorno
+  // centrado na borda, a caixa de fora e a cor de dentro têm a mesma paridade
+  // de pixels, e as duas bordas caem em pixel físico inteiro, nítidas.
+  const outerPixel = { pxPerWorld: thicknessPixel.pxPerWorld, physicalWidth: thicknessPixel.physicalWidth + edgePixel.physicalWidth }
   const thickness = strokeWidthInWorld(thicknessPixel)
+  const edge = strokeWidthInWorld(edgePixel)
   const outlineWidth = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, DOOR_OPEN_OUTLINE_SCREEN_PX))
   const selectionWidth = selectionOutlineWidth(cameraScale)
   const lockedRingWidth = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, DOOR_LOCKED_RING_SCREEN_PX))
@@ -119,36 +143,53 @@ export function drawDoors(
     const length = Math.hypot(dx, dy)
     if (length === 0) continue
 
-    // Centro no meio do pixel físico (mesma receita da parede): o retângulo de
-    // uma porta horizontal/vertical fica com borda nítida em vez de meio pixel borrado.
-    const cx = alignToPixel((wall.x1 + wall.x2) / 2, thicknessPixel)
-    const cy = alignToPixel((wall.y1 + wall.y2) / 2, thicknessPixel)
+    const cx = alignToPixel((wall.x1 + wall.x2) / 2, outerPixel)
+    const cy = alignToPixel((wall.y1 + wall.y2) / 2, outerPixel)
     const ux = dx / length
     const uy = dy / length
     const halfLength = (length * DOOR_LENGTH_RATIO) / 2
     const filled = door.locked || !door.open
     const color = corDaPortaNoMapa(door)
     const secreta = door.secret === true
-    const cadeado = door.locked && corPropriaDaPorta(door) !== null
-    const ring = cadeado && !secreta ? lockedRingWidth : 0
+    const cadeado = door.locked && !secreta && corPropriaDaPorta(door) !== null
+    const ring = cadeado ? lockedRingWidth : 0
+    // Até onde a porta vai, com o contorno escuro: o que fica por fora (anel, seleção, seta) começa aqui.
+    const outerHalfLength = halfLength + edge / 2
+    const outerHalfThickness = thickness / 2 + edge / 2
 
-    // Seleção NÃO troca a cor: moldura em SELECTION_COLOR POR FORA do
-    // retângulo (`SELECTION_OUTLINE_SCREEN_PX` de tela), mesma regra da parede
-    // — e por fora do contorno vermelho, que senão a cobriria.
+    // Seleção NÃO troca a cor: moldura em SELECTION_COLOR POR FORA da porta
+    // (`SELECTION_OUTLINE_SCREEN_PX` de tela), mesma regra da parede — e por
+    // fora do contorno vermelho, que senão a cobriria.
     if (wall.id === selectedWallId) {
-      traceDoorRect(graphics, cx, cy, ux, uy, halfLength + ring + selectionWidth / 2, thickness / 2 + ring + selectionWidth / 2)
+      traceDoorRect(graphics, cx, cy, ux, uy, outerHalfLength + ring + selectionWidth / 2, outerHalfThickness + ring + selectionWidth / 2)
       graphics.stroke({ width: selectionWidth, color: SELECTION_COLOR, join: 'miter' })
     }
 
-    const porta: PortaParaDesenho = { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, cx, cy, ux, uy, meioComprimento: halfLength, espessura: thickness, contorno: outlineWidth, cor: color, escala: cameraScale }
+    const porta: PortaParaDesenho = {
+      x1: wall.x1,
+      y1: wall.y1,
+      x2: wall.x2,
+      y2: wall.y2,
+      cx,
+      cy,
+      ux,
+      uy,
+      meioComprimento: halfLength,
+      espessura: thickness,
+      contorno: outlineWidth,
+      cor: color,
+      escala: cameraScale,
+      borda: edge,
+      corDaBorda: DOOR_EDGE_COLOR,
+    }
     const emAnimacao = animando.get(wall.id)
     if (secreta) {
-      traceSecretDashes(graphics, cx, cy, ux, uy, halfLength, thickness / 2, color)
+      traceSecretDashes(graphics, porta)
     } else if (emAnimacao === undefined || !desenharAnimando(graphics, emAnimacao, porta)) {
       drawDoorAtRest(graphics, porta, filled)
     }
     if (ring > 0) {
-      traceDoorRect(graphics, cx, cy, ux, uy, halfLength + ring / 2, thickness / 2 + ring / 2)
+      traceDoorRect(graphics, cx, cy, ux, uy, outerHalfLength + ring / 2, outerHalfThickness + ring / 2)
       graphics.stroke({ width: ring, color: DOOR_LOCKED_COLOR, join: 'miter' })
     }
     if (cadeado) drawPadlock(graphics, cx, cy, cameraScale)
@@ -158,11 +199,11 @@ export function drawDoors(
       const gap = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, ONE_SIDE_ARROW_GAP_SCREEN_PX))
       // Normal (-uy, ux) aponta para o lado 'right' (`lib/doorReach.ts:sideOfWall`).
       const sign = door.opensFrom === 'right' ? 1 : -1
-      traceOneSideArrow(graphics, cx, cy, ux, uy, sign, thickness / 2 + gap, arrowLength, Math.min(halfLength, arrowLength * 0.7))
-      graphics.fill({ color })
+      traceOneSideArrow(graphics, cx, cy, ux, uy, sign, outerHalfThickness + gap, arrowLength, Math.min(halfLength, arrowLength * 0.7))
+      graphics.fill({ color }).stroke({ width: edge, color: DOOR_EDGE_COLOR, join: 'miter' })
     }
 
-    if (door.secret !== true && toCross.has(wall.id)) graphics.circle(cx, cy, dotRadius).fill({ color: DOOR_TO_CROSS_COLOR })
+    if (!secreta && toCross.has(wall.id)) graphics.circle(cx, cy, dotRadius).fill({ color: filled ? DOOR_TO_CROSS_COLOR : color })
   }
 }
 
@@ -171,7 +212,8 @@ const NO_DOORS_TO_CROSS: ReadonlySet<string> = new Set()
 /**
  * PORTA DE UM LADO (`door.opensFrom`), só no editor — o jogador nunca recebe o
  * campo (`lib/fogFilter.ts`): um triângulo chapado no lado que abre, com a
- * ponta virada para a porta, na cor dela. Tamanho fixo na tela, como a espessura.
+ * ponta virada para a porta, na cor dela e com o contorno escuro. Tamanho fixo
+ * na tela, como a espessura.
  */
 export const ONE_SIDE_ARROW_SCREEN_PX = 8
 export const ONE_SIDE_ARROW_GAP_SCREEN_PX = 3
@@ -187,28 +229,30 @@ function traceOneSideArrow(graphics: Graphics, cx: number, cy: number, ux: numbe
 }
 
 /**
- * PORTA SECRETA no editor: o mesmo retângulo, partido em `SECRET_DOOR_DASHES`
- * pedaços preenchidos com vão igual entre eles — "tracejada", para o mestre
- * saber que o jogador vê ali só a parede. A cor segue a regra de sempre
- * (trancada vermelha). Aberta também sai tracejada: enquanto secreta, ela é
- * parede para o jogador (`lib/collision.ts`), então "aberta" não tem cara própria.
+ * PORTA SECRETA no editor: a mesma folha, partida em `SECRET_DOOR_DASHES`
+ * pedaços com vão igual entre eles, cada um com o contorno escuro —
+ * "tracejada", para o mestre saber que o jogador vê ali só a parede. A cor
+ * segue a regra de sempre (trancada vermelha). Aberta também sai tracejada:
+ * enquanto secreta, ela é parede para o jogador (`lib/collision.ts`), então
+ * "aberta" não tem cara própria.
  */
 export const SECRET_DOOR_DASHES = 3
 
-function traceSecretDashes(graphics: Graphics, cx: number, cy: number, ux: number, uy: number, halfLength: number, halfThickness: number, color: number): void {
+function traceSecretDashes(graphics: Graphics, porta: PortaParaDesenho): void {
   // n traços e n-1 vãos do mesmo tamanho cobrem o comprimento inteiro da porta.
-  const piece = (2 * halfLength) / (2 * SECRET_DOOR_DASHES - 1)
+  const piece = (2 * porta.meioComprimento) / (2 * SECRET_DOOR_DASHES - 1)
+  const pecas: PecaDaFolha[] = []
   for (let i = 0; i < SECRET_DOOR_DASHES; i += 1) {
-    const offset = -halfLength + piece * (2 * i) + piece / 2
-    traceDoorRect(graphics, cx + ux * offset, cy + uy * offset, ux, uy, piece / 2, halfThickness)
-    graphics.fill({ color })
+    const offset = -porta.meioComprimento + piece * (2 * i) + piece / 2
+    pecas.push({ forma: 'retangulo', cx: porta.cx + porta.ux * offset, cy: porta.cy + porta.uy * offset, dx: porta.ux, dy: porta.uy, meioComprimento: piece / 2, meiaEspessura: porta.espessura / 2 })
   }
+  pintarFolha(graphics, porta, pecas)
 }
 
 /**
  * O CADEADO da trancada com cor própria, em pé na TELA (não gira com a parede:
- * é ícone, não folha) e centrado na porta: alça em meia-volta sobre o corpo,
- * e o buraco da chave no meio. Tamanho fixo em px de tela, como a espessura.
+ * é ícone, não folha) e centrado na porta: a alça em meia-volta sobre o corpo.
+ * Tamanho fixo em px de tela, como a espessura.
  */
 function drawPadlock(graphics: Graphics, cx: number, cy: number, cameraScale: number): void {
   const px = 1 / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
@@ -216,15 +260,15 @@ function drawPadlock(graphics: Graphics, cx: number, cy: number, cameraScale: nu
   const height = DOOR_PADLOCK_BODY_H_SCREEN_PX * px
   const shackle = DOOR_PADLOCK_SHACKLE_R_SCREEN_PX * px
   const stroke = DOOR_PADLOCK_STROKE_SCREEN_PX * px
-  // Do topo da alça ao pé do corpo, o cadeado inteiro fica centrado em (cx, cy).
-  const bodyTop = cy - (height - shackle - stroke / 2) / 2
-  // O `moveTo` antes do arco: sem ele o traço sairia do ponto anterior do path até o começo do arco.
+  // O corpo desce 1 px para o conjunto (alça + corpo) ficar centrado na porta.
+  const top = cy - height / 2 + px
   graphics
-    .moveTo(cx - shackle, bodyTop)
-    .arc(cx, bodyTop, shackle, Math.PI, Math.PI * 2)
-    .stroke({ width: stroke, color: DOOR_LOCKED_COLOR })
-  graphics.rect(cx - width / 2, bodyTop, width, height).fill({ color: DOOR_PADLOCK_FILL }).stroke({ width: stroke, color: DOOR_LOCKED_COLOR })
-  graphics.circle(cx, bodyTop + height / 2, stroke).fill({ color: DOOR_LOCKED_COLOR })
+    .moveTo(cx - shackle, top)
+    .lineTo(cx - shackle, top - px)
+    .arc(cx, top - px, shackle, Math.PI, Math.PI * 2)
+    .lineTo(cx + shackle, top)
+    .stroke({ width: stroke * 1.25, color: DOOR_LOCKED_COLOR })
+  graphics.rect(cx - width / 2, top, width, height).fill({ color: DOOR_PADLOCK_FILL }).stroke({ width: stroke, color: DOOR_LOCKED_COLOR, join: 'miter' })
 }
 
 /**
@@ -242,17 +286,14 @@ export interface PortaAnimando {
 const NENHUMA_ANIMANDO: ReadonlyMap<string, PortaAnimando> = new Map()
 
 /**
- * A porta parada: fechada (ou trancada) preenchida; aberta só o contorno, por
- * DENTRO do retângulo — a aberta ocupa a mesma caixa da fechada. O contorno é
- * o batente das animações (`desenharBatente`): o fim do abrir é este desenho.
+ * A porta parada: fechada (ou trancada) é a folha cheia; aberta, o batente.
+ * São os MESMOS ajudantes que as animações chamam nos extremos
+ * (`desenharFolhaFechada`, `desenharBatente`): o começo e o fim de toda
+ * animação são este desenho, instrução por instrução.
  */
 function drawDoorAtRest(graphics: Graphics, porta: PortaParaDesenho, filled: boolean): void {
-  if (!filled) {
-    desenharBatente(graphics, porta)
-    return
-  }
-  traceDoorRect(graphics, porta.cx, porta.cy, porta.ux, porta.uy, porta.meioComprimento, porta.espessura / 2)
-  graphics.fill({ color: porta.cor })
+  if (filled) desenharFolhaFechada(graphics, porta)
+  else desenharBatente(graphics, porta)
 }
 
 /**

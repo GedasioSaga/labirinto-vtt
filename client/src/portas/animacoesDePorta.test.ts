@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Graphics } from 'pixi.js'
 import {
   ANIMACOES_EMBUTIDAS,
+  CONTORNO_DA_PORTA,
+  desenharBatente,
+  desenharFolhaFechada,
   DURACAO_DE_ANIMACAO_MAX_MS,
   ESCURO_DA_SOMBRA,
   SONS_DA_ANIMACAO_DE_PORTA,
@@ -20,8 +23,19 @@ import type { DoorState } from '../types/map'
 
 afterEach(() => esquecerAnimacoesDePortaDeFora())
 
-/** Porta horizontal de 0 a 100, folha de 60 (20..80) e 6 de espessura. */
-const PORTA: PortaParaDesenho = { x1: 0, y1: 0, x2: 100, y2: 0, cx: 50, cy: 0, ux: 1, uy: 0, meioComprimento: 30, espessura: 6, contorno: 2, cor: 0xd08c3a, escala: 1 }
+/**
+ * Porta horizontal de 0 a 100 como `pixi/drawDoors.ts` a monta a 100% desde
+ * 22/10/2026: folha no vão inteiro (meio comprimento 50), 4 de espessura,
+ * contorno escuro de 1 centrado na borda, batente de 1 e creme.
+ */
+const PORTA: PortaParaDesenho = { x1: 0, y1: 0, x2: 100, y2: 0, cx: 50, cy: 0, ux: 1, uy: 0, meioComprimento: 50, espessura: 4, contorno: 1, borda: 1, cor: 0xd9d2c0, escala: 1 }
+
+/** O desenho de uma função de desenho só, num Graphics novo. */
+function so(desenho: (g: Graphics, porta: PortaParaDesenho) => void, porta: PortaParaDesenho = PORTA): Graphics {
+  const g = new Graphics()
+  desenho(g, porta)
+  return g
+}
 
 type Instruction = Graphics['context']['instructions'][number]
 
@@ -97,44 +111,52 @@ describe('registro de animações de porta — embutidas', () => {
     expect(animacaoDePorta('girar')?.nome).toBe('Girar na dobradiça')
   })
 
-  it.each(['girar', 'deslizar'])('%s em 0 é a porta fechada: folha inteira cobrindo o batente', (id) => {
-    const g = desenhar(id, 0)
-    expect(strokes(g)).toHaveLength(1)
-    expect(fills(g)).toHaveLength(1)
-    const folha = caixa(fills(g)[0])
-    expect(folha.minX).toBeCloseTo(20, 9)
-    expect(folha.maxX).toBeCloseTo(80, 9)
-    expect(folha.minY).toBeCloseTo(-3, 9)
-    expect(folha.maxY).toBeCloseTo(3, 9)
-    expect(alphaDo(fills(g)[0])).toBe(1)
+  it('a fechada parada: o escuro de 101 x 5 por fora e a cor de 99 x 3 por dentro (o stroke de 1 do SVG, centrado)', () => {
+    const g = so(desenharFolhaFechada)
+    expect(fills(g).map(corDo)).toEqual([CONTORNO_DA_PORTA, PORTA.cor])
+    expect(caixa(fills(g)[0])).toEqual({ minX: -0.5, maxX: 100.5, minY: -2.5, maxY: 2.5 })
+    expect(caixa(fills(g)[1])).toEqual({ minX: 0.5, maxX: 99.5, minY: -1.5, maxY: 1.5 })
   })
 
-  it.each(['girar', 'deslizar'])('%s em 1 é a porta aberta: só o batente, por dentro da caixa', (id) => {
-    const g = desenhar(id, 1)
-    expect(fills(g)).toHaveLength(0)
-    const [batente] = strokes(g)
-    const c = caixa(batente)
-    expect(c.minX).toBeCloseTo(21, 9)
-    expect(c.maxX).toBeCloseTo(79, 9)
+  it('a aberta parada (batente): a mesma caixa com o miolo vazado em escuro, sobra 1 de cor de cada lado', () => {
+    const g = so(desenharBatente)
+    expect(fills(g).map(corDo)).toEqual([CONTORNO_DA_PORTA, PORTA.cor, CONTORNO_DA_PORTA])
+    expect(caixa(fills(g)[2])).toEqual({ minX: 1.5, maxX: 98.5, minY: -0.5, maxY: 0.5 })
+    expect(strokes(g)).toHaveLength(0)
+  })
+
+  it.each(['girar', 'deslizar'])('%s em 0 é a porta fechada parada, instrução por instrução', (id) => {
+    expect(desenhoInteiro(desenhar(id, 0))).toEqual(desenhoInteiro(so(desenharFolhaFechada)))
+    for (const f of fills(desenhar(id, 0))) expect(alphaDo(f)).toBe(1)
+  })
+
+  it.each(['girar', 'deslizar'])('%s em 1 é a porta aberta parada: só o batente', (id) => {
+    expect(desenhoInteiro(desenhar(id, 1))).toEqual(desenhoInteiro(so(desenharBatente)))
   })
 
   it('girar a 0,5: a folha está a 35° (metade dos 70) da dobradiça de (x1,y1), inteira e opaca', () => {
     const g = desenhar('girar', 0.5)
     const c = caixa(folha(g))
-    // Dobradiça em (20, 0); ponta livre em 20 + 60·cos35 ≈ 69,1 e 60·sen35 ≈ 34,4
-    // para o lado da normal (y > 0), mais a meia espessura da folha.
-    expect(c.maxX).toBeGreaterThan(69)
-    expect(c.maxX).toBeLessThan(72)
-    expect(c.maxY).toBeGreaterThan(34)
-    expect(c.maxY).toBeLessThan(38)
+    // Dobradiça em (0, 0); a cor vai até 99,5 da dobradiça: ponta em 99,5·cos35 ≈ 81,5
+    // e 99,5·sen35 ≈ 57,1 para o lado da normal (y > 0), mais a meia espessura (1,5).
+    expect(c.maxX).toBeGreaterThan(81.5)
+    expect(c.maxX).toBeLessThan(83)
+    expect(c.maxY).toBeGreaterThan(57)
+    expect(c.maxY).toBeLessThan(59)
     expect(alphaDo(folha(g))).toBe(1)
     expect(corDo(folha(g))).toBe(PORTA.cor)
   })
 
-  it('deslizar a 0,5: sobra a metade da folha, presa à ponta de (x2,y2)', () => {
-    const c = caixa(folha(desenhar('deslizar', 0.5)))
-    expect(c.minX).toBeCloseTo(50, 9)
-    expect(c.maxX).toBeCloseTo(80, 9)
+  it('deslizar a 0,5: sobra a metade da folha, presa à ponta de (x2,y2), com o contorno escuro em volta', () => {
+    const g = desenhar('deslizar', 0.5)
+    const todas = fills(g)
+    const escuro = caixa(todas[todas.length - 2])
+    const cor = caixa(folha(g))
+    expect(corDo(todas[todas.length - 2])).toBe(CONTORNO_DA_PORTA)
+    expect(escuro.minX).toBeCloseTo(49.5, 9)
+    expect(escuro.maxX).toBeCloseTo(100.5, 9)
+    expect(cor.minX).toBeCloseTo(50.5, 9)
+    expect(cor.maxX).toBeCloseTo(99.5, 9)
   })
 
   it('girar recolhe a folha para a dobradiça no fim: a 0,95 ela é bem menor que a 0,5, e a 1 não sobra folha', () => {
@@ -142,12 +164,12 @@ describe('registro de animações de porta — embutidas', () => {
     const quase = caixa(folha(desenhar('girar', 0.95)))
     const extensao = (c: ReturnType<typeof caixa>): number => Math.hypot(c.maxX - c.minX, c.maxY - c.minY)
     expect(extensao(quase)).toBeLessThan(extensao(meio) / 4)
-    // Recolhe para a dobradiça (20, 0), não para o meio do vão: o centro da folha
-    // estava a 30 dela no meio do caminho e chega a menos de 6.
-    const distanciaDaDobradica = (c: ReturnType<typeof caixa>): number => Math.hypot((c.minX + c.maxX) / 2 - 20, (c.minY + c.maxY) / 2)
-    expect(distanciaDaDobradica(meio)).toBeCloseTo(30, 0)
-    expect(distanciaDaDobradica(quase)).toBeLessThan(6)
-    expect(fills(desenhar('girar', 1))).toHaveLength(0)
+    // Recolhe para a dobradiça (0, 0), não para o meio do vão: o centro da folha
+    // estava a 50 dela no meio do caminho e chega a menos de 10 (a 1/5, como antes).
+    const distanciaDaDobradica = (c: ReturnType<typeof caixa>): number => Math.hypot((c.minX + c.maxX) / 2, (c.minY + c.maxY) / 2)
+    expect(distanciaDaDobradica(meio)).toBeCloseTo(50, 0)
+    expect(distanciaDaDobradica(quase)).toBeLessThan(10)
+    expect(fills(desenhar('girar', 1))).toHaveLength(fills(so(desenharBatente)).length)
   })
 
   it.each(['girar', 'deslizar'])('%s é opaco o caminho inteiro: 201 pontos, nenhum preenchimento ou traço com alfa', (id) => {
@@ -159,12 +181,12 @@ describe('registro de animações de porta — embutidas', () => {
   })
 
   it.each(['girar', 'deslizar'])('%s: sombra só no meio do caminho, mais escura que a folha, e nenhuma nos extremos', (id) => {
-    expect(fills(desenhar(id, 0))).toHaveLength(1)
-    expect(fills(desenhar(id, 1))).toHaveLength(0)
+    expect(fills(desenhar(id, 0))).toHaveLength(2)
+    expect(fills(desenhar(id, 1))).toHaveLength(3)
     const g = desenhar(id, 0.3)
-    // Penumbra, miolo e a folha por cima.
-    expect(fills(g)).toHaveLength(3)
-    const [penumbra, miolo] = fills(g)
+    // O batente (3), a penumbra, o miolo da sombra e a folha por cima (contorno e cor).
+    expect(fills(g)).toHaveLength(7)
+    const [, , , penumbra, miolo] = fills(g)
     const brilho = (cor: number): number => ((cor >> 16) & 0xff) + ((cor >> 8) & 0xff) + (cor & 0xff)
     expect(brilho(corDo(miolo))).toBeLessThan(brilho(corDo(penumbra)))
     expect(brilho(corDo(penumbra))).toBeLessThan(brilho(PORTA.cor))
@@ -176,7 +198,8 @@ describe('registro de animações de porta — embutidas', () => {
   it.each(['girar', 'deslizar'])('%s: a sombra fica do mesmo tamanho na tela em qualquer zoom', (id) => {
     const desvioNaTela = (escala: number): number => {
       const g = desenhar(id, 0.5, true, { ...PORTA, escala })
-      return (centro(fills(g)[1]).y - centro(folha(g)).y) * escala
+      // fills[4] é o miolo da sombra (depois do batente e da penumbra).
+      return (centro(fills(g)[4]).y - centro(folha(g)).y) * escala
     }
     expect(desvioNaTela(1)).toBeCloseTo(2, 6)
     expect(desvioNaTela(4)).toBeCloseTo(2, 6)
@@ -195,11 +218,17 @@ describe('registro de animações de porta — embutidas', () => {
     }
   })
 
-  it.each(CORES_DE_PORTA)('cor %i: batente e folha na cor da porta; a sombra puxa da mesma cor', (cor) => {
+  it.each(CORES_DE_PORTA)('cor %i: batente e folha na cor da porta, com o contorno escuro; a sombra puxa da mesma cor', (cor) => {
     const g = desenhar('girar', 0.4, true, { ...PORTA, cor })
-    expect(corDo(strokes(g)[0])).toBe(cor)
+    expect(fills(g).slice(0, 3).map(corDo)).toEqual([CONTORNO_DA_PORTA, cor, CONTORNO_DA_PORTA])
     expect(corDo(folha(g))).toBe(cor)
-    expect(corDo(fills(g)[0])).toBe(misturarCor(cor, ESCURO_DA_SOMBRA, 0.4))
+    expect(corDo(fills(g)[3])).toBe(misturarCor(cor, ESCURO_DA_SOMBRA, 0.4))
+    expect(strokes(g)).toHaveLength(0)
+  })
+
+  it('porta de pacote antigo, sem borda: a folha sai sem o contorno, como antes do campo', () => {
+    const semBorda: PortaParaDesenho = { ...PORTA, borda: undefined }
+    expect(fills(so(desenharFolhaFechada, semBorda)).map(corDo)).toEqual([PORTA.cor])
   })
 
   it('misturarCor vai de uma cor à outra canal a canal', () => {
@@ -245,8 +274,9 @@ describe('registro de animações de porta — de fora (pacote, Fase B)', () => 
   })
 
   it('validador do som: só os que o app sintetiza', () => {
-    expect(SONS_DA_ANIMACAO_DE_PORTA).toEqual(['rangido', 'trinco'])
+    expect(SONS_DA_ANIMACAO_DE_PORTA).toEqual(['rangido', 'trinco', 'dupla', 'grade', 'arrombada', 'sanfona', 'cortina'])
     expect(somDaAnimacaoDePortaValido('trinco')).toBe(true)
+    expect(somDaAnimacaoDePortaValido('cortina')).toBe(true)
     expect(somDaAnimacaoDePortaValido('tranca')).toBe(false)
     expect(somDaAnimacaoDePortaValido(undefined)).toBe(false)
   })

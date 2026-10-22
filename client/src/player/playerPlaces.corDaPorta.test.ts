@@ -7,7 +7,7 @@ import { placeSketch } from './playerPlaces'
 /**
  * COR DA PORTA (fatia 22) nos desenhos que não passam por `drawDoors`: a
  * miniatura dos Lugares do jogador e a miniatura da cena do mestre. Sem cor, o
- * laranja de sempre; cor torta (o recorte vem da rede) nunca vira atributo.
+ * creme de sempre; cor torta (o recorte vem da rede) nunca vira atributo.
  */
 function mapaCom(door: DoorState): MapData {
   return {
@@ -23,9 +23,9 @@ describe('miniaturas: cor da porta', () => {
     expect(placeSketch(mapaCom({ open: false, locked: false, kind: 'normal', cor: '"/><script>' })).walls[0]).not.toHaveProperty('doorColor')
   })
 
-  it('miniatura da cena: a cor própria vence o laranja e o vermelho da trancada', () => {
+  it('miniatura da cena: a cor própria vence o creme e o vermelho da trancada', () => {
     expect(sceneArt(mapaCom({ open: false, locked: true, kind: 'normal', cor: '#79a9cc' }))?.doors.map((d) => d.color)).toEqual(['#79a9cc'])
-    expect(sceneArt(mapaCom({ open: false, locked: true, kind: 'normal' }))?.doors.map((d) => d.color)).toEqual(['#c0392b'])
-    expect(sceneArt(mapaCom({ open: true, locked: false, kind: 'normal' }))?.doors.map((d) => d.color)).toEqual(['#d08c3a'])
+    expect(sceneArt(mapaCom({ open: false, locked: true, kind: 'normal' }))?.doors.map((d) => d.color)).toEqual(['#e2645a'])
+    expect(sceneArt(mapaCom({ open: true, locked: false, kind: 'normal' }))?.doors.map((d) => d.color)).toEqual(['#d9d2c0'])
   })
 })

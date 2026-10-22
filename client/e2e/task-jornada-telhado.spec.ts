@@ -79,19 +79,20 @@ const PAREDE_DA_PORTA = { de: { x: 704, y: SALA.y1 }, ate: { x: 768, y: SALA.y1 
 const PORTA: Ponto = { x: 736, y: SALA.y1 }
 /** Linha do meio da tela, sem botão nenhum à direita: lá a ponta direita da moldura é a do mapa. */
 const LINHA_DO_MEIO = 400
-/** Porta normal: vão de 32 px do mapa, desenhado em 60% dele (`pixi/drawDoors.ts`). */
-const MEIO_DA_PORTA_NO_MAPA = (32 * 0.6) / 2
+/** Porta normal: vão de 32 px do mapa, desenhado no vão inteiro (`pixi/drawDoors.ts`, desde 22/10/2026). */
+const MEIO_DA_PORTA_NO_MAPA = 32 / 2
 /**
- * O recorte pula o meio da porta (o ponto claro de PORTAS POR ATRAVESSAR tem
- * 1,5 px de tela de raio) e fica 1 px longe da ponta; na espessura, 1 px para
- * cada lado do meio (a porta tem 5 px de tela).
+ * O recorte pula o meio da porta (o ponto de PORTAS POR ATRAVESSAR tem 1,5 px
+ * de tela de raio) e fica 2 px longe da ponta (o contorno escuro de 1 px fecha
+ * a folha ali); na espessura, 1 px para cada lado do meio (a cor tem 3 px de
+ * tela entre os dois contornos).
  */
 const PULO_DO_MEIO_PX = 2.5
-const FOLGA_DA_PONTA_PX = 1
+const FOLGA_DA_PONTA_PX = 2
 const MEIA_FAIXA_PX = 1
-/** Cor da porta fechada (`DOOR_COLOR`, `pixi/drawDoors.ts`). */
-const COR_DA_PORTA: Rgb = { r: 0xd0, g: 0x8c, b: 0x3a }
-/** Longe da cor do telhado: a porta e a madeira verde ficam a 131 uma da outra. */
+/** Cor da porta fechada (`DOOR_COLOR`, `pixi/drawDoors.ts`): o creme de 22/10/2026. */
+const COR_DA_PORTA: Rgb = { r: 0xd9, g: 0xd2, b: 0xc0 }
+/** Longe da cor do telhado: a porta creme e a madeira verde ficam a mais de 110 por canal uma da outra. */
 const LONGE_DO_TELHADO = 60
 /** Verde da madeira (`lib/telhado/paletas.ts`). */
 const VERDE_DA_MADEIRA: Rgb = { r: 0x4d, g: 0x5f, b: 0x4f }

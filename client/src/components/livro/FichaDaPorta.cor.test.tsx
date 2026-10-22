@@ -74,7 +74,7 @@ describe('FichaDaPorta: cor da porta', () => {
     render(FECHADA, onCorChange)
     const grupo = grupoDaCor()
     if (grupo === null) throw new Error('sem o campo "Cor da porta"')
-    // Sem cor própria, nenhuma bolinha marcada, e o seletor nativo mostra o laranja de sempre.
+    // Sem cor própria, nenhuma bolinha marcada, e o seletor nativo mostra o creme de sempre (22/10/2026).
     expect(grupo.querySelector('[role="radio"][aria-checked="true"]')).toBeNull()
     const azul = grupo.querySelector<HTMLButtonElement>('[role="radio"][aria-label="Cor #79a9cc"]')
     if (azul === null) throw new Error('a paleta não tem o azul do protótipo')
@@ -82,7 +82,7 @@ describe('FichaDaPorta: cor da porta', () => {
     expect(onCorChange).toHaveBeenLastCalledWith('#79a9cc')
     const outra = grupo.querySelector<HTMLInputElement>('input[type="color"][aria-label="Outra cor…"]')
     if (outra === null) throw new Error('sem "Outra cor…"')
-    expect(outra.value).toBe('#d08c3a')
+    expect(outra.value).toBe('#d9d2c0')
     // O seletor nativo diz de que abertura a cor veio: é ela que vira um Ctrl+Z só.
     mudarValor(outra, '#123456')
     expect(onCorChange).toHaveBeenLastCalledWith('#123456', expect.any(String))

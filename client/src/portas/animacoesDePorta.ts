@@ -1,5 +1,7 @@
 import type { Graphics } from 'pixi.js'
+import { easeOutCubic } from '../transicoes/curvas'
 import type { DoorState } from '../types/map'
+import { criarCurvaBezier, curvaBezierValida, type CurvaBezier } from './curvaBezier'
 
 /**
  * PORTA ANIMADA NO MAPA (Fase C, 09/10/2026) — o registro das animações de
@@ -30,16 +32,24 @@ export interface PortaParaDesenho {
   /** Sentido da parede, vetor unitário de (x1,y1) para (x2,y2). A normal (-uy, ux) aponta para o lado 'right'. */
   ux: number
   uy: number
-  /** Meio comprimento da folha (a porta ocupa `DOOR_LENGTH_RATIO` do vão). */
+  /** Meio comprimento da folha (a porta ocupa `DOOR_LENGTH_RATIO` do vão: desde 22/10/2026, o vão inteiro). */
   meioComprimento: number
-  /** Espessura da folha: fixa em px de TELA, convertida para mundo. */
+  /** Espessura da folha: fixa em px de TELA, convertida para mundo. O contorno escuro fica centrado na borda dela. */
   espessura: number
-  /** Espessura do contorno da porta aberta, em mundo. */
+  /** Espessura do traço claro da porta aberta (o batente), em mundo. */
   contorno: number
-  /** Cor da porta: a própria (`DoorState.cor`), ou laranja, vermelha se trancada. */
+  /** Cor da porta: a própria (`DoorState.cor`), ou creme, vermelha se trancada. */
   cor: number
   /** Zoom da câmera (px de tela por unidade de mundo). */
   escala: number
+  /**
+   * Contorno escuro da folha (1 px de TELA), em mundo, centrado na borda dela
+   * como o `stroke` do SVG do protótipo. Ausente = 0: folha sem contorno. Campo
+   * novo e opcional: módulo de pacote de antes dele não o lê e segue valendo.
+   */
+  borda?: number
+  /** Cor do contorno escuro. Ausente = `CONTORNO_DA_PORTA`. */
+  corDaBorda?: number
 }
 
 export interface AnimacaoDePorta {
@@ -51,10 +61,17 @@ export interface AnimacaoDePorta {
   duracaoMs: number
   /**
    * Duração de aberta a fechada, quando é outra (o giro fecha mais depressa do
-   * que abre). Ausente = `duracaoMs`. Só as embutidas a usam: o contrato do
-   * pacote (`lib/pacoteDeAnimacoes.ts`) segue com uma duração só.
+   * que abre). Ausente = `duracaoMs`. O pacote também pode trazer
+   * (`lib/pacoteDeAnimacoes.ts`); cliente velho ignora e usa `duracaoMs`.
    */
   duracaoFecharMs?: number
+  /**
+   * Curva de tempo de cada sentido (`portas/curvaBezier.ts`). Ausente =
+   * `easeOutCubic`, a de sempre. O desenho só depende do progresso; o ritmo de
+   * cada sentido vem daqui (a Grade sobe devagar e desce depressa).
+   */
+  curvaAbrir?: CurvaBezier
+  curvaFechar?: CurvaBezier
   /**
    * Som que acompanha o caminho (`portas/somDePorta.ts`). Ausente = porta
    * muda, como as de antes do som. O pacote pode trazer o campo; cliente velho
@@ -81,11 +98,12 @@ export function idDeAnimacaoDePortaValido(valor: unknown): valor is string {
 /**
  * Os sons que o app sabe sintetizar para uma animação de porta: `rangido` é a
  * folha de dobradiça (trinco + rangido ao abrir, rangido curto + trinco ao
- * fechar); `trinco` é só o estalo da lingueta, a porta de correr. Mora aqui, e
- * não em `somDePorta.ts`, porque o disco e o pacote validam o campo sem puxar
- * o áudio.
+ * fechar); `trinco` é só o estalo da lingueta, a porta de correr. Os outros
+ * cinco são os das animações do pacote de 22/10/2026, um para cada
+ * (`portas/somDasPortasDoPacote.ts`). Mora aqui, e não em `somDePorta.ts`,
+ * porque o disco e o pacote validam o campo sem puxar o áudio.
  */
-export const SONS_DA_ANIMACAO_DE_PORTA = ['rangido', 'trinco'] as const
+export const SONS_DA_ANIMACAO_DE_PORTA = ['rangido', 'trinco', 'dupla', 'grade', 'arrombada', 'sanfona', 'cortina'] as const
 export type SomDaAnimacaoDePorta = (typeof SONS_DA_ANIMACAO_DE_PORTA)[number]
 
 export function somDaAnimacaoDePortaValido(valor: unknown): valor is SomDaAnimacaoDePorta {
@@ -112,15 +130,77 @@ export function tracarRetanguloDaPorta(g: Graphics, cx: number, cy: number, ux: 
   g.poly([cx - ax - bx, cy - ay - by, cx + ax - bx, cy + ay - by, cx + ax + bx, cy + ay + by, cx - ax + bx, cy - ay + by], true)
 }
 
+/** O contorno escuro da folha (o `stroke: #15181a` do `.mapa .porta-folha` do protótipo consolidado). */
+export const CONTORNO_DA_PORTA = 0x15181a
+
 /**
- * Batente: o contorno da porta ABERTA — é o desenho da aberta parada
- * (`pixi/drawDoors.ts`) e vai por baixo da folha nas animações. Com a folha no
- * lugar (progresso 0) o preenchimento cobre o contorno e a porta parece a
- * fechada de sempre; com a folha fora, sobra exatamente a aberta de sempre.
+ * Um pedaço da folha: retângulo girado (sentido `dx, dy`, unitário) ou
+ * círculo. As animações descrevem a folha como uma lista deles e `pintarFolha`
+ * pinta, com o contorno escuro em volta da silhueta inteira.
+ */
+export type PecaDaFolha =
+  | { forma: 'retangulo'; cx: number; cy: number; dx: number; dy: number; meioComprimento: number; meiaEspessura: number }
+  | { forma: 'circulo'; cx: number; cy: number; raio: number }
+
+/**
+ * Traça a peça crescida (`folga` > 0) ou encolhida (< 0). O crescer nunca passa
+ * do tamanho da própria peça: a que encolhe até sumir (conta, gomo, estilhaço)
+ * leva o contorno junto, em vez de deixar um ponto escuro que some de repente.
+ */
+function tracarPeca(g: Graphics, peca: PecaDaFolha, folga: number): boolean {
+  if (peca.forma === 'circulo') {
+    const raio = peca.raio + (folga > 0 ? Math.min(folga, peca.raio) : folga)
+    if (raio <= 0) return false
+    g.circle(peca.cx, peca.cy, raio)
+    return true
+  }
+  const cresce = folga > 0 ? Math.min(folga, peca.meioComprimento, peca.meiaEspessura) : folga
+  const meioComprimento = peca.meioComprimento + cresce
+  const meiaEspessura = peca.meiaEspessura + cresce
+  if (meioComprimento <= 0 || meiaEspessura <= 0) return false
+  tracarRetanguloDaPorta(g, peca.cx, peca.cy, peca.dx, peca.dy, meioComprimento, meiaEspessura)
+  return true
+}
+
+/**
+ * Pinta a folha: primeiro o escuro de TODAS as peças, crescidas meia borda,
+ * depois a cor de todas, encolhidas meia borda — o contorno centrado na borda,
+ * como o `stroke` do SVG. Em duas passadas, peças que se tocam (a travessa e as
+ * barras da grade, os gomos da sanfona) viram uma silhueta só, com um contorno
+ * só em volta. Só preenchimento chapado e opaco: a cópia por cima do telhado
+ * (`player/PlayerView.tsx`) pinta o mesmo desenho em cima, e alfa somaria.
+ * Peça fina demais para a cor (menor que a borda) sai só escura.
+ */
+export function pintarFolha(g: Graphics, porta: PortaParaDesenho, pecas: readonly PecaDaFolha[], cor: number = porta.cor): void {
+  const borda = porta.borda ?? 0
+  if (borda > 0) {
+    const escuro = porta.corDaBorda ?? CONTORNO_DA_PORTA
+    for (const peca of pecas) if (tracarPeca(g, peca, borda / 2)) g.fill({ color: escuro })
+  }
+  for (const peca of pecas) if (tracarPeca(g, peca, -borda / 2)) g.fill({ color: cor })
+}
+
+/** A folha inteira no lugar: a porta FECHADA parada (`pixi/drawDoors.ts`) e o começo de toda animação. */
+export function desenharFolhaFechada(g: Graphics, porta: PortaParaDesenho): void {
+  pintarFolha(g, porta, [{ forma: 'retangulo', cx: porta.cx, cy: porta.cy, dx: porta.ux, dy: porta.uy, meioComprimento: porta.meioComprimento, meiaEspessura: porta.espessura / 2 }])
+}
+
+/**
+ * Batente: a porta ABERTA parada (`pixi/drawDoors.ts`), que vai por baixo da
+ * folha nas animações. A mesma caixa da fechada, com o contorno escuro, e o
+ * miolo vazado em escuro: sobra um traço claro de `contorno` de cada lado (as
+ * duas ombreiras do vão). Com a folha no lugar (progresso 0) ela cobre o
+ * batente inteiro e a porta é a fechada de sempre; com a folha fora, sobra
+ * exatamente a aberta de sempre. Chapado: o miolo é pintado, não furado.
  */
 export function desenharBatente(g: Graphics, porta: PortaParaDesenho): void {
-  tracarRetanguloDaPorta(g, porta.cx, porta.cy, porta.ux, porta.uy, porta.meioComprimento - porta.contorno / 2, porta.espessura / 2 - porta.contorno / 2)
-  g.stroke({ width: porta.contorno, color: porta.cor, join: 'miter' })
+  desenharFolhaFechada(g, porta)
+  const borda = porta.borda ?? 0
+  const meiaEspessura = porta.espessura / 2 - borda / 2 - porta.contorno
+  const meioComprimento = porta.meioComprimento - borda / 2 - porta.contorno
+  if (meiaEspessura <= 0 || meioComprimento <= 0) return
+  tracarRetanguloDaPorta(g, porta.cx, porta.cy, porta.ux, porta.uy, meioComprimento, meiaEspessura)
+  g.fill({ color: porta.corDaBorda ?? CONTORNO_DA_PORTA })
 }
 
 /**
@@ -163,19 +243,20 @@ function elevacaoDaFolha(progresso: number): number {
 
 /** A folha de centro `(cx, cy)`, sentido `(dx, dy)`, com a sombra por baixo quando está fora do lugar. */
 function desenharFolha(g: Graphics, porta: PortaParaDesenho, progresso: number, cx: number, cy: number, dx: number, dy: number, meioComprimento: number): void {
+  // A sombra é a da silhueta inteira: a folha com o contorno escuro em volta.
+  const meiaBorda = (porta.borda ?? 0) / 2
   const meiaEspessura = porta.espessura / 2
   const elevacao = elevacaoDaFolha(progresso)
   if (elevacao > 0) {
     const px = 1 / (Number.isFinite(porta.escala) && porta.escala > 0 ? porta.escala : 1)
     const desvio = SOMBRA_DA_FOLHA_TELA_PX * elevacao * px
     const penumbra = PENUMBRA_DA_FOLHA_TELA_PX * elevacao * px
-    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento + penumbra, meiaEspessura + penumbra)
+    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento + meiaBorda + penumbra, meiaEspessura + meiaBorda + penumbra)
     g.fill({ color: misturarCor(porta.cor, ESCURO_DA_SOMBRA, MISTURA_DA_PENUMBRA) })
-    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento, meiaEspessura)
+    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento + meiaBorda, meiaEspessura + meiaBorda)
     g.fill({ color: misturarCor(porta.cor, ESCURO_DA_SOMBRA, MISTURA_DO_MIOLO) })
   }
-  tracarRetanguloDaPorta(g, cx, cy, dx, dy, meioComprimento, meiaEspessura)
-  g.fill({ color: porta.cor })
+  pintarFolha(g, porta, [{ forma: 'retangulo', cx, cy, dx, dy, meioComprimento, meiaEspessura }])
 }
 
 /** Fração de `x` dentro de [a, b], presa entre 0 e 1. */
@@ -193,9 +274,12 @@ function suave(x: number): number {
  * do giro para as duas fases se fundirem num gesto só, mas tarde no caminho:
  * a curva de saída chega a 80% com 42% do tempo, então a folha mostra o giro
  * quase inteiro e dobra no trecho lento do fim (a folha de contato com 0,62
- * mostrava a folha sumindo aos 170 ms e 130 ms sem nada mudando).
+ * mostrava a folha sumindo aos 170 ms e 130 ms sem nada mudando). Desde
+ * 22/10/2026 a folha enche o vão inteiro (era 60%): com 0,8 o recolher andava
+ * 1,9 px por 0,5% do caminho num vão de 100. Com 0,74 o trecho fica longo o
+ * bastante para o passo máximo do centro voltar a caber em 1,5 px.
  */
-export const GIRAR_INICIO_DO_RECOLHER = 0.8
+export const GIRAR_INICIO_DO_RECOLHER = 0.74
 
 /**
  * "Girar na dobradiça": a folha gira em torno da ponta de (x1,y1) até 70
@@ -209,8 +293,13 @@ export const GIRAR_INICIO_DO_RECOLHER = 0.8
  * inverter no meio volta dali mesmo, sem salto.
  */
 function desenharGirar(g: Graphics, porta: PortaParaDesenho, progresso: number): void {
-  desenharBatente(g, porta)
   const p = Math.min(1, Math.max(0, progresso))
+  // Em 0, a fechada parada instrução por instrução (a folha no lugar cobriria o batente de qualquer jeito).
+  if (p <= 0) {
+    desenharFolhaFechada(g, porta)
+    return
+  }
+  desenharBatente(g, porta)
   const meioComprimento = porta.meioComprimento * (1 - suave(trecho(p, GIRAR_INICIO_DO_RECOLHER, 1)))
   if (meioComprimento <= 0) return
   const angulo = GIRO_ABERTA_RAD * p
@@ -231,8 +320,12 @@ function desenharGirar(g: Graphics, porta: PortaParaDesenho, progresso: number):
  * A sombra diz que a folha saiu do trilho de descanso e some quando assenta.
  */
 function desenharDeslizar(g: Graphics, porta: PortaParaDesenho, progresso: number): void {
-  desenharBatente(g, porta)
   const p = Math.min(1, Math.max(0, progresso))
+  if (p <= 0) {
+    desenharFolhaFechada(g, porta)
+    return
+  }
+  desenharBatente(g, porta)
   const meioPedaco = porta.meioComprimento * (1 - p)
   if (meioPedaco <= 0) return
   const desvio = porta.meioComprimento * p
@@ -258,6 +351,26 @@ export const ANIMACOES_EMBUTIDAS: readonly AnimacaoDePorta[] = [
 /** Duração do caminho inteiro no sentido pedido: abrir usa `duracaoMs`; fechar, `duracaoFecharMs` quando há. */
 export function duracaoDoSentido(animacao: AnimacaoDePorta, abrindo: boolean): number {
   return abrindo ? animacao.duracaoMs : (animacao.duracaoFecharMs ?? animacao.duracaoMs)
+}
+
+/** A curva declarada para o sentido, ou `undefined` (a de sempre, `easeOutCubic`). */
+export function curvaDeclaradaDoSentido(animacao: AnimacaoDePorta, abrindo: boolean): CurvaBezier | undefined {
+  return abrindo ? animacao.curvaAbrir : animacao.curvaFechar
+}
+
+/**
+ * A função de tempo do sentido: fração do tempo para fração do caminho, sempre
+ * de 0 a 1 e sem voltar. Sem curva declarada, `easeOutCubic` (a medalha usa o
+ * `cubic-bezier(0.33, 1, 0.68, 1)` equivalente).
+ */
+export function curvaDoSentido(animacao: AnimacaoDePorta, abrindo: boolean): (t: number) => number {
+  const curva = curvaDeclaradaDoSentido(animacao, abrindo)
+  return curva === undefined ? easeOutCubic : criarCurvaBezier(curva)
+}
+
+/** Duração de fechar vinda de fora, na mesma régua do `duracaoMs`; fora dela, `undefined` (fecha no tempo de abrir). */
+function duracaoDeFora(valor: unknown): number | undefined {
+  return typeof valor === 'number' && Number.isFinite(valor) && valor > 0 && valor <= DURACAO_DE_ANIMACAO_MAX_MS ? valor : undefined
 }
 
 /** Embutidas primeiro, na ordem acima; as de fora depois, na ordem em que chegaram. */
@@ -317,11 +430,18 @@ export function registrarAnimacaoDePorta(info: unknown): boolean {
   const desenharDeFora = info.desenhar
   // Som é enfeite opcional: valor que este app não conhece não recusa a animação, só a deixa muda.
   const som = 'som' in info && somDaAnimacaoDePortaValido(info.som) ? { som: info.som } : {}
+  // Tempo de fechar e curvas tortas também não recusam: a porta anda no tempo e na curva de sempre.
+  const duracaoFecharMs = 'duracaoFecharMs' in info ? duracaoDeFora(info.duracaoFecharMs) : undefined
+  const curvaAbrir = 'curvaAbrir' in info && curvaBezierValida(info.curvaAbrir) ? info.curvaAbrir : undefined
+  const curvaFechar = 'curvaFechar' in info && curvaBezierValida(info.curvaFechar) ? info.curvaFechar : undefined
   const animacao: AnimacaoDePorta = {
     id,
     nome,
     duracaoMs,
     ...som,
+    ...(duracaoFecharMs === undefined ? {} : { duracaoFecharMs }),
+    ...(curvaAbrir === undefined ? {} : { curvaAbrir: [...curvaAbrir] as const }),
+    ...(curvaFechar === undefined ? {} : { curvaFechar: [...curvaFechar] as const }),
     desenhar: (g, porta, progresso, abrindo) => {
       Reflect.apply(desenharDeFora, undefined, [g, porta, progresso, abrindo])
     },

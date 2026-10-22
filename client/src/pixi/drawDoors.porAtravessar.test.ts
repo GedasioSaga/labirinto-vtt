@@ -29,7 +29,8 @@ describe('drawDoors: marca de porta por atravessar', () => {
     const g = new Graphics()
     drawDoors(g, [porta('pa', 0), porta('pb', 100)], null)
     expect(circulos(g)).toEqual([])
-    expect(fills(g)).toHaveLength(2)
+    // Duas portas, cada uma o contorno e a cor.
+    expect(fills(g)).toHaveLength(4)
   })
 
   it('porta marcada ganha UM ponto claro no meio do vão; a outra fica igual', () => {
@@ -47,10 +48,17 @@ describe('drawDoors: marca de porta por atravessar', () => {
     expect(DOOR_TO_CROSS_COLOR).not.toBe(DOOR_COLOR)
   })
 
-  it('porta aberta marcada também leva o ponto (a folha aberta é só contorno)', () => {
+  it('porta aberta marcada também leva o ponto, na cor da porta (o miolo da aberta já é escuro)', () => {
     const g = new Graphics()
     drawDoors(g, [porta('pa', 0, true)], null, 2, 1, new Set(['pa']))
-    expect(circulos(g)).toHaveLength(1)
+    const pontos = circulos(g)
+    expect(pontos).toHaveLength(1)
+    expect(pontos[0].color).toBe(DOOR_COLOR)
+  })
+
+  it('o ponto escuro cabe na folha fechada: o raio é menor que a meia espessura da cor, em px de tela', () => {
+    expect(DOOR_TO_CROSS_COLOR).toBe(0x15181a)
+    expect(DOOR_TO_CROSS_DOT_SCREEN_PX).toBeLessThanOrEqual((4 - 1) / 2)
   })
 
   it('parede sem porta com o id na lista não ganha ponto', () => {
