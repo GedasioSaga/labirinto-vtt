@@ -70,10 +70,10 @@ test('2. selecionar outra parede faz o Avançado nascer fechado de novo', async 
 })
 
 test('3. Chão do mapa → Avançado → Render fiel', async ({ page }) => {
-  // "Chão do mapa" mora na página Cena do livro do mestre (fatia 2).
+  // "Chão do mapa" mora na página Cena do livro do mestre (fatia 2), numa ficha do Grimório (fatia 18).
   await abrirPaginaDoLivro(page, 'Cena')
   const inspector = page.locator('.lb-inspector')
-  const floor = inspector.locator('section.lb-collapsible').filter({ has: page.getByRole('button', { name: 'Chão do mapa', exact: true }) })
+  const floor = inspector.locator('section.gr-ficha').filter({ has: page.getByRole('button', { name: 'Chão do mapa', exact: true }) })
   const floorHeader = inspector.getByRole('button', { name: 'Chão do mapa', exact: true })
   if ((await floorHeader.getAttribute('aria-expanded')) === 'false') await floorHeader.click()
   await expect(floorHeader).toHaveAttribute('aria-expanded', 'true')

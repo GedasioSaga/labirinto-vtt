@@ -163,7 +163,7 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Aventura', estado: 'editor com aventura, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Aventura do livro do mestre (casca feita; restilo na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Página Aventura do livro do mestre: fichas Pinos, Agenda e Estado do mundo, recolhidas com o resumo (feito)', fatia: '2 (casca) e 18a (fichas)',
     linhas: [
       l('Pinos: busca', ['searchbox', 'Buscar pino'], marcador('Aventura'), b('Pinos')),
       l('Pinos: pino da lista (abre a cena)', b('Altar Cripta'), marcador('Aventura'), b('Pinos')),
@@ -179,9 +179,9 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Esta cena', estado: 'editor com aventura, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Página Cena do livro do mestre: fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito)', fatia: '2 (casca) e 18a (fichas)',
     linhas: [
-      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena'), b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena' },
+      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena'), b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena (pendente: mora na ficha Objetos do mapa, a primeira da página)' },
       { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca da página Cena' },
       l('Objetos do mapa: item da lista (Ir até lá)', b('Goblin'), marcador('Cena'), b('Objetos do mapa')),
       l('Locais: sala da árvore (enquadra)', b('Salão'), marcador('Cena'), b('Locais')),

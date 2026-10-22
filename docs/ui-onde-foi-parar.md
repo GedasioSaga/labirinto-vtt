@@ -52,7 +52,7 @@ Parte de: editor com aventura (Cripta, cena inicial). Vai para: Chip da cena no 
 
 ### Grupo Aventura
 
-Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do livro do mestre (casca feita; restilo na 18). Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, nada selecionado. Vai para: Página Aventura do livro do mestre: fichas Pinos, Agenda e Estado do mundo, recolhidas com o resumo (feito). Fatia: 2 (casca) e 18a (fichas).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -69,11 +69,11 @@ Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do 
 
 ### Grupo Esta cena
 
-Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18). Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Página Cena do livro do mestre: fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito). Fatia: 2 (casca) e 18a (fichas).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Objetos do mapa: busca | searchbox "Buscar objeto" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | Busca do topo do marcador Cena |
+| Objetos do mapa: busca | searchbox "Buscar objeto" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | Busca do topo do marcador Cena (pendente: mora na ficha Objetos do mapa, a primeira da página) |
 | Objetos do mapa: Ctrl+K põe o cursor na busca | searchbox "Buscar objeto" | (livro do mestre) > tecla Control+k | Ctrl+K foca a busca da página Cena |
 | Objetos do mapa: item da lista (Ir até lá) | button "Goblin" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | (do bloco) |
 | Locais: sala da árvore (enquadra) | button "Salão" | (livro do mestre) > clicar tab "Cena" > clicar button "Locais" | (do bloco) |
