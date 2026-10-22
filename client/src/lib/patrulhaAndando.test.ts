@@ -195,6 +195,28 @@ describe('darPassoDaPatrulha — anda casa a casa', () => {
     expect(r.andando.get('guarda')).toEqual(andando.get('guarda'))
   })
 
+  it('ficha congelada pelo mestre não anda, no meio do trecho, e segue ligada; descongelada, segue de onde estava', () => {
+    const passo = passoEmPx(GRID)
+    let estado = { map: mesa([guarda(100, 100)]), andando: ligarPatrulha(new Map(), mesa([guarda(100, 100)]), 'guarda', 0) }
+    for (let i = 0; i < 3; i += 1) estado = tique(estado.map, estado.andando, i * PASSO_DA_PATRULHA_MS)
+    const ondeParou = ondeEsta(estado.map)
+    expect(ondeParou).toEqual({ x: 100 + 3 * passo, y: 100, atual: 0 })
+    const congelar = (map: MapData, congelado: boolean) => ({ ...map, tokens: map.tokens.map((t) => (t.id === 'guarda' ? { ...t, congelado } : t)) })
+    const antes = estado.andando.get('guarda')
+    let congelada = { map: congelar(estado.map, true), andando: estado.andando }
+    for (let i = 3; i < 23; i += 1) {
+      const r = tique(congelada.map, congelada.andando, i * PASSO_DA_PATRULHA_MS)
+      expect(r.movimentos, `tique ${i}`).toEqual([])
+      expect(r.portas).toEqual([])
+      congelada = { map: r.map, andando: r.andando }
+    }
+    expect(ondeEsta(congelada.map)).toEqual(ondeParou)
+    expect(congelada.andando.get('guarda')).toEqual(antes)
+    const solta = tique(congelar(congelada.map, false), congelada.andando, 23 * PASSO_DA_PATRULHA_MS)
+    expect(ondeEsta(solta.map)).toEqual({ x: 100 + 4 * passo, y: 100, atual: 0 })
+    expect(solta.andando.get('guarda')?.destino).toBe(1)
+  })
+
   it('ficha removida, rota apagada ou com menos de 2 pontos: para', () => {
     const map = mesa([guarda(100, 100)])
     const andando = ligarPatrulha(new Map(), map, 'guarda', 0)
