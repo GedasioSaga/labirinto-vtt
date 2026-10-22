@@ -27,6 +27,19 @@ export interface MotorDosNpcs {
   readonly orcamentoDoTique: number
 }
 
+/**
+ * Orçamento do motor dentro de um tique do editor: um mapa pequeno responde no
+ * mesmo tique, e sobra folga até a tarefa longa (50 ms).
+ */
+export const ORCAMENTO_DO_TIQUE_MS = 8
+/** Entre dois tiques, a agenda segue o que não coube neles, um pedaço (`ORCAMENTO_POR_QUADRO_MS`) a cada quadro destes. */
+export const QUADRO_DA_AGENDA_MS = 16
+
+/** O motor do editor, com o relógio de verdade (`performance.now`). */
+export function motorComRelogio(relogio: () => number): MotorDosNpcs {
+  return { agenda: new AgendaDeCaminhos(relogio), orcamentoDoTique: ORCAMENTO_DO_TIQUE_MS }
+}
+
 /** Relógio parado e orçamento sem fim: toda resposta sai no mesmo tique (teste, e quem não passa um motor). */
 export function motorImediato(): MotorDosNpcs {
   return { agenda: new AgendaDeCaminhos(() => 0), orcamentoDoTique: Number.POSITIVE_INFINITY }

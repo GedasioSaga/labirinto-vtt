@@ -176,6 +176,75 @@ export function gerarMapaDoRobo(semente: number, grid: number, isolar: boolean, 
   return { mapa: { walls, grid, width: largura, height: altura }, fichas, salas, isolada }
 }
 
+/** As metas e o tamanho do robô (`robo.test.ts` no motor, `robo.rotina.test.ts` pela rotina andando). */
+export const MAPAS_DO_ROBO = 20
+export const TRECHOS_POR_MAPA = 50
+export const POSTOS_DO_ROBO = 5
+/** O tique (contado do começo do trecho) em que o intruso aparece. */
+export const TIQUE_DO_INTRUSO = 3
+export const RAZAO_MAXIMA = 1.5
+
+export function percentil(valores: readonly number[], p: number): number {
+  const ordenados = [...valores].sort((a, b) => a - b)
+  return ordenados[Math.min(ordenados.length - 1, Math.floor((p / 100) * ordenados.length))] ?? 0
+}
+
+/** Um ponto de parada do NPC: centro de casa (ficha de 1) ou canto de casa (ficha de 2), longe das paredes da sala. */
+function pontoNaSala(sala: Sala, tamanho: number, inteiro: (a: number, b: number) => number, grid: number): Point | null {
+  if (tamanho === 1) return { x: (inteiro(sala.x0, sala.x1 - 1) + 0.5) * grid, y: (inteiro(sala.y0, sala.y1 - 1) + 0.5) * grid }
+  if (sala.x1 - sala.x0 < 2 || sala.y1 - sala.y0 < 2) return null
+  return { x: inteiro(sala.x0 + 1, sala.x1 - 1) * grid, y: inteiro(sala.y0 + 1, sala.y1 - 1) * grid }
+}
+
+/** Os postos da rotina do robô, com semente: livres, longe uns dos outros e ligados ao primeiro; um deles na sala isolada, se há. */
+export function escolherPostos(semente: number, salas: readonly Sala[], tamanho: number, oraculo: Oraculo, fichas: readonly FichaNoCaminho[], isolada: number | null, grid: number): Point[] {
+  const sorte = sorteador(semente)
+  const inteiro = (a: number, b: number) => a + Math.floor(sorte() * (b - a + 1))
+  const livre = (p: Point) => oraculo.otimo(p, p, fichas) !== null
+  const postos: Point[] = []
+  for (let tentativa = 0; tentativa < 4000 && postos.length < POSTOS_DO_ROBO; tentativa += 1) {
+    const sala = salas[inteiro(0, salas.length - 1)]
+    const p = sala === undefined ? null : pontoNaSala(sala, tamanho, inteiro, grid)
+    if (p === null || !livre(p) || postos.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 4 * grid)) continue
+    const primeiro = postos[0]
+    if (primeiro !== undefined && oraculo.otimo(primeiro, p, fichas) === null) continue
+    postos.push(p)
+  }
+  // No mapa com a sala isolada, um dos postos fica lá dentro: o trecho até ele não tem caminho.
+  const sala = isolada === null ? undefined : salas[isolada]
+  if (sala !== undefined) {
+    for (let tentativa = 0; tentativa < 100; tentativa += 1) {
+      const p = pontoNaSala(sala, tamanho, inteiro, grid)
+      if (p !== null && livre(p)) {
+        postos[2] = p
+        break
+      }
+    }
+  }
+  return postos
+}
+
+/** O intruso: o centro de casa no meio do caminho planejado, longe do NPC e do destino. */
+export function lugarDoIntruso(pontos: readonly Point[], de: Point, para: Point, grid: number): Point | null {
+  let total = 0
+  for (let i = 1; i < pontos.length; i += 1) total += Math.hypot((pontos[i]?.x ?? 0) - (pontos[i - 1]?.x ?? 0), (pontos[i]?.y ?? 0) - (pontos[i - 1]?.y ?? 0))
+  let falta = total / 2
+  for (let i = 1; i < pontos.length; i += 1) {
+    const a = pontos[i - 1]
+    const b = pontos[i]
+    if (a === undefined || b === undefined) continue
+    const d = Math.hypot(b.x - a.x, b.y - a.y)
+    if (falta <= d && d > 0) {
+      const p = { x: a.x + ((b.x - a.x) * falta) / d, y: a.y + ((b.y - a.y) * falta) / d }
+      const c = { x: (Math.floor(p.x / grid) + 0.5) * grid, y: (Math.floor(p.y / grid) + 0.5) * grid }
+      const longe = Math.hypot(c.x - de.x, c.y - de.y) >= 4 * grid && Math.hypot(c.x - para.x, c.y - para.y) >= 2 * grid
+      return longe ? c : null
+    }
+    falta -= d
+  }
+  return null
+}
+
 const DIRECOES: ReadonlyArray<readonly [number, number]> = [
   [1, 0],
   [-1, 0],

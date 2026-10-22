@@ -78,7 +78,8 @@ function aplicar(paredes: readonly Wall[], acao: AcaoNaPorta, violacoes: string[
   })
 }
 
-function conferirPasso(a: Point, b: Point, paredes: readonly Wall[], fichas: readonly FichaNoCaminho[], raio: number, grid: number, violacoes: string[], tique: number): void {
+/** O passo a-b não cruza parede, janela nem porta fechada (de `paredes`) e não encosta em ficha; o que não passa vai para `violacoes`. */
+export function conferirPasso(a: Point, b: Point, paredes: readonly Wall[], fichas: readonly FichaNoCaminho[], raio: number, grid: number, violacoes: string[], tique: number): void {
   if (a.x === b.x && a.y === b.y) return
   for (const w of paredes) {
     const barra = wallBlocksToken(w) || w.janela === true

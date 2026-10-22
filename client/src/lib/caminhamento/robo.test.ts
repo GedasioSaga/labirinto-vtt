@@ -22,14 +22,10 @@ import type { Point } from '../../pixi/world'
 import { CacheDeMalhas, caminhoAgora } from './agenda'
 import type { FichaNoCaminho } from './busca'
 import { GRID } from './caminho.fixture'
-import { gerarMapaDoRobo, Oraculo, type Sala, sorteador } from './robo.fixture'
+import { escolherPostos, gerarMapaDoRobo, lugarDoIntruso, MAPAS_DO_ROBO, Oraculo, percentil, RAZAO_MAXIMA, TIQUE_DO_INTRUSO, TRECHOS_POR_MAPA } from './robo.fixture'
 import { passoDaRotina, simularTrecho } from './simulacao.fixture'
 
-const MAPAS = 20
-const TRECHOS_POR_MAPA = 50
-const POSTOS = 5
-const TIQUE_DO_INTRUSO = 3
-const RAZAO_MAXIMA = 1.5
+const MAPAS = MAPAS_DO_ROBO
 const MS_SEM_CAMINHO = 50
 
 interface Numeros {
@@ -49,66 +45,6 @@ interface Numeros {
   portasAbertas: number
   deixouAbertas: number
   intrusos: number
-}
-
-function percentil(valores: readonly number[], p: number): number {
-  const ordenados = [...valores].sort((a, b) => a - b)
-  return ordenados[Math.min(ordenados.length - 1, Math.floor((p / 100) * ordenados.length))] ?? 0
-}
-
-/** Um ponto de parada do NPC: centro de casa (ficha de 1) ou canto de casa (ficha de 2), longe das paredes da sala. */
-function pontoNaSala(sala: Sala, tamanho: number, inteiro: (a: number, b: number) => number): Point | null {
-  if (tamanho === 1) return { x: (inteiro(sala.x0, sala.x1 - 1) + 0.5) * GRID, y: (inteiro(sala.y0, sala.y1 - 1) + 0.5) * GRID }
-  if (sala.x1 - sala.x0 < 2 || sala.y1 - sala.y0 < 2) return null
-  return { x: inteiro(sala.x0 + 1, sala.x1 - 1) * GRID, y: inteiro(sala.y0 + 1, sala.y1 - 1) * GRID }
-}
-
-function escolherPostos(semente: number, salas: readonly Sala[], tamanho: number, oraculo: Oraculo, fichas: readonly FichaNoCaminho[], isolada: number | null): Point[] {
-  const sorte = sorteador(semente)
-  const inteiro = (a: number, b: number) => a + Math.floor(sorte() * (b - a + 1))
-  const livre = (p: Point) => oraculo.otimo(p, p, fichas) !== null
-  const postos: Point[] = []
-  for (let tentativa = 0; tentativa < 4000 && postos.length < POSTOS; tentativa += 1) {
-    const sala = salas[inteiro(0, salas.length - 1)]
-    const p = sala === undefined ? null : pontoNaSala(sala, tamanho, inteiro)
-    if (p === null || !livre(p) || postos.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 4 * GRID)) continue
-    const primeiro = postos[0]
-    if (primeiro !== undefined && oraculo.otimo(primeiro, p, fichas) === null) continue
-    postos.push(p)
-  }
-  // No mapa com a sala isolada, um dos postos fica lá dentro: o trecho até ele não tem caminho.
-  const sala = isolada === null ? undefined : salas[isolada]
-  if (sala !== undefined) {
-    for (let tentativa = 0; tentativa < 100; tentativa += 1) {
-      const p = pontoNaSala(sala, tamanho, inteiro)
-      if (p !== null && livre(p)) {
-        postos[2] = p
-        break
-      }
-    }
-  }
-  return postos
-}
-
-/** O intruso: o centro de casa no meio do caminho planejado, longe do NPC e do destino. */
-function lugarDoIntruso(pontos: readonly Point[], de: Point, para: Point): Point | null {
-  let total = 0
-  for (let i = 1; i < pontos.length; i += 1) total += Math.hypot((pontos[i]?.x ?? 0) - (pontos[i - 1]?.x ?? 0), (pontos[i]?.y ?? 0) - (pontos[i - 1]?.y ?? 0))
-  let falta = total / 2
-  for (let i = 1; i < pontos.length; i += 1) {
-    const a = pontos[i - 1]
-    const b = pontos[i]
-    if (a === undefined || b === undefined) continue
-    const d = Math.hypot(b.x - a.x, b.y - a.y)
-    if (falta <= d && d > 0) {
-      const p = { x: a.x + ((b.x - a.x) * falta) / d, y: a.y + ((b.y - a.y) * falta) / d }
-      const c = { x: (Math.floor(p.x / GRID) + 0.5) * GRID, y: (Math.floor(p.y / GRID) + 0.5) * GRID }
-      const longe = Math.hypot(c.x - de.x, c.y - de.y) >= 4 * GRID && Math.hypot(c.x - para.x, c.y - para.y) >= 2 * GRID
-      return longe ? c : null
-    }
-    falta -= d
-  }
-  return null
 }
 
 function rodarRobo(): Numeros {
@@ -136,7 +72,7 @@ function rodarRobo(): Numeros {
     const gerado = gerarMapaDoRobo(semente, GRID, s % 5 === 0, tamanho)
     const raio = (tamanho * GRID) / 2
     const oraculo = new Oraculo(gerado.mapa, raio)
-    const postos = escolherPostos(semente + 77, gerado.salas, tamanho, oraculo, gerado.fichas, gerado.isolada)
+    const postos = escolherPostos(semente + 77, gerado.salas, tamanho, oraculo, gerado.fichas, gerado.isolada, GRID)
     const cache = new CacheDeMalhas()
     const passo = passoDaRotina(GRID)
     let mapa = gerado.mapa
@@ -150,7 +86,7 @@ function rodarRobo(): Numeros {
       numeros.trechos += 1
       // O intruso entra no meio do caminho que o NPC vai planejar (o motor é determinístico: é o mesmo).
       const planejado = t % 10 === 7 ? caminhoAgora(cache, mapa, raio, { de: aqui, para: destino, fichas: gerado.fichas }) : null
-      const intruso = planejado?.tipo === 'caminho' ? lugarDoIntruso(planejado.pontos, aqui, destino) : null
+      const intruso = planejado?.tipo === 'caminho' ? lugarDoIntruso(planejado.pontos, aqui, destino, GRID) : null
       let ondeEstavaNoIntruso: Point | null = null
       const fichasNoTique = (tique: number, npc: Point): readonly FichaNoCaminho[] => {
         if (intruso === null || tique < TIQUE_DO_INTRUSO) return gerado.fichas

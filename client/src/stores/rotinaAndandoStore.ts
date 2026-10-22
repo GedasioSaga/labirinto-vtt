@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
-import { AgendaDeCaminhos, ORCAMENTO_POR_QUADRO_MS } from '../lib/caminhamento/agenda'
-import { comPortasDoNpc, type MotorDosNpcs, type PortaDoNpc } from '../lib/caminhamento/tiqueDosNpcs'
+import { ORCAMENTO_POR_QUADRO_MS } from '../lib/caminhamento/agenda'
+import { comPortasDoNpc, type MotorDosNpcs, motorComRelogio, type PortaDoNpc, QUADRO_DA_AGENDA_MS } from '../lib/caminhamento/tiqueDosNpcs'
 import { adiarEsperas, chaveDaRotina, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
 import type { MapData } from '../types/map'
 import { subscribeToOpenings, useAdventureStore } from './adventureStore'
@@ -32,16 +32,11 @@ interface RotinaAndandoState {
   reset: () => void
 }
 
-/** Orçamento do motor dentro de um tique: sobra folga até a tarefa longa (50 ms), e um mapa pequeno responde no mesmo tique. */
-const ORCAMENTO_DO_TIQUE_MS = 8
-/** Entre dois tiques, a agenda segue o que não coube neles, um pedaço por quadro. */
-const QUADRO_MS = 16
-
 /**
  * O MOTOR DE CAMINHOS do editor, um só para a rotina e a patrulha andando: a
  * malha do mapa é montada uma vez e serve às duas.
  */
-export const motorDosNpcs: MotorDosNpcs = { agenda: new AgendaDeCaminhos(() => performance.now()), orcamentoDoTique: ORCAMENTO_DO_TIQUE_MS }
+export const motorDosNpcs: MotorDosNpcs = motorComRelogio(() => performance.now())
 
 let relogio: ReturnType<typeof setInterval> | null = null
 let rega: ReturnType<typeof setTimeout> | null = null
@@ -59,7 +54,7 @@ export function regarAgenda(): void {
     rega = null
     agenda.rodar(ORCAMENTO_POR_QUADRO_MS)
     regarAgenda()
-  }, QUADRO_MS)
+  }, QUADRO_DA_AGENDA_MS)
 }
 
 /** O relógio corre enquanto houver ficha andando e os NPCs não estiverem pausados, e só então. */
