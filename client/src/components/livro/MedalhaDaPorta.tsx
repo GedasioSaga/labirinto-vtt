@@ -2,17 +2,18 @@ import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'rea
 import type { DoorState } from '../../types/map'
 import { animacaoDePorta, assinarAnimacoesDePorta, duracaoDoSentido, listarAnimacoesDePorta } from '../../portas/animacoesDePorta'
 import { movimentoReduzido } from '../grimorio/comum'
+import { normalizarCorDaPorta } from '../../lib/corDaPorta'
 import './fichaDaPorta.css'
 
 /** Com movimento reduzido a folha troca na hora e só a opacidade volta, em 160 ms (o protótipo). */
 const PISCAR_REDUZIDO_MS = 160
 const OPACIDADE_DO_PISCAR = 0.35
 
-/** Os tempos da folha DESTA porta, postos no svg: o CSS os lê em cada sentido. */
-type EstiloDaMedalha = CSSProperties & { '--lb-porta-abre': string; '--lb-porta-fecha': string }
+/** Os tempos da folha DESTA porta, postos no svg: o CSS os lê em cada sentido. A cor própria também. */
+type EstiloDaMedalha = CSSProperties & { '--lb-porta-abre': string; '--lb-porta-fecha': string; '--lb-porta-cor'?: string }
 
 export interface MedalhaDaPortaProps {
-  porta: Pick<DoorState, 'open' | 'locked' | 'secret' | 'animacao'>
+  porta: Pick<DoorState, 'open' | 'locked' | 'secret' | 'animacao' | 'cor'>
 }
 
 /**
@@ -31,9 +32,12 @@ export function MedalhaDaPorta({ porta }: MedalhaDaPortaProps) {
   // O pacote de animações pode chegar com a porta selecionada: relê o registro.
   useSyncExternalStore(assinarAnimacoesDePorta, listarAnimacoesDePorta)
   const animacao = porta.secret === true ? null : animacaoDePorta(porta.animacao)
+  // COR DA PORTA: só hex conferido entra no CSS; torta ou ausente, a folha de sempre.
+  const cor = normalizarCorDaPorta(porta.cor)
   const estilo: EstiloDaMedalha = {
     '--lb-porta-abre': `${animacao === null ? 0 : duracaoDoSentido(animacao, true)}ms`,
     '--lb-porta-fecha': `${animacao === null ? 0 : duracaoDoSentido(animacao, false)}ms`,
+    ...(cor === undefined ? {} : { '--lb-porta-cor': cor }),
   }
   const folha = useRef<SVGRectElement>(null)
   const abertaAntes = useRef(porta.open)
@@ -51,6 +55,7 @@ export function MedalhaDaPorta({ porta }: MedalhaDaPortaProps) {
       className="lb-medalha-porta"
       data-estado={porta.open ? 'aberta' : 'fechada'}
       data-trancada={porta.locked ? '' : undefined}
+      data-cor={cor === undefined ? undefined : ''}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

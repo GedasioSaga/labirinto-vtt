@@ -1,0 +1,16 @@
+{
+  "escritasEm": "2026-10-22, antes de rodar a primeira prova do Girar e do Deslizar refinados e do som da porta",
+  "regra": "~/.claude/rules/teste-de-jogos.md: número escrito antes, sem 'a maioria' nem 'bem menos'",
+  "metas": {
+    "M1_extremos": "fim do abrir e do fechar pelo animador real igual à porta parada: 0 pixels diferentes, Girar e Deslizar, 3 cores e trancada com cor própria, zoom 1, 2,5 e 4",
+    "M2_opaco": "0 pixels com alfa < 255 em todos os quadros das folhas de contato (fundo opaco desligado, só a porta)",
+    "M3_sem_quique": "ângulo (Girar) e cobertura do vão (Deslizar), amostrados a cada quadro de 60 Hz no animador real: monotônicos no sentido do caminho, sem passar de 0 nem de 1",
+    "M4_medalha": "a folha do mapa e a da medalha (CSS cubic-bezier(0.33, 1, 0.68, 1) avaliado pelo navegador) no mesmo ângulo: diferença máxima <= 2 graus em todo o caminho do Girar",
+    "M5_inversao": "inverter a 25, 50 e 75% do tempo: o ângulo (Girar) e a cobertura (Deslizar) no quadro da inversão não saltam mais que o maior passo de quadro da corrida sem inversão",
+    "M6_reduzido": "com movimento reduzido: 0 quadros intermediários e 0 sons",
+    "M7_desempenho": "60 portas, abrindo 1 e abrindo as 60 juntas, 4 s cada, relógio real do Pixi: intervalo entre quadros p95 <= 20 ms e nenhuma tarefa longa >= 200 ms; e o custo por quadro do animador com 1 porta andando entre 60 menor que o de repintar as 60",
+    "M8_som": "por evento (abrir e fechar do Girar e do Deslizar, trancar, destrancar), no volume máximo da mesa, com o passa-baixa da mesa: pico verdadeiro <= -12 dBTP; 0 cliques; 0 amostras cortadas; DC <= 0,5%; últimos 10 ms abaixo de -60 dBFS; abrir e fechar com rangido entre -36 e -26 LUFS integrados; trinco e tranca (sons de 60 a 200 ms, medidos na janela de 400 ms do LUFS) entre -42 e -28 LUFS; o som acaba até 120 ms depois do fim da animação",
+    "M9_folhas": "uma folha de contato por animação, com 12 a 16 quadros por linha e o tempo embaixo de cada um; linhas: 3 cores e trancada",
+    "M10_console": "0 erros e 0 avisos no console durante todas as provas"
+  }
+}

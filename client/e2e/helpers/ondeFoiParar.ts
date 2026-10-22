@@ -378,7 +378,8 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([rg('Estado'), ['radio', 'Aberta'], cx('Trancada'), cx('Secreta'), cx('Jogador pode espiar')]),
       // As fichas nascem fechadas; o nome do cabeçalho leva o resumo ("Quem abre Os dois lados").
       l('Quem abre: Abre por', rg('Abre por'), b('/^Quem abre/')),
-      ...todos([rg('Tipo de porta'), ['combobox', 'Animação ao abrir'], b('Procurar animações novas')], b('/^Aparência/')),
+      // COR DA PORTA (fatia 22): a paleta com "Outra cor…" e "Cor padrão", entre o tipo e a animação.
+      ...todos([rg('Tipo de porta'), rg('Cor da porta'), ['textbox', 'Outra cor…'], b('Cor padrão'), ['combobox', 'Animação ao abrir'], b('Procurar animações novas')], b('/^Aparência/')),
       ...todos(PAREDE_ESTILO, b('/^Parede em volta/')),
       // "Mais ações" da cabeça: abrir, trancar e virar parede (o menu fica aberto entre as linhas).
       ...todos([menu('Abrir agora'), menu('Trancar'), menu('Virar parede sólida')], b('Mais ações')),

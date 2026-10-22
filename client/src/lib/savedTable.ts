@@ -10,7 +10,9 @@
  */
 
 import type { ExploredWire } from './exploration'
-import type { DoorKind } from '../types/map'
+import type { DoorKind, DoorState } from '../types/map'
+import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
+import { normalizarCorDaPorta } from './corDaPorta'
 import { readPersonalNoteList, type PersonalNote } from './minhasNotas'
 
 export const SAVED_TABLE_VERSION = 1
@@ -108,12 +110,18 @@ export function storeSavedTable(storage: TableStorage | null, tableId: string, t
 
 export const SAVED_EXPLORATION_VERSION = 1
 
-/** Último estado visto de uma porta (id da parede + `DoorState`). */
+/**
+ * Último estado visto de uma porta (id da parede + `DoorState`). `animacao` e
+ * `cor` são a aparência que o jogador viu: sem elas, a mesa retomada devolvia
+ * a porta lembrada no laranja e sem animação. Ausentes = a porta de sempre.
+ */
 export interface SavedDoor {
   wallId: string
   open: boolean
   locked: boolean
   kind: DoorKind
+  animacao?: string
+  cor?: string
 }
 
 /**
@@ -160,9 +168,30 @@ function isDoorKind(value: unknown): value is DoorKind {
 
 function parseDoor(value: unknown): SavedDoor | null {
   if (!isRecord(value)) return null
-  const { wallId, open, locked, kind } = value
+  const { wallId, open, locked, kind, animacao, cor } = value
   if (typeof wallId !== 'string' || wallId === '' || typeof open !== 'boolean' || typeof locked !== 'boolean' || !isDoorKind(kind)) return null
-  return { wallId, open, locked, kind }
+  const door: SavedDoor = { wallId, open, locked, kind }
+  // Aparência torta (arquivo adulterado) sai sozinha: a porta continua lembrada, do jeito de sempre.
+  if (idDeAnimacaoDePortaValido(animacao)) door.animacao = animacao
+  const corValida = normalizarCorDaPorta(cor)
+  if (corValida !== undefined) door.cor = corValida
+  return door
+}
+
+/** A porta lembrada como a mesa a grava: estado e aparência, nada das regras do mestre. Quem confere é `parseDoor`, na volta. */
+export function savedDoorOf(wallId: string, door: DoorState): SavedDoor {
+  const saved: SavedDoor = { wallId, open: door.open, locked: door.locked, kind: door.kind }
+  if (door.animacao !== undefined) saved.animacao = door.animacao
+  if (door.cor !== undefined) saved.cor = door.cor
+  return saved
+}
+
+/** A porta lembrada de volta como `DoorState`, com a aparência que tinha. */
+export function doorStateOf(saved: SavedDoor): DoorState {
+  const door: DoorState = { open: saved.open, locked: saved.locked, kind: saved.kind }
+  if (saved.animacao !== undefined) door.animacao = saved.animacao
+  if (saved.cor !== undefined) door.cor = saved.cor
+  return door
 }
 
 /** Só a FORMA do fio; o conteúdo (base64, tamanho do bitset) quem confere é `decodeExploration`, na sessão. */

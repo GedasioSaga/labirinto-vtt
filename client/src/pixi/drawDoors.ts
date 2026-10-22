@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js'
-import type { Wall } from '../types/map'
+import type { DoorState, Wall } from '../types/map'
+import { corPropriaDaPorta } from '../lib/corDaPorta'
 import { desenharBatente, tracarRetanguloDaPorta as traceDoorRect, type AnimacaoDePorta, type PortaParaDesenho } from '../portas/animacoesDePorta'
 import { SELECTION_COLOR } from './constants'
 import { selectionOutlineWidth } from './drawWalls'
@@ -11,6 +12,34 @@ import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
  */
 export const DOOR_COLOR = 0xd08c3a
 export const DOOR_LOCKED_COLOR = 0xc0392b
+
+/**
+ * A cor com que a porta é pintada: a própria (`DoorState.cor`, fatia 22) nos
+ * três estados; sem ela, o laranja de sempre e o vermelho da trancada.
+ */
+export function corDaPortaNoMapa(door: Pick<DoorState, 'cor' | 'locked'>): number {
+  return corPropriaDaPorta(door) ?? (door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR)
+}
+
+/**
+ * TRANCADA COM COR PRÓPRIA: a cor já não diz "trancada", então a porta ganha
+ * um contorno vermelho POR FORA do retângulo e um cadeado pequeno no meio.
+ * Tudo chapado e opaco, em px de TELA: a cópia da porta por cima do telhado
+ * (`player/PlayerView.tsx`) pinta o mesmo desenho em cima, e alfa somaria.
+ */
+export const DOOR_LOCKED_RING_SCREEN_PX = 1.5
+/** Corpo do cadeado (largura x altura) e alça, em px de tela; o cadeado inteiro fica em ~8 px. */
+export const DOOR_PADLOCK_BODY_W_SCREEN_PX = 7
+export const DOOR_PADLOCK_BODY_H_SCREEN_PX = 5
+export const DOOR_PADLOCK_SHACKLE_R_SCREEN_PX = 2
+export const DOOR_PADLOCK_STROKE_SCREEN_PX = 1.25
+/**
+ * Corpo claro com traço vermelho: lê sobre qualquer cor de porta, até a
+ * vermelha, e sobre o chão escuro. O claro da pastilha do cadeado da ficha
+ * (`drawTokenLock.ts`), e não o creme do ponto de atravessar: as duas marcas
+ * não se confundem.
+ */
+export const DOOR_PADLOCK_FILL = 0xe6e6e6
 
 /**
  * Visual "minimapa do Resident Evil" (15/09/2026): a porta é um retângulo
@@ -45,6 +74,12 @@ export const DOOR_TO_CROSS_DOT_SCREEN_PX = 1.5
  *    preenchida: o cadeado vale mais que a folha);
  *  - aberta: só contorno laranja.
  *
+ * COR PRÓPRIA (`door.cor`, fatia 22): a cor dela no lugar do laranja e do
+ * vermelho, nos três estados (`corDaPortaNoMapa`). A trancada ganha o contorno
+ * vermelho por fora e o cadeado no meio; a secreta tracejada e a seta de um lado
+ * usam a mesma cor, e a secreta trancada leva só o cadeado (o contorno juntaria
+ * os traços num retângulo). Sem cor própria, nada disso: o desenho de sempre.
+ *
  * Porta de sala secreta não chega aqui para o jogador (fogFilter.ts corta a
  * parede) e o editor desenha igual às outras, como antes. PORTA SECRETA
  * (`door.secret`) também não chega ao jogador como porta (vira parede em
@@ -73,6 +108,7 @@ export function drawDoors(
   const thickness = strokeWidthInWorld(thicknessPixel)
   const outlineWidth = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, DOOR_OPEN_OUTLINE_SCREEN_PX))
   const selectionWidth = selectionOutlineWidth(cameraScale)
+  const lockedRingWidth = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, DOOR_LOCKED_RING_SCREEN_PX))
 
   for (const wall of walls) {
     const door = wall.door
@@ -91,22 +127,31 @@ export function drawDoors(
     const uy = dy / length
     const halfLength = (length * DOOR_LENGTH_RATIO) / 2
     const filled = door.locked || !door.open
-    const color = door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR
+    const color = corDaPortaNoMapa(door)
+    const secreta = door.secret === true
+    const cadeado = door.locked && corPropriaDaPorta(door) !== null
+    const ring = cadeado && !secreta ? lockedRingWidth : 0
 
     // Seleção NÃO troca a cor: moldura em SELECTION_COLOR POR FORA do
-    // retângulo (`SELECTION_OUTLINE_SCREEN_PX` de tela), mesma regra da parede.
+    // retângulo (`SELECTION_OUTLINE_SCREEN_PX` de tela), mesma regra da parede
+    // — e por fora do contorno vermelho, que senão a cobriria.
     if (wall.id === selectedWallId) {
-      traceDoorRect(graphics, cx, cy, ux, uy, halfLength + selectionWidth / 2, thickness / 2 + selectionWidth / 2)
+      traceDoorRect(graphics, cx, cy, ux, uy, halfLength + ring + selectionWidth / 2, thickness / 2 + ring + selectionWidth / 2)
       graphics.stroke({ width: selectionWidth, color: SELECTION_COLOR, join: 'miter' })
     }
 
     const porta: PortaParaDesenho = { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, cx, cy, ux, uy, meioComprimento: halfLength, espessura: thickness, contorno: outlineWidth, cor: color, escala: cameraScale }
     const emAnimacao = animando.get(wall.id)
-    if (door.secret === true) {
+    if (secreta) {
       traceSecretDashes(graphics, cx, cy, ux, uy, halfLength, thickness / 2, color)
     } else if (emAnimacao === undefined || !desenharAnimando(graphics, emAnimacao, porta)) {
       drawDoorAtRest(graphics, porta, filled)
     }
+    if (ring > 0) {
+      traceDoorRect(graphics, cx, cy, ux, uy, halfLength + ring / 2, thickness / 2 + ring / 2)
+      graphics.stroke({ width: ring, color: DOOR_LOCKED_COLOR, join: 'miter' })
+    }
+    if (cadeado) drawPadlock(graphics, cx, cy, cameraScale)
 
     if (door.opensFrom !== undefined) {
       const arrowLength = strokeWidthInWorld(pixelGrid(cameraScale, rendererResolution, ONE_SIDE_ARROW_SCREEN_PX))
@@ -158,6 +203,28 @@ function traceSecretDashes(graphics: Graphics, cx: number, cy: number, ux: numbe
     traceDoorRect(graphics, cx + ux * offset, cy + uy * offset, ux, uy, piece / 2, halfThickness)
     graphics.fill({ color })
   }
+}
+
+/**
+ * O CADEADO da trancada com cor própria, em pé na TELA (não gira com a parede:
+ * é ícone, não folha) e centrado na porta: alça em meia-volta sobre o corpo,
+ * e o buraco da chave no meio. Tamanho fixo em px de tela, como a espessura.
+ */
+function drawPadlock(graphics: Graphics, cx: number, cy: number, cameraScale: number): void {
+  const px = 1 / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
+  const width = DOOR_PADLOCK_BODY_W_SCREEN_PX * px
+  const height = DOOR_PADLOCK_BODY_H_SCREEN_PX * px
+  const shackle = DOOR_PADLOCK_SHACKLE_R_SCREEN_PX * px
+  const stroke = DOOR_PADLOCK_STROKE_SCREEN_PX * px
+  // Do topo da alça ao pé do corpo, o cadeado inteiro fica centrado em (cx, cy).
+  const bodyTop = cy - (height - shackle - stroke / 2) / 2
+  // O `moveTo` antes do arco: sem ele o traço sairia do ponto anterior do path até o começo do arco.
+  graphics
+    .moveTo(cx - shackle, bodyTop)
+    .arc(cx, bodyTop, shackle, Math.PI, Math.PI * 2)
+    .stroke({ width: stroke, color: DOOR_LOCKED_COLOR })
+  graphics.rect(cx - width / 2, bodyTop, width, height).fill({ color: DOOR_PADLOCK_FILL }).stroke({ width: stroke, color: DOOR_LOCKED_COLOR })
+  graphics.circle(cx, bodyTop + height / 2, stroke).fill({ color: DOOR_LOCKED_COLOR })
 }
 
 /**

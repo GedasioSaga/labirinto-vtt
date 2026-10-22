@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { Graphics, Ticker } from 'pixi.js'
 import type { DiceRollEntry } from '../lib/dice'
 import { addToken, addWall, createEmptyMap } from '../lib/mapFactory'
+import { createAnimadorDePortas } from '../pixi/animadorDePortas'
+import type { EventoDeSomDaPorta } from '../portas/somDePorta'
 import type { MapData, RegionPoint, Token, Wall } from '../types/map'
 import type { PlayerState } from './playerConnection'
-import { anotarVistos, criarJaVistos, estaAoVivo, sonsDaMudanca, type JaVistos } from './quandoTocarSom'
+import { anotarVistos, criarJaVistos, estaAoVivo, portaAVistaAntesEDepois, sonsDaMudanca, type JaVistos } from './quandoTocarSom'
 
 /**
  * QUANDO TOCAR UM SOM NO JOGADOR: a regra pura que olha o estado da conexão
@@ -159,12 +162,34 @@ describe('sonsDaMudanca: item e porta trancada', () => {
   })
 })
 
+function animada(id: string, aberta: boolean, animacao: string, x = 100): Wall {
+  const base = porta(id, aberta, x)
+  return { ...base, door: base.door === null ? null : { ...base.door, animacao } }
+}
+
 describe('sonsDaMudanca: portas', () => {
   const com = (paredes: Wall[], extra: Partial<PlayerState> = {}) => jogando({ map: mapa('m1', paredes), ...extra })
 
   it('uma porta à vista abre: portaAbre; fecha: portaFecha', () => {
     expect(sonsDaMudanca(com([porta('p1', false)]), com([porta('p1', true)]), nada())).toEqual(['portaAbre'])
     expect(sonsDaMudanca(com([porta('p1', true)]), com([porta('p1', false)]), nada())).toEqual(['portaFecha'])
+  })
+
+  it('porta com animação que tem som próprio: o animador do mapa toca, o rangido de clima não (seria em dobro)', () => {
+    expect(sonsDaMudanca(com([animada('p1', false, 'girar')]), com([animada('p1', true, 'girar')]), nada())).toEqual([])
+    expect(sonsDaMudanca(com([animada('p1', true, 'deslizar')]), com([animada('p1', false, 'deslizar')]), nada())).toEqual([])
+    // Animação de pacote que este app não tem anima nada e não tem som: o de clima segue.
+    expect(sonsDaMudanca(com([animada('p1', false, 'nao-instalada')]), com([animada('p1', true, 'nao-instalada')]), nada())).toEqual(['portaAbre'])
+    // A animada calada não cala a vizinha sem animação.
+    expect(sonsDaMudanca(com([animada('p1', false, 'girar'), porta('p2', false, 200)]), com([animada('p1', true, 'girar'), porta('p2', true, 200)]), nada())).toEqual(['portaAbre'])
+  })
+
+  it('movimento reduzido: a porta animada troca na hora e o som do caminho fica mudo, então o rangido de clima volta', () => {
+    expect(sonsDaMudanca(com([animada('p1', false, 'girar')]), com([animada('p1', true, 'girar')]), nada(), true)).toEqual(['portaAbre'])
+    expect(sonsDaMudanca(com([animada('p1', true, 'deslizar')]), com([animada('p1', false, 'deslizar')]), nada(), true)).toEqual(['portaFecha'])
+    // A regra da visão vale igual: a que só foi avistada não toca.
+    const lembrada = com([animada('p1', false, 'girar')], { vision: VISAO_LONGE })
+    expect(sonsDaMudanca(lembrada, com([animada('p1', true, 'girar')]), nada(), true)).toEqual([])
   })
 
   it('três portas abrindo (alavanca) dão um rangido só; uma abrindo e outra fechando, um de cada', () => {
@@ -191,6 +216,50 @@ describe('sonsDaMudanca: portas', () => {
     const velho = jogando({ map: mapa('m1', [porta('p1', false)]) })
     const novo = jogando({ map: mapa('m2', [porta('p1', true)]) })
     expect(sonsDaMudanca(velho, novo, nada())).toEqual([])
+  })
+})
+
+describe('som da animação no mapa do jogador: só a porta à vista antes e agora (PlayerView)', () => {
+  /** O que o PlayerView faz a cada recorte: guarda a visão de antes e deixa soar só a porta à vista nas duas. */
+  function mapaDoJogador() {
+    const som = vi.fn<(evento: EventoDeSomDaPorta) => void>()
+    const animador = createAnimadorDePortas({ ticker: new Ticker(), reducedMotion: () => false, now: () => 1000, som })
+    const g = new Graphics()
+    let visaoAntes: RegionPoint[][] = []
+    return {
+      som,
+      recorte(paredes: Wall[], visao: RegionPoint[][]) {
+        const antes = visaoAntes
+        visaoAntes = visao
+        animador.desenhar(g, paredes, null, 1, 1, undefined, (velha, nova) => portaAVistaAntesEDepois(velha, antes, nova, visao))
+      },
+    }
+  }
+
+  it('porta lembrada aberta reaparece fechada (o mestre a fechou longe dele): 0 sons', () => {
+    const jogador = mapaDoJogador()
+    jogador.recorte([animada('p1', true, 'girar')], VISAO_TODA)
+    // Saiu dali: a porta segue no recorte com o estado lembrado.
+    jogador.recorte([animada('p1', true, 'girar')], VISAO_LONGE)
+    // Voltou: a porta chega com o estado de agora.
+    jogador.recorte([animada('p1', false, 'girar')], VISAO_TODA)
+    expect(jogador.som).not.toHaveBeenCalled()
+  })
+
+  it('porta explorada e nunca vista (chega fechada) que já estava aberta: ao ser avistada, 0 sons', () => {
+    const jogador = mapaDoJogador()
+    jogador.recorte([porta('p1', false)], VISAO_LONGE)
+    jogador.recorte([animada('p1', true, 'girar')], VISAO_TODA)
+    expect(jogador.som).not.toHaveBeenCalled()
+  })
+
+  it('mexida à vista toca uma vez; a que sai da visão no mesmo recorte não', () => {
+    const jogador = mapaDoJogador()
+    jogador.recorte([animada('p1', false, 'girar')], VISAO_TODA)
+    jogador.recorte([animada('p1', true, 'girar')], VISAO_TODA)
+    expect(jogador.som.mock.calls.map(([evento]) => evento.tipo)).toEqual(['abrir'])
+    jogador.recorte([animada('p1', false, 'girar')], VISAO_LONGE)
+    expect(jogador.som).toHaveBeenCalledTimes(1)
   })
 })
 

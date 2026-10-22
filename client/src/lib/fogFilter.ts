@@ -1586,9 +1586,14 @@ function roomVisionRadiusAt(point: RegionPoint, rooms: readonly RadiusRoom[], pl
   return best === null ? playerRadius : best.radius
 }
 
-/** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
+/**
+ * Porta explorada que o jogador nunca viu: aparece fechada e destrancada, já
+ * com a cor dela (COR DA PORTA) — a cor é aparência, igual de longe e de perto.
+ */
 function unseenDoor(door: DoorState): DoorState {
-  return { open: false, locked: false, kind: door.kind }
+  const unseen: DoorState = { open: false, locked: false, kind: door.kind }
+  if (door.cor !== undefined) unseen.cor = door.cor
+  return unseen
 }
 
 /**
@@ -4082,12 +4087,15 @@ export function filterMapForGroup(
  * parede antes de chegar aqui.
  * `animacao` (PORTA ANIMADA) vai: é só como a porta se mexe ao abrir, e a tela
  * do jogador toca a mesma animação que a do mestre. Não diz nada do outro lado.
+ * `cor` (COR DA PORTA) vai pelo mesmo motivo: a tela dele pinta a porta como a
+ * do mestre. O cadeado e o contorno vermelho, não: a trancada chega fechada comum.
  */
 function doorForPlayer(door: DoorState): DoorState {
   const forPlayer: DoorState = { open: door.open, locked: door.locked, kind: door.kind }
   if (door.secret !== undefined) forPlayer.secret = door.secret
   if (door.semEspiar === true) forPlayer.semEspiar = true
   if (door.animacao !== undefined) forPlayer.animacao = door.animacao
+  if (door.cor !== undefined) forPlayer.cor = door.cor
   return forPlayer
 }
 

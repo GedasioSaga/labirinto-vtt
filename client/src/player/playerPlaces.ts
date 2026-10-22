@@ -1,7 +1,8 @@
-import type { FloorPiece, MapData, Pin, RegionPoint } from '../types/map'
+import type { FloorPiece, MapData, Pin, RegionPoint, Wall } from '../types/map'
 import { forEachExploredRun, type Exploration } from '../lib/exploration'
 import { clueTitleFrom } from '../lib/clues'
 import { pinSummary } from '../lib/pins'
+import { normalizarCorDaPorta } from '../lib/corDaPorta'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import type { StorageLike } from './playerConnection'
 
@@ -24,6 +25,8 @@ export interface SketchWall {
   x2: number
   y2: number
   door: boolean
+  /** COR DA PORTA (fatia 22), `#rrggbb` já conferido; ausente = o laranja de sempre. */
+  doorColor?: string
 }
 
 export interface PlaceSketch {
@@ -80,8 +83,16 @@ export function placeSketch(map: MapData): PlaceSketch {
     rooms: regions
       .filter((region) => region.filled !== false && region.points.length >= 3)
       .map((region) => ({ points: region.points.map((p) => ({ x: p.x, y: p.y })), color: region.fillColor })),
-    walls: walls.map((wall) => ({ x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, door: wall.door !== null })),
+    walls: walls.map(sketchWall),
   }
+}
+
+function sketchWall(wall: Wall): SketchWall {
+  const sketched: SketchWall = { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, door: wall.door !== null }
+  // O recorte vem da rede: só hex válido vira atributo do SVG.
+  const doorColor = wall.door === null ? undefined : normalizarCorDaPorta(wall.door.cor)
+  if (doorColor !== undefined) sketched.doorColor = doorColor
+  return sketched
 }
 
 /**

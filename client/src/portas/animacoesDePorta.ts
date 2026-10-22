@@ -36,7 +36,7 @@ export interface PortaParaDesenho {
   espessura: number
   /** Espessura do contorno da porta aberta, em mundo. */
   contorno: number
-  /** Cor da porta: laranja, ou vermelha se trancada. */
+  /** Cor da porta: a própria (`DoorState.cor`), ou laranja, vermelha se trancada. */
   cor: number
   /** Zoom da câmera (px de tela por unidade de mundo). */
   escala: number
@@ -56,6 +56,12 @@ export interface AnimacaoDePorta {
    */
   duracaoFecharMs?: number
   /**
+   * Som que acompanha o caminho (`portas/somDePorta.ts`). Ausente = porta
+   * muda, como as de antes do som. O pacote pode trazer o campo; cliente velho
+   * o ignora, e valor que este app não conhece também fica de fora.
+   */
+  som?: SomDaAnimacaoDePorta
+  /**
    * Desenha a porta num ponto do caminho: `progresso` 0 = fechada, 1 = aberta,
    * já com a curva aplicada (quem anima é `pixi/animadorDePortas.ts`).
    * `abrindo` diz para onde vai. Só ACRESCENTA ao `g`: as outras portas estão
@@ -70,6 +76,20 @@ export const ID_DE_ANIMACAO_DE_PORTA = /^[a-z0-9-]{1,40}$/
 
 export function idDeAnimacaoDePortaValido(valor: unknown): valor is string {
   return typeof valor === 'string' && ID_DE_ANIMACAO_DE_PORTA.test(valor)
+}
+
+/**
+ * Os sons que o app sabe sintetizar para uma animação de porta: `rangido` é a
+ * folha de dobradiça (trinco + rangido ao abrir, rangido curto + trinco ao
+ * fechar); `trinco` é só o estalo da lingueta, a porta de correr. Mora aqui, e
+ * não em `somDePorta.ts`, porque o disco e o pacote validam o campo sem puxar
+ * o áudio.
+ */
+export const SONS_DA_ANIMACAO_DE_PORTA = ['rangido', 'trinco'] as const
+export type SomDaAnimacaoDePorta = (typeof SONS_DA_ANIMACAO_DE_PORTA)[number]
+
+export function somDaAnimacaoDePortaValido(valor: unknown): valor is SomDaAnimacaoDePorta {
+  return SONS_DA_ANIMACAO_DE_PORTA.some((som) => som === valor)
 }
 
 /** Nome longo demais quebraria o seletor do painel. */
@@ -110,18 +130,90 @@ export function desenharBatente(g: Graphics, porta: PortaParaDesenho): void {
 export const GIRO_ABERTA_RAD = (70 * Math.PI) / 180
 
 /**
- * "Girar na dobradiça": a folha gira em torno da ponta de (x1,y1) até ficar
- * perpendicular, para o lado da normal — o mesmo lado no mestre e no jogador
- * (o jogador não recebe `opensFrom`, então o lado não pode depender dele).
- * A porta aberta do minimapa é só o contorno: a folha some no fim do giro. A
- * opacidade cai pelo cubo do progresso, então a folha fica sólida quase o
- * giro inteiro e só esmaece no último terço, em vez de virar fantasma no meio.
+ * SOMBRA SOB A FOLHA (fatia 22): a folha que sai do lugar "descola" do chão e
+ * deixa uma sombra para baixo e para a direita da TELA (a luz de cima à
+ * esquerda das sombras da interface). Tudo opaco, sem alfa: a cópia da porta
+ * por cima do telhado (`player/PlayerView.tsx`) pinta o mesmo desenho em cima
+ * deste, e alfa somaria. O "suave" vem de duas camadas chapadas (a penumbra
+ * mais clara e maior, o miolo mais escuro) e de a sombra crescer e sumir com
+ * o caminho: zero nos extremos, então a porta parada não muda.
+ */
+export const SOMBRA_DA_FOLHA_TELA_PX = 2
+/** A penumbra passa da folha por este tanto em cada lado, em px de tela. */
+export const PENUMBRA_DA_FOLHA_TELA_PX = 0.75
+/** O escuro para onde a sombra puxa a cor da porta (o papel escuro do grimório). */
+export const ESCURO_DA_SOMBRA = 0x100d09
+const MISTURA_DA_PENUMBRA = 0.4
+const MISTURA_DO_MIOLO = 0.65
+
+/** Mistura canal a canal de `a` para `b`: `t` 0 = `a`, 1 = `b`. */
+export function misturarCor(a: number, b: number, t: number): number {
+  const canal = (deslocamento: number): number => {
+    const de = (a >> deslocamento) & 0xff
+    const para = (b >> deslocamento) & 0xff
+    return Math.round(de + (para - de) * t) << deslocamento
+  }
+  return canal(16) | canal(8) | canal(0)
+}
+
+/** Sobe e desce com o caminho: 0 nos extremos, 1 no meio. Fora de (0, 1) é exatamente 0. */
+function elevacaoDaFolha(progresso: number): number {
+  return progresso <= 0 || progresso >= 1 ? 0 : Math.sin(Math.PI * progresso)
+}
+
+/** A folha de centro `(cx, cy)`, sentido `(dx, dy)`, com a sombra por baixo quando está fora do lugar. */
+function desenharFolha(g: Graphics, porta: PortaParaDesenho, progresso: number, cx: number, cy: number, dx: number, dy: number, meioComprimento: number): void {
+  const meiaEspessura = porta.espessura / 2
+  const elevacao = elevacaoDaFolha(progresso)
+  if (elevacao > 0) {
+    const px = 1 / (Number.isFinite(porta.escala) && porta.escala > 0 ? porta.escala : 1)
+    const desvio = SOMBRA_DA_FOLHA_TELA_PX * elevacao * px
+    const penumbra = PENUMBRA_DA_FOLHA_TELA_PX * elevacao * px
+    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento + penumbra, meiaEspessura + penumbra)
+    g.fill({ color: misturarCor(porta.cor, ESCURO_DA_SOMBRA, MISTURA_DA_PENUMBRA) })
+    tracarRetanguloDaPorta(g, cx + desvio, cy + desvio, dx, dy, meioComprimento, meiaEspessura)
+    g.fill({ color: misturarCor(porta.cor, ESCURO_DA_SOMBRA, MISTURA_DO_MIOLO) })
+  }
+  tracarRetanguloDaPorta(g, cx, cy, dx, dy, meioComprimento, meiaEspessura)
+  g.fill({ color: porta.cor })
+}
+
+/** Fração de `x` dentro de [a, b], presa entre 0 e 1. */
+function trecho(x: number, a: number, b: number): number {
+  return Math.min(1, Math.max(0, (x - a) / (b - a)))
+}
+
+/** Entrada e saída suaves (smoothstep): a fase começa e termina parada, sem degrau na velocidade. */
+function suave(x: number): number {
+  return x * x * (3 - 2 * x)
+}
+
+/**
+ * Onde o giro começa a recolher a folha para a dobradiça. Começa antes do fim
+ * do giro para as duas fases se fundirem num gesto só, mas tarde no caminho:
+ * a curva de saída chega a 80% com 42% do tempo, então a folha mostra o giro
+ * quase inteiro e dobra no trecho lento do fim (a folha de contato com 0,62
+ * mostrava a folha sumindo aos 170 ms e 130 ms sem nada mudando).
+ */
+export const GIRAR_INICIO_DO_RECOLHER = 0.8
+
+/**
+ * "Girar na dobradiça": a folha gira em torno da ponta de (x1,y1) até 70
+ * graus, para o lado da normal — o mesmo lado no mestre e no jogador (o
+ * jogador não recebe `opensFrom`, então o lado não pode depender dele). O
+ * ângulo anda com o progresso, então a folha do mapa e a da medalha estão no
+ * mesmo ângulo a cada quadro. A porta aberta do minimapa é só o contorno: no
+ * fim do giro a folha RECOLHE para dentro da dobradiça (opaca o tempo todo,
+ * nada de esmaecer). Fechando, o mesmo caminho ao contrário: a folha sai da
+ * dobradiça e gira até o lugar. O desenho só depende do progresso, então
+ * inverter no meio volta dali mesmo, sem salto.
  */
 function desenharGirar(g: Graphics, porta: PortaParaDesenho, progresso: number): void {
   desenharBatente(g, porta)
-  const opacidade = 1 - progresso ** 3
-  if (opacidade <= 0) return
-  const angulo = GIRO_ABERTA_RAD * progresso
+  const p = Math.min(1, Math.max(0, progresso))
+  const meioComprimento = porta.meioComprimento * (1 - suave(trecho(p, GIRAR_INICIO_DO_RECOLHER, 1)))
+  if (meioComprimento <= 0) return
+  const angulo = GIRO_ABERTA_RAD * p
   const nx = -porta.uy
   const ny = porta.ux
   // Sentido da folha girada: entre o da parede (fechada) e o da normal (aberta).
@@ -129,22 +221,22 @@ function desenharGirar(g: Graphics, porta: PortaParaDesenho, progresso: number):
   const dy = porta.uy * Math.cos(angulo) + ny * Math.sin(angulo)
   const dobradicaX = porta.cx - porta.ux * porta.meioComprimento
   const dobradicaY = porta.cy - porta.uy * porta.meioComprimento
-  tracarRetanguloDaPorta(g, dobradicaX + dx * porta.meioComprimento, dobradicaY + dy * porta.meioComprimento, dx, dy, porta.meioComprimento, porta.espessura / 2)
-  g.fill({ color: porta.cor, alpha: opacidade })
+  desenharFolha(g, porta, p, dobradicaX + dx * meioComprimento, dobradicaY + dy * meioComprimento, dx, dy, meioComprimento)
 }
 
 /**
  * "Deslizar": a folha corre ao longo da parede para dentro dela, do lado de
  * (x2,y2), como porta de correr. Sobra no vão só o pedaço que ainda não
  * entrou, preso à ponta de (x2,y2); aberta, não sobra nada além do batente.
+ * A sombra diz que a folha saiu do trilho de descanso e some quando assenta.
  */
 function desenharDeslizar(g: Graphics, porta: PortaParaDesenho, progresso: number): void {
   desenharBatente(g, porta)
-  const meioPedaco = porta.meioComprimento * (1 - progresso)
+  const p = Math.min(1, Math.max(0, progresso))
+  const meioPedaco = porta.meioComprimento * (1 - p)
   if (meioPedaco <= 0) return
-  const desvio = porta.meioComprimento * progresso
-  tracarRetanguloDaPorta(g, porta.cx + porta.ux * desvio, porta.cy + porta.uy * desvio, porta.ux, porta.uy, meioPedaco, porta.espessura / 2)
-  g.fill({ color: porta.cor })
+  const desvio = porta.meioComprimento * p
+  desenharFolha(g, porta, p, porta.cx + porta.ux * desvio, porta.cy + porta.uy * desvio, porta.ux, porta.uy, meioPedaco)
 }
 
 /**
@@ -159,8 +251,8 @@ export const GIRAR_FECHAR_DURACAO_MS = 260
 export const DESLIZAR_DURACAO_MS = 240
 
 export const ANIMACOES_EMBUTIDAS: readonly AnimacaoDePorta[] = [
-  { id: 'girar', nome: 'Girar na dobradiça', duracaoMs: GIRAR_DURACAO_MS, duracaoFecharMs: GIRAR_FECHAR_DURACAO_MS, desenhar: desenharGirar },
-  { id: 'deslizar', nome: 'Deslizar', duracaoMs: DESLIZAR_DURACAO_MS, desenhar: desenharDeslizar },
+  { id: 'girar', nome: 'Girar na dobradiça', duracaoMs: GIRAR_DURACAO_MS, duracaoFecharMs: GIRAR_FECHAR_DURACAO_MS, som: 'rangido', desenhar: desenharGirar },
+  { id: 'deslizar', nome: 'Deslizar', duracaoMs: DESLIZAR_DURACAO_MS, som: 'trinco', desenhar: desenharDeslizar },
 ]
 
 /** Duração do caminho inteiro no sentido pedido: abrir usa `duracaoMs`; fechar, `duracaoFecharMs` quando há. */
@@ -223,10 +315,13 @@ export function registrarAnimacaoDePorta(info: unknown): boolean {
   if (!Number.isFinite(duracaoMs) || duracaoMs <= 0 || duracaoMs > DURACAO_DE_ANIMACAO_MAX_MS) return false
   if (!('desenhar' in info) || typeof info.desenhar !== 'function') return false
   const desenharDeFora = info.desenhar
+  // Som é enfeite opcional: valor que este app não conhece não recusa a animação, só a deixa muda.
+  const som = 'som' in info && somDaAnimacaoDePortaValido(info.som) ? { som: info.som } : {}
   const animacao: AnimacaoDePorta = {
     id,
     nome,
     duracaoMs,
+    ...som,
     desenhar: (g, porta, progresso, abrindo) => {
       Reflect.apply(desenharDeFora, undefined, [g, porta, progresso, abrindo])
     },

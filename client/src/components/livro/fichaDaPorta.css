@@ -30,6 +30,14 @@
 /* Trancada: o vermelho escuro que lê sobre o latão (o #8f2f27 do protótipo). */
 .lb-medalha-porta[data-trancada] .lb-medalha-porta__folha { fill: #8f2f27; }
 
+/*
+ * COR PRÓPRIA (fatia 22): a folha na cor da porta nos três estados, como no
+ * mapa; trancada, o contorno vermelho em volta dela diz o que a cor não diz.
+ * Depois da regra da trancada, de propósito: mesma especificidade, a cor vence.
+ */
+.lb-medalha-porta[data-cor] .lb-medalha-porta__folha { fill: var(--lb-porta-cor); }
+.lb-medalha-porta[data-cor][data-trancada] .lb-medalha-porta__folha { stroke: #8f2f27; stroke-width: 1; }
+
 /* O respiro da página, o mesmo da ficha do token (o essencial e as fichas não encostam na lombada). */
 .lb-ficha-da-porta { padding: 0 12px 20px 14px; }
 

@@ -28,6 +28,13 @@ export interface WallDoorControlsProps {
    * seletor não aparece.
    */
   onAnimacaoChange?: (id: string | null) => void
+  /**
+   * COR DA PORTA (fatia 22): `#rrggbb` da paleta ou de "Outra cor…", ou `null`
+   * = "Cor padrão" (campo ausente, o laranja de sempre). `abertura`: a vez do
+   * seletor nativo de onde a cor veio — ele manda uma cor por quadro do arrasto,
+   * e cada abertura é um Ctrl+Z. Sem ele, o campo não aparece.
+   */
+  onCorChange?: (cor: string | null, abertura?: string) => void
 }
 
 /**

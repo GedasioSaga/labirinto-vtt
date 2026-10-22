@@ -10,6 +10,7 @@ import { Fichas } from '../grimorio/Ficha'
 import { Nota } from '../grimorio/Nota'
 import { DOOR_KIND_OPTIONS } from '../DoorKindControls'
 import { BotaoProcurarAnimacoes } from '../ProcurarAnimacoes'
+import { CorDaPorta } from './CorDaPorta'
 import { Toggle } from '../Toggle'
 import { DoorKeyField, type WallDoorControlsProps } from '../WallDoorControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
@@ -94,6 +95,7 @@ export function FichaDaPorta({
   onKeyChange,
   onOpensFromChange,
   onAnimacaoChange,
+  onCorChange,
   onKindChange,
   paredeEmVolta,
   estadoDaPorta,
@@ -168,6 +170,7 @@ export function FichaDaPorta({
               if (kind !== door.kind) onKindChange(kind)
             }}
           />
+          {onCorChange !== undefined && <CorDaPorta cor={door.cor ?? null} onCorChange={onCorChange} />}
           {onAnimacaoChange !== undefined && <AnimacaoAoAbrir animacao={door.animacao} animacoes={animacoes} onAnimacaoChange={onAnimacaoChange} />}
         </FichaDaPortaLembrada>
         {paredeEmVolta !== undefined && (

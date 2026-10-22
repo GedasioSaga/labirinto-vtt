@@ -230,6 +230,7 @@ import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { portaComAnimacao } from './portas/animacoesDePorta'
+import { chaveDaCorDaPorta, portaComCor } from './lib/corDaPorta'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
@@ -1994,6 +1995,12 @@ function App() {
     setWallDoor(selectedWall.id, portaComAnimacao(selectedWall.door, id))
   }
 
+  /** COR DA PORTA: "Cor da porta" da porta selecionada, com histórico; cada abertura do seletor é um Ctrl+Z só. `null` volta ao laranja (campo ausente). */
+  const handleDoorCorChange = (cor: string | null, abertura?: string) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, portaComCor(selectedWall.door, cor), chaveDaCorDaPorta(selectedWall.id, abertura))
+  }
+
   /**
    * Com uma parede-porta selecionada, o seletor de tipo edita ELA (com
    * histórico, via setWallDoorKind). Sem porta selecionada — ferramenta
@@ -3529,6 +3536,7 @@ function App() {
               onKeyChange: handleDoorKeyChange,
               onOpensFromChange: handleOpensFromChange,
               onAnimacaoChange: handleDoorAnimacaoChange,
+              onCorChange: handleDoorCorChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,

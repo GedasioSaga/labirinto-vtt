@@ -1,0 +1,163 @@
+import { describe, expect, it } from 'vitest'
+import { Graphics, type GraphicsPath } from 'pixi.js'
+import {
+  DOOR_COLOR,
+  DOOR_LOCKED_COLOR,
+  DOOR_LOCKED_RING_SCREEN_PX,
+  DOOR_PADLOCK_BODY_W_SCREEN_PX,
+  DOOR_PADLOCK_FILL,
+  DOOR_THICKNESS_SCREEN_PX,
+  SECRET_DOOR_DASHES,
+  corDaPortaNoMapa,
+  drawDoors,
+} from './drawDoors'
+import { SELECTION_COLOR } from './constants'
+import { COR_DA_PORTA_PADRAO } from '../lib/corDaPorta'
+import { parseHexColor } from '../lib/tokenColor'
+import type { DoorState, Wall } from '../types/map'
+
+/**
+ * COR DA PORTA (fatia 22): com cor própria a porta é pintada nela nos três
+ * estados, e a trancada ganha contorno vermelho por fora e cadeado. Sem cor (ou
+ * com cor torta) o desenho é EXATAMENTE o de sempre, instrução por instrução.
+ */
+const AZUL = '#79a9cc'
+const AZUL_PIXI = 0x79a9cc
+
+function porta(door: Partial<DoorState>, wall: Partial<Wall> = {}): Wall {
+  return { id: 'p', x1: 100, y1: 200, x2: 200, y2: 200, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal', ...door }, ...wall }
+}
+
+function desenhar(walls: Wall[], selecionada: string | null = null, escala = 1): Graphics {
+  const g = new Graphics()
+  drawDoors(g, walls, selecionada, escala)
+  return g
+}
+
+/** O desenho inteiro em dado comparável: ação, cor, largura e o path de cada instrução. */
+function desenho(g: Graphics): unknown[] {
+  return g.context.instructions.map((instrucao) => {
+    if (instrucao.action === 'texture') return { action: 'texture' }
+    const largura = instrucao.action === 'stroke' ? instrucao.data.style.width : null
+    const caminho = JSON.stringify(instrucao.data.path.instructions.map((p) => [p.action, p.data]))
+    return { action: instrucao.action, color: instrucao.data.style.color, alpha: instrucao.data.style.alpha, largura, caminho }
+  })
+}
+
+function preenchimentos(g: Graphics) {
+  return g.context.instructions.flatMap((i) => (i.action === 'fill' ? [i] : []))
+}
+
+function tracos(g: Graphics) {
+  return g.context.instructions.flatMap((i) => (i.action === 'stroke' ? [i] : []))
+}
+
+/** Caixa do primeiro `poly` (ou `rect`) do path, em mundo. */
+function caixa(instrucao: { data: { path: GraphicsPath } }) {
+  const forma = instrucao.data.path.instructions.find((p) => p.action === 'poly' || p.action === 'rect')
+  if (forma === undefined) throw new Error('instrução sem poly nem rect')
+  if (forma.action === 'rect') return { w: Number(forma.data[2]), h: Number(forma.data[3]) }
+  const pontos = Array.isArray(forma.data[0]) ? forma.data[0].map(Number) : []
+  const xs = pontos.filter((_, i) => i % 2 === 0)
+  const ys = pontos.filter((_, i) => i % 2 === 1)
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+}
+
+describe('drawDoors — cor própria da porta', () => {
+  it('fechada com cor: preenchida na cor dela, sem contorno nem cadeado', () => {
+    const g = desenhar([porta({ cor: AZUL })])
+    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([AZUL_PIXI])
+    expect(tracos(g)).toHaveLength(0)
+  })
+
+  it('aberta com cor: só o contorno, na cor dela e na mesma caixa da aberta de sempre', () => {
+    const comCor = desenhar([porta({ open: true, cor: AZUL })])
+    const deSempre = desenhar([porta({ open: true })])
+    expect(preenchimentos(comCor)).toHaveLength(0)
+    expect(tracos(comCor).map((s) => s.data.style.color)).toEqual([AZUL_PIXI])
+    expect(caixa(tracos(comCor)[0])).toEqual(caixa(tracos(deSempre)[0]))
+  })
+
+  it('trancada com cor: cheia na cor dela, contorno vermelho POR FORA e cadeado opaco no meio', () => {
+    const g = desenhar([porta({ locked: true, cor: AZUL })])
+    const [folha] = preenchimentos(g)
+    expect(folha.data.style.color).toBe(AZUL_PIXI)
+    expect(caixa(folha).h).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
+    // O contorno vermelho: a borda de dentro encosta na folha, a de fora sai do retângulo.
+    const aro = tracos(g).find((s) => s.data.style.color === DOOR_LOCKED_COLOR && s.data.path.instructions.some((p) => p.action === 'poly'))
+    if (aro === undefined) throw new Error('trancada com cor sem o contorno vermelho')
+    const largura = aro.data.style.width
+    expect(largura).toBeGreaterThanOrEqual(DOOR_LOCKED_RING_SCREEN_PX)
+    expect(caixa(aro).h - largura).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
+    // O cadeado: corpo claro com traço vermelho, alça e buraco da chave — tudo opaco.
+    expect(preenchimentos(g).some((f) => f.data.style.color === DOOR_PADLOCK_FILL)).toBe(true)
+    expect(tracos(g).some((s) => s.data.path.instructions.some((p) => p.action === 'arc'))).toBe(true)
+    for (const instrucao of [...preenchimentos(g), ...tracos(g)]) expect(instrucao.data.style.alpha).toBe(1)
+  })
+
+  it('o cadeado tem tamanho fixo na TELA: o corpo mede o mesmo em px de tela a 100% e a 400%', () => {
+    for (const escala of [1, 4]) {
+      const corpo = preenchimentos(desenhar([porta({ locked: true, cor: AZUL })], null, escala)).find((f) => f.data.style.color === DOOR_PADLOCK_FILL)
+      if (corpo === undefined) throw new Error(`sem cadeado a ${escala}x`)
+      expect(caixa(corpo).w * escala).toBeCloseTo(DOOR_PADLOCK_BODY_W_SCREEN_PX, 9)
+    }
+  })
+
+  it('selecionada e trancada com cor: a moldura de seleção fica por fora do contorno vermelho', () => {
+    const g = desenhar([porta({ locked: true, cor: AZUL })], 'p')
+    const [moldura] = tracos(g)
+    expect(moldura.data.style.color).toBe(SELECTION_COLOR)
+    const aro = tracos(g).find((s) => s.data.style.color === DOOR_LOCKED_COLOR && s.data.path.instructions.some((p) => p.action === 'poly'))
+    if (aro === undefined) throw new Error('sem o contorno vermelho')
+    // Borda de dentro da moldura = borda de fora do aro.
+    expect(caixa(moldura).h - moldura.data.style.width).toBeCloseTo(caixa(aro).h + aro.data.style.width, 9)
+  })
+
+  it('secreta com cor: os traços na cor dela; trancada leva o cadeado, sem o contorno que juntaria os traços', () => {
+    const solta = desenhar([porta({ secret: true, cor: AZUL })])
+    expect(preenchimentos(solta).map((f) => f.data.style.color)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => AZUL_PIXI))
+    const trancada = desenhar([porta({ secret: true, locked: true, cor: AZUL })])
+    expect(preenchimentos(trancada).filter((f) => f.data.style.color === AZUL_PIXI)).toHaveLength(SECRET_DOOR_DASHES)
+    expect(preenchimentos(trancada).some((f) => f.data.style.color === DOOR_PADLOCK_FILL)).toBe(true)
+    expect(tracos(trancada).some((s) => s.data.path.instructions.some((p) => p.action === 'poly'))).toBe(false)
+  })
+
+  it('a seta da porta de um lado sai na cor dela', () => {
+    const g = desenhar([porta({ cor: AZUL, opensFrom: 'right' })])
+    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([AZUL_PIXI, AZUL_PIXI])
+  })
+})
+
+describe('drawDoors — sem cor própria, o desenho de sempre', () => {
+  const estados: [string, Partial<DoorState>, Partial<Wall>?][] = [
+    ['fechada', {}],
+    ['aberta', { open: true }],
+    ['trancada', { locked: true }],
+    ['secreta trancada', { secret: true, locked: true }],
+    ['de um lado', { opensFrom: 'left' }],
+    ['dupla', { kind: 'double' }],
+  ]
+
+  it('trancada sem cor: um preenchimento vermelho e mais nada (nem cadeado, nem contorno)', () => {
+    const g = desenhar([porta({ locked: true })])
+    expect(desenho(g)).toHaveLength(1)
+    expect(preenchimentos(g)[0].data.style.color).toBe(DOOR_LOCKED_COLOR)
+  })
+
+  it('cor torta (nome, hex curto, javascript:) desenha igual à porta sem cor, em todo estado', () => {
+    for (const [nome, door] of estados) {
+      const deSempre = desenho(desenhar([porta(door)], 'p'))
+      for (const torta of ['red', '#12', 'javascript:alert(1)', '#79a9cg', '']) {
+        expect(desenho(desenhar([porta({ ...door, cor: torta })], 'p')), `${nome}, cor ${torta}`).toEqual(deSempre)
+      }
+    }
+  })
+
+  it('a cor de cada estado continua a de sempre', () => {
+    expect(corDaPortaNoMapa({ locked: false })).toBe(DOOR_COLOR)
+    expect(corDaPortaNoMapa({ locked: true })).toBe(DOOR_LOCKED_COLOR)
+    expect(corDaPortaNoMapa({ locked: true, cor: AZUL })).toBe(AZUL_PIXI)
+    // O padrão em CSS ("Outra cor…", miniatura do jogador) é o mesmo laranja do Pixi.
+    expect(parseHexColor(COR_DA_PORTA_PADRAO)).toBe(DOOR_COLOR)
+  })
+})

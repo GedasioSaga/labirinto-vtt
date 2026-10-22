@@ -1,6 +1,7 @@
 import { destravarAudioNoPrimeiroGesto } from '../lib/sons/contexto'
 import type { SomId } from '../lib/sons/receitas'
 import { tocarSom } from '../lib/sons/tocarSom'
+import { prefereMovimentoReduzido } from '../portas/somDePorta'
 import type { PlayerConnection, PlayerState } from './playerConnection'
 import { anotarVistos, criarJaVistos, estaAoVivo, sonsDaMudanca } from './quandoTocarSom'
 
@@ -30,12 +31,20 @@ export interface OpcoesDosSonsDoJogador {
   destravar?: (alvo: EventTarget) => () => void
   /** Relógio em ms, monotônico. */
   agora?: () => number
+  /** Movimento reduzido, lido a cada mudança. Padrão: a mesma leitura que deixa o som da porta animada mudo. */
+  movimentoReduzido?: () => boolean
 }
 
 /** Conecta os sons à conexão; devolve a função que desliga tudo (inscrição e ouvintes do gesto). */
 export function instalarSonsDoJogador(
   conexao: Pick<PlayerConnection, 'getState' | 'subscribe'>,
-  { tocar = tocarSom, alvoDoGesto = window, destravar = destravarAudioNoPrimeiroGesto, agora = () => performance.now() }: OpcoesDosSonsDoJogador = {},
+  {
+    tocar = tocarSom,
+    alvoDoGesto = window,
+    destravar = destravarAudioNoPrimeiroGesto,
+    agora = () => performance.now(),
+    movimentoReduzido = prefereMovimentoReduzido,
+  }: OpcoesDosSonsDoJogador = {},
 ): () => void {
   const vistos = criarJaVistos()
   let anterior = conexao.getState()
@@ -44,7 +53,7 @@ export function instalarSonsDoJogador(
   let silencioAte = Number.NEGATIVE_INFINITY
 
   function tocarAMudanca(antes: PlayerState, depois: PlayerState): void {
-    const sons = sonsDaMudanca(antes, depois, vistos)
+    const sons = sonsDaMudanca(antes, depois, vistos, movimentoReduzido())
     anotarVistos(vistos, depois, antes)
     const instante = agora()
     if (!estaAoVivo(antes) && estaAoVivo(depois)) silencioAte = instante + SILENCIO_DA_CHEGADA_MS

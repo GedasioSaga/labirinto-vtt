@@ -52,6 +52,8 @@ const TETO_TOTAL = 20 * 1024 * 1024
 const TRANSICAO_DURACAO = [2, 30]
 const CENARIO_DURACAO = [3, 40]
 const PORTA_DURACAO_MAX_MS = 3000
+/** Sons que o app sintetiza para a porta (`SONS_DA_ANIMACAO_DE_PORTA` de portas/animacoesDePorta.ts). Opcional na meta. */
+const PORTA_SONS = ['rangido', 'trinco']
 /** Lado do ladrilho da textura, em px do protótipo do relevo (`ESCALA_MIN`/`ESCALA_MAX` de texturas/catalogo.ts). */
 const TEXTURA_ESCALA = [8, 200]
 /** Tamanho natural do carimbo, em px do protótipo do relevo (`TAMANHO_NATURAL_MIN`/`MAX` de carimbos/catalogo.ts). */
@@ -122,7 +124,8 @@ function entradaDaMeta(tipo, id, meta, onde) {
   if (nome === '' || nome.length > NOME_MAX) erro(`"nome" de 1 a ${NOME_MAX} letras`)
   if (tipo === 'porta') {
     if (!numero(meta.duracaoMs) || meta.duracaoMs <= 0 || meta.duracaoMs > PORTA_DURACAO_MAX_MS) erro(`"duracaoMs" entre 1 e ${PORTA_DURACAO_MAX_MS}`)
-    return { id, tipo, nome, duracaoMs: meta.duracaoMs }
+    if (meta.som !== undefined && !PORTA_SONS.includes(meta.som)) erro(`"som" é ${PORTA_SONS.join(' ou ')}, ou fica sem o campo`)
+    return { id, tipo, nome, duracaoMs: meta.duracaoMs, ...(meta.som === undefined ? {} : { som: meta.som }) }
   }
   if (tipo === 'textura') {
     const [min, max] = TEXTURA_ESCALA

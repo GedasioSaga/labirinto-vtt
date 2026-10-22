@@ -1,7 +1,8 @@
 import { pointInRing } from '../lib/floorContour'
 import { pisoDe } from '../lib/pisos'
 import type { SomId } from '../lib/sons/receitas'
-import type { MapData, RegionPoint, Wall } from '../types/map'
+import { animacaoDePorta } from '../portas/animacoesDePorta'
+import type { DoorState, MapData, RegionPoint, Wall } from '../types/map'
 import type { PlayerState } from './playerConnection'
 
 /**
@@ -49,14 +50,18 @@ export function anotarVistos(vistos: JaVistos, estado: PlayerState, antes?: Play
   if (antes === undefined || estado.awayNotes !== antes.awayNotes) for (const recado of estado.awayNotes ?? []) vistos.recados.add(recado.id)
 }
 
-export function sonsDaMudanca(antes: PlayerState, depois: PlayerState, vistos: JaVistos): SomId[] {
+/**
+ * `movimentoReduzido` é a preferência do sistema agora: decide quem toca a
+ * porta animada, o animador do mapa ou o rangido de clima (`temSomDaAnimacao`).
+ */
+export function sonsDaMudanca(antes: PlayerState, depois: PlayerState, vistos: JaVistos, movimentoReduzido = false): SomId[] {
   if (!estaAoVivo(antes) || !estaAoVivo(depois)) return []
   // Mapa novo não pode ser lido como "portas que abriram": havendo passagem, ela é o único som.
   if (houvePassagem(antes, depois)) return ['passagem']
   const sons: SomId[] = []
   if (pegouItem(antes, depois)) sons.push('item')
   if (topouComPortaTrancada(antes, depois)) sons.push('trancada')
-  sons.push(...sonsDasPortas(antes, depois))
+  sons.push(...sonsDasPortas(antes, depois, movimentoReduzido))
   if (chegouRolagem(antes, depois)) sons.push('dado')
   if (chegouAviso(antes, depois, vistos)) sons.push('aviso')
   return sons
@@ -132,6 +137,21 @@ function portaAVista(porta: Segmento, visao: readonly RegionPoint[][] | undefine
 }
 
 /**
+ * A porta estava à vista antes da troca e segue à vista agora: só aí a troca
+ * de estado é alguém mexendo nela. Vale para o rangido de clima e para o som
+ * da animação no mapa do jogador (`PlayerView.tsx`), que só vê o desenho de
+ * antes e o de agora.
+ */
+export function portaAVistaAntesEDepois(
+  antiga: Segmento,
+  visaoAntes: readonly RegionPoint[][] | undefined,
+  atual: Segmento,
+  visaoDepois: readonly RegionPoint[][] | undefined,
+): boolean {
+  return portaAVista(antiga, visaoAntes) && portaAVista(atual, visaoDepois)
+}
+
+/**
  * As paredes do recorte. `isMapShape` não confere `walls` e o recorte pode
  * chegar sem o campo (`playerConnection.ts`, PORTAS POR ATRAVESSAR): aí não
  * há porta a comparar.
@@ -141,12 +161,25 @@ function paredesDo(mapa: MapData): readonly Wall[] {
 }
 
 /**
+ * Porta cuja animação tem som próprio (`portas/somDePorta.ts`): quem toca é o
+ * animador do mapa, no começo do caminho e no tempo dele. O rangido de clima
+ * por cima seria a mesma porta soando duas vezes. Com movimento reduzido a
+ * porta troca na hora e o som do caminho fica mudo (`criarTocadorDePorta`):
+ * o de clima volta a ser o som dela.
+ */
+function temSomDaAnimacao(porta: DoorState, movimentoReduzido: boolean): boolean {
+  if (movimentoReduzido || porta.secret === true) return false
+  const animacao = animacaoDePorta(porta.animacao)
+  return animacao !== null && animacao.som !== undefined
+}
+
+/**
  * Portas que mudaram à vista dele, no mesmo mapa: no máximo um rangido e um
  * baque por mudança, mesmo com várias portas (alavanca, o mestre em lote).
  * Mapa de outra cena (o snapshot logo atrás do `scene.changed` vem com a
  * mesma época) não é comparado; porta que só aparece de um lado também não.
  */
-function sonsDasPortas(antes: PlayerState, depois: PlayerState): SomId[] {
+function sonsDasPortas(antes: PlayerState, depois: PlayerState, movimentoReduzido: boolean): SomId[] {
   const mapaAntes = antes.map
   const mapaDepois = depois.map
   if (mapaAntes === undefined || mapaDepois === undefined || mapaAntes.id !== mapaDepois.id) return []
@@ -163,7 +196,8 @@ function sonsDasPortas(antes: PlayerState, depois: PlayerState): SomId[] {
     if (porta === null) continue
     const antiga = portasAntes.get(parede.id)
     if (antiga === undefined || antiga.door === null || antiga.door.open === porta.open) continue
-    if (!portaAVista(antiga, antes.vision) || !portaAVista(parede, depois.vision)) continue
+    if (temSomDaAnimacao(porta, movimentoReduzido)) continue
+    if (!portaAVistaAntesEDepois(antiga, antes.vision, parede, depois.vision)) continue
     if (porta.open) abriu = true
     else fechou = true
   }

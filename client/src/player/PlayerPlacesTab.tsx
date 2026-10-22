@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import type { Pin } from '../types/map'
 import { buildFloorOutline } from '../lib/floorContour'
 import { PIN_GLYPH } from '../lib/pins'
+import { COR_DA_PORTA_PADRAO } from '../lib/corDaPorta'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import { exploredOutline, pinLabel, placeLabel, type ExploredOutline, type PlaceSketch, type VisitedPlace } from './playerPlaces'
 
@@ -20,8 +21,8 @@ const UNSEEN = '#0b0b0d'
 const SEEN_GROUND = '#1c1c21'
 /** Parede: linha fina clara, a mesma cor de `WALL_COLOR` (pixi/drawWalls.ts). */
 const WALL = '#d8d2c4'
-/** Porta: retângulo pequeno na cor de `DOOR_COLOR` (pixi/drawDoors.ts). */
-const DOOR = '#d08c3a'
+/** Porta sem cor própria: retângulo pequeno na cor de `DOOR_COLOR` (pixi/drawDoors.ts). */
+const DOOR = COR_DA_PORTA_PADRAO
 /** Folga em volta do explorado, em células: a borda não encosta no quadro. */
 const FRAME_CELLS = 1
 /** Lado maior do mapa dividido por isto dá o passo do contorno do chão: grosso o bastante para ser barato, fino para a miniatura. */
@@ -97,7 +98,7 @@ export function PlaceMiniature({ place, label }: PlaceMiniatureProps) {
         ))}
         {walls !== '' && <path d={walls} fill="none" stroke={WALL} strokeWidth={1} vectorEffect="non-scaling-stroke" strokeLinecap="round" />}
         {sketch.walls.filter((wall) => wall.door).map((wall, index) => (
-          <DoorMark key={index} x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} />
+          <DoorMark key={index} x1={wall.x1} y1={wall.y1} x2={wall.x2} y2={wall.y2} color={wall.doorColor ?? DOOR} />
         ))}
       </g>
       {/* Zona oculta por cima de tudo, como `redrawConcealed` na tela principal. Um polígono por zona:
@@ -115,7 +116,7 @@ const DOOR_THICKNESS_SHARE = 0.22
 const DOOR_THICKNESS_MIN = 3
 const DOOR_THICKNESS_MAX = 10
 
-function DoorMark({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: number }) {
+function DoorMark({ x1, y1, x2, y2, color }: { x1: number; y1: number; x2: number; y2: number; color: string }) {
   const length = Math.hypot(x2 - x1, y2 - y1)
   if (!(length > 0)) return null
   const width = length * DOOR_LENGTH_SHARE
@@ -129,7 +130,7 @@ function DoorMark({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: 
       y={round(cy - thickness / 2)}
       width={round(width)}
       height={round(thickness)}
-      fill={DOOR}
+      fill={color}
       transform={`rotate(${round(angle)} ${round(cx)} ${round(cy)})`}
     />
   )
