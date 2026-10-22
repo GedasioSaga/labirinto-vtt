@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
+import { IconeDoJogador } from './IconeDoJogador'
 
 /** "Marcar destino": o próximo toque no mapa põe a marca "vamos para cá". */
 export interface MarcacaoDestino {
@@ -108,7 +109,7 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
       <button
         ref={buttonRef}
         type="button"
-        className="pp-button pp-marcacoes__toggle"
+        className="pp-button pp-peca pp-marcacoes__toggle"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
@@ -118,6 +119,7 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
           setMenuOpen((open) => !open)
         }}
       >
+        <IconeDoJogador nome="marcador" />
         Marcações
         <svg className="pp-marcacoes__chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
           <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

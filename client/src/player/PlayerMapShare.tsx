@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CluePeers, MapShare } from './playerConnection'
+import { IconeDoJogador } from './IconeDoJogador'
 
 /**
  * PASSAR O MAPA — "Mostrar meu mapa a…" no painel do jogador. Um botão pede a
@@ -57,7 +58,8 @@ export function PlayerMapShare({ peers, result, onAskPeers, onShare, onClose }: 
   return (
     <>
       {/* Fica sempre: com a lista aberta, tocar de novo refaz a pergunta (alguém chegou ou saiu da cena). */}
-      <button ref={triggerRef} type="button" className="pp-button" disabled={busy} onClick={onAskPeers}>
+      <button ref={triggerRef} type="button" className="pp-button pp-mapshare__abrir" disabled={busy} onClick={onAskPeers}>
+        <IconeDoJogador nome="mapa" />
         Mostrar meu mapa a…
       </button>
       {peers?.phase === 'loading' && (

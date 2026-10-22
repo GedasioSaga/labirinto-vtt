@@ -20,7 +20,8 @@ const CELULAR = '(max-width: 699px)'
 /** Tela de gaveta: o painel nasce fechado e, aberto, cobre o mapa (`PlayerPanel`, DRAWER_QUERIES). */
 const GAVETA = '(max-width: 699px), (max-height: 480px)'
 const DEITADO = '(max-height: 480px)'
-const ESTREITA = '(max-width: 379px)'
+/** Estreita e baixa: onde a barra ainda é de pílulas. Em pé ela é a faixa de couro, com os rótulos embaixo dos ícones (fatia 19a). */
+const ESTREITA = '(max-width: 379px) and (max-height: 480px)'
 /** Onde as ações do lugar ficam só com o começo do rótulo: tela estreita e celular deitado. */
 const ROTULO_CURTO = '(max-width: 379px), (max-height: 480px)'
 /** Janela de coluna (não gaveta) estreita: tablet em pé, notebook com a janela pela metade. */

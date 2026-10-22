@@ -74,17 +74,20 @@ describe('PlayerPanel: botão "Ficha"', () => {
     expect(onOpenFicha).toHaveBeenCalledWith(true)
   })
 
-  // Com a "Ficha" a barra media 324 px numa tela de 320 (Chrome, 320 x 568): abaixo
-  // de 380 px "Minha ficha" e "Ficha" ficam só com o ícone, como a bolsa.
-  it('abaixo de 380 px "Minha ficha" e "Ficha" viram alvos quadrados; o nome fica para o leitor de tela', async () => {
+  // Com a "Ficha" a barra de pílulas media 324 px numa tela de 320: abaixo de
+  // 380 px "Minha ficha" e "Ficha" ficam só com o ícone, como a bolsa. Em pé
+  // (320 x 568) a barra é a faixa de couro da fatia 19a, de colunas iguais com o
+  // rótulo embaixo do ícone, e os rótulos cabem: as pílulas ficam para a tela baixa.
+  it('abaixo de 380 px, na barra de pílulas, "Minha ficha" e "Ficha" viram alvos quadrados; o nome fica para o leitor de tela', async () => {
     const css = await lerPlayerCss()
+    const estreitaEBaixa = '(max-width: 379px) and (max-height: 480px)'
     for (const seletor of ['.pp-mine', '.pp-ficha-btn']) {
-      const regra = regraNaMidia(css, '(max-width: 379px)', seletor)
+      const regra = regraNaMidia(css, estreitaEBaixa, seletor)
       expect(regra.get('width'), seletor).toBe('var(--pp-bar-h)')
       expect(regra.get('padding'), seletor).toBe('0')
     }
     for (const rotulo of ['.pp-mine__rotulo', '.pp-ficha-btn__rotulo']) {
-      expect(regraNaMidia(css, '(max-width: 379px)', rotulo).get('position'), rotulo).toBe('absolute')
+      expect(regraNaMidia(css, estreitaEBaixa, rotulo).get('position'), rotulo).toBe('absolute')
     }
     render(() => {})
     expect(container.querySelector('.pp-mine')?.textContent).toBe('Minha ficha')
