@@ -1,7 +1,7 @@
 import type { Point } from '../../pixi/world'
 import type { Wall } from '../../types/map'
 import { isTokenPathClear, segmentsIntersect, wallBlocksToken } from '../collision'
-import { sideOfWall } from '../doorReach'
+import { doorOpensFrom } from '../doorReach'
 import { DIRECOES, devolverMemoria, distanciaAoTraco, distanciaAteParede, type Malha, type MemoriaDaBusca, paredesAoLongo, pegarMemoria, pontoDoNo } from './malha'
 import { avancarMalha } from './marcos'
 
@@ -433,9 +433,9 @@ function custoDaPorta(b: Busca, r: Rodada, no: number, dir: number, px: number, 
     const k = m.portaDaAresta.get(no * 8 + dir)
     if (k !== undefined && r.portaFechada[k] === 1) {
       const w = b.paredes[k]
-      // Porta de um lado: fechada, só abre de quem está do lado certo.
-      const lado = w?.door?.opensFrom
-      if (w !== undefined && lado !== undefined && sideOfWall({ x: px, y: py }, w) !== lado) return -1
+      // Porta de um lado: fechada, só abre de quem está do lado certo. Em cima da linha
+      // não há lado errado: a ficha de duas casas anda pelos cantos e passa por ela.
+      if (w !== undefined && !doorOpensFrom(w, { x: px, y: py })) return -1
       extra += r.custoPorta
     }
   }

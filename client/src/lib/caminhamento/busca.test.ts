@@ -126,6 +126,24 @@ describe('busca: portas, janelas e vãos', () => {
     expect(caminho(walls, para, de)).toEqual({ tipo: 'sem-caminho', motivo: 'sem-caminho', portas: [], fichas: [] })
   })
 
+  it('porta de um lado e ficha de 2 casas: passa pelo ponto em cima da linha saindo do lado certo, e só dele', () => {
+    // A ficha de 2 casas anda pelos cantos da grade: um deles fica na linha da porta (384, 320).
+    const walls = paredeComVao(384, 256, 384, 10, { door: porta({ opensFrom: 'right' }) })
+    const de2 = { x: 256, y: 128 }
+    const para2 = { x: 576, y: 128 }
+    const r = caminho(walls, de2, para2, R2)
+    const pontos = pontosDe(r)
+    expect(r.tipo === 'caminho' && r.portas).toBe(1)
+    const abrir = pontos.find((p) => p.abrir === 'vao')
+    expect(abrir?.x).toBeLessThan(384)
+    expect(pontos.find((p) => p.fechar === 'vao')?.x).toBeGreaterThan(384)
+    confereCaminho(pontos, walls, R2)
+    expect(caminho(walls, para2, de2, R2)).toEqual({ tipo: 'sem-caminho', motivo: 'sem-caminho', portas: [], fichas: [] })
+    // Sem lado, passa nos dois sentidos.
+    const dosDoisLados = paredeComVao(384, 256, 384, 10, { door: porta() })
+    expect(caminho(dosDoisLados, para2, de2, R2).tipo).toBe('caminho')
+  })
+
   it('janela barra o passo, marcada ou não como "barra movimento"', () => {
     for (const blocksMove of [true, false]) {
       const walls = paredeComVao(384, 256, 320, 10, { janela: true, blocksMove })
