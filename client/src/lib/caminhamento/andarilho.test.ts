@@ -6,8 +6,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Point } from '../../pixi/world'
 import type { Wall } from '../../types/map'
+import { novoAndarilho, tiqueDoAndarilho } from './andarilho'
+import type { ResultadoDoCaminho } from './busca'
 import { GRID, mapa, parede, paredeComVao, porta } from './caminho.fixture'
-import { type Trecho, simularTrecho } from './simulacao.fixture'
+import { montarMalha } from './marcos'
+import { passoDaRotina, type Trecho, simularTrecho } from './simulacao.fixture'
 
 const R1 = GRID / 2
 const corredorEstreito = [parede('n', 0, 256, 960, 256), parede('s', 0, 320, 960, 320)]
@@ -114,4 +117,133 @@ describe('andarilho: desvio das fichas', () => {
     const b = simularTrecho(trecho(walls, { x: 96, y: 288 }, { x: 864, y: 288 }, { fichas }))
     expect([a.fim, a.tiques, a.acoes, a.primeira]).toEqual([b.fim, b.tiques, b.acoes, b.primeira])
   })
+})
+
+/** Diante da porta do vão (384, 256..320), do lado oeste: onde o NPC para para abri-la. */
+const DIANTE_DA_PORTA = { x: 352, y: 288 }
+/** Logo depois da porta: a ficha aqui fecha a passagem sem estar no vão. */
+const DEPOIS_DA_PORTA = { x: 416, y: 288 }
+
+/** Uma ficha que surge depois da porta no tique seguinte ao que o NPC parou diante dela, e fica `tiques` tiques (ou para sempre). */
+function passanteDepoisDaPorta(tiques: number = Number.POSITIVE_INFINITY): { fichas: NonNullable<Trecho['fichas']>; surgiu: () => number | null } {
+  let surgiu: number | null = null
+  const fichas = (tique: number, aqui: Point) => {
+    if (surgiu === null && aqui.x === DIANTE_DA_PORTA.x && aqui.y === DIANTE_DA_PORTA.y) surgiu = tique
+    return surgiu !== null && tique < surgiu + tiques ? [{ id: 'passante', ...DEPOIS_DA_PORTA, raio: R1 }] : []
+  }
+  return { fichas, surgiu: () => surgiu }
+}
+
+describe('andarilho: porta que ele abriu e replanejou antes de cruzar', () => {
+  it('replaneja e cruza a porta de novo: marca o canto depois dela e fecha ao passar', () => {
+    const walls = paredeComVao(384, 256, 320, 10, { door: porta() })
+    const passante = passanteDepoisDaPorta(3)
+    const r = simularTrecho(trecho(walls, { x: 224, y: 96 }, { x: 608, y: 96 }, { fichas: passante.fichas }))
+    expect(r.fim).toEqual({ tipo: 'chegou' })
+    const surgiu = passante.surgiu()
+    expect(surgiu).not.toBeNull()
+    const [abrir, fechar, ...resto] = r.acoes
+    expect(abrir?.acao).toEqual({ tipo: 'abrir', wallId: 'vao' })
+    expect(fechar?.acao).toEqual({ tipo: 'fechar', wallId: 'vao' })
+    expect(resto).toEqual([])
+    // Abriu antes de o passante surgir; fechou depois de replanejar (o caminho novo, com a porta já aberta, não marca onde fechar).
+    expect(abrir?.tique ?? Number.POSITIVE_INFINITY).toBeLessThan(surgiu ?? 0)
+    expect(fechar?.tique ?? 0).toBeGreaterThan((surgiu ?? 0) + 3)
+    // Fecha ao passar por ela, e não só na chegada (o último tique), de longe.
+    expect(fechar?.tique ?? Number.POSITIVE_INFINITY).toBeLessThan(r.tiques - 1)
+    expect(r.pedidos).toBeGreaterThanOrEqual(3)
+    expect(r.deixouAbertas).toEqual([])
+    expect(r.violacoes).toEqual([])
+  })
+
+  it('o caminho novo não cruza mais a porta: fecha assim que sai de perto, sem cruzar', () => {
+    // A porta e, embaixo (y 576..640), uma volta mais comprida que o passante não fecha.
+    const walls = [parede('cima', 384, 0, 384, 256), parede('vao', 384, 256, 384, 320, { door: porta() }), parede('baixo', 384, 320, 384, 576)]
+    const passante = passanteDepoisDaPorta()
+    const r = simularTrecho(trecho(walls, { x: 224, y: 96 }, { x: 608, y: 96 }, { fichas: passante.fichas }))
+    expect(r.fim).toEqual({ tipo: 'chegou' })
+    expect(r.acoes.map((a) => a.acao)).toEqual([
+      { tipo: 'abrir', wallId: 'vao' },
+      { tipo: 'fechar', wallId: 'vao' },
+    ])
+    const [abrir, fechar] = r.acoes
+    expect((fechar?.tique ?? Number.POSITIVE_INFINITY) - (abrir?.tique ?? 0)).toBeLessThanOrEqual(3)
+    expect(r.deixouAbertas).toEqual([])
+    expect(r.violacoes).toEqual([])
+  })
+
+  it('o canto depois dela já fecha outra porta: ela fica nas abertas e fecha na chegada', () => {
+    const walls = [...paredeComVao(384, 256, 320, 10, { door: porta({ open: true }) }), parede('outra', 576, 448, 640, 448, { door: porta({ open: true }) })]
+    const destino = { x: 608, y: 96 }
+    const malha = montarMalha(mapa(walls), R1)
+    const mundo = { aqui: DIANTE_DA_PORTA, agora: 0, passo: passoDaRotina(GRID), malha, paredes: walls, fichas: [] }
+    const esperando = { ...novoAndarilho(destino, DIANTE_DA_PORTA), aguardando: true, abertas: ['vao'] }
+    const resposta: ResultadoDoCaminho = { tipo: 'caminho', pontos: [{ ...DIANTE_DA_PORTA }, { ...DEPOIS_DA_PORTA, fechar: 'outra' }, destino], comprimento: 0, portas: 0 }
+    const { andarilho } = tiqueDoAndarilho(esperando, mundo, resposta)
+    expect(andarilho.abertas).toEqual(['vao'])
+    expect(andarilho.fechar).toEqual([])
+    expect(andarilho.pontos?.[0]).toEqual({ ...DEPOIS_DA_PORTA, fechar: 'outra' })
+    const chegada = tiqueDoAndarilho({ ...andarilho, pontos: [] }, { ...mundo, aqui: destino })
+    expect(chegada.situacao).toBe('chegou')
+    expect(chegada.acoes).toContainEqual({ tipo: 'fechar', wallId: 'vao' })
+  })
+})
+
+describe('andarilho: a resposta demora (vários tiques, ou pela agenda em fatias)', () => {
+  const porta1 = paredeComVao(384, 256, 320, 10, { door: porta() })
+  const de = { x: 224, y: 96 }
+  const para = { x: 608, y: 96 }
+  const modos: { nome: string; extra: Partial<Trecho> }[] = [
+    { nome: 'resposta 3 tiques depois', extra: { atrasoDaResposta: 3 } },
+    { nome: 'resposta 5 tiques depois', extra: { atrasoDaResposta: 5 } },
+    { nome: 'pela agenda, malha e busca em fatias', extra: { pelaAgenda: { pontosPorFatia: 8, paredesPorFatia: 1, fatiasPorTique: 2 } } },
+  ]
+
+  for (const { nome, extra } of modos) {
+    it(`${nome}: porta fechada, abre, passa, fecha e chega`, () => {
+      const r = simularTrecho(trecho(porta1, de, para, extra))
+      expect(r.fim).toEqual({ tipo: 'chegou' })
+      expect(r.acoes.map((a) => a.acao)).toEqual([
+        { tipo: 'abrir', wallId: 'vao' },
+        { tipo: 'fechar', wallId: 'vao' },
+      ])
+      // Esperou a resposta parado, vários tiques seguidos.
+      expect(r.situacoes.slice(0, 3)).toEqual(['planejando', 'planejando', 'planejando'])
+      expect(r.deixouAbertas).toEqual([])
+      expect(r.violacoes).toEqual([])
+    })
+
+    it(`${nome}: a porta fecha entre o pedido e a resposta, e ele a abre`, () => {
+      const aberta = paredeComVao(384, 256, 320, 10, { door: porta({ open: true }) })
+      const fechar = (tique: number, paredes: readonly Wall[]) => (tique === 1 ? paredes.map((w) => (w.door !== null ? { ...w, door: { ...w.door, open: false } } : w)) : null)
+      const r = simularTrecho(trecho(aberta, de, para, { ...extra, aoTique: fechar }))
+      expect(r.fim).toEqual({ tipo: 'chegou' })
+      expect(r.acoes.map((a) => a.acao)).toEqual([
+        { tipo: 'abrir', wallId: 'vao' },
+        { tipo: 'fechar', wallId: 'vao' },
+      ])
+      expect(r.deixouAbertas).toEqual([])
+      expect(r.violacoes).toEqual([])
+    })
+
+    it(`${nome}: ficha que aparece na frente, replaneja, contorna e chega`, () => {
+      const intruso = (tique: number) => (tique >= 8 ? [{ id: 'intruso', x: 608, y: 288, raio: R1 }] : [])
+      const r = simularTrecho(trecho([], { x: 96, y: 288 }, { x: 864, y: 288 }, { ...extra, fichas: intruso }))
+      expect(r.fim).toEqual({ tipo: 'chegou' })
+      expect(r.pedidos).toBeGreaterThanOrEqual(2)
+      expect(r.violacoes).toEqual([])
+    })
+
+    it(`${nome}: o mestre destranca (a malha muda) enquanto ele espera: segue e chega`, () => {
+      const destrancar = (tique: number, paredes: readonly Wall[]) =>
+        tique === 12 ? paredes.map((w) => (w.door !== null ? { ...w, door: { ...w.door, locked: false } } : w)) : null
+      const r = simularTrecho(trecho(paredeComVao(384, 256, 320, 10, { door: porta({ locked: true }) }), de, para, { ...extra, aoTique: destrancar }))
+      expect(r.fim).toEqual({ tipo: 'chegou' })
+      expect(r.acoes.map((a) => a.acao)).toEqual([
+        { tipo: 'abrir', wallId: 'vao' },
+        { tipo: 'fechar', wallId: 'vao' },
+      ])
+      expect(r.violacoes).toEqual([])
+    })
+  }
 })

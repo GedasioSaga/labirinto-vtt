@@ -65,7 +65,7 @@ export interface MundoDoAndarilho {
   agora: number
   /** Quanto a ficha anda num tique, em px. */
   passo: number
-  /** A malha do mapa para o raio desta ficha. */
+  /** A malha do mapa para o raio desta ficha (`agenda.cache.malhaPara`), talvez ainda por montar. */
   malha: Malha
   /** As paredes de agora (portas no estado atual). */
   paredes: readonly Wall[]
@@ -227,9 +227,11 @@ export function tiqueDoAndarilho(andarilho: Andarilho, mundo: MundoDoAndarilho, 
     fecharAtras({ ...a, fechar: [...a.fechar, ...a.abertas] }, mundo, aqui, acoes)
     return paradaComo({ ...a, pontos: [], aguardando: false, fechar: [], abertas: [], fim: { tipo: 'chegou' } }, aqui, 'chegou', null, acoes)
   }
-  if (a.aguardando || !malhaPronta(mundo.malha)) return paradaComo(a, aqui, 'planejando')
+  if (a.aguardando) return paradaComo(a, aqui, 'planejando')
   if (agora < a.esperaAte) return paradaComo(a, aqui, 'esperando')
-  if (a.pontos === null) return pedirCaminho(a, mundo)
+  // Malha por montar (mapa novo, parede mudou): sem ela o passo não se confere, e
+  // a agenda só a monta para quem pede caminho. O caminho velho fica para trás.
+  if (a.pontos === null || !malhaPronta(mundo.malha)) return pedirCaminho(a, mundo)
   const alvo = a.pontos[0]
   if (alvo === undefined) return pedirCaminho(a, mundo)
   if (!tracoDoPassoServe(mundo, alvo)) {
