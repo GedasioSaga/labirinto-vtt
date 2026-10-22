@@ -91,7 +91,7 @@ var Pintor = (function () {
   const PERIODOS = {
     // o sol vem da frente-esquerda da vista inicial (mundo +y, um pouco +x): a face esquerda acende, a sombra cai para trás
     dia: { nome: 'Dia', az: 70 * rad, elev: 52 * rad, cor: [1, 0.97, 0.9], forca: 0.38, amb: [0.69, 0.71, 0.78], tinta: [1, 0.99, 0.96], ceu: ['#9fc8e2', '#dcebee'], grade: 'rgba(58,44,28,0.34)', luzes: false },
-    tarde: { nome: 'Tarde', az: 18 * rad, elev: 16 * rad, cor: [1, 0.72, 0.46], forca: 0.66, amb: [0.55, 0.46, 0.54], tinta: [1, 0.84, 0.7], ceu: ['#d98f6a', '#f4d39e'], grade: 'rgba(66,36,30,0.34)', luzes: true },
+    tarde: { nome: 'Tarde', az: 18 * rad, elev: 16 * rad, cor: [1, 0.72, 0.46], forca: 0.66, amb: [0.58, 0.5, 0.57], tinta: [1, 0.86, 0.74], ceu: ['#d98f6a', '#f4d39e'], grade: 'rgba(66,36,30,0.34)', luzes: true },
     noite: { nome: 'Noite', az: 115 * rad, elev: 40 * rad, cor: [0.55, 0.66, 0.95], forca: 0.22, amb: [0.25, 0.3, 0.45], tinta: [0.42, 0.48, 0.68], ceu: ['#141c34', '#2e3b62'], grade: 'rgba(214,226,255,0.26)', luzes: true },
   }
   const COR_DA_LUZ = [1, 0.66, 0.32]
@@ -1443,17 +1443,22 @@ var Pintor = (function () {
     if (tipo === 'golem') return desenharGolem(g, frente, quadro)
     const E = ESTILO_DE[tipo]
     // passada: 0 parado, 1..4 andar (contato, passagem, contato, passagem), 5 agacha, 6 no ar
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
-    const ergue = quadro >= 1 && quadro <= 4 ? [0, 1, 0, 1][quadro - 1] : 0
+    // 1 e 3: contato (pernas abertas, uma à frente); 2 e 4: passagem (a perna de trás sobe e cruza)
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergueLado = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const ar = quadro === 6
     const quadril = -17 + agacha
-    // pernas
-    const pernas = [[-4.2, passo * 2.2], [4.2, -passo * 2.2]]
-    for (const [x, d] of pernas) {
-      const pe = ar ? -3 : -Math.max(0, d) * ergue * 1.2
-      forma(g, E.calca, () => g.roundRect(x - 3, quadril, 6, -quadril + pe - 3, 2))
-      forma(g, E.bota, () => g.roundRect(x - 3.6, pe - 5, 7.2, 5, 2.2))
+    // pernas: a da frente desce na tela (mais perto da câmera) e vai para a esquerda; a de trás sobe
+    const aFrente = (lado) => passo * -lado
+    const pernas = [-1, 1].map((lado) => {
+      const f = aFrente(lado)
+      return { lado, x: lado * 4.2 - f * 1.4, pe: (ar ? -3 : 0) + f * 2.6 - (ergueLado === lado ? 3.4 : 0), f }
+    }).sort((a, b) => a.pe - b.pe)
+    for (const p of pernas) {
+      forma(g, E.calca, () => g.roundRect(p.x - 3, quadril, 6, -quadril + p.pe - 3, 2))
+      forma(g, E.bota, () => g.roundRect(p.x - 3.6, p.pe - 5, 7.2, 5, 2.2))
     }
     // costas: capa ou cabelo comprido atrás
     if (!frente && E.capa) forma(g, E.capa, () => { g.moveTo(-9, -37); g.lineTo(9, -37); g.lineTo(11, -12 + agacha); g.lineTo(-11, -12 + agacha); g.closePath() })
@@ -1475,8 +1480,9 @@ var Pintor = (function () {
       forma(g, E.roupa, () => g.roundRect(x - 2.6, -35 + agacha + d, 5.2, 13, 2.4))
       elipse(g, x, -21 + agacha + d, 2.6, 2.6, E.pele, 1)
     }
-    braco(-1, -passo * 1.4 + (ar ? -3 : 0))
-    braco(1, passo * 1.4 + (ar ? -3 : 0))
+    // o braço vai junto com a perna do outro lado
+    braco(-1, aFrente(1) * 2 + (ar ? -3 : 0))
+    braco(1, aFrente(-1) * 2 + (ar ? -3 : 0))
     // arma (atrás ou do lado)
     if (E.arma) E.arma(g, frente, agacha, passo)
     // cabeça
@@ -1633,20 +1639,23 @@ var Pintor = (function () {
     },
   }
   function desenharLobo(g, frente, quadro) {
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    // trote: nos contatos as patas abrem (diagonais juntas), nas passagens a diagonal de trás sobe
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergue = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const ar = quadro === 6
     const cor = C.pelagem
     const barriga = clarear(cor, 0.35)
     const s = frente ? 1 : -1
     // vista 3/4: frente = focinho para baixo-esquerda; costas = traseira e cauda
-    const pata = (x, d) => forma(g, escurecer(cor, 0.1), () => g.roundRect(x - 2.5, -12 + agacha, 5, 12 - (ar ? 4 : Math.max(0, d) * 2), 2), 1)
-    pata(8 * s, -passo)
-    pata(-10 * s, passo)
+    const pata = (x, d) => forma(g, escurecer(cor, 0.1), () => g.roundRect(x - 2.5 - passo * d * 2.6 * s, -12 + agacha, 5, 12 - (ar ? 4 : Math.max(0, ergue * d) * 3), 2), 1)
+    pata(8 * s, -1)
+    pata(-10 * s, 1)
     forma(g, cor, () => g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2))
     forma(g, cor, () => { g.moveTo(14 * s, -20 + agacha); g.quadraticCurveTo(26 * s, -24, 24 * s, -34 + (ar ? 4 : 0)); g.quadraticCurveTo(20 * s, -24, 12 * s, -14 + agacha); g.closePath() })
-    pata(-4 * s, passo)
-    pata(12 * s, -passo)
+    pata(-4 * s, -1)
+    pata(12 * s, 1)
     g.save()
     g.beginPath()
     g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2)
@@ -1669,10 +1678,15 @@ var Pintor = (function () {
     }
   }
   function desenharGolem(g, frente, quadro) {
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    // passo pesado: o pé da frente desce e vai para a esquerda, o de trás levanta
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergue = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const cor = misturar(C.pedra, C.rocha, 0.35)
-    for (const [x, d] of [[-9, passo], [9, -passo]]) caixaIso(g, x, -Math.max(0, d) * 2, 7, 7, 13, escurecer(cor, 0.08))
+    const pes = [[-9, passo], [9, -passo]].map(([x, d]) => ({ x: x - d * 1.6, y: d * 2.2 - Math.max(0, ergue * Math.sign(x)) * 3 }))
+    pes.sort((a, b) => a.y - b.y)
+    for (const p of pes) caixaIso(g, p.x, p.y, 7, 7, 13, escurecer(cor, 0.08))
     const corpo = () => { g.moveTo(-18, -18 + agacha); g.lineTo(-14, -44 + agacha); g.lineTo(0, -50 + agacha); g.lineTo(15, -44 + agacha); g.lineTo(19, -18 + agacha); g.lineTo(8, -10); g.lineTo(-8, -10); g.closePath() }
     forma(g, cor, corpo, 1.4)
     g.save()

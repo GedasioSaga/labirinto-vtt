@@ -551,10 +551,67 @@ var Nucleo = (function () {
         const i = P.naCelula[v * Wr + u]
         const o = i * 4
         if (P.bb[o] >= ob.ret[2] || P.bb[o + 2] <= ob.ret[0] || P.bb[o + 1] >= ob.ret[3] || P.bb[o + 3] <= ob.ret[1]) continue
+        // só conta se alguma parte da coluna fica à frente do plano do objeto (u + v maior que o do centro dele)
+        if (!P.caixas[i].some((b) => b.u1 + b.v1 > ob.pu + ob.pv + 1e-9)) continue
         out.push(i)
       }
     }
     out.sort((a, b) => P.pos[a] - P.pos[b])
+    return out
+  }
+  /** Envoltória convexa (cadeia monótona), na mesma orientação das silhuetas de hexagono(). */
+  function envoltoria(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    if (p.length < 3) return p
+    const giro = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    const baixo = []
+    for (const q of p) {
+      while (baixo.length >= 2 && giro(baixo[baixo.length - 2], baixo[baixo.length - 1], q) <= 1e-12) baixo.pop()
+      baixo.push(q)
+    }
+    const cima = []
+    for (let k = p.length - 1; k >= 0; k--) {
+      const q = p[k]
+      while (cima.length >= 2 && giro(cima[cima.length - 2], cima[cima.length - 1], q) <= 1e-12) cima.pop()
+      cima.push(q)
+    }
+    baixo.pop()
+    cima.pop()
+    return baixo.concat(cima)
+  }
+  /**
+   * Silhueta só da parte da caixa que fica à frente do plano em pé u + v = s (o plano do objeto, de frente para a
+   * câmera). É o que o pintor repõe por cima do objeto: a parte da coluna atrás do plano não pode cobri-lo.
+   */
+  function frenteDaCaixa(met, b, s) {
+    if (b.u1 + b.v1 <= s + 1e-9) return null
+    if (b.u0 + b.v0 >= s - 1e-9) return hexagono(met, b)
+    const quad = [[b.u0, b.v0], [b.u1, b.v0], [b.u1, b.v1], [b.u0, b.v1]]
+    const poli = []
+    for (let k = 0; k < 4; k++) {
+      const a = quad[k]
+      const c = quad[(k + 1) % 4]
+      const fa = a[0] + a[1] - s
+      const fc = c[0] + c[1] - s
+      if (fa >= 0) poli.push(a)
+      if ((fa >= 0) !== (fc >= 0)) {
+        const t = fa / (fa - fc)
+        poli.push([a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t])
+      }
+    }
+    const pts = []
+    for (const [u, v] of poli) pts.push(proj(met, u, v, b.z), proj(met, u, v, FUNDO))
+    return envoltoria(pts)
+  }
+  /** As silhuetas que voltam por cima do objeto: a frente de cada caixa das colunas que o cobrem. */
+  function silhuetasNaFrente(m, rot, ob, occ) {
+    const P = preparo(m, rot)
+    const s = ob.pu + ob.pv
+    const out = []
+    for (const i of occ) for (const b of P.caixas[i]) {
+      const h = frenteDaCaixa(P.met, b, s)
+      if (h && h.length >= 3) out.push(h)
+    }
     return out
   }
   /** Caixa de desenho e pegada de um objeto no giro rot. pos: {x, y, z} contínuos do mundo (centro em x + 0,5). */
@@ -813,7 +870,7 @@ var Nucleo = (function () {
     girarP, desgirarP, girarC, dirGirada, metricas, proj, desproj,
     topoZ, alturaEmPe, alturaNoPonto, bordaAltura,
     caixas, hexagono, dentroDoConvexo, preparo, blocoNoPonto, entradaNaCaixa, raioNoPonto, pontoDoBloco, pontoDoMundo,
-    ocludentes, quadroDoObjeto, ordenarObjetos,
+    ocludentes, envoltoria, frenteDaCaixa, silhuetasNaFrente, quadroDoObjeto, ordenarObjetos,
     livreDeTerreno, passo, ocupadas, alcance, caminhoAte, planoDeMovimento, estadoNoTempo, vistaDaDirecao,
     regua, circulo, cone, direcao8, visao,
     camadaParaTela, telaParaCamada,

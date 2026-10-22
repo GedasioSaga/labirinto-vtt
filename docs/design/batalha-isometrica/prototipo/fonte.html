@@ -70,7 +70,9 @@
 
   .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
   .grupo { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
-  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); }
+  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); white-space: nowrap; }
+  .grupo .segmentado button { min-width: 40px; }
+  .segmentado button { flex: none; }
 
   .segmentado {
     display: inline-flex;

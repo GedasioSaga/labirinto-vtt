@@ -34,7 +34,7 @@
     arraste: null,
     primeiraPintura: null,
     quadros: [],
-    tarefas: [],
+    custos: [],
     passeio: false,
   }
 
@@ -212,6 +212,7 @@
       const z = N.alturaEmPe(N.cel(m, p.x, p.y))
       const q = N.quadroDoObjeto(m, rot, { x: p.x + 0.5, y: p.y + 0.5, z }, tp.w, tp.h, tp.r)
       q.occ = N.ocludentes(m, rot, q)
+      q.clip = N.silhuetasNaFrente(m, rot, q, q.occ)
       return { tipo: 'prop', p, z, ...q }
     })
     objetosFixos.set(k, lista)
@@ -237,8 +238,9 @@
   }
   function selecionar(u) {
     est.sel = u
-    est.previa = null
     calcularAlcance()
+    // se o ponteiro já está parado num bloco, o caminho até ele aparece na hora (sem precisar mexer o mouse)
+    est.previa = u && est.hover >= 0 && est.ferramenta === 'mover' ? caminhoPara(est.hover) : null
     marcasSujas = true
     atualizarPainel()
     if (u) {
@@ -410,6 +412,7 @@
     for (const u of est.mapa.unidades) {
       const q = quadroDaUnidade(u)
       q.occ = N.ocludentes(est.mapa, est.rot, q)
+      q.clip = N.silhuetasNaFrente(est.mapa, est.rot, q, q.occ)
       lista.push(q)
     }
     N.ordenarObjetos(lista)
@@ -418,29 +421,41 @@
       if (o.ret[2] < (cam.cx - cam.w / 2 / cam.zoom) || o.ret[0] > cam.cx + cam.w / 2 / cam.zoom) continue
       if (o.tipo === 'prop') desenharProp(o, S, agora)
       else desenharUnidade(o, S, agora)
-      if (o.occ.length) repor(L, marcas, o, W, H)
+      if (o.clip.length) repor(L, marcas, o, W, H)
     }
     desenharLuzes(agora)
     desenharSobreposicoes(agora)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+    // custo do quadro (trabalho do script, sem a espera do vsync): vai para a prova de desempenho
+    est.custos.push(performance.now() - agora)
+    if (est.custos.length > 4000) est.custos.splice(0, 2000)
   }
   function repor(L, marcas, o, W, H) {
-    const P = N.preparo(est.mapa, est.rot)
     const [x0, y0, x1, y1] = o.ret
     ctx.save()
     ctx.beginPath()
     ctx.rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2)
     ctx.clip()
     ctx.beginPath()
-    for (const i of o.occ) for (const h of P.hex[i]) {
+    // só a parte de cada coluna que fica à frente do objeto (a parte de trás não pode cobri-lo)
+    for (const h of o.clip) {
       ctx.moveTo(h[0][0], h[0][1])
-      for (let k = 1; k < 6; k++) ctx.lineTo(h[k][0], h[k][1])
+      for (let k = 1; k < h.length; k++) ctx.lineTo(h[k][0], h[k][1])
       ctx.closePath()
     }
     ctx.clip()
-    ctx.drawImage(L.canvas, 0, 0, W, H)
-    if (est.batalha && L.grade) ctx.drawImage(L.grade, 0, 0, W, H)
-    ctx.drawImage(marcas, 0, 0, W, H)
+    // só o retângulo do objeto sai das camadas (copiar a camada inteira por objeto custava o quadro)
+    const k = L.s
+    const rx0 = Math.max(0, Math.floor(x0 - 2))
+    const ry0 = Math.max(0, Math.floor(y0 - 2))
+    const rx1 = Math.min(W, Math.ceil(x1 + 2))
+    const ry1 = Math.min(H, Math.ceil(y1 + 2))
+    if (rx1 > rx0 && ry1 > ry0) {
+      const blit = (c) => ctx.drawImage(c, rx0 * k, ry0 * k, (rx1 - rx0) * k, (ry1 - ry0) * k, rx0, ry0, rx1 - rx0, ry1 - ry0)
+      blit(L.canvas)
+      if (est.batalha && L.grade) blit(L.grade)
+      blit(marcas)
+    }
     ctx.restore()
   }
   function estrelas() {
@@ -657,17 +672,23 @@
   function pontoAlto(x, y, extra = 0.04) {
     return N.pontoDoMundo(est.mapa, est.rot, x + 0.5, y + 0.5, N.alturaEmPe(N.cel(est.mapa, x, y)) + extra)
   }
+  /** Rótulo com tamanho fixo na tela (13 px em qualquer zoom), ancorado num ponto do mundo. */
   function pilula(texto, x, y, cor = 'rgba(28,30,40,0.86)') {
-    ctx.font = '600 12px Barlow, system-ui, sans-serif'
-    const w = ctx.measureText(texto).width + 16
+    const k = 1 / est.cam.zoom
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(k, k)
+    ctx.font = '600 13px Barlow, system-ui, sans-serif'
+    const w = ctx.measureText(texto).width + 18
     ctx.fillStyle = cor
     ctx.beginPath()
-    ctx.roundRect(x - w / 2, y - 11, w, 22, 11)
+    ctx.roundRect(-w / 2, -12, w, 24, 12)
     ctx.fill()
     ctx.fillStyle = '#fbf6ea'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(texto, x, y + 0.5)
+    ctx.fillText(texto, 0, 0.5)
+    ctx.restore()
   }
   function desenharSobreposicoes(agora) {
     const m = est.mapa
@@ -692,6 +713,17 @@
         }
         ctx.setLineDash([])
       }
+    }
+    // arrastando uma unidade: um fantasma dela encaixado no bloco de destino, antes de soltar
+    const arr = est.arraste
+    if (arr && arr.modo === 'unidade' && est.sel && est.previa && est.previa.length > 1) {
+      const [x, y] = est.previa[est.previa.length - 1]
+      const [gx, gy] = pontoAlto(x, y, 0)
+      const S = escalaPara(est.cam.zoom, m, est.rot)
+      const sp = Pt.spriteDaUnidade(est.sel.tipo, true, 0, S, est.periodo)
+      ctx.globalAlpha = 0.55
+      ctx.drawImage(sp.c, gx - sp.ax, gy - sp.ay, sp.c.width / S, sp.c.height / S)
+      ctx.globalAlpha = 1
     }
     // caminho: linha por cima dos blocos e a contagem no destino
     const cam = est.previa
@@ -718,11 +750,23 @@
         u.rastro.forEach(([x, y], k) => {
           if (!k) return
           const [sx, sy] = pontoAlto(x, y, 0.05)
-          ctx.font = '700 11px Barlow, system-ui, sans-serif'
+          // número do passo num disco claro, com tamanho fixo na tela
+          ctx.save()
+          ctx.translate(sx, sy)
+          ctx.scale(1 / est.cam.zoom, 1 / est.cam.zoom)
+          ctx.fillStyle = 'rgba(255,248,232,0.92)'
+          ctx.strokeStyle = 'rgba(150,96,24,0.9)'
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.arc(0, 0, 9, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+          ctx.font = '700 12px Barlow, system-ui, sans-serif'
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillStyle = 'rgba(80,52,10,0.85)'
-          ctx.fillText(String(k), sx, sy + 0.5)
+          ctx.fillStyle = 'rgba(92,58,12,1)'
+          ctx.fillText(String(k), 0, 0.5)
+          ctx.restore()
         })
       }
     }
@@ -808,9 +852,8 @@
       const [x0, y0, x1, y1] = q.ret
       if (lx >= x0 + 6 && lx <= x1 - 6 && ly >= y0 + 8 && ly <= y1) {
         // a unidade só conta se não estiver escondida atrás de uma coluna nesse ponto
-        const i = N.blocoNoPonto(m, est.rot, lx, ly)
-        const P = N.preparo(m, est.rot)
-        const coberta = i >= 0 && q.occ === undefined && N.ocludentes(m, est.rot, q).includes(i) && N.dentroDoConvexo(P.hex[i][0], lx, ly)
+        const occ = N.ocludentes(m, est.rot, q)
+        const coberta = N.silhuetasNaFrente(m, est.rot, q, occ).some((h) => N.dentroDoConvexo(h, lx, ly))
         if (!coberta) return { unidade: q.u, i: q.u.y * m.W + q.u.x }
       }
     }
@@ -1161,46 +1204,52 @@
 
   // ---------- folha de contato e amostras do salto (provas) ----------
   function cenaDeTira() {
-    const m = { id: 'tira', nome: 'tira', W: 4, H: 1, c: [1, 1, 2, 2].map((h) => ({ h, chao: h, topo: 'calcada', lado: 'muro', escada: -1, predio: -1, agua: false })), props: [], unidades: [], predios: [], portas: [], propEm: new Int32Array(4).fill(-1), _cache: {} }
+    // a mesma tira das provas em Node: 3 blocos na altura 1 e 2 na altura 2 (um degrau de 1 nível no meio)
+    const m = { id: 'tira', nome: 'tira', W: 5, H: 1, c: [1, 1, 1, 2, 2].map((h) => ({ h, chao: h, topo: 'calcada', lado: 'muro', escada: -1, predio: -1, agua: false })), props: [], unidades: [], predios: [], portas: [], propEm: new Int32Array(5).fill(-1), _cache: {} }
     return m
   }
   function folhaDeContato(tipo, quadros = 16) {
     const m = cenaDeTira()
-    const plano = N.planoDeMovimento(m, [[0, 0], [1, 0], [2, 0], [3, 0]], {})
-    const salto = plano.segs[1]
+    const plano = N.planoDeMovimento(m, [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]], {})
+    const salto = plano.segs[2]
     const fases = [
-      { nome: 'Andar (2 blocos planos e 1 depois do salto)', ini: 0, fim: plano.segs[0].dur * 1 + 0.001, extra: plano.segs[2] },
-      { nome: 'Salto (sobe 1 nível)', ini: salto.t0, fim: salto.t0 + salto.dur },
+      { nome: 'Andar: 2 blocos no plano (260 ms por bloco)', ini: 0, fim: plano.segs[0].dur + plano.segs[1].dur },
+      { nome: `Salto: sobe 1 nível (${salto.agacha} ms agacha, ${salto.ar} ms no ar, ${salto.pousa} ms pousa)`, ini: salto.t0, fim: salto.t0 + salto.dur },
     ]
-    const cw = 150
-    const ch = 150
-    const folha = Pt.tela(cw * 8, (ch + 22) * 4 + 40)
+    const cw = 170
+    const ch = 190
+    const bloco = 2 * (ch + 24) + 34
+    const folha = Pt.tela(cw * 8, bloco * 2 + 8)
     folha.id = 'folha-' + tipo
     const g = folha.getContext('2d')
     g.fillStyle = '#f4f1e8'
     g.fillRect(0, 0, folha.width, folha.height)
     const camada = Pt.tela(N.preparo(m, 0).met.largura * 2, N.preparo(m, 0).met.altura * 2)
     Pt.pintarColunas(camada.getContext('2d'), m, 0, 'dia', 2, 0, 4)
-    let linha = 0
-    for (const f of fases) {
+    fases.forEach((f, nf) => {
+      const topo = 8 + nf * bloco
       g.fillStyle = '#2b2f2a'
-      g.font = '600 15px Barlow, system-ui, sans-serif'
+      g.font = '600 16px Barlow, system-ui, sans-serif'
       g.textAlign = 'left'
-      g.fillText(f.nome, 8, 20 + linha * (ch + 22) + (linha ? 10 : 0))
+      g.fillText(f.nome, 8, topo + 16)
       for (let k = 0; k < quadros; k++) {
         const t = f.ini + ((f.fim - f.ini) * k) / (quadros - 1)
         const e = N.estadoNoTempo(plano, t)
         const col = k % 8
-        const row = linha + Math.floor(k / 8)
+        const row = Math.floor(k / 8)
         const ox = col * cw
-        const oy = 30 + row * (ch + 22) + (linha ? 10 : 0)
+        const oy = topo + 28 + row * (ch + 24)
+        // andar: a câmera segue a unidade (o que importa é a passada); salto: a câmera fica parada entre os dois
+        // blocos, para o avanço e o arco aparecerem de verdade
+        const ancora = nf === 0 ? e : N.estadoNoTempo(plano, f.ini)
+        const [qx, qy] = N.pontoDoMundo(m, 0, ancora.x + (nf === 0 ? 0 : 0.5), ancora.y, nf === 0 ? 1 : ancora.z)
         const [px, py] = N.pontoDoMundo(m, 0, e.x, e.y, e.z)
         g.save()
         g.beginPath()
         g.rect(ox + 2, oy, cw - 4, ch)
         g.clip()
-        const zoom = 1.1
-        g.setTransform(zoom, 0, 0, zoom, ox + cw / 2 - px * zoom, oy + ch * 0.72 - py * zoom)
+        const zoom = 1.8
+        g.setTransform(zoom, 0, 0, zoom, ox + cw / 2 - qx * zoom, oy + ch * 0.78 - qy * zoom)
         g.drawImage(camada, 0, 0, camada.width / 2, camada.height / 2)
         const chao = N.alturaNoPonto(m, e.x, e.y)
         const [gx, gy] = N.pontoDoMundo(m, 0, e.x, e.y, chao)
@@ -1218,17 +1267,16 @@
         g.fillStyle = '#3a3f39'
         g.font = '500 12px Barlow, system-ui, sans-serif'
         g.textAlign = 'center'
-        g.fillText(`${Math.round(t)} ms · ${e.pose}`, ox + cw / 2, oy + ch + 14)
+        g.fillText(`${Math.round(t)} ms · ${e.pose}`, ox + cw / 2, oy + ch + 15)
       }
-      linha += 2
-    }
+    })
     folha.style.cssText = 'position:fixed;left:0;top:0;z-index:99'
     document.body.append(folha)
     return folha.id
   }
   function amostrasDoSalto(passoMs = 1000 / 60) {
     const m = cenaDeTira()
-    const plano = N.planoDeMovimento(m, [[1, 0], [2, 0]], {})
+    const plano = N.planoDeMovimento(m, [[2, 0], [3, 0]], {})
     const s = plano.segs[0]
     const out = []
     for (let t = 0; t <= plano.total + 1e-9; t += passoMs) {
@@ -1255,6 +1303,15 @@
       const r = canvas.getBoundingClientRect()
       return [sx + r.left, sy + r.top]
     },
+    alvoNaTela(cx, cy) {
+      const r = canvas.getBoundingClientRect()
+      const a = alvoNaTela(cx - r.left, cy - r.top)
+      return { unidade: a.unidade ? a.unidade.id : null, i: a.i }
+    },
+    unidade: (id) => {
+      const u = est.mapa.unidades.find((o) => o.id === id)
+      return u && { id: u.id, x: u.x, y: u.y, z: N.alturaEmPe(N.cel(est.mapa, u.x, u.y)), h: N.TIPOS[u.tipo].h, w: N.TIPOS[u.tipo].w }
+    },
     blocoNaTela(cx, cy) {
       const r = canvas.getBoundingClientRect()
       const [lx, ly] = N.telaParaCamada(est.cam, cx - r.left, cy - r.top)
@@ -1278,7 +1335,7 @@
     },
     passeio(on) { est.passeio = on },
     animando: () => est.anims.size > 0,
-    zerarQuadros() { est.quadros = [] },
+    zerarQuadros() { est.quadros = []; est.custos = [] },
     folhaDeContato, amostrasDoSalto,
   }
 

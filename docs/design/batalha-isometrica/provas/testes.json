@@ -1,0 +1,1100 @@
+{
+ "gerado_em": "2026-10-22T05:30:12.018Z",
+ "modo": "tudo",
+ "segundos": 172,
+ "resumo": {
+  "a_clique": true,
+  "b_ordem": true,
+  "c_alcance": true,
+  "e_medicao": true,
+  "movimento": true,
+  "f_desempenho": true,
+  "d_robo": true,
+  "h_cor": true,
+  "g_pagina": true,
+  "i_origem": true
+ },
+ "resultados": {
+  "a_clique": {
+   "casos": 13824,
+   "certos": 13824,
+   "voltamASiMesmos": 11752,
+   "escondidosDevolvemQuemCobre": 2072,
+   "aoAcaso": 60000,
+   "aoAcasoCertos": 60000,
+   "falhas": [],
+   "percentual": 100,
+   "percentualAoAcaso": 100,
+   "passou": true
+  },
+  "b_ordem": {
+   "amostras": 1371982,
+   "divergentes": 0,
+   "amostrasDeObjeto": 250187,
+   "divergentesDeObjeto": 0,
+   "porCaso": [
+    {
+     "mapa": "vila",
+     "rot": 0,
+     "amostras": 175494,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "vila",
+     "rot": 1,
+     "amostras": 174227,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "vila",
+     "rot": 2,
+     "amostras": 174508,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "vila",
+     "rot": 3,
+     "amostras": 175573,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "baia",
+     "rot": 0,
+     "amostras": 177544,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "baia",
+     "rot": 1,
+     "amostras": 168212,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "baia",
+     "rot": 2,
+     "amostras": 157200,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    },
+    {
+     "mapa": "baia",
+     "rot": 3,
+     "amostras": 169224,
+     "divergentes": 0,
+     "fracao": 0,
+     "exemplos": []
+    }
+   ],
+   "fracao": 0,
+   "fracaoMaxPorCaso": 0,
+   "fracaoNosObjetos": 0,
+   "passou": true
+  },
+  "c_alcance": {
+   "mapas": 200,
+   "iguais": 200,
+   "blocosConferidos": 19882,
+   "caminhosConferidos": 6078,
+   "caminhosValidos": 6078,
+   "falhas": [],
+   "percentual": 100,
+   "passou": true
+  },
+  "e_medicao": {
+   "casos": [
+    {
+     "nome": "Régua em linha reta: 0,0 até 3,0",
+     "esperado": 3,
+     "obtido": 3,
+     "ok": true
+    },
+    {
+     "nome": "Régua na diagonal conta 1 por passo: 0,0 até 3,2",
+     "esperado": 3,
+     "obtido": 3,
+     "ok": true
+    },
+    {
+     "nome": "Régua até um bloco 2 níveis acima: 5 blocos, sobe 2",
+     "esperado": [
+      5,
+      2
+     ],
+     "obtido": [
+      5,
+      2
+     ],
+     "ok": true
+    },
+    {
+     "nome": "Círculo de raio 1",
+     "esperado": 9,
+     "obtido": 9,
+     "ok": true
+    },
+    {
+     "nome": "Círculo de raio 2",
+     "esperado": 21,
+     "obtido": 21,
+     "ok": true
+    },
+    {
+     "nome": "Círculo de raio 3",
+     "esperado": 37,
+     "obtido": 37,
+     "ok": true
+    },
+    {
+     "nome": "Círculo de raio 2 no canto corta o que sai do mapa (o quarto de 21, sem a quina 2,2)",
+     "esperado": 8,
+     "obtido": 8,
+     "ok": true
+    },
+    {
+     "nome": "Cone reto de 3 blocos (leste)",
+     "esperado": 7,
+     "obtido": 7,
+     "ok": true
+    },
+    {
+     "nome": "Cone diagonal de 3 blocos (sudeste)",
+     "esperado": 6,
+     "obtido": 6,
+     "ok": true
+    },
+    {
+     "nome": "Cone de 1 bloco",
+     "esperado": 1,
+     "obtido": 1,
+     "ok": true
+    },
+    {
+     "nome": "Visão no plano: nada barra",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Visão barrada por parede em 4,5 (altura 4)",
+     "esperado": [
+      false,
+      "parede",
+      4,
+      5,
+      4
+     ],
+     "obtido": [
+      false,
+      "parede",
+      4,
+      5,
+      4
+     ],
+     "ok": true
+    },
+    {
+     "nome": "Visão por cima de um muro de 1 nível",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Visão barrada pela borda do platô (desnível), em 4,5",
+     "esperado": [
+      false,
+      "desnível",
+      4,
+      5
+     ],
+     "obtido": [
+      false,
+      "desnível",
+      4,
+      5
+     ],
+     "ok": true
+    },
+    {
+     "nome": "Visão no alto do platô: livre",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    }
+   ],
+   "certos": 15,
+   "total": 15,
+   "percentual": 100,
+   "passou": true
+  },
+  "movimento": {
+   "casos": [
+    {
+     "nome": "Andar 1 bloco reto",
+     "esperado": 260,
+     "obtido": 260,
+     "ok": true
+    },
+    {
+     "nome": "Andar 1 bloco na diagonal",
+     "esperado": 340,
+     "obtido": 340,
+     "ok": true
+    },
+    {
+     "nome": "Degrau de 1 nível vira salto",
+     "esperado": "salto",
+     "obtido": "salto",
+     "ok": true
+    },
+    {
+     "nome": "Salto (sobe 1): ápice acima dos dois blocos",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (sobe 1): pousa na altura exata (erro < 0,001)",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (sobe 1): avanço nunca volta",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (sobe 1): 300 a 650 ms",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (desce 3): ápice acima dos dois blocos",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (desce 3): pousa na altura exata",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Salto (desce 3): 300 a 650 ms",
+     "esperado": true,
+     "obtido": true,
+     "ok": true
+    },
+    {
+     "nome": "Movimento reduzido: sem agachar nem amortecer",
+     "esperado": [
+      0,
+      0
+     ],
+     "obtido": [
+      0,
+      0
+     ],
+     "ok": true
+    }
+   ],
+   "salto": {
+    "sobe1": {
+     "dur": 470,
+     "zMax": 2.2461534859521333,
+     "tApice": 284.5,
+     "acimaDosDois": true,
+     "pousoErro": 0,
+     "xMonotono": true
+    },
+    "desce3": {
+     "dur": 610,
+     "zMax": 4.2,
+     "tApice": 160,
+     "acimaDosDois": true,
+     "pousoErro": 0,
+     "xMonotono": true
+    }
+   },
+   "certos": 11,
+   "total": 11,
+   "passou": true
+  },
+  "grafico": {
+   "arquivo": "grafico-do-salto.svg",
+   "duracao": 470,
+   "fases": [
+    {
+     "fase": "agacha",
+     "ms": 70
+    },
+    {
+     "fase": "no ar",
+     "ms": 310
+    },
+    {
+     "fase": "pousa",
+     "ms": 90
+    }
+   ]
+  },
+  "f_desempenho": {
+   "rodadas": [
+    {
+     "mapa": "30 x 30",
+     "unidades": 16,
+     "unidadesAnimandoMin": 15,
+     "giros": 8,
+     "quadros": 712,
+     "p50_ms": 16.699999999999818,
+     "p95_ms": 16.800000000000182,
+     "max_ms": 33.400000000000546,
+     "custoDoScript_p95_ms": 19.29999998807898,
+     "custoDoScript_max_ms": 34.40000002384113,
+     "tarefasLongas": 0,
+     "tarefaLongaMax_ms": 0,
+     "primeiraPintura_ms": 247,
+     "passou": true
+    },
+    {
+     "mapa": "30 x 30",
+     "unidades": 16,
+     "unidadesAnimandoMin": 13,
+     "giros": 8,
+     "quadros": 725,
+     "p50_ms": 16.699999999999818,
+     "p95_ms": 16.799999999999272,
+     "max_ms": 33.399999999999636,
+     "custoDoScript_p95_ms": 15.599999988079162,
+     "custoDoScript_max_ms": 29.6000000119202,
+     "tarefasLongas": 0,
+     "tarefaLongaMax_ms": 0,
+     "primeiraPintura_ms": 249,
+     "passou": true
+    },
+    {
+     "mapa": "30 x 30",
+     "unidades": 16,
+     "unidadesAnimandoMin": 15,
+     "giros": 8,
+     "quadros": 729,
+     "p50_ms": 16.699999999999818,
+     "p95_ms": 16.700000000000728,
+     "max_ms": 33.30000000000018,
+     "custoDoScript_p95_ms": 14.800000023841676,
+     "custoDoScript_max_ms": 29.300000023841676,
+     "tarefasLongas": 0,
+     "tarefaLongaMax_ms": 0,
+     "primeiraPintura_ms": 242,
+     "passou": true
+    }
+   ],
+   "p95_pior_ms": 16.800000000000182,
+   "primeiraPintura_pior_ms": 249,
+   "tarefasLongas": 0,
+   "passou": true
+  },
+  "d_robo": {
+   "sementes": [
+    {
+     "semente": 1,
+     "rot": 0,
+     "comandos": [
+      {
+       "unidade": "ladino",
+       "destino": [
+        16,
+        14
+       ],
+       "blocos": 5,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        17,
+        14
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        8,
+        6
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "mago",
+       "destino": [
+        9,
+        22
+       ],
+       "blocos": 1,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 1
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        8,
+        9
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "arqueiro",
+       "destino": [
+        8,
+        23
+       ],
+       "blocos": 4,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "ladino",
+       "destino": [
+        14,
+        19
+       ],
+       "blocos": 5,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        5,
+        9
+       ],
+       "blocos": 4,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "mago",
+       "destino": [
+        11,
+        19
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "curandeira",
+       "destino": [
+        11,
+        20
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      }
+     ]
+    },
+    {
+     "semente": 2,
+     "rot": 1,
+     "comandos": [
+      {
+       "unidade": "ladino",
+       "destino": [
+        15,
+        10
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "curandeira",
+       "destino": [
+        11,
+        19
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "curandeira",
+       "destino": [
+        9,
+        17
+       ],
+       "blocos": 2,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        8,
+        9
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "aventureira",
+       "destino": [
+        10,
+        20
+       ],
+       "blocos": 1,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 1
+      },
+      {
+       "unidade": "curandeira",
+       "destino": [
+        11,
+        17
+       ],
+       "blocos": 2,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        10,
+        9
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "aventureira",
+       "destino": [
+        11,
+        16
+       ],
+       "blocos": 4,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        7,
+        0
+       ],
+       "blocos": 5,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        16,
+        14
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      }
+     ]
+    },
+    {
+     "semente": 3,
+     "rot": 2,
+     "comandos": [
+      {
+       "unidade": "ladino",
+       "destino": [
+        22,
+        9
+       ],
+       "blocos": 5,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        14,
+        13
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        10,
+        10
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        13,
+        7
+       ],
+       "blocos": 5,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        10,
+        7
+       ],
+       "blocos": 4,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "arqueiro",
+       "destino": [
+        8,
+        17
+       ],
+       "blocos": 4,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        17,
+        14
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "arqueiro",
+       "destino": [
+        8,
+        16
+       ],
+       "blocos": 1,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 1
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        14,
+        16
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        9,
+        7
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      }
+     ]
+    },
+    {
+     "semente": 4,
+     "rot": 3,
+     "comandos": [
+      {
+       "unidade": "golem",
+       "destino": [
+        9,
+        9
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "aventureira",
+       "destino": [
+        14,
+        20
+       ],
+       "blocos": 4,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "ladino",
+       "destino": [
+        22,
+        11
+       ],
+       "blocos": 5,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "curandeira",
+       "destino": [
+        9,
+        20
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "arqueiro",
+       "destino": [
+        8,
+        20
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "aventureira",
+       "destino": [
+        17,
+        18
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        15,
+        9
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        11,
+        10
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        10,
+        4
+       ],
+       "blocos": 1,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 1
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        17,
+        10
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      }
+     ]
+    },
+    {
+     "semente": 5,
+     "rot": 0,
+     "comandos": [
+      {
+       "unidade": "ladino",
+       "destino": [
+        22,
+        10
+       ],
+       "blocos": 5,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "ladino",
+       "destino": [
+        20,
+        9
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        6,
+        0
+       ],
+       "blocos": 5,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 5
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        9,
+        13
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        10,
+        0
+       ],
+       "blocos": 4,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "arqueiro",
+       "destino": [
+        11,
+        18
+       ],
+       "blocos": 3,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "golem",
+       "destino": [
+        7,
+        14
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "guarda",
+       "destino": [
+        15,
+        14
+       ],
+       "blocos": 3,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 3
+      },
+      {
+       "unidade": "lobo",
+       "destino": [
+        11,
+        4
+       ],
+       "blocos": 4,
+       "arraste": true,
+       "chegou": true,
+       "contagem": true,
+       "previa": 4
+      },
+      {
+       "unidade": "aventureira",
+       "destino": [
+        10,
+        21
+       ],
+       "blocos": 2,
+       "arraste": false,
+       "chegou": true,
+       "contagem": true,
+       "previa": 2
+      }
+     ]
+    }
+   ],
+   "comandos": 50,
+   "chegaram": 50,
+   "contagemCerta": 50,
+   "previaCerta": 50,
+   "porArraste": 15,
+   "cliquesNaUnidade": 36,
+   "errosAoSelecionar": 11,
+   "alvosEscondidosEvitados": 9,
+   "fracaoChegaram": 1,
+   "fracaoContagem": 1,
+   "passou": true
+  },
+  "h_cor": {
+   "periodos": {
+    "dia": {
+     "luminanciaMin": 0.0595,
+     "pretosPuros": 0
+    },
+    "tarde": {
+     "luminanciaMin": 0.0315,
+     "pretosPuros": 0
+    },
+    "noite": {
+     "luminanciaMin": 0.0102,
+     "pretosPuros": 0
+    },
+    "baiaNoite": {
+     "luminanciaMin": 0.0109,
+     "pretosPuros": 0
+    }
+   },
+   "cores": 46,
+   "contornoMin": 0.06626098092657788,
+   "passou": true
+  },
+  "g_pagina": {
+   "larguraDaJanela": 390,
+   "larguraDaRolagem": 390,
+   "rolagemLateral": false,
+   "toqueSelecionou": true,
+   "toqueFezAndar": true,
+   "errosNoConsole": [],
+   "passou": true
+  },
+  "i_origem": {
+   "imagensNoPrototipo": [],
+   "dataImage": 0,
+   "tagImg": 0,
+   "novaImagem": 0,
+   "referenciasConferidas": 31,
+   "copiasDeReferencia": [],
+   "passou": true
+  }
+ }
+}

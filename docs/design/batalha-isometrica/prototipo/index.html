@@ -70,7 +70,9 @@
 
   .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
   .grupo { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
-  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); }
+  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); white-space: nowrap; }
+  .grupo .segmentado button { min-width: 40px; }
+  .segmentado button { flex: none; }
 
   .segmentado {
     display: inline-flex;
@@ -901,10 +903,67 @@ var Nucleo = (function () {
         const i = P.naCelula[v * Wr + u]
         const o = i * 4
         if (P.bb[o] >= ob.ret[2] || P.bb[o + 2] <= ob.ret[0] || P.bb[o + 1] >= ob.ret[3] || P.bb[o + 3] <= ob.ret[1]) continue
+        // só conta se alguma parte da coluna fica à frente do plano do objeto (u + v maior que o do centro dele)
+        if (!P.caixas[i].some((b) => b.u1 + b.v1 > ob.pu + ob.pv + 1e-9)) continue
         out.push(i)
       }
     }
     out.sort((a, b) => P.pos[a] - P.pos[b])
+    return out
+  }
+  /** Envoltória convexa (cadeia monótona), na mesma orientação das silhuetas de hexagono(). */
+  function envoltoria(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    if (p.length < 3) return p
+    const giro = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    const baixo = []
+    for (const q of p) {
+      while (baixo.length >= 2 && giro(baixo[baixo.length - 2], baixo[baixo.length - 1], q) <= 1e-12) baixo.pop()
+      baixo.push(q)
+    }
+    const cima = []
+    for (let k = p.length - 1; k >= 0; k--) {
+      const q = p[k]
+      while (cima.length >= 2 && giro(cima[cima.length - 2], cima[cima.length - 1], q) <= 1e-12) cima.pop()
+      cima.push(q)
+    }
+    baixo.pop()
+    cima.pop()
+    return baixo.concat(cima)
+  }
+  /**
+   * Silhueta só da parte da caixa que fica à frente do plano em pé u + v = s (o plano do objeto, de frente para a
+   * câmera). É o que o pintor repõe por cima do objeto: a parte da coluna atrás do plano não pode cobri-lo.
+   */
+  function frenteDaCaixa(met, b, s) {
+    if (b.u1 + b.v1 <= s + 1e-9) return null
+    if (b.u0 + b.v0 >= s - 1e-9) return hexagono(met, b)
+    const quad = [[b.u0, b.v0], [b.u1, b.v0], [b.u1, b.v1], [b.u0, b.v1]]
+    const poli = []
+    for (let k = 0; k < 4; k++) {
+      const a = quad[k]
+      const c = quad[(k + 1) % 4]
+      const fa = a[0] + a[1] - s
+      const fc = c[0] + c[1] - s
+      if (fa >= 0) poli.push(a)
+      if ((fa >= 0) !== (fc >= 0)) {
+        const t = fa / (fa - fc)
+        poli.push([a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t])
+      }
+    }
+    const pts = []
+    for (const [u, v] of poli) pts.push(proj(met, u, v, b.z), proj(met, u, v, FUNDO))
+    return envoltoria(pts)
+  }
+  /** As silhuetas que voltam por cima do objeto: a frente de cada caixa das colunas que o cobrem. */
+  function silhuetasNaFrente(m, rot, ob, occ) {
+    const P = preparo(m, rot)
+    const s = ob.pu + ob.pv
+    const out = []
+    for (const i of occ) for (const b of P.caixas[i]) {
+      const h = frenteDaCaixa(P.met, b, s)
+      if (h && h.length >= 3) out.push(h)
+    }
     return out
   }
   /** Caixa de desenho e pegada de um objeto no giro rot. pos: {x, y, z} contínuos do mundo (centro em x + 0,5). */
@@ -1163,7 +1222,7 @@ var Nucleo = (function () {
     girarP, desgirarP, girarC, dirGirada, metricas, proj, desproj,
     topoZ, alturaEmPe, alturaNoPonto, bordaAltura,
     caixas, hexagono, dentroDoConvexo, preparo, blocoNoPonto, entradaNaCaixa, raioNoPonto, pontoDoBloco, pontoDoMundo,
-    ocludentes, quadroDoObjeto, ordenarObjetos,
+    ocludentes, envoltoria, frenteDaCaixa, silhuetasNaFrente, quadroDoObjeto, ordenarObjetos,
     livreDeTerreno, passo, ocupadas, alcance, caminhoAte, planoDeMovimento, estadoNoTempo, vistaDaDirecao,
     regua, circulo, cone, direcao8, visao,
     camadaParaTela, telaParaCamada,
@@ -1264,7 +1323,7 @@ var Pintor = (function () {
   const PERIODOS = {
     // o sol vem da frente-esquerda da vista inicial (mundo +y, um pouco +x): a face esquerda acende, a sombra cai para trás
     dia: { nome: 'Dia', az: 70 * rad, elev: 52 * rad, cor: [1, 0.97, 0.9], forca: 0.38, amb: [0.69, 0.71, 0.78], tinta: [1, 0.99, 0.96], ceu: ['#9fc8e2', '#dcebee'], grade: 'rgba(58,44,28,0.34)', luzes: false },
-    tarde: { nome: 'Tarde', az: 18 * rad, elev: 16 * rad, cor: [1, 0.72, 0.46], forca: 0.66, amb: [0.55, 0.46, 0.54], tinta: [1, 0.84, 0.7], ceu: ['#d98f6a', '#f4d39e'], grade: 'rgba(66,36,30,0.34)', luzes: true },
+    tarde: { nome: 'Tarde', az: 18 * rad, elev: 16 * rad, cor: [1, 0.72, 0.46], forca: 0.66, amb: [0.58, 0.5, 0.57], tinta: [1, 0.86, 0.74], ceu: ['#d98f6a', '#f4d39e'], grade: 'rgba(66,36,30,0.34)', luzes: true },
     noite: { nome: 'Noite', az: 115 * rad, elev: 40 * rad, cor: [0.55, 0.66, 0.95], forca: 0.22, amb: [0.25, 0.3, 0.45], tinta: [0.42, 0.48, 0.68], ceu: ['#141c34', '#2e3b62'], grade: 'rgba(214,226,255,0.26)', luzes: true },
   }
   const COR_DA_LUZ = [1, 0.66, 0.32]
@@ -2616,17 +2675,22 @@ var Pintor = (function () {
     if (tipo === 'golem') return desenharGolem(g, frente, quadro)
     const E = ESTILO_DE[tipo]
     // passada: 0 parado, 1..4 andar (contato, passagem, contato, passagem), 5 agacha, 6 no ar
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
-    const ergue = quadro >= 1 && quadro <= 4 ? [0, 1, 0, 1][quadro - 1] : 0
+    // 1 e 3: contato (pernas abertas, uma à frente); 2 e 4: passagem (a perna de trás sobe e cruza)
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergueLado = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const ar = quadro === 6
     const quadril = -17 + agacha
-    // pernas
-    const pernas = [[-4.2, passo * 2.2], [4.2, -passo * 2.2]]
-    for (const [x, d] of pernas) {
-      const pe = ar ? -3 : -Math.max(0, d) * ergue * 1.2
-      forma(g, E.calca, () => g.roundRect(x - 3, quadril, 6, -quadril + pe - 3, 2))
-      forma(g, E.bota, () => g.roundRect(x - 3.6, pe - 5, 7.2, 5, 2.2))
+    // pernas: a da frente desce na tela (mais perto da câmera) e vai para a esquerda; a de trás sobe
+    const aFrente = (lado) => passo * -lado
+    const pernas = [-1, 1].map((lado) => {
+      const f = aFrente(lado)
+      return { lado, x: lado * 4.2 - f * 1.4, pe: (ar ? -3 : 0) + f * 2.6 - (ergueLado === lado ? 3.4 : 0), f }
+    }).sort((a, b) => a.pe - b.pe)
+    for (const p of pernas) {
+      forma(g, E.calca, () => g.roundRect(p.x - 3, quadril, 6, -quadril + p.pe - 3, 2))
+      forma(g, E.bota, () => g.roundRect(p.x - 3.6, p.pe - 5, 7.2, 5, 2.2))
     }
     // costas: capa ou cabelo comprido atrás
     if (!frente && E.capa) forma(g, E.capa, () => { g.moveTo(-9, -37); g.lineTo(9, -37); g.lineTo(11, -12 + agacha); g.lineTo(-11, -12 + agacha); g.closePath() })
@@ -2648,8 +2712,9 @@ var Pintor = (function () {
       forma(g, E.roupa, () => g.roundRect(x - 2.6, -35 + agacha + d, 5.2, 13, 2.4))
       elipse(g, x, -21 + agacha + d, 2.6, 2.6, E.pele, 1)
     }
-    braco(-1, -passo * 1.4 + (ar ? -3 : 0))
-    braco(1, passo * 1.4 + (ar ? -3 : 0))
+    // o braço vai junto com a perna do outro lado
+    braco(-1, aFrente(1) * 2 + (ar ? -3 : 0))
+    braco(1, aFrente(-1) * 2 + (ar ? -3 : 0))
     // arma (atrás ou do lado)
     if (E.arma) E.arma(g, frente, agacha, passo)
     // cabeça
@@ -2806,20 +2871,23 @@ var Pintor = (function () {
     },
   }
   function desenharLobo(g, frente, quadro) {
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    // trote: nos contatos as patas abrem (diagonais juntas), nas passagens a diagonal de trás sobe
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergue = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const ar = quadro === 6
     const cor = C.pelagem
     const barriga = clarear(cor, 0.35)
     const s = frente ? 1 : -1
     // vista 3/4: frente = focinho para baixo-esquerda; costas = traseira e cauda
-    const pata = (x, d) => forma(g, escurecer(cor, 0.1), () => g.roundRect(x - 2.5, -12 + agacha, 5, 12 - (ar ? 4 : Math.max(0, d) * 2), 2), 1)
-    pata(8 * s, -passo)
-    pata(-10 * s, passo)
+    const pata = (x, d) => forma(g, escurecer(cor, 0.1), () => g.roundRect(x - 2.5 - passo * d * 2.6 * s, -12 + agacha, 5, 12 - (ar ? 4 : Math.max(0, ergue * d) * 3), 2), 1)
+    pata(8 * s, -1)
+    pata(-10 * s, 1)
     forma(g, cor, () => g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2))
     forma(g, cor, () => { g.moveTo(14 * s, -20 + agacha); g.quadraticCurveTo(26 * s, -24, 24 * s, -34 + (ar ? 4 : 0)); g.quadraticCurveTo(20 * s, -24, 12 * s, -14 + agacha); g.closePath() })
-    pata(-4 * s, passo)
-    pata(12 * s, -passo)
+    pata(-4 * s, -1)
+    pata(12 * s, 1)
     g.save()
     g.beginPath()
     g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2)
@@ -2842,10 +2910,15 @@ var Pintor = (function () {
     }
   }
   function desenharGolem(g, frente, quadro) {
-    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    // passo pesado: o pé da frente desce e vai para a esquerda, o de trás levanta
+    const fase = quadro >= 1 && quadro <= 4 ? quadro - 1 : -1
+    const passo = fase === 0 ? 1 : fase === 2 ? -1 : 0
+    const ergue = fase === 1 ? 1 : fase === 3 ? -1 : 0
     const agacha = quadro === 5 ? 3 : 0
     const cor = misturar(C.pedra, C.rocha, 0.35)
-    for (const [x, d] of [[-9, passo], [9, -passo]]) caixaIso(g, x, -Math.max(0, d) * 2, 7, 7, 13, escurecer(cor, 0.08))
+    const pes = [[-9, passo], [9, -passo]].map(([x, d]) => ({ x: x - d * 1.6, y: d * 2.2 - Math.max(0, ergue * Math.sign(x)) * 3 }))
+    pes.sort((a, b) => a.y - b.y)
+    for (const p of pes) caixaIso(g, p.x, p.y, 7, 7, 13, escurecer(cor, 0.08))
     const corpo = () => { g.moveTo(-18, -18 + agacha); g.lineTo(-14, -44 + agacha); g.lineTo(0, -50 + agacha); g.lineTo(15, -44 + agacha); g.lineTo(19, -18 + agacha); g.lineTo(8, -10); g.lineTo(-8, -10); g.closePath() }
     forma(g, cor, corpo, 1.4)
     g.save()
@@ -2968,7 +3041,7 @@ var Pintor = (function () {
     arraste: null,
     primeiraPintura: null,
     quadros: [],
-    tarefas: [],
+    custos: [],
     passeio: false,
   }
 
@@ -3146,6 +3219,7 @@ var Pintor = (function () {
       const z = N.alturaEmPe(N.cel(m, p.x, p.y))
       const q = N.quadroDoObjeto(m, rot, { x: p.x + 0.5, y: p.y + 0.5, z }, tp.w, tp.h, tp.r)
       q.occ = N.ocludentes(m, rot, q)
+      q.clip = N.silhuetasNaFrente(m, rot, q, q.occ)
       return { tipo: 'prop', p, z, ...q }
     })
     objetosFixos.set(k, lista)
@@ -3171,8 +3245,9 @@ var Pintor = (function () {
   }
   function selecionar(u) {
     est.sel = u
-    est.previa = null
     calcularAlcance()
+    // se o ponteiro já está parado num bloco, o caminho até ele aparece na hora (sem precisar mexer o mouse)
+    est.previa = u && est.hover >= 0 && est.ferramenta === 'mover' ? caminhoPara(est.hover) : null
     marcasSujas = true
     atualizarPainel()
     if (u) {
@@ -3344,6 +3419,7 @@ var Pintor = (function () {
     for (const u of est.mapa.unidades) {
       const q = quadroDaUnidade(u)
       q.occ = N.ocludentes(est.mapa, est.rot, q)
+      q.clip = N.silhuetasNaFrente(est.mapa, est.rot, q, q.occ)
       lista.push(q)
     }
     N.ordenarObjetos(lista)
@@ -3352,29 +3428,41 @@ var Pintor = (function () {
       if (o.ret[2] < (cam.cx - cam.w / 2 / cam.zoom) || o.ret[0] > cam.cx + cam.w / 2 / cam.zoom) continue
       if (o.tipo === 'prop') desenharProp(o, S, agora)
       else desenharUnidade(o, S, agora)
-      if (o.occ.length) repor(L, marcas, o, W, H)
+      if (o.clip.length) repor(L, marcas, o, W, H)
     }
     desenharLuzes(agora)
     desenharSobreposicoes(agora)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+    // custo do quadro (trabalho do script, sem a espera do vsync): vai para a prova de desempenho
+    est.custos.push(performance.now() - agora)
+    if (est.custos.length > 4000) est.custos.splice(0, 2000)
   }
   function repor(L, marcas, o, W, H) {
-    const P = N.preparo(est.mapa, est.rot)
     const [x0, y0, x1, y1] = o.ret
     ctx.save()
     ctx.beginPath()
     ctx.rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2)
     ctx.clip()
     ctx.beginPath()
-    for (const i of o.occ) for (const h of P.hex[i]) {
+    // só a parte de cada coluna que fica à frente do objeto (a parte de trás não pode cobri-lo)
+    for (const h of o.clip) {
       ctx.moveTo(h[0][0], h[0][1])
-      for (let k = 1; k < 6; k++) ctx.lineTo(h[k][0], h[k][1])
+      for (let k = 1; k < h.length; k++) ctx.lineTo(h[k][0], h[k][1])
       ctx.closePath()
     }
     ctx.clip()
-    ctx.drawImage(L.canvas, 0, 0, W, H)
-    if (est.batalha && L.grade) ctx.drawImage(L.grade, 0, 0, W, H)
-    ctx.drawImage(marcas, 0, 0, W, H)
+    // só o retângulo do objeto sai das camadas (copiar a camada inteira por objeto custava o quadro)
+    const k = L.s
+    const rx0 = Math.max(0, Math.floor(x0 - 2))
+    const ry0 = Math.max(0, Math.floor(y0 - 2))
+    const rx1 = Math.min(W, Math.ceil(x1 + 2))
+    const ry1 = Math.min(H, Math.ceil(y1 + 2))
+    if (rx1 > rx0 && ry1 > ry0) {
+      const blit = (c) => ctx.drawImage(c, rx0 * k, ry0 * k, (rx1 - rx0) * k, (ry1 - ry0) * k, rx0, ry0, rx1 - rx0, ry1 - ry0)
+      blit(L.canvas)
+      if (est.batalha && L.grade) blit(L.grade)
+      blit(marcas)
+    }
     ctx.restore()
   }
   function estrelas() {
@@ -3591,17 +3679,23 @@ var Pintor = (function () {
   function pontoAlto(x, y, extra = 0.04) {
     return N.pontoDoMundo(est.mapa, est.rot, x + 0.5, y + 0.5, N.alturaEmPe(N.cel(est.mapa, x, y)) + extra)
   }
+  /** Rótulo com tamanho fixo na tela (13 px em qualquer zoom), ancorado num ponto do mundo. */
   function pilula(texto, x, y, cor = 'rgba(28,30,40,0.86)') {
-    ctx.font = '600 12px Barlow, system-ui, sans-serif'
-    const w = ctx.measureText(texto).width + 16
+    const k = 1 / est.cam.zoom
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(k, k)
+    ctx.font = '600 13px Barlow, system-ui, sans-serif'
+    const w = ctx.measureText(texto).width + 18
     ctx.fillStyle = cor
     ctx.beginPath()
-    ctx.roundRect(x - w / 2, y - 11, w, 22, 11)
+    ctx.roundRect(-w / 2, -12, w, 24, 12)
     ctx.fill()
     ctx.fillStyle = '#fbf6ea'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(texto, x, y + 0.5)
+    ctx.fillText(texto, 0, 0.5)
+    ctx.restore()
   }
   function desenharSobreposicoes(agora) {
     const m = est.mapa
@@ -3626,6 +3720,17 @@ var Pintor = (function () {
         }
         ctx.setLineDash([])
       }
+    }
+    // arrastando uma unidade: um fantasma dela encaixado no bloco de destino, antes de soltar
+    const arr = est.arraste
+    if (arr && arr.modo === 'unidade' && est.sel && est.previa && est.previa.length > 1) {
+      const [x, y] = est.previa[est.previa.length - 1]
+      const [gx, gy] = pontoAlto(x, y, 0)
+      const S = escalaPara(est.cam.zoom, m, est.rot)
+      const sp = Pt.spriteDaUnidade(est.sel.tipo, true, 0, S, est.periodo)
+      ctx.globalAlpha = 0.55
+      ctx.drawImage(sp.c, gx - sp.ax, gy - sp.ay, sp.c.width / S, sp.c.height / S)
+      ctx.globalAlpha = 1
     }
     // caminho: linha por cima dos blocos e a contagem no destino
     const cam = est.previa
@@ -3652,11 +3757,23 @@ var Pintor = (function () {
         u.rastro.forEach(([x, y], k) => {
           if (!k) return
           const [sx, sy] = pontoAlto(x, y, 0.05)
-          ctx.font = '700 11px Barlow, system-ui, sans-serif'
+          // número do passo num disco claro, com tamanho fixo na tela
+          ctx.save()
+          ctx.translate(sx, sy)
+          ctx.scale(1 / est.cam.zoom, 1 / est.cam.zoom)
+          ctx.fillStyle = 'rgba(255,248,232,0.92)'
+          ctx.strokeStyle = 'rgba(150,96,24,0.9)'
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.arc(0, 0, 9, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+          ctx.font = '700 12px Barlow, system-ui, sans-serif'
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillStyle = 'rgba(80,52,10,0.85)'
-          ctx.fillText(String(k), sx, sy + 0.5)
+          ctx.fillStyle = 'rgba(92,58,12,1)'
+          ctx.fillText(String(k), 0, 0.5)
+          ctx.restore()
         })
       }
     }
@@ -3742,9 +3859,8 @@ var Pintor = (function () {
       const [x0, y0, x1, y1] = q.ret
       if (lx >= x0 + 6 && lx <= x1 - 6 && ly >= y0 + 8 && ly <= y1) {
         // a unidade só conta se não estiver escondida atrás de uma coluna nesse ponto
-        const i = N.blocoNoPonto(m, est.rot, lx, ly)
-        const P = N.preparo(m, est.rot)
-        const coberta = i >= 0 && q.occ === undefined && N.ocludentes(m, est.rot, q).includes(i) && N.dentroDoConvexo(P.hex[i][0], lx, ly)
+        const occ = N.ocludentes(m, est.rot, q)
+        const coberta = N.silhuetasNaFrente(m, est.rot, q, occ).some((h) => N.dentroDoConvexo(h, lx, ly))
         if (!coberta) return { unidade: q.u, i: q.u.y * m.W + q.u.x }
       }
     }
@@ -4095,46 +4211,52 @@ var Pintor = (function () {
 
   // ---------- folha de contato e amostras do salto (provas) ----------
   function cenaDeTira() {
-    const m = { id: 'tira', nome: 'tira', W: 4, H: 1, c: [1, 1, 2, 2].map((h) => ({ h, chao: h, topo: 'calcada', lado: 'muro', escada: -1, predio: -1, agua: false })), props: [], unidades: [], predios: [], portas: [], propEm: new Int32Array(4).fill(-1), _cache: {} }
+    // a mesma tira das provas em Node: 3 blocos na altura 1 e 2 na altura 2 (um degrau de 1 nível no meio)
+    const m = { id: 'tira', nome: 'tira', W: 5, H: 1, c: [1, 1, 1, 2, 2].map((h) => ({ h, chao: h, topo: 'calcada', lado: 'muro', escada: -1, predio: -1, agua: false })), props: [], unidades: [], predios: [], portas: [], propEm: new Int32Array(5).fill(-1), _cache: {} }
     return m
   }
   function folhaDeContato(tipo, quadros = 16) {
     const m = cenaDeTira()
-    const plano = N.planoDeMovimento(m, [[0, 0], [1, 0], [2, 0], [3, 0]], {})
-    const salto = plano.segs[1]
+    const plano = N.planoDeMovimento(m, [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]], {})
+    const salto = plano.segs[2]
     const fases = [
-      { nome: 'Andar (2 blocos planos e 1 depois do salto)', ini: 0, fim: plano.segs[0].dur * 1 + 0.001, extra: plano.segs[2] },
-      { nome: 'Salto (sobe 1 nível)', ini: salto.t0, fim: salto.t0 + salto.dur },
+      { nome: 'Andar: 2 blocos no plano (260 ms por bloco)', ini: 0, fim: plano.segs[0].dur + plano.segs[1].dur },
+      { nome: `Salto: sobe 1 nível (${salto.agacha} ms agacha, ${salto.ar} ms no ar, ${salto.pousa} ms pousa)`, ini: salto.t0, fim: salto.t0 + salto.dur },
     ]
-    const cw = 150
-    const ch = 150
-    const folha = Pt.tela(cw * 8, (ch + 22) * 4 + 40)
+    const cw = 170
+    const ch = 190
+    const bloco = 2 * (ch + 24) + 34
+    const folha = Pt.tela(cw * 8, bloco * 2 + 8)
     folha.id = 'folha-' + tipo
     const g = folha.getContext('2d')
     g.fillStyle = '#f4f1e8'
     g.fillRect(0, 0, folha.width, folha.height)
     const camada = Pt.tela(N.preparo(m, 0).met.largura * 2, N.preparo(m, 0).met.altura * 2)
     Pt.pintarColunas(camada.getContext('2d'), m, 0, 'dia', 2, 0, 4)
-    let linha = 0
-    for (const f of fases) {
+    fases.forEach((f, nf) => {
+      const topo = 8 + nf * bloco
       g.fillStyle = '#2b2f2a'
-      g.font = '600 15px Barlow, system-ui, sans-serif'
+      g.font = '600 16px Barlow, system-ui, sans-serif'
       g.textAlign = 'left'
-      g.fillText(f.nome, 8, 20 + linha * (ch + 22) + (linha ? 10 : 0))
+      g.fillText(f.nome, 8, topo + 16)
       for (let k = 0; k < quadros; k++) {
         const t = f.ini + ((f.fim - f.ini) * k) / (quadros - 1)
         const e = N.estadoNoTempo(plano, t)
         const col = k % 8
-        const row = linha + Math.floor(k / 8)
+        const row = Math.floor(k / 8)
         const ox = col * cw
-        const oy = 30 + row * (ch + 22) + (linha ? 10 : 0)
+        const oy = topo + 28 + row * (ch + 24)
+        // andar: a câmera segue a unidade (o que importa é a passada); salto: a câmera fica parada entre os dois
+        // blocos, para o avanço e o arco aparecerem de verdade
+        const ancora = nf === 0 ? e : N.estadoNoTempo(plano, f.ini)
+        const [qx, qy] = N.pontoDoMundo(m, 0, ancora.x + (nf === 0 ? 0 : 0.5), ancora.y, nf === 0 ? 1 : ancora.z)
         const [px, py] = N.pontoDoMundo(m, 0, e.x, e.y, e.z)
         g.save()
         g.beginPath()
         g.rect(ox + 2, oy, cw - 4, ch)
         g.clip()
-        const zoom = 1.1
-        g.setTransform(zoom, 0, 0, zoom, ox + cw / 2 - px * zoom, oy + ch * 0.72 - py * zoom)
+        const zoom = 1.8
+        g.setTransform(zoom, 0, 0, zoom, ox + cw / 2 - qx * zoom, oy + ch * 0.78 - qy * zoom)
         g.drawImage(camada, 0, 0, camada.width / 2, camada.height / 2)
         const chao = N.alturaNoPonto(m, e.x, e.y)
         const [gx, gy] = N.pontoDoMundo(m, 0, e.x, e.y, chao)
@@ -4152,17 +4274,16 @@ var Pintor = (function () {
         g.fillStyle = '#3a3f39'
         g.font = '500 12px Barlow, system-ui, sans-serif'
         g.textAlign = 'center'
-        g.fillText(`${Math.round(t)} ms · ${e.pose}`, ox + cw / 2, oy + ch + 14)
+        g.fillText(`${Math.round(t)} ms · ${e.pose}`, ox + cw / 2, oy + ch + 15)
       }
-      linha += 2
-    }
+    })
     folha.style.cssText = 'position:fixed;left:0;top:0;z-index:99'
     document.body.append(folha)
     return folha.id
   }
   function amostrasDoSalto(passoMs = 1000 / 60) {
     const m = cenaDeTira()
-    const plano = N.planoDeMovimento(m, [[1, 0], [2, 0]], {})
+    const plano = N.planoDeMovimento(m, [[2, 0], [3, 0]], {})
     const s = plano.segs[0]
     const out = []
     for (let t = 0; t <= plano.total + 1e-9; t += passoMs) {
@@ -4189,6 +4310,15 @@ var Pintor = (function () {
       const r = canvas.getBoundingClientRect()
       return [sx + r.left, sy + r.top]
     },
+    alvoNaTela(cx, cy) {
+      const r = canvas.getBoundingClientRect()
+      const a = alvoNaTela(cx - r.left, cy - r.top)
+      return { unidade: a.unidade ? a.unidade.id : null, i: a.i }
+    },
+    unidade: (id) => {
+      const u = est.mapa.unidades.find((o) => o.id === id)
+      return u && { id: u.id, x: u.x, y: u.y, z: N.alturaEmPe(N.cel(est.mapa, u.x, u.y)), h: N.TIPOS[u.tipo].h, w: N.TIPOS[u.tipo].w }
+    },
     blocoNaTela(cx, cy) {
       const r = canvas.getBoundingClientRect()
       const [lx, ly] = N.telaParaCamada(est.cam, cx - r.left, cy - r.top)
@@ -4212,7 +4342,7 @@ var Pintor = (function () {
     },
     passeio(on) { est.passeio = on },
     animando: () => est.anims.size > 0,
-    zerarQuadros() { est.quadros = [] },
+    zerarQuadros() { est.quadros = []; est.custos = [] },
     folhaDeContato, amostrasDoSalto,
   }
 
