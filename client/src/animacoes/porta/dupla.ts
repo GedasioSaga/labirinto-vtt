@@ -40,7 +40,10 @@ const desenhar: AnimacaoDePorta['desenhar'] = (g, porta, progresso) => {
     const dobradicaY = porta.cy + lado * porta.uy * porta.meioComprimento
     const dx = -lado * porta.ux * cos + nx * sen
     const dy = -lado * porta.uy * cos + ny * sen
-    pecas.push({ forma: 'retangulo', cx: dobradicaX + dx * meiaFolha, cy: dobradicaY + dy * meiaFolha, dx, dy, meioComprimento: meiaFolha, meiaEspessura: porta.espessura / 2 })
+    // Mais curta que grossa, a meia-folha encolhe por inteiro até o ponto da dobradiça:
+    // com a espessura cheia sobraria um toco atravessado, metade fora do batente, que sumiria de uma vez em 1.
+    const meiaEspessura = Math.min(porta.espessura / 2, meiaFolha)
+    pecas.push({ forma: 'retangulo', cx: dobradicaX + dx * meiaFolha, cy: dobradicaY + dy * meiaFolha, dx, dy, meioComprimento: meiaFolha, meiaEspessura })
   }
   pintarFolha(g, porta, pecas)
 }

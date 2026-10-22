@@ -242,10 +242,11 @@ function elevacaoDaFolha(progresso: number): number {
 }
 
 /** A folha de centro `(cx, cy)`, sentido `(dx, dy)`, com a sombra por baixo quando está fora do lugar. */
-function desenharFolha(g: Graphics, porta: PortaParaDesenho, progresso: number, cx: number, cy: number, dx: number, dy: number, meioComprimento: number): void {
-  // A sombra é a da silhueta inteira: a folha com o contorno escuro em volta.
-  const meiaBorda = (porta.borda ?? 0) / 2
-  const meiaEspessura = porta.espessura / 2
+function desenharFolha(g: Graphics, porta: PortaParaDesenho, progresso: number, cx: number, cy: number, dx: number, dy: number, meioComprimento: number, meiaEspessura: number): void {
+  // A sombra é a da silhueta inteira: a folha com o contorno escuro em volta, que
+  // cresce no máximo o tamanho da própria folha (como em `tracarPeca`). Sem esse
+  // teto, a folha que recolhe até sumir deixava a sombra de uma borda inteira.
+  const meiaBorda = Math.min((porta.borda ?? 0) / 2, meioComprimento, meiaEspessura)
   const elevacao = elevacaoDaFolha(progresso)
   if (elevacao > 0) {
     const px = 1 / (Number.isFinite(porta.escala) && porta.escala > 0 ? porta.escala : 1)
@@ -310,7 +311,10 @@ function desenharGirar(g: Graphics, porta: PortaParaDesenho, progresso: number):
   const dy = porta.uy * Math.cos(angulo) + ny * Math.sin(angulo)
   const dobradicaX = porta.cx - porta.ux * porta.meioComprimento
   const dobradicaY = porta.cy - porta.uy * porta.meioComprimento
-  desenharFolha(g, porta, p, dobradicaX + dx * meioComprimento, dobradicaY + dy * meioComprimento, dx, dy, meioComprimento)
+  // Mais curta que grossa, a folha encolhe por inteiro até o ponto da dobradiça:
+  // com a espessura cheia sobraria um toco atravessado, metade fora do batente, que sumiria de uma vez em 1.
+  const meiaEspessura = Math.min(porta.espessura / 2, meioComprimento)
+  desenharFolha(g, porta, p, dobradicaX + dx * meioComprimento, dobradicaY + dy * meioComprimento, dx, dy, meioComprimento, meiaEspessura)
 }
 
 /**
@@ -329,7 +333,7 @@ function desenharDeslizar(g: Graphics, porta: PortaParaDesenho, progresso: numbe
   const meioPedaco = porta.meioComprimento * (1 - p)
   if (meioPedaco <= 0) return
   const desvio = porta.meioComprimento * p
-  desenharFolha(g, porta, p, porta.cx + porta.ux * desvio, porta.cy + porta.uy * desvio, porta.ux, porta.uy, meioPedaco)
+  desenharFolha(g, porta, p, porta.cx + porta.ux * desvio, porta.cy + porta.uy * desvio, porta.ux, porta.uy, meioPedaco, porta.espessura / 2)
 }
 
 /**

@@ -52,6 +52,37 @@ function so(desenho: (g: Graphics, porta: PortaParaDesenho) => void, porta: Port
   return g
 }
 
+/** A caixa de tudo o que um desenho preenche (retângulos e contas), nos eixos do mundo. */
+function caixaDoDesenho(g: Graphics): { minX: number; maxX: number; minY: number; maxY: number } {
+  const xs: number[] = []
+  const ys: number[] = []
+  for (const instrucao of g.context.instructions) {
+    if (instrucao.action !== 'fill') continue
+    for (const forma of instrucao.data.path.instructions) {
+      if (forma.action === 'poly') {
+        const [pontos] = forma.data
+        if (!Array.isArray(pontos)) throw new Error('poly sem lista de números')
+        const numeros = pontos.filter((v): v is number => typeof v === 'number')
+        numeros.forEach((v, i) => (i % 2 === 0 ? xs : ys).push(v))
+      } else if (forma.action === 'circle') {
+        const [x, y, raio] = forma.data
+        xs.push(x - raio, x + raio)
+        ys.push(y - raio, y + raio)
+      } else if (forma.action === 'moveTo' || forma.action === 'lineTo') {
+        const [x, y] = forma.data
+        xs.push(x)
+        ys.push(y)
+      } else if (forma.action !== 'closePath') {
+        throw new Error(`forma não prevista no teste: ${forma.action}`)
+      }
+    }
+  }
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }
+}
+
+/** Folga da prova do fim: meio px de TELA, bem abaixo do 1,5 px da régua M5 de docs/design/porta-animacoes/app. */
+const FOLGA_DO_FIM_TELA_PX = 0.5
+
 afterEach(() => {
   esquecerPacoteCarregado()
   esquecerAnimacoesDePortaDeFora()
@@ -77,6 +108,21 @@ describe('as cinco portas do pacote — o desenho', () => {
           if (instrucao.action === 'fill') expect(instrucao.data.style.alpha).toBe(1)
         }
       }
+    }
+  })
+
+  // Em 1 a folha some e sobra o batente. O que ainda está pintado logo antes precisa
+  // caber na caixa dele: um toco atravessado na dobradiça sumiria de uma vez em 1 (e
+  // apareceria de uma vez ao começar a fechar), o salto que a régua M5 mede no pixel.
+  it.each(IDS)('%s acaba dentro do batente: a 0,9999 do caminho nada sai da caixa da porta parada', (id) => {
+    for (const porta of PORTAS) {
+      const batente = caixaDoDesenho(so(desenharBatente, porta))
+      const quase = caixaDoDesenho(quadro(id, porta, 0.9999))
+      const folga = FOLGA_DO_FIM_TELA_PX / porta.escala
+      expect(quase.minX).toBeGreaterThanOrEqual(batente.minX - folga)
+      expect(quase.maxX).toBeLessThanOrEqual(batente.maxX + folga)
+      expect(quase.minY).toBeGreaterThanOrEqual(batente.minY - folga)
+      expect(quase.maxY).toBeLessThanOrEqual(batente.maxY + folga)
     }
   })
 

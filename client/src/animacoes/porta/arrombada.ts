@@ -97,7 +97,8 @@ const desenhar: AnimacaoDePorta['desenhar'] = (g, porta, progresso) => {
     const dy = porta.uy * Math.cos(angulo) + ny * Math.sin(angulo)
     const dobradicaX = porta.cx - porta.ux * (porta.meioComprimento - deslize)
     const dobradicaY = porta.cy - porta.uy * (porta.meioComprimento - deslize)
-    pintarFolha(g, porta, [{ forma: 'retangulo', cx: dobradicaX + dx * meio, cy: dobradicaY + dy * meio, dx, dy, meioComprimento: meio, meiaEspessura: porta.espessura / 2 }])
+    // Mais curta que grossa, a folha encolhe por inteiro até o ponto da dobradiça (sem toco que some de uma vez em 1).
+    pintarFolha(g, porta, [{ forma: 'retangulo', cx: dobradicaX + dx * meio, cy: dobradicaY + dy * meio, dx, dy, meioComprimento: meio, meiaEspessura: Math.min(porta.espessura / 2, meio) }])
   }
   // Os estilhaços voam soltos: pintados à parte, cada um com o contorno dele, por cima da folha.
   const pecas = estilhacos(porta, p)

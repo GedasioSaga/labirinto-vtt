@@ -175,6 +175,29 @@ describe('registro de animações de porta — embutidas', () => {
     expect(fills(desenhar('girar', 1))).toHaveLength(fills(so(desenharBatente)).length)
   })
 
+  // Em 1 a folha some e sobra o batente: o que está pintado logo antes (folha e
+  // sombra) precisa caber na caixa dele, ou um toco atravessado na dobradiça some
+  // de uma vez em 1 e aparece de uma vez ao começar a fechar (a régua M5 no pixel).
+  it.each(['girar', 'deslizar'])('%s acaba dentro do batente: a 0,9999 do caminho nada sai da caixa da porta parada', (id) => {
+    const caixaDeTudo = (g: Graphics): ReturnType<typeof caixa> => {
+      const caixas = fills(g).map(caixa)
+      return {
+        minX: Math.min(...caixas.map((c) => c.minX)),
+        maxX: Math.max(...caixas.map((c) => c.maxX)),
+        minY: Math.min(...caixas.map((c) => c.minY)),
+        maxY: Math.max(...caixas.map((c) => c.maxY)),
+      }
+    }
+    const batente = caixaDeTudo(so(desenharBatente))
+    const quase = caixaDeTudo(desenhar(id, 0.9999))
+    // Meio px de tela (escala 1), bem abaixo do 1,5 px da régua M5.
+    const folga = 0.5
+    expect(quase.minX).toBeGreaterThanOrEqual(batente.minX - folga)
+    expect(quase.maxX).toBeLessThanOrEqual(batente.maxX + folga)
+    expect(quase.minY).toBeGreaterThanOrEqual(batente.minY - folga)
+    expect(quase.maxY).toBeLessThanOrEqual(batente.maxY + folga)
+  })
+
   it.each(['girar', 'deslizar'])('%s é opaco o caminho inteiro: 201 pontos, nenhum preenchimento ou traço com alfa', (id) => {
     for (let i = 0; i <= 200; i += 1) {
       for (const instrucao of desenhar(id, i / 200).context.instructions) {
