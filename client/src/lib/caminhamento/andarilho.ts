@@ -181,6 +181,17 @@ function tracoDoPassoServe(mundo: MundoDoAndarilho, alvo: Point): boolean {
   return fichaNoTraco(aqui, alvo, obstaculosPara(aqui, mundo.fichas, malha.raio, malha.grid)) === null
 }
 
+/** Alguma das `fichas` está no vão da porta `w`: fechar a porta passaria por ela. */
+function vaoOcupado(w: Wall, fichas: readonly FichaNoCaminho[], grid: number): boolean {
+  return fichas.some((f) => distanciaAoTraco(f.x, f.y, w.x1, w.y1, w.x2, w.y2) < f.raio - grid * TOLERANCIA_ENTRE_FICHAS)
+}
+
+/** A porta `id` ainda é dela para fechar: existe, está aberta e destrancada. */
+function portaAbertaDeFechar(paredes: readonly Wall[], id: string): Wall | null {
+  const w = paredes.find((p) => p.id === id)
+  return w === undefined || w.door === null || !w.door.open || w.door.locked ? null : w
+}
+
 /** As portas a fechar: fecha a que já ficou para trás com o vão vazio; longe demais, deixa aberta. */
 function fecharAtras(a: Andarilho, mundo: MundoDoAndarilho, aqui: Point, acoes: AcaoNaPorta[]): readonly string[] {
   if (a.fechar.length === 0) return a.fechar
@@ -188,14 +199,29 @@ function fecharAtras(a: Andarilho, mundo: MundoDoAndarilho, aqui: Point, acoes: 
   const folga = malha.raio - malha.grid * TOLERANCIA_ENTRE_FICHAS
   const restam: string[] = []
   for (const id of a.fechar) {
-    const w = paredes.find((p) => p.id === id)
-    if (w === undefined || w.door === null || !w.door.open || w.door.locked) continue
+    const w = portaAbertaDeFechar(paredes, id)
+    if (w === null) continue
     const distancia = distanciaAoTraco(aqui.x, aqui.y, w.x1, w.y1, w.x2, w.y2)
-    const vaoOcupado = fichas.some((f) => distanciaAoTraco(f.x, f.y, w.x1, w.y1, w.x2, w.y2) < f.raio - malha.grid * TOLERANCIA_ENTRE_FICHAS)
-    if (distancia >= folga && !vaoOcupado) acoes.push({ tipo: 'fechar', wallId: id })
+    if (distancia >= folga && !vaoOcupado(w, fichas, malha.grid)) acoes.push({ tipo: 'fechar', wallId: id })
     else if (distancia < ALCANCE_PARA_FECHAR * malha.grid) restam.push(id)
   }
   return restam
+}
+
+/**
+ * Ela sai da cena (vai de uma vez para outra): fecha o que ficou aberto atrás
+ * dela — as portas que ia fechar e as que abriu sem cruzar —, agora que ela
+ * mesma não está mais no vão. Com outra ficha no vão, deixa aberta, como
+ * quando ela se afasta andando (`ALCANCE_PARA_FECHAR`): de longe, ninguém
+ * fecha porta. `paredes` e `fichas`: as da cena que ela deixa, sem ela.
+ */
+export function fecharAoSair(a: Andarilho, paredes: readonly Wall[], fichas: readonly FichaNoCaminho[], grid: number): AcaoNaPorta[] {
+  const acoes: AcaoNaPorta[] = []
+  for (const id of new Set([...a.fechar, ...a.abertas])) {
+    const w = portaAbertaDeFechar(paredes, id)
+    if (w !== null && !vaoOcupado(w, fichas, grid)) acoes.push({ tipo: 'fechar', wallId: id })
+  }
+  return acoes
 }
 
 /**

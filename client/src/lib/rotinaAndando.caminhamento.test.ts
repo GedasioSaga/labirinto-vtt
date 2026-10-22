@@ -219,6 +219,138 @@ describe('rotina pelo motor: quem não anda', () => {
   })
 })
 
+describe('rotina pelo motor: a porta que ficou aberta quando ela vai para outra cena', () => {
+  const SACRISTIA = 'sacristia'
+  /** A sala com a porta de duas casas (y 160..288) no lado oeste: cabem duas fichas lado a lado no vão. */
+  const salaDePortaLarga = (): Wall[] => [
+    parede('sala-n', 576, 64, 896, 64),
+    parede('sala-l', 896, 64, 896, 448),
+    parede('sala-s', 576, 448, 896, 448),
+    parede('sala-o1', 576, 64, 576, 160),
+    parede('porta', 576, 160, 576, 288, FECHADA),
+    parede('sala-o2', 576, 288, 576, 448),
+  ]
+  /** O Meio, uma casa e meia para dentro da porta: perto dela o bastante para, chegando, ainda tentar fechá-la. */
+  const MEIO_DENTRO = { x: 672, y: 224 }
+  /** Na sacristia. */
+  const ALTAR = { x: 160, y: 224 }
+  const postos = [
+    { valor: 'Aurora', sceneId: CENA, x: AURORA.x, y: AURORA.y },
+    { valor: 'Meio', sceneId: CENA, x: MEIO_DENTRO.x, y: MEIO_DENTRO.y },
+    { valor: 'Brasa', sceneId: SACRISTIA, x: ALTAR.x, y: ALTAR.y },
+  ]
+  const npc: Token = { ...tobias(AURORA, []), rotina: { estadoId: 'apito', postos } }
+  /** O herói do lado de fora, na metade de baixo do vão: fechar a porta passaria por ele. */
+  const NO_VAO = { x: 552, y: 272 }
+  /** Ela passou do vão (x 576) e ainda não chegou ao canto de dentro, onde fecharia a porta. */
+  const PASSOU_DO_VAO = 590
+
+  function cenas(): CenaDaRotina[] {
+    return [
+      { sceneId: CENA, map: { ...createEmptyMap(CENA, CENA, 15, 10, G), walls: salaDePortaLarga(), tokens: [npc] } },
+      { sceneId: SACRISTIA, map: { ...createEmptyMap(SACRISTIA, SACRISTIA, 15, 10, G), walls: [], tokens: [] } },
+    ]
+  }
+
+  const portaDaCapela = (cs: readonly CenaDaRotina[]) => cs.find((c) => c.sceneId === CENA)?.map.walls.find((w) => w.id === 'porta')?.door?.open
+  const ondeEstaTobias = (cs: readonly CenaDaRotina[]) => cs.find((c) => c.map.tokens.some((t) => t.id === 'tobias'))?.sceneId
+
+  /** Um tique como o editor: o passo na cena, a ficha levada para a outra (`transferToken`) e as portas de cada cena. */
+  function tiqueNasCenas(cs: readonly CenaDaRotina[], andando: RotinasAndando, agora: number) {
+    const passo = darPassoDaRotina(cs, andando, ESTADOS, agora)
+    const levadas = passo.movimentos.filter((m) => m.de !== m.para)
+    const depois = cs.map((c) => {
+      const saem = new Set(levadas.filter((m) => m.de === c.sceneId).map((m) => m.tokenId))
+      const entram = levadas
+        .filter((m) => m.para === c.sceneId)
+        .flatMap((m) => cs.flatMap((o) => o.map.tokens.filter((t) => t.id === m.tokenId)).map((t) => ({ ...t, x: m.x, y: m.y })))
+      const movida = moverNaCena(c.map, passo.movimentos)
+      const tokens = [...movida.tokens.filter((t) => !saem.has(t.id)), ...entram]
+      return { sceneId: c.sceneId, map: comPortasDoNpc({ ...movida, tokens }, passo.portas.filter((p) => p.sceneId === c.sceneId)) }
+    })
+    return { ...passo, cenas: depois }
+  }
+
+  /** O herói em `p` na capela (entra, se não estava). */
+  function heroiEm(cs: readonly CenaDaRotina[], p: Point): CenaDaRotina[] {
+    return cs.map((c) => (c.sceneId === CENA ? { ...c, map: { ...c.map, tokens: [...c.map.tokens.filter((t) => t.id !== 'heroi'), { ...HEROI, ...p }] } } : c))
+  }
+
+  /**
+   * Anda até ela parar no Meio, com o herói entrando no vão logo atrás dela: no
+   * canto de dentro ela não fecha a porta (passaria por ele) e chega ao posto
+   * com a porta ainda por fechar. Devolve o mundo no tique da chegada.
+   */
+  function ateOMeioComOHeroiNoVao() {
+    let cs = cenas()
+    let andando = ligarRotina(new Map(), cs, 'tobias', ESTADOS, 0)
+    let entrou = false
+    for (let i = 0; i < 80; i += 1) {
+      const antes = cs[0]?.map.tokens.find((token) => token.id === 'tobias')
+      if (!entrou && antes !== undefined && antes.x > PASSOU_DO_VAO && portaDaCapela(cs) === true) {
+        cs = heroiEm(cs, NO_VAO)
+        entrou = true
+      }
+      const r = tiqueNasCenas(cs, andando, i * PASSO_DA_ROTINA_MS)
+      cs = r.cenas
+      andando = r.andando
+      const t = cs[0]?.map.tokens.find((token) => token.id === 'tobias')
+      if (t?.x === MEIO_DENTRO.x && t.y === MEIO_DENTRO.y) return { cs, andando, chegada: i }
+    }
+    throw new Error('não chegou ao Meio')
+  }
+
+  /** Da chegada ao Meio até ela ir para a sacristia: o tique da ida e o mundo depois dele. */
+  function ateASacristia(inicio: { cs: CenaDaRotina[]; andando: RotinasAndando; chegada: number }) {
+    let { cs, andando } = inicio
+    for (let i = inicio.chegada + 1; i < inicio.chegada + 30; i += 1) {
+      const r = tiqueNasCenas(cs, andando, i * PASSO_DA_ROTINA_MS)
+      cs = r.cenas
+      andando = r.andando
+      if (ondeEstaTobias(cs) === SACRISTIA) return { cs, andando, portas: r.portas }
+    }
+    throw new Error('não foi para a sacristia')
+  }
+
+  it('o herói no vão atrás dela: chega ao posto sem fechar; ele sai do vão na parada e, indo ela para a outra cena, a porta da capela fecha', () => {
+    const noMeio = ateOMeioComOHeroiNoVao()
+    expect(portaDaCapela(noMeio.cs)).toBe(true)
+    expect(noMeio.andando.get('tobias')?.andarilho?.fechar).toEqual(['porta'])
+    const ida = ateASacristia({ ...noMeio, cs: heroiEm(noMeio.cs, { x: HEROI.x, y: HEROI.y }) })
+    expect(ida.portas).toEqual([{ sceneId: CENA, wallId: 'porta', aberta: false }])
+    expect(portaDaCapela(ida.cs)).toBe(false)
+    // O trecho ficou na capela: na sacristia ela começa outro, sem porta para fechar.
+    expect(ida.andando.get('tobias')?.andarilho).toBeUndefined()
+  })
+
+  it('o herói segue no vão na hora de ir: a porta fica aberta (de longe ninguém fecha porta) e o herói não sai do lugar', () => {
+    const ida = ateASacristia(ateOMeioComOHeroiNoVao())
+    expect(ida.portas).toEqual([])
+    expect(portaDaCapela(ida.cs)).toBe(true)
+    expect(ida.cs[0]?.map.tokens.find((t) => t.id === 'heroi')).toEqual({ ...HEROI, ...NO_VAO })
+  })
+
+  it('voltas inteiras entre as duas cenas: toda vez que ela está na sacristia, a porta da capela está fechada', () => {
+    let cs = cenas()
+    let andando = ligarRotina(new Map(), cs, 'tobias', ESTADOS, 0)
+    const portas: PortaDoNpc[] = []
+    const naSacristia: number[] = []
+    for (let i = 0; i < 2 * UMA_VOLTA; i += 1) {
+      const r = tiqueNasCenas(cs, andando, i * PASSO_DA_ROTINA_MS)
+      cs = r.cenas
+      andando = r.andando
+      portas.push(...r.portas)
+      if (ondeEstaTobias(cs) !== SACRISTIA) continue
+      naSacristia.push(i)
+      expect(portaDaCapela(cs), `tique ${i}`).toBe(false)
+    }
+    // Pelo menos duas idas à sacristia, e cada ida ao Meio abriu a porta.
+    expect(new Set(naSacristia.filter((i) => !naSacristia.includes(i - 1))).size).toBeGreaterThanOrEqual(2)
+    expect(portas.filter((p) => p.aberta).length).toBeGreaterThanOrEqual(2)
+    expect(portas.every((p) => p.sceneId === CENA)).toBe(true)
+  })
+})
+
 /**
  * A ROTINA SIMPLES DE ANTES — o agendador como era antes do motor, para a
  * rotina sem obstáculo (o caminho em grade devolvia a reta): a cada tique um

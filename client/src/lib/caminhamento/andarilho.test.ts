@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Point } from '../../pixi/world'
 import type { Wall } from '../../types/map'
-import { novoAndarilho, tiqueDoAndarilho } from './andarilho'
+import { fecharAoSair, novoAndarilho, tiqueDoAndarilho } from './andarilho'
 import type { ResultadoDoCaminho } from './busca'
 import { GRID, mapa, parede, paredeComVao, porta } from './caminho.fixture'
 import { montarMalha } from './marcos'
@@ -186,6 +186,33 @@ describe('andarilho: porta que ele abriu e replanejou antes de cruzar', () => {
     const chegada = tiqueDoAndarilho({ ...andarilho, pontos: [] }, { ...mundo, aqui: destino })
     expect(chegada.situacao).toBe('chegou')
     expect(chegada.acoes).toContainEqual({ tipo: 'fechar', wallId: 'vao' })
+  })
+})
+
+describe('andarilho: ao sair da cena, fecha o que deixou aberto', () => {
+  /** Quatro portas abertas em x 384, uma por faixa de 64 px; a última trancada. */
+  const portas = [
+    parede('fechar-livre', 384, 0, 384, 64, { door: porta({ open: true }) }),
+    parede('aberta-sem-cruzar', 384, 128, 384, 192, { door: porta({ open: true }) }),
+    parede('com-gente', 384, 256, 384, 320, { door: porta({ open: true }) }),
+    parede('trancada', 384, 384, 384, 448, { door: porta({ open: true, locked: true }) }),
+    parede('ja-fechada', 384, 512, 384, 576, { door: porta() }),
+  ]
+  const trecho = { ...novoAndarilho({ x: 0, y: 0 }, { x: 0, y: 0 }, ['fechar-livre', 'com-gente', 'trancada', 'ja-fechada', 'sumiu']), abertas: ['aberta-sem-cruzar', 'fechar-livre'] }
+
+  it('fecha as que ia fechar e as que abriu sem cruzar, uma vez cada; com alguém no vão, trancada, já fechada ou que sumiu: nada', () => {
+    const noVao = [{ id: 'heroi', x: 368, y: 288, raio: R1 }]
+    expect(fecharAoSair(trecho, portas, noVao, GRID)).toEqual([
+      { tipo: 'fechar', wallId: 'fechar-livre' },
+      { tipo: 'fechar', wallId: 'aberta-sem-cruzar' },
+    ])
+  })
+
+  it('ficha encostada no vão, sem estar nele: fecha; ninguém para fechar: nada', () => {
+    // A ficha a um raio inteiro da porta só a toca (a tolerância do desenho).
+    const encostada = [{ id: 'heroi', x: 384 - R1, y: 288, raio: R1 }]
+    expect(fecharAoSair(trecho, portas, encostada, GRID).map((a) => a.wallId)).toEqual(['fechar-livre', 'com-gente', 'aberta-sem-cruzar'])
+    expect(fecharAoSair(novoAndarilho({ x: 0, y: 0 }, { x: 0, y: 0 }), portas, [], GRID)).toEqual([])
   })
 })
 

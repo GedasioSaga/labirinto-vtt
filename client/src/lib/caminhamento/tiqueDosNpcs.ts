@@ -1,7 +1,7 @@
 import type { Point } from '../../pixi/world'
 import type { MapData } from '../../types/map'
 import { AgendaDeCaminhos } from './agenda'
-import { type Andarilho, type FimDoTrecho, type MotivoDoAndarilho, novoAndarilho, type TiqueDoAndarilho, tiqueDoAndarilho } from './andarilho'
+import { type AcaoNaPorta, type Andarilho, fecharAoSair, type FimDoTrecho, type MotivoDoAndarilho, novoAndarilho, type TiqueDoAndarilho, tiqueDoAndarilho } from './andarilho'
 import type { ResultadoDoCaminho } from './busca'
 import { entradaDaFicha } from './daFicha'
 
@@ -152,6 +152,21 @@ export class TiqueDosNpcs {
     return tique
   }
 
+  /**
+   * `tokenId` sai da cena `sceneId` para outra (`map`: o mapa dela no começo do
+   * tique): fecha atrás de si o que o trecho `anterior` deixou aberto aqui
+   * (`fecharAoSair`) — o trecho não vai junto para a outra cena — e o pedido de
+   * caminho `chave` sai da agenda.
+   */
+  sair(chave: string, sceneId: string, map: MapData, tokenId: string, anterior: Andarilho | undefined): void {
+    this.motor.agenda.cancelar(chave)
+    if (anterior === undefined) return
+    const mapa = this.mapas.get(sceneId) ?? map
+    const entrada = entradaDaFicha(mapa, tokenId, this.posicoes)
+    if (entrada === null) return
+    this.mexerPortas(sceneId, mapa, fecharAoSair(anterior, entrada.mapa.walls, entrada.fichas, mapa.grid))
+  }
+
   /** A agenda trabalha o que resta do orçamento do tique; a resposta de `chave`, se saiu. */
   private responder(chave: string): ResultadoDoCaminho | undefined {
     const resta = this.motor.orcamentoDoTique - this.gasto
@@ -161,8 +176,14 @@ export class TiqueDosNpcs {
 
   /** O passo de `tokenId` entra no mundo do tique: a posição nova e as portas mexidas. */
   private aplicar(sceneId: string, mapa: MapData, tokenId: string, tique: TiqueDoAndarilho): void {
+    this.mexerPortas(sceneId, mapa, tique.acoes)
+    this.posicoes.set(tokenId, tique.para)
+  }
+
+  /** As portas abertas e fechadas entram no mapa da cena neste tique e na lista para quem aplica. */
+  private mexerPortas(sceneId: string, mapa: MapData, acoes: readonly AcaoNaPorta[]): void {
     let depois = mapa
-    for (const acao of tique.acoes) {
+    for (const acao of acoes) {
       const aberta = acao.tipo === 'abrir'
       const mexido = comPortaDoNpc(depois, acao.wallId, aberta)
       if (mexido === depois) continue
@@ -170,6 +191,5 @@ export class TiqueDosNpcs {
       this.portas.push({ sceneId, wallId: acao.wallId, aberta })
     }
     if (depois !== mapa) this.mapas.set(sceneId, depois)
-    this.posicoes.set(tokenId, tique.para)
   }
 }

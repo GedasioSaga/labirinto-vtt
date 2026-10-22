@@ -151,7 +151,8 @@ function rumoAoSeguinte(destino: number, total: number, esperaAte: number, andar
  * - sem caminho (porta trancada, ficha tapando, sala sem saída): espera e
  *   tenta de novo; sem jeito, DESISTE do posto com o motivo (`aviso`), espera
  *   `TENTAR_DE_NOVO_MS` e segue para o próximo — no loop seguinte tenta de novo;
- * - posto noutra cena carregada: vai de uma vez para lá (`transferToken`);
+ * - posto noutra cena carregada: vai de uma vez para lá (`transferToken`),
+ *   fechando antes a porta que deixou aberta nesta (com alguém no vão, fica);
  * - posto em cena fora do ar: fica de fora do loop, a ficha não some;
  * - ficha em `fixas` (um jogador segura), congelada pelo mestre ou esperando
  *   no posto: não anda;
@@ -192,6 +193,8 @@ export function darPassoDaRotina(
     const posto = postos[passo]
     const { cena, token } = achada
     if (posto.sceneId !== cena.sceneId) {
+      // O trecho fica nesta cena: o que ele deixou aberto aqui fecha antes de ela ir.
+      mundo.sair(chaveDaRotina(tokenId), cena.sceneId, cena.map, tokenId, ficha.andarilho)
       movimentos.push({ tokenId, de: cena.sceneId, para: posto.sceneId, x: posto.x, y: posto.y })
       next.set(tokenId, rumoAoSeguinte(passo, postos.length, now + ESPERA_NO_POSTO_MS, undefined, avisoDepoisDeChegar(ficha.aviso, posto)))
       continue
