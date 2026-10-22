@@ -211,7 +211,9 @@
    e o espelho da tela do jogador andarem para o lado em vez de ficar embaixo
    dele. No `:root` porque o espelho vai para o `body` por portal. Recolhido,
    sobra a lombada. */
-:root { --lb-coldir-espaco: 0px; }
+:root { --lb-coldir-espaco: 0px; --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
+/* O livro do mestre recolhido tapa só a lombada: a barra do pé (main.css) usa o vão devolvido. */
+:root:has(.gr-livro--esq.gr-e-recolhido) { --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
 :root:has(.lb-editor[data-coldir='aberta']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
 :root:has(.lb-editor[data-coldir='escondida']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
 

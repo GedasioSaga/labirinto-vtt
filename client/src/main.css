@@ -960,17 +960,23 @@ body {
   pointer-events: none;
 }
 
-/* Pé do mapa: a barra de ferramentas, centrada entre os dois livros com o
-   mesmo padding simétrico do topo (design consolidado, fatia 6). */
+/* Pé do mapa: a barra de ferramentas, centrada no mapa que sobra entre os dois
+   livros (design consolidado, fatia 6). Cada lado guarda o que o seu livro
+   tapa (livro.css): o livro recolhido devolve a página ao mapa e à barra, que
+   então cabe numa fileira com o botão de 38 px a 1280 (fatia 21). A barra
+   escolhe o tamanho pelo vão de verdade (`@container lb-base`), não pela
+   janela. */
 .lb-editor__base {
   position: absolute;
   bottom: var(--lb-layout-edge-gap);
   left: 0;
   right: 0;
-  padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
+  padding: 0 calc(var(--lb-coldir-espaco, var(--lb-layout-livro-do-mestre)) + var(--lb-layout-edge-gap)) 0
+    calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre)) + var(--lb-layout-edge-gap));
   display: flex;
   justify-content: center;
   pointer-events: none;
+  container: lb-base / inline-size;
 }
 
 /* Âncora do balão de dica: ele é posicionado em relação a esta caixa, que
@@ -994,9 +1000,9 @@ body {
    nas pontas e a placa de latão na ferramenta armada. Só filete de 1 px e
    sombra, nenhum contorno grosso.
    `--lb-ferr` é o lado do botão: 38 px, o do protótipo, quando cabe. Com o
-   grupo Terreno sempre à vista (decisão 6 do plano) são 19 botões, e entre os
-   dois livros eles só cabem numa fileira com 32 px a partir de 1440 (abaixo
-   de 1560) e 28 px abaixo de 1366.
+   grupo Terreno sempre à vista (decisão 6 do plano) são 19 botões; o lado
+   desce a 32 e a 28 px só quando o vão entre os livros não comporta a fileira
+   (os degraus `@container lb-base` mais abaixo).
    `flex-wrap: wrap` segue como a rede de segurança de D2: com `.lb-toolbar-dock`
    limitado à largura central, a UNIDADE de quebra é o grupo
    (`.lb-toolbar__group`), nunca o botão avulso — nada de separador órfão. */
@@ -1081,7 +1087,7 @@ body {
   height: var(--lb-ferr-icone);
   filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.6)) drop-shadow(0 1px 0 rgba(255, 236, 200, 0.08));
 }
-.lb-ferr:active { transform: scale(0.94); }
+.lb-ferr:active { transform: scale(0.96); }
 .lb-ferr[aria-pressed='true'] { color: var(--lb-color-brass-contrast); }
 .lb-ferr[aria-pressed='true'] svg { filter: drop-shadow(0 1px 0 rgba(255, 245, 225, 0.35)); }
 
@@ -1110,13 +1116,21 @@ body {
 }
 .lb-toolbar__placa[data-posta] { opacity: 1; }
 
-@media (max-width: 1559px) {
+/* Os degraus saem da largura da barra medida no Chromium (19 botões, 5 grupos,
+   8 setas de variante): 854 px com o botão de 38 e o respiro cheio, 834 com o
+   respiro curto, ~720 com o de 32 e ~644 com o de 28. Abaixo disso, a quebra
+   por grupo é a rede de segurança. */
+@container lb-base (max-width: 853px) {
+  .lb-toolbar { padding: 6px 12px; }
+  .lb-toolbar__sep { margin: 0 4px; }
+}
+
+@container lb-base (max-width: 833px) {
   .lb-toolbar { --lb-ferr: 32px; --lb-ferr-icone: 18px; }
 }
 
-@media (max-width: 1365px) {
-  .lb-toolbar { --lb-ferr: 28px; --lb-ferr-icone: 17px; padding: 6px 12px; }
-  .lb-toolbar__sep { margin: 0 4px; }
+@container lb-base (max-width: 719px) {
+  .lb-toolbar { --lb-ferr: 28px; --lb-ferr-icone: 17px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

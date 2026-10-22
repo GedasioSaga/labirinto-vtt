@@ -766,7 +766,7 @@ function App() {
   // LIVRO DA MESA (fatia 4): a página aberta (Grupo, Chat, Cenas, Mesa), a
   // página à vista ou recolhida na lombada (lembrado) e o que o chat ainda não leu.
   const paginaDaMesa = useLivroDaMesaStore((state) => state.pagina)
-  const [rightOpen, setRightOpen] = useLivroDaMesaAberto()
+  const [rightOpen, setRightOpen] = useLivroDaMesaAberto(room !== null)
   const [chatUnread, setChatUnread] = useState<ChatUnread>(NO_CHAT_UNREAD)
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
   const [objectSearchRequest, setObjectSearchRequest] = useState(0)

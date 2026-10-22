@@ -16,8 +16,14 @@ const CHAVE_ABERTO = 'lb-coldir:aberta'
 /** A altura das Cenas do divisor que saiu (as Cenas viraram página): a chave sai do aparelho. */
 const CHAVE_APOSENTADA_ALTURA_DAS_CENAS = 'lb-coldir:cenas'
 
-/** Abaixo desta largura de janela, sem escolha lembrada, o livro nasce recolhido: os dois livros comeriam o mapa. */
+/** Abaixo desta largura de janela, sem escolha lembrada, o livro fica recolhido mesmo com a sala aberta: os dois livros comeriam o mapa. */
 export const LIVRO_DA_MESA_ESTREITO_PX = 1024
+/**
+ * Abaixo desta largura, sem escolha lembrada e com a sala fechada, o livro fica
+ * recolhido (decisão 7 do PLANO.md): sem sala o Grupo, o Chat e a Mesa não têm
+ * o que mostrar, e a página aberta tiraria mais 262 px do mapa a 1280.
+ */
+export const LIVRO_DA_MESA_SALA_FECHADA_PX = 1366
 
 function armazem(): Storage | null {
   try {
@@ -27,7 +33,8 @@ function armazem(): Storage | null {
   }
 }
 
-function lerAberto(): boolean {
+/** A escolha que o mestre fez (seta da lombada, Shift+J, um marcador): `null` = nunca escolheu, vale a janela. */
+function lerEscolha(): boolean | null {
   try {
     const guardado = armazem()?.getItem(CHAVE_ABERTO)
     if (guardado === '1') return true
@@ -35,7 +42,13 @@ function lerAberto(): boolean {
   } catch {
     // Storage bloqueado: vale a largura da janela.
   }
-  return window.innerWidth >= LIVRO_DA_MESA_ESTREITO_PX
+  return null
+}
+
+/** Sem escolha lembrada: aberto na janela larga, ou na média com a sala aberta. */
+export function abertoPelaJanela(largura: number, salaAberta: boolean): boolean {
+  if (largura >= LIVRO_DA_MESA_SALA_FECHADA_PX) return true
+  return salaAberta && largura >= LIVRO_DA_MESA_ESTREITO_PX
 }
 
 try {
@@ -47,19 +60,27 @@ try {
 /**
  * Página à vista ou recolhida na lombada, lembrado entre as sessões (a mesma
  * escolha da coluna da direita de antes). O dono é o App: o chat e o resto da
- * tela leem.
+ * tela leem. Enquanto o mestre não escolhe, o livro segue a janela e a sala
+ * (`abertoPelaJanela`), também ao redimensionar; a escolha lembrada vence.
  */
-export function useLivroDaMesaAberto(): [boolean, (aberto: boolean) => void] {
-  const [aberto, setAberto] = useState(lerAberto)
+export function useLivroDaMesaAberto(salaAberta: boolean): [boolean, (aberto: boolean) => void] {
+  const [escolha, setEscolha] = useState(lerEscolha)
+  const [largura, setLargura] = useState(() => window.innerWidth)
+  useEffect(() => {
+    if (escolha !== null) return
+    const aoRedimensionar = () => setLargura(window.innerWidth)
+    window.addEventListener('resize', aoRedimensionar)
+    return () => window.removeEventListener('resize', aoRedimensionar)
+  }, [escolha])
   const mudar = useCallback((proximo: boolean) => {
-    setAberto(proximo)
+    setEscolha(proximo)
     try {
       armazem()?.setItem(CHAVE_ABERTO, proximo ? '1' : '0')
     } catch {
       // Sem armazenamento a escolha vale só nesta sessão.
     }
   }, [])
-  return [aberto, mudar]
+  return [escolha ?? abertoPelaJanela(largura, salaAberta), mudar]
 }
 
 export interface LivroDaMesaProps {
