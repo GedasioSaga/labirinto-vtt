@@ -1,7 +1,8 @@
 import { pointInRing } from '../lib/floorContour'
 import { pisoDe } from '../lib/pisos'
 import type { SomId } from '../lib/sons/receitas'
-import type { MapData, RegionPoint, Wall } from '../types/map'
+import { animacaoDePorta } from '../portas/animacoesDePorta'
+import type { DoorState, MapData, RegionPoint, Wall } from '../types/map'
 import type { PlayerState } from './playerConnection'
 
 /**
@@ -141,6 +142,17 @@ function paredesDo(mapa: MapData): readonly Wall[] {
 }
 
 /**
+ * Porta cuja animação tem som próprio (`portas/somDePorta.ts`): quem toca é o
+ * animador do mapa, no começo do caminho e no tempo dele. O rangido de clima
+ * por cima seria a mesma porta soando duas vezes.
+ */
+function temSomDaAnimacao(porta: DoorState): boolean {
+  if (porta.secret === true) return false
+  const animacao = animacaoDePorta(porta.animacao)
+  return animacao !== null && animacao.som !== undefined
+}
+
+/**
  * Portas que mudaram à vista dele, no mesmo mapa: no máximo um rangido e um
  * baque por mudança, mesmo com várias portas (alavanca, o mestre em lote).
  * Mapa de outra cena (o snapshot logo atrás do `scene.changed` vem com a
@@ -163,6 +175,7 @@ function sonsDasPortas(antes: PlayerState, depois: PlayerState): SomId[] {
     if (porta === null) continue
     const antiga = portasAntes.get(parede.id)
     if (antiga === undefined || antiga.door === null || antiga.door.open === porta.open) continue
+    if (temSomDaAnimacao(porta)) continue
     if (!portaAVista(antiga, antes.vision) || !portaAVista(parede, depois.vision)) continue
     if (porta.open) abriu = true
     else fechou = true

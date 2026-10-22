@@ -52,6 +52,7 @@ import { computeVisibleTriEdges } from '../pixi/triGrid'
 import { createFloorRenderer } from '../pixi/drawFloor'
 import { drawWalls } from '../pixi/drawWalls'
 import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorDePortas'
+import { tocarSomDePorta } from '../portas/somDePorta'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
@@ -3174,7 +3175,8 @@ function PlayerViewDoCanvas({
         propLooksCount: { images: 0, labels: 0 },
         walls,
         doors,
-        animadorDePortas: createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion }),
+        // Só este toca o som da porta: a cópia por cima do telhado anima junto e ficaria em dobro.
+        animadorDePortas: createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }),
         doorHints,
         lastDoorHintsKey: null,
         doorHintsCount: 0,

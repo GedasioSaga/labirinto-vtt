@@ -47,6 +47,7 @@ import { drawGridAlignOverlay } from './drawGridAlignOverlay'
 import { isHidden, canInteract } from '../lib/itemTransform'
 import { drawWalls } from './drawWalls'
 import { createAnimadorDePortas } from './animadorDePortas'
+import { tocarSomDePorta } from '../portas/somDePorta'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
@@ -1847,7 +1848,7 @@ export function PixiCanvas({
        * escolhida quando `open` muda e repinta sozinho no relógio do Pixi
        * enquanto alguma anda (`animadorDePortas.ts`).
        */
-      const animadorDePortas = createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const animadorDePortas = createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta })
       const paintWallsAndDoors = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)

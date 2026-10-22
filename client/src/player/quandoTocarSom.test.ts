@@ -167,6 +167,19 @@ describe('sonsDaMudanca: portas', () => {
     expect(sonsDaMudanca(com([porta('p1', true)]), com([porta('p1', false)]), nada())).toEqual(['portaFecha'])
   })
 
+  it('porta com animação que tem som próprio: o animador do mapa toca, o rangido de clima não (seria em dobro)', () => {
+    const animada = (id: string, aberta: boolean, animacao: string, x = 100): Wall => {
+      const base = porta(id, aberta, x)
+      return { ...base, door: base.door === null ? null : { ...base.door, animacao } }
+    }
+    expect(sonsDaMudanca(com([animada('p1', false, 'girar')]), com([animada('p1', true, 'girar')]), nada())).toEqual([])
+    expect(sonsDaMudanca(com([animada('p1', true, 'deslizar')]), com([animada('p1', false, 'deslizar')]), nada())).toEqual([])
+    // Animação de pacote que este app não tem anima nada e não tem som: o de clima segue.
+    expect(sonsDaMudanca(com([animada('p1', false, 'nao-instalada')]), com([animada('p1', true, 'nao-instalada')]), nada())).toEqual(['portaAbre'])
+    // A animada calada não cala a vizinha sem animação.
+    expect(sonsDaMudanca(com([animada('p1', false, 'girar'), porta('p2', false, 200)]), com([animada('p1', true, 'girar'), porta('p2', true, 200)]), nada())).toEqual(['portaAbre'])
+  })
+
   it('três portas abrindo (alavanca) dão um rangido só; uma abrindo e outra fechando, um de cada', () => {
     const fechadas = com([porta('p1', false, 100), porta('p2', false, 200), porta('p3', false, 300), parede('w1')])
     const abertas = com([porta('p1', true, 100), porta('p2', true, 200), porta('p3', true, 300), parede('w1')])
