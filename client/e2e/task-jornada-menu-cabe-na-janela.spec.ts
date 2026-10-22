@@ -64,8 +64,11 @@ async function dentroDaJanela(page: Page, alvo: Locator): Promise<boolean> {
   return caixa.x >= 0 && caixa.y >= 0 && caixa.x + caixa.width <= janela.width && caixa.y + caixa.height <= janela.height
 }
 
+/** O menu ABERTO. O que acabou de fechar ainda some por 120 ms (`ComSaida`),
+ *  inerte, com `gr-sai` e com a escolha de antes: para quem usa ele já fechou,
+ *  e ler o `aria-checked` dele seria ler o estado velho. */
 function menuDeChao(page: Page): Locator {
-  return page.getByRole('group', { name: 'Opções de Chão', exact: true })
+  return page.locator('[role="group"][aria-label="Opções de Chão"]:not(.gr-sai)')
 }
 
 /** Abre o menu pela setinha embaixo do ícone de Chão, o caminho do usuário.
