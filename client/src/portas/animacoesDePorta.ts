@@ -36,7 +36,7 @@ export interface PortaParaDesenho {
   espessura: number
   /** Espessura do contorno da porta aberta, em mundo. */
   contorno: number
-  /** Cor da porta: laranja, ou vermelha se trancada. */
+  /** Cor da porta: a própria (`DoorState.cor`), ou laranja, vermelha se trancada. */
   cor: number
   /** Zoom da câmera (px de tela por unidade de mundo). */
   escala: number

@@ -4,7 +4,7 @@ import { isHidden } from '../lib/itemTransform'
 import { isLayerVisible, visibleRegions, visibleTokens, visibleWalls } from '../lib/layers'
 import { mapaDoPiso } from '../lib/pisos'
 import { tokenFillColor } from '../lib/tokenColor'
-import { DOOR_COLOR, DOOR_LENGTH_RATIO, DOOR_LOCKED_COLOR } from '../pixi/drawDoors'
+import { DOOR_LENGTH_RATIO, corDaPortaNoMapa } from '../pixi/drawDoors'
 import { buildColorLayers, type FloorColorLayer } from '../pixi/drawFloor'
 import { mapBoundsRect } from '../pixi/drawMapBounds'
 import { markerCorners, markerEllipsePoints } from '../pixi/drawMapLines'
@@ -334,7 +334,8 @@ export function sceneArt(scene: MapData, piso = 0): SceneArt | null {
     if (door) {
       // Como no editor: a linha da parede com porta não é desenhada, o vão é da porta.
       const filled = door.locked || !door.open
-      const color = hex(door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR)
+      // A cor própria da porta também (fatia 22); o cadeado não cabe na miniatura.
+      const color = hex(corDaPortaNoMapa(door))
       groupInto(doorGroups, `${color}|${filled}`, doorPath(wall, doorThickness), () => ({ key: '', d: '', color, filled }))
       continue
     }
