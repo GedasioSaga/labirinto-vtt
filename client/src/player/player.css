@@ -557,7 +557,8 @@
   width: max-content;
   min-width: min(calc(max(248px, var(--pp-bar-w, 0px)) + 2 * var(--pp-pad) + 2px), calc(100% - 2 * var(--pp-edge)));
   max-width: calc(100% - 2 * var(--pp-edge));
-  max-height: calc(100% - 2 * var(--pp-edge) - var(--pp-alarm-space, 0px));
+  /* `--pp-teclado`: o que o teclado do celular cobre no pé (tecladoDoCelular.ts). */
+  max-height: calc(100% - 2 * var(--pp-edge) - var(--pp-alarm-space, 0px) - var(--pp-teclado, 0px));
   display: flex;
   flex-direction: column;
   /* O cabeçalho é o lugar da barra, que é `fixed` e fica por cima dele. */
@@ -1575,7 +1576,7 @@
     right: 8px;
     width: auto;
     max-width: none;
-    max-height: calc(100% - var(--pp-faixa-alto) - 16px - var(--pp-alarm-space, 0px));
+    max-height: calc(100% - var(--pp-faixa-alto) - 16px - var(--pp-alarm-space, 0px) - var(--pp-teclado, 0px));
     /* A barra mora na faixa, fora da folha: o alto da folha é das abas. */
     padding-top: 0;
     transform-origin: top center;

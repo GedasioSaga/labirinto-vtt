@@ -20,6 +20,7 @@ import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import type { PlayerMarkFormProps } from './PlayerMarkForm'
 import { PlayerMarcacoes } from './PlayerMarcacoes'
 import { IconeDoJogador } from './IconeDoJogador'
+import { acompanharTeclado } from './tecladoDoCelular'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -546,6 +547,14 @@ export function PlayerPanel({
     return () => window.removeEventListener('keydown', onKey)
     // `closeDrawer` só lê estes dois estados e refs estáveis.
   }, [drawerScreen, drawerOpen])
+
+  // O teclado do celular cobre o pé da folha (o campo do chat): enquanto ela
+  // está aberta, o teto dela desconta o teclado (`tecladoDoCelular.ts`).
+  useEffect(() => {
+    const panel = asideRef.current
+    if (!open || panel === null) return
+    return acompanharTeclado(panel)
+  }, [open, asideRef])
 
   function selectTab(next: PanelTab) {
     setTab(next)
