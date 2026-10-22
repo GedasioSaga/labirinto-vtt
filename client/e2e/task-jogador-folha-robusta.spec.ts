@@ -1,11 +1,15 @@
 // A FOLHA DO JOGADOR NO CELULAR, robusta (fatia 19b do design consolidado).
 //
 // O QUE PROVA, no Chromium de verdade, a 390 x 844:
-// 1. Abrir e fechar a folha 100 vezes não perde o contexto WebGL do mapa (o
-//    bug de 09/10, `0d241876`: o Chrome do Android soltava o contexto e o mapa
-//    voltava branco) nem vaza memória: o canvas é o mesmo do começo, nenhum
-//    `webglcontextlost`, e nós do DOM, ouvintes e heap (contados pelo
-//    DevTools, depois de recolher o lixo) voltam ao que eram.
+// 1. Abrir e fechar a folha 100 vezes não vaza memória, e o mapa sobrevive ao
+//    contexto WebGL perdido no meio delas, com a folha aberta (o bug de 09/10,
+//    `0d241876`: o Chrome do Android, apertado de GPU, soltava o contexto e o
+//    mapa voltava branco). O Chromium do teste nunca solta o contexto sozinho:
+//    a perda é forçada com `WEBGL_lose_context.loseContext()`, sem devolver,
+//    como o Android. Depois dela o mapa volta num canvas NOVO, vivo, com a
+//    ficha contada e desenhada, e não perde de novo. Antes e depois da perda,
+//    nós do DOM, ouvintes e heap (contados pelo DevTools, depois de recolher o
+//    lixo) voltam ao que eram ao fim de 50 voltas.
 // 2. A câmera reenquadra ao girar o celular (pendência da fatia 10): o meio
 //    da tela continua no meio, e a própria ficha não sai da tela.
 // 3. O teclado do celular sobre o chat não cobre o campo de texto. O Chromium
@@ -30,8 +34,9 @@ const GRADE = 50
 /** A ficha da Ana no meio do mapa (600 x 500): o enquadramento de chegada a põe no meio da tela. */
 const FICHA = { x: 300, y: 250 }
 const COR_DA_FICHA = '#3cff00'
-const VOLTAS = 100
-/** Voltas antes de contar: a primeira abertura carrega fonte, cria a fileira de abas e aquece o JIT. */
+/** Metade das 100 voltas antes da perda do contexto, metade depois. */
+const MEIAS_VOLTAS = 50
+/** Voltas antes de contar: a primeira abertura carrega fonte, cria a fileira de abas e aquece o JIT (e o Pixi novo, depois da perda). */
 const AQUECIMENTO = 5
 const TECLADO_PX = 320
 
@@ -101,15 +106,40 @@ function contarContextosPerdidos(): void {
   )
 }
 
-/** O canvas do mapa e o estado do contexto dele. `marcar` carimba o canvas, para saber depois se é o mesmo. */
-async function contextoDoMapa(page: Page, marcar: boolean): Promise<{ mesmoCanvas: boolean; perdido: boolean; perdas: number }> {
-  return page.evaluate((carimbar) => {
+interface EstadoDoMapa {
+  /** Quantos canvas há na página: o morto que ficasse junto do novo daria 2. */
+  canvases: number
+  /** O carimbo do canvas do mapa (`null` = um canvas que o teste ainda não carimbou). */
+  carimbo: string | null
+  perdido: boolean
+  /** Quantos `webglcontextlost` a página viu desde que abriu. */
+  perdas: number
+}
+
+/** O canvas do mapa e o estado do contexto dele. `carimbar` marca o canvas, para saber depois se ainda é o mesmo. */
+async function estadoDoMapa(page: Page, carimbar: string | null = null): Promise<EstadoDoMapa> {
+  return page.evaluate((carimbo) => {
+    const perdas = Number(Reflect.get(window, '__contextosPerdidos'))
+    const canvas = document.querySelector('canvas')
+    // Entre o Pixi morto sair e o novo montar, não há canvas: o `poll` espera.
+    if (canvas === null) return { canvases: 0, carimbo: null, perdido: true, perdas }
+    if (carimbo !== null) canvas.dataset.carimbo = carimbo
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+    return { canvases: document.querySelectorAll('canvas').length, carimbo: canvas.dataset.carimbo ?? null, perdido: gl === null || gl.isContextLost(), perdas }
+  }, carimbar)
+}
+
+/** Solta o contexto do mapa e não devolve: o que o Chrome do Android fazia, e o Chromium do teste nunca faz sozinho. */
+async function perderOContexto(page: Page): Promise<void> {
+  await page.evaluate(() => {
     const canvas = document.querySelector('canvas')
     if (canvas === null) throw new Error('sem o canvas do mapa')
-    if (carimbar) canvas.dataset.carimbo = 'primeiro'
     const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
-    return { mesmoCanvas: canvas.dataset.carimbo === 'primeiro', perdido: gl === null || gl.isContextLost(), perdas: Number(Reflect.get(window, '__contextosPerdidos')) }
-  }, marcar)
+    if (gl === null) throw new Error('o canvas do mapa sem contexto WebGL')
+    const perder = gl.getExtension('WEBGL_lose_context')
+    if (perder === null) throw new Error('o contexto do mapa sem WEBGL_lose_context')
+    perder.loseContext()
+  })
 }
 
 interface Contas {
@@ -129,32 +159,64 @@ async function contar(page: Page): Promise<Contas> {
   return { nos: dom.nodes, ouvintes: dom.jsEventListeners, heapMb: heap.usedSize / 1_048_576 }
 }
 
-async function abrirEFechar(page: Page): Promise<void> {
-  const painel = page.locator('.pp-bar > .pp-toggle')
-  const folha = page.getByRole('complementary', { name: 'Painel do jogador' })
-  await painel.click()
-  await expect(folha).toBeVisible()
-  await painel.click()
-  await expect(folha).toBeHidden()
+async function abrirAFolha(page: Page): Promise<void> {
+  await page.locator('.pp-bar > .pp-toggle').click()
+  await expect(page.getByRole('complementary', { name: 'Painel do jogador' })).toBeVisible()
 }
 
-test('abrir e fechar a folha 100 vezes: o mapa continua com o mesmo contexto WebGL e nada vaza', async ({ page }) => {
-  test.setTimeout(180_000)
+async function fecharAFolha(page: Page): Promise<void> {
+  await page.locator('.pp-bar > .pp-toggle').click()
+  await expect(page.getByRole('complementary', { name: 'Painel do jogador' })).toBeHidden()
+}
+
+async function voltas(page: Page, quantas: number): Promise<void> {
+  for (let vez = 0; vez < quantas; vez++) {
+    await abrirAFolha(page)
+    await fecharAFolha(page)
+  }
+}
+
+/** Uma folha que vazasse por volta deixaria 50 cópias: dezenas de nós e ouvintes. A folga é o ruído do ticker do mapa. */
+function semVazamento(de: Contas, ate: Contas, trecho: string): void {
+  expect(ate.nos - de.nos, `nós do DOM, ${trecho}`).toBeLessThanOrEqual(20)
+  expect(ate.ouvintes - de.ouvintes, `ouvintes, ${trecho}`).toBeLessThanOrEqual(5)
+  expect(ate.heapMb - de.heapMb, `heap (MB), ${trecho}`).toBeLessThanOrEqual(2)
+}
+
+test('abrir e fechar a folha 100 vezes, com o contexto WebGL perdido no meio: o mapa volta e nada vaza', async ({ page }) => {
+  test.setTimeout(240_000)
   await page.addInitScript(contarContextosPerdidos)
   await jogadorEntra(page)
-  expect(await contextoDoMapa(page, true)).toEqual({ mesmoCanvas: true, perdido: false, perdas: 0 })
+  expect(await estadoDoMapa(page, 'primeiro')).toEqual({ canvases: 1, carimbo: 'primeiro', perdido: false, perdas: 0 })
 
-  for (let vez = 0; vez < AQUECIMENTO; vez++) await abrirEFechar(page)
+  await voltas(page, AQUECIMENTO)
   const antes = await contar(page)
-  for (let vez = 0; vez < VOLTAS; vez++) await abrirEFechar(page)
-  const depois = await contar(page)
-  test.info().annotations.push({ type: 'contas', description: JSON.stringify({ antes, depois }) })
+  await voltas(page, MEIAS_VOLTAS)
+  const meio = await contar(page)
+  expect(await estadoDoMapa(page), 'abrir e fechar não solta o contexto').toEqual({ canvases: 1, carimbo: 'primeiro', perdido: false, perdas: 0 })
 
-  expect(await contextoDoMapa(page, false)).toEqual({ mesmoCanvas: true, perdido: false, perdas: 0 })
-  // Uma folha que vazasse por volta deixaria 100 cópias: centenas de nós e ouvintes. A folga é o ruído do ticker do mapa.
-  expect(depois.nos - antes.nos, 'nós do DOM depois de 100 voltas').toBeLessThanOrEqual(20)
-  expect(depois.ouvintes - antes.ouvintes, 'ouvintes depois de 100 voltas').toBeLessThanOrEqual(5)
-  expect(depois.heapMb - antes.heapMb, 'heap (MB) depois de 100 voltas').toBeLessThanOrEqual(2)
+  // O bug de 09/10: a folha aberta por cima do mapa, e o navegador solta o contexto.
+  await abrirAFolha(page)
+  await perderOContexto(page)
+  await expect.poll(async () => (await estadoDoMapa(page)).perdas).toBe(1)
+  await fecharAFolha(page)
+  // O canvas carimbado morreu com o contexto: o mapa volta num novo, sozinho na página e vivo.
+  await expect.poll(() => estadoDoMapa(page), { message: 'o mapa num canvas novo e vivo' }).toEqual({ canvases: 1, carimbo: null, perdido: false, perdas: 1 })
+  await expect(page.locator('[data-tokens-count]')).toHaveAttribute('data-tokens-count', '1')
+  await expect.poll(() => fichaNaTela(page), { message: 'a ficha desenhada no mapa novo' }).not.toBeNull()
+  expect(await estadoDoMapa(page, 'segundo')).toEqual({ canvases: 1, carimbo: 'segundo', perdido: false, perdas: 1 })
+
+  await voltas(page, AQUECIMENTO)
+  const retomada = await contar(page)
+  await voltas(page, MEIAS_VOLTAS)
+  const depois = await contar(page)
+  test.info().annotations.push({ type: 'contas', description: JSON.stringify({ antes, meio, retomada, depois }) })
+
+  expect(await estadoDoMapa(page), 'o mapa novo segura as outras 50 voltas').toEqual({ canvases: 1, carimbo: 'segundo', perdido: false, perdas: 1 })
+  semVazamento(antes, meio, '50 voltas antes da perda')
+  semVazamento(retomada, depois, '50 voltas depois da volta do mapa')
+  // De ponta a ponta, com a troca no meio: o Pixi morto não fica na memória nem com ouvintes na página.
+  semVazamento(antes, depois, '100 voltas e a troca do Pixi')
 })
 
 /** Centro, em px da tela, dos pixels da cor da ficha (`null` = ela não está na tela). */
