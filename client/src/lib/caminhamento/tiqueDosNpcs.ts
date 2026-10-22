@@ -141,9 +141,12 @@ export class TiqueDosNpcs {
     if (tique.pedido !== null) {
       agenda.pedir(chave, entrada.mapa, entrada.raio, tique.pedido)
       const pronta = this.responder(chave)
-      if (pronta !== undefined) tique = tiqueDoAndarilho(tique.andarilho, mundo, pronta)
-      // O caminho que acabou de chegar já não serve (raro): o pedido novo fica para o próximo tique.
-      if (tique.pedido !== null) agenda.pedir(chave, entrada.mapa, entrada.raio, tique.pedido)
+      // Sem resposta, o pedido segue na fila com a busca já andada; pedir de novo a jogaria fora.
+      if (pronta !== undefined) {
+        tique = tiqueDoAndarilho(tique.andarilho, mundo, pronta)
+        // O caminho que acabou de chegar já não serve (raro): o pedido novo fica para o próximo tique.
+        if (tique.pedido !== null) agenda.pedir(chave, entrada.mapa, entrada.raio, tique.pedido)
+      }
     }
     this.aplicar(sceneId, mapa, tokenId, tique)
     return tique
