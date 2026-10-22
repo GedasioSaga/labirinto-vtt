@@ -156,8 +156,14 @@ function aperta(mundo: { x: number; y: number }, botao: number): void {
   })
 }
 
+/** O menu que está aberto: o que acabou de fechar ainda sai por 120 ms, inerte (`ComSaida`). */
 function menu(): HTMLElement | null {
-  return raiz.querySelector<HTMLElement>('[role="menu"]')
+  return raiz.querySelector<HTMLElement>('[role="menu"]:not([inert])')
+}
+
+/** O menu fechado que ainda está saindo: só existe se o canvas deixa o host montado. */
+function menuSaindo(): HTMLElement | null {
+  return raiz.querySelector<HTMLElement>('[role="menu"][inert].gr-sai')
 }
 
 function item(rotulo: string): HTMLButtonElement {
@@ -184,6 +190,7 @@ describe('PixiCanvas — o clique direito na parede abre o menu da parede', () =
     expect(bordas.filter((y) => y === 192)).toHaveLength(2)
     expect(findTokenPath({ x: 480, y: 160 }, { x: 544, y: 160 }, map.walls, GRADE)).not.toBeNull()
     expect(menu()).toBeNull()
+    expect(menuSaindo()).not.toBeNull()
   })
 
   it('perto da quina, o vão aberto pelo canvas para na ponta da parede clicada: a face do vizinho na mesma reta fica inteira', async () => {

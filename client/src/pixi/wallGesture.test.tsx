@@ -51,7 +51,12 @@ function Palco() {
       abrir: setMenu,
     })
   }, [])
-  return <div ref={ref} data-palco="">{menu && <WallGestureMenuHost menu={menu} onClose={() => setMenu(null)} />}</div>
+  // Sempre montado, como no PixiCanvas: fechado, o menu ainda sai em 120 ms.
+  return (
+    <div ref={ref} data-palco="">
+      <WallGestureMenuHost menu={menu} onClose={() => setMenu(null)} />
+    </div>
+  )
 }
 
 let container: HTMLDivElement
@@ -97,8 +102,14 @@ function cliqueDireito(mundo: { x: number; y: number }): boolean {
   return evento.defaultPrevented
 }
 
+/** O menu que está aberto: o que acabou de fechar ainda sai por 120 ms, inerte (`ComSaida`). */
 function menu(): HTMLElement | null {
-  return container.querySelector<HTMLElement>('[role="menu"]')
+  return container.querySelector<HTMLElement>('[role="menu"]:not([inert])')
+}
+
+/** O menu fechado que ainda está saindo: só existe com o host sempre montado. */
+function menuSaindo(): HTMLElement | null {
+  return container.querySelector<HTMLElement>('[role="menu"][inert].gr-sai')
 }
 
 function item(rotulo: string): HTMLButtonElement {
@@ -130,8 +141,9 @@ describe('clique direito na parede → menu → store', () => {
     expect(bordas.filter((y) => y === 192)).toHaveLength(2)
     expect(divisa(map)).toHaveLength(4)
     expect(findTokenPath({ x: 480, y: 160 }, { x: 544, y: 160 }, map.walls, GRADE)).not.toBeNull()
-    // O menu fecha depois da escolha.
+    // O menu fecha depois da escolha, e sai inerte.
     expect(menu()).toBeNull()
+    expect(menuSaindo()).not.toBeNull()
   })
 
   it('"Desabar parede" derruba a parede clicada e a do outro lado', () => {
