@@ -10,25 +10,9 @@
   min-width: 15rem;
   padding: var(--lb-space-2);
   background: var(--lb-color-stone-solid);
+  /* Entra e sai pela transição de `.gr-anima` (ComSaida, fatia 20), a partir
+     do ponto do clique; o movimento reduzido de lá troca na hora. */
   transform-origin: top left;
-  animation: lb-wall-menu-in 120ms ease-out;
-}
-
-@keyframes lb-wall-menu-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lb-panel.lb-wall-menu {
-    animation: none;
-  }
 }
 
 .lb-wall-menu__item {

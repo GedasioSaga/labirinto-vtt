@@ -4067,20 +4067,16 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   padding: var(--lb-space-1);
   /* Opaco, como o menu de fundo do ActionBar: as linhas de baixo não vazam entre os itens. */
   background: var(--lb-color-stone-solid);
+  /* Entra e sai pela transição de `.gr-anima` (ComSaida, fatia 20), encolhendo
+     para o "…" que o abriu; transição, e não keyframe, para reabrir no meio da
+     saída voltar do ponto em que estava. */
   transform-origin: top right;
-  animation: lb-cenas-menu-entra 120ms ease-out;
 }
 
 @keyframes lb-cenas-menu-entra {
   from {
     opacity: 0;
     transform: scale(0.96);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lb-panel.lb-cenas__menu {
-    animation: none;
   }
 }
 

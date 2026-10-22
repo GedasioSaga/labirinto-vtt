@@ -58,7 +58,8 @@ describe('ScenesSection: cena inicial', () => {
     if (item === undefined) throw new Error('sem o item')
     act(() => item.click())
     expect(onSetStart).toHaveBeenCalledWith('s-goa')
-    expect(container.querySelector('[role="menu"]')).toBeNull()
+    // Fechado, ele ainda sai por 120 ms, inerte (ComSaida): aberto não há mais nenhum.
+    expect(container.querySelector('[role="menu"]:not([inert])')).toBeNull()
   })
 
   it('na cena que já é a inicial o item diz isso e fica esmaecido', () => {

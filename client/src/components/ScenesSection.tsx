@@ -26,6 +26,7 @@ import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 import { cenasVizinhas, origensDaCena, type AbaloContagem, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { AbaloForm } from './AbaloForm'
+import { ComSaida, type ComSaidaFilho } from './grimorio/ComSaida'
 import { RevisorAventuraDialog } from './RevisorAventura'
 import type { Conserto } from '../lib/revisorAventura'
 
@@ -532,7 +533,7 @@ interface SceneMenuProps {
  * aplica agora (Subir na primeira cena) fica no lugar, esmaecido, para o
  * mestre aprender onde ele mora.
  */
-function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
+function SceneMenu({ id, label, items, trigger, onClose, saindo = false }: SceneMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -546,12 +547,15 @@ function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
     return out
   }
 
-  // Só ao abrir (o menu monta a cada abertura): o foco não volta ao primeiro a cada render.
+  // Só ao abrir, e ao reabrir no meio da saída (o mesmo nó volta, `ComSaida`):
+  // o foco não volta ao primeiro a cada render.
   useEffect(() => {
-    enabled()[0]?.focus()
-  }, [])
+    if (!saindo) enabled()[0]?.focus()
+  }, [saindo])
 
   useEffect(() => {
+    // Saindo, o menu já fechou: o clique fora não o fecha de novo.
+    if (saindo) return
     // `pointerdown`, como no ActionBar: fecha antes de o clique acertar o que está por baixo.
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return
@@ -560,7 +564,7 @@ function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
     }
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [trigger, onClose])
+  }, [trigger, onClose, saindo])
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // Nenhuma tecla do menu vale como atalho do editor (Esc, setas movendo o selecionado).
@@ -595,7 +599,15 @@ function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
   }
 
   return (
-    <div ref={menuRef} id={id} className="lb-panel lb-cenas__menu" role="menu" aria-label={label} onKeyDown={onKeyDown}>
+    <div
+      ref={menuRef}
+      id={id}
+      className={saindo ? 'lb-panel lb-cenas__menu gr-anima gr-sai' : 'lb-panel lb-cenas__menu gr-anima'}
+      inert={saindo}
+      role="menu"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+    >
       {items.map((item, index) => (
         <button
           key={item.label}
@@ -1756,15 +1768,18 @@ export function ScenesSection({
                   )}
                 </span>
               </div>
-              {menuOpen && (
-                <SceneMenu
-                  id={menuId}
-                  label={`Ações de ${scene.name}`}
-                  items={menuItems(row)}
-                  trigger={menuTriggers.current.get(scene.id) ?? null}
-                  onClose={closeMenu}
-                />
-              )}
+              {/* Fechado, o menu ainda sai em 120 ms com os itens de quando fechou (`ComSaida`). */}
+              <ComSaida>
+                {menuOpen && (
+                  <SceneMenu
+                    id={menuId}
+                    label={`Ações de ${scene.name}`}
+                    items={menuItems(row)}
+                    trigger={menuTriggers.current.get(scene.id) ?? null}
+                    onClose={closeMenu}
+                  />
+                )}
+              </ComSaida>
               {trail.length > 0 && (
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}

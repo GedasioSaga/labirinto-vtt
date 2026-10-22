@@ -8571,7 +8571,8 @@ export function PixiCanvas({
           }}
         />
       )}
-      {menuDaParede && <WallGestureMenuHost menu={menuDaParede} onClose={fecharMenuDaParede} />}
+      {/* Sempre montado: fechado (`null`), o menu ainda sai em 120 ms. */}
+      <WallGestureMenuHost menu={menuDaParede} onClose={fecharMenuDaParede} />
     </div>
   )
 }

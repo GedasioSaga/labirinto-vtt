@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import type { ComSaidaFilho } from './grimorio/ComSaida'
 import './WallGestureMenu.css'
 
 /** Folga, em px, entre o menu e a borda do mapa quando ele precisa recuar para caber. */
@@ -34,7 +35,7 @@ export interface WallGestureMenuProps {
  * Teclado como o menu da imagem de fundo (ActionBar.tsx): foco no primeiro
  * item ao abrir, setas/Home/End andam, Esc e Tab fecham. Clique fora fecha.
  */
-export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose }: WallGestureMenuProps) {
+export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose, saindo = false }: WallGestureMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const [posicao, setPosicao] = useState({ left: x, top: y })
@@ -53,14 +54,16 @@ export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose }
     setPosicao({ left, top })
   }, [x, y, limite.width, limite.height])
 
+  // Também ao reabrir no mesmo ponto no meio da saída: o mesmo nó volta (`ComSaida`).
   useEffect(() => {
-    itemRefs.current[0]?.focus()
-  }, [x, y])
+    if (!saindo) itemRefs.current[0]?.focus()
+  }, [x, y, saindo])
 
   // Clique fora fecha — `pointerdown`, para fechar antes de o clique seguinte
   // começar outro gesto no mapa. A roda também: o mapa andaria por baixo e o
-  // menu ficaria apontando para outra parede.
+  // menu ficaria apontando para outra parede. Saindo, o menu já fechou.
   useEffect(() => {
+    if (saindo) return
     const foraDoMenu = (event: Event) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return
       onClose()
@@ -71,7 +74,7 @@ export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose }
       document.removeEventListener('pointerdown', foraDoMenu)
       document.removeEventListener('wheel', foraDoMenu)
     }
-  }, [onClose])
+  }, [onClose, saindo])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // Nenhuma tecla do menu vale como atalho do editor (Esc largando a
@@ -109,7 +112,8 @@ export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose }
   return (
     <div
       ref={menuRef}
-      className="lb-panel lb-wall-menu"
+      className={saindo ? 'lb-panel lb-wall-menu gr-anima gr-sai' : 'lb-panel lb-wall-menu gr-anima'}
+      inert={saindo}
       role="menu"
       aria-label={WALL_GESTURE_MENU_LABEL}
       onKeyDown={onKeyDown}

@@ -1,7 +1,10 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MenuDaParede } from '../pixi/wallGesture'
+import { SAIDA_DO_POP_MS } from './grimorio/comum'
 import { WallGestureMenu } from './WallGestureMenu'
+import { WallGestureMenuHost } from './WallGestureMenuHost'
 
 let container: HTMLDivElement
 let root: Root
@@ -97,5 +100,54 @@ describe('WallGestureMenu: o menu do clique direito na parede', () => {
       document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     })
     expect(h.onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('WallGestureMenuHost: o menu da parede sai animado, como no PixiCanvas', () => {
+  const MENU: MenuDaParede = { wallId: 'w1', ponto: { x: 3, y: 4 }, x: 120, y: 80, limite: { width: 1200, height: 800 } }
+  const menu = () => container.querySelector<HTMLElement>('[role="menu"]')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const montar = (aberto: MenuDaParede | null, onClose: () => void = () => {}) =>
+    act(() => root.render(<WallGestureMenuHost menu={aberto} onClose={onClose} />))
+
+  it('fechado, fica os 120 ms da saída com gr-sai e inerte, o clique fora não o fecha de novo, e então some', () => {
+    const onClose = vi.fn()
+    montar(MENU, onClose)
+    const aberto = menu()
+    expect(aberto?.classList.contains('gr-anima')).toBe(true)
+    expect(aberto?.classList.contains('gr-sai')).toBe(false)
+    montar(null, onClose)
+    expect(menu()).toBe(aberto)
+    expect(aberto?.classList.contains('gr-sai')).toBe(true)
+    expect(aberto?.hasAttribute('inert')).toBe(true)
+    act(() => {
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    })
+    expect(onClose).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(SAIDA_DO_POP_MS - 1))
+    expect(menu()).toBe(aberto)
+    act(() => vi.advanceTimersByTime(1))
+    expect(menu()).toBeNull()
+  })
+
+  it('reaberto no mesmo ponto no meio da saída: o mesmo nó volta, sem gr-sai, com o foco no primeiro item', () => {
+    montar(MENU)
+    const aberto = menu()
+    montar(null)
+    // O foco sai do menu que está saindo; reaberto, ele tem de voltar ao primeiro item.
+    const focado = document.activeElement
+    if (focado instanceof HTMLElement) act(() => focado.blur())
+    montar({ ...MENU })
+    expect(menu()).toBe(aberto)
+    expect(aberto?.classList.contains('gr-sai')).toBe(false)
+    expect(document.activeElement).toBe(itens()[0])
   })
 })

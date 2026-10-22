@@ -2,6 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
+import { SAIDA_DO_POP_MS } from './grimorio/comum'
 import { ScenesSection, type ScenesSectionProps } from './ScenesSection'
 
 const CENAS: SceneListItem[] = [
@@ -57,9 +58,14 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     return alvo
   }
 
+  /** O menu que está aberto: o que acabou de fechar ainda sai por 120 ms, inerte (`ComSaida`). */
+  function menuAberto(): HTMLElement | null {
+    return container.querySelector<HTMLElement>('[role="menu"]:not([inert])')
+  }
+
   function abrir(cena: string): HTMLElement {
     act(() => gatilho(cena).click())
-    const menu = container.querySelector<HTMLElement>('[role="menu"]')
+    const menu = menuAberto()
     if (menu === null) throw new Error('menu não abriu')
     return menu
   }
@@ -119,7 +125,7 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     const menu = abrir('Casa genérica')
     act(() => item(menu, 'Duplicar').click())
     expect(onDuplicate).toHaveBeenCalledWith('s-casa')
-    expect(container.querySelector('[role="menu"]')).toBeNull()
+    expect(menuAberto()).toBeNull()
   })
 
   it('Subir move a cena uma posição para cima; Descer, para baixo', () => {
@@ -154,7 +160,7 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     tecla(menu, 'ArrowUp')
     expect(document.activeElement).toBe(item(menu, 'Apagar cena…'))
     tecla(menu, 'Escape')
-    expect(container.querySelector('[role="menu"]')).toBeNull()
+    expect(menuAberto()).toBeNull()
     expect(document.activeElement).toBe(gatilho('PC - Cais'))
   })
 
@@ -244,6 +250,46 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     const farol = abrir('Farol')
     expect(item(farol, 'Subir').getAttribute('aria-disabled')).toBeNull()
     expect(item(farol, 'Descer').getAttribute('aria-disabled')).toBe('true')
+  })
+
+  describe('a saída do menu (ComSaida, como os menus da porta, do token e das variantes)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const menuNaTela = () => container.querySelector<HTMLElement>('[role="menu"]')
+
+    it('fechado, o menu fica os 120 ms da saída com gr-sai e inerte, com os itens de quando fechou, e então some', () => {
+      render()
+      const menu = abrir('Casa genérica')
+      expect(menu.classList.contains('gr-anima')).toBe(true)
+      expect(menu.classList.contains('gr-sai')).toBe(false)
+      act(() => item(menu, 'Duplicar').click())
+      expect(menuNaTela()).toBe(menu)
+      expect(menu.classList.contains('gr-sai')).toBe(true)
+      expect(menu.hasAttribute('inert')).toBe(true)
+      expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)).toContain('Duplicar')
+      expect(gatilho('Casa genérica').getAttribute('aria-expanded')).toBe('false')
+      act(() => vi.advanceTimersByTime(SAIDA_DO_POP_MS - 1))
+      expect(menuNaTela()).toBe(menu)
+      act(() => vi.advanceTimersByTime(1))
+      expect(menuNaTela()).toBeNull()
+    })
+
+    it('reaberto no meio da saída, o mesmo nó volta sem gr-sai e o foco volta ao primeiro item', () => {
+      render()
+      const menu = abrir('Casa genérica')
+      tecla(menu, 'Escape')
+      expect(document.activeElement).toBe(gatilho('Casa genérica'))
+      const reaberto = abrir('Casa genérica')
+      expect(reaberto).toBe(menu)
+      expect(menu.classList.contains('gr-sai')).toBe(false)
+      expect(document.activeElement).toBe(item(menu, 'Duplicar'))
+    })
   })
 
   it('apagar uma pasta avisa que as cenas de dentro sobem um nível', () => {
