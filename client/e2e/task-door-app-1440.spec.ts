@@ -7,7 +7,8 @@
 //     ANGLE em D3D11 e ignora a lista negra de GPU); a placa usada sai no relato.
 //
 // Com PROVA_PORTA_APP=1 as duas fotos e a medida das 50 portas (desempenho-app.json,
-// o critério M9 que o gerar-provas lê) vão para docs/design/porta-animacoes/app/provas/;
+// o critério M9 que o gerar-provas lê, com a impressão do código de porta medido)
+// vão para docs/design/porta-animacoes/app/provas/;
 // sem, ficam na pasta de saída do teste (nada do repositório é tocado).
 import { writeFileSync } from 'node:fs'
 import { test, expect, type Page } from '@playwright/test'
@@ -56,6 +57,19 @@ declare global {
 
 /** As cinco portas do pacote (Girar e Deslizar são embutidas). */
 const DO_PACOTE = ['dupla', 'grade', 'arrombada', 'sanfona', 'cortina']
+
+/**
+ * De que código de porta é a medida: a mesma conta do gerar-provas
+ * (fontesDoDesempenho.cjs), que só aceita a medida do código de agora. Importada
+ * pelo caminho, sem tipos (o e2e não tem os do Node): o que volta é conferido aqui.
+ */
+async function impressaoDasFontesDePorta(): Promise<{ sha256: string; arquivos: number }> {
+  const modulo: unknown = await import(new URL('../fontesDoDesempenho.cjs', `file:///${PROVAS}/`).href)
+  if (typeof modulo !== 'object' || modulo === null || !('impressaoDasFontes' in modulo) || typeof modulo.impressaoDasFontes !== 'function') throw new Error('fontesDoDesempenho.cjs sem impressaoDasFontes')
+  const lida: unknown = modulo.impressaoDasFontes()
+  if (typeof lida !== 'object' || lida === null || !('sha256' in lida) || typeof lida.sha256 !== 'string' || !('arquivos' in lida) || typeof lida.arquivos !== 'number') throw new Error(`impressão das fontes de porta torta: ${JSON.stringify(lida)}`)
+  return { sha256: lida.sha256, arquivos: lida.arquivos }
+}
 
 /** Um lado de sala; com porta, o lado vira parede, porta (no meio, de `vao`) e parede. */
 function lado(id: string, x1: number, y1: number, x2: number, y2: number, porta?: Porta, vao = 40): Wall[] {
@@ -314,6 +328,7 @@ test('50 portas com as 7 animações abrindo e fechando por 4 s: quadro p95 e ta
     const gravada = {
       medidoEm: new Date().toISOString(),
       teste: 'client/e2e/task-door-app-1440.spec.ts (50 portas)',
+      fontes: await impressaoDasFontesDePorta(),
       placa: medida.placa,
       portas: walls.length,
       quadros: medida.intervalos.length,

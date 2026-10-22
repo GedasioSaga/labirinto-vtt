@@ -11,7 +11,7 @@
     "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
     "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
     "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
-    "M9_desempenho": "CRITÉRIO QUE REPROVA (mudado em 22/10/2026, ver M9_mudanca): no APP com placa de vídeo de verdade (client/e2e/task-door-app-1440.spec.ts, teste das 50 portas), 50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo). O teste grava a medida em provas/desempenho-app.json (PROVA_PORTA_APP=1) e o gerar-provas reprova se ela faltar, se a placa for de software ou se passar das metas. O LABORATÓRIO mede o mesmo e registra o número em testes.json (desempenho.laboratorio), só como informação",
+    "M9_desempenho": "CRITÉRIO QUE REPROVA (mudado em 22/10/2026, ver M9_mudanca): no APP com placa de vídeo de verdade (client/e2e/task-door-app-1440.spec.ts, teste das 50 portas), 50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo). O teste grava a medida em provas/desempenho-app.json (PROVA_PORTA_APP=1) e o gerar-provas reprova se ela faltar, se for de outro código de porta (a impressão das fontes gravada com ela, fontesDoDesempenho.cjs, não bate com a de agora), se a placa for de software ou se passar das metas. O LABORATÓRIO mede o mesmo e registra o número em testes.json (desempenho.laboratorio), só como informação",
     "M9_mudanca": {
       "era": "o laboratório (Chromium headless) reprovava com quadro p95 acima de 20 ms ou tarefa longa de 200 ms ou mais",
       "agora": "o laboratório é INFORMATIVO (nota 'software, SwiftShader'): mede e registra, não reprova. Reprova o app com placa de vídeo: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
@@ -1717,15 +1717,23 @@
     }
   },
   "desempenho": {
-    "criterio": "app com placa de vídeo: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
+    "criterio": "app com placa de vídeo, medido no código de porta de agora: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
+    "fontesDeAgora": {
+      "sha256": "5f78a62613867e3709b7b5d129ba5d3c260079b45510cabc27bee84b31982154",
+      "arquivos": 20
+    },
     "app": {
-      "medidoEm": "2026-10-22T14:37:50.507Z",
+      "medidoEm": "2026-10-22T15:35:34.228Z",
       "teste": "client/e2e/task-door-app-1440.spec.ts (50 portas)",
+      "fontes": {
+        "sha256": "5f78a62613867e3709b7b5d129ba5d3c260079b45510cabc27bee84b31982154",
+        "arquivos": 20
+      },
       "placa": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)",
       "portas": 50,
-      "quadros": 468,
+      "quadros": 469,
       "intervaloP95Ms": 8.5,
-      "intervaloMaxMs": 25.1,
+      "intervaloMaxMs": 25,
       "tarefasLongas": 0,
       "tarefaLongaMaxMs": 0,
       "observadorDeTarefasLongas": true,
@@ -1735,14 +1743,14 @@
       "informativo": true,
       "nota": "software, SwiftShader: informativo, não reprova (M9_mudanca em metas.json)",
       "portas": 50,
-      "quadros": 291,
-      "intervaloP95Ms": 25,
-      "intervaloMaxMs": 58.3,
+      "quadros": 340,
+      "intervaloP95Ms": 16.8,
+      "intervaloMaxMs": 33.4,
       "tarefasLongas": 0,
       "tarefaLongaMaxMs": 0,
       "observadorDeTarefasLongas": true,
       "custoDoAnimadorP95Ms": 0.6,
-      "custoDoAnimadorMaxMs": 0.9,
+      "custoDoAnimadorMaxMs": 0.7,
       "onde": "laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900"
     }
   },
@@ -1762,5 +1770,5 @@
     "M5b_salto_real": "ANTES (rodada de 22/10/2026): a Arrombada fechando reprovava de 0,735 a 0,765, com passos refinados de 5,1, 2,83, 5 e 10,44 px. Abrindo, os 5 estilhaços encolhiam até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nascia do nada, longe de tudo. DEPOIS (client/src/animacoes/porta/arrombada.ts): os estilhaços saltam da fechadura e caem na soleira, dentro do vão, onde se desfazem; começam e acabam em cima do batente, então fechando nascem colados nele e voltam para a fechadura. Tempos (560/320), curvas e o resto do desenho iguais. O número de agora está em animacoes.arrombada.continuidade.",
     "M9_desempenho": "O laboratório roda o WebGL por SwiftShader (software) e dá um intervalo de quadro p95 perto de 25 ms com o custo do animador (JS) em p95 de 0,6 ms: o tempo é o SwiftShader pintando 1440x900, não a porta. Por isso o número do laboratório fica registrado como informativo e o critério que reprova é o do app com placa de vídeo (desempenho.app, M9_mudanca em metas.json)."
   },
-  "duracaoS": 94.6
+  "duracaoS": 72.3
 }

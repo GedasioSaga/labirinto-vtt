@@ -23,6 +23,7 @@ const { chromium } = require(path.join(RAIZ, 'node_modules', 'playwright'))
 const esbuild = require(path.join(RAIZ, 'node_modules', 'esbuild'))
 const medidas = require(path.join(RAIZ, 'scripts', 'som', 'medidas.cjs'))
 const metas = require('./metas.json')
+const { impressaoDasFontes } = require('./fontesDoDesempenho.cjs')
 
 const NOVAS = ['dupla', 'grade', 'arrombada', 'sanfona', 'cortina']
 const TODAS = ['girar', 'deslizar', ...NOVAS]
@@ -324,9 +325,13 @@ async function main() {
     onde: 'laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900',
   }
   const app = lerDesempenhoDoApp()
-  r.desempenho = { criterio: `app com placa de vídeo: quadro p95 até ${QUADRO_P95_MAX_MS} ms e nenhuma tarefa longa de ${TAREFA_LONGA_MAX_MS} ms ou mais`, app, laboratorio }
+  const fontesDeAgora = impressaoDasFontes()
+  r.desempenho = { criterio: `app com placa de vídeo, medido no código de porta de agora: quadro p95 até ${QUADRO_P95_MAX_MS} ms e nenhuma tarefa longa de ${TAREFA_LONGA_MAX_MS} ms ou mais`, fontesDeAgora, app, laboratorio }
   if (app === null) reprovar('M9_desempenho', `falta ${path.relative(RAIZ, DESEMPENHO_DO_APP)}: rode client/e2e/task-door-app-1440.spec.ts com PROVA_PORTA_APP=1`)
   else {
+    // A medida gravada só vale para o código de porta em que foi feita.
+    const medidaDe = app.fontes?.sha256 ?? 'ausente'
+    if (medidaDe !== fontesDeAgora.sha256) reprovar('M9_desempenho', `a medida do app é de outro código de porta (impressão ${medidaDe}, a de agora ${fontesDeAgora.sha256}): rode client/e2e/task-door-app-1440.spec.ts com PROVA_PORTA_APP=1`)
     if (PLACA_DE_SOFTWARE.test(app.placa)) reprovar('M9_desempenho', `a medida do app não usou placa de vídeo: ${app.placa}`)
     if (!(app.intervaloP95Ms <= QUADRO_P95_MAX_MS)) reprovar('M9_desempenho', `app: quadro p95 ${app.intervaloP95Ms} ms`)
     if (!(app.tarefaLongaMaxMs < TAREFA_LONGA_MAX_MS)) reprovar('M9_desempenho', `app: tarefa longa de ${app.tarefaLongaMaxMs} ms`)
