@@ -1,0 +1,66 @@
+{
+  "escrito_em": "2026-10-22, antes da primeira linha do protótipo",
+  "regra": "~/.claude/rules/teste-de-jogos.md: metas com número, semente fixa, robô com atraso de gente",
+  "a_picking": {
+    "o_que": "Para cada bloco: centro do topo (altura em pé) -> tela (câmera com zoom) -> de volta ao bloco pelo clique de verdade (ordem de pintura, de frente para trás).",
+    "referencia": "Raio da câmera exato (o primeiro sólido que o raio encontra). Bloco escondido atrás de prédio tem de devolver o bloco que o cobre, igual ao raio.",
+    "rotacoes": [0, 1, 2, 3],
+    "zooms": [0.6, 1, 2.5],
+    "mapas": ["vila", "baia"],
+    "meta": "100% dos blocos (visíveis voltam a si mesmos; escondidos devolvem o mesmo bloco que o raio)"
+  },
+  "b_ordem_de_pintura": {
+    "o_que": "Buffer de identificadores: cada coluna e cada objeto pintado com um número próprio, pelo mesmo algoritmo do pintor (camada estática + objetos com reposição dos que ficam na frente).",
+    "referencia": "z-buffer analítico (para cada pixel, o sólido mais perto da câmera).",
+    "rotacoes": [0, 1, 2, 3],
+    "mapas": ["vila", "baia"],
+    "meta_divergencia_max": 0.001
+  },
+  "c_alcance": {
+    "o_que": "Busca de alcance (8 vizinhos, diagonal custa 1, sem cortar quina, degrau máximo, não entra em ocupado, água e objeto bloqueiam).",
+    "referencia": "Implementação independente escrita na prova (relaxação até estabilizar, regras reescritas a partir do texto).",
+    "mapas_aleatorios": 200,
+    "meta": "100% iguais (mesmo conjunto e mesma distância em cada bloco)"
+  },
+  "d_robo": {
+    "atraso_de_reacao_ms": 250,
+    "erro_de_clique_max_blocos": 0.5,
+    "sementes": [1, 2, 3, 4, 5],
+    "comandos_por_semente": 10,
+    "meta_chegam": 1.0,
+    "meta_contagem_igual_ao_caminho": 1.0
+  },
+  "e_medicao": {
+    "o_que": "Régua, círculo, cone e linha de visão com respostas conhecidas, incluindo bloqueio por parede e por desnível.",
+    "meta": "100% dos casos"
+  },
+  "f_desempenho": {
+    "mapa": "30 x 30",
+    "unidades_animando": 16,
+    "camera": "gira de 90 em 90 graus durante a medida",
+    "p95_quadro_ms_max": 20,
+    "tarefa_longa_ms_proibida": 200,
+    "primeira_pintura_ms_max": 500
+  },
+  "g_pagina": {
+    "erros_no_console": 0,
+    "largura_390_sem_rolagem_lateral": true
+  },
+  "h_cor": {
+    "piso_luminancia_do_contorno": 0.06,
+    "piso_luminancia_pixel_dia_e_tarde": 0.03,
+    "piso_luminancia_pixel_noite": 0.008,
+    "pixels_preto_puro": 0,
+    "cores_base_max": 48
+  },
+  "i_origem": {
+    "arquivos_de_imagem_no_prototipo": 0,
+    "data_image_ou_img_no_html": 0,
+    "referencias_do_jogo_no_repositorio": 0
+  },
+  "movimento": {
+    "andar_ms_por_bloco": 260,
+    "andar_diagonal_ms": 340,
+    "salto": "ápice acima dos dois blocos; pousa exatamente na altura do destino (erro < 0,001 nível); avanço horizontal nunca volta; duração entre 300 e 650 ms por salto"
+  }
+}

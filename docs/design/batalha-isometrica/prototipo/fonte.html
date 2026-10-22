@@ -1,0 +1,353 @@
+<title>Batalha isométrica</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Moldura da família dos protótipos do Labirinto (Barlow, mesmos tokens); o mapa é que muda. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --moldura: #2c3326;
+    --aliado: #3f74c4;
+    --inimigo: #b9503e;
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aliado: #7ea6ea; --inimigo: #e38a78;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aliado: #7ea6ea; --inimigo: #e38a78;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1380px;
+    margin: 0 auto;
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 14px;
+  }
+  .cabeca { display: grid; gap: 4px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 66ch; color: var(--suave); font-size: 1.02rem; }
+  h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.15;
+  }
+
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+  .grupo { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); }
+
+  .segmentado {
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+  }
+  .segmentado button, .chave, .icone, .zoom button {
+    font: 500 0.95rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 0 13px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active, .chave:active, .icone:active, .zoom button:active, .unidade:active { transform: scale(0.97); }
+
+  .chave {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--linha);
+    background: var(--superficie);
+    border-radius: 10px;
+    padding: 0 14px 0 12px;
+    min-height: 44px;
+  }
+  .chave .marca {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--suave);
+    display: grid;
+    place-items: center;
+  }
+  .chave .marca svg { width: 12px; height: 12px; opacity: 0; }
+  .chave[aria-pressed="true"] { color: var(--texto); }
+  .chave[aria-pressed="true"] .marca { background: var(--texto); border-color: var(--texto); }
+  .chave[aria-pressed="true"] .marca svg { opacity: 1; color: var(--bg); }
+
+  .camera, .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .icone, .zoom button {
+    min-width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+  .icone svg, .zoom button svg { width: 18px; height: 18px; }
+  .camera .valor { min-width: 52px; text-align: center; font-size: 0.9rem; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .zoom .valor { min-width: 64px; padding: 0 8px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .zoom .texto { padding: 0 12px; font-weight: 500; }
+  .zoom button:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+  :where(button, canvas, [tabindex]):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .area { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 1040px) { .area { grid-template-columns: minmax(0, 1fr) 300px; } }
+  .palco { display: grid; gap: 10px; min-width: 0; }
+
+  .moldura {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+  }
+  #mapa {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    max-height: 78svh;
+    cursor: grab;
+    touch-action: none;
+  }
+  #mapa[data-ferramenta]:not([data-ferramenta="mover"]) { cursor: crosshair; }
+  #mapa[data-arrastando] { cursor: grabbing; }
+  #mapa:focus-visible { outline-offset: -3px; }
+  @media (max-width: 640px) { #mapa { aspect-ratio: 4 / 5; max-height: 68svh; } }
+  .sob {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    margin: 0;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: rgba(22, 24, 30, 0.72);
+    color: #f6f1e4;
+    font: 600 0.82rem/1.3 var(--f-texto);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    max-width: calc(100% - 20px);
+  }
+
+  .ferramentas { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+  .ferramentas .segmentado button { display: inline-flex; align-items: center; gap: 7px; }
+  .ferramentas .segmentado svg { width: 16px; height: 16px; flex: none; }
+  @media (max-width: 520px) {
+    .ferramentas .segmentado { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; }
+    .ferramentas .segmentado button { flex-direction: column; gap: 3px; padding: 6px 2px; min-height: 52px; font-size: 0.78rem; }
+  }
+
+  .rodape-do-mapa { display: grid; gap: 2px; }
+  .estado { margin: 0; font-weight: 600; font-size: 0.95rem; min-height: 1.5em; }
+  .leitura { margin: 0; font-size: 0.9rem; color: var(--suave); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+  .dica { margin: 0; font-size: 0.86rem; color: var(--suave); max-width: 72ch; }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+
+  .painel { display: grid; gap: 14px; align-content: start; min-width: 0; }
+  .cartao {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--linha);
+    border-radius: 12px;
+    background: var(--superficie);
+  }
+  .cartao h2 { font-size: 1.15rem; }
+  .cartao p { margin: 0; color: var(--suave); font-size: 0.9rem; }
+  .unidades { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (min-width: 641px) and (max-width: 1039px) { .unidades { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .unidade {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 4px 10px 4px 4px;
+    border: 1px solid var(--linha);
+    border-left: 3px solid var(--aliado);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    font: 500 0.92rem/1.2 var(--f-texto);
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+    transition: transform 160ms var(--ease-out), border-color 160ms ease, background-color 160ms ease;
+  }
+  .unidade[data-lado="inimigo"] { border-left-color: var(--inimigo); }
+  .unidade[aria-pressed="true"] { background: var(--texto); color: var(--bg); border-color: var(--texto); }
+  .unidade[aria-pressed="true"] small { color: inherit; opacity: 0.8; }
+  .unidade canvas { width: 36px; height: 36px; flex: none; }
+  .unidade span { min-width: 0; overflow-wrap: anywhere; }
+  .unidade small { display: block; color: var(--suave); font-size: 0.78rem; }
+  .tema { justify-self: start; }
+
+  .explica { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); margin-top: 10px; }
+  @media (min-width: 900px) { .explica { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  .explica section { display: grid; gap: 10px; align-content: start; }
+  .explica ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 62ch; }
+  .explica li::marker { color: var(--acento); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .unidade:hover, .chave:hover, .icone:hover, .zoom button:not(:disabled):hover { border-color: var(--suave); }
+    .unidade[aria-pressed="true"]:hover { border-color: var(--texto); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .chave, .icone, .zoom button, .unidade { transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+    .segmentado button:active, .chave:active, .icone:active, .zoom button:active, .unidade:active { transform: none; }
+  }
+</style>
+
+<div class="pagina">
+  <header class="cabeca">
+    <h1>Mapa de batalha isométrico</h1>
+    <p class="lead">Blocos com altura, penhascos, escadas e casas de arenito, vistos de cima e de lado. Toque numa unidade para ver até onde ela anda; toque no destino e ela vai, bloco a bloco, saltando os degraus.</p>
+  </header>
+
+  <div class="barra">
+    <div class="segmentado" role="radiogroup" aria-label="Mapa" id="g-mapa">
+      <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="vila">Vila do deserto</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="baia">Baía das ruínas</button>
+    </div>
+    <div class="segmentado" role="radiogroup" aria-label="Hora do dia" id="g-hora">
+      <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="dia">Dia</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="tarde">Tarde</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="noite">Noite</button>
+    </div>
+    <button type="button" class="chave" id="b-batalha" aria-pressed="false"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Modo batalha</button>
+    <div class="camera" role="group" aria-label="Girar a câmera">
+      <button type="button" class="icone" id="rot-esq" aria-label="Girar para a esquerda (Q)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A5.5 5.5 0 1 1 4.6 12"/><path d="M3.6 3.6v4.2h4.2"/></svg></button>
+      <span class="valor" id="rot-valor" aria-live="polite">Norte</span>
+      <button type="button" class="icone" id="rot-dir" aria-label="Girar para a direita (E)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7.5A5.5 5.5 0 1 0 13.4 12"/><path d="M14.4 3.6v4.2h-4.2"/></svg></button>
+    </div>
+    <div class="zoom">
+      <button type="button" id="z-menos" aria-label="Afastar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10"/></svg></button>
+      <button type="button" id="z-valor" class="valor" aria-label="Zoom atual; tocar volta para 100%">100%</button>
+      <button type="button" id="z-mais" aria-label="Aproximar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M8 3v10"/></svg></button>
+      <button type="button" id="z-enquadrar" class="texto">Ver tudo</button>
+    </div>
+  </div>
+
+  <div class="area">
+    <div class="palco">
+      <div class="moldura">
+        <canvas id="mapa" tabindex="0" aria-label="Mapa de batalha. Setas movem o cursor pelos blocos, Enter confirma, Esc cancela, Q e E giram a câmera." aria-describedby="dica"></canvas>
+        <p class="sob" id="sob" aria-hidden="true"></p>
+      </div>
+      <div class="ferramentas">
+        <div class="segmentado" role="radiogroup" aria-label="Ferramenta" id="g-ferramenta">
+          <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="mover"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8v12.4M1.8 8h12.4M8 1.8 6 3.8M8 1.8l2 2M8 14.2l-2-2M8 14.2l2-2M1.8 8l2-2M1.8 8l2 2M14.2 8l-2-2M14.2 8l-2 2"/></svg>Mover</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="regua"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m2 10.5 8.5-8.5 3.5 3.5L5.5 14z"/><path d="m5 7.5 1.5 1.5M7 5.5 8 6.5M9 3.5l1.5 1.5"/></svg>Régua</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="circulo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>Círculo</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="cone"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2 8 14 2.5v11z"/></svg>Cone</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="visao"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>Visão</button>
+        </div>
+        <button type="button" class="chave" id="b-rastro" aria-pressed="false"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Caminho andado</button>
+        <div class="grupo">
+          <span class="rotulo" id="r-degrau">Degrau máximo</span>
+          <div class="segmentado" role="radiogroup" aria-labelledby="r-degrau" id="g-degrau">
+            <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="1">1</button>
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="2">2</button>
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="3">3</button>
+          </div>
+        </div>
+      </div>
+      <div class="rodape-do-mapa">
+        <p class="estado" id="estado" aria-live="polite">Toque numa unidade para ver o alcance de movimento.</p>
+        <p class="leitura" id="leitura" aria-live="polite"></p>
+      </div>
+      <p class="dica" id="dica">Arraste o mapa para mover; roda do mouse ou pinça para o zoom; <kbd>Q</kbd> e <kbd>E</kbd> giram. Com o mapa em foco, as <kbd>setas</kbd> andam o cursor, <kbd>Enter</kbd> confirma e <kbd>Esc</kbd> cancela. Arrastar uma unidade também a leva até o bloco.</p>
+    </div>
+
+    <aside class="painel" aria-label="Unidades">
+      <div class="cartao" aria-live="polite">
+        <h2 id="sel-nome">Nenhuma unidade</h2>
+        <p id="sel-info">Toque numa unidade no mapa ou na lista.</p>
+      </div>
+      <div class="unidades" id="unidades"></div>
+      <button type="button" class="chave tema" id="b-tema">Tema: automático</button>
+    </aside>
+  </div>
+
+  <div class="explica">
+    <section aria-labelledby="t-regras">
+      <h2 id="t-regras">As regras do movimento</h2>
+      <ul>
+        <li>Sem turnos e sem vida: o modo batalha liga a grade, e a unidade escolhida mostra em azul os blocos que alcança.</li>
+        <li>Diagonal custa 1 bloco, mas não corta quina: as duas passagens retas pelo canto têm de valer.</li>
+        <li>Entre dois blocos vizinhos, a diferença de altura não passa do degrau máximo (1 de início). Penhasco mais alto só pela escada.</li>
+        <li>Água, objetos e blocos ocupados não entram no caminho.</li>
+        <li>No modo livre (batalha desligada) não há grade nem limite de movimento: a unidade vai até onde houver caminho.</li>
+      </ul>
+    </section>
+    <section aria-labelledby="t-medir">
+      <h2 id="t-medir">As medidas</h2>
+      <ul>
+        <li>Régua: blocos entre dois pontos (diagonal = 1) e quanto sobe ou desce.</li>
+        <li>Círculo: os blocos com o centro a até o raio + meio bloco do centro.</li>
+        <li>Cone: numa das 8 direções; a largura cresce junto com a distância.</li>
+        <li>Visão: do olho de quem olha (1,5 nível acima dos pés) até o peito do alvo. Diz o que barra e em que altura.</li>
+        <li>Caminho andado: o último percurso de cada unidade, numerado.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>/*__NUCLEO__*/</script>
+<script>/*__PINTOR__*/</script>
+<script>/*__PAGINA__*/</script>

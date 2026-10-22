@@ -1,0 +1,4235 @@
+<title>Batalha isométrica</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Moldura da família dos protótipos do Labirinto (Barlow, mesmos tokens); o mapa é que muda. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --moldura: #2c3326;
+    --aliado: #3f74c4;
+    --inimigo: #b9503e;
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aliado: #7ea6ea; --inimigo: #e38a78;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aliado: #7ea6ea; --inimigo: #e38a78;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1380px;
+    margin: 0 auto;
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 14px;
+  }
+  .cabeca { display: grid; gap: 4px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 66ch; color: var(--suave); font-size: 1.02rem; }
+  h2 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 600;
+    font-size: 1.3rem;
+    line-height: 1.15;
+  }
+
+  .barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+  .grupo { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+  .grupo > .rotulo { font-size: 0.85rem; color: var(--suave); }
+
+  .segmentado {
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+  }
+  .segmentado button, .chave, .icone, .zoom button {
+    font: 500 0.95rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 0 13px;
+    min-height: 40px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active, .chave:active, .icone:active, .zoom button:active, .unidade:active { transform: scale(0.97); }
+
+  .chave {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--linha);
+    background: var(--superficie);
+    border-radius: 10px;
+    padding: 0 14px 0 12px;
+    min-height: 44px;
+  }
+  .chave .marca {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--suave);
+    display: grid;
+    place-items: center;
+  }
+  .chave .marca svg { width: 12px; height: 12px; opacity: 0; }
+  .chave[aria-pressed="true"] { color: var(--texto); }
+  .chave[aria-pressed="true"] .marca { background: var(--texto); border-color: var(--texto); }
+  .chave[aria-pressed="true"] .marca svg { opacity: 1; color: var(--bg); }
+
+  .camera, .zoom { display: inline-flex; align-items: center; gap: 4px; }
+  .icone, .zoom button {
+    min-width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+  .icone svg, .zoom button svg { width: 18px; height: 18px; }
+  .camera .valor { min-width: 52px; text-align: center; font-size: 0.9rem; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .zoom .valor { min-width: 64px; padding: 0 8px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .zoom .texto { padding: 0 12px; font-weight: 500; }
+  .zoom button:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+  :where(button, canvas, [tabindex]):focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  .area { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 1040px) { .area { grid-template-columns: minmax(0, 1fr) 300px; } }
+  .palco { display: grid; gap: 10px; min-width: 0; }
+
+  .moldura {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--moldura);
+    border: 1px solid var(--linha);
+  }
+  #mapa {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    max-height: 78svh;
+    cursor: grab;
+    touch-action: none;
+  }
+  #mapa[data-ferramenta]:not([data-ferramenta="mover"]) { cursor: crosshair; }
+  #mapa[data-arrastando] { cursor: grabbing; }
+  #mapa:focus-visible { outline-offset: -3px; }
+  @media (max-width: 640px) { #mapa { aspect-ratio: 4 / 5; max-height: 68svh; } }
+  .sob {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    margin: 0;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: rgba(22, 24, 30, 0.72);
+    color: #f6f1e4;
+    font: 600 0.82rem/1.3 var(--f-texto);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    max-width: calc(100% - 20px);
+  }
+
+  .ferramentas { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+  .ferramentas .segmentado button { display: inline-flex; align-items: center; gap: 7px; }
+  .ferramentas .segmentado svg { width: 16px; height: 16px; flex: none; }
+  @media (max-width: 520px) {
+    .ferramentas .segmentado { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; }
+    .ferramentas .segmentado button { flex-direction: column; gap: 3px; padding: 6px 2px; min-height: 52px; font-size: 0.78rem; }
+  }
+
+  .rodape-do-mapa { display: grid; gap: 2px; }
+  .estado { margin: 0; font-weight: 600; font-size: 0.95rem; min-height: 1.5em; }
+  .leitura { margin: 0; font-size: 0.9rem; color: var(--suave); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+  .dica { margin: 0; font-size: 0.86rem; color: var(--suave); max-width: 72ch; }
+  kbd {
+    font: 600 0.78rem/1 var(--f-texto);
+    padding: 2px 5px;
+    border: 1px solid var(--linha);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--superficie);
+    color: var(--texto);
+  }
+
+  .painel { display: grid; gap: 14px; align-content: start; min-width: 0; }
+  .cartao {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--linha);
+    border-radius: 12px;
+    background: var(--superficie);
+  }
+  .cartao h2 { font-size: 1.15rem; }
+  .cartao p { margin: 0; color: var(--suave); font-size: 0.9rem; }
+  .unidades { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  @media (min-width: 641px) and (max-width: 1039px) { .unidades { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .unidade {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 4px 10px 4px 4px;
+    border: 1px solid var(--linha);
+    border-left: 3px solid var(--aliado);
+    border-radius: 10px;
+    background: var(--superficie);
+    color: var(--texto);
+    font: 500 0.92rem/1.2 var(--f-texto);
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+    transition: transform 160ms var(--ease-out), border-color 160ms ease, background-color 160ms ease;
+  }
+  .unidade[data-lado="inimigo"] { border-left-color: var(--inimigo); }
+  .unidade[aria-pressed="true"] { background: var(--texto); color: var(--bg); border-color: var(--texto); }
+  .unidade[aria-pressed="true"] small { color: inherit; opacity: 0.8; }
+  .unidade canvas { width: 36px; height: 36px; flex: none; }
+  .unidade span { min-width: 0; overflow-wrap: anywhere; }
+  .unidade small { display: block; color: var(--suave); font-size: 0.78rem; }
+  .tema { justify-self: start; }
+
+  .explica { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); margin-top: 10px; }
+  @media (min-width: 900px) { .explica { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  .explica section { display: grid; gap: 10px; align-content: start; }
+  .explica ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 62ch; }
+  .explica li::marker { color: var(--acento); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .unidade:hover, .chave:hover, .icone:hover, .zoom button:not(:disabled):hover { border-color: var(--suave); }
+    .unidade[aria-pressed="true"]:hover { border-color: var(--texto); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .chave, .icone, .zoom button, .unidade { transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+    .segmentado button:active, .chave:active, .icone:active, .zoom button:active, .unidade:active { transform: none; }
+  }
+</style>
+
+<div class="pagina">
+  <header class="cabeca">
+    <h1>Mapa de batalha isométrico</h1>
+    <p class="lead">Blocos com altura, penhascos, escadas e casas de arenito, vistos de cima e de lado. Toque numa unidade para ver até onde ela anda; toque no destino e ela vai, bloco a bloco, saltando os degraus.</p>
+  </header>
+
+  <div class="barra">
+    <div class="segmentado" role="radiogroup" aria-label="Mapa" id="g-mapa">
+      <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="vila">Vila do deserto</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="baia">Baía das ruínas</button>
+    </div>
+    <div class="segmentado" role="radiogroup" aria-label="Hora do dia" id="g-hora">
+      <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="dia">Dia</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="tarde">Tarde</button>
+      <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="noite">Noite</button>
+    </div>
+    <button type="button" class="chave" id="b-batalha" aria-pressed="false"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Modo batalha</button>
+    <div class="camera" role="group" aria-label="Girar a câmera">
+      <button type="button" class="icone" id="rot-esq" aria-label="Girar para a esquerda (Q)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A5.5 5.5 0 1 1 4.6 12"/><path d="M3.6 3.6v4.2h4.2"/></svg></button>
+      <span class="valor" id="rot-valor" aria-live="polite">Norte</span>
+      <button type="button" class="icone" id="rot-dir" aria-label="Girar para a direita (E)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7.5A5.5 5.5 0 1 0 13.4 12"/><path d="M14.4 3.6v4.2h-4.2"/></svg></button>
+    </div>
+    <div class="zoom">
+      <button type="button" id="z-menos" aria-label="Afastar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10"/></svg></button>
+      <button type="button" id="z-valor" class="valor" aria-label="Zoom atual; tocar volta para 100%">100%</button>
+      <button type="button" id="z-mais" aria-label="Aproximar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M8 3v10"/></svg></button>
+      <button type="button" id="z-enquadrar" class="texto">Ver tudo</button>
+    </div>
+  </div>
+
+  <div class="area">
+    <div class="palco">
+      <div class="moldura">
+        <canvas id="mapa" tabindex="0" aria-label="Mapa de batalha. Setas movem o cursor pelos blocos, Enter confirma, Esc cancela, Q e E giram a câmera." aria-describedby="dica"></canvas>
+        <p class="sob" id="sob" aria-hidden="true"></p>
+      </div>
+      <div class="ferramentas">
+        <div class="segmentado" role="radiogroup" aria-label="Ferramenta" id="g-ferramenta">
+          <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="mover"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8v12.4M1.8 8h12.4M8 1.8 6 3.8M8 1.8l2 2M8 14.2l-2-2M8 14.2l2-2M1.8 8l2-2M1.8 8l2 2M14.2 8l-2-2M14.2 8l-2 2"/></svg>Mover</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="regua"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m2 10.5 8.5-8.5 3.5 3.5L5.5 14z"/><path d="m5 7.5 1.5 1.5M7 5.5 8 6.5M9 3.5l1.5 1.5"/></svg>Régua</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="circulo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>Círculo</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="cone"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M2 8 14 2.5v11z"/></svg>Cone</button>
+          <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="visao"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>Visão</button>
+        </div>
+        <button type="button" class="chave" id="b-rastro" aria-pressed="false"><span class="marca" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2 5 8.6l4.6-5"/></svg></span>Caminho andado</button>
+        <div class="grupo">
+          <span class="rotulo" id="r-degrau">Degrau máximo</span>
+          <div class="segmentado" role="radiogroup" aria-labelledby="r-degrau" id="g-degrau">
+            <button type="button" role="radio" aria-checked="true" tabindex="0" data-valor="1">1</button>
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="2">2</button>
+            <button type="button" role="radio" aria-checked="false" tabindex="-1" data-valor="3">3</button>
+          </div>
+        </div>
+      </div>
+      <div class="rodape-do-mapa">
+        <p class="estado" id="estado" aria-live="polite">Toque numa unidade para ver o alcance de movimento.</p>
+        <p class="leitura" id="leitura" aria-live="polite"></p>
+      </div>
+      <p class="dica" id="dica">Arraste o mapa para mover; roda do mouse ou pinça para o zoom; <kbd>Q</kbd> e <kbd>E</kbd> giram. Com o mapa em foco, as <kbd>setas</kbd> andam o cursor, <kbd>Enter</kbd> confirma e <kbd>Esc</kbd> cancela. Arrastar uma unidade também a leva até o bloco.</p>
+    </div>
+
+    <aside class="painel" aria-label="Unidades">
+      <div class="cartao" aria-live="polite">
+        <h2 id="sel-nome">Nenhuma unidade</h2>
+        <p id="sel-info">Toque numa unidade no mapa ou na lista.</p>
+      </div>
+      <div class="unidades" id="unidades"></div>
+      <button type="button" class="chave tema" id="b-tema">Tema: automático</button>
+    </aside>
+  </div>
+
+  <div class="explica">
+    <section aria-labelledby="t-regras">
+      <h2 id="t-regras">As regras do movimento</h2>
+      <ul>
+        <li>Sem turnos e sem vida: o modo batalha liga a grade, e a unidade escolhida mostra em azul os blocos que alcança.</li>
+        <li>Diagonal custa 1 bloco, mas não corta quina: as duas passagens retas pelo canto têm de valer.</li>
+        <li>Entre dois blocos vizinhos, a diferença de altura não passa do degrau máximo (1 de início). Penhasco mais alto só pela escada.</li>
+        <li>Água, objetos e blocos ocupados não entram no caminho.</li>
+        <li>No modo livre (batalha desligada) não há grade nem limite de movimento: a unidade vai até onde houver caminho.</li>
+      </ul>
+    </section>
+    <section aria-labelledby="t-medir">
+      <h2 id="t-medir">As medidas</h2>
+      <ul>
+        <li>Régua: blocos entre dois pontos (diagonal = 1) e quanto sobe ou desce.</li>
+        <li>Círculo: os blocos com o centro a até o raio + meio bloco do centro.</li>
+        <li>Cone: numa das 8 direções; a largura cresce junto com a distância.</li>
+        <li>Visão: do olho de quem olha (1,5 nível acima dos pés) até o peito do alvo. Diz o que barra e em que altura.</li>
+        <li>Caminho andado: o último percurso de cada unidade, numerado.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>// nucleo.js — a parte do mapa de batalha que não desenha: os dois mapas, a projeção isométrica 2:1, a ordem de
+// pintura, o clique (tela -> bloco), o alcance, a medição e o movimento das unidades no tempo.
+// Roda no navegador e no Node: as provas usam exatamente este código.
+// eslint-disable-next-line no-var, no-unused-vars
+var Nucleo = (function () {
+  'use strict'
+
+  // ---------- medidas da projeção, em px no zoom 100% ----------
+  const TW = 64
+  const TH = 32
+  /** Altura de um nível (um bloco de altura) na tela. */
+  const LH = 24
+  const ML = TW / 2
+  const MA = TH / 2
+  /** Ao longo do raio da câmera, u+v cresce K a cada nível subido. */
+  const K = LH / MA
+  /** O diorama desce até aqui (em níveis) na borda do mapa. */
+  const FUNDO = -1.25
+  /** A superfície da água fica um pouco abaixo do nível 0. */
+  const AGUA_Z = -0.3
+  const ZMAX = 4
+  const MARGEM_TOPO = (ZMAX + 3.6) * LH
+  const MARGEM_BAIXO = -FUNDO * LH + 14
+  const DX = [1, 0, -1, 0]
+  const DY = [0, 1, 0, -1]
+  /** Os 8 vizinhos: primeiro os 4 retos, depois as diagonais (a ordem escolhe o caminho entre os empatados). */
+  const D8 = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [-1, -1], [1, -1]]
+  const MS_POR_BLOCO = 260
+  const MS_DIAGONAL = 340
+
+  // ---------- acaso determinístico ----------
+  function rng(semente) {
+    let a = semente >>> 0 || 1
+    return function () {
+      a = (a + 0x6d2b79f5) | 0
+      let t = Math.imul(a ^ (a >>> 15), 1 | a)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+  function hash(x, y, s) {
+    let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul((s | 0) + 1013, 2246822519)
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    h ^= h >>> 16
+    return (h >>> 0) / 4294967296
+  }
+  function ruido(x, y, s) {
+    const xi = Math.floor(x)
+    const yi = Math.floor(y)
+    const fx = x - xi
+    const fy = y - yi
+    const sx = fx * fx * (3 - 2 * fx)
+    const sy = fy * fy * (3 - 2 * fy)
+    const a = hash(xi, yi, s)
+    const b = hash(xi + 1, yi, s)
+    const c = hash(xi, yi + 1, s)
+    const d = hash(xi + 1, yi + 1, s)
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy
+  }
+  function fbm(x, y, s, oitavas = 3) {
+    let t = 0
+    let a = 1
+    let f = 1
+    let n = 0
+    for (let o = 0; o < oitavas; o++) {
+      t += a * ruido(x * f, y * f, s + o * 17)
+      n += a
+      a *= 0.5
+      f *= 2
+    }
+    return t / n
+  }
+
+  // ---------- tipos de unidade e de objeto ----------
+  /** w e h: caixa do desenho em px no zoom 100% (dos pés para cima). mov: blocos por movimento. */
+  const TIPOS = {
+    aventureira: { nome: 'Aventureira', mov: 4, w: 40, h: 60 },
+    mago: { nome: 'Mago', mov: 3, w: 40, h: 72 },
+    arqueiro: { nome: 'Arqueiro', mov: 4, w: 42, h: 60 },
+    curandeira: { nome: 'Curandeira', mov: 3, w: 40, h: 62 },
+    ladino: { nome: 'Ladino', mov: 5, w: 40, h: 58 },
+    guarda: { nome: 'Guarda', mov: 3, w: 44, h: 66 },
+    lobo: { nome: 'Lobo', mov: 5, w: 52, h: 42 },
+    golem: { nome: 'Golem', mov: 3, w: 54, h: 62 },
+  }
+  /** r: meio lado da pegada no chão (em blocos), usado para decidir quem fica na frente. luz: altura e alcance à noite. */
+  const PROPS = {
+    palmeira: { nome: 'palmeira', w: 108, h: 118, r: 0.3 },
+    vasos: { nome: 'vasos', w: 50, h: 42, r: 0.42 },
+    barril: { nome: 'barris', w: 40, h: 36, r: 0.4 },
+    caixas: { nome: 'caixotes', w: 44, h: 38, r: 0.42 },
+    banco: { nome: 'banco', w: 52, h: 26, r: 0.42 },
+    toldo: { nome: 'banca de feira', w: 64, h: 72, r: 0.46 },
+    poco: { nome: 'poço', w: 58, h: 66, r: 0.46 },
+    lampiao: { nome: 'lampião', w: 24, h: 80, r: 0.2, luz: { z: 3, raio: 3.8, forca: 1 } },
+    tocha: { nome: 'braseiro', w: 28, h: 50, r: 0.25, luz: { z: 1.9, raio: 3.2, forca: 0.95 } },
+    coluna: { nome: 'coluna quebrada', w: 34, h: 74, r: 0.32 },
+    entulho: { nome: 'entulho', w: 50, h: 24, r: 0.44 },
+    arbusto: { nome: 'arbusto', w: 46, h: 30, r: 0.42 },
+  }
+
+  // ---------- montagem dos mapas ----------
+  function novoMapa(id, nome, W, H, base) {
+    const c = []
+    for (let i = 0; i < W * H; i++) c.push({ h: base.h, topo: base.topo, lado: base.lado, escada: -1, predio: -1, agua: false, chao: base.h })
+    return { id, nome, W, H, c, props: [], unidades: [], predios: [], portas: [], propEm: null, _cache: {} }
+  }
+  const dentro = (m, x, y) => x >= 0 && y >= 0 && x < m.W && y < m.H
+  const cel = (m, x, y) => m.c[y * m.W + x]
+  function ret(m, x0, y0, w, h, f) {
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (dentro(m, x, y)) f(cel(m, x, y), x, y)
+  }
+  function terreno(m, x0, y0, w, h, dados) {
+    ret(m, x0, y0, w, h, (c) => {
+      Object.assign(c, dados)
+      if ('h' in dados) c.chao = dados.h
+    })
+  }
+  function agua(m, x0, y0, w, h) {
+    ret(m, x0, y0, w, h, (c) => Object.assign(c, { h: 0, chao: 0, topo: 'agua', lado: 'agua', agua: true, escada: -1, predio: -1 }))
+  }
+  /** Prédio de blocos: andares sobre o chão; portas = [x, y, direção do lado de fora]. */
+  function predio(m, x0, y0, w, d, chao, andares, portas, lado = 'parede') {
+    const id = m.predios.length
+    m.predios.push({ id, x0, y0, w, d, chao, andares, lado })
+    ret(m, x0, y0, w, d, (c) => Object.assign(c, { h: chao + andares, chao, topo: lado === 'ruina' ? 'ruina' : 'telhado', lado, predio: id, escada: -1, agua: false }))
+    for (const [x, y, dir] of portas) m.portas.push({ predio: id, x, y, dir })
+  }
+  /** Escada: o bloco tem altura h e desce na direção dir (0 +x, 1 +y, 2 -x, 3 -y) até o vizinho de altura h - 1. */
+  function escada(m, x, y, h, dir, lado = 'muro') {
+    Object.assign(cel(m, x, y), { h, chao: h - 1, escada: dir, topo: 'degrau', lado, agua: false, predio: -1 })
+  }
+  function prop(m, tipo, x, y, extra = {}) {
+    m.props.push({ id: 'p' + m.props.length, tipo, x, y, dir: 0, ...extra })
+  }
+  function unidade(m, tipo, lado, x, y, dir) {
+    const n = m.unidades.filter((u) => u.tipo === tipo).length
+    m.unidades.push({ id: tipo + (n ? n + 1 : ''), tipo, nome: TIPOS[tipo].nome, lado, x, y, dir, mov: TIPOS[tipo].mov, rastro: [] })
+  }
+  function fechar(m) {
+    m.propEm = new Int32Array(m.W * m.H).fill(-1)
+    m.props.forEach((p, k) => {
+      const i = p.y * m.W + p.x
+      if (m.propEm[i] >= 0) throw new Error(`${m.id}: dois objetos em ${p.x},${p.y}`)
+      if (m.c[i].agua) throw new Error(`${m.id}: objeto na água em ${p.x},${p.y}`)
+      m.propEm[i] = k
+    })
+    for (const u of m.unidades) {
+      const i = u.y * m.W + u.x
+      if (m.propEm[i] >= 0 || m.c[i].agua) throw new Error(`${m.id}: unidade ${u.id} em bloco impedido`)
+    }
+    return m
+  }
+
+  function vila() {
+    const m = novoMapa('vila', 'Vila do deserto', 24, 24, { h: 1, topo: 'areia', lado: 'arenito' })
+    // manchas de grama e terra batida na areia (sorteio fixo por posição)
+    ret(m, 0, 0, 24, 24, (c, x, y) => {
+      const n = fbm(x * 0.21 + 3.1, y * 0.21 + 7.7, 5)
+      if (n > 0.62) c.topo = 'grama'
+      else if (n < 0.3) c.topo = 'terra'
+    })
+    // rua de calçamento: a principal desce do alto (nível 2) por degraus; a transversal corta a vila
+    terreno(m, 9, 0, 3, 24, { topo: 'calcada' })
+    terreno(m, 0, 15, 24, 2, { topo: 'calcada' })
+    terreno(m, 9, 0, 3, 6, { h: 2, lado: 'muro' })
+    for (let x = 9; x <= 11; x++) escada(m, x, 6, 2, 1)
+    // praça elevada com degraus
+    terreno(m, 12, 7, 8, 7, { h: 2, topo: 'calcada', lado: 'muro' })
+    terreno(m, 13, 8, 6, 5, { topo: 'laje' })
+    escada(m, 12, 9, 2, 2)
+    escada(m, 12, 10, 2, 2)
+    escada(m, 15, 13, 2, 1)
+    escada(m, 16, 13, 2, 1)
+    // oásis com grama em volta
+    terreno(m, 1, 9, 6, 6, { topo: 'grama' })
+    agua(m, 2, 10, 4, 4)
+    // casas de arenito
+    predio(m, 1, 2, 6, 5, 1, 2, [[6, 5, 0], [3, 6, 1]])
+    predio(m, 13, 1, 7, 5, 1, 3, [[16, 5, 1], [13, 3, 2]])
+    predio(m, 20, 6, 4, 7, 1, 2, [[22, 12, 1], [21, 6, 3]])
+    predio(m, 1, 18, 5, 5, 1, 2, [[5, 20, 0], [3, 18, 3]])
+    predio(m, 14, 18, 5, 4, 1, 1, [[16, 21, 1], [18, 19, 0]])
+    escada(m, 13, 19, 2, 2, 'parede')
+    predio(m, 20, 18, 3, 3, 1, 3, [[20, 19, 2], [21, 20, 1]])
+    // a calçada passa rente às portas
+    terreno(m, 7, 5, 2, 1, { topo: 'calcada' })
+    terreno(m, 16, 6, 1, 1, { topo: 'calcada' })
+    // praça
+    prop(m, 'poco', 16, 10)
+    prop(m, 'vasos', 13, 8)
+    prop(m, 'vasos', 19, 8, { variante: 1 })
+    prop(m, 'palmeira', 18, 12)
+    prop(m, 'palmeira', 13, 12, { variante: 1 })
+    prop(m, 'banco', 14, 10, { dir: 1 })
+    prop(m, 'lampiao', 12, 13)
+    prop(m, 'lampiao', 12, 7)
+    // feira entre a praça e a rua
+    prop(m, 'toldo', 18, 14)
+    prop(m, 'toldo', 20, 14, { variante: 1 })
+    prop(m, 'caixas', 19, 14)
+    prop(m, 'barril', 21, 14)
+    // oásis
+    prop(m, 'palmeira', 1, 10, { variante: 2 })
+    prop(m, 'palmeira', 6, 13)
+    prop(m, 'palmeira', 2, 14, { variante: 1 })
+    prop(m, 'arbusto', 6, 9)
+    // casas e ruas
+    prop(m, 'tocha', 7, 4)
+    prop(m, 'tocha', 15, 6)
+    prop(m, 'tocha', 17, 6)
+    prop(m, 'vasos', 6, 17)
+    prop(m, 'barril', 7, 17)
+    prop(m, 'lampiao', 8, 14)
+    prop(m, 'lampiao', 12, 17)
+    prop(m, 'palmeira', 7, 21, { variante: 2 })
+    prop(m, 'palmeira', 19, 17)
+    prop(m, 'banco', 12, 22, { dir: 0 })
+    prop(m, 'vasos', 22, 22, { variante: 1 })
+    prop(m, 'caixas', 23, 16)
+    prop(m, 'arbusto', 0, 6)
+    prop(m, 'barril', 8, 1)
+    // unidades: quatro aliadas na rua de baixo, quatro inimigas na praça e no alto
+    unidade(m, 'aventureira', 'aliado', 10, 19, 3)
+    unidade(m, 'mago', 'aliado', 9, 21, 3)
+    unidade(m, 'arqueiro', 'aliado', 11, 21, 3)
+    unidade(m, 'curandeira', 'aliado', 10, 22, 3)
+    unidade(m, 'guarda', 'inimigo', 15, 11, 1)
+    unidade(m, 'ladino', 'inimigo', 17, 9, 1)
+    unidade(m, 'lobo', 'inimigo', 10, 3, 1)
+    unidade(m, 'golem', 'inimigo', 7, 12, 0)
+    return fechar(m)
+  }
+
+  function baia() {
+    const m = novoMapa('baia', 'Baía das ruínas', 24, 24, { h: 0, topo: 'agua', lado: 'agua' })
+    agua(m, 0, 0, 24, 24)
+    // planalto das ruínas (nível 3), terraço (2), praia (1), água (0)
+    terreno(m, 0, 0, 14, 12, { h: 3, topo: 'pedra', lado: 'rocha', agua: false })
+    terreno(m, 14, 0, 4, 12, { h: 1, topo: 'grama', lado: 'rocha', agua: false })
+    terreno(m, 0, 12, 18, 5, { h: 2, topo: 'grama', lado: 'rocha', agua: false })
+    terreno(m, 6, 17, 14, 3, { h: 1, topo: 'areia', lado: 'arenito', agua: false })
+    terreno(m, 18, 0, 2, 17, { h: 1, topo: 'areia', lado: 'arenito', agua: false })
+    agua(m, 14, 18, 3, 2)
+    ret(m, 0, 0, 14, 12, (c, x, y) => {
+      if (fbm(x * 0.3 + 11, y * 0.3 + 2, 9) > 0.6) c.topo = 'musgo'
+    })
+    ret(m, 0, 12, 18, 5, (c, x, y) => {
+      if (fbm(x * 0.35, y * 0.35 + 40, 4) < 0.36) c.topo = 'terra'
+    })
+    // ilhotas de pedra
+    terreno(m, 21, 5, 1, 1, { h: 1, topo: 'rocha', lado: 'rocha', agua: false })
+    terreno(m, 22, 13, 2, 1, { h: 1, topo: 'rocha', lado: 'rocha', agua: false })
+    terreno(m, 3, 21, 1, 1, { h: 1, topo: 'rocha', lado: 'rocha', agua: false })
+    // muros e colunas de ruína (nível 4)
+    predio(m, 2, 1, 7, 1, 3, 1, [[5, 1, 1]], 'ruina')
+    predio(m, 1, 1, 1, 7, 3, 1, [[1, 4, 0]], 'ruina')
+    predio(m, 10, 2, 3, 1, 3, 1, [], 'ruina')
+    predio(m, 5, 5, 1, 1, 3, 1, [], 'ruina')
+    predio(m, 9, 5, 1, 1, 3, 1, [], 'ruina')
+    predio(m, 5, 9, 1, 1, 3, 1, [], 'ruina')
+    // degraus
+    escada(m, 6, 11, 3, 1, 'rocha')
+    escada(m, 7, 11, 3, 1, 'rocha')
+    // do planalto (3) ao patamar (1): dois degraus em fila, porque o desnível é de 2
+    escada(m, 13, 6, 3, 0, 'rocha')
+    escada(m, 14, 6, 2, 0, 'rocha')
+    escada(m, 9, 16, 2, 1, 'rocha')
+    escada(m, 10, 16, 2, 1, 'rocha')
+    // objetos
+    prop(m, 'vasos', 3, 3)
+    prop(m, 'vasos', 12, 4, { variante: 1 })
+    prop(m, 'coluna', 7, 7)
+    prop(m, 'coluna', 11, 9, { variante: 1 })
+    prop(m, 'entulho', 3, 9)
+    prop(m, 'entulho', 11, 6, { variante: 1 })
+    prop(m, 'tocha', 4, 6)
+    prop(m, 'tocha', 10, 10)
+    prop(m, 'tocha', 13, 1)
+    prop(m, 'palmeira', 15, 2)
+    prop(m, 'palmeira', 16, 11, { variante: 1 })
+    prop(m, 'palmeira', 2, 14, { variante: 2 })
+    prop(m, 'palmeira', 13, 15)
+    prop(m, 'palmeira', 19, 4, { variante: 1 })
+    prop(m, 'palmeira', 8, 19, { variante: 2 })
+    prop(m, 'arbusto', 5, 13)
+    prop(m, 'arbusto', 15, 14, { variante: 1 })
+    prop(m, 'barril', 12, 18)
+    prop(m, 'caixas', 13, 18)
+    prop(m, 'lampiao', 18, 16)
+    prop(m, 'lampiao', 7, 16)
+    // unidades
+    unidade(m, 'aventureira', 'aliado', 10, 18, 3)
+    unidade(m, 'arqueiro', 'aliado', 11, 19, 3)
+    unidade(m, 'mago', 'aliado', 16, 14, 3)
+    unidade(m, 'curandeira', 'aliado', 9, 19, 3)
+    unidade(m, 'guarda', 'inimigo', 7, 4, 1)
+    unidade(m, 'golem', 'inimigo', 4, 8, 0)
+    unidade(m, 'ladino', 'inimigo', 15, 6, 1)
+    unidade(m, 'lobo', 'inimigo', 10, 8, 1)
+    return fechar(m)
+  }
+
+  /** Mapa de n x n só para a prova de desempenho: relevo por ruído, casas, água, objetos e 16 unidades. */
+  function mapaDeTeste(n = 30, semente = 7) {
+    const m = novoMapa('teste' + n, `Teste ${n} x ${n}`, n, n, { h: 1, topo: 'grama', lado: 'rocha' })
+    ret(m, 0, 0, n, n, (c, x, y) => {
+      const r = fbm(x * 0.12, y * 0.12, semente, 3)
+      c.h = c.chao = Math.max(0, Math.min(3, Math.floor(r * 5) - 1))
+      c.topo = c.h >= 3 ? 'pedra' : c.h === 2 ? 'calcada' : r > 0.45 ? 'grama' : 'areia'
+      if (c.h === 0) Object.assign(c, { topo: 'agua', lado: 'agua', agua: true })
+    })
+    const sorte = rng(semente)
+    for (let k = 0; k < 6; k++) {
+      const x = 2 + Math.floor(sorte() * (n - 8))
+      const y = 2 + Math.floor(sorte() * (n - 8))
+      const c = cel(m, x, y)
+      if (c.agua) continue
+      predio(m, x, y, 3, 3, c.h, 1, [[x + 2, y + 1, 0]])
+    }
+    const livres = []
+    m.c.forEach((c, i) => { if (!c.agua && c.predio < 0) livres.push(i) })
+    const usados = new Set()
+    const pegar = () => {
+      for (;;) {
+        const i = livres[Math.floor(sorte() * livres.length)]
+        if (!usados.has(i)) { usados.add(i); return [i % n, (i / n) | 0] }
+      }
+    }
+    const tiposDeProp = ['palmeira', 'vasos', 'barril', 'lampiao', 'arbusto', 'tocha']
+    for (let k = 0; k < 40; k++) { const [x, y] = pegar(); prop(m, tiposDeProp[k % tiposDeProp.length], x, y) }
+    const tipos = Object.keys(TIPOS)
+    for (let k = 0; k < 16; k++) { const [x, y] = pegar(); unidade(m, tipos[k % 8], k % 2 ? 'inimigo' : 'aliado', x, y, k % 4) }
+    return fechar(m)
+  }
+
+  // ---------- giro da câmera ----------
+  /** Ponto contínuo do mundo -> coordenadas giradas (u, v). Centro do bloco x é x + 0,5. */
+  function girarP(px, py, rot, W, H) {
+    switch (rot & 3) {
+      case 0: return [px, py]
+      case 1: return [H - py, px]
+      case 2: return [W - px, H - py]
+      default: return [py, W - px]
+    }
+  }
+  function desgirarP(pu, pv, rot, W, H) {
+    switch (rot & 3) {
+      case 0: return [pu, pv]
+      case 1: return [pv, H - pu]
+      case 2: return [W - pu, H - pv]
+      default: return [W - pv, pu]
+    }
+  }
+  function girarC(x, y, rot, W, H) {
+    const [u, v] = girarP(x + 0.5, y + 0.5, rot, W, H)
+    return [Math.floor(u), Math.floor(v)]
+  }
+  /** Direção do mundo (0 +x, 1 +y, 2 -x, 3 -y) -> direção girada (0 +u, 1 +v, 2 -u, 3 -v). */
+  const dirGirada = (d, rot) => (d + rot) & 3
+
+  function metricas(m, rot) {
+    const Wr = rot & 1 ? m.H : m.W
+    const Hr = rot & 1 ? m.W : m.H
+    return { rot, Wr, Hr, ox: Hr * ML, oy: MARGEM_TOPO, largura: (Wr + Hr) * ML, altura: Math.ceil(MARGEM_TOPO + (Wr + Hr) * MA + MARGEM_BAIXO) }
+  }
+  function proj(met, u, v, z) {
+    return [met.ox + (u - v) * ML, met.oy + (u + v) * MA - z * LH]
+  }
+  /** Ponto da camada -> (u, v) no plano de altura z. */
+  function desproj(met, lx, ly, z) {
+    const a = (lx - met.ox) / ML
+    const b = (ly - met.oy) / MA + z * K
+    return [(a + b) / 2, (b - a) / 2]
+  }
+
+  // ---------- alturas ----------
+  function topoZ(c) {
+    return c.agua ? c.h + AGUA_Z : c.h
+  }
+  /** Altura dos pés de quem está no centro do bloco. Na escada, o degrau do meio. */
+  function alturaEmPe(c) {
+    if (c.agua) return c.h + AGUA_Z
+    return c.escada >= 0 ? c.h - 0.5 : c.h
+  }
+  /** Altura do chão num ponto do mundo (contínuo): rampa na escada (os degraus têm o centro nela). */
+  function alturaNoPonto(m, px, py) {
+    const x = Math.min(m.W - 1, Math.max(0, Math.floor(px)))
+    const y = Math.min(m.H - 1, Math.max(0, Math.floor(py)))
+    const c = cel(m, x, y)
+    if (c.escada < 0) return topoZ(c)
+    const fx = px - x
+    const fy = py - y
+    const s = c.escada === 0 ? fx : c.escada === 1 ? fy : c.escada === 2 ? 1 - fx : 1 - fy
+    return c.h - Math.min(1, Math.max(0, s))
+  }
+  /** Altura da borda de um bloco na direção d: o que conta para o degrau máximo entre dois vizinhos. */
+  function bordaAltura(c, d) {
+    if (c.escada < 0) return c.h
+    if (d === c.escada) return c.h - 1
+    if (d === ((c.escada + 2) & 3)) return c.h
+    return c.h - 0.5
+  }
+
+  // ---------- geometria das colunas (caixas 3D no espaço girado) ----------
+  /** Caixas de uma coluna, de trás para a frente. Bloco comum: 1 caixa; escada: 3 degraus. */
+  function caixas(m, i, rot) {
+    const c = m.c[i]
+    const x = i % m.W
+    const y = (i / m.W) | 0
+    const [u, v] = girarC(x, y, rot, m.W, m.H)
+    if (c.escada < 0) return [{ u0: u, u1: u + 1, v0: v, v1: v + 1, z: topoZ(c), k: -1 }]
+    const dr = dirGirada(c.escada, rot)
+    const out = []
+    for (let k = 0; k < 3; k++) {
+      const s0 = k / 3
+      const s1 = (k + 1) / 3
+      const z = c.h - (k + 0.5) / 3
+      let b
+      if (dr === 0) b = { u0: u + s0, u1: u + s1, v0: v, v1: v + 1 }
+      else if (dr === 1) b = { u0: u, u1: u + 1, v0: v + s0, v1: v + s1 }
+      else if (dr === 2) b = { u0: u + 1 - s1, u1: u + 1 - s0, v0: v, v1: v + 1 }
+      else b = { u0: u, u1: u + 1, v0: v + 1 - s1, v1: v + 1 - s0 }
+      out.push({ ...b, z, k, s0, s1 })
+    }
+    out.sort((a, b) => a.u0 + a.v0 - (b.u0 + b.v0))
+    return out
+  }
+  /** Silhueta da caixa na tela (6 pontos, horário com y para baixo), descendo até o fundo do diorama. */
+  function hexagono(met, b) {
+    const p = (u, v, z) => proj(met, u, v, z)
+    return [p(b.u0, b.v0, b.z), p(b.u1, b.v0, b.z), p(b.u1, b.v0, FUNDO), p(b.u1, b.v1, FUNDO), p(b.u0, b.v1, FUNDO), p(b.u0, b.v1, b.z)]
+  }
+  function dentroDoConvexo(pts, x, y) {
+    const n = pts.length
+    for (let k = 0; k < n; k++) {
+      const a = pts[k]
+      const b = pts[(k + 1) % n]
+      if ((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) < -1e-9) return false
+    }
+    return true
+  }
+
+  /** Tudo o que depende só do mapa e do giro: ordem de pintura, caixas, silhuetas e retângulos. */
+  function preparo(m, rot) {
+    const r = rot & 3
+    if (m._cache[r]) return m._cache[r]
+    const met = metricas(m, r)
+    const N = m.W * m.H
+    const uv = new Int32Array(N * 2)
+    const ordem = []
+    for (let i = 0; i < N; i++) {
+      const [u, v] = girarC(i % m.W, (i / m.W) | 0, r, m.W, m.H)
+      uv[i * 2] = u
+      uv[i * 2 + 1] = v
+      ordem.push(i)
+    }
+    ordem.sort((a, b) => uv[a * 2] + uv[a * 2 + 1] - (uv[b * 2] + uv[b * 2 + 1]) || uv[a * 2] - uv[b * 2])
+    const cx = []
+    const hx = []
+    const bb = new Float64Array(N * 4)
+    const naCelula = new Int32Array(met.Wr * met.Hr)
+    for (let i = 0; i < N; i++) {
+      const cs = caixas(m, i, r)
+      cx[i] = cs
+      hx[i] = cs.map((b) => hexagono(met, b))
+      let x0 = Infinity
+      let y0 = Infinity
+      let x1 = -Infinity
+      let y1 = -Infinity
+      for (const h of hx[i]) for (const [px, py] of h) { x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py) }
+      bb.set([x0, y0, x1, y1], i * 4)
+      naCelula[uv[i * 2 + 1] * met.Wr + uv[i * 2]] = i
+    }
+    const pos = new Int32Array(N)
+    ordem.forEach((i, k) => { pos[i] = k })
+    m._cache[r] = { met, ordem, pos, uv, caixas: cx, hex: hx, bb, naCelula }
+    return m._cache[r]
+  }
+
+  // ---------- clique: tela -> bloco ----------
+  /** O bloco que aparece no ponto da camada: a primeira coluna, de frente para trás, cuja silhueta contém o ponto. */
+  function blocoNoPonto(m, rot, lx, ly) {
+    const P = preparo(m, rot)
+    for (let k = P.ordem.length - 1; k >= 0; k--) {
+      const i = P.ordem[k]
+      const o = i * 4
+      if (lx < P.bb[o] || lx > P.bb[o + 2] || ly < P.bb[o + 1] || ly > P.bb[o + 3]) continue
+      for (const h of P.hex[i]) if (dentroDoConvexo(h, lx, ly)) return i
+    }
+    return -1
+  }
+  /** Referência das provas: o raio da câmera. Devolve o z de entrada do raio na caixa (ou null). */
+  function entradaNaCaixa(met, b, lx, ly) {
+    const a = (lx - met.ox) / ML
+    const b0 = (ly - met.oy) / MA
+    let lo = FUNDO
+    let hi = b.z
+    lo = Math.max(lo, (2 * b.u0 - a - b0) / K, (2 * b.v0 + a - b0) / K)
+    hi = Math.min(hi, (2 * b.u1 - a - b0) / K, (2 * b.v1 + a - b0) / K)
+    return lo <= hi + 1e-12 ? hi : null
+  }
+  /** O bloco que o raio encontra primeiro. Com empates (ponto exatamente na aresta de dois blocos), devolve todos. */
+  function raioNoPonto(m, rot, lx, ly, todosEmpatados = false) {
+    const P = preparo(m, rot)
+    let melhores = []
+    let zMelhor = -Infinity
+    for (let i = 0; i < m.c.length; i++) {
+      const o = i * 4
+      if (lx < P.bb[o] || lx > P.bb[o + 2] || ly < P.bb[o + 1] || ly > P.bb[o + 3]) continue
+      for (const b of P.caixas[i]) {
+        const z = entradaNaCaixa(P.met, b, lx, ly)
+        if (z === null) continue
+        if (z > zMelhor + 1e-9) { zMelhor = z; melhores = [i] } else if (z > zMelhor - 1e-9 && !melhores.includes(i)) melhores.push(i)
+      }
+    }
+    if (todosEmpatados) return melhores
+    return melhores.length ? melhores[0] : -1
+  }
+  /** Centro do topo do bloco (altura em pé) na camada. */
+  function pontoDoBloco(m, rot, x, y) {
+    const P = preparo(m, rot)
+    const [u, v] = girarP(x + 0.5, y + 0.5, rot, m.W, m.H)
+    return proj(P.met, u, v, alturaEmPe(cel(m, x, y)))
+  }
+  /** Ponto do mundo (contínuo, com altura) na camada. */
+  function pontoDoMundo(m, rot, px, py, z) {
+    const P = preparo(m, rot)
+    const [u, v] = girarP(px, py, rot, m.W, m.H)
+    return proj(P.met, u, v, z)
+  }
+
+  // ---------- objetos e quem fica na frente deles ----------
+  /**
+   * Colunas que ficam NA FRENTE de um objeto e cruzam o retângulo dele na tela. O pintor desenha o objeto e
+   * repõe, por cima, a camada estática dentro da silhueta dessas colunas. ob: {pu, pv, r, ret:[x0,y0,x1,y1]}.
+   */
+  function ocludentes(m, rot, ob) {
+    const P = preparo(m, rot)
+    const { Wr, Hr } = P.met
+    const out = []
+    const u0 = Math.max(0, Math.floor(ob.pu - ob.r) - 1)
+    const v0 = Math.max(0, Math.floor(ob.pv - ob.r) - 1)
+    const u1 = Math.min(Wr - 1, Math.floor(ob.pu + ob.r) + 8)
+    const v1 = Math.min(Hr - 1, Math.floor(ob.pv + ob.r) + 8)
+    for (let v = v0; v <= v1; v++) {
+      for (let u = u0; u <= u1; u++) {
+        const debaixo = u < ob.pu + ob.r && u + 1 > ob.pu - ob.r && v < ob.pv + ob.r && v + 1 > ob.pv - ob.r
+        if (debaixo) continue
+        if (!(u >= ob.pu + ob.r - 1e-9 || v >= ob.pv + ob.r - 1e-9)) continue
+        const i = P.naCelula[v * Wr + u]
+        const o = i * 4
+        if (P.bb[o] >= ob.ret[2] || P.bb[o + 2] <= ob.ret[0] || P.bb[o + 1] >= ob.ret[3] || P.bb[o + 3] <= ob.ret[1]) continue
+        out.push(i)
+      }
+    }
+    out.sort((a, b) => P.pos[a] - P.pos[b])
+    return out
+  }
+  /** Caixa de desenho e pegada de um objeto no giro rot. pos: {x, y, z} contínuos do mundo (centro em x + 0,5). */
+  function quadroDoObjeto(m, rot, pos, w, h, r) {
+    const P = preparo(m, rot)
+    const [pu, pv] = girarP(pos.x, pos.y, rot, m.W, m.H)
+    const [sx, sy] = proj(P.met, pu, pv, pos.z)
+    return { pu, pv, r, sx, sy, ret: [sx - w / 2, sy - h, sx + w / 2, sy + 3] }
+  }
+  function ordenarObjetos(lista) {
+    return lista.sort((a, b) => a.pu + a.pv - (b.pu + b.pv) || a.pu - b.pu)
+  }
+
+  // ---------- regras de movimento ----------
+  function livreDeTerreno(m, x, y) {
+    if (!dentro(m, x, y)) return false
+    const i = y * m.W + x
+    return !m.c[i].agua && m.propEm[i] < 0
+  }
+  function passoReto(m, x, y, d, degrau) {
+    const nx = x + DX[d]
+    const ny = y + DY[d]
+    if (!livreDeTerreno(m, nx, ny)) return false
+    return Math.abs(bordaAltura(cel(m, x, y), d) - bordaAltura(cel(m, nx, ny), (d + 2) & 3)) <= degrau + 1e-9
+  }
+  const dirDe = (dx, dy) => (dx > 0 ? 0 : dx < 0 ? 2 : dy > 0 ? 1 : 3)
+  /** Um passo de (x, y) para (x+dx, y+dy). Diagonal: os dois caminhos retos pelas quinas têm de valer (sem cortar quina). */
+  function passo(m, x, y, dx, dy, degrau) {
+    if (dx === 0 || dy === 0) return passoReto(m, x, y, dirDe(dx, dy), degrau)
+    const dU = dx > 0 ? 0 : 2
+    const dV = dy > 0 ? 1 : 3
+    return passoReto(m, x, y, dU, degrau) && passoReto(m, x + dx, y, dV, degrau) && passoReto(m, x, y, dV, degrau) && passoReto(m, x, y + dy, dU, degrau)
+  }
+  function ocupadas(m, exceto) {
+    const s = new Set()
+    for (const u of m.unidades) if (u !== exceto) s.add(u.y * m.W + u.x)
+    return s
+  }
+  /** Busca em largura: distância em blocos (diagonal = 1) até cada bloco alcançável, e de onde se veio. */
+  function alcance(m, x0, y0, opts) {
+    const N = m.W * m.H
+    const mov = opts.mov ?? Infinity
+    const degrau = opts.degrau ?? 1
+    const ocup = opts.ocupadas || new Set()
+    const dist = new Int16Array(N).fill(-1)
+    const prev = new Int32Array(N).fill(-1)
+    const i0 = y0 * m.W + x0
+    dist[i0] = 0
+    const fila = [i0]
+    for (let q = 0; q < fila.length; q++) {
+      const i = fila[q]
+      if (dist[i] >= mov) continue
+      const x = i % m.W
+      const y = (i / m.W) | 0
+      for (const [dx, dy] of D8) {
+        const nx = x + dx
+        const ny = y + dy
+        if (!dentro(m, nx, ny)) continue
+        const j = ny * m.W + nx
+        if (dist[j] >= 0 || ocup.has(j)) continue
+        if (!passo(m, x, y, dx, dy, degrau)) continue
+        dist[j] = dist[i] + 1
+        prev[j] = i
+        fila.push(j)
+      }
+    }
+    return { dist, prev, origem: i0 }
+  }
+  function caminhoAte(m, res, j) {
+    if (res.dist[j] < 0) return null
+    const out = []
+    for (let i = j; i >= 0; i = res.prev[i]) {
+      out.push([i % m.W, (i / m.W) | 0])
+      if (i === res.origem) break
+    }
+    return out.reverse()
+  }
+
+  // ---------- movimento no tempo (andar e saltar) ----------
+  /**
+   * Plano de um caminho: um trecho por bloco. Andar quando as bordas se encontram na mesma altura (chão plano e
+   * escada); saltar em arco quando há desnível. reduzido: sem agachar nem amortecer e com arco baixo.
+   */
+  function planoDeMovimento(m, caminho, opts = {}) {
+    const segs = []
+    let t = 0
+    let andados = 0
+    for (let k = 0; k + 1 < caminho.length; k++) {
+      const [ax, ay] = caminho[k]
+      const [bx, by] = caminho[k + 1]
+      const dx = bx - ax
+      const dy = by - ay
+      const cA = cel(m, ax, ay)
+      const cB = cel(m, bx, by)
+      const za = alturaEmPe(cA)
+      const zb = alturaEmPe(cB)
+      const diag = dx !== 0 && dy !== 0
+      let salto
+      let borda = (za + zb) / 2
+      if (!diag) {
+        const d = dirDe(dx, dy)
+        const eA = bordaAltura(cA, d)
+        const eB = bordaAltura(cB, (d + 2) & 3)
+        salto = Math.abs(eA - eB) > 0.01
+        borda = eA
+      } else {
+        salto = cA.escada < 0 && cB.escada < 0 && Math.abs(za - zb) > 0.01
+      }
+      const base = { ax: ax + 0.5, ay: ay + 0.5, az: za, bx: bx + 0.5, by: by + 0.5, bz: zb, dir8: D8.findIndex(([px, py]) => px === dx && py === dy), t0: t, n: k }
+      if (salto) {
+        const dz = Math.abs(zb - za)
+        const s = { ...base, tipo: 'salto', agacha: opts.reduzido ? 0 : 70, ar: Math.round(240 + 70 * dz), pousa: opts.reduzido ? 0 : 90, arco: opts.reduzido ? 0.12 : 0.35 + 0.3 * dz }
+        s.dur = s.agacha + s.ar + s.pousa
+        segs.push(s)
+      } else {
+        segs.push({ ...base, tipo: 'anda', diag, borda, dur: diag ? MS_DIAGONAL : MS_POR_BLOCO, passo0: andados })
+        andados++
+      }
+      t += segs[segs.length - 1].dur
+    }
+    return { segs, total: t, caminho }
+  }
+  const lerp = (a, b, f) => a + (b - a) * f
+  /** Estado da unidade no instante t do plano: posição contínua, altura dos pés, direção, pose e esticão. */
+  function estadoNoTempo(plano, t) {
+    const segs = plano.segs
+    if (!segs.length || t >= plano.total) {
+      const [x, y] = plano.caminho[plano.caminho.length - 1]
+      const ult = segs[segs.length - 1]
+      return { x: x + 0.5, y: y + 0.5, z: ult ? ult.bz : 0, dir8: ult ? ult.dir8 : 1, pose: 'parado', fase: 0, ex: 1, ey: 1, fim: true }
+    }
+    let s = segs[0]
+    for (const q of segs) { if (t >= q.t0) s = q; else break }
+    const l = Math.max(0, t - s.t0)
+    if (s.tipo === 'anda') {
+      const f = Math.min(1, l / s.dur)
+      let z
+      if (s.diag) z = lerp(s.az, s.bz, f)
+      else z = f < 0.5 ? lerp(s.az, s.borda, f * 2) : lerp(s.borda, s.bz, (f - 0.5) * 2)
+      return { x: lerp(s.ax, s.bx, f), y: lerp(s.ay, s.by, f), z, dir8: s.dir8, pose: 'anda', fase: (s.passo0 + f) % 1, ex: 1, ey: 1, fim: false }
+    }
+    if (l < s.agacha) {
+      const p = Math.sin((l / s.agacha) * Math.PI * 0.5)
+      return { x: s.ax, y: s.ay, z: s.az, dir8: s.dir8, pose: 'agacha', fase: 0, ex: 1 + 0.06 * p, ey: 1 - 0.1 * p, fim: false }
+    }
+    if (l < s.agacha + s.ar) {
+      const f = (l - s.agacha) / s.ar
+      const z = lerp(s.az, s.bz, f) + s.arco * 4 * f * (1 - f)
+      const e = s.agacha ? 0.05 * Math.sin(f * Math.PI) : 0
+      return { x: lerp(s.ax, s.bx, f), y: lerp(s.ay, s.by, f), z, dir8: s.dir8, pose: 'ar', fase: f, ex: 1 - e * 0.6, ey: 1 + e, fim: false }
+    }
+    const p = Math.sin(((l - s.agacha - s.ar) / Math.max(1, s.pousa)) * Math.PI)
+    return { x: s.bx, y: s.by, z: s.bz, dir8: s.dir8, pose: 'pousa', fase: 0, ex: 1 + 0.07 * p, ey: 1 - 0.12 * p, fim: false }
+  }
+  /** Para onde a unidade olha na tela: frente (descendo) ou costas, e se espelha. */
+  function vistaDaDirecao(dir8, rot) {
+    const [dx, dy] = D8[dir8] || D8[1]
+    // girarP com W = H = 0 é a rotação pura do vetor (sem translação)
+    const [du, dv] = girarP(dx, dy, rot, 0, 0)
+    const sx = du - dv
+    const sy = du + dv
+    const frente = sy > 0 || (sy === 0 && sx > 0)
+    return { frente, espelho: frente ? sx > 0 : sx < 0 }
+  }
+
+  // ---------- medição ----------
+  function regua(m, a, b) {
+    const ca = cel(m, a[0], a[1])
+    const cb = cel(m, b[0], b[1])
+    return { blocos: Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])), desnivel: alturaEmPe(cb) - alturaEmPe(ca), reta: Math.hypot(b[0] - a[0], b[1] - a[1]) }
+  }
+  /** Círculo de raio r blocos: o centro do bloco a até r + 0,5 do centro (r = 1 dá 3 x 3; r = 2, 21 blocos). */
+  function circulo(m, c, r) {
+    const out = []
+    const lim = (r + 0.5) * (r + 0.5) + 1e-9
+    for (let y = c[1] - r; y <= c[1] + r; y++) for (let x = c[0] - r; x <= c[0] + r; x++) {
+      if (dentro(m, x, y) && (x - c[0]) ** 2 + (y - c[1]) ** 2 <= lim) out.push([x, y])
+    }
+    return out
+  }
+  /** Cone saindo do bloco o, numa das 8 direções, com comprimento L: largura igual à distância (meio ângulo de 26,57°). */
+  function cone(m, o, dir8, L) {
+    const [dx, dy] = D8[dir8]
+    const n = Math.hypot(dx, dy)
+    const ux = dx / n
+    const uy = dy / n
+    const cosMin = Math.cos(Math.atan(0.5)) - 1e-9
+    const lim = (L + 0.5) * (L + 0.5) + 1e-9
+    const out = []
+    for (let y = o[1] - L; y <= o[1] + L; y++) for (let x = o[0] - L; x <= o[0] + L; x++) {
+      if (!dentro(m, x, y) || (x === o[0] && y === o[1])) continue
+      const vx = x - o[0]
+      const vy = y - o[1]
+      const d2 = vx * vx + vy * vy
+      if (d2 > lim) continue
+      if ((vx * ux + vy * uy) / Math.sqrt(d2) >= cosMin) out.push([x, y])
+    }
+    return out
+  }
+  /** Direção (0..7 de D8) mais perto do vetor (vx, vy). */
+  function direcao8(vx, vy) {
+    if (!vx && !vy) return 0
+    let melhor = 0
+    let m = -Infinity
+    D8.forEach(([dx, dy], k) => {
+      const p = (vx * dx + vy * dy) / Math.hypot(dx, dy)
+      if (p > m + 1e-9) { m = p; melhor = k }
+    })
+    return melhor
+  }
+  /**
+   * Linha de visão do olho de quem está em a (altura em pé + olho) até o peito de b (altura em pé + alvo).
+   * Anda pela linha em passos de 1/48 de bloco; se a linha passa abaixo do topo de um bloco no meio, está barrada.
+   */
+  function visao(m, a, b, opts = {}) {
+    const olho = opts.olho ?? 1.5
+    const alvo = opts.alvo ?? 1
+    const za = alturaEmPe(cel(m, a[0], a[1])) + olho
+    const zb = alturaEmPe(cel(m, b[0], b[1])) + alvo
+    const ax = a[0] + 0.5
+    const ay = a[1] + 0.5
+    const bx = b[0] + 0.5
+    const by = b[1] + 0.5
+    const len = Math.hypot(bx - ax, by - ay)
+    const n = Math.max(1, Math.ceil(len * 48))
+    for (let k = 1; k < n; k++) {
+      const f = k / n
+      const px = lerp(ax, bx, f)
+      const py = lerp(ay, by, f)
+      const x = Math.floor(px)
+      const y = Math.floor(py)
+      if ((x === a[0] && y === a[1]) || (x === b[0] && y === b[1])) continue
+      const c = cel(m, x, y)
+      const topo = c.agua ? topoZ(c) : alturaNoPonto(m, px, py)
+      const zl = lerp(za, zb, f)
+      if (zl < topo - 1e-9) {
+        const tipo = c.predio >= 0 || c.lado === 'parede' || c.lado === 'ruina' ? 'parede' : 'desnível'
+        return { livre: false, bloqueio: { x, y, h: c.h, tipo, zLinha: zl, f }, za, zb }
+      }
+    }
+    return { livre: true, za, zb }
+  }
+
+  // ---------- câmera ----------
+  function camadaParaTela(cam, lx, ly) {
+    return [(lx - cam.cx) * cam.zoom + cam.w / 2, (ly - cam.cy) * cam.zoom + cam.h / 2]
+  }
+  function telaParaCamada(cam, sx, sy) {
+    return [(sx - cam.w / 2) / cam.zoom + cam.cx, (sy - cam.h / 2) / cam.zoom + cam.cy]
+  }
+
+  return {
+    TW, TH, LH, ML, MA, K, FUNDO, AGUA_Z, ZMAX, DX, DY, D8, MS_POR_BLOCO, MS_DIAGONAL, TIPOS, PROPS,
+    rng, hash, ruido, fbm,
+    vila, baia, mapaDeTeste, dentro, cel,
+    girarP, desgirarP, girarC, dirGirada, metricas, proj, desproj,
+    topoZ, alturaEmPe, alturaNoPonto, bordaAltura,
+    caixas, hexagono, dentroDoConvexo, preparo, blocoNoPonto, entradaNaCaixa, raioNoPonto, pontoDoBloco, pontoDoMundo,
+    ocludentes, quadroDoObjeto, ordenarObjetos,
+    livreDeTerreno, passo, ocupadas, alcance, caminhoAte, planoDeMovimento, estadoNoTempo, vistaDaDirecao,
+    regua, circulo, cone, direcao8, visao,
+    camadaParaTela, telaParaCamada,
+  }
+})()
+if (typeof module !== 'undefined') module.exports = Nucleo
+</script>
+<script>// pintor.js — tudo o que desenha: paleta Meio-Termo, texturas por código (determinísticas), luz de dia, tarde e
+// noite com sombra projetada pelo relevo, a camada estática das colunas, as camadas de grade e de marcação, os
+// objetos e as unidades. Usa o Nucleo para a geometria; nada aqui decide regra de jogo.
+// eslint-disable-next-line no-var, no-unused-vars
+var Pintor = (function () {
+  'use strict'
+  const N = Nucleo
+  const { LH, ML, MA, FUNDO, ZMAX } = N
+
+  // ---------- paleta: as cores base (todas as outras saem destas) ----------
+  const PALETA = {
+    areia: '#e3c88f', terra: '#c99b69', arenito: '#d4ae70',
+    calcada: '#d8cbae', junta: '#a59579', laje: '#e1d6bc',
+    grama: '#8cbf80', gramaEscura: '#6aa063', musgo: '#86a865',
+    parede: '#e3c07e', telhado: '#e8cb8b', faixa: '#b77f4c',
+    pedra: '#bdbcb1', ruina: '#adaca2', rocha: '#a88e74',
+    agua: '#4d8dbf', aguaRasa: '#7bb8d4', espuma: '#eef5f1',
+    portaAzul: '#5d86bf', portaClara: '#93b3da', madeira: '#9c7650', madeiraEscura: '#6e5238',
+    folha: '#5d9850', folhaClara: '#8fc26c', tronco: '#9d7a52',
+    vaso: '#b5a5c8', barro: '#c48a5f', tecido: '#c8645a', linho: '#f1ebdc', ferro: '#6c7074', latao: '#c49a52',
+    chama: '#f7c55e', brasa: '#e5793f',
+    pele: '#f0caa1', peleMorena: '#c98f66', loiro: '#f0cf6e', castanho: '#9a6a43', cabeloEscuro: '#4a4458',
+    azul: '#4f78b8', verde: '#5f8f4e', vermelho: '#b8564a', roxo: '#7d5ea8', aco: '#c3c9cf', pelagem: '#8e909a',
+    aliado: '#5b8fd8', inimigo: '#d4644f',
+  }
+  const C = PALETA
+
+  // ---------- cor ----------
+  const memo = new Map()
+  function hexRgb(h) {
+    const n = parseInt(h.slice(1), 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+  const rgbHex = (r) => '#' + r.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
+  function misturar(a, b, f) {
+    const x = hexRgb(a)
+    const y = hexRgb(b)
+    return rgbHex(x.map((v, k) => v + (y[k] - v) * f))
+  }
+  const clarear = (c, f) => misturar(c, '#fffaf0', f)
+  /** Escurece puxando para um roxo frio, como sombra de luz de céu (nunca para o preto). */
+  const escurecer = (c, f) => misturar(c, '#2e2a3e', f)
+  function linear(v) {
+    v /= 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  const luminancia = (r) => 0.2126 * linear(r[0]) + 0.7152 * linear(r[1]) + 0.0722 * linear(r[2])
+  function paraHsl([r, g, b]) {
+    r /= 255; g /= 255; b /= 255
+    const mx = Math.max(r, g, b)
+    const mn = Math.min(r, g, b)
+    const l = (mx + mn) / 2
+    if (mx === mn) return [0, 0, l]
+    const d = mx - mn
+    const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+    let h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4
+    return [h / 6, s, l]
+  }
+  function deHsl(h, s, l) {
+    if (!s) return [l * 255, l * 255, l * 255]
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    const f = (t) => {
+      t = (t + 1) % 1
+      return 255 * (t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p)
+    }
+    return [f(h + 1 / 3), f(h), f(h - 1 / 3)]
+  }
+  /** Piso de luminância do contorno: o traço nunca chega ao preto (prova h). */
+  const PISO_DO_CONTORNO = 0.065
+  /** Contorno: a própria cor com 52% da luz, nunca abaixo do piso. */
+  function contorno(c) {
+    const k = 'c' + c
+    if (memo.has(k)) return memo.get(k)
+    const [h, s, l] = paraHsl(hexRgb(c))
+    let l2 = l * 0.52
+    let r = deHsl(h, Math.min(1, s * 0.95), l2)
+    while (luminancia(r) < PISO_DO_CONTORNO && l2 < 0.95) { l2 += 0.01; r = deHsl(h, Math.min(1, s * 0.95), l2) }
+    const out = rgbHex(r)
+    memo.set(k, out)
+    return out
+  }
+  const rgba = (c, a) => {
+    const [r, g, b] = hexRgb(c)
+    return `rgba(${r},${g},${b},${a})`
+  }
+
+  // ---------- períodos do dia ----------
+  const rad = Math.PI / 180
+  /** sol: direção horizontal de onde vem a luz (no mundo), elevação, cor e força; amb: luz do céu (cor da sombra). */
+  const PERIODOS = {
+    // o sol vem da frente-esquerda da vista inicial (mundo +y, um pouco +x): a face esquerda acende, a sombra cai para trás
+    dia: { nome: 'Dia', az: 70 * rad, elev: 52 * rad, cor: [1, 0.97, 0.9], forca: 0.38, amb: [0.69, 0.71, 0.78], tinta: [1, 0.99, 0.96], ceu: ['#9fc8e2', '#dcebee'], grade: 'rgba(58,44,28,0.34)', luzes: false },
+    tarde: { nome: 'Tarde', az: 18 * rad, elev: 16 * rad, cor: [1, 0.72, 0.46], forca: 0.66, amb: [0.55, 0.46, 0.54], tinta: [1, 0.84, 0.7], ceu: ['#d98f6a', '#f4d39e'], grade: 'rgba(66,36,30,0.34)', luzes: true },
+    noite: { nome: 'Noite', az: 115 * rad, elev: 40 * rad, cor: [0.55, 0.66, 0.95], forca: 0.22, amb: [0.25, 0.3, 0.45], tinta: [0.42, 0.48, 0.68], ceu: ['#141c34', '#2e3b62'], grade: 'rgba(214,226,255,0.26)', luzes: true },
+  }
+  const COR_DA_LUZ = [1, 0.66, 0.32]
+
+  // ---------- canvas fora da tela ----------
+  function tela(w, h) {
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.ceil(w))
+    c.height = Math.max(1, Math.ceil(h))
+    return c
+  }
+
+  // ---------- atlas dos topos (no espaço do mundo, contínuo entre blocos vizinhos) ----------
+  const T = 48
+  /** Material de topo que conta como "chão de pedra" (a grama não invade). */
+  const DUROS = new Set(['telhado', 'ruina', 'degrau', 'agua', 'laje'])
+
+  function pintarAtlas(m) {
+    const atlas = tela(m.W * T, m.H * T)
+    const g = atlas.getContext('2d')
+    const H = N.hash
+    // 1) fundo de cada material
+    for (let y = 0; y < m.H; y++) for (let x = 0; x < m.W; x++) {
+      const c = N.cel(m, x, y)
+      g.save()
+      g.beginPath()
+      g.rect(x * T, y * T, T, T)
+      g.clip()
+      pintarMaterial(g, m, c, x, y)
+      g.restore()
+    }
+    // 2) a grama e o musgo invadem a borda dos vizinhos na mesma altura (borda irregular, sem quadrado)
+    for (let y = 0; y < m.H; y++) for (let x = 0; x < m.W; x++) {
+      const c = N.cel(m, x, y)
+      if (c.topo !== 'grama' && c.topo !== 'musgo') continue
+      const cor = c.topo === 'grama' ? C.grama : C.musgo
+      for (const [dx, dy] of N.D8) {
+        const nx = x + dx
+        const ny = y + dy
+        if (!N.dentro(m, nx, ny)) continue
+        const v = N.cel(m, nx, ny)
+        if (v.topo === c.topo || DUROS.has(v.topo) || v.h !== c.h || v.escada >= 0 || v.predio >= 0) continue
+        g.save()
+        g.beginPath()
+        g.rect(nx * T, ny * T, T, T)
+        g.clip()
+        for (let k = 0; k < 7; k++) {
+          const f = (k + 0.5) / 7
+          const px = (x + 0.5 + dx * 0.5) * T + (dy ? 0 : 0) + (dx === 0 ? (f - 0.5) * T : 0)
+          const py = (y + 0.5 + dy * 0.5) * T + (dy === 0 ? (f - 0.5) * T : 0)
+          if (dx && dy && k > 1) break
+          const r = T * (0.07 + 0.11 * H(nx * 7 + k, ny * 5, 31))
+          g.fillStyle = cor
+          g.beginPath()
+          g.ellipse(px + dx * r * 0.4, py + dy * r * 0.4, r * 1.2, r, 0, 0, Math.PI * 2)
+          g.fill()
+        }
+        g.restore()
+      }
+    }
+    // 3) grão leve por cima de tudo (multiplicador ±3,5%, fixo por posição)
+    const img = g.getImageData(0, 0, atlas.width, atlas.height)
+    const d = img.data
+    for (let p = 0, k = 0; p < d.length; p += 4, k++) {
+      const px = k % atlas.width
+      const py = (k / atlas.width) | 0
+      const n = 1 + (H(px >> 1, py >> 1, 77) - 0.5) * 0.07
+      d[p] *= n
+      d[p + 1] *= n
+      d[p + 2] *= n
+    }
+    g.putImageData(img, 0, 0)
+    return atlas
+  }
+
+  function manchas(g, x0, y0, cor, n, s, alfa) {
+    for (let k = 0; k < n; k++) {
+      const px = x0 + N.hash(x0 + k, y0, s) * T
+      const py = y0 + N.hash(x0, y0 + k, s + 1) * T
+      const r = T * (0.12 + 0.2 * N.hash(x0 + k, y0 + k, s + 2))
+      g.fillStyle = rgba(cor, alfa)
+      g.beginPath()
+      g.ellipse(px, py, r * 1.3, r, N.hash(k, x0, s) * 3, 0, Math.PI * 2)
+      g.fill()
+    }
+  }
+  function pedrinhas(g, x0, y0, cor, n, s) {
+    for (let k = 0; k < n; k++) {
+      const px = x0 + 3 + N.hash(x0 + k * 3, y0, s) * (T - 6)
+      const py = y0 + 3 + N.hash(x0, y0 + k * 3, s + 1) * (T - 6)
+      const r = 1 + N.hash(k, y0, s) * 1.4
+      g.fillStyle = cor
+      g.beginPath()
+      g.ellipse(px, py, r * 1.3, r, 0, 0, Math.PI * 2)
+      g.fill()
+      g.fillStyle = rgba('#fffaf0', 0.35)
+      g.beginPath()
+      g.ellipse(px - 0.4, py - 0.5, r * 0.6, r * 0.4, 0, 0, Math.PI * 2)
+      g.fill()
+    }
+  }
+  /** Pedras arredondadas de uma grade global (contínua entre blocos): calçamento, lajes, piso de ruína, degraus. */
+  function assentar(g, x, y, passo, base, junta, opts = {}) {
+    const x0 = x * T
+    const y0 = y * T
+    g.fillStyle = junta
+    g.fillRect(x0, y0, T, T)
+    const linhas = Math.ceil(T / passo) + 2
+    const fy0 = Math.floor(y0 / passo) - 1
+    for (let r = 0; r < linhas; r++) {
+      const ry = fy0 + r
+      const desloc = opts.fiada ? (ry % 2) * passo * 0.5 : 0
+      const fx0 = Math.floor((x0 - desloc) / passo) - 1
+      for (let q = 0; q < linhas; q++) {
+        const rx = fx0 + q
+        const h1 = N.hash(rx, ry, opts.semente || 3)
+        const h2 = N.hash(rx, ry, (opts.semente || 3) + 9)
+        const cx = rx * passo + desloc + passo / 2 + (h1 - 0.5) * passo * (opts.jitter ?? 0.18)
+        const cy = ry * passo + passo / 2 + (h2 - 0.5) * passo * (opts.jitter ?? 0.18)
+        const w = passo * (opts.larg ?? 0.86) * (0.9 + 0.2 * h2)
+        const h = passo * (opts.alt ?? 0.8) * (0.9 + 0.2 * h1)
+        const tom = (N.hash(rx, ry, 41) - 0.5) * (opts.variacao ?? 0.14)
+        const cor = tom > 0 ? clarear(base, tom) : escurecer(base, -tom)
+        const rr = Math.min(w, h) * (opts.redondo ?? 0.38)
+        g.fillStyle = cor
+        g.beginPath()
+        g.roundRect(cx - w / 2, cy - h / 2, w, h, rr)
+        g.fill()
+        // luz por cima e à esquerda, sombra embaixo e à direita: cada pedra tem volume
+        g.fillStyle = rgba('#fffaf0', 0.22)
+        g.beginPath()
+        g.roundRect(cx - w / 2 + 1, cy - h / 2 + 0.8, w - 3, h * 0.38, rr * 0.7)
+        g.fill()
+        g.fillStyle = rgba(escurecer(base, 0.5), 0.16)
+        g.beginPath()
+        g.roundRect(cx - w / 2 + 2, cy + h * 0.12, w - 3, h * 0.36, rr * 0.7)
+        g.fill()
+      }
+    }
+  }
+
+  function pintarMaterial(g, m, c, x, y) {
+    const x0 = x * T
+    const y0 = y * T
+    const t = c.topo
+    const variacao = (N.fbm(x * 0.4, y * 0.4, 13) - 0.5) * 0.16
+    const tom = (base) => (variacao > 0 ? clarear(base, variacao) : escurecer(base, -variacao))
+    if (t === 'areia' || t === 'terra' || t === 'rocha') {
+      const base = t === 'areia' ? C.areia : t === 'terra' ? C.terra : misturar(C.rocha, C.pedra, 0.35)
+      g.fillStyle = tom(base)
+      g.fillRect(x0, y0, T, T)
+      manchas(g, x0, y0, clarear(base, 0.3), 3, 5, 0.22)
+      manchas(g, x0, y0, escurecer(base, 0.3), 2, 9, 0.12)
+      pedrinhas(g, x0, y0, escurecer(base, 0.32), t === 'areia' ? 2 : 5, 17 + x)
+      return
+    }
+    if (t === 'grama' || t === 'musgo') {
+      const base = t === 'grama' ? C.grama : C.musgo
+      if (t === 'musgo') {
+        assentar(g, x, y, 24, C.pedra, escurecer(C.pedra, 0.32), { jitter: 0.3, semente: 7, redondo: 0.2, larg: 0.9, alt: 0.86 })
+        g.fillStyle = rgba(base, 0.9)
+        for (let k = 0; k < 9; k++) {
+          const px = x0 + N.hash(x * 3 + k, y, 51) * T
+          const py = y0 + N.hash(x, y * 3 + k, 52) * T
+          const r = T * (0.12 + 0.12 * N.hash(k, x + y, 53))
+          g.beginPath()
+          g.ellipse(px, py, r * 1.25, r, 0, 0, Math.PI * 2)
+          g.fill()
+        }
+      } else {
+        g.fillStyle = tom(base)
+        g.fillRect(x0, y0, T, T)
+        manchas(g, x0, y0, clarear(base, 0.22), 3, 21, 0.3)
+        manchas(g, x0, y0, C.gramaEscura, 2, 23, 0.28)
+      }
+      // tufos curtos em V (poucos, espalhados: textura, não hachura)
+      for (let k = 0; k < 7; k++) {
+        const px = x0 + 4 + N.hash(x * 11 + k, y, 61) * (T - 8)
+        const py = y0 + 6 + N.hash(x, y * 11 + k, 62) * (T - 10)
+        const cor = k % 3 === 0 ? clarear(C.folhaClara, 0.1) : C.gramaEscura
+        g.strokeStyle = cor
+        g.lineWidth = 1.3
+        g.lineCap = 'round'
+        g.beginPath()
+        g.moveTo(px - 2.2, py - 3.2)
+        g.lineTo(px, py)
+        g.lineTo(px + 0.4, py - 4)
+        g.moveTo(px, py)
+        g.lineTo(px + 2.6, py - 2.8)
+        g.stroke()
+      }
+      if (t === 'grama' && N.hash(x, y, 71) > 0.62) {
+        const flor = [C.linho, C.chama, C.vaso][Math.floor(N.hash(x, y, 72) * 3)]
+        for (let k = 0; k < 3; k++) {
+          const px = x0 + 8 + N.hash(x + k, y, 73) * (T - 16)
+          const py = y0 + 8 + N.hash(x, y + k, 74) * (T - 16)
+          g.fillStyle = flor
+          g.beginPath()
+          g.arc(px, py, 1.5, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      return
+    }
+    if (t === 'calcada') {
+      assentar(g, x, y, 12, tom(C.calcada), C.junta, { fiada: true, semente: 3, jitter: 0.22, redondo: 0.45, variacao: 0.16 })
+      return
+    }
+    if (t === 'laje') {
+      assentar(g, x, y, 24, tom(C.laje), escurecer(C.laje, 0.22), { semente: 5, jitter: 0.04, redondo: 0.12, larg: 0.95, alt: 0.94, variacao: 0.08 })
+      return
+    }
+    if (t === 'pedra') {
+      assentar(g, x, y, 16, tom(C.pedra), escurecer(C.pedra, 0.34), { fiada: true, semente: 9, jitter: 0.3, redondo: 0.18, larg: 0.92, alt: 0.86 })
+      if (N.hash(x, y, 81) > 0.7) {
+        g.strokeStyle = rgba(escurecer(C.pedra, 0.45), 0.5)
+        g.lineWidth = 1
+        g.beginPath()
+        let px = x0 + N.hash(x, y, 82) * T
+        let py = y0
+        g.moveTo(px, py)
+        for (let k = 0; k < 4; k++) { px += (N.hash(x + k, y, 83) - 0.5) * 12; py += T / 4; g.lineTo(px, py) }
+        g.stroke()
+      }
+      return
+    }
+    if (t === 'telhado' || t === 'ruina') {
+      const base = t === 'telhado' ? C.telhado : C.ruina
+      if (t === 'ruina') assentar(g, x, y, 16, tom(base), escurecer(base, 0.3), { fiada: true, semente: 11, jitter: 0.12, redondo: 0.15, larg: 0.94, alt: 0.9 })
+      else {
+        g.fillStyle = tom(base)
+        g.fillRect(x0, y0, T, T)
+        manchas(g, x0, y0, clarear(base, 0.35), 3, 91, 0.25)
+        manchas(g, x0, y0, escurecer(base, 0.2), 2, 93, 0.12)
+      }
+      // borda alta do telhado (a mureta) onde o vizinho não é do mesmo prédio
+      const borda = 6
+      for (let d = 0; d < 4; d++) {
+        const nx = x + N.DX[d]
+        const ny = y + N.DY[d]
+        const mesmo = N.dentro(m, nx, ny) && N.cel(m, nx, ny).predio === c.predio && N.cel(m, nx, ny).h === c.h
+        if (mesmo) continue
+        const r = d === 0 ? [x0 + T - borda, y0, borda, T] : d === 1 ? [x0, y0 + T - borda, T, borda] : d === 2 ? [x0, y0, borda, T] : [x0, y0, T, borda]
+        g.fillStyle = clarear(base, 0.3)
+        g.fillRect(...r)
+        g.fillStyle = rgba(escurecer(base, 0.45), 0.35)
+        const s = d === 0 ? [r[0] - 2, y0, 2, T] : d === 1 ? [x0, r[1] - 2, T, 2] : d === 2 ? [x0 + borda, y0, 2, T] : [x0, y0 + borda, T, 2]
+        g.fillRect(...s)
+      }
+      if (t === 'ruina') {
+        g.fillStyle = rgba(C.musgo, 0.85)
+        for (let k = 0; k < 3; k++) {
+          if (N.hash(x, y + k, 95) < 0.5) continue
+          g.beginPath()
+          g.ellipse(x0 + N.hash(x + k, y, 96) * T, y0 + N.hash(x, y + k, 97) * T, 7, 5, 0, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      return
+    }
+    if (t === 'degrau') {
+      // três pisadas de pedra; a quina de cada uma tem um filete de luz
+      const pedra = c.lado === 'rocha' ? misturar(C.pedra, C.rocha, 0.3) : c.lado === 'parede' ? C.parede : C.laje
+      g.fillStyle = escurecer(pedra, 0.2)
+      g.fillRect(x0, y0, T, T)
+      for (let k = 0; k < 3; k++) {
+        const a = k / 3
+        const b = (k + 1) / 3
+        let r
+        if (c.escada === 0) r = [x0 + a * T, y0, T / 3, T]
+        else if (c.escada === 1) r = [x0, y0 + a * T, T, T / 3]
+        else if (c.escada === 2) r = [x0 + (1 - b) * T, y0, T / 3, T]
+        else r = [x0, y0 + (1 - b) * T, T, T / 3]
+        g.fillStyle = k % 2 ? clarear(pedra, 0.06) : pedra
+        g.fillRect(r[0] + 0.5, r[1] + 0.5, r[2] - 1, r[3] - 1)
+        g.fillStyle = rgba('#fffaf0', 0.4)
+        // o filete fica na quina de descida
+        if (c.escada === 0) g.fillRect(r[0] + r[2] - 3, r[1], 2.5, r[3])
+        else if (c.escada === 1) g.fillRect(r[0], r[1] + r[3] - 3, r[2], 2.5)
+        else if (c.escada === 2) g.fillRect(r[0] + 0.5, r[1], 2.5, r[3])
+        else g.fillRect(r[0], r[1] + 0.5, r[2], 2.5)
+      }
+      return
+    }
+    if (t === 'agua') {
+      // o fundo da água é pintado depois, num passe só, para clarear perto da margem
+      g.fillStyle = C.agua
+      g.fillRect(x0, y0, T, T)
+    }
+  }
+
+  /** A água: mais clara perto da margem, espuma na beira e marolas curtas. Pintada por cima do atlas. */
+  function pintarAgua(m, atlas) {
+    const g = atlas.getContext('2d')
+    const S = 8
+    const campo = tela(m.W * S, m.H * S)
+    const cg = campo.getContext('2d')
+    const img = cg.createImageData(campo.width, campo.height)
+    const terra = (x, y) => N.dentro(m, x, y) && !N.cel(m, x, y).agua
+    const funda = hexRgb(escurecer(C.agua, 0.18))
+    const rasa = hexRgb(C.aguaRasa)
+    for (let sy = 0; sy < campo.height; sy++) for (let sx = 0; sx < campo.width; sx++) {
+      const px = (sx + 0.5) / S
+      const py = (sy + 0.5) / S
+      let dmin = 3
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const x = Math.floor(px) + dx
+        const y = Math.floor(py) + dy
+        if (!terra(x, y)) continue
+        const qx = Math.max(x, Math.min(x + 1, px))
+        const qy = Math.max(y, Math.min(y + 1, py))
+        dmin = Math.min(dmin, Math.hypot(px - qx, py - qy))
+      }
+      const f = Math.min(1, dmin / 2.6) * (0.85 + 0.3 * (N.fbm(px * 0.5, py * 0.5, 3) - 0.5))
+      const k = (sy * campo.width + sx) * 4
+      for (let ch = 0; ch < 3; ch++) img.data[k + ch] = rasa[ch] + (funda[ch] - rasa[ch]) * Math.max(0, Math.min(1, f))
+      img.data[k + 3] = 255
+    }
+    cg.putImageData(img, 0, 0)
+    for (let y = 0; y < m.H; y++) for (let x = 0; x < m.W; x++) {
+      const c = N.cel(m, x, y)
+      if (!c.agua) continue
+      const x0 = x * T
+      const y0 = y * T
+      g.save()
+      g.beginPath()
+      g.rect(x0, y0, T, T)
+      g.clip()
+      g.imageSmoothingEnabled = true
+      g.drawImage(campo, x * S, y * S, S, S, x0, y0, T, T)
+      // marolas: arcos curtos e claros, poucos
+      g.strokeStyle = rgba(C.espuma, 0.28)
+      g.lineWidth = 1.2
+      g.lineCap = 'round'
+      for (let k = 0; k < 2; k++) {
+        const px = x0 + 6 + N.hash(x * 5 + k, y, 101) * (T - 12)
+        const py = y0 + 6 + N.hash(x, y * 5 + k, 102) * (T - 12)
+        g.beginPath()
+        g.arc(px, py + 6, 7, Math.PI * 1.2, Math.PI * 1.8)
+        g.stroke()
+      }
+      // espuma na beira de terra
+      for (let d = 0; d < 4; d++) {
+        if (!terra(x + N.DX[d], y + N.DY[d])) continue
+        for (let k = 0; k < 6; k++) {
+          const f = (k + 0.5) / 6
+          const ao = 3 + N.hash(x * 9 + k, y + d, 103) * 4
+          const px = d === 0 ? x0 + T - ao : d === 2 ? x0 + ao : x0 + f * T
+          const py = d === 1 ? y0 + T - ao : d === 3 ? y0 + ao : y0 + f * T
+          g.fillStyle = rgba(C.espuma, 0.55 + 0.25 * N.hash(k, x + y, 104))
+          g.beginPath()
+          g.ellipse(px, py, d % 2 ? 5 : 2.4, d % 2 ? 2.4 : 5, 0, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      g.restore()
+    }
+  }
+
+  // ---------- luz ----------
+  function prepararLuz(m) {
+    if (m._luz) return m._luz
+    const alt = new Float32Array(m.W * m.H)
+    m.c.forEach((c, i) => { alt[i] = c.agua ? N.topoZ(c) : c.h })
+    const lampadas = []
+    for (const p of m.props) {
+      const L = N.PROPS[p.tipo].luz
+      if (L) lampadas.push({ x: p.x + 0.5, y: p.y + 0.5, z: N.alturaEmPe(N.cel(m, p.x, p.y)) + L.z, raio: L.raio, forca: L.forca })
+    }
+    m._luz = { alt, lampadas }
+    return m._luz
+  }
+  /** Fração da luz do sol que chega ao ponto (0 = na sombra do relevo), com 3 raios para a borda ficar macia. */
+  function visivelAoSol(m, P, px, py, pz) {
+    const { alt } = prepararLuz(m)
+    const tg = Math.tan(P.elev)
+    let soma = 0
+    for (const j of [-0.07, 0, 0.07]) {
+      const cx = Math.cos(P.az + j)
+      const cy = Math.sin(P.az + j)
+      let livre = 1
+      for (let t = 0.1; t < 16; t += 0.1) {
+        const z = pz + t * tg
+        if (z > ZMAX + 0.01) break
+        const qx = px + cx * t
+        const qy = py + cy * t
+        if (qx < 0 || qy < 0 || qx >= m.W || qy >= m.H) break
+        if (alt[(qy | 0) * m.W + (qx | 0)] > z) { livre = 0; break }
+      }
+      soma += livre
+    }
+    return soma / 3
+  }
+  /** Luz que multiplica a cor (céu + sol) e brilho que soma (lampiões), num ponto com normal (nx, ny, nz). */
+  function luzNoPonto(m, P, px, py, pz, nx, ny, nz, ao = 1) {
+    const sx = Math.cos(P.az) * Math.cos(P.elev)
+    const sy = Math.sin(P.az) * Math.cos(P.elev)
+    const sz = Math.sin(P.elev)
+    const d = nx * sx + ny * sy + nz * sz
+    const vis = d > 0 ? visivelAoSol(m, P, px + nx * 0.03, py + ny * 0.03, pz + 0.02) : 0
+    const mul = [0, 1, 2].map((k) => Math.min(1, P.amb[k] * ao + P.cor[k] * P.forca * Math.max(0, d) * vis))
+    const brilho = [0, 0, 0]
+    if (P.luzes) {
+      const k = P === PERIODOS.noite ? 1 : 0.35
+      for (const L of prepararLuz(m).lampadas) {
+        const dx = L.x - px
+        const dy = L.y - py
+        const dz = L.z - pz
+        const dist = Math.hypot(dx, dy, dz * 0.7)
+        if (dist >= L.raio) continue
+        const vira = Math.max(0.3, (nx * dx + ny * dy + nz * dz) / (dist || 1))
+        const f = (1 - dist / L.raio) ** 2 * L.forca * vira * k
+        for (let ch = 0; ch < 3; ch++) brilho[ch] += COR_DA_LUZ[ch] * f
+      }
+    }
+    return { mul, brilho }
+  }
+  /** Mapa de luz dos topos (8 amostras por bloco), mais o brilho dos lampiões. Calculado em faixas (fila de fundo). */
+  function mapaDeLuz(m, periodo, faixa) {
+    const chave = 'luz:' + periodo
+    const P = PERIODOS[periodo]
+    const S = 8
+    let L = m._cache[chave]
+    if (!L) {
+      L = { mul: tela(m.W * S, m.H * S), glow: tela(m.W * S, m.H * S), feito: 0, temBrilho: false }
+      L.imul = L.mul.getContext('2d').createImageData(L.mul.width, L.mul.height)
+      L.iglow = L.glow.getContext('2d').createImageData(L.glow.width, L.glow.height)
+      m._cache[chave] = L
+    }
+    const ate = Math.min(L.mul.height, faixa ? L.feito + faixa : L.mul.height)
+    const { alt } = prepararLuz(m)
+    for (let sy = L.feito; sy < ate; sy++) for (let sx = 0; sx < L.mul.width; sx++) {
+      const px = (sx + 0.5) / S
+      const py = (sy + 0.5) / S
+      const x = px | 0
+      const y = py | 0
+      const pz = N.alturaNoPonto(m, px, py)
+      // sombra de contato: perto do pé de um vizinho mais alto, menos céu
+      let ao = 1
+      for (let d = 0; d < 4; d++) {
+        const nx = x + N.DX[d]
+        const ny = y + N.DY[d]
+        if (!N.dentro(m, nx, ny) || alt[ny * m.W + nx] <= pz + 0.4) continue
+        const dist = d === 0 ? x + 1 - px : d === 2 ? px - x : d === 1 ? y + 1 - py : py - y
+        if (dist < 0.4) ao = Math.min(ao, 0.72 + 0.28 * (dist / 0.4))
+      }
+      const { mul, brilho } = luzNoPonto(m, P, px, py, pz, 0, 0, 1, ao)
+      const k = (sy * L.mul.width + sx) * 4
+      for (let ch = 0; ch < 3; ch++) {
+        L.imul.data[k + ch] = mul[ch] * 255
+        L.iglow.data[k + ch] = Math.min(1, brilho[ch]) * 255
+        if (brilho[ch] > 0.004) L.temBrilho = true
+      }
+      L.imul.data[k + 3] = 255
+      L.iglow.data[k + 3] = 255
+    }
+    L.feito = ate
+    if (L.feito >= L.mul.height && !L.pronto) {
+      L.mul.getContext('2d').putImageData(L.imul, 0, 0)
+      L.glow.getContext('2d').putImageData(L.iglow, 0, 0)
+      L.pronto = true
+    }
+    return L
+  }
+  /** O atlas aceso: a cor dos topos vezes a luz, mais o brilho dos lampiões. */
+  function atlasAceso(m, periodo) {
+    const chave = 'atlas:' + periodo
+    if (m._cache[chave]) return m._cache[chave]
+    if (!m._cache.atlas) {
+      m._cache.atlas = pintarAtlas(m)
+      pintarAgua(m, m._cache.atlas)
+    }
+    const L = mapaDeLuz(m, periodo)
+    const base = m._cache.atlas
+    const out = tela(base.width, base.height)
+    const g = out.getContext('2d')
+    g.drawImage(base, 0, 0)
+    g.globalCompositeOperation = 'multiply'
+    g.imageSmoothingEnabled = true
+    g.drawImage(L.mul, 0, 0, base.width, base.height)
+    if (L.temBrilho) {
+      g.globalCompositeOperation = 'lighter'
+      g.drawImage(L.glow, 0, 0, base.width, base.height)
+    }
+    m._cache[chave] = out
+    return out
+  }
+
+  // ---------- as faces (paredes, penhascos, muros) ----------
+  /** Luz de uma face inteira, numa grade pequena (4 x n), esticada com suavização sobre a face. */
+  const rascunho = { c: null }
+  function grade(nx, ny) {
+    if (!rascunho.c) rascunho.c = tela(8, 24)
+    const c = rascunho.c
+    if (c.width !== nx || c.height !== ny) { c.width = nx; c.height = ny }
+    return c
+  }
+  function luzDaFace(m, periodo, f) {
+    const chave = `fl:${periodo}:${f.i}:${f.dirW}:${f.zTop.toFixed(3)}:${f.zLow.toFixed(3)}:${f.a0.toFixed(3)}:${f.a1.toFixed(3)}`
+    const cache = m._cache.faces || (m._cache.faces = new Map())
+    if (cache.has(chave)) return cache.get(chave)
+    const P = PERIODOS[periodo]
+    const nx = 4
+    const ny = Math.max(2, Math.min(24, Math.ceil((f.zTop - f.zLow) * 2) + 1))
+    const mul = new Uint8ClampedArray(nx * ny * 4)
+    const glow = new Uint8ClampedArray(nx * ny * 4)
+    let temBrilho = false
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const fx = f.a0 + (f.a1 - f.a0) * (i / (nx - 1))
+      const z = f.zTop - (f.zTop - f.zLow) * (j / (ny - 1))
+      const px = f.ex0 + f.ux * fx
+      const py = f.ey0 + f.uy * fx
+      const ao = z - f.zLow < 0.35 ? 0.78 + 0.22 * ((z - f.zLow) / 0.35) : 1
+      const { mul: l, brilho } = luzNoPonto(m, P, px, py, z, N.DX[f.dirW], N.DY[f.dirW], 0, ao)
+      const k = (j * nx + i) * 4
+      for (let ch = 0; ch < 3; ch++) {
+        mul[k + ch] = l[ch] * 255
+        glow[k + ch] = Math.min(1, brilho[ch]) * 255
+        if (brilho[ch] > 0.004) temBrilho = true
+      }
+      mul[k + 3] = 255
+      glow[k + 3] = 255
+    }
+    const out = { nx, ny, mul: new ImageData(mul, nx, ny), glow: temBrilho ? new ImageData(glow, nx, ny) : null }
+    cache.set(chave, out)
+    return out
+  }
+
+  function faixaZigueZague(g, larg, y, cor) {
+    g.fillStyle = cor
+    g.fillRect(0, y, larg, 7)
+    g.fillStyle = clarear(C.parede, 0.35)
+    for (let x = -2; x < larg; x += 8) {
+      g.beginPath()
+      g.moveTo(x, y + 6)
+      g.lineTo(x + 4, y + 1.2)
+      g.lineTo(x + 8, y + 6)
+      g.closePath()
+      g.fill()
+    }
+    g.fillStyle = rgba(contorno(cor), 0.5)
+    g.fillRect(0, y + 7, larg, 1)
+  }
+  function arco(g, cx, base, w, h) {
+    g.beginPath()
+    g.moveTo(cx - w / 2, base)
+    g.lineTo(cx - w / 2, base - h + w / 2)
+    g.arc(cx, base - h + w / 2, w / 2, Math.PI, 0)
+    g.lineTo(cx + w / 2, base)
+    g.closePath()
+  }
+  function janela(g, cx, base, w, h, noite) {
+    g.fillStyle = C.portaAzul
+    arco(g, cx, base + 1.5, w + 4, h + 3)
+    g.fill()
+    g.fillStyle = noite ? misturar(C.chama, C.brasa, 0.25) : misturar(C.madeiraEscura, C.portaAzul, 0.35)
+    arco(g, cx, base, w, h)
+    g.fill()
+    if (!noite) {
+      g.fillStyle = rgba(C.portaClara, 0.55)
+      g.fillRect(cx - w / 2 + 1.5, base - h + w / 2, 1.6, h - w / 2 - 1)
+    }
+    g.fillStyle = clarear(C.parede, 0.4)
+    g.fillRect(cx - w / 2 - 3, base + 1.5, w + 6, 2.2)
+  }
+  function porta(g, cx, base, aberta) {
+    const w = 15
+    const h = 20
+    g.fillStyle = C.portaAzul
+    arco(g, cx, base, w + 7, h + 4)
+    g.fill()
+    g.strokeStyle = C.portaClara
+    g.lineWidth = 1.2
+    arco(g, cx, base, w + 4.5, h + 2.2)
+    g.stroke()
+    g.fillStyle = aberta ? misturar(C.madeiraEscura, '#2e2a3e', 0.4) : C.madeira
+    arco(g, cx, base, w, h)
+    g.fill()
+    g.strokeStyle = rgba(contorno(C.madeira), 0.7)
+    g.lineWidth = 1
+    g.beginPath()
+    g.moveTo(cx, base - h + 2)
+    g.lineTo(cx, base)
+    g.stroke()
+    g.fillStyle = C.latao
+    g.beginPath()
+    g.arc(cx - 2.2, base - 8, 1, 0, Math.PI * 2)
+    g.arc(cx + 2.2, base - 8, 1, 0, Math.PI * 2)
+    g.fill()
+  }
+  function estratos(g, larg, alto, zTop, cores, semente, xm) {
+    // faixas largas de tom (sem traço fino): a fronteira ondula com a posição no mundo
+    const n = cores.length
+    for (let b = -1; b < Math.ceil(zTop * 2 + 4); b++) {
+      const zc = Math.floor(zTop * 2) / 2 - b * 0.5
+      const yTop = (zTop - zc) * LH
+      if (yTop > alto + 12) break
+      g.fillStyle = cores[((b % n) + n) % n]
+      g.beginPath()
+      g.moveTo(-2, alto + 2)
+      for (let x = -2; x <= larg + 2; x += 4) {
+        const onda = (N.ruido((xm + x) * 0.06, zc * 3, semente) - 0.5) * 7
+        g.lineTo(x, yTop + onda)
+      }
+      g.lineTo(larg + 2, alto + 2)
+      g.closePath()
+      g.fill()
+    }
+  }
+  /** Pinta uma face no espaço dela: x da esquerda para a direita (32 por bloco), y para baixo (24 por nível). */
+  function pintarFace(g, m, f, periodo) {
+    const c = m.c[f.i]
+    const larg = f.larg
+    const alto = (f.zTop - f.zLow) * LH
+    const xm = f.xm * 32
+    const noite = periodo === 'noite'
+    const mat = f.riser ? 'degrau' : c.lado
+    if (mat === 'parede') {
+      const grad = g.createLinearGradient(0, 0, 0, alto)
+      grad.addColorStop(0, clarear(C.parede, 0.06))
+      grad.addColorStop(1, escurecer(C.parede, 0.06))
+      g.fillStyle = grad
+      g.fillRect(0, 0, larg, alto)
+      for (let k = 0; k < 3; k++) {
+        g.fillStyle = rgba(k % 2 ? escurecer(C.parede, 0.4) : clarear(C.parede, 0.5), 0.07)
+        g.beginPath()
+        g.ellipse(N.hash(f.i, f.dirW + k, 3) * larg, N.hash(f.i + k, f.dirW, 4) * alto, 9, 5, 0, 0, Math.PI * 2)
+        g.fill()
+      }
+      const chao = c.chao
+      // andares visíveis
+      for (let z = chao; z < c.h; z++) {
+        const base = (f.zTop - z) * LH
+        if (base < 0 || base - LH > alto) continue
+        const centro = larg / 2
+        if (larg < 20) continue
+        if (z === chao) {
+          const temPorta = m.portas.some((p) => p.x === f.cx && p.y === f.cy && p.dir === f.dirW)
+          if (temPorta) porta(g, centro, base, false)
+          else if (N.hash(f.cx * 3 + f.dirW, f.cy, 5) < 0.4) janela(g, centro, base - 7, 7, 9, noite)
+          g.fillStyle = rgba(escurecer(C.parede, 0.5), 0.18)
+          g.fillRect(0, base - 3, larg, 3)
+        } else if (N.hash(f.cx + z * 7, f.cy * 3 + f.dirW, 6) < 0.62) {
+          janela(g, centro, base - 6, 8, 11, noite)
+        }
+      }
+      if (f.zTop >= c.h - 1e-6 && alto > 10) faixaZigueZague(g, larg, 3, C.faixa)
+      return
+    }
+    if (mat === 'ruina') {
+      g.fillStyle = C.ruina
+      g.fillRect(0, 0, larg, alto)
+      // blocos grandes em fiadas, com juntas macias
+      for (let y = 0, r = 0; y < alto; y += 12, r++) {
+        const desloc = (r % 2) * 9
+        for (let x = -desloc; x < larg; x += 18) {
+          const h = N.hash(Math.floor((xm + x) / 18), Math.floor((f.zTop * LH - y) / 12), 7)
+          g.fillStyle = h > 0.5 ? clarear(C.ruina, (h - 0.5) * 0.3) : escurecer(C.ruina, (0.5 - h) * 0.25)
+          g.fillRect(x + 1, y + 1, 16, 10)
+          g.fillStyle = rgba('#fffaf0', 0.16)
+          g.fillRect(x + 1, y + 1, 16, 2)
+        }
+      }
+      const temArco = m.portas.some((p) => p.x === f.cx && p.y === f.cy && p.dir === f.dirW)
+      if (temArco && larg > 20) {
+        g.fillStyle = misturar(C.ruina, '#2e2a3e', 0.55)
+        arco(g, larg / 2, alto, 18, Math.min(alto - 2, 22))
+        g.fill()
+        g.strokeStyle = clarear(C.ruina, 0.25)
+        g.lineWidth = 2
+        arco(g, larg / 2, alto, 21, Math.min(alto, 24))
+        g.stroke()
+      }
+      g.fillStyle = rgba(C.musgo, 0.85)
+      for (let k = 0; k < 3; k++) {
+        if (N.hash(f.cx + k, f.cy, f.dirW + 9) < 0.45) continue
+        g.beginPath()
+        g.ellipse(N.hash(f.cx, f.cy + k, 11) * larg, 2 + N.hash(f.cy, f.cx + k, 12) * 6, 6, 3.5, 0, 0, Math.PI * 2)
+        g.fill()
+      }
+      return
+    }
+    if (mat === 'rocha' || mat === 'arenito') {
+      const base = mat === 'rocha' ? C.rocha : C.arenito
+      estratos(g, larg, alto, f.zTop, [base, clarear(base, 0.16), escurecer(base, 0.12), clarear(base, 0.07)], mat === 'rocha' ? 21 : 23, xm)
+      if (mat === 'rocha') {
+        g.strokeStyle = rgba(contorno(base), 0.45)
+        g.lineWidth = 1
+        for (let k = 0; k < 2; k++) {
+          if (N.hash(f.cx + k, f.cy, f.dirW + 31) < 0.5) continue
+          let x = N.hash(f.cx, f.cy + k, 32) * larg
+          let y = 4 + N.hash(f.cy + k, f.cx, 33) * Math.max(4, alto - 16)
+          g.beginPath()
+          g.moveTo(x, y)
+          for (let s = 0; s < 3; s++) { x += (N.hash(k, s, f.i) - 0.5) * 6; y += 4; g.lineTo(x, y) }
+          g.stroke()
+        }
+      } else {
+        for (let k = 0; k < 4; k++) {
+          g.fillStyle = rgba(escurecer(base, 0.35), 0.5)
+          g.beginPath()
+          g.arc(N.hash(f.i, k, 41) * larg, N.hash(k, f.i, 42) * alto, 1.2, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      if ((c.topo === 'grama' || c.topo === 'musgo') && f.zTop >= c.h - 1e-6) {
+        const verde = c.topo === 'grama' ? C.grama : C.musgo
+        g.fillStyle = verde
+        g.beginPath()
+        g.moveTo(-1, -1)
+        for (let x = -1; x <= larg + 1; x += 3) {
+          const p = 2.5 + N.ruido((xm + x) * 0.25, f.cy, 5) * 4 + (N.hash(Math.floor(xm + x), f.cy, 6) > 0.86 ? 4 : 0)
+          g.lineTo(x, p)
+        }
+        g.lineTo(larg + 1, -1)
+        g.closePath()
+        g.fill()
+      }
+      return
+    }
+    if (mat === 'muro' || mat === 'degrau') {
+      const base = mat === 'degrau' ? escurecer(C.laje, 0.08) : misturar(C.calcada, C.arenito, 0.3)
+      g.fillStyle = escurecer(base, 0.22)
+      g.fillRect(0, 0, larg, alto)
+      const fiada = 8
+      for (let y = 0, r = 0; y < alto; y += fiada, r++) {
+        const zLinha = Math.round((f.zTop * LH - y) / fiada)
+        let x = -((zLinha * 7) % 13) - 4
+        while (x < larg) {
+          const w = 12 + N.hash(Math.floor((xm + x) / 4), zLinha, 9) * 9
+          const h = N.hash(Math.floor(xm + x), zLinha, 10)
+          g.fillStyle = h > 0.5 ? clarear(base, (h - 0.5) * 0.24) : escurecer(base, (0.5 - h) * 0.16)
+          g.beginPath()
+          g.roundRect(x + 0.8, y + 0.8, w - 1.6, fiada - 1.6, 1.5)
+          g.fill()
+          g.fillStyle = rgba('#fffaf0', 0.2)
+          g.fillRect(x + 1.5, y + 1, w - 3, 1.2)
+          x += w
+        }
+      }
+      if (mat === 'muro' && f.zTop >= c.h - 1e-6) {
+        g.fillStyle = clarear(base, 0.25)
+        g.fillRect(0, 0, larg, 3)
+      }
+      return
+    }
+    if (mat === 'agua') {
+      const grad = g.createLinearGradient(0, 0, 0, alto)
+      grad.addColorStop(0, C.aguaRasa)
+      grad.addColorStop(0.2, C.agua)
+      grad.addColorStop(1, escurecer(C.agua, 0.35))
+      g.fillStyle = grad
+      g.fillRect(0, 0, larg, alto)
+      g.fillStyle = rgba(C.espuma, 0.6)
+      g.fillRect(0, 0, larg, 1.5)
+      return
+    }
+    g.fillStyle = C.terra
+    g.fillRect(0, 0, larg, alto)
+  }
+
+  // ---------- a camada estática (colunas na ordem de pintura) ----------
+  /** Altura do que fica imediatamente na frente de uma face (o que esconde o pé dela). */
+  function alturaNaFrente(m, P, i, b, dr) {
+    const caixasDaColuna = P.caixas[i]
+    const ib = caixasDaColuna.indexOf(b)
+    // dentro da mesma escada: a caixa seguinte nessa direção
+    for (const o of caixasDaColuna) {
+      if (o === b) continue
+      if (dr === 0 && Math.abs(o.u0 - b.u1) < 1e-9 && o.v0 === b.v0) return o.z
+      if (dr === 1 && Math.abs(o.v0 - b.v1) < 1e-9 && o.u0 === b.u0) return o.z
+    }
+    void ib
+    const u = P.uv[i * 2] + (dr === 0 ? 1 : 0)
+    const v = P.uv[i * 2 + 1] + (dr === 1 ? 1 : 0)
+    if (u >= P.met.Wr || v >= P.met.Hr) return FUNDO
+    const j = P.naCelula[v * P.met.Wr + u]
+    let z = Infinity
+    for (const o of P.caixas[j]) z = Math.min(z, o.z)
+    return Math.max(FUNDO, z)
+  }
+  /** Dados de uma face visível (dr 0 = +u, 1 = +v) da caixa b da coluna i. */
+  function dadosDaFace(m, P, i, b, dr) {
+    const rot = P.met.rot
+    const zLow = alturaNaFrente(m, P, i, b, dr)
+    if (zLow >= b.z - 1e-6) return null
+    const x = i % m.W
+    const y = (i / m.W) | 0
+    const dirW = (dr - rot + 4) & 3
+    // pontas da face no espaço girado (esquerda e direita como se vê de fora)
+    const esq = dr === 0 ? [b.u1, b.v1] : [b.u0, b.v1]
+    const dir = dr === 0 ? [b.u1, b.v0] : [b.u1, b.v1]
+    const [ex0, ey0] = N.desgirarP(esq[0], esq[1], rot, m.W, m.H)
+    const [ex1, ey1] = N.desgirarP(dir[0], dir[1], rot, m.W, m.H)
+    const comp = Math.hypot(ex1 - ex0, ey1 - ey0)
+    // posição da ponta esquerda ao longo da borda do bloco, para a textura não depender do giro
+    const ux = (ex1 - ex0) / (comp || 1)
+    const uy = (ey1 - ey0) / (comp || 1)
+    const xm = ux ? ex0 : ey0
+    const riser = b.k >= 0 && ((dr === 0 && b.u1 < P.uv[i * 2] + 1 - 1e-9) || (dr === 1 && b.v1 < P.uv[i * 2 + 1] + 1 - 1e-9))
+    return { i, cx: x, cy: y, dirW, dr, b, zTop: b.z, zLow, esq, dir, larg: comp * 32, ex0, ey0, ux, uy, a0: 0, a1: comp, xm: ux > 0 || uy > 0 ? xm : -xm, riser }
+  }
+
+  /** Desenha as colunas da posição k0 à k1 da ordem de pintura numa camada (canvas na escala s). */
+  function pintarColunas(ctx, m, rot, periodo, s, k0, k1, opts = {}) {
+    const P = N.preparo(m, rot)
+    const atlas = atlasAceso(m, periodo)
+    const met = P.met
+    for (let k = k0; k < k1; k++) {
+      const i = P.ordem[k]
+      const c = m.c[i]
+      const x = i % m.W
+      const y = (i / m.W) | 0
+      for (const b of P.caixas[i]) {
+        // topo: o pedaço do atlas desse bloco (ou da pisada da escada), levado ao losango pela transformação afim
+        let fx0 = 0
+        let fx1 = 1
+        let fy0 = 0
+        let fy1 = 1
+        if (b.k >= 0) {
+          if (c.escada === 0) { fx0 = b.s0; fx1 = b.s1 }
+          else if (c.escada === 1) { fy0 = b.s0; fy1 = b.s1 }
+          else if (c.escada === 2) { fx0 = 1 - b.s1; fx1 = 1 - b.s0 }
+          else { fy0 = 1 - b.s1; fy1 = 1 - b.s0 }
+        }
+        const p = (fx, fy) => N.pontoDoMundo(m, rot, x + fx, y + fy, b.z)
+        const o = p(fx0, fy0)
+        const pa = p(fx1, fy0)
+        const pb = p(fx0, fy1)
+        const wT = (fx1 - fx0) * T
+        const hT = (fy1 - fy0) * T
+        const e = 0.6
+        ctx.setTransform(s * (pa[0] - o[0]) / wT, s * (pa[1] - o[1]) / wT, s * (pb[0] - o[0]) / hT, s * (pb[1] - o[1]) / hT, s * o[0], s * o[1])
+        ctx.drawImage(atlas, x * T + fx0 * T - e, y * T + fy0 * T - e, wT + 2 * e, hT + 2 * e, -e, -e, wT + 2 * e, hT + 2 * e)
+        // faces da frente
+        for (const dr of [0, 1]) {
+          const f = dadosDaFace(m, P, i, b, dr)
+          if (!f) continue
+          desenharFace(ctx, m, met, f, periodo, s)
+        }
+        contornarCaixa(ctx, m, P, i, b, s)
+      }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    void opts
+  }
+  function desenharFace(ctx, m, met, f, periodo, s) {
+    const [lx, ly] = N.proj(met, f.esq[0], f.esq[1], f.zTop)
+    const ay = f.dr === 0 ? -0.5 : 0.5
+    const alto = (f.zTop - f.zLow) * LH
+    ctx.setTransform(s, s * ay, 0, s, s * lx, s * ly)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, f.larg, alto)
+    ctx.clip()
+    pintarFace(ctx, m, f, periodo)
+    // luz: grade pequena multiplicada por cima (sombra do relevo, sol de frente ou de costas, lampiões)
+    const L = luzDaFace(m, periodo, f)
+    const gc = grade(L.nx, L.ny)
+    const gg = gc.getContext('2d')
+    gg.putImageData(L.mul, 0, 0)
+    ctx.imageSmoothingEnabled = true
+    ctx.globalCompositeOperation = 'multiply'
+    const sx = f.larg / (L.nx - 1)
+    const sy = alto / (L.ny - 1)
+    ctx.drawImage(gc, 0, 0, L.nx, L.ny, -sx / 2, -sy / 2, f.larg + sx, alto + sy)
+    if (L.glow) {
+      gg.putImageData(L.glow, 0, 0)
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.drawImage(gc, 0, 0, L.nx, L.ny, -sx / 2, -sy / 2, f.larg + sx, alto + sy)
+    }
+    ctx.globalCompositeOperation = 'source-over'
+    // janelas acesas à noite brilham por cima da luz
+    if (periodo === 'noite' && m.c[f.i].lado === 'parede' && !f.riser) {
+      const c = m.c[f.i]
+      for (let z = c.chao; z < c.h; z++) {
+        const base = (f.zTop - z) * LH
+        if (base < 0 || base - LH > alto || f.larg < 20) continue
+        const temPorta = z === c.chao && m.portas.some((p) => p.x === f.cx && p.y === f.cy && p.dir === f.dirW)
+        const acesa = z === c.chao ? !temPorta && N.hash(f.cx * 3 + f.dirW, f.cy, 5) < 0.4 : N.hash(f.cx + z * 7, f.cy * 3 + f.dirW, 6) < 0.62
+        if (!acesa) continue
+        const by = z === c.chao ? base - 7 : base - 6
+        const h = z === c.chao ? 9 : 11
+        const w = z === c.chao ? 7 : 8
+        ctx.fillStyle = rgba(C.chama, 0.85)
+        arco(ctx, f.larg / 2, by, w, h)
+        ctx.fill()
+        ctx.fillStyle = rgba(C.brasa, 0.35)
+        ctx.fillRect(f.larg / 2 - w / 2, by - 3, w, 3)
+      }
+    }
+    ctx.restore()
+  }
+  /** Contorno fino no tom escuro da própria cor, só nas arestas que são silhueta, e um filete de luz na quina do topo. */
+  function contornarCaixa(ctx, m, P, i, b, s) {
+    const met = P.met
+    const c = m.c[i]
+    const corTopo = c.agua ? C.agua : c.topo === 'grama' ? C.grama : c.topo === 'calcada' ? C.calcada : c.topo === 'telhado' ? C.telhado : c.lado === 'rocha' ? C.rocha : C.parede
+    const corLado = c.agua ? C.agua : c.lado === 'rocha' ? C.rocha : c.lado === 'ruina' ? C.ruina : c.lado === 'arenito' ? C.arenito : C.parede
+    ctx.setTransform(s, 0, 0, s, 0, 0)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    const q = (u, v, z) => N.proj(met, u, v, z)
+    const u = P.uv[i * 2]
+    const v = P.uv[i * 2 + 1]
+    const alturaEm = (du, dv) => {
+      const uu = u + du
+      const vv = v + dv
+      if (uu < 0 || vv < 0 || uu >= met.Wr || vv >= met.Hr) return FUNDO
+      let z = -Infinity
+      for (const o of P.caixas[P.naCelula[vv * met.Wr + uu]]) z = Math.max(z, o.z)
+      return z
+    }
+    const fU = dadosDaFace(m, P, i, b, 0)
+    const fV = dadosDaFace(m, P, i, b, 1)
+    ctx.lineWidth = 1.1
+    // filete de luz na quina da frente do topo
+    if (!c.agua) {
+      ctx.strokeStyle = rgba('#fffaf0', 0.42)
+      ctx.beginPath()
+      if (fU) { const a = q(b.u1, b.v0, b.z); const d = q(b.u1, b.v1, b.z); ctx.moveTo(a[0] - 0.5, a[1] + 0.6); ctx.lineTo(d[0] - 0.5, d[1] + 0.6) }
+      if (fV) { const a = q(b.u0, b.v1, b.z); const d = q(b.u1, b.v1, b.z); ctx.moveTo(a[0] + 0.5, a[1] + 0.6); ctx.lineTo(d[0] + 0.5, d[1] + 0.6) }
+      ctx.stroke()
+    }
+    ctx.strokeStyle = rgba(contorno(corLado), 0.75)
+    ctx.beginPath()
+    // arestas de cima de cada face visível
+    if (fU) { const a = q(b.u1, b.v0, b.z); const d = q(b.u1, b.v1, b.z); ctx.moveTo(...a); ctx.lineTo(...d) }
+    if (fV) { const a = q(b.u0, b.v1, b.z); const d = q(b.u1, b.v1, b.z); ctx.moveTo(...a); ctx.lineTo(...d) }
+    // quina vertical da frente
+    if (fU && fV) { const z0 = Math.max(fU.zLow, fV.zLow); const a = q(b.u1, b.v1, b.z); const d = q(b.u1, b.v1, z0); ctx.moveTo(...a); ctx.lineTo(...d) }
+    // pontas laterais quando o vizinho do lado é mais baixo
+    if (fV && b.u0 === u && alturaEm(-1, 0) < b.z - 0.01) { const a = q(b.u0, b.v1, b.z); const d = q(b.u0, b.v1, fV.zLow); ctx.moveTo(...a); ctx.lineTo(...d) }
+    if (fU && b.v0 === v && alturaEm(0, -1) < b.z - 0.01) { const a = q(b.u1, b.v0, b.z); const d = q(b.u1, b.v0, fU.zLow); ctx.moveTo(...a); ctx.lineTo(...d) }
+    ctx.stroke()
+    // arestas de trás do topo quando o vizinho de trás é mais baixo
+    ctx.strokeStyle = rgba(contorno(corTopo), 0.6)
+    ctx.beginPath()
+    if (b.u0 === u && alturaEm(-1, 0) < b.z - 0.01) { const a = q(b.u0, b.v0, b.z); const d = q(b.u0, b.v1, b.z); ctx.moveTo(...a); ctx.lineTo(...d) }
+    if (b.v0 === v && alturaEm(0, -1) < b.z - 0.01) { const a = q(b.u0, b.v0, b.z); const d = q(b.u1, b.v0, b.z); ctx.moveTo(...a); ctx.lineTo(...d) }
+    ctx.stroke()
+  }
+
+  /** Grade do modo batalha: o contorno de cada topo, apagado onde uma coluna da frente cobre (mesma ordem de pintura). */
+  function pintarGrade(ctx, m, rot, periodo, s) {
+    const P = N.preparo(m, rot)
+    ctx.setTransform(s, 0, 0, s, 0, 0)
+    ctx.lineWidth = 1
+    ctx.lineJoin = 'round'
+    for (const i of P.ordem) {
+      apagarSilhueta(ctx, P, i)
+      const c = m.c[i]
+      if (c.agua) continue
+      ctx.strokeStyle = PERIODOS[periodo].grade
+      ctx.beginPath()
+      for (const b of P.caixas[i]) {
+        const pts = [[b.u0, b.v0], [b.u1, b.v0], [b.u1, b.v1], [b.u0, b.v1]].map(([u, v]) => N.proj(P.met, u, v, b.z))
+        ctx.moveTo(...pts[0])
+        for (let k = 1; k < 4; k++) ctx.lineTo(...pts[k])
+        ctx.closePath()
+      }
+      ctx.stroke()
+    }
+  }
+  function apagarSilhueta(ctx, P, i) {
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.fillStyle = '#000'
+    ctx.beginPath()
+    for (const h of P.hex[i]) {
+      ctx.moveTo(...h[0])
+      for (let k = 1; k < 6; k++) ctx.lineTo(...h[k])
+      ctx.closePath()
+    }
+    ctx.fill()
+    ctx.globalCompositeOperation = 'source-over'
+  }
+  function losango(ctx, P, b, recuo) {
+    const pts = [[b.u0 + recuo, b.v0 + recuo], [b.u1 - recuo, b.v0 + recuo], [b.u1 - recuo, b.v1 - recuo], [b.u0 + recuo, b.v1 - recuo]].map(([u, v]) => N.proj(P.met, u, v, b.z))
+    ctx.beginPath()
+    ctx.moveTo(...pts[0])
+    for (let k = 1; k < 4; k++) ctx.lineTo(...pts[k])
+    ctx.closePath()
+  }
+  const ESTILOS = {
+    alcance: { fundo: 'rgba(62,118,226,0.62)', miolo: 'rgba(150,196,255,0.4)', borda: 'rgba(255,255,255,0.92)' },
+    caminho: { fundo: 'rgba(94,160,255,0.8)', miolo: 'rgba(214,234,255,0.66)', borda: 'rgba(255,255,255,1)' },
+    area: { fundo: 'rgba(230,140,62,0.5)', miolo: 'rgba(255,214,150,0.36)', borda: 'rgba(255,246,226,0.9)' },
+    alvo: { fundo: 'rgba(208,82,70,0.5)', miolo: 'rgba(255,170,150,0.34)', borda: 'rgba(255,236,230,0.92)' },
+    rastro: { fundo: 'rgba(240,206,98,0.42)', miolo: 'rgba(255,240,190,0.32)', borda: 'rgba(255,248,224,0.8)' },
+    cursor: { fundo: 'rgba(255,255,255,0.16)', miolo: null, borda: 'rgba(255,255,255,1)' },
+    origem: { fundo: 'rgba(255,255,255,0.3)', miolo: null, borda: 'rgba(255,255,255,1)' },
+  }
+  /** Camada de marcação (alcance, caminho, área, cursor): quadrados nos topos, escondidos pelo que fica na frente. */
+  function pintarMarcas(ctx, m, rot, s, marcas) {
+    const P = N.preparo(m, rot)
+    ctx.setTransform(s, 0, 0, s, 0, 0)
+    for (const i of P.ordem) {
+      apagarSilhueta(ctx, P, i)
+      const lista = marcas.get(i)
+      if (!lista) continue
+      for (const tipo of lista) {
+        const e = ESTILOS[tipo]
+        for (const b of P.caixas[i]) {
+          losango(ctx, P, b, 0.06)
+          ctx.fillStyle = e.fundo
+          ctx.fill()
+          if (e.miolo) {
+            losango(ctx, P, b, 0.26)
+            ctx.fillStyle = e.miolo
+            ctx.fill()
+          }
+        }
+        ctx.strokeStyle = e.borda
+        ctx.lineWidth = tipo === 'cursor' ? 2 : 1.5
+        for (const b of P.caixas[i]) {
+          losango(ctx, P, b, 0.06)
+          ctx.stroke()
+        }
+      }
+    }
+  }
+  /** Máscara da água visível (branco onde a água aparece), para o brilho animado não vazar para a terra. */
+  function pintarMascaraDaAgua(ctx, m, rot, s) {
+    const P = N.preparo(m, rot)
+    ctx.setTransform(s, 0, 0, s, 0, 0)
+    for (const i of P.ordem) {
+      apagarSilhueta(ctx, P, i)
+      if (!m.c[i].agua) continue
+      ctx.fillStyle = '#fff'
+      for (const b of P.caixas[i]) {
+        losango(ctx, P, b, 0)
+        ctx.fill()
+      }
+    }
+  }
+
+  // ---------- objetos (sprites desenhados por código) ----------
+  function traco(g, cor, w = 1.2) {
+    g.strokeStyle = contorno(cor)
+    g.lineWidth = w
+    g.lineJoin = 'round'
+    g.lineCap = 'round'
+  }
+  function forma(g, cor, desenhar, w = 1.2) {
+    g.beginPath()
+    desenhar()
+    g.fillStyle = cor
+    g.fill()
+    traco(g, cor, w)
+    g.stroke()
+  }
+  function elipse(g, x, y, rx, ry, cor, w) {
+    forma(g, cor, () => g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2), w)
+  }
+  function brilhoLado(g, desenhar, cor, lado = -1, alfa = 0.3) {
+    g.save()
+    g.beginPath()
+    desenhar()
+    g.clip()
+    g.fillStyle = lado < 0 ? rgba('#fffaf0', alfa) : rgba(escurecer(cor, 0.6), alfa)
+    g.fillRect(lado < 0 ? -200 : 0, -400, 200, 800)
+    g.restore()
+  }
+  function caixaIso(g, cx, cy, w, d, h, cor) {
+    // caixinha isométrica com centro do chão em (cx, cy): w ao longo de u, d ao longo de v (em px de meia largura)
+    const top = [[cx, cy - h - (w + d) / 2], [cx + w, cy - h - (d - w) / 2 - w / 2 + w / 2 - d / 2 + d / 2], [cx + w - d, cy - h + (w + d) / 2 - d], [cx - d, cy - h]]
+    void top
+    const A = [cx - d, cy - d / 2]
+    const B = [cx + w - d, cy + (w + d) / 2 - d]
+    const Cc = [cx + w, cy + w / 2 - d / 2 + d / 2 - w / 2 + w / 2 - d / 2]
+    void Cc
+    const p = (u, v, z) => [cx + (u - v), cy + (u + v) / 2 - z]
+    const t0 = p(-w / 2, -d / 2, h)
+    const t1 = p(w / 2, -d / 2, h)
+    const t2 = p(w / 2, d / 2, h)
+    const t3 = p(-w / 2, d / 2, h)
+    const b1 = p(w / 2, -d / 2, 0)
+    const b2 = p(w / 2, d / 2, 0)
+    const b3 = p(-w / 2, d / 2, 0)
+    void A; void B
+    forma(g, escurecer(cor, 0.12), () => { g.moveTo(...t3); g.lineTo(...t2); g.lineTo(...b2); g.lineTo(...b3); g.closePath() })
+    forma(g, escurecer(cor, 0.24), () => { g.moveTo(...t2); g.lineTo(...t1); g.lineTo(...b1); g.lineTo(...b2); g.closePath() })
+    forma(g, clarear(cor, 0.12), () => { g.moveTo(...t0); g.lineTo(...t1); g.lineTo(...t2); g.lineTo(...t3); g.closePath() })
+  }
+
+  function folhaDePalmeira(g, x0, y0, ang, comp, cair, cor) {
+    const ex = x0 + Math.cos(ang) * comp
+    const ey = y0 + Math.sin(ang) * comp * 0.55 + cair
+    const mx = x0 + Math.cos(ang) * comp * 0.5
+    const my = y0 + Math.sin(ang) * comp * 0.3 - 6
+    const nx = -Math.sin(ang)
+    const ny = Math.cos(ang) * 0.55
+    const larg = 6.5
+    g.beginPath()
+    g.moveTo(x0, y0)
+    // borda serrilhada: folíolos sugeridos por dentes largos, não por riscos
+    const pts = 7
+    for (let k = 1; k <= pts; k++) {
+      const t = k / pts
+      const bx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mx + t * t * ex
+      const by = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * my + t * t * ey
+      const w = larg * Math.sin(Math.PI * Math.min(1, t * 1.15)) * (k % 2 ? 1.25 : 0.8)
+      g.lineTo(bx + nx * w, by + ny * w - 1)
+    }
+    for (let k = pts; k >= 1; k--) {
+      const t = k / pts
+      const bx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mx + t * t * ex
+      const by = (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * my + t * t * ey
+      const w = larg * Math.sin(Math.PI * Math.min(1, t * 1.15)) * (k % 2 ? 0.8 : 1.25)
+      g.lineTo(bx - nx * w, by - ny * w + 1.5)
+    }
+    g.closePath()
+    g.fillStyle = cor
+    g.fill()
+    traco(g, cor, 1.1)
+    g.stroke()
+    g.strokeStyle = rgba(clarear(cor, 0.4), 0.7)
+    g.lineWidth = 1
+    g.beginPath()
+    g.moveTo(x0, y0)
+    g.quadraticCurveTo(mx, my, ex, ey)
+    g.stroke()
+  }
+  const DESENHOS = {
+    palmeira(g, p) {
+      const v = p.variante || 0
+      const inclina = [5, -7, 9][v % 3]
+      const alto = [86, 80, 92][v % 3]
+      // tronco curvo, afinando, com anéis largos
+      const topo = [inclina, -alto]
+      g.save()
+      const seg = 9
+      for (let k = 0; k < seg; k++) {
+        const t0 = k / seg
+        const t1 = (k + 1) / seg
+        const x0 = inclina * t0 * t0
+        const x1 = inclina * t1 * t1
+        const y0 = -alto * t0
+        const y1 = -alto * t1
+        const w0 = 6 - t0 * 2.4
+        const w1 = 6 - t1 * 2.4
+        const cor = k % 2 ? C.tronco : escurecer(C.tronco, 0.1)
+        forma(g, cor, () => { g.moveTo(x0 - w0, y0); g.lineTo(x1 - w1 - 0.6, y1); g.lineTo(x1 + w1 + 0.6, y1); g.lineTo(x0 + w0, y0); g.closePath() }, 1)
+        g.fillStyle = rgba('#fffaf0', 0.18)
+        g.fillRect(x0 - w0 + 1, y1, 2, y0 - y1)
+      }
+      g.restore()
+      return { copa: topo }
+    },
+    copa(g, p) {
+      const v = p.variante || 0
+      const n = 8
+      const atras = []
+      const frente = []
+      for (let k = 0; k < n; k++) {
+        const ang = (k / n) * Math.PI * 2 + v * 0.4
+        ;(Math.sin(ang) < 0 ? atras : frente).push(ang)
+      }
+      for (const ang of atras) folhaDePalmeira(g, 0, 0, ang, 40, 16, escurecer(C.folha, 0.12))
+      elipse(g, -3, 4, 3.4, 3.4, C.tronco, 1)
+      elipse(g, 3, 5, 3.2, 3.2, escurecer(C.tronco, 0.1), 1)
+      for (const ang of frente) folhaDePalmeira(g, 0, 0, ang, 42, 18, k2(ang))
+      function k2(a) { return Math.cos(a) < 0 ? C.folhaClara : C.folha }
+      folhaDePalmeira(g, 0, -1, -Math.PI / 2 + 0.3, 24, 4, C.folhaClara)
+    },
+    vasos(g, p) {
+      const lista = p.variante ? [[-9, 0, 1], [8, 3, 0.85]] : [[-11, -1, 0.85], [2, -4, 1.05], [11, 4, 0.75]]
+      lista.sort((a, b) => a[1] - b[1])
+      for (const [x, y, k] of lista) {
+        const h = 30 * k
+        const w = 9 * k
+        const cor = C.vaso
+        const corpo = () => {
+          g.moveTo(x - w * 0.42, y - h)
+          g.bezierCurveTo(x - w * 0.42, y - h * 0.82, x - w * 1.1, y - h * 0.7, x - w, y - h * 0.38)
+          g.bezierCurveTo(x - w * 0.9, y - h * 0.08, x - w * 0.5, y, x, y)
+          g.bezierCurveTo(x + w * 0.5, y, x + w * 0.9, y - h * 0.08, x + w, y - h * 0.38)
+          g.bezierCurveTo(x + w * 1.1, y - h * 0.7, x + w * 0.42, y - h * 0.82, x + w * 0.42, y - h)
+          g.closePath()
+        }
+        forma(g, cor, corpo)
+        brilhoLado(g, corpo, cor, -1, 0.0)
+        g.save()
+        g.beginPath()
+        corpo()
+        g.clip()
+        g.fillStyle = rgba(escurecer(cor, 0.6), 0.22)
+        g.fillRect(x + w * 0.2, y - h - 2, w * 1.2, h + 4)
+        g.fillStyle = rgba('#fffaf0', 0.35)
+        g.beginPath()
+        g.ellipse(x - w * 0.45, y - h * 0.45, w * 0.18, h * 0.2, 0, 0, Math.PI * 2)
+        g.fill()
+        g.fillStyle = rgba(escurecer(cor, 0.35), 0.5)
+        g.fillRect(x - w, y - h * 0.55, w * 2, 1.4)
+        g.restore()
+        elipse(g, x, y - h, w * 0.5, w * 0.2, clarear(cor, 0.15), 1)
+      }
+    },
+    barril(g) {
+      for (const [x, y, k] of [[-7, -2, 1], [9, 3, 0.8]]) {
+        const w = 10 * k
+        const h = 26 * k
+        const corpo = () => { g.moveTo(x - w, y - h); g.bezierCurveTo(x - w * 1.18, y - h * 0.6, x - w * 1.18, y - h * 0.4, x - w, y); g.lineTo(x + w, y); g.bezierCurveTo(x + w * 1.18, y - h * 0.4, x + w * 1.18, y - h * 0.6, x + w, y - h); g.closePath() }
+        forma(g, C.madeira, corpo)
+        g.save()
+        g.beginPath()
+        corpo()
+        g.clip()
+        g.fillStyle = rgba(escurecer(C.madeira, 0.6), 0.25)
+        g.fillRect(x + w * 0.3, y - h, w, h)
+        g.fillStyle = C.ferro
+        g.fillRect(x - w * 1.2, y - h * 0.82, w * 2.4, 2)
+        g.fillRect(x - w * 1.2, y - h * 0.22, w * 2.4, 2)
+        g.restore()
+        elipse(g, x, y - h, w, w * 0.42, clarear(C.madeira, 0.18), 1)
+      }
+    },
+    caixas(g) {
+      caixaIso(g, -4, 2, 20, 16, 15, C.madeira)
+      caixaIso(g, 6, -2, 14, 12, 12, clarear(C.madeira, 0.1))
+    },
+    banco(g, p) {
+      const ao = p.eixo === 'u'
+      const w = ao ? 26 : 10
+      const d = ao ? 10 : 26
+      caixaIso(g, ao ? -8 : 0, ao ? -2 : 0, 6, 8, 8, misturar(C.calcada, C.arenito, 0.4))
+      caixaIso(g, ao ? 8 : 0, ao ? 6 : 0, 6, 8, 8, misturar(C.calcada, C.arenito, 0.4))
+      caixaIso(g, 0, 2, w, d, 12, C.laje)
+    },
+    toldo(g, p) {
+      caixaIso(g, 0, 4, 22, 22, 14, C.madeira)
+      const frutas = [C.chama, C.tecido, C.folhaClara, C.brasa]
+      for (let k = 0; k < 6; k++) elipse(g, -8 + (k % 3) * 7 + (k > 2 ? 3 : 0), -12 + (k > 2 ? 4 : 0), 3, 2.6, frutas[(k + (p.variante || 0)) % 4], 1)
+      for (const x of [-21, 21]) forma(g, C.madeiraEscura, () => g.rect(x - 1.5, -50, 3, 46))
+      // cobertura em pirâmide baixa, listrada
+      const topo = [0, -64]
+      const cantos = [[-30, -44], [0, -30], [30, -44]]
+      const cores = [C.tecido, C.linho]
+      for (let s = 0; s < 2; s++) {
+        const a = cantos[s]
+        const b = cantos[s + 1]
+        const n = 4
+        for (let k = 0; k < n; k++) {
+          const p0 = [a[0] + (b[0] - a[0]) * (k / n), a[1] + (b[1] - a[1]) * (k / n)]
+          const p1 = [a[0] + (b[0] - a[0]) * ((k + 1) / n), a[1] + (b[1] - a[1]) * ((k + 1) / n)]
+          const cor = cores[k % 2]
+          forma(g, s ? escurecer(cor, 0.12) : cor, () => { g.moveTo(...topo); g.lineTo(...p0); g.lineTo(...p1); g.closePath() }, 1)
+        }
+      }
+      g.fillStyle = C.tecido
+      for (let k = 0; k < 8; k++) {
+        const t = k / 8
+        const x = -30 + 60 * t
+        const y = t < 0.5 ? -44 + 28 * t : -30 - 28 * (t - 0.5)
+        g.beginPath()
+        g.arc(x + 3.75, y + 1, 3.6, 0, Math.PI)
+        g.fill()
+      }
+    },
+    poco(g) {
+      // anel de pedra
+      const borda = misturar(C.pedra, C.calcada, 0.4)
+      forma(g, escurecer(borda, 0.15), () => { g.ellipse(0, -2, 22, 11, 0, 0, Math.PI); g.lineTo(-22, -16); g.ellipse(0, -16, 22, 11, 0, Math.PI, 0, true); g.closePath() })
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI
+        g.strokeStyle = rgba(contorno(borda), 0.5)
+        g.lineWidth = 1
+        g.beginPath()
+        g.moveTo(Math.cos(a) * 22, -16 + Math.sin(a) * 11)
+        g.lineTo(Math.cos(a) * 22, -2 + Math.sin(a) * 11)
+        g.stroke()
+      }
+      elipse(g, 0, -16, 22, 11, clarear(borda, 0.15), 1.2)
+      elipse(g, 0, -16, 16, 7.5, misturar(C.agua, '#2e2a3e', 0.45), 1)
+      // armação de madeira e telhadinho
+      for (const x of [-18, 18]) forma(g, C.madeira, () => g.rect(x - 2, -52, 4, 38))
+      forma(g, C.madeiraEscura, () => g.rect(-19, -46, 38, 3))
+      forma(g, C.barro, () => { g.moveTo(-26, -50); g.lineTo(0, -64); g.lineTo(26, -50); g.lineTo(22, -47); g.lineTo(0, -59); g.lineTo(-22, -47); g.closePath() })
+      g.strokeStyle = contorno(C.madeira)
+      g.lineWidth = 1
+      g.beginPath()
+      g.moveTo(4, -44)
+      g.lineTo(4, -30)
+      g.stroke()
+      caixaIso(g, 4, -24, 6, 6, 6, C.madeira)
+    },
+    lampiao(g) {
+      forma(g, C.ferro, () => g.rect(-2, -66, 4, 66))
+      forma(g, escurecer(C.ferro, 0.1), () => g.rect(-6, -4, 12, 4))
+      forma(g, C.ferro, () => { g.moveTo(-8, -70); g.lineTo(0, -80); g.lineTo(8, -70); g.closePath() })
+      forma(g, misturar(C.chama, C.linho, 0.5), () => g.rect(-6, -70, 12, 12))
+      g.strokeStyle = contorno(C.ferro)
+      g.lineWidth = 1
+      g.beginPath()
+      g.moveTo(0, -70)
+      g.lineTo(0, -58)
+      g.stroke()
+    },
+    tocha(g) {
+      forma(g, misturar(C.pedra, C.ruina, 0.5), () => { g.moveTo(-6, 0); g.lineTo(-4, -26); g.lineTo(4, -26); g.lineTo(6, 0); g.closePath() })
+      forma(g, C.ferro, () => { g.moveTo(-12, -34); g.lineTo(12, -34); g.lineTo(7, -25); g.lineTo(-7, -25); g.closePath() })
+      elipse(g, 0, -34, 12, 4, escurecer(C.ferro, 0.2), 1)
+      elipse(g, 0, -35, 8, 2.5, misturar(C.brasa, C.madeiraEscura, 0.5), 0.8)
+    },
+    coluna(g, p) {
+      const alto = p.variante ? 46 : 62
+      const cor = C.ruina
+      forma(g, escurecer(cor, 0.1), () => g.rect(-15, -8, 30, 8))
+      const corpo = () => { g.moveTo(-11, -8); g.lineTo(-11, -alto + 4); g.lineTo(-5, -alto); g.lineTo(1, -alto + 6); g.lineTo(6, -alto + 1); g.lineTo(11, -alto + 7); g.lineTo(11, -8); g.closePath() }
+      forma(g, cor, corpo)
+      g.save()
+      g.beginPath()
+      corpo()
+      g.clip()
+      for (const x of [-6, 0, 6]) { g.fillStyle = rgba(escurecer(cor, 0.5), 0.18); g.fillRect(x, -alto, 2.4, alto) }
+      g.fillStyle = rgba(escurecer(cor, 0.6), 0.22)
+      g.fillRect(4, -alto, 8, alto)
+      g.fillStyle = rgba(C.musgo, 0.9)
+      g.beginPath()
+      g.ellipse(-6, -14, 7, 4, 0, 0, Math.PI * 2)
+      g.fill()
+      g.restore()
+    },
+    entulho(g, p) {
+      const v = p.variante || 0
+      caixaIso(g, -9, 2, 12, 10, 8, C.ruina)
+      caixaIso(g, 8, 0, 10, 12, 6 + v * 3, escurecer(C.ruina, 0.06))
+      caixaIso(g, 0, 8, 9, 8, 5, clarear(C.ruina, 0.08))
+      elipse(g, -12, 8, 4, 2.4, C.musgo, 0.8)
+    },
+    arbusto(g, p) {
+      const v = p.variante || 0
+      const bolas = [[-10, -9, 10], [9, -10, 10], [0, -17, 12], [-2, -7, 11]]
+      for (const [x, y, r] of bolas) elipse(g, x, y, r, r * 0.86, k(x), 1.1)
+      function k(x) { return x < 0 ? C.folhaClara : C.folha }
+      for (let q = 0; q < 4; q++) {
+        g.fillStyle = v ? C.vaso : C.linho
+        g.beginPath()
+        g.arc(-10 + q * 6, -14 + (q % 2) * 6, 1.6, 0, Math.PI * 2)
+        g.fill()
+      }
+    },
+  }
+
+  // ---------- unidades ----------
+  /** Desenho de uma unidade: frente (olhando para baixo-esquerda) ou costas; quadro da passada; pés em (0, 0). */
+  function desenharUnidade(g, tipo, frente, quadro) {
+    if (tipo === 'lobo') return desenharLobo(g, frente, quadro)
+    if (tipo === 'golem') return desenharGolem(g, frente, quadro)
+    const E = ESTILO_DE[tipo]
+    // passada: 0 parado, 1..4 andar (contato, passagem, contato, passagem), 5 agacha, 6 no ar
+    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    const ergue = quadro >= 1 && quadro <= 4 ? [0, 1, 0, 1][quadro - 1] : 0
+    const agacha = quadro === 5 ? 3 : 0
+    const ar = quadro === 6
+    const quadril = -17 + agacha
+    // pernas
+    const pernas = [[-4.2, passo * 2.2], [4.2, -passo * 2.2]]
+    for (const [x, d] of pernas) {
+      const pe = ar ? -3 : -Math.max(0, d) * ergue * 1.2
+      forma(g, E.calca, () => g.roundRect(x - 3, quadril, 6, -quadril + pe - 3, 2))
+      forma(g, E.bota, () => g.roundRect(x - 3.6, pe - 5, 7.2, 5, 2.2))
+    }
+    // costas: capa ou cabelo comprido atrás
+    if (!frente && E.capa) forma(g, E.capa, () => { g.moveTo(-9, -37); g.lineTo(9, -37); g.lineTo(11, -12 + agacha); g.lineTo(-11, -12 + agacha); g.closePath() })
+    // tronco
+    const tronco = () => { g.moveTo(-8, -36 + agacha); g.lineTo(8, -36 + agacha); g.lineTo(10.5, quadril + 3); g.lineTo(-10.5, quadril + 3); g.closePath() }
+    forma(g, E.roupa, tronco)
+    g.save()
+    g.beginPath()
+    tronco()
+    g.clip()
+    g.fillStyle = rgba(escurecer(E.roupa, 0.6), 0.22)
+    g.fillRect(2, -40, 12, 30)
+    if (E.detalhe) { g.fillStyle = E.detalhe; g.fillRect(-1.5, -36 + agacha, 3, 22) }
+    g.restore()
+    forma(g, E.cinto, () => g.rect(-9.5, quadril - 1, 19, 3.2), 1)
+    // braços balançam ao contrário das pernas
+    const braco = (lado, d) => {
+      const x = lado * 10
+      forma(g, E.roupa, () => g.roundRect(x - 2.6, -35 + agacha + d, 5.2, 13, 2.4))
+      elipse(g, x, -21 + agacha + d, 2.6, 2.6, E.pele, 1)
+    }
+    braco(-1, -passo * 1.4 + (ar ? -3 : 0))
+    braco(1, passo * 1.4 + (ar ? -3 : 0))
+    // arma (atrás ou do lado)
+    if (E.arma) E.arma(g, frente, agacha, passo)
+    // cabeça
+    const cy = -46 + agacha
+    if (!frente && E.cabeloAtras) E.cabeloAtras(g, cy)
+    elipse(g, 0, cy, 10.5, 10, E.pele, 1.2)
+    if (frente) {
+      // rosto virado para baixo-esquerda: olhos deslocados para a esquerda
+      const olho = contorno(E.cabelo)
+      g.fillStyle = olho
+      g.beginPath()
+      g.ellipse(-5.2, cy + 1.5, 1.3, 2, 0, 0, Math.PI * 2)
+      g.ellipse(1.6, cy + 1.5, 1.3, 2, 0, 0, Math.PI * 2)
+      g.fill()
+      g.fillStyle = rgba('#fffaf0', 0.9)
+      g.fillRect(-5.6, cy + 0.4, 0.8, 0.8)
+      g.fillRect(1.2, cy + 0.4, 0.8, 0.8)
+      g.fillStyle = rgba(C.tecido, 0.28)
+      g.beginPath()
+      g.ellipse(-6.5, cy + 4.6, 2, 1.2, 0, 0, Math.PI * 2)
+      g.ellipse(3.6, cy + 4.6, 2, 1.2, 0, 0, Math.PI * 2)
+      g.fill()
+    }
+    E.cabeca(g, cy, frente)
+  }
+  const ESTILO_DE = {
+    aventureira: {
+      roupa: C.azul, calca: C.linho, bota: C.madeira, cinto: C.madeiraEscura, pele: C.pele, cabelo: C.loiro, detalhe: C.linho, capa: null,
+      arma(g, frente) {
+        const x = frente ? 11 : -11
+        forma(g, C.aco, () => { g.moveTo(x - 1.4, -24); g.lineTo(x - 1.4, -48); g.lineTo(x, -51); g.lineTo(x + 1.4, -48); g.lineTo(x + 1.4, -24); g.closePath() }, 1)
+        forma(g, C.latao, () => g.rect(x - 4, -24, 8, 2.4), 1)
+      },
+      cabeloAtras(g, cy) { forma(g, C.loiro, () => { g.moveTo(-3, cy); g.quadraticCurveTo(12, cy + 6, 4, cy + 20); g.quadraticCurveTo(-2, cy + 10, -3, cy) }) },
+      cabeca(g, cy, frente) {
+        forma(g, C.loiro, () => {
+          g.moveTo(-11, cy + 2)
+          g.quadraticCurveTo(-12, cy - 12, 0, cy - 12)
+          g.quadraticCurveTo(12, cy - 12, 11, cy + 2)
+          if (frente) { g.lineTo(8, cy - 3); g.lineTo(3, cy - 6); g.lineTo(-2, cy - 3); g.lineTo(-7, cy - 6); g.lineTo(-10, cy + 1) } else { g.lineTo(11, cy + 7); g.lineTo(-11, cy + 7) }
+          g.closePath()
+        })
+        if (frente) forma(g, C.loiro, () => { g.moveTo(9, cy - 6); g.quadraticCurveTo(19, cy - 2, 14, cy + 12); g.quadraticCurveTo(12, cy + 2, 9, cy - 1); g.closePath() })
+        forma(g, C.vermelho, () => g.rect(-10, cy - 8, 20, 2.6), 1)
+      },
+    },
+    mago: {
+      roupa: C.roxo, calca: escurecer(C.roxo, 0.2), bota: C.madeiraEscura, cinto: C.latao, pele: C.pele, cabelo: C.cabeloEscuro, detalhe: C.latao, capa: escurecer(C.roxo, 0.15),
+      arma(g, frente) {
+        const x = frente ? -13 : 13
+        forma(g, C.madeira, () => g.rect(x - 1.3, -50, 2.6, 50), 1)
+        elipse(g, x, -52, 3.6, 3.6, C.aguaRasa, 1)
+      },
+      cabeca(g, cy, frente) {
+        forma(g, escurecer(C.roxo, 0.1), () => g.ellipse(0, cy - 6, 17, 5, 0, 0, Math.PI * 2))
+        forma(g, C.roxo, () => { g.moveTo(-10, cy - 7); g.quadraticCurveTo(-4, cy - 20, 2, cy - 32); g.quadraticCurveTo(10, cy - 30, 14, cy - 26); g.quadraticCurveTo(8, cy - 22, 9, cy - 7); g.closePath() })
+        forma(g, C.latao, () => g.rect(-9.5, cy - 10, 19, 3), 1)
+        if (frente) {
+          g.fillStyle = C.cabeloEscuro
+          g.fillRect(-9, cy - 4, 18, 2.5)
+          forma(g, C.linho, () => { g.moveTo(-5, cy + 6); g.quadraticCurveTo(-2, cy + 15, 1, cy + 6); g.closePath() }, 1)
+        }
+      },
+    },
+    arqueiro: {
+      roupa: C.verde, calca: C.madeira, bota: C.madeiraEscura, cinto: C.madeiraEscura, pele: C.peleMorena, cabelo: C.castanho, detalhe: null, capa: escurecer(C.verde, 0.15),
+      arma(g, frente) {
+        const x = frente ? -12 : 10
+        g.strokeStyle = contorno(C.madeira)
+        g.lineWidth = 2.6
+        g.beginPath()
+        g.arc(x + 6, -32, 15, Math.PI * 0.62, Math.PI * 1.38)
+        g.stroke()
+        g.strokeStyle = C.madeira
+        g.lineWidth = 1.5
+        g.stroke()
+        g.strokeStyle = rgba(C.linho, 0.8)
+        g.lineWidth = 0.8
+        g.beginPath()
+        g.moveTo(x + 6 + Math.cos(Math.PI * 0.62) * 15, -32 + Math.sin(Math.PI * 0.62) * 15)
+        g.lineTo(x + 6 + Math.cos(Math.PI * 1.38) * 15, -32 + Math.sin(Math.PI * 1.38) * 15)
+        g.stroke()
+        if (!frente) forma(g, C.madeira, () => g.rect(-6, -44, 5, 16), 1)
+      },
+      cabeca(g, cy, frente) {
+        forma(g, C.verde, () => {
+          g.moveTo(-12, cy + 4)
+          g.quadraticCurveTo(-13, cy - 14, 0, cy - 14)
+          g.quadraticCurveTo(13, cy - 14, 12, cy + 4)
+          if (frente) { g.quadraticCurveTo(9, cy - 6, 0, cy - 6); g.quadraticCurveTo(-9, cy - 6, -12, cy + 4) } else g.quadraticCurveTo(0, cy + 10, -12, cy + 4)
+          g.closePath()
+        })
+        if (frente) forma(g, C.castanho, () => { g.moveTo(-8, cy - 4); g.lineTo(8, cy - 4); g.lineTo(6, cy - 1); g.lineTo(-6, cy - 1); g.closePath() }, 1)
+      },
+    },
+    curandeira: {
+      roupa: C.linho, calca: C.linho, bota: C.madeira, cinto: C.tecido, pele: C.pele, cabelo: C.castanho, detalhe: C.tecido, capa: C.linho,
+      arma(g, frente) {
+        const x = frente ? 12 : -12
+        forma(g, C.madeira, () => g.rect(x - 1.2, -50, 2.4, 50), 1)
+        g.strokeStyle = contorno(C.latao)
+        g.lineWidth = 2.6
+        g.beginPath()
+        g.arc(x, -54, 4.5, 0, Math.PI * 2)
+        g.stroke()
+        g.strokeStyle = C.latao
+        g.lineWidth = 1.4
+        g.stroke()
+      },
+      cabeca(g, cy, frente) {
+        forma(g, C.linho, () => {
+          g.moveTo(-13, cy + 8)
+          g.quadraticCurveTo(-14, cy - 14, 0, cy - 15)
+          g.quadraticCurveTo(14, cy - 14, 13, cy + 8)
+          if (frente) { g.quadraticCurveTo(10, cy - 5, 0, cy - 7); g.quadraticCurveTo(-10, cy - 5, -13, cy + 8) } else g.quadraticCurveTo(0, cy + 12, -13, cy + 8)
+          g.closePath()
+        })
+        forma(g, C.tecido, () => g.rect(-2, cy - 15, 4, 7), 0.8)
+        forma(g, C.tecido, () => g.rect(-3.5, cy - 13, 7, 3), 0.8)
+        if (frente) forma(g, C.castanho, () => { g.moveTo(-9, cy - 3); g.quadraticCurveTo(0, cy - 8, 9, cy - 3); g.lineTo(9, cy); g.lineTo(-9, cy); g.closePath() }, 1)
+      },
+    },
+    ladino: {
+      roupa: misturar(C.cabeloEscuro, C.madeira, 0.35), calca: C.cabeloEscuro, bota: C.madeiraEscura, cinto: C.vermelho, pele: C.peleMorena, cabelo: C.cabeloEscuro, detalhe: null, capa: C.vermelho,
+      arma(g, frente) {
+        const x = frente ? 12 : -12
+        forma(g, C.aco, () => { g.moveTo(x - 1.2, -20); g.lineTo(x - 1.2, -32); g.lineTo(x, -34); g.lineTo(x + 1.2, -32); g.lineTo(x + 1.2, -20); g.closePath() }, 1)
+        forma(g, C.madeiraEscura, () => g.rect(x - 3, -20, 6, 2), 1)
+      },
+      cabeca(g, cy, frente) {
+        forma(g, C.cabeloEscuro, () => { g.moveTo(-11, cy + 3); g.quadraticCurveTo(-11, cy - 11, 0, cy - 11); g.quadraticCurveTo(11, cy - 11, 11, cy + 3); g.lineTo(frente ? 8 : 11, cy - 2); g.lineTo(frente ? -9 : -11, cy - 2); g.closePath() })
+        forma(g, C.vermelho, () => { g.moveTo(-11, cy - 4); g.quadraticCurveTo(0, cy - 9, 11, cy - 4); g.lineTo(11, cy - 1); g.quadraticCurveTo(0, cy - 6, -11, cy - 1); g.closePath() }, 1)
+        forma(g, C.vermelho, () => { g.moveTo(10, cy - 3); g.lineTo(18, cy + 3); g.lineTo(15, cy + 5); g.lineTo(10, cy); g.closePath() }, 1)
+      },
+    },
+    guarda: {
+      roupa: C.aco, calca: escurecer(C.aco, 0.2), bota: C.ferro, cinto: C.madeiraEscura, pele: C.pele, cabelo: C.castanho, detalhe: C.vermelho, capa: C.vermelho,
+      arma(g, frente) {
+        const xl = frente ? -14 : 14
+        forma(g, C.madeira, () => g.rect(xl - 1.2, -64, 2.4, 62), 1)
+        forma(g, C.aco, () => { g.moveTo(xl - 3, -62); g.lineTo(xl, -71); g.lineTo(xl + 3, -62); g.closePath() }, 1)
+        if (frente) {
+          const escudo = () => { g.moveTo(5, -36); g.lineTo(17, -36); g.lineTo(17, -24); g.quadraticCurveTo(17, -17, 11, -14); g.quadraticCurveTo(5, -17, 5, -24); g.closePath() }
+          forma(g, C.vermelho, escudo)
+          forma(g, C.latao, () => g.rect(10, -34, 2, 16), 0.8)
+        }
+      },
+      cabeca(g, cy, frente) {
+        forma(g, C.aco, () => { g.moveTo(-12, cy + 4); g.quadraticCurveTo(-12, cy - 13, 0, cy - 13); g.quadraticCurveTo(12, cy - 13, 12, cy + 4); if (frente) { g.lineTo(9, cy + 4); g.lineTo(9, cy - 2); g.lineTo(-9, cy - 2); g.lineTo(-9, cy + 4) } g.closePath() })
+        forma(g, C.vermelho, () => { g.moveTo(-2, cy - 12); g.quadraticCurveTo(4, cy - 24, 13, cy - 19); g.quadraticCurveTo(6, cy - 16, 2, cy - 11); g.closePath() }, 1)
+        g.fillStyle = rgba('#fffaf0', 0.45)
+        g.fillRect(-8, cy - 10, 3, 6)
+      },
+    },
+  }
+  function desenharLobo(g, frente, quadro) {
+    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    const agacha = quadro === 5 ? 3 : 0
+    const ar = quadro === 6
+    const cor = C.pelagem
+    const barriga = clarear(cor, 0.35)
+    const s = frente ? 1 : -1
+    // vista 3/4: frente = focinho para baixo-esquerda; costas = traseira e cauda
+    const pata = (x, d) => forma(g, escurecer(cor, 0.1), () => g.roundRect(x - 2.5, -12 + agacha, 5, 12 - (ar ? 4 : Math.max(0, d) * 2), 2), 1)
+    pata(8 * s, -passo)
+    pata(-10 * s, passo)
+    forma(g, cor, () => g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2))
+    forma(g, cor, () => { g.moveTo(14 * s, -20 + agacha); g.quadraticCurveTo(26 * s, -24, 24 * s, -34 + (ar ? 4 : 0)); g.quadraticCurveTo(20 * s, -24, 12 * s, -14 + agacha); g.closePath() })
+    pata(-4 * s, passo)
+    pata(12 * s, -passo)
+    g.save()
+    g.beginPath()
+    g.ellipse(2 * s, -17 + agacha, 17, 10, -0.18 * s, 0, Math.PI * 2)
+    g.clip()
+    g.fillStyle = rgba(barriga, 0.7)
+    g.fillRect(-20, -12 + agacha, 40, 8)
+    g.restore()
+    if (frente) {
+      forma(g, cor, () => g.ellipse(-12, -28 + agacha, 9, 8, 0, 0, Math.PI * 2))
+      forma(g, barriga, () => { g.moveTo(-14, -28 + agacha); g.lineTo(-24, -22 + agacha); g.lineTo(-13, -20 + agacha); g.closePath() }, 1)
+      elipse(g, -24, -22.5 + agacha, 1.8, 1.5, C.cabeloEscuro, 0.8)
+      for (const x of [-17, -8]) forma(g, cor, () => { g.moveTo(x - 3, -33 + agacha); g.lineTo(x, -42 + agacha); g.lineTo(x + 3, -33 + agacha); g.closePath() }, 1)
+      g.fillStyle = contorno(C.chama)
+      g.beginPath()
+      g.ellipse(-15, -29 + agacha, 1.3, 1.7, 0, 0, Math.PI * 2)
+      g.fill()
+    } else {
+      forma(g, cor, () => g.ellipse(13, -29 + agacha, 8, 8, 0, 0, Math.PI * 2))
+      for (const x of [9, 17]) forma(g, cor, () => { g.moveTo(x - 3, -33 + agacha); g.lineTo(x, -42 + agacha); g.lineTo(x + 3, -33 + agacha); g.closePath() }, 1)
+    }
+  }
+  function desenharGolem(g, frente, quadro) {
+    const passo = quadro >= 1 && quadro <= 4 ? [0, 1, 0, -1][quadro - 1] : 0
+    const agacha = quadro === 5 ? 3 : 0
+    const cor = misturar(C.pedra, C.rocha, 0.35)
+    for (const [x, d] of [[-9, passo], [9, -passo]]) caixaIso(g, x, -Math.max(0, d) * 2, 7, 7, 13, escurecer(cor, 0.08))
+    const corpo = () => { g.moveTo(-18, -18 + agacha); g.lineTo(-14, -44 + agacha); g.lineTo(0, -50 + agacha); g.lineTo(15, -44 + agacha); g.lineTo(19, -18 + agacha); g.lineTo(8, -10); g.lineTo(-8, -10); g.closePath() }
+    forma(g, cor, corpo, 1.4)
+    g.save()
+    g.beginPath()
+    corpo()
+    g.clip()
+    g.fillStyle = rgba(escurecer(cor, 0.6), 0.22)
+    g.fillRect(4, -60, 20, 60)
+    g.strokeStyle = rgba(contorno(cor), 0.55)
+    g.lineWidth = 1
+    g.beginPath()
+    g.moveTo(-14, -32 + agacha)
+    g.lineTo(-3, -28 + agacha)
+    g.lineTo(6, -34 + agacha)
+    g.moveTo(-6, -46 + agacha)
+    g.lineTo(-2, -38 + agacha)
+    g.stroke()
+    g.fillStyle = rgba(C.musgo, 0.95)
+    g.beginPath()
+    g.ellipse(-6, -47 + agacha, 9, 4, 0, 0, Math.PI * 2)
+    g.ellipse(12, -24 + agacha, 4, 3, 0, 0, Math.PI * 2)
+    g.fill()
+    g.restore()
+    for (const lado of [-1, 1]) caixaIso(g, lado * 21, -14 + agacha + passo * lado * 1.5, 7, 7, 22, cor)
+    if (frente) {
+      g.fillStyle = C.aguaRasa
+      g.beginPath()
+      g.ellipse(-7, -36 + agacha, 2.3, 1.8, 0, 0, Math.PI * 2)
+      g.ellipse(1, -36 + agacha, 2.3, 1.8, 0, 0, Math.PI * 2)
+      g.fill()
+    }
+  }
+
+  // ---------- cache de sprites ----------
+  const sprites = new Map()
+  /** Sprite numa escala s com a tinta do período; ancorado em (ax, ay) = pés. */
+  function sprite(chave, w, h, ax, ay, s, periodo, desenhar) {
+    const k = `${chave}|${s}|${periodo}`
+    if (sprites.has(k)) return sprites.get(k)
+    const c = tela(w * s, h * s)
+    const g = c.getContext('2d')
+    g.setTransform(s, 0, 0, s, ax * s, ay * s)
+    desenhar(g)
+    const t = PERIODOS[periodo].tinta
+    if (t[0] < 0.999 || t[1] < 0.999 || t[2] < 0.999) {
+      g.setTransform(1, 0, 0, 1, 0, 0)
+      g.globalCompositeOperation = 'multiply'
+      g.fillStyle = rgbHex(t.map((v) => v * 255))
+      g.fillRect(0, 0, c.width, c.height)
+      g.globalCompositeOperation = 'destination-in'
+      g.globalAlpha = 1
+      const mask = tela(c.width, c.height)
+      const mg = mask.getContext('2d')
+      mg.setTransform(s, 0, 0, s, ax * s, ay * s)
+      desenhar(mg)
+      g.drawImage(mask, 0, 0)
+      g.globalCompositeOperation = 'source-over'
+    }
+    const out = { c, ax, ay, w, h }
+    sprites.set(k, out)
+    return out
+  }
+  function spriteDoObjeto(p, eixo, s, periodo) {
+    const tp = N.PROPS[p.tipo]
+    const parte = p.tipo === 'palmeira' ? 'tronco' : 'inteiro'
+    return sprite(`p:${p.tipo}:${p.variante || 0}:${eixo}:${parte}`, tp.w + 8, tp.h + 12, (tp.w + 8) / 2, tp.h + 6, s, periodo, (g) => DESENHOS[p.tipo](g, { ...p, eixo }))
+  }
+  function spriteDaCopa(p, s, periodo) {
+    return sprite(`copa:${p.variante || 0}`, 110, 70, 55, 30, s, periodo, (g) => DESENHOS.copa(g, p))
+  }
+  function spriteDaUnidade(tipo, frente, quadro, s, periodo) {
+    const tp = N.TIPOS[tipo]
+    return sprite(`u:${tipo}:${frente ? 'f' : 'c'}:${quadro}`, tp.w + 20, tp.h + 14, (tp.w + 20) / 2, tp.h + 8, s, periodo, (g) => desenharUnidade(g, tipo, frente, quadro))
+  }
+  function limparSprites() {
+    sprites.clear()
+  }
+
+  return {
+    PALETA, PERIODOS, T, PISO_DO_CONTORNO,
+    hexRgb, rgbHex, misturar, clarear, escurecer, contorno, luminancia, rgba,
+    tela, atlasAceso, mapaDeLuz, pintarColunas, pintarGrade, pintarMarcas, pintarMascaraDaAgua, apagarSilhueta,
+    luzNoPonto, prepararLuz, spriteDoObjeto, spriteDaCopa, spriteDaUnidade, desenharUnidade, limparSprites, DESENHOS,
+  }
+})()
+</script>
+<script>// pagina.js — a tela: estado, câmera, camadas que ficam prontas aos poucos (sem travar), quadro a quadro,
+// entrada por mouse, toque e teclado, as ferramentas de medição e a API que as provas usam (window.Batalha).
+;(function () {
+  'use strict'
+  const N = Nucleo
+  const Pt = Pintor
+  const t0Pagina = performance.now()
+  const movimentoReduzido = window.matchMedia('(prefers-reduced-motion: reduce)')
+  const reduzido = () => movimentoReduzido.matches || document.documentElement.dataset.movimento === 'reduzido'
+
+  const $ = (id) => document.getElementById(id)
+  const canvas = $('mapa')
+  const ctx = canvas.getContext('2d')
+  const MAPAS = { vila: N.vila(), baia: N.baia() }
+
+  const est = {
+    mapa: MAPAS.vila,
+    rot: 0,
+    periodo: 'dia',
+    batalha: false,
+    ferramenta: 'mover',
+    rastro: false,
+    degrau: 1,
+    sel: null,
+    alcance: null,
+    hover: -1,
+    cursor: -1,
+    previa: null,
+    medida: { a: null, b: null, fixo: false },
+    anims: new Map(),
+    rotulos: [],
+    cam: { cx: 0, cy: 0, zoom: 1, w: 800, h: 600 },
+    dpr: 1,
+    arraste: null,
+    primeiraPintura: null,
+    quadros: [],
+    tarefas: [],
+    passeio: false,
+  }
+
+  // ---------- fila de fundo: trabalho pesado em pedaços, sem tarefa longa ----------
+  const fila = []
+  let agendado = false
+  const canal = new MessageChannel()
+  canal.port1.onmessage = () => {
+    agendado = false
+    const inicio = performance.now()
+    while (fila.length && performance.now() - inicio < 24) {
+      const job = fila[0]
+      if (job.fn()) fila.shift()
+    }
+    if (fila.length) agendar()
+  }
+  function agendar() {
+    if (agendado) return
+    agendado = true
+    canal.port2.postMessage(0)
+  }
+  function enfileirar(chave, fn, frente = false) {
+    if (fila.some((j) => j.chave === chave)) return
+    const job = { chave, fn }
+    if (frente) fila.unshift(job)
+    else fila.push(job)
+    agendar()
+  }
+
+  // ---------- camadas (estática, grade, máscara da água) ----------
+  const camadas = new Map()
+  const MAX_PIXELS = 26e6
+  function escalaPara(zoom, m, rot) {
+    const met = N.preparo(m, rot).met
+    const alvo = zoom * est.dpr
+    let s = alvo <= 1.15 ? 1 : alvo <= 1.6 ? 1.5 : alvo <= 2.2 ? 2 : 3
+    while (s > 1 && met.largura * met.altura * s * s > MAX_PIXELS) s -= 0.5
+    return s
+  }
+  const chaveDaCamada = (m, rot, periodo, s) => `${m.id}|${rot}|${periodo}|${s}`
+  /** Faz (ou continua) uma camada; devolve true quando pronta. Cada chamada pinta no máximo ~18 ms de colunas. */
+  function passoDaCamada(m, rot, periodo, s) {
+    const chave = chaveDaCamada(m, rot, periodo, s)
+    let L = camadas.get(chave)
+    const P = N.preparo(m, rot)
+    if (!L) {
+      const luz = Pt.mapaDeLuz(m, periodo, 24)
+      if (!luz.pronto) return false
+      const met = P.met
+      L = { chave, m, rot, periodo, s, canvas: Pt.tela(met.largura * s, met.altura * s), feito: 0, pronto: false, usado: performance.now() }
+      camadas.set(chave, L)
+      podarCamadas()
+    }
+    if (L.pronto) return true
+    const g = L.canvas.getContext('2d')
+    const inicio = performance.now()
+    while (L.feito < P.ordem.length && performance.now() - inicio < 18) {
+      const k1 = Math.min(P.ordem.length, L.feito + 24)
+      Pt.pintarColunas(g, m, rot, periodo, s, L.feito, k1)
+      L.feito = k1
+    }
+    if (L.feito < P.ordem.length) return false
+    L.grade = Pt.tela(L.canvas.width, L.canvas.height)
+    Pt.pintarGrade(L.grade.getContext('2d'), m, rot, periodo, s)
+    if (m.c.some((c) => c.agua)) {
+      L.agua = Pt.tela(L.canvas.width, L.canvas.height)
+      Pt.pintarMascaraDaAgua(L.agua.getContext('2d'), m, rot, s)
+    }
+    L.pronto = true
+    return true
+  }
+  function podarCamadas() {
+    // guarda poucas camadas: a de agora, as 4 rotações na escala 1 e a última de cada escala
+    let total = 0
+    const lista = [...camadas.values()].sort((a, b) => b.usado - a.usado)
+    for (const L of lista) {
+      const px = L.canvas.width * L.canvas.height
+      total += px
+      if (total > 60e6 && !(L.s === 1 && L.m === est.mapa && L.periodo === est.periodo)) camadas.delete(L.chave)
+    }
+  }
+  /** A melhor camada pronta para desenhar agora (a da escala certa, ou outra pronta enquanto aquela é pintada). */
+  function camadaParaDesenhar() {
+    const m = est.mapa
+    const s = escalaPara(est.cam.zoom, m, est.rot)
+    const certa = camadas.get(chaveDaCamada(m, est.rot, est.periodo, s))
+    if (certa && certa.pronto) { certa.usado = performance.now(); return certa }
+    enfileirar('cam:' + chaveDaCamada(m, est.rot, est.periodo, s), () => passoDaCamada(m, est.rot, est.periodo, s), true)
+    let melhor = null
+    for (const L of camadas.values()) {
+      if (L.m !== m || L.rot !== est.rot || L.periodo !== est.periodo || !L.pronto) continue
+      if (!melhor || Math.abs(L.s - s) < Math.abs(melhor.s - s)) melhor = L
+    }
+    return melhor
+  }
+  function prepararFundo() {
+    // depois da primeira pintura: as outras 3 rotações e os outros períodos ficam prontos aos poucos
+    const m = est.mapa
+    for (let r = 1; r < 4; r++) {
+      const rot = (est.rot + r) & 3
+      enfileirar('cam:' + chaveDaCamada(m, rot, est.periodo, 1), () => passoDaCamada(m, rot, est.periodo, 1))
+    }
+  }
+
+  // ---------- câmera ----------
+  function medirTela() {
+    const r = canvas.getBoundingClientRect()
+    est.dpr = Math.min(3, window.devicePixelRatio || 1)
+    est.cam.w = r.width
+    est.cam.h = r.height
+    canvas.width = Math.round(r.width * est.dpr)
+    canvas.height = Math.round(r.height * est.dpr)
+  }
+  function enquadrar() {
+    const met = N.preparo(est.mapa, est.rot).met
+    const topo = met.oy - 3.2 * N.LH
+    const alto = met.altura - topo
+    est.cam.zoom = Math.max(0.45, Math.min(3, Math.min(est.cam.w / met.largura, est.cam.h / alto) * 0.97))
+    est.cam.cx = met.largura / 2
+    est.cam.cy = topo + alto / 2
+    aoMudarZoom()
+  }
+  const ZOOM_MIN = 0.45
+  const ZOOM_MAX = 3
+  function zoomEm(z, sx, sy) {
+    const novo = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
+    const [lx, ly] = N.telaParaCamada(est.cam, sx, sy)
+    est.cam.zoom = novo
+    est.cam.cx = lx - (sx - est.cam.w / 2) / novo
+    est.cam.cy = ly - (sy - est.cam.h / 2) / novo
+    aoMudarZoom()
+  }
+  function aoMudarZoom() {
+    $('z-valor').textContent = Math.round(est.cam.zoom * 100) + '%'
+    $('z-menos').disabled = est.cam.zoom <= ZOOM_MIN + 1e-6
+    $('z-mais').disabled = est.cam.zoom >= ZOOM_MAX - 1e-6
+    marcasSujas = true
+  }
+  /** Gira 90° mantendo no centro da tela o mesmo ponto do mundo. Sem animação: é ação de teclado e de repetição. */
+  function girar(d) {
+    const m = est.mapa
+    const i = N.blocoNoPonto(m, est.rot, est.cam.cx, est.cam.cy)
+    let px = m.W / 2
+    let py = m.H / 2
+    let z = 1
+    if (i >= 0) {
+      px = (i % m.W) + 0.5
+      py = ((i / m.W) | 0) + 0.5
+      z = N.alturaEmPe(m.c[i])
+    }
+    est.rot = (est.rot + d + 4) & 3
+    const [lx, ly] = N.pontoDoMundo(m, est.rot, px, py, z)
+    est.cam.cx = lx
+    est.cam.cy = ly
+    marcasSujas = true
+    aguaSuja = true
+    $('rot-valor').textContent = ['Norte', 'Leste', 'Sul', 'Oeste'][est.rot]
+    anunciar(`Câmera girada: vista ${['norte', 'leste', 'sul', 'oeste'][est.rot]}.`)
+    prepararFundo()
+  }
+
+  // ---------- unidades e objetos ----------
+  function posicaoDa(u) {
+    const a = est.anims.get(u.id)
+    if (a) return a.estado
+    const c = N.cel(est.mapa, u.x, u.y)
+    return { x: u.x + 0.5, y: u.y + 0.5, z: N.alturaEmPe(c), dir8: u.dir8 ?? [0, 1, 2, 3][u.dir] ?? 1, pose: 'parado', fase: 0, ex: 1, ey: 1 }
+  }
+  const objetosFixos = new Map()
+  function objetosDoGiro(m, rot) {
+    const k = m.id + '|' + rot
+    if (objetosFixos.has(k)) return objetosFixos.get(k)
+    const lista = m.props.map((p) => {
+      const tp = N.PROPS[p.tipo]
+      const z = N.alturaEmPe(N.cel(m, p.x, p.y))
+      const q = N.quadroDoObjeto(m, rot, { x: p.x + 0.5, y: p.y + 0.5, z }, tp.w, tp.h, tp.r)
+      q.occ = N.ocludentes(m, rot, q)
+      return { tipo: 'prop', p, z, ...q }
+    })
+    objetosFixos.set(k, lista)
+    return lista
+  }
+  function quadroDaUnidade(u) {
+    const e = posicaoDa(u)
+    const tp = N.TIPOS[u.tipo]
+    const q = N.quadroDoObjeto(est.mapa, est.rot, e, tp.w, tp.h + 6, Math.min(0.42, Math.max(0.25, tp.w / 2 / N.ML / 2)))
+    return { tipo: 'unidade', u, e, ...q }
+  }
+  function unidadeEm(i) {
+    const m = est.mapa
+    return m.unidades.find((u) => u.y * m.W + u.x === i && !est.anims.has(u.id)) || null
+  }
+
+  // ---------- regras e seleção ----------
+  function calcularAlcance() {
+    const u = est.sel
+    if (!u) { est.alcance = null; return }
+    const ocup = N.ocupadas(est.mapa, u)
+    est.alcance = N.alcance(est.mapa, u.x, u.y, { mov: est.batalha ? u.mov : Infinity, degrau: est.degrau, ocupadas: ocup })
+  }
+  function selecionar(u) {
+    est.sel = u
+    est.previa = null
+    calcularAlcance()
+    marcasSujas = true
+    atualizarPainel()
+    if (u) {
+      const n = contarAlcance()
+      anunciar(est.batalha ? `${u.nome} selecionada: alcança ${n} blocos (movimento ${u.mov}).` : `${u.nome} selecionada. Toque num bloco para ela ir até lá.`)
+    }
+  }
+  function contarAlcance() {
+    if (!est.alcance) return 0
+    let n = 0
+    est.alcance.dist.forEach((d) => { if (d > 0) n++ })
+    return n
+  }
+  function caminhoPara(i) {
+    if (!est.sel || !est.alcance || i < 0) return null
+    if (est.alcance.dist[i] <= 0) return null
+    return N.caminhoAte(est.mapa, est.alcance, i)
+  }
+  function andar(u, caminho) {
+    const plano = N.planoDeMovimento(est.mapa, caminho, { reduzido: reduzido() })
+    const n = caminho.length - 1
+    est.anims.set(u.id, { plano, inicio: performance.now(), estado: N.estadoNoTempo(plano, 0), n })
+    const [fx, fy] = caminho[caminho.length - 1]
+    u.rastro = caminho.map((c) => c.slice())
+    u.x = fx
+    u.y = fy
+    est.previa = null
+    est.alcance = null
+    marcasSujas = true
+    anunciar(`${u.nome} andando ${n} ${n === 1 ? 'bloco' : 'blocos'}…`)
+  }
+  function aoChegar(u, a) {
+    est.anims.delete(u.id)
+    u.dir8 = a.estado.dir8
+    const n = a.n
+    est.rotulos.push({ u, texto: `andou ${n} ${n === 1 ? 'bloco' : 'blocos'}`, inicio: performance.now() })
+    est.ultimaChegada = { id: u.id, n, x: u.x, y: u.y }
+    anunciar(`${u.nome} andou ${n} ${n === 1 ? 'bloco' : 'blocos'} e está em ${u.x}, ${u.y}.`)
+    if (est.sel === u) calcularAlcance()
+    marcasSujas = true
+    atualizarPainel()
+  }
+
+  // ---------- marcas (alcance, caminho, área, cursor, rastro) ----------
+  let marcasSujas = true
+  let aguaSuja = true
+  const marcasCache = { canvas: null, chave: '' }
+  function montarMarcas() {
+    const m = est.mapa
+    const marcas = new Map()
+    const por = (i, tipo) => {
+      if (i < 0) return
+      if (!marcas.has(i)) marcas.set(i, [])
+      marcas.get(i).push(tipo)
+    }
+    if (est.rastro) for (const u of m.unidades) for (const [x, y] of u.rastro) por(y * m.W + x, 'rastro')
+    if (est.ferramenta === 'mover' && est.sel && est.alcance && est.batalha) {
+      est.alcance.dist.forEach((d, i) => { if (d > 0) por(i, 'alcance') })
+    }
+    if (est.previa) for (const [x, y] of est.previa.slice(1)) por(y * m.W + x, 'caminho')
+    if (est.sel && est.ferramenta === 'mover') por(est.sel.y * m.W + est.sel.x, 'origem')
+    const r = resultadoDaMedida()
+    if (r && r.celulas) for (const [x, y] of r.celulas) por(y * m.W + x, 'area')
+    if (r && r.a) por(r.a[1] * m.W + r.a[0], 'origem')
+    const alvo = est.cursor >= 0 ? est.cursor : est.hover
+    if (alvo >= 0) por(alvo, 'cursor')
+    return marcas
+  }
+  function camadaDeMarcas(L) {
+    const chave = `${L.chave}`
+    if (!marcasSujas && marcasCache.chave === chave && marcasCache.canvas) return marcasCache.canvas
+    if (!marcasCache.canvas || marcasCache.canvas.width !== L.canvas.width || marcasCache.canvas.height !== L.canvas.height) {
+      marcasCache.canvas = Pt.tela(L.canvas.width, L.canvas.height)
+    }
+    const g = marcasCache.canvas.getContext('2d')
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    g.clearRect(0, 0, marcasCache.canvas.width, marcasCache.canvas.height)
+    Pt.pintarMarcas(g, est.mapa, est.rot, L.s, montarMarcas())
+    marcasCache.chave = chave
+    marcasSujas = false
+    return marcasCache.canvas
+  }
+
+  // ---------- medição ----------
+  function resultadoDaMedida() {
+    const f = est.ferramenta
+    const md = est.medida
+    if (f === 'mover' || !md.a) return null
+    const m = est.mapa
+    const b = md.b
+    if (f === 'regua') {
+      if (!b) return { a: md.a }
+      const r = N.regua(m, md.a, b)
+      const sobe = r.desnivel > 0 ? `sobe ${fmt(r.desnivel)}` : r.desnivel < 0 ? `desce ${fmt(-r.desnivel)}` : 'mesma altura'
+      return { a: md.a, b, texto: `${r.blocos} ${r.blocos === 1 ? 'bloco' : 'blocos'} · ${sobe}`, linha: true, r }
+    }
+    if (f === 'circulo') {
+      const raio = b ? Math.max(1, Math.min(12, Math.round(Math.hypot(b[0] - md.a[0], b[1] - md.a[1])))) : 1
+      const cel = N.circulo(m, md.a, raio)
+      return { a: md.a, celulas: cel, texto: `raio ${raio} · ${cel.length} blocos atingidos`, raio }
+    }
+    if (f === 'cone') {
+      if (!b) return { a: md.a }
+      const dir = N.direcao8(b[0] - md.a[0], b[1] - md.a[1])
+      const L = Math.max(1, Math.min(12, Math.max(Math.abs(b[0] - md.a[0]), Math.abs(b[1] - md.a[1]))))
+      const cel = N.cone(m, md.a, dir, L)
+      return { a: md.a, celulas: cel, texto: `cone de ${L} ${L === 1 ? 'bloco' : 'blocos'} para ${['leste', 'sul', 'oeste', 'norte', 'sudeste', 'sudoeste', 'noroeste', 'nordeste'][dir]} · ${cel.length} blocos`, dir, L }
+    }
+    if (f === 'visao') {
+      if (!b) return { a: md.a }
+      const v = N.visao(m, md.a, b)
+      const texto = v.livre ? 'Vê: nada barra a linha' : `Barrada por ${v.bloqueio.tipo} em ${v.bloqueio.x}, ${v.bloqueio.y} (altura ${v.bloqueio.h}; a linha passa a ${fmt(v.bloqueio.zLinha)})`
+      return { a: md.a, b, texto, visao: v }
+    }
+    return null
+  }
+  const fmt = (n) => (Math.round(n * 10) / 10).toLocaleString('pt-BR')
+
+  // ---------- desenho do quadro ----------
+  let ultimoQuadro = 0
+  const aguaCache = { canvas: null, quando: 0 }
+  function quadro(agora) {
+    requestAnimationFrame(quadro)
+    if (ultimoQuadro) {
+      est.quadros.push(agora - ultimoQuadro)
+      if (est.quadros.length > 4000) est.quadros.splice(0, 2000)
+    }
+    ultimoQuadro = agora
+    if (est.passeio) passear(agora)
+    for (const u of est.mapa.unidades) {
+      const a = est.anims.get(u.id)
+      if (!a) continue
+      a.estado = N.estadoNoTempo(a.plano, agora - a.inicio)
+      if (a.estado.fim) aoChegar(u, a)
+    }
+    const L = camadaParaDesenhar()
+    const cam = est.cam
+    const dpr = est.dpr
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    const P = Pt.PERIODOS[est.periodo]
+    const ceu = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    ceu.addColorStop(0, P.ceu[0])
+    ceu.addColorStop(1, P.ceu[1])
+    ctx.fillStyle = ceu
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    if (est.periodo === 'noite') estrelas()
+    if (!L) return
+    if (est.primeiraPintura === null && L.s >= 1) {
+      est.primeiraPintura = performance.now() - t0Pagina
+      document.documentElement.dataset.pronto = 'sim'
+      setTimeout(prepararFundo, 0)
+    }
+    const k = L.s
+    const mundo = () => ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, dpr * (cam.w / 2 - cam.cx * cam.zoom), dpr * (cam.h / 2 - cam.cy * cam.zoom))
+    mundo()
+    ctx.imageSmoothingEnabled = true
+    const W = L.canvas.width / k
+    const H = L.canvas.height / k
+    ctx.drawImage(L.canvas, 0, 0, W, H)
+    if (L.agua) desenharAgua(L, agora, mundo)
+    if (est.batalha && L.grade) ctx.drawImage(L.grade, 0, 0, W, H)
+    const marcas = camadaDeMarcas(L)
+    const pulso = reduzido() ? 1 : 0.86 + 0.14 * Math.sin(agora / 420)
+    ctx.globalAlpha = pulso
+    ctx.drawImage(marcas, 0, 0, W, H)
+    ctx.globalAlpha = 1
+    // objetos e unidades na ordem de profundidade; depois de cada um, o que está na frente dele volta por cima
+    const lista = objetosDoGiro(est.mapa, est.rot).slice()
+    for (const u of est.mapa.unidades) {
+      const q = quadroDaUnidade(u)
+      q.occ = N.ocludentes(est.mapa, est.rot, q)
+      lista.push(q)
+    }
+    N.ordenarObjetos(lista)
+    const S = escalaPara(cam.zoom, est.mapa, est.rot)
+    for (const o of lista) {
+      if (o.ret[2] < (cam.cx - cam.w / 2 / cam.zoom) || o.ret[0] > cam.cx + cam.w / 2 / cam.zoom) continue
+      if (o.tipo === 'prop') desenharProp(o, S, agora)
+      else desenharUnidade(o, S, agora)
+      if (o.occ.length) repor(L, marcas, o, W, H)
+    }
+    desenharLuzes(agora)
+    desenharSobreposicoes(agora)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+  }
+  function repor(L, marcas, o, W, H) {
+    const P = N.preparo(est.mapa, est.rot)
+    const [x0, y0, x1, y1] = o.ret
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2)
+    ctx.clip()
+    ctx.beginPath()
+    for (const i of o.occ) for (const h of P.hex[i]) {
+      ctx.moveTo(h[0][0], h[0][1])
+      for (let k = 1; k < 6; k++) ctx.lineTo(h[k][0], h[k][1])
+      ctx.closePath()
+    }
+    ctx.clip()
+    ctx.drawImage(L.canvas, 0, 0, W, H)
+    if (est.batalha && L.grade) ctx.drawImage(L.grade, 0, 0, W, H)
+    ctx.drawImage(marcas, 0, 0, W, H)
+    ctx.restore()
+  }
+  function estrelas() {
+    ctx.fillStyle = 'rgba(230,236,255,0.7)'
+    for (let k = 0; k < 60; k++) {
+      const x = N.hash(k, 1, 5) * canvas.width
+      const y = N.hash(k, 2, 5) * canvas.height * 0.5
+      const r = (0.6 + N.hash(k, 3, 5)) * est.dpr * 0.7
+      ctx.fillRect(x, y, r, r)
+    }
+  }
+  function desenharAgua(L, agora, mundo) {
+    // brilho que corre devagar, a 15 quadros por segundo, só onde a água aparece
+    const cam = est.cam
+    const dpr = est.dpr
+    if (!aguaCache.canvas || aguaCache.canvas.width !== canvas.width || aguaCache.canvas.height !== canvas.height) {
+      aguaCache.canvas = Pt.tela(canvas.width, canvas.height)
+      aguaSuja = true
+    }
+    const passou = agora - aguaCache.quando
+    const chaveCam = `${cam.cx.toFixed(1)}|${cam.cy.toFixed(1)}|${cam.zoom}|${est.rot}|${L.chave}`
+    if (aguaSuja || aguaCache.chaveCam !== chaveCam || (!reduzido() && passou > 66)) {
+      const g = aguaCache.canvas.getContext('2d')
+      g.setTransform(1, 0, 0, 1, 0, 0)
+      g.clearRect(0, 0, canvas.width, canvas.height)
+      g.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, dpr * (cam.w / 2 - cam.cx * cam.zoom), dpr * (cam.h / 2 - cam.cy * cam.zoom))
+      const m = est.mapa
+      const t = reduzido() ? 0 : agora / 1000
+      g.lineCap = 'round'
+      const noite = est.periodo === 'noite'
+      for (let i = 0; i < m.c.length; i++) {
+        if (!m.c[i].agua) continue
+        const x = i % m.W
+        const y = (i / m.W) | 0
+        for (let k = 0; k < 3; k++) {
+          const fase = N.hash(x * 3 + k, y, 7) * 6.283
+          const a = 0.5 + 0.5 * Math.sin(t * 1.3 + fase)
+          if (a < 0.25) continue
+          const px = x + 0.15 + 0.7 * ((N.hash(x, y * 3 + k, 8) + t * 0.05) % 1)
+          const py = y + 0.15 + 0.7 * N.hash(x + k, y, 9)
+          const [sx, sy] = N.pontoDoMundo(m, est.rot, px, py, N.AGUA_Z)
+          g.strokeStyle = noite ? `rgba(200,215,255,${(a * 0.35).toFixed(3)})` : `rgba(255,255,248,${(a * 0.55).toFixed(3)})`
+          g.lineWidth = 1.4
+          g.beginPath()
+          g.moveTo(sx - 4, sy)
+          g.lineTo(sx + 4, sy)
+          g.stroke()
+        }
+      }
+      g.setTransform(dpr * cam.zoom / L.s, 0, 0, dpr * cam.zoom / L.s, dpr * (cam.w / 2 - cam.cx * cam.zoom), dpr * (cam.h / 2 - cam.cy * cam.zoom))
+      g.globalCompositeOperation = 'destination-in'
+      g.drawImage(L.agua, 0, 0)
+      g.globalCompositeOperation = 'source-over'
+      aguaCache.quando = agora
+      aguaCache.chaveCam = chaveCam
+      aguaSuja = false
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(aguaCache.canvas, 0, 0)
+    mundo()
+  }
+  function sombraNoChao(px, py, zChao, rx, ry, alfa) {
+    const m = est.mapa
+    const [sx, sy] = N.pontoDoMundo(m, est.rot, px, py, zChao)
+    const P = Pt.PERIODOS[est.periodo]
+    ctx.fillStyle = `rgba(36,26,48,${alfa.toFixed(3)})`
+    ctx.beginPath()
+    ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2)
+    ctx.fill()
+    if (est.periodo === 'tarde') {
+      // sombra comprida para o lado contrário do sol (no mundo), projetada na tela
+      const comp = Math.min(1.3, 0.45 / Math.tan(P.elev))
+      const [ex, ey] = N.pontoDoMundo(m, est.rot, px - Math.cos(P.az) * comp, py - Math.sin(P.az) * comp, zChao)
+      ctx.strokeStyle = `rgba(70,34,40,${(alfa * 0.7).toFixed(3)})`
+      ctx.lineWidth = ry * 1.5
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(sx, sy)
+      ctx.lineTo(ex, ey)
+      ctx.stroke()
+    }
+  }
+  function desenharProp(o, S, agora) {
+    const p = o.p
+    const eixo = (p.dir + est.rot) & 1 ? 'v' : 'u'
+    const tp = N.PROPS[p.tipo]
+    sombraNoChao(p.x + 0.5, p.y + 0.5, o.z, Math.min(26, tp.w * 0.32), Math.min(12, tp.w * 0.14), 0.24)
+    const sp = Pt.spriteDoObjeto(p, eixo, S, est.periodo)
+    ctx.drawImage(sp.c, o.sx - sp.ax, o.sy - sp.ay, sp.c.width / S, sp.c.height / S)
+    if (p.tipo === 'palmeira') {
+      // a copa balança de leve com o vento (parada com movimento reduzido)
+      const v = p.variante || 0
+      const inclina = [5, -7, 9][v % 3]
+      const alto = [86, 80, 92][v % 3]
+      const cp = Pt.spriteDaCopa(p, S, est.periodo)
+      const ang = reduzido() ? 0 : Math.sin(agora / 1700 + p.x * 1.3 + p.y) * 0.035
+      ctx.save()
+      ctx.translate(o.sx + inclina, o.sy - alto)
+      ctx.rotate(ang)
+      ctx.drawImage(cp.c, -cp.ax, -cp.ay, cp.c.width / S, cp.c.height / S)
+      ctx.restore()
+    }
+    if (est.periodo !== 'dia' && (p.tipo === 'tocha' || p.tipo === 'lampiao')) {
+      const fl = reduzido() ? 1 : 0.9 + 0.1 * Math.sin(agora / 90 + p.x * 3) * Math.sin(agora / 37 + p.y)
+      const [fx, fy] = p.tipo === 'tocha' ? [o.sx, o.sy - 38] : [o.sx, o.sy - 64]
+      if (p.tipo === 'tocha') {
+        ctx.fillStyle = Pt.PALETA.brasa
+        ctx.beginPath()
+        ctx.moveTo(fx - 6, fy + 3)
+        ctx.quadraticCurveTo(fx - 5, fy - 9 * fl, fx, fy - 16 * fl)
+        ctx.quadraticCurveTo(fx + 5, fy - 9 * fl, fx + 6, fy + 3)
+        ctx.fill()
+        ctx.fillStyle = Pt.PALETA.chama
+        ctx.beginPath()
+        ctx.moveTo(fx - 3, fy + 3)
+        ctx.quadraticCurveTo(fx - 2, fy - 5 * fl, fx, fy - 10 * fl)
+        ctx.quadraticCurveTo(fx + 2, fy - 5 * fl, fx + 3, fy + 3)
+        ctx.fill()
+      } else {
+        ctx.fillStyle = Pt.PALETA.chama
+        ctx.fillRect(fx - 4, fy - 5, 8, 9)
+      }
+    }
+  }
+  const QUADRO_DA_POSE = { parado: 0, agacha: 5, ar: 6, pousa: 5 }
+  function desenharUnidade(o, S, agora) {
+    const u = o.u
+    const e = o.e
+    const m = est.mapa
+    const chao = N.alturaNoPonto(m, e.x, e.y)
+    const acima = Math.max(0, e.z - chao)
+    const tp = N.TIPOS[u.tipo]
+    sombraNoChao(e.x, e.y, chao, (tp.w * 0.36) / (1 + acima * 0.6), (tp.w * 0.15) / (1 + acima * 0.6), 0.32 / (1 + acima))
+    // anel do lado (aliado azul, inimigo vermelho)
+    const [rx, ry] = N.pontoDoMundo(m, est.rot, e.x, e.y, chao)
+    const cor = u.lado === 'aliado' ? Pt.PALETA.aliado : Pt.PALETA.inimigo
+    ctx.strokeStyle = cor
+    ctx.globalAlpha = est.sel === u ? 1 : 0.75
+    ctx.lineWidth = est.sel === u ? 2.4 : 1.6
+    ctx.beginPath()
+    ctx.ellipse(rx, ry, tp.w * 0.42, tp.w * 0.19, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    const vista = N.vistaDaDirecao(e.dir8, est.rot)
+    let quadroN = QUADRO_DA_POSE[e.pose] ?? 0
+    if (e.pose === 'anda') quadroN = 1 + (Math.floor(e.fase * 4) % 4)
+    if (reduzido() && e.pose === 'anda') quadroN = 0
+    const sp = Pt.spriteDaUnidade(u.tipo, vista.frente, quadroN, S, est.periodo)
+    let ex = e.ex
+    let ey = e.ey
+    let bob = 0
+    if (e.pose === 'parado' && !reduzido()) {
+      const f = Math.sin(agora / 420 + u.x * 1.7 + u.y)
+      ey = 1 + 0.014 * f
+      ex = 1 - 0.006 * f
+    }
+    if (e.pose === 'anda' && !reduzido()) bob = Math.abs(Math.sin(e.fase * Math.PI * 2)) * 1.2
+    const w = (sp.c.width / S) * ex
+    const h = (sp.c.height / S) * ey
+    ctx.save()
+    ctx.translate(o.sx, o.sy - bob)
+    if (vista.espelho) ctx.scale(-1, 1)
+    ctx.drawImage(sp.c, -sp.ax * ex, -sp.ay * ey, w, h)
+    // à noite, perto de um lampião, a luz quente volta a cor de dia por cima
+    if (est.periodo !== 'dia') {
+      const luz = Pt.luzNoPonto(m, Pt.PERIODOS[est.periodo], e.x, e.y, e.z + 1, 0, 0, 1).brilho
+      const k = Math.min(0.75, (luz[0] + luz[1]) * 0.9)
+      if (k > 0.02) {
+        const dia = Pt.spriteDaUnidade(u.tipo, vista.frente, quadroN, S, 'dia')
+        ctx.globalAlpha = k
+        ctx.drawImage(dia.c, -dia.ax * ex, -dia.ay * ey, w, h)
+        ctx.globalAlpha = 1
+      }
+    }
+    ctx.restore()
+    if (est.sel === u && !est.anims.has(u.id)) {
+      // ponteiro sobre a cabeça, quicando de leve
+      const q = reduzido() ? 0 : Math.abs(Math.sin(agora / 380)) * 3
+      const y = o.sy - tp.h - 12 - q
+      ctx.fillStyle = cor
+      ctx.strokeStyle = '#fffaf0'
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(o.sx - 6, y - 8)
+      ctx.lineTo(o.sx + 6, y - 8)
+      ctx.lineTo(o.sx, y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+    }
+  }
+  function desenharLuzes(agora) {
+    if (est.periodo === 'dia') return
+    const m = est.mapa
+    ctx.globalCompositeOperation = 'lighter'
+    for (const p of m.props) {
+      if (p.tipo !== 'tocha' && p.tipo !== 'lampiao') continue
+      const z = N.alturaEmPe(N.cel(m, p.x, p.y))
+      const [sx, sy] = N.pontoDoMundo(m, est.rot, p.x + 0.5, p.y + 0.5, z)
+      const fy = sy - (p.tipo === 'tocha' ? 42 : 64)
+      const fl = reduzido() ? 1 : 0.92 + 0.08 * Math.sin(agora / 110 + p.x)
+      const r = (est.periodo === 'noite' ? 46 : 26) * fl
+      const g = ctx.createRadialGradient(sx, fy, 0, sx, fy, r)
+      const a = est.periodo === 'noite' ? 0.42 : 0.18
+      g.addColorStop(0, `rgba(255,190,110,${a})`)
+      g.addColorStop(1, 'rgba(255,150,70,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(sx, fy, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.globalCompositeOperation = 'source-over'
+  }
+  function pontoAlto(x, y, extra = 0.04) {
+    return N.pontoDoMundo(est.mapa, est.rot, x + 0.5, y + 0.5, N.alturaEmPe(N.cel(est.mapa, x, y)) + extra)
+  }
+  function pilula(texto, x, y, cor = 'rgba(28,30,40,0.86)') {
+    ctx.font = '600 12px Barlow, system-ui, sans-serif'
+    const w = ctx.measureText(texto).width + 16
+    ctx.fillStyle = cor
+    ctx.beginPath()
+    ctx.roundRect(x - w / 2, y - 11, w, 22, 11)
+    ctx.fill()
+    ctx.fillStyle = '#fbf6ea'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(texto, x, y + 0.5)
+  }
+  function desenharSobreposicoes(agora) {
+    const m = est.mapa
+    // cursor escondido atrás de algo: contorno tracejado por cima de tudo
+    const alvo = est.cursor >= 0 ? est.cursor : est.hover
+    if (alvo >= 0) {
+      const x = alvo % m.W
+      const y = (alvo / m.W) | 0
+      const [lx, ly] = N.pontoDoBloco(m, est.rot, x, y)
+      if (N.blocoNoPonto(m, est.rot, lx, ly) !== alvo) {
+        const P = N.preparo(m, est.rot)
+        ctx.setLineDash([4, 3])
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.lineWidth = 1.6
+        for (const b of P.caixas[alvo]) {
+          const pts = [[b.u0, b.v0], [b.u1, b.v0], [b.u1, b.v1], [b.u0, b.v1]].map(([u, v]) => N.proj(P.met, u, v, b.z))
+          ctx.beginPath()
+          ctx.moveTo(...pts[0])
+          for (let k = 1; k < 4; k++) ctx.lineTo(...pts[k])
+          ctx.closePath()
+          ctx.stroke()
+        }
+        ctx.setLineDash([])
+      }
+    }
+    // caminho: linha por cima dos blocos e a contagem no destino
+    const cam = est.previa
+    if (cam && cam.length > 1) {
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      const pts = cam.map(([x, y]) => pontoAlto(x, y, 0.06))
+      for (const [cor, w] of [['rgba(30,60,120,0.55)', 5], ['#fbf8ee', 2.4]]) {
+        ctx.strokeStyle = cor
+        ctx.lineWidth = w
+        ctx.beginPath()
+        ctx.moveTo(...pts[0])
+        for (const p of pts.slice(1)) ctx.lineTo(...p)
+        ctx.stroke()
+      }
+      const fim = pts[pts.length - 1]
+      const n = cam.length - 1
+      pilula(`${n} ${n === 1 ? 'bloco' : 'blocos'}`, fim[0], fim[1] - 30, 'rgba(36,72,150,0.92)')
+    }
+    // rastro: o número de cada passo
+    if (est.rastro) {
+      for (const u of m.unidades) {
+        if (u.rastro.length < 2) continue
+        u.rastro.forEach(([x, y], k) => {
+          if (!k) return
+          const [sx, sy] = pontoAlto(x, y, 0.05)
+          ctx.font = '700 11px Barlow, system-ui, sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillStyle = 'rgba(80,52,10,0.85)'
+          ctx.fillText(String(k), sx, sy + 0.5)
+        })
+      }
+    }
+    // medição
+    const r = resultadoDaMedida()
+    if (r) {
+      const [ax, ay] = r.visao ? N.pontoDoMundo(m, est.rot, r.a[0] + 0.5, r.a[1] + 0.5, r.visao.za) : pontoAlto(r.a[0], r.a[1], 0.08)
+      if (r.b && (r.linha || r.visao)) {
+        const [bx, by] = r.visao ? N.pontoDoMundo(m, est.rot, r.b[0] + 0.5, r.b[1] + 0.5, r.visao.zb) : pontoAlto(r.b[0], r.b[1], 0.08)
+        ctx.lineCap = 'round'
+        if (r.visao && !r.visao.livre) {
+          const f = r.visao.bloqueio.f
+          const mx = ax + (bx - ax) * f
+          const my = ay + (by - ay) * f
+          linha(ax, ay, mx, my, '#e9fbe7', 'rgba(40,110,60,0.7)')
+          linha(mx, my, bx, by, '#ffd9d2', 'rgba(150,40,30,0.75)', true)
+          ctx.fillStyle = '#d4644f'
+          ctx.strokeStyle = '#fffaf0'
+          ctx.lineWidth = 2
+          ctx.beginPath()
+          ctx.arc(mx, my, 5, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+        } else {
+          linha(ax, ay, bx, by, r.visao ? '#e9fbe7' : '#fbf8ee', r.visao ? 'rgba(40,110,60,0.7)' : 'rgba(30,40,60,0.6)', !r.visao)
+        }
+        for (const [px, py] of [[ax, ay], [bx, by]]) {
+          ctx.fillStyle = '#fbf8ee'
+          ctx.beginPath()
+          ctx.arc(px, py, 3.2, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        if (r.texto) pilula(r.texto, (ax + bx) / 2, Math.min(ay, by) - 22, r.visao && !r.visao.livre ? 'rgba(150,50,40,0.92)' : 'rgba(28,30,40,0.86)')
+      } else if (r.texto) {
+        pilula(r.texto, ax, ay - 34)
+      }
+    }
+    // "andou N blocos" sobre a unidade que chegou: entra rápido (200 ms), fica, sai (300 ms)
+    est.rotulos = est.rotulos.filter((l) => agora - l.inicio < 2100)
+    for (const l of est.rotulos) {
+      const t = agora - l.inicio
+      const ent = Math.min(1, t / 200)
+      const ease = 1 - Math.pow(1 - ent, 3)
+      const sai = t > 1800 ? 1 - (t - 1800) / 300 : 1
+      const [sx, sy] = pontoAlto(l.u.x, l.u.y, 0)
+      const tp = N.TIPOS[l.u.tipo]
+      ctx.globalAlpha = Math.max(0, ease * sai)
+      pilula(l.texto, sx, sy - tp.h - 22 + (reduzido() ? 0 : (1 - ease) * 6))
+      ctx.globalAlpha = 1
+    }
+  }
+  function linha(ax, ay, bx, by, cor, fundo, tracejada) {
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = fundo
+    ctx.lineWidth = 5
+    ctx.setLineDash([])
+    ctx.beginPath()
+    ctx.moveTo(ax, ay)
+    ctx.lineTo(bx, by)
+    ctx.stroke()
+    ctx.strokeStyle = cor
+    ctx.lineWidth = 2.2
+    if (tracejada) ctx.setLineDash([7, 5])
+    ctx.beginPath()
+    ctx.moveTo(ax, ay)
+    ctx.lineTo(bx, by)
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // ---------- entrada ----------
+  function pontoNoCanvas(ev) {
+    const r = canvas.getBoundingClientRect()
+    return [ev.clientX - r.left, ev.clientY - r.top]
+  }
+  /** O que está sob o ponto da tela: primeiro uma unidade (pelo desenho), senão o bloco. */
+  function alvoNaTela(sx, sy) {
+    const [lx, ly] = N.telaParaCamada(est.cam, sx, sy)
+    const m = est.mapa
+    const qs = m.unidades.filter((u) => !est.anims.has(u.id)).map(quadroDaUnidade)
+    N.ordenarObjetos(qs).reverse()
+    for (const q of qs) {
+      const [x0, y0, x1, y1] = q.ret
+      if (lx >= x0 + 6 && lx <= x1 - 6 && ly >= y0 + 8 && ly <= y1) {
+        // a unidade só conta se não estiver escondida atrás de uma coluna nesse ponto
+        const i = N.blocoNoPonto(m, est.rot, lx, ly)
+        const P = N.preparo(m, est.rot)
+        const coberta = i >= 0 && q.occ === undefined && N.ocludentes(m, est.rot, q).includes(i) && N.dentroDoConvexo(P.hex[i][0], lx, ly)
+        if (!coberta) return { unidade: q.u, i: q.u.y * m.W + q.u.x }
+      }
+    }
+    return { unidade: null, i: N.blocoNoPonto(m, est.rot, lx, ly) }
+  }
+  function aoPassar(i) {
+    if (i === est.hover) return
+    est.hover = i
+    est.cursor = -1
+    marcasSujas = true
+    atualizarSob(i)
+    const md = est.medida
+    if (est.ferramenta !== 'mover' && md.a && !md.fixo && i >= 0) md.b = [i % est.mapa.W, (i / est.mapa.W) | 0]
+    if (est.ferramenta === 'mover' && est.sel && !est.anims.has(est.sel.id)) est.previa = caminhoPara(i)
+    atualizarLeitura()
+  }
+  function atualizarSob(i) {
+    const m = est.mapa
+    const chip = $('sob')
+    if (i < 0) { chip.textContent = 'Aponte um bloco: posição e altura'; return }
+    const c = m.c[i]
+    const nomes = { areia: 'areia', terra: 'terra batida', calcada: 'calçada', laje: 'laje', grama: 'grama', musgo: 'pedra com musgo', pedra: 'piso de pedra', telhado: 'telhado', ruina: 'muro de ruína', degrau: 'escada', agua: 'água', rocha: 'rocha' }
+    const alt = c.escada >= 0 ? `${fmt(c.h - 1)} a ${c.h}` : c.agua ? '0' : String(c.h)
+    chip.textContent = `${i % m.W}, ${(i / m.W) | 0} · altura ${alt} · ${nomes[c.topo] || c.topo}`
+  }
+  function clicar(alvo) {
+    const m = est.mapa
+    const { unidade, i } = alvo
+    if (i < 0) return
+    const x = i % m.W
+    const y = (i / m.W) | 0
+    if (est.ferramenta !== 'mover') {
+      const md = est.medida
+      if (!md.a || md.fixo) { est.medida = { a: [x, y], b: est.ferramenta === 'circulo' ? null : null, fixo: false } }
+      else { md.b = [x, y]; md.fixo = true }
+      marcasSujas = true
+      atualizarLeitura()
+      const r = resultadoDaMedida()
+      anunciar(r && r.texto ? r.texto : 'Primeiro ponto marcado. Escolha o segundo.')
+      return
+    }
+    if (unidade && !est.anims.has(unidade.id)) {
+      selecionar(est.sel === unidade ? null : unidade)
+      if (!est.sel) anunciar('Seleção desfeita.')
+      return
+    }
+    if (est.sel && !est.anims.has(est.sel.id)) {
+      const cam = caminhoPara(i)
+      if (cam) { andar(est.sel, cam); return }
+      const ocupada = m.unidades.some((u) => u.y * m.W + u.x === i)
+      anunciar(ocupada ? 'Esse bloco está ocupado.' : est.batalha ? `Fora do alcance de ${est.sel.nome}.` : 'Não há caminho até esse bloco.')
+      return
+    }
+    anunciar(`Bloco ${x}, ${y}. Toque numa unidade para ver o alcance.`)
+  }
+  const ponteiros = new Map()
+  let pinca = null
+  canvas.addEventListener('pointerdown', (ev) => {
+    canvas.focus({ preventScroll: true })
+    canvas.setPointerCapture(ev.pointerId)
+    const [sx, sy] = pontoNoCanvas(ev)
+    ponteiros.set(ev.pointerId, { sx, sy })
+    if (ponteiros.size === 2) {
+      const [a, b] = [...ponteiros.values()]
+      pinca = { d: Math.hypot(a.sx - b.sx, a.sy - b.sy), zoom: est.cam.zoom }
+      est.arraste = null
+      return
+    }
+    if (ponteiros.size > 2) return
+    const alvo = alvoNaTela(sx, sy)
+    est.arraste = { id: ev.pointerId, sx, sy, cx: est.cam.cx, cy: est.cam.cy, alvo, modo: null, tipo: ev.pointerType }
+  })
+  canvas.addEventListener('pointermove', (ev) => {
+    const [sx, sy] = pontoNoCanvas(ev)
+    if (ponteiros.has(ev.pointerId)) ponteiros.set(ev.pointerId, { sx, sy })
+    if (pinca && ponteiros.size === 2) {
+      const [a, b] = [...ponteiros.values()]
+      const d = Math.hypot(a.sx - b.sx, a.sy - b.sy)
+      zoomEm(pinca.zoom * (d / Math.max(1, pinca.d)), (a.sx + b.sx) / 2, (a.sy + b.sy) / 2)
+      return
+    }
+    const a = est.arraste
+    if (a && a.id === ev.pointerId) {
+      const dist = Math.hypot(sx - a.sx, sy - a.sy)
+      if (!a.modo && dist > 6) {
+        const pode = est.ferramenta === 'mover' && a.alvo.unidade && !est.anims.has(a.alvo.unidade.id)
+        a.modo = pode ? 'unidade' : 'mapa'
+        if (pode) {
+          selecionar(a.alvo.unidade)
+          canvas.dataset.arrastando = 'unidade'
+        } else canvas.dataset.arrastando = 'mapa'
+      }
+      if (a.modo === 'mapa') {
+        est.cam.cx = a.cx - (sx - a.sx) / est.cam.zoom
+        est.cam.cy = a.cy - (sy - a.sy) / est.cam.zoom
+        return
+      }
+      if (a.modo === 'unidade') {
+        // a unidade encaixa no bloco sob o dedo: o caminho e a contagem aparecem durante o arraste
+        const { i } = alvoNaTelaSemUnidade(sx, sy)
+        aoPassar(i)
+        return
+      }
+    }
+    if (ev.pointerType === 'mouse' && !ev.buttons) aoPassar(alvoNaTelaSemUnidade(sx, sy).i)
+  })
+  function alvoNaTelaSemUnidade(sx, sy) {
+    const [lx, ly] = N.telaParaCamada(est.cam, sx, sy)
+    return { i: N.blocoNoPonto(est.mapa, est.rot, lx, ly) }
+  }
+  function soltar(ev) {
+    ponteiros.delete(ev.pointerId)
+    if (pinca) {
+      if (ponteiros.size < 2) pinca = null
+      est.arraste = null
+      return
+    }
+    const a = est.arraste
+    if (!a || a.id !== ev.pointerId) return
+    est.arraste = null
+    delete canvas.dataset.arrastando
+    if (ev.type === 'pointercancel') return
+    if (!a.modo) {
+      if (a.tipo !== 'mouse') aoPassar(a.alvo.i)
+      clicar(a.alvo)
+      return
+    }
+    if (a.modo === 'unidade') {
+      const [sx, sy] = pontoNoCanvas(ev)
+      const { i } = alvoNaTelaSemUnidade(sx, sy)
+      const cam = caminhoPara(i)
+      if (cam) andar(est.sel, cam)
+      else if (i !== est.sel.y * est.mapa.W + est.sel.x) anunciar('Ali ela não chega: a unidade voltou ao lugar.')
+      est.previa = null
+      marcasSujas = true
+    }
+  }
+  canvas.addEventListener('pointerup', soltar)
+  canvas.addEventListener('pointercancel', soltar)
+  canvas.addEventListener('pointerleave', (ev) => {
+    if (ev.pointerType === 'mouse' && !est.arraste) aoPassar(-1)
+  })
+  canvas.addEventListener('wheel', (ev) => {
+    ev.preventDefault()
+    const [sx, sy] = pontoNoCanvas(ev)
+    zoomEm(est.cam.zoom * Math.exp(-ev.deltaY * 0.0015), sx, sy)
+  }, { passive: false })
+  canvas.addEventListener('keydown', (ev) => {
+    const m = est.mapa
+    const k = ev.key
+    if (k === 'q' || k === 'Q') { girar(-1); ev.preventDefault(); return }
+    if (k === 'e' || k === 'E') { girar(1); ev.preventDefault(); return }
+    if (k === '+' || k === '=') { zoomEm(est.cam.zoom * 1.2, est.cam.w / 2, est.cam.h / 2); return }
+    if (k === '-') { zoomEm(est.cam.zoom / 1.2, est.cam.w / 2, est.cam.h / 2); return }
+    if (k === 'Escape') {
+      if (est.ferramenta !== 'mover' && est.medida.a) { est.medida = { a: null, b: null, fixo: false }; anunciar('Medição cancelada.') }
+      else if (est.sel) { selecionar(null); anunciar('Seleção desfeita.') }
+      est.previa = null
+      marcasSujas = true
+      atualizarLeitura()
+      return
+    }
+    const setas = { ArrowUp: 3, ArrowRight: 0, ArrowDown: 1, ArrowLeft: 2 }
+    if (k in setas) {
+      ev.preventDefault()
+      // as setas andam pelos eixos da tela isométrica: cima = -v, direita = +u (girado de volta para o mundo)
+      const dr = setas[k]
+      const dw = (dr - est.rot + 4) & 3
+      let i = est.cursor >= 0 ? est.cursor : est.hover >= 0 ? est.hover : est.sel ? est.sel.y * m.W + est.sel.x : ((m.H / 2) | 0) * m.W + ((m.W / 2) | 0)
+      const x = Math.max(0, Math.min(m.W - 1, (i % m.W) + N.DX[dw]))
+      const y = Math.max(0, Math.min(m.H - 1, ((i / m.W) | 0) + N.DY[dw]))
+      i = y * m.W + x
+      est.hover = -1
+      aoPassar(i)
+      est.cursor = i
+      est.hover = -1
+      marcasSujas = true
+      return
+    }
+    if (k === 'Enter' || k === ' ') {
+      ev.preventDefault()
+      const i = est.cursor >= 0 ? est.cursor : est.hover
+      if (i < 0) return
+      clicar({ unidade: unidadeEm(i), i })
+    }
+  })
+
+  // ---------- controles ----------
+  function anunciar(t) {
+    $('estado').textContent = t
+  }
+  function grupoDeRadio(id, aoEscolher) {
+    const g = $(id)
+    const bs = [...g.querySelectorAll('[role="radio"]')]
+    const marcar = (b, foco) => {
+      for (const o of bs) {
+        const sim = o === b
+        o.setAttribute('aria-checked', String(sim))
+        o.tabIndex = sim ? 0 : -1
+      }
+      if (foco) b.focus()
+      aoEscolher(b.dataset.valor)
+    }
+    bs.forEach((b, k) => {
+      b.addEventListener('click', () => marcar(b, false))
+      b.addEventListener('keydown', (ev) => {
+        const d = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 0
+        if (!d) return
+        ev.preventDefault()
+        marcar(bs[(k + d + bs.length) % bs.length], true)
+      })
+    })
+    return { escolher: (v) => { const b = bs.find((o) => o.dataset.valor === v); if (b) marcar(b, false) } }
+  }
+  const grupoMapa = grupoDeRadio('g-mapa', (v) => trocarMapa(v))
+  const grupoHora = grupoDeRadio('g-hora', (v) => {
+    if (est.periodo === v) return
+    est.periodo = v
+    aguaSuja = true
+    marcasSujas = true
+    anunciar(`${Pt.PERIODOS[v].nome}: ${v === 'dia' ? 'sol alto, sombras curtas' : v === 'tarde' ? 'sol baixo, sombras longas e quentes' : 'luar azulado, lampiões e braseiros acesos'}.`)
+    prepararFundo()
+  })
+  const grupoFerramenta = grupoDeRadio('g-ferramenta', (v) => {
+    est.ferramenta = v
+    est.medida = { a: null, b: null, fixo: false }
+    est.previa = null
+    marcasSujas = true
+    canvas.dataset.ferramenta = v
+    atualizarLeitura()
+    const dicas = { mover: 'Mover: toque numa unidade e depois no destino.', regua: 'Régua: toque no primeiro bloco e depois no segundo.', circulo: 'Círculo: toque no centro; o raio segue o ponteiro até o segundo toque.', cone: 'Cone: toque na origem; a direção e o comprimento seguem o ponteiro.', visao: 'Linha de visão: toque em quem olha e depois no alvo.' }
+    anunciar(dicas[v])
+  })
+  const grupoDegrau = grupoDeRadio('g-degrau', (v) => {
+    est.degrau = Number(v)
+    calcularAlcance()
+    marcasSujas = true
+    atualizarPainel()
+  })
+  void grupoHora; void grupoFerramenta; void grupoDegrau
+  $('b-batalha').addEventListener('click', () => {
+    est.batalha = !est.batalha
+    $('b-batalha').setAttribute('aria-pressed', String(est.batalha))
+    calcularAlcance()
+    marcasSujas = true
+    anunciar(est.batalha ? 'Modo batalha: grade ligada; a unidade selecionada mostra o alcance de movimento.' : 'Modo livre: sem grade; a unidade anda até qualquer bloco que tenha caminho.')
+  })
+  $('b-rastro').addEventListener('click', () => {
+    est.rastro = !est.rastro
+    $('b-rastro').setAttribute('aria-pressed', String(est.rastro))
+    marcasSujas = true
+    const n = est.mapa.unidades.filter((u) => u.rastro.length > 1).length
+    anunciar(est.rastro ? (n ? `Caminho andado de ${n} ${n === 1 ? 'unidade' : 'unidades'}, numerado passo a passo.` : 'Caminho andado: nenhuma unidade andou ainda.') : 'Caminho andado escondido.')
+  })
+  $('rot-esq').addEventListener('click', () => girar(-1))
+  $('rot-dir').addEventListener('click', () => girar(1))
+  $('z-menos').addEventListener('click', () => zoomEm(est.cam.zoom / 1.25, est.cam.w / 2, est.cam.h / 2))
+  $('z-mais').addEventListener('click', () => zoomEm(est.cam.zoom * 1.25, est.cam.w / 2, est.cam.h / 2))
+  $('z-valor').addEventListener('click', () => zoomEm(1, est.cam.w / 2, est.cam.h / 2))
+  $('z-enquadrar').addEventListener('click', enquadrar)
+  const TEMAS = ['auto', 'light', 'dark']
+  $('b-tema').addEventListener('click', () => {
+    const atual = document.documentElement.dataset.theme || 'auto'
+    const prox = TEMAS[(TEMAS.indexOf(atual) + 1) % 3]
+    if (prox === 'auto') delete document.documentElement.dataset.theme
+    else document.documentElement.dataset.theme = prox
+    $('b-tema').textContent = { auto: 'Tema: automático', light: 'Tema: claro', dark: 'Tema: escuro' }[prox]
+  })
+
+  function trocarMapa(id) {
+    if (est.mapa.id === id) return
+    est.mapa = MAPAS[id]
+    est.sel = null
+    est.alcance = null
+    est.previa = null
+    est.hover = -1
+    est.cursor = -1
+    est.medida = { a: null, b: null, fixo: false }
+    est.anims.clear()
+    marcasSujas = true
+    aguaSuja = true
+    enquadrar()
+    montarListaDeUnidades()
+    atualizarPainel()
+    anunciar(`${est.mapa.nome}.`)
+    prepararFundo()
+  }
+  function montarListaDeUnidades() {
+    const box = $('unidades')
+    box.textContent = ''
+    for (const u of est.mapa.unidades) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'unidade'
+      b.dataset.lado = u.lado
+      b.dataset.id = u.id
+      const s = Pt.spriteDaUnidade(u.tipo, true, 0, 2, 'dia')
+      const mini = document.createElement('canvas')
+      mini.width = 64
+      mini.height = 64
+      const g = mini.getContext('2d')
+      const k = Math.min(64 / s.c.width, 64 / s.c.height) * 1.0
+      g.drawImage(s.c, (64 - s.c.width * k) / 2, 64 - s.c.height * k, s.c.width * k, s.c.height * k)
+      mini.setAttribute('aria-hidden', 'true')
+      const txt = document.createElement('span')
+      txt.innerHTML = `${u.nome}<small>${u.lado === 'aliado' ? 'Aliada' : 'Inimiga'} · movimento ${u.mov}</small>`
+      b.append(mini, txt)
+      b.addEventListener('click', () => {
+        if (est.ferramenta !== 'mover') grupoFerramenta.escolher('mover')
+        selecionar(est.sel === u ? null : u)
+        canvas.focus({ preventScroll: true })
+      })
+      box.append(b)
+    }
+  }
+  function atualizarPainel() {
+    for (const b of document.querySelectorAll('.unidade')) b.setAttribute('aria-pressed', String(!!est.sel && b.dataset.id === est.sel.id))
+    const u = est.sel
+    $('sel-nome').textContent = u ? u.nome : 'Nenhuma unidade'
+    $('sel-info').textContent = u
+      ? `${u.lado === 'aliado' ? 'Aliada' : 'Inimiga'} · em ${u.x}, ${u.y}, altura ${fmt(N.alturaEmPe(N.cel(est.mapa, u.x, u.y)))} · ${est.batalha ? `alcança ${contarAlcance()} blocos (movimento ${u.mov}, degrau ${est.degrau})` : 'modo livre'}`
+      : 'Toque numa unidade no mapa ou na lista.'
+  }
+  function atualizarLeitura() {
+    const r = resultadoDaMedida()
+    const el = $('leitura')
+    if (est.ferramenta === 'mover') {
+      el.textContent = est.previa ? `Caminho de ${est.previa.length - 1} ${est.previa.length === 2 ? 'bloco' : 'blocos'} até ${est.previa[est.previa.length - 1].join(', ')}.` : ''
+      return
+    }
+    el.textContent = r && r.texto ? r.texto : est.medida.a ? 'Escolha o segundo ponto.' : 'Escolha o primeiro ponto.'
+  }
+
+  // ---------- passeio automático (só para a prova de desempenho) ----------
+  function passear() {
+    const m = est.mapa
+    const sorte = est.sortePasseio || (est.sortePasseio = N.rng(99))
+    for (const u of m.unidades) {
+      if (est.anims.has(u.id)) continue
+      const r = N.alcance(m, u.x, u.y, { mov: 4, degrau: 2, ocupadas: N.ocupadas(m, u) })
+      const op = []
+      r.dist.forEach((d, i) => { if (d > 1) op.push(i) })
+      if (!op.length) continue
+      const j = op[Math.floor(sorte() * op.length)]
+      andar(u, N.caminhoAte(m, r, j))
+    }
+  }
+
+  // ---------- folha de contato e amostras do salto (provas) ----------
+  function cenaDeTira() {
+    const m = { id: 'tira', nome: 'tira', W: 4, H: 1, c: [1, 1, 2, 2].map((h) => ({ h, chao: h, topo: 'calcada', lado: 'muro', escada: -1, predio: -1, agua: false })), props: [], unidades: [], predios: [], portas: [], propEm: new Int32Array(4).fill(-1), _cache: {} }
+    return m
+  }
+  function folhaDeContato(tipo, quadros = 16) {
+    const m = cenaDeTira()
+    const plano = N.planoDeMovimento(m, [[0, 0], [1, 0], [2, 0], [3, 0]], {})
+    const salto = plano.segs[1]
+    const fases = [
+      { nome: 'Andar (2 blocos planos e 1 depois do salto)', ini: 0, fim: plano.segs[0].dur * 1 + 0.001, extra: plano.segs[2] },
+      { nome: 'Salto (sobe 1 nível)', ini: salto.t0, fim: salto.t0 + salto.dur },
+    ]
+    const cw = 150
+    const ch = 150
+    const folha = Pt.tela(cw * 8, (ch + 22) * 4 + 40)
+    folha.id = 'folha-' + tipo
+    const g = folha.getContext('2d')
+    g.fillStyle = '#f4f1e8'
+    g.fillRect(0, 0, folha.width, folha.height)
+    const camada = Pt.tela(N.preparo(m, 0).met.largura * 2, N.preparo(m, 0).met.altura * 2)
+    Pt.pintarColunas(camada.getContext('2d'), m, 0, 'dia', 2, 0, 4)
+    let linha = 0
+    for (const f of fases) {
+      g.fillStyle = '#2b2f2a'
+      g.font = '600 15px Barlow, system-ui, sans-serif'
+      g.textAlign = 'left'
+      g.fillText(f.nome, 8, 20 + linha * (ch + 22) + (linha ? 10 : 0))
+      for (let k = 0; k < quadros; k++) {
+        const t = f.ini + ((f.fim - f.ini) * k) / (quadros - 1)
+        const e = N.estadoNoTempo(plano, t)
+        const col = k % 8
+        const row = linha + Math.floor(k / 8)
+        const ox = col * cw
+        const oy = 30 + row * (ch + 22) + (linha ? 10 : 0)
+        const [px, py] = N.pontoDoMundo(m, 0, e.x, e.y, e.z)
+        g.save()
+        g.beginPath()
+        g.rect(ox + 2, oy, cw - 4, ch)
+        g.clip()
+        const zoom = 1.1
+        g.setTransform(zoom, 0, 0, zoom, ox + cw / 2 - px * zoom, oy + ch * 0.72 - py * zoom)
+        g.drawImage(camada, 0, 0, camada.width / 2, camada.height / 2)
+        const chao = N.alturaNoPonto(m, e.x, e.y)
+        const [gx, gy] = N.pontoDoMundo(m, 0, e.x, e.y, chao)
+        g.fillStyle = 'rgba(36,26,48,0.3)'
+        g.beginPath()
+        g.ellipse(gx, gy, 14 / (1 + (e.z - chao) * 0.6), 6 / (1 + (e.z - chao) * 0.6), 0, 0, Math.PI * 2)
+        g.fill()
+        const vista = N.vistaDaDirecao(e.dir8, 0)
+        const qn = e.pose === 'anda' ? 1 + (Math.floor(e.fase * 4) % 4) : QUADRO_DA_POSE[e.pose] ?? 0
+        const sp = Pt.spriteDaUnidade(tipo, vista.frente, qn, 2, 'dia')
+        g.translate(px, py)
+        if (vista.espelho) g.scale(-1, 1)
+        g.drawImage(sp.c, -sp.ax * e.ex, -sp.ay * e.ey, (sp.c.width / 2) * e.ex, (sp.c.height / 2) * e.ey)
+        g.restore()
+        g.fillStyle = '#3a3f39'
+        g.font = '500 12px Barlow, system-ui, sans-serif'
+        g.textAlign = 'center'
+        g.fillText(`${Math.round(t)} ms · ${e.pose}`, ox + cw / 2, oy + ch + 14)
+      }
+      linha += 2
+    }
+    folha.style.cssText = 'position:fixed;left:0;top:0;z-index:99'
+    document.body.append(folha)
+    return folha.id
+  }
+  function amostrasDoSalto(passoMs = 1000 / 60) {
+    const m = cenaDeTira()
+    const plano = N.planoDeMovimento(m, [[1, 0], [2, 0]], {})
+    const s = plano.segs[0]
+    const out = []
+    for (let t = 0; t <= plano.total + 1e-9; t += passoMs) {
+      const e = N.estadoNoTempo(plano, Math.min(t, plano.total - 1e-6))
+      out.push({ t: Math.round(t * 10) / 10, x: e.x, z: e.z, ey: e.ey, pose: e.pose })
+    }
+    return { amostras: out, seg: { agacha: s.agacha, ar: s.ar, pousa: s.pousa, az: s.az, bz: s.bz, arco: s.arco } }
+  }
+
+  // ---------- API das provas ----------
+  window.Batalha = {
+    N, Pt, est,
+    pronto: () => est.primeiraPintura !== null && !fila.length,
+    filaVazia: () => !fila.length,
+    projetar(x, y) {
+      const [lx, ly] = N.pontoDoBloco(est.mapa, est.rot, x, y)
+      const [sx, sy] = N.camadaParaTela(est.cam, lx, ly)
+      const r = canvas.getBoundingClientRect()
+      return [sx + r.left, sy + r.top]
+    },
+    projetarMundo(px, py, z) {
+      const [lx, ly] = N.pontoDoMundo(est.mapa, est.rot, px, py, z)
+      const [sx, sy] = N.camadaParaTela(est.cam, lx, ly)
+      const r = canvas.getBoundingClientRect()
+      return [sx + r.left, sy + r.top]
+    },
+    blocoNaTela(cx, cy) {
+      const r = canvas.getBoundingClientRect()
+      const [lx, ly] = N.telaParaCamada(est.cam, cx - r.left, cy - r.top)
+      return N.blocoNoPonto(est.mapa, est.rot, lx, ly)
+    },
+    girar, enquadrar, zoomEm: (z) => zoomEm(z, est.cam.w / 2, est.cam.h / 2),
+    centrarEm(x, y) {
+      const [lx, ly] = N.pontoDoBloco(est.mapa, est.rot, x, y)
+      est.cam.cx = lx
+      est.cam.cy = ly
+    },
+    selecionarPorId(id) { selecionar(est.mapa.unidades.find((u) => u.id === id) || null) },
+    carregarMapaDeTeste(n) {
+      MAPAS['teste' + n] = MAPAS['teste' + n] || N.mapaDeTeste(n)
+      est.mapa = MAPAS['teste' + n]
+      est.sel = null
+      est.anims.clear()
+      marcasSujas = true
+      enquadrar()
+      prepararFundo()
+    },
+    passeio(on) { est.passeio = on },
+    animando: () => est.anims.size > 0,
+    zerarQuadros() { est.quadros = [] },
+    folhaDeContato, amostrasDoSalto,
+  }
+
+  // ---------- partida ----------
+  medirTela()
+  enquadrar()
+  // começa mais perto que o "ver tudo" (as unidades precisam ser lidas), sem passar de 110%
+  zoomEm(Math.min(1.1, est.cam.zoom * 1.5), est.cam.w / 2, est.cam.h / 2)
+  montarListaDeUnidades()
+  atualizarPainel()
+  atualizarSob(-1)
+  new ResizeObserver(() => { medirTela(); aguaSuja = true }).observe(canvas)
+  // primeira pintura: luz, atlas e camada do giro atual entram na frente da fila
+  const m0 = est.mapa
+  const s0 = escalaPara(est.cam.zoom, m0, 0)
+  enfileirar('cam:' + chaveDaCamada(m0, 0, 'dia', s0), () => passoDaCamada(m0, 0, 'dia', s0), true)
+  requestAnimationFrame(quadro)
+  void grupoMapa
+})()
+</script>
