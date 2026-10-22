@@ -38,6 +38,12 @@ const CASOS = [
 ]
 /** Trechos em que o desenho treme de propósito (golpe, corrente): a régua da continuidade não vale ali. */
 const TREMOR = { grade: [0.18, 0.44], arrombada: [0.1, 0.34] }
+/** M9: a medida do app com placa de vídeo, gravada por client/e2e/task-door-app-1440.spec.ts com PROVA_PORTA_APP=1. */
+const DESEMPENHO_DO_APP = path.join(PROVAS, 'desempenho-app.json')
+const QUADRO_P95_MAX_MS = 20
+const TAREFA_LONGA_MAX_MS = 200
+/** Renderizadores por software: com eles a medida do app não diz nada da placa de vídeo. */
+const PLACA_DE_SOFTWARE = /swiftshader|llvmpipe|software|basic render/i
 
 const r2 = (v) => Math.round(v * 100) / 100
 const dePng = (dataUrl) => Buffer.from(dataUrl.split(',')[1], 'base64')
@@ -70,6 +76,12 @@ function montarPagina() {
 function navegador() {
   const exe = process.env.LAB_NAVEGADOR || path.join(os.homedir(), 'AppData', 'Local', 'ms-playwright', 'chromium-1243', 'chrome-win64', 'chrome.exe')
   return fs.existsSync(exe) ? exe : undefined
+}
+
+/** A medida do app com placa de vídeo (M9), ou null se o teste do app ainda não a gravou. */
+function lerDesempenhoDoApp() {
+  if (!fs.existsSync(DESEMPENHO_DO_APP)) return null
+  return JSON.parse(fs.readFileSync(DESEMPENHO_DO_APP, 'utf8'))
 }
 
 /** A seção transversal esperada da porta parada: escuro, cor, escuro, com 4 e 1 px de tela vezes a resolução. */
@@ -295,8 +307,11 @@ async function main() {
   }
 
   // --- M9 ------------------------------------------------------------------------
+  // O laboratório mede e registra, mas não reprova: o WebGL dele é software (M9_mudanca em metas.json).
   const e = await page.evaluate(() => window.PortaA3.estresse(4000))
-  r.desempenho = {
+  const laboratorio = {
+    informativo: true,
+    nota: 'software, SwiftShader: informativo, não reprova (M9_mudanca em metas.json)',
     portas: e.portas,
     quadros: e.intervalos.length,
     intervaloP95Ms: r2(p95(e.intervalos)),
@@ -308,9 +323,16 @@ async function main() {
     custoDoAnimadorMaxMs: r2(Math.max(...e.custo)),
     onde: 'laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900',
   }
-  if (!(r.desempenho.intervaloP95Ms <= 20)) reprovar('M9_desempenho', `quadro p95 ${r.desempenho.intervaloP95Ms} ms`)
-  if (r.desempenho.tarefaLongaMaxMs >= 200) reprovar('M9_desempenho', `tarefa longa de ${r.desempenho.tarefaLongaMaxMs} ms`)
-  if (!e.observadorAtivo) reprovar('M9_desempenho', 'observador de tarefas longas não ligou')
+  const app = lerDesempenhoDoApp()
+  r.desempenho = { criterio: `app com placa de vídeo: quadro p95 até ${QUADRO_P95_MAX_MS} ms e nenhuma tarefa longa de ${TAREFA_LONGA_MAX_MS} ms ou mais`, app, laboratorio }
+  if (app === null) reprovar('M9_desempenho', `falta ${path.relative(RAIZ, DESEMPENHO_DO_APP)}: rode client/e2e/task-door-app-1440.spec.ts com PROVA_PORTA_APP=1`)
+  else {
+    if (PLACA_DE_SOFTWARE.test(app.placa)) reprovar('M9_desempenho', `a medida do app não usou placa de vídeo: ${app.placa}`)
+    if (!(app.intervaloP95Ms <= QUADRO_P95_MAX_MS)) reprovar('M9_desempenho', `app: quadro p95 ${app.intervaloP95Ms} ms`)
+    if (!(app.tarefaLongaMaxMs < TAREFA_LONGA_MAX_MS)) reprovar('M9_desempenho', `app: tarefa longa de ${app.tarefaLongaMaxMs} ms`)
+    if (app.observadorDeTarefasLongas !== true) reprovar('M9_desempenho', 'app: observador de tarefas longas não ligou')
+    if (!(app.quadrosDePortaNoMeio > 0)) reprovar('M9_desempenho', 'app: nenhuma porta do pacote andou durante a medida')
+  }
 
   const daFerramenta = (m) => /GPU stall due to ReadPixels/.test(m.texto)
   r.console = avisos.filter((m) => !daFerramenta(m))
@@ -318,10 +340,10 @@ async function main() {
   if (r.console.length > 0) reprovar('M10_console', `${r.console.length} mensagens: ${r.console.slice(0, 3).map((m) => m.texto).join(' | ')}`)
   r.falhas = falhas
   r.passou = falhas.length === 0
-  // Escritas DEPOIS das rodadas (22/10/2026), sem mudar veredito nenhum: o porquê de cada reprovação que sobra.
+  // Escritas DEPOIS das rodadas (22/10/2026), sem mudar veredito nenhum: o que mudou e por quê.
   r.notas = {
-    M5b_salto_real: 'Arrombada fechando, de 0,735 a 0,765: são os 5 estilhaços. Abrindo, eles encolhem até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nasce do nada, 1 px de cada vez, longe de tudo. Prova: com os estilhaços desligados (ESTILHACOS = 0) a Arrombada passa, com o pior passo refinado em 1,41 px. Partícula que some no ar sempre reprova esta régua no sentido contrário; tirar a reprovação pede mudar o desenho aprovado, e isso é decisão do usuário.',
-    M9_desempenho: 'O custo do animador (JS) fica em p95 0,6 ms; o intervalo de 25 ms é o SwiftShader (WebGL por software do Chromium headless) pintando 1440x900. A meta de quadro p95 até 20 ms precisa ser medida no app com GPU.',
+    M5b_salto_real: 'ANTES (rodada de 22/10/2026): a Arrombada fechando reprovava de 0,735 a 0,765, com passos refinados de 5,1, 2,83, 5 e 10,44 px. Abrindo, os 5 estilhaços encolhiam até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nascia do nada, longe de tudo. DEPOIS (client/src/animacoes/porta/arrombada.ts): os estilhaços saltam da fechadura e caem na soleira, dentro do vão, onde se desfazem; começam e acabam em cima do batente, então fechando nascem colados nele e voltam para a fechadura. Tempos (560/320), curvas e o resto do desenho iguais. O número de agora está em animacoes.arrombada.continuidade.',
+    M9_desempenho: 'O laboratório roda o WebGL por SwiftShader (software) e dá um intervalo de quadro p95 perto de 25 ms com o custo do animador (JS) em p95 de 0,6 ms: o tempo é o SwiftShader pintando 1440x900, não a porta. Por isso o número do laboratório fica registrado como informativo e o critério que reprova é o do app com placa de vídeo (desempenho.app, M9_mudanca em metas.json).',
   }
   r.duracaoS = Math.round((Date.now() - inicio) / 100) / 10
   fs.writeFileSync(path.join(PROVAS, 'testes.json'), JSON.stringify(r, null, 2) + '\n')

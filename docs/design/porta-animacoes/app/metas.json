@@ -12,7 +12,12 @@
     "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
     "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
     "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
-    "M9_desempenho": "50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo)",
+    "M9_desempenho": "CRITÉRIO QUE REPROVA (mudado em 22/10/2026, ver M9_mudanca): no APP com placa de vídeo de verdade (client/e2e/task-door-app-1440.spec.ts, teste das 50 portas), 50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo). O teste grava a medida em provas/desempenho-app.json (PROVA_PORTA_APP=1) e o gerar-provas reprova se ela faltar, se a placa for de software ou se passar das metas. O LABORATÓRIO mede o mesmo e registra o número em testes.json (desempenho.laboratorio), só como informação",
+    "M9_mudanca": {
+      "era": "o laboratório (Chromium headless) reprovava com quadro p95 acima de 20 ms ou tarefa longa de 200 ms ou mais",
+      "agora": "o laboratório é INFORMATIVO (nota 'software, SwiftShader'): mede e registra, não reprova. Reprova o app com placa de vídeo: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
+      "porque": "o WebGL do laboratório é o SwiftShader, placa de vídeo por software: deu quadro p95 de 25 ms com o custo do animador em p95 de 0,6 ms, então o tempo é o SwiftShader pintando 1440x900, não a porta. O mesmo teste no app, em GPU de verdade (Intel UHD, ANGLE D3D11), deu p95 de 8,4 ms. Decisão do orquestrador em 22/10/2026, sem mudar os números da meta"
+    },
     "M10_console": "0 erros e 0 avisos no console (fora o aviso de leitura de GPU da própria ferramenta de prova)",
     "M11_parada": "porta parada, 3 zooms x 2 resoluções x horizontal e vertical: seção transversal = contorno #15181a de 1 px, cor por dentro, contorno de 1 px (x resolução), folha de 4 px de tela; a cor cobre o vão inteiro (começa e acaba a até 1 px de tela das pontas do vão); sem cor = #d9d2c0, trancada = #e2645a, cor própria = a cor; cadeado de corpo creme do mesmo tamanho em pixels nos 3 zooms (não cresce), opaco; secreta trancada com cor sem cadeado",
     "M12_som": "as 5 novas, abrir e fechar, renderizadas offline com o passa-baixa da mesa no volume máximo: LUFS integrado entre -34 e -30 (perto de -32), pico verdadeiro até -12 dBTP, 0 cliques, 0 cortes, DC até 0,5%, últimos 10 ms abaixo de -60 dBFS, som acaba até 250 ms depois da animação",

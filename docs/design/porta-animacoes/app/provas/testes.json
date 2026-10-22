@@ -11,13 +11,18 @@
     "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
     "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
     "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
-    "M9_desempenho": "50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo)",
+    "M9_desempenho": "CRITÉRIO QUE REPROVA (mudado em 22/10/2026, ver M9_mudanca): no APP com placa de vídeo de verdade (client/e2e/task-door-app-1440.spec.ts, teste das 50 portas), 50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo). O teste grava a medida em provas/desempenho-app.json (PROVA_PORTA_APP=1) e o gerar-provas reprova se ela faltar, se a placa for de software ou se passar das metas. O LABORATÓRIO mede o mesmo e registra o número em testes.json (desempenho.laboratorio), só como informação",
+    "M9_mudanca": {
+      "era": "o laboratório (Chromium headless) reprovava com quadro p95 acima de 20 ms ou tarefa longa de 200 ms ou mais",
+      "agora": "o laboratório é INFORMATIVO (nota 'software, SwiftShader'): mede e registra, não reprova. Reprova o app com placa de vídeo: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
+      "porque": "o WebGL do laboratório é o SwiftShader, placa de vídeo por software: deu quadro p95 de 25 ms com o custo do animador em p95 de 0,6 ms, então o tempo é o SwiftShader pintando 1440x900, não a porta. O mesmo teste no app, em GPU de verdade (Intel UHD, ANGLE D3D11), deu p95 de 8,4 ms. Decisão do orquestrador em 22/10/2026, sem mudar os números da meta"
+    },
     "M10_console": "0 erros e 0 avisos no console (fora o aviso de leitura de GPU da própria ferramenta de prova)",
     "M11_parada": "porta parada, 3 zooms x 2 resoluções x horizontal e vertical: seção transversal = contorno #15181a de 1 px, cor por dentro, contorno de 1 px (x resolução), folha de 4 px de tela; a cor cobre o vão inteiro (começa e acaba a até 1 px de tela das pontas do vão); sem cor = #d9d2c0, trancada = #e2645a, cor própria = a cor; cadeado de corpo creme do mesmo tamanho em pixels nos 3 zooms (não cresce), opaco; secreta trancada com cor sem cadeado",
     "M12_som": "as 5 novas, abrir e fechar, renderizadas offline com o passa-baixa da mesa no volume máximo: LUFS integrado entre -34 e -30 (perto de -32), pico verdadeiro até -12 dBTP, 0 cliques, 0 cortes, DC até 0,5%, últimos 10 ms abaixo de -60 dBFS, som acaba até 250 ms depois da animação",
     "M14_folhas": "7 folhas de contato, 16 quadros cada (8 abrindo, 8 fechando), com o tempo embaixo"
   },
-  "navegador": "C:\\Users\\gedasio.filho\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "navegador": "C:/Users/gedasio.filho/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
   "registro": [
     "girar",
     "deslizar",
@@ -1125,14 +1130,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 10.44,
-        "ondeMaior": 0.765,
+        "maiorPassoPx": 6.08,
+        "ondeMaior": 0.835,
         "maiorPassoNoTremorPx": 6,
         "ondeMaiorNoTremor": 0.345,
-        "m5ComoEscrita": "reprova por 10.44 px (veredito em M5b)",
+        "m5ComoEscrita": "reprova por 6.08 px (veredito em M5b)",
         "passosAcimaDe1_5px": 136,
-        "m5bPiorRefinadoPx": 10.44,
-        "m5bOnde": 0.765
+        "m5bPiorRefinadoPx": 1.41,
+        "m5bOnde": 0.05
       },
       "inversao": {
         "0.25": {
@@ -1712,16 +1717,34 @@
     }
   },
   "desempenho": {
-    "portas": 50,
-    "quadros": 302,
-    "intervaloP95Ms": 25,
-    "intervaloMaxMs": 41.7,
-    "tarefasLongas": 0,
-    "tarefaLongaMaxMs": 0,
-    "observadorDeTarefasLongas": true,
-    "custoDoAnimadorP95Ms": 0.6,
-    "custoDoAnimadorMaxMs": 0.9,
-    "onde": "laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900"
+    "criterio": "app com placa de vídeo: quadro p95 até 20 ms e nenhuma tarefa longa de 200 ms ou mais",
+    "app": {
+      "medidoEm": "2026-10-22T14:37:50.507Z",
+      "teste": "client/e2e/task-door-app-1440.spec.ts (50 portas)",
+      "placa": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "portas": 50,
+      "quadros": 468,
+      "intervaloP95Ms": 8.5,
+      "intervaloMaxMs": 25.1,
+      "tarefasLongas": 0,
+      "tarefaLongaMaxMs": 0,
+      "observadorDeTarefasLongas": true,
+      "quadrosDePortaNoMeio": 10367
+    },
+    "laboratorio": {
+      "informativo": true,
+      "nota": "software, SwiftShader: informativo, não reprova (M9_mudanca em metas.json)",
+      "portas": 50,
+      "quadros": 291,
+      "intervaloP95Ms": 25,
+      "intervaloMaxMs": 58.3,
+      "tarefasLongas": 0,
+      "tarefaLongaMaxMs": 0,
+      "observadorDeTarefasLongas": true,
+      "custoDoAnimadorP95Ms": 0.6,
+      "custoDoAnimadorMaxMs": 0.9,
+      "onde": "laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900"
+    }
   },
   "cadeadoPxPorResolucao": {
     "1": [
@@ -1733,17 +1756,11 @@
   },
   "console": [],
   "avisosDaFerramentaDeProva": 1,
-  "falhas": [
-    "M5b_salto_real: arrombada: em 0.735, 5.1 px no passo de 0,5% e 5.1 px a 0,05%",
-    "M5b_salto_real: arrombada: em 0.75, 2.83 px no passo de 0,5% e 2.83 px a 0,05%",
-    "M5b_salto_real: arrombada: em 0.755, 5 px no passo de 0,5% e 5 px a 0,05%",
-    "M5b_salto_real: arrombada: em 0.765, 10.44 px no passo de 0,5% e 10.44 px a 0,05%",
-    "M9_desempenho: quadro p95 25 ms"
-  ],
-  "passou": false,
+  "falhas": [],
+  "passou": true,
   "notas": {
-    "M5b_salto_real": "Arrombada fechando, de 0,735 a 0,765: são os 5 estilhaços. Abrindo, eles encolhem até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nasce do nada, 1 px de cada vez, longe de tudo. Prova: com os estilhaços desligados (ESTILHACOS = 0) a Arrombada passa, com o pior passo refinado em 1,41 px. Partícula que some no ar sempre reprova esta régua no sentido contrário; tirar a reprovação pede mudar o desenho aprovado, e isso é decisão do usuário.",
-    "M9_desempenho": "O custo do animador (JS) fica em p95 0,6 ms; o intervalo de 25 ms é o SwiftShader (WebGL por software do Chromium headless) pintando 1440x900. A meta de quadro p95 até 20 ms precisa ser medida no app com GPU."
+    "M5b_salto_real": "ANTES (rodada de 22/10/2026): a Arrombada fechando reprovava de 0,735 a 0,765, com passos refinados de 5,1, 2,83, 5 e 10,44 px. Abrindo, os 5 estilhaços encolhiam até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nascia do nada, longe de tudo. DEPOIS (client/src/animacoes/porta/arrombada.ts): os estilhaços saltam da fechadura e caem na soleira, dentro do vão, onde se desfazem; começam e acabam em cima do batente, então fechando nascem colados nele e voltam para a fechadura. Tempos (560/320), curvas e o resto do desenho iguais. O número de agora está em animacoes.arrombada.continuidade.",
+    "M9_desempenho": "O laboratório roda o WebGL por SwiftShader (software) e dá um intervalo de quadro p95 perto de 25 ms com o custo do animador (JS) em p95 de 0,6 ms: o tempo é o SwiftShader pintando 1440x900, não a porta. Por isso o número do laboratório fica registrado como informativo e o critério que reprova é o do app com placa de vídeo (desempenho.app, M9_mudanca em metas.json)."
   },
-  "duracaoS": 77.2
+  "duracaoS": 94.6
 }

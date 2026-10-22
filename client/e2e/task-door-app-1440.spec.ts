@@ -6,8 +6,10 @@
 //     com o WebGL que o navegador do teste tiver (playwright.config.ts já pede
 //     ANGLE em D3D11 e ignora a lista negra de GPU); a placa usada sai no relato.
 //
-// Com PROVA_PORTA_APP=1 as duas fotos vão para docs/design/porta-animacoes/app/provas/;
+// Com PROVA_PORTA_APP=1 as duas fotos e a medida das 50 portas (desempenho-app.json,
+// o critério M9 que o gerar-provas lê) vão para docs/design/porta-animacoes/app/provas/;
 // sem, ficam na pasta de saída do teste (nada do repositório é tocado).
+import { writeFileSync } from 'node:fs'
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import type { DoorState, Wall } from '../src/types/map'
@@ -24,8 +26,26 @@ const MEDIDA_MS = 4000
 const TROCA_A_CADA_MS = 650
 const MUSGO = '#5e8c4a'
 const ARDOSIA = '#5b6b7a'
+/** Vão das portas da sala (`lado`), em mundo. */
+const VAO = 40
+
+type Rgb = readonly [number, number, number]
+/** As cores como o Pixi as pinta (`pixi/drawDoors.ts`): creme da porta, vermelho da trancada e o corpo do cadeado. */
+const CREME: Rgb = [0xd9, 0xd2, 0xc0]
+const VERMELHA: Rgb = [0xe2, 0x64, 0x5a]
+const CLARO_DO_CADEADO: Rgb = [0xf4, 0xea, 0xd8]
+const RGB_MUSGO: Rgb = [0x5e, 0x8c, 0x4a]
+const RGB_ARDOSIA: Rgb = [0x5b, 0x6b, 0x7a]
+/** Distância por canal: o miolo da folha é chapado, a folga cobre a borda da composição. */
+const TOLERANCIA = 24
+/** O claro do cadeado fica a 24-27 do creme por canal: mais apertado para não confundir os dois. */
+const TOLERANCIA_DO_CADEADO = 12
+/** Mínimo de pixels da cor numa caixa: a folha tem 3 px de cor de largura no meio do vão. */
+const PIXELS_DA_COR_MIN = 8
 
 type Porta = Partial<DoorState>
+type Caixa = { x: number; y: number; w: number; h: number }
+type Foto = Awaited<ReturnType<Page['screenshot']>>
 
 declare global {
   interface Window {
@@ -77,6 +97,42 @@ async function carregarMapa(page: Page, nome: string, walls: Wall[], salas: { x0
   )
 }
 
+/** Mundo para px da página: a câmera que o Pixi aplicou (a store guarda a mesma) e a caixa do canvas. */
+async function reguaDaTela(page: Page): Promise<{ ponto: (x: number, y: number) => { x: number; y: number }; escala: number }> {
+  const caixa = await page.locator('canvas').first().boundingBox()
+  if (caixa === null) throw new Error('régua: o canvas do editor não tem caixa')
+  const camera = await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)
+  return { ponto: (x, y) => ({ x: caixa.x + camera.x + x * camera.scale, y: caixa.y + camera.y + y * camera.scale }), escala: camera.scale }
+}
+
+/** Quantos pixels da foto ficam perto da cor pedida, em cada caixa (px da página; a foto vem em px físicos). */
+async function contarNaFoto(page: Page, foto: Foto, pedidos: { caixa: Caixa; cor: Rgb; tolerancia: number }[]): Promise<number[]> {
+  return page.evaluate(
+    async ({ b64, pedidos }) => {
+      const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob())
+      const canvas = document.createElement('canvas')
+      canvas.width = bmp.width
+      canvas.height = bmp.height
+      const ctx = canvas.getContext('2d')
+      if (ctx === null) throw new Error('sem contexto 2d para ler a foto')
+      ctx.drawImage(bmp, 0, 0)
+      const { data, width, height } = ctx.getImageData(0, 0, bmp.width, bmp.height)
+      const dpr = width / window.innerWidth
+      return pedidos.map(({ caixa, cor, tolerancia }) => {
+        let n = 0
+        for (let y = Math.max(0, Math.floor(caixa.y * dpr)); y < Math.min(height, Math.ceil((caixa.y + caixa.h) * dpr)); y += 1) {
+          for (let x = Math.max(0, Math.floor(caixa.x * dpr)); x < Math.min(width, Math.ceil((caixa.x + caixa.w) * dpr)); x += 1) {
+            const i = (y * width + x) * 4
+            if (Math.max(Math.abs(data[i] - cor[0]), Math.abs(data[i + 1] - cor[1]), Math.abs(data[i + 2] - cor[2])) <= tolerancia) n += 1
+          }
+        }
+        return n
+      })
+    },
+    { b64: foto.toString('base64'), pedidos },
+  )
+}
+
 test('portas no app a 1440x900: fechada, aberta, trancada e com cor própria, lado a lado com o protótipo', async ({ page, context }) => {
   test.setTimeout(120_000)
   const erros: string[] = []
@@ -98,7 +154,47 @@ test('portas no app a 1440x900: fechada, aberta, trancada e com cor própria, la
   await expect(page.locator('canvas')).toBeVisible()
 
   const app = GRAVAR_NO_REPOSITORIO ? `${PROVAS}/app-1440x900.png` : test.info().outputPath('app-1440x900.png')
-  await page.screenshot({ path: app })
+  const foto = await page.screenshot({ path: app })
+
+  // A régua de pixel: cada porta pela cor que o Pixi pintou no meio do vão, longe das paredes.
+  const { ponto, escala } = await reguaDaTela(page)
+  /** Metade do vão ao longo da porta (ou `meiaPx` de cada lado) e 4 px de cada lado na espessura (a folha tem 5 px de tela). */
+  const noMeio = (x: number, y: number, vertical: boolean, meiaPx = (VAO / 4) * escala): Caixa => {
+    const c = ponto(x, y)
+    return vertical ? { x: c.x - 4, y: c.y - meiaPx, w: 8, h: 2 * meiaPx } : { x: c.x - meiaPx, y: c.y - 4, w: 2 * meiaPx, h: 8 }
+  }
+  const [a, b, c] = salas
+  const fechada = noMeio(a.x1, (a.y0 + a.y1) / 2, true)
+  const aberta = noMeio((a.x0 + a.x1) / 2, a.y1, false)
+  const trancada = noMeio(b.x0, (b.y0 + b.y1) / 2, true)
+  const abertaArdosia = noMeio((b.x0 + b.x1) / 2, b.y1, false)
+  const fechadaMusgo = noMeio((c.x0 + c.x1) / 2, c.y0, false)
+  const trancadaMusgo = noMeio(c.x1, (c.y0 + c.y1) / 2, true)
+  const cadeado = noMeio(c.x1, (c.y0 + c.y1) / 2, true, 6)
+  const cadeadoSemCor = noMeio(b.x0, (b.y0 + b.y1) / 2, true, 6)
+  const contagem = await contarNaFoto(page, foto, [
+    { caixa: fechada, cor: CREME, tolerancia: TOLERANCIA },
+    { caixa: aberta, cor: CREME, tolerancia: TOLERANCIA },
+    { caixa: trancada, cor: VERMELHA, tolerancia: TOLERANCIA },
+    { caixa: abertaArdosia, cor: RGB_ARDOSIA, tolerancia: TOLERANCIA },
+    { caixa: fechadaMusgo, cor: RGB_MUSGO, tolerancia: TOLERANCIA },
+    { caixa: fechadaMusgo, cor: CREME, tolerancia: TOLERANCIA },
+    { caixa: trancadaMusgo, cor: RGB_MUSGO, tolerancia: TOLERANCIA },
+    { caixa: cadeado, cor: CLARO_DO_CADEADO, tolerancia: TOLERANCIA_DO_CADEADO },
+    { caixa: cadeadoSemCor, cor: CLARO_DO_CADEADO, tolerancia: TOLERANCIA_DO_CADEADO },
+  ])
+  const [cremeNaFechada, cremeNaAberta, vermelhoNaTrancada, ardosiaNaAberta, musgoNaFechada, cremeNaMusgo, musgoNaTrancada, claroDoCadeado, claroNaTrancadaSemCor] = contagem
+  const diz = `pixels por caixa: ${JSON.stringify({ cremeNaFechada, cremeNaAberta, vermelhoNaTrancada, ardosiaNaAberta, musgoNaFechada, cremeNaMusgo, musgoNaTrancada, claroDoCadeado, claroNaTrancadaSemCor })} | câmera escala ${escala}`
+  test.info().annotations.push({ type: 'pixels das portas', description: diz })
+  expect(cremeNaFechada, `a porta fechada sem cor não é creme #d9d2c0: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(cremeNaAberta, `a porta aberta sem cor não tem o traço creme: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(vermelhoNaTrancada, `a trancada sem cor não é vermelha #e2645a: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(claroNaTrancadaSemCor, `a trancada sem cor ganhou cadeado: ${diz}`).toBe(0)
+  expect(ardosiaNaAberta, `a aberta com cor própria não tem a ardósia #5b6b7a: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(musgoNaFechada, `a fechada com cor própria não é musgo #5e8c4a: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(cremeNaMusgo, `a fechada com cor própria ainda tem creme: ${diz}`).toBe(0)
+  expect(musgoNaTrancada, `a trancada com cor própria perdeu a cor: ${diz}`).toBeGreaterThanOrEqual(PIXELS_DA_COR_MIN)
+  expect(claroDoCadeado, `a trancada com cor própria não mostra o cadeado: ${diz}`).toBeGreaterThanOrEqual(4)
 
   // Lado a lado: as duas fotos servidas do disco para uma página só, e a foto dela.
   const lado = await context.newPage()
@@ -213,6 +309,23 @@ test('50 portas com as 7 animações abrindo e fechando por 4 s: quadro p95 e ta
   const relato = `placa: ${medida.placa} | ${medida.intervalos.length} quadros, p95 ${p95.toFixed(1)} ms, máx ${Math.max(...medida.intervalos).toFixed(1)} ms | tarefas longas: ${medida.longas.length} (máx ${longaMax.toFixed(0)} ms, observador ${medida.observando ? 'ligado' : 'DESLIGADO'}) | desenhos das portas do pacote no meio do caminho: ${medida.quadrosNoMeio}`
   test.info().annotations.push({ type: '50 portas', description: relato })
   console.log(`[50 portas] ${relato}`)
+  // A medida vai como está, aprovada ou não: o gerar-provas julga M9 por ela.
+  if (GRAVAR_NO_REPOSITORIO) {
+    const gravada = {
+      medidoEm: new Date().toISOString(),
+      teste: 'client/e2e/task-door-app-1440.spec.ts (50 portas)',
+      placa: medida.placa,
+      portas: walls.length,
+      quadros: medida.intervalos.length,
+      intervaloP95Ms: Math.round(p95 * 100) / 100,
+      intervaloMaxMs: Math.round(Math.max(...medida.intervalos) * 100) / 100,
+      tarefasLongas: medida.longas.length,
+      tarefaLongaMaxMs: Math.round(longaMax * 100) / 100,
+      observadorDeTarefasLongas: medida.observando,
+      quadrosDePortaNoMeio: medida.quadrosNoMeio,
+    }
+    writeFileSync(`${PROVAS}/desempenho-app.json`, `${JSON.stringify(gravada, null, 2)}\n`)
+  }
   expect(medida.observando, relato).toBe(true)
   // Sem porta andando, o p95 seria o de um mapa parado.
   expect(medida.quadrosNoMeio, relato).toBeGreaterThan(0)

@@ -1,0 +1,13 @@
+{
+  "medidoEm": "2026-10-22T14:37:50.507Z",
+  "teste": "client/e2e/task-door-app-1440.spec.ts (50 portas)",
+  "placa": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "portas": 50,
+  "quadros": 468,
+  "intervaloP95Ms": 8.5,
+  "intervaloMaxMs": 25.1,
+  "tarefasLongas": 0,
+  "tarefaLongaMaxMs": 0,
+  "observadorDeTarefasLongas": true,
+  "quadrosDePortaNoMeio": 10367
+}
