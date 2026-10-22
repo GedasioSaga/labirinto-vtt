@@ -190,9 +190,12 @@ function suave(x: number): number {
 
 /**
  * Onde o giro começa a recolher a folha para a dobradiça. Começa antes do fim
- * do giro para as duas fases se fundirem num gesto só.
+ * do giro para as duas fases se fundirem num gesto só, mas tarde no caminho:
+ * a curva de saída chega a 80% com 42% do tempo, então a folha mostra o giro
+ * quase inteiro e dobra no trecho lento do fim (a folha de contato com 0,62
+ * mostrava a folha sumindo aos 170 ms e 130 ms sem nada mudando).
  */
-export const GIRAR_INICIO_DO_RECOLHER = 0.62
+export const GIRAR_INICIO_DO_RECOLHER = 0.8
 
 /**
  * "Girar na dobradiça": a folha gira em torno da ponta de (x1,y1) até 70

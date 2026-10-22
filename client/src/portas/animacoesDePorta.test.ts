@@ -142,9 +142,11 @@ describe('registro de animações de porta — embutidas', () => {
     const quase = caixa(folha(desenhar('girar', 0.95)))
     const extensao = (c: ReturnType<typeof caixa>): number => Math.hypot(c.maxX - c.minX, c.maxY - c.minY)
     expect(extensao(quase)).toBeLessThan(extensao(meio) / 4)
-    // Recolhe para a dobradiça (20, 0), não para o meio do vão.
-    expect(quase.minX).toBeGreaterThan(17)
-    expect(quase.maxX).toBeLessThan(26)
+    // Recolhe para a dobradiça (20, 0), não para o meio do vão: o centro da folha
+    // estava a 30 dela no meio do caminho e chega a menos de 6.
+    const distanciaDaDobradica = (c: ReturnType<typeof caixa>): number => Math.hypot((c.minX + c.maxX) / 2 - 20, (c.minY + c.maxY) / 2)
+    expect(distanciaDaDobradica(meio)).toBeCloseTo(30, 0)
+    expect(distanciaDaDobradica(quase)).toBeLessThan(6)
     expect(fills(desenhar('girar', 1))).toHaveLength(0)
   })
 

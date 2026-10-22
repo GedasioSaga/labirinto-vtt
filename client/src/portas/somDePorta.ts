@@ -21,7 +21,10 @@ export type EventoDeSomDaPorta =
   | { tipo: 'abrir' | 'fechar'; som: SomDaAnimacaoDePorta; duracaoMs: number }
   | { tipo: 'trancar' | 'destrancar' }
 
-/** Ganho final da porta, calibrado pela medida das provas (perto de -32 LUFS no volume máximo). */
+/**
+ * Ganho final da porta, calibrado pela medida das provas: de -38 a -34 LUFS no
+ * volume máximo, abaixo dos sons de jogo (docs/design/porta-som/provas/testes.json).
+ */
 export const GANHO_DA_PORTA = 0.5
 /**
  * Onde a folha ASSENTA ao fechar, em fração do tempo: a curva de saída
@@ -164,8 +167,9 @@ function tom<N>(ctx: ContextoDeSom<N>, destino: N, t: number, o: Tom): void {
  * um baque grave e abafado por baixo.
  */
 export function trinco<N>(ctx: ContextoDeSom<N>, destino: N, t: number, fechando: boolean): void {
-  if (fechando) tom(ctx, destino, t, { dur: 0.09, forma: 'sine', hz: 150, hzFim: 82, pico: 0.55, ataque: 0.004 })
-  rajada(ctx, destino, t, { dur: 0.022, tipo: 'bandpass', hz: fechando ? 2900 : 3300, q: 4, pico: 0.9, ataque: 0.002 }, 0.11)
+  // Fechando, o baque e o estalo somam no mesmo instante: cada um mais baixo para o pico ficar abaixo de -12 dBTP.
+  if (fechando) tom(ctx, destino, t, { dur: 0.09, forma: 'sine', hz: 150, hzFim: 82, pico: 0.3, ataque: 0.004 })
+  rajada(ctx, destino, t, { dur: 0.022, tipo: 'bandpass', hz: fechando ? 2900 : 3300, q: 4, pico: fechando ? 0.55 : 0.9, ataque: 0.002 }, 0.11)
   tom(ctx, destino, t + 0.002, { dur: 0.04, forma: 'triangle', hz: fechando ? 1150 : 1300, hzFim: 900, pico: 0.12, ataque: 0.002 })
   rajada(ctx, destino, t + 0.024, { dur: 0.03, tipo: 'bandpass', hz: fechando ? 1500 : 1800, q: 5, pico: 0.45, ataque: 0.003 }, 0.37)
 }
@@ -190,7 +194,8 @@ function rangido<N>(ctx: ContextoDeSom<N>, destino: N, t: number, dur: number, f
   const pulsos = ctx.createOscillator()
   pulsos.type = 'sawtooth'
   pulsos.frequency.setValueCurveAtTime(altura, t, dur)
-  const ganho = envelope(ctx, destino, t, envoltoriaArrastada(fechando ? 0.5 : 0.42, dur, fechando ? 0.02 : 0.05), dur)
+  // O de abrir é mais grave, e o passa-baixa da mesa come menos dele: precisa de mais ganho para soar igual.
+  const ganho = envelope(ctx, destino, t, envoltoriaArrastada(fechando ? 0.5 : 1.4, dur, fechando ? 0.02 : 0.05), dur)
   for (const [hz, q, nivel] of fechando ? [[1250, 9, 1], [2500, 7, 0.45]] : [[880, 10, 1], [1900, 7, 0.4]]) {
     const ressonancia = ctx.createBiquadFilter()
     ressonancia.type = 'bandpass'
@@ -214,8 +219,8 @@ export function tranca<N>(ctx: ContextoDeSom<N>, destino: N, t: number, trancand
   const batida = trancando ? t + 0.075 : t
   const raspa = trancando ? t : t + 0.03
   rajada(ctx, destino, raspa, { dur: 0.07, tipo: 'bandpass', hz: trancando ? 1400 : 2200, hzFim: trancando ? 2200 : 1400, q: 3, pico: 0.32, ataque: 0.012 }, 0.53)
-  rajada(ctx, destino, batida, { dur: 0.04, tipo: 'bandpass', hz: trancando ? 1000 : 1150, q: 2.5, pico: 0.8, ataque: 0.002 }, 0.71)
-  tom(ctx, destino, batida, { dur: 0.07, forma: 'sine', hz: trancando ? 360 : 420, hzFim: trancando ? 240 : 300, pico: 0.4, ataque: 0.003 })
+  rajada(ctx, destino, batida, { dur: 0.04, tipo: 'bandpass', hz: trancando ? 1000 : 1150, q: 2.5, pico: 0.55, ataque: 0.002 }, 0.71)
+  tom(ctx, destino, batida, { dur: 0.07, forma: 'sine', hz: trancando ? 360 : 420, hzFim: trancando ? 240 : 300, pico: 0.28, ataque: 0.003 })
   tom(ctx, destino, batida + 0.002, { dur: 0.06, forma: 'triangle', hz: 2350, hzFim: 2000, pico: 0.07, ataque: 0.002 })
 }
 
