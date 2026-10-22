@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NO_CHAT_UNREAD, type ChatUnread } from '../MasterChatPanel'
 import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
-import { LivroDaMesa, type LivroDaMesaProps } from './LivroDaMesa'
+import { LivroDaMesa, useLivroDaMesaAberto, type LivroDaMesaProps } from './LivroDaMesa'
 
 /*
  * O LIVRO DA MESA (fatia 4 do design consolidado): lombada com Grupo, Chat,
@@ -132,5 +132,66 @@ describe('LivroDaMesa', () => {
     montar()
     expect(container.querySelector('#lb-rail-panel-room')?.classList.contains('gr-pagina')).toBe(true)
     expect(container.querySelector('#lb-rail-panel-chat')?.getAttribute('data-pagina')).toBe('chat')
+  })
+})
+
+/*
+ * O dono do hook é o App (4 mil linhas): arrastar a borda da janela não pode
+ * renderizá-lo a cada pixel. Só cruzar 1024 ou 1366 muda o livro sem escolha.
+ */
+describe('useLivroDaMesaAberto ao redimensionar', () => {
+  let largura = 1440
+  let renderizacoes = 0
+  let abertoVisto: boolean | null = null
+
+  function Sonda({ salaAberta }: { salaAberta: boolean }) {
+    renderizacoes += 1
+    abertoVisto = useLivroDaMesaAberto(salaAberta)[0]
+    return null
+  }
+
+  /** Um evento por pixel, cada um no seu `act`, como os quadros de um arrasto de verdade (sem juntar as atualizações). */
+  function arrastarAte(alvo: number) {
+    const passo = alvo < largura ? -1 : 1
+    while (largura !== alvo) {
+      largura += passo
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+    }
+  }
+
+  beforeEach(() => {
+    largura = 1440
+    renderizacoes = 0
+    window.localStorage.clear()
+    vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => largura)
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it('74 pixels de arrasto dentro da faixa larga não renderizam; cruzar 1366 renderiza uma vez e recolhe', () => {
+    act(() => root.render(<Sonda salaAberta={false} />))
+    expect(renderizacoes).toBe(1)
+    expect(abertoVisto).toBe(true)
+    arrastarAte(1366)
+    expect(renderizacoes).toBe(1)
+    arrastarAte(1365)
+    expect(renderizacoes).toBe(2)
+    expect(abertoVisto).toBe(false)
+  })
+
+  it('com a sala aberta, de 1365 a 1024 (341 eventos) o livro segue aberto sem renderizar; abaixo de 1024 recolhe', () => {
+    largura = 1365
+    act(() => root.render(<Sonda salaAberta />))
+    expect(abertoVisto).toBe(true)
+    arrastarAte(1024)
+    expect(renderizacoes).toBe(1)
+    arrastarAte(1023)
+    expect(abertoVisto).toBe(false)
+    expect(renderizacoes).toBe(2)
   })
 })

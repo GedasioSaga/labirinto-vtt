@@ -45,10 +45,21 @@ function lerEscolha(): boolean | null {
   return null
 }
 
+/** As três faixas de janela em que a regra sem escolha muda; entre dois limites o livro não muda. */
+type FaixaDaJanela = 'estreita' | 'media' | 'larga'
+
+function faixaDaJanela(largura: number): FaixaDaJanela {
+  if (largura >= LIVRO_DA_MESA_SALA_FECHADA_PX) return 'larga'
+  return largura >= LIVRO_DA_MESA_ESTREITO_PX ? 'media' : 'estreita'
+}
+
+function abertoNaFaixa(faixa: FaixaDaJanela, salaAberta: boolean): boolean {
+  return faixa === 'larga' || (salaAberta && faixa === 'media')
+}
+
 /** Sem escolha lembrada: aberto na janela larga, ou na média com a sala aberta. */
 export function abertoPelaJanela(largura: number, salaAberta: boolean): boolean {
-  if (largura >= LIVRO_DA_MESA_SALA_FECHADA_PX) return true
-  return salaAberta && largura >= LIVRO_DA_MESA_ESTREITO_PX
+  return abertoNaFaixa(faixaDaJanela(largura), salaAberta)
 }
 
 try {
@@ -65,10 +76,12 @@ try {
  */
 export function useLivroDaMesaAberto(salaAberta: boolean): [boolean, (aberto: boolean) => void] {
   const [escolha, setEscolha] = useState(lerEscolha)
-  const [largura, setLargura] = useState(() => window.innerWidth)
+  // Só a faixa vai para o estado: arrastando a borda da janela, a mesma faixa
+  // descarta a atualização e o App (dono do hook) só renderiza ao cruzar 1024 ou 1366.
+  const [faixa, setFaixa] = useState(() => faixaDaJanela(window.innerWidth))
   useEffect(() => {
     if (escolha !== null) return
-    const aoRedimensionar = () => setLargura(window.innerWidth)
+    const aoRedimensionar = () => setFaixa(faixaDaJanela(window.innerWidth))
     window.addEventListener('resize', aoRedimensionar)
     return () => window.removeEventListener('resize', aoRedimensionar)
   }, [escolha])
@@ -80,7 +93,7 @@ export function useLivroDaMesaAberto(salaAberta: boolean): [boolean, (aberto: bo
       // Sem armazenamento a escolha vale só nesta sessão.
     }
   }, [])
-  return [escolha ?? abertoPelaJanela(largura, salaAberta), mudar]
+  return [escolha ?? abertoNaFaixa(faixa, salaAberta), mudar]
 }
 
 export interface LivroDaMesaProps {
