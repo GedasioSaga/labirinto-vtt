@@ -8,9 +8,11 @@
  *   mesmo número com a CPU livre ou ocupada;
  * - a medida (ms da consulta, ms do quadro e do tique) segue no relógio de
  *   verdade, contra as mesmas metas, pela primeira de até
- *   `RODADAS_DE_RELOGIO` rodadas que as cumpre (ou pelo menor de várias
- *   medidas): o ruído de outro teste disputando a máquina só soma tempo, e
- *   uma regressão de verdade reprova todas as rodadas.
+ *   `RODADAS_DE_RELOGIO` rodadas que as cumpre, ou pelo menor de várias
+ *   medidas: o ruído de outro teste disputando a máquina só soma tempo, e
+ *   uma regressão de verdade reprova todas as rodadas. Onde a margem é curta
+ *   (a consulta), a medida ainda é dividida pela lentidão da máquina na hora
+ *   (`lentidaoEntre`, por uma obra de referência que não usa o motor).
  * Só teste importa este arquivo.
  */
 
@@ -25,6 +27,80 @@ export const MS_DA_FATIA_LOGICA = 0.625
 
 /** Rodadas de uma medida de relógio antes de reprovar. */
 export const RODADAS_DE_RELOGIO = 3
+
+const LADO_DA_REFERENCIA = 300
+const VOLTAS_DA_REFERENCIA = 3
+const MEDIDAS_DA_REFERENCIA = 3
+/**
+ * A obra de referência com a máquina livre: `msDaReferencia` isolada nesta
+ * máquina, 45 medidas em 22/10/2026, de 2,59 a 3,36 ms (quase todas abaixo de
+ * 3,1). Fica o lado alto: compensa menos, nunca mais do que a carga.
+ */
+export const MS_DA_REFERENCIA_LIVRE = 3
+
+/**
+ * Quanto a máquina está mais lenta que livre agora (nunca abaixo de 1): a obra
+ * de referência medida antes e depois (`depois`, a função que mede no fim), a
+ * mais rápida das duas — a que menos compensa.
+ */
+export function lentidaoEntre(antes: number, depois: number): number {
+  return Math.max(1, Math.min(antes, depois) / MS_DA_REFERENCIA_LIVRE)
+}
+
+/** Parede de mentira da obra de referência: colunas com uma fresta em lugar diferente cada uma. */
+function barra(x: number, y: number): boolean {
+  return x % 8 === 4 && y % 50 !== (x * 3) % 50
+}
+
+/**
+ * A obra de referência: busca em largura por uma grade de 300 x 300 pontos com
+ * paredes de mentira, em vetores tipados — o mesmo tipo de trabalho da busca
+ * do motor (memória espalhada, fila, desvio), sem o código dele. Se a busca do
+ * motor ficar mais cara, a referência não muda; se a máquina estiver dividida
+ * (outro teste no mesmo núcleo, ou o processo num núcleo mais lento), pesa nas
+ * duas. Devolve quantos pontos visitou (para o trabalho não ser jogado fora).
+ */
+function obraDeReferencia(): number {
+  const lado = LADO_DA_REFERENCIA
+  const visto = new Uint8Array(lado * lado)
+  const fila = new Int32Array(lado * lado)
+  let inicio = 0
+  let fim = 0
+  const tentar = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= lado || y >= lado || barra(x, y)) return
+    const p = y * lado + x
+    if (visto[p] === 1) return
+    visto[p] = 1
+    fila[fim] = p
+    fim += 1
+  }
+  tentar(0, 0)
+  while (inicio < fim) {
+    const p = fila[inicio] ?? 0
+    inicio += 1
+    const x = p % lado
+    const y = (p - x) / lado
+    tentar(x + 1, y)
+    tentar(x - 1, y)
+    tentar(x, y + 1)
+    tentar(x, y - 1)
+  }
+  return fim
+}
+
+/** Ms da obra de referência agora (`VOLTAS_DA_REFERENCIA` buscas): o menor de `MEDIDAS_DA_REFERENCIA`. */
+export function msDaReferencia(): number {
+  let menor = Number.POSITIVE_INFINITY
+  for (let medida = 0; medida < MEDIDAS_DA_REFERENCIA; medida += 1) {
+    const inicio = performance.now()
+    let visitados = 0
+    for (let volta = 0; volta < VOLTAS_DA_REFERENCIA; volta += 1) visitados += obraDeReferencia()
+    const ms = performance.now() - inicio
+    if (visitados === 0) throw new Error('a obra de referência não visitou nada')
+    menor = Math.min(menor, ms)
+  }
+  return menor
+}
 
 export interface RelogioLogico {
   /** O relógio da agenda: cada leitura anda `MS_DA_FATIA_LOGICA` (ela lê no começo do `rodar` e depois de cada fatia). */

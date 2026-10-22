@@ -14,11 +14,12 @@
  *
  * LÓGICA E RELÓGIO, separados (`relogio.fixture.ts`): quantos pedidos saem em
  * quantos quadros roda no relógio lógico (cada fatia custa o medido com a
- * máquina livre), o mesmo número com a CPU livre ou ocupada; os ms da consulta
- * e do quadro seguem no relógio de verdade, contra as mesmas metas, pelo menor
- * de várias medidas ou pela primeira de até 3 rodadas que as cumpre. O custo
- * real da fatia fica preso pela consulta (p95 <= 5 ms, a busca inteira): se a
- * fatia ficar mais cara, é ela que reprova.
+ * máquina livre), o mesmo número com a CPU livre ou ocupada; os ms do quadro
+ * seguem no relógio de verdade, pela primeira de até 3 rodadas que cumpre as
+ * metas, e os da consulta pelo menor de várias medidas, cada uma dividida pela
+ * lentidão da máquina na hora (uma obra de referência que não usa o motor). O
+ * custo real da fatia fica preso pela consulta (p95 <= 5 ms, a busca inteira):
+ * se a fatia ficar mais cara, é ela que reprova.
  * Os números saem no console (`--reporter=verbose`).
  */
 import { describe, expect, it } from 'vitest'
@@ -29,7 +30,7 @@ import { acharCaminhoNaMalha, type ConsultaDeCaminho, type FichaNoCaminho, type 
 import { GRID, parede, porta } from './caminho.fixture'
 import { type Malha, type MapaDoCaminho, malhaPronta } from './malha'
 import { avancarMalha } from './marcos'
-import { primeiraQueCumpre, relogioLogico } from './relogio.fixture'
+import { lentidaoEntre, msDaReferencia, primeiraQueCumpre, relogioLogico } from './relogio.fixture'
 import { gerarMapaDoRobo, type MapaDoRobo, sorteador } from './robo.fixture'
 
 const LADO = 300
@@ -235,11 +236,20 @@ describe('desempenho do caminhamento (300 x 300 casas)', () => {
     // máquina (o ruído só soma: uma consulta que ficou cara reprova em todas as passadas). As medidas de uma consulta
     // saem em passadas separadas por todas as outras (uns 300 ms), não em seguida: a carga de outro teste dura mais que
     // uma consulta, e três medidas seguidas pegavam a mesma carga (p95 de 4,83 e 4,92 ms na suíte da área, contra 5).
+    // Carga que dura o teste inteiro (o vitest de todo o client: 5,03 ms no menor de seis passadas, 2,36 livre) o menor
+    // não tira: cada medida é dividida pela lentidão da máquina na passada dela (`relogio.fixture.ts`: a obra de
+    // referência antes e depois, contra a livre). A meta fica a de 5 ms na velocidade desta máquina livre; se a busca
+    // do motor ficar mais cara, a referência não muda e a medida sobe.
     let menores = consultas.map(() => Number.POSITIVE_INFINITY)
-    let passadas = 0
-    while (passadas < PASSADAS_DA_CONSULTA || (passadas < PASSADAS_DA_CONSULTA_MAX && percentil(menores, 95) > P95_DA_CONSULTA_MS)) {
-      menores = consultas.map((consulta, k) => Math.min(menores[k] ?? Number.POSITIVE_INFINITY, msDaConsulta(malha, consulta)))
-      passadas += 1
+    let crus = consultas.map(() => Number.POSITIVE_INFINITY)
+    const lentidoes: number[] = []
+    while (lentidoes.length < PASSADAS_DA_CONSULTA || (lentidoes.length < PASSADAS_DA_CONSULTA_MAX && percentil(menores, 95) > P95_DA_CONSULTA_MS)) {
+      const antes = msDaReferencia()
+      const medidas = consultas.map((consulta) => msDaConsulta(malha, consulta))
+      const lentidao = lentidaoEntre(antes, msDaReferencia())
+      lentidoes.push(Number(lentidao.toFixed(2)))
+      menores = medidas.map((ms, k) => Math.min(menores[k] ?? Number.POSITIVE_INFINITY, ms / lentidao))
+      crus = medidas.map((ms, k) => Math.min(crus[k] ?? Number.POSITIVE_INFINITY, ms))
     }
     const numeros = {
       paredes: gerado.mapa.walls.length,
@@ -250,7 +260,8 @@ describe('desempenho do caminhamento (300 x 300 casas)', () => {
       montagemQuadroMaxMs: Number(Math.max(...quadrosDaMontagem).toFixed(2)),
       consultas: CONSULTAS,
       comCaminho,
-      passadas,
+      lentidoes,
+      consultaP95CruMs: Number(percentil(crus, 95).toFixed(2)),
       consultaP50Ms: Number(percentil(menores, 50).toFixed(2)),
       consultaP95Ms: Number(percentil(menores, 95).toFixed(2)),
       consultaMaxMs: Number(Math.max(...menores).toFixed(2)),
