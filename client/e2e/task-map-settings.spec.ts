@@ -3,6 +3,7 @@
 // Medição e Link de cenário. Prova o estado lendo a store, igual aos outros specs.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { livroDoMestre } from './helpers/livroDoMestre'
 
 async function resetMap(page: Page) {
   await page.evaluate(async () => {
@@ -93,6 +94,12 @@ async function rulerLabelShot(page: Page, start: { x: number; y: number }, end: 
 
 test('3. a régua da ferramenta Medir passa a contar pelo modo escolhido na janela', async ({ page }) => {
   await page.getByRole('button', { name: 'Medir', exact: true }).click()
+  // A página aberta do livro do mestre flutua sobre o lado esquerdo do mapa,
+  // onde a reta de 6 células começa: com ela aberta, o aperto caía na página,
+  // a régua nunca nascia e o recorte da reta saía vazio. Recolhida, o arrasto
+  // chega ao mapa, como o mestre faz para ver mais mapa.
+  await livroDoMestre(page).getByRole('button', { name: 'Recolher a página' }).click()
+  await expect(livroDoMestre(page).getByRole('button', { name: 'Abrir a página' })).toBeVisible()
   // grid 64, escala 1,5 m/célula, snap desligado. Diagonal 3x3: tabuleiro = 3 células
   // (4,5 m), Manhattan = 6 (9,0 m). Reta de 6 células = 9,0 m em qualquer um dos dois.
   const end = { x: 700, y: 500 }
@@ -105,6 +112,8 @@ test('3. a régua da ferramenta Medir passa a contar pelo modo escolhido na jane
   // Sanidade do recorte: "4,5 m" e "9,0 m" não podem dar a mesma imagem.
   expect(chessboardDiagonal.equals(chessboardStraight)).toBe(false)
 
+  // A engrenagem mora no topo do livro: a página volta a abrir para alcançá-la.
+  await livroDoMestre(page).getByRole('button', { name: 'Abrir a página' }).click()
   const gear = page.getByRole('button', { name: 'Configurações do mapa' })
   await gear.click()
   const dialog = page.getByRole('dialog', { name: 'Configurações do mapa' })
