@@ -29,6 +29,41 @@ export const LAYER_IDS: readonly LayerId[] = [
   'objetos', 'decoracao', 'iluminacao', 'tokens', 'anotacoes',
 ] as const
 
+// ─────────────────────────────────────────────────────────────
+// CAMADAS DA FASE 3 (`docs/planos/camadas-fase3-2026-10-22.md`). As 9 de
+// `LayerId` continuam iguais (e `hiddenLayers`/`lockedLayers` também); as 13
+// camadas padrão somam Chão, Terreno, Desenhos e Telhados, e o mestre pode
+// criar camadas livres. A camada de cada item sai de `lib/camadas/padrao.ts`
+// (padrão do tipo) e do campo opcional `camada` (escolha do mestre); quem
+// pergunta "vê? travada? opacidade?" é `lib/camadas/consulta.ts`.
+// ─────────────────────────────────────────────────────────────
+export type CamadaPadraoId = LayerId | 'chao' | 'terreno' | 'desenhos' | 'telhados'
+
+/** Camada criada pelo mestre: `livre_` + id aleatório, NUNCA derivado do nome (renomear não muda o id). */
+export type CamadaLivreId = `livre_${string}`
+
+export type CamadaId = CamadaPadraoId | CamadaLivreId
+
+/** Uma linha da lista de camadas. `nome` ausente = o rótulo padrão (`lib/camadas/padrao.ts`). */
+export interface CamadaDef {
+  id: CamadaId
+  nome?: string
+}
+
+/** A lista de camadas da aventura, de BAIXO para CIMA. Ausente = as 13 padrão na ordem de hoje. */
+export interface ModeloDeCamadas {
+  ordem: CamadaDef[]
+}
+
+/**
+ * A camada escolhida para o item. Ausente = a camada padrão do tipo
+ * (`camadaPadraoDe`, `lib/camadas/padrao.ts`), sem linha de migração: mapa
+ * salvo antes abre igual. Camada livre que não existe mais cai na padrão.
+ */
+export interface NaCamada {
+  camada?: CamadaId
+}
+
 /**
  * Os 3 degraus nomeados de sempre. Cada um vale uma espessura em px de TELA
  * (`WALL_SCREEN_PX`, `pixi/drawWalls.ts`): traço de planta, que NÃO muda de
@@ -54,7 +89,7 @@ export type WallThicknessPreset = 'thin' | 'medium' | 'thick'
  */
 export type WallThickness = WallThicknessPreset | number
 
-export interface Wall extends NoPiso {
+export interface Wall extends NoPiso, NaCamada {
   id: string
   x1: number
   y1: number
@@ -274,7 +309,7 @@ export type EfeitoNaPorta = 'aberta' | 'fechada' | 'trancada'
 export type EfeitoNaZona = 'oculta' | 'revelada'
 export type EfeitoNaLuz = 'acesa' | 'apagada'
 
-export interface Light extends NoPiso {
+export interface Light extends NoPiso, NaCamada {
   id: string
   x: number
   y: number
@@ -378,6 +413,8 @@ export interface RoomMeta {
    *  `undefined` === a primeira cor do modelo (telha barro `#8a5a46`), sem
    *  migração; `lib/mapFile.ts` descarta cor inválida. */
   corDoTeto?: string
+  /** CAMADA DO TELHADO (`lib/camadas`): ausente = Telhados, como o resto do mapa de antes. */
+  camadaDoTelhado?: CamadaId
   /**
    * CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto". O jogador NÃO
    * recebe a Sala (nem silhueta, nem nome, nem pino, desenho ou escada de
@@ -709,7 +746,7 @@ export interface PinColecao {
  * cartão compacto, só com a cabeça do pino, o texto e os botões
  * (`player/PlayerPinCard.tsx`).
  */
-export interface Pin extends PlayerSecret, NoPiso {
+export interface Pin extends PlayerSecret, NoPiso, NaCamada {
   id: string
   x: number
   y: number
@@ -1146,7 +1183,7 @@ export interface Conveyor {
   stepCells: number
 }
 
-export interface Region extends PlayerSecret, NoPiso {
+export interface Region extends PlayerSecret, NoPiso, NaCamada {
   id: string
   points: RegionPoint[]
   tag: string
@@ -1329,7 +1366,7 @@ export type TipoDePassoDaPatrulha = PassoDaPatrulha['tipo']
  * Ficha no mapa. Sai para o jogador por LISTA BRANCA (`tokenForPlayer` em
  * `lib/fogFilter.ts`): campo novo aqui fica com o mestre até entrar lá.
  */
-export interface Token extends PlayerSecret, NoPiso {
+export interface Token extends PlayerSecret, NoPiso, NaCamada {
   id: string
   characterId: string | null
   name: string
@@ -1554,7 +1591,7 @@ export interface TokenContract {
   visao: boolean
 }
 
-export interface Prop extends PlayerSecret, NoPiso {
+export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   id: string
   src: string
   x: number
@@ -1733,7 +1770,7 @@ export interface ComParedesAoRedor {
 }
 
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
-export type Drawing = PlayerSecret & NoPiso & ComParedesAoRedor & (
+export type Drawing = PlayerSecret & NoPiso & NaCamada & ComParedesAoRedor & (
   | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash; pontosChave?: PontosChave }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }
@@ -1775,7 +1812,7 @@ export interface StairSegment {
   y2: number
 }
 
-export interface Stair extends PlayerSecret, NoPiso {
+export interface Stair extends PlayerSecret, NoPiso, NaCamada {
   id: string
   shape: StairShape
   direction: StairDirection
@@ -1866,7 +1903,7 @@ export interface FloorModifiers {
  * Uma peça do chão. A ordem em `MapData.floor` importa: cada peça se aplica
  * sobre o resultado das anteriores — 'add' soma chão, 'subtract' abre buraco.
  */
-export interface FloorPiece extends NoPiso {
+export interface FloorPiece extends NoPiso, NaCamada {
   id: string
   shape: FloorShape
   op: 'add' | 'subtract'
@@ -1919,7 +1956,7 @@ export interface FloorStyle {
  * pontilhado. Só visual — não bloqueia movimento nem luz (isso é `Wall`).
  * Vértices em px de mundo; vértice em (x + 0.5, y + 0.5) cai no centro do pixel.
  */
-export interface MapLine extends NoPiso {
+export interface MapLine extends NoPiso, NaCamada {
   id: string
   points: { x: number; y: number }[]
   closed: boolean
@@ -1941,7 +1978,7 @@ export interface MapLine extends NoPiso {
 }
 
 /** Marcador sólido girado (porta de minimapa). Só visual. */
-export interface MapMarker extends NoPiso {
+export interface MapMarker extends NoPiso, NaCamada {
   id: string
   cx: number
   cy: number
@@ -2091,13 +2128,28 @@ export interface MapData {
   marcas?: MarcaNoLugar[]
   frame: MapFrame | null
   fog: FogState
-  hiddenLayers: LayerId[] // vazio = tudo visível
+  /** Camadas que o MESTRE vê desligadas (o olho "Mestre vê"). Vazio = tudo
+   *  visível. O dado é o de sempre; o sentido para o jogador mora em
+   *  `ocultasDoJogador` (ausente = igual a esta lista). */
+  hiddenLayers: LayerId[]
   /** Onda 4, Frente D (camadas) — "travar camada inteira": item na camada
    *  listada aqui continua VISÍVEL (independente de hiddenLayers) mas não
    *  pode ser selecionado nem movido. Mesma forma de hiddenLayers, por
    *  pedido explícito do CONTRATO da frente — ver lib/layers.ts
    *  (isLayerLocked/canInteractInLayer). Vazio = nada travado. */
   lockedLayers: LayerId[]
+  /** Camadas que os JOGADORES veem desligadas. Ausente = igual a
+   *  `hiddenLayers` (a "oculta" de antes some para todos). Campo novo e
+   *  opcional: mapa de antes abre sem ele (`lib/mapFile.ts`). */
+  ocultasDoJogador?: CamadaId[]
+  /** Opacidade de cada camada, de 0 a 1, a mesma para mestre e jogadores. Ausente = 1. */
+  opacidadeDasCamadas?: Partial<Record<CamadaId, number>>
+  /** Ausente = mapa de antes das 13 camadas: Chão segue o olho e o cadeado de
+   *  Salas, e Desenhos segue os de Anotações (`lib/camadas/consulta.ts`). */
+  versaoDasCamadas?: 2
+  /** Cópia EM MEMÓRIA do modelo da aventura, para o Ctrl+Z. `serializeMap`
+   *  tira; o recorte do jogador nunca leva. */
+  modeloCamadas?: ModeloDeCamadas
   scale: MapScale
   measurementMode: MeasurementMode
   /** "Visão nesta cena", em quadrados: o jogador enxerga isto vezes o fator
@@ -2351,7 +2403,7 @@ export interface TexturaImportada {
  * gira com a luz parada (de cima à esquerda), não a imagem inteira.
  * `piso` (`NoPiso`): ausente = térreo, mapa de antes abre igual.
  */
-export interface Carimbo extends NoPiso {
+export interface Carimbo extends NoPiso, NaCamada {
   id: string
   /** Id da biblioteca/pacote (`a-z0-9-`) ou de um importado (`importado:...`). */
   tipo: string

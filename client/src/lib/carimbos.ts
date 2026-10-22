@@ -1,5 +1,6 @@
 import type { Carimbo, CarimboImportado, MapData, RegionPoint } from '../types/map'
 import { pisoLido } from './pisos'
+import { camadaLida } from './camadas/arquivo'
 
 /**
  * CARIMBOS (fatia 5 do plano do relevo de 09/10/2026): a ferramenta em que o
@@ -146,7 +147,8 @@ function lerCarimbo(valor: unknown): Carimbo | null {
   const giro = 'giro' in valor ? valor.giro : 0
   if (typeof id !== 'string' || !ID_DO_OBJETO.test(id) || !ehTipoDeCarimbo(tipo)) return null
   if (!numeroFinito(x) || !numeroFinito(y) || !numeroFinito(tamanho) || tamanho <= 0) return null
-  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor) }
+  // CAMADA (`lib/camadas`): campo novo e opcional; ausente ou torto = Terreno, a camada padrão do carimbo.
+  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor) }
 }
 
 /** Os objetos do arquivo, ou `undefined` (sem o campo). Objeto quebrado ou repetido sai; o resto fica na ordem. */

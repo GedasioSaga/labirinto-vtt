@@ -80,6 +80,8 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
+import { ocultasDoJogadorDoArquivo, opacidadesDoArquivo, versaoDasCamadasDoArquivo } from './camadas/arquivo'
+import { ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
 
@@ -94,7 +96,10 @@ export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeCol
 export const LEGACY_FLOOR_STYLE: FloorStyle = { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 }
 
 export function serializeMap(map: MapData): string {
-  return JSON.stringify(map, null, 2)
+  // CAMADAS: `modeloCamadas` é cópia em memória do modelo da aventura (para o Ctrl+Z); não vai ao arquivo.
+  if (map.modeloCamadas === undefined) return JSON.stringify(map, null, 2)
+  const { modeloCamadas: _soEmMemoria, ...semModelo } = map
+  return JSON.stringify(semModelo, null, 2)
 }
 
 export function deserializeMap(json: string): MapData {
@@ -341,11 +346,23 @@ function readPropPlayerLook(prop: Prop): Prop {
  * imagem só referência de mídia). Forma errada sai: o objeto fica, só deixa
  * de ser pegável — o `...p` não leva o valor cru até a tela do jogador.
  */
-function readPropItem(prop: Prop): Prop {
+function readPropItem(doArquivo: Prop): Prop {
+  const prop = propCamadaFromFile(doArquivo)
   if (!('item' in prop)) return prop
   const { item, ...rest } = prop
   const lido = readPinItem(item)
   return lido === undefined ? rest : { ...rest, item: lido }
+}
+
+/**
+ * CAMADA DO OBJETO (`lib/camadas`): campo NOVO e OPCIONAL. Ausente ou id de
+ * camada válido passa intacto (sem reordenar chave); o resto sai e o objeto
+ * volta à camada padrão (`Prop.layer ?? 'objetos'`).
+ */
+function propCamadaFromFile(prop: Prop): Prop {
+  if (!('camada' in prop) || ehCamadaId(prop.camada)) return prop
+  const { camada: _torta, ...semCamada } = prop
+  return semCamada
 }
 
 /**
@@ -859,6 +876,10 @@ function deserializeMapFields(json: string): MapData {
     // NOVO (Onda 4, Frente D) — mesmo padrão de hiddenLayers acima: mapa
     // salvo antes deste campo existir abre com nada travado.
     lockedLayers: plainList(parsed.lockedLayers),
+    // CAMADAS (fase 3): campos NOVOS e OPCIONAIS. Ausente continua ausente; torto sai (`lib/camadas/arquivo.ts`).
+    ...ocultasDoJogadorDoArquivo(parsed.ocultasDoJogador),
+    ...opacidadesDoArquivo(parsed.opacidadeDasCamadas),
+    ...versaoDasCamadasDoArquivo(parsed.versaoDasCamadas),
     scale: parsed.scale ?? { unitsPerCell: 5, unit: 'ft', precision: 0 },
     // depende do gridShape JÁ RESOLVIDO, não do literal cru — senão mapa hex
     // antigo sem gridShape salvo cairia em 'chessboard' por engano

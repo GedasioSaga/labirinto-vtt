@@ -1,4 +1,5 @@
-import type { MapData } from '../types/map'
+import type { MapData, ModeloDeCamadas } from '../types/map'
+import { lerModeloDeCamadas } from './camadas/arquivo'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
@@ -85,6 +86,14 @@ export interface Adventure {
    * Ausente = aventura antiga, que grava sem a chave.
    */
   personagens?: Personagem[]
+  /**
+   * CAMADAS (`lib/camadas`): a lista de camadas da aventura (nomes e ordem,
+   * de baixo para cima), a mesma em todas as cenas; o estado de cada uma
+   * (olhos, cadeado, opacidade) mora no mapa da cena. Ausente = as 13 padrão
+   * na ordem de hoje — é assim que toda aventura antiga abre, e grava sem a
+   * chave. Aditivo: `ADVENTURE_VERSION` não muda.
+   */
+  camadas?: ModeloDeCamadas
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -244,6 +253,8 @@ export function parseAdventure(json: string): Adventure {
   // SISTEMA DE RPG e PERSONAGENS: idem — sem a chave, a aventura continua sem ela.
   const sistemaDeRpg = sistemaDaAventuraDoArquivo(parsed.sistemaDeRpg)
   const personagens = personagensDoArquivo(parsed.personagens)
+  // CAMADAS: idem — sem a chave, a aventura continua sem ela; entrada torta sai.
+  const camadas = lerModeloDeCamadas(parsed.camadas)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
@@ -254,6 +265,7 @@ export function parseAdventure(json: string): Adventure {
     ...(cabines === undefined ? {} : { cabines }),
     ...(sistemaDeRpg === undefined ? {} : { sistemaDeRpg }),
     ...(personagens === undefined ? {} : { personagens }),
+    ...(camadas === undefined ? {} : { camadas }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)

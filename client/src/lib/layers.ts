@@ -8,9 +8,19 @@
  *
  * 'grid' não é camada: MapData.showGrid já é o toggle da grade — ver o
  * comentário em types/map.ts junto de LayerId.
+ *
+ * FASE 3 (13 camadas, `docs/planos/camadas-fase3-2026-10-22.md`): este
+ * arquivo virou FACHADA, com os mesmos nomes e o mesmo comportamento. Os
+ * `visible*` aceitam, no lugar da lista `hiddenLayers`, o mapa inteiro — aí
+ * quem responde é `lib/camadas/consulta.ts` (camada escolhida do item, Chão
+ * seguindo Salas no mapa de antes etc.). Com a lista, a derivação é a de
+ * sempre, pelas `*Layer` abaixo; o teste em matriz de `consulta.test.ts`
+ * confere que as duas concordam em todo mapa de antes.
  */
 import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { LayerId } from '../types/map'
+import { contextoDeCamadas } from './camadas/consulta'
+import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { canInteract, type Lockable } from './itemTransform'
 import { isStairPin } from './stairTravel'
 
@@ -111,37 +121,55 @@ export function canInteractInLayer(
  * chama isto a cada redraw (PixiCanvas.tsx:168-190) e um array novo a cada
  * frame pressiona o GC à toa quando o usuário não escondeu nenhuma camada.
  */
-function filterByLayer<T>(items: T[], layerOf: (item: T) => LayerId, hiddenLayers: readonly LayerId[]): T[] {
-  if (hiddenLayers.length === 0) return items
-  return items.filter((item) => !hiddenLayers.includes(layerOf(item)))
+function filterByLayer<K extends TipoDeObjeto>(
+  items: ItemPorTipo[K][],
+  tipo: K,
+  layerOf: (item: ItemPorTipo[K]) => LayerId,
+  fonte: FonteDeCamadas,
+): ItemPorTipo[K][] {
+  // `hiddenLayers` vazio: nada oculto para o mestre, com mapa de antes ou não (só guarda LayerId).
+  if (ehMapa(fonte)) {
+    if (fonte.hiddenLayers.length === 0) return items
+    const camadas = contextoDeCamadas(fonte)
+    return items.filter((item) => camadas.mestreVe(camadas.camadaDe(tipo, item)))
+  }
+  if (fonte.length === 0) return items
+  return items.filter((item) => !fonte.includes(layerOf(item)))
 }
 
-export function visibleWalls(walls: Wall[], hiddenLayers: readonly LayerId[]): Wall[] {
-  return filterByLayer(walls, wallLayer, hiddenLayers)
+/** O 2º parâmetro dos `visible*`: a lista `hiddenLayers` de sempre ou o mapa inteiro. */
+export type FonteDeCamadas = readonly LayerId[] | MapData
+
+function ehMapa(fonte: FonteDeCamadas): fonte is MapData {
+  return !Array.isArray(fonte)
 }
 
-export function visibleRegions(regions: Region[], hiddenLayers: readonly LayerId[]): Region[] {
-  return filterByLayer(regions, regionLayer, hiddenLayers)
+export function visibleWalls(walls: Wall[], hiddenLayers: FonteDeCamadas): Wall[] {
+  return filterByLayer(walls, 'parede', wallLayer, hiddenLayers)
 }
 
-export function visibleStairs(stairs: Stair[], hiddenLayers: readonly LayerId[]): Stair[] {
-  return filterByLayer(stairs, stairLayer, hiddenLayers)
+export function visibleRegions(regions: Region[], hiddenLayers: FonteDeCamadas): Region[] {
+  return filterByLayer(regions, 'regiao', regionLayer, hiddenLayers)
 }
 
-export function visibleLights(lights: Light[], hiddenLayers: readonly LayerId[]): Light[] {
-  return filterByLayer(lights, lightLayer, hiddenLayers)
+export function visibleStairs(stairs: Stair[], hiddenLayers: FonteDeCamadas): Stair[] {
+  return filterByLayer(stairs, 'escada', stairLayer, hiddenLayers)
 }
 
-export function visibleTokens(tokens: Token[], hiddenLayers: readonly LayerId[]): Token[] {
-  return filterByLayer(tokens, tokenLayer, hiddenLayers)
+export function visibleLights(lights: Light[], hiddenLayers: FonteDeCamadas): Light[] {
+  return filterByLayer(lights, 'luz', lightLayer, hiddenLayers)
 }
 
-export function visibleDrawings(drawings: Drawing[], hiddenLayers: readonly LayerId[]): Drawing[] {
-  return filterByLayer(drawings, drawingLayer, hiddenLayers)
+export function visibleTokens(tokens: Token[], hiddenLayers: FonteDeCamadas): Token[] {
+  return filterByLayer(tokens, 'ficha', tokenLayer, hiddenLayers)
 }
 
-export function visibleProps(props: Prop[], hiddenLayers: readonly LayerId[]): Prop[] {
-  return filterByLayer(props, propLayer, hiddenLayers)
+export function visibleDrawings(drawings: Drawing[], hiddenLayers: FonteDeCamadas): Drawing[] {
+  return filterByLayer(drawings, 'desenho', drawingLayer, hiddenLayers)
+}
+
+export function visibleProps(props: Prop[], hiddenLayers: FonteDeCamadas): Prop[] {
+  return filterByLayer(props, 'objeto', propLayer, hiddenLayers)
 }
 
 /**
@@ -150,9 +178,9 @@ export function visibleProps(props: Prop[], hiddenLayers: readonly LayerId[]): P
  * Sem pino de escada, a lista volta a mesma — quem compara por referência não
  * redesenha à toa.
  */
-export function visiblePins(pins: Pin[], hiddenLayers: readonly LayerId[]): Pin[] {
+export function visiblePins(pins: Pin[], hiddenLayers: FonteDeCamadas): Pin[] {
   const drawable = pins.some(isStairPin) ? pins.filter((pin) => !isStairPin(pin)) : pins
-  return filterByLayer(drawable, pinLayer, hiddenLayers)
+  return filterByLayer(drawable, 'pino', pinLayer, hiddenLayers)
 }
 
 /** Quantas entidades cada camada tem hoje — usado pelo LayersPanel pra mostrar
