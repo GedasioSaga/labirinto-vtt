@@ -5,7 +5,7 @@ import { CampoChips, type OpcaoDeChip } from './CampoChips'
 import { CampoCor } from './CampoCor'
 import { CampoFaixa } from './CampoFaixa'
 import { CampoLiga } from './CampoLiga'
-import { CampoNum } from './CampoNum'
+import { CampoNum, type CampoNumProps } from './CampoNum'
 import { CampoSeg, type OpcaoDoSeg } from './CampoSeg'
 import { CampoSel, CampoTexto } from './CampoTexto'
 
@@ -137,7 +137,11 @@ describe('CampoLiga (switch)', () => {
   })
 })
 
-function NumControlado({ inicial, aoMudar, ...resto }: { inicial: number; aoMudar: (v: number) => void; min?: number; max?: number; passo?: number }) {
+function NumControlado({
+  inicial,
+  aoMudar,
+  ...resto
+}: { inicial: number; aoMudar: (v: number) => void } & Pick<CampoNumProps, 'min' | 'max' | 'passo' | 'id' | 'nome' | 'decimais'>) {
   const [valor, setValor] = useState(inicial)
   return (
     <CampoNum
@@ -222,6 +226,49 @@ describe('CampoNum (− / + e digitação)', () => {
     expect(aoMudar.mock.calls.map((c) => c[0])).toEqual([1.2, 1.3])
     expect(campo().value).toBe('1,3')
   })
+
+  it('id e nome dos passos vêm de quem monta; sem eles, um id gerado e o rótulo', () => {
+    montar(<NumControlado inicial={4} id="lb-campo-teste" nome="a largura" aoMudar={vi.fn()} />)
+    expect(campo().id).toBe('lb-campo-teste')
+    expect(campo().labels?.[0]?.textContent).toBe('Largura')
+    expect(todos('.gr-num__passo').map((b) => b.getAttribute('aria-label'))).toEqual(['Diminuir a largura', 'Aumentar a largura'])
+  })
+
+  it('fora do passo, o primeiro − ou + cai no múltiplo mais perto daquele lado', () => {
+    const aoMudar = vi.fn()
+    montar(<CampoNum rotulo="Largura" valor={4.37} passo={0.5} decimais={2} onChange={aoMudar} />)
+    const [menos, mais] = todos('.gr-num__passo')
+    act(() => mais.click())
+    act(() => menos.click())
+    teclar(campo(), 'ArrowUp')
+    expect(aoMudar.mock.calls.map((c) => c[0])).toEqual([4.5, 4, 4.5])
+  })
+
+  it('decimais: mostra duas casas e guarda o que se digitou, sem arredondar para as do passo', () => {
+    const aoMudar = vi.fn()
+    montar(<NumControlado inicial={4.371234} passo={0.5} decimais={2} aoMudar={aoMudar} />)
+    expect(campo().value).toBe('4,37')
+    digitar(campo(), '6,25')
+    teclar(campo(), 'Enter')
+    expect(aoMudar).toHaveBeenLastCalledWith(6.25)
+    digitar(campo(), '6,257')
+    teclar(campo(), 'Enter')
+    expect(aoMudar).toHaveBeenLastCalledWith(6.257)
+    expect(campo().value).toBe('6,26')
+  })
+
+  it('no limite, o passo daquele lado fica aria-disabled e não faz nada', () => {
+    const aoMudar = vi.fn()
+    montar(<NumControlado inicial={0.25} min={0.25} max={20} passo={0.5} decimais={2} aoMudar={aoMudar} />)
+    const [menos, mais] = todos('.gr-num__passo')
+    expect(menos.getAttribute('aria-disabled')).toBe('true')
+    expect(mais.hasAttribute('aria-disabled')).toBe(false)
+    act(() => menos.click())
+    expect(aoMudar).not.toHaveBeenCalled()
+    act(() => mais.click())
+    expect(aoMudar).toHaveBeenLastCalledWith(0.5)
+    expect(menos.hasAttribute('aria-disabled')).toBe(false)
+  })
 })
 
 describe('CampoFaixa (deslizante)', () => {
@@ -243,6 +290,15 @@ describe('CampoFaixa com formatar', () => {
     montar(<CampoFaixa rotulo="Tamanho" valor={1.5} min={0.5} max={3} passo={0.25} unidade="x" formatar={(v) => `${String(v).replace('.', ',')}x`} onChange={() => {}} />)
     expect(um('output').textContent).toBe('1,5x')
     expect(um<HTMLInputElement>('input[type="range"]').getAttribute('aria-valuetext')).toBe('1,5x')
+  })
+
+  it('falar troca só o que o leitor de tela ouve; id e desativado vêm de quem monta', () => {
+    montar(<CampoFaixa rotulo="Curva" id="lb-faixa-teste" valor={-60} min={-90} max={90} desativado formatar={(v) => `${Math.abs(v)}°`} falar={(v) => `${Math.abs(v)} graus`} onChange={() => {}} />)
+    const faixa = um<HTMLInputElement>('#lb-faixa-teste')
+    expect(faixa.labels?.[0]?.textContent).toBe('Curva')
+    expect(um('output').textContent).toBe('60°')
+    expect(faixa.getAttribute('aria-valuetext')).toBe('60 graus')
+    expect(faixa.disabled).toBe(true)
   })
 })
 

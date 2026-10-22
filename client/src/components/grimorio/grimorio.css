@@ -216,10 +216,14 @@ select.gr-entrada { appearance: none; padding-right: 28px; background-image: lin
 select.gr-entrada option { background: #1d1913; }
 
 .gr-faixa { width: 100%; accent-color: var(--lb-color-brass); height: 20px; margin: 0; }
+.gr-faixa:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .gr-num { display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); height: 32px; }
 .gr-num__passo { height: 30px; color: var(--lb-color-parchment-dim); display: grid; place-items: center; border-radius: 5px; transition: background-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
 .gr-num__passo:active { transform: scale(0.92); }
+/* no limite o passo apaga e não afunda: apertar não faz nada, e o botão não finge que fez */
+.gr-num__passo[aria-disabled='true'] { color: var(--lb-color-parchment-faint); cursor: not-allowed; }
+.gr-num__passo[aria-disabled='true']:active { transform: none; }
 /* o miolo é um campo de digitar com a cara do <output> do protótipo; o anel de
    foco vai para a caixa inteira, que é o que se lê como um controle só */
 .gr-num__valor {
@@ -417,7 +421,7 @@ select.gr-entrada option { background: #1d1913; }
   .gr-icone-tg:hover:not([aria-pressed='true']) { color: var(--lb-color-parchment); border-color: var(--lb-gr-filete-forte); }
   .gr-menu__item:hover:not(:disabled) { background: var(--lb-gr-hover-forte); }
   .gr-menu__item--perigo:hover { background: var(--lb-color-ember-soft); }
-  .gr-num__passo:hover { background: var(--lb-gr-hover); }
+  .gr-num__passo:hover:not([aria-disabled='true']) { background: var(--lb-gr-hover); }
   .gr-cartao:hover:not(:disabled) { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); }
   .gr-voltar-sub:hover { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
 }
