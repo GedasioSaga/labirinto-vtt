@@ -1,5 +1,9 @@
 import { useId } from 'react'
 import type { TipoDeMapa } from '../lib/mapFactory'
+import { nomesDosLugaresLigados } from '../lib/nomesDosLugares'
+import { nuvensLigadas } from '../lib/nuvens'
+import { relevoLigado } from '../lib/relevo'
+import type { MapData } from '../types/map'
 import { Toggle } from './Toggle'
 
 export interface SceneMapTypeControlsProps {
@@ -87,13 +91,13 @@ export function temMapaVivo(props: SceneMapTypeControlsProps): boolean {
   return props.onRelevoChange !== undefined || props.onNomesDosLugaresChange !== undefined || props.onNuvensChange !== undefined
 }
 
-/** "Mapa vivo: ligado" quando alguma chave que aparece está ligada. */
-export function mapaVivoLigado(props: SceneMapTypeControlsProps): boolean {
-  return (
-    (props.onRelevoChange !== undefined && props.relevo === true) ||
-    (props.onNomesDosLugaresChange !== undefined && props.nomesDosLugares === true) ||
-    (props.onNuvensChange !== undefined && props.nuvens === true)
-  )
+/**
+ * "Mapa vivo: ligado" (a nota da página Cena) quando alguma chave da seção vale
+ * neste mapa, com o padrão do tipo. Mora junto da seção: a chave nova que entrar
+ * nela entra aqui também.
+ */
+export function mapaVivoLigado(map: Pick<MapData, 'relevo' | 'nomesDosLugares' | 'nuvens' | 'continente' | 'worldMap'>): boolean {
+  return relevoLigado(map) || nomesDosLugaresLigados(map) || nuvensLigadas(map)
 }
 
 /**

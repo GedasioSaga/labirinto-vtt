@@ -190,6 +190,29 @@ describe('PaginaCena: o resumo de cada ficha fechada', () => {
   })
 })
 
+describe('PaginaCena: a nota do Mapa vivo', () => {
+  beforeEach(iniciar)
+  afterEach(encerrar)
+
+  const nota = () => container.querySelector('.gr-paginas__mapa-vivo')
+  const configurar = () => [...container.querySelectorAll<HTMLButtonElement>('.gr-paginas__mapa-vivo button')].find((b) => b.textContent === 'Configurar')
+
+  it('diz se o Mapa vivo está ligado ou desligado, e o "Configurar" chama quem abre a seção', () => {
+    const onAbrir = vi.fn()
+    pagina(props({ mapaVivo: { ligado: true, onAbrir } }))
+    expect(nota()?.textContent).toBe('Mapa vivo: ligado. Configurar')
+    act(() => configurar()?.click())
+    expect(onAbrir).toHaveBeenCalledTimes(1)
+    pagina(props({ mapaVivo: { ligado: false, onAbrir } }))
+    expect(nota()?.textContent).toBe('Mapa vivo: desligado. Configurar')
+  })
+
+  it('sem o Mapa vivo nas props, a nota não aparece', () => {
+    pagina(props())
+    expect(nota()).toBeNull()
+  })
+})
+
 function sala(id: string): Region {
   return {
     id,

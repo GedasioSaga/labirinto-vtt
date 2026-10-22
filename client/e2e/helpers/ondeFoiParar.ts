@@ -516,6 +516,13 @@ export const BLOCOS: readonly Bloco[] = [
     ],
   },
   {
+    tela: 'mestre', titulo: 'Configurar cena pela página Cena', estado: 'diálogo aberto pelo "Configurar" da nota "Mapa vivo" (livro do mestre, página Cena)', escopo: 'pagina',
+    preparo: { abrir: b('Configurar'), abrirDe: { escopo: 'esquerda', gatilho: marcador('Cena') } },
+    vai: 'Nota "Mapa vivo: ligado/desligado" no topo da página Cena; o "Configurar" abre o Configurar cena já na seção Mapa vivo', fatia: '20',
+    // O foco na primeira chave da seção prova que o link abriu o Mapa vivo, e não a janela do começo.
+    linhas: [{ ...l('Mapa vivo pela nota da página Cena', cx('Relevo')), focado: true }],
+  },
+  {
     tela: 'mestre', titulo: 'Todas as cenas', estado: 'aberto pelo menu do chip da cena, "Ver todas as cenas"', escopo: 'pagina',
     preparo: { abrir: menu('Ver todas as cenas'), abrirDe: { escopo: 'chip', gatilho: b('/^Cripta/') } },
     vai: 'Chip da cena, "Ver todas as cenas" (feito); a janela muda na 20', fatia: '3 e 20',

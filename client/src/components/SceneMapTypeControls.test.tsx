@@ -8,7 +8,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MovementControls } from './MovementControls'
-import { SceneMapaVivoControls, SceneMapTypeControls, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
+import { mapaVivoLigado, SceneMapaVivoControls, SceneMapTypeControls, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
 
 let container: HTMLDivElement
 let root: Root
@@ -132,6 +132,18 @@ describe('SceneMapTypeControls', () => {
     expect(chave('Relevo')).toBeNull()
     expect(chave('Nomes dos lugares')).toBeNull()
     expect(chave('Nuvens')).toBeNull()
+  })
+
+  it('a nota "Mapa vivo" da página Cena: ligada quando alguma chave da seção vale no mapa, com o padrão do tipo', () => {
+    expect(mapaVivoLigado({})).toBe(false)
+    // No Continente as três nascem ligadas; desligadas uma a uma, a nota só apaga com a última.
+    expect(mapaVivoLigado({ continente: true })).toBe(true)
+    expect(mapaVivoLigado({ continente: true, relevo: false, nomesDosLugares: false })).toBe(true)
+    expect(mapaVivoLigado({ continente: true, relevo: false, nomesDosLugares: false, nuvens: false })).toBe(false)
+    // Num mapa Normal, cada chave ligada à mão acende a nota sozinha.
+    expect(mapaVivoLigado({ relevo: true })).toBe(true)
+    expect(mapaVivoLigado({ nomesDosLugares: true })).toBe(true)
+    expect(mapaVivoLigado({ nuvens: true })).toBe(true)
   })
 
   it('a chave antiga "Mapa-mundi (caravana)" não está mais nas Configurações do mapa', () => {

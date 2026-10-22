@@ -958,6 +958,14 @@ Parte de: diálogo aberto pela engrenagem da cena (livro da mesa, página Cenas)
 | Nuvens | checkbox "Nuvens" | (tela) | (do bloco) |
 | Grupo anda junto (caravana), em mapa Continente | checkbox "Grupo anda junto (caravana)" | (tela) > clicar radio "Continente" | (do bloco) |
 
+### Configurar cena pela página Cena
+
+Parte de: diálogo aberto pelo "Configurar" da nota "Mapa vivo" (livro do mestre, página Cena). Vai para: Nota "Mapa vivo: ligado/desligado" no topo da página Cena; o "Configurar" abre o Configurar cena já na seção Mapa vivo. Fatia: 20.
+
+| Controle | Nome acessível | Caminho hoje | Vai para |
+|---|---|---|---|
+| Mapa vivo pela nota da página Cena | checkbox "Relevo" | (tela) | (do bloco) |
+
 ### Todas as cenas
 
 Parte de: aberto pelo menu do chip da cena, "Ver todas as cenas". Vai para: Chip da cena, "Ver todas as cenas" (feito); a janela muda na 20. Fatia: 3 e 20.
@@ -1183,4 +1191,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item | pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 660 controles em 69 blocos.
+Total: 661 controles em 70 blocos.

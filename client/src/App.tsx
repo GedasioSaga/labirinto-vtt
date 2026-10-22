@@ -148,6 +148,7 @@ import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { useLivroDoMestreStore } from './stores/livroDoMestreStore'
 import { SECAO_MAPA_VIVO, SceneSettingsDialog } from './components/SceneSettingsDialog'
+import { mapaVivoLigado } from './components/SceneMapTypeControls'
 import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
@@ -3407,7 +3408,7 @@ function App() {
             mapHeight={map.height}
             mapGrid={map.grid}
             mapaVivo={{
-              ligado: relevoLigado(map) || nomesDosLugaresLigados(map) || nuvensLigadas(map),
+              ligado: mapaVivoLigado(map),
               onAbrir: () => {
                 setConfiguringSecao(SECAO_MAPA_VIVO)
                 setConfiguringSceneId(activeSceneId ?? '')
