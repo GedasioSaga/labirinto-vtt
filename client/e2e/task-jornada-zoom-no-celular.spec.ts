@@ -34,8 +34,9 @@
 //   distância no mundo. Com ela: "aproximou" = escala maior; "não moveu a
 //   ficha" = a ficha continua no mesmo ponto do MUNDO; "pelo ponto médio" = o
 //   ponto do mundo sob o meio dos dedos continua sob o meio dos dedos. O sinal
-//   é a cor do sinal do jogador na tela (`signalColor`, a mesma do mestre).
-//   Único `evaluate`: decodificar a foto num canvas solto para LER pixel.
+//   chega na cor da FICHA do jogador (o eco do mestre lê a ficha, `signalAsToken`
+//   em net/hostSession.ts), a mesma do disco dela: conta só o que está fora do
+//   disco. Único `evaluate`: decodificar a foto num canvas solto para LER pixel.
 //
 // SUPOSIÇÕES (as únicas que esta régua dita além do aceite):
 //   - os botões de zoom são `button` com nome acessível '+' / '−' (ou '-') ou
@@ -56,7 +57,8 @@
 import { test, expect, type Page, type WebSocketRoute, type CDPSession } from '@playwright/test'
 import { createHostSession } from '../src/net/hostSession'
 import { createEmptyMap } from '../src/lib/mapFactory'
-import { signalColor } from '../src/lib/signals'
+import { SIGNAL_NEUTRAL_COLOR } from '../src/lib/signals'
+import { selectedTokenColor } from '../src/lib/tokenColor'
 import type { HostMessage } from '../src/net/protocol'
 import type { MapData, Token } from '../src/types/map'
 
@@ -88,8 +90,17 @@ const COR_MARCO2 = '#ff00ff'
 /** Pixels mínimos de uma ficha (raio ~13 px na escala inicial) e do ponto do sinal (raio 5). */
 const PIXELS_DE_FICHA = 150
 const PIXELS_DE_SINAL = 20
-/** Máximo de pixels da cor do sinal para dizer "não sinalizou" (serrilhado). */
+/** Máximo de pixels da cor do sinal fora da ficha para dizer "não sinalizou" (serrilhado). */
 const RESIDUO = 8
+/**
+ * Até quantos raios do centro da ficha um pixel na cor dela ainda é a ficha
+ * (raio = o do disco com os pixels contados). Folga para o serrilhado e para a
+ * primeira média, que o sinal, da cor da ficha, puxa para o lado dele (23 px no
+ * teste 1, medido em 22/10/2026). Um sinal nesta jornada só nasce sob um dedo
+ * no chão, a mais de 3 raios do centro da ficha em qualquer zoom: segurar na
+ * ficha não sinaliza (`holdBecomesSignal`, player/tapTarget.ts).
+ */
+const RAIOS_DA_FICHA = 2
 /** Dedo parado antes de soltar num arrasto (abaixo dos 500 ms do sinal). */
 const PAUSA_ARRASTO_MS = 150
 /** Pinça parada antes de soltar: ACIMA dos 500 ms do sinal — ficar parado na pinça não pode sinalizar. */
@@ -113,13 +124,24 @@ function ficha(id: string, name: string, p: Ponto, color: string): Token {
   return { id, characterId: null, name, x: p.x, y: p.y, size: 1, image: null, color }
 }
 
+/** A única ficha do jogador. */
+const FICHA_DO_JOGADOR = ficha('tok-f', 'Ana', FICHA_W, COR_FICHA)
+
+/**
+ * A cor em que o eco do sinal chega à tela do jogador, escolhida como o mestre
+ * escolhe (`signalAsToken` em net/hostSession.ts): a da ficha dele mais perto
+ * do ponto; ficha sem cor, o cinza neutro. Ele só tem uma ficha, então é sempre
+ * a dela, `COR_FICHA`.
+ */
+const COR_DO_SINAL = selectedTokenColor(FICHA_DO_JOGADOR) ?? SIGNAL_NEUTRAL_COLOR
+
 function mapaDoTeste(): MapData {
   const base = createEmptyMap('m-zoom', 'Porto', COLUNAS, LINHAS, GRADE)
   return {
     ...base,
     floor: [{ id: 'f-chao', shape: { kind: 'rect', cx: LARGURA / 2, cy: ALTURA / 2, w: LARGURA - 20, h: ALTURA - 20 }, op: 'add', modifiers: {} }],
     floorStyle: { ...base.floorStyle, fillColor: COR_CHAO },
-    tokens: [ficha('tok-f', 'Ana', FICHA_W, COR_FICHA), ficha('tok-m1', 'Barril', MARCO1_W, COR_MARCO1), ficha('tok-m2', 'Caixa', MARCO2_W, COR_MARCO2)],
+    tokens: [FICHA_DO_JOGADOR, ficha('tok-m1', 'Barril', MARCO1_W, COR_MARCO1), ficha('tok-m2', 'Caixa', MARCO2_W, COR_MARCO2)],
   }
 }
 
@@ -170,15 +192,14 @@ async function jogadorNoCelular(page: Page): Promise<Mesa> {
   expect(playerId, 'o mestre deveria ter dado boas-vindas ao jogador').not.toBeNull()
 
   // O mestre atribui a ficha e transmite (o painel do mestre faz o mesmo em um clique).
-  despachar(sessao.assignToken(playerId ?? '', 'tok-f').outbound)
+  despachar(sessao.assignToken(playerId ?? '', FICHA_DO_JOGADOR.id).outbound)
   despachar(sessao.broadcast(mapa).outbound)
   await expect(page.locator('canvas').first(), 'o mapa deveria aparecer no celular').toBeVisible({ timeout: 10_000 })
 
-  const corDoSinal = signalColor(playerId ?? '')
   await expect
-    .poll(async () => camera(await lerTela(page, corDoSinal)) !== null, { timeout: ESPERA, message: 'a ficha e os dois marcos deveriam aparecer na tela do celular' })
+    .poll(async () => camera(await lerTela(page, COR_DO_SINAL)) !== null, { timeout: ESPERA, message: 'a ficha e os dois marcos deveriam aparecer na tela do celular' })
     .toBe(true)
-  return { corDoSinal, dedos: await page.context().newCDPSession(page) }
+  return { corDoSinal: COR_DO_SINAL, dedos: await page.context().newCDPSession(page) }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -229,19 +250,17 @@ interface Leitura {
 
 /**
  * Na foto, só o mapa: ficha, marcos e sinal são desenhados no canvas. O HUD por
- * cima dele não entra na conta — a faixa de couro da fatia 19a escreve ícones e
- * rótulos na tinta `--lb-gr-gravado`, que no couro sai (177, 156, 121), a menos
- * de 20 por canal da cor do sinal '#a1887f' do jogador 'id-1': 20 pixels da
- * faixa contavam como sinal antes de qualquer toque (medido em 22/10/2026).
+ * cima dele não entra na conta, porque pode ter qualquer cor: a tinta
+ * `--lb-gr-gravado` da faixa de couro da fatia 19a, os botões, o menu do toque.
  */
 const SO_O_MAPA = 'body *:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }'
 
-/** Foto da tela → canvas solto → centro de cada cor e contagem do sinal. Só LÊ. */
+/** Foto da tela → canvas solto → centro de cada cor e contagem do sinal fora da ficha. Só LÊ. */
 async function lerTela(page: Page, corDoSinal: string): Promise<Leitura> {
   await page.waitForTimeout(250)
   const foto = await page.screenshot({ style: SO_O_MAPA })
   return page.evaluate(
-    async ({ b64, sinal }) => {
+    async ({ b64, sinal, raiosDaFicha }) => {
       const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob())
       const tela = document.createElement('canvas')
       tela.width = bmp.width
@@ -256,7 +275,9 @@ async function lerTela(page: Page, corDoSinal: string): Promise<Leitura> {
       const escalaX = window.innerWidth / width
       const escalaY = window.innerHeight / height
       const soma = { f: [0, 0, 0], m1: [0, 0, 0], m2: [0, 0, 0] }
-      let sinalPx = 0
+      /** Pixels na cor da ficha e na do sinal, `x, y` alternados: as duas cores são a mesma, e só se separam pela distância. */
+      const naCorDaFicha: number[] = []
+      const naCorDoSinal: number[] = []
       for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
           const i = (y * width + x) * 4
@@ -272,13 +293,33 @@ async function lerTela(page: Page, corDoSinal: string): Promise<Leitura> {
             alvo[1] += y
             alvo[2] += 1
           }
-          if (Math.abs(R - sR) <= 20 && Math.abs(G - sG) <= 20 && Math.abs(B - sB) <= 20) sinalPx += 1
+          if (alvo === soma.f) naCorDaFicha.push(x, y)
+          if (Math.abs(R - sR) <= 20 && Math.abs(G - sG) <= 20 && Math.abs(B - sB) <= 20) naCorDoSinal.push(x, y)
         }
       }
+      // A ficha é o disco em volta do centro. A média de todos os pixels na cor
+      // dela inclui o sinal, que puxa o centro: refaz a média só com os de perto.
+      // Sem isso, um sinal indevido reprovava como "a pinça moveu a ficha".
+      const longeDe = (c: { x: number; y: number; n: number }, x: number, y: number) =>
+        c.n === 0 || Math.hypot(x - c.x, y - c.y) > raiosDaFicha * Math.sqrt(c.n / Math.PI)
+      let ficha = { x: soma.f[0] / soma.f[2], y: soma.f[1] / soma.f[2], n: soma.f[2] }
+      for (let volta = 0; volta < 3 && ficha.n > 0; volta += 1) {
+        const perto = [0, 0, 0]
+        for (let k = 0; k < naCorDaFicha.length; k += 2) {
+          if (longeDe(ficha, naCorDaFicha[k], naCorDaFicha[k + 1])) continue
+          perto[0] += naCorDaFicha[k]
+          perto[1] += naCorDaFicha[k + 1]
+          perto[2] += 1
+        }
+        if (perto[2] === 0) break
+        ficha = { x: perto[0] / perto[2], y: perto[1] / perto[2], n: perto[2] }
+      }
+      let sinalPx = 0
+      for (let k = 0; k < naCorDoSinal.length; k += 2) if (longeDe(ficha, naCorDoSinal[k], naCorDoSinal[k + 1])) sinalPx += 1
       const centro = (s: number[]) => (s[2] < 40 ? null : { x: (s[0] / s[2]) * escalaX, y: (s[1] / s[2]) * escalaY })
-      return { ficha: centro(soma.f), marco1: centro(soma.m1), marco2: centro(soma.m2), fichaPx: soma.f[2], sinalPx }
+      return { ficha: centro([ficha.x * ficha.n, ficha.y * ficha.n, ficha.n]), marco1: centro(soma.m1), marco2: centro(soma.m2), fichaPx: ficha.n, sinalPx }
     },
-    { b64: foto.toString('base64'), sinal: corDoSinal },
+    { b64: foto.toString('base64'), sinal: corDoSinal, raiosDaFicha: RAIOS_DA_FICHA },
   )
 }
 
@@ -318,7 +359,7 @@ test('1. controle: no celular, um dedo na ficha arrasta a ficha, no chão arrast
   const mesa = await jogadorNoCelular(page)
   const c0 = await cameraAgora(page, mesa, 'antes')
   expect(distancia(c0.fichaW, FICHA_W), 'a leitura de câmera pelos marcos deveria achar a ficha no lugar do mapa').toBeLessThan(10)
-  expect((await lerTela(page, mesa.corDoSinal)).sinalPx, 'antes de sinalizar, a cor do sinal não deveria estar na tela').toBeLessThanOrEqual(RESIDUO)
+  expect((await lerTela(page, mesa.corDoSinal)).sinalPx, 'antes de sinalizar, a cor do sinal não deveria estar fora da ficha').toBeLessThanOrEqual(RESIDUO)
 
   // Um dedo na ficha: arrasta 60 px para a direita → a ficha anda 60/escala no mundo.
   await arrastarUmDedo(mesa.dedos, c0.fichaS, mais(c0.fichaS, 60, 0), PAUSA_ARRASTO_MS)
@@ -339,8 +380,10 @@ test('1. controle: no celular, um dedo na ficha arrasta a ficha, no chão arrast
   expect((l2.marco1 as Ponto).y - marcoAntes.y, 'um dedo no chão deveria arrastar a câmera 50 px').toBeLessThan(56)
   const c2 = camera(l2) as Camera
   expect(Math.abs(c2.escala / c0.escala - 1), 'arrastar a câmera não muda o zoom').toBeLessThan(0.03)
+  // O que for contado depois vem do dedo parado, não de rastro dos dois arrastos.
+  expect(l2.sinalPx, 'depois dos arrastos e antes de segurar, a cor do sinal não deveria estar fora da ficha').toBeLessThanOrEqual(RESIDUO)
 
-  // Um dedo parado no chão: sinaliza (a cor do sinal do jogador aparece na tela).
+  // Um dedo parado no chão: sinaliza (a cor do sinal aparece fora da ficha).
   const parado = mais(c2.fichaS, -90, 60)
   await toque(mesa.dedos, 'touchStart', [parado])
   await esperar(SEGURAR_MS)
