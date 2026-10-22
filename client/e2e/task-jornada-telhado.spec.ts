@@ -79,8 +79,12 @@ const PAREDE_DA_PORTA = { de: { x: 704, y: SALA.y1 }, ate: { x: 768, y: SALA.y1 
 const PORTA: Ponto = { x: 736, y: SALA.y1 }
 /** Linha do meio da tela, sem botão nenhum à direita: lá a ponta direita da moldura é a do mapa. */
 const LINHA_DO_MEIO = 400
-/** Porta normal: vão de 32 px do mapa, desenhado no vão inteiro (`pixi/drawDoors.ts`, desde 22/10/2026). */
-const MEIO_DA_PORTA_NO_MAPA = 32 / 2
+/**
+ * Porta normal: vão de 32 px do mapa. A folha enche o vão inteiro desde
+ * 22/10/2026 (`pixi/drawDoors.ts`); a amostra fica nos 60% do meio, como antes,
+ * longe das pontas e do painel do jogador.
+ */
+const MEIO_DA_PORTA_NO_MAPA = (32 * 0.6) / 2
 /**
  * O recorte pula o meio da porta (o ponto de PORTAS POR ATRAVESSAR tem 1,5 px
  * de tela de raio) e fica 2 px longe da ponta (o contorno escuro de 1 px fecha

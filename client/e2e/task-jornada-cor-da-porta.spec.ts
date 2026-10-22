@@ -312,8 +312,13 @@ async function acharAPortaPelaCor(page: Page, foto: Foto, cor: Rgb, folga: numbe
       }
       let claros = 0
       let cremes = 0
-      for (let y = Math.max(0, minY - folga); y <= Math.min(height - 1, maxY + folga); y += 1) {
-        for (let x = Math.max(0, minX - folga); x <= Math.min(width - 1, maxX + folga); x += 1) {
+      // A folga só na ESPESSURA da porta: nas pontas do vão começa a parede, que na
+      // tela do jogador é clara (perto do creme da porta) e não diz nada da cor dela.
+      const deitada = maxX - minX > maxY - minY
+      const folgaX = deitada ? 0 : folga
+      const folgaY = deitada ? folga : 0
+      for (let y = Math.max(0, minY - folgaY); y <= Math.min(height - 1, maxY + folgaY); y += 1) {
+        for (let x = Math.max(0, minX - folgaX); x <= Math.min(width - 1, maxX + folgaX); x += 1) {
           const i = (y * width + x) * 4
           if (perto(i, cadeado, 12)) claros += 1
           if (perto(i, creme, 12)) cremes += 1
