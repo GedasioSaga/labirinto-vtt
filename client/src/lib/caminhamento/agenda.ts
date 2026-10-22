@@ -1,5 +1,5 @@
 import type { Wall } from '../../types/map'
-import { acharCaminhoNaMalha, avancarBusca, type Busca, type ConsultaDeCaminho, iniciarBusca, type ResultadoDoCaminho } from './busca'
+import { acharCaminhoNaMalha, avancarBusca, type Busca, type ConsultaDeCaminho, iniciarBusca, largarBusca, type ResultadoDoCaminho } from './busca'
 import { criarMalha, type Malha, type MapaDoCaminho, malhaPronta, mesmaEstrutura } from './malha'
 import { avancarMalha } from './marcos'
 
@@ -10,16 +10,21 @@ import { avancarMalha } from './marcos'
  * tarefa longa: cada fatia custa frações de milissegundo e a agenda para no
  * fim do orçamento. Quem pediu pega a resposta num quadro seguinte (`pegar`).
  *
- * A ordem é a dos pedidos (o primeiro que pediu é o primeiro atendido), e o
- * caminho não depende de quantas fatias levou.
+ * REVEZAMENTO: uma fatia de cada pedido por vez, na ordem em que chegaram, e
+ * quem não acabou vai para o fim da fila. Uma busca cara (destino atrás de
+ * porta trancada num mapa grande: duas rodadas varrem o mapa inteiro) não
+ * segura as outras atrás dela. O preço: cada busca começada guarda a memória
+ * dela até acabar (no mapa de 300 x 300 casas, uns 2 MB). O caminho não
+ * depende de quantas fatias levou nem de com quem revezou.
  *
  * O relógio entra de fora (`performance.now` no app, um relógio falso no
  * teste): o motor não lê relógio nem sorte.
  */
 
 /**
- * Orçamento sugerido por quadro (60 por segundo): com a sobra de uma fatia,
- * o quadro mais caro fica perto de 2 ms.
+ * Orçamento sugerido por quadro (60 por segundo). A agenda não começa a fatia
+ * que, pelo custo da mais cara já feita no quadro, passaria dele: o quadro só
+ * passa do orçamento quando uma fatia demora mais que as anteriores.
  */
 export const ORCAMENTO_POR_QUADRO_MS = 1.5
 /** Pontos da rede por fatia de busca: bem abaixo de um milissegundo. */
@@ -97,14 +102,15 @@ export class AgendaDeCaminhos {
     this.paredesPorFatia = opcoes.paredesPorFatia ?? PAREDES_POR_FATIA
   }
 
-  /** Pede o caminho de `id` (o pedido anterior dele, se ainda na fila, sai). */
+  /** Pede o caminho de `id` (o pedido anterior dele, se ainda na fila, sai; a resposta dele, se não pega, também). */
   pedir(id: string, mapa: MapaDoCaminho, raio: number, consulta: ConsultaDeCaminho): void {
-    this.prontos.delete(id)
-    this.fila.delete(id)
+    this.cancelar(id)
     this.fila.set(id, { paredes: mapa.walls, consulta, malha: this.cache.malhaPara(mapa, raio), busca: null })
   }
 
   cancelar(id: string): void {
+    const antigo = this.fila.get(id)
+    if (antigo !== undefined && antigo.busca !== null) largarBusca(antigo.busca)
     this.fila.delete(id)
     this.prontos.delete(id)
   }
@@ -124,23 +130,40 @@ export class AgendaDeCaminhos {
     return this.fila.size > 0
   }
 
-  /** Trabalha até gastar `orcamentoMs` (ou acabar a fila). Devolve os ms gastos. */
+  /**
+   * Trabalha no máximo `orcamentoMs` (ou até acabar a fila), uma fatia de cada
+   * pedido por vez; a primeira fatia do quadro sempre vai, para a fila andar.
+   * Devolve os ms gastos.
+   */
   rodar(orcamentoMs: number): number {
     const inicio = this.relogio()
-    while (this.fila.size > 0 && this.relogio() - inicio < orcamentoMs) {
+    let agora = inicio
+    let feitas = 0
+    let fatiaMaisCara = 0
+    while (this.fila.size > 0) {
+      if (feitas > 0 && agora - inicio + fatiaMaisCara > orcamentoMs) break
       const primeiro = this.fila.entries().next()
       if (primeiro.done === true) break
       const [id, trabalho] = primeiro.value
-      if (!malhaPronta(trabalho.malha)) {
-        avancarMalha(trabalho.malha, this.paredesPorFatia)
-        continue
-      }
-      trabalho.busca ??= iniciarBusca(trabalho.malha, trabalho.paredes, trabalho.consulta)
-      if (!avancarBusca(trabalho.busca, this.pontosPorFatia)) continue
-      const resultado = trabalho.busca.resultado
       this.fila.delete(id)
-      if (resultado !== null) this.prontos.set(id, resultado)
+      const resultado = this.fatia(trabalho)
+      if (resultado === null) this.fila.set(id, trabalho)
+      else this.prontos.set(id, resultado)
+      const depois = this.relogio()
+      feitas += 1
+      fatiaMaisCara = Math.max(fatiaMaisCara, depois - agora)
+      agora = depois
     }
-    return this.relogio() - inicio
+    return agora - inicio
+  }
+
+  /** Uma fatia do trabalho: um pedaço da malha ou da busca. A resposta, quando a busca acabou; senão `null`. */
+  private fatia(trabalho: Trabalho): ResultadoDoCaminho | null {
+    if (!malhaPronta(trabalho.malha)) {
+      avancarMalha(trabalho.malha, this.paredesPorFatia)
+      return null
+    }
+    trabalho.busca ??= iniciarBusca(trabalho.malha, trabalho.paredes, trabalho.consulta)
+    return avancarBusca(trabalho.busca, this.pontosPorFatia) ? trabalho.busca.resultado : null
   }
 }

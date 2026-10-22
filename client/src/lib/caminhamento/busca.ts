@@ -749,6 +749,12 @@ function encerrar(b: Busca, resultado: ResultadoDoCaminho): true {
   return true
 }
 
+/** A busca que ninguém mais espera (pedido trocado ou cancelado): a memória dela volta para a malha. */
+export function largarBusca(b: Busca): void {
+  if (b.rodada !== null) devolverMemoria(b.malha, b.rodada.memoria)
+  b.rodada = null
+}
+
 /** Leva a busca adiante por até `orcamento` pontos da rede. `true` quando ela terminou (`b.resultado`). */
 export function avancarBusca(b: Busca, orcamento: number): boolean {
   if (b.resultado !== null) return true
