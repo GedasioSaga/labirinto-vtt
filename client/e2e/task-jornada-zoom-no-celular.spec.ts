@@ -227,10 +227,19 @@ interface Leitura {
   sinalPx: number
 }
 
+/**
+ * Na foto, só o mapa: ficha, marcos e sinal são desenhados no canvas. O HUD por
+ * cima dele não entra na conta — a faixa de couro da fatia 19a escreve ícones e
+ * rótulos na tinta `--lb-gr-gravado`, que no couro sai (177, 156, 121), a menos
+ * de 20 por canal da cor do sinal '#a1887f' do jogador 'id-1': 20 pixels da
+ * faixa contavam como sinal antes de qualquer toque (medido em 22/10/2026).
+ */
+const SO_O_MAPA = 'body *:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }'
+
 /** Foto da tela → canvas solto → centro de cada cor e contagem do sinal. Só LÊ. */
 async function lerTela(page: Page, corDoSinal: string): Promise<Leitura> {
   await page.waitForTimeout(250)
-  const foto = await page.screenshot()
+  const foto = await page.screenshot({ style: SO_O_MAPA })
   return page.evaluate(
     async ({ b64, sinal }) => {
       const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob())
