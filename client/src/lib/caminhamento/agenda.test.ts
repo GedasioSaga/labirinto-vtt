@@ -3,13 +3,13 @@
  * resposta velha nunca chega), cancelar some com o trabalho, quem pega leva a
  * resposta uma vez só, as buscas revezam (a cara não segura a barata), e o
  * caminho pela agenda, com a malha montada em fatias, é o mesmo da busca de
- * uma vez. O cache troca a malha quando a estrutura das paredes muda e
- * descarta a menos usada.
+ * uma vez. O cache troca a malha quando a estrutura das paredes muda e, para
+ * dar lugar, descarta a menos usada só quando ninguém a pede há algum tempo.
  */
 import { describe, expect, it } from 'vitest'
 import type { Point } from '../../pixi/world'
 import type { Wall } from '../../types/map'
-import { AgendaDeCaminhos, CacheDeMalhas, caminhoAgora } from './agenda'
+import { AgendaDeCaminhos, CacheDeMalhas, caminhoAgora, MALHA_EM_USO_MS, MALHAS_GUARDADAS, TETO_DE_MALHAS } from './agenda'
 import { acharCaminhoNaMalha, type ConsultaDeCaminho } from './busca'
 import { GRID, mapa, parede, porta } from './caminho.fixture'
 import { malhaPronta, type MapaDoCaminho, PONTOS_PARA_MARCOS } from './malha'
@@ -220,24 +220,69 @@ describe('cache de malhas', () => {
     expect(cache.malhaPara(base, GRID), 'outro raio').not.toBe(cache.malhaPara(base, R1))
   })
 
-  it('nove mapas diferentes: a malha do primeiro sai do cache', () => {
-    const cache = new CacheDeMalhas()
-    const mapas = Array.from({ length: 9 }, (_, k) => mapa([parede(`p${k}`, 64 * (k + 1), 0, 64 * (k + 1), 256)]))
+  /** `n` mapas de estrutura diferente (cenas diferentes). */
+  const mapasDiferentes = (n: number): MapaDoCaminho[] => Array.from({ length: n }, (_, k) => mapa([parede(`p${k}`, 192, 0, 192, 256)]))
+
+  it(`nove mapas, o primeiro sem uso há ${MALHA_EM_USO_MS} ms: a malha dele sai do cache`, () => {
+    let ms = 0
+    const cache = new CacheDeMalhas(() => ms)
+    const mapas = mapasDiferentes(MALHAS_GUARDADAS + 1)
     const primeira = cache.malhaPara(mapas[0] ?? base, R1)
+    ms = MALHA_EM_USO_MS
     const segunda = cache.malhaPara(mapas[1] ?? base, R1)
     for (const m of mapas.slice(2)) cache.malhaPara(m, R1)
     expect(cache.malhaPara(mapas[1] ?? base, R1)).toBe(segunda)
     expect(cache.malhaPara(mapas[0] ?? base, R1)).not.toBe(primeira)
   })
 
-  it('guarda as 8 mais usadas: a nona tira a que ficou mais tempo sem uso', () => {
-    const cache = new CacheDeMalhas()
-    const mapas = Array.from({ length: 9 }, (_, k) => mapa([parede(`p${k}`, 64 * (k + 1), 0, 64 * (k + 1), 256)]))
-    const malhas = mapas.slice(0, 8).map((m) => cache.malhaPara(m, R1))
+  it(`acima de ${MALHAS_GUARDADAS}, a nova tira a que ficou mais tempo sem uso, se já faz ${MALHA_EM_USO_MS} ms`, () => {
+    let ms = 0
+    const cache = new CacheDeMalhas(() => ms)
+    const mapas = mapasDiferentes(MALHAS_GUARDADAS + 1)
+    const malhas = mapas.slice(0, MALHAS_GUARDADAS).map((m) => cache.malhaPara(m, R1))
+    ms = MALHA_EM_USO_MS
     // A primeira volta a ser usada: a menos usada agora é a segunda.
     expect(cache.malhaPara(mapas[0] ?? base, R1)).toBe(malhas[0])
-    cache.malhaPara(mapas[8] ?? base, R1)
+    cache.malhaPara(mapas[MALHAS_GUARDADAS] ?? base, R1)
     expect(cache.malhaPara(mapas[0] ?? base, R1)).toBe(malhas[0])
     expect(cache.malhaPara(mapas[1] ?? base, R1)).not.toBe(malhas[1])
+  })
+
+  it('nove em uso (três cenas, três tamanhos de ficha), pedidas a cada tique sempre na mesma ordem: nenhuma sai', () => {
+    let ms = 0
+    const cache = new CacheDeMalhas(() => ms)
+    const combinacoes = mapasDiferentes(3).flatMap((m) => [R1, GRID, 1.5 * GRID].map((raio) => ({ m, raio })))
+    expect(combinacoes.length).toBeGreaterThan(MALHAS_GUARDADAS)
+    const primeiras = combinacoes.map(({ m, raio }) => cache.malhaPara(m, raio))
+    // Dez segundos de tiques de 200 ms: cada uma, a cada volta, é a mesma malha da primeira.
+    for (let tique = 1; tique <= 50; tique += 1) {
+      ms = tique * 200
+      combinacoes.forEach(({ m, raio }, k) => expect(cache.malhaPara(m, raio), `tique ${tique}, combinação ${k}`).toBe(primeiras[k]))
+    }
+  })
+
+  it(`a parada de quem espera no posto não tira a malha dela; ${MALHA_EM_USO_MS} ms sem uso, com outras chegando, tira`, () => {
+    let ms = 0
+    const cache = new CacheDeMalhas(() => ms)
+    const mapas = mapasDiferentes(MALHAS_GUARDADAS + 3)
+    const daParada = cache.malhaPara(mapas[0] ?? base, R1)
+    // As outras seguem em uso enquanto ela espera 2 s.
+    ms = 2000
+    for (const m of mapas.slice(1)) cache.malhaPara(m, R1)
+    expect(cache.malhaPara(mapas[0] ?? base, R1)).toBe(daParada)
+    ms = 2000 + MALHA_EM_USO_MS
+    for (const m of mapas.slice(1)) cache.malhaPara(m, R1)
+    cache.malhaPara(mapasDiferentes(MALHAS_GUARDADAS + 4)[MALHAS_GUARDADAS + 3] ?? base, R1)
+    expect(cache.malhaPara(mapas[0] ?? base, R1)).not.toBe(daParada)
+  })
+
+  it(`teto de ${TETO_DE_MALHAS} (memória): passou dele, sai a menos usada mesmo em uso; sem relógio, toda malha conta em uso`, () => {
+    const cache = new CacheDeMalhas()
+    const mapas = mapasDiferentes(TETO_DE_MALHAS + 1)
+    const malhas = mapas.map((m) => cache.malhaPara(m, R1))
+    // Até o teto, todas ficaram (nenhuma sem uso há `MALHA_EM_USO_MS` num relógio parado).
+    expect(cache.malhaPara(mapas[1] ?? base, R1)).toBe(malhas[1])
+    expect(cache.malhaPara(mapas[TETO_DE_MALHAS] ?? base, R1)).toBe(malhas[TETO_DE_MALHAS])
+    expect(cache.malhaPara(mapas[0] ?? base, R1)).not.toBe(malhas[0])
   })
 })

@@ -31,20 +31,45 @@ export const ORCAMENTO_POR_QUADRO_MS = 1.5
 export const PONTOS_POR_FATIA = 1500
 /** Paredes por fatia de montagem da malha. */
 export const PAREDES_POR_FATIA = 16
-/** Malhas guardadas (uma por mapa e tamanho de ficha). */
-const MALHAS_GUARDADAS = 8
+/** Malhas guardadas mesmo sem uso (uma por cena, piso e tamanho de ficha). */
+export const MALHAS_GUARDADAS = 8
+/**
+ * Malha usada há menos que isto não sai para dar lugar a outra: quem anda a
+ * pede a cada tique, e a que sai volta por montar — o NPC larga o caminho e
+ * pede outro. Cobre a parada no posto (2 s) e as esperas do anti-trava.
+ */
+export const MALHA_EM_USO_MS = 5000
+/**
+ * Teto de memória (no mapa de 300 x 300 casas, os marcos e as memórias de busca
+ * guardadas de uma malha somam uns 10 MB): passou dele, sai a menos usada,
+ * mesmo em uso. Só o mestre mexendo nas paredes com NPCs andando (uma malha
+ * nova por tique) chega perto.
+ */
+export const TETO_DE_MALHAS = 32
 
 interface EntradaDoCache {
   malha: Malha
   /** As últimas paredes conferidas contra esta malha: mesma lista, nem compara. */
   ultimas: readonly Wall[]
+  /** Quando foi pedida pela última vez, no relógio do cache. */
+  usadaEm: number
 }
 
+/**
+ * Uma malha por cena, piso e tamanho de ficha, a mais usada na frente. Trinta
+ * NPCs em três cenas, com fichas de três tamanhos, são nove malhas pedidas a
+ * cada tique, sempre na mesma ordem: um descarte só pela menos usada as
+ * tiraria uma a uma, e nenhum NPC andaria.
+ */
 export class CacheDeMalhas {
   private readonly entradas: EntradaDoCache[] = []
 
+  /** `relogio`: o da agenda; sem ele, toda malha conta como em uso (só o teto descarta). */
+  constructor(private readonly relogio: () => number = () => 0) {}
+
   /** A malha deste mapa para a ficha de raio `raio` — talvez ainda por montar (`malhaPronta`). */
   malhaPara(mapa: MapaDoCaminho, raio: number): Malha {
+    const agora = this.relogio()
     const largura = Math.max(1, Math.ceil(mapa.width))
     const altura = Math.max(1, Math.ceil(mapa.height))
     const indice = this.entradas.findIndex(
@@ -58,15 +83,27 @@ export class CacheDeMalhas {
     const achada = this.entradas[indice]
     if (achada !== undefined) {
       achada.ultimas = mapa.walls
+      achada.usadaEm = agora
       // A mais usada vai para a frente; a que fica no fim é a que sai.
       this.entradas.splice(indice, 1)
       this.entradas.unshift(achada)
       return achada.malha
     }
     const malha = criarMalha(mapa, raio)
-    this.entradas.unshift({ malha, ultimas: mapa.walls })
-    if (this.entradas.length > MALHAS_GUARDADAS) this.entradas.length = MALHAS_GUARDADAS
+    this.entradas.unshift({ malha, ultimas: mapa.walls, usadaEm: agora })
+    this.descartar(agora)
     return malha
+  }
+
+  /** Tira do fim (as menos usadas) as que ninguém pediu há `MALHA_EM_USO_MS`, até sobrarem `MALHAS_GUARDADAS`; e tudo acima do teto. */
+  private descartar(agora: number): void {
+    while (this.entradas.length > MALHAS_GUARDADAS) {
+      const ultima = this.entradas[this.entradas.length - 1]
+      if (ultima === undefined) return
+      // Em ordem de uso: se a menos usada ainda está em uso, todas estão.
+      if (this.entradas.length <= TETO_DE_MALHAS && agora - ultima.usadaEm < MALHA_EM_USO_MS) return
+      this.entradas.pop()
+    }
   }
 }
 
@@ -88,7 +125,7 @@ export interface OpcoesDaAgenda {
 }
 
 export class AgendaDeCaminhos {
-  readonly cache = new CacheDeMalhas()
+  readonly cache: CacheDeMalhas
   private readonly fila = new Map<string, Trabalho>()
   private readonly prontos = new Map<string, ResultadoDoCaminho>()
   private readonly pontosPorFatia: number
@@ -98,6 +135,7 @@ export class AgendaDeCaminhos {
     private readonly relogio: () => number,
     opcoes: OpcoesDaAgenda = {},
   ) {
+    this.cache = new CacheDeMalhas(relogio)
     this.pontosPorFatia = opcoes.pontosPorFatia ?? PONTOS_POR_FATIA
     this.paredesPorFatia = opcoes.paredesPorFatia ?? PAREDES_POR_FATIA
   }
