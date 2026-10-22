@@ -315,9 +315,19 @@ select.gr-entrada option { background: #1d1913; }
   box-shadow: var(--lb-shadow-float);
   padding: 6px;
   transform-origin: var(--gr-origem, 50% 100%);
-  animation: gr-pop 160ms var(--lb-gr-ease-out) both;
+  transition: opacity 150ms var(--lb-gr-ease-out), transform 150ms var(--lb-gr-ease-out);
 }
-.gr-pop.gr-sai { animation: gr-pop-sai 110ms ease-out both; }
+/*
+ * Entra e sai por TRANSIÇÃO (150 ms, 120 na saída), e não por keyframe: reabrir
+ * no meio da saída volta do ponto em que estava, em vez de recomeçar do zero e
+ * piscar. `.gr-anima` é a mesma entrada e saída para os menus antigos (ComSaida.tsx).
+ */
+@starting-style { .gr-pop, .gr-anima { opacity: 0; transform: scale(0.96); } }
+.gr-pop.gr-sai, .gr-anima.gr-sai { opacity: 0; transform: scale(0.97); transition-duration: 120ms; }
+.gr-anima {
+  transform-origin: var(--gr-origem, 0 0);
+  transition: opacity 150ms var(--lb-gr-ease-out), transform 150ms var(--lb-gr-ease-out);
+}
 /* a caixa só recebe o foco quando não há campo dentro (a nota "Rede local"): sem anel, o conteúdo já está à vista */
 .gr-pop:focus { outline: none; }
 .gr-pop__tit { font: 400 15px/1.2 var(--lb-font-display); padding: 6px 8px 8px; margin: 0; }
@@ -383,8 +393,32 @@ select.gr-entrada option { background: #1d1913; }
   animation: gr-dlg 220ms var(--lb-gr-ease-out) both;
 }
 .gr-dlg-fundo.gr-sai .gr-dlg { animation: gr-pop-sai 140ms ease-out both; }
+/* Aberta pelo teclado (a Atalhos, com o "?"): nem o fundo nem a caixa entram animados. */
+.gr-dlg-fundo--parado, .gr-dlg-fundo--parado .gr-dlg { animation: none; }
+.gr-dlg:focus { outline: none; }
 .gr-dlg__topo { display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 18px; border-bottom: 1px solid var(--lb-gr-filete); }
-.gr-dlg__tit { font: 400 21px/1.2 var(--lb-font-display); margin: 0; flex: 1; }
+.gr-dlg__cabeca { flex: 1; min-width: 0; }
+.gr-dlg__tit { font: 400 21px/1.2 var(--lb-font-display); margin: 0; }
+.gr-dlg__desc { margin: 4px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+
+/* Navegação vertical das janelas de configuração: lista à esquerda, que fica parada enquanto o conteúdo rola. */
+.gr-dlg-duas { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; align-items: start; }
+.gr-nav-vertical { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+.gr-nav-vertical button {
+  text-align: left; min-height: 34px; padding: 0 10px; border-radius: 7px; color: var(--lb-color-parchment-dim);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.gr-nav-vertical button[aria-current='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.gr-dlg-duas__secao + .gr-dlg-duas__secao { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--lb-gr-filete); }
+/* Estreito (celular, janela pequena): a lista vira uma fileira em cima, que rola de lado e fica presa no topo. */
+@media (max-width: 620px) {
+  .gr-dlg-duas { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .gr-nav-vertical {
+    flex-direction: row; overflow-x: auto; z-index: 1; margin: -16px -18px 0; padding: 8px 18px;
+    background: var(--lb-gr-papel-alto); border-bottom: 1px solid var(--lb-gr-filete);
+  }
+  .gr-nav-vertical button { flex: none; white-space: nowrap; }
+}
 .gr-dlg__corpo { overflow: auto; padding: 16px 18px 20px; }
 .gr-dlg--p { width: min(420px, 100%); }
 /* A prévia grande do cenário: o palco inteiro cabe numa tela de 900 px sem rolar. */
@@ -426,12 +460,16 @@ select.gr-entrada option { background: #1d1913; }
   .gr-num__passo:hover:not([aria-disabled='true']) { background: var(--lb-gr-hover); }
   .gr-cartao:hover:not(:disabled) { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); }
   .gr-voltar-sub:hover { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+  .gr-nav-vertical button:hover:not([aria-current='true']) { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
 }
 
 /* ------------------------------------------------------------------ movimento reduzido: some o deslocamento, fica a troca de opacidade */
 @media (prefers-reduced-motion: reduce) {
   .gr-fita { transition: none; }
-  .gr-ficha.gr-e-nova, .gr-pop, .gr-dlg { animation-name: gr-fade; }
+  .gr-ficha.gr-e-nova, .gr-dlg { animation-name: gr-fade; }
+  /* pop e menus trocam na hora: o JS já os tira sem esperar a saída */
+  .gr-pop, .gr-anima { transition: none; }
+  @starting-style { .gr-pop, .gr-anima { opacity: 1; transform: none; } }
   .gr-ficha__corpo, .gr-ficha__seta, .gr-subgrupo > summary svg, .gr-liga__trilho::after { transition-duration: 0ms; }
   .gr-bt:active, .gr-seg__op:active, .gr-chip:active, .gr-marcador:active, .gr-icone-tg:active, .gr-cor:active, .gr-num__passo:active, .gr-cartao:active { transform: none; }
   .gr-torrada { transition: opacity 120ms ease; }
