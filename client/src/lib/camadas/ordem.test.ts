@@ -216,7 +216,8 @@ describe('ordemDeRender', () => {
       { faixa: 'gridGraphics', camada: 'tokens' },
       { faixa: 'propsContainer', camada: 'livre_sumiu' },
       { faixa: 'naoExiste', camada: 'tokens' },
-    ] as const satisfies readonly { faixa: string; camada: CamadaId }[]
+    ] as const satisfies readonly { faixa: string; camada: CamadaId }[] // `as const` só fixa os literais; o `satisfies` confere a forma
+
     expect(pares(ordemDeRender(MODELO_PADRAO, FAIXAS_EDITOR, extras))).toEqual(EDITOR_HOJE)
   })
 

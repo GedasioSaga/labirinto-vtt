@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { LayerId, MapData, Region, Token } from '../../types/map'
+import type { CamadaDef, LayerId, MapData, Region, Token } from '../../types/map'
 import { LAYER_IDS } from '../../types/map'
 import {
   canInteractInLayer,
@@ -137,7 +137,8 @@ describe('contextoDeCamadas: campos novos', () => {
   })
 
   it('camadaDe: escolha válida manda; camada livre que não existe no modelo cai na padrão do tipo', () => {
-    const modeloCamadas = { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), { id: 'livre_ok' as const, nome: 'Armadilhas' }] }
+    const livre: CamadaDef = { id: 'livre_ok', nome: 'Armadilhas' }
+    const modeloCamadas = { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), livre] }
     const ctx = contextoDeCamadas(mapa({ modeloCamadas }))
     expect(ctx.camadaDe('parede', { ...parede, camada: 'tokens' })).toBe('tokens')
     expect(ctx.camadaDe('parede', { ...parede, camada: 'livre_ok' })).toBe('livre_ok')
