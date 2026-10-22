@@ -14,7 +14,13 @@
  *   estado da rotina (`aviso`);
  * - nenhum passo cruza parede, janela ou porta fechada, encosta em ficha, abre
  *   porta trancada, nem anda mais que o passo do tique (sem teleporte);
- * - no fim de cada mapa, nenhuma porta que o NPC abriu ficou aberta.
+ * - no fim de cada mapa, nenhuma porta que o NPC abriu ficou aberta;
+ * - (22/10/2026) nenhum tique >= 50 ms (tarefa longa). O maior de 90 mil tiques
+ *   medidos é ruído de quem divide a máquina (chegava a 42 ms com a suíte da
+ *   área rodando): os `TIQUES_PARA_MEDIR_DE_NOVO` mais lentos são medidos de
+ *   novo no fim, o menor de `MEDIDAS_DO_TIQUE` cada, com um motor imediato
+ *   novo — a malha, montada de novo, conta junto: a medida nova nunca é mais
+ *   barata que o trabalho do tique de verdade.
  */
 import { describe, expect, it } from 'vitest'
 import type { Point } from '../../pixi/world'
@@ -34,6 +40,15 @@ const CENA = 'robo'
 const NPC = 'npc'
 const ESTADO = 'turno'
 const SEM_CAMINHO_MAX_TIQUES = 400
+const TAREFA_LONGA_MS = 50
+const TIQUES_PARA_MEDIR_DE_NOVO = 5
+const MEDIDAS_DO_TIQUE = 3
+
+interface TiqueLento {
+  ms: number
+  /** O mesmo tique de novo, com um motor imediato novo: os ms dele. */
+  deNovo: () => number
+}
 
 interface Numeros {
   trechos: number
@@ -53,6 +68,24 @@ interface Numeros {
   intrusos: number
   tiques: number
   msDoTiqueMaisLento: number
+  /** Os `TIQUES_PARA_MEDIR_DE_NOVO` tiques mais lentos medidos, do mais lento ao menos. */
+  maisLentos: TiqueLento[]
+}
+
+/** Guarda o tique entre os mais lentos, se ele for um deles. */
+function guardarSeLento(lentos: TiqueLento[], tique: TiqueLento): void {
+  const ultimo = lentos[lentos.length - 1]
+  if (lentos.length >= TIQUES_PARA_MEDIR_DE_NOVO && ultimo !== undefined && tique.ms <= ultimo.ms) return
+  lentos.push(tique)
+  lentos.sort((a, b) => b.ms - a.ms)
+  if (lentos.length > TIQUES_PARA_MEDIR_DE_NOVO) lentos.pop()
+}
+
+/** Os ms de `darPassoDaRotina` neste mundo, com um motor imediato novo. */
+function medirTique(map: MapData, andando: RotinasAndando, estados: readonly EstadoDoMundo[], agora: number): number {
+  const inicio = performance.now()
+  darPassoDaRotina([{ sceneId: CENA, map }], andando, estados, agora, new Set(), motorImediato())
+  return performance.now() - inicio
 }
 
 function ficha(id: string, p: Point, size: number, extra: Partial<Token> = {}): Token {
@@ -89,6 +122,7 @@ function rodarRobo(): Numeros {
     intrusos: 0,
     tiques: 0,
     msDoTiqueMaisLento: 0,
+    maisLentos: [],
   }
   for (let s = 0; s < MAPAS_DO_ROBO; s += 1) {
     const semente = 1000 + s
@@ -117,9 +151,12 @@ function rodarRobo(): Numeros {
     /** Um tique da rotina, aplicado como o editor aplica, com cada passo conferido. */
     const tique = (rotulo: string) => {
       const antes = ondeEsta(map)
+      const [mapaDoTique, andandoDoTique, agoraDoTique] = [map, andando, agora]
       const inicioDoTique = performance.now()
       const r = darPassoDaRotina([{ sceneId: CENA, map }], andando, estados, agora, new Set(), motor)
-      n.msDoTiqueMaisLento = Math.max(n.msDoTiqueMaisLento, performance.now() - inicioDoTique)
+      const msDoTique = performance.now() - inicioDoTique
+      n.msDoTiqueMaisLento = Math.max(n.msDoTiqueMaisLento, msDoTique)
+      guardarSeLento(n.maisLentos, { ms: msDoTique, deNovo: () => medirTique(mapaDoTique, andandoDoTique, estados, agoraDoTique) })
       n.tiques += 1
       const depois = moverNaCena(map, r.movimentos)
       const para = ondeEsta(depois)
@@ -206,6 +243,7 @@ function rodarRobo(): Numeros {
 describe('robô do caminhamento pela rotina andando', () => {
   it('20 mapas, 1000 trechos pela rotina real: sem trava, todos chegam em até 1,5x o ótimo, sem teleporte, sem caminho desiste com motivo', () => {
     const n = rodarRobo()
+    const medidosDeNovo = n.maisLentos.map((lento) => Math.min(...Array.from({ length: MEDIDAS_DO_TIQUE }, () => lento.deNovo())))
     const resumo = {
       trechos: n.trechos,
       comCaminho: n.comCaminho,
@@ -225,7 +263,8 @@ describe('robô do caminhamento pela rotina andando', () => {
       portasAbertasPeloNpc: n.portasAbertasPeloNpc,
       portasQueFicaramAbertas: n.ficaramAbertas.length,
       tiques: n.tiques,
-      msDoTiqueMaisLento: Number(n.msDoTiqueMaisLento.toFixed(2)),
+      msDoTiqueMaisLentoMedido: Number(n.msDoTiqueMaisLento.toFixed(2)),
+      msDoTiqueMaisLento: Number(Math.max(0, ...medidosDeNovo).toFixed(2)),
     }
     console.log(`ROBO-ROTINA ${JSON.stringify(resumo)}`)
     if (n.travas.length > 0) console.log(`ROBO-ROTINA travas ${n.travas.slice(0, 3).join(' | ')}`)
@@ -245,5 +284,7 @@ describe('robô do caminhamento pela rotina andando', () => {
     expect(n.teleportes).toEqual([])
     expect(n.ficaramAbertas).toEqual([])
     expect(n.portasAbertasPeloNpc).toBeGreaterThan(0)
+    expect(medidosDeNovo).toHaveLength(TIQUES_PARA_MEDIR_DE_NOVO)
+    expect(resumo.msDoTiqueMaisLento).toBeLessThan(TAREFA_LONGA_MS)
   }, 300_000)
 })
