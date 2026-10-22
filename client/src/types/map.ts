@@ -236,6 +236,16 @@ export interface DoorState {
    * `ID_DE_ANIMACAO_DE_PORTA` (`lib/mapFile.ts`).
    */
   animacao?: string
+  /**
+   * COR DA PORTA (fatia 22): `#rrggbb` minúsculo, escolhido na Aparência da
+   * ficha. Vale nos três estados: aberta (contorno), fechada e trancada
+   * (cheia); a trancada com cor própria ganha cadeado e contorno vermelho, já
+   * que a cor deixou de dizer "trancada" (`pixi/drawDoors.ts`). Ausente = o
+   * laranja de sempre (trancada vermelha), sem linha de migração; do disco só
+   * hex válido volta (`lib/mapFile.ts`). VAI ao jogador (`lib/fogFilter.ts`):
+   * é aparência, não conta nada do outro lado; a secreta sai como parede, sem o campo.
+   */
+  cor?: string
 }
 
 /**

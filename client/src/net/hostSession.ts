@@ -80,7 +80,7 @@ import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabel
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { boardVehicle, driveTarget, driverOf, passengerIdsOf, ridesWithoutDriving, vehicleCarrying, vehicleDrivenBy, withRiders } from '../lib/vehicle'
 import { visibleTokens } from '../lib/layers'
-import type { SavedSceneMemory, SavedSeat, SavedSeatExploration, SavedSeatNotes } from '../lib/savedTable'
+import { doorStateOf, savedDoorOf, type SavedSceneMemory, type SavedSeat, type SavedSeatExploration, type SavedSeatNotes } from '../lib/savedTable'
 import { MY_NOTES_MAX, MY_NOTES_MIN_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
 import { pinTravelChosenReach, pinTravelChosenWithin, pinTravelGroupOf } from '../lib/pinTravelers'
@@ -2833,7 +2833,7 @@ function savedSceneOf(memory: PlayerMemory): SavedSceneMemory {
     height,
     grid,
     explored: encodeExploration(memory.exp),
-    doors: [...memory.doors].map(([wallId, door]) => ({ wallId, open: door.open, locked: door.locked, kind: door.kind })),
+    doors: [...memory.doors].map(([wallId, door]) => savedDoorOf(wallId, door)),
   }
 }
 
@@ -2846,7 +2846,7 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
   const exp = decodeExploration(scene.explored)
   const blank = blankExploration(dims)
   if (exp === null || exp.cell !== blank.cell || exp.cols !== blank.cols || exp.rows !== blank.rows) return null
-  const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, { open: door.open, locked: door.locked, kind: door.kind }]))
+  const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, doorStateOf(door)]))
   // Cômodo lembrado não é gravado na mesa: volta a ser lembrado quando for visto de novo.
   return {
     key: memoryKey(dims),

@@ -51,6 +51,7 @@ import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
 import { MODELOS_DO_TETO, corDoTetoValida } from './telhado/paletas'
+import { normalizarCorDaPorta } from './corDaPorta'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
@@ -536,9 +537,12 @@ function roomVisionRadiusFromFile(region: Region): Region {
  * `ID_DE_ANIMACAO_DE_PORTA` volta; o resto sai, e a porta troca de estado sem
  * animação. Id bem formado de animação que este app não tem fica (pode ser de
  * um pacote ainda não baixado) e desenha sem animação.
+ * `cor` (COR DA PORTA) é campo NOVO: só `#rrggbb` volta, em minúscula; o resto
+ * sai, e a porta abre no laranja de sempre.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, opensFrom, porEstado, semEspiar, animacao, ...rest } = doorKeyFromFile(door)
+  const { secret, opensFrom, porEstado, semEspiar, animacao, cor, ...rest } = doorKeyFromFile(door)
+  const corValida = normalizarCorDaPorta(cor)
   // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
   const side: unknown = opensFrom
   const idDaAnimacao: unknown = animacao
@@ -549,7 +553,8 @@ function doorFromFile(door: DoorState): DoorState {
   const withSecret: DoorState = secret === true ? { ...withRule, secret: true } : withRule
   const withPeek: DoorState = semEspiar === true ? { ...withSecret, semEspiar: true } : withSecret
   const withAnimation: DoorState = idDeAnimacaoDePortaValido(idDaAnimacao) ? { ...withPeek, animacao: idDaAnimacao } : withPeek
-  return side === 'left' || side === 'right' ? { ...withAnimation, opensFrom: side } : withAnimation
+  const withColor: DoorState = corValida === undefined ? withAnimation : { ...withAnimation, cor: corValida }
+  return side === 'left' || side === 'right' ? { ...withColor, opensFrom: side } : withColor
 }
 
 /** Zona oculta lida do disco: só a regra do ESTADO DO MUNDO passa por conferência; ausente continua ausente. */
