@@ -4996,6 +4996,15 @@ html.lb-arrastando-cena * {
   padding: 0;
 }
 
+/* Título e dica no cabeçalho das janelas da casca antiga (Corte da torre,
+   Revisor da aventura); o min-width deixa o título encolher dentro do flex. */
+.lb-visao__cabeca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
 .lb-visao__grade {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

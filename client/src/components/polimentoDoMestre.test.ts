@@ -236,6 +236,32 @@ describe('M10 — menus e confirmações entram de onde foram chamados', () => {
 
 })
 
+describe('Classe sem regra — as janelas que ficaram na casca antiga', () => {
+  // A fatia 20 levou a Visão geral para o Dialogo do grimório e apagou junto a
+  // `.lb-visao__cabeca`, que o Corte da torre e o Revisor da aventura ainda usam:
+  // título e dica perderam o respiro, e nenhum teste viu.
+  it('toda classe lb- do Corte da torre e do Revisor da aventura tem regra no main.css', async () => {
+    const { normal } = separar(await lerCss('../main.css'))
+    for (const arquivo of ['./CorteDaTorre.tsx', './RevisorAventura.tsx']) {
+      // O mesmo leitor serve para o .tsx; `--lb-…` é variável de CSS, não classe.
+      const fonte = await lerCss(arquivo)
+      const usadas = new Set(Array.from(fonte.matchAll(/(?<![-\w])lb-[a-z0-9]+(?:[_-]+[a-z0-9]+)*/g), ([classe]) => classe))
+      expect(usadas.size, arquivo).toBeGreaterThan(0)
+      const semRegra = [...usadas].filter((classe) => !new RegExp(`\\.${classe}(?![\\w-])`).test(normal))
+      expect(semRegra, arquivo).toEqual([])
+    }
+  })
+
+  it('o cabeçalho empilha título e dica com o respiro curto e deixa o título encolher', async () => {
+    const { normal } = separar(await lerCss('../main.css'))
+    const cabeca = regra(normal, '.lb-visao__cabeca')
+    expect(cabeca.get('display')).toBe('flex')
+    expect(cabeca.get('flex-direction')).toBe('column')
+    expect(cabeca.get('gap')).toBe('var(--lb-space-1)')
+    expect(cabeca.get('min-width')).toBe('0')
+  })
+})
+
 describe('M11 — balões de ferramenta: só o primeiro espera', () => {
   it('a espera do primeiro balão é token, lido pelo CSS e pelo Toolbar', async () => {
     expect(themeCss()).toContain('--lb-motion-tip-delay: 320ms;')
