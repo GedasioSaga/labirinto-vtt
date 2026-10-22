@@ -4,8 +4,9 @@
 // da porta ganha "Cor da porta" na Aparência — a paleta do protótipo, "Outra
 // cor…" (o seletor nativo) e "Cor padrão". A cor vale aberta, fechada e
 // trancada; a trancada com cor própria ganha cadeado pequeno e contorno
-// vermelho, porque a cor já não diz "trancada". O arrasto do seletor nativo é
-// UM Ctrl+Z. O jogador recebe a cor (é aparência), mas nunca o cadeado.
+// vermelho, porque a cor já não diz "trancada". Cada arrasto do seletor nativo
+// (uma abertura da caixa) é UM Ctrl+Z. O jogador recebe a cor (é aparência),
+// mas nunca o cadeado.
 //
 // COMO ESTE ARQUIVO PROVA, EM PIXEL DA TELA:
 //   O EDITOR é o app em modo Tauri com disco de mentira (o mesmo molde de
@@ -15,7 +16,8 @@
 //   GESTO REAL: o clique na porta, na bolinha da paleta, no "Trancada" e a
 //   tecla Ctrl+Z são do mouse e do teclado. O seletor nativo de cor não abre
 //   num teste: o arrasto lá dentro é reproduzido pelo que ele faz com a página,
-//   um `input` com a cor nova por quadro no mesmo campo (`arrastarNoSeletor`).
+//   um `input` com a cor nova por quadro no mesmo campo (`arrastarNoSeletor`),
+//   e um `change` quando a caixa fecha (`fecharOSeletor`).
 //   A store do editor é LIDA só para a mensagem de falha dizer o que o mapa tem.
 //   MEDIDA: durante o arrasto, tarefa longa (PerformanceObserver) e o intervalo
 //   entre quadros (requestAnimationFrame) — o pedido é nenhuma tarefa >= 200 ms
@@ -71,6 +73,9 @@ const ARRASTO = Array.from({ length: 20 }, (_, i) => {
   return `#${canal(0x20, 0xe0)}${canal(0x30, 0x5a)}${canal(0x40, 0x9c)}`
 })
 const ROSA: Rgb = [0xe0, 0x5a, 0x9c]
+/** A segunda abertura do seletor: do rosa ao verde, em 6 quadros. */
+const ARRASTO_VERDE = ['#c3658a', '#a67078', '#8a7b66', '#6d8664', '#56905a', '#3f9a52']
+const VERDE: Rgb = [0x3f, 0x9a, 0x52]
 
 /** Distância de cor por canal: o antisserrilhado e o vídeo tremem poucos pontos. */
 const PARECIDA = 30
@@ -401,6 +406,19 @@ async function arrastarNoSeletor(page: Page, rotulo: string, cores: readonly str
   )
 }
 
+/**
+ * A CAIXA FECHA: o que ela faz com a página ao fechar é UM `change` no mesmo
+ * `<input type="color">`, depois dos `input` do arrasto
+ * (`ColorInputType::DidEndChooser`, no Chromium). É o fim de um arrasto.
+ */
+async function fecharOSeletor(page: Page, rotulo: string) {
+  await page.evaluate((rotulo) => {
+    const entrada = document.querySelector(`input[type="color"][aria-label="${rotulo}"]`)
+    if (!(entrada instanceof HTMLInputElement)) throw new Error(`sem o seletor "${rotulo}"`)
+    entrada.dispatchEvent(new Event('change', { bubbles: true }))
+  }, rotulo)
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // A jornada
 // ───────────────────────────────────────────────────────────────────────────
@@ -431,26 +449,39 @@ test('cor da porta: o mestre pinta pela ficha, tranca (cadeado), desfaz o arrast
   const azul = await lerAPorta(mestre, mapa)
   expect(distancia(azul.folha, AZUL), `escolher o azul não pintou a porta: ${emTexto(azul.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
 
-  // 2. Arrastar no seletor nativo (20 quadros) e desfazer: UM Ctrl+Z volta ao azul.
+  // 2. Arrastar no seletor nativo e desfazer: cada abertura da caixa é UM Ctrl+Z.
   const outra = campo.getByRole('textbox', { name: 'Outra cor…' })
   await expect(outra, 'a Aparência da porta não tem "Outra cor…"').toBeVisible()
-  // Duas idas e voltas seguidas, sem soltar: a primeira é o arrasto "frio" (as
-  // primeiras cores da sessão pagam o aquecimento do motor JS e do React de
-  // desenvolvimento), a segunda é o arrasto de regime. As duas entram no mesmo
-  // passo do desfazer, e as duas são anotadas; o p95 julgado é o de regime.
+  // Primeira abertura: duas idas e voltas de 20 quadros com a caixa aberta, sem
+  // o `change` do fechamento no meio — o mestre que arrasta duas vezes antes de
+  // fechar. A primeira é o arrasto "frio" (as primeiras cores da sessão pagam o
+  // aquecimento do motor JS e do React de desenvolvimento), a segunda, o de
+  // regime; as duas são anotadas, e o p95 julgado é o de regime. Por serem da
+  // mesma abertura, as duas são um passo só do desfazer.
   const parada = await arrastarNoSeletor(mestre, 'Outra cor…', [], ARRASTO.length)
   const frio = await arrastarNoSeletor(mestre, 'Outra cor…', ARRASTO, 0)
   const medida = await arrastarNoSeletor(mestre, 'Outra cor…', ARRASTO, 0)
+  await fecharOSeletor(mestre, 'Outra cor…')
   console.log(`[medida] tela parada: quadro p95 ${parada.quadroP95Ms.toFixed(1)} ms em ${parada.quadros} quadros`)
   console.log(`[medida] arrasto frio: tarefa mais longa ${frio.tarefaMaisLongaMs.toFixed(1)} ms, quadro p95 ${frio.quadroP95Ms.toFixed(1)} ms; custo síncrono por cor ${JSON.stringify(frio.sincrono)} ms; quadros ${JSON.stringify(frio.todos)} ms`)
   console.log(`[medida] arrasto de regime: custo síncrono por cor ${JSON.stringify(medida.sincrono)} ms`)
   expect(frio.tarefaMaisLongaMs, 'o primeiro arrasto da cor travou a tela').toBeLessThan(TAREFA_LONGA_MS)
   const rosa = await lerAPorta(mestre, mapa)
   expect(distancia(rosa.folha, ROSA), `o arrasto não deixou a porta no rosa do fim: ${emTexto(rosa.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
+  // Segunda abertura: até o verde, e a caixa fecha de novo. É outro passo do desfazer.
+  const segunda = await arrastarNoSeletor(mestre, 'Outra cor…', ARRASTO_VERDE, 0)
+  await fecharOSeletor(mestre, 'Outra cor…')
+  console.log(`[medida] segunda abertura, ${ARRASTO_VERDE.length} cores: tarefa mais longa ${segunda.tarefaMaisLongaMs.toFixed(1)} ms`)
+  expect(segunda.tarefaMaisLongaMs, 'o segundo arrasto da cor travou a tela').toBeLessThan(TAREFA_LONGA_MS)
+  const verde = await lerAPorta(mestre, mapa)
+  expect(distancia(verde.folha, VERDE), `o segundo arrasto não deixou a porta no verde do fim: ${emTexto(verde.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
   await outra.blur()
   await mestre.keyboard.press('Control+z')
+  const semOVerde = await lerAPorta(mestre, mapa)
+  expect(distancia(semOVerde.folha, ROSA), `o primeiro Ctrl+Z deveria desfazer só o segundo arrasto e voltar ao rosa: ${emTexto(semOVerde.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
+  await mestre.keyboard.press('Control+z')
   const desfeito = await lerAPorta(mestre, mapa)
-  expect(distancia(desfeito.folha, AZUL), `um Ctrl+Z deveria desfazer o arrasto inteiro e voltar ao azul: ${emTexto(desfeito.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
+  expect(distancia(desfeito.folha, AZUL), `o segundo Ctrl+Z deveria desfazer o primeiro arrasto inteiro e voltar ao azul: ${emTexto(desfeito.folha)} | porta ${await portaNoEditor(mestre)}`).toBeLessThanOrEqual(PARECIDA)
   console.log(`[medida] arrasto de regime, ${ARRASTO.length} cores: tarefa mais longa ${medida.tarefaMaisLongaMs.toFixed(1)} ms, quadro p95 ${medida.quadroP95Ms.toFixed(1)} ms em ${medida.quadros} quadros`)
   expect(medida.tarefaMaisLongaMs, 'o arrasto da cor travou a tela').toBeLessThan(TAREFA_LONGA_MS)
   expect(medida.quadroP95Ms, 'o arrasto da cor perdeu quadros').toBeLessThanOrEqual(QUADRO_P95_MS)

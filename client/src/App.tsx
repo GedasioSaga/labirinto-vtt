@@ -1995,10 +1995,10 @@ function App() {
     setWallDoor(selectedWall.id, portaComAnimacao(selectedWall.door, id))
   }
 
-  /** COR DA PORTA: "Cor da porta" da porta selecionada, com histórico; o arrasto do seletor é um Ctrl+Z só. `null` volta ao laranja (campo ausente). */
-  const handleDoorCorChange = (cor: string | null, doSeletor = false) => {
+  /** COR DA PORTA: "Cor da porta" da porta selecionada, com histórico; cada abertura do seletor é um Ctrl+Z só. `null` volta ao laranja (campo ausente). */
+  const handleDoorCorChange = (cor: string | null, abertura?: string) => {
     if (!selectedWall || !selectedWall.door) return
-    setWallDoor(selectedWall.id, portaComCor(selectedWall.door, cor), chaveDaCorDaPorta(selectedWall.id, doSeletor))
+    setWallDoor(selectedWall.id, portaComCor(selectedWall.door, cor), chaveDaCorDaPorta(selectedWall.id, abertura))
   }
 
   /**

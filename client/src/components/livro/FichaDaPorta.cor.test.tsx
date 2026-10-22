@@ -1,13 +1,18 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DoorState } from '../../types/map'
+import { chaveDaCorDaPorta, portaComCor } from '../../lib/corDaPorta'
+import { createEmptyMap } from '../../lib/mapFactory'
+import { useMapStore } from '../../stores/mapStore'
+import type { DoorState, Wall } from '../../types/map'
+import type { CorDaPortaProps } from './CorDaPorta'
 import { FichaDaPorta } from './FichaDaPorta'
 import { MedalhaDaPorta } from './MedalhaDaPorta'
 
 /**
  * COR DA PORTA (fatia 22) na ficha Aparência: paleta, "Outra cor…" e "Cor
- * padrão" (que manda `null`, o campo ausente). A medalha da cabeça segue a cor.
+ * padrão" (que manda `null`, o campo ausente). Cada abertura de "Outra cor…" é
+ * um arrasto, um Ctrl+Z. A medalha da cabeça segue a cor.
  */
 let container: HTMLDivElement
 let root: Root
@@ -26,7 +31,7 @@ afterEach(() => {
 
 const FECHADA: DoorState = { open: false, locked: false, kind: 'normal' }
 
-function render(door: DoorState, onCorChange?: (cor: string | null) => void) {
+function render(door: DoorState, onCorChange?: CorDaPortaProps['onCorChange']) {
   const handlers = { onToggleDoor: vi.fn(), onToggleOpen: vi.fn(), onToggleLocked: vi.fn(), onToggleSemEspiar: vi.fn(), onToggleSecret: vi.fn(), onRevealPassage: vi.fn(), onOpensFromChange: vi.fn() }
   act(() => root.render(<FichaDaPorta door={door} {...handlers} onKindChange={vi.fn()} onCorChange={onCorChange} />))
 }
@@ -43,6 +48,19 @@ function mudarValor(input: HTMLInputElement, valor: string): void {
     setter.call(input, valor)
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
+}
+
+/** O que a caixa do sistema faz ao fechar: UM `change` nativo, depois dos `input` do arrasto. */
+function fecharSeletor(input: HTMLInputElement): void {
+  act(() => {
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+
+function seletor(): HTMLInputElement {
+  const outra = container.querySelector<HTMLInputElement>('input[type="color"][aria-label="Outra cor…"]')
+  if (outra === null) throw new Error('sem "Outra cor…"')
+  return outra
 }
 
 describe('FichaDaPorta: cor da porta', () => {
@@ -65,9 +83,9 @@ describe('FichaDaPorta: cor da porta', () => {
     const outra = grupo.querySelector<HTMLInputElement>('input[type="color"][aria-label="Outra cor…"]')
     if (outra === null) throw new Error('sem "Outra cor…"')
     expect(outra.value).toBe('#d08c3a')
-    // O seletor nativo avisa que a cor veio do arrasto: é ele que vira um Ctrl+Z só.
+    // O seletor nativo diz de que abertura a cor veio: é ela que vira um Ctrl+Z só.
     mudarValor(outra, '#123456')
-    expect(onCorChange).toHaveBeenLastCalledWith('#123456', true)
+    expect(onCorChange).toHaveBeenLastCalledWith('#123456', expect.any(String))
     const padrao = [...grupo.querySelectorAll('button')].find((b) => b.textContent === 'Cor padrão')
     if (padrao === undefined) throw new Error('sem "Cor padrão"')
     act(() => padrao.click())
@@ -80,6 +98,60 @@ describe('FichaDaPorta: cor da porta', () => {
     expect(container.querySelector('.lb-pin-outra-cor--marcada')).toBeNull()
     render({ ...FECHADA, cor: '#123456' }, vi.fn())
     expect(container.querySelector('.lb-pin-outra-cor--marcada')).not.toBeNull()
+  })
+
+  it('o "change" de quando a caixa fecha encerra o arrasto: a abertura seguinte tem outra chave', () => {
+    const onCorChange = vi.fn<CorDaPortaProps['onCorChange']>()
+    render(FECHADA, onCorChange)
+    mudarValor(seletor(), '#111111')
+    mudarValor(seletor(), '#222222')
+    fecharSeletor(seletor())
+    mudarValor(seletor(), '#333333')
+    const aberturas = onCorChange.mock.calls.map(([, abertura]) => abertura)
+    expect(aberturas[0]).toEqual(expect.any(String))
+    expect(aberturas[1]).toBe(aberturas[0])
+    expect(aberturas[2]).not.toBe(aberturas[0])
+    // O `change` sozinho não grava cor: só os três `input`.
+    expect(onCorChange).toHaveBeenCalledTimes(3)
+  })
+
+  it('ficha remontada (Aparência recolhida e aberta) não emenda no arrasto da ficha de antes', () => {
+    const onCorChange = vi.fn<CorDaPortaProps['onCorChange']>()
+    render(FECHADA, onCorChange)
+    mudarValor(seletor(), '#111111')
+    fecharSeletor(seletor())
+    act(() => root.unmount())
+    root = createRoot(container)
+    render(FECHADA, onCorChange)
+    mudarValor(seletor(), '#222222')
+    const [primeira, segunda] = onCorChange.mock.calls.map(([, abertura]) => abertura)
+    expect(segunda).not.toBe(primeira)
+  })
+})
+
+describe('FichaDaPorta: cor da porta ligada ao mapa, como o App', () => {
+  const PAREDE: Wall = { id: 'd', x1: 0, y1: 0, x2: 50, y2: 0, blocksLight: true, blocksMove: true, door: FECHADA }
+  const porta = () => useMapStore.getState().map.walls[0].door
+
+  /** O `handleDoorCorChange` do App. */
+  const aoMudarCor: CorDaPortaProps['onCorChange'] = (cor, abertura) => {
+    const door = porta()
+    if (door === null) throw new Error('a parede perdeu a porta')
+    useMapStore.getState().setWallDoor('d', portaComCor(door, cor), chaveDaCorDaPorta('d', abertura))
+  }
+
+  it('arrastar até o verde, fechar, abrir e arrastar até o rosa: dois Ctrl+Z, sem pular o verde', () => {
+    useMapStore.getState().loadMap({ ...createEmptyMap('m', 'M', 10, 10, 40), walls: [PAREDE] })
+    render(FECHADA, aoMudarCor)
+    for (const cor of ['#5a9a90', '#3f9a52']) mudarValor(seletor(), cor)
+    fecharSeletor(seletor())
+    for (const cor of ['#8f7a70', '#e05a9c']) mudarValor(seletor(), cor)
+    fecharSeletor(seletor())
+    expect(porta()?.cor).toBe('#e05a9c')
+    useMapStore.getState().undo()
+    expect(porta()?.cor).toBe('#3f9a52')
+    useMapStore.getState().undo()
+    expect(porta()).toEqual(FECHADA)
   })
 })
 

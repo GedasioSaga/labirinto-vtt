@@ -947,8 +947,8 @@ interface MapStoreState {
   trocarFormaDoTapete: (id: string, forma: FormaDoTapete) => void
   /**
    * `typingKey`: a mesma chave em passos seguidos é UM Ctrl+Z — o seletor
-   * nativo de "Cor da porta" manda uma cor por quadro do arrasto
-   * (`porta-cor:<id>`, `lib/corDaPorta.ts:chaveDaCorDaPorta`). Ausente = um passo por mudança.
+   * nativo de "Cor da porta" manda uma cor por quadro do arrasto, com uma chave
+   * por abertura (`porta-cor:<id>:<abertura>`, `lib/corDaPorta.ts:chaveDaCorDaPorta`). Ausente = um passo por mudança.
    */
   setWallDoor: (id: string, door: DoorState | null, typingKey?: string) => void
   setWallKindForWall: (id: string, kind: Wall['wallKind']) => void

@@ -6,18 +6,18 @@ import { useMapStore } from './mapStore'
 
 /**
  * COR DA PORTA no desfazer (fatia 22): o seletor de "Outra cor…" manda uma cor
- * por quadro do arrasto, e o arrasto inteiro é UM Ctrl+Z — o mesmo caminho que
+ * por quadro do arrasto, e cada abertura dele é UM Ctrl+Z — o mesmo caminho que
  * o `handleDoorCorChange` do App faz. Outra mudança no meio separa os passos.
  */
 const PORTA: Wall = { id: 'd', x1: 0, y1: 0, x2: 50, y2: 0, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }
 const store = () => useMapStore.getState()
 const porta = () => store().map.walls[0].door
 
-/** O que o App faz a cada `onCorChange` da ficha (`doSeletor` = veio do arrasto de "Outra cor…"). */
-function escolherCor(cor: string | null, doSeletor = false): void {
+/** O que o App faz a cada `onCorChange` da ficha (`arrasto` = a abertura de "Outra cor…" de onde a cor veio). */
+function escolherCor(cor: string | null, arrasto?: string): void {
   const door = porta()
   if (door === null) throw new Error('a parede perdeu a porta')
-  store().setWallDoor('d', portaComCor(door, cor), chaveDaCorDaPorta('d', doSeletor))
+  store().setWallDoor('d', portaComCor(door, cor), chaveDaCorDaPorta('d', arrasto))
 }
 
 beforeEach(() => {
@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe('mapStore.setWallDoor: cor da porta no histórico', () => {
   it('arrastar no seletor de cor por vários quadros desfaz de uma vez', () => {
-    for (const cor of ['#111111', '#222222', '#333333', '#444444']) escolherCor(cor, true)
+    for (const cor of ['#111111', '#222222', '#333333', '#444444']) escolherCor(cor, 'abertura-1')
     expect(porta()?.cor).toBe('#444444')
     store().undo()
     expect(porta()).toEqual(PORTA.door)
@@ -34,11 +34,22 @@ describe('mapStore.setWallDoor: cor da porta no histórico', () => {
 
   it('paleta e depois arrasto: o Ctrl+Z desfaz só o arrasto e volta à cor da paleta', () => {
     escolherCor('#79a9cc')
-    for (const cor of ['#203040', '#405060', '#e05a9c']) escolherCor(cor, true)
+    for (const cor of ['#203040', '#405060', '#e05a9c']) escolherCor(cor, 'abertura-1')
     store().undo()
     expect(porta()?.cor).toBe('#79a9cc')
     store().undo()
     expect(porta()).toEqual(PORTA.door)
+  })
+
+  it('dois arrastos com o seletor fechado entre eles são dois passos: o Ctrl+Z não pula o primeiro', () => {
+    escolherCor('#79a9cc')
+    // Arrasta até o verde e fecha a caixa; abre de novo e arrasta até o rosa.
+    for (const cor of ['#5a9a90', '#3f9a52']) escolherCor(cor, 'abertura-1')
+    for (const cor of ['#8f7a70', '#e05a9c']) escolherCor(cor, 'abertura-2')
+    store().undo()
+    expect(porta()?.cor).toBe('#3f9a52')
+    store().undo()
+    expect(porta()?.cor).toBe('#79a9cc')
   })
 
   it('duas bolinhas da paleta são dois passos', () => {

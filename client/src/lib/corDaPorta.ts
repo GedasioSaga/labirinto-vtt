@@ -32,13 +32,13 @@ export function portaComCor(door: DoorState, cor: string | null): DoorState {
 
 /**
  * Chave de agrupamento do desfazer (`typingKey` de `setWallDoor`): o seletor
- * nativo de "Outra cor…" manda uma cor por quadro do arrasto, e o arrasto
- * inteiro vira UM Ctrl+Z. A bolinha da paleta e o "Cor padrão" são escolhas
- * inteiras, um passo cada: o Ctrl+Z depois de um arrasto volta à cor que a
- * paleta deu, não à de antes dela.
+ * nativo de "Outra cor…" manda uma cor por quadro do arrasto, e cada abertura
+ * dele (`abertura`, de `CorDaPorta`) vira UM Ctrl+Z — abrir de novo é outra
+ * chave, e o Ctrl+Z não pula a cor do arrasto de antes. A bolinha da paleta e o
+ * "Cor padrão" (`abertura` ausente) são escolhas inteiras, um passo cada.
  */
-export function chaveDaCorDaPorta(wallId: string, doSeletor: boolean): string | undefined {
-  return doSeletor ? `porta-cor:${wallId}` : undefined
+export function chaveDaCorDaPorta(wallId: string, abertura: string | undefined): string | undefined {
+  return abertura === undefined ? undefined : `porta-cor:${wallId}:${abertura}`
 }
 
 /**
