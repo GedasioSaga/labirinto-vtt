@@ -99,6 +99,12 @@ export function emQualquerMidia(css: string, seletor: string): Regra[] {
   return [...condicoes].flatMap((condicao) => blocosDaMidia(css, condicao).flatMap((bloco) => regrasDoBloco(bloco, seletor)))
 }
 
+/** As condições de cada `@media` com o seletor exato dentro, e as declarações dele ali. */
+export function porMidia(css: string, seletor: string): Array<{ condicao: string; regra: Regra }> {
+  const condicoes = new Set([...semComentarios(css).matchAll(/@media ([^{]+) \{/g)].map(([, condicao]) => condicao))
+  return [...condicoes].flatMap((condicao) => blocosDaMidia(css, condicao).flatMap((bloco) => regrasDoBloco(bloco, seletor).map((regra) => ({ condicao, regra }))))
+}
+
 /** As condições de cada `@container (...)` do CSS, com as declarações do seletor dentro dela. */
 export function noContainer(css: string, seletor: string): Array<{ condicao: string; regra: Regra }> {
   const condicoes = new Set([...semComentarios(css).matchAll(/@container ([^{]+) \{/g)].map(([, condicao]) => condicao))

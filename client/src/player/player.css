@@ -1500,9 +1500,12 @@
  * CELULAR EM PÉ: a barra vira a FAIXA DE COURO do protótipo — a largura toda,
  * colada no alto (abaixo do alarme, quando há), os atalhos em colunas iguais
  * com o ícone sobre o rótulo. Os rótulos cabem até a 320 px: quatro colunas
- * de 73 px. A faixa mede 8 + 44 + 8 = 60 px e acaba antes de
- * `--pp-abaixo-da-barra` (77 px): quem mora embaixo dela não se mexe. A
- * folha (o painel aberto) desce logo abaixo dela, com 8 px de margem.
+ * de 73 px, e o mais largo ("Minha ficha") tem uns 52 (74 com a letra de
+ * 15 px, medido no Chrome). O e2e task-hud-do-jogador-sem-sobreposicao
+ * confere, com a "Ficha", cada rótulo dentro do seu botão. A faixa mede
+ * 8 + 44 + 8 = 60 px e acaba antes de `--pp-abaixo-da-barra` (77 px): quem
+ * mora embaixo dela não se mexe. A folha (o painel aberto) desce logo abaixo
+ * dela, com 8 px de margem.
  */
 @media (max-width: 699px) and (min-height: 481px) {
   .pp-bar,
