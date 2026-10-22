@@ -53,7 +53,7 @@ const TRANSICAO_DURACAO = [2, 30]
 const CENARIO_DURACAO = [3, 40]
 const PORTA_DURACAO_MAX_MS = 3000
 /** Sons que o app sintetiza para a porta (`SONS_DA_ANIMACAO_DE_PORTA` de portas/animacoesDePorta.ts). Opcional na meta. */
-const PORTA_SONS = ['rangido', 'trinco']
+const PORTA_SONS = ['rangido', 'trinco', 'dupla', 'grade', 'arrombada', 'sanfona', 'cortina']
 /** Lado do ladrilho da textura, em px do protótipo do relevo (`ESCALA_MIN`/`ESCALA_MAX` de texturas/catalogo.ts). */
 const TEXTURA_ESCALA = [8, 200]
 /** Tamanho natural do carimbo, em px do protótipo do relevo (`TAMANHO_NATURAL_MIN`/`MAX` de carimbos/catalogo.ts). */
@@ -116,17 +116,32 @@ function numero(valor) {
   return typeof valor === 'number' && Number.isFinite(valor)
 }
 
+/** Cubic-bezier com os 4 números entre 0 e 1 (`curvaBezierValida` de portas/curvaBezier.ts): nunca volta nem passa do alvo. */
+function curvaValida(valor) {
+  return Array.isArray(valor) && valor.length === 4 && valor.every((v) => numero(v) && v >= 0 && v <= 1)
+}
+
+/** A meta de uma porta: nome, durações, curvas e som. Campo opcional ausente fica fora da entrada. */
+function entradaDePorta(id, nome, meta, erro) {
+  const duracao = (valor) => numero(valor) && valor > 0 && valor <= PORTA_DURACAO_MAX_MS
+  if (!duracao(meta.duracaoMs)) erro(`"duracaoMs" entre 1 e ${PORTA_DURACAO_MAX_MS}`)
+  if (meta.duracaoFecharMs !== undefined && !duracao(meta.duracaoFecharMs)) erro(`"duracaoFecharMs" entre 1 e ${PORTA_DURACAO_MAX_MS}, ou fica sem o campo`)
+  for (const campo of ['curvaAbrir', 'curvaFechar']) {
+    if (meta[campo] !== undefined && !curvaValida(meta[campo])) erro(`"${campo}" é uma lista de 4 números entre 0 e 1 (cubic-bezier sem quique), ou fica sem o campo`)
+  }
+  if (meta.som !== undefined && !PORTA_SONS.includes(meta.som)) erro(`"som" é ${PORTA_SONS.join(', ')}, ou fica sem o campo`)
+  const entrada = { id, tipo: 'porta', nome, duracaoMs: meta.duracaoMs }
+  for (const campo of ['duracaoFecharMs', 'curvaAbrir', 'curvaFechar', 'som']) if (meta[campo] !== undefined) entrada[campo] = meta[campo]
+  return entrada
+}
+
 /** Confere a meta de uma fonte e devolve a entrada do índice (sem o arquivo). */
 function entradaDaMeta(tipo, id, meta, onde) {
   const erro = (campo) => falhar(`${onde}: ${campo}`)
   if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) erro('a meta tem de ser um objeto JSON')
   const nome = typeof meta.nome === 'string' ? meta.nome.trim() : ''
   if (nome === '' || nome.length > NOME_MAX) erro(`"nome" de 1 a ${NOME_MAX} letras`)
-  if (tipo === 'porta') {
-    if (!numero(meta.duracaoMs) || meta.duracaoMs <= 0 || meta.duracaoMs > PORTA_DURACAO_MAX_MS) erro(`"duracaoMs" entre 1 e ${PORTA_DURACAO_MAX_MS}`)
-    if (meta.som !== undefined && !PORTA_SONS.includes(meta.som)) erro(`"som" é ${PORTA_SONS.join(' ou ')}, ou fica sem o campo`)
-    return { id, tipo, nome, duracaoMs: meta.duracaoMs, ...(meta.som === undefined ? {} : { som: meta.som }) }
-  }
+  if (tipo === 'porta') return entradaDePorta(id, nome, meta, erro)
   if (tipo === 'textura') {
     const [min, max] = TEXTURA_ESCALA
     if (!numero(meta.escala) || meta.escala < min || meta.escala > max) erro(`"escala" (lado do ladrilho) entre ${min} e ${max}`)
@@ -361,4 +376,7 @@ async function main() {
   publicar(modulos, indiceArquivo, sig)
 }
 
-main().catch((erro) => falhar(erro && erro.stack ? erro.stack : String(erro)))
+// Rodado direto, publica; carregado por require (o teste, scripts/pacote-animacoes.test.cjs), só expõe a validação.
+if (require.main === module) main().catch((erro) => falhar(erro && erro.stack ? erro.stack : String(erro)))
+
+module.exports = { PORTA_SONS, curvaValida, entradaDePorta, entradaDaMeta }

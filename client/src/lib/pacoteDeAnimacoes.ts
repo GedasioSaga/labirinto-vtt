@@ -2,6 +2,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { CENARIO_DURACAO_MAX_S, CENARIO_DURACAO_MIN_S } from '../cenario/catalogo'
 import { esquecerEstilosDeCenarioDeFora, IDS_DE_ESTILO_RESERVADOS, registrarEstiloDeCenario } from '../cenario/estilosDeCenario'
 import { ANIMACOES_EMBUTIDAS, DURACAO_DE_ANIMACAO_MAX_MS, esquecerAnimacoesDePortaDeFora, registrarAnimacaoDePorta, somDaAnimacaoDePortaValido, type SomDaAnimacaoDePorta } from '../portas/animacoesDePorta'
+import { curvaBezierValida, type CurvaBezier } from '../portas/curvaBezier'
 import { esquecerTransicoesDeFora, isDuracaoValida, isTransicaoEmbutida, marcarCarregamentoDeFora, registrarTransicao } from '../transicoes/catalogo'
 import { ESCALA_MAX, ESCALA_MIN, esquecerTexturasDeFora, IDS_DAS_EMBUTIDAS as IDS_DAS_TEXTURAS, registrarTexturaDoPacote } from '../texturas/catalogo'
 import { ehSombraDeCarimbo, esquecerCarimbosDeFora, IDS_DOS_EMBUTIDOS as IDS_DOS_CARIMBOS, registrarCarimboDoPacote, TAMANHO_NATURAL_MAX, TAMANHO_NATURAL_MIN } from '../carimbos/catalogo'
@@ -46,8 +47,12 @@ interface EntradaComum {
 /** Uma animação de `indice.animacoes`, já conferida. */
 export type EntradaDoPacote =
   | (EntradaComum & { tipo: 'transicao'; duracaoNaturalS: number; quadroDaMiniaturaS: number })
-  /** Porta: `som` opcional (fatia 22); cliente de antes dele ignora o campo e a porta fica muda. */
-  | (EntradaComum & { tipo: 'porta'; duracaoMs: number; som?: SomDaAnimacaoDePorta })
+  /**
+   * Porta: `som` opcional (fatia 22); `duracaoFecharMs` e as curvas de cada
+   * sentido opcionais (22/10/2026). Cliente de antes deles ignora os campos: a
+   * porta fica muda, fecha no tempo de abrir e anda na curva de sempre.
+   */
+  | (EntradaComum & { tipo: 'porta'; duracaoMs: number; duracaoFecharMs?: number; curvaAbrir?: CurvaBezier; curvaFechar?: CurvaBezier; som?: SomDaAnimacaoDePorta })
   | (EntradaComum & { tipo: 'cenario'; duracaoNaturalS: number; quadroDaMiniaturaS?: number })
   /** Textura: `escala` = lado do ladrilho no mapa, em px do protótipo do relevo (`texturas/embutidas.ts`). */
   | (EntradaComum & { tipo: 'textura'; escala: number })
@@ -100,7 +105,12 @@ export function lerEntradaDoPacote(valor: unknown, arquivos: ReadonlySet<string>
     if (!numeroFinito(duracaoMs) || duracaoMs <= 0 || duracaoMs > DURACAO_DE_ANIMACAO_MAX_MS) return { motivo: `${id}: duracaoMs` }
     // `som` é opcional e enfeite: ausente ou de um som que este app não sintetiza, a porta entra muda.
     const som = 'som' in valor && somDaAnimacaoDePortaValido(valor.som) ? { som: valor.som } : {}
-    return { entrada: { ...comum, tipo, duracaoMs, ...som } }
+    // Tempo de fechar e curvas tortas também não tiram a porta: ela fecha no tempo de abrir, na curva de sempre.
+    const fechar = 'duracaoFecharMs' in valor ? valor.duracaoFecharMs : undefined
+    const duracaoFecharMs = numeroFinito(fechar) && fechar > 0 && fechar <= DURACAO_DE_ANIMACAO_MAX_MS ? { duracaoFecharMs: fechar } : {}
+    const curvaAbrir = 'curvaAbrir' in valor && curvaBezierValida(valor.curvaAbrir) ? { curvaAbrir: valor.curvaAbrir } : {}
+    const curvaFechar = 'curvaFechar' in valor && curvaBezierValida(valor.curvaFechar) ? { curvaFechar: valor.curvaFechar } : {}
+    return { entrada: { ...comum, tipo, duracaoMs, ...duracaoFecharMs, ...curvaAbrir, ...curvaFechar, ...som } }
   }
 
   if (tipo === 'textura') {
@@ -321,7 +331,16 @@ function registrarEntrada(entrada: EntradaDoPacote, modulo: unknown): boolean {
     case 'transicao':
       return registrarTransicao({ id, nome, duracaoNaturalS: entrada.duracaoNaturalS, quadroDaMiniaturaS: entrada.quadroDaMiniaturaS, criar: funcao })
     case 'porta':
-      return registrarAnimacaoDePorta({ id, nome, duracaoMs: entrada.duracaoMs, ...(entrada.som === undefined ? {} : { som: entrada.som }), desenhar: funcao })
+      return registrarAnimacaoDePorta({
+        id,
+        nome,
+        duracaoMs: entrada.duracaoMs,
+        ...(entrada.duracaoFecharMs === undefined ? {} : { duracaoFecharMs: entrada.duracaoFecharMs }),
+        ...(entrada.curvaAbrir === undefined ? {} : { curvaAbrir: entrada.curvaAbrir }),
+        ...(entrada.curvaFechar === undefined ? {} : { curvaFechar: entrada.curvaFechar }),
+        ...(entrada.som === undefined ? {} : { som: entrada.som }),
+        desenhar: funcao,
+      })
     case 'cenario': {
       const quadro = entrada.quadroDaMiniaturaS === undefined ? {} : { quadroDaMiniaturaS: entrada.quadroDaMiniaturaS }
       return registrarEstiloDeCenario({ id, nome, duracaoNaturalS: entrada.duracaoNaturalS, ...quadro, criar: funcao })
