@@ -1,0 +1,315 @@
+<title>Animações de porta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Mesmas cores e fontes dos protótipos do telhado, dos objetos e da vila (já aprovados). O palco escuro de cada porta é o chão do app. */
+  :root {
+    --bg: #eceee8;
+    --superficie: #f7f8f4;
+    --texto: #1e231f;
+    --suave: #5b635c;
+    --linha: #d1d6ce;
+    --acento: #8f513d;
+    --moldura: #2c3326;
+    --aviso: #8a4a12;
+    --f-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --f-texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+      --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aviso: #e0a46a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121512; --superficie: #1a1e1a; --texto: #e4e8e2; --suave: #9aa39a;
+    --linha: #2c322c; --acento: #d18c71; --moldura: #0f120e; --aviso: #e0a46a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pagina {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 20px;
+  }
+  .cabeca { display: grid; gap: 6px; }
+  h1 {
+    margin: 0;
+    font-family: var(--f-titulo);
+    font-weight: 700;
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .lead { margin: 0; max-width: 66ch; color: var(--suave); font-size: 1.02rem; }
+  h2 { margin: 0; font-family: var(--f-titulo); font-weight: 600; font-size: 1.35rem; line-height: 1.15; }
+  h3 { margin: 0; font-family: var(--f-titulo); font-weight: 600; font-size: 1.25rem; line-height: 1.1; }
+
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+  /* Barra de ajustes: cada grupo com o nome em cima, em texto normal. */
+  .barra {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 22px;
+    align-items: flex-end;
+    padding: 14px 16px;
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 14px;
+  }
+  .grupo { display: grid; gap: 6px; }
+  .grupo > .nome-do-grupo { font-size: 0.85rem; color: var(--suave); }
+  .segmentado {
+    display: inline-flex;
+    flex-wrap: wrap;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: var(--bg);
+  }
+  .segmentado button, .chave, .botao {
+    font: 500 0.95rem/1 var(--f-texto);
+    color: var(--suave);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 0 14px;
+    min-height: 44px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentado button[aria-checked="true"] { background: var(--texto); color: var(--bg); }
+  .segmentado button:active, .chave:active, .botao:active:not(:disabled), .amostra:active { transform: scale(0.97); }
+  .chave {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--linha);
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 0 14px 0 12px;
+    min-height: 44px;
+  }
+  .chave .marca { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--suave); display: grid; place-items: center; }
+  .chave .marca svg { width: 12px; height: 12px; opacity: 0; }
+  .chave[aria-pressed="true"] { color: var(--texto); }
+  .chave[aria-pressed="true"] .marca { background: var(--texto); border-color: var(--texto); }
+  .chave[aria-pressed="true"] .marca svg { opacity: 1; color: var(--bg); }
+  .volume { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--suave); font-size: 0.95rem; }
+  .volume input { width: 120px; accent-color: var(--acento); }
+  .acoes-gerais { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .botao { border: 1px solid var(--linha); background: var(--bg); color: var(--texto); min-height: 44px; border-radius: 10px; }
+  .botao.principal { background: var(--texto); color: var(--bg); border-color: var(--texto); min-width: 92px; }
+  .botao:disabled { opacity: 0.45; cursor: default; }
+  #aviso-global { margin: 0; color: var(--aviso); min-height: 1.5em; }
+
+  /* As portas. */
+  .portas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+  .cartao {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .palco { background: var(--moldura); display: grid; place-items: center; padding: 12px 0; }
+  .palco canvas { width: 300px; height: 180px; max-width: 100%; border-radius: 6px; display: block; }
+  .corpo { display: grid; gap: 10px; padding: 14px 16px 16px; align-content: start; }
+  .titulo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .tipo { font-size: 0.85rem; color: var(--suave); }
+  .tipo[data-tipo="nova"] { color: var(--acento); font-weight: 600; }
+  .descricao, .tempos { margin: 0; }
+  .tempos { color: var(--suave); font-size: 0.92rem; }
+  .campo { display: grid; gap: 4px; font-size: 0.85rem; color: var(--suave); }
+  select {
+    font: 500 0.98rem/1.2 var(--f-texto);
+    color: var(--texto);
+    background: var(--bg);
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+  .paleta { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+  .amostra, .livre {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    border-radius: 999px;
+    position: relative;
+    transition: transform 160ms var(--ease-out);
+  }
+  .amostra::before, .livre::before {
+    content: "";
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--amostra);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--texto) 18%, transparent);
+  }
+  .amostra[aria-checked="true"]::after, .livre[data-marcado="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 999px;
+    border: 2px solid var(--texto);
+  }
+  .livre::before { background: conic-gradient(#d08c3a, #7f9a64, #7189a6, #9b7fae, #a07b51, #d08c3a); }
+  .livre input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+  .contraste { margin: 0; font-size: 0.85rem; color: var(--suave); }
+  .contraste[data-fraco="true"] { color: var(--aviso); }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .aviso, .aviso-do-som { margin: 0; font-size: 0.88rem; color: var(--suave); min-height: 1.3em; }
+  .aviso-do-som:empty { display: none; }
+
+  .estresse { display: grid; gap: 10px; }
+  .estresse p { margin: 0; max-width: 70ch; }
+  .palco-estresse { background: var(--moldura); border-radius: 12px; padding: 10px; overflow: hidden; }
+  .palco-estresse canvas { width: 100%; max-width: 720px; height: auto; display: block; margin: 0 auto; border-radius: 6px; }
+  .palco-estresse:empty { display: none; }
+  .resultado { color: var(--suave); }
+
+  .notas { display: grid; gap: 8px; max-width: 72ch; color: var(--suave); }
+  .notas ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .segmentado button, .chave, .botao, .amostra, .livre { transition: background-color 160ms ease, color 160ms ease; }
+    .segmentado button:active, .chave:active, .botao:active:not(:disabled), .amostra:active { transform: none; }
+  }
+</style>
+
+<main class="pagina">
+  <header class="cabeca">
+    <h1>Animações de porta</h1>
+    <p class="lead">Cinco jeitos novos de abrir a porta do mapa, ao lado do Girar e do Deslizar de hoje. A porta continua a mesma barra chapada no vão; muda o caminho entre fechada e aberta, a cor e o cadeado. Nada disto está no app ainda: escolha aqui o que entra.</p>
+  </header>
+
+  <section class="barra" aria-label="Ajustes de todas as portas">
+    <div class="grupo">
+      <span class="nome-do-grupo" id="nome-velocidade">Velocidade</span>
+      <div class="segmentado" id="velocidade" role="radiogroup" aria-labelledby="nome-velocidade">
+        <button type="button" role="radio" aria-checked="true" data-valor="1">1x</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="0.5">0,5x</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="0.25">0,25x</button>
+      </div>
+    </div>
+    <div class="grupo">
+      <span class="nome-do-grupo" id="nome-zoom">Zoom do mapa</span>
+      <div class="segmentado" id="zoom" role="radiogroup" aria-labelledby="nome-zoom">
+        <button type="button" role="radio" aria-checked="false" data-valor="1">100%</button>
+        <button type="button" role="radio" aria-checked="true" data-valor="2">200%</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="4">400%</button>
+      </div>
+    </div>
+    <div class="grupo">
+      <span class="nome-do-grupo" id="nome-chao">Chão</span>
+      <div class="segmentado" id="chao" role="radiogroup" aria-labelledby="nome-chao">
+        <button type="button" role="radio" aria-checked="true" data-valor="escuro">Escuro do app</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="pedra">Pedra clara</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="grama">Grama</button>
+      </div>
+    </div>
+    <div class="grupo">
+      <span class="nome-do-grupo">Movimento e som</span>
+      <div class="acoes-gerais">
+        <button type="button" class="chave" id="repetir" aria-pressed="false"><span class="marca"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg></span>Repetir</button>
+        <button type="button" class="chave" id="som-ao-abrir" aria-pressed="true"><span class="marca"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg></span>Som ao abrir</button>
+        <label class="volume" for="volume">Volume <input id="volume" type="range" min="0" max="100" value="50"></label>
+        <button type="button" class="chave" id="reduzido" aria-pressed="false"><span class="marca"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg></span>Simular movimento reduzido</button>
+      </div>
+    </div>
+    <div class="grupo">
+      <span class="nome-do-grupo">Todas as portas</span>
+      <div class="acoes-gerais">
+        <button type="button" class="botao" id="abrir-todas">Abrir todas</button>
+        <button type="button" class="botao" id="fechar-todas">Fechar todas</button>
+      </div>
+    </div>
+    <div class="grupo">
+      <span class="nome-do-grupo" id="nome-tema">Tema da página</span>
+      <div class="segmentado" id="tema" role="radiogroup" aria-labelledby="nome-tema">
+        <button type="button" role="radio" aria-checked="true" data-valor="">Sistema</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="light">Claro</button>
+        <button type="button" role="radio" aria-checked="false" data-valor="dark">Escuro</button>
+      </div>
+    </div>
+  </section>
+  <p id="aviso-global" aria-live="polite"></p>
+
+  <section class="portas" id="portas" aria-label="Portas"></section>
+
+  <section class="estresse" id="estresse" aria-labelledby="titulo-estresse">
+    <h2 id="titulo-estresse">50 portas ao mesmo tempo</h2>
+    <p>Um mapa cheio: 50 portas num animador só, como uma camada do app, abrindo e fechando por 4 s (várias invertem no meio). A medida sai aqui, da sua máquina.</p>
+    <div><button type="button" class="botao principal medir">Medir 50 portas</button></div>
+    <div class="palco-estresse"></div>
+    <p class="resultado" aria-live="polite"></p>
+  </section>
+
+  <section class="notas" aria-labelledby="titulo-notas">
+    <h2 id="titulo-notas">O que é de verdade aqui</h2>
+    <ul>
+      <li>O desenho da porta parada, o Girar, o Deslizar, as paredes e o Pixi são o código do app, empacotado nesta página.</li>
+      <li>As cinco novas estão no formato do pacote de animações: vão para o app sem reescrever.</li>
+      <li>São propostas, e ainda não estão no app: a cor própria da porta, o cadeado da trancada, o tempo de fechar e a curva de cada animação.</li>
+      <li>O som é sintetizado na hora (sem arquivo) e só existe para as cinco novas.</li>
+    </ul>
+  </section>
+</main>
+
+<template id="modelo-cartao">
+  <article class="cartao">
+    <div class="palco"><canvas role="img"></canvas></div>
+    <div class="corpo">
+      <div class="titulo"><h3 class="nome"></h3><span class="tipo"></span></div>
+      <p class="descricao"></p>
+      <p class="tempos"></p>
+      <label class="campo rotulo-animacao">Animação</label>
+      <select class="animacao"></select>
+      <div class="campo"><span>Cor da porta</span><div class="paleta" role="radiogroup" aria-label="Cor da porta"></div></div>
+      <label class="livre" title="Cor livre" data-marcado="false"><input type="color" value="#d08c3a" aria-label="Cor livre"></label>
+      <p class="contraste"></p>
+      <div class="segmentado orientacao" role="radiogroup" aria-label="Posição da porta">
+        <button type="button" role="radio" aria-checked="true" data-orientacao="horizontal">Horizontal</button>
+        <button type="button" role="radio" aria-checked="false" data-orientacao="vertical">Vertical</button>
+      </div>
+      <div class="acoes">
+        <button type="button" class="botao principal abrir">Abrir</button>
+        <button type="button" class="botao trancar">Trancar</button>
+        <button type="button" class="botao ouvir" aria-label="Ouvir o som de abrir e de fechar">Ouvir</button>
+      </div>
+      <p class="aviso" aria-live="polite"></p>
+      <p class="aviso-do-som"></p>
+    </div>
+  </article>
+</template>
+
+<script>/*__PROTOTIPO__*/</script>

@@ -1,0 +1,20 @@
+{
+  "escritasEm": "2026-10-21, antes de qualquer linha de código das animações",
+  "regra": "~/.claude/rules/teste-de-jogos.md: número escrito antes, sem 'a maioria' nem 'bem menos'",
+  "metas": {
+    "M1_extremos": "desenhar(0) igual à porta fechada parada e desenhar(1) igual à aberta parada: 0 pixels diferentes, porta horizontal e vertical, zoom 1x, 2x e 4x, resolução 1 e 2",
+    "M2_opacidade": "0 preenchimentos com alfa < 1 nas 5 novas, em 201 pontos de progresso cada",
+    "M3_curva": "progresso no animador: monotônico, dentro de [0, 1] (excesso 0, sem quique) e chega exatamente ao alvo, nos dois sentidos",
+    "M4_folha": "cobertura do vão pela folha começa em 1 e termina em 0; fora dos trechos de tremor declarados ela não sobe mais que 0,5% ao abrir nem desce mais que 0,5% ao fechar",
+    "M5_continuidade": "a folha nunca salta: entre dois pontos de progresso a 0,5% de distância, o centro da folha anda no máximo 1,5 px de tela (zoom 2x)",
+    "M6_tempo": "duração medida no animador (clique até a porta voltar ao desenho parado) = declarada, com folga de 1 quadro (16,7 ms); declaradas entre 200 e 900 ms",
+    "M7_inversao": "inverter a 25%, 50% e 75% do tempo: o salto do centro da folha no quadro da inversão não passa do maior passo de quadro da corrida sem inversão",
+    "M8_movimento_reduzido": "com movimento reduzido: 0 quadros intermediários (a porta troca na hora)",
+    "M9_50_portas": "50 portas animando juntas por 4 s: quadro p95 <= 20 ms e 0 tarefas longas >= 200 ms",
+    "M10_console": "0 erros no console ao abrir a página e durante todas as provas",
+    "M11_390px": "a 390 px de largura: largura rolável <= 390 px (sem rolagem lateral)",
+    "M12_som": "por som (abrir e fechar de cada uma das 5): pico verdadeiro <= -12 dBTP; volume integrado entre -36 e -26 LUFS; 0 cliques; 0 amostras cortadas; DC <= 0,5%; últimos 10 ms abaixo de -60 dBFS (sem corte no fim); som acaba até 250 ms depois da animação",
+    "M13_prints": "no máximo 5 prints de tela",
+    "M14_folhas": "uma folha de contato por animação nova, com 12 a 16 quadros e o tempo embaixo de cada um"
+  }
+}

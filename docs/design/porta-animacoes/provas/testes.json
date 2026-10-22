@@ -1,0 +1,1463 @@
+{
+  "geradoEm": "2026-10-22T02:49:34.855Z",
+  "comando": "node docs/design/porta-animacoes/provas/gerar-provas.cjs",
+  "navegador": "chromium-1243 (headless, WebGL por SwiftShader: GPU por software)",
+  "prototipo": {
+    "bytes": 561833,
+    "esbuild": "0.28.2",
+    "codigoDoApp": [
+      "portas/animacoesDePorta.ts",
+      "pixi/constants.ts",
+      "pixi/pixelAlign.ts",
+      "pixi/drawWalls.ts",
+      "transicoes/curvas.ts"
+    ]
+  },
+  "metas": {
+    "M1_extremos": "desenhar(0) igual à porta fechada parada e desenhar(1) igual à aberta parada: 0 pixels diferentes, porta horizontal e vertical, zoom 1x, 2x e 4x, resolução 1 e 2",
+    "M2_opacidade": "0 preenchimentos com alfa < 1 nas 5 novas, em 201 pontos de progresso cada",
+    "M3_curva": "progresso no animador: monotônico, dentro de [0, 1] (excesso 0, sem quique) e chega exatamente ao alvo, nos dois sentidos",
+    "M4_folha": "cobertura do vão pela folha começa em 1 e termina em 0; fora dos trechos de tremor declarados ela não sobe mais que 0,5% ao abrir nem desce mais que 0,5% ao fechar",
+    "M5_continuidade": "a folha nunca salta: entre dois pontos de progresso a 0,5% de distância, o centro da folha anda no máximo 1,5 px de tela (zoom 2x)",
+    "M6_tempo": "duração medida no animador (clique até a porta voltar ao desenho parado) = declarada, com folga de 1 quadro (16,7 ms); declaradas entre 200 e 900 ms",
+    "M7_inversao": "inverter a 25%, 50% e 75% do tempo: o salto do centro da folha no quadro da inversão não passa do maior passo de quadro da corrida sem inversão",
+    "M8_movimento_reduzido": "com movimento reduzido: 0 quadros intermediários (a porta troca na hora)",
+    "M9_50_portas": "50 portas animando juntas por 4 s: quadro p95 <= 20 ms e 0 tarefas longas >= 200 ms",
+    "M10_console": "0 erros no console ao abrir a página e durante todas as provas",
+    "M11_390px": "a 390 px de largura: largura rolável <= 390 px (sem rolagem lateral)",
+    "M12_som": "por som (abrir e fechar de cada uma das 5): pico verdadeiro <= -12 dBTP; volume integrado entre -36 e -26 LUFS; 0 cliques; 0 amostras cortadas; DC <= 0,5%; últimos 10 ms abaixo de -60 dBFS (sem corte no fim); som acaba até 250 ms depois da animação",
+    "M13_prints": "no máximo 5 prints de tela",
+    "M14_folhas": "uma folha de contato por animação nova, com 12 a 16 quadros e o tempo embaixo de cada um"
+  },
+  "veredito": "todas as metas passaram",
+  "falhas": [],
+  "porAnimacao": {
+    "dupla": {
+      "nome": "Dupla",
+      "duracaoMs": 320,
+      "duracaoFecharMs": 280,
+      "curvaAbrir": [
+        0.61,
+        1,
+        0.88,
+        1
+      ],
+      "curvaFechar": [
+        0.61,
+        1,
+        0.88,
+        1
+      ],
+      "M2_alfaAbaixoDe1": 0,
+      "M4": {
+        "coberturaInicio": 1,
+        "coberturaFim": 0,
+        "maiorSubidaForaDoTremor": 0,
+        "trechosDeTremor": []
+      },
+      "M5_maiorPassoDoCentroPx": 0.31,
+      "M3": {
+        "abrir": {
+          "monotona": true,
+          "excesso": 0
+        },
+        "fechar": {
+          "monotona": true,
+          "excesso": 0
+        }
+      },
+      "M6": {
+        "abrir": {
+          "declaradoMs": 320,
+          "medidoMs": 333.33
+        },
+        "fechar": {
+          "declaradoMs": 280,
+          "medidoMs": 283.33
+        }
+      },
+      "M8_quadrosAnimadosComMovimentoReduzido": 0,
+      "M7": {
+        "maiorPassoNormalPx": 4.74,
+        "inversoes": [
+          {
+            "em": 0.25,
+            "saltoPx": 1.05,
+            "progressoAntes": 0.32,
+            "progressoDepois": 0.4,
+            "voltouFechadaEmMs": 200
+          },
+          {
+            "em": 0.5,
+            "saltoPx": 2.5,
+            "progressoAntes": 0.66,
+            "progressoDepois": 0.72,
+            "voltouFechadaEmMs": 383.33
+          },
+          {
+            "em": 0.75,
+            "saltoPx": 1.09,
+            "progressoAntes": 0.91,
+            "progressoDepois": 0.94,
+            "voltouFechadaEmMs": 516.67
+          }
+        ]
+      },
+      "som": {
+        "abrir": {
+          "picoVerdadeiroDbtp": -13.83,
+          "lufsIntegrado": -31.99,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.0703,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -51,
+          "wav": "som/dupla-abrir.wav"
+        },
+        "fechar": {
+          "picoVerdadeiroDbtp": -12.31,
+          "lufsIntegrado": -31.96,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.0344,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": 57,
+          "wav": "som/dupla-fechar.wav"
+        }
+      },
+      "grafico": "graficos/dupla.png",
+      "amostras50ms": {
+        "abrir": {
+          "serieP": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.25
+            ],
+            [
+              100,
+              0.47
+            ],
+            [
+              150,
+              0.66
+            ],
+            [
+              200,
+              0.83
+            ],
+            [
+              250,
+              0.94
+            ],
+            [
+              300,
+              1
+            ],
+            [
+              350,
+              1
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.09
+            ],
+            [
+              100,
+              0.05
+            ],
+            [
+              150,
+              0.04
+            ],
+            [
+              200,
+              0.04
+            ],
+            [
+              250,
+              0.03
+            ],
+            [
+              300,
+              0
+            ],
+            [
+              350,
+              0
+            ]
+          ]
+        },
+        "fechar": {
+          "serieP": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.72
+            ],
+            [
+              100,
+              0.47
+            ],
+            [
+              150,
+              0.26
+            ],
+            [
+              200,
+              0.1
+            ],
+            [
+              250,
+              0.01
+            ],
+            [
+              300,
+              0
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.04
+            ],
+            [
+              100,
+              0.05
+            ],
+            [
+              150,
+              0.09
+            ],
+            [
+              200,
+              0.21
+            ],
+            [
+              250,
+              0.86
+            ],
+            [
+              300,
+              1
+            ]
+          ]
+        }
+      },
+      "folha": {
+        "arquivo": "folhas/dupla.png",
+        "quadros": 16
+      }
+    },
+    "grade": {
+      "nome": "Grade que sobe",
+      "duracaoMs": 600,
+      "duracaoFecharMs": 420,
+      "curvaAbrir": [
+        0.37,
+        0,
+        0.63,
+        1
+      ],
+      "curvaFechar": [
+        0.37,
+        0,
+        0.63,
+        1
+      ],
+      "M2_alfaAbaixoDe1": 0,
+      "M4": {
+        "coberturaInicio": 1,
+        "coberturaFim": 0,
+        "maiorSubidaForaDoTremor": 0,
+        "trechosDeTremor": [
+          [
+            0.18,
+            0.44
+          ]
+        ]
+      },
+      "M5_maiorPassoDoCentroPx": 0.82,
+      "M3": {
+        "abrir": {
+          "monotona": true,
+          "excesso": 0
+        },
+        "fechar": {
+          "monotona": true,
+          "excesso": 0
+        }
+      },
+      "M6": {
+        "abrir": {
+          "declaradoMs": 600,
+          "medidoMs": 600
+        },
+        "fechar": {
+          "declaradoMs": 420,
+          "medidoMs": 433.33
+        }
+      },
+      "M8_quadrosAnimadosComMovimentoReduzido": 0,
+      "M7": {
+        "maiorPassoNormalPx": 1.25,
+        "inversoes": [
+          {
+            "em": 0.25,
+            "saltoPx": 0,
+            "progressoAntes": 0.12,
+            "progressoDepois": 0.14,
+            "voltouFechadaEmMs": 216.67
+          },
+          {
+            "em": 0.5,
+            "saltoPx": 0,
+            "progressoAntes": 0.46,
+            "progressoDepois": 0.5,
+            "voltouFechadaEmMs": 516.67
+          },
+          {
+            "em": 0.75,
+            "saltoPx": 0,
+            "progressoAntes": 0.82,
+            "progressoDepois": 0.86,
+            "voltouFechadaEmMs": 816.67
+          }
+        ]
+      },
+      "som": {
+        "abrir": {
+          "picoVerdadeiroDbtp": -13.49,
+          "lufsIntegrado": -32,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.0154,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -105,
+          "wav": "som/grade-abrir.wav"
+        },
+        "fechar": {
+          "picoVerdadeiroDbtp": -15.93,
+          "lufsIntegrado": -32.34,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.0258,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": 34,
+          "wav": "som/grade-fechar.wav"
+        }
+      },
+      "grafico": "graficos/grade.png",
+      "amostras50ms": {
+        "abrir": {
+          "serieP": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.02
+            ],
+            [
+              100,
+              0.07
+            ],
+            [
+              150,
+              0.14
+            ],
+            [
+              200,
+              0.25
+            ],
+            [
+              250,
+              0.37
+            ],
+            [
+              300,
+              0.5
+            ],
+            [
+              350,
+              0.63
+            ],
+            [
+              400,
+              0.75
+            ],
+            [
+              450,
+              0.86
+            ],
+            [
+              500,
+              0.93
+            ],
+            [
+              550,
+              0.98
+            ],
+            [
+              600,
+              1
+            ],
+            [
+              650,
+              1
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.99
+            ],
+            [
+              100,
+              0.88
+            ],
+            [
+              150,
+              0.67
+            ],
+            [
+              200,
+              0.55
+            ],
+            [
+              250,
+              0.55
+            ],
+            [
+              300,
+              0.55
+            ],
+            [
+              350,
+              0.38
+            ],
+            [
+              400,
+              0.12
+            ],
+            [
+              450,
+              0.02
+            ],
+            [
+              500,
+              0
+            ],
+            [
+              550,
+              0
+            ],
+            [
+              600,
+              0
+            ],
+            [
+              650,
+              0
+            ]
+          ]
+        },
+        "fechar": {
+          "serieP": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.97
+            ],
+            [
+              100,
+              0.87
+            ],
+            [
+              150,
+              0.72
+            ],
+            [
+              200,
+              0.54
+            ],
+            [
+              250,
+              0.35
+            ],
+            [
+              300,
+              0.19
+            ],
+            [
+              350,
+              0.07
+            ],
+            [
+              400,
+              0.01
+            ],
+            [
+              450,
+              0
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0
+            ],
+            [
+              100,
+              0.01
+            ],
+            [
+              150,
+              0.18
+            ],
+            [
+              200,
+              0.45
+            ],
+            [
+              250,
+              0.55
+            ],
+            [
+              300,
+              0.63
+            ],
+            [
+              350,
+              0.88
+            ],
+            [
+              400,
+              1
+            ],
+            [
+              450,
+              1
+            ]
+          ]
+        }
+      },
+      "folha": {
+        "arquivo": "folhas/grade.png",
+        "quadros": 16
+      }
+    },
+    "arrombada": {
+      "nome": "Arrombada",
+      "duracaoMs": 560,
+      "duracaoFecharMs": 320,
+      "curvaAbrir": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "curvaFechar": [
+        0.33,
+        1,
+        0.68,
+        1
+      ],
+      "M2_alfaAbaixoDe1": 0,
+      "M4": {
+        "coberturaInicio": 1,
+        "coberturaFim": 0,
+        "maiorSubidaForaDoTremor": 0,
+        "trechosDeTremor": [
+          [
+            0,
+            0.5
+          ]
+        ]
+      },
+      "M5_maiorPassoDoCentroPx": 0.84,
+      "M3": {
+        "abrir": {
+          "monotona": true,
+          "excesso": 0
+        },
+        "fechar": {
+          "monotona": true,
+          "excesso": 0
+        }
+      },
+      "M6": {
+        "abrir": {
+          "declaradoMs": 560,
+          "medidoMs": 566.67
+        },
+        "fechar": {
+          "declaradoMs": 320,
+          "medidoMs": 333.33
+        }
+      },
+      "M8_quadrosAnimadosComMovimentoReduzido": 0,
+      "M7": {
+        "maiorPassoNormalPx": 4.69,
+        "inversoes": [
+          {
+            "em": 0.25,
+            "saltoPx": 0.46,
+            "progressoAntes": 0.24,
+            "progressoDepois": 0.27,
+            "voltouFechadaEmMs": 250
+          },
+          {
+            "em": 0.5,
+            "saltoPx": 3.34,
+            "progressoAntes": 0.48,
+            "progressoDepois": 0.51,
+            "voltouFechadaEmMs": 450
+          },
+          {
+            "em": 0.75,
+            "saltoPx": 2.47,
+            "progressoAntes": 0.74,
+            "progressoDepois": 0.77,
+            "voltouFechadaEmMs": 683.33
+          }
+        ]
+      },
+      "som": {
+        "abrir": {
+          "picoVerdadeiroDbtp": -14.65,
+          "lufsIntegrado": -32.02,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.037,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -25,
+          "wav": "som/arrombada-abrir.wav"
+        },
+        "fechar": {
+          "picoVerdadeiroDbtp": -16,
+          "lufsIntegrado": -31.99,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.047,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -89,
+          "wav": "som/arrombada-fechar.wav"
+        }
+      },
+      "grafico": "graficos/arrombada.png",
+      "amostras50ms": {
+        "abrir": {
+          "serieP": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.09
+            ],
+            [
+              100,
+              0.18
+            ],
+            [
+              150,
+              0.27
+            ],
+            [
+              200,
+              0.36
+            ],
+            [
+              250,
+              0.45
+            ],
+            [
+              300,
+              0.54
+            ],
+            [
+              350,
+              0.62
+            ],
+            [
+              400,
+              0.71
+            ],
+            [
+              450,
+              0.8
+            ],
+            [
+              500,
+              0.89
+            ],
+            [
+              550,
+              0.98
+            ],
+            [
+              600,
+              1
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.4
+            ],
+            [
+              100,
+              0.55
+            ],
+            [
+              150,
+              0.37
+            ],
+            [
+              200,
+              0.21
+            ],
+            [
+              250,
+              0.06
+            ],
+            [
+              300,
+              0.04
+            ],
+            [
+              350,
+              0.03
+            ],
+            [
+              400,
+              0.02
+            ],
+            [
+              450,
+              0.02
+            ],
+            [
+              500,
+              0.02
+            ],
+            [
+              550,
+              0.01
+            ],
+            [
+              600,
+              0
+            ]
+          ]
+        },
+        "fechar": {
+          "serieP": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.6
+            ],
+            [
+              100,
+              0.33
+            ],
+            [
+              150,
+              0.15
+            ],
+            [
+              200,
+              0.05
+            ],
+            [
+              250,
+              0.01
+            ],
+            [
+              300,
+              0
+            ],
+            [
+              350,
+              0
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.03
+            ],
+            [
+              100,
+              0.4
+            ],
+            [
+              150,
+              0.34
+            ],
+            [
+              200,
+              0.5
+            ],
+            [
+              250,
+              0.87
+            ],
+            [
+              300,
+              1
+            ],
+            [
+              350,
+              1
+            ]
+          ]
+        }
+      },
+      "folha": {
+        "arquivo": "folhas/arrombada.png",
+        "quadros": 16
+      }
+    },
+    "sanfona": {
+      "nome": "Sanfona",
+      "duracaoMs": 440,
+      "duracaoFecharMs": 380,
+      "curvaAbrir": [
+        0.37,
+        0,
+        0.63,
+        1
+      ],
+      "curvaFechar": [
+        0.33,
+        1,
+        0.68,
+        1
+      ],
+      "M2_alfaAbaixoDe1": 0,
+      "M4": {
+        "coberturaInicio": 1,
+        "coberturaFim": 0,
+        "maiorSubidaForaDoTremor": 0,
+        "trechosDeTremor": []
+      },
+      "M5_maiorPassoDoCentroPx": 0.31,
+      "M3": {
+        "abrir": {
+          "monotona": true,
+          "excesso": 0
+        },
+        "fechar": {
+          "monotona": true,
+          "excesso": 0
+        }
+      },
+      "M6": {
+        "abrir": {
+          "declaradoMs": 440,
+          "medidoMs": 450
+        },
+        "fechar": {
+          "declaradoMs": 380,
+          "medidoMs": 383.33
+        }
+      },
+      "M8_quadrosAnimadosComMovimentoReduzido": 0,
+      "M7": {
+        "maiorPassoNormalPx": 2.88,
+        "inversoes": [
+          {
+            "em": 0.25,
+            "saltoPx": 1.82,
+            "progressoAntes": 0.12,
+            "progressoDepois": 0.16,
+            "voltouFechadaEmMs": 183.33
+          },
+          {
+            "em": 0.5,
+            "saltoPx": 1.74,
+            "progressoAntes": 0.49,
+            "progressoDepois": 0.55,
+            "voltouFechadaEmMs": 450
+          },
+          {
+            "em": 0.75,
+            "saltoPx": 0.83,
+            "progressoAntes": 0.82,
+            "progressoDepois": 0.86,
+            "voltouFechadaEmMs": 666.67
+          }
+        ]
+      },
+      "som": {
+        "abrir": {
+          "picoVerdadeiroDbtp": -12.54,
+          "lufsIntegrado": -32.94,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.008,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -13,
+          "wav": "som/sanfona-abrir.wav"
+        },
+        "fechar": {
+          "picoVerdadeiroDbtp": -12.56,
+          "lufsIntegrado": -31.98,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": -0.0121,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -30,
+          "wav": "som/sanfona-fechar.wav"
+        }
+      },
+      "grafico": "graficos/sanfona.png",
+      "amostras50ms": {
+        "abrir": {
+          "serieP": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.03
+            ],
+            [
+              100,
+              0.12
+            ],
+            [
+              150,
+              0.26
+            ],
+            [
+              200,
+              0.43
+            ],
+            [
+              250,
+              0.61
+            ],
+            [
+              300,
+              0.77
+            ],
+            [
+              350,
+              0.9
+            ],
+            [
+              400,
+              0.98
+            ],
+            [
+              450,
+              1
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.91
+            ],
+            [
+              100,
+              0.67
+            ],
+            [
+              150,
+              0.45
+            ],
+            [
+              200,
+              0.35
+            ],
+            [
+              250,
+              0.24
+            ],
+            [
+              300,
+              0.14
+            ],
+            [
+              350,
+              0.02
+            ],
+            [
+              400,
+              0
+            ],
+            [
+              450,
+              0
+            ]
+          ]
+        },
+        "fechar": {
+          "serieP": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.65
+            ],
+            [
+              100,
+              0.4
+            ],
+            [
+              150,
+              0.22
+            ],
+            [
+              200,
+              0.11
+            ],
+            [
+              250,
+              0.04
+            ],
+            [
+              300,
+              0.01
+            ],
+            [
+              350,
+              0
+            ],
+            [
+              400,
+              0
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.2
+            ],
+            [
+              100,
+              0.36
+            ],
+            [
+              150,
+              0.49
+            ],
+            [
+              200,
+              0.7
+            ],
+            [
+              250,
+              0.88
+            ],
+            [
+              300,
+              0.97
+            ],
+            [
+              350,
+              1
+            ],
+            [
+              400,
+              1
+            ]
+          ]
+        }
+      },
+      "folha": {
+        "arquivo": "folhas/sanfona.png",
+        "quadros": 16
+      }
+    },
+    "cortina": {
+      "nome": "Cortina de contas",
+      "duracaoMs": 480,
+      "duracaoFecharMs": 420,
+      "curvaAbrir": [
+        0.61,
+        1,
+        0.88,
+        1
+      ],
+      "curvaFechar": [
+        0.61,
+        1,
+        0.88,
+        1
+      ],
+      "M2_alfaAbaixoDe1": 0,
+      "M4": {
+        "coberturaInicio": 1,
+        "coberturaFim": 0,
+        "maiorSubidaForaDoTremor": 0,
+        "trechosDeTremor": [
+          [
+            0.06,
+            0.74
+          ]
+        ]
+      },
+      "M5_maiorPassoDoCentroPx": 0.28,
+      "M3": {
+        "abrir": {
+          "monotona": true,
+          "excesso": 0
+        },
+        "fechar": {
+          "monotona": true,
+          "excesso": 0
+        }
+      },
+      "M6": {
+        "abrir": {
+          "declaradoMs": 480,
+          "medidoMs": 483.33
+        },
+        "fechar": {
+          "declaradoMs": 420,
+          "medidoMs": 433.33
+        }
+      },
+      "M8_quadrosAnimadosComMovimentoReduzido": 0,
+      "M7": {
+        "maiorPassoNormalPx": 0.5,
+        "inversoes": [
+          {
+            "em": 0.25,
+            "saltoPx": 0.26,
+            "progressoAntes": 0.37,
+            "progressoDepois": 0.42,
+            "voltouFechadaEmMs": 316.67
+          },
+          {
+            "em": 0.5,
+            "saltoPx": 0.03,
+            "progressoAntes": 0.68,
+            "progressoDepois": 0.72,
+            "voltouFechadaEmMs": 566.67
+          },
+          {
+            "em": 0.75,
+            "saltoPx": 0,
+            "progressoAntes": 0.91,
+            "progressoDepois": 0.93,
+            "voltouFechadaEmMs": 766.67
+          }
+        ]
+      },
+      "som": {
+        "abrir": {
+          "picoVerdadeiroDbtp": -14,
+          "lufsIntegrado": -32.01,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": 0,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -219,
+          "wav": "som/cortina-abrir.wav"
+        },
+        "fechar": {
+          "picoVerdadeiroDbtp": -15.59,
+          "lufsIntegrado": -31.99,
+          "cliques": 0,
+          "ataques": 0,
+          "cortes": 0,
+          "dcPct": 0.0004,
+          "ultimos10msDbfs": -120,
+          "acabaDepoisDaAnimacaoMs": -40,
+          "wav": "som/cortina-fechar.wav"
+        }
+      },
+      "grafico": "graficos/cortina.png",
+      "amostras50ms": {
+        "abrir": {
+          "serieP": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.17
+            ],
+            [
+              100,
+              0.32
+            ],
+            [
+              150,
+              0.47
+            ],
+            [
+              200,
+              0.6
+            ],
+            [
+              250,
+              0.72
+            ],
+            [
+              300,
+              0.83
+            ],
+            [
+              350,
+              0.91
+            ],
+            [
+              400,
+              0.97
+            ],
+            [
+              450,
+              1
+            ],
+            [
+              500,
+              1
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.76
+            ],
+            [
+              100,
+              0.59
+            ],
+            [
+              150,
+              0.5
+            ],
+            [
+              200,
+              0.48
+            ],
+            [
+              250,
+              0.39
+            ],
+            [
+              300,
+              0.23
+            ],
+            [
+              350,
+              0.08
+            ],
+            [
+              400,
+              0.01
+            ],
+            [
+              450,
+              0
+            ],
+            [
+              500,
+              0
+            ]
+          ]
+        },
+        "fechar": {
+          "serieP": [
+            [
+              0,
+              1
+            ],
+            [
+              50,
+              0.81
+            ],
+            [
+              100,
+              0.63
+            ],
+            [
+              150,
+              0.47
+            ],
+            [
+              200,
+              0.33
+            ],
+            [
+              250,
+              0.2
+            ],
+            [
+              300,
+              0.1
+            ],
+            [
+              350,
+              0.03
+            ],
+            [
+              400,
+              0
+            ],
+            [
+              450,
+              0
+            ]
+          ],
+          "serieC": [
+            [
+              0,
+              0
+            ],
+            [
+              50,
+              0.26
+            ],
+            [
+              100,
+              0.48
+            ],
+            [
+              150,
+              0.5
+            ],
+            [
+              200,
+              0.58
+            ],
+            [
+              250,
+              0.74
+            ],
+            [
+              300,
+              0.79
+            ],
+            [
+              350,
+              0.92
+            ],
+            [
+              400,
+              1
+            ],
+            [
+              450,
+              1
+            ]
+          ]
+        }
+      },
+      "folha": {
+        "arquivo": "folhas/cortina.png",
+        "quadros": 16
+      }
+    }
+  },
+  "M1_extremos": {
+    "combinacoes": 91,
+    "comPixelDiferente": 0,
+    "novasComPixelDiferente": 0,
+    "deHojeComPixelDiferente": []
+  },
+  "M9_50portas": {
+    "portas": 50,
+    "duracaoMs": 4000,
+    "quadros": 477,
+    "quadroP50": 8.3,
+    "quadroP95": 8.4,
+    "quadroMax": 41.6,
+    "desenhoP95": 0.8,
+    "desenhoMax": 10,
+    "tarefasLongas": [],
+    "tarefasLongasObservadas": true,
+    "reduzido": false,
+    "tarefasLongasDe200ms": 0
+  },
+  "M10_console": {
+    "erros": 0,
+    "avisos": 0,
+    "mensagens": []
+  },
+  "M11_390px": {
+    "larguraRolavel": 390,
+    "larguraVisivel": 390,
+    "maisLargos": []
+  },
+  "M13_prints": [
+    "1-desktop-1440-claro-no-meio.png",
+    "2-escuro-400-telhado.png",
+    "3-celular-390.png",
+    "4-cinquenta-portas.png"
+  ],
+  "segundos": 17
+}
