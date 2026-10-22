@@ -41,10 +41,11 @@ export const MS_DA_REFERENCIA_LIVRE = 3
 /**
  * Quanto a máquina está mais lenta que livre agora (nunca abaixo de 1): a obra
  * de referência medida antes e depois (`depois`, a função que mede no fim), a
- * mais rápida das duas — a que menos compensa.
+ * mais rápida das duas — a que menos compensa. `livre`: a referência com a
+ * máquina livre onde ela roda (no navegador ela custa outro tanto que no Node).
  */
-export function lentidaoEntre(antes: number, depois: number): number {
-  return Math.max(1, Math.min(antes, depois) / MS_DA_REFERENCIA_LIVRE)
+export function lentidaoEntre(antes: number, depois: number, livre: number = MS_DA_REFERENCIA_LIVRE): number {
+  return Math.max(1, Math.min(antes, depois) / livre)
 }
 
 /** Parede de mentira da obra de referência: colunas com uma fresta em lugar diferente cada uma. */

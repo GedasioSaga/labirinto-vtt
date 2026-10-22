@@ -23,8 +23,10 @@
 //   entre quadros (requestAnimationFrame) — o pedido é nenhuma tarefa >= 200 ms
 //   e quadro p95 <= 20 ms com a máquina livre. Com a máquina dividida, o teto
 //   cresce na proporção da lentidão medida na hora por uma obra de referência
-//   que não usa o app (`arrastoDeRegime`).
+//   que não usa o app, até 30 ms: nunca aprova o arrasto a 30 quadros por
+//   segundo (`arrastoDeRegime`).
 import { test, expect, type Page } from '@playwright/test'
+import { lentidaoEntre } from '../src/lib/caminhamento/relogio.fixture'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { contentBounds, fitCamera } from '../src/pixi/world'
@@ -91,9 +93,20 @@ const RODADAS_DE_REGIME = 3
  * A obra de referência (`msDaReferencia`, lib/caminhamento/relogio.fixture.ts)
  * nesta página, com a máquina livre: 2,0 a 2,3 ms no Chromium 1243 em
  * 22/10/2026 (a mais rápida de antes e depois, 4 jornadas com a CPU a 5-23%).
- * Fica o lado alto: compensa menos, nunca mais do que a carga.
+ * Fica o lado alto: compensa menos, nunca mais do que a carga. Numa máquina
+ * mais lenta, ou noutro Chromium, ela pode ler carga onde não há: o teto para
+ * em `LENTIDAO_MAX_DA_MEDIDA` mesmo assim.
  */
 const MS_DA_REFERENCIA_LIVRE_NO_NAVEGADOR = 2.3
+/**
+ * Até onde a lentidão alarga o teto do p95: 20 ms x 1,5 = 30 ms. O intervalo
+ * entre quadros só vem em múltiplos do vsync (8,3 ms nesta máquina de 120 Hz,
+ * 16,7 ms a 60 Hz) e o arrasto a 30 quadros por segundo dá 33,3 ms nos dois:
+ * sem o limite, uma lentidão de 1,67 já o aprovava. Acima de 1,5 a medida não
+ * compensa mais; se nenhum arrasto cumprir, a falha diz que a máquina estava
+ * ocupada demais para medir.
+ */
+const LENTIDAO_MAX_DA_MEDIDA = 1.5
 
 function parede(id: string, x1: number, y1: number, x2: number, y2: number, door: Wall['door'] = null): Wall {
   return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door }
@@ -430,7 +443,7 @@ async function msDaReferenciaNaPagina(page: Page): Promise<number> {
 type Arrasto = Awaited<ReturnType<typeof arrastarNoSeletor>>
 interface RodadaDeRegime {
   medida: Arrasto
-  /** Quanto a máquina está mais lenta que livre (nunca abaixo de 1): a referência antes e depois, a mais rápida. */
+  /** Quanto a máquina está mais lenta que livre (nunca abaixo de 1): a referência antes e depois, a mais rápida. Sem o limite. */
   lentidao: number
   quadroP95MaxMs: number
   referenciaMs: [number, number]
@@ -440,10 +453,11 @@ interface RodadaDeRegime {
  * O ARRASTO DE REGIME, julgado contra a carga da máquina na hora (o molde de
  * lib/caminhamento/relogio.fixture.ts): a obra de referência é medida antes e
  * depois do arrasto, e o teto do quadro p95 cresce na mesma proporção da
- * lentidão medida (máquina livre = os 20 ms de sempre). Até
- * `RODADAS_DE_REGIME` arrastos, na mesma abertura da caixa; vale o primeiro
- * que cumpre. Uma regressão de verdade pesa no arrasto e não na referência, e
- * reprova todos.
+ * lentidão medida (máquina livre = os 20 ms de sempre), até
+ * `LENTIDAO_MAX_DA_MEDIDA`. Até `RODADAS_DE_REGIME` arrastos, na mesma
+ * abertura da caixa; vale o primeiro que cumpre. Uma regressão de verdade pesa
+ * no arrasto e não na referência, e reprova todos; aí o julgado é o da máquina
+ * menos carregada, o que menos compensa.
  */
 async function arrastoDeRegime(page: Page, rotulo: string): Promise<{ escolhida: RodadaDeRegime; todas: RodadaDeRegime[] }> {
   const cumpre = (r: RodadaDeRegime) => r.medida.quadroP95Ms <= r.quadroP95MaxMs && r.medida.tarefaMaisLongaMs < TAREFA_LONGA_MS
@@ -452,14 +466,14 @@ async function arrastoDeRegime(page: Page, rotulo: string): Promise<{ escolhida:
     const antes = await msDaReferenciaNaPagina(page)
     const medida = await arrastarNoSeletor(page, rotulo, ARRASTO, 0)
     const depois = await msDaReferenciaNaPagina(page)
-    const lentidao = Math.max(1, Math.min(antes, depois) / MS_DA_REFERENCIA_LIVRE_NO_NAVEGADOR)
-    const rodada: RodadaDeRegime = { medida, lentidao, quadroP95MaxMs: QUADRO_P95_MS * lentidao, referenciaMs: [antes, depois] }
+    const lentidao = lentidaoEntre(antes, depois, MS_DA_REFERENCIA_LIVRE_NO_NAVEGADOR)
+    const rodada: RodadaDeRegime = { medida, lentidao, quadroP95MaxMs: QUADRO_P95_MS * Math.min(lentidao, LENTIDAO_MAX_DA_MEDIDA), referenciaMs: [antes, depois] }
     todas.push(rodada)
     if (cumpre(rodada)) return { escolhida: rodada, todas }
   }
-  const ultima = todas[todas.length - 1]
-  if (ultima === undefined) throw new Error('nenhum arrasto de regime rodou')
-  return { escolhida: ultima, todas }
+  const [primeira, ...resto] = todas
+  if (primeira === undefined) throw new Error('nenhum arrasto de regime rodou')
+  return { escolhida: resto.reduce((menos, r) => (r.lentidao < menos.lentidao ? r : menos), primeira), todas }
 }
 
 /**
@@ -546,7 +560,12 @@ test('cor da porta: o mestre pinta pela ficha, tranca (cadeado), desfaz o arrast
   const lentidao = regime.escolhida.lentidao
   console.log(`[medida] arrasto de regime julgado, ${ARRASTO.length} cores: tarefa mais longa ${medida.tarefaMaisLongaMs.toFixed(1)} ms, quadro p95 ${medida.quadroP95Ms.toFixed(1)} ms em ${medida.quadros} quadros, teto ${regime.escolhida.quadroP95MaxMs.toFixed(1)} ms (lentidão ${lentidao.toFixed(2)})`)
   expect(medida.tarefaMaisLongaMs, 'o arrasto da cor travou a tela').toBeLessThan(TAREFA_LONGA_MS)
-  expect(medida.quadroP95Ms, `o arrasto da cor perdeu quadros em ${regime.todas.length} arrastos (máquina ${lentidao.toFixed(2)}x mais lenta que livre)`).toBeLessThanOrEqual(regime.escolhida.quadroP95MaxMs)
+  const teto = regime.escolhida.quadroP95MaxMs
+  const porque =
+    lentidao > LENTIDAO_MAX_DA_MEDIDA
+      ? `máquina ocupada demais para medir: ${lentidao.toFixed(2)}x mais lenta que livre nos ${regime.todas.length} arrastos, acima dos ${LENTIDAO_MAX_DA_MEDIDA}x que a medida compensa (teto parado em ${teto.toFixed(1)} ms); rode de novo com a máquina livre`
+      : `o arrasto da cor perdeu quadros em ${regime.todas.length} arrastos (máquina ${lentidao.toFixed(2)}x mais lenta que livre)`
+  expect(medida.quadroP95Ms, porque).toBeLessThanOrEqual(teto)
 
   // 3. Trancar: a folha continua azul, e aparecem o cadeado e o contorno vermelho.
   await mestre.getByRole('checkbox', { name: 'Trancada' }).click()
