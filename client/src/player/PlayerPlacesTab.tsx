@@ -110,11 +110,16 @@ export function PlaceMiniature({ place, label }: PlaceMiniatureProps) {
   )
 }
 
-/** Proporção da porta sobre o vão, e a espessura dela em fração do vão (com piso e teto em px de mundo). */
-const DOOR_LENGTH_SHARE = 0.7
+/**
+ * A porta enche o vão inteiro, como no mapa (`DOOR_LENGTH_RATIO`, pixi/drawDoors.ts);
+ * a espessura é uma fração do vão, com piso e teto em px de mundo.
+ */
+const DOOR_LENGTH_SHARE = 1
 const DOOR_THICKNESS_SHARE = 0.22
 const DOOR_THICKNESS_MIN = 3
 const DOOR_THICKNESS_MAX = 10
+/** O contorno escuro da folha (`DOOR_EDGE_COLOR`), 1 px de tela em qualquer tamanho do desenho. */
+const DOOR_EDGE = '#15181a'
 
 function DoorMark({ x1, y1, x2, y2, color }: { x1: number; y1: number; x2: number; y2: number; color: string }) {
   const length = Math.hypot(x2 - x1, y2 - y1)
@@ -131,6 +136,9 @@ function DoorMark({ x1, y1, x2, y2, color }: { x1: number; y1: number; x2: numbe
       width={round(width)}
       height={round(thickness)}
       fill={color}
+      stroke={DOOR_EDGE}
+      strokeWidth={1}
+      vectorEffect="non-scaling-stroke"
       transform={`rotate(${round(angle)} ${round(cx)} ${round(cy)})`}
     />
   )

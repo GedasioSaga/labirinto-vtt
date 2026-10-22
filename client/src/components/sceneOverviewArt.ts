@@ -41,7 +41,7 @@ const FLOOR_SAMPLES = 160
 const EDITOR_FLOOR_STEP = 2
 /** Menor raio da ficha na miniatura, em px de tela: abaixo disso a ficha some num mapa grande. */
 const MIN_TOKEN_RADIUS_PX = 3
-/** Espessura da porta na miniatura, em px de tela (no editor são 5 px, fixos na tela). */
+/** Espessura da porta na miniatura, em px de tela (no editor são 4 px, fixos na tela). */
 const DOOR_THICKNESS_PX = 2
 /** O disco do token sem foto é 2 px menor que a célula (`drawTokenCircle`, tokensRenderer.ts). */
 const TOKEN_INSET = 2
@@ -217,7 +217,7 @@ function wallWidth(wall: Wall): number | null {
   return typeof wall.thickness === 'number' && Number.isFinite(wall.thickness) ? clampWallWidth(wall.thickness) : null
 }
 
-/** Retângulo da porta no vão da parede: 60% do vão, espessura fixa na tela (como `drawDoors`). */
+/** Retângulo da porta no vão da parede: o vão inteiro, espessura fixa na tela (como `drawDoors`). */
 function doorPath(wall: Wall, thickness: number): string {
   const dx = wall.x2 - wall.x1
   const dy = wall.y2 - wall.y1

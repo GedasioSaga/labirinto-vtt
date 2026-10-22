@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
-import { DOOR_COLOR, DOOR_LENGTH_RATIO, DOOR_LOCKED_COLOR, SECRET_DOOR_DASHES, drawDoors } from './drawDoors'
+import { DOOR_COLOR, DOOR_EDGE_COLOR, DOOR_EDGE_SCREEN_PX, DOOR_LENGTH_RATIO, DOOR_LOCKED_COLOR, SECRET_DOOR_DASHES, drawDoors } from './drawDoors'
 import type { DoorState, Wall } from '../types/map'
 
 /** Porta secreta no editor do mestre: o mesmo retângulo, TRACEJADO (pedaços com vão entre eles). */
@@ -28,40 +28,46 @@ function colorOf(instruction: Instruction): number {
   return instruction.data.style.color
 }
 
+/** Os traços com a cor da porta (o contorno escuro de cada um vai antes, em `DOOR_EDGE_COLOR`). */
+function coloridos(g: Graphics): Instruction[] {
+  return fills(g).filter((i) => colorOf(i) !== DOOR_EDGE_COLOR)
+}
+
 describe('drawDoors: porta secreta tracejada', () => {
-  it('secreta: SECRET_DOOR_DASHES pedaços separados por vão, dentro do retângulo da porta', () => {
+  it('secreta: SECRET_DOOR_DASHES pedaços separados por vão, cobrindo o vão inteiro como a porta comum', () => {
     const g = new Graphics()
     drawDoors(g, [porta({ secret: true })])
-    const dashes = fills(g).map(spanX).sort((a, b) => a.min - b.min)
+    const contornos = fills(g).filter((i) => colorOf(i) === DOOR_EDGE_COLOR).map(spanX).sort((a, b) => a.min - b.min)
     expect(SECRET_DOOR_DASHES).toBeGreaterThanOrEqual(3)
-    expect(dashes).toHaveLength(SECRET_DOOR_DASHES)
+    expect(contornos).toHaveLength(SECRET_DOOR_DASHES)
+    expect(coloridos(g)).toHaveLength(SECRET_DOOR_DASHES)
     const half = (100 * DOOR_LENGTH_RATIO) / 2
-    const first = dashes[0].min
-    const last = dashes[dashes.length - 1].max
-    // Mesmo comprimento do retângulo da porta comum; o centro só se alinha ao pixel (até meio px).
-    expect(last - first).toBeCloseTo(2 * half, 5)
+    const first = contornos[0].min
+    const last = contornos[contornos.length - 1].max
+    // O vão inteiro mais meio contorno de cada ponta (1 px de tela a 100%); o centro só se alinha ao pixel.
+    expect(last - first).toBeCloseTo(2 * half + DOOR_EDGE_SCREEN_PX, 5)
     expect(Math.abs((first + last) / 2 - 50)).toBeLessThanOrEqual(0.5)
-    for (let i = 1; i < dashes.length; i += 1) {
-      const gap = dashes[i].min - dashes[i - 1].max
+    for (let i = 1; i < contornos.length; i += 1) {
+      const gap = contornos[i].min - contornos[i - 1].max
       expect(gap).toBeGreaterThan(1)
     }
   })
 
-  it('a cor continua dizendo o estado: trancada vermelha, destrancada laranja, aberta também tracejada', () => {
+  it('a cor continua dizendo o estado: trancada vermelha, destrancada creme, aberta também tracejada', () => {
     const trancada = new Graphics()
     drawDoors(trancada, [porta({ secret: true, locked: true })])
-    expect(fills(trancada).map(colorOf)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => DOOR_LOCKED_COLOR))
+    expect(coloridos(trancada).map(colorOf)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => DOOR_LOCKED_COLOR))
     const livre = new Graphics()
     drawDoors(livre, [porta({ secret: true })])
-    expect(fills(livre).map(colorOf)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => DOOR_COLOR))
+    expect(coloridos(livre).map(colorOf)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => DOOR_COLOR))
     const aberta = new Graphics()
     drawDoors(aberta, [porta({ secret: true, open: true })])
-    expect(fills(aberta)).toHaveLength(SECRET_DOOR_DASHES)
+    expect(fills(aberta).map(colorOf)).toEqual(fills(livre).map(colorOf))
   })
 
-  it('porta comum continua um retângulo só', () => {
+  it('porta comum continua uma folha só: o contorno e a cor', () => {
     const g = new Graphics()
     drawDoors(g, [porta({})])
-    expect(fills(g)).toHaveLength(1)
+    expect(fills(g).map(colorOf)).toEqual([DOOR_EDGE_COLOR, DOOR_COLOR])
   })
 })

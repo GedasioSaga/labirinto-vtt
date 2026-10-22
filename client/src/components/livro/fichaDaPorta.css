@@ -15,16 +15,17 @@
   transform-box: fill-box;
   transform-origin: 0 50%;
   transform: rotate(0deg);
-  /* Fechando: o tempo de fechar. A cor (trancar) acompanha no tempo base. */
+  /* Fechando: o tempo e a curva de fechar da animação. A cor (trancar) acompanha no tempo base. */
   transition:
-    transform var(--lb-porta-fecha, var(--lb-gr-porta-fecha)) var(--lb-gr-ease-porta),
+    transform var(--lb-porta-fecha, var(--lb-gr-porta-fecha)) var(--lb-porta-curva-fecha, var(--lb-gr-ease-porta)),
     fill var(--lb-motion-base) ease;
 }
 
-/* Abrindo: a regra do estado novo traz o tempo de abrir (o CSS usa o tempo de quem chega). */
+/* Abrindo: a regra do estado novo traz o tempo e a curva de abrir (o CSS usa os de quem chega). */
 .lb-medalha-porta[data-estado='aberta'] .lb-medalha-porta__folha {
   transform: rotate(-70deg);
   transition-duration: var(--lb-porta-abre, var(--lb-gr-porta-abre)), var(--lb-motion-base);
+  transition-timing-function: var(--lb-porta-curva-abre, var(--lb-gr-ease-porta)), ease;
 }
 
 /* Trancada: o vermelho escuro que lê sobre o latão (o #8f2f27 do protótipo). */

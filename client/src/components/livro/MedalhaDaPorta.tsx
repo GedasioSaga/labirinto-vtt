@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react'
 import type { DoorState } from '../../types/map'
-import { animacaoDePorta, assinarAnimacoesDePorta, duracaoDoSentido, listarAnimacoesDePorta } from '../../portas/animacoesDePorta'
+import { animacaoDePorta, assinarAnimacoesDePorta, curvaDeclaradaDoSentido, duracaoDoSentido, listarAnimacoesDePorta, type AnimacaoDePorta } from '../../portas/animacoesDePorta'
+import { curvaBezierEmCss } from '../../portas/curvaBezier'
 import { movimentoReduzido } from '../grimorio/comum'
 import { normalizarCorDaPorta } from '../../lib/corDaPorta'
 import './fichaDaPorta.css'
@@ -9,8 +10,28 @@ import './fichaDaPorta.css'
 const PISCAR_REDUZIDO_MS = 160
 const OPACIDADE_DO_PISCAR = 0.35
 
-/** Os tempos da folha DESTA porta, postos no svg: o CSS os lê em cada sentido. A cor própria também. */
-type EstiloDaMedalha = CSSProperties & { '--lb-porta-abre': string; '--lb-porta-fecha': string; '--lb-porta-cor'?: string }
+/**
+ * Os tempos e as curvas da folha DESTA porta, postos no svg: o CSS os lê em
+ * cada sentido. A cor própria também. Curva ausente = o `gr.easePorta` de sempre.
+ */
+type EstiloDaMedalha = CSSProperties & {
+  '--lb-porta-abre': string
+  '--lb-porta-fecha': string
+  '--lb-porta-curva-abre'?: string
+  '--lb-porta-curva-fecha'?: string
+  '--lb-porta-cor'?: string
+}
+
+/** As curvas declaradas da animação, em CSS: a medalha anda no mesmo passo do mapa (`animadorDePortas.ts`). */
+function curvasDaMedalha(animacao: AnimacaoDePorta | null): Pick<EstiloDaMedalha, '--lb-porta-curva-abre' | '--lb-porta-curva-fecha'> {
+  if (animacao === null) return {}
+  const abre = curvaDeclaradaDoSentido(animacao, true)
+  const fecha = curvaDeclaradaDoSentido(animacao, false)
+  return {
+    ...(abre === undefined ? {} : { '--lb-porta-curva-abre': curvaBezierEmCss(abre) }),
+    ...(fecha === undefined ? {} : { '--lb-porta-curva-fecha': curvaBezierEmCss(fecha) }),
+  }
+}
 
 export interface MedalhaDaPortaProps {
   porta: Pick<DoorState, 'open' | 'locked' | 'secret' | 'animacao' | 'cor'>
@@ -37,6 +58,7 @@ export function MedalhaDaPorta({ porta }: MedalhaDaPortaProps) {
   const estilo: EstiloDaMedalha = {
     '--lb-porta-abre': `${animacao === null ? 0 : duracaoDoSentido(animacao, true)}ms`,
     '--lb-porta-fecha': `${animacao === null ? 0 : duracaoDoSentido(animacao, false)}ms`,
+    ...curvasDaMedalha(animacao),
     ...(cor === undefined ? {} : { '--lb-porta-cor': cor }),
   }
   const folha = useRef<SVGRectElement>(null)

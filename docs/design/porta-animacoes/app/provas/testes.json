@@ -1,0 +1,1270 @@
+{
+  "metas": {
+    "M0_registro": "as 7 animações de porta no registro do app (girar, deslizar e as 5 pelo carregador do pacote)",
+    "M1_extremos": "7 animações x horizontal e vertical x zoom 1, 2,5 e 4 x resolução 1 e 2 x sem cor e com cor própria: 0 pixels diferentes da porta parada em progresso 0 e 1, e no último quadro do animador real",
+    "M2_opaco": "0 pixels com alfa fora de 0 e 255 em todos os quadros do caminho (antialias desligado)",
+    "M2b_telhado": "a mesma porta pintada duas vezes, uma por cima da outra, a meio caminho: 0 pixels diferentes de uma só",
+    "M3_curva": "curva de cada sentido amostrada em 201 pontos: sobe sempre, fica em [0, 1], começa em 0 e acaba em 1; o progresso que o animador entrega anda sempre no mesmo sentido e chega",
+    "M5_continuidade": "maior passo do centro dos pixels da porta a cada 0,5% de progresso: até 1,5 px de tela (zoom 2), fora os trechos de tremor ditos no desenho",
+    "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
+    "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
+    "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
+    "M9_desempenho": "50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo)",
+    "M10_console": "0 erros e 0 avisos no console (fora o aviso de leitura de GPU da própria ferramenta de prova)",
+    "M11_parada": "porta parada, 3 zooms x 2 resoluções x horizontal e vertical: seção transversal = contorno #15181a de 1 px, cor por dentro, contorno de 1 px (x resolução), folha de 4 px de tela; a cor cobre o vão inteiro (começa e acaba a até 1 px de tela das pontas do vão); sem cor = #d9d2c0, trancada = #e2645a, cor própria = a cor; cadeado de corpo creme do mesmo tamanho em pixels nos 3 zooms (não cresce), opaco; secreta trancada com cor sem cadeado",
+    "M12_som": "as 5 novas, abrir e fechar, renderizadas offline com o passa-baixa da mesa no volume máximo: LUFS integrado entre -34 e -30 (perto de -32), pico verdadeiro até -12 dBTP, 0 cliques, 0 cortes, DC até 0,5%, últimos 10 ms abaixo de -60 dBFS, som acaba até 250 ms depois da animação",
+    "M14_folhas": "7 folhas de contato, 16 quadros cada (8 abrindo, 8 fechando), com o tempo embaixo"
+  },
+  "navegador": "C:/Users/gedasio.filho/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+  "registro": [
+    "girar",
+    "deslizar",
+    "dupla",
+    "grade",
+    "arrombada",
+    "sanfona",
+    "cortina"
+  ],
+  "parada": [
+    {
+      "onde": "fechada sem cor zoom 1 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada sem cor zoom 1 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada sem cor zoom 1 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada sem cor zoom 1 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada sem cor zoom 2.5 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada sem cor zoom 2.5 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada sem cor zoom 2.5 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada sem cor zoom 2.5 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada sem cor zoom 4 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada sem cor zoom 4 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #d9d2c0x3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada sem cor zoom 4 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada sem cor zoom 4 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #d9d2c0x6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada sem cor zoom 1 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada sem cor zoom 1 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada sem cor zoom 1 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada sem cor zoom 1 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada sem cor zoom 2.5 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada sem cor zoom 2.5 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada sem cor zoom 2.5 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada sem cor zoom 2.5 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada sem cor zoom 4 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada sem cor zoom 4 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #e2645ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada sem cor zoom 4 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada sem cor zoom 4 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #e2645ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada com cor zoom 1 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada com cor zoom 1 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada com cor zoom 1 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada com cor zoom 1 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "fechada com cor zoom 2.5 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada com cor zoom 2.5 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada com cor zoom 2.5 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada com cor zoom 2.5 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "fechada com cor zoom 4 res 1 horizontal",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada com cor zoom 4 res 1 vertical",
+      "transversal": "vaziox10 #15181ax1 #5e8c4ax3 #15181ax1 vaziox10",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada com cor zoom 4 res 2 horizontal",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "fechada com cor zoom 4 res 2 vertical",
+      "transversal": "vaziox19 #15181ax2 #5e8c4ax6 #15181ax2 vaziox20",
+      "cadeadoPx": 0,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada com cor zoom 1 res 1 horizontal",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada com cor zoom 1 res 1 vertical",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 231,
+      "corAte": 330,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada com cor zoom 1 res 2 horizontal",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada com cor zoom 1 res 2 vertical",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 230.5,
+      "corAte": 329.5,
+      "vaoDe": 230,
+      "vaoAte": 330
+    },
+    {
+      "onde": "trancada com cor zoom 2.5 res 1 horizontal",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada com cor zoom 2.5 res 1 vertical",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 156,
+      "corAte": 405,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada com cor zoom 2.5 res 2 horizontal",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada com cor zoom 2.5 res 2 vertical",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 155.5,
+      "corAte": 404.5,
+      "vaoDe": 155,
+      "vaoAte": 405
+    },
+    {
+      "onde": "trancada com cor zoom 4 res 1 horizontal",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada com cor zoom 4 res 1 vertical",
+      "transversal": "vaziox8 #e2645ax2 #15181ax1 #5e8c4ax3 #15181ax1 #e2645ax2 vaziox8",
+      "cadeadoPx": 20,
+      "semOpacidade": 0,
+      "corDe": 81,
+      "corAte": 480,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada com cor zoom 4 res 2 horizontal",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "trancada com cor zoom 4 res 2 vertical",
+      "transversal": "vaziox16 #e2645ax3 #15181ax2 #5e8c4ax6 #15181ax2 #e2645ax3 vaziox17",
+      "cadeadoPx": 80,
+      "semOpacidade": 0,
+      "corDe": 80.5,
+      "corAte": 479.5,
+      "vaoDe": 80,
+      "vaoAte": 480
+    },
+    {
+      "onde": "secreta trancada com cor zoom 1 res 1 horizontal",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 1 res 1 vertical",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 1 res 2 horizontal",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 1 res 2 vertical",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 2.5 res 1 horizontal",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 2.5 res 1 vertical",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 2.5 res 2 horizontal",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 2.5 res 2 vertical",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 4 res 1 horizontal",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 4 res 1 vertical",
+      "transversal": "vaziox25",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 4 res 2 horizontal",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    },
+    {
+      "onde": "secreta trancada com cor zoom 4 res 2 vertical",
+      "transversal": "vaziox49",
+      "cadeadoPx": 0,
+      "semOpacidade": 0
+    }
+  ],
+  "animacoes": {
+    "girar": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 300,
+          "chegouEmMs": 300,
+          "passosContraOSentido": 0,
+          "quadros": 17
+        },
+        "fechar": {
+          "declaradoMs": 260,
+          "chegouEmMs": 267,
+          "passosContraOSentido": 0,
+          "quadros": 15
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 4.16,
+        "ondeMaior": 0.005
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.17321,
+          "maiorPassoSemInversao": 0.18024
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.17856,
+          "maiorPassoSemInversao": 0.18024
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.18011000000000002,
+          "maiorPassoSemInversao": 0.18024
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/girar.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "deslizar": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 240,
+          "chegouEmMs": 250,
+          "passosContraOSentido": 0,
+          "quadros": 14
+        },
+        "fechar": {
+          "declaradoMs": 240,
+          "chegouEmMs": 250,
+          "passosContraOSentido": 0,
+          "quadros": 14
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 3.94,
+        "ondeMaior": 0.63
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.19419999999999998,
+          "maiorPassoSemInversao": 0.19419999999999998
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.19419999999999998,
+          "maiorPassoSemInversao": 0.19419999999999998
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.19419999999999998,
+          "maiorPassoSemInversao": 0.19419999999999998
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/deslizar.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "dupla": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 320,
+          "chegouEmMs": 333,
+          "passosContraOSentido": 0,
+          "quadros": 19
+        },
+        "fechar": {
+          "declaradoMs": 280,
+          "chegouEmMs": 283,
+          "passosContraOSentido": 0,
+          "quadros": 16
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 0.69,
+        "ondeMaior": 0.71
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.09386,
+          "maiorPassoSemInversao": 0.09615
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.09558,
+          "maiorPassoSemInversao": 0.09615
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.09606,
+          "maiorPassoSemInversao": 0.09615
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/dupla.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "grade": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 600,
+          "chegouEmMs": 600,
+          "passosContraOSentido": 0,
+          "quadros": 35
+        },
+        "fechar": {
+          "declaradoMs": 420,
+          "chegouEmMs": 433,
+          "passosContraOSentido": 0,
+          "quadros": 25
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 0.71,
+        "ondeMaior": 0.185
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.05849,
+          "maiorPassoSemInversao": 0.06294
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.06273,
+          "maiorPassoSemInversao": 0.06294
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.06287,
+          "maiorPassoSemInversao": 0.06294
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/grade.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "arrombada": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 560,
+          "chegouEmMs": 567,
+          "passosContraOSentido": 0,
+          "quadros": 33
+        },
+        "fechar": {
+          "declaradoMs": 320,
+          "chegouEmMs": 333,
+          "passosContraOSentido": 0,
+          "quadros": 19
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 6.41,
+        "ondeMaior": 0.005
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.12786,
+          "maiorPassoSemInversao": 0.14924
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.14126,
+          "maiorPassoSemInversao": 0.14924
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.14681,
+          "maiorPassoSemInversao": 0.14924
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/arrombada.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "sanfona": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 440,
+          "chegouEmMs": 450,
+          "passosContraOSentido": 0,
+          "quadros": 26
+        },
+        "fechar": {
+          "declaradoMs": 380,
+          "chegouEmMs": 383,
+          "passosContraOSentido": 0,
+          "quadros": 22
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 1.47,
+        "ondeMaior": 0.84
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.09895999999999999,
+          "maiorPassoSemInversao": 0.12679
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.12193999999999999,
+          "maiorPassoSemInversao": 0.12679
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.12585,
+          "maiorPassoSemInversao": 0.12679
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/sanfona.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    },
+    "cortina": {
+      "extremos": {
+        "combinacoes": 24,
+        "piores": {
+          "em0": 0,
+          "em1": 0,
+          "fimDoAbrir": 0,
+          "fimDoFechar": 0,
+          "semOpacidade": 0,
+          "telhado": 0
+        }
+      },
+      "curva": {
+        "abrirMonotona": true,
+        "fecharMonotona": true
+      },
+      "tempo": {
+        "abrir": {
+          "declaradoMs": 480,
+          "chegouEmMs": 483,
+          "passosContraOSentido": 0,
+          "quadros": 28
+        },
+        "fechar": {
+          "declaradoMs": 420,
+          "chegouEmMs": 433,
+          "passosContraOSentido": 0,
+          "quadros": 25
+        }
+      },
+      "continuidade": {
+        "maiorPassoPx": 0.69,
+        "ondeMaior": 0.485
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.06352000000000001,
+          "maiorPassoSemInversao": 0.06442
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.06417,
+          "maiorPassoSemInversao": 0.06442
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.06437000000000001,
+          "maiorPassoSemInversao": 0.06442
+        }
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "folha": {
+        "arquivo": "provas/folhas/cortina.png",
+        "quadrosPorLinha": [
+          16,
+          16
+        ]
+      }
+    }
+  },
+  "som": {
+    "dupla-abrir": {
+      "evento": {
+        "tipo": "abrir",
+        "som": "dupla",
+        "duracaoMs": 320,
+        "de": 0,
+        "curva": [
+          0.61,
+          1,
+          0.88,
+          1
+        ]
+      },
+      "lufsIntegrado": -32.1,
+      "picoVerdadeiroDbtp": -13.85,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0307,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 270,
+      "animacaoMs": 320,
+      "wav": "provas/som/dupla-abrir.wav"
+    },
+    "dupla-fechar": {
+      "evento": {
+        "tipo": "fechar",
+        "som": "dupla",
+        "duracaoMs": 280,
+        "de": 1,
+        "curva": [
+          0.61,
+          1,
+          0.88,
+          1
+        ]
+      },
+      "lufsIntegrado": -32.61,
+      "picoVerdadeiroDbtp": -13.84,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.015,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 340,
+      "animacaoMs": 280,
+      "wav": "provas/som/dupla-fechar.wav"
+    },
+    "grade-abrir": {
+      "evento": {
+        "tipo": "abrir",
+        "som": "grade",
+        "duracaoMs": 600,
+        "de": 0,
+        "curva": [
+          0.37,
+          0,
+          0.63,
+          1
+        ]
+      },
+      "lufsIntegrado": -33.33,
+      "picoVerdadeiroDbtp": -12.15,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0137,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 470,
+      "animacaoMs": 600,
+      "wav": "provas/som/grade-abrir.wav"
+    },
+    "grade-fechar": {
+      "evento": {
+        "tipo": "fechar",
+        "som": "grade",
+        "duracaoMs": 420,
+        "de": 1,
+        "curva": [
+          0.37,
+          0,
+          0.63,
+          1
+        ]
+      },
+      "lufsIntegrado": -31.78,
+      "picoVerdadeiroDbtp": -15.89,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0129,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 450,
+      "animacaoMs": 420,
+      "wav": "provas/som/grade-fechar.wav"
+    },
+    "arrombada-abrir": {
+      "evento": {
+        "tipo": "abrir",
+        "som": "arrombada",
+        "duracaoMs": 560,
+        "de": 0,
+        "curva": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "lufsIntegrado": -31.4,
+      "picoVerdadeiroDbtp": -13.46,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0233,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 540,
+      "animacaoMs": 560,
+      "wav": "provas/som/arrombada-abrir.wav"
+    },
+    "arrombada-fechar": {
+      "evento": {
+        "tipo": "fechar",
+        "som": "arrombada",
+        "duracaoMs": 320,
+        "de": 1,
+        "curva": [
+          0.33,
+          1,
+          0.68,
+          1
+        ]
+      },
+      "lufsIntegrado": -33.12,
+      "picoVerdadeiroDbtp": -15.99,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0208,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 230,
+      "animacaoMs": 320,
+      "wav": "provas/som/arrombada-fechar.wav"
+    },
+    "sanfona-abrir": {
+      "evento": {
+        "tipo": "abrir",
+        "som": "sanfona",
+        "duracaoMs": 440,
+        "de": 0,
+        "curva": [
+          0.37,
+          0,
+          0.63,
+          1
+        ]
+      },
+      "lufsIntegrado": -33.18,
+      "picoVerdadeiroDbtp": -12.52,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0041,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 430,
+      "animacaoMs": 440,
+      "wav": "provas/som/sanfona-abrir.wav"
+    },
+    "sanfona-fechar": {
+      "evento": {
+        "tipo": "fechar",
+        "som": "sanfona",
+        "duracaoMs": 380,
+        "de": 1,
+        "curva": [
+          0.33,
+          1,
+          0.68,
+          1
+        ]
+      },
+      "lufsIntegrado": -31.96,
+      "picoVerdadeiroDbtp": -12.55,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0057,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 350,
+      "animacaoMs": 380,
+      "wav": "provas/som/sanfona-fechar.wav"
+    },
+    "cortina-abrir": {
+      "evento": {
+        "tipo": "abrir",
+        "som": "cortina",
+        "duracaoMs": 480,
+        "de": 0,
+        "curva": [
+          0.61,
+          1,
+          0.88,
+          1
+        ]
+      },
+      "lufsIntegrado": -32.03,
+      "picoVerdadeiroDbtp": -14.39,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 270,
+      "animacaoMs": 480,
+      "wav": "provas/som/cortina-abrir.wav"
+    },
+    "cortina-fechar": {
+      "evento": {
+        "tipo": "fechar",
+        "som": "cortina",
+        "duracaoMs": 420,
+        "de": 1,
+        "curva": [
+          0.61,
+          1,
+          0.88,
+          1
+        ]
+      },
+      "lufsIntegrado": -32.03,
+      "picoVerdadeiroDbtp": -13.6,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0.0004,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 380,
+      "animacaoMs": 420,
+      "wav": "provas/som/cortina-fechar.wav"
+    }
+  },
+  "desempenho": {
+    "portas": 50,
+    "quadros": 323,
+    "intervaloP95Ms": 24.9,
+    "intervaloMaxMs": 50,
+    "tarefasLongas": 0,
+    "tarefaLongaMaxMs": 0,
+    "observadorDeTarefasLongas": true,
+    "custoDoAnimadorP95Ms": 0.6,
+    "custoDoAnimadorMaxMs": 0.8,
+    "onde": "laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900"
+  },
+  "cadeadoPxPorResolucao": {
+    "1": [
+      20
+    ],
+    "2": [
+      80
+    ]
+  },
+  "console": [],
+  "avisosDaFerramentaDeProva": 1,
+  "falhas": [
+    "M5_continuidade: girar: passo de 4.16 px em 0.005",
+    "M5_continuidade: deslizar: passo de 3.94 px em 0.63",
+    "M5_continuidade: arrombada: passo de 6.41 px em 0.005",
+    "M9_desempenho: quadro p95 24.9 ms"
+  ],
+  "passou": false,
+  "notas": {
+    "M5_continuidade": "A régua mede o centro de TODOS os pixels pintados, não o centro da folha. No girar e na arrombada, de 0 a 0,5% a folha começa a sair da caixa do vão e a área nova (um triângulo fino na ponta livre, ~120 px) puxa o centro 4 a 6 px, embora a ponta tenha andado 1,2 px. No deslizar, a 0,63 uma linha inteira da sombra (86 px) muda de pixel de uma vez (sem antialias). Não é salto da folha: o teste de unidade que mede o centro da própria folha (animacoesDePorta.test.ts, \"não salta\") passa com 1,5 px. A régua precisa ser trocada por uma de deslocamento (pixel novo longe do desenho anterior) antes de valer como prova.",
+    "M9_desempenho": "O custo do animador (JS) fica em p95 0,6 ms; o intervalo de 25 ms é o SwiftShader (WebGL por software do Chromium headless) pintando 1440x900. A meta de quadro p95 até 20 ms precisa ser medida no app com GPU."
+  },
+  "duracaoS": 50
+}

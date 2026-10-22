@@ -1,8 +1,7 @@
 import { Graphics, type Ticker } from 'pixi.js'
 import type { DoorState, Wall } from '../types/map'
-import { animacaoDePorta, duracaoDoSentido, type AnimacaoDePorta } from '../portas/animacoesDePorta'
+import { animacaoDePorta, curvaDeclaradaDoSentido, curvaDoSentido, duracaoDoSentido, type AnimacaoDePorta } from '../portas/animacoesDePorta'
 import type { EventoDeSomDaPorta } from '../portas/somDePorta'
-import { easeOutCubic } from '../transicoes/curvas'
 import { drawDoors, type PortaAnimando } from './drawDoors'
 
 /**
@@ -66,6 +65,8 @@ interface Caminho {
   inicio: number
   duracao: number
   animacao: AnimacaoDePorta
+  /** A curva do sentido deste caminho (`curvaDoSentido`): a da animação, ou `easeOutCubic`. */
+  curva: (t: number) => number
 }
 
 /** Os argumentos do último `desenhar`: o relógio repinta com eles a cada quadro. */
@@ -87,16 +88,17 @@ interface EstadoDaPorta {
 }
 
 /**
- * Ponto do caminho em `agora`. A curva é `easeOutCubic`, o
- * `cubic-bezier(0.33, 1, 0.68, 1)` da medalha da ficha (`gr.easePorta` no
- * `theme.ts`): a folha responde ao clique na hora e assenta sem passar do fim
- * (nunca passa de 1 nem volta: sem quique), e mapa e medalha andam no mesmo
- * passo. O refinamento das embutidas mora no desenho (`animacoesDePorta.ts`),
- * não aqui: trocar a curva do tempo descasaria a medalha.
+ * Ponto do caminho em `agora`. A curva é a do sentido (`curvaAbrir`/
+ * `curvaFechar` da animação, `portas/curvaBezier.ts`); sem ela, `easeOutCubic`,
+ * o `cubic-bezier(0.33, 1, 0.68, 1)` da medalha da ficha (`gr.easePorta` no
+ * `theme.ts`). Toda curva aceita vai de 0 a 1 sem voltar nem passar do fim
+ * (sem quique), e a medalha recebe a mesma (`MedalhaDaPorta.tsx`): mapa e
+ * medalha andam no mesmo passo. Inverter no meio parte do ponto onde a porta
+ * está (`de`), então o desenho não salta; só o ritmo passa a ser o do sentido novo.
  */
 function pontoDoCaminho(caminho: Caminho, agora: number): { progresso: number; terminou: boolean } {
   const t = caminho.duracao <= 0 ? 1 : Math.min(1, Math.max(0, (agora - caminho.inicio) / caminho.duracao))
-  return { progresso: caminho.de + (caminho.para - caminho.de) * easeOutCubic(t), terminou: t >= 1 }
+  return { progresso: caminho.de + (caminho.para - caminho.de) * caminho.curva(t), terminou: t >= 1 }
 }
 
 /** Animação da porta, ou `null`: sem escolha, id que este app não conhece, ou porta secreta (é tracejada aberta ou fechada). */
@@ -182,11 +184,14 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     const para = door.open ? 1 : 0
     const de = anterior === undefined ? 1 - para : pontoDoCaminho(anterior, agora).progresso
     // O que falta anda no tempo do sentido NOVO: fechar no meio do abrir usa a duração de fechar.
-    const duracao = duracaoDoSentido(animacao, para === 1) * Math.abs(para - de)
-    caminhos.set(id, { de, para, inicio: agora, duracao, animacao })
+    const abrindo = para === 1
+    const duracao = duracaoDoSentido(animacao, abrindo) * Math.abs(para - de)
+    caminhos.set(id, { de, para, inicio: agora, duracao, animacao, curva: curvaDoSentido(animacao, abrindo) })
     ligarRelogio()
     if (movimento?.som !== undefined && animacao.som !== undefined && soa()) {
-      tocarSemQuebrar(movimento.som, { tipo: para === 1 ? 'abrir' : 'fechar', som: animacao.som, duracaoMs: duracao })
+      // `de` e a curva: o som das animações do pacote marca pontos do desenho (o baque da grade), e o caminho pode ser só um pedaço.
+      const curva = curvaDeclaradaDoSentido(animacao, abrindo)
+      tocarSemQuebrar(movimento.som, { tipo: abrindo ? 'abrir' : 'fechar', som: animacao.som, duracaoMs: duracao, de, ...(curva === undefined ? {} : { curva }) })
     }
   }
 

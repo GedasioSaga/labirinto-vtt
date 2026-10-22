@@ -143,22 +143,22 @@ describe('animadorDePortas — o caminho', () => {
     const animador = createAnimadorDePortas(movimento)
     const parada = new Graphics()
     drawDoors(parada, [porta()])
-    const fechada = faixa(fills(parada)[0], 'x')
+    // A cor da folha fechada (o segundo preenchimento: o primeiro é o contorno escuro por fora).
+    const fechada = faixa(fills(parada)[1], 'x')
 
     animador.desenhar(g, [porta()])
     animador.desenhar(g, [porta({ open: true })])
     expect(ticker.count).toBe(1)
-    // Começo: a folha inteira no vão, por cima do batente — a cara da fechada.
-    expect(fills(g)).toHaveLength(1)
-    expect(faixa(fills(g)[0], 'x').min).toBeCloseTo(fechada.min, 9)
-    expect(faixa(fills(g)[0], 'x').max).toBeCloseTo(fechada.max, 9)
+    // Começo: a fechada de sempre, instrução por instrução.
+    expect(desenho(g)).toEqual(referencia(porta()))
 
     // Meio do tempo: a curva de saída responde na hora e já andou 7/8 — sobra
-    // 1/8 da folha preso à ponta de (x2,y2).
+    // 1/8 da folha preso à ponta de (x2,y2). A folha entra na parede pelo vão
+    // inteiro (100), e a cor fica meia borda para dentro nas duas pontas.
     quadro(DESLIZAR_DURACAO_MS / 2)
     const meio = faixa(folhaDe(g), 'x')
     expect(meio.max).toBeCloseTo(fechada.max, 9)
-    expect(meio.min).toBeCloseTo(fechada.min + (fechada.max - fechada.min) * NO_MEIO_DO_TEMPO, 9)
+    expect(meio.min).toBeCloseTo(fechada.min + 100 * NO_MEIO_DO_TEMPO, 9)
 
     quadro(DESLIZAR_DURACAO_MS / 2)
     expect(desenho(g)).toEqual(referencia(porta({ open: true })))
@@ -172,7 +172,7 @@ describe('animadorDePortas — o caminho', () => {
     animador.desenhar(g, [porta({ open: true })])
     animador.desenhar(g, [porta()])
     // Começo do fechar = aberta: só o batente, folha nenhuma.
-    expect(fills(g)).toHaveLength(0)
+    expect(desenho(g)).toEqual(referencia(porta({ open: true })))
     quadro(DESLIZAR_DURACAO_MS)
     expect(desenho(g)).toEqual(referencia(porta()))
     expect(ticker.count).toBe(0)
@@ -267,11 +267,12 @@ describe('animadorDePortas — o caminho', () => {
     animador.desenhar(g, [porta(), vizinha])
     animador.desenhar(g, [porta({ open: true }), vizinha])
     quadro(DESLIZAR_DURACAO_MS / 4)
-    const fillsDaVizinha = fills(g).filter((f) => faixa(f, 'x').min >= 200)
-    expect(fillsDaVizinha).toHaveLength(1)
+    // A vizinha começa em 200 (o contorno escuro passa meia borda para fora: 199,5).
+    const fillsDaVizinha = fills(g).filter((f) => faixa(f, 'x').min >= 199)
+    expect(fillsDaVizinha).toHaveLength(2)
     const sozinha = new Graphics()
     drawDoors(sozinha, [vizinha])
-    expect(pontos(fillsDaVizinha[0])).toEqual(pontos(fills(sozinha)[0]))
+    expect(fillsDaVizinha.map(pontos)).toEqual(fills(sozinha).map(pontos))
   })
 
   it('cancelar (desmonte) solta o relógio no meio do caminho', () => {
@@ -370,7 +371,8 @@ describe('animadorDePortas — só repinta o que anda', () => {
     animador.desenhar(g, cinquenta(new Set([0])))
     // Começo: as paradas são repintadas UMA vez, já sem a que anda.
     expect(limpezas).toHaveBeenCalledTimes(1)
-    expect(fills(g)).toHaveLength(49)
+    // 49 portas paradas, cada uma o contorno escuro e a cor.
+    expect(fills(g)).toHaveLength(49 * 2)
     const camada = cena.getChildAt(cena.getChildIndex(g) + 1)
     if (!(camada instanceof Graphics) || camada === emCima) throw new Error('a camada das que andam não está logo acima')
     const porQuadro: number[] = []
@@ -380,7 +382,8 @@ describe('animadorDePortas — só repinta o que anda', () => {
     }
     // Dez quadros e as 49 paradas intocadas; a camada tem só a porta 0 (x de 0 a 100).
     expect(limpezas).toHaveBeenCalledTimes(1)
-    expect(Math.max(...porQuadro)).toBeLessThanOrEqual(4)
+    // Uma porta só: o batente (3), a sombra (2) e a folha com o contorno (2). Mais uma parada daria 9.
+    expect(Math.max(...porQuadro)).toBeLessThanOrEqual(7)
     for (const f of fills(camada)) expect(faixa(f, 'x').max).toBeLessThan(110)
     quadro(DESLIZAR_DURACAO_MS)
     // Fim: a porta volta às paradas (repintadas uma vez, as 50) e a camada sai da cena.
@@ -401,7 +404,7 @@ describe('animadorDePortas — só repinta o que anda', () => {
     animador.desenhar(g, cinquenta(new Set([0])))
     quadro(DESLIZAR_DURACAO_MS / 4)
     animador.desenhar(g, cinquenta(new Set([0, 1])))
-    expect(fills(g)).toHaveLength(48)
+    expect(fills(g)).toHaveLength(48 * 2)
     quadro(16)
     quadro(16)
     expect(limpezas).toHaveBeenCalledTimes(2)
@@ -449,7 +452,8 @@ describe('animadorDePortas — som', () => {
     expect(som).not.toHaveBeenCalled()
     animador.desenhar(g, [porta({ animacao: 'girar', open: true })])
     expect(som).toHaveBeenCalledTimes(1)
-    expect(som).toHaveBeenCalledWith({ tipo: 'abrir', som: 'rangido', duracaoMs: GIRAR_DURACAO_MS })
+    // `de`: o caminho parte da fechada inteira (o som do pacote marca pontos do desenho por ele).
+    expect(som).toHaveBeenCalledWith({ tipo: 'abrir', som: 'rangido', duracaoMs: GIRAR_DURACAO_MS, de: 0 })
   })
 
   it('fechar com "Deslizar" pede só o trinco, no tempo de fechar', () => {
@@ -458,7 +462,7 @@ describe('animadorDePortas — som', () => {
     const g = new Graphics()
     animador.desenhar(g, [porta({ open: true })])
     animador.desenhar(g, [porta()])
-    expect(som).toHaveBeenCalledWith({ tipo: 'fechar', som: 'trinco', duracaoMs: DESLIZAR_DURACAO_MS })
+    expect(som).toHaveBeenCalledWith({ tipo: 'fechar', som: 'trinco', duracaoMs: DESLIZAR_DURACAO_MS, de: 1 })
   })
 
   it('inverter no meio pede o som do sentido novo, com o tempo que falta', () => {

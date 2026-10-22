@@ -49,7 +49,7 @@ const FIT_MARGIN_MESTRE = 40
 type Ponto = { x: number; y: number }
 type Rgb = [number, number, number]
 
-/** A porta: parede vertical em x=600, vão de y=250 a 350; a folha ocupa 60% (y 270 a 330). */
+/** A porta: parede vertical em x=600, vão de y=250 a 350; a folha enche o vão inteiro (desde 22/10/2026). */
 const PORTA_X = 600
 const PORTA_Y1 = 250
 const PORTA_Y2 = 350
@@ -59,13 +59,13 @@ const NA_FOLHA: Ponto = { x: PORTA_X, y: 280 }
 /** A ficha do jogador de teste, a duas casas e meia da porta: vê a porta sem cobrir a folha. */
 const POS_TOKEN: Ponto = { x: 725, y: 300 }
 
-/** As cores da jornada, como o Pixi as pinta. */
-const LARANJA: Rgb = [0xd0, 0x8c, 0x3a]
+/** As cores da jornada, como o Pixi as pinta (o creme e o vermelho da porta são os de 22/10/2026). */
+const CREME_DA_PORTA: Rgb = [0xd9, 0xd2, 0xc0]
 const AZUL_DA_PALETA = '#79a9cc'
 const AZUL: Rgb = [0x79, 0xa9, 0xcc]
-const VERMELHO_TRANCADA: Rgb = [0xc0, 0x39, 0x2b]
-/** O corpo do cadeado (`DOOR_PADLOCK_FILL`, `pixi/drawDoors.ts`). */
-const CLARO_DO_CADEADO: Rgb = [0xe6, 0xe6, 0xe6]
+const VERMELHO_TRANCADA: Rgb = [0xe2, 0x64, 0x5a]
+/** O corpo do cadeado (`DOOR_PADLOCK_FILL`, `pixi/drawDoors.ts`): um creme mais claro que o da porta. */
+const CLARO_DO_CADEADO: Rgb = [0xf4, 0xea, 0xd8]
 /** O arrasto no seletor nativo: 20 quadros indo do escuro ao rosa. */
 const ARRASTO = Array.from({ length: 20 }, (_, i) => {
   const t = (i + 1) / 20
@@ -280,11 +280,11 @@ const caixaEm = (p: Ponto, meia: number): Caixa => ({ x: p.x - meia, y: p.y - me
 /**
  * Na tela do jogador a câmera é a dele (segue a ficha): a porta é achada pela
  * cor. Devolve quantos pixels têm a cor dela, a caixa que eles ocupam e, nessa
- * caixa com folga, quantos têm o claro do cadeado e o laranja de sempre.
+ * caixa com folga, quantos têm o claro do cadeado e o creme de sempre.
  */
 async function acharAPortaPelaCor(page: Page, foto: Foto, cor: Rgb, folga: number) {
   return page.evaluate(
-    async ({ b64, cor, folga, parecida, cadeado, laranja }) => {
+    async ({ b64, cor, folga, parecida, cadeado, creme }) => {
       const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob()
       const bmp = await createImageBitmap(blob)
       const canvas = document.createElement('canvas')
@@ -311,17 +311,22 @@ async function acharAPortaPelaCor(page: Page, foto: Foto, cor: Rgb, folga: numbe
         }
       }
       let claros = 0
-      let laranjas = 0
-      for (let y = Math.max(0, minY - folga); y <= Math.min(height - 1, maxY + folga); y += 1) {
-        for (let x = Math.max(0, minX - folga); x <= Math.min(width - 1, maxX + folga); x += 1) {
+      let cremes = 0
+      // A folga só na ESPESSURA da porta: nas pontas do vão começa a parede, que na
+      // tela do jogador é clara (perto do creme da porta) e não diz nada da cor dela.
+      const deitada = maxX - minX > maxY - minY
+      const folgaX = deitada ? 0 : folga
+      const folgaY = deitada ? folga : 0
+      for (let y = Math.max(0, minY - folgaY); y <= Math.min(height - 1, maxY + folgaY); y += 1) {
+        for (let x = Math.max(0, minX - folgaX); x <= Math.min(width - 1, maxX + folgaX); x += 1) {
           const i = (y * width + x) * 4
           if (perto(i, cadeado, 12)) claros += 1
-          if (perto(i, laranja, 12)) laranjas += 1
+          if (perto(i, creme, 12)) cremes += 1
         }
       }
-      return { pixels: n, caixa: n === 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }, claros, laranjas }
+      return { pixels: n, caixa: n === 0 ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }, claros, cremes }
     },
-    { b64: foto.toString('base64'), cor, folga, parecida: PARECIDA, cadeado: CLARO_DO_CADEADO, laranja: LARANJA },
+    { b64: foto.toString('base64'), cor, folga, parecida: PARECIDA, cadeado: CLARO_DO_CADEADO, creme: CREME_DA_PORTA },
   )
 }
 
@@ -430,9 +435,10 @@ test('cor da porta: o mestre pinta pela ficha, tranca (cadeado), desfaz o arrast
   const mapa = mapaDaPorta()
   await editorAbreAventura(mestre, mapa)
 
-  // CONTROLE: a porta de sempre, laranja, sem cadeado nem contorno.
+  // CONTROLE: a porta de sempre, creme, sem cadeado nem contorno vermelho.
   const antes = await lerAPorta(mestre, mapa)
-  expect(distancia(antes.folha, LARANJA), `a régua não acha a porta laranja de sempre em ${emTexto(antes.folha)}`).toBeLessThanOrEqual(PARECIDA)
+  expect(distancia(antes.folha, CREME_DA_PORTA), `a régua não acha a porta creme de sempre em ${emTexto(antes.folha)}`).toBeLessThanOrEqual(PARECIDA)
+  expect(antes.aro, 'a porta de sempre não tem o contorno vermelho').toBe(0)
   expect(antes.cadeado, 'a porta de sempre não tem cadeado').toBe(0)
 
   // 1. Selecionar a porta no mapa e escolher o azul da paleta na Aparência.
@@ -495,7 +501,7 @@ test('cor da porta: o mestre pinta pela ficha, tranca (cadeado), desfaz o arrast
   expect(trancada.aro, `a porta trancada com cor própria não tem o contorno vermelho: ${diz}`).toBeGreaterThanOrEqual(2)
   await mestre.screenshot({ path: test.info().outputPath('01-editor-porta-azul-trancada.png') })
 
-  // 4. A Visão de jogador: a porta chega azul (fechada comum, sem cadeado e sem o laranja).
+  // 4. A Visão de jogador: a porta chega azul (fechada comum, sem cadeado e sem o creme).
   await mostrarColunaDireita(mestre)
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
   await mestre.getByRole('button', { name: /Visão de jogador/ }).click()
@@ -526,7 +532,7 @@ test('cor da porta: o mestre pinta pela ficha, tranca (cadeado), desfaz o arrast
   // A porta é uma barra fina: a caixa da cor é comprida num sentido e estreita no outro (não é a ficha nem o chão).
   expect(Math.min(leitura.caixa.w, leitura.caixa.h), `o azul da tela do jogador não tem forma de porta (${naTela})`).toBeLessThanOrEqual(12)
   expect(Math.max(leitura.caixa.w, leitura.caixa.h), `o azul da tela do jogador não tem forma de porta (${naTela})`).toBeGreaterThanOrEqual(20)
-  expect(leitura.laranjas, `a porta do jogador ainda sai laranja em volta (${naTela})`).toBeLessThan(5)
+  expect(leitura.cremes, `a porta do jogador ainda sai creme em volta (${naTela})`).toBeLessThan(5)
   expect(leitura.claros, `o jogador não pode ver o cadeado: a trancada chega fechada comum (${naTela})`).toBe(0)
 
   expect(erros, 'o editor ou a janela de teste jogou erro').toEqual([])

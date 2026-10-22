@@ -9,8 +9,8 @@ import { parseHexColor } from './tokenColor'
  * Puro: sem DOM, sem Pixi, sem store (o disco e o recorte do jogador usam).
  */
 
-/** O laranja de fábrica (`DOOR_COLOR`, `pixi/drawDoors.ts`) em CSS: o valor que "Outra cor…" mostra sem cor própria. */
-export const COR_DA_PORTA_PADRAO = '#d08c3a'
+/** O creme de fábrica (`DOOR_COLOR`, `pixi/drawDoors.ts`) em CSS: o valor que "Outra cor…" mostra sem cor própria. */
+export const COR_DA_PORTA_PADRAO = '#d9d2c0'
 
 /** Paleta da Aparência: a do protótipo consolidado, a mesma do pino e do token (a primeira é a porta do protótipo). */
 export const CORES_DA_PORTA: readonly string[] = PIN_CORES

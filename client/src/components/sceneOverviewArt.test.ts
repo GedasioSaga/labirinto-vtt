@@ -111,14 +111,15 @@ describe('sceneArt: miniatura de uma cena', () => {
     const linhas = (arte?.walls ?? []).map((w) => w.d).join('')
     expect(linhas).toContain('M100 100L400 100')
     expect(linhas).not.toContain('M400 100L500 100')
+    // O creme e o vermelho do mapa (22/10/2026).
     expect(arte?.doors.map((p) => [p.color, p.filled])).toEqual([
-      ['#d08c3a', true],
-      ['#c0392b', true],
+      ['#d9d2c0', true],
+      ['#e2645a', true],
     ])
-    // A porta ocupa 60% do vão, centrada nele: de 420 a 480 no vão de 400 a 500.
+    // A porta enche o vão inteiro, como no mapa: de 400 a 500.
     const porta = caixaDoPath(arte?.doors[0]?.d ?? '')
-    expect(porta.x1).toBeCloseTo(420, 0)
-    expect(porta.x2).toBeCloseTo(480, 0)
+    expect(porta.x1).toBeCloseTo(400, 0)
+    expect(porta.x2).toBeCloseTo(500, 0)
   })
 
   it('sala (Região) entra pintada com a cor dela; a sem fundo fica só no contorno', () => {

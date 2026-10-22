@@ -1,0 +1,19 @@
+{
+  "escritasEm": "2026-10-22, antes de rodar as provas (faixa A3: desenho novo da porta e as cinco animações no app)",
+  "metas": {
+    "M0_registro": "as 7 animações de porta no registro do app (girar, deslizar e as 5 pelo carregador do pacote)",
+    "M1_extremos": "7 animações x horizontal e vertical x zoom 1, 2,5 e 4 x resolução 1 e 2 x sem cor e com cor própria: 0 pixels diferentes da porta parada em progresso 0 e 1, e no último quadro do animador real",
+    "M2_opaco": "0 pixels com alfa fora de 0 e 255 em todos os quadros do caminho (antialias desligado)",
+    "M2b_telhado": "a mesma porta pintada duas vezes, uma por cima da outra, a meio caminho: 0 pixels diferentes de uma só",
+    "M3_curva": "curva de cada sentido amostrada em 201 pontos: sobe sempre, fica em [0, 1], começa em 0 e acaba em 1; o progresso que o animador entrega anda sempre no mesmo sentido e chega",
+    "M5_continuidade": "maior passo do centro dos pixels da porta a cada 0,5% de progresso: até 1,5 px de tela (zoom 2), fora os trechos de tremor ditos no desenho",
+    "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
+    "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
+    "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
+    "M9_desempenho": "50 portas com as 7 animações misturadas, abrindo e fechando juntas por 4 s: intervalo entre quadros p95 até 20 ms e 0 tarefas longas de 200 ms ou mais (observador ativo)",
+    "M10_console": "0 erros e 0 avisos no console (fora o aviso de leitura de GPU da própria ferramenta de prova)",
+    "M11_parada": "porta parada, 3 zooms x 2 resoluções x horizontal e vertical: seção transversal = contorno #15181a de 1 px, cor por dentro, contorno de 1 px (x resolução), folha de 4 px de tela; a cor cobre o vão inteiro (começa e acaba a até 1 px de tela das pontas do vão); sem cor = #d9d2c0, trancada = #e2645a, cor própria = a cor; cadeado de corpo creme do mesmo tamanho em pixels nos 3 zooms (não cresce), opaco; secreta trancada com cor sem cadeado",
+    "M12_som": "as 5 novas, abrir e fechar, renderizadas offline com o passa-baixa da mesa no volume máximo: LUFS integrado entre -34 e -30 (perto de -32), pico verdadeiro até -12 dBTP, 0 cliques, 0 cortes, DC até 0,5%, últimos 10 ms abaixo de -60 dBFS, som acaba até 250 ms depois da animação",
+    "M14_folhas": "7 folhas de contato, 16 quadros cada (8 abrindo, 8 fechando), com o tempo embaixo"
+  }
+}

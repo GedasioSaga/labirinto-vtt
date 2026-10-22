@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { Graphics, type GraphicsPath } from 'pixi.js'
 import {
   DOOR_COLOR,
+  DOOR_EDGE_COLOR,
+  DOOR_EDGE_SCREEN_PX,
   DOOR_LOCKED_COLOR,
   DOOR_LOCKED_RING_SCREEN_PX,
+  DOOR_PADLOCK_BODY_H_SCREEN_PX,
   DOOR_PADLOCK_BODY_W_SCREEN_PX,
   DOOR_PADLOCK_FILL,
   DOOR_THICKNESS_SCREEN_PX,
@@ -64,42 +67,45 @@ function caixa(instrucao: { data: { path: GraphicsPath } }) {
 }
 
 describe('drawDoors — cor própria da porta', () => {
-  it('fechada com cor: preenchida na cor dela, sem contorno nem cadeado', () => {
+  it('fechada com cor: a folha na cor dela, com o contorno escuro, sem anel nem cadeado', () => {
     const g = desenhar([porta({ cor: AZUL })])
-    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([AZUL_PIXI])
+    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([DOOR_EDGE_COLOR, AZUL_PIXI])
     expect(tracos(g)).toHaveLength(0)
   })
 
-  it('aberta com cor: só o contorno, na cor dela e na mesma caixa da aberta de sempre', () => {
+  it('aberta com cor: o batente na cor dela e na mesma caixa da aberta de sempre', () => {
     const comCor = desenhar([porta({ open: true, cor: AZUL })])
     const deSempre = desenhar([porta({ open: true })])
-    expect(preenchimentos(comCor)).toHaveLength(0)
-    expect(tracos(comCor).map((s) => s.data.style.color)).toEqual([AZUL_PIXI])
-    expect(caixa(tracos(comCor)[0])).toEqual(caixa(tracos(deSempre)[0]))
+    expect(preenchimentos(comCor).map((f) => f.data.style.color)).toEqual([DOOR_EDGE_COLOR, AZUL_PIXI, DOOR_EDGE_COLOR])
+    expect(tracos(comCor)).toHaveLength(0)
+    expect(preenchimentos(comCor).map(caixa)).toEqual(preenchimentos(deSempre).map(caixa))
   })
 
-  it('trancada com cor: cheia na cor dela, contorno vermelho POR FORA e cadeado opaco no meio', () => {
+  it('trancada com cor: cheia na cor dela, contorno vermelho POR FORA do escuro e cadeado opaco no meio', () => {
     const g = desenhar([porta({ locked: true, cor: AZUL })])
-    const [folha] = preenchimentos(g)
+    const [fora, folha] = preenchimentos(g)
+    expect(fora.data.style.color).toBe(DOOR_EDGE_COLOR)
     expect(folha.data.style.color).toBe(AZUL_PIXI)
-    expect(caixa(folha).h).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
-    // O contorno vermelho: a borda de dentro encosta na folha, a de fora sai do retângulo.
+    expect(caixa(fora).h).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX + DOOR_EDGE_SCREEN_PX, 9)
+    // O contorno vermelho: a borda de dentro encosta no contorno escuro, a de fora sai da porta.
     const aro = tracos(g).find((s) => s.data.style.color === DOOR_LOCKED_COLOR && s.data.path.instructions.some((p) => p.action === 'poly'))
     if (aro === undefined) throw new Error('trancada com cor sem o contorno vermelho')
     const largura = aro.data.style.width
     expect(largura).toBeGreaterThanOrEqual(DOOR_LOCKED_RING_SCREEN_PX)
-    expect(caixa(aro).h - largura).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
-    // O cadeado: corpo claro com traço vermelho, alça e buraco da chave — tudo opaco.
+    expect(caixa(aro).h - largura).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX + DOOR_EDGE_SCREEN_PX, 9)
+    // O cadeado: corpo creme com traço vermelho e a alça — tudo opaco.
     expect(preenchimentos(g).some((f) => f.data.style.color === DOOR_PADLOCK_FILL)).toBe(true)
     expect(tracos(g).some((s) => s.data.path.instructions.some((p) => p.action === 'arc'))).toBe(true)
     for (const instrucao of [...preenchimentos(g), ...tracos(g)]) expect(instrucao.data.style.alpha).toBe(1)
   })
 
-  it('o cadeado tem tamanho fixo na TELA: o corpo mede o mesmo em px de tela a 100% e a 400%', () => {
-    for (const escala of [1, 4]) {
+  it('o cadeado tem 6 por 5 px fixos na TELA: o corpo mede o mesmo em px de tela a 100%, 250% e 400%', () => {
+    expect([DOOR_PADLOCK_BODY_W_SCREEN_PX, DOOR_PADLOCK_BODY_H_SCREEN_PX]).toEqual([6, 5])
+    for (const escala of [1, 2.5, 4]) {
       const corpo = preenchimentos(desenhar([porta({ locked: true, cor: AZUL })], null, escala)).find((f) => f.data.style.color === DOOR_PADLOCK_FILL)
       if (corpo === undefined) throw new Error(`sem cadeado a ${escala}x`)
-      expect(caixa(corpo).w * escala).toBeCloseTo(DOOR_PADLOCK_BODY_W_SCREEN_PX, 9)
+      expect(caixa(corpo).w * escala).toBeCloseTo(6, 9)
+      expect(caixa(corpo).h * escala).toBeCloseTo(5, 9)
     }
   })
 
@@ -113,18 +119,21 @@ describe('drawDoors — cor própria da porta', () => {
     expect(caixa(moldura).h - moldura.data.style.width).toBeCloseTo(caixa(aro).h + aro.data.style.width, 9)
   })
 
-  it('secreta com cor: os traços na cor dela; trancada leva o cadeado, sem o contorno que juntaria os traços', () => {
+  it('secreta com cor: os traços na cor dela, cada um com o contorno; trancada NUNCA leva cadeado nem anel', () => {
     const solta = desenhar([porta({ secret: true, cor: AZUL })])
-    expect(preenchimentos(solta).map((f) => f.data.style.color)).toEqual(Array.from({ length: SECRET_DOOR_DASHES }, () => AZUL_PIXI))
+    const escuros = Array.from({ length: SECRET_DOOR_DASHES }, () => DOOR_EDGE_COLOR)
+    const azuis = Array.from({ length: SECRET_DOOR_DASHES }, () => AZUL_PIXI)
+    expect(preenchimentos(solta).map((f) => f.data.style.color)).toEqual([...escuros, ...azuis])
     const trancada = desenhar([porta({ secret: true, locked: true, cor: AZUL })])
-    expect(preenchimentos(trancada).filter((f) => f.data.style.color === AZUL_PIXI)).toHaveLength(SECRET_DOOR_DASHES)
-    expect(preenchimentos(trancada).some((f) => f.data.style.color === DOOR_PADLOCK_FILL)).toBe(true)
-    expect(tracos(trancada).some((s) => s.data.path.instructions.some((p) => p.action === 'poly'))).toBe(false)
+    expect(preenchimentos(trancada).map((f) => f.data.style.color)).toEqual([...escuros, ...azuis])
+    expect(preenchimentos(trancada).some((f) => f.data.style.color === DOOR_PADLOCK_FILL)).toBe(false)
+    expect(tracos(trancada)).toHaveLength(0)
   })
 
-  it('a seta da porta de um lado sai na cor dela', () => {
+  it('a seta da porta de um lado sai na cor dela, com o contorno escuro', () => {
     const g = desenhar([porta({ cor: AZUL, opensFrom: 'right' })])
-    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([AZUL_PIXI, AZUL_PIXI])
+    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([DOOR_EDGE_COLOR, AZUL_PIXI, AZUL_PIXI])
+    expect(tracos(g).map((s) => s.data.style.color)).toEqual([DOOR_EDGE_COLOR])
   })
 })
 
@@ -138,10 +147,34 @@ describe('drawDoors — sem cor própria, o desenho de sempre', () => {
     ['dupla', { kind: 'double' }],
   ]
 
-  it('trancada sem cor: um preenchimento vermelho e mais nada (nem cadeado, nem contorno)', () => {
+  it('trancada sem cor: a folha vermelha com o contorno escuro e mais nada (nem cadeado, nem anel)', () => {
     const g = desenhar([porta({ locked: true })])
-    expect(desenho(g)).toHaveLength(1)
-    expect(preenchimentos(g)[0].data.style.color).toBe(DOOR_LOCKED_COLOR)
+    expect(desenho(g)).toHaveLength(2)
+    expect(preenchimentos(g).map((f) => f.data.style.color)).toEqual([DOOR_EDGE_COLOR, DOOR_LOCKED_COLOR])
+  })
+
+  /*
+   * O desenho NOVO travado, instrução por instrução (valores de ouro conferidos
+   * à mão contra o `.mapa .porta-folha` do protótipo consolidado: rect de vão x 4
+   * com stroke de 1 centrado → 101 x 5 escuro por fora, 99 x 3 creme por dentro).
+   */
+  it('sem cor: fechada, aberta e trancada no desenho novo, caixa por caixa', () => {
+    const forma = (g: Graphics) => preenchimentos(g).map((f) => ({ cor: f.data.style.color, ...caixa(f) }))
+    const perto = (v: number) => Math.round(v * 1e6) / 1e6
+    const arredondar = (l: { cor: number; w: number; h: number }[]) => l.map((c) => ({ cor: c.cor, w: perto(c.w), h: perto(c.h) }))
+    expect(arredondar(forma(desenhar([porta({})])))).toEqual([
+      { cor: 0x15181a, w: 101, h: 5 },
+      { cor: 0xd9d2c0, w: 99, h: 3 },
+    ])
+    expect(arredondar(forma(desenhar([porta({ open: true })])))).toEqual([
+      { cor: 0x15181a, w: 101, h: 5 },
+      { cor: 0xd9d2c0, w: 99, h: 3 },
+      { cor: 0x15181a, w: 97, h: 1 },
+    ])
+    expect(arredondar(forma(desenhar([porta({ locked: true, open: true })])))).toEqual([
+      { cor: 0x15181a, w: 101, h: 5 },
+      { cor: 0xe2645a, w: 99, h: 3 },
+    ])
   })
 
   it('cor torta (nome, hex curto, javascript:) desenha igual à porta sem cor, em todo estado', () => {
@@ -157,7 +190,8 @@ describe('drawDoors — sem cor própria, o desenho de sempre', () => {
     expect(corDaPortaNoMapa({ locked: false })).toBe(DOOR_COLOR)
     expect(corDaPortaNoMapa({ locked: true })).toBe(DOOR_LOCKED_COLOR)
     expect(corDaPortaNoMapa({ locked: true, cor: AZUL })).toBe(AZUL_PIXI)
-    // O padrão em CSS ("Outra cor…", miniatura do jogador) é o mesmo laranja do Pixi.
+    // O padrão em CSS ("Outra cor…", miniatura do jogador) é o mesmo creme do Pixi.
     expect(parseHexColor(COR_DA_PORTA_PADRAO)).toBe(DOOR_COLOR)
+    expect(COR_DA_PORTA_PADRAO).toBe('#d9d2c0')
   })
 })

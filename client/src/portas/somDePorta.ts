@@ -2,10 +2,13 @@ import type { BufferDeSom, ContextoDeSom, SaidaDeSom } from '../lib/sons/context
 import { obterSaidaDeSom } from '../lib/sons/contexto'
 import { estaCalado, useSomStore, type PreferenciaDeSom } from '../stores/somStore'
 import type { SomDaAnimacaoDePorta } from './animacoesDePorta'
+import type { CurvaBezier } from './curvaBezier'
+import { agendarSomDaPortaDoPacote, somDoPacote } from './somDasPortasDoPacote'
 
 /**
  * SOM DA PORTA (fatia 22): rangido de abrir, rangido curto de fechar, trinco e
- * tranca, sintetizados em Web Audio na hora, sem arquivo. Modelo dos sons da
+ * tranca, sintetizados em Web Audio na hora, sem arquivo (e os das cinco
+ * animações do pacote, em `somDasPortasDoPacote.ts`). Modelo dos sons da
  * pesca (`minigames/pesca/som.ts`): cada som é uma função que recebe o
  * contexto, o destino e o instante, então o MESMO código toca no app (o
  * contexto único do primeiro gesto, `lib/sons/contexto.ts`) e nas provas (um
@@ -16,9 +19,14 @@ import type { SomDaAnimacaoDePorta } from './animacoesDePorta'
  * verdadeiro até -12 dBTP no volume máximo da mesa.
  */
 
-/** O que toca e quando. `duracaoMs` é o tempo do caminho que a porta vai andar (o que falta, se inverteu no meio). */
+/**
+ * O que toca e quando. `duracaoMs` é o tempo do caminho que a porta vai andar
+ * (o que falta, se inverteu no meio); `de` é de onde ela parte (0 = fechada, 1
+ * = aberta) e `curva` a do sentido: os sons do pacote marcam pontos do desenho
+ * e precisam dos dois. Ausentes = caminho inteiro, na curva de sempre.
+ */
 export type EventoDeSomDaPorta =
-  | { tipo: 'abrir' | 'fechar'; som: SomDaAnimacaoDePorta; duracaoMs: number }
+  | { tipo: 'abrir' | 'fechar'; som: SomDaAnimacaoDePorta; duracaoMs: number; de?: number; curva?: CurvaBezier }
   | { tipo: 'trancar' | 'destrancar' }
 
 /**
@@ -232,6 +240,12 @@ export function tranca<N>(ctx: ContextoDeSom<N>, destino: N, t: number, trancand
  * só a lingueta.
  */
 export function agendarSomDePorta<N>(ctx: ContextoDeSom<N>, destino: N, t0: number, evento: EventoDeSomDaPorta): number {
+  // Os do pacote têm o volume calibrado à parte (perto de -32 LUFS): não passam pelo `GANHO_DA_PORTA`.
+  if ('som' in evento && somDoPacote(evento.som)) {
+    const abrindo = evento.tipo === 'abrir'
+    const caminho = { abrindo, duracaoS: Math.max(0, evento.duracaoMs) / 1000, de: evento.de ?? (abrindo ? 0 : 1), ...(evento.curva === undefined ? {} : { curva: evento.curva }) }
+    return agendarSomDaPortaDoPacote(ctx, destino, t0, evento.som, caminho)
+  }
   const saida = ctx.createGain()
   saida.gain.setValueAtTime(GANHO_DA_PORTA, Math.max(0, t0 - 0.002))
   saida.connect(destino)

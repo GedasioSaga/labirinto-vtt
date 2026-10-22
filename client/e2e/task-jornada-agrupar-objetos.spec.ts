@@ -29,7 +29,7 @@
 //   DISCO DE MENTIRA. Um mapa avulso ("Vila do Agrupar") no disco falso do
 //   Tauri, aberto pelo menu "Carregar Mapa existente", como na mesa. Nele: a
 //   CASA — uma sala azul "Casa", uma mesa vermelha (desenho cheio) dentro dela
-//   e uma porta (parede solta com porta, sem vínculo com a sala) logo abaixo —
+//   e uma porta (parede solta com porta, sem vínculo com a sala) no pé dela —
 //   e, longe dela, uma ÁRVORE magenta (desenho cheio) que não entra no grupo.
 //   Nenhum transporte de rede é falsificado: não há jogador nesta régua.
 //   GESTO REAL. Tecla V (Selecionar); retângulo de seleção arrastado pelo
@@ -38,7 +38,7 @@
 //   PROVA NA TELA. Texto visível ("3 itens") e cor lida em pixel na foto da
 //   página, contando só onde o CANVAS do mapa está por cima: a posição de cada
 //   peça é o centro de massa da cor dela (sala azul, mesa vermelha, porta
-//   cor de madeira, árvore magenta). O único `evaluate` é a LEITURA de pixel
+//   verde, árvore magenta). O único `evaluate` é a LEITURA de pixel
 //   (decodificar a foto num canvas solto e perguntar `elementFromPoint`); ele
 //   não toca no app. Nada é lido da store.
 //
@@ -52,8 +52,13 @@
 //   - "move tudo junto": cada peça da casa anda o mesmo deslocamento do
 //     ponteiro (tolerância de 15% ou 8 px, para caber o encaixe na grade) e a
 //     árvore não anda (até 3 px);
-//   - a porta é uma parede solta com porta (`door`), desenhada na cor de
-//     madeira de `pixi/drawDoors.ts` (`DOOR_COLOR`).
+//   - a porta é uma parede solta com porta (`door`) de COR PRÓPRIA verde
+//     (`door.cor`). Não a cor de fábrica: o creme de 22/10/2026 (`DOOR_COLOR`,
+//     `pixi/drawDoors.ts`) fica a 4 por canal do claro da parede (`WALL_COLOR`,
+//     `pixi/drawWalls.ts`), e o laranja de antes saía também da borda da mesa
+//     selecionada (amarelo da moldura + vermelho da mesa + contorno escuro
+//     chegam a 3 por canal dele). O verde fica a mais de 55 por canal de
+//     qualquer mistura de três cores da tela.
 //
 // FORA DESTA RÉGUA, de propósito: o lado do JOGADOR. Agrupar é gesto do editor;
 // o que o jogador recebe depois de mover a casa é o mesmo mapa movido de hoje
@@ -94,8 +99,17 @@ const COR_DA_CASA = '#1e32d2'
 /** A mesa: desenho vermelho cheio, dentro da casa, longe do nome no meio. */
 const MESA = { x: 310, y: 290, lado: 60 }
 const COR_DA_MESA = '#d21e1e'
-/** A porta: parede solta com porta, logo abaixo da casa. */
-const PORTA = { x1: 380, y1: 550, x2: 480, y2: 550 }
+/**
+ * A porta: parede solta com porta, dentro da casa, perto da parede de baixo.
+ * Fora da sala ela ficava na borda da caixa do grupo, e a moldura amarela da
+ * seleção viva passava em cima da folha (medido em 22/10/2026).
+ */
+const PORTA = { x1: 380, y1: 470, x2: 480, y2: 470 }
+/** Cor própria da porta (o campo que a Aparência da ficha grava): um verde que nada mais no mapa tem. */
+const COR_DA_PORTA = '#2fa84f'
+const RGB_DA_PORTA = [1, 3, 5].map((i) => Number.parseInt(COR_DA_PORTA.slice(i, i + 2), 16))
+/** Pixel da porta: até isto por canal do verde dela (a borda com o contorno escuro fica de fora). */
+const PERTO_DA_PORTA = 20
 /** A árvore: desenho magenta cheio, fora do grupo. */
 const ARVORE = { cx: 850, cy: 300, raio: 45 }
 const COR_DA_ARVORE = '#d21ed2'
@@ -103,8 +117,13 @@ const COR_DA_ARVORE = '#d21ed2'
 const LACO = { x1: 240, y1: 220, x2: 620, y2: 600 }
 /** Ponto vazio, fora de tudo (mundo): clicar aqui desmarca. */
 const VAZIO = { x: 900, y: 690 }
-/** Quanto a casa é arrastada (mundo): quatro células para baixo. */
-const DESLOCAMENTO = { dx: 0, dy: 200 }
+/**
+ * Quanto a casa é arrastada (mundo): quatro células para a direita, entre a
+ * casa e a árvore. Para baixo, não: medido em 22/10/2026 a 1280x800, a barra de
+ * ferramentas do pé da tela cobre do y≈712 px para baixo, e a porta movida
+ * caía em y≈730, escondida (a régua só conta cor onde o canvas está por cima).
+ */
+const DESLOCAMENTO = { dx: 200, dy: 0 }
 
 /** Espera curta por elemento: a feature ausente tem de falhar rápido. */
 const ESPERA = 6000
@@ -131,7 +150,7 @@ const PARADO_PX = 3
 /** A contagem do grupo no painel (suposição: mesma contagem da seleção de vários). */
 const TEXTO_DO_GRUPO = /(^|\D)3 itens\b/
 
-type Cor = 'azul' | 'vermelho' | 'madeira' | 'magenta'
+type Cor = 'azul' | 'vermelho' | 'verde' | 'magenta'
 type Foto = Awaited<ReturnType<Page['screenshot']>>
 type Ponto = { x: number; y: number }
 
@@ -188,7 +207,7 @@ function arvore(): Drawing {
 }
 
 function porta(): Wall {
-  return { id: 'parede-porta', ...PORTA, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }
+  return { id: 'parede-porta', ...PORTA, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal', cor: COR_DA_PORTA } }
 }
 
 function discoDeMentira(): Record<string, string> {
@@ -314,7 +333,7 @@ type Leitura = Record<Cor, Mancha>
  */
 async function lerCores(page: Page, foto: Foto): Promise<Leitura> {
   return page.evaluate(
-    async ({ b64 }) => {
+    async ({ b64, porta, perto }) => {
       const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob())
       const tela = document.createElement('canvas')
       tela.width = bmp.width
@@ -336,7 +355,7 @@ async function lerCores(page: Page, foto: Foto): Promise<Leitura> {
         return v
       }
       const vazia = () => ({ n: 0, x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity, sx: 0, sy: 0 })
-      const r = { azul: vazia(), vermelho: vazia(), madeira: vazia(), magenta: vazia() }
+      const r = { azul: vazia(), vermelho: vazia(), verde: vazia(), magenta: vazia() }
       for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
           const i = (y * width + x) * 4
@@ -345,7 +364,7 @@ async function lerCores(page: Page, foto: Foto): Promise<Leitura> {
           const B = data[i + 2]
           let alvoCor: keyof typeof r | null = null
           if (R > 170 && G < 60 && B < 60) alvoCor = 'vermelho'
-          else if (R >= 180 && R <= 235 && G >= 110 && G <= 170 && B >= 25 && B <= 95 && R - G > 45 && G - B > 50) alvoCor = 'madeira'
+          else if (Math.abs(R - porta[0]) <= perto && Math.abs(G - porta[1]) <= perto && Math.abs(B - porta[2]) <= perto) alvoCor = 'verde'
           else if (B > 150 && B > R * 2.5 && B > G * 2) alvoCor = 'azul'
           else if (R > 150 && B > 150 && R > G * 2.5 && B > G * 2.5 && Math.abs(R - B) < 40) alvoCor = 'magenta'
           if (alvoCor === null || !canvasPorCima(x, y)) continue
@@ -371,11 +390,11 @@ async function lerCores(page: Page, foto: Foto): Promise<Leitura> {
       return {
         azul: fechar(r.azul),
         vermelho: fechar(r.vermelho),
-        madeira: fechar(r.madeira),
+        verde: fechar(r.verde),
         magenta: fechar(r.magenta),
       }
     },
-    { b64: foto.toString('base64') },
+    { b64: foto.toString('base64'), porta: RGB_DA_PORTA, perto: PERTO_DA_PORTA },
   )
 }
 
@@ -400,7 +419,7 @@ async function mapaAVista(page: Page): Promise<Leitura> {
   const minimos: Record<Cor, number> = {
     azul: PIXELS_DA_CASA,
     vermelho: PIXELS_DA_MESA,
-    madeira: PIXELS_DA_PORTA,
+    verde: PIXELS_DA_PORTA,
     magenta: PIXELS_DA_ARVORE,
   }
   const guarda: { ultima: Leitura | null } = { ultima: null }
@@ -414,7 +433,7 @@ async function mapaAVista(page: Page): Promise<Leitura> {
       {
         timeout: ESPERA_TELA,
         intervals: [250, 500],
-        message: 'o editor deveria mostrar a casa azul, a mesa vermelha, a porta de madeira e a árvore magenta (lista = cores abaixo do mínimo)',
+        message: 'o editor deveria mostrar a casa azul, a mesa vermelha, a porta verde e a árvore magenta (lista = cores abaixo do mínimo)',
       },
     )
     .toEqual([])
@@ -513,7 +532,7 @@ function folga(passo: Ponto): number {
 const NOMES: Record<Cor, string> = {
   azul: 'a sala azul da casa',
   vermelho: 'a mesa vermelha',
-  madeira: 'a porta',
+  verde: 'a porta',
   magenta: 'a árvore de fora',
 }
 
@@ -567,7 +586,7 @@ test('1. controle: o laço seleciona a casa (3 itens), arrastar a seleção viva
   await expect(page.getByText('3 itens selecionados', { exact: false }).first(), 'o laço em volta da casa deveria selecionar sala, porta e mesa').toBeVisible({ timeout: ESPERA })
 
   const passo = await arrastarAMesa(page, tela, inicio)
-  await conferirMovimento(page, inicio, passo, ['azul', 'vermelho', 'madeira'], ['magenta'])
+  await conferirMovimento(page, inicio, passo, ['azul', 'vermelho', 'verde'], ['magenta'])
 
   // A câmera não mudou: a calibragem do começo continua valendo (a casa andou,
   // a origem do mundo não). O ponto vazio fica longe de onde a casa foi parar.
@@ -597,7 +616,7 @@ test('3. arrastar a partir de um membro do grupo move a casa inteira junto e a �
 
   // Arrasto que COMEÇA na mesa, com nada selecionado: só o grupo explica a casa andar.
   const passo = await arrastarAMesa(page, tela, inicio)
-  await conferirMovimento(page, inicio, passo, ['vermelho', 'azul', 'madeira'], ['magenta'])
+  await conferirMovimento(page, inicio, passo, ['vermelho', 'azul', 'verde'], ['magenta'])
 })
 
 test('4. Ctrl+Shift+G desagrupa: o clique seguinte na mesa pega só ela e arrastá-la não leva a casa', async ({ page }) => {
@@ -614,5 +633,5 @@ test('4. Ctrl+Shift+G desagrupa: o clique seguinte na mesa pega só ela e arrast
   await desmarcar(page, tela)
 
   const passo = await arrastarAMesa(page, tela, inicio)
-  await conferirMovimento(page, inicio, passo, ['vermelho'], ['azul', 'madeira', 'magenta'])
+  await conferirMovimento(page, inicio, passo, ['vermelho'], ['azul', 'verde', 'magenta'])
 })

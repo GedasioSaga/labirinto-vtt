@@ -26,6 +26,8 @@ const ARQUIVOS = new Set(['transicao-tunel.js', 'porta-cair.js', 'cenario-chuva.
 const TUNEL = { id: 'tunel', tipo: 'transicao', nome: 'Túnel', arquivo: 'transicao-tunel.js', duracaoNaturalS: 6, quadroDaMiniaturaS: 2 }
 const CAIR = { id: 'cair', tipo: 'porta', nome: 'Cair para dentro', arquivo: 'porta-cair.js', duracaoMs: 300 }
 const CHUVA = { id: 'chuva', tipo: 'cenario', nome: 'Chuva', arquivo: 'cenario-chuva.js', duracaoNaturalS: 8 }
+/** A porta com os campos de 22/10/2026: fecha em outro tempo e anda numa curva por sentido. */
+const CAIR_POR_SENTIDO = { ...CAIR, duracaoFecharMs: 220, curvaAbrir: [0.2, 0, 0.4, 1], curvaFechar: [0.5, 0, 0.8, 0.4] }
 
 function indice(animacoes: unknown[], versao = 1, arquivos: Iterable<string> = ARQUIVOS): string {
   return JSON.stringify({ formato: 1, versao, motorMinimo: '0.4.21', arquivos: [...arquivos].map((nome) => ({ nome, sha256: 'a'.repeat(64), tamanho: 10 })), animacoes })
@@ -116,12 +118,39 @@ describe('entradas do índice', () => {
     const lida = lerEntradaDoPacote({ ...CAIR, som }, ARQUIVOS)
     expect(lida).toEqual({ entrada: CAIR })
   })
+
+  it('porta com tempo de fechar e curva de cada sentido (22/10/2026): os três campos ficam', () => {
+    expect(lerEntradaDoPacote(CAIR_POR_SENTIDO, ARQUIVOS)).toEqual({ entrada: CAIR_POR_SENTIDO })
+  })
+
+  it.each<[string, unknown]>([
+    ['duracaoFecharMs', 0],
+    ['duracaoFecharMs', -1],
+    ['duracaoFecharMs', 3001],
+    ['duracaoFecharMs', '420'],
+    ['duracaoFecharMs', Number.NaN],
+    ['duracaoFecharMs', null],
+    ['curvaAbrir', [0.3, -0.2, 0.6, 1]],
+    ['curvaAbrir', [0.3, 0.2, 1.4, 1]],
+    ['curvaAbrir', [0.3, 0.2, 0.6]],
+    ['curvaAbrir', 'ease-out'],
+    ['curvaAbrir', [Number.NaN, 0, 1, 1]],
+    ['curvaFechar', [0.3, 0.2, 0.6, 1, 0]],
+    ['curvaFechar', ['0.3', 0.2, 0.6, 1]],
+    ['curvaFechar', { x1: 0.3, y1: 0.2, x2: 0.6, y2: 1 }],
+  ])('porta com `%s` torto (%j): a porta entra sem o campo', (campo, valor) => {
+    expect(lerEntradaDoPacote({ ...CAIR, [campo]: valor }, ARQUIVOS)).toEqual({ entrada: CAIR })
+  })
 })
 
 describe('índice', () => {
   it('lê versão e animações; entrada ruim e repetida saem, o resto vale', () => {
     const lido = lerIndiceDoPacote(indice([TUNEL, { ...CAIR, duracaoMs: -1 }, CHUVA, { ...TUNEL, nome: 'Outro túnel' }], 4))
     expect(lido).toEqual({ versao: 4, animacoes: [TUNEL, CHUVA] })
+  })
+
+  it('o tempo de fechar e as curvas da porta chegam ao índice', () => {
+    expect(lerIndiceDoPacote(indice([CAIR_POR_SENTIDO], 2))).toEqual({ versao: 2, animacoes: [CAIR_POR_SENTIDO] })
   })
 
   it('pacote vazio (a primeira publicação) é um índice válido', () => {
@@ -155,6 +184,16 @@ describe('carregar', () => {
   it('o `som` da porta chega ao registro', async () => {
     await carregarPacoteDeAnimacoes(origemFalsa(indice([{ ...CAIR, som: 'trinco' }], 3), MODULOS))
     expect(animacaoDePorta('cair')?.som).toBe('trinco')
+  })
+
+  it('o tempo de fechar e as curvas da porta chegam ao registro; tortos, a porta entra sem eles', async () => {
+    await carregarPacoteDeAnimacoes(origemFalsa(indice([CAIR_POR_SENTIDO], 3), MODULOS))
+    expect(animacaoDePorta('cair')).toMatchObject({ duracaoMs: 300, duracaoFecharMs: 220, curvaAbrir: [0.2, 0, 0.4, 1], curvaFechar: [0.5, 0, 0.8, 0.4] })
+
+    await carregarPacoteDeAnimacoes(origemFalsa(indice([{ ...CAIR, duracaoFecharMs: '220', curvaAbrir: [0.2, -1, 0.4, 1], curvaFechar: 'linear' }], 4), MODULOS))
+    const torta = animacaoDePorta('cair')
+    expect(torta?.duracaoMs).toBe(300)
+    expect(torta !== null && ['duracaoFecharMs', 'curvaAbrir', 'curvaFechar'].filter((campo) => campo in torta)).toEqual([])
   })
 
   it('um módulo que quebra ao importar, ou sem export default de função, não derruba os outros', async () => {

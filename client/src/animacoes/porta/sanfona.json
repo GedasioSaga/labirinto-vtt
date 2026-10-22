@@ -1,0 +1,1 @@
+{ "nome": "Sanfona", "duracaoMs": 440, "duracaoFecharMs": 380, "curvaAbrir": [0.37, 0, 0.63, 1], "curvaFechar": [0.33, 1, 0.68, 1], "som": "sanfona" }
