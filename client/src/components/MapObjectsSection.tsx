@@ -323,6 +323,12 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
             }}
           >
             {content}
+            {/* Com busca digitada, cada achado diz a tecla que o abre (o protótipo); o leitor de tela já ouve o botão. */}
+            {query !== '' && (
+              <kbd className="lb-objetos__enter" aria-hidden="true">
+                Enter
+              </kbd>
+            )}
           </button>
           {sendTarget !== null && (
             <button

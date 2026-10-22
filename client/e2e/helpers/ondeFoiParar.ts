@@ -404,6 +404,8 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['spinbutton', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['spinbutton', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
       // "Para onde leva" nasce fechada; o nome do cabeçalho leva o resumo ("Para onde leva Lugar nenhum", "Piso 2").
       ...todos([['combobox', 'Leva a'], rg('Passagem da escada'), b('Criar andar de cima'), ['spinbutton', 'Piso'], ['spinbutton', 'Leva ao piso'], ...TRANSICAO('Transição ao trocar de piso')], b('/^Para onde leva/')),
+      // Por último (a escada fica curvada): o "Endireitar" só vem com curva; End no deslizante leva a curva ao máximo.
+      { ...l('Curva: Endireitar', b('Endireitar'), ['slider', 'Curva']), tecla: 'End' },
     ],
   },
   {
@@ -678,5 +680,9 @@ export const FORA_DO_ESPECIFICADO: readonly (readonly [string, string])[] = [
     'o estado de teste só tem o retângulo f1, sem cor própria nem borda irregular; FichasDosItens16b.test.tsx cobre a cor própria e a borda irregular',
   ],
   ['Ficha da região (fatia 16b): "Mostrar aos jogadores", na ficha Gatilho', 'só aparece com um gatilho escolhido (a região r1 não tem); AreaTriggerControls.test.tsx cobre'],
+  [
+    'Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item',
+    'pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela',
+  ],
   ['Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta', 'pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para'],
 ]

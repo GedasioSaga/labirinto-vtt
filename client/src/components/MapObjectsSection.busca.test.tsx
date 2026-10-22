@@ -275,6 +275,26 @@ describe('MapObjectsSection: busca em todas as cenas', () => {
     expect(corpo().textContent).toContain('1 de 2 objetos · 1 em outras cenas')
   })
 
+  it('digitando, cada achado (daqui e de outra cena) leva a dica "Enter" na ponta, fora do nome; sem nada digitado, nenhuma', () => {
+    render()
+    abrir()
+    const dicas = (linha: HTMLButtonElement) => [...linha.querySelectorAll('kbd')]
+    expect(linhas().length).toBeGreaterThan(0)
+    expect(linhas().flatMap(dicas)).toEqual([])
+
+    digitar(busca(), 'cripta')
+    expect(linhas()).toHaveLength(2)
+    for (const achado of linhas()) {
+      const [dica, ...outras] = dicas(achado)
+      expect(outras).toEqual([])
+      expect(dica.textContent).toBe('Enter')
+      expect(dica.getAttribute('aria-hidden')).toBe('true')
+      // A dica é a última coisa da linha: o nome e o caminho vêm antes.
+      expect(achado.lastElementChild).toBe(dica)
+    }
+    expect(linhas().map((b) => nomeAcessivel(b))).toEqual(['Cripta', 'Antecâmara da Cripta Vale › Cripta Rubra'])
+  })
+
   it('clique na linha de outra cena pede o "Ir lá" com a cena e o objeto', () => {
     const props = render()
     abrir()

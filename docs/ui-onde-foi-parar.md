@@ -612,6 +612,7 @@ Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido
 | Transição ao trocar de piso | heading "Transição ao trocar de piso" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
 | Nenhuma Chega direto | button "Nenhuma Chega direto" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
 | Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Para onde leva/" | (do bloco) |
+| Curva: Endireitar | button "Endireitar" | (livro do mestre) > clicar slider "Curva" > tecla End | (do bloco) |
 
 ### Ficha da sala
 
@@ -1179,6 +1180,7 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Ficha do desenho (fatia 16b): Preenchido e Opacidade da forma (retângulo, elipse) no essencial; com "Paredes ao redor" ligado, Aparência das paredes, cor, Passagem pelas paredes e Soltar, na ficha Paredes | o estado de teste só tem a linha dr1, com as paredes desligadas; FichasDosItens16b.test.tsx cobre a forma e ParedesAoRedorControls.test.tsx cobre as paredes ligadas |
 | Ficha da peça de chão (fatia 16b): Voltar à cor do chão, os campos da Borda irregular ligada (Intensidade, Tamanho do dente, Semente) e as medidas das outras formas (raios, Lados, largura em cada ponto, vértices; blocos sem Rotação) | o estado de teste só tem o retângulo f1, sem cor própria nem borda irregular; FichasDosItens16b.test.tsx cobre a cor própria e a borda irregular |
 | Ficha da região (fatia 16b): "Mostrar aos jogadores", na ficha Gatilho | só aparece com um gatilho escolhido (a região r1 não tem); AreaTriggerControls.test.tsx cobre |
+| Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item | pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 659 controles em 69 blocos.
+Total: 660 controles em 69 blocos.

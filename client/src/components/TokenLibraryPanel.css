@@ -498,7 +498,8 @@
   background: none;
   color: var(--lb-color-brass);
   cursor: pointer;
-  transition: transform var(--lb-motion-fast) ease;
+  /* A mesma curva e o mesmo tempo do "+" do cartão de item, na mesma página. */
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .lb-acervo__por svg {
@@ -506,8 +507,11 @@
   height: 14px;
 }
 
-.lb-acervo__por:hover {
-  background: var(--lb-color-stone-raised);
+/* No toque o pairar grudaria no "+" depois do toque. */
+@media (hover: hover) and (pointer: fine) {
+  .lb-acervo__por:hover {
+    background: var(--lb-color-stone-raised);
+  }
 }
 
 .lb-acervo__por:active {
