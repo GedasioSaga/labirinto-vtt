@@ -555,6 +555,9 @@ Parte de: porta selecionada no mapa. Vai para: Página Ficha da porta: Estado, T
 | Jogador pode espiar | checkbox "Jogador pode espiar" | (livro do mestre) | (do bloco) |
 | Quem abre: Abre por | radiogroup "Abre por" | (livro do mestre) > clicar button "/^Quem abre/" | (do bloco) |
 | Tipo de porta | radiogroup "Tipo de porta" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor da porta | radiogroup "Cor da porta" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Outra cor… | textbox "Outra cor…" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
+| Cor padrão | button "Cor padrão" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Animação ao abrir | combobox "Animação ao abrir" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Procurar animações novas | button "Procurar animações novas" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Parede interna | checkbox "Parede interna" | (livro do mestre) > clicar button "/^Parede em volta/" | (do bloco) |
@@ -1178,4 +1181,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Ficha da região (fatia 16b): "Mostrar aos jogadores", na ficha Gatilho | só aparece com um gatilho escolhido (a região r1 não tem); AreaTriggerControls.test.tsx cobre |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 656 controles em 69 blocos.
+Total: 659 controles em 69 blocos.
