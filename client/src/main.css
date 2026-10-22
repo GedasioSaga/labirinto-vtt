@@ -5500,8 +5500,8 @@ html.lb-arrastando-cena * {
 
 /* O atalho escrito dentro do campo, no canto do "limpar" (que só vem com texto
    digitado): atalho invisível é atalho inexistente. A largura é fixa e mora
-   numa variável só, que o campo também lê para reservar o canto: sem a
-   reserva, a frase de exemplo corria por baixo do chip. */
+   numa variável só, que o campo com chip também lê para reservar o canto:
+   sem a reserva, a frase de exemplo corria por baixo do chip. */
 .lb-objetos__atalho {
   position: absolute;
   top: 50%;
@@ -5536,18 +5536,25 @@ html.lb-arrastando-cena * {
   pointer-events: none;
 }
 
-/* Espaço da lupa à esquerda e do "limpar" à direita, com o mesmo respiro do
-   chip (sem ele o texto digitado encostava na caixa do "limpar"). A frase que
-   não cabe termina em reticências, e não cortada no meio de uma letra. */
+/* Espaço da lupa à esquerda; à direita, o recuo do .lb-input. A frase que não
+   cabe termina em reticências, e não cortada no meio de uma letra. O "Filtrar
+   cenas" e o "Buscar cena" dos seletores usam este campo sem chip (e o
+   segundo sem "limpar"): o canto só cresce no campo que tem o que mora nele.
+   Guardado à toa, ele cortava o fim do "Parte do nome, como “tav”". */
 .lb-objetos__busca {
   padding-left: var(--lb-space-8);
-  padding-right: calc(var(--lb-space-8) + var(--lb-space-1));
   text-overflow: ellipsis;
 }
 
-/* Campo vazio = o chip do atalho à vista (o "limpar" só vem com texto): o
-   canto reserva o chip inteiro, a distância dele à borda e um respiro igual. */
-.lb-objetos__busca:placeholder-shown {
+/* Com o "limpar" à vista, o mesmo respiro do chip: sem ele o texto digitado
+   encostava na caixa do botão. */
+.lb-objetos__campo:has(> .lb-objetos__limpar) > .lb-objetos__busca {
+  padding-right: calc(var(--lb-space-8) + var(--lb-space-1));
+}
+
+/* Com o chip à vista (o "Buscar objeto" vazio; o "limpar" só vem com texto):
+   o canto reserva o chip inteiro, a distância dele à borda e um respiro igual. */
+.lb-objetos__campo:has(> .lb-objetos__atalho) > .lb-objetos__busca {
   padding-right: calc(var(--lb-objetos-atalho-largura) + var(--lb-space-2) * 2);
 }
 
