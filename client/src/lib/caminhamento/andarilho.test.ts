@@ -220,10 +220,11 @@ describe('andarilho: a resposta demora (vários tiques, ou pela agenda em fatias
   const porta1 = paredeComVao(384, 256, 320, 10, { door: porta() })
   const de = { x: 224, y: 96 }
   const para = { x: 608, y: 96 }
+  const emFatias = { pontosPorFatia: 8, paredesPorFatia: 1, fatiasPorTique: 2 }
   const modos: { nome: string; extra: Partial<Trecho> }[] = [
     { nome: 'resposta 3 tiques depois', extra: { atrasoDaResposta: 3 } },
     { nome: 'resposta 5 tiques depois', extra: { atrasoDaResposta: 5 } },
-    { nome: 'pela agenda, malha e busca em fatias', extra: { pelaAgenda: { pontosPorFatia: 8, paredesPorFatia: 1, fatiasPorTique: 2 } } },
+    { nome: 'pela agenda, malha e busca em fatias', extra: { pelaAgenda: emFatias } },
   ]
 
   for (const { nome, extra } of modos) {
@@ -273,4 +274,19 @@ describe('andarilho: a resposta demora (vários tiques, ou pela agenda em fatias
       expect(r.violacoes).toEqual([])
     })
   }
+
+  it('pela agenda: o mestre põe uma parede na frente de quem já anda (malha nova, por montar): para, pede caminho, contorna e chega, sem atravessar', () => {
+    // Com a malha por montar o passo não se confere (o índice de paredes dela ainda não tem a nova), e a agenda só a
+    // monta para quem pede caminho: seguir o caminho velho seria andar às cegas, através da parede.
+    const QUANDO = 8
+    const nova = parede('nova', 608, 128, 608, 448)
+    const porNaFrente = (tique: number, paredes: readonly Wall[]) => (tique === QUANDO ? [...paredes, nova] : null)
+    const r = simularTrecho(trecho([], { x: 96, y: 288 }, { x: 864, y: 288 }, { pelaAgenda: emFatias, aoTique: porNaFrente }))
+    expect(r.violacoes).toEqual([])
+    expect(r.fim).toEqual({ tipo: 'chegou' })
+    // Já andava pelo caminho velho, em linha reta, quando a parede surgiu; parou para pedir outro.
+    expect(r.situacoes.slice(QUANDO - 3, QUANDO)).toEqual(['andando', 'andando', 'andando'])
+    expect(r.situacoes[QUANDO]).toBe('planejando')
+    expect(r.pedidos).toBeGreaterThanOrEqual(2)
+  })
 })
