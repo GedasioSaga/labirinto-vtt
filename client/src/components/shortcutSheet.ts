@@ -129,6 +129,7 @@ const EDIT_GROUP: ShortcutGroup = {
   rows: [
     { what: 'Desfazer', combo: { keys: ['Ctrl', 'Z'] }, action: { kind: 'undo' } },
     { what: 'Refazer', combo: { keys: ['Ctrl', 'Y'] }, action: { kind: 'redo' } },
+    { what: 'Refazer', combo: { keys: ['Ctrl', 'Shift', 'Z'] }, action: { kind: 'redo' } },
     { what: 'Duplicar a seleção', combo: { keys: ['Ctrl', 'D'] }, action: { kind: 'duplicate' } },
     { what: 'Copiar a seleção', combo: { keys: ['Ctrl', 'C'] }, action: { kind: 'copy' } },
     { what: 'Recortar a seleção', combo: { keys: ['Ctrl', 'X'] }, action: { kind: 'cut' } },
@@ -190,19 +191,32 @@ const FILE_GROUP: ShortcutGroup = {
   rows: [
     { what: 'Salvar', combo: { keys: ['Ctrl', 'S'] }, action: { kind: 'save' } },
     { what: 'Abrir mapa', combo: { keys: ['Ctrl', 'O'] }, action: { kind: 'open' } },
+    // Fora do mapa de teclas: quem ouve é o App (`isFindObjectShortcut`, lib/mapObjects.ts).
+    { what: 'Procurar no mapa', combo: { keys: ['Ctrl', 'K'] } },
   ],
 }
 
+/** O cantinho de cada botão da barra (`Toolbar.tsx`): gesto de mouse, sem tecla. */
+const TOOLBAR_GROUP: ShortcutGroup = {
+  title: 'Barra de ferramentas',
+  rows: [
+    { what: 'Abrir as variantes da ferramenta', combo: { keys: [], mouse: 'clique direito ou segurar o botão' } },
+  ],
+}
+
+/** Os títulos das colunas, na ordem de `shortcutColumns`: as do protótipo. */
+export const SHORTCUT_COLUMN_TITLES = ['Ferramentas', 'Geral'] as const
+
 /**
- * As colunas da tela, cada uma com seus grupos, na ordem de leitura. As
- * ferramentas vêm primeiro porque são a pergunta mais comum ("qual é a letra
- * da Porta?"); edição e traço fecham a terceira coluna.
+ * As colunas da tela, cada uma com seus grupos, na ordem de leitura, como no
+ * protótipo: Ferramentas (as letras da barra e o gesto das variantes) e Geral
+ * (o resto). As ferramentas vêm primeiro porque são a pergunta mais comum
+ * ("qual é a letra da Porta?").
  */
 export function shortcutColumns(flags: Readonly<FeatureFlags> = FEATURES): ShortcutGroup[][] {
   const [build, draw] = toolGroups(flags)
   return [
-    [build, FILE_GROUP],
-    [draw, VIEW_GROUP],
-    [EDIT_GROUP, TRACE_GROUP],
+    [build, draw, TOOLBAR_GROUP],
+    [EDIT_GROUP, FILE_GROUP, VIEW_GROUP, TRACE_GROUP],
   ]
 }

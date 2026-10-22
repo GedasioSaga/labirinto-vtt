@@ -191,7 +191,7 @@ describe('ShortcutsDialog — a tela de atalhos', () => {
     })
     expect(dialog()).not.toBeNull()
 
-    const backdrop = document.body.querySelector<HTMLElement>('.lb-dialog-backdrop')
+    const backdrop = document.body.querySelector<HTMLElement>('.gr-dlg-fundo')
     if (!backdrop) throw new Error('fundo da janela ausente')
     act(() => {
       backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))

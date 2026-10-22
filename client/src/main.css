@@ -1307,6 +1307,8 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
      `ToolVariantMenu.tsx` mede, e transform não muda scrollHeight nem
      offsetWidth, as outras duas medidas dele. */
   transform-origin: bottom left;
+  /* A saída (`.gr-anima.gr-sai`, fatia 20) encolhe para o mesmo canto. */
+  --gr-origem: bottom left;
   animation: lb-cenas-menu-entra var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
@@ -1316,6 +1318,7 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
   left: auto;
   right: 0;
   transform-origin: bottom right;
+  --gr-origem: bottom right;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1338,17 +1341,15 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
      Chão saíam com larguras diferentes — "Retângulo" com 186px de texto e
      "Dodecágono" com 173px, no mesmo menu. */
   box-sizing: content-box;
-  flex: 0 0 var(--lb-toolvariant-coluna, 152px);
+  flex: 0 0 var(--lb-toolvariant-coluna, 224px);
   min-width: 0;
 }
 
-/* Duas colunas. A coluna fica mais larga de propósito: a 152px a descrição de
-   "Pincel de blocos" quebrava em cinco linhas, e era daí que vinha a altura do
-   menu de Chão — 1110px num app de 800. A 186px a mesma frase cabe em três, e
-   a linha de texto continua bem abaixo dos 65 caracteres de leitura confortável.
+/* Duas colunas de grupos (o menu de Chão, se ainda não couber em altura). As
+   opções já vêm em grade de duas (abaixo): a coluna tem a largura de dois rótulos.
    A divisória é a mesma linha fina que separa dois grupos, só que de pé. */
 .lb-toolvariant-menu--multi {
-  --lb-toolvariant-coluna: 186px;
+  --lb-toolvariant-coluna: 224px;
 }
 
 .lb-toolvariant-menu--multi .lb-toolvariant-menu__coluna + .lb-toolvariant-menu__coluna {
@@ -1361,9 +1362,12 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
   border-top: 1px solid var(--lb-color-line);
 }
 
+/* As opções em grade de duas colunas (fatia 20; antes, lista com descrição): o
+   menu fica com a metade da altura e se lê como os segs da ficha. A ordem do
+   Tab e das setas continua a do DOM, linha por linha. */
 .lb-toolvariant-menu__options {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
 }
 
@@ -1423,9 +1427,14 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
   padding-inline: var(--lb-space-2);
 }
 
+/* Na grade a descrição sai da vista e fica para o leitor de tela (`aria-describedby`) e para o balão nativo (`title`). */
 .lb-toolvariant-menu__option-desc {
-  font-size: var(--lb-font-size-xs);
-  color: var(--lb-color-parchment-faint);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Opção com ícone (grupo Forma do botão Desenho): ícone à esquerda, rótulo e
@@ -2027,12 +2036,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   from {
     opacity: 0;
   }
-}
-
-/* Atalhos abre pela tecla "?" e a caixa dela aparece de uma vez: quem chega pelo
-   teclado não espera entrada, e o véu acompanha a caixa. */
-.lb-dialog-backdrop:has(> .lb-shortcuts)::before {
-  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4979,7 +4982,7 @@ html.lb-arrastando-cena * {
 /* Visão geral das cenas (SceneOverview.tsx): uma miniatura por cena, a aberta
    com a borda de latão da lista de Cenas. A miniatura é o próprio mapa — chão
    chapado, parede em fio claro, ficha em disco — num poço rebaixado. */
-.lb-dialog.lb-visao {
+.gr-dlg.lb-visao {
   width: min(920px, 100%);
   /* Camada própria: a entrada anima a escala sem repintar o resto, e o texto
      das legendas sai com antisserrilhado em tons de cinza. Sem ela o ClearType
@@ -4988,11 +4991,9 @@ html.lb-arrastando-cena * {
   will-change: transform;
 }
 
-.lb-visao__cabeca {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-1);
-  min-width: 0;
+/* As grades e os grupos já trazem o respiro deles (abaixo). */
+.gr-dlg.lb-visao .gr-dlg__corpo {
+  padding: 0;
 }
 
 .lb-visao__grade {
@@ -5054,9 +5055,10 @@ html.lb-arrastando-cena * {
 }
 
 /* Aberta pelo ícone de expandir: quase a tela toda, miniaturas maiores. */
-.lb-dialog.lb-visao.lb-visao--expandida {
+.gr-dlg.lb-visao.lb-visao--expandida {
   width: min(1280px, 100%);
   height: calc(100vh - 2 * var(--lb-space-6));
+  max-height: none;
 }
 
 .lb-visao--expandida .lb-visao__grade {
@@ -5167,8 +5169,9 @@ html.lb-arrastando-cena * {
 
 /* "Configurar cena" (SceneSettingsDialog): os campos da visão e, ao lado, o
    radar do que o jogador enxerga. Em tela estreita o radar desce. */
-.lb-dialog.lb-cena-config {
-  width: min(600px, 100%);
+/* A navegação de seções come 200 px: o radar ainda cabe ao lado do campo da visão. */
+.gr-dlg.lb-cena-config {
+  width: min(720px, 100%);
 }
 
 .lb-cena-config__corpo {

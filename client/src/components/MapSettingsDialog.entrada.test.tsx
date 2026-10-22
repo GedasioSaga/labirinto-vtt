@@ -1,18 +1,20 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { theme } from '../theme'
 import { MapSettingsButton, type MapSettingsProps } from './MapSettingsDialog'
 
 /**
- * "Configurações do mapa" entra como as outras janelas (Exportar imagem, Visão
- * geral, Corte da Torre...): opacidade e escala de 0,95 a 1, curta, no tempo e
- * na curva do tema — e quem pediu menos movimento recebe a janela já no lugar.
+ * "Configurações do mapa" entra como as outras janelas da casca do Grimório:
+ * opacidade e escala curtas, na curva do tema — e quem pediu menos movimento
+ * recebe só o esmaecer.
  * A engrenagem que a abre ganha o balão com o próprio nome, como os ícones da
  * barra.
  *
- * O jsdom não tem `Element.animate`: o teste põe um no protótipo e confere o
- * pedido de animação, não o desenho.
+ * O jsdom não tem `Element.animate`: o teste põe um no protótipo para conferir
+ * que a janela não o usa mais (a entrada é a do CSS da casca).
  */
 
 function props(): MapSettingsProps {
@@ -84,20 +86,21 @@ describe('Configurações do mapa — entrada da janela e balão da engrenagem',
     act(() => engrenagem().click())
   }
 
-  it('a janela entra com opacidade e escala de 0,95 a 1, no tempo e na curva do tema', () => {
+  // Fatia 20: a entrada saiu do `Element.animate` e é a da casca do Grimório,
+  // em CSS (`.gr-dlg`, grimorio.css), a mesma das outras janelas da casca nova.
+  const cssDoGrimorio = () =>
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'grimorio', 'grimorio.css'), 'utf8').replace(/\s+/g, ' ')
+
+  it('a janela entra pela casca do Grimório: opacidade e escala curtas, na curva de saída do tema, sem Element.animate', () => {
     abrir()
-    expect(janela()).not.toBeNull()
-    expect(animar).toHaveBeenCalledTimes(1)
-    expect(animar.mock.contexts[0]).toBe(janela())
-    const [quadros, opcoes] = animar.mock.calls[0]
-    expect(quadros).toEqual([
-      { opacity: 0, transform: 'scale(0.95)' },
-      { opacity: 1, transform: 'scale(1)' },
-    ])
-    expect(opcoes).toEqual({ duration: Number.parseFloat(theme.motion.base), easing: theme.motion.ease })
+    expect(janela()?.classList.contains('gr-dlg')).toBe(true)
+    expect(animar).not.toHaveBeenCalled()
+    const css = cssDoGrimorio()
+    expect(css).toContain('animation: gr-dlg 220ms var(--lb-gr-ease-out) both;')
+    expect(css).toContain('@keyframes gr-dlg { from { opacity: 0; transform: scale(0.97) translateY(4px); } }')
   })
 
-  it('com movimento reduzido a janela aparece já no lugar, e o foco entra nela do mesmo jeito', () => {
+  it('com movimento reduzido a janela só esmaece, sem escala, e o foco entra nela do mesmo jeito', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query === '(prefers-reduced-motion: reduce)',
       media: query,
@@ -106,8 +109,10 @@ describe('Configurações do mapa — entrada da janela e balão da engrenagem',
     }))
     abrir()
     expect(janela()).not.toBeNull()
-    expect(animar).not.toHaveBeenCalled()
     expect(janela()?.contains(document.activeElement)).toBe(true)
+    const css = cssDoGrimorio()
+    const reduzido = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reduzido).toMatch(/\.gr-ficha\.gr-e-nova, \.gr-dlg \{ animation-name: gr-fade; \}/)
   })
 
   it('a engrenagem mostra o próprio nome no balão, e o nome acessível não muda', () => {

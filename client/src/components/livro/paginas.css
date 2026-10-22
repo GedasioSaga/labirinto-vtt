@@ -8,6 +8,10 @@
 
 .gr-paginas { padding: 6px 12px 20px 14px; }
 
+/* "Mapa vivo: ligado. Configurar": a leitura logo abaixo do título da página Cena, na margem das fichas. */
+.gr-paginas__mapa-vivo { padding: 0 12px 0 14px; }
+.gr-paginas__mapa-vivo .gr-nota { margin: 0; }
+
 /* Fechada, depois do recolher (200 ms), o miolo sai da pintura: some da tela de
    verdade, e não só fica transparente atrás de uma altura zero. Ao abrir ele
    volta na hora, antes de a altura crescer. */

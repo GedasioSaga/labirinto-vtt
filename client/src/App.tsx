@@ -147,7 +147,8 @@ import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { useLivroDoMestreStore } from './stores/livroDoMestreStore'
-import { SceneSettingsDialog } from './components/SceneSettingsDialog'
+import { SECAO_MAPA_VIVO, SceneSettingsDialog } from './components/SceneSettingsDialog'
+import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
 import { MarcasDaCena } from './components/MarcasDaCena'
@@ -719,6 +720,8 @@ function App() {
   const [room, setRoom] = useState<RoomInfo | null>(null)
   /** Cena com a janela "Configurar" aberta; `null` = nenhuma. */
   const [configuringSceneId, setConfiguringSceneId] = useState<string | null>(null)
+  /** A seção em que ela abre: o "Mapa vivo" da página Cena; `undefined` = a primeira. */
+  const [configuringSecao, setConfiguringSecao] = useState<string | undefined>(undefined)
   /** "Ver todas as cenas" (menu do chip da cena) aberta. */
   const [cenasExpandidas, setCenasExpandidas] = useState(false)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
@@ -3071,7 +3074,11 @@ function App() {
           nuvens: nuvensLigadas(sceneMap),
           onNuvensChange: aberta ? setNuvens : (ligado) => mudarFundo((m) => mapFactory.setNuvens(m, ligado)),
         }}
-        onClose={() => setConfiguringSceneId(null)}
+        secaoInicial={configuringSecao}
+        onClose={() => {
+          setConfiguringSceneId(null)
+          setConfiguringSecao(undefined)
+        }}
       />
     )
   }
@@ -3138,6 +3145,8 @@ function App() {
           fantasmaDeTeste={fantasmaDaVisao}
           fichaDoFantasma={fichaDoFantasma}
         />
+        {/* Fechado, o menu ainda sai em 120 ms com os rótulos de quando fechou (`ComSaida`). */}
+        <ComSaida>
         {tokenMenu !== null && tokenDoMenu !== undefined && jogadoresDoMenu.length > 0 && (
           <TokenContextMenu
             // Outro token (ou o mesmo de novo) remonta o menu, e o foco volta ao primeiro item.
@@ -3154,6 +3163,7 @@ function App() {
             onClose={closeTokenMenu}
           />
         )}
+        </ComSaida>
       </div>
 
       <div className="lb-editor__top" ref={editorTopRef}>
@@ -3396,6 +3406,13 @@ function App() {
             mapWidth={map.width}
             mapHeight={map.height}
             mapGrid={map.grid}
+            mapaVivo={{
+              ligado: relevoLigado(map) || nomesDosLugaresLigados(map) || nuvensLigadas(map),
+              onAbrir: () => {
+                setConfiguringSecao(SECAO_MAPA_VIVO)
+                setConfiguringSceneId(activeSceneId ?? '')
+              },
+            }}
             activeTool={activeTool}
             groups={propertyGroups}
             lineCap={

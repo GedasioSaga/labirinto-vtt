@@ -1,16 +1,13 @@
-import { memo, useEffect, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
-import { createPortal } from 'react-dom'
+import { memo, useMemo, useRef, type KeyboardEvent } from 'react'
 import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 import { SECRET_ITEM_ALPHA } from '../pixi/constants'
 import { WALL_COLOR, WALL_INTERIOR_ALPHA } from '../pixi/drawWalls'
 import { theme } from '../theme'
-import { CloseIcon } from './icons'
+import { Dialogo } from './grimorio/Dialogo'
 import { sceneArt, type ArtFrame } from './sceneOverviewArt'
 import { sceneTree, type SceneTreeRow } from '../lib/adventure'
 
-/** Entrada da janela: ease-out curto, nunca de escala zero — o mesmo do aviso de trabalho não salvo (App.tsx). */
-const ENTER_MS = 160
 /** Ficha "Oculta no editor": o mesmo fantasma do editor (`HIDDEN_TOKEN_GHOST_ALPHA`, tokensRenderer.ts). */
 const GHOST_TOKEN_OPACITY = 0.3
 /**
@@ -23,7 +20,6 @@ const GHOST_TOKEN_OPACITY = 0.3
 const TOKEN_OUTLINE = theme.color.parchmentFaint
 const WALL_STROKE = `#${WALL_COLOR.toString(16).padStart(6, '0')}`
 
-const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 const CARD = '.lb-visao__cena'
 
 /** "1 token", "3 tokens" — a contagem da lista de Cenas; `null` = a cena não abriu, não há mapa para contar. */
@@ -129,10 +125,6 @@ const SceneThumbnail = memo(function SceneThumbnail({ map, piso }: { map: MapDat
   )
 })
 
-function focusablesIn(root: HTMLElement | null): HTMLElement[] {
-  return root ? Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)) : []
-}
-
 /** Quantas miniaturas cabem numa linha da grade (as da primeira linha dividem o mesmo topo). */
 function columnsOf(cards: readonly HTMLElement[]): number {
   if (cards.length === 0) return 1
@@ -188,53 +180,18 @@ type Row = SceneTreeRow<SceneListItem>
  * destacada (`aria-current`, borda de latão, como na lista de Cenas). Clicar
  * abre a cena; Esc, o X e o clique no fundo fecham sem trocar.
  *
- * Janela modal por portal no `body`, como "Configurações do mapa": o painel
- * lateral usa `backdrop-filter`, que prenderia a janela na coluna de 264 px.
+ * Casca do Grimório (`Dialogo`, fatia 20): portal no `body`, foco preso
+ * dentro e devolvido a quem abriu, Esc e fundo fecham.
  */
 export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onClose, expandida = false }: SceneOverviewDialogProps) {
-  const titleId = useId()
-  const hintId = useId()
-  const dialogRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // O foco começa na cena aberta: é dela que as setas partem, como numa lista que já tem um item escolhido.
+  const cenaDoFoco = useRef<HTMLButtonElement>(null)
   const rows = useMemo(() => sceneTree(scenes), [scenes])
   const byId = useMemo(() => new Map(rows.map((row) => [row.entry.id, row])), [rows])
   const temGrupos = rows.some((row) => row.childIds.length > 0)
-  // Fecha só se o clique COMEÇOU no fundo (mesma regra de MapSettingsDialog).
-  const pressStartedOnBackdrop = useRef(false)
-
-  useEffect(() => {
-    const box = dialogRef.current
-    // O foco começa na cena aberta: é dela que as setas partem, como numa lista que já tem um item escolhido.
-    const current = box?.querySelector<HTMLButtonElement>(`${CARD}[aria-current="true"]:not(:disabled)`)
-    const first = box?.querySelector<HTMLButtonElement>(`${CARD}:not(:disabled)`)
-    ;(current ?? first ?? box)?.focus()
-    // `animate` não existe em jsdom, e quem pediu menos movimento não recebe nenhum.
-    if (!box || typeof box.animate !== 'function') return
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return
-    box.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: ENTER_MS, easing: 'ease-out' })
-  }, [])
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    // Janela modal: nenhuma tecla daqui vale como atalho do editor (Esc lá troca a ferramenta).
-    event.stopPropagation()
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-    if (event.key !== 'Tab') return
-    const items = focusablesIn(dialogRef.current)
-    if (items.length === 0) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
+  // Sem cena aberta que abra, o Dialogo foca a primeira miniatura que abre, na ordem da tela.
+  const focoId = scenes.find((scene) => scene.active && scene.available)?.id
 
   function onGridKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const cards = Array.from(gridRef.current?.querySelectorAll<HTMLButtonElement>(CARD) ?? [])
@@ -246,21 +203,13 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
     cards[target].focus()
   }
 
-  function onBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
-    pressStartedOnBackdrop.current = event.target === event.currentTarget
-  }
-
-  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
-    if (pressStartedOnBackdrop.current && event.target === event.currentTarget) onClose()
-    pressStartedOnBackdrop.current = false
-  }
-
   /** Uma miniatura: clicar abre a cena. */
   function renderCard(scene: SceneListItem) {
     const map = maps.get(scene.id)
     return (
       <li key={scene.id || 'cena-solta'} className="lb-visao__item">
         <button
+          ref={scene.id === focoId ? cenaDoFoco : undefined}
           type="button"
           className="lb-visao__cena"
           aria-current={scene.active ? 'true' : undefined}
@@ -305,32 +254,16 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
     )
   }
 
-  return createPortal(
-    <div className="lb-dialog-backdrop" onMouseDown={onBackdropMouseDown} onClick={onBackdropClick}>
-      <div
-        ref={dialogRef}
-        className={`lb-panel lb-dialog lb-visao${expandida ? ' lb-visao--expandida' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={hintId}
-        tabIndex={-1}
-        onKeyDown={onKeyDown}
-      >
-        <header className="lb-dialog__head">
-          <div className="lb-visao__cabeca">
-            <h2 id={titleId} className="lb-dialog__title">
-              Visão geral das cenas
-            </h2>
-            <p id={hintId} className="lb-field__hint">
-              Clique numa cena para abri-la no editor.
-            </p>
-          </div>
-          <button type="button" className="lb-iconbtn lb-iconbtn--sm" aria-label="Fechar" onClick={onClose}>
-            <CloseIcon size={16} />
-          </button>
-        </header>
-        <div ref={gridRef} className="lb-dialog__body lb-scroll lb-visao__corpo" role="group" aria-label="Miniaturas das cenas" onKeyDown={onGridKeyDown}>
+  return (
+    <Dialogo
+      aberto
+      titulo="Visão geral das cenas"
+      descricao="Clique numa cena para abri-la no editor."
+      onFechar={onClose}
+      classe={`lb-visao${expandida ? ' lb-visao--expandida' : ''}`}
+      focoInicial={focoId === undefined ? undefined : cenaDoFoco}
+    >
+        <div ref={gridRef} className="lb-scroll lb-visao__corpo" role="group" aria-label="Miniaturas das cenas" onKeyDown={onGridKeyDown}>
           {temGrupos ? (
             <>
               {rows
@@ -355,8 +288,6 @@ export function SceneOverviewDialog({ scenes, maps, pisoAberto = 0, onPick, onCl
             <ul className="lb-visao__grade">{rows.map((row) => renderCard(row.entry))}</ul>
           )}
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Dialogo>
   )
 }

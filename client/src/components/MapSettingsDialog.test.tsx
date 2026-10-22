@@ -137,7 +137,7 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
   it('clique no fundo fecha; clique dentro da janela não fecha', () => {
     render(makeProps().props)
     openDialog()
-    const backdrop = document.body.querySelector<HTMLElement>('.lb-dialog-backdrop')
+    const backdrop = document.body.querySelector<HTMLElement>('.gr-dlg-fundo')
     const opened = dialog()
     if (!backdrop || !opened) throw new Error('janela não abriu')
 

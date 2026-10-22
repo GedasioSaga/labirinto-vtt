@@ -115,7 +115,7 @@ import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { FolhaDoLivro } from './livro/FolhaDoLivro'
 import { PaginaAcervo } from './livro/PaginaAcervo'
 import { PaginaAventura } from './livro/PaginaAventura'
-import { PaginaCena } from './livro/PaginaCena'
+import { PaginaCena, type MapaVivoDaCena } from './livro/PaginaCena'
 import './PropertiesPanel.css'
 
 interface PropertiesPanelProps {
@@ -156,6 +156,8 @@ interface PropertiesPanelProps {
   mapWidth: number
   mapHeight: number
   mapGrid: number
+  /** "Mapa vivo: ligado" da página Cena, que abre o "Configurar cena" nessa seção. */
+  mapaVivo?: MapaVivoDaCena
   activeTool: DrawingTool
   /** F4 (integrador I8) — N2 "painel contextual": saída de
    *  `relevantPropertyGroups` (lib/toolProperties.ts), computada em App.tsx a
@@ -404,6 +406,7 @@ export function PropertiesPanel({
   mapWidth,
   mapHeight,
   mapGrid,
+  mapaVivo,
   activeTool,
   groups,
   lineCap,
@@ -1124,6 +1127,7 @@ export function PropertiesPanel({
           floorLayers={floorLayers}
           layers={layers}
           grid={grid}
+          mapaVivo={mapaVivo}
         />
       </FolhaDoLivro>
       <FolhaDoLivro pagina="aventura">
