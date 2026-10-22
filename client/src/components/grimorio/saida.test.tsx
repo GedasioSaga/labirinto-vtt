@@ -1,9 +1,6 @@
 import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ComSaida, type ComSaidaFilho } from './ComSaida'
 import { SAIDA_DO_POP_MS } from './comum'
 import { MenuItem, Pop } from './Pop'
@@ -133,9 +130,20 @@ describe('Pop — reabrir durante a saída', () => {
   })
 })
 
+/** O grimorio.css como está no disco (ver `Toggle.test.tsx`: `?raw` e `new URL` não leem o arquivo). */
+async function lerGrimorioCss(): Promise<string> {
+  const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
+  const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
+  const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
+  return readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'grimorio.css'), 'utf8')
+}
+
 describe('grimorio.css — tempos e curva da entrada e da saída', () => {
-  // `new URL(..., import.meta.url)` no jsdom não é `file:`: o caminho sai da pasta deste arquivo.
-  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'grimorio.css'), 'utf8').replace(/\s+/g, ' ')
+  let css = ''
+  // No beforeAll, e não no teste: o beforeEach do arquivo liga o relógio falso.
+  beforeAll(async () => {
+    css = (await lerGrimorioCss()).replace(/\s+/g, ' ')
+  })
 
   it('pop e menus antigos entram por transição de 150 ms na curva do app e saem em 120 ms', () => {
     expect(css).toContain('.gr-anima { transform-origin: var(--gr-origem, 0 0); transition: opacity 150ms var(--lb-gr-ease-out), transform 150ms var(--lb-gr-ease-out); }')

@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -88,19 +85,24 @@ describe('Configurações do mapa — entrada da janela e balão da engrenagem',
 
   // Fatia 20: a entrada saiu do `Element.animate` e é a da casca do Grimório,
   // em CSS (`.gr-dlg`, grimorio.css), a mesma das outras janelas da casca nova.
-  const cssDoGrimorio = () =>
-    readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'grimorio', 'grimorio.css'), 'utf8').replace(/\s+/g, ' ')
+  // Lido do disco (ver `Toggle.test.tsx`: `?raw` e `new URL` não leem o arquivo).
+  async function cssDoGrimorio(): Promise<string> {
+    const { readFileSync } = await vi.importActual<{ readFileSync(caminho: string, codificacao: 'utf8'): string }>('node:fs')
+    const { fileURLToPath } = await vi.importActual<{ fileURLToPath(url: string): string }>('node:url')
+    const { dirname, join } = await vi.importActual<{ dirname(caminho: string): string; join(...partes: string[]): string }>('node:path')
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'grimorio', 'grimorio.css'), 'utf8').replace(/\s+/g, ' ')
+  }
 
-  it('a janela entra pela casca do Grimório: opacidade e escala curtas, na curva de saída do tema, sem Element.animate', () => {
+  it('a janela entra pela casca do Grimório: opacidade e escala curtas, na curva de saída do tema, sem Element.animate', async () => {
     abrir()
     expect(janela()?.classList.contains('gr-dlg')).toBe(true)
     expect(animar).not.toHaveBeenCalled()
-    const css = cssDoGrimorio()
+    const css = await cssDoGrimorio()
     expect(css).toContain('animation: gr-dlg 220ms var(--lb-gr-ease-out) both;')
     expect(css).toContain('@keyframes gr-dlg { from { opacity: 0; transform: scale(0.97) translateY(4px); } }')
   })
 
-  it('com movimento reduzido a janela só esmaece, sem escala, e o foco entra nela do mesmo jeito', () => {
+  it('com movimento reduzido a janela só esmaece, sem escala, e o foco entra nela do mesmo jeito', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query === '(prefers-reduced-motion: reduce)',
       media: query,
@@ -110,7 +112,7 @@ describe('Configurações do mapa — entrada da janela e balão da engrenagem',
     abrir()
     expect(janela()).not.toBeNull()
     expect(janela()?.contains(document.activeElement)).toBe(true)
-    const css = cssDoGrimorio()
+    const css = await cssDoGrimorio()
     const reduzido = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
     expect(reduzido).toMatch(/\.gr-ficha\.gr-e-nova, \.gr-dlg \{ animation-name: gr-fade; \}/)
   })
