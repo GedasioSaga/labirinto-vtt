@@ -74,3 +74,17 @@ Antes da fatia 3: mostrar ao usuário uma imagem de 2 casos de camada movida (bl
 ## Não verificado
 
 Detalhes de `layerShown` em `fogFilter.ts` vieram de batedor e de arquiteto, sem leitura direta; a fatia 2 começa relendo. O selo `scripts/portao-selo.json` tem 69 de 100 jornadas divergentes de antes (decisão separada do usuário, não faz parte desta fase).
+
+## Requisitos herdados da revisão da fatia 1 (22/10/2026)
+
+Achados dos revisores que NÃO cabem na fatia 1 e entram como aceite das fatias seguintes:
+
+- **Fatia 2 (segurança no host):**
+  - `lib/fogFilter.ts` ~3630: o recorte do jogador copia o mapa por spread; `modeloCamadas`, `ocultasDoJogador`, `opacidadeDasCamadas` e `versaoDasCamadas` não podem chegar ao jogador sem filtro. Tirar `modeloCamadas` (nomes secretos das camadas livres) e `ocultasDoJogador`, aplicar `jogadorVe`, e mandar só o que a tela do jogador precisa para o alfa. Teste de vazamento em `visaoDeTeste.vazamento.test.ts` com um nome de camada livre.
+  - Entidades que vão ao jogador (paredes, regiões, escadas, desenhos, linhas, marcadores) passam a ter lista do que pode ir, como props e pinos já têm.
+  - `lib/recoveryCopy.ts:41` grava `copy.map` sem `serializeMap`: usar `serializeMap` e guardar o modelo da aventura na cópia.
+  - Teste do corte no host (olho Jogadores veem) pelo filtro real, antes da fatia 4.
+- **Fatia 3 (render do editor):** `addChild` do `PixiCanvas` e o teste de `ordem.test.ts` passam a ler a MESMA lista de faixas (hoje `EDITOR_HOJE` e `JOGADOR_HOJE` são cópias à mão). Mostrar ao usuário a imagem de 2 casos de camada movida, incluindo Chão acima de Salas e Escadas acima de Salas.
+- **Antes da fatia 6:** `hiddenLayers` e `lockedLayers` ainda são `LayerId[]`; definir onde guardar olho do mestre e cadeado de Chão, Desenhos, Terreno, Telhados e das livres (alargar para `CamadaId[]` ou campo novo ao lado de `ocultasDoJogador`).
+- **Jornada selada `task-jornada-pincel-balde-caminhos`:** 2 de 4 testes já vermelhos desde 17/10 (linhas 295 e 312, independentes de camada). Enquanto isso, ela não guarda "Camadas do chão"; o portão deve registrar a linha e a mensagem esperadas da falha.
+- **Processo:** um agente que muta arquivos por vez. Dois agentes mutando `lib/camadas` e `PixiCanvas.tsx` ao mesmo tempo corromperam rodadas na revisão da fatia 1.
