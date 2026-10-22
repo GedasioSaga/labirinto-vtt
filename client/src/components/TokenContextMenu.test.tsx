@@ -1,7 +1,9 @@
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../stores/toastStore'
+import { ComSaida } from './grimorio/ComSaida'
+import { SAIDA_DO_POP_MS } from './grimorio/comum'
 import { TokenContextMenu, type JogadorDoToken, type TokenContextMenuProps } from './TokenContextMenu'
 
 /**
@@ -115,5 +117,55 @@ describe('TokenContextMenu', () => {
     act(() => item('Congelar').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
     expect(props.onClose).toHaveBeenCalled()
     expect(props.onCongelar).not.toHaveBeenCalled()
+  })
+
+  describe('saindo, com o ComSaida em volta (como no App)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** O menu de verdade dentro do ComSaida: fechar o tira da árvore, e ele ainda sai em 120 ms. */
+    function MenuComSaida({ onClose, onCongelar }: { onClose: () => void; onCongelar: (congelar: boolean) => void }) {
+      const [aberto, setAberto] = useState(true)
+      return (
+        <ComSaida>
+          {aberto && (
+            <TokenContextMenu
+              tokenName="Aira"
+              x={40}
+              y={60}
+              congelado={false}
+              onCongelar={onCongelar}
+              jogadores={[AIRA]}
+              onClose={() => {
+                onClose()
+                setAberto(false)
+              }}
+            />
+          )}
+        </ComSaida>
+      )
+    }
+    const menu = () => container.querySelector<HTMLElement>('[role="menu"]')
+
+    it('"Congelar" congela e fecha; o menu sai inerte, o clique fora não o fecha de novo, e ele some no fim da saída', () => {
+      const onClose = vi.fn<() => void>()
+      const onCongelar = vi.fn<(congelar: boolean) => void>()
+      act(() => root.render(<MenuComSaida onClose={onClose} onCongelar={onCongelar} />))
+      act(() => item('Congelar').click())
+      expect(onCongelar).toHaveBeenCalledWith(true)
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(menu()?.classList.contains('gr-sai')).toBe(true)
+      expect(menu()?.hasAttribute('inert')).toBe(true)
+      act(() => {
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+      })
+      expect(onClose).toHaveBeenCalledTimes(1)
+      act(() => vi.advanceTimersByTime(SAIDA_DO_POP_MS))
+      expect(menu()).toBeNull()
+    })
   })
 })

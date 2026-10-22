@@ -1,9 +1,11 @@
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DoorState, Wall } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { DoorContextMenu } from './DoorContextMenu'
+import { ComSaida } from './grimorio/ComSaida'
+import { SAIDA_DO_POP_MS } from './grimorio/comum'
 
 /**
  * Clique direito na porta: Abrir/Fechar e Trancar/Destrancar sem trocar de
@@ -118,5 +120,74 @@ describe('DoorContextMenu', () => {
     act(() => useMapStore.setState({ map: { ...useMapStore.getState().map, walls: [] } }))
     expect(onClose).toHaveBeenCalled()
     expect(itens()).toHaveLength(0)
+  })
+
+  describe('saindo, com o ComSaida em volta (como no PixiCanvas)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** O menu de verdade dentro do ComSaida: fechar o tira da árvore, e ele ainda sai em 120 ms. */
+    function MenuComSaida({ onClose }: { onClose: () => void }) {
+      const [aberto, setAberto] = useState(true)
+      return (
+        <ComSaida>
+          {aberto && (
+            <DoorContextMenu
+              wallId="porta"
+              x={40}
+              y={60}
+              onClose={() => {
+                onClose()
+                setAberto(false)
+              }}
+            />
+          )}
+        </ComSaida>
+      )
+    }
+    const montar = (onClose: () => void) => act(() => root.render(<MenuComSaida onClose={onClose} />))
+    const menu = () => container.querySelector<HTMLElement>('[role="menu"]')
+    const clicarFora = () =>
+      act(() => {
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+      })
+
+    it('"Abrir" abre a porta, e o menu que sai ainda diz "Abrir" (não vira "Fechar" no meio), inerte, até o fim da saída', () => {
+      useMapStore.setState({ map: { ...useMapStore.getState().map, walls: [porta({ ...TRANCADA, locked: false })] } })
+      const onClose = vi.fn<() => void>()
+      montar(onClose)
+      act(() => item('Abrir')?.click())
+      expect(portaNoMapa()?.open).toBe(true)
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(menu()?.classList.contains('gr-sai')).toBe(true)
+      expect(menu()?.hasAttribute('inert')).toBe(true)
+      expect(itens().map((el) => el.textContent)).toEqual(['Abrir', 'Trancar', 'Não deixar espiar'])
+      act(() => vi.advanceTimersByTime(SAIDA_DO_POP_MS - 1))
+      expect(menu()).not.toBeNull()
+      act(() => vi.advanceTimersByTime(1))
+      expect(menu()).toBeNull()
+    })
+
+    it('o clique fora durante a saída não fecha o menu de novo', () => {
+      const onClose = vi.fn<() => void>()
+      montar(onClose)
+      act(() => item('Destrancar')?.click())
+      expect(onClose).toHaveBeenCalledTimes(1)
+      clicarFora()
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('a porta que some por baixo (Ctrl+Z) fecha o menu uma vez só, mesmo com a saída em volta', () => {
+      const onClose = vi.fn<() => void>()
+      montar(onClose)
+      act(() => useMapStore.setState({ map: { ...useMapStore.getState().map, walls: [] } }))
+      act(() => vi.advanceTimersByTime(SAIDA_DO_POP_MS))
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(menu()).toBeNull()
+    })
   })
 })
