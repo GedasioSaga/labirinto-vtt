@@ -298,7 +298,12 @@ export function criarTocadorDePorta<N>({ obterSaida, lerPreferencia, reduzido, a
   }
 }
 
-function prefereMovimentoReduzido(): boolean {
+/**
+ * A preferência que deixa a porta muda. Exportada para o jogador ler a MESMA
+ * (`player/sonsDoJogador.ts`): com ela ligada, o rangido de clima toca no
+ * lugar, e as duas pontas não podem discordar (seria som em dobro ou nenhum).
+ */
+export function prefereMovimentoReduzido(): boolean {
   return typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
 }
 

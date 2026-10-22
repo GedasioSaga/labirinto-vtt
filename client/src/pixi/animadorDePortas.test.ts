@@ -506,6 +506,34 @@ describe('animadorDePortas — som', () => {
     expect(som.mock.calls.map(([evento]) => evento)).toEqual([{ tipo: 'trancar' }, { tipo: 'destrancar' }])
   })
 
+  it('podeSoar recusa: a porta anda até o fim de sempre, sem som do caminho nem da tranca', () => {
+    const { movimento, som, ticker, quadro } = comSom()
+    const animador = createAnimadorDePortas(movimento)
+    const g = new Graphics()
+    const mudo = () => false
+    animador.desenhar(g, [porta({ animacao: 'girar' })], null, 1, 1, undefined, mudo)
+    animador.desenhar(g, [porta({ animacao: 'girar', open: true })], null, 1, 1, undefined, mudo)
+    expect(ticker.count).toBe(1)
+    quadro(GIRAR_DURACAO_MS)
+    expect(desenho(g)).toEqual(referencia(porta({ animacao: 'girar', open: true })))
+    animador.desenhar(g, [porta({ animacao: 'girar', open: true, locked: true })], null, 1, 1, undefined, mudo)
+    expect(som).not.toHaveBeenCalled()
+  })
+
+  it('podeSoar recebe a porta do desenho anterior e a de agora, e só é perguntado na troca que soaria', () => {
+    const { movimento, som } = comSom()
+    const animador = createAnimadorDePortas(movimento)
+    const g = new Graphics()
+    const podeSoar = vi.fn<(antes: Wall, agora: Wall) => boolean>(() => true)
+    const fechada = porta({ animacao: 'girar' })
+    const aberta = { ...porta({ animacao: 'girar', open: true }), x2: 120 }
+    const semAnimacao = { ...porta({ animacao: undefined }, 'plana'), x1: 200, x2: 300 }
+    animador.desenhar(g, [fechada, semAnimacao], null, 1, 1, undefined, podeSoar)
+    animador.desenhar(g, [aberta, { ...semAnimacao, door: { open: true, locked: false, kind: 'normal' } }], null, 1, 1, undefined, podeSoar)
+    expect(podeSoar.mock.calls).toEqual([[fechada, aberta]])
+    expect(som).toHaveBeenCalledTimes(1)
+  })
+
   it('quem toca lançar não quebra a porta: o caminho segue e termina na de sempre', () => {
     const { movimento, ticker, quadro } = relogio()
     movimento.som = () => {

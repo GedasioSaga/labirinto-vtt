@@ -53,6 +53,7 @@ import { createFloorRenderer } from '../pixi/drawFloor'
 import { drawWalls } from '../pixi/drawWalls'
 import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorDePortas'
 import { tocarSomDePorta } from '../portas/somDePorta'
+import { portaAVistaAntesEDepois } from './quandoTocarSom'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
@@ -1074,6 +1075,8 @@ interface Scene {
   doors: Graphics
   /** PORTA ANIMADA: o mesmo animador do editor; repinta `doors` sozinho no relógio enquanto alguma porta anda. */
   animadorDePortas: AnimadorDePortas
+  /** A visão da chamada anterior de `redrawWallsLayer`, desenhando ou não: o "antes" do som da porta. */
+  visaoDasPortas: RegionPoint[][]
   /** Halo nas portas destrancadas que o token do jogador alcança (abaixo do desenho da porta). */
   doorHints: Graphics
   lastDoorHintsKey: string | null
@@ -2139,6 +2142,10 @@ function PlayerViewDoCanvas({
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
     const { map: currentMap, vision: currentVision, explored: currentExplored, porAtravessar: toCross } = latestRef.current
+    // Guardada a cada chamada, antes do portão da chave: o recorte vem a cada
+    // visão nova (o efeito do `redraw`), então esta é a visão logo antes da troca.
+    const visaoAntes = scene.visaoDasPortas
+    scene.visaoDasPortas = currentVision
     // Só a planta perto da ficha e a já vista: o resto está debaixo do preto
     // (`playerCulling.ts`). Mesma entrada devolve o mesmo recorte: o zoom não refaz.
     const drawn = scene.culler.cull(currentMap, currentVision, currentExplored).walls
@@ -2154,8 +2161,11 @@ function PlayerViewDoCanvas({
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
+    // SOM DA PORTA: só a que estava à vista antes e está agora. A que volta à
+    // vista troca o estado lembrado pelo de agora sem ninguém ter mexido nela.
+    const podeSoar = (antes: Wall, agora: Wall) => portaAVistaAntesEDepois(antes, visaoAntes, agora, currentVision)
     // PORTAS POR ATRAVESSAR: o ponto claro na porta com o outro lado na névoa.
-    scene.animadorDePortas.desenhar(scene.doors, walls, null, scale, res, new Set(toCross))
+    scene.animadorDePortas.desenhar(scene.doors, walls, null, scale, res, new Set(toCross), podeSoar)
   }
 
   /**
@@ -3177,6 +3187,7 @@ function PlayerViewDoCanvas({
         doors,
         // Só este toca o som da porta: a cópia por cima do telhado anima junto e ficaria em dobro.
         animadorDePortas: createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }),
+        visaoDasPortas: [],
         doorHints,
         lastDoorHintsKey: null,
         doorHintsCount: 0,

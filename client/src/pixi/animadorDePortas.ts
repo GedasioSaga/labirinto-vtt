@@ -30,14 +30,31 @@ export interface MovimentoDasPortas {
   som?: (evento: EventoDeSomDaPorta) => void
 }
 
+/**
+ * Se a troca desta porta pode soar: recebe a porta do desenho anterior e a de
+ * agora. O jogador passa a regra da visão: lá a porta fora da vista chega com
+ * o estado LEMBRADO e, ao voltar à vista com outro, o desenho troca sem
+ * ninguém ter mexido nela (`player/quandoTocarSom.ts`).
+ */
+export type PodeSoar = (antes: Wall, agora: Wall) => boolean
+
 export interface AnimadorDePortas {
   /**
-   * Mesmos parâmetros de `drawDoors`. Compara cada porta com a do desenho
-   * anterior: a que trocou `open` e tem animação conhecida anda de um estado
-   * ao outro no relógio; o resto sai como sempre. A primeira vez que um id
-   * aparece (mapa abrindo, porta saindo da névoa ou de camada oculta) não anima.
+   * Mesmos parâmetros de `drawDoors`, mais `podeSoar`. Compara cada porta com
+   * a do desenho anterior: a que trocou `open` e tem animação conhecida anda
+   * de um estado ao outro no relógio; o resto sai como sempre. A primeira vez
+   * que um id aparece (mapa abrindo, porta saindo da névoa ou de camada
+   * oculta) não anima. Sem `podeSoar`, toda troca soa: o mestre vê o mapa todo.
    */
-  desenhar: (graphics: Graphics, walls: Wall[], selectedWallId?: string | null, cameraScale?: number, rendererResolution?: number, toCross?: ReadonlySet<string>) => void
+  desenhar: (
+    graphics: Graphics,
+    walls: Wall[],
+    selectedWallId?: string | null,
+    cameraScale?: number,
+    rendererResolution?: number,
+    toCross?: ReadonlySet<string>,
+    podeSoar?: PodeSoar,
+  ) => void
   /** Desmonte: sai do relógio e esquece toda animação em curso. */
   cancelar: () => void
 }
@@ -65,6 +82,8 @@ interface Pintura {
 interface EstadoDaPorta {
   aberta: boolean
   trancada: boolean
+  /** A parede inteira, para `podeSoar` olhar a porta como ela estava. */
+  parede: Wall
 }
 
 /**
@@ -152,7 +171,8 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     movimento.ticker.remove(quadro)
   }
 
-  function iniciarCaminho(id: string, door: DoorState, agora: number): void {
+  /** `soa` é perguntado por último, só na troca que tocaria: a regra da visão do jogador não roda à toa. */
+  function iniciarCaminho(id: string, door: DoorState, agora: number, soa: () => boolean): void {
     const animacao = animacaoDaPorta(door)
     const anterior = caminhos.get(id)
     if (animacao === null || !podeAnimar()) {
@@ -165,16 +185,16 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     const duracao = duracaoDoSentido(animacao, para === 1) * Math.abs(para - de)
     caminhos.set(id, { de, para, inicio: agora, duracao, animacao })
     ligarRelogio()
-    if (movimento?.som !== undefined && animacao.som !== undefined) {
+    if (movimento?.som !== undefined && animacao.som !== undefined && soa()) {
       tocarSemQuebrar(movimento.som, { tipo: para === 1 ? 'abrir' : 'fechar', som: animacao.som, duracaoMs: duracao })
     }
   }
 
   /** Trancar e destrancar soam só na porta que tem som de animação: porta de mapa antigo continua muda. */
-  function avisarTranca(door: DoorState): void {
+  function avisarTranca(door: DoorState, soa: () => boolean): void {
     if (movimento?.som === undefined) return
     const animacao = animacaoDaPorta(door)
-    if (animacao === null || animacao.som === undefined) return
+    if (animacao === null || animacao.som === undefined || !soa()) return
     tocarSemQuebrar(movimento.som, { tipo: door.locked ? 'trancar' : 'destrancar' })
   }
 
@@ -259,7 +279,15 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     pintar(relogio(), false)
   }
 
-  function desenhar(graphics: Graphics, walls: Wall[], selectedWallId: string | null = null, cameraScale = 1, rendererResolution = 1, toCross?: ReadonlySet<string>): void {
+  function desenhar(
+    graphics: Graphics,
+    walls: Wall[],
+    selectedWallId: string | null = null,
+    cameraScale = 1,
+    rendererResolution = 1,
+    toCross?: ReadonlySet<string>,
+    podeSoar?: PodeSoar,
+  ): void {
     const agora = relogio()
     const presentes = new Set<string>()
     for (const wall of walls) {
@@ -267,14 +295,16 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
       if (door === null) continue
       presentes.add(wall.id)
       const antes = estadoAntes.get(wall.id)
-      estadoAntes.set(wall.id, { aberta: door.open, trancada: door.locked })
+      estadoAntes.set(wall.id, { aberta: door.open, trancada: door.locked, parede: wall })
       if (antes === undefined) continue
+      if (antes.aberta === door.open && antes.trancada === door.locked) continue
+      const soa = () => podeSoar === undefined || podeSoar(antes.parede, wall)
       if (antes.aberta !== door.open) {
         // Trancada é cheia aberta ou fechada (`drawDoors`): se a cara não muda, não há caminho a andar.
         if (cheia(antes.aberta, antes.trancada) === cheia(door.open, door.locked)) caminhos.delete(wall.id)
-        else iniciarCaminho(wall.id, door, agora)
+        else iniciarCaminho(wall.id, door, agora, soa)
       }
-      if (antes.trancada !== door.locked) avisarTranca(door)
+      if (antes.trancada !== door.locked) avisarTranca(door, soa)
     }
     // Porta que sumiu (apagada, virou parede, camada oculta, fora do recorte do
     // jogador): esquece. Voltando, é "primeira vez" e não anima.
