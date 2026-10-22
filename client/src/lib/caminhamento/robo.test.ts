@@ -43,6 +43,7 @@ interface Numeros {
   motivos: Record<string, number>
   razoes: number[]
   lentos: string[]
+  abertas: string[]
   msSemCaminho: number[]
   violacoes: string[]
   portasAbertas: number
@@ -122,6 +123,7 @@ function rodarRobo(): Numeros {
     motivos: {},
     razoes: [],
     lentos: [],
+    abertas: [],
     msSemCaminho: [],
     violacoes: [],
     portasAbertas: 0,
@@ -161,6 +163,10 @@ function rodarRobo(): Numeros {
       numeros.violacoes.push(...r.violacoes.map((v) => `mapa ${s} trecho ${t}: ${v}`))
       numeros.portasAbertas += r.acoes.filter((a) => a.acao.tipo === 'abrir').length
       numeros.deixouAbertas += r.deixouAbertas.length
+      if (r.deixouAbertas.length > 0) {
+        const acoes = r.acoes.map((a) => `t${a.tique} ${a.acao.tipo} ${a.acao.wallId}`).join(', ')
+        numeros.abertas.push(`mapa ${s} trecho ${t} ${JSON.stringify(aqui)}->${JSON.stringify(destino)} abertas ${r.deixouAbertas.join(',')} fim ${JSON.stringify(r.fim)} acoes [${acoes}] :: ${r.registro.join(' ; ')}`)
+      }
       if (r.fim === null) numeros.travas += 1
       let otimoTiques: number | null = otimoNaSaida === null ? null : otimoNaSaida / passo
       const onde: Point | null = ondeEstavaNoIntruso
@@ -219,6 +225,7 @@ describe('robô do caminhamento', () => {
     if (n.naoChegaram.length > 0) console.log(`ROBO naoChegaram ${n.naoChegaram.slice(0, 3).join('\n | ')}`)
     if (n.violacoes.length > 0) console.log(`ROBO violacoes ${n.violacoes.slice(0, 10).join(' | ')}`)
     if (n.lentos.length > 0) console.log(`ROBO lentos ${n.lentos.length}: ${n.lentos.slice(0, 4).join('\n | ')}`)
+    if (n.abertas.length > 0) console.log(`ROBO abertas ${n.abertas.slice(0, 3).join('\n | ')}`)
     expect(n.trechos).toBeGreaterThanOrEqual(MAPAS * TRECHOS_POR_MAPA - 10)
     expect(n.travas).toBe(0)
     expect(n.naoChegaram).toEqual([])
@@ -226,6 +233,7 @@ describe('robô do caminhamento', () => {
     expect(resumo.razaoMax).toBeLessThanOrEqual(RAZAO_MAXIMA)
     expect(resumo.msSemCaminhoMax).toBeLessThan(MS_SEM_CAMINHO)
     expect(n.violacoes).toEqual([])
+    expect(n.abertas).toEqual([])
     expect(n.semCaminho).toBeGreaterThan(0)
     expect(n.intrusos).toBeGreaterThan(0)
   }, 300_000)

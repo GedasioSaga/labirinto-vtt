@@ -1,6 +1,7 @@
 import type { Point } from '../../pixi/world'
 import type { Wall } from '../../types/map'
 import { andarPeloTrajeto, TENTAR_DE_NOVO_MS } from '../andarPeloCaminho'
+import { segmentsIntersect } from '../collision'
 import { type ConsultaDeCaminho, type FichaNoCaminho, fichaNoTraco, type MotivoSemCaminho, obstaculosPara, passaPeloArrasto, type PontoDoCaminho, type ResultadoDoCaminho, TOLERANCIA_ENTRE_FICHAS } from './busca'
 import { distanciaAoTraco, type Malha, malhaPronta } from './malha'
 
@@ -46,6 +47,11 @@ export interface Andarilho {
   readonly marco: { readonly x: number; readonly y: number; readonly tiques: number }
   /** Portas por onde passou e ainda vai fechar. */
   readonly fechar: readonly string[]
+  /**
+   * Portas que ela abriu e ainda não cruzou. Um caminho novo (replanejou com a
+   * porta já aberta) não diz onde fechá-la: `receber` marca de novo.
+   */
+  readonly abertas: readonly string[]
   readonly fim: FimDoTrecho | null
 }
 
@@ -109,6 +115,7 @@ export function novoAndarilho(destino: Point, aqui: Point): Andarilho {
     pedidos: 0,
     marco: { x: aqui.x, y: aqui.y, tiques: 0 },
     fechar: [],
+    abertas: [],
     fim: null,
   }
 }
@@ -122,13 +129,37 @@ function paradaComo(a: Andarilho, aqui: Point, situacao: Situacao, pedido: Consu
   return { andarilho: a, para: { x: aqui.x, y: aqui.y }, acoes, pedido, situacao }
 }
 
+/**
+ * As portas que ela abriu e não cruzou, no caminho novo: cruza de novo, fecha
+ * no primeiro canto depois dela; o caminho não passa mais por ela, entra para
+ * fechar assim que o vão ficar livre.
+ */
+function remarcarAbertas(a: Andarilho, pontos: readonly PontoDoCaminho[], paredes: readonly Wall[], aqui: Point): Andarilho {
+  if (a.abertas.length === 0) return { ...a, pontos }
+  const marcados = [...pontos]
+  const abertas: string[] = []
+  let fechar = a.fechar
+  for (const id of a.abertas) {
+    const w = paredes.find((p) => p.id === id)
+    if (w === undefined || w.door === null || !w.door.open) continue
+    const k = marcados.findIndex((p, i) => segmentsIntersect(marcados[i - 1] ?? aqui, p, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 }))
+    const canto = marcados[k]
+    if (canto !== undefined && canto.fechar === undefined) marcados[k] = { ...canto, fechar: id }
+    else if (canto !== undefined) abertas.push(id)
+    else if (!fechar.includes(id)) fechar = [...fechar, id]
+  }
+  return { ...a, pontos: marcados, abertas, fechar }
+}
+
 /** A resposta da agenda entra no andarilho. */
-function receber(a: Andarilho, resposta: ResultadoDoCaminho, agora: number): Andarilho {
+function receber(a: Andarilho, resposta: ResultadoDoCaminho, mundo: MundoDoAndarilho): Andarilho {
   if (resposta.tipo === 'caminho') {
     // O primeiro ponto é onde ela está; fica só se diz para abrir a porta que já está diante dela.
     const [aqui, ...resto] = resposta.pontos
-    return { ...a, aguardando: false, pontos: aqui?.abrir !== undefined ? resposta.pontos : resto, falhas: 0 }
+    const pontos = aqui?.abrir !== undefined ? resposta.pontos : resto
+    return remarcarAbertas({ ...a, aguardando: false, falhas: 0 }, pontos, mundo.paredes, mundo.aqui)
   }
+  const agora = mundo.agora
   const falhas = a.falhas + 1
   const comFalha = { ...a, aguardando: false, pontos: null, falhas, ultimaFalha: resposta }
   if (falhas >= LIMITE_DE_FALHAS[resposta.motivo]) return desistir(comFalha, resposta.motivo)
@@ -188,13 +219,13 @@ export function tiqueDoAndarilho(andarilho: Andarilho, mundo: MundoDoAndarilho, 
   const { aqui, agora } = mundo
   if (a.fim !== null) return paradaComo(a, aqui, a.fim.tipo === 'chegou' ? 'chegou' : 'desistiu')
   if (resposta !== undefined && a.aguardando) {
-    a = receber(a, resposta, agora)
+    a = receber(a, resposta, mundo)
     if (a.fim !== null) return paradaComo(a, aqui, 'desistiu')
   }
   if (aqui.x === a.destino.x && aqui.y === a.destino.y) {
     const acoes: AcaoNaPorta[] = []
-    fecharAtras(a, mundo, aqui, acoes)
-    return paradaComo({ ...a, pontos: [], aguardando: false, fechar: [], fim: { tipo: 'chegou' } }, aqui, 'chegou', null, acoes)
+    fecharAtras({ ...a, fechar: [...a.fechar, ...a.abertas] }, mundo, aqui, acoes)
+    return paradaComo({ ...a, pontos: [], aguardando: false, fechar: [], abertas: [], fim: { tipo: 'chegou' } }, aqui, 'chegou', null, acoes)
   }
   if (a.aguardando || !malhaPronta(mundo.malha)) return paradaComo(a, aqui, 'planejando')
   if (agora < a.esperaAte) return paradaComo(a, aqui, 'esperando')
@@ -210,20 +241,26 @@ export function tiqueDoAndarilho(andarilho: Andarilho, mundo: MundoDoAndarilho, 
   const { para, resta } = andarPeloTrajeto(aqui, a.pontos, mundo.passo)
   const acoes: AcaoNaPorta[] = []
   let fechar = a.fechar
+  let abertas = a.abertas
   let situacao: Situacao = 'andando'
   if (resta.length < a.pontos.length) {
     // Chegou ao canto: fecha a porta que acabou de passar, abre a que tem diante de si.
-    if (alvo.fechar !== undefined && !fechar.includes(alvo.fechar)) fechar = [...fechar, alvo.fechar]
+    const passou = alvo.fechar
+    if (passou !== undefined) {
+      if (!fechar.includes(passou)) fechar = [...fechar, passou]
+      abertas = abertas.filter((id) => id !== passou)
+    }
     if (alvo.abrir !== undefined) {
       const porta = mundo.paredes.find((w) => w.id === alvo.abrir)
       if (porta !== undefined && porta.door !== null && !porta.door.open && !porta.door.locked) {
         acoes.push({ tipo: 'abrir', wallId: porta.id })
+        if (!abertas.includes(porta.id)) abertas = [...abertas, porta.id]
         situacao = 'abrindo'
       }
     }
   }
   fechar = fecharAtras({ ...a, fechar }, mundo, para, acoes)
-  const andou = vigiarProgresso({ ...a, pontos: resta, fechar }, mundo, para)
+  const andou = vigiarProgresso({ ...a, pontos: resta, fechar, abertas }, mundo, para)
   if (andou.fim !== null) return { andarilho: andou, para, acoes, pedido: null, situacao: 'desistiu' }
   return { andarilho: andou, para, acoes, pedido: null, situacao }
 }
