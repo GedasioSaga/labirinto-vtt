@@ -149,9 +149,14 @@ async function cravarESelecionarPino(page: Page): Promise<void> {
   ).toHaveAttribute('aria-checked', 'true')
 }
 
-/** Letra isolada (não pedaço de palavra), em maiúscula como no tooltip da barra. */
+/**
+ * Letra isolada (não pedaço de palavra), em maiúscula como no tooltip da barra.
+ * Combinação como "Shift+C" vira as teclas separadas por "+" (ou por espaço), cada
+ * uma escapada: sem isso o "+" seria o quantificador da letra anterior.
+ */
 function letraIsolada(letra: string): RegExp {
-  return new RegExp(`(^|[^\\p{L}])${letra}([^\\p{L}]|$)`, 'u')
+  const teclas = letra.split('+').map((tecla) => tecla.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`(^|[^\\p{L}])${teclas.join('\\s*\\+?\\s*')}([^\\p{L}]|$)`, 'u')
 }
 
 /**

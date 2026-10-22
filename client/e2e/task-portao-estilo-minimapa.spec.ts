@@ -31,6 +31,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import { esconderColunaDireita } from './helpers/colunaDireita'
+import { abrirPaginaDoLivro } from './helpers/livroDoMestre'
 
 /** Fundo do mapa novo — `lib/mapFactory.ts:createEmptyMap` (`background.src`). */
 const COR_DO_FUNDO = '#2b2b2b'
@@ -122,6 +123,8 @@ test('1. mapa novo nasce com fundo escuro chapado e SEM grade (e o portão sabe 
 
   // CONTROLE POSITIVO: a mesma medida tem de REPROVAR com a grade ligada.
   // Sem isto, "chapado" passaria igual com o detector cego.
+  // O interruptor mora na página Cena do livro; o livro abre na Ficha.
+  await abrirPaginaDoLivro(page, 'Cena')
   const grade = interruptor(page, 'Mostrar grade')
   await grade.check({ force: true })
   await page.waitForTimeout(PAINT_MS)
