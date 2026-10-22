@@ -5,11 +5,12 @@
 // interação, nunca texto que os componentes não expõem por acessibilidade).
 //
 // Roda contra `npm run dev` (Vite web) — não substitui a verificação em
-// `npm run tauri:dev` (app Tauri real). Por isso o teste 5 não clica em "Novo andar
-// em branco": esse botão chama `handleCreateLinkedMap`, que grava um `map.json` via
-// API de arquivo do Tauri — indisponível fora do binário Tauri. Simulamos a conclusão
-// dessa criação chamando `setPropLinkedPath` direto na store (o que o handler faz por
-// baixo, depois do I/O) e verificamos que a UI reage de verdade ao novo estado.
+// `npm run tauri:dev` (app Tauri real).
+//
+// O antigo teste 5 (peça vira portal: "Novo andar em branco" e "Entrar no
+// andar") saiu em 22/10/2026: os andares viraram CENAS em f20e9ed3 (21/09), que
+// apagou `PortalControls` e converte o portal antigo em cena ao abrir o mapa
+// (`lib/mapFileIO.aventura.test.ts` cobre a conversão).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 import { installTauriFsStub } from './helpers/tauriFsStub'
@@ -223,32 +224,6 @@ test('4. curva: arrasto cria Bézier e arrastar um ponto de controle move só el
   if (!movedCurve || movedCurve.kind !== 'curve') throw new Error('esperava um drawing kind curve')
   expect(movedCurve.points[0]).not.toEqual(originalPoints[0])
   expect(movedCurve.points.slice(1)).toEqual(originalPoints.slice(1))
-})
-
-test('5. andar: peça vira portal para outro mapa (linkedMapPath deixa de ser null)', async ({ page }) => {
-  const box = await page.locator('canvas').boundingBox()
-  if (!box) throw new Error('canvas sem bounding box')
-
-  await page.evaluate(async () => {
-    const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addProp({ id: 'propPortal', src: 'fake.png', x: 400, y: 400, width: 64, height: 64, linkedMapPath: null })
-  })
-  await selectTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 400, box.y + 400)
-  expect(await getSelection(page)).toEqual({ kind: 'prop', id: 'propPortal' })
-
-  await expect(page.getByRole('button', { name: 'Novo andar em branco' })).toBeVisible()
-
-  await page.evaluate(async () => {
-    const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().setPropLinkedPath('propPortal', 'C:/fake/maps/map_x/map.json')
-  })
-
-  const { props } = await getMapSnapshot(page)
-  const prop = props.find((p) => p.id === 'propPortal')
-  expect(prop?.linkedMapPath).not.toBeNull()
-
-  await expect(page.getByRole('button', { name: 'Entrar no andar' })).toBeVisible()
 })
 
 test('6. alinhamento: vertice de Regiao arrastado perto da borda de outra regiao trava exatamente no candidato (mesmo x)', async ({ page }) => {

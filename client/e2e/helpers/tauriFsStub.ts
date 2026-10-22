@@ -15,7 +15,7 @@ type FakeInternals = {
 /**
  * Disco de mentira para o navegador: responde os invokes de path/fs que
  * `lib/mapFileIO.ts` usa (appDataDir, join, dirname, exists, mkdir,
- * write_text_file, read_text_file, grant_fs_access) guardando os arquivos em
+ * write_text_file, read_text_file, rename, remove, grant_fs_access) guardando os arquivos em
  * `window.__fakeFs`. Não liga `window.isTauri`, então o App segue no modo
  * navegador (sem abas nem ponte do jogador) — só Salvar/Início/entrar e voltar
  * de andar passam a funcionar como no app.
@@ -58,6 +58,18 @@ export async function installTauriFsStub(page: Page): Promise<void> {
             if (!(path in files)) throw new Error(`arquivo não existe: ${path}`)
             return Array.from(new TextEncoder().encode(files[path]))
           }
+          // A gravação atômica (`writeTextFileSafely`) escreve `<arquivo>.tmp` e
+          // renomeia por cima: sem estes dois, o mapa ficava só no `.tmp`.
+          case 'plugin:fs|rename': {
+            const de = String(a.oldPath)
+            if (!(de in files)) throw new Error(`arquivo não existe: ${de}`)
+            files[String(a.newPath)] = files[de]
+            delete files[de]
+            return null
+          }
+          case 'plugin:fs|remove':
+            delete files[String(a.path)]
+            return null
           default:
             return null
         }

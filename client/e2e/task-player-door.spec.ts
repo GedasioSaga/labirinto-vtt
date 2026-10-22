@@ -143,8 +143,10 @@ test('jogador toca na porta encostada, ela abre para todos, entra em diagonal; t
   const view = page.locator('[data-walls-count]')
   await expect(view).toHaveAttribute('data-tokens-count', '1')
 
-  // 2. Destaque: só a porta destrancada ao alcance do token ganha halo.
-  await expect(view).toHaveAttribute('data-door-hints', '1')
+  // 2. Destaque: as DUAS portas ao alcance ganham halo. O jogador nunca recebe
+  // `locked` (`withoutLock` em lib/fogFilter.ts, desde 1c60da3b: a trancada vira
+  // pedido ao mestre), então para ele a trancada é uma porta como as outras.
+  await expect(view).toHaveAttribute('data-door-hints', '2')
   await page.waitForTimeout(300)
   await page.screenshot({ path: shot('1-porta-fechada-com-destaque') })
 

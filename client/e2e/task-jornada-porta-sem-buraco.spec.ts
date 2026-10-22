@@ -14,20 +14,27 @@
 //     outro lado — o pixel do destino, fora da sala, continua como estava.
 //
 // Geometria escolhida (tudo em px de mundo = px do canvas, câmera 1:1 como nos
-// demais specs, e longe do painel da esquerda, que cobre o canvas até x~240):
-// sala de (320,256) a (832,576); a aresta de cima vai de x=320 a x=832. Portão
-// criado no clique em x=576 ocupa 528..624. Virando Normal, a porta fica em
-// 560..592 e as faixas 528..560 e 592..624 ficam abertas. x=544 é o meio da
-// primeira faixa — e também centro de célula da grade de 64px, então o token
-// arrastado para lá cai exatamente em cima dela.
+// demais specs, e entre os dois painéis do livro, que cobrem o canvas até x~326
+// à esquerda e a partir de x~954 à direita numa tela de 1280): sala de
+// (384,256) a (896,576); a aresta de cima vai de x=384 a x=896. Portão criado
+// no clique em x=640 ocupa 592..688. Virando Normal, a porta fica em 624..656
+// e as faixas 592..624 e 656..688 ficam abertas. x=608 é o meio da primeira
+// faixa — e também centro de célula da grade de 64px, então o token arrastado
+// para lá cai exatamente em cima dela.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
 
 const ARESTA_Y = 256
-/** Meio da faixa que o vão menor devolveu para a parede (528..560). */
-const X_BURACO = 544
+/** Cantos da sala, livres dos dois painéis do livro. */
+const SALA = { x0: 384, y0: 256, x1: 896, y1: 576 }
+/** Onde o Portão é criado e selecionado: o meio da aresta de cima. */
+const X_PORTA = 640
+/** Meio da faixa que o vão menor devolveu para a parede (592..624). */
+const X_BURACO = 608
 /** Trecho que continua sólido em qualquer tipo de porta — a calibração da cor. */
-const X_SOLIDO = 400
+const X_SOLIDO = 464
+/** Canvas vazio, fora da sala, longe dos painéis e da barra de ferramentas: o clique aqui tira a seleção. */
+const VAZIO = { x: 930, y: 620 }
 /** Dentro da sala, longe da porta — a cor do "fundo" com que a parede contrasta. */
 const Y_DENTRO = 320
 
@@ -108,9 +115,9 @@ async function salaComPortaoTrocadoParaNormal(page: Page) {
 
   // Desenha a sala arrastando, como o mestre faz.
   await ferramenta(page, 'Sala')
-  await page.mouse.move(box.x + 320, box.y + 256)
+  await page.mouse.move(box.x + SALA.x0, box.y + SALA.y0)
   await page.mouse.down()
-  await page.mouse.move(box.x + 832, box.y + 576, { steps: 8 })
+  await page.mouse.move(box.x + SALA.x1, box.y + SALA.y1, { steps: 8 })
   await page.mouse.up()
   // O campo de nome nasce em cima da Sala e rouba o foco: Esc mantém o padrão.
   await page.getByRole('textbox', { name: 'Nome da sala no mapa' }).press('Escape')
@@ -118,11 +125,11 @@ async function salaComPortaoTrocadoParaNormal(page: Page) {
   // Porta do tipo Portão, clicando em cima da aresta de cima.
   await ferramenta(page, 'Porta')
   await page.getByRole('radio', { name: 'Portão', exact: true }).click()
-  await page.mouse.click(box.x + 576, box.y + ARESTA_Y)
+  await page.mouse.click(box.x + X_PORTA, box.y + ARESTA_Y)
 
   // Seleciona a porta recém-criada e troca o tipo NO PAINEL.
   await ferramenta(page, 'Selecionar')
-  await page.mouse.click(box.x + 576, box.y + ARESTA_Y)
+  await page.mouse.click(box.x + X_PORTA, box.y + ARESTA_Y)
   // O tipo da porta selecionada mora na ficha "Aparência" (fatia 11), que nasce fechada.
   await page.getByRole('button', { name: /^Aparência/ }).click()
   const portao = page.getByRole('radio', { name: 'Portão', exact: true })
@@ -132,7 +139,7 @@ async function salaComPortaoTrocadoParaNormal(page: Page) {
   await expect(normal).toBeChecked()
 
   // Tira a seleção (clique no vazio) para nenhum realce entrar nas amostras.
-  await page.mouse.click(box.x + 1100, box.y + 700)
+  await page.mouse.click(box.x + VAZIO.x, box.y + VAZIO.y)
   return box
 }
 
@@ -161,7 +168,7 @@ test('1. trocar Portão por Normal: a parede aparece de volta onde o vão encolh
   const leitura = `parede sólida=${solido.luz}, faixa em x=${X_BURACO}=${buraco.luz}, dentro da sala=${dentro.luz}`
   // Calibração: a foto precisa distinguir parede de fundo, senão o teste passaria à toa.
   expect(solido.luz - dentro.luz, `a foto não distingue parede de fundo (${leitura})`).toBeGreaterThan(30)
-  // A prova: o pixel em cima da faixa 528..560 tem de ser parede, como em x=400.
+  // A prova: o pixel em cima da faixa 592..624 tem de ser parede, como em x=464.
   expect(buraco.luz, `buraco de parede na tela em x=${X_BURACO}, y=${ARESTA_Y} (${leitura})`).toBeGreaterThan(
     dentro.luz + (solido.luz - dentro.luz) * 0.6,
   )
@@ -175,7 +182,7 @@ test('2. depois da troca, o token arrastado não atravessa a aresta onde não h�
   // arrasto abaixo, não a criação.
   await page.evaluate(async () => {
     const store = (await import('/src/stores/mapStore.ts')).useMapStore.getState()
-    store.addToken({ id: 'tk_jornada', characterId: null, name: 'Pé', x: 544, y: 288, size: 1, image: null })
+    store.addToken({ id: 'tk_jornada', characterId: null, name: 'Pé', x: 608, y: 288, size: 1, image: null })
     store.setSelection([])
   })
 
@@ -207,7 +214,7 @@ test('2. depois da troca, o token arrastado não atravessa a aresta onde não h�
   const antesDoControle = await fotoDoCanvas(page)
   const [livreAntes] = await amostrar(page, antesDoControle.foto, antesDoControle.largura, [livre])
 
-  await arrastar({ x: 544, y: 288 }, livre)
+  await arrastar({ x: X_BURACO, y: 288 }, livre)
 
   const depoisDoControle = await fotoDoCanvas(page)
   const [livreDepois] = await amostrar(page, depoisDoControle.foto, depoisDoControle.largura, [livre])

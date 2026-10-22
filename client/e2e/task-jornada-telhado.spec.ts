@@ -114,7 +114,6 @@ const TAREFA_LONGA_MAXIMA_MS = 200
 const PINTURA_MS = 400
 const PAUSA_ANTES_DE_SOLTAR_MS = 120
 const LIMIAR_DA_MOLDURA = 8
-const LINHA_DA_MOLDURA = 700
 const COLUNA_DA_MOLDURA = 1100
 /** Quanto tempo a página do jogador fica amostrando cada travessia (arrasto + resposta + fade). */
 const AMOSTRAGEM_MS = 6000
@@ -192,11 +191,11 @@ async function mediaDaFoto(page: Page, b64: string, recortes: Retangulo[]): Prom
   )
 }
 
-/** Moldura do mapa e token azul do jogador, lidos da foto dele (a régua de `task-jornada-teto-de-construcao`). */
+/** Token azul do jogador, lido da foto dele, fora do painel. */
 async function lerTela(page: Page, b64: string, painel: Retangulo) {
   const box = await caixaDoCanvas(page)
   return page.evaluate(
-    async ({ foto, semPainel, larguraCss, limiarMoldura, linha, coluna }) => {
+    async ({ foto, semPainel, larguraCss }) => {
       const blob = await (await fetch(`data:image/png;base64,${foto}`)).blob()
       const bmp = await createImageBitmap(blob)
       const tela = document.createElement('canvas')
@@ -207,26 +206,6 @@ async function lerTela(page: Page, b64: string, painel: Retangulo) {
       ctx.drawImage(bmp, 0, 0)
       const { data, width, height } = ctx.getImageData(0, 0, bmp.width, bmp.height)
       const k = bmp.width / larguraCss
-      const luz = (px: number, py: number): number => {
-        const i = (py * width + px) * 4
-        return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-      }
-      const py = Math.round(linha * k)
-      let esquerda = -1
-      let direita = -1
-      for (let px = 0; px < width; px += 1) {
-        if (luz(px, py) >= limiarMoldura) continue
-        if (esquerda < 0) esquerda = px
-        direita = px
-      }
-      const px = Math.round(coluna * k)
-      let topo = -1
-      for (let y = 0; y < height; y += 1) {
-        if (luz(px, y) < limiarMoldura) {
-          topo = y
-          break
-        }
-      }
       let somaX = 0
       let somaY = 0
       let n = 0
@@ -243,19 +222,10 @@ async function lerTela(page: Page, b64: string, painel: Retangulo) {
           }
         }
       }
-      return {
-        moldura: { esquerda: esquerda / k, direita: direita / k, topo: topo / k },
-        token: n === 0 ? null : { x: somaX / n / k, y: somaY / n / k },
-      }
+      return { token: n === 0 ? null : { x: somaX / n / k, y: somaY / n / k } }
     },
-    { foto: b64, semPainel: painel, larguraCss: box.width, limiarMoldura: LIMIAR_DA_MOLDURA, linha: LINHA_DA_MOLDURA, coluna: COLUNA_DA_MOLDURA },
+    { foto: b64, semPainel: painel, larguraCss: box.width },
   )
-}
-
-function reguaDe(moldura: { esquerda: number; direita: number; topo: number }): Regua {
-  const escala = (moldura.direita - moldura.esquerda + 1) / MUNDO.w
-  if (!(escala > 0.5 && escala < 0.7)) throw new Error(`a moldura do mapa não foi reconhecida na foto (escala ${escala.toFixed(3)})`)
-  return { origem: { x: moldura.esquerda, y: moldura.topo }, escala }
 }
 
 const paraTela = (regua: Regua, p: Ponto): Ponto => ({ x: regua.origem.x + p.x * regua.escala, y: regua.origem.y + p.y * regua.escala })
@@ -280,12 +250,10 @@ function recortesDaPorta(regua: Regua): Retangulo[] {
 }
 
 /**
- * Régua só para a PORTA DE FORA, que é pequena (uns 11 × 5 px de tela). A de
- * `lerTela` erra uns 20 px nesta tela — na linha 700 a ponta esquerda cai na
- * sombra do painel do jogador e a direita no botão de zoom —, o que não tira as
- * amostras grandes de cima do telhado, mas tiraria o recorte de cima da porta.
- * Esta mede a moldura pela ALTURA (topo e fundo na coluna da moldura) e a ponta
- * direita numa linha do meio, onde não há botão.
+ * A régua da tela do jogador. A moldura do mapa é medida pela ALTURA (topo e
+ * fundo na coluna da moldura) e a ponta direita numa linha do meio, onde não há
+ * botão: a ponta esquerda fica debaixo do painel do jogador, e medir pela
+ * largura erra o lugar de tudo (era a régua antiga, que reprovava as amostras).
  */
 async function reguaPelaAltura(page: Page, b64: string): Promise<Regua> {
   const box = await caixaDoCanvas(page)
@@ -350,10 +318,16 @@ async function arrastar(page: Page, de: Ponto, ate: Ponto, passos = 14): Promise
   await page.waitForTimeout(PINTURA_MS)
 }
 
+/**
+ * A régua vem da ALTURA da moldura (`reguaPelaAltura`), não da largura: o
+ * painel do jogador (374 px de largura desde o livro novo) cobre a ponta
+ * esquerda do mapa, e a ponta lida na linha 700 era a borda do painel.
+ */
 async function olhar(page: Page, painel: Retangulo): Promise<{ regua: Regua; token: Ponto }> {
-  const lido = await lerTela(page, await fotografar(page), painel)
+  const foto = await fotografar(page)
+  const lido = await lerTela(page, foto, painel)
   if (lido.token === null) throw new Error('o token azul do jogador não está desenhado na tela dele')
-  return { regua: reguaDe(lido.moldura), token: lido.token }
+  return { regua: await reguaPelaAltura(page, foto), token: lido.token }
 }
 
 async function andarAte(page: Page, painel: Retangulo, destino: Ponto, onde: string): Promise<void> {
@@ -643,7 +617,7 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   const daRua = await olhar(jogador, painel)
   const amostraNaTela = recorteNaTela(daRua.regua, AMOSTRA)
   const interiorNaTela = recorteNaTela(daRua.regua, INTERIOR)
-  for (const r of [interiorNaTela, amostraNaTela]) expect(cruza(r, painel), 'a amostra encosta no painel do jogador: contaria pixel de interface').toBe(false)
+  for (const r of [interiorNaTela, amostraNaTela]) expect(cruza(r, painel), `a amostra encosta no painel do jogador: contaria pixel de interface (amostra ${JSON.stringify(r)}, painel ${JSON.stringify(painel)})`).toBe(false)
   const [deFora] = await mediaDaFoto(jogador, await fotografar(jogador), [interiorNaTela])
   const corDeFora = `média do telhado ${hex(deFora)}, mobília ${(deFora.magenta * 100).toFixed(1)}%`
   expect(distancia(deFora, VERDE_DA_MADEIRA), `de fora, o telhado não está na madeira verde — ${corDeFora}`).toBeLessThan(PERTO_DA_COR)
@@ -660,10 +634,19 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   const aberto = entrando[entrando.length - 1]
   expect(aberto.magenta, 'controle: com o jogador dentro a mobília tem de aparecer na amostra (a amostragem lê o canvas de verdade)').toBeGreaterThan(0.2)
   const i0 = entrando.findIndex((q) => distancia(q, fechado) > MUDOU)
-  const i1 = entrando.findIndex((q, i) => i >= i0 && distancia(q, aberto) < ASSENTOU)
+  // Assentou = 90% do caminho (ou ASSENTOU, se for maior). Medido em 22/10/2026:
+  // depois que o telhado some, a lanterna ainda anda com a ficha e tinge a
+  // amostra em até ~20 por canal (verde sobe e volta, azul o contrário) por uns
+  // 500 ms; com só ASSENTOU, essa luz contava como telhado sumindo.
+  const assentou = Math.max(ASSENTOU, 0.1 * distancia(fechado, aberto))
+  const i1 = entrando.findIndex((q, i) => i >= i0 && distancia(q, aberto) < assentou)
   expect(i0, 'o telhado nunca começou a sumir').toBeGreaterThan(0)
   const sumiuEm = entrando[i1].t - entrando[i0].t
-  expect(sumiuEm, `o telhado levou ${sumiuEm.toFixed(0)} ms para sumir (meta 300 ms)`).toBeLessThanOrEqual(TETO_DO_FADE_MS)
+  const quadrosDoFade = entrando
+    .slice(Math.max(0, i0 - 1), i1 + 2)
+    .map((q) => `${(q.t - entrando[i0].t).toFixed(0)}ms ${hex(q)} m${(q.magenta * 100).toFixed(0)}%`)
+    .join(' | ')
+  expect(sumiuEm, `o telhado levou ${sumiuEm.toFixed(0)} ms para sumir (meta 300 ms) — ${quadrosDoFade}`).toBeLessThanOrEqual(TETO_DO_FADE_MS)
   const meioDaEntrada = entrando.reduce((perto, q) => (Math.abs(q.t - entrando[i0].t - 150) < Math.abs(perto.t - entrando[i0].t - 150) ? q : perto))
 
   // 5. Sai: o telhado volta e nenhum quadro escurece (a névoa preta não aparece por baixo).
