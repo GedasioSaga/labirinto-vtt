@@ -103,6 +103,19 @@ describe('entradas do índice', () => {
   it('miniatura do cenário fora da animação cai, e a entrada fica', () => {
     expect(lerEntradaDoPacote({ ...CHUVA, quadroDaMiniaturaS: 99 }, ARQUIVOS)).toEqual({ entrada: CHUVA })
   })
+
+  it('porta com `som` (fatia 22): conhecido fica; sem o campo, a entrada é a de antes', () => {
+    expect(lerEntradaDoPacote({ ...CAIR, som: 'rangido' }, ARQUIVOS)).toEqual({ entrada: { ...CAIR, som: 'rangido' } })
+    expect(lerEntradaDoPacote({ ...CAIR, som: 'trinco' }, ARQUIVOS)).toEqual({ entrada: { ...CAIR, som: 'trinco' } })
+    const semSom = lerEntradaDoPacote(CAIR, ARQUIVOS)
+    expect(semSom).toEqual({ entrada: CAIR })
+    expect('entrada' in semSom && 'som' in semSom.entrada).toBe(false)
+  })
+
+  it.each<unknown>(['sino', 'Rangido', 3, null, ['rangido']])('porta com `som` %j que este app não sintetiza: a porta entra, muda', (som) => {
+    const lida = lerEntradaDoPacote({ ...CAIR, som }, ARQUIVOS)
+    expect(lida).toEqual({ entrada: CAIR })
+  })
 })
 
 describe('índice', () => {
@@ -135,7 +148,13 @@ describe('carregar', () => {
     expect(idsDeFora()).toEqual({ transicoes: ['tunel'], portas: ['cair'], cenarios: ['chuva'] })
     expect(transicaoInfo('tunel')?.nome).toBe('Túnel')
     expect(animacaoDePorta('cair')?.duracaoMs).toBe(300)
+    expect(animacaoDePorta('cair')?.som).toBeUndefined()
     expect(origem.importar).toHaveBeenCalledWith('porta-cair.js', 3)
+  })
+
+  it('o `som` da porta chega ao registro', async () => {
+    await carregarPacoteDeAnimacoes(origemFalsa(indice([{ ...CAIR, som: 'trinco' }], 3), MODULOS))
+    expect(animacaoDePorta('cair')?.som).toBe('trinco')
   })
 
   it('um módulo que quebra ao importar, ou sem export default de função, não derruba os outros', async () => {
