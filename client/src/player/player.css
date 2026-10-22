@@ -1240,8 +1240,13 @@
   }
 }
 
+/* A coluna é `minmax(0, 1fr)` aqui, na lista e na aba, e não a automática: esta
+   cresce até a largura mínima do conteúdo, e o nome comprido de um personagem
+   (que não quebra, acaba em reticências) empurrava a aba inteira para fora da
+   gaveta a 320 px. */
 .pp-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -1262,6 +1267,7 @@
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
@@ -4314,6 +4320,7 @@
 /* O conteúdo das abas não alarga a gaveta: ela segue a barra e a fileira de abas. */
 .pp-tabpanel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   contain: inline-size;
 }

@@ -71,6 +71,8 @@ interface Cena {
    * 320, e em pé são quatro colunas de uns 73 px para os rótulos.
    */
   personagens?: boolean
+  /** O nome da ficha da Ana (o personagem da linha na gaveta). Sem ele, "Ana". */
+  nomeDaFicha?: string
 }
 
 const FILA_CURTA = ['Rato 1', 'Bia']
@@ -95,7 +97,7 @@ function porta(tipo: Porta): Wall {
 const ESCADA: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 225, y1: 275, x2: 225, y2: 325 }], stepWidth: 50, levaAoPiso: 1 }
 
 function mapaDoJogador(cena: Cena): MapData {
-  let mapa = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 225, y: 225, size: 1, image: null })
+  let mapa = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: cena.nomeDaFicha ?? 'Ana', x: 225, y: 225, size: 1, image: null })
   for (const [i, nome] of cena.fila.entries()) {
     mapa = addToken(mapa, { id: `ficha-${i}`, characterId: null, name: nome, x: 525 + 50 * i, y: 525, size: 1, image: null })
   }
@@ -611,6 +613,77 @@ for (const tela of TELAS) {
     })
   })
 }
+
+/*
+ * A LINHA DO PERSONAGEM na gaveta, na tela mais estreita (fatia 19b): a bola
+ * cresceu de 12 para 36 px, ganhou a letra do nome, e o nome passou à letra de
+ * livro de 17 px. Com um nome mais comprido que a linha, a bola fica inteira e
+ * redonda, o nome acaba em reticências antes da borda do cartão sem passar por
+ * cima da bola, e o cartão cabe no miolo, com o alvo do dedo.
+ */
+const NOME_COMPRIDO = 'Wolfeschlegelsteinhausenbergerdorff de Albuquerque'
+const BOLA_PX = 36
+
+test.describe(`linha do personagem com nome comprido ${nomeDaTela(EM_PE_ESTREITO)}`, () => {
+  test.use({ viewport: { width: EM_PE_ESTREITO.width, height: EM_PE_ESTREITO.height }, hasTouch: true, isMobile: true })
+
+  test('a bola de 36 px e o nome comprido cabem no cartão, e o nome acaba em reticências', async ({ page }) => {
+    await jogadorEntra(page, { ...CENA_CHEIA, nomeDaFicha: NOME_COMPRIDO })
+    await page.getByRole('button', { name: /^(Fechar )?painel$/i }).click()
+    const gaveta = page.getByRole('complementary', { name: 'Painel do jogador' })
+    await expect(gaveta).toBeVisible()
+    const linha = gaveta.getByRole('button', { name: `Centralizar em ${NOME_COMPRIDO}` })
+    await expect(linha).toBeVisible()
+    await esperarAsEntradas(page)
+
+    const m = await linha.evaluate((botao) => {
+      const bola = botao.querySelector('.pp-dot')
+      const nome = botao.querySelector('.pp-character__name')
+      const miolo = botao.closest('.pp-panel__body')
+      if (!(bola instanceof HTMLElement) || !(nome instanceof HTMLElement) || !(miolo instanceof HTMLElement)) throw new Error('a linha sem a bola, o nome ou o miolo')
+      const caixa = (el: Element) => {
+        const r = el.getBoundingClientRect()
+        return { esquerda: r.left, direita: r.right, alto: r.top, pe: r.bottom, largura: r.width, altura: r.height }
+      }
+      const doBotao = caixa(botao)
+      const mioloEsquerda = miolo.getBoundingClientRect().left + miolo.clientLeft
+      const noMeio = document.elementFromPoint(doBotao.esquerda + doBotao.largura / 2, doBotao.alto + doBotao.altura / 2)
+      return {
+        botao: doBotao,
+        bola: caixa(bola),
+        nome: caixa(nome),
+        miolo: { esquerda: mioloEsquerda, direita: mioloEsquerda + miolo.clientWidth, rolaDeLado: miolo.scrollWidth > miolo.clientWidth },
+        recuoDireito: parseFloat(getComputedStyle(botao).paddingRight),
+        letra: getComputedStyle(bola, '::before').content,
+        raio: getComputedStyle(bola).borderRadius,
+        reticencias: getComputedStyle(nome).textOverflow,
+        nomeCortado: nome.scrollWidth > nome.clientWidth,
+        dedoAcertaALinha: noMeio !== null && botao.contains(noMeio),
+      }
+    })
+    await fotografar(page, `linha-do-personagem-${EM_PE_ESTREITO.width}x${EM_PE_ESTREITO.height}`)
+
+    // A bola: inteira, redonda, com a letra, dentro do cartão.
+    expect(m.bola.largura, 'largura da bola').toBeCloseTo(BOLA_PX, 0)
+    expect(m.bola.altura, 'altura da bola').toBeCloseTo(BOLA_PX, 0)
+    expect(m.raio).toBe('50%')
+    expect(m.letra).toBe('"W"')
+    expect(m.bola.esquerda).toBeGreaterThanOrEqual(m.botao.esquerda - FOLGA)
+    expect(m.bola.alto).toBeGreaterThanOrEqual(m.botao.alto - FOLGA)
+    expect(m.bola.pe).toBeLessThanOrEqual(m.botao.pe + FOLGA)
+    // O nome: depois da bola, antes do recuo direito do cartão, cortado em reticências.
+    expect(m.nome.esquerda, 'o nome começa depois da bola').toBeGreaterThanOrEqual(m.bola.direita - FOLGA)
+    expect(m.nome.direita, 'o nome acaba antes do recuo direito do cartão').toBeLessThanOrEqual(m.botao.direita - m.recuoDireito + FOLGA)
+    expect(m.nomeCortado, 'o nome comprido não cabe inteiro: tem de estar cortado').toBe(true)
+    expect(m.reticencias).toBe('ellipsis')
+    // O cartão: dentro do miolo, que não rola de lado, e alvo do dedo.
+    expect(m.botao.esquerda).toBeGreaterThanOrEqual(m.miolo.esquerda - FOLGA)
+    expect(m.botao.direita).toBeLessThanOrEqual(m.miolo.direita + FOLGA)
+    expect(m.miolo.rolaDeLado, 'o miolo rola de lado').toBe(false)
+    expect(m.botao.altura).toBeGreaterThanOrEqual(alvoMinimo(EM_PE_ESTREITO) - FOLGA)
+    expect(m.dedoAcertaALinha, 'o dedo no meio da linha acerta a linha').toBe(true)
+  })
+})
 
 /*
  * PORTA TRANCADA: o toque na porta que o mestre trancou traz a faixa dos
