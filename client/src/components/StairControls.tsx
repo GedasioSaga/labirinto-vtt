@@ -5,6 +5,10 @@ import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import { floorSideOf, type StairTravelProps } from '../lib/stairTravel'
 import { travelSceneLabel } from '../lib/pinTravel'
 import { STAIR_MAX_LENGTH_CELLS, STAIR_MAX_WIDTH_CELLS, STAIR_MIN_CELLS } from '../lib/stairCurve'
+import { Acoes, Botao } from './grimorio/Botao'
+import { CampoFaixa } from './grimorio/CampoFaixa'
+import { CampoNum } from './grimorio/CampoNum'
+import { CampoSeg, type OpcaoDoSeg } from './grimorio/CampoSeg'
 
 export type { StairTravelProps }
 
@@ -50,20 +54,9 @@ export interface StairTamanhoProps {
 
 /** − e + andam meia casa: as larguras de Pequena, Média e Grande caem nesse passo. */
 const PASSO_CASAS = 0.5
-const FOLGA = 1e-9
 
-/** "4", "4,5", "0,25": casas com vírgula e no máximo duas casas decimais. */
-function formatarCasas(casas: number): string {
-  return String(Math.round(casas * 100) / 100).replace('.', ',')
-}
-
-/** "6,5" ou "6.5" viram 6,5; vazio ou texto que não é número, `null`. */
-function lerCasas(texto: string): number | null {
-  const normalizado = texto.trim().replace(',', '.')
-  if (normalizado === '') return null
-  const valor = Number(normalizado)
-  return Number.isFinite(valor) ? valor : null
-}
+/** "4", "4,5", "0,25": casas com vírgula e no máximo duas casas decimais (a alça mexe sem grade). */
+const DECIMAIS_DAS_CASAS = 2
 
 interface CampoEmCasasProps {
   id: string
@@ -78,70 +71,32 @@ interface CampoEmCasasProps {
 }
 
 /**
- * Um tamanho da escada em CASAS, com − e + ao lado (mesma linha do campo de
- * Rotação da Sala). O número digitado vale no Enter ou ao sair do campo; Esc
- * desfaz o que foi digitado, e texto que não é número volta ao valor sem
- * gravar nada. Teclado decimal: no celular aparece a vírgula.
+ * Um tamanho da escada em CASAS, no número do Grimório (− e + em volta do
+ * miolo). − e + andam meia casa; fora do passo (a alça mexeu sem grade) caem
+ * primeiro na meia casa mais perto. O número digitado vale no Enter ou ao sair
+ * do campo; Esc desfaz o que foi digitado, e texto que não é número volta ao
+ * valor sem gravar nada. Teclado decimal: no celular aparece a vírgula.
  */
 function CampoEmCasas({ id, rotulo, nome, px, grid, maxCasas, onTrocar }: CampoEmCasasProps) {
   const casas = px / grid
-  /** `null` = ninguém digitando: o campo mostra o valor de agora (a alça mexeu, o Ctrl+Z voltou). */
-  const [texto, setTexto] = useState<string | null>(null)
-
-  const gravar = (novas: number) => {
-    const limitadas = Math.min(maxCasas, Math.max(STAIR_MIN_CELLS, novas))
-    if (Math.abs(limitadas - casas) > FOLGA) onTrocar(limitadas * grid)
-  }
-  const aplicar = () => {
-    if (texto === null) return
-    const lidas = lerCasas(texto)
-    setTexto(null)
-    if (lidas !== null) gravar(lidas)
-  }
-  // Fora do passo (veio de uma alça sem grade), o − e o + caem primeiro na meia casa mais perto.
-  const menos = () => gravar(Math.ceil(casas / PASSO_CASAS - FOLGA) * PASSO_CASAS - PASSO_CASAS)
-  const mais = () => gravar(Math.floor(casas / PASSO_CASAS + FOLGA) * PASSO_CASAS + PASSO_CASAS)
-  const noMinimo = casas <= STAIR_MIN_CELLS + FOLGA
-  const noMaximo = casas >= maxCasas - FOLGA
-
   return (
-    <div className="lb-field">
-      <label className="lb-label" htmlFor={id}>
-        {rotulo}
-      </label>
-      <div className="lb-rotation">
-        <div className="lb-inputgroup lb-rotation__value">
-          <input
-            id={id}
-            className="lb-input"
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={texto ?? formatarCasas(casas)}
-            onChange={(event) => setTexto(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') aplicar()
-              if (event.key === 'Escape' && texto !== null) {
-                // Só desfaz a digitação; o Esc seguinte (sem texto) segue para o mapa.
-                event.preventDefault()
-                event.stopPropagation()
-                setTexto(null)
-              }
-            }}
-            onBlur={aplicar}
-          />
-          <span className="lb-inputgroup__suffix">{casas === 1 ? 'casa' : 'casas'}</span>
-        </div>
-        <button type="button" className="lb-btn lb-rotation__step" aria-label={`Diminuir ${nome}`} aria-disabled={noMinimo || undefined} onClick={noMinimo ? undefined : menos}>
-          −
-        </button>
-        <button type="button" className="lb-btn lb-rotation__step" aria-label={`Aumentar ${nome}`} aria-disabled={noMaximo || undefined} onClick={noMaximo ? undefined : mais}>
-          +
-        </button>
-      </div>
-    </div>
+    <CampoNum
+      id={id}
+      rotulo={rotulo}
+      nome={nome}
+      unidade={casas === 1 ? 'casa' : 'casas'}
+      valor={casas}
+      min={STAIR_MIN_CELLS}
+      max={maxCasas}
+      passo={PASSO_CASAS}
+      decimais={DECIMAIS_DAS_CASAS}
+      onChange={(novas) => onTrocar(novas * grid)}
+    />
   )
 }
+
+const leituraDaCurva = (graus: number): string => (graus === 0 ? 'Reta' : `${Math.abs(graus)}°`)
+const falaDaCurva = (graus: number): string => (graus === 0 ? 'reta' : `${Math.abs(graus)} graus`)
 
 /**
  * A curva da escada reta: deslizante de −máximo a +máximo em graus de volta,
@@ -152,33 +107,27 @@ function CampoEmCasas({ id, rotulo, nome, px, grid, maxCasas, onTrocar }: CampoE
 function CampoDeCurva({ degrees, maxDegrees, onCurveChange }: { degrees: number; maxDegrees: number; onCurveChange: (degrees: number) => void }) {
   const maximo = Math.max(0, Math.floor(maxDegrees))
   const valor = Math.max(-maximo, Math.min(maximo, Math.round(degrees)))
-  const leitura = valor === 0 ? 'Reta' : `${Math.abs(valor)}°`
   return (
-    <div className="lb-field">
-      <div className="lb-section__row">
-        <label className="lb-label" htmlFor="lb-stair-curve">
-          Curva
-        </label>
-        <span className="lb-num">{leitura}</span>
-      </div>
-      <input
+    <>
+      <CampoFaixa
         id="lb-stair-curve"
-        className="lb-range"
-        type="range"
+        rotulo="Curva"
+        valor={valor}
         min={-maximo}
         max={maximo}
-        step={1}
-        value={valor}
-        disabled={maximo === 0}
-        aria-valuetext={valor === 0 ? 'reta' : `${Math.abs(valor)} graus`}
-        onChange={(event) => onCurveChange(Number(event.target.value))}
+        desativado={maximo === 0}
+        formatar={leituraDaCurva}
+        falar={falaDaCurva}
+        onChange={onCurveChange}
       />
       {valor !== 0 && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={() => onCurveChange(0)}>
-          Endireitar
-        </button>
+        <Acoes>
+          <Botao tamanho="p" onClick={() => onCurveChange(0)}>
+            Endireitar
+          </Botao>
+        </Acoes>
       )}
-    </div>
+    </>
   )
 }
 
@@ -247,6 +196,7 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
   const railBottom = ART_PLATE.y + ART_PLATE.height
   return (
     <svg
+      className="lb-escada-placa"
       width="36"
       height="18"
       viewBox={`0 0 ${ART_VIEWBOX_WIDTH} 24`}
@@ -263,6 +213,16 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
     </svg>
   )
 }
+
+const OPCOES_DO_SENTIDO: readonly OpcaoDoSeg<StairDirection>[] = DIRECTION_ORDER.map((sentido) => ({
+  valor: sentido,
+  rotulo: DIRECTION_LABELS[sentido],
+  icone: <StairDirectionArt direction={sentido} />,
+}))
+
+const OPCOES_DA_FORMA: readonly OpcaoDoSeg<StairShape>[] = SHAPE_ORDER.map((forma) => ({ valor: forma, rotulo: SHAPE_LABELS[forma] }))
+
+const OPCOES_DO_TAMANHO: readonly OpcaoDoSeg<StairSizePreset>[] = PRESET_ORDER.map((preset) => ({ valor: preset, rotulo: PRESET_LABELS[preset] }))
 
 /**
  * "Leva a…" da escada. Escolher o andar LIGA na hora: nasce lá a escada par
@@ -379,74 +339,31 @@ export function StairControls({
    */
   parte?: 'essencial' | 'destino'
 }) {
-  const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
   if (parte === 'destino') return travel === null ? null : <StairTravelSection {...travel} direction={direction} />
 
-  return (
-    <section className="lb-section">
-      {parte === undefined && <h2 className="lb-eyebrow">Escada</h2>}
+  /* Os campos na gramática do Grimório (fatia 17'): seg, número e deslizante.
+     Na ficha eles moram direto no cartão do essencial, com o respiro dele;
+     sem `parte`, dentro da seção com título, como antes. */
+  const campos = (
+    <>
       {/* Segmento Sobe | Desce (auditoria 14/09): o toggle "Sobe (desmarcado =
           desce)" pedia para ler a regra antes de clicar. A miniatura é a placa
           que vai para o mapa, com o patamar no topo (28/09; antes era um galão
           que se lia como seta): a escolha e o resultado na mesma tela. */}
-      <div className="lb-field">
-        <span className="lb-label">Sentido</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Sentido da escada">
-          {DIRECTION_ORDER.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={direction === option}
-              className="lb-seg__option"
-              onClick={() => onDirectionChange(option)}
-            >
-              <StairDirectionArt direction={option} />
-              {DIRECTION_LABELS[option]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="lb-field">
-        <span className="lb-label">Forma</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Forma da escada">
-          {SHAPE_ORDER.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={shape === option}
-              className="lb-seg__option"
-              onClick={() => onShapeChange(option)}
-            >
-              {SHAPE_LABELS[option]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <CampoSeg rotulo="Sentido" nomeAcessivel="Sentido da escada" opcoes={OPCOES_DO_SENTIDO} valor={direction} onChange={onDirectionChange} />
+      <CampoSeg rotulo="Forma" nomeAcessivel="Forma da escada" opcoes={OPCOES_DA_FORMA} valor={shape} onChange={onShapeChange} />
 
       {/* A espiral tem o tamanho do círculo (o arrasto é o diâmetro): a largura
           do lance não muda nada nela, então o controle sai em vez de mentir. */}
       {shape !== 'spiral' && (
         <>
-          <div className="lb-field">
-            <span className="lb-label">Tamanho</span>
-            <div className="lb-seg" role="radiogroup" aria-label="Tamanho da escada">
-              {PRESET_ORDER.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  role="radio"
-                  aria-checked={activePreset === preset}
-                  className="lb-seg__option"
-                  onClick={() => onStepWidthChange(stairStepWidthForPreset(preset, grid))}
-                >
-                  {PRESET_LABELS[preset]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <CampoSeg
+            rotulo="Tamanho"
+            nomeAcessivel="Tamanho da escada"
+            opcoes={OPCOES_DO_TAMANHO}
+            valor={stairSizePresetForStepWidth(stepWidth, grid)}
+            onChange={(preset) => onStepWidthChange(stairStepWidthForPreset(preset, grid))}
+          />
 
           {/* Comprimento, largura e curva (pedido de 10/10/2026): os mesmos
               números que as alças do mapa mudam, em casas. A largura era em
@@ -489,8 +406,15 @@ export function StairControls({
           onTrocar={tamanho.onLengthChange}
         />
       )}
+    </>
+  )
+  if (parte === 'essencial') return campos
 
-      {parte === undefined && travel !== null && <StairTravelSection {...travel} direction={direction} />}
+  return (
+    <section className="lb-section">
+      <h2 className="lb-eyebrow">Escada</h2>
+      {campos}
+      {travel !== null && <StairTravelSection {...travel} direction={direction} />}
     </section>
   )
 }

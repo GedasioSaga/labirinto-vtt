@@ -15,13 +15,21 @@ import { WorldStateSection } from './WorldStateSection'
 /*
  * CONTAGEM DISCRETA NAS LINHAS (pedido painel-acervo, fatia 5). Fechada, a
  * linha diz quanto tem dentro: "Cenas 3 ›", "Pinos 12 ›". Só onde a lista já
- * está na mão de quem desenha a linha — Cenas, Pinos, Agenda, Estado do mundo
- * e Marcas dos jogadores —, e só acima de zero: linha sem número é lista
- * vazia. Objetos do mapa e Locais ficam sem: são `lazy`, e contar montaria a
+ * está na mão de quem desenha a linha, e só acima de zero: linha sem número é
+ * lista vazia. Objetos do mapa ficam sem: são `lazy`, e contar montaria a
  * lista fechada.
  *
- * O número é o tamanho da MESMA lista que a seção mostra aberta: muda junto
- * com ela, no render seguinte, sem estado próprio.
+ * Desde a fatia 18 Pinos, Agenda, Estado do mundo e Marcas são fichas do
+ * Grimório (`FichaDaPagina`), e o número virou o RESUMO do protótipo
+ * consolidado (docs/design/consolidado/prototipo/js/app.js, fichas de Cena e
+ * Aventura): "2 pinos", "2 marcas". Dois deixaram de contar a lista, por
+ * decisão do protótipo: a Agenda resume a hora da mesa ("Dia 1"), que é o que
+ * o mestre consulta de fora, e o Estado do mundo com um estado só diz o valor
+ * dele ("Maré alta"). Cenas segue na seção recolhível, com o número puro.
+ *
+ * Nos dois casos o texto é a descrição do cabeçalho (`aria-describedby`), fora
+ * do nome, e é o tamanho ou o valor da MESMA lista que a seção mostra aberta:
+ * muda junto com ela, no render seguinte, sem estado próprio.
  */
 
 const nada = (): void => {}
@@ -83,8 +91,18 @@ describe('contagem discreta nas linhas da coluna do mestre', () => {
     return botao
   }
 
-  /** O número da linha, ou `null` quando ela não mostra nenhum. */
-  const contagem = (titulo: string) => cabecalho(titulo).querySelector('.lb-collapsible__contagem')?.textContent ?? null
+  /**
+   * O que a linha fechada diz além do nome: o alvo do `aria-describedby` do
+   * cabeçalho (a contagem da seção recolhível ou o `.gr-ficha__resumo` da
+   * ficha), o mesmo que o leitor de tela ouve. `null` quando não diz nada.
+   */
+  function contagem(titulo: string): string | null {
+    const id = cabecalho(titulo).getAttribute('aria-describedby')
+    if (id === null) return null
+    const alvo = document.getElementById(id)
+    if (alvo === null) throw new Error(`a descrição de "${titulo}" aponta para #${id}, que não existe`)
+    return alvo.textContent
+  }
 
   it('Cenas conta as cenas da aventura, as de dentro de pastas também', () => {
     const cenas = [cena('s-a', 'Salão', { active: true }), cena('s-b', 'Cripta'), cena('s-c', 'Poço', { parentId: 's-b' })]
@@ -99,9 +117,14 @@ describe('contagem discreta nas linhas da coluna do mestre', () => {
     ])
     render(<PinsSection entries={entradas} onGo={nada} />)
     expect(cabecalho('Pinos').getAttribute('aria-expanded')).toBe('false')
-    expect(contagem('Pinos')).toBe('2')
+    expect(contagem('Pinos')).toBe('2 pinos')
     // Fechada, a lista continua sem existir: contar não custa o que o `lazy` poupa.
     expect(container.querySelector('ul')).toBeNull()
+  })
+
+  it('Pinos no singular: um pino é "1 pino"', () => {
+    render(<PinsSection entries={pinDirectory([{ sceneId: 's-casa', sceneName: 'Casa do crime', pins: [pino('faca', 'Faca')] }])} onGo={nada} />)
+    expect(contagem('Pinos')).toBe('1 pino')
   })
 
   it('Pinos conta todos, não os que a busca deixou à vista', () => {
@@ -116,36 +139,79 @@ describe('contagem discreta nas linhas da coluna do mestre', () => {
       busca.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(container.querySelectorAll('.lb-pinos__linha')).toHaveLength(1)
-    expect(contagem('Pinos')).toBe('3')
+    // Aberta, o resumo sai da descrição; fechada com a busca ainda filtrando, volta com todos.
+    expect(contagem('Pinos')).toBeNull()
+    act(() => cabecalho('Pinos').click())
+    expect(contagem('Pinos')).toBe('3 pinos')
   })
 
-  it('Agenda conta os eventos da lista, os que já dispararam também (continuam nela até o mestre tirar)', () => {
+  it('Agenda resume o dia da mesa, não os eventos (decisão do protótipo: "Dia N")', () => {
     render(<AgendaSection agenda={agendaCom([evento('e1', 'Disparo dos Gêmeos'), evento('e2', 'Maré cheia', { disparado: true })])} onChange={nada} />)
-    expect(contagem('Agenda')).toBe('2')
+    expect(contagem('Agenda')).toBe('Dia 1')
+    render(<AgendaSection agenda={{ agora: { dia: 12, apito: 'meio' }, eventos: [] }} onChange={nada} />)
+    expect(contagem('Agenda')).toBe('Dia 12')
   })
 
-  it('Estado do mundo conta os estados', () => {
+  it('Estado do mundo: um estado só diz o valor dele, vários dizem quantos são', () => {
     render(<WorldStateSection estados={[MARE]} amarrados={new Map()} onCriar={() => null} onTrocar={() => null} />)
-    expect(contagem('Estado do mundo')).toBe('1')
+    expect(contagem('Estado do mundo')).toBe('Maré alta')
     render(<WorldStateSection estados={[MARE, GIRO]} amarrados={new Map()} onCriar={() => null} onTrocar={() => null} />)
-    expect(contagem('Estado do mundo')).toBe('2')
+    expect(contagem('Estado do mundo')).toBe('2 estados')
   })
 
-  it('Marcas dos jogadores conta as marcas da cena aberta', () => {
+  it('Marcas dos jogadores conta as marcas da cena aberta, no singular e no plural', () => {
+    // A ficha nasce aberta, e aberta o resumo sai da descrição: o mestre a fechou.
+    window.localStorage.setItem('lb-section:marcas', '0')
     render(<MarcasDaCena marcas={[BILHETE, SETA]} onApagar={nada} />)
-    expect(contagem('Marcas dos jogadores')).toBe('2')
+    expect(contagem('Marcas dos jogadores')).toBe('2 marcas')
+    render(<MarcasDaCena marcas={[SETA]} onApagar={nada} />)
+    expect(contagem('Marcas dos jogadores')).toBe('1 marca')
   })
 
-  it('lista vazia não mostra número: a linha fica só com o nome e a seta', () => {
+  it('lista vazia não mostra número: a linha fica só com o nome e a seta, e Marcas some', () => {
     render(<PinsSection entries={[]} onGo={nada} />)
     expect(contagem('Pinos')).toBeNull()
-    render(<AgendaSection agenda={undefined} onChange={nada} />)
-    expect(contagem('Agenda')).toBeNull()
+    expect(container.querySelector('.gr-ficha__resumo')).toBeNull()
     render(<WorldStateSection estados={[]} amarrados={new Map()} onCriar={() => null} onTrocar={() => null} />)
     expect(contagem('Estado do mundo')).toBeNull()
+    // Sem marca na cena, a ficha nem aparece: nunca há "0 marcas".
+    render(<MarcasDaCena marcas={[]} onApagar={nada} />)
+    expect(container.querySelector('button')).toBeNull()
+    // A Agenda não é lista vazia: sem agenda gravada a mesa começa na Aurora do dia 1.
+    render(<AgendaSection agenda={undefined} onChange={nada} />)
+    expect(contagem('Agenda')).toBe('Dia 1')
   })
 
-  it('o número acompanha a lista: tirar o único evento da Agenda tira o número da linha', () => {
+  it('o resumo acompanha a lista: apagar marca a marca muda o número e, sem marca, a ficha some', () => {
+    let marcas: MarcaNoLugar[] = [BILHETE, SETA]
+    const desenhar = () =>
+      render(
+        <MarcasDaCena
+          marcas={marcas}
+          onApagar={(id) => {
+            marcas = marcas.filter((m) => m.id !== id)
+            desenhar()
+          }}
+        />,
+      )
+    window.localStorage.setItem('lb-section:marcas', '0')
+    desenhar()
+    expect(contagem('Marcas dos jogadores')).toBe('2 marcas')
+    /** Abre a ficha e apaga a marca mais nova pelo "Apagar" da linha, como o mestre. */
+    const apagarUma = () => {
+      act(() => cabecalho('Marcas dos jogadores').click())
+      const botao = container.querySelector<HTMLButtonElement>('.lb-marcas__apagar')
+      if (botao === null) throw new Error('sem o "Apagar" da marca')
+      act(() => botao.click())
+    }
+    apagarUma()
+    act(() => cabecalho('Marcas dos jogadores').click())
+    expect(contagem('Marcas dos jogadores')).toBe('1 marca')
+    apagarUma()
+    expect(container.querySelector('.gr-ficha')).toBeNull()
+  })
+
+  it('o resumo da Agenda acompanha a hora: "Próximo dia" muda o dia, e tirar o único evento não muda nada', () => {
     let agenda = agendaCom([evento('e1', 'Disparo dos Gêmeos')])
     const desenhar = () =>
       render(
@@ -158,13 +224,16 @@ describe('contagem discreta nas linhas da coluna do mestre', () => {
         />,
       )
     desenhar()
-    expect(contagem('Agenda')).toBe('1')
-    // "Remover" do evento na lista aberta: a linha volta a ficar sem número.
+    expect(contagem('Agenda')).toBe('Dia 1')
     act(() => cabecalho('Agenda').click())
     const remover = container.querySelector<HTMLButtonElement>('button[aria-label="Remover Disparo dos Gêmeos"]')
     if (remover === null) throw new Error('sem o "Remover" do evento')
     act(() => remover.click())
     expect(agenda.eventos).toHaveLength(0)
-    expect(contagem('Agenda')).toBeNull()
+    const proximoDia = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Próximo dia')
+    if (proximoDia === undefined) throw new Error('sem o "Próximo dia"')
+    act(() => proximoDia.click())
+    act(() => cabecalho('Agenda').click())
+    expect(contagem('Agenda')).toBe('Dia 2')
   })
 })

@@ -100,7 +100,7 @@ import { useLivroDaMesaStore } from './stores/livroDaMesaStore'
 import { contarPedindo } from './lib/grupoPorCena'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
-import type { Bounds } from './pixi/world'
+import { viewportCenterWorld, type Bounds } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -2219,11 +2219,22 @@ function App() {
     const host = canvasHostRef.current
     const sobOPonteiro = document.elementFromPoint(clientX, clientY)
     if (host === null || sobOPonteiro === null || !host.contains(sobOPonteiro)) return false
-    const noMapa = itemDoAcervoNoMapa(itemParaDar(item))
-    if (noMapa === null) return false
     const caixa = host.getBoundingClientRect()
     const { camera } = useMapStore.getState()
-    const ponto = { x: (clientX - caixa.left - camera.x) / camera.scale, y: (clientY - caixa.top - camera.y) / camera.scale }
+    return colocarItemNoMapa(item, { x: (clientX - caixa.left - camera.x) / camera.scale, y: (clientY - caixa.top - camera.y) / camera.scale }, comoPino)
+  }
+
+  /** O "+" do cartão do item: no centro da vista, como o "+" do acervo de tokens, e no chão como o soltar sem Alt. */
+  const handlePorItemNoCentro = (item: ItemDoCatalogo): void => {
+    const vista = vistaDoCanvas()
+    if (vista === null) return
+    colocarItemNoMapa(item, viewportCenterWorld(useMapStore.getState().camera, vista.width, vista.height), false)
+  }
+
+  /** O item do acervo no ponto `ponto` do mundo: a imagem no chão ou, com `comoPino` (ou sem imagem), o pino de item. */
+  const colocarItemNoMapa = (item: ItemDoCatalogo, ponto: { x: number; y: number }, comoPino: boolean): boolean => {
+    const noMapa = itemDoAcervoNoMapa(itemParaDar(item))
+    if (noMapa === null) return false
     const id = crypto.randomUUID()
     const store = useMapStore.getState()
     if (comoPino || noMapa.imagem === undefined) {
@@ -4016,6 +4027,10 @@ function App() {
               onSoltarNoMapa: (item, clientX, clientY, comoPino) => {
                 marcarSelecaoDoAcervo()
                 return handleSoltarItemNoMapa(item, clientX, clientY, comoPino)
+              },
+              onPorNoCentro: (item) => {
+                marcarSelecaoDoAcervo()
+                handlePorItemNoCentro(item)
               },
             }}
             territorio={{

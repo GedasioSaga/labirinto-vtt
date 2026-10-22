@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type UIEvent } from 'react'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
 import { ChevronDownIcon } from './icons'
 import { buildPlaceTree, visibleRows, type PlaceNode } from '../lib/placeTree'
 import type { Region } from '../types/map'
@@ -28,6 +28,13 @@ function placesLabel(count: number): string {
   return count === 1 ? '1 local' : `${COUNT_FORMAT.format(count)} locais`
 }
 
+/** "3 locais", contados sem montar a árvore: fechada, a ficha não monta nada. Sem sala, sem resumo. */
+function resumoDosLocais(regions: readonly Region[]): string | undefined {
+  let salas = 0
+  for (const region of regions) if (region.room !== undefined) salas++
+  return salas === 0 ? undefined : placesLabel(salas)
+}
+
 /** Minúsculo e sem acento: "Ó" e "o" começam igual para quem digita a inicial. */
 function foldInitial(text: string): string {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -44,9 +51,9 @@ function foldInitial(text: string): string {
  */
 export function PlaceTreeSection({ regions, currentId, onFrame }: PlaceTreeSectionProps) {
   return (
-    <CollapsibleSection id="locais" title="Locais" defaultOpen={false} lazy>
+    <FichaDaPagina id="locais" titulo="Locais" icone="sala" padrao={false} lazy resumo={resumoDosLocais(regions)}>
       <PlaceTree regions={regions} currentId={currentId} onFrame={onFrame} />
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }
 

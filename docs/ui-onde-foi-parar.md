@@ -52,7 +52,7 @@ Parte de: editor com aventura (Cripta, cena inicial). Vai para: Chip da cena no 
 
 ### Grupo Aventura
 
-Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do livro do mestre (casca feita; restilo na 18). Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, nada selecionado. Vai para: Página Aventura do livro do mestre: fichas Pinos, Agenda e Estado do mundo, recolhidas com o resumo (feito). Fatia: 2 (casca) e 18a (fichas).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
@@ -69,12 +69,12 @@ Parte de: editor com aventura, nada selecionado. Vai para: Marcador Aventura do 
 
 ### Grupo Esta cena
 
-Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18). Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Página Cena do livro do mestre: a busca no topo, e as fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito). Fatia: 2 (casca), 18a (fichas) e 18b (busca no topo).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Objetos do mapa: busca | searchbox "Buscar objeto" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | Busca do topo do marcador Cena |
-| Objetos do mapa: Ctrl+K põe o cursor na busca | searchbox "Buscar objeto" | (livro do mestre) > tecla Control+k | Ctrl+K foca a busca da página Cena |
+| Objetos do mapa: busca | searchbox "Buscar objeto" | (livro do mestre) > clicar tab "Cena" | Busca do topo do marcador Cena, à vista com a ficha Objetos do mapa fechada; digitar abre a lista, com os achados das outras cenas (feito) |
+| Objetos do mapa: Ctrl+K põe o cursor na busca | searchbox "Buscar objeto" | (livro do mestre) > tecla Control+k | Ctrl+K foca a busca do topo da página Cena e abre Objetos do mapa |
 | Objetos do mapa: item da lista (Ir até lá) | button "Goblin" | (livro do mestre) > clicar tab "Cena" > clicar button "Objetos do mapa" | (do bloco) |
 | Locais: sala da árvore (enquadra) | button "Salão" | (livro do mestre) > clicar tab "Cena" > clicar button "Locais" | (do bloco) |
 | Território: Quem manda aqui | checkbox "Quem manda aqui" | (livro do mestre) > clicar tab "Cena" > clicar button "Território" | (do bloco) |
@@ -115,15 +115,15 @@ Parte de: peça de chão selecionada. Vai para: Marcador Cena, ficha Camadas do 
 
 ### Acervos
 
-Parte de: editor aberto. Vai para: Marcador Acervo (casca feita; Tokens e Itens com seg na 18). Fatia: 2 (casca) e 18 (restilo).
+Parte de: editor aberto. Vai para: Marcador Acervo: o seg "O que mostrar" troca entre Tokens e Itens; o "+" da linha ou do cartão põe no centro da vista (feito). Fatia: 2 (casca) e 18b (seg).
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
-| Acervo de tokens | heading "Acervo de tokens" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
-| Acervo de tokens: + Pasta | button "Nova pasta" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
-| Acervo de itens | region "Itens" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
-| Acervo de itens: Categorias | button "Categorias" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
-| Acervo de itens: Novo item | button "Novo item" | (livro do mestre) > clicar tab "Acervo" | (do bloco) |
+| Acervo de tokens | heading "Acervo de tokens" | (livro do mestre) > clicar tab "Acervo" > clicar radio "Tokens" | (do bloco) |
+| Acervo de tokens: + Pasta | button "Nova pasta" | (livro do mestre) > clicar tab "Acervo" > clicar radio "Tokens" | (do bloco) |
+| Acervo de itens | region "Itens" | (livro do mestre) > clicar tab "Acervo" > clicar radio "Itens" | (do bloco) |
+| Acervo de itens: Categorias | button "Categorias" | (livro do mestre) > clicar tab "Acervo" > clicar radio "Itens" | (do bloco) |
+| Acervo de itens: Novo item | button "Novo item" | (livro do mestre) > clicar tab "Acervo" > clicar radio "Itens" | (do bloco) |
 
 ### Botões da barra
 
@@ -589,17 +589,17 @@ Parte de: parede selecionada no mapa. Vai para: Página Ficha da parede: Cor, Es
 
 ### Ficha da escada
 
-Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17). Fatia: 16b e 17.
+Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial, na gramática do Grimório (seg, número e deslizante; restilo da 17); Para onde leva fechada (feito na 16b; as alças no mapa são da 17). Fatia: 16b e 17.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Sentido da escada | radiogroup "Sentido da escada" | (livro do mestre) | (do bloco) |
 | Forma da escada | radiogroup "Forma da escada" | (livro do mestre) | (do bloco) |
 | Tamanho da escada | radiogroup "Tamanho da escada" | (livro do mestre) | (do bloco) |
-| Comprimento | textbox "Comprimento" | (livro do mestre) | (do bloco) |
+| Comprimento | spinbutton "Comprimento" | (livro do mestre) | (do bloco) |
 | Diminuir o comprimento | button "Diminuir o comprimento" | (livro do mestre) | (do bloco) |
 | Aumentar o comprimento | button "Aumentar o comprimento" | (livro do mestre) | (do bloco) |
-| Largura | textbox "Largura" | (livro do mestre) | (do bloco) |
+| Largura | spinbutton "Largura" | (livro do mestre) | (do bloco) |
 | Diminuir a largura | button "Diminuir a largura" | (livro do mestre) | (do bloco) |
 | Aumentar a largura | button "Aumentar a largura" | (livro do mestre) | (do bloco) |
 | Curva | slider "Curva" | (livro do mestre) | (do bloco) |

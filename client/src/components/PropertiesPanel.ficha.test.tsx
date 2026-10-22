@@ -97,8 +97,8 @@ describe('painel de propriedades — a ficha do token (fatia 9)', () => {
   const botao = (nome: string) => botoes(nome)[0] ?? null
   const caixa = (nome: string) =>
     Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')).find((c) => texto(c.closest('label')) === nome) ?? null
-  /** O cabeçalho de cada ficha recolhível, na ordem do documento. */
-  const cabecalhos = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.gr-ficha__cab'))
+  /** O cabeçalho de cada ficha recolhível da página Ficha, na ordem do documento (Cena e Aventura também são fichas, fatia 18). */
+  const cabecalhos = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.gr-folha[data-pagina="ficha"] .gr-ficha__cab'))
   const cabecalho = (titulo: string) => cabecalhos().find((b) => texto(b.querySelector('.gr-ficha__tit')) === titulo) ?? null
   const corpoDa = (titulo: string) => document.getElementById(cabecalho(titulo)?.getAttribute('aria-controls') ?? 'sem-id')
   const cartoes = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.gr-cartao'))

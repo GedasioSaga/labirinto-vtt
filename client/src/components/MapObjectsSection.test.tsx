@@ -125,12 +125,27 @@ function tecla(alvo: HTMLElement, key: string): void {
 }
 
 describe('MapObjectsSection', () => {
-  it('nasce recolhida: só o cabeçalho "Objetos do mapa", e a lista nem existe no DOM', () => {
+  it('nasce recolhida: a busca à vista no topo, fora do miolo inerte, e a lista nem existe no DOM', () => {
     render()
     expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
-    expect(corpo().hidden).toBe(true)
+    expect(busca().closest('[inert]')).toBeNull()
+    expect(corpo().querySelector('.gr-ficha__corpo')?.hasAttribute('inert')).toBe(true)
     expect(container.textContent).not.toContain('Cripta')
-    expect(container.querySelector('input')).toBeNull()
+    expect(busca().getAttribute('aria-controls')).toBeNull()
+  })
+
+  it('digitar com a ficha fechada abre a lista que a busca filtra, e a escolha fica guardada', () => {
+    render()
+    digitar(busca(), 'crip')
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(window.localStorage.getItem('lb-section:objects')).toBe('1')
+    expect(linhas().map(nomeAcessivel)).toEqual(['Cripta', 'Porta Cripta'])
+    expect(document.getElementById(busca().getAttribute('aria-controls') ?? '')?.contains(linha('Cripta'))).toBe(true)
+
+    // Apagar a busca não fecha: a lista inteira volta.
+    digitar(busca(), '')
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(linhas()).toHaveLength(7)
   })
 
   it('aberta: campo de busca e um botão por objeto da cena, com o nome dele', () => {
@@ -307,10 +322,11 @@ describe('MapObjectsSection', () => {
     expect(document.activeElement).toBe(busca())
   })
 
-  it('cena vazia: diz que ainda não há objetos, sem campo de busca que não teria o que achar', () => {
+  it('cena vazia: diz que ainda não há objetos, e a busca fica para o Ctrl+K ter onde pousar', () => {
     render({ map: createEmptyMap('vazio', 'Vazio', 10, 10, 50) })
     abrir()
-    expect(corpo().querySelector('input')).toBeNull()
+    expect(busca()).toBeDefined()
+    expect(linhas()).toHaveLength(0)
     expect(corpo().textContent).toContain('Esta cena ainda não tem sala, porta, pino, token nem texto.')
   })
 

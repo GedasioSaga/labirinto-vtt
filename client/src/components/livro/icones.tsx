@@ -193,6 +193,14 @@ const DESENHOS = {
     </>
   ),
   pulso: caminho('M3.5 12.5h4l2.5-6 4 11 2.5-5h4'),
+  pino: (
+    <>
+      {caminho('M12 21s-6-5.7-6-10.5a6 6 0 0 1 12 0C18 15.3 12 21 12 21z')}
+      <circle cx="12" cy="10.5" r="2" />
+    </>
+  ),
+  bandeira: caminho('M6 20.5V4 M6 4.5h11l-2 4 2 4H6'),
+  marcador: caminho('M7 3.5h10v17l-5-3.5-5 3.5z'),
   troca: caminho('M4.5 8.5h14l-3.5-3.5 M19.5 15.5h-14l3.5 3.5'),
   // A ficha do pino (fatia 12): os tipos, os recursos e o "Tirar do pino".
   exclamacao: caminho('M12 5v9.5 M12 18.6v.2'),

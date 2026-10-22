@@ -163,7 +163,7 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Aventura', estado: 'editor com aventura, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Aventura do livro do mestre (casca feita; restilo na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Página Aventura do livro do mestre: fichas Pinos, Agenda e Estado do mundo, recolhidas com o resumo (feito)', fatia: '2 (casca) e 18a (fichas)',
     linhas: [
       l('Pinos: busca', ['searchbox', 'Buscar pino'], marcador('Aventura'), b('Pinos')),
       l('Pinos: pino da lista (abre a cena)', b('Altar Cripta'), marcador('Aventura'), b('Pinos')),
@@ -179,10 +179,10 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Esta cena', estado: 'editor com aventura, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Marcador Cena do livro do mestre (casca feita; fichas recolhíveis na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Página Cena do livro do mestre: a busca no topo, e as fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito)', fatia: '2 (casca), 18a (fichas) e 18b (busca no topo)',
     linhas: [
-      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena'), b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena' },
-      { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca da página Cena' },
+      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena')), vai: 'Busca do topo do marcador Cena, à vista com a ficha Objetos do mapa fechada; digitar abre a lista, com os achados das outras cenas (feito)' },
+      { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca do topo da página Cena e abre Objetos do mapa' },
       l('Objetos do mapa: item da lista (Ir até lá)', b('Goblin'), marcador('Cena'), b('Objetos do mapa')),
       l('Locais: sala da árvore (enquadra)', b('Salão'), marcador('Cena'), b('Locais')),
       l('Território: Quem manda aqui', cx('Quem manda aqui'), marcador('Cena'), b('Território')),
@@ -207,13 +207,13 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Acervos', estado: 'editor aberto', escopo: 'esquerda',
-    vai: 'Marcador Acervo (casca feita; Tokens e Itens com seg na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Marcador Acervo: o seg "O que mostrar" troca entre Tokens e Itens; o "+" da linha ou do cartão põe no centro da vista (feito)', fatia: '2 (casca) e 18b (seg)',
     linhas: [
-      l('Acervo de tokens', ['heading', 'Acervo de tokens'], marcador('Acervo')),
-      l('Acervo de tokens: + Pasta', b('Nova pasta'), marcador('Acervo')),
-      l('Acervo de itens', ['region', 'Itens'], marcador('Acervo')),
-      l('Acervo de itens: Categorias', b('Categorias'), marcador('Acervo')),
-      l('Acervo de itens: Novo item', b('Novo item'), marcador('Acervo')),
+      l('Acervo de tokens', ['heading', 'Acervo de tokens'], marcador('Acervo'), ['radio', 'Tokens']),
+      l('Acervo de tokens: + Pasta', b('Nova pasta'), marcador('Acervo'), ['radio', 'Tokens']),
+      l('Acervo de itens', ['region', 'Itens'], marcador('Acervo'), ['radio', 'Itens']),
+      l('Acervo de itens: Categorias', b('Categorias'), marcador('Acervo'), ['radio', 'Itens']),
+      l('Acervo de itens: Novo item', b('Novo item'), marcador('Acervo'), ['radio', 'Itens']),
     ],
   },
 
@@ -399,9 +399,9 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da escada', estado: 'escada selecionada no mapa', escopo: 'esquerda', preparo: sel('stair', 's1'),
-    vai: 'Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17)', fatia: '16b e 17',
+    vai: 'Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial, na gramática do Grimório (seg, número e deslizante; restilo da 17); Para onde leva fechada (feito na 16b; as alças no mapa são da 17)', fatia: '16b e 17',
     linhas: [
-      ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['textbox', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['textbox', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
+      ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['spinbutton', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['spinbutton', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
       // "Para onde leva" nasce fechada; o nome do cabeçalho leva o resumo ("Para onde leva Lugar nenhum", "Piso 2").
       ...todos([['combobox', 'Leva a'], rg('Passagem da escada'), b('Criar andar de cima'), ['spinbutton', 'Piso'], ['spinbutton', 'Leva ao piso'], ...TRANSICAO('Transição ao trocar de piso')], b('/^Para onde leva/')),
     ],

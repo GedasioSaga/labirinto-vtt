@@ -481,6 +481,40 @@
   box-shadow: inset 0 0 0 2px var(--lb-color-brass);
 }
 
+/* O "+" do protótipo na ponta da linha, sempre à vista e em latão: é o que o
+   clique na linha faz (pôr no centro da vista). Acima do alvo do nome. */
+.lb-acervo__por {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--lb-control-min);
+  min-height: var(--lb-control-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-brass);
+  cursor: pointer;
+  transition: transform var(--lb-motion-fast) ease;
+}
+
+.lb-acervo__por svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lb-acervo__por:hover {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-acervo__por:active {
+  background: var(--lb-color-stone-sunken);
+  transform: scale(0.97);
+}
+
 /* ── A pergunta de apagar e o menu Mover ───────────────────────────────── */
 
 /* A pergunta ocupa a linha inteira, embaixo do nome do item, que continua à
@@ -595,5 +629,9 @@
 @media (prefers-reduced-motion: reduce) {
   .lb-acervo__chevron {
     transition: none;
+  }
+
+  .lb-acervo__por:active {
+    transform: none;
   }
 }

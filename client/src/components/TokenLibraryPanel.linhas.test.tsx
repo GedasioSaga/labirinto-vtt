@@ -396,6 +396,20 @@ describe('Acervo em linhas — o que fica no DOM', () => {
     expect([...acoes.querySelectorAll('button')].map((el) => el.getAttribute('aria-label'))).toEqual(['Apagar Goblin do acervo'])
   })
 
+  it('o "+" na ponta da linha põe o token no centro da vista, fora do Tab, por cima do alvo do nome; some na pergunta de apagar', () => {
+    const props = montar()
+    const mais = botao('Pôr Goblin no centro do mapa', linhaDe('Goblin'))
+    expect(mais.tabIndex).toBe(-1)
+    expect(mais.closest('.lb-acervo__acoes')).toBeNull()
+    expect(regraCom(cssDoAcervo, '.lb-acervo__por').get('z-index')).toBe('1')
+    act(() => mais.click())
+    expect(props.onPlace).toHaveBeenCalledTimes(1)
+    expect(props.onPlace).toHaveBeenCalledWith(GOBLIN)
+
+    act(() => botao('Apagar Goblin do acervo').click())
+    expect(linhaDe('Goblin').querySelector('.lb-acervo__por')).toBeNull()
+  })
+
   it('a pergunta de apagar e o menu Mover ficam FORA das ações: descem para a linha de baixo, sempre à vista', () => {
     montar()
     act(() => botao('Mover Goblin para outra pasta').click())

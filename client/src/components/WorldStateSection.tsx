@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import type { EstadoDoMundo, ResumoDaTroca } from '../lib/estadoDoMundo'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
 
 export type { ResumoDaTroca }
 
@@ -38,6 +38,13 @@ function amarradosText(n: number): string {
  * setas trocam de valor, e o grupo inteiro é uma parada de Tab. Nada disto vai
  * ao jogador: ele recebe só o efeito (`lib/fogFilter.ts`).
  */
+/** Um estado só mostra o valor dele ("Maré baixa"); vários, quantos são. Sem estado, sem resumo. */
+function resumoDosEstados(estados: readonly EstadoDoMundo[]): string | undefined {
+  const [primeiro] = estados
+  if (primeiro === undefined) return undefined
+  return estados.length === 1 ? `${primeiro.nome} ${primeiro.atual}` : `${estados.length} estados`
+}
+
 export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: WorldStateSectionProps) {
   const baseId = useId()
   const [aviso, setAviso] = useState('')
@@ -97,7 +104,7 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
   }
 
   return (
-    <CollapsibleSection id="world-state" title="Estado do mundo" defaultOpen={false} contagem={estados.length}>
+    <FichaDaPagina id="world-state" titulo="Estado do mundo" icone="pulso" padrao={false} resumo={resumoDosEstados(estados)}>
       <div className="lb-world">
         {estados.length === 0 ? (
           <p className="lb-world__vazio">
@@ -195,6 +202,6 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
           </button>
         )}
       </div>
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }

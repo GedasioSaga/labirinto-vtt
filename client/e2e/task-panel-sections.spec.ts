@@ -74,7 +74,8 @@ test('1. sem seleção as duas seções nascem abertas; fechar tira o corpo da t
 
     await header.click()
     await expect(header).toHaveAttribute('aria-expanded', 'false')
-    await expect(body).toHaveAttribute('hidden', '')
+    // Fatia 18: a seção virou ficha do Grimório, que recolhe a altura e deixa o corpo `inert` em vez de `hidden`.
+    await expect(body).toHaveAttribute('inert', '')
     await expect(body).toBeHidden()
     await expect(content).toBeHidden()
 

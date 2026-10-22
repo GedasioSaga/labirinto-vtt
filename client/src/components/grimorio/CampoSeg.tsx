@@ -17,7 +17,8 @@ export interface CampoSegProps<V extends string> {
   rotulo?: string
   nomeAcessivel?: string
   opcoes: readonly OpcaoDoSeg<V>[]
-  valor: V
+  /** Ausente, nenhuma marcada: o valor de agora não é opção nenhuma (a largura da escada entre Pequena e Média). */
+  valor: V | undefined
   onChange: (valor: V) => void
   /** `grade`: cartões com ícone e tecla (variantes da ferramenta). `icone`: linha de ícones mais alta. */
   forma?: 'linha' | 'grade' | 'icone'

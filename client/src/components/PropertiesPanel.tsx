@@ -1134,10 +1134,7 @@ export function PropertiesPanel({
       </FolhaDoLivro>
       {/* O Acervo é do app, não da aventura nem da cena. */}
       <FolhaDoLivro pagina="acervo">
-        <PaginaAcervo>
-          <TokenLibraryPanel {...tokenLibrary} />
-          {acervoDeItens !== undefined && <AcervoDeItensPanel {...acervoDeItens} />}
-        </PaginaAcervo>
+        <PaginaAcervo tokens={<TokenLibraryPanel {...tokenLibrary} />} itens={acervoDeItens === undefined ? undefined : <AcervoDeItensPanel {...acervoDeItens} />} />
       </FolhaDoLivro>
     </>
   )
