@@ -52,36 +52,117 @@ function so(desenho: (g: Graphics, porta: PortaParaDesenho) => void, porta: Port
   return g
 }
 
-/** A caixa de tudo o que um desenho preenche (retângulos e contas), nos eixos do mundo. */
-function caixaDoDesenho(g: Graphics): { minX: number; maxX: number; minY: number; maxY: number } {
+interface Caixa {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+}
+
+/**
+ * Os pontos que um preenchimento pinta (cantos dos retângulos, a caixa das
+ * contas), nos eixos do mundo. O Pixi abre cada caminho depois do primeiro com
+ * um `moveTo(0, 0)` que não pinta nada: o `moveTo` só conta quando uma linha sai dele.
+ */
+function pontosDoPreenchimento(instrucao: Instruction): { xs: number[]; ys: number[] } {
   const xs: number[] = []
   const ys: number[] = []
-  for (const instrucao of g.context.instructions) {
-    if (instrucao.action !== 'fill') continue
-    for (const forma of instrucao.data.path.instructions) {
-      if (forma.action === 'poly') {
-        const [pontos] = forma.data
-        if (!Array.isArray(pontos)) throw new Error('poly sem lista de números')
-        const numeros = pontos.filter((v): v is number => typeof v === 'number')
-        numeros.forEach((v, i) => (i % 2 === 0 ? xs : ys).push(v))
-      } else if (forma.action === 'circle') {
-        const [x, y, raio] = forma.data
-        xs.push(x - raio, x + raio)
-        ys.push(y - raio, y + raio)
-      } else if (forma.action === 'moveTo' || forma.action === 'lineTo') {
-        const [x, y] = forma.data
-        xs.push(x)
-        ys.push(y)
-      } else if (forma.action !== 'closePath') {
-        throw new Error(`forma não prevista no teste: ${forma.action}`)
-      }
+  if (instrucao.action !== 'fill') return { xs, ys }
+  let inicioDaLinha: [number, number] | null = null
+  for (const forma of instrucao.data.path.instructions) {
+    if (forma.action === 'moveTo') {
+      const [x, y] = forma.data
+      inicioDaLinha = [x, y]
+      continue
     }
+    if (forma.action === 'lineTo') {
+      if (inicioDaLinha !== null) {
+        xs.push(inicioDaLinha[0])
+        ys.push(inicioDaLinha[1])
+      }
+      const [x, y] = forma.data
+      xs.push(x)
+      ys.push(y)
+    } else if (forma.action === 'poly') {
+      const [pontos] = forma.data
+      if (!Array.isArray(pontos)) throw new Error('poly sem lista de números')
+      const numeros = pontos.filter((v): v is number => typeof v === 'number')
+      numeros.forEach((v, i) => (i % 2 === 0 ? xs : ys).push(v))
+    } else if (forma.action === 'circle') {
+      const [x, y, raio] = forma.data
+      xs.push(x - raio, x + raio)
+      ys.push(y - raio, y + raio)
+    } else if (forma.action !== 'closePath') {
+      throw new Error(`forma não prevista no teste: ${forma.action}`)
+    }
+    inicioDaLinha = null
+  }
+  return { xs, ys }
+}
+
+/** A caixa de tudo o que os preenchimentos pintam, nos eixos do mundo. */
+function caixaDe(instrucoes: readonly Instruction[]): Caixa {
+  const xs: number[] = []
+  const ys: number[] = []
+  for (const instrucao of instrucoes) {
+    const pontos = pontosDoPreenchimento(instrucao)
+    xs.push(...pontos.xs)
+    ys.push(...pontos.ys)
   }
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }
 }
 
+function caixaDoDesenho(g: Graphics): Caixa {
+  return caixaDe(g.context.instructions)
+}
+
 /** Folga da prova do fim: meio px de TELA, bem abaixo do 1,5 px da régua M5 de docs/design/porta-animacoes/app. */
 const FOLGA_DO_FIM_TELA_PX = 0.5
+/** O passo da régua M5b de docs/design/porta-animacoes/app (0,05% do caminho) e o salto que ela aceita, em px de TELA. */
+const QUADROS_REFINADOS = 2000
+const SALTO_MAX_TELA_PX = 1.5
+/** `QUEDA_MAX_DO_VAO` de arrombada.ts: o estilhaço cai a no máximo 80% do vão, contado da fechadura. */
+const QUEDA_MAX_DO_VAO = 0.8
+
+/** Uma porta como `pixi/drawDoors.ts` a monta: 4 px de TELA de espessura, 1 de ombreira e 1 de contorno. */
+function portaDe(x1: number, y1: number, x2: number, y2: number, escala: number): PortaParaDesenho {
+  const vao = Math.hypot(x2 - x1, y2 - y1)
+  return { x1, y1, x2, y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2, ux: (x2 - x1) / vao, uy: (y2 - y1) / vao, meioComprimento: vao / 2, espessura: 4 / escala, contorno: 1 / escala, borda: 1 / escala, cor: 0xd9d2c0, escala }
+}
+
+/** Uma casa de grade (50) nas duas orientações e em três zooms; a posição muda o sorteio dos estilhaços. */
+const PORTAS_DA_ARROMBADA = [1, 2.5, 4].flatMap((escala, i) => [
+  { nome: `horizontal a ${escala * 100}%`, porta: portaDe(100 + 50 * i, 200, 150 + 50 * i, 200, escala) },
+  { nome: `vertical a ${escala * 100}%`, porta: portaDe(300, 100 + 50 * i, 300, 150 + 50 * i, escala) },
+  // A porta curta vista de longe: 5 px de TELA de vão, menos que o ponto de queda sorteado (4 a 14 px).
+  { nome: `curta de longe ${i + 1}`, porta: i % 2 === 0 ? portaDe(40 + 10 * i, 60, 50 + 10 * i, 60, 0.5) : portaDe(80, 40 + 10 * i, 80, 50 + 10 * i, 0.5) },
+])
+
+function media(valores: readonly number[]): number {
+  return valores.reduce((soma, v) => soma + v, 0) / valores.length
+}
+
+/**
+ * Os quadros a 0,05% do caminho que têm estilhaço, com os preenchimentos
+ * deles: o trecho dos estilhaços sai do desenho, não das constantes de
+ * arrombada.ts. Ela pinta o batente, a folha numa peça só e, por cima, os
+ * estilhaços, e cada `pintarFolha` faz o escuro de todas as peças antes da cor
+ * delas. Então, depois do batente, a folha é o primeiro preenchimento, mais o
+ * seguinte quando é da cor da porta (a cor some na folha mais fina que a borda).
+ */
+function quadrosComEstilhacos(porta: PortaParaDesenho): { p: number; estilhacos: Instruction[] }[] {
+  const depoisDoBatente = so(desenharBatente, porta).context.instructions.length
+  const quadros: { p: number; estilhacos: Instruction[] }[] = []
+  for (let i = 1; i < QUADROS_REFINADOS; i += 1) {
+    const p = i / QUADROS_REFINADOS
+    const instrucoes = quadro('arrombada', porta, p).context.instructions
+    const segunda = depoisDoBatente + 1 < instrucoes.length ? instrucoes[depoisDoBatente + 1] : null
+    const daFolha = segunda !== null && segunda.action === 'fill' && segunda.data.style.color === porta.cor ? 2 : 1
+    const estilhacos = instrucoes.slice(depoisDoBatente + daFolha)
+    if (estilhacos.length > 0) quadros.push({ p, estilhacos })
+  }
+  return quadros
+}
 
 afterEach(() => {
   esquecerPacoteCarregado()
@@ -137,6 +218,55 @@ describe('as cinco portas do pacote — o desenho', () => {
     }
     expect(cores.has(HORIZONTAL.cor)).toBe(true)
     expect(cores.has(0x15181a)).toBe(true)
+  })
+})
+
+// A régua M5b do laboratório mede isto no pixel, à mão (gerar-provas). Aqui é o
+// portão de cada mudança: antes de 22/10/2026 os estilhaços sumiam no ar, a 7-15
+// px da fechadura, e fechando (o mesmo desenho de trás para a frente) nasciam do
+// nada lá — passos de 5 a 10 px em 0,05% do caminho.
+describe('a Arrombada — os estilhaços saem da fechadura e caem na soleira', () => {
+  it.each(PORTAS_DA_ARROMBADA)('$nome: no primeiro e no último quadro com estilhaços, todos cabem na caixa do batente', ({ porta }) => {
+    const quadros = quadrosComEstilhacos(porta)
+    expect(quadros.length, 'a Arrombada não soltou estilhaço nenhum').toBeGreaterThan(0)
+    const batente = caixaDoDesenho(so(desenharBatente, porta))
+    const folga = FOLGA_DO_FIM_TELA_PX / porta.escala
+    for (const { p, estilhacos } of [quadros[0], quadros[quadros.length - 1]]) {
+      const caixa = caixaDe(estilhacos)
+      const onde = `em ${p}: estilhaços de (${caixa.minX}, ${caixa.minY}) a (${caixa.maxX}, ${caixa.maxY}), batente de (${batente.minX}, ${batente.minY}) a (${batente.maxX}, ${batente.maxY})`
+      expect(caixa.minX, onde).toBeGreaterThanOrEqual(batente.minX - folga)
+      expect(caixa.maxX, onde).toBeLessThanOrEqual(batente.maxX + folga)
+      expect(caixa.minY, onde).toBeGreaterThanOrEqual(batente.minY - folga)
+      expect(caixa.maxY, onde).toBeLessThanOrEqual(batente.maxY + folga)
+    }
+  })
+
+  it.each(PORTAS_DA_ARROMBADA)('$nome: a 0,05% do caminho a caixa do desenho anda no máximo 1,5 px de tela', ({ porta }) => {
+    let anterior = caixaDoDesenho(quadro('arrombada', porta, 0))
+    let pior = { px: 0, em: 0 }
+    for (let i = 1; i <= QUADROS_REFINADOS; i += 1) {
+      const atual = caixaDoDesenho(quadro('arrombada', porta, i / QUADROS_REFINADOS))
+      const px = Math.max(Math.abs(atual.minX - anterior.minX), Math.abs(atual.maxX - anterior.maxX), Math.abs(atual.minY - anterior.minY), Math.abs(atual.maxY - anterior.maxY)) * porta.escala
+      if (px > pior.px) pior = { px, em: i / QUADROS_REFINADOS }
+      anterior = atual
+    }
+    expect(pior.px, `o pior passo, chegando em ${pior.em}`).toBeLessThanOrEqual(SALTO_MAX_TELA_PX)
+  })
+
+  it.each(PORTAS_DA_ARROMBADA)('$nome: o estilhaço cai dentro do vão, entre a fechadura e 80% do vão contado dela', ({ porta }) => {
+    const vao = 2 * porta.meioComprimento
+    const fechaduraX = porta.cx + porta.ux * porta.meioComprimento
+    const fechaduraY = porta.cy + porta.uy * porta.meioComprimento
+    const recuos: number[] = []
+    for (const { estilhacos } of quadrosComEstilhacos(porta)) {
+      for (const instrucao of estilhacos) {
+        const { xs, ys } = pontosDoPreenchimento(instrucao)
+        recuos.push(((fechaduraX - media(xs)) * porta.ux + (fechaduraY - media(ys)) * porta.uy) / vao)
+      }
+    }
+    expect(recuos.length, 'a Arrombada não soltou estilhaço nenhum').toBeGreaterThan(0)
+    expect(Math.min(...recuos), 'um estilhaço passou da fechadura, para fora do vão').toBeGreaterThanOrEqual(-1e-9)
+    expect(Math.max(...recuos), 'um estilhaço caiu além de 80% do vão').toBeLessThanOrEqual(QUEDA_MAX_DO_VAO + 1e-9)
   })
 })
 
