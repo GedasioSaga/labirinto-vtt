@@ -5,7 +5,8 @@
  * quando. Aplicar é do editor (`stores/patrulhaAndandoStore.ts`).
  */
 import { describe, expect, it } from 'vitest'
-import { findTokenPath, segmentsIntersect } from './collision'
+import { comPortasDoNpc, type MudancaDePorta } from './caminhamento/tiqueDosNpcs'
+import { findTokenPath, segmentsIntersect, wallBlocksToken } from './collision'
 import { createEmptyMap } from './mapFactory'
 import {
   adiarEsperas,
@@ -16,7 +17,6 @@ import {
   moverPatrulhas,
   PASSO_DA_PATRULHA_MS,
   proximoPonto,
-  TENTAR_DE_NOVO_MS,
   type PatrulhasAndando,
 } from './patrulhaAndando'
 import { passoEmPx } from './rotinaAndando'
@@ -49,10 +49,10 @@ function ondeEsta(map: MapData): { x: number; y: number; atual: number | undefin
   return { x: t.x, y: t.y, atual: t.patrulha?.atual }
 }
 
-/** Um tique: planeja e aplica no mapa, como o store faz. */
+/** Um tique: planeja e aplica no mapa (passos e portas), como o store faz. */
 function tique(map: MapData, andando: PatrulhasAndando, now: number, paradas?: ReadonlySet<string>) {
   const passo = darPassoDaPatrulha(map, andando, now, paradas)
-  return { ...passo, map: moverPatrulhas(map, passo.movimentos) }
+  return { ...passo, map: comPortasDoNpc(moverPatrulhas(map, passo.movimentos), passo.portas) }
 }
 
 /** Roda até a ficha chegar a `n` pontos; devolve a sequência de `atual` em cada chegada e a trilha. */
@@ -219,7 +219,10 @@ describe('darPassoDaPatrulha — anda casa a casa', () => {
       return [{ tipo: 'esperar', segundos: 5 }]
     })
     expect(pedidas).toEqual([1])
-    expect(r.andando.get('guarda')).toEqual({ destino: 2, sentido: 1, esperaAte: 6000 })
+    // `andarilho` é o trecho que ela acabou de andar (o motor de caminhos), estado do agendador.
+    expect(r.andando.get('guarda')).toMatchObject({ destino: 2, sentido: 1, esperaAte: 6000 })
+    expect(r.andando.get('guarda')?.noPonto).toBeUndefined()
+    expect(r.andando.get('guarda')?.aviso).toBeUndefined()
   })
 })
 
@@ -259,16 +262,26 @@ describe('darPassoDaPatrulha — desvia de parede e nunca teleporta', () => {
     return { ...createEmptyMap('s', 'S', 15, 10, G), walls, tokens: [guarda(x, y, rota)] }
   }
 
-  /** Roda `n` tiques a partir de `inicio`; devolve a trilha de posições (uma por tique) e o estado final. */
+  /**
+   * Roda `n` tiques a partir de `inicio`; devolve a trilha de posições (uma por
+   * tique), as portas mexidas, cada passo que cruzou parede ou porta fechada
+   * (com as paredes do começo do tique) e o estado final.
+   */
   function rodar(map: MapData, andando: PatrulhasAndando, inicio: number, n: number) {
     const trilha = [ondeEsta(map)]
+    const portas: MudancaDePorta[] = []
+    const cruzou: string[] = []
     let estado = { map, andando }
     for (let i = 0; i < n; i += 1) {
+      const antes = ondeEsta(estado.map)
       const r = tique(estado.map, estado.andando, inicio + i * PASSO_DA_PATRULHA_MS)
+      const depois = ondeEsta(r.map)
+      for (const w of estado.map.walls) if (wallBlocksToken(w) && segmentsIntersect(antes, depois, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 })) cruzou.push(`tique ${i}: ${w.id}`)
+      portas.push(...r.portas)
       estado = { map: r.map, andando: r.andando }
-      trilha.push(ondeEsta(r.map))
+      trilha.push(depois)
     }
-    return { trilha, ...estado }
+    return { trilha, portas, cruzou, ...estado }
   }
 
   function semPuloNemParede(trilha: ReadonlyArray<{ x: number; y: number }>, walls: readonly Wall[]) {
@@ -294,39 +307,49 @@ describe('darPassoDaPatrulha — desvia de parede e nunca teleporta', () => {
     semPuloNemParede(r.trilha, walls)
   })
 
-  it('porta fechada no único caminho: fica parada e tenta de novo; aberta a porta, segue', () => {
-    const fechada = { open: false, locked: false, kind: 'normal' as const }
-    const aberta = { open: true, locked: false, kind: 'normal' as const }
-    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
-    const rota: TokenPatrol = { pontos: [{ x: 224, y: 96 }, { x: 608, y: 96 }], atual: 0 }
-    const map = sala(comPorta(fechada), rota, 224, 96)
-    const andando = ligarPatrulha(new Map(), map, 'guarda', 0)
-    expect(andando.has('guarda')).toBe(true)
-    const parada = darPassoDaPatrulha(map, andando, 0)
-    expect(parada.movimentos).toEqual([])
-    expect(parada.andando.get('guarda')?.esperaAte).toBe(TENTAR_DE_NOVO_MS)
-    // Antes de 1 s nem procura de novo; depois, ainda fechada, continua parada.
-    expect(darPassoDaPatrulha(map, parada.andando, TENTAR_DE_NOVO_MS - 1).andando.get('guarda')).toEqual(parada.andando.get('guarda'))
-    expect(darPassoDaPatrulha(map, parada.andando, TENTAR_DE_NOVO_MS).movimentos).toEqual([])
-    // O mestre abre a porta: ela sai andando, sem pulo, e chega.
-    const abriu = { ...map, walls: comPorta(aberta) }
-    const r = rodar(abriu, parada.andando, TENTAR_DE_NOVO_MS, 80)
-    expect(r.trilha.some((p) => p.x === 608 && p.y === 96)).toBe(true)
-    semPuloNemParede(r.trilha, comPorta(aberta))
+  // Decisão do usuário (22/10/2026): a ficha abre a porta destrancada diante de
+  // si e a fecha atrás; trancada ela não abre e avisa o mestre. Antes ela parava
+  // diante de qualquer porta fechada.
+  const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
+  const FECHADA = { open: false, locked: false, kind: 'normal' as const }
+  const TRANCADA = { open: false, locked: true, kind: 'normal' as const }
+  const ROTA_PELA_PORTA: TokenPatrol = { pontos: [{ x: 224, y: 96 }, { x: 608, y: 96 }], atual: 0 }
+  /** Do primeiro ponto ao segundo pela porta, antes de a espera no ponto acabar. */
+  const ATE_O_SEGUNDO = 40
+
+  it('porta fechada no único caminho: abre diante dela, passa, fecha atrás de si e chega — uma vez cada', () => {
+    const map = sala(comPorta(FECHADA), ROTA_PELA_PORTA, 224, 96)
+    const r = rodar(map, ligarPatrulha(new Map(), map, 'guarda', 0), 0, ATE_O_SEGUNDO)
+    expect(r.trilha.some((p) => p.x === 608 && p.y === 96 && p.atual === 1)).toBe(true)
+    expect(r.portas).toEqual([
+      { wallId: 'porta', aberta: true },
+      { wallId: 'porta', aberta: false },
+    ])
+    expect(r.cruzou).toEqual([])
+    expect(r.map.walls.find((w) => w.id === 'porta')?.door?.open).toBe(false)
+    semPuloNemParede(r.trilha, [])
   })
 
-  it('porta fecha no meio do caminho: a ficha para do lado de cá, sem atravessar', () => {
-    const aberta = { open: true, locked: false, kind: 'normal' as const }
-    const fechada = { open: false, locked: false, kind: 'normal' as const }
-    const comPorta = (door: Wall['door']) => [parede('a', 384, 0, 384, 384), parede('porta', 384, 384, 384, 448, door), parede('b', 384, 448, 384, 640)]
-    const rota: TokenPatrol = { pontos: [{ x: 224, y: 96 }, { x: 608, y: 96 }], atual: 0 }
-    const map = sala(comPorta(aberta), rota, 224, 96)
+  it('porta trancada no único caminho: não abre nem pula, desiste do ponto com o motivo e segue a ronda; destrancada, chega', () => {
+    const map = sala(comPorta(TRANCADA), ROTA_PELA_PORTA, 224, 96)
+    const parada = rodar(map, ligarPatrulha(new Map(), map, 'guarda', 0), 0, 30)
+    expect(parada.trilha.every((p) => p.x === 224 && p.y === 96)).toBe(true)
+    expect(parada.portas).toEqual([])
+    expect(parada.andando.get('guarda')?.aviso).toMatchObject({ motivo: 'porta-trancada', portas: ['porta'], x: 608, y: 96 })
+    const r = rodar({ ...parada.map, walls: comPorta(FECHADA) }, parada.andando, 30 * PASSO_DA_PATRULHA_MS, 60)
+    expect(r.trilha.some((p) => p.x === 608 && p.y === 96 && p.atual === 1)).toBe(true)
+    expect(r.andando.get('guarda')?.aviso).toBeUndefined()
+    expect(r.cruzou).toEqual([])
+  })
+
+  it('o mestre tranca a porta no meio do caminho: a ficha para do lado de cá, sem atravessar', () => {
+    const map = sala(comPorta({ open: true, locked: false, kind: 'normal' }), ROTA_PELA_PORTA, 224, 96)
     const ida = rodar(map, ligarPatrulha(new Map(), map, 'guarda', 0), 0, 3)
     expect(ondeEsta(ida.map).x).toBeLessThan(384)
-    const fechou = { ...ida.map, walls: comPorta(fechada) }
-    const r = rodar(fechou, ida.andando, 3 * PASSO_DA_PATRULHA_MS, 60)
+    const r = rodar({ ...ida.map, walls: comPorta(TRANCADA) }, ida.andando, 3 * PASSO_DA_PATRULHA_MS, 60)
     expect(r.trilha.every((p) => p.x < 384)).toBe(true)
-    semPuloNemParede(r.trilha, comPorta(fechada))
+    expect(r.portas).toEqual([])
+    semPuloNemParede(r.trilha, comPorta(TRANCADA))
   })
 })
 

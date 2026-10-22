@@ -1,7 +1,11 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
-import { adiarEsperas, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
+import { AgendaDeCaminhos, ORCAMENTO_POR_QUADRO_MS } from '../lib/caminhamento/agenda'
+import { comPortasDoNpc, type MotorDosNpcs, type PortaDoNpc } from '../lib/caminhamento/tiqueDosNpcs'
+import { adiarEsperas, chaveDaRotina, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
+import type { MapData } from '../types/map'
 import { subscribeToOpenings, useAdventureStore } from './adventureStore'
+import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
 
 /**
@@ -11,6 +15,9 @@ import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcs
  * arquivo nem ao jogador — ele recebe só a ficha no lugar novo, pelo mapa.
  * O passo em si é do agendador puro (`lib/rotinaAndando.ts`); aplicar é do
  * `useAdventureStore.moverFichasDaRotina`, com a mecânica do apito.
+ *
+ * O estado de cada NPC andando (o trecho, a espera, o `aviso` de quando
+ * desiste de um posto) mora em `andando`: nunca na ficha nem no arquivo.
  */
 interface RotinaAndandoState {
   andando: RotinasAndando
@@ -25,7 +32,35 @@ interface RotinaAndandoState {
   reset: () => void
 }
 
+/** Orçamento do motor dentro de um tique: sobra folga até a tarefa longa (50 ms), e um mapa pequeno responde no mesmo tique. */
+const ORCAMENTO_DO_TIQUE_MS = 8
+/** Entre dois tiques, a agenda segue o que não coube neles, um pedaço por quadro. */
+const QUADRO_MS = 16
+
+/**
+ * O MOTOR DE CAMINHOS do editor, um só para a rotina e a patrulha andando: a
+ * malha do mapa é montada uma vez e serve às duas.
+ */
+export const motorDosNpcs: MotorDosNpcs = { agenda: new AgendaDeCaminhos(() => performance.now()), orcamentoDoTique: ORCAMENTO_DO_TIQUE_MS }
+
 let relogio: ReturnType<typeof setInterval> | null = null
+let rega: ReturnType<typeof setTimeout> | null = null
+
+/** Busca que não coube no tique (mapa grande, porta trancada): segue nos quadros seguintes até acabar. */
+export function regarAgenda(): void {
+  const { agenda } = motorDosNpcs
+  if (!agenda.temTrabalho) {
+    if (rega !== null) clearTimeout(rega)
+    rega = null
+    return
+  }
+  if (rega !== null) return
+  rega = setTimeout(() => {
+    rega = null
+    agenda.rodar(ORCAMENTO_POR_QUADRO_MS)
+    regarAgenda()
+  }, QUADRO_MS)
+}
 
 /** O relógio corre enquanto houver ficha andando e os NPCs não estiverem pausados, e só então. */
 function acertarRelogio(andando: RotinasAndando): void {
@@ -41,25 +76,49 @@ function estadosDaAventura() {
   return useAdventureStore.getState().adventure?.estados ?? []
 }
 
+/** As portas que os NPCs mexeram, cada cena com uma mudança de mesa só: fora do Ctrl+Z, como o passo. */
+function aplicarPortas(portas: readonly PortaDoNpc[]): void {
+  if (portas.length === 0) return
+  const aberta = useAdventureStore.getState().activeSceneId
+  for (const sceneId of new Set(portas.map((p) => p.sceneId))) {
+    const daCena = portas.filter((p) => p.sceneId === sceneId)
+    const transform = (map: MapData) => comPortasDoNpc(map, daCena)
+    if (sceneId === aberta) useMapStore.getState().applyPlayerChange(transform)
+    else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneId, transform)
+  }
+}
+
 export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => {
   const trocar = (andando: RotinasAndando) => {
     if (andando !== get().andando) set({ andando })
     acertarRelogio(andando)
   }
+  const largar = (ids: Iterable<string>) => {
+    for (const id of ids) motorDosNpcs.agenda.cancelar(chaveDaRotina(id))
+    regarAgenda()
+  }
   return {
     andando: new Map(),
     fixas: new Set(),
     ligar: (tokenId) => trocar(ligarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), tokenId, estadosDaAventura(), agoraDosNpcs())),
-    desligar: (tokenId) => trocar(desligarRotina(get().andando, tokenId)),
+    desligar: (tokenId) => {
+      largar([tokenId])
+      trocar(desligarRotina(get().andando, tokenId))
+    },
     setFixas: (fixas) => set({ fixas }),
     darPasso: () => {
       const { andando, fixas } = get()
       const cenas = useAdventureStore.getState().cenasDaRotina()
-      const tique = darPassoDaRotina(cenas, andando, estadosDaAventura(), Date.now(), fixas)
+      const tique = darPassoDaRotina(cenas, andando, estadosDaAventura(), Date.now(), fixas, motorDosNpcs)
       useAdventureStore.getState().moverFichasDaRotina(tique.movimentos)
+      aplicarPortas(tique.portas)
       trocar(tique.andando)
+      regarAgenda()
     },
-    reset: () => trocar(new Map()),
+    reset: () => {
+      largar(get().andando.keys())
+      trocar(new Map())
+    },
   }
 })
 
@@ -90,4 +149,6 @@ import.meta.hot?.dispose(() => {
   seguirAPausa()
   if (relogio !== null) clearInterval(relogio)
   relogio = null
+  if (rega !== null) clearTimeout(rega)
+  rega = null
 })

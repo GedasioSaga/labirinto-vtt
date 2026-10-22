@@ -103,7 +103,8 @@ export const LIMITE_DE_PEDIDOS = 40
 /** Longe assim da porta, em casas, e ainda sem poder fechá-la (alguém no vão): deixa aberta. */
 const ALCANCE_PARA_FECHAR = 3
 
-export function novoAndarilho(destino: Point, aqui: Point): Andarilho {
+/** O trecho de `aqui` a `destino`. `fechar`: portas que o trecho anterior deixou abertas atrás dela. */
+export function novoAndarilho(destino: Point, aqui: Point, fechar: readonly string[] = []): Andarilho {
   return {
     destino: { x: destino.x, y: destino.y },
     pontos: null,
@@ -114,7 +115,7 @@ export function novoAndarilho(destino: Point, aqui: Point): Andarilho {
     nivel: 0,
     pedidos: 0,
     marco: { x: aqui.x, y: aqui.y, tiques: 0 },
-    fechar: [],
+    fechar,
     abertas: [],
     fim: null,
   }
@@ -197,6 +198,16 @@ function fecharAtras(a: Andarilho, mundo: MundoDoAndarilho, aqui: Point, acoes: 
   return restam
 }
 
+/**
+ * Chegou ao destino: fecha o que ainda está aberto atrás dela. A porta que não
+ * deu para fechar (alguém no vão, ela ainda nele) fica em `fechar`: o trecho
+ * seguinte a herda (`novoAndarilho`).
+ */
+function chegada(a: Andarilho, mundo: MundoDoAndarilho, aqui: Point, acoes: AcaoNaPorta[]): TiqueDoAndarilho {
+  const restam = fecharAtras({ ...a, fechar: [...a.fechar, ...a.abertas] }, mundo, aqui, acoes)
+  return paradaComo({ ...a, pontos: [], aguardando: false, fechar: restam, abertas: [], fim: { tipo: 'chegou' } }, aqui, 'chegou', null, acoes)
+}
+
 /** Anti-trava: conta o tique que tentou andar; sem sair do lugar por tempo demais, sobe de nível. */
 function vigiarProgresso(a: Andarilho, mundo: MundoDoAndarilho, aqui: Point): Andarilho {
   const andou = Math.hypot(aqui.x - a.marco.x, aqui.y - a.marco.y) >= PROGRESSO_MINIMO * mundo.malha.grid
@@ -222,11 +233,7 @@ export function tiqueDoAndarilho(andarilho: Andarilho, mundo: MundoDoAndarilho, 
     a = receber(a, resposta, mundo)
     if (a.fim !== null) return paradaComo(a, aqui, 'desistiu')
   }
-  if (aqui.x === a.destino.x && aqui.y === a.destino.y) {
-    const acoes: AcaoNaPorta[] = []
-    fecharAtras({ ...a, fechar: [...a.fechar, ...a.abertas] }, mundo, aqui, acoes)
-    return paradaComo({ ...a, pontos: [], aguardando: false, fechar: [], abertas: [], fim: { tipo: 'chegou' } }, aqui, 'chegou', null, acoes)
-  }
+  if (aqui.x === a.destino.x && aqui.y === a.destino.y) return chegada(a, mundo, aqui, [])
   if (a.aguardando) return paradaComo(a, aqui, 'planejando')
   if (agora < a.esperaAte) return paradaComo(a, aqui, 'esperando')
   // Malha por montar (mapa novo, parede mudou): sem ela o passo não se confere, e
@@ -262,6 +269,8 @@ export function tiqueDoAndarilho(andarilho: Andarilho, mundo: MundoDoAndarilho, 
     }
   }
   fechar = fecharAtras({ ...a, fechar }, mundo, para, acoes)
+  // O passo que pisa no destino já é a chegada: a parada no posto começa neste tique, como antes do motor.
+  if (resta.length === 0 && para.x === a.destino.x && para.y === a.destino.y) return chegada({ ...a, fechar, abertas }, mundo, para, acoes)
   const andou = vigiarProgresso({ ...a, pontos: resta, fechar, abertas }, mundo, para)
   if (andou.fim !== null) return { andarilho: andou, para, acoes, pedido: null, situacao: 'desistiu' }
   return { andarilho: andou, para, acoes, pedido: null, situacao }

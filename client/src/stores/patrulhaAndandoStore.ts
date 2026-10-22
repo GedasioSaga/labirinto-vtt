@@ -1,9 +1,11 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
-import { adiarEsperas, calarFicha, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, seguirPatrulha, type PatrulhasAndando } from '../lib/patrulhaAndando'
+import { comPortasDoNpc } from '../lib/caminhamento/tiqueDosNpcs'
+import { adiarEsperas, calarFicha, chaveDaPatrulha, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, passosDaRota, seguirPatrulha, type PatrulhasAndando } from '../lib/patrulhaAndando'
 import { subscribeToOpenings } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
+import { motorDosNpcs, regarAgenda } from './rotinaAndandoStore'
 
 /**
  * PATRULHA ANDANDO no editor do mestre: quem está com "Patrulhar sozinha"
@@ -15,7 +17,10 @@ import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcs
  * O passo é do agendador puro (`lib/patrulhaAndando.ts`); aplicar é
  * `useMapStore.applyPlayerChange` sobre o mapa ABERTO — com ou sem aventura,
  * fora do Ctrl+Z (desfazer não devolve o guarda ao passo anterior) e pelo
- * mesmo caminho que leva a ficha ao jogador com deslize.
+ * mesmo caminho que leva a ficha ao jogador com deslize. As portas que ela
+ * abre e fecha vão na mesma mudança. O caminho sai do motor do editor, o mesmo
+ * da rotina (`motorDosNpcs`); o trecho e o `aviso` de quando ela desiste de um
+ * ponto moram em `andando`, nunca na ficha.
  */
 interface PatrulhaAndandoState {
   andando: PatrulhasAndando
@@ -62,6 +67,10 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     if (andando !== get().andando) set({ andando })
     acertarRelogio(andando)
   }
+  const largar = (ids: Iterable<string>) => {
+    for (const id of ids) motorDosNpcs.agenda.cancelar(chaveDaPatrulha(id))
+    regarAgenda()
+  }
   return {
     andando: new Map(),
     fixas: new Set(),
@@ -70,6 +79,7 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     desligar: (tokenId) => {
       // Parou no meio de um "Falar": o balão não fica sobre a ficha parada. Fora do Ctrl+Z, como a fala.
       if (get().andando.has(tokenId)) useMapStore.getState().applyPlayerChange((map) => calarFicha(map, tokenId))
+      largar([tokenId])
       trocar(desligarPatrulha(get().andando, tokenId))
     },
     seguir: (tokenId) => trocar(seguirPatrulha(get().andando, tokenId, agoraDosNpcs())),
@@ -88,11 +98,14 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     darPasso: () => {
       const { andando, fixas, arrastadas } = get()
       const paradas = arrastadas.size === 0 ? fixas : new Set([...fixas, ...arrastadas])
-      const tique = darPassoDaPatrulha(useMapStore.getState().map, andando, Date.now(), paradas)
-      if (tique.movimentos.length > 0) useMapStore.getState().applyPlayerChange((map) => moverPatrulhas(map, tique.movimentos))
+      const tique = darPassoDaPatrulha(useMapStore.getState().map, andando, Date.now(), paradas, passosDaRota, motorDosNpcs)
+      const { movimentos, portas } = tique
+      if (movimentos.length > 0 || portas.length > 0) useMapStore.getState().applyPlayerChange((map) => comPortasDoNpc(moverPatrulhas(map, movimentos), portas))
       trocar(tique.andando)
+      regarAgenda()
     },
     reset: () => {
+      largar(get().andando.keys())
       // Um arrasto que não chegou ao fim (o canvas saiu no meio do gesto) não prende ninguém no mapa seguinte.
       if (get().arrastadas.size > 0) set({ arrastadas: new Set() })
       // O ponto aberto era de uma ficha do mapa que saiu.
