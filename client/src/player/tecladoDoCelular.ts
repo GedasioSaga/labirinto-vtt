@@ -43,22 +43,39 @@ export function acompanharTeclado(folha: HTMLElement, janela: Window = window): 
   // O tipo diz `null`, mas o jsdom e o navegador antigo nem têm a propriedade: `undefined`.
   if (vista === null || vista === undefined) return () => {}
   let atual = -1
+  let quadro: number | null = null
+  let redimensionou = false
   const medir = () => {
+    quadro = null
+    const porResize = redimensionou
+    redimensionou = false
     const altura = alturaDoTeclado(janela.innerHeight, vista)
     if (altura === atual) return
+    const apareceu = atual <= 0
     atual = altura
     folha.style.setProperty(VARIAVEL_DO_TECLADO, `${altura}px`)
-    if (altura === 0) return
+    // No `scroll` quem move a vista é o dedo: rolar o campo ali brigaria com ele.
+    if (altura === 0 || !(apareceu || porResize)) return
     // O teto novo já vale na medida que o rolar força: o campo vai para o que sobrou acima do teclado.
     const foco = janela.document.activeElement
     if (foco instanceof HTMLElement && folha.contains(foco)) foco.scrollIntoView({ block: 'nearest' })
   }
+  // A vista dispara um evento por px enquanto o teclado anima ou o dedo arrasta:
+  // uma medida por quadro basta, e mexer na folha a cada evento refazia o layout à toa.
+  const agendar = () => {
+    if (quadro === null) quadro = janela.requestAnimationFrame(medir)
+  }
+  const aoRedimensionar = () => {
+    redimensionou = true
+    agendar()
+  }
   medir()
-  vista.addEventListener('resize', medir)
-  vista.addEventListener('scroll', medir)
+  vista.addEventListener('resize', aoRedimensionar)
+  vista.addEventListener('scroll', agendar)
   return () => {
-    vista.removeEventListener('resize', medir)
-    vista.removeEventListener('scroll', medir)
+    vista.removeEventListener('resize', aoRedimensionar)
+    vista.removeEventListener('scroll', agendar)
+    if (quadro !== null) janela.cancelAnimationFrame(quadro)
     folha.style.removeProperty(VARIAVEL_DO_TECLADO)
   }
 }
