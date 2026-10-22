@@ -131,6 +131,34 @@ describe('Ficha e Fichas (acordeão)', () => {
     expect(document.activeElement).toBe(cabecalhos[0])
     expect(cabecalhos.map((c) => c.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false'])
   })
+
+  it('a tecla que a pilha usou não chega ao window (o mapa a leria como empurrão); a do miolo e a que ela não usa chegam', () => {
+    const noWindow = vi.fn((evento: KeyboardEvent) => evento.key)
+    window.addEventListener('keydown', noWindow)
+    try {
+      montar(
+        <Fichas>
+          <Ficha titulo="Chão do mapa" abertaInicial>
+            <button type="button">Contorno</button>
+          </Ficha>
+          <Ficha titulo="Camadas">b</Ficha>
+        </Fichas>,
+      )
+      const cabecalhos = todos('.gr-ficha__cab')
+      teclar(cabecalhos[0], 'ArrowDown')
+      // Na ponta o foco não tem para onde ir, e a seta continua sendo da pilha.
+      teclar(cabecalhos[1], 'ArrowDown')
+      teclar(cabecalhos[1], 'ArrowUp')
+      teclar(cabecalhos[0], 'End')
+      teclar(cabecalhos[1], 'Home')
+      expect(noWindow).not.toHaveBeenCalled()
+      teclar(cabecalhos[0], 'w')
+      teclar(todos('.gr-ficha__dentro button')[0], 'ArrowDown')
+      expect(noWindow.mock.results.map((r) => r.value)).toEqual(['w', 'ArrowDown'])
+    } finally {
+      window.removeEventListener('keydown', noWindow)
+    }
+  })
 })
 
 type Pagina = 'ficha' | 'cena' | 'aventura' | 'acervo'

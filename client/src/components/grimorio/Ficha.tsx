@@ -102,6 +102,12 @@ const TECLAS_ENTRE_CABECALHOS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End'])
 /**
  * Pilha de fichas. Com o foco num cabeçalho, as setas passam ao cabeçalho
  * vizinho sem abrir nada, e Home/End vão ao primeiro e ao último.
+ *
+ * A tecla usada aqui para na pilha, como em `andarPelosRadios` (comum.ts): o
+ * mapa (`PixiCanvas`) ouve o teclado no `window`, não lê o `preventDefault` e,
+ * com o foco num botão, faz da seta um empurrão da seleção. O livro fica na
+ * Cena com uma sala selecionada, e a seta que levava o foco a "Camadas do
+ * chão" também descia a sala uma casa (dez com Shift).
  */
 export function Fichas({ children }: { children: ReactNode }) {
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
@@ -116,6 +122,7 @@ export function Fichas({ children }: { children: ReactNode }) {
     const destino =
       evento.key === 'Home' ? 0 : evento.key === 'End' ? ultimo : evento.key === 'ArrowDown' ? Math.min(ultimo, atual + 1) : Math.max(0, atual - 1)
     evento.preventDefault()
+    evento.stopPropagation()
     cabecalhos[destino].focus()
   }
   return (
