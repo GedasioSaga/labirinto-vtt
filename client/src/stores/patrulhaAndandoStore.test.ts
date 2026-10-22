@@ -209,3 +209,65 @@ describe('macro do ponto no editor', () => {
     expect(usePatrulhaAndandoStore.getState().pontoAberto).toBeNull()
   })
 })
+
+describe('patrulha pelo motor de caminhos, no editor', () => {
+  /**
+   * Parede em x = 200 com a porta no vão y 50..150; o guarda vai de (100,100)
+   * a (400,100) e o herói (ficha de jogador) está parado na reta, em (300,100).
+   */
+  function comPortaEHeroi(locked: boolean): MapData {
+    const porta = { open: false, locked, kind: 'normal' } as const
+    const heroi: Token = { id: 'heroi', characterId: 'pc-heroi', name: 'Herói', x: 300, y: 100, size: 1, image: null }
+    const ate400 = { ...guarda(), patrulha: { pontos: [{ x: 100, y: 100 }, { x: 400, y: 100 }], atual: 0 } }
+    return {
+      ...createEmptyMap('m', 'Mapa solto', 30, 20, GRID),
+      tokens: [ate400, heroi],
+      walls: [
+        { id: 'p-norte', x1: 200, y1: 0, x2: 200, y2: 50, blocksLight: true, blocksMove: true, door: null },
+        { id: 'porta', x1: 200, y1: 50, x2: 200, y2: 150, blocksLight: true, blocksMove: true, door: porta },
+        { id: 'p-sul', x1: 200, y1: 150, x2: 200, y2: 1000, blocksLight: true, blocksMove: true, door: null },
+      ],
+    }
+  }
+
+  function portaAberta(): boolean | undefined {
+    return useMapStore.getState().map.walls.find((w) => w.id === 'porta')?.door?.open
+  }
+
+  it('abre a porta, contorna o herói sem empurrá-lo, fecha a porta atrás e chega ao ponto, fora do Ctrl+Z', () => {
+    useMapStore.getState().loadMap(comPortaEHeroi(false))
+    const historico = useMapStore.getState().past.length
+    const trocas: boolean[] = []
+    let antes = portaAberta()
+    const pararDeOlhar = useMapStore.subscribe(() => {
+      const agora = portaAberta()
+      if (agora !== antes && agora !== undefined) trocas.push(agora)
+      antes = agora
+    })
+    usePatrulhaAndandoStore.getState().ligar('guarda')
+    let anterior = ondeEsta()
+    for (let tique = 0; tique < 60 && ondeEsta().atual !== 1; tique += 1) {
+      vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS)
+      const aqui = ondeEsta()
+      expect(Math.hypot(aqui.x - anterior.x, aqui.y - anterior.y)).toBeLessThanOrEqual(PASSO + 1e-9)
+      expect(Math.hypot(aqui.x - 300, aqui.y - 100)).toBeGreaterThanOrEqual(GRID * 0.9)
+      anterior = aqui
+    }
+    pararDeOlhar()
+    expect(ondeEsta()).toEqual({ x: 400, y: 100, atual: 1 })
+    expect(trocas).toEqual([true, false])
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 'heroi')).toMatchObject({ x: 300, y: 100 })
+    expect(useMapStore.getState().past.length).toBe(historico)
+  })
+
+  it('porta trancada: não abre, o guarda fica do lado de cá e o motivo fica no estado da patrulha', () => {
+    useMapStore.getState().loadMap(comPortaEHeroi(true))
+    usePatrulhaAndandoStore.getState().ligar('guarda')
+    for (let tique = 0; tique < 40 && usePatrulhaAndandoStore.getState().andando.get('guarda')?.aviso === undefined; tique += 1) {
+      vi.advanceTimersByTime(PASSO_DA_PATRULHA_MS)
+      expect(ondeEsta().x).toBeLessThan(200)
+    }
+    expect(portaAberta()).toBe(false)
+    expect(usePatrulhaAndandoStore.getState().andando.get('guarda')?.aviso).toEqual(expect.objectContaining({ motivo: 'porta-trancada', portas: ['porta'], x: 400, y: 100 }))
+  })
+})
