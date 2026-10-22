@@ -5499,13 +5499,18 @@ html.lb-arrastando-cena * {
 }
 
 /* O atalho escrito dentro do campo, no canto do "limpar" (que só vem com texto
-   digitado): atalho invisível é atalho inexistente. */
+   digitado): atalho invisível é atalho inexistente. A largura é fixa e mora
+   numa variável só, que o campo também lê para reservar o canto: sem a
+   reserva, a frase de exemplo corria por baixo do chip. */
 .lb-objetos__atalho {
   position: absolute;
   top: 50%;
   right: var(--lb-space-2);
   transform: translateY(-50%);
   pointer-events: none;
+  box-sizing: border-box;
+  min-width: var(--lb-objetos-atalho-largura);
+  text-align: center;
   padding: 0 var(--lb-space-1);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-sm);
@@ -5516,6 +5521,8 @@ html.lb-arrastando-cena * {
 }
 
 .lb-objetos__campo {
+  /* "Ctrl K" na fonte utilitária pequena mede ~43 px; a folga vai no chip. */
+  --lb-objetos-atalho-largura: 2.75rem;
   position: relative;
   display: flex;
   align-items: center;
@@ -5529,10 +5536,19 @@ html.lb-arrastando-cena * {
   pointer-events: none;
 }
 
-/* Espaço da lupa à esquerda e do "limpar" à direita. */
+/* Espaço da lupa à esquerda e do "limpar" à direita, com o mesmo respiro do
+   chip (sem ele o texto digitado encostava na caixa do "limpar"). A frase que
+   não cabe termina em reticências, e não cortada no meio de uma letra. */
 .lb-objetos__busca {
   padding-left: var(--lb-space-8);
-  padding-right: var(--lb-space-8);
+  padding-right: calc(var(--lb-space-8) + var(--lb-space-1));
+  text-overflow: ellipsis;
+}
+
+/* Campo vazio = o chip do atalho à vista (o "limpar" só vem com texto): o
+   canto reserva o chip inteiro, a distância dele à borda e um respiro igual. */
+.lb-objetos__busca:placeholder-shown {
+  padding-right: calc(var(--lb-objetos-atalho-largura) + var(--lb-space-2) * 2);
 }
 
 /* O X nativo do campo de busca vem com a cara do sistema (claro, sem foco
@@ -5658,6 +5674,25 @@ html.lb-arrastando-cena * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* O "Enter" na ponta de cada achado, com o desenho do chip do Ctrl K. O da
+   linha que o Enter do campo abre fica um tom acima, como o fundo dela. */
+.lb-objetos__enter {
+  flex: none;
+  margin-left: auto;
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-objetos__item[data-enter='true'] > .lb-objetos__enter {
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-objetos__detalhe,
