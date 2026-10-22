@@ -1,0 +1,432 @@
+{
+  "metas": {
+    "M1_extremos": "fim do abrir e do fechar pelo animador real igual à porta parada: 0 pixels diferentes, Girar e Deslizar, 3 cores e trancada com cor própria, zoom 1, 2,5 e 4",
+    "M2_opaco": "0 pixels com alfa < 255 em todos os quadros das folhas de contato (fundo opaco desligado, só a porta)",
+    "M3_sem_quique": "ângulo (Girar) e cobertura do vão (Deslizar), amostrados a cada quadro de 60 Hz no animador real: monotônicos no sentido do caminho, sem passar de 0 nem de 1",
+    "M4_medalha": "a folha do mapa e a da medalha (CSS cubic-bezier(0.33, 1, 0.68, 1) avaliado pelo navegador) no mesmo ângulo: diferença máxima <= 2 graus em todo o caminho do Girar",
+    "M5_inversao": "inverter a 25, 50 e 75% do tempo: o ângulo (Girar) e a cobertura (Deslizar) no quadro da inversão não saltam mais que o maior passo de quadro da corrida sem inversão",
+    "M6_reduzido": "com movimento reduzido: 0 quadros intermediários e 0 sons",
+    "M7_desempenho": "60 portas, abrindo 1 e abrindo as 60 juntas, 4 s cada, relógio real do Pixi: intervalo entre quadros p95 <= 20 ms e nenhuma tarefa longa >= 200 ms; e o custo por quadro do animador com 1 porta andando entre 60 menor que o de repintar as 60",
+    "M8_som": "por evento (abrir e fechar do Girar e do Deslizar, trancar, destrancar), no volume máximo da mesa, com o passa-baixa da mesa: pico verdadeiro <= -12 dBTP; 0 cliques; 0 amostras cortadas; DC <= 0,5%; últimos 10 ms abaixo de -60 dBFS; abrir e fechar com rangido entre -36 e -26 LUFS integrados; trinco e tranca (sons de 60 a 200 ms, medidos na janela de 400 ms do LUFS) entre -42 e -28 LUFS; o som acaba até 120 ms depois do fim da animação",
+    "M9_folhas": "uma folha de contato por animação, com 12 a 16 quadros por linha e o tempo embaixo de cada um; linhas: 3 cores e trancada",
+    "M10_console": "0 erros e 0 avisos no console durante todas as provas"
+  },
+  "navegador": "C:\\Users\\gedasio.filho\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+  "animacoes": {
+    "girar": {
+      "extremos": [
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 36
+        }
+      ],
+      "folha": {
+        "arquivo": "folhas/girar.png",
+        "linhas": 4,
+        "quadrosPorLinha": [
+          14,
+          14,
+          14,
+          14
+        ]
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.1732,
+          "maiorPassoSemInversao": 0.1802,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.17859999999999998,
+          "maiorPassoSemInversao": 0.1802,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.1801,
+          "maiorPassoSemInversao": 0.1802,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        }
+      },
+      "medalha": {
+        "diferencaMaximaGrausAbrindo": 0.2,
+        "diferencaMaximaGrausFechando": 0.19
+      },
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "monotonia": {
+        "abrir": {
+          "amostras": 38,
+          "passosContraOSentido": 0,
+          "foraDe0a1": 0
+        },
+        "fechar": {
+          "amostras": 33,
+          "passosContraOSentido": 0,
+          "foraDe0a1": 0
+        }
+      }
+    },
+    "deslizar": {
+      "extremos": [
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Laranja de sempre (sem cor própria)",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Azul #3a7bd5",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Musgo #5e8c4a",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 1,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 2.5,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        },
+        {
+          "linha": "Ameixa #7a4a6e trancada: \"destrancar e abrir\", depois \"fechar e trancar\"",
+          "zoom": 4,
+          "diferentesNoFimDoAbrir": 0,
+          "diferentesNoFimDoFechar": 0,
+          "pixelsTranslucidos": 0,
+          "quadros": 32
+        }
+      ],
+      "folha": {
+        "arquivo": "folhas/deslizar.png",
+        "linhas": 4,
+        "quadrosPorLinha": [
+          14,
+          14,
+          14,
+          14
+        ]
+      },
+      "inversao": {
+        "0.25": {
+          "maiorPassoComInversao": 0.1942,
+          "maiorPassoSemInversao": 0.1942,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        },
+        "0.5": {
+          "maiorPassoComInversao": 0.1942,
+          "maiorPassoSemInversao": 0.1942,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        },
+        "0.75": {
+          "maiorPassoComInversao": 0.1942,
+          "maiorPassoSemInversao": 0.1942,
+          "sonsPedidos": [
+            "abrir",
+            "fechar"
+          ]
+        }
+      },
+      "medalha": null,
+      "reduzido": {
+        "quadrosIntermediarios": 0,
+        "sons": 0
+      },
+      "monotonia": {
+        "abrir": {
+          "amostras": 30,
+          "passosContraOSentido": 0,
+          "foraDe0a1": 0
+        },
+        "fechar": {
+          "amostras": 30,
+          "passosContraOSentido": 0,
+          "foraDe0a1": 0
+        }
+      }
+    }
+  },
+  "som": {
+    "girar-abrir": {
+      "picoVerdadeiroDbtp": -15.96,
+      "lufsIntegrado": -33.84,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0.0004,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 300,
+      "animacaoMs": 300,
+      "wav": "som/girar-abrir.wav"
+    },
+    "girar-fechar": {
+      "picoVerdadeiroDbtp": -13.31,
+      "lufsIntegrado": -34.06,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0055,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 280,
+      "animacaoMs": 260,
+      "wav": "som/girar-fechar.wav"
+    },
+    "deslizar-abrir": {
+      "picoVerdadeiroDbtp": -15.96,
+      "lufsIntegrado": -38.11,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0.0004,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 50,
+      "animacaoMs": 240,
+      "wav": "som/deslizar-abrir.wav"
+    },
+    "deslizar-fechar": {
+      "picoVerdadeiroDbtp": -14.36,
+      "lufsIntegrado": -34.48,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": -0.0074,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 270,
+      "animacaoMs": 240,
+      "wav": "som/deslizar-fechar.wav"
+    },
+    "trancar": {
+      "picoVerdadeiroDbtp": -15.27,
+      "lufsIntegrado": -35.47,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0.0009,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 150,
+      "animacaoMs": null,
+      "wav": "som/trancar.wav"
+    },
+    "destrancar": {
+      "picoVerdadeiroDbtp": -13.69,
+      "lufsIntegrado": -35.16,
+      "cliques": 0,
+      "cortes": 0,
+      "dcPct": 0.001,
+      "ultimos10msDbfs": -120,
+      "somAcabaEmMs": 90,
+      "animacaoMs": null,
+      "wav": "som/destrancar.wav"
+    }
+  },
+  "desempenho": {
+    "abrindo 1 de 60": {
+      "portas": 60,
+      "quadros": 473,
+      "intervaloP95Ms": 8.4,
+      "intervaloMaxMs": 41.8,
+      "tarefaLongaMaxMs": 0,
+      "tarefasLongas": 0,
+      "observadorDeTarefasLongas": true,
+      "custoDoAnimadorP95Ms": 0.1,
+      "custoDoAnimadorMaxMs": 0.2
+    },
+    "abrindo as 60 juntas": {
+      "portas": 60,
+      "quadros": 470,
+      "intervaloP95Ms": 8.4,
+      "intervaloMaxMs": 50.1,
+      "tarefaLongaMaxMs": 0,
+      "tarefasLongas": 0,
+      "observadorDeTarefasLongas": true,
+      "custoDoAnimadorP95Ms": 0.4,
+      "custoDoAnimadorMaxMs": 0.5
+    },
+    "custoPorQuadro": {
+      "repintarAs60Ms": 0.045,
+      "repintarSoAQueAndaMs": 0.002
+    }
+  },
+  "console": [],
+  "avisosDaFerramentaDeProva": [
+    {
+      "tipo": "warning",
+      "texto": "[.WebGL-0x7904001d1000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    }
+  ],
+  "falhas": [],
+  "passou": true,
+  "duracaoS": 14.6
+}
