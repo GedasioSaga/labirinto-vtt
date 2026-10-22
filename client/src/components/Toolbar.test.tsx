@@ -90,7 +90,8 @@ function balaoDe(button: HTMLButtonElement): { texto: string; tecla: string | nu
   return lido
 }
 
-const menu = (nome: string) => document.body.querySelector(`[role="group"][aria-label="Opções de ${nome}"]`)
+// O menu fechado ainda sai por 120 ms (`ComSaida`), inerte e com `gr-sai`: esse não conta como aberto.
+const menu = (nome: string) => document.body.querySelector(`[role="group"][aria-label="Opções de ${nome}"]:not(.gr-sai)`)
 const gruposDoMenu = (nome: string) =>
   Array.from(menu(nome)?.querySelectorAll('[role="radiogroup"]') ?? []).map((g) => g.getAttribute('aria-label'))
 const radiosDe = (nome: string, grupo: string) =>
