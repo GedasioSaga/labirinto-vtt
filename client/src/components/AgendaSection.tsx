@@ -275,8 +275,8 @@ export function AgendaSection({ agenda, onChange, cenas = [], onAlarm, onApito }
     return true
   }
 
-  // A contagem é a da lista inteira: o evento que já disparou continua nela
-  // ("· Disparou") até o mestre tirar, então conta também.
+  // O resumo é o dia da mesa, não quantos eventos há (protótipo consolidado,
+  // fichas da Aventura): de fora, o mestre consulta a hora em que a mesa está.
   return (
     <FichaDaPagina id="agenda" titulo="Agenda" icone="relogio" padrao={false} resumo={`Dia ${atual.agora.dia}`}>
       <div className="lb-agenda">

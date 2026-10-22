@@ -69,6 +69,15 @@ function cabecalho(): HTMLButtonElement {
   return botao
 }
 
+/** O resumo da ficha fechada, pela descrição do cabeçalho; `null` sem resumo. */
+function resumo(): string | null {
+  const id = cabecalho().getAttribute('aria-describedby')
+  if (id === null) return null
+  const alvo = document.getElementById(id)
+  if (alvo === null) throw new Error(`a descrição de "Locais" aponta para #${id}, que não existe`)
+  return alvo.textContent
+}
+
 function abrir(): void {
   if (cabecalho().getAttribute('aria-expanded') !== 'true') act(() => cabecalho().click())
 }
@@ -111,6 +120,22 @@ describe('PlaceTreeSection', () => {
     render()
     expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
     expect(container.querySelector('[role="tree"]')).toBeNull()
+  })
+
+  it('fechada, o resumo conta as salas sem montar a árvore: plural, singular, milhar e nenhuma', () => {
+    render()
+    expect(resumo()).toBe('7 locais')
+    render({ regions: [sala('unica', 'Única')] })
+    expect(resumo()).toBe('1 local')
+    render({ regions: cenaPlana(2828) })
+    expect(resumo()).toBe('2.828 locais')
+    expect(container.querySelector('[role="tree"]')).toBeNull()
+    // Região sem sala (a zona pintada à mão) não é local; sem local, sem resumo.
+    const zona: Region = { id: 'zona', points: quadrado(0, 0, 100), tag: '', fillColor: '#333333', fillPattern: 'solid', data: {} }
+    render({ regions: [zona] })
+    expect(resumo()).toBeNull()
+    render({ regions: [] })
+    expect(resumo()).toBeNull()
   })
 
   it('aberta: distritos no topo, já abertos, com a contagem do que há dentro', () => {
