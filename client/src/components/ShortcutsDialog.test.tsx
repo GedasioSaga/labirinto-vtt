@@ -187,6 +187,7 @@ describe('ShortcutsDialog — a tela de atalhos', () => {
     let opened = openDialog()
     act(() => {
       opened.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      opened.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       opened.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(dialog()).not.toBeNull()
@@ -195,6 +196,7 @@ describe('ShortcutsDialog — a tela de atalhos', () => {
     if (!backdrop) throw new Error('fundo da janela ausente')
     act(() => {
       backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      backdrop.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(dialog()).toBeNull()

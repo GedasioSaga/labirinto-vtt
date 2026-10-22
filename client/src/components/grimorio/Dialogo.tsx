@@ -52,6 +52,9 @@ export function Dialogo({ aberto, titulo, onFechar, pequeno, cena, alerta, focoI
   const corpo = useRef<HTMLDivElement>(null)
   const fechar = useRef<HTMLButtonElement>(null)
   const antes = useRef<HTMLElement | null>(null)
+  // O aperto começou no fundo: só ele, com o soltar também no fundo, fecha. Arrastar
+  // um controle (ou selecionar texto) e soltar fora não fecha, nem o contrário.
+  const apertouNoFundo = useRef(false)
   const [montado, setMontado] = useState(aberto)
   if (aberto && !montado) setMontado(true)
   const saindo = !aberto && montado
@@ -125,7 +128,12 @@ export function Dialogo({ aberto, titulo, onFechar, pequeno, cena, alerta, focoI
       className={classes('gr-dlg-fundo', semEntrada && 'gr-dlg-fundo--parado', saindo && 'gr-sai')}
       inert={saindo}
       onMouseDown={(evento) => {
-        if (evento.target === evento.currentTarget && !alerta) onFechar()
+        apertouNoFundo.current = evento.target === evento.currentTarget
+      }}
+      onMouseUp={(evento) => {
+        const noFundo = apertouNoFundo.current && evento.target === evento.currentTarget
+        apertouNoFundo.current = false
+        if (noFundo && !alerta) onFechar()
       }}
     >
       <div

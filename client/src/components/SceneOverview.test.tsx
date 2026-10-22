@@ -195,11 +195,13 @@ describe('SceneOverviewDialog', () => {
     if (!fundo || !aberta) throw new Error('janela não abriu')
     act(() => {
       aberta.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      aberta.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       aberta.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(onClose).not.toHaveBeenCalled()
     act(() => {
       fundo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      fundo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       fundo.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(onClose).toHaveBeenCalledTimes(1)

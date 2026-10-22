@@ -143,12 +143,14 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
 
     act(() => {
       opened.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      opened.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       opened.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(dialog()).not.toBeNull()
 
     act(() => {
       backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      backdrop.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
       backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(dialog()).toBeNull()

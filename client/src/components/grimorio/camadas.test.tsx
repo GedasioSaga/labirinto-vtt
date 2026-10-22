@@ -143,6 +143,12 @@ function DialogoDeTeste({ alerta }: { alerta?: boolean }) {
   )
 }
 
+function mouse(el: Element, tipo: 'mousedown' | 'mouseup'): void {
+  act(() => {
+    el.dispatchEvent(new MouseEvent(tipo, { bubbles: true }))
+  })
+}
+
 /** Clique de mouse no navegador: o botão ganha o foco e depois recebe o clique. */
 function abrirDialogo(): void {
   const abridor = botao('Configurações do mapa')
@@ -189,9 +195,33 @@ describe('Dialogo', () => {
     passar(140)
     expect(no('.gr-dlg-fundo')).toBeNull()
     abrirDialogo()
-    act(() => {
-      um('.gr-dlg-fundo').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
+    mouse(um('.gr-dlg-fundo'), 'mousedown')
+    mouse(um('.gr-dlg-fundo'), 'mouseup')
+    passar(140)
+    expect(no('[role="dialog"]')).toBeNull()
+  })
+
+  it('o fundo só fecha com o aperto E o soltar nele: selecionar texto, ou arrastar, para fora (ou para dentro) não fecha', () => {
+    montar(<DialogoDeTeste />)
+    abrirDialogo()
+    const fundo = um('.gr-dlg-fundo')
+    const caixa = um('[role="dialog"]')
+    // Apertar no fundo, sem soltar ainda: a janela fica (antes da fatia 20 era assim).
+    mouse(fundo, 'mousedown')
+    passar(140)
+    expect(no('[role="dialog"]')).not.toBeNull()
+    // ...e soltar dentro da caixa: também fica.
+    mouse(caixa, 'mouseup')
+    passar(140)
+    expect(no('[role="dialog"]')).not.toBeNull()
+    // Selecionar o texto da janela e soltar no fundo: fica.
+    mouse(um('input[aria-label="Colunas"]'), 'mousedown')
+    mouse(fundo, 'mouseup')
+    passar(140)
+    expect(no('[role="dialog"]')).not.toBeNull()
+    // Apertar e soltar no fundo: fecha.
+    mouse(fundo, 'mousedown')
+    mouse(fundo, 'mouseup')
     passar(140)
     expect(no('[role="dialog"]')).toBeNull()
   })
@@ -201,9 +231,8 @@ describe('Dialogo', () => {
     abrirDialogo()
     expect(no('[role="alertdialog"]')).not.toBeNull()
     expect(document.activeElement).toBe(botao('Cancelar'))
-    act(() => {
-      um('.gr-dlg-fundo').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    })
+    mouse(um('.gr-dlg-fundo'), 'mousedown')
+    mouse(um('.gr-dlg-fundo'), 'mouseup')
     passar(140)
     expect(no('[role="alertdialog"]')).not.toBeNull()
   })
