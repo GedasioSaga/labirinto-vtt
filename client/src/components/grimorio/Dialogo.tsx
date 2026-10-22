@@ -109,7 +109,10 @@ export function Dialogo({ aberto, titulo, onFechar, pequeno, cena, alerta, focoI
     const primeiro = focaveis[0]
     const ultimo = focaveis[focaveis.length - 1]
     const ativo = document.activeElement
-    const sair = evento.shiftKey ? ativo === primeiro || !evento.currentTarget.contains(ativo) : ativo === ultimo
+    // Foco fora da lista do Tab (a própria caixa, depois de um clique no texto): o
+    // navegador o levaria ao app atrás da janela, e lá as teclas viram atalho do mapa.
+    const fora = !focaveis.some((focavel) => focavel === ativo)
+    const sair = evento.shiftKey ? ativo === primeiro || fora : ativo === ultimo || fora
     if (!sair) return
     evento.preventDefault()
     const destino = evento.shiftKey ? ultimo : primeiro

@@ -167,6 +167,19 @@ describe('Dialogo', () => {
     expect(document.activeElement).toBe(botao('Cancelar'))
   })
 
+  it('com o foco na própria caixa (clique no texto), o Shift+Tab e o Tab dão a volta por dentro, sem ir ao app atrás', () => {
+    montar(<DialogoDeTeste />)
+    abrirDialogo()
+    const dialogo = um('[role="dialog"]')
+    act(() => dialogo.focus())
+    expect(document.activeElement).toBe(dialogo)
+    teclar(dialogo, 'Tab', { shiftKey: true })
+    expect(document.activeElement).toBe(botao('Cancelar'))
+    act(() => dialogo.focus())
+    teclar(dialogo, 'Tab')
+    expect(document.activeElement).toBe(botao('Fechar'))
+  })
+
   it('Esc fecha e devolve o foco a quem abriu; clicar no fundo também fecha', () => {
     montar(<DialogoDeTeste />)
     abrirDialogo()
