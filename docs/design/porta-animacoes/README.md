@@ -23,7 +23,7 @@ O desenho da porta parada não muda: barra chapada em 60% do vão, 5 px de espes
 |---|---|---|---|
 | Dupla | 320 ms | 280 ms | Duas meias-folhas, cada uma presa numa ponta, giram 90° juntas e recolhem para o batente. |
 | Grade que sobe | 600 ms | 420 ms | A barra vira grade: abre vãos e as barras passam um pouco para os dois lados da parede. Depois vem um tranco de corrente e a grade sobe, primeiro o centro. Ao fechar, ela desce e bate no chão. |
-| Arrombada | 560 ms | 320 ms | Golpe e tremor. Depois a porta cede de vez, gira e solta 5 estilhaços da fechadura. Fecha sem drama. |
+| Arrombada | 560 ms | 320 ms | Golpe e tremor. Depois a porta cede de vez, gira e solta 5 estilhaços da fechadura, que saltam e caem na soleira, dentro do vão (no app desde 22/10/2026; antes sumiam no ar e, fechando, nasciam do nada). Fecha sem drama. |
 | Sanfona | 440 ms | 380 ms | Dobra em 4 gomos, em zigue-zague, e recolhe para uma ponta. |
 | Cortina de contas (minha escolha) | 480 ms | 420 ms | A barra vira uma fileira de contas que se abre pelo meio, balançando, e se amontoa nas pontas. |
 

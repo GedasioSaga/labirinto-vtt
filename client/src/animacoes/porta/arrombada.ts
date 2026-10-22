@@ -11,8 +11,9 @@ import { comecarQuadro, escalaDa, saidaQuad, suave, trecho } from './_folha'
  *
  * O tempo do golpe e do tremor está no próprio desenho (por isso a curva de
  * abrir é linear: o desenho já tem o ritmo). Estilhaços: 5 quadradinhos
- * opacos, da cor da porta com o contorno escuro, com direção, distância e
- * tamanho sorteados pela posição da porta (cada porta tem os seus, sempre os mesmos).
+ * opacos, da cor da porta com o contorno escuro, com altura do salto, ponto
+ * de queda e tamanho sorteados pela posição da porta (cada porta tem os seus,
+ * sempre os mesmos).
  */
 
 const GRAU = Math.PI / 180
@@ -27,6 +28,13 @@ const TREMOR_DESLIZE_PX = 0.6
 const ABERTA_RAD = 90 * GRAU
 const ESTILHACOS = 5
 const FIM_DOS_ESTILHACOS = 0.8
+/** Altura do salto (para o lado em que a folha abre) e ponto de queda na soleira, a partir da fechadura: px de TELA. */
+const SALTO_MIN_PX = 5
+const SALTO_VARIA_PX = 6
+const QUEDA_MIN_PX = 4
+const QUEDA_VARIA_PX = 10
+/** Fração do vão em que o estilhaço pode cair: numa porta curta vista de longe ele não passa da dobradiça. */
+const QUEDA_MAX_DO_VAO = 0.8
 
 /** Ângulo da folha: cede no golpe, treme em volta disso, depois abre de vez (ease-out: rápido e assenta). */
 function anguloDaFolha(p: number): number {
@@ -50,6 +58,13 @@ function sorteador(porta: PortaParaDesenho): () => number {
   }
 }
 
+/**
+ * Os estilhaços saltam da fechadura e caem na soleira, dentro do vão, onde se
+ * desfazem. Começam e acabam em cima do batente porque o desenho é o mesmo nos
+ * dois sentidos: fechando, cada um nasce na soleira e volta para a fechadura.
+ * Antes eles sumiam no ar, a 7-15 px de tudo, e ao fechar nasciam do nada lá
+ * (5 a 10 px de salto na régua M5b, 22/10/2026).
+ */
 function estilhacos(porta: PortaParaDesenho, p: number): PecaDaFolha[] {
   const k = trecho(p, FIM_DO_TREMOR, FIM_DOS_ESTILHACOS)
   if (k <= 0 || k >= 1) return []
@@ -61,23 +76,22 @@ function estilhacos(porta: PortaParaDesenho, p: number): PecaDaFolha[] {
   const oy = porta.cy + porta.uy * porta.meioComprimento
   const sorte = sorteador(porta)
   const voo = saidaQuad(k)
-  // Nascem pequenos e crescem em 10% do trecho (sem pipocar), encolhem até sumir na segunda metade.
+  // Arco de salto: zero na saída e na queda, o pico no meio do voo.
+  const arco = 4 * voo * (1 - voo)
+  // Nascem pequenos e crescem em 10% do trecho (sem pipocar), encolhem até sumir enquanto caem.
   const vida = Math.min(1, k / 0.1) * (1 - suave(trecho(k, 0.45, 1)))
   // O contorno escuro vai em volta: a cor por dentro fica do tamanho do estilhaço do protótipo.
   const meiaBorda = (porta.borda ?? 0) / 2
+  const quedaMaxPx = 2 * porta.meioComprimento * escala * QUEDA_MAX_DO_VAO
   const pecas: PecaDaFolha[] = []
   for (let i = 0; i < ESTILHACOS; i += 1) {
-    const paraNormal = 0.45 + 0.55 * sorte()
-    const aoLongo = -0.35 + 1.25 * sorte()
-    const norma = Math.hypot(paraNormal, aoLongo)
-    const dx = (porta.ux * aoLongo + nx * paraNormal) / norma
-    const dy = (porta.uy * aoLongo + ny * paraNormal) / norma
-    const distancia = ((7 + 8 * sorte()) / escala) * voo
+    const salto = ((SALTO_MIN_PX + SALTO_VARIA_PX * sorte()) / escala) * arco
+    const recuo = (Math.min(quedaMaxPx, QUEDA_MIN_PX + QUEDA_VARIA_PX * sorte()) / escala) * voo
     const lado = ((1.4 + 1.0 * sorte()) / escala) * vida
     const giro = (sorte() * 2 - 1) * Math.PI * k
     if (lado <= 0) continue
     const meio = lado / 2 + meiaBorda * vida
-    pecas.push({ forma: 'retangulo', cx: ox + dx * distancia, cy: oy + dy * distancia, dx: Math.cos(giro), dy: Math.sin(giro), meioComprimento: meio, meiaEspessura: meio })
+    pecas.push({ forma: 'retangulo', cx: ox - porta.ux * recuo + nx * salto, cy: oy - porta.uy * recuo + ny * salto, dx: Math.cos(giro), dy: Math.sin(giro), meioComprimento: meio, meiaEspessura: meio })
   }
   return pecas
 }
