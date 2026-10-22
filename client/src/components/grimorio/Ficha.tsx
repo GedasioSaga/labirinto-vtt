@@ -30,6 +30,12 @@ export interface FichaProps {
   resumoForaDoNome?: boolean
   /** Endereço estável (`data-secao`) para quem leva o foco até a ficha de fora. */
   secao?: string
+  /**
+   * À vista também com a ficha fechada, entre o cabeçalho e o miolo, e parte
+   * do que o cabeçalho controla: a busca de "Objetos do mapa" fica no topo da
+   * página Cena, e abrir a ficha mostra a lista que ela filtra.
+   */
+  aVista?: ReactNode
   children: ReactNode
 }
 
@@ -51,6 +57,7 @@ export function Ficha({
   idDoCabecalho,
   resumoForaDoNome,
   secao,
+  aVista,
   children,
 }: FichaProps) {
   const id = useId()
@@ -64,6 +71,13 @@ export function Ficha({
   }
   // Aberta, o resumo some da tela (grimorio.css): some da descrição também.
   const descreveComResumo = resumoForaDoNome === true && resumo !== undefined && resumo !== '' && !estaAberta
+  const corpo = (
+    <div className="gr-ficha__corpo" id={aVista === undefined ? id : undefined} inert={!estaAberta}>
+      <div className="gr-ficha__miolo">
+        <div className="gr-ficha__dentro">{children}</div>
+      </div>
+    </div>
+  )
   return (
     <section className={classes('gr-ficha', estaAberta && 'gr-e-aberta', plana && 'gr-ficha--plana', nova && 'gr-e-nova')} data-secao={secao}>
       <Titulo className="gr-ficha__h">
@@ -88,11 +102,14 @@ export function Ficha({
           </span>
         </button>
       </Titulo>
-      <div className="gr-ficha__corpo" id={id} inert={!estaAberta}>
-        <div className="gr-ficha__miolo">
-          <div className="gr-ficha__dentro">{children}</div>
+      {aVista === undefined ? (
+        corpo
+      ) : (
+        <div className="gr-ficha__regiao" id={id}>
+          <div className="gr-ficha__vista">{aVista}</div>
+          {corpo}
         </div>
-      </div>
+      )}
     </section>
   )
 }

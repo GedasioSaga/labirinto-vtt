@@ -68,25 +68,6 @@ function descricao(): string | null {
 }
 
 describe('FichaDaPagina', () => {
-  it('o pedido de abrir da montagem não abre nada; o pedido novo abre e grava a chave', () => {
-    ficha({ pedidoDeAbrir: 0 })
-    expect(aberta()).toBe(false)
-    expect(guardada('pins')).toBeNull()
-
-    ficha({ pedidoDeAbrir: 1 })
-    expect(aberta()).toBe(true)
-    expect(guardada('pins')).toBe('1')
-
-    // Fechar à mão vale até o próximo pedido: o mesmo pedido de novo não reabre.
-    act(() => cabecalho().click())
-    expect(aberta()).toBe(false)
-    expect(guardada('pins')).toBe('0')
-    ficha({ pedidoDeAbrir: 1 })
-    expect(aberta()).toBe(false)
-    ficha({ pedidoDeAbrir: 2 })
-    expect(aberta()).toBe(true)
-  })
-
   it('a chave de antes vence o padrão, e o clique grava a escolha para a próxima montagem', () => {
     window.localStorage.setItem('lb-section:floor', '0')
     ficha({ id: 'floor', titulo: 'Chão do mapa', icone: 'chao', padrao: true })

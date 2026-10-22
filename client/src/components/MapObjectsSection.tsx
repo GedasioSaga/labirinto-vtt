@@ -1,5 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
-import { FichaDaPagina } from './livro/FichaDaPagina'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useAbertaGuardada } from './CollapsibleSection'
+import { Ficha } from './grimorio/Ficha'
+import { IconeDoLivro } from './livro/icones'
 import { CloseIcon, SearchIcon, TokenIcon } from './icons'
 import { searchAdventure, type AdventureHit, type SceneSearchSource } from '../lib/buscaNaAventura'
 import type { SendCandidate } from '../lib/gatherParty'
@@ -30,33 +32,11 @@ export interface MapObjectsSectionProps {
   onSendHere?: (playerId: string, target: AlvoDeMandar) => ResultadoDeMandar
 }
 
-/**
- * "Objetos do mapa", na aba Mapa: busca e lista, pelo nome, das salas, portas,
- * pinos, tokens e textos da cena aberta. Clicar numa linha seleciona o objeto
- * e leva a câmera do editor até ele (`stores/mapObjectNavigation.ts`).
- *
- * Com aventura, a busca também procura salas, pinos e fichas nas OUTRAS cenas
- * (`lib/buscaNaAventura.ts`): cada achado mostra o caminho de onde mora, e o
- * clique abre a cena dele. Sala e pino, daqui ou de lá, ganham "Mandar ficha".
- *
- * Nasce recolhida e o corpo só existe com ela aberta (`lazy`): numa mesa com
- * trinta salas a lista é longa, e fechada ela não custa nada nem repete na
- * página os nomes que o painel Grupo e as Cenas já mostram.
- */
-export function MapObjectsSection({ searchRequest = 0, ...rest }: MapObjectsSectionProps) {
-  /** Último Ctrl+K já atendido. Mora aqui, fora do corpo que monta e desmonta com a seção. */
-  const consumedSearch = useRef(searchRequest)
-  return (
-    <FichaDaPagina id="objects" titulo="Objetos do mapa" icone="busca" padrao={false} lazy pedidoDeAbrir={searchRequest}>
-      <ObjectFinder {...rest} searchRequest={searchRequest} consumedSearch={consumedSearch} />
-    </FichaDaPagina>
-  )
-}
+/** Chave `lb-section:objects` e `data-secao` da ficha: as da seção recolhível de antes. */
+const ID_DA_FICHA = 'objects'
 
-interface ObjectFinderProps extends Omit<MapObjectsSectionProps, 'searchRequest'> {
-  searchRequest: number
-  consumedSearch: RefObject<number>
-}
+/** Fechada e sem busca, a lista nem é montada: nada a calcular. */
+const SEM_OBJETOS: readonly MapObjectEntry[] = []
 
 function countLabel(count: number): string {
   return count === 1 ? '1 objeto' : `${count} objetos`
@@ -94,7 +74,25 @@ function canReceive(kind: MapObjectEntry['kind']): boolean {
   return kind === 'room' || kind === 'pin'
 }
 
-function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, otherScenes, onGoToOther, senders, onSendHere }: ObjectFinderProps) {
+/**
+ * "Objetos do mapa", no topo da página Cena: a busca à vista e, aberta, a
+ * lista pelo nome das salas, portas, pinos, tokens e textos da cena aberta.
+ * Clicar numa linha seleciona o objeto e leva a câmera do editor até ele
+ * (`stores/mapObjectNavigation.ts`).
+ *
+ * Com aventura, a busca também procura salas, pinos e fichas nas OUTRAS cenas
+ * (`lib/buscaNaAventura.ts`): cada achado mostra o caminho de onde mora, e o
+ * clique abre a cena dele. Sala e pino, daqui ou de lá, ganham "Mandar ficha".
+ *
+ * A busca fica à vista com a ficha fechada (o Ctrl+K e o "Procurar" sempre têm
+ * onde pousar), e digitar abre a lista que ela filtra. Fechada e sem busca a
+ * lista nem existe: numa mesa com trinta salas ela é longa, e assim não custa
+ * nada a cada render do App nem repete os nomes que o Grupo e as Cenas mostram.
+ */
+export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, otherScenes, onGoToOther, senders, onSendHere }: MapObjectsSectionProps) {
+  const [aberta, setAberta] = useAbertaGuardada(ID_DA_FICHA, false)
+  /** Último Ctrl+K já atendido; o da montagem conta como atendido. */
+  const consumedSearch = useRef(searchRequest)
   const [query, setQuery] = useState('')
   /** Linha que o Tab alcança: a última que teve foco. Sem ela, a marcada; sem esta, a primeira. */
   const [focusKey, setFocusKey] = useState<string | null>(null)
@@ -106,27 +104,28 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
   const promptRef = useRef<HTMLDivElement | null>(null)
   const fieldId = useId()
   const listId = useId()
-  const objects = useMemo(() => mapObjectsOf(map), [map])
+  /** Com algo digitado o Enter precisa do primeiro achado, mesmo com a lista recolhida à mão. */
+  const listando = aberta || query !== ''
+  const objects = useMemo(() => (listando ? mapObjectsOf(map) : SEM_OBJETOS), [listando, map])
   const results = useMemo(() => filterMapObjects(objects, query), [objects, query])
   const hasOtherScenes = otherScenes !== undefined && otherScenes.length > 0
   const elsewhere = useMemo(() => searchAdventure(otherScenes ?? [], query), [otherScenes, query])
   const canSend = onSendHere !== undefined && senders !== undefined && senders.length > 0
 
+  // Ctrl+K e "Procurar": a lista aberta e o cursor na busca, com o texto de antes selecionado.
   useEffect(() => {
     if (searchRequest === consumedSearch.current) return
     consumedSearch.current = searchRequest
+    setAberta(true)
     inputRef.current?.focus()
     inputRef.current?.select()
-  }, [searchRequest, consumedSearch])
+    // Fora das dependências: `setAberta` é refeita a cada render, e só o pedido novo abre.
+  }, [searchRequest])
 
   // A pergunta abre com o foco no primeiro jogador: escolher é uma tecla só.
   useEffect(() => {
     if (sendPrompt !== null) promptRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
   }, [sendPrompt])
-
-  if (objects.length === 0 && !hasOtherScenes) {
-    return <p className="lb-objetos__vazio">Esta cena ainda não tem sala, porta, pino, token nem texto.</p>
-  }
 
   const keys = [...results.map((entry) => entry.key), ...elsewhere.hits.map((hit) => hit.key)]
   const tabKey = focusKey !== null && keys.includes(focusKey) ? focusKey : currentKey !== null && keys.includes(currentKey) ? currentKey : keys[0] ?? null
@@ -140,7 +139,9 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
   const summary =
     trimmed === ''
       ? objects.length === 0
-        ? 'Esta cena ainda não tem objeto. Digite para buscar nas outras cenas.'
+        ? hasOtherScenes
+          ? 'Esta cena ainda não tem objeto. Digite para buscar nas outras cenas.'
+          : 'Esta cena ainda não tem sala, porta, pino, token nem texto.'
         : countLabel(objects.length)
       : results.length === 0 && elsewhere.total === 0
         ? `Nenhum objeto com “${trimmed}”. Tente só o começo do nome.`
@@ -354,9 +355,11 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
   }
 
   const hiddenElsewhere = elsewhere.total - elsewhere.hits.length
+  /** Com a sala aberta e um achado que recebe ficha, o atalho de mandar é dito ali mesmo (o protótipo). */
+  const sendHint = canSend && enterTarget !== null ? targetOf(enterTarget) : null
 
-  return (
-    <div className="lb-objetos">
+  const field = (
+    <>
       {/* O nome do campo é só do leitor de tela: a lupa e o atalho dentro dele dizem o que ele é. */}
       <label className="gr-sr" htmlFor={fieldId}>
         Buscar objeto
@@ -375,11 +378,14 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
           autoComplete="off"
           spellCheck={false}
           aria-keyshortcuts="Control+K"
-          aria-controls={listId}
+          aria-controls={aberta ? listId : undefined}
           onChange={(event) => {
-            setQuery(event.target.value)
+            const typed = event.target.value
+            setQuery(typed)
             setSendPrompt(null)
             setSendNotice(null)
+            // Digitar abre a lista que a busca filtra; apagar não a fecha.
+            if (typed !== '' && !aberta) setAberta(true)
           }}
           onKeyDown={onSearchKeyDown}
         />
@@ -393,9 +399,15 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
           </button>
         )}
       </div>
+    </>
+  )
+
+  const list = (
+    <div className="lb-objetos">
       <p className="lb-objetos__resumo" role="status">
         {sendNotice ?? summary}
       </p>
+      {sendNotice === null && sendHint !== null && <p className="lb-objetos__dica">Shift+Enter manda uma ficha para {sendHint.name}.</p>}
       <div ref={listRef} id={listId} className="lb-objetos__lista lb-scroll" onKeyDown={onListKeyDown}>
         {MAP_OBJECT_GROUPS.map((group) => {
           const items = results.filter((entry) => entry.kind === group.kind)
@@ -466,5 +478,19 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
         )}
       </div>
     </div>
+  )
+
+  return (
+    <Ficha
+      titulo="Objetos do mapa"
+      icone={<IconeDoLivro nome="busca" />}
+      resumoForaDoNome
+      secao={ID_DA_FICHA}
+      aberta={aberta}
+      onAlternar={setAberta}
+      aVista={field}
+    >
+      {aberta ? list : null}
+    </Ficha>
   )
 }

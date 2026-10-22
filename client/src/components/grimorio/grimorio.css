@@ -125,6 +125,8 @@ button:where([class^='gr-'], [class*=' gr-']):disabled { cursor: not-allowed; }
 .gr-ficha.gr-e-aberta .gr-ficha__miolo { opacity: 1; transition-delay: 40ms; }
 .gr-ficha__dentro { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--lb-gr-filete); padding-top: 12px; }
 .gr-ficha--plana .gr-ficha__dentro { border-top: 0; padding-top: 12px; }
+/* o que fica à vista com a ficha fechada (a busca de Objetos do mapa): rente ao cabeçalho, e o filete do miolo separa a lista dele */
+.gr-ficha__vista { padding: 0 10px 10px; }
 
 /* ------------------------------------------------------------------ campos */
 .gr-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

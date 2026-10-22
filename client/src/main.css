@@ -5562,6 +5562,7 @@ html.lb-arrastando-cena * {
 }
 
 .lb-objetos__resumo,
+.lb-objetos__dica,
 .lb-cenas__resumo {
   margin: 0;
   font-size: var(--lb-font-size-sm);

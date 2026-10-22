@@ -153,6 +153,56 @@ function titulosDosGrupos(): string[] {
 }
 
 describe('MapObjectsSection: busca em todas as cenas', () => {
+  it('busca do topo com a ficha fechada: digitar abre a lista com o achado de outra cena, e o Enter vai lá', () => {
+    const props = render()
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
+    expect(busca().placeholder).toBe('Sala, pino ou ficha, em qualquer cena')
+    digitar(busca(), 'vigia')
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(titulosDosGrupos()).toEqual(['Outras cenas 1'])
+    expect(nomeAcessivel(linha('Vigia'))).toBe('Vigia Vale › Cripta Rubra')
+    tecla(busca(), 'Enter')
+    expect(props.onGoTo).not.toHaveBeenCalled()
+    expect(vi.mocked(props.onGoToOther ?? vi.fn()).mock.calls[0][0]).toMatchObject({ sceneId: 's-cripta', objectKey: 'token:k-vigia' })
+  })
+
+  it('o Ctrl+K com a ficha fechada abre a lista e põe o cursor na busca do topo, pronta para achar em outra cena', () => {
+    render({ searchRequest: 0 })
+    render({ searchRequest: 1 })
+    expect(cabecalho().getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(busca())
+    digitar(busca(), 'trono')
+    expect(linhas().map((b) => nomeAcessivel(b))).toEqual(['Sala do Trono Vale › Cripta Rubra'])
+  })
+
+  it('com a sala aberta, a dica diz para onde o Shift+Enter manda a ficha; sem achado que receba, nada', () => {
+    render({ senders: JOGADORES, onSendHere: vi.fn(() => ({ ok: true, mensagem: '' })) })
+    digitar(busca(), 'trono')
+    expect(corpo().textContent).toContain('Shift+Enter manda uma ficha para Sala do Trono.')
+    digitar(busca(), 'vigia')
+    expect(corpo().textContent).not.toContain('Shift+Enter')
+  })
+
+  it('sala aberta, ficha fechada: Shift+Enter na busca do topo pergunta quem vai e manda a ficha para a sala da outra cena', () => {
+    const onSendHere = vi.fn(() => ({ ok: true, mensagem: 'Ana foi para Sala do Trono.' }))
+    const props = render({ senders: JOGADORES, onSendHere })
+    digitar(busca(), 'trono')
+    const shiftEnter = tecla(busca(), 'Enter', true)
+    expect(shiftEnter.defaultPrevented).toBe(true)
+    expect(props.onGoToOther).not.toHaveBeenCalled()
+    expect(document.activeElement?.textContent).toContain('Ana')
+    act(() => botaoPorNome('Ana').click())
+    expect(onSendHere).toHaveBeenCalledWith('ana', { sceneId: 's-cripta', objectKey: 'room:r-trono', name: 'Sala do Trono' })
+    expect(corpo().textContent).toContain('Ana foi para Sala do Trono.')
+    expect(document.activeElement).toBe(busca())
+  })
+
+  it('sem sala aberta, a busca não fala do Shift+Enter', () => {
+    render()
+    digitar(busca(), 'trono')
+    expect(corpo().textContent).not.toContain('Shift+Enter')
+  })
+
   it('sem nada digitado, só a cena aberta: as outras cenas não entram na lista', () => {
     render()
     abrir()
