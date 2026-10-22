@@ -5,7 +5,8 @@ import { avancarParedes, criarMalha, DIRECOES, type DijkstraDoMarco, type Malha,
  * triângulo (ALT): com a distância de cada marco a todos os pontos, o caminho
  * de n até o fim é pelo menos |d(marco, fim) − d(marco, n)|. Num labirinto, a
  * reta até o destino engana (a sala sem saída "parece perto"); o marco não.
- * A estimativa nunca passa do real, então o caminho continua o mais curto.
+ * A estimativa nunca passa do real: o peso da busca (`PESO_DA_ESTIMATIVA`)
+ * continua sendo o único afastamento do mais curto.
  *
  * As distâncias são da rede mais folgada que a busca usa (porta trancada
  * passa, sem custo de porta, nos dois sentidos): valem como piso para as três
@@ -128,20 +129,30 @@ export function avancarMarcos(m: Malha, orcamento: number): boolean {
   if (c === null) return true
   if (!paredesProntas(m)) return false
   if (c.atual === null) {
-    const origem = m.marcos.length === 0 ? primeiraOrigem(m) : maisLonge(c.menor)
-    if (origem < 0 || m.marcos.length >= QUANTOS_MARCOS) {
-      m.construcaoDosMarcos = null
-      return true
-    }
+    const origem = c.feitos.length === 0 ? primeiraOrigem(m) : maisLonge(c.menor)
+    if (origem < 0 || c.feitos.length >= QUANTOS_MARCOS) return juntarMarcos(m, c.feitos)
     c.atual = novoDijkstra(m, origem)
   }
   if (!andarDijkstra(m, c.atual, orcamento)) return false
   const { dist } = c.atual
-  m.marcos.push(dist)
+  c.feitos.push(dist)
   for (let no = 0; no < dist.length; no += 1) c.menor[no] = Math.min(c.menor[no] ?? Number.POSITIVE_INFINITY, dist[no] ?? Number.POSITIVE_INFINITY)
   c.atual = null
-  if (m.marcos.length >= QUANTOS_MARCOS) m.construcaoDosMarcos = null
-  return m.construcaoDosMarcos === null
+  return c.feitos.length >= QUANTOS_MARCOS ? juntarMarcos(m, c.feitos) : false
+}
+
+/** As distâncias dos marcos, juntas por ponto, na malha; a montagem acaba. */
+function juntarMarcos(m: Malha, feitos: readonly Float32Array[]): true {
+  const total = m.nx * m.ny
+  const k = feitos.length
+  const juntos = new Float32Array(total * k)
+  feitos.forEach((dist, marco) => {
+    for (let no = 0; no < total; no += 1) juntos[no * k + marco] = dist[no] ?? Number.POSITIVE_INFINITY
+  })
+  m.marcos = juntos
+  m.quantosMarcos = k
+  m.construcaoDosMarcos = null
+  return true
 }
 
 /** Pontos de Dijkstra que valem o custo de uma parede na montagem por fatias. */

@@ -132,8 +132,12 @@ export interface Malha {
   feitas: number
   /** Memória de buscas que terminaram, para a próxima não alocar de novo (30 NPCs num mapa grande). */
   readonly sobras: MemoriaDaBusca[]
-  /** MARCOS (`marcos.ts`): distâncias de alguns pontos a todos, para a busca estimar melhor em rede grande. */
-  readonly marcos: Float32Array[]
+  /**
+   * MARCOS (`marcos.ts`): a distância de cada marco a cada ponto, juntas por
+   * ponto (`no * quantosMarcos + k`) — a busca lê as do ponto de uma vez.
+   */
+  marcos: Float32Array
+  quantosMarcos: number
   /** A rede é grande e os marcos ainda não ficaram prontos; `null` = prontos (ou rede pequena, sem marcos). */
   construcaoDosMarcos: ConstrucaoDosMarcos | null
 }
@@ -151,18 +155,28 @@ export interface ConstrucaoDosMarcos {
   /** Para cada ponto, a menor distância a um marco já feito: o próximo marco é o mais longe de todos. */
   menor: Float32Array
   atual: DijkstraDoMarco | null
+  /** As distâncias de cada marco já feito, até juntá-las em `Malha.marcos`. */
+  feitos: Float32Array[]
 }
 
 /** Redes com mais pontos que isto ganham marcos (mapa pequeno já é rápido sem eles). */
 export const PONTOS_PARA_MARCOS = 20000
 
-/** O que uma rodada de A* usa por ponto da rede (mais um, o fim). */
+/** O que uma rodada de A* usa por ponto da rede (mais um, o fim), e o monte dos abertos. */
 export interface MemoriaDaBusca {
   g: Float64Array
+  /** A estimativa do ponto, calculada uma vez por rodada (vale onde `marca` não é 0). */
+  h: Float64Array
   veio: Int32Array
   marca: Uint8Array
   bloqueioFicha: Uint8Array
+  /** O monte (heap) dos abertos: cresce dobrando e fica para a próxima busca. */
+  monteNo: Int32Array
+  monteF: Float64Array
+  monteH: Float64Array
 }
+
+const MONTE_INICIAL = 4096
 
 /** Memória limpa para uma rodada nesta malha. */
 export function pegarMemoria(m: Malha): MemoriaDaBusca {
@@ -173,7 +187,16 @@ export function pegarMemoria(m: Malha): MemoriaDaBusca {
     sobra.bloqueioFicha.fill(0)
     return sobra
   }
-  return { g: new Float64Array(total), veio: new Int32Array(total), marca: new Uint8Array(total), bloqueioFicha: new Uint8Array(total) }
+  return {
+    g: new Float64Array(total),
+    h: new Float64Array(total),
+    veio: new Int32Array(total),
+    marca: new Uint8Array(total),
+    bloqueioFicha: new Uint8Array(total),
+    monteNo: new Int32Array(MONTE_INICIAL),
+    monteF: new Float64Array(MONTE_INICIAL),
+    monteH: new Float64Array(MONTE_INICIAL),
+  }
 }
 
 /** Teto de memórias guardadas por malha. */
@@ -228,8 +251,9 @@ export function criarMalha(mapa: MapaDoCaminho, raio: number): Malha {
     paredes: mapa.walls,
     feitas: 0,
     sobras: [],
-    marcos: [],
-    construcaoDosMarcos: total > PONTOS_PARA_MARCOS ? { menor: new Float32Array(total).fill(Number.POSITIVE_INFINITY), atual: null } : null,
+    marcos: new Float32Array(0),
+    quantosMarcos: 0,
+    construcaoDosMarcos: total > PONTOS_PARA_MARCOS ? { menor: new Float32Array(total).fill(Number.POSITIVE_INFINITY), atual: null, feitos: [] } : null,
   }
 }
 

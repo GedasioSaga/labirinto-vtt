@@ -63,6 +63,12 @@ export const TOLERANCIA_ENTRE_FICHAS = 0.05
 /** Até quantas casas em volta a perna liga o ponto real da ficha à rede. */
 const ALCANCE_DA_PERNA = 2
 const RAIZ_DE_2 = Math.SQRT2
+/**
+ * A estimativa pesa um pouco mais que o caminho feito (A* ponderado): a busca
+ * abre bem menos pontos e o caminho fica, no pior caso, este tanto mais
+ * comprido que o mais curto — na prática quase nada, depois do alisado.
+ */
+const PESO_DA_ESTIMATIVA = 1.2
 
 export interface Obstaculo {
   id: string
@@ -79,19 +85,18 @@ interface Fase {
 
 interface Rodada {
   memoria: MemoriaDaBusca
-  heapNo: number[]
-  heapF: number[]
-  heapH: number[]
+  /** Quantos abertos há no monte (`memoria.monte*`). */
+  tamanho: number
   chegada: Map<number, number>
   fichasPerto: Map<number, number[]>
   obstaculos: readonly Obstaculo[]
   portaFechada: Uint8Array
   custoPorta: number
   /** Por marco: a menor e a maior distância dele aos pontos de chegada que ele alcança (infinito: nenhum). */
-  alvoMin: number[]
-  alvoMax: number[]
-  /** Por marco: ele alcança todos os pontos de chegada. */
-  alvoTodoAlcancado: boolean[]
+  alvoMin: Float64Array
+  alvoMax: Float64Array
+  /** Por marco: 1 se ele alcança todos os pontos de chegada. */
+  alvoTodoAlcancado: Uint8Array
 }
 
 export interface Busca {
@@ -221,14 +226,16 @@ function octil(x: number, y: number, para: Point): number {
  */
 function estimativa(b: Busca, r: Rodada, no: number, x: number, y: number): number {
   let h = octil(x, y, b.consulta.para)
-  const marcos = b.malha.marcos
-  for (let k = 0; k < marcos.length; k += 1) {
-    const d = marcos[k]?.[no] ?? Number.POSITIVE_INFINITY
-    const min = r.alvoMin[k] ?? Number.POSITIVE_INFINITY
+  const m = b.malha
+  const quantos = m.quantosMarcos
+  const base = no * quantos
+  for (let k = 0; k < quantos; k += 1) {
+    const d = m.marcos[base + k] ?? Number.POSITIVE_INFINITY
     if (d === Number.POSITIVE_INFINITY) {
-      if (r.alvoTodoAlcancado[k] === true) return -1
+      if (r.alvoTodoAlcancado[k] === 1) return -1
       continue
     }
+    const min = r.alvoMin[k] ?? Number.POSITIVE_INFINITY
     if (min === Number.POSITIVE_INFINITY) return -1
     const piso = Math.max(min - d, d - (r.alvoMax[k] ?? 0))
     if (piso > h) h = piso
@@ -237,81 +244,94 @@ function estimativa(b: Busca, r: Rodada, no: number, x: number, y: number): numb
 }
 
 function medirAlvos(m: Malha, r: Rodada): void {
-  for (const dist of m.marcos) {
+  const quantos = m.quantosMarcos
+  for (let k = 0; k < quantos; k += 1) {
     let min = Number.POSITIVE_INFINITY
     let max = Number.NEGATIVE_INFINITY
-    let todos = true
+    let todos = 1
     for (const no of r.chegada.keys()) {
-      const d = dist[no] ?? Number.POSITIVE_INFINITY
-      if (d === Number.POSITIVE_INFINITY) todos = false
+      const d = m.marcos[no * quantos + k] ?? Number.POSITIVE_INFINITY
+      if (d === Number.POSITIVE_INFINITY) todos = 0
       else {
         min = Math.min(min, d)
         max = Math.max(max, d)
       }
     }
-    r.alvoMin.push(min)
-    r.alvoMax.push(max)
-    r.alvoTodoAlcancado.push(todos)
+    r.alvoMin[k] = min
+    r.alvoMax[k] = max
+    r.alvoTodoAlcancado[k] = todos
   }
 }
 
-/** `i` sai antes de `j`: menor custo; empate, o mais perto do fim; empate, o menor ponto. */
-function antes(r: Rodada, i: number, j: number): boolean {
-  const fi = r.heapF[i] ?? 0
-  const fj = r.heapF[j] ?? 0
-  if (fi !== fj) return fi < fj
-  const hi = r.heapH[i] ?? 0
-  const hj = r.heapH[j] ?? 0
-  if (hi !== hj) return hi < hj
-  return (r.heapNo[i] ?? 0) < (r.heapNo[j] ?? 0)
+/** (fa, ha, na) sai antes de (fb, hb, nb): menor custo; empate, o mais perto do fim; empate, o menor ponto. */
+function antes(fa: number, ha: number, na: number, fb: number, hb: number, nb: number): boolean {
+  if (fa !== fb) return fa < fb
+  if (ha !== hb) return ha < hb
+  return na < nb
 }
 
-function trocar(r: Rodada, a: number, b: number): void {
-  const no = r.heapNo[a] ?? 0
-  r.heapNo[a] = r.heapNo[b] ?? 0
-  r.heapNo[b] = no
-  const f = r.heapF[a] ?? 0
-  r.heapF[a] = r.heapF[b] ?? 0
-  r.heapF[b] = f
-  const h = r.heapH[a] ?? 0
-  r.heapH[a] = r.heapH[b] ?? 0
-  r.heapH[b] = h
+function crescerMonte(memoria: MemoriaDaBusca): void {
+  const capacidade = memoria.monteNo.length * 2
+  const nos = new Int32Array(capacidade)
+  nos.set(memoria.monteNo)
+  const fs = new Float64Array(capacidade)
+  fs.set(memoria.monteF)
+  const hs = new Float64Array(capacidade)
+  hs.set(memoria.monteH)
+  memoria.monteNo = nos
+  memoria.monteF = fs
+  memoria.monteH = hs
 }
 
 function pôr(r: Rodada, no: number, f: number, h: number): void {
-  r.heapNo.push(no)
-  r.heapF.push(f)
-  r.heapH.push(h)
-  let i = r.heapNo.length - 1
+  if (r.tamanho === r.memoria.monteNo.length) crescerMonte(r.memoria)
+  const { monteNo, monteF, monteH } = r.memoria
+  let i = r.tamanho
+  r.tamanho += 1
   while (i > 0) {
     const pai = (i - 1) >> 1
-    if (!antes(r, i, pai)) break
-    trocar(r, i, pai)
+    const noPai = monteNo[pai] ?? 0
+    const fPai = monteF[pai] ?? 0
+    const hPai = monteH[pai] ?? 0
+    if (!antes(f, h, no, fPai, hPai, noPai)) break
+    monteNo[i] = noPai
+    monteF[i] = fPai
+    monteH[i] = hPai
     i = pai
   }
+  monteNo[i] = no
+  monteF[i] = f
+  monteH[i] = h
 }
 
+/** Tira o primeiro do monte (que não pode estar vazio). */
 function tirar(r: Rodada): number {
-  const topo = r.heapNo[0] ?? -1
-  const ultimoNo = r.heapNo.pop()
-  const ultimoF = r.heapF.pop()
-  const ultimoH = r.heapH.pop()
-  if (r.heapNo.length > 0 && ultimoNo !== undefined && ultimoF !== undefined && ultimoH !== undefined) {
-    r.heapNo[0] = ultimoNo
-    r.heapF[0] = ultimoF
-    r.heapH[0] = ultimoH
-    let i = 0
-    for (;;) {
-      const esq = 2 * i + 1
-      const dir = esq + 1
-      let menor = i
-      if (esq < r.heapNo.length && antes(r, esq, menor)) menor = esq
-      if (dir < r.heapNo.length && antes(r, dir, menor)) menor = dir
-      if (menor === i) break
-      trocar(r, i, menor)
-      i = menor
-    }
+  const { monteNo, monteF, monteH } = r.memoria
+  const topo = monteNo[0] ?? -1
+  r.tamanho -= 1
+  const n = r.tamanho
+  if (n === 0) return topo
+  const no = monteNo[n] ?? 0
+  const f = monteF[n] ?? 0
+  const h = monteH[n] ?? 0
+  let i = 0
+  for (;;) {
+    let filho = 2 * i + 1
+    if (filho >= n) break
+    const irmao = filho + 1
+    if (irmao < n && antes(monteF[irmao] ?? 0, monteH[irmao] ?? 0, monteNo[irmao] ?? 0, monteF[filho] ?? 0, monteH[filho] ?? 0, monteNo[filho] ?? 0)) filho = irmao
+    const noFilho = monteNo[filho] ?? 0
+    const fFilho = monteF[filho] ?? 0
+    const hFilho = monteH[filho] ?? 0
+    if (!antes(fFilho, hFilho, noFilho, f, h, no)) break
+    monteNo[i] = noFilho
+    monteF[i] = fFilho
+    monteH[i] = hFilho
+    i = filho
   }
+  monteNo[i] = no
+  monteF[i] = f
+  monteH[i] = h
   return topo
 }
 
@@ -347,17 +367,15 @@ function comecarRodada(b: Busca): void {
   const obstaculos = b.fase.comFichas ? obstaculosPara(de, fichas, m.raio, m.grid, folgaExtra) : []
   const r: Rodada = {
     memoria: pegarMemoria(m),
-    heapNo: [],
-    heapF: [],
-    heapH: [],
+    tamanho: 0,
     chegada: new Map(),
     fichasPerto: new Map(),
     obstaculos,
     portaFechada: new Uint8Array(b.paredes.length),
     custoPorta: b.consulta.custoPorPorta ?? CUSTO_DA_PORTA * m.grid,
-    alvoMin: [],
-    alvoMax: [],
-    alvoTodoAlcancado: [],
+    alvoMin: new Float64Array(m.quantosMarcos),
+    alvoMax: new Float64Array(m.quantosMarcos),
+    alvoTodoAlcancado: new Uint8Array(m.quantosMarcos),
   }
   for (const k of m.portas) {
     const w = b.paredes[k]
@@ -371,25 +389,33 @@ function comecarRodada(b: Busca): void {
   b.rodada = r
   if (r.chegada.size === 0) return
   medirAlvos(m, r)
-  const { g, veio, marca } = r.memoria
+  const { g, h: estimado, veio, marca } = r.memoria
   for (const [no, dist] of inicio) {
     const c = pontoDoNo(m, no)
     const h = estimativa(b, r, no, c.x, c.y)
     if (h < 0) continue
     g[no] = dist
+    estimado[no] = h
     // A memória vem de outra busca: o ponto de saída precisa dizer que é o começo.
     veio[no] = -1
     marca[no] = ABERTO
-    pôr(r, no, dist + h, h)
+    pôr(r, no, dist + PESO_DA_ESTIMATIVA * h, h)
   }
 }
 
-/** O custo da aresta `no → outro` na direção `dir` (de `p`), ou -1 se não passa nesta rodada. */
-function custoDaAresta(b: Busca, r: Rodada, no: number, dir: number, outro: number, px: number, py: number): number {
+const PASSO_EM_I = Int8Array.from(DIRECOES, ([di]) => di)
+const PASSO_EM_J = Int8Array.from(DIRECOES, ([, dj]) => dj)
+/** Para cada diagonal, os bits dos dois lados retos que ela não pode cortar (0 nas retas). */
+const RETOS_DA_DIAGONAL = Uint8Array.from(DIRECOES, ([di, dj], dir) => (dir < 4 ? 0 : (1 << (di > 0 ? 0 : 1)) | (1 << (dj > 0 ? 2 : 3))))
+
+/**
+ * O custo a mais da aresta de `no` na direção `dir` que cruza tranca ou porta
+ * (o ponto em px, py), ou -1 se ela não passa nesta rodada.
+ */
+function custoDaPorta(b: Busca, r: Rodada, no: number, dir: number, px: number, py: number): number {
   const m = b.malha
   const bit = 1 << dir
   const parede = m.parede[no] ?? 0
-  if ((parede & bit) !== 0) return -1
   const tranca = m.tranca[no] ?? 0
   const porta = m.porta[no] ?? 0
   let extra = 0
@@ -401,12 +427,8 @@ function custoDaAresta(b: Busca, r: Rodada, no: number, dir: number, outro: numb
     }
     extra += r.custoPorta
   }
-  if (dir >= 4) {
-    // Diagonal só com os dois lados retos livres (sem parede, sem porta): não corta quina.
-    const passo = DIRECOES[dir] ?? [0, 0]
-    const retos = (1 << (passo[0] > 0 ? 0 : 1)) | (1 << (passo[1] > 0 ? 2 : 3))
-    if (((parede | tranca | porta) & retos) !== 0) return -1
-  }
+  // Diagonal só com os dois lados retos livres (sem parede, sem porta): não corta quina.
+  if (((parede | tranca | porta) & (RETOS_DA_DIAGONAL[dir] ?? 0)) !== 0) return -1
   if ((porta & bit) !== 0) {
     const k = m.portaDaAresta.get(no * 8 + dir)
     if (k !== undefined && r.portaFechada[k] === 1) {
@@ -417,39 +439,46 @@ function custoDaAresta(b: Busca, r: Rodada, no: number, dir: number, outro: numb
       extra += r.custoPorta
     }
   }
-  if (b.fase.comFichas) {
-    if (r.memoria.bloqueioFicha[outro] === 1) {
-      const c = pontoDoNo(m, outro)
-      for (const o of r.obstaculos) if (Math.hypot(c.x - o.x, c.y - o.y) < o.alcance) b.fichasQueAtrapalham.add(o.id)
-      return -1
-    }
-    const perto = r.fichasPerto.get(no)
-    if (perto !== undefined) {
-      const c = pontoDoNo(m, outro)
-      for (const indice of perto) {
-        const o = r.obstaculos[indice]
-        if (o !== undefined && distanciaAoTraco(o.x, o.y, px, py, c.x, c.y) < o.alcance) {
-          b.fichasQueAtrapalham.add(o.id)
-          return -1
-        }
-      }
+  return extra
+}
+
+/**
+ * Uma ficha barra o passo de (px, py) ao ponto `outro` em (cx, cy): ele está
+ * barrado, ou o traço encosta numa ficha de perto (`perto`). Anota quem atrapalha.
+ */
+function fichaBarra(b: Busca, r: Rodada, outro: number, perto: readonly number[] | undefined, px: number, py: number, cx: number, cy: number): boolean {
+  if (r.memoria.bloqueioFicha[outro] === 1) {
+    for (const o of r.obstaculos) if (Math.hypot(cx - o.x, cy - o.y) < o.alcance) b.fichasQueAtrapalham.add(o.id)
+    return true
+  }
+  if (perto === undefined) return false
+  for (const indice of perto) {
+    const o = r.obstaculos[indice]
+    if (o !== undefined && distanciaAoTraco(o.x, o.y, px, py, cx, cy) < o.alcance) {
+      b.fichasQueAtrapalham.add(o.id)
+      return true
     }
   }
-  return (dir < 4 ? m.grid : m.grid * RAIZ_DE_2) + extra
+  return false
 }
 
 /**
  * Uma rodada anda até `orcamento` pontos. Devolve o fim (achou), -1 se a
- * rodada acabou sem caminho, ou `undefined` se ainda não terminou.
+ * rodada acabou sem caminho, ou `undefined` se ainda não terminou. É o laço
+ * quente do motor: o que é do ponto (bits, fichas de perto) é lido uma vez,
+ * não por vizinho, e a estimativa de cada ponto, uma vez por rodada.
  */
 function andarRodada(b: Busca, orcamento: number): number | undefined {
   const r = b.rodada
   if (r === null) return -1
   const m = b.malha
-  const { g, veio, marca } = r.memoria
+  const { g, h: estimado, veio, marca } = r.memoria
   const fim = m.nx * m.ny
+  const comFichas = b.fase.comFichas
+  const custoReto = m.grid
+  const custoDiagonal = m.grid * RAIZ_DE_2
   let feitos = 0
-  while (r.heapNo.length > 0) {
+  while (r.tamanho > 0) {
     if (feitos >= orcamento) return undefined
     const no = tirar(r)
     if (no < 0 || marca[no] === FECHADO) continue
@@ -468,27 +497,48 @@ function andarRodada(b: Busca, orcamento: number): number | undefined {
         pôr(r, fim, novo, 0)
       }
     }
+    const parede = m.parede[no] ?? 0xff
+    const especial = (m.tranca[no] ?? 0) | (m.porta[no] ?? 0)
+    const quina = parede | especial
+    const perto = comFichas ? r.fichasPerto.get(no) : undefined
     const i = no % m.nx
     const j = (no - i) / m.nx
     const px = m.x0 + i * m.grid
     const py = m.y0 + j * m.grid
     for (let dir = 0; dir < 8; dir += 1) {
-      const passo = DIRECOES[dir] ?? [0, 0]
-      const ni = i + passo[0]
-      const nj = j + passo[1]
+      const bit = 1 << dir
+      if ((parede & bit) !== 0) continue
+      const ni = i + (PASSO_EM_I[dir] ?? 0)
+      const nj = j + (PASSO_EM_J[dir] ?? 0)
       if (ni < 0 || nj < 0 || ni >= m.nx || nj >= m.ny) continue
       const outro = ni + nj * m.nx
       if (marca[outro] === FECHADO) continue
-      const custo = custoDaAresta(b, r, no, dir, outro, px, py)
-      if (custo < 0) continue
+      let custo = dir < 4 ? custoReto : custoDiagonal
+      if ((especial & bit) !== 0) {
+        const extra = custoDaPorta(b, r, no, dir, px, py)
+        if (extra < 0) continue
+        custo += extra
+      } else if ((quina & (RETOS_DA_DIAGONAL[dir] ?? 0)) !== 0) continue
+      const cx = m.x0 + ni * m.grid
+      const cy = m.y0 + nj * m.grid
+      if (comFichas && fichaBarra(b, r, outro, perto, px, py, cx, cy)) continue
       const novo = custoAqui + custo
-      if (marca[outro] === ABERTO && novo >= (g[outro] ?? 0)) continue
-      const h = estimativa(b, r, outro, m.x0 + ni * m.grid, m.y0 + nj * m.grid)
-      if (h < 0) continue
+      const aberto = marca[outro] === ABERTO
+      if (aberto && novo >= (g[outro] ?? 0)) continue
+      let h = estimado[outro] ?? 0
+      if (!aberto) {
+        h = estimativa(b, r, outro, cx, cy)
+        if (h < 0) {
+          // Outra parte do mapa (os marcos separam): nem volta a olhar.
+          marca[outro] = FECHADO
+          continue
+        }
+        estimado[outro] = h
+      }
       g[outro] = novo
       veio[outro] = no
       marca[outro] = ABERTO
-      pôr(r, outro, novo + h, h)
+      pôr(r, outro, novo + PESO_DA_ESTIMATIVA * h, h)
     }
   }
   return -1
