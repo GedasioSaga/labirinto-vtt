@@ -1917,9 +1917,10 @@
 
 /*
  * NO MAPA: as quatro peças lado a lado. O "Marcações" é peça como as outras:
- * a caixa dele se desfaz e o botão entra na fileira; o menu, a dica dele e o
- * formulário da marca ocupam a linha inteira, embaixo dela (`dense` devolve
- * Medir e Laser à primeira linha, na ordem do DOM).
+ * a caixa dele se desfaz e o botão entra na fileira; o menu e o formulário da
+ * marca ocupam a linha inteira, embaixo dela (`dense` devolve Medir e Laser à
+ * primeira linha, na ordem do DOM). A dica do modo ligado é uma só, a de
+ * `.pp-dica-acao`, também a do destino e a da nota.
  */
 .pp-pecas {
   display: grid;

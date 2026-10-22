@@ -75,8 +75,8 @@ describe('PlayerMarcacoes', () => {
     render(todas({ destination: { armed: false, has: true, onToggle: vi.fn(), onClear: vi.fn() }, note: { armed: true, onToggle: vi.fn() } }))
     act(() => botao('Marcações').click())
     expect(itens().map((b) => b.textContent)).toEqual(['Mudar destino', 'Tirar marca', 'Cancelar nota', 'Deixar marca aqui…'])
-    // O modo ligado diz, embaixo do botão, para onde o dedo vai.
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Toque onde anotar. Só você vê. Esc sai.')
+    // A dica do modo ligado não mora no menu: é a linha única do painel, embaixo das peças (PlayerPanel.faixa.test).
+    expect(container.querySelector('[role="status"], [aria-live]')).toBeNull()
   })
 
   it('escolher roda o modo e fecha o menu', () => {

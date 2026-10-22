@@ -867,7 +867,7 @@ export function PlayerPanel({
                 </button>
               </div>
               <p className="pp-dica-acao" aria-live="polite">
-                {mapActionHint(signalArmed, measureArmed, laserArmed)}
+                {mapActionHint({ signal: signalArmed, destination: destinationArmed, note: noteArmed, measure: measureArmed, laser: laserArmed })}
               </p>
               {(mapShare !== undefined || onStepAway !== undefined) && (
                 <div className="pp-linhas">
@@ -1148,10 +1148,25 @@ function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
   )
 }
 
-/** A dica embaixo das peças "No mapa": a da peça ligada, ou o convite quando nenhuma está. */
-function mapActionHint(signalArmed: boolean, measureArmed: boolean, laserArmed: boolean): string {
-  if (signalArmed) return 'Toque no mapa para sinalizar. No PC: Alt+clique ou segure o clique parado.'
-  if (measureArmed) return 'Arraste no mapa para medir. Esc sai.'
-  if (laserArmed) return 'Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.'
+/** Os modos de toque no mapa que podem estar ligados: Sinalizar, Medir e Laser, e os dois do menu "Marcações". */
+interface MapActionsArmed {
+  signal: boolean
+  destination: boolean
+  note: boolean
+  measure: boolean
+  laser: boolean
+}
+
+/**
+ * A dica embaixo das peças "No mapa": a do modo ligado, ou o convite quando
+ * nenhum está. É a única: o "Marcações" não escreve a sua, e duas dicas
+ * anunciadas juntas se contradiziam (no notebook a coluna não fecha ao ligar).
+ */
+function mapActionHint(armed: MapActionsArmed): string {
+  if (armed.signal) return 'Toque no mapa para sinalizar. No PC: Alt+clique ou segure o clique parado.'
+  if (armed.destination) return 'Toque no destino, no mapa. Esc sai.'
+  if (armed.note) return 'Toque onde anotar. Só você vê. Esc sai.'
+  if (armed.measure) return 'Arraste no mapa para medir. Esc sai.'
+  if (armed.laser) return 'Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.'
   return 'Escolha uma ação e toque no mapa.'
 }
