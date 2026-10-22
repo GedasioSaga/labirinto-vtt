@@ -526,10 +526,12 @@
  * GRIMÓRIO NA TELA DO JOGADOR (fatia 19a do design consolidado). Os tokens
  * `--lb-gr-*` já chegam aqui pelo `themeCss()` que `main.tsx` injeta; os
  * primitivos NÃO vêm de `components/grimorio/grimorio.css`. Medido em
- * 22/10/2026 (`vite build`): ele somaria ~22,6 KB minificados (4,5 KB gzip) à
- * folha do jogador, que tem ~138 KB (21,9 KB gzip), e a tela do jogador usa
- * pouco mais que o couro, o papel, o latão e a peça. Quem precisa de um
- * primitivo o desenha aqui, com os mesmos valores do protótipo.
+ * 22/10/2026 (`vite build`, depois da fatia 19b): ele somaria ~22,6 KB
+ * minificados (4,5 KB gzip) à folha do jogador, que tem ~153 KB (24,8 KB
+ * gzip), e a tela do jogador usa pouco mais que o couro, o papel, o latão e a
+ * peça. Quem precisa de um primitivo o desenha aqui, com os mesmos valores do
+ * protótipo. O teste `folhaSemGrimorio.test.ts` anda pelos imports a partir de
+ * `boot.tsx` e fica vermelho se algum caminho chegar a `components/grimorio/`.
  */
 .pp-ic {
   flex: none;
