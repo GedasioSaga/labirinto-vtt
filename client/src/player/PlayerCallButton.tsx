@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { CALL_REASONS, CALL_REASON_LABELS, CALL_TEXT_MAX_LENGTH, type CallReason } from '../net/protocol'
 import type { CallNotice } from './playerConnection'
+import { IconeDoJogador } from './IconeDoJogador'
 
 export interface PlayerCallButtonProps {
   /** A mão agora (`playerConnection`): ausente = abaixada, nada a mostrar. */
@@ -104,7 +105,9 @@ export function PlayerCallButton({ call, onRaise, onLower }: PlayerCallButtonPro
             aria-controls={open ? formId : undefined}
             onClick={() => (open ? close() : setOpen(true))}
           >
-            Chamar o mestre
+            {/* A mão de latão do protótipo: o desenho fala por ela, e o nome continua para o leitor de tela. */}
+            <IconeDoJogador nome="mao" />
+            <span className="pp-visually-hidden">Chamar o mestre</span>
           </button>
         </>
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
+import { IconeDoJogador } from './IconeDoJogador'
 
 /** "Marcar destino": o próximo toque no mapa põe a marca "vamos para cá". */
 export interface MarcacaoDestino {
@@ -23,13 +24,6 @@ export interface PlayerMarcacoesProps {
   markForm?: PlayerMarkFormProps
 }
 
-/** O que fica escrito embaixo do botão enquanto um modo de toque está ligado: é para onde o dedo vai. */
-function armedHint(destination: MarcacaoDestino | undefined, note: MarcacaoNota | undefined): string | null {
-  if (destination?.armed === true) return 'Toque no destino, no mapa. Esc sai.'
-  if (note?.armed === true) return 'Toque onde anotar. Só você vê. Esc sai.'
-  return null
-}
-
 /**
  * MARCAÇÕES no painel do jogador: um botão só no lugar de "Marcar destino",
  * "Anotar" e "Deixar marca aqui…", que abre um menu pequeno com os três — e o
@@ -37,7 +31,9 @@ function armedHint(destination: MarcacaoDestino | undefined, note: MarcacaoNota 
  * entra no primeiro item, as setas andam com volta, Home/End vão às pontas,
  * Escape fecha e devolve o foco ao botão (sem fechar a gaveta junto), Tab e
  * tocar fora fecham. O menu mora no fluxo do painel, embaixo do botão: na
- * gaveta do celular ele rola junto, sem conta de posição.
+ * gaveta do celular ele rola junto, sem conta de posição. A dica do modo
+ * ligado ("Toque no destino…") não mora aqui: é a linha única embaixo das
+ * peças "No mapa" (`PlayerPanel`).
  */
 export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoesProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -100,7 +96,6 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
     run()
   }
 
-  const hint = armedHint(destination, note)
   const clearDestination = destination?.has === true ? destination.onClear : undefined
 
   return (
@@ -108,7 +103,7 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
       <button
         ref={buttonRef}
         type="button"
-        className="pp-button pp-marcacoes__toggle"
+        className="pp-button pp-peca pp-marcacoes__toggle"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-controls={menuOpen ? menuId : undefined}
@@ -118,6 +113,7 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
           setMenuOpen((open) => !open)
         }}
       >
+        <IconeDoJogador nome="marcador" />
         Marcações
         <svg className="pp-marcacoes__chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
           <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -153,11 +149,6 @@ export function PlayerMarcacoes({ destination, note, markForm }: PlayerMarcacoes
             </button>
           )}
         </div>
-      )}
-      {hint !== null && (
-        <p className="pp-empty" role="status">
-          {hint}
-        </p>
       )}
       {markForm !== undefined && markOpen && (
         <PlayerMarkForm

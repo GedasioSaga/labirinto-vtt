@@ -19,6 +19,8 @@ import type { DiceRequest } from '../lib/dice'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import type { PlayerMarkFormProps } from './PlayerMarkForm'
 import { PlayerMarcacoes } from './PlayerMarcacoes'
+import { IconeDoJogador, type NomeDoIcone } from './IconeDoJogador'
+import { acompanharTeclado } from './tecladoDoCelular'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -118,6 +120,31 @@ export const BAR_WIDTH_VAR = '--pp-bar-w'
 export const PANEL_SPACE_VAR = '--pp-painel-ocupa'
 /** O vão entre a coluna aberta e o que mora à direita dela (`--lb-control-gap` do tema). */
 const PANEL_SPACE_GAP_PX = 8
+
+/**
+ * A largura de desenho do traço da aba ativa (`.pp-tabs__ind` no player.css):
+ * a escala leva dela à largura da aba. Escala e não `width`, para o traço
+ * correr só com `transform`, sem refazer o layout a cada quadro.
+ */
+const TAB_INDICATOR_BASE_PX = 100
+
+/**
+ * Leva o traço até a aba. `animate` falso, ou o traço ainda sem lugar (a
+ * primeira vez), vai direto: sem a transição, e ela volta depois do
+ * reflow. Aba escondida (folha fechada) não tem medida, e o traço fica onde está.
+ */
+function placeTabIndicator(tabEl: HTMLElement | null | undefined, indicator: HTMLElement | null, animate: boolean): void {
+  if (!tabEl || indicator === null || tabEl.offsetWidth === 0) return
+  const still = !animate || indicator.dataset.placed !== 'true'
+  if (still) indicator.style.transition = 'none'
+  indicator.style.transform = `translateX(${tabEl.offsetLeft}px) scaleX(${tabEl.offsetWidth / TAB_INDICATOR_BASE_PX})`
+  if (still) {
+    // Lê o estilo para o navegador assentar o salto antes de devolver a transição.
+    void getComputedStyle(indicator).transform
+    indicator.style.transition = ''
+  }
+  indicator.dataset.placed = 'true'
+}
 
 /** Como cada estado do companheiro aparece escrito: é o texto que o jogador lê. */
 const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em outro lugar', fora: 'fora' }
@@ -396,6 +423,14 @@ export function PlayerPanel({
   const chatUnread = chat?.unread
   const chatMention = chatUnread !== undefined && (chatUnread.cena.length > 0 || chatUnread.global.length > 0)
   const tabButtons = useRef<Partial<Record<PanelTab, HTMLButtonElement | null>>>({})
+  const tabListRef = useRef<HTMLDivElement | null>(null)
+  const tabIndicatorRef = useRef<HTMLSpanElement | null>(null)
+  /** A aba escolhida, para o observador da fileira (que nasce uma vez por abertura) ler a de agora. */
+  const tabNow = useRef<PanelTab>(tab)
+  /** A troca veio do teclado (setas, Enter): o traço vai direto, sem correr — quem usa o teclado repete o gesto. */
+  const tabByKeyboard = useRef(false)
+  /** A folha abriu pelo teclado (Enter, Espaço): ela aparece sem descer, pelo mesmo motivo. */
+  const [openedByKeyboard, setOpenedByKeyboard] = useState(false)
   const panelId = useId()
   const brightnessId = useId()
   const nameFieldId = useId()
@@ -423,6 +458,7 @@ export function PlayerPanel({
   }
 
   function togglePanel(event: MouseEvent<HTMLButtonElement>) {
+    setOpenedByKeyboard(event.detail === 0)
     if (!drawerScreen) {
       setColumnOpen((value) => !value)
       return
@@ -481,6 +517,25 @@ export function PlayerPanel({
     }
   }, [asideRef, drawerScreen, open])
 
+  // O traço de latão corre até a aba escolhida. Trocar de aba anda (transição
+  // do CSS); abrir a folha, a fonte que chega e girar o celular só reposicionam,
+  // sem andar: o observador da fileira nasce a cada abertura e chama na hora.
+  useLayoutEffect(() => {
+    tabNow.current = tab
+    placeTabIndicator(tabButtons.current[tab], tabIndicatorRef.current, !tabByKeyboard.current)
+    tabByKeyboard.current = false
+  }, [tab, tabs.length])
+
+  useLayoutEffect(() => {
+    const list = tabListRef.current
+    if (!open || list === null) return
+    const replace = () => placeTabIndicator(tabButtons.current[tabNow.current], tabIndicatorRef.current, false)
+    replace()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(replace)
+    observer?.observe(list)
+    return () => observer?.disconnect()
+  }, [open])
+
   // Escape é da gaveta, que cobre o mapa. Na coluna do notebook ele fica para
   // a régua e os cartões: fechar o painel de brinde ao sair do "Medir" seria surpresa.
   useEffect(() => {
@@ -492,6 +547,14 @@ export function PlayerPanel({
     return () => window.removeEventListener('keydown', onKey)
     // `closeDrawer` só lê estes dois estados e refs estáveis.
   }, [drawerScreen, drawerOpen])
+
+  // O teclado do celular cobre o pé da folha (o campo do chat): enquanto ela
+  // está aberta, o teto dela desconta o teclado (`tecladoDoCelular.ts`).
+  useEffect(() => {
+    const panel = asideRef.current
+    if (!open || panel === null) return
+    return acompanharTeclado(panel)
+  }, [open, asideRef])
 
   function selectTab(next: PanelTab) {
     setTab(next)
@@ -509,6 +572,7 @@ export function PlayerPanel({
     const target = next === null ? undefined : tabs[next]
     if (target === undefined) return
     event.preventDefault()
+    tabByKeyboard.current = true
     selectTab(target.id)
   }
 
@@ -659,19 +723,13 @@ export function PlayerPanel({
           aria-label={open ? 'Fechar painel' : undefined}
           onClick={togglePanel}
         >
-          <svg className="pp-toggle__chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-            <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <IconeDoJogador nome="divisa" className="pp-toggle__chevron" />
           Painel
           {chatMention && <UnreadDot />}
         </button>
         {first !== undefined && (
           <button type="button" className="pp-mine" onClick={(event) => focusToken(first.id, event)}>
-            <svg className="pp-mine__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
-              <circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="7" cy="7" r="1.4" fill="currentColor" />
-              <path d="M7 0.75v2M7 11.25v2M0.75 7h2M11.25 7h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <IconeDoJogador nome="mira" className="pp-mine__icon" />
             {/* Abaixo de 380 px só a mira fica à vista: com a "Ficha" de personagem, a barra passava da tela de 320 (player.css). */}
             <span className="pp-mine__rotulo">Minha ficha</span>
           </button>
@@ -685,10 +743,7 @@ export function PlayerPanel({
             // `detail` 0 = Enter/Espaço: quem veio pelo teclado não espera animação.
             onClick={(event) => onOpenInventory(event.detail === 0)}
           >
-            <svg className="pp-bag__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
-              <path d="M4.75 4.5V3.6a2.25 2.25 0 0 1 4.5 0v.9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M2.4 4.5h9.2l-.75 7.25a.9.9 0 0 1-.9.8H4.05a.9.9 0 0 1-.9-.8Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            </svg>
+            <IconeDoJogador nome="mochila" className="pp-bag__icon" />
             {/* Em tela de menos de 380 px a barra não cabia: só a bolsa fica à vista, e o nome continua para o leitor de tela (player.css). */}
             <span className="pp-bag__rotulo">Inventário</span>
             <kbd className="pp-bag__key" aria-hidden="true">
@@ -705,18 +760,21 @@ export function PlayerPanel({
             aria-label="Ficha de personagem"
             onClick={(event) => onOpenFicha(event.detail === 0)}
           >
-            <svg className="pp-ficha-btn__icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
-              <rect x="2.25" y="1.25" width="9.5" height="11.5" rx="1.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M4.75 4.75h4.5M4.75 7.25h4.5M4.75 9.75h2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <IconeDoJogador nome="ficha" className="pp-ficha-btn__icon" />
             {/* Abaixo de 380 px só o ícone fica à vista, como a bolsa do Inventário (player.css). */}
             <span className="pp-ficha-btn__rotulo">Ficha</span>
           </button>
         )}
       </div>
-      <aside id={panelId} ref={asideRef} className="pp-panel" hidden={!open} aria-label="Painel do jogador">
+      <aside
+        id={panelId}
+        ref={asideRef}
+        className={openedByKeyboard ? 'pp-panel pp-panel--teclado' : 'pp-panel'}
+        hidden={!open}
+        aria-label="Painel do jogador"
+      >
         <div className="pp-panel__body">
-          <div className="pp-tabs" role="tablist" aria-label="Painel do jogador" onKeyDown={onTabKeyDown}>
+          <div ref={tabListRef} className="pp-tabs" role="tablist" aria-label="Painel do jogador" onKeyDown={onTabKeyDown}>
             {tabs.map((item) => (
               <button
                 key={item.id}
@@ -730,12 +788,17 @@ export function PlayerPanel({
                 aria-selected={tab === item.id}
                 aria-controls={`${panelId}-panel-${item.id}`}
                 tabIndex={tab === item.id ? 0 : -1}
-                onClick={() => setTab(item.id)}
+                onClick={(event) => {
+                  // `detail` 0 = Enter/Espaço.
+                  tabByKeyboard.current = event.detail === 0
+                  setTab(item.id)
+                }}
               >
                 {item.label}
                 {item.id === 'chat' && chatMention && <UnreadDot />}
               </button>
             ))}
+            <span ref={tabIndicatorRef} className="pp-tabs__ind" aria-hidden="true" />
           </div>
 
           {/* A aba de jogo fica montada mesmo escondida: o rascunho do nome não se perde ao trocar de aba. */}
@@ -756,7 +819,7 @@ export function PlayerPanel({
                         aria-label={`Centralizar em ${character.name}`}
                         onClick={(event) => focusToken(character.id, event)}
                       >
-                        <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
+                        <span className="pp-dot" style={{ background: characterColor }} data-inicial={inicialDoNome(character.name)} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
                       </button>
                       {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
@@ -774,7 +837,7 @@ export function PlayerPanel({
                         aria-label={`Olhar por ${item.name}`}
                         onClick={() => lookThrough(item.tokenId)}
                       >
-                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} aria-hidden="true" />
+                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} data-inicial={inicialDoNome(item.name)} aria-hidden="true" />
                         <span className="pp-character__text">
                           <span className="pp-character__name">{item.name}</span>{' '}
                           <span className="pp-character__where">{item.room === '' ? 'Em outro lugar' : `Em outro lugar · ${item.room}`}</span>
@@ -784,45 +847,61 @@ export function PlayerPanel({
                   ))}
                 </ul>
               )}
-              <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>
-                {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
-              </button>
-              <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
-              {/* MARCAÇÕES: Marcar destino, Anotar e Deixar marca aqui… num menu só. */}
-              <PlayerMarcacoes
-                destination={
-                  onToggleDestination === undefined
-                    ? undefined
-                    : { armed: destinationArmed, has: hasDestination, onToggle: toggleDestination, onClear: onClearDestination }
-                }
-                note={onToggleNote === undefined ? undefined : { armed: noteArmed, onToggle: toggleNote }}
-                markForm={markForm}
-              />
-              <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
-                Medir
-              </button>
-              {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
-              <button type="button" className="pp-button pp-button--toggle" aria-pressed={laserArmed} onClick={toggleLaser}>
-                Laser
-              </button>
-              {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
-              {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
-              {onStepAway !== undefined && (
-                <>
-                  <button type="button" className="pp-button" onClick={onStepAway}>
-                    Volto já
-                  </button>
-                  <p className="pp-empty">Sua ficha fica parada e o mestre sabe que você saiu por um instante.</p>
-                </>
+              {/* NO MAPA: as quatro peças lado a lado, a ligada vira placa de latão, e uma dica só embaixo. */}
+              <h3 id={`${panelId}-no-mapa`} className="pp-titulo-secao">
+                No mapa
+              </h3>
+              <div className="pp-pecas" role="group" aria-labelledby={`${panelId}-no-mapa`}>
+                <button type="button" className="pp-button pp-peca" aria-pressed={signalArmed} onClick={toggleSignal}>
+                  <IconeDoJogador nome="bandeira" />
+                  {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
+                </button>
+                {/* MARCAÇÕES: Marcar destino, Anotar e Deixar marca aqui… num menu só. */}
+                <PlayerMarcacoes
+                  destination={
+                    onToggleDestination === undefined
+                      ? undefined
+                      : { armed: destinationArmed, has: hasDestination, onToggle: toggleDestination, onClear: onClearDestination }
+                  }
+                  note={onToggleNote === undefined ? undefined : { armed: noteArmed, onToggle: toggleNote }}
+                  markForm={markForm}
+                />
+                <button type="button" className="pp-button pp-button--toggle pp-peca" aria-pressed={measureArmed} onClick={toggleMeasure}>
+                  <IconeDoJogador nome="regua" />
+                  Medir
+                </button>
+                <button type="button" className="pp-button pp-button--toggle pp-peca" aria-pressed={laserArmed} onClick={toggleLaser}>
+                  <IconeDoJogador nome="laser" />
+                  Laser
+                </button>
+              </div>
+              <p className="pp-dica-acao" aria-live="polite">
+                {mapActionHint({ signal: signalArmed, destination: destinationArmed, note: noteArmed, measure: measureArmed, laser: laserArmed })}
+              </p>
+              {(mapShare !== undefined || onStepAway !== undefined) && (
+                <div className="pp-linhas">
+                  {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
+                  {onStepAway !== undefined && (
+                    <div className="pp-linha-acao">
+                      <IconeDoJogador nome="relogio" />
+                      <button type="button" className="pp-linha-acao__bt" aria-describedby={`${panelId}-volto`} onClick={onStepAway}>
+                        Volto já
+                      </button>
+                      <span id={`${panelId}-volto`} className="pp-linha-acao__sub">
+                        Sua ficha fica parada e o mestre sabe que você saiu por um instante.
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
-              {onSignOut !== undefined && <SignOutButton onSignOut={onSignOut} />}
             </section>
 
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
 
             {party !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-party`}>
+              <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-party`}>
                 <h2 id={`${panelId}-party`} className="pp-heading">
+                  <MedalhaDaFicha nome="grupo" />
                   Grupo
                 </h2>
                 {party.length === 0 ? (
@@ -845,8 +924,9 @@ export function PlayerPanel({
             )}
 
             {mine !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-me`}>
+              <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-me`}>
                 <h2 id={`${panelId}-me`} className="pp-heading">
+                  <MedalhaDaFicha nome="pessoa" />
                   Meu personagem
                 </h2>
                 <form className="pp-field" onSubmit={submitName}>
@@ -888,8 +968,9 @@ export function PlayerPanel({
               </section>
             )}
 
-            <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
+            <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-vision`}>
               <h2 id={`${panelId}-vision`} className="pp-heading">
+                <MedalhaDaFicha nome="olho" />
                 Visão
               </h2>
               <div className="pp-field">
@@ -934,6 +1015,8 @@ export function PlayerPanel({
                 <span>Efeitos do mapa</span>
               </label>
             </section>
+            {/* No pé da aba: sair é a última coisa que se faz na mesa. */}
+            {onSignOut !== undefined && <SignOutButton onSignOut={onSignOut} />}
           </div>
 
           <div
@@ -1033,6 +1116,24 @@ export function PlayerPanel({
 }
 
 /** Ponto de menção nova no chat. O texto escondido dá o aviso a quem usa leitor de tela. */
+/** A medalha de latão no cabeçalho de uma ficha da aba Jogo: só desenho, o nome da ficha é o título. */
+function MedalhaDaFicha({ nome }: { nome: NomeDoIcone }) {
+  return (
+    <span className="pp-bloco__med" aria-hidden="true">
+      <IconeDoJogador nome={nome} />
+    </span>
+  )
+}
+
+/**
+ * A letra da bola do personagem, como no protótipo; sem nome (só espaços),
+ * nenhuma. Vai num `data-` desenhado pelo CSS, e não como texto: o texto do
+ * botão continua só o nome (quem copia, busca ou lê a linha não ganha a letra).
+ */
+function inicialDoNome(nome: string): string {
+  return nome.trim().charAt(0).toLocaleUpperCase('pt-BR')
+}
+
 function UnreadDot() {
   return (
     <span className="pp-unread">
@@ -1049,7 +1150,8 @@ function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
   const [asking, setAsking] = useState(false)
   if (!asking) {
     return (
-      <button type="button" className="pp-button" onClick={() => setAsking(true)}>
+      <button type="button" className="pp-sair" onClick={() => setAsking(true)}>
+        <IconeDoJogador nome="sair" />
         Sair
       </button>
     )
@@ -1058,17 +1160,43 @@ function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
     <div
       role="group"
       aria-label="Sair da sala e deste aparelho"
+      className="pp-sair-pergunta"
       onKeyDown={(event) => {
         if (event.key === 'Escape') setAsking(false)
       }}
     >
-      <p className="pp-empty">Sair da sala? Da próxima vez, este aparelho pede o seu nome (e o PIN, se tiver conta).</p>
-      <button type="button" className="pp-button" autoFocus onClick={onSignOut}>
-        Sair
-      </button>
-      <button type="button" className="pp-button" onClick={() => setAsking(false)}>
-        Ficar
-      </button>
+      <p className="pp-sair-pergunta__texto">Sair da sala? Da próxima vez, este aparelho pede o seu nome (e o PIN, se tiver conta).</p>
+      <div className="pp-sair-pergunta__acoes">
+        <button type="button" className="pp-button pp-button--perigo" autoFocus onClick={onSignOut}>
+          Sair
+        </button>
+        <button type="button" className="pp-button pp-button--fantasma" onClick={() => setAsking(false)}>
+          Ficar
+        </button>
+      </div>
     </div>
   )
+}
+
+/** Os modos de toque no mapa que podem estar ligados: Sinalizar, Medir e Laser, e os dois do menu "Marcações". */
+interface MapActionsArmed {
+  signal: boolean
+  destination: boolean
+  note: boolean
+  measure: boolean
+  laser: boolean
+}
+
+/**
+ * A dica embaixo das peças "No mapa": a do modo ligado, ou o convite quando
+ * nenhum está. É a única: o "Marcações" não escreve a sua, e duas dicas
+ * anunciadas juntas se contradiziam (no notebook a coluna não fecha ao ligar).
+ */
+function mapActionHint(armed: MapActionsArmed): string {
+  if (armed.signal) return 'Toque no mapa para sinalizar. No PC: Alt+clique ou segure o clique parado.'
+  if (armed.destination) return 'Toque no destino, no mapa. Esc sai.'
+  if (armed.note) return 'Toque onde anotar. Só você vê. Esc sai.'
+  if (armed.measure) return 'Arraste no mapa para medir. Esc sai.'
+  if (armed.laser) return 'Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.'
+  return 'Escolha uma ação e toque no mapa.'
 }

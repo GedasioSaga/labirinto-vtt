@@ -14,18 +14,20 @@
 // Primeiro com TUDO aceso ao mesmo tempo: a ficha encostada numa escada que
 // liga pisos E numa porta fechada, abas de andar, confronto, "Sua vez", hora
 // do dia, tela acesa, quatro rolagens (a mais nova de nome comprido e quatro
-// dados) e a mão do "Chamar o mestre" acesa (duas linhas). Depois os casos que
-// apertam um canto da tela: a porta trancada com a faixa dos pedidos no
-// celular deitado (com e sem alarme), o alarme com o confronto de sete
-// fichas, a pausa com um aviso que passa, e o tablet com a coluna do painel
-// aberta, sem abas de andar e com a porta aberta.
+// dados), a mão do "Chamar o mestre" acesa (duas linhas) e os quatro atalhos
+// da barra (com a "Ficha" de personagem). Depois os casos que apertam um canto
+// da tela: a porta trancada com a faixa dos pedidos no celular deitado (com e
+// sem alarme), o alarme com o confronto de sete fichas, a pausa com um aviso
+// que passa, e o tablet com a coluna do painel aberta, sem abas de andar e com
+// a porta aberta.
 //
 // COMO PROVA: `player.html` inteiro no Chromium de verdade, com o host feito
 // pelo próprio teste no WebSocket roteado (como task-controle-de-som.spec.ts).
 // As caixas são as de `getBoundingClientRect` de cada flutuante visível; o
 // teste falha se duas se cruzam, se uma sai da tela, se um controle não é o
 // que o dedo acerta no meio dele (`elementFromPoint`), se o alvo tem menos de
-// 44 px no dedo (24 no mouse) ou se uma rolagem aparece cortada pela metade.
+// 44 px no dedo (24 no mouse), se uma rolagem aparece cortada pela metade ou
+// se o rótulo de um atalho da barra vaza do botão (a caixa dele não muda).
 // Em tela de gaveta, com a gaveta aberta, nada do mapa fica por cima dela — e
 // a rolagem feita de dentro da gaveta aparece nela. Por dentro, aba por aba, o
 // miolo dela não rola de lado, nenhuma aba nem controle passa da borda, e cada
@@ -63,6 +65,14 @@ interface Cena {
   fila: readonly string[]
   /** Outro andar do prédio que ele já conhece: acende as abas de andar. */
   andares: boolean
+  /**
+   * O mestre serve a ficha de personagem (numa aventura): acende o quarto
+   * atalho da barra, "Ficha". Com ele a barra de pílulas passava da tela de
+   * 320, e em pé são quatro colunas de uns 73 px para os rótulos.
+   */
+  personagens?: boolean
+  /** O nome da ficha da Ana (o personagem da linha na gaveta). Sem ele, "Ana". */
+  nomeDaFicha?: string
 }
 
 const FILA_CURTA = ['Rato 1', 'Bia']
@@ -87,7 +97,7 @@ function porta(tipo: Porta): Wall {
 const ESCADA: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 225, y1: 275, x2: 225, y2: 325 }], stepWidth: 50, levaAoPiso: 1 }
 
 function mapaDoJogador(cena: Cena): MapData {
-  let mapa = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 225, y: 225, size: 1, image: null })
+  let mapa = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: cena.nomeDaFicha ?? 'Ana', x: 225, y: 225, size: 1, image: null })
   for (const [i, nome] of cena.fila.entries()) {
     mapa = addToken(mapa, { id: `ficha-${i}`, characterId: null, name: nome, x: 525 + 50 * i, y: 525, size: 1, image: null })
   }
@@ -155,6 +165,8 @@ class HostDeMentira {
       if (typeof msg !== 'object' || msg === null || !('type' in msg) || msg.type !== 'join') return
       this.mandar({ type: 'welcome', playerId: 'p-ana', resumeToken: 'tok-ana', name: 'Ana' })
       this.mandar(recorte(this.cena))
+      // A ficha dela ainda sem personagem ligado: basta para o host servir a ficha.
+      if (this.cena.personagens === true) this.mandar({ type: 'personagens', personagens: [], tokens: [{ tokenId: 'ficha-ana', nome: 'Ana', personagemId: null }] })
     })
   }
 
@@ -242,6 +254,7 @@ const FLUTUANTES: readonly Flutuante[] = [
   { nome: 'Painel', seletor: '.pp-bar > .pp-toggle', toque: true },
   { nome: 'Minha ficha', seletor: '.pp-bar > .pp-mine', toque: true },
   { nome: 'Inventário', seletor: '.pp-bar > .pp-bag', toque: true },
+  { nome: 'Ficha', seletor: '.pp-bar > .pp-ficha-btn', toque: true },
   { nome: 'gaveta do painel', seletor: '.pp-panel', toque: false },
   { nome: 'alarme', seletor: '.pp-alarm', toque: false },
   { nome: 'abas de andar', seletor: '.pp-floors__list', toque: true },
@@ -269,6 +282,7 @@ const JUNTOS_DE_PROPOSITO: ReadonlyArray<readonly [string, string]> = [
   ['Painel', 'gaveta do painel'],
   ['Minha ficha', 'gaveta do painel'],
   ['Inventário', 'gaveta do painel'],
+  ['Ficha', 'gaveta do painel'],
   ['faixa da porta', 'pedido da porta'],
 ]
 
@@ -387,6 +401,22 @@ const ACESOS = [
   'Espiar pela porta',
 ]
 
+/**
+ * Onde o recorte cheio traz também a ficha de personagem: a barra com os
+ * quatro atalhos. A 568 x 320 a barra de pílulas com a "Ficha" vai até 430 px
+ * e cruza as abas de andar (a partir de 404). O defeito é anterior à fatia
+ * 19a: com o código de antes dela a barra ia até 416 px e cruzava do mesmo
+ * jeito. Ali a barra segue medida com três atalhos até a pílula do celular
+ * deitado ser resolvida; nas outras sete telas, com quatro.
+ */
+const comAFicha = (tela: Tela): boolean => tela !== DEITADO_PEQUENO
+
+/** O recorte cheio de cada tela. */
+const cenaCheia = (tela: Tela): Cena => ({ ...CENA_CHEIA, personagens: comAFicha(tela) })
+
+/** O que o recorte cheio de cada tela acende. */
+const acesos = (tela: Tela): string[] => (comAFicha(tela) ? [...ACESOS, 'Ficha'] : [...ACESOS])
+
 /** O dedo no alvo: o mínimo de 44 px do tema. Mouse: os 24 px da WCAG 2.5.8 — no notebook o "Onde estou" tem 36. */
 const alvoMinimo = (tela: Tela): number => (tela.toque ? 44 : 24)
 
@@ -409,6 +439,40 @@ function caixaDe(medidas: readonly Medida[], nome: string): Medida {
   const achada = medidas.find((m) => m.nome === nome)
   if (achada === undefined) throw new Error(`${nome} não foi medido`)
   return achada
+}
+
+/**
+ * Os atalhos da barra com o rótulo para fora do botão ou cortado. Com
+ * `white-space: nowrap` e `min-width: 0` (as colunas iguais da faixa em pé) o
+ * rótulo vaza do botão sem mudar a caixa dele, e o teste de cruzamento, que
+ * compara caixas, não vê. Aqui conta o desenho: tudo o que o botão mostra
+ * (ícone, rótulo, a tecla I, o ponto do recado) mora dentro dele, e nenhum
+ * rótulo está cortado por dentro.
+ */
+async function rotulosDaBarraParaFora(page: Page): Promise<string[]> {
+  return page.evaluate((folga) => {
+    const achados: string[] = []
+    for (const botao of Array.from(document.querySelectorAll<HTMLElement>('.pp-bar > button'))) {
+      if (!botao.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue
+      const nome = (botao.textContent ?? '').trim()
+      if (botao.scrollWidth > botao.clientWidth) achados.push(`"${nome}": ${botao.scrollWidth} px de conteúdo num botão de ${botao.clientWidth}`)
+      const caixa = botao.getBoundingClientRect()
+      const conteudo = document.createRange()
+      conteudo.selectNodeContents(botao)
+      for (const r of Array.from(conteudo.getClientRects())) {
+        // O nome só do leitor de tela (a pílula estreita e baixa) é um recorte de 1 px: não é desenho.
+        if (r.width < 2 || r.height < 2) continue
+        if (r.left < caixa.left - folga || r.right > caixa.right + folga) {
+          achados.push(`"${nome}": o conteúdo vai de ${Math.round(r.left)} a ${Math.round(r.right)}, o botão de ${Math.round(caixa.left)} a ${Math.round(caixa.right)}`)
+        }
+      }
+      for (const rotulo of Array.from(botao.querySelectorAll<HTMLElement>('[class$="__rotulo"]'))) {
+        if (rotulo.getBoundingClientRect().width < 2) continue
+        if (rotulo.scrollWidth > rotulo.clientWidth) achados.push(`"${nome}": o rótulo cortado, ${rotulo.scrollWidth} px de texto em ${rotulo.clientWidth}`)
+      }
+    }
+    return achados
+  }, FOLGA)
 }
 
 /** As abas da gaveta, na ordem. O Chat é a última: a que saía da tela a 320 px. */
@@ -458,7 +522,7 @@ for (const tela of TELAS) {
     test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
 
     test('com tudo aceso, nenhum flutuante cruza outro nem sai da tela', async ({ page }) => {
-      const host = await jogadorEntra(page)
+      const host = await jogadorEntra(page, cenaCheia(tela))
       await rolarTudo(page, host)
       // O formulário do chamado, aberto, cabe inteiro na tela — deitado, a mão mora no pé dela e
       // o formulário, mais alto que a tela, rola por dentro. A mão continua à vista em cima dele.
@@ -485,15 +549,16 @@ for (const tela of TELAS) {
       await expect(page.getByText('Tela acesa')).toBeVisible()
 
       const medidas = await medirEFotografar(page, `hud-${tela.width}x${tela.height}`)
-      expect(apagados(medidas, ACESOS), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
+      expect(apagados(medidas, acesos(tela)), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       // A coluna do notebook nasce aberta e entra na conta; a gaveta do celular nasce fechada.
       expect(medidas.some((m) => m.nome === 'gaveta do painel')).toBe(!tela.gaveta)
       expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
+      expect(await rotulosDaBarraParaFora(page), 'os quatro atalhos da barra, cada rótulo dentro do seu botão').toEqual([])
     })
 
     test('gaveta aberta: nada do mapa fica por cima dela, a rolagem feita por ela aparece nela, e fechar devolve o HUD', async ({ page }) => {
       test.skip(!tela.gaveta, 'no notebook e no tablet o painel é coluna, aberta desde a entrada: o teste de cima já a mede')
-      const host = await jogadorEntra(page)
+      const host = await jogadorEntra(page, cenaCheia(tela))
       await rolarTudo(page, host)
       // Fechada ela se chama "Painel"; aberta, "Fechar painel".
       const botaoDoPainel = page.getByRole('button', { name: /^(Fechar )?painel$/i })
@@ -504,8 +569,10 @@ for (const tela of TELAS) {
 
       // Só a barra (o cabeçalho da gaveta) e a gaveta: o zoom, a mão, o som, a coluna do canto e as ações do lugar saíram de cena.
       const comAGaveta = await medir(page)
-      expect(comAGaveta.map((m) => m.nome).filter((nome) => !['Painel', 'Minha ficha', 'Inventário', 'gaveta do painel'].includes(nome))).toEqual([])
+      expect(comAGaveta.map((m) => m.nome).filter((nome) => !['Painel', 'Minha ficha', 'Inventário', 'Ficha', 'gaveta do painel'].includes(nome))).toEqual([])
+      expect(comAGaveta.some((m) => m.nome === 'Ficha'), 'a "Ficha" na barra, com a gaveta aberta').toBe(comAFicha(tela))
       expect(problemas(comAGaveta, tela, alvoMinimo(tela))).toEqual([])
+      expect(await rotulosDaBarraParaFora(page), 'com a gaveta aberta, cada rótulo da barra dentro do seu botão').toEqual([])
 
       // Por dentro, aba por aba: o miolo não rola de lado, nada passa da borda e cada aba é alvo do dedo.
       // As cinco precisam estar lá: sem o Chat, a fileira cabia e o teste passaria sem provar nada.
@@ -546,6 +613,77 @@ for (const tela of TELAS) {
     })
   })
 }
+
+/*
+ * A LINHA DO PERSONAGEM na gaveta, na tela mais estreita (fatia 19b): a bola
+ * cresceu de 12 para 36 px, ganhou a letra do nome, e o nome passou à letra de
+ * livro de 17 px. Com um nome mais comprido que a linha, a bola fica inteira e
+ * redonda, o nome acaba em reticências antes da borda do cartão sem passar por
+ * cima da bola, e o cartão cabe no miolo, com o alvo do dedo.
+ */
+const NOME_COMPRIDO = 'Wolfeschlegelsteinhausenbergerdorff de Albuquerque'
+const BOLA_PX = 36
+
+test.describe(`linha do personagem com nome comprido ${nomeDaTela(EM_PE_ESTREITO)}`, () => {
+  test.use({ viewport: { width: EM_PE_ESTREITO.width, height: EM_PE_ESTREITO.height }, hasTouch: true, isMobile: true })
+
+  test('a bola de 36 px e o nome comprido cabem no cartão, e o nome acaba em reticências', async ({ page }) => {
+    await jogadorEntra(page, { ...CENA_CHEIA, nomeDaFicha: NOME_COMPRIDO })
+    await page.getByRole('button', { name: /^(Fechar )?painel$/i }).click()
+    const gaveta = page.getByRole('complementary', { name: 'Painel do jogador' })
+    await expect(gaveta).toBeVisible()
+    const linha = gaveta.getByRole('button', { name: `Centralizar em ${NOME_COMPRIDO}` })
+    await expect(linha).toBeVisible()
+    await esperarAsEntradas(page)
+
+    const m = await linha.evaluate((botao) => {
+      const bola = botao.querySelector('.pp-dot')
+      const nome = botao.querySelector('.pp-character__name')
+      const miolo = botao.closest('.pp-panel__body')
+      if (!(bola instanceof HTMLElement) || !(nome instanceof HTMLElement) || !(miolo instanceof HTMLElement)) throw new Error('a linha sem a bola, o nome ou o miolo')
+      const caixa = (el: Element) => {
+        const r = el.getBoundingClientRect()
+        return { esquerda: r.left, direita: r.right, alto: r.top, pe: r.bottom, largura: r.width, altura: r.height }
+      }
+      const doBotao = caixa(botao)
+      const mioloEsquerda = miolo.getBoundingClientRect().left + miolo.clientLeft
+      const noMeio = document.elementFromPoint(doBotao.esquerda + doBotao.largura / 2, doBotao.alto + doBotao.altura / 2)
+      return {
+        botao: doBotao,
+        bola: caixa(bola),
+        nome: caixa(nome),
+        miolo: { esquerda: mioloEsquerda, direita: mioloEsquerda + miolo.clientWidth, rolaDeLado: miolo.scrollWidth > miolo.clientWidth },
+        recuoDireito: parseFloat(getComputedStyle(botao).paddingRight),
+        letra: getComputedStyle(bola, '::before').content,
+        raio: getComputedStyle(bola).borderRadius,
+        reticencias: getComputedStyle(nome).textOverflow,
+        nomeCortado: nome.scrollWidth > nome.clientWidth,
+        dedoAcertaALinha: noMeio !== null && botao.contains(noMeio),
+      }
+    })
+    await fotografar(page, `linha-do-personagem-${EM_PE_ESTREITO.width}x${EM_PE_ESTREITO.height}`)
+
+    // A bola: inteira, redonda, com a letra, dentro do cartão.
+    expect(m.bola.largura, 'largura da bola').toBeCloseTo(BOLA_PX, 0)
+    expect(m.bola.altura, 'altura da bola').toBeCloseTo(BOLA_PX, 0)
+    expect(m.raio).toBe('50%')
+    expect(m.letra).toBe('"W"')
+    expect(m.bola.esquerda).toBeGreaterThanOrEqual(m.botao.esquerda - FOLGA)
+    expect(m.bola.alto).toBeGreaterThanOrEqual(m.botao.alto - FOLGA)
+    expect(m.bola.pe).toBeLessThanOrEqual(m.botao.pe + FOLGA)
+    // O nome: depois da bola, antes do recuo direito do cartão, cortado em reticências.
+    expect(m.nome.esquerda, 'o nome começa depois da bola').toBeGreaterThanOrEqual(m.bola.direita - FOLGA)
+    expect(m.nome.direita, 'o nome acaba antes do recuo direito do cartão').toBeLessThanOrEqual(m.botao.direita - m.recuoDireito + FOLGA)
+    expect(m.nomeCortado, 'o nome comprido não cabe inteiro: tem de estar cortado').toBe(true)
+    expect(m.reticencias).toBe('ellipsis')
+    // O cartão: dentro do miolo, que não rola de lado, e alvo do dedo.
+    expect(m.botao.esquerda).toBeGreaterThanOrEqual(m.miolo.esquerda - FOLGA)
+    expect(m.botao.direita).toBeLessThanOrEqual(m.miolo.direita + FOLGA)
+    expect(m.miolo.rolaDeLado, 'o miolo rola de lado').toBe(false)
+    expect(m.botao.altura).toBeGreaterThanOrEqual(alvoMinimo(EM_PE_ESTREITO) - FOLGA)
+    expect(m.dedoAcertaALinha, 'o dedo no meio da linha acerta a linha').toBe(true)
+  })
+})
 
 /*
  * PORTA TRANCADA: o toque na porta que o mestre trancou traz a faixa dos

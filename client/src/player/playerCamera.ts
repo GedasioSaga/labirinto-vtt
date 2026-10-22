@@ -64,10 +64,33 @@ export function arrivalCamera(fitted: Camera, own: OwnDisc | null, viewport: Vie
   const cx = own.x * fitted.scale + fitted.x
   const cy = own.y * fitted.scale + fitted.y
   const r = own.radius * fitted.scale
-  const onScreen = cx - r >= 0 && cy - r >= 0 && cx + r <= viewport.width && cy + r <= viewport.height
   const covered = obstacles.some((b) => hasArea(b) && discTouchesBox(cx, cy, r, b))
-  if (onScreen && !covered) return fitted
+  if (discOnScreen(fitted, own, viewport) && !covered) return fitted
   return centeredCamera(fitted.scale, own, viewport, obstacles)
+}
+
+/** A ficha inteira dentro da tela, com esta câmera? */
+function discOnScreen(camera: Camera, own: OwnDisc, viewport: Viewport): boolean {
+  const cx = own.x * camera.scale + camera.x
+  const cy = own.y * camera.scale + camera.y
+  const r = own.radius * camera.scale
+  return cx - r >= 0 && cy - r >= 0 && cx + r <= viewport.width && cy + r <= viewport.height
+}
+
+/**
+ * Câmera depois de a tela mudar de tamanho (girar o celular, a janela que
+ * cresce). O canvas cresce a partir do canto de cima à esquerda: sem
+ * reenquadrar, o que o jogador olhava escorregava para o canto, e girar o
+ * celular em pé deixava a própria ficha fora da tela. Aqui o ponto do mapa que
+ * estava no meio da tela continua no meio, no mesmo zoom. E a ficha que estava
+ * inteira à vista e sairia dela (ou cairia debaixo de um painel) traz a câmera
+ * até ela, como na chegada; a que o jogador já tinha deixado fora da tela fica
+ * onde ele a deixou.
+ */
+export function cameraOnResize(camera: Camera, before: Viewport, after: Viewport, own: OwnDisc | null, obstacles: readonly Bounds[]): Camera {
+  const anchored = { scale: camera.scale, x: camera.x + (after.width - before.width) / 2, y: camera.y + (after.height - before.height) / 2 }
+  if (own === null || !discOnScreen(camera, own, before)) return anchored
+  return arrivalCamera(anchored, own, after, obstacles)
 }
 
 function boundsOf(el: Element | null): Bounds | null {

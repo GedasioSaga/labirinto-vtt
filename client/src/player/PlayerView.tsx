@@ -35,8 +35,8 @@ import { drawMarcas } from '../pixi/drawMarcas'
 import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Bounds, Camera, Point } from '../pixi/world'
-import { arrivalCamera, centeredCamera, firstOwnToken, type OwnDisc } from './playerCamera'
+import type { Bounds, Camera, Point, Viewport } from '../pixi/world'
+import { arrivalCamera, cameraOnResize, centeredCamera, firstOwnToken, type OwnDisc } from './playerCamera'
 import { arrivalCamera as arrivalCameraForFloor } from './arrivalCamera'
 import { fireLongPress } from './playerLongPress'
 import { createPlayerCuller, type PlayerCuller } from './playerCulling'
@@ -1225,6 +1225,13 @@ interface Scene {
    * outro tamanho, e a câmera do mapa de antes o deixaria olhando para o nada.
    */
   fittedMapId: string | null
+  /**
+   * Tamanho da tela da última vez que a câmera foi acertada a ele. Guardado
+   * aqui, e não lido do `app.screen` antes do `resize`: no 'resize' da janela
+   * o próprio Pixi já redimensionou (num quadro de animação) quando o
+   * observador do container chega, e a diferença sumiria.
+   */
+  screenSize: Viewport
   /** Chave da chegada (`arrivalKey`) no último desenho; `null` = nenhum ainda, e a primeira cena não ganha véu. */
   arrivalKey: string | null
   drag: Drag | null
@@ -2826,6 +2833,22 @@ function PlayerViewDoCanvas({
     scene.cameraGlide = startCameraGlide(scene.camera, target, performance.now())
   }
 
+  /**
+   * A tela mudou de tamanho: o meio dela continua mostrando o mesmo ponto do
+   * mapa, e a própria ficha à vista não sai da tela (`cameraOnResize`). Antes
+   * do primeiro enquadramento não há câmera do jogador a guardar.
+   */
+  function reframeOnResize(scene: Scene): void {
+    const before = scene.screenSize
+    const after = { width: scene.app.screen.width, height: scene.app.screen.height }
+    scene.screenSize = after
+    if (scene.fittedMapId === null || (before.width === after.width && before.height === after.height)) return
+    const { map: currentMap, ownTokens: own } = latestRef.current
+    const mine = firstOwnToken(currentMap.tokens, own)
+    const disc = mine === null ? null : { x: mine.x, y: mine.y, radius: tokenRadius(mine, currentMap.grid) }
+    setCameraFromApp(scene, cameraOnResize(scene.camera, before, after, disc, readObstacles()))
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
@@ -3266,6 +3289,7 @@ function PlayerViewDoCanvas({
         zoomScale: 1,
         onZoom: () => {},
         fittedMapId: null,
+        screenSize: { width: app.screen.width, height: app.screen.height },
         arrivalKey: null,
         drag: null,
         touch: NO_TOUCH,
@@ -3947,6 +3971,7 @@ function PlayerViewDoCanvas({
       resizeObserver = new ResizeObserver(() => {
         if (destroyed) return
         app.resize()
+        reframeOnResize(scene)
         // Tela que cresce sem a câmera mudar (girar o celular, janela maior): a
         // textura repetida acompanha a vista nova (`ajustarAVista`, drawTexturas.ts).
         scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, app.screen))

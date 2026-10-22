@@ -73,6 +73,13 @@ describe('PlayerCallButton (chamar o mestre)', () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Espere um instante para chamar de novo')
   })
 
+  it('a mão é a placa de latão do grimório: o desenho da mão à vista, e o nome escrito para o leitor de tela', () => {
+    render()
+    const mao = botao('Chamar o mestre')
+    expect(mao.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+    expect(mao.querySelector('.pp-visually-hidden')?.textContent).toBe('Chamar o mestre')
+  })
+
   it('Esc fecha o formulário e devolve o foco ao botão', () => {
     render()
     const mao = botao('Chamar o mestre')
