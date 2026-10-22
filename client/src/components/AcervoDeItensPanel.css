@@ -19,6 +19,62 @@
   flex: none;
 }
 
+/* O "+" no canto do cartão, por cima da foto: ancorado na célula, não no botão
+   do cartão (botão dentro de botão não existe). */
+.lb-itens__celula {
+  position: relative;
+}
+
+.lb-itens__por {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-brass);
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Alvo de 32 px num botão de 22: o canto do cartão é pequeno para o dedo. */
+.lb-itens__por::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
+.lb-itens__por svg {
+  width: 13px;
+  height: 13px;
+}
+
+.lb-itens__por:active {
+  transform: scale(0.97);
+}
+
+.lb-itens__por:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-itens__por:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-itens__por:active {
+    transform: none;
+  }
+}
+
 /* Arrastar a grade não seleciona o nome do item no caminho, nem arrasta a foto
    (o arrasto nativo da imagem cancelaria o do app); no toque, leva o item em vez de rolar. */
 .lb-itens__item {

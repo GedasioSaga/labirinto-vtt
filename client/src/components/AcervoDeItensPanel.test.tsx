@@ -200,6 +200,26 @@ describe('AcervoDeItensPanel — arrastar ao mapa (ITEM NO MAPA)', () => {
     expect(arrastoNativo.defaultPrevented).toBe(true)
   })
 
+  it('o "+" do cartão põe o item no centro da vista, sem abrir a janela nem começar arrasto; sem o pedido, não há "+"', async () => {
+    const onPorNoCentro = vi.fn()
+    await act(async () => {
+      root.render(<AcervoDeItensPanel alvos={ALVOS} onDar={vi.fn(() => true)} onSoltarNoMapa={vi.fn(() => true)} onPorNoCentro={onPorNoCentro} />)
+    })
+    const mais = botao('Pôr Poção no centro do mapa', host)
+    expect(mais.tabIndex).toBe(0)
+    act(() => void mais.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true, pointerId: 9, clientX: 10, clientY: 10 })))
+    act(() => void window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 9, clientX: 200, clientY: 200 })))
+    expect(document.body.querySelector('.lb-acervo__fantasma')).toBeNull()
+    act(() => void window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, clientX: 200, clientY: 200 })))
+    act(() => mais.click())
+    expect(onPorNoCentro).toHaveBeenCalledTimes(1)
+    expect(onPorNoCentro).toHaveBeenCalledWith(POCAO)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+
+    await montarComMapa()
+    expect(Array.from(host.querySelectorAll('button')).some((b) => (b.getAttribute('aria-label') ?? '').startsWith('Pôr '))).toBe(false)
+  })
+
   it('toque parado continua abrindo a janela; Esc no meio do arrasto desiste sem pôr nada', async () => {
     const onSoltarNoMapa = await montarComMapa()
     const pocao = botao('Abrir Poção', host)

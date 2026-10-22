@@ -13,6 +13,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { BotaoMais } from './BotaoMais'
 import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon } from './icons'
+import { IconeDoLivro } from './livro/icones'
 import './TokenLibraryPanel.css'
 
 export interface TokenLibraryPanelProps {
@@ -500,6 +501,21 @@ export function TokenLibraryPanel({
               <CloseIcon size={14} />
             </button>
           </span>
+        )}
+        {!confirmando && (
+          // O "+" do protótipo, sempre à vista: diz o que o clique no nome faz.
+          // Fora do Tab, como o "Mandar ficha" de Objetos do mapa: pelo teclado, o
+          // nome já é a parada e o Enter nele põe no centro.
+          <button
+            type="button"
+            className="lb-acervo__por"
+            aria-label={`Pôr ${item.nome} no centro do mapa`}
+            title="Pôr no centro da vista"
+            tabIndex={-1}
+            onClick={() => onPlace(item)}
+          >
+            <IconeDoLivro nome="mais" />
+          </button>
         )}
         {movendo && (
           <span className="lb-acervo__destinos" role="group" aria-label={`Mover ${item.nome} para`}>

@@ -7,6 +7,7 @@ import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { BotaoMais } from './BotaoMais'
 import { ImagemOuIniciais } from './FichaPecas'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
+import { IconeDoLivro } from './livro/icones'
 import './AcervoDeItensPanel.css'
 import './TokenLibraryPanel.css'
 
@@ -32,6 +33,8 @@ export interface AcervoDeItensPanelProps {
    * devolve `true` quando pôs. Ausente = o item não se arrasta.
    */
   onSoltarNoMapa?: (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean) => boolean
+  /** O "+" do cartão: o item no chão, no centro da vista, como o soltar sem Alt. Ausente = sem "+". */
+  onPorNoCentro?: (item: ItemDoCatalogo) => void
 }
 
 /** Quanto o ponteiro anda antes de o aperto virar arrasto (o mesmo do acervo de tokens). */
@@ -157,7 +160,7 @@ export function itensPorCategoria(itens: readonly ItemDoCatalogo[], categorias: 
   return ordem.map((categoria) => ({ categoria, itens: grupos.get(categoria) ?? [] }))
 }
 
-export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa }: AcervoDeItensPanelProps) {
+export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPorNoCentro }: AcervoDeItensPanelProps) {
   const tituloId = useId()
   const arrasto = useArrastoAoMapa(onSoltarNoMapa)
   const itens = useAcervoDeItensStore((state) => state.itens)
@@ -213,7 +216,7 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa }: Ace
               </p>
               <ul className="lb-itens__grade">
                 {grupo.itens.map((item) => (
-                  <li key={item.id}>
+                  <li key={item.id} className="lb-itens__celula">
                     <button
                       type="button"
                       className="lb-itens__item"
@@ -234,6 +237,12 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa }: Ace
                       </span>
                       <span className="lb-itens__nome">{item.nome}</span>
                     </button>
+                    {onPorNoCentro !== undefined && (
+                      // No Tab, ao contrário do "+" do token: o cartão abre a janela, e sem este botão o teclado não põe o item no mapa.
+                      <button type="button" className="lb-itens__por" aria-label={`Pôr ${item.nome} no centro do mapa`} title="Pôr no centro da vista" onClick={() => onPorNoCentro(item)}>
+                        <IconeDoLivro nome="mais" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

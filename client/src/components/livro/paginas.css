@@ -11,18 +11,26 @@
 /* Fechada, depois do recolher (200 ms), o miolo sai da pintura: some da tela de
    verdade, e não só fica transparente atrás de uma altura zero. Ao abrir ele
    volta na hora, antes de a altura crescer. */
-.gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo {
+.gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo,
+.gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__regiao > .gr-ficha__corpo > .gr-ficha__miolo {
   visibility: hidden;
   transition: opacity 140ms ease, visibility 0s linear 200ms;
 }
 @media (prefers-reduced-motion: reduce) {
-  .gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo { transition-delay: 0s; }
+  .gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo,
+  .gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__regiao > .gr-ficha__corpo > .gr-ficha__miolo { transition-delay: 0s; }
 }
 
 /* As seções de antes que moram dentro da ficha ("Grade" em Camadas) perdem o
    fio e o recuo de linha solta: a ficha já é o cartão. */
 .gr-paginas .gr-ficha__dentro .lb-section:not(.lb-collapsible) { padding: 0; border-top: 0; box-shadow: none; }
 .gr-paginas .gr-ficha__dentro .lb-collapsible { padding-left: 0; padding-right: 0; box-shadow: none; }
+
+/* PÁGINA ACERVO (fatia 18b): o seg em cima, a parte escolhida embaixo. As
+   seções de antes perdem o fio e o recuo de linha solta: a página já é o
+   cartão, como dentro das fichas. */
+.lb-acervo-pagina { display: flex; flex-direction: column; gap: 12px; }
+.lb-acervo-pagina__parte > .lb-section { padding-left: 0; padding-right: 0; border-top: 0; box-shadow: none; }
 
 /* "Próximo apito" e "Próximo dia" lado a lado, numa linha cada, como as ações do protótipo. */
 .gr-paginas .lb-agenda > .lb-cenas__acoes > .lb-btn { flex: 1 1 0; min-width: 0; padding: 0 8px; white-space: nowrap; }
