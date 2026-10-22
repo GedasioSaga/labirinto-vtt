@@ -114,7 +114,9 @@ describe('Configurações do mapa — entrada da janela e balão da engrenagem',
     expect(janela()?.contains(document.activeElement)).toBe(true)
     const css = await cssDoGrimorio()
     const reduzido = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
-    expect(reduzido).toMatch(/\.gr-ficha\.gr-e-nova, \.gr-dlg \{ animation-name: gr-fade; \}/)
+    // Só esmaece, e no máximo em 140 ms: o teto do movimento reduzido é 160 (fatia 21).
+    expect(reduzido).toMatch(/\.gr-ficha\.gr-e-nova, \.gr-dlg \{ animation-name: gr-fade; animation-duration: 140ms; \}/)
+    expect(reduzido).toMatch(/\.gr-dlg-fundo \{ animation-duration: 140ms; \}/)
   })
 
   it('a engrenagem mostra o próprio nome no balão, e o nome acessível não muda', () => {
