@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import type { FormEvent, ReactNode, RefObject } from 'react'
 import { GRUPO_DO_TESTE } from '../net/visaoDeTeste/avisosDeTeste'
 import type { ToastMessage, ToastResposta } from '../stores/toastStore'
-import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
+import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa, type ItemDaPilha } from './caixaDeAvisos'
 import { Torrada } from './grimorio/Torrada'
 import './Toast.css'
 
@@ -85,25 +85,32 @@ export function Toast({ toasts, onDismiss, onPausar, onRetomar }: ToastProps) {
     escrever: (id, texto) => setTextos((atual) => ({ ...Object.fromEntries(Object.entries(atual).filter(([chave]) => vivos.has(chave))), [id]: texto })),
   }
 
-  const { saindo, saiu } = useTorradasSaindo(toasts)
+  const { saindo, ordem, saiu } = useTorradasSaindo(toasts)
 
   if (toasts.length === 0 && saindo.length === 0) return null
 
-  const itens: ReactNode[] = agruparAvisos(toasts).map((item) =>
-    item.tipo === 'aviso' ? (
-      ehTorrada(item.toast) ? (
-        <TorradaDoAviso key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+  const pecas = new Map<string, ReactNode>()
+  for (const item of agruparAvisos(toasts)) {
+    const chave = chaveDoItem(item)
+    pecas.set(
+      chave,
+      item.tipo === 'aviso' ? (
+        ehTorrada(item.toast) ? (
+          <TorradaDoAviso key={chave} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+        ) : (
+          <AvisoSolto key={chave} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
+        )
       ) : (
-        <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} rascunhos={rascunhos} />
-      )
-    ) : (
-      <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} rascunhos={rascunhos} />
-    ),
-  )
-  // A torrada que sai fica onde estava enquanto some: a pilha só fecha o vão depois.
-  for (const { toast, indice } of saindo) {
-    itens.splice(Math.min(indice, itens.length), 0, <TorradaDoAviso key={toast.id} toast={toast} onDismiss={onDismiss} rascunhos={rascunhos} aoSair={saiu} />)
+        <CaixaDeAvisos key={chave} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} rascunhos={rascunhos} />
+      ),
+    )
   }
+  // A torrada que sai fica onde estava enquanto some (`ordem`): a pilha só fecha o vão depois.
+  for (const toast of saindo) pecas.set(toast.id, <TorradaDoAviso key={toast.id} toast={toast} onDismiss={onDismiss} rascunhos={rascunhos} aoSair={saiu} />)
+  const itens: ReactNode[] = ordem.flatMap((chave) => {
+    const peca = pecas.get(chave)
+    return peca === undefined ? [] : [peca]
+  })
 
   return (
     <RespostasEmCurso.Provider value={respostasEmCurso}>
@@ -123,10 +130,19 @@ export function ehTorrada(toast: ToastMessage): boolean {
   return (toast.kind === 'info' || toast.kind === 'error') && toast.grupo !== GRUPO_DO_TESTE && toast.resposta === undefined
 }
 
-interface TorradaSaindo {
-  toast: ToastMessage
-  /** Onde estava na pilha: a saída acontece no mesmo lugar. */
-  indice: number
+/** A chave de um item da pilha na tela: o id do aviso, ou o grupo da caixa. */
+function chaveDoItem(item: ItemDaPilha): string {
+  return item.tipo === 'aviso' ? item.toast.id : `grupo:${item.grupo}`
+}
+
+/** O que a pilha mostra, numa foto só: trocar uma parte sem as outras desencontraria a ordem. */
+interface PilhaNaTela {
+  /** A última foto da store. */
+  avisos: readonly ToastMessage[]
+  /** As torradas que a store já tirou e que ainda estão saindo. */
+  saindo: readonly ToastMessage[]
+  /** A ordem na tela, por chave (`chaveDoItem`): as vivas e as que saem. */
+  ordem: readonly string[]
 }
 
 /**
@@ -136,19 +152,67 @@ interface TorradaSaindo {
  * conta é feita no render, e não num efeito: o nó da torrada nunca sai do DOM
  * no meio (sairia e voltaria do zero, sem a saída).
  */
-function useTorradasSaindo(toasts: readonly ToastMessage[]): { saindo: readonly TorradaSaindo[]; saiu: (id: string) => void } {
-  const [saindo, setSaindo] = useState<readonly TorradaSaindo[]>([])
-  const [anteriores, setAnteriores] = useState(toasts)
-  if (anteriores !== toasts) {
-    const vivos = new Set(toasts.map((toast) => toast.id))
-    const foram = anteriores.flatMap((toast, indice) => (!vivos.has(toast.id) && ehTorrada(toast) ? [{ toast, indice }] : []))
-    // O aviso que voltou com o mesmo id (o mesmo erro de novo) não está mais saindo.
-    const ficam = saindo.filter((item) => !vivos.has(item.toast.id))
-    setAnteriores(toasts)
-    if (foram.length > 0 || ficam.length !== saindo.length) setSaindo([...ficam, ...foram])
+function useTorradasSaindo(toasts: readonly ToastMessage[]): { saindo: readonly ToastMessage[]; ordem: readonly string[]; saiu: (id: string) => void } {
+  const [pilha, setPilha] = useState<PilhaNaTela>(() => ({ avisos: toasts, saindo: [], ordem: agruparAvisos(toasts).map(chaveDoItem) }))
+  let agora = pilha
+  if (pilha.avisos !== toasts) {
+    agora = proximaPilha(pilha, toasts)
+    setPilha(agora)
   }
-  const saiu = useCallback((id: string) => setSaindo((atual) => atual.filter((item) => item.toast.id !== id)), [])
-  return { saindo, saiu }
+  const saiu = useCallback(
+    (id: string) =>
+      setPilha((atual) =>
+        atual.saindo.some((toast) => toast.id === id)
+          ? { ...atual, saindo: atual.saindo.filter((toast) => toast.id !== id), ordem: atual.ordem.filter((chave) => chave !== id) }
+          : atual,
+      ),
+    [],
+  )
+  return { saindo: agora.saindo, ordem: agora.ordem, saiu }
+}
+
+function proximaPilha(pilha: PilhaNaTela, toasts: readonly ToastMessage[]): PilhaNaTela {
+  const vivos = new Set(toasts.map((toast) => toast.id))
+  // Sai animada só a torrada que estava na tela por conta própria; a linha de uma caixa sai com a caixa.
+  const foram = agruparAvisos(pilha.avisos).flatMap((item) => (item.tipo === 'aviso' && ehTorrada(item.toast) && !vivos.has(item.toast.id) ? [item.toast] : []))
+  // O aviso que voltou com o mesmo id (o mesmo erro de novo) não está mais saindo.
+  const saindo = [...pilha.saindo.filter((toast) => !vivos.has(toast.id)), ...foram]
+  const ordem = ordemNaTela(pilha.ordem, agruparAvisos(toasts).map(chaveDoItem), new Set(saindo.map((toast) => toast.id)))
+  return { avisos: toasts, saindo, ordem }
+}
+
+/**
+ * A ordem da pilha depois de uma foto nova: as vivas na ordem da store, e cada
+ * torrada que sai no lugar onde estava, logo antes da viva que vinha depois
+ * dela. Duas que saem nunca trocam de lugar entre si: o React moveria o nó no
+ * meio da transição, o navegador a cancelaria e a torrada pararia invisível.
+ */
+function ordemNaTela(anterior: readonly string[], vivas: readonly string[], saindo: ReadonlySet<string>): string[] {
+  const vivasAgora = new Set(vivas)
+  const antesDa = new Map<string, string[]>()
+  let pendentes: string[] = []
+  for (const chave of anterior) {
+    if (vivasAgora.has(chave)) {
+      if (pendentes.length > 0) antesDa.set(chave, pendentes)
+      pendentes = []
+    } else if (saindo.has(chave)) {
+      pendentes.push(chave)
+    }
+  }
+  const ordem = vivas.flatMap((chave) => [...(antesDa.get(chave) ?? []), chave])
+  ordem.push(...pendentes)
+  // Saída que não tinha lugar na tela: vai para o fim, para sair e não ficar presa na lista.
+  for (const chave of saindo) if (!ordem.includes(chave)) ordem.push(chave)
+  return ordem
+}
+
+/** As transições que correm na caixa; sem `getAnimations` (jsdom, WebView antiga), nenhuma. */
+function transicoesDe(caixa: HTMLElement): Animation[] {
+  return typeof caixa.getAnimations === 'function' ? caixa.getAnimations() : []
+}
+
+function fimDas(transicoes: readonly Animation[]): Promise<unknown> {
+  return Promise.all(transicoes.map((transicao) => transicao.finished))
 }
 
 interface TorradaDoAvisoProps {
@@ -170,19 +234,24 @@ function TorradaDoAviso({ toast, onDismiss, rascunhos, aoSair }: TorradaDoAvisoP
     const focado = document.activeElement
     if (focado instanceof HTMLElement && caixa.contains(focado)) focado.blur()
     // Espera a transição de saída que o CSS acabou de ligar; sem transição, sai já.
-    const transicoes = typeof caixa.getAnimations === 'function' ? caixa.getAnimations() : []
+    const transicoes = transicoesDe(caixa)
     if (transicoes.length === 0) {
       aoSair(toast.id)
       return
     }
+    // Desligado na limpeza: o aviso voltou (o mesmo id de novo) e não está mais saindo.
     let valendo = true
-    Promise.all(transicoes.map((transicao) => transicao.finished)).then(
-      () => {
-        if (valendo) aoSair(toast.id)
-      },
-      // Cancelada: o aviso voltou (o mesmo id de novo) e não está mais saindo.
-      () => {},
-    )
+    const sair = () => {
+      if (valendo) aoSair(toast.id)
+    }
+    fimDas(transicoes).then(sair, () => {
+      // Cancelada sem o aviso ter voltado (o nó mudou de lugar no meio, e a
+      // transição parou já no fim): sem outra correndo, sai já. A torrada
+      // nunca fica presa na pilha, inerte e invisível.
+      const restantes = transicoesDe(caixa)
+      if (restantes.length === 0) sair()
+      else fimDas(restantes).then(sair, sair)
+    })
     return () => {
       valendo = false
     }

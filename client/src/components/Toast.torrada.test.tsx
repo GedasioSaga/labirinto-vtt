@@ -108,6 +108,52 @@ describe('Toast na Torrada do Grimório', () => {
     expect(torradas()).toEqual([antes])
   })
 
+  it('duas torradas que saem em fotos seguidas (o retomar da pausa) ficam na ordem de antes: nenhum nó troca de lugar no meio da saída', async () => {
+    const terminar = comTransicao()
+    const primeira: ToastMessage = { id: 'x', kind: 'info', text: 'Primeira' }
+    const segunda: ToastMessage = { id: 'y', kind: 'info', text: 'Segunda' }
+    const fica: ToastMessage = { id: 'z', kind: 'error', text: 'Fica' }
+    mostrar([primeira, segunda, fica])
+    const nos = torradas()
+    mostrar([segunda, fica])
+    mostrar([fica])
+    expect(torradas()).toEqual(nos)
+    expect(torradas().map((torrada) => torrada.classList.contains('gr-sai'))).toEqual([true, true, false])
+    await act(async () => terminar())
+    expect(torradas()).toEqual([nos[2]])
+  })
+
+  it('a transição de saída cancelada no meio (o nó mudou de lugar) não prende a torrada: ela sai e a pilha some', async () => {
+    let cancelar = () => {}
+    const cancelada = new Promise<void>((_, rejeitar) => {
+      cancelar = () => rejeitar(new DOMException('Transição cancelada', 'AbortError'))
+    })
+    let correndo = true
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', { configurable: true, writable: true, value: () => (correndo ? [{ finished: cancelada }] : []) })
+    mostrar([SALVO])
+    mostrar([])
+    expect(torradas()).toHaveLength(1)
+    // Cancelada, a transição deixa de correr: o navegador não a devolve mais.
+    correndo = false
+    await act(async () => cancelar())
+    expect(container.querySelector('.lb-toaststack')).toBeNull()
+  })
+
+  it('a saída cancelada porque o mesmo aviso voltou não o tira: o mesmo nó fica, sem gr-sai', async () => {
+    let cancelar = () => {}
+    const cancelada = new Promise<void>((_, rejeitar) => {
+      cancelar = () => rejeitar(new DOMException('Transição cancelada', 'AbortError'))
+    })
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', { configurable: true, writable: true, value: () => [{ finished: cancelada }] })
+    mostrar([SALVO])
+    const antes = torradas()[0]
+    mostrar([])
+    mostrar([SALVO])
+    await act(async () => cancelar())
+    expect(torradas()).toEqual([antes])
+    expect(antes.classList.contains('gr-sai')).toBe(false)
+  })
+
   it('sem transição no CSS (movimento zerado), a torrada sai na hora', () => {
     mostrar([SALVO])
     mostrar([])
