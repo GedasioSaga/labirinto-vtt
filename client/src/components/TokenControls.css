@@ -182,7 +182,7 @@ button.lb-token-opt__head:focus-visible .lb-token-opt__sinal {
 
 /* Apertar responde na hora (Emil: encolher um pouco no `:active`). */
 button.lb-token-opt__head:active .lb-token-opt__sinal {
-  transform: scale(0.9);
+  transform: scale(0.95);
 }
 
 /* O corpo aberto: o passo de 12 px entre controles e, somado aos 4 px da
@@ -355,7 +355,7 @@ button.lb-token-opt__head:active .lb-token-opt__sinal {
 }
 
 .lb-token-cor:active .lb-token-cor__disco {
-  transform: scale(0.9);
+  transform: scale(0.95);
 }
 
 /* "Cor padrão" só existe com uma cor escolhida: embaixo das amostras, à

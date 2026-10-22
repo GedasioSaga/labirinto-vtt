@@ -4626,7 +4626,7 @@ button.pp-colecao__casa:focus-visible {
 }
 
 .pp-zoom__button:active:not([aria-disabled='true']) svg {
-  transform: scale(0.88);
+  transform: scale(0.95);
   transition-duration: 0ms;
 }
 

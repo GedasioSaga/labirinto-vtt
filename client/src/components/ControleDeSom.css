@@ -85,7 +85,7 @@
 }
 
 .lb-som--flutuante .lb-som__gatilho:active svg {
-  transform: scale(0.88);
+  transform: scale(0.95);
   transition-duration: 0ms;
 }
 
