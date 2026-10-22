@@ -398,9 +398,9 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Ficha da escada', estado: 'escada selecionada no mapa', escopo: 'esquerda', preparo: sel('stair', 's1'),
-    vai: 'Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17)', fatia: '16b e 17',
+    vai: 'Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial, na gramática do Grimório (seg, número e deslizante; restilo da 17); Para onde leva fechada (feito na 16b; as alças no mapa são da 17)', fatia: '16b e 17',
     linhas: [
-      ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['textbox', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['textbox', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
+      ...todos([rg('Sentido da escada'), rg('Forma da escada'), rg('Tamanho da escada'), ['spinbutton', 'Comprimento'], b('Diminuir o comprimento'), b('Aumentar o comprimento'), ['spinbutton', 'Largura'], b('Diminuir a largura'), b('Aumentar a largura'), ['slider', 'Curva'], cx('Oculto para jogadores')]),
       // "Para onde leva" nasce fechada; o nome do cabeçalho leva o resumo ("Para onde leva Lugar nenhum", "Piso 2").
       ...todos([['combobox', 'Leva a'], rg('Passagem da escada'), b('Criar andar de cima'), ['spinbutton', 'Piso'], ['spinbutton', 'Leva ao piso'], ...TRANSICAO('Transição ao trocar de piso')], b('/^Para onde leva/')),
     ],

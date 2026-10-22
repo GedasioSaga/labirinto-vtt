@@ -586,17 +586,17 @@ Parte de: parede selecionada no mapa. Vai para: Página Ficha da parede: Cor, Es
 
 ### Ficha da escada
 
-Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial; Para onde leva fechada (feito na 16b; as alças no mapa são da 17). Fatia: 16b e 17.
+Parte de: escada selecionada no mapa. Vai para: Página Ficha da escada: Sentido, Forma, Tamanho, Comprimento, Largura, Curva e Oculto no essencial, na gramática do Grimório (seg, número e deslizante; restilo da 17); Para onde leva fechada (feito na 16b; as alças no mapa são da 17). Fatia: 16b e 17.
 
 | Controle | Nome acessível | Caminho hoje | Vai para |
 |---|---|---|---|
 | Sentido da escada | radiogroup "Sentido da escada" | (livro do mestre) | (do bloco) |
 | Forma da escada | radiogroup "Forma da escada" | (livro do mestre) | (do bloco) |
 | Tamanho da escada | radiogroup "Tamanho da escada" | (livro do mestre) | (do bloco) |
-| Comprimento | textbox "Comprimento" | (livro do mestre) | (do bloco) |
+| Comprimento | spinbutton "Comprimento" | (livro do mestre) | (do bloco) |
 | Diminuir o comprimento | button "Diminuir o comprimento" | (livro do mestre) | (do bloco) |
 | Aumentar o comprimento | button "Aumentar o comprimento" | (livro do mestre) | (do bloco) |
-| Largura | textbox "Largura" | (livro do mestre) | (do bloco) |
+| Largura | spinbutton "Largura" | (livro do mestre) | (do bloco) |
 | Diminuir a largura | button "Diminuir a largura" | (livro do mestre) | (do bloco) |
 | Aumentar a largura | button "Aumentar a largura" | (livro do mestre) | (do bloco) |
 | Curva | slider "Curva" | (livro do mestre) | (do bloco) |

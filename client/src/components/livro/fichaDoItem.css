@@ -31,6 +31,13 @@
   border-top: 0;
 }
 
+/* A placa do Sentido é deitada (viewBox 48 x 24, desenhada a 36 x 18 para o
+   traço dar 1,2 px como na barra): o ícone quadrado de 16 px do seg a espremeria. */
+.lb-ficha-da-escada .gr-seg__op svg.lb-escada-placa {
+  width: 36px;
+  height: 18px;
+}
+
 /* O Avançado no fim do essencial da região é o subgrupo do protótipo, como na
    Aparência da sala (`RoomControls.css`): fio tracejado em cima. Mesmo peso da
    regra acima e depois dela: o fio vence o `border-top: 0`. */
