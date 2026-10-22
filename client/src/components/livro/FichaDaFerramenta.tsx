@@ -63,7 +63,7 @@ const NOTA_DO_CHAO = 'Cor do chão, contorno e moldura do mapa ficam no marcador
 function irAoChaoDoMapa(peloPonteiro: boolean): void {
   useLivroDoMestreStore.getState().abrirPagina('cena', peloPonteiro)
   requestAnimationFrame(() => {
-    document.querySelector<HTMLElement>('.gr-folha[data-pagina="cena"] [data-secao="floor"] .lb-collapsible__toggle')?.focus()
+    document.querySelector<HTMLElement>('.gr-folha[data-pagina="cena"] [data-secao="floor"] .gr-ficha__cab')?.focus()
   })
 }
 

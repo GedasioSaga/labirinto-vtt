@@ -63,7 +63,8 @@ function render(overrides: Partial<PlaceTreeSectionProps> = {}): PlaceTreeSectio
 }
 
 function cabecalho(): HTMLButtonElement {
-  const botao = [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')].find((b) => b.textContent?.trim() === 'Locais')
+  // Pelo título: o resumo ("4 locais") mora no mesmo botão desde a fatia 18.
+  const botao = [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')].find((b) => b.querySelector('.gr-ficha__tit')?.textContent?.trim() === 'Locais')
   if (!botao) throw new Error('sem o botão "Locais"')
   return botao
 }

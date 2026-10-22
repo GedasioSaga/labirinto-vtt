@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent } from 'react'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
+import { SearchIcon } from './icons'
 import { searchPins, type PinDirectoryEntry } from '../lib/pinDirectory'
 
 export interface PinsSectionProps {
@@ -11,6 +12,12 @@ export interface PinsSectionProps {
 
 /** Valor do filtro que mostra todas as cenas. */
 const ALL_SCENES = ''
+
+/** "3 pinos", de todos os pinos e não do que a busca deixou à vista. Sem pino, sem resumo. */
+function resumoDosPinos(total: number): string | undefined {
+  if (total === 0) return undefined
+  return total === 1 ? '1 pino' : `${total} pinos`
+}
 
 /** As cenas que têm pino, na ordem da lista, sem repetir: as opções do filtro. */
 function scenesOf(entries: readonly PinDirectoryEntry[]): { id: string; name: string }[] {
@@ -60,11 +67,15 @@ export function PinsSection({ entries, onGo }: PinsSectionProps) {
   // A contagem da linha é a de `entries`, todos os pinos, e não a de
   // `results`: a busca filtra o que se vê aberto, não o que a seção guarda.
   return (
-    <CollapsibleSection id="pins" title="Pinos" defaultOpen={false} lazy contagem={entries.length}>
-      <div className="lb-field">
-        <label className="lb-label" htmlFor={searchId}>
-          Buscar pino
-        </label>
+    <FichaDaPagina id="pins" titulo="Pinos" icone="pino" padrao={false} lazy resumo={resumoDosPinos(entries.length)}>
+      {/* O nome do campo é só do leitor de tela: a lupa dentro dele diz o que ele é. */}
+      <label className="gr-sr" htmlFor={searchId}>
+        Buscar pino
+      </label>
+      <div className="lb-pinos__busca">
+        <span className="lb-objetos__lupa" aria-hidden="true">
+          <SearchIcon size={16} />
+        </span>
         <input
           id={searchId}
           type="search"
@@ -103,6 +114,6 @@ export function PinsSection({ entries, onGo }: PinsSectionProps) {
       </ul>
       {entries.length === 0 && <p className="lb-label">Nenhum pino no mapa ainda.</p>}
       {entries.length > 0 && results.length === 0 && <p className="lb-label">{`Nenhum pino com “${query.trim()}”.`}</p>}
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }

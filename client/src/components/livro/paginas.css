@@ -1,0 +1,52 @@
+/*
+ * PÁGINAS CENA E AVENTURA do livro do mestre (fatia 18): as fichas recolhíveis
+ * do Grimório (`FichaDaPagina`) em pilha, com a margem da página Mesa, e as
+ * listas de dentro (Pinos) na linha do protótipo (`.lista .item`: nome em
+ * cima, de onde é embaixo, fundo só no pairar). Tudo escopado em
+ * `.gr-paginas`: os mesmos componentes fora do livro não mudam.
+ */
+
+.gr-paginas { padding: 6px 12px 20px 14px; }
+
+/* Fechada, depois do recolher (200 ms), o miolo sai da pintura: some da tela de
+   verdade, e não só fica transparente atrás de uma altura zero. Ao abrir ele
+   volta na hora, antes de a altura crescer. */
+.gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo {
+  visibility: hidden;
+  transition: opacity 140ms ease, visibility 0s linear 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gr-paginas .gr-ficha:not(.gr-e-aberta) > .gr-ficha__corpo > .gr-ficha__miolo { transition-delay: 0s; }
+}
+
+/* As seções de antes que moram dentro da ficha ("Grade" em Camadas) perdem o
+   fio e o recuo de linha solta: a ficha já é o cartão. */
+.gr-paginas .gr-ficha__dentro .lb-section:not(.lb-collapsible) { padding: 0; border-top: 0; box-shadow: none; }
+.gr-paginas .gr-ficha__dentro .lb-collapsible { padding-left: 0; padding-right: 0; box-shadow: none; }
+
+/* "Próximo apito" e "Próximo dia" lado a lado, numa linha cada, como as ações do protótipo. */
+.gr-paginas .lb-agenda > .lb-cenas__acoes > .lb-btn { flex: 1 1 0; min-width: 0; padding: 0 8px; white-space: nowrap; }
+
+/* A busca dos Pinos com a lupa dentro do campo, como a dos Objetos do mapa. */
+.lb-pinos__busca { position: relative; display: flex; align-items: center; }
+.lb-pinos__busca > .lb-objetos__lupa { left: 10px; }
+.lb-pinos__busca > .lb-input { padding-left: 34px; }
+
+/* Pinos da aventura: a linha do protótipo, não o cartão das Cenas. */
+.gr-paginas .lb-pinos { gap: 0; margin: 0 -6px; }
+.gr-paginas .lb-pinos > .lb-cenas__item { padding: 0; border: 0; background: none; }
+.gr-paginas .lb-pinos__linha {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  min-height: 38px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  transition: background-color 150ms ease;
+}
+.gr-paginas .lb-pinos__nome { flex: none; white-space: nowrap; color: var(--lb-color-parchment); }
+.gr-paginas .lb-pinos__cena { max-width: none; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
+  .gr-paginas .lb-pinos__linha:hover:not(:disabled) { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+}
+.gr-paginas .lb-pinos__linha:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }

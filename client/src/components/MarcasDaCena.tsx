@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
 import { MARCAS_POR_CENA, RUMO_NOME } from '../lib/marcas'
 import type { MarcaNoLugar } from '../types/map'
 
@@ -59,7 +59,7 @@ export function MarcasDaCena({ marcas, onApagar }: MarcasDaCenaProps) {
   }
 
   return (
-    <CollapsibleSection id="marcas" title="Marcas dos jogadores" defaultOpen contagem={marcas.length}>
+    <FichaDaPagina id="marcas" titulo="Marcas dos jogadores" icone="marcador" padrao resumo={marcas.length === 1 ? '1 marca' : `${marcas.length} marcas`}>
       <div className="lb-marcas">
         <p className="lb-marcas__resumo">
           {contagem(marcas.length)} (cabem {MARCAS_POR_CENA}). Apagar uma libera espaço para quem a deixou.
@@ -89,6 +89,6 @@ export function MarcasDaCena({ marcas, onApagar }: MarcasDaCenaProps) {
           })}
         </ul>
       </div>
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }

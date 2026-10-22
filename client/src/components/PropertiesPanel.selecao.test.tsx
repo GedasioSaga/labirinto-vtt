@@ -403,7 +403,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
 
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), floorLayers: { ...floorLayers, selectedPieceId: null } }))
     expect(titulos()).not.toContain('Chão do mapa')
-    const naCena = Array.from(container.querySelectorAll('.gr-folha[data-pagina="cena"] h2')).map((h) => (h.textContent ?? '').trim())
+    const naCena = Array.from(container.querySelectorAll('.gr-folha[data-pagina="cena"] .gr-ficha__tit')).map((h) => (h.textContent ?? '').trim())
     expect(naCena).toEqual(expect.arrayContaining(['Chão do mapa', 'Camadas do chão', 'Camadas']))
   })
 

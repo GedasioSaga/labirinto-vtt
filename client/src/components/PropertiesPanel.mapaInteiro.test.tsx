@@ -69,7 +69,8 @@ describe('painel de propriedades — mapa inteiro sem seleção', () => {
 
   function cabecalho(titulo: string): HTMLButtonElement {
     const botao = [...container.querySelectorAll<HTMLButtonElement>('.lb-inspector__body button[aria-expanded]')].find(
-      (b) => b.textContent?.trim() === titulo,
+      // Pelo título: o resumo da ficha (fatia 18) mora no mesmo botão.
+      (b) => (b.querySelector('.gr-ficha__tit') ?? b).textContent?.trim() === titulo,
     )
     if (botao === undefined) throw new Error(`o painel não tem a seção "${titulo}"`)
     return botao
@@ -82,7 +83,7 @@ describe('painel de propriedades — mapa inteiro sem seleção', () => {
   it('com Selecionar e nada selecionado, Território nasce fechado; Chão do mapa e Camadas nascem abertas', () => {
     renderPainel(semSelecao())
     expect(cabecalho('Território').getAttribute('aria-expanded')).toBe('false')
-    expect(corpoDa('Território')?.hidden, 'fechado, o corpo sai da vista e da ordem de Tab').toBe(true)
+    expect(corpoDa('Território')?.hasAttribute('inert'), 'fechado, o corpo sai da vista e da ordem de Tab').toBe(true)
     expect(cabecalho('Chão do mapa').getAttribute('aria-expanded')).toBe('true')
     expect(cabecalho('Camadas').getAttribute('aria-expanded')).toBe('true')
   })

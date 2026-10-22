@@ -92,9 +92,9 @@ describe('livro do mestre — cada grupo na sua página', () => {
   }
 
   const texto = (el: Element | null | undefined) => (el?.textContent ?? '').trim()
-  /** O cabeçalho (botão que abre e fecha) de uma linha. */
+  /** O cabeçalho (botão que abre e fecha) de uma linha, pelo título: o resumo da ficha (fatia 18) fica fora. */
   const cabecalho = (titulo: string): HTMLButtonElement | null =>
-    [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')].find((b) => texto(b) === titulo) ?? null
+    [...container.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')].find((b) => texto(b.querySelector('.gr-ficha__tit') ?? b) === titulo) ?? null
   const h2 = (nome: string) => [...container.querySelectorAll('h2')].find((h) => texto(h) === nome) ?? null
   const primeiroTitulo = () => texto(container.querySelector('.lb-inspector__body h2'))
 

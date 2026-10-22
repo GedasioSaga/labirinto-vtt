@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
 import { CloseIcon, SearchIcon, TokenIcon } from './icons'
 import { searchAdventure, type AdventureHit, type SceneSearchSource } from '../lib/buscaNaAventura'
 import type { SendCandidate } from '../lib/gatherParty'
@@ -47,9 +47,9 @@ export function MapObjectsSection({ searchRequest = 0, ...rest }: MapObjectsSect
   /** Último Ctrl+K já atendido. Mora aqui, fora do corpo que monta e desmonta com a seção. */
   const consumedSearch = useRef(searchRequest)
   return (
-    <CollapsibleSection id="objects" title="Objetos do mapa" defaultOpen={false} lazy openRequest={searchRequest}>
+    <FichaDaPagina id="objects" titulo="Objetos do mapa" icone="busca" padrao={false} lazy pedidoDeAbrir={searchRequest}>
       <ObjectFinder {...rest} searchRequest={searchRequest} consumedSearch={consumedSearch} />
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }
 
@@ -357,14 +357,10 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
 
   return (
     <div className="lb-objetos">
-      <div className="lb-objetos__rotulo">
-        <label className="lb-label" htmlFor={fieldId}>
-          Buscar objeto
-        </label>
-        <kbd className="lb-objetos__atalho" aria-hidden="true">
-          Ctrl+K
-        </kbd>
-      </div>
+      {/* O nome do campo é só do leitor de tela: a lupa e o atalho dentro dele dizem o que ele é. */}
+      <label className="gr-sr" htmlFor={fieldId}>
+        Buscar objeto
+      </label>
       <div className="lb-objetos__campo">
         <span className="lb-objetos__lupa" aria-hidden="true">
           <SearchIcon size={16} />
@@ -387,7 +383,11 @@ function ObjectFinder({ map, currentKey, onGoTo, searchRequest, consumedSearch, 
           }}
           onKeyDown={onSearchKeyDown}
         />
-        {query !== '' && (
+        {query === '' ? (
+          <kbd className="lb-objetos__atalho" aria-hidden="true">
+            Ctrl K
+          </kbd>
+        ) : (
           <button type="button" className="lb-iconbtn lb-iconbtn--sm lb-objetos__limpar" aria-label="Limpar busca" title="Limpar busca" onClick={clearSearch}>
             <CloseIcon size={14} />
           </button>

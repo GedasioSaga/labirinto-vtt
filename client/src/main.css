@@ -5498,15 +5498,14 @@ html.lb-arrastando-cena * {
   gap: var(--lb-space-2);
 }
 
-.lb-objetos__rotulo {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--lb-space-2);
-}
-
-/* O atalho escrito ao lado do rótulo: atalho invisível é atalho inexistente. */
+/* O atalho escrito dentro do campo, no canto do "limpar" (que só vem com texto
+   digitado): atalho invisível é atalho inexistente. */
 .lb-objetos__atalho {
+  position: absolute;
+  top: 50%;
+  right: var(--lb-space-2);
+  transform: translateY(-50%);
+  pointer-events: none;
   padding: 0 var(--lb-space-1);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-sm);

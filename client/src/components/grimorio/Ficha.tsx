@@ -21,6 +21,15 @@ export interface FichaProps {
   nivel?: 2 | 3 | 4
   /** Id do botão do cabeçalho: quem monta põe o foco nele (o recurso do pino que acabou de entrar). */
   idDoCabecalho?: string
+  /**
+   * O resumo vira a descrição do cabeçalho, não parte do nome: quem procura a
+   * ficha pelo título exato ("Camadas") acha aberta ou fechada, e o leitor de
+   * tela ouve "Camadas, recolhido, 9 de 9 visíveis" (o molde da contagem de
+   * `CollapsibleSection`).
+   */
+  resumoForaDoNome?: boolean
+  /** Endereço estável (`data-secao`) para quem leva o foco até a ficha de fora. */
+  secao?: string
   children: ReactNode
 }
 
@@ -29,8 +38,23 @@ export interface FichaProps {
  * título; fechada, o miolo fica `inert`, fora do Tab e do leitor de tela, e o
  * acordeão anima a altura pela grade (`0fr` → `1fr`).
  */
-export function Ficha({ titulo, icone, resumo, aberta, abertaInicial = false, onAlternar, plana, nova, nivel = 3, idDoCabecalho, children }: FichaProps) {
+export function Ficha({
+  titulo,
+  icone,
+  resumo,
+  aberta,
+  abertaInicial = false,
+  onAlternar,
+  plana,
+  nova,
+  nivel = 3,
+  idDoCabecalho,
+  resumoForaDoNome,
+  secao,
+  children,
+}: FichaProps) {
   const id = useId()
+  const idDoResumo = `${id}-resumo`
   const [abertaLocal, setAbertaLocal] = useState(abertaInicial)
   const estaAberta = aberta ?? abertaLocal
   const Titulo = nivel === 2 ? 'h2' : nivel === 4 ? 'h4' : 'h3'
@@ -38,13 +62,27 @@ export function Ficha({ titulo, icone, resumo, aberta, abertaInicial = false, on
     if (aberta === undefined) setAbertaLocal(!estaAberta)
     onAlternar?.(!estaAberta)
   }
+  // Aberta, o resumo some da tela (grimorio.css): some da descrição também.
+  const descreveComResumo = resumoForaDoNome === true && resumo !== undefined && resumo !== '' && !estaAberta
   return (
-    <section className={classes('gr-ficha', estaAberta && 'gr-e-aberta', plana && 'gr-ficha--plana', nova && 'gr-e-nova')}>
+    <section className={classes('gr-ficha', estaAberta && 'gr-e-aberta', plana && 'gr-ficha--plana', nova && 'gr-e-nova')} data-secao={secao}>
       <Titulo className="gr-ficha__h">
-        <button type="button" id={idDoCabecalho} className="gr-ficha__cab" aria-expanded={estaAberta} aria-controls={id} onClick={alternar}>
+        <button
+          type="button"
+          id={idDoCabecalho}
+          className="gr-ficha__cab"
+          aria-expanded={estaAberta}
+          aria-controls={id}
+          aria-describedby={descreveComResumo ? idDoResumo : undefined}
+          onClick={alternar}
+        >
           {icone && <span className="gr-ficha__med">{icone}</span>}
           <span className="gr-ficha__tit">{titulo}</span>
-          {resumo && <span className="gr-ficha__resumo">{resumo}</span>}
+          {resumo && (
+            <span className="gr-ficha__resumo" id={resumoForaDoNome === true ? idDoResumo : undefined} aria-hidden={resumoForaDoNome === true ? true : undefined}>
+              {resumo}
+            </span>
+          )}
           <span className="gr-ficha__seta">
             <ChevronDownIcon />
           </span>

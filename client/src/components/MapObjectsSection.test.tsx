@@ -128,7 +128,7 @@ describe('MapObjectsSection', () => {
   it('nasce recolhida: só o cabeçalho "Objetos do mapa", e a lista nem existe no DOM', () => {
     render()
     expect(cabecalho().getAttribute('aria-expanded')).toBe('false')
-    expect(corpo().hidden).toBe(true)
+    expect(corpo().hasAttribute('inert')).toBe(true)
     expect(container.textContent).not.toContain('Cripta')
     expect(container.querySelector('input')).toBeNull()
   })

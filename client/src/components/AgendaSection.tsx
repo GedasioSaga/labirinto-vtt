@@ -25,7 +25,7 @@ import {
 import { ALARM_MAX_LENGTH } from '../net/protocol'
 import type { SceneListItem } from '../stores/adventureStore'
 import { useToastStore } from '../stores/toastStore'
-import { CollapsibleSection } from './CollapsibleSection'
+import { FichaDaPagina } from './livro/FichaDaPagina'
 
 /** O grupo dos avisos da agenda na Caixa: "Agenda (2)". */
 export const GRUPO_DA_AGENDA = 'Agenda'
@@ -278,7 +278,7 @@ export function AgendaSection({ agenda, onChange, cenas = [], onAlarm, onApito }
   // A contagem é a da lista inteira: o evento que já disparou continua nela
   // ("· Disparou") até o mestre tirar, então conta também.
   return (
-    <CollapsibleSection id="agenda" title="Agenda" defaultOpen={false} contagem={atual.eventos.length}>
+    <FichaDaPagina id="agenda" titulo="Agenda" icone="relogio" padrao={false} resumo={`Dia ${atual.agora.dia}`}>
       <div className="lb-agenda">
         <p className="lb-agenda__agora" aria-live="polite">
           Agora: {formatarMomento(atual.agora)}
@@ -326,6 +326,6 @@ export function AgendaSection({ agenda, onChange, cenas = [], onAlarm, onApito }
         )}
         <EventoForm agora={atual.agora} cenas={cenasComAlarme(cenas)} onMarcar={marcar} />
       </div>
-    </CollapsibleSection>
+    </FichaDaPagina>
   )
 }
