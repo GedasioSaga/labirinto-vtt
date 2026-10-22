@@ -786,7 +786,8 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
       expect(problemas(soAPausa, tela, alvoMinimo(tela))).toEqual([])
 
       // A resposta do mestre a uma ação no ponto passa pelo chão: o selo sai de baixo dela.
-      host.mandar({ type: 'point.action.answer', action: 'escutar', answer: 'seen' })
+      // 'chamar' é a única ação no ponto desde 08/10 (lib/pointActions.ts): outra o jogador recusa e não mostra.
+      host.mandar({ type: 'point.action.answer', action: 'chamar', answer: 'seen' })
       await expect(page.locator('.pp-notice--point')).toBeVisible()
       const comOAviso = await medirEFotografar(page, `pausa-e-aviso-${tela.width}x${tela.height}`)
       expect(apagados(comOAviso, ['aviso que fica', 'aviso', 'Espiar pela porta', 'ferrolho', 'Sua vez', 'Onde estou', 'confronto'])).toEqual([])
