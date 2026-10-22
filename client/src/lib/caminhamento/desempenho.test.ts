@@ -19,6 +19,7 @@ import { gerarMapaDoRobo, sorteador } from './robo.fixture'
 
 const LADO = 300
 const CONSULTAS = 200
+const MEDIDAS_POR_CONSULTA = 3
 const NPCS = 30
 const QUADROS = 600
 const QUADROS_ENTRE_REPLANOS = 60
@@ -53,11 +54,17 @@ describe('desempenho do caminhamento (300 x 300 casas)', () => {
     const comCaminho: number[] = []
     for (let k = 0; k < CONSULTAS; k += 1) {
       const consulta = { de: pontoSorteado(sorte), para: pontoSorteado(sorte), fichas: gerado.fichas }
-      const inicio = performance.now()
-      const r = acharCaminhoNaMalha(malha, gerado.mapa.walls, consulta)
-      const ms = performance.now() - inicio
+      // A consulta é determinística: o menor de algumas medidas é o custo dela, sem o
+      // ruído de outros testes disputando a máquina.
+      let ms = Number.POSITIVE_INFINITY
+      let tipo = ''
+      for (let vez = 0; vez < MEDIDAS_POR_CONSULTA; vez += 1) {
+        const inicio = performance.now()
+        tipo = acharCaminhoNaMalha(malha, gerado.mapa.walls, consulta).tipo
+        ms = Math.min(ms, performance.now() - inicio)
+      }
       tempos.push(ms)
-      if (r.tipo === 'caminho') comCaminho.push(ms)
+      if (tipo === 'caminho') comCaminho.push(ms)
     }
     const numeros = {
       paredes: gerado.mapa.walls.length,
