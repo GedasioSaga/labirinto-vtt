@@ -106,8 +106,8 @@ describe('acompanharTeclado', () => {
     expect(folha.style.getPropertyValue(VARIAVEL_DO_TECLADO)).toBe('')
   })
 
-  it('sem visualViewport (navegador antigo) não faz nada', () => {
-    vi.stubGlobal('visualViewport', null)
+  it.each([null, undefined])('sem visualViewport (%s: navegador antigo, jsdom) não faz nada', (ausente) => {
+    vi.stubGlobal('visualViewport', ausente)
     const parar = acompanharTeclado(folha)
     expect(folha.style.getPropertyValue(VARIAVEL_DO_TECLADO)).toBe('')
     parar()

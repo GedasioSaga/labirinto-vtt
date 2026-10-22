@@ -40,7 +40,8 @@ export function alturaDoTeclado(alturaDaJanela: number, vista: VistaVisivel): nu
  */
 export function acompanharTeclado(folha: HTMLElement, janela: Window = window): () => void {
   const vista = janela.visualViewport
-  if (vista === null) return () => {}
+  // O tipo diz `null`, mas o jsdom e o navegador antigo nem têm a propriedade: `undefined`.
+  if (vista === null || vista === undefined) return () => {}
   let atual = -1
   const medir = () => {
     const altura = alturaDoTeclado(janela.innerHeight, vista)
