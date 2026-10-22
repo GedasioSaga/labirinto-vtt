@@ -283,43 +283,141 @@ async function linhaDaFolha(id: string, caso: Caso): Promise<{ titulo: string; q
   return { titulo: caso.titulo, quadros }
 }
 
-/** Centro dos pixels pintados de um Graphics, em px de tela (M5: continuidade do desenho). */
-async function centro(id: string, progresso: number): Promise<{ x: number; y: number; n: number }> {
+/** Quadro da continuidade (M5): a folha de 200 px girada 90 graus em volta de uma ponta cabe inteira. */
+const QUADRO_DA_CONTINUIDADE = 460
+/** Até onde se procura o pixel antigo mais perto: além disso o salto é enorme e o número exato não importa. */
+const BUSCA_MAXIMA_PX = 40
+
+/** Máscara dos pixels pintados (alfa diferente de 0) da porta sozinha, sem paredes, zoom 2, em px de tela. */
+async function pintados(id: string, progresso: number, abrindo: boolean): Promise<Uint8Array> {
   const animacao = animacaoDePorta(id)
   if (animacao === null) throw new Error(`sem a animação ${id}`)
   const r = await aplicacao(1)
-  const p = palco(2, 1, false, false)
+  const p = palco(2, 1, false, false, QUADRO_DA_CONTINUIDADE, QUADRO_DA_CONTINUIDADE)
   p.mundo.removeChildAt(0)
-  drawDoors(p.portas, comAnimacao({}, id, false), null, 2, 1, undefined, new Map([['porta', { animacao, progresso, abrindo: true }]]))
-  const px = pixels(r, p.cena)
-  let sx = 0
-  let sy = 0
-  let n = 0
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i + 3] === 0) continue
-    const k = i / 4
-    sx += k % LARGURA
-    sy += Math.floor(k / LARGURA)
-    n += 1
-  }
+  drawDoors(p.portas, comAnimacao({}, id, false), null, 2, 1, undefined, new Map([['porta', { animacao, progresso, abrindo }]]))
+  const px = pixels(r, p.cena, QUADRO_DA_CONTINUIDADE, QUADRO_DA_CONTINUIDADE)
   p.cena.destroy({ children: true })
-  return { x: n === 0 ? 0 : sx / n, y: n === 0 ? 0 : sy / n, n }
+  const mascara = new Uint8Array(QUADRO_DA_CONTINUIDADE * QUADRO_DA_CONTINUIDADE)
+  for (let k = 0; k < mascara.length; k += 1) mascara[k] = px[k * 4 + 3] === 0 ? 0 : 1
+  return mascara
 }
 
-async function continuidade(id: string): Promise<{ maiorPassoPx: number; ondeMaior: number }> {
-  let anterior = await centro(id, 0)
+/** A maior distância de um pixel pintado em `atual` e vazio em `anterior` ao pintado mais perto de `anterior`. */
+function maiorDistanciaDoNovo(anterior: Uint8Array, atual: Uint8Array): number {
+  const lado = QUADRO_DA_CONTINUIDADE
   let maior = 0
-  let onde = 0
+  for (let k = 0; k < atual.length; k += 1) {
+    if (atual[k] === 0 || anterior[k] === 1) continue
+    const x = k % lado
+    const y = Math.floor(k / lado)
+    let melhor2 = BUSCA_MAXIMA_PX * BUSCA_MAXIMA_PX
+    for (let dy = -BUSCA_MAXIMA_PX; dy <= BUSCA_MAXIMA_PX; dy += 1) {
+      const yy = y + dy
+      if (yy < 0 || yy >= lado || dy * dy >= melhor2) continue
+      for (let dx = -BUSCA_MAXIMA_PX; dx <= BUSCA_MAXIMA_PX; dx += 1) {
+        const xx = x + dx
+        const d2 = dx * dx + dy * dy
+        if (xx < 0 || xx >= lado || d2 >= melhor2) continue
+        if (anterior[yy * lado + xx] === 1) melhor2 = d2
+      }
+    }
+    maior = Math.max(maior, Math.sqrt(melhor2))
+  }
+  return maior
+}
+
+/** Os dois quadros de um ponto do caminho: abrindo e fechando. */
+async function pintadosNosDoisSentidos(id: string, progresso: number): Promise<{ abrindo: Uint8Array; fechando: Uint8Array }> {
+  return { abrindo: await pintados(id, progresso, true), fechando: await pintados(id, progresso, false) }
+}
+
+/**
+ * O passo de `de` a `para` (progresso crescente) nos dois sentidos. Abrindo, o
+ * pixel novo é o que aparece de `de` para `para`; fechando, o caminho anda ao
+ * contrário e o pixel novo é o que some ao abrir. Medir só um sentido não via a
+ * folha que recolhe para dentro do batente (o Deslizar): ela só perde pixels.
+ */
+function passoNosDoisSentidos(de: { abrindo: Uint8Array; fechando: Uint8Array }, para: { abrindo: Uint8Array; fechando: Uint8Array }): number {
+  return Math.max(maiorDistanciaDoNovo(de.abrindo, para.abrindo), maiorDistanciaDoNovo(para.fechando, de.fechando))
+}
+
+/**
+ * M5 (régua de deslocamento): para cada passo de 0,5% de progresso, nos dois
+ * sentidos, a maior distância de um pixel NOVO ao desenho do quadro anterior.
+ * Área que cresce colada no desenho (a ponta livre saindo da caixa, uma linha
+ * de sombra trocando de pixel) dá 1 px; um pedaço que aparece longe do que
+ * estava é salto.
+ */
+async function continuidade(id: string): Promise<{ passos: number[]; refinados: { em: number; px: number; refinadoPx: number }[] }> {
+  let anterior = await pintadosNosDoisSentidos(id, 0)
+  const passos: number[] = []
+  const refinados: { em: number; px: number; refinadoPx: number }[] = []
   for (let i = 1; i <= 200; i += 1) {
-    const atual = await centro(id, i / 200)
-    const passo = Math.hypot(atual.x - anterior.x, atual.y - anterior.y)
-    if (passo > maior) {
-      maior = passo
-      onde = i / 200
+    const atual = await pintadosNosDoisSentidos(id, i / 200)
+    const px = passoNosDoisSentidos(anterior, atual)
+    passos.push(px)
+    // M5b: o passo grande de novo, a cada 0,05%. Contínuo encolhe com o passo; salto não.
+    if (px > PASSO_SEM_SALTO_PX) {
+      let sub = anterior
+      let refinadoPx = 0
+      for (let j = 1; j <= SUBPASSOS; j += 1) {
+        const proximo = await pintadosNosDoisSentidos(id, (i - 1 + j / SUBPASSOS) / 200)
+        refinadoPx = Math.max(refinadoPx, passoNosDoisSentidos(sub, proximo))
+        sub = proximo
+      }
+      refinados.push({ em: i / 200, px, refinadoPx })
     }
     anterior = atual
   }
-  return { maiorPassoPx: maior, ondeMaior: onde }
+  return { passos, refinados }
+}
+
+/** O teto de M5 (px de tela por passo) e quantos sub-passos o passo acima dele ganha em M5b. */
+const PASSO_SEM_SALTO_PX = 1.5
+const SUBPASSOS = 10
+
+/** Luminância relativa (WCAG) de um pixel RGBA a partir do índice `i`. */
+function luminancia(p: Uint8ClampedArray, i: number): number {
+  const canal = (v: number) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * canal(p[i]) + 0.7152 * canal(p[i + 1]) + 0.0722 * canal(p[i + 2])
+}
+
+/**
+ * M15: o ponto de PORTAS POR ATRAVESSAR no meio do caminho, sobre o chão. Conta
+ * os pixels em que o ponto troca a cor por outra com contraste de 3:1 ou mais
+ * (o que se vê). Em 0 e 1, compara com o ponto da porta parada (fechada e aberta).
+ */
+async function pontoPorAtravessar(id: string, progresso: number, abrindo: boolean): Promise<{ visiveis: number; diferenteDaParada: number | null }> {
+  const animacao = animacaoDePorta(id)
+  if (animacao === null) throw new Error(`sem a animação ${id}`)
+  const r = await aplicacao(1)
+  const a = palco(2, 1, false, true)
+  const b = palco(2, 1, false, true)
+  const walls = comAnimacao({ open: abrindo }, id, false)
+  const andando = new Map<string, PortaAnimando>([['porta', { animacao, progresso, abrindo }]])
+  const marcada = new Set(['porta'])
+  drawDoors(a.portas, walls, null, 2, 1, marcada, andando)
+  drawDoors(b.portas, walls, null, 2, 1, undefined, andando)
+  const com = pixels(r, a.cena)
+  const sem = pixels(r, b.cena)
+  let visiveis = 0
+  for (let i = 0; i < com.length; i += 4) {
+    const l1 = luminancia(com, i)
+    const l2 = luminancia(sem, i)
+    if ((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05) >= 3) visiveis += 1
+  }
+  let diferenteDaParada: number | null = null
+  if (progresso === 0 || progresso === 1) {
+    drawDoors(b.portas, comAnimacao({ open: progresso === 1 }, id, false), null, 2, 1, marcada)
+    diferenteDaParada = diferentes(com, pixels(r, b.cena))
+  }
+  a.cena.destroy({ children: true })
+  b.cena.destroy({ children: true })
+  return { visiveis, diferenteDaParada }
 }
 
 /**
@@ -515,7 +613,7 @@ declare global {
   }
 }
 
-const api = { carregarAsCinco, extremos, parada, linhaDaFolha, continuidade, centro, amostrar, curva, renderizarSom, eventoDoCaminho, estresse, compor }
+const api = { carregarAsCinco, extremos, parada, linhaDaFolha, continuidade, pontoPorAtravessar, amostrar, curva, renderizarSom, eventoDoCaminho, estresse, compor }
 
 window.PortaA3 = api
 document.documentElement.dataset.pronto = 'sim'

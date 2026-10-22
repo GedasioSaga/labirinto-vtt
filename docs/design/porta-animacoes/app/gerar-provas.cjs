@@ -234,12 +234,42 @@ async function main() {
       if (s.chegouEmMs === null || s.chegouEmMs < s.declaradoMs || s.chegouEmMs > s.declaradoMs + 17) reprovar('M6_tempo', `${id} ${sentido}: chegou em ${s.chegouEmMs} ms, declarado ${s.declaradoMs}`)
     }
 
-    // --- M5 ----------------------------------------------------------------------
-    const cont = await page.evaluate((x) => window.PortaA3.continuidade(x), id)
-    a.continuidade = { maiorPassoPx: r2(cont.maiorPassoPx), ondeMaior: cont.ondeMaior }
+    // --- M5 (régua de deslocamento) -------------------------------------------------
+    const { passos, refinados } = await page.evaluate((x) => window.PortaA3.continuidade(x), id)
     const tremor = TREMOR[id]
-    const noTremor = tremor !== undefined && cont.ondeMaior >= tremor[0] && cont.ondeMaior <= tremor[1] + 0.005
-    if (cont.maiorPassoPx > 1.5 && !noTremor) reprovar('M5_continuidade', `${id}: passo de ${r2(cont.maiorPassoPx)} px em ${cont.ondeMaior}`)
+    const noTremor = (em) => tremor !== undefined && em >= tremor[0] && em <= tremor[1] + 0.005
+    let fora = { px: 0, em: 0 }
+    let dentro = { px: 0, em: 0 }
+    passos.forEach((px, i) => {
+      const em = (i + 1) / 200
+      if (noTremor(em) && px > dentro.px) dentro = { px, em }
+      if (!noTremor(em) && px > fora.px) fora = { px, em }
+    })
+    const refinadosFora = refinados.filter((f) => !noTremor(f.em))
+    const piorRefinado = refinadosFora.reduce((pior, f) => (f.refinadoPx > pior.refinadoPx ? f : pior), { em: 0, px: 0, refinadoPx: 0 })
+    a.continuidade = {
+      maiorPassoPx: r2(fora.px),
+      ondeMaior: fora.em,
+      maiorPassoNoTremorPx: r2(dentro.px),
+      ondeMaiorNoTremor: dentro.em,
+      m5ComoEscrita: fora.px <= 1.5 ? 'passa' : `reprova por ${r2(fora.px)} px (veredito em M5b)`,
+      passosAcimaDe1_5px: refinadosFora.length,
+      m5bPiorRefinadoPx: r2(piorRefinado.refinadoPx),
+      m5bOnde: piorRefinado.em,
+    }
+    for (const f of refinadosFora) if (f.refinadoPx > 1.5) reprovar('M5b_salto_real', `${id}: em ${f.em}, ${r2(f.px)} px no passo de 0,5% e ${r2(f.refinadoPx)} px a 0,05%`)
+
+    // --- M15 -----------------------------------------------------------------------
+    a.pontoPorAtravessar = []
+    for (const progresso of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const abrindo of [true, false]) {
+        const m = await page.evaluate((x) => window.PortaA3.pontoPorAtravessar(x.id, x.progresso, x.abrindo), { id, progresso, abrindo })
+        a.pontoPorAtravessar.push({ progresso, sentido: abrindo ? 'abrir' : 'fechar', ...m })
+        const onde = `${id} ${abrindo ? 'abrindo' : 'fechando'} em ${progresso}`
+        if (m.visiveis < 3) reprovar('M15_ponto_por_atravessar', `${onde}: ${m.visiveis} pixels visíveis do ponto`)
+        if (m.diferenteDaParada !== null && m.diferenteDaParada !== 0) reprovar('M15_ponto_por_atravessar', `${onde}: ${m.diferenteDaParada} pixels diferentes do ponto da porta parada`)
+      }
+    }
 
     // --- M7 ----------------------------------------------------------------------
     const maiorPasso = (ps) => Math.max(...ps.slice(1).map((s, i) => Math.abs(s.p - ps[i].p)))
@@ -288,9 +318,9 @@ async function main() {
   if (r.console.length > 0) reprovar('M10_console', `${r.console.length} mensagens: ${r.console.slice(0, 3).map((m) => m.texto).join(' | ')}`)
   r.falhas = falhas
   r.passou = falhas.length === 0
-  // Escritas DEPOIS da primeira rodada (22/10/2026), sem mudar veredito nenhum: o porquê de cada reprovação que sobrou.
+  // Escritas DEPOIS das rodadas (22/10/2026), sem mudar veredito nenhum: o porquê de cada reprovação que sobra.
   r.notas = {
-    M5_continuidade: 'A régua mede o centro de TODOS os pixels pintados, não o centro da folha. No girar e na arrombada, de 0 a 0,5% a folha começa a sair da caixa do vão e a área nova (um triângulo fino na ponta livre, ~120 px) puxa o centro 4 a 6 px, embora a ponta tenha andado 1,2 px. No deslizar, a 0,63 uma linha inteira da sombra (86 px) muda de pixel de uma vez (sem antialias). Não é salto da folha: o teste de unidade que mede o centro da própria folha (animacoesDePorta.test.ts, "não salta") passa com 1,5 px. A régua precisa ser trocada por uma de deslocamento (pixel novo longe do desenho anterior) antes de valer como prova.',
+    M5b_salto_real: 'Arrombada fechando, de 0,735 a 0,765: são os 5 estilhaços. Abrindo, eles encolhem até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nasce do nada, 1 px de cada vez, longe de tudo. Prova: com os estilhaços desligados (ESTILHACOS = 0) a Arrombada passa, com o pior passo refinado em 1,41 px. Partícula que some no ar sempre reprova esta régua no sentido contrário; tirar a reprovação pede mudar o desenho aprovado, e isso é decisão do usuário.',
     M9_desempenho: 'O custo do animador (JS) fica em p95 0,6 ms; o intervalo de 25 ms é o SwiftShader (WebGL por software do Chromium headless) pintando 1440x900. A meta de quadro p95 até 20 ms precisa ser medida no app com GPU.',
   }
   r.duracaoS = Math.round((Date.now() - inicio) / 100) / 10

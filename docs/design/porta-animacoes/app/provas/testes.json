@@ -5,7 +5,9 @@
     "M2_opaco": "0 pixels com alfa fora de 0 e 255 em todos os quadros do caminho (antialias desligado)",
     "M2b_telhado": "a mesma porta pintada duas vezes, uma por cima da outra, a meio caminho: 0 pixels diferentes de uma só",
     "M3_curva": "curva de cada sentido amostrada em 201 pontos: sobe sempre, fica em [0, 1], começa em 0 e acaba em 1; o progresso que o animador entrega anda sempre no mesmo sentido e chega",
-    "M5_continuidade": "maior passo do centro dos pixels da porta a cada 0,5% de progresso: até 1,5 px de tela (zoom 2), fora os trechos de tremor ditos no desenho",
+    "M5_continuidade": "régua de deslocamento (trocada em 22/10/2026, antes da rodada; a do centro de todos os pixels pintados foi aposentada): a cada passo de 0,5% de progresso (201 quadros, zoom 2, resolução 1, porta horizontal sem chão), a maior distância de qualquer pixel NOVO (pintado no quadro e vazio no anterior) ao pixel pintado mais próximo do quadro anterior: até 1,5 px de tela, fora dos trechos de tremor declarados no desenho (grade 0,18 a 0,44; arrombada 0,1 a 0,34). NOS DOIS SENTIDOS (escrito depois da rodada 2, sem mudar o número): fechando, o caminho anda ao contrário e o pixel novo é o que some ao abrir; medida só abrindo, a régua deixou passar um salto de 6% injetado no Deslizar em 0,6, porque a folha que recolhe só perde pixels",
+    "M5b_salto_real": "ESCRITA DEPOIS da rodada 1 da régua nova (22/10/2026), que deu girar 2, dupla 2, sanfona 2 e arrombada 6 px: a régua de cima mede a VELOCIDADE da ponta por passo de progresso, não só salto (o girar de 90 graus numa folha de 200 px anda 1,57 px por passo e não passa nem em tese). Para separar salto de velocidade, todo passo acima de 1,5 px é amostrado de novo a cada 0,05% (10 sub-passos): movimento contínuo cai para o piso da grade de pixels (até 1,5 px); salto real continua acima. Reprova o passo que continua acima de 1,5 px refinado",
+    "M15_ponto_por_atravessar": "ponto das PORTAS POR ATRAVESSAR sobre o chão do app (#1b1711), zoom 2, resolução 1, 7 animações x progresso 0, 0,25, 0,5, 0,75 e 1: pelo menos 3 pixels com contraste de 3:1 ou mais contra o mesmo quadro sem o ponto; em 0 e 1, 0 pixels diferentes do ponto da porta parada",
     "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
     "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
     "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
@@ -15,7 +17,7 @@
     "M12_som": "as 5 novas, abrir e fechar, renderizadas offline com o passa-baixa da mesa no volume máximo: LUFS integrado entre -34 e -30 (perto de -32), pico verdadeiro até -12 dBTP, 0 cliques, 0 cortes, DC até 0,5%, últimos 10 ms abaixo de -60 dBFS, som acaba até 250 ms depois da animação",
     "M14_folhas": "7 folhas de contato, 16 quadros cada (8 abrindo, 8 fechando), com o tempo embaixo"
   },
-  "navegador": "C:/Users/gedasio.filho/AppData/Local/ms-playwright/chromium-1243/chrome-win64/chrome.exe",
+  "navegador": "C:\\Users\\gedasio.filho\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
   "registro": [
     "girar",
     "deslizar",
@@ -611,8 +613,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 4.16,
-        "ondeMaior": 0.005
+        "maiorPassoPx": 6.4,
+        "ondeMaior": 0.855,
+        "maiorPassoNoTremorPx": 0,
+        "ondeMaiorNoTremor": 0,
+        "m5ComoEscrita": "reprova por 6.4 px (veredito em M5b)",
+        "passosAcimaDe1_5px": 93,
+        "m5bPiorRefinadoPx": 1.41,
+        "m5bOnde": 0.855
       },
       "inversao": {
         "0.25": {
@@ -638,7 +646,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "deslizar": {
       "extremos": {
@@ -671,8 +741,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 3.94,
-        "ondeMaior": 0.63
+        "maiorPassoPx": 1.41,
+        "ondeMaior": 0.065,
+        "maiorPassoNoTremorPx": 0,
+        "ondeMaiorNoTremor": 0,
+        "m5ComoEscrita": "passa",
+        "passosAcimaDe1_5px": 0,
+        "m5bPiorRefinadoPx": 0,
+        "m5bOnde": 0
       },
       "inversao": {
         "0.25": {
@@ -698,7 +774,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 11,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 11,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 12,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 12,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "dupla": {
       "extremos": {
@@ -731,8 +869,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 0.69,
-        "ondeMaior": 0.71
+        "maiorPassoPx": 2.24,
+        "ondeMaior": 0.03,
+        "maiorPassoNoTremorPx": 0,
+        "ondeMaiorNoTremor": 0,
+        "m5ComoEscrita": "reprova por 2.24 px (veredito em M5b)",
+        "passosAcimaDe1_5px": 70,
+        "m5bPiorRefinadoPx": 1.41,
+        "m5bOnde": 0.035
       },
       "inversao": {
         "0.25": {
@@ -758,7 +902,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "grade": {
       "extremos": {
@@ -791,8 +997,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 0.71,
-        "ondeMaior": 0.185
+        "maiorPassoPx": 1.41,
+        "ondeMaior": 0.505,
+        "maiorPassoNoTremorPx": 1,
+        "ondeMaiorNoTremor": 0.18,
+        "m5ComoEscrita": "passa",
+        "passosAcimaDe1_5px": 0,
+        "m5bPiorRefinadoPx": 0,
+        "m5bOnde": 0
       },
       "inversao": {
         "0.25": {
@@ -818,7 +1030,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 5,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 5,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "arrombada": {
       "extremos": {
@@ -851,8 +1125,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 6.41,
-        "ondeMaior": 0.005
+        "maiorPassoPx": 10.44,
+        "ondeMaior": 0.765,
+        "maiorPassoNoTremorPx": 6,
+        "ondeMaiorNoTremor": 0.345,
+        "m5ComoEscrita": "reprova por 10.44 px (veredito em M5b)",
+        "passosAcimaDe1_5px": 136,
+        "m5bPiorRefinadoPx": 10.44,
+        "m5bOnde": 0.765
       },
       "inversao": {
         "0.25": {
@@ -878,7 +1158,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "sanfona": {
       "extremos": {
@@ -911,8 +1253,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 1.47,
-        "ondeMaior": 0.84
+        "maiorPassoPx": 2.24,
+        "ondeMaior": 0.11,
+        "maiorPassoNoTremorPx": 0,
+        "ondeMaiorNoTremor": 0,
+        "m5ComoEscrita": "reprova por 2.24 px (veredito em M5b)",
+        "passosAcimaDe1_5px": 47,
+        "m5bPiorRefinadoPx": 1,
+        "m5bOnde": 0.11
       },
       "inversao": {
         "0.25": {
@@ -938,7 +1286,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     },
     "cortina": {
       "extremos": {
@@ -971,8 +1381,14 @@
         }
       },
       "continuidade": {
-        "maiorPassoPx": 0.69,
-        "ondeMaior": 0.485
+        "maiorPassoPx": 1,
+        "ondeMaior": 0.145,
+        "maiorPassoNoTremorPx": 0,
+        "ondeMaiorNoTremor": 0,
+        "m5ComoEscrita": "passa",
+        "passosAcimaDe1_5px": 0,
+        "m5bPiorRefinadoPx": 0,
+        "m5bOnde": 0
       },
       "inversao": {
         "0.25": {
@@ -998,7 +1414,69 @@
           16,
           16
         ]
-      }
+      },
+      "pontoPorAtravessar": [
+        {
+          "progresso": 0,
+          "sentido": "abrir",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0,
+          "sentido": "fechar",
+          "visiveis": 9,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.25,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "abrir",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.5,
+          "sentido": "fechar",
+          "visiveis": 14,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "abrir",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 0.75,
+          "sentido": "fechar",
+          "visiveis": 10,
+          "diferenteDaParada": null
+        },
+        {
+          "progresso": 1,
+          "sentido": "abrir",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        },
+        {
+          "progresso": 1,
+          "sentido": "fechar",
+          "visiveis": 3,
+          "diferenteDaParada": 0
+        }
+      ]
     }
   },
   "som": {
@@ -1235,14 +1713,14 @@
   },
   "desempenho": {
     "portas": 50,
-    "quadros": 323,
-    "intervaloP95Ms": 24.9,
-    "intervaloMaxMs": 50,
+    "quadros": 302,
+    "intervaloP95Ms": 25,
+    "intervaloMaxMs": 41.7,
     "tarefasLongas": 0,
     "tarefaLongaMaxMs": 0,
     "observadorDeTarefasLongas": true,
     "custoDoAnimadorP95Ms": 0.6,
-    "custoDoAnimadorMaxMs": 0.8,
+    "custoDoAnimadorMaxMs": 0.9,
     "onde": "laboratório (Chromium 1243 headless, WebGL por SwiftShader), 1440x900"
   },
   "cadeadoPxPorResolucao": {
@@ -1256,15 +1734,16 @@
   "console": [],
   "avisosDaFerramentaDeProva": 1,
   "falhas": [
-    "M5_continuidade: girar: passo de 4.16 px em 0.005",
-    "M5_continuidade: deslizar: passo de 3.94 px em 0.63",
-    "M5_continuidade: arrombada: passo de 6.41 px em 0.005",
-    "M9_desempenho: quadro p95 24.9 ms"
+    "M5b_salto_real: arrombada: em 0.735, 5.1 px no passo de 0,5% e 5.1 px a 0,05%",
+    "M5b_salto_real: arrombada: em 0.75, 2.83 px no passo de 0,5% e 2.83 px a 0,05%",
+    "M5b_salto_real: arrombada: em 0.755, 5 px no passo de 0,5% e 5 px a 0,05%",
+    "M5b_salto_real: arrombada: em 0.765, 10.44 px no passo de 0,5% e 10.44 px a 0,05%",
+    "M9_desempenho: quadro p95 25 ms"
   ],
   "passou": false,
   "notas": {
-    "M5_continuidade": "A régua mede o centro de TODOS os pixels pintados, não o centro da folha. No girar e na arrombada, de 0 a 0,5% a folha começa a sair da caixa do vão e a área nova (um triângulo fino na ponta livre, ~120 px) puxa o centro 4 a 6 px, embora a ponta tenha andado 1,2 px. No deslizar, a 0,63 uma linha inteira da sombra (86 px) muda de pixel de uma vez (sem antialias). Não é salto da folha: o teste de unidade que mede o centro da própria folha (animacoesDePorta.test.ts, \"não salta\") passa com 1,5 px. A régua precisa ser trocada por uma de deslocamento (pixel novo longe do desenho anterior) antes de valer como prova.",
+    "M5b_salto_real": "Arrombada fechando, de 0,735 a 0,765: são os 5 estilhaços. Abrindo, eles encolhem até sumir no ar, a 7-15 px da fechadura; fechando (o mesmo desenho de trás para a frente, decisão 1 do README) cada um nasce do nada, 1 px de cada vez, longe de tudo. Prova: com os estilhaços desligados (ESTILHACOS = 0) a Arrombada passa, com o pior passo refinado em 1,41 px. Partícula que some no ar sempre reprova esta régua no sentido contrário; tirar a reprovação pede mudar o desenho aprovado, e isso é decisão do usuário.",
     "M9_desempenho": "O custo do animador (JS) fica em p95 0,6 ms; o intervalo de 25 ms é o SwiftShader (WebGL por software do Chromium headless) pintando 1440x900. A meta de quadro p95 até 20 ms precisa ser medida no app com GPU."
   },
-  "duracaoS": 50
+  "duracaoS": 77.2
 }

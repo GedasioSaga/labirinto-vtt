@@ -1,12 +1,14 @@
 {
-  "escritasEm": "2026-10-22, antes de rodar as provas (faixa A3: desenho novo da porta e as cinco animações no app)",
+  "escritasEm": "2026-10-22, antes de rodar as provas (faixa A3: desenho novo da porta e as cinco animações no app); M5 trocada e M15 acrescentada no mesmo dia, antes da rodada que as mede",
   "metas": {
     "M0_registro": "as 7 animações de porta no registro do app (girar, deslizar e as 5 pelo carregador do pacote)",
     "M1_extremos": "7 animações x horizontal e vertical x zoom 1, 2,5 e 4 x resolução 1 e 2 x sem cor e com cor própria: 0 pixels diferentes da porta parada em progresso 0 e 1, e no último quadro do animador real",
     "M2_opaco": "0 pixels com alfa fora de 0 e 255 em todos os quadros do caminho (antialias desligado)",
     "M2b_telhado": "a mesma porta pintada duas vezes, uma por cima da outra, a meio caminho: 0 pixels diferentes de uma só",
     "M3_curva": "curva de cada sentido amostrada em 201 pontos: sobe sempre, fica em [0, 1], começa em 0 e acaba em 1; o progresso que o animador entrega anda sempre no mesmo sentido e chega",
-    "M5_continuidade": "maior passo do centro dos pixels da porta a cada 0,5% de progresso: até 1,5 px de tela (zoom 2), fora os trechos de tremor ditos no desenho",
+    "M5_continuidade": "régua de deslocamento (trocada em 22/10/2026, antes da rodada; a do centro de todos os pixels pintados foi aposentada): a cada passo de 0,5% de progresso (201 quadros, zoom 2, resolução 1, porta horizontal sem chão), a maior distância de qualquer pixel NOVO (pintado no quadro e vazio no anterior) ao pixel pintado mais próximo do quadro anterior: até 1,5 px de tela, fora dos trechos de tremor declarados no desenho (grade 0,18 a 0,44; arrombada 0,1 a 0,34). NOS DOIS SENTIDOS (escrito depois da rodada 2, sem mudar o número): fechando, o caminho anda ao contrário e o pixel novo é o que some ao abrir; medida só abrindo, a régua deixou passar um salto de 6% injetado no Deslizar em 0,6, porque a folha que recolhe só perde pixels",
+    "M5b_salto_real": "ESCRITA DEPOIS da rodada 1 da régua nova (22/10/2026), que deu girar 2, dupla 2, sanfona 2 e arrombada 6 px: a régua de cima mede a VELOCIDADE da ponta por passo de progresso, não só salto (o girar de 90 graus numa folha de 200 px anda 1,57 px por passo e não passa nem em tese). Para separar salto de velocidade, todo passo acima de 1,5 px é amostrado de novo a cada 0,05% (10 sub-passos): movimento contínuo cai para o piso da grade de pixels (até 1,5 px); salto real continua acima. Reprova o passo que continua acima de 1,5 px refinado",
+    "M15_ponto_por_atravessar": "ponto das PORTAS POR ATRAVESSAR sobre o chão do app (#1b1711), zoom 2, resolução 1, 7 animações x progresso 0, 0,25, 0,5, 0,75 e 1: pelo menos 3 pixels com contraste de 3:1 ou mais contra o mesmo quadro sem o ponto; em 0 e 1, 0 pixels diferentes do ponto da porta parada",
     "M6_tempo": "tempo medido no animador a 60 Hz: o declarado, mais até 1 quadro (17 ms)",
     "M7_inversao": "inverter a 25, 50 e 75% do tempo: o maior passo de progresso com inversão até o maior passo das duas corridas sem inversão (sem salto)",
     "M8_reduzido": "movimento reduzido: 0 quadros intermediários e 0 sons pedidos",
