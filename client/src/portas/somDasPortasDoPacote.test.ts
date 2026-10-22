@@ -30,6 +30,34 @@ function agendar(evento: EventoDeSomDaPorta, t0 = 5) {
   }
 }
 
+/** Um nó que soa: oscilador pela forma da onda, rajada pelo tipo do filtro; `t` = início, relativo a t0. */
+interface NoQueSoa {
+  tipo: OscillatorType | BiquadFilterType
+  freq: number
+  t: number
+}
+
+/** O começo do abrir, na hora em que a folha parte (p = 0), em nós que só ele tem no abrir. */
+const PARTIDAS: [SomDoPacote, Omit<NoQueSoa, 't'>[]][] = [
+  // O golpe: tom grave e o baque abafado.
+  ['arrombada', [{ tipo: 'sine', freq: 74 }, { tipo: 'lowpass', freq: 340 }]],
+  // O tranco da corrente antes de a grade subir.
+  ['grade', [{ tipo: 'triangle', freq: 96 }, { tipo: 'lowpass', freq: 420 }]],
+  // O estalo do trinco.
+  ['dupla', [{ tipo: 'highpass', freq: 2600 }]],
+]
+
+function partidaDoAbrir(som: SomDoPacote, de: number, t0 = 5): NoQueSoa[] {
+  const audio = criarAudioFalso()
+  agendarSomDePorta(audio.ctx, audio.mestre, t0, { tipo: 'abrir', som, duracaoMs: DURACOES[som].abrir * (1 - de), de })
+  return [
+    ...audio.osciladores.map((no) => ({ tipo: no.type, freq: no.frequency.setValueAtTime.mock.calls[0][0], t: no.start.mock.calls[0][0] - t0 })),
+    ...audio.filtros.map((no) => ({ tipo: no.type, freq: no.frequency.setValueAtTime.mock.calls[0][0], t: no.frequency.setValueAtTime.mock.calls[0][1] - t0 })),
+  ]
+}
+
+const mesmaMarca = (no: NoQueSoa, marca: Omit<NoQueSoa, 't'>): boolean => no.tipo === marca.tipo && no.freq === marca.freq
+
 describe('som das portas do pacote', () => {
   it('são os cinco do app, depois dos dois das embutidas', () => {
     expect([...SONS_DO_PACOTE]).toEqual(SONS_DA_ANIMACAO_DE_PORTA.slice(2))
@@ -61,6 +89,17 @@ describe('som das portas do pacote', () => {
       const inteiro = agendar({ tipo: 'abrir', som, duracaoMs: DURACOES[som].abrir, de: 0 })
       const pedaco = agendar({ tipo: 'abrir', som, duracaoMs: DURACOES[som].abrir * 0.3, de: 0.7 })
       expect(pedaco.inicios.length, som).toBeLessThan(inteiro.inicios.length)
+    }
+  })
+
+  it.each(PARTIDAS)('%s: o som da partida toca em t0 no abrir inteiro e não toca quando o abrir começa no meio (inverteu)', (som, marcas) => {
+    const inteiro = partidaDoAbrir(som, 0)
+    const pedaco = partidaDoAbrir(som, 0.5)
+    for (const marca of marcas) {
+      const noInteiro = inteiro.filter((no) => mesmaMarca(no, marca))
+      expect(noInteiro.length, `${som}: ${marca.tipo} ${marca.freq} Hz no abrir inteiro`).toBe(1)
+      expect(noInteiro[0].t, `${som}: ${marca.tipo} ${marca.freq} Hz cai na partida`).toBeCloseTo(0, 6)
+      expect(pedaco.filter((no) => mesmaMarca(no, marca)), `${som}: ${marca.tipo} ${marca.freq} Hz já passou em p = 0,5`).toEqual([])
     }
   })
 

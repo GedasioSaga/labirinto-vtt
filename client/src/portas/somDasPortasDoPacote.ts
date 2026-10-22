@@ -9,10 +9,11 @@ import { criarCurvaBezier, type CurvaBezier } from './curvaBezier'
  * e o instante, então o MESMO código toca no app e nas provas (um
  * `OfflineAudioContext`, de onde sai o `.wav` entregue).
  *
- * Cada evento sonoro cai num ponto do DESENHO (o baque da grade em 0,42, a
- * folha da dupla que encosta em 0,78), convertido em tempo pela curva do
- * sentido. O caminho pode ser só um pedaço (inverteu no meio, `de`): o que já
- * passou não toca.
+ * Cada evento sonoro cai num ponto do DESENHO (a partida do abrir em 0, o
+ * baque da grade em 0,42, a folha da dupla que encosta em 0,78), convertido em
+ * tempo pela curva do sentido. O caminho pode ser só um pedaço (inverteu no
+ * meio, `de`): o que já passou não toca. Só o corpo do movimento (sopro,
+ * raspado) começa em t0 em qualquer pedaço, porque a folha está andando.
  *
  * Volume baixo de propósito, perto de -32 LUFS no volume máximo da mesa: porta
  * é som de interface, ouvido dezenas de vezes por sessão. Movimento reduzido
@@ -169,6 +170,8 @@ function quandoChega(caminho: CaminhoDoSom, t0: number, s: number): number | nul
   if (distancia === 0) return null
   const alvo = (s - caminho.de) / distancia
   if (alvo < 0 || alvo > 1) return null
+  // A partida cai EXATAMENTE em t0: a bisseção pararia 1e-13 s depois, e o motor de áudio empurra isso para a amostra seguinte.
+  if (alvo === 0) return t0
   const f = caminho.curva === undefined ? (x: number) => 1 - (1 - x) ** 3 : criarCurvaBezier(caminho.curva)
   let baixo = 0
   let alto = 1
@@ -192,7 +195,7 @@ function compor<N>(c: Cena<N>, som: SomDoPacote, caminho: CaminhoDoSom, t0: numb
   switch (som) {
     case 'dupla':
       if (abrindo) {
-        rajada(c, t0, { dur: 0.03, tipo: 'highpass', freq: 2600, ganho: 0.1, ataque: 0.0015 })
+        noPonto(0, (t) => rajada(c, t, { dur: 0.03, tipo: 'highpass', freq: 2600, ganho: 0.1, ataque: 0.0015 }))
         rajada(c, t0 + 0.01, { dur: Math.max(0.12, ate(0.78) - t0), tipo: 'lowpass', freq: 500, freqFim: 1300, ganho: 0.05, ataque: 0.05 })
         noPonto(0.78, (t) => {
           tom(c, t, { dur: 0.08, freq: 190, freqFim: 130, ganho: 0.06 })
@@ -209,8 +212,10 @@ function compor<N>(c: Cena<N>, som: SomDoPacote, caminho: CaminhoDoSom, t0: numb
       return
     case 'grade':
       if (abrindo) {
-        tom(c, t0, { dur: 0.18, freq: 96, freqFim: 70, tipo: 'triangle', ganho: 0.07 })
-        rajada(c, t0, { dur: 0.08, tipo: 'lowpass', freq: 420, ganho: 0.06 })
+        noPonto(0, (t) => {
+          tom(c, t, { dur: 0.18, freq: 96, freqFim: 70, tipo: 'triangle', ganho: 0.07 })
+          rajada(c, t, { dur: 0.08, tipo: 'lowpass', freq: 420, ganho: 0.06 })
+        })
         for (let i = 0; i < 9; i += 1) {
           const jitter = c.sorte() * 0.008
           const freq = 2800 + 2000 * c.sorte()
@@ -240,8 +245,10 @@ function compor<N>(c: Cena<N>, som: SomDoPacote, caminho: CaminhoDoSom, t0: numb
       return
     case 'arrombada':
       if (abrindo) {
-        tom(c, t0, { dur: 0.16, freq: 74, freqFim: 44, ganho: 0.16, ataque: 0.002 })
-        rajada(c, t0, { dur: 0.09, tipo: 'lowpass', freq: 340, ganho: 0.12 })
+        noPonto(0, (t) => {
+          tom(c, t, { dur: 0.16, freq: 74, freqFim: 44, ganho: 0.16, ataque: 0.002 })
+          rajada(c, t, { dur: 0.09, tipo: 'lowpass', freq: 340, ganho: 0.12 })
+        })
         for (const s of [0.15, 0.21, 0.28]) {
           noPonto(s, (t) => {
             tom(c, t, { dur: 0.045, freq: 210, freqFim: 160, ganho: 0.04 })
