@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { quantidadeDe } from '../lib/items'
 import { moedasLabel } from '../lib/troca'
 import type { CarriedItem } from '../types/map'
+import { IconeDoJogador } from './IconeDoJogador'
 
 /** Um colega a quem dar: a ficha dele encostada numa das do jogador. */
 export interface BackpackColleague {
@@ -36,17 +37,20 @@ export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay }:
   const headingId = useId()
   const [givingId, setGivingId] = useState<string | null>(null)
   return (
-    <section className="pp-section" aria-labelledby={headingId}>
+    <section className="pp-section pp-bloco" aria-labelledby={headingId}>
       <h2 id={headingId} className="pp-heading">
+        <span className="pp-bloco__med" aria-hidden="true">
+          <IconeDoJogador nome="mochila" />
+        </span>
         Comigo
       </h2>
       {moedas > 0 && <PurseLine moedas={moedas} colleagues={colleagues} onPay={onPay} />}
       {items.length === 0 ? (
         moedas > 0 ? null : <p className="pp-empty">Nada com você.</p>
       ) : (
-        <ul className="pp-list">
+        <ul className="pp-list pp-comigo">
           {items.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="pp-comigo__item">
               <span className="pp-character__name">
                 {item.nome}
                 {/* ACERVO DE ITENS: a pilha vai inteira no "Dar a…". */}
@@ -109,7 +113,7 @@ function PurseLine({ moedas, colleagues, onPay }: PurseLineProps) {
   const quanto = Number(valor)
   const valido = Number.isInteger(quanto) && quanto >= 1 && quanto <= moedas
   return (
-    <div>
+    <div className="pp-comigo__item pp-comigo__bolsa">
       <span className="pp-character__name">Bolsa: {moedasLabel(moedas)}</span>{' '}
       {onPay !== undefined && (
         <button type="button" className="pp-button" aria-expanded={open} onClick={() => setOpen((atual) => !atual)}>

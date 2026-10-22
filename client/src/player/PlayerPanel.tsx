@@ -19,7 +19,7 @@ import type { DiceRequest } from '../lib/dice'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import type { PlayerMarkFormProps } from './PlayerMarkForm'
 import { PlayerMarcacoes } from './PlayerMarcacoes'
-import { IconeDoJogador } from './IconeDoJogador'
+import { IconeDoJogador, type NomeDoIcone } from './IconeDoJogador'
 import { acompanharTeclado } from './tecladoDoCelular'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
@@ -819,7 +819,7 @@ export function PlayerPanel({
                         aria-label={`Centralizar em ${character.name}`}
                         onClick={(event) => focusToken(character.id, event)}
                       >
-                        <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
+                        <span className="pp-dot" style={{ background: characterColor }} data-inicial={inicialDoNome(character.name)} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
                       </button>
                       {/* Fora do botão: o aria-label dele cobriria o texto do acordo. */}
@@ -837,7 +837,7 @@ export function PlayerPanel({
                         aria-label={`Olhar por ${item.name}`}
                         onClick={() => lookThrough(item.tokenId)}
                       >
-                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} aria-hidden="true" />
+                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} data-inicial={inicialDoNome(item.name)} aria-hidden="true" />
                         <span className="pp-character__text">
                           <span className="pp-character__name">{item.name}</span>{' '}
                           <span className="pp-character__where">{item.room === '' ? 'Em outro lugar' : `Em outro lugar · ${item.room}`}</span>
@@ -899,8 +899,9 @@ export function PlayerPanel({
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
 
             {party !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-party`}>
+              <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-party`}>
                 <h2 id={`${panelId}-party`} className="pp-heading">
+                  <MedalhaDaFicha nome="grupo" />
                   Grupo
                 </h2>
                 {party.length === 0 ? (
@@ -923,8 +924,9 @@ export function PlayerPanel({
             )}
 
             {mine !== undefined && (
-              <section className="pp-section" aria-labelledby={`${panelId}-me`}>
+              <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-me`}>
                 <h2 id={`${panelId}-me`} className="pp-heading">
+                  <MedalhaDaFicha nome="pessoa" />
                   Meu personagem
                 </h2>
                 <form className="pp-field" onSubmit={submitName}>
@@ -966,8 +968,9 @@ export function PlayerPanel({
               </section>
             )}
 
-            <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
+            <section className="pp-section pp-bloco" aria-labelledby={`${panelId}-vision`}>
               <h2 id={`${panelId}-vision`} className="pp-heading">
+                <MedalhaDaFicha nome="olho" />
                 Visão
               </h2>
               <div className="pp-field">
@@ -1113,6 +1116,24 @@ export function PlayerPanel({
 }
 
 /** Ponto de menção nova no chat. O texto escondido dá o aviso a quem usa leitor de tela. */
+/** A medalha de latão no cabeçalho de uma ficha da aba Jogo: só desenho, o nome da ficha é o título. */
+function MedalhaDaFicha({ nome }: { nome: NomeDoIcone }) {
+  return (
+    <span className="pp-bloco__med" aria-hidden="true">
+      <IconeDoJogador nome={nome} />
+    </span>
+  )
+}
+
+/**
+ * A letra da bola do personagem, como no protótipo; sem nome (só espaços),
+ * nenhuma. Vai num `data-` desenhado pelo CSS, e não como texto: o texto do
+ * botão continua só o nome (quem copia, busca ou lê a linha não ganha a letra).
+ */
+function inicialDoNome(nome: string): string {
+  return nome.trim().charAt(0).toLocaleUpperCase('pt-BR')
+}
+
 function UnreadDot() {
   return (
     <span className="pp-unread">

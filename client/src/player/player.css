@@ -1245,13 +1245,11 @@
   gap: 8px;
 }
 
+/* Título de seção na letra de livro do grimório (fatia 19b), sem caixa alta: o mesmo do "No mapa". */
 .pp-heading {
   margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--lb-color-parchment-dim, #a2a09a);
+  font: 400 15px/1.2 var(--lb-font-display, Georgia, serif);
+  color: var(--lb-color-parchment, #eceae4);
 }
 
 .pp-empty {
@@ -1275,25 +1273,44 @@
   border-radius: var(--lb-radius-md, 6px);
 }
 
+/* O personagem é o cartão "persona" do protótipo: a bola com a letra e o nome em letra de livro. */
 .pp-character {
   width: 100%;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 10px;
+  padding: 8px 10px;
   text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
+  background: var(--lb-gr-cartao, #211c15);
+  border: 1px solid var(--lb-gr-filete, rgba(236, 234, 228, 0.09));
+  border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) ease,
+    transform var(--lb-motion-fast, 110ms) var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
-.pp-character:hover {
-  background: var(--lb-color-stone-hover, #2c2c33);
+.pp-character:active {
+  transform: scale(0.98);
+  transition-duration: 0ms;
+}
+
+@media (hover: hover) {
+  .pp-character:hover {
+    background: var(--lb-gr-cartao-alto, #29231a);
+  }
 }
 
 .pp-character__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pp-character > .pp-character__name,
+.pp-character__text > .pp-character__name {
+  font: 400 17px/1.15 var(--lb-font-display, Georgia, serif);
 }
 
 /* Ajudante contratado: a linha do acordo embaixo do nome, discreta como as dicas do painel. */
@@ -1304,12 +1321,21 @@
   overflow-wrap: anywhere;
 }
 
+/* A bola do personagem: a cor dele, a letra do nome em escuro por cima. */
 .pp-dot {
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px #ffffff;
+  font: 600 13px/1 var(--lb-font-utility, system-ui, sans-serif);
+  color: #101214;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.pp-dot::before {
+  content: attr(data-inicial);
 }
 
 /* Companheiros (seção "Grupo"): uma linha discreta por jogador. O estado vem
@@ -2216,6 +2242,209 @@
   }
 
   .pp-sair:active {
+    transform: none;
+  }
+}
+
+/* ======================================= fichas da aba Jogo (fatia 19b) */
+
+/*
+ * Comigo, Grupo, Meu personagem e Visão são as FICHAS do protótipo: cartão de
+ * papel com filete, cabeçalho com a medalha de latão e o título, e o miolo
+ * embaixo de um filete. Sempre abertas: recolher seria comportamento novo.
+ */
+.pp-bloco {
+  gap: 10px;
+  padding-bottom: 12px;
+  background: var(--lb-gr-cartao, #211c15);
+  border: 1px solid var(--lb-gr-filete, rgba(236, 234, 228, 0.09));
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.04);
+}
+
+.pp-bloco > * {
+  margin-inline: 12px;
+}
+
+.pp-bloco > .pp-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  font: 600 var(--lb-font-size-md, 13px) / 1.2 var(--lb-font-sans, system-ui, sans-serif);
+  border-bottom: 1px solid var(--lb-gr-filete, rgba(236, 234, 228, 0.09));
+}
+
+.pp-bloco__med {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+.pp-bloco__med .pp-ic {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+}
+
+/* Os botões dentro da ficha: latão em contorno, do tamanho do texto, não a barra larga de antes. */
+.pp-bloco .pp-button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: var(--lb-font-size-md, 13px);
+  font-weight: 500;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background: transparent;
+  border-color: var(--lb-gr-filete-latao, rgba(224, 164, 74, 0.35));
+}
+
+@media (pointer: coarse) {
+  .pp-bloco .pp-button {
+    min-height: 44px;
+  }
+}
+
+@media (hover: hover) {
+  .pp-bloco .pp-button:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  }
+}
+
+/* COMIGO: uma linha por item, o nome à esquerda e o "Dar a…" à direita, separadas por filete. */
+.pp-comigo {
+  gap: 0;
+}
+
+.pp-comigo__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  min-height: 44px;
+  padding-block: 4px;
+}
+
+.pp-comigo > .pp-comigo__item + .pp-comigo__item,
+.pp-comigo__bolsa + .pp-comigo > .pp-comigo__item:first-child {
+  border-top: 1px solid var(--lb-gr-filete, rgba(236, 234, 228, 0.09));
+}
+
+.pp-comigo__item > .pp-character__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--lb-font-size-md, 13px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A bolsa e os itens são uma lista só: o vão da ficha entre eles sobraria. */
+.pp-comigo__bolsa + .pp-comigo {
+  margin-top: -10px;
+}
+
+/* O que o "Dar a…" e o "Pagar a…" abrem ocupa a linha inteira, embaixo do item. */
+.pp-comigo__item > :not(.pp-character__name, .pp-button) {
+  flex-basis: 100%;
+}
+
+/* MEU PERSONAGEM: o campo do grimório (fundo de tinta, filete forte) e o rótulo pequeno em cima. */
+.pp-bloco .pp-label {
+  font-size: var(--lb-font-size-sm, 11.5px);
+}
+
+.pp-bloco .pp-input {
+  min-height: 40px;
+  padding: 6px 10px;
+  background: var(--lb-gr-campo, #0f0d0a);
+  border-color: var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+}
+
+.pp-bloco .pp-file::file-selector-button {
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-gr-cartao-alto, #29231a);
+  border: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+}
+
+/* GRUPO: linhas do grimório, de 36 px. */
+.pp-bloco .pp-member {
+  min-height: 36px;
+  padding: 0;
+}
+
+/*
+ * VISÃO: as caixas de marcar com a pele do "liga" do protótipo (trilho e
+ * bolinha), o rótulo à esquerda. Continuam caixas de marcar: o leitor de tela,
+ * o teclado (Espaço) e o clique no rótulo fazem o mesmo de antes.
+ */
+.pp-bloco .pp-check {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.pp-bloco .pp-check > span {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.pp-bloco .pp-check > input {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  appearance: none;
+  border-radius: 999px;
+  background: #3a342b;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: background-color var(--lb-motion-base, 170ms) ease;
+}
+
+.pp-bloco .pp-check > input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d8d1c2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition:
+    transform var(--lb-motion-base, 170ms) var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    background-color var(--lb-motion-base, 170ms) ease;
+}
+
+.pp-bloco .pp-check > input:checked {
+  background: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-bloco .pp-check > input:checked::before {
+  transform: translateX(14px);
+  background: #fff7e6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-character,
+  .pp-bloco .pp-check > input,
+  .pp-bloco .pp-check > input::before {
+    transition: none;
+  }
+
+  .pp-character:active {
     transform: none;
   }
 }
@@ -5798,12 +6027,33 @@ button.pp-colecao__casa:focus-visible {
   margin: auto;
   display: grid;
   gap: 20px;
+  /* O diálogo do grimório: papel com filete forte (fatia 19b). */
+  padding: 16px 18px 20px;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto, #1b1711), var(--lb-gr-papel-baixo, #13100c));
+  border: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.45;
   color: var(--lb-color-parchment, #eceae4);
   transform-origin: 50% 40%;
   animation: pp-inv-in 190ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+/*
+ * Celular: o papel encosta na borda e a moldura fica fina, para a grade de
+ * itens ter a largura que tinha sem o papel (290 px a 320, 360 a 390): mais
+ * estreita, o ícone da vaga já encostava no nome do item.
+ */
+@media (max-width: 480px) {
+  .pp-inv {
+    padding-inline: 6px;
+  }
+
+  .pp-inv__quadro {
+    padding: 14px 8px 16px;
+  }
 }
 
 /* Aberto pela tecla: entra pronto. Movimento em resposta a tecla só atrasa. */
@@ -5855,15 +6105,13 @@ button.pp-colecao__casa:focus-visible {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-bottom: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
 }
 
+/* O título dos diálogos do grimório: letra de livro, sem espaçamento de etiqueta (fatia 19b). */
 .pp-inv__titulo {
   margin: 0;
-  font-family: var(--lb-font-utility, 'Bahnschrift', system-ui, sans-serif);
-  font-size: var(--lb-font-size-xl, 20px);
-  font-weight: 600;
-  letter-spacing: var(--lb-font-tracking-wide, 0.06em);
+  font: 400 21px/1.2 var(--lb-font-display, Georgia, serif);
 }
 
 .pp-inv__fechar {
