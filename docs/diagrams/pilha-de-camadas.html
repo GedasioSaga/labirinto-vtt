@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilha de camadas</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #f5f5f5; --ink: #2d3142; --muted: #4f5d75; --soft: #7a8399; --rule: rgba(45,49,66,0.10); --accent: #eb6c36; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Geist', sans-serif; }
+  main { max-width: 800px; margin: 0 auto; padding: 40px 16px 32px; }
+  .eyebrow { font-family: 'Geist Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.75rem; margin: 0 0 8px; }
+  h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.25rem; margin: 32px 0 8px; }
+  p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0 0 12px; }
+  svg { width: 100%; height: auto; display: block; }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--rule); font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--soft); }
+  code { font-family: 'Geist Mono', monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Labirinto VTT · fase 3 · camadas</p>
+  <h1>Pilha de camadas</h1>
+  <p>A ordem de desenho de hoje, de baixo para cima, como <code>lib/camadas/ordem.ts</code> a copia (<code>FAIXAS_EDITOR</code>, <code>FAIXAS_JOGADOR</code>). As 13 camadas padrão ficam entrelaçadas nas faixas de hoje enquanto seguem a ordem padrão; camada movida ou livre vira um bloco inteiro acima da faixa mais alta da camada logo abaixo dela. Faixa fixa (fundo, grade, névoa, zona oculta, edição) não sai do lugar.</p>
+
+  <h2>Editor</h2>
+  <svg viewBox="0 0 720 440" role="img" aria-labelledby="pilha-editor-title pilha-editor-desc">
+    <title id="pilha-editor-title">Pilha de faixas do editor</title>
+    <desc id="pilha-editor-desc">As faixas de desenho do editor agrupadas de baixo para cima: fundo, chão e salas; desenhos e terreno; paredes, portas e escadas; objetos, luzes e textos; fichas, pinos e telhados; e as ferramentas de edição fixas por cima.</desc>
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+    <!-- de cima (topo da tela) para baixo (fundo do mapa) -->
+    <rect x="40" y="24" width="640" height="48" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="56" y="44" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Ferramentas de edição</text>
+    <text x="56" y="60" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO · seleção, alças, guias, régua, fantasma de teste</text>
+
+    <rect x="40" y="84" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Tokens · Anotações (pinos) · Telhados</text>
+    <text x="56" y="120" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">tokensContainer · concealZones (FIXO) · pinsContainer · telhadosContainer</text>
+
+    <rect x="40" y="144" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="164" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Nomes · Texto · Objetos e Decoração · Iluminação</text>
+    <text x="56" y="180" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">roomNames · textLabels · propsContainer (2 camadas, 1 container) · lights · nomesDosLugares</text>
+
+    <rect x="40" y="204" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="224" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Carimbos · Paredes · Portas · Escadas · Nuvens</text>
+    <text x="56" y="240" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">carimbos · wallsGraphics (paredes e portas) · doorsGraphics · stairs · nuvensContainer</text>
+
+    <rect x="40" y="264" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Desenhos · Terreno · borda das Salas · Caminho</text>
+    <text x="56" y="300" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">drawingsGraphics · texturas · relevoContainer · regionStrokes · pathsGraphics</text>
+
+    <rect x="40" y="324" width="640" height="48" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="56" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Fundo · Chão · linhas · Salas · grade</text>
+    <text x="56" y="360" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">background (FIXO) · floorGraphics · mapLines (paredes e portas) · regions · grid (FIXO)</text>
+    <text x="664" y="344" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.08em">CHÃO SEGUE SALAS</text>
+    <text x="664" y="360" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.08em">NO MAPA DE ANTES</text>
+
+    <line x1="32" y1="392" x2="688" y2="392" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="32" y="412" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <rect x="112" y="404" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="136" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CAMADAS NAS FAIXAS DE HOJE</text>
+    <rect x="312" y="404" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="336" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO, FORA DA LISTA</text>
+    <rect x="472" y="404" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="496" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">IMPLICAÇÃO ANTIGA</text>
+  </svg>
+
+  <h2>Jogador</h2>
+  <svg viewBox="0 0 720 440" role="img" aria-labelledby="pilha-jogador-title pilha-jogador-desc">
+    <title id="pilha-jogador-title">Pilha de faixas do jogador</title>
+    <desc id="pilha-jogador-desc">As faixas de desenho do jogador: a planta sob a névoa em três grupos, a névoa fixa no meio, e por cima dela luz de longe, telhados, porta no telhado, pílulas, marcas, pinos e fichas; reordenar camadas só permuta dentro de cada zona.</desc>
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+    <rect x="40" y="24" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="44" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Sobre a névoa: pílulas · marcas · pinos · fichas</text>
+    <text x="56" y="60" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">nomesDosLugares · marks (FIXO) · pins · lastSeen · tokens</text>
+
+    <rect x="40" y="84" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Sobre a névoa: luz de longe · telhados · porta no telhado</text>
+    <text x="56" y="120" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">farLights · roofCut · roofs · peekedRoofs · peekMask · portasNoTelhado</text>
+
+    <rect x="40" y="144" width="640" height="48" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="56" y="164" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Névoa e zonas ocultas</text>
+    <text x="56" y="180" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO · fogUnknown · knownMask · fogDim · visionMask · concealed</text>
+    <text x="664" y="172" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.08em">NENHUMA CAMADA ATRAVESSA</text>
+
+    <rect x="40" y="204" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="224" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Sob a névoa: nomes · texto · rótulos · luzes · perigos</text>
+    <text x="56" y="240" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">roomNames · textLabels · propLabels · lights · hazards · triggers</text>
+
+    <rect x="40" y="264" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Sob a névoa: móveis · escadas · paredes · portas · nuvens</text>
+    <text x="56" y="300" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">props · chamas · propImages · stairs · walls · doorHints · doors · nuvens</text>
+
+    <rect x="40" y="324" width="640" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="56" y="344" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Sob a névoa: chão · salas · grade · desenhos · terreno · caminho</text>
+    <text x="56" y="360" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">mapBackground (FIXO) · floor · mapLines · regions · grid (FIXO) · drawings · texturas · relevo · carimbos · paths</text>
+
+    <line x1="32" y1="392" x2="688" y2="392" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="32" y="412" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <rect x="112" y="404" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="136" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CAMADAS, REORDENÁVEIS NA ZONA</text>
+    <rect x="352" y="404" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="376" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO: DIVIDE AS DUAS ZONAS</text>
+  </svg>
+
+  <footer>Fontes: client/src/lib/camadas/ordem.ts · client/src/pixi/PixiCanvas.tsx (addChild ~1257-1330) · client/src/player/PlayerView.tsx (addChild ~3055-3138) · plano docs/planos/camadas-fase3-2026-10-22.md</footer>
+</main>
+</body>
+</html>
