@@ -179,10 +179,10 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Esta cena', estado: 'editor com aventura, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Página Cena do livro do mestre: fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito)', fatia: '2 (casca) e 18a (fichas)',
+    vai: 'Página Cena do livro do mestre: a busca no topo, e as fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito)', fatia: '2 (casca), 18a (fichas) e 18b (busca no topo)',
     linhas: [
-      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena'), b('Objetos do mapa')), vai: 'Busca do topo do marcador Cena (pendente: mora na ficha Objetos do mapa, a primeira da página)' },
-      { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca da página Cena' },
+      { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena')), vai: 'Busca do topo do marcador Cena, à vista com a ficha Objetos do mapa fechada; digitar abre a lista, com os achados das outras cenas (feito)' },
+      { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca do topo da página Cena e abre Objetos do mapa' },
       l('Objetos do mapa: item da lista (Ir até lá)', b('Goblin'), marcador('Cena'), b('Objetos do mapa')),
       l('Locais: sala da árvore (enquadra)', b('Salão'), marcador('Cena'), b('Locais')),
       l('Território: Quem manda aqui', cx('Quem manda aqui'), marcador('Cena'), b('Território')),
@@ -207,13 +207,13 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Acervos', estado: 'editor aberto', escopo: 'esquerda',
-    vai: 'Marcador Acervo (casca feita; Tokens e Itens com seg na 18)', fatia: '2 (casca) e 18 (restilo)',
+    vai: 'Marcador Acervo: o seg "O que mostrar" troca entre Tokens e Itens; o "+" da linha ou do cartão põe no centro da vista (feito)', fatia: '2 (casca) e 18b (seg)',
     linhas: [
-      l('Acervo de tokens', ['heading', 'Acervo de tokens'], marcador('Acervo')),
-      l('Acervo de tokens: + Pasta', b('Nova pasta'), marcador('Acervo')),
-      l('Acervo de itens', ['region', 'Itens'], marcador('Acervo')),
-      l('Acervo de itens: Categorias', b('Categorias'), marcador('Acervo')),
-      l('Acervo de itens: Novo item', b('Novo item'), marcador('Acervo')),
+      l('Acervo de tokens', ['heading', 'Acervo de tokens'], marcador('Acervo'), ['radio', 'Tokens']),
+      l('Acervo de tokens: + Pasta', b('Nova pasta'), marcador('Acervo'), ['radio', 'Tokens']),
+      l('Acervo de itens', ['region', 'Itens'], marcador('Acervo'), ['radio', 'Itens']),
+      l('Acervo de itens: Categorias', b('Categorias'), marcador('Acervo'), ['radio', 'Itens']),
+      l('Acervo de itens: Novo item', b('Novo item'), marcador('Acervo'), ['radio', 'Itens']),
     ],
   },
 
