@@ -88,6 +88,12 @@ export interface MotorDeSom<N> {
   /** Escuta os gestos que ativam o usuário em `alvo`; devolve a função que tira os ouvintes. */
   destravarNoPrimeiroGesto(alvo: EventTarget): () => void
   /**
+   * Cria (no primeiro) e retoma o contexto AGORA. Só funciona chamado dentro
+   * de um gesto que ativa o usuário (o toque na faixinha "Toque para ouvir"
+   * dos sons ao vivo); fora dele o navegador deixa suspenso, sem erro.
+   */
+  destravarAgora(): void
+  /**
    * Avisa cada vez que o contexto volta a rodar, uma vez por volta: pelo
    * gesto ou fora dele (o bipe do mestre o retoma por evento de rede, e o
    * navegador que já viu um gesto deixa). O que esperava o destravamento (o
@@ -186,6 +192,27 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
     }
   }
 
+  /** Dentro de um gesto: cria (no 1º) e retoma o contexto. `false` = este navegador não tem áudio. */
+  function destravarNoGesto(): boolean {
+    const atual = saidaDoGesto()
+    if (atual === null) return false
+    const { ctx } = atual
+    // Já rodando, só avisa se ninguém avisou desde a última parada: o gesto com tudo rodando não muda nada para quem espera.
+    avisarSeRodando(ctx)
+    if (ctx.state === 'running') return true
+    try {
+      // Recusado (gesto que não ativa, como Esc): fica suspenso e o próximo gesto tenta de novo.
+      void ctx.resume().then(
+        () => avisarSeRodando(ctx),
+        () => undefined,
+      )
+      tocarSilencio(ctx)
+    } catch {
+      // Contexto fechado ou nó recusado: sem som agora; o próximo gesto tenta de novo.
+    }
+    return true
+  }
+
   return {
     obterContexto: () => (saida === null ? null : saida.ctx),
     obterSaida: () => saida,
@@ -202,29 +229,14 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
         for (const tipo of GESTOS_QUE_DESTRAVAM) alvo.removeEventListener(tipo, aoGesto, OUVIR)
       }
       function aoGesto(): void {
-        const atual = saidaDoGesto()
-        if (atual === null) {
-          parar()
-          return
-        }
-        const { ctx } = atual
         // Os ouvintes ficam: se o iOS suspender de novo (tela bloqueada, ligação), o próximo toque retoma.
-        // Já rodando, só avisa se ninguém avisou desde a última parada: o gesto com tudo rodando não muda nada para quem espera.
-        avisarSeRodando(ctx)
-        if (ctx.state === 'running') return
-        try {
-          // Recusado (gesto que não ativa, como Esc): fica suspenso e o próximo gesto tenta de novo.
-          void ctx.resume().then(
-            () => avisarSeRodando(ctx),
-            () => undefined,
-          )
-          tocarSilencio(ctx)
-        } catch {
-          // Contexto fechado ou nó recusado: sem som agora; o próximo gesto tenta de novo.
-        }
+        if (!destravarNoGesto()) parar()
       }
       for (const tipo of GESTOS_QUE_DESTRAVAM) alvo.addEventListener(tipo, aoGesto, OUVIR)
       return parar
+    },
+    destravarAgora() {
+      destravarNoGesto()
     },
     quandoRodar(ouvinte) {
       ouvintesDoRodar.add(ouvinte)
@@ -255,6 +267,8 @@ export const obterContexto = (): ContextoDeSom<AudioNode> | null => motorDoApp.o
 export const obterSaidaDeSom = (): SaidaDeSom<AudioNode> | null => motorDoApp.obterSaida()
 export const destravarAudioNoPrimeiroGesto = (alvo: EventTarget): (() => void) => motorDoApp.destravarNoPrimeiroGesto(alvo)
 export const quandoOAudioRodar = (ouvinte: () => void): (() => void) => motorDoApp.quandoRodar(ouvinte)
+/** Destrava o áudio agora; só funciona dentro de um gesto (a faixinha dos sons ao vivo). */
+export const destravarAudioAgora = (): void => motorDoApp.destravarAgora()
 
 /** A saída dos sons ao vivo do app, com o contexto de tipo completo; `null` antes do 1º gesto (e sem Web Audio). */
 export function obterSaidaAoVivoDoNavegador(): { ctx: AudioContext; aoVivo: AudioNode } | null {

@@ -188,6 +188,28 @@ export interface DependenciasDoMotor<N> {
   /** Relógio em ms, monotônico. */
   agora: () => number
   orcamentoDoCacheBytes: number
+  /**
+   * Avisa quando a reserva de `<audio>` destravados é reposta (um gesto novo,
+   * F5): o toque que esperava porque o `play()` foi recusado com o contexto já
+   * rodando tenta de novo, já que o aviso de destravamento não viria.
+   */
+  aoReporReservas?: (ouvinte: () => void) => () => void
+}
+
+/**
+ * `<audio>` destravados por um gesto (F5). No iOS só toca depois o elemento
+ * que tocou dentro de um toque; o motor tira daqui antes de criar um novo.
+ */
+export interface ReservaDeAudios {
+  /** Um `<audio>` destravado, que sai da reserva; `null` quando ela acabou. */
+  tirar(): ElementoDeAudio | null
+  /** Avisa a cada reposição (um gesto); devolve a função que tira o ouvinte. */
+  aoRepor(ouvinte: () => void): () => void
+}
+
+export interface OpcoesDoMotorDoNavegador {
+  /** Os `<audio>` destravados pelo toque na faixinha (jogador e TV); sem ela, cada toque cria um novo. */
+  reservas?: ReservaDeAudios
 }
 
 /** O que guarda cada arquivo: os bytes ainda por decodificar, o áudio decodificado ou o Blob do arquivo grande. */
@@ -636,6 +658,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     for (const voz of vozes.values()) aplicarGanho(voz)
   })
   const desligarDestravar = deps.aoDestravar(retomar)
+  const desligarReposicao = deps.aoReporReservas?.(retomar)
 
   return {
     tocar(instancia, fonte, opcoes) {
@@ -713,6 +736,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       for (const voz of [...vozes.values()]) encerrarVoz(voz, 0, 'parado')
       desligarPreferencia()
       desligarDestravar()
+      desligarReposicao?.()
       for (const [id, entrada] of [...cache]) descartarDoCache(id, entrada)
       ouvintes.clear()
     },
@@ -725,17 +749,19 @@ function ehCelular(): boolean {
 
 /**
  * O motor do app, com o Web Audio, o `<audio>` e o volume do aparelho de
- * verdade. Cada lado passa quem traz os bytes: o mestre, o disco; o jogador, a
- * sala (`/media/<id>`).
+ * verdade. Cada lado passa quem traz os bytes: o mestre, o disco; o jogador e
+ * a TV, a sala (`/sons/<id>`), com os `<audio>` da reserva destravada no toque.
  */
-export function criarMotorAoVivoDoNavegador(carregarBytes: CarregadorDeBytes): MotorAoVivo {
+export function criarMotorAoVivoDoNavegador(carregarBytes: CarregadorDeBytes, { reservas }: OpcoesDoMotorDoNavegador = {}): MotorAoVivo {
   return criarMotorAoVivo<AudioNode>({
     carregarBytes,
     obterSaida: obterSaidaAoVivoDoNavegador,
     aoDestravar: quandoOAudioRodar,
     lerPreferencia: () => useSomStore.getState(),
     assinarPreferencia: (ouvinte) => useSomStore.subscribe(() => ouvinte()),
-    criarElementoDeAudio: () => new Audio(),
+    // `createMediaElementSource` vale uma vez por elemento: o da reserva sai dela para sempre.
+    criarElementoDeAudio: () => reservas?.tirar() ?? new Audio(),
+    ...(reservas === undefined ? {} : { aoReporReservas: (ouvinte: () => void) => reservas.aoRepor(ouvinte) }),
     criarUrlDoAudio: (bytes, tipoMime) => URL.createObjectURL(new Blob([bytes], { type: tipoMime })),
     revogarUrl: (url) => URL.revokeObjectURL(url),
     agora: () => performance.now(),
