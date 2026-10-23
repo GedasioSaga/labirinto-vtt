@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Token } from '../types/map'
-import { createHostBridge } from './hostBridge'
+import { createHostBridge, LIVENESS_SWEEP_MS } from './hostBridge'
 import type { HostWorld } from './hostSession'
 import { parseSomHostMessage, type FonteDeSomNaRede } from './protocol'
 
@@ -402,5 +402,90 @@ describe('hostBridge: segurança do canal dos sons', () => {
     expect(m.bridge.precarregarSonsAoVivo(['../../x.mp3'])).toBe(0)
     expect(m.sons()).toEqual([])
     expect(m.bridge.midiasDeSomLiberadas()).toEqual([])
+  })
+})
+
+// ─── Revisão da F4 (23/10): segurança do host ───
+
+describe('hostBridge: a pré-carga segue a audiência, e o liberado é por conexão', () => {
+  it('quem está fora da cena não recebe o id de um som "só a cena", nem o tem liberado', async () => {
+    const m = await mesa()
+    expect(m.bridge.precarregarSonsAoVivo([ID_GRITO], { tipo: 'cena', sceneId: TAVERNA })).toBe(3)
+    expect(m.quem('som.precarregar').sort()).toEqual(['c-ana', 'c-bia', 'tv'])
+    expect(JSON.stringify(m.enviados.filter((e) => e.clientId === 'c-caio'))).not.toContain(ID_GRITO)
+    expect(m.bridge.midiasDeSomLiberadas('c-caio')).toEqual([])
+    expect(m.bridge.midiasDeSomLiberadas('c-ana')).toEqual([ID_GRITO])
+  })
+
+  it('"Escolhidos": só os marcados conectados recebem a pré-carga; a TV nunca', async () => {
+    const m = await mesa()
+    expect(m.bridge.precarregarSonsAoVivo([ID_GRITO], { tipo: 'escolhidos', playerIds: [m.ids.bia] })).toBe(1)
+    expect(m.quem('som.precarregar')).toEqual(['c-bia'])
+    expect(m.bridge.midiasDeSomLiberadas('tv')).toEqual([])
+  })
+
+  it('mudar o alvo reconcilia: a audiência nova recebe; quem chega à cena depois também; quem fica fora, nada', async () => {
+    const m = await mesa()
+    m.bridge.precarregarSonsAoVivo([ID_GRITO], { tipo: 'cena', sceneId: TAVERNA })
+    m.limpa()
+    expect(m.bridge.precarregarSonsAoVivo([ID_CHUVA], { tipo: 'cena', sceneId: CRIPTA })).toBe(1)
+    expect(m.sons()).toEqual([{ clientId: 'c-caio', msg: { type: 'som.precarregar', midias: [ID_CHUVA] } }])
+    m.limpa()
+    // Bia vai para a Cripta: passa a ser da audiência de agora.
+    m.mudaMundo(['t-ana'], ['t-caio', 't-bia'])
+    expect(m.sons()).toEqual([{ clientId: 'c-bia', msg: { type: 'som.precarregar', midias: [ID_CHUVA] } }])
+    expect(m.bridge.midiasDeSomLiberadas('c-bia').sort()).toEqual([ID_GRITO, ID_CHUVA].sort())
+    m.limpa()
+    // Duda entra na Taverna: fora da audiência da pré-carga de agora.
+    m.entra('c-duda', 'Duda', 't-duda')
+    expect(m.sons()).toEqual([])
+    expect(m.bridge.midiasDeSomLiberadas('c-duda')).toEqual([])
+  })
+
+  it('o toque libera só a quem foi; a queda apaga; quem volta recomeça do que receber de novo', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(curto('grito'), { tipo: 'escolhidos', playerIds: [m.ids.ana] })
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'cena', sceneId: CRIPTA })
+    expect(m.bridge.midiasDeSomLiberadas('c-ana')).toEqual([ID_GRITO])
+    expect(m.bridge.midiasDeSomLiberadas('c-caio')).toEqual([ID_CHUVA])
+    expect(m.bridge.midiasDeSomLiberadas('tv')).toEqual([])
+    m.cai('c-caio')
+    expect(m.bridge.midiasDeSomLiberadas('c-caio')).toEqual([])
+    m.volta('c-caio-2', 'Caio')
+    expect(m.bridge.midiasDeSomLiberadas('c-caio-2')).toEqual([ID_CHUVA])
+  })
+
+  it('a aba velha trocada pela nova (session.replaced) perde as liberadas na hora, sem esperar o close do Rust', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    expect(m.bridge.midiasDeSomLiberadas('c-ana')).toEqual([ID_CHUVA])
+    m.volta('c-ana-2', 'Ana')
+    expect(m.enviados.some((e) => e.clientId === 'c-ana' && e.msg.type === 'session.replaced')).toBe(true)
+    await vi.waitFor(() => expect(m.bridge.midiasDeSomLiberadas('c-ana')).toEqual([]))
+    expect(m.bridge.midiasDeSomLiberadas('c-ana-2')).toEqual([ID_CHUVA])
+  })
+})
+
+describe('hostBridge: som.* só é descartado calado de quem entrou', () => {
+  it('conexão que não fez join (mas sabe o código) e manda som.* é recusada e derrubada como qualquer lixo', async () => {
+    const m = await mesa()
+    m.doJogador('c-intruso', { type: 'som.pararTudo' })
+    await vi.waitFor(() => expect(m.enviados.find((e) => e.clientId === 'c-intruso')?.msg).toMatchObject({ type: 'error', reason: 'invalid_message' }))
+  })
+
+  it('o som.* do jogador não apaga a marca de "aba de lado" dele (a varredura segue com o prazo longo)', async () => {
+    vi.useFakeTimers()
+    try {
+      const m = await mesa()
+      m.bridge.tocarSomAoVivo(curto('grito'), { tipo: 'todos' })
+      m.doJogador('c-ana', { type: 'ping', away: true })
+      m.doJogador('c-ana', { type: 'som.falhou', instancia: 'grito', motivo: 'sem-gesto' })
+      // Passou do prazo curto, longe do prazo de quem está com a aba de lado.
+      m.avanca(7_000)
+      vi.advanceTimersByTime(LIVENESS_SWEEP_MS)
+      expect(m.bridge.players().find((p) => p.name === 'Ana')?.connected).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

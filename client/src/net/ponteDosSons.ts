@@ -32,12 +32,20 @@ export interface RedeDosSons {
   pararSomAoVivo(instancia: string, fadeMs?: number): number
   pararTodosOsSons(): number
   volumeDoSom(instancia: string, volume: number): number
-  /** Traz os bytes antes do clique, em todo aparelho conectado (o gatilho é da F5). */
-  precarregarSonsAoVivo(midias: readonly string[]): number
+  /**
+   * Traz os bytes antes do clique, só na AUDIÊNCIA (o alvo do seletor; o gatilho
+   * é da F5, que passa o alvo de agora — ausente = Todos, o padrão do seletor).
+   * Troca a pré-carga anterior; quem passar a ser da audiência recebe depois.
+   */
+  precarregarSonsAoVivo(midias: readonly string[], alvo?: AlvoDosSons): number
   /** Quantos aparelhos contaram (`som.falhou`) que aquele toque não soou: o "não tocou para N". */
   falhasDoSom(instancia: string): number
-  /** Os ids de áudio que esta sala já mandou tocar ou pré-carregar: o que a F5 pode servir por `/media/<id>`. */
-  midiasDeSomLiberadas(): string[]
+  /**
+   * Os ids de áudio que esta sala mandou à conexão `clientId` (tocar ou
+   * pré-carregar): o que a F5 pode servir por `/media/<id>` a ELA. Sem
+   * `clientId`, a união de todas (só leitura do mestre).
+   */
+  midiasDeSomLiberadas(clientId?: string): string[]
 }
 
 let redeRegistrada: RedeDosSons | null = null

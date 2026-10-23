@@ -414,6 +414,18 @@ interface LoopAoVivo {
   ouvintes: Set<string>
 }
 
+/**
+ * SONS AO VIVO: a pré-carga de agora. Segue a audiência do seletor (como o
+ * toque): quem está fora dela não recebe nem o id do áudio, que é o hash do
+ * conteúdo e, com um pacote público de sons, diria qual é o som antes da hora.
+ */
+interface PreCargaAoVivo {
+  midias: string[]
+  alvo: AlvoDosSons
+  /** Quem já recebeu: a reconciliação manda só a quem passou a ser da audiência. */
+  recebedores: Set<string>
+}
+
 /** Efeitos curtos lembrados (a quem foram), para o Parar e o volume irem só a eles. */
 const EFEITOS_AO_VIVO_LEMBRADOS = 32
 /** Teto do `som.falhou` por conexão e janela: a rajada além dele é ignorada. */
@@ -896,6 +908,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** A conexão já entrou na sala: tela da mesa aceita ou jogador com assento. */
+function entrouNaSala(room: HostSession, clientId: string): boolean {
+  return room.isTable(clientId) || room.listPlayers().some((p) => p.clientId === clientId)
+}
+
 function parseClientId(value: unknown): string | null {
   return typeof value === 'string' && CLIENT_ID_PATTERN.test(value) ? value : null
 }
@@ -1129,8 +1146,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const falhasDosSons = new Map<string, Set<string>>()
   /** SONS AO VIVO: a janela do teto de `som.falhou` de cada conexão. Sai ao cair. */
   const janelasDeFalhaDeSom = new Map<string, { inicio: number; contagem: number }>()
-  /** SONS AO VIVO: os áudios que esta sala mandou tocar ou pré-carregar (o que a F5 pode servir por `/media`). */
-  const midiasDeSomEnviadas = new Set<string>()
+  /**
+   * SONS AO VIVO: por conexão, os áudios que esta sala mandou a ELA (tocar ou
+   * pré-carregar): o que a F5 pode servir por `/media` a quem pedir. Sai ao cair.
+   */
+  const midiasLiberadas = new Map<string, Set<string>>()
+  /** SONS AO VIVO: a pré-carga de agora; `null` = nenhuma (a F5 chama com a audiência do seletor). */
+  let preCargaAoVivo: PreCargaAoVivo | null = null
   /** Tira o registro desta ponte da aba Sons; `null` = não registrada (sala fechada ou Visão de jogador). */
   let tirarRegistroDosSons: (() => void) | null = null
   /** CONTAS: conexões com a entrada com conta sendo conferida — uma por conexão. Sai ao cair. */
@@ -1586,6 +1608,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** A cópia do alvo: a lista de escolhidos de quem chamou pode mudar depois, o loop não. */
   const copiaDoAlvo = (alvo: AlvoDosSons): AlvoDosSons => (alvo.tipo === 'escolhidos' ? { tipo: 'escolhidos', playerIds: [...alvo.playerIds] } : { ...alvo })
 
+  /** Anota, por conexão, os áudios que saíram para ela. */
+  const liberarMidias = (clientIds: Iterable<string>, midias: readonly string[]) => {
+    for (const clientId of clientIds) {
+      const liberadas = midiasLiberadas.get(clientId) ?? new Set<string>()
+      for (const midia of midias) liberadas.add(midia)
+      midiasLiberadas.set(clientId, liberadas)
+    }
+  }
+
+  /** A conexão acabou (caiu, ou a aba velha foi trocada pela nova): o que era dela nos sons sai junto. */
+  const esquecerConexaoDosSons = (clientId: string) => {
+    janelasDeFalhaDeSom.delete(clientId)
+    midiasLiberadas.delete(clientId)
+  }
+
   /**
    * O LOOP É ESTADO: quem passou a ser do alvo (entrou, voltou, chegou à cena;
    * a TV que passou a mostrar a cena) recebe `som.tocar` com o deslocamento, e
@@ -1594,16 +1631,28 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * manda nada. Efeito curto é evento: nunca é reenviado.
    */
   const reconciliarSons = () => {
-    if (session === null || loopsAoVivo.size === 0) return
+    const preCarga = preCargaAoVivo
+    if (session === null || (loopsAoVivo.size === 0 && preCarga === null)) return
     const jogadores = session.listPlayers(world())
     const telas = telasDaMesa()
     const conectados = new Set(destinatarios({ tipo: 'todos' }, jogadores, telas))
     const outbound: { clientId: string; msg: SomHostMessage }[] = []
+    if (preCarga !== null) {
+      // A pré-carga também é estado da audiência: quem passou a ser dela recebe; quem saiu fica com o que já tinha.
+      const agora = new Set(destinatarios(preCarga.alvo, jogadores, telas))
+      const novos = [...agora].filter((clientId) => !preCarga.recebedores.has(clientId))
+      const msg: SomHostMessage = { type: 'som.precarregar', midias: preCarga.midias }
+      for (const clientId of novos) outbound.push({ clientId, msg })
+      liberarMidias(novos, preCarga.midias)
+      preCarga.recebedores = agora
+    }
     for (const [instancia, loop] of loopsAoVivo) {
       const agora = new Set(destinatarios(loop.alvo, jogadores, telas))
       const deslocamentoS = deslocamentoDoLoop(loop)
       for (const clientId of agora) {
-        if (!loop.ouvintes.has(clientId)) outbound.push({ clientId, msg: { type: 'som.tocar', instancia, fonte: loop.fonte, volume: loop.volume, loop: true, deslocamentoS } })
+        if (loop.ouvintes.has(clientId)) continue
+        outbound.push({ clientId, msg: { type: 'som.tocar', instancia, fonte: loop.fonte, volume: loop.volume, loop: true, deslocamentoS } })
+        liberarMidias([clientId], [loop.fonte.midia])
       }
       for (const clientId of loop.ouvintes) {
         if (!agora.has(clientId) && conectados.has(clientId)) outbound.push({ clientId, msg: { type: 'som.parar', instancia } })
@@ -1633,7 +1682,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     esquecerSom(instancia)
     if (msg.loop) loopsAoVivo.set(instancia, { fonte: msg.fonte, volume: msg.volume, alvo: copiaDoAlvo(alvo), inicioEmMs: now(), ouvintes: new Set(ouvintes) })
     else lembrarEfeitoCurto(instancia, new Set(ouvintes))
-    midiasDeSomEnviadas.add(msg.fonte.midia)
+    liberarMidias(ouvintes, [msg.fonte.midia])
     if (outbound.length > 0) void dispatch({ outbound })
     return { ok: true, enviados: ouvintes.length }
   }
@@ -1667,12 +1716,23 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     return ouvintes === undefined ? 0 : enviarSom(ouvintes, msg)
   }
 
-  const precarregarSonsAoVivo = (midias: readonly string[]): number => {
+  /** Só à audiência (o seletor); a pré-carga nova troca a anterior, e quem passar a ser dela recebe na reconciliação. */
+  const precarregarSonsAoVivo = (midias: readonly string[], alvo: AlvoDosSons = { tipo: 'todos' }): number => {
     if (session === null) return 0
     const msg = parseSomHostMessage({ type: 'som.precarregar', midias: [...midias] })
     if (msg === null || msg.type !== 'som.precarregar') return 0
-    for (const midia of msg.midias) midiasDeSomEnviadas.add(midia)
-    return enviarSom(ouvintesDoAlvo({ tipo: 'todos' }), msg)
+    const destinos = ouvintesDoAlvo(alvo)
+    preCargaAoVivo = { midias: msg.midias, alvo: copiaDoAlvo(alvo), recebedores: new Set(destinos) }
+    liberarMidias(destinos, msg.midias)
+    return enviarSom(destinos, msg)
+  }
+
+  /** Sem `clientId`: a união (o que a sala liberou a alguém); a F5 confere por conexão. */
+  const midiasDeSomLiberadas = (clientId?: string): string[] => {
+    if (clientId !== undefined) return [...(midiasLiberadas.get(clientId) ?? [])]
+    const todas = new Set<string>()
+    for (const liberadas of midiasLiberadas.values()) for (const midia of liberadas) todas.add(midia)
+    return [...todas]
   }
 
   /** `true` enquanto a conexão não passou do teto de `som.falhou` da janela de agora. */
@@ -1710,7 +1770,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     volumeDoSom,
     precarregarSonsAoVivo,
     falhasDoSom: (instancia) => falhasDosSons.get(instancia)?.size ?? 0,
-    midiasDeSomLiberadas: () => [...midiasDeSomEnviadas],
+    midiasDeSomLiberadas,
   }
 
   const limparSons = () => {
@@ -1720,7 +1780,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     efeitosAoVivo.clear()
     falhasDosSons.clear()
     janelasDeFalhaDeSom.clear()
-    midiasDeSomEnviadas.clear()
+    midiasLiberadas.clear()
+    preCargaAoVivo = null
   }
 
   /** Espera o envio (ex.: `kicked`, `error`) sair antes de derrubar a conexão. */
@@ -3095,6 +3156,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
     gzipClients.delete(clientId)
+    // O `close` do Rust também passa por `dropClient`, mas só depois do kick: o liberado dela sai já.
+    esquecerConexaoDosSons(clientId)
     deps.invoke('net_kick', { clientId }).catch(() => {
       // Já fechada no Rust (a aba foi fechada antes): era o que se queria.
     })
@@ -3197,18 +3260,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (clientId === null) return
     // Qualquer mensagem é prova de vida, não só o ping.
     lastHeard.set(clientId, now())
-    // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
-    const parsed = parsePlayerMessage(event.payload.msg)
-    if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
-    else awayClients.delete(clientId)
-    // SONS AO VIVO: o canal é só mestre → jogador. Do jogador (ou da TV) vale só o
-    // `som.falhou`, e nada de som passa pela sessão: ninguém faz o host tocar ou parar.
+    // SONS AO VIVO: o canal é só mestre → jogador. Do jogador (ou da TV) que ENTROU vale só o
+    // `som.falhou`, e nada de som passa pela sessão: ninguém faz o host tocar ou parar. Antes da
+    // marca de "aba de lado": o `som.falhou` sai da F5 sozinho, não prova que alguém olha a aba.
+    // Quem não entrou segue para a sessão, que recusa e derruba (`concludeMessage`), como todo lixo.
     const crua: unknown = event.payload.msg
-    if (isRecord(crua) && typeof crua.type === 'string' && crua.type.startsWith('som.')) {
+    if (isRecord(crua) && typeof crua.type === 'string' && crua.type.startsWith('som.') && entrouNaSala(session, clientId)) {
       const falha = parseSomFalhou(crua)
       if (falha !== null) receberFalhaDeSom(clientId, falha)
       return
     }
+    // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
+    const parsed = parsePlayerMessage(event.payload.msg)
+    if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
+    else awayClients.delete(clientId)
     // Antes de a sessão responder: o `welcome` e o mapa que saem deste join já vão comprimidos.
     if (parsed?.type === 'join') {
       if (parsed.accept?.includes('gzip') === true) gzipClients.add(clientId)
@@ -3449,7 +3514,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
     gzipClients.delete(clientId)
-    janelasDeFalhaDeSom.delete(clientId)
+    esquecerConexaoDosSons(clientId)
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
