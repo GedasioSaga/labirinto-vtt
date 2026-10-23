@@ -7,7 +7,14 @@ import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { BrushMode } from '../lib/baldeDeTinta'
-import { ATALHO_DA_ARVORE, type ToolVariantGroup, type ToolVariantOption, type ToolVariantStoreKey } from '../lib/toolVariants'
+import {
+  ATALHO_DA_ARVORE,
+  PARTE_COM_O_ATALHO_DA_ARVORE,
+  PARTES_DO_MENU_DE_OBJETO,
+  type ToolVariantGroup,
+  type ToolVariantOption,
+  type ToolVariantStoreKey,
+} from '../lib/toolVariants'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
@@ -362,45 +369,115 @@ function VariantGroup({
 function AtalhoDaArvore({ bindings, onPicked }: { bindings: ToolVariantBindings; onPicked: () => void }) {
   const descId = useId()
   const setCarimboEscolhido = useMapStore((s) => s.setCarimboEscolhido)
+  const setCarimboModo = useMapStore((s) => s.setCarimboModo)
   return (
-    <div className="lb-toolvariant-menu__group" role="group" aria-label="Atalho">
-      <h3 className="lb-eyebrow">Atalho</h3>
-      <div className="lb-toolvariant-menu__options">
-        <button
-          type="button"
-          aria-label={ATALHO_DA_ARVORE.label}
-          aria-describedby={descId}
-          title={ATALHO_DA_ARVORE.description}
-          className="lb-toolvariant-menu__option lb-toolvariant-menu__option--icon"
-          onClick={() => {
-            setCarimboEscolhido(ATALHO_DA_ARVORE.carimbo)
-            bindings.drawShape.onChange(ATALHO_DA_ARVORE.ferramenta)
-            onPicked()
-          }}
-        >
-          <span className="lb-toolvariant-menu__option-icon" aria-hidden="true">
-            <IconeDaArvoreRedonda />
+    <div className="lb-toolvariant-menu__atalho" role="group" aria-label="Atalho">
+      <button
+        type="button"
+        aria-label={ATALHO_DA_ARVORE.label}
+        aria-describedby={descId}
+        title={ATALHO_DA_ARVORE.description}
+        className="lb-toolvariant-menu__option lb-toolvariant-menu__option--icon"
+        onClick={() => {
+          setCarimboEscolhido(ATALHO_DA_ARVORE.carimbo)
+          // O modo do Carimbo mora na store: com a Borracha como última escolha, o
+          // clique no mapa APAGARIA árvores em vez de pôr a árvore redonda.
+          setCarimboModo('carimbo')
+          bindings.drawShape.onChange(ATALHO_DA_ARVORE.ferramenta)
+          onPicked()
+        }}
+      >
+        <span className="lb-toolvariant-menu__option-icon" aria-hidden="true">
+          <IconeDaArvoreRedonda />
+        </span>
+        <span className="lb-toolvariant-menu__option-text">
+          <span>{ATALHO_DA_ARVORE.label}</span>
+          <span id={descId} className="lb-toolvariant-menu__option-desc">
+            {ATALHO_DA_ARVORE.description}
           </span>
-          <span className="lb-toolvariant-menu__option-text">
-            <span>{ATALHO_DA_ARVORE.label}</span>
-            <span id={descId} className="lb-toolvariant-menu__option-desc">
-              {ATALHO_DA_ARVORE.description}
-            </span>
-          </span>
-        </button>
-      </div>
+        </span>
+        <span className="lb-toolvariant-menu__option-legenda" aria-hidden="true">
+          {ATALHO_DA_ARVORE.legenda}
+        </span>
+      </button>
     </div>
   )
 }
 
-/** A copa redonda de cima, no traço dos ícones do menu (16 px, `currentColor`). */
+/**
+ * A copa redonda de cima, na família dos ícones do menu (`icons.tsx`: viewBox
+ * 24, traço 1,6, só contorno): 6 lóbulos em volta do centro, o toco do tronco e
+ * um risco de luz no alto à esquerda.
+ */
 function IconeDaArvoreRedonda() {
   return (
-    <svg width={MOBILIA_ICON_SIZE} height={MOBILIA_ICON_SIZE} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinejoin="round">
-      <path d="M8 2.2c1.4 0 2.3.9 2.6 1.9 1.3.2 2.3 1.3 2.3 2.6 0 .7-.3 1.3-.7 1.8.3.4.4.9.4 1.4 0 1.5-1.2 2.6-2.7 2.6-.5 0-1-.1-1.4-.4-.3.2-.6.3-.9.3s-.6-.1-.9-.3c-.4.3-.9.4-1.4.4-1.5 0-2.7-1.1-2.7-2.6 0-.5.1-1 .4-1.4-.4-.5-.7-1.1-.7-1.8 0-1.3 1-2.4 2.3-2.6.3-1 1.2-1.9 2.6-1.9Z" />
-      <path d="M8 12.6v1.6" />
-      <circle cx="6.6" cy="6.4" r="1" fill="currentColor" stroke="none" />
+    <svg
+      width={MOBILIA_ICON_SIZE}
+      height={MOBILIA_ICON_SIZE}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      focusable="false"
+    >
+      <path d="M14.8 5.65a3.3 3.3 0 0 1 2.8 4.85a3.3 3.3 0 0 1-2.8 4.85a3.3 3.3 0 0 1-5.6 0a3.3 3.3 0 0 1-2.8-4.85a3.3 3.3 0 0 1 2.8-4.85a3.3 3.3 0 0 1 5.6 0Z" />
+      <path d="M12 16.9v3.2M9 9.8a3.3 3.3 0 0 1 2.6-2.5" />
     </svg>
+  )
+}
+
+/**
+ * O grupo Objeto em 3 PARTES (`PARTES_DO_MENU_DE_OBJETO`, revisão de design
+ * da MT5), cada uma com o título `lb-eyebrow` dos outros grupos e a própria
+ * grade de 2 colunas lida em pares. O eixo é um só: as 3 grades marcam e
+ * escrevem o mesmo `mobiliaTipo`. Tipo do catálogo sem parte (peça nova de um
+ * lote futuro) não some: entra no fim da última. O atalho da árvore fecha a
+ * parte "Rua e jardim", com a legenda "carimbo" (ele arma outra ferramenta).
+ */
+function PartesDoObjeto({
+  group,
+  bindings,
+  onPicked,
+  onAtalho,
+}: {
+  group: ToolVariantGroup
+  bindings: ToolVariantBindings
+  onPicked: () => void
+  onAtalho: () => void
+}) {
+  const { opcoes, marcada, escolher } = eixoDaVariante(group, bindings)
+  const porId = new Map(opcoes.map((opcao) => [opcao.id, opcao]))
+  const nasPartes = new Set<string>(PARTES_DO_MENU_DE_OBJETO.flatMap((parte) => parte.tipos))
+  const sobra = opcoes.filter((opcao) => !nasPartes.has(opcao.id))
+  const ultima = PARTES_DO_MENU_DE_OBJETO.length - 1
+  return (
+    <>
+      {PARTES_DO_MENU_DE_OBJETO.map((parte, indice) => {
+        const daParte = [...parte.tipos.flatMap((tipo) => porId.get(tipo) ?? []), ...(indice === ultima ? sobra : [])]
+        return (
+          <div className="lb-toolvariant-menu__group lb-toolvariant-menu__parte-do-objeto" key={parte.titulo}>
+            <h3 className="lb-eyebrow">{parte.titulo}</h3>
+            <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={parte.titulo}>
+              {daParte.map((opcao) => (
+                <VariantOption
+                  key={opcao.id}
+                  option={opcao}
+                  checked={opcao.id === marcada}
+                  icon={opcao.icon}
+                  onPick={() => {
+                    escolher(opcao.id)
+                    onPicked()
+                  }}
+                />
+              ))}
+            </div>
+            {parte.titulo === PARTE_COM_O_ATALHO_DA_ARVORE && <AtalhoDaArvore bindings={bindings} onPicked={onAtalho} />}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -551,16 +628,27 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
           {grupos.map((group) => (
             <Fragment key={group.storeKey}>
-              <VariantGroup
-                group={group}
-                bindings={bindings}
-                onPicked={() => {
-                  onChoose?.(group.storeKey)
-                  onClose()
-                }}
-                iconFor={iconFor}
-              />
-              {group.storeKey === 'mobiliaTipo' && <AtalhoDaArvore bindings={bindings} onPicked={onClose} />}
+              {group.storeKey === 'mobiliaTipo' ? (
+                <PartesDoObjeto
+                  group={group}
+                  bindings={bindings}
+                  onPicked={() => {
+                    onChoose?.(group.storeKey)
+                    onClose()
+                  }}
+                  onAtalho={onClose}
+                />
+              ) : (
+                <VariantGroup
+                  group={group}
+                  bindings={bindings}
+                  onPicked={() => {
+                    onChoose?.(group.storeKey)
+                    onClose()
+                  }}
+                  iconFor={iconFor}
+                />
+              )}
             </Fragment>
           ))}
         </div>

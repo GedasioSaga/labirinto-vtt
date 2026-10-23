@@ -500,43 +500,30 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
       )
     // As peças novas do lote 2 (MT5).
     case 'sebe':
-      // Uma fileira de quatro copinhas que se encostam, em arco leve (a cerca são mourões soltos com fio).
-      return (
-        <>
-          <path d="M2.5 14.5a2.6 2.6 0 0 1 4.6-2.9a2.6 2.6 0 0 1 4.9-1a2.6 2.6 0 0 1 4.9 1a2.6 2.6 0 0 1 4.6 2.9" />
-          <path d="M2.5 14.5c2.8 2 16.2 2 19 0" />
-        </>
-      )
+      // Três lóbulos de r 3,2 sobre a base reta, 8 de altura (a 6 de altura a fileira de copinhas lia como cápsula achatada).
+      return <path d="M3.8 16V11.2a3.2 3.2 0 0 1 5.7-2a3.2 3.2 0 0 1 5 0a3.2 3.2 0 0 1 5.7 2V16z" />
     case 'jardineira':
-      // A caixa comprida e a fileira de flores (círculos) em zigue-zague dentro dela.
+      // O cocho de frente e três flores acima da borda (de cima, a caixa com bolinhas lia como teclado).
       return (
         <>
-          <rect x="2.5" y="8" width="19" height="8" rx="1" />
-          <circle cx="6.5" cy="11" r="1.4" />
-          <circle cx="10.2" cy="13" r="1.4" />
-          <circle cx="13.8" cy="11" r="1.4" />
-          <circle cx="17.5" cy="13" r="1.4" />
+          <path d="M4 13h16l-1.5 6h-13z" />
+          <circle cx="7.5" cy="10" r="2" />
+          <circle cx="12" cy="9" r="2" />
+          <circle cx="16.5" cy="10" r="2" />
         </>
       )
     case 'arcoDoPortao':
-      // A trave de ponta a ponta, os dois postes e a placa pendurada no meio.
+      // De frente: os dois postes, a trave por cima e a placa pendurada por duas correntinhas (de cima ele lia como drone).
       return (
         <>
-          <path d="M2 9.5h20" />
-          <rect x="3" y="7.5" width="3" height="4" />
-          <rect x="18" y="7.5" width="3" height="4" />
-          <path d="M10 9.5v2.5M14 9.5v2.5" />
-          <rect x="8" y="12" width="8" height="4.5" />
+          <path d="M5 21V7M19 21V7M3 7h18M10 7v3M14 7v3" />
+          <rect x="8.5" y="10" width="7" height="4.5" />
         </>
       )
     case 'placaDeSeta':
-      // A tábua em forma de seta e o prego do poste (a direção vem do giro).
-      return (
-        <>
-          <path d="M3.5 9h11l5 3-5 3h-11z" />
-          <circle cx="8" cy="12" r="1.3" />
-        </>
-      )
+      // A tábua com rabo de andorinha apontando e o poste embaixo (com o círculo no meio ela lia como pilha).
+      return <path d="M4 6h11l4 3.5-4 3.5H4l2-3.5zM9 13v8" />
+
     case 'tapeteLongo':
       // A passadeira em pé: comprida e estreita, um losango por casa e a franja nas pontas.
       return (

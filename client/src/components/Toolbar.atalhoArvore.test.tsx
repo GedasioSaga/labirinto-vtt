@@ -62,14 +62,21 @@ const botao = (nome: string): HTMLButtonElement => {
 const menuDeObjeto = () => document.body.querySelector('[role="group"][aria-label="Opções de Objeto"]:not(.gr-sai)')
 
 describe('MT5: atalho da árvore redonda no menu do Objeto', () => {
-  it('o menu do Objeto mostra o atalho "Árvore redonda" num grupo próprio, depois dos objetos', () => {
+  it('o menu do Objeto mostra o atalho "Árvore redonda" num grupo próprio, no fim da parte "Rua e jardim", com a legenda "carimbo"', () => {
     render('mobilia', vi.fn())
     act(() => botao('Opções de Objeto').click())
     const atalhos = menuDeObjeto()?.querySelector('[role="group"][aria-label="Atalho"]')
     expect(atalhos).not.toBeNull()
+    // Logo depois da grade de "Rua e jardim", fora dela (é ação, não rádio).
+    expect(atalhos?.previousElementSibling?.getAttribute('aria-label')).toBe('Rua e jardim')
     const arvore = atalhos?.querySelector<HTMLButtonElement>('button[aria-label="Árvore redonda"]')
     expect(arvore).not.toBeNull()
-    expect(arvore?.querySelector('svg')).not.toBeNull()
+    expect(arvore?.getAttribute('role')).toBeNull()
+    expect(arvore?.querySelector('.lb-toolvariant-menu__option-legenda')?.textContent).toBe('carimbo')
+    // Na família dos ícones do menu: viewBox 24 e traço 1,6 (a 16 px, o mesmo traço dos vizinhos).
+    const svg = arvore?.querySelector('svg')
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(svg?.getAttribute('stroke-width')).toBe('1.6')
     // Diz o que faz: arma o Carimbo (não é um móvel posto pelo Objeto).
     const descricao = arvore?.getAttribute('aria-describedby')
     expect(descricao !== null && descricao !== undefined && document.getElementById(descricao)?.textContent?.includes('Carimbo')).toBe(true)
@@ -83,6 +90,18 @@ describe('MT5: atalho da árvore redonda no menu do Objeto', () => {
     expect(onSelectTool).toHaveBeenCalledWith('carimbos')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-redonda')
     expect(menuDeObjeto()).toBeNull()
+  })
+
+  it('com a Borracha do Carimbo como última escolha, o atalho volta o modo para carimbo (o clique no mapa põe a árvore, não apaga)', () => {
+    // O modo mora na store e o clique do Carimbo no mapa (PixiCanvas) apaga quando ele é 'borracha'.
+    useMapStore.getState().setCarimboModo('borracha')
+    const onSelectTool = vi.fn()
+    render('mobilia', onSelectTool)
+    act(() => botao('Opções de Objeto').click())
+    act(() => botao('Árvore redonda').click())
+    expect(onSelectTool).toHaveBeenCalledWith('carimbos')
+    expect(useMapStore.getState().carimboEscolhido).toBe('arvore-redonda')
+    expect(useMapStore.getState().carimboModo).toBe('carimbo')
   })
 
   it('o atalho não aparece no menu de outra ferramenta', () => {

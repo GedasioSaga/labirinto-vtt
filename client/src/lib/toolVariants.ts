@@ -495,12 +495,39 @@ export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape
  * com a árvore redonda (`carimbos/embutidos.ts`). `components/ToolVariantMenu.tsx`
  * o mostra logo depois do grupo Objeto.
  */
-export const ATALHO_DA_ARVORE: { readonly label: string; readonly description: string; readonly carimbo: string; readonly ferramenta: DrawingTool } = {
+export const ATALHO_DA_ARVORE: {
+  readonly label: string
+  readonly description: string
+  /** A palavrinha à direita do nome, no menu: diz que o botão abre outra ferramenta (o Carimbo), não põe um móvel. */
+  readonly legenda: string
+  readonly carimbo: string
+  readonly ferramenta: DrawingTool
+} = {
   label: 'Árvore redonda',
   description: 'Arma o Carimbo com a árvore redonda (a árvore é carimbo, não móvel).',
+  legenda: 'carimbo',
   carimbo: 'arvore-redonda',
   ferramenta: 'carimbos',
 }
+
+/**
+ * O menu do Objeto em 3 partes (revisão de design da MT5): com 25 nomes numa
+ * grade só, as mesas acabavam em zigue-zague entre as colunas e a "Placa de
+ * seta" ficava sozinha numa linha. Cada parte é lida em pares (a grade tem 2
+ * colunas): Mesa ao lado da Cadeira, as duas mesas novas juntas, os dois tapetes
+ * juntos. Só a ORDEM DO MENU muda: o eixo continua um só (`mobiliaTipo`) e o
+ * catálogo (`TIPOS_NO_CATALOGO`, o seletor do painel) segue na ordem dele. O
+ * teste prende que todo tipo do catálogo cai em exatamente uma parte; o atalho
+ * da árvore fecha a parte "Rua e jardim".
+ */
+export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = [
+  { titulo: 'Dentro de casa', tipos: ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'armario', 'aparador', 'tapete', 'tapeteLongo'] },
+  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'lapide'] },
+  { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
+]
+
+/** A parte do menu que termina com o atalho da árvore. */
+export const PARTE_COM_O_ATALHO_DA_ARVORE = 'Rua e jardim'
 
 const CLUSTER_SHAPE_GROUP: Record<ToolClusterId, Extract<ToolVariantGroup, { storeKey: 'drawShape' }>> = {
   drawing: DRAWING_SHAPE_GROUP,
