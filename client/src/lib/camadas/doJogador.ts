@@ -39,17 +39,34 @@ function ehRegistro(valor: unknown): valor is Record<string, unknown> {
 }
 
 /**
+ * Teto da lista que o jogador aceita: as 13 padrão e 51 livres. Folga larga
+ * para uma cena de verdade; acima disso é pacote torto ou hostil, e a tela não
+ * monta uma pilha desse tamanho por um campo que só decide ordem e opacidade.
+ */
+export const MAX_CAMADAS_DO_JOGADOR = 64
+
+/**
+ * Teto do id de camada que o jogador aceita: `livre_` e 34 caracteres. O id
+ * que a fatia 7 cria é `livre_` e uma parte aleatória de 10 ou mais; o padrão
+ * de leitura do mapa (`ehCamadaId`) aceita até 64 depois de `livre_`, folga
+ * que a rede não precisa carregar.
+ */
+export const MAX_CARACTERES_DO_ID_DE_CAMADA = 40
+
+/**
  * JOGADOR: leitura tolerante do campo. Ausente, ou torto em qualquer ponto
  * (não lista, item sem id de camada, opacidade que não é número, id
- * repetido): `undefined` = a ordem padrão, tudo a 100%. O corte do que ele
- * não vê é do host; aqui só se decide a ordem e a opacidade.
+ * repetido, mais de `MAX_CAMADAS_DO_JOGADOR` itens, id com mais de
+ * `MAX_CARACTERES_DO_ID_DE_CAMADA` caracteres): `undefined` = a ordem padrão,
+ * tudo a 100%. O corte do que ele não vê é do host; aqui só se decide a ordem
+ * e a opacidade.
  */
 export function lerCamadasDoJogador(valor: unknown): CamadaDoJogador[] | undefined {
-  if (!Array.isArray(valor) || valor.length === 0) return undefined
+  if (!Array.isArray(valor) || valor.length === 0 || valor.length > MAX_CAMADAS_DO_JOGADOR) return undefined
   const vistas = new Set<CamadaId>()
   const lista: CamadaDoJogador[] = []
   for (const item of valor) {
-    if (!ehRegistro(item) || !ehCamadaId(item.id) || vistas.has(item.id)) return undefined
+    if (!ehRegistro(item) || !ehCamadaId(item.id) || item.id.length > MAX_CARACTERES_DO_ID_DE_CAMADA || vistas.has(item.id)) return undefined
     const { alfa } = item
     if (alfa !== undefined && (typeof alfa !== 'number' || !Number.isFinite(alfa))) return undefined
     vistas.add(item.id)

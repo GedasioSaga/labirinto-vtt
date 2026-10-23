@@ -77,7 +77,7 @@ describe('leitura tolerante de camadasDoJogador', () => {
     ['id que não é camada', [{ id: 'salas' }, { id: 'Segredo do Lich' }]],
     ['item que não é objeto', [{ id: 'salas' }, 'chao']],
     ['alfa em texto', [{ id: 'salas', alfa: '0.4' }]],
-    ['alfa infinito', [{ id: 'salas', alfa: null }]],
+    ['alfa nulo (o JSON leva Infinity como null)', [{ id: 'salas', alfa: null }]],
     ['id repetido', [{ id: 'salas' }, { id: 'salas' }]],
   ]
   for (const [nome, valor] of tortos) {

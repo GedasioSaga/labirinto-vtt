@@ -1739,7 +1739,9 @@ function parseFloorMemory(value: unknown): PlayerFloorMemory | null {
   const { rotulo, map, explored, concealed } = value
   if (!isFloorLabel(rotulo) || !isMapShape(map) || !isVision(concealed)) return null
   const decoded = decodeExploration(explored)
-  return decoded === null ? null : { rotulo, map, explored: decoded, concealed }
+  // CAMADAS: o andar vira um `PlayerView` inteiro (`player/main.tsx`), então o
+  // campo passa pela mesma leitura tolerante do snapshot (torto = padrão).
+  return decoded === null ? null : { rotulo, map: comCamadasDoJogadorLidas(map), explored: decoded, concealed }
 }
 
 /**
