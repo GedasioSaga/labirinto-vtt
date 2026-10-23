@@ -138,10 +138,10 @@
 
   <h2>Regras que o diagrama não mostra</h2>
   <ul>
-    <li>Modelo: <code>BibliotecaDeSons { versao: 1, pastas, efeitos }</code>; cada <code>EfeitoDeSom</code> tem nome (até 40), fonte (arquivo <code>midia:&lt;sha256&gt;.&lt;ext&gt;</code> ou vídeo do YouTube de 11 caracteres), volume 0..1, loop, pasta (um nível), favorito, atalho 1 a 9 único e ordem. Até 200 efeitos.</li>
-    <li>Entrada torta do <code>sons.json</code> sai sem derrubar o resto; atalho repetido fica com o primeiro efeito; pasta apagada leva os efeitos para a raiz.</li>
-    <li>Aventura antiga (sem <code>sons.json</code>) abre vazia, sem aviso. Arquivo ilegível vira <code>sons.invalido.json</code> antes de recomeçar; de versão mais nova, nada é regravado.</li>
-    <li>Aventura nova sem pasta: a biblioteca espera na memória e grava quando a primeira gravação da aventura der a pasta. Mapa solto não guarda sons.</li>
+    <li>Modelo: <code>BibliotecaDeSons { versao: 1, pastas, efeitos }</code>; cada <code>EfeitoDeSom</code> tem nome (até 40), fonte (arquivo <code>midia:&lt;sha256&gt;.&lt;ext&gt;</code> ou vídeo do YouTube de 11 caracteres), volume 0..1, loop, pasta (um nível), favorito, atalho 1 a 9 único e ordem. Até 200 efeitos e 50 pastas.</li>
+    <li>Entrada torta do <code>sons.json</code> sai sem derrubar o resto (o início torto do YouTube sai sozinho, o efeito fica); atalho repetido fica com o primeiro efeito; pasta apagada leva os efeitos para a raiz.</li>
+    <li>Aventura antiga (sem <code>sons.json</code>) abre vazia, sem aviso. Arquivo ilegível ganha uma cópia nova, <code>sons.invalido-AAAAMMDD-HHMMSS.json</code> (nunca por cima de outra nem por atalho), antes de recomeçar; de versão mais nova, ou acima de 1 MB, nada é regravado.</li>
+    <li>Aventura nova sem pasta: a biblioteca espera na memória e grava quando a primeira gravação da aventura der a pasta. A mesma aventura em outra pasta (cópia de backup, mesmo id) é troca: lê o <code>sons.json</code> de lá. Mapa solto não guarda sons.</li>
     <li>Na volta, o áudio só entra em <code>&lt;appData&gt;/midia</code> com a assinatura dos bytes do tipo que o nome diz, o hash do nome e até 15 MB (a imagem segue com 2 MB).</li>
   </ul>
 
