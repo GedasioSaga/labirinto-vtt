@@ -110,7 +110,7 @@ import { RoleplayScreen } from './screens/RoleplayScreen'
 import { withViewTransition } from './lib/viewTransition'
 import type { TransicaoEscolhida } from './transicoes/catalogo'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
-import { apagarPinoPeloGesto } from './stores/pinoPeloGesto'
+import { apagarPinoPeloGesto, cravarPinoPeloGesto } from './stores/pinoPeloGesto'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMapFileFirst, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
@@ -2243,12 +2243,11 @@ function App() {
     const id = crypto.randomUUID()
     const store = useMapStore.getState()
     if (comoPino || noMapa.imagem === undefined) {
-      store.addPin(pinoDeItem(id, ponto, noMapa))
-      store.setSelectedPin(id)
-    } else {
-      store.addProp(objetoDeItem(id, ponto, ladoNoChao(map.grid), noMapa))
-      store.setSelection(selectionOfItem({ kind: 'prop', id }))
+      // Anotações travada: o pino não nasce, nada fica selecionado e o soltar não pegou (o aviso diz por quê).
+      return cravarPinoPeloGesto(pinoDeItem(id, ponto, noMapa))
     }
+    store.addProp(objetoDeItem(id, ponto, ladoNoChao(map.grid), noMapa))
+    store.setSelection(selectionOfItem({ kind: 'prop', id }))
     return true
   }
 

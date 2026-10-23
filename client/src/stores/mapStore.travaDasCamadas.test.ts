@@ -3,6 +3,7 @@ import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from './pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
+import { itemDoAcervoNoMapa, pinoDeItem } from '../lib/itemNoMapa'
 import * as mapFactory from '../lib/mapFactory'
 import { carimbo, linha, marcador, peca, pino } from '../lib/__fixtures__/itensDeCamada'
 import type { Carimbo, LayerId, MapData } from '../types/map'
@@ -44,6 +45,18 @@ describe('pino × camada Anotações travada', () => {
     expect(cravarPinoPeloGesto({ ...pino, id: 'p2' })).toBe(false)
     semMudanca(antes)
     expect(useMapStore.getState().selectedPinId).toBeNull()
+    expect(avisos()).toEqual(['A camada Anotações está travada'])
+  })
+
+  it('o item do acervo solto como pino (App, colocarItemNoMapa) recusa: devolve false e não seleciona pino que não existe', () => {
+    const item = itemDoAcervoNoMapa({ nome: 'Chave de ferro' })
+    if (item === null) throw new Error('o item não virou pino')
+    useMapStore.getState().setSelectedPin(pino.id)
+    const antes = useMapStore.getState().map
+    expect(cravarPinoPeloGesto(pinoDeItem('i1', { x: 40, y: 40 }, item))).toBe(false)
+    semMudanca(antes)
+    // A seleção de antes fica: nada aponta para o pino que não nasceu.
+    expect(useMapStore.getState().selectedPinId).toBe(pino.id)
     expect(avisos()).toEqual(['A camada Anotações está travada'])
   })
 
