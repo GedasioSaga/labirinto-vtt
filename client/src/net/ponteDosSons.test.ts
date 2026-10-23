@@ -149,3 +149,63 @@ describe('criarPonteDosSons', () => {
     expect(fonteDeSomNaRede({ tipo: 'arquivo', ref: 'C:/aventura/grito.mp3', bytes: 1 })).toBeNull()
   })
 })
+
+// ─── Revisão da F4 (23/10) ───
+
+describe('criarPonteDosSons: apelidos moram junto da rede', () => {
+  it('remontar a ponte com o loop tocando: a ponte nova muda o volume e para o loop pelo MESMO apelido', () => {
+    const rede = redeFalsa()
+    const primeira = criarPonteDosSons({ motor: motorFalso(), rede: () => rede, novaInstancia: apelidos() })
+    primeira.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    const segunda = criarPonteDosSons({ motor: motorFalso(), rede: () => rede, novaInstancia: () => 'apelido-novo' })
+    segunda.mudarVolume('som_1', 0.4)
+    segunda.parar('som_1')
+    expect(rede.volumeDoSom).toHaveBeenCalledWith('apelido-1', 0.4)
+    expect(rede.pararSomAoVivo.mock.calls).toEqual([['apelido-1']])
+  })
+
+  it('o mapa encolhe: parar tira o apelido do efeito (o próximo toque ganha outro); Parar tudo tira todos', () => {
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor: motorFalso(), rede: () => rede, novaInstancia: apelidos() })
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    ponte.parar('som_1')
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    ponte.tocar(efeito('som_2'), { tipo: 'todos' }, { local: true })
+    ponte.pararTudo()
+    ponte.parar('som_2')
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    expect(rede.tocarSomAoVivo.mock.calls.map(([pedido]) => pedido.instancia)).toEqual(['apelido-1', 'apelido-2', 'apelido-3', 'apelido-4'])
+    expect(rede.pararSomAoVivo.mock.calls).toEqual([['apelido-1']])
+  })
+
+  it('outra rede (outra sala), outros apelidos: nada vaza entre elas', () => {
+    const redeA = redeFalsa()
+    const redeB = redeFalsa()
+    let rede = redeA
+    const ponte = criarPonteDosSons({ motor: motorFalso(), rede: () => rede, novaInstancia: apelidos() })
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    rede = redeB
+    ponte.parar('som_1')
+    expect(redeB.pararSomAoVivo).not.toHaveBeenCalled()
+  })
+})
+
+describe('criarPonteDosSons: o mestre ouve o que a mesa ouve', () => {
+  it('o motor local aceitou e a rede recusou (4º loop na mesa): o local para, e a recusa volta para a tela avisar', () => {
+    const motor = motorFalso()
+    const rede = redeFalsa()
+    rede.tocarSomAoVivo.mockReturnValue({ ok: false, motivo: 'limite-de-loops' })
+    const ponte = criarPonteDosSons({ motor, rede: () => rede })
+    expect(ponte.tocar(efeito('som_4', true), { tipo: 'todos' }, { local: true })).toEqual({ local: { aceito: true }, rede: { ok: false, motivo: 'limite-de-loops' } })
+    expect(motor.parar).toHaveBeenCalledWith('som_4')
+  })
+
+  it('sem sala na hora (sem-sala) o mestre segue ouvindo sozinho', () => {
+    const motor = motorFalso()
+    const rede = redeFalsa()
+    rede.tocarSomAoVivo.mockReturnValue({ ok: false, motivo: 'sem-sala' })
+    const ponte = criarPonteDosSons({ motor, rede: () => rede })
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    expect(motor.parar).not.toHaveBeenCalled()
+  })
+})

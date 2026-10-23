@@ -112,11 +112,28 @@ export interface DependenciasDaPonte {
   novaInstancia?: () => string
 }
 
+/**
+ * Os apelidos de rede de cada efeito, POR REDE (a ponte da sala), e não por
+ * ponte: a aba Sons que remonta com um loop tocando cria outra ponte, e o
+ * Parar dela precisa alcançar o loop pelo mesmo apelido. Vivem enquanto o
+ * toque pode existir: parar tira o do efeito, Parar tudo tira todos; a sala
+ * que fecha leva a rede (e o mapa) junto.
+ */
+const apelidosPorRede = new WeakMap<RedeDosSons, Map<string, string>>()
+
+function apelidosDa(rede: RedeDosSons): Map<string, string> {
+  const conhecidos = apelidosPorRede.get(rede)
+  if (conhecidos !== undefined) return conhecidos
+  const novos = new Map<string, string>()
+  apelidosPorRede.set(rede, novos)
+  return novos
+}
+
 export function criarPonteDosSons(deps: DependenciasDaPonte): PonteDosSons {
   const novaInstancia = deps.novaInstancia ?? (() => `som-${crypto.randomUUID()}`)
-  // Um apelido por efeito na vida da ponte: tocar de novo o mesmo efeito troca o toque nos dois lados, como no motor.
-  const apelidos = new Map<string, string>()
-  const apelidoDe = (efeitoId: string): string => {
+  // Um apelido por efeito enquanto o toque vive: tocar de novo o mesmo efeito troca o toque nos dois lados, como no motor.
+  const apelidoDe = (rede: RedeDosSons, efeitoId: string): string => {
+    const apelidos = apelidosDa(rede)
     const conhecido = apelidos.get(efeitoId)
     if (conhecido !== undefined) return conhecido
     const novo = novaInstancia()
@@ -132,22 +149,35 @@ export function criarPonteDosSons(deps: DependenciasDaPonte): PonteDosSons {
       const rede = deps.rede()
       const fonte = fonteDeSomNaRede(efeito.fonte)
       if (rede === null || fonte === null) return { local: resultadoLocal, rede: null }
-      const pedido: PedidoDeSomAoVivo = { instancia: apelidoDe(efeito.id), fonte, volume: efeito.volume, loop: efeito.loop }
-      return { local: resultadoLocal, rede: rede.tocarSomAoVivo(pedido, alvo) }
+      const pedido: PedidoDeSomAoVivo = { instancia: apelidoDe(rede, efeito.id), fonte, volume: efeito.volume, loop: efeito.loop }
+      const resultadoDaRede = rede.tocarSomAoVivo(pedido, alvo)
+      // O mestre ouve o que a mesa ouve: a mesa recusou (ex.: 4º loop lá, com loops tocados só na rede) e o local tinha
+      // aceitado, o local para; a recusa volta para a tela avisar. Sem sala na hora (`sem-sala`), o mestre segue sozinho.
+      if (resultadoLocal !== null && !resultadoDaRede.ok && resultadoDaRede.motivo !== 'sem-sala') deps.motor.parar(efeito.id)
+      return { local: resultadoLocal, rede: resultadoDaRede }
     },
     parar(efeitoId) {
       deps.motor.parar(efeitoId)
+      const rede = deps.rede()
+      if (rede === null) return
+      const apelidos = apelidosDa(rede)
       const apelido = apelidos.get(efeitoId)
-      if (apelido !== undefined) deps.rede()?.pararSomAoVivo(apelido)
+      if (apelido === undefined) return
+      apelidos.delete(efeitoId)
+      rede.pararSomAoVivo(apelido)
     },
     pararTudo() {
       deps.motor.pararTudo()
-      deps.rede()?.pararTodosOsSons()
+      const rede = deps.rede()
+      if (rede === null) return
+      apelidosDa(rede).clear()
+      rede.pararTodosOsSons()
     },
     mudarVolume(efeitoId, volume) {
       deps.motor.mudarVolume(efeitoId, volume)
-      const apelido = apelidos.get(efeitoId)
-      if (apelido !== undefined) deps.rede()?.volumeDoSom(apelido, volume)
+      const rede = deps.rede()
+      const apelido = rede === null ? undefined : apelidosDa(rede).get(efeitoId)
+      if (rede !== null && apelido !== undefined) rede.volumeDoSom(apelido, volume)
     },
   }
 }
