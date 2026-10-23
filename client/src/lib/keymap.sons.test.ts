@@ -67,6 +67,14 @@ describe('teclado AZERTY (a fileira de números sem Shift dá & é " \' ( - è _
   })
 })
 
+describe('a tela de atalhos (?) mostra as teclas dos sons', () => {
+  it('há uma linha "1 a 9" que diz o que as teclas fazem', async () => {
+    const { shortcutColumns } = await import('../components/shortcutSheet')
+    const linhas = shortcutColumns().flat().flatMap((grupo) => grupo.rows)
+    expect(linhas.find((linha) => linha.combo.keys.join(' ') === '1 a 9')?.what).toBe('Tocar o som da tecla (aba Sons)')
+  })
+})
+
 describe('resolveShortcut não muda com os atalhos dos sons', () => {
   it('os dígitos 1 a 9 seguem sem ação nenhuma, com e sem Shift', () => {
     for (const tecla of SOUND_SLOT_KEYS) {

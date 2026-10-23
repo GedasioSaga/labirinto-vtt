@@ -178,6 +178,8 @@ const VIEW_GROUP: ShortcutGroup = {
     { what: 'Pausar ou retomar os NPCs andando', combo: { keys: ['Shift', 'P'] }, action: { kind: 'pauseNpcs' } },
     // LIVRO DA MESA: fora do mapa de teclas, quem ouve é o livro (`RIGHT_COLUMN_SHORTCUT`, livro/LivroDaMesa.tsx).
     { what: 'Recolher ou abrir a página do livro da mesa', combo: { keys: ['Shift', 'J'] } },
+    // SONS: fora do mapa de teclas, quem ouve é a folha Sons, sempre montada (`resolverAtalhoDeSom`, livro/PaginaSons.tsx).
+    { what: 'Tocar o som da tecla (aba Sons)', combo: { keys: ['1 a 9'] } },
     // Os três abaixo são gestos do canvas, fora do mapa de teclas:
     // `resolveMapWheel` (roda = zoom), Espaço armando o pan e o L do laser.
     { what: 'Aproximar e afastar', combo: { keys: [], mouse: 'roda do mouse' } },
