@@ -479,14 +479,19 @@ describe('peças novas da MT4: o que cada peça é', () => {
       expect(im.px[halo + 3], `${metal}: halo`).toBeGreaterThan(3)
       expect(im.px[halo + 3]).toBeLessThanOrEqual(0.12 * 255)
       expect(im.px[halo], `${metal}: halo quente`).toBeGreaterThan(im.px[halo + 2])
+      // Um expect só, com o pior pixel: com o halo a imagem tem ~115 mil pixels, e um expect por
+      // pixel passava dos 5 s do teste com a máquina carregada (suíte inteira).
+      let pior = { alfa: 0, x: 0, y: 0 }
       for (let j = 0; j < im.H; j += 1) {
         for (let i = 0; i < im.W; i += 1) {
           const x = im.x0 + (i + 0.5) / im.S
           const y = im.y0 + (j + 0.5) / im.S
           if (Math.abs(x) <= meia + 1 && Math.abs(y) <= meia + 1) continue
-          expect(im.px[(j * im.W + i) * 4 + 3], `${metal}: fora do corpo em (${x.toFixed(1)}, ${y.toFixed(1)})`).toBeLessThan(ALFA_DE_PECA)
+          const alfa = im.px[(j * im.W + i) * 4 + 3]
+          if (alfa > pior.alfa) pior = { alfa, x, y }
         }
       }
+      expect(pior.alfa, `${metal}: fora do corpo em (${pior.x.toFixed(1)}, ${pior.y.toFixed(1)})`).toBeLessThan(ALFA_DE_PECA)
     }
     // A sombra do poste diz "poste": a 1x, além da pegada, forte (alfa >= 0,28) e com 2 px ou mais de largura.
     const im1 = imagem({ tipo: 'lampiao', lado: 'frente', materiais: ['ferro'], casasW: 0.5, casasH: 0.5, semente: 7 }, 1)
