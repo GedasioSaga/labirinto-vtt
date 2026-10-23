@@ -7,13 +7,15 @@
  * b934f2a1, menos o chão, a linha e o marcador da camada escondida.
  */
 import { describe, expect, it } from 'vitest'
-import type { CamadaId, CamadaPadraoId, MapData, ModeloDeCamadas, PinceladaDeTextura, Region, TracoDePenhasco } from '../types/map'
+import type { CamadaId, CamadaPadraoId, LayerId, MapData, ModeloDeCamadas, PinceladaDeTextura, Region, TracoDePenhasco } from '../types/map'
 import { CAMADAS_PADRAO, MODELO_PADRAO } from './camadas/padrao'
 import { filterMapForGroup, filterMapForPlayer, planOfWholeMap, type PlayerMapView } from './fogFilter'
 import { nuvensLigadas } from './nuvens'
 import { relevoLigado } from './relevo'
-import { MAPAS_CONGELADOS, OCULTAS_CONGELADAS, mapaDeItens, recorteEmJson } from './__fixtures__/recorteDeCamadas'
+import { CAMADA_NO_COMPLETO, MAPAS_COMPLETOS, MAPAS_CONGELADOS, OCULTAS_CONGELADAS, OCULTAS_DO_COMPLETO, mapaCompleto, mapaDeItens, recorteEmJson } from './__fixtures__/recorteDeCamadas'
 import congeladoAndar6 from './__fixtures__/recorte-b934f2a1/andar6.json'
+import congeladoCompleto from './__fixtures__/recorte-b934f2a1/completo.json'
+import congeladoCompletoMemoria from './__fixtures__/recorte-b934f2a1/completo-memoria.json'
 import congeladoItens from './__fixtures__/recorte-b934f2a1/itens.json'
 import congeladoItensMemoria from './__fixtures__/recorte-b934f2a1/itens-memoria.json'
 import congeladoL1 from './__fixtures__/recorte-b934f2a1/L1.json'
@@ -309,6 +311,52 @@ describe('nuvens: o céu sai da caixa do chão que o jogador conhece', () => {
   })
 })
 
+const IDS_DO_COMPLETO = Object.keys(CAMADA_NO_COMPLETO).sort()
+
+/** Os ids de `mapaCompleto` que o recorte entrega, em toda lista que a camada corta. */
+function idsDoCompleto(view: PlayerMapView): string[] {
+  const m = view.map
+  const listas: readonly (readonly { id: string }[])[] = [m.walls, m.regions, m.floor, m.lines, m.markers, m.lights, m.stairs, m.props, m.tokens, m.pins ?? [], m.drawings, m.carimbos ?? []]
+  return listas
+    .flatMap((lista) => lista.map((item) => item.id))
+    .filter((id) => id !== 'olho')
+    .sort()
+}
+
+const SOZINHAS: readonly CamadaPadraoId[] = ['chao', 'salas', 'desenhos', 'terreno', 'paredes', 'portas', 'escadas', 'objetos', 'decoracao', 'iluminacao', 'tokens', 'anotacoes']
+const OCULTAS_V2_DO_COMPLETO: readonly (readonly CamadaPadraoId[])[] = [
+  [],
+  ...SOZINHAS.map((camada) => [camada]),
+  ['tokens', 'iluminacao'],
+  ['objetos', 'decoracao'],
+  ['chao', 'escadas'],
+  ['paredes', 'portas'],
+  ['desenhos', 'anotacoes'],
+  ['salas', 'terreno'],
+]
+
+describe('mapa completo v2 (chão, linha, marcador, luz, nuvens, escada, objeto, decoração): o corte de cada camada', () => {
+  for (const ocultas of OCULTAS_V2_DO_COMPLETO) {
+    it(`escondidas dos jogadores: ${ocultas.length === 0 ? 'nenhuma (controle: tudo sai)' : ocultas.join(' + ')}`, () => {
+      const base = mapaCompleto()
+      // O olho mora em Telhados, que nenhum caso esconde: ele enxerga em todo caso, inclusive com Tokens escondida.
+      const tokens = base.tokens.map((t) => (t.id === 'olho' ? { ...t, camada: 'telhados' as const } : t))
+      const map: MapData = { ...base, tokens, versaoDasCamadas: 2, hiddenLayers: [], ocultasDoJogador: [...ocultas] }
+      const esperados = IDS_DO_COMPLETO.filter((id) => !ocultas.includes(CAMADA_NO_COMPLETO[id]))
+      const terrenoOculto = ocultas.includes('terreno')
+      const ceu = !terrenoOculto && !ocultas.includes('chao')
+      const semMemoria = filterMapForPlayer(map, JOGADOR, { [JOGADOR]: ['olho'] }, RAIO)
+      for (const [quem, view] of [...recortes(map), ['jogador sem memória', semMemoria] as const]) {
+        expect(idsDoCompleto(view), quem).toEqual(esperados)
+        expect(view.map.hiddenLayers, quem).toEqual([])
+        expect(relevoLigado(view.map), quem).toBe(!terrenoOculto)
+        expect(nuvensLigadas(view.map), quem).toBe(ceu)
+        expect(view.map.ceuDasNuvens !== undefined, quem).toBe(ceu)
+      }
+    })
+  }
+})
+
 const CONGELADOS: Record<string, Record<string, unknown>> = {
   L1: congeladoL1,
   andar6: congeladoAndar6,
@@ -371,5 +419,56 @@ describe('mapa antigo: o recorte é o de b934f2a1', () => {
     expect(mapaDoRecorte(CONGELADOS.itens.salas).floor).toHaveLength(1)
     expect(mapaDoRecorte(CONGELADOS.itens.paredes).lines).toHaveLength(1)
     expect(mapaDoRecorte(CONGELADOS['itens-memoria'].portas).markers).toHaveLength(1)
+  })
+})
+
+const CONGELADOS_COMPLETOS: Record<string, Record<string, unknown>> = {
+  completo: congeladoCompleto,
+  'completo-memoria': congeladoCompletoMemoria,
+}
+
+/** Chão, linha e marcador: a lista que o host passou a cortar com a camada escondida (o resto é o de antes). */
+const CORTE_NOVO_NO_ANTIGO: Partial<Record<LayerId, string>> = { salas: 'floor', paredes: 'lines', portas: 'markers' }
+
+/** O recorte sem as listas `chaves` no mapa e na memória da planta. */
+function semCampos(view: unknown, chaves: readonly string[]): unknown {
+  if (!ehRegistro(view) || !ehRegistro(view.plan)) throw new Error('recorte sem plano')
+  const mapa: Record<string, unknown> = { ...mapaDoRecorte(view) }
+  const plano: Record<string, unknown> = { ...view.plan }
+  for (const chave of chaves) {
+    delete mapa[chave]
+    delete plano[chave]
+  }
+  return { ...view, map: mapa, plan: plano }
+}
+
+describe('mapa completo antigo: o recorte é o de b934f2a1, menos chão, linha e marcador da camada escondida', () => {
+  for (const caso of MAPAS_COMPLETOS) {
+    for (const [nome, ocultas] of Object.entries(OCULTAS_DO_COMPLETO)) {
+      it(`${caso.nome}, oculta: ${nome}`, () => {
+        const congelado = CONGELADOS_COMPLETOS[caso.nome][nome]
+        const agora = recorteEmJson(caso, ocultas)
+        const chaves = ocultas.flatMap((camada) => CORTE_NOVO_NO_ANTIGO[camada] ?? [])
+        for (const chave of chaves) expect(mapaDoRecorte(agora)[chave], chave).toEqual([])
+        expect(semCampos(agora, chaves)).toStrictEqual(semCampos(congelado, chaves))
+        for (const chave of chaves) {
+          const antes = idsNoPlano(congelado, chave)
+          for (const id of idsNoPlano(agora, chave)) expect(antes, chave).toContain(id)
+          if (caso.memoria) expect(idsNoPlano(agora, chave), chave).toEqual(antes)
+        }
+      })
+    }
+  }
+
+  it('o congelado morde: sem nada escondido, chão, linha, marcador, luz, escada, objetos, fichas e céu saíam', () => {
+    for (const nome of ['completo', 'completo-memoria']) {
+      const mapa = mapaDoRecorte(CONGELADOS_COMPLETOS[nome].nenhuma)
+      for (const lista of ['floor', 'lines', 'markers', 'lights', 'stairs', 'props', 'tokens', 'drawings']) {
+        const itens = mapa[lista]
+        expect(Array.isArray(itens) && itens.length > 0, `${nome}: ${lista}`).toBe(true)
+      }
+      expect(mapa.ceuDasNuvens, nome).toBeDefined()
+      expect(mapa.ceuDasNuvens, nome).not.toEqual({ x: 0, y: 0, largura: 1280, altura: 1280 })
+    }
   })
 })
