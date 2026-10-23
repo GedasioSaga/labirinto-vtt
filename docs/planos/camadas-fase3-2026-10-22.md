@@ -115,6 +115,12 @@ A revisão da fatia 2 (auditor de segurança, revisor e verificador) foi corrigi
 - **Camada movida:** a camada fica ENTRE as duas vizinhas onde foi solta. Dois casos mostrados e aceitos: Chão logo acima de Salas (o chão pinta por cima da cor de fundo das salas; paredes, móveis e luzes continuam por cima; os nomes das salas ficam no alto porque fazem parte de Salas) e Escadas logo acima de Salas (as escadas ficam abaixo de paredes, portas e móveis). Sem mexer na ordem o mapa é idêntico ao de hoje.
 - **Telhados escondidos dos jogadores:** o jogador não vê o teto e vê o interior da casa (respeitando névoa e visão). É o que a fatia 2 já faz; nada a mudar.
 
+## Fatia 3: o que foi feito e o que ficou (23/10/2026)
+
+- `pixi/pilhaDeCamadas.ts`: o `addChild` do editor sai de `FAIXAS_EDITOR` (a mesma lista do `ordem.test.ts`); o container de hoje serve a primeira entrada nativa da faixa; par que não é o de hoje ganha nó só com itens; os nós entram direto no `world` (sem container de bloco). Opacidade = `alpha` do nó vezes a da faixa (secreto 0,4; Telhados x Transparente).
+- **Decisão da lacuna da fatia 1:** camada (padrão, ou livre com itens) ENTRE Paredes e Portas ou entre Objetos e Decoração separa a faixa dividida (a de cima vira bloco). Faixa dividida com opacidades diferentes também se separa (um nó por camada, na ordem da lista), em vez de alpha por sprite.
+- Itens divididos por nó: paredes, portas, escadas, linhas e marcadores, desenhos, móveis e luzes. **Ficou para depois** (o item com `camada` escolhida continua no container de hoje; ordem e opacidade da camada funcionam): fichas, pinos, salas (fundo, borda, nome), texto, chão e raster (a segunda instância de `floorRenderer`), carimbos e telhados. Nó criado não se esconde na troca de cena em fatias (`objetosDaCamada`).
+
 ## Requisitos herdados da revisão da fatia 5 (23/10/2026)
 
 As correções da revisão moveram o cadeado do pino das ações da store para o gesto (ferramenta Pino, arrasto, Delete e "Excluir" do painel; escada, viagem e "Passar para pede" não passam por cadeado), fizeram a barreira da borracha tirar antes os itens travados ou ocultos um a um, e trocaram `interagiveis`, `hitTestMap`, `pinAt` e `clickSelectDoPiso` do `PixiCanvas` por `contextoDeCamadas`. Ficaram para a **fatia 8 (mover item)**, como requisito, os usos que ainda derivam a camada pelo tipo (`wallLayer`, `regionLayer`, `propLayer`, `canInteractInLayer`, `isLayerLocked` e cia., que ignoram `item.camada` e o mapa v2):
