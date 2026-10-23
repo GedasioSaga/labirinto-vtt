@@ -1,7 +1,8 @@
 import { exists, mkdir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import type { MapData } from '../types/map'
-import { deserializeMap } from './mapFile'
+import type { MapData, ModeloDeCamadas } from '../types/map'
+import { lerModeloDeCamadas } from './camadas/arquivo'
+import { deserializeMap, serializeMap } from './mapFile'
 
 /**
  * CÓPIA DE RECUPERAÇÃO — o trabalho não salvo que o salvamento automático
@@ -37,15 +38,28 @@ const RECOVERY_FORMAT_VERSION = 1
 const RECOVERY_DIR_NAME = 'recuperacao'
 const RECOVERY_FILE_NAME = 'copia-de-recuperacao.json'
 
+/**
+ * O mapa e as cenas vão pelo mesmo `serializeMap` do `map.json` (o que não vai
+ * ao arquivo do mapa também não vai à cópia — `modeloCamadas`, com os nomes das
+ * camadas livres, inclusive). O MODELO de camadas da aventura vai à parte, em
+ * `camadas`: camada livre criada e ainda não salva não se perde na recuperação.
+ * O texto é montado em pedaços para cada mapa ser serializado uma vez só.
+ */
 export function serializeRecoveryCopy(copy: RecoveryCopy): string {
-  return JSON.stringify({ versao: RECOVERY_FORMAT_VERSION, savedAtMs: copy.savedAtMs, mapPath: copy.mapPath, map: copy.map, scenes: copy.scenes })
+  const camadas = copy.map.modeloCamadas ?? Object.values(copy.scenes).find((scene) => scene.modeloCamadas !== undefined)?.modeloCamadas
+  const cabecalho = JSON.stringify({ versao: RECOVERY_FORMAT_VERSION, savedAtMs: copy.savedAtMs, mapPath: copy.mapPath, ...(camadas === undefined ? {} : { camadas }) })
+  const cenas = Object.entries(copy.scenes).map(([sceneId, scene]) => `${JSON.stringify(sceneId)}:${serializeMap(scene)}`)
+  // `cabecalho` é um objeto JSON não vazio: tira o `}` do fim e emenda mapa e cenas.
+  return `${cabecalho.slice(0, -1)},"map":${serializeMap(copy.map)},"scenes":{${cenas.join(',')}}}`
 }
 
 /** Mesma normalização de um map.json aberto do disco (campos novos com valor padrão, `id` obrigatório). */
-function parseMap(raw: unknown): MapData | null {
+function parseMap(raw: unknown, camadas: ModeloDeCamadas | undefined): MapData | null {
   if (!isRecord(raw)) return null
   try {
-    return deserializeMap(JSON.stringify(raw))
+    const map = deserializeMap(JSON.stringify(raw))
+    // O modelo volta para o mapa em memória (é dele que o Ctrl+Z e as camadas leem).
+    return camadas === undefined ? map : { ...map, modeloCamadas: camadas }
   } catch {
     return null
   }
@@ -72,13 +86,15 @@ export function parseRecoveryCopy(text: string): RecoveryCopy | null {
   const { savedAtMs, mapPath } = parsed
   if (typeof savedAtMs !== 'number' || !Number.isFinite(savedAtMs)) return null
   if (mapPath !== null && typeof mapPath !== 'string') return null
-  const map = parseMap(parsed.map)
+  // Modelo torto vira ausente (`lerModeloDeCamadas`): a cópia volta com as 13 padrão.
+  const camadas = lerModeloDeCamadas(parsed.camadas)
+  const map = parseMap(parsed.map, camadas)
   if (map === null) return null
   // Cena de fundo ilegível fica de fora; o mapa aberto, que é o principal, volta.
   const scenes: Record<string, MapData> = {}
   if (isRecord(parsed.scenes)) {
     for (const [sceneId, raw] of Object.entries(parsed.scenes)) {
-      const scene = parseMap(raw)
+      const scene = parseMap(raw, camadas)
       if (scene !== null) scenes[sceneId] = scene
     }
   }

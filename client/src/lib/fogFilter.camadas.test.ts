@@ -165,7 +165,10 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
 
   for (const camada of [...CAMADAS_PADRAO, LIVRE]) {
     it(`todo item na camada "${camada}" escondida dos jogadores fica no host`, () => {
-      for (const [quem, view] of recortes(mapaV2([camada], camada))) {
+      const map = mapaV2([camada], camada)
+      // Sem memória a lista do mapa vai inteira ao corte final (`recalledList`): o corte por camada tem de estar lá também.
+      const semMemoria = filterMapForPlayer(map, JOGADOR, { [JOGADOR]: ['olho'] }, RAIO)
+      for (const [quem, view] of [...recortes(map), ['jogador sem memória', semMemoria] as const]) {
         const texto = textoDoRecorte(view)
         for (const id of TODOS_OS_IDS) expect(texto, `${quem}: ${id}`).not.toContain(`"${id}"`)
         expect(idsEntregues(view), quem).toEqual([])
