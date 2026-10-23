@@ -5,7 +5,7 @@ import type { CartaoDaFicha, Personagem } from './personagem'
 import { useToastStore } from '../stores/toastStore'
 import { baseName } from './adventure'
 import { carriedItemsOf } from './items'
-import { ehIdDeMidia, idDaRef, idDosBytes, MIDIA_MAX_BYTES } from './midia'
+import { ehIdDeAudio, ehIdDeMidia, idDaRef, idDoAudio, idDosBytes, MIDIA_AUDIO_MAX_BYTES, MIDIA_MAX_BYTES } from './midia'
 import { pastaDaMidia } from './midiaNoDisco'
 
 /**
@@ -32,6 +32,11 @@ import { pastaDaMidia } from './midiaNoDisco'
  *    quem leva `masmorra.json` para outro computador vê pelo nome que
  *    `masmorra.midia` vai junto. O ponto no nome também nunca colide com a
  *    `midia` da aventura que esse mapa venha a virar.
+ *
+ * O ÁUDIO da biblioteca de sons (`lib/sons/bibliotecaNoDisco.ts`) viaja pelo
+ * mesmo caminho, com o contrato de áudio de `lib/midia.ts`: o tipo vem da
+ * assinatura dos bytes e o teto é de 15 MB (o da imagem continua 2 MB). Quem
+ * diz QUAIS áudios ir é a biblioteca, ao gravar o `sons.json`.
  *
  * Nada aqui apaga arquivo: a imagem que deixou de ser usada fica na pasta.
  * Nada aqui lança: a imagem que não foi (ou não voltou) vira aviso, e a
@@ -121,6 +126,21 @@ export function idsDaMidiaUsada(uso: UsoDaMidia): string[] {
 // Disco
 // ───────────────────────────────────────────────────────────────────────────
 
+/** Nome de arquivo que a pasta leva e traz: imagem ou áudio, na forma exata do id. */
+function ehIdQueViaja(value: unknown): value is string {
+  return ehIdDeMidia(value) || ehIdDeAudio(value)
+}
+
+/** O teto do tipo que o nome diz: 15 MB para áudio, 2 MB para imagem. */
+function tetoDoId(id: string): number {
+  return ehIdDeAudio(id) ? MIDIA_AUDIO_MAX_BYTES : MIDIA_MAX_BYTES
+}
+
+/** O id que os bytes TÊM, conferido pela assinatura do tipo que o nome diz; `null` = não é desse tipo. */
+function idDoConteudo(id: string, bytes: Uint8Array): Promise<string | null> {
+  return ehIdDeAudio(id) ? idDoAudio(bytes) : idDosBytes(bytes)
+}
+
 /** Os nomes dos arquivos comuns da pasta; pasta que não existe é vazia. Atalho (symlink) fica fora: poderia apontar para fora da pasta. */
 async function arquivosDaPasta(pasta: string): Promise<Set<string>> {
   try {
@@ -155,7 +175,7 @@ export interface MidiaLevada {
  */
 export async function copiarMidiaParaAPasta(pasta: string, ids: readonly string[]): Promise<MidiaLevada> {
   const levada: MidiaLevada = { copiados: [], faltaram: [] }
-  const pedidos = ids.filter(ehIdDeMidia)
+  const pedidos = ids.filter(ehIdQueViaja)
   if (pedidos.length === 0) return levada
   let origem: string
   try {
@@ -198,15 +218,17 @@ export interface MidiaTrazida {
 /**
  * Um arquivo da pasta para `<appData>/midia`, conferido. A pasta veio de outro
  * computador (ou de qualquer um): o que entra aqui a sala serve aos jogadores,
- * então o conteúdo tem de ser imagem aceita, caber no teto e ter o hash do nome.
+ * então o conteúdo tem de ser do tipo que o nome diz (imagem ou áudio, pela
+ * assinatura dos bytes), caber no teto desse tipo e ter o hash do nome.
  */
 async function importarUm(fonte: string, alvo: string, id: string, jaEsta: boolean): Promise<'importado' | 'ja-estava' | 'recusado'> {
+  const teto = tetoDoId(id)
   const tamanho = (await stat(fonte)).size
   // O tamanho antes dos bytes: arquivo enorme com nome de mídia não entra na memória.
-  if (tamanho > MIDIA_MAX_BYTES) return 'recusado'
+  if (tamanho > teto) return 'recusado'
   if (jaEsta && (await copiaInteira(alvo, tamanho))) return 'ja-estava'
   const bytes = await readFile(fonte)
-  if (bytes.length > MIDIA_MAX_BYTES || (await idDosBytes(bytes)) !== id) return 'recusado'
+  if (bytes.length > teto || (await idDoConteudo(id, bytes)) !== id) return 'recusado'
   await writeFile(alvo, bytes)
   return 'importado'
 }
@@ -221,7 +243,7 @@ export async function importarMidiaDaPasta(pasta: string): Promise<MidiaTrazida>
   let nomes: string[]
   try {
     const entradas = await readDir(pasta)
-    nomes = entradas.filter((entrada) => entrada.isFile && !entrada.isSymlink && ehIdDeMidia(entrada.name)).map((entrada) => entrada.name)
+    nomes = entradas.filter((entrada) => entrada.isFile && !entrada.isSymlink && ehIdQueViaja(entrada.name)).map((entrada) => entrada.name)
   } catch {
     // Sem pasta de mídia é o comum (mapa sem imagem, aventura de antes): só a que existe e não abre é problema.
     trazida.pastaIlegivel = await existeComoPasta(pasta)
@@ -273,10 +295,14 @@ function avisarMidiaQueFaltou(levada: MidiaLevada): void {
 
 function avisarMidiaRecusada(trazida: MidiaTrazida): void {
   const n = trazida.recusados.length
+  // Imagem e som dizem o próprio nome; a mistura vira "arquivos de mídia".
+  const sons = trazida.recusados.filter(ehIdDeAudio).length
   let texto: string | null = null
   if (trazida.pastaIlegivel) texto = 'Não deu para ler a pasta de imagens do mapa: retratos e imagens de item podem não aparecer.'
+  else if (n === 1 && sons === 1) texto = '1 som da pasta do mapa foi ignorado: o conteúdo não confere com o nome (arquivo corrompido ou trocado).'
   else if (n === 1) texto = '1 imagem da pasta do mapa foi ignorada: o conteúdo não confere com o nome (arquivo corrompido ou trocado).'
-  else if (n > 1) texto = `${n} imagens da pasta do mapa foram ignoradas: o conteúdo não confere com o nome (arquivos corrompidos ou trocados).`
+  else if (n > 1 && sons === 0) texto = `${n} imagens da pasta do mapa foram ignoradas: o conteúdo não confere com o nome (arquivos corrompidos ou trocados).`
+  else if (n > 1) texto = `${n} arquivos de mídia da pasta do mapa foram ignorados: o conteúdo não confere com o nome (arquivos corrompidos ou trocados).`
   if (texto !== null) useToastStore.getState().push('info', texto, AVISO_DE_MIDIA_MS, { chave: 'midia-recusada' })
 }
 
