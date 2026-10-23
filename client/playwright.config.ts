@@ -78,7 +78,22 @@ export default defineConfig({
       ? { launchOptions: EXECUTAVEL }
       : {
           ...(CANAL === undefined ? {} : { channel: CANAL }),
-          launchOptions: { ...EXECUTAVEL, args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] },
+          launchOptions: {
+            ...EXECUTAVEL,
+            args: [
+              '--use-angle=d3d11',
+              '--ignore-gpu-blocklist',
+              '--enable-gpu-rasterization',
+              // 23/10/2026: o golden de pixels foi gravado na RTX. Sem escolha,
+              // o Windows entrega a Intel UHD depois de o notebook dormir ou
+              // trocar de fonte, e as duas placas pontilham diferente (1 em 255
+              // em milhares de pixels): 17 de 19 fotos vermelhas na main sem
+              // mudança de código. Fixar a placa de alto desempenho (cai na
+              // única placa em máquina sem a segunda). `LAB_GPU=baixa` pede a
+              // integrada.
+              ...(process.env.LAB_GPU === 'baixa' ? ['--force-low-power-gpu'] : ['--force-high-performance-gpu']),
+            ],
+          },
         }),
   },
   webServer: {
