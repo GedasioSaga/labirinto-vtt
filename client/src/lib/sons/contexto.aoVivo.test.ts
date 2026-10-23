@@ -56,6 +56,16 @@ describe('saída dos sons ao vivo', () => {
     if (volumeDoToque === undefined) throw new Error('o toque de clima não ligou no mestre')
     expect(nosAteASaida(volumeDoToque)).toEqual([volumeDoToque, saida.mestre, abafador, audio.destination])
   })
+
+  it('a entrada ao vivo só nasce quando o motor ao vivo a pede: depois do gesto, nenhum ganho extra ligado ao destination', () => {
+    const { audio, motor, gesto } = montar('running')
+    gesto()
+    const ligadosNaSaida = () => audio.ganhos.filter((ganho) => ganho.destino === audio.destination)
+    expect(ligadosNaSaida()).toEqual([])
+    const aoVivo = motor.obterEntradaAoVivo()
+    expect(ligadosNaSaida()).toEqual([aoVivo])
+    expect(motor.obterEntradaAoVivo()).toBe(aoVivo)
+  })
 })
 
 describe('aviso de que o áudio destravou', () => {

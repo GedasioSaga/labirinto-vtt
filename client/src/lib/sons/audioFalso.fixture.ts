@@ -90,7 +90,7 @@ export interface AudioFalso {
   fontes: FonteFalsa[]
   elementosLigados: ElementoLigado[]
   createBuffer: Mock<(canais: number, quadros: number, taxa: number) => BufferFalso>
-  /** Decodifica qualquer coisa: a duração é o tamanho em bytes / `BYTES_POR_SEGUNDO_FALSO`. */
+  /** Decodifica qualquer coisa: a duração é o tamanho em bytes / `BYTES_POR_SEGUNDO_FALSO`. Desanexa o ArrayBuffer recebido. */
   decodeAudioData: Mock<(dados: ArrayBuffer) => Promise<BufferFalso>>
   resume: Mock<() => Promise<void>>
   /** Muda o estado e, se mudou, avisa na hora quem ouve `statechange`. */
@@ -192,7 +192,9 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
     return { quadros, getChannelData: () => dados, duration: quadros / taxaDoBuffer, length: quadros, numberOfChannels: canais }
   })
   const decodeAudioData = vi.fn(async (dados: ArrayBuffer): Promise<BufferFalso> => {
-    const duracao = dados.byteLength / BYTES_POR_SEGUNDO_FALSO
+    // Como o navegador: toma posse do ArrayBuffer, que fica desanexado (vazio) para quem o passou; desanexado, falha.
+    const tomado = structuredClone(dados, { transfer: [dados] })
+    const duracao = tomado.byteLength / BYTES_POR_SEGUNDO_FALSO
     const quadros = Math.round(duracao * taxa)
     return { quadros, getChannelData: () => new Float32Array(0), duration: duracao, length: quadros, numberOfChannels: CANAIS_DECODIFICADOS_FALSOS }
   })
