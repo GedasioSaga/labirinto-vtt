@@ -4,16 +4,18 @@
 // mapa antigo abre idêntico, pixel por pixel, no editor e no jogador. As fatias
 // 3 e 4 (render por faixas) têm de passar aqui SEM regravar nada.
 //
-// O QUE PROVA: 4 mapas montados por código (casa completa; terreno com textura,
-// relevo, carimbos, nuvens e telhado; chão com duas camadas de pincel
-// empilhadas; mapa com camadas antigas ocultas e travadas) desenham exatamente
-// os mesmos pixels (`maxDiffPixels: 0`) no editor a 1440 x 900 e no jogador.
-// Teto de 8 imagens: o jogador a 1440 vê a casa e o terreno; a 390, o chão de
-// pincel e as camadas antigas.
+// O QUE PROVA: 5 mapas montados por código desenham exatamente os mesmos pixels
+// (`maxDiffPixels: 0`). A ORDEM entre faixas só aparece onde os itens se
+// sobrepõem, por isso desenho a mão, retângulo, texto, caminho e escada CRUZAM
+// sala, chão de pincel, móvel e ficha, e o pino fica sobre o telhado. Câmera
+// FIXA, escrita pela store (a tecla F enquadra por `contentBounds`, que ignora
+// chão, textura, carimbo e pino). O jogador com visão parcial e área explorada
+// faz as zonas da névoa desenharem (visível, explorado, desconhecido), com
+// telhado, ficha, pino e luz de longe cruzando a borda da visão.
 //
 // COMO: só o `<canvas>` do Pixi entra na foto (o resto da página fica
-// invisível por uma folha de estilo), com movimento reduzido (nuvens paradas).
-// O jogador recebe o mapa CRU pelo WebSocket roteado (como
+// invisível por uma folha de estilo), com movimento reduzido (nuvens paradas). O jogador
+// recebe o mapa CRU pelo WebSocket roteado (como
 // task-jogador-ficha-aberta-390.spec.ts): isto confere o desenho, não o
 // recorte do host.
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test'
@@ -29,7 +31,7 @@ import {
   buildTextDrawing,
   buildWallFromDraft,
 } from '../src/lib/drawingFactory'
-import { createExploration, encodeExploration } from '../src/lib/exploration'
+import { createExploration, encodeExploration, markRings } from '../src/lib/exploration'
 import { buildBlocosShape } from '../src/lib/floorBlocks'
 import { buildFloorPiece } from '../src/lib/floorTool'
 import {
@@ -44,19 +46,25 @@ import {
   addWall,
   buildPin,
   createEmptyMap,
+  setGridSettings,
   setNuvens,
   setRelevo,
   setRoomRoof,
+  setShowGrid,
 } from '../src/lib/mapFactory'
 import { criarMovel } from '../src/lib/mobilia'
 import { buildStairFromDraft } from '../src/lib/stairs'
 import { comTexturas } from '../src/lib/texturas'
-import type { FloorPiece, MapData, RegionPoint } from '../src/types/map'
+import type { DoorState, FloorPiece, MapData, RegionPoint } from '../src/types/map'
 
 const GRADE = 64
 const COLUNAS = 16
 const LINHAS = 12
 const FICHA = 'ficha-ana'
+/** O mapa de 1024 x 768 inteiro, a 1:1 e centrado, no canvas de 1440 x 900 do editor. */
+const CAMERA_DO_EDITOR = { x: 208, y: 66, scale: 1 }
+/** PNG de 2 x 2 (imagem do móvel para o jogador). */
+const IMAGEM_DO_MOVEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAGElEQVR4nGM4oaGhseAEg8aCEydOaGgAACyXBhm1Ipj+AAAAAElFTkSuQmCC'
 
 // Movimento reduzido: as nuvens ficam PARADAS na fase de cada uma (`pixi/drawNuvens.ts`).
 test.use({ trace: 'off', video: 'off', contextOptions: { reducedMotion: 'reduce' } })
@@ -75,31 +83,54 @@ async function soOCanvas(page: Page): Promise<void> {
   await page.addStyleTag({ content: SO_O_CANVAS })
 }
 
+/** Mapa vazio com a ficha da Ana e a grade à vista. */
 function mapaVazio(id: string, nome: string): MapData {
-  return addToken(createEmptyMap(id, nome, COLUNAS, LINHAS, GRADE), { id: FICHA, characterId: null, name: 'Ana', x: 352, y: 288, size: 1, image: null })
+  const base = setGridSettings(setShowGrid(createEmptyMap(id, nome, COLUNAS, LINHAS, GRADE), true), { color: '#6a6a6a', opacity: 0.6 })
+  return addToken(base, { id: FICHA, characterId: null, name: 'Ana', x: 352, y: 288, size: 1, image: null })
 }
 
-/** (1) Casa: salas, paredes, porta, escada, móveis, tapete, luz, ficha, pino, desenhos, texto e caminho. */
+function porta(id: string, y: number, estado: DoorState): MapData['walls'][number] {
+  return { ...buildWallFromDraft(id, { x: 448, y }, { x: 512, y }), door: estado }
+}
+
+/**
+ * (1) Casa. Na Sala, chão de pincel, mesa, cadeira e a ficha formam um bolo
+ * que o rabisco, o retângulo, o texto, o caminho e a escada atravessam. No
+ * corredor, porta secreta, fechada, aberta e trancada. Na Cozinha, fogueira
+ * (chama), barril com rótulo e imagem, perigo, fumaça e esteira; na Sala, um gatilho.
+ */
 function mapaCasa(id = 'golden-casa'): MapData {
   let map = mapaVazio(id, 'Casa')
   const sala = buildRoomFromDraft('r1', ['w1', 'w2', 'w3', 'w4'], { x: 64, y: 64 }, { x: 448, y: 384 }, undefined, undefined, 'Sala')
   map = addRoom(map, sala.region, sala.walls)
   const cozinha = buildRoomFromDraft('r2', ['w5', 'w6', 'w7', 'w8'], { x: 512, y: 64 }, { x: 896, y: 384 }, undefined, undefined, 'Cozinha')
   map = addRoom(map, cozinha.region, cozinha.walls)
-  map = addWall(map, { ...buildWallFromDraft('w9', { x: 448, y: 192 }, { x: 512, y: 192 }), door: { kind: 'normal', open: false, locked: false } })
-  map = addStair(map, buildStairFromDraft('s1', { x: 128, y: 448 }, { x: 256, y: 640 }, 16))
+  map = addFloorPiece(map, pincelada('f-sala', 'terra', blocosDe(2, 2, 4, 3)))
+  map = addWall(map, porta('w9', 128, { kind: 'normal', open: false, locked: false, secret: true }))
+  map = addWall(map, porta('w10', 192, { kind: 'normal', open: false, locked: false }))
+  map = addWall(map, porta('w11', 256, { kind: 'normal', open: true, locked: false }))
+  map = addWall(map, porta('w12', 320, { kind: 'normal', open: false, locked: true }))
   map = addProp(map, criarMovel('mesa', { x: 256, y: 224 }, GRADE, 'o1'))
   map = addProp(map, criarMovel('cadeira', { x: 320, y: 224 }, GRADE, 'o2'))
   map = addProp(map, criarMovel('tapete', { x: 704, y: 224 }, GRADE, 'o3'))
   map = addProp(map, { ...criarMovel('bau', { x: 832, y: 320 }, GRADE, 'o4'), layer: 'decoracao' })
-  map = addLight(map, buildLightAt('l1', { x: 256, y: 128 }, GRADE))
+  map = addProp(map, criarMovel('fogueira', { x: 640, y: 160 }, GRADE, 'o5'))
+  map = addProp(map, { ...criarMovel('barril', { x: 832, y: 128 }, GRADE, 'o6'), playerLabel: 'Vinho', playerImage: IMAGEM_DO_MOVEL })
+  map = addLight(map, buildLightAt('l1', { x: 160, y: 128 }, GRADE))
   map = addPin(map, buildPin('p1', { x: 640, y: 320 }, 'exclamacao'))
-  map = addDrawing(map, buildFreehandDrawing('d1', [{ x: 576, y: 448 }, { x: 640, y: 480 }, { x: 704, y: 456 }, { x: 768, y: 512 }], '#c0392b', 3))
-  map = addDrawing(map, buildRectDrawing('d2', { x: 320, y: 448 }, { x: 512, y: 576 }, '#2c7be5', 2, true, 0.2))
-  const rotulo = buildTextDrawing('d3', { x: 576, y: 600 }, '#222222', 20)
+  map = addStair(map, buildStairFromDraft('s1', { x: 288, y: 200 }, { x: 352, y: 328 }, 8))
+  map = addDrawing(map, buildFreehandDrawing('d1', [{ x: 160, y: 180 }, { x: 260, y: 230 }, { x: 350, y: 290 }, { x: 430, y: 250 }], '#c0392b', 4))
+  map = addDrawing(map, buildRectDrawing('d2', { x: 232, y: 200 }, { x: 376, y: 312 }, '#f2f2f2', 3, true, 0.25))
+  const rotulo = buildTextDrawing('d3', { x: 250, y: 250 }, '#ffe08a', 28)
   map = addDrawing(map, rotulo.kind === 'text' ? { ...rotulo, text: 'Adega' } : rotulo)
-  map = addDrawing(map, buildPathDrawing('d4', [{ x: 64, y: 704 }, { x: 384, y: 672 }, { x: 960, y: 704 }], '#8a6a3a', 1, GRADE))
-  return map
+  map = addDrawing(map, buildPathDrawing('d4', [{ x: 96, y: 300 }, { x: 330, y: 240 }, { x: 600, y: 300 }], '#d9a441', 1, GRADE))
+  return {
+    ...map,
+    hazards: [{ id: 'hz1', kind: 'fumaca', roomIds: ['r2'] }],
+    perigos: [{ id: 'pg1', tipo: 'fogo', salas: ['r2'] }],
+    gatilhos: [{ id: 'g1', kind: 'armadilha', regionId: 'r1', revealed: true }],
+    conveyors: [{ id: 'cv1', roomId: 'r2', direction: 'leste', stepCells: 1 }],
+  }
 }
 
 /** (2) Terreno: textura de pincel, relevo, carimbos, nuvens e uma casa com telhado. */
@@ -141,6 +172,29 @@ function mapaCamadasAntigas(): MapData {
   return { ...casa, hiddenLayers: ['salas', 'anotacoes', 'iluminacao'], lockedLayers: ['tokens', 'paredes'] }
 }
 
+/** Retângulo do mundo como anel de visão. */
+function anel(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
+  return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }]
+}
+
+/**
+ * (5) Visão parcial: a borda da visão (x = 576) corta a Casa de telhado, o
+ * pino em cima do telhado e a luz de longe; à direita dela, uma faixa
+ * explorada e, além, o desconhecido.
+ */
+const VISAO_PARCIAL = [anel(0, 0, 576, 768)]
+const EXPLORADO_FORA = [anel(576, 64, 832, 512)]
+function mapaVisao(): MapData {
+  let map = mapaVazio('golden-visao', 'Visão')
+  const salao = buildRoomFromDraft('r2', ['w5', 'w6', 'w7', 'w8'], { x: 64, y: 128 }, { x: 384, y: 448 }, undefined, undefined, 'Salão')
+  map = addRoom(map, salao.region, salao.walls)
+  const casa = buildRoomFromDraft('r1', ['w1', 'w2', 'w3', 'w4'], { x: 448, y: 128 }, { x: 704, y: 384 }, undefined, undefined, 'Casa')
+  map = setRoomRoof(addRoom(map, casa.region, casa.walls), 'r1', true)
+  map = addPin(map, buildPin('p1', { x: 576, y: 256 }, 'exclamacao'))
+  map = addLight(map, buildLightAt('l1', { x: 160, y: 224 }, GRADE))
+  return addLight(map, { ...buildLightAt('l2', { x: 576, y: 448 }, GRADE), radius: 0, vistaDeLonge: true })
+}
+
 async function abrirNoEditor(page: Page, map: MapData): Promise<void> {
   await enterEditor(page)
   await page.evaluate(async (mapa) => {
@@ -149,28 +203,39 @@ async function abrirNoEditor(page: Page, map: MapData): Promise<void> {
     mod.useMapStore.getState().setActiveTool('select')
   }, map)
   await page.mouse.move(1, 1)
-  // Tecla F: enquadra o mapa inteiro (`fitAll`), a mesma câmera a cada rodada.
-  await page.keyboard.press('f')
+  // Câmera escrita, não a tecla F: o pedido de câmera da store vai direto para o canvas (`applyCamera`).
+  await page.evaluate(() => new Promise((pronto) => requestAnimationFrame(() => requestAnimationFrame(pronto))))
+  await page.evaluate(async (camera) => {
+    const aventura = await import('/src/stores/adventureStore.ts')
+    aventura.useAdventureStore.setState({ cameraRequest: { camera } })
+  }, CAMERA_DO_EDITOR)
+  await expect.poll(() => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)).toEqual(CAMERA_DO_EDITOR)
   await soOCanvas(page)
 }
 
-/** O host de mentira: a cada `join` manda a cena com a visão inteira e a ficha da Ana. */
-function hostCom(map: MapData): (ws: WebSocketRoute) => void {
-  const largura = COLUNAS * GRADE
-  const altura = LINHAS * GRADE
-  const visao: RegionPoint[][] = [[{ x: 0, y: 0 }, { x: largura, y: 0 }, { x: largura, y: altura }, { x: 0, y: altura }]]
+interface CenaDoJogador {
+  map: MapData
+  visao?: RegionPoint[][]
+  explorado?: RegionPoint[][]
+}
+
+/** O host de mentira: a cada `join` manda a cena (por padrão, visão inteira e nada explorado) e a ficha da Ana. */
+function hostCom({ map, visao = [anel(0, 0, COLUNAS * GRADE, LINHAS * GRADE)], explorado = [] }: CenaDoJogador): (ws: WebSocketRoute) => void {
+  const exploracao = createExploration(map)
+  if (explorado.length > 0) markRings(exploracao, [...visao, ...explorado])
+  const explored = encodeExploration(exploracao)
   return (ws) => {
     ws.onMessage((bruto) => {
       const msg: unknown = JSON.parse(typeof bruto === 'string' ? bruto : bruto.toString('utf8'))
       if (typeof msg !== 'object' || msg === null || !('type' in msg) || msg.type !== 'join') return
       ws.send(JSON.stringify({ type: 'welcome', playerId: 'p-ana', resumeToken: 'tok-ana', name: 'Ana' }))
-      ws.send(JSON.stringify({ type: 'snapshot', rev: 1, map, vision: visao, explored: encodeExploration(createExploration(map)), ownTokens: [FICHA], concealed: [], sceneName: map.name }))
+      ws.send(JSON.stringify({ type: 'snapshot', rev: 1, map, vision: visao, explored, ownTokens: [FICHA], concealed: [], sceneName: map.name }))
     })
   }
 }
 
-async function abrirNoJogador(page: Page, map: MapData): Promise<void> {
-  await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(map))
+async function abrirNoJogador(page: Page, cena: CenaDoJogador): Promise<void> {
+  await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(cena))
   await page.goto('/player.html')
   await page.getByLabel('Código da sala').fill('GOLDEN')
   await page.getByLabel('Seu nome').fill('Ana')
@@ -198,9 +263,10 @@ test.describe('editor a 1440 x 900', () => {
 
 test.describe('jogador a 1440 x 900', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
-  const casos: [string, () => MapData][] = [
-    ['jogador-1440-casa.png', () => mapaCasa()],
-    ['jogador-1440-terreno.png', mapaTerreno],
+  const casos: [string, () => CenaDoJogador][] = [
+    ['jogador-1440-casa.png', () => ({ map: mapaCasa() })],
+    ['jogador-1440-terreno.png', () => ({ map: mapaTerreno() })],
+    ['jogador-1440-visao-parcial.png', () => ({ map: mapaVisao(), visao: VISAO_PARCIAL, explorado: EXPLORADO_FORA })],
   ]
   for (const [foto, montar] of casos) {
     test(foto, async ({ page }) => {
@@ -220,7 +286,7 @@ test.describe('jogador a 390 x 844', () => {
   for (const [foto, montar] of casos) {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
-      await abrirNoJogador(page, montar())
+      await abrirNoJogador(page, { map: montar() })
       await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
     })
   }
