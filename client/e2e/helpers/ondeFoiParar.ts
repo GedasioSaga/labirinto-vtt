@@ -250,7 +250,7 @@ export const BLOCOS: readonly Bloco[] = [
       l('Chão: Tamanho do pincel', rg('Tamanho do pincel'), b('Opções de Chão')),
       l('Chão: Operação', rg('Operação'), b('Opções de Chão')),
       l('Escada: Tamanho', rg('Tamanho'), b('Opções de Escada')),
-      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto'))),
+      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto'))),
       l('Desenho: Forma (7 formas)', rg('Forma'), b('Opções de Desenho')),
       l('Desenho: Modo (Traço livre / Balde)', rg('Modo'), b('Opções de Desenho')),
       l('Desenho: Textura do traço', rg('Textura do traço'), b('Opções de Desenho')),

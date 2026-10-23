@@ -11,6 +11,7 @@ import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { ehIdDeAudio } from '../lib/midia'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
@@ -1963,6 +1964,8 @@ export type HostMessage =
   | DancaHostMessage
   // MINIGAME DE PESCA: convite, estado, pausa e encerramento (`protocoloDaPesca.ts`).
   | PescaHostMessage
+  // SONS AO VIVO: tocar, parar, parar tudo, volume e pré-carga (`parseSomHostMessage`).
+  | SomHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -2220,6 +2223,164 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
 
 function isNoteTime(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SONS AO VIVO (Sistema 4, fatia F4; `docs/planos/sons-ao-vivo-2026-10-23.md`)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Instância de um toque: id opaco, curto e sem nada que vire caminho ou HTML. */
+const FORMA_DA_INSTANCIA_DE_SOM = /^[A-Za-z0-9_-]{1,80}$/
+/** Teto do `deslocamentoS` (uma semana): o loop longo continua cabendo, o número absurdo não. */
+export const SOM_DESLOCAMENTO_MAX_S = 7 * 24 * 60 * 60
+/** Teto do fade do `som.parar`: o padrão do motor é 150 ms. */
+export const SOM_FADE_MAX_MS = 10_000
+/** Quantos áudios um `som.precarregar` leva no máximo (os favoritos pequenos). */
+export const SOM_PRECARGA_MAX = 32
+
+/**
+ * A fonte como atravessa a rede: só o id do áudio guardado (`<sha256>.<ext>`,
+ * o mesmo nome que `/media/<id>` serve). Nunca o nome do efeito, a pasta, a
+ * `ref` do disco do mestre ou um caminho. YouTube é da F6.
+ */
+export interface FonteDeSomNaRede {
+  tipo: 'arquivo'
+  midia: string
+}
+
+/**
+ * Toca `fonte` como `instancia`; a mesma instância tocando antes é trocada por
+ * esta. `deslocamentoS`: o loop pego no meio (quem entrou depois); no loop, o
+ * jogador dá a volta pela duração. O nome do efeito NÃO vai: não estraga surpresa.
+ */
+export interface SomTocarMessage {
+  type: 'som.tocar'
+  instancia: string
+  fonte: FonteDeSomNaRede
+  volume: number
+  loop: boolean
+  deslocamentoS?: number
+}
+
+export interface SomPararMessage {
+  type: 'som.parar'
+  instancia: string
+  fadeMs?: number
+}
+
+export interface SomPararTudoMessage {
+  type: 'som.pararTudo'
+}
+
+export interface SomVolumeMessage {
+  type: 'som.volume'
+  instancia: string
+  volume: number
+}
+
+/** Traz os bytes antes do clique (os favoritos pequenos, ao receber o mapa: F5). */
+export interface SomPrecarregarMessage {
+  type: 'som.precarregar'
+  midias: string[]
+}
+
+/** Do mestre ao jogador e à tela da mesa. Nunca no sentido contrário. */
+export type SomHostMessage = SomTocarMessage | SomPararMessage | SomPararTudoMessage | SomVolumeMessage | SomPrecarregarMessage
+
+/** Por que o som não tocou no aparelho: lista fechada (a do motor, `lib/sons/aoVivo/motor.ts`). */
+export const MOTIVOS_DA_FALHA_DO_SOM = ['sem-gesto', 'atrasado', 'nao-carregou', 'fonte-invalida', 'fonte-sem-suporte', 'limite-de-loops'] as const
+export type MotivoDaFalhaDoSom = (typeof MOTIVOS_DA_FALHA_DO_SOM)[number]
+
+/**
+ * Do jogador (ou da TV) ao mestre: aquele toque não soou aqui. O "não tocou
+ * para N" do botão. FORA da união `PlayerMessage` de propósito: a sessão nunca
+ * a vê (a ponte do mestre lê antes, com `parseSomFalhou`), e a `routeMessage`
+ * da sessão cobre a união inteira.
+ */
+export interface SomFalhouMessage {
+  type: 'som.falhou'
+  instancia: string
+  motivo: MotivoDaFalhaDoSom
+}
+
+function ehInstanciaDeSom(value: unknown): value is string {
+  return typeof value === 'string' && FORMA_DA_INSTANCIA_DE_SOM.test(value)
+}
+
+function ehVolumeDeSom(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= 1
+}
+
+function ehMotivoDaFalhaDoSom(value: unknown): value is MotivoDaFalhaDoSom {
+  return typeof value === 'string' && MOTIVOS_DA_FALHA_DO_SOM.some((motivo) => motivo === value)
+}
+
+function parseFonteDeSomNaRede(value: unknown): FonteDeSomNaRede | null {
+  if (!isRecord(value) || value.tipo !== 'arquivo' || !ehIdDeAudio(value.midia)) return null
+  return { tipo: 'arquivo', midia: value.midia }
+}
+
+function parseSomTocar(value: Record<string, unknown>): SomTocarMessage | null {
+  const { instancia, volume, loop, deslocamentoS } = value
+  const fonte = parseFonteDeSomNaRede(value.fonte)
+  if (!ehInstanciaDeSom(instancia) || fonte === null || !ehVolumeDeSom(volume) || typeof loop !== 'boolean') return null
+  const msg: SomTocarMessage = { type: 'som.tocar', instancia, fonte, volume, loop }
+  if (deslocamentoS === undefined) return msg
+  // Presente e fora da forma recusa inteiro, como a hora do recado.
+  if (!isFiniteNumber(deslocamentoS) || deslocamentoS < 0 || deslocamentoS > SOM_DESLOCAMENTO_MAX_S) return null
+  return { ...msg, deslocamentoS }
+}
+
+function parseSomParar(value: Record<string, unknown>): SomPararMessage | null {
+  const { instancia, fadeMs } = value
+  if (!ehInstanciaDeSom(instancia)) return null
+  if (fadeMs === undefined) return { type: 'som.parar', instancia }
+  if (!isFiniteNumber(fadeMs) || fadeMs < 0 || fadeMs > SOM_FADE_MAX_MS) return null
+  return { type: 'som.parar', instancia, fadeMs }
+}
+
+function parseSomPrecarregar(value: Record<string, unknown>): SomPrecarregarMessage | null {
+  const { midias } = value
+  if (!Array.isArray(midias) || midias.length === 0 || midias.length > SOM_PRECARGA_MAX) return null
+  const ids: string[] = []
+  for (const midia of midias) {
+    if (!ehIdDeAudio(midia)) return null
+    if (!ids.includes(midia)) ids.push(midia)
+  }
+  return { type: 'som.precarregar', midias: ids }
+}
+
+/**
+ * Valida a mensagem de som que o jogador (ou a TV) recebe. O mestre é
+ * confiável, mas o que passa daqui vira fetch de `/media/<id>` e ganho de
+ * áudio: forma errada, id torto, volume fora de 0 a 1, NaN, Infinity ou fonte
+ * de tipo inesperado recusam a mensagem inteira, sem exceção. Devolve cópia só
+ * com os campos conhecidos.
+ */
+export function parseSomHostMessage(value: unknown): SomHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'som.tocar':
+      return parseSomTocar(value)
+    case 'som.parar':
+      return parseSomParar(value)
+    case 'som.pararTudo':
+      return { type: 'som.pararTudo' }
+    case 'som.volume':
+      return ehInstanciaDeSom(value.instancia) && ehVolumeDeSom(value.volume) ? { type: 'som.volume', instancia: value.instancia, volume: value.volume } : null
+    case 'som.precarregar':
+      return parseSomPrecarregar(value)
+    default:
+      return null
+  }
+}
+
+/** Valida o `som.falhou` que chega ao mestre: instância na forma e motivo da lista fechada; o resto cai fora. */
+export function parseSomFalhou(value: unknown): SomFalhouMessage | null {
+  if (!isRecord(value) || value.type !== 'som.falhou') return null
+  const { instancia, motivo } = value
+  if (!ehInstanciaDeSom(instancia) || !ehMotivoDaFalhaDoSom(motivo)) return null
+  return { type: 'som.falhou', instancia, motivo }
 }
 
 function isAbaloSeta(value: unknown): value is AbaloSeta {

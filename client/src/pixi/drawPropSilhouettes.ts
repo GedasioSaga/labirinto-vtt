@@ -20,9 +20,13 @@ import {
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { ehPecaNova } from '../lib/mobilia/pecasNovas'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
-// Só o tipo: o Meio-Termo dos móveis (motor, materiais, tabelas de ruído) carrega sob demanda, com a chave ligada.
+// Só o tipo: o raster dos móveis do Meio-Termo (o motor e as tabelas de ruído) carrega sob demanda.
+// Os MATERIAIS não: o painel da peça nova (`MaterialDaPeca`) e o resumo da ficha escrevem o nome do
+// material na hora, então `materiais.ts` e `paleta.ts` entram no início do editor (5,4 kB, 2,2 kB em
+// gzip, num chunk pré-carregado) e o chunk do raster os reusa.
 import type { RasterDosMoveis } from './rasterDosMoveis'
 
 /**
@@ -109,7 +113,9 @@ export type PropSilhouette = Pick<
   | 'mobiliaForma'
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
->
+> &
+  // O id só escolhe a variação da lápide (`varianteDaLapide`); quem chama passa o objeto inteiro.
+  Partial<Pick<Prop, 'id'>>
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
 interface SilhouettePaint {
@@ -363,39 +369,76 @@ const IMAGE_TINT = 0xffffff
 const IMAGE_ALPHA = 1
 
 type ModuloDoRaster = typeof import('./rasterDosMoveis')
+type CarregadorDoRaster = () => Promise<ModuloDoRaster>
 
+const carregarDoChunk: CarregadorDoRaster = () => import('./rasterDosMoveis')
+let carregador: CarregadorDoRaster = carregarDoChunk
 let moduloDoRaster: ModuloDoRaster | null = null
 let carregandoORaster: Promise<ModuloDoRaster> | null = null
+/**
+ * Teto de tentativas de carregar o chunk na sessão. Cada falha tenta de novo
+ * na próxima pintura; depois da terceira fica o desenho de linhas, sem pedir
+ * de novo a cada quadro (a pintura do jogador repete com a câmera).
+ */
+const TENTATIVAS_DO_RASTER = 3
+let falhasDoRaster = 0
 /** Quem se pintou antes do módulo chegar: repinta quando ele chega. */
 const esperandoORaster = new Map<Graphics, () => void>()
 /** Os `Graphics` que já avisam o raster quando são destruídos. */
 const donosVigiados = new WeakSet<Graphics>()
 
+/** Troca o import do módulo do raster num teste (um que falha, um que demora); `null` volta ao chunk. Zera o carregamento. */
+export function trocarCarregadorDoRasterNoTeste(outro: CarregadorDoRaster | null): void {
+  carregador = outro ?? carregarDoChunk
+  moduloDoRaster = null
+  carregandoORaster = null
+  falhasDoRaster = 0
+  esperandoORaster.clear()
+}
+
 /**
- * Carrega o Meio-Termo dos móveis (o raster, o motor, os materiais e as
- * tabelas de ruído) uma vez só. Com a chave desligada nada disso entra no
- * início do editor nem do jogador.
+ * Carrega o Meio-Termo dos móveis (o raster, o motor e as tabelas de ruído;
+ * os materiais já vêm no início, ver o import do tipo acima) uma vez só. Sem
+ * peça nova e com a chave desligada nada disso entra no início do editor nem
+ * do jogador. Se o chunk falha (rede, versão nova
+ * publicada no meio da sessão), a promessa guardada sai e os `Graphics` à
+ * espera são soltos: a próxima pintura tenta de novo (`rasterParaPassada`).
+ * A promessa devolvida rejeita com o erro, para quem a espera.
  */
 export function carregarMoveisDoMeioTermo(): Promise<ModuloDoRaster> {
-  carregandoORaster ??= import('./rasterDosMoveis').then((modulo) => {
-    moduloDoRaster = modulo
-    const repinturas = [...esperandoORaster.values()]
-    esperandoORaster.clear()
-    for (const repintar of repinturas) repintar()
-    return modulo
-  })
+  carregandoORaster ??= carregador().then(
+    (modulo) => {
+      moduloDoRaster = modulo
+      const repinturas = [...esperandoORaster.values()]
+      esperandoORaster.clear()
+      for (const repintar of repinturas) repintar()
+      return modulo
+    },
+    (erro: unknown) => {
+      carregandoORaster = null
+      falhasDoRaster += 1
+      esperandoORaster.clear()
+      throw erro
+    },
+  )
   return carregandoORaster
+}
+
+/** A falha já foi tratada em `carregarMoveisDoMeioTermo`: aqui só fica o aviso, e a passada segue no desenho de linhas. */
+function avisarFalhaDoRaster(erro: unknown): void {
+  console.warn('[meio-termo] o desenho com textura dos móveis não carregou; fica o desenho de linhas', erro)
 }
 
 /**
  * O raster da sessão, se o módulo já chegou; senão pede o módulo, guarda a
  * repintura deste `Graphics` para quando ele chegar e devolve `null` (a
- * passada sai no desenho de linhas).
+ * passada sai no desenho de linhas). Passado o teto de falhas, nem pede.
  */
 function rasterParaPassada(graphics: Graphics, repintar: () => void): RasterDosMoveis | null {
   if (moduloDoRaster === null) {
+    if (falhasDoRaster >= TENTATIVAS_DO_RASTER) return null
     esperandoORaster.set(graphics, repintar)
-    void carregarMoveisDoMeioTermo()
+    carregarMoveisDoMeioTermo().catch(avisarFalhaDoRaster)
     return null
   }
   const modulo = moduloDoRaster
@@ -452,7 +495,8 @@ function drawTexturedFurniture(
  * Com o Meio-Termo ligado, os móveis que já têm textura saem como imagem
  * (`drawTexturedFurniture`) e este `Graphics` se repinta sozinho, com os
  * mesmos argumentos, quando uma imagem que ele pediu fica pronta (quem chamou
- * não precisa saber); desligado, nenhum caminho novo roda.
+ * não precisa saber); desligado, só a PEÇA NOVA (MT4, `ehPecaNova`) sai em
+ * imagem, e sem peça nova na lista nenhum caminho novo roda.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
@@ -466,7 +510,10 @@ export function drawPropSilhouettes(
   const repintar = (): void => {
     if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution)
   }
-  const raster = meioTermoLigado() ? rasterParaPassada(graphics, repintar) : null
+  // A chave de obra vale para os 11 móveis de antes; a PEÇA NOVA (MT4) sai sempre com textura.
+  const obraLigada = meioTermoLigado()
+  const comTextura = (prop: PropSilhouette): boolean => obraLigada || ehPecaNova(prop.mobilia)
+  const raster = obraLigada || props.some(comTextura) ? rasterParaPassada(graphics, repintar) : null
   const modulo = moduloDoRaster
   raster?.abrirPassada(graphics, repintar)
   try {
@@ -474,7 +521,7 @@ export function drawPropSilhouettes(
     // O tapete fica no chão: pintado antes, por baixo de todo objeto.
     for (const prop of emOrdemDeDesenho(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1

@@ -1,6 +1,15 @@
 import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 import { TIPOS_MOBILIA } from './mobilia/tipos'
+import {
+  contornoDaPecaNovaDeLado,
+  ehPecaNova,
+  FICHAS_DAS_PECAS_NOVAS,
+  PECAS_NOVAS_COM_VISTA,
+  porPecaNova,
+  TAMANHO_DE_LADO_DAS_PECAS_NOVAS,
+  tracosDaPecaNova,
+} from './mobilia/pecasNovas'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -55,6 +64,8 @@ export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {
   aparador: 'Aparador',
   fogueira: 'Fogueira',
   tapete: 'Tapete',
+  // As peças novas do lote 1 (MT4): o registro mora em `mobilia/pecasNovas.ts`.
+  ...porPecaNova((ficha) => ficha.rotulo),
 }
 
 /** Artigo + nome, para a dica de cada opção ("Clique no mapa para pôr uma cama."). */
@@ -70,6 +81,7 @@ export const NOME_COM_ARTIGO: Readonly<Record<TipoMobilia, string>> = {
   aparador: 'um aparador',
   fogueira: 'uma fogueira',
   tapete: 'um tapete',
+  ...porPecaNova((ficha) => ficha.artigo),
 }
 
 /** Espessura padrão da cerca, em casas: é a régua dos mourões (`tracosDaCerca`). */
@@ -97,6 +109,7 @@ const TAMANHO_EM_CASAS: Readonly<Record<Exclude<TipoMobilia, 'tapete'>, { largur
   armario: { largura: 1, altura: 0.5 },
   aparador: { largura: 2, altura: 0.5 },
   fogueira: { largura: 1, altura: 1 },
+  ...porPecaNova((ficha) => ficha.tamanho),
 }
 
 export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
@@ -104,7 +117,7 @@ export function ehTipoMobilia(valor: unknown): valor is TipoMobilia {
 }
 
 /** Móvel que tem vista de lado. */
-export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador' | 'fogueira' | 'tapete'>
+export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 'aparador' | 'fogueira' | 'tapete' | 'barraca' | 'carroca'>
 
 /**
  * Tipos com "Vista" (Frente | Lado). Lista, não `if` espalhado: outro móvel
@@ -113,7 +126,7 @@ export type TipoComVista = Extract<TipoMobilia, 'cadeira' | 'bau' | 'armario' | 
  * `tracosDeLado`) — o compilador cobra os três. O tapete de lado é a faixa
  * deitada no chão, com o tamanho por forma (`TAMANHO_DO_TAPETE_EM_CASAS`).
  */
-export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete']
+export const TIPOS_COM_VISTA: readonly TipoComVista[] = ['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete', ...PECAS_NOVAS_COM_VISTA]
 
 /** O tipo tem vista de lado. Tipo ausente (objeto comum) não tem. */
 export function aceitaVista(tipo: TipoMobilia | undefined): tipo is TipoComVista {
@@ -144,6 +157,7 @@ const TAMANHO_DE_LADO_EM_CASAS: Readonly<Record<Exclude<TipoComVista, 'tapete'>,
   aparador: { largura: 2, altura: 0.9 },
   // Mais alta que larga: a chama e as fagulhas cabem dentro do objeto.
   fogueira: { largura: 1, altura: 1.25 },
+  ...TAMANHO_DE_LADO_DAS_PECAS_NOVAS,
 }
 
 /**
@@ -233,6 +247,8 @@ export function vistaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaVista'>): Vist
  * (`contornoDeLado`), não a elipse.
  */
 export function ehMovelRedondo(tipo: TipoMobilia | undefined, vista: VistaMobilia = 'frente'): boolean {
+  // Peças novas redondas (a mesa redonda, o vaso e o poço) não têm vista de lado.
+  if (ehPecaNova(tipo)) return FICHAS_DAS_PECAS_NOVAS[tipo].redonda
   return tipo === 'barril' || (tipo === 'fogueira' && vista === 'frente')
 }
 
@@ -1065,6 +1081,9 @@ export function contornoDeLado(
       }
       return [{ x: -meiaLargura, y: meiaAltura }, ...arco, { x: meiaLargura, y: meiaAltura }]
     }
+    case 'barraca':
+    case 'carroca':
+      return contornoDaPecaNovaDeLado(largura, altura)
   }
 }
 
@@ -1078,6 +1097,9 @@ function tracosDeLado(tipo: TipoComVista, largura: number, altura: number, forma
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   switch (tipo) {
+    case 'barraca':
+    case 'carroca':
+      return tracosDaPecaNova(tipo, largura, altura, true)
     case 'tapete':
       return desenhoDoTapete(forma, largura, altura, 'lado').tracos
     case 'fogueira':
@@ -1173,6 +1195,7 @@ export function tracosDoGlifo(
 ): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
   if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura, forma)
+  if (ehPecaNova(tipo)) return tracosDaPecaNova(tipo, largura, altura, false)
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   const menorLado = Math.min(largura, altura)
@@ -1245,6 +1268,8 @@ function comVistaGravada(prop: Prop, vista: 'lado' | undefined): Prop {
  * do tipo novo (o da mesa não serve para o barril). `x`/`y` são o centro, então
  * o tamanho novo não tira o móvel do lugar. A vista de lado fica só se o tipo
  * novo também tem vista (com o tamanho de lado dele); num tipo sem vista, some.
+ * Na PEÇA NOVA (MT4) o "Preencher" desligado não vai junto: ela sai sempre com
+ * textura e o painel dela não tem como religá-lo.
  */
 export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
   const vista = normalizarVistaDoMovel(tipo, prop.mobiliaVista)
@@ -1255,7 +1280,10 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
     forma,
   )
   // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
-  return semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  const movel = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  if (!ehPecaNova(tipo) || !('mobiliaPreenchido' in movel)) return movel
+  const { mobiliaPreenchido: _preenchido, ...semPreenchido } = movel
+  return semPreenchido
 }
 
 /**

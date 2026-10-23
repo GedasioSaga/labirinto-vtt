@@ -1,6 +1,7 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { cordaDaCerca, formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
@@ -99,7 +100,9 @@ export interface ChaveDoMovel {
 export type MovelParaImagem = Pick<
   Prop,
   'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor'
->
+> &
+  // Só a lápide lê o id: a variação do desenho sai dele (`varianteDaLapide`).
+  Partial<Pick<Prop, 'id'>>
 
 /** Pixels da imagem por px de mundo: 1, 2 ou 3 (a 4x a cama passava de 50 ms). */
 export function nivelDeResolucao(cameraScale: number, rendererResolution: number): number {
@@ -138,7 +141,9 @@ function materiaisDoMovel(prop: MovelParaImagem, tipo: DesenhoDoMovel['tipo']): 
 /** Texto do desenho, sem o nível e com a pegada arredondada: dele sai a semente. */
 function textoDoDesenho(chave: Omit<ChaveDoMovel, 'nivel'>): string {
   const d = chave.desenho
-  return [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.chaveDaCurva, passosNaChave(d.casasW), passosNaChave(d.casasH)].join('|')
+  const partes = [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.chaveDaCurva, passosNaChave(d.casasW), passosNaChave(d.casasH)]
+  // A variação (só a lápide) entra no fim e só quando existe: a chave dos outros tipos fica a mesma de antes.
+  return (d.variante === undefined ? partes : [...partes, `v${d.variante}`]).join('|')
 }
 
 /** A flecha (px de mundo) que a volta `graus` dá na corda da cerca, a mesma conta do desenho de linhas. */
@@ -194,6 +199,7 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     casasW: casasDe(prop.width),
     casasH: casasDe(prop.height),
     semente: 0,
+    ...(prop.mobilia === 'lapide' ? { variante: varianteDaLapide(prop.id) } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))

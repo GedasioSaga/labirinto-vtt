@@ -21,6 +21,15 @@ import { montarArmario } from './armario'
 import { montarAparador } from './aparador'
 import { montarFogueira } from './fogueira'
 import { montarTapete } from './tapete'
+import { montarMesaQuadrada } from './mesaQuadrada'
+import { montarMesaRedonda } from './mesaRedonda'
+import { montarLapide } from './lapide'
+import { montarVaso } from './vaso'
+import { montarLampiao } from './lampiao'
+import { montarQuadroDeAvisos } from './quadroDeAvisos'
+import { montarPoco } from './poco'
+import { montarBarraca } from './barraca'
+import { montarCarroca } from './carroca'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -34,6 +43,17 @@ const MONTADORES = {
   aparador: montarAparador,
   fogueira: montarFogueira,
   tapete: montarTapete,
+  // As peças novas do lote 1 (MT4). Com o desenho aqui elas saem em imagem; o painel só as
+  // oferece depois de medidas (`PECAS_NOVAS_PRONTAS` em `lib/mobilia/pecasNovas.ts`).
+  mesaQuadrada: montarMesaQuadrada,
+  mesaRedonda: montarMesaRedonda,
+  lapide: montarLapide,
+  vaso: montarVaso,
+  lampiao: montarLampiao,
+  quadroDeAvisos: montarQuadroDeAvisos,
+  poco: montarPoco,
+  barraca: montarBarraca,
+  carroca: montarCarroca,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -58,7 +78,10 @@ export function escalaDoNivel(nivel: number): number {
 }
 
 /** Os tipos que têm desenho com textura, na ordem do catálogo: os 11. */
-export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
+export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
+  'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
   return TIPOS_COM_TEXTURA.some((t) => t === tipo)
@@ -79,6 +102,8 @@ export interface DesenhoDoMovel {
   readonly forma?: FormaDoTapete
   /** Só na cerca: a volta em graus (0 ou ausente = reta). */
   readonly curva?: number
+  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). */
+  readonly variante?: number
 }
 
 /**
@@ -109,7 +134,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0 }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
   return cena
 }

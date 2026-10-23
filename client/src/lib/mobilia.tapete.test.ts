@@ -47,7 +47,8 @@ function quase(a: number, b: number): boolean {
 
 describe('tapete — catálogo e tamanho', () => {
   it('é o último do catálogo, "Tapete", "um tapete", com vista; não é redondo nem vazado', () => {
-    expect(TIPOS_MOBILIA[TIPOS_MOBILIA.length - 1]).toBe('tapete')
+    // MT4: as peças novas vêm depois dos 11 de antes; o tapete segue o último deles.
+    expect(TIPOS_MOBILIA[10]).toBe('tapete')
     expect(ROTULO_MOBILIA.tapete).toBe('Tapete')
     expect(NOME_COM_ARTIGO.tapete).toBe('um tapete')
     expect(aceitaVista('tapete')).toBe(true)

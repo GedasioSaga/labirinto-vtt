@@ -23,7 +23,7 @@ export type IdDoMaterial =
   | 'carvalho' | 'nogueira' | 'pinho' | 'cerejeira' | 'velha'
   | 'ferro' | 'latao' | 'arame'
   | 'linho' | 'vinho' | 'azul' | 'musgo' | 'ocre'
-  | 'granito' | 'arenito' | 'ardosia'
+  | 'granito' | 'arenito' | 'ardosia' | 'barro'
   | 'palha' | 'corda'
   | 'lenhaCarvalho' | 'lenhaPinho' | 'lenhaBetula'
 
@@ -70,6 +70,8 @@ function material(id: IdDoMaterial, nome: string, classe: ClasseDoMaterial, hex:
  */
 const TOM_DA_CEREJEIRA = '#926149'
 const TOM_DA_LA_AZUL = '#4b648e'
+/** Barro do vaso: a terracota (#b56e50) saturava 0,56 antes da textura; este fica em 0,46. */
+const TOM_DO_BARRO = '#a8735a'
 
 /**
  * Carvalho e madeira velha no MÓVEL ficam mais escuros que o token da vila
@@ -100,6 +102,9 @@ export const MATERIAIS: Readonly<Record<IdDoMaterial, Material>> = {
   granito: material('granito', 'Granito', 'pedra', '#7e7b76', 'granito', 1),
   arenito: material('arenito', 'Arenito', 'pedra', '#9a8669', 'pinho', 0.95),
   ardosia: material('ardosia', 'Ardósia', 'pedra', '#585d61', 'ardosia', 1),
+  // O vaso de planta (MT4): o barro do protótipo da vila (#8a5a46) é o oficial; o tom
+  // pintado é a telha de terracota do Meio-Termo mais clara e menos viva.
+  barro: materialDeTomProprio('barro', 'Barro', 'pedra', '#8a5a46', TOM_DO_BARRO),
   palha: material('palha', 'Palha', 'palha', '#b0995f', 'palha', 1),
   corda: material('corda', 'Corda', 'corda', '#a08a62', 'corda', 1),
   lenhaCarvalho: material('lenhaCarvalho', 'Carvalho', 'casca', '#55453a', 'lenha', 1),
@@ -123,6 +128,7 @@ export interface LugarDeMaterial {
 const MADEIRAS: readonly OpcaoDeMaterial[] = ['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha']
 const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao']
 const TECIDOS: readonly OpcaoDeMaterial[] = ['linho', 'vinho', 'azul', 'musgo', 'ocre']
+const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia']
 
 function lugar(id: string, nome: string, opcoes: readonly OpcaoDeMaterial[], padrao: OpcaoDeMaterial): LugarDeMaterial {
   return { id, nome, opcoes, padrao }
@@ -141,6 +147,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   aparador: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
   fogueira: [lugar('pedras', 'Pedras', ['granito', 'arenito', 'ardosia'], 'granito'), lugar('lenha', 'Lenha', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   tapete: [lugar('tecido', 'Tecido', TECIDOS, 'azul')],
+  // Peças novas do lote 1 (MT4). O primeiro lugar vai na "Cor" do arquivo; o segundo, na "Cor da linha".
+  mesaQuadrada: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  mesaRedonda: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  lapide: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  vaso: [lugar('vaso', 'Vaso', ['barro', 'arenito', 'granito'], 'barro')],
+  lampiao: [lugar('metal', 'Metal', METAIS, 'ferro')],
+  quadroDeAvisos: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  poco: [lugar('pedras', 'Pedras', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  barraca: [lugar('toldo', 'Toldo', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  carroca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */
