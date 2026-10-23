@@ -242,6 +242,28 @@ function camadasNoLugar(lista: readonly CamadaId[]): Set<CamadaId> {
   return noLugar
 }
 
+/**
+ * Faixa dividida (Paredes e Portas nas linhas e nas paredes; Objetos e
+ * Decoração nos móveis) com outra camada ENTRE as duas na lista: a de cima
+ * deixa de estar no lugar e vira bloco, para a do meio ficar entre elas na
+ * tela (a lista manda; lacuna da revisão da fatia 1, decidida na fatia 3).
+ * Sem nada entre as duas (ou só camada livre sem itens), continuam juntas no
+ * container de hoje.
+ */
+function separarDivididas(noLugar: Set<CamadaId>, lista: readonly CamadaId[], faixas: readonly Faixa[], livresComItens: ReadonlySet<CamadaId>): void {
+  for (const f of faixas) {
+    for (let k = 1; k < f.camadas.length; k++) {
+      const baixo = f.camadas[k - 1]
+      const cima = f.camadas[k]
+      if (!noLugar.has(baixo) || !noLugar.has(cima)) continue
+      // Camada que falta no modelo conta como no lugar, sem nada entre ela e a vizinha.
+      const iBaixo = lista.indexOf(baixo)
+      const entre = iBaixo < 0 ? [] : lista.slice(iBaixo + 1, Math.max(iBaixo + 1, lista.indexOf(cima)))
+      if (entre.some((c) => ehCamadaPadrao(c) || livresComItens.has(c))) noLugar.delete(cima)
+    }
+  }
+}
+
 interface Posto {
   readonly entrada: EntradaDaOrdem
   /** true = entrou como bloco (camada movida, livre ou item de outro tipo), não é faixa de hoje. */
@@ -360,6 +382,8 @@ export function ordemDeRender(modelo: ModeloDeCamadas, faixas: readonly Faixa[],
     const f = faixaPorId.get(par.faixa)
     return f !== undefined && f.camadas.length > 0 && !f.camadas.some((c) => c === par.camada) && existe(par.camada)
   })
+  // Depois de `validos`: separar só tira do lugar camada que está na lista, então `existe` não muda.
+  separarDivididas(noLugar, lista, faixas, new Set(validos.map((par) => par.camada)))
   const processadas = lista.concat([...noLugar].filter((c) => !lista.includes(c)))
 
   const saida: EntradaDaOrdem[] = []

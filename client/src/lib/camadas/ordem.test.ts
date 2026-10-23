@@ -192,15 +192,19 @@ describe('ordemDeRender', () => {
     ])
   })
 
-  it('camada livre com itens vira bloco logo acima da âncora da camada abaixo dela', () => {
+  it('camada livre com itens vira bloco logo acima da âncora da camada abaixo dela; entre Paredes e Portas, separa a faixa das paredes', () => {
     const ids = moverPara('livre_a', 'paredes', [...CAMADAS_PADRAO, 'livre_a'])
     const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_a' }, { faixa: 'floorGraphics', camada: 'livre_a' }]))
     const i = ordem.findIndex(([id]) => id === 'wallsGraphics')
-    expect(ordem.slice(i, i + 4)).toEqual([
-      ['wallsGraphics', ['paredes', 'portas']],
+    // Fatia 3: a lista manda, então Portas (acima da livre) vira bloco acima dela, com as três faixas dela.
+    expect(ordem.slice(i, i + 7)).toEqual([
+      ['wallsGraphics', ['paredes']],
       ['floorGraphics', ['livre_a']],
       ['propsContainer', ['livre_a']],
+      ['mapLinesGraphics', ['portas']],
+      ['wallsGraphics', ['portas']],
       ['doorsGraphics', ['portas']],
+      ['stairsGraphics', ['escadas']],
     ])
   })
 
@@ -221,19 +225,27 @@ describe('ordemDeRender', () => {
     expect(pares(ordemDeRender(MODELO_PADRAO, FAIXAS_EDITOR, extras))).toEqual(EDITOR_HOJE)
   })
 
-  it('empate (dois blocos logo acima da mesma faixa) fica estável: embaixo o ancorado na camada de menor índice padrão', () => {
-    // Objetos e Decoração dividem a faixa dos móveis: os dois blocos caem logo acima dela.
+  it('camada entre Objetos e Decoração separa a faixa dos móveis: cada bloco fica entre as vizinhas da lista', () => {
+    // Fatia 3 (a lista manda): antes, as duas livres caíam juntas acima da faixa dividida.
     const ids: CamadaId[] = [...CAMADAS_PADRAO]
     ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_a')
     ids.splice(ids.indexOf('decoracao') + 1, 0, 'livre_b')
     const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'wallsGraphics', camada: 'livre_b' }, { faixa: 'pinsContainer', camada: 'livre_a' }]))
     const i = ordem.findIndex(([id]) => id === 'propsContainer')
-    expect(ordem.slice(i, i + 4)).toEqual([
-      ['propsContainer', ['objetos', 'decoracao']],
+    expect(ordem.slice(i, i + 5)).toEqual([
+      ['propsContainer', ['objetos']],
       ['pinsContainer', ['livre_a']],
+      ['propsContainer', ['decoracao']],
       ['wallsGraphics', ['livre_b']],
       ['lightsContainer', ['iluminacao']],
     ])
+  })
+
+  it('sem nada entre Paredes e Portas (ou Objetos e Decoração), a faixa dividida continua junta', () => {
+    const ids: CamadaId[] = [...CAMADAS_PADRAO, 'livre_a']
+    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_a' }]))
+    expect(ordem.find(([id]) => id === 'wallsGraphics')).toEqual(['wallsGraphics', ['paredes', 'portas']])
+    expect(ordem.find(([id]) => id === 'propsContainer')).toEqual(['propsContainer', ['objetos', 'decoracao']])
   })
 
   it('no jogador, reordenar só permuta dentro da zona: Tokens no fundo vai para o começo do que fica sobre a névoa', () => {
