@@ -3,10 +3,9 @@ import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
 import { assinarRedeDosSons, criarPonteDosSons, informarPastaDosSons, redeDosSons, type PonteDosSons } from '../../net/ponteDosSons'
-import { SOM_PRECARGA_MAX } from '../../net/protocol'
 import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AlvoDosSons, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type MudancaNoEfeito, type PastaDeSons } from '../../lib/sons/biblioteca'
 import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
-import { MAX_LOOPS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
+import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
@@ -148,13 +147,14 @@ function avisarRecusaDoSom(motivo: MotivoDaRecusa, nome: string): void {
 
 /**
  * Os ids de áudio dos favoritos de até `PRE_CARGA_MAX_BYTES`, na ordem da
- * biblioteca e sem repetir, até o teto do `som.precarregar`: o que a mesa
- * baixa antes do clique.
+ * biblioteca e sem repetir, até `PRE_CARGA_MAX_ARQUIVOS` (bem abaixo do teto
+ * de 32 do `som.precarregar`: é o que o limite por IP do servidor da sala
+ * comporta com a mesa cheia): o que a mesa baixa antes do clique.
  */
 export function midiasParaPreCarregar(biblioteca: BibliotecaDeSons): string[] {
   const midias: string[] = []
   for (const efeito of biblioteca.efeitos) {
-    if (midias.length >= SOM_PRECARGA_MAX) break
+    if (midias.length >= PRE_CARGA_MAX_ARQUIVOS) break
     if (efeito.favorito !== true || efeito.fonte.tipo !== 'arquivo' || efeito.fonte.bytes > PRE_CARGA_MAX_BYTES) continue
     const midia = idDaRefDeAudio(efeito.fonte.ref)
     if (midia !== null && !midias.includes(midia)) midias.push(midia)
@@ -162,11 +162,16 @@ export function midiasParaPreCarregar(biblioteca: BibliotecaDeSons): string[] {
   return midias
 }
 
-/** Os toques que estão soando, pelo id do efeito (a instância do motor é o próprio id). */
-function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string): ReadonlyMap<string, Toque> {
+/**
+ * Os toques que estão soando, pelo id do efeito (a instância do motor é o próprio id).
+ * `aoRecusar`: o motor daqui recusou (na hora ou depois do clique, quando o arquivo não abre).
+ */
+function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string, aoRecusar: (id: string) => void): ReadonlyMap<string, Toque> {
   const [toques, setToques] = useState<ReadonlyMap<string, Toque>>(() => new Map())
   const nome = useRef(nomeDe)
   nome.current = nomeDe
+  const recusou = useRef(aoRecusar)
+  recusou.current = aoRecusar
   useEffect(() => {
     let vez = 0
     const tirar = (id: string) =>
@@ -186,6 +191,7 @@ function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string): R
         tirar(evento.instancia)
       } else if (evento.tipo === 'recusado') {
         tirar(evento.instancia)
+        recusou.current(evento.instancia)
         avisarRecusaDoSom(evento.motivo, nome.current(evento.instancia))
       }
     })
@@ -252,7 +258,10 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     rede.precarregarSonsAoVivo(preCarga.split(' '), ALVO_TODOS)
   }, [rede, carregando, preCarga])
 
-  const toques = useToquesDoMotor(motor, (id) => useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === id)?.nome ?? 'O som')
+  // O motor daqui recusou depois do clique (o arquivo não abre neste computador): a mesa já recebeu o toque, e um
+  // loop lá seguiria sem botão aceso para pará-lo. O mestre ouve o que a mesa ouve: para lá também (sem apelido, nada sai).
+  const pararNaMesa = (id: string) => ponte.parar(id)
+  const toques = useToquesDoMotor(motor, (id) => useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === id)?.nome ?? 'O som', pararNaMesa)
   const toquesAgora = useRef(toques)
   toquesAgora.current = toques
 
