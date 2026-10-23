@@ -183,6 +183,28 @@ interface Estado {
   reduzido: boolean
 }
 
+/**
+ * OPACIDADE DA CAMADA (Terreno, `lib/camadas`) de cada camada de nuvens viva.
+ * O `alpha` da camada é da aparição (0 a 1 ao entrar na cena); a pilha de
+ * camadas do jogador, que põe a opacidade no `alpha` de cada nó, entrega a das
+ * nuvens aqui, e a nuvem fica na opacidade da camada vezes a aparição. Sem a
+ * pilha (o editor embrulha a camada num contêiner próprio), vale 1.
+ */
+const opacidadeDaCamada = new WeakMap<Container, { ler: () => number; definir: (alfa: number) => void }>()
+
+/** A opacidade da camada que a pilha deu a esta camada de nuvens; `undefined` = o nó não é camada de nuvens. */
+export function lerOpacidadeDasNuvens(no: Container): number | undefined {
+  return opacidadeDaCamada.get(no)?.ler()
+}
+
+/** Dá a opacidade da camada à camada de nuvens `no`. `false` = o nó não é camada de nuvens (quem chama escreve o `alpha` dele). */
+export function definirOpacidadeDasNuvens(no: Container, alfa: number): boolean {
+  const dela = opacidadeDaCamada.get(no)
+  if (dela === undefined) return false
+  dela.definir(alfa)
+  return true
+}
+
 export function createNuvensRenderer(movimento: MovimentoDasNuvens, opcoes: OpcoesDasNuvens = {}): NuvensRenderer {
   const agora = movimento.agora ?? Date.now
   const texturaDa = opcoes.texturaDa ?? texturaPadrao
@@ -190,6 +212,16 @@ export function createNuvensRenderer(movimento: MovimentoDasNuvens, opcoes: Opco
   camada.label = 'nuvens'
   camada.eventMode = 'none'
   camada.visible = false
+  /** Opacidade da camada Terreno (`opacidadeDaCamada`): a aparição anima por cima dela. */
+  let alfaDaCamada = 1
+  opacidadeDaCamada.set(camada, {
+    ler: () => alfaDaCamada,
+    definir: (alfa) => {
+      alfaDaCamada = alfa
+      // No meio da aparição o próximo quadro já usa o valor novo.
+      if (aparicaoDesde === null) camada.alpha = alfa
+    },
+  })
   // Grupo de render próprio: as seis posições por quadro ficam nele, e o
   // mundo (milhares de Graphics) não refaz nada por causa delas.
   camada.enableRenderGroup()
@@ -331,9 +363,9 @@ export function createNuvensRenderer(movimento: MovimentoDasNuvens, opcoes: Opco
       // Relógio que voltou (o de parede pode ser acertado): a aparição termina.
       if (feito >= 1 || feito < 0) {
         aparicaoDesde = null
-        camada.alpha = 1
+        camada.alpha = alfaDaCamada
       } else {
-        camada.alpha = CURVAS.saida.f(feito)
+        camada.alpha = alfaDaCamada * CURVAS.saida.f(feito)
       }
     }
     if (movendo) {

@@ -57,9 +57,9 @@ const marcador = (nome: string) => {
 const folha = (pagina: string) => container.querySelector<HTMLElement>(`[data-pagina="${pagina}"]`)
 
 describe('LivroDaMesa', () => {
-  it('quatro marcadores na ordem do protótipo; só a folha aberta à vista, as outras montadas', () => {
+  it('cinco marcadores, os quatro do protótipo e Sons no fim; só a folha aberta à vista, as outras montadas', () => {
     montar()
-    expect([...container.querySelectorAll('[role="tab"]')].map((aba) => aba.textContent)).toEqual(['Grupo', 'Chat', 'Cenas', 'Mesa'])
+    expect([...container.querySelectorAll('[role="tab"]')].map((aba) => aba.textContent)).toEqual(['Grupo', 'Chat', 'Cenas', 'Mesa', 'Sons'])
     expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe('Páginas do livro da mesa')
     expect(folha('grupo')?.hidden).toBe(false)
     expect(folha('mesa')?.hidden).toBe(true)
@@ -120,12 +120,29 @@ describe('LivroDaMesa', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Recolher a página')
   })
 
-  it('sem sala possível (navegador puro): só a página Cenas, sem topo, com a região "Cenas"', () => {
+  it('sem sala possível (navegador puro): só as páginas Cenas e Sons, sem topo, com a região "Cenas"', () => {
     montar({ topo: undefined, grupo: undefined, chat: undefined, mesa: undefined })
-    expect([...container.querySelectorAll('[role="tab"]')].map((aba) => aba.textContent)).toEqual(['Cenas'])
+    expect([...container.querySelectorAll('[role="tab"]')].map((aba) => aba.textContent)).toEqual(['Cenas', 'Sons'])
     expect(container.querySelector('.gr-pagina__topo')).toBeNull()
     expect(container.querySelector('[role="region"][aria-label="Cenas"]')?.closest('[hidden]')).toBeNull()
     expect(container.querySelector('#lb-rail-panel-room')).toBeNull()
+    // O som local não depende de sala: a página Sons abre sem ela.
+    act(() => marcador('Sons').click())
+    expect(folha('sons')?.hidden).toBe(false)
+    expect(folha('cenas')?.hidden).toBe(true)
+  })
+
+  it('a folha Sons fica montada com qualquer página aberta (os atalhos 1 a 9 moram nela) e traz a página Sons', () => {
+    montar()
+    expect(folha('grupo')?.hidden).toBe(false)
+    expect(folha('sons')?.hidden).toBe(true)
+    expect(folha('sons')?.querySelector('[role="region"][aria-label="Sons"]')).not.toBeNull()
+    act(() => marcador('Sons').click())
+    expect(useLivroDaMesaStore.getState().pagina).toBe('sons')
+    expect(folha('sons')?.hidden).toBe(false)
+    // Sem sala a página guardada Sons continua valendo (Grupo, Chat e Mesa é que caem nas Cenas).
+    montar({ topo: undefined, grupo: undefined, chat: undefined, mesa: undefined })
+    expect(folha('sons')?.hidden).toBe(false)
   })
 
   it('os ids de antes ficam para as jornadas: a página da sala e a folha do Chat', () => {

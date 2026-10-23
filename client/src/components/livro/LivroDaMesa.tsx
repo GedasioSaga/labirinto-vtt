@@ -7,6 +7,7 @@ import { Botao } from '../grimorio/Botao'
 import { Marcadores, type PaginaDoMarcador } from '../grimorio/Marcador'
 import { classes } from '../grimorio/comum'
 import { entrarFolha } from './LivroDoMestre'
+import { PaginaSons } from './PaginaSons'
 import type { PausaDosNpcs } from './TopoDaSala'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import '../grimorio/grimorio.css'
@@ -122,7 +123,11 @@ const PAGINAS: readonly { id: PaginaDaMesa; rotulo: string; icone: NomeDoIcone }
   { id: 'chat', rotulo: 'Chat', icone: 'chat' },
   { id: 'cenas', rotulo: 'Cenas', icone: 'cenas' },
   { id: 'mesa', rotulo: 'Mesa', icone: 'mesa' },
+  { id: 'sons', rotulo: 'Sons', icone: 'som' },
 ]
+
+/** As páginas que existem sem sala: as Cenas e os Sons (o som local não depende de sala). */
+const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'sons'])
 
 /** Uma página do livro da mesa: todas ficam montadas (o rascunho do chat e o filtro das Cenas sobrevivem) e só a aberta fica à vista. */
 function FolhaDaMesa({ pagina, aberta, id, cheia = false, children }: { pagina: PaginaDaMesa; aberta: boolean; id?: string; cheia?: boolean; children: ReactNode }) {
@@ -144,8 +149,8 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
   const paginaGuardada = useLivroDaMesaStore((state) => state.pagina)
   const trocaAnimada = useLivroDaMesaStore((state) => state.trocaAnimada)
   const comSala = topo !== undefined
-  // Sem sala possível só existem as Cenas.
-  const pagina: PaginaDaMesa = comSala ? paginaGuardada : 'cenas'
+  // Sem sala possível só existem as Cenas e os Sons.
+  const pagina: PaginaDaMesa = comSala || PAGINAS_SEM_SALA.has(paginaGuardada) ? paginaGuardada : 'cenas'
   const recolhido = !aberto
   const corpoId = useId()
   const livro = useRef<HTMLElement>(null)
@@ -207,7 +212,7 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
   // Memorizado: o App renderiza a cada mudança do mapa, e um array novo faria a fita reler o layout em todo quadro.
   const marcadores = useMemo<PaginaDoMarcador<PaginaDaMesa>[]>(
     () =>
-      PAGINAS.filter((p) => comSala || p.id === 'cenas').map((p) => {
+      PAGINAS.filter((p) => comSala || PAGINAS_SEM_SALA.has(p.id)).map((p) => {
         const icone = <IconeDoLivro nome={p.icone} />
         if (p.id === 'grupo') return { id: p.id, rotulo: p.rotulo, icone, conta: pedidos, rotuloDaConta: pedidos === 1 ? '1 pedido' : `${pedidos} pedidos` }
         if (p.id === 'chat' && naoLidas.count > 0) {
@@ -294,6 +299,10 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
                 {mesa}
               </FolhaDaMesa>
             )}
+            {/* Sempre montada, com e sem sala: liga a biblioteca à aventura e ouve as teclas 1 a 9 com qualquer página à vista. */}
+            <FolhaDaMesa pagina="sons" aberta={pagina === 'sons'}>
+              <PaginaSons />
+            </FolhaDaMesa>
           </div>
         </div>
       </div>

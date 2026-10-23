@@ -1,0 +1,298 @@
+/*
+ * PÁGINA SONS do livro da mesa (Sistema 4, sons ao vivo, F3). Só tokens do
+ * tema (`--lb-*`, `--lb-gr-*`); nada daqui pinta fora de `.lb-sons` e do
+ * editor (`.lb-sons-editor`). A página tem 262 px: a grade é de 2 colunas.
+ *
+ * O único movimento que não é resposta de toque é a barra de progresso
+ * (linear, é tempo correndo). O selo pulsa pelo JS (150 ms, só ele); o
+ * clique nunca espera animação.
+ */
+
+.lb-sons { display: flex; flex-direction: column; min-width: 0; padding-bottom: 18px; }
+
+/* ---------------------------------------------------------------- topo fixo */
+.lb-sons__topo {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 10px;
+  background: var(--lb-gr-papel-alto);
+  border-bottom: 1px solid var(--lb-gr-filete);
+}
+.lb-sons__linha { display: flex; align-items: center; gap: var(--lb-space-2); min-width: 0; }
+.lb-sons__soando {
+  margin: 0;
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+/* Parar tudo é o pânico: largo e mais alto que o Importar (preparo, discreto, sem latão). */
+.lb-sons__linha .lb-sons__parar { flex: 1; min-height: 36px; font-size: var(--lb-font-size-md); }
+.lb-sons__parar:not(:disabled) {
+  color: var(--lb-color-ember);
+  border-color: color-mix(in srgb, var(--lb-color-ember) 45%, transparent);
+}
+
+/* As recusas da importação: fora do topo fixo, rolam com a página até o Fechar. */
+.lb-sons__recusas {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  margin: 10px 16px 0;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--lb-color-ember) 35%, transparent);
+  border-radius: var(--lb-radius-md);
+}
+.lb-sons__recusas > [role='alert'] { flex: 1; min-width: 0; }
+
+.lb-sons__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+.lb-sons__nota p { margin: 0; }
+.lb-sons__nota p + p { margin-top: 4px; }
+.lb-sons__nota--latao { color: var(--lb-color-brass-bright); }
+.lb-sons__nota--erro { color: var(--lb-color-ember); }
+
+/* ---------------------------------------------------------------- pastas e favoritos */
+/* Uma fileira só, que rola de lado: 50 pastas não empilham 25 linhas de chips antes do 1º som.
+ * A borda direita esmaece para dizer que há mais; o espaço do fim deixa o último chip sair do esmaecido.
+ * O respiro de baixo é do anel de foco (a rolagem de lado também corta em cima e embaixo). */
+.lb-sons__pastas {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 12px 16px 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 88%, transparent);
+}
+.lb-sons__pastas::-webkit-scrollbar { display: none; }
+.lb-sons__pastas::after { content: ''; flex: none; width: 24px; }
+.lb-sons__chip { flex: none; max-width: 160px; min-width: 0; }
+.lb-sons__chip .gr-ic { width: 13px; height: 13px; flex: none; }
+.lb-sons__chip-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-sons__chip small { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.lb-sons__chip[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+.lb-sons__chip[aria-checked='true'] small { color: inherit; }
+
+/* Renomear e apagar a pasta escolhida: discreto, logo abaixo da fileira (é manutenção, não jogo). */
+.lb-sons__pasta-acoes { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 0; min-width: 0; }
+.lb-sons__pasta-botoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.lb-sons__pasta-form { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------------------------------------------------------------- a grade de botões */
+.lb-sons__grade {
+  list-style: none;
+  margin: 0;
+  padding: 12px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lb-space-2);
+}
+
+.lb-efeito {
+  position: relative;
+  min-width: 0;
+  /* 200 botões: os que estão fora da vista não são desenhados até a rolagem chegar neles. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 78px;
+}
+
+.lb-efeito__tocar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  box-shadow: var(--lb-shadow-bevel);
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    box-shadow var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.lb-efeito__tocar:active { transform: scale(0.97); }
+/* Tocando: borda e anel de latão (7,1:1 sobre o cartão alto; o filete dava 1,7:1, abaixo dos 3:1 do WCAG 1.4.11). */
+.lb-efeito--tocando .lb-efeito__tocar {
+  background: var(--lb-gr-cartao-alto);
+  border-color: var(--lb-color-brass);
+  box-shadow: var(--lb-shadow-bevel), inset 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-efeito__cabeca { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+
+/* O selo: a tecla gravada em couro e latão. Acende (latão cheio) enquanto o som toca. */
+.lb-efeito__selo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font: 600 var(--lb-font-size-md)/1 var(--lb-font-utility);
+  color: var(--lb-gr-gravado-forte);
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2));
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-bottom-width: 2px;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lb-efeito__selo .gr-ic { width: 14px; height: 14px; }
+/* Sem tecla, o selo é só o ícone: com borda parecia um segundo botão ao lado do lápis. */
+.lb-efeito__selo--vazio { color: var(--lb-color-parchment-faint); background: transparent; border-color: transparent; }
+.lb-efeito--tocando .lb-efeito__selo {
+  color: var(--lb-color-brass-contrast);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
+  border-color: var(--lb-gr-latao-3);
+}
+.lb-efeito__favorito { display: inline-grid; color: var(--lb-color-brass); }
+.lb-efeito__favorito .gr-ic { width: 14px; height: 14px; }
+
+.lb-efeito__nome {
+  max-width: 100%;
+  /* Árabe e hebraico alinham à direita dentro do cartão (dir="auto" no span). */
+  align-self: stretch;
+  font-size: var(--lb-font-size-md);
+  font-weight: 500;
+  /* Folga para acento empilhado (vietnamita, tailandês): o corte de 2 linhas não come o topo da letra. */
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.lb-efeito__loop {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-gr-gravado);
+}
+.lb-efeito__loop .gr-ic { width: 13px; height: 13px; }
+.lb-efeito__loop--parar { color: var(--lb-color-brass-bright); }
+
+/* A barra fina do progresso, na borda de baixo: tempo correndo é linear. */
+.lb-efeito__trilho { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.lb-efeito--tocando .lb-efeito__trilho { background: var(--lb-color-brass-soft); }
+.lb-efeito__barra {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation-name: lb-efeito-progresso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.lb-efeito__barra--loop { animation-iteration-count: infinite; }
+@keyframes lb-efeito-progresso {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.lb-efeito__lapis {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font: inherit;
+  color: var(--lb-color-parchment-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lb-efeito__lapis .gr-ic { width: 16px; height: 16px; }
+
+@media (pointer: coarse) {
+  .lb-efeito__lapis { top: 0; right: 0; width: 44px; height: 44px; }
+  /* O lápis de 44 vai até y=44: a cabeça cresce e o nome começa abaixo dele (y=50), longe do toque no lápis. */
+  .lb-efeito__cabeca { min-height: 36px; }
+  .lb-sons__topo .gr-bt,
+  .lb-sons__recusas .gr-bt,
+  .lb-sons__pasta-acoes .gr-bt,
+  .lb-sons__chip { min-height: var(--lb-control-touch); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* O hover é mais fraco que o tocando: meio caminho do fundo e filete forte, sem latão. */
+  .lb-efeito__tocar:hover { background: color-mix(in srgb, var(--lb-gr-cartao-alto) 50%, var(--lb-gr-cartao)); border-color: var(--lb-gr-filete-forte); }
+  .lb-efeito--tocando .lb-efeito__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-color-brass); }
+  /* O chip ativo segue de latão sob o mouse (o hover do grimório, 0,3,0, vencia o ativo, 0,2,0). */
+  .lb-sons__pastas .lb-sons__chip[aria-checked='true']:hover { color: var(--lb-color-brass-bright); border-color: var(--lb-gr-filete-latao); }
+  .lb-efeito__lapis:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+}
+
+/* ---------------------------------------------------------------- vazio, mensagens e pé */
+.lb-sons__vazio {
+  margin: 14px 16px 0;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px dashed var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-md);
+}
+.lb-sons__vazio-titulo { margin: 0; font: 400 15px/1.2 var(--lb-font-display); color: var(--lb-color-parchment); }
+.lb-sons__vazio-texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.lb-sons__mensagem { margin: 14px 16px 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.lb-sons > .lb-sons__nota { padding: 10px 16px 0; }
+
+.lb-sons__pe {
+  margin: 16px 16px 0;
+  font: 500 var(--lb-font-size-xs)/1.45 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-sons__pe span { display: block; margin-top: 2px; font-family: var(--lb-font-sans); font-weight: 400; }
+.lb-sons__pe--pesada { color: var(--lb-color-brass-bright); }
+
+/* ---------------------------------------------------------------- o lápis (editor no diálogo) */
+.lb-sons-editor { display: flex; flex-direction: column; gap: 14px; }
+.lb-sons-editor .gr-entrada[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+.lb-sons-editor__volume { display: flex; align-items: flex-end; gap: var(--lb-space-2); }
+.lb-sons-editor__volume > .gr-campo { flex: 1; min-width: 0; }
+.lb-sons-editor__nova-pasta { display: flex; gap: 6px; }
+.lb-sons-editor__nova-pasta .gr-entrada { flex: 1; min-width: 0; }
+.lb-sons-editor__pe,
+.lb-sons-editor__apagar { display: flex; gap: var(--lb-space-2); padding-top: 12px; border-top: 1px solid var(--lb-gr-filete); }
+.lb-sons-editor__pe { align-items: center; }
+.lb-sons-editor__apagar { flex-direction: column; }
+
+/* ---------------------------------------------------------------- movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .lb-efeito__tocar:active { transform: none; }
+  /* Até 3 barras de loop varrendo sem fim no canto do olho: paradas e cheias. O efeito curto mantém a varredura (é tempo que acaba). */
+  .lb-efeito__barra--loop { animation: none; transform: scaleX(1); }
+}
