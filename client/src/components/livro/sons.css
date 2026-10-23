@@ -1,0 +1,244 @@
+/*
+ * PÁGINA SONS do livro da mesa (Sistema 4, sons ao vivo, F3). Só tokens do
+ * tema (`--lb-*`, `--lb-gr-*`); nada daqui pinta fora de `.lb-sons` e do
+ * editor (`.lb-sons-editor`). A página tem 262 px: a grade é de 2 colunas.
+ *
+ * O único movimento que não é resposta de toque é a barra de progresso
+ * (linear, é tempo correndo). O selo pulsa pelo JS (150 ms, só ele); o
+ * clique nunca espera animação.
+ */
+
+.lb-sons { display: flex; flex-direction: column; min-width: 0; padding-bottom: 18px; }
+
+/* ---------------------------------------------------------------- topo fixo */
+.lb-sons__topo {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 10px;
+  background: var(--lb-gr-papel-alto);
+  border-bottom: 1px solid var(--lb-gr-filete);
+}
+.lb-sons__linha { display: flex; align-items: center; gap: var(--lb-space-2); min-width: 0; }
+.lb-sons__soando {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-sons__parar:not(:disabled) {
+  color: var(--lb-color-ember);
+  border-color: color-mix(in srgb, var(--lb-color-ember) 45%, transparent);
+}
+
+.lb-sons__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+.lb-sons__nota p { margin: 0; }
+.lb-sons__nota p + p { margin-top: 4px; }
+.lb-sons__nota--latao { color: var(--lb-color-brass-bright); }
+.lb-sons__nota--erro { color: var(--lb-color-ember); }
+
+/* ---------------------------------------------------------------- pastas e favoritos */
+.lb-sons__pastas { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 0; min-width: 0; }
+.lb-sons__chip { max-width: 100%; min-width: 0; }
+.lb-sons__chip .gr-ic { width: 13px; height: 13px; flex: none; }
+.lb-sons__chip-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-sons__chip small { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.lb-sons__chip[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+.lb-sons__chip[aria-checked='true'] small { color: inherit; }
+
+/* ---------------------------------------------------------------- a grade de botões */
+.lb-sons__grade {
+  list-style: none;
+  margin: 0;
+  padding: 12px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lb-space-2);
+}
+
+.lb-som {
+  position: relative;
+  min-width: 0;
+  /* 200 botões: os que estão fora da vista não são desenhados até a rolagem chegar neles. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 78px;
+}
+
+.lb-som__tocar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  box-shadow: var(--lb-shadow-bevel);
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.lb-som__tocar:active { transform: scale(0.97); }
+.lb-som--tocando .lb-som__tocar { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-latao); }
+
+.lb-som__cabeca { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+
+/* O selo: a tecla gravada em couro e latão. Acende (latão cheio) enquanto o som toca. */
+.lb-som__selo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font: 600 var(--lb-font-size-md)/1 var(--lb-font-utility);
+  color: var(--lb-gr-gravado-forte);
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2));
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-bottom-width: 2px;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lb-som__selo .gr-ic { width: 14px; height: 14px; }
+.lb-som__selo--vazio { color: var(--lb-color-parchment-faint); background: transparent; border-color: var(--lb-gr-filete); }
+.lb-som--tocando .lb-som__selo {
+  color: var(--lb-color-brass-contrast);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
+  border-color: var(--lb-gr-latao-3);
+}
+.lb-som__favorito { display: inline-grid; color: var(--lb-color-brass); }
+.lb-som__favorito .gr-ic { width: 14px; height: 14px; }
+
+.lb-som__nome {
+  max-width: 100%;
+  font-size: var(--lb-font-size-md);
+  font-weight: 500;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.lb-som__loop {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-gr-gravado);
+}
+.lb-som__loop .gr-ic { width: 13px; height: 13px; }
+
+/* A barra fina do progresso, na borda de baixo: tempo correndo é linear. */
+.lb-som__trilho { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.lb-som--tocando .lb-som__trilho { background: var(--lb-color-brass-soft); }
+.lb-som__barra {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation-name: lb-som-progresso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.lb-som__barra--loop { animation-iteration-count: infinite; }
+@keyframes lb-som-progresso {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.lb-som__lapis {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font: inherit;
+  color: var(--lb-color-parchment-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lb-som__lapis .gr-ic { width: 16px; height: 16px; }
+
+@media (pointer: coarse) {
+  .lb-som__lapis { top: 0; right: 0; width: 44px; height: 44px; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-som__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); }
+  .lb-som--tocando .lb-som__tocar:hover { border-color: var(--lb-gr-filete-latao); }
+  .lb-som__lapis:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+}
+
+/* ---------------------------------------------------------------- vazio, mensagens e pé */
+.lb-sons__vazio {
+  margin: 14px 16px 0;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px dashed var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-md);
+}
+.lb-sons__vazio-titulo { margin: 0; font: 400 15px/1.2 var(--lb-font-display); color: var(--lb-color-parchment); }
+.lb-sons__vazio-texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.lb-sons__mensagem { margin: 14px 16px 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.lb-sons > .lb-sons__nota { padding: 10px 16px 0; }
+
+.lb-sons__pe {
+  margin: 16px 16px 0;
+  font: 500 var(--lb-font-size-xs)/1.45 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-sons__pe span { display: block; margin-top: 2px; font-family: var(--lb-font-sans); font-weight: 400; }
+.lb-sons__pe--pesada { color: var(--lb-color-brass-bright); }
+
+/* ---------------------------------------------------------------- o lápis (editor no diálogo) */
+.lb-sons-editor { display: flex; flex-direction: column; gap: 14px; }
+.lb-sons-editor .gr-entrada[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+.lb-sons-editor__nova-pasta { display: flex; gap: 6px; }
+.lb-sons-editor__nova-pasta .gr-entrada { flex: 1; min-width: 0; }
+.lb-sons-editor__pe,
+.lb-sons-editor__apagar { display: flex; gap: var(--lb-space-2); padding-top: 12px; border-top: 1px solid var(--lb-gr-filete); }
+.lb-sons-editor__pe { align-items: center; }
+.lb-sons-editor__apagar { flex-direction: column; }
+
+/* ---------------------------------------------------------------- movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .lb-som__tocar:active { transform: none; }
+}
