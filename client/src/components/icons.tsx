@@ -685,6 +685,35 @@ export function EyeIcon(props: IconProps) {
   )
 }
 
+/**
+ * Dois bustos, um à frente do outro: o olho "Jogadores veem" do painel de
+ * Camadas. Ícone próprio para não ser um segundo olho igual ao do mestre na
+ * mesma linha (dois olhos idênticos lado a lado não dizem qual é qual).
+ */
+export function JogadoresIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0111 0" />
+      <path d="M15 6.2a2.6 2.6 0 110 5.2" />
+      <path d="M16.6 13.9a5.2 5.2 0 013.9 5.1" />
+    </Icon>
+  )
+}
+
+/** Os mesmos bustos cortados pela diagonal do `EyeOffIcon`: os jogadores não veem. */
+export function JogadoresOcultosIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0111 0" />
+      <path d="M15 6.2a2.6 2.6 0 110 5.2" />
+      <path d="M16.6 13.9a5.2 5.2 0 013.9 5.1" />
+      <path d="M4 4l16 16" />
+    </Icon>
+  )
+}
+
 /** Olho riscado: mesma amêndoa do `EyeIcon` cortada por uma diagonal. */
 export function EyeOffIcon(props: IconProps) {
   return (

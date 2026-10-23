@@ -68,7 +68,7 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
       gridSettings: map.gridSettings,
       onGridSettingsChange: nada,
     },
-    layers: { hiddenLayers: [], lockedLayers: [], counts: CONTAGEM_ZERO, onToggleLayer: nada, onToggleLock: nada },
+    layers: { camadas: map, counts: CONTAGEM_ZERO, onToggleLayer: nada, onTogglePlayers: nada, onToggleLock: nada, onOpacity: nada },
     selection: { selection: null, defaultTokenName: 'Token', onAddToken: nada, onRemoveSelected: nada },
     selectedWall: null,
     wallDoor: { onToggleDoor: nada, onToggleOpen: nada, onToggleLocked: nada, onToggleSemEspiar: nada, onToggleSecret: nada, onRevealPassage: nada, onOpensFromChange: nada },

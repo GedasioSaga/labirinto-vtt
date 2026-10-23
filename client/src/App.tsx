@@ -234,7 +234,7 @@ import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { portaComAnimacao } from './portas/animacoesDePorta'
 import { chaveDaCorDaPorta, portaComCor } from './lib/corDaPorta'
-import { countEntitiesByLayer } from './lib/layers'
+import { contarItensPorCamada } from './lib/camadas/estado'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
@@ -610,6 +610,9 @@ function App() {
   // Onda 4, Frente D (camadas) — trava de camada + seletor "camada do Prop
   // selecionado" (setPropLayer já existia órfão desde a Fase 1).
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
+  // Fase 3, fatia 6: o olho "Jogadores veem" e a opacidade de cada camada.
+  const alternarOlhoDosJogadores = useMapStore((state) => state.alternarOlhoDosJogadores)
+  const definirOpacidadeDaCamada = useMapStore((state) => state.definirOpacidadeDaCamada)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
   const setLightAttachment = useMapStore((state) => state.setLightAttachment)
@@ -3535,11 +3538,12 @@ function App() {
             }}
             grid={gridControls}
             layers={{
-              hiddenLayers: map.hiddenLayers,
-              lockedLayers: map.lockedLayers,
-              counts: countEntitiesByLayer(map),
+              camadas: map,
+              counts: contarItensPorCamada(map),
               onToggleLayer: toggleLayerVisibility,
+              onTogglePlayers: alternarOlhoDosJogadores,
               onToggleLock: toggleLayerLock,
+              onOpacity: definirOpacidadeDaCamada,
             }}
             onSetPropLayer={setPropLayer}
             selection={{

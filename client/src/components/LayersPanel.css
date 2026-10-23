@@ -1,0 +1,189 @@
+/*
+ * CAMADAS (fase 3, fatia 6): 13 linhas com nome e contagem, opacidade, olho
+ * do mestre, olho dos jogadores e cadeado. Herda a lista compacta de
+ * `.lb-layers` (main.css); aqui só o que a linha nova acrescenta.
+ *
+ * A linha é quieta por padrão: o slider fica apagado até a mão chegar nele,
+ * e só a camada mexida (opacidade abaixo de 100%) acende o slider e mostra a
+ * porcentagem em latão. Assim o olho acha, nas 13, a que está diferente.
+ * Sem animação de entrada: o painel é aberto e mexido o tempo todo.
+ */
+
+.lb-camadas {
+  container-type: inline-size;
+  gap: 1px;
+}
+
+/* O `li` deixa de ser a fileira: a fileira é a cabeça; o que é aninhado vem embaixo. */
+.lb-camadas .lb-camadas__linha {
+  display: block;
+  min-height: 0;
+}
+
+.lb-camadas__cabeca {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1, 4px);
+  min-height: 32px;
+}
+
+/* Base 0 e min-width 0: nome comprido encolhe com reticências em vez de
+   empurrar contagem e botões para a linha de baixo. */
+.lb-camadas__nome {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-camadas__conta {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Slider + porcentagem. A porcentagem é `::after` (fora do texto da linha) e
+   o espaço dela fica reservado: mexer numa camada não empurra os botões. */
+.lb-camadas__opacidade {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lb-camadas__opacidade::after {
+  content: attr(data-pct);
+  width: 4ch;
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--lb-color-brass);
+}
+
+.lb-camadas__faixa {
+  width: 56px;
+  opacity: 0.45;
+  cursor: pointer;
+  transition: opacity var(--lb-motion-fast, 110ms) ease;
+}
+
+.lb-camadas__linha[data-esmaecida] .lb-camadas__faixa,
+.lb-camadas__faixa:focus-visible,
+.lb-camadas__faixa:active {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-camadas__cabeca:hover .lb-camadas__faixa {
+    opacity: 1;
+  }
+}
+
+.lb-camadas__faixa:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* A linha oculta para o mestre já esmaece nome e contagem (main.css); a
+   porcentagem também, para não acender numa camada que nem está à vista. */
+.lb-camadas__linha[data-hidden] .lb-camadas__opacidade::after {
+  opacity: 0.45;
+}
+
+/* Chave dos ícones, acima da lista. */
+.lb-camadas__legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--lb-space-3, 12px);
+  margin: var(--lb-space-2, 8px) 0 var(--lb-space-1, 4px);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__chave {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lb-camadas__chave svg {
+  flex: none;
+}
+
+/* O que mora dentro de uma camada (as camadas de pincel do Chão, o atalho
+   Transparente dos Telhados): recuado, com um filete à esquerda que diz "é
+   desta linha". */
+.lb-camadas__aninhado {
+  margin: 2px 0 var(--lb-space-2, 8px) 6px;
+  padding-left: var(--lb-space-2, 8px);
+  border-left: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+}
+
+.lb-camadas__aninhado .lb-quick-toggles {
+  margin: 0;
+}
+
+.lb-camadas__titulo-aninhado {
+  margin: 4px 0 2px;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__nota {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--lb-font-size-xs, 10.5px);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Painel estreito: a opacidade desce para a linha de baixo, inteira, e o nome
+   fica com o espaço da fileira. */
+@container (max-width: 290px) {
+  .lb-camadas__cabeca {
+    flex-wrap: wrap;
+  }
+
+  .lb-camadas__opacidade {
+    order: 9;
+    flex: 1 0 100%;
+    padding: 0 0 2px 2px;
+  }
+
+  /* Na linha de baixo o slider é largo: fica ainda mais quieto até a mão
+     chegar, para as 13 faixas não virarem 13 barras de latão. */
+  .lb-camadas__faixa {
+    flex: 1 1 auto;
+    width: auto;
+    opacity: 0.3;
+  }
+}
+
+/* Dedo: alvo de 44 px nos botões e no slider, e a opacidade numa linha só dela. */
+@media (pointer: coarse) {
+  .lb-camadas .lb-camadas__bt {
+    width: var(--lb-control-touch, 44px);
+    height: var(--lb-control-touch, 44px);
+  }
+
+  .lb-camadas__cabeca {
+    flex-wrap: wrap;
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .lb-camadas__opacidade {
+    order: 9;
+    flex: 1 0 100%;
+  }
+
+  .lb-camadas__faixa {
+    flex: 1 1 auto;
+    width: auto;
+    height: var(--lb-control-touch, 44px);
+    opacity: 1;
+  }
+}

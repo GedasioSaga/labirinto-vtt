@@ -69,19 +69,20 @@ export function GridQuickToggles({ showGrid, onShowGridChange, snapTargets, onSn
 }
 
 /**
- * TELHADOS NO EDITOR: "Telhados" mostra o telhado de cada Sala com teto (como o
- * jogador de fora vê) e "Transparente" o deixa a 32%, para o mestre enxergar o
- * que tem dentro. Começam ligados a cada abertura do editor
- * (`stores/telhadosNoEditor.ts`); sem telhado, fica o contorno da marca do teto.
+ * TELHADOS NO EDITOR (fatia 6): o olho do mestre da camada Telhados, no painel
+ * de Camadas, substitui o antigo botão "Telhados" (decisão do usuário). Fica
+ * "Transparente", o atalho SÓ do mestre: deixa o telhado a 32% para ele
+ * enxergar o que tem dentro. É de sessão (liga a cada abertura do editor,
+ * `stores/telhadosNoEditor.ts`), não vai ao arquivo nem aos jogadores. Mora
+ * aninhado na linha Telhados, e só aparece enquanto o mestre vê os telhados.
  */
-export function TelhadosQuickToggles() {
-  const ligados = useTelhadosNoEditor((state) => state.ligados)
+export function TransparenteDosTelhados() {
   const transparentes = useTelhadosNoEditor((state) => state.transparentes)
-  const { setLigados, setTransparentes } = useTelhadosNoEditor.getState()
+  const { setTransparentes } = useTelhadosNoEditor.getState()
   return (
     <div className="lb-quick-toggles" role="group" aria-label="Telhados">
-      <Toggle label="Telhados" checked={ligados} onChange={setLigados} />
-      <Toggle label="Transparente" checked={transparentes} onChange={setTransparentes} disabled={!ligados} />
+      <Toggle label="Transparente" checked={transparentes} onChange={setTransparentes} />
+      <span className="lb-camadas__nota">Só para você, até fechar o editor.</span>
     </div>
   )
 }
