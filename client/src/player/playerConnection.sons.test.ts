@@ -128,3 +128,82 @@ describe('playerConnection: som.falhou', () => {
     expect(socket.sent).toHaveLength(1)
   })
 })
+
+// ─── Revisão da F4 (23/10): o loop que chega antes de quem ouve ───
+
+describe('playerConnection: loops vivos guardados para quem assina depois', () => {
+  const ouvir = (connection: ReturnType<typeof conectar>['connection']) => {
+    const ouvidos: SomHostMessage[] = []
+    const parar = connection.ouvirSons((msg) => ouvidos.push(msg))
+    return { ouvidos, parar }
+  }
+
+  it('o loop que chegou sem ouvinte é repassado a quem assina, com o deslocamento somado à espera', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(10_000)
+      const { connection, socket, parar } = conectar()
+      parar()
+      socket.receive(TOCAR)
+      vi.setSystemTime(12_250)
+      expect(ouvir(connection).ouvidos).toEqual([{ ...TOCAR, deslocamentoS: 9.75 }])
+      // Loop que veio sem deslocamento (o clique de agora): passa a ter o da espera.
+      socket.receive({ ...TOCAR, instancia: 'som-2', deslocamentoS: undefined })
+      vi.setSystemTime(13_250)
+      expect(ouvir(connection).ouvidos.find((m) => m.type === 'som.tocar' && m.instancia === 'som-2')).toMatchObject({ deslocamentoS: 1 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cada assinatura nova recebe os loops vivos (a F5 que remonta não perde o loop); o volume que chegou sem ouvinte vale', () => {
+    const { connection, socket, parar } = conectar()
+    parar()
+    socket.receive(TOCAR)
+    socket.receive({ type: 'som.volume', instancia: 'som-1', volume: 0.2 })
+    expect(ouvir(connection).ouvidos).toMatchObject([{ type: 'som.tocar', instancia: 'som-1', volume: 0.2 }])
+    expect(ouvir(connection).ouvidos).toMatchObject([{ type: 'som.tocar', instancia: 'som-1', volume: 0.2 }])
+  })
+
+  it('parar antes da assinatura apaga; efeito curto é evento e não se guarda (nem o que troca um loop)', () => {
+    const { connection, socket, parar } = conectar()
+    parar()
+    socket.receive(TOCAR)
+    socket.receive({ ...TOCAR, instancia: 'som-2' })
+    socket.receive({ ...TOCAR, instancia: 'som-3' })
+    socket.receive({ ...TOCAR, instancia: 'som-4', loop: false })
+    socket.receive({ type: 'som.parar', instancia: 'som-1' })
+    socket.receive({ ...TOCAR, instancia: 'som-3', loop: false })
+    expect(ouvir(connection).ouvidos.map((m) => (m.type === 'som.tocar' ? m.instancia : m.type))).toEqual(['som-2'])
+  })
+
+  it('no máximo 3 loops guardados, como o motor', () => {
+    const { connection, socket, parar } = conectar()
+    parar()
+    for (const instancia of ['l1', 'l2', 'l3', 'l4']) socket.receive({ ...TOCAR, instancia })
+    expect(ouvir(connection).ouvidos.map((m) => (m.type === 'som.tocar' ? m.instancia : m.type))).toEqual(['l1', 'l2', 'l3'])
+  })
+
+  it('Parar tudo, room.closed e kicked apagam o que estava guardado', () => {
+    for (const fim of [{ type: 'som.pararTudo' }, { type: 'room.closed' }, { type: 'kicked' }]) {
+      const { connection, socket, parar } = conectar()
+      parar()
+      socket.receive(TOCAR)
+      socket.receive(fim)
+      expect(ouvir(connection).ouvidos).toEqual([])
+    }
+  })
+
+  it('a queda do socket apaga (na volta o mestre manda o loop de novo, com o ponto de agora)', async () => {
+    const { connection, socket, parar } = conectar()
+    parar()
+    socket.receive(TOCAR)
+    socket.readyState = 3
+    socket.onclose?.(new CloseEvent('close'))
+    await vi.waitFor(() => {
+      const { ouvidos, parar: pararDeOuvir } = ouvir(connection)
+      pararDeOuvir()
+      expect(ouvidos).toEqual([])
+    })
+  })
+})
