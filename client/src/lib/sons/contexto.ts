@@ -106,21 +106,21 @@ const GESTOS_QUE_DESTRAVAM: readonly string[] = ['pointerup', 'touchend', 'keydo
 /** Em captura: um `stopPropagation` de algum componente não esconde o gesto. Passivo: nunca impede o padrão. */
 const OUVIR: AddEventListenerOptions = { capture: true, passive: true }
 
-interface SaidasMontadas<N> {
-  saida: SaidaDeSom<N>
-  aoVivo: GanhoDeSom<N> & N
-}
-
-function montarSaidas<N>(ctx: ContextoDeSom<N>): SaidasMontadas<N> {
+function montarSaida<N>(ctx: ContextoDeSom<N>): SaidaDeSom<N> {
   const mestre = ctx.createGain()
   const abafador = ctx.createBiquadFilter()
   abafador.type = 'lowpass'
   abafador.frequency.setValueAtTime(ABAFADOR_HZ, ctx.currentTime)
   mestre.connect(abafador)
   abafador.connect(ctx.destination)
+  return { ctx, mestre }
+}
+
+/** Criada só quando o motor ao vivo pede: a página que toca só os sons de clima não ganha nó a mais. */
+function montarEntradaAoVivo<N>(ctx: ContextoDeSom<N>): GanhoDeSom<N> & N {
   const aoVivo = ctx.createGain()
   aoVivo.connect(ctx.destination)
-  return { saida: { ctx, mestre }, aoVivo }
+  return aoVivo
 }
 
 /** iOS só libera o áudio com um som começado dentro do gesto: 1 amostra muda basta. */
@@ -159,9 +159,7 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
         semAudio = true
         return null
       }
-      const montadas = montarSaidas(ctx)
-      saida = montadas.saida
-      aoVivo = montadas.aoVivo
+      saida = montarSaida(ctx)
       return saida
     } catch {
       // Construtor que lança (sem saída de áudio, limite de contextos): o app segue mudo.
@@ -173,7 +171,11 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
   return {
     obterContexto: () => (saida === null ? null : saida.ctx),
     obterSaida: () => saida,
-    obterEntradaAoVivo: () => aoVivo,
+    obterEntradaAoVivo: () => {
+      if (saida === null) return null
+      aoVivo ??= montarEntradaAoVivo(saida.ctx)
+      return aoVivo
+    },
     destravarNoPrimeiroGesto(alvo) {
       let ouvindo = true
       function parar(): void {
