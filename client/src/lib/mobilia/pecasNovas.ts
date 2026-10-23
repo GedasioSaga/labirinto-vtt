@@ -110,6 +110,7 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  */
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta',
 ]
 
 /**

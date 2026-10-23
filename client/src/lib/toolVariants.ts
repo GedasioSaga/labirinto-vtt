@@ -489,6 +489,19 @@ export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape
   ],
 }
 
+/**
+ * Atalho da ÁRVORE no menu do Objeto (fatia MT5 do Meio-Termo, decisão do
+ * usuário): a árvore continua carimbo, e o atalho arma a ferramenta Carimbo
+ * com a árvore redonda (`carimbos/embutidos.ts`). `components/ToolVariantMenu.tsx`
+ * o mostra logo depois do grupo Objeto.
+ */
+export const ATALHO_DA_ARVORE: { readonly label: string; readonly description: string; readonly carimbo: string; readonly ferramenta: DrawingTool } = {
+  label: 'Árvore redonda',
+  description: 'Arma o Carimbo com a árvore redonda (a árvore é carimbo, não móvel).',
+  carimbo: 'arvore-redonda',
+  ferramenta: 'carimbos',
+}
+
 const CLUSTER_SHAPE_GROUP: Record<ToolClusterId, Extract<ToolVariantGroup, { storeKey: 'drawShape' }>> = {
   drawing: DRAWING_SHAPE_GROUP,
   sala: SALA_SHAPE_GROUP,

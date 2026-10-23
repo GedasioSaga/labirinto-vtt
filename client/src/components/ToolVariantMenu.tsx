@@ -1,4 +1,5 @@
-import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMapStore } from '../stores/mapStore'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
@@ -6,7 +7,7 @@ import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { BrushMode } from '../lib/baldeDeTinta'
-import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
+import { ATALHO_DA_ARVORE, type ToolVariantGroup, type ToolVariantOption, type ToolVariantStoreKey } from '../lib/toolVariants'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
@@ -352,6 +353,58 @@ function VariantGroup({
 }
 
 /**
+ * ATALHO DA ÁRVORE (fatia MT5 do Meio-Termo): a árvore continua CARIMBO, não
+ * móvel; no menu do Objeto ela tem este atalho, que arma a ferramenta Carimbo
+ * já com a árvore redonda escolhida (o mesmo caminho do botão da barra para a
+ * ferramenta e a mesma escolha do painel de carimbos). Não é rádio: não é um
+ * valor do eixo Objeto, é uma ação. Sem tecla nova.
+ */
+function AtalhoDaArvore({ bindings, onPicked }: { bindings: ToolVariantBindings; onPicked: () => void }) {
+  const descId = useId()
+  const setCarimboEscolhido = useMapStore((s) => s.setCarimboEscolhido)
+  return (
+    <div className="lb-toolvariant-menu__group" role="group" aria-label="Atalho">
+      <h3 className="lb-eyebrow">Atalho</h3>
+      <div className="lb-toolvariant-menu__options">
+        <button
+          type="button"
+          aria-label={ATALHO_DA_ARVORE.label}
+          aria-describedby={descId}
+          title={ATALHO_DA_ARVORE.description}
+          className="lb-toolvariant-menu__option lb-toolvariant-menu__option--icon"
+          onClick={() => {
+            setCarimboEscolhido(ATALHO_DA_ARVORE.carimbo)
+            bindings.drawShape.onChange(ATALHO_DA_ARVORE.ferramenta)
+            onPicked()
+          }}
+        >
+          <span className="lb-toolvariant-menu__option-icon" aria-hidden="true">
+            <IconeDaArvoreRedonda />
+          </span>
+          <span className="lb-toolvariant-menu__option-text">
+            <span>{ATALHO_DA_ARVORE.label}</span>
+            <span id={descId} className="lb-toolvariant-menu__option-desc">
+              {ATALHO_DA_ARVORE.description}
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** A copa redonda de cima, no traço dos ícones do menu (16 px, `currentColor`). */
+function IconeDaArvoreRedonda() {
+  return (
+    <svg width={MOBILIA_ICON_SIZE} height={MOBILIA_ICON_SIZE} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinejoin="round">
+      <path d="M8 2.2c1.4 0 2.3.9 2.6 1.9 1.3.2 2.3 1.3 2.3 2.6 0 .7-.3 1.3-.7 1.8.3.4.4.9.4 1.4 0 1.5-1.2 2.6-2.7 2.6-.5 0-1-.1-1.4-.4-.3.2-.6.3-.9.3s-.6-.1-.9-.3c-.4.3-.9.4-1.4.4-1.5 0-2.7-1.1-2.7-2.6 0-.5.1-1 .4-1.4-.4-.5-.7-1.1-.7-1.8 0-1.3 1-2.4 2.3-2.6.3-1 1.2-1.9 2.6-1.9Z" />
+      <path d="M8 12.6v1.6" />
+      <circle cx="6.6" cy="6.4" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+/**
  * Teto de colunas. Duas resolvem o menu mais alto que existe (Chão: 4 grupos,
  * 18 opções) e ainda deixam o popover mais estreito que um terço da janela;
  * daí em diante um menu de ferramenta viraria painel, e quem assume é a
@@ -497,16 +550,18 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         // — sem isso a segunda coluna abriria com um risco solto no topo.
         <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
           {grupos.map((group) => (
-            <VariantGroup
-              key={group.storeKey}
-              group={group}
-              bindings={bindings}
-              onPicked={() => {
-                onChoose?.(group.storeKey)
-                onClose()
-              }}
-              iconFor={iconFor}
-            />
+            <Fragment key={group.storeKey}>
+              <VariantGroup
+                group={group}
+                bindings={bindings}
+                onPicked={() => {
+                  onChoose?.(group.storeKey)
+                  onClose()
+                }}
+                iconFor={iconFor}
+              />
+              {group.storeKey === 'mobiliaTipo' && <AtalhoDaArvore bindings={bindings} onPicked={onClose} />}
+            </Fragment>
           ))}
         </div>
       ))}
