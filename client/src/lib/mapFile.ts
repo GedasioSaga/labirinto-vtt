@@ -80,7 +80,7 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
-import { ocultasDoJogadorDoArquivo, opacidadesDoArquivo, versaoDasCamadasDoArquivo } from './camadas/arquivo'
+import { ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
@@ -347,7 +347,8 @@ function readPropPlayerLook(prop: Prop): Prop {
  * de ser pegável — o `...p` não leva o valor cru até a tela do jogador.
  */
 function readPropItem(doArquivo: Prop): Prop {
-  const prop = propCamadaFromFile(doArquivo)
+  // CAMADA DO OBJETO: torta sai e o objeto volta à camada padrão (`Prop.layer ?? 'objetos'`).
+  const prop = semCamadaTorta(doArquivo)
   if (!('item' in prop)) return prop
   const { item, ...rest } = prop
   const lido = readPinItem(item)
@@ -355,14 +356,14 @@ function readPropItem(doArquivo: Prop): Prop {
 }
 
 /**
- * CAMADA DO OBJETO (`lib/camadas`): campo NOVO e OPCIONAL. Ausente ou id de
- * camada válido passa intacto (sem reordenar chave); o resto sai e o objeto
- * volta à camada padrão (`Prop.layer ?? 'objetos'`).
+ * CAMADA DO TELHADO (`lib/camadas`): campo NOVO e OPCIONAL da sala, com a
+ * mesma regra da `camada` das entidades. Torto sai e o telhado volta a Telhados.
  */
-function propCamadaFromFile(prop: Prop): Prop {
-  if (!('camada' in prop) || ehCamadaId(prop.camada)) return prop
-  const { camada: _torta, ...semCamada } = prop
-  return semCamada
+function roomRoofLayerFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('camadaDoTelhado' in room) || ehCamadaId(room.camadaDoTelhado)) return region
+  const { camadaDoTelhado: _torta, ...semCamada } = room
+  return { ...region, room: semCamada }
 }
 
 /**
@@ -647,15 +648,17 @@ function deserializeMapFields(json: string): MapData {
     background: parsed.background ?? { type: 'color', src: '#2b2b2b' },
     // MUDA de cru para .map(): DoorState ganhou campo obrigatório.
     // wallKind ausente fica undefined de propósito (=== 'exterior').
-    walls: entityList(parsed.walls).map((w) => ({
+    // CAMADA (`lib/camadas`): em TODA entidade abaixo, `camada` torta perde a
+    // chave (`semCamadaTorta`); ausente continua ausente.
+    walls: entityList(parsed.walls).map((w) => semCamadaTorta({
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
     })),
-    lights: entityList(parsed.lights).map(lightFromFile),
+    lights: entityList(parsed.lights).map(lightFromFile).map(semCamadaTorta),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomRoofStyleFromFile(roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))))),
+      semCamadaTorta(roomRoofLayerFromFile(roomRoofStyleFromFile(roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -682,7 +685,7 @@ function deserializeMapFields(json: string): MapData {
       // meio de uma fala, o mapa reaberto (patrulha parada) não a mostra.
       // `aBordo` e `embarcavel` (VEÍCULO na tela do jogador) são marcas de FIO: arquivo que as traga as perde.
       // `pino` (cor do pino no MAPA DE CONTINENTE, na tela do jogador) idem.
-      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, pino: _pino, ...t } = fichaDoArquivo
+      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, pino: _pino, ...t } = semCamadaTorta(fichaDoArquivo)
       const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
       const comBolsa = bolsaDoArquivo(lido)
       if (!('mochila' in t)) return comBolsa
@@ -706,7 +709,7 @@ function deserializeMapFields(json: string): MapData {
       propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null }))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
-    stairs: entityList(parsed.stairs).map((s) => ({ ...s, transicao: parseTransicao(s.transicao) })),
+    stairs: entityList(parsed.stairs).map((s) => semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) })),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
     // sem esta linha, alpha: undefined vira 1 no Pixi e TODO círculo
@@ -716,7 +719,7 @@ function deserializeMapFields(json: string): MapData {
     // PAREDES AO REDOR (`Drawing.paredes`, `lib/paredesPresas.ts`): campo novo
     // e opcional; torto sai, e texto e caminho o perdem.
     drawings: entityList(parsed.drawings).map((d) =>
-      paredesDoDesenhoDoArquivo(pontosChaveDoArquivo(d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d)),
+      semCamadaTorta(paredesDoDesenhoDoArquivo(pontosChaveDoArquivo(d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d))),
     ),
     // MUDA de cru para .map(): `FloorPiece.fillColor` (cor própria do caminho)
     // é campo NOVO. O default dele é a AUSÊNCIA — peça sem cor própria usa
@@ -726,7 +729,7 @@ function deserializeMapFields(json: string): MapData {
     // estouraria no render e levaria o mapa inteiro junto.
     // `FloorPiece.nome` (camadas do pincel, 03/10/2026): mesma regra. Ausente
     // = nome automático ("Camada 1"); nome que não é texto sai do arquivo.
-    floor: entityList(parsed.floor).map((f) => {
+    floor: entityList(parsed.floor).map(semCamadaTorta).map((f) => {
       const comCor = typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined }
       if (comCor.nome === undefined || typeof comCor.nome === 'string') return comCor
       const semNome = { ...comCor }
@@ -734,8 +737,8 @@ function deserializeMapFields(json: string): MapData {
       return semNome
     }),
     floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
-    lines: entityList(parsed.lines),
-    markers: entityList(parsed.markers),
+    lines: entityList(parsed.lines).map(semCamadaTorta),
+    markers: entityList(parsed.markers).map(semCamadaTorta),
     concealZones: entityList(parsed.concealZones).map(concealZoneFromFile),
     // NOVO — pinos de ponto de interesse. Mapa salvo antes deste campo existir
     // abre sem nenhum pino; pino gravado por uma versão futura sem `kind` ou
@@ -755,7 +758,7 @@ function deserializeMapFields(json: string): MapData {
     // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
     // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
     // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
-    pins: entityList(parsed.pins).map(semNotaDoMestre).map((p) => pinWithCabin({
+    pins: entityList(parsed.pins).map(semNotaDoMestre).map(semCamadaTorta).map((p) => pinWithCabin({
       ...p,
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,

@@ -61,6 +61,19 @@ export function versaoDasCamadasDoArquivo(valor: unknown): Pick<MapData, 'versao
   return versaoDasCamadas === undefined ? {} : { versaoDasCamadas }
 }
 
+/**
+ * Entidade lida do disco: `camada` que não é id de camada perde a CHAVE (o
+ * item volta à camada padrão do tipo e o valor cru não volta ao disco nem vai
+ * ao jogador). Ausente ou id válido devolve o MESMO objeto: mapa de antes não
+ * ganha chave nem muda a ordem das chaves.
+ */
+export function semCamadaTorta<T extends NaCamada>(item: T): T {
+  if (!('camada' in item) || ehCamadaId(item.camada)) return item
+  const copia = { ...item }
+  delete copia.camada
+  return copia
+}
+
 /** O campo `camada` de um objeto cru do arquivo: só id de camada entra. */
 export function camadaLida(valor: object): NaCamada {
   const camada: unknown = 'camada' in valor ? valor.camada : undefined

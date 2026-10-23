@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MapData } from '../types/map'
 import { parseAdventure, serializeAdventure, type Adventure } from './adventure'
 import { andar6 } from './__fixtures__/andar6'
-import { carimbo, objeto, parede } from './__fixtures__/itensDeCamada'
+import { caminho, carimbo, escada, ficha, linha, luz, marcador, objeto, parede, peca, pino, porta, rabisco, regiao, texto } from './__fixtures__/itensDeCamada'
 import { torre } from './__fixtures__/hazardTower'
 import legacyMapJson from './__fixtures__/legacy-map.json'
 import legacyRoomDoorJson from './__fixtures__/legacy-room-door.json'
@@ -91,6 +91,51 @@ describe('camadas no arquivo: campos novos', () => {
     const formaErrada = deserializeMap(JSON.stringify({ ...base, ocultasDoJogador: 'tokens', opacidadeDasCamadas: [0.5] }))
     expect('ocultasDoJogador' in formaErrada).toBe(false)
     expect('opacidadeDasCamadas' in formaErrada).toBe(false)
+  })
+
+  it('valor torto: camada que não é id some de TODA entidade e do telhado da sala (a chave sai); id válido fica', () => {
+    const base = JSON.parse(serializeMap(createEmptyMap('m-torto-todos', 'Torto', 10, 10, 64)))
+    const tortas: unknown[] = [5, 'Covil do Lich', { id: 'tokens' }, null, true]
+    function cinco<T extends { id: string }>(item: T): object[] {
+      return [...tortas.map((camada, i) => ({ ...item, id: `${item.id}-t${i}`, camada })), { ...item, id: `${item.id}-ok`, camada: 'livre_ok' }]
+    }
+    const salas = [...tortas, 'telhados'].map((camadaDoTelhado, i) => ({ ...regiao, id: `sala${i}`, room: { shape: 'rect', name: 'Sala', camadaDoTelhado } }))
+    const entrada = {
+      walls: [...cinco(parede), ...cinco(porta)],
+      regions: [...cinco(regiao), ...salas],
+      stairs: cinco(escada),
+      drawings: [...cinco(rabisco), ...cinco(texto), ...cinco(caminho)],
+      floor: cinco(peca),
+      lines: cinco(linha),
+      markers: cinco(marcador),
+      lights: cinco(luz),
+      tokens: cinco(ficha),
+      pins: cinco(pino),
+    }
+    const lido = deserializeMap(JSON.stringify({ ...base, ...entrada }))
+    const porTipo: [string, readonly { id: string; camada?: unknown }[], number][] = [
+      ['walls', lido.walls, entrada.walls.length],
+      ['regions', lido.regions, entrada.regions.length],
+      ['stairs', lido.stairs, entrada.stairs.length],
+      ['drawings', lido.drawings, entrada.drawings.length],
+      ['floor', lido.floor, entrada.floor.length],
+      ['lines', lido.lines, entrada.lines.length],
+      ['markers', lido.markers, entrada.markers.length],
+      ['lights', lido.lights, entrada.lights.length],
+      ['tokens', lido.tokens, entrada.tokens.length],
+      ['pins', lido.pins, entrada.pins.length],
+    ]
+    for (const [nome, itens, tamanho] of porTipo) {
+      expect(itens, nome).toHaveLength(tamanho)
+      const lidas = itens.map((item) => `${item.id}:${'camada' in item ? String(item.camada) : 'ausente'}`)
+      expect(lidas, nome).toEqual(itens.map((item) => `${item.id}:${item.id.endsWith('-ok') ? 'livre_ok' : 'ausente'}`))
+    }
+    const telhados = lido.regions.filter((r) => r.id.startsWith('sala')).map((r) => (r.room !== undefined && 'camadaDoTelhado' in r.room ? r.room.camadaDoTelhado : 'ausente'))
+    expect(telhados).toEqual(['ausente', 'ausente', 'ausente', 'ausente', 'ausente', 'telhados'])
+    // E nada torto volta ao disco.
+    const disco = serializeMap(lido)
+    expect(disco).not.toContain('Covil do Lich')
+    expect(disco).not.toMatch(/"camada(DoTelhado)?":\s*(5|null|true|\{)/)
   })
 
   it('ocultasDoJogador só com itens tortos FALHA FECHADA: vira ausente (segue hiddenLayers), nunca [] = "o jogador vê tudo"', () => {
