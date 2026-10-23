@@ -563,6 +563,56 @@ describe('o topo (revisão de design da F3)', () => {
   })
 })
 
+describe('renomear e apagar pasta', () => {
+  async function pastaComUmSom(): Promise<{ som: string; pasta: string }> {
+    await montarPagina()
+    await abrirAventura()
+    const som = await importar('goteira.wav')
+    let pasta = ''
+    act(() => {
+      pasta = useBibliotecaDeSonsStore.getState().criarPasta('Criptaa')?.id ?? ''
+      useBibliotecaDeSonsStore.getState().editarEfeito(som, { pastaId: pasta })
+    })
+    const chip = [...container.querySelectorAll<HTMLButtonElement>('.lb-sons__chip')].find((b) => b.textContent?.includes('Criptaa'))
+    act(() => chip?.click())
+    return { som, pasta }
+  }
+
+  it('com a pasta escolhida, Renomear pasta troca o nome (Enter grava, Esc desiste)', async () => {
+    const { pasta } = await pastaComUmSom()
+    expect(() => botao('Renomear pasta')).not.toThrow()
+    act(() => botao('Renomear pasta').click())
+    const campo = container.querySelector<HTMLInputElement>('input[aria-label="Novo nome da pasta"]')
+    if (campo === null) throw new Error('sem o campo do nome da pasta')
+    expect(document.activeElement).toBe(campo)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(campo, 'Cripta')
+      campo.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    teclar(campo, 'Enter')
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.find((p) => p.id === pasta)?.nome).toBe('Cripta')
+    expect(container.querySelector('input[aria-label="Novo nome da pasta"]')).toBeNull()
+    act(() => botao('Renomear pasta').click())
+    teclar(container.querySelector('input[aria-label="Novo nome da pasta"]') ?? document.body, 'Escape')
+    expect(container.querySelector('input[aria-label="Novo nome da pasta"]')).toBeNull()
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.find((p) => p.id === pasta)?.nome).toBe('Cripta')
+  })
+
+  it('Apagar pasta pede confirmação; confirmado, a pasta some e os sons dela ficam sem pasta, em Todos', async () => {
+    const { som, pasta } = await pastaComUmSom()
+    act(() => botao('Apagar pasta…').click())
+    expect(naTela()).toContain('Apagar a pasta Criptaa? O som dela fica sem pasta, em Todos.')
+    expect(document.activeElement?.textContent).toBe('Cancelar')
+    act(() => botao('Apagar pasta').click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.some((p) => p.id === pasta)).toBe(false)
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === som)?.pastaId).toBeNull()
+    expect(botao(/^goteira/)).toBeDefined()
+    // Era a única pasta: a fileira de chips some e a grade mostra todos.
+    expect(container.querySelector('.lb-sons__pastas')).toBeNull()
+    expect(container.querySelector('.lb-sons__pasta-acoes')).toBeNull()
+  })
+})
+
 describe('ouvir no lápis', () => {
   it('com o som parado, Ouvir toca no volume do efeito; tocando, o mesmo botão vira Parar', async () => {
     await montarPagina()

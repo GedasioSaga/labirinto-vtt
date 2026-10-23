@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type Key
 import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
-import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type MudancaNoEfeito } from '../../lib/sons/biblioteca'
+import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type MudancaNoEfeito, type PastaDeSons } from '../../lib/sons/biblioteca'
 import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { useAdventureStore } from '../../stores/adventureStore'
@@ -256,6 +256,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const filtroValido = filtro.tipo === 'todos' || (filtro.tipo === 'favoritos' ? favoritos > 0 : biblioteca.pastas.some((pasta) => pasta.id === filtro.id))
   const filtroAgora: Filtro = filtroValido ? filtro : { tipo: 'todos' }
   const visiveis = useMemo(() => efeitosDoFiltro(biblioteca, filtroAgora), [biblioteca, filtroAgora])
+  const pastaEscolhida = filtroAgora.tipo === 'pasta' ? biblioteca.pastas.find((pasta) => pasta.id === filtroAgora.id) : undefined
 
   const semAventura = aventuraId === null
   const cheia = biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX
@@ -340,6 +341,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       {recusas.length > 0 && <RecusasDaImportacao recusas={recusas} onFechar={fecharRecusas} />}
 
       {(biblioteca.pastas.length > 0 || favoritos > 0) && <ChipsDasPastas biblioteca={biblioteca} favoritos={favoritos} filtro={filtroAgora} onFiltro={setFiltro} />}
+      {pastaEscolhida !== undefined && <AcoesDaPasta key={pastaEscolhida.id} pasta={pastaEscolhida} sons={visiveis.length} />}
 
       {carregando ? (
         <p className="lb-sons__mensagem">Lendo os sons da aventura…</p>
@@ -443,6 +445,129 @@ function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { bibliotec
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * Renomear e apagar a pasta escolhida no chip (sem elas, o nome errado ficava
+ * para sempre, contra o teto de 50 pastas). Só a biblioteca muda: nada no
+ * disco além do `sons.json`. Apagada, os sons dela ficam sem pasta, em Todos.
+ */
+function AcoesDaPasta({ pasta, sons }: { pasta: PastaDeSons; sons: number }) {
+  const [modo, setModo] = useState<'nada' | 'renomear' | 'apagar'>('nada')
+  const [nome, setNome] = useState(pasta.nome)
+  const [erro, setErro] = useState<string | null>(null)
+  const campo = useRef<HTMLInputElement>(null)
+  const cancelar = useRef<HTMLButtonElement>(null)
+  const renomear = useRef<HTMLButtonElement>(null)
+  const voltarAoRenomear = useRef(false)
+
+  useEffect(() => {
+    if (modo === 'renomear') {
+      campo.current?.focus()
+      campo.current?.select()
+    }
+    else if (modo === 'apagar') cancelar.current?.focus()
+    else if (voltarAoRenomear.current) {
+      voltarAoRenomear.current = false
+      renomear.current?.focus()
+    }
+  }, [modo])
+
+  const desistir = () => {
+    setErro(null)
+    setNome(pasta.nome)
+    voltarAoRenomear.current = true
+    setModo('nada')
+  }
+
+  const gravar = () => {
+    if (nome.trim() === pasta.nome || useBibliotecaDeSonsStore.getState().renomearPasta(pasta.id, nome)) {
+      desistir()
+      return
+    }
+    setErro(impedimentoDaLoja() ?? `Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres.`)
+  }
+
+  const apagar = (botao: HTMLElement) => {
+    const pagina = botao.closest('.lb-sons')
+    if (!useBibliotecaDeSonsStore.getState().apagarPasta(pasta.id)) {
+      setErro(`A pasta não foi apagada. ${impedimentoDaLoja() ?? 'Ela já não existe.'}`)
+      return
+    }
+    // Este bloco some com a pasta: o foco vai para o chip que fica escolhido (Todos) ou, sem pasta nenhuma
+    // (a fileira some), para o primeiro som; depois de o React desenhar.
+    setTimeout(() => (pagina?.querySelector<HTMLElement>('.lb-sons__chip[aria-checked="true"]') ?? pagina?.querySelector<HTMLElement>('.lb-efeito__tocar'))?.focus(), 0)
+  }
+
+  const sobreOsSons = sons === 0 ? 'Ela está vazia.' : sons === 1 ? 'O som dela fica sem pasta, em Todos.' : `Os ${sons} sons dela ficam sem pasta, em Todos.`
+
+  return (
+    <div className="lb-sons__pasta-acoes">
+      {modo === 'renomear' ? (
+        <div className="lb-sons__pasta-form">
+          <input
+            ref={campo}
+            className="gr-entrada"
+            type="text"
+            autoComplete="off"
+            aria-label="Novo nome da pasta"
+            maxLength={NOME_DE_SOM_MAX}
+            value={nome}
+            onChange={(evento) => setNome(evento.currentTarget.value)}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Enter') {
+                evento.preventDefault()
+                gravar()
+              } else if (evento.key === 'Escape') {
+                // O Esc é da pasta aqui, não da seleção do mapa.
+                evento.preventDefault()
+                evento.stopPropagation()
+                desistir()
+              }
+            }}
+          />
+          <div className="gr-acoes">
+            <Botao tamanho="p" onClick={desistir}>
+              Cancelar
+            </Botao>
+            <Botao tamanho="p" variante="primario" onClick={gravar}>
+              Gravar nome
+            </Botao>
+          </div>
+        </div>
+      ) : modo === 'apagar' ? (
+        <div className="lb-sons__pasta-form" role="group" aria-label="Confirmar apagar pasta">
+          <p className="lb-sons__nota">
+            Apagar a pasta {pasta.nome}? {sobreOsSons}
+          </p>
+          <div className="gr-acoes">
+            <Botao ref={cancelar} tamanho="p" onClick={desistir}>
+              Cancelar
+            </Botao>
+            <Botao tamanho="p" variante="perigo" onClick={(evento) => apagar(evento.currentTarget)}>
+              Apagar pasta
+            </Botao>
+          </div>
+        </div>
+      ) : (
+        <div className="lb-sons__pasta-botoes">
+          <Botao ref={renomear} tamanho="p" aria-label="Renomear pasta" onClick={() => setModo('renomear')}>
+            <IconeLapis />
+            Renomear
+          </Botao>
+          <Botao tamanho="p" aria-label="Apagar pasta…" onClick={() => setModo('apagar')}>
+            <IconeDoLivro nome="lixo" />
+            Apagar…
+          </Botao>
+        </div>
+      )}
+      {erro !== null && (
+        <p className="lb-sons__nota lb-sons__nota--erro" role="alert">
+          {erro}
+        </p>
+      )}
     </div>
   )
 }
