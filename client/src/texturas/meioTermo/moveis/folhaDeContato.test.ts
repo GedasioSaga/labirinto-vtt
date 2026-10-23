@@ -1,5 +1,4 @@
 import { writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import type { OpcaoDeMaterial } from '../materiais'
 import { escalaDoNivel, pintarMovel, type TipoComTextura } from './index'
@@ -15,8 +14,10 @@ import { colar, emPng, escrever, novaTela } from './folhaDeContato.testkit'
  * regressão): `GERAR_FOLHA_MT2=1 npx vitest run src/texturas/meioTermo/moveis/folhaDeContato.test.ts`.
  */
 
-/** O vitest roda de `client/` (o ambiente jsdom não dá `import.meta.url` de arquivo). */
-const DESTINO = resolve(process.cwd(), '../docs/design/objetos/provas/mt2-folha-de-contato.png')
+/** Relativo à pasta em que o vitest roda (`client/`); o ambiente jsdom não dá `import.meta.url` de arquivo. */
+const DESTINO = '../docs/design/objetos/provas/mt2-folha-de-contato.png'
+/** No vitest, `import.meta.env` traz as variáveis do ambiente do processo. */
+const PEDIDA = import.meta.env.GERAR_FOLHA_MT2 === '1'
 const CHAO: readonly [number, number, number] = [0xa8, 0x77, 0x6a]
 const TINTA: readonly [number, number, number] = [0x24, 0x1c, 0x18]
 const MARGEM = 24
@@ -35,7 +36,7 @@ const LINHAS: readonly { tipo: TipoComTextura; nome: string; casasW: number; cas
 
 const NIVEIS = [1, 3] as const
 
-it.skipIf(process.env.GERAR_FOLHA_MT2 !== '1')('gera a folha de contato dos 6 móveis x 3 materiais x 2 níveis', () => {
+it.skipIf(!PEDIDA)('gera a folha de contato dos 6 móveis x 3 materiais x 2 níveis', () => {
   const linhas = LINHAS.map((linha) => ({
     ...linha,
     celulas: linha.materiais.map((materiais) => ({
