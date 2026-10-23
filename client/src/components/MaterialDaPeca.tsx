@@ -85,6 +85,26 @@ function LugarDeMaterialCampo({ lugar, marcado, onEscolher }: LugarProps) {
   )
 }
 
+/** O material que vale num lugar da peça nova. */
+export interface MaterialNoLugar {
+  lugar: LugarDeMaterial
+  material: IdDoMaterial
+}
+
+/**
+ * Lugar a lugar, o material que vale agora na peça nova: a cor gravada (o 1º
+ * lugar na "Cor", o 2º na "Cor da linha") levada ao material mais perto do
+ * lugar; sem cor, o padrão do lugar. É o que o painel marca e o que o resumo
+ * da ficha escreve.
+ */
+export function materiaisDaPeca(prop: Prop, tipo: PecaNova): MaterialNoLugar[] {
+  const cores = [normalizarCorDoMovel(prop.mobiliaCor), normalizarCorDoMovel(prop.mobiliaCorDaLinha)]
+  return LUGARES_DE_MATERIAL[tipo].map((lugar, i) => {
+    const perto = materialMaisPerto(cores[i], lugar)
+    return { lugar, material: ehMaterial(perto) ? perto : 'carvalho' }
+  })
+}
+
 export interface MaterialDaPecaProps {
   prop: Prop
   tipo: PecaNova
@@ -100,22 +120,16 @@ export interface MaterialDaPecaProps {
  * Sem campo novo no arquivo; o desenho lê o material mais perto da cor.
  */
 export function MaterialDaPeca({ prop, tipo, onAparenciaChange }: MaterialDaPecaProps) {
-  const lugares = LUGARES_DE_MATERIAL[tipo]
-  const cores = [normalizarCorDoMovel(prop.mobiliaCor), normalizarCorDoMovel(prop.mobiliaCorDaLinha)]
   return (
     <section className="lb-section">
-      {lugares.map((lugar, i) => {
-        const perto = materialMaisPerto(cores[i], lugar)
-        const marcado = ehMaterial(perto) ? perto : 'carvalho'
-        return (
-          <LugarDeMaterialCampo
-            key={lugar.id}
-            lugar={lugar}
-            marcado={marcado}
-            onEscolher={(material) => onAparenciaChange(prop.id, i === 0 ? { cor: MATERIAIS[material].hex } : { corDaLinha: MATERIAIS[material].hex })}
-          />
-        )
-      })}
+      {materiaisDaPeca(prop, tipo).map(({ lugar, material: marcado }, i) => (
+        <LugarDeMaterialCampo
+          key={lugar.id}
+          lugar={lugar}
+          marcado={marcado}
+          onEscolher={(material) => onAparenciaChange(prop.id, i === 0 ? { cor: MATERIAIS[material].hex } : { corDaLinha: MATERIAIS[material].hex })}
+        />
+      ))}
     </section>
   )
 }

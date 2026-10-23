@@ -1268,6 +1268,8 @@ function comVistaGravada(prop: Prop, vista: 'lado' | undefined): Prop {
  * do tipo novo (o da mesa não serve para o barril). `x`/`y` são o centro, então
  * o tamanho novo não tira o móvel do lugar. A vista de lado fica só se o tipo
  * novo também tem vista (com o tamanho de lado dele); num tipo sem vista, some.
+ * Na PEÇA NOVA (MT4) o "Preencher" desligado não vai junto: ela sai sempre com
+ * textura e o painel dela não tem como religá-lo.
  */
 export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
   const vista = normalizarVistaDoMovel(tipo, prop.mobiliaVista)
@@ -1278,7 +1280,10 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
     forma,
   )
   // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
-  return semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  const movel = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  if (!ehPecaNova(tipo) || !('mobiliaPreenchido' in movel)) return movel
+  const { mobiliaPreenchido: _preenchido, ...semPreenchido } = movel
+  return semPreenchido
 }
 
 /**
