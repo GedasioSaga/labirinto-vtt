@@ -262,6 +262,35 @@ export function distribuir<N, T>(itens: T[], nos: readonly NoDaFaixa<N>[], camad
   return nos.map((n, i) => ({ no: n.no, itens: baldes[i] }))
 }
 
+/** Um renderer com estado (cache de sprite, relógio, gradiente) por nó da faixa. */
+export interface PorNo<N, R> {
+  /** O do nó: o de hoje no container de hoje; nos criados, nasce na primeira pintura. */
+  de(no: N): R
+  /** O nó criado foi descartado: o renderer dele sai junto (o de hoje nunca). */
+  soltar(no: N): void
+  todos(): R[]
+}
+
+export function criarPorNo<N, R>(base: N, deHoje: R, criar: () => R, soltarRenderer: (renderer: R) => void): PorNo<N, R> {
+  const mapa = new Map<N, R>([[base, deHoje]])
+  return {
+    de(no) {
+      const pronto = mapa.get(no)
+      if (pronto !== undefined) return pronto
+      const novo = criar()
+      mapa.set(no, novo)
+      return novo
+    },
+    soltar(no) {
+      const renderer = mapa.get(no)
+      if (renderer === undefined || no === base) return
+      mapa.delete(no)
+      soltarRenderer(renderer)
+    },
+    todos: () => [...mapa.values()],
+  }
+}
+
 /** Um par por faixa e camada presente nos itens (sem repetir). */
 export function paresDosItens<T>(faixa: string, itens: readonly T[], camadaDe: (item: T) => CamadaId): ParDeFaixa[] {
   const vistas = new Set<CamadaId>()

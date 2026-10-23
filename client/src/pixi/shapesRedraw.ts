@@ -83,6 +83,13 @@ export interface ShapesSnapshot {
   filtroFaccoes?: boolean
   /** O ponto da patrulha com a macro aberta no painel (`stores/patrulhaAndandoStore.ts`). Ausente === nenhum. */
   pontoDaPatrulhaAberto?: PontoDaRotaAberto | null
+  /**
+   * CAMADAS: que camadas desenham em que nó da pilha (`pilhaDeCamadas.ts`,
+   * `assinatura`). Muda quando um par (faixa, camada) ganha ou perde nó, nunca
+   * na troca de ordem pura nem na de opacidade: mover camada não repinta.
+   * Ausente === pilha de hoje.
+   */
+  camadas?: string
 }
 
 /**
@@ -115,6 +122,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
   const selectedId = (kind: string): string | null => (single !== null && single.kind === kind ? single.id : null)
   const rasterMode = map.floorStyle.renderMode === 'raster'
   const floorHidden = hidden.includes('salas')
+  // Só as camadas que dividem os itens pelos nós da pilha (paredes, portas, escadas, linhas, desenhos, luzes).
+  const nos = snapshot.camadas ?? ''
 
   switch (layer) {
     case 'floor':
@@ -130,7 +139,7 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       return [piece, map.floorStyle.sampleStep]
     }
     case 'mapLines':
-      return [rasterMode, hidden.includes('paredes'), hidden.includes('portas'), map.lines, map.markers]
+      return [rasterMode, hidden.includes('paredes'), hidden.includes('portas'), map.lines, map.markers, nos]
     case 'mapFrame':
       return [map.frame]
     case 'regions': {
@@ -143,7 +152,7 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       return map.perigos === undefined ? ['sem perigo'] : [map.perigos, map.regions, hidden]
     case 'drawings': {
       const drawingId = selectedId('drawing')
-      return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
+      return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale, nos]
     }
     case 'texturas':
       // TEXTURAS (`lib/texturas.ts`): os passos e as importadas; com balde, também
@@ -203,12 +212,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // (`drawNuvens.ts`), mexendo só em posição e opacidade.
       return nuvensLigadas(map) ? ['nuvens', map.id, map.width, map.height, map.grid, map.floor, map.background] : ['sem nuvens']
     case 'walls':
-      return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution]
+      return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution, nos]
     case 'stairs':
-      return [map.stairs, hidden, selectedId('stair'), cameraScale, rendererResolution]
+      return [map.stairs, hidden, selectedId('stair'), cameraScale, rendererResolution, nos]
     case 'lights':
       // Paredes e chão barram a luz (`visionSegments`): mudou um deles, o recorte muda.
-      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, map.floor]
+      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, map.floor, nos]
     case 'watchCones':
       // OLHOS DO GUARDA: o cone segue o guarda (fichas) e é cortado por paredes e chão.
       return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, map.floor, hidden, map.grid] : ['sem guarda']

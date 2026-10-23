@@ -6,7 +6,7 @@ import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, M
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { AlturaDoPenhasco, MapData, ModoDoPenhasco, Pin, Region, Token, Wall } from '../types/map'
+import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
@@ -296,9 +296,9 @@ import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
-import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
+import { FAIXAS_EDITOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { alfaDoTelhadoNoEditor, criarPilha } from './pilhaDeCamadas'
+import { alfaDoTelhadoNoEditor, criarPilha, criarPorNo, distribuir, paresDosItens } from './pilhaDeCamadas'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -1358,6 +1358,8 @@ export function PixiCanvas({
         if (faixa === 'telhadosContainer') return alfaDoTelhadoNoEditor(1, useTelhadosNoEditor.getState().transparentes)
         return faixa === 'secretStairsGraphics' || faixa === 'secretDrawingsGraphics' || faixa === 'secretPathsGraphics' ? SECRET_ITEM_ALPHA : 1
       }
+      // Quem guarda um renderer por nó criado (portas, móveis, luzes) solta o dele aqui.
+      const aoDescartarNo: ((no: Container) => void)[] = []
       const pilha = criarPilha<Container>({
         pai: world,
         faixas: FAIXAS_EDITOR,
@@ -1367,7 +1369,10 @@ export function PixiCanvas({
           no.label = plano.chave
           return no
         },
-        descartar: (no) => no.destroy({ children: true }),
+        descartar: (no) => {
+          for (const soltar of aoDescartarNo) soltar(no)
+          no.destroy({ children: true })
+        },
         alfaProprio: alfaProprioDaFaixa,
         lerAlfa: (no) => no.alpha,
         definirAlfa: (no, alfa) => {
@@ -1784,15 +1789,77 @@ export function PixiCanvas({
        * cada redesenho e, sem mudança, não planeja nada. Mover camada só troca
        * containers de lugar; opacidade só mexe no `alpha` do nó.
        */
-      let entradaDaPilha: { modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean } | null = null
-      const atualizarPilha = (): void => {
+      /**
+       * Os pares (faixa, camada) com itens, só das faixas que dividem os itens
+       * por nó (paredes, portas, linhas, escadas, desenhos, móveis, luzes).
+       * Memorizados pela referência de cada lista (a store é imutável) e pelo
+       * modelo (camada livre apagada devolve o item à padrão do tipo).
+       * Tudo, não só o visível: esconder camada não remonta a pilha.
+       */
+      const memoDosPares = new WeakMap<readonly object[], { modelo: MapData['modeloCamadas']; pares: ParDeFaixa[] }>()
+      const paresDaLista = (lista: readonly object[], modelo: MapData['modeloCamadas'], calcular: () => ParDeFaixa[]): ParDeFaixa[] => {
+        const pronto = memoDosPares.get(lista)
+        if (pronto !== undefined && pronto.modelo === modelo) return pronto.pares
+        const pares = calcular()
+        memoDosPares.set(lista, { modelo, pares })
+        return pares
+      }
+      const paresDoMapa = (map: MapData): ParDeFaixa[] => {
+        const camadas = contextoDeCamadas(map)
+        const modelo = map.modeloCamadas
+        const deParede = (w: Wall) => camadas.camadaDe('parede', w)
+        const deEscada = (s: Stair) => camadas.camadaDe('escada', s)
+        const deDesenho = (d: Drawing) => camadas.camadaDe('desenho', d)
+        return [
+          ...paresDaLista(map.walls, modelo, () => [
+            ...paresDosItens('wallsGraphics', map.walls, deParede),
+            ...paresDosItens('doorsGraphics', map.walls.filter((w) => w.door !== null), deParede),
+          ]),
+          ...paresDaLista(map.lines, modelo, () => paresDosItens('mapLinesGraphics', map.lines, (l) => camadas.camadaDe('linha', l))),
+          ...paresDaLista(map.markers, modelo, () => paresDosItens('mapLinesGraphics', map.markers, (m) => camadas.camadaDe('marcador', m))),
+          ...paresDaLista(map.stairs, modelo, () => [
+            ...paresDosItens('stairsGraphics', map.stairs.filter((s) => !s.secret), deEscada),
+            ...paresDosItens('secretStairsGraphics', map.stairs.filter((s) => s.secret), deEscada),
+          ]),
+          ...paresDaLista(map.drawings, modelo, () => {
+            // O Texto tem renderer próprio (`textLabelsContainer`): `drawDrawings` o pula.
+            const traços = map.drawings.filter((d) => d.kind !== 'text')
+            const sob = traços.filter(desenhoFicaSobAsSalas)
+            const sobre = traços.filter((d) => !desenhoFicaSobAsSalas(d))
+            return [
+              ...paresDosItens('drawingsGraphics', sob.filter((d) => !d.secret), deDesenho),
+              ...paresDosItens('secretDrawingsGraphics', sob.filter((d) => d.secret), deDesenho),
+              ...paresDosItens('pathsGraphics', sobre.filter((d) => !d.secret), deDesenho),
+              ...paresDosItens('secretPathsGraphics', sobre.filter((d) => d.secret), deDesenho),
+            ]
+          }),
+          ...paresDaLista(map.props, modelo, () => paresDosItens('propsContainer', map.props, (p) => camadas.camadaDe('objeto', p))),
+          ...paresDaLista(map.lights, modelo, () => paresDosItens('lightsContainer', map.lights, (l) => camadas.camadaDe('luz', l))),
+        ]
+      }
+
+      let entradaDaPilha: { modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean; pares: string } | null = null
+      /** Devolve true quando um par (faixa, camada) ganhou ou perdeu nó: quem distribui itens por nó repinta. */
+      const atualizarPilha = (): boolean => {
         const { map } = sceneState()
         const transparentes = useTelhadosNoEditor.getState().transparentes
+        const pares = paresDoMapa(map)
+        const chaveDosPares = pares.map((par) => `${par.faixa}|${par.camada}`).join(',')
         const anterior = entradaDaPilha
-        if (anterior !== null && anterior.modelo === map.modeloCamadas && anterior.opacidades === map.opacidadeDasCamadas && anterior.transparentes === transparentes) return
-        entradaDaPilha = { modelo: map.modeloCamadas, opacidades: map.opacidadeDasCamadas, transparentes }
-        pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares: [] })
+        if (
+          anterior !== null &&
+          anterior.modelo === map.modeloCamadas &&
+          anterior.opacidades === map.opacidadeDasCamadas &&
+          anterior.transparentes === transparentes &&
+          anterior.pares === chaveDosPares
+        ) {
+          return false
+        }
+        entradaDaPilha = { modelo: map.modeloCamadas, opacidades: map.opacidadeDasCamadas, transparentes, pares: chaveDosPares }
+        const assinatura = pilha.assinatura()
+        pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
+        return pilha.assinatura() !== assinatura
       }
 
       const computeViewport = () =>
@@ -1913,16 +1980,32 @@ export function PixiCanvas({
        * escolhida quando `open` muda e repinta sozinho no relógio do Pixi
        * enquanto alguma anda (`animadorDePortas.ts`).
        */
-      const animadorDePortas = createAnimadorDePortas({ ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta })
+      const movimentoDasPortas = { ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }
+      const animadorDePortas = createAnimadorDePortas(movimentoDasPortas)
+      // CAMADAS: o animador guarda o último Graphics que pintou; nó criado tem o dele.
+      const animadoresDePortas = criarPorNo<Container, ReturnType<typeof createAnimadorDePortas>>(
+        doorsGraphics,
+        animadorDePortas,
+        () => createAnimadorDePortas(movimentoDasPortas),
+        (animador) => animador.cancelar(),
+      )
+      aoDescartarNo.push((no) => animadoresDePortas.soltar(no))
       const paintWallsAndDoors = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        const walls = visibleWalls(map.walls, map.hiddenLayers)
+        const camadas = contextoDeCamadas(map)
+        const deParede = (w: Wall) => camadas.camadaDe('parede', w)
+        const walls = visibleWalls(map.walls, map)
         const selectedWallId = single?.kind === 'wall' ? single.id : null
         const res = app.renderer.resolution
-        // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
-        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null, true)
-        animadorDePortas.desenhar(doorsGraphics, walls, selectedWallId, camera.scale, res)
+        // Cada nó da faixa com as paredes da camada dele; mapa de hoje = um nó, a mesma lista.
+        for (const { no, itens } of distribuir(walls, pilha.nosDaFaixa('wallsGraphics'), deParede)) {
+          // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
+          if (no instanceof Graphics) drawWalls(no, itens, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null, true)
+        }
+        for (const { no, itens } of distribuir(walls, pilha.nosDaFaixa('doorsGraphics'), deParede)) {
+          if (no instanceof Graphics) animadoresDePortas.de(no).desenhar(no, itens, selectedWallId, camera.scale, res)
+        }
       }
 
       /**
@@ -1945,14 +2028,14 @@ export function PixiCanvas({
       const paintLights = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
+        const camadas = contextoDeCamadas(map)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
-        lightsRenderer.draw(lightsContainer, visibleLights(map.lights, map.hiddenLayers), {
-          selectedLightId: single?.kind === 'light' ? single.id : null,
-          cameraScale: camera.scale,
-          occluders: lightOccludersOf(map),
-        })
+        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: lightOccludersOf(map) }
+        for (const { no, itens } of distribuir(visibleLights(map.lights, map), pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
+          luzesPorNo.de(no).draw(no, itens, opcoes)
+        }
         // Para o e2e: gradientes vivos (1 textura cada) não podem crescer com trocas de intensidade.
-        el.dataset.lightGradients = String(lightsRenderer.liveGradients())
+        el.dataset.lightGradients = String(luzesPorNo.todos().reduce((soma, renderer) => soma + renderer.liveGradients(), 0))
       }
 
       /**
@@ -1987,27 +2070,39 @@ export function PixiCanvas({
       const paintDrawings = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+        const camadas = contextoDeCamadas(map)
+        const drawings = visibleDrawings(map.drawings, map)
         const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
         // Os do botão Desenho por baixo da borda da sala; o Caminho por cima
         // dela (o Texto tem renderer próprio e `drawDrawings` o pula).
         const sobAsSalas = drawings.filter(desenhoFicaSobAsSalas)
         const sobreAsSalas = drawings.filter((d) => !desenhoFicaSobAsSalas(d))
-        drawDrawings(drawingsGraphics, sobAsSalas.filter((d) => !d.secret), selectedDrawingId, camera.scale)
-        drawDrawings(secretDrawingsGraphics, sobAsSalas.filter((d) => d.secret), selectedDrawingId, camera.scale)
-        drawDrawings(pathsGraphics, sobreAsSalas.filter((d) => !d.secret), selectedDrawingId, camera.scale)
-        drawDrawings(secretPathsGraphics, sobreAsSalas.filter((d) => d.secret), selectedDrawingId, camera.scale)
+        const pintar = (faixa: string, lista: Drawing[]) => {
+          for (const { no, itens } of distribuir(lista, pilha.nosDaFaixa(faixa), (d: Drawing) => camadas.camadaDe('desenho', d))) {
+            if (no instanceof Graphics) drawDrawings(no, itens, selectedDrawingId, camera.scale)
+          }
+        }
+        pintar('drawingsGraphics', sobAsSalas.filter((d) => !d.secret))
+        pintar('secretDrawingsGraphics', sobAsSalas.filter((d) => d.secret))
+        pintar('pathsGraphics', sobreAsSalas.filter((d) => !d.secret))
+        pintar('secretPathsGraphics', sobreAsSalas.filter((d) => d.secret))
       }
 
       /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
       const paintStairs = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        const stairs = visibleStairs(map.stairs, map.hiddenLayers)
+        const camadas = contextoDeCamadas(map)
+        const stairs = visibleStairs(map.stairs, map)
         const selectedStairId = single?.kind === 'stair' ? single.id : null
         const res = app.renderer.resolution
-        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId, camera.scale, res)
-        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale, res)
+        const pintar = (faixa: string, lista: Stair[]) => {
+          for (const { no, itens } of distribuir(lista, pilha.nosDaFaixa(faixa), (s: Stair) => camadas.camadaDe('escada', s))) {
+            if (no instanceof Graphics) drawStairs(no, itens, selectedStairId, camera.scale, res)
+          }
+        }
+        pintar('stairsGraphics', stairs.filter((s) => !s.secret))
+        pintar('secretStairsGraphics', stairs.filter((s) => s.secret))
       }
 
       // Girar sala pela alça (bolinha acima da sala selecionada). Nasce antes do
@@ -2086,9 +2181,21 @@ export function PixiCanvas({
       const paintMapLines = () => {
         const { map } = sceneState()
         const rasterMode = map.floorStyle.renderMode === 'raster'
-        mapLinesGraphics.clear()
-        if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
-        if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
+        const camadas = contextoDeCamadas(map)
+        const daLinha = (linha: MapData['lines'][number]) => camadas.camadaDe('linha', linha)
+        const doMarcador = (marcador: MapData['markers'][number]) => camadas.camadaDe('marcador', marcador)
+        // Linhas e marcadores dividem a faixa; cada nó dela leva os da camada dele.
+        const nos = pilha.nosDaFaixa('mapLinesGraphics')
+        const linhas = rasterMode ? [] : map.lines.filter((l) => camadas.mestreVe(daLinha(l)))
+        const marcadores = rasterMode ? [] : map.markers.filter((m) => camadas.mestreVe(doMarcador(m)))
+        const baldesDeLinhas = distribuir(linhas, nos, daLinha)
+        const baldesDeMarcadores = distribuir(marcadores, nos, doMarcador)
+        nos.forEach(({ no }, i) => {
+          if (!(no instanceof Graphics)) return
+          no.clear()
+          if (baldesDeLinhas[i].itens.length > 0) drawMapLines(no, baldesDeLinhas[i].itens)
+          if (baldesDeMarcadores[i].itens.length > 0) drawMapMarkers(no, baldesDeMarcadores[i].itens)
+        })
       }
 
       /** O que as camadas vetoriais leem, no momento do redesenho (store, aventura, câmera, gesto). */
@@ -2108,6 +2215,7 @@ export function PixiCanvas({
           posseDasFichas: useDonosDasFichasStore.getState().posse,
           filtroFaccoes: useTerritorioStore.getState().filtroLigado,
           pontoDaPatrulhaAberto: usePatrulhaAndandoStore.getState().pontoAberto,
+          camadas: pilha.assinatura(),
         }
       }
 
@@ -2312,8 +2420,10 @@ export function PixiCanvas({
 
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
-        atualizarPilha()
+        // Par que ganhou ou perdeu nó: as camadas daqui repintam pelo portão; os móveis, logo depois.
+        const pilhaMudou = atualizarPilha()
         if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
+        if (pilhaMudou) redrawProps()
       }
 
       const redrawShapes = () => redrawShapeLayers()
@@ -2323,7 +2433,10 @@ export function PixiCanvas({
       const redrawPins = () => redrawShapeLayers(['pins'])
 
       const redrawTokens = () => {
-        atualizarPilha()
+        if (atualizarPilha()) {
+          redrawShapes()
+          redrawProps()
+        }
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
@@ -2395,6 +2508,15 @@ export function PixiCanvas({
           el.dataset.chamasAnimando = String(estado.animando)
         },
       })
+      // CAMADAS: móvel numa camada que não é a de hoje (ou Objetos e Decoração com
+      // opacidades diferentes) desenha no nó dela, com cache de sprite próprio.
+      const propsPorNo = criarPorNo<Container, ReturnType<typeof createPropsRenderer>>(
+        propsContainer,
+        propsRenderer,
+        () => createPropsRenderer({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+        (renderer) => renderer.destruir(),
+      )
+      aoDescartarNo.push((no) => propsPorNo.soltar(no))
       const textLabelsRenderer = createTextLabelsRenderer()
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
@@ -2424,6 +2546,9 @@ export function PixiCanvas({
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()
+      // CAMADAS: luz numa camada que não é a de hoje desenha no nó dela, com renderer (e gradientes) próprio.
+      const luzesPorNo = criarPorNo<Container, ReturnType<typeof createLightsRenderer>>(lightsContainer, lightsRenderer, createLightsRenderer, (renderer) => renderer.destroy())
+      aoDescartarNo.push((no) => luzesPorNo.soltar(no))
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
         floor: MapData['floor']
@@ -2515,15 +2640,17 @@ export function PixiCanvas({
       const hasDrawnFurniture = () => sceneState().map.props.some((prop) => prop.mobilia !== undefined)
 
       const redrawProps = () => {
-        atualizarPilha()
+        // Par que ganhou ou perdeu nó por causa de um móvel: paredes, linhas e cia. repintam pelos portões.
+        if (atualizarPilha()) redrawShapes()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // O fio do móvel desenhado é em px de tela: sem zoom e resolução ele
         // cairia em 1 px de mundo e engrossaria com o zoom (4 px no máximo).
-        propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null, {
-          cameraScale: camera.scale,
-          rendererResolution: app.renderer.resolution,
-        })
+        const camadas = contextoDeCamadas(map)
+        const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution }
+        for (const { no, itens } of distribuir(visibleProps(map.props, map), pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
+          propsPorNo.de(no).draw(no, itens, single?.kind === 'prop' ? single.id : null, vista)
+        }
         // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
         // de formas, e sem isto as alças ficam na posição de onde o prop saiu.
         redrawEditHandles()
@@ -2870,9 +2997,14 @@ export function PixiCanvas({
       )
       // CAMADAS: mover uma camada na lista ou mudar a opacidade dela não toca nas
       // listas do mapa, então nenhuma assinatura acima acorda. A pilha remonta
-      // (troca os containers de lugar, ajusta o alpha) sem repintar.
+      // (troca os containers de lugar, ajusta o alpha) sem repintar. Só quando um
+      // par ganha ou perde nó (faixa dividida que se separa, camada livre que
+      // some) repintam as camadas que dividem itens por nó, pelos portões delas.
       const unsubscribeCamadas = useMapStore.subscribe((state, previous) => {
-        if (state.map.modeloCamadas !== previous.map.modeloCamadas || state.map.opacidadeDasCamadas !== previous.map.opacidadeDasCamadas) atualizarPilha()
+        if (state.map.modeloCamadas === previous.map.modeloCamadas && state.map.opacidadeDasCamadas === previous.map.opacidadeDasCamadas) return
+        if (!atualizarPilha()) return
+        redrawShapes()
+        redrawProps()
       })
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
@@ -8543,6 +8675,8 @@ export function PixiCanvas({
         straightenGhost.parar()
         unsubscribeActiveTool()
         unsubscribeFloorShape()
+        // Os nós criados pela pilha soltam os renderers deles (portas, móveis, luzes).
+        pilha.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         lightsRenderer.destroy()
         // A textura do relevo também não: o Sprite sai com a cena, ela não.

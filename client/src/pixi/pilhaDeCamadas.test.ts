@@ -3,9 +3,13 @@ import type { CamadaId, ModeloDeCamadas } from '../types/map'
 import { FAIXAS_EDITOR, faixaPrincipal, type ParDeFaixa } from '../lib/camadas/ordem'
 import { CAMADAS_PADRAO, MODELO_PADRAO } from '../lib/camadas/padrao'
 import { ALFA_DO_TELHADO_TRANSPARENTE } from '../stores/telhadosNoEditor'
+import type { MapData } from '../types/map'
+import { createEmptyMap } from '../lib/mapFactory'
+import { SHAPES_LAYERS, createShapesRedrawer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import {
   alfaDoTelhadoNoEditor,
   criarPilha,
+  criarPorNo,
   distribuir,
   ordenarFilhos,
   paresDosItens,
@@ -295,7 +299,62 @@ describe('pilha de camadas: opacidade', () => {
   })
 })
 
+describe('reordenar não repinta (portões de shapesRedraw)', () => {
+  function snapshot(map: MapData, camadas: string): ShapesSnapshot {
+    return { map, selection: [], activeTool: 'select', selectedConcealZoneId: null, selectedPinId: null, travel: [], cameraScale: 1, rendererResolution: 1, rotatingRoom: false, camadas }
+  }
+
+  it('mapa com só a lista de camadas mudada e a mesma assinatura da pilha: nenhuma camada repinta; assinatura nova repinta as que dividem itens por nó', () => {
+    const pinturas: ShapesLayer[] = []
+    const espia = (camada: ShapesLayer) => () => {
+      pinturas.push(camada)
+    }
+    const paint: Record<ShapesLayer, () => void> = {
+      floor: espia('floor'), gridMask: espia('gridMask'), floorSelection: espia('floorSelection'), mapLines: espia('mapLines'),
+      mapFrame: espia('mapFrame'), regions: espia('regions'), perigos: espia('perigos'), drawings: espia('drawings'),
+      texturas: espia('texturas'), relevo: espia('relevo'), carimbos: espia('carimbos'), hazards: espia('hazards'),
+      areaTriggers: espia('areaTriggers'), faccoes: espia('faccoes'), conveyors: espia('conveyors'), roomNames: espia('roomNames'),
+      nomesDosLugares: espia('nomesDosLugares'), walls: espia('walls'), stairs: espia('stairs'), nuvens: espia('nuvens'),
+      lights: espia('lights'), watchCones: espia('watchCones'), patrolRoutes: espia('patrolRoutes'), concealZones: espia('concealZones'),
+      pins: espia('pins'), textLabels: espia('textLabels'), handles: espia('handles'), areaOutline: espia('areaOutline'),
+    }
+    expect(Object.keys(paint)).toHaveLength(SHAPES_LAYERS.length)
+    const redesenhar = createShapesRedrawer(paint)
+    const { pilha } = montar()
+    pilha.atualizar(entrada(MODELO_PADRAO))
+    const mapa = createEmptyMap('m', 'Mapa', 8, 8, 64)
+    redesenhar(snapshot(mapa, pilha.assinatura()))
+    expect(pinturas.length).toBeGreaterThan(0)
+
+    pinturas.length = 0
+    const movido = movida('chao', 'salas')
+    pilha.atualizar(entrada(movido))
+    expect(redesenhar(snapshot({ ...mapa, modeloCamadas: movido }, pilha.assinatura()))).toEqual([])
+    expect(pinturas).toEqual([])
+
+    // Objetos e Decoração com opacidades diferentes: a faixa dos móveis se separa e a assinatura muda.
+    pilha.atualizar(entrada(movido, { alfa: (c) => (c === 'objetos' ? 0.4 : 1) }))
+    expect(redesenhar(snapshot({ ...mapa, modeloCamadas: movido }, pilha.assinatura()))).toEqual(['mapLines', 'drawings', 'walls', 'stairs', 'lights'])
+  })
+})
+
 describe('distribuir e pares', () => {
+  it('um renderer por nó: o de hoje no nó de hoje, o criado nasce na primeira pintura e sai com o nó', () => {
+    const base = new NoFalso('base')
+    const criado = new NoFalso('criado')
+    const soltos: string[] = []
+    let feitos = 0
+    const porNo = criarPorNo(base, 'hoje', () => `novo${(feitos += 1)}`, (r) => soltos.push(r))
+    expect(porNo.de(base)).toBe('hoje')
+    expect(feitos).toBe(0)
+    expect(porNo.de(criado)).toBe('novo1')
+    expect(porNo.de(criado)).toBe('novo1')
+    porNo.soltar(base)
+    porNo.soltar(criado)
+    expect(soltos).toEqual(['novo1'])
+    expect(porNo.todos()).toEqual(['hoje'])
+  })
+
   const nosFalsos = (lista: { camadas: CamadaId[]; base: boolean }[]) => lista.map((n, i) => ({ no: new NoFalso(`n${i}`), ...n }))
 
   it('faixa com um nó só devolve o MESMO array (portão Object.is), sem olhar os itens', () => {
