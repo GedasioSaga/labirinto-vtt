@@ -1,9 +1,10 @@
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete,
 } from '../types/map'
 import type { Point } from '../pixi/world'
+import { alternarCadeado, alternarOlhoDoMestre } from './camadas/estado'
 import { alertaDaCena, limitarFaccao } from './faccoes'
 import { MODELO_PADRAO_DO_TETO, corDaPaleta, corDoTetoOuPadrao, corDoTetoValida, corPadraoDoModelo, type ModeloDoTeto } from './telhado/paletas'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -998,12 +999,9 @@ export function setMapSize(map: MapData, width: number, height: number): MapData
  * invisível é responsabilidade do STORE (mapStore.ts), não desta função
  * pura: aqui não há acesso a `selection`.
  */
-export function toggleLayerVisibility(map: MapData, layerId: LayerId): MapData {
-  const hidden = map.hiddenLayers.includes(layerId)
-  return {
-    ...map,
-    hiddenLayers: hidden ? map.hiddenLayers.filter((l) => l !== layerId) : [...map.hiddenLayers, layerId],
-  }
+export function toggleLayerVisibility(map: MapData, layerId: CamadaId): MapData {
+  // Fatia 6: o olho "Mestre vê" de toda camada (`lib/camadas/estado.ts`). As 9 de antes num mapa de antes: o toggle de sempre.
+  return alternarOlhoDoMestre(map, layerId)
 }
 
 /**
@@ -1015,12 +1013,8 @@ export function toggleLayerVisibility(map: MapData, layerId: LayerId): MapData {
  * seleção quando o item selecionado fica travado é responsabilidade do
  * STORE, não desta função pura — mesma separação de toggleLayerVisibility.
  */
-export function toggleLayerLock(map: MapData, layerId: LayerId): MapData {
-  const locked = map.lockedLayers.includes(layerId)
-  return {
-    ...map,
-    lockedLayers: locked ? map.lockedLayers.filter((l) => l !== layerId) : [...map.lockedLayers, layerId],
-  }
+export function toggleLayerLock(map: MapData, layerId: CamadaId): MapData {
+  return alternarCadeado(map, layerId)
 }
 
 /**

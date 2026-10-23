@@ -3,7 +3,7 @@ import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { Drawing, LayerId, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
+import type { CamadaId, Drawing, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
@@ -1398,7 +1398,7 @@ function redrawNomesDosLugares(
   map: MapData,
   regioes: Region[] | null,
   desenhos: Drawing[],
-  hidden: readonly LayerId[],
+  hidden: readonly CamadaId[],
   opcoes: { conhecido: ConhecidoDoRelevo; ocultos: readonly (readonly RegionPoint[])[]; animar: boolean },
 ): void {
   if (regioes === null) {

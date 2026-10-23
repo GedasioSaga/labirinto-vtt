@@ -10,6 +10,7 @@ import type {
   Carimbo,
   Drawing,
   FloorPiece,
+  LayerId,
   Light,
   MapLine,
   MapMarker,
@@ -21,6 +22,7 @@ import type {
   Token,
   Wall,
 } from '../../types/map'
+import { LAYER_IDS } from '../../types/map'
 
 /** De BAIXO para CIMA, na ordem em que a tela já desenha hoje. */
 export const CAMADAS_PADRAO: readonly CamadaPadraoId[] = [
@@ -59,6 +61,16 @@ export function ehCamadaPadrao(id: string): id is CamadaPadraoId {
 /** Valor do arquivo que serve como id de camada: uma das 13 ou uma livre bem formada. */
 export function ehCamadaId(valor: unknown): valor is CamadaId {
   return typeof valor === 'string' && (IDS_PADRAO.has(valor) || ID_LIVRE.test(valor))
+}
+
+/** Uma das 9 camadas de antes das 13 (`LAYER_IDS`): as únicas que o mapa de antes guarda no olho e no cadeado. */
+export function ehCamadaDeAntes(valor: unknown): valor is LayerId {
+  return LAYER_IDS.some((id) => id === valor)
+}
+
+/** A lista inteira é das 9 de antes (a de todo mapa de antes, vinda do arquivo). */
+export function soCamadasDeAntes(lista: CamadaId[]): lista is LayerId[] {
+  return lista.every(ehCamadaDeAntes)
 }
 
 /** Posição na lista padrão (0 = Chão); -1 para camada livre. */

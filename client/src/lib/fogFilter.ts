@@ -20,7 +20,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { LAYER_IDS } from '../types/map'
 import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
 import { camadasDoJogadorDoMapa } from './camadas/doJogador'
-import { ehCamadaPadrao } from './camadas/padrao'
+import { ehCamadaDeAntes, ehCamadaPadrao, soCamadasDeAntes } from './camadas/padrao'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
@@ -377,7 +377,8 @@ export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] =
  */
 function ocultasNoRecorte(map: MapData): LayerId[] {
   if (map.versaoDasCamadas === 2) return []
-  if (map.ocultasDoJogador === undefined) return map.hiddenLayers
+  // Mapa de antes só guarda as 9 (`lib/mapFile.ts`); id novo que escapasse não vai à tela do jogador, que lê a lista no sentido antigo.
+  if (map.ocultasDoJogador === undefined) return soCamadasDeAntes(map.hiddenLayers) ? map.hiddenLayers : map.hiddenLayers.filter(ehCamadaDeAntes)
   const camadas = contextoDeCamadas(map)
   return LAYER_IDS.filter((id) => !camadas.jogadorVe(id))
 }

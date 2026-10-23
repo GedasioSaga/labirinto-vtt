@@ -1,16 +1,16 @@
 import type { ReactNode } from 'react'
-import type { LayerId } from '../types/map'
+import type { CamadaId, LayerId } from '../types/map'
 import { LAYER_IDS } from '../types/map'
 import { LAYER_LABELS } from '../lib/layers'
 import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon } from './icons'
 
 export interface LayersPanelProps {
-  hiddenLayers: LayerId[]
+  hiddenLayers: readonly CamadaId[]
   /** Onda 4, Frente D — "travar camada inteira" (mesma forma de
    *  hiddenLayers, por pedido do integrador). Item numa camada listada aqui
    *  continua visível (independente de hiddenLayers) mas não pode ser
    *  selecionado nem movido — ver lib/layers.ts:isLayerLocked/canInteractInLayer. */
-  lockedLayers: LayerId[]
+  lockedLayers: readonly CamadaId[]
   /** Uma entrada por LayerId — ver countEntitiesByLayer em lib/layers.ts.
    *  Puramente informativo (mostrado ao lado do nome); não afeta o toggle. */
   counts: Record<LayerId, number>
