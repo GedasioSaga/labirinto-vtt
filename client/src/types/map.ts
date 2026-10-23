@@ -55,6 +55,12 @@ export interface ModeloDeCamadas {
   ordem: CamadaDef[]
 }
 
+/** Uma camada como a tela do jogador a recebe: só o id e a opacidade (ausente = 1). */
+export interface CamadaDoJogador {
+  id: CamadaId
+  alfa?: number
+}
+
 /**
  * A camada escolhida para o item. Ausente = a camada padrão do tipo
  * (`camadaPadraoDe`, `lib/camadas/padrao.ts`), sem linha de migração: mapa
@@ -2150,6 +2156,10 @@ export interface MapData {
   /** Cópia EM MEMÓRIA do modelo da aventura, para o Ctrl+Z. `serializeMap`
    *  tira; o recorte do jogador nunca leva. */
   modeloCamadas?: ModeloDeCamadas
+  /** SÓ no recorte do jogador (`lib/fogFilter.ts`): as camadas que ele vê, na
+   *  ordem da lista, com a opacidade quando não é 1 — nunca o nome. Ausente =
+   *  a ordem padrão, tudo a 100% (mapa antigo, ou nada difere do padrão). */
+  camadasDoJogador?: CamadaDoJogador[]
   scale: MapScale
   measurementMode: MeasurementMode
   /** "Visão nesta cena", em quadrados: o jogador enxerga isto vezes o fator

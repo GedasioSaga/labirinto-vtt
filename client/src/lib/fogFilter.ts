@@ -19,6 +19,8 @@ import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { LAYER_IDS } from '../types/map'
 import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
+import { camadasDoJogadorDoMapa } from './camadas/doJogador'
+import { ehCamadaPadrao } from './camadas/padrao'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
@@ -418,6 +420,22 @@ function recorteSemCamadaTorta(recorte: MapData, camadas: ContextoDeCamadas): Ma
     ...(recorte.pins === undefined ? {} : { pins: semCamadaTortaNoPacote(recorte.pins, (p) => camadas.camadaDe('pino', p)) }),
     ...(recorte.carimbos === undefined ? {} : { carimbos: semCamadaTortaNoPacote(recorte.carimbos, (c: Carimbo) => camadas.camadaDe('carimbo', c)) }),
   }
+}
+
+/**
+ * As camadas LIVRES com algum item no pacote. Livre vazia não vai em
+ * `camadasDoJogador`: o jogador não tem o que ordenar nela, e o id dela só
+ * diria que a camada existe.
+ */
+function livresNoPacote(recorte: MapData): Set<CamadaId> {
+  const livres = new Set<CamadaId>()
+  const ver = (camada: CamadaId | undefined): void => {
+    if (camada !== undefined && !ehCamadaPadrao(camada)) livres.add(camada)
+  }
+  const listas = [recorte.walls, recorte.floor, recorte.regions, recorte.stairs, recorte.lights, recorte.tokens, recorte.props, recorte.lines, recorte.markers, recorte.drawings, recorte.pins ?? [], recorte.carimbos ?? []]
+  for (const lista of listas) for (const item of lista) ver(item.camada)
+  for (const regiao of recorte.regions) ver(regiao.room?.camadaDoTelhado)
+  return livres
 }
 
 /**
@@ -1572,6 +1590,9 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (cut.aBordo !== undefined) forPlayer.aBordo = { motorista: cut.aBordo.motorista }
   if (cut.embarcavel === true) forPlayer.embarcavel = true
   if (cut.pino !== undefined) forPlayer.pino = cut.pino
+  // CAMADA: só o id (o nome fica no modelo do mestre), para a tela do jogador
+  // pôr a ficha no nó da camada; a torta sai em `recorteSemCamadaTorta`.
+  if (token.camada !== undefined) forPlayer.camada = token.camada
   return forPlayer
 }
 
@@ -3761,7 +3782,9 @@ function recorteDoGrupo(
   // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
   // CAMADAS: o modelo (nomes das camadas livres são segredo do mestre), o olho
   // "Jogadores veem", as opacidades e a versão ficam no mestre; o jogador
-  // recebe só `hiddenLayers` já resolvido para ele (`ocultasNoRecorte`).
+  // recebe só `hiddenLayers` já resolvido para ele (`ocultasNoRecorte`) e, quando
+  // algo difere do padrão, `camadasDoJogador`: id e opacidade das camadas que
+  // ele vê, na ordem da lista (`lib/camadas/doJogador.ts`). Mapa antigo: nada.
   const {
     confronto: _confrontoDoMestre,
     perigos: perigosDoMestre,
@@ -3769,6 +3792,7 @@ function recorteDoGrupo(
     ocultasDoJogador: _ocultasDoJogador,
     opacidadeDasCamadas: _opacidadesDoMestre,
     versaoDasCamadas: _versaoDasCamadas,
+    camadasDoJogador: _camadasDeOutroRecorte,
     ...mapSemConfronto
   } = mapWithoutHazards
   const filtered: MapData = {
@@ -4073,12 +4097,15 @@ function recorteDoGrupo(
       )
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
-  const recorte: MapData = recorteSemCamadaTorta(
+  const semCamadaTorta: MapData = recorteSemCamadaTorta(
     texturasDoJogador === undefined
       ? comPerigos
       : { ...comPerigos, texturas: texturasDoJogador, ...(importadasDoJogador === undefined ? {} : { texturasImportadas: importadasDoJogador }) },
     camadas,
   )
+  // CAMADAS DA TELA DO JOGADOR: depois do corte, para a camada livre só ir com item dela no pacote.
+  const camadasDoJogador = camadasDoJogadorDoMapa(map, livresNoPacote(semCamadaTorta))
+  const recorte: MapData = camadasDoJogador === undefined ? semCamadaTorta : { ...semCamadaTorta, camadasDoJogador }
 
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
@@ -4276,6 +4303,8 @@ function doorForPlayer(door: DoorState): DoorState {
 function lightForPlayer(light: Light): Light {
   const forPlayer: Light = { id: light.id, x: light.x, y: light.y, radius: light.radius, color: light.color, intensity: light.intensity }
   if (light.attachedTokenId !== undefined) forPlayer.attachedTokenId = light.attachedTokenId
+  // CAMADA: só o id, como na ficha (`tokenForPlayer`).
+  if (light.camada !== undefined) forPlayer.camada = light.camada
   return forPlayer
 }
 
@@ -4726,6 +4755,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // CAMADA: só o id, como na ficha (`tokenForPlayer`).
+  if (pin.camada !== undefined) forPlayer.camada = pin.camada
   // TRANSIÇÃO ESPECIAL: só do pino de viagem e só com id na forma certa (a do
   // pacote de animações também passa). Diz qual animação toca, nada da outra cena.
   if (pin.kind === 'viagem') {
@@ -4976,6 +5007,8 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // CAMADA: só o id, como na ficha (`tokenForPlayer`).
+  if (prop.camada !== undefined) forPlayer.camada = prop.camada
   // MOBÍLIA DESENHADA: o tipo é o desenho que a tela do jogador pinta por cima
   // da silhueta. Só chega aqui o móvel que ele enxerga (o filtro acima tirou o
   // resto), então o tipo não diz nada que a silhueta na tela já não diga.
