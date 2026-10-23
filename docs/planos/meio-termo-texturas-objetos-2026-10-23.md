@@ -82,3 +82,17 @@ Faixa A (móveis e peças) e faixa B (telhado, chão, barranco) usam arquivos di
 - `ui-onde-foi-parar` muda com a setinha nova: regenerar o doc.
 - Decisões técnicas do arquiteto (reabrir se discordar): girar = a imagem gira junto (a luz gira), sem gerar de novo; a vista Lado prende pelo centro, como hoje; "Preencher" e "Cor da linha" saem do painel do móvel com textura.
 - Diagrama: quem implementar faz `docs/diagrams/meio-termo-no-app.html` e a linha no `INDEX.md`.
+
+## 7. MT2/MT3 medido (23/10/2026, worktree `feat/meio-termo`)
+
+**O critério de 50 ms é a mediana MORNA a 3x; a fria é registrada.** A geração anda em fatias de 8 ms (`rasterDosMoveis.ts`), então a primeira imagem lenta atrasa a troca do desenho de linhas pela imagem, mas não vira tarefa longa. A fria depende de JIT e da carga da máquina: a mesma cama deu 51,2 ms numa medida anterior e 47,8 e 49,1 ms agora, no mesmo código. Não houve otimização (nenhum corte sem custo visual achado); o critério ficou como está acima e a fria passou a ser medida também no navegador.
+
+| Onde | Como | Resultado a 3x |
+|---|---|---|
+| Node, MT2 | `BENCH_MOVEIS=1` em `moveis.test.ts`, 2 rodadas | cama fria 47,8 e 49,1 ms, morna 19,9 e 21,1 ms; o resto frio de 4,8 a 39,2 ms, morno até 14,4 ms |
+| Node, MT3 | `BENCH_MOVEIS=1` em `moveisMt3.test.ts`, 2 rodadas | morna até 32,0 ms (tapete 3x2); fria do tapete 3x2 53,4 e 64,0 ms, da primeira cerca do arquivo 43,9 e 47,2 ms (motor ainda frio), o resto até 40,2 ms |
+| Chromium (Vite dev) | `e2e/task-meio-termo-moveis-ligado.spec.ts`, página nova, a cama primeiro | cama fria 38,8 a 48,3 ms em 3 rodadas, morna 14,1 ms; tipos da MT3 frios de 11,3 a 36,7 ms, mornos até 24,7 ms |
+
+O e2e falha se alguma mediana morna passar de 50 ms ou alguma fria passar de 100 ms (o teto folgado da suíte).
+
+**Bundle** (`vite build`, chave desligada, com os 11 tipos): os móveis com textura saem num chunk separado, `rasterDosMoveis-*.js`, com **39,58 kB (15,63 kB gzip)**, carregado só pelo import dinâmico do `drawPropSilhouettes.ts` quando a chave liga. Os maiores chunks: main 1.755,45 kB (548,60 kB gzip), LivroDeRegras 1.235,60 kB (412,63 kB gzip), three 746,77 kB (191,66 kB gzip). `dist/` inteiro: 4,9 MB, apagado depois da medida.

@@ -46,8 +46,25 @@ function hostCom(map: MapData): (ws: WebSocketRoute) => void {
   }
 }
 
-async function fotoDoJogador(page: Page, busca: string): Promise<string> {
-  await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(mapaDosMoveis()))
+/**
+ * MT3: os 5 tipos que faltavam (cerca reta e curva, armário de cozinha,
+ * aparador, fogueira e tapete retangular e redondo), longe da ficha da Ana.
+ */
+function mapaDosMoveisDaMt3(): MapData {
+  let map = setGridSettings(setShowGrid(createEmptyMap('meio-termo-moveis-mt3', 'Pátio', COLUNAS, LINHAS, GRADE), true), { color: '#6a6a6a', opacity: 0.6 })
+  map = addToken(map, { id: FICHA, characterId: null, name: 'Ana', x: 352, y: 448, size: 1, image: null })
+  map = addProp(map, criarMovel('tapete', { x: 300, y: 600 }, GRADE, 't1'))
+  map = addProp(map, { ...criarMovel('tapete', { x: 760, y: 600 }, GRADE, 't2'), width: 2 * GRADE, height: 2 * GRADE, mobiliaForma: 'redondo' })
+  map = addProp(map, criarMovel('cerca', { x: 200, y: 96 }, GRADE, 'c1'))
+  map = addProp(map, { ...criarMovel('cerca', { x: 560, y: 96 }, GRADE, 'c2'), width: 3 * GRADE, mobiliaCurva: 90 })
+  map = addProp(map, criarMovel('armario', { x: 160, y: 300 }, GRADE, 'a1'))
+  map = addProp(map, criarMovel('aparador', { x: 440, y: 300 }, GRADE, 'a2'))
+  map = addProp(map, criarMovel('fogueira', { x: 760, y: 320 }, GRADE, 'f1'))
+  return map
+}
+
+async function fotoDoJogador(page: Page, busca: string, mapa: MapData = mapaDosMoveis()): Promise<string> {
+  await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(mapa))
   await page.goto(`/player.html${busca}`)
   // O código da sala tem 6 caracteres (o botão Entrar só liga com ele inteiro).
   await page.getByLabel('Código da sala').fill('MEIOTE')
@@ -112,6 +129,66 @@ test('o mesmo mapa no jogador: com ?obra=meio-termo os móveis saem em imagem, d
   // então a diferença acima é dos móveis, não da abertura. Teto: 1% dela.
   const outraVez = await browser.newPage()
   const semObraDeNovo = await fotoDoJogador(outraVez, '')
+  expect(await pixelsDiferentes(ligada, semObra, semObraDeNovo)).toBeLessThan(diferentes / 100)
+  await Promise.all([desligada.close(), ligada.close(), outraVez.close()])
+})
+
+/** Teto do plano para gerar uma imagem a 3x, na mediana morna (`docs/planos/meio-termo-texturas-objetos-2026-10-23.md`, "MT2/MT3 medido"). */
+const TETO_DA_IMAGEM_MS = 50
+/** A fria só é registrada contra o teto folgado da suíte (o dobro): a geração anda em fatias de 8 ms, então a fria não vira tarefa longa. */
+const TETO_DA_FRIA_MS = TETO_DA_IMAGEM_MS * 2
+const MORNAS = 5
+
+test('tempo no Chromium a 3x: a primeira imagem da página (a cama, fria) e cada tipo da MT3, fria registrada e mediana morna abaixo de 50 ms', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto('/player.html')
+  const tempos = await page.evaluate(async ({ caminho, mornasPedidas }) => {
+    // O caminho é este mesmo módulo servido pelo Vite; import por string não traz o tipo, então o tipo vem do arquivo.
+    const m = (await import(/* @vite-ignore */ caminho)) as typeof import('../src/texturas/meioTermo/moveis')
+    const S = m.escalaDoNivel(3)
+    const base = { lado: 'frente', semente: 7 } as const
+    const casos: readonly [string, Parameters<typeof m.pintarMovel>[0]][] = [
+      ['cama (a primeira da página: fria)', { ...base, tipo: 'catre', materiais: ['carvalho', 'vinho', 'linho'], casasW: 1, casasH: 2 }],
+      ['cerca reta', { ...base, tipo: 'cerca', materiais: ['carvalho', 'varas'], casasW: 2, casasH: 0.25 }],
+      ['cerca curva', { ...base, tipo: 'cerca', materiais: ['velha', 'arame'], casasW: 3, casasH: 0.25, curva: 90 }],
+      ['armário', { ...base, tipo: 'armario', materiais: ['nogueira', 'latao'], casasW: 1, casasH: 0.5 }],
+      ['armário de lado', { ...base, tipo: 'armario', lado: 'lado', materiais: ['nogueira', 'latao'], casasW: 1, casasH: 1.5 }],
+      ['aparador', { ...base, tipo: 'aparador', materiais: ['nogueira', 'latao'], casasW: 2, casasH: 0.5 }],
+      ['fogueira', { ...base, tipo: 'fogueira', materiais: ['granito', 'lenhaCarvalho'], casasW: 1, casasH: 1 }],
+      ['tapete', { ...base, tipo: 'tapete', materiais: ['vinho'], casasW: 3, casasH: 2 }],
+      ['tapete redondo', { ...base, tipo: 'tapete', materiais: ['azul'], casasW: 2, casasH: 2, forma: 'redondo' }],
+    ]
+    const medir = (d: Parameters<typeof m.pintarMovel>[0]): number => {
+      const t0 = performance.now()
+      m.pintarMovel(d, S)
+      return performance.now() - t0
+    }
+    return casos.map(([nome, d]) => {
+      const fria = medir(d)
+      const mornas = Array.from({ length: mornasPedidas }, () => medir(d)).sort((a, b) => a - b)
+      return { nome, fria, morna: mornas[Math.floor(mornasPedidas / 2)] }
+    })
+  }, { caminho: '/src/texturas/meioTermo/moveis/index.ts', mornasPedidas: MORNAS })
+  console.log(`[medida] a 3x no Chromium (fria / mediana morna de ${MORNAS}): ${tempos.map((t) => `${t.nome} ${t.fria.toFixed(1)} / ${t.morna.toFixed(1)} ms`).join('; ')}`)
+  for (const { nome, fria, morna } of tempos) {
+    expect(morna, `${nome}: mediana morna`).toBeLessThanOrEqual(TETO_DA_IMAGEM_MS)
+    expect(fria, `${nome}: fria`).toBeLessThan(TETO_DA_FRIA_MS)
+  }
+})
+
+test('MT3 no jogador: cerca reta e curva, armário, aparador, fogueira e os dois tapetes saem em imagem com ?obra=meio-termo, e chapados sem ela', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const mapa = mapaDosMoveisDaMt3()
+  const desligada = await browser.newPage()
+  const ligada = await browser.newPage()
+  const semObra = await fotoDoJogador(desligada, '', mapa)
+  const comObra = await fotoDoJogador(ligada, '?obra=meio-termo', mapa)
+  const diferentes = await pixelsDiferentes(ligada, semObra, comObra)
+  // Só o tapete retangular (3 x 2 casas) a 1:1 cobre mais de 20 mil pixels.
+  expect(diferentes).toBeGreaterThan(PIXELS_DIFERENTES_MINIMOS)
+  // Controle: sem a obra, aberto de novo, o mesmo mapa sai igual (o desenho chapado de sempre), a menos do ruído de abertura.
+  const outraVez = await browser.newPage()
+  const semObraDeNovo = await fotoDoJogador(outraVez, '', mapa)
   expect(await pixelsDiferentes(ligada, semObra, semObraDeNovo)).toBeLessThan(diferentes / 100)
   await Promise.all([desligada.close(), ligada.close(), outraVez.close()])
 })

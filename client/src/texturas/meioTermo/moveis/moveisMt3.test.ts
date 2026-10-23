@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { geometriaDaCerca } from '../../../lib/mobilia'
 import type { FormaDoTapete } from '../../../types/map'
@@ -265,4 +266,38 @@ describe('móveis da MT3: tempo de geração a 3x (teto folgado da suíte)', () 
       expect(melhor).toBeLessThanOrEqual(TETO_FOLGADO_MS)
     })
   }
+})
+
+const BENCH = import.meta.env.BENCH_MOVEIS === '1'
+
+describe.skipIf(!BENCH)('BENCH_MOVEIS=1: tempo da MT3 a 3x, frio e morno, contra os 50 ms', () => {
+  /** Mornas depois da fria: a mediana delas é o que a fila paga em regime. */
+  const MORNAS = 5
+  it('registra a geração fria (a primeira de cada caso) e a mediana morna de cada móvel', () => {
+    const S = escalaDoNivel(3)
+    const linhas: string[] = []
+    const medianas: number[] = []
+    for (const caso of CASOS_DO_TEMPO) {
+      const d = desenho(caso, caso.materiais[0])
+      const inicio = performance.now()
+      pintarMovel(d, S)
+      const fria = performance.now() - inicio
+      const mornas: number[] = []
+      for (let i = 0; i < MORNAS; i += 1) {
+        const t0 = performance.now()
+        pintarMovel(d, S)
+        mornas.push(performance.now() - t0)
+      }
+      mornas.sort((a, b) => a - b)
+      const mediana = mornas[Math.floor(MORNAS / 2)]
+      medianas.push(mediana)
+      linhas.push(`${nomeDo(caso, caso.materiais[0])}: fria ${fria.toFixed(1)} ms, morna (mediana de ${MORNAS}) ${mediana.toFixed(1)} ms`)
+    }
+    // Saída do bench (pedida por variável de ambiente), como no da MT2: com BENCH_MOVEIS_ARQUIVO=<caminho> o registro vai para o arquivo.
+    const registro = ['BENCH_MOVEIS da MT3 a 3x', ...linhas].join('\n')
+    console.info(registro)
+    const arquivo: unknown = import.meta.env.BENCH_MOVEIS_ARQUIVO
+    if (typeof arquivo === 'string' && arquivo !== '') writeFileSync(arquivo, new TextEncoder().encode(`${registro}\n`))
+    for (const mediana of medianas) expect(mediana).toBeLessThanOrEqual(GERAR_A_3X_MS)
+  })
 })
