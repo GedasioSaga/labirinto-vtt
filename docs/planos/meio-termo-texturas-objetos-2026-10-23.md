@@ -82,3 +82,24 @@ Faixa A (móveis e peças) e faixa B (telhado, chão, barranco) usam arquivos di
 - `ui-onde-foi-parar` muda com a setinha nova: regenerar o doc.
 - Decisões técnicas do arquiteto (reabrir se discordar): girar = a imagem gira junto (a luz gira), sem gerar de novo; a vista Lado prende pelo centro, como hoje; "Preencher" e "Cor da linha" saem do painel do móvel com textura.
 - Diagrama: quem implementar faz `docs/diagrams/meio-termo-no-app.html` e a linha no `INDEX.md`.
+
+## 7. MT2/MT3 medido (23/10/2026, worktree `feat/meio-termo`)
+
+**O critério de 50 ms é a mediana MORNA a 3x; a fria é registrada.** A geração anda em fatias de 8 ms (`rasterDosMoveis.ts`), então a primeira imagem lenta atrasa a troca do desenho de linhas pela imagem, mas não vira tarefa longa. A fria depende de JIT e da carga da máquina: a mesma cama deu 51,2 ms numa medida anterior e 47,8 e 49,1 ms agora, no mesmo código. Não houve otimização (nenhum corte sem custo visual achado); o critério ficou como está acima e a fria passou a ser medida também no navegador.
+
+| Onde | Como | Resultado a 3x |
+|---|---|---|
+| Node, MT2 | `BENCH_MOVEIS=1` em `moveis.test.ts`, 2 rodadas | cama fria 47,8 e 49,1 ms, morna 19,9 e 21,1 ms; o resto frio de 4,8 a 39,2 ms, morno até 14,4 ms |
+| Node, MT3 | `BENCH_MOVEIS=1` em `moveisMt3.test.ts`, 2 rodadas | morna até 32,0 ms (tapete 3x2); fria do tapete 3x2 53,4 e 64,0 ms, da primeira cerca do arquivo 43,9 e 47,2 ms (motor ainda frio), o resto até 40,2 ms |
+| Chromium (Vite dev) | `e2e/task-meio-termo-moveis-ligado.spec.ts`, página nova, a cama primeiro | cama fria 38,8 a 48,3 ms em 3 rodadas, morna 14,1 ms; tipos da MT3 frios de 11,3 a 36,7 ms, mornos até 24,7 ms |
+
+O e2e falha se alguma mediana morna passar de 50 ms ou alguma fria passar de 100 ms (o teto folgado da suíte).
+
+**Revisão da MT3 (23/10/2026), cada tipo como a PRIMEIRA imagem da página.** A medida acima punha a cama primeiro, então a MT3 já pegava o motor aquecido. O e2e ganhou um teste que abre uma página nova por tipo e mede a primeira `pintarMovel` dela, com o motor frio. Duas rodadas, a 3x no Chromium (Vite dev): cerca reta 21,9 e 23,1 ms; cerca curva 33,6 e 33,4; armário 35,9 e 35,7; armário de lado 25,9 e 28,8; aparador 20,5 e 21,3; fogueira 18,1 e 18,7; tapete 3x2 37,5 e 42,2; tapete redondo 22,7 e 22,8. Todas abaixo do teto de 100 ms da fria e também abaixo dos 50 ms da morna. Não aqueci o motor no ocioso nem pulei o medalhão na borda do tapete: com a pior fria em 42 ms, o ganho não paga o risco de mudar a saída.
+
+**Limites medidos na revisão da MT3:**
+
+- **Tapete fora da grade de referência.** A pegada do desenho é `largura / 50`, não a grade do mapa: numa grade de 70, o tapete 3x2 (210 x 140 px) é desenhado como 4,2 x 2,8 casas, com 2,8 losangos da borda por casa do mapa (são 2 na grade de 50). Usar a grade real pediria a grade na chave, o que passa por arquivo quente (`types/map.ts` e quem chama a silhueta). Fica registrado e preso por um teste (`revisaoMt3Tapete.test.ts`).
+- **Cerca longa em ladrilhos.** A cerca sai em ladrilhos de até 1024 px, com o teto de pixels de uma imagem cheia. Escala que sobra, em relação à do nível: a reta de até 40 casas, nos níveis 1 a 3, e a de 100 casas no nível 1 ficam com 1,00; a de 100 casas no nível 3 fica com 0,79 (antes 0,07). A curva conta a caixa inteira, com o miolo vazio do arco: 40 casas com 90° no nível 3 ficam com 0,35 (antes 0,17); 100 casas com 180°, com 0,10. Para a curva longa ficar nítida, o próximo passo seria pular os ladrilhos vazios, com ladrilho menor que 1024.
+
+**Bundle** (`vite build`, chave desligada, com os 11 tipos): os móveis com textura saem num chunk separado, `rasterDosMoveis-*.js`, com **39,58 kB (15,63 kB gzip)**, carregado só pelo import dinâmico do `drawPropSilhouettes.ts` quando a chave liga. Os maiores chunks: main 1.755,45 kB (548,60 kB gzip), LivroDeRegras 1.235,60 kB (412,63 kB gzip), three 746,77 kB (191,66 kB gzip). `dist/` inteiro: 4,9 MB, apagado depois da medida.

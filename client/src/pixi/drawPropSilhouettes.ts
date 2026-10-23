@@ -434,14 +434,14 @@ function drawTexturedFurniture(
     return true
   }
   raster.marcarColada(mostrar)
-  const r = modulo.retanguloNoMundo(mostrar, prop.width, prop.height)
   const trig = rotationTrig(prop.rotation ?? 0)
-  graphics
-    .save()
-    .setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA })
-    .setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
-    .texture(mostrar.textura, IMAGE_TINT, r.x, r.y, r.w, r.h)
-    .restore()
+  graphics.save().setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA }).setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
+  // A cerca longa vem em ladrilhos (cada um com a sua textura, lado a lado); o resto, numa imagem só.
+  for (const ladrilho of mostrar.ladrilhos) {
+    const r = modulo.retanguloNoMundo(mostrar, prop.width, prop.height, ladrilho.limites)
+    graphics.texture(ladrilho.textura, IMAGE_TINT, r.x, r.y, r.w, r.h)
+  }
+  graphics.restore()
   return true
 }
 

@@ -1,10 +1,12 @@
 /**
- * MÓVEIS COM TEXTURA do Meio-Termo, vista "de cima com volume": quais tipos já
- * têm desenho (os 6 da fatia MT2) e a montagem da cena de um móvel a partir do
- * DESENHO (tipo, Frente/Lado, materiais, pegada em casas, semente). Os outros
- * 5 tipos chegam na MT3; até lá seguem no desenho de linhas.
+ * MÓVEIS COM TEXTURA do Meio-Termo, vista "de cima com volume": os 11 tipos do
+ * catálogo (6 da fatia MT2 e 5 da MT3: cerca reta e curva, armário, aparador,
+ * fogueira e tapete) e a montagem da cena de um móvel a partir do DESENHO
+ * (tipo, Frente/Lado, materiais, pegada em casas, forma do tapete, volta da
+ * cerca, semente).
  */
 import type { TipoMobilia } from '../../../lib/mobilia/tipos'
+import type { FormaDoTapete } from '../../../types/map'
 import { LUGARES_DE_MATERIAL, ehMaterial, type OpcaoDeMaterial } from '../materiais'
 import { G, materialDaPeca, type LadoDoMovel, type MateriaisDoMovel, type MontarMovel } from './contexto'
 import { criarPecas, pintarCena, type Cena, type LimitesDaImagem, type MaterialDaPeca } from './motor'
@@ -14,6 +16,11 @@ import { montarBau } from './bau'
 import { montarCatre } from './catre'
 import { montarMesa } from './mesa'
 import { montarCadeira } from './cadeira'
+import { montarCerca } from './cerca'
+import { montarArmario } from './armario'
+import { montarAparador } from './aparador'
+import { montarFogueira } from './fogueira'
+import { montarTapete } from './tapete'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -22,15 +29,26 @@ const MONTADORES = {
   catre: montarCatre,
   mesa: montarMesa,
   cadeira: montarCadeira,
-} as const satisfies Partial<Record<TipoMobilia, MontarMovel>>
+  cerca: montarCerca,
+  armario: montarArmario,
+  aparador: montarAparador,
+  fogueira: montarFogueira,
+  tapete: montarTapete,
+} as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
 
 /**
  * Px de MUNDO por casa que a imagem supõe. `drawPropSilhouettes` não recebe a
- * grade do mapa (a assinatura é fixa), então a pegada em casas sai do tamanho
- * do objeto sobre a grade padrão do app (50 px, `player/meuCaderno.ts:210`).
- * Em mapa de outra grade a imagem só é esticada para o tamanho do objeto.
+ * grade do mapa (a assinatura é fixa, e quem a chama no jogador é
+ * `PlayerView.tsx`, arquivo quente), então a pegada em casas sai do tamanho do
+ * objeto sobre a grade padrão do app (50 px, `player/meuCaderno.ts:210`).
+ * Em mapa de outra grade a imagem NÃO é só esticada: o desenho é feito para a
+ * pegada em casas de 50 px, e o que se repete por casa sai mais denso ou mais
+ * ralo. Medido: na grade 70 o tapete 3 x 2 (210 x 140 px) é desenhado como
+ * 4,2 x 2,8 casas, com 2,8 losangos da borda por casa do mapa em vez de 2 (o
+ * tapete longo da MT5 herda isso). A cerca não: os mourões tomam a espessura
+ * dela como régua (`geometriaDaCerca`).
  */
 export const GRADE_DE_REFERENCIA = 50
 
@@ -39,8 +57,8 @@ export function escalaDoNivel(nivel: number): number {
   return (nivel * GRADE_DE_REFERENCIA) / G
 }
 
-/** Os tipos que já têm desenho com textura, na ordem do catálogo. */
-export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira']
+/** Os tipos que têm desenho com textura, na ordem do catálogo: os 11. */
+export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
   return TIPOS_COM_TEXTURA.some((t) => t === tipo)
@@ -57,11 +75,17 @@ export interface DesenhoDoMovel {
   readonly casasH: number
   /** Semente do veio: inteira, a mesma para o mesmo desenho. */
   readonly semente: number
+  /** Só no tapete: retangular (o padrão) ou redondo. */
+  readonly forma?: FormaDoTapete
+  /** Só na cerca: a volta em graus (0 ou ausente = reta). */
+  readonly curva?: number
 }
 
 /**
  * O material de cada lugar. Opção fora da lista do lugar vira o padrão; as
- * que usam a madeira do móvel (`mesma`, `varas`) viram a madeira escolhida.
+ * que usam a madeira do móvel (`mesma` da cadeira, `varas` da cerca) viram a
+ * madeira escolhida. A fogueira e o tapete não têm madeira, mas também não têm
+ * essas opções.
  */
 function materiaisDoDesenho(d: DesenhoDoMovel): MateriaisDoMovel {
   const lugares = LUGARES_DE_MATERIAL[d.tipo]
@@ -69,7 +93,7 @@ function materiaisDoDesenho(d: DesenhoDoMovel): MateriaisDoMovel {
     const escolhida = d.materiais[i]
     return escolhida !== undefined && lugar.opcoes.includes(escolhida) ? escolhida : lugar.padrao
   })
-  // Todo tipo com textura tem o lugar `madeira`, e as opções dele são todas madeiras de verdade.
+  // Quem tem `mesma` ou `varas` tem o lugar `madeira`, e as opções dele são todas madeiras de verdade.
   const daMadeira = ids.find((_id, i) => lugares[i].id === 'madeira')
   const madeira = daMadeira !== undefined && ehMaterial(daMadeira) ? daMadeira : 'carvalho'
   const m: Record<string, MaterialDaPeca> = {}
@@ -85,7 +109,8 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  MONTADORES[d.tipo]({ w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente) }, cena)
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0 }
+  MONTADORES[d.tipo](contexto, cena)
   return cena
 }
 

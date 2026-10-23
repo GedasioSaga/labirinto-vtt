@@ -190,13 +190,24 @@ describe('drawPropSilhouettes com o Meio-Termo ligado', () => {
     expect(topo).toBeCloseTo(-49, 9)
   })
 
-  it('tipo ainda sem textura (cerca, tapete) segue no desenho de linhas', async () => {
+  it('objeto sem mobília (imagem solta) segue no desenho de sempre mesmo com a fila rodada; tapete e cerca, com textura desde a MT3, viram imagem', async () => {
     await carregarMoveisDoMeioTermo()
     trocarObraNoTeste(true)
-    rasterComFila()
+    const { raster, rodar } = rasterComFila()
+    const solto: Prop = { id: 's', src: '', x: 100, y: 100, width: 50, height: 50, linkedMapPath: null }
     const g = new Graphics()
-    drawPropSilhouettes(g, [barril({ mobilia: 'tapete', width: 150, height: 100 }), barril({ mobilia: 'cerca', width: 100, height: 12 })], 1, 1)
+    drawPropSilhouettes(g, [solto], 1, 1)
+    rodar()
+    drawPropSilhouettes(g, [solto], 1, 1)
     expect(acoes(g)).not.toContain('texture')
+    expect(raster.geradas).toBe(0)
+    const moveis = [barril({ mobilia: 'tapete', width: 150, height: 100 }), barril({ mobilia: 'cerca', width: 100, height: 12 })]
+    const h = new Graphics()
+    drawPropSilhouettes(h, moveis, 1, 1)
+    rodar()
+    drawPropSilhouettes(h, moveis, 1, 1)
+    expect(acoes(h).filter((a) => a === 'texture')).toHaveLength(2)
+    expect(raster.geradas).toBe(2)
   })
 })
 

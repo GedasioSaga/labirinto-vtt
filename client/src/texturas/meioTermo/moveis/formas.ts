@@ -52,6 +52,49 @@ export function elipse(cx: number, cy: number, rx: number, ry: number): Forma {
   }
 }
 
+/**
+ * Elipse girada `angulo` radianos em volta do centro (as pedras da roda da
+ * fogueira, deitadas ao longo da roda), `objetos.js:127-149`.
+ */
+export function elipseGirada(cx: number, cy: number, rx: number, ry: number, angulo: number): Forma {
+  const c = Math.cos(angulo)
+  const s = Math.sin(angulo)
+  const ex = Math.sqrt(rx * rx * c * c + ry * ry * s * s)
+  const ey = Math.sqrt(rx * rx * s * s + ry * ry * c * c)
+  const menor = Math.min(rx, ry)
+  return {
+    b: [cx - ex, cy - ey, cx + ex, cy + ey],
+    d(x, y) {
+      const dx = x - cx
+      const dy = y - cy
+      const px = dx * c + dy * s
+      const py = -dx * s + dy * c
+      const k0 = Math.sqrt((px * px) / (rx * rx) + (py * py) / (ry * ry))
+      const k1 = Math.sqrt((px * px) / (rx * rx * rx * rx) + (py * py) / (ry * ry * ry * ry))
+      return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -menor
+    },
+  }
+}
+
+/** Cápsula de raio `r` entre dois pontos (a vara da cerca, a corda, o arame, a tora da lenha), `objetos.js:151-167`. */
+export function capsula(ax: number, ay: number, bx: number, by: number, r: number): Forma {
+  const dx = bx - ax
+  const dy = by - ay
+  const l2 = dx * dx + dy * dy || 1e-9
+  return {
+    b: [Math.min(ax, bx) - r, Math.min(ay, by) - r, Math.max(ax, bx) + r, Math.max(ay, by) + r],
+    d(x, y) {
+      const px = x - ax
+      const py = y - ay
+      let h = (px * dx + py * dy) / l2
+      h = h < 0 ? 0 : h > 1 ? 1 : h
+      const qx = px - dx * h
+      const qy = py - dy * h
+      return Math.sqrt(qx * qx + qy * qy) - r
+    },
+  }
+}
+
 export type Ponto = readonly [number, number]
 
 /** Polígono qualquer (a cantoneira do baú, a tábua inclinada). */
@@ -93,6 +136,50 @@ export function poligono(pontos: readonly Ponto[]): Forma {
         if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) s = -s
       }
       return s * Math.sqrt(d)
+    },
+  }
+}
+
+/**
+ * Cápsulas de raio `r` encadeadas pelos pontos (a vara, a corda e o arame da
+ * cerca curva, em pedaços curtos pelo arco): uma forma só, sem emenda de
+ * contorno nem de chanfro onde um pedaço encontra o outro.
+ */
+export function cadeia(pontos: readonly Ponto[], r: number): Forma {
+  const n = pontos.length
+  const X = new Float64Array(n)
+  const Y = new Float64Array(n)
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (let i = 0; i < n; i += 1) {
+    X[i] = pontos[i][0]
+    Y[i] = pontos[i][1]
+    x0 = Math.min(x0, X[i])
+    y0 = Math.min(y0, Y[i])
+    x1 = Math.max(x1, X[i])
+    y1 = Math.max(y1, Y[i])
+  }
+  return {
+    b: [x0 - r, y0 - r, x1 + r, y1 + r],
+    d(x, y) {
+      let menor = Infinity
+      for (let i = 1; i < n; i += 1) {
+        const ax = X[i - 1]
+        const ay = Y[i - 1]
+        const dx = X[i] - ax
+        const dy = Y[i] - ay
+        const px = x - ax
+        const py = y - ay
+        let h = (px * dx + py * dy) / (dx * dx + dy * dy || 1e-9)
+        h = h < 0 ? 0 : h > 1 ? 1 : h
+        const qx = px - dx * h
+        const qy = py - dy * h
+        const dd = qx * qx + qy * qy
+        if (dd < menor) menor = dd
+      }
+      return Math.sqrt(menor) - r
     },
   }
 }

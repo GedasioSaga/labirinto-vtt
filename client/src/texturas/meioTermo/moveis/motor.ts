@@ -91,7 +91,7 @@ function suave01(t: number): number {
 
 // ---------- materiais e peças ----------
 
-export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'liso'
+export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'liso'
 
 /** O material como o pintor o lê: a classe escolhe a textura, `rgb` é o tom em luz neutra. */
 export interface MaterialDaPeca {
@@ -99,6 +99,10 @@ export interface MaterialDaPeca {
   readonly rgb: Rgb
   /** Só no tecido: trama de linho ou lã fofa. */
   readonly fio?: 'linho' | 'la'
+  /** Só na pedra: granito pintado, arenito em camadas ou ardósia em lâminas. */
+  readonly pedra?: 'granito' | 'arenito' | 'ardosia'
+  /** Só na casca da lenha: a bétula é branca com riscos; as outras têm fendas ao longo da tora. */
+  readonly casca?: 'betula' | 'fendida'
 }
 
 /** Sombra que a peça faz nas peças de baixo (o travesseiro no lençol, a cinta na tampa). */
@@ -128,6 +132,19 @@ export interface Polar {
   readonly r: number
 }
 
+/**
+ * Coordenadas do veio ao longo de um ARCO de centro (cx, cy) e raio `r` (a
+ * vara, a corda e o arame da cerca curva): u anda pelo arco a partir do ângulo
+ * `a0`, v atravessa (a distância ao raio). Assim o veio e a torção acompanham a
+ * curva em vez de cortá-la reto.
+ */
+export interface Arco {
+  readonly cx: number
+  readonly cy: number
+  readonly r: number
+  readonly a0: number
+}
+
 export interface OpcoesDaPeca {
   readonly dx?: number
   readonly dy?: number
@@ -144,14 +161,27 @@ export interface OpcoesDaPeca {
   readonly suave?: number
   readonly ruga?: number
   readonly polar?: Polar
+  /** Veio pelo arco (vence `eixo`). */
+  readonly arco?: Arco
   readonly recesso?: Recesso
   readonly curvaY?: CurvaY
   readonly projeta?: Projecao
   readonly metal?: number
+  /**
+   * Textura própria da peça no lugar da do material (o topo cortado do mourão,
+   * a lenha queimada, o leito de brasa, o desenho do tapete). Os dados dela
+   * (centro, calor, medidas) vão fechados na função.
+   */
+  readonly textura?: Textura
 }
 
-/** `escala` = pixels da imagem por px do protótipo (a trama miúda some abaixo de um certo tamanho). */
-type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array, escala: number) => void
+/**
+ * Soma a variação do material no ponto. `escala` = pixels da imagem por px do
+ * protótipo (a trama miúda some abaixo de um certo tamanho). `s` = [r, g, b,
+ * luz, emissão, alfa]: a emissão (0..1) é a parte da cor que não pega luz nem
+ * sombra (a brasa acesa).
+ */
+export type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array, escala: number) => void
 
 export interface Peca {
   readonly forma: Forma
@@ -168,6 +198,7 @@ export interface Peca {
   readonly suave: number
   readonly ruga: number
   readonly polar: Polar | undefined
+  readonly arco: Arco | undefined
   readonly recesso: Recesso | undefined
   readonly curvaY: CurvaY | undefined
   readonly projeta: Projecao | undefined
@@ -227,11 +258,12 @@ export function criarPecas(base: number): CriarPeca {
       suave: o.suave ?? 0,
       ruga: o.ruga ?? 0,
       polar: o.polar,
+      arco: o.arco,
       recesso: o.recesso,
       curvaY: o.curvaY,
       projeta: o.projeta,
       metal: o.metal ?? (mat.classe === 'metal' ? METAL_PADRAO : 0),
-      tex: TEXTURA[mat.classe],
+      tex: o.textura ?? TEXTURA[mat.classe],
       base: [mat.rgb[0] * tom, mat.rgb[1] * tom, mat.rgb[2] * tom],
       su: semente * 37.17,
       sv: semente * 11.31,
@@ -313,12 +345,90 @@ function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Flo
   s[3] += escala < ESCALA_MINIMA_DA_TRAMA ? luz * CONTRASTE_DA_TRAMA_MIUDA : luz
 }
 
+/** O grão do granito (fração da cor, no pontilhado: some pela metade na sombra). */
+const GRAO_ESCURO = -0.2
+const GRAO_CLARO = 0.13
+/**
+ * As camadas do arenito: faixas de ±4% de luz a cada `PERIODO_DAS_CAMADAS` px
+ * ao longo da pedra (2 ou 3 numa pedra da roda), um pouco onduladas.
+ */
+const PERIODO_DAS_CAMADAS = 5
+const LUZ_DAS_CAMADAS = 0.04
+
+/** Granito com grão claro e escuro, arenito em camadas, ardósia em lâminas (`objetos.js:430-444`). */
+function texPedra(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
+  let luz = ruido(u * 0.09 + p.semente * 13, v * 0.09) * 0.16 + (hash(p.semente, 1, 707) - 0.5) * 0.12
+  const tipo = p.mat.pedra ?? 'granito'
+  if (tipo === 'granito') {
+    luz += ruido(u * 0.4, v * 0.4) * 0.06
+    const h = hash(Math.floor(u * 1.5), Math.floor(v * 1.5), p.semente)
+    if (h > 0.93) s[6] = GRAO_ESCURO
+    else if (h < 0.05) s[6] = GRAO_CLARO
+  } else if (tipo === 'arenito') {
+    const fase = (v + ruido(u * 0.06 + p.semente, v * 0.05) * 2.5) / PERIODO_DAS_CAMADAS
+    luz += limitar(Math.sin(fase * Math.PI * 2) * 1.8, -1, 1) * LUZ_DAS_CAMADAS + ruido(u * 1.1, v * 1.1) * 0.035
+  } else {
+    luz += ruido(u * 0.04, v * 0.55 + p.semente) * 0.09 + ruido(u * 0.35, v * 0.35) * 0.03
+  }
+  s[3] += luz
+}
+
+/**
+ * A corda é palha clara (revisão da MT3): a de antes, #b89860 a #c8a868, quase
+ * igualava o pinho dos mourões (#c0a060) e, a 1x, a torção sumia. A torção é
+ * uma cor própria, mais escura e mais quente, não só menos luz.
+ */
+export const TOM_DA_CORDA: Rgb = [0xc9, 0xbc, 0x98]
+const TORCAO_DA_CORDA: Rgb = [0xa8, 0x99, 0x6f]
+/**
+ * Frequência da torção: a faixa se repete a cada ~4,5 px do protótipo na
+ * perpendicular (4 pixels no nível 1). Com 1,6, como no protótipo, eram 2,7 px,
+ * menos de 2,5 pixels a 1x: a torção virava ruído.
+ */
+const TORCAO = 0.95
+
+/** Corda torcida: faixas em diagonal da cor da torção ao longo do comprimento (`objetos.js:463`). */
+function texCorda(u: number, v: number, _x: number, _y: number, _p: Peca, s: Float32Array): void {
+  // Faixa estreita da torção (pouco mais de um terço da volta): a corda continua lendo clara.
+  const t = limitar((Math.sin((u * 0.75 + v * 1.25) * TORCAO) - 0.3) / 0.7, 0, 1)
+  s[0] += (TORCAO_DA_CORDA[0] - s[0]) * t
+  s[1] += (TORCAO_DA_CORDA[1] - s[1]) * t
+  s[2] += (TORCAO_DA_CORDA[2] - s[2]) * t
+  s[3] += ruido(u * 0.6, v * 0.6) * 0.04 + LUZ_DA_CORDA
+}
+
+/** A corda é redonda e o chanfro a escurece nas bordas: um pouco de luz a mais deixa o meio no tom da palha. */
+const LUZ_DA_CORDA = 0.08
+
+/** Casca da lenha: bétula branca com riscos de través; as outras, fendas ao longo da tora (`objetos.js:468-480`). */
+function texCasca(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
+  if (p.mat.casca === 'betula') {
+    let luz = ruido(u * 0.08 + p.semente * 3, v * 0.3) * 0.08
+    const marca = ruido(u * 0.55 + p.semente * 9, v * 0.07 + p.semente)
+    if (marca > 0.2) luz -= 0.4 * Math.min(1, (marca - 0.2) / 0.08)
+    s[3] += luz
+    return
+  }
+  const fenda = ruido(u * 0.07 + p.semente * 5, v * 0.9 + p.semente)
+  let luz = fenda * 0.22 + ruido(u * 0.5, v * 0.5) * 0.06
+  if (fenda < -0.12) luz -= 0.16
+  s[3] += luz
+}
+
 const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   madeira: texMadeira,
   metal: texMetal,
   tecido: texTecido,
   palha: texPalha,
+  pedra: texPedra,
+  corda: texCorda,
+  casca: texCasca,
   liso: null,
+}
+
+/** A textura do material (a que a peça usa sem `textura` própria): a lenha queimada pinta a casca por baixo da brasa. */
+export function texturaDaClasse(classe: ClasseDaPeca): Textura | null {
+  return TEXTURA[classe]
 }
 
 // ---------- luz ----------
@@ -371,7 +481,18 @@ function janela(alvo: Alvo, b: Caixa, dx: number, dy: number, folga: number): [n
   ]
 }
 
-const SAIDA = new Float32Array(6)
+/** [r, g, b, luz, emissão, alfa, pontilhado]: o pontilhado é detalhe que some pela metade na sombra (o grão do granito). */
+const SAIDA = new Float32Array(7)
+/**
+ * Quanto o pontilhado aparece pela luz que chega no ponto (luz do chanfro x
+ * sombra das peças de cima): inteiro a partir de `LUZ_DO_PONTILHADO_CHEIO`,
+ * metade a partir de `LUZ_DO_PONTILHADO_MEIO` para baixo. Sem isso o grão tinha
+ * o mesmo contraste na luz e na sombra e lia como textura colada por cima.
+ */
+const LUZ_DO_PONTILHADO_CHEIO = 0.95
+const LUZ_DO_PONTILHADO_MEIO = 0.6
+const PONTILHADO_NA_SOMBRA = 0.5
+const VOLTA_INTEIRA = Math.PI * 2
 
 /** A normal do chanfro no ponto (nx, ny), ou zero longe da borda. */
 function normalDoChanfro(f: Forma, x: number, y: number, t: number, bisel: number, saida: Float64Array): void {
@@ -403,7 +524,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
   const [px0, py0, px1, py1] = janela(alvo, f.b, p.dx, p.dy, p.suave + 2 * inv)
   if (px1 <= px0 || py1 <= py0) return
   const [br, bg, bb] = p.base
-  const { bisel, tex, metal, contorno, ruga, alfa, polar, recesso: rec, curvaY: curva } = p
+  const { bisel, tex, metal, contorno, ruga, alfa, polar, arco, recesso: rec, curvaY: curva } = p
   const cosE = Math.cos(p.eixo)
   const sinE = Math.sin(p.eixo)
   const M = alvo.sombra
@@ -440,6 +561,13 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
         const ry = y - polar.cy
         u = Math.sqrt(rx * rx + ry * ry)
         v = Math.atan2(ry, rx) * polar.r
+      } else if (arco !== undefined) {
+        const rx = x - arco.cx
+        const ry = y - arco.cy
+        let da = Math.atan2(ry, rx) - arco.a0
+        da -= Math.round(da / VOLTA_INTEIRA) * VOLTA_INTEIRA
+        u = da * arco.r
+        v = Math.sqrt(rx * rx + ry * ry) - arco.r
       } else {
         u = x * cosE + y * sinE
         v = -x * sinE + y * cosE
@@ -452,6 +580,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
       SAIDA[3] = p.luz
       SAIDA[4] = 0
       SAIDA[5] = 1
+      SAIDA[6] = 0
       if (tex !== null) tex(u, v, x, y, p, SAIDA, S)
       const nlen = Math.sqrt(nx * nx + ny * ny + 1)
       const nl = (nx * LX + ny * LY + LZ) / nlen
@@ -476,14 +605,31 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
           cb += brilho * 0.88
         }
       }
+      const sombraDeCima = M[o >> 2]
+      const pontilhado = SAIDA[6]
+      if (pontilhado !== 0) {
+        const q = limitar((fl * sombraDeCima - LUZ_DO_PONTILHADO_MEIO) / (LUZ_DO_PONTILHADO_CHEIO - LUZ_DO_PONTILHADO_MEIO), 0, 1)
+        const f = 1 + pontilhado * (PONTILHADO_NA_SOMBRA + (1 - PONTILHADO_NA_SOMBRA) * q)
+        cr *= f
+        cg *= f
+        cb *= f
+      }
+      // Emissão (a brasa acesa): essa parte da cor não pega a luz do chanfro nem a sombra das peças de cima
+      // (abaixo, em `m`). O piso de luz continua valendo depois, em `compor`. Só as texturas próprias a usam.
+      const em = SAIDA[4]
+      if (em > 0) {
+        cr += (SAIDA[0] - cr) * em
+        cg += (SAIDA[1] - cg) * em
+        cb += (SAIDA[2] - cb) * em
+      }
       cr = cr < 0 ? 0 : cr > 255 ? 255 : cr
       cg = cg < 0 ? 0 : cg > 255 ? 255 : cg
       cb = cb < 0 ? 0 : cb > 255 ? 255 : cb
       const a = cob * alfa * SAIDA[5]
       if (a <= 0) continue
-      // Por baixo do que já está pintado; a sombra das peças de cima (M) escurece só a cor.
+      // Por baixo do que já está pintado; a sombra das peças de cima (M) escurece só a cor, e não a parte que emite.
       const k = resta * a
-      const m = k * M[o >> 2]
+      const m = k * (em > 0 ? sombraDeCima + (1 - sombraDeCima) * em : sombraDeCima)
       buf[o] += cr * m
       buf[o + 1] += cg * m
       buf[o + 2] += cb * m
