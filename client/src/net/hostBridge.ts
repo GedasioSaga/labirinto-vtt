@@ -1795,6 +1795,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     precarregarSonsAoVivo,
     falhasDoSom: (instancia) => falhasDosSons.get(instancia)?.size ?? 0,
     midiasDeSomLiberadas,
+    // F5: o servidor da sala só serve áudio de dentro desta pasta. Sem sala não há a quem contar (a próxima recebe ao registrar).
+    mudarPastaDosSons: (pasta) => {
+      if (!salaDosSonsAberta) return
+      deps.invoke('net_sons_aventura', { pasta }).catch((error: unknown) => reportError('Os sons não vão tocar na mesa', error))
+    },
   }
 
   const limparSons = () => {

@@ -33,6 +33,8 @@ function redeDaMesa(): RedeDosSons {
     precarregarSonsAoVivo: vi.fn<RedeDosSons['precarregarSonsAoVivo']>(() => 0),
     falhasDoSom: vi.fn<RedeDosSons['falhasDoSom']>(() => 0),
     midiasDeSomLiberadas: vi.fn<RedeDosSons['midiasDeSomLiberadas']>(() => []),
+    // A rede ganhou a pasta da aventura na F5 (coberta em ponteDosSons.pasta.test.ts).
+    mudarPastaDosSons: vi.fn<RedeDosSons['mudarPastaDosSons']>(),
   }
 }
 
