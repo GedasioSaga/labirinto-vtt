@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
+import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { importadasParaJogador, texturasParaJogador } from './texturas'
@@ -17,7 +17,9 @@ import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
-import { drawingLayer, regionLayer, stairLayer, visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls, wallLayer } from './layers'
+import { LAYER_IDS } from '../types/map'
+import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
+import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
 import type { MinigameVisivel } from '../minigames/tipos'
@@ -342,6 +344,68 @@ function isUsablePolygon(points: readonly RegionPoint[]): boolean {
  */
 function roofRoomsOf(regions: readonly Region[]): Region[] {
   return regions.filter((r) => roomHasRoof(r.room))
+}
+
+/**
+ * CAMADAS NO RECORTE (`lib/camadas/consulta.ts`): o que sai para o jogador
+ * passa pelo olho "Jogadores veem" da camada do item — a escolhida, se existe;
+ * senão a padrão do tipo. Mapa de antes sem `ocultasDoJogador` responde pela
+ * lista `hiddenLayers` de sempre (Chão segue Salas, Desenhos segue Anotações).
+ */
+function fichasNaCamadaDoJogador(map: MapData): Token[] {
+  const camadas = contextoDeCamadas(map)
+  return map.tokens.filter((t) => camadas.jogadorVe(camadas.camadaDe('ficha', t)))
+}
+
+/**
+ * `hiddenLayers` do recorte: o olho "Jogadores veem" já resolvido, nas 9 de
+ * sempre (é a lista que a tela do jogador lê). Sem `ocultasDoJogador` é a
+ * própria lista do mapa, como sempre saiu.
+ */
+function ocultasNoRecorte(map: MapData): LayerId[] {
+  if (map.ocultasDoJogador === undefined) return map.hiddenLayers
+  const camadas = contextoDeCamadas(map)
+  return LAYER_IDS.filter((id) => !camadas.jogadorVe(id))
+}
+
+/** O céu das nuvens só do chão que o recorte manda; com Terreno escondida dos jogadores, nuvem nenhuma. */
+function ceuDoRecorte(map: MapData, floor: FloorPiece[]): MapData['ceuDasNuvens'] {
+  return contextoDeCamadas(map).jogadorVe('terreno') ? ceuDasNuvensDoRecorte({ ...map, floor }) : undefined
+}
+
+/** Tira `camada` do item quando ela não vale neste mapa (lixo, ou livre que o modelo não tem): o item vale na padrão. */
+function semCamadaTortaNoPacote<T extends { camada?: CamadaId }>(itens: T[], camadaDe: (item: T) => CamadaId): T[] {
+  const torta = (item: T): boolean => item.camada !== undefined && camadaDe(item) !== item.camada
+  return itens.some(torta) ? itens.map((item) => (torta(item) ? { ...item, camada: undefined } : item)) : itens
+}
+
+/**
+ * CAMADA TORTA NÃO ATRAVESSA: a leitura do `map.json` já a descarta, mas
+ * colar, importar do acervo e a cópia de recuperação não passam por ela. O
+ * pacote do jogador sai só com camada que existe — senão a tela dele
+ * receberia um id que ninguém sabe desenhar.
+ */
+function recorteSemCamadaTorta(recorte: MapData, camadas: ContextoDeCamadas): MapData {
+  const regioes = semCamadaTortaNoPacote(recorte.regions, (r) => camadas.camadaDe('regiao', r)).map((r) => {
+    const doTelhado = r.room?.camadaDoTelhado
+    if (r.room === undefined || doTelhado === undefined || camadas.camadaDe('telhado', r) === doTelhado) return r
+    return { ...r, room: { ...r.room, camadaDoTelhado: undefined } }
+  })
+  return {
+    ...recorte,
+    walls: semCamadaTortaNoPacote(recorte.walls, (w) => camadas.camadaDe('parede', w)),
+    floor: semCamadaTortaNoPacote(recorte.floor, (f) => camadas.camadaDe('peca', f)),
+    regions: regioes,
+    stairs: semCamadaTortaNoPacote(recorte.stairs, (s) => camadas.camadaDe('escada', s)),
+    lights: semCamadaTortaNoPacote(recorte.lights, (l) => camadas.camadaDe('luz', l)),
+    tokens: semCamadaTortaNoPacote(recorte.tokens, (t) => camadas.camadaDe('ficha', t)),
+    props: semCamadaTortaNoPacote(recorte.props, (p) => camadas.camadaDe('objeto', p)),
+    lines: semCamadaTortaNoPacote(recorte.lines, (l) => camadas.camadaDe('linha', l)),
+    markers: semCamadaTortaNoPacote(recorte.markers, (m) => camadas.camadaDe('marcador', m)),
+    drawings: semCamadaTortaNoPacote(recorte.drawings, (d) => camadas.camadaDe('desenho', d)),
+    ...(recorte.pins === undefined ? {} : { pins: semCamadaTortaNoPacote(recorte.pins, (p) => camadas.camadaDe('pino', p)) }),
+    ...(recorte.carimbos === undefined ? {} : { carimbos: semCamadaTortaNoPacote(recorte.carimbos, (c: Carimbo) => camadas.camadaDe('carimbo', c)) }),
+  }
 }
 
 /**
@@ -1517,7 +1581,7 @@ export function claimableTokensForPlayer(maps: readonly MapData[], taken: Readon
   const seen = new Set<string>()
   const out: ClaimableToken[] = []
   for (const map of maps) {
-    for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+    for (const token of fichasNaCamadaDoJogador(map)) {
       if (token.playerCharacter !== true || token.secret === true || token.hidden === true) continue
       if (taken.has(token.id) || seen.has(token.id)) continue
       seen.add(token.id)
@@ -1656,7 +1720,8 @@ function keepSent<T extends { id: string }>(all: ReadonlyMap<string, T>, sent: r
  * A decisão de lugar é a MESMA do recorte: o próprio `filterMapForPlayer`, sem
  * token (ninguém vê nada agora) e com tudo na memória, diz o que sairia como
  * lembrado. Camada escondida não conta: é interruptor do mapa inteiro, e
- * religá-la mostra a planta revelada como sempre mostrou.
+ * religá-la mostra a planta revelada como sempre mostrou. Vale para os dois
+ * olhos: "Mestre vê" (`hiddenLayers`) e "Jogadores veem" (`ocultasDoJogador`).
  */
 export function planOfWholeMap(map: MapData): PlanMemory {
   const everything: PlanMemory = {
@@ -1669,7 +1734,7 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     stairs: byId(map.stairs),
     pins: byId(map.pins ?? []),
   }
-  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
+  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [], ocultasDoJogador: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
   return {
     walls: keepSent(everything.walls, shown.walls),
     floor: keepSent(everything.floor, shown.floor),
@@ -1848,7 +1913,7 @@ export function playerEyeTokens(
   loans?: ReadonlyMap<string, TokenContract>,
 ): Token[] {
   const owned = new Set(ownership[playerId] ?? [])
-  return visibleTokens(map.tokens, map.hiddenLayers).filter((t) => owned.has(t.id) && !t.hidden && loans?.get(t.id)?.visao !== false)
+  return fichasNaCamadaDoJogador(map).filter((t) => owned.has(t.id) && !t.hidden && loans?.get(t.id)?.visao !== false)
 }
 
 /**
@@ -1880,7 +1945,7 @@ export function pisoDoGrupo(
   // "Primeira" na ordem da posse (a ordem em que o mestre deu as fichas), não na do mapa.
   const ids = viewers.flatMap((viewer) => viewer.tokenIds)
   const olhos = new Map(
-    visibleTokens(map.tokens, map.hiddenLayers)
+    fichasNaCamadaDoJogador(map)
       .filter((t) => !t.hidden && loans?.get(t.id)?.visao !== false)
       .map((t) => [t.id, t]),
   )
@@ -2050,9 +2115,13 @@ export interface GroupViewer {
  * CARIMBOS do recorte: os campos SEMPRE presentes (`undefined` quando nada
  * sai), para o objeto do mestre nunca escapar pelo `...map` do recorte.
  */
-function carimbosDoRecorte(map: MapData, mostra: (p: RegionPoint) => boolean): Pick<MapData, 'carimbos' | 'carimbosImportados'> {
-  const carimbos = carimbosParaJogador(map.carimbos, mostra)
-  return { carimbos, carimbosImportados: importadosDosCarimbos(map.carimbosImportados, carimbos) }
+function carimbosDoRecorte(
+  doMestre: MapData['carimbos'],
+  importados: MapData['carimbosImportados'],
+  mostra: (p: RegionPoint) => boolean,
+): Pick<MapData, 'carimbos' | 'carimbosImportados'> {
+  const carimbos = carimbosParaJogador(doMestre, mostra)
+  return { carimbos, carimbosImportados: importadosDosCarimbos(importados, carimbos) }
 }
 
 /**
@@ -2088,7 +2157,18 @@ export function filterMapForGroup(
   const map = mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans))
   if (isWorldMap(map))
     return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras })
-  const hiddenLayers = map.hiddenLayers
+  // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item
+  // (`lib/camadas/consulta.ts`), INCLUSIVE chão, linha e marcador — que antes
+  // saíam pela rede e só a tela do jogador escondia. Nada oculto dos jogadores:
+  // as listas passam inteiras, sem perguntar item a item.
+  const camadas = contextoDeCamadas(map)
+  const nadaOcultoDoJogador = (map.ocultasDoJogador ?? map.hiddenLayers).length === 0
+  const jogadorVeItem = <K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean =>
+    nadaOcultoDoJogador || camadas.jogadorVe(camadas.camadaDe(tipo, item))
+  const naCamadaDoJogador = <K extends TipoDeObjeto>(tipo: K, itens: ItemPorTipo[K][]): ItemPorTipo[K][] =>
+    nadaOcultoDoJogador ? itens : itens.filter((item) => camadas.jogadorVe(camadas.camadaDe(tipo, item)))
+  // Terreno não tem camada por item (pincel de textura, penhasco, relevo, nuvens): é a camada inteira.
+  const terrenoVisivel = camadas.jogadorVe('terreno')
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
   for (const viewer of viewers) {
@@ -2101,7 +2181,9 @@ export function filterMapForGroup(
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   // Acordo só vale para ficha que este recorte segura: acordo de outro nunca entra nele.
   const loanOf = (tokenId: string): TokenContract | undefined => (owned.has(tokenId) ? loans?.get(tokenId) : undefined)
-  const layerTokens = visibleTokens(map.tokens, hiddenLayers)
+  const layerTokens = naCamadaDoJogador('ficha', map.tokens)
+  /** As Salas da camada que os jogadores veem (a camada escolhida de cada uma, ou Salas). */
+  const regioesNaCamada = naCamadaDoJogador('regiao', map.regions)
   // `ownTokens`: as fichas que são OLHOS do recorte (mesma regra de
   // `playerEyeTokens`). O ajudante sem visão fica de fora. O raio de cada uma
   // (`radiusOf`, com a ZONA DE PERIGO) vem abaixo, depois das Salas.
@@ -2224,8 +2306,10 @@ export function filterMapForGroup(
    * menos de 3 vértices ou com coordenada não-finita é INDECIDÍVEL: a sala some
    * do pacote (`brokenRoofIds`) em vez de virar um teto que nunca fecha.
    */
-  const roofCandidates = roofRoomsOf(visibleRegions(map.regions, hiddenLayers)).filter(
-    (r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id),
+  // TELHADOS escondidos dos jogadores: o teto não existe para eles (não fecha
+  // o interior e o `roof` não sai), como já é com a Sala de camada escondida.
+  const roofCandidates = roofRoomsOf(regioesNaCamada).filter(
+    (r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id) && jogadorVeItem('telhado', r),
   )
   /** Sala de teto que a geometria não sabe julgar: não sai para o jogador, e não abre. */
   const brokenRoofIds = new Set(roofCandidates.filter((r) => !isUsablePolygon(r.points)).map((r) => r.id))
@@ -2511,7 +2595,7 @@ export function filterMapForGroup(
    *   oculta, a de dentro de sala secreta, teto fechado ou zona, e a tocha presa
    *   numa ficha que o mestre esconde (o claro andando entregaria o NPC).
    */
-  const darkRoomsOnLayer = visibleRegions(map.regions, hiddenLayers).filter(
+  const darkRoomsOnLayer = regioesNaCamada.filter(
     (r) => r.room?.dark === true && !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
   )
   const isInteriorRoom = (r: Region): boolean => underRoofIds.has(r.id) || swallowedByClosedRoof(r)
@@ -2529,7 +2613,7 @@ export function filterMapForGroup(
       const carrier = layerTokenById.get(l.attachedTokenId)
       return carrier === undefined || carrier.hidden === true || (!owned.has(carrier.id) && secretFromPlayer(carrier))
     }
-    const lights = visibleLights(map.lights, hiddenLayers).filter((l) => {
+    const lights = naCamadaDoJogador('luz', map.lights).filter((l) => {
       const at = { x: l.x, y: l.y }
       // ESTADO DO MUNDO: luz apagada não ilumina.
       // Teto por `inClosedRoof`, e não por `roofHides`: o cone de quem espia
@@ -2594,7 +2678,7 @@ export function filterMapForGroup(
    * (`playerRegions`), na camada visível (como a sala escura) e fora de prédio
    * de teto fechado para ele. Sem Sala com o campo, nada abaixo roda.
    */
-  const seeThroughRooms = visibleRegions(map.regions, hiddenLayers).filter(
+  const seeThroughRooms = regioesNaCamada.filter(
     (r) => (r.room?.dentroVeFora === true || r.room?.foraVeDentro === true) && !isInteriorRoom(r),
   )
   const playerRegionIds = seeThroughRooms.length === 0 ? null : new Set(playerRegions.map((r) => r.id))
@@ -2825,7 +2909,7 @@ export function filterMapForGroup(
    * objeto continuam exigindo a visão de agora. Não conhecido, NADA de dentro
    * sai — nem a silhueta, que é o que o teto por cômodo entregava.
    */
-  const comodoCandidates = visibleRegions(map.regions, hiddenLayers).filter(
+  const comodoCandidates = regioesNaCamada.filter(
     (r) =>
       roomIsComodo(r.room) &&
       !r.hidden &&
@@ -3006,12 +3090,11 @@ export function filterMapForGroup(
   /** Com memória: ponto no cômodo que ele vê AGORA (`inComodoSeenNow`) conta como visto agora. */
   const comodoSeenPoint = (point: RegionPoint): boolean => memoryMode && inComodoSeenNow(point)
   const comodoSeenShape = (points: readonly RegionPoint[]): boolean => memoryMode && outsideZones(points).some(inComodoSeenNow)
-  const layerShown = (layer: LayerId): boolean => !hiddenLayers.includes(layer)
 
   const markerCenter = (m: MapMarker): RegionPoint => ({ x: m.cx, y: m.cy })
   const markers = recallItems(map.markers, remembered?.markers, {
     allowed: () => true,
-    shown: () => true,
+    shown: (m) => jogadorVeItem('marcador', m),
     placeOk: (m) => !inHiddenPlace(markerCenter(m)) && !inConcealZone(markerCenter(m)),
     seenNow: (m) => isVisible(markerCenter(m)) || comodoSeenPoint(markerCenter(m)),
     unseenOk: (m) => exploredPoint(markerCenter(m)),
@@ -3019,7 +3102,7 @@ export function filterMapForGroup(
 
   const lines = recallItems(map.lines, remembered?.lines, {
     allowed: () => true,
-    shown: () => true,
+    shown: (l) => jogadorVeItem('linha', l),
     placeOk: (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone),
     seenNow: (l) => isShapeVisible(l.points) || comodoSeenShape(l.points),
     unseenOk: (l) => exploredShape(l.points),
@@ -3029,7 +3112,7 @@ export function filterMapForGroup(
   const stairMid = (s: Stair): RegionPoint | null => stairMidpoint(s)
   const stairs = recallItems(map.stairs, remembered?.stairs, {
     allowed: (s) => !s.hidden && !s.secret,
-    shown: (s) => layerShown(stairLayer(s)),
+    shown: (s) => jogadorVeItem('escada', s),
     placeOk: (s) => {
       const mid = stairMid(s)
       return mid !== null && !inConcealZone(mid) && !stairSamples(s).some(inHiddenPlace)
@@ -3046,7 +3129,7 @@ export function filterMapForGroup(
 
   const drawings = recallItems(map.drawings, remembered?.drawings, {
     allowed: (d) => !d.secret,
-    shown: (d) => layerShown(drawingLayer(d)),
+    shown: (d) => jogadorVeItem('desenho', d),
     placeOk: (d) => {
       const samples = drawingSamplePoints(d)
       if (samples.some(inHiddenPlace)) return false
@@ -3087,7 +3170,7 @@ export function filterMapForGroup(
     // DENTRO DA SALA SECRETA: a secreta aberta para ESTE jogador (ficha dentro,
     // ou já descoberta por ele) é Sala comum para ele (`isClosedSecret`).
     allowed: (r) => !r.hidden && !isClosedSecret(r) && !hiddenByAncestorIds.has(r.id),
-    shown: (r) => layerShown(regionLayer(r)),
+    shown: (r) => jogadorVeItem('regiao', r),
     // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
     // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
     // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
@@ -3102,7 +3185,7 @@ export function filterMapForGroup(
   const visibleDoorIds: string[] = []
   const walls = recallItems(map.walls, remembered?.walls, {
     allowed: (w) => !w.hidden,
-    shown: (w) => layerShown(wallLayer(w)),
+    shown: (w) => jogadorVeItem('parede', w),
     placeOk: (w) => {
       if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return false
       if (interiorRoofOf(w) !== undefined) return false
@@ -3235,7 +3318,7 @@ export function filterMapForGroup(
   }
   const floor = recallItems(map.floor, remembered?.floor, {
     allowed: (f) => !f.hidden,
-    shown: () => true,
+    shown: (f) => jogadorVeItem('peca', f),
     placeOk: (f) => !hiddenFloorIds.has(f.id),
     seenNow: floorSeenNow,
     unseenOk: (f) => !memoryMode || !floorPieceSamples(f).some(isPointExploredOpen),
@@ -3247,7 +3330,7 @@ export function filterMapForGroup(
   const pinPoint = (p: Pin): RegionPoint => ({ x: p.x, y: p.y })
   const pins = recallItems(map.pins ?? [], remembered?.pins, {
     allowed: (p) => !isArrivalOnly(p) && !p.hidden && !p.secret,
-    shown: () => layerShown('anotacoes'),
+    shown: (p) => jogadorVeItem('pino', p),
     placeOk: (p) => !inRoomHiddenFromPlayer(pinPoint(p)) && !inConcealZone(pinPoint(p)),
     seenNow: (p) => isVisible(pinPoint(p)) || comodoSeenPoint(pinPoint(p)),
     unseenOk: (p) => exploredPoint(pinPoint(p)),
@@ -3348,7 +3431,8 @@ export function filterMapForGroup(
   // O cone pelo vão e a espiada devolvem o chão do prédio do mesmo jeito: só nas células deles.
   const floorCells = peekCells.length === 0 && glimpseCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells, ...glimpseCells])]
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
-  const playerFloor = recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id)).flatMap((f): FloorPiece[] => {
+  // CAMADAS: chão de camada escondida dos jogadores não sai (antes saía e só a tela dele escondia).
+  const playerFloor = naCamadaDoJogador('peca', recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id))).flatMap((f): FloorPiece[] => {
     if (f.hidden) return []
     if (!hiddenFloorIds.has(f.id)) return [floorPieceForPlayer(f)]
     const clipped = floorCells.length > 0 ? floorInCells(f, floorCells) : null
@@ -3444,7 +3528,7 @@ export function filterMapForGroup(
    */
   // Sala tomada que o MESTRE esconde deste jogador (ver ZONA DE PERIGO, mais abaixo):
   // camada escondida, sala escondida, teto fechado ou zona oculta ativa encostada.
-  const layerRegionIds = new Set(visibleRegions(map.regions, hiddenLayers).map((r) => r.id))
+  const layerRegionIds = new Set(regioesNaCamada.map((r) => r.id))
   const touchesConcealZone = (points: RegionPoint[]): boolean =>
     zones.length > 0 &&
     (interiorSamples(points, points).some(inConcealZone) || concealed.some((zone) => zone.some((p) => pointInRing(p, points))))
@@ -3528,7 +3612,7 @@ export function filterMapForGroup(
   const veiledTokenIds = new Set(
     veils.length === 0 ? [] : map.tokens.filter((t) => !sentTokenIds.has(t.id) && veilsAt({ x: t.x, y: t.y }).length > 0).map((t) => t.id),
   )
-  const playerStairs =visibleStairs(recalledList(map.stairs, stairs, memoryMode), hiddenLayers).filter((s) => {
+  const playerStairs = naCamadaDoJogador('escada', recalledList(map.stairs, stairs, memoryMode)).filter((s) => {
     const mid = stairMidpoint(s)
     if (s.hidden || secretFromPlayer(s) || mid === null || stairSamples(s).some(inHiddenPlace)) return false
     return memoryMode || isPointKnown(mid)
@@ -3545,7 +3629,7 @@ export function filterMapForGroup(
   // nem presa em ficha de OUTRO piso (`outroPisoTokenIds`) ou no véu da fumaça (`veiledTokenIds`).
   // ESTADO DO MUNDO: luz apagada pelo estado não sai, e a que sai vai por
   // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
-  const lightsInPlay = visibleLights(map.lights, hiddenLayers)
+  const lightsInPlay = naCamadaDoJogador('luz', map.lights)
     // `underClosedRoof`, não `inClosedRoof`: tocha no cone pelo vão também fica, o halo desenharia o interior fora do cone.
     .filter((l) => !l.hidden && l.apagada !== true && !underClosedRoof({ x: l.x, y: l.y }))
     .filter(
@@ -3627,9 +3711,21 @@ export function filterMapForGroup(
   // pelo host com as fichas deste recorte (`confrontoParaJogador`).
   // PERIGO QUE SE ALASTRA: a lista do mestre também fica (id, salas fora da
   // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
-  const { confronto: _confrontoDoMestre, perigos: perigosDoMestre, ...mapSemConfronto } = mapWithoutHazards
+  // CAMADAS: o modelo (nomes das camadas livres são segredo do mestre), o olho
+  // "Jogadores veem", as opacidades e a versão ficam no mestre; o jogador
+  // recebe só `hiddenLayers` já resolvido para ele (`ocultasNoRecorte`).
+  const {
+    confronto: _confrontoDoMestre,
+    perigos: perigosDoMestre,
+    modeloCamadas: _modeloDoMestre,
+    ocultasDoJogador: _ocultasDoJogador,
+    opacidadeDasCamadas: _opacidadesDoMestre,
+    versaoDasCamadas: _versaoDasCamadas,
+    ...mapSemConfronto
+  } = mapWithoutHazards
   const filtered: MapData = {
     ...mapSemConfronto,
+    hiddenLayers: ocultasNoRecorte(map),
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
     // `createEmptyMap(id, nomeDaCena, …)`): o jogador descobre onde está pelo
     // que vê, nunca pelo nome que o mestre deu. Nada na tela dele lê este campo.
@@ -3648,7 +3744,9 @@ export function filterMapForGroup(
     // (`ceuDasNuvensDoRecorte`): tirado do chão inteiro, a caixa entregaria até
     // onde vai o chão da zona oculta, da sala secreta e da névoa. Sempre
     // presente (`undefined` com elas desligadas), para nunca vir pelo `...map`.
-    ceuDasNuvens: ceuDasNuvensDoRecorte({ ...mapaInteiro, floor: playerFloor }),
+    ceuDasNuvens: ceuDoRecorte(mapaInteiro, playerFloor),
+    // TERRENO escondido dos jogadores: relevo, nuvens e penhasco não saem.
+    ...(terrenoVisivel ? {} : { relevo: undefined, nuvens: undefined }),
     // PENHASCO: só o pedaço dos riscos junto do que ele conhece; os riscos na
     // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
     // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele
@@ -3656,11 +3754,13 @@ export function filterMapForGroup(
     ...(map.penhascos === undefined
       ? {}
       : {
-          penhascos: penhascosParaJogador(
-            map.penhascos,
-            (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-            (p) => inHiddenPlace(p) || inConcealZone(p),
-          ),
+          penhascos: terrenoVisivel
+            ? penhascosParaJogador(
+                map.penhascos,
+                (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+                (p) => inHiddenPlace(p) || inConcealZone(p),
+              )
+            : undefined,
         }),
     // TEXTURAS: as do mestre NUNCA saem daqui (o recorte delas depende das
     // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
@@ -3669,10 +3769,18 @@ export function filterMapForGroup(
     // CARIMBOS: só os de base no que ele conhece, fora de lugar escondido e de
     // zona oculta — a mata na névoa diria o que há lá (`carimbosParaJogador`).
     // Dos importados, só os que algum objeto dele usa, sem o nome do mestre.
-    ...carimbosDoRecorte(map, (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p)),
+    // Carimbo mora em Terreno, ou na camada que o mestre escolheu para ele.
+    ...carimbosDoRecorte(
+      map.carimbos === undefined ? undefined : naCamadaDoJogador('carimbo', map.carimbos),
+      map.carimbosImportados,
+      (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+    ),
     tokens,
-    markers: recalledList(map.markers, markers, memoryMode).filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy }))),
-    lines: recalledList(map.lines, lines, memoryMode).filter(
+    // Marcador (camada Portas) e linha (camada Paredes) seguem o olho da camada, como o resto.
+    markers: naCamadaDoJogador('marcador', recalledList(map.markers, markers, memoryMode)).filter(
+      (m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy })),
+    ),
+    lines: naCamadaDoJogador('linha', recalledList(map.lines, lines, memoryMode)).filter(
       (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && (memoryMode || isShapeKnown(l.points, { points: l.points, closed: l.closed })),
     ),
     // Luz: ver `playerLights`/`sentLights` (teto fechado, tocha presa na ficha,
@@ -3682,10 +3790,10 @@ export function filterMapForGroup(
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
     // (`propSamplePoints`), como já leva escada, desenho e linha.
-    props: visibleProps(map.props, hiddenLayers)
+    props: naCamadaDoJogador('objeto', map.props)
       .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y }))
       .map(propForPlayer),
-    drawings: visibleDrawings(recalledList(map.drawings, drawings, memoryMode), hiddenLayers).filter((d) => {
+    drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
       if (samples.some(inHiddenPlace)) return false
@@ -3694,7 +3802,7 @@ export function filterMapForGroup(
       return memoryMode || isShapeKnown(samples, drawingOutline(d))
     }),
     // Cômodo lembrado sai pela regra dele, na versão de agora (`recalledList`).
-    regions: visibleRegions(recalledList(map.regions, regions, memoryMode, (r) => knownComodoIds.has(r.id)), hiddenLayers)
+    regions: naCamadaDoJogador('regiao', recalledList(map.regions, regions, memoryMode, (r) => knownComodoIds.has(r.id)))
       .filter((r) => {
         if (regionHiddenByMaster(r)) return false
         // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior
@@ -3788,7 +3896,7 @@ export function filterMapForGroup(
     // PAREDES SÓ AS VISTAS: fora do prédio de teto, só sai a parede que o
     // jogador vê agora ou lembra (`recalledWall`), nunca o nível inteiro.
     walls: [
-      ...visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
+      ...naCamadaDoJogador('parede', knownWalls).flatMap((w) => {
         if (w.hidden) return []
         if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
         // Mobília de prédio de teto fechado: o cone pelo vão alcança, OU quem
@@ -3842,9 +3950,11 @@ export function filterMapForGroup(
       // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
       if (p.escadaId !== undefined) {
         if (!playerStairIds.has(p.escadaId) || p.hidden || p.secret || travelExitsOf(p).length === 0) return []
+        // O pino de escada segue a camada da escada; só a camada que o mestre escolheu PARA O PINO pesa por cima.
+        if (p.camada !== undefined && !jogadorVeItem('pino', p)) return []
         return [pinForPlayer(p, ownTokens, map.grid, true, true, oneWayExits?.get(p.id))]
       }
-      if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return []
+      if (p.hidden || p.secret || !jogadorVeItem('pino', p)) return []
       if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return []
       // Preso a ficha de OUTRO piso: anda com ela lá, então conta onde ela está (ver `outroPisoTokenIds`).
       if (p.presoA !== undefined && outroPisoTokenIds.has(p.presoA)) return []
@@ -3899,17 +4009,22 @@ export function filterMapForGroup(
    */
   const regioesDoRecorte = new Set(filtered.regions.map((r) => r.id))
   const desenhosDoRecorte = new Set(filtered.drawings.map((d) => d.id))
-  const texturasDoJogador = texturasParaJogador(
-    map.texturas,
-    (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-    (p) => inHiddenPlace(p) || inConcealZone(p),
-    (alvo) => (alvo.tipo === 'regiao' ? regioesDoRecorte.has(alvo.id) : desenhosDoRecorte.has(alvo.id)),
-  )
+  // Textura mora em Terreno: com a camada escondida dos jogadores, nenhuma sai.
+  const texturasDoJogador = terrenoVisivel
+    ? texturasParaJogador(
+        map.texturas,
+        (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+        (p) => inHiddenPlace(p) || inConcealZone(p),
+        (alvo) => (alvo.tipo === 'regiao' ? regioesDoRecorte.has(alvo.id) : desenhosDoRecorte.has(alvo.id)),
+      )
+    : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
-  const recorte: MapData =
+  const recorte: MapData = recorteSemCamadaTorta(
     texturasDoJogador === undefined
       ? comPerigos
-      : { ...comPerigos, texturas: texturasDoJogador, ...(importadasDoJogador === undefined ? {} : { texturasImportadas: importadasDoJogador }) }
+      : { ...comPerigos, texturas: texturasDoJogador, ...(importadasDoJogador === undefined ? {} : { texturasImportadas: importadasDoJogador }) },
+    camadas,
+  )
 
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
@@ -4155,7 +4270,7 @@ function filterWorldMapForGroup(
   if (at === null) {
     const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
     // O céu do mapa-mundi antigo (sem `continente`) é o dele, com a marca que `plain` perdeu — e só do chão do recorte.
-    return { ...view, map: { ...view.map, worldMap: true, continente: true, ceuDasNuvens: ceuDasNuvensDoRecorte({ ...map, floor: view.map.floor }) } }
+    return { ...view, map: { ...view.map, worldMap: true, continente: true, ceuDasNuvens: ceuDoRecorte(map, view.map.floor) } }
   }
   const memberIds = new Set(members.map((t) => t.id))
   const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
@@ -4164,7 +4279,7 @@ function filterWorldMapForGroup(
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
   // A caravana é pino na cor neutra da mesa: ela não é de jogador nenhum.
   const tokens = caravanSent ? [{ ...caravanTokenFor(members, at), pino: SIGNAL_NEUTRAL_COLOR }, ...others] : others
-  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens, ceuDasNuvens: ceuDasNuvensDoRecorte({ ...map, floor: view.map.floor }) } }
+  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens, ceuDasNuvens: ceuDoRecorte(map, view.map.floor) } }
 }
 
 /** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
@@ -4762,7 +4877,7 @@ export function roomClueForPlayer(title: string, text: string): PlayerClueConten
  */
 export function abaloSetaForPlayer(map: MapData, playerId: string, ownership: Record<string, string[]>, origem: RegionPoint): AbaloSeta | null {
   const owned = new Set(ownership[playerId] ?? [])
-  const ficha = visibleTokens(map.tokens, map.hiddenLayers).find((t) => owned.has(t.id) && !t.hidden)
+  const ficha = fichasNaCamadaDoJogador(map).find((t) => owned.has(t.id) && !t.hidden)
   if (ficha === undefined) return null
   return setaDoAbalo({ x: ficha.x, y: ficha.y }, origem, map.grid)
 }
@@ -4878,7 +4993,7 @@ export function noiseCueForPlayer(
   const owned = new Set(ownership[playerId] ?? [])
   let nearest: Token | null = null
   let nearestDistance = Number.POSITIVE_INFINITY
-  for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+  for (const token of fichasNaCamadaDoJogador(map)) {
     if (!owned.has(token.id) || token.hidden) continue
     const distance = Math.hypot(token.x - point.x, token.y - point.y)
     if (distance > rangePx || distance >= nearestDistance) continue
