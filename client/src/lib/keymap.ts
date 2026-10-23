@@ -127,18 +127,26 @@ export interface EventoDoAtalhoDeSom extends ShortcutEvent {
   modalAberto?: boolean
   /** `KeyboardEvent.repeat`: segurar o 3 tocaria o efeito a cada repetição do teclado. */
   repeticao?: boolean
+  /** `KeyboardEvent.code`, a tecla física: no AZERTY a fileira de números sem Shift dá `&é"'(` no `key`. */
+  code?: string
 }
+
+/** As teclas físicas da fileira de números (1 a 9), qualquer que seja o layout. */
+const TECLAS_FISICAS_DE_SOM = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'] as const
 
 /**
  * O atalho de som (1 a 9) desta tecla, ou `null`. Só o dígito sozinho: com
  * Ctrl, Cmd, Alt ou Shift é outra coisa (Shift+3 é `#`); num campo de texto o
- * dígito é texto; com diálogo modal aberto, nada toca atrás dele.
+ * dígito é texto; com diálogo modal aberto, nada toca atrás dele. Vale o
+ * dígito do `key` (fileira e teclado numérico) ou a tecla física `Digit1` a
+ * `Digit9` (o AZERTY, que sem Shift não dá dígito na fileira).
  */
 export function resolverAtalhoDeSom(evt: EventoDoAtalhoDeSom): AtalhoDeSom | null {
   if (evt.ctrlKey || evt.metaKey || evt.altKey || evt.shiftKey) return null
   if (evt.modalAberto === true || evt.repeticao === true) return null
   if (isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)) return null
-  const indice = SOUND_SLOT_KEYS.findIndex((tecla) => tecla === evt.key)
+  const pelaTecla = SOUND_SLOT_KEYS.findIndex((tecla) => tecla === evt.key)
+  const indice = pelaTecla >= 0 ? pelaTecla : TECLAS_FISICAS_DE_SOM.findIndex((tecla) => tecla === evt.code)
   return indice < 0 ? null : ATALHOS_DE_SOM[indice]
 }
 

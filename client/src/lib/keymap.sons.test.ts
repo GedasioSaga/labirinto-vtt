@@ -44,6 +44,29 @@ describe('resolverAtalhoDeSom', () => {
   })
 })
 
+describe('teclado AZERTY (a fileira de números sem Shift dá & é " \' ( - è _ ç)', () => {
+  const azerty = ['&', 'é', '"', "'", '(', '-', 'è', '_', 'ç'] as const
+
+  it('a tecla física Digit1 a Digit9 sem modificador vira o atalho de mesmo número', () => {
+    for (const [indice, key] of azerty.entries()) expect(resolverAtalhoDeSom({ ...evt({ key }), code: `Digit${indice + 1}` })).toBe(indice + 1)
+    // O teclado numérico segue valendo pela tecla.
+    expect(resolverAtalhoDeSom({ ...evt({ key: '3' }), code: 'Numpad3' })).toBe(3)
+  })
+
+  it('com Shift, Ctrl, Alt (AltGr) ou Cmd não toca; Digit0 e letras também não', () => {
+    expect(resolverAtalhoDeSom({ ...evt({ key: '3', shiftKey: true }), code: 'Digit3' })).toBeNull()
+    expect(resolverAtalhoDeSom({ ...evt({ key: '#', ctrlKey: true, altKey: true }), code: 'Digit3' })).toBeNull()
+    expect(resolverAtalhoDeSom({ ...evt({ key: '"', metaKey: true }), code: 'Digit3' })).toBeNull()
+    expect(resolverAtalhoDeSom({ ...evt({ key: 'à' }), code: 'Digit0' })).toBeNull()
+    expect(resolverAtalhoDeSom({ ...evt({ key: 'a' }), code: 'KeyQ' })).toBeNull()
+    expect(resolverAtalhoDeSom({ ...evt({ key: '"', targetTagName: 'INPUT' }), code: 'Digit3' })).toBeNull()
+  })
+
+  it('resolveShortcut segue null para as teclas da fileira AZERTY', () => {
+    for (const key of azerty) expect(resolveShortcut(evt({ key }))).toBeNull()
+  })
+})
+
 describe('resolveShortcut não muda com os atalhos dos sons', () => {
   it('os dígitos 1 a 9 seguem sem ação nenhuma, com e sem Shift', () => {
     for (const tecla of SOUND_SLOT_KEYS) {

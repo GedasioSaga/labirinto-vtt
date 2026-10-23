@@ -96,6 +96,7 @@ export function useAtalhosDeSom(aoAtalho: (atalho: AtalhoDeSom) => boolean): voi
       const alvo = evento.target instanceof HTMLElement ? evento.target : null
       const atalho = resolverAtalhoDeSom({
         key: evento.key,
+        code: evento.code,
         ctrlKey: evento.ctrlKey,
         metaKey: evento.metaKey,
         shiftKey: evento.shiftKey,

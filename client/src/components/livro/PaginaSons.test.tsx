@@ -321,6 +321,17 @@ describe('o que ninguém via (revisão da F3)', () => {
     await esperar(() => expect(tocadas()).toHaveLength(1))
   })
 
+  it('no teclado AZERTY a fileira de números sem Shift (key ", code Digit3) toca o atalho 3', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const trovao = await importar('trovao.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(trovao, { atalho: 3 })
+    })
+    teclar(document.body, '"', { code: 'Digit3' })
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+  })
+
   it('editar o efeito NÃO entra no histórico do mapa: o Ctrl+Z (undo) não desfaz a mudança do som', async () => {
     const { useMapStore } = await import('../../stores/mapStore')
     await montarPagina()
