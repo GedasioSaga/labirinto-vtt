@@ -113,7 +113,10 @@ describe('painel de propriedades — o móvel selecionado', () => {
     renderObjeto(MESA)
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
-    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
+    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual([
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete',
+      'Mesa quadrada', 'Mesa redonda', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça',
+    ])
     expect(tipo.value).toBe('mesa')
 
     escolhe(tipo, 'bau')
@@ -176,12 +179,12 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(campo('Cor da linha')).not.toBeNull()
   })
 
-  it('"Vista" só aparece para cadeira, baú, armário de cozinha, aparador, fogueira e tapete', () => {
+  it('"Vista" só aparece para cadeira, baú, armário de cozinha, aparador, fogueira, tapete e, das peças novas, barraca e carroça', () => {
     const comVista = TIPOS_MOBILIA.filter((tipo) => {
       renderObjeto(criarMovel(tipo, { x: 300, y: 200 }, 64, 'c1'))
       return vista() !== null
     })
-    expect(comVista).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete'])
+    expect(comVista).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete', 'barraca', 'carroca'])
   })
 
   it('a cadeira: "Vista" vem entre "Tipo" e "Preencher", marca Frente e o clique em Lado manda a vista', () => {
