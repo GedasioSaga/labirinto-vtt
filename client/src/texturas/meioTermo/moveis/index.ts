@@ -40,9 +40,15 @@ export type TipoComTextura = keyof typeof MONTADORES
 
 /**
  * Px de MUNDO por casa que a imagem supõe. `drawPropSilhouettes` não recebe a
- * grade do mapa (a assinatura é fixa), então a pegada em casas sai do tamanho
- * do objeto sobre a grade padrão do app (50 px, `player/meuCaderno.ts:210`).
- * Em mapa de outra grade a imagem só é esticada para o tamanho do objeto.
+ * grade do mapa (a assinatura é fixa, e quem a chama no jogador é
+ * `PlayerView.tsx`, arquivo quente), então a pegada em casas sai do tamanho do
+ * objeto sobre a grade padrão do app (50 px, `player/meuCaderno.ts:210`).
+ * Em mapa de outra grade a imagem NÃO é só esticada: o desenho é feito para a
+ * pegada em casas de 50 px, e o que se repete por casa sai mais denso ou mais
+ * ralo. Medido: na grade 70 o tapete 3 x 2 (210 x 140 px) é desenhado como
+ * 4,2 x 2,8 casas, com 2,8 losangos da borda por casa do mapa em vez de 2 (o
+ * tapete longo da MT5 herda isso). A cerca não: os mourões tomam a espessura
+ * dela como régua (`geometriaDaCerca`).
  */
 export const GRADE_DE_REFERENCIA = 50
 

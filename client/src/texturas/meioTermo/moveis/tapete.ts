@@ -65,7 +65,13 @@ function pintarCampo(s: Float32Array, c: Rgb): void {
   s[2] = c[2]
 }
 
-/** O motivo da borda se repete a cada meia casa: uma casa de borda tem sempre os mesmos dois losangos. */
+/**
+ * O motivo da borda se repete a cada meia casa DA GRADE DE REFERÊNCIA (50 px,
+ * `GRADE_DE_REFERENCIA` de `index.ts`): uma casa de 50 px tem sempre os mesmos
+ * dois losangos. Em mapa de outra grade a pegada sai em casas de 50 px, então
+ * a conta muda: na grade 70 o tapete 3 x 2 é desenhado como 4,2 x 2,8 e cada
+ * casa do mapa leva 2,8 losangos (limite registrado no plano, seção 7).
+ */
 export const PERIODO_DO_MOTIVO = G / 2
 
 /**
@@ -132,7 +138,7 @@ function texRetangular(t: CoresDoTapete, g: GeometriaDoRetangular, deitado: bool
     tingir(s, t.claro, cobre(Math.abs(dc) - 0.45, S))
     tingir(s, t.escuro, cobre(dm, S))
     tingir(s, t.claro, cobre(Math.abs(dm) - 0.5, S))
-    tingir(s, t.miolo, cobre((q / 0.42 - 1) * g.escalaM * 0.42, S))
+    tingir(s, t.miolo, cobre((q / MIOLO_DO_MEDALHAO - 1) * g.escalaM * MIOLO_DO_MEDALHAO, S))
     const B = g.borda
     const kB = cobre(de - B, S)
     tingir(s, t.escuro, kB)
@@ -148,18 +154,30 @@ function texRetangular(t: CoresDoTapete, g: GeometriaDoRetangular, deitado: bool
   }
 }
 
-/** O desenho do redondo: borda, medalhão com o miolo, fio claro (`objetos.js:564-572`). */
+/** O miolo do medalhão em losango, em fração dele (o mesmo no retangular e no redondo). */
+const MIOLO_DO_MEDALHAO = 0.42
+
+/**
+ * O desenho do redondo: a borda com o fio do meio, UM fio claro por dentro
+ * dela e o medalhão em LOSANGO com o miolo, igual ao do retangular e ao do
+ * desenho de linhas (`TAPETE_REDONDO` de `lib/mobilia.ts`: o losango a 0,6 do
+ * raio de dentro). Revisão da MT3: com o medalhão redondo, o anel claro dele, o
+ * miolo e o botão com aro no centro, o tapete lia como um alvo.
+ */
 function texRedondo(t: CoresDoTapete, hw: number, hh: number, borda: number, medalhao: number): Textura {
   const menor = Math.min(hw, hh)
+  const mx = (hw - borda) * medalhao
+  const my = (hh - borda) * medalhao
+  const escalaM = (mx * my) / Math.hypot(mx, my)
   return (u, v, x, y, _p, s, S) => {
     pintarCampo(s, t.campo)
     const raio = Math.sqrt((x / hw) * (x / hw) + (y / hh) * (y / hh))
     const de = (1 - raio) * menor
-    const dm = (raio - medalhao) * menor
+    const q = Math.abs(x) / mx + Math.abs(y) / my
+    const dm = (q - 1) * escalaM
     tingir(s, t.escuro, cobre(dm, S))
     tingir(s, t.claro, cobre(Math.abs(dm) - 0.5, S))
-    tingir(s, t.miolo, cobre((raio - medalhao * 0.42) * menor, S))
-    tingir(s, t.escuro, cobre(Math.abs((raio - medalhao * 0.2) * menor) - 0.5, S) * 0.7)
+    tingir(s, t.miolo, cobre((q / MIOLO_DO_MEDALHAO - 1) * escalaM * MIOLO_DO_MEDALHAO, S))
     const kB = cobre(de - borda, S)
     tingir(s, t.escuro, kB)
     if (kB > 0) tingir(s, t.meio, cobre(Math.abs(de - borda / 2) - MEIO_FIO_DO_MOTIVO, S) * kB)

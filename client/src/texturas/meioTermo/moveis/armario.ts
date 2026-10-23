@@ -16,6 +16,17 @@ const ALTURA_DO_ARMARIO_DE_CIMA = 1.52
 const DEGRAU = 0.45
 /** Altura da sombra do armário de lado (px do protótipo). */
 const ALTURA_DE_LADO = 18
+/**
+ * O nicho aberto do armário de lado é a PRÓPRIA madeira com menos luz, e a
+ * sombra da borda de cima dentro dele. Revisão da MT3: com 0,42 e sombra de
+ * 0,4, o fundo da madeira velha caía abaixo do piso de luz e era levantado
+ * inteiro para o escuro quente da nogueira (#4f3729, marrom numa madeira
+ * cinza). Com 0,56 e sombra de 0,2 o fundo fica acima do piso e continua
+ * cinza (medido: #43413c nos níveis 1 e 3; com 0,5 ainda era levantado em
+ * parte, #433b33).
+ */
+const TOM_DO_NICHO = 0.56
+const SOMBRA_DO_NICHO = 0.2
 
 /**
  * Duas gavetas em relevo entre `y0` e `y1`, cada uma com um puxador deitado
@@ -42,7 +53,7 @@ function montarArmarioDeLado(c: ContextoDoMovel, cena: Cena): void {
   L.push(P(caixa(-0.34 * w, nA(0.06), 0.34 * w, nA(0.25), 1), mad, { eixo: QUARTO, tabua: 0, bisel: 1.4, semente: 152 }))
   L.push(P(elipse(0.25 * w, nA(0.155), 1.1, 1.1), pux, { bisel: 1.1, contorno: 0.1, projeta: { dist: 0.8, forca: 0.3 } }))
   L.push(P(caixa(-hw, nA(0.285), hw, nA(0.31), 0.3), mad, { tabua: 0, bisel: 0.6, luz: 0.04, semente: 153 }))
-  L.push(P(caixa(-0.42 * w, nA(0.31), 0.42 * w, nA(0.555), 0.3), mad, { tabua: 0, bisel: 0, tom: 0.42, recesso: { k: 3.5, forca: 0.4 }, contorno: 0, semente: 154 }))
+  L.push(P(caixa(-0.42 * w, nA(0.31), 0.42 * w, nA(0.555), 0.3), mad, { tabua: 0, bisel: 0, tom: TOM_DO_NICHO, recesso: { k: 3.5, forca: SOMBRA_DO_NICHO }, contorno: 0, semente: 154 }))
   L.push(P(caixa(-hw - 0.4, nA(0.555), hw + 0.4, nA(0.59), 0.5), mad, { tabua: 0, bisel: 0.8, luz: 0.05, semente: 155 }))
   gavetas(L, P, mad, pux, -hw, nA(0.59), hw, nA(0.94), w)
   L.push(P(caixa(-hw + 1, nA(0.94), hw - 1, hh, 0.3), mad, { tabua: 0, bisel: 0.4, tom: 0.58, semente: 156 }))
