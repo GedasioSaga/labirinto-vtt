@@ -294,10 +294,15 @@ function listaCom(camada: CamadaPadraoId, acimaDe: CamadaPadraoId): ModeloDeCama
 // de Salas: a escada passa para baixo do rabisco, do retângulo e da porta que
 // ela cobre. Objetos a 40%: mesa, cadeira, tapete, fogueira e barril esmaecem;
 // o baú (Decoração) fica inteiro.
+/** A Casa com uma parede solta cruzando a pincelada da Sala: prova que o Chão movido fica ABAIXO das paredes. */
+function casaComParedeNoChao(): MapData {
+  return addWall(mapaCasa(), buildWallFromDraft('w13', { x: 96, y: 160 }, { x: 416, y: 160 }))
+}
+
 test.describe('editor a 1440 x 900, camadas mexidas (fatia 3)', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
   const casos: [string, () => MapData][] = [
-    ['editor-chao-acima-de-salas.png', () => ({ ...mapaCasa(), modeloCamadas: listaCom('chao', 'salas') })],
+    ['editor-chao-acima-de-salas.png', () => ({ ...casaComParedeNoChao(), modeloCamadas: listaCom('chao', 'salas') })],
     // Uma escada a mais cobre a porta trancada (vermelha) do corredor: sob Portas, a porta passa por cima dela.
     ['editor-escadas-acima-de-salas.png', () => ({ ...addStair(mapaCasa(), buildStairFromDraft('s2', { x: 460, y: 296 }, { x: 500, y: 344 }, 8)), modeloCamadas: listaCom('escadas', 'salas') })],
     ['editor-objetos-40.png', () => ({ ...mapaCasa(), opacidadeDasCamadas: { objetos: 0.4 } })],
@@ -309,6 +314,48 @@ test.describe('editor a 1440 x 900, camadas mexidas (fatia 3)', () => {
       await expect(page.locator('canvas').first()).toHaveScreenshot(foto, opcoesDaFoto(foto))
     })
   }
+})
+
+/** Quantos filhos o `world` do editor tem agora (`data-nos-da-pilha`). */
+async function nosDaPilha(page: Page): Promise<number> {
+  return Number(await page.locator('[data-nos-da-pilha]').first().getAttribute('data-nos-da-pilha'))
+}
+
+/** Muda só a lista ou só as opacidades do mapa ABERTO, pela store (como a interface fará na fatia 6). */
+async function mudarCamadasDoMapaAberto(page: Page, campos: Pick<MapData, 'modeloCamadas' | 'opacidadeDasCamadas'>): Promise<void> {
+  await page.evaluate(async (novos) => {
+    const mod = await import('/src/stores/mapStore.ts')
+    const { map } = mod.useMapStore.getState()
+    mod.useMapStore.setState({ map: { ...map, ...novos } })
+  }, campos)
+  await page.evaluate(() => new Promise((pronto) => requestAnimationFrame(() => requestAnimationFrame(pronto))))
+}
+
+// Com o mapa JÁ aberto, a lista e a opacidade mudam pela store: a pilha remonta
+// sozinha (assinatura `unsubscribeCamadas` do PixiCanvas) e a imagem fica igual
+// à do mapa aberto já mexido.
+test.describe('editor a 1440 x 900, camadas mudadas com o mapa aberto (fatia 3)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('mover Chão para logo acima de Salas com a Casa aberta', async ({ page }) => {
+    test.setTimeout(90_000)
+    await abrirNoEditor(page, casaComParedeNoChao())
+    const antes = await nosDaPilha(page)
+    await mudarCamadasDoMapaAberto(page, { modeloCamadas: listaCom('chao', 'salas') })
+    await expect(page.locator('canvas').first()).toHaveScreenshot('editor-chao-acima-de-salas.png', FOTO)
+    // Mover camada padrão só troca containers de lugar: nenhum nó criado.
+    expect(await nosDaPilha(page)).toBe(antes)
+  })
+
+  test('Objetos a 40% com a Casa aberta', async ({ page }) => {
+    test.setTimeout(90_000)
+    await abrirNoEditor(page, mapaCasa())
+    const antes = await nosDaPilha(page)
+    await mudarCamadasDoMapaAberto(page, { opacidadeDasCamadas: { objetos: 0.4 } })
+    await expect(page.locator('canvas').first()).toHaveScreenshot('editor-objetos-40.png', FOTO)
+    // Objetos e Decoração com opacidades diferentes: a faixa dos móveis ganha o nó do baú (Decoração).
+    expect(await nosDaPilha(page)).toBe(antes + 1)
+  })
 })
 
 test.describe('jogador a 1440 x 900', () => {
