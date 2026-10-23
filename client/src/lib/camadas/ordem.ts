@@ -174,6 +174,44 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
 ]
 
 /**
+ * O tipo de objeto que É a camada. A faixa dele dá a altura da camada na
+ * pilha (a FAIXA PRINCIPAL); as outras faixas da camada são de hoje e se
+ * entrelaçam com as vizinhas (nome de sala logo abaixo das fichas, linha de
+ * parede no chão, caminho sob as paredes).
+ */
+const TIPO_PRINCIPAL: Record<CamadaPadraoId, TipoDeObjeto> = {
+  chao: 'peca',
+  salas: 'regiao',
+  desenhos: 'desenho',
+  terreno: 'carimbo',
+  paredes: 'parede',
+  portas: 'parede',
+  escadas: 'escada',
+  objetos: 'objeto',
+  decoracao: 'objeto',
+  iluminacao: 'luz',
+  tokens: 'ficha',
+  anotacoes: 'pino',
+  telhados: 'telhado',
+}
+
+/**
+ * A faixa principal da camada: a primeira com o tipo dela em que ela mora
+ * sozinha; sem nenhuma assim (Paredes divide a faixa das paredes com Portas;
+ * Objetos e Decoração dividem a dos móveis), a primeira com o tipo dela.
+ * No editor, as principais seguem a lista padrão de baixo para cima.
+ * undefined = camada livre, ou a zona do jogador não tem a camada.
+ */
+export function faixaPrincipal(camada: CamadaId, faixas: readonly Faixa[]): string | undefined {
+  if (!ehCamadaPadrao(camada)) return undefined
+  const tipo = TIPO_PRINCIPAL[camada]
+  const comOTipo = faixas.filter((f) => f.camadas.includes(camada) && f.tipos.includes(tipo))
+  const sozinha = comOTipo.find((f) => f.camadas.length === 1)
+  if (sozinha !== undefined) return sozinha.id
+  return comOTipo.length > 0 ? comOTipo[0].id : undefined
+}
+
+/**
  * As camadas padrão que "seguem a ordem padrão": a maior subsequência da lista
  * com índice padrão crescente. Empate de tamanho: fica a que mantém as
  * posições mais baixas da lista — na troca de duas vizinhas, a de CIMA na
@@ -233,17 +271,45 @@ function ordenarZona(
     cursor += entradas.length
   }
 
+  // Só as camadas no lugar com faixa principal NESTA zona servem de piso ou de teto.
+  const principalDe = new Map<CamadaId, string>()
   for (const camada of lista) {
+    const principal = faixaPrincipal(camada, faixas)
+    if (principal !== undefined && noLugar.has(camada)) principalDe.set(camada, principal)
+  }
+  const indiceFixo = (faixaId: string): number => postos.findIndex((p) => !p.bloco && p.entrada.faixa === faixaId)
+
+  /**
+   * Âncora de uma camada no lugar: a faixa dela mais alta que ainda fica entre
+   * a principal dela e a principal da próxima camada no lugar da lista. Assim
+   * o que vem entre as duas na lista fica entre as duas na tela, mesmo quando
+   * a de baixo tem faixa lá no alto (Salas: nome do lugar logo abaixo das
+   * fichas). Sem piso, sem teto ou com o teto abaixo do piso (no jogador, os
+   * móveis de hoje ficam sob as escadas), vale a faixa mais alta dela.
+   */
+  const ancoraDe = (camada: CamadaId, acima: readonly CamadaId[]): number => {
+    const daCamada = postos.flatMap((p, i) => (!p.bloco && p.entrada.camadas.includes(camada) ? [i] : []))
+    if (daCamada.length === 0) return -1
+    const maisAlta = daCamada[daCamada.length - 1]
+    const piso = principalDe.get(camada)
+    const proxima = acima.find((c) => principalDe.has(c))
+    const teto = proxima === undefined ? undefined : principalDe.get(proxima)
+    if (piso === undefined || teto === undefined) return maisAlta
+    const iPiso = indiceFixo(piso)
+    const iTeto = indiceFixo(teto)
+    if (iTeto < iPiso) return maisAlta
+    // `<=`: com a principal dividida (Objetos e Decoração nos móveis), a âncora é a própria faixa dividida.
+    const noVao = daCamada.filter((i) => i >= iPiso && i <= iTeto)
+    return noVao.length > 0 ? noVao[noVao.length - 1] : maisAlta
+  }
+
+  lista.forEach((camada, k) => {
     const deOutroTipo = extras
       .filter((par) => par.camada === camada && posicao.has(par.faixa))
       .map((par) => par.faixa)
     if (noLugar.has(camada)) {
-      // Âncora: a faixa de hoje mais alta da camada. Blocos já postos logo acima
-      // dela (de camadas mais baixas na lista) ficam embaixo — empate estável.
-      let ancora = -1
-      postos.forEach((p, i) => {
-        if (!p.bloco && p.entrada.camadas.includes(camada)) ancora = i
-      })
+      // Blocos já postos logo acima da âncora (de camadas mais baixas na lista) ficam embaixo — empate estável.
+      const ancora = ancoraDe(camada, lista.slice(k + 1))
       if (ancora >= 0) {
         cursor = ancora
         while (cursor + 1 < postos.length && postos[cursor + 1].bloco) cursor += 1
@@ -253,7 +319,7 @@ function ordenarZona(
       const nativas = faixas.filter((f) => f.camadas.some((c) => c === camada)).map((f) => f.id)
       inserir(blocoDe(nativas.concat(deOutroTipo), camada, posicao))
     }
-  }
+  })
   return postos.map((p) => p.entrada)
 }
 
@@ -269,12 +335,15 @@ function blocoDe(ids: readonly string[], camada: CamadaId, posicao: ReadonlyMap<
  *
  * - Camada padrão que segue a ordem padrão mantém as faixas de hoje.
  * - Camada movida ou livre vira um BLOCO contínuo (as faixas dela na ordem de
- *   hoje) acima da faixa mais alta da camada logo abaixo dela na lista; no
- *   fundo da lista, logo acima do fundo fixo.
+ *   hoje) logo acima da ÂNCORA da camada no lugar abaixo dela na lista: a
+ *   faixa mais alta dessa camada que ainda fica abaixo da faixa principal da
+ *   próxima camada no lugar (ver `ancoraDe`). Assim ela fica entre as duas
+ *   vizinhas da lista, como o mestre vê. No fundo da lista, logo acima do
+ *   fundo fixo.
  * - `extras`: item de um tipo numa camada que não é a da faixa dele. Numa
- *   camada no lugar, entra logo acima da faixa mais alta dela; numa movida ou
- *   livre, dentro do bloco. Par já nativo, de faixa fixa ou de camada que não
- *   existe é ignorado.
+ *   camada no lugar, entra logo acima da âncora dela; numa movida ou livre,
+ *   dentro do bloco. Par já nativo, de faixa fixa ou de camada que não existe
+ *   é ignorado.
  * - Empate (dois blocos logo acima da mesma faixa, como Objetos e Decoração
  *   na faixa dos móveis): fica embaixo o que veio antes na lista — com a
  *   lista padrão, o ancorado na camada de menor índice padrão.

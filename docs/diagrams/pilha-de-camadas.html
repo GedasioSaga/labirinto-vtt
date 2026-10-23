@@ -23,7 +23,7 @@
 <main>
   <p class="eyebrow">Labirinto VTT · fase 3 · camadas</p>
   <h1>Pilha de camadas</h1>
-  <p>A ordem de desenho de hoje, de baixo para cima, como <code>lib/camadas/ordem.ts</code> a copia (<code>FAIXAS_EDITOR</code>, <code>FAIXAS_JOGADOR</code>). As 13 camadas padrão ficam entrelaçadas nas faixas de hoje enquanto seguem a ordem padrão; camada movida ou livre vira um bloco inteiro acima da faixa mais alta da camada logo abaixo dela. Faixa fixa (fundo, grade, névoa, zona oculta, edição) não sai do lugar.</p>
+  <p>A ordem de desenho de hoje, de baixo para cima, como <code>lib/camadas/ordem.ts</code> a copia (<code>FAIXAS_EDITOR</code>, <code>FAIXAS_JOGADOR</code>). As 13 camadas padrão ficam entrelaçadas nas faixas de hoje enquanto seguem a ordem padrão; camada movida ou livre vira um bloco inteiro entre as duas vizinhas da lista: logo acima da faixa mais alta da camada de baixo que ainda fica abaixo da faixa principal da camada de cima (Chão posto acima de Salas fica abaixo das paredes, não acima do nome do lugar). Faixa fixa (fundo, grade, névoa, zona oculta, edição) não sai do lugar.</p>
 
   <h2>Editor</h2>
   <svg viewBox="0 0 720 440" role="img" aria-labelledby="pilha-editor-title pilha-editor-desc">
