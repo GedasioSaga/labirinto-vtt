@@ -261,6 +261,100 @@ describe('peças novas da MT4: o que cada peça é', () => {
     expect(new Set(digitais).size).toBe(3)
   })
 
+  describe('lápide em pé, de frente como o quadro (revisão da MT4)', () => {
+    const w = 0.6 * G
+    const h = 0.35 * G
+    const hh = h / 2
+    const yBase = hh - 0.15 * h
+    const lapide = (variante: number, nivel: number, pedra: OpcaoDeMaterial = 'granito'): Imagem =>
+      imagem(desenho({ tipo: 'lapide', lado: 'frente', casasW: 0.6, casasH: 0.35, variante }, [pedra]), nivel)
+    /** Caixa (em px do protótipo) dos pixels de peça. */
+    const caixaDaPeca = (im: Imagem): { x0: number; y0: number; x1: number; y1: number } => {
+      let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity]
+      for (let j = 0; j < im.H; j += 1) {
+        for (let i = 0; i < im.W; i += 1) {
+          if (im.px[(j * im.W + i) * 4 + 3] < ALFA_DE_PECA) continue
+          const x = im.x0 + (i + 0.5) / im.S
+          const y = im.y0 + (j + 0.5) / im.S
+          ;[x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)]
+        }
+      }
+      return { x0, y0, x1, y1 }
+    }
+
+    it('sobe acima da pegada (até 0,2 casa) e o arco e a reta são mais altos que largos', () => {
+      for (const variante of [0, 1]) {
+        const c = caixaDaPeca(lapide(variante, 3))
+        expect(c.y0, `variante ${variante}: sobe`).toBeLessThan(-hh - 0.1 * G)
+        expect(c.y0, `variante ${variante}: no máximo 0,2 casa`).toBeGreaterThanOrEqual(-hh - 0.2 * G - 0.5)
+        expect(c.y1 - c.y0, `variante ${variante}: alta`).toBeGreaterThan(c.x1 - c.x0)
+      }
+    })
+
+    it('arco e reta se distinguem a 1x (pelo menos 40 pixels de silhueta diferentes)', () => {
+      const a = lapide(0, 1)
+      const b = lapide(1, 1)
+      let diferentes = 0
+      for (let j = 0; j < Math.max(a.H, b.H); j += 1) {
+        for (let i = 0; i < Math.max(a.W, b.W); i += 1) {
+          const y = Math.min(a.y0, b.y0) + (j + 0.5) / a.S
+          const x = Math.min(a.x0, b.x0) + (i + 0.5) / a.S
+          const em = (im: Imagem): boolean => {
+            const ii = Math.floor((x - im.x0) * im.S)
+            const jj = Math.floor((y - im.y0) * im.S)
+            return ii >= 0 && jj >= 0 && ii < im.W && jj < im.H && im.px[(jj * im.W + ii) * 4 + 3] >= ALFA_DE_PECA
+          }
+          if (em(a) !== em(b)) diferentes += 1
+        }
+      }
+      expect(diferentes).toBeGreaterThanOrEqual(40)
+    })
+
+    it('cruz latina: braço largo a ~30% do alto, poste estreito em cima e embaixo dele, sem a cabeça redonda', () => {
+      for (const nivel of [1, 3]) {
+        const im = lapide(2, nivel)
+        const c = caixaDaPeca(im)
+        const alto = yBase - c.y0
+        const maior = (y: number): number => Math.max(0, ...trechosNaLinha(im, y)) / im.S
+        expect(maior(c.y0 + 0.32 * alto), `nível ${nivel}: braço`).toBeGreaterThanOrEqual(0.7 * w)
+        expect(maior(c.y0 + 0.08 * alto), `nível ${nivel}: poste acima do braço`).toBeLessThanOrEqual(0.25 * w)
+        expect(maior(c.y0 + 0.72 * alto), `nível ${nivel}: poste abaixo do braço`).toBeLessThanOrEqual(0.25 * w)
+      }
+    })
+
+    it('o capim do pé são 3 tufos separados, não uma pílula', () => {
+      for (const variante of [0, 1, 2]) {
+        const im = lapide(variante, 3)
+        // Coluna "de capim" = algum pixel verde na faixa do pé; os tufos são as sequências dessas colunas.
+        const j0 = Math.floor((yBase - 4 - im.y0) * im.S)
+        const j1 = Math.min(im.H - 1, Math.floor((yBase + 3 - im.y0) * im.S))
+        let tufos = 0
+        let dentro = false
+        for (let i = 0; i < im.W; i += 1) {
+          let verde = false
+          for (let j = j0; j <= j1 && !verde; j += 1) {
+            const o = (j * im.W + i) * 4
+            verde = im.px[o + 3] >= ALFA_DE_PECA && im.px[o + 1] > im.px[o] + 8 && im.px[o + 1] > im.px[o + 2] + 16
+          }
+          if (verde && !dentro) tufos += 1
+          dentro = verde
+        }
+        expect(tufos, `variante ${variante}`).toBe(3)
+      }
+    })
+
+    it('arco e reta: a cruz gravada tem traço de 2 px ou mais a 1x', () => {
+      for (const variante of [0, 1]) {
+        const im = lapide(variante, 1)
+        const y = yBase - 0.22 * (yBase - caixaDaPeca(im).y0)
+        const face = brilho(im.px, noPonto(im, 5, y))
+        let escuros = 0
+        for (let x = -3; x <= 3; x += 1 / im.S) if (brilho(im.px, noPonto(im, x, y)) < face - 0.04) escuros += 1
+        expect(escuros, `variante ${variante}`).toBeGreaterThanOrEqual(2)
+      }
+    })
+  })
+
   it('poço: borda de pedra clara, água escura no meio, e o balde em cima da borda', () => {
     for (const materiais of [['granito', 'carvalho'], ['ardosia', 'velha']] as const) {
       const im = imagem({ tipo: 'poco', lado: 'frente', materiais, casasW: 1.5, casasH: 1.5, semente: 7 }, S3)
