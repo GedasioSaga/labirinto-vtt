@@ -1,6 +1,6 @@
 import type { Prop } from '../types/map'
 import type { Point } from '../pixi/world'
-import { CERCA_VOLTA_MAXIMA, comCurvaGravada, contornoDaCerca, cordaDaCerca, geometriaDaCerca, normalizarCurvaDaCerca, voltaDaCerca } from './mobilia'
+import { aceitaCurva, CERCA_VOLTA_MAXIMA, comCurvaGravada, contornoDaCerca, cordaDaCerca, geometriaDaCerca, normalizarCurvaDaCerca, voltaDaCerca } from './mobilia'
 import { clampStairCurve, CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcPoint, turnDegreesForCurva, type StairArc } from './stairCurve'
 import { curveTurnLabel } from './stairHandles'
 import { rotatePointAround, rotationTrig } from './roomRotation'
@@ -97,7 +97,8 @@ export function amostrasDaCercaCurva(prop: CercaNoMapa): Point[] {
  * Só a cerca de tamanho desenhável tem.
  */
 export function alcaDaCurvaDaCerca(prop: CercaNoMapa): Point | null {
-  if (prop.mobilia !== 'cerca') return null
+  // A sebe (MT5) curva como a cerca: a mesma alça no meio do arco.
+  if (!aceitaCurva(prop.mobilia)) return null
   const corda = cordaDaCerca(prop.width, prop.height)
   if (corda === null) return null
   const volta = voltaVisivel(prop)
@@ -125,7 +126,7 @@ export interface ArrastoDaCurvaDaCerca {
  * referência quando nada muda ou quando o objeto não é cerca.
  */
 export function arrastarCurvaDaCerca({ prop, pointer, snap, encaixeDaReta = CURVE_EPSILON_PX }: ArrastoDaCurvaDaCerca): Prop {
-  if (prop.mobilia !== 'cerca') return prop
+  if (!aceitaCurva(prop.mobilia)) return prop
   const corda = cordaDaCerca(prop.width, prop.height)
   if (corda === null) return prop
   const local = paraOObjeto(prop, pointer)
@@ -137,7 +138,7 @@ export function arrastarCurvaDaCerca({ prop, pointer, snap, encaixeDaReta = CURV
   let graus = noLimite ? Math.sign(flecha) * CERCA_VOLTA_MAXIMA : turnDegreesForCurva(flecha, corda.comprimento)
   if (snap) graus = Math.round(graus / PASSO_DA_VOLTA_EM_GRAUS) * PASSO_DA_VOLTA_EM_GRAUS
   const reta = Math.abs(pedida) < encaixeDaReta || Math.abs(curvaForTurnDegrees(graus, corda.comprimento)) < CURVE_EPSILON_PX
-  return comCurvaGravada(prop, reta ? undefined : normalizarCurvaDaCerca('cerca', graus))
+  return comCurvaGravada(prop, reta ? undefined : normalizarCurvaDaCerca(prop.mobilia, graus))
 }
 
 /** O número junto do ponteiro durante o arrasto: "reta" ou "curva N°", a fala da escada. */

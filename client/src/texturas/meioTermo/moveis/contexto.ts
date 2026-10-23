@@ -9,10 +9,24 @@
  * imagem pronta para o tamanho do objeto no mapa (`pixi/rasterDosMoveis.ts`).
  */
 import type { FormaDoTapete } from '../../../types/map'
-import { MATERIAIS, tomDoMeio, type IdDoMaterial } from '../materiais'
+import { MATERIAIS, oklabDoRgb, tomDoMeio, type IdDoMaterial } from '../materiais'
 import { rgb, type Rgb } from '../../ruido'
 import { contato, TOM_DA_CORDA, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
 import type { Forma } from './formas'
+
+/** Luz (OKLab L) do chão padrão do mapa, `#a8776a`, e a faixa em volta dela que a peça pequena evita. */
+const L_DO_CHAO_PADRAO = 0.615
+
+/**
+ * Tom que AFASTA a madeira de uma peça pequena do chão padrão (MT5): a madeira
+ * mais clara que o chão clareia, a mais escura escurece. Numa peça de meia casa
+ * a madeira média (pinho, madeira velha, cerejeira) ficava na luz do chão e a
+ * peça virava mancha a 1x; o veio, o chanfro e o contorno não mudam.
+ */
+export function tomLongeDoChao(m: MaterialDaPeca, forca: number): number {
+  const [L] = oklabDoRgb(m.rgb[0], m.rgb[1], m.rgb[2])
+  return L >= L_DO_CHAO_PADRAO ? 1 + forca : 1 - forca
+}
 
 /** Px do protótipo por casa. */
 export const G = 56

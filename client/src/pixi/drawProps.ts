@@ -8,6 +8,7 @@ import { drawPropSilhouettes } from './drawPropSilhouettes'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
+import { ehMovelDoChao } from '../lib/mobilia'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
 /**
@@ -275,8 +276,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       entry = { drawing, painted: null }
       furnitureCache.set(prop.id, entry)
     }
-    // O tapete mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
-    if (prop.mobilia === 'tapete') {
+    // O tapete (e o tapete longo, MT5) mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
+    if (ehMovelDoChao(prop.mobilia)) {
       if (entry.drawing.parent !== floor) floor.addChild(entry.drawing)
     } else if (entry.drawing.parent !== container) {
       container.addChildAt(entry.drawing, 0)

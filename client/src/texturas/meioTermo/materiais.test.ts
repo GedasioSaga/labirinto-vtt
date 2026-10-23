@@ -104,6 +104,12 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       poco: ['pedras:granito', 'madeira:carvalho'],
       barraca: ['toldo:vinho', 'madeira:pinho'],
       carroca: ['madeira:nogueira', 'aros:ferro'],
+      // Lote 2 (MT5).
+      sebe: ['folhas:buxo'],
+      jardineira: ['madeira:nogueira'],
+      arcoDoPortao: ['madeira:nogueira', 'placa:pinho'],
+      placaDeSeta: ['madeira:pinho'],
+      tapeteLongo: ['tecido:vinho'],
     })
   })
 

@@ -15,8 +15,14 @@
  */
 import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 
-/** As 9 peças do lote 1, na ordem em que entram no catálogo (a do plano). */
-export const PECAS_NOVAS = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca'] as const satisfies readonly TipoMobilia[]
+/**
+ * As 9 peças do lote 1 (MT4) e as 5 do lote 2 (MT5: sebe, jardineira, arco do
+ * portão, placa de seta e tapete longo), na ordem do plano.
+ */
+export const PECAS_NOVAS = [
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
+] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
 
@@ -57,6 +63,12 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   poco: { rotulo: 'Poço', artigo: 'um poço', tamanho: { largura: 1.5, altura: 1.5 }, redonda: true },
   barraca: { rotulo: 'Barraca de feira', artigo: 'uma barraca de feira', tamanho: { largura: 2, altura: 2 }, redonda: false },
   carroca: { rotulo: 'Carroça', artigo: 'uma carroça', tamanho: { largura: 2, altura: 1.25 }, redonda: false },
+  // Lote 2 (MT5). A sebe tem a geometria da cerca (estica e curva); o tapete longo corre em pé e estica à vontade.
+  sebe: { rotulo: 'Sebe', artigo: 'uma sebe', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  jardineira: { rotulo: 'Jardineira', artigo: 'uma jardineira', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  arcoDoPortao: { rotulo: 'Arco do portão', artigo: 'um arco do portão', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  placaDeSeta: { rotulo: 'Placa de seta', artigo: 'uma placa de seta', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  tapeteLongo: { rotulo: 'Tapete longo', artigo: 'um tapete longo', tamanho: { largura: 1, altura: 4 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -72,6 +84,11 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     poco: valor(f.poco),
     barraca: valor(f.barraca),
     carroca: valor(f.carroca),
+    sebe: valor(f.sebe),
+    jardineira: valor(f.jardineira),
+    arcoDoPortao: valor(f.arcoDoPortao),
+    placaDeSeta: valor(f.placaDeSeta),
+    tapeteLongo: valor(f.tapeteLongo),
   }
 }
 
@@ -88,20 +105,33 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  * na setinha e no seletor de tipo; a que não está aqui ainda abre de um
  * arquivo (o tipo existe), mas o painel não a oferece. As 9 do lote 1 passaram
  * nos testes de pixel (`moveisMt4.test.ts`) e na semente do app com a
- * varredura das 1000 (`pixi/rasterDosMoveis.sementesMt4.test.ts`).
+ * varredura das 1000 (`pixi/rasterDosMoveis.sementesMt4.test.ts`); as 5 do
+ * lote 2, em `moveisMt5.test.ts` e `pixi/rasterDosMoveis.sementesMt5.test.ts`.
  */
-export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
+export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+]
 
-/** As peças novas que entram logo depois da Mesa no catálogo, e não no fim: quem procura mesa acha as três juntas. */
-const MESAS_NOVAS: readonly PecaNova[] = ['mesaQuadrada', 'mesaRedonda']
+/**
+ * Peças novas que entram logo depois de um parente antigo no catálogo, e não
+ * no fim: quem procura mesa acha as três juntas, a sebe e a jardineira ficam
+ * com a cerca, e o tapete longo com o tapete (MT5).
+ */
+const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
+  mesa: ['mesaQuadrada', 'mesaRedonda'],
+  cerca: ['sebe', 'jardineira'],
+  tapete: ['tapeteLongo'],
+}
+const COM_PARENTE: readonly PecaNova[] = Object.values(DEPOIS_DE).flat()
 
 /**
  * O catálogo do painel de Objetos: os 11 de antes, na ordem de sempre, com as
- * mesas novas prontas logo depois da Mesa, e as outras peças novas prontas no fim.
+ * peças novas prontas que têm parente logo depois dele, e as outras peças
+ * novas prontas no fim.
  */
 export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [
-  ...TIPOS_MOBILIA.filter((tipo) => !ehPecaNova(tipo)).flatMap((tipo) => (tipo === 'mesa' ? [tipo, ...MESAS_NOVAS.filter((m) => PECAS_NOVAS_PRONTAS.includes(m))] : [tipo])),
-  ...PECAS_NOVAS_PRONTAS.filter((tipo) => !MESAS_NOVAS.includes(tipo)),
+  ...TIPOS_MOBILIA.filter((tipo) => !ehPecaNova(tipo)).flatMap((tipo) => [tipo, ...(DEPOIS_DE[tipo] ?? []).filter((p) => PECAS_NOVAS_PRONTAS.includes(p))]),
+  ...PECAS_NOVAS_PRONTAS.filter((tipo) => !COM_PARENTE.includes(tipo)),
 ]
 
 /** O catálogo e, se não estiver nele, o tipo do móvel selecionado (o seletor sempre mostra o que o móvel é). */
@@ -191,6 +221,21 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
       return [linha(-hw, -hh * 0.15, hw), linha(-hw, hh * 0.62, hw)]
     case 'carroca':
       return quadro(-hw * 0.4, -hh * 0.75, hw * 0.98, hh * 0.75)
+    // Lote 2 (MT5). A sebe sai pela faixa da cerca em `lib/mobilia.ts` (segue o arco); aqui fica a reta.
+    case 'sebe':
+      return quadro(-hw, -hh, hw, hh)
+    case 'jardineira':
+      return quadro(-hw * 0.8, -hh * 0.55, hw * 0.8, hh * 0.55)
+    case 'arcoDoPortao':
+      // A trave de ponta a ponta e os dois postes.
+      return [linha(-hw, 0, hw), ...quadro(-hw, -hh * 0.6, -hw * 0.8, hh * 0.6), ...quadro(hw * 0.8, -hh * 0.6, hw, hh * 0.6)]
+    case 'placaDeSeta':
+      // A seta aponta para a direita do objeto: o giro dá a direção.
+      return [linha(-hw * 0.6, 0, hw * 0.8), { x1: hw * 0.8, y1: 0, x2: hw * 0.4, y2: -hh * 0.45 }, { x1: hw * 0.8, y1: 0, x2: hw * 0.4, y2: hh * 0.45 }]
+    case 'tapeteLongo': {
+      const recuo = Math.min(largura, altura) * 0.14
+      return quadro(-hw + recuo, -hh + recuo, hw - recuo, hh - recuo)
+    }
   }
 }
 

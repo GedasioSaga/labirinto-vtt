@@ -21,6 +21,11 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   poco: [1.5, 1.5],
   barraca: [2, 2],
   carroca: [2, 1.25],
+  sebe: [2, 0.5],
+  jardineira: [1, 0.5],
+  arcoDoPortao: [2, 0.5],
+  placaDeSeta: [0.5, 0.5],
+  tapeteLongo: [1, 4],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -33,10 +38,15 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   poco: ['Poço', 'um poço'],
   barraca: ['Barraca de feira', 'uma barraca de feira'],
   carroca: ['Carroça', 'uma carroça'],
+  sebe: ['Sebe', 'uma sebe'],
+  jardineira: ['Jardineira', 'uma jardineira'],
+  arcoDoPortao: ['Arco do portão', 'um arco do portão'],
+  placaDeSeta: ['Placa de seta', 'uma placa de seta'],
+  tapeteLongo: ['Tapete longo', 'um tapete longo'],
 }
 
 describe('peças novas: registro', () => {
-  it('os 9 tipos do lote 1 estão no catálogo de tipos, depois dos 11 de antes', () => {
+  it('os 14 tipos dos lotes 1 e 2 estão no catálogo de tipos, depois dos 11 de antes', () => {
     expect(PECAS_NOVAS).toEqual(Object.keys(TAMANHOS))
     expect(TIPOS_MOBILIA.slice(0, 11)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
     for (const tipo of PECAS_NOVAS) {

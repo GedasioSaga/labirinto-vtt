@@ -60,8 +60,9 @@ export const PASSO_DA_FLECHA = 0.02
  * pixels passa de `PIXELS_MAXIMOS_EM_LADRILHOS`. Numa imagem só, cortada no
  * lado máximo, a cerca de 20 casas no nível 3 saía com 0,91 pixel por px em
  * vez de 2,68 (mourão e fio viravam borrão) e a de 100 no nível 1, com 0,18.
+ * A sebe e o tapete longo (MT5) também têm comprimento livre e saem do mesmo jeito.
  */
-const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca'])
+const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca', 'sebe', 'tapeteLongo'])
 const MEGABYTE = 1024 * 1024
 export const TETO_NO_COMPUTADOR = 64 * MEGABYTE
 export const TETO_NO_TOQUE = 24 * MEGABYTE

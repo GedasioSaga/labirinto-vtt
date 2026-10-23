@@ -33,7 +33,7 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaVista, comAparenciaDoMovel, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
+  aceitaCurva, aceitaVista, comAparenciaDoMovel, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
@@ -909,8 +909,9 @@ export function trocarFormaDoTapete(map: MapData, propId: string, forma: FormaDo
  */
 export function setCurvaDaCerca(map: MapData, propId: string, volta: number | undefined): MapData {
   const alvo = map.props.find((p) => p.id === propId)
-  if (alvo?.mobilia !== 'cerca') return map
-  const curvada = comCurvaGravada(alvo, normalizarCurvaDaCerca('cerca', volta))
+  // A sebe (MT5) curva como a cerca (`aceitaCurva`).
+  if (alvo === undefined || !aceitaCurva(alvo.mobilia)) return map
+  const curvada = comCurvaGravada(alvo, normalizarCurvaDaCerca(alvo.mobilia, volta))
   return curvada === alvo ? map : { ...map, props: map.props.map((p) => (p === alvo ? curvada : p)) }
 }
 

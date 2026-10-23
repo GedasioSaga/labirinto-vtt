@@ -91,7 +91,7 @@ function suave01(t: number): number {
 
 // ---------- materiais e peças ----------
 
-export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'liso'
+export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'folha' | 'liso'
 
 /** O material como o pintor o lê: a classe escolhe a textura, `rgb` é o tom em luz neutra. */
 export interface MaterialDaPeca {
@@ -415,6 +415,14 @@ function texCasca(u: number, v: number, _x: number, _y: number, p: Peca, s: Floa
   s[3] += luz
 }
 
+/**
+ * Folha (a sebe da MT5, como `texFolha` do vaso): luz manchada em duas
+ * escalas, sem listra; cada lóbulo desloca o ruído pela própria semente.
+ */
+export function texFolhagem(_u: number, _v: number, x: number, y: number, p: Peca, s: Float32Array): void {
+  s[3] += ruido(x * 0.42 + p.su, y * 0.42 + p.sv) * 0.3 + ruido(x * 1.05 + 7, y * 1.05) * 0.14
+}
+
 const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   madeira: texMadeira,
   metal: texMetal,
@@ -423,6 +431,7 @@ const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   pedra: texPedra,
   corda: texCorda,
   casca: texCasca,
+  folha: texFolhagem,
   liso: null,
 }
 

@@ -30,6 +30,11 @@ import { montarQuadroDeAvisos } from './quadroDeAvisos'
 import { montarPoco } from './poco'
 import { montarBarraca } from './barraca'
 import { montarCarroca } from './carroca'
+import { montarSebe } from './sebe'
+import { montarJardineira } from './jardineira'
+import { montarArcoDoPortao } from './arcoDoPortao'
+import { montarPlacaDeSeta } from './placaDeSeta'
+import { montarTapeteLongo } from './tapeteLongo'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -54,6 +59,12 @@ const MONTADORES = {
   poco: montarPoco,
   barraca: montarBarraca,
   carroca: montarCarroca,
+  // Lote 2 (MT5): a sebe tem a geometria da cerca (com a curva); o tapete longo mora no chão.
+  sebe: montarSebe,
+  jardineira: montarJardineira,
+  arcoDoPortao: montarArcoDoPortao,
+  placaDeSeta: montarPlacaDeSeta,
+  tapeteLongo: montarTapeteLongo,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -81,6 +92,7 @@ export function escalaDoNivel(nivel: number): number {
 export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
