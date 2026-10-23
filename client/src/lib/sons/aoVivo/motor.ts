@@ -439,13 +439,16 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
 
   /**
    * De onde a voz começa. O loop soma o tempo desde o pedido (carregando ou
-   * esperando o gesto) e dá a volta pela duração; o efeito curto começa no
-   * deslocamento pedido, e `null` = ele já teria acabado.
+   * esperando o gesto) e dá a volta pela duração (sem duração válida, começa
+   * do 0). O efeito curto começa no deslocamento pedido se ele ainda cabe;
+   * `null` = já teria acabado, ou não há o que tocar (duração 0 ou NaN). A
+   * duração infinita (arquivo sem duração no cabeçalho) toca: nenhum
+   * deslocamento fica depois do fim dela.
    */
   function deslocamentoDeInicio(voz: Voz<N>, duracaoS: number): number | null {
+    if (!voz.loop) return voz.deslocamentoS < duracaoS ? voz.deslocamentoS : null
     if (!(Number.isFinite(duracaoS) && duracaoS > 0)) return 0
-    if (voz.loop) return (voz.deslocamentoS + (agora() - voz.pedidoEmMs) / 1000) % duracaoS
-    return voz.deslocamentoS < duracaoS ? voz.deslocamentoS : null
+    return (voz.deslocamentoS + (agora() - voz.pedidoEmMs) / 1000) % duracaoS
   }
 
   function ligarGanho(voz: Voz<N>, saida: SaidaAoVivo<N>): GanhoAoVivo<N> & N {
