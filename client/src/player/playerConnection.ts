@@ -3655,6 +3655,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     if (msg.reason === 'device') writeAparelho(storage, null)
     clearReconnectTimers()
+    // Fim de sessão: a chave da mídia não serve mais, e some antes de quem ouve o estado saber do erro.
+    chaveDaMidia = null
     setState({ status: 'error', error: `account_${msg.reason}`, reconnecting: undefined })
   }
 
@@ -4552,6 +4554,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'kicked') {
           writeResume(storage, null)
           clearReconnectTimers()
+          chaveDaMidia = null
           setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
           return
         }
@@ -4578,6 +4581,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'bad_code') writeResume(storage, null)
         // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
         clearReconnectTimers()
+        // Fim de sessão: a chave da mídia some antes de quem ouve o estado saber do erro.
+        chaveDaMidia = null
         setState({ status: 'error', error: reason, reconnecting: undefined })
         return
       }

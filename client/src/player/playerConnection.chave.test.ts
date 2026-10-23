@@ -106,8 +106,48 @@ describe('playerConnection: a chave some com o socket e nos fins de sessão', ()
     expect(connection.chaveDaMidia()).toBe(OUTRA)
   })
 
-  for (const fim of [{ type: 'kicked' }, { type: 'room.closed' }, { type: 'session.replaced' }]) {
-    it(`em ${fim.type}`, () => {
+  it('no erro do mestre que encerra (código errado, sala cheia): a chave some ANTES de a tela saber do erro', () => {
+    const { connection, socket } = conectar()
+    socket.receive({ type: 'midia.chave', chave: CHAVE })
+    const chaveNoAviso: (string | null)[] = []
+    connection.subscribe(() => {
+      if (connection.getState().status === 'error') chaveNoAviso.push(connection.chaveDaMidia())
+    })
+    socket.receive({ type: 'error', reason: 'bad_code' })
+    expect(connection.getState().status).toBe('error')
+    expect(chaveNoAviso).toEqual([null])
+    expect(connection.chaveDaMidia()).toBeNull()
+  })
+
+  it('na recusa da conta (PIN errado): a chave some ANTES de a tela saber do erro', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'Ana',
+      storage: null,
+      conta: { pin: '0000', rotulo: '' },
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    const socket = sockets[0]
+    if (socket === undefined) throw new Error('socket não criado')
+    socket.open()
+    socket.receive({ type: 'midia.chave', chave: CHAVE })
+    const chaveNoAviso: (string | null)[] = []
+    connection.subscribe(() => {
+      if (connection.getState().status === 'error') chaveNoAviso.push(connection.chaveDaMidia())
+    })
+    socket.receive({ type: 'account.refused', reason: 'invalid' })
+    expect(connection.getState()).toMatchObject({ status: 'error', error: 'account_invalid' })
+    expect(chaveNoAviso).toEqual([null])
+  })
+
+  for (const fim of [{ type: 'kicked' }, { type: 'room.closed' }, { type: 'session.replaced' }, { type: 'error', reason: 'kicked' }]) {
+    it(`em ${fim.type}${'reason' in fim ? ` (${fim.reason})` : ''}`, () => {
       const { connection, socket } = conectar()
       socket.receive({ type: 'midia.chave', chave: CHAVE })
       socket.receive({ type: 'welcome', playerId: 'p-ana', resumeToken: 'tok', name: 'Ana' })

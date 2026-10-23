@@ -134,6 +134,36 @@ describe('carregador da sala: a resposta', () => {
   })
 })
 
+describe('carregador da sala: o prazo', () => {
+  it(`a sala que não responde: o pedido é abortado em ${PRAZO_DO_CARREGAMENTO_MS} ms, junto com o motor, sem prender a conexão`, async () => {
+    vi.useFakeTimers()
+    try {
+      let sinal: AbortSignal | null = null
+      const buscar = vi.fn<BuscarNaSala>(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            sinal = init.signal ?? null
+            init.signal?.addEventListener('abort', () => reject(new Error('abortado')))
+          }),
+      )
+      const carregar = criarCarregadorDaSala({ chave: () => CHAVE, buscar })
+      const pedido = recusa(carregar(ID))
+      expect(buscar).toHaveBeenCalledTimes(1)
+      const sinalDoPedido = (): AbortSignal => {
+        if (sinal === null) throw new Error('o pedido saiu sem sinal')
+        return sinal
+      }
+      await vi.advanceTimersByTimeAsync(PRAZO_DO_CARREGAMENTO_MS - 1)
+      expect(sinalDoPedido().aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(sinalDoPedido().aborted).toBe(true)
+      await pedido
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('carregador da sala: 429', () => {
   it('uma nova tentativa, depois do Retry-After, e o segundo 200 vale', async () => {
     const { carregar, buscar, esperas } = carregador([resposta(429, null, { 'Retry-After': '2' }), resposta(200)])
