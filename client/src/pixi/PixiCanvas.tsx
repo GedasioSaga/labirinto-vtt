@@ -294,6 +294,8 @@ import {
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
+import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
+import { gestoNoPino } from '../lib/camadas/trava'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -4075,13 +4077,15 @@ export function PixiCanvas({
        * objeto travado segue a regra de antes (`canInteractInLayer`).
        */
       /**
-       * Pino sob o ponto do mundo, respeitando camada oculta/travada e o
-       * "oculto no editor" do próprio pino. A folga é em px de TELA dividida
-       * pelo zoom: longe o pino fica pequeno, mas o alvo do dedo não encolhe
-       * junto. Mesma ideia do `DOOR_TAP_TOLERANCE_PX` do lado do jogador.
+       * Pino sob o ponto do mundo, respeitando camada oculta e o "oculto no
+       * editor" do próprio pino. Camada TRAVADA não tira o pino daqui: o
+       * pino travado é barreira (`gestoNoPino` em `abrirETalvezArrastarPino`),
+       * senão o clique atravessava e pegava a sala de baixo. A folga é em px
+       * de TELA dividida pelo zoom: longe o pino fica pequeno, mas o alvo do
+       * dedo não encolhe junto. Mesma ideia do `DOOR_TAP_TOLERANCE_PX` do
+       * lado do jogador.
        */
       const pinAt = (map: MapData, point: Point) => {
-        if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
         const clickable = visiblePins(doPisoEmEdicao(map).pins, map.hiddenLayers).filter((pin) => !pin.hidden)
         // O alvo é o pino como aparece: crescido no zoom afastado, com a folga limitada ao tamanho dele.
         return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
@@ -4097,12 +4101,21 @@ export function PixiCanvas({
        * condicionado a `canInteract`, exatamente como o Token faz mais abaixo.
        * Pino travado fica com `mode` parado em 'idle' e nenhum branch de
        * pointermove reage: ele não se move, mas continua clicável.
+       *
+       * Camada travada é outra coisa: nada abre, nada se move, o gesto para
+       * aqui com o aviso de qual camada segurou. Devolve `false` nesse caso.
        */
-      const abrirETalvezArrastarPino = (map: MapData, pin: Pin, worldPoint: Point) => {
-        useMapStore.getState().setSelectedPin(pin.id)
-        if (!canInteract(pin)) {
+      const abrirETalvezArrastarPino = (map: MapData, pin: Pin, worldPoint: Point): boolean => {
+        const gesto = gestoNoPino(map, pin)
+        if (gesto.tipo === 'barrado') {
           mode = 'idle'
-          return
+          avisarCamadaTravada(gesto.camada)
+          return false
+        }
+        useMapStore.getState().setSelectedPin(pin.id)
+        if (gesto.tipo === 'abrir') {
+          mode = 'idle'
+          return true
         }
         mode = 'dragging-pin'
         // Snapshot de ANTES do gesto: fecha o arrasto inteiro (dezenas de
@@ -4111,6 +4124,7 @@ export function PixiCanvas({
         pinDragSnapshot = map
         draggingPinId = pin.id
         pinDragOffset = { x: pin.x - worldPoint.x, y: pin.y - worldPoint.y }
+        return true
       }
 
       const clickSelectMap = (inteiro: MapData): MapData => clickSelectDoPiso(doPisoEmEdicao(inteiro))
@@ -5553,8 +5567,8 @@ export function PixiCanvas({
             useMapStore.getState().pinKind,
             useMapStore.getState().pinIcon ?? undefined,
           )
-          useMapStore.getState().addPin(pin)
-          useMapStore.getState().setSelectedPin(pin.id)
+          // Camada travada: o pino não nasce e nada fica selecionado (o aviso diz qual camada segurou).
+          cravarPinoPeloGesto(pin)
           return
         }
 
@@ -6194,10 +6208,10 @@ export function PixiCanvas({
         if (activeTool === 'select') {
           const pin = pinAt(map, worldPoint)
           if (pin) {
-            abrirETalvezArrastarPino(map, pin, worldPoint)
+            const abriu = abrirETalvezArrastarPino(map, pin, worldPoint)
             // Pino de viagem: soltar sem arrastar atravessa a passagem (no
             // pointerup); arrastar continua movendo o pino, como qualquer pino.
-            travelPress = pin.kind === 'viagem' && event.button === 0 ? { pinId: pin.id, x: event.global.x, y: event.global.y, moved: false } : null
+            travelPress = abriu && pin.kind === 'viagem' && event.button === 0 ? { pinId: pin.id, x: event.global.x, y: event.global.y, moved: false } : null
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
@@ -8237,7 +8251,8 @@ export function PixiCanvas({
               // O par de um pino de viagem mora em OUTRA cena: o aviso diz o
               // que mudou lá, porque daqui não dá para ver.
               const travessia = pinoApagado.kind === 'viagem' ? pinTravelOf(useAdventureStore.getState(), mapaDoPino, pinoApagado) : null
-              useMapStore.getState().removePin(pinoApagado.id)
+              // Camada travada: o pino fica, o aviso diz qual camada segurou e o Delete para aqui.
+              if (!apagarPinoPeloGesto(pinoApagado.id)) break
               useToastStore
                 .getState()
                 .push(

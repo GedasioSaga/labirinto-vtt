@@ -9,9 +9,31 @@
  * Trava POR ITEM (`locked`) não entra aqui: é outro eixo, com outra regra (o
  * item travado continua editável no painel para poder ser destravado).
  */
-import type { CamadaId } from '../../types/map'
+import type { CamadaId, Pin } from '../../types/map'
+import { canInteract } from '../itemTransform'
 import { contextoDeCamadas, type CamposDeCamadas } from './consulta'
 import type { ItemPorTipo, TipoDeObjeto } from './padrao'
+
+/**
+ * O que o toque num pino faz no editor (ferramentas Seleção e Pino):
+ * - `barrado`: a camada do pino está travada; nada se abre nem se move, o
+ *   gesto não atravessa para o que está embaixo e o mestre ouve qual camada
+ *   segurou;
+ * - `abrir`: o pino está travado POR ITEM; abre no painel (onde se destrava)
+ *   mas não se arrasta;
+ * - `arrastar`: abre no painel e o gesto segue movendo o pino.
+ *
+ * O cadeado fica no GESTO e não nas ações da store: escada, viagem e
+ * "Passar para pede" passam por `addPin`/`updatePin`/`removePin`, e o pino
+ * deles segue a escada ou é estado de sessão (travar impede mover, não abrir).
+ */
+export type GestoNoPino = { readonly tipo: 'barrado'; readonly camada: CamadaId } | { readonly tipo: 'abrir' } | { readonly tipo: 'arrastar' }
+
+export function gestoNoPino(map: CamposDeCamadas, pin: Pin): GestoNoPino {
+  const camada = camadaTravadaDoItem(map, 'pino', pin)
+  if (camada !== null) return { tipo: 'barrado', camada }
+  return canInteract(pin) ? { tipo: 'arrastar' } : { tipo: 'abrir' }
+}
 
 /** A camada `id` está travada? Devolve a que guarda o cadeado, ou `null` quando está livre. */
 export function camadaTravada(map: CamposDeCamadas, id: CamadaId): CamadaId | null {

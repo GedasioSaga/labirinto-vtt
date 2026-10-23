@@ -1795,11 +1795,6 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     for (const camada of travadas) avisarCamadaTravada(camada)
     return travadas.length > 0
   }
-  const pinoBarrado = (id: string): boolean => {
-    const { map } = get()
-    const pin = map.pins.find((p) => p.id === id)
-    return pin !== undefined && barradoPelaCamada(camadasTravadasDosItens(map, 'pino', [pin]))
-  }
   /** Pinceladas de textura, penhascos e relevo moram presos em Terreno, sem camada por item. */
   const terrenoBarrado = (): boolean => {
     const travada = camadaTravada(get().map, 'terreno')
@@ -2635,10 +2630,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),
     setPinKind: (kind) => set({ pinKind: kind }),
     setPinIcon: (icon) => set({ pinIcon: icon }),
-    addPin: (pin) => {
-      if (barradoPelaCamada(camadasTravadasDosItens(get().map, 'pino', [pin]))) return
-      withHistory((map) => mapFactory.addPin(map, pin))
-    },
+    // Sem cadeado aqui: escada, viagem e "Passar para pede" passam por estas
+    // ações, e o pino deles segue a escada ou é estado de sessão. Quem recusa
+    // camada travada é o gesto (`stores/pinoPeloGesto.ts`, `PixiCanvas`).
+    addPin: (pin) => withHistory((map) => mapFactory.addPin(map, pin)),
     replacePins: (pins) => {
       if (get().map.pins === pins) return
       withHistory((map) => ({ ...map, pins }))
@@ -2649,20 +2644,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
-      if (pinoBarrado(id)) return
       withHistory((map) => mapFactory.updatePin(map, id, patch), chaveDoArrastoDoPino(id, patch))
     },
     pullLever: (pinId) => {
       if (pullLever(get().map, pinId) === get().map) return
       withHistory((map) => pullLever(map, pinId))
     },
-    movePinLive: (id, x, y) => {
-      if (pinoBarrado(id)) return
-      set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) }))
-    },
+    movePinLive: (id, x, y) => set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) })),
     removePin: (id) => {
       if (mapFactory.removePin(get().map, id) === get().map) return
-      if (pinoBarrado(id)) return
       withHistory((map) => mapFactory.removePin(map, id))
       if (get().selectedPinId === id) set({ selectedPinId: null })
     },

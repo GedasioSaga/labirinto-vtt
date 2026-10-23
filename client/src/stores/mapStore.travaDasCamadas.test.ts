@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
+import { apagarPinoPeloGesto, cravarPinoPeloGesto } from './pinoPeloGesto'
+import { gestoNoPino } from '../lib/camadas/trava'
 import * as mapFactory from '../lib/mapFactory'
 import { carimbo, linha, marcador, peca, pino } from '../lib/__fixtures__/itensDeCamada'
 import type { Carimbo, LayerId, MapData } from '../types/map'
@@ -37,26 +39,43 @@ function semMudanca(antes: MapData): void {
 describe('pino × camada Anotações travada', () => {
   beforeEach(() => abrir({ pins: [pino], lockedLayers: ['anotacoes'] }))
 
-  it('criar recusa e avisa', () => {
+  it('cravar pelo gesto recusa, não seleciona e avisa', () => {
     const antes = useMapStore.getState().map
-    useMapStore.getState().addPin({ ...pino, id: 'p2' })
+    expect(cravarPinoPeloGesto({ ...pino, id: 'p2' })).toBe(false)
+    semMudanca(antes)
+    expect(useMapStore.getState().selectedPinId).toBeNull()
+    expect(avisos()).toEqual(['A camada Anotações está travada'])
+  })
+
+  it('apagar pelo gesto recusa, duas vezes, com UM aviso só', () => {
+    const antes = useMapStore.getState().map
+    expect(apagarPinoPeloGesto(pino.id)).toBe(false)
+    expect(apagarPinoPeloGesto(pino.id)).toBe(false)
     semMudanca(antes)
     expect(avisos()).toEqual(['A camada Anotações está travada'])
   })
 
-  it('mover, editar e apagar recusam, com UM aviso só', () => {
-    const antes = useMapStore.getState().map
-    useMapStore.getState().movePinLive(pino.id, 500, 500)
-    useMapStore.getState().updatePin(pino.id, { nome: 'Cripta' })
-    useMapStore.getState().removePin(pino.id)
-    semMudanca(antes)
-    expect(avisos()).toEqual(['A camada Anotações está travada'])
-  })
-
-  it('destravada, criar e apagar funcionam como hoje', () => {
+  it('o toque no pino é barreira com a camada travada; travado por item só abre; livre arrasta', () => {
+    expect(gestoNoPino(useMapStore.getState().map, pino)).toEqual({ tipo: 'barrado', camada: 'anotacoes' })
     abrir({ pins: [pino] })
+    expect(gestoNoPino(useMapStore.getState().map, { ...pino, locked: true })).toEqual({ tipo: 'abrir' })
+    expect(gestoNoPino(useMapStore.getState().map, pino)).toEqual({ tipo: 'arrastar' })
+  })
+
+  it('as ações da store NÃO têm cadeado: escada, viagem e passagem passam por elas', () => {
     useMapStore.getState().addPin({ ...pino, id: 'p2' })
-    useMapStore.getState().removePin(pino.id)
+    useMapStore.getState().updatePin(pino.id, { nome: 'Cripta' })
+    useMapStore.getState().movePinLive('p2', 500, 500)
+    useMapStore.getState().removePin('p2')
+    expect(useMapStore.getState().map.pins).toEqual([{ ...pino, nome: 'Cripta' }])
+    expect(avisos()).toEqual([])
+  })
+
+  it('destravada, cravar e apagar pelo gesto funcionam como hoje', () => {
+    abrir({ pins: [pino] })
+    expect(cravarPinoPeloGesto({ ...pino, id: 'p2' })).toBe(true)
+    expect(useMapStore.getState().selectedPinId).toBe('p2')
+    expect(apagarPinoPeloGesto(pino.id)).toBe(true)
     expect(useMapStore.getState().map.pins.map((p) => p.id)).toEqual(['p2'])
     expect(avisos()).toEqual([])
   })

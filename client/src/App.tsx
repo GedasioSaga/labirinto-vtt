@@ -110,6 +110,7 @@ import { RoleplayScreen } from './screens/RoleplayScreen'
 import { withViewTransition } from './lib/viewTransition'
 import type { TransicaoEscolhida } from './transicoes/catalogo'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
+import { apagarPinoPeloGesto } from './stores/pinoPeloGesto'
 import { roomHazardState } from './lib/hazards'
 import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, openMapFileFirst, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
@@ -3954,7 +3955,7 @@ function App() {
                 selectedPin?.kind === 'exclamacao'
                   ? { valor: selectedPin.cenario, onChange: (cenario) => useMapStore.getState().updatePin(selectedPin.id, { cenario }) }
                   : undefined,
-              onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+              onDelete: () => selectedPin && apagarPinoPeloGesto(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:
                 selectedPin && (selectedPin.kind === 'exclamacao' || selectedPin.kind === 'interrogacao')
