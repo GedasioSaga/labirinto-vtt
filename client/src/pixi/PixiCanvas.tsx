@@ -296,9 +296,10 @@ import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
-import { FAIXAS_EDITOR, type ParDeFaixa } from '../lib/camadas/ordem'
+import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, nosCriadosDasFaixas, nosDeTrabalho, paresDosItens } from './pilhaDeCamadas'
+import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
+import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -1787,54 +1788,8 @@ export function PixiCanvas({
        * cada redesenho e, sem mudança, não planeja nada. Mover camada só troca
        * containers de lugar; opacidade só mexe no `alpha` do nó.
        */
-      /**
-       * Os pares (faixa, camada) com itens, só das faixas que dividem os itens
-       * por nó (paredes, portas, linhas, escadas, desenhos, móveis, luzes).
-       * Memorizados pela referência de cada lista (a store é imutável) e pelo
-       * modelo (camada livre apagada devolve o item à padrão do tipo).
-       * Tudo, não só o visível: esconder camada não remonta a pilha.
-       */
-      const memoDosPares = new WeakMap<readonly object[], { modelo: MapData['modeloCamadas']; pares: ParDeFaixa[] }>()
-      const paresDaLista = (lista: readonly object[], modelo: MapData['modeloCamadas'], calcular: () => ParDeFaixa[]): ParDeFaixa[] => {
-        const pronto = memoDosPares.get(lista)
-        if (pronto !== undefined && pronto.modelo === modelo) return pronto.pares
-        const pares = calcular()
-        memoDosPares.set(lista, { modelo, pares })
-        return pares
-      }
-      const paresDoMapa = (map: MapData): ParDeFaixa[] => {
-        const camadas = contextoDeCamadas(map)
-        const modelo = map.modeloCamadas
-        const deParede = (w: Wall) => camadas.camadaDe('parede', w)
-        const deEscada = (s: Stair) => camadas.camadaDe('escada', s)
-        const deDesenho = (d: Drawing) => camadas.camadaDe('desenho', d)
-        return [
-          ...paresDaLista(map.walls, modelo, () => [
-            ...paresDosItens('wallsGraphics', map.walls, deParede),
-            ...paresDosItens('doorsGraphics', map.walls.filter((w) => w.door !== null), deParede),
-          ]),
-          ...paresDaLista(map.lines, modelo, () => paresDosItens('mapLinesGraphics', map.lines, (l) => camadas.camadaDe('linha', l))),
-          ...paresDaLista(map.markers, modelo, () => paresDosItens('mapLinesGraphics', map.markers, (m) => camadas.camadaDe('marcador', m))),
-          ...paresDaLista(map.stairs, modelo, () => [
-            ...paresDosItens('stairsGraphics', map.stairs.filter((s) => !s.secret), deEscada),
-            ...paresDosItens('secretStairsGraphics', map.stairs.filter((s) => s.secret), deEscada),
-          ]),
-          ...paresDaLista(map.drawings, modelo, () => {
-            // O Texto tem renderer próprio (`textLabelsContainer`): `drawDrawings` o pula.
-            const traços = map.drawings.filter((d) => d.kind !== 'text')
-            const sob = traços.filter(desenhoFicaSobAsSalas)
-            const sobre = traços.filter((d) => !desenhoFicaSobAsSalas(d))
-            return [
-              ...paresDosItens('drawingsGraphics', sob.filter((d) => !d.secret), deDesenho),
-              ...paresDosItens('secretDrawingsGraphics', sob.filter((d) => d.secret), deDesenho),
-              ...paresDosItens('pathsGraphics', sobre.filter((d) => !d.secret), deDesenho),
-              ...paresDosItens('secretPathsGraphics', sobre.filter((d) => d.secret), deDesenho),
-            ]
-          }),
-          ...paresDaLista(map.props, modelo, () => paresDosItens('propsContainer', map.props, (p) => camadas.camadaDe('objeto', p))),
-          ...paresDaLista(map.lights, modelo, () => paresDosItens('lightsContainer', map.lights, (l) => camadas.camadaDe('luz', l))),
-        ]
-      }
+      // Os pares (faixa, camada) com itens das faixas que dividem itens por nó (`paresDoEditor.ts`).
+      const paresDoMapa = criarParesDoEditor()
 
       let entradaDaPilha: { map: MapData; modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean; pares: string } | null = null
       const NADA_MUDOU = { formas: false, moveis: false } as const
