@@ -1,6 +1,7 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { cordaDaCerca, formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
 import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, temTextura, type DesenhoDoMovel } from '../texturas/meioTermo/moveis'
@@ -42,8 +43,24 @@ export type VistaDoMapa = 'de-cima'
 export const NIVEL_MAXIMO = 3
 /** Passo da pegada na chave, em casas: 0,5, 0,6, 0,7 e 0,8 caem exatos. */
 export const PASSO_DAS_CASAS = 0.1
-/** Passo da curva na chave, em graus. */
+/** A volta redonda (de 5 em 5 graus) que a cerca curva usa quando ela cabe na tolerância da flecha. */
 export const PASSO_DA_CURVA = 5
+/**
+ * Passo da FLECHA da cerca curva na chave, em casas da grade de referência (1
+ * px de mundo na grade de 50): a imagem sai a no máximo meio passo (0,01 casa)
+ * da curva que a alça e o contorno mostram, em qualquer comprimento. Com a
+ * volta de 5 em 5 graus o erro crescia com a cerca (flecha = c/2 · tan(θ/4):
+ * ~0,05 casa em 10 casas, ~0,55 em 100) e volta abaixo de 2,5° saía reta.
+ */
+export const PASSO_DA_FLECHA = 0.02
+/**
+ * Tipos de comprimento livre (a cerca): a imagem é cortada em LADRILHOS de até
+ * `LADO_MAXIMO_DA_IMAGEM` de lado e a escala do nível só cai quando a soma dos
+ * pixels passa de `PIXELS_MAXIMOS_EM_LADRILHOS`. Numa imagem só, cortada no
+ * lado máximo, a cerca de 20 casas no nível 3 saía com 0,91 pixel por px em
+ * vez de 2,68 (mourão e fio viravam borrão) e a de 100 no nível 1, com 0,18.
+ */
+const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca'])
 const MEGABYTE = 1024 * 1024
 export const TETO_NO_COMPUTADOR = 64 * MEGABYTE
 export const TETO_NO_TOQUE = 24 * MEGABYTE
@@ -53,6 +70,16 @@ export const TETO_NO_TOQUE = 24 * MEGABYTE
  * bytes por pixel (24 MB a 1024 x 1024; seriam 96 MB a 2048).
  */
 export const LADO_MAXIMO_DA_IMAGEM = 1024
+/**
+ * Teto de pixels de um móvel em ladrilhos, todos somados: o de uma imagem do
+ * lado máximo (4 MB de RGBA, 8 MB com as duas cópias), então a cerca longa
+ * nunca pesa mais que um móvel enorme pesava. Medido (a escala que sobra, da
+ * do nível; antes, numa imagem só): cerca reta de até 40 casas nos níveis 1 a
+ * 3 e de 100 no nível 1, 1,00; de 100 casas no nível 3, 0,79 (antes 0,07).
+ * LIMITE: a curva conta a caixa inteira, com o miolo vazio do arco: 40 casas
+ * com 90° no nível 3 saem com 0,35 (antes 0,17); 100 casas com 180°, 0,10.
+ */
+export const PIXELS_MAXIMOS_EM_LADRILHOS = LADO_MAXIMO_DA_IMAGEM * LADO_MAXIMO_DA_IMAGEM
 const BYTES_POR_PIXEL = 4
 /** A imagem pronta mora duas vezes: os bytes na CPU e a cópia na placa. */
 const COPIAS_DA_IMAGEM = 2
@@ -61,7 +88,10 @@ export interface ChaveDoMovel {
   readonly desenho: DesenhoDoMovel
   readonly vistaDoMapa: VistaDoMapa
   readonly forma: string
+  /** A volta que a imagem desenha, em graus (0 = reta). */
   readonly curva: number
+  /** A curva no texto da chave: 'r' (reta), 'g<graus>' (volta redonda) ou 'f<passos da flecha>'. */
+  readonly chaveDaCurva: string
   readonly nivel: number
 }
 
@@ -108,7 +138,33 @@ function materiaisDoMovel(prop: MovelParaImagem, tipo: DesenhoDoMovel['tipo']): 
 /** Texto do desenho, sem o nível e com a pegada arredondada: dele sai a semente. */
 function textoDoDesenho(chave: Omit<ChaveDoMovel, 'nivel'>): string {
   const d = chave.desenho
-  return [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.curva, passosNaChave(d.casasW), passosNaChave(d.casasH)].join('|')
+  return [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.chaveDaCurva, passosNaChave(d.casasW), passosNaChave(d.casasH)].join('|')
+}
+
+/** A flecha (px de mundo) que a volta `graus` dá na corda da cerca, a mesma conta do desenho de linhas. */
+function flechaDaVolta(graus: number, corda: number): number {
+  return curvaForTurnDegrees(graus, corda)
+}
+
+/**
+ * A curva da cerca na chave e no desenho, quantizada pela FLECHA. A volta
+ * redonda de 5 em 5 graus fica quando cabe na tolerância (meio passo de
+ * flecha, invisível): as cercas curtas de 88° e 92° continuam dividindo a
+ * imagem de 90°. Fora disso, a flecha vai para o passo mais perto (nunca zero
+ * se o app mostra a curva). Reta (ou flecha que o app não desenha) = 'r'.
+ */
+function curvaDaCerca(prop: MovelParaImagem): { curva: number; chaveDaCurva: string } {
+  const volta = voltaDaCerca({ mobilia: prop.mobilia, mobiliaCurva: prop.mobiliaCurva })
+  const corda = cordaDaCerca(prop.width, prop.height)
+  if (volta === 0 || corda === null) return { curva: 0, chaveDaCurva: 'r' }
+  const flecha = flechaDaVolta(volta, corda.comprimento)
+  if (Math.abs(flecha) < CURVE_EPSILON_PX) return { curva: 0, chaveDaCurva: 'r' }
+  const tolerancia = (PASSO_DA_FLECHA / 2) * GRADE_DE_REFERENCIA
+  const redonda = arredondar(volta, PASSO_DA_CURVA)
+  if (redonda !== 0 && Math.abs(flechaDaVolta(redonda, corda.comprimento) - flecha) <= tolerancia) return { curva: redonda, chaveDaCurva: `g${redonda}` }
+  const passo = PASSO_DA_FLECHA * GRADE_DE_REFERENCIA
+  const passos = Math.round(flecha / passo) || Math.sign(flecha)
+  return { curva: turnDegreesForCurva(passos * passo, corda.comprimento), chaveDaCurva: `f${passos}` }
 }
 
 /** O texto da chave inteira, o que o cache guarda. */
@@ -139,9 +195,9 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     casasH: casasDe(prop.height),
     semente: 0,
   }
-  const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), curva: arredondar(voltaDaCerca(prop), PASSO_DA_CURVA) }
+  const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
-  // O desenho leva a forma do tapete e a volta da cerca (já de 5 em 5 graus): é o que a cena da imagem lê.
+  // O desenho leva a forma do tapete e a volta da cerca (já quantizada pela flecha): é o que a cena da imagem lê.
   const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva }
   return { ...parcial, desenho, nivel: nivelDeResolucao(cameraScale, rendererResolution) }
 }
@@ -152,10 +208,20 @@ export function tetoDeBytesDoAparelho(): number {
   return toque ? TETO_NO_TOQUE : TETO_NO_COMPUTADOR
 }
 
-/** A imagem de um móvel, pronta ou ainda na fila, e onde ela fica em px do protótipo. */
-export interface ImagemDoMovel {
+/** Um pedaço da imagem com textura própria: onde ele fica (px do protótipo) e o tamanho dele em pixels. */
+export interface LadrilhoDaImagem {
   readonly textura: Texture
   readonly limites: LimitesDaImagem
+}
+
+/** A imagem de um móvel, pronta ou ainda na fila, e onde ela fica em px do protótipo. */
+export interface ImagemDoMovel {
+  /** A textura do primeiro ladrilho: a imagem inteira, no móvel que não é cortado. */
+  readonly textura: Texture
+  /** A imagem inteira (todos os ladrilhos juntos). */
+  readonly limites: LimitesDaImagem
+  /** Os pedaços a colar: um só (a imagem inteira) ou, na cerca longa, os ladrilhos que têm alguma coisa. */
+  readonly ladrilhos: readonly LadrilhoDaImagem[]
   /** Pixels da imagem por px do protótipo. */
   readonly S: number
   /** A pegada (exata) em que a imagem foi desenhada. */
@@ -165,17 +231,76 @@ export interface ImagemDoMovel {
   readonly pronta: boolean
 }
 
-/** Onde colar a imagem, em px de mundo em volta do centro do objeto: a pegada desenhada esticada até o tamanho dele. */
-export function retanguloNoMundo(imagem: ImagemDoMovel, largura: number, altura: number): { x: number; y: number; w: number; h: number } {
+/**
+ * Onde colar a imagem (ou um ladrilho dela, `parte`), em px de mundo em volta
+ * do centro do objeto: a pegada desenhada esticada até o tamanho dele.
+ */
+export function retanguloNoMundo(imagem: ImagemDoMovel, largura: number, altura: number, parte: LimitesDaImagem = imagem.limites): { x: number; y: number; w: number; h: number } {
   const kx = largura / (imagem.casasW * G)
   const ky = altura / (imagem.casasH * G)
-  const { x0, y0, W, H } = imagem.limites
+  const { x0, y0, W, H } = parte
   return { x: x0 * kx, y: y0 * ky, w: (W / imagem.S) * kx, h: (H / imagem.S) * ky }
+}
+
+/** Um ladrilho em pixels da imagem inteira: o canto (múltiplo do lado máximo) e o tamanho. */
+export interface CorteDaImagem {
+  readonly i0: number
+  readonly j0: number
+  readonly W: number
+  readonly H: number
+}
+
+/** O ladrilho em px do protótipo: os mesmos pontos de amostra da imagem inteira, a partir do canto dele. */
+function limitesDoCorte(limites: LimitesDaImagem, corte: CorteDaImagem, S: number): LimitesDaImagem {
+  if (corte.i0 === 0 && corte.j0 === 0 && corte.W === limites.W && corte.H === limites.H) return limites
+  return { x0: limites.x0 + corte.i0 / S, y0: limites.y0 + corte.j0 / S, W: corte.W, H: corte.H }
+}
+
+/**
+ * Corta a imagem em ladrilhos de até `LADO_MAXIMO_DA_IMAGEM`, com o canto em
+ * múltiplo dele: o ruído de arredondamento (de 64 em 64 pixels) e os pontos
+ * de amostra continuam os da imagem inteira, sem emenda.
+ */
+function cortarEmLadrilhos(limites: LimitesDaImagem): CorteDaImagem[] {
+  const L = LADO_MAXIMO_DA_IMAGEM
+  const cortes: CorteDaImagem[] = []
+  for (let j0 = 0; j0 < limites.H; j0 += L) {
+    for (let i0 = 0; i0 < limites.W; i0 += L) cortes.push({ i0, j0, W: Math.min(L, limites.W - i0), H: Math.min(L, limites.H - j0) })
+  }
+  return cortes
+}
+
+/** O passo extra quando o arredondamento dos limites ainda deixa a imagem acima do teto. */
+const AJUSTE_DA_ESCALA = 0.99
+
+/**
+ * A escala e os ladrilhos de um tipo de comprimento livre (a cerca): a escala
+ * do nível inteira enquanto a imagem couber em `PIXELS_MAXIMOS_EM_LADRILHOS`;
+ * acima disso, cai o necessário.
+ */
+export function escalaEmLadrilhos(nivel: number, cena: Cena): { S: number; limites: LimitesDaImagem; cortes: CorteDaImagem[] } {
+  let S = escalaDoNivel(nivel)
+  let limites = limitesDaCena(cena, S)
+  if (limites.W * limites.H > PIXELS_MAXIMOS_EM_LADRILHOS) {
+    S *= Math.sqrt(PIXELS_MAXIMOS_EM_LADRILHOS / (limites.W * limites.H))
+    limites = limitesDaCena(cena, S)
+    while (limites.W * limites.H > PIXELS_MAXIMOS_EM_LADRILHOS) {
+      S *= AJUSTE_DA_ESCALA
+      limites = limitesDaCena(cena, S)
+    }
+  }
+  return { S, limites, cortes: cortarEmLadrilhos(limites) }
+}
+
+/** A escala, a imagem inteira e os cortes de qualquer móvel: um corte só, fora a cerca. */
+export function escalaECortes(tipo: string, nivel: number, cena: Cena): { S: number; limites: LimitesDaImagem; cortes: CorteDaImagem[] } {
+  if (TIPOS_EM_LADRILHOS.has(tipo)) return escalaEmLadrilhos(nivel, cena)
+  const { S, limites } = escalaELimites(nivel, cena)
+  return { S, limites, cortes: [{ i0: 0, j0: 0, W: limites.W, H: limites.H }] }
 }
 
 interface Entrada extends ImagemDoMovel {
   readonly chave: string
-  readonly pixels: Uint8ClampedArray
   /** Bytes da imagem pronta (as duas cópias). */
   readonly bytes: number
   /** Bytes do buffer de trabalho enquanto ela é pintada. */
@@ -234,6 +359,11 @@ export function escalaELimites(nivel: number, cena: Cena): { S: number; limites:
     limites = limitesDaCena(cena, S)
   }
   return { S, limites }
+}
+
+/** Pinta os ladrilhos um depois do outro, uma linha por passo (a textura sobe só no fim de todos). */
+function* pintarLadrilhosEmPassos(cena: Cena, S: number, pedacos: readonly { limites: LimitesDaImagem; pixels: Uint8ClampedArray }[]): Generator<void, void, void> {
+  for (const p of pedacos) yield* pintarCenaEmPassos(cena, S, p.limites, p.pixels, true)
 }
 
 /** Os outros níveis, do mais perto para o mais longe (o de cima primeiro no empate: mais nítido). */
@@ -388,22 +518,28 @@ export class RasterDosMoveis {
 
   private comecar(texto: string, chave: ChaveDoMovel): Entrada {
     const cena = montarCena(chave.desenho)
-    const { S, limites } = escalaELimites(chave.nivel, cena)
-    const pixels = new Uint8ClampedArray(limites.W * limites.H * BYTES_POR_PIXEL)
-    // Bytes já multiplicados pelo alfa (a pintura compõe assim): a placa não multiplica de novo.
-    const source = new BufferImageSource({ resource: pixels, width: limites.W, height: limites.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
+    const { S, limites, cortes } = escalaECortes(chave.desenho.tipo, chave.nivel, cena)
+    const pedacos = cortes.map((corte) => {
+      const parte = limitesDoCorte(limites, corte, S)
+      const pixels = new Uint8ClampedArray(parte.W * parte.H * BYTES_POR_PIXEL)
+      // Bytes já multiplicados pelo alfa (a pintura compõe assim): a placa não multiplica de novo.
+      const source = new BufferImageSource({ resource: pixels, width: parte.W, height: parte.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
+      return { textura: new Texture({ source }), limites: parte, pixels }
+    })
+    const ladrilhos: LadrilhoDaImagem[] = pedacos.map(({ textura, limites: parte }) => ({ textura, limites: parte }))
     const entrada: Entrada = {
       chave: texto,
-      textura: new Texture({ source }),
-      pixels,
+      textura: ladrilhos[0].textura,
+      ladrilhos,
       limites,
       S,
       casasW: chave.desenho.casasW,
       casasH: chave.desenho.casasH,
       nivel: chave.nivel,
-      bytes: pixels.byteLength * COPIAS_DA_IMAGEM,
-      bytesDeTrabalho: limites.W * limites.H * BYTES_DE_TRABALHO_POR_PIXEL,
-      passos: pintarCenaEmPassos(cena, S, limites, pixels, true),
+      bytes: pedacos.reduce((soma, p) => soma + p.pixels.byteLength, 0) * COPIAS_DA_IMAGEM,
+      // Um ladrilho por vez: o buffer de trabalho é o do maior.
+      bytesDeTrabalho: Math.max(...pedacos.map((p) => p.limites.W * p.limites.H)) * BYTES_DE_TRABALHO_POR_PIXEL,
+      passos: pintarLadrilhosEmPassos(cena, S, pedacos),
       pronta: false,
       emPintura: false,
       retirada: false,
@@ -463,7 +599,7 @@ export class RasterDosMoveis {
     if (e.destruida) return
     e.destruida = true
     this.destruidas += 1
-    e.textura.destroy(true)
+    for (const l of e.ladrilhos) l.textura.destroy(true)
   }
 
   private agendarBomba(): void {
@@ -512,7 +648,7 @@ export class RasterDosMoveis {
       this.bytesNoCache -= entrada.bytesDeTrabalho
       entrada.pronta = true
       this.prontas += 1
-      entrada.textura.source.update()
+      for (const l of entrada.ladrilhos) l.textura.source.update()
       for (const dono of this.donos.values()) if (dono.pedidas.has(entrada)) aRepintar.add(dono)
     }
     if (this.fila.length > 0) this.agendarBomba()
