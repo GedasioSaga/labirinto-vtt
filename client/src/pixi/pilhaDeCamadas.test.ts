@@ -194,6 +194,18 @@ describe('pilha de camadas: a lista manda', () => {
     expect(nos.map((n) => n.camadas)).toEqual([['objetos', 'decoracao'], [livre]])
   })
 
+  it('camada livre VAZIA entre Paredes e Portas e entre Objetos e Decoração: nenhum nó criado, nada sai do lugar', () => {
+    const ids: CamadaId[] = [...CAMADAS_PADRAO]
+    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_a')
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_b')
+    const { pai, pilha } = montar()
+    expect(pilha.atualizar(entrada(modelo(ids)))).toBe(0)
+    expect(pilha.criados()).toBe(0)
+    expect(nomes(pai)).toEqual(FAIXAS_EDITOR.map((f) => f.id))
+    expect(pilha.nosDaFaixa('wallsGraphics').map((n) => n.camadas)).toEqual([['paredes', 'portas']])
+    expect(pilha.nosDaFaixa('propsContainer').map((n) => n.camadas)).toEqual([['objetos', 'decoracao']])
+  })
+
   it('propriedade: para qualquer permutação da lista (semente fixa), os nós principais seguem a lista', () => {
     const livre: CamadaId = 'livre_x'
     let semente = 20261023
