@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import type { Prop } from '../../../types/map'
 import { chaveDoMovel } from '../../../pixi/rasterDosMoveis'
 import { varianteDaLapide } from '../../../lib/mobilia/pecasNovas'
+import { MATERIAIS } from '../materiais'
 import { escalaDoNivel, pintarMovel, type DesenhoDoMovel } from './index'
 import { colar, emPng, escrever, novaTela } from './folhaDeContato.testkit'
 
@@ -10,7 +11,8 @@ import { colar, emPng, escrever, novaTela } from './folhaDeContato.testkit'
  * FOLHA DE CONTATO da fatia MT4: as 9 peças novas como o APP as desenha (o
  * objeto no tamanho padrão, sem cor gravada, os materiais padrão e a semente
  * da chave), as 3 lápides (o id escolhe o desenho), a barraca e a carroça de
- * lado, e a mesa antiga de 2 x 1 para comparar com as mesas novas. Cada quadro
+ * lado, a barraca nos 5 toldos (o de linho com as listras de vinho) e a mesa
+ * antiga de 2 x 1 para comparar com as mesas novas. Cada quadro
  * tem a peça no nível 1 e no nível 3, no chão padrão do app (#a8776a), e
  * embaixo o tempo de gerar cada imagem (o nível 1 e o nível 3, em ms, nesta
  * máquina e nesta rodada). Grava `docs/design/objetos/provas/mt4-folha-de-contato.png`.
@@ -53,7 +55,8 @@ const QUADROS: readonly { readonly rotulo: string; readonly prop: Prop }[] = [
   { rotulo: 'LAMPIAO', prop: peca('lampiao', 0.5, 0.5) },
   { rotulo: 'QUADRO DE AVISOS', prop: peca('quadroDeAvisos', 1, 0.4) },
   { rotulo: 'POCO', prop: peca('poco', 1.5, 1.5) },
-  { rotulo: 'BARRACA', prop: peca('barraca', 2, 2) },
+  { rotulo: 'BARRACA, TOLDO VINHO', prop: peca('barraca', 2, 2) },
+  ...(['azul', 'musgo', 'ocre', 'linho'] as const).map((toldo) => ({ rotulo: `TOLDO ${toldo.toUpperCase()}`, prop: peca('barraca', 2, 2, { id: `p-barraca-${toldo}`, mobiliaCor: MATERIAIS[toldo].hex }) })),
   { rotulo: 'BARRACA DE LADO', prop: peca('barraca', 2, 2, { mobiliaVista: 'lado' }) },
   { rotulo: 'CARROCA', prop: peca('carroca', 2, 1.25) },
   { rotulo: 'CARROCA DE LADO', prop: peca('carroca', 2, 1.25, { mobiliaVista: 'lado' }) },
@@ -69,7 +72,7 @@ function emMs(ms: number): string {
   return ms.toFixed(1).replace('.', ',')
 }
 
-it.skipIf(!PEDIDA)('gera a folha de contato das 9 peças novas (14 quadros: as lápides, as vistas de lado e a mesa antiga), cada uma a 1x e a 3x com o tempo embaixo', () => {
+it.skipIf(!PEDIDA)('gera a folha de contato das 9 peças novas (18 quadros: as lápides, as vistas de lado, os 5 toldos e a mesa antiga), cada uma a 1x e a 3x com o tempo embaixo', () => {
   const quadros = QUADROS.map(({ rotulo, prop }) => {
     const imagens = NIVEIS.map((nivel) => {
       const d = desenhoDoApp(prop, nivel)
@@ -106,6 +109,6 @@ it.skipIf(!PEDIDA)('gera a folha de contato das 9 peças novas (14 quadros: as l
   }
   const png = emPng(tela)
   writeFileSync(DESTINO, png)
-  expect(quadros).toHaveLength(14)
+  expect(quadros).toHaveLength(18)
   expect(png.length).toBeGreaterThan(0)
 })

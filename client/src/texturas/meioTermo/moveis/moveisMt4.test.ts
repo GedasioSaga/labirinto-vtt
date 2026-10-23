@@ -389,7 +389,6 @@ describe('peças novas da MT4: o que cada peça é', () => {
   it('quadro de avisos: pés de 5 px a 1x, um papel 1,4x mais alto que os outros e 2 linhas de texto em cada papel', () => {
     const im1 = imagem({ tipo: 'quadroDeAvisos', lado: 'frente', materiais: ['nogueira'], casasW: 1, casasH: 0.4, semente: 7 }, 1)
     const sx = G / 41
-    const sy = (0.4 * G) / 23
     let pe = 0
     for (let j = 0; j < im1.H; j += 1) {
       const y = im1.y0 + (j + 0.5) / im1.S
