@@ -20,7 +20,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { LAYER_IDS } from '../types/map'
 import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
 import { camadasDoJogadorDoMapa } from './camadas/doJogador'
-import { ehCamadaDeAntes, ehCamadaPadrao, soCamadasDeAntes } from './camadas/padrao'
+import { ehCamadaDeAntes, ehCamadaId, ehCamadaPadrao, soCamadasDeAntes } from './camadas/padrao'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
@@ -361,8 +361,25 @@ function roofRoomsOf(regions: readonly Region[]): Region[] {
  * quando quem chama já filtrou.
  */
 export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] = map.tokens): Token[] {
-  const camadas = contextoDeCamadas(map)
+  const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
   return tokens.filter((t) => camadas.jogadorVeItem('ficha', t))
+}
+
+/**
+ * OPACIDADE 0 = O JOGADOR NÃO VÊ (revisão da fatia 6, decisão do
+ * orquestrador): camada a 0% com o olho dos jogadores ligado mandava
+ * `{ id, alfa: 0 }` e TODOS os itens dela no pacote — invisíveis na tela,
+ * mas inteiros no fio. Para o recorte, a camada apagada entra na lista das
+ * escondidas dos jogadores: os itens são cortados, ela sai de
+ * `camadasDoJogador` e das duas visões. O mapa do mestre não muda (é só a
+ * cópia que o recorte lê); o slider avisa "0% some para todos".
+ */
+function comCamadaApagadaOcultaDoJogador(map: MapData): MapData {
+  const opacidades = map.opacidadeDasCamadas
+  if (opacidades === undefined) return map
+  const ocultas = map.ocultasDoJogador ?? map.hiddenLayers
+  const apagadas = Object.entries(opacidades).flatMap(([id, alfa]) => (alfa === 0 && ehCamadaId(id) && !ocultas.includes(id) ? [id] : []))
+  return apagadas.length === 0 ? map : { ...map, ocultasDoJogador: [...ocultas, ...apagadas] }
 }
 
 /**
@@ -2209,7 +2226,8 @@ function recorteDoGrupo(
    * não há regra abaixo que possa deixá-lo vazar. Mapa de um piso só passa ELE
    * MESMO. `explored` e `seenDoors` já vêm do piso certo (a memória do host é por piso).
    */
-  const map = mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans))
+  // Camada a 0% conta como escondida dos jogadores daqui para baixo (`comCamadaApagadaOcultaDoJogador`).
+  const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans)))
   if (isWorldMap(map))
     return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras })
   // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item
@@ -2797,7 +2815,19 @@ function recorteDoGrupo(
     return brushed ? wallRunsWhere(w, inBrushReveal) : []
   }
   const isSecretRoomWall = (w: Wall): boolean => w.regionId !== undefined && secretRoomIds.has(w.regionId)
-  const playerFloorForVision = floorWithout(map.floor, hiddenFloorIds)
+  /**
+   * CAMADAS NA VISÃO ENVIADA (revisão da fatia 6, decisão do orquestrador,
+   * PENDENTE de confirmação do usuário): o que o jogador não vê não existe
+   * para a visão DELE. Peça de chão e parede de camada escondida dos jogadores
+   * saem dos segmentos da visão enviada — senão o polígono `vision` desenha o
+   * contorno delas, embora o pacote venha sem nenhuma. A autoridade (o que
+   * entra no pacote) segue com todas, como a parede de sala secreta. Só no
+   * mapa v2: o recorte do mapa de antes é o de b934f2a1 byte a byte
+   * (`fogFilter.camadas.test.ts`), e lá a camada oculta some para todos.
+   */
+  const cortaVisaoPorCamada = map.versaoDasCamadas === 2 && !nadaOcultoDoJogador
+  const pecasForaDaCamada = cortaVisaoPorCamada ? new Set(map.floor.filter((f) => !camadas.jogadorVeItem('peca', f)).map((f) => f.id)) : new Set<string>()
+  const playerFloorForVision = floorWithout(map.floor, pecasForaDaCamada.size === 0 ? hiddenFloorIds : new Set([...hiddenFloorIds, ...pecasForaDaCamada]))
   /**
    * Chão da conta do cone DESTE prédio: o do jogador mais as peças que só o
    * teto dele escondia (o chão que o balde cria ao encher o interior). Sem
@@ -2903,6 +2933,8 @@ function recorteDoGrupo(
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
   const playerWalls = knownWalls.flatMap((w): Wall[] => {
     if (isSecretRoomWall(w)) return []
+    // Parede de camada escondida dos jogadores: fora da visão enviada (ver `pecasForaDaCamada`).
+    if (cortaVisaoPorCamada && !camadas.jogadorVeItem('parede', w)) return []
     const roof = interiorRoofOf(w)
     if (roof !== undefined) return glimpsedInteriorWall(w, roof).flatMap(zoneCutWall)
     return zoneCutWall(w)
@@ -2911,7 +2943,7 @@ function recorteDoGrupo(
   // Por ficha (mesmo índice de `ownTokens`) para a MEMÓRIA POR FICHA (`eyes`); `vision` é a união.
   let visionByTokenSent: RegionPoint[][][] = authorityByToken
   let vision = authorityVision
-  if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0)) {
+  if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0 || pecasForaDaCamada.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
     /**
      * Quem espia enxerga com as paredes de dentro do prédio espiado INTEIRAS e
@@ -2921,13 +2953,13 @@ function recorteDoGrupo(
      * e só essas saem no pacote (`peekedWallForPlayer`).
      */
     const peekWalls =
-      peekerIndexes.size === 0 ? playerWalls : [...playerWalls, ...knownWalls.filter((w) => !isSecretRoomWall(w) && isPeekInterior(w)).flatMap(zoneCutWall)]
+      peekerIndexes.size === 0 ? playerWalls : [...playerWalls, ...knownWalls.filter((w) => !isSecretRoomWall(w) && isPeekInterior(w) && !(cortaVisaoPorCamada && !camadas.jogadorVeItem('parede', w))).flatMap(zoneCutWall)]
     const peekFloor =
       peekerIndexes.size === 0
         ? playerFloorForVision
         : floorWithout(
             map.floor,
-            new Set(map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
+            new Set(map.floor.filter((f) => pecasForaDaCamada.has(f.id) || mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
           )
     const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...map, walls: peekWalls, floor: peekFloor }, peekDoorIds)
     // VER ATRAVÉS DAS PAREDES: a visão enviada atravessa as MESMAS paredes que a da autoridade.
@@ -3802,6 +3834,8 @@ function recorteDoGrupo(
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
+    // O cadeado é do mestre (a tela do jogador não edita), e no mapa v2 a lista leva id de camada livre.
+    lockedLayers: [],
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
     // `createEmptyMap(id, nomeDaCena, …)`): o jogador descobre onde está pelo
     // que vê, nunca pelo nome que o mestre deu. Nada na tela dele lê este campo.
