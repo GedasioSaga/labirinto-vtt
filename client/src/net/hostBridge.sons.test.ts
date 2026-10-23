@@ -17,7 +17,7 @@ import type { MapData, Token } from '../types/map'
 import { createHostBridge, LIVENESS_SWEEP_MS } from './hostBridge'
 import type { HostWorld } from './hostSession'
 import { redeDosSons } from './ponteDosSons'
-import { parseSomHostMessage, type FonteDeSomNaRede } from './protocol'
+import { parseSomHostMessage, SOM_DESLOCAMENTO_MAX_S, type FonteDeSomNaRede } from './protocol'
 
 const ROOM = { code: 'S0M4OV', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
 const ID_GRITO = `${'a'.repeat(64)}.mp3`
@@ -572,5 +572,78 @@ describe('hostBridge: fechar a sala com o room.closed ainda saindo', () => {
     await fechando
     const tipos = s.enviados.filter((e) => e.clientId === 'c-ana').map((e) => e.msg.type)
     expect(tipos.slice(tipos.indexOf('room.closed') + 1)).toEqual([])
+  })
+})
+
+// ─── Revisão da F4 (23/10): testes que faltavam ───
+
+describe('hostBridge: quem caiu não recebe som (viraria o toast de falha de envio)', () => {
+  it('loop tocando: logo depois da queda, nada sai (nem som.parar a quem caiu)', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    m.limpa()
+    m.cai('c-bia')
+    expect(m.sons()).toEqual([])
+  })
+
+  it('efeito curto: quem o recebeu e caiu não recebe o Parar nem o volume', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(curto('grito'), { tipo: 'escolhidos', playerIds: [m.ids.bia] })
+    m.cai('c-bia')
+    m.limpa()
+    expect(m.bridge.volumeDoSom('grito', 0.3)).toBe(0)
+    expect(m.bridge.pararSomAoVivo('grito')).toBe(0)
+    expect(m.enviados).toEqual([])
+  })
+
+  it('tocar de novo a mesma instância: o parar da troca não vai a quem caiu', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(curto('grito'), { tipo: 'todos' })
+    m.cai('c-bia')
+    m.limpa()
+    m.bridge.tocarSomAoVivo(curto('grito'), { tipo: 'cena', sceneId: CRIPTA })
+    expect(m.sons('c-bia')).toEqual([])
+    expect(m.quem('som.parar').sort()).toEqual(['c-ana', 'tv'])
+    expect(m.quem('som.tocar')).toEqual(['c-caio'])
+  })
+})
+
+describe('hostBridge: fechar e reabrir a sala', () => {
+  it('loop, pré-carga e liberadas da sala velha não sobrevivem; o registro sai no stop e volta no start', async () => {
+    const m = await mesa()
+    expect(redeDosSons()?.tocarSomAoVivo).toBe(m.bridge.tocarSomAoVivo)
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    m.bridge.precarregarSonsAoVivo([ID_GRITO])
+    await m.bridge.stop()
+    expect(redeDosSons()).toBeNull()
+    expect(m.bridge.midiasDeSomLiberadas()).toEqual([])
+    await m.bridge.start()
+    expect(redeDosSons()?.tocarSomAoVivo).toBe(m.bridge.tocarSomAoVivo)
+    m.limpa()
+    m.entra('c-duda', 'Duda', 't-duda')
+    expect(m.sons()).toEqual([])
+    expect(m.bridge.midiasDeSomLiberadas()).toEqual([])
+  })
+})
+
+describe('hostBridge: tetos', () => {
+  it('o 33º efeito curto lembrado expulsa o mais antigo: o Parar do expulso não sai', async () => {
+    const m = await mesa()
+    for (let i = 0; i < 33; i++) m.bridge.tocarSomAoVivo(curto(`g${i}`), { tipo: 'escolhidos', playerIds: [m.ids.ana] })
+    m.limpa()
+    expect(m.bridge.pararSomAoVivo('g0')).toBe(0)
+    expect(m.bridge.pararSomAoVivo('g1')).toBe(1)
+    expect(m.bridge.pararSomAoVivo('g32')).toBe(1)
+  })
+
+  it('quem chega a um loop de mais de uma semana entra com o deslocamento no teto (o parser do jogador recusaria acima)', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    m.limpa()
+    m.avanca((SOM_DESLOCAMENTO_MAX_S + 3_600) * 1000)
+    m.entra('c-duda', 'Duda', 't-duda')
+    const chegada = m.sons('c-duda')[0]?.msg
+    expect(chegada).toMatchObject({ type: 'som.tocar', instancia: 'chuva', deslocamentoS: SOM_DESLOCAMENTO_MAX_S })
+    expect(parseSomHostMessage(chegada)).not.toBeNull()
   })
 })
