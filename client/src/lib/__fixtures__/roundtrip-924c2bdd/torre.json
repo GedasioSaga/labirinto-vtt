@@ -1,0 +1,208 @@
+{
+  "id": "m-torre",
+  "name": "Torre do Barão",
+  "width": 30,
+  "height": 8,
+  "grid": 50,
+  "gridShape": "square",
+  "showGrid": false,
+  "gridSettings": {
+    "color": "#000000",
+    "opacity": 0.25,
+    "lineWidth": 1,
+    "lineStyle": "solid"
+  },
+  "background": {
+    "type": "color",
+    "src": "#2b2b2b"
+  },
+  "walls": [
+    {
+      "id": "ab-1",
+      "x1": 500,
+      "y1": 0,
+      "x2": 500,
+      "y2": 150,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": null
+    },
+    {
+      "id": "porta-ab",
+      "x1": 500,
+      "y1": 150,
+      "x2": 500,
+      "y2": 250,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": {
+        "open": true,
+        "locked": false,
+        "kind": "normal"
+      }
+    },
+    {
+      "id": "ab-2",
+      "x1": 500,
+      "y1": 250,
+      "x2": 500,
+      "y2": 400,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": null
+    },
+    {
+      "id": "bc-1",
+      "x1": 1000,
+      "y1": 0,
+      "x2": 1000,
+      "y2": 150,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": null
+    },
+    {
+      "id": "porta-bc",
+      "x1": 1000,
+      "y1": 150,
+      "x2": 1000,
+      "y2": 250,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": {
+        "open": false,
+        "locked": false,
+        "kind": "normal"
+      }
+    },
+    {
+      "id": "bc-2",
+      "x1": 1000,
+      "y1": 250,
+      "x2": 1000,
+      "y2": 400,
+      "blocksLight": true,
+      "blocksMove": true,
+      "door": null
+    }
+  ],
+  "lights": [],
+  "regions": [
+    {
+      "id": "sala-a",
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 500,
+          "y": 0
+        },
+        {
+          "x": 500,
+          "y": 400
+        },
+        {
+          "x": 0,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#3a3a3a",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "nome-sala-a"
+      }
+    },
+    {
+      "id": "sala-b",
+      "points": [
+        {
+          "x": 500,
+          "y": 0
+        },
+        {
+          "x": 1000,
+          "y": 0
+        },
+        {
+          "x": 1000,
+          "y": 400
+        },
+        {
+          "x": 500,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#3a3a3a",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "nome-sala-b"
+      }
+    },
+    {
+      "id": "sala-c",
+      "points": [
+        {
+          "x": 1000,
+          "y": 0
+        },
+        {
+          "x": 1500,
+          "y": 0
+        },
+        {
+          "x": 1500,
+          "y": 400
+        },
+        {
+          "x": 1000,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#3a3a3a",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "nome-sala-c"
+      }
+    }
+  ],
+  "tokens": [],
+  "props": [],
+  "stairs": [],
+  "drawings": [],
+  "floor": [],
+  "floorStyle": {
+    "fillColor": "#a8776a",
+    "strokeColor": null,
+    "strokeWidth": 1
+  },
+  "lines": [],
+  "markers": [],
+  "concealZones": [],
+  "pins": [],
+  "frame": null,
+  "fog": {
+    "mode": "none",
+    "revealed": []
+  },
+  "hiddenLayers": [],
+  "lockedLayers": [],
+  "scale": {
+    "unitsPerCell": 1.5,
+    "unit": "m",
+    "precision": 1
+  },
+  "measurementMode": "chessboard",
+  "ownerId": null,
+  "scenarioLink": null
+}

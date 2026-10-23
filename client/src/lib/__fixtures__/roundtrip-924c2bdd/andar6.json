@@ -1,0 +1,238 @@
+{
+  "id": "m-andar6",
+  "name": "Andar 6",
+  "width": 40,
+  "height": 24,
+  "grid": 50,
+  "gridShape": "square",
+  "showGrid": false,
+  "gridSettings": {
+    "color": "#000000",
+    "opacity": 0.25,
+    "lineWidth": 1,
+    "lineStyle": "solid"
+  },
+  "background": {
+    "type": "color",
+    "src": "#2b2b2b"
+  },
+  "walls": [],
+  "lights": [],
+  "regions": [
+    {
+      "id": "d-norte",
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 1000,
+          "y": 0
+        },
+        {
+          "x": 1000,
+          "y": 600
+        },
+        {
+          "x": 0,
+          "y": 600
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "Distrito Norte",
+        "faccao": "Guarda Carmesim"
+      }
+    },
+    {
+      "id": "s-quartel",
+      "points": [
+        {
+          "x": 100,
+          "y": 100
+        },
+        {
+          "x": 400,
+          "y": 100
+        },
+        {
+          "x": 400,
+          "y": 400
+        },
+        {
+          "x": 100,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "Quartel"
+      },
+      "parentId": "d-norte"
+    },
+    {
+      "id": "s-esconderijo",
+      "points": [
+        {
+          "x": 600,
+          "y": 100
+        },
+        {
+          "x": 900,
+          "y": 100
+        },
+        {
+          "x": 900,
+          "y": 400
+        },
+        {
+          "x": 600,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "Esconderijo",
+        "faccao": "Sindicato das Cinzas"
+      },
+      "parentId": "d-norte"
+    },
+    {
+      "id": "d-sul",
+      "points": [
+        {
+          "x": 0,
+          "y": 600
+        },
+        {
+          "x": 1000,
+          "y": 600
+        },
+        {
+          "x": 1000,
+          "y": 1200
+        },
+        {
+          "x": 0,
+          "y": 1200
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "Distrito Sul",
+        "faccao": "Sindicato das Cinzas"
+      }
+    },
+    {
+      "id": "d-mercado",
+      "points": [
+        {
+          "x": 1000,
+          "y": 0
+        },
+        {
+          "x": 2000,
+          "y": 0
+        },
+        {
+          "x": 2000,
+          "y": 1200
+        },
+        {
+          "x": 1000,
+          "y": 1200
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {},
+      "room": {
+        "shape": "rect",
+        "name": "Mercado"
+      }
+    },
+    {
+      "id": "r-praca",
+      "points": [
+        {
+          "x": 1200,
+          "y": 200
+        },
+        {
+          "x": 1400,
+          "y": 200
+        },
+        {
+          "x": 1400,
+          "y": 400
+        },
+        {
+          "x": 1200,
+          "y": 400
+        }
+      ],
+      "tag": "",
+      "fillColor": "#2b2b2b",
+      "fillPattern": "solid",
+      "data": {}
+    }
+  ],
+  "tokens": [
+    {
+      "id": "f-p1",
+      "characterId": null,
+      "name": "Vigia",
+      "x": 1500,
+      "y": 600,
+      "size": 1,
+      "image": null
+    }
+  ],
+  "props": [],
+  "stairs": [],
+  "drawings": [],
+  "floor": [],
+  "floorStyle": {
+    "fillColor": "#a8776a",
+    "strokeColor": null,
+    "strokeWidth": 1
+  },
+  "lines": [],
+  "markers": [],
+  "concealZones": [],
+  "pins": [],
+  "frame": null,
+  "fog": {
+    "mode": "none",
+    "revealed": []
+  },
+  "hiddenLayers": [],
+  "lockedLayers": [],
+  "scale": {
+    "unitsPerCell": 1.5,
+    "unit": "m",
+    "precision": 1
+  },
+  "measurementMode": "chessboard",
+  "ownerId": null,
+  "scenarioLink": null,
+  "alerta": "cacada"
+}

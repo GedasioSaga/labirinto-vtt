@@ -7,6 +7,11 @@ import { torre } from './__fixtures__/hazardTower'
 import legacyMapJson from './__fixtures__/legacy-map.json'
 import legacyRoomDoorJson from './__fixtures__/legacy-room-door.json'
 import l1Json from '../../../maps/L1.json'
+import antesAndar6 from './__fixtures__/roundtrip-924c2bdd/andar6.json'
+import antesL1 from './__fixtures__/roundtrip-924c2bdd/L1.json'
+import antesLegacyMap from './__fixtures__/roundtrip-924c2bdd/legacy-map.json'
+import antesLegacyRoomDoor from './__fixtures__/roundtrip-924c2bdd/legacy-room-door.json'
+import antesTorre from './__fixtures__/roundtrip-924c2bdd/torre.json'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 
@@ -16,18 +21,22 @@ const CHAVES_NOVAS = ['"ocultasDoJogador"', '"opacidadeDasCamadas"', '"versaoDas
 
 describe('camadas no arquivo: mapa de antes', () => {
   // Todo mapa de fixture/teste do repo: os JSON de arquivo (o L1 real e as duas
-  // cópias congeladas) e os montados em código (andar6, torre).
-  const fixtures: [string, string][] = [
-    ['maps/L1.json', JSON.stringify(l1Json)],
-    ['__fixtures__/legacy-map.json', JSON.stringify(legacyMapJson)],
-    ['__fixtures__/legacy-room-door.json', JSON.stringify(legacyRoomDoorJson)],
-    ['__fixtures__/andar6.ts', serializeMap(andar6())],
-    ['__fixtures__/hazardTower.ts', serializeMap(torre())],
+  // cópias congeladas) e os montados em código (andar6, torre). O terceiro
+  // valor é a saída de serializeMap(deserializeMap(x)) gerada pelo código de
+  // ANTES da fatia 1 (924c2bdd, num checkout descartável) e congelada em
+  // `__fixtures__/roundtrip-924c2bdd/`: a leitura de hoje tem de dar a mesma.
+  const fixtures: [string, string, unknown][] = [
+    ['maps/L1.json', JSON.stringify(l1Json), antesL1],
+    ['__fixtures__/legacy-map.json', JSON.stringify(legacyMapJson), antesLegacyMap],
+    ['__fixtures__/legacy-room-door.json', JSON.stringify(legacyRoomDoorJson), antesLegacyRoomDoor],
+    ['__fixtures__/andar6.ts', serializeMap(andar6()), antesAndar6],
+    ['__fixtures__/hazardTower.ts', serializeMap(torre()), antesTorre],
   ]
 
-  for (const [nome, bruto] of fixtures) {
-    it(`${nome}: deserialize -> serialize reproduz o JSON idêntico e não ganha chave de camada`, () => {
+  for (const [nome, bruto, antes] of fixtures) {
+    it(`${nome}: deserialize -> serialize dá EXATAMENTE a saída de antes da fatia 1 e não ganha chave de camada`, () => {
       const uma = serializeMap(deserializeMap(bruto))
+      expect(JSON.parse(uma)).toStrictEqual(antes)
       expect(serializeMap(deserializeMap(uma))).toBe(uma)
       for (const chave of CHAVES_NOVAS) expect(uma).not.toContain(chave)
     })
