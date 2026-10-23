@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { TEXTURAS_EMBUTIDAS } from '../embutidas'
 import { LADO_DO_LADRILHO, pixelsDoLadrilho } from '../ladrilhos'
 import { blocosIguais, maiorAutocorrelacao, type Cinza } from './repeticao.testkit'
-import { ESCALAS_DO_RUIDO, ruidoDoMundo } from './ruidoDoMundo'
+import { ESCALAS_DO_RUIDO, ruidoDeValor, ruidoDoMundo, SEMENTE_DAS_MANCHAS } from './ruidoDoMundo'
 
 /**
  * RUÍDO SEM PERÍODO do chão do Meio-Termo (`meio.js:235-283`): 3 escalas
@@ -111,6 +111,21 @@ describe('ruidoDoMundo', () => {
     // E a amostra inteira tem uma digital estável (a mesma imagem em duas aberturas).
     expect(digital(amostra.luz)).toBe(digital(amostraDoRuido().luz))
   }, 60_000)
+
+  it('sem período longo: deslocar 256, 1024 ou 65536 casas do ruído muda o valor (a amostra acima só vê até 384 px)', () => {
+    const PERIODOS = [256, 1024, 65536]
+    const PONTOS = 32
+    for (const P of PERIODOS) {
+      let iguais = 0
+      for (let k = 0; k < PONTOS; k += 1) {
+        const i = k * 7 + 0.37
+        const j = k * 3 - 11.61
+        if (ruidoDeValor(i + P, j, SEMENTE_DAS_MANCHAS) === ruidoDeValor(i, j, SEMENTE_DAS_MANCHAS)) iguais += 1
+        if (ruidoDeValor(i, j + P, SEMENTE_DAS_MANCHAS) === ruidoDeValor(i, j, SEMENTE_DAS_MANCHAS)) iguais += 1
+      }
+      expect(iguais, `período ${P}`).toBe(0)
+    }
+  })
 
   it('controle: o ladrilho antigo de grama, repetido, REPROVA nas duas medidas', () => {
     const amostra = amostraDoLadrilhoAntigo()

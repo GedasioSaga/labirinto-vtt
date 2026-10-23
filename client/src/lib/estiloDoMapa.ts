@@ -8,7 +8,7 @@
  * Liga por um de três caminhos:
  * - a constante `CHAVE_DE_OBRA_MEIO_TERMO` (false até o MT12);
  * - `?obra=meio-termo` na URL, SÓ no servidor de desenvolvimento (no build de
- *   produção o Vite troca `import.meta.env.DEV` por false e o ramo some);
+ *   produção `import.meta.env.DEV` é false e a URL nunca liga);
  * - o próprio teste, com `trocarObraNoTeste` (e `trocarObraNoTeste(false)`
  *   no `afterEach`).
  *
