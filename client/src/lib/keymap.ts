@@ -1,5 +1,6 @@
 import type { DrawingTool } from '../types/tools'
 import { FEATURES, type FeatureFlags } from './features'
+import type { AtalhoDeSom } from './sons/biblioteca'
 
 /**
  * Mapa de teclado — itens 5 e 7 do `docs/PLANO-REFINAMENTO.md` (Onda 1,
@@ -111,6 +112,37 @@ export function isRightColumnShortcut(evt: ShortcutEvent): boolean {
   if (evt.key.toLowerCase() !== 'j') return false
   return !isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)
 }
+
+/**
+ * Teclas dos atalhos da aba Sons (Sistema 4, sons ao vivo): o dígito N toca o
+ * efeito com o atalho N. Os dígitos estavam livres (só Ctrl+0 é atalho, o zoom).
+ * Fora do `resolveShortcut`: quem ouve é a folha Sons do livro da mesa, que
+ * fica sempre montada (`resolverAtalhoDeSom`, livro/PaginaSons.tsx).
+ */
+export const SOUND_SLOT_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const
+
+/** O que a tecla precisa a mais para virar som: diálogo modal aberto e tecla segurada não tocam. */
+export interface EventoDoAtalhoDeSom extends ShortcutEvent {
+  /** Há diálogo modal (`aria-modal`) na tela: a tecla é de quem está nele, não do mapa nem dos sons. */
+  modalAberto?: boolean
+  /** `KeyboardEvent.repeat`: segurar o 3 tocaria o efeito a cada repetição do teclado. */
+  repeticao?: boolean
+}
+
+/**
+ * O atalho de som (1 a 9) desta tecla, ou `null`. Só o dígito sozinho: com
+ * Ctrl, Cmd, Alt ou Shift é outra coisa (Shift+3 é `#`); num campo de texto o
+ * dígito é texto; com diálogo modal aberto, nada toca atrás dele.
+ */
+export function resolverAtalhoDeSom(evt: EventoDoAtalhoDeSom): AtalhoDeSom | null {
+  if (evt.ctrlKey || evt.metaKey || evt.altKey || evt.shiftKey) return null
+  if (evt.modalAberto === true || evt.repeticao === true) return null
+  if (isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)) return null
+  const indice = SOUND_SLOT_KEYS.findIndex((tecla) => tecla === evt.key)
+  return indice < 0 ? null : ATALHOS_DE_SOM[indice]
+}
+
+const ATALHOS_DE_SOM: readonly AtalhoDeSom[] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
