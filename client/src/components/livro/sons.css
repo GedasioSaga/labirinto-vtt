@@ -275,6 +275,8 @@
 /* ---------------------------------------------------------------- o lápis (editor no diálogo) */
 .lb-sons-editor { display: flex; flex-direction: column; gap: 14px; }
 .lb-sons-editor .gr-entrada[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+.lb-sons-editor__volume { display: flex; align-items: flex-end; gap: var(--lb-space-2); }
+.lb-sons-editor__volume > .gr-campo { flex: 1; min-width: 0; }
 .lb-sons-editor__nova-pasta { display: flex; gap: 6px; }
 .lb-sons-editor__nova-pasta .gr-entrada { flex: 1; min-width: 0; }
 .lb-sons-editor__pe,

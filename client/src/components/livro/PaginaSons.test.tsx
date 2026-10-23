@@ -563,6 +563,28 @@ describe('o topo (revisão de design da F3)', () => {
   })
 })
 
+describe('ouvir no lápis', () => {
+  it('com o som parado, Ouvir toca no volume do efeito; tocando, o mesmo botão vira Parar', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const sino = await importar('sino.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(sino, { volume: 0.4 })
+    })
+    const motor = daVez.motor
+    if (motor === null) throw new Error('sem motor')
+    const tocar = vi.spyOn(motor, 'tocar')
+    act(() => botao('Editar sino').click())
+    act(() => botao('Ouvir').click())
+    expect(tocar).toHaveBeenCalledWith(sino, expect.objectContaining({ tipo: 'arquivo' }), { loop: false, volumeDoEfeito: 0.4 })
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    await esperar(() => expect(botao('Parar').getAttribute('aria-label')).toBe('Parar sino'))
+    act(() => botao('Parar').click())
+    expect(tocadas()[0]?.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
+    await esperar(() => expect(botao('Ouvir')).toBeDefined())
+  })
+})
+
 describe('o lápis quando a loja recusa', () => {
   const mudarFaixa = (janela: HTMLElement, valor: string) => {
     const faixa = janela.querySelector<HTMLInputElement>('input[type="range"]')

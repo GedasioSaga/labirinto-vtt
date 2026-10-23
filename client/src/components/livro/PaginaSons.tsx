@@ -374,7 +374,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       )}
 
       <Dialogo aberto={efeitoEditado !== undefined} titulo="Editar som" onFechar={() => setEditando(null)} pequeno>
-        {efeitoEditado !== undefined && <EditorDoSom key={efeitoEditado.id} efeito={efeitoEditado} biblioteca={biblioteca} motor={motor} onFechar={() => setEditando(null)} />}
+        {efeitoEditado !== undefined && <EditorDoSom key={efeitoEditado.id} efeito={efeitoEditado} biblioteca={biblioteca} motor={motor} tocando={toques.has(efeitoEditado.id)} onFechar={() => setEditando(null)} />}
       </Dialogo>
     </div>
   )
@@ -581,7 +581,7 @@ function impedimentoDaLoja(): string | null {
 }
 
 /** O lápis: nome, volume, repetir, tecla, pasta, favorito e apagar. Cada mudança vale na hora (a biblioteca grava sozinha). */
-function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDeSom; biblioteca: BibliotecaDeSons; motor: MotorAoVivo; onFechar: () => void }) {
+function EditorDoSom({ efeito, biblioteca, motor, tocando, onFechar }: { efeito: EfeitoDeSom; biblioteca: BibliotecaDeSons; motor: MotorAoVivo; tocando: boolean; onFechar: () => void }) {
   const editar = useBibliotecaDeSonsStore((estado) => estado.editarEfeito)
   const [nome, setNome] = useState(efeito.nome)
   const [saiuDoNome, setSaiuDoNome] = useState(false)
@@ -691,7 +691,18 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
           </p>
         )}
       </div>
-      <CampoFaixa rotulo="Volume" min={0} max={100} unidade="%" valor={Math.round(efeito.volume * 100)} onChange={mudarVolume} />
+      {/* Ouvir dá UMA passada no volume de agora (mesmo o loop: provar o volume não liga o ambiente); tocando, para. */}
+      <div className="lb-sons-editor__volume">
+        <CampoFaixa rotulo="Volume" min={0} max={100} unidade="%" valor={Math.round(efeito.volume * 100)} onChange={mudarVolume} />
+        <Botao
+          tamanho="p"
+          aria-label={`${tocando ? 'Parar' : 'Ouvir'} ${efeito.nome}`}
+          onClick={() => (tocando ? motor.parar(efeito.id) : motor.tocar(efeito.id, efeito.fonte, { loop: false, volumeDoEfeito: efeito.volume }))}
+        >
+          {tocando ? <IconeParar /> : <IconeDoLivro nome="som" />}
+          {tocando ? 'Parar' : 'Ouvir'}
+        </Botao>
+      </div>
       <CampoLiga rotulo="Repetir até parar" ajuda="Para ambiente: chuva, taverna, vento. Vale no próximo toque." ligado={efeito.loop} onChange={(loop) => mudar({ loop })} />
       <CampoSel rotulo="Tecla de atalho" opcoes={opcoesDoAtalho} valor={efeito.atalho === undefined ? SEM_ATALHO : String(efeito.atalho)} onChange={mudarAtalho} />
       {notaDoAtalho !== null && (
