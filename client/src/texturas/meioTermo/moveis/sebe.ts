@@ -73,7 +73,7 @@ interface Onda {
  * A onda anda pelo comprimento do eixo, defasada um quarto de período de um
  * lado para o outro (com a mesma fase dos dois lados ela lia como contas).
  */
-function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: Onda | null = null): Forma {
+function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: Onda | null = null, rapida = false): Forma {
   const [ax, ay] = eixo[0]
   const [bx, by] = eixo[eixo.length - 1]
   const amp = onda?.amp ?? 0
@@ -110,11 +110,16 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: O
   return {
     b: [Math.min(...xs) - folga, Math.min(...ys) - folga, Math.max(...xs) + folga, Math.max(...ys) + folga],
     d(x, y) {
+      const doCentro = Math.hypot(x - cx, y - cy)
+      const radial = Math.abs(doCentro - R)
+      // Longe do anel (o miolo vazio do arco e o canto de fora da caixa), a distância é no mínimo
+      // radial - r - amp, no arco e nas pontas (que estão no anel): devolve esse limite sem o ângulo.
+      // Acima de LONGE_DA_BORDA ele já não pinta (cobertura 0,5 - d x S, S >= 50/56) nem muda o
+      // sombreado (que satura), então a imagem é a mesma. Só a massa pintada usa; a sombra lê a
+      // distância exata (o borrão dela vai mais longe).
+      if (rapida && radial - r - amp > LONGE_DA_BORDA) return radial - r - amp
       const rel = ((((Math.atan2(y - cy, x - cx) - inicio) * sentido) % volta) + volta) % volta
-      if (rel <= giro) {
-        const doCentro = Math.hypot(x - cx, y - cy)
-        return Math.abs(doCentro - R) - borda(rel * R, doCentro >= R ? 0 : QUARTO)
-      }
+      if (rel <= giro) return radial - borda(rel * R, doCentro >= R ? 0 : QUARTO)
       const daPonta = Math.hypot(x - ax, y - ay)
       const daOutra = Math.hypot(x - bx, y - by)
       return daPonta <= daOutra ? daPonta - borda(0, 0) : daOutra - borda(giro * R, 0)
@@ -124,6 +129,8 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: O
 
 /** Além desta distância (px do protótipo) fora da copa, o pixel nunca pinta: o recorte não precisa da massa. */
 const LONGE_DA_COPA = 1.5
+/** Além desta distância (px do protótipo) da borda da massa, o pixel nunca pinta nem muda de sombreado. */
+const LONGE_DA_BORDA = 2
 
 /**
  * A copa recortada pela massa (o `dentroDe` de `formas.ts`), sem ler a massa
@@ -186,7 +193,7 @@ export const montarSebe: MontarMovel = (c, cena) => {
     const desvio = (hash(i, sorteio, 17) - 0.5) * 2 * DESVIO * esp
     copas.push({ x: x + nx * desvio, y: y + ny * desvio, r: esp * (RAIO_MINIMO + RAIO_VARIA * hash(i, sorteio, 18)), i })
   }
-  const massa = faixa(eixo, arco, MASSA * esp, { amp: ONDA * esp, periodo: PERIODO_DA_ONDA * esp })
+  const massa = faixa(eixo, arco, MASSA * esp, { amp: ONDA * esp, periodo: PERIODO_DA_ONDA * esp }, true)
   // Sombra SOLTA (sem as amostras arrastadas do pé até a ponta): a sebe é uma massa fechada que
   // cobre o próprio pé, e o contato escurece a base. Arrastada, a sombra lia a forma até 1 + n vezes
   // por pixel e a sebe curva de 4 casas levava ~120 ms só de sombra a 3x.
