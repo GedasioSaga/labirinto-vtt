@@ -218,7 +218,9 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
         url
           .then((endereco) => (endereco === null ? Promise.reject(new Error('sem mídia')) : Assets.load<Texture>(endereco)))
           .then((texture) => {
-            if (spriteCache.get(prop.id) !== criado) return
+            // Nó da camada descartado no meio do carregamento (`destruir` + destroy do nó):
+            // mexer no sprite destruído lançava TypeError e caía no aviso falso abaixo.
+            if (criado.destroyed || spriteCache.get(prop.id) !== criado) return
             criado.texture = texture
             fitPropSprite(criado, propsById.get(prop.id) ?? prop)
           })
@@ -317,5 +319,13 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
   }
 
-  return { draw, destruir: chamas.destruir }
+  /** Desmonte (ou nó da camada descartado): as chamas saem do relógio e nenhum carregamento pendente encontra mais o sprite. */
+  function destruir(): void {
+    chamas.destruir()
+    spriteCache.clear()
+    furnitureCache.clear()
+    propsById.clear()
+  }
+
+  return { draw, destruir }
 }

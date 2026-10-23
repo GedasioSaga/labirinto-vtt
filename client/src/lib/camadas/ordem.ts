@@ -366,9 +366,10 @@ function blocoDe(ids: readonly string[], camada: CamadaId, posicao: ReadonlyMap<
  *   camada no lugar, entra logo acima da âncora dela; numa movida ou livre,
  *   dentro do bloco. Par já nativo, de faixa fixa ou de camada que não existe
  *   é ignorado.
- * - Empate (dois blocos logo acima da mesma faixa, como Objetos e Decoração
- *   na faixa dos móveis): fica embaixo o que veio antes na lista — com a
- *   lista padrão, o ancorado na camada de menor índice padrão.
+ * - Empate (dois blocos logo acima da mesma faixa, como um pino em Objetos e
+ *   uma parede em Decoração, que ancoram os dois na faixa dividida dos
+ *   móveis): fica embaixo o que veio antes na lista — com a lista padrão, o
+ *   da camada de menor índice padrão.
  * - No jogador cada zona da névoa se ordena sozinha: reordenar não atravessa a névoa.
  *
  * Com o modelo padrão (e sem extras) o resultado é idêntico às faixas de hoje.

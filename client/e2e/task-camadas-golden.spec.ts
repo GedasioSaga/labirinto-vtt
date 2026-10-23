@@ -55,7 +55,8 @@ import {
 import { criarMovel } from '../src/lib/mobilia'
 import { buildStairFromDraft } from '../src/lib/stairs'
 import { comTexturas } from '../src/lib/texturas'
-import type { DoorState, FloorPiece, MapData, RegionPoint } from '../src/types/map'
+import { CAMADAS_PADRAO } from '../src/lib/camadas/padrao'
+import type { CamadaPadraoId, DoorState, FloorPiece, MapData, ModeloDeCamadas, RegionPoint } from '../src/types/map'
 
 const GRADE = 64
 const COLUNAS = 16
@@ -72,7 +73,18 @@ test.use({ trace: 'off', video: 'off', contextOptions: { reducedMotion: 'reduce'
 /** Só o canvas do Pixi aparece na foto: painéis e botões ficam invisíveis, sem mudar o layout. */
 const SO_O_CANVAS = '*:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }'
 // `as const`: só congela os literais ('disabled', 'hide') que a assinatura de toHaveScreenshot pede; não troca tipo nenhum.
-const FOTO = { maxDiffPixels: 0, animations: 'disabled', caret: 'hide', timeout: 20_000 } as const
+// `threshold: 0`: sem ele o Playwright fica com a tolerância de cor PADRÃO (0,2 por
+// pixel, no espaço YIQ) e `maxDiffPixels: 0` só conta pixel que passou dela; com o
+// baú sumido a foto diferia em 1 px. Com 0 qualquer mudança de cor conta.
+const FOTO = { maxDiffPixels: 0, threshold: 0, animations: 'disabled', caret: 'hide', timeout: 20_000 } as const
+/*
+ * Em 23/10/2026 três fotos (editor-terreno, jogador-1440-terreno, jogador-1440-visao-parcial)
+ * foram regravadas: as gravadas na fatia 1 diferiam do render desta máquina em ±1 a 6
+ * níveis por canal, mas o render é o MESMO, byte a byte, em 924c2bdd (antes da fatia 1),
+ * em 98d679e9~1 (antes da fatia 3) e na HEAD de então (medido em checkouts descartáveis).
+ * A diferença era do arquivo de referência, não de commit; agora as 12 fotos comparam
+ * cor exata, sem lista de exceções.
+ */
 
 /**
  * Esconde a interface por folha de estilo na página (a opção `style` da foto
@@ -259,6 +271,84 @@ test.describe('editor a 1440 x 900', () => {
       await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
     })
   }
+})
+
+/** A lista padrão com `camada` tirada e posta logo acima de `acimaDe` (de baixo para cima). */
+function listaCom(camada: CamadaPadraoId, acimaDe: CamadaPadraoId): ModeloDeCamadas {
+  const sem = CAMADAS_PADRAO.filter((c) => c !== camada)
+  const i = sem.indexOf(acimaDe)
+  return { ordem: [...sem.slice(0, i + 1), camada, ...sem.slice(i + 1)].map((id) => ({ id })) }
+}
+
+// FATIA 3 (render do editor por faixas): a lista manda. A mesma Casa, na mesma
+// câmera; só a lista de camadas ou a opacidade muda, posta pelo `loadMap`.
+// Chão logo acima de Salas: a pincelada de terra pinta por cima do fundo da
+// Sala, e paredes, móveis, luz e nomes continuam por cima. Escadas logo acima
+// de Salas: a escada passa para baixo do rabisco, do retângulo e da porta que
+// ela cobre. Objetos a 40%: mesa, cadeira, tapete, fogueira e barril esmaecem;
+// o baú (Decoração) fica inteiro.
+/** A Casa com uma parede solta cruzando a pincelada da Sala: prova que o Chão movido fica ABAIXO das paredes. */
+function casaComParedeNoChao(): MapData {
+  return addWall(mapaCasa(), buildWallFromDraft('w13', { x: 96, y: 160 }, { x: 416, y: 160 }))
+}
+
+test.describe('editor a 1440 x 900, camadas mexidas (fatia 3)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const casos: [string, () => MapData][] = [
+    ['editor-chao-acima-de-salas.png', () => ({ ...casaComParedeNoChao(), modeloCamadas: listaCom('chao', 'salas') })],
+    // Uma escada a mais cobre a porta trancada (vermelha) do corredor: sob Portas, a porta passa por cima dela.
+    ['editor-escadas-acima-de-salas.png', () => ({ ...addStair(mapaCasa(), buildStairFromDraft('s2', { x: 460, y: 296 }, { x: 500, y: 344 }, 8)), modeloCamadas: listaCom('escadas', 'salas') })],
+    ['editor-objetos-40.png', () => ({ ...mapaCasa(), opacidadeDasCamadas: { objetos: 0.4 } })],
+  ]
+  for (const [foto, montar] of casos) {
+    test(foto, async ({ page }) => {
+      test.setTimeout(90_000)
+      await abrirNoEditor(page, montar())
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+    })
+  }
+})
+
+/** Quantos filhos o `world` do editor tem agora (`data-nos-da-pilha`). */
+async function nosDaPilha(page: Page): Promise<number> {
+  return Number(await page.locator('[data-nos-da-pilha]').first().getAttribute('data-nos-da-pilha'))
+}
+
+/** Muda só a lista ou só as opacidades do mapa ABERTO, pela store (como a interface fará na fatia 6). */
+async function mudarCamadasDoMapaAberto(page: Page, campos: Pick<MapData, 'modeloCamadas' | 'opacidadeDasCamadas'>): Promise<void> {
+  await page.evaluate(async (novos) => {
+    const mod = await import('/src/stores/mapStore.ts')
+    const { map } = mod.useMapStore.getState()
+    mod.useMapStore.setState({ map: { ...map, ...novos } })
+  }, campos)
+  await page.evaluate(() => new Promise((pronto) => requestAnimationFrame(() => requestAnimationFrame(pronto))))
+}
+
+// Com o mapa JÁ aberto, a lista e a opacidade mudam pela store: a pilha remonta
+// sozinha (assinatura `unsubscribeCamadas` do PixiCanvas) e a imagem fica igual
+// à do mapa aberto já mexido.
+test.describe('editor a 1440 x 900, camadas mudadas com o mapa aberto (fatia 3)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('mover Chão para logo acima de Salas com a Casa aberta', async ({ page }) => {
+    test.setTimeout(90_000)
+    await abrirNoEditor(page, casaComParedeNoChao())
+    const antes = await nosDaPilha(page)
+    await mudarCamadasDoMapaAberto(page, { modeloCamadas: listaCom('chao', 'salas') })
+    await expect(page.locator('canvas').first()).toHaveScreenshot('editor-chao-acima-de-salas.png', FOTO)
+    // Mover camada padrão só troca containers de lugar: nenhum nó criado.
+    expect(await nosDaPilha(page)).toBe(antes)
+  })
+
+  test('Objetos a 40% com a Casa aberta', async ({ page }) => {
+    test.setTimeout(90_000)
+    await abrirNoEditor(page, mapaCasa())
+    const antes = await nosDaPilha(page)
+    await mudarCamadasDoMapaAberto(page, { opacidadeDasCamadas: { objetos: 0.4 } })
+    await expect(page.locator('canvas').first()).toHaveScreenshot('editor-objetos-40.png', FOTO)
+    // Objetos e Decoração com opacidades diferentes: a faixa dos móveis ganha o nó do baú (Decoração).
+    expect(await nosDaPilha(page)).toBe(antes + 1)
+  })
 })
 
 test.describe('jogador a 1440 x 900', () => {

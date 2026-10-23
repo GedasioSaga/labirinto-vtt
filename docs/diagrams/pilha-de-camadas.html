@@ -24,6 +24,7 @@
   <p class="eyebrow">Labirinto VTT · fase 3 · camadas</p>
   <h1>Pilha de camadas</h1>
   <p>A ordem de desenho de hoje, de baixo para cima, como <code>lib/camadas/ordem.ts</code> a copia (<code>FAIXAS_EDITOR</code>, <code>FAIXAS_JOGADOR</code>). As 13 camadas padrão ficam entrelaçadas nas faixas de hoje enquanto seguem a ordem padrão; camada movida ou livre vira um bloco inteiro entre as duas vizinhas da lista: logo acima da faixa mais alta da camada de baixo que ainda fica abaixo da faixa principal da camada de cima (Chão posto acima de Salas fica abaixo das paredes, não acima do nome do lugar). Faixa fixa (fundo, grade, névoa, zona oculta, edição) não sai do lugar.</p>
+  <p>No editor (fatia 3, <code>pixi/pilhaDeCamadas.ts</code>) o <code>addChild</code> do mundo sai de <code>FAIXAS_EDITOR</code>. Cada faixa tem o container de hoje; mover camada só troca containers de lugar, sem repintar. Par (faixa, camada) que não é o de hoje (item noutra camada, camada livre) ganha nó próprio só enquanto tem itens. Faixa dividida (Paredes e Portas; Objetos e Decoração) se separa quando há camada entre as duas na lista ou quando as opacidades diferem. Opacidade é o <code>alpha</code> do nó; Telhados = opacidade × Transparente.</p>
 
   <h2>Editor</h2>
   <svg viewBox="0 0 720 440" role="img" aria-labelledby="pilha-editor-title pilha-editor-desc">
@@ -105,7 +106,7 @@
     <text x="376" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO: DIVIDE AS DUAS ZONAS</text>
   </svg>
 
-  <footer>Fontes: client/src/lib/camadas/ordem.ts · client/src/pixi/PixiCanvas.tsx (addChild ~1257-1330) · client/src/player/PlayerView.tsx (addChild ~3055-3138) · plano docs/planos/camadas-fase3-2026-10-22.md</footer>
+  <footer>Fontes: client/src/lib/camadas/ordem.ts · client/src/pixi/pilhaDeCamadas.ts · client/src/pixi/PixiCanvas.tsx (addChild ~1263-1345) · client/src/player/PlayerView.tsx (addChild ~3055-3138) · plano docs/planos/camadas-fase3-2026-10-22.md</footer>
 </main>
 </body>
 </html>
