@@ -86,24 +86,59 @@ Parte de: editor com aventura, Selecionar, nada selecionado. Vai para: Página C
 | Camadas: Grudar Token no centro | checkbox "Grudar Token no centro" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 | Camadas: Grudar Parede na grade | checkbox "Grudar Parede na grade" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 | Camadas: Grudar Objeto na grade | checkbox "Grudar Objeto na grade" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Paredes | button "Ocultar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Paredes | button "Travar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Portas | button "Ocultar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Portas | button "Travar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Salas | button "Ocultar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Salas | button "Travar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Escadas | button "Ocultar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Escadas | button "Travar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Objetos | button "Ocultar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Objetos | button "Travar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Decoração | button "Ocultar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Decoração | button "Travar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Iluminação | button "Ocultar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Iluminação | button "Travar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: olho de Tokens | button "Ocultar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
-| Camadas: trava de Tokens | button "Travar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Telhados | button "Ocultar Telhados" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Telhados | button "Ocultar Telhados dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Telhados | button "Travar Telhados" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Telhados | slider "Opacidade de Telhados" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 | Camadas: olho de Anotações | button "Ocultar Anotações" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Anotações | button "Ocultar Anotações dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 | Camadas: trava de Anotações | button "Travar Anotações" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Anotações | slider "Opacidade de Anotações" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Tokens | button "Ocultar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Tokens | button "Ocultar Tokens dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Tokens | button "Travar Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Tokens | slider "Opacidade de Tokens" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Iluminação | button "Ocultar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Iluminação | button "Ocultar Iluminação dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Iluminação | button "Travar Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Iluminação | slider "Opacidade de Iluminação" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Decoração | button "Ocultar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Decoração | button "Ocultar Decoração dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Decoração | button "Travar Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Decoração | slider "Opacidade de Decoração" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Objetos | button "Ocultar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Objetos | button "Ocultar Objetos dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Objetos | button "Travar Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Objetos | slider "Opacidade de Objetos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Escadas | button "Ocultar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Escadas | button "Ocultar Escadas dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Escadas | button "Travar Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Escadas | slider "Opacidade de Escadas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Portas | button "Ocultar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Portas | button "Ocultar Portas dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Portas | button "Travar Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Portas | slider "Opacidade de Portas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Paredes | button "Ocultar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Paredes | button "Ocultar Paredes dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Paredes | button "Travar Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Paredes | slider "Opacidade de Paredes" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Terreno | button "Ocultar Terreno" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Terreno | button "Ocultar Terreno dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Terreno | button "Travar Terreno" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Terreno | slider "Opacidade de Terreno" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Desenhos | button "Ocultar Desenhos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Desenhos | button "Ocultar Desenhos dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Desenhos | button "Travar Desenhos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Desenhos | slider "Opacidade de Desenhos" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Salas | button "Ocultar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Salas | button "Ocultar Salas dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Salas | button "Travar Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Salas | slider "Opacidade de Salas" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho de Chão | button "Ocultar Chão" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: olho dos jogadores de Chão | button "Ocultar Chão dos jogadores" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: trava de Chão | button "Travar Chão" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: opacidade de Chão | slider "Opacidade de Chão" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
+| Camadas: Telhados Transparente | checkbox "Transparente" | (livro do mestre) > clicar tab "Cena" > clicar button "Camadas" | (do bloco) |
 
 ### Camadas do chão
 
@@ -1191,4 +1226,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item | pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 661 controles em 70 blocos.
+Total: 696 controles em 70 blocos.

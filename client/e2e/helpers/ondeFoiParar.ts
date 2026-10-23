@@ -194,10 +194,14 @@ export const BLOCOS: readonly Bloco[] = [
       l('Camadas: Grudar Token no centro', cx('Grudar Token no centro'), marcador('Cena'), b('Camadas')),
       l('Camadas: Grudar Parede na grade', cx('Grudar Parede na grade'), marcador('Cena'), b('Camadas')),
       l('Camadas: Grudar Objeto na grade', cx('Grudar Objeto na grade'), marcador('Cena'), b('Camadas')),
-      ...(['Paredes', 'Portas', 'Salas', 'Escadas', 'Objetos', 'Decoração', 'Iluminação', 'Tokens', 'Anotações'].flatMap((c) => [
+      // Fatia 6 das camadas: as 13 da lista, cada uma com os dois olhos, a trava e a opacidade.
+      ...(['Telhados', 'Anotações', 'Tokens', 'Iluminação', 'Decoração', 'Objetos', 'Escadas', 'Portas', 'Paredes', 'Terreno', 'Desenhos', 'Salas', 'Chão'].flatMap((c) => [
         l(`Camadas: olho de ${c}`, b(`Ocultar ${c}`), marcador('Cena'), b('Camadas')),
+        l(`Camadas: olho dos jogadores de ${c}`, b(`Ocultar ${c} dos jogadores`), marcador('Cena'), b('Camadas')),
         l(`Camadas: trava de ${c}`, b(`Travar ${c}`), marcador('Cena'), b('Camadas')),
+        l(`Camadas: opacidade de ${c}`, ['slider', `Opacidade de ${c}`], marcador('Cena'), b('Camadas')),
       ])),
+      l('Camadas: Telhados Transparente', cx('Transparente'), marcador('Cena'), b('Camadas')),
     ],
   },
   {
