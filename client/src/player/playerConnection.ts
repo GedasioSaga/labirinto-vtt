@@ -1,5 +1,6 @@
 import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
+import { comCamadasDoJogadorLidas } from '../lib/camadas/doJogador'
 import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
@@ -3189,7 +3190,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function applySnapshot(
     rev: number,
-    map: MapData,
+    mapaRecebido: MapData,
     vision: RegionPoint[][],
     explored: Exploration | undefined,
     ownTokens: string[],
@@ -3210,6 +3211,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     porAtravessar: readonly string[],
   ): void {
     if (rev <= state.rev) return
+    // CAMADAS (aditivo, `isMapShape` não muda): `camadasDoJogador` torto vira
+    // ausente, a ordem padrão; ausente é tolerado (mapa antigo, host antigo).
+    const map = comCamadasDoJogadorLidas(mapaRecebido)
     // Outra cena: o resto do caminho era do mapa de antes.
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
