@@ -141,7 +141,9 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
   }
   const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), curva: arredondar(voltaDaCerca(prop), PASSO_DA_CURVA) }
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
-  return { ...parcial, desenho: { ...semSemente, semente }, nivel: nivelDeResolucao(cameraScale, rendererResolution) }
+  // O desenho leva a forma do tapete e a volta da cerca (já de 5 em 5 graus): é o que a cena da imagem lê.
+  const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva }
+  return { ...parcial, desenho, nivel: nivelDeResolucao(cameraScale, rendererResolution) }
 }
 
 /** O teto de bytes do aparelho: menor com dedo (celular, tablet). */
