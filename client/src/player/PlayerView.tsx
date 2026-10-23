@@ -2202,7 +2202,11 @@ function PlayerViewDoCanvas({
     scene.entradaDaPilha = { map, camadas: map.camadasDoJogador, pares: chave }
     scene.pilha.atualizar(entradaDoJogador(map, pares))
     const el = containerRef.current
-    if (el) el.dataset.nosDaPilha = String(scene.world.children.length)
+    if (el) {
+      el.dataset.nosDaPilha = String(scene.world.children.length)
+      // A opacidade de cada nó, em %: o teste prova que o alfa da camada CHEGA ao nó (não só que um quadro mudou).
+      el.dataset.alfasDaPilha = scene.world.children.map((no) => String(Math.round(no.alpha * 100))).join(',')
+    }
   }
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */

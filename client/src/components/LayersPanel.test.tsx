@@ -101,29 +101,82 @@ describe('LayersPanel: as 13 camadas (fatia 6)', () => {
     expect(paredes?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
   })
 
-  it('olho do mestre: nome e aria-pressed do jeito das jornadas seladas', () => {
+  it('olho do mestre: nome e aria-pressed do jeito das jornadas seladas; o segundo clique volta ao estado inicial', () => {
     act(() => button('Ocultar Paredes').click())
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenLastCalledWith({ tipo: 'mestre', id: 'paredes' })
     expect(button('Mostrar Paredes').getAttribute('aria-pressed')).toBe('true')
     expect(button('Mostrar Paredes').closest('li')?.hasAttribute('data-hidden')).toBe(true)
     // Mapa de antes: a oculta de antes some também para os jogadores (o olho deles mostra isso).
     expect(button('Mostrar Paredes aos jogadores').getAttribute('aria-pressed')).toBe('true')
+    // O outro callback não foi chamado.
+    expect(pedir.mock.calls.every(([p]) => p.tipo === 'mestre')).toBe(true)
+    act(() => button('Mostrar Paredes').click())
+    expect(pedir).toHaveBeenCalledTimes(2)
+    expect(button('Ocultar Paredes').getAttribute('aria-pressed')).toBe('false')
+    expect(button('Ocultar Paredes').closest('li')?.hasAttribute('data-hidden')).toBe(false)
   })
 
   it('olho dos jogadores: "Ocultar X dos jogadores" / "Mostrar X aos jogadores" com aria-pressed; o do mestre não muda', () => {
     const olho = button('Ocultar Tokens dos jogadores')
     expect(olho.getAttribute('aria-pressed')).toBe('false')
     act(() => olho.click())
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenLastCalledWith({ tipo: 'jogadores', id: 'tokens' })
     expect(button('Mostrar Tokens aos jogadores').getAttribute('aria-pressed')).toBe('true')
     expect(button('Ocultar Tokens').getAttribute('aria-pressed')).toBe('false')
+    act(() => button('Mostrar Tokens aos jogadores').click())
+    expect(button('Ocultar Tokens dos jogadores').getAttribute('aria-pressed')).toBe('false')
+    expect(pedir.mock.calls.every(([p]) => p.tipo === 'jogadores')).toBe(true)
   })
 
-  it('cadeado: "Travar X" / "Destravar X" com aria-pressed', () => {
+  it('cadeado: "Travar X" / "Destravar X" com aria-pressed; o segundo clique destrava', () => {
     act(() => button('Travar Chão').click())
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenLastCalledWith({ tipo: 'cadeado', id: 'chao' })
     expect(button('Destravar Chão').getAttribute('aria-pressed')).toBe('true')
     expect(button('Travar Salas').getAttribute('aria-pressed')).toBe('false')
+    act(() => button('Destravar Chão').click())
+    expect(button('Travar Chão').getAttribute('aria-pressed')).toBe('false')
+    expect(pedir.mock.calls.every(([p]) => p.tipo === 'cadeado')).toBe(true)
+  })
+
+  it('o nome abre a linha: aria-expanded, slider fora do Tab até abrir, UMA aberta por vez, Esc fecha e devolve o foco ao nome', () => {
+    const nome = (rotulo: string) => button(`${rotulo}, opacidade`)
+    const corpoDe = (rotulo: string) => document.getElementById(nome(rotulo).getAttribute('aria-controls') ?? '')
+    expect(nome('Salas').getAttribute('aria-expanded')).toBe('false')
+    expect(corpoDe('Salas')?.hasAttribute('inert')).toBe(true)
+    expect(corpoDe('Salas')?.contains(slider('Opacidade de Salas'))).toBe(true)
+    act(() => nome('Salas').click())
+    expect(nome('Salas').getAttribute('aria-expanded')).toBe('true')
+    expect(corpoDe('Salas')?.hasAttribute('inert')).toBe(false)
+    expect(corpoDe('Salas')?.textContent).toContain('Para você e para os jogadores')
+    // Abrir outra fecha a primeira.
+    act(() => nome('Paredes').click())
+    expect(nome('Salas').getAttribute('aria-expanded')).toBe('false')
+    expect(nome('Paredes').getAttribute('aria-expanded')).toBe('true')
+    // Esc com o foco no slider: fecha e o foco volta ao nome.
+    const faixa = slider('Opacidade de Paredes')
+    faixa.focus()
+    act(() => {
+      faixa.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(nome('Paredes').getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(nome('Paredes'))
+    // Fechada, o texto da linha é só nome e contagem (as jornadas leem "Paredes 3").
+    expect(nome('Paredes').closest('li')?.textContent).toBe('Paredes3')
+    // A ordem do DOM é a da leitura: nome, os três botões, e só então o slider.
+    const linha = nome('Paredes').closest('li')
+    const focaveis = Array.from(linha?.querySelectorAll('button, input') ?? []).map((el) => el.getAttribute('aria-label'))
+    expect(focaveis).toEqual(['Paredes, opacidade', 'Ocultar Paredes', 'Ocultar Paredes dos jogadores', 'Travar Paredes', 'Opacidade de Paredes'])
+    expect(pedir).not.toHaveBeenCalled()
+  })
+
+  it('o slider avisa no tooltip que 0% some para todos, e o tooltip não muda com o valor', () => {
+    const antes = slider('Opacidade de Salas').title
+    expect(antes).toContain('0% some para todos')
+    arrastar(slider('Opacidade de Salas'), [40])
+    expect(slider('Opacidade de Salas').title).toBe(antes)
   })
 
   it('opacidade: slider "Opacidade de X" com o valor em aria-valuetext; um arrasto manda UM gesto; a porcentagem fica fora do texto', () => {

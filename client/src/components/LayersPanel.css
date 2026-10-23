@@ -1,23 +1,32 @@
 /*
- * CAMADAS (fase 3, fatia 6): 13 linhas com nome e contagem, opacidade, olho
- * do mestre, olho dos jogadores e cadeado. Herda a lista compacta de
- * `.lb-layers` (main.css); aqui só o que a linha nova acrescenta.
+ * CAMADAS (fase 3, fatia 6): 13 linhas com o nome (que abre a linha), a
+ * contagem, o olho do mestre, o olho dos jogadores e o cadeado. A opacidade,
+ * o controle mais raro, mora dentro da linha aberta (uma por vez). Herda a
+ * lista compacta de `.lb-layers` (main.css); aqui só o que a linha acrescenta.
  *
- * A linha é quieta por padrão: o slider fica apagado até a mão chegar nele,
- * e só a camada mexida (opacidade abaixo de 100%) acende o slider e mostra a
- * porcentagem em latão. Assim o olho acha, nas 13, a que está diferente.
- * Sem animação de entrada: o painel é aberto e mexido o tempo todo.
+ * A linha fechada é quieta: só a camada mexida (opacidade abaixo de 100%)
+ * mostra a porcentagem em latão ao lado do nome, para o olho achar, nas 13, a
+ * que está diferente. A abertura copia a ficha do Grimório
+ * (`.gr-ficha__corpo`, grimorio.css) a 160 ms; com movimento reduzido, nada
+ * se move.
  */
 
 .lb-camadas {
-  container-type: inline-size;
   gap: 1px;
 }
 
-/* O `li` deixa de ser a fileira: a fileira é a cabeça; o que é aninhado vem embaixo. */
+/* O `li` deixa de ser a fileira: a fileira é a cabeça; o slider e o que é
+   aninhado vêm embaixo. `contain: paint` prende a pintura do arrasto na linha
+   mexida (o painel inteiro repintava a cada quadro). */
 .lb-camadas .lb-camadas__linha {
   display: block;
   min-height: 0;
+  contain: paint;
+}
+
+/* Com a pintura presa na linha, o anel de foco vai para DENTRO do controle. */
+.lb-camadas .lb-camadas__linha :focus-visible {
+  outline-offset: -2px;
 }
 
 .lb-camadas__cabeca {
@@ -27,14 +36,68 @@
   min-height: 32px;
 }
 
-/* Base 0 e min-width 0: nome comprido encolhe com reticências em vez de
-   empurrar contagem e botões para a linha de baixo. */
-.lb-camadas .lb-camadas__linha .lb-camadas__nome {
+/* O nome é botão com cara de texto da lista. Base 0 e min-width 0: nome
+   comprido encolhe com reticências em vez de empurrar os botões. */
+.lb-camadas__nome {
   flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 4px 0 2px;
+  border: 0;
+  border-radius: var(--lb-radius-sm, 4px);
+  background: none;
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-camadas__nome:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-camadas__nome:hover .lb-camadas__divisa {
+    color: var(--lb-color-parchment-dim);
+  }
+}
+
+.lb-camadas__rotulo {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A divisa: 12 px, apagada; deitada fechada, em pé aberta. */
+.lb-camadas__divisa {
+  flex: none;
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas__linha[data-aberta] .lb-camadas__divisa {
+  transform: none;
+}
+
+/* A porcentagem da camada mexida: `::after` (fora do texto da linha). */
+.lb-camadas__pct::after {
+  content: attr(data-pct);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass);
+}
+
+/* Os três botões não encolhem: painel estreito quebra a fileira (no toque), não espreme o alvo. */
+.lb-camadas .lb-camadas__bt {
+  flex: none;
 }
 
 .lb-camadas__conta {
@@ -45,53 +108,76 @@
   color: var(--lb-color-parchment-dim);
 }
 
-/* Slider + porcentagem. A porcentagem é `::after` (fora do texto da linha) e
-   o espaço dela fica reservado: mexer numa camada não empurra os botões. */
-.lb-camadas__opacidade {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* Camada vazia: o 0 apagado, ainda legível (4,5:1). */
+.lb-camadas__conta[data-zero] {
+  color: var(--lb-color-parchment-faint);
 }
 
-.lb-camadas__opacidade::after {
-  content: attr(data-pct);
-  width: 4ch;
-  font-size: var(--lb-font-size-xs, 10.5px);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--lb-color-brass);
-}
-
-.lb-camadas__faixa {
-  width: 56px;
-  opacity: 0.45;
-  cursor: pointer;
-  transition: opacity var(--lb-motion-fast, 110ms) ease;
-}
-
-.lb-camadas__linha[data-esmaecida] .lb-camadas__faixa,
-.lb-camadas__faixa:focus-visible,
-.lb-camadas__faixa:active {
+/* Camada oculta para o mestre: nome, contagem e porcentagem apagados por COR
+   (4,5:1), não por opacidade (que caía abaixo do AA). Os botões seguem
+   legíveis para o mestre achar onde mostrar de novo. */
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__nome,
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__conta,
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__pct::after {
   opacity: 1;
+  color: var(--lb-color-parchment-faint);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .lb-camadas__cabeca:hover .lb-camadas__faixa {
-    opacity: 1;
-  }
+/* A linha aberta: o slider na largura toda e a nota. Mesma gramática da ficha
+   do Grimório: a altura anda por `grid-template-rows`, o miolo some por
+   opacidade. */
+/* Fecha mais rápido do que abre (120 contra 160 ms): abrir é a mão pedindo,
+   fechar é o sistema respondendo. Altura por grade é a exceção aceita do
+   acordeão (não há transform que faça o vizinho de baixo descer). */
+.lb-camadas__corpo {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 120ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
-.lb-camadas__faixa:focus-visible {
-  outline: 2px solid var(--lb-color-brass);
-  outline-offset: 2px;
-  border-radius: 4px;
+.lb-camadas__linha[data-aberta] .lb-camadas__corpo {
+  grid-template-rows: 1fr;
+  transition-duration: 160ms;
 }
 
-/* A linha oculta para o mestre já esmaece nome e contagem (main.css); a
-   porcentagem também, para não acender numa camada que nem está à vista. */
-.lb-camadas__linha[data-hidden] .lb-camadas__opacidade::after {
-  opacity: 0.45;
+/* Fechado, o miolo some também por `visibility` (depois do esmaecer): fora
+   da árvore de acessibilidade e do clique, além do `inert` do corpo. */
+.lb-camadas__miolo {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 0s linear 120ms;
+}
+
+.lb-camadas__linha[data-aberta] .lb-camadas__miolo {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 120ms ease 40ms, visibility 0s;
+}
+
+.lb-camadas__dentro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 4px 8px 20px;
+}
+
+/* Sempre opaco (o apagado reprovava o contraste e parecia desabilitado): a
+   cor de pergaminho à toa, o latão só na camada mexida. */
+.lb-camadas .lb-camadas__faixa {
+  width: 100%;
+  cursor: pointer;
+  accent-color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__linha[data-esmaecida] .lb-camadas__faixa {
+  accent-color: var(--lb-color-brass);
+}
+
+.lb-camadas__nota {
+  font-size: var(--lb-font-size-xs, 10.5px);
+  color: var(--lb-color-parchment-dim);
 }
 
 /* Chave dos ícones, acima da lista. */
@@ -115,16 +201,23 @@
 }
 
 /* O que mora dentro de uma camada (as camadas de pincel do Chão, o atalho
-   Transparente dos Telhados): recuado, com um filete à esquerda que diz "é
-   desta linha". */
+   Transparente dos Telhados): a gramática do subgrupo do Grimório, com o
+   filete tracejado em cima, sem recuo — o nome comprido precisa da largura. */
 .lb-camadas__aninhado {
-  margin: 2px 0 var(--lb-space-2, 8px) 6px;
-  padding-left: var(--lb-space-2, 8px);
-  border-left: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+  margin: 4px 0 8px;
+  padding: 8px 0 0;
+  border-left: 0;
+  border-top: 1px dashed var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
 }
 
 .lb-camadas__aninhado .lb-quick-toggles {
   margin: 0;
+}
+
+/* Aninhada, a lista do chão fica sem a pipeta na linha: a cor se escolhe no
+   seletor (que tem a sua), e os 22 px vão para o nome. */
+.lb-camadas__aninhado .lb-floor-layers .lb-campo-cor__pipeta {
+  display: none;
 }
 
 .lb-camadas__titulo-aninhado {
@@ -134,44 +227,31 @@
   color: var(--lb-color-parchment-dim);
 }
 
-.lb-camadas__nota {
-  display: block;
-  margin-top: 2px;
-  font-size: var(--lb-font-size-xs, 10.5px);
-  color: var(--lb-color-parchment-dim);
+/* Movimento reduzido: nada se move (altura e giro da divisa saltam); o
+   esmaecer do miolo fica, que é cor e não movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-camadas__divisa,
+  .lb-camadas__corpo,
+  .lb-camadas__linha[data-aberta] .lb-camadas__corpo {
+    transition-duration: 0ms;
+  }
 }
 
-/* Painel estreito: a opacidade desce para a linha de baixo, inteira, e o nome
-   fica com o espaço da fileira. */
-@container (max-width: 290px) {
+/* Dedo: alvo de 44 px nos três botões e no slider, o nome com 36 px. Três
+   44 px não cabem ao lado do nome no livro do celular (~210 px), então a
+   fileira quebra: nome e contagem em cima, os três botões embaixo, à
+   direita. A lista do chão aninhada ganha os mesmos 44 px e a mesma quebra. */
+@media (pointer: coarse) {
   .lb-camadas__cabeca {
     flex-wrap: wrap;
   }
 
-  .lb-camadas__opacidade {
-    order: 9;
-    flex: 1 0 100%;
-    padding: 0 0 2px 2px;
+  .lb-camadas__nome {
+    flex: 1 0 calc(100% - 9ch);
+    min-height: 36px;
   }
 
-  /* Na linha de baixo o slider é largo: fica ainda mais quieto até a mão
-     chegar, para as 13 faixas não virarem 13 barras de latão. */
-  .lb-camadas__faixa {
-    flex: 1 1 auto;
-    width: auto;
-    opacity: 0.3;
-  }
-}
-
-/* Dedo: alvo de 44 px nos botões e no slider. Três 44 px não cabem ao lado
-   do nome no celular sem cortá-lo, então a linha vira três: nome e contagem
-   (inteiros), os três botões alinhados à direita, e a opacidade. */
-@media (pointer: coarse) {
-  .lb-camadas .lb-camadas__linha .lb-camadas__nome {
-    flex: 1 0 calc(100% - 4ch - var(--lb-space-1, 4px));
-  }
-
-  .lb-camadas__opacidade + .lb-camadas__bt {
+  .lb-camadas__conta + .lb-camadas__bt {
     margin-left: auto;
   }
 
@@ -180,20 +260,28 @@
     height: var(--lb-control-touch, 44px);
   }
 
-  .lb-camadas__cabeca {
-    flex-wrap: wrap;
-    min-height: var(--lb-control-touch, 44px);
-  }
-
-  .lb-camadas__opacidade {
-    order: 9;
-    flex: 1 0 100%;
-  }
-
-  .lb-camadas__faixa {
-    flex: 1 1 auto;
-    width: auto;
+  .lb-camadas .lb-camadas__faixa {
     height: var(--lb-control-touch, 44px);
-    opacity: 1;
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row {
+    flex-wrap: wrap;
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row > .lb-layers__name {
+    flex: 1 0 calc(100% - 32px);
+    min-height: 36px;
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row > .lb-iconbtn--sm {
+    flex: none;
+    width: var(--lb-control-touch, 44px);
+    height: var(--lb-control-touch, 44px);
+  }
+}
+
+@media (pointer: coarse) {
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__name + .lb-iconbtn--sm {
+    margin-left: auto;
   }
 }
