@@ -34,7 +34,10 @@ const MONTADORES = {
   aparador: montarAparador,
   fogueira: montarFogueira,
   tapete: montarTapete,
-} as const satisfies Record<TipoMobilia, MontarMovel>
+} as const satisfies Partial<Record<TipoMobilia, MontarMovel>>
+
+// As peças novas do lote 1 (MT4) entram aqui uma a uma, com o desenho pronto e medido; a que
+// ainda não entrou fica no desenho de linhas e fora do catálogo do painel (`lib/mobilia/pecasNovas.ts`).
 
 export type TipoComTextura = keyof typeof MONTADORES
 
@@ -79,6 +82,8 @@ export interface DesenhoDoMovel {
   readonly forma?: FormaDoTapete
   /** Só na cerca: a volta em graus (0 ou ausente = reta). */
   readonly curva?: number
+  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). */
+  readonly variante?: number
 }
 
 /**
@@ -109,7 +114,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0 }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
   return cena
 }

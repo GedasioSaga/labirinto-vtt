@@ -20,6 +20,7 @@ import {
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { ehPecaNova } from '../lib/mobilia/pecasNovas'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 // Só o tipo: o Meio-Termo dos móveis (motor, materiais, tabelas de ruído) carrega sob demanda, com a chave ligada.
@@ -109,7 +110,9 @@ export type PropSilhouette = Pick<
   | 'mobiliaForma'
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
->
+> &
+  // O id só escolhe a variação da lápide (`varianteDaLapide`); quem chama passa o objeto inteiro.
+  Partial<Pick<Prop, 'id'>>
 
 /** Cor e opacidade de uma metade do desenho, no formato que `fill`/`stroke` recebem. */
 interface SilhouettePaint {
@@ -452,7 +455,8 @@ function drawTexturedFurniture(
  * Com o Meio-Termo ligado, os móveis que já têm textura saem como imagem
  * (`drawTexturedFurniture`) e este `Graphics` se repinta sozinho, com os
  * mesmos argumentos, quando uma imagem que ele pediu fica pronta (quem chamou
- * não precisa saber); desligado, nenhum caminho novo roda.
+ * não precisa saber); desligado, só a PEÇA NOVA (MT4, `ehPecaNova`) sai em
+ * imagem, e sem peça nova na lista nenhum caminho novo roda.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
@@ -466,7 +470,10 @@ export function drawPropSilhouettes(
   const repintar = (): void => {
     if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution)
   }
-  const raster = meioTermoLigado() ? rasterParaPassada(graphics, repintar) : null
+  // A chave de obra vale para os 11 móveis de antes; a PEÇA NOVA (MT4) sai sempre com textura.
+  const obraLigada = meioTermoLigado()
+  const comTextura = (prop: PropSilhouette): boolean => obraLigada || ehPecaNova(prop.mobilia)
+  const raster = obraLigada || props.some(comTextura) ? rasterParaPassada(graphics, repintar) : null
   const modulo = moduloDoRaster
   raster?.abrirPassada(graphics, repintar)
   try {
@@ -474,7 +481,7 @@ export function drawPropSilhouettes(
     // O tapete fica no chão: pintado antes, por baixo de todo objeto.
     for (const prop of emOrdemDeDesenho(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1

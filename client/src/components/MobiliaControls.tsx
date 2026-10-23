@@ -5,7 +5,6 @@ import {
   ROTULO_FORMA,
   ROTULO_MOBILIA,
   ROTULO_VISTA,
-  TIPOS_MOBILIA,
   VISTAS_MOBILIA,
   aceitaVista,
   ehMovelVazado,
@@ -16,6 +15,7 @@ import {
   vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from '../lib/mobilia'
+import { catalogoComOTipo, ehPecaNova } from '../lib/mobilia/pecasNovas'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
@@ -24,6 +24,7 @@ import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 import { FormaDoTapeteIcon } from './icons'
+import { MaterialDaPeca } from './MaterialDaPeca'
 
 function hexDaCor(cor: number): string {
   return `#${cor.toString(16).padStart(6, '0')}`
@@ -236,7 +237,7 @@ export function MobiliaControls({
               if (ehTipoMobilia(novo)) onTipoChange(prop.id, novo)
             }}
           >
-            {TIPOS_MOBILIA.map((opcao) => (
+            {catalogoComOTipo(tipo).map((opcao) => (
               <option key={opcao} value={opcao}>
                 {ROTULO_MOBILIA[opcao]}
               </option>
@@ -290,6 +291,9 @@ export function MobiliaControls({
       </section>
     )
   }
+
+  // PEÇA NOVA (MT4): sai sempre com textura, então a aparência é o MATERIAL (o hex oficial nos campos de cor de sempre).
+  if (ehPecaNova(tipo)) return <MaterialDaPeca prop={prop} tipo={tipo} onAparenciaChange={onAparenciaChange} />
 
   const corId = `${baseId}-cor`
   const corDaLinhaId = `${baseId}-cor-da-linha`

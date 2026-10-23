@@ -36,8 +36,9 @@ const GRADE = 40
 
 describe('catálogo da mobília', () => {
   it('tem barril, caixa, baú, cama, mesa, cadeira, cerca, armário de cozinha, aparador, fogueira e tapete, nessa ordem, com o nome que a setinha mostra', () => {
-    expect([...TIPOS_MOBILIA]).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
-    expect(TIPOS_MOBILIA.map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
+    // MT4: as peças novas vêm depois dos 11 de antes (registro e nomes em `mobilia/pecasNovas.test.ts`).
+    expect(TIPOS_MOBILIA.slice(0, 11)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
+    expect(TIPOS_MOBILIA.slice(0, 11).map((tipo) => ROTULO_MOBILIA[tipo])).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
   })
 
   it('a cama guarda o id antigo do catre: mapa salvo com catre abre com a cama', () => {
@@ -85,7 +86,8 @@ describe('criarMovel — o móvel que a ferramenta Objetos põe', () => {
 
 describe('silhueta redonda', () => {
   it('só o barril e a fogueira (de cima) são redondos', () => {
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira'])
+    // MT4: mais a mesa redonda, o vaso e o poço, peças novas redondas.
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)
@@ -437,8 +439,9 @@ function contornoDe(tipo: TipoMobilia, largura: number, altura: number): { x: nu
 
 describe('vista do móvel — frente ou lado, só nos tipos com vista', () => {
   it('só cadeira, baú, armário de cozinha, aparador, fogueira e tapete aceitam vista; as vistas são Frente e Lado, nessa ordem', () => {
-    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete'])
-    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete'])
+    // MT4: a barraca e a carroça, peças novas, também têm vista de lado.
+    expect([...TIPOS_COM_VISTA]).toEqual(['cadeira', 'bau', 'armario', 'aparador', 'fogueira', 'tapete', 'barraca', 'carroca'])
+    expect(TIPOS_MOBILIA.filter((tipo) => aceitaVista(tipo))).toEqual(['bau', 'cadeira', 'armario', 'aparador', 'fogueira', 'tapete', 'barraca', 'carroca'])
     expect(aceitaVista(undefined)).toBe(false)
     expect(VISTAS_MOBILIA.map((vista) => ROTULO_VISTA[vista])).toEqual(['Frente', 'Lado'])
   })
