@@ -3,11 +3,11 @@
  * vila (função `poco`): a boca de água escura (a borda de pedra faz sombra do
  * lado da luz), um reflexo fraco, a borda de doze pedras em anel com folga
  * entre elas, os dois esteios e o sarilho de madeira com a corda enrolada, e
- * o balde em cima da borda. A vila desenhava com raio 26 e o sarilho de 63 de
+ * o balde no chão, fora da borda. A vila desenhava com raio 26 e a trave de 63 de
  * ponta a ponta; aqui tudo escala para a pegada (1,5 x 1,5 casa). Materiais:
  * `pedras` e `madeira`; a água, a corda e os aros do balde são fixos.
  */
-import { anel, caixa, elipse, type Caixa, type Forma } from './formas'
+import { caixa, capsula, elipse, type Caixa, type Forma } from './formas'
 import { contato, ruido, type MaterialDaPeca, type Textura } from './motor'
 import { materialDaPeca, type MontarMovel } from './contexto'
 import { tomDoMeio } from '../materiais'
@@ -15,7 +15,7 @@ import { rgb } from '../../ruido'
 
 /** A água do fundo: o azul-petróleo do Meio-Termo bem escuro, mas acima do piso de luz (não vira preto levantado). */
 const AGUA: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('agua', 0.62)) }
-const AGUA_DO_BALDE: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('agua', 0.9)) }
+const AGUA_DO_BALDE: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('agua', 0.6)) }
 const REFLEXO: MaterialDaPeca = { classe: 'liso', rgb: [0xc7, 0xd2, 0xcf] }
 const PEDRAS_NA_BORDA = 12
 /**
@@ -81,11 +81,19 @@ export const montarPoco: MontarMovel = (c, cena) => {
   const mad = c.m.madeira
   for (const lado of [-1, 1]) L.push(P(caixa(lado * 29 * k - 3.4 * k, -5.6 * k, lado * 29 * k + 3.4 * k, 1.4 * k, 1), mad, { bisel: 1.5 * k, tabua: 0, tom: 0.82, semente: 320 + lado }))
   L.push(P(caixa(-31.5 * k, -4.2 * k, 31.5 * k, -0.2 * k, 0.8), mad, { bisel: 1.3 * k, tabua: 0, eixo: 0, semente: 330, projeta: { dist: 3 * k, forca: 0.32 } }))
-  L.push(P(elipse(0, -2.2 * k, 3.6 * k, 3.6 * k), materialDaPeca('corda'), { bisel: 3 * k, semente: 331 }))
-  // O balde em cima da borda, embaixo à direita: madeira, aro de ferro e água.
-  const bx = 17.5 * k
-  const by = 15.5 * k
-  L.push(P(elipse(bx, by, 5.2 * k, 5.2 * k), mad, { bisel: 2.2 * k, tabua: 2.4 * k, semente: 340, projeta: { dist: 1.5 * k, forca: 0.3 } }))
-  L.push(P(anel(bx, by, 5.3 * k, 5.3 * k, 4.4 * k, 4.4 * k), materialDaPeca('ferro'), { bisel: 0.6 * k, semente: 341 }))
-  L.push(P(elipse(bx, by, 3.6 * k, 3.6 * k), AGUA_DO_BALDE, { bisel: 0, contorno: 0.2, tom: 1.05 }))
+  // O sarilho no meio da trave (0,3 do comprimento dela), de madeira, com 3 voltas de corda: a bola
+  // creme que havia ali lia como pérola.
+  const meioSarilho = 0.15 * 63 * k
+  L.push(P(caixa(-meioSarilho, -5 * k, meioSarilho, 0.6 * k, 1.2 * k), mad, { bisel: 2.4 * k, tabua: 0, eixo: 0, tom: 0.86, semente: 331 }))
+  const corda = materialDaPeca('corda')
+  for (const [i, x] of [-5.5, 0, 5.5].entries()) L.push(P(caixa((x - 1.1) * k, -4.7 * k, (x + 1.1) * k, 0.3 * k, 0.6 * k), corda, { bisel: 1 * k, semente: 332 + i }))
+  // O balde no chão, FORA do anel (a 0,5 casa do centro em x e em y no tamanho padrão): aro de aduelas
+  // de 2 px a 1x, a água e a alça de ferro de 1 px. Em cima das pedras ele lia como um botão azul.
+  const bx = 21.7 * k
+  const by = 21.7 * k
+  const rb = 4.33 * k
+  cena.sombras.push({ forma: elipse(bx, by, rb, rb), z: 4 * k }, contato(elipse(bx, by, rb, rb), 0.3))
+  L.push(P(elipse(bx, by, rb, rb), mad, { bisel: 1 * k, tabua: 1.5 * k, polar: { cx: bx, cy: by, r: rb }, semente: 340 }))
+  L.push(P(elipse(bx, by, rb - 1.75 * k, rb - 1.75 * k), AGUA_DO_BALDE, { bisel: 0, contorno: 0.2, recesso: { k: 0.8 * k, forca: 0.25 }, semente: 342 }))
+  L.push(P(capsula(bx - rb + 0.3 * k, by, bx + rb - 0.3 * k, by, 0.45 * k), materialDaPeca('ferro'), { bisel: 0.45 * k, semente: 341 }))
 }

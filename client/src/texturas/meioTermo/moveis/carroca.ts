@@ -14,7 +14,7 @@
  */
 import { anel, barra, caixa, elipse } from './formas'
 import { contato, type Cena, type MaterialDaPeca } from './motor'
-import { materialDaPeca, QUARTO, sombraDeLado, type ContextoDoMovel, type MontarMovel } from './contexto'
+import { materialDaPeca, QUARTO, type ContextoDoMovel, type MontarMovel } from './contexto'
 
 const RAIOS = 8
 /** Saco de linho, um pouco mais escuro que o linho do lençol (de pano grosso). */
@@ -49,9 +49,10 @@ function montarCarrocaDeLado(c: ContextoDoMovel, cena: Cena): void {
   const caixaX0 = -0.3 * w
   const caixaY0 = cyRoda - 0.42 * h
   const caixaY1 = cyRoda + 0.04 * h
-  // A carroça em pé faz sombra no chão: uma faixa baixa debaixo da caixa (o vão entre a caixa e o
-  // chão fica aberto; o perfil inteiro escurecia esse vão e virava um painel escuro) e o contato da roda.
-  sombraDeLado(cena, caixa(caixaX0, hh - 0.12 * h, hw, hh, 2), 6)
+  // A carroça em pé faz sombra no chão: uma faixa baixa e suave debaixo da caixa (0,05 da altura; o
+  // vão entre a caixa e o chão fica aberto: o perfil inteiro virava um painel escuro, e a faixa de
+  // 0,12 com o contato, uma tábua no chão) e o contato da roda.
+  cena.sombras.push({ forma: caixa(caixaX0, hh - 0.05 * h, hw, hh, 1), z: 6, suave: 2, forca: 0.22 })
   cena.sombras.push(contato(caixa(cxRoda - R * 0.6, hh - 2, cxRoda + R * 0.6, hh, 1), 0.3))
   cena.sombras.push(contato(caixa(-hw, hh - 2, -hw + 0.06 * w, hh, 0.5), 0.3))
   // O varal: da frente da caixa até o chão, à esquerda.

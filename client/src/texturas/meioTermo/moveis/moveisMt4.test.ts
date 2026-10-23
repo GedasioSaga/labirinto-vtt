@@ -355,14 +355,99 @@ describe('peças novas da MT4: o que cada peça é', () => {
     })
   })
 
-  it('poço: borda de pedra clara, água escura no meio, e o balde em cima da borda', () => {
+  it('poço: borda de pedra clara, água escura no meio, e o balde fora do anel, com água', () => {
     for (const materiais of [['granito', 'carvalho'], ['ardosia', 'velha']] as const) {
       const im = imagem({ tipo: 'poco', lado: 'frente', materiais, casasW: 1.5, casasH: 1.5, semente: 7 }, S3)
       const k = (0.75 * G) / 32.5
       const agua = brilhoNoAnel(im, 0, 8 * k, 0, 8 * k)
       const borda = brilhoNoAnel(im, 0, 0, 18.5 * k, 25 * k)
       expect(borda - agua, materiais.join('+')).toBeGreaterThan(0.12)
-      expect(im.px[noPonto(im, 17.5 * k, 15.5 * k) + 3], 'balde').toBeGreaterThanOrEqual(ALFA_OPACO)
+      // O balde fica fora do anel de pedra (raio 26k), a 0,5 casa em x e em y, com água azulada no meio.
+      const balde = noPonto(im, 0.5 * G, 0.5 * G)
+      expect(im.px[balde + 3], 'balde').toBeGreaterThanOrEqual(ALFA_OPACO)
+      expect(im.px[balde + 2], 'água do balde').toBeGreaterThan(im.px[balde])
+      expect(Math.hypot(0.5 * G, 0.5 * G) - 0.1 * G, 'fora do anel').toBeGreaterThan(26 * k)
+    }
+  })
+
+  it('poço: o sarilho de madeira com 3 riscos de corda no lugar da bola creme', () => {
+    const k = (0.75 * G) / 32.5
+    for (const nivel of [1, 3]) {
+      const im = imagem({ tipo: 'poco', lado: 'frente', materiais: ['granito', 'carvalho'], casasW: 1.5, casasH: 1.5, semente: 7 }, nivel)
+      const trave = brilho(im.px, noPonto(im, 22 * k, -2.2 * k))
+      let riscos = 0
+      let dentro = false
+      for (let x = -10 * k; x <= 10 * k; x += 1 / im.S) {
+        const corda = brilho(im.px, noPonto(im, x, -2.2 * k)) > trave + 0.1
+        if (corda && !dentro) riscos += 1
+        dentro = corda
+      }
+      expect(riscos, `nível ${nivel}`).toBe(3)
+    }
+  })
+
+  it('quadro de avisos: pés de 5 px a 1x, um papel 1,4x mais alto que os outros e 2 linhas de texto em cada papel', () => {
+    const im1 = imagem({ tipo: 'quadroDeAvisos', lado: 'frente', materiais: ['nogueira'], casasW: 1, casasH: 0.4, semente: 7 }, 1)
+    const sx = G / 41
+    const sy = (0.4 * G) / 23
+    let pe = 0
+    for (let j = 0; j < im1.H; j += 1) {
+      const y = im1.y0 + (j + 0.5) / im1.S
+      // Só abaixo do quadro: onde o meio (entre os pés) já é chão.
+      if (im1.px[noPonto(im1, 0, y) + 3] < ALFA_DE_PECA && y > 0 && im1.px[noPonto(im1, 15 * sx, y) + 3] >= ALFA_DE_PECA) pe += 1
+    }
+    expect.soft(pe, 'pé a 1x, em px').toBeGreaterThanOrEqual(5)
+    const im = imagem({ tipo: 'quadroDeAvisos', lado: 'frente', materiais: ['nogueira'], casasW: 1, casasH: 0.4, semente: 7 }, S3)
+    /** Altura (px do protótipo) do papel claro na coluna x e as linhas escuras dentro dele. */
+    const papel = (x: number): { alto: number; linhas: number } => {
+      let alto = 0
+      let linhas = 0
+      let noPapel = false
+      let naLinha = false
+      for (let j = 0; j < im.H; j += 1) {
+        const o = noPonto(im, x, im.y0 + (j + 0.5) / im.S)
+        const b = brilho(im.px, o)
+        const claro = b > 0.62
+        const linha = noPapel && b < 0.55 && b > 0.3 && im.px[o] - im.px[o + 2] < 40
+        if (claro) {
+          alto += 1 / im.S
+          noPapel = true
+        }
+        if (linha && !naLinha) linhas += 1
+        naLinha = linha
+      }
+      return { alto, linhas }
+    }
+    const [esq, meio, dir] = [papel(-9.4 * sx), papel(0.3 * sx), papel(9.8 * sx)]
+    for (const p of [esq, meio, dir]) expect.soft(p.linhas, 'linhas de texto').toBeGreaterThanOrEqual(2)
+    const altos = [esq.alto, meio.alto, dir.alto].sort((a, b) => a - b)
+    expect(altos[2] / ((altos[0] + altos[1]) / 2), 'um papel mais alto').toBeGreaterThanOrEqual(1.3)
+  })
+
+  it('vaso: a boca tem a beira escura (tom 0,55) que o separa do chão', () => {
+    const R = 0.25 * G
+    for (const vaso of ['barro', 'arenito', 'granito'] as const) {
+      const im = imagem({ tipo: 'vaso', lado: 'frente', materiais: [vaso], casasW: 0.5, casasH: 0.5, semente: 7 }, S3)
+      expect(brilhoNoAnel(im, 0, 0, 0.91 * R, 0.97 * R), vaso).toBeLessThan(brilhoNoAnel(im, 0, 0, 0.77 * R, 0.86 * R) - 0.08)
+    }
+  })
+
+  it('mesa redonda: chanfro de borda como a mesa antiga, sem o sulco de tampa de barril', () => {
+    const R = 0.625 * G
+    for (const madeira of ['carvalho', 'nogueira', 'velha'] as const) {
+      const im = imagem({ tipo: 'mesaRedonda', lado: 'frente', materiais: [madeira], casasW: 1.25, casasH: 1.25, semente: 7 }, S3)
+      expect(brilhoNoAnel(im, 0, 0, 0.885 * R, 0.915 * R), madeira).toBeGreaterThan(brilhoNoAnel(im, 0, 0, 0.6 * R, 0.8 * R) - 0.03)
+    }
+  })
+
+  it('carroça de lado: a sombra embaixo da caixa é uma faixa baixa e suave (0,05 da altura), não uma tábua no chão', () => {
+    const h = 1.25 * G
+    for (const nivel of [1, 3]) {
+      const im = imagem({ tipo: 'carroca', lado: 'lado', materiais: ['nogueira', 'ferro'], casasW: 2, casasH: 1.25, semente: 7 }, nivel)
+      expect(im.px[noPonto(im, -25, h / 2 - 0.09 * h) + 3], `nível ${nivel}: acima da faixa`).toBeLessThan(8)
+      const faixa = im.px[noPonto(im, -25, h / 2 - 0.015 * h) + 3]
+      expect(faixa, `nível ${nivel}: faixa`).toBeGreaterThan(8)
+      expect(faixa).toBeLessThanOrEqual(0.25 * 255)
     }
   })
 

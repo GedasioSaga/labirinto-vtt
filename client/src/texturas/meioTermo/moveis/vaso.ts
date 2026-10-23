@@ -6,7 +6,7 @@
  * um ruído de luz (sem listra). Material: `vaso` (barro, arenito ou granito);
  * as folhas e a terra são fixas.
  */
-import { elipse } from './formas'
+import { anel, elipse } from './formas'
 import { contato, ruido, type MaterialDaPeca, type Textura } from './motor'
 import type { MontarMovel } from './contexto'
 import { tomDoMeio } from '../materiais'
@@ -30,6 +30,8 @@ export const montarVaso: MontarMovel = (c, cena) => {
   cena.sombras.push({ forma: elipse(0, 0, R, R), z: c.g * 0.45 }, contato(elipse(0, 0, R, R), 0.25))
   const L = cena.partes
   L.push(P(elipse(0, 0, R * 0.98, R * 0.98), c.m.vaso, { tabua: 0, bisel: 2.4 * k, contorno: 0.24, semente: 90 }))
+  // A beira da boca mais escura (tom 0,55): o barro é quase o chão padrão (#a8776a) e o vaso sumia a 1x.
+  L.push(P(anel(0, 0, R * 0.98, R * 0.98, R * 0.98 - 1.3, R * 0.98 - 1.3), c.m.vaso, { tabua: 0, bisel: 0.6, tom: 0.55, contorno: 0.24, semente: 89 }))
   L.push(P(elipse(0, 0, 5.8 * k, 5.8 * k), TERRA, { bisel: 0, contorno: 0, recesso: { k: 1.4 * k, forca: 0.3 }, semente: 91 }))
   for (let i = 0; i < 5; i += 1) {
     const a = (i / 5) * 2 * Math.PI + 0.4
