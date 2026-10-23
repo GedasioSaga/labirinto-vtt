@@ -169,7 +169,8 @@ describe('volume, Mudo e saída', () => {
     await assentar()
     const fonte = item(m.fontesDoMotor(), 0)
     const ganho = m.ganhoDe(fonte)
-    expect(ganho.gain.setValueAtTime).toHaveBeenCalledWith(0.4, expect.any(Number))
+    // 0,8 do efeito x 0,5² do aparelho.
+    expect(ganho.gain.setValueAtTime).toHaveBeenCalledWith(0.2, expect.any(Number))
 
     m.som.getState().alternarMudo()
     expect(ganho.gain.linearRampToValueAtTime.mock.lastCall?.[0]).toBe(0)
@@ -177,26 +178,26 @@ describe('volume, Mudo e saída', () => {
     expect(m.doTipo('terminou')).toEqual([])
 
     m.som.getState().alternarMudo()
-    expect(ganho.gain.linearRampToValueAtTime.mock.lastCall?.[0]).toBeCloseTo(0.4)
+    expect(ganho.gain.linearRampToValueAtTime.mock.lastCall?.[0]).toBeCloseTo(0.2)
     // Seguiu de onde estava: não recomeçou nem trocou de fonte.
     expect(fonte.start).toHaveBeenCalledTimes(1)
     expect(m.fontesDoMotor()).toHaveLength(1)
   })
 
-  it('volume final = volume do efeito x volume do aparelho, e muda ao vivo com o somStore e com mudarVolume', async () => {
+  it('volume final = volume do efeito x volume do aparelho AO QUADRADO (a curva dos sons de clima), e muda ao vivo com o somStore e com mudarVolume', async () => {
     const m = montar({ volume: 0.5 })
     m.motor.tocar('vento', m.arquivo(1, DEZ_SEGUNDOS), { loop: true, volumeDoEfeito: 0.6 })
     await assentar()
     const ganho = m.ganhoDe(item(m.fontesDoMotor(), 0))
     const ultimoAlvo = (): number | undefined => ganho.gain.linearRampToValueAtTime.mock.lastCall?.[0]
-    expect(ganho.gain.setValueAtTime.mock.calls[0]?.[0]).toBeCloseTo(0.3)
+    expect(ganho.gain.setValueAtTime.mock.calls[0]?.[0]).toBeCloseTo(0.15)
 
     m.som.getState().setVolume(1)
     expect(ultimoAlvo()).toBeCloseTo(0.6)
     m.motor.mudarVolume('vento', 0.25)
     expect(ultimoAlvo()).toBeCloseTo(0.25)
     m.som.getState().setVolume(0.5)
-    expect(ultimoAlvo()).toBeCloseTo(0.125)
+    expect(ultimoAlvo()).toBeCloseTo(0.0625)
   })
 
   it('o som ao vivo NÃO passa pelo passa-baixa: fonte -> ganho do efeito -> entrada aoVivo -> destination', async () => {
@@ -376,7 +377,7 @@ describe('parar', () => {
 
     m.motor.parar('sino')
     expect(ganho.gain.cancelScheduledValues).toHaveBeenLastCalledWith(agoraS)
-    expect(ganho.gain.setValueAtTime).toHaveBeenLastCalledWith(0.4, agoraS)
+    expect(ganho.gain.setValueAtTime).toHaveBeenLastCalledWith(0.2, agoraS)
     const [alvo, quando] = ganho.gain.linearRampToValueAtTime.mock.lastCall ?? []
     expect(alvo).toBe(0)
     expect(quando).toBeCloseTo(agoraS + FADE_AO_PARAR_MS / 1000)

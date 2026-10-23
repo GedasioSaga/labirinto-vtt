@@ -21,8 +21,9 @@ import { obterSaidaAoVivoDoNavegador, quandoOAudioRodar } from '../contexto'
  *    acima do limite derruba o efeito curto mais antigo; loop acima do limite é
  *    recusado com motivo (o aviso na tela é da F3).
  *  - Sai pela entrada `aoVivo` do `contexto.ts`, sem o passa-baixa dos sons de
- *    clima. Volume final = volume do efeito x volume do aparelho (`somStore`);
- *    o Mudo zera o ganho sem parar nada (o loop segue de onde estava).
+ *    clima. Volume final = volume do efeito x volume do aparelho (`somStore`)
+ *    ao quadrado, a curva dos sons de clima; o Mudo zera o ganho sem parar
+ *    nada (o loop segue de onde estava).
  *  - Nada toca antes do gesto: efeito curto esperando o destravamento há mais
  *    de `ESPERA_DO_EFEITO_CURTO_MS` é descartado; o loop espera e começa, com o
  *    deslocamento corrigido pelo tempo que esperou, quando o gesto destrava.
@@ -121,7 +122,7 @@ export interface OpcoesDoToqueAoVivo {
   loop: boolean
   /** De onde começa, em segundos (o loop pego no meio); no loop, dá a volta pela duração. */
   deslocamentoS?: number
-  /** De 0 a 1; o ganho final é este vezes o volume do aparelho. */
+  /** De 0 a 1; o ganho final é este vezes o volume do aparelho ao quadrado. */
   volumeDoEfeito: number
 }
 
@@ -344,9 +345,14 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
 
   // ---- vozes ----
 
+  /**
+   * O aparelho entra AO QUADRADO, a mesma curva dos sons de clima
+   * (`tocarReceita`): com a barra em linha reta, a 35% o som ao vivo sairia
+   * ~9 dB acima do clima.
+   */
   function ganhoDesejado(voz: Voz<N>): number {
     const preferencia = lerPreferencia()
-    return estaCalado(preferencia) ? 0 : voz.volumeDoEfeito * preferencia.volume
+    return estaCalado(preferencia) ? 0 : voz.volumeDoEfeito * preferencia.volume * preferencia.volume
   }
 
   /** Leva o ganho da voz até `alvo` em `duracaoS`, a partir do último valor mandado; devolve quando chega. */
