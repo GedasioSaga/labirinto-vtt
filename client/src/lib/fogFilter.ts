@@ -869,6 +869,9 @@ function plainWallFor(id: string, from: RegionPoint, to: RegionPoint, look: Wall
   if (look?.thickness !== undefined) plain.thickness = look.thickness
   if (look?.lineStyle !== undefined) plain.lineStyle = look.lineStyle
   if (look?.color !== undefined) plain.color = look.color
+  // CAMADA da vizinha também: a tela do jogador divide as paredes por nó, e o
+  // trecho noutra camada (outra opacidade, outra altura) denunciaria a sala.
+  if (look?.camada !== undefined) plain.camada = look.camada
   if (look?.regionId !== undefined && playerRegionIds.has(look.regionId)) {
     plain.regionId = look.regionId
     if (look.regionEdgeIndex !== undefined) plain.regionEdgeIndex = look.regionEdgeIndex
@@ -3919,7 +3922,8 @@ function recorteDoGrupo(
           r.room.dentroVeFora === undefined &&
           r.room.foraVeDentro === undefined &&
           r.room.modeloDoTeto === undefined &&
-          r.room.corDoTeto === undefined
+          r.room.corDoTeto === undefined &&
+          r.room.camadaDoTelhado === undefined
         )
           return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -3939,6 +3943,7 @@ function recorteDoGrupo(
           foraVeDentro: _foraVeDentro,
           modeloDoTeto,
           corDoTeto,
+          camadaDoTelhado,
           ...room
         } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
@@ -3959,6 +3964,9 @@ function recorteDoGrupo(
             // (`pixi/telhadosRenderer.ts`). Seguem o `roof`: só com o teto fechado.
             ...(roofClosed && modeloDoTeto !== undefined ? { modeloDoTeto } : {}),
             ...(roofClosed && corDoTeto !== undefined ? { corDoTeto } : {}),
+            // CAMADA DO TELHADO: idem. Com o teto escondido dos jogadores pela
+            // camada (ou aberto), o campo diria que a sala tem teto e o id da camada.
+            ...(roofClosed && camadaDoTelhado !== undefined ? { camadaDoTelhado } : {}),
             dark: undefined,
             ...(showText ? { textoAoEntrar: clampRoomText(textoAoEntrar) } : {}),
           },
@@ -4362,7 +4370,12 @@ function filterWorldMapForGroup(
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
   // A caravana é pino na cor neutra da mesa: ela não é de jogador nenhum.
   const tokens = caravanSent ? [{ ...caravanTokenFor(members, at), pino: SIGNAL_NEUTRAL_COLOR }, ...others] : others
-  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens } }
+  // CAMADAS DE NOVO, sobre o pacote com a caravana: a ficha que virou caravana
+  // levava a camada dela, e a livre sem item no pacote não vai (`livresNoPacote`).
+  const comCaravana: MapData = { ...view.map, worldMap: true, continente: true, tokens }
+  const { camadasDoJogador: _antesDaCaravana, ...trocado } = comCaravana
+  const camadasDoJogador = camadasDoJogadorDoMapa(map, livresNoPacote(trocado))
+  return { ...view, map: camadasDoJogador === undefined ? trocado : { ...trocado, camadasDoJogador } }
 }
 
 /** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
