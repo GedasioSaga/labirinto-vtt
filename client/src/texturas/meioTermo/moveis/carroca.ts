@@ -49,8 +49,9 @@ function montarCarrocaDeLado(c: ContextoDoMovel, cena: Cena): void {
   const caixaX0 = -0.3 * w
   const caixaY0 = cyRoda - 0.42 * h
   const caixaY1 = cyRoda + 0.04 * h
-  // A carroça em pé faz sombra no chão atrás dela: o perfil inteiro, baixo, e o contato da roda.
-  sombraDeLado(cena, caixa(caixaX0, caixaY0, hw, hh, 2), 6)
+  // A carroça em pé faz sombra no chão: uma faixa baixa debaixo da caixa (o vão entre a caixa e o
+  // chão fica aberto; o perfil inteiro escurecia esse vão e virava um painel escuro) e o contato da roda.
+  sombraDeLado(cena, caixa(caixaX0, hh - 0.12 * h, hw, hh, 2), 6)
   cena.sombras.push(contato(caixa(cxRoda - R * 0.6, hh - 2, cxRoda + R * 0.6, hh, 1), 0.3))
   cena.sombras.push(contato(caixa(-hw, hh - 2, -hw + 0.06 * w, hh, 0.5), 0.3))
   // O varal: da frente da caixa até o chão, à esquerda.

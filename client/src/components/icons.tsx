@@ -420,6 +420,81 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M4.5 8.5H2.5M4.5 12H2.5M4.5 15.5H2.5M19.5 8.5h2M19.5 12h2M19.5 15.5h2" />
         </>
       )
+    // As peças novas do lote 1 (MT4), de cima como o desenho com textura delas.
+    case 'mesaQuadrada':
+      // O tampo quadrado e as juntas das tábuas.
+      return (
+        <>
+          <rect x="5" y="5" width="14" height="14" />
+          <path d="M5 9.7h14M5 14.3h14" />
+        </>
+      )
+    case 'mesaRedonda':
+      // O tampo redondo e duas juntas de tábua de borda a borda.
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M4.6 9h14.8M4.6 15h14.8" />
+        </>
+      )
+    case 'lapide':
+      // O topo da pedra (a faixa de trás), a face e a cruz gravada nela.
+      return (
+        <>
+          <rect x="4" y="7" width="16" height="10" rx="1.5" />
+          <path d="M4 11h16M12 12.5v3.2M10.4 13.6h3.2" />
+        </>
+      )
+    case 'vaso':
+      // A boca do vaso e três folhas saindo do meio.
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 12c-1.6-1.3-1.6-3.2 0-4.6 1.6 1.4 1.6 3.3 0 4.6zM12 12c1.3 1.6 3.2 1.6 4.6 0-1.4-1.6-3.3-1.6-4.6 0zM12 12c-1.3 1.6-3.2 1.6-4.6 0 1.4-1.6 3.3-1.6 4.6 0z" />
+        </>
+      )
+    case 'lampiao':
+      // A borda do vidro, o chapéu no meio e o pegador em cima dele (sem o X da caixa, que confundia no tamanho do menu).
+      return (
+        <>
+          <rect x="5" y="5" width="14" height="14" rx="1.5" />
+          <rect x="8.5" y="8.5" width="7" height="7" />
+          <circle cx="12" cy="12" r="1" />
+        </>
+      )
+    case 'quadroDeAvisos':
+      // A moldura comprida e três papéis pregados.
+      return (
+        <>
+          <rect x="2.5" y="7.5" width="19" height="9" />
+          <path d="M5.5 10h3.5v4H5.5zM10.5 10h3.5v4h-3.5zM15.5 10H18.5v3h-3z" />
+        </>
+      )
+    case 'poco':
+      // A borda de pedra, a boca e o sarilho atravessado.
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <circle cx="12" cy="12" r="5.2" />
+          <path d="M2 12h20" />
+        </>
+      )
+    case 'barraca':
+      // O toldo listrado e o balcão na frente.
+      return (
+        <>
+          <rect x="4" y="4" width="16" height="12.5" />
+          <path d="M8 4v12.5M12 4v12.5M16 4v12.5M5 20h14" />
+        </>
+      )
+    case 'carroca':
+      // A caixa, as duas rodas dos lados e o varal para o animal.
+      return (
+        <>
+          <rect x="9" y="6.5" width="12" height="11" />
+          <path d="M11.5 4.5h5M11.5 19.5h5M9 9.5H2.5M9 14.5H2.5" />
+        </>
+      )
   }
 }
 
