@@ -1366,6 +1366,14 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
   --lb-toolvariant-coluna: 224px;
 }
 
+/* O menu de Objetos (20 nomes, vários de três palavras: "Quadro de avisos",
+   "Barraca de feira") quebrava 5 nomes em duas linhas com a coluna de 224px.
+   Só ele ganha a coluna mais larga (~316px de menu); os outros seguem com 224.
+   O seletor lê o rótulo do grupo, o mesmo que o leitor de tela anuncia. */
+.lb-toolvariant-menu:has(.lb-toolvariant-menu__options[aria-label='Objeto']) {
+  --lb-toolvariant-coluna: 300px;
+}
+
 .lb-toolvariant-menu--multi .lb-toolvariant-menu__coluna + .lb-toolvariant-menu__coluna {
   padding-left: var(--lb-space-3);
   border-left: 1px solid var(--lb-color-line);

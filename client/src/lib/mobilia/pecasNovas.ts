@@ -92,8 +92,17 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  */
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
 
-/** O catálogo do painel de Objetos: os 11 de antes, na ordem de sempre, e as peças novas prontas. */
-export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [...TIPOS_MOBILIA.filter((tipo) => !ehPecaNova(tipo)), ...PECAS_NOVAS_PRONTAS]
+/** As peças novas que entram logo depois da Mesa no catálogo, e não no fim: quem procura mesa acha as três juntas. */
+const MESAS_NOVAS: readonly PecaNova[] = ['mesaQuadrada', 'mesaRedonda']
+
+/**
+ * O catálogo do painel de Objetos: os 11 de antes, na ordem de sempre, com as
+ * mesas novas prontas logo depois da Mesa, e as outras peças novas prontas no fim.
+ */
+export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [
+  ...TIPOS_MOBILIA.filter((tipo) => !ehPecaNova(tipo)).flatMap((tipo) => (tipo === 'mesa' ? [tipo, ...MESAS_NOVAS.filter((m) => PECAS_NOVAS_PRONTAS.includes(m))] : [tipo])),
+  ...PECAS_NOVAS_PRONTAS.filter((tipo) => !MESAS_NOVAS.includes(tipo)),
+]
 
 /** O catálogo e, se não estiver nele, o tipo do móvel selecionado (o seletor sempre mostra o que o móvel é). */
 export function catalogoComOTipo(tipo: TipoMobilia): readonly TipoMobilia[] {

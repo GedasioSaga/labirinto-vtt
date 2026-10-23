@@ -182,14 +182,14 @@ Parte de: editor aberto. Vai para: Cantinho do botão (clique direito ou segurar
 | Objetos: Baú | radio "Baú" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cama | radio "Cama" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Mesa | radio "Mesa" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Mesa quadrada | radio "Mesa quadrada" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Mesa redonda | radio "Mesa redonda" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cadeira | radio "Cadeira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cerca | radio "Cerca" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Armário de cozinha | radio "Armário de cozinha" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Aparador | radio "Aparador" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Fogueira | radio "Fogueira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Tapete | radio "Tapete" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
-| Objetos: Mesa quadrada | radio "Mesa quadrada" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
-| Objetos: Mesa redonda | radio "Mesa redonda" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Lápide | radio "Lápide" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Vaso de planta | radio "Vaso de planta" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Lampião | radio "Lampião" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |

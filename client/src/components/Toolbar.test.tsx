@@ -283,8 +283,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
     const radios = radiosDe('Objeto', 'Objeto')
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete',
-      'Mesa quadrada', 'Mesa redonda', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça',
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete',
+      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)

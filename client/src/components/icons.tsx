@@ -430,19 +430,19 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
         </>
       )
     case 'mesaRedonda':
-      // O tampo redondo e duas juntas de tábua de borda a borda.
+      // O tampo redondo e duas juntas de tábua perto das bordas, como a quadrada (no meio liam como sinal de menos).
       return (
         <>
           <circle cx="12" cy="12" r="8" />
-          <path d="M4.6 9h14.8M4.6 15h14.8" />
+          <path d="M4.8 8.5h14.4M4.8 15.5h14.4" />
         </>
       )
     case 'lapide':
-      // O topo da pedra (a faixa de trás), a face e a cruz gravada nela.
+      // A pedra em pé de topo em arco, a cruz gravada e o chão (o retângulo deitado era igual ao baú).
       return (
         <>
-          <rect x="4" y="7" width="16" height="10" rx="1.5" />
-          <path d="M4 11h16M12 12.5v3.2M10.4 13.6h3.2" />
+          <path d="M7.5 19.5V10a4.5 4.5 0 0 1 9 0v9.5" />
+          <path d="M4.5 19.5h15M12 10.5v5.5M10 12.3h4" />
         </>
       )
     case 'vaso':
@@ -454,45 +454,48 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
         </>
       )
     case 'lampiao':
-      // A borda do vidro, o chapéu no meio e o pegador em cima dele (sem o X da caixa, que confundia no tamanho do menu).
+      // A lanterna de perfil: a argola, o chapéu, o vidro com as duas hastes e a base (de cima ela era um quadrado no quadrado).
       return (
         <>
-          <rect x="5" y="5" width="14" height="14" rx="1.5" />
-          <rect x="8.5" y="8.5" width="7" height="7" />
-          <circle cx="12" cy="12" r="1" />
+          <circle cx="12" cy="3.8" r="1.3" />
+          <path d="M8.5 8.2h7l-1.6-2.9h-3.8z" />
+          <rect x="9" y="8.2" width="6" height="9" rx="0.8" />
+          <path d="M8 19.8h8M12 10.2v5" />
         </>
       )
     case 'quadroDeAvisos':
-      // A moldura comprida e três papéis pregados.
+      // A moldura, dois papéis tortos e os dois pés (com três papéis retos parecia uma caixa com três pontos).
       return (
         <>
-          <rect x="2.5" y="7.5" width="19" height="9" />
-          <path d="M5.5 10h3.5v4H5.5zM10.5 10h3.5v4h-3.5zM15.5 10H18.5v3h-3z" />
+          <rect x="3" y="5" width="18" height="11.5" />
+          <path d="M6.3 8.4l4-0.7 0.7 4.6-4 0.7zM13.2 7.8l4.3 0.6-0.6 5-4.3-0.6zM6.5 16.5v3.5M17.5 16.5v3.5" />
         </>
       )
     case 'poco':
-      // A borda de pedra, a boca e o sarilho atravessado.
+      // O anel de 8 pedras (tracejado), a boca e a trave com o sarilho (com dois aros lisos parecia o barril).
       return (
         <>
-          <circle cx="12" cy="12" r="8.5" />
-          <circle cx="12" cy="12" r="5.2" />
-          <path d="M2 12h20" />
+          <circle cx="12" cy="12" r="7.5" strokeDasharray="4.4 1.5" />
+          <circle cx="12" cy="12" r="4.4" />
+          <path d="M3 12h18M10.3 10.6h3.4v2.8h-3.4z" />
         </>
       )
     case 'barraca':
-      // O toldo listrado e o balcão na frente.
+      // O toldo, os 3 gomos da beira e o balcão embaixo (as listras de pé liam como código de barras).
       return (
         <>
-          <rect x="4" y="4" width="16" height="12.5" />
-          <path d="M8 4v12.5M12 4v12.5M16 4v12.5M5 20h14" />
+          <path d="M4 4h16v7H4zM4 11a2.67 2.67 0 0 0 5.33 0a2.67 2.67 0 0 0 5.34 0a2.67 2.67 0 0 0 5.33 0" />
+          <rect x="5" y="16" width="14" height="4" />
         </>
       )
     case 'carroca':
-      // A caixa, as duas rodas dos lados e o varal para o animal.
+      // A caixa, as 2 rodas e o varal (de cima, com as rodas em barra, parecia uma tomada).
       return (
         <>
-          <rect x="9" y="6.5" width="12" height="11" />
-          <path d="M11.5 4.5h5M11.5 19.5h5M9 9.5H2.5M9 14.5H2.5" />
+          <rect x="7.5" y="7" width="13" height="8.5" />
+          <circle cx="11" cy="17.5" r="2.5" />
+          <circle cx="17" cy="17.5" r="2.5" />
+          <path d="M7.5 11.5H2.5" />
         </>
       )
   }

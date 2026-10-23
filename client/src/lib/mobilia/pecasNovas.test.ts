@@ -88,8 +88,9 @@ describe('peças novas: registro', () => {
     }
   })
 
-  it('lápide: a variação sai do id, estável, e ids diferentes dão as 3 variações', () => {
-    expect(varianteDaLapide('lapide-1')).toBe(varianteDaLapide('lapide-1'))
+  it('lápide: a variação sai do id, com valor fixo (as lápides salvas não mudam), e ids diferentes dão as 3 variações', () => {
+    // Valores FIXOS de 3 ids: trocar o hash ou VARIANTES_DA_LAPIDE mudaria as lápides já salvas.
+    expect([varianteDaLapide('lapide-0'), varianteDaLapide('lapide-1'), varianteDaLapide('lapide-3'), varianteDaLapide('a3f9c2e1-0b44-4c1d-9e2a-5d6f7a8b9c0d')]).toEqual([0, 1, 2, 0])
     const vistas = new Set(Array.from({ length: 30 }, (_, i) => varianteDaLapide(`p${i}`)))
     expect([...vistas].sort()).toEqual([0, 1, 2])
     expect(varianteDaLapide(undefined)).toBe(0)
@@ -97,8 +98,11 @@ describe('peças novas: registro', () => {
 })
 
 describe('catálogo do painel: só peça com desenho pronto', () => {
-  it('os 11 de antes vêm primeiro, na ordem de sempre, e cada peça nova do catálogo tem desenho com textura', () => {
-    expect(TIPOS_NO_CATALOGO.slice(0, 11)).toEqual(TIPOS_MOBILIA.slice(0, 11))
+  it('os 11 de antes na ordem de sempre, as mesas novas logo depois da Mesa, e cada peça nova do catálogo tem desenho com textura', () => {
+    expect(TIPOS_NO_CATALOGO.filter((tipo) => TIPOS_MOBILIA.slice(0, 11).includes(tipo))).toEqual(TIPOS_MOBILIA.slice(0, 11))
+    const mesa = TIPOS_NO_CATALOGO.indexOf('mesa')
+    expect(TIPOS_NO_CATALOGO.slice(mesa, mesa + 3)).toEqual(['mesa', 'mesaQuadrada', 'mesaRedonda'])
+    expect(TIPOS_NO_CATALOGO).toHaveLength(20)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })
