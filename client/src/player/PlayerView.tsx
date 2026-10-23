@@ -73,7 +73,7 @@ import {
   regioesSemPilula,
   type LugarComNome,
 } from '../lib/nomesDosLugares'
-import { createNuvensRenderer, type NuvensRenderer } from '../pixi/drawNuvens'
+import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens, type NuvensRenderer } from '../pixi/drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
@@ -3241,9 +3241,11 @@ function PlayerViewDoCanvas({
           for (const soltar of aoDescartarNo) soltar(no)
           no.destroy({ children: true })
         },
-        lerAlfa: (no) => no.alpha,
+        // As NUVENS animam o próprio `alpha` ao aparecer: a opacidade de Terreno
+        // vai para o renderer delas, que anima por cima (`drawNuvens.ts`).
+        lerAlfa: (no) => lerOpacidadeDasNuvens(no) ?? no.alpha,
         definirAlfa: (no, alfa) => {
-          no.alpha = alfa
+          if (!definirOpacidadeDasNuvens(no, alfa)) no.alpha = alfa
         },
       })
       const chamasPorNo = criarPorNo<Container, ChamasDasFogueiras>(
