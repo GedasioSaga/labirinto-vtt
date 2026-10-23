@@ -237,9 +237,12 @@ export interface Cena {
  */
 export const PISO_DA_FOLHA: Rgb = [0x2f, 0x4a, 0x35]
 
+/** Borrão do contato (px do protótipo). */
+export const SUAVE_DO_CONTATO = 1.3
+
 /** Contato da peça com o chão: a sombra curta e firme bem no pé. */
 export function contato(forma: Forma, forca = 0.3): Sombra {
-  return { forma, z: 0, suave: 1.3, forca }
+  return { forma, z: 0, suave: SUAVE_DO_CONTATO, forca }
 }
 
 export type CriarPeca = (forma: Forma, mat: MaterialDaPeca, o?: OpcoesDaPeca) => Peca
@@ -700,7 +703,8 @@ const PASSO_DA_SOMBRA = 2.5
 const BORDA_DA_SOMBRA_NO_PE = 0.8
 const AMOSTRAS_MAXIMAS_DA_SOMBRA = 20
 
-function bordaDaSombra(s: Sombra): number {
+/** Meia largura do borrão da sombra (px do protótipo): a forma não escurece o chão a mais que isto de fora dela. */
+export function bordaDaSombra(s: Pick<Sombra, 'z' | 'suave'>): number {
   return s.suave ?? BORDA_DA_SOMBRA_NO_PE + 0.09 * s.z
 }
 

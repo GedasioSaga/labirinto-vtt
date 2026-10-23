@@ -24,7 +24,7 @@ import { geometriaDaCerca } from '../../../lib/mobilia'
 import { hash, rgb } from '../../ruido'
 import type { StairArc } from '../../../lib/stairCurve'
 import { elipse, type Forma, type Ponto } from './formas'
-import { contato, PISO_DA_FOLHA, texFolhagem, type MaterialDaPeca } from './motor'
+import { bordaDaSombra, contato, PISO_DA_FOLHA, SUAVE_DO_CONTATO, texFolhagem, type MaterialDaPeca } from './motor'
 import type { MontarMovel } from './contexto'
 
 /** Altura da sebe em casas (a sombra no chão). */
@@ -73,7 +73,7 @@ interface Onda {
  * A onda anda pelo comprimento do eixo, defasada um quarto de período de um
  * lado para o outro (com a mesma fase dos dois lados ela lia como contas).
  */
-function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: Onda | null = null, rapida = false): Forma {
+function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: Onda | null = null, longe: number | null = null): Forma {
   const [ax, ay] = eixo[0]
   const [bx, by] = eixo[eixo.length - 1]
   const amp = onda?.amp ?? 0
@@ -114,10 +114,9 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: O
       const radial = Math.abs(doCentro - R)
       // Longe do anel (o miolo vazio do arco e o canto de fora da caixa), a distância é no mínimo
       // radial - r - amp, no arco e nas pontas (que estão no anel): devolve esse limite sem o ângulo.
-      // Acima de LONGE_DA_BORDA ele já não pinta (cobertura 0,5 - d x S, S >= 50/56) nem muda o
-      // sombreado (que satura), então a imagem é a mesma. Só a massa pintada usa; a sombra lê a
-      // distância exata (o borrão dela vai mais longe).
-      if (rapida && radial - r - amp > LONGE_DA_BORDA) return radial - r - amp
+      // Acima de `longe` a forma já não muda o pixel (a massa não pinta, a sombra não escurece),
+      // então a imagem é a mesma; a sebe curva de 4 casas tem o miolo vazio do arco na caixa.
+      if (longe !== null && radial - r - amp > longe) return radial - r - amp
       const rel = ((((Math.atan2(y - cy, x - cx) - inicio) * sentido) % volta) + volta) % volta
       if (rel <= giro) return radial - borda(rel * R, doCentro >= R ? 0 : QUARTO)
       const daPonta = Math.hypot(x - ax, y - ay)
@@ -129,7 +128,10 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: O
 
 /** Além desta distância (px do protótipo) fora da copa, o pixel nunca pinta: o recorte não precisa da massa. */
 const LONGE_DA_COPA = 1.5
-/** Além desta distância (px do protótipo) da borda da massa, o pixel nunca pinta nem muda de sombreado. */
+/**
+ * Além desta distância (px do protótipo) da borda da massa, o pixel nunca pinta (cobertura
+ * 0,5 - d x S, com S >= 50/56 no nível 1) nem muda de sombreado (o recorte satura).
+ */
 const LONGE_DA_BORDA = 2
 
 /**
@@ -193,12 +195,14 @@ export const montarSebe: MontarMovel = (c, cena) => {
     const desvio = (hash(i, sorteio, 17) - 0.5) * 2 * DESVIO * esp
     copas.push({ x: x + nx * desvio, y: y + ny * desvio, r: esp * (RAIO_MINIMO + RAIO_VARIA * hash(i, sorteio, 18)), i })
   }
-  const massa = faixa(eixo, arco, MASSA * esp, { amp: ONDA * esp, periodo: PERIODO_DA_ONDA * esp }, true)
+  const massa = faixa(eixo, arco, MASSA * esp, { amp: ONDA * esp, periodo: PERIODO_DA_ONDA * esp }, LONGE_DA_BORDA)
   // Sombra SOLTA (sem as amostras arrastadas do pé até a ponta): a sebe é uma massa fechada que
   // cobre o próprio pé, e o contato escurece a base. Arrastada, a sombra lia a forma até 1 + n vezes
-  // por pixel e a sebe curva de 4 casas levava ~120 ms só de sombra a 3x.
-  const pe = faixa(eixo, arco, MASSA * esp)
-  cena.sombras.push({ forma: pe, z: c.g * ALTURA_DA_SEBE, solta: true }, contato(pe, 0.26))
+  // por pixel e a sebe curva de 4 casas levava ~120 ms só de sombra a 3x. O pé só precisa da
+  // distância exata até onde o borrão mais largo das duas sombras alcança.
+  const z = c.g * ALTURA_DA_SEBE
+  const pe = faixa(eixo, arco, MASSA * esp, null, Math.max(bordaDaSombra({ z }), SUAVE_DO_CONTATO))
+  cena.sombras.push({ forma: pe, z, solta: true }, contato(pe, 0.26))
   // O escuro levantado da folha é verde, não o marrom da nogueira.
   cena.corDoPiso = PISO_DA_FOLHA
   const P = c.peca
