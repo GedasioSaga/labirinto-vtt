@@ -6,7 +6,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { itemDoAcervoNoMapa, pinoDeItem } from '../lib/itemNoMapa'
 import * as mapFactory from '../lib/mapFactory'
 import { carimbo, linha, marcador, peca, pino } from '../lib/__fixtures__/itensDeCamada'
-import type { Carimbo, LayerId, MapData } from '../types/map'
+import type { Carimbo, LayerId, MapData, PinceladaDeTextura } from '../types/map'
 
 /**
  * FERRAMENTAS DE CRIAR E EDITAR × CADEADO DA CAMADA (fase 3, fatia 5). Pino
@@ -22,6 +22,9 @@ import type { Carimbo, LayerId, MapData } from '../types/map'
  * mapa que essa fatia vai gravar para provar que a recusa já está ligada.
  */
 const TERRENO_TRAVADO = ['terreno'] as unknown as LayerId[] // as: simula o cadeado de Terreno que `lockedLayers` (LayerId[]) ainda não guarda
+
+/** Uma pincelada de floresta no térreo (sem `piso`). */
+const PINCELADA: PinceladaDeTextura = { id: 'pincelada', tipo: 'pincel', textura: 'floresta', forca: 1, raio: 30, pontos: [{ x: 150, y: 150 }] }
 
 function abrir(extra: Partial<MapData> = {}): void {
   useMapStore.getState().loadMap({ ...mapFactory.createEmptyMap('m', 'M', 20, 12, 50), continente: true, ...extra })
@@ -128,7 +131,7 @@ describe('linhas e marcadores do mapa × Paredes e Portas travadas', () => {
 })
 
 describe('texturas e carimbos × Terreno travada', () => {
-  it('pincel, borracha, balde e "apagar todas" de textura recusam e avisam', () => {
+  it('pincel, borracha e balde de textura recusam e avisam', () => {
     abrir({ lockedLayers: TERRENO_TRAVADO })
     useMapStore.getState().setTexturaEscolhida('floresta')
     const antes = useMapStore.getState().map
@@ -136,9 +139,25 @@ describe('texturas e carimbos × Terreno travada', () => {
     expect(s.pintarTextura({ tipo: 'pincel', textura: 'floresta', forca: 0.8, raio: 30, pontos: [{ x: 150, y: 150 }] })).toBe('camada-travada')
     expect(s.pintarTextura({ tipo: 'borracha', forca: 1, raio: 30, pontos: [{ x: 150, y: 150 }] })).toBe('camada-travada')
     expect(s.encherComTextura({ x: 150, y: 150 })).toBe('camada-travada')
-    s.apagarTodasAsTexturas()
     semMudanca(antes)
     expect(avisos()).toEqual(['A camada Terreno está travada'])
+  })
+
+  it('"apagar todas" as texturas: com uma pincelada no piso, ela FICA com Terreno travada', () => {
+    abrir({ lockedLayers: TERRENO_TRAVADO, texturas: [PINCELADA] })
+    const antes = useMapStore.getState().map
+    expect(antes.texturas).toEqual([PINCELADA])
+    useMapStore.getState().apagarTodasAsTexturas()
+    semMudanca(antes)
+    expect(avisos()).toEqual(['A camada Terreno está travada'])
+  })
+
+  it('"apagar todas" as texturas com Terreno livre: a pincelada SAI, num passo do Ctrl+Z', () => {
+    abrir({ texturas: [PINCELADA] })
+    useMapStore.getState().apagarTodasAsTexturas()
+    expect(useMapStore.getState().map.texturas ?? []).toEqual([])
+    expect(useMapStore.getState().past).toHaveLength(1)
+    expect(avisos()).toEqual([])
   })
 
   it('carimbar, apagar e "apagar todos" recusam e avisam', () => {
