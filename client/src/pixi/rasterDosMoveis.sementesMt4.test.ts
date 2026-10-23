@@ -12,9 +12,12 @@ import { chaveDoMovel, SEMENTES } from './rasterDosMoveis'
  * do desenho, 0 a 999), como o app as pede: o objeto no tamanho padrão de
  * `lib/mobilia/pecasNovas.ts` (grade de 50 px) com os tons OFICIAIS nos
  * campos de cor (o que o painel grava). Em cada tipo, as combinações mais
- * escuras e mais cinzentas (e as vistas de lado e as 3 lápides), nos níveis 1,
- * 2 e 3, pelos critérios de pixel da MT2; e a varredura das 1000 sementes no
- * PIOR candidato do tipo no nível 3 (o de menor contorno, achado aqui mesmo).
+ * escuras e mais cinzentas, as mais claras e vivas (linho, ocre, cerejeira,
+ * arenito, onde o lugar aceita), as vistas de lado e as 3 lápides, nos níveis
+ * 1, 2 e 3, pelos critérios de pixel da MT2; e a varredura das 1000 sementes
+ * no PIOR candidato do tipo EM CADA CRITÉRIO (menor contorno, maior saturação
+ * p95, menor brilho médio, menor opacidade do miolo, achados aqui mesmo com a
+ * semente do app), cada um conferido em todos os limites.
  */
 
 const COBERTURA_MINIMA = 0.25
@@ -51,44 +54,59 @@ const TIPOS: Readonly<Record<string, readonly Candidato[]>> = {
   mesaQuadrada: [
     { nome: 'mesa quadrada nogueira', prop: peca('mesaQuadrada', 1, 1, 'nogueira', null) },
     { nome: 'mesa quadrada velha', prop: peca('mesaQuadrada', 1, 1, 'velha', null) },
+    { nome: 'mesa quadrada cerejeira', prop: peca('mesaQuadrada', 1, 1, 'cerejeira', null) },
   ],
   mesaRedonda: [
     { nome: 'mesa redonda nogueira', prop: peca('mesaRedonda', 1.25, 1.25, 'nogueira', null) },
     { nome: 'mesa redonda velha', prop: peca('mesaRedonda', 1.25, 1.25, 'velha', null) },
+    { nome: 'mesa redonda cerejeira', prop: peca('mesaRedonda', 1.25, 1.25, 'cerejeira', null) },
   ],
   lapide: [
     { nome: 'lápide arco ardósia', prop: peca('lapide', 0.6, 0.35, 'ardosia', null, { id: idDaLapide(0) }) },
     { nome: 'lápide reta ardósia', prop: peca('lapide', 0.6, 0.35, 'ardosia', null, { id: idDaLapide(1) }) },
     { nome: 'lápide cruz ardósia', prop: peca('lapide', 0.6, 0.35, 'ardosia', null, { id: idDaLapide(2) }) },
     { nome: 'lápide cruz granito', prop: peca('lapide', 0.6, 0.35, 'granito', null, { id: idDaLapide(2) }) },
+    { nome: 'lápide arco arenito', prop: peca('lapide', 0.6, 0.35, 'arenito', null, { id: idDaLapide(0) }) },
+    { nome: 'lápide reta arenito', prop: peca('lapide', 0.6, 0.35, 'arenito', null, { id: idDaLapide(1) }) },
+    { nome: 'lápide cruz arenito', prop: peca('lapide', 0.6, 0.35, 'arenito', null, { id: idDaLapide(2) }) },
   ],
   vaso: [
     { nome: 'vaso de barro', prop: peca('vaso', 0.5, 0.5, 'barro', null) },
     { nome: 'vaso de granito', prop: peca('vaso', 0.5, 0.5, 'granito', null) },
+    { nome: 'vaso de arenito', prop: peca('vaso', 0.5, 0.5, 'arenito', null) },
   ],
   lampiao: [
+    // O lugar do lampião só aceita ferro e latão: nenhum dos materiais claros cabe aqui.
     { nome: 'lampião de ferro', prop: peca('lampiao', 0.5, 0.5, 'ferro', null) },
     { nome: 'lampião de latão', prop: peca('lampiao', 0.5, 0.5, 'latao', null) },
   ],
   quadroDeAvisos: [
     { nome: 'quadro nogueira', prop: peca('quadroDeAvisos', 1, 0.4, 'nogueira', null) },
     { nome: 'quadro velha', prop: peca('quadroDeAvisos', 1, 0.4, 'velha', null) },
+    { nome: 'quadro cerejeira', prop: peca('quadroDeAvisos', 1, 0.4, 'cerejeira', null) },
   ],
   poco: [
     { nome: 'poço ardósia+nogueira', prop: peca('poco', 1.5, 1.5, 'ardosia', 'nogueira') },
     { nome: 'poço granito+velha', prop: peca('poco', 1.5, 1.5, 'granito', 'velha') },
+    { nome: 'poço arenito+cerejeira', prop: peca('poco', 1.5, 1.5, 'arenito', 'cerejeira') },
   ],
   barraca: [
     { nome: 'barraca vinho+nogueira', prop: peca('barraca', 2, 2, 'vinho', 'nogueira') },
     { nome: 'barraca azul+velha', prop: peca('barraca', 2, 2, 'azul', 'velha') },
+    { nome: 'barraca linho+cerejeira', prop: peca('barraca', 2, 2, 'linho', 'cerejeira') },
+    { nome: 'barraca ocre+pinho', prop: peca('barraca', 2, 2, 'ocre', 'pinho') },
     { nome: 'barraca de lado vinho+nogueira', prop: peca('barraca', 2, 2, 'vinho', 'nogueira', LADO) },
     { nome: 'barraca de lado musgo+velha', prop: peca('barraca', 2, 2, 'musgo', 'velha', LADO) },
+    { nome: 'barraca de lado linho+cerejeira', prop: peca('barraca', 2, 2, 'linho', 'cerejeira', LADO) },
+    { nome: 'barraca de lado ocre+nogueira', prop: peca('barraca', 2, 2, 'ocre', 'nogueira', LADO) },
   ],
   carroca: [
     { nome: 'carroça nogueira+ferro', prop: peca('carroca', 2, 1.25, 'nogueira', 'ferro') },
     { nome: 'carroça velha+latão', prop: peca('carroca', 2, 1.25, 'velha', 'latao') },
+    { nome: 'carroça cerejeira+latão', prop: peca('carroca', 2, 1.25, 'cerejeira', 'latao') },
     { nome: 'carroça de lado nogueira+ferro', prop: peca('carroca', 2, 1.25, 'nogueira', 'ferro', LADO) },
     { nome: 'carroça de lado velha+latão', prop: peca('carroca', 2, 1.25, 'velha', 'latao', LADO) },
+    { nome: 'carroça de lado cerejeira+ferro', prop: peca('carroca', 2, 1.25, 'cerejeira', 'ferro', LADO) },
   ],
 }
 
@@ -142,22 +160,69 @@ describe('MT4 com a semente do app (o hash do desenho)', () => {
   })
 })
 
-describe('as 1000 sementes no pior caso de cada peça nova, no nível 3', () => {
-  for (const [tipo, candidatos] of Object.entries(TIPOS)) {
-    it(
-      `${tipo}: o candidato de menor contorno, em todas as sementes, passa em todos os critérios`,
-      () => {
-        const medidos = candidatos.map((c) => ({ c, m: medir(desenhoDoApp(c.prop, 3), 3) }))
-        const pior = medidos.reduce((a, b) => (Math.min(b.m.contornoMinimo, b.m.brilhoMinimo) < Math.min(a.m.contornoMinimo, a.m.brilhoMinimo) ? b : a))
-        const base = desenhoDoApp(pior.c.prop, 3)
-        const reprovadas: string[] = []
-        for (let semente = 0; semente < SEMENTES; semente += 1) {
-          const falhas = reprovacoes(medir({ ...base, semente }, 3))
-          if (falhas.length > 0) reprovadas.push(`${pior.c.nome}, semente ${semente}: ${falhas.join(', ')}`)
-        }
-        expect(reprovadas.slice(0, 10)).toEqual([])
-      },
-      400_000,
-    )
+/** Cada critério do pior candidato: `true` quando as medidas `b` são piores que as `a` nele. */
+const CRITERIOS_DO_PIOR: Readonly<Record<string, (a: MedidasDaImagem, b: MedidasDaImagem) => boolean>> = {
+  'menor contorno': (a, b) => Math.min(b.contornoMinimo, b.brilhoMinimo) < Math.min(a.contornoMinimo, a.brilhoMinimo),
+  'maior saturação p95': (a, b) => b.saturacaoP95 > a.saturacaoP95,
+  'menor brilho médio': (a, b) => b.brilhoMedio < a.brilhoMedio,
+  'menor opacidade do miolo': (a, b) => b.opacidadeDoMiolo < a.opacidadeDoMiolo,
+}
+
+interface Pior {
+  readonly candidato: Candidato
+  /** Os critérios em que ele é o pior do tipo (o mesmo candidato pode ser o pior em vários). */
+  readonly criterios: string[]
+}
+
+/** O pior candidato do tipo em cada critério, com a semente do app, sem repetir candidato. */
+function pioresPorCriterio(candidatos: readonly Candidato[], nivel: number): Pior[] {
+  const medidos = candidatos.map((c) => ({ c, m: medir(desenhoDoApp(c.prop, nivel), nivel) }))
+  const piores = new Map<string, Pior>()
+  for (const [criterio, ehPior] of Object.entries(CRITERIOS_DO_PIOR)) {
+    const pior = medidos.reduce((a, b) => (ehPior(a.m, b.m) ? b : a))
+    const visto = piores.get(pior.c.nome)
+    if (visto === undefined) piores.set(pior.c.nome, { candidato: pior.c, criterios: [criterio] })
+    else visto.criterios.push(criterio)
+  }
+  return [...piores.values()]
+}
+
+/** Cada pior em todas as sementes, em todos os limites: a lista do que reprovou (candidato, critério, semente e valor). */
+function reprovadasNasSementes(piores: readonly Pior[], nivel: number): string[] {
+  const reprovadas: string[] = []
+  for (const { candidato, criterios } of piores) {
+    const base = desenhoDoApp(candidato.prop, nivel)
+    for (let semente = 0; semente < SEMENTES; semente += 1) {
+      const falhas = reprovacoes(medir({ ...base, semente }, nivel))
+      if (falhas.length > 0) reprovadas.push(`${candidato.nome} (pior em ${criterios.join(', ')}), semente ${semente}: ${falhas.join(', ')}`)
+    }
+  }
+  return reprovadas
+}
+
+/**
+ * Níveis da varredura. CUSTO MEDIDO em 23/10/2026, sob o trinco, este arquivo
+ * sozinho: 487 s (133 testes), contra 179 s (82 testes) da varredura de antes
+ * (só o pior em contorno, só no nível 3). O nível 3 por critério custa 440 s
+ * (a barraca sozinha 153 s, 2 a 3 piores distintos por tipo); o nível 1, 45 s
+ * (1/9 dos pixels); os testes por candidato, ~1 s. Nenhum teste chega perto
+ * do teto de 400 s. Tirar o nível 1 daqui economiza só esses 45 s.
+ */
+const NIVEIS_DA_VARREDURA = [3, 1] as const
+
+describe('as 1000 sementes no pior candidato de cada critério, em cada peça nova', () => {
+  for (const nivel of NIVEIS_DA_VARREDURA) {
+    for (const [tipo, candidatos] of Object.entries(TIPOS)) {
+      it(
+        `${tipo} no nível ${nivel}: o pior em contorno, saturação, brilho e miolo passa em todos os limites, em todas as sementes`,
+        () => {
+          const piores = pioresPorCriterio(candidatos, nivel)
+          expect(piores.flatMap((p) => p.criterios)).toHaveLength(Object.keys(CRITERIOS_DO_PIOR).length)
+          const reprovadas = reprovadasNasSementes(piores, nivel)
+          expect({ total: reprovadas.length, primeiras: reprovadas.slice(0, 10) }).toEqual({ total: 0, primeiras: [] })
+        },
+        400_000,
+      )
+    }
   }
 })
