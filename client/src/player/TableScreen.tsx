@@ -9,6 +9,8 @@ import { loadPlayerSettings } from './PlayerPanel'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { tableScreenText } from './tableScreenText'
+import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
+import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 
 /**
  * TELA DA MESA — a página de espectador para a TV ou o projetor. Mesmo
@@ -136,6 +138,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
 export function TableApp({ initialCode, tableKey }: { initialCode: string; tableKey: string }) {
   const [code, setCode] = useState(initialCode.length === JOIN_CODE_LENGTH ? initialCode : '')
   const [connection, setConnection] = useState<PlayerConnection | null>(null)
+  const [sonsAoVivo, setSonsAoVivo] = useState<SonsAoVivo | null>(null)
   const booted = useRef(false)
 
   // Mesma saída da tela de abertura de `player.html` que a página do jogador faz.
@@ -164,6 +167,17 @@ export function TableApp({ initialCode, tableKey }: { initialCode: string; table
     }
   }, [code, tableKey])
 
+  // SONS AO VIVO (F5): a TV também toca (decisão de 23/10); os sons nascem e morrem com a conexão dela.
+  useEffect(() => {
+    if (connection === null) return undefined
+    const sons = instalarSonsAoVivo(connection)
+    setSonsAoVivo(sons)
+    return () => {
+      sons.desinstalar()
+      setSonsAoVivo(null)
+    }
+  }, [connection])
+
   if (code.length !== JOIN_CODE_LENGTH) return <CodeForm initial={initialCode} onSubmit={setCode} />
   // O instante entre escolher o código e o efeito criar a conexão.
   if (connection === null) {
@@ -175,5 +189,10 @@ export function TableApp({ initialCode, tableKey }: { initialCode: string; table
       </TableCard>
     )
   }
-  return <TableSession connection={connection} code={code} onChangeCode={() => setCode('')} />
+  return (
+    <>
+      <TableSession connection={connection} code={code} onChangeCode={() => setCode('')} />
+      <FaixaTocarParaOuvir sons={sonsAoVivo} />
+    </>
+  )
 }

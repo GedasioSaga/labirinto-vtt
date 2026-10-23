@@ -10,6 +10,8 @@ import type { PlayerConnectionOptions } from './playerConnection'
 import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/contasDosJogadores'
 import { rotuloDoNavegador } from './rotuloDoAparelho'
 import { instalarSonsDoJogador } from './sonsDoJogador'
+import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
+import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 import { pedeGzip } from '../net/pacoteComprimido'
 import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
@@ -2320,6 +2322,18 @@ export function PlayerApp() {
   // ouvintes da anterior antes de pôr os da nova, e nunca há duas tocando.
   useEffect(() => (session === null ? undefined : instalarSonsDoJogador(session.connection)), [session])
 
+  // SONS AO VIVO (F5): o que o mestre toca, preso à mesma conexão; a faixinha lê a instalação de agora.
+  const [sonsAoVivo, setSonsAoVivo] = useState<SonsAoVivo | null>(null)
+  useEffect(() => {
+    if (session === null) return undefined
+    const sons = instalarSonsAoVivo(session.connection)
+    setSonsAoVivo(sons)
+    return () => {
+      sons.desinstalar()
+      setSonsAoVivo(null)
+    }
+  }, [session])
+
   // Recarregou a página (ou abriu o QR numa aba nova) com a sessão deste
   // aparelho ainda viva: volta direto para a sala, sem passar pelo formulário
   // e como a mesma pessoa. `join` é declaração de função (içada).
@@ -2398,14 +2412,17 @@ export function PlayerApp() {
     )
   }
   return (
-    <Session
-      connection={session.connection}
-      code={session.code}
-      typedName={session.typedName}
-      hostName={hostName}
-      onLeave={leave}
-      onQuit={quit}
-      onSignOut={signOut}
-    />
+    <>
+      <Session
+        connection={session.connection}
+        code={session.code}
+        typedName={session.typedName}
+        hostName={hostName}
+        onLeave={leave}
+        onQuit={quit}
+        onSignOut={signOut}
+      />
+      <FaixaTocarParaOuvir sons={sonsAoVivo} />
+    </>
   )
 }
