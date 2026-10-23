@@ -265,6 +265,58 @@ describe('tocar', () => {
   })
 })
 
+describe('a página sai ou a aventura troca', () => {
+  /** Importa um som, faz dele loop e toca pelo clique; devolve a fonte que soa. */
+  async function tocarLoop(nome: string): Promise<FonteFalsa> {
+    const id = await importar(`${nome}.wav`)
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(id, { loop: true })
+    })
+    act(() => botao(new RegExp(`^${nome},`)).click())
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    const fonte = tocadas()[0]
+    if (fonte === undefined) throw new Error('o loop não tocou')
+    expect(fonte.stop).not.toHaveBeenCalled()
+    return fonte
+  }
+
+  it('desmontar a página (o editor sai ao voltar ao menu) para o loop com o fade; remontada, nada aparece tocando e nada soa', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const fonte = await tocarLoop('chuva')
+    act(() => root.unmount())
+    expect(fonte.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
+    root = createRoot(container)
+    await montarPagina()
+    await esperar(() => expect(naTela()).toContain('Nada tocando'))
+    expect(botao('Parar tudo').disabled).toBe(true)
+    expect(botao(/^chuva,/).getAttribute('aria-pressed')).toBe('false')
+    expect(tocadas().every((tocada) => tocada.stop.mock.calls.length > 0)).toBe(true)
+  })
+
+  it('trocar de aventura com um som tocando para o som; a outra abre sem nada tocando', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const fonte = await tocarLoop('chuva')
+    fsFalso.mkdir('C:/aventuras/castelo')
+    act(() => useAdventureStore.setState({ adventure: { version: 1, id: 'adv_castelo', name: 'Castelo', startSceneId: 'scene_1', scenes: [{ id: 'scene_1', name: 'Pátio', file: 'map.json' }] }, dir: 'C:/aventuras/castelo' }))
+    expect(fonte.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
+    await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ aventuraId: 'adv_castelo', carregando: false }))
+    await esperar(() => expect(naTela()).toContain('Nada tocando'))
+  })
+
+  it('a aventura nova que ganha a primeira pasta (Salvar) NÃO é troca: o loop segue', async () => {
+    await montarPagina()
+    await abrirAventura(null)
+    const fonte = await tocarLoop('vento')
+    fsFalso.mkdir(AVENTURA)
+    act(() => useAdventureStore.setState({ dir: AVENTURA }))
+    await esperar(() => expect(useBibliotecaDeSonsStore.getState().dir).toBe(AVENTURA))
+    expect(fonte.stop).not.toHaveBeenCalled()
+    expect(naTela()).toContain('1 tocando')
+  })
+})
+
 describe('importar', () => {
   it('o wav entra com o nome do arquivo; 15 MB + 1 e o png renomeado para .mp3 são recusados com texto claro', async () => {
     await montarPagina()

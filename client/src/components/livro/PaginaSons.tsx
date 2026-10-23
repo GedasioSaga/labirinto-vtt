@@ -5,6 +5,7 @@ import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
 import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom } from '../../lib/sons/biblioteca'
 import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
+import { useAdventureStore } from '../../stores/adventureStore'
 import { ligarBibliotecaAAventura, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
 import { Botao } from '../grimorio/Botao'
@@ -112,6 +113,26 @@ export function useAtalhosDeSom(aoAtalho: (atalho: AtalhoDeSom) => boolean): voi
   }, [])
 }
 
+/**
+ * O motor do mestre é um só no app e vive mais que a página, e a página só
+ * sabe o que soa pelos eventos dele. Por isso tudo para quando a página sai (o
+ * editor desmonta ao voltar ao menu) e quando a aventura troca (outra
+ * aventura, ou a mesma em outra pasta): senão a chuva seguiria no menu, ou na
+ * outra aventura sem botão para pará-la, e a página remontada a mostraria
+ * parada. A aventura nova que ganha a primeira pasta (Salvar) não é troca.
+ */
+function pararAoSairOuTrocarDeAventura(motor: MotorAoVivo): () => void {
+  const desligar = useAdventureStore.subscribe((agora, antes) => {
+    const outraAventura = (agora.adventure?.id ?? null) !== (antes.adventure?.id ?? null)
+    const outraPasta = antes.dir !== null && agora.dir !== antes.dir
+    if (outraAventura || outraPasta) motor.pararTudo()
+  })
+  return () => {
+    desligar()
+    motor.pararTudo()
+  }
+}
+
 /** Os toques que estão soando, pelo id do efeito (a instância do motor é o próprio id). */
 function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string): ReadonlyMap<string, Toque> {
   const [toques, setToques] = useState<ReadonlyMap<string, Toque>>(() => new Map())
@@ -188,6 +209,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const selos = useRef(new Map<string, HTMLElement>())
 
   useEffect(() => ligarBibliotecaAAventura(), [])
+  useEffect(() => pararAoSairOuTrocarDeAventura(motor), [motor])
 
   const toques = useToquesDoMotor(motor, (id) => useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === id)?.nome ?? 'O som')
   const toquesAgora = useRef(toques)
