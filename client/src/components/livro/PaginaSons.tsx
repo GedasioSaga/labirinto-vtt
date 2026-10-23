@@ -370,7 +370,8 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       {dir !== null && midiaBytes !== null && (
         <p className={classes('lb-sons__pe', midiaBytes > MIDIA_PESADA_BYTES && 'lb-sons__pe--pesada')}>
           Mídia da aventura: {megas(midiaBytes)}
-          {midiaBytes > MIDIA_PESADA_BYTES && <span> Passou de 200 MB: levar e abrir a aventura fica lento. Apague sons que não usa.</span>}
+          {/* Sem "apague sons": apagar tira o botão, não o arquivo (pendência no plano, seção 6). */}
+          {midiaBytes > MIDIA_PESADA_BYTES && <span> Passou de 200 MB: levar e abrir a aventura fica lento. Apagar um som tira o botão, mas o áudio dele continua na pasta midia da aventura.</span>}
         </p>
       )}
 

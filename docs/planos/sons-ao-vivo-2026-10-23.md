@@ -96,6 +96,7 @@ Medição da F6 antes do código (só leitura, sem commit): (a) o iframe no WebV
 - Memória do áudio decodificado no celular: medir o heap com 3 loops e 5 efeitos curtos e ajustar o limite de 1 MB.
 - Travada: p95 do quadro com 8 sons e a aba aberta, nenhuma tarefa longa de 200 ms ou mais.
 - Política do YouTube: risco aceito pelo usuário. Na prática o erro mais comum é o 150 (vídeo ou região), que chega ao mestre por `som.falhou`.
+- **Pendência (revisão da F3, 23/10): limpar da pasta os áudios que nenhum efeito usa mais ao gravar.** Hoje apagar um som tira o botão e a entrada do `sons.json`, mas o arquivo continua em `<aventura>/midia/` (nem `midiaDaPasta.ts` nem `bibliotecaNoDisco.ts` removem arquivo), e o peso do pé vem do `readDir` da pasta: com 201 MB, apagar 10 sons deixa o pé em 201 MB e o aviso aceso. Por isso o aviso da página só diz que o arquivo fica, sem mandar apagar sons. A limpeza é código de disco da F1 (`bibliotecaNoDisco.ts`): ao gravar, tirar da pasta o áudio que nenhum efeito referencia, sem tocar nas imagens que também moram ali.
 - Convivência com as camadas: nenhuma fatia edita arquivo quente. Se `LivroDaMesa.tsx` ou `keymap.ts` entrarem no escopo da fatia 6 das camadas, combinar a vez antes da F3.
 
 ## Decisões do usuário em 23/10

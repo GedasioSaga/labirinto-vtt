@@ -534,6 +534,16 @@ describe('o peso da mídia', () => {
   })
 })
 
+describe('o aviso da mídia pesada diz a verdade', () => {
+  it('acima de 200 MB não manda apagar sons (apagar não tira o áudio da pasta midia); diz que o arquivo fica', async () => {
+    await act(async () => root.render(<PaginaSons medirMidia={async () => new Map([['trovoes.wav', 201 * MB]])} />))
+    await abrirAventura()
+    await esperar(() => expect(naTela()).toContain('Mídia da aventura: 201 MB'))
+    expect(naTela()).not.toContain('Apague sons que não usa')
+    expect(naTela()).toContain('Apagar um som tira o botão, mas o áudio dele continua na pasta midia da aventura.')
+  })
+})
+
 describe('o selo pulsa', () => {
   it('no clique o selo pulsa em 150 ms; pela tecla, não (ação de teclado não anima); com movimento reduzido, não', async () => {
     const animar = vi.fn()
