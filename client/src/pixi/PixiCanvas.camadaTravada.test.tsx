@@ -2,10 +2,12 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container, EventBoundary, FederatedPointerEvent } from 'pixi.js'
+import { buildFreehandDrawing } from '../lib/drawingFactory'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
+import { criarMovel } from '../lib/mobilia'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
-import type { MapData, Pin, Region, Token } from '../types/map'
+import type { MapData, Pin, Prop, Region, Token } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { PixiCanvas } from './PixiCanvas'
 
@@ -92,6 +94,8 @@ function abrir(map: MapData, ferramenta: DrawingTool): void {
     past: [],
     future: [],
     activeTool: ferramenta,
+    // Borracha de objeto inteiro: o clique tira o item todo (o modo "parte" recorta desenho).
+    eraseMode: 'objeto',
     snapTargets: { token: false, wall: false, prop: false },
     camera: { x: 0, y: 0, scale: 1 },
   })
@@ -191,6 +195,50 @@ describe('borracha × camada travada, no gesto (eraseAt chama a barreira)', () =
     expect(useMapStore.getState().map.tokens).toEqual([])
     expect(useMapStore.getState().map.regions).toEqual([SALA])
     expect(avisos()).toEqual([])
+  })
+})
+
+/** Rabisco à mão passando pelo meio da sala: no mapa v2 ele mora em Desenhos, não em Anotações. */
+const RABISCO = buildFreehandDrawing('risco', [{ x: 420, y: 480 }, { x: 540, y: 480 }], '#000000', 6)
+
+describe('borracha × um ponto só (contextoDeCamadas no hit-test do PixiCanvas)', () => {
+  it('mapa v2 com Anotações travada: o rabisco livre (Desenhos) é apagado e a sala fica', async () => {
+    abrir(mapaBase({ drawings: [RABISCO], lockedLayers: ['anotacoes'], versaoDasCamadas: 2 }), 'eraser')
+    await monta()
+    clica({ x: 480, y: 480 })
+    expect(useMapStore.getState().map.drawings).toEqual([])
+    expect(useMapStore.getState().map.regions).toEqual([SALA])
+    expect(avisos()).toEqual([])
+  })
+
+  it('mapa v2 com o rabisco escolhido em Anotações travada: nada se apaga, nem a sala, UM aviso', async () => {
+    abrir(mapaBase({ drawings: [{ ...RABISCO, camada: 'anotacoes' }], lockedLayers: ['anotacoes'], versaoDasCamadas: 2 }), 'eraser')
+    await monta()
+    const antes = useMapStore.getState().map
+    clica({ x: 480, y: 480 })
+    semMudanca(antes)
+    expect(avisos()).toEqual(['A camada Anotações está travada'])
+  })
+
+  it('objeto em Decoração (livre) sobre região escolhida em Objetos (travada): sai o objeto, a região fica', async () => {
+    const barril: Prop = { ...criarMovel('barril', { x: 480, y: 480 }, GRADE, 'barril'), camada: 'decoracao' }
+    const regiaoEmObjetos: Region = { ...SALA, camada: 'objetos' }
+    abrir(mapaBase({ regions: [regiaoEmObjetos], props: [barril], lockedLayers: ['objetos'] }), 'eraser')
+    await monta()
+    clica({ x: 480, y: 480 })
+    expect(useMapStore.getState().map.props).toEqual([])
+    clica({ x: 400, y: 400 })
+    expect(useMapStore.getState().map.regions).toEqual([regiaoEmObjetos])
+    expect(avisos()).toEqual(['A camada Objetos está travada'])
+  })
+
+  it('mapa antigo: rabisco com Anotações travada segura a borracha como hoje', async () => {
+    abrir(mapaBase({ drawings: [RABISCO], lockedLayers: ['anotacoes'] }), 'eraser')
+    await monta()
+    const antes = useMapStore.getState().map
+    clica({ x: 480, y: 480 })
+    semMudanca(antes)
+    expect(avisos()).toEqual(['A camada Anotações está travada'])
   })
 })
 

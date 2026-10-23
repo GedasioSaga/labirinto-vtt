@@ -114,3 +114,15 @@ A revisão da fatia 2 (auditor de segurança, revisor e verificador) foi corrigi
 
 - **Camada movida:** a camada fica ENTRE as duas vizinhas onde foi solta. Dois casos mostrados e aceitos: Chão logo acima de Salas (o chão pinta por cima da cor de fundo das salas; paredes, móveis e luzes continuam por cima; os nomes das salas ficam no alto porque fazem parte de Salas) e Escadas logo acima de Salas (as escadas ficam abaixo de paredes, portas e móveis). Sem mexer na ordem o mapa é idêntico ao de hoje.
 - **Telhados escondidos dos jogadores:** o jogador não vê o teto e vê o interior da casa (respeitando névoa e visão). É o que a fatia 2 já faz; nada a mudar.
+
+## Requisitos herdados da revisão da fatia 5 (23/10/2026)
+
+As correções da revisão moveram o cadeado do pino das ações da store para o gesto (ferramenta Pino, arrasto, Delete e "Excluir" do painel; escada, viagem e "Passar para pede" não passam por cadeado), fizeram a barreira da borracha tirar antes os itens travados ou ocultos um a um, e trocaram `interagiveis`, `hitTestMap`, `pinAt` e `clickSelectDoPiso` do `PixiCanvas` por `contextoDeCamadas`. Ficaram para a **fatia 8 (mover item)**, como requisito, os usos que ainda derivam a camada pelo tipo (`wallLayer`, `regionLayer`, `propLayer`, `canInteractInLayer`, `isLayerLocked` e cia., que ignoram `item.camada` e o mapa v2):
+
+- `lib/abrirVao.ts`, `lib/abrirCorredor.ts`, `lib/endireitar.ts`, `lib/hoverHitTest.ts`;
+- `pixi/stairHandleGesture.ts`, `pixi/cercaCurvaGesture.ts`, `pixi/drawFantasmaDeTeste.ts`;
+- `stores/mobiliaNoPonto.ts`, `components/paredesAoRedorNoPainel.ts`;
+- `stores/mapStore.ts` `layerForSelection` (~248, usado pelo `toggleLayerLock` para tirar da seleção o que fica travado) e `lib/areaSelection.ts` `moveAreaSelection` (~590);
+- interface, junto da fatia 6/8: `components/LayersPanel.tsx`, `components/PropLayerControls.tsx`, `components/livro/FichaDoObjeto.tsx`.
+
+Aceite na fatia 8: cada um responde por `contextoDeCamadas(map).camadaDe`/`podeMexer`, com teste de item de camada escolhida travada e de mapa v2 (Desenhos fora de Anotações, Chão fora de Salas), sem mudar o resultado no mapa antigo.

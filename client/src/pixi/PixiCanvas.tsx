@@ -290,12 +290,12 @@ import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
 import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
-  canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
+import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -4047,23 +4047,26 @@ export function PixiCanvas({
        * movido"). `lib/selectionHitTest.ts` é de outro agente (fora da minha
        * lista de escrita) — filtrar ANTES de entrar nele, em vez de editá-lo,
        * mantém a mudança inteira dentro deste arquivo. Os 7 `kind` passam
-       * pelo mesmo `canInteractInLayer` que `lib/areaSelection.ts` já usa
-       * pro marquee — mesma regra, dois caminhos de seleção.
+       * pelo mesmo `podeMexer` (`lib/camadas/consulta.ts`) que
+       * `lib/areaSelection.ts` usa pro marquee — mesma regra, dois caminhos.
        */
-      const interagiveis = (map: MapData): MapData => ({
-        ...map,
-        walls: map.walls.filter((wall) => canInteractInLayer(wall, wallLayer(wall), map.lockedLayers)),
-        lights: map.lights.filter((light) => canInteractInLayer(light, lightLayer(light), map.lockedLayers)),
-        regions: map.regions.filter((region) => canInteractInLayer(region, regionLayer(region), map.lockedLayers)),
-        stairs: map.stairs.filter((stair) => canInteractInLayer(stair, stairLayer(stair), map.lockedLayers)),
-        // Drawing não tem campo `locked` no schema (types/map.ts) — mesmo
-        // motivo documentado em lib/areaSelection.ts (selectEntitiesInArea):
-        // só o eixo de CAMADA travada se aplica, não `canInteractInLayer`
-        // (que exige `Lockable`, `.locked` opcional).
-        drawings: map.drawings.filter((drawing) => !isLayerLocked(map.lockedLayers, drawingLayer(drawing))),
-        tokens: map.tokens.filter((token) => !isHidden(token) && canInteractInLayer(token, tokenLayer(token), map.lockedLayers)),
-        props: map.props.filter((prop) => !isHidden(prop) && canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
-      })
+      // UM PONTO SÓ (fase 3, fatia 5): a camada de cada item e o cadeado vêm de
+      // `contextoDeCamadas` — a camada escolhida do item conta, e no mapa v2
+      // Desenhos e Chão deixam de seguir Anotações e Salas. `podeMexer` = item
+      // não travado E camada dele destravada (desenho não tem `locked`).
+      const interagiveis = (map: MapData): MapData => {
+        const camadas = contextoDeCamadas(map)
+        return {
+          ...map,
+          walls: map.walls.filter((wall) => camadas.podeMexer('parede', wall)),
+          lights: map.lights.filter((light) => camadas.podeMexer('luz', light)),
+          regions: map.regions.filter((region) => camadas.podeMexer('regiao', region)),
+          stairs: map.stairs.filter((stair) => camadas.podeMexer('escada', stair)),
+          drawings: map.drawings.filter((drawing) => camadas.podeMexer('desenho', drawing)),
+          tokens: map.tokens.filter((token) => !isHidden(token) && camadas.podeMexer('ficha', token)),
+          props: map.props.filter((prop) => !isHidden(prop) && camadas.podeMexer('objeto', prop)),
+        }
+      }
       /** O mesmo filtro, só no piso em edição: o que está em outro piso não se vê e não se pega. */
       const hitTestMap = (map: MapData): MapData => interagiveis(doPisoEmEdicao(map))
 
@@ -4074,7 +4077,7 @@ export function PixiCanvas({
        * arrasto abaixo já checa `canInteract`); oculto aparece como fantasma
        * (`tokensRenderer.ts`). Só a camada travada tira o token do clique.
        * Objeto oculto no editor também fica clicável (fantasma em drawProps.ts);
-       * objeto travado segue a regra de antes (`canInteractInLayer`).
+       * objeto travado segue a regra de antes (`podeMexer`).
        */
       /**
        * Pino sob o ponto do mundo, respeitando camada oculta e o "oculto no
@@ -4086,7 +4089,8 @@ export function PixiCanvas({
        * lado do jogador.
        */
       const pinAt = (map: MapData, point: Point) => {
-        const clickable = visiblePins(doPisoEmEdicao(map).pins, map.hiddenLayers).filter((pin) => !pin.hidden)
+        // Com o mapa (não só `hiddenLayers`): o olho do mestre na camada do PINO, a escolhida ou Anotações.
+        const clickable = visiblePins(doPisoEmEdicao(map).pins, map).filter((pin) => !pin.hidden)
         // O alvo é o pino como aparece: crescido no zoom afastado, com a folga limitada ao tamanho dele.
         return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
       }
@@ -4128,21 +4132,24 @@ export function PixiCanvas({
       }
 
       const clickSelectMap = (inteiro: MapData): MapData => clickSelectDoPiso(doPisoEmEdicao(inteiro))
-      const clickSelectDoPiso = (map: MapData): MapData => ({
-        ...interagiveis(map),
-        tokens: map.tokens.filter((token) => !isLayerLocked(map.lockedLayers, tokenLayer(token))),
-        props: map.props.filter((prop) => canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
-        // Região/Sala TRAVADA continua clicável, pelo mesmo motivo do token
-        // travado acima — e por um que só aparece aqui: Região é o kind mais
-        // EMBAIXO da cadeia de prioridade (selectionHitTest.ts), então tirá-la
-        // do array não deixa o clique sem alvo, deixa o clique pegar o que
-        // está por baixo. Pedido de 18/09/2026: o mestre tinha uma Sala-ilha
-        // sobre o chão-mar; clicar na ilha travada selecionava o mar e o
-        // arrasto levava o MAR junto, sem caminho de volta pra destravar.
-        // Continua não se movendo — quem cobra isso é `canInteract` em cada
-        // branch de arrasto/edição de vértice abaixo.
-        regions: map.regions.filter((region) => !isLayerLocked(map.lockedLayers, regionLayer(region))),
-      })
+      const clickSelectDoPiso = (map: MapData): MapData => {
+        const camadas = contextoDeCamadas(map)
+        return {
+          ...interagiveis(map),
+          tokens: map.tokens.filter((token) => !camadas.travada(camadas.camadaDe('ficha', token))),
+          props: map.props.filter((prop) => camadas.podeMexer('objeto', prop)),
+          // Região/Sala TRAVADA continua clicável, pelo mesmo motivo do token
+          // travado acima — e por um que só aparece aqui: Região é o kind mais
+          // EMBAIXO da cadeia de prioridade (selectionHitTest.ts), então tirá-la
+          // do array não deixa o clique sem alvo, deixa o clique pegar o que
+          // está por baixo. Pedido de 18/09/2026: o mestre tinha uma Sala-ilha
+          // sobre o chão-mar; clicar na ilha travada selecionava o mar e o
+          // arrasto levava o MAR junto, sem caminho de volta pra destravar.
+          // Continua não se movendo — quem cobra isso é `canInteract` em cada
+          // branch de arrasto/edição de vértice abaixo.
+          regions: map.regions.filter((region) => !camadas.travada(camadas.camadaDe('regiao', region))),
+        }
+      }
 
       /**
        * Agrupar objetos (Ctrl+G): o que um clique em `item` seleciona — o grupo
