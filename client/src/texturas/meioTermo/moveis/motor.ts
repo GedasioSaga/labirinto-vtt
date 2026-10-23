@@ -14,8 +14,9 @@
  *
  * A pintura é um GERADOR que cede a vez a cada linha de pixels: a fila de
  * `rasterDosMoveis.ts` roda fatias de 8 ms e nenhuma tarefa trava a tela. A
- * composição final (do acumulador para os bytes) vem de uma vez só, no último
- * passo: a textura nunca é enviada à placa pela metade.
+ * composição final (do acumulador para os bytes, com o preto levantado até o
+ * piso de luz) também anda uma linha por passo; a textura só sobe para a placa
+ * depois do último, então nunca é enviada pela metade.
  *
  * Mesma entrada, mesma imagem: nenhum `Math.random`, todo sorteio é `hash`.
  * Só a vista "de cima"; a frente e o cilindro da 3/4 chegam com a fatia MT11.
@@ -149,7 +150,8 @@ export interface OpcoesDaPeca {
   readonly metal?: number
 }
 
-type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array) => void
+/** `escala` = pixels da imagem por px do protótipo (a trama miúda some abaixo de um certo tamanho). */
+type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array, escala: number) => void
 
 export interface Peca {
   readonly forma: Forma
@@ -286,8 +288,16 @@ function texTecido(u: number, v: number, _x: number, _y: number, p: Peca, s: Flo
   }
 }
 
+/**
+ * Abaixo deste tamanho (pixels da imagem por px do protótipo; o nível 1 tem
+ * 0,89) o quadrado de 2,8 px da trama cai em 2 ou 3 pixels e a palha vira uma
+ * grade de 3 x 2 casas: a trama fica com só `CONTRASTE_DA_TRAMA_MIUDA` do contraste.
+ */
+const ESCALA_MINIMA_DA_TRAMA = 1.5
+const CONTRASTE_DA_TRAMA_MIUDA = 0.35
+
 /** Palha trançada em cesto: fios de 1,4 px, cada quadrado de 2,8 px vira de lado. */
-function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Float32Array): void {
+function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Float32Array, escala: number): void {
   const c = 2.8
   const i = Math.floor(u / c)
   const j = Math.floor(v / c)
@@ -300,7 +310,7 @@ function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Flo
   const fe = aoLongo / c - Math.floor(aoLongo / c)
   const borda = fe < 1 - fe ? fe : 1 - fe
   if (borda < 0.16) luz -= 0.13 * (1 - borda / 0.16)
-  s[3] += luz
+  s[3] += escala < ESCALA_MINIMA_DA_TRAMA ? luz * CONTRASTE_DA_TRAMA_MIUDA : luz
 }
 
 const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
@@ -442,7 +452,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
       SAIDA[3] = p.luz
       SAIDA[4] = 0
       SAIDA[5] = 1
-      if (tex !== null) tex(u, v, x, y, p, SAIDA)
+      if (tex !== null) tex(u, v, x, y, p, SAIDA, S)
       const nlen = Math.sqrt(nx * nx + ny * ny + 1)
       const nl = (nx * LX + ny * LY + LZ) / nlen
       let fl = 1 + FORCA_DA_LUZ * (nl - LZ)
@@ -511,10 +521,14 @@ function* projetar(alvo: Alvo, p: Peca, projecao: Projecao): Generator<void, voi
   }
 }
 
-/** Quantos px de altura cada amostra da sombra cobre: a sombra é a forma arrastada do pé até o topo, não só o topo afastado. */
-const PASSO_DA_SOMBRA = 7
+/**
+ * Quantos px de altura cada amostra da sombra cobre: a sombra é a forma
+ * arrastada do pé até o topo, não só o topo afastado. Com 7 px e no máximo 8
+ * amostras, a peça alta e fina (o poste do encosto, a perna) saía em degraus.
+ */
+const PASSO_DA_SOMBRA = 2.5
 const BORDA_DA_SOMBRA_NO_PE = 0.8
-const AMOSTRAS_MAXIMAS_DA_SOMBRA = 8
+const AMOSTRAS_MAXIMAS_DA_SOMBRA = 20
 
 function bordaDaSombra(s: Sombra): number {
   return s.suave ?? BORDA_DA_SOMBRA_NO_PE + 0.09 * s.z
@@ -543,7 +557,8 @@ function* pintarSombras(alvo: Alvo, sombras: readonly Sombra[], mapa: Float32Arr
       for (let px = px0; px < px1; px += 1) {
         const x = x0 + (px + 0.5) * inv
         let k = 0.5 - s.forma.d(x - ox, y - oy) / (2 * su)
-        for (let j = 0; j < n; j += 1) {
+        // A sombra satura em k = 1 (`suave01`): achado o miolo, as outras amostras não mudam nada.
+        for (let j = 0; j < n && k < 1; j += 1) {
           const t = j / n
           const suJ = su0 + (su - su0) * t
           const kj = 0.5 - s.forma.d(x - ox * t, y - oy * t) / (2 * suJ)
@@ -607,32 +622,111 @@ for (let i = 0; i < PONTILHADO.length; i += 1) PONTILHADO[i] = hash(i, 17, 9001)
 /** Pixel quase transparente fica de fora (vale 0). */
 const ALFA_MINIMO = 0.002
 
+// ---------- o preto levantado (`docs/design/vila-meio-termo/prototipo/meio.js:84-125`) ----------
+
+/** Nenhum pixel opaco de peça fica abaixo desta luminância LINEAR (a prova do protótipo usa 0,03). */
+export const PISO_DE_LUZ = 0.045
+/** Só o pixel de peça (alfa em 0..255 a partir daqui) é levantado; a sombra no chão, transparente, fica como está. */
+const ALFA_DO_LEVANTAMENTO = 160
 /**
- * Junta as peças (por cima) e o chão (sombras, por baixo) em `destino`, de uma
- * vez só. `premultiplicada`: cor já multiplicada pelo alfa, o que a textura
- * da tela espera; sem ela, a cor pura (a que o teste mede).
+ * O escuro quente da nogueira: o contorno derivado de `nogueira` (#775739)
+ * pelo Estilo Mother do Meio-Termo (`tons()` com escuro 0,6 e piso 0,06 de
+ * `meio.js:86-89`) dá #643d24; aqui o azul sobe de 0x24 para 0x28 (saturação
+ * HSV 0,60 em vez de 0,64, luminância linear 0,062 nos dois): com o tom cru,
+ * os pixels levantados do barril de nogueira e latão no nível 3 punham a
+ * saturação p95 em 0,621, acima do teto de 0,62. O pixel escuro demais é
+ * misturado nele.
  */
-function compor(alvo: Alvo, chao: Float32Array, destino: Uint8ClampedArray, premultiplicada: boolean): void {
+const COR_DO_PISO: Rgb = [0x64, 0x3d, 0x28]
+/** Mistura um pouco além do necessário: a conta é em sRGB e o piso é linear. */
+const EXCESSO_DO_LEVANTAMENTO = 1.25
+
+/** sRGB de 8 bits para linear, em tabela. */
+const LINEAR = new Float32Array(256)
+for (let i = 0; i < 256; i += 1) {
+  const u = i / 255
+  LINEAR[i] = u <= 0.04045 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
+}
+
+/** Luminância linear (Rec. 709) de uma cor de 8 bits já arredondada. */
+export function luminanciaLinear(r: number, g: number, b: number): number {
+  return 0.2126 * LINEAR[r] + 0.7152 * LINEAR[g] + 0.0722 * LINEAR[b]
+}
+
+const LUZ_DO_PISO = luminanciaLinear(COR_DO_PISO[0], COR_DO_PISO[1], COR_DO_PISO[2])
+
+function canal8(v: number): number {
+  return v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v)
+}
+
+/** A cor do pixel (8 bits, cor pura) em `COR`, levantada até o piso de luz se for escura demais. */
+const COR = new Float64Array(3)
+function levantar(r: number, g: number, b: number, alfa: number): void {
+  let r8 = canal8(r)
+  let g8 = canal8(g)
+  let b8 = canal8(b)
+  if (alfa >= ALFA_DO_LEVANTAMENTO) {
+    const L = luminanciaLinear(r8, g8, b8)
+    if (L < PISO_DE_LUZ) {
+      const t = Math.min(1, ((PISO_DE_LUZ - L) / Math.max(0.001, LUZ_DO_PISO - L)) * EXCESSO_DO_LEVANTAMENTO)
+      r8 = canal8(r8 + (COR_DO_PISO[0] - r8) * t)
+      g8 = canal8(g8 + (COR_DO_PISO[1] - g8) * t)
+      b8 = canal8(b8 + (COR_DO_PISO[2] - b8) * t)
+    }
+  }
+  COR[0] = r8
+  COR[1] = g8
+  COR[2] = b8
+}
+
+/**
+ * Junta as peças (por cima) e o chão (sombras, por baixo) em `destino`, uma
+ * linha por passo (a imagem grande não trava a fila), e levanta o preto: pixel
+ * de peça abaixo do piso de luz vira o escuro quente da nogueira.
+ * `premultiplicada`: cor já multiplicada pelo alfa, o que a textura da tela
+ * espera; sem ela, a cor pura (a que o teste mede). A textura só sobe para a
+ * placa depois do último passo, então nunca aparece pela metade.
+ */
+function* compor(alvo: Alvo, chao: Float32Array, destino: Uint8ClampedArray, premultiplicada: boolean): Generator<void, void, void> {
   const { buf, W, H } = alvo
-  destino.fill(0)
   for (let py = 0, o = 0; py < H; py += 1) {
     const linha = (py & (LADO_DO_PONTILHADO - 1)) * LADO_DO_PONTILHADO
     for (let px = 0; px < W; px += 1, o += 4) {
       const resta = 1 - buf[o + 3]
       const baixo = chao[o >> 2]
       const a = buf[o + 3] + resta * baixo
-      if (a <= ALFA_MINIMO) continue
+      if (a <= ALFA_MINIMO) {
+        destino[o] = 0
+        destino[o + 1] = 0
+        destino[o + 2] = 0
+        destino[o + 3] = 0
+        continue
+      }
       const q = (linha + (px & (LADO_DO_PONTILHADO - 1))) * 2
       const pr = PONTILHADO[q]
       const alfa = Math.min(255, Math.max(0, a * 255 + PONTILHADO[q + 1]))
+      levantar(
+        (buf[o] + resta * baixo * SOMBRA_COR[0]) / a + pr,
+        (buf[o + 1] + resta * baixo * SOMBRA_COR[1]) / a + pr,
+        (buf[o + 2] + resta * baixo * SOMBRA_COR[2]) / a + pr,
+        alfa,
+      )
       const k = premultiplicada ? alfa / 255 : 1
-      destino[o] = ((buf[o] + resta * baixo * SOMBRA_COR[0]) / a + pr) * k
-      destino[o + 1] = ((buf[o + 1] + resta * baixo * SOMBRA_COR[1]) / a + pr) * k
-      destino[o + 2] = ((buf[o + 2] + resta * baixo * SOMBRA_COR[2]) / a + pr) * k
+      destino[o] = COR[0] * k
+      destino[o + 1] = COR[1] * k
+      destino[o + 2] = COR[2] * k
       destino[o + 3] = alfa
     }
+    yield
   }
 }
+
+/**
+ * Bytes do buffer de trabalho por pixel da imagem enquanto ela é pintada: o
+ * acumulador RGBA, a sombra das peças de cima e o chão, em Float32 (4 + 1 + 1
+ * canais de 4 bytes). São 6 vezes os bytes RGBA da imagem pronta.
+ */
+export const BYTES_DE_TRABALHO_POR_PIXEL = (4 + 1 + 1) * Float32Array.BYTES_PER_ELEMENT
 
 /**
  * Pinta a cena em `destino` (RGBA, `limites.W` x `limites.H`), cedendo a vez
@@ -655,7 +749,7 @@ export function* pintarCenaEmPassos(
   }
   const chao = new Float32Array(W * H)
   yield* pintarSombras(alvo, cena.sombras, chao)
-  compor(alvo, chao, destino, premultiplicada)
+  yield* compor(alvo, chao, destino, premultiplicada)
 }
 
 /** A cena inteira de uma vez (teste, folha de contato): RGBA de cor pura. */

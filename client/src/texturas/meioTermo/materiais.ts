@@ -53,7 +53,7 @@ function canalDoHex(hex: string, posicao: 0 | 1 | 2): number {
 }
 
 /** A cor da paleta do Meio-Termo com a luz multiplicada por `fator`, como `corDe` em `meio.js:164`. */
-function tomDoMeio(token: TokenDaPaleta, fator: number): string {
+export function tomDoMeio(token: TokenDaPaleta, fator: number): string {
   const base = PALETA_MEIO_TERMO[token].base
   const canal = (posicao: 0 | 1 | 2): number => Math.min(255, Math.max(0, Math.round(canalDoHex(base, posicao) * fator)))
   return hexDoRgb(canal(0), canal(1), canal(2))
@@ -63,18 +63,38 @@ function material(id: IdDoMaterial, nome: string, classe: ClasseDoMaterial, hex:
   return { id, nome, classe, hex, tom: tomDoMeio(token, fator) }
 }
 
+/**
+ * Tom PRÓPRIO do material no móvel, fora da regra "token x fator": a cerejeira
+ * como nogueira x 1,12 saía igual à nogueira (diferença OKLab 0,025 a 0,035) e
+ * a lã azul como a telha azul saturava demais. Revisão de design da MT2.
+ */
+const TOM_DA_CEREJEIRA = '#926149'
+const TOM_DA_LA_AZUL = '#4b648e'
+
+/**
+ * Carvalho e madeira velha no MÓVEL ficam mais escuros que o token da vila
+ * (que segue como está): com o tom do token, a mesa de carvalho (L 0,603) e a
+ * velha (0,592) sumiam no chão do app (L 0,615).
+ */
+const LUZ_DO_CARVALHO_NO_MOVEL = 0.91
+const LUZ_DA_VELHA_NO_MOVEL = 0.78
+
+function materialDeTomProprio(id: IdDoMaterial, nome: string, classe: ClasseDoMaterial, hex: string, tom: string): Material {
+  return { id, nome, classe, hex, tom }
+}
+
 export const MATERIAIS: Readonly<Record<IdDoMaterial, Material>> = {
-  carvalho: material('carvalho', 'Carvalho', 'madeira', '#8b6b47', 'carvalho', 1),
+  carvalho: material('carvalho', 'Carvalho', 'madeira', '#8b6b47', 'carvalho', LUZ_DO_CARVALHO_NO_MOVEL),
   nogueira: material('nogueira', 'Nogueira', 'madeira', '#5f4532', 'nogueira', 1),
   pinho: material('pinho', 'Pinho', 'madeira', '#a3875f', 'pinho', 1),
-  cerejeira: material('cerejeira', 'Cerejeira', 'madeira', '#7c4b37', 'nogueira', 1.12),
-  velha: material('velha', 'Madeira velha', 'madeira', '#7b776e', 'granito', 0.85),
+  cerejeira: materialDeTomProprio('cerejeira', 'Cerejeira', 'madeira', '#7c4b37', TOM_DA_CEREJEIRA),
+  velha: material('velha', 'Madeira velha', 'madeira', '#7b776e', 'granito', LUZ_DA_VELHA_NO_MOVEL),
   ferro: material('ferro', 'Ferro', 'metal', '#4c4e51', 'ferro', 1),
   latao: material('latao', 'Latão', 'metal', '#9c8044', 'latao', 1),
   arame: material('arame', 'Arame', 'metal', '#56585b', 'ferro', 1.05),
   linho: material('linho', 'Linho cru', 'tecido', '#c1b59c', 'linho', 1),
   vinho: material('vinho', 'Lã vinho', 'tecido', '#6d3337', 'vinho', 1),
-  azul: material('azul', 'Lã azul', 'tecido', '#41526a', 'telhaAzul', 1),
+  azul: materialDeTomProprio('azul', 'Lã azul', 'tecido', '#41526a', TOM_DA_LA_AZUL),
   musgo: material('musgo', 'Lã musgo', 'tecido', '#5a6344', 'musgo', 1),
   ocre: material('ocre', 'Lã ocre', 'tecido', '#977842', 'ocre', 1),
   granito: material('granito', 'Granito', 'pedra', '#7e7b76', 'granito', 1),
@@ -133,9 +153,14 @@ function linearDoCanal(c8: number): number {
 
 /** OKLab (Björn Ottosson, 2020) de um `#rrggbb` válido. */
 export function oklabDoHex(hex: string): Oklab {
-  const r = linearDoCanal(canalDoHex(hex, 0))
-  const g = linearDoCanal(canalDoHex(hex, 1))
-  const b = linearDoCanal(canalDoHex(hex, 2))
+  return oklabDoRgb(canalDoHex(hex, 0), canalDoHex(hex, 1), canalDoHex(hex, 2))
+}
+
+/** OKLab de uma cor sRGB de 8 bits por canal. */
+export function oklabDoRgb(r8: number, g8: number, b8: number): Oklab {
+  const r = linearDoCanal(r8)
+  const g = linearDoCanal(g8)
+  const b = linearDoCanal(b8)
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)

@@ -101,12 +101,35 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
     for (const tipo of TIPOS_MOBILIA) for (const l of LUGARES_DE_MATERIAL[tipo]) expect(l.opcoes, `${tipo}.${l.id}`).toContain(l.padrao)
   })
 
-  it('os tons do Meio-Termo (meio.js, tabela TROCA): mais claros e quentes', () => {
-    expect(MATERIAIS.carvalho.tom).toBe('#a07b51')
-    expect(MATERIAIS.azul.tom).toBe('#43639a')
-    // cerejeira = nogueira do Meio-Termo (#775739) com 12% mais luz
-    expect(MATERIAIS.cerejeira.tom).toBe('#856140')
+  it('os tons do Meio-Termo (meio.js, tabela TROCA): mais claros e quentes, com os acertos da revisão de design da MT2', () => {
+    // carvalho x 0,91 e velha (granito) x 0,78 no móvel: com o tom do token sumiam no chão do app
+    expect(MATERIAIS.carvalho.tom).toBe('#92704a')
+    expect(MATERIAIS.velha.tom).toBe('#78756c')
+    // tons próprios: a cerejeira deixa de ser "nogueira x 1,12" e a lã azul de ser a telha azul
+    expect(MATERIAIS.cerejeira.tom).toBe('#926149')
+    expect(MATERIAIS.azul.tom).toBe('#4b648e')
+    expect(MATERIAIS.nogueira.tom).toBe('#775739')
     for (const m of Object.values(MATERIAIS)) expect(m.tom, m.id).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('a lã azul fica com croma 0,075 (a telha azul tinha 0,096) e a mesma luz', () => {
+    const [L, a, b] = oklabDoHex(MATERIAIS.azul.tom)
+    const [Lt] = oklabDoHex('#43639a')
+    expect(Math.hypot(a, b)).toBeCloseTo(0.075, 2)
+    expect(Math.abs(L - Lt)).toBeLessThan(0.005)
+  })
+})
+
+describe('materialMaisPerto: a conta é em OKLab, não em RGB', () => {
+  it('cor livre em que o mais perto em OKLab e o mais perto em RGB são madeiras DIFERENTES: vale o OKLab', () => {
+    const madeiras = lugar('barril', 'madeira')
+    const cor = '#2828a3'
+    const reais = madeiras.opcoes.filter(ehMaterial)
+    const canais = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+    const emRgb = (hex: string): number => Math.hypot(...canais(hex).map((c, i) => c - canais(cor)[i]))
+    const maisPertoEmRgb = reais.reduce((x, y) => (emRgb(MATERIAIS[y].hex) < emRgb(MATERIAIS[x].hex) ? y : x))
+    expect(maisPertoEmRgb).toBe('velha')
+    expect(materialMaisPerto(cor, madeiras)).toBe('nogueira')
   })
 })
 

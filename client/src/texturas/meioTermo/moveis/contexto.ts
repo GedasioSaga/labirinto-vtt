@@ -8,7 +8,7 @@
  * de 8 px e a altura de 0,62 casa do barril valem como lá. A tela escala a
  * imagem pronta para o tamanho do objeto no mapa (`pixi/rasterDosMoveis.ts`).
  */
-import { MATERIAIS, type IdDoMaterial } from '../materiais'
+import { MATERIAIS, tomDoMeio, type IdDoMaterial } from '../materiais'
 import { rgb } from '../../ruido'
 import { contato, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
 import type { Forma } from './formas'
@@ -45,10 +45,15 @@ export function sombraDeLado(cena: Cena, forma: Forma, altura: number): void {
   cena.sombras.push({ forma, z: altura }, contato(forma, 0.24))
 }
 
-/** Materiais fixos, que o mestre não escolhe (os tons do protótipo). */
-export const LENCOL: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: rgb('#cbc2ad') }
-export const PREGO: MaterialDaPeca = { classe: 'metal', rgb: rgb('#3a3b3d') }
-export const BURACO: MaterialDaPeca = { classe: 'liso', rgb: rgb('#1e1814') }
+/**
+ * Materiais fixos, que o mestre não escolhe, nos tons do Meio-Termo (tabela
+ * TROCA_INTERNA de `docs/design/vila-meio-termo/prototipo/meio.js:159`): o
+ * lençol é o linho x 1,03, o prego o ferro x 0,85 e o buraco a nogueira x 0,6.
+ * Os tons crus do protótipo de objetos (#3a3b3d, #1e1814) eram quase pretos.
+ */
+export const LENCOL: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: rgb(tomDoMeio('linho', 1.03)) }
+export const PREGO: MaterialDaPeca = { classe: 'metal', rgb: rgb(tomDoMeio('ferro', 0.85)) }
+export const BURACO: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('nogueira', 0.6)) }
 
 /**
  * A classe de textura de um material da tabela. Pedra, corda e casca só
