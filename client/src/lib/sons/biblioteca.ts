@@ -16,6 +16,14 @@ import { ehRefDeAudio, idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../midia'
 export const VERSAO_DA_BIBLIOTECA_DE_SONS = 1
 export const NOME_DE_SOM_MAX = 40
 export const EFEITOS_DE_SOM_MAX = 200
+/** Pastas de um nível só, em chips no topo da aba: 50 já não cabem numa olhada. */
+export const PASTAS_DE_SOM_MAX = 50
+/**
+ * Quantas entradas cruas (válidas ou não) a leitura olha em cada lista do
+ * `sons.json`: o teto de efeitos conta só os válidos, e um arquivo com
+ * milhares de entradas tortas faria a leitura passar por todas.
+ */
+export const ENTRADAS_CRUAS_DE_SOM_MAX = 2000
 export const VOLUME_DE_SOM_PADRAO = 0.8
 export const NOME_DE_SOM_PADRAO = 'Som sem nome'
 
@@ -155,8 +163,8 @@ export function fonteDoSomLida(value: unknown): FonteDoSom | null {
   if (value.tipo === 'youtube') {
     const { video, inicioS } = value
     if (!ehVideoDoYoutube(video)) return null
-    if (inicioS === undefined) return { tipo: 'youtube', video }
-    return inicioValido(inicioS) ? { tipo: 'youtube', video, inicioS } : null
+    // O início é opcional: o torto sai sozinho e o vídeo começa do zero, em vez de o efeito se perder por ele.
+    return inicioValido(inicioS) ? { tipo: 'youtube', video, inicioS } : { tipo: 'youtube', video }
   }
   return null
 }
@@ -165,13 +173,24 @@ export function fonteDoSomLida(value: unknown): FonteDoSom | null {
 // Leitura do sons.json
 // ───────────────────────────────────────────────────────────────────────────
 
+/** Campo presente e com valor: `null` e ausente dizem o mesmo ("nenhum"). */
+function temValor(value: unknown): boolean {
+  return value !== undefined && value !== null
+}
+
+/** Pastas dentro de verdade: a lista vazia (ou nula) não põe nada dentro. */
+function temPastasDentro(value: unknown): boolean {
+  return temValor(value) && !(Array.isArray(value) && value.length === 0)
+}
+
 /**
- * Uma pasta. A que diz estar dentro de outra (`pastaId` ou `parentId`) ou
- * traz pastas dentro (`pastas`) sai: a biblioteca tem um nível só.
+ * Uma pasta. A que diz estar dentro de outra (`pastaId` ou `parentId` com
+ * valor) ou traz pastas dentro (`pastas` não vazio) sai: a biblioteca tem um
+ * nível só. `null` e lista vazia são da raiz.
  */
 function pastaDeSonsLida(value: unknown): PastaDeSons | null {
   if (!isRecord(value) || !ehIdDeSom(value.id)) return null
-  const dentroDeOutra = (value.pastaId !== undefined && value.pastaId !== null) || value.parentId !== undefined || value.pastas !== undefined
+  const dentroDeOutra = temValor(value.pastaId) || temValor(value.parentId) || temPastasDentro(value.pastas)
   const nome = nomeDeSomLimpo(value.nome)
   if (dentroDeOutra || nome === null || !ordemValida(value.ordem)) return null
   return { id: value.id, nome, ordem: value.ordem }
@@ -206,6 +225,11 @@ function semAtalho(efeito: EfeitoDeSom): EfeitoDeSom {
   return resto
 }
 
+/** A lista crua do `sons.json`, cortada antes de olhar cada entrada; o que não é lista vira vazia. */
+function listaCrua(value: unknown): unknown[] {
+  return Array.isArray(value) ? value.slice(0, ENTRADAS_CRUAS_DE_SOM_MAX) : []
+}
+
 export type TextoDaBiblioteca = { ok: true; biblioteca: BibliotecaDeSons } | { ok: false; motivo: 'ilegivel' | 'versao-mais-nova' }
 
 /**
@@ -227,7 +251,8 @@ export function bibliotecaDoTexto(texto: string): TextoDaBiblioteca {
 
   const pastas: PastaDeSons[] = []
   const pastaIds = new Set<string>()
-  for (const valor of Array.isArray(bruto.pastas) ? bruto.pastas : []) {
+  for (const valor of listaCrua(bruto.pastas)) {
+    if (pastas.length >= PASTAS_DE_SOM_MAX) break
     const pasta = pastaDeSonsLida(valor)
     if (pasta === null || pastaIds.has(pasta.id)) continue
     pastaIds.add(pasta.id)
@@ -237,7 +262,7 @@ export function bibliotecaDoTexto(texto: string): TextoDaBiblioteca {
   const efeitos: EfeitoDeSom[] = []
   const efeitoIds = new Set<string>()
   const atalhos = new Set<AtalhoDeSom>()
-  for (const valor of Array.isArray(bruto.efeitos) ? bruto.efeitos : []) {
+  for (const valor of listaCrua(bruto.efeitos)) {
     if (efeitos.length >= EFEITOS_DE_SOM_MAX) break
     const efeito = efeitoDeSomLido(valor, pastaIds)
     if (efeito === null || efeitoIds.has(efeito.id)) continue
@@ -358,6 +383,7 @@ export function comPastaNova(
   id: string = novoIdDePastaDeSons(),
 ): { biblioteca: BibliotecaDeSons; pasta: PastaDeSons } | null {
   const nome = nomeDeSomLimpo(nomeBruto)
+  if (biblioteca.pastas.length >= PASTAS_DE_SOM_MAX) return null
   if (nome === null || !ehIdDeSom(id) || biblioteca.pastas.some((pasta) => pasta.id === id)) return null
   const pasta: PastaDeSons = { id, nome, ordem: proximaOrdem(biblioteca.pastas) }
   return { biblioteca: { ...biblioteca, pastas: [...biblioteca.pastas, pasta] }, pasta }

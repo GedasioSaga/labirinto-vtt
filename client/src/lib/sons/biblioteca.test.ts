@@ -12,7 +12,9 @@ import {
   comPastaNova,
   comPastaRenomeada,
   EFEITOS_DE_SOM_MAX,
+  ENTRADAS_CRUAS_DE_SOM_MAX,
   ehVideoDoYoutube,
+  PASTAS_DE_SOM_MAX,
   fonteDoSomLida,
   idsDeAudioDaBiblioteca,
   nomeDeSomDoArquivo,
@@ -25,6 +27,7 @@ import {
   type FonteDoSom,
   type VideoDoYoutube,
 } from './biblioteca'
+import { MIDIA_AUDIO_MAX_BYTES } from '../midia'
 
 const ID_A = `${'a'.repeat(64)}.mp3`
 const ID_B = `${'b'.repeat(64)}.wav`
@@ -96,13 +99,23 @@ describe('entrada inválida é descartada', () => {
       { tipo: 'arquivo', ref: `midia:${ID_A}` },
       { tipo: 'youtube', video: 'curto' },
       { tipo: 'youtube', video: 'dQw4w9WgXcQ&t=1' },
-      { tipo: 'youtube', video: 'dQw4w9WgXcQ', inicioS: -1 },
-      { tipo: 'youtube', video: 'dQw4w9WgXcQ', inicioS: 'meio' },
       { tipo: 'spotify', id: 'x' },
       null,
     ]
     const efeitos = [...tortas.map((fonte, i) => ({ ...EFEITO_BOM, id: `som_torto${i}`, fonte })), EFEITO_BOM]
     expect(lida(textoCom(efeitos)).efeitos.map((efeito) => efeito.id)).toEqual(['som_ok'])
+  })
+
+  it('YouTube com vídeo bom e início torto (-1, "meio", null): o efeito fica, só o início sai', () => {
+    const efeitos = [-1, 'meio', null].map((inicioS, i) => ({ ...EFEITO_BOM, id: `som_inicio${i}`, fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ', inicioS } }))
+    const lidos = lida(textoCom(efeitos)).efeitos
+    expect(lidos.map((efeito) => efeito.id)).toEqual(['som_inicio0', 'som_inicio1', 'som_inicio2'])
+    for (const efeito of lidos) expect(efeito.fonte).toStrictEqual({ tipo: 'youtube', video: 'dQw4w9WgXcQ' })
+  })
+
+  it('áudio de exatamente 15 MB entra; um byte a mais, não', () => {
+    expect(fonteDoSomLida({ tipo: 'arquivo', ref: `midia:${ID_A}`, bytes: MIDIA_AUDIO_MAX_BYTES })).toEqual({ tipo: 'arquivo', ref: `midia:${ID_A}`, bytes: MIDIA_AUDIO_MAX_BYTES })
+    expect(fonteDoSomLida({ tipo: 'arquivo', ref: `midia:${ID_A}`, bytes: MIDIA_AUDIO_MAX_BYTES + 1 })).toBeNull()
   })
 
   it('volume fora de 0..1, nome vazio ou acima de 40 caracteres: o efeito sai', () => {
@@ -141,6 +154,50 @@ describe('entrada inválida é descartada', () => {
     const lidos = lida(textoCom(efeitos)).efeitos
     expect(lidos).toHaveLength(EFEITOS_DE_SOM_MAX)
     expect(lidos.at(-1)?.id).toBe(`som_${EFEITOS_DE_SOM_MAX - 1}`)
+  })
+
+  it(`3 efeitos tortos no começo e ${EFEITOS_DE_SOM_MAX} válidos: os ${EFEITOS_DE_SOM_MAX} ficam (o teto conta os válidos)`, () => {
+    const tortos = [{ id: 'som_x1' }, null, { ...EFEITO_BOM, id: 'som_x3', volume: 2 }]
+    const validos = Array.from({ length: EFEITOS_DE_SOM_MAX }, (_, i) => ({ ...EFEITO_BOM, id: `som_${i}`, ordem: i }))
+    const lidos = lida(textoCom([...tortos, ...validos])).efeitos
+    expect(lidos).toHaveLength(EFEITOS_DE_SOM_MAX)
+    expect(lidos[0]?.id).toBe('som_0')
+    expect(lidos.at(-1)?.id).toBe(`som_${EFEITOS_DE_SOM_MAX - 1}`)
+  })
+
+  it(`a lista CRUA é cortada em ${ENTRADAS_CRUAS_DE_SOM_MAX} antes de olhar cada entrada: o válido depois de tantos tortos não entra`, () => {
+    const tortos = Array.from({ length: ENTRADAS_CRUAS_DE_SOM_MAX }, (_, i) => ({ id: `som_torto${i}` }))
+    expect(lida(textoCom([...tortos, EFEITO_BOM])).efeitos).toEqual([])
+    expect(lida(textoCom([...tortos.slice(1), EFEITO_BOM])).efeitos.map((efeito) => efeito.id)).toEqual(['som_ok'])
+    const pastasTortas = Array.from({ length: ENTRADAS_CRUAS_DE_SOM_MAX }, (_, i) => ({ id: `pasta_torta${i}` }))
+    expect(lida(textoCom([], [...pastasTortas, { id: 'pasta_ok', nome: 'Ok', ordem: 0 }])).pastas).toEqual([])
+  })
+
+  it(`mais de ${PASTAS_DE_SOM_MAX} pastas: as ${PASTAS_DE_SOM_MAX} primeiras válidas ficam, e criar mais uma é recusado`, () => {
+    const pastas = [{ id: 'pasta_torta', nome: '', ordem: 0 }, ...Array.from({ length: PASTAS_DE_SOM_MAX + 5 }, (_, i) => ({ id: `pasta_${i}`, nome: `P${i}`, ordem: i }))]
+    const biblioteca = lida(textoCom([], pastas))
+    expect(biblioteca.pastas).toHaveLength(PASTAS_DE_SOM_MAX)
+    expect(biblioteca.pastas.at(-1)?.id).toBe(`pasta_${PASTAS_DE_SOM_MAX - 1}`)
+    expect(comPastaNova(biblioteca, 'Mais uma')).toBeNull()
+    const comVaga = semPasta(biblioteca, 'pasta_0')
+    if (comVaga === null) throw new Error('não apagou')
+    expect(comPastaNova(comVaga, 'Cabe')?.biblioteca.pastas).toHaveLength(PASTAS_DE_SOM_MAX)
+  })
+
+  it('pasta com parentId nulo, pastas vazio (ou nulo) é da raiz, como a de pastaId nulo', () => {
+    const pastas = [
+      { id: 'pasta_p', nome: 'P', ordem: 0, parentId: null },
+      { id: 'pasta_v', nome: 'V', ordem: 1, pastas: [] },
+      { id: 'pasta_n', nome: 'N', ordem: 2, pastaId: null, parentId: null, pastas: null },
+    ]
+    const efeitos = [{ ...EFEITO_BOM, pastaId: 'pasta_v' }]
+    const biblioteca = lida(textoCom(efeitos, pastas))
+    expect(biblioteca.pastas).toEqual([
+      { id: 'pasta_p', nome: 'P', ordem: 0 },
+      { id: 'pasta_v', nome: 'V', ordem: 1 },
+      { id: 'pasta_n', nome: 'N', ordem: 2 },
+    ])
+    expect(biblioteca.efeitos[0]?.pastaId).toBe('pasta_v')
   })
 
   it('pasta dentro de pasta sai, e o efeito que estava nela vai para a raiz; id repetido fica só o primeiro', () => {
@@ -197,6 +254,13 @@ describe('mudanças (puras)', () => {
     expect(sem?.efeitos.find((efeito) => efeito.id === 'som_porta')).not.toHaveProperty('atalho')
   })
 
+  it('atalho fora de 1 a 9 (10, 0) é recusado também em tempo de execução, para quem chega sem tipo', () => {
+    // @ts-expect-error: prova de execução; o tipo já recusa o 10, o teste confere a guarda de quem chega sem tipo (número de um campo)
+    expect(comEfeitoMudado(cheia(), 'som_vento', { atalho: 10 })).toBeNull()
+    // @ts-expect-error: idem para o 0
+    expect(comEfeitoMudado(cheia(), 'som_vento', { atalho: 0 })).toBeNull()
+  })
+
   it('editar nome, volume, loop, pasta e favorito; recusa o inválido e o efeito que não existe', () => {
     const mudada = comEfeitoMudado(cheia(), 'som_vento', { nome: 'Ventania', volume: 0.6, loop: true, pastaId: 'pasta_taverna', favorito: true })
     expect(mudada?.efeitos[3]).toEqual({ id: 'som_vento', nome: 'Ventania', fonte: cheia().efeitos[3]?.fonte, volume: 0.6, loop: true, pastaId: 'pasta_taverna', favorito: true, ordem: 3 })
@@ -243,8 +307,17 @@ describe('vídeo do YouTube', () => {
   })
 
   it('o TIPO da fonte exige o vídeo validado: string solta não compila', () => {
-    // @ts-expect-error: prova de tipo deste teste, string solta não é VideoDoYoutube sem passar por ehVideoDoYoutube
-    const solta: FonteDoSom = { tipo: 'youtube', video: 'dQw4w9WgXcQ' }
-    expect(solta.tipo).toBe('youtube')
+    // Prova do TIPO, não do vitest: o vitest apaga os tipos sem checá-los e este teste passaria mesmo sem a
+    // marca. Quem prova é o `tsc --noEmit` do portão: se a string solta passar a compilar, a diretiva abaixo
+    // fica sem erro e o tsc falha com TS2578. Ela mora na linha do `video`, e só nela, para não ser
+    // satisfeita por outro erro do objeto (um `tipo` errado, um campo a mais); o controle ao lado é o
+    // mesmo objeto com o vídeo validado, que compila.
+    const controle: FonteDoSom = { tipo: 'youtube', video: videoValido('dQw4w9WgXcQ') }
+    const solta: FonteDoSom = {
+      tipo: 'youtube',
+      // @ts-expect-error: string solta não é VideoDoYoutube sem passar por ehVideoDoYoutube
+      video: 'dQw4w9WgXcQ',
+    }
+    expect([controle.tipo, solta.tipo]).toEqual(['youtube', 'youtube'])
   })
 })
