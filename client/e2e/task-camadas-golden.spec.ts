@@ -56,6 +56,7 @@ import { criarMovel } from '../src/lib/mobilia'
 import { buildStairFromDraft } from '../src/lib/stairs'
 import { comTexturas } from '../src/lib/texturas'
 import { CAMADAS_PADRAO } from '../src/lib/camadas/padrao'
+import { camadasDoJogadorDoMapa } from '../src/lib/camadas/doJogador'
 import type { CamadaPadraoId, DoorState, FloorPiece, MapData, ModeloDeCamadas, RegionPoint } from '../src/types/map'
 
 const GRADE = 64
@@ -377,6 +378,40 @@ test.describe('jogador a 390 x 844', () => {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
       await abrirNoJogador(page, { map: montar() })
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+    })
+  }
+})
+
+/**
+ * O mapa como o jogador o recebe com a lista e as opacidades do mestre: o host
+ * resolve `modeloCamadas` e `opacidadeDasCamadas` em `camadasDoJogador` (só id e
+ * alfa, `lib/camadas/doJogador.ts`) e não manda os dois.
+ */
+function paraOJogador(map: MapData): MapData {
+  const camadasDoJogador = camadasDoJogadorDoMapa(map)
+  const { modeloCamadas: _modelo, opacidadeDasCamadas: _opacidades, ...semOsDoMestre } = map
+  return camadasDoJogador === undefined ? semOsDoMestre : { ...semOsDoMestre, camadasDoJogador }
+}
+
+// FATIA 4 (render do jogador com zonas): a lista manda DENTRO da zona da névoa.
+// Os mesmos casos aceitos no editor, na tela do jogador: Chão logo acima de
+// Salas (a pincelada de terra por cima do fundo da Sala, paredes e móveis por
+// cima dela), Escadas logo acima de Salas (sob o rabisco, os móveis e a porta)
+// e Objetos a 40% (o baú, de Decoração, fica inteiro: nó próprio).
+test.describe('jogador a 1440 x 900, camadas mexidas (fatia 4)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const casos: [string, () => MapData][] = [
+    ['jogador-1440-chao-acima-de-salas.png', () => ({ ...casaComParedeNoChao(), modeloCamadas: listaCom('chao', 'salas') })],
+    ['jogador-1440-escadas-acima-de-salas.png', () => ({ ...addStair(mapaCasa(), buildStairFromDraft('s2', { x: 460, y: 296 }, { x: 500, y: 344 }, 8)), modeloCamadas: listaCom('escadas', 'salas') })],
+    ['jogador-1440-objetos-40.png', () => ({ ...mapaCasa(), opacidadeDasCamadas: { objetos: 0.4 } })],
+  ]
+  for (const [foto, montar] of casos) {
+    test(foto, async ({ page }) => {
+      test.setTimeout(90_000)
+      const map = paraOJogador(montar())
+      expect(map.camadasDoJogador).toBeDefined()
+      await abrirNoJogador(page, { map })
       await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
     })
   }
