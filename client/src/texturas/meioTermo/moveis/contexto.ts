@@ -8,6 +8,7 @@
  * de 8 px e a altura de 0,62 casa do barril valem como lá. A tela escala a
  * imagem pronta para o tamanho do objeto no mapa (`pixi/rasterDosMoveis.ts`).
  */
+import type { FormaDoTapete } from '../../../types/map'
 import { MATERIAIS, tomDoMeio, type IdDoMaterial } from '../materiais'
 import { rgb } from '../../ruido'
 import { contato, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
@@ -32,6 +33,10 @@ export interface ContextoDoMovel {
   readonly lado: LadoDoMovel
   readonly m: MateriaisDoMovel
   readonly peca: CriarPeca
+  /** Só o tapete lê: retangular ou redondo. */
+  readonly forma: FormaDoTapete
+  /** Só a cerca lê: a volta em graus (0 = reta), já arredondada pela chave da imagem. */
+  readonly curva: number
 }
 
 /** O que monta as peças de um tipo na cena. */
@@ -56,19 +61,22 @@ export const PREGO: MaterialDaPeca = { classe: 'metal', rgb: rgb(tomDoMeio('ferr
 export const BURACO: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('nogueira', 0.6)) }
 
 /**
- * A classe de textura de um material da tabela. Pedra, corda e casca só
- * aparecem na cerca e na fogueira, que ganham textura na fatia MT3; até lá
- * pintam liso.
+ * A cinza do leito da fogueira, fixa: o granito do Meio-Termo x 0,68 (o tom
+ * cru do protótipo, #625c55, era frio e quase igual ao chão escuro).
  */
+export const CINZA: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('granito', 0.68)) }
+
+/** A classe de textura de um material da tabela: cada classe da tabela tem a sua. */
 function classeDaPeca(id: IdDoMaterial): ClasseDaPeca {
-  const classe = MATERIAIS[id].classe
-  return classe === 'madeira' || classe === 'metal' || classe === 'tecido' || classe === 'palha' ? classe : 'liso'
+  return MATERIAIS[id].classe
 }
 
 /** O material da tabela como o pintor o lê, no tom do Meio-Termo (`tom`, não o `hex` do arquivo). */
 export function materialDaPeca(id: IdDoMaterial): MaterialDaPeca {
   const material = MATERIAIS[id]
   const classe = classeDaPeca(id)
-  if (classe !== 'tecido') return { classe, rgb: rgb(material.tom) }
-  return { classe, rgb: rgb(material.tom), fio: id === 'linho' ? 'linho' : 'la' }
+  if (classe === 'tecido') return { classe, rgb: rgb(material.tom), fio: id === 'linho' ? 'linho' : 'la' }
+  if (id === 'granito' || id === 'arenito' || id === 'ardosia') return { classe, rgb: rgb(material.tom), pedra: id }
+  if (classe === 'casca') return { classe, rgb: rgb(material.tom), casca: id === 'lenhaBetula' ? 'betula' : 'fendida' }
+  return { classe, rgb: rgb(material.tom) }
 }

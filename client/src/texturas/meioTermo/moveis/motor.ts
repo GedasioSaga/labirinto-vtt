@@ -91,7 +91,7 @@ function suave01(t: number): number {
 
 // ---------- materiais e peças ----------
 
-export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'liso'
+export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'liso'
 
 /** O material como o pintor o lê: a classe escolhe a textura, `rgb` é o tom em luz neutra. */
 export interface MaterialDaPeca {
@@ -99,6 +99,10 @@ export interface MaterialDaPeca {
   readonly rgb: Rgb
   /** Só no tecido: trama de linho ou lã fofa. */
   readonly fio?: 'linho' | 'la'
+  /** Só na pedra: granito pintado, arenito em camadas ou ardósia em lâminas. */
+  readonly pedra?: 'granito' | 'arenito' | 'ardosia'
+  /** Só na casca da lenha: a bétula é branca com riscos; as outras têm fendas ao longo da tora. */
+  readonly casca?: 'betula' | 'fendida'
 }
 
 /** Sombra que a peça faz nas peças de baixo (o travesseiro no lençol, a cinta na tampa). */
@@ -148,10 +152,21 @@ export interface OpcoesDaPeca {
   readonly curvaY?: CurvaY
   readonly projeta?: Projecao
   readonly metal?: number
+  /**
+   * Textura própria da peça no lugar da do material (o topo cortado do mourão,
+   * a lenha queimada, o leito de brasa, o desenho do tapete). Os dados dela
+   * (centro, calor, medidas) vão fechados na função.
+   */
+  readonly textura?: Textura
 }
 
-/** `escala` = pixels da imagem por px do protótipo (a trama miúda some abaixo de um certo tamanho). */
-type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array, escala: number) => void
+/**
+ * Soma a variação do material no ponto. `escala` = pixels da imagem por px do
+ * protótipo (a trama miúda some abaixo de um certo tamanho). `s` = [r, g, b,
+ * luz, emissão, alfa]: a emissão (0..1) é a parte da cor que não pega luz nem
+ * sombra (a brasa acesa).
+ */
+export type Textura = (u: number, v: number, x: number, y: number, p: Peca, s: Float32Array, escala: number) => void
 
 export interface Peca {
   readonly forma: Forma
@@ -231,7 +246,7 @@ export function criarPecas(base: number): CriarPeca {
       curvaY: o.curvaY,
       projeta: o.projeta,
       metal: o.metal ?? (mat.classe === 'metal' ? METAL_PADRAO : 0),
-      tex: TEXTURA[mat.classe],
+      tex: o.textura ?? TEXTURA[mat.classe],
       base: [mat.rgb[0] * tom, mat.rgb[1] * tom, mat.rgb[2] * tom],
       su: semente * 37.17,
       sv: semente * 11.31,
@@ -313,12 +328,57 @@ function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Flo
   s[3] += escala < ESCALA_MINIMA_DA_TRAMA ? luz * CONTRASTE_DA_TRAMA_MIUDA : luz
 }
 
+/** Granito com grão claro e escuro, arenito em camadas, ardósia em lâminas (`objetos.js:430-444`). */
+function texPedra(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
+  let luz = ruido(u * 0.09 + p.semente * 13, v * 0.09) * 0.16 + (hash(p.semente, 1, 707) - 0.5) * 0.12
+  const tipo = p.mat.pedra ?? 'granito'
+  if (tipo === 'granito') {
+    luz += ruido(u * 0.4, v * 0.4) * 0.06
+    const h = hash(Math.floor(u * 1.5), Math.floor(v * 1.5), p.semente)
+    if (h > 0.93) luz -= 0.17
+    else if (h < 0.05) luz += 0.11
+  } else if (tipo === 'arenito') {
+    luz += ruido(u * 1.1, v * 1.1) * 0.06 + ruido(u * 0.03, v * 0.45 + p.semente) * 0.07
+  } else {
+    luz += ruido(u * 0.04, v * 0.55 + p.semente) * 0.09 + ruido(u * 0.35, v * 0.35) * 0.03
+  }
+  s[3] += luz
+}
+
+/** Corda torcida: fios em diagonal ao longo do comprimento (`objetos.js:463`). */
+function texCorda(u: number, v: number, _x: number, _y: number, _p: Peca, s: Float32Array): void {
+  s[3] += Math.sin((u * 0.75 + v * 1.25) * 1.6) * 0.09 + ruido(u * 0.6, v * 0.6) * 0.05
+}
+
+/** Casca da lenha: bétula branca com riscos de través; as outras, fendas ao longo da tora (`objetos.js:468-480`). */
+function texCasca(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
+  if (p.mat.casca === 'betula') {
+    let luz = ruido(u * 0.08 + p.semente * 3, v * 0.3) * 0.08
+    const marca = ruido(u * 0.55 + p.semente * 9, v * 0.07 + p.semente)
+    if (marca > 0.2) luz -= 0.4 * Math.min(1, (marca - 0.2) / 0.08)
+    s[3] += luz
+    return
+  }
+  const fenda = ruido(u * 0.07 + p.semente * 5, v * 0.9 + p.semente)
+  let luz = fenda * 0.22 + ruido(u * 0.5, v * 0.5) * 0.06
+  if (fenda < -0.12) luz -= 0.16
+  s[3] += luz
+}
+
 const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   madeira: texMadeira,
   metal: texMetal,
   tecido: texTecido,
   palha: texPalha,
+  pedra: texPedra,
+  corda: texCorda,
+  casca: texCasca,
   liso: null,
+}
+
+/** A textura do material (a que a peça usa sem `textura` própria): a lenha queimada pinta a casca por baixo da brasa. */
+export function texturaDaClasse(classe: ClasseDaPeca): Textura | null {
+  return TEXTURA[classe]
 }
 
 // ---------- luz ----------
@@ -475,6 +535,13 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
           cg += brilho * 0.96
           cb += brilho * 0.88
         }
+      }
+      // Emissão (a brasa acesa): essa parte da cor não pega luz nem sombra. Só as texturas próprias a usam.
+      const em = SAIDA[4]
+      if (em > 0) {
+        cr += (SAIDA[0] - cr) * em
+        cg += (SAIDA[1] - cg) * em
+        cb += (SAIDA[2] - cb) * em
       }
       cr = cr < 0 ? 0 : cr > 255 ? 255 : cr
       cg = cg < 0 ? 0 : cg > 255 ? 255 : cg

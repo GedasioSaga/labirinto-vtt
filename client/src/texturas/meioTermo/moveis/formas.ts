@@ -52,6 +52,49 @@ export function elipse(cx: number, cy: number, rx: number, ry: number): Forma {
   }
 }
 
+/**
+ * Elipse girada `angulo` radianos em volta do centro (as pedras da roda da
+ * fogueira, deitadas ao longo da roda), `objetos.js:127-149`.
+ */
+export function elipseGirada(cx: number, cy: number, rx: number, ry: number, angulo: number): Forma {
+  const c = Math.cos(angulo)
+  const s = Math.sin(angulo)
+  const ex = Math.sqrt(rx * rx * c * c + ry * ry * s * s)
+  const ey = Math.sqrt(rx * rx * s * s + ry * ry * c * c)
+  const menor = Math.min(rx, ry)
+  return {
+    b: [cx - ex, cy - ey, cx + ex, cy + ey],
+    d(x, y) {
+      const dx = x - cx
+      const dy = y - cy
+      const px = dx * c + dy * s
+      const py = -dx * s + dy * c
+      const k0 = Math.sqrt((px * px) / (rx * rx) + (py * py) / (ry * ry))
+      const k1 = Math.sqrt((px * px) / (rx * rx * rx * rx) + (py * py) / (ry * ry * ry * ry))
+      return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -menor
+    },
+  }
+}
+
+/** Cápsula de raio `r` entre dois pontos (a vara da cerca, a corda, o arame, a tora da lenha), `objetos.js:151-167`. */
+export function capsula(ax: number, ay: number, bx: number, by: number, r: number): Forma {
+  const dx = bx - ax
+  const dy = by - ay
+  const l2 = dx * dx + dy * dy || 1e-9
+  return {
+    b: [Math.min(ax, bx) - r, Math.min(ay, by) - r, Math.max(ax, bx) + r, Math.max(ay, by) + r],
+    d(x, y) {
+      const px = x - ax
+      const py = y - ay
+      let h = (px * dx + py * dy) / l2
+      h = h < 0 ? 0 : h > 1 ? 1 : h
+      const qx = px - dx * h
+      const qy = py - dy * h
+      return Math.sqrt(qx * qx + qy * qy) - r
+    },
+  }
+}
+
 export type Ponto = readonly [number, number]
 
 /** Polígono qualquer (a cantoneira do baú, a tábua inclinada). */
