@@ -2202,7 +2202,7 @@ export function PixiCanvas({
         cena: map.id,
         mapa: map,
         regioes: visibleRegions(map.regions, map.hiddenLayers),
-        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map),
         // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
         penhascos: map.penhascos,
       })
@@ -2216,7 +2216,7 @@ export function PixiCanvas({
         passos: map.texturas,
         importadas: map.texturasImportadas,
         regioes: visibleRegions(map.regions, map.hiddenLayers),
-        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map),
       })
       const redrawLayers = createShapesRedrawer({
         floor: paintFloor,
@@ -2291,7 +2291,7 @@ export function PixiCanvas({
             nomesDosLugaresLigados(map)
               ? {
                   cena: map.id,
-                  lugares: lugaresComNome(visibleRegions(map.regions, map.hiddenLayers), visibleDrawings(map.drawings, map.hiddenLayers), {
+                  lugares: lugaresComNome(visibleRegions(map.regions, map.hiddenLayers), visibleDrawings(map.drawings, map), {
                     textoDe: roomLabelText,
                   }),
                   animar: true,
@@ -2320,7 +2320,7 @@ export function PixiCanvas({
         textLabels: () => {
           const { map, selection } = sceneState()
           const single = selectionSingle(selection)
-          textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
+          textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map), single?.kind === 'drawing' ? single.id : null)
         },
         handles: paintEditHandles,
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+

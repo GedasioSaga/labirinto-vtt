@@ -35,13 +35,15 @@ const SEGUE_NO_MAPA_DE_ANTES: readonly (readonly [CamadaId, LayerId])[] = [
 /**
  * Uma lista do mapa de antes, escrita como o mapa v2 a lê: a entrada muda de
  * Chão ou Desenhos sai (no mapa de antes ela não valia nada) e entra a que
- * espelha Salas ou Anotações.
+ * espelha Salas ou Anotações. Conteúdo igual devolve a MESMA lista: a
+ * repintura do editor compara `hiddenLayers` por referência, e a virada não
+ * pode repintar o que não mudou.
  */
-function materializar(lista: readonly CamadaId[]): CamadaId[] {
+function materializar<L extends readonly CamadaId[]>(lista: L): L | CamadaId[] {
   const seguidoras = new Set(SEGUE_NO_MAPA_DE_ANTES.map(([segue]) => segue))
   const nova = lista.filter((id) => !seguidoras.has(id))
   for (const [segue, manda] of SEGUE_NO_MAPA_DE_ANTES) if (nova.includes(manda)) nova.push(segue)
-  return nova
+  return nova.length === lista.length && nova.every((id, i) => id === lista[i]) ? lista : nova
 }
 
 /**

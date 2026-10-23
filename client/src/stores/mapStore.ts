@@ -79,6 +79,7 @@ import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTrava
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { alternarOlhoDosJogadores, definirOpacidade } from '../lib/camadas/estado'
+import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
 import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
 import type { CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -2381,7 +2382,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
     toggleLayerVisibility: (id) => {
+      const eraDeAntes = get().map.versaoDasCamadas !== 2
       withHistory((m) => mapFactory.toggleLayerVisibility(m, id))
+      if (eraDeAntes && get().map.versaoDasCamadas === 2) avisarViradaParaV2(get().map.id)
       // Onda 4, item 24 — `selection` é um CONJUNTO: só sai o que ficou
       // invisível para o mestre; o resto da seleção fica.
       const { map, selection } = get()
@@ -2390,7 +2393,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (remaining.length !== selection.length) set({ selection: remaining })
     },
     toggleLayerLock: (id) => {
+      const eraDeAntes = get().map.versaoDasCamadas !== 2
       withHistory((m) => mapFactory.toggleLayerLock(m, id))
+      if (eraDeAntes && get().map.versaoDasCamadas === 2) avisarViradaParaV2(get().map.id)
       const { map, selection } = get()
       const camadas = contextoDeCamadas(map)
       const remaining = selecaoQueSobra(map, selection, (camada) => camadas.travada(camada))
@@ -2756,8 +2761,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // As formas e os passos do piso em edição, como a tela os mostra: os de outro piso, ali embaixo, não contam.
       const doPiso = mapaDoPiso(map, pisoAtivo)
       const antes = doPiso.texturas ?? []
-      const regioes = visibleRegions(doPiso.regions, map.hiddenLayers)
-      const desenhos = visibleDrawings(doPiso.drawings, map.hiddenLayers)
+      // Pelo MAPA, não pela lista: no mapa v2 Desenhos é camada própria, fora de Anotações.
+      const regioes = visibleRegions(doPiso.regions, map)
+      const desenhos = visibleDrawings(doPiso.drawings, map)
       const passo: PinceladaDeTextura = { ...pincelada, id: crypto.randomUUID() }
       const { lista, resultado } = somarPincelada(antes, passo, (alvo) => caixaDoAlvo(alvo, regioes, desenhos))
       // O passo novo ganha o piso em edição no `withHistory` (`nascemNoPiso`).
@@ -2774,7 +2780,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       }
       // A forma é a que esta tela mostra: as regiões e os desenhos do piso em edição, nas camadas à vista.
       const doPiso = mapaDoPiso(map, pisoAtivo)
-      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map.hiddenLayers), visibleDrawings(doPiso.drawings, map.hiddenLayers), ponto)
+      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map), visibleDrawings(doPiso.drawings, map), ponto)
       if (alvo === null) return 'fora-de-forma'
       const antes = doPiso.texturas ?? []
       const { lista, resultado } = somarPincelada(antes, { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo })
