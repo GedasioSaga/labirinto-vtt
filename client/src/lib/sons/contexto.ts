@@ -60,6 +60,8 @@ export interface ContextoDeSom<N> extends SignalAudioContext<N> {
   createBiquadFilter(): FiltroDeSom<N> & N
   createBuffer(canais: number, quadros: number, taxa: number): BufferDeSom
   createBufferSource(): FonteDeBufferDeSom<N>
+  /** O contexto muda de estado também fora do gesto: o bipe do mestre o retoma por evento de rede. */
+  addEventListener(tipo: 'statechange', ouvinte: () => void): void
 }
 
 export interface SaidaDeSom<N> {
@@ -86,9 +88,11 @@ export interface MotorDeSom<N> {
   /** Escuta os gestos que ativam o usuário em `alvo`; devolve a função que tira os ouvintes. */
   destravarNoPrimeiroGesto(alvo: EventTarget): () => void
   /**
-   * Avisa cada vez que um gesto deixa o contexto rodando: o que esperava o
-   * destravamento (o loop ao vivo pedido antes do 1º toque) começa aí.
-   * Devolve a função que tira o ouvinte.
+   * Avisa cada vez que o contexto volta a rodar, uma vez por volta: pelo
+   * gesto ou fora dele (o bipe do mestre o retoma por evento de rede, e o
+   * navegador que já viu um gesto deixa). O que esperava o destravamento (o
+   * loop ao vivo pedido antes do 1º toque) começa aí. Devolve a função que
+   * tira o ouvinte.
    */
   quandoRodar(ouvinte: () => void): () => void
 }
@@ -135,6 +139,8 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
   let saida: SaidaDeSom<N> | null = null
   let aoVivo: (GanhoDeSom<N> & N) | null = null
   let semAudio = false
+  /** Já avisou desde a última vez que o contexto foi visto fora de 'running': o gesto e o `statechange` não avisam duas vezes. */
+  let avisouQueRoda = false
   const ouvintesDoRodar = new Set<() => void>()
 
   function avisarQueRoda(): void {
@@ -150,6 +156,17 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
     }
   }
 
+  /** Avisa uma vez por volta ao 'running'; fora dele, arma o próximo aviso. */
+  function avisarSeRodando(ctx: ContextoDeSom<N>): void {
+    if (ctx.state !== 'running') {
+      avisouQueRoda = false
+      return
+    }
+    if (avisouQueRoda) return
+    avisouQueRoda = true
+    avisarQueRoda()
+  }
+
   /** Só roda dentro de gesto: é o único lugar que cria o contexto. */
   function saidaDoGesto(): SaidaDeSom<N> | null {
     if (saida !== null || semAudio) return saida
@@ -159,6 +176,7 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
         semAudio = true
         return null
       }
+      ctx.addEventListener('statechange', () => avisarSeRodando(ctx))
       saida = montarSaida(ctx)
       return saida
     } catch {
@@ -184,7 +202,6 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
         for (const tipo of GESTOS_QUE_DESTRAVAM) alvo.removeEventListener(tipo, aoGesto, OUVIR)
       }
       function aoGesto(): void {
-        const nascendo = saida === null
         const atual = saidaDoGesto()
         if (atual === null) {
           parar()
@@ -192,17 +209,13 @@ export function criarMotorDeSom<N>(fabrica: () => ContextoDeSom<N> | null): Moto
         }
         const { ctx } = atual
         // Os ouvintes ficam: se o iOS suspender de novo (tela bloqueada, ligação), o próximo toque retoma.
-        if (ctx.state === 'running') {
-          // Só avisa quando acabou de destravar: o gesto com tudo já rodando não muda nada para quem espera.
-          if (nascendo) avisarQueRoda()
-          return
-        }
+        // Já rodando, só avisa se ninguém avisou desde a última parada: o gesto com tudo rodando não muda nada para quem espera.
+        avisarSeRodando(ctx)
+        if (ctx.state === 'running') return
         try {
           // Recusado (gesto que não ativa, como Esc): fica suspenso e o próximo gesto tenta de novo.
           void ctx.resume().then(
-            () => {
-              if (ctx.state === 'running') avisarQueRoda()
-            },
+            () => avisarSeRodando(ctx),
             () => undefined,
           )
           tocarSilencio(ctx)

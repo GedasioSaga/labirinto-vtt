@@ -93,6 +93,7 @@ export interface AudioFalso {
   /** Decodifica qualquer coisa: a duração é o tamanho em bytes / `BYTES_POR_SEGUNDO_FALSO`. */
   decodeAudioData: Mock<(dados: ArrayBuffer) => Promise<BufferFalso>>
   resume: Mock<() => Promise<void>>
+  /** Muda o estado e, se mudou, avisa na hora quem ouve `statechange`. */
   definirEstado(estado: AudioContextState): void
   /** Anda o relógio do áudio: o toque seguinte dispara mais tarde, com o anterior ainda soando. */
   avancar(segundos: number): void
@@ -195,8 +196,19 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
     const quadros = Math.round(duracao * taxa)
     return { quadros, getChannelData: () => new Float32Array(0), duration: duracao, length: quadros, numberOfChannels: CANAIS_DECODIFICADOS_FALSOS }
   })
+  const ouvintesDoEstado: (() => void)[] = []
+  const avisarEstado = (): void => {
+    for (const ouvinte of [...ouvintesDoEstado]) ouvinte()
+  }
+  /** Devolve se mudou: o `statechange` só vem quando o estado muda de fato. */
+  const mudarEstado = (novo: AudioContextState): boolean => {
+    if (novo === estado) return false
+    estado = novo
+    return true
+  }
   const resume = vi.fn(async () => {
-    estado = 'running'
+    // Como no navegador: o estado muda já, e o `statechange` chega depois, numa tarefa.
+    if (mudarEstado('running')) queueMicrotask(avisarEstado)
   })
 
   const ctx: ContextoDeSom<NoFalso> & ContextoAoVivo<NoFalso> = {
@@ -209,6 +221,9 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
     },
     destination,
     resume,
+    addEventListener: (_tipo, ouvinte) => {
+      ouvintesDoEstado.push(ouvinte)
+    },
     createGain: () => guardar(ganhos, ganhoFalso()),
     createOscillator: () =>
       guardar<OsciladorFalso>(osciladores, Object.assign(noFalso('oscilador'), {
@@ -245,7 +260,7 @@ export function criarAudioFalso(opcoes: OpcoesDoAudioFalso = {}): AudioFalso {
     decodeAudioData,
     resume,
     definirEstado: (novo) => {
-      estado = novo
+      if (mudarEstado(novo)) avisarEstado()
     },
     avancar: (segundos) => {
       agora += segundos

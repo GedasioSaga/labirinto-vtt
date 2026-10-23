@@ -178,7 +178,7 @@ export interface DependenciasDoMotor<N> {
   carregarBytes: CarregadorDeBytes
   /** A saída de agora; `null` antes do 1º gesto criar o contexto. */
   obterSaida: () => SaidaAoVivo<N> | null
-  /** Avisa cada vez que um gesto deixa o áudio rodando; devolve a função que tira o ouvinte. */
+  /** Avisa cada vez que o áudio volta a rodar (pelo gesto ou fora dele); devolve a função que tira o ouvinte. */
   aoDestravar: (ouvinte: () => void) => () => void
   lerPreferencia: () => PreferenciaDeSom
   assinarPreferencia: (ouvinte: () => void) => () => void

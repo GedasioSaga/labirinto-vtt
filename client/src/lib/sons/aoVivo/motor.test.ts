@@ -283,6 +283,18 @@ describe('antes do gesto', () => {
     expect(item(m.doTipo('tocando'), 0).instancia).toBe('chuva')
   })
 
+  it('contexto suspenso que volta a rodar SEM gesto (o bipe do mestre o retomou) começa o loop que esperava', async () => {
+    const m = montar()
+    m.audio.definirEstado('suspended')
+    m.motor.tocar('chuva', m.arquivo(1, DEZ_SEGUNDOS), emLoop)
+    await assentar()
+    expect(m.fontesDoMotor()).toHaveLength(0)
+    void m.audio.ctx.resume()
+    await assentar()
+    expect(m.fontesDoMotor()).toHaveLength(1)
+    expect(item(m.doTipo('tocando'), 0).instancia).toBe('chuva')
+  })
+
   it('efeito curto pedido antes do gesto toca do começo se o gesto vier antes de 2 s', async () => {
     const m = montar({ estado: 'suspended', destravar: false })
     m.motor.tocar('sino', m.arquivo(1, DEZ_SEGUNDOS), curto)

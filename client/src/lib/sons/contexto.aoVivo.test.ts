@@ -80,6 +80,21 @@ describe('aviso de que o áudio destravou', () => {
     expect(ouvinte).toHaveBeenCalledTimes(1)
   })
 
+  it('contexto que volta a rodar FORA de gesto (o bipe do mestre o retoma por evento de rede) avisa quem espera, uma vez', async () => {
+    const { audio, motor, gesto } = montar('running')
+    gesto()
+    const ouvinte = vi.fn()
+    motor.quandoRodar(ouvinte)
+    audio.definirEstado('suspended')
+    expect(ouvinte).not.toHaveBeenCalled()
+    void audio.ctx.resume() // o bipe, sem gesto nenhum
+    await assentar()
+    expect(ouvinte).toHaveBeenCalledTimes(1)
+    gesto()
+    await assentar()
+    expect(ouvinte).toHaveBeenCalledTimes(1)
+  })
+
   it('resume recusado não avisa; o próximo gesto que destrava avisa; o ouvinte tirado não ouve mais', async () => {
     const { audio, motor, gesto } = montar('suspended')
     const ouvinte = vi.fn()
