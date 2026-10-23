@@ -75,3 +75,37 @@ describe('aviso de camada oculta (ferramenta Objetos, 28/09/2026)', () => {
     expect(useMapStore.getState().map.hiddenLayers).not.toContain('objetos')
   })
 })
+
+describe('aviso com o rótulo das 13 camadas (fase 3, fatia 5)', () => {
+  it.each([
+    ['chao', 'Chão'],
+    ['terreno', 'Terreno'],
+    ['desenhos', 'Desenhos'],
+    ['telhados', 'Telhados'],
+    ['decoracao', 'Decoração'],
+  ] as const)('%s vira "%s" no aviso de travada e no de oculta', (camada, rotulo) => {
+    avisarCamadaTravada(camada)
+    avisarCamadaOculta(camada)
+    expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toEqual([
+      `A camada ${rotulo} está travada`,
+      `A camada ${rotulo} está oculta`,
+    ])
+  })
+
+  it('camada livre usa o nome do modelo; sem nome não aparece id nem "undefined"', () => {
+    const { map } = useMapStore.getState()
+    useMapStore.setState({ map: { ...map, modeloCamadas: { ordem: [{ id: 'livre_a1', nome: 'Armadilhas' }, { id: 'livre_b2' }] } } })
+    avisarCamadaTravada('livre_a1')
+    avisarCamadaTravada('livre_b2')
+    expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toEqual([
+      'A camada Armadilhas está travada',
+      'A camada sem nome está travada',
+    ])
+  })
+
+  it('"Destravar" de uma camada que o cadeado de hoje não guarda não mexe em nada', () => {
+    avisarCamadaTravada('terreno')
+    botaoDestravar()?.run()
+    expect(useMapStore.getState().map.lockedLayers).toEqual(['paredes'])
+  })
+})

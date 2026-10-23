@@ -36,12 +36,21 @@ export interface ContextoDeCamadas {
   readonly ordem: readonly CamadaId[]
   /** Pode selecionar/mover: o item não está travado E a camada dele não está. */
   podeMexer<K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean
+  /**
+   * A camada cujo olho e cadeado valem para `id`: ela mesma, mas no mapa de
+   * antes Chão responde por Salas e Desenhos por Anotações. É a que o aviso
+   * nomeia e o "Destravar" solta — a que o mestre travou de fato.
+   */
+  camadaQueManda(id: CamadaId): CamadaId
 }
 
-const memo = new WeakMap<MapData, ContextoDeCamadas>()
+/** Só os campos do mapa que respondem sobre camadas (quem tem só um pedaço do mapa também pergunta). */
+export type CamposDeCamadas = Pick<MapData, 'hiddenLayers' | 'lockedLayers' | 'ocultasDoJogador' | 'opacidadeDasCamadas' | 'versaoDasCamadas' | 'modeloCamadas'>
+
+const memo = new WeakMap<CamposDeCamadas, ContextoDeCamadas>()
 
 /** Memorizado pela referência do mapa: a store é imutável, então mapa novo = contexto novo. */
-export function contextoDeCamadas(map: MapData): ContextoDeCamadas {
+export function contextoDeCamadas(map: CamposDeCamadas): ContextoDeCamadas {
   const pronto = memo.get(map)
   if (pronto !== undefined) return pronto
   const novo = criarContexto(map)
@@ -54,7 +63,7 @@ function trancaDoItem(item: object): Lockable {
   return 'locked' in item && typeof item.locked === 'boolean' ? { locked: item.locked } : {}
 }
 
-function criarContexto(map: MapData): ContextoDeCamadas {
+function criarContexto(map: CamposDeCamadas): ContextoDeCamadas {
   const legado = map.versaoDasCamadas !== 2
   // Mapa de antes: Chão e Desenhos não tinham estado próprio, seguiam Salas e Anotações.
   const efetiva = (id: CamadaId): CamadaId => {
@@ -103,5 +112,6 @@ function criarContexto(map: MapData): ContextoDeCamadas {
     },
     ordem,
     podeMexer: (tipo, item) => canInteract(trancaDoItem(item)) && !travada(camadaDe(tipo, item)),
+    camadaQueManda: efetiva,
   }
 }
