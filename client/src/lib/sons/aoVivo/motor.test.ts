@@ -235,6 +235,20 @@ describe('antes do gesto', () => {
     expect(m.fontesDoMotor()).toHaveLength(0)
   })
 
+  it('contexto já criado mas suspenso de novo (tela bloqueada no celular): espera o próximo gesto em vez de tocar', async () => {
+    const m = montar()
+    m.audio.definirEstado('suspended')
+    m.motor.tocar('chuva', m.arquivo(1, DEZ_SEGUNDOS), emLoop)
+    await assentar()
+    expect(m.eventos).toEqual([{ tipo: 'esperando', instancia: 'chuva' }])
+    expect(m.fontesDoMotor()).toHaveLength(0)
+
+    m.gesto()
+    await assentar()
+    expect(m.fontesDoMotor()).toHaveLength(1)
+    expect(item(m.doTipo('tocando'), 0).instancia).toBe('chuva')
+  })
+
   it('efeito curto pedido antes do gesto toca do começo se o gesto vier antes de 2 s', async () => {
     const m = montar({ estado: 'suspended', destravar: false })
     m.motor.tocar('sino', m.arquivo(1, DEZ_SEGUNDOS), curto)
