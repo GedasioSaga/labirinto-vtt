@@ -3751,8 +3751,9 @@ export function filterMapForGroup(
     // onde vai o chão da zona oculta, da sala secreta e da névoa. Sempre
     // presente (`undefined` com elas desligadas), para nunca vir pelo `...map`.
     ceuDasNuvens: ceuDoRecorte(mapaInteiro, playerFloor),
-    // TERRENO escondido dos jogadores: relevo, nuvens e penhasco não saem.
-    ...(terrenoVisivel ? {} : { relevo: undefined, nuvens: undefined }),
+    // TERRENO escondido dos jogadores: relevo, nuvens e penhasco não saem. Desligados
+    // EXPLÍCITOS: `undefined` cai no padrão do tipo, e no Continente o padrão é ligado.
+    ...(terrenoVisivel ? {} : { relevo: false, nuvens: false }),
     // PENHASCO: só o pedaço dos riscos junto do que ele conhece; os riscos na
     // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
     // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele

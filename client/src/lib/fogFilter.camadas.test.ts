@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest'
 import type { CamadaId, CamadaPadraoId, MapData, ModeloDeCamadas, PinceladaDeTextura, Region, TracoDePenhasco } from '../types/map'
 import { CAMADAS_PADRAO, MODELO_PADRAO } from './camadas/padrao'
 import { filterMapForGroup, filterMapForPlayer, planOfWholeMap, type PlayerMapView } from './fogFilter'
+import { nuvensLigadas } from './nuvens'
+import { relevoLigado } from './relevo'
 import { MAPAS_CONGELADOS, OCULTAS_CONGELADAS, mapaDeItens, recorteEmJson } from './__fixtures__/recorteDeCamadas'
 import congeladoAndar6 from './__fixtures__/recorte-b934f2a1/andar6.json'
 import congeladoItens from './__fixtures__/recorte-b934f2a1/itens.json'
@@ -229,6 +231,26 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
       expect(JSON.stringify(view.map), quem).not.toContain('Covil do Lich')
     }
   })
+})
+
+describe('terreno escondido dos jogadores no Continente', () => {
+  // Sem a chave do mestre, o padrão do Continente é relevo e nuvens LIGADOS: `undefined` no recorte deixaria os dois ligados.
+  for (const tipo of [{ continente: true }, { worldMap: true }] as const) {
+    it(`relevo e nuvens saem desligados, explícitos (${Object.keys(tipo)[0]})`, () => {
+      const { relevo: _relevo, nuvens: _nuvens, ...oculto } = mapaV2(['terreno'])
+      for (const [quem, view] of recortes({ ...oculto, ...tipo })) {
+        expect(relevoLigado(view.map), quem).toBe(false)
+        expect(nuvensLigadas(view.map), quem).toBe(false)
+        expect(view.map.ceuDasNuvens, quem).toBeUndefined()
+      }
+      // Controle: com Terreno à vista, o padrão do Continente liga os dois.
+      const { relevo: _r, nuvens: _n, ...visivel } = mapaV2([])
+      for (const [quem, view] of recortes({ ...visivel, ...tipo })) {
+        expect(relevoLigado(view.map), quem).toBe(true)
+        expect(nuvensLigadas(view.map), quem).toBe(true)
+      }
+    })
+  }
 })
 
 const CONGELADOS: Record<string, Record<string, unknown>> = {
