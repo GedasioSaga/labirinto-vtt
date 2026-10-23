@@ -351,10 +351,16 @@ function roofRoomsOf(regions: readonly Region[]): Region[] {
  * passa pelo olho "Jogadores veem" da camada do item — a escolhida, se existe;
  * senão a padrão do tipo. Mapa de antes sem `ocultasDoJogador` responde pela
  * lista `hiddenLayers` de sempre (Chão segue Salas, Desenhos segue Anotações).
+ *
+ * O host decide por aqui tudo o que é de ficha do jogador (a própria, troca e
+ * oferta, trocar a vista, quem vai junto no "(N)", sinal e laser): o olho do
+ * MESTRE (`visibleTokens(..., hiddenLayers)`) deixaria passar a ficha que o
+ * mestre esconde só dos jogadores. `tokens` é um subconjunto de `map.tokens`
+ * quando quem chama já filtrou.
  */
-function fichasNaCamadaDoJogador(map: MapData): Token[] {
+export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] = map.tokens): Token[] {
   const camadas = contextoDeCamadas(map)
-  return map.tokens.filter((t) => camadas.jogadorVe(camadas.camadaDe('ficha', t)))
+  return tokens.filter((t) => camadas.jogadorVe(camadas.camadaDe('ficha', t)))
 }
 
 /**

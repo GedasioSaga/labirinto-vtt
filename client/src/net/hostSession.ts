@@ -19,6 +19,7 @@ import {
   diceRollForPlayer,
   emptyPlanMemory,
   espiadaPeloPino,
+  fichasNaCamadaDoJogador,
   filterFloorMemory,
   filterMapForGroup,
   filterMapForPlayer,
@@ -79,7 +80,6 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { boardVehicle, driveTarget, driverOf, passengerIdsOf, ridesWithoutDriving, vehicleCarrying, vehicleDrivenBy, withRiders } from '../lib/vehicle'
-import { visibleTokens } from '../lib/layers'
 import { doorStateOf, savedDoorOf, type SavedSceneMemory, type SavedSeat, type SavedSeatExploration, type SavedSeatNotes } from '../lib/savedTable'
 import { MY_NOTES_MAX, MY_NOTES_MIN_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -920,7 +920,7 @@ function nearestTokenTo(tokens: readonly Token[], point: RegionPoint): Token | n
  * Fichas escondida. Nome de ficha que o mestre esconde não sai pelo sinal.
  */
 function tokensTheTableSees(tokens: readonly Token[], map: MapData): Token[] {
-  return visibleTokens([...tokens], map.hiddenLayers).filter((t) => !t.hidden && !t.secret)
+  return fichasNaCamadaDoJogador(map, tokens).filter((t) => !t.hidden && !t.secret)
 }
 
 /**
@@ -3928,7 +3928,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const sceneOfOwnToken = (playerId: string, tokenId: string, world: HostWorld): HostScene | null => {
     if (!(ownership[playerId] ?? []).includes(tokenId)) return null
     const found = allScenes(world).find((scene) =>
-      visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => t.id === tokenId && t.hidden !== true),
+      fichasNaCamadaDoJogador(scene.map).some((t) => t.id === tokenId && t.hidden !== true),
     )
     return found ?? null
   }
@@ -5781,7 +5781,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
     // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
     // nem vaza, por andar, que está perto do pino.
-    const stillReaches = visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => {
+    const stillReaches = fichasNaCamadaDoJogador(scene.map).some((t) => {
       if (!owned.has(t.id) || t.hidden === true) return false
       const novo = movedTo.get(t.id)
       return tokenReachesPin(novo === undefined ? t : { ...t, ...novo }, pin, scene.map.grid)
@@ -6076,7 +6076,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const tokensTheOwnerSees = (playerId: string, map: MapData): Token[] => {
     const owned = ownership[playerId] ?? []
-    return visibleTokens(map.tokens, map.hiddenLayers).filter((t) => owned.includes(t.id) && !t.hidden)
+    return fichasNaCamadaDoJogador(map).filter((t) => owned.includes(t.id) && !t.hidden)
   }
 
   /** A cor do laser do jogador NA TELA DO MESTRE: a da ficha DELE nesta cena; sem cor, a fixa dele (`signalColor`). O sinal e o laser da mesa leem a ficha (`signalAsToken`). */
@@ -6939,7 +6939,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Oferta ou troca por ela contaria que existe e o que carrega.
    */
   function hiddenFromPlayer(scene: HostScene, tokenId: string): boolean {
-    return !visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => t.id === tokenId && t.hidden !== true)
+    return !fichasNaCamadaDoJogador(scene.map).some((t) => t.id === tokenId && t.hidden !== true)
   }
 
   /** O nome do que se pede, lido na mochila da ficha (o jogador lê o que já tem). */
@@ -8092,7 +8092,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     map.tokens.some((t) => ids.has(t.id)) ? { ...map, tokens: map.tokens.filter((t) => !ids.has(t.id)) } : map
 
   /** As fichas do mapa que estão no tabuleiro para os jogadores: fora camada oculta e o que o mestre escondeu. */
-  const onBoardTokens = (map: MapData): Token[] => visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true)
+  const onBoardTokens = (map: MapData): Token[] => fichasNaCamadaDoJogador(map).filter((t) => t.hidden !== true)
 
   /**
    * PISOS NA MESMA CENA: das `tokens`, só as do piso de `lead` em `map`. Os
@@ -8982,7 +8982,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const onBoard = doPisoDe(
       travel.token,
       fromMap,
-      visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t) && vehicleCarrying(fromMap, t.id) === null),
+      fichasNaCamadaDoJogador(fromMap).filter((t) => t.hidden !== true && podeAcompanhar(fromMap, t) && vehicleCarrying(fromMap, t.id) === null),
     )
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
