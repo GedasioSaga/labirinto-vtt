@@ -151,6 +151,14 @@ function terrenoNoRecorte(view: PlayerMapView): Record<string, boolean> {
 const TERRENO_TODO = { texturas: true, penhascos: true, relevo: true, nuvens: true, ceuDasNuvens: true }
 const TERRENO_NENHUM = { texturas: false, penhascos: false, relevo: false, nuvens: false, ceuDasNuvens: false }
 
+/** O terreno que sai com a camada `camada` escondida dos jogadores num mapa v2. */
+function terrenoEsperado(camada: CamadaId): Record<string, boolean> {
+  if (camada === 'terreno') return TERRENO_NENHUM
+  // Chão escondido dos jogadores: o céu entregaria a caixa do chão escondido; nem céu nem nuvens.
+  if (camada === 'chao') return { ...TERRENO_TODO, nuvens: false, ceuDasNuvens: false }
+  return TERRENO_TODO
+}
+
 function telhadoDaCasa(view: PlayerMapView): boolean | undefined {
   return view.map.regions.find((r) => r.id === 'casa')?.room?.roof
 }
@@ -175,7 +183,7 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
         for (const id of TODOS_OS_IDS) expect(texto, `${quem}: ${id}`).not.toContain(`"${id}"`)
         expect(idsEntregues(view), quem).toEqual([])
         expect(view.map.regions.some((r) => r.room?.roof === true), quem).toBe(false)
-        expect(terrenoNoRecorte(view), quem).toEqual(camada === 'terreno' ? TERRENO_NENHUM : TERRENO_TODO)
+        expect(terrenoNoRecorte(view), quem).toEqual(terrenoEsperado(camada))
         semNadaDoModelo(view)
       }
     })
@@ -188,7 +196,7 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
         expect(idsEntregues(view).sort(), quem).toEqual(TODOS_OS_IDS.filter((id) => !cortados.includes(id)).sort())
         if (camada === 'telhados') expect(telhadoDaCasa(view), quem).toBeUndefined()
         else if (camada !== 'salas') expect(telhadoDaCasa(view), quem).toBe(true)
-        expect(terrenoNoRecorte(view), quem).toEqual(camada === 'terreno' ? TERRENO_NENHUM : TERRENO_TODO)
+        expect(terrenoNoRecorte(view), quem).toEqual(terrenoEsperado(camada))
         semNadaDoModelo(view)
       }
     })
@@ -267,6 +275,38 @@ describe('terreno escondido dos jogadores no Continente', () => {
       }
     })
   }
+})
+
+describe('nuvens: o céu sai da caixa do chão que o jogador conhece', () => {
+  const comNuvens = (campos: Partial<MapData>): MapData => ({ ...mapaDeItens(), nuvens: true, ...campos })
+  const ceus = (map: MapData) => recortes(map).map(([quem, view]) => [quem, view.map.ceuDasNuvens] as const)
+  const MAPA_INTEIRO = { x: 0, y: 0, largura: 640, altura: 640 }
+
+  for (const tipo of [{}, { worldMap: true }] as const) {
+    it(`mapa antigo com Salas escondida: o céu é o de sem nada escondido, não o retângulo do mapa${Object.keys(tipo).length > 0 ? ' (mapa-múndi)' : ''}`, () => {
+      const semNada = ceus(comNuvens(tipo))
+      for (const [quem, ceu] of semNada) {
+        expect(ceu, quem).toBeDefined()
+        expect(ceu, quem).not.toEqual(MAPA_INTEIRO)
+      }
+      expect(ceus(comNuvens({ ...tipo, hiddenLayers: ['salas'] }))).toEqual(semNada)
+    })
+  }
+
+  it('mapa v2 com Chão escondido dos jogadores: nem céu nem nuvens', () => {
+    for (const tipo of [{}, { worldMap: true }] as const) {
+      for (const [quem, view] of recortes({ ...mapaV2(['chao']), ...tipo })) {
+        expect(view.map.ceuDasNuvens, quem).toBeUndefined()
+        expect(nuvensLigadas(view.map), quem).toBe(false)
+      }
+    }
+  })
+
+  it('mapa v2 com Salas escondida só dos jogadores e Chão à vista: o céu é a caixa do chão, como sem nada escondido', () => {
+    const semNada = ceus(mapaV2([]))
+    for (const [quem, ceu] of semNada) expect(ceu, quem).not.toEqual(MAPA_INTEIRO)
+    expect(ceus({ ...mapaV2(['salas']), hiddenLayers: [] })).toEqual(semNada)
+  })
 })
 
 const CONGELADOS: Record<string, Record<string, unknown>> = {

@@ -2157,7 +2157,25 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras }: PlayerOnlyView = {},
+  only: PlayerOnlyView = {},
+): PlayerMapView {
+  return recorteDoGrupo(mapaInteiro, viewers, explored, seenDoors, watchTargets, only, false)
+}
+
+/**
+ * `filterMapForGroup` de verdade. `ceuDoMundi`: o mapa veio do mapa-múndi sem
+ * a marca `worldMap` (`filterWorldMapForGroup`), e a chave das nuvens é a do
+ * Continente — o céu se decide aqui, onde o chão de antes do corte por camada
+ * ainda existe.
+ */
+function recorteDoGrupo(
+  mapaInteiro: MapData,
+  viewers: readonly GroupViewer[],
+  explored: Exploration | undefined,
+  seenDoors: ReadonlyMap<string, DoorState> | undefined,
+  watchTargets: ReadonlySet<string> | undefined,
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras }: PlayerOnlyView,
+  ceuDoMundi: boolean,
 ): PlayerMapView {
   /**
    * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
@@ -3328,13 +3346,14 @@ export function filterMapForGroup(
       ),
     )
   }
-  const floor = recallItems(map.floor, remembered?.floor, {
+  const regrasDoChao: RecallRules<FloorPiece> = {
     allowed: (f) => !f.hidden,
     shown: (f) => jogadorVeItem('peca', f),
     placeOk: (f) => !hiddenFloorIds.has(f.id),
     seenNow: floorSeenNow,
     unseenOk: (f) => !memoryMode || !floorPieceSamples(f).some(isPointExploredOpen),
-  })
+  }
+  const floor = recallItems(map.floor, remembered?.floor, regrasDoChao)
 
   // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
   // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
@@ -3444,12 +3463,29 @@ export function filterMapForGroup(
   const floorCells = peekCells.length === 0 && glimpseCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells, ...glimpseCells])]
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
   // CAMADAS: chão de camada escondida dos jogadores não sai (antes saía e só a tela dele escondia).
-  const playerFloor = naCamadaDoJogador('peca', recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id))).flatMap((f): FloorPiece[] => {
+  const floorForPlayer = (f: FloorPiece): FloorPiece[] => {
     if (f.hidden) return []
     if (!hiddenFloorIds.has(f.id)) return [floorPieceForPlayer(f)]
     const clipped = floorCells.length > 0 ? floorInCells(f, floorCells) : null
     return clipped === null ? [] : [clipped]
-  })
+  }
+  const playerFloor = naCamadaDoJogador('peca', recalledList(map.floor, floor, memoryMode, (f) => hiddenFloorIds.has(f.id))).flatMap(floorForPlayer)
+  /**
+   * O CHÃO DO CÉU das nuvens (`ceuDasNuvensDoRecorte`), só a caixa, nunca o
+   * chão. Mapa antigo: o de ANTES do corte por camada (`shown` de sempre, sem
+   * olhar camada) — com Salas escondida o chão não sai, mas o céu segue a caixa
+   * do chão conhecido, como em b934f2a1 (sem chão nenhum ele viraria o
+   * retângulo do mapa inteiro). Mapa v2 com Chão escondido dos jogadores: céu
+   * nenhum, que a caixa diria até onde vai o chão escondido. `null` = sem céu.
+   */
+  const chaoDoCeu: FloorPiece[] | null =
+    map.versaoDasCamadas === 2
+      ? camadas.jogadorVe('chao')
+        ? playerFloor
+        : null
+      : nadaOcultoDoJogador
+        ? playerFloor
+        : recalledList(map.floor, recallItems(map.floor, remembered?.floor, { ...regrasDoChao, shown: () => true }), memoryMode, (f) => hiddenFloorIds.has(f.id)).flatMap(floorForPlayer)
 
   /**
    * Parede sem porta com algum trecho DENTRO da zona (`touchesZone`, amostrada
@@ -3756,10 +3792,13 @@ export function filterMapForGroup(
     // (`ceuDasNuvensDoRecorte`): tirado do chão inteiro, a caixa entregaria até
     // onde vai o chão da zona oculta, da sala secreta e da névoa. Sempre
     // presente (`undefined` com elas desligadas), para nunca vir pelo `...map`.
-    ceuDasNuvens: ceuDoRecorte(mapaInteiro, playerFloor),
+    // No mapa-múndi (`ceuDoMundi`) a chave das nuvens é a do Continente, que `plain` perdeu.
+    ceuDasNuvens: chaoDoCeu === null ? undefined : ceuDoRecorte(ceuDoMundi ? { ...mapaInteiro, worldMap: true } : mapaInteiro, chaoDoCeu),
     // TERRENO escondido dos jogadores: relevo, nuvens e penhasco não saem. Desligados
     // EXPLÍCITOS: `undefined` cai no padrão do tipo, e no Continente o padrão é ligado.
     ...(terrenoVisivel ? {} : { relevo: false, nuvens: false }),
+    // Sem céu (Chão escondido dos jogadores no v2), sem nuvens: a tela delas cairia no retângulo do mapa.
+    ...(chaoDoCeu === null ? { nuvens: false } : {}),
     // PENHASCO: só o pedaço dos riscos junto do que ele conhece; os riscos na
     // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
     // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele
@@ -4280,19 +4319,19 @@ function filterWorldMapForGroup(
   // jogador valem no mapa-mundi como em qualquer cena.
   // Caravana só existe dentro do Continente (`setWorldMap`): o mapa do jogador
   // sai Continente mesmo de cena salva antes do campo existir.
+  // O céu do mapa-mundi antigo (sem `continente`) é o dele, com a marca que `plain` perdeu (`ceuDoMundi`) — e só do chão do recorte.
   if (at === null) {
-    const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
-    // O céu do mapa-mundi antigo (sem `continente`) é o dele, com a marca que `plain` perdeu — e só do chão do recorte.
-    return { ...view, map: { ...view.map, worldMap: true, continente: true, ceuDasNuvens: ceuDoRecorte(map, view.map.floor) } }
+    const view = recorteDoGrupo(plain, viewers, explored, seenDoors, watchTargets, only, true)
+    return { ...view, map: { ...view.map, worldMap: true, continente: true } }
   }
   const memberIds = new Set(members.map((t) => t.id))
   const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
-  const view = filterMapForGroup(stacked, viewers, explored, seenDoors, watchTargets, only)
+  const view = recorteDoGrupo(stacked, viewers, explored, seenDoors, watchTargets, only, true)
   const caravanSent = view.map.tokens.some((t) => memberIds.has(t.id))
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
   // A caravana é pino na cor neutra da mesa: ela não é de jogador nenhum.
   const tokens = caravanSent ? [{ ...caravanTokenFor(members, at), pino: SIGNAL_NEUTRAL_COLOR }, ...others] : others
-  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens, ceuDasNuvens: ceuDoRecorte(map, view.map.floor) } }
+  return { ...view, map: { ...view.map, worldMap: true, continente: true, tokens } }
 }
 
 /** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
