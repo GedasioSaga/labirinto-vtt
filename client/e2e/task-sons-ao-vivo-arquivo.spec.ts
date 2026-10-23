@@ -38,8 +38,12 @@ const CODIGO = 'SOM123'
 const CHAVE = 'ab'.repeat(32)
 const ID_CHUVA = `${'a'.repeat(64)}.wav`
 const ID_GRITO = `${'b'.repeat(64)}.wav`
-/** O arquivo servido: 10 s de silêncio em WAV (8 kHz, 8 bits, mono), 80 KB, decodificado pelo motor (até 1 MB). */
-const DURACAO_S = 10
+/**
+ * O arquivo servido: 60 s de silêncio em WAV (8 kHz, 8 bits, mono), 469 KB,
+ * decodificado pelo motor (até 1 MB). Longo para o loop pego no meio não dar a
+ * volta durante a espera do teste (o início é (3 s + espera) % duração).
+ */
+const DURACAO_S = 60
 /** O loop já tocava havia 3 s na mesa quando o jogador chegou. */
 const JA_TOCAVA_S = 3
 /** Quanto o loop espera o toque na faixinha: o início dele anda junto. */
@@ -174,7 +178,11 @@ async function preparar(page: Page, largura: number, altura: number) {
     (url) => url.pathname === '/ws',
     (ws) => host.ligar(ws),
   )
-  await page.route('**/sons/*', (route) => midia.atender(route))
+  // Só o caminho da sala: o glob '**/sons/*' pegaria também os módulos do Vite em /src/lib/sons/ e mataria o app.
+  await page.route(
+    (url) => url.pathname.startsWith('/sons/'),
+    (route) => midia.atender(route),
+  )
   return { host, midia, erros }
 }
 
@@ -204,6 +212,7 @@ test('jogador: nada toca antes do toque, a faixinha destrava, o loop entra no po
   await expect.poll(() => midia.buscas.get(ID_GRITO) ?? 0, { message: 'a pré-carga traz o grito' }).toBe(1)
 
   // O loop que já tocava há 3 s chega antes do gesto: espera, sem tocar, e a faixinha aparece.
+  const chuvaPedidaEm = Date.now()
   host.mandar(tocarLoop('i-chuva', ID_CHUVA, JA_TOCAVA_S))
   const faixa = page.getByRole('button', { name: 'Toque para ouvir' })
   await expect(faixa).toBeVisible()
@@ -215,12 +224,13 @@ test('jogador: nada toca antes do toque, a faixinha destrava, o loop entra no po
   await faixa.click()
   await expect(faixa).toBeHidden()
   await expect.poll(async () => (await registro(page)).toques.length, { message: 'o toque destrava e a chuva começa' }).toBe(1)
+  const decorridoS = (Date.now() - chuvaPedidaEm) / 1000
   const [chuva] = (await registro(page)).toques
   expect(chuva?.loop).toBe(true)
   expect(chuva?.duracaoS).toBeCloseTo(DURACAO_S, 1)
-  // Começa onde a mesa está: os 3 s de antes mais a espera pelo toque (com folga para o lento da máquina).
+  // Começa onde a mesa está: os 3 s de antes mais a espera pelo toque, e nunca além do tempo que passou de fato.
   expect(chuva?.inicioS ?? 0).toBeGreaterThan(JA_TOCAVA_S + ESPERA_ANTES_DO_TOQUE_MS / 1000 - 0.2)
-  expect(chuva?.inicioS ?? 0).toBeLessThan(DURACAO_S)
+  expect(chuva?.inicioS ?? 0).toBeLessThanOrEqual(JA_TOCAVA_S + decorridoS + 0.2)
 
   // Dois toques do mesmo grito: os dois soam, e o arquivo já veio na pré-carga (nenhuma busca nova).
   host.mandar({ type: 'som.tocar', instancia: 'i-grito-1', fonte: { tipo: 'arquivo', midia: ID_GRITO }, volume: 0.8, loop: false })
@@ -233,7 +243,8 @@ test('jogador: nada toca antes do toque, a faixinha destrava, o loop entra no po
   const paradasAntes = (await registro(page)).paradas
   host.mandar({ type: 'room.closed' })
   await expect.poll(async () => (await registro(page)).paradas - paradasAntes, { message: 'room.closed para a chuva e os gritos' }).toBeGreaterThanOrEqual(3)
-  expect(host.falhas).toEqual([])
+  // O loop que esperou o toque conta UMA vez ao mestre que ainda não soava aqui (o "não tocou para N").
+  expect(host.falhas).toEqual([{ type: 'som.falhou', instancia: 'i-chuva', motivo: 'sem-gesto' }])
   expect(erros).toEqual([])
 })
 
