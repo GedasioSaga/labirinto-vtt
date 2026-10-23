@@ -3,7 +3,11 @@ import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
+import type { Drawing, LayerId, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
+import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
+import { contextoDoJogador } from '../lib/camadas/doJogador'
+import { criarPorNo, distribuir, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
+import { FAIXAS_DOS_MOVEIS, criarParesDoJogador, criarPilhaDoJogador, entradaDoJogador, nosEmPar } from './pilhaDoJogador'
 import type { RoofPeek } from '../lib/fogFilter'
 import { pisoDe } from '../lib/pisos'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
@@ -1070,6 +1074,14 @@ interface Scene {
   propLabels: Container
   propLooksRenderer: PropLooksRenderer
   propLooksCount: PropLooksCount
+  /** Chama e imagem/rótulo de móvel por nó da pilha: o de hoje no container de hoje, o de um nó criado nasce na primeira pintura. */
+  chamasPorNo: PorNo<Container, ChamasDasFogueiras>
+  looksPorNo: PorNo<Container, PropLooksRenderer>
+  /** A PILHA DE CAMADAS (`pilhaDoJogador.ts`): a lista de camadas do jogador, dentro de cada zona da névoa. */
+  pilha: Pilha<Container>
+  paresDoMapa: (map: MapData) => ParDeFaixa[]
+  /** O que montou a pilha por último: mesmo mapa, ou mesma lista e mesmos pares, não replaneja. */
+  entradaDaPilha: { map: MapData; camadas: MapData['camadasDoJogador']; pares: string } | null
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
@@ -2122,10 +2134,15 @@ function PlayerViewDoCanvas({
     const stairs = visibleStairs(currentMap.stairs, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
-    const key = JSON.stringify([stairs, scale, res])
+    // A assinatura da faixa entra na chave: escada que ganhou ou perdeu nó (camada com opacidade própria) repinta.
+    const key = JSON.stringify([stairs, scale, res, scene.pilha.assinaturaDa('stairs')])
     if (key === scene.lastStairsKey) return
     scene.lastStairsKey = key
-    drawStairs(scene.stairs, stairs, null, scale, res)
+    const camadas = contextoDoJogador(currentMap)
+    // Cada nó da faixa com as escadas da camada dele; mapa de hoje = um nó, a mesma lista.
+    for (const { no, itens } of distribuir(stairs, scene.pilha.nosDaFaixa('stairs'), (s: Stair) => camadas.camadaDe('escada', s))) {
+      if (no instanceof Graphics) drawStairs(no, itens, null, scale, res)
+    }
   }
 
   /** Cada objeto na visão vira um retângulo chapado com o tamanho e a rotação do mestre. */
@@ -2134,16 +2151,58 @@ function PlayerViewDoCanvas({
     const props = visibleProps(currentMap.props, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
-    const key = JSON.stringify([props, scale, res, currentMap.grid])
+    const nos = FAIXAS_DOS_MOVEIS.map((faixa) => scene.pilha.assinaturaDa(faixa)).join(';')
+    const key = JSON.stringify([props, scale, res, currentMap.grid, nos])
     if (key === scene.lastPropsKey) return
     scene.lastPropsKey = key
+    const camadas = contextoDoJogador(currentMap)
+    const deObjeto = (p: Prop) => camadas.camadaDe('objeto', p)
     // ITEM NO CHÃO com imagem: a imagem do item é o desenho — a silhueta chapada
     // por baixo faria a poção virar um caixote escuro.
     const silhuetas = props.filter((p) => p.item?.imagem === undefined)
-    scene.propsCount = drawPropSilhouettes(scene.props, silhuetas, scale, res)
+    // Cada nó das quatro faixas com os móveis da camada dele (Decoração com
+    // opacidade própria separa dos de Objetos); mapa de hoje = um nó por faixa.
+    let desenhadas = 0
+    for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('props'), deObjeto)) {
+      if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res)
+    }
+    scene.propsCount = desenhadas
     // Fogueira que sai da visão (ou da camada visível) leva a chama junto.
-    sincronizarChamas(scene.chamas, scene.chamasCamada, silhuetas, { cameraScale: scale })
-    scene.propLooksCount = scene.propLooksRenderer.draw(scene.propImages, scene.propLabels, props, currentMap.grid, scale, latestRef.current.imagemDaMesa)
+    for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('chamasCamada'), deObjeto)) {
+      sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale })
+    }
+    const pares = nosEmPar(scene.pilha.nosDaFaixa('propImages'), scene.pilha.nosDaFaixa('propLabels'))
+    const contagem: PropLooksCount = { images: 0, labels: 0 }
+    distribuir(props, pares.map((par) => par.imagem), deObjeto).forEach(({ itens }, i) => {
+      const { imagem, rotulo } = pares[i]
+      const feito = scene.looksPorNo.de(imagem.no).draw(imagem.no, rotulo.no, itens, currentMap.grid, scale, latestRef.current.imagemDaMesa)
+      contagem.images += feito.images
+      contagem.labels += feito.labels
+    })
+    scene.propLooksCount = contagem
+  }
+
+  /**
+   * A PILHA DE CAMADAS segue `camadasDoJogador` (`pilhaDoJogador.ts`). Roda no
+   * começo de cada `redraw`: mesmo mapa (zoom, pan), ou mesma lista e mesmos
+   * pares (o passo da ficha), não planeja nada. Mover camada só troca
+   * containers de lugar dentro da zona; opacidade só mexe no `alpha` do nó.
+   * Par que ganhou ou perdeu nó repinta pela assinatura da faixa, nas chaves.
+   */
+  function atualizarPilha(scene: Scene): void {
+    const map = latestRef.current.map
+    const anterior = scene.entradaDaPilha
+    if (anterior !== null && anterior.map === map) return
+    const pares = scene.paresDoMapa(map)
+    const chave = pares.map((par) => `${par.faixa}|${par.camada}`).join(',')
+    if (anterior !== null && anterior.camadas === map.camadasDoJogador && anterior.pares === chave) {
+      scene.entradaDaPilha = { ...anterior, map }
+      return
+    }
+    scene.entradaDaPilha = { map, camadas: map.camadasDoJogador, pares: chave }
+    scene.pilha.atualizar(entradaDoJogador(map, pares))
+    const el = containerRef.current
+    if (el) el.dataset.nosDaPilha = String(scene.world.children.length)
   }
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
@@ -2163,11 +2222,16 @@ function PlayerViewDoCanvas({
     // portas sozinho a cada quadro enquanto alguma anda, com os argumentos do
     // último desenho. Aqui só entra o que muda o desenho: a porta que troca
     // `open` muda `walls`, a chave muda, e é isso que dispara a animação.
-    const key = JSON.stringify([walls, scale, res, toCross])
+    const key = JSON.stringify([walls, scale, res, toCross, scene.pilha.assinaturaDa('walls')])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
-    drawWalls(scene.walls, walls, null, scale, res)
+    // Cada nó da faixa com as paredes da camada dele (Paredes movida na lista
+    // separa das de Portas); mapa de hoje = um nó, a mesma lista.
+    const camadas = contextoDoJogador(currentMap)
+    for (const { no, itens } of distribuir(walls, scene.pilha.nosDaFaixa('walls'), (w: Wall) => camadas.camadaDe('parede', w))) {
+      if (no instanceof Graphics) drawWalls(no, itens, null, scale, res)
+    }
     // SOM DA PORTA: só a que estava à vista antes e está agora. A que volta à
     // vista troca o estado lembrado pelo de agora sem ninguém ter mexido nela.
     const podeSoar = (antes: Wall, agora: Wall) => portaAVistaAntesEDepois(antes, visaoAntes, agora, currentVision)
@@ -2503,6 +2567,8 @@ function PlayerViewDoCanvas({
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
+    // A pilha antes de qualquer pintura: os nós da lista de camadas do jogador.
+    atualizarPilha(scene)
     // Antes de qualquer camada mudar: a foto da sala cujo teto vai fechar.
     fotografarTelhadosQueFecham(scene, currentMap)
     const worldWidth = currentMap.width * currentMap.grid
@@ -2587,11 +2653,20 @@ function PlayerViewDoCanvas({
     )
     if (perigosChanged) drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
 
-    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden], () => JSON.stringify(drawings))) {
+    const nosDosDesenhos = scene.pilha.assinaturaDa('drawings')
+    const nosDosCaminhos = scene.pilha.assinaturaDa('paths')
+    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden, nosDosDesenhos, nosDosCaminhos], () => JSON.stringify(drawings))) {
       // Os do botão Desenho por baixo da borda da sala; o Caminho por cima (o
-      // Texto tem renderer próprio e `drawDrawings` o pula).
-      drawDrawings(scene.drawings, drawings.filter(desenhoFicaSobAsSalas))
-      drawDrawings(scene.paths, drawings.filter((d) => !desenhoFicaSobAsSalas(d)))
+      // Texto tem renderer próprio e `drawDrawings` o pula). Cada nó da faixa
+      // com os da camada dele; mapa de hoje = um nó, a mesma lista.
+      const camadasDosDesenhos = contextoDoJogador(currentMap)
+      const deDesenho = (d: Drawing) => camadasDosDesenhos.camadaDe('desenho', d)
+      for (const { no, itens } of distribuir(drawings.filter(desenhoFicaSobAsSalas), scene.pilha.nosDaFaixa('drawings'), deDesenho)) {
+        if (no instanceof Graphics) drawDrawings(no, itens)
+      }
+      for (const { no, itens } of distribuir(drawings.filter((d) => !desenhoFicaSobAsSalas(d)), scene.pilha.nosDaFaixa('paths'), deDesenho)) {
+        if (no instanceof Graphics) drawDrawings(no, itens)
+      }
     }
     redrawPropsLayer(scene)
     redrawStairsLayer(scene)
@@ -2634,7 +2709,8 @@ function PlayerViewDoCanvas({
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
-    scene.propLabels.visible = currentSettings.showNames
+    // O rótulo de um nó criado (camada com opacidade própria) segue o mesmo "Mostrar nomes".
+    for (const { no } of scene.pilha.nosDaFaixa('propLabels')) no.visible = currentSettings.showNames
 
     redrawLights(scene)
     redrawHazards(scene, currentHazards, currentVision)
@@ -3049,10 +3125,15 @@ function PlayerViewDoCanvas({
       lastSeen.eventMode = 'none'
       const tokens = new Container()
       prepareTokenLayer(tokens)
-      // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
-      // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
+      // A ORDEM DO MUNDO sai de FAIXAS_JOGADOR (`lib/camadas/ordem.ts`), a MESMA
+      // lista que `ordem.test.ts` confere: aqui só se diz que container é cada
+      // faixa, de baixo para cima. Tudo da planta fica sob a névoa, e só o que
+      // já chega filtrado pela visão (telhados, pinos, fichas) fica acima. Com
+      // a lista padrão o mundo é exatamente o de antes (golden
+      // `task-camadas-golden.spec.ts`); mover camada só troca containers de
+      // lugar DENTRO da zona (`pilhaDoJogador.ts`).
       // Grade acima do chão e das salas, abaixo de paredes e portas.
-      world.addChild(
+      const containerDaFaixa = new Map<string, Container>(Object.entries({
         mapBackground,
         raster,
         floor,
@@ -3094,7 +3175,7 @@ function PlayerViewDoCanvas({
         doors,
         // NUVENS sobre a planta e SOB a névoa e os nomes: só passam pelo que o
         // jogador conhece, e o nome do lugar segue legível por cima delas.
-        nuvens.camada,
+        nuvens: nuvens.camada,
         roomNames,
         textLabels,
         propLabels,
@@ -3127,7 +3208,7 @@ function PlayerViewDoCanvas({
         portasNoTelhado,
         // NOMES DOS LUGARES acima da névoa (só o lugar já conhecido tem pílula,
         // `lugaresConhecidos`) e abaixo de bilhete, pino e ficha, que seguem legíveis por cima.
-        nomesDosLugares.camada,
+        nomesDosLugares: nomesDosLugares.camada,
         // Bilhete e giz acima da névoa, como o pino: só chega o que o jogador
         // já viu (lib/fogFilter.ts), e no escuro lembrado ele continua legível.
         marks,
@@ -3135,7 +3216,51 @@ function PlayerViewDoCanvas({
         // Lembrança abaixo das fichas: a ficha que volta cobre o próprio contorno.
         lastSeen,
         tokens,
+      }))
+      const baseDaFaixa = (faixa: string): Container => {
+        const container = containerDaFaixa.get(faixa)
+        if (container === undefined) throw new Error(`PlayerView: a faixa ${faixa} de FAIXAS_JOGADOR não tem container`)
+        return container
+      }
+      if (containerDaFaixa.size !== FAIXAS_JOGADOR.length) {
+        throw new Error(`PlayerView: ${containerDaFaixa.size} containers para ${FAIXAS_JOGADOR.length} faixas (faixa nova entra em FAIXAS_JOGADOR)`)
+      }
+      world.addChild(...FAIXAS_JOGADOR.map((f) => baseDaFaixa(f.id)))
+      // Quem guarda um renderer por nó criado (chamas, imagem e rótulo dos móveis) solta o dele aqui.
+      const aoDescartarNo: ((no: Container) => void)[] = []
+      const pilha = criarPilhaDoJogador<Container>({
+        pai: world,
+        base: baseDaFaixa,
+        criar: (plano) => {
+          const no = baseDaFaixa(plano.faixa) instanceof Graphics ? new Graphics() : new Container()
+          no.label = plano.chave
+          no.eventMode = 'none'
+          return no
+        },
+        descartar: (no) => {
+          for (const soltar of aoDescartarNo) soltar(no)
+          no.destroy({ children: true })
+        },
+        lerAlfa: (no) => no.alpha,
+        definirAlfa: (no, alfa) => {
+          no.alpha = alfa
+        },
+      })
+      const chamasPorNo = criarPorNo<Container, ChamasDasFogueiras>(
+        chamasCamada,
+        createChamasDasFogueiras({
+          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+          aoMudar: (estado) => {
+            el.dataset.chamas = String(estado.chamas)
+            el.dataset.chamasAnimando = String(estado.animando)
+          },
+        }),
+        // A chama de um nó criado (camada com opacidade própria) anda no mesmo relógio; o painel de teste lê só a de hoje.
+        () => createChamasDasFogueiras({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+        (chamas) => chamas.destruir(),
       )
+      const looksPorNo = criarPorNo<Container, PropLooksRenderer>(propImages, createPropLooksRenderer(), () => createPropLooksRenderer(), () => {})
+      aoDescartarNo.push((no) => chamasPorNo.soltar(no), (no) => looksPorNo.soltar(no))
       const signalsLayer = new Container()
       signalsLayer.eventMode = 'none'
       // Bandeirinhas "vamos para cá" dentro da camada dos sinais, nascida antes das ondas: ficam por baixo delas.
@@ -3194,17 +3319,16 @@ function PlayerViewDoCanvas({
         props,
         lastPropsKey: null,
         propsCount: 0,
-        chamas: createChamasDasFogueiras({
-          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
-          aoMudar: (estado) => {
-            el.dataset.chamas = String(estado.chamas)
-            el.dataset.chamasAnimando = String(estado.animando)
-          },
-        }),
+        chamas: chamasPorNo.de(chamasCamada),
+        chamasPorNo,
         chamasCamada,
         propImages,
         propLabels,
-        propLooksRenderer: createPropLooksRenderer(),
+        propLooksRenderer: looksPorNo.de(propImages),
+        looksPorNo,
+        pilha,
+        paresDoMapa: criarParesDoJogador(),
+        entradaDaPilha: null,
         propLooksCount: { images: 0, labels: 0 },
         walls,
         doors,
@@ -3965,6 +4089,8 @@ function PlayerViewDoCanvas({
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
         scene.nuvens.destruir()
+        // Os nós criados da pilha (e as chamas deles) antes da de hoje.
+        scene.pilha.destruir()
         scene.chamas.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
