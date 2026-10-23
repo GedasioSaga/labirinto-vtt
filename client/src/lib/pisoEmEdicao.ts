@@ -1,11 +1,11 @@
 import type { PinosNoToque } from './marcadorDeContinente'
-import type { FloorPiece, LayerId, MapData } from '../types/map'
+import type { CamadaId, FloorPiece, MapData } from '../types/map'
 import { selectEntitiesInArea, type AreaRect } from './areaSelection'
 import type { Bloco } from './floorBlocks'
 import { apagarBlocosDoChao, findFloorPieceAt } from './floorTool'
 import { resolveHoverHit, type HoverHit, type HoverHitInput } from './hoverHitTest'
 import { comPiso, mapaDoPiso, pisoDe } from './pisos'
-import { findLockedLayerAt, type Point } from './selectionHitTest'
+import { camadaTravadaNaBorracha, findLockedLayerAt, type Point } from './selectionHitTest'
 import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
 import type { SelectionKind } from '../types/tools'
 
@@ -69,8 +69,13 @@ export function hoverNoPiso(input: HoverHitInput, piso: number): HoverHit {
  * barra o gesto tem de ser um que o mestre vê. Uma ficha do térreo em camada
  * travada não impede de pegar a parede do 1º piso no mesmo lugar.
  */
-export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point, pinos?: PinosNoToque): LayerId | null {
+export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point, pinos?: PinosNoToque): CamadaId | null {
   return findLockedLayerAt(mapaDoPiso(map, piso), point, pinos)
+}
+
+/** A barreira da borracha (`camadaTravadaNaBorracha`), olhando só o piso em edição, pela mesma razão. */
+export function camadaTravadaNaBorrachaNoPiso(map: MapData, piso: number, point: Point, pinos?: PinosNoToque): CamadaId | null {
+  return camadaTravadaNaBorracha(mapaDoPiso(map, piso), point, pinos)
 }
 
 /** Peça de chão sob o ponto, só entre as do piso em edição. */

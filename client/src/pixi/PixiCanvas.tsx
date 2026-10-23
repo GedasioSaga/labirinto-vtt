@@ -10,7 +10,7 @@ import type { AlturaDoPenhasco, MapData, ModoDoPenhasco, Pin, Region, Token, Wal
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
-import { camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
+import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
 import { personagensAtivos, pinTravelOf, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { useRpgStore } from '../stores/rpgStore'
@@ -4223,7 +4223,15 @@ export function PixiCanvas({
        * tirar a tinta, não a parede.
        */
       const eraseAt = (point: Point) => {
-        const { map, eraseMode } = useMapStore.getState()
+        const { map, eraseMode, pisoAtivo } = useMapStore.getState()
+        // Camada travada é BARREIRA, como no clique de seleção: `hitTestMap`
+        // tira o item travado da lista e a borracha seguiria até o item de
+        // baixo, apagando-o sem aviso. Quem está por cima no mapa CRU decide.
+        const travada = camadaTravadaNaBorrachaNoPiso(map, pisoAtivo, point, pinosNoToque(map))
+        if (travada !== null) {
+          avisarCamadaTravada(travada)
+          return
+        }
         const hit = findErasableAt(hitTestMap(map), point, pinosNoToque(map))
         if (!hit) {
           // Nada apagável aqui, mas pode haver CHÃO: `findErasableAt` nunca

@@ -1,13 +1,14 @@
 import type { PinosNoToque } from './marcadorDeContinente'
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin, ConcealZone } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, CamadaId, Pin, ConcealZone } from '../types/map'
 import { findConcealZoneAt } from './concealZones'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
-  isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
+import { contextoDeCamadas } from './camadas/consulta'
+import { camadaTravada } from './camadas/trava'
 import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
@@ -495,45 +496,53 @@ export function findConcealZoneForSelect(map: MapData, point: Point, pinos?: Pin
 }
 
 /**
- * A camada de um item já ACERTADO por `findSelectableAt` — a mesma derivação
- * de `lib/layers.ts`, nunca uma segunda. `null` quando o id não está mais no
+ * A camada de um item já ACERTADO por `findSelectableAt`/`findErasableAt` —
+ * a do ponto único (`lib/camadas/consulta.ts`: a escolhida do item ou a do
+ * tipo), nunca uma segunda derivação. `null` quando o id não está mais no
  * mapa (o hit veio de um snapshot anterior) e para 'floor', que tem a camada
- * própria de `lib/floorTool.ts` (FLOOR_LAYER) e nunca sai de
- * `findSelectableAt` — o chão é testado à parte, depois desta cadeia.
+ * própria de `lib/floorTool.ts` e nunca sai dessas cadeias — o chão é testado
+ * à parte, depois delas.
  */
-function layerOfHit(map: MapData, hit: Selection): LayerId | null {
+function camadaDoAcerto(map: MapData, hit: Selection): CamadaId | null {
+  const camadas = contextoDeCamadas(map)
   switch (hit.kind) {
     case 'token': {
       const token = map.tokens.find((item) => item.id === hit.id)
-      return token ? tokenLayer(token) : null
+      return token ? camadas.camadaDe('ficha', token) : null
     }
     case 'prop': {
       const prop = map.props.find((item) => item.id === hit.id)
-      return prop ? propLayer(prop) : null
+      return prop ? camadas.camadaDe('objeto', prop) : null
     }
     case 'light': {
       const light = map.lights.find((item) => item.id === hit.id)
-      return light ? lightLayer(light) : null
+      return light ? camadas.camadaDe('luz', light) : null
     }
     case 'drawing': {
       const drawing = map.drawings.find((item) => item.id === hit.id)
-      return drawing ? drawingLayer(drawing) : null
+      return drawing ? camadas.camadaDe('desenho', drawing) : null
     }
     case 'wall': {
       const wall = map.walls.find((item) => item.id === hit.id)
-      return wall ? wallLayer(wall) : null
+      return wall ? camadas.camadaDe('parede', wall) : null
     }
     case 'stair': {
       const stair = map.stairs.find((item) => item.id === hit.id)
-      return stair ? stairLayer(stair) : null
+      return stair ? camadas.camadaDe('escada', stair) : null
     }
     case 'region': {
       const region = map.regions.find((item) => item.id === hit.id)
-      return region ? regionLayer(region) : null
+      return region ? camadas.camadaDe('regiao', region) : null
     }
     case 'floor':
       return null
   }
+}
+
+/** A camada travada do item acertado (a que guarda o cadeado), ou `null`. */
+function travaDoAcerto(map: MapData, hit: Selection | null): CamadaId | null {
+  const camada = hit === null ? null : camadaDoAcerto(map, hit)
+  return camada === null ? null : camadaTravada(map, camada)
 }
 
 /**
@@ -556,13 +565,22 @@ function layerOfHit(map: MapData, hit: Selection): LayerId | null {
  * é outro eixo, com outra regra (item travado é clicável de propósito, para
  * chegar ao botão que o destrava em ItemTransformControls).
  */
-export function findLockedLayerAt(map: MapData, point: Point, pinos?: PinosNoToque): LayerId | null {
+export function findLockedLayerAt(map: MapData, point: Point, pinos?: PinosNoToque): CamadaId | null {
   if (map.lockedLayers.length === 0) return null
   // Os pinos têm de ser os MESMOS do clique: medir a ficha pelo disco aqui e
   // pelo pino inteiro lá deixaria a cabeça do pino (fora do disco) passar pela
   // trava e o clique pegar a sala de baixo.
-  const hit = findSelectableAt(map, point, pinos)
-  if (!hit) return null
-  const layer = layerOfHit(map, hit)
-  return layer !== null && isLayerLocked(map.lockedLayers, layer) ? layer : null
+  return travaDoAcerto(map, findSelectableAt(map, point, pinos))
+}
+
+/**
+ * A mesma barreira de `findLockedLayerAt`, na cadeia da BORRACHA
+ * (`findErasableAt`: todo desenho antes da parede). Rodar sobre o mapa CRU do
+ * piso em edição: o item de camada travada por cima segura a borracha, que
+ * não pode seguir em frente e apagar o destravado de baixo (`eraseAt`,
+ * PixiCanvas). Camada oculta não barra; trava por item é outro eixo.
+ */
+export function camadaTravadaNaBorracha(map: MapData, point: Point, pinos?: PinosNoToque): CamadaId | null {
+  if (map.lockedLayers.length === 0) return null
+  return travaDoAcerto(map, findErasableAt(map, point, pinos))
 }
