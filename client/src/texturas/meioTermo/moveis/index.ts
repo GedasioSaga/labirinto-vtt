@@ -21,6 +21,15 @@ import { montarArmario } from './armario'
 import { montarAparador } from './aparador'
 import { montarFogueira } from './fogueira'
 import { montarTapete } from './tapete'
+import { montarMesaQuadrada } from './mesaQuadrada'
+import { montarMesaRedonda } from './mesaRedonda'
+import { montarLapide } from './lapide'
+import { montarVaso } from './vaso'
+import { montarLampiao } from './lampiao'
+import { montarQuadroDeAvisos } from './quadroDeAvisos'
+import { montarPoco } from './poco'
+import { montarBarraca } from './barraca'
+import { montarCarroca } from './carroca'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -34,10 +43,18 @@ const MONTADORES = {
   aparador: montarAparador,
   fogueira: montarFogueira,
   tapete: montarTapete,
-} as const satisfies Partial<Record<TipoMobilia, MontarMovel>>
-
-// As peças novas do lote 1 (MT4) entram aqui uma a uma, com o desenho pronto e medido; a que
-// ainda não entrou fica no desenho de linhas e fora do catálogo do painel (`lib/mobilia/pecasNovas.ts`).
+  // As peças novas do lote 1 (MT4). Com o desenho aqui elas saem em imagem; o painel só as
+  // oferece depois de medidas (`PECAS_NOVAS_PRONTAS` em `lib/mobilia/pecasNovas.ts`).
+  mesaQuadrada: montarMesaQuadrada,
+  mesaRedonda: montarMesaRedonda,
+  lapide: montarLapide,
+  vaso: montarVaso,
+  lampiao: montarLampiao,
+  quadroDeAvisos: montarQuadroDeAvisos,
+  poco: montarPoco,
+  barraca: montarBarraca,
+  carroca: montarCarroca,
+} as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
 
@@ -61,7 +78,10 @@ export function escalaDoNivel(nivel: number): number {
 }
 
 /** Os tipos que têm desenho com textura, na ordem do catálogo: os 11. */
-export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
+export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
+  'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
   return TIPOS_COM_TEXTURA.some((t) => t === tipo)
