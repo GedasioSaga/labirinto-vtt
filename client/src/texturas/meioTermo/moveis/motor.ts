@@ -345,6 +345,16 @@ function texPalha(u: number, v: number, _x: number, _y: number, _p: Peca, s: Flo
   s[3] += escala < ESCALA_MINIMA_DA_TRAMA ? luz * CONTRASTE_DA_TRAMA_MIUDA : luz
 }
 
+/** O grão do granito (fração da cor, no pontilhado: some pela metade na sombra). */
+const GRAO_ESCURO = -0.2
+const GRAO_CLARO = 0.13
+/**
+ * As camadas do arenito: faixas de ±4% de luz a cada `PERIODO_DAS_CAMADAS` px
+ * ao longo da pedra (2 ou 3 numa pedra da roda), um pouco onduladas.
+ */
+const PERIODO_DAS_CAMADAS = 5
+const LUZ_DAS_CAMADAS = 0.04
+
 /** Granito com grão claro e escuro, arenito em camadas, ardósia em lâminas (`objetos.js:430-444`). */
 function texPedra(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
   let luz = ruido(u * 0.09 + p.semente * 13, v * 0.09) * 0.16 + (hash(p.semente, 1, 707) - 0.5) * 0.12
@@ -352,10 +362,11 @@ function texPedra(u: number, v: number, _x: number, _y: number, p: Peca, s: Floa
   if (tipo === 'granito') {
     luz += ruido(u * 0.4, v * 0.4) * 0.06
     const h = hash(Math.floor(u * 1.5), Math.floor(v * 1.5), p.semente)
-    if (h > 0.93) luz -= 0.17
-    else if (h < 0.05) luz += 0.11
+    if (h > 0.93) s[6] = GRAO_ESCURO
+    else if (h < 0.05) s[6] = GRAO_CLARO
   } else if (tipo === 'arenito') {
-    luz += ruido(u * 1.1, v * 1.1) * 0.06 + ruido(u * 0.03, v * 0.45 + p.semente) * 0.07
+    const fase = (v + ruido(u * 0.06 + p.semente, v * 0.05) * 2.5) / PERIODO_DAS_CAMADAS
+    luz += limitar(Math.sin(fase * Math.PI * 2) * 1.8, -1, 1) * LUZ_DAS_CAMADAS + ruido(u * 1.1, v * 1.1) * 0.035
   } else {
     luz += ruido(u * 0.04, v * 0.55 + p.semente) * 0.09 + ruido(u * 0.35, v * 0.35) * 0.03
   }
@@ -470,7 +481,17 @@ function janela(alvo: Alvo, b: Caixa, dx: number, dy: number, folga: number): [n
   ]
 }
 
-const SAIDA = new Float32Array(6)
+/** [r, g, b, luz, emissão, alfa, pontilhado]: o pontilhado é detalhe que some pela metade na sombra (o grão do granito). */
+const SAIDA = new Float32Array(7)
+/**
+ * Quanto o pontilhado aparece pela luz que chega no ponto (luz do chanfro x
+ * sombra das peças de cima): inteiro a partir de `LUZ_DO_PONTILHADO_CHEIO`,
+ * metade a partir de `LUZ_DO_PONTILHADO_MEIO` para baixo. Sem isso o grão tinha
+ * o mesmo contraste na luz e na sombra e lia como textura colada por cima.
+ */
+const LUZ_DO_PONTILHADO_CHEIO = 0.95
+const LUZ_DO_PONTILHADO_MEIO = 0.6
+const PONTILHADO_NA_SOMBRA = 0.5
 const VOLTA_INTEIRA = Math.PI * 2
 
 /** A normal do chanfro no ponto (nx, ny), ou zero longe da borda. */
@@ -559,6 +580,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
       SAIDA[3] = p.luz
       SAIDA[4] = 0
       SAIDA[5] = 1
+      SAIDA[6] = 0
       if (tex !== null) tex(u, v, x, y, p, SAIDA, S)
       const nlen = Math.sqrt(nx * nx + ny * ny + 1)
       const nl = (nx * LX + ny * LY + LZ) / nlen
@@ -583,7 +605,17 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
           cb += brilho * 0.88
         }
       }
-      // Emissão (a brasa acesa): essa parte da cor não pega luz nem sombra. Só as texturas próprias a usam.
+      const sombraDeCima = M[o >> 2]
+      const pontilhado = SAIDA[6]
+      if (pontilhado !== 0) {
+        const q = limitar((fl * sombraDeCima - LUZ_DO_PONTILHADO_MEIO) / (LUZ_DO_PONTILHADO_CHEIO - LUZ_DO_PONTILHADO_MEIO), 0, 1)
+        const f = 1 + pontilhado * (PONTILHADO_NA_SOMBRA + (1 - PONTILHADO_NA_SOMBRA) * q)
+        cr *= f
+        cg *= f
+        cb *= f
+      }
+      // Emissão (a brasa acesa): essa parte da cor não pega a luz do chanfro nem a sombra das peças de cima
+      // (abaixo, em `m`). O piso de luz continua valendo depois, em `compor`. Só as texturas próprias a usam.
       const em = SAIDA[4]
       if (em > 0) {
         cr += (SAIDA[0] - cr) * em
@@ -595,9 +627,9 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
       cb = cb < 0 ? 0 : cb > 255 ? 255 : cb
       const a = cob * alfa * SAIDA[5]
       if (a <= 0) continue
-      // Por baixo do que já está pintado; a sombra das peças de cima (M) escurece só a cor.
+      // Por baixo do que já está pintado; a sombra das peças de cima (M) escurece só a cor, e não a parte que emite.
       const k = resta * a
-      const m = k * M[o >> 2]
+      const m = k * (em > 0 ? sombraDeCima + (1 - sombraDeCima) * em : sombraDeCima)
       buf[o] += cr * m
       buf[o + 1] += cg * m
       buf[o + 2] += cb * m

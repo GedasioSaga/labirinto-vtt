@@ -10,7 +10,7 @@
  */
 import type { FormaDoTapete } from '../../../types/map'
 import { MATERIAIS, tomDoMeio, type IdDoMaterial } from '../materiais'
-import { rgb } from '../../ruido'
+import { rgb, type Rgb } from '../../ruido'
 import { contato, TOM_DA_CORDA, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
 import type { Forma } from './formas'
 
@@ -66,6 +66,14 @@ export const BURACO: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('nogu
  */
 export const CINZA: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('granito', 0.68)) }
 
+/**
+ * O arenito das pedras da fogueira, areia acinzentada (saturação HSL ~0,28,
+ * luz ~0,58). O tom da tabela (o pinho do Meio-Termo x 0,95) saía mostarda: uma
+ * pedra de arenito sozinha dava saturação p95 de 0,66, acima do teto de 0,62,
+ * e só a fogueira inteira, com a cinza e a lenha, passava (0,60).
+ */
+export const TOM_DO_ARENITO: Rgb = [0xb3, 0x9a, 0x76]
+
 /** A classe de textura de um material da tabela: cada classe da tabela tem a sua. */
 function classeDaPeca(id: IdDoMaterial): ClasseDaPeca {
   return MATERIAIS[id].classe
@@ -76,7 +84,8 @@ export function materialDaPeca(id: IdDoMaterial): MaterialDaPeca {
   const material = MATERIAIS[id]
   const classe = classeDaPeca(id)
   if (classe === 'tecido') return { classe, rgb: rgb(material.tom), fio: id === 'linho' ? 'linho' : 'la' }
-  if (id === 'granito' || id === 'arenito' || id === 'ardosia') return { classe, rgb: rgb(material.tom), pedra: id }
+  if (id === 'arenito') return { classe, rgb: TOM_DO_ARENITO, pedra: id }
+  if (id === 'granito' || id === 'ardosia') return { classe, rgb: rgb(material.tom), pedra: id }
   if (classe === 'casca') return { classe, rgb: rgb(material.tom), casca: id === 'lenhaBetula' ? 'betula' : 'fendida' }
   // A corda é o único material da classe e só a cerca a usa: palha clara, para não se confundir com o pinho.
   if (classe === 'corda') return { classe, rgb: TOM_DA_CORDA }
