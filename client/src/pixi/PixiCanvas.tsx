@@ -296,6 +296,9 @@ import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
+import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
+import { MODELO_PADRAO } from '../lib/camadas/padrao'
+import { alfaDoTelhadoNoEditor, criarPilha } from './pilhaDeCamadas'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -304,7 +307,7 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
 import { isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
 import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
-import { ALFA_DO_TELHADO_TRANSPARENTE, useTelhadosNoEditor } from '../stores/telhadosNoEditor'
+import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
 import { createTelhadosRenderer } from './telhadosRenderer'
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
@@ -1260,7 +1263,12 @@ export function PixiCanvas({
       // pointermove, como os demais draftGraphics deste diretório).
       const areaSelectionOutlineGraphics = new Graphics()
       const areaMarqueeGraphics = new Graphics()
-      world.addChild(
+      // A ORDEM DO MUNDO sai de FAIXAS_EDITOR (`lib/camadas/ordem.ts`), a MESMA
+      // lista que `ordem.test.ts` confere com a ordem escrita por extenso: aqui
+      // só se diz que container é cada faixa. Com o modelo de camadas padrão o
+      // mundo fica exatamente como antes (golden `task-camadas-golden.spec.ts`);
+      // mover uma camada só troca os containers de lugar (`pilhaDeCamadas.ts`).
+      const containerDaFaixa = new Map<string, Container>(Object.entries({
         backgroundSprite,
         mapBoundsGraphics,
         mapFrameContainer,
@@ -1294,12 +1302,12 @@ export function PixiCanvas({
         // e o Texto (`textLabelsContainer`) — `lib/desenhoSobAsSalas.ts`.
         drawingsGraphics,
         secretDrawingsGraphics,
-        texturas.camada,
+        texturas: texturas.camada,
         relevoContainer,
         regionStrokesContainer,
         pathsGraphics,
         secretPathsGraphics,
-        carimbos.camada,
+        carimbos: carimbos.camada,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1333,7 +1341,39 @@ export function PixiCanvas({
         guidesGraphics,
         angleIndicatorContainer,
         guideLabelsContainer,
-      )
+      }))
+      const baseDaFaixa = (faixa: string): Container => {
+        const container = containerDaFaixa.get(faixa)
+        if (container === undefined) throw new Error(`PixiCanvas: a faixa ${faixa} de FAIXAS_EDITOR não tem container`)
+        return container
+      }
+      if (containerDaFaixa.size !== FAIXAS_EDITOR.length) {
+        throw new Error(`PixiCanvas: ${containerDaFaixa.size} containers para ${FAIXAS_EDITOR.length} faixas (faixa nova entra em FAIXAS_EDITOR)`)
+      }
+      world.addChild(...FAIXAS_EDITOR.map((f) => baseDaFaixa(f.id)))
+      el.dataset.nosDaPilha = String(world.children.length)
+      // A opacidade de cada faixa ANTES da camada: o esmaecido do "Oculto para
+      // jogadores" e o atalho "Transparente" dos telhados (só do mestre, de sessão).
+      const alfaProprioDaFaixa = (faixa: string): number => {
+        if (faixa === 'telhadosContainer') return alfaDoTelhadoNoEditor(1, useTelhadosNoEditor.getState().transparentes)
+        return faixa === 'secretStairsGraphics' || faixa === 'secretDrawingsGraphics' || faixa === 'secretPathsGraphics' ? SECRET_ITEM_ALPHA : 1
+      }
+      const pilha = criarPilha<Container>({
+        pai: world,
+        faixas: FAIXAS_EDITOR,
+        base: baseDaFaixa,
+        criar: (plano) => {
+          const no = baseDaFaixa(plano.faixa) instanceof Graphics ? new Graphics() : new Container()
+          no.label = plano.chave
+          return no
+        },
+        descartar: (no) => no.destroy({ children: true }),
+        alfaProprio: alfaProprioDaFaixa,
+        lerAlfa: (no) => no.alpha,
+        definirAlfa: (no, alfa) => {
+          no.alpha = alfa
+        },
+      })
       // DESEMPENHO (invariante): nenhum filho do `world` recebe evento do Pixi.
       // Os quatro ouvintes (pointerdown, pointerup, pointerupoutside,
       // pointermove) moram no `stage`, e o alvo do clique sai da geometria do
@@ -1738,6 +1778,23 @@ export function PixiCanvas({
         return { ...state, map: exportScene.map, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null }
       }
 
+      /**
+       * A PILHA DE CAMADAS segue a lista do mestre (`modeloCamadas`, ausente = a
+       * padrão) e as opacidades. Memorizada pelas entradas: roda no começo de
+       * cada redesenho e, sem mudança, não planeja nada. Mover camada só troca
+       * containers de lugar; opacidade só mexe no `alpha` do nó.
+       */
+      let entradaDaPilha: { modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean } | null = null
+      const atualizarPilha = (): void => {
+        const { map } = sceneState()
+        const transparentes = useTelhadosNoEditor.getState().transparentes
+        const anterior = entradaDaPilha
+        if (anterior !== null && anterior.modelo === map.modeloCamadas && anterior.opacidades === map.opacidadeDasCamadas && anterior.transparentes === transparentes) return
+        entradaDaPilha = { modelo: map.modeloCamadas, opacidades: map.opacidadeDasCamadas, transparentes }
+        pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares: [] })
+        el.dataset.nosDaPilha = String(world.children.length)
+      }
+
       const computeViewport = () =>
         exportScene !== null
           ? exportScene.viewport
@@ -1915,7 +1972,8 @@ export function PixiCanvas({
       const paintTelhados = (regioes: Region[], mapaId: string) => {
         const { ligados, transparentes } = useTelhadosNoEditor.getState()
         telhadosContainer.visible = ligados
-        telhadosContainer.alpha = transparentes ? ALFA_DO_TELHADO_TRANSPARENTE : 1
+        // Opacidade da camada Telhados vezes o atalho "Transparente" (a pilha usa a mesma conta).
+        telhadosContainer.alpha = alfaDoTelhadoNoEditor(contextoDeCamadas(sceneState().map).alfa('telhados'), transparentes)
         const salas = ligados ? regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3) : []
         telhadosRenderer.desenhar(
           salas.map((r) => {
@@ -2254,6 +2312,7 @@ export function PixiCanvas({
 
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
+        atualizarPilha()
         if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
       }
 
@@ -2264,6 +2323,7 @@ export function PixiCanvas({
       const redrawPins = () => redrawShapeLayers(['pins'])
 
       const redrawTokens = () => {
+        atualizarPilha()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
@@ -2455,6 +2515,7 @@ export function PixiCanvas({
       const hasDrawnFurniture = () => sceneState().map.props.some((prop) => prop.mobilia !== undefined)
 
       const redrawProps = () => {
+        atualizarPilha()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // O fio do móvel desenhado é em px de tela: sem zoom e resolução ele
@@ -2807,6 +2868,12 @@ export function PixiCanvas({
           redrawProps()
         },
       )
+      // CAMADAS: mover uma camada na lista ou mudar a opacidade dela não toca nas
+      // listas do mapa, então nenhuma assinatura acima acorda. A pilha remonta
+      // (troca os containers de lugar, ajusta o alpha) sem repintar.
+      const unsubscribeCamadas = useMapStore.subscribe((state, previous) => {
+        if (state.map.modeloCamadas !== previous.map.modeloCamadas || state.map.opacidadeDasCamadas !== previous.map.opacidadeDasCamadas) atualizarPilha()
+      })
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
       // ENDIREITAR (pedido 5, fatia 4): a store não avisa que endireitou, então
@@ -8470,6 +8537,7 @@ export function PixiCanvas({
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
+        unsubscribeCamadas()
         unsubscribePisoAtivo()
         unsubscribeStraightenGhost()
         straightenGhost.parar()
