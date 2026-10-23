@@ -5,14 +5,29 @@
  * camadas mora na aventura; o mapa só guarda o estado da cena.
  */
 import type { CamadaDef, CamadaId, MapData, ModeloDeCamadas, NaCamada } from '../../types/map'
-import { ehCamadaId } from './padrao'
+import { ehCamadaId, ehCamadaPadrao } from './padrao'
 
-/** Lista de ids de camada: o que não é id sai, repetido sai; o que não é lista vira ausente. */
+/** Teto do nome de camada livre, em caracteres (o painel mostra uma linha). */
+export const NOME_DE_CAMADA_MAX = 40
+
+/**
+ * Lista de ids de camada: o que não é id sai, repetido sai; o que não é lista
+ * vira ausente. FALHA FECHADA: lista com itens em que nenhum id sobrou também
+ * vira ausente — para `ocultasDoJogador`, ausente segue `hiddenLayers`, e uma
+ * lista vazia diria "o jogador vê tudo". Lista vazia no arquivo continua vazia.
+ */
 export function lerListaDeCamadas(valor: unknown): CamadaId[] | undefined {
   if (!Array.isArray(valor)) return undefined
   const lista: CamadaId[] = []
   for (const item of valor) if (ehCamadaId(item) && !lista.includes(item)) lista.push(item)
-  return lista
+  return valor.length > 0 && lista.length === 0 ? undefined : lista
+}
+
+/** Nome de camada: texto aparado, no teto (contado em caracteres, sem partir emoji); outro tipo ou em branco = undefined. */
+export function lerNomeDeCamada(valor: unknown): string | undefined {
+  if (typeof valor !== 'string') return undefined
+  const nome = Array.from(valor.trim()).slice(0, NOME_DE_CAMADA_MAX).join('').trimEnd()
+  return nome === '' ? undefined : nome
 }
 
 /** Opacidade por camada: só número de 0 a 1 em chave de camada; o que não é objeto vira ausente. */
@@ -52,7 +67,12 @@ export function camadaLida(valor: object): NaCamada {
   return ehCamadaId(camada) ? { camada } : {}
 }
 
-/** O modelo da aventura: entrada sem id válido ou repetida sai; `nome` só texto. Forma errada vira ausente. */
+/**
+ * O modelo da aventura: entrada sem id válido ou repetida sai; `nome` só
+ * texto, aparado e no teto. Camada livre com nome em branco (depois de
+ * aparar) sai inteira; camada padrão fica, só sem o nome. Forma errada vira
+ * ausente, e `ordem` com itens em que nenhuma entrada sobrou também.
+ */
 export function lerModeloDeCamadas(valor: unknown): ModeloDeCamadas | undefined {
   if (typeof valor !== 'object' || valor === null || !('ordem' in valor) || !Array.isArray(valor.ordem)) return undefined
   const ordem: CamadaDef[] = []
@@ -61,9 +81,11 @@ export function lerModeloDeCamadas(valor: unknown): ModeloDeCamadas | undefined 
     if (typeof item !== 'object' || item === null || !('id' in item)) continue
     const id: unknown = item.id
     if (!ehCamadaId(id) || vistos.has(id)) continue
+    const cru: unknown = 'nome' in item ? item.nome : undefined
+    const nome = lerNomeDeCamada(cru)
+    if (nome === undefined && typeof cru === 'string' && !ehCamadaPadrao(id)) continue
     vistos.add(id)
-    const nome: unknown = 'nome' in item ? item.nome : undefined
-    ordem.push(typeof nome === 'string' ? { id, nome } : { id })
+    ordem.push(nome === undefined ? { id } : { id, nome })
   }
-  return { ordem }
+  return valor.ordem.length > 0 && ordem.length === 0 ? undefined : { ordem }
 }

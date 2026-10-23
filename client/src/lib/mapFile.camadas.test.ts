@@ -92,6 +92,19 @@ describe('camadas no arquivo: campos novos', () => {
     expect('ocultasDoJogador' in formaErrada).toBe(false)
     expect('opacidadeDasCamadas' in formaErrada).toBe(false)
   })
+
+  it('ocultasDoJogador só com itens tortos FALHA FECHADA: vira ausente (segue hiddenLayers), nunca [] = "o jogador vê tudo"', () => {
+    const base = JSON.parse(serializeMap(createEmptyMap('m-fechada', 'Fechada', 10, 10, 64)))
+    for (const torta of [[1, null], ['camada_futura'], [{ id: 'tokens' }, 'livre de espaço']]) {
+      const lido = deserializeMap(JSON.stringify({ ...base, hiddenLayers: ['tokens'], ocultasDoJogador: torta }))
+      expect('ocultasDoJogador' in lido, JSON.stringify(torta)).toBe(false)
+      expect(lido.hiddenLayers).toEqual(['tokens'])
+    }
+    // Lista vazia de verdade é escolha do mestre (nada oculto dos jogadores) e fica.
+    expect(deserializeMap(JSON.stringify({ ...base, ocultasDoJogador: [] })).ocultasDoJogador).toEqual([])
+    // Descarte parcial mantém os válidos.
+    expect(deserializeMap(JSON.stringify({ ...base, ocultasDoJogador: ['camada_futura', 'salas'] })).ocultasDoJogador).toEqual(['salas'])
+  })
 })
 
 describe('camadas na aventura (adventure.json)', () => {
@@ -121,5 +134,20 @@ describe('camadas na aventura (adventure.json)', () => {
     expect(parseAdventure(JSON.stringify(torto)).camadas).toEqual({ ordem: [{ id: 'chao' }, { id: 'livre_b' }, { id: 'tokens', nome: 'Fichas' }] })
     expect('camadas' in parseAdventure(JSON.stringify({ ...aventura, camadas: 'tudo' }))).toBe(false)
     expect('camadas' in parseAdventure(JSON.stringify({ ...aventura, camadas: { ordem: 'x' } }))).toBe(false)
+  })
+
+  it('ordem só com entradas tortas vira ausente, não { ordem: [] }', () => {
+    expect('camadas' in parseAdventure(JSON.stringify({ ...aventura, camadas: { ordem: [7, { id: 'nada' }, null, { nome: 'sem id' }] } }))).toBe(false)
+  })
+
+  it('nome de camada livre: aparado, no teto de 40 caracteres; em branco depois de aparar descarta a entrada', () => {
+    const comprido = 'Covil do Lich e das Catacumbas Esquecidas do Norte'
+    const torto = {
+      ...aventura,
+      camadas: { ordem: [{ id: 'livre_c', nome: '  Covil  ' }, { id: 'livre_d', nome: comprido }, { id: 'livre_e', nome: '   ' }, { id: 'tokens', nome: ' ' }] },
+    }
+    expect(parseAdventure(JSON.stringify(torto)).camadas).toEqual({
+      ordem: [{ id: 'livre_c', nome: 'Covil' }, { id: 'livre_d', nome: comprido.slice(0, 40).trimEnd() }, { id: 'tokens' }],
+    })
   })
 })
