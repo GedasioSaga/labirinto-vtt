@@ -94,13 +94,23 @@ import {
   clampTravelDenyText,
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
+  parseSomFalhou,
+  parseSomHostMessage,
+  SOM_DESLOCAMENTO_MAX_S,
   TRAVEL_DENY_TEXT_MAX_LENGTH,
   type ChatEntry,
   type DoorRequestHow,
+  type FonteDeSomNaRede,
   type HostErrorReason,
   type JoinMessage,
   type LaserMessage,
+  type SomFalhouMessage,
+  type SomHostMessage,
 } from './protocol'
+import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
+import { avisarFalhaDeSom, registrarRedeDosSons, type PedidoDeSomAoVivo, type RedeDosSons, type ResultadoDoSomNaRede } from './ponteDosSons'
+import type { AlvoDosSons } from '../lib/sons/biblioteca'
+import { MAX_LOOPS } from '../lib/sons/aoVivo/motor'
 import type { PortaDasContas } from './entradaComConta'
 import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { letterViaPhrase } from '../lib/correio'
@@ -386,14 +396,41 @@ export interface HostBridgeDeps {
    * a tela volta, e um broadcast leva tudo o que mudou. Ausente = nunca pausa.
    */
   broadcastPaused?: () => boolean
+  /**
+   * SONS AO VIVO: `false` = esta ponte NÃO se registra na aba Sons
+   * (`net/ponteDosSons.ts`) ao abrir a sala — a Visão de jogador, cuja sala de
+   * teste é local e não pode roubar o som da mesa de verdade. Ausente = registra.
+   */
+  redeDosSons?: boolean
 }
+
+/** SONS AO VIVO: um loop tocando na mesa e quem o ouve agora (a reconciliação mantém). */
+interface LoopAoVivo {
+  fonte: FonteDeSomNaRede
+  volume: number
+  alvo: AlvoDosSons
+  /** Relógio do mestre quando começou: o `deslocamentoS` de quem chega depois. */
+  inicioEmMs: number
+  ouvintes: Set<string>
+}
+
+/** Efeitos curtos lembrados (a quem foram), para o Parar e o volume irem só a eles. */
+const EFEITOS_AO_VIVO_LEMBRADOS = 32
+/** Teto do `som.falhou` por conexão e janela: a rajada além dele é ignorada. */
+const FALHAS_DE_SOM_POR_JANELA = 10
+const JANELA_DAS_FALHAS_DE_SOM_MS = 10_000
 
 export interface StartOptions {
   /** `true` = "Retomar a mesa": quem entrar com o nome de um assento guardado reencontra as fichas. */
   resume?: boolean
 }
 
-export interface HostBridge {
+/**
+ * `RedeDosSons` — SONS AO VIVO (fatia F4): tocar, parar, volume e pré-carga a
+ * quem o seletor escolheu (`net/ponteDosSons.ts`). Só com sala aberta, quando
+ * a ponte também se registra lá.
+ */
+export interface HostBridge extends RedeDosSons {
   start(options?: StartOptions): Promise<RoomInfo>
   stop(): Promise<void>
   /**
@@ -1084,6 +1121,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const awayClients = new Set<string>()
   /** PACOTE COMPRIMIDO: conexões que declararam `accept: ['gzip']` no `join`. Nunca sai pela rede. */
   const gzipClients = new Set<string>()
+  /** SONS AO VIVO: os loops tocando, por instância. O loop é estado: quem entra, volta ou chega à cena recebe. */
+  const loopsAoVivo = new Map<string, LoopAoVivo>()
+  /** SONS AO VIVO: efeitos curtos recentes, por instância, e a quem foram (no máximo `EFEITOS_AO_VIVO_LEMBRADOS`). */
+  const efeitosAoVivo = new Map<string, Set<string>>()
+  /** SONS AO VIVO: por instância, as conexões que contaram (`som.falhou`) que o toque não soou. */
+  const falhasDosSons = new Map<string, Set<string>>()
+  /** SONS AO VIVO: a janela do teto de `som.falhou` de cada conexão. Sai ao cair. */
+  const janelasDeFalhaDeSom = new Map<string, { inicio: number; contagem: number }>()
+  /** SONS AO VIVO: os áudios que esta sala mandou tocar ou pré-carregar (o que a F5 pode servir por `/media`). */
+  const midiasDeSomEnviadas = new Set<string>()
+  /** Tira o registro desta ponte da aba Sons; `null` = não registrada (sala fechada ou Visão de jogador). */
+  let tirarRegistroDosSons: (() => void) | null = null
   /** CONTAS: conexões com a entrada com conta sendo conferida — uma por conexão. Sai ao cair. */
   const accountJoinsInFlight = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
@@ -1239,6 +1288,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       deps.onTableScreensChange?.(screens)
     }
     sendPartyIfChanged()
+    // SONS AO VIVO: antes do "nada mudou na lista" — a TV que entra não muda a lista de jogadores.
+    reconciliarSons()
     const list = playerList()
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -1492,6 +1543,186 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (screens.forget(clientId)) notifyScreens()
   }
 
+  // ─── SONS AO VIVO (fatia F4; `docs/planos/sons-ao-vivo-2026-10-23.md`, seção 2) ───
+  // Só mestre → jogador e TV. Toda mensagem passa pelo MESMO parser do jogador
+  // antes de sair: o que ele recusaria não gasta socket. Nada do efeito além do
+  // que soa (instância opaca, id do áudio, volume, loop) atravessa.
+
+  /** As telas da mesa na sala: a sessão diz quem é TV (`isTable`), a ponte sabe quem está conectado. */
+  const telasDaMesa = (): TelasDaMesa => {
+    const room = session
+    if (room === null) return { clientIds: [], cena: null }
+    return { clientIds: [...lastHeard.keys()].filter((clientId) => room.isTable(clientId)), cena: room.tableScene() }
+  }
+
+  const ouvintesDoAlvo = (alvo: AlvoDosSons): string[] => (session === null ? [] : destinatarios(alvo, session.listPlayers(world()), telasDaMesa()))
+
+  /** Só a quem ainda está conectado: mandar a conexão que caiu viraria o toast de falha de envio. */
+  const enviarSom = (clientIds: Iterable<string>, msg: SomHostMessage): number => {
+    const conectados = new Set(ouvintesDoAlvo({ tipo: 'todos' }))
+    const outbound = [...clientIds].filter((clientId) => conectados.has(clientId)).map((clientId) => ({ clientId, msg }))
+    if (outbound.length > 0) void dispatch({ outbound })
+    return outbound.length
+  }
+
+  /** Quem chega com o loop tocando entra no ponto de agora (o jogador dá a volta pela duração). */
+  const deslocamentoDoLoop = (loop: LoopAoVivo): number => Math.min(SOM_DESLOCAMENTO_MAX_S, Math.max(0, Math.round(now() - loop.inicioEmMs)) / 1000)
+
+  const esquecerSom = (instancia: string) => {
+    loopsAoVivo.delete(instancia)
+    efeitosAoVivo.delete(instancia)
+    falhasDosSons.delete(instancia)
+  }
+
+  const lembrarEfeitoCurto = (instancia: string, ouvintes: Set<string>) => {
+    efeitosAoVivo.set(instancia, ouvintes)
+    for (const antigo of efeitosAoVivo.keys()) {
+      if (efeitosAoVivo.size <= EFEITOS_AO_VIVO_LEMBRADOS) break
+      efeitosAoVivo.delete(antigo)
+      falhasDosSons.delete(antigo)
+    }
+  }
+
+  /** A cópia do alvo: a lista de escolhidos de quem chamou pode mudar depois, o loop não. */
+  const copiaDoAlvo = (alvo: AlvoDosSons): AlvoDosSons => (alvo.tipo === 'escolhidos' ? { tipo: 'escolhidos', playerIds: [...alvo.playerIds] } : { ...alvo })
+
+  /**
+   * O LOOP É ESTADO: quem passou a ser do alvo (entrou, voltou, chegou à cena;
+   * a TV que passou a mostrar a cena) recebe `som.tocar` com o deslocamento, e
+   * quem deixou de ser (saiu da cena) recebe `som.parar`. Chamada a cada evento
+   * que pode mudar quem está onde; sem loop, não custa nada, e sem mudança não
+   * manda nada. Efeito curto é evento: nunca é reenviado.
+   */
+  const reconciliarSons = () => {
+    if (session === null || loopsAoVivo.size === 0) return
+    const jogadores = session.listPlayers(world())
+    const telas = telasDaMesa()
+    const conectados = new Set(destinatarios({ tipo: 'todos' }, jogadores, telas))
+    const outbound: { clientId: string; msg: SomHostMessage }[] = []
+    for (const [instancia, loop] of loopsAoVivo) {
+      const agora = new Set(destinatarios(loop.alvo, jogadores, telas))
+      const deslocamentoS = deslocamentoDoLoop(loop)
+      for (const clientId of agora) {
+        if (!loop.ouvintes.has(clientId)) outbound.push({ clientId, msg: { type: 'som.tocar', instancia, fonte: loop.fonte, volume: loop.volume, loop: true, deslocamentoS } })
+      }
+      for (const clientId of loop.ouvintes) {
+        if (!agora.has(clientId) && conectados.has(clientId)) outbound.push({ clientId, msg: { type: 'som.parar', instancia } })
+      }
+      loop.ouvintes = agora
+    }
+    if (outbound.length > 0) void dispatch({ outbound })
+  }
+
+  const tocarSomAoVivo = (pedido: PedidoDeSomAoVivo, alvo: AlvoDosSons): ResultadoDoSomNaRede => {
+    if (session === null) return { ok: false, motivo: 'sem-sala' }
+    const msg = parseSomHostMessage({ type: 'som.tocar', instancia: pedido.instancia, fonte: pedido.fonte, volume: pedido.volume, loop: pedido.loop })
+    if (msg === null || msg.type !== 'som.tocar') return { ok: false, motivo: 'pedido-invalido' }
+    const { instancia } = msg
+    const loopAntigo = loopsAoVivo.get(instancia)
+    // Trocar um loop que já toca não é loop a mais; o motor do jogador recusaria o 4º do mesmo jeito.
+    if (msg.loop && loopAntigo === undefined && loopsAoVivo.size >= MAX_LOOPS) return { ok: false, motivo: 'limite-de-loops' }
+    const ouvintes = ouvintesDoAlvo(alvo)
+    const conectados = new Set(ouvintesDoAlvo({ tipo: 'todos' }))
+    // A mesma instância tocando antes é trocada (como no motor): quem a ouvia e não está no alvo novo para.
+    const antes = loopAntigo?.ouvintes ?? efeitosAoVivo.get(instancia) ?? new Set<string>()
+    const parar: SomHostMessage = { type: 'som.parar', instancia }
+    const outbound: { clientId: string; msg: SomHostMessage }[] = [...antes]
+      .filter((clientId) => !ouvintes.includes(clientId) && conectados.has(clientId))
+      .map((clientId) => ({ clientId, msg: parar }))
+    outbound.push(...ouvintes.map((clientId) => ({ clientId, msg })))
+    esquecerSom(instancia)
+    if (msg.loop) loopsAoVivo.set(instancia, { fonte: msg.fonte, volume: msg.volume, alvo: copiaDoAlvo(alvo), inicioEmMs: now(), ouvintes: new Set(ouvintes) })
+    else lembrarEfeitoCurto(instancia, new Set(ouvintes))
+    midiasDeSomEnviadas.add(msg.fonte.midia)
+    if (outbound.length > 0) void dispatch({ outbound })
+    return { ok: true, enviados: ouvintes.length }
+  }
+
+  const pararSomAoVivo = (instancia: string, fadeMs?: number): number => {
+    if (session === null) return 0
+    const msg = parseSomHostMessage(fadeMs === undefined ? { type: 'som.parar', instancia } : { type: 'som.parar', instancia, fadeMs })
+    if (msg === null) return 0
+    const ouvintes = loopsAoVivo.get(instancia)?.ouvintes ?? efeitosAoVivo.get(instancia)
+    esquecerSom(instancia)
+    return ouvintes === undefined ? 0 : enviarSom(ouvintes, msg)
+  }
+
+  const pararTodosOsSons = (): number => {
+    if (session === null) return 0
+    loopsAoVivo.clear()
+    efeitosAoVivo.clear()
+    falhasDosSons.clear()
+    // A todos os conectados, mesmo quem nunca recebeu: é o botão de pânico, e Parar tudo no jogador sem som não faz nada.
+    return enviarSom(ouvintesDoAlvo({ tipo: 'todos' }), { type: 'som.pararTudo' })
+  }
+
+  const volumeDoSom = (instancia: string, volume: number): number => {
+    if (session === null) return 0
+    const msg = parseSomHostMessage({ type: 'som.volume', instancia, volume })
+    if (msg === null || msg.type !== 'som.volume') return 0
+    const loop = loopsAoVivo.get(instancia)
+    // Quem chegar depois ao loop recebe o volume novo no `som.tocar`.
+    if (loop !== undefined) loop.volume = msg.volume
+    const ouvintes = loop?.ouvintes ?? efeitosAoVivo.get(instancia)
+    return ouvintes === undefined ? 0 : enviarSom(ouvintes, msg)
+  }
+
+  const precarregarSonsAoVivo = (midias: readonly string[]): number => {
+    if (session === null) return 0
+    const msg = parseSomHostMessage({ type: 'som.precarregar', midias: [...midias] })
+    if (msg === null || msg.type !== 'som.precarregar') return 0
+    for (const midia of msg.midias) midiasDeSomEnviadas.add(midia)
+    return enviarSom(ouvintesDoAlvo({ tipo: 'todos' }), msg)
+  }
+
+  /** `true` enquanto a conexão não passou do teto de `som.falhou` da janela de agora. */
+  const dentroDoTetoDeFalhas = (clientId: string): boolean => {
+    const agora = now()
+    const janela = janelasDeFalhaDeSom.get(clientId)
+    if (janela === undefined || agora - janela.inicio >= JANELA_DAS_FALHAS_DE_SOM_MS) {
+      janelasDeFalhaDeSom.set(clientId, { inicio: agora, contagem: 1 })
+      return true
+    }
+    if (janela.contagem >= FALHAS_DE_SOM_POR_JANELA) return false
+    janela.contagem += 1
+    return true
+  }
+
+  /**
+   * `som.falhou`: só conta para um toque que foi mesmo para esta conexão (quem
+   * inventa instância ou não recebeu não conta), uma vez por conexão e dentro
+   * do teto da janela. Não vira mensagem para ninguém: só o número do mestre.
+   */
+  const receberFalhaDeSom = (clientId: string, falha: SomFalhouMessage) => {
+    const ouvintes = loopsAoVivo.get(falha.instancia)?.ouvintes ?? efeitosAoVivo.get(falha.instancia)
+    if (ouvintes === undefined || !ouvintes.has(clientId) || !dentroDoTetoDeFalhas(clientId)) return
+    const contaram = falhasDosSons.get(falha.instancia) ?? new Set<string>()
+    if (contaram.has(clientId)) return
+    contaram.add(clientId)
+    falhasDosSons.set(falha.instancia, contaram)
+    avisarFalhaDeSom()
+  }
+
+  const redeDosSonsDestaPonte: RedeDosSons = {
+    tocarSomAoVivo,
+    pararSomAoVivo,
+    pararTodosOsSons,
+    volumeDoSom,
+    precarregarSonsAoVivo,
+    falhasDoSom: (instancia) => falhasDosSons.get(instancia)?.size ?? 0,
+    midiasDeSomLiberadas: () => [...midiasDeSomEnviadas],
+  }
+
+  const limparSons = () => {
+    tirarRegistroDosSons?.()
+    tirarRegistroDosSons = null
+    loopsAoVivo.clear()
+    efeitosAoVivo.clear()
+    falhasDosSons.clear()
+    janelasDeFalhaDeSom.clear()
+    midiasDeSomEnviadas.clear()
+  }
+
   /** Espera o envio (ex.: `kicked`, `error`) sair antes de derrubar a conexão. */
   const sendThenKick = async (result: HostResult, clientId: string): Promise<void> => {
     await dispatch(result)
@@ -1597,6 +1828,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
+    // SONS AO VIVO: o mestre pode ter levado uma ficha de cena pelo editor (ou trocado a cena da TV):
+    // quem saiu ou chegou à cena de um loop só aparece aqui. Sem loop, não custa nada.
+    reconciliarSons()
     // No broadcast, `scene.changed` só sai para quem foi levado a bordo ou
     // pelo "Levar para…": o pedido de passagem dele morreu na sessão, e o
     // aviso do mestre e o selo da lista vão junto.
@@ -2967,6 +3201,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const parsed = parsePlayerMessage(event.payload.msg)
     if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
     else awayClients.delete(clientId)
+    // SONS AO VIVO: o canal é só mestre → jogador. Do jogador (ou da TV) vale só o
+    // `som.falhou`, e nada de som passa pela sessão: ninguém faz o host tocar ou parar.
+    const crua: unknown = event.payload.msg
+    if (isRecord(crua) && typeof crua.type === 'string' && crua.type.startsWith('som.')) {
+      const falha = parseSomFalhou(crua)
+      if (falha !== null) receberFalhaDeSom(clientId, falha)
+      return
+    }
     // Antes de a sessão responder: o `welcome` e o mapa que saem deste join já vão comprimidos.
     if (parsed?.type === 'join') {
       if (parsed.accept?.includes('gzip') === true) gzipClients.add(clientId)
@@ -3207,6 +3449,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     lastHeard.delete(clientId)
     awayClients.delete(clientId)
     gzipClients.delete(clientId)
+    janelasDeFalhaDeSom.delete(clientId)
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
@@ -3334,6 +3577,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       stopLivenessSweep()
       livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
       currentRoom = room
+      // SONS AO VIVO: a aba Sons passa a mandar som por esta sala (a Visão de jogador fica de fora).
+      if (deps.redeDosSons !== false) tirarRegistroDosSons = registrarRedeDosSons(redeDosSonsDestaPonte)
       notifyPlayersIfChanged()
       // A conversa guardada já está na tela do mestre ao abrir, sem contar como nova
       // (sem ela, a tela já está vazia: fechar a sala a esvaziou).
@@ -3349,6 +3594,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   return {
+    ...redeDosSonsDestaPonte,
+
     start(options = {}) {
       if (currentRoom !== null) return Promise.resolve(currentRoom)
       // Duplo clique: o segundo start recebe a mesma promise, sem segunda sala.
@@ -3390,6 +3637,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Guardar nunca apaga ficha: fechar a sala devolve ao mapa, sem dono, o que estava guardado.
       for (const playerId of [...storedTokens.keys()]) restoreStoredOf(playerId, null)
       session = null
+      // SONS AO VIVO: sala fechada não manda som; o jogador para os dele ao ler `room.closed` (F5).
+      limparSons()
       // Quem aguardava sem tela não recebe `room.closed` com mapa: some junto.
       if (screens.clear()) notifyScreens()
       // Sala nova começa sem ninguém no olhar: quem já estava lá avisa de novo.

@@ -1,0 +1,145 @@
+import type { AlvoDosSons, EfeitoDeSom, FonteDoSom } from '../lib/sons/biblioteca'
+import type { MotorAoVivo, ResultadoDoToque } from '../lib/sons/aoVivo/motor'
+import { idDaRefDeAudio } from '../lib/midia'
+import type { FonteDeSomNaRede } from './protocol'
+
+/**
+ * SONS AO VIVO, fatia F4 (`docs/planos/sons-ao-vivo-2026-10-23.md`, seções 2 e
+ * 4): liga o motor local (o som que o mestre ouve) à rede (o que jogadores e a
+ * TV ouvem). A aba Sons só fala com isto; a ponte do mestre (`hostBridge`) se
+ * registra aqui quando a sala abre e sai quando fecha — sem sala, o som toca
+ * só no computador do mestre.
+ *
+ * O que vai à rede é só id opaco: a instância é um apelido sorteado por efeito
+ * (não o id da biblioteca) e a fonte é o id do áudio guardado. Nome, pasta e a
+ * biblioteca nunca atravessam.
+ */
+
+/** O que a rede recebe para tocar: nada do efeito além do que soa. */
+export interface PedidoDeSomAoVivo {
+  instancia: string
+  fonte: FonteDeSomNaRede
+  volume: number
+  loop: boolean
+}
+
+export type RecusaDoSomNaRede = 'sem-sala' | 'pedido-invalido' | 'limite-de-loops'
+export type ResultadoDoSomNaRede = { ok: true; enviados: number } | { ok: false; motivo: RecusaDoSomNaRede }
+
+/** A parte da ponte do mestre que manda som pela rede. Cada número devolvido é quantas conexões receberam. */
+export interface RedeDosSons {
+  tocarSomAoVivo(pedido: PedidoDeSomAoVivo, alvo: AlvoDosSons): ResultadoDoSomNaRede
+  pararSomAoVivo(instancia: string, fadeMs?: number): number
+  pararTodosOsSons(): number
+  volumeDoSom(instancia: string, volume: number): number
+  /** Traz os bytes antes do clique, em todo aparelho conectado (o gatilho é da F5). */
+  precarregarSonsAoVivo(midias: readonly string[]): number
+  /** Quantos aparelhos contaram (`som.falhou`) que aquele toque não soou: o "não tocou para N". */
+  falhasDoSom(instancia: string): number
+  /** Os ids de áudio que esta sala já mandou tocar ou pré-carregar: o que a F5 pode servir por `/media/<id>`. */
+  midiasDeSomLiberadas(): string[]
+}
+
+let redeRegistrada: RedeDosSons | null = null
+const ouvintesDaRede = new Set<() => void>()
+
+function avisarOuvintes(): void {
+  for (const ouvinte of ouvintesDaRede) ouvinte()
+}
+
+/** A ponte do mestre se registra ao abrir a sala; a função devolvida tira o registro (só se ainda for o dela). */
+export function registrarRedeDosSons(rede: RedeDosSons): () => void {
+  redeRegistrada = rede
+  avisarOuvintes()
+  return () => {
+    if (redeRegistrada !== rede) return
+    redeRegistrada = null
+    avisarOuvintes()
+  }
+}
+
+/** A rede de agora; `null` = sala fechada (o som fica só no computador do mestre). */
+export function redeDosSons(): RedeDosSons | null {
+  return redeRegistrada
+}
+
+/** Avisa quando a sala abre ou fecha e quando chega um `som.falhou` contado. */
+export function assinarRedeDosSons(ouvinte: () => void): () => void {
+  ouvintesDaRede.add(ouvinte)
+  return () => {
+    ouvintesDaRede.delete(ouvinte)
+  }
+}
+
+/** A ponte do mestre chama quando uma falha nova foi contada. */
+export function avisarFalhaDeSom(): void {
+  avisarOuvintes()
+}
+
+/** A fonte como atravessa a rede; `null` para o que a rede ainda não leva (YouTube: F6) ou ref torta. */
+export function fonteDeSomNaRede(fonte: FonteDoSom): FonteDeSomNaRede | null {
+  if (fonte.tipo !== 'arquivo') return null
+  const midia = idDaRefDeAudio(fonte.ref)
+  return midia === null ? null : { tipo: 'arquivo', midia }
+}
+
+export interface ResultadoDaPonte {
+  /** O motor do mestre; `null` = "Tocar neste computador" desligado. */
+  local: ResultadoDoToque | null
+  /** A rede; `null` = sem sala, ou a fonte não vai pela rede, ou o local recusou na hora. */
+  rede: ResultadoDoSomNaRede | null
+}
+
+export interface PonteDosSons {
+  tocar(efeito: EfeitoDeSom, alvo: AlvoDosSons, opcoes: { local: boolean }): ResultadoDaPonte
+  parar(efeitoId: string): void
+  pararTudo(): void
+  mudarVolume(efeitoId: string, volume: number): void
+}
+
+export interface DependenciasDaPonte {
+  motor: MotorAoVivo
+  rede: () => RedeDosSons | null
+  /** O apelido de rede de um efeito; sorteado, para não ser o id guardado na biblioteca. */
+  novaInstancia?: () => string
+}
+
+export function criarPonteDosSons(deps: DependenciasDaPonte): PonteDosSons {
+  const novaInstancia = deps.novaInstancia ?? (() => `som-${crypto.randomUUID()}`)
+  // Um apelido por efeito na vida da ponte: tocar de novo o mesmo efeito troca o toque nos dois lados, como no motor.
+  const apelidos = new Map<string, string>()
+  const apelidoDe = (efeitoId: string): string => {
+    const conhecido = apelidos.get(efeitoId)
+    if (conhecido !== undefined) return conhecido
+    const novo = novaInstancia()
+    apelidos.set(efeitoId, novo)
+    return novo
+  }
+
+  return {
+    tocar(efeito, alvo, { local }) {
+      const resultadoLocal = local ? deps.motor.tocar(efeito.id, efeito.fonte, { loop: efeito.loop, volumeDoEfeito: efeito.volume }) : null
+      // O que o motor do mestre recusa na hora (4º loop, arquivo que não está no disco) também não iria tocar na mesa.
+      if (resultadoLocal !== null && !resultadoLocal.aceito) return { local: resultadoLocal, rede: null }
+      const rede = deps.rede()
+      const fonte = fonteDeSomNaRede(efeito.fonte)
+      if (rede === null || fonte === null) return { local: resultadoLocal, rede: null }
+      const pedido: PedidoDeSomAoVivo = { instancia: apelidoDe(efeito.id), fonte, volume: efeito.volume, loop: efeito.loop }
+      return { local: resultadoLocal, rede: rede.tocarSomAoVivo(pedido, alvo) }
+    },
+    parar(efeitoId) {
+      deps.motor.parar(efeitoId)
+      const apelido = apelidos.get(efeitoId)
+      if (apelido !== undefined) deps.rede()?.pararSomAoVivo(apelido)
+    },
+    pararTudo() {
+      deps.motor.pararTudo()
+      deps.rede()?.pararTodosOsSons()
+    },
+    mudarVolume(efeitoId, volume) {
+      deps.motor.mudarVolume(efeitoId, volume)
+      const apelido = apelidos.get(efeitoId)
+      if (apelido !== undefined) deps.rede()?.volumeDoSom(apelido, volume)
+    },
+  }
+}

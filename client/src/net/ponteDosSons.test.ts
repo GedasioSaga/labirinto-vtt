@@ -1,0 +1,151 @@
+/**
+ * SONS AO VIVO, fatia F4: a ponte que liga o motor do mestre à rede. O som
+ * toca no computador do mestre (se "Tocar neste computador") e vai à mesa pela
+ * ponte da sala, registrada só com a sala aberta. À rede vai um apelido
+ * sorteado (nunca o id da biblioteca) e o id do áudio; o nome nunca.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MotorAoVivo } from '../lib/sons/aoVivo/motor'
+import { ehVideoDoYoutube, type EfeitoDeSom } from '../lib/sons/biblioteca'
+import { assinarRedeDosSons, avisarFalhaDeSom, criarPonteDosSons, fonteDeSomNaRede, redeDosSons, registrarRedeDosSons, type RedeDosSons } from './ponteDosSons'
+
+const ID = `${'c'.repeat(64)}.wav`
+
+const efeito = (id: string, loop = false): EfeitoDeSom => ({
+  id,
+  nome: 'Grito do Lich',
+  fonte: { tipo: 'arquivo', ref: `midia:${ID}`, bytes: 1234 },
+  volume: 0.7,
+  loop,
+  pastaId: 'pasta-chefes',
+  ordem: 0,
+})
+
+function motorFalso(recusa?: 'limite-de-loops') {
+  const motor = {
+    tocar: vi.fn<MotorAoVivo['tocar']>(() => (recusa === undefined ? { aceito: true } : { aceito: false, motivo: recusa })),
+    parar: vi.fn<MotorAoVivo['parar']>(),
+    pararTudo: vi.fn<MotorAoVivo['pararTudo']>(),
+    mudarVolume: vi.fn<MotorAoVivo['mudarVolume']>(),
+    precarregar: vi.fn<MotorAoVivo['precarregar']>(),
+    assinar: vi.fn<MotorAoVivo['assinar']>(() => () => undefined),
+    desmontar: vi.fn<MotorAoVivo['desmontar']>(),
+  } satisfies MotorAoVivo
+  return motor
+}
+
+function redeFalsa() {
+  const rede = {
+    tocarSomAoVivo: vi.fn<RedeDosSons['tocarSomAoVivo']>(() => ({ ok: true, enviados: 2 })),
+    pararSomAoVivo: vi.fn<RedeDosSons['pararSomAoVivo']>(() => 2),
+    pararTodosOsSons: vi.fn<RedeDosSons['pararTodosOsSons']>(() => 2),
+    volumeDoSom: vi.fn<RedeDosSons['volumeDoSom']>(() => 2),
+    precarregarSonsAoVivo: vi.fn<RedeDosSons['precarregarSonsAoVivo']>(() => 2),
+    falhasDoSom: vi.fn<RedeDosSons['falhasDoSom']>(() => 0),
+    midiasDeSomLiberadas: vi.fn<RedeDosSons['midiasDeSomLiberadas']>(() => []),
+  } satisfies RedeDosSons
+  return rede
+}
+
+const apelidos = () => {
+  let n = 0
+  return () => `apelido-${++n}`
+}
+
+describe('registro da rede dos sons', () => {
+  let tirar: (() => void) | null = null
+  afterEach(() => {
+    tirar?.()
+    tirar = null
+  })
+
+  it('a sala registra, quem assina é avisado, e tirar o registro só vale para a própria ponte', () => {
+    const ouvinte = vi.fn()
+    const desassinar = assinarRedeDosSons(ouvinte)
+    const primeira = redeFalsa()
+    const tirarPrimeira = registrarRedeDosSons(primeira)
+    expect(redeDosSons()).toBe(primeira)
+    const segunda = redeFalsa()
+    tirar = registrarRedeDosSons(segunda)
+    // A ponte velha saindo não derruba a nova.
+    tirarPrimeira()
+    expect(redeDosSons()).toBe(segunda)
+    avisarFalhaDeSom()
+    expect(ouvinte).toHaveBeenCalledTimes(3)
+    tirar()
+    tirar = null
+    expect(redeDosSons()).toBeNull()
+    desassinar()
+  })
+})
+
+describe('criarPonteDosSons', () => {
+  it('toca no mestre pelo id da biblioteca e manda à rede só apelido, id do áudio, volume e loop', () => {
+    const motor = motorFalso()
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor, rede: () => rede, novaInstancia: apelidos() })
+    const resultado = ponte.tocar(efeito('som_1', true), { tipo: 'cena', sceneId: 's-taverna' }, { local: true })
+    expect(resultado).toEqual({ local: { aceito: true }, rede: { ok: true, enviados: 2 } })
+    expect(motor.tocar).toHaveBeenCalledWith('som_1', efeito('som_1', true).fonte, { loop: true, volumeDoEfeito: 0.7 })
+    expect(rede.tocarSomAoVivo).toHaveBeenCalledWith({ instancia: 'apelido-1', fonte: { tipo: 'arquivo', midia: ID }, volume: 0.7, loop: true }, { tipo: 'cena', sceneId: 's-taverna' })
+    expect(JSON.stringify(rede.tocarSomAoVivo.mock.calls)).not.toMatch(/Lich|som_1|pasta-chefes|midia:/)
+  })
+
+  it('o mesmo efeito tem sempre o mesmo apelido (tocar de novo troca o toque nos dois lados); outro efeito, outro', () => {
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor: motorFalso(), rede: () => rede, novaInstancia: apelidos() })
+    ponte.tocar(efeito('som_1'), { tipo: 'todos' }, { local: true })
+    ponte.tocar(efeito('som_1'), { tipo: 'todos' }, { local: true })
+    ponte.tocar(efeito('som_2'), { tipo: 'todos' }, { local: true })
+    expect(rede.tocarSomAoVivo.mock.calls.map(([pedido]) => pedido.instancia)).toEqual(['apelido-1', 'apelido-1', 'apelido-2'])
+  })
+
+  it('o que o motor do mestre recusa na hora (4º loop) não vai à mesa', () => {
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor: motorFalso('limite-de-loops'), rede: () => rede })
+    expect(ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })).toEqual({ local: { aceito: false, motivo: 'limite-de-loops' }, rede: null })
+    expect(rede.tocarSomAoVivo).not.toHaveBeenCalled()
+  })
+
+  it('"Tocar neste computador" desligado: só a rede', () => {
+    const motor = motorFalso()
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor, rede: () => rede })
+    expect(ponte.tocar(efeito('som_1'), { tipo: 'todos' }, { local: false })).toEqual({ local: null, rede: { ok: true, enviados: 2 } })
+    expect(motor.tocar).not.toHaveBeenCalled()
+  })
+
+  it('sem sala: só o mestre ouve; YouTube ainda não vai pela rede (F6)', () => {
+    const motor = motorFalso()
+    const semSala = criarPonteDosSons({ motor, rede: () => null })
+    expect(semSala.tocar(efeito('som_1'), { tipo: 'todos' }, { local: true })).toEqual({ local: { aceito: true }, rede: null })
+    const video = 'dQw4w9WgXcQ'
+    if (!ehVideoDoYoutube(video)) throw new Error('id de vídeo válido')
+    const rede = redeFalsa()
+    const comSala = criarPonteDosSons({ motor, rede: () => rede })
+    comSala.tocar({ ...efeito('som_yt'), fonte: { tipo: 'youtube', video } }, { tipo: 'todos' }, { local: true })
+    expect(rede.tocarSomAoVivo).not.toHaveBeenCalled()
+  })
+
+  it('parar e volume usam o apelido; efeito que nunca foi à rede não manda nada; Parar tudo para os dois lados', () => {
+    const motor = motorFalso()
+    const rede = redeFalsa()
+    const ponte = criarPonteDosSons({ motor, rede: () => rede, novaInstancia: apelidos() })
+    ponte.tocar(efeito('som_1', true), { tipo: 'todos' }, { local: true })
+    ponte.mudarVolume('som_1', 0.3)
+    ponte.parar('som_1')
+    ponte.parar('som_nunca')
+    ponte.pararTudo()
+    expect(motor.mudarVolume).toHaveBeenCalledWith('som_1', 0.3)
+    expect(rede.volumeDoSom).toHaveBeenCalledWith('apelido-1', 0.3)
+    expect(motor.parar.mock.calls).toEqual([['som_1'], ['som_nunca']])
+    expect(rede.pararSomAoVivo.mock.calls).toEqual([['apelido-1']])
+    expect(motor.pararTudo).toHaveBeenCalledTimes(1)
+    expect(rede.pararTodosOsSons).toHaveBeenCalledTimes(1)
+  })
+
+  it('fonteDeSomNaRede: ref de áudio vira o id; ref torta não vai', () => {
+    expect(fonteDeSomNaRede({ tipo: 'arquivo', ref: `midia:${ID}`, bytes: 1 })).toEqual({ tipo: 'arquivo', midia: ID })
+    expect(fonteDeSomNaRede({ tipo: 'arquivo', ref: 'C:/aventura/grito.mp3', bytes: 1 })).toBeNull()
+  })
+})
