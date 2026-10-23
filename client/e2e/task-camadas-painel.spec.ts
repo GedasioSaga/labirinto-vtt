@@ -375,9 +375,13 @@ test.describe('toque (390 px, dedo)', () => {
     const travaDaPeca = await linha(page, 'chao').getByRole('list', { name: 'Camadas do chão' }).getByRole('button', { name: /^Travar / }).first().boundingBox()
     expect(travaDaPeca?.height).toBeGreaterThanOrEqual(44)
     await printDoPainel(page, 'painel-390-toque')
-    await abrirLinha(page, 'Salas')
+    // Abre com o DEDO, como no celular; o slider continua sob `pointer: coarse`.
+    await botao(page, 'Salas, opacidade').tap()
+    await expect(faixa(page, 'Salas')).toBeVisible()
+    expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'o toque deixou de ser coarse').toBe(true)
     const doSlider = await faixa(page, 'Salas').boundingBox()
-    const estiloDoSlider = await faixa(page, 'Salas').evaluate((el) => `altura ${getComputedStyle(el).height}, classes ${el.className}`)
+    // Fora do toque `.gr-faixa` dá 20 px; os 44 vêm só da regra de `pointer: coarse` do painel.
+    const estiloDoSlider = await faixa(page, 'Salas').evaluate((el) => `altura computada ${getComputedStyle(el).height}, classes ${el.className}`)
     expect(doSlider?.height, estiloDoSlider).toBeGreaterThanOrEqual(44)
     await printDoPainel(page, 'painel-390-toque-salas-aberta')
   })

@@ -197,6 +197,17 @@ Quatro revisores (designer, correção e segurança, testes e desempenho, verifi
 - **Risco do app publicado v0.4.36 com mapa v2:** ele lê `hiddenLayers` como vem e NÃO conhece `ocultasDoJogador`: a camada escondida só dos jogadores CHEGA aos jogadores, e ao salvar ele apaga os campos novos (`versaoDasCamadas`, `ocultasDoJogador`, `opacidadeDasCamadas`, `modeloCamadas`). Decisão do usuário antes de publicar: travar a abertura de mapa v2 em versão velha, ou avisar.
 - Interruptores de grade depois da lista (opcional): não feito.
 
-**Aberto ao parar (disco do C: a 2,7 GB, abaixo do piso de 5 GB do briefing):**
-- No toque (390 px) o slider aberto mede 20 px de altura apesar de `.lb-camadas .lb-camadas__faixa { height: 44px }` sob `pointer: coarse` (os três botões passam com 44). O spec agora imprime a altura computada e as classes na falha; falta uma rodada para saber se o Chromium móvel ignora `height` no range com `appearance` nativo (aí o conserto é a faixa com `appearance: none` e trilho e polegar próprios, como `.lb-range` em `main.css`).
-- Sem rodada depois das últimas mudanças: o spec do painel (o relevo no lugar do carimbo, a trava do nome longo pela caixa, a guarda de `pointer: coarse`), os procuradores da lista do chão, o golden estrito, as jornadas seladas e o vitest das pastas.
+**Fechado pelo segundo corretor (23/10/2026, noite):**
+- **Toque a 390 px:** o slider aberto MEDE 44 px; o código não precisou de conserto. Os 20 px eram de uma rodada anterior ao CSS final: com o código do commit 265fd1d0 o teste passou abrindo pelo clique (`abrirLinha`, 3 de 3), pelo clique direto (1 de 1) e pelo `.tap()`. O spec agora abre com o dedo (`.tap()`) e confere que o `pointer: coarse` segue ligado depois do toque. A mutação da regra (tirar os 44 px) foi bloqueada pelo classificador de segurança e não rodou; a prova é por exclusão: fora do toque a única altura da faixa é `.gr-faixa { height: 20px }`.
+- **Rodadas depois das últimas mudanças, todas verdes:** `tsc --noEmit` do app e do e2e sem erro; vitest das áreas (166 arquivos, 1607 testes; e mais 47 arquivos, 265 testes das telas vizinhas); `task-camadas-painel` 15 de 15; `task-camadas-golden` 19 de 19 sem PNG mudado; jornadas seladas (`task-jornada-camada-travada`, `task-layers-visibility`, `task-jornada-atalho-com-foco-no-painel`) 8 de 8.
+- **Desempenho contra 0d17698b** (o merge de antes deste corretor; `git archive` com o spec da HEAD, mesma GPU, alternando A e D; cada número é a mediana de 5 rodadas de 40 quadros, em ms por quadro):
+
+  | Cenário | A1 | A2 | A3 | D1 | D2 | D3 | Mediana A | Mediana D |
+  |---|---|---|---|---|---|---|---|---|
+  | opacidade (setState) | 29,27 | 22,45 | 29,80 | 15,45 | 14,68 | 14,00 | 29,27 | 14,68 |
+  | opacidade (ação da store) | 25,22 | 23,62 | 20,94 | 11,40 | 14,89 | 15,18 | 23,62 | 14,89 |
+  | slider (arrasto) | — | — | — | 20,36 | 20,35 | 23,82 | — | 20,36 |
+  | virada | 53,48 | 50,97 | 46,78 | 29,41 | 29,35 | 39,86 | 50,97 | 29,41 |
+  | maior tarefa longa | 103 | 131 | 140 | 0 | 63 | 64 | | |
+
+  Limite do critério = 29,27 × 1,15 = 33,66; a mediana depois é 14,68 (50% ABAIXO). Contra o menor A (22,45; limite 25,82) o maior D (15,45) passa. Nenhuma tarefa longa >= 200 ms em nenhuma rodada, a virada incluída. Uma rodada anterior de D, sem A intercalado, deu 16,22, 12,96 e 14,16 no mesmo cenário. O slider de abrir pelo nome não existe na base (sem par A).
