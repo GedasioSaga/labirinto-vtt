@@ -163,6 +163,38 @@ describe('limites', () => {
   })
 })
 
+describe('trocar a mesma instância', () => {
+  it('tocar de novo a MESMA instância para a anterior (sem fade) e toca a nova no lugar', async () => {
+    const m = montar()
+    m.motor.tocar('x', m.arquivo(1, DEZ_SEGUNDOS), curto)
+    await assentar()
+    const primeira = item(m.fontesDoMotor(), 0)
+    expect(m.motor.tocar('x', m.arquivo(2, DEZ_SEGUNDOS), curto)).toEqual({ aceito: true })
+    expect(m.doTipo('terminou')).toEqual([{ tipo: 'terminou', instancia: 'x', motivo: 'parado' }])
+    expect(primeira.stop).toHaveBeenCalledWith(m.audio.ctx.currentTime)
+    await assentar()
+    expect(m.doTipo('tocando').map((evento) => evento.instancia)).toEqual(['x', 'x'])
+    // O fim da fonte trocada não encerra a nova.
+    primeira.terminar()
+    expect(m.doTipo('terminou')).toHaveLength(1)
+  })
+
+  it(`com ${MAX_LOOPS} loops, trocar um efeito curto por loop é recusado e o curto SEGUE tocando; trocar um loop por outro loop entra`, async () => {
+    const m = montar()
+    for (let i = 0; i < MAX_LOOPS; i++) m.motor.tocar(`loop_${i}`, m.arquivo(i + 1, DEZ_SEGUNDOS), emLoop)
+    m.motor.tocar('x', m.arquivo(9, DEZ_SEGUNDOS), curto)
+    await assentar()
+    expect(m.motor.tocar('x', m.arquivo(10, DEZ_SEGUNDOS), emLoop)).toEqual({ aceito: false, motivo: 'limite-de-loops' })
+    expect(m.doTipo('terminou')).toEqual([])
+    for (const fonte of m.fontesDoMotor()) expect(fonte.stop).not.toHaveBeenCalled()
+
+    expect(m.motor.tocar('loop_0', m.arquivo(11, DEZ_SEGUNDOS), emLoop)).toEqual({ aceito: true })
+    expect(m.doTipo('terminou')).toEqual([{ tipo: 'terminou', instancia: 'loop_0', motivo: 'parado' }])
+    await assentar()
+    expect(m.doTipo('tocando').filter((evento) => evento.loop)).toHaveLength(MAX_LOOPS + 1)
+  })
+})
+
 describe('volume, Mudo e saída', () => {
   it('Mudo zera o ganho SEM parar o loop: ele segue tocando em silêncio e volta ao desmutar', async () => {
     const m = montar({ volume: 0.5 })

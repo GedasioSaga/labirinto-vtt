@@ -640,8 +640,10 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       const id = idDaRefDeAudio(fonte.ref)
       if (id === null) return recusar(instancia, 'fonte-invalida')
       const anterior = vozes.get(instancia)
+      // O limite antes de encerrar a anterior: recusado, o som que já tocava segue. A anterior, se era loop, sai da conta.
+      const loopsQueFicam = contarLoops() - (anterior !== undefined && anterior.loop ? 1 : 0)
+      if (opcoes.loop && loopsQueFicam >= MAX_LOOPS) return recusar(instancia, 'limite-de-loops')
       if (anterior !== undefined) encerrarVoz(anterior, 0, 'parado')
-      if (opcoes.loop && contarLoops() >= MAX_LOOPS) return recusar(instancia, 'limite-de-loops')
       abrirVaga()
       const pedido = opcoes.deslocamentoS ?? 0
       const voz: Voz<N> = {
