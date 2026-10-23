@@ -55,7 +55,8 @@ import {
 import { criarMovel } from '../src/lib/mobilia'
 import { buildStairFromDraft } from '../src/lib/stairs'
 import { comTexturas } from '../src/lib/texturas'
-import type { DoorState, FloorPiece, MapData, RegionPoint } from '../src/types/map'
+import { CAMADAS_PADRAO } from '../src/lib/camadas/padrao'
+import type { CamadaPadraoId, DoorState, FloorPiece, MapData, ModeloDeCamadas, RegionPoint } from '../src/types/map'
 
 const GRADE = 64
 const COLUNAS = 16
@@ -251,6 +252,37 @@ test.describe('editor a 1440 x 900', () => {
     ['editor-terreno.png', mapaTerreno],
     ['editor-pincel.png', mapaPincel],
     ['editor-camadas-antigas.png', mapaCamadasAntigas],
+  ]
+  for (const [foto, montar] of casos) {
+    test(foto, async ({ page }) => {
+      test.setTimeout(90_000)
+      await abrirNoEditor(page, montar())
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+    })
+  }
+})
+
+/** A lista padrão com `camada` tirada e posta logo acima de `acimaDe` (de baixo para cima). */
+function listaCom(camada: CamadaPadraoId, acimaDe: CamadaPadraoId): ModeloDeCamadas {
+  const sem = CAMADAS_PADRAO.filter((c) => c !== camada)
+  const i = sem.indexOf(acimaDe)
+  return { ordem: [...sem.slice(0, i + 1), camada, ...sem.slice(i + 1)].map((id) => ({ id })) }
+}
+
+// FATIA 3 (render do editor por faixas): a lista manda. A mesma Casa, na mesma
+// câmera; só a lista de camadas ou a opacidade muda, posta pelo `loadMap`.
+// Chão logo acima de Salas: a pincelada de terra pinta por cima do fundo da
+// Sala, e paredes, móveis, luz e nomes continuam por cima. Escadas logo acima
+// de Salas: a escada passa para baixo do rabisco, do retângulo e da porta que
+// ela cobre. Objetos a 40%: mesa, cadeira, tapete, fogueira e barril esmaecem;
+// o baú (Decoração) fica inteiro.
+test.describe('editor a 1440 x 900, camadas mexidas (fatia 3)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const casos: [string, () => MapData][] = [
+    ['editor-chao-acima-de-salas.png', () => ({ ...mapaCasa(), modeloCamadas: listaCom('chao', 'salas') })],
+    // Uma escada a mais cobre a porta trancada (vermelha) do corredor: sob Portas, a porta passa por cima dela.
+    ['editor-escadas-acima-de-salas.png', () => ({ ...addStair(mapaCasa(), buildStairFromDraft('s2', { x: 460, y: 296 }, { x: 500, y: 344 }, 8)), modeloCamadas: listaCom('escadas', 'salas') })],
+    ['editor-objetos-40.png', () => ({ ...mapaCasa(), opacidadeDasCamadas: { objetos: 0.4 } })],
   ]
   for (const [foto, montar] of casos) {
     test(foto, async ({ page }) => {
