@@ -107,7 +107,7 @@ async function abrirAventura(dir: string | null = AVENTURA): Promise<void> {
 }
 
 async function montarPagina(): Promise<void> {
-  await act(async () => root.render(<PaginaSons medirMidia={async () => 3.4 * MB} />))
+  await act(async () => root.render(<PaginaSons medirMidia={async () => new Map([['mapa.png', 3.4 * MB]])} />))
 }
 
 const botao = (nome: string | RegExp): HTMLButtonElement => {
@@ -172,13 +172,13 @@ describe('tocar', () => {
     expect(tocadas()).toHaveLength(0)
     act(() => botao('porta rangendo').click())
     await esperar(() => expect(tocadas()).toHaveLength(1))
-    expect(container.querySelector('.lb-som--tocando')).not.toBeNull()
-    const barra = container.querySelector<HTMLElement>('.lb-som__barra')
+    expect(container.querySelector('.lb-efeito--tocando')).not.toBeNull()
+    const barra = container.querySelector<HTMLElement>('.lb-efeito__barra')
     expect(barra?.style.animationDuration).toBe('2s')
     expect(naTela()).toContain('1 tocando')
     // O fim natural tira a barra e o estado de tocando.
     act(() => tocadas()[0]?.terminar())
-    await esperar(() => expect(container.querySelector('.lb-som__barra')).toBeNull())
+    await esperar(() => expect(container.querySelector('.lb-efeito__barra')).toBeNull())
     expect(id).toMatch(/./)
   })
 
@@ -395,7 +395,7 @@ describe('pior caso', () => {
     await montarPagina()
     await abrirAventura()
     act(() => useBibliotecaDeSonsStore.setState({ biblioteca }))
-    expect(container.querySelectorAll('.lb-som__tocar')).toHaveLength(EFEITOS_DE_SOM_MAX)
+    expect(container.querySelectorAll('.lb-efeito__tocar')).toHaveLength(EFEITOS_DE_SOM_MAX)
     expect(botao(/^Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, tecla 9, repete até parar$/)).toBeDefined()
     expect(container.querySelector('[aria-label="Колокол собора на рассвете"]')).not.toBeNull()
     expect(botao('Importar').disabled).toBe(true)
@@ -406,7 +406,8 @@ describe('pior caso', () => {
 describe('o peso da mídia', () => {
   it('mostra o total em MB da pasta de mídia da aventura e avisa acima de 200 MB', async () => {
     let bytes = 12.5 * MB
-    await act(async () => root.render(<PaginaSons medirMidia={async () => bytes} />))
+    // A pasta só tem a imagem: os áudios importados entram no peso pela biblioteca (32 KB cada).
+    await act(async () => root.render(<PaginaSons medirMidia={async () => new Map([['mapa.png', bytes]])} />))
     await abrirAventura()
     await esperar(() => expect(naTela()).toContain('Mídia da aventura: 12,5 MB'))
     expect(naTela()).not.toContain('Passou de 200 MB')
@@ -414,22 +415,33 @@ describe('o peso da mídia', () => {
     await importar('pesado.wav')
     await esperar(() => expect(naTela()).toContain('Mídia da aventura: 201 MB'))
     expect(naTela()).toContain('Passou de 200 MB: levar e abrir a aventura fica lento.')
+    // Um efeito curto não vira "0,0 MB".
+    bytes = 4000
+    await importar('estalo.wav', 2)
+    await esperar(() => expect(naTela()).toContain('Mídia da aventura: menos de 0,1 MB'))
   })
 })
 
 describe('o selo pulsa', () => {
-  it('no clique o selo pulsa em 150 ms; com movimento reduzido, não', async () => {
+  it('no clique o selo pulsa em 150 ms; pela tecla, não (ação de teclado não anima); com movimento reduzido, não', async () => {
     const animar = vi.fn()
     Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animar })
     try {
       await montarPagina()
       await abrirAventura()
-      await importar('sino.wav')
-      act(() => botao('sino').click())
+      const id = await importar('sino.wav')
+      act(() => {
+        useBibliotecaDeSonsStore.getState().editarEfeito(id, { atalho: 5 })
+      })
+      act(() => botao(/^sino,/).click())
       expect(animar).toHaveBeenCalledTimes(1)
       expect(animar.mock.calls[0]?.[1]).toMatchObject({ duration: 150 })
+      await esperar(() => expect(tocadas()).toHaveLength(1))
+      teclar(document.body, '5')
+      await esperar(() => expect(tocadas()).toHaveLength(2))
+      expect(animar).toHaveBeenCalledTimes(1)
       Object.defineProperty(window, 'matchMedia', { configurable: true, value: (consulta: string) => ({ matches: consulta.includes('reduce'), media: consulta }) })
-      act(() => botao('sino').click())
+      act(() => botao(/^sino,/).click())
       expect(animar).toHaveBeenCalledTimes(1)
     } finally {
       Reflect.deleteProperty(HTMLElement.prototype, 'animate')

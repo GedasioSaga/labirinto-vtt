@@ -3,7 +3,7 @@ import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
 import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom } from '../../lib/sons/biblioteca'
-import { obterMotorDoMestre, tamanhoDaMidiaDaAventura } from '../../lib/sons/aoVivo/carregadorDoMestre'
+import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { ligarBibliotecaAAventura, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
@@ -51,7 +51,11 @@ interface Toque {
   vistoEmMs: number
 }
 
+/** O menor peso que o pé mostra com número; abaixo disso, "menos de 0,1 MB" (um efeito curto não vira "0,0 MB"). */
+const MENOR_PESO_COM_NUMERO = 0.1 * MB
+
 function megas(bytes: number): string {
+  if (bytes > 0 && bytes < MENOR_PESO_COM_NUMERO) return 'menos de 0,1 MB'
   return `${(bytes / MB).toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: bytes > 0 && bytes < 10 * MB ? 1 : 0 })} MB`
 }
 
@@ -141,23 +145,31 @@ function useToquesDoMotor(motor: MotorAoVivo, nomeDe: (id: string) => string): R
   return toques
 }
 
-/** O pulso do selo (só ele anima): reinicia a cada toque; com movimento reduzido, nada. */
+/**
+ * O pulso do selo (só ele anima), resposta ao CLIQUE: sobe rápido e assenta.
+ * A tecla não pulsa (ação de teclado não anima; o selo aceso já diz qual tocou),
+ * e com movimento reduzido nada se mexe.
+ */
 function pulsar(selo: HTMLElement | undefined): void {
   if (selo === undefined || movimentoReduzido() || typeof selo.animate !== 'function') return
-  selo.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.22)', offset: 0.35 }, { transform: 'scale(1)' }], {
-    duration: PULSO_DO_SELO_MS,
-    easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
-  })
+  selo.animate(
+    [
+      { transform: 'scale(1)', easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+      { transform: 'scale(1.12)', offset: 0.4, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' },
+      { transform: 'scale(1)' },
+    ],
+    { duration: PULSO_DO_SELO_MS },
+  )
 }
 
 export interface PaginaSonsProps {
   /** Quem toca; o padrão é o motor do mestre (bytes do disco). O teste passa um com o áudio de mentira. */
   motor?: MotorAoVivo
   /** Quanto pesa a pasta de mídia da aventura; o padrão lê o disco. */
-  medirMidia?: (pastaDaAventura: string) => Promise<number>
+  medirMidia?: (pastaDaAventura: string) => Promise<ArquivosDaMidia>
 }
 
-export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAventura }: PaginaSonsProps) {
+export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAventura }: PaginaSonsProps) {
   const [motor] = useState(() => motorDado ?? obterMotorDoMestre())
   const biblioteca = useBibliotecaDeSonsStore((estado) => estado.biblioteca)
   const aventuraId = useBibliotecaDeSonsStore((estado) => estado.aventuraId)
@@ -171,7 +183,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAven
   const [importando, setImportando] = useState<string | null>(null)
   const [recusas, setRecusas] = useState<string[]>([])
   const [entrou, setEntrou] = useState<string | null>(null)
-  const [midiaBytes, setMidiaBytes] = useState<number | null>(null)
+  const [arquivosDaMidia, setArquivosDaMidia] = useState<ArquivosDaMidia | null>(null)
   const arquivo = useRef<HTMLInputElement>(null)
   const selos = useRef(new Map<string, HTMLElement>())
 
@@ -181,30 +193,32 @@ export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAven
   const toquesAgora = useRef(toques)
   toquesAgora.current = toques
 
-  const tocar = (efeito: EfeitoDeSom) => {
+  /** Toca (ou para o loop que já toca). `peloClique`: só o clique pulsa o selo. */
+  const tocar = (efeito: EfeitoDeSom, peloClique: boolean) => {
     // Loop tocando: o mesmo botão (ou tecla) para, com o fade do motor. Efeito curto recomeça.
     if (efeito.loop && toquesAgora.current.has(efeito.id)) {
       motor.parar(efeito.id)
       return
     }
     motor.tocar(efeito.id, efeito.fonte, { loop: efeito.loop, volumeDoEfeito: efeito.volume })
-    pulsar(selos.current.get(efeito.id))
+    if (peloClique) pulsar(selos.current.get(efeito.id))
   }
 
   useAtalhosDeSom((atalho) => {
     const efeito = useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((candidato) => candidato.atalho === atalho)
     if (efeito === undefined) return false
-    tocar(efeito)
+    tocar(efeito, false)
     return true
   })
 
-  // O peso da pasta de mídia: relido quando a pasta muda e depois de cada gravação (o áudio novo já foi levado).
+  // A pasta de mídia: relida quando a pasta muda e a cada gravação. O áudio que
+  // ainda está a caminho dela entra no peso pela biblioteca (pesoDaMidiaComSons).
   useEffect(() => {
     if (dir === null || carregando || pendente) return
     let valendo = true
     medirMidia(dir).then(
-      (bytes) => {
-        if (valendo) setMidiaBytes(bytes)
+      (arquivos) => {
+        if (valendo) setArquivosDaMidia(arquivos)
       },
       () => undefined,
     )
@@ -212,6 +226,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAven
       valendo = false
     }
   }, [dir, carregando, pendente, medirMidia])
+  const midiaBytes = arquivosDaMidia === null ? null : pesoDaMidiaComSons(arquivosDaMidia, biblioteca)
 
   // A pasta escolhida sumiu, ou o último favorito saiu: volta para Todos.
   const favoritos = biblioteca.efeitos.filter((efeito) => efeito.favorito === true).length
@@ -266,14 +281,15 @@ export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAven
             <IconeParar />
             Parar tudo
           </Botao>
-          <span className="lb-sons__soando" aria-live="polite">
-            {toques.size === 0 ? 'Nada tocando' : toques.size === 1 ? '1 tocando' : `${toques.size} tocando`}
-          </span>
           <Botao tamanho="p" variante="latao" className="gr-empurra" disabled={!podeImportar} onClick={() => arquivo.current?.click()}>
             <IconeDoLivro nome="mais" />
             Importar
           </Botao>
         </div>
+        {/* Linha própria: em 262 px os dois botões e o texto não cabem lado a lado sem cortar. */}
+        <p className="lb-sons__soando" aria-live="polite">
+          {toques.size === 0 ? 'Nada tocando' : toques.size === 1 ? '1 tocando' : `${toques.size} tocando`}
+        </p>
         {semAventura && <p className="lb-sons__nota lb-sons__nota--latao">{SONS_SEM_AVENTURA}</p>}
         {!semAventura && dir === null && <p className="lb-sons__nota">Os sons ficam guardados quando a aventura for salva.</p>}
         {importando !== null && (
@@ -320,7 +336,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = tamanhoDaMidiaDaAven
                 if (no === null) selos.current.delete(efeito.id)
                 else selos.current.set(efeito.id, no)
               }}
-              onTocar={() => tocar(efeito)}
+              onTocar={() => tocar(efeito, true)}
               onEditar={() => setEditando(efeito.id)}
             />
           ))}
@@ -365,7 +381,9 @@ function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { bibliotec
         return (
           <button key={opcao.chave} type="button" role="radio" aria-checked={atual} tabIndex={atual ? 0 : -1} className="gr-chip lb-sons__chip" title={opcao.rotulo} onClick={() => onFiltro(opcao.filtro)}>
             {opcao.estrela === true && <IconeDoLivro nome="estrela" />}
-            <span className="lb-sons__chip-nome">{opcao.rotulo}</span>
+            <span className="lb-sons__chip-nome" dir="auto">
+              {opcao.rotulo}
+            </span>
             <small aria-label={opcao.conta === 1 ? '1 som' : `${opcao.conta} sons`}>{opcao.conta}</small>
           </button>
         )
@@ -410,44 +428,46 @@ function BotaoDeSom({
 }) {
   const tocando = toque !== undefined
   return (
-    <li className={classes('lb-som', tocando && 'lb-som--tocando', efeito.loop && 'lb-som--loop')}>
+    <li className={classes('lb-efeito', tocando && 'lb-efeito--tocando', efeito.loop && 'lb-efeito--loop')}>
       <button
         type="button"
-        className="lb-som__tocar"
+        className="lb-efeito__tocar"
         aria-label={rotuloDoBotao(efeito, tocando)}
         aria-pressed={efeito.loop ? tocando : undefined}
         aria-keyshortcuts={efeito.atalho === undefined ? undefined : String(efeito.atalho)}
         title={efeito.nome}
         onClick={onTocar}
       >
-        <span className="lb-som__cabeca" aria-hidden="true">
-          <span className={classes('lb-som__selo', efeito.atalho === undefined && 'lb-som__selo--vazio')} ref={guardarSelo}>
+        <span className="lb-efeito__cabeca" aria-hidden="true">
+          <span className={classes('lb-efeito__selo', efeito.atalho === undefined && 'lb-efeito__selo--vazio')} ref={guardarSelo}>
             {efeito.atalho ?? <IconeDoLivro nome="som" />}
           </span>
           {efeito.favorito === true && (
-            <span className="lb-som__favorito">
+            <span className="lb-efeito__favorito">
               <IconeDoLivro nome="estrela" />
             </span>
           )}
         </span>
-        <span className="lb-som__nome">{efeito.nome}</span>
+        <span className="lb-efeito__nome" dir="auto">
+          {efeito.nome}
+        </span>
         {efeito.loop && (
-          <span className="lb-som__loop" aria-hidden="true">
+          <span className="lb-efeito__loop" aria-hidden="true">
             <IconeRepetir />
             repete
           </span>
         )}
-        <span className="lb-som__trilho" aria-hidden="true">
+        <span className="lb-efeito__trilho" aria-hidden="true">
           {toque !== undefined && toque.duracaoS > 0 && (
             <span
               key={toque.vez}
-              className={classes('lb-som__barra', toque.loop && 'lb-som__barra--loop')}
+              className={classes('lb-efeito__barra', toque.loop && 'lb-efeito__barra--loop')}
               style={{ animationDuration: `${toque.duracaoS}s`, animationDelay: `${-(toque.jaTocouS % toque.duracaoS)}s` }}
             />
           )}
         </span>
       </button>
-      <button type="button" className="lb-som__lapis" aria-label={`Editar ${efeito.nome}`} title="Editar" onClick={onEditar}>
+      <button type="button" className="lb-efeito__lapis" aria-label={`Editar ${efeito.nome}`} title="Editar" onClick={onEditar}>
         <IconeLapis />
       </button>
     </li>

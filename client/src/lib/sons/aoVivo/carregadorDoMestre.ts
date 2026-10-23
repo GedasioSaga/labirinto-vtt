@@ -1,8 +1,9 @@
 import { readDir, stat } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
-import { refDoId } from '../../midia'
+import { idDaRefDeAudio, refDoId } from '../../midia'
 import { pastaDaMidiaDaAventura } from '../../midiaDaPasta'
 import { lerAudioGuardado } from '../../midiaNoDisco'
+import type { BibliotecaDeSons } from '../biblioteca'
 import { criarMotorAoVivoDoNavegador, type MotorAoVivo } from './motor'
 
 /**
@@ -26,30 +27,63 @@ export function obterMotorDoMestre(): MotorAoVivo {
   return motorDoMestre
 }
 
+/** Nome de cada arquivo da pasta de mídia da aventura e o tamanho dele, em bytes. */
+export type ArquivosDaMidia = ReadonlyMap<string, number>
+
 /**
- * Quantos bytes tem a pasta de mídia da aventura (`<aventura>/midia/`): os
- * áudios dos sons e as imagens que viajam com ela. Só os arquivos de dentro
- * (pasta ali dentro não conta). Pasta que ainda não existe pesa 0; arquivo que
- * não deixa ler o tamanho fica fora da soma.
+ * Os arquivos da pasta de mídia da aventura (`<aventura>/midia/`): os áudios
+ * dos sons e as imagens que viajam com ela. Só os arquivos de dentro (pasta ali
+ * dentro não conta). Pasta que ainda não existe fica vazia; arquivo que não
+ * deixa ler o tamanho fica de fora.
  */
-export async function tamanhoDaMidiaDaAventura(pastaDaAventura: string): Promise<number> {
+export async function arquivosDaMidiaDaAventura(pastaDaAventura: string): Promise<ArquivosDaMidia> {
   const pasta = await pastaDaMidiaDaAventura(pastaDaAventura)
   let entradas: Awaited<ReturnType<typeof readDir>>
   try {
     entradas = await readDir(pasta)
   } catch {
-    return 0
+    return new Map()
   }
-  const tamanhos = await Promise.all(
+  const medidas = await Promise.all(
     entradas
       .filter((entrada) => entrada.isFile)
-      .map(async (entrada) => {
+      .map(async (entrada): Promise<[string, number] | null> => {
         try {
-          return (await stat(await join(pasta, entrada.name))).size
+          return [entrada.name, (await stat(await join(pasta, entrada.name))).size]
         } catch {
-          return 0
+          return null
         }
       }),
   )
-  return tamanhos.reduce((soma, tamanho) => soma + tamanho, 0)
+  return new Map(medidas.filter((medida) => medida !== null))
+}
+
+/** Quantos bytes tem a pasta de mídia da aventura. */
+export async function tamanhoDaMidiaDaAventura(pastaDaAventura: string): Promise<number> {
+  return somaDosTamanhos(await arquivosDaMidiaDaAventura(pastaDaAventura))
+}
+
+function somaDosTamanhos(arquivos: ArquivosDaMidia): number {
+  let soma = 0
+  for (const tamanho of arquivos.values()) soma += tamanho
+  return soma
+}
+
+/**
+ * O peso da mídia da aventura com os sons: a pasta mais os áudios da
+ * biblioteca que ainda não chegaram nela (a cópia corre depois de gravar o
+ * `sons.json`). Assim o total muda na hora em que o som entra, não só na
+ * próxima leitura da pasta. Áudio usado por dois efeitos conta uma vez.
+ */
+export function pesoDaMidiaComSons(arquivos: ArquivosDaMidia, biblioteca: BibliotecaDeSons): number {
+  let peso = somaDosTamanhos(arquivos)
+  const contados = new Set<string>()
+  for (const efeito of biblioteca.efeitos) {
+    if (efeito.fonte.tipo !== 'arquivo') continue
+    const id = idDaRefDeAudio(efeito.fonte.ref)
+    if (id === null || arquivos.has(id) || contados.has(id)) continue
+    contados.add(id)
+    peso += efeito.fonte.bytes
+  }
+  return peso
 }
