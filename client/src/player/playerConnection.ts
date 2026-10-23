@@ -131,8 +131,13 @@ import {
   parseSeatOptions,
   parseSecretCheck,
   parseSecretCheckClosed,
+  parseSomFalhou,
+  parseSomHostMessage,
+  type MotivoDaFalhaDoSom,
   type SeatClaimState,
   type SeatOption,
+  type SomFalhouMessage,
+  type SomHostMessage,
 } from '../net/protocol'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
@@ -1050,6 +1055,18 @@ export interface PlayerConnection {
   getState(): PlayerState
   subscribe(listener: () => void): () => void
   /**
+   * SONS AO VIVO (fatia F4): cada `som.*` do mestre, já conferido pelo parser,
+   * chega aqui — também na tela da mesa. Quem toca é a F5
+   * (`player/sonsAoVivoDoJogador.ts`). Devolve a função que para de ouvir.
+   */
+  ouvirSons(listener: (msg: SomHostMessage) => void): () => void
+  /**
+   * SONS AO VIVO: conta ao mestre que o toque `instancia` não soou aqui (o
+   * "não tocou para N" do botão dele). Única mensagem que a tela da mesa manda
+   * além do `join` e do `ping`. `false` = não saiu (forma errada ou sem socket).
+   */
+  informarSomFalhou(instancia: string, motivo: MotivoDaFalhaDoSom): boolean
+  /**
    * Move otimista: aplica local e envia. `false` se o token não existe ou o
    * socket não está aberto. Para a caminhada do "Andar até aqui", se houver.
    */
@@ -1856,6 +1873,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   /** CONTAS: o PIN da primeira entrada, só até o mestre aceitar — volta de queda não o manda de novo. */
   let pendingPin = options.conta === undefined || options.conta === 'aparelho' ? null : options.conta
   const listeners = new Set<() => void>()
+  /** SONS AO VIVO: quem ouve os `som.*` do mestre (a F5 toca). */
+  const ouvintesDosSons = new Set<(msg: SomHostMessage) => void>()
   const pending = new Map<string, PendingMove>()
   /**
    * CHAT com mestre antigo: `reqId` do envio que estava no ar quando chegou um
@@ -2989,9 +3008,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
-    if (isTable && message.type !== 'join' && message.type !== 'ping') return false
+    // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
+    if (isTable && message.type !== 'join' && message.type !== 'ping' && message.type !== 'som.falhou') return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     const texto = JSON.stringify(message)
     // O servidor fecha o socket de quem manda acima do teto: melhor a mensagem
@@ -4099,6 +4119,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (pesca !== state.pesca) setState({ pesca })
         return
       }
+      case 'som.tocar':
+      case 'som.parar':
+      case 'som.pararTudo':
+      case 'som.volume':
+      case 'som.precarregar': {
+        // SONS AO VIVO: a TV também toca (decisão de 23/10). Malformada some calada.
+        const msg = parseSomHostMessage(data)
+        if (msg === null) return
+        for (const ouvinte of ouvintesDosSons) ouvinte(msg)
+        return
+      }
       case 'secret.check': {
         // Mesma regra do recado: só com o mapa na tela há onde mostrar o cartão.
         if (state.status !== 'playing') return
@@ -4614,6 +4645,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    ouvirSons(listener) {
+      ouvintesDosSons.add(listener)
+      return () => {
+        ouvintesDosSons.delete(listener)
+      }
+    },
+    informarSomFalhou(instancia, motivo) {
+      // A mesma conferência do host antes de sair: o que ele ignoraria não gasta a cota do servidor.
+      const conferida = parseSomFalhou({ type: 'som.falhou', instancia, motivo })
+      return conferida !== null && send(conferida)
     },
     requestMove(tokenId, x, y) {
       // O dedo manda mais que o "Andar até aqui": arrastar a ficha para a caminhada.
