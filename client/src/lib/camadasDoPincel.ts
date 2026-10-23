@@ -1,4 +1,6 @@
-import type { FloorPiece, MapData } from '../types/map'
+import type { CamadaId, FloorPiece, MapData } from '../types/map'
+import { contextoDeCamadas } from './camadas/consulta'
+import { camadaOcultaDoMestre, camadaTravada } from './camadas/trava'
 import { ehCamadaDoPincel, nomeDaPeca, proximoNomeDeCamada } from './camadasDoChao'
 import { buildBlocosShape, chaveDoBloco, type Bloco } from './floorBlocks'
 import { baldeNoPonto, buildFloorPiece } from './floorTool'
@@ -60,11 +62,29 @@ export interface ResultadoNaCamada {
   recusa?: RecusaDaCamada
   /** Nome da camada que recusou, para o aviso. */
   nome?: string
+  /**
+   * A camada do MAPA (não a peça) que recusou: Chão travada ou escondida do
+   * mestre — no mapa de antes, Salas. O aviso é o das Camadas, com "Destravar"/"Mostrar".
+   */
+  camadaQueRecusa?: CamadaId
 }
 
 function recusaDe(peca: FloorPiece): RecusaDaCamada | null {
   if (peca.locked) return 'travada'
   return peca.hidden ? 'escondida' : null
+}
+
+/**
+ * A camada do mapa recusa a tinta? Pergunta ao ponto único pela camada da
+ * peça alvo (a escolhida, ou Chão); a pincelada que vai criar a peça cai em Chão.
+ */
+function recusaDaCamada(map: MapData, alvo: AlvoDoPincel, ativaId: string | null): ResultadoNaCamada | null {
+  const camada: CamadaId = alvo.tipo === 'camada' ? contextoDeCamadas(map).camadaDe('peca', alvo.peca) : 'chao'
+  const ativa = alvo.tipo === 'camada' ? alvo.peca.id : ativaId
+  const travada = camadaTravada(map, camada)
+  if (travada !== null) return { map, ativaId: ativa, recusa: 'travada', camadaQueRecusa: travada }
+  const oculta = camadaOcultaDoMestre(map, camada)
+  return oculta === null ? null : { map, ativaId: ativa, recusa: 'escondida', camadaQueRecusa: oculta }
 }
 
 /** Aviso curto da camada que não recebe tinta. */
@@ -113,6 +133,8 @@ export function pintarNaCamada(
   opcoes: OpcoesDaPintura,
 ): ResultadoNaCamada {
   const alvo = alvoDoPincel(map.floor, piso, ativaId)
+  const daCamada = recusaDaCamada(map, alvo, ativaId)
+  if (daCamada) return daCamada
   if (alvo.tipo === 'camada') {
     const recusa = recusaDe(alvo.peca)
     if (recusa) return { map, ativaId: alvo.peca.id, recusa, nome: nomeDaPeca(map.floor, alvo.peca) }
@@ -146,6 +168,8 @@ export function apagarNaCamada(
 ): ResultadoNaCamada {
   const alvo = alvoDoPincel(map.floor, piso, ativaId)
   if (alvo.tipo === 'nova') return { map, ativaId }
+  const daCamada = recusaDaCamada(map, alvo, ativaId)
+  if (daCamada) return daCamada
   if (alvo.tipo === 'nenhuma') return { map: apagarBlocosNoPiso(map, piso, blocos, cell, novoId), ativaId }
   const { peca } = alvo
   const recusa = recusaDe(peca)
@@ -174,6 +198,8 @@ export function encherNaCamada(
   opcoes: OpcoesDaPintura,
 ): ResultadoNaCamada & { vazio?: true } {
   const alvo = alvoDoPincel(map.floor, piso, ativaId)
+  const daCamada = recusaDaCamada(map, alvo, ativaId)
+  if (daCamada) return daCamada
   if (alvo.tipo === 'camada') {
     const recusa = recusaDe(alvo.peca)
     if (recusa) return { map, ativaId: alvo.peca.id, recusa, nome: nomeDaPeca(map.floor, alvo.peca) }

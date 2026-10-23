@@ -1,6 +1,7 @@
-import type { DoorKind, Drawing, LayerId, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorKind, Drawing, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import type { Bounds, Point } from '../pixi/world'
-import { drawingLayer, isLayerLocked, isLayerVisible, pinLayer, regionLayer, tokenLayer, wallLayer } from './layers'
+import { contextoDeCamadas } from './camadas/consulta'
+import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { canInteract } from './itemTransform'
 import { isEditableTarget, type ShortcutEvent } from './keymap'
 import { pointsBoundingBox, tokenBoundingBox } from './objectTransform'
@@ -98,10 +99,12 @@ function centerOf(bounds: Bounds): Point {
   return { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
 }
 
-/** Mesma regra de camada do clique no mapa (`findSelectableAt` + `clickSelectMap`). */
-function layerBlock(map: MapData, layer: LayerId): string | null {
-  if (!isLayerVisible(map.hiddenLayers, layer)) return 'camada oculta'
-  if (isLayerLocked(map.lockedLayers, layer)) return 'camada travada'
+/** Mesma regra de camada do clique no mapa, pelo ponto único: a camada do item é a escolhida, ou a do tipo. */
+function layerBlock<K extends TipoDeObjeto>(map: MapData, tipo: K, item: ItemPorTipo[K]): string | null {
+  const camadas = contextoDeCamadas(map)
+  const camada = camadas.camadaDe(tipo, item)
+  if (!camadas.mestreVe(camada)) return 'camada oculta'
+  if (camadas.travada(camada)) return 'camada travada'
   return null
 }
 
@@ -184,7 +187,7 @@ export function roomEntry(map: MapData, region: Region): MapObjectEntry | null {
     name: region.room.name.trim() || 'Sala sem nome',
     detail: '',
     // Sala TRAVADA continua clicável no mapa: é pelo painel dela que se destrava.
-    blockedReason: layerBlock(map, regionLayer(region)),
+    blockedReason: layerBlock(map, 'regiao', region),
     color: parsed === null ? null : hexOf(parsed),
     travel: false,
     focus: centerOf(box),
@@ -203,7 +206,7 @@ function doorEntry(map: MapData, wall: Wall, rooms: readonly NamedRoom[]): MapOb
     name: DOOR_NAMES[wall.door.kind] ?? 'Porta',
     detail: doorRooms(rooms, map.grid, wall),
     // Parede travada sai do clique do mapa (`hitTestMap`): aqui também.
-    blockedReason: layerBlock(map, wallLayer(wall)) ?? (canInteract(wall) ? null : 'parede travada'),
+    blockedReason: layerBlock(map, 'parede', wall) ?? (canInteract(wall) ? null : 'parede travada'),
     color: null,
     travel: false,
     focus: centerOf(bounds),
@@ -232,7 +235,7 @@ function pinEntry(map: MapData, pin: Pin): MapObjectEntry {
     // Pino não tem outro nome: a descrição, ou o resumo que o painel já usa.
     name: oneLine(pinSummary(pin)),
     detail: '',
-    blockedReason: layerBlock(map, pinLayer(pin)) ?? (pin.hidden ? 'oculto no editor' : null),
+    blockedReason: layerBlock(map, 'pino', pin) ?? (pin.hidden ? 'oculto no editor' : null),
     color: null,
     travel: pin.kind === 'viagem',
     focus: pinFocusPoint(pin),
@@ -248,7 +251,7 @@ function tokenEntry(map: MapData, token: Token): MapObjectEntry {
     name: token.name.trim() || 'Token sem nome',
     detail: '',
     // Token travado ou oculto no editor continua clicável no mapa; só a camada tira.
-    blockedReason: layerBlock(map, tokenLayer(token)),
+    blockedReason: layerBlock(map, 'ficha', token),
     color: hexOf(tokenFillColor(token)),
     travel: false,
     focus: { x: token.x, y: token.y },
@@ -272,7 +275,7 @@ function textEntry(map: MapData, drawing: Drawing): MapObjectEntry | null {
     id: drawing.id,
     name: oneLine(drawing.text) || 'Texto vazio',
     detail: '',
-    blockedReason: layerBlock(map, drawingLayer(drawing)),
+    blockedReason: layerBlock(map, 'desenho', drawing),
     color: null,
     travel: false,
     focus: centerOf(bounds),

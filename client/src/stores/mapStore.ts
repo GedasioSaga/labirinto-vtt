@@ -75,7 +75,7 @@ import {
 } from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
-import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
+import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
 import type { CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -1810,6 +1810,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
    *  mapa não gasta Ctrl+Z (arrastar a borracha por onde não havia chão). */
   const aplicarNaCamada = (resultado: ResultadoNaCamada) => {
     if (resultado.recusa) {
+      const camada = resultado.camadaQueRecusa
+      // Recusa da camada do MAPA (Chão travada ou escondida): o aviso das Camadas, com o botão que resolve.
+      if (camada !== undefined) {
+        if (resultado.recusa === 'travada') avisarCamadaTravada(camada)
+        else avisarCamadaOculta(camada)
+        return
+      }
       useToastStore.getState().push('info', avisoDaRecusa(resultado.recusa, resultado.nome ?? 'A camada'))
       return
     }

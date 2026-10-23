@@ -10,7 +10,7 @@ import {
   type Bloco,
 } from './floorBlocks'
 import { compileFloor, pieceDistance } from './floorSdf'
-import { isLayerLocked, isLayerVisible } from './layers'
+import { contextoDeCamadas, type CamposDeCamadas } from './camadas/consulta'
 import { wallWorldWidth } from '../pixi/drawWalls'
 
 /**
@@ -196,15 +196,18 @@ export const AVISO_BORRACHA_NAO_APAGA_CHAO =
  * Peça sob o ponto: a MAIS RECENTE (fim da lista) cujo interior contém o
  * ponto — é a que foi aplicada por último, logo a que o usuário vê "por
  * cima". Uma peça 'subtract' é achada dentro do próprio buraco, que é o
- * único lugar onde dá para clicar nela. Camada 'salas' oculta ou travada, e
- * peça `hidden`/`locked`, não são selecionáveis — mesma regra de
- * `hitTestMap` em PixiCanvas.tsx para as outras entidades.
+ * único lugar onde dá para clicar nela. Peça de camada oculta ou travada
+ * (Chão, ou a escolhida; no mapa de antes Chão segue Salas — o ponto único,
+ * `lib/camadas/consulta.ts`), e peça `hidden`/`locked`, não são selecionáveis
+ * — mesma regra de `hitTestMap` em PixiCanvas.tsx para as outras entidades.
  */
-export function findFloorPieceAt(map: Pick<MapData, 'floor' | 'hiddenLayers' | 'lockedLayers'>, point: Point): FloorPiece | null {
-  if (!isLayerVisible(map.hiddenLayers, FLOOR_LAYER) || isLayerLocked(map.lockedLayers, FLOOR_LAYER)) return null
+export function findFloorPieceAt(map: Pick<MapData, 'floor'> & CamposDeCamadas, point: Point): FloorPiece | null {
+  const camadas = contextoDeCamadas(map)
   for (let i = map.floor.length - 1; i >= 0; i -= 1) {
     const piece = map.floor[i]
     if (piece.hidden || piece.locked) continue
+    const camada = camadas.camadaDe('peca', piece)
+    if (!camadas.mestreVe(camada) || camadas.travada(camada)) continue
     if (pieceDistance(piece, point.x, point.y) < 0) return piece
   }
   return null
