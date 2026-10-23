@@ -1081,12 +1081,40 @@ function linkStairAt(
  */
 let sceneLoading = false
 
+/**
+ * O MODELO DE CAMADAS (nomes e ordem, `lib/camadas/modelo.ts`) mora na
+ * aventura e vale para todas as cenas; o mapa aberto leva uma cópia
+ * (`modeloCamadas`) para o Ctrl+Z. Sem aventura (mapa solto), o mapa fica com
+ * a dele. Mesma referência quando já é a da aventura.
+ */
+function comModeloDaAventura(map: MapData): MapData {
+  const { adventure } = useAdventureStore.getState()
+  if (adventure === null || map.modeloCamadas === adventure.camadas) return map
+  if (adventure.camadas !== undefined) return { ...map, modeloCamadas: adventure.camadas }
+  const { modeloCamadas: _outra, ...semModelo } = map
+  return semModelo
+}
+
+/**
+ * E a volta: o modelo que mudou no mapa aberto (criar, renomear, ordenar,
+ * apagar camada, e o Ctrl+Z e o Ctrl+Y deles) vira o da aventura, que grava
+ * no `adventure.json`. Troca de cena e outro mapa entrando não são edição.
+ */
+function syncModeloDeCamadas(after: MapData, before: MapData): void {
+  if (sceneLoading || after.modeloCamadas === before.modeloCamadas || after.id !== before.id) return
+  const { adventure, activeSceneId } = useAdventureStore.getState()
+  if (adventure === null || activeSceneId === null || adventure.camadas === after.modeloCamadas) return
+  const { camadas: _antes, ...semCamadas } = adventure
+  useAdventureStore.setState({ adventure: after.modeloCamadas === undefined ? semCamadas : { ...semCamadas, camadas: after.modeloCamadas }, structureDirty: true })
+}
+
 /** Põe um mapa no editor com o desfazer que ele já tinha, e marca esse ponto como "igual ao cache". */
 function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
   sceneLoading = true
   try {
-    useMapStore.getState().loadMap(map)
-    useMapStore.setState({ past, future })
+    // CAMADAS (fatia 7): a cena entra com o modelo da AVENTURA, também no desfazer dela — o Ctrl+Z de uma cena não traz de volta a lista velha que ela viu.
+    useMapStore.getState().loadMap(comModeloDaAventura(map))
+    useMapStore.setState({ past: past.map(comModeloDaAventura), future: future.map(comModeloDaAventura) })
   } finally {
     sceneLoading = false
   }
@@ -1106,7 +1134,15 @@ function aventuraDoMapaSolto(
 ): { adventure: Adventure; activeSceneId: string; nascimento: Partial<AdventureState> } {
   const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
   return {
-    adventure: { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: live.name, startSceneId: root.id, scenes: [root] },
+    adventure: {
+      version: ADVENTURE_VERSION,
+      id: `adv_${crypto.randomUUID()}`,
+      name: live.name,
+      startSceneId: root.id,
+      scenes: [root],
+      // CAMADAS (fatia 7): a lista que o mapa solto já tinha passa a ser a da aventura.
+      ...(live.modeloCamadas === undefined ? {} : { camadas: live.modeloCamadas }),
+    },
     activeSceneId: root.id,
     nascimento: { rootPath: loosePath, rootMapId: live.id, dir: null },
   }
@@ -2168,6 +2204,9 @@ export function hasUnsavedWork(): boolean {
  * Liga-se UMA VEZ, na raiz do app, como `subscribeToDirtyFlag`:
  * `useEffect(() => subscribeToTravelLinks(), [])`. Devolve o cancelamento.
  */
+// Liga uma vez, ao carregar o módulo (como o `playerSeqOfMap` da store do mapa): sem ele a lista de camadas não chega ao `adventure.json`.
+useMapStore.subscribe((state) => state.map, syncModeloDeCamadas)
+
 export function subscribeToTravelLinks(): () => void {
   return useMapStore.subscribe((state) => state.map, syncTravelLinks)
 }

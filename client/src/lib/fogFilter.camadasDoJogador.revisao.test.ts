@@ -13,7 +13,7 @@ import { filterMapForPlayer, planOfWholeMap, type PlayerMapView } from './fogFil
 import { createEmptyMap } from './mapFactory'
 import { mapaCompleto, mapaDeItens } from './__fixtures__/recorteDeCamadas'
 
-const LIVRE: CamadaId = 'livre_k3j9x2'
+const LIVRE: CamadaId = 'livre_19e8b9d7'
 const RAIO_TOTAL = 5000
 
 function modelo(ids: readonly CamadaId[]): ModeloDeCamadas {

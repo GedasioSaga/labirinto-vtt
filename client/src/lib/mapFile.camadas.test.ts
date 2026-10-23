@@ -48,11 +48,11 @@ describe('camadas no arquivo: campos novos', () => {
     const base = createEmptyMap('m-camadas', 'Camadas', 10, 10, 64)
     return {
       ...base,
-      props: [{ ...objeto, camada: 'livre_moveis' }],
+      props: [{ ...objeto, camada: 'livre_d86ed5d3' }],
       carimbos: [{ ...carimbo, camada: 'tokens' }],
-      walls: [{ ...parede, camada: 'livre_moveis' }],
-      ocultasDoJogador: ['tokens', 'livre_moveis'],
-      opacidadeDasCamadas: { salas: 0.5, livre_moveis: 0 },
+      walls: [{ ...parede, camada: 'livre_d86ed5d3' }],
+      ocultasDoJogador: ['tokens', 'livre_d86ed5d3'],
+      opacidadeDasCamadas: { salas: 0.5, livre_d86ed5d3: 0 },
       versaoDasCamadas: 2,
     }
   }
@@ -62,16 +62,16 @@ describe('camadas no arquivo: campos novos', () => {
     const uma = serializeMap(deserializeMap(serializeMap(mapaComTudo())))
     expect(serializeMap(deserializeMap(uma))).toBe(uma)
     const lido = deserializeMap(uma)
-    expect(lido.ocultasDoJogador).toEqual(['tokens', 'livre_moveis'])
-    expect(lido.opacidadeDasCamadas).toEqual({ salas: 0.5, livre_moveis: 0 })
+    expect(lido.ocultasDoJogador).toEqual(['tokens', 'livre_d86ed5d3'])
+    expect(lido.opacidadeDasCamadas).toEqual({ salas: 0.5, livre_d86ed5d3: 0 })
     expect(lido.versaoDasCamadas).toBe(2)
-    expect(lido.props[0].camada).toBe('livre_moveis')
-    expect(lido.walls[0].camada).toBe('livre_moveis')
+    expect(lido.props[0].camada).toBe('livre_d86ed5d3')
+    expect(lido.walls[0].camada).toBe('livre_d86ed5d3')
     expect(lido.carimbos?.[0].camada).toBe('tokens')
   })
 
   it('serializeMap tira a cópia em memória do modelo (modeloCamadas)', () => {
-    const comModelo: MapData = { ...mapaComTudo(), modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'livre_moveis', nome: 'Móveis' }] } }
+    const comModelo: MapData = { ...mapaComTudo(), modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'livre_d86ed5d3', nome: 'Móveis' }] } }
     const json = serializeMap(comModelo)
     expect(json).not.toContain('modeloCamadas')
     expect(json).toBe(serializeMap(mapaComTudo()))
@@ -83,7 +83,7 @@ describe('camadas no arquivo: campos novos', () => {
   it('cadeado e olho só guardam as 9 camadas de hoje: "terreno" ou "chao" saem (sem linha no painel, seriam trava sem saída)', () => {
     const base = JSON.parse(serializeMap(createEmptyMap('m-trava', 'Trava', 10, 10, 64)))
     const lido = deserializeMap(
-      JSON.stringify({ ...base, lockedLayers: ['terreno', 'paredes', 'chao', 7, 'livre_x'], hiddenLayers: ['chao', 'objetos', null] }),
+      JSON.stringify({ ...base, lockedLayers: ['terreno', 'paredes', 'chao', 7, 'livre_16bcc5fe'], hiddenLayers: ['chao', 'objetos', null] }),
     )
     expect(lido.lockedLayers).toEqual(['paredes'])
     expect(lido.hiddenLayers).toEqual(['objetos'])
@@ -97,15 +97,15 @@ describe('camadas no arquivo: campos novos', () => {
     const base = JSON.parse(serializeMap(createEmptyMap('m-torto', 'Torto', 10, 10, 64)))
     const torto = {
       ...base,
-      ocultasDoJogador: [1, 'tokens', 'livre_', 'grid', 'livre_ok', null],
-      opacidadeDasCamadas: { tokens: 2, salas: 0.25, foo: 0.1, paredes: 'meio', livre_ok: 1 },
+      ocultasDoJogador: [1, 'tokens', 'livre_', 'grid', 'livre_405a3564', null],
+      opacidadeDasCamadas: { tokens: 2, salas: 0.25, foo: 0.1, paredes: 'meio', livre_405a3564: 1 },
       versaoDasCamadas: 3,
       props: [{ ...objeto, camada: 5 }, { ...objeto, id: 'o2', camada: 'decoracao' }, { ...objeto, id: 'o3', camada: 'livre de espaço' }],
       carimbos: [{ ...carimbo, camada: { x: 1 } }, { ...carimbo, id: 'c2', camada: 'terreno' }],
     }
     const lido = deserializeMap(JSON.stringify(torto))
-    expect(lido.ocultasDoJogador).toEqual(['tokens', 'livre_ok'])
-    expect(lido.opacidadeDasCamadas).toEqual({ salas: 0.25, livre_ok: 1 })
+    expect(lido.ocultasDoJogador).toEqual(['tokens', 'livre_405a3564'])
+    expect(lido.opacidadeDasCamadas).toEqual({ salas: 0.25, livre_405a3564: 1 })
     expect('versaoDasCamadas' in lido).toBe(false)
     expect(lido.props.map((p) => ('camada' in p ? p.camada : 'ausente'))).toEqual(['ausente', 'decoracao', 'ausente'])
     expect((lido.carimbos ?? []).map((c) => ('camada' in c ? c.camada : 'ausente'))).toEqual(['ausente', 'terreno'])
@@ -119,7 +119,7 @@ describe('camadas no arquivo: campos novos', () => {
     const base = JSON.parse(serializeMap(createEmptyMap('m-torto-todos', 'Torto', 10, 10, 64)))
     const tortas: unknown[] = [5, 'Covil do Lich', { id: 'tokens' }, null, true]
     function cinco<T extends { id: string }>(item: T): object[] {
-      return [...tortas.map((camada, i) => ({ ...item, id: `${item.id}-t${i}`, camada })), { ...item, id: `${item.id}-ok`, camada: 'livre_ok' }]
+      return [...tortas.map((camada, i) => ({ ...item, id: `${item.id}-t${i}`, camada })), { ...item, id: `${item.id}-ok`, camada: 'livre_405a3564' }]
     }
     const salas = [...tortas, 'telhados'].map((camadaDoTelhado, i) => ({ ...regiao, id: `sala${i}`, room: { shape: 'rect', name: 'Sala', camadaDoTelhado } }))
     const entrada = {
@@ -150,7 +150,7 @@ describe('camadas no arquivo: campos novos', () => {
     for (const [nome, itens, tamanho] of porTipo) {
       expect(itens, nome).toHaveLength(tamanho)
       const lidas = itens.map((item) => `${item.id}:${'camada' in item ? String(item.camada) : 'ausente'}`)
-      expect(lidas, nome).toEqual(itens.map((item) => `${item.id}:${item.id.endsWith('-ok') ? 'livre_ok' : 'ausente'}`))
+      expect(lidas, nome).toEqual(itens.map((item) => `${item.id}:${item.id.endsWith('-ok') ? 'livre_405a3564' : 'ausente'}`))
     }
     const telhados = lido.regions.filter((r) => r.id.startsWith('sala')).map((r) => (r.room !== undefined && 'camadaDoTelhado' in r.room ? r.room.camadaDoTelhado : 'ausente'))
     expect(telhados).toEqual(['ausente', 'ausente', 'ausente', 'ausente', 'ausente', 'telhados'])
@@ -190,15 +190,15 @@ describe('camadas na aventura (adventure.json)', () => {
   })
 
   it('o modelo de camadas faz round-trip sem mudar ADVENTURE_VERSION', () => {
-    const comModelo: Adventure = { ...aventura, camadas: { ordem: [{ id: 'chao' }, { id: 'livre_a1', nome: 'Armadilhas' }, { id: 'tokens' }] } }
+    const comModelo: Adventure = { ...aventura, camadas: { ordem: [{ id: 'chao' }, { id: 'livre_0e41e1c8', nome: 'Armadilhas' }, { id: 'tokens' }] } }
     const json = serializeAdventure(comModelo)
     expect(serializeAdventure(parseAdventure(json))).toBe(json)
     expect(parseAdventure(json).version).toBe(1)
   })
 
   it('entrada torta ou repetida sai; forma errada vira ausente', () => {
-    const torto = { ...aventura, camadas: { ordem: [{ id: 'chao' }, { id: 'chao' }, { id: 'nada' }, 7, { id: 'livre_b', nome: 3 }, { id: 'tokens', nome: 'Fichas' }] } }
-    expect(parseAdventure(JSON.stringify(torto)).camadas).toEqual({ ordem: [{ id: 'chao' }, { id: 'livre_b' }, { id: 'tokens', nome: 'Fichas' }] })
+    const torto = { ...aventura, camadas: { ordem: [{ id: 'chao' }, { id: 'chao' }, { id: 'nada' }, 7, { id: 'livre_1cbccf70', nome: 3 }, { id: 'tokens', nome: 'Fichas' }] } }
+    expect(parseAdventure(JSON.stringify(torto)).camadas).toEqual({ ordem: [{ id: 'chao' }, { id: 'livre_1cbccf70' }, { id: 'tokens', nome: 'Fichas' }] })
     expect('camadas' in parseAdventure(JSON.stringify({ ...aventura, camadas: 'tudo' }))).toBe(false)
     expect('camadas' in parseAdventure(JSON.stringify({ ...aventura, camadas: { ordem: 'x' } }))).toBe(false)
   })
@@ -211,10 +211,10 @@ describe('camadas na aventura (adventure.json)', () => {
     const comprido = 'Covil do Lich e das Catacumbas Esquecidas do Norte'
     const torto = {
       ...aventura,
-      camadas: { ordem: [{ id: 'livre_c', nome: '  Covil  ' }, { id: 'livre_d', nome: comprido }, { id: 'livre_e', nome: '   ' }, { id: 'tokens', nome: ' ' }] },
+      camadas: { ordem: [{ id: 'livre_1dbcd103', nome: '  Covil  ' }, { id: 'livre_22bcd8e2', nome: comprido }, { id: 'livre_23bcda75', nome: '   ' }, { id: 'tokens', nome: ' ' }] },
     }
     expect(parseAdventure(JSON.stringify(torto)).camadas).toEqual({
-      ordem: [{ id: 'livre_c', nome: 'Covil' }, { id: 'livre_d', nome: comprido.slice(0, 40).trimEnd() }, { id: 'tokens' }],
+      ordem: [{ id: 'livre_1dbcd103', nome: 'Covil' }, { id: 'livre_22bcd8e2', nome: comprido.slice(0, 40).trimEnd() }, { id: 'tokens' }],
     })
   })
 })

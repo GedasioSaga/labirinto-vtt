@@ -80,7 +80,7 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
-import { lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
+import { idDeCamadaDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
@@ -362,8 +362,10 @@ function readPropItem(doArquivo: Prop): Prop {
 function roomRoofLayerFromFile(region: Region): Region {
   const room = region.room
   if (!room || typeof room !== 'object' || !('camadaDoTelhado' in room) || ehCamadaId(room.camadaDoTelhado)) return region
-  const { camadaDoTelhado: _torta, ...semCamada } = room
-  return { ...region, room: semCamada }
+  const { camadaDoTelhado: cru, ...semCamada } = room
+  // Fatia 7: id de camada livre do formato de antes vira o hexa dele (`idDeCamadaDoArquivo`).
+  const camadaDoTelhado = idDeCamadaDoArquivo(cru)
+  return { ...region, room: camadaDoTelhado === undefined ? semCamada : { ...semCamada, camadaDoTelhado } }
 }
 
 /**
@@ -396,7 +398,14 @@ function tokenVehicleFromFile(token: Token): Token {
  */
 function camadasDoArquivo(value: unknown, versao2: boolean): CamadaId[] {
   if (!Array.isArray(value)) return []
-  return value.filter(versao2 ? ehCamadaId : ehCamadaDeAntes)
+  if (!versao2) return value.filter(ehCamadaDeAntes)
+  // Fatia 7: id de camada livre do formato de antes vira o hexa dele; o resto que não é id sai.
+  const lista: CamadaId[] = []
+  for (const item of value) {
+    const id = idDeCamadaDoArquivo(item)
+    if (id !== undefined && !lista.includes(id)) lista.push(id)
+  }
+  return lista
 }
 
 /**

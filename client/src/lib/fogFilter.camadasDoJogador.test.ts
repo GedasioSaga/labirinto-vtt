@@ -14,8 +14,8 @@ import { MAPAS_CONGELADOS, mapaCompleto, recorteEmJson } from './__fixtures__/re
 const JOGADOR = 'jogador'
 const RAIO = 5000
 const NOME_SECRETO = 'Segredo do Lich'
-const LIVRE: CamadaId = 'livre_k3j9x2'
-const VAZIA: CamadaId = 'livre_vazia7q'
+const LIVRE: CamadaId = 'livre_19e8b9d7'
+const VAZIA: CamadaId = 'livre_d78173e9'
 
 function recortes(map: MapData): [string, PlayerMapView][] {
   const remembered = planOfWholeMap(map)
@@ -126,7 +126,7 @@ describe('camada nos itens que vão ao jogador', () => {
     const torta: unknown = 'Segredo do Lich'
     const map: MapData = {
       ...base,
-      props: base.props.map((p) => ({ ...p, camada: 'livre_apagada' })),
+      props: base.props.map((p) => ({ ...p, camada: 'livre_d30eefbd' })),
       lights: base.lights.map((l) => Object.assign({}, l, { camada: torta })),
     }
     for (const [quem, view] of recortes(map)) {

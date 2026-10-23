@@ -209,7 +209,7 @@ import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
-import { garantirAventura } from './stores/virarAventura'
+import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
 import { useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
@@ -1622,6 +1622,8 @@ function App() {
    * importar. O caminho é lido pela ref na hora da resposta.
    */
   const garantirAventuraDoMapa = () => garantirAventura({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current })
+  /** CAMADAS (fatia 7): criar e ordenar mudam a lista da aventura; no mapa solto, pergunta antes de ele virar aventura. */
+  const acoesDoModeloDeCamadas = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current }))
 
   /**
    * Salvamento automático com recuperação: ao abrir, procura a cópia de
@@ -3559,6 +3561,7 @@ function App() {
               onTogglePlayers: alternarOlhoDosJogadores,
               onToggleLock: toggleLayerLock,
               onOpacity: definirOpacidadeDaCamada,
+              modelo: acoesDoModeloDeCamadas,
             }}
             onSetPropLayer={setPropLayer}
             selection={{

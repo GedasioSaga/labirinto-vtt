@@ -96,11 +96,11 @@ describe('opacidade 0 = o jogador não vê', () => {
 
 describe('o cadeado do mestre não sai no recorte', () => {
   it.each([
-    ['mapa v2 com uma livre travada', v2(salaComOlho(), { lockedLayers: ['paredes', 'livre_k3j9x2' as CamadaId], modeloCamadas: { ordem: [{ id: 'livre_k3j9x2', nome: 'Segredo' }] } })],
+    ['mapa v2 com uma livre travada', v2(salaComOlho(), { lockedLayers: ['paredes', 'livre_19e8b9d7' as CamadaId], modeloCamadas: { ordem: [{ id: 'livre_19e8b9d7', nome: 'Segredo' }] } })],
     ['mapa de antes', { ...salaComOlho(), lockedLayers: ['paredes', 'tokens'] } as MapData],
   ])('%s: lockedLayers vazio', (_nome, map) => {
     const view = doOlho(map)
     expect(view.map.lockedLayers).toEqual([])
-    expect(JSON.stringify(view.map)).not.toContain('livre_k3j9x2')
+    expect(JSON.stringify(view.map)).not.toContain('livre_19e8b9d7')
   })
 })

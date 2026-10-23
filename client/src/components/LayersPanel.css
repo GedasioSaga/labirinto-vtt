@@ -227,12 +227,151 @@
   color: var(--lb-color-parchment-dim);
 }
 
+/* FATIA 7: a lista muda. A alça (seis pontos, apagada) arrasta a linha pelo
+   ponteiro; o teclado usa Subir/Descer no miolo. `touch-action: none`: no
+   dedo, arrastar a alça move a linha em vez de rolar o livro. */
+.lb-camadas__alca {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Estreita (8 px): no livro do mestre o nome da camada disputa cada pixel. */
+  width: 8px;
+  min-height: 28px;
+  color: var(--lb-color-parchment-faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-camadas__alca:hover {
+    color: var(--lb-color-parchment-dim);
+  }
+}
+
+/* Durante o arrasto: a linha pega levanta (fundo e sombra, acima das outras)
+   e segue o ponteiro sem atraso; as vizinhas abrem espaço em 180 ms. */
+.lb-camadas[data-arrastando] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.lb-camadas[data-arrastando] > .lb-camadas__linha {
+  transition: transform 180ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas[data-arrastando] > .lb-camadas__linha[data-arrastada] {
+  position: relative;
+  z-index: 1;
+  transition: none;
+  /* Camada própria só enquanto está pega: segue o ponteiro sem repintar a lista. */
+  will-change: transform;
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-md);
+  border-radius: var(--lb-radius-sm, 4px);
+}
+
+.lb-camadas[data-arrastando] .lb-camadas__alca {
+  cursor: grabbing;
+}
+
+/* Renomear: o campo ocupa o lugar do nome, na mesma altura, e o contador diz quanto cabe. */
+.lb-camadas__edicao {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-camadas__campo {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-sm, 4px);
+  background: var(--lb-color-stone-sunken);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+.lb-camadas__campo:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+}
+
+.lb-camadas__contador {
+  flex: none;
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__contador[data-passou] {
+  color: var(--lb-color-brass);
+}
+
+/* Subir, Descer, Renomear, Apagar: texto curto, na largura que houver (quebram, não espremem). */
+.lb-camadas__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.lb-camadas__acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+  border-radius: var(--lb-radius-sm, 4px);
+  background: none;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition: transform 160ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas__acao:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lb-camadas__acao:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+/* No extremo da lista: apagado por cor (o botão continua legível, só não age). */
+.lb-camadas__acao:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: default;
+}
+
+.lb-camadas__acao--apagar {
+  margin-left: auto;
+}
+
+.lb-camadas__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: var(--lb-space-2, 8px);
+}
+
 /* Movimento reduzido: nada se move (altura e giro da divisa saltam); o
-   esmaecer do miolo fica, que é cor e não movimento. */
+   esmaecer do miolo fica, que é cor e não movimento. No arrasto, as vizinhas
+   saltam para o lugar novo em vez de deslizar. */
 @media (prefers-reduced-motion: reduce) {
   .lb-camadas__divisa,
   .lb-camadas__corpo,
-  .lb-camadas__linha[data-aberta] .lb-camadas__corpo {
+  .lb-camadas__linha[data-aberta] .lb-camadas__corpo,
+  .lb-camadas[data-arrastando] > .lb-camadas__linha,
+  .lb-camadas__acao {
     transition-duration: 0ms;
   }
 }
@@ -262,6 +401,23 @@
 
   .lb-camadas .lb-camadas__faixa {
     height: var(--lb-control-touch, 44px);
+  }
+
+  /* A alça cabe no dedo (44 de altura) sem roubar a largura do nome. */
+  .lb-camadas__alca {
+    width: 28px;
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .lb-camadas__alca + .lb-camadas__nome,
+  .lb-camadas__alca + .lb-camadas__edicao {
+    flex: 1 0 calc(100% - 9ch - 32px);
+  }
+
+  .lb-camadas__acao,
+  .lb-camadas__nova,
+  .lb-camadas__campo {
+    min-height: var(--lb-control-touch, 44px);
   }
 
   .lb-camadas__aninhado .lb-floor-layers .lb-layers__row {

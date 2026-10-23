@@ -54,7 +54,7 @@ function montarPilha(): { pilha: ReturnType<typeof criarPilha<No>> } {
   return { pilha }
 }
 
-const LIVRE: CamadaId = 'livre_moveis'
+const LIVRE: CamadaId = 'livre_d86ed5d3'
 const comLivre = (map: MapData): MapData => ({ ...map, modeloCamadas: { ordem: [...CAMADAS_PADRAO, LIVRE].map((id) => ({ id })) } })
 
 describe('pares do editor', () => {

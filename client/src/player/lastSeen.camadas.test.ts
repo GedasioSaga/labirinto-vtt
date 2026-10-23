@@ -10,7 +10,7 @@ import type { CamadaId, MapData, Token } from '../types/map'
 import { CAMADAS_PADRAO } from '../lib/camadas/padrao'
 import { EMPTY_LAST_SEEN, liveGhosts, rememberSnapshot } from './lastSeen'
 
-const LIVRE: CamadaId = 'livre_k3j9x2'
+const LIVRE: CamadaId = 'livre_19e8b9d7'
 const BIA: Token = { id: 'bia', characterId: null, name: 'Bia', x: 100, y: 100, size: 1, image: null, camada: LIVRE }
 
 describe('lastSeen com camada escondida', () => {

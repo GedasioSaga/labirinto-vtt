@@ -175,7 +175,7 @@ describe('pilha de camadas: a lista manda', () => {
   })
 
   it('camada livre entre Objetos e Iluminação fica entre as duas; sem itens, nem nasce', () => {
-    const livre: CamadaId = 'livre_bau'
+    const livre: CamadaId = 'livre_db40f382'
     const ids = [...CAMADAS_PADRAO.slice(0, 9), livre, ...CAMADAS_PADRAO.slice(9)]
     expect(ids[8]).toBe('decoracao')
     const vazia = montar()
@@ -185,7 +185,7 @@ describe('pilha de camadas: a lista manda', () => {
     const { pai, pilha } = montar()
     pilha.atualizar(entrada(modelo(ids), { pares: [...PARES_NATIVOS, { faixa: 'propsContainer', camada: livre }] }))
     const em = (id: string) => nomes(pai).indexOf(id)
-    const no = 'propsContainer|livre_bau'
+    const no = 'propsContainer|livre_db40f382'
     expect(pilha.criados()).toBe(1)
     expect(em(no)).toBeGreaterThan(em('propsContainer'))
     expect(em(no)).toBeLessThan(em('lightsContainer'))
@@ -196,8 +196,8 @@ describe('pilha de camadas: a lista manda', () => {
 
   it('camada livre VAZIA entre Paredes e Portas e entre Objetos e Decoração: nenhum nó criado, nada sai do lugar', () => {
     const ids: CamadaId[] = [...CAMADAS_PADRAO]
-    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_a')
-    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_b')
+    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_1fbcd429')
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_1cbccf70')
     const { pai, pilha } = montar()
     expect(pilha.atualizar(entrada(modelo(ids)))).toBe(0)
     expect(pilha.criados()).toBe(0)
@@ -207,7 +207,7 @@ describe('pilha de camadas: a lista manda', () => {
   })
 
   it('propriedade: para qualquer permutação da lista (semente fixa), os nós principais seguem a lista', () => {
-    const livre: CamadaId = 'livre_x'
+    const livre: CamadaId = 'livre_16bcc5fe'
     let semente = 20261023
     // mulberry32: mesma semente = mesmas permutações.
     const aleatorio = (): number => {
@@ -404,11 +404,11 @@ describe('pilha de camadas: correções da revisão da fatia 3', () => {
 
   it('troca de cena em fatias: os nós CRIADOS das faixas de uma camada adiada se escondem junto (os de hoje o PixiCanvas já lista)', () => {
     const { pilha, bases } = montar()
-    const livre: CamadaId = 'livre_x'
+    const livre: CamadaId = 'livre_16bcc5fe'
     pilha.atualizar(entrada(modelo([...CAMADAS_PADRAO, livre]), { pares: [...PARES_NATIVOS, { faixa: 'drawingsGraphics', camada: livre }, { faixa: 'lightsContainer', camada: livre }] }))
     const desenhos = nosCriadosDasFaixas(pilha, ['drawingsGraphics', 'secretDrawingsGraphics', 'pathsGraphics', 'secretPathsGraphics']).map((n) => n.nome)
-    expect(desenhos).toEqual(['drawingsGraphics|livre_x'])
-    expect(nosCriadosDasFaixas(pilha, ['lightsContainer']).map((n) => n.nome)).toEqual(['lightsContainer|livre_x'])
+    expect(desenhos).toEqual(['drawingsGraphics|livre_16bcc5fe'])
+    expect(nosCriadosDasFaixas(pilha, ['lightsContainer']).map((n) => n.nome)).toEqual(['lightsContainer|livre_16bcc5fe'])
     expect(nosCriadosDasFaixas(pilha, ['lightsContainer'])).not.toContain(bases.get('lightsContainer'))
   })
 })
@@ -532,12 +532,12 @@ describe('distribuir e pares', () => {
     const itens: { id: string; camada: CamadaId }[] = [
       { id: 'a', camada: 'portas' },
       { id: 'b', camada: 'paredes' },
-      { id: 'c', camada: 'livre_x' },
+      { id: 'c', camada: 'livre_16bcc5fe' },
       { id: 'd', camada: 'portas' },
       { id: 'e', camada: 'tokens' },
     ]
     const nos = nosFalsos([
-      { camadas: ['livre_x'], base: false },
+      { camadas: ['livre_16bcc5fe'], base: false },
       { camadas: ['paredes'], base: true },
       { camadas: ['portas'], base: false },
     ])
@@ -546,10 +546,10 @@ describe('distribuir e pares', () => {
   })
 
   it('pares dos itens: um por camada presente', () => {
-    const pares = paresDosItens('tokensContainer', [{ c: 'tokens' }, { c: 'livre_a' }, { c: 'tokens' }], (i: { c: CamadaId }) => i.c)
+    const pares = paresDosItens('tokensContainer', [{ c: 'tokens' }, { c: 'livre_1fbcd429' }, { c: 'tokens' }], (i: { c: CamadaId }) => i.c)
     expect(pares).toEqual([
       { faixa: 'tokensContainer', camada: 'tokens' },
-      { faixa: 'tokensContainer', camada: 'livre_a' },
+      { faixa: 'tokensContainer', camada: 'livre_1fbcd429' },
     ])
   })
 

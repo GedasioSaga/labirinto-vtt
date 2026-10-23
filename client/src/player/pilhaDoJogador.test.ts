@@ -143,7 +143,7 @@ describe('pilha do jogador: a lista manda dentro da zona', () => {
     }
     const { pilha, ordem, pai } = montar()
     const todos = new Set(pai.children)
-    const livre: CamadaId = 'livre_abc123'
+    const livre: CamadaId = 'livre_dc888012'
     for (let rodada = 0; rodada < 300; rodada++) {
       const ids: CamadaId[] = [...CAMADAS_PADRAO, livre]
       for (let i = ids.length - 1; i > 0; i--) {
@@ -211,7 +211,7 @@ describe('LIMITACAO ATUAL da fatia 4 (a fatia 3b/4b vira este teste; pré-requis
   // da fatia 8; quando a 3b/4b dividir esses itens por nó, este teste fica
   // vermelho e vira o aceite dela.
   it('LIMITACAO ATUAL: fichas, luzes, pinos e o retângulo e o halo da porta numa livre NÃO ganham par', () => {
-    const livre: CamadaId = 'livre_k3j9x2'
+    const livre: CamadaId = 'livre_19e8b9d7'
     const base = createEmptyMap('m-limite', 'Limite', 10, 10, 50)
     const map: MapData = {
       ...base,

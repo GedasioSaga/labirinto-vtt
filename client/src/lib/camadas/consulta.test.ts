@@ -119,12 +119,12 @@ describe('contextoDeCamadas: mapa de antes (sem versaoDasCamadas) concorda com a
 
 describe('contextoDeCamadas: campos novos', () => {
   it('ocultasDoJogador separa o olho dos jogadores do olho do mestre', () => {
-    const ctx = contextoDeCamadas(mapa({ hiddenLayers: ['portas'], ocultasDoJogador: ['tokens', 'livre_x'] }))
+    const ctx = contextoDeCamadas(mapa({ hiddenLayers: ['portas'], ocultasDoJogador: ['tokens', 'livre_16bcc5fe'] }))
     expect(ctx.mestreVe('tokens')).toBe(true)
     expect(ctx.jogadorVe('tokens')).toBe(false)
     expect(ctx.mestreVe('portas')).toBe(false)
     expect(ctx.jogadorVe('portas')).toBe(true)
-    expect(ctx.jogadorVe('livre_x')).toBe(false)
+    expect(ctx.jogadorVe('livre_16bcc5fe')).toBe(false)
   })
 
   it('opacidade ausente é 1; presente vale para a camada, presa entre 0 e 1', () => {
@@ -137,18 +137,18 @@ describe('contextoDeCamadas: campos novos', () => {
   })
 
   it('camadaDe: escolha válida manda; camada livre que não existe no modelo cai na padrão do tipo', () => {
-    const livre: CamadaDef = { id: 'livre_ok', nome: 'Armadilhas' }
+    const livre: CamadaDef = { id: 'livre_405a3564', nome: 'Armadilhas' }
     const modeloCamadas = { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), livre] }
     const ctx = contextoDeCamadas(mapa({ modeloCamadas }))
     expect(ctx.camadaDe('parede', { ...parede, camada: 'tokens' })).toBe('tokens')
-    expect(ctx.camadaDe('parede', { ...parede, camada: 'livre_ok' })).toBe('livre_ok')
-    expect(ctx.camadaDe('parede', { ...parede, camada: 'livre_sumiu' })).toBe('paredes')
-    expect(ctx.camadaDe('objeto', { ...enfeite, camada: 'livre_sumiu' })).toBe('decoracao')
-    const sala: Region = { ...regiao, room: { shape: 'rect', name: 'Casa', roof: true, camadaDoTelhado: 'livre_ok' } }
-    expect(ctx.camadaDe('telhado', sala)).toBe('livre_ok')
+    expect(ctx.camadaDe('parede', { ...parede, camada: 'livre_405a3564' })).toBe('livre_405a3564')
+    expect(ctx.camadaDe('parede', { ...parede, camada: 'livre_f75c687b' })).toBe('paredes')
+    expect(ctx.camadaDe('objeto', { ...enfeite, camada: 'livre_f75c687b' })).toBe('decoracao')
+    const sala: Region = { ...regiao, room: { shape: 'rect', name: 'Casa', roof: true, camadaDoTelhado: 'livre_405a3564' } }
+    expect(ctx.camadaDe('telhado', sala)).toBe('livre_405a3564')
     expect(ctx.camadaDe('telhado', regiao)).toBe('telhados')
     // Sem modelo no mapa vale o padrão: só as 13 existem.
-    expect(contextoDeCamadas(mapa()).camadaDe('parede', { ...parede, camada: 'livre_ok' })).toBe('paredes')
+    expect(contextoDeCamadas(mapa()).camadaDe('parede', { ...parede, camada: 'livre_405a3564' })).toBe('paredes')
   })
 
   it('podeMexer: item travado ou camada travada não mexe', () => {
@@ -174,31 +174,31 @@ describe('contextoDeCamadas: campos novos', () => {
 
 describe('camada livre que o mapa não conhece, escondida dos jogadores: falha fechada', () => {
   // Ninguém copia ainda o modelo da aventura para o mapa: sem `modeloCamadas`, `camadaDe` cai na padrão do tipo.
-  const casaNaLivre: Region = { ...regiao, id: 'casa', room: { shape: 'rect', name: 'Casa', roof: true, camadaDoTelhado: 'livre_x' } }
+  const casaNaLivre: Region = { ...regiao, id: 'casa', room: { shape: 'rect', name: 'Casa', roof: true, camadaDoTelhado: 'livre_16bcc5fe' } }
 
   it('sem modelo no mapa, item em livre escondida dos jogadores: o jogador não vê; o mestre vê como antes', () => {
     for (const versao of [2, undefined] as const) {
-      const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: versao }))
-      expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
-      expect(ctx.jogadorVeItem('parede', { ...parede, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
-      expect(ctx.jogadorVeItem('ficha', { ...ficha, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
+      const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_16bcc5fe'], versaoDasCamadas: versao }))
+      expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_16bcc5fe' }), `versão ${versao}`).toBe(false)
+      expect(ctx.jogadorVeItem('parede', { ...parede, camada: 'livre_16bcc5fe' }), `versão ${versao}`).toBe(false)
+      expect(ctx.jogadorVeItem('ficha', { ...ficha, camada: 'livre_16bcc5fe' }), `versão ${versao}`).toBe(false)
       expect(ctx.jogadorVeItem('telhado', casaNaLivre), `versão ${versao}`).toBe(false)
-      expect(ctx.mestreVe(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_x' })), `versão ${versao}`).toBe(true)
+      expect(ctx.mestreVe(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_16bcc5fe' })), `versão ${versao}`).toBe(true)
     }
   })
 
   it('livre desconhecida que NÃO está escondida dos jogadores cai na padrão do tipo, como sempre', () => {
-    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: 2 }))
-    expect(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_y' })).toBe('objetos')
-    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(true)
+    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_16bcc5fe'], versaoDasCamadas: 2 }))
+    expect(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_17bcc791' })).toBe('objetos')
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_17bcc791' })).toBe(true)
     const padraoOculta = contextoDeCamadas(mapa({ ocultasDoJogador: ['objetos'], versaoDasCamadas: 2 }))
-    expect(padraoOculta.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(false)
+    expect(padraoOculta.jogadorVeItem('objeto', { ...objeto, camada: 'livre_17bcc791' })).toBe(false)
   })
 
   it('com o modelo, jogadorVeItem é o olho da camada do item', () => {
-    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: 2, modeloCamadas: { ordem: [{ id: 'objetos' }, { id: 'livre_x' }, { id: 'livre_y' }] } }))
-    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_x' })).toBe(false)
-    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(true)
+    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_16bcc5fe'], versaoDasCamadas: 2, modeloCamadas: { ordem: [{ id: 'objetos' }, { id: 'livre_16bcc5fe' }, { id: 'livre_17bcc791' }] } }))
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_16bcc5fe' })).toBe(false)
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_17bcc791' })).toBe(true)
     expect(ctx.jogadorVeItem('objeto', objeto)).toBe(true)
   })
 })
