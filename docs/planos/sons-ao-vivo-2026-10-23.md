@@ -148,6 +148,37 @@ Feita na branch `feat/sons-ao-vivo`. Só a rede: o jogador ainda não toca (F5),
 7. Parar tudo no jogador ao ler `room.closed`, `kicked`, `session.replaced` e na queda: o mestre não manda nada nesses casos.
 8. A pré-carga só leva ids (favoritos de até 1 MB), nunca nome ou pasta, e não entrega a biblioteca a quem entra.
 
+## F5b (lado TypeScript dos sons ao vivo), 23/10
+
+Contrato congelado em `docs/planos/sons-f5-plano-tecnico-2026-10-23.md` (seções 2 e 3). Feita contra um Rust de mentira: a F5a (rota `/sons/<id>`, chave, `net_send` com `liberar`, `net_sons_aventura`) ainda não existe.
+
+**Decisões**
+
+- `liberar` só vai no `net_send` quando não está vazio: o Rust de hoje e os testes antigos seguem iguais (`net/liberacaoDosSons.ts`, `hostBridge.ts` no `sendToClient`).
+- O carregador lê a chave por getter (`conexao.chaveDaMidia`), porque ela muda a cada socket. O 429 tem uma nova tentativa, dentro do prazo, e relê a chave. Nenhuma mensagem de erro leva a chave (`player/carregadorDeSons.ts`).
+- O instalador descobre o fim de sessão pelo estado da conexão: closed, kicked, replaced, error (a queda da TV) e reconnecting (a queda do jogador) chamam `pararTudo` (`player/sonsAoVivoDoJogador.ts`).
+- iOS: o `play()` do `<audio>` recusado com o contexto já rodando recomeça no toque seguinte. O motor ganhou `aoReporReservas`, e a reserva reposta no toque chama `retomar` (`lib/sons/aoVivo/motor.ts`).
+- A faixinha mora em `main.tsx` e em `TableScreen.tsx`, nunca no `PlayerView`. O texto é fixo, sem nada vindo do host. A entrada é de 160 ms, só em opacidade e transform, e sem deslocamento com movimento reduzido. A saída é na hora.
+- A pasta da aventura: `informarPastaDosSons` em `net/ponteDosSons.ts` guarda a última pasta que a aba Sons informou. A rede que se registra recebe essa pasta, se houver uma; a rede registrada recebe cada troca. O `hostBridge` só chama `net_sons_aventura` com a sala aberta, e a recusa vira aviso ao mestre. O `hostBridge` continua sem importar store.
+- A `PaginaSons` toca, para, Parar tudo, muda o volume e apaga pela ponte, com o alvo Todos (a página ainda não tem seletor). O Ouvir do lápis fica só no computador do mestre. A recusa `limite-de-loops` da mesa mostra o mesmo aviso do motor.
+
+**Ficou de fora**
+
+- O seletor Todos / Cena / Escolhidos na página: o alvo é sempre Todos.
+- Quando o último favorito sai, a pré-carga anterior continua valendo no `hostBridge`: o `som.precarregar` vazio é recusado pelo protocolo.
+- `docs/diagrams/sons-ao-vivo.html` e o INDEX: o hook pediu a atualização, mas o INDEX é proibido para esta fatia. Fica para o orquestrador.
+- A F5a inteira (Rust).
+
+**Para o auditor**
+
+1. A URL sai só do id validado (`ehIdDeAudio`): `carregadorDeSons.ts`, `fetch('/sons/'+id)` relativo, com `redirect:'error'`, `credentials:'omit'` e `mode:'same-origin'`.
+2. A chave fica fora de log, de toast e do `som.falhou` (`sonsAoVivoDoJogador.test.ts` confere que a chave não aparece no `som.falhou`).
+3. A Blob URL é revogada pelo motor (`revogarUrl` em `criarMotorAoVivoDoNavegador`).
+4. A faixinha não mostra texto do host (`FaixaTocarParaOuvir.test.tsx`).
+5. O áudio só é liberado a quem recebeu a mensagem; a TV entra no Todos (`hostBridge.liberacao.test.ts`).
+6. A chave é zerada em queda, kicked, room.closed, session.replaced, socket novo e detach (`playerConnection.chave.test.ts`).
+7. O corpo da resposta tem teto de 15 MB, mesmo quando o `Content-Length` mente (leitura em stream com teto).
+
 ## Decisões do usuário em 23/10
 
 - Plano aprovado; começar pela F1 em paralelo com as camadas.
