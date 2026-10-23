@@ -9,6 +9,7 @@ import {
 } from './layers'
 import { contextoDeCamadas } from './camadas/consulta'
 import { camadaTravada } from './camadas/trava'
+import { canInteract, isHidden } from './itemTransform'
 import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
@@ -582,5 +583,25 @@ export function findLockedLayerAt(map: MapData, point: Point, pinos?: PinosNoToq
  */
 export function camadaTravadaNaBorracha(map: MapData, point: Point, pinos?: PinosNoToque): CamadaId | null {
   if (map.lockedLayers.length === 0) return null
-  return travaDoAcerto(map, findErasableAt(map, point, pinos))
+  return travaDoAcerto(map, findErasableAt(semOsTiradosPorItem(map), point, pinos))
+}
+
+/**
+ * O mapa sem o que a borracha já tira UM A UM antes de olhar a camada
+ * (`interagiveis`, PixiCanvas): o item travado por ITEM (`locked`) e a ficha
+ * ou o objeto oculto no editor (`hidden`). Esses não são alvo nem barreira.
+ * Sem tirá-los aqui, uma ficha travada (camada livre) por cima de um texto de
+ * camada travada respondia "livre", o hit-test pulava os dois e a borracha
+ * apagava a sala de baixo.
+ */
+function semOsTiradosPorItem(map: MapData): MapData {
+  return {
+    ...map,
+    walls: map.walls.filter(canInteract),
+    lights: map.lights.filter(canInteract),
+    regions: map.regions.filter(canInteract),
+    stairs: map.stairs.filter(canInteract),
+    tokens: map.tokens.filter((token) => canInteract(token) && !isHidden(token)),
+    props: map.props.filter((prop) => canInteract(prop) && !isHidden(prop)),
+  }
 }

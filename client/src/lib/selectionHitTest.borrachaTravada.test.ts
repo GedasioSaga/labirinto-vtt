@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LayerId, MapData, Region, Token, Wall } from '../types/map'
-import { buildFreehandDrawing, buildRegionFromPoints, buildWallFromDraft } from './drawingFactory'
+import { buildFreehandDrawing, buildRegionFromPoints, buildTextDrawing, buildWallFromDraft } from './drawingFactory'
 import { createEmptyMap } from './mapFactory'
 import { camadaTravadaNaBorracha, findErasableAt } from './selectionHitTest'
 
@@ -52,6 +52,29 @@ describe('camadaTravadaNaBorracha', () => {
   it('segue a ordem da BORRACHA (desenho antes da parede): risco em Anotações travada no mapa antigo barra', () => {
     expect(camadaTravadaNaBorracha(mapa(['anotacoes']), NO_RISCO)).toBe('anotacoes')
     expect(camadaTravadaNaBorracha(mapa(['paredes']), NO_RISCO)).toBeNull()
+  })
+
+  it('ficha travada POR ITEM por cima de um texto de Anotações travada: o texto barra e a sala de baixo fica', () => {
+    const texto = buildTextDrawing('txt', NA_FICHA, '#000000', 24)
+    const fichaTravada: Token = { ...ficha, locked: true }
+    const semFicha = mapa(['anotacoes'], [], { tokens: [], drawings: [texto] })
+    // Sem a ficha, o texto é o que a borracha acha no ponto (e a camada dele está travada).
+    expect(findErasableAt(semFicha, NA_FICHA)?.id).toBe('txt')
+    // A ficha travada por item não é alvo nem barreira (`eraseAt` a tira): quem barra é o texto.
+    expect(camadaTravadaNaBorracha({ ...semFicha, tokens: [fichaTravada] }, NA_FICHA)).toBe('anotacoes')
+  })
+
+  it('ficha OCULTA no editor por cima de um texto de Anotações travada: o texto barra', () => {
+    const texto = buildTextDrawing('txt', NA_FICHA, '#000000', 24)
+    const fichaOculta: Token = { ...ficha, hidden: true }
+    expect(camadaTravadaNaBorracha(mapa(['anotacoes'], [], { tokens: [fichaOculta], drawings: [texto] }), NA_FICHA)).toBe('anotacoes')
+  })
+
+  it('de cima destravado com travado embaixo: nada barra e a borracha apaga o de cima', () => {
+    const texto = buildTextDrawing('txt', NA_FICHA, '#000000', 24)
+    const comTexto = mapa(['anotacoes'], [], { drawings: [texto] })
+    expect(camadaTravadaNaBorracha(comTexto, NA_FICHA)).toBeNull()
+    expect(findErasableAt(comTexto, NA_FICHA)?.id).toBe('ana')
   })
 
   it('item com camada escolhida responde pela camada dele, não pela do tipo', () => {
