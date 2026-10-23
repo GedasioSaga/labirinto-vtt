@@ -53,6 +53,8 @@ export interface ContextoDoMovel {
   readonly curva: number
   /** Só a lápide lê: o desenho (0, 1 ou 2). */
   readonly variante: number
+  /** Só a placa de seta lê: o giro do objeto em quartos de volta (0, 90, 180, 270), pintado no desenho. */
+  readonly giro: number
 }
 
 /** O que monta as peças de um tipo na cena. */

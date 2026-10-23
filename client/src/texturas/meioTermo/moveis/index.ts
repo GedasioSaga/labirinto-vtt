@@ -116,6 +116,12 @@ export interface DesenhoDoMovel {
   readonly curva?: number
   /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). */
   readonly variante?: number
+  /**
+   * Só na placa de seta: o giro do objeto em quartos de volta (90, 180 ou 270;
+   * ausente = 0). A seta sai pintada já girada, com a sombra e a luz no lugar de
+   * sempre; a tela gira a imagem só pelo que sobra (`giroDaImagem`).
+   */
+  readonly giro?: number
 }
 
 /**
@@ -146,7 +152,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0 }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
   return cena
 }

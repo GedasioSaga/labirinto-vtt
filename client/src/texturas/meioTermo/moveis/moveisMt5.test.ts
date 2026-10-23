@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { chaveDoMovel } from '../../../pixi/rasterDosMoveis'
+import { chaveDoMovel, giroDaImagem, textoDaChave } from '../../../pixi/rasterDosMoveis'
 import { filterMapForPlayer } from '../../../lib/fogFilter'
 import { deserializeMap } from '../../../lib/mapFile'
 import { oklabDoHex } from '../materiais'
 import { G } from './contexto'
-import { escalaDoNivel, pintarMovel, type DesenhoDoMovel } from './index'
+import { escalaDoNivel, montarCena, pintarMovel, type DesenhoDoMovel } from './index'
 import { ALFA_OPACO, digitalDosPixels, distanciaOklab, oklabMedio } from './medidas.testkit'
 import { CASA, desenhoDoApp, medir, peca, reprovacoes, TIPOS_MT5 } from './medidasMt5.testkit'
 
@@ -63,6 +63,114 @@ function opacoEm(d: DesenhoDoMovel, nivel: number, x: number, y: number): boolea
   if (i < 0 || j < 0 || i >= limites.W || j >= limites.H) return false
   return pixels[(j * limites.W + i) * 4 + 3] >= ALFA_OPACO
 }
+
+/**
+ * O ARCO ESTICADO (revisão de correção da MT5): a escala `comprido / 84`
+ * engrossava tudo junto e, a 3 x 0,5, a placa passava ~0,12 casa para fora da
+ * pegada (onde o clique e a seleção não chegam). Agora o atravessado nunca
+ * passa do lado curto: deitado e em pé, de 2 a 4 casas, toda peça do desenho
+ * fica dentro da pegada (com meio px de folga para o contorno), e os
+ * esticados passam nos mesmos limites, com a semente do app.
+ */
+describe('MT5: o arco esticado fica dentro da pegada', () => {
+  const ESTICADOS = [
+    { nome: 'arco 3 x 0,5 velha+velha', prop: peca('arcoDoPortao', 3, 0.5, 'velha', 'velha') },
+    { nome: 'arco 4 x 0,5 nogueira+pinho', prop: peca('arcoDoPortao', 4, 0.5, 'nogueira', 'pinho') },
+  ]
+
+  it('2, 3 e 4 casas, deitado e em pé: toda peça (trave, postes, correntes, placa, flor) dentro da pegada', () => {
+    const FOLGA = 0.5
+    for (const casas of [2, 3, 4]) {
+      for (const [w, h] of [[casas, 0.5], [0.5, casas]] as const) {
+        const d = desenhoDoApp(peca('arcoDoPortao', w, h, 'velha', 'velha'), 1)
+        const cena = montarCena(d)
+        const hw = (w * G) / 2
+        const hh = (h * G) / 2
+        expect(cena.partes.length, `${w} x ${h}`).toBeGreaterThan(0)
+        for (const [i, parte] of cena.partes.entries()) {
+          const [x0, y0, x1, y1] = parte.forma.b
+          expect([x0 >= -hw - FOLGA, y0 >= -hh - FOLGA, x1 <= hw + FOLGA, y1 <= hh + FOLGA], `${w} x ${h}, peça ${i}: ${parte.forma.b.map((v) => v.toFixed(1)).join(', ')}`).toEqual([true, true, true, true])
+        }
+      }
+    }
+  })
+
+  for (const { nome, prop } of ESTICADOS) {
+    it(`${nome}: passa nos limites nos níveis 1 a 3 e fica a 0,07 do chão padrão`, () => {
+      for (const nivel of [1, 2, 3]) {
+        const d = desenhoDoApp(prop, nivel)
+        expect(reprovacoes(medir(d, nivel)), `nível ${nivel}, semente ${d.semente}`).toEqual([])
+      }
+      for (const nivel of [1, 3]) {
+        const { limites, pixels } = pintarMovel(desenhoDoApp(prop, nivel), escalaDoNivel(nivel))
+        expect(distanciaOklab(oklabMedio(pixels, limites.W, limites.H), oklabDoHex(CHAO_PADRAO)), `nível ${nivel}`).toBeGreaterThanOrEqual(0.07)
+      }
+    })
+  }
+})
+
+/**
+ * A PLACA DE SETA pinta o giro (revisão de design da MT5): a tela girava a
+ * imagem pronta inteira e a sombra ia junto (a 90° ela caía para baixo à
+ * esquerda, a 180° a luz vinha de baixo). Agora o quarto de volta entra na
+ * chave, a seta sai pintada já girada e a tela só gira o resto.
+ */
+describe('MT5: a placa de seta pinta o giro, com a sombra e a luz fixas', () => {
+  const placa = peca('placaDeSeta', 0.5, 0.5, 'pinho', null)
+  const texto = (rotation: number | undefined, prop = placa): string => {
+    const chave = chaveDoMovel({ ...prop, rotation }, 1, 1)
+    if (chave === null) throw new Error('sem chave')
+    return textoDaChave(chave)
+  }
+
+  it('a chave: sem giro igual à de antes (sem sufixo), 90/180/270 com o quarto de volta; os outros móveis não leem o giro', () => {
+    expect(texto(0)).toBe(texto(undefined))
+    expect(texto(0)).not.toContain('|q')
+    expect(texto(360)).toBe(texto(0))
+    expect(texto(-90)).toBe(texto(270))
+    expect(texto(80)).toBe(texto(90))
+    expect(new Set([texto(0), texto(90), texto(180), texto(270)]).size).toBe(4)
+    expect([0, 90, 180, 270, 450, -90].map((r) => giroDaImagem({ mobilia: 'placaDeSeta', rotation: r }))).toEqual([0, 90, 180, 270, 90, 270])
+    const sebe = peca('sebe', 2, 0.5, 'buxo', null)
+    expect(texto(90, sebe)).toBe(texto(undefined, sebe))
+    expect(giroDaImagem({ mobilia: 'sebe', rotation: 90 })).toBe(0)
+  })
+
+  it('nos 4 giros, com a semente do app: a sombra cai para baixo à direita da tábua e a cabeça larga fica do lado do giro', () => {
+    const nivel = 3
+    const S = escalaDoNivel(nivel)
+    const hw = (0.5 * G) / 2
+    for (const rotation of [0, 90, 180, 270]) {
+      const { limites, pixels } = pintarMovel(desenhoDoApp({ ...placa, rotation }, nivel), S)
+      const rad = (rotation * Math.PI) / 180
+      const [dx, dy] = [Math.round(Math.cos(rad)), Math.round(Math.sin(rad))]
+      let tabua = [0, 0, 0]
+      let sombra = [0, 0, 0]
+      let cabeca = 0
+      let cauda = 0
+      for (let j = 0; j < limites.H; j += 1) {
+        for (let i = 0; i < limites.W; i += 1) {
+          const a = pixels[(j * limites.W + i) * 4 + 3]
+          const x = limites.x0 + (i + 0.5) / S
+          const y = limites.y0 + (j + 0.5) / S
+          if (a >= ALFA_OPACO) {
+            tabua = [tabua[0] + x, tabua[1] + y, tabua[2] + 1]
+            const ao = x * dx + y * dy
+            const atravessado = Math.abs(-x * dy + y * dx)
+            if (ao > 0.3 * hw) cabeca = Math.max(cabeca, atravessado)
+            if (ao < -0.3 * hw) cauda = Math.max(cauda, atravessado)
+          } else if (a >= 8 && a < 128) {
+            sombra = [sombra[0] + x, sombra[1] + y, sombra[2] + 1]
+          }
+        }
+      }
+      const desvio = [sombra[0] / sombra[2] - tabua[0] / tabua[2], sombra[1] / sombra[2] - tabua[1] / tabua[2]]
+      expect(desvio[0], `${rotation}°: sombra à direita`).toBeGreaterThan(1)
+      expect(desvio[1], `${rotation}°: sombra para baixo`).toBeGreaterThan(1)
+      expect(cabeca, `${rotation}°: a cabeça (lado do giro) mais larga que a cauda`).toBeGreaterThan(cauda * 1.6)
+    }
+  })
+})
 
 describe('MT5: a sebe segue o arco, no editor e no jogador', () => {
   // Sebe de 4 casas deitada com 90°: a corda passa pelo centro da caixa e o arco fica a uma flecha dela, para baixo.
