@@ -170,7 +170,8 @@ export function TableApp({ initialCode, tableKey }: { initialCode: string; table
   // SONS AO VIVO (F5): a TV também toca (decisão de 23/10); os sons nascem e morrem com a conexão dela.
   useEffect(() => {
     if (connection === null) return undefined
-    const sons = instalarSonsAoVivo(connection)
+    // Sem controle de som na TV: o Mudo guardado neste navegador (por outra página) não a cala.
+    const sons = instalarSonsAoVivo(connection, { ignorarPreferenciaGuardada: true })
     setSonsAoVivo(sons)
     return () => {
       sons.desinstalar()

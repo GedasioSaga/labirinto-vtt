@@ -13,13 +13,13 @@ import { RESUME_STORAGE_KEY, type PlayerConnection } from './playerConnection'
  */
 
 const registro = vi.hoisted(() => {
-  const instalacoes: { conexao: PlayerConnection; esperando: number; ouvintes: Set<() => void>; viva: boolean }[] = []
+  const instalacoes: { conexao: PlayerConnection; deps: unknown; esperando: number; ouvintes: Set<() => void>; viva: boolean }[] = []
   return { instalacoes }
 })
 
 vi.mock('./sonsAoVivoDoJogador', () => ({
-  instalarSonsAoVivo: (conexao: PlayerConnection) => {
-    const instalacao = { conexao, esperando: 0, ouvintes: new Set<() => void>(), viva: true }
+  instalarSonsAoVivo: (conexao: PlayerConnection, deps: unknown) => {
+    const instalacao = { conexao, deps, esperando: 0, ouvintes: new Set<() => void>(), viva: true }
     registro.instalacoes.push(instalacao)
     return {
       esperando: () => instalacao.esperando,
@@ -118,6 +118,8 @@ describe('sons ao vivo montados nas páginas que tocam', () => {
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Gina' })
     socket.receive({ type: 'snapshot', rev: 1, map: createEmptyMap('m1', 'Mapa', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
     expect(vivas()[0]?.conexao.getState().playerId).toBe('p1')
+    // O jogador tem o controle de som na tela: vale o Mudo e o volume guardados.
+    expect(vivas()[0]?.deps).toBeUndefined()
     expect(faixa()).toBeUndefined()
     somEsperando()
     expect(faixa()).toBeDefined()
@@ -136,6 +138,8 @@ describe('sons ao vivo montados nas páginas que tocam', () => {
     act(() => raiz.render(createElement(TableApp, { initialCode: CODE, tableKey: 'chave-da-tv' })))
     expect(vivas()).toHaveLength(1)
     expect(FakeWebSocket.instances).toHaveLength(1)
+    // A TV não tem controle de som: o Mudo guardado neste navegador (por outra página) não a cala.
+    expect(vivas()[0]?.deps).toEqual({ ignorarPreferenciaGuardada: true })
     somEsperando()
     expect(faixa()).toBeDefined()
     act(() => raiz.render(createElement('div')))

@@ -1,5 +1,6 @@
 import { refDoId } from '../lib/midia'
-import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type ElementoDeAudio, type MotivoDaRecusa, type MotorAoVivo, type ReservaDeAudios } from '../lib/sons/aoVivo/motor'
+import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type DependenciasDoMotor, type ElementoDeAudio, type MotivoDaRecusa, type MotorAoVivo, type ReservaDeAudios } from '../lib/sons/aoVivo/motor'
+import { estaCalado, PREFERENCIA_DE_SOM_PADRAO, useSomStore } from '../stores/somStore'
 import { destravarAudioAgora, destravarAudioNoPrimeiroGesto } from '../lib/sons/contexto'
 import type { MotivoDaFalhaDoSom, SomHostMessage } from '../net/protocol'
 import { criarCarregadorDaSala, type BuscarNaSala } from './carregadorDeSons'
@@ -117,9 +118,32 @@ export function criarReservaDoGesto(criarElemento: () => ElementoDeAudio = () =>
 /** O pedaço da conexão que os sons usam. */
 export type ConexaoDosSons = Pick<PlayerConnection, 'getState' | 'subscribe' | 'ouvirSons' | 'informarSomFalhou' | 'chaveDaMidia'>
 
+/** De onde vêm o volume e o Mudo que valem para os sons ao vivo. */
+export type PreferenciaDosSons = Pick<DependenciasDoMotor<unknown>, 'lerPreferencia' | 'assinarPreferencia'>
+
+const PREFERENCIA_DO_APARELHO: PreferenciaDosSons = {
+  lerPreferencia: () => useSomStore.getState(),
+  assinarPreferencia: (ouvinte) => useSomStore.subscribe(() => ouvinte()),
+}
+
+/**
+ * A da TV: a tela da mesa não tem controle de som, e o `lb-som` deste navegador
+ * pode ter vindo de outra página (o jogador aberto no mesmo navegador); com o
+ * Mudo de lá a TV ficaria calada sem saída. Toca no volume padrão do aparelho,
+ * o mesmo de uma TV que nunca guardou nada; o volume da sala é o da TV.
+ */
+const PREFERENCIA_FIXA_DA_TV: PreferenciaDosSons = {
+  lerPreferencia: () => PREFERENCIA_DE_SOM_PADRAO,
+  assinarPreferencia: () => () => undefined,
+}
+
 export interface DependenciasDosSonsAoVivo {
-  /** Quem toca; o padrão é o motor do navegador com os `<audio>` da reserva. */
-  criarMotor?: (carregar: CarregadorDeBytes, reservas: ReservaDeAudios) => MotorAoVivo
+  /** Quem toca; o padrão é o motor do navegador com os `<audio>` da reserva e a preferência escolhida aqui. */
+  criarMotor?: (carregar: CarregadorDeBytes, reservas: ReservaDeAudios, preferencia: PreferenciaDosSons) => MotorAoVivo
+  /** O volume e o Mudo do aparelho; o padrão é o `somStore` (o `lb-som` deste navegador). */
+  preferencia?: PreferenciaDosSons
+  /** A TV: ignora a preferência guardada e toca no volume padrão (ver `PREFERENCIA_FIXA_DA_TV`). */
+  ignorarPreferenciaGuardada?: boolean
   /** O `fetch` da página. */
   buscar?: BuscarNaSala
   reservas?: ReservaDoGesto
@@ -148,9 +172,12 @@ function foraDaSala(estado: PlayerState): boolean {
 export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDosSonsAoVivo = {}): SonsAoVivo {
   const reservas = deps.reservas ?? criarReservaDoGesto()
   const carregar = criarCarregadorDaSala({ chave: () => conexao.chaveDaMidia(), buscar: deps.buscar ?? ((url, init) => fetch(url, init)) })
-  const criarMotor = deps.criarMotor ?? ((carregarBytes, reservasDoMotor) => criarMotorAoVivoDoNavegador(carregarBytes, { reservas: reservasDoMotor }))
-  const motor = criarMotor(carregar, reservas)
+  const preferencia = deps.ignorarPreferenciaGuardada === true ? PREFERENCIA_FIXA_DA_TV : (deps.preferencia ?? PREFERENCIA_DO_APARELHO)
+  const criarMotor = deps.criarMotor ?? ((carregarBytes, reservasDoMotor, preferenciaDoMotor) => criarMotorAoVivoDoNavegador(carregarBytes, { reservas: reservasDoMotor, preferencia: preferenciaDoMotor }))
+  const motor = criarMotor(carregar, reservas, preferencia)
   const destravarAgora = deps.destravarAgora ?? destravarAudioAgora
+  /** Com Mudo (ou volume 0) ninguém quer ouvir: nem faixinha, nem "não tocou" ao mestre. */
+  const calado = (): boolean => estaCalado(preferencia.lerPreferencia())
 
   const esperando = new Set<string>()
   /** As instâncias em loop (o loop que espera o gesto conta `sem-gesto`; o curto, só se for descartado). */
@@ -158,32 +185,40 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
   const contouSemGesto = new Set<string>()
   const ouvintes = new Set<() => void>()
 
+  function avisarOuvintes(): void {
+    for (const ouvinte of [...ouvintes]) ouvinte()
+  }
+
   function mudarEspera(instancia: string, espera: boolean): void {
     if (espera === esperando.has(instancia)) return
     if (espera) esperando.add(instancia)
     else esperando.delete(instancia)
-    for (const ouvinte of [...ouvintes]) ouvinte()
+    avisarOuvintes()
   }
 
   const desligarMotor = motor.assinar((evento) => {
     switch (evento.tipo) {
       case 'esperando':
         mudarEspera(evento.instancia, true)
-        if (loops.has(evento.instancia) && !contouSemGesto.has(evento.instancia)) {
+        if (loops.has(evento.instancia) && !contouSemGesto.has(evento.instancia) && !calado()) {
           contouSemGesto.add(evento.instancia)
           conexao.informarSomFalhou(evento.instancia, 'sem-gesto')
         }
         return
+      case 'carregando':
       case 'tocando':
       case 'terminou':
         mudarEspera(evento.instancia, false)
         return
       case 'recusado':
         mudarEspera(evento.instancia, false)
+        if (evento.motivo === 'sem-gesto' && calado()) return
         conexao.informarSomFalhou(evento.instancia, MOTIVO_DA_FALHA[evento.motivo])
         return
     }
   })
+  // O Mudo que liga ou desliga mostra ou esconde a faixinha.
+  const desligarPreferencia = preferencia.assinarPreferencia(avisarOuvintes)
 
   function pararTudo(): void {
     loops.clear()
@@ -240,7 +275,7 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
   const pararDeDestravar = (deps.destravarNoPrimeiroGesto ?? destravarAudioNoPrimeiroGesto)(deps.alvoDoGesto ?? window)
 
   return {
-    esperando: () => esperando.size,
+    esperando: () => (calado() ? 0 : esperando.size),
     assinar(ouvinte) {
       ouvintes.add(ouvinte)
       return () => {
@@ -255,6 +290,7 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
       pararDeOuvir()
       desligarEstado()
       pararDeDestravar()
+      desligarPreferencia()
       desligarMotor()
       motor.desmontar()
       reservas.esvaziar()

@@ -6,14 +6,14 @@
  * observa é o que toca, de onde começa e o que volta ao mestre (`som.falhou`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { criarSomStore } from '../stores/somStore'
+import { criarSomStore, PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
 import { BYTES_POR_SEGUNDO_FALSO, criarAudioFalso, criarElementoDeAudioFalso, type ElementoDeAudioFalso, type FonteFalsa, type NoFalso } from '../lib/sons/audioFalso.fixture'
 import { criarMotorDeSom, type ContextoDeSom } from '../lib/sons/contexto'
 import { criarMotorAoVivo, ESPERA_DO_EFEITO_CURTO_MS, type MotorAoVivo } from '../lib/sons/aoVivo/motor'
 import { MOTIVOS_DA_FALHA_DO_SOM } from '../net/protocol'
 import type { BuscarNaSala } from './carregadorDeSons'
 import { createPlayerConnection, TABLE_SCREEN_NAME, type SocketLike } from './playerConnection'
-import { criarReservaDoGesto, instalarSonsAoVivo, RESERVAS_POR_GESTO } from './sonsAoVivoDoJogador'
+import { criarReservaDoGesto, instalarSonsAoVivo, RESERVAS_POR_GESTO, type PreferenciaDosSons } from './sonsAoVivoDoJogador'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -52,7 +52,7 @@ function idDeAudio(n: number, extensao = 'mp3'): string {
 }
 
 /** Uma sala: conexão de verdade, motor de verdade sobre áudio de mentira, `fetch` de mentira. */
-function sala({ role, elementoRecusaPlay = false }: { role?: 'table'; elementoRecusaPlay?: boolean } = {}) {
+function sala({ role, elementoRecusaPlay = false, mudo = false, ignorarPreferenciaGuardada }: { role?: 'table'; elementoRecusaPlay?: boolean; mudo?: boolean; ignorarPreferenciaGuardada?: true } = {}) {
   const sockets: FakeSocket[] = []
   const conexao = createPlayerConnection({
     url: 'ws://host/ws',
@@ -77,8 +77,11 @@ function sala({ role, elementoRecusaPlay = false }: { role?: 'table'; elementoRe
   const contexto = criarMotorDeSom((): ContextoDeSom<NoFalso> | null => audio.ctx)
   const som = criarSomStore(null)
   som.getState().setVolume(0.5)
+  if (mudo) som.getState().alternarMudo()
+  /** O Mudo e o volume guardados neste navegador (o `lb-som` de mentira). */
+  const preferenciaDoAparelho: PreferenciaDosSons = { lerPreferencia: () => som.getState(), assinarPreferencia: (ouvinte) => som.subscribe(() => ouvinte()) }
   const tamanhos = new Map<string, number>()
-  const respostas = new Map<string, () => Response>()
+  const respostas = new Map<string, () => Response | Promise<Response>>()
   const pedidos: { url: string; chave: string | null }[] = []
   const buscar = vi.fn<BuscarNaSala>(async (url, init) => {
     pedidos.push({ url, chave: new Headers(init.headers).get('X-Labirinto-Chave') })
@@ -101,9 +104,12 @@ function sala({ role, elementoRecusaPlay = false }: { role?: 'table'; elementoRe
   const sons = instalarSonsAoVivo(conexao, {
     buscar,
     reservas,
+    preferencia: preferenciaDoAparelho,
+    ...(ignorarPreferenciaGuardada === undefined ? {} : { ignorarPreferenciaGuardada }),
     destravarAgora: () => contexto.destravarAgora(),
     destravarNoPrimeiroGesto: () => () => undefined,
-    criarMotor: (carregar, reservasDoMotor) => {
+    // A preferência que o instalador escolheu (a do aparelho, ou a fixa da TV) é a que o motor lê.
+    criarMotor: (carregar, reservasDoMotor, preferencia = preferenciaDoAparelho) => {
       motor = criarMotorAoVivo<NoFalso>({
         carregarBytes: carregar,
         obterSaida: () => {
@@ -111,8 +117,8 @@ function sala({ role, elementoRecusaPlay = false }: { role?: 'table'; elementoRe
           return aoVivo === null ? null : { ctx: audio.ctx, aoVivo }
         },
         aoDestravar: (ouvinte) => contexto.quandoRodar(ouvinte),
-        lerPreferencia: () => som.getState(),
-        assinarPreferencia: (ouvinte) => som.subscribe(() => ouvinte()),
+        lerPreferencia: preferencia.lerPreferencia,
+        assinarPreferencia: preferencia.assinarPreferencia,
         criarElementoDeAudio: () => {
           const daReservaAgora = reservasDoMotor.tirar()
           if (daReservaAgora !== null) return daReservaAgora
@@ -144,7 +150,14 @@ function sala({ role, elementoRecusaPlay = false }: { role?: 'table'; elementoRe
     socket.receive({ type: 'som.tocar', instancia, fonte: { tipo: 'arquivo', midia }, volume: 0.7, loop, ...extra })
   const fontesTocadas = (): FonteFalsa[] => audio.fontes.filter((fonte) => fonte.addEventListener.mock.calls.length > 0)
   const falhas = () => socket.sent.filter((m) => m.type === 'som.falhou')
-  return { conexao, socket, sons, motorCriado, arquivo, tocar, fontesTocadas, falhas, pedidos, buscar, respostas, avulsos, daReserva, reservas }
+  /** O ganho com que a fonte começou (o volume do efeito vezes o do aparelho ao quadrado; 0 com Mudo). */
+  const ganhoInicialDe = (fonte: FonteFalsa): number => {
+    const ganho = audio.ganhos.find((candidato) => candidato === fonte.destino)
+    const inicial = ganho?.gain.setValueAtTime.mock.calls[0]?.[0]
+    if (inicial === undefined) throw new Error('a fonte não está ligada a um ganho')
+    return inicial
+  }
+  return { conexao, socket, sons, som, motorCriado, arquivo, tocar, fontesTocadas, falhas, pedidos, buscar, respostas, avulsos, daReserva, reservas, ganhoInicialDe }
 }
 
 beforeEach(() => {
@@ -296,6 +309,62 @@ describe('sons ao vivo do jogador: toca o que o mestre manda', () => {
     // O play do aquecimento (no toque) e o do motor.
     expect(reposto.play).toHaveBeenCalledTimes(2)
     expect(s.sons.esperando()).toBe(0)
+  })
+
+  it('a faixinha sai assim que o toque tira o som da espera, com o arquivo ainda descendo', async () => {
+    const s = sala()
+    const chuva = s.arquivo(1, 10)
+    let soltar: () => void = () => undefined
+    s.respostas.set(
+      chuva,
+      () =>
+        new Promise<Response>((resolve) => {
+          soltar = () => resolve(new Response(new Uint8Array(10 * BYTES_POR_SEGUNDO_FALSO), { status: 200, headers: { 'Content-Type': 'audio/mpeg' } }))
+        }),
+    )
+    s.tocar('som-chuva', chuva, true)
+    await assentar()
+    expect(s.sons.esperando()).toBe(1)
+    s.sons.tocarParaOuvir()
+    await assentar()
+    // O áudio já destravou; o que falta é o arquivo, e a faixinha não pede outro toque por isso.
+    expect(s.fontesTocadas()).toEqual([])
+    expect(s.sons.esperando()).toBe(0)
+    soltar()
+    await assentar()
+    expect(s.fontesTocadas()).toHaveLength(1)
+    expect(s.sons.esperando()).toBe(0)
+  })
+
+  it('com Mudo, a faixinha não aparece e nada volta ao mestre como sem-gesto; tirar o Mudo a mostra', async () => {
+    const s = sala({ mudo: true })
+    const avisos = vi.fn()
+    s.sons.assinar(avisos)
+    s.tocar('som-chuva', s.arquivo(1, 10), true)
+    s.tocar('som-grito', s.arquivo(2, 1), false)
+    await assentar()
+    expect(s.sons.esperando()).toBe(0)
+    vi.advanceTimersByTime(ESPERA_DO_EFEITO_CURTO_MS)
+    await assentar()
+    expect(s.falhas()).toEqual([])
+    avisos.mockClear()
+    s.som.getState().alternarMudo()
+    expect(avisos).toHaveBeenCalled()
+    // O efeito curto já foi descartado; o loop segue esperando o toque.
+    expect(s.sons.esperando()).toBe(1)
+  })
+
+  it('a TV ignora o Mudo e o volume guardados neste navegador (ela não tem controle de som): mostra a faixinha e toca no volume padrão', async () => {
+    const s = sala({ role: 'table', mudo: true, ignorarPreferenciaGuardada: true })
+    s.tocar('som-chuva', s.arquivo(1, 10), true)
+    await assentar()
+    expect(s.sons.esperando()).toBe(1)
+    s.sons.tocarParaOuvir()
+    await assentar()
+    const [fonte] = s.fontesTocadas()
+    if (fonte === undefined) throw new Error('a TV não tocou')
+    // 0,7 do efeito x 0,35 (o volume padrão do aparelho) ao quadrado; com o Mudo guardado valendo, seria 0.
+    expect(s.ganhoInicialDe(fonte)).toBeCloseTo(0.7 * PREFERENCIA_DE_SOM_PADRAO.volume * PREFERENCIA_DE_SOM_PADRAO.volume)
   })
 })
 
