@@ -172,6 +172,37 @@ describe('contextoDeCamadas: campos novos', () => {
   })
 })
 
+describe('camada livre que o mapa não conhece, escondida dos jogadores: falha fechada', () => {
+  // Ninguém copia ainda o modelo da aventura para o mapa: sem `modeloCamadas`, `camadaDe` cai na padrão do tipo.
+  const casaNaLivre: Region = { ...regiao, id: 'casa', room: { shape: 'rect', name: 'Casa', roof: true, camadaDoTelhado: 'livre_x' } }
+
+  it('sem modelo no mapa, item em livre escondida dos jogadores: o jogador não vê; o mestre vê como antes', () => {
+    for (const versao of [2, undefined] as const) {
+      const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: versao }))
+      expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
+      expect(ctx.jogadorVeItem('parede', { ...parede, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
+      expect(ctx.jogadorVeItem('ficha', { ...ficha, camada: 'livre_x' }), `versão ${versao}`).toBe(false)
+      expect(ctx.jogadorVeItem('telhado', casaNaLivre), `versão ${versao}`).toBe(false)
+      expect(ctx.mestreVe(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_x' })), `versão ${versao}`).toBe(true)
+    }
+  })
+
+  it('livre desconhecida que NÃO está escondida dos jogadores cai na padrão do tipo, como sempre', () => {
+    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: 2 }))
+    expect(ctx.camadaDe('objeto', { ...objeto, camada: 'livre_y' })).toBe('objetos')
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(true)
+    const padraoOculta = contextoDeCamadas(mapa({ ocultasDoJogador: ['objetos'], versaoDasCamadas: 2 }))
+    expect(padraoOculta.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(false)
+  })
+
+  it('com o modelo, jogadorVeItem é o olho da camada do item', () => {
+    const ctx = contextoDeCamadas(mapa({ ocultasDoJogador: ['livre_x'], versaoDasCamadas: 2, modeloCamadas: { ordem: [{ id: 'objetos' }, { id: 'livre_x' }, { id: 'livre_y' }] } }))
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_x' })).toBe(false)
+    expect(ctx.jogadorVeItem('objeto', { ...objeto, camada: 'livre_y' })).toBe(true)
+    expect(ctx.jogadorVeItem('objeto', objeto)).toBe(true)
+  })
+})
+
 describe('layers.ts aceita o mapa inteiro no lugar da lista', () => {
   it('com mapa de antes dá o mesmo que a lista hiddenLayers, e devolve a mesma referência sem nada oculto', () => {
     const walls = [parede, porta]

@@ -360,7 +360,7 @@ function roofRoomsOf(regions: readonly Region[]): Region[] {
  */
 export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] = map.tokens): Token[] {
   const camadas = contextoDeCamadas(map)
-  return tokens.filter((t) => camadas.jogadorVe(camadas.camadaDe('ficha', t)))
+  return tokens.filter((t) => camadas.jogadorVeItem('ficha', t))
 }
 
 /**
@@ -2170,9 +2170,9 @@ export function filterMapForGroup(
   const camadas = contextoDeCamadas(map)
   const nadaOcultoDoJogador = (map.ocultasDoJogador ?? map.hiddenLayers).length === 0
   const jogadorVeItem = <K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean =>
-    nadaOcultoDoJogador || camadas.jogadorVe(camadas.camadaDe(tipo, item))
+    nadaOcultoDoJogador || camadas.jogadorVeItem(tipo, item)
   const naCamadaDoJogador = <K extends TipoDeObjeto>(tipo: K, itens: ItemPorTipo[K][]): ItemPorTipo[K][] =>
-    nadaOcultoDoJogador ? itens : itens.filter((item) => camadas.jogadorVe(camadas.camadaDe(tipo, item)))
+    nadaOcultoDoJogador ? itens : itens.filter((item) => camadas.jogadorVeItem(tipo, item))
   // Terreno não tem camada por item (pincel de textura, penhasco, relevo, nuvens): é a camada inteira.
   const terrenoVisivel = camadas.jogadorVe('terreno')
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.

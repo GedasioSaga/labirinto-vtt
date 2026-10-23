@@ -196,6 +196,25 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
     for (const [quem, view] of recortes(mapaV2(['paredes', 'chao', LIVRE]))) expect(view.map.hiddenLayers, quem).toEqual(['paredes'])
   })
 
+  it('camada livre escondida dos jogadores sem o modelo no mapa: nada dela sai (falha fechada)', () => {
+    // Ninguém copia ainda o modelo da aventura para o mapa: sem ele, a livre cairia na padrão do tipo e sairia.
+    const { modeloCamadas: _semModelo, ...map } = mapaV2([LIVRE], LIVRE)
+    const semMemoria = filterMapForPlayer(map, JOGADOR, { [JOGADOR]: ['olho'] }, RAIO)
+    for (const [quem, view] of [...recortes(map), ['jogador sem memória', semMemoria] as const]) {
+      expect(idsEntregues(view), quem).toEqual([])
+      expect(view.map.regions.some((r) => r.room?.roof === true), quem).toBe(false)
+      semNadaDoModelo(view)
+    }
+  })
+
+  it('camada livre desconhecida que NÃO está escondida dos jogadores: o item sai na padrão do tipo, sem o campo', () => {
+    const { modeloCamadas: _semModelo, ...map } = mapaV2([LIVRE], 'livre_outra')
+    for (const [quem, view] of recortes(map)) {
+      expect(idsEntregues(view).sort(), quem).toEqual([...TODOS_OS_IDS].sort())
+      expect(JSON.stringify(view.map), quem).not.toContain('livre_outra')
+    }
+  })
+
   it('camada torta ou livre que o modelo não tem não atravessa: o item sai na camada padrão, sem o campo', () => {
     const base = mapaV2([])
     const torta: unknown = 'Covil do Lich'

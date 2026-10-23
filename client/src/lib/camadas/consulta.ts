@@ -22,6 +22,13 @@ export interface ContextoDeCamadas {
   mestreVe(id: CamadaId): boolean
   /** O olho "Jogadores veem". */
   jogadorVe(id: CamadaId): boolean
+  /**
+   * O olho "Jogadores veem" do ITEM: o da camada dele (`camadaDe`), MAS a
+   * camada livre bem formada que está em `ocultasDoJogador` fica escondida
+   * mesmo sem o modelo no mapa (ninguém copia ainda o modelo da aventura para
+   * o mapa, e sem ele `camadaDe` cairia na padrão do tipo: falharia aberta).
+   */
+  jogadorVeItem<K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean
   travada(id: CamadaId): boolean
   /** Opacidade de 0 a 1, a mesma para mestre e jogadores. */
   alfa(id: CamadaId): number
@@ -73,10 +80,22 @@ function criarContexto(map: MapData): ContextoDeCamadas {
     return travadas.has(efetiva(id))
   }
 
+  function jogadorVe(id: CamadaId): boolean {
+    return !ocultasDoJogador.has(efetiva(id))
+  }
+
+  function jogadorVeItem<K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean {
+    const escolhida: unknown = camadaEscolhidaDe(tipo, item)
+    // Livre escondida dos jogadores falha FECHADA; a desconhecida que não está escondida segue a padrão do tipo.
+    if (ehCamadaId(escolhida) && !ehCamadaPadrao(escolhida) && ocultasDoJogador.has(escolhida)) return false
+    return jogadorVe(camadaDe(tipo, item))
+  }
+
   return {
     camadaDe,
     mestreVe: (id) => !ocultasDoMestre.has(efetiva(id)),
-    jogadorVe: (id) => !ocultasDoJogador.has(efetiva(id)),
+    jogadorVe,
+    jogadorVeItem,
     travada,
     alfa: (id) => {
       const valor = map.opacidadeDasCamadas?.[id]
