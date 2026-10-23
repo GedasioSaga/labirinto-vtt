@@ -10,20 +10,78 @@
  * Lista igual à padrão (os 13 ids na ordem de hoje, sem nomes) TIRA o modelo:
  * o mapa e a aventura voltam a gravar como antes.
  */
-import type { CamadaDef, CamadaId, MapData, NaCamada } from '../../types/map'
-import { NOME_DE_CAMADA_MAX, lerNomeDeCamada } from './arquivo'
-import { CAMADAS_PADRAO, MODELO_PADRAO, ehCamadaPadrao, novoIdDeCamadaLivre } from './padrao'
-
-/** 13 padrão + 51 livres = 64, o teto da lista que o jogador aceita (`MAX_CAMADAS_DO_JOGADOR`). */
-export const MAX_CAMADAS_LIVRES = 51
+import type { CamadaDef, CamadaId, MapData, ModeloDeCamadas, NaCamada } from '../../types/map'
+import { MAX_CAMADAS_LIVRES, NOME_DE_CAMADA_MAX, lerNomeDeCamada } from './arquivo'
+import { CAMADAS_PADRAO, MODELO_PADRAO, ehCamadaId, ehCamadaPadrao, novoIdDeCamadaLivre } from './padrao'
 
 /** O nome com que a camada nasce (o campo de renomear abre com ele selecionado). */
 export const NOME_DA_CAMADA_NOVA = 'Nova camada'
 
-export { NOME_DE_CAMADA_MAX }
+export { MAX_CAMADAS_LIVRES, NOME_DE_CAMADA_MAX }
+
+/** As listas de itens que escolhem camada (as mesmas que `apagarCamadaLivre` solta). */
+function listasDeItens(map: MapData): readonly (readonly NaCamada[])[] {
+  return [map.walls, map.lights, map.regions, map.tokens, map.props, map.stairs, map.drawings, map.floor, map.lines, map.markers, map.pins, map.carimbos ?? []]
+}
+
+/** Todo id de camada que o mapa cita: nos itens, no telhado das salas e no estado (olhos, cadeado, opacidade). */
+export function camadasEmUso(map: MapData): Set<string> {
+  const usadas = new Set<string>([...map.hiddenLayers, ...map.lockedLayers, ...(map.ocultasDoJogador ?? []), ...Object.keys(map.opacidadeDasCamadas ?? {})])
+  for (const lista of listasDeItens(map)) for (const item of lista) if (item.camada !== undefined) usadas.add(item.camada)
+  for (const r of map.regions) if (r.room?.camadaDoTelhado !== undefined) usadas.add(r.room.camadaDoTelhado)
+  return usadas
+}
+
+/**
+ * O modelo de um passo do Ctrl+Z ao entrar numa cena: o da AVENTURA (o passo
+ * não traz de volta a lista velha que a cena viu), mais as camadas livres que
+ * o passo USA e que sumiram da lista (apagadas depois daquele passo), com o
+ * nome e o lugar que tinham. Sem isso, o Ctrl+Z de "apagar" depois de trocar
+ * de cena devolvia os itens com a camada e a camada escondida dos jogadores,
+ * mas sem linha no painel: escondidos para sempre. Mesma referência quando
+ * nada falta.
+ */
+export function modeloParaOPasso(daAventura: ModeloDeCamadas | undefined, passo: MapData): ModeloDeCamadas | undefined {
+  const doPasso = passo.modeloCamadas
+  if (doPasso === undefined || doPasso === daAventura) return daAventura
+  const base = (daAventura ?? MODELO_PADRAO).ordem
+  const naBase = new Set<string>(base.map((c) => c.id))
+  const faltam = doPasso.ordem.filter((c) => !ehCamadaPadrao(c.id) && !naBase.has(c.id))
+  if (faltam.length === 0) return daAventura
+  const usadas = camadasEmUso(passo)
+  const voltam = new Set<string>(faltam.filter((c) => usadas.has(c.id)).map((c) => c.id))
+  if (voltam.size === 0) return daAventura
+  const ordem = [...base]
+  // Cada uma volta logo acima da vizinha de baixo que ela tinha no passo (e que está na lista nova).
+  let abaixo: CamadaId | undefined
+  for (const c of doPasso.ordem) {
+    if (voltam.has(c.id)) ordem.splice(abaixo === undefined ? 0 : ordem.findIndex((o) => o.id === abaixo) + 1, 0, c)
+    if (ordem.some((o) => o.id === c.id)) abaixo = c.id
+  }
+  return { ordem }
+}
+
+/**
+ * Camadas livres que ninguém mais lista mas que ainda escondem itens dos
+ * jogadores: apagadas noutra cena, ou o mapa salvo por um cliente antigo que
+ * perdeu a lista. O item continua escondido (falha FECHADA em
+ * `jogadorVeItem`); o painel dá a cada uma uma linha "Camada apagada" com o
+ * olho dos jogadores, para o mestre poder mostrar. Na ordem da lista
+ * escondida, no máximo `MAX_CAMADAS_LIVRES`.
+ */
+export function camadasApagadasEscondidas(map: Pick<MapData, 'hiddenLayers' | 'ocultasDoJogador' | 'modeloCamadas'>): CamadaId[] {
+  const naLista = new Set<string>((map.modeloCamadas ?? MODELO_PADRAO).ordem.map((c) => c.id))
+  return (map.ocultasDoJogador ?? map.hiddenLayers).filter((id) => ehCamadaId(id) && !ehCamadaPadrao(id) && !naLista.has(id)).slice(0, MAX_CAMADAS_LIVRES)
+}
 
 /** O aviso de quem passa do teto (o botão "Nova camada" já se desliga antes; este é para o caminho que escapar). */
 export const AVISO_DO_TETO = `Já há ${MAX_CAMADAS_LIVRES} camadas novas: apague uma para criar outra.`
+
+/** Quanto o aviso de apagar fica na tela (texto longo e um botão "Desfazer"). */
+export const DURACAO_DO_AVISO_DE_APAGAR = 8000
+
+/** O "Desfazer" do aviso quando outra mudança veio depois: o Ctrl+Z levaria ela primeiro. */
+export const AVISO_DESFAZER_DEPOIS_DE_OUTRA = 'Outra mudança veio depois: use Ctrl+Z até a camada voltar.'
 
 /** "Camada "Cripta" apagada: 3 itens voltaram às camadas padrão." (e, se ela estava escondida, que os jogadores passam a vê-los). */
 export function avisoDaCamadaApagada(nome: string | undefined, apagada: Pick<CamadaApagada, 'voltaram' | 'estavaEscondidaDosJogadores'>): string {

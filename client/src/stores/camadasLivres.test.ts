@@ -48,6 +48,7 @@ const { parseAdventure } = await import('../lib/adventure')
 const { deserializeMap } = await import('../lib/mapFile')
 const { contextoDeCamadas } = await import('../lib/camadas/consulta')
 const { CAMADAS_PADRAO } = await import('../lib/camadas/padrao')
+const modeloDeCamadas = await import('../lib/camadas/modelo')
 
 const PASTA = 'C:/appdata/maps/map_torre'
 
@@ -57,19 +58,20 @@ function mapa(id: string, name: string): MapData {
   return addToken(map, { id: `${id}-t2`, characterId: null, name: 'Bia', x: 128, y: 64, size: 1, image: null })
 }
 
-function abrirTorre(camadas?: MapData['modeloCamadas']): void {
+function abrirTorre(camadas?: MapData['modeloCamadas'], naCripta: (m: MapData) => MapData = (m) => m): void {
   const cenas = [
     { id: 'salao', name: 'Salão', file: 'map.json' },
     { id: 'cripta', name: 'Cripta', file: 'scenes/cripta/map.json' },
   ]
   const salao = mapa('salao', 'Salão')
+  const mapa_ = (id: string, name: string): MapData => (id === 'cripta' ? naCripta(mapa(id, name)) : mapa(id, name))
   useAdventureStore.getState().open({
     path: `${PASTA}/map.json`,
     map: salao,
     adventure: { version: 1, id: 'adv_torre', name: 'Torre', startSceneId: 'salao', scenes: cenas, ...(camadas === undefined ? {} : { camadas }) },
     adventureDir: PASTA,
     activeSceneId: 'salao',
-    scenes: cenas.map((entry) => ({ entry, status: 'ok' as const, map: entry.id === 'salao' ? salao : mapa(entry.id, entry.name) })),
+    scenes: cenas.map((entry) => ({ entry, status: 'ok' as const, map: entry.id === 'salao' ? salao : mapa_(entry.id, entry.name) })),
     changedSceneIds: [],
     adventureChanged: false,
     legacySources: [],
@@ -119,18 +121,23 @@ describe('um passo de Ctrl+Z por gesto, e o Ctrl+Z desfaz tudo', () => {
     expect(useMapStore.getState().map.tokens.every((t) => t.camada === undefined)).toBe(true)
   })
 
-  it('o "Desfazer" do aviso desfaz a remoção, e não faz nada se outra coisa mudou depois', () => {
+  it('o "Desfazer" do aviso desfaz a remoção; se outra coisa mudou depois, não desfaz e DIZ o que fazer; o aviso fica 8 s', () => {
     abrirTorre()
     const id = useMapStore.getState().criarCamadaLivre()
     if (id === null) throw new Error('não criou')
+    const avisos = vi.spyOn(useToastStore.getState(), 'push')
     useMapStore.getState().apagarCamadaLivre(id)
+    expect(avisos.mock.calls.at(-1)?.[2]).toBe(8000)
+    avisos.mockRestore()
     useToastStore.getState().toasts.at(-1)?.actions?.[0].run()
     expect(ordem()).toContain(id)
     useMapStore.getState().apagarCamadaLivre(id)
+    const desfazer = useToastStore.getState().toasts.at(-1)?.actions?.[0]
     useMapStore.getState().moverCamada('chao', 3)
     const depois = useMapStore.getState().map
-    useToastStore.getState().toasts.at(-1)?.actions?.[0].run()
+    desfazer?.run()
     expect(useMapStore.getState().map).toBe(depois)
+    expect(useToastStore.getState().toasts.at(-1)?.text).toBe('Outra mudança veio depois: use Ctrl+Z até a camada voltar.')
   })
 
   it('renomear para o mesmo nome, em branco, ou mover para o mesmo lugar: nenhum passo', () => {
@@ -172,6 +179,66 @@ describe('a lista mora na aventura', () => {
     expect(useMapStore.getState().map.modeloCamadas).toBe(novaOrdem)
     expect(useAdventureStore.getState().switchScene('salao')).toBe(true)
     expect(ordem()[0]).toBe(livre)
+  })
+
+  it('Ctrl+Z de "apagar" DEPOIS de trocar de cena: a camada volta à lista (nome e lugar), os itens voltam a ela, e o Ctrl+Y apaga de novo', () => {
+    abrirTorre()
+    const id = useMapStore.getState().criarCamadaLivre()
+    if (id === null) throw new Error('não criou')
+    useMapStore.getState().renomearCamada(id, 'Cripta')
+    useMapStore.getState().moverCamada(id, 3)
+    // As fichas na camada, escondida dos jogadores (mover item é a fatia 8: aqui o dado direto, fora do histórico).
+    useMapStore.setState((s) => ({ map: { ...s.map, versaoDasCamadas: 2, ocultasDoJogador: [id], tokens: s.map.tokens.map((t) => ({ ...t, camada: id })) } }))
+    const ordemAntes = ordem()
+    useMapStore.getState().apagarCamadaLivre(id)
+    expect(ordem()).not.toContain(id)
+    expect(useAdventureStore.getState().switchScene('cripta')).toBe(true)
+    expect(useAdventureStore.getState().switchScene('salao')).toBe(true)
+    useMapStore.getState().undo()
+    const map = useMapStore.getState().map
+    expect(ordem()).toEqual(ordemAntes)
+    expect(map.modeloCamadas?.ordem.find((c) => c.id === id)?.nome).toBe('Cripta')
+    expect(map.tokens.map((t) => contextoDeCamadas(map).camadaDe('ficha', t))).toEqual([id, id])
+    expect(useAdventureStore.getState().adventure?.camadas?.ordem.map((c) => c.id)).toContain(id)
+    useMapStore.getState().redo()
+    expect(ordem()).not.toContain(id)
+  })
+
+  it('Ctrl+Z de uma edição comum depois de trocar de cena não traz de volta a lista velha que a cena viu', () => {
+    abrirTorre()
+    useMapStore.getState().definirOpacidadeDaCamada('salas', 0.5)
+    expect(useAdventureStore.getState().switchScene('cripta')).toBe(true)
+    const id = useMapStore.getState().criarCamadaLivre()
+    if (id === null) throw new Error('não criou')
+    expect(useAdventureStore.getState().switchScene('salao')).toBe(true)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.opacidadeDasCamadas?.salas).toBeUndefined()
+    expect(ordem()).toContain(id)
+    expect(useAdventureStore.getState().adventure?.camadas?.ordem.map((c) => c.id)).toContain(id)
+  })
+
+  it('outro mapa carregado no editor (outro id) não escreve a lista dele na aventura', () => {
+    const camadas = { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), { id: 'livre_0a1b2c3d' as CamadaId, nome: 'Cripta' }] }
+    abrirTorre(camadas)
+    const alheio: MapData = { ...mapa('alheio', 'Alheio'), modeloCamadas: { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), { id: 'livre_deadbeef', nome: 'Alheia' }] } }
+    useMapStore.getState().loadMap(alheio)
+    expect(useAdventureStore.getState().adventure?.camadas).toBe(camadas)
+  })
+
+  it('apagar na cena A: na B, o item da camada apagada continua escondido dos jogadores e ganha a linha "Camada apagada"; mostrar abre', () => {
+    const livre: CamadaId = 'livre_0a1b2c3d'
+    const camadas = { ordem: [...CAMADAS_PADRAO.map((id) => ({ id })), { id: livre, nome: 'Cripta' }] }
+    abrirTorre(camadas, (m) => ({ ...m, versaoDasCamadas: 2, ocultasDoJogador: [livre], tokens: m.tokens.map((t) => ({ ...t, camada: livre })) }))
+    useMapStore.getState().apagarCamadaLivre(livre)
+    expect(useAdventureStore.getState().switchScene('cripta')).toBe(true)
+    const naB = useMapStore.getState().map
+    expect(ordem()).not.toContain(livre)
+    expect(contextoDeCamadas(naB).jogadorVeItem('ficha', naB.tokens[0])).toBe(false)
+    expect(modeloDeCamadas.camadasApagadasEscondidas(naB)).toEqual([livre])
+    useMapStore.getState().alternarOlhoDosJogadores(livre)
+    const mostrado = useMapStore.getState().map
+    expect(modeloDeCamadas.camadasApagadasEscondidas(mostrado)).toEqual([])
+    expect(contextoDeCamadas(mostrado).jogadorVeItem('ficha', mostrado.tokens[0])).toBe(true)
   })
 
   it('reaberta do disco: a mesma lista, os mesmos nomes, os itens na camada deles', async () => {

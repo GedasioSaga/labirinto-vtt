@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { ExitPassage, MapData, Pin, PinDestination, PinPassage, Stair } from '../types/map'
+import type { ExitPassage, MapData, ModeloDeCamadas, Pin, PinDestination, PinPassage, Stair } from '../types/map'
+import { modeloParaOPasso } from '../lib/camadas/modelo'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -1096,6 +1097,26 @@ function comModeloDaAventura(map: MapData): MapData {
 }
 
 /**
+ * Os passos do Ctrl+Z da cena que entra: o modelo da aventura, mais as livres
+ * que o passo usa e que sumiram da lista. Passos que dão a mesma lista ganham
+ * a MESMA referência (desfazer entre eles não mexe na lista da aventura). Sem
+ * aventura, cada passo fica com o dele.
+ */
+function comModeloDoPasso(): (passo: MapData) => MapData {
+  const { adventure } = useAdventureStore.getState()
+  if (adventure === null) return (passo) => passo
+  const prontos = new Map<string, ModeloDeCamadas>()
+  return (passo) => {
+    const modelo = modeloParaOPasso(adventure.camadas, passo)
+    if (modelo === adventure.camadas || modelo === undefined) return comModeloDaAventura(passo)
+    const chave = modelo.ordem.map((c) => `${c.id}=${c.nome ?? ''}`).join('|')
+    const pronto = prontos.get(chave) ?? modelo
+    prontos.set(chave, pronto)
+    return { ...passo, modeloCamadas: pronto }
+  }
+}
+
+/**
  * E a volta: o modelo que mudou no mapa aberto (criar, renomear, ordenar,
  * apagar camada, e o Ctrl+Z e o Ctrl+Y deles) vira o da aventura, que grava
  * no `adventure.json`. Troca de cena e outro mapa entrando não são edição.
@@ -1113,8 +1134,10 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
   sceneLoading = true
   try {
     // CAMADAS (fatia 7): a cena entra com o modelo da AVENTURA, também no desfazer dela — o Ctrl+Z de uma cena não traz de volta a lista velha que ela viu.
+    // Mas o passo que USA uma livre que sumiu da lista (o de antes de "apagar") a traz de volta (`modeloParaOPasso`).
     useMapStore.getState().loadMap(comModeloDaAventura(map))
-    useMapStore.setState({ past: past.map(comModeloDaAventura), future: future.map(comModeloDaAventura) })
+    const doPasso = comModeloDoPasso()
+    useMapStore.setState({ past: past.map(doPasso), future: future.map(doPasso) })
   } finally {
     sceneLoading = false
   }

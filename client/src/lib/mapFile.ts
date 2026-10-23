@@ -80,7 +80,7 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
-import { idDeCamadaDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
+import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
@@ -399,13 +399,8 @@ function tokenVehicleFromFile(token: Token): Token {
 function camadasDoArquivo(value: unknown, versao2: boolean): CamadaId[] {
   if (!Array.isArray(value)) return []
   if (!versao2) return value.filter(ehCamadaDeAntes)
-  // Fatia 7: id de camada livre do formato de antes vira o hexa dele; o resto que não é id sai.
-  const lista: CamadaId[] = []
-  for (const item of value) {
-    const id = idDeCamadaDoArquivo(item)
-    if (id !== undefined && !lista.includes(id)) lista.push(id)
-  }
-  return lista
+  // Fatia 7: id de camada livre do formato de antes vira o hexa dele; o resto que não é id sai (sem repetir, até o teto).
+  return idsDoArquivo(value)
 }
 
 /**

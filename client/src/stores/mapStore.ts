@@ -2439,9 +2439,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (apagada.map === get().map) return
       withHistory(() => apagada.map)
       const depois = get().map
-      useToastStore.getState().push('info', modeloDeCamadas.avisoDaCamadaApagada(nome, apagada), undefined, {
-        // Desfaz só enquanto nada mudou depois: senão o Ctrl+Z levaria outro passo.
-        actions: [{ label: 'Desfazer', run: () => (get().map === depois ? get().undo() : undefined) }],
+      // 8 s: o aviso é longo (nome, quantos, se estavam escondidos) e tem um botão.
+      useToastStore.getState().push('info', modeloDeCamadas.avisoDaCamadaApagada(nome, apagada), modeloDeCamadas.DURACAO_DO_AVISO_DE_APAGAR, {
+        // Desfaz só enquanto nada mudou depois (senão o Ctrl+Z levaria outro passo); mudou, e o botão diz o que fazer em vez de calar.
+        actions: [{ label: 'Desfazer', run: () => (get().map === depois ? get().undo() : useToastStore.getState().push('info', modeloDeCamadas.AVISO_DESFAZER_DEPOIS_DE_OUTRA)) }],
       })
     },
     setPropLayer: (id, layer) => withHistory((map) => mapFactory.setPropLayer(map, id, layer)),
