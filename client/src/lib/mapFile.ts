@@ -1,4 +1,5 @@
-import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
+import type { ConcealZone, DoorState, FloorStyle, LayerId, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
+import { LAYER_IDS } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -385,9 +386,20 @@ function tokenVehicleFromFile(token: Token): Token {
   return veiculo === undefined ? withoutVehicleField(token) : { ...token, veiculo }
 }
 
-/** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
-function plainList<T>(value: T[] | undefined): T[] {
-  return Array.isArray(value) ? value : []
+/**
+ * Cadeado e olho (`lockedLayers`, `hiddenLayers`): só as 9 camadas de hoje
+ * (`LAYER_IDS`). Outro valor ('terreno', 'chao', camada livre, lixo) sai:
+ * sem linha no painel para soltar, seria trava sem saída e o "Destravar" do
+ * aviso não teria o que soltar. A fatia 6 decide onde moram os das 13; até
+ * lá, os valores válidos ficam como estão, na mesma ordem (round-trip do
+ * mapa antigo idêntico).
+ */
+function camadasDoArquivo(value: unknown): LayerId[] {
+  return Array.isArray(value) ? value.filter(ehLayerId) : []
+}
+
+function ehLayerId(value: unknown): value is LayerId {
+  return LAYER_IDS.some((id) => id === value)
 }
 
 /**
@@ -875,10 +887,10 @@ function deserializeMapFields(json: string): MapData {
     ...marcasDoArquivo(parsed.marcas),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
-    hiddenLayers: plainList(parsed.hiddenLayers),
+    hiddenLayers: camadasDoArquivo(parsed.hiddenLayers),
     // NOVO (Onda 4, Frente D) — mesmo padrão de hiddenLayers acima: mapa
     // salvo antes deste campo existir abre com nada travado.
-    lockedLayers: plainList(parsed.lockedLayers),
+    lockedLayers: camadasDoArquivo(parsed.lockedLayers),
     // CAMADAS (fase 3): campos NOVOS e OPCIONAIS. Ausente continua ausente; torto sai (`lib/camadas/arquivo.ts`).
     ...ocultasDoJogadorDoArquivo(parsed.ocultasDoJogador),
     ...opacidadesDoArquivo(parsed.opacidadeDasCamadas),

@@ -80,6 +80,19 @@ describe('camadas no arquivo: campos novos', () => {
     expect(deserializeMap(cru).modeloCamadas).toBeUndefined()
   })
 
+  it('cadeado e olho só guardam as 9 camadas de hoje: "terreno" ou "chao" saem (sem linha no painel, seriam trava sem saída)', () => {
+    const base = JSON.parse(serializeMap(createEmptyMap('m-trava', 'Trava', 10, 10, 64)))
+    const lido = deserializeMap(
+      JSON.stringify({ ...base, lockedLayers: ['terreno', 'paredes', 'chao', 7, 'livre_x'], hiddenLayers: ['chao', 'objetos', null] }),
+    )
+    expect(lido.lockedLayers).toEqual(['paredes'])
+    expect(lido.hiddenLayers).toEqual(['objetos'])
+    // Só com valor que não é das 9: nada travado, nada oculto.
+    const soTerreno = deserializeMap(JSON.stringify({ ...base, lockedLayers: ['terreno'], hiddenLayers: ['terreno'] }))
+    expect(soTerreno.lockedLayers).toEqual([])
+    expect(soTerreno.hiddenLayers).toEqual([])
+  })
+
   it('valor torto é descartado, nunca recusa o mapa', () => {
     const base = JSON.parse(serializeMap(createEmptyMap('m-torto', 'Torto', 10, 10, 64)))
     const torto = {

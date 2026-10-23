@@ -103,9 +103,28 @@ describe('aviso com o rótulo das 13 camadas (fase 3, fatia 5)', () => {
     ])
   })
 
-  it('"Destravar" de uma camada que o cadeado de hoje não guarda não mexe em nada', () => {
+  it('camada que o cadeado de hoje não guarda: o aviso sai SEM "Destravar" (botão que não faria nada)', () => {
     avisarCamadaTravada('terreno')
-    botaoDestravar()?.run()
-    expect(useMapStore.getState().map.lockedLayers).toEqual(['paredes'])
+    expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toEqual(['A camada Terreno está travada'])
+    expect(botaoDestravar()).toBeUndefined()
+  })
+
+  it('camada que o olho de hoje não guarda: o aviso sai SEM "Mostrar"', () => {
+    avisarCamadaOculta('chao')
+    expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toEqual(['A camada Chão está oculta'])
+    expect(botaoMostrar()).toBeUndefined()
+  })
+
+  it('camada livre também fica sem botão (o cadeado dela ainda não tem onde morar)', () => {
+    avisarCamadaTravada('livre_a1')
+    expect(botaoDestravar()).toBeUndefined()
+  })
+
+  it('das 9 de hoje, o botão continua lá', () => {
+    avisarCamadaTravada('tokens')
+    expect(botaoDestravar()).toBeDefined()
+    useToastStore.setState({ toasts: [] })
+    avisarCamadaOculta('salas')
+    expect(botaoMostrar()).toBeDefined()
   })
 })

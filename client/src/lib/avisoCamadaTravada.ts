@@ -11,9 +11,11 @@ import { ehCamadaPadrao, ROTULOS_DAS_CAMADAS } from './camadas/padrao'
  * onde desfazer.
  */
 export function avisarCamadaTravada(camada: CamadaId): void {
+  const layer = camadaGuardada(camada)
   useToastStore.getState().push('info', `A camada ${rotuloDaCamada(camada)} está travada`, undefined, {
     chave: `camada-travada:${camada}`,
-    actions: [{ label: 'Destravar', run: () => destravar(camada) }],
+    // Cadeado que o mapa de hoje não guarda (Terreno, Chão, livre): sem botão que não faria nada.
+    ...(layer === undefined ? {} : { actions: [{ label: 'Destravar', run: () => destravar(layer) }] }),
   })
 }
 
@@ -30,10 +32,9 @@ function camadaGuardada(camada: CamadaId): LayerId | undefined {
 }
 
 /** Só destrava: o botão velho de um aviso não pode travar de novo o que já foi liberado. */
-function destravar(camada: CamadaId): void {
+function destravar(layer: LayerId): void {
   const { map, toggleLayerLock } = useMapStore.getState()
-  const layer = camadaGuardada(camada)
-  if (layer !== undefined && map.lockedLayers.includes(layer)) toggleLayerLock(layer)
+  if (map.lockedLayers.includes(layer)) toggleLayerLock(layer)
 }
 
 /**
@@ -43,15 +44,16 @@ function destravar(camada: CamadaId): void {
  * camada e o "Mostrar" ali mesmo, sem ir atrás do olho na lista de Camadas.
  */
 export function avisarCamadaOculta(camada: CamadaId): void {
+  const layer = camadaGuardada(camada)
   useToastStore.getState().push('info', `A camada ${rotuloDaCamada(camada)} está oculta`, undefined, {
     chave: `camada-oculta:${camada}`,
-    actions: [{ label: 'Mostrar', run: () => mostrar(camada) }],
+    // Olho que o mapa de hoje não guarda: sem botão que não faria nada.
+    ...(layer === undefined ? {} : { actions: [{ label: 'Mostrar', run: () => mostrar(layer) }] }),
   })
 }
 
 /** Só mostra: o botão velho de um aviso não pode ocultar de novo o que já voltou a aparecer. */
-function mostrar(camada: CamadaId): void {
+function mostrar(layer: LayerId): void {
   const { map, toggleLayerVisibility } = useMapStore.getState()
-  const layer = camadaGuardada(camada)
-  if (layer !== undefined && map.hiddenLayers.includes(layer)) toggleLayerVisibility(layer)
+  if (map.hiddenLayers.includes(layer)) toggleLayerVisibility(layer)
 }
