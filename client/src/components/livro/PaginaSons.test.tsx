@@ -265,6 +265,78 @@ describe('tocar', () => {
   })
 })
 
+describe('o que ninguém via (revisão da F3)', () => {
+  it('clicar num loop que já toca PARA o loop, com o fade de 150 ms (o efeito curto recomeçaria)', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const chuva = await importar('chuva.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
+    })
+    act(() => botao(/^chuva,/).click())
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    act(() => botao(/^chuva,/).click())
+    expect(tocadas()).toHaveLength(1)
+    expect(tocadas()[0]?.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
+    await esperar(() => expect(naTela()).toContain('Nada tocando'))
+  })
+
+  it('apagar um som que está tocando para o som', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const chuva = await importar('chuva.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
+    })
+    act(() => botao(/^chuva,/).click())
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    act(() => botao('Editar chuva').click())
+    act(() => botao('Apagar som…').click())
+    act(() => botao('Apagar').click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos).toHaveLength(0)
+    expect(tocadas()[0]?.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
+  })
+
+  it('a tecla segurada (repeat) não toca de novo; com o foco no canvas do mapa a tecla toca', async () => {
+    await act(async () =>
+      root.render(
+        <>
+          <canvas aria-label="Mapa" tabIndex={0} />
+          <PaginaSons medirMidia={async () => new Map()} />
+        </>,
+      ),
+    )
+    await abrirAventura()
+    const sino = await importar('sino.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(sino, { atalho: 2 })
+    })
+    const canvas = container.querySelector<HTMLCanvasElement>('canvas')
+    if (canvas === null) throw new Error('sem o canvas')
+    canvas.focus()
+    teclar(canvas, '2', { repeat: true })
+    await esperar(() => undefined)
+    expect(tocadas()).toHaveLength(0)
+    teclar(canvas, '2')
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+  })
+
+  it('editar o efeito NÃO entra no histórico do mapa: o Ctrl+Z (undo) não desfaz a mudança do som', async () => {
+    const { useMapStore } = await import('../../stores/mapStore')
+    await montarPagina()
+    await abrirAventura()
+    const porta = await importar('porta.wav')
+    const passado = useMapStore.getState().past.length
+    act(() => botao('Editar porta').click())
+    const interruptor = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] [role="switch"]')].find((b) => b.textContent?.startsWith('Repetir até parar'))
+    act(() => interruptor?.click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === porta)?.loop).toBe(true)
+    expect(useMapStore.getState().past).toHaveLength(passado)
+    act(() => useMapStore.getState().undo())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === porta)?.loop).toBe(true)
+  })
+})
+
 describe('a página sai ou a aventura troca', () => {
   /** Importa um som, faz dele loop e toca pelo clique; devolve a fonte que soa. */
   async function tocarLoop(nome: string): Promise<FonteFalsa> {

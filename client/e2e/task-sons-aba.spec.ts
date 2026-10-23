@@ -281,6 +281,10 @@ test('aba Sons: importa um WAV, o clique toca e mostra a barra; a tecla 3 toca c
   await page.keyboard.press('3')
   await page.waitForTimeout(400)
   expect((await registro(page)).fontes).toBe(comOLapis)
+  // A checagem do modal sozinha: a tecla nasce no body, FORA do diálogo (que engole as teclas de dentro dele).
+  await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '3', code: 'Digit3', bubbles: true, cancelable: true })))
+  await page.waitForTimeout(400)
+  expect((await registro(page)).fontes).toBe(comOLapis)
   await lapis.getByRole('button', { name: 'Pronto' }).click()
   await expect(lapis).toBeHidden()
   await livroDaMesa(page).getByRole('tab', { name: 'Cenas' }).click()
