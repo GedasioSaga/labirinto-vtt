@@ -256,6 +256,8 @@ describe('tocar', () => {
     act(() => {
       for (const id of ids) useBibliotecaDeSonsStore.getState().editarEfeito(id, { loop: true })
     })
+    // Só as recusas de toque contam aqui (o aviso de "entrou na biblioteca" é da importação).
+    act(() => useToastStore.setState({ toasts: [] }))
     for (const nome of ['a', 'b', 'c']) act(() => botao(new RegExp(`^${nome},`)).click())
     await esperar(() => expect(tocadas()).toHaveLength(3))
     act(() => botao(/^d,/).click())
@@ -495,6 +497,58 @@ describe('o lápis', () => {
   })
 })
 
+describe('o topo (revisão de design da F3)', () => {
+  const topo = (): string => container.querySelector('.lb-sons__topo')?.textContent ?? ''
+
+  it('um botão só para importar, "Importar sons"; o sucesso vira aviso passageiro e não cresce o topo', async () => {
+    await montarPagina()
+    await abrirAventura()
+    expect(() => botao('Importar')).toThrow()
+    expect(() => botao('Importar arquivo')).toThrow()
+    expect(botao('Importar sons').disabled).toBe(false)
+    await importar('porta.wav')
+    await esperar(() => expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toContain('porta entrou na biblioteca.'))
+    expect(topo()).not.toContain('entrou na biblioteca')
+  })
+
+  it('as recusas saem do topo fixo: no máximo 3 linhas, "e mais N" e Fechar', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const grande = (nome: string) => new File([new Uint8Array(MIDIA_AUDIO_MAX_BYTES + 1)], nome, { type: 'audio/wav' })
+    escolher(grande('a.wav'), grande('b.wav'), grande('c.wav'), grande('d.wav'), grande('e.wav'))
+    await esperar(() => expect(container.querySelector('.lb-sons__recusas')).not.toBeNull())
+    expect(topo()).not.toContain('Não deu para importar')
+    const alerta = container.querySelector('.lb-sons__recusas [role="alert"]')
+    expect(alerta?.querySelectorAll('p')).toHaveLength(4)
+    expect(alerta?.textContent).toContain('E mais 2 arquivos recusados.')
+    act(() => botao('Fechar').click())
+    expect(container.querySelector('.lb-sons__recusas')).toBeNull()
+  })
+
+  it('com 200 sons o motivo de não importar fica NO TOPO, logo abaixo dos botões', async () => {
+    let biblioteca = bibliotecaDeSonsVazia()
+    for (let i = 0; i < EFEITOS_DE_SOM_MAX; i++) {
+      const passo = comEfeitoNovo(biblioteca, { nome: `som ${i}`, fonte: { tipo: 'arquivo', ref: `midia:${i.toString(16).padStart(64, '0')}.wav`, bytes: 1000 } }, `som_${i}`)
+      if (passo === null) throw new Error(`não montou o som ${i}`)
+      biblioteca = passo.biblioteca
+    }
+    await montarPagina()
+    await abrirAventura()
+    act(() => useBibliotecaDeSonsStore.setState({ biblioteca }))
+    const linha = container.querySelector('.lb-sons__topo .lb-sons__linha')
+    expect(linha?.nextElementSibling?.textContent).toBe(`A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.`)
+    expect(naTela().split('Apague algum para importar outro.')).toHaveLength(2)
+  })
+
+  it('mapa solto: o vazio explica o caminho real (Cenas, + Nova cena) e não oferece um botão que não funciona', async () => {
+    await montarPagina()
+    await esperar(() => expect(naTela()).toContain('Sons moram numa aventura'))
+    expect(naTela()).toContain('Em Cenas, + Nova cena transforma este mapa na primeira cena de uma aventura')
+    expect(container.querySelector('.lb-sons__vazio button')).toBeNull()
+    expect(naTela()).not.toContain('Salve como aventura')
+  })
+})
+
 describe('o lápis quando a loja recusa', () => {
   const mudarFaixa = (janela: HTMLElement, valor: string) => {
     const faixa = janela.querySelector<HTMLInputElement>('input[type="range"]')
@@ -556,11 +610,10 @@ describe('o lápis quando a loja recusa', () => {
 })
 
 describe('sem pasta da aventura', () => {
-  it('mapa solto: mostra "Salve como aventura para guardar sons aqui", não importa e não grava nada', async () => {
+  it('mapa solto: diz que sons moram numa aventura, não importa e não grava nada', async () => {
     await montarPagina()
-    await esperar(() => expect(naTela()).toContain(SONS_SEM_AVENTURA))
-    expect(botao('Importar').disabled).toBe(true)
-    expect(botao('Importar arquivo').disabled).toBe(true)
+    await esperar(() => expect(naTela()).toContain('Sons moram numa aventura'))
+    expect(botao('Importar sons').disabled).toBe(true)
     escolher(arquivoWav('porta.wav'))
     await esperar(() => expect(container.querySelector('[role="alert"]')?.textContent).toBe(`Não deu para importar porta.wav. ${SONS_SEM_AVENTURA}`))
     expect(fsFalso.writeFile).not.toHaveBeenCalled()
@@ -593,7 +646,7 @@ describe('pior caso', () => {
     expect(container.querySelectorAll('.lb-efeito__tocar')).toHaveLength(EFEITOS_DE_SOM_MAX)
     expect(botao(/^Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, tecla 9, repete até parar$/)).toBeDefined()
     expect(container.querySelector('[aria-label="Колокол собора на рассвете"]')).not.toBeNull()
-    expect(botao('Importar').disabled).toBe(true)
+    expect(botao('Importar sons').disabled).toBe(true)
     expect(naTela()).toContain(`A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.`)
   })
 })

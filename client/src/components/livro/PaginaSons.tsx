@@ -204,9 +204,9 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const [editando, setEditando] = useState<string | null>(null)
   const [importando, setImportando] = useState<string | null>(null)
   const [recusas, setRecusas] = useState<string[]>([])
-  const [entrou, setEntrou] = useState<string | null>(null)
   const [arquivosDaMidia, setArquivosDaMidia] = useState<ArquivosDaMidia | null>(null)
   const arquivo = useRef<HTMLInputElement>(null)
+  const botaoImportar = useRef<HTMLButtonElement>(null)
   const selos = useRef(new Map<string, HTMLElement>())
 
   useEffect(() => ligarBibliotecaAAventura(), [])
@@ -260,13 +260,14 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const semAventura = aventuraId === null
   const cheia = biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX
   const podeImportar = !semAventura && !carregando && podeGravar && !cheia && importando === null
-  const motivoSemImportar = semAventura ? SONS_SEM_AVENTURA : carregando ? 'Lendo os sons da aventura…' : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
+  // O porquê do Importar parado, logo abaixo dele. Sem aventura quem explica é o vazio (ele aparece
+  // logo abaixo, sempre: sem aventura não há som); lendo, quem diz é a mensagem no lugar da grade.
+  const motivoNoTopo = semAventura || carregando ? null : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
 
   const importar = async (arquivos: File[]) => {
     const falhas: string[] = []
     let ultimo: string | null = null
     setRecusas([])
-    setEntrou(null)
     for (const escolhido of arquivos) {
       setImportando(escolhido.name)
       // O teto antes de ler: um arquivo enorme nem entra na memória.
@@ -283,7 +284,14 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     }
     setImportando(null)
     setRecusas(falhas)
-    if (ultimo !== null) setEntrou(arquivos.length - falhas.length > 1 ? `${arquivos.length - falhas.length} sons entraram na biblioteca.` : `${ultimo} entrou na biblioteca.`)
+    // O sucesso é passageiro (o botão novo já mostra que entrou): aviso que some, fora do topo fixo.
+    if (ultimo !== null) useToastStore.getState().push('info', arquivos.length - falhas.length > 1 ? `${arquivos.length - falhas.length} sons entraram na biblioteca.` : `${ultimo} entrou na biblioteca.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
+  }
+
+  const fecharRecusas = () => {
+    setRecusas([])
+    // O Fechar some com o bloco: o foco volta para quem importa.
+    botaoImportar.current?.focus()
   }
 
   const escolherArquivos = (evento: ChangeEvent<HTMLInputElement>) => {
@@ -299,38 +307,27 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     <div className="lb-sons" role="region" aria-label="Sons">
       <TituloDaPagina titulo="Sons" sub="Efeitos e ambientes da aventura" />
       <div className="lb-sons__topo">
+        {/* Hierarquia: parar (o pânico, largo) antes de tocar (a grade) antes de importar (preparo, discreto). */}
         <div className="lb-sons__linha">
           <Botao tamanho="p" className="lb-sons__parar" disabled={toques.size === 0} onClick={() => motor.pararTudo()}>
             <IconeParar />
             Parar tudo
           </Botao>
-          <Botao tamanho="p" variante="latao" className="gr-empurra" disabled={!podeImportar} onClick={() => arquivo.current?.click()}>
-            <IconeDoLivro nome="mais" />
-            Importar
+          <Botao ref={botaoImportar} tamanho="p" disabled={!podeImportar} onClick={() => arquivo.current?.click()}>
+            <IconeDoLivro nome="importar" />
+            Importar sons
           </Botao>
         </div>
+        {motivoNoTopo !== null && <p className="lb-sons__nota lb-sons__nota--latao">{motivoNoTopo}</p>}
         {/* Linha própria: em 262 px os dois botões e o texto não cabem lado a lado sem cortar. */}
         <p className="lb-sons__soando" aria-live="polite">
           {toques.size === 0 ? 'Nada tocando' : toques.size === 1 ? '1 tocando' : `${toques.size} tocando`}
         </p>
-        {semAventura && <p className="lb-sons__nota lb-sons__nota--latao">{SONS_SEM_AVENTURA}</p>}
         {!semAventura && dir === null && <p className="lb-sons__nota">Os sons ficam guardados quando a aventura for salva.</p>}
         {importando !== null && (
           <p className="lb-sons__nota" role="status">
             Importando {importando}…
           </p>
-        )}
-        {entrou !== null && importando === null && (
-          <p className="lb-sons__nota" role="status">
-            {entrou}
-          </p>
-        )}
-        {recusas.length > 0 && (
-          <div className="lb-sons__nota lb-sons__nota--erro" role="alert">
-            {recusas.map((recusa) => (
-              <p key={recusa}>{recusa}</p>
-            ))}
-          </div>
         )}
         {aviso !== null && (
           <p className="lb-sons__nota lb-sons__nota--erro" role="alert">
@@ -340,12 +337,14 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       </div>
       <input ref={arquivo} type="file" accept={ACEITA_AUDIO} multiple hidden aria-label="Arquivo de som" onChange={escolherArquivos} />
 
+      {recusas.length > 0 && <RecusasDaImportacao recusas={recusas} onFechar={fecharRecusas} />}
+
       {(biblioteca.pastas.length > 0 || favoritos > 0) && <ChipsDasPastas biblioteca={biblioteca} favoritos={favoritos} filtro={filtroAgora} onFiltro={setFiltro} />}
 
       {carregando ? (
         <p className="lb-sons__mensagem">Lendo os sons da aventura…</p>
       ) : biblioteca.efeitos.length === 0 ? (
-        <VazioDosSons motivo={motivoSemImportar} podeImportar={podeImportar} onImportar={() => arquivo.current?.click()} />
+        <VazioDosSons semAventura={semAventura} podeImportar={podeImportar} onImportar={() => arquivo.current?.click()} />
       ) : visiveis.length === 0 ? (
         <p className="lb-sons__mensagem">Nenhum som nesta pasta. Mova um som para cá pelo lápis dele, no campo Pasta.</p>
       ) : (
@@ -365,8 +364,6 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
           ))}
         </ul>
       )}
-
-      {biblioteca.efeitos.length > 0 && motivoSemImportar !== null && !semAventura && <p className="lb-sons__nota">{motivoSemImportar}</p>}
 
       {dir !== null && midiaBytes !== null && (
         <p className={classes('lb-sons__pe', midiaBytes > MIDIA_PESADA_BYTES && 'lb-sons__pe--pesada')}>
@@ -416,16 +413,47 @@ function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { bibliotec
   )
 }
 
-function VazioDosSons({ motivo, podeImportar, onImportar }: { motivo: string | null; podeImportar: boolean; onImportar: () => void }) {
+/** No máximo estas recusas por extenso; o resto vira "e mais N" (o bloco não empurra a grade para longe). */
+const RECUSAS_POR_EXTENSO = 3
+/** O aviso de que o som entrou some sozinho. */
+const AVISO_DE_IMPORTADO_MS = 4000
+
+/** As recusas da última importação, logo abaixo do topo fixo (rolam com a página), até o mestre fechar. */
+function RecusasDaImportacao({ recusas, onFechar }: { recusas: readonly string[]; onFechar: () => void }) {
+  const resto = recusas.length - RECUSAS_POR_EXTENSO
+  return (
+    <div className="lb-sons__recusas">
+      <div className="lb-sons__nota lb-sons__nota--erro" role="alert">
+        {recusas.slice(0, RECUSAS_POR_EXTENSO).map((recusa, indice) => (
+          // Dois arquivos de mesmo nome e mesmo motivo dão a mesma frase: a posição é a chave.
+          <p key={indice}>{recusa}</p>
+        ))}
+        {resto > 0 && <p>E mais {resto === 1 ? '1 arquivo recusado' : `${resto} arquivos recusados`}.</p>}
+      </div>
+      <Botao tamanho="p" onClick={onFechar}>
+        Fechar
+      </Botao>
+    </div>
+  )
+}
+
+function VazioDosSons({ semAventura, podeImportar, onImportar }: { semAventura: boolean; podeImportar: boolean; onImportar: () => void }) {
+  // Mapa solto: o caminho que existe hoje para virar aventura é a cena nova (App.tsx, createScene com o mapa solto).
+  if (semAventura)
+    return (
+      <div className="lb-sons__vazio">
+        <h3 className="lb-sons__vazio-titulo">Sons moram numa aventura</h3>
+        <p className="lb-sons__vazio-texto">Este é um mapa solto. Em Cenas, + Nova cena transforma este mapa na primeira cena de uma aventura; a partir daí os sons podem entrar aqui.</p>
+      </div>
+    )
   return (
     <div className="lb-sons__vazio">
       <h3 className="lb-sons__vazio-titulo">Nenhum som ainda</h3>
       <p className="lb-sons__vazio-texto">Importe MP3, WAV, OGG ou M4A de até 15 MB. Cada arquivo vira um botão; as teclas 1 a 9 tocam os que tiverem atalho.</p>
       <Botao variante="primario" disabled={!podeImportar} onClick={onImportar}>
         <IconeDoLivro nome="importar" />
-        Importar arquivo
+        Importar sons
       </Botao>
-      {!podeImportar && motivo !== null && motivo !== SONS_SEM_AVENTURA && <p className="lb-sons__nota">{motivo}</p>}
     </div>
   )
 }

@@ -28,10 +28,24 @@
   font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
   color: var(--lb-color-parchment-faint);
 }
+/* Parar tudo é o pânico: largo e mais alto que o Importar (preparo, discreto, sem latão). */
+.lb-sons__linha .lb-sons__parar { flex: 1; min-height: 36px; font-size: var(--lb-font-size-md); }
 .lb-sons__parar:not(:disabled) {
   color: var(--lb-color-ember);
   border-color: color-mix(in srgb, var(--lb-color-ember) 45%, transparent);
 }
+
+/* As recusas da importação: fora do topo fixo, rolam com a página até o Fechar. */
+.lb-sons__recusas {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  margin: 10px 16px 0;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--lb-color-ember) 35%, transparent);
+  border-radius: var(--lb-radius-md);
+}
+.lb-sons__recusas > [role='alert'] { flex: 1; min-width: 0; }
 
 .lb-sons__nota {
   margin: 0;
@@ -196,6 +210,9 @@
 
 @media (pointer: coarse) {
   .lb-efeito__lapis { top: 0; right: 0; width: 44px; height: 44px; }
+  .lb-sons__topo .gr-bt,
+  .lb-sons__recusas .gr-bt,
+  .lb-sons__chip { min-height: var(--lb-control-touch); }
 }
 
 @media (hover: hover) and (pointer: fine) {
