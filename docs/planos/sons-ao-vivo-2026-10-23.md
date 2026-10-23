@@ -48,7 +48,8 @@ Mensagens novas, só do mestre para o jogador, com parser em `net/protocol.ts` n
 
 - `som.tocar { instancia, fonte, volume, loop, deslocamentoS? }` (o nome do efeito NÃO vai junto, para não estragar surpresa), `som.parar { instancia, fadeMs? }`, `som.pararTudo {}`, `som.volume { instancia, volume }`, `som.precarregar { midias }`; do jogador ao mestre, opcional, `som.falhou { instancia, motivo }`.
 - `net/audienciaDosSons.ts` (puro): `destinatarios(alvo, PlayerInfo[])` devolve os `clientId` conectados. Métodos novos no `hostBridge`: `tocarSomAoVivo`, `pararSomAoVivo`, `pararTodosOsSons`, `volumeDoSom`. Loop é estado: o bridge guarda os loops ativos e `reconciliarSons()` manda `som.tocar` a quem entra ou volta e `som.parar` a quem sai da cena. Efeito curto é evento.
-- "Só a cena atual" vira, no clique, a cena aberta no editor (o seletor mostra "Só a cena: Taverna"). A tela da mesa ignora som na v1.
+- "Só a cena atual" vira, no clique, a cena aberta no editor (o seletor mostra "Só a cena: Taverna").
+- **A tela da mesa (a TV) TAMBÉM TOCA** (decisão do usuário de 23/10, contra a recomendação de ignorar na v1): ela entra em "Todos" e em "Só a cena" quando estiver na cena, e não aparece em "Escolhidos" (que lista jogadores). A F4 e a F5 têm de cobrir a TV: confirmar como a tela da mesa se conecta (recorte `filterMapForGroup`, `hostSession.ts` ~4847; hoje ela ignora a dança, `playerConnection.ts` ~4056), instalar nela o motor e a faixinha, e tratar o autoplay sem gesto (a TV precisa de um toque inicial uma vez ou de um navegador com autoplay liberado). Avisar o mestre quando a TV ainda não destravou o áudio. Se isso exigir mexer no `hostSession.ts`, anunciar antes: é arquivo quente das camadas.
 - Sincronia: sem acerto de relógio; efeito curto toca quando chega (menos de 100 ms na LAN, 100 a 400 ms pelo túnel). Loop pego no meio começa em `deslocamentoS % duração`. Efeito curto esperando toque há mais de 2 s é descartado.
 - Jogador: `case 'som.*'` no `playerConnection` e `ouvirSons(listener)`; `player/sonsAoVivoDoJogador.ts` instalado em `player/main.tsx` ao lado de `:2321`.
 - Motor compartilhado em `lib/sons/aoVivo/motor.ts`: o mestre lê do disco (`lerAudioGuardado`), o jogador busca `fetch('/media/<id>')`. Cache em duas camadas (bytes e áudio decodificado): até 1 MB decodificado (corte total cerca de 150 MB no PC e 60 MB no celular); acima de 1 MB vira Blob tocado por `<audio>` ligado ao Web Audio (pular para o meio, porque `/media` não tem Range). Limites: 8 sons simultâneos, 3 loops, 2 YouTube; efeito curto acima do limite derruba o mais antigo, loop acima do limite é recusado no mestre com aviso. Saída própria `aoVivo` no `contexto.ts` sem o passa-baixa. Volume final = volume do efeito × volume do aparelho (`somStore`); Mudo zera o ganho sem parar o loop; Parar faz fade de 150 ms.
@@ -95,6 +96,7 @@ Medição da F6 antes do código (só leitura, sem commit): (a) o iframe no WebV
 - Política do YouTube: risco aceito pelo usuário. Na prática o erro mais comum é o 150 (vídeo ou região), que chega ao mestre por `som.falhou`.
 - Convivência com as camadas: nenhuma fatia edita arquivo quente. Se `LivroDaMesa.tsx` ou `keymap.ts` entrarem no escopo da fatia 6 das camadas, combinar a vez antes da F3.
 
-## Pendente de decisão do usuário
+## Decisões do usuário em 23/10
 
-- A tela da mesa (a TV) toca os sons? Na v1 ela ignora (como faz com a dança).
+- Plano aprovado; começar pela F1 em paralelo com as camadas.
+- A TV da mesa também toca os sons (ver seção 2).
