@@ -10,7 +10,8 @@ import { colar, emPng, escrever, novaTela } from './folhaDeContato.testkit'
  * FOLHA DE CONTATO da fatia MT5: as 5 peças novas do lote 2 como o APP as
  * desenha (a semente da chave, o material gravado ou o padrão): a sebe reta nas
  * duas folhas, curva para os dois lados e comprida, a jardineira em 3 madeiras
- * e esticada, o arco em 2 pares de madeira, a placa de seta em 2 madeiras e o
+ * e esticada, o arco em 2 pares de madeira e esticado (3 casas), a placa de
+ * seta em 3 madeiras e girada a 90° e 180° (a sombra fica para baixo à direita) e o
  * tapete longo em 3 comprimentos (3, 4 e 7 casas) e deitado. Cada quadro tem a
  * peça no nível 1 e no nível 3, no chão padrão do app (#a8776a), e embaixo o
  * tempo de gerar cada imagem (ms, nesta máquina e nesta rodada). A árvore
@@ -49,7 +50,10 @@ const QUADROS: readonly { readonly rotulo: string; readonly prop: Prop }[] = [
   { rotulo: 'JARDINEIRA 2 CASAS', prop: peca('jardineira', 2, 0.5, { mobiliaCor: MATERIAIS.velha.hex }) },
   { rotulo: 'ARCO NOGUEIRA+PINHO', prop: peca('arcoDoPortao', 2, 0.5) },
   { rotulo: 'ARCO VELHA', prop: peca('arcoDoPortao', 2, 0.5, { mobiliaCor: MATERIAIS.velha.hex, mobiliaCorDaLinha: MATERIAIS.velha.hex }) },
+  { rotulo: 'ARCO 3 CASAS', prop: peca('arcoDoPortao', 3, 0.5) },
   { rotulo: 'PLACA PINHO', prop: peca('placaDeSeta', 0.5, 0.5) },
+  { rotulo: 'PLACA PINHO GIRO 90', prop: peca('placaDeSeta', 0.5, 0.5, { rotation: 90 }) },
+  { rotulo: 'PLACA PINHO GIRO 180', prop: peca('placaDeSeta', 0.5, 0.5, { rotation: 180 }) },
   { rotulo: 'PLACA NOGUEIRA', prop: peca('placaDeSeta', 0.5, 0.5, { mobiliaCor: MATERIAIS.nogueira.hex }) },
   { rotulo: 'PLACA VELHA', prop: peca('placaDeSeta', 0.5, 0.5, { mobiliaCor: MATERIAIS.velha.hex }) },
   { rotulo: 'TAPETE LONGO 1X3', prop: peca('tapeteLongo', 1, 3) },
@@ -68,7 +72,7 @@ function emMs(ms: number): string {
   return ms.toFixed(1).replace('.', ',')
 }
 
-it.skipIf(!PEDIDA)('gera a folha de contato das 5 peças do lote 2 (16 quadros), cada uma a 1x e a 3x com o tempo embaixo', () => {
+it.skipIf(!PEDIDA)('gera a folha de contato das 5 peças do lote 2 (19 quadros), cada uma a 1x e a 3x com o tempo embaixo', () => {
   const quadros = QUADROS.map(({ rotulo, prop }) => {
     const imagens = NIVEIS.map((nivel) => {
       const d = desenhoDoApp(prop, nivel)
@@ -105,6 +109,6 @@ it.skipIf(!PEDIDA)('gera a folha de contato das 5 peças do lote 2 (16 quadros),
   }
   const png = emPng(tela)
   writeFileSync(DESTINO, png)
-  expect(quadros).toHaveLength(16)
+  expect(quadros).toHaveLength(19)
   expect(png.length).toBeGreaterThan(0)
 })

@@ -16,8 +16,7 @@ import { criarMovel } from '../src/lib/mobilia'
 import { createExploration, encodeExploration } from '../src/lib/exploration'
 import { serializeMap } from '../src/lib/mapFile'
 import { MATERIAIS } from '../src/texturas/meioTermo/materiais'
-import type { MapData, RegionPoint } from '../src/types/map'
-import type { DesenhoDoMovel } from '../src/texturas/meioTermo/moveis'
+import type { MapData, Prop, RegionPoint } from '../src/types/map'
 import { abrirAventuraDeMentira } from './helpers/mestreDeMentira'
 
 const GRADE = 64
@@ -178,27 +177,36 @@ test('com ?obra=meio-termo a mesa antiga muda (controle positivo) e as peças do
 const TETO_DA_IMAGEM_MS = 50
 const TETO_DA_FRIA_MS = TETO_DA_IMAGEM_MS * 2
 const MORNAS = 5
-const BASE = { lado: 'frente', semente: 7 } as const
-const CASOS: readonly [string, DesenhoDoMovel][] = [
-  ['sebe', { ...BASE, tipo: 'sebe', materiais: ['buxo'], casasW: 2, casasH: 0.5 }],
-  ['sebe curva de 4 casas', { ...BASE, tipo: 'sebe', materiais: ['alfeneiro'], casasW: 4, casasH: 0.5, curva: 90 }],
-  ['jardineira', { ...BASE, tipo: 'jardineira', materiais: ['nogueira'], casasW: 1, casasH: 0.5 }],
-  ['arco do portão', { ...BASE, tipo: 'arcoDoPortao', materiais: ['nogueira', 'pinho'], casasW: 2, casasH: 0.5 }],
-  ['placa de seta', { ...BASE, tipo: 'placaDeSeta', materiais: ['pinho'], casasW: 0.5, casasH: 0.5 }],
-  ['tapete longo', { ...BASE, tipo: 'tapeteLongo', materiais: ['vinho'], casasW: 1, casasH: 4 }],
+/** A grade de referência do desenho (50 px por casa): o objeto no tamanho padrão dá a pegada padrão. */
+const GRADE_DE_REFERENCIA = 50
+/**
+ * Cada caso é o OBJETO como o app o cria; o desenho (com a semente da chave,
+ * não uma semente fixa) sai de `chaveDoMovel` dentro da página, como no app.
+ */
+const CASOS: readonly [string, Prop][] = [
+  ['sebe', criarMovel('sebe', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-sebe')],
+  ['sebe curva de 4 casas', { ...criarMovel('sebe', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-sebe-curva'), width: 4 * GRADE_DE_REFERENCIA, mobiliaCurva: 90, mobiliaCor: MATERIAIS.alfeneiro.hex }],
+  ['jardineira', criarMovel('jardineira', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-jardineira')],
+  ['arco do portão', criarMovel('arcoDoPortao', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-arco')],
+  ['placa de seta girada 90', { ...criarMovel('placaDeSeta', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-placa'), rotation: 90 }],
+  ['tapete longo', criarMovel('tapeteLongo', { x: 0, y: 0 }, GRADE_DE_REFERENCIA, 't-tapete-longo')],
 ]
 
 test('tempo no Chromium a 3x: cada peça do lote 2 como a PRIMEIRA imagem de uma página nova (motor frio) e a mediana morna', async ({ browser }) => {
   test.setTimeout(240_000)
   const tempos: { nome: string; fria: number; morna: number }[] = []
-  for (const [nome, desenho] of CASOS) {
+  for (const [nome, prop] of CASOS) {
     const page = await browser.newPage()
     await page.goto('/player.html')
     tempos.push({
       nome,
       ...(await page.evaluate(
-        async ({ caminho, d, mornasPedidas }) => {
+        async ({ caminho, caminhoDaChave, movel, mornasPedidas }) => {
           const m = (await import(/* @vite-ignore */ caminho)) as typeof import('../src/texturas/meioTermo/moveis') // cast seguro: o caminho é este mesmo módulo servido pelo Vite, e import por string não traz tipo
+          const r = (await import(/* @vite-ignore */ caminhoDaChave)) as typeof import('../src/pixi/rasterDosMoveis') // cast seguro: idem, o módulo da chave da imagem
+          const chave = r.chaveDoMovel(movel, 3, 1)
+          if (chave === null) throw new Error(`${movel.mobilia}: sem desenho com textura`)
+          const d = chave.desenho
           const medir = (): number => {
             const t0 = performance.now()
             m.pintarMovel(d, m.escalaDoNivel(3))
@@ -208,7 +216,7 @@ test('tempo no Chromium a 3x: cada peça do lote 2 como a PRIMEIRA imagem de uma
           const mornas = Array.from({ length: mornasPedidas }, medir).sort((a, b) => a - b)
           return { fria, morna: mornas[Math.floor(mornasPedidas / 2)] }
         },
-        { caminho: '/src/texturas/meioTermo/moveis/index.ts', d: desenho, mornasPedidas: MORNAS },
+        { caminho: '/src/texturas/meioTermo/moveis/index.ts', caminhoDaChave: '/src/pixi/rasterDosMoveis.ts', movel: prop, mornasPedidas: MORNAS },
       )),
     })
     await page.close()

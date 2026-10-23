@@ -23,7 +23,7 @@
 import { geometriaDaCerca } from '../../../lib/mobilia'
 import { hash, rgb } from '../../ruido'
 import type { StairArc } from '../../../lib/stairCurve'
-import { dentroDe, elipse, type Forma, type Ponto } from './formas'
+import { elipse, type Forma, type Ponto } from './formas'
 import { contato, PISO_DA_FOLHA, texFolhagem, type MaterialDaPeca } from './motor'
 import type { MontarMovel } from './contexto'
 
@@ -122,6 +122,27 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: O
   }
 }
 
+/** Além desta distância (px do protótipo) fora da copa, o pixel nunca pinta: o recorte não precisa da massa. */
+const LONGE_DA_COPA = 1.5
+
+/**
+ * A copa recortada pela massa (o `dentroDe` de `formas.ts`), sem ler a massa
+ * no pixel que já está longe da copa: o resultado é o mesmo (fora continua
+ * fora) e a sebe curva de 4 casas não paga o arco da massa no canto vazio da
+ * caixa de cada copa.
+ */
+function recortadaPelaMassa(copa: Forma, massa: Forma): Forma {
+  return {
+    b: [Math.max(copa.b[0], massa.b[0]), Math.max(copa.b[1], massa.b[1]), Math.min(copa.b[2], massa.b[2]), Math.min(copa.b[3], massa.b[3])],
+    d(x, y) {
+      const daCopa = copa.d(x, y)
+      if (daCopa > LONGE_DA_COPA) return daCopa
+      const daMassa = massa.d(x, y)
+      return daCopa > daMassa ? daCopa : daMassa
+    },
+  }
+}
+
 interface Copa {
   readonly x: number
   readonly y: number
@@ -180,12 +201,12 @@ export const montarSebe: MontarMovel = (c, cena) => {
   L.push(P(massa, folhas, { textura: texFolhagem, bisel: 0, contorno: CONTORNO_DA_MASSA, tom: TOM_DA_MASSA, semente: 30 }))
   for (const copa of copas) {
     const r = copa.r * COPA
-    L.push(P(dentroDe(elipse(copa.x - PUXA_X * copa.r, copa.y - PUXA_Y * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: 1, semente: 40 + copa.i }))
+    L.push(P(recortadaPelaMassa(elipse(copa.x - PUXA_X * copa.r, copa.y - PUXA_Y * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: 1, semente: 40 + copa.i }))
   }
   for (const copa of copas) {
     if (hash(copa.i, sorteio, 19) >= COM_REALCE) continue
     const r = copa.r * REALCE
-    L.push(P(dentroDe(elipse(copa.x - 0.36 * copa.r, copa.y - 0.4 * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: TOM_DO_REALCE, semente: 60 + copa.i }))
+    L.push(P(recortadaPelaMassa(elipse(copa.x - 0.36 * copa.r, copa.y - 0.4 * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: TOM_DO_REALCE, semente: 60 + copa.i }))
   }
   for (const copa of copas) {
     if (hash(copa.i, sorteio, 21) >= 0.3) continue
