@@ -399,6 +399,8 @@ function avisoDaTextura(resultado: ResultadoDaTextura): string | null {
       return AVISO_TEXTURA_BALDE_IGUAL
     case 'textura-ausente':
       return AVISO_TEXTURA_AUSENTE
+    // A store já avisou qual camada segurou, com "Destravar".
+    case 'camada-travada':
     case 'pintou':
       return null
   }
@@ -413,6 +415,8 @@ function avisoDoCarimbo(resultado: ResultadoDoCarimbo): string | null {
       return AVISO_CARIMBO_AUSENTE
     case 'teto':
       return AVISO_CARIMBO_TETO
+    // A store já avisou qual camada segurou, com "Destravar".
+    case 'camada-travada':
     case 'carimbou':
     case 'apagou':
       return null

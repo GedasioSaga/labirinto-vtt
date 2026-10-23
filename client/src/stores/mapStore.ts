@@ -75,6 +75,9 @@ import {
 } from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
+import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
+import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
+import type { CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer, visibleRegions, visibleDrawings } from '../lib/layers'
@@ -1782,6 +1785,27 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     if (corte.salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
   }
 
+  /**
+   * CADEADO DA CAMADA (fase 3, fatia 5): o gesto que cria, mexe ou apaga item
+   * de camada travada para aqui — nada muda, nada entra no Ctrl+Z — e o
+   * mestre ouve qual camada segurou, com "Destravar" (um aviso por camada).
+   * A pergunta vai ao ponto único (`lib/camadas/trava.ts`).
+   */
+  const barradoPelaCamada = (travadas: readonly CamadaId[]): boolean => {
+    for (const camada of travadas) avisarCamadaTravada(camada)
+    return travadas.length > 0
+  }
+  const pinoBarrado = (id: string): boolean => {
+    const { map } = get()
+    const pin = map.pins.find((p) => p.id === id)
+    return pin !== undefined && barradoPelaCamada(camadasTravadasDosItens(map, 'pino', [pin]))
+  }
+  /** Pinceladas de textura, penhascos e relevo moram presos em Terreno, sem camada por item. */
+  const terrenoBarrado = (): boolean => {
+    const travada = camadaTravada(get().map, 'terreno')
+    return barradoPelaCamada(travada === null ? [] : [travada])
+  }
+
   /** Gesto do pincel/balde numa camada: recusa vira aviso; o que não mudou o
    *  mapa não gasta Ctrl+Z (arrastar a borracha por onde não havia chão). */
   const aplicarNaCamada = (resultado: ResultadoNaCamada) => {
@@ -2140,11 +2164,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => mapFactory.setFloorStyle(map, patch), chaveDeArrastoDeCor('floor-style', patch, ['fillColor', 'strokeColor'])),
     addMapDetails: (lines, markers) => {
       if (lines.length === 0 && markers.length === 0) return
-      withHistory((map) => mapFactory.addMapDetails(map, lines, markers))
+      const { map } = get()
+      // Linhas em Paredes, marcadores em Portas: a camada travada recusa o passo inteiro (é um gesto só).
+      if (barradoPelaCamada([...camadasTravadasDosItens(map, 'linha', lines), ...camadasTravadasDosItens(map, 'marcador', markers)])) return
+      withHistory((current) => mapFactory.addMapDetails(current, lines, markers))
     },
     setMapFrame: (frame) => withHistory((map) => mapFactory.setMapFrame(map, frame)),
-    applyMinimapTrace: (pieces, lines, markers, style) =>
-      withHistory((map) => mapFactory.applyMinimapTrace(map, pieces, lines, markers, style)),
+    applyMinimapTrace: (pieces, lines, markers, style) => {
+      const { map } = get()
+      const travadas = [
+        ...camadasTravadasDosItens(map, 'peca', pieces),
+        ...camadasTravadasDosItens(map, 'linha', lines),
+        ...camadasTravadasDosItens(map, 'marcador', markers),
+      ]
+      if (barradoPelaCamada([...new Set(travadas)])) return
+      withHistory((current) => mapFactory.applyMinimapTrace(current, pieces, lines, markers, style))
+    },
     addRegion: (region) => withHistory((map) => mapFactory.addRegion(map, region)),
     removeRegion: (id) => withHistory((map) => mapFactory.removeRegion(map, id)),
     addRoom: (region, walls) => withHistory((map) => mapFactory.addRoom(map, region, walls)),
@@ -2593,7 +2628,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),
     setPinKind: (kind) => set({ pinKind: kind }),
     setPinIcon: (icon) => set({ pinIcon: icon }),
-    addPin: (pin) => withHistory((map) => mapFactory.addPin(map, pin)),
+    addPin: (pin) => {
+      if (barradoPelaCamada(camadasTravadasDosItens(get().map, 'pino', [pin]))) return
+      withHistory((map) => mapFactory.addPin(map, pin))
+    },
     replacePins: (pins) => {
       if (get().map.pins === pins) return
       withHistory((map) => ({ ...map, pins }))
@@ -2604,15 +2642,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
+      if (pinoBarrado(id)) return
       withHistory((map) => mapFactory.updatePin(map, id, patch), chaveDoArrastoDoPino(id, patch))
     },
     pullLever: (pinId) => {
       if (pullLever(get().map, pinId) === get().map) return
       withHistory((map) => pullLever(map, pinId))
     },
-    movePinLive: (id, x, y) => set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) })),
+    movePinLive: (id, x, y) => {
+      if (pinoBarrado(id)) return
+      set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) }))
+    },
     removePin: (id) => {
       if (mapFactory.removePin(get().map, id) === get().map) return
+      if (pinoBarrado(id)) return
       withHistory((map) => mapFactory.removePin(map, id))
       if (get().selectedPinId === id) set({ selectedPinId: null })
     },
@@ -2702,6 +2745,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       return resultado
     },
     pintarTextura: (pincelada) => {
+      if (terrenoBarrado()) return 'camada-travada'
       const { map, pisoAtivo } = get()
       if (pincelada.tipo === 'pincel' && !texturaNaCena(map, pincelada.textura)) {
         set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
@@ -2719,6 +2763,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       return resultado
     },
     encherComTextura: (ponto) => {
+      if (terrenoBarrado()) return 'camada-travada'
       const { map, texturaEscolhida, texturaForca, pisoAtivo } = get()
       // Importada de outra cena (ou desfeita), textura de um pacote que saiu: o passo seria órfão — gravado e invisível.
       if (!texturaNaCena(map, texturaEscolhida)) {
@@ -2749,12 +2794,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // PISOS: "todas" as que a tela mostra, as do piso em edição; as dos outros pisos ficam.
       const { map, pisoAtivo } = get()
       if ((mapaDoPiso(map, pisoAtivo).texturas ?? []).length === 0) return
+      if (terrenoBarrado()) return
       withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], [], pisoAtivo)))
     },
     carimbar: (novos) => {
       const { map } = get()
       const tipo = novos[0]?.tipo
       if (tipo === undefined) return 'carimbou'
+      if (barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', novos))) return 'camada-travada'
       // Importado de outra cena (ou desfeito), carimbo de um pacote que saiu: o objeto seria órfão — gravado e invisível.
       if (novos.some((c) => !carimboNaCena(map, c.tipo))) {
         set({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
@@ -2771,7 +2818,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const antes = mapaDoPiso(map, pisoAtivo).carimbos
       const sai = idsDebaixoDaBorracha(antes, caminho, raio)
       if (antes === undefined || sai.size === 0) return 'nada-a-apagar'
-      withHistory((m) => comCarimbos(m, (m.carimbos ?? []).filter((c) => !sai.has(c.id))))
+      // O de camada travada fica onde está (e avisa); o livre ao lado sai.
+      const presos = antes.filter((c) => sai.has(c.id) && camadaTravadaDoItem(map, 'carimbo', c) !== null)
+      barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', presos))
+      if (presos.length === sai.size) return 'camada-travada'
+      const ficam = new Set(presos.map((c) => c.id))
+      withHistory((m) => comCarimbos(m, (m.carimbos ?? []).filter((c) => !sai.has(c.id) || ficam.has(c.id))))
       return 'apagou'
     },
     importarCarimbo: (nome, imagem) => {
@@ -2787,8 +2839,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     apagarTodosOsCarimbos: () => {
       const { map, pisoAtivo } = get()
-      if ((mapaDoPiso(map, pisoAtivo).carimbos ?? []).length === 0) return
-      withHistory((m) => comCarimbos(m, comListaDoPiso(m.carimbos ?? [], [], pisoAtivo)))
+      const doPiso = mapaDoPiso(map, pisoAtivo).carimbos ?? []
+      if (doPiso.length === 0) return
+      // Os de camada travada ficam (e avisam); sem nenhum livre, nada muda.
+      const presos = doPiso.filter((c) => camadaTravadaDoItem(map, 'carimbo', c) !== null)
+      barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', presos))
+      if (presos.length === doPiso.length) return
+      withHistory((m) => comCarimbos(m, comListaDoPiso(m.carimbos ?? [], presos, pisoAtivo)))
     },
     apagarTodosOsPenhascos: () => {
       const { map, pisoAtivo } = get()

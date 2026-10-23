@@ -67,6 +67,8 @@ export type ResultadoDaTextura =
   | 'igual'
   /** A textura escolhida não existe nesta cena (importada de outra cena ou desfeita, pacote que saiu): nada gravado. */
   | 'textura-ausente'
+  /** A camada Terreno está travada: nada gravado; a store já avisou com "Destravar". */
+  | 'camada-travada'
 
 // ---------------------------------------------------------------------------
 // Ids

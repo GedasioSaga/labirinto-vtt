@@ -30,6 +30,8 @@ export type ResultadoDoCarimbo =
   | 'tipo-ausente'
   /** A cena chegou ao teto (`TETO_DE_CARIMBOS`): entrou só o que cabia. */
   | 'teto'
+  /** A camada do objeto está travada: nada mudou; a store já avisou com "Destravar". */
+  | 'camada-travada'
 
 /** Tamanho do objeto, em % do tamanho natural dele no mapa (`tamanhoNatural`). */
 export const TAMANHO_DO_CARIMBO_MIN = 40
