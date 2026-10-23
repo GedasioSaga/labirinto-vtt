@@ -198,16 +198,33 @@ describe('TOOL_VARIANTS', () => {
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
   })
 
-  it('Objetos oferece os 11 móveis na ordem do catálogo, com o nome que o mestre lê', () => {
+  it('Objetos oferece os 11 móveis e as 9 peças novas da MT4 na ordem do catálogo, com o nome que o mestre lê', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     expect(entry.groups).toHaveLength(1)
     const [grupo] = entry.groups
     expect(grupo.storeKey).toBe('mobiliaTipo')
     expect(grupo.label).toBe('Objeto')
-    expect(grupo.options.map((o) => o.value)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
-    expect(grupo.options.map((o) => o.label)).toEqual(['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete'])
+    expect(grupo.options.map((o) => o.value)).toEqual([
+      'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
+      'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+    ])
+    expect(grupo.options.map((o) => o.label)).toEqual([
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete',
+      'Mesa quadrada', 'Mesa redonda', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça',
+    ])
     expect(grupo.options[3].description).toBe('Clique no mapa para pôr uma cama.')
+    expect(grupo.options.slice(11).map((o) => o.description)).toEqual([
+      'Clique no mapa para pôr uma mesa quadrada.',
+      'Clique no mapa para pôr uma mesa redonda.',
+      'Clique no mapa para pôr uma lápide.',
+      'Clique no mapa para pôr um vaso de planta.',
+      'Clique no mapa para pôr um lampião.',
+      'Clique no mapa para pôr um quadro de avisos.',
+      'Clique no mapa para pôr um poço.',
+      'Clique no mapa para pôr uma barraca de feira.',
+      'Clique no mapa para pôr uma carroça.',
+    ])
   })
 
   it('a escolha de Objetos ecoa na barra só com a ferramenta Objetos', () => {

@@ -86,9 +86,11 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
 /**
  * As peças novas PRONTAS: desenho com textura feito e medido. Só elas entram
  * na setinha e no seletor de tipo; a que não está aqui ainda abre de um
- * arquivo (o tipo existe), mas o painel não a oferece.
+ * arquivo (o tipo existe), mas o painel não a oferece. As 9 do lote 1 passaram
+ * nos testes de pixel (`moveisMt4.test.ts`) e na semente do app com a
+ * varredura das 1000 (`pixi/rasterDosMoveis.sementesMt4.test.ts`).
  */
-export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = []
+export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
 
 /** O catálogo do painel de Objetos: os 11 de antes, na ordem de sempre, e as peças novas prontas. */
 export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [...TIPOS_MOBILIA.filter((tipo) => !ehPecaNova(tipo)), ...PECAS_NOVAS_PRONTAS]
