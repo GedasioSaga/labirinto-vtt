@@ -252,8 +252,21 @@ async function registro(page: Page): Promise<RegistroDaAba> {
   })
 }
 
+/** A cor computada de um token do tema (`rgb(...)`), para comparar com a cor que o CSS deu a um elemento. */
+async function corDoToken(page: Page, token: string): Promise<string> {
+  return page.evaluate((nome) => {
+    const sonda = document.createElement('span')
+    sonda.style.color = `var(${nome})`
+    document.body.appendChild(sonda)
+    const cor = getComputedStyle(sonda).color
+    sonda.remove()
+    return cor
+  }, token)
+}
+
 async function importarEco(page: Page): Promise<void> {
-  await paginaSons(page).locator('input[type="file"][aria-label="Arquivo de som"]').setInputFiles({ name: 'eco da caverna.wav', mimeType: 'audio/wav', buffer: BufferDoNode.from(wavDeVerdade(0.6)) })
+  // 2,5 s: dura o bastante para conferir o estado "tocando" antes de o som acabar.
+  await paginaSons(page).locator('input[type="file"][aria-label="Arquivo de som"]').setInputFiles({ name: 'eco da caverna.wav', mimeType: 'audio/wav', buffer: BufferDoNode.from(wavDeVerdade(2.5)) })
   await expect(paginaSons(page).getByRole('button', { name: 'eco da caverna', exact: true })).toBeVisible({ timeout: ESPERA })
 }
 
@@ -264,11 +277,19 @@ test('aba Sons: importa um WAV, o clique toca e mostra a barra; a tecla 3 toca c
   expect((await registro(page)).fontes).toBe(0)
   // O áudio importado vai para a pasta de mídia DA AVENTURA (é o que viaja com ela), e o pé conta.
   await expect(paginaSons(page).getByText('Mídia da aventura: menos de 0,1 MB')).toBeVisible({ timeout: ESPERA })
+  // Parado, o selo sem tecla não parece um segundo botão ao lado do lápis: sem borda (tocando, ele acende).
+  expect(await paginaSons(page).locator('.lb-efeito__selo--vazio').evaluate((no) => getComputedStyle(no).borderTopColor)).toBe('rgba(0, 0, 0, 0)')
 
   await paginaSons(page).getByRole('button', { name: 'eco da caverna', exact: true }).click()
   await expect.poll(async () => (await registro(page)).fontes, { timeout: ESPERA }).toBe(1)
   await expect(paginaSons(page).locator('.lb-efeito__barra')).toBeAttached()
   expect((await registro(page)).pulsos).toBe(1)
+  // O cartão tocando se destaca do parado (WCAG 1.4.11, 3:1): borda e anel de latão.
+  // (Espera a transição de cor assentar: lida no meio, a borda ainda é a mistura das duas.)
+  const latao = await corDoToken(page, '--lb-color-brass')
+  const cartaoTocando = paginaSons(page).locator('.lb-efeito--tocando .lb-efeito__tocar')
+  await expect.poll(() => cartaoTocando.evaluate((no) => getComputedStyle(no).borderTopColor), { timeout: ESPERA }).toBe(latao)
+  expect(await cartaoTocando.evaluate((no) => getComputedStyle(no).boxShadow)).toContain(latao)
   if (PROVAS !== null) await page.screenshot({ path: `${PROVAS}/aba-sons-1280-um-som.png` })
 
   // Dá a tecla 3 pelo lápis e fecha a aba (vai às Cenas): a tecla vale com a página Sons fora da vista.
@@ -306,9 +327,17 @@ test('movimento reduzido, no celular (390): o selo não pulsa e o som toca do me
   await abrirOEditor(page)
   await abrirAbaSons(page)
   await importarEco(page)
-  await paginaSons(page).getByRole('button', { name: 'eco da caverna', exact: true }).click()
+  // Vira loop pelo lápis: com movimento reduzido a barra do loop fica parada e cheia (a varredura sem fim some).
+  await paginaSons(page).getByRole('button', { name: 'Editar eco da caverna' }).click()
+  const lapis = page.getByRole('dialog', { name: 'Editar som' })
+  await lapis.getByRole('switch', { name: /Repetir até parar/ }).click()
+  await lapis.getByRole('button', { name: 'Pronto' }).click()
+  await expect(lapis).toBeHidden()
+  await paginaSons(page).getByRole('button', { name: /^eco da caverna, repete/ }).click()
   await expect.poll(async () => (await registro(page)).fontes, { timeout: ESPERA }).toBe(1)
   expect((await registro(page)).pulsos).toBe(0)
+  const barra = await paginaSons(page).locator('.lb-efeito__barra--loop').evaluate((no) => ({ animacao: getComputedStyle(no).animationName, transformacao: getComputedStyle(no).transform }))
+  expect(barra).toEqual({ animacao: 'none', transformacao: 'matrix(1, 0, 0, 1, 0, 0)' })
   if (PROVAS !== null) await page.screenshot({ path: `${PROVAS}/aba-sons-390-um-som.png` })
 })
 
@@ -320,13 +349,34 @@ for (const largura of [390, 1280, 1920] as const) {
     await expect(paginaSons(page).locator('.lb-efeito')).toHaveCount(200, { timeout: ESPERA })
     if (PROVAS !== null && largura !== 1920) await page.screenshot({ path: `${PROVAS}/aba-sons-${largura}-muitos.png` })
 
+    // As pastas numa fileira só que rola de lado (50 pastas não empilham 25 linhas antes do 1º som),
+    // e o foco no chip leva o chip para a vista.
+    const fileira = paginaSons(page).locator('.lb-sons__pastas')
+    expect(await fileira.evaluate((no) => getComputedStyle(no).flexWrap)).toBe('nowrap')
+    expect(new Set(await paginaSons(page).locator('.lb-sons__chip').evaluateAll((chips) => chips.map((chip) => Math.round(chip.getBoundingClientRect().top)))).size).toBe(1)
+    await fileira.evaluate((no) => no.scrollTo({ left: no.scrollWidth }))
+    const ativo = paginaSons(page).locator('.lb-sons__chip[aria-checked="true"]')
+    await ativo.focus()
+    const vista = await fileira.evaluate((no) => {
+      const caixa = no.getBoundingClientRect()
+      const chip = no.querySelector('[aria-checked="true"]')?.getBoundingClientRect()
+      return chip !== undefined && chip.left >= caixa.left - 0.5 && chip.right <= caixa.right + 0.5
+    })
+    expect(vista, 'o chip focado fica à vista na fileira').toBe(true)
+    if (largura === 1280) {
+      // O chip ativo não perde o latão sob o mouse.
+      await ativo.hover()
+      expect(await ativo.evaluate((no) => getComputedStyle(no).color)).toBe(await corDoToken(page, '--lb-color-brass-bright'))
+    }
+
     const medida = await page.evaluate(() => {
       // A página do livro da MESA (o livro do mestre, à esquerda, também tem uma `.gr-pagina`).
       const pagina = document.querySelector('[data-pagina="sons"]')?.closest('.gr-pagina')?.getBoundingClientRect()
       const rolo = document.querySelector('[data-pagina="sons"] .gr-folha__rolo')
       if (pagina === undefined || !(rolo instanceof HTMLElement)) throw new Error('sem a página Sons')
       const fora: string[] = []
-      for (const no of document.querySelectorAll<HTMLElement>('.lb-efeito, .lb-sons__chip')) {
+      // A fileira de pastas rola de lado DENTRO dela: quem precisa caber na página é a fileira, não cada chip.
+      for (const no of document.querySelectorAll<HTMLElement>('.lb-efeito, .lb-sons__pastas')) {
         const r = no.getBoundingClientRect()
         if (r.left < pagina.left - 0.5 || r.right > pagina.right + 0.5) fora.push(`${no.className} ${Math.round(r.left)}-${Math.round(r.right)}`)
       }

@@ -358,7 +358,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
                 if (no === null) selos.current.delete(efeito.id)
                 else selos.current.set(efeito.id, no)
               }}
-              onTocar={() => tocar(efeito, true)}
+              onTocar={(peloClique) => tocar(efeito, peloClique)}
               onEditar={() => setEditando(efeito.id)}
             />
           ))}
@@ -387,6 +387,38 @@ function efeitosDoFiltro(biblioteca: BibliotecaDeSons, filtro: Filtro): EfeitoDe
   return ordenados
 }
 
+/** Uma linha da roda do mouse (deltaMode 1, o Firefox) em px. */
+const PX_POR_LINHA_DA_RODA = 16
+
+/**
+ * A fileira de pastas rola de lado; o mouse comum só tem a roda vertical. Ela
+ * vira rolagem de lado enquanto a fileira tem para onde ir; no fim (ou com
+ * gesto de lado do trackpad) a página rola como sempre. Devolve o desligar.
+ */
+function rodaDoMouseRolaDeLado(fileira: HTMLElement | null): (() => void) | undefined {
+  if (fileira === null) return undefined
+  const rolar = (evento: WheelEvent) => {
+    if (Math.abs(evento.deltaY) <= Math.abs(evento.deltaX)) return
+    const passo = evento.deltaMode === 1 ? evento.deltaY * PX_POR_LINHA_DA_RODA : evento.deltaY
+    const maximo = fileira.scrollWidth - fileira.clientWidth
+    const temParaOndeIr = passo < 0 ? fileira.scrollLeft > 0 : fileira.scrollLeft < maximo
+    if (maximo <= 0 || !temParaOndeIr) return
+    evento.preventDefault()
+    fileira.scrollLeft = Math.min(maximo, Math.max(0, fileira.scrollLeft + passo))
+  }
+  fileira.addEventListener('wheel', rolar, { passive: false })
+  return () => fileira.removeEventListener('wheel', rolar)
+}
+
+/**
+ * O chip focado (Tab ou setas) fica inteiro à vista na fileira: o foco do
+ * navegador só rola quando o chip está todo fora, e meio chip cortado pelo
+ * esmaecido some do olho. Sem animação: é ação de teclado.
+ */
+function trazerParaAVista(chip: HTMLElement): void {
+  if (typeof chip.scrollIntoView === 'function') chip.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+
 function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { biblioteca: BibliotecaDeSons; favoritos: number; filtro: Filtro; onFiltro: (filtro: Filtro) => void }) {
   const pastas = [...biblioteca.pastas].sort((a, b) => a.ordem - b.ordem)
   const opcoes: { chave: string; filtro: Filtro; rotulo: string; conta: number; estrela?: boolean }[] = [
@@ -395,12 +427,14 @@ function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { bibliotec
     ...pastas.map((pasta) => ({ chave: pasta.id, filtro: { tipo: 'pasta', id: pasta.id } as const, rotulo: pasta.nome, conta: biblioteca.efeitos.filter((efeito) => efeito.pastaId === pasta.id).length })),
   ]
   const ehAtual = (opcao: Filtro) => opcao.tipo === filtro.tipo && (opcao.tipo !== 'pasta' || (filtro.tipo === 'pasta' && filtro.id === opcao.id))
+  const fileira = useRef<HTMLDivElement>(null)
+  useEffect(() => rodaDoMouseRolaDeLado(fileira.current), [])
   return (
-    <div className="lb-sons__pastas" role="radiogroup" aria-label="Mostrar sons" onKeyDown={(evento: EventoDeTecla<HTMLElement>) => andarPelosRadios(evento)}>
+    <div ref={fileira} className="lb-sons__pastas" role="radiogroup" aria-label="Mostrar sons" onKeyDown={(evento: EventoDeTecla<HTMLElement>) => andarPelosRadios(evento)}>
       {opcoes.map((opcao) => {
         const atual = ehAtual(opcao.filtro)
         return (
-          <button key={opcao.chave} type="button" role="radio" aria-checked={atual} tabIndex={atual ? 0 : -1} className="gr-chip lb-sons__chip" title={opcao.rotulo} onClick={() => onFiltro(opcao.filtro)}>
+          <button key={opcao.chave} type="button" role="radio" aria-checked={atual} tabIndex={atual ? 0 : -1} className="gr-chip lb-sons__chip" title={opcao.rotulo} onClick={() => onFiltro(opcao.filtro)} onFocus={(evento) => trazerParaAVista(evento.currentTarget)}>
             {opcao.estrela === true && <IconeDoLivro nome="estrela" />}
             <span className="lb-sons__chip-nome" dir="auto">
               {opcao.rotulo}
@@ -475,7 +509,8 @@ function BotaoDeSom({
   efeito: EfeitoDeSom
   toque: Toque | undefined
   guardarSelo: (no: HTMLElement | null) => void
-  onTocar: () => void
+  /** `peloClique`: clique de ponteiro (detail > 0). Enter e Espaço no botão focado chegam com detail 0 e não pulsam. */
+  onTocar: (peloClique: boolean) => void
   onEditar: () => void
 }) {
   const tocando = toque !== undefined
@@ -488,7 +523,7 @@ function BotaoDeSom({
         aria-pressed={efeito.loop ? tocando : undefined}
         aria-keyshortcuts={efeito.atalho === undefined ? undefined : String(efeito.atalho)}
         title={efeito.nome}
-        onClick={onTocar}
+        onClick={(evento) => onTocar(evento.detail > 0)}
       >
         <span className="lb-efeito__cabeca" aria-hidden="true">
           <span className={classes('lb-efeito__selo', efeito.atalho === undefined && 'lb-efeito__selo--vazio')} ref={guardarSelo}>
@@ -503,12 +538,19 @@ function BotaoDeSom({
         <span className="lb-efeito__nome" dir="auto">
           {efeito.nome}
         </span>
-        {efeito.loop && (
-          <span className="lb-efeito__loop" aria-hidden="true">
-            <IconeRepetir />
-            repete
-          </span>
-        )}
+        {/* O loop tocando diz o que o clique faz agora: para. */}
+        {efeito.loop &&
+          (tocando ? (
+            <span className="lb-efeito__loop lb-efeito__loop--parar" aria-hidden="true">
+              <IconeParar />
+              parar
+            </span>
+          ) : (
+            <span className="lb-efeito__loop" aria-hidden="true">
+              <IconeRepetir />
+              repete
+            </span>
+          ))}
         <span className="lb-efeito__trilho" aria-hidden="true">
           {toque !== undefined && toque.duracaoS > 0 && (
             <span

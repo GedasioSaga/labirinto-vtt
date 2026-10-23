@@ -60,8 +60,22 @@
 .lb-sons__nota--erro { color: var(--lb-color-ember); }
 
 /* ---------------------------------------------------------------- pastas e favoritos */
-.lb-sons__pastas { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 0; min-width: 0; }
-.lb-sons__chip { max-width: 100%; min-width: 0; }
+/* Uma fileira só, que rola de lado: 50 pastas não empilham 25 linhas de chips antes do 1º som.
+ * A borda direita esmaece para dizer que há mais; o espaço do fim deixa o último chip sair do esmaecido.
+ * O respiro de baixo é do anel de foco (a rolagem de lado também corta em cima e embaixo). */
+.lb-sons__pastas {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 12px 16px 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 88%, transparent);
+}
+.lb-sons__pastas::-webkit-scrollbar { display: none; }
+.lb-sons__pastas::after { content: ''; flex: none; width: 24px; }
+.lb-sons__chip { flex: none; max-width: 160px; min-width: 0; }
 .lb-sons__chip .gr-ic { width: 13px; height: 13px; flex: none; }
 .lb-sons__chip-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-sons__chip small { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
@@ -113,10 +127,16 @@
   transition:
     background-color var(--lb-motion-fast) ease,
     border-color var(--lb-motion-fast) ease,
+    box-shadow var(--lb-motion-fast) ease,
     transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
 .lb-efeito__tocar:active { transform: scale(0.97); }
-.lb-efeito--tocando .lb-efeito__tocar { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-latao); }
+/* Tocando: borda e anel de latão (7,1:1 sobre o cartão alto; o filete dava 1,7:1, abaixo dos 3:1 do WCAG 1.4.11). */
+.lb-efeito--tocando .lb-efeito__tocar {
+  background: var(--lb-gr-cartao-alto);
+  border-color: var(--lb-color-brass);
+  box-shadow: var(--lb-shadow-bevel), inset 0 0 0 1px var(--lb-color-brass);
+}
 
 .lb-efeito__cabeca { display: flex; align-items: center; gap: 6px; min-height: 24px; }
 
@@ -136,7 +156,8 @@
   transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
 }
 .lb-efeito__selo .gr-ic { width: 14px; height: 14px; }
-.lb-efeito__selo--vazio { color: var(--lb-color-parchment-faint); background: transparent; border-color: var(--lb-gr-filete); }
+/* Sem tecla, o selo é só o ícone: com borda parecia um segundo botão ao lado do lápis. */
+.lb-efeito__selo--vazio { color: var(--lb-color-parchment-faint); background: transparent; border-color: transparent; }
 .lb-efeito--tocando .lb-efeito__selo {
   color: var(--lb-color-brass-contrast);
   background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
@@ -168,6 +189,7 @@
   color: var(--lb-gr-gravado);
 }
 .lb-efeito__loop .gr-ic { width: 13px; height: 13px; }
+.lb-efeito__loop--parar { color: var(--lb-color-brass-bright); }
 
 /* A barra fina do progresso, na borda de baixo: tempo correndo é linear. */
 .lb-efeito__trilho { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
@@ -210,14 +232,19 @@
 
 @media (pointer: coarse) {
   .lb-efeito__lapis { top: 0; right: 0; width: 44px; height: 44px; }
+  /* O lápis de 44 vai até y=44: a cabeça cresce e o nome começa abaixo dele (y=50), longe do toque no lápis. */
+  .lb-efeito__cabeca { min-height: 36px; }
   .lb-sons__topo .gr-bt,
   .lb-sons__recusas .gr-bt,
   .lb-sons__chip { min-height: var(--lb-control-touch); }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .lb-efeito__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-gr-filete-forte); }
-  .lb-efeito--tocando .lb-efeito__tocar:hover { border-color: var(--lb-gr-filete-latao); }
+  /* O hover é mais fraco que o tocando: meio caminho do fundo e filete forte, sem latão. */
+  .lb-efeito__tocar:hover { background: color-mix(in srgb, var(--lb-gr-cartao-alto) 50%, var(--lb-gr-cartao)); border-color: var(--lb-gr-filete-forte); }
+  .lb-efeito--tocando .lb-efeito__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-color-brass); }
+  /* O chip ativo segue de latão sob o mouse (o hover do grimório, 0,3,0, vencia o ativo, 0,2,0). */
+  .lb-sons__pastas .lb-sons__chip[aria-checked='true']:hover { color: var(--lb-color-brass-bright); border-color: var(--lb-gr-filete-latao); }
   .lb-efeito__lapis:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
 }
 
@@ -258,4 +285,6 @@
 /* ---------------------------------------------------------------- movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
   .lb-efeito__tocar:active { transform: none; }
+  /* Até 3 barras de loop varrendo sem fim no canto do olho: paradas e cheias. O efeito curto mantém a varredura (é tempo que acaba). */
+  .lb-efeito__barra--loop { animation: none; transform: scaleX(1); }
 }

@@ -283,6 +283,20 @@ describe('o que ninguém via (revisão da F3)', () => {
     await esperar(() => expect(naTela()).toContain('Nada tocando'))
   })
 
+  it('o loop tocando mostra o que o clique faz: "parar" no lugar de "repete"', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const chuva = await importar('chuva.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
+    })
+    const legenda = () => container.querySelector('.lb-efeito__loop')
+    expect(legenda()?.textContent).toBe('repete')
+    act(() => botao(/^chuva,/).click())
+    await esperar(() => expect(legenda()?.textContent).toBe('parar'))
+    expect(legenda()?.classList.contains('lb-efeito__loop--parar')).toBe(true)
+  })
+
   it('apagar um som que está tocando para o som', async () => {
     await montarPagina()
     await abrirAventura()
@@ -691,15 +705,23 @@ describe('o selo pulsa', () => {
       act(() => {
         useBibliotecaDeSonsStore.getState().editarEfeito(id, { atalho: 5 })
       })
+      // Enter ou Espaço no cartão focado chegam como clique de detail 0: teclado não anima.
       act(() => botao(/^sino,/).click())
+      expect(animar).not.toHaveBeenCalled()
+      await esperar(() => expect(tocadas()).toHaveLength(1))
+      act(() => {
+        botao(/^sino,/).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))
+      })
       expect(animar).toHaveBeenCalledTimes(1)
       expect(animar.mock.calls[0]?.[1]).toMatchObject({ duration: 150 })
-      await esperar(() => expect(tocadas()).toHaveLength(1))
-      teclar(document.body, '5')
       await esperar(() => expect(tocadas()).toHaveLength(2))
+      teclar(document.body, '5')
+      await esperar(() => expect(tocadas()).toHaveLength(3))
       expect(animar).toHaveBeenCalledTimes(1)
       Object.defineProperty(window, 'matchMedia', { configurable: true, value: (consulta: string) => ({ matches: consulta.includes('reduce'), media: consulta }) })
-      act(() => botao(/^sino,/).click())
+      act(() => {
+        botao(/^sino,/).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }))
+      })
       expect(animar).toHaveBeenCalledTimes(1)
     } finally {
       Reflect.deleteProperty(HTMLElement.prototype, 'animate')
