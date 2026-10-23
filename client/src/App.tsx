@@ -42,7 +42,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
-import { isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
+import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
@@ -1543,6 +1543,17 @@ function App() {
   const sliderDragBefore = useRef<Map<string, MapData>>(new Map())
   const sliderCommitTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
+  /** Fecha agora os arrastos que esperam a inatividade: o Ctrl+Z com o foco no slider desfaz o arrasto inteiro. */
+  const fecharArrastosDeSlider = () => {
+    for (const [key, timer] of sliderCommitTimers.current) {
+      clearTimeout(timer)
+      const before = sliderDragBefore.current.get(key)
+      if (before) useMapStore.getState().commitDragHistory(before)
+    }
+    sliderCommitTimers.current.clear()
+    sliderDragBefore.current.clear()
+  }
+
   const liveSliderChange = (key: string, applyLive: () => void) => {
     if (!sliderCommitTimers.current.has(key)) {
       sliderDragBefore.current.set(key, useMapStore.getState().map)
@@ -1566,11 +1577,15 @@ function App() {
       if (screen !== 'editor') return
 
       const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+      // Campo de texto: o Ctrl+Z é dele. Controle deslizante, interruptor e rádio não têm texto: o Ctrl+Z é do mapa.
+      if (target && !focoDeixaDesfazerGlobal(target.tagName, target instanceof HTMLInputElement ? target.type : undefined, target.isContentEditable)) return
 
       const ctrlOrCmd = event.ctrlKey || event.metaKey
       if (!ctrlOrCmd) return
       const key = event.key.toLowerCase()
+      // Arrasto de um controle deslizante ainda aberto (o passo dele fecha por inatividade):
+      // fecha agora, para o Ctrl+Z desfazer o arrasto inteiro e não ficar um passo órfão depois.
+      if (key === 'z' || key === 'y') fecharArrastosDeSlider()
 
       if (key === 'z' && event.shiftKey) {
         event.preventDefault()
