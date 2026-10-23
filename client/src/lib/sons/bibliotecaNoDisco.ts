@@ -40,8 +40,17 @@ function motivo(causa: unknown): string {
   return /os error 5|denied|negado/i.test(texto) ? 'o Windows negou o acesso ao arquivo (outro programa pode estar com ele aberto)' : texto
 }
 
-/** Lê o `sons.json` da aventura. Nunca lança: o erro vira `aviso`, e `podeGravar: false` barra quem grava. */
-export async function lerBibliotecaDaAventura(pastaDaAventura: string): Promise<BibliotecaLida> {
+/**
+ * Lê o `sons.json` da aventura. Nunca lança: o erro vira `aviso`, e
+ * `podeGravar: false` barra quem grava. Entra na MESMA fila das gravações:
+ * voltar a uma aventura cuja última mudança ainda está indo para o disco lê
+ * o arquivo já com ela, e não o de antes.
+ */
+export function lerBibliotecaDaAventura(pastaDaAventura: string): Promise<BibliotecaLida> {
+  return naFila(() => lerAgora(pastaDaAventura))
+}
+
+async function lerAgora(pastaDaAventura: string): Promise<BibliotecaLida> {
   let texto: string
   try {
     const caminho = await join(pastaDaAventura, ARQUIVO_DE_SONS)
@@ -95,12 +104,16 @@ async function levarAudios(pastaDaAventura: string, biblioteca: BibliotecaDeSons
   }
 }
 
-let filaDaGravacao: Promise<void> = Promise.resolve()
+let filaDoDisco: Promise<void> = Promise.resolve()
 
-/** Uma gravação depois da outra: a mais nova nunca é passada para trás por uma mais velha que terminou depois. */
+/**
+ * Uma operação no `sons.json` depois da outra: a gravação mais nova nunca é
+ * passada para trás por uma mais velha que terminou depois, e a leitura vê a
+ * gravação pedida antes dela.
+ */
 function naFila<T>(operacao: () => Promise<T>): Promise<T> {
-  const resultado = filaDaGravacao.then(operacao)
-  filaDaGravacao = resultado.then(
+  const resultado = filaDoDisco.then(operacao)
+  filaDoDisco = resultado.then(
     () => undefined,
     () => undefined,
   )

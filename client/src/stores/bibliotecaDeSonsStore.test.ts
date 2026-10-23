@@ -16,7 +16,7 @@ const { hasUnsavedWork, useAdventureStore } = await import('./adventureStore')
 const { hashHex, MIDIA_AUDIO_MAX_BYTES } = await import('../lib/midia')
 const { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO } = await import('../lib/midiaNoDisco')
 const { trazerMidiaAoAbrir } = await import('../lib/midiaDaPasta')
-const { ehVideoDoYoutube, bibliotecaDeSonsVazia } = await import('../lib/sons/biblioteca')
+const { ehVideoDoYoutube, bibliotecaDeSonsVazia, comEfeitoNovo, serializarBiblioteca } = await import('../lib/sons/biblioteca')
 const { ESPERA_PARA_GRAVAR_SONS_MS, ligarBibliotecaAAventura, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import('./bibliotecaDeSonsStore')
 type FonteDoSom = import('../lib/sons/biblioteca').FonteDoSom
 type Adventure = import('../lib/adventure').Adventure
@@ -35,6 +35,19 @@ function aventura(id: string): Adventure {
 }
 
 const loja = () => useBibliotecaDeSonsStore.getState()
+
+/** O texto de um sons.json com `n` efeitos chamados `<prefixo> 0`, `<prefixo> 1`... */
+function sonsJsonCom(n: number, prefixo: string): string {
+  let biblioteca = bibliotecaDeSonsVazia()
+  for (let i = 0; i < n; i++) {
+    const passo = comEfeitoNovo(biblioteca, { nome: `${prefixo} ${i}`, fonte: youtube('dQw4w9WgXcQ') }, `som_${prefixo}${i}`)
+    if (passo === null) throw new Error(`o teste não montou o efeito ${i}`)
+    biblioteca = passo.biblioteca
+  }
+  return serializarBiblioteca(biblioteca)
+}
+
+const nomes = () => loja().biblioteca.efeitos.map((efeito) => efeito.nome)
 
 /** Quantas vezes o sons.json foi escrito (a gravação segura escreve o `.tmp` e renomeia). */
 function gravacoesDoSons(pasta: string): number {
@@ -95,6 +108,54 @@ describe('salvamento sozinho', () => {
     expect(JSON.parse(textoDe(SONS)).efeitos.map((efeito: { nome: string }) => efeito.nome)).toEqual(['Gaivota'])
     expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
     expect(arquivos.has(`${outra}/sons.json`)).toBe(false)
+  })
+})
+
+describe('troca de aventura e de pasta', () => {
+  it('abrir a cópia B (3 sons, mesmo id) e depois a original A (10): o sons.json de A fica intacto e a biblioteca é a de A', async () => {
+    const copia = 'C:/backup/navio'
+    criarPastasAte(copia)
+    const textoDeA = sonsJsonCom(10, 'A')
+    arquivos.set(SONS, textoDeA)
+    arquivos.set(`${copia}/sons.json`, sonsJsonCom(3, 'B'))
+
+    await loja().sincronizarComAAventura('adv_mesmo', copia)
+    expect(nomes()).toEqual(['B 0', 'B 1', 'B 2'])
+    await loja().sincronizarComAAventura('adv_mesmo', AVENTURA)
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS * 3)
+
+    expect(textoDe(SONS)).toBe(textoDeA)
+    expect(nomes()).toHaveLength(10)
+    expect(nomes()[9]).toBe('A 9')
+    expect(loja()).toMatchObject({ dir: AVENTURA, carregando: false, pendente: false, podeGravar: true })
+  })
+
+  it('X → Y → X sem esperar: fica X, relida do disco, com a mudança que estava esperando', async () => {
+    const outra = 'C:/aventuras/castelo'
+    criarPastasAte(outra)
+    await loja().sincronizarComAAventura('adv_x', AVENTURA)
+    loja().adicionarEfeito({ nome: 'Gaivota', fonte: youtube('dQw4w9WgXcQ') })
+
+    const indoParaY = loja().sincronizarComAAventura('adv_y', outra)
+    const voltandoParaX = loja().sincronizarComAAventura('adv_x', AVENTURA)
+    await Promise.all([indoParaY, voltandoParaX])
+
+    expect(loja()).toMatchObject({ aventuraId: 'adv_x', dir: AVENTURA, carregando: false })
+    expect(nomes()).toEqual(['Gaivota'])
+  })
+
+  it('trocando de aventura: mudança na anterior enquanto o disco grava é recusada, em vez de se perder', async () => {
+    const outra = 'C:/aventuras/castelo'
+    criarPastasAte(outra)
+    await loja().sincronizarComAAventura('adv_1', AVENTURA)
+    loja().adicionarEfeito({ nome: 'Gaivota', fonte: youtube('dQw4w9WgXcQ') })
+
+    const trocando = loja().sincronizarComAAventura('adv_2', outra)
+    expect(loja().adicionarEfeito({ nome: 'Perdido', fonte: youtube('a-b_C1234xY') })).toBeNull()
+    await trocando
+
+    expect(JSON.parse(textoDe(SONS)).efeitos.map((efeito: { nome: string }) => efeito.nome)).toEqual(['Gaivota'])
+    expect(loja()).toMatchObject({ aventuraId: 'adv_2', biblioteca: bibliotecaDeSonsVazia(), pendente: false })
   })
 })
 

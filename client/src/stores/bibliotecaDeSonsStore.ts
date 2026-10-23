@@ -28,8 +28,11 @@ import { gravarBibliotecaNaAventura, guardarArquivoDeSom, lerBibliotecaDaAventur
  *  - aventura aberta do disco: lê o `sons.json` dela (sem ele, vazia);
  *  - aventura nova, ainda sem pasta: guarda na memória e grava quando a
  *    primeira gravação da aventura der a pasta (`dir` aparece, mesmo id);
+ *  - mesma aventura em OUTRA pasta (a cópia de backup tem o mesmo id do
+ *    `adventure.json`): é troca, lê o `sons.json` da outra pasta;
  *  - mapa solto: sem biblioteca (a aba pede para salvar como aventura).
- * Trocar de aventura com mudança esperando grava antes na pasta da anterior.
+ * Trocar de aventura com mudança esperando grava antes na pasta da anterior,
+ * e nada muda enquanto isso.
  */
 
 /** Quanto a biblioteca espera parada antes de ir para o disco. */
@@ -39,7 +42,20 @@ export const SONS_SEM_AVENTURA = 'Salve como aventura para guardar sons aqui.'
 export const SONS_AINDA_LENDO = 'Os sons desta aventura ainda estão sendo lidos. Tente de novo em instantes.'
 export const SONS_NAO_GRAVAVEIS = 'Os sons desta aventura não puderam ser lidos, então nada novo é guardado para não apagar o que está lá.'
 
+/** Uma aventura e a pasta dela, como o `adventureStore` diz. */
+interface ParDaAventura {
+  aventuraId: string | null
+  dir: string | null
+}
+
 interface BibliotecaDeSonsState {
+  /**
+   * O último par pedido a `sincronizarComAAventura` (interno). O pedido novo é
+   * comparado com ELE, e não com o estado já aplicado: em X → Y → X, o segundo
+   * X chega com o estado ainda em X (a troca para Y espera o disco) e seria
+   * engolido como "nada mudou".
+   */
+  pedido: ParDaAventura
   biblioteca: BibliotecaDeSons
   /** A aventura dona da biblioteca; `null` = mapa solto (fora da v1). */
   aventuraId: string | null
@@ -128,6 +144,7 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
 
   return {
     ...ESTADO_SEM_AVENTURA,
+    pedido: { aventuraId: null, dir: null },
 
     gravarAgora: async () => {
       pararRelogio()
@@ -144,18 +161,25 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     },
 
     sincronizarComAAventura: async (aventuraId, dir) => {
+      const anterior = get().pedido
+      if (anterior.aventuraId === aventuraId && anterior.dir === dir) return
+      set({ pedido: { aventuraId, dir } })
       const atual = get()
-      if (aventuraId !== null && aventuraId === atual.aventuraId) {
-        if (dir === atual.dir) return
-        // A aventura nova ganhou pasta, ou foi para outra (Salvar como): a biblioteca vai junto.
+      // Só a aventura nova, SEM pasta e já assentada nela, leva a biblioteca da memória para a pasta que ganhou.
+      // De uma pasta para outra é troca: a outra pasta (uma cópia de backup tem o mesmo id) tem o sons.json dela.
+      const ganhouPasta =
+        aventuraId !== null && dir !== null && anterior.aventuraId === aventuraId && anterior.dir === null && atual.aventuraId === aventuraId && atual.dir === null && !atual.carregando
+      if (ganhouPasta) {
         const temConteudo = atual.biblioteca.efeitos.length > 0 || atual.biblioteca.pastas.length > 0
-        set({ dir, pendente: atual.pendente || (dir !== null && temConteudo) })
+        set({ dir, pendente: atual.pendente || temConteudo })
         await get().gravarAgora()
         return
       }
 
       const minha = ++geracao
-      // O que estava esperando vai para a pasta da aventura anterior antes de trocar.
+      // O que estava esperando vai para a pasta da aventura anterior antes de trocar; enquanto o disco grava,
+      // nada muda (`carregando`): a mudança feita agora iria para a aventura que está saindo e se perderia.
+      set({ carregando: true })
       await get().gravarAgora()
       if (minha !== geracao) return
       pararRelogio()
