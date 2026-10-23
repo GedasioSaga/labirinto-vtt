@@ -5,7 +5,7 @@ import { Container, EventBoundary, FederatedPointerEvent } from 'pixi.js'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
-import type { MapData, Pin, Region } from '../types/map'
+import type { MapData, Pin, Region, Token } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { PixiCanvas } from './PixiCanvas'
 
@@ -167,6 +167,32 @@ function semMudanca(antes: MapData): void {
   expect(useMapStore.getState().map).toBe(antes)
   expect(useMapStore.getState().past).toHaveLength(0)
 }
+
+/** A ficha no meio da sala: a sala está logo embaixo dela. */
+const FICHA: Token = { id: 'ana', characterId: null, name: 'Ana', x: 480, y: 480, size: 1, image: null }
+
+describe('borracha × camada travada, no gesto (eraseAt chama a barreira)', () => {
+  it('ficha em Tokens travada por cima da sala: dois cliques não apagam nada e há UM aviso', async () => {
+    abrir(mapaBase({ tokens: [FICHA], lockedLayers: ['tokens'] }), 'eraser')
+    await monta()
+    const antes = useMapStore.getState().map
+    clica({ x: 480, y: 480 })
+    clica({ x: 486, y: 484 })
+    expect(useMapStore.getState().map.regions).toEqual([SALA])
+    expect(useMapStore.getState().map.tokens).toEqual([FICHA])
+    semMudanca(antes)
+    expect(avisos()).toEqual(['A camada Tokens está travada'])
+  })
+
+  it('Tokens destravada: o clique apaga a ficha de cima e a sala fica', async () => {
+    abrir(mapaBase({ tokens: [FICHA] }), 'eraser')
+    await monta()
+    clica({ x: 480, y: 480 })
+    expect(useMapStore.getState().map.tokens).toEqual([])
+    expect(useMapStore.getState().map.regions).toEqual([SALA])
+    expect(avisos()).toEqual([])
+  })
+})
 
 describe('pino × camada Anotações travada, no gesto', () => {
   it('ferramenta Pino: o pino não nasce, nada fica selecionado, UM aviso', async () => {

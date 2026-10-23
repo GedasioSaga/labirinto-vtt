@@ -8,9 +8,10 @@ import { compileFloor } from './floorSdf'
 import { buildFloorPiece, findFloorPieceAt } from './floorTool'
 import { resolveHoverHit, type HoverHitInput, type HoverTarget } from './hoverHitTest'
 import { createEmptyMap } from './mapFactory'
-import { apagarBlocosNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
+import { areaDoPino, type PinosNoToque } from './marcadorDeContinente'
+import { apagarBlocosNoPiso, camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
 import { mapaDoPiso, pisoDe } from './pisos'
-import { findLockedLayerAt } from './selectionHitTest'
+import { camadaTravadaNaBorracha, findLockedLayerAt } from './selectionHitTest'
 
 /**
  * PISOS NA MESMA CENA — cenário do revisor: a Biblioteca do 1º piso ocupa o
@@ -257,5 +258,35 @@ describe('camadaTravadaNoPiso — só o item do piso em edição barra o gesto',
     const map = torreComGuarda()
     expect(camadaTravadaNoPiso(map, 0, MEIO)).toBeNull()
     expect(camadaTravadaNoPiso(map, 1, MEIO)).toBeNull()
+  })
+})
+
+describe('camadaTravadaNaBorrachaNoPiso — a barreira da borracha olha só o piso em edição', () => {
+  it('no 1º piso, Fichas travada e o guarda do térreo embaixo: a borracha não é barrada', () => {
+    const map = torreComGuarda({ lockedLayers: ['tokens'] })
+    // O defeito: sobre o mapa inteiro, o guarda invisível barrava a borracha.
+    expect(camadaTravadaNaBorracha(map, MEIO)).toBe('tokens')
+    expect(camadaTravadaNaBorrachaNoPiso(map, 1, MEIO)).toBeNull()
+  })
+
+  it('no térreo, o guarda em camada travada barra', () => {
+    expect(camadaTravadaNaBorrachaNoPiso(torreComGuarda({ lockedLayers: ['tokens'] }), 0, MEIO)).toBe('tokens')
+  })
+
+  it('ficha do 1º piso em camada travada barra no 1º piso e não no térreo', () => {
+    const map = torreComGuarda({ tokens: [ficha('arqueiro', { piso: 1 })], lockedLayers: ['tokens'] })
+    expect(camadaTravadaNaBorrachaNoPiso(map, 1, MEIO)).toBe('tokens')
+    expect(camadaTravadaNaBorrachaNoPiso(map, 0, MEIO)).toBeNull()
+  })
+
+  it('com os pinos do toque, a cabeça do pino (fora do disco da ficha) barra; sem eles, não', () => {
+    const map = torreComGuarda({ lockedLayers: ['tokens'] })
+    const pinos: PinosNoToque = { ids: new Set(['guarda']), cameraScale: 1 }
+    const area = areaDoPino(ficha('guarda'), 1)
+    // Na cabeça do pino, bem acima do disco da ficha.
+    const naCabeca = { x: (area.minX + area.maxX) / 2, y: area.minY + 1 }
+    expect(Math.hypot(naCabeca.x - MEIO.x, naCabeca.y - MEIO.y)).toBeGreaterThan(CELL)
+    expect(camadaTravadaNaBorrachaNoPiso(map, 0, naCabeca)).toBeNull()
+    expect(camadaTravadaNaBorrachaNoPiso(map, 0, naCabeca, pinos)).toBe('tokens')
   })
 })
