@@ -40,7 +40,7 @@ const { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO } = await import('../../lib/midia
 const { bibliotecaDeSonsVazia, comEfeitoMudado, comEfeitoNovo, EFEITOS_DE_SOM_MAX } = await import('../../lib/sons/biblioteca')
 type BibliotecaDeSons = import('../../lib/sons/biblioteca').BibliotecaDeSons
 const { useAdventureStore, hasUnsavedWork } = await import('../../stores/adventureStore')
-const { SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import('../../stores/bibliotecaDeSonsStore')
+const { SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import('../../stores/bibliotecaDeSonsStore')
 const { useToastStore } = await import('../../stores/toastStore')
 const { useLivroDaMesaStore } = await import('../../stores/livroDaMesaStore')
 const { NO_CHAT_UNREAD } = await import('../MasterChatPanel')
@@ -409,6 +409,66 @@ describe('o lápis', () => {
     act(() => botao('Apagar').click())
     expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos).toHaveLength(0)
     expect(naTela()).toContain('Nenhum som ainda')
+  })
+})
+
+describe('o lápis quando a loja recusa', () => {
+  const mudarFaixa = (janela: HTMLElement, valor: string) => {
+    const faixa = janela.querySelector<HTMLInputElement>('input[type="range"]')
+    if (faixa === null) throw new Error('sem a faixa do volume')
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(faixa, valor)
+      faixa.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+  const lapisAberto = (): HTMLElement => {
+    const janela = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+    if (janela === null) throw new Error('o lápis não abriu')
+    return janela
+  }
+
+  it('aceito, o volume do lápis chega ao som que toca (motor.mudarVolume); recusado, nem a loja nem o som mudam e o motivo aparece DENTRO do lápis', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const chuva = await importar('chuva.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
+    })
+    act(() => botao(/^chuva,/).click())
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    const motor = daVez.motor
+    if (motor === null) throw new Error('sem motor')
+    const mudarVolume = vi.spyOn(motor, 'mudarVolume')
+    act(() => botao('Editar chuva').click())
+    mudarFaixa(lapisAberto(), '35')
+    expect(mudarVolume).toHaveBeenCalledWith(chuva, 0.35)
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos[0]?.volume).toBe(0.35)
+
+    // O sons.json existe e não foi lido: a loja recusa toda mudança.
+    act(() => useBibliotecaDeSonsStore.setState({ podeGravar: false }))
+    mudarFaixa(lapisAberto(), '90')
+    expect(mudarVolume).toHaveBeenCalledTimes(1)
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos[0]?.volume).toBe(0.35)
+    expect(lapisAberto().querySelector('[role="alert"]')?.textContent).toBe(`Nada mudou. ${SONS_NAO_GRAVAVEIS}`)
+  })
+
+  it('apagar recusado pela loja não para o som, não fecha o lápis e diz o motivo dentro dele', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const chuva = await importar('chuva.wav')
+    act(() => {
+      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
+    })
+    act(() => botao(/^chuva,/).click())
+    await esperar(() => expect(tocadas()).toHaveLength(1))
+    act(() => botao('Editar chuva').click())
+    act(() => botao('Apagar som…').click())
+    act(() => useBibliotecaDeSonsStore.setState({ carregando: true }))
+    act(() => botao('Apagar').click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos).toHaveLength(1)
+    expect(tocadas()[0]?.stop).not.toHaveBeenCalled()
+    expect(lapisAberto().querySelector('[role="alert"]')?.textContent).toBe(`chuva não foi apagado. ${SONS_AINDA_LENDO}`)
+    act(() => useBibliotecaDeSonsStore.setState({ carregando: false }))
   })
 })
 

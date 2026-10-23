@@ -2,11 +2,11 @@ import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type Key
 import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
-import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom } from '../../lib/sons/biblioteca'
+import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type MudancaNoEfeito } from '../../lib/sons/biblioteca'
 import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { useAdventureStore } from '../../stores/adventureStore'
-import { ligarBibliotecaAAventura, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
+import { ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
 import { Botao } from '../grimorio/Botao'
 import { CampoFaixa } from '../grimorio/CampoFaixa'
@@ -496,6 +496,18 @@ function BotaoDeSom({
   )
 }
 
+/**
+ * Por que a loja não aceita mudança agora, na frase dela; `null` = aceita (a
+ * recusa, então, foi do valor). O lápis diz isto DENTRO do diálogo: o aviso da
+ * página fica atrás do modal.
+ */
+function impedimentoDaLoja(): string | null {
+  const { aventuraId, carregando, podeGravar } = useBibliotecaDeSonsStore.getState()
+  if (aventuraId === null) return SONS_SEM_AVENTURA
+  if (carregando) return SONS_AINDA_LENDO
+  return podeGravar ? null : SONS_NAO_GRAVAVEIS
+}
+
 /** O lápis: nome, volume, repetir, tecla, pasta, favorito e apagar. Cada mudança vale na hora (a biblioteca grava sozinha). */
 function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDeSom; biblioteca: BibliotecaDeSons; motor: MotorAoVivo; onFechar: () => void }) {
   const editar = useBibliotecaDeSonsStore((estado) => estado.editarEfeito)
@@ -504,6 +516,7 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
   const [notaDoAtalho, setNotaDoAtalho] = useState<string | null>(null)
   const [novaPasta, setNovaPasta] = useState<string | null>(null)
   const [erroDaPasta, setErroDaPasta] = useState<string | null>(null)
+  const [recusa, setRecusa] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
   const cancelar = useRef<HTMLButtonElement>(null)
   const nomeId = useId()
@@ -513,21 +526,27 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
     if (confirmando) cancelar.current?.focus()
   }, [confirmando])
 
+  /** Muda na loja e diz se ela aceitou; recusada, o motivo aparece no lápis e quem chamou não mexe no som. */
+  const mudar = (mudanca: MudancaNoEfeito): boolean => {
+    const aceita = editar(efeito.id, mudanca)
+    setRecusa(aceita ? null : `Nada mudou. ${impedimentoDaLoja() ?? 'Esse valor não serve para este som.'}`)
+    return aceita
+  }
+
   const mudarNome = (valor: string) => {
     setNome(valor)
-    if (nomeDeSomLimpo(valor) !== null) editar(efeito.id, { nome: valor })
+    if (nomeDeSomLimpo(valor) !== null) mudar({ nome: valor })
   }
 
   const mudarVolume = (percentual: number) => {
-    editar(efeito.id, { volume: percentual / 100 })
-    motor.mudarVolume(efeito.id, percentual / 100)
+    if (mudar({ volume: percentual / 100 })) motor.mudarVolume(efeito.id, percentual / 100)
   }
 
   const mudarAtalho = (valor: string) => {
     const numero = Number(valor)
     const atalho: AtalhoDeSom | null = ehAtalhoDeSom(numero) ? numero : null
     const dono = atalho === null ? undefined : biblioteca.efeitos.find((outro) => outro.atalho === atalho && outro.id !== efeito.id)
-    if (!editar(efeito.id, { atalho })) return
+    if (!mudar({ atalho })) return
     setNotaDoAtalho(dono === undefined || atalho === null ? null : `A tecla ${atalho} era de ${dono.nome}. Agora é deste som, e ${dono.nome} ficou sem tecla.`)
   }
 
@@ -538,22 +557,28 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
       return
     }
     setNovaPasta(null)
-    editar(efeito.id, { pastaId: valor === SEM_PASTA ? null : valor })
+    mudar({ pastaId: valor === SEM_PASTA ? null : valor })
   }
 
   const criarPasta = () => {
     const pasta = useBibliotecaDeSonsStore.getState().criarPasta(novaPasta ?? '')
     if (pasta === null) {
-      setErroDaPasta(`Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres (no máximo 50 pastas).`)
+      const impedimento = impedimentoDaLoja()
+      if (impedimento !== null) setRecusa(`Nada mudou. ${impedimento}`)
+      else setErroDaPasta(`Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres (no máximo 50 pastas).`)
       return
     }
-    editar(efeito.id, { pastaId: pasta.id })
+    mudar({ pastaId: pasta.id })
     setNovaPasta(null)
   }
 
   const apagar = () => {
+    // A loja primeiro: recusado, o som segue tocando, o botão fica e o lápis continua aberto com o motivo.
+    if (!useBibliotecaDeSonsStore.getState().apagarEfeito(efeito.id)) {
+      setRecusa(`${efeito.nome} não foi apagado. ${impedimentoDaLoja() ?? 'Ele já não está na biblioteca.'}`)
+      return
+    }
     motor.parar(efeito.id)
-    useBibliotecaDeSonsStore.getState().apagarEfeito(efeito.id)
     onFechar()
   }
 
@@ -595,7 +620,7 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
         )}
       </div>
       <CampoFaixa rotulo="Volume" min={0} max={100} unidade="%" valor={Math.round(efeito.volume * 100)} onChange={mudarVolume} />
-      <CampoLiga rotulo="Repetir até parar" ajuda="Para ambiente: chuva, taverna, vento. Vale no próximo toque." ligado={efeito.loop} onChange={(loop) => editar(efeito.id, { loop })} />
+      <CampoLiga rotulo="Repetir até parar" ajuda="Para ambiente: chuva, taverna, vento. Vale no próximo toque." ligado={efeito.loop} onChange={(loop) => mudar({ loop })} />
       <CampoSel rotulo="Tecla de atalho" opcoes={opcoesDoAtalho} valor={efeito.atalho === undefined ? SEM_ATALHO : String(efeito.atalho)} onChange={mudarAtalho} />
       {notaDoAtalho !== null && (
         <p className="lb-sons__nota lb-sons__nota--latao" role="status">
@@ -629,7 +654,12 @@ function EditorDoSom({ efeito, biblioteca, motor, onFechar }: { efeito: EfeitoDe
           {erroDaPasta}
         </p>
       )}
-      <CampoLiga rotulo="Favorito" ajuda="Aparece no chip Favoritos, no alto da página." ligado={efeito.favorito === true} onChange={(favorito) => editar(efeito.id, { favorito })} />
+      <CampoLiga rotulo="Favorito" ajuda="Aparece no chip Favoritos, no alto da página." ligado={efeito.favorito === true} onChange={(favorito) => mudar({ favorito })} />
+      {recusa !== null && (
+        <p className="lb-sons__nota lb-sons__nota--erro" role="alert">
+          {recusa}
+        </p>
+      )}
       {confirmando ? (
         <div className="lb-sons-editor__apagar" role="group" aria-label="Confirmar apagar">
           <p className="lb-sons__nota">Apagar {efeito.nome}? O botão sai desta aventura.</p>
