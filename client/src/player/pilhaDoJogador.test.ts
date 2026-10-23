@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest'
 import type { CamadaDoJogador, CamadaId, MapData, Prop } from '../types/map'
 import { FAIXAS_JOGADOR } from '../lib/camadas/ordem'
 import { CAMADAS_PADRAO } from '../lib/camadas/padrao'
+import { buildLightAt, buildWallFromDraft } from '../lib/drawingFactory'
+import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import { distribuir, type PaiDaPilha } from '../pixi/pilhaDeCamadas'
 import { criarParesDoJogador, criarPilhaDoJogador, entradaDoJogador, nosEmPar } from './pilhaDoJogador'
 
@@ -199,5 +201,32 @@ describe('pilha do jogador: opacidade = alpha do nó', () => {
     const [balde] = distribuir(props, pilha.nosDaFaixa('props'), () => 'objetos')
     expect(balde.itens).toBe(props)
     expect(pilha.criados()).toBe(0)
+  })
+})
+
+describe('LIMITACAO ATUAL da fatia 4 (a fatia 3b/4b vira este teste; pré-requisito da fatia 8)', () => {
+  // Com camada escolhida, retângulo da porta e halo (doors, doorHints),
+  // fichas, luzes e pinos ficam no container de hoje: ordem e opacidade da
+  // camada NATIVA deles. Não há interface para escolher camada de item antes
+  // da fatia 8; quando a 3b/4b dividir esses itens por nó, este teste fica
+  // vermelho e vira o aceite dela.
+  it('LIMITACAO ATUAL: fichas, luzes, pinos e o retângulo e o halo da porta numa livre NÃO ganham par', () => {
+    const livre: CamadaId = 'livre_k3j9x2'
+    const base = createEmptyMap('m-limite', 'Limite', 10, 10, 50)
+    const map: MapData = {
+      ...base,
+      camadasDoJogador: lista([...CAMADAS_PADRAO, livre]),
+      tokens: [{ id: 'bia', characterId: null, name: 'Bia', x: 75, y: 75, size: 1, image: null, camada: livre }],
+      lights: [{ ...buildLightAt('luz', { x: 100, y: 100 }, 50), camada: livre }],
+      pins: [{ ...buildPin('pino', { x: 150, y: 150 }, 'exclamacao'), camada: livre }],
+      walls: [{ ...buildWallFromDraft('porta', { x: 200, y: 100 }, { x: 250, y: 100 }), door: { kind: 'normal', open: false, locked: false }, camada: livre }],
+    }
+    const pares = criarParesDoJogador()(map)
+    const faixasNaLivre = pares.filter((p) => p.camada === livre).map((p) => p.faixa)
+    // Só o traço da parede da porta divide (faixa `walls`); o resto fica no container de hoje.
+    expect(faixasNaLivre).toEqual(['walls'])
+    for (const faixa of ['tokens', 'lights', 'farLights', 'pins', 'doors', 'doorHints', 'portasNoTelhado', 'lastSeen']) {
+      expect(pares.some((p) => p.faixa === faixa), faixa).toBe(false)
+    }
   })
 })
