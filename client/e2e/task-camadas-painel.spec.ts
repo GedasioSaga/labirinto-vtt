@@ -160,6 +160,21 @@ test.describe('editor: o painel das 13 camadas', () => {
     expect((await pixels(page, 1060, 160, 40, 40)).equals(comTelhado)).toBe(true)
   })
 
+  test('mapa v2: o olho do mestre de Chão tira a peça de chão da tela (com Salas à vista) e volta idêntico', async ({ page }) => {
+    await abrirOEditor(page, mapaDoPainel())
+    await botao(page, 'Ocultar Escadas dos jogadores').click()
+    await quadros(page)
+    expect((await mapaDoMestre(page)).versaoDasCamadas).toBe(2)
+    const comChao = await pixels(page, 1010, 520, 160, 90)
+    await botao(page, 'Ocultar Chão').click()
+    await quadros(page)
+    expect((await pixels(page, 1010, 520, 160, 90)).equals(comChao), 'Ocultar Chão não mudou o pixel da peça').toBe(false)
+    await expect(botao(page, 'Ocultar Salas')).toHaveAttribute('aria-pressed', 'false')
+    await botao(page, 'Mostrar Chão').click()
+    await quadros(page)
+    expect((await pixels(page, 1010, 520, 160, 90)).equals(comChao), 'Mostrar Chão não voltou o pixel').toBe(true)
+  })
+
   test('Chão leva aninhadas as camadas do chão, com os controles de hoje', async ({ page }) => {
     await abrirOEditor(page, mapaDoPainel())
     const doChao = linha(page, 'chao').getByRole('list', { name: 'Camadas do chão' })

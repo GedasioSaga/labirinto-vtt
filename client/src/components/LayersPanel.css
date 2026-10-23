@@ -29,7 +29,7 @@
 
 /* Base 0 e min-width 0: nome comprido encolhe com reticências em vez de
    empurrar contagem e botões para a linha de baixo. */
-.lb-camadas__nome {
+.lb-camadas .lb-camadas__linha .lb-camadas__nome {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
@@ -163,8 +163,18 @@
   }
 }
 
-/* Dedo: alvo de 44 px nos botões e no slider, e a opacidade numa linha só dela. */
+/* Dedo: alvo de 44 px nos botões e no slider. Três 44 px não cabem ao lado
+   do nome no celular sem cortá-lo, então a linha vira três: nome e contagem
+   (inteiros), os três botões alinhados à direita, e a opacidade. */
 @media (pointer: coarse) {
+  .lb-camadas .lb-camadas__linha .lb-camadas__nome {
+    flex: 1 0 calc(100% - 4ch - var(--lb-space-1, 4px));
+  }
+
+  .lb-camadas__opacidade + .lb-camadas__bt {
+    margin-left: auto;
+  }
+
   .lb-camadas .lb-camadas__bt {
     width: var(--lb-control-touch, 44px);
     height: var(--lb-control-touch, 44px);
