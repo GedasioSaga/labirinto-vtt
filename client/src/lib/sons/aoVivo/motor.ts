@@ -227,8 +227,9 @@ function volumeValido(volume: number): number {
   return Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : VOLUME_DE_SOM_PADRAO
 }
 
+/** Pelo nome, não por `instanceof Error`: `DOMException` herda de `Error` só nos navegadores mais novos. */
 function erroDeAutoplay(erro: unknown): boolean {
-  return erro instanceof Error && erro.name === 'NotAllowedError'
+  return typeof erro === 'object' && erro !== null && 'name' in erro && erro.name === 'NotAllowedError'
 }
 
 export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
@@ -478,10 +479,25 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
         return
       }
       elemento.currentTime = deslocamento
-      elemento.play().catch((erro: unknown) => {
-        if (minha()) recusarVoz(voz, erroDeAutoplay(erro) ? 'sem-gesto' : 'nao-carregou')
-      })
-      marcarTocando(voz, elemento.duration, deslocamento)
+      // Só soa quando o play() responde: avisar antes deixaria quem ouve achando que tocou.
+      elemento.play().then(
+        () => {
+          if (minha()) marcarTocando(voz, elemento.duration, deslocamento)
+        },
+        (erro: unknown) => {
+          if (!minha()) return
+          if (!erroDeAutoplay(erro)) {
+            recusarVoz(voz, 'nao-carregou')
+            return
+          }
+          // O navegador quer um gesto para este <audio> (iOS): solta este, e o
+          // próximo destravamento cria outro. O curto segue a regra dos 2 s desde o pedido.
+          soltarElemento()
+          voz.tocador = null
+          if (voz.loop || agora() - voz.pedidoEmMs < ESPERA_DO_EFEITO_CURTO_MS) esperarGesto(voz)
+          else recusarVoz(voz, 'sem-gesto')
+        },
+      )
     })
     elemento.addEventListener('ended', () => {
       ganho.disconnect()

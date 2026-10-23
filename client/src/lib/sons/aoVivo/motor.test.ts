@@ -347,6 +347,7 @@ describe('carregamento e cache', () => {
     elemento.disparar('loadedmetadata')
     expect(elemento.currentTime).toBeCloseTo(12)
     expect(elemento.play).toHaveBeenCalledTimes(1)
+    await assentar() // 'tocando' só depois de o play() responder
     expect(item(m.doTipo('tocando'), 0)).toMatchObject({ instancia: 'trilha', duracaoS: 120 })
 
     // Efeito curto grande: começa exatamente no deslocamento pedido.
@@ -362,6 +363,100 @@ describe('carregamento e cache', () => {
     m.motor.tocar('sumiu', { tipo: 'arquivo', ref: `midia:${idDeAudio(77)}`, bytes: 10 }, curto)
     await assentar()
     expect(m.doTipo('recusado')).toEqual([{ tipo: 'recusado', instancia: 'sumiu', motivo: 'nao-carregou' }])
+  })
+})
+
+describe('o <audio> dos arquivos grandes', () => {
+  /** Toca um arquivo de 2 MB e devolve o `<audio>` dele, antes dos metadados. */
+  async function tocarGrande(m: ReturnType<typeof montar>, instancia: string, opcoes: OpcoesDoToqueAoVivo, n = 9): Promise<ElementoDeAudioFalso> {
+    m.motor.tocar(instancia, m.arquivo(n, 2 * MB), opcoes)
+    await assentar()
+    return item(m.elementos, m.elementos.length - 1)
+  }
+  const semGesto = (): DOMException => new DOMException('o navegador quer um gesto', 'NotAllowedError')
+
+  it("só avisa 'tocando' quando o play() dá certo", async () => {
+    const m = montar()
+    const elemento = await tocarGrande(m, 'trilha', emLoop)
+    let liberar: () => void = () => undefined
+    elemento.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          liberar = resolve
+        }),
+    )
+    elemento.disparar('loadedmetadata')
+    expect(elemento.play).toHaveBeenCalledTimes(1)
+    await assentar()
+    expect(m.doTipo('tocando')).toEqual([])
+    liberar()
+    await assentar()
+    expect(m.doTipo('tocando').map((evento) => evento.instancia)).toEqual(['trilha'])
+  })
+
+  it('loop recusado por falta de gesto (NotAllowedError) não avisa que tocou e ESPERA o próximo gesto em vez de ser descartado', async () => {
+    const m = montar()
+    const elemento = await tocarGrande(m, 'trilha', emLoop)
+    elemento.play.mockRejectedValueOnce(semGesto())
+    elemento.disparar('loadedmetadata')
+    await assentar()
+    expect(m.doTipo('tocando')).toEqual([])
+    expect(m.doTipo('recusado')).toEqual([])
+    expect(m.eventos).toContainEqual({ tipo: 'esperando', instancia: 'trilha' })
+    expect(elemento.pause).toHaveBeenCalled()
+    // Loop não expira, por mais que espere.
+    await vi.advanceTimersByTimeAsync(10 * ESPERA_DO_EFEITO_CURTO_MS)
+    expect(m.doTipo('recusado')).toEqual([])
+
+    // O próximo destravamento toca num <audio> novo; o antigo não mexe mais na voz.
+    m.audio.definirEstado('suspended')
+    m.gesto()
+    await assentar()
+    const novo = item(m.elementos, 1)
+    novo.disparar('loadedmetadata')
+    await assentar()
+    expect(m.doTipo('tocando').map((evento) => evento.instancia)).toEqual(['trilha'])
+    elemento.disparar('error')
+    expect(m.doTipo('recusado')).toEqual([])
+  })
+
+  it("efeito curto recusado por falta de gesto segue a regra dos 2 s desde o pedido: espera o resto e cai como 'sem-gesto'", async () => {
+    const m = montar()
+    const elemento = await tocarGrande(m, 'grito', curto)
+    elemento.play.mockRejectedValueOnce(semGesto())
+    await vi.advanceTimersByTimeAsync(500)
+    elemento.disparar('loadedmetadata')
+    await assentar()
+    expect(m.doTipo('recusado')).toEqual([])
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_EFEITO_CURTO_MS - 500 - 1)
+    expect(m.doTipo('recusado')).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(m.doTipo('recusado')).toEqual([{ tipo: 'recusado', instancia: 'grito', motivo: 'sem-gesto' }])
+    expect(m.doTipo('tocando')).toEqual([])
+  })
+
+  it("efeito curto recusado por falta de gesto DEPOIS dos 2 s cai na hora como 'sem-gesto', sem pedir o toque", async () => {
+    const m = montar()
+    const elemento = await tocarGrande(m, 'grito', curto)
+    elemento.play.mockRejectedValueOnce(semGesto())
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_EFEITO_CURTO_MS + 500)
+    elemento.disparar('loadedmetadata')
+    await assentar()
+    expect(m.eventos).toEqual([{ tipo: 'recusado', instancia: 'grito', motivo: 'sem-gesto' }])
+  })
+
+  it("outro erro do play() vira 'nao-carregou', e o evento 'error' do <audio> também", async () => {
+    const m = montar()
+    const a = await tocarGrande(m, 'a', curto, 9)
+    a.play.mockRejectedValueOnce(new Error('formato não suportado'))
+    a.disparar('loadedmetadata')
+    const b = await tocarGrande(m, 'b', emLoop, 10)
+    b.disparar('error')
+    await assentar()
+    expect(m.doTipo('recusado')).toHaveLength(2)
+    expect(m.doTipo('recusado')).toContainEqual({ tipo: 'recusado', instancia: 'a', motivo: 'nao-carregou' })
+    expect(m.doTipo('recusado')).toContainEqual({ tipo: 'recusado', instancia: 'b', motivo: 'nao-carregou' })
+    expect(m.doTipo('tocando')).toEqual([])
   })
 })
 
