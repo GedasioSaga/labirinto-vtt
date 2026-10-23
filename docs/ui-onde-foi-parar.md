@@ -182,12 +182,21 @@ Parte de: editor aberto. Vai para: Cantinho do botão (clique direito ou segurar
 | Objetos: Baú | radio "Baú" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cama | radio "Cama" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Mesa | radio "Mesa" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Mesa quadrada | radio "Mesa quadrada" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Mesa redonda | radio "Mesa redonda" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cadeira | radio "Cadeira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Cerca | radio "Cerca" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Armário de cozinha | radio "Armário de cozinha" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Aparador | radio "Aparador" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Fogueira | radio "Fogueira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Objetos: Tapete | radio "Tapete" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Lápide | radio "Lápide" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Vaso de planta | radio "Vaso de planta" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Lampião | radio "Lampião" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Quadro de avisos | radio "Quadro de avisos" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Poço | radio "Poço" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Barraca de feira | radio "Barraca de feira" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
+| Objetos: Carroça | radio "Carroça" | (tela) > clicar button "Opções de Objeto" > clicar radio "Móvel" > clicar button "Opções de Objeto" | (do bloco) |
 | Desenho: Forma (7 formas) | radiogroup "Forma" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
 | Desenho: Modo (Traço livre / Balde) | radiogroup "Modo" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
 | Desenho: Textura do traço | radiogroup "Textura do traço" | (tela) > clicar button "Opções de Desenho" | (do bloco) |
@@ -1191,4 +1200,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item | pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 661 controles em 70 blocos.
+Total: 670 controles em 70 blocos.

@@ -37,6 +37,8 @@ export interface ContextoDoMovel {
   readonly forma: FormaDoTapete
   /** Só a cerca lê: a volta em graus (0 = reta), já arredondada pela chave da imagem. */
   readonly curva: number
+  /** Só a lápide lê: o desenho (0, 1 ou 2). */
+  readonly variante: number
 }
 
 /** O que monta as peças de um tipo na cena. */

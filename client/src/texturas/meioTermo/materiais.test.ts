@@ -94,6 +94,16 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       aparador: ['madeira:nogueira', 'puxadores:latao'],
       fogueira: ['pedras:granito', 'lenha:lenhaCarvalho'],
       tapete: ['tecido:azul'],
+      // MT4: as peças novas do lote 1.
+      mesaQuadrada: ['madeira:carvalho'],
+      mesaRedonda: ['madeira:carvalho'],
+      lapide: ['pedra:granito'],
+      vaso: ['vaso:barro'],
+      lampiao: ['metal:ferro'],
+      quadroDeAvisos: ['madeira:nogueira'],
+      poco: ['pedras:granito', 'madeira:carvalho'],
+      barraca: ['toldo:vinho', 'madeira:pinho'],
+      carroca: ['madeira:nogueira', 'aros:ferro'],
     })
   })
 

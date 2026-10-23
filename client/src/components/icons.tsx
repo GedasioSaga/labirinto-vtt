@@ -420,6 +420,84 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M4.5 8.5H2.5M4.5 12H2.5M4.5 15.5H2.5M19.5 8.5h2M19.5 12h2M19.5 15.5h2" />
         </>
       )
+    // As peças novas do lote 1 (MT4), de cima como o desenho com textura delas.
+    case 'mesaQuadrada':
+      // O tampo quadrado e as juntas das tábuas.
+      return (
+        <>
+          <rect x="5" y="5" width="14" height="14" />
+          <path d="M5 9.7h14M5 14.3h14" />
+        </>
+      )
+    case 'mesaRedonda':
+      // O tampo redondo e duas juntas de tábua perto das bordas, como a quadrada (no meio liam como sinal de menos).
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M4.8 8.5h14.4M4.8 15.5h14.4" />
+        </>
+      )
+    case 'lapide':
+      // A pedra em pé de topo em arco, a cruz gravada e o chão (o retângulo deitado era igual ao baú).
+      return (
+        <>
+          <path d="M7.5 19.5V10a4.5 4.5 0 0 1 9 0v9.5" />
+          <path d="M4.5 19.5h15M12 10.5v5.5M10 12.3h4" />
+        </>
+      )
+    case 'vaso':
+      // A boca do vaso e três folhas saindo do meio.
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 12c-1.6-1.3-1.6-3.2 0-4.6 1.6 1.4 1.6 3.3 0 4.6zM12 12c1.3 1.6 3.2 1.6 4.6 0-1.4-1.6-3.3-1.6-4.6 0zM12 12c-1.3 1.6-3.2 1.6-4.6 0 1.4-1.6 3.3-1.6 4.6 0z" />
+        </>
+      )
+    case 'lampiao':
+      // A lanterna de perfil: a argola, o chapéu, o vidro com as duas hastes e a base (de cima ela era um quadrado no quadrado).
+      return (
+        <>
+          <circle cx="12" cy="3.8" r="1.3" />
+          <path d="M8.5 8.2h7l-1.6-2.9h-3.8z" />
+          <rect x="9" y="8.2" width="6" height="9" rx="0.8" />
+          <path d="M8 19.8h8M12 10.2v5" />
+        </>
+      )
+    case 'quadroDeAvisos':
+      // A moldura, dois papéis tortos e os dois pés (com três papéis retos parecia uma caixa com três pontos).
+      return (
+        <>
+          <rect x="3" y="5" width="18" height="11.5" />
+          <path d="M6.3 8.4l4-0.7 0.7 4.6-4 0.7zM13.2 7.8l4.3 0.6-0.6 5-4.3-0.6zM6.5 16.5v3.5M17.5 16.5v3.5" />
+        </>
+      )
+    case 'poco':
+      // O anel de 8 pedras (tracejado), a boca e a trave com o sarilho (com dois aros lisos parecia o barril).
+      return (
+        <>
+          <circle cx="12" cy="12" r="7.5" strokeDasharray="4.4 1.5" />
+          <circle cx="12" cy="12" r="4.4" />
+          <path d="M3 12h18M10.3 10.6h3.4v2.8h-3.4z" />
+        </>
+      )
+    case 'barraca':
+      // O toldo, os 3 gomos da beira e o balcão embaixo (as listras de pé liam como código de barras).
+      return (
+        <>
+          <path d="M4 4h16v7H4zM4 11a2.67 2.67 0 0 0 5.33 0a2.67 2.67 0 0 0 5.34 0a2.67 2.67 0 0 0 5.33 0" />
+          <rect x="5" y="16" width="14" height="4" />
+        </>
+      )
+    case 'carroca':
+      // A caixa, as 2 rodas e o varal (de cima, com as rodas em barra, parecia uma tomada).
+      return (
+        <>
+          <rect x="7.5" y="7" width="13" height="8.5" />
+          <circle cx="11" cy="17.5" r="2.5" />
+          <circle cx="17" cy="17.5" r="2.5" />
+          <path d="M7.5 11.5H2.5" />
+        </>
+      )
   }
 }
 

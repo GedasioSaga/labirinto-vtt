@@ -1,9 +1,12 @@
 import type { Prop } from '../../types/map'
 import { LAYER_LABELS, propLayer } from '../../lib/layers'
+import { ehPecaNova } from '../../lib/mobilia/pecasNovas'
+import { MATERIAIS } from '../../texturas/meioTermo/materiais'
 import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
 import { ItemNoChaoControls, type ItemNoChaoControlsProps } from '../ItemNoMapaControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from '../ItemTransformControls'
+import { materiaisDaPeca } from '../MaterialDaPeca'
 import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
 import { PropLayerControls, type PropLayerControlsProps } from '../PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
@@ -41,6 +44,8 @@ function FichaDoObjetoLembrada(props: Omit<FichaLembradaProps, 'prefixo'>) {
 }
 
 function resumoDaAparencia(prop: Prop): string {
+  // A peça nova tem material, não cor livre nem "Preencher" (sai sempre com textura): o nome do material de cada lugar.
+  if (ehPecaNova(prop.mobilia)) return materiaisDaPeca(prop, prop.mobilia).map(({ material }) => MATERIAIS[material].nome).join(', ')
   if (prop.mobiliaPreenchido === false) return 'Sem fundo'
   const corPropria = [prop.mobiliaCor, prop.mobiliaCorDaLinha, prop.mobiliaCorDoTravesseiro, prop.mobiliaCorDoCobertor].some((cor) => cor !== undefined)
   return corPropria ? 'Cor própria' : 'Padrão'

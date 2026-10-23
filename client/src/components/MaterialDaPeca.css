@@ -1,0 +1,33 @@
+/* Material da peça nova (MT4): um lugar por linha, o nome do lugar e o material escolhido em cima das amostras. */
+.lb-material {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-material__cabeca {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-material__escolhido {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Até 5 materiais por lugar: cada amostra com a largura de um quinto, alta o bastante para o dedo. */
+.lb-material__amostras {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.lb-material__amostra {
+  height: 28px;
+}

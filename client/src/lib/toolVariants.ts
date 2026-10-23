@@ -7,7 +7,8 @@ import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
 import type { BrushMode } from './baldeDeTinta'
 import type { ToolClusterId } from '../components/labels'
-import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from './mobilia'
+import { NOME_COM_ARTIGO, ROTULO_MOBILIA } from './mobilia'
+import { TIPOS_NO_CATALOGO } from './mobilia/pecasNovas'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -277,13 +278,14 @@ const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
 
 /**
  * O móvel que o próximo clique da ferramenta Objetos põe no mapa, na ordem do
- * catálogo (`TIPOS_MOBILIA`). Preferência de sessão, como a camada do chão:
- * escolher aqui não muda móvel nenhum já posto.
+ * catálogo (`TIPOS_NO_CATALOGO`: os 11 de antes e as peças novas já prontas).
+ * Preferência de sessão, como a camada do chão: escolher aqui não muda móvel
+ * nenhum já posto.
  */
 const MOBILIA_TIPO_GROUP: ToolVariantGroup = {
   storeKey: 'mobiliaTipo',
   label: 'Objeto',
-  options: TIPOS_MOBILIA.map((tipo) => ({
+  options: TIPOS_NO_CATALOGO.map((tipo) => ({
     id: tipo,
     label: ROTULO_MOBILIA[tipo],
     value: tipo,
