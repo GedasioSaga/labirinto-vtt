@@ -43,11 +43,11 @@ describe('rasterDosMoveis: chave da imagem', () => {
     expect(nivelDeResolucao(Number.NaN, 1)).toBe(1)
   })
 
-  it('cor antiga vira o material mais perto; pegada de 0,25 em 0,25 casa; a semente não depende do nível', () => {
+  it('cor antiga vira o material mais perto; o desenho usa a pegada exata (só a chave arredonda); a semente não depende do nível', () => {
     const perto = chaveDoMovel(barril('#8a6a46'), 1, 1)
     const exato = chaveDoMovel(barril(CARVALHO), 2, 1)
     expect(perto?.desenho.materiais).toEqual(['carvalho', 'ferro'])
-    expect(perto?.desenho.casasW).toBe(0.75)
+    expect(perto?.desenho.casasW).toBe(0.7)
     expect(perto?.desenho.semente).toBe(exato?.desenho.semente)
     expect(chaveDoMovel(barril(CARVALHO, { mobilia: 'cerca' }), 1, 1)).toBeNull()
   })

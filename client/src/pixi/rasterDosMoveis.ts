@@ -4,45 +4,58 @@ import { formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, vistaDoMove
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
 import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, temTextura, type DesenhoDoMovel } from '../texturas/meioTermo/moveis'
-import { limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
+import { G } from '../texturas/meioTermo/moveis/contexto'
+import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
 
 /**
  * IMAGEM PRONTA DOS MÓVEIS do Meio-Termo (plano
  * `docs/planos/meio-termo-texturas-objetos-2026-10-23.md`, seções 2 e 5, MT2).
  *
  * Cada móvel vira a CHAVE da imagem: {tipo, vista do mapa, Frente/Lado,
- * materiais, forma, curva (de 5 em 5 graus), pegada em casas (de 0,25 em
- * 0,25), nível de resolução 1|2|3}. Móveis com a mesma chave dividem a mesma
- * imagem; a semente do veio é o hash da chave SEM o nível, para o veio não
- * pular ao mudar o zoom.
+ * materiais, forma, curva (de 5 em 5 graus), pegada em casas (de 0,1 em 0,1),
+ * nível de resolução 1|2|3}. Móveis com a mesma chave dividem a mesma imagem;
+ * a semente do veio é o hash da chave SEM o nível, para o veio não pular ao
+ * mudar o zoom. Só a CHAVE arredonda a pegada: o desenho usa o tamanho exato
+ * do primeiro móvel que pediu a imagem (o baú de 1 x 0,6 sai 1 x 0,6).
  *
- * A imagem nasce com o tamanho final e transparente: quem desenha põe o
- * desenho de linhas por baixo enquanto ela não fica pronta. A geração entra
- * numa FILA de fatias de 8 ms (o mesmo ritmo de `texturas/ladrilhos.ts`) e,
- * pronta, os bytes vão para a mesma textura de uma vez com `source.update()`:
- * o `Graphics` que já a desenha mostra a imagem sem ser repintado (o jogador
- * não precisa mudar a chave de repintura dele).
+ * Quem desenha abre uma PASSADA por dono (o `Graphics`): o que ele pede e o
+ * que ele cola ficam contados por dono. Assim:
+ * - a FILA (fatias de 8 ms, o ritmo de `texturas/ladrilhos.ts`) pula a imagem
+ *   que nenhum dono pediu na última passada (o zoom que cruza os níveis 1, 2 e
+ *   3 não gera os três);
+ * - pronta a imagem, o dono que a pediu é chamado para se repintar (sai o
+ *   desenho de linhas provisório; a chave de repintura do jogador não muda);
+ * - a imagem que sai do cache só é destruída (`destroy(true)`, que solta a
+ *   cópia da placa: a fonte de bytes não tem coleta automática no Pixi 8)
+ *   quando nenhum dono a cola mais.
  *
- * Cache LRU por bytes: 64 MB no computador, 24 MB com `pointer: coarse`. A
- * imagem que sai do cache não é destruída: um `Graphics` ainda pode estar
- * desenhando ela, e o coletor de lixo (e o do Pixi) a solta quando ninguém
- * mais a usa.
+ * Cache LRU por bytes, 64 MB no computador e 24 MB com `pointer: coarse`:
+ * conta a imagem duas vezes (os bytes na CPU e a cópia na placa) e o buffer
+ * de trabalho da imagem que está sendo pintada. A poda não tira a imagem em
+ * pintura, nem a da passada aberta, nem a que algum dono pediu na última
+ * passada dele.
  */
 
 /** A única vista desta fatia; a 3/4 chega com a MT11. */
 export type VistaDoMapa = 'de-cima'
 
 export const NIVEL_MAXIMO = 3
-/** Passo da pegada na chave, em casas. */
-export const PASSO_DAS_CASAS = 0.25
+/** Passo da pegada na chave, em casas: 0,5, 0,6, 0,7 e 0,8 caem exatos. */
+export const PASSO_DAS_CASAS = 0.1
 /** Passo da curva na chave, em graus. */
 export const PASSO_DA_CURVA = 5
 const MEGABYTE = 1024 * 1024
 export const TETO_NO_COMPUTADOR = 64 * MEGABYTE
 export const TETO_NO_TOQUE = 24 * MEGABYTE
-/** Lado máximo da imagem em pixels: móvel enorme ganha menos pixels por px, não uma textura que a placa recusa. */
-const LADO_MAXIMO_DA_IMAGEM = 2048
+/**
+ * Lado máximo da imagem em pixels: móvel enorme ganha menos pixels por px, não
+ * uma textura que a placa recusa. 1024 e não 2048: o buffer de trabalho tem 24
+ * bytes por pixel (24 MB a 1024 x 1024; seriam 96 MB a 2048).
+ */
+export const LADO_MAXIMO_DA_IMAGEM = 1024
 const BYTES_POR_PIXEL = 4
+/** A imagem pronta mora duas vezes: os bytes na CPU e a cópia na placa. */
+const COPIAS_DA_IMAGEM = 2
 
 export interface ChaveDoMovel {
   readonly desenho: DesenhoDoMovel
@@ -68,9 +81,14 @@ function arredondar(valor: number, passo: number): number {
   return Math.round(valor / passo) * passo
 }
 
-/** Pegada em casas na grade de referência, de 0,25 em 0,25, nunca menos de 0,25. */
+/** Pegada EXATA em casas na grade de referência (o desenho), nunca menos de um passo. */
 function casasDe(px: number): number {
-  return Math.max(PASSO_DAS_CASAS, arredondar(px / GRADE_DE_REFERENCIA, PASSO_DAS_CASAS))
+  return Math.max(PASSO_DAS_CASAS, px / GRADE_DE_REFERENCIA)
+}
+
+/** A pegada na chave: um número inteiro de passos (sem a sujeira de 0,1 x 7 = 0,7000000000000001). */
+function passosNaChave(casas: number): number {
+  return Math.round(casas / PASSO_DAS_CASAS)
 }
 
 /**
@@ -87,10 +105,10 @@ function materiaisDoMovel(prop: MovelParaImagem, tipo: DesenhoDoMovel['tipo']): 
   return LUGARES_DE_MATERIAL[tipo].map((lugar, i) => materialMaisPerto(cores[i], lugar))
 }
 
-/** Texto do desenho, sem o nível: dele sai a semente. */
+/** Texto do desenho, sem o nível e com a pegada arredondada: dele sai a semente. */
 function textoDoDesenho(chave: Omit<ChaveDoMovel, 'nivel'>): string {
   const d = chave.desenho
-  return [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.curva, d.casasW, d.casasH].join('|')
+  return [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.curva, passosNaChave(d.casasW), passosNaChave(d.casasH)].join('|')
 }
 
 /** O texto da chave inteira, o que o cache guarda. */
@@ -101,7 +119,7 @@ export function textoDaChave(chave: ChaveDoMovel): string {
 const FNV_BASE = 2166136261
 const FNV_PRIMO = 16777619
 /** A semente fica pequena: entra multiplicada nas coordenadas do ruído, e número grande perde a fração. */
-const SEMENTES = 1000
+export const SEMENTES = 1000
 
 function sementeDoTexto(texto: string): number {
   let h = FNV_BASE
@@ -138,24 +156,61 @@ export interface ImagemDoMovel {
   readonly limites: LimitesDaImagem
   /** Pixels da imagem por px do protótipo. */
   readonly S: number
+  /** A pegada (exata) em que a imagem foi desenhada. */
   readonly casasW: number
   readonly casasH: number
+  readonly nivel: number
   readonly pronta: boolean
 }
 
-interface Entrada {
+/** Onde colar a imagem, em px de mundo em volta do centro do objeto: a pegada desenhada esticada até o tamanho dele. */
+export function retanguloNoMundo(imagem: ImagemDoMovel, largura: number, altura: number): { x: number; y: number; w: number; h: number } {
+  const kx = largura / (imagem.casasW * G)
+  const ky = altura / (imagem.casasH * G)
+  const { x0, y0, W, H } = imagem.limites
+  return { x: x0 * kx, y: y0 * ky, w: (W / imagem.S) * kx, h: (H / imagem.S) * ky }
+}
+
+interface Entrada extends ImagemDoMovel {
   readonly chave: string
-  readonly textura: Texture
   readonly pixels: Uint8ClampedArray
-  readonly limites: LimitesDaImagem
-  readonly S: number
-  readonly casasW: number
-  readonly casasH: number
+  /** Bytes da imagem pronta (as duas cópias). */
   readonly bytes: number
+  /** Bytes do buffer de trabalho enquanto ela é pintada. */
+  readonly bytesDeTrabalho: number
   readonly passos: Generator<void, void, void>
   pronta: boolean
-  /** Saiu do cache antes de ficar pronta: a fila pula. */
-  cancelada: boolean
+  /** Começou a pintar: o buffer de trabalho existe. */
+  emPintura: boolean
+  /** Saiu do cache; a fila pula, e a textura é destruída quando nenhum dono a cola. */
+  retirada: boolean
+  destruida: boolean
+  /** Quantos donos pediram esta imagem na última passada deles. */
+  pedidos: number
+  /** Quantos donos a colam agora (na última passada deles). */
+  colagens: number
+  /** Pedida fora de passada (teste, pré-carga): a fila não pula por falta de dono. */
+  avulsa: boolean
+}
+
+/** O que um dono pediu e colou na última passada, e como chamá-lo para se repintar. */
+interface Dono {
+  readonly pedidas: ReadonlySet<Entrada>
+  readonly coladas: ReadonlySet<Entrada>
+  readonly repintar: () => void
+}
+
+interface PassadaAberta {
+  readonly dono: object
+  readonly pedidas: Set<Entrada>
+  readonly coladas: Set<Entrada>
+  readonly repintar: () => void
+}
+
+/** O que a silhueta precisa numa passada: a imagem pedida e a que dá para colar já (ela, pronta, ou a de outro nível). */
+export interface ImagemParaDesenhar {
+  readonly pedida: ImagemDoMovel
+  readonly mostrar: ImagemDoMovel | null
 }
 
 export interface OpcoesDoRaster {
@@ -167,15 +222,26 @@ export interface OpcoesDoRaster {
 }
 
 /** A escala da imagem no nível, menor se o móvel for tão grande que passaria do lado máximo. */
-function escalaELimites(nivel: number, cena: Cena): { S: number; limites: LimitesDaImagem } {
+export function escalaELimites(nivel: number, cena: Cena): { S: number; limites: LimitesDaImagem } {
   let S = escalaDoNivel(nivel)
   let limites = limitesDaCena(cena, S)
   const maior = Math.max(limites.W, limites.H)
   if (maior > LADO_MAXIMO_DA_IMAGEM) {
-    S *= LADO_MAXIMO_DA_IMAGEM / maior
+    // A conta dos limites arredonda para cima: um pixel de folga garante o lado máximo.
+    S *= (LADO_MAXIMO_DA_IMAGEM - 1) / maior
     limites = limitesDaCena(cena, S)
   }
   return { S, limites }
+}
+
+/** Os outros níveis, do mais perto para o mais longe (o de cima primeiro no empate: mais nítido). */
+function niveisVizinhos(nivel: number): number[] {
+  const vizinhos: number[] = []
+  for (let d = 1; d < NIVEL_MAXIMO; d += 1) {
+    if (nivel + d <= NIVEL_MAXIMO) vizinhos.push(nivel + d)
+    if (nivel - d >= 1) vizinhos.push(nivel - d)
+  }
+  return vizinhos
 }
 
 export class RasterDosMoveis {
@@ -183,9 +249,17 @@ export class RasterDosMoveis {
   geradas = 0
   /** Imagens que terminaram de gerar. */
   prontas = 0
+  /** Texturas destruídas (saíram do cache e ninguém mais as cola). */
+  destruidas = 0
+  /** Imagens que a fila pulou porque nenhum dono as pediu na última passada. */
+  puladas = 0
   private bytesNoCache = 0
   private readonly cache = new Map<string, Entrada>()
   private readonly fila: Entrada[] = []
+  private readonly donos = new Map<object, Dono>()
+  /** A entrada de cada imagem devolvida (a imagem É a entrada, vista só pelo lado público). */
+  private readonly entradas = new WeakMap<ImagemDoMovel, Entrada>()
+  private aberta: PassadaAberta | null = null
   private bombaAgendada = false
   private readonly tetoDeBytes: number
   private readonly agendar: (fatia: () => void) => void
@@ -212,6 +286,53 @@ export class RasterDosMoveis {
     return this.cache.has(chave)
   }
 
+  /** Quantas imagens esperam na fila (a que está sendo pintada conta). */
+  get naFila(): number {
+    return this.fila.length
+  }
+
+  /**
+   * Abre a passada de um dono (o `Graphics` que vai se pintar). Tudo o que ele
+   * pedir e colar até `fecharPassada` substitui o da passada anterior dele.
+   * `repintar` é chamado quando uma imagem que ele pediu fica pronta.
+   */
+  abrirPassada(dono: object, repintar: () => void): void {
+    if (this.aberta !== null) this.fecharPassada()
+    this.aberta = { dono, pedidas: new Set(), coladas: new Set(), repintar }
+  }
+
+  /** Fecha a passada aberta: acerta as contagens e destrói o que saiu do cache e ninguém mais cola. */
+  fecharPassada(): void {
+    const aberta = this.aberta
+    if (aberta === null) return
+    this.aberta = null
+    const antes = this.donos.get(aberta.dono)
+    this.trocarContagens(antes?.pedidas, aberta.pedidas, 'pedidos')
+    this.trocarContagens(antes?.coladas, aberta.coladas, 'colagens')
+    if (aberta.pedidas.size === 0 && aberta.coladas.size === 0) this.donos.delete(aberta.dono)
+    else this.donos.set(aberta.dono, { pedidas: aberta.pedidas, coladas: aberta.coladas, repintar: aberta.repintar })
+  }
+
+  /** O dono sumiu (o `Graphics` foi destruído): o que ele pedia e colava deixa de contar. */
+  soltarDono(dono: object): void {
+    if (this.aberta?.dono === dono) this.aberta = null
+    const antes = this.donos.get(dono)
+    if (antes === undefined) return
+    this.donos.delete(dono)
+    this.trocarContagens(antes.pedidas, new Set(), 'pedidos')
+    this.trocarContagens(antes.coladas, new Set(), 'colagens')
+  }
+
+  private trocarContagens(antes: ReadonlySet<Entrada> | undefined, depois: ReadonlySet<Entrada>, campo: 'pedidos' | 'colagens'): void {
+    for (const e of depois) if (antes === undefined || !antes.has(e)) e[campo] += 1
+    if (antes === undefined) return
+    for (const e of antes) {
+      if (depois.has(e)) continue
+      e[campo] -= 1
+      if (campo === 'colagens' && e.colagens === 0 && e.retirada) this.destruir(e)
+    }
+  }
+
   /**
    * A imagem do móvel nesta câmera: a guardada, ou uma nova, transparente,
    * que entra na fila. `null` = o tipo ainda não tem desenho com textura.
@@ -219,15 +340,48 @@ export class RasterDosMoveis {
   imagemDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number): ImagemDoMovel | null {
     const chave = chaveDoMovel(prop, cameraScale, rendererResolution)
     if (chave === null) return null
-    const texto = textoDaChave(chave)
-    const guardada = this.cache.get(texto)
-    if (guardada !== undefined) {
-      // Usada agora: vai para o fim da fila do LRU.
-      this.cache.delete(texto)
-      this.cache.set(texto, guardada)
-      return guardada
+    return this.pedir(chave)
+  }
+
+  /**
+   * A imagem pedida e a que dá para colar já: ela mesma se pronta; senão a
+   * pronta de outro nível do mesmo desenho (a troca de zoom não volta ao
+   * desenho de linhas); senão nenhuma.
+   */
+  imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number): ImagemParaDesenhar | null {
+    const chave = chaveDoMovel(prop, cameraScale, rendererResolution)
+    if (chave === null) return null
+    const pedida = this.pedir(chave)
+    if (pedida.pronta) return { pedida, mostrar: pedida }
+    for (const nivel of niveisVizinhos(chave.nivel)) {
+      const vizinha = this.cache.get(textoDaChave({ ...chave, nivel }))
+      if (vizinha !== undefined && vizinha.pronta) {
+        this.tocar(vizinha)
+        return { pedida, mostrar: vizinha }
+      }
     }
-    return this.comecar(texto, chave)
+    return { pedida, mostrar: null }
+  }
+
+  /** O dono da passada aberta colou esta imagem: ela não é destruída enquanto ele a colar. */
+  marcarColada(imagem: ImagemDoMovel): void {
+    const entrada = this.entradas.get(imagem)
+    if (entrada !== undefined && !entrada.destruida) this.aberta?.coladas.add(entrada)
+  }
+
+  private pedir(chave: ChaveDoMovel): Entrada {
+    const texto = textoDaChave(chave)
+    const entrada = this.cache.get(texto) ?? this.comecar(texto, chave)
+    this.tocar(entrada)
+    if (this.aberta !== null) this.aberta.pedidas.add(entrada)
+    else entrada.avulsa = true
+    return entrada
+  }
+
+  /** Usada agora: vai para o fim da fila do LRU. */
+  private tocar(entrada: Entrada): void {
+    this.cache.delete(entrada.chave)
+    this.cache.set(entrada.chave, entrada)
   }
 
   private comecar(texto: string, chave: ChaveDoMovel): Entrada {
@@ -244,31 +398,70 @@ export class RasterDosMoveis {
       S,
       casasW: chave.desenho.casasW,
       casasH: chave.desenho.casasH,
-      bytes: pixels.byteLength,
+      nivel: chave.nivel,
+      bytes: pixels.byteLength * COPIAS_DA_IMAGEM,
+      bytesDeTrabalho: limites.W * limites.H * BYTES_DE_TRABALHO_POR_PIXEL,
       passos: pintarCenaEmPassos(cena, S, limites, pixels, true),
       pronta: false,
-      cancelada: false,
+      emPintura: false,
+      retirada: false,
+      destruida: false,
+      pedidos: 0,
+      colagens: 0,
+      avulsa: false,
     }
     this.geradas += 1
+    this.entradas.set(entrada, entrada)
     this.cache.set(texto, entrada)
     this.bytesNoCache += entrada.bytes
-    this.podar()
+    this.podar(entrada)
     this.fila.push(entrada)
     this.agendarBomba()
     return entrada
   }
 
-  /** Tira as mais antigas até caber no teto; a que acabou de entrar fica, mesmo sozinha acima dele. */
-  private podar(): void {
-    while (this.bytesNoCache > this.tetoDeBytes && this.cache.size > 1) {
-      const maisAntiga = this.cache.keys().next()
-      if (maisAntiga.done === true) return
-      const entrada = this.cache.get(maisAntiga.value)
-      this.cache.delete(maisAntiga.value)
-      if (entrada === undefined) continue
-      this.bytesNoCache -= entrada.bytes
-      if (!entrada.pronta) entrada.cancelada = true
+  /**
+   * Em uso agora: algum dono a pediu na última passada, ou a passada aberta já
+   * a pediu ou colou. Só colada (a imagem de outro nível no lugar da pedida,
+   * enquanto ela não fica pronta) pode sair do cache; a textura espera o dono
+   * se repintar sem ela para ser destruída.
+   */
+  private emUso(e: Entrada): boolean {
+    if (e.pedidos > 0) return true
+    return this.aberta !== null && (this.aberta.pedidas.has(e) || this.aberta.coladas.has(e))
+  }
+
+  /**
+   * Tira as mais antigas até caber no teto. Fica a que acabou de entrar
+   * (`poupar`, mesmo sozinha acima dele), a que está sendo pintada e a que
+   * está em uso; sai a pronta (ou a que nem começou e ninguém pede).
+   */
+  private podar(poupar: Entrada): void {
+    if (this.bytesNoCache <= this.tetoDeBytes) return
+    for (const e of [...this.cache.values()]) {
+      if (this.bytesNoCache <= this.tetoDeBytes) return
+      if (e === poupar || e.emPintura || this.emUso(e)) continue
+      this.retirar(e)
     }
+  }
+
+  private retirar(e: Entrada): void {
+    if (e.retirada) return
+    e.retirada = true
+    this.cache.delete(e.chave)
+    this.bytesNoCache -= e.bytes
+    if (e.emPintura) {
+      e.emPintura = false
+      this.bytesNoCache -= e.bytesDeTrabalho
+    }
+    if (e.colagens === 0) this.destruir(e)
+  }
+
+  private destruir(e: Entrada): void {
+    if (e.destruida) return
+    e.destruida = true
+    this.destruidas += 1
+    e.textura.destroy(true)
   }
 
   private agendarBomba(): void {
@@ -277,32 +470,51 @@ export class RasterDosMoveis {
     this.agendar(() => this.bombear())
   }
 
+  /** Ninguém quer mais: nenhum dono a pediu na última passada (e não foi pedida avulsa). */
+  private abandonada(e: Entrada): boolean {
+    return !e.avulsa && !this.emUso(e)
+  }
+
   /**
    * Uma fatia: anda as imagens da fila, uma linha por vez, até passar de
-   * `fatiaMs` (ao menos uma linha por fatia, para a fila sempre andar).
+   * `fatiaMs` (ao menos uma linha por fatia, para a fila sempre andar). Pula a
+   * que saiu do cache e a que nenhum dono pediu na última passada; no fim
+   * chama para se repintar os donos que pediram as que ficaram prontas.
    */
   private bombear(): void {
     this.bombaAgendada = false
     const inicio = this.agora()
     let primeira = true
+    const aRepintar = new Set<Dono>()
     while (this.fila.length > 0) {
       if (!primeira && this.agora() - inicio >= this.fatiaMs) break
       primeira = false
       const entrada = this.fila[0]
-      if (entrada.cancelada) {
+      if (entrada.retirada || this.abandonada(entrada)) {
         this.fila.shift()
+        if (!entrada.retirada) {
+          this.puladas += 1
+          this.retirar(entrada)
+        }
         continue
+      }
+      if (!entrada.emPintura) {
+        entrada.emPintura = true
+        this.bytesNoCache += entrada.bytesDeTrabalho
       }
       let passo = entrada.passos.next()
       while (passo.done !== true && this.agora() - inicio < this.fatiaMs) passo = entrada.passos.next()
       if (passo.done !== true) break
       this.fila.shift()
+      entrada.emPintura = false
+      this.bytesNoCache -= entrada.bytesDeTrabalho
       entrada.pronta = true
       this.prontas += 1
-      // Os bytes já estão no lugar: a textura sobe de novo para a placa, sem repintar o `Graphics`.
       entrada.textura.source.update()
+      for (const dono of this.donos.values()) if (dono.pedidas.has(entrada)) aRepintar.add(dono)
     }
     if (this.fila.length > 0) this.agendarBomba()
+    for (const dono of aRepintar) dono.repintar()
   }
 }
 
