@@ -41,6 +41,7 @@ export const ESPERA_PARA_GRAVAR_SONS_MS = 400
 export const SONS_SEM_AVENTURA = 'Salve como aventura para guardar sons aqui.'
 export const SONS_AINDA_LENDO = 'Os sons desta aventura ainda estão sendo lidos. Tente de novo em instantes.'
 export const SONS_NAO_GRAVAVEIS = 'Os sons desta aventura não puderam ser lidos, então nada novo é guardado para não apagar o que está lá.'
+export const SONS_AVENTURA_TROCOU = 'A aventura mudou enquanto o áudio era guardado, então ele não entrou em nenhuma biblioteca. Importe de novo na aventura certa.'
 
 /** Uma aventura e a pasta dela, como o `adventureStore` diz. */
 interface ParDaAventura {
@@ -208,8 +209,13 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     importarArquivoDeSom: async (nomeDoArquivo, bytes) => {
       const antes = impedimento()
       if (antes !== null) throw new Error(antes)
+      const { aventuraId, dir } = get()
       const fonte = await guardarArquivoDeSom(bytes)
-      // A aventura pode ter trocado enquanto o disco gravava o áudio: o efeito não vai para a outra.
+      // A aventura pode ter trocado enquanto o disco gravava o áudio, e a troca já ter terminado (a outra
+      // lida e pronta para mudar): o efeito não vai para a outra. A mesma aventura em outra pasta também é
+      // troca (a cópia de backup tem o mesmo id); a aventura nova que ganhou a PRIMEIRA pasta não é.
+      const trocou = get().aventuraId !== aventuraId || (dir !== null && get().dir !== dir)
+      if (trocou) throw new Error(SONS_AVENTURA_TROCOU)
       const depois = impedimento()
       if (depois !== null) throw new Error(depois)
       const efeito = get().adicionarEfeito({ nome: nomeDeSomDoArquivo(nomeDoArquivo), fonte })

@@ -17,9 +17,8 @@ const { hashHex, MIDIA_AUDIO_MAX_BYTES } = await import('../lib/midia')
 const { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO } = await import('../lib/midiaNoDisco')
 const { trazerMidiaAoAbrir } = await import('../lib/midiaDaPasta')
 const { ehVideoDoYoutube, bibliotecaDeSonsVazia, comEfeitoNovo, serializarBiblioteca } = await import('../lib/sons/biblioteca')
-const { ESPERA_PARA_GRAVAR_SONS_MS, ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import(
-  './bibliotecaDeSonsStore'
-)
+const { ESPERA_PARA_GRAVAR_SONS_MS, ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_AVENTURA_TROCOU, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } =
+  await import('./bibliotecaDeSonsStore')
 type FonteDoSom = import('../lib/sons/biblioteca').FonteDoSom
 type BibliotecaDeSons = import('../lib/sons/biblioteca').BibliotecaDeSons
 type Adventure = import('../lib/adventure').Adventure
@@ -321,5 +320,60 @@ describe('áudio importado viaja com a aventura', () => {
     expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
     expect(loja().pendente).toBe(false)
     expect(fsFalso.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('a aventura troca para B enquanto o áudio grava: o efeito NÃO entra na biblioteca de B e o erro avisa', async () => {
+    const outra = 'C:/aventuras/castelo'
+    criarPastasAte(outra)
+    await loja().sincronizarComAAventura('adv_a', AVENTURA)
+    const gravarDeVerdade = fsFalso.writeFile.getMockImplementation()
+    if (gravarDeVerdade === undefined) throw new Error('o disco falso perdeu o writeFile')
+    // O disco segura o áudio até a troca para B terminar inteira (B lida, pronta para mudar).
+    let soltarODisco = (): void => undefined
+    const discoSegurado = new Promise<void>((soltar) => {
+      soltarODisco = soltar
+    })
+    fsFalso.writeFile.mockImplementationOnce(async (...argumentos) => {
+      await discoSegurado
+      return gravarDeVerdade(...argumentos)
+    })
+
+    const importando = loja().importarArquivoDeSom('sino.wav', wav(64))
+    const recusado = expect(importando).rejects.toThrow(SONS_AVENTURA_TROCOU)
+    await vi.waitFor(() => expect(fsFalso.writeFile).toHaveBeenCalled())
+    await loja().sincronizarComAAventura('adv_b', outra)
+    expect(loja()).toMatchObject({ aventuraId: 'adv_b', dir: outra, carregando: false, podeGravar: true })
+    soltarODisco()
+    await recusado
+
+    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+    expect(loja().pendente).toBe(false)
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS * 3)
+    expect(arquivos.has(`${outra}/sons.json`)).toBe(false)
+  })
+
+  it('a aventura NOVA ganha a primeira pasta enquanto o áudio grava: é a mesma aventura, o efeito entra e vai para a pasta', async () => {
+    await loja().sincronizarComAAventura('adv_nova', null)
+    const gravarDeVerdade = fsFalso.writeFile.getMockImplementation()
+    if (gravarDeVerdade === undefined) throw new Error('o disco falso perdeu o writeFile')
+    let soltarODisco = (): void => undefined
+    const discoSegurado = new Promise<void>((soltar) => {
+      soltarODisco = soltar
+    })
+    fsFalso.writeFile.mockImplementationOnce(async (...argumentos) => {
+      await discoSegurado
+      return gravarDeVerdade(...argumentos)
+    })
+
+    const importando = loja().importarArquivoDeSom('Sino.wav', wav(64))
+    await vi.waitFor(() => expect(fsFalso.writeFile).toHaveBeenCalled())
+    await loja().sincronizarComAAventura('adv_nova', AVENTURA)
+    soltarODisco()
+    const efeito = await importando
+
+    expect(nomes()).toEqual(['Sino'])
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS)
+    await vi.waitFor(() => expect(arquivos.has(SONS)).toBe(true))
+    expect(JSON.parse(textoDe(SONS)).efeitos[0]).toMatchObject({ id: efeito.id, nome: 'Sino' })
   })
 })
