@@ -20,8 +20,9 @@ import { areaDoPino, type PinosNoToque } from './marcadorDeContinente'
 import type { MapData, Wall, Region, Light, Token, Prop, Stair, Drawing } from '../types/map'
 import type { Point } from './selectionHitTest'
 import { isPointInPolygon, estimateTextWidth } from './selectionHitTest'
-import { visibleWalls, visibleRegions, visibleLights, visibleTokens, visibleProps, visibleStairs, visibleDrawings } from './layers'
 import { canInteract } from './itemTransform'
+import { contextoDeCamadas } from './camadas/consulta'
+import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
@@ -428,43 +429,47 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: Pinos
 
   // Parede presa a um desenho (`Wall.desenhoId`) não entra sozinha: ela anda,
   // muda e some com o desenho, que entra pela própria forma logo abaixo.
-  const walls = visibleWalls(map.walls, map.hiddenLayers)
+  const walls = alcancaveis(map, 'parede', map.walls)
     .filter((wall) => wall.desenhoId === undefined)
-    .filter((wall) => canInteract(wall))
     .filter((wall) => inArea(wallEntity(wall)))
     .map((wall) => wall.id)
 
-  const regions = visibleRegions(map.regions, map.hiddenLayers)
-    .filter((region) => canInteract(region))
+  const regions = alcancaveis(map, 'regiao', map.regions)
     .filter((region) => !isDegenerateRegion(region.points))
     .filter((region) => inArea(regionEntity(region)))
     .map((region) => region.id)
 
-  const lights = visibleLights(map.lights, map.hiddenLayers)
-    .filter((light) => canInteract(light))
+  const lights = alcancaveis(map, 'luz', map.lights)
     .filter((light) => inArea(lightEntity(light)))
     .map((light) => light.id)
 
-  const tokens = visibleTokens(map.tokens, map.hiddenLayers)
-    .filter((token) => canInteract(token))
+  const tokens = alcancaveis(map, 'ficha', map.tokens)
     .filter((token) => inArea(tokenEntity(token, map.grid, pinos)))
     .map((token) => token.id)
 
-  const props = visibleProps(map.props, map.hiddenLayers)
-    .filter((prop) => canInteract(prop))
+  const props = alcancaveis(map, 'objeto', map.props)
     .filter((prop) => inArea(propEntity(prop)))
     .map((prop) => prop.id)
 
-  const stairs = visibleStairs(map.stairs, map.hiddenLayers)
-    .filter((stair) => canInteract(stair))
+  const stairs = alcancaveis(map, 'escada', map.stairs)
     .filter((stair) => inArea(stairEntity(stair)))
     .map((stair) => stair.id)
 
-  const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+  const drawings = alcancaveis(map, 'desenho', map.drawings)
     .filter((drawing) => inArea(drawingEntity(drawing)))
     .map((drawing) => drawing.id)
 
   return { walls, regions, lights, tokens, props, stairs, drawings }
+}
+
+/**
+ * O que o laço e o Ctrl+A alcançam, pelo ponto único de camadas: o mestre vê
+ * a camada do item E pode mexer nele (item destravado numa camada
+ * destravada). Sem camada oculta nem travada, a MESMA lista (nada a filtrar).
+ */
+function alcancaveis<K extends TipoDeObjeto>(map: MapData, tipo: K, itens: ItemPorTipo[K][]): ItemPorTipo[K][] {
+  const camadas = contextoDeCamadas(map)
+  return itens.filter((item) => camadas.mestreVe(camadas.camadaDe(tipo, item)) && camadas.podeMexer(tipo, item))
 }
 
 /**
