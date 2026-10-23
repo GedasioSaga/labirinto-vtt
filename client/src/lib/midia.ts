@@ -95,6 +95,14 @@ export type TipoDeAudio = 'mp3' | 'ogg' | 'wav' | 'm4a'
 /** `<64 hex minúsculos>.<mp3|ogg|wav|m4a>` — a forma de áudio que o Rust aceita. */
 const FORMA_DO_ID_DE_AUDIO = /^[0-9a-f]{64}\.(mp3|ogg|wav|m4a)$/
 
+/** As marcas (`major_brand` do `ftyp`) aceitas como m4a: 'M4A ', 'M4B ', 'mp42' e 'isom', em ASCII. */
+const MARCAS_DE_M4A: readonly (readonly number[])[] = [
+  [0x4d, 0x34, 0x41, 0x20],
+  [0x4d, 0x34, 0x42, 0x20],
+  [0x6d, 0x70, 0x34, 0x32],
+  [0x69, 0x73, 0x6f, 0x6d],
+]
+
 /** Os 3 bits altos do 2º byte de um quadro MPEG (com o `FF` antes, 11 bits de sincronia). */
 const BITS_ALTOS_DA_SINCRONIA = 0b1110_0000
 
@@ -112,15 +120,16 @@ export function idDaRefDeAudio(ref: unknown): string | null {
   return ehRefDeAudio(ref) ? ref.slice(PREFIXO_DA_REF.length) : null
 }
 
-/** O tipo do áudio pela ASSINATURA dos bytes — a mesma regra do Rust (`tipo_dos_bytes`). */
+/** O tipo do áudio pela ASSINATURA dos bytes — a regra do Rust (`tipo_dos_bytes`), mais estrita no m4a (só marca de áudio). */
 export function tipoDoAudio(bytes: Uint8Array): TipoDeAudio | null {
   const comeca = (assinatura: readonly number[], desde = 0): boolean => assinatura.every((byte, i) => bytes[desde + i] === byte)
   // RIFF....WAVE (o WebP também é RIFF, mas com WEBP no byte 8)
   if (comeca([0x52, 0x49, 0x46, 0x46]) && comeca([0x57, 0x41, 0x56, 0x45], 8)) return 'wav'
   // OggS
   if (comeca([0x4f, 0x67, 0x67, 0x53])) return 'ogg'
-  // ....ftyp: a primeira caixa do MP4, com o tamanho dela nos 4 bytes antes
-  if (comeca([0x66, 0x74, 0x79, 0x70], 4)) return 'm4a'
+  // ....ftyp + marca: a primeira caixa do MP4, com o tamanho dela nos 4 bytes antes. Só marca de áudio:
+  // vídeo MP4, HEIC e AVIF também começam com ftyp. O Rust (`tipo_dos_bytes`) ainda aceita qualquer marca.
+  if (comeca([0x66, 0x74, 0x79, 0x70], 4)) return MARCAS_DE_M4A.some((marca) => comeca(marca, 8)) ? 'm4a' : null
   // ID3, ou quadro MPEG direto. O JPEG (`FF D8`) começa com FF mas não tem os 3 bits altos.
   if (comeca([0x49, 0x44, 0x33])) return 'mp3'
   const segundo = bytes[1]

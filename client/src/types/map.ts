@@ -414,7 +414,7 @@ export interface RoomMeta {
    *  madeira, desenhado por `texturas/telhado.ts`. Só vale com `roof` ligado.
    *  `undefined` === 'telhas' (o padrão da casa), sem migração; o setter grava
    *  só 'madeira' e `lib/mapFile.ts` descarta valor desconhecido. */
-  modeloDoTeto?: 'telhas' | 'madeira'
+  modeloDoTeto?: import('../lib/telhado/paletas').ModeloDoTeto
   /** COR DO TELHADO, `#rrggbb`: uma das 6 do modelo ou cor livre.
    *  `undefined` === a primeira cor do modelo (telha barro `#8a5a46`), sem
    *  migração; `lib/mapFile.ts` descarta cor inválida. */
@@ -1691,7 +1691,7 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
-export type TipoMobilia = 'barril' | 'caixa' | 'bau' | 'catre' | 'mesa' | 'cadeira' | 'cerca' | 'armario' | 'aparador' | 'fogueira' | 'tapete'
+export type TipoMobilia = import('../lib/mobilia/tipos').TipoMobilia
 
 /** Vista de um móvel com vista (`lib/mobilia.ts`): de frente (o padrão) ou de lado. */
 export type VistaMobilia = 'frente' | 'lado'
