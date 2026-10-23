@@ -249,6 +249,11 @@ function hostCom({ map, visao = [anel(0, 0, COLUNAS * GRADE, LINHAS * GRADE)], e
 
 async function abrirNoJogador(page: Page, cena: CenaDoJogador): Promise<void> {
   await page.routeWebSocket((url) => url.pathname === '/ws', hostCom(cena))
+  await entrarComoAna(page)
+}
+
+/** Abre a tela do jogador e entra como Ana; o host de mentira (rota do WebSocket) já está na página. */
+async function entrarComoAna(page: Page): Promise<void> {
   await page.goto('/player.html')
   await page.getByLabel('Código da sala').fill('GOLDEN')
   await page.getByLabel('Seu nome').fill('Ana')
@@ -394,6 +399,32 @@ function paraOJogador(map: MapData): MapData {
   return camadasDoJogador === undefined ? semOsDoMestre : { ...semOsDoMestre, camadasDoJogador }
 }
 
+/**
+ * A FOTO DO JOGADOR COM CAMADA SEMITRANSPARENTE, estrita, com UMA segunda
+ * página. Medido em 23/10/2026 (`jogador-1440-objetos-40`): 2 em 12 rodadas, e
+ * 4 em 20 mesmo esperando fontes, a decodificação da imagem do móvel e 10
+ * quadros parados, todas com os MESMOS 23 px a 1 nível no rótulo "Vinho" a
+ * 40%; a mesma Casa a 100% (`jogador-1440-casa`) passou 16 em 16. Não é
+ * captura antes da hora (a imagem e o rótulo estão lá nas duas): é um de dois
+ * arredondamentos do texto semitransparente, fixo pela vida da página. Por
+ * isso a segunda chance é uma página RECARREGADA (a rota do host continua), e
+ * a comparação continua de cor exata nas duas — nada de tolerância.
+ */
+async function fotoDoJogador(page: Page, foto: string): Promise<void> {
+  const canvas = page.locator('canvas').first()
+  try {
+    await expect(canvas).toHaveScreenshot(foto, FOTO)
+  } catch {
+    // Sem a sessão guardada, a tela recarregada pede o código de novo (e o host de mentira só responde ao `join`).
+    await page.evaluate(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
+    await entrarComoAna(page)
+    await expect(canvas).toHaveScreenshot(foto, FOTO)
+  }
+}
+
 // FATIA 4 (render do jogador com zonas): a lista manda DENTRO da zona da névoa.
 // Os mesmos casos aceitos no editor, na tela do jogador: Chão logo acima de
 // Salas (a pincelada de terra por cima do fundo da Sala, paredes e móveis por
@@ -412,7 +443,7 @@ test.describe('jogador a 1440 x 900, camadas mexidas (fatia 4)', () => {
       const map = paraOJogador(montar())
       expect(map.camadasDoJogador).toBeDefined()
       await abrirNoJogador(page, { map })
-      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+      await fotoDoJogador(page, foto)
     })
   }
 })
