@@ -122,6 +122,25 @@ describe('linhas e marcadores do mapa × Paredes e Portas travadas', () => {
     expect(avisos()).toEqual(['A camada Salas está travada'])
   })
 
+  it('controle: Portas destravada (com outra camada travada), o marcador entra', () => {
+    abrir({ lockedLayers: ['tokens'] })
+    useMapStore.getState().addMapDetails([linha], [marcador])
+    expect(useMapStore.getState().map.lines).toEqual([linha])
+    expect(useMapStore.getState().map.markers).toEqual([marcador])
+    expect(avisos()).toEqual([])
+  })
+
+  it('controle: mapa v2 com Salas travada, recriar o minimapa entra (linhas seguem Paredes, chão não segue Salas)', () => {
+    abrir({ lockedLayers: ['salas'], versaoDasCamadas: 2 })
+    useMapStore.getState().applyMinimapTrace([peca], [linha], [marcador], {})
+    const { map } = useMapStore.getState()
+    expect(map.lines).toEqual([linha])
+    expect(map.markers).toEqual([marcador])
+    expect(map.floor.length).toBeGreaterThan(0)
+    expect(useMapStore.getState().past).toHaveLength(1)
+    expect(avisos()).toEqual([])
+  })
+
   it('destravadas, entram como hoje', () => {
     abrir()
     useMapStore.getState().addMapDetails([linha], [marcador])
@@ -141,6 +160,16 @@ describe('texturas e carimbos × Terreno travada', () => {
     expect(s.encherComTextura({ x: 150, y: 150 })).toBe('camada-travada')
     semMudanca(antes)
     expect(avisos()).toEqual(['A camada Terreno está travada'])
+  })
+
+  it('controle: Terreno destravada, o pincel de textura pinta (um passo do Ctrl+Z, sem aviso)', () => {
+    abrir()
+    useMapStore.getState().setTexturaEscolhida('floresta')
+    const resultado = useMapStore.getState().pintarTextura({ tipo: 'pincel', textura: 'floresta', forca: 0.8, raio: 30, pontos: [{ x: 150, y: 150 }] })
+    expect(resultado).toBe('pintou')
+    expect(useMapStore.getState().map.texturas ?? []).toHaveLength(1)
+    expect(useMapStore.getState().past).toHaveLength(1)
+    expect(avisos()).toEqual([])
   })
 
   it('"apagar todas" as texturas: com uma pincelada no piso, ela FICA com Terreno travada', () => {

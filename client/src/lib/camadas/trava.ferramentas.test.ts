@@ -76,4 +76,11 @@ describe('clique no chão e lista de objetos seguem a camada escolhida', () => {
     const lista = mapObjectsOf(mapa(['objetos'], [], { tokens: [ficha] }))
     expect(lista.find((entrada) => entrada.id === 'ana')?.blockedReason).toBe('camada travada')
   })
+
+  it('controle: sem trava nenhuma, a mesma ficha (e a escolhida em Objetos) aparece livre, sem motivo de bloqueio', () => {
+    const ficha: Token = { id: 'ana', characterId: null, name: 'Ana', x: 100, y: 100, size: 1, image: null }
+    const lista = mapObjectsOf(mapa([], [], { tokens: [ficha, { ...ficha, id: 'bia', camada: 'objetos' }] }))
+    expect(lista.find((entrada) => entrada.id === 'ana')?.blockedReason).toBeNull()
+    expect(lista.find((entrada) => entrada.id === 'bia')?.blockedReason).toBeNull()
+  })
 })
