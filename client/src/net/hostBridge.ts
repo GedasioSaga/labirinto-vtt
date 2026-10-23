@@ -118,6 +118,7 @@ import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 import { sementeDosAssentos, type SementeDoDono } from './visaoDeTeste/semente'
 import { criarSaidaEmOrdem } from './pacoteComprimido'
+import { midiasDaMensagem } from './liberacaoDosSons'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
@@ -1536,7 +1537,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const sendToClient = criarSaidaEmOrdem((clientId, carga) => {
     // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
     const owner = session
-    return deps.invoke('net_send', { clientId, msg: carga }).then(
+    // SONS AO VIVO (F5): o áudio que ESTA mensagem entrega a ESTA conexão sai liberado no mesmo envio
+    // (o servidor só serve `/sons/<id>` ao liberado). Sem áudio, sem o campo: o Rust de antes ignora.
+    const liberar = midiasDaMensagem(carga)
+    return deps.invoke('net_send', liberar.length > 0 ? { clientId, msg: carga, liberar } : { clientId, msg: carga }).then(
       () => undefined,
       (error: unknown) => {
         // Tela que não chegou: o próximo broadcast manda a inteira, e não um

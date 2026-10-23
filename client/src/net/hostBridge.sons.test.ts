@@ -50,7 +50,11 @@ async function mesa() {
   const enviados: Enviado[] = []
   const invoke = vi.fn(async (cmd: string, args?: unknown) => {
     if (cmd === 'net_start_room') return ROOM
-    if (cmd === 'net_send') enviados.push(JSON.parse(JSON.stringify(args)))
+    // F5: o `net_send` ganhou o `liberar` opcional (coberto em hostBridge.liberacao.test.ts); aqui vale o que sai, como antes.
+    if (cmd === 'net_send') {
+      const { clientId, msg }: Enviado = JSON.parse(JSON.stringify(args))
+      enviados.push({ clientId, msg })
+    }
     return undefined
   })
   const listen = vi.fn(async (nome: string, handler: (event: { payload: unknown }) => void) => {
