@@ -9,13 +9,14 @@ import { pintarTelhado, type ImagemDoTelhado } from '../texturas/telhado'
 
 /*
  * MODELO E COR DO TELHADO, no painel da Sala, logo abaixo de "Teto fechado
- * para jogadores" (só com o teto ligado): Telhas | Madeira, cada um com a
+ * para jogadores" (só com o teto ligado): Telhas | Madeira | Palha (a palha
+ * em espinha entrou na MT6 do Meio-Termo), cada um com a
  * miniatura do próprio desenho (`texturas/telhado.ts`), e as 6 cores do
  * modelo mais "Outra cor…" com a pipeta e "Cor padrão" — o mesmo padrão da cor
  * do pino (`livro/CorETamanhoDoPino.tsx`). "Cor padrão" grava AUSENTE.
  */
 
-/** Telhado de 48 × 28 px de mapa (mais o beiral): lê as fileiras e as tábuas sem virar mancha. */
+/** Telhado de 48 × 28 px de mapa (mais o beiral): lê as fileiras, as tábuas e a espinha da palha sem virar mancha. */
 const SALA_DA_MINIATURA: readonly PontoDoTelhado[] = [
   { x: 9, y: 9 },
   { x: 57, y: 9 },

@@ -133,7 +133,8 @@ describe('pintarTelhado', () => {
     const padrao = pintarTelhado(RET, 'madeira', corPadraoDoModelo('madeira'), 1)
     expect(pintarTelhado(RET, 'madeira', 'vermelho', 1).pixels).toEqual(padrao.pixels)
     const telhas = pintarTelhado(RET, 'telhas', COR_PADRAO_DO_TETO, 1)
-    expect(pintarTelhado(RET, 'palha' as 'telhas', COR_PADRAO_DO_TETO, 1).pixels).toEqual(telhas.pixels)
+    // 'palha' virou modelo de verdade na MT6 (`telhadoPalha.test.ts`); 'sape' segue desconhecido.
+    expect(pintarTelhado(RET, 'sape' as 'telhas', COR_PADRAO_DO_TETO, 1).pixels).toEqual(telhas.pixels)
   })
 
   it('polígono quebrado: imagem vazia, sem lançar', () => {

@@ -529,7 +529,8 @@ function roomLabelStyleFromFile(region: Region): Region {
 }
 
 /** MODELO E COR DO TELHADO — campos NOVOS e OPCIONAIS: ausentes continuam
- *  ausentes (telha barro). Modelo que não é 'telhas'/'madeira' e cor que não é
+ *  ausentes (telha barro). Modelo fora de `MODELOS_DO_TETO` (telhas, madeira,
+ *  palha desde a MT6) e cor que não é
  *  `#rrggbb` SAEM, em vez de chegar ao desenho do jogador. */
 function roomRoofStyleFromFile(region: Region): Region {
   const room = region.room

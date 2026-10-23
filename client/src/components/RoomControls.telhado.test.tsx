@@ -79,6 +79,18 @@ describe('RoomControls — modelo e cor do telhado', () => {
     expect(() => radio('Cor do telhado', 'Barro')).toThrow()
   })
 
+  it('Palha (MT6) troca o modelo; as cores passam a ser as 6 da palha, com Palha marcada', () => {
+    const props = render()
+    act(() => radio('Modelo do telhado', 'Palha').click())
+    expect(props.onRoofStyleChange).toHaveBeenCalledWith({ modelo: 'palha' })
+    render({ modeloDoTeto: 'palha' })
+    expect(radio('Modelo do telhado', 'Palha').getAttribute('aria-checked')).toBe('true')
+    expect(radio('Cor do telhado', 'Palha').getAttribute('aria-checked')).toBe('true')
+    expect(() => radio('Cor do telhado', 'Barro')).toThrow()
+    expect(corAoTrocarDeModelo('telhas', '#8a5a46', 'palha')).toBe('#d6b56a')
+    expect(miniaturaDoTelhado('palha', '#d6b56a').largura).toBeGreaterThan(0)
+  })
+
   it('a bolinha grava a cor; "Cor padrão" grava null', () => {
     const props = render({ modeloDoTeto: 'madeira', corDoTeto: '#4d5f4f' })
     expect(radio('Cor do telhado', 'Verde').getAttribute('aria-checked')).toBe('true')

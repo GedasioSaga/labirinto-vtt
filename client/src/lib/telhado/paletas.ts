@@ -7,9 +7,13 @@
  *
  * Decisão do usuário (19/10/2026): telha colonial e madeira em tábuas, 6
  * cores cada mais cor livre; teto sem modelo escolhido = telha barro.
+ * Meio-Termo (MT6, 23/10/2026): palha em espinha de peixe como 3º modelo, 6
+ * cores e cor livre. A padrão é o token `palha` do estilo (`#d6b56a`,
+ * `docs/design/vila-meio-termo/README.md`); as outras 5 têm croma menor que
+ * ela no OKLab (palha velha, sapé, musgo), para nenhuma gritar mais que o token.
  */
 
-export type ModeloDoTeto = 'telhas' | 'madeira'
+export type ModeloDoTeto = 'telhas' | 'madeira' | 'palha'
 
 export interface CorDoTeto {
   readonly id: string
@@ -18,11 +22,12 @@ export interface CorDoTeto {
   readonly hex: string
 }
 
-export const MODELOS_DO_TETO: readonly ModeloDoTeto[] = ['telhas', 'madeira']
+export const MODELOS_DO_TETO: readonly ModeloDoTeto[] = ['telhas', 'madeira', 'palha']
 
 export const NOME_DO_MODELO: Readonly<Record<ModeloDoTeto, string>> = {
   telhas: 'Telhas',
   madeira: 'Madeira',
+  palha: 'Palha',
 }
 
 export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>> = {
@@ -41,6 +46,15 @@ export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>
     { id: 'cinza-envelhecido', nome: 'Cinza envelhecido', hex: '#7b776e' },
     { id: 'vermelho-celeiro', nome: 'Vermelho celeiro', hex: '#733d33' },
     { id: 'verde', nome: 'Verde', hex: '#4d5f4f' },
+  ],
+  // Croma OKLab: 0,102 (o token) e de 0,043 a 0,084 nas outras.
+  palha: [
+    { id: 'palha', nome: 'Palha', hex: '#d6b56a' },
+    { id: 'palha-clara', nome: 'Palha clara', hex: '#d2bf8c' },
+    { id: 'feno', nome: 'Feno', hex: '#b39a5e' },
+    { id: 'sape', nome: 'Sapé', hex: '#9a8155' },
+    { id: 'palha-velha', nome: 'Palha velha', hex: '#a39478' },
+    { id: 'musgo', nome: 'Palha com musgo', hex: '#7d7a5a' },
   ],
 }
 
