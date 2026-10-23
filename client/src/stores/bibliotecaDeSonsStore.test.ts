@@ -17,8 +17,11 @@ const { hashHex, MIDIA_AUDIO_MAX_BYTES } = await import('../lib/midia')
 const { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO } = await import('../lib/midiaNoDisco')
 const { trazerMidiaAoAbrir } = await import('../lib/midiaDaPasta')
 const { ehVideoDoYoutube, bibliotecaDeSonsVazia, comEfeitoNovo, serializarBiblioteca } = await import('../lib/sons/biblioteca')
-const { ESPERA_PARA_GRAVAR_SONS_MS, ligarBibliotecaAAventura, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import('./bibliotecaDeSonsStore')
+const { ESPERA_PARA_GRAVAR_SONS_MS, ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import(
+  './bibliotecaDeSonsStore'
+)
 type FonteDoSom = import('../lib/sons/biblioteca').FonteDoSom
+type BibliotecaDeSons = import('../lib/sons/biblioteca').BibliotecaDeSons
 type Adventure = import('../lib/adventure').Adventure
 
 const MB = 1024 * 1024
@@ -36,15 +39,20 @@ function aventura(id: string): Adventure {
 
 const loja = () => useBibliotecaDeSonsStore.getState()
 
-/** O texto de um sons.json com `n` efeitos chamados `<prefixo> 0`, `<prefixo> 1`... */
-function sonsJsonCom(n: number, prefixo: string): string {
+/** Uma biblioteca com `n` efeitos chamados `<prefixo> 0`, `<prefixo> 1`... */
+function bibliotecaCom(n: number, prefixo: string): BibliotecaDeSons {
   let biblioteca = bibliotecaDeSonsVazia()
   for (let i = 0; i < n; i++) {
-    const passo = comEfeitoNovo(biblioteca, { nome: `${prefixo} ${i}`, fonte: youtube('dQw4w9WgXcQ') }, `som_${prefixo}${i}`)
+    const passo = comEfeitoNovo(biblioteca, { nome: `${prefixo} ${i}`, fonte: youtube('dQw4w9WgXcQ') }, `som_${i}`)
     if (passo === null) throw new Error(`o teste não montou o efeito ${i}`)
     biblioteca = passo.biblioteca
   }
-  return serializarBiblioteca(biblioteca)
+  return biblioteca
+}
+
+/** O texto de um sons.json com `n` efeitos chamados `<prefixo> 0`, `<prefixo> 1`... */
+function sonsJsonCom(n: number, prefixo: string): string {
+  return serializarBiblioteca(bibliotecaCom(n, prefixo))
 }
 
 const nomes = () => loja().biblioteca.efeitos.map((efeito) => efeito.nome)
@@ -156,6 +164,84 @@ describe('troca de aventura e de pasta', () => {
 
     expect(JSON.parse(textoDe(SONS)).efeitos.map((efeito: { nome: string }) => efeito.nome)).toEqual(['Gaivota'])
     expect(loja()).toMatchObject({ aventuraId: 'adv_2', biblioteca: bibliotecaDeSonsVazia(), pendente: false })
+  })
+})
+
+describe('sem poder gravar: o sons.json existe e não foi lido', () => {
+  /** Nada entra e o arquivo fica IGUAL, nem com a gravação forçada (pendente na mão + `gravarAgora`). */
+  async function esperarArquivoIntacto(texto: string): Promise<void> {
+    expect(loja().adicionarEfeito({ nome: 'Sino', fonte: youtube('dQw4w9WgXcQ') })).toBeNull()
+    await expect(loja().importarArquivoDeSom('sino.wav', wav(64))).rejects.toThrow(SONS_NAO_GRAVAVEIS)
+    useBibliotecaDeSonsStore.setState({ pendente: true, biblioteca: bibliotecaCom(1, 'Por cima') })
+    await loja().gravarAgora()
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS * 3)
+    expect(textoDe(SONS)).toBe(texto)
+    expect(gravacoesDoSons(AVENTURA)).toBe(0)
+    expect(fsFalso.writeFile).not.toHaveBeenCalled()
+  }
+
+  it('sons.json de uma versão mais nova do app', async () => {
+    const texto = JSON.stringify({ versao: 2, pastas: [], efeitos: [{ id: 'som_do_futuro' }] })
+    arquivos.set(SONS, texto)
+    await loja().sincronizarComAAventura('adv_futuro', AVENTURA)
+    expect(loja()).toMatchObject({ podeGravar: false, carregando: false })
+    expect(loja().aviso).toContain('versão mais nova')
+    await esperarArquivoIntacto(texto)
+  })
+
+  it('leitura com erro (o Windows negou o acesso): o aviso diz por quê', async () => {
+    const texto = sonsJsonCom(2, 'Lá')
+    arquivos.set(SONS, texto)
+    fsFalso.readTextFile.mockRejectedValueOnce(new Error('os error 5'))
+    await loja().sincronizarComAAventura('adv_negado', AVENTURA)
+    expect(loja()).toMatchObject({ podeGravar: false, carregando: false, biblioteca: bibliotecaDeSonsVazia() })
+    expect(loja().aviso).toContain('Windows negou')
+    await esperarArquivoIntacto(texto)
+  })
+})
+
+describe('lendo e gravando', () => {
+  it('enquanto lê, recusa mudança (SONS_AINDA_LENDO); a leitura velha, de antes da troca, é descartada', async () => {
+    const outra = 'C:/aventuras/castelo'
+    criarPastasAte(outra)
+    arquivos.set(SONS, sonsJsonCom(2, 'Velha'))
+    arquivos.set(`${outra}/sons.json`, sonsJsonCom(1, 'Nova'))
+    let soltar = (): void => {}
+    const segura = new Promise<void>((resolve) => {
+      soltar = resolve
+    })
+    fsFalso.readTextFile.mockImplementationOnce(async (caminho: string) => {
+      await segura
+      return textoDe(caminho)
+    })
+
+    const primeira = loja().sincronizarComAAventura('adv_velha', AVENTURA)
+    await vi.waitFor(() => expect(fsFalso.readTextFile).toHaveBeenCalledTimes(1))
+    expect(loja()).toMatchObject({ aventuraId: 'adv_velha', carregando: true })
+    expect(loja().adicionarEfeito({ nome: 'Cedo', fonte: youtube('dQw4w9WgXcQ') })).toBeNull()
+    await expect(loja().importarArquivoDeSom('cedo.wav', wav(64))).rejects.toThrow(SONS_AINDA_LENDO)
+
+    const segunda = loja().sincronizarComAAventura('adv_nova', outra)
+    soltar()
+    await Promise.all([primeira, segunda])
+    expect(loja()).toMatchObject({ aventuraId: 'adv_nova', dir: outra, carregando: false })
+    expect(nomes()).toEqual(['Nova 0'])
+  })
+
+  it('a gravação falha: a mudança continua esperando, com o aviso; a próxima mudança grava', async () => {
+    await loja().sincronizarComAAventura('adv_falha', AVENTURA)
+    fsFalso.writeTextFile.mockRejectedValueOnce(new Error('os error 5'))
+    const efeito = loja().adicionarEfeito({ nome: 'Sino', fonte: youtube('dQw4w9WgXcQ') })
+    if (efeito === null) throw new Error('não adicionou')
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS)
+    await vi.waitFor(() => expect(loja().aviso).toContain('Não foi possível gravar os sons'))
+    expect(loja().pendente).toBe(true)
+    expect(arquivos.has(SONS)).toBe(false)
+
+    expect(loja().editarEfeito(efeito.id, { volume: 0.5 })).toBe(true)
+    await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS)
+    await vi.waitFor(() => expect(arquivos.has(SONS)).toBe(true))
+    expect(loja()).toMatchObject({ pendente: false, aviso: null })
   })
 })
 
