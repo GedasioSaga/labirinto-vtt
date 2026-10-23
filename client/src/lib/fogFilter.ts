@@ -367,8 +367,14 @@ export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] =
  * `hiddenLayers` do recorte: o olho "Jogadores veem" já resolvido, nas 9 de
  * sempre (é a lista que a tela do jogador lê). Sem `ocultasDoJogador` é a
  * própria lista do mapa, como sempre saiu.
+ *
+ * Mapa v2: lista VAZIA até a fatia 4. O recorte não leva a versão e a tela de
+ * hoje lê a lista no sentido antigo (chão some com 'salas', desenho com
+ * 'anotacoes', parede sem olhar `camada`): esconderia o que o jogador vê. O
+ * host já cortou tudo o que ele não vê, então nada falta esconder lá.
  */
 function ocultasNoRecorte(map: MapData): LayerId[] {
+  if (map.versaoDasCamadas === 2) return []
   if (map.ocultasDoJogador === undefined) return map.hiddenLayers
   const camadas = contextoDeCamadas(map)
   return LAYER_IDS.filter((id) => !camadas.jogadorVe(id))

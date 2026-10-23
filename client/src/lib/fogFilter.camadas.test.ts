@@ -194,8 +194,24 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
     })
   }
 
-  it('hiddenLayers do recorte é o olho "Jogadores veem" já resolvido, não o do mestre', () => {
-    for (const [quem, view] of recortes(mapaV2(['paredes', 'chao', LIVRE]))) expect(view.map.hiddenLayers, quem).toEqual(['paredes'])
+  it('mapa antigo com ocultasDoJogador: hiddenLayers do recorte é o olho "Jogadores veem" já resolvido, não o do mestre', () => {
+    const { versaoDasCamadas: _versao, ...antigo } = mapaV2(['paredes', 'chao', LIVRE])
+    for (const [quem, view] of recortes(antigo)) expect(view.map.hiddenLayers, quem).toEqual(['paredes'])
+  })
+
+  // Até a fatia 4 a tela do jogador lê `hiddenLayers` no sentido ANTIGO (chão some com 'salas', desenho com
+  // 'anotacoes', parede sem olhar `camada`); o recorte não leva a versão, então no v2 a lista esconderia demais.
+  it('mapa v2: hiddenLayers do recorte sai vazio (o host já cortou tudo)', () => {
+    for (const [quem, view] of recortes(mapaV2(['paredes', 'chao', LIVRE]))) expect(view.map.hiddenLayers, quem).toEqual([])
+  })
+
+  it('mapa v2 com Salas escondida só dos jogadores e Chão à vista: o chão sai e hiddenLayers vai vazio', () => {
+    const map: MapData = { ...mapaV2(['salas']), hiddenLayers: [] }
+    for (const [quem, view] of recortes(map)) {
+      expect(idsNaLista(view, 'floor'), quem).toEqual(['f1'])
+      expect(idsNaLista(view, 'regions'), quem).toEqual([])
+      expect(view.map.hiddenLayers, quem).toEqual([])
+    }
   })
 
   it('camada livre escondida dos jogadores sem o modelo no mapa: nada dela sai (falha fechada)', () => {
