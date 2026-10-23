@@ -49,7 +49,8 @@ describe('rasterDosMoveis: chave da imagem', () => {
     expect(perto?.desenho.materiais).toEqual(['carvalho', 'ferro'])
     expect(perto?.desenho.casasW).toBe(0.7)
     expect(perto?.desenho.semente).toBe(exato?.desenho.semente)
-    expect(chaveDoMovel(barril(CARVALHO, { mobilia: 'cerca' }), 1, 1)).toBeNull()
+    // Objeto comum (sem tipo de móvel) não tem desenho com textura. Até a MT2 o exemplo era a cerca; desde a MT3 os 11 tipos têm.
+    expect(chaveDoMovel(barril(CARVALHO, { mobilia: undefined }), 1, 1)).toBeNull()
   })
 
   it('a cama lê os 3 campos de hoje: madeira, cobertor e travesseiro', () => {
