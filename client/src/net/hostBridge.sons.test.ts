@@ -16,6 +16,7 @@ import { useToastStore } from '../stores/toastStore'
 import type { MapData, Token } from '../types/map'
 import { createHostBridge, LIVENESS_SWEEP_MS } from './hostBridge'
 import type { HostWorld } from './hostSession'
+import { redeDosSons } from './ponteDosSons'
 import { parseSomHostMessage, type FonteDeSomNaRede } from './protocol'
 
 const ROOM = { code: 'S0M4OV', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
@@ -487,5 +488,89 @@ describe('hostBridge: som.* só é descartado calado de quem entrou', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+// ─── Revisão da F4 (23/10): correção do host ───
+
+describe('hostBridge: o "não tocou para N" conta quem ouve o loop agora', () => {
+  it('não infla com reconexão: a conexão que caiu sai da conta, e a nova conta uma vez', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    m.doJogador('c-ana', { type: 'som.falhou', instancia: 'chuva', motivo: 'sem-gesto' })
+    expect(m.bridge.falhasDoSom('chuva')).toBe(1)
+    m.cai('c-ana')
+    m.volta('c-ana-2', 'Ana')
+    m.doJogador('c-ana-2', { type: 'som.falhou', instancia: 'chuva', motivo: 'sem-gesto' })
+    expect(m.bridge.falhasDoSom('chuva')).toBe(1)
+  })
+
+  it('quem sai da cena do loop sai da conta', async () => {
+    const m = await mesa()
+    m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'cena', sceneId: TAVERNA })
+    m.doJogador('c-bia', { type: 'som.falhou', instancia: 'chuva', motivo: 'nao-carregou' })
+    expect(m.bridge.falhasDoSom('chuva')).toBe(1)
+    m.mudaMundo(['t-ana'], ['t-caio', 't-bia'])
+    expect(m.bridge.falhasDoSom('chuva')).toBe(0)
+  })
+})
+
+describe('hostBridge: a TV que espera não toca', () => {
+  it('cena escolhida que não está no mundo: a TV espera (como no recorte) e não recebe o "Só a cena" dessa chave', async () => {
+    const m = await mesa()
+    m.bridge.setTableScene('s-sumiu')
+    m.limpa()
+    expect(m.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'cena', sceneId: 's-sumiu' })).toEqual({ ok: true, enviados: 0 })
+    expect(m.sons()).toEqual([])
+  })
+})
+
+/** Sala com Ana, cujo transporte segura o `room.closed` até `soltar()`: a espera do `stop()`. */
+async function salaQueSeguraOFechamento() {
+  const ouvintes = new Map<string, (event: { payload: unknown }) => void>()
+  const enviados: Enviado[] = []
+  const presos: (() => void)[] = []
+  const invoke = vi.fn(async (cmd: string, args?: unknown) => {
+    if (cmd === 'net_start_room') return ROOM
+    if (cmd !== 'net_send') return undefined
+    const enviado: Enviado = JSON.parse(JSON.stringify(args))
+    enviados.push(enviado)
+    if (enviado.msg.type === 'room.closed') await new Promise<void>((resolve) => presos.push(resolve))
+    return undefined
+  })
+  const listen = vi.fn(async (nome: string, handler: (event: { payload: unknown }) => void) => {
+    ouvintes.set(nome, handler)
+    return () => undefined
+  })
+  const mundo = mundoCom(['t-ana'], [])
+  const bridge = createHostBridge({ invoke, listen, getMap: () => mundo.open.map, getWorld: () => mundo, applyMove: vi.fn(), applyDoor: vi.fn() })
+  await bridge.start()
+  ouvintes.get('net:message')?.({ payload: { clientId: 'c-ana', msg: { type: 'join', code: ROOM.code, name: 'Ana' } } })
+  const ana = bridge.players().find((p) => p.name === 'Ana')
+  if (ana === undefined) throw new Error('Ana deveria ter entrado')
+  bridge.assignToken(ana.playerId, 't-ana')
+  return {
+    bridge,
+    enviados,
+    soltar: () => {
+      for (const solta of presos.splice(0)) solta()
+    },
+  }
+}
+
+describe('hostBridge: fechar a sala com o room.closed ainda saindo', () => {
+  it('a rede sai do registro e os loops somem ANTES da espera: nada de som depois do room.closed', async () => {
+    const s = await salaQueSeguraOFechamento()
+    s.bridge.tocarSomAoVivo(loop('chuva'), { tipo: 'todos' })
+    const fechando = s.bridge.stop()
+    await vi.waitFor(() => expect(s.enviados.some((e) => e.msg.type === 'room.closed')).toBe(true))
+    // A sessão ainda está viva (o room.closed não saiu), mas a sala já não toca nada.
+    expect(redeDosSons()).toBeNull()
+    expect(s.bridge.tocarSomAoVivo(loop('vento', GRITO), { tipo: 'todos' })).toEqual({ ok: false, motivo: 'sem-sala' })
+    expect(s.bridge.precarregarSonsAoVivo([ID_GRITO])).toBe(0)
+    s.soltar()
+    await fechando
+    const tipos = s.enviados.filter((e) => e.clientId === 'c-ana').map((e) => e.msg.type)
+    expect(tipos.slice(tipos.indexOf('room.closed') + 1)).toEqual([])
   })
 })
