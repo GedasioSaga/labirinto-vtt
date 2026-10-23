@@ -11,7 +11,7 @@ import { ALFA_DE_PECA, ALFA_OPACO, digitalDosPixels, distanciaOklab, medirImagem
  * contorno nunca preto, preto levantado, opaca), mais o que diz o que cada
  * peça É: volume (sombra no chão e luz no chanfro) a 1x e a 3x, mesas
  * coerentes com a mesa antiga, poço com borda de pedra, água escura e balde,
- * lampião apagado (sem chama), lápide com 3 desenhos, barraca e carroça
+ * lampião aceso (vidro âmbar, sem chama), lápide com 3 desenhos, barraca e carroça
  * reconhecíveis de lado.
  *
  * A semente aqui é fixa (7); a do app e a varredura das 1000 estão em
@@ -272,33 +272,53 @@ describe('peças novas da MT4: o que cada peça é', () => {
     }
   })
 
-  it('lampião apagado: o vidro é pálido (sem cor de chama) e fora do corpo só há sombra, nenhum halo de luz', () => {
+  it('lampião aceso como no protótipo da vila: vidro âmbar sem chama, miolo claro junto ao chapéu, sem rebites, halo fraco e sombra do poste que se lê a 1x', () => {
     const meia = 0.25 * G
     const k = meia / 6.6
+    const saturacao = (px: Uint8ClampedArray, o: number): number => {
+      const mx = Math.max(px[o], px[o + 1], px[o + 2])
+      return mx > 0 ? (mx - Math.min(px[o], px[o + 1], px[o + 2])) / mx : 0
+    }
     for (const metal of ['ferro', 'latao'] as const) {
       const im = imagem({ tipo: 'lampiao', lado: 'frente', materiais: [metal], casasW: 0.5, casasH: 0.5, semente: 7 }, S3)
-      // O vidro aparece entre o chapéu (4,6) e a borda (6,2): a faixa de cima, longe das hastes das quinas.
-      const saturacoes: number[] = []
-      for (let x = -3 * k; x <= 3 * k; x += 0.5 / S3) {
-        const o = noPonto(im, x, -5.4 * k)
-        const mx = Math.max(im.px[o], im.px[o + 1], im.px[o + 2])
-        saturacoes.push(mx > 0 ? (mx - Math.min(im.px[o], im.px[o + 1], im.px[o + 2])) / mx : 0)
+      // O vidro aparece entre o chapéu (3,4k) e a borda (6,2k): a faixa de cima, quente (R > G > B) e âmbar.
+      let somaSat = 0
+      let n = 0
+      for (let x = -2.5 * k; x <= 2.5 * k; x += 0.5 / S3) {
+        const o = noPonto(im, x, -5.6 * k)
+        expect(im.px[o], `${metal}: vidro quente`).toBeGreaterThan(im.px[o + 1])
+        expect(im.px[o + 1]).toBeGreaterThan(im.px[o + 2])
+        somaSat += saturacao(im.px, o)
+        n += 1
       }
-      saturacoes.sort((a, b) => a - b)
-      expect(saturacoes[Math.floor(saturacoes.length * 0.95)], `${metal}: vidro`).toBeLessThan(0.35)
-      // Fora da pegada só a sombra, preta translúcida: halo de luz pintado seria colorido.
+      expect(somaSat / n, `${metal}: vidro âmbar, não pálido`).toBeGreaterThan(0.3)
+      // O miolo aceso, colado no chapéu, é mais claro que o meio do vidro.
+      expect(brilho(im.px, noPonto(im, 0, -3.8 * k)), `${metal}: miolo`).toBeGreaterThan(brilho(im.px, noPonto(im, 0, -5 * k)) + 0.03)
+      // Sem os 4 rebites das quinas: ali é vidro, não metal.
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) expect(saturacao(im.px, noPonto(im, sx * 5.3 * k, sy * 5.3 * k)), `${metal}: quina ${sx},${sy}`).toBeGreaterThan(0.3)
+      // Halo: em cima à esquerda, longe da sombra, a luz quente fraca (alfa até 0,12); nada de corpo fora da pegada.
+      const halo = noPonto(im, -0.45 * G, -0.45 * G)
+      expect(im.px[halo + 3], `${metal}: halo`).toBeGreaterThan(3)
+      expect(im.px[halo + 3]).toBeLessThanOrEqual(0.12 * 255)
+      expect(im.px[halo], `${metal}: halo quente`).toBeGreaterThan(im.px[halo + 2])
       for (let j = 0; j < im.H; j += 1) {
         for (let i = 0; i < im.W; i += 1) {
-          const x = im.x0 + (i + 0.5) / S3
-          const y = im.y0 + (j + 0.5) / S3
+          const x = im.x0 + (i + 0.5) / im.S
+          const y = im.y0 + (j + 0.5) / im.S
           if (Math.abs(x) <= meia + 1 && Math.abs(y) <= meia + 1) continue
-          const o = (j * im.W + i) * 4
-          if (im.px[o + 3] === 0) continue
-          expect(im.px[o + 3], `${metal}: fora do corpo em (${x.toFixed(1)}, ${y.toFixed(1)})`).toBeLessThan(ALFA_DE_PECA)
-          expect(Math.max(im.px[o], im.px[o + 1], im.px[o + 2]), `${metal}: cor fora do corpo`).toBeLessThan(60)
+          expect(im.px[(j * im.W + i) * 4 + 3], `${metal}: fora do corpo em (${x.toFixed(1)}, ${y.toFixed(1)})`).toBeLessThan(ALFA_DE_PECA)
         }
       }
     }
+    // A sombra do poste diz "poste": a 1x, além da pegada, forte (alfa >= 0,28) e com 2 px ou mais de largura.
+    const im1 = imagem({ tipo: 'lampiao', lado: 'frente', materiais: ['ferro'], casasW: 0.5, casasH: 0.5, semente: 7 }, 1)
+    const H = 1.3 * G
+    const [px0, py0] = [0.27 * H * 0.93, 0.21 * H * 0.93]
+    expect(im1.px[noPonto(im1, px0, py0) + 3], 'sombra do poste').toBeGreaterThanOrEqual(0.28 * 255)
+    const [nx, ny] = [-0.21 / Math.hypot(0.21, 0.27), 0.27 / Math.hypot(0.21, 0.27)]
+    let largura = 0
+    for (let t = -6; t <= 6; t += 1 / im1.S) if (im1.px[noPonto(im1, px0 + nx * t, py0 + ny * t) + 3] >= 0.18 * 255) largura += 1
+    expect(largura, 'largura da sombra do poste a 1x, em px').toBeGreaterThanOrEqual(2)
   })
 
   it('vaso: folhas verdes no meio e a boca do vaso em volta', () => {
