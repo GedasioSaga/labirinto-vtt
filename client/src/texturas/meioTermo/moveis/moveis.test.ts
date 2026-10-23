@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { oklabDoHex, type OpcaoDeMaterial, type Oklab } from '../materiais'
 import { G, type LadoDoMovel } from './contexto'
@@ -180,8 +181,12 @@ describe.skipIf(!BENCH)('BENCH_MOVEIS=1: tempo a 3x, frio e morno, contra os 50 
       medianas.push(mediana)
       linhas.push(`${nomeDo(caso, caso.materiais[0])}: fria ${fria.toFixed(1)} ms, morna (mediana de ${MORNAS}) ${mediana.toFixed(1)} ms`)
     }
-    // Saída do bench (pedida por variável de ambiente): o registro das medidas.
-    console.info(['BENCH_MOVEIS a 3x', ...linhas].join('\n'))
+    // Saída do bench (pedida por variável de ambiente): o registro das medidas. No ambiente jsdom o
+    // console do teste não chega ao terminal; com BENCH_MOVEIS_ARQUIVO=<caminho> o registro vai para o arquivo.
+    const registro = ['BENCH_MOVEIS a 3x', ...linhas].join('\n')
+    console.info(registro)
+    const arquivo: unknown = import.meta.env.BENCH_MOVEIS_ARQUIVO
+    if (typeof arquivo === 'string' && arquivo !== '') writeFileSync(arquivo, new TextEncoder().encode(`${registro}\n`))
     for (const mediana of medianas) expect(mediana).toBeLessThanOrEqual(GERAR_A_3X_MS)
   })
 })
