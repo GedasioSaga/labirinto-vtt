@@ -23,7 +23,10 @@ import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { ehPecaNova } from '../lib/mobilia/pecasNovas'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
-// Só o tipo: o Meio-Termo dos móveis (motor, materiais, tabelas de ruído) carrega sob demanda, com a chave ligada.
+// Só o tipo: o raster dos móveis do Meio-Termo (o motor e as tabelas de ruído) carrega sob demanda.
+// Os MATERIAIS não: o painel da peça nova (`MaterialDaPeca`) e o resumo da ficha escrevem o nome do
+// material na hora, então `materiais.ts` e `paleta.ts` entram no início do editor (5,4 kB, 2,2 kB em
+// gzip, num chunk pré-carregado) e o chunk do raster os reusa.
 import type { RasterDosMoveis } from './rasterDosMoveis'
 
 /**
@@ -394,9 +397,10 @@ export function trocarCarregadorDoRasterNoTeste(outro: CarregadorDoRaster | null
 }
 
 /**
- * Carrega o Meio-Termo dos móveis (o raster, o motor, os materiais e as
- * tabelas de ruído) uma vez só. Com a chave desligada nada disso entra no
- * início do editor nem do jogador. Se o chunk falha (rede, versão nova
+ * Carrega o Meio-Termo dos móveis (o raster, o motor e as tabelas de ruído;
+ * os materiais já vêm no início, ver o import do tipo acima) uma vez só. Sem
+ * peça nova e com a chave desligada nada disso entra no início do editor nem
+ * do jogador. Se o chunk falha (rede, versão nova
  * publicada no meio da sessão), a promessa guardada sai e os `Graphics` à
  * espera são soltos: a próxima pintura tenta de novo (`rasterParaPassada`).
  * A promessa devolvida rejeita com o erro, para quem a espera.
