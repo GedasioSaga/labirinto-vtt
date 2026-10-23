@@ -73,7 +73,25 @@ test.use({ trace: 'off', video: 'off', contextOptions: { reducedMotion: 'reduce'
 /** Só o canvas do Pixi aparece na foto: painéis e botões ficam invisíveis, sem mudar o layout. */
 const SO_O_CANVAS = '*:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }'
 // `as const`: só congela os literais ('disabled', 'hide') que a assinatura de toHaveScreenshot pede; não troca tipo nenhum.
-const FOTO = { maxDiffPixels: 0, animations: 'disabled', caret: 'hide', timeout: 20_000 } as const
+// `threshold: 0`: sem ele o Playwright fica com a tolerância de cor PADRÃO (0,2 por
+// pixel, no espaço YIQ) e `maxDiffPixels: 0` só conta pixel que passou dela; com o
+// baú sumido a foto diferia em 1 px. Com 0 qualquer mudança de cor conta.
+const FOTO = { maxDiffPixels: 0, threshold: 0, animations: 'disabled', caret: 'hide', timeout: 20_000 } as const
+/**
+ * PENDENTE (23/10/2026): estas 3 fotos gravadas diferem do render ATUAL desta
+ * máquina em ±1 a 6 níveis de cinza por canal (terreno do editor ~12 mil px,
+ * terreno do jogador ~40 mil px, visão parcial 22 px a ±1) — e o render é o
+ * MESMO, byte a byte, no código de 924c2bdd (antes da fatia 1), de 98d679e9~1
+ * (antes da fatia 3) e da HEAD: a diferença é do ambiente, não de commit.
+ * Regravar ou não é decisão do orquestrador; até lá ficam com a tolerância de
+ * cor padrão, como estavam.
+ */
+const FOTOS_COM_DERIVA_DO_AMBIENTE = new Set(['editor-terreno.png', 'jogador-1440-terreno.png', 'jogador-1440-visao-parcial.png'])
+const FOTO_TOLERANTE = { maxDiffPixels: 0, animations: 'disabled', caret: 'hide', timeout: 20_000 } as const
+
+function opcoesDaFoto(foto: string): typeof FOTO | typeof FOTO_TOLERANTE {
+  return FOTOS_COM_DERIVA_DO_AMBIENTE.has(foto) ? FOTO_TOLERANTE : FOTO
+}
 
 /**
  * Esconde a interface por folha de estilo na página (a opção `style` da foto
@@ -257,7 +275,7 @@ test.describe('editor a 1440 x 900', () => {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
       await abrirNoEditor(page, montar())
-      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, opcoesDaFoto(foto))
     })
   }
 })
@@ -288,7 +306,7 @@ test.describe('editor a 1440 x 900, camadas mexidas (fatia 3)', () => {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
       await abrirNoEditor(page, montar())
-      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, opcoesDaFoto(foto))
     })
   }
 })
@@ -304,7 +322,7 @@ test.describe('jogador a 1440 x 900', () => {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
       await abrirNoJogador(page, montar())
-      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, opcoesDaFoto(foto))
     })
   }
 })
@@ -319,7 +337,7 @@ test.describe('jogador a 390 x 844', () => {
     test(foto, async ({ page }) => {
       test.setTimeout(90_000)
       await abrirNoJogador(page, { map: montar() })
-      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, FOTO)
+      await expect(page.locator('canvas').first()).toHaveScreenshot(foto, opcoesDaFoto(foto))
     })
   }
 })
