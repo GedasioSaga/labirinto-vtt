@@ -132,6 +132,19 @@ export interface Polar {
   readonly r: number
 }
 
+/**
+ * Coordenadas do veio ao longo de um ARCO de centro (cx, cy) e raio `r` (a
+ * vara, a corda e o arame da cerca curva): u anda pelo arco a partir do ângulo
+ * `a0`, v atravessa (a distância ao raio). Assim o veio e a torção acompanham a
+ * curva em vez de cortá-la reto.
+ */
+export interface Arco {
+  readonly cx: number
+  readonly cy: number
+  readonly r: number
+  readonly a0: number
+}
+
 export interface OpcoesDaPeca {
   readonly dx?: number
   readonly dy?: number
@@ -148,6 +161,8 @@ export interface OpcoesDaPeca {
   readonly suave?: number
   readonly ruga?: number
   readonly polar?: Polar
+  /** Veio pelo arco (vence `eixo`). */
+  readonly arco?: Arco
   readonly recesso?: Recesso
   readonly curvaY?: CurvaY
   readonly projeta?: Projecao
@@ -183,6 +198,7 @@ export interface Peca {
   readonly suave: number
   readonly ruga: number
   readonly polar: Polar | undefined
+  readonly arco: Arco | undefined
   readonly recesso: Recesso | undefined
   readonly curvaY: CurvaY | undefined
   readonly projeta: Projecao | undefined
@@ -242,6 +258,7 @@ export function criarPecas(base: number): CriarPeca {
       suave: o.suave ?? 0,
       ruga: o.ruga ?? 0,
       polar: o.polar,
+      arco: o.arco,
       recesso: o.recesso,
       curvaY: o.curvaY,
       projeta: o.projeta,
@@ -345,10 +362,32 @@ function texPedra(u: number, v: number, _x: number, _y: number, p: Peca, s: Floa
   s[3] += luz
 }
 
-/** Corda torcida: fios em diagonal ao longo do comprimento (`objetos.js:463`). */
+/**
+ * A corda é palha clara (revisão da MT3): a de antes, #b89860 a #c8a868, quase
+ * igualava o pinho dos mourões (#c0a060) e, a 1x, a torção sumia. A torção é
+ * uma cor própria, mais escura e mais quente, não só menos luz.
+ */
+export const TOM_DA_CORDA: Rgb = [0xc9, 0xbc, 0x98]
+const TORCAO_DA_CORDA: Rgb = [0xa8, 0x99, 0x6f]
+/**
+ * Frequência da torção: a faixa se repete a cada ~4,5 px do protótipo na
+ * perpendicular (4 pixels no nível 1). Com 1,6, como no protótipo, eram 2,7 px,
+ * menos de 2,5 pixels a 1x: a torção virava ruído.
+ */
+const TORCAO = 0.95
+
+/** Corda torcida: faixas em diagonal da cor da torção ao longo do comprimento (`objetos.js:463`). */
 function texCorda(u: number, v: number, _x: number, _y: number, _p: Peca, s: Float32Array): void {
-  s[3] += Math.sin((u * 0.75 + v * 1.25) * 1.6) * 0.09 + ruido(u * 0.6, v * 0.6) * 0.05
+  // Faixa estreita da torção (pouco mais de um terço da volta): a corda continua lendo clara.
+  const t = limitar((Math.sin((u * 0.75 + v * 1.25) * TORCAO) - 0.3) / 0.7, 0, 1)
+  s[0] += (TORCAO_DA_CORDA[0] - s[0]) * t
+  s[1] += (TORCAO_DA_CORDA[1] - s[1]) * t
+  s[2] += (TORCAO_DA_CORDA[2] - s[2]) * t
+  s[3] += ruido(u * 0.6, v * 0.6) * 0.04 + LUZ_DA_CORDA
 }
+
+/** A corda é redonda e o chanfro a escurece nas bordas: um pouco de luz a mais deixa o meio no tom da palha. */
+const LUZ_DA_CORDA = 0.08
 
 /** Casca da lenha: bétula branca com riscos de través; as outras, fendas ao longo da tora (`objetos.js:468-480`). */
 function texCasca(u: number, v: number, _x: number, _y: number, p: Peca, s: Float32Array): void {
@@ -432,6 +471,7 @@ function janela(alvo: Alvo, b: Caixa, dx: number, dy: number, folga: number): [n
 }
 
 const SAIDA = new Float32Array(6)
+const VOLTA_INTEIRA = Math.PI * 2
 
 /** A normal do chanfro no ponto (nx, ny), ou zero longe da borda. */
 function normalDoChanfro(f: Forma, x: number, y: number, t: number, bisel: number, saida: Float64Array): void {
@@ -463,7 +503,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
   const [px0, py0, px1, py1] = janela(alvo, f.b, p.dx, p.dy, p.suave + 2 * inv)
   if (px1 <= px0 || py1 <= py0) return
   const [br, bg, bb] = p.base
-  const { bisel, tex, metal, contorno, ruga, alfa, polar, recesso: rec, curvaY: curva } = p
+  const { bisel, tex, metal, contorno, ruga, alfa, polar, arco, recesso: rec, curvaY: curva } = p
   const cosE = Math.cos(p.eixo)
   const sinE = Math.sin(p.eixo)
   const M = alvo.sombra
@@ -500,6 +540,13 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
         const ry = y - polar.cy
         u = Math.sqrt(rx * rx + ry * ry)
         v = Math.atan2(ry, rx) * polar.r
+      } else if (arco !== undefined) {
+        const rx = x - arco.cx
+        const ry = y - arco.cy
+        let da = Math.atan2(ry, rx) - arco.a0
+        da -= Math.round(da / VOLTA_INTEIRA) * VOLTA_INTEIRA
+        u = da * arco.r
+        v = Math.sqrt(rx * rx + ry * ry) - arco.r
       } else {
         u = x * cosE + y * sinE
         v = -x * sinE + y * cosE

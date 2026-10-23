@@ -140,6 +140,50 @@ export function poligono(pontos: readonly Ponto[]): Forma {
   }
 }
 
+/**
+ * Cápsulas de raio `r` encadeadas pelos pontos (a vara, a corda e o arame da
+ * cerca curva, em pedaços curtos pelo arco): uma forma só, sem emenda de
+ * contorno nem de chanfro onde um pedaço encontra o outro.
+ */
+export function cadeia(pontos: readonly Ponto[], r: number): Forma {
+  const n = pontos.length
+  const X = new Float64Array(n)
+  const Y = new Float64Array(n)
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (let i = 0; i < n; i += 1) {
+    X[i] = pontos[i][0]
+    Y[i] = pontos[i][1]
+    x0 = Math.min(x0, X[i])
+    y0 = Math.min(y0, Y[i])
+    x1 = Math.max(x1, X[i])
+    y1 = Math.max(y1, Y[i])
+  }
+  return {
+    b: [x0 - r, y0 - r, x1 + r, y1 + r],
+    d(x, y) {
+      let menor = Infinity
+      for (let i = 1; i < n; i += 1) {
+        const ax = X[i - 1]
+        const ay = Y[i - 1]
+        const dx = X[i] - ax
+        const dy = Y[i] - ay
+        const px = x - ax
+        const py = y - ay
+        let h = (px * dx + py * dy) / (dx * dx + dy * dy || 1e-9)
+        h = h < 0 ? 0 : h > 1 ? 1 : h
+        const qx = px - dx * h
+        const qy = py - dy * h
+        const dd = qx * qx + qy * qy
+        if (dd < menor) menor = dd
+      }
+      return Math.sqrt(menor) - r
+    },
+  }
+}
+
 export function uniao(a: Forma, b: Forma): Forma {
   return {
     b: [Math.min(a.b[0], b.b[0]), Math.min(a.b[1], b.b[1]), Math.max(a.b[2], b.b[2]), Math.max(a.b[3], b.b[3])],

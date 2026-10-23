@@ -11,7 +11,7 @@
 import type { FormaDoTapete } from '../../../types/map'
 import { MATERIAIS, tomDoMeio, type IdDoMaterial } from '../materiais'
 import { rgb } from '../../ruido'
-import { contato, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
+import { contato, TOM_DA_CORDA, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
 import type { Forma } from './formas'
 
 /** Px do protótipo por casa. */
@@ -78,5 +78,7 @@ export function materialDaPeca(id: IdDoMaterial): MaterialDaPeca {
   if (classe === 'tecido') return { classe, rgb: rgb(material.tom), fio: id === 'linho' ? 'linho' : 'la' }
   if (id === 'granito' || id === 'arenito' || id === 'ardosia') return { classe, rgb: rgb(material.tom), pedra: id }
   if (classe === 'casca') return { classe, rgb: rgb(material.tom), casca: id === 'lenhaBetula' ? 'betula' : 'fendida' }
+  // A corda é o único material da classe e só a cerca a usa: palha clara, para não se confundir com o pinho.
+  if (classe === 'corda') return { classe, rgb: TOM_DA_CORDA }
   return { classe, rgb: rgb(material.tom) }
 }
