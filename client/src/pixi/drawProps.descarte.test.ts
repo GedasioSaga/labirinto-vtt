@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Assets, Container, Texture } from 'pixi.js'
+import { Container, Texture } from 'pixi.js'
 import { createPropsRenderer } from './drawProps'
 import { useToastStore } from '../stores/toastStore'
 import type { Prop } from '../types/map'
@@ -8,21 +8,27 @@ vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `mocked://${path}`,
 }))
 
+// O carregamento da imagem fica nas mãos do teste. Pelo módulo e não por `vi.spyOn`:
+// o tipo do espião só enxerga a última sobrecarga de `Assets.load` (a de lista).
+const carregamento = vi.hoisted(() => ({ promessa: Promise.resolve<unknown>(undefined) }))
+vi.mock('pixi.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('pixi.js')>()
+  return { ...real, Assets: { load: () => carregamento.promessa } }
+})
+
 const ZOOM_1 = { cameraScale: 1, rendererResolution: 1 }
 const OBJETO: Prop = { id: 'p1', src: 'C:/imgs/barril.png', x: 100, y: 100, width: 64, height: 64, linkedMapPath: null }
 
 afterEach(() => {
-  vi.restoreAllMocks()
   useToastStore.setState({ toasts: [] })
 })
 
 /** A imagem do objeto fica carregando até o teste entregar a textura. */
 function carregamentoPendente(): { entregar: (textura: Texture) => void } {
   let entregar: (textura: Texture) => void = () => undefined
-  const pendente = new Promise<Texture>((resolve) => {
+  carregamento.promessa = new Promise<Texture>((resolve) => {
     entregar = resolve
   })
-  vi.spyOn(Assets, 'load').mockReturnValue(pendente)
   return { entregar: (textura) => entregar(textura) }
 }
 

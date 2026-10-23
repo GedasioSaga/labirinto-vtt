@@ -298,7 +298,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { alfaDoTelhadoNoEditor, criarPilha, criarPorNo, distribuir, paresDosItens } from './pilhaDeCamadas'
+import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, nosCriadosDasFaixas, nosDeTrabalho, paresDosItens } from './pilhaDeCamadas'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
 // parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
@@ -1354,10 +1354,7 @@ export function PixiCanvas({
       el.dataset.nosDaPilha = String(world.children.length)
       // A opacidade de cada faixa ANTES da camada: o esmaecido do "Oculto para
       // jogadores" e o atalho "Transparente" dos telhados (só do mestre, de sessão).
-      const alfaProprioDaFaixa = (faixa: string): number => {
-        if (faixa === 'telhadosContainer') return alfaDoTelhadoNoEditor(1, useTelhadosNoEditor.getState().transparentes)
-        return faixa === 'secretStairsGraphics' || faixa === 'secretDrawingsGraphics' || faixa === 'secretPathsGraphics' ? SECRET_ITEM_ALPHA : 1
-      }
+      const alfaProprioDaFaixa = (faixa: string): number => alfaProprioDaFaixaNoEditor(faixa, useTelhadosNoEditor.getState().transparentes)
       // Quem guarda um renderer por nó criado (portas, móveis, luzes) solta o dele aqui.
       const aoDescartarNo: ((no: Container) => void)[] = []
       const pilha = criarPilha<Container>({
@@ -1665,7 +1662,8 @@ export function PixiCanvas({
         if (pixel === null) return null
         const camadasDeTrabalho = [
           gridAlignOverlayGraphics,
-          ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
+          // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
+          ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
           signalsLayer,
           laserLayer,
         ]
@@ -1838,14 +1836,21 @@ export function PixiCanvas({
         ]
       }
 
-      let entradaDaPilha: { modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean; pares: string } | null = null
-      /** Devolve true quando um par (faixa, camada) ganhou ou perdeu nó: quem distribui itens por nó repinta. */
-      const atualizarPilha = (): boolean => {
+      let entradaDaPilha: { map: MapData; modelo: MapData['modeloCamadas']; opacidades: MapData['opacidadeDasCamadas']; transparentes: boolean; pares: string } | null = null
+      const NADA_MUDOU = { formas: false, moveis: false } as const
+      /**
+       * Devolve o que repintar quando um par (faixa, camada) ganhou ou perdeu nó:
+       * `formas` (paredes, linhas, escadas, desenhos, luzes, pelos portões de
+       * cada faixa) e `moveis` (só se o nó dos móveis mudou).
+       */
+      const atualizarPilha = (): { readonly formas: boolean; readonly moveis: boolean } => {
         const { map } = sceneState()
         const transparentes = useTelhadosNoEditor.getState().transparentes
+        const anterior = entradaDaPilha
+        // Mesmo mapa (a store é imutável) e mesmo atalho: nada a recalcular — o caso de todo quadro de zoom e de pan.
+        if (anterior !== null && anterior.map === map && anterior.transparentes === transparentes) return NADA_MUDOU
         const pares = paresDoMapa(map)
         const chaveDosPares = pares.map((par) => `${par.faixa}|${par.camada}`).join(',')
-        const anterior = entradaDaPilha
         if (
           anterior !== null &&
           anterior.modelo === map.modeloCamadas &&
@@ -1853,13 +1858,16 @@ export function PixiCanvas({
           anterior.transparentes === transparentes &&
           anterior.pares === chaveDosPares
         ) {
-          return false
+          entradaDaPilha = { ...anterior, map }
+          return NADA_MUDOU
         }
-        entradaDaPilha = { modelo: map.modeloCamadas, opacidades: map.opacidadeDasCamadas, transparentes, pares: chaveDosPares }
+        entradaDaPilha = { map, modelo: map.modeloCamadas, opacidades: map.opacidadeDasCamadas, transparentes, pares: chaveDosPares }
         const assinatura = pilha.assinatura()
+        const moveis = pilha.assinaturaDa('propsContainer')
         pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
-        return pilha.assinatura() !== assinatura
+        // `formas`: algo mudou; os portões por faixa (`assinaturaDa`) dizem QUAL camada repinta.
+        return { formas: pilha.assinatura() !== assinatura, moveis: pilha.assinaturaDa('propsContainer') !== moveis }
       }
 
       const computeViewport = () =>
@@ -2186,8 +2194,10 @@ export function PixiCanvas({
         const doMarcador = (marcador: MapData['markers'][number]) => camadas.camadaDe('marcador', marcador)
         // Linhas e marcadores dividem a faixa; cada nó dela leva os da camada dele.
         const nos = pilha.nosDaFaixa('mapLinesGraphics')
-        const linhas = rasterMode ? [] : map.lines.filter((l) => camadas.mestreVe(daLinha(l)))
-        const marcadores = rasterMode ? [] : map.markers.filter((m) => camadas.mestreVe(doMarcador(m)))
+        // Nada oculto: o mestre vê toda camada, então a lista vai inteira (sem filtro, sem perguntar a camada de cada item).
+        const nadaOculto = map.hiddenLayers.length === 0
+        const linhas = rasterMode ? [] : nadaOculto ? map.lines : map.lines.filter((l) => camadas.mestreVe(daLinha(l)))
+        const marcadores = rasterMode ? [] : nadaOculto ? map.markers : map.markers.filter((m) => camadas.mestreVe(doMarcador(m)))
         const baldesDeLinhas = distribuir(linhas, nos, daLinha)
         const baldesDeMarcadores = distribuir(marcadores, nos, doMarcador)
         nos.forEach(({ no }, i) => {
@@ -2215,7 +2225,7 @@ export function PixiCanvas({
           posseDasFichas: useDonosDasFichasStore.getState().posse,
           filtroFaccoes: useTerritorioStore.getState().filtroLigado,
           pontoDaPatrulhaAberto: usePatrulhaAndandoStore.getState().pontoAberto,
-          camadas: pilha.assinatura(),
+          camadas: pilha.assinaturaDa,
         }
       }
 
@@ -2394,6 +2404,11 @@ export function PixiCanvas({
         handles: [handlesGraphics],
         areaOutline: [areaSelectionOutlineGraphics],
       }
+      /** As faixas das camadas adiadas que distribuem itens por nó da pilha (os outros tipos ficam no container de hoje). */
+      const faixasDividasDaCamada: Partial<Record<ShapesLayer, readonly string[]>> = {
+        drawings: ['drawingsGraphics', 'secretDrawingsGraphics', 'pathsGraphics', 'secretPathsGraphics'],
+        lights: ['lightsContainer'],
+      }
       // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
       // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
       const montagemDaCena = createMontadorEmFatias(redrawLayers, {
@@ -2408,6 +2423,8 @@ export function PixiCanvas({
         esconder: (camada, oculta) => {
           // Só as camadas adiadas estão no mapa; a primeira fatia não tem o que esconder.
           for (const objeto of objetosDaCamada[camada] ?? []) objeto.visible = !oculta
+          // E os nós criados da pilha nas faixas dela (camada livre, faixa separada): o par que existe nas duas cenas mostraria a anterior.
+          for (const no of nosCriadosDasFaixas(pilha, faixasDividasDaCamada[camada] ?? [])) no.visible = !oculta
         },
         aoPintar: (pintadas) => {
           if (paintedTextLayer(pintadas)) syncTextResolution()
@@ -2420,10 +2437,10 @@ export function PixiCanvas({
 
       /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
       const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
-        // Par que ganhou ou perdeu nó: as camadas daqui repintam pelo portão; os móveis, logo depois.
-        const pilhaMudou = atualizarPilha()
+        // Par que ganhou ou perdeu nó: as camadas daqui repintam pelo portão da faixa; os móveis, logo depois, só se o nó deles mudou.
+        const { moveis } = atualizarPilha()
         if (paintedTextLayer(montagemDaCena.redesenhar(shapesSnapshot(), only))) syncTextResolution()
-        if (pilhaMudou) redrawProps()
+        if (moveis) redrawProps()
       }
 
       const redrawShapes = () => redrawShapeLayers()
@@ -2433,10 +2450,9 @@ export function PixiCanvas({
       const redrawPins = () => redrawShapeLayers(['pins'])
 
       const redrawTokens = () => {
-        if (atualizarPilha()) {
-          redrawShapes()
-          redrawProps()
-        }
+        const pilhaMudou = atualizarPilha()
+        if (pilhaMudou.formas) redrawShapes()
+        if (pilhaMudou.moveis) redrawProps()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
@@ -2641,7 +2657,7 @@ export function PixiCanvas({
 
       const redrawProps = () => {
         // Par que ganhou ou perdeu nó por causa de um móvel: paredes, linhas e cia. repintam pelos portões.
-        if (atualizarPilha()) redrawShapes()
+        if (atualizarPilha().formas) redrawShapes()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // O fio do móvel desenhado é em px de tela: sem zoom e resolução ele
@@ -2744,7 +2760,8 @@ export function PixiCanvas({
         const overlays = [
           mapBoundsGraphics,
           gridAlignOverlayGraphics,
-          ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
+          // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
+          ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
           signalsLayer,
           laserLayer,
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
@@ -3002,9 +3019,9 @@ export function PixiCanvas({
       // some) repintam as camadas que dividem itens por nó, pelos portões delas.
       const unsubscribeCamadas = useMapStore.subscribe((state, previous) => {
         if (state.map.modeloCamadas === previous.map.modeloCamadas && state.map.opacidadeDasCamadas === previous.map.opacidadeDasCamadas) return
-        if (!atualizarPilha()) return
-        redrawShapes()
-        redrawProps()
+        const pilhaMudou = atualizarPilha()
+        if (pilhaMudou.formas) redrawShapes()
+        if (pilhaMudou.moveis) redrawProps()
       })
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
