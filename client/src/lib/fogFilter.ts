@@ -4002,8 +4002,10 @@ function recorteDoGrupo(
       // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
       if (p.escadaId !== undefined) {
         if (!playerStairIds.has(p.escadaId) || p.hidden || p.secret || travelExitsOf(p).length === 0) return []
-        // O pino de escada segue a camada da escada; só a camada que o mestre escolheu PARA O PINO pesa por cima.
-        if (p.camada !== undefined && !jogadorVeItem('pino', p)) return []
+        // O pino de escada segue a camada da escada; só a camada que o mestre escolheu PARA O PINO pesa por
+        // cima, e só se ela vale (`camadaDe` a reconhece) ou é livre escondida dos jogadores (falha fechada):
+        // camada torta cairia em Anotações, que não é a dele.
+        if (p.camada !== undefined && !jogadorVeItem('pino', p) && (camadas.camadaDe('pino', p) === p.camada || !camadas.jogadorVe(p.camada))) return []
         return [pinForPlayer(p, ownTokens, map.grid, true, true, oneWayExits?.get(p.id))]
       }
       if (p.hidden || p.secret || !jogadorVeItem('pino', p)) return []

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MapData, Pin, Region, Stair } from '../types/map'
+import type { CamadaId, MapData, Pin, Region, Stair } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
@@ -99,5 +99,27 @@ describe('fogFilter: escada que leva a outro andar', () => {
     const view = filterMapForPlayer(mapa([], [comum]), 'p1', POSSE, RAIO)
     expect(view.map.pins.map((p) => p.id)).toEqual([ID_DO_PINO])
     expect(view.map.pins[0].escadaId).toBeUndefined()
+  })
+})
+
+describe('fogFilter: camada do pino de escada (fatia 2 das camadas)', () => {
+  const comCamadas = (pino: Pin, ocultas: CamadaId[]): MapData => ({ ...mapa([escada()], [pino]), ocultasDoJogador: ocultas, versaoDasCamadas: 2 })
+  const pinosQueSaem = (map: MapData): string[] => (filterMapForPlayer(map, 'p1', POSSE, RAIO).map.pins ?? []).map((p) => p.id)
+
+  it('camada torta no pino (livre que o mapa não tem): segue a escada, mesmo com Anotações escondida', () => {
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_apagada' }, ['anotacoes']))).toEqual([ID_DO_PINO])
+  })
+
+  it('sem camada escolhida: segue a escada, mesmo com Anotações escondida', () => {
+    expect(pinosQueSaem(comCamadas(PINO, ['anotacoes']))).toEqual([ID_DO_PINO])
+  })
+
+  it('camada escolhida que vale e está escondida dos jogadores: o pino não sai', () => {
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'anotacoes' }, ['anotacoes']))).toEqual([])
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'tokens' }, ['tokens']))).toEqual([])
+  })
+
+  it('camada livre escondida dos jogadores, sem o modelo no mapa: o pino não sai (falha fechada)', () => {
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_x' }, ['livre_x']))).toEqual([])
   })
 })
