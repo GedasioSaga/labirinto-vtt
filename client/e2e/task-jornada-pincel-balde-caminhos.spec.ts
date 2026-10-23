@@ -292,7 +292,9 @@ test('3. balde clicado dentro de uma área fechada enche a área inteira e não 
 
   // CONTROLE POSITIVO: fora da área fechada continua vazio — o balde não vazou.
   expect(await corNaTela(page, centro(13, 6), COR_DO_FUNDO), 'o balde vazou para a direita do anel').toBe(true)
-  expect(await corNaTela(page, centro(8, 11), COR_DO_FUNDO), 'o balde vazou para baixo do anel').toBe(true)
+  // Abaixo do anel, mas fora da barra de ferramentas do pé da tela (a linha 11 cai debaixo dela). O lado de
+  // fora do anel é uma área só: se o balde vazasse para baixo, esse ponto também ficaria pintado.
+  expect(await corNaTela(page, centro(14, 10), COR_DO_FUNDO), 'o balde vazou para baixo do anel').toBe(true)
 })
 
 test('4. dois caminhos com cores diferentes no mesmo mapa aparecem cada um com a SUA cor, e o chão continua com a dele', async ({ page }, testInfo) => {
@@ -309,7 +311,8 @@ test('4. dois caminhos com cores diferentes no mesmo mapa aparecem cada um com a
   await page.screenshot({ path: testInfo.outputPath('caminhos-com-cor.png') })
 
   expect(await corNaTela(page, centro(8, 8), COR_DO_CAMINHO_A), `o caminho A não está em ${COR_DO_CAMINHO_A}`).toBe(true)
-  expect(await corNaTela(page, centro(8, 10), COR_DO_CAMINHO_B), `o caminho B não está em ${COR_DO_CAMINHO_B}`).toBe(true)
+  // Ponta direita do caminho B: o meio dele fica sob a sombra do balão de eco "Pincel de blocos", que escurece o pixel.
+  expect(await corNaTela(page, centro(11, 10), COR_DO_CAMINHO_B), `o caminho B não está em ${COR_DO_CAMINHO_B}`).toBe(true)
   // O que hoje é impossível: pintar um caminho não pode repintar o chão nem o outro caminho.
   expect(await corNaTela(page, centro(8, 5), COR_DO_CHAO), 'a cor de um caminho arrastou o chão junto').toBe(true)
 })

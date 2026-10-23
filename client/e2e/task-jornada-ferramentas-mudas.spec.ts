@@ -210,7 +210,8 @@ test('depois de arrastar um token, não sobra marca de seleção na posição an
   // Token pelo caminho da UI: botão do painel, nome padrão confirmado com Enter.
   await page.getByRole('button', { name: 'Adicionar token' }).click()
   await page.getByLabel('Nome do novo token').press('Enter')
-  await expect(tituloDoPainel(page, 'Token')).toBeVisible({ timeout: 3000 })
+  // A ficha nova do token abre sem o título "Token" (o título é o nome): a prova de que o token nasceu selecionado é o campo Nome.
+  await expect(page.locator('#lb-token-name'), 'o token novo deveria nascer selecionado, com a ficha aberta').toHaveValue(/Token/, { timeout: 3000 })
 
   // Posição só para MIRAR o gesto — a prova é o pixel, não o store.
   const origem = await page.evaluate(async () => {
@@ -247,6 +248,10 @@ test('mapa recém-criado com grade quadrada já abre mostrando a grade e o limit
   await page.getByLabel('Altura (quadros)').fill('9')
   await page.getByLabel('Tamanho do quadro').fill('64')
   await page.getByRole('radiogroup', { name: 'Formato da grade' }).getByRole('radio', { name: 'Quadrado', exact: true }).click()
+  // O mapa novo nasce liso por decisão de produto (17/09, "Minimapa do Resident Evil"): quem quer grade liga o
+  // interruptor da tela de criação, e é isso que esta jornada faz antes de criar.
+  const gradeNaCriacao = page.getByLabel('Mostrar grade')
+  if (!(await gradeNaCriacao.isChecked())) await gradeNaCriacao.click()
   await page.getByRole('button', { name: 'Criar mapa', exact: true }).click()
   await page.waitForSelector('canvas')
   await page.waitForTimeout(500)
