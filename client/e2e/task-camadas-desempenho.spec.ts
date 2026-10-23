@@ -84,7 +84,7 @@ function mapaDensoMexido(): MapData {
   return {
     ...base,
     walls: base.walls.map((w, i) => (i % 4 === 0 ? { ...w, camada: LIVRE } : w)),
-    props: base.props.map((p, i) => (p.mobilia === 'bau' ? { ...p, layer: 'decoracao' as const } : i % 4 === 1 ? { ...p, camada: LIVRE } : p)),
+    props: base.props.map((p, i): MapData['props'][number] => (p.mobilia === 'bau' ? { ...p, layer: 'decoracao' } : i % 4 === 1 ? { ...p, camada: LIVRE } : p)),
     modeloCamadas: listaMexida(),
     opacidadeDasCamadas: { decoracao: 0.7 },
   }
@@ -92,7 +92,7 @@ function mapaDensoMexido(): MapData {
 
 async function instalarColetor(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const alvo = window as unknown as { __longas?: number[][] }
+    const alvo = window as unknown as { __longas?: number[][] } // as: a lista de tarefas longas é um campo nosso pendurado no window da página (sem tipo no DOM)
     const longas: number[][] = []
     alvo.__longas = longas
     try {
@@ -180,6 +180,7 @@ async function medir(page: Page, cdp: CDPSession, cenario: Cenario): Promise<Med
     script.push(porQuadro('ScriptDuration'))
     layout.push(porQuadro('LayoutDuration'))
     const longas = await page.evaluate(
+      // as: o campo que `instalarColetor` pendurou no window da página (sem tipo no DOM).
       ([de, ate]) => ((window as unknown as { __longas?: number[][] }).__longas ?? []).filter(([t]) => t >= de && t <= ate).map(([, d]) => d),
       [inicio, fim],
     )
