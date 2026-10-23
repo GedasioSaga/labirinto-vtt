@@ -143,8 +143,7 @@ test('tempo no Chromium a 3x: a primeira imagem da página (a cama, fria) e cada
   test.setTimeout(120_000)
   await page.goto('/player.html')
   const tempos = await page.evaluate(async ({ caminho, mornasPedidas }) => {
-    // O caminho é este mesmo módulo servido pelo Vite; import por string não traz o tipo, então o tipo vem do arquivo.
-    const m = (await import(/* @vite-ignore */ caminho)) as typeof import('../src/texturas/meioTermo/moveis')
+    const m = (await import(/* @vite-ignore */ caminho)) as typeof import('../src/texturas/meioTermo/moveis') // cast seguro: o caminho é este mesmo módulo servido pelo Vite, e import por string não traz tipo
     const S = m.escalaDoNivel(3)
     const base = { lado: 'frente', semente: 7 } as const
     const casos: readonly [string, Parameters<typeof m.pintarMovel>[0]][] = [
