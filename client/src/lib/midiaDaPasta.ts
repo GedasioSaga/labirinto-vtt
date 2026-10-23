@@ -141,14 +141,30 @@ function idDoConteudo(id: string, bytes: Uint8Array): Promise<string | null> {
   return ehIdDeAudio(id) ? idDoAudio(bytes) : idDosBytes(bytes)
 }
 
-/** Os nomes dos arquivos comuns da pasta; pasta que não existe é vazia. Atalho (symlink) fica fora: poderia apontar para fora da pasta. */
-async function arquivosDaPasta(pasta: string): Promise<Set<string>> {
+interface EntradasDaPasta {
+  /** Os arquivos comuns. */
+  arquivos: Set<string>
+  /** Os atalhos (symlink ou junção): poderiam apontar para fora da pasta. */
+  atalhos: Set<string>
+}
+
+/** O que a pasta tem, com os atalhos à parte; `null` = não deu para listar (ou não existe). */
+async function entradasDaPasta(pasta: string): Promise<EntradasDaPasta | null> {
   try {
     const entradas = await readDir(pasta)
-    return new Set(entradas.filter((entrada) => entrada.isFile && !entrada.isSymlink).map((entrada) => entrada.name))
+    return {
+      arquivos: new Set(entradas.filter((entrada) => entrada.isFile && !entrada.isSymlink).map((entrada) => entrada.name)),
+      atalhos: new Set(entradas.filter((entrada) => entrada.isSymlink).map((entrada) => entrada.name)),
+    }
   } catch {
-    return new Set()
+    return null
   }
+}
+
+/** Os nomes dos arquivos comuns da pasta; pasta que não existe é vazia. Atalho (symlink) fica fora: poderia apontar para fora da pasta. */
+async function arquivosDaPasta(pasta: string): Promise<Set<string>> {
+  const entradas = await entradasDaPasta(pasta)
+  return entradas === null ? new Set() : entradas.arquivos
 }
 
 /**
@@ -171,7 +187,9 @@ export interface MidiaLevada {
 /**
  * Copia de `<appData>/midia` para `pasta` cada id de `ids` que ainda não está
  * lá inteiro. Só os pedidos: a pasta não vira espelho da mídia do app. Nunca
- * apaga; só sobrescreve a cópia truncada de um nome que é dela.
+ * apaga; só sobrescreve a cópia truncada de um nome que é dela. Nunca escreve
+ * por um atalho com o nome do id (a cópia iria para onde ele aponta, talvez
+ * fora da pasta): esse id conta como "faltou", e a pasta que não lista também.
  */
 export async function copiarMidiaParaAPasta(pasta: string, ids: readonly string[]): Promise<MidiaLevada> {
   const levada: MidiaLevada = { copiados: [], faltaram: [] }
@@ -185,17 +203,23 @@ export async function copiarMidiaParaAPasta(pasta: string, ids: readonly string[
     return { copiados: [], faltaram: pedidos }
   }
   const naOrigem = await arquivosDaPasta(origem)
-  const naPasta = await arquivosDaPasta(pasta)
+  const naPasta = await entradasDaPasta(pasta)
+  // Sem a listagem não dá para saber se o alvo é atalho: nada é escrito às cegas.
+  if (naPasta === null) return { copiados: [], faltaram: pedidos }
   for (const id of pedidos) {
     try {
+      if (naPasta.atalhos.has(id)) {
+        levada.faltaram.push(id)
+        continue
+      }
       if (!naOrigem.has(id)) {
         // Sumiu deste computador: a cópia que a pasta já tem (veio de outro) basta.
-        if (!naPasta.has(id)) levada.faltaram.push(id)
+        if (!naPasta.arquivos.has(id)) levada.faltaram.push(id)
         continue
       }
       const fonte = await join(origem, id)
       const alvo = await join(pasta, id)
-      if (naPasta.has(id) && (await copiaInteira(alvo, (await stat(fonte)).size))) continue
+      if (naPasta.arquivos.has(id) && (await copiaInteira(alvo, (await stat(fonte)).size))) continue
       await copyFile(fonte, alvo)
       levada.copiados.push(id)
     } catch {
