@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { FloorPiece } from '../types/map'
 import { linhasDeCamada, type LinhaDeCamada } from '../lib/camadasDoChao'
 import { NOVA_CAMADA } from '../lib/camadasDoPincel'
@@ -50,7 +50,7 @@ export interface FloorLayersListProps {
  * Só apresentação: ordem, trava, nome e olho vivem em `MapData.floor` via
  * mapStore; a camada ativa é preferência de sessão da store.
  */
-export function FloorLayersList({
+function ListaDasCamadasDoChao({
   floor,
   floorFillColor,
   selectedPieceId,
@@ -210,5 +210,68 @@ export function FloorLayersList({
         })}
       </ul>
     </div>
+  )
+}
+
+/**
+ * MEMO (revisão da fatia 6, desempenho): aninhada na linha Chão do painel das
+ * camadas, a lista fica À VISTA, e o App re-renderiza a cada quadro de um
+ * arrasto de opacidade: num mapa com 60 peças eram 60 linhas por quadro.
+ * A lista memorizada compara só os DADOS; os callbacks que ela recebe são
+ * procuradores estáveis que chamam SEMPRE a versão do último render (ref), então
+ * um callback que feche sobre estado nunca fica velho por falta de re-render.
+ */
+function mesmosDados(a: FloorLayersListProps, b: FloorLayersListProps): boolean {
+  return (
+    a.floor === b.floor &&
+    a.floorFillColor === b.floorFillColor &&
+    a.selectedPieceId === b.selectedPieceId &&
+    (a.onToggleHidden === undefined) === (b.onToggleHidden === undefined) &&
+    (a.onRename === undefined) === (b.onRename === undefined) &&
+    (a.pincel === undefined) === (b.pincel === undefined) &&
+    a.pincel?.ativaId === b.pincel?.ativaId &&
+    a.pincel?.nomeDaNova === b.pincel?.nomeDaNova &&
+    a.pincel?.corDaNova === b.pincel?.corDaNova
+  )
+}
+
+const ListaMemorizada = memo(ListaDasCamadasDoChao, mesmosDados)
+
+export function FloorLayersList(props: FloorLayersListProps) {
+  const ultimas = useRef(props)
+  useLayoutEffect(() => {
+    ultimas.current = props
+  })
+  const procuradores = useMemo(
+    () => ({
+      onSelect: (id: string) => ultimas.current.onSelect(id),
+      onToggleLock: (id: string, locked: boolean) => ultimas.current.onToggleLock(id, locked),
+      onColorChange: (id: string, color: string) => ultimas.current.onColorChange(id, color),
+      onReorder: (id: string, delta: 1 | -1) => ultimas.current.onReorder(id, delta),
+      onToggleHidden: (id: string, hidden: boolean) => ultimas.current.onToggleHidden?.(id, hidden),
+      onRename: (id: string, nome: string | undefined) => ultimas.current.onRename?.(id, nome),
+      onAtivar: (id: string) => ultimas.current.pincel?.onAtivar(id),
+      onNovaCamada: () => ultimas.current.pincel?.onNovaCamada(),
+    }),
+    [],
+  )
+  const { pincel } = props
+  return (
+    <ListaMemorizada
+      floor={props.floor}
+      floorFillColor={props.floorFillColor}
+      selectedPieceId={props.selectedPieceId}
+      onSelect={procuradores.onSelect}
+      onToggleLock={procuradores.onToggleLock}
+      onColorChange={procuradores.onColorChange}
+      onReorder={procuradores.onReorder}
+      onToggleHidden={props.onToggleHidden === undefined ? undefined : procuradores.onToggleHidden}
+      onRename={props.onRename === undefined ? undefined : procuradores.onRename}
+      pincel={
+        pincel === undefined
+          ? undefined
+          : { ativaId: pincel.ativaId, nomeDaNova: pincel.nomeDaNova, corDaNova: pincel.corDaNova, onAtivar: procuradores.onAtivar, onNovaCamada: procuradores.onNovaCamada }
+      }
+    />
   )
 }

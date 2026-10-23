@@ -492,6 +492,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       // O recorte do jogador de teste corre no thread do editor: mais espaçado que o da sala, e parado com a janela escondida.
       broadcastThrottleMs: INTERVALO_DO_BROADCAST_DE_TESTE_MS,
       broadcastPaused: () => s.oculta,
+      // SONS AO VIVO: a sala de teste é local; a aba Sons continua mandando à mesa de verdade.
+      redeDosSons: false,
     })
     s.ponte = ponte
     s.transporte = transporte

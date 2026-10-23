@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
+import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { ROTULO_ALERTA } from '../../lib/faccoes'
 import { FloorLayersList, type FloorLayersListProps } from '../FloorLayersList'
 import { FloorStyleControls, type FloorStyleControlsProps } from '../FloorStyleControls'
-import { GridQuickToggles, TelhadosQuickToggles, type GridControlsProps } from '../GridControls'
+import { GridQuickToggles, TransparenteDosTelhados, type GridControlsProps } from '../GridControls'
 import { LayersPanel, type LayersPanelProps } from '../LayersPanel'
 import { TerritorioControls, type TerritorioControlsProps } from '../TerritorioControls'
 import { Fichas } from '../grimorio/Ficha'
@@ -32,18 +33,17 @@ export interface MapaVivoDaCena {
   onAbrir: () => void
 }
 
-const contarPecas = (n: number): string => (n === 1 ? '1 peça' : `${n} peças`)
-
-/** "9 de 9 visíveis": quantas das camadas fixas o mestre não ocultou. */
+/** "13 de 13 visíveis": quantas camadas da lista o mestre vê (conta pelo modelo, pelo ponto único). */
 function resumoDasCamadas(layers: LayersPanelProps): string {
-  const total = Object.keys(layers.counts).length
-  return `${total - layers.hiddenLayers.length} de ${total} visíveis`
+  const camadas = contextoDeCamadas(layers.camadas)
+  const total = camadas.ordem.length
+  return `${camadas.ordem.filter((id) => camadas.mestreVe(id)).length} de ${total} visíveis`
 }
 
 /**
  * Página Cena do livro do mestre (fatia 18): o que é da cena aberta, do que há
  * nela (Objetos do mapa, Locais, Marcas) ao jeito dela (Território, Chão do
- * mapa, Camadas do chão, Camadas), cada parte numa ficha recolhível do Grimório
+ * mapa, Camadas), cada parte numa ficha recolhível do Grimório
  * com o resumo à vista. As fichas lembram aberta/fechada nas chaves de antes
  * (`lb-section:<id>`), nascem como nasciam e ficam na ordem de antes; dentro
  * delas, os mesmos controles. A página mostra tudo sempre, sem o "momento de mapa" que escondia
@@ -74,20 +74,19 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
           <FichaDaPagina id="floor" titulo="Chão do mapa" icone="chao" padrao resumo={floorStyle.style.strokeColor === null ? 'Sem contorno' : 'Com contorno'}>
             <FloorStyleControls {...floorStyle} />
           </FichaDaPagina>
-          {temCamadasDoChao && (
-            <FichaDaPagina id="floor-layers" titulo="Camadas do chão" icone="peca" padrao resumo={floorLayers.floor.length === 0 ? undefined : contarPecas(floorLayers.floor.length)}>
-              <FloorLayersList {...floorLayers} />
-            </FichaDaPagina>
-          )}
           <FichaDaPagina id="layers" titulo="Camadas" icone="cenas" padrao resumo={resumoDasCamadas(layers)}>
             <LayersPanel
               {...layers}
-              quickToggles={
-                <>
-                  <GridQuickToggles {...grid} />
-                  <TelhadosQuickToggles />
-                </>
+              quickToggles={<GridQuickToggles {...grid} />}
+              chao={
+                temCamadasDoChao ? (
+                  <>
+                    <h3 className="lb-camadas__titulo-aninhado">Camadas do chão</h3>
+                    <FloorLayersList {...floorLayers} />
+                  </>
+                ) : undefined
               }
+              telhados={<TransparenteDosTelhados />}
             />
           </FichaDaPagina>
         </Fichas>

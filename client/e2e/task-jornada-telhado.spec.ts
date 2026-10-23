@@ -25,7 +25,7 @@
 //
 // O QUE A JORNADA COBRA:
 //   1. o mestre liga o teto e escolhe Madeira + Verde no painel da Sala;
-//   2. no editor, os botões Telhados e Transparente mudam o pixel da Sala;
+//   2. no editor, o olho de Telhados (Camadas) e o Transparente mudam o pixel da Sala;
 //   3. o jogador de fora vê o telhado na cor escolhida (média perto de #4d5f4f,
 //      verde mandando) e nada da mobília;
 //   4. ele entra: o telhado some em no máximo 300 ms (mais 2 quadros de folga)
@@ -551,14 +551,15 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   await expect(verde).toHaveAttribute('aria-checked', 'true')
   await page.keyboard.press('Escape')
 
-  // 2. No editor, os botões Telhados e Transparente mudam o pixel da Sala.
+  // 2. No editor, o olho de Telhados (painel de Camadas) e o Transparente mudam o pixel da Sala.
+  // Fatia 6 das camadas (decisão do usuário): o olho do mestre da camada Telhados substitui o botão "Telhados".
   await abrirPaginaDoLivro(page, 'Cena')
   const grupo = page.getByRole('group', { name: 'Telhados' })
-  await expect(grupo, 'os botões dos telhados moram junto da grade, em Camadas').toBeVisible()
+  await expect(grupo, 'o Transparente mora na linha Telhados de Camadas').toBeVisible()
   const transparente = await corDoEditor(page)
   await grupo.locator('label.lb-switch').filter({ hasText: /^Transparente$/ }).locator('.lb-switch__track').click()
   const opaco = await corDoEditor(page)
-  await grupo.locator('label.lb-switch').filter({ hasText: /^Telhados$/ }).locator('.lb-switch__track').click()
+  await page.getByRole('button', { name: 'Ocultar Telhados', exact: true }).click()
   const semTelhado = await corDoEditor(page)
   const doEditor = `transparente ${hex(transparente)} | opaco ${hex(opaco)} | sem telhado ${hex(semTelhado)}`
   expect(distancia(transparente, opaco), `Transparente não mudou o pixel — ${doEditor}`).toBeGreaterThan(MUDOU)
@@ -566,7 +567,7 @@ test('telhado de madeira verde: o mestre escolhe, o jogador de fora vê, entra e
   expect(distancia(transparente, semTelhado), `o telhado transparente não aparece — ${doEditor}`).toBeGreaterThan(MUDOU)
   expect(distancia(opaco, VERDE_DA_MADEIRA), `o telhado opaco do editor não é a madeira verde — ${doEditor}`).toBeLessThan(PERTO_DA_COR)
   // Volta ao começo (ligado e transparente) para o resto da jornada e os prints.
-  await grupo.locator('label.lb-switch').filter({ hasText: /^Telhados$/ }).locator('.lb-switch__track').click()
+  await page.getByRole('button', { name: 'Mostrar Telhados', exact: true }).click()
   await grupo.locator('label.lb-switch').filter({ hasText: /^Transparente$/ }).locator('.lb-switch__track').click()
   await abrirPaginaDoLivro(page, 'Ficha')
 

@@ -17,7 +17,7 @@
  * sempre, pelas `*Layer` abaixo; o teste em matriz de `consulta.test.ts`
  * confere que as duas concordam em todo mapa de antes.
  */
-import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { LayerId } from '../types/map'
 import { contextoDeCamadas } from './camadas/consulta'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
@@ -82,7 +82,7 @@ export function propLayer(prop: Prop): LayerId {
  *  ('objetos'), não uma escolha; ver propLayer() acima. */
 export const PROP_LAYER_OPTIONS: readonly NonNullable<Prop['layer']>[] = ['objetos', 'decoracao']
 
-export function isLayerVisible(hiddenLayers: readonly LayerId[], layer: LayerId): boolean {
+export function isLayerVisible(hiddenLayers: readonly CamadaId[], layer: LayerId): boolean {
   return !hiddenLayers.includes(layer)
 }
 
@@ -93,7 +93,7 @@ export function isLayerVisible(hiddenLayers: readonly LayerId[], layer: LayerId)
  * explícito do integrador — reduz código novo e reduz surpresa de quem já
  * conhece isLayerVisible/toggleLayerVisibility.
  */
-export function isLayerLocked(lockedLayers: readonly LayerId[], layer: LayerId): boolean {
+export function isLayerLocked(lockedLayers: readonly CamadaId[], layer: LayerId): boolean {
   return lockedLayers.includes(layer)
 }
 
@@ -109,7 +109,7 @@ export function isLayerLocked(lockedLayers: readonly LayerId[], layer: LayerId):
 export function canInteractInLayer(
   item: Lockable,
   layer: LayerId,
-  lockedLayers: readonly LayerId[],
+  lockedLayers: readonly CamadaId[],
 ): boolean {
   return canInteract(item) && !isLayerLocked(lockedLayers, layer)
 }
@@ -137,8 +137,13 @@ function filterByLayer<K extends TipoDeObjeto>(
   return items.filter((item) => !fonte.includes(layerOf(item)))
 }
 
-/** O 2º parâmetro dos `visible*`: a lista `hiddenLayers` de sempre ou o mapa inteiro. */
-export type FonteDeCamadas = readonly LayerId[] | MapData
+/**
+ * O 2º parâmetro dos `visible*`: a lista `hiddenLayers` de sempre ou o mapa
+ * inteiro. A lista (desde a fatia 6, `CamadaId[]`) só responde pelas 9 de
+ * antes, pela derivação de sempre; o mapa responde pelas 13 (Chão, Desenhos,
+ * Terreno e Telhados do mapa v2 inclusive).
+ */
+export type FonteDeCamadas = readonly CamadaId[] | MapData
 
 function ehMapa(fonte: FonteDeCamadas): fonte is MapData {
   return !Array.isArray(fonte)

@@ -404,7 +404,9 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     renderPainel(propsDoPainel(null, { groups: relevantPropertyGroups('select'), floorLayers: { ...floorLayers, selectedPieceId: null } }))
     expect(titulos()).not.toContain('Chão do mapa')
     const naCena = Array.from(container.querySelectorAll('.gr-folha[data-pagina="cena"] .gr-ficha__tit')).map((h) => (h.textContent ?? '').trim())
-    expect(naCena).toEqual(expect.arrayContaining(['Chão do mapa', 'Camadas do chão', 'Camadas']))
+    // Fatia 6 das camadas (decisão do usuário): as camadas do chão moram aninhadas na linha Chão de Camadas.
+    expect(naCena).toEqual(expect.arrayContaining(['Chão do mapa', 'Camadas']))
+    expect(container.querySelector('.gr-folha[data-pagina="cena"] li[data-camada="chao"] ul[aria-label="Camadas do chão"]')).not.toBeNull()
   })
 
   it('texto (fatia 16b): o "Oculto para jogadores" mora no essencial da ficha do texto, junto do item, e não num bloco "Jogadores" à parte', () => {

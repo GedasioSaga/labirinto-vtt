@@ -78,7 +78,7 @@ function props(extra: Partial<PaginaCenaProps> = {}): PaginaCenaProps {
     mapHeight: 20,
     mapGrid: GRADE,
     floorStyle: { style: { ...DEFAULT_FLOOR_STYLE }, onStyleChange: nada, frame: null, onFrameChange: nada, defaultFrameRect: { x: 0, y: 0, w: 1920, h: 1280 }, hasFloorContent: true },
-    layers: { hiddenLayers: [], lockedLayers: [], counts: CONTAGENS, onToggleLayer: nada, onToggleLock: nada },
+    layers: { camadas: createEmptyMap('m_cena', 'Cripta', 30, 20, GRADE), counts: CONTAGENS, onToggleLayer: nada, onTogglePlayers: nada, onToggleLock: nada, onOpacity: nada },
     grid: {
       showGrid: false,
       onShowGridChange: nada,
@@ -132,8 +132,8 @@ function resumo(titulo: string): string | null {
 describe('PaginaCena: o resumo de cada ficha fechada', () => {
   beforeEach(() => {
     iniciar()
-    // Chão do mapa, Camadas do chão e Camadas nascem abertas; o resumo é o da ficha fechada.
-    for (const id of ['floor', 'floor-layers', 'layers']) window.localStorage.setItem(`lb-section:${id}`, '0')
+    // Chão do mapa e Camadas nascem abertas; o resumo é o da ficha fechada.
+    for (const id of ['floor', 'layers']) window.localStorage.setItem(`lb-section:${id}`, '0')
   })
   afterEach(encerrar)
 
@@ -150,29 +150,34 @@ describe('PaginaCena: o resumo de cada ficha fechada', () => {
     expect(resumo('Chão do mapa')).toBe('Com contorno')
   })
 
-  it('Camadas conta as visíveis das 9: nenhuma oculta, duas e todas', () => {
+  // Fatia 6: conta pelo modelo (13), não mais as 9 fixas.
+  it('Camadas conta as visíveis das 13: nenhuma oculta, duas e todas', () => {
+    const base = props().layers.camadas
     pagina(props())
-    expect(resumo('Camadas')).toBe('9 de 9 visíveis')
-    pagina(props({ layers: { ...props().layers, hiddenLayers: ['paredes', 'tokens'] } }))
-    expect(resumo('Camadas')).toBe('7 de 9 visíveis')
-    pagina(props({ layers: { ...props().layers, hiddenLayers: TODAS_AS_CAMADAS } }))
-    expect(resumo('Camadas')).toBe('0 de 9 visíveis')
+    expect(resumo('Camadas')).toBe('13 de 13 visíveis')
+    pagina(props({ layers: { ...props().layers, camadas: { ...base, hiddenLayers: ['paredes', 'tokens'] } } }))
+    expect(resumo('Camadas')).toBe('11 de 13 visíveis')
+    // Mapa de antes: Chão segue Salas e Desenhos segue Anotações; Terreno e Telhados continuam à vista.
+    pagina(props({ layers: { ...props().layers, camadas: { ...base, hiddenLayers: TODAS_AS_CAMADAS } } }))
+    expect(resumo('Camadas')).toBe('2 de 13 visíveis')
+    pagina(props({ layers: { ...props().layers, camadas: { ...base, versaoDasCamadas: 2, ocultasDoJogador: [], hiddenLayers: [...TODAS_AS_CAMADAS, 'chao', 'desenhos', 'terreno', 'telhados'] } } }))
+    expect(resumo('Camadas')).toBe('0 de 13 visíveis')
   })
 
-  it('Camadas do chão conta as peças no singular e no plural', () => {
-    pagina(props({ floorLayers: camadasDoChao([peca('chao')]) }))
-    expect(resumo('Camadas do chão')).toBe('1 peça')
+  // Fatia 6 (decisão do usuário): as camadas do chão moram aninhadas na linha Chão de Camadas, não numa ficha própria.
+  const chaoAninhado = () => container.querySelector('li[data-camada="chao"] ul[aria-label="Camadas do chão"]')
+
+  it('Camadas do chão fica aninhada na linha Chão das Camadas, com uma linha por peça', () => {
     pagina(props({ floorLayers: camadasDoChao([peca('mar'), peca('chao'), peca('trilha')]) }))
-    expect(resumo('Camadas do chão')).toBe('3 peças')
+    expect(titulos()).not.toContain('Camadas do chão')
+    expect(chaoAninhado()?.querySelectorAll('li')).toHaveLength(3)
   })
 
-  it('Camadas do chão sem peça: some sem o pincel; com o pincel aparece, sem "0 peças"', () => {
+  it('Camadas do chão sem peça: some sem o pincel; com o pincel aparece', () => {
     pagina(props({ floorLayers: camadasDoChao([]) }))
-    expect(titulos()).not.toContain('Camadas do chão')
+    expect(chaoAninhado()).toBeNull()
     pagina(props({ floorLayers: camadasDoChao([], { pincel: PINCEL }) }))
-    expect(titulos()).toContain('Camadas do chão')
-    expect(resumo('Camadas do chão')).toBeNull()
-    expect(cabecalho('Camadas do chão').querySelector('.gr-ficha__resumo')).toBeNull()
+    expect(chaoAninhado()).not.toBeNull()
   })
 
   it('Território diz o alerta da cena, em minúscula, e vem antes do Chão do mapa', () => {
@@ -293,11 +298,11 @@ describe('PaginaCena com o mapa montado: a seta no cabeçalho não empurra a sal
     expect(pontosDaSala()?.[0]).toEqual({ x: 320, y: 320 + GRADE })
   })
 
-  it('foco em "Chão do mapa" (onde o "Ir para Cena" o põe), seta para baixo: o foco vai a "Camadas do chão" e a sala fica', () => {
+  it('foco em "Chão do mapa" (onde o "Ir para Cena" o põe), seta para baixo: o foco vai à ficha seguinte ("Camadas", desde a fatia 6) e a sala fica', () => {
     const chao = cabecalho('Chão do mapa')
     act(() => chao.focus())
     teclar(chao, 'ArrowDown')
-    expect(document.activeElement).toBe(cabecalho('Camadas do chão'))
+    expect(document.activeElement).toBe(cabecalho('Camadas'))
     expect(empurrao).not.toHaveBeenCalled()
     expect(pontosDaSala()).toEqual(SALA.points)
     expect(useMapStore.getState().past).toHaveLength(0)
@@ -307,8 +312,8 @@ describe('PaginaCena com o mapa montado: a seta no cabeçalho não empurra a sal
     const chao = cabecalho('Chão do mapa')
     act(() => chao.focus())
     teclar(chao, 'ArrowDown', true)
-    expect(document.activeElement).toBe(cabecalho('Camadas do chão'))
-    teclar(cabecalho('Camadas do chão'), 'ArrowUp', true)
+    expect(document.activeElement).toBe(cabecalho('Camadas'))
+    teclar(cabecalho('Camadas'), 'ArrowUp', true)
     expect(document.activeElement).toBe(chao)
     teclar(chao, 'End')
     expect(document.activeElement).toBe(cabecalho('Camadas'))

@@ -276,7 +276,8 @@ describe('filterMapForPlayer', () => {
     expect(out.ownerId).toBeNull()
     expect(out.fog).toEqual({ mode: 'per-token', revealed: [] })
     expect(out.hiddenLayers).toEqual(['anotacoes'])
-    expect(out.lockedLayers).toEqual(['paredes'])
+    // O cadeado é do mestre: a tela do jogador não lê `lockedLayers` (revisão da fatia 6, decisão do orquestrador).
+    expect(out.lockedLayers).toEqual([])
   })
 
   it('jogador sem token não vê entidade nenhuma', () => {

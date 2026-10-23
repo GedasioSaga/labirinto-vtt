@@ -2136,14 +2136,18 @@ export interface MapData {
   fog: FogState
   /** Camadas que o MESTRE vê desligadas (o olho "Mestre vê"). Vazio = tudo
    *  visível. O dado é o de sempre; o sentido para o jogador mora em
-   *  `ocultasDoJogador` (ausente = igual a esta lista). */
-  hiddenLayers: LayerId[]
+   *  `ocultasDoJogador` (ausente = igual a esta lista). Fatia 6: alargado
+   *  para `CamadaId[]` (uma fonte só para as 13 e as livres); os ids novos
+   *  só aparecem em mapa v2 (`lib/camadas/estado.ts`). `LayerId[]` continua
+   *  atribuível. */
+  hiddenLayers: CamadaId[]
   /** Onda 4, Frente D (camadas) — "travar camada inteira": item na camada
    *  listada aqui continua VISÍVEL (independente de hiddenLayers) mas não
    *  pode ser selecionado nem movido. Mesma forma de hiddenLayers, por
    *  pedido explícito do CONTRATO da frente — ver lib/layers.ts
-   *  (isLayerLocked/canInteractInLayer). Vazio = nada travado. */
-  lockedLayers: LayerId[]
+   *  (isLayerLocked/canInteractInLayer). Vazio = nada travado. Fatia 6:
+   *  `CamadaId[]`, como `hiddenLayers`. */
+  lockedLayers: CamadaId[]
   /** Camadas que os JOGADORES veem desligadas. Ausente = igual a
    *  `hiddenLayers` (a "oculta" de antes some para todos). Campo novo e
    *  opcional: mapa de antes abre sem ele (`lib/mapFile.ts`). */

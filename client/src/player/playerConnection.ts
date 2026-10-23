@@ -131,9 +131,17 @@ import {
   parseSeatOptions,
   parseSecretCheck,
   parseSecretCheckClosed,
+  parseSomFalhou,
+  parseSomHostMessage,
+  SOM_DESLOCAMENTO_MAX_S,
+  type MotivoDaFalhaDoSom,
   type SeatClaimState,
   type SeatOption,
+  type SomFalhouMessage,
+  type SomHostMessage,
+  type SomTocarMessage,
 } from '../net/protocol'
+import { MAX_LOOPS } from '../lib/sons/aoVivo/motor'
 import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ColecaoProgresso } from '../lib/colecao'
@@ -1050,6 +1058,18 @@ export interface PlayerConnection {
   getState(): PlayerState
   subscribe(listener: () => void): () => void
   /**
+   * SONS AO VIVO (fatia F4): cada `som.*` do mestre, já conferido pelo parser,
+   * chega aqui — também na tela da mesa. Quem toca é a F5
+   * (`player/sonsAoVivoDoJogador.ts`). Devolve a função que para de ouvir.
+   */
+  ouvirSons(listener: (msg: SomHostMessage) => void): () => void
+  /**
+   * SONS AO VIVO: conta ao mestre que o toque `instancia` não soou aqui (o
+   * "não tocou para N" do botão dele). Única mensagem que a tela da mesa manda
+   * além do `join` e do `ping`. `false` = não saiu (forma errada ou sem socket).
+   */
+  informarSomFalhou(instancia: string, motivo: MotivoDaFalhaDoSom): boolean
+  /**
    * Move otimista: aplica local e envia. `false` se o token não existe ou o
    * socket não está aberto. Para a caminhada do "Andar até aqui", se houver.
    */
@@ -1856,6 +1876,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   /** CONTAS: o PIN da primeira entrada, só até o mestre aceitar — volta de queda não o manda de novo. */
   let pendingPin = options.conta === undefined || options.conta === 'aparelho' ? null : options.conta
   const listeners = new Set<() => void>()
+  /** SONS AO VIVO: quem ouve os `som.*` do mestre (a F5 toca). */
+  const ouvintesDosSons = new Set<(msg: SomHostMessage) => void>()
+  /**
+   * SONS AO VIVO: os loops vivos, por instância (no máximo `MAX_LOOPS`, como o
+   * motor). O mestre conta o `som.tocar` como entregue e não reenvia: quem
+   * assinar `ouvirSons` depois (a F5 que monta a tela, ou remonta) recebe daqui,
+   * no ponto de agora. Efeito curto é evento: não se guarda.
+   */
+  const loopsVivos = new Map<string, { msg: SomTocarMessage; recebidoEm: number }>()
   const pending = new Map<string, PendingMove>()
   /**
    * CHAT com mestre antigo: `reqId` do envio que estava no ar quando chegou um
@@ -2989,9 +3018,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
-    if (isTable && message.type !== 'join' && message.type !== 'ping') return false
+    // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
+    if (isTable && message.type !== 'join' && message.type !== 'ping' && message.type !== 'som.falhou') return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     const texto = JSON.stringify(message)
     // O servidor fecha o socket de quem manda acima do teto: melhor a mensagem
@@ -3056,8 +3086,41 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return state.status === 'kicked' || state.status === 'closed' || state.status === 'error' || state.status === 'replaced'
   }
 
+  /** SONS AO VIVO: o que cada `som.*` faz com os loops guardados para quem assinar depois. */
+  function guardarLoopVivo(msg: SomHostMessage): void {
+    switch (msg.type) {
+      case 'som.tocar':
+        // Tocar de novo a mesma instância troca o toque: o efeito curto que troca um loop também o tira daqui.
+        if (!msg.loop) loopsVivos.delete(msg.instancia)
+        else if (loopsVivos.has(msg.instancia) || loopsVivos.size < MAX_LOOPS) loopsVivos.set(msg.instancia, { msg, recebidoEm: Date.now() })
+        return
+      case 'som.parar':
+        loopsVivos.delete(msg.instancia)
+        return
+      case 'som.pararTudo':
+        loopsVivos.clear()
+        return
+      case 'som.volume': {
+        const vivo = loopsVivos.get(msg.instancia)
+        if (vivo !== undefined) vivo.msg = { ...vivo.msg, volume: msg.volume }
+        return
+      }
+      case 'som.precarregar':
+        return
+    }
+  }
+
+  /** O loop guardado no ponto de agora: o deslocamento do mestre mais o tempo que esperou aqui. */
+  function loopNoPontoDeAgora(vivo: { msg: SomTocarMessage; recebidoEm: number }): SomTocarMessage {
+    const esperaS = Math.max(0, Date.now() - vivo.recebidoEm) / 1000
+    const deslocamentoS = Math.min(SOM_DESLOCAMENTO_MAX_S, Math.round(((vivo.msg.deslocamentoS ?? 0) + esperaS) * 1000) / 1000)
+    return deslocamentoS > 0 ? { ...vivo.msg, deslocamentoS } : vivo.msg
+  }
+
   /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
   function handleSocketLost(): void {
+    // SONS AO VIVO: na volta o mestre manda os loops de novo, no ponto de agora; o parado durante a queda não volta.
+    loopsVivos.clear()
     // CHAT: a resposta do envio no ar morreu com o socket; "Enviando…" mentiria para sempre.
     if (state.chatSend !== undefined) setState({ chatSend: undefined })
     // AJUSTE RÁPIDO: idem — a ficha otimista volta já ao que a mesa tem, em vez de esperar o prazo.
@@ -4099,6 +4162,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (pesca !== state.pesca) setState({ pesca })
         return
       }
+      case 'som.tocar':
+      case 'som.parar':
+      case 'som.pararTudo':
+      case 'som.volume':
+      case 'som.precarregar': {
+        // SONS AO VIVO: a TV também toca (decisão de 23/10). Malformada some calada.
+        const msg = parseSomHostMessage(data)
+        if (msg === null) return
+        guardarLoopVivo(msg)
+        for (const ouvinte of ouvintesDosSons) ouvinte(msg)
+        return
+      }
       case 'secret.check': {
         // Mesma regra do recado: só com o mapa na tela há onde mostrar o cartão.
         if (state.status !== 'playing') return
@@ -4386,12 +4461,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'kicked':
         writeResume(storage, null)
+        loopsVivos.clear()
         clearReconnectTimers()
         setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
         writeResume(storage, null)
+        loopsVivos.clear()
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -4428,6 +4505,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // automática — voltar sozinha tomaria a sessão de volta, e a outra aba
         // faria o mesmo. Só o "Usar aqui" (`reconnect`) traz de volta.
         pending.clear()
+        loopsVivos.clear()
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
@@ -4553,6 +4631,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function detach(): void {
+    loopsVivos.clear()
     clearReconnectTimers()
     stopWalk()
     stopPing()
@@ -4614,6 +4693,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    ouvirSons(listener) {
+      ouvintesDosSons.add(listener)
+      // Os loops que já tocam na mesa chegam agora, no ponto de agora: o mestre não os reenvia.
+      for (const vivo of loopsVivos.values()) listener(loopNoPontoDeAgora(vivo))
+      return () => {
+        ouvintesDosSons.delete(listener)
+      }
+    },
+    informarSomFalhou(instancia, motivo) {
+      // A mesma conferência do host antes de sair: o que ele ignoraria não gasta a cota do servidor.
+      const conferida = parseSomFalhou({ type: 'som.falhou', instancia, motivo })
+      return conferida !== null && send(conferida)
     },
     requestMove(tokenId, x, y) {
       // O dedo manda mais que o "Andar até aqui": arrastar a ficha para a caminhada.
