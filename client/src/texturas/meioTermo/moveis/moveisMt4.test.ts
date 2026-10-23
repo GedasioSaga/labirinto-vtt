@@ -441,11 +441,41 @@ describe('peças novas da MT4: o que cada peça é', () => {
     }
   })
 
-  it('barraca de frente: a água de cima do toldo é mais clara que a de baixo', () => {
+  it('barraca de frente: a água de cima do toldo (0 a 25%) é mais clara que a de baixo (25 a 60%)', () => {
     const im = imagem({ tipo: 'barraca', lado: 'frente', materiais: ['vinho', 'pinho'], casasW: 2, casasH: 2, semente: 7 }, S3)
-    const cima = brilhoNoAnel(im, -0.55 * G, -0.45 * G, 0, 4)
-    const baixo = brilhoNoAnel(im, -0.55 * G, 0.25 * G, 0, 4)
+    const cima = brilhoNoAnel(im, -0.55 * G, -G + 0.12 * 2 * G, 0, 4)
+    const baixo = brilhoNoAnel(im, -0.55 * G, -G + 0.45 * 2 * G, 0, 4)
     expect(cima - baixo).toBeGreaterThan(0.04)
+  })
+
+  describe('barraca de frente: o balcão aparece (revisão da MT4)', () => {
+    const h = 2 * G
+    const y = (f: number): number => -h / 2 + f * h
+    const banda = (2 * 0.98 * G) / 7
+    const xDaFaixa = (i: number): number => -0.98 * G + banda * (i + 0.5)
+
+    it('o toldo acaba em 60%, os gomos em meio-disco alternam vermelho e creme como as listras, e o balcão (68% ao pé) tem as frutas inteiras', () => {
+      for (const nivel of [1, 3]) {
+        const im = imagem({ tipo: 'barraca', lado: 'frente', materiais: ['vinho', 'pinho'], casasW: 2, casasH: 2, semente: 7 }, nivel)
+        // Entre os gomos e o balcão (67%) só chão e sombra.
+        expect(im.px[noPonto(im, 0, y(0.67)) + 3], `nível ${nivel}: vão entre o toldo e o balcão`).toBeLessThan(ALFA_DE_PECA)
+        // O balcão inteiro de 76% a 90%, de ponta a ponta.
+        for (const f of [0.76, 0.9]) expect(Math.max(...trechosNaLinha(im, y(f))) / im.S, `nível ${nivel}: balcão em ${f}`).toBeGreaterThanOrEqual(0.8 * h)
+        // Os gomos: a faixa 0 (vinho) e a 1 (creme) se distinguem logo abaixo da beira.
+        const gomo = (i: number): number => brilho(im.px, noPonto(im, xDaFaixa(i), y(0.615)))
+        expect(gomo(1) - gomo(0), `nível ${nivel}: gomo creme x gomo vinho`).toBeGreaterThan(0.12)
+        expect(gomo(1) - gomo(2), `nível ${nivel}: gomo creme x gomo vinho`).toBeGreaterThan(0.12)
+      }
+    })
+
+    it('toldo de linho cru: as listras ficam de vinho, de frente e de lado (o toldo não fica liso)', () => {
+      const frente = imagem({ tipo: 'barraca', lado: 'frente', materiais: ['linho', 'pinho'], casasW: 2, casasH: 2, semente: 7 }, S3)
+      const listra = brilho(frente.px, noPonto(frente, xDaFaixa(1), y(0.12)))
+      const pano = brilho(frente.px, noPonto(frente, xDaFaixa(2), y(0.12)))
+      expect(pano - listra, 'de frente').toBeGreaterThan(0.12)
+      const lado = imagem({ tipo: 'barraca', lado: 'lado', materiais: ['linho', 'pinho'], casasW: 2, casasH: 2, semente: 7 }, S3)
+      expect(brilho(lado.px, noPonto(lado, -0.465 * G, y(0.2))) - brilho(lado.px, noPonto(lado, -0.7 * G, y(0.2))), 'de lado').toBeGreaterThan(0.12)
+    })
   })
 
   it('barraca de lado: dois esteios com o vão aberto entre eles, o toldo em cima e o balcão embaixo', () => {
