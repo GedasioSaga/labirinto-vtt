@@ -248,6 +248,33 @@ describe('ordemDeRender', () => {
     expect(ordem.find(([id]) => id === 'propsContainer')).toEqual(['propsContainer', ['objetos', 'decoracao']])
   })
 
+  it('camada livre VAZIA entre Paredes e Portas e entre Objetos e Decoração não separa nada: as faixas continuam juntas', () => {
+    const ids: CamadaId[] = [...CAMADAS_PADRAO]
+    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_a')
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_b')
+    // Itens da livre_c só: as do meio estão vazias.
+    const ordem = pares(ordemDeRender(modelo([...ids, 'livre_c']), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_c' }]))
+    expect(ordem.find(([id]) => id === 'mapLinesGraphics')).toEqual(['mapLinesGraphics', ['paredes', 'portas']])
+    expect(ordem.find(([id]) => id === 'wallsGraphics')).toEqual(['wallsGraphics', ['paredes', 'portas']])
+    expect(ordem.find(([id]) => id === 'propsContainer')).toEqual(['propsContainer', ['objetos', 'decoracao']])
+    expect(ordem.filter(([, camadas]) => camadas.includes('livre_a') || camadas.includes('livre_b'))).toEqual([])
+  })
+
+  it('DESEMPATE ESTÁVEL: pino em Objetos e parede em Decoração (lista padrão) ancoram na mesma faixa dos móveis; o de Objetos fica embaixo', () => {
+    const extras: ParDeFaixa[] = [
+      { faixa: 'wallsGraphics', camada: 'decoracao' },
+      { faixa: 'pinsContainer', camada: 'objetos' },
+    ]
+    const ordem = pares(ordemDeRender(MODELO_PADRAO, FAIXAS_EDITOR, extras))
+    const i = ordem.findIndex(([id]) => id === 'propsContainer')
+    expect(ordem.slice(i, i + 4)).toEqual([
+      ['propsContainer', ['objetos', 'decoracao']],
+      ['pinsContainer', ['objetos']],
+      ['wallsGraphics', ['decoracao']],
+      ['lightsContainer', ['iluminacao']],
+    ])
+  })
+
   it('no jogador, reordenar só permuta dentro da zona: Tokens no fundo vai para o começo do que fica sobre a névoa', () => {
     const ordem = pares(ordemDeRender(modelo(moverPara('tokens', null)), FAIXAS_JOGADOR)).map(([id]) => id)
     const i = ordem.indexOf('concealed')

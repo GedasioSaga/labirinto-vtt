@@ -1,5 +1,6 @@
 import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
+import { TIPOS_MOBILIA } from './mobilia/tipos'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -37,8 +38,8 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR
  * medalhão saem a mesma cor mais escura (`desenhoDoTapete`).
  */
 
-/** Ordem em que a setinha da ferramenta Objetos oferece os móveis. */
-export const TIPOS_MOBILIA: readonly TipoMobilia[] = ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete']
+/** Ordem em que a setinha da ferramenta Objetos oferece os móveis: a lista mora em `lib/mobilia/tipos.ts`. */
+export { TIPOS_MOBILIA }
 
 /** Nome que a setinha mostra em cada opção. */
 export const ROTULO_MOBILIA: Readonly<Record<TipoMobilia, string>> = {

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trabalho em paralelo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Raias · Trabalho em paralelo</p>
+    <h1>Cada linha integra na main a cada fatia, nunca tudo de uma vez no fim</h1>
+
+    <svg viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="paralelo-title paralelo-desc">
+      <title id="paralelo-title">Trabalho em paralelo: Camadas, Sons e Meio-Termo</title>
+      <desc id="paralelo-desc">Raias mostrando as linhas Camadas, Sons e Meio-Termo integrando na main a cada fatia pronta, o estilo novo do Meio-Termo ligando só depois que as camadas fecham, e a otimização vindo em seguida.</desc>
+      <defs>
+        <marker id="paralelo-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Raias: divisórias e rótulos -->
+      <line x1="24" y1="32" x2="1176" y2="32" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+      <line x1="24" y1="136" x2="1176" y2="136" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+      <line x1="24" y1="240" x2="1176" y2="240" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+      <line x1="24" y1="344" x2="1176" y2="344" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+      <line x1="24" y1="448" x2="1176" y2="448" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+      <text x="28" y="86" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">MAIN · TRONCO</text>
+      <text x="28" y="190" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">CAMADAS</text>
+      <text x="28" y="294" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">SONS</text>
+      <text x="28" y="398" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">MEIO-TERMO</text>
+
+      <!-- Conectores primeiro: das três linhas para a janela de integração -->
+      <path d="M340 188 H482 A8 8 0 0 0 490 180 V116" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+      <path d="M340 292 H532 A8 8 0 0 0 540 284 V116" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+      <path d="M340 396 H582 A8 8 0 0 0 590 388 V116" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+      <rect x="371" y="168" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="411" y="177" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">A CADA FATIA</text>
+
+      <!-- Na main: integração, depois o estilo liga, depois o resto -->
+      <line x1="640" y1="88" x2="688" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+      <line x1="888" y1="88" x2="936" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+
+      <!-- Meio-Termo guarda a chave de obra até as camadas fecharem (tracejado: espera) -->
+      <path d="M250 420 V428 A8 8 0 0 0 258 436 H780 A8 8 0 0 0 788 428 V116" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#paralelo-arrow)"/>
+      <rect x="420" y="416" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="460" y="425" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LIGA A CHAVE</text>
+
+      <!-- Nós: linhas de trabalho (cada uma em seu worktree e branch) -->
+      <rect x="160" y="164" width="180" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="160" y="164" width="180" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="250" y="184" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Camadas, fatias 3 a 8</text>
+      <text x="250" y="200" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">feat/camadas, da fatia 4</text>
+
+      <rect x="160" y="268" width="180" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="160" y="268" width="180" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="250" y="288" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sons, F1 a F7</text>
+      <text x="250" y="304" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">feat/sons-ao-vivo</text>
+
+      <rect x="160" y="372" width="180" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="160" y="372" width="180" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="250" y="392" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Meio-Termo, MT0 a MT11</text>
+      <text x="250" y="408" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">feat/meio-termo, chave desligada</text>
+
+      <!-- Nós na main (focais: a janela de integração e o momento em que o estilo liga) -->
+      <rect x="440" y="60" width="200" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="440" y="60" width="200" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="540" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Integra a cada fatia</text>
+      <text x="540" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só eu, linha parada, testado</text>
+
+      <rect x="688" y="60" width="200" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="688" y="60" width="200" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="788" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Estilo novo liga de vez</text>
+      <text x="788" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só após as camadas fecharem</text>
+
+      <rect x="936" y="60" width="200" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="936" y="60" width="200" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="1036" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Otimização, depois o resto</text>
+      <text x="1036" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">luz, batalha, caminhos</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="472" x2="1176" y2="472" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="496" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <line x1="120" y1="492" x2="152" y2="492" stroke="#4f5d75" stroke-width="1" marker-end="url(#paralelo-arrow)"/>
+      <text x="164" y="496" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">merge testado na main</text>
+      <line x1="352" y1="492" x2="384" y2="492" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#paralelo-arrow)"/>
+      <text x="396" y="496" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">espera até as camadas fecharem</text>
+      <rect x="640" y="486" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="664" y="496" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">momento-chave na main</text>
+    </svg>
+  </div>
+</body>
+</html>

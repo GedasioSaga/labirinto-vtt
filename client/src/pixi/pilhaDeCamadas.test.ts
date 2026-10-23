@@ -3,10 +3,19 @@ import type { CamadaId, ModeloDeCamadas } from '../types/map'
 import { FAIXAS_EDITOR, faixaPrincipal, type ParDeFaixa } from '../lib/camadas/ordem'
 import { CAMADAS_PADRAO, MODELO_PADRAO } from '../lib/camadas/padrao'
 import { ALFA_DO_TELHADO_TRANSPARENTE } from '../stores/telhadosNoEditor'
+import type { MapData, Prop } from '../types/map'
+import { createEmptyMap } from '../lib/mapFactory'
+import { SHAPES_LAYERS, createShapesRedrawer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
+import { findPropAt } from './propInteraction'
+import { SECRET_ITEM_ALPHA } from './constants'
 import {
   alfaDoTelhadoNoEditor,
+  alfaProprioDaFaixaNoEditor,
   criarPilha,
+  criarPorNo,
   distribuir,
+  nosCriadosDasFaixas,
+  nosDeTrabalho,
   ordenarFilhos,
   paresDosItens,
   planejarPilha,
@@ -157,7 +166,11 @@ describe('pilha de camadas: a lista manda', () => {
     for (const escada of ['stairsGraphics', 'secretStairsGraphics']) {
       expect(em(escada)).toBeGreaterThan(em('floorGraphics'))
       for (const acima of ['propsContainer', 'wallsGraphics', 'doorsGraphics']) expect(em(escada)).toBeLessThan(em(acima))
+      // Logo acima de Salas é ABAIXO de Desenhos e de Terreno (as vizinhas de cima na lista).
+      for (const acima of ['drawingsGraphics', 'secretDrawingsGraphics', 'texturas', 'relevoContainer', 'carimbos']) expect(em(escada), `${escada} abaixo de ${acima}`).toBeLessThan(em(acima))
     }
+    // O bloco cai entre a última faixa de Salas antes de Desenhos e a primeira de Desenhos (como em ordem.test.ts).
+    expect(nomes(pai).slice(em('stairsGraphics') - 1, em('secretStairsGraphics') + 2)).toEqual(['conveyorsGraphics', 'stairsGraphics', 'secretStairsGraphics', 'drawingsGraphics'])
     expect(pilha.criados()).toBe(0)
   })
 
@@ -179,6 +192,18 @@ describe('pilha de camadas: a lista manda', () => {
     // Os itens da livre vão para o nó dela; o resto continua no de hoje.
     const nos = pilha.nosDaFaixa('propsContainer')
     expect(nos.map((n) => n.camadas)).toEqual([['objetos', 'decoracao'], [livre]])
+  })
+
+  it('camada livre VAZIA entre Paredes e Portas e entre Objetos e Decoração: nenhum nó criado, nada sai do lugar', () => {
+    const ids: CamadaId[] = [...CAMADAS_PADRAO]
+    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_a')
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_b')
+    const { pai, pilha } = montar()
+    expect(pilha.atualizar(entrada(modelo(ids)))).toBe(0)
+    expect(pilha.criados()).toBe(0)
+    expect(nomes(pai)).toEqual(FAIXAS_EDITOR.map((f) => f.id))
+    expect(pilha.nosDaFaixa('wallsGraphics').map((n) => n.camadas)).toEqual([['paredes', 'portas']])
+    expect(pilha.nosDaFaixa('propsContainer').map((n) => n.camadas)).toEqual([['objetos', 'decoracao']])
   })
 
   it('propriedade: para qualquer permutação da lista (semente fixa), os nós principais seguem a lista', () => {
@@ -293,9 +318,202 @@ describe('pilha de camadas: opacidade', () => {
     expect(alfaDoTelhadoNoEditor(0.5, true)).toBeCloseTo(0.5 * ALFA_DO_TELHADO_TRANSPARENTE, 10)
     expect(alfaDoTelhadoNoEditor(0.5, false)).toBe(0.5)
   })
+
+  it('Telhados: a pilha (alfa próprio da faixa x camada) e o desenho dos telhados (PixiCanvas) escrevem a MESMA opacidade', () => {
+    for (const transparentes of [false, true]) {
+      for (const opacidade of [1, 0.5, 0.25, 0]) {
+        const pai = new PaiFalso()
+        const telhado = new NoFalso('telhadosContainer')
+        const bases = new Map(FAIXAS_EDITOR.map((f) => [f.id, f.id === 'telhadosContainer' ? telhado : new NoFalso(f.id)]))
+        pai.children.push(...FAIXAS_EDITOR.map((f) => bases.get(f.id) ?? telhado))
+        const pilha = criarPilha<NoFalso>({
+          pai,
+          faixas: FAIXAS_EDITOR,
+          base: (faixa) => bases.get(faixa) ?? telhado,
+          criar: (plano) => new NoFalso(plano.chave),
+          descartar: () => undefined,
+          // A função que o PixiCanvas passa à pilha.
+          alfaProprio: (faixa) => alfaProprioDaFaixaNoEditor(faixa, transparentes),
+          lerAlfa: (no) => no.alpha,
+          definirAlfa: (no, alfa) => {
+            no.alpha = alfa
+          },
+        })
+        pilha.atualizar(entrada(MODELO_PADRAO, { alfa: (c) => (c === 'telhados' ? opacidade : 1) }))
+        // O que `paintTelhados` escreve no mesmo container.
+        expect(telhado.alpha, `opacidade ${opacidade}, transparentes ${transparentes}`).toBe(alfaDoTelhadoNoEditor(opacidade, transparentes))
+      }
+    }
+    expect(alfaProprioDaFaixaNoEditor('secretStairsGraphics', false)).toBe(SECRET_ITEM_ALPHA)
+    expect(alfaProprioDaFaixaNoEditor('wallsGraphics', true)).toBe(1)
+  })
+
+  it('Paredes e Portas com opacidades diferentes: as DUAS faixas divididas (linhas e paredes) se separam ao mesmo tempo, junto dos móveis', () => {
+    const { pai, pilha, bases } = montar()
+    const alfa = (c: CamadaId): number => (c === 'paredes' ? 0.5 : c === 'objetos' ? 0.4 : 1)
+    pilha.atualizar(entrada(MODELO_PADRAO, { alfa }))
+    const em = (id: string) => nomes(pai).indexOf(id)
+    for (const faixa of ['mapLinesGraphics', 'wallsGraphics']) {
+      const nos = pilha.nosDaFaixa(faixa)
+      expect(nos.map((n) => n.camadas), faixa).toEqual([['paredes'], ['portas']])
+      expect(nos[0].no).toBe(bases.get(faixa))
+      expect(nos.map((n) => n.no.alpha), faixa).toEqual([0.5, 1])
+      // O nó das portas fica logo acima do de hoje: nada entra entre os dois.
+      expect(em(`${faixa}|portas`), faixa).toBe(em(faixa) + 1)
+    }
+    expect(pilha.nosDaFaixa('propsContainer').map((n) => n.no.alpha)).toEqual([0.4, 1])
+    expect(pilha.criados()).toBe(3)
+  })
+})
+
+describe('pilha de camadas: correções da revisão da fatia 3', () => {
+  it('a entrada de um nó de hoje que muda de camadas sem mudar a ordem das chaves: Paredes movida num mapa sem paredes lisas nem linhas usa a opacidade de Portas', () => {
+    const { pilha, bases } = montar()
+    const semParedes = PARES_NATIVOS.filter((p) => p.camada !== 'paredes')
+    pilha.atualizar(entrada(MODELO_PADRAO, { pares: semParedes }))
+    expect(pilha.nosDaFaixa('wallsGraphics').map((n) => n.camadas)).toEqual([['paredes', 'portas']])
+    // Paredes no topo: a faixa das paredes fica só com Portas, e Paredes (sem item) não cria nó.
+    pilha.atualizar(entrada(movida('paredes', 'telhados'), { pares: semParedes, alfa: (c) => (c === 'portas' ? 0.5 : 1) }))
+    for (const faixa of ['mapLinesGraphics', 'wallsGraphics']) {
+      expect(pilha.nosDaFaixa(faixa).map((n) => n.camadas), faixa).toEqual([['portas']])
+      expect(bases.get(faixa)?.alpha, faixa).toBe(0.5)
+    }
+    expect(pilha.criados()).toBe(0)
+  })
+
+  it('o que a exportação e o conta-gotas escondem sai das faixas FIXAS depois dos Telhados, nunca do índice: com Anotações logo acima de Salas, paredes, portas, escadas, móveis, luzes e fichas ficam na imagem', () => {
+    const { pai, pilha, bases } = montar()
+    pilha.atualizar(entrada(movida('anotacoes', 'salas')))
+    const base = (faixa: string): NoFalso => {
+      const no = bases.get(faixa)
+      if (no === undefined) throw new Error(`faixa sem nó: ${faixa}`)
+      return no
+    }
+    const escondidos = nosDeTrabalho(FAIXAS_EDITOR, base).map((n) => n.nome)
+    for (const fica of ['wallsGraphics', 'doorsGraphics', 'stairsGraphics', 'propsContainer', 'lightsContainer', 'tokensContainer', 'regionsContainer']) {
+      expect(escondidos, fica).not.toContain(fica)
+    }
+    // Os mesmos de antes da fatia 3 com a lista padrão: tudo o que vinha depois dos pinos.
+    const padrao = montar()
+    const depoisDosPinos = nomes(padrao.pai).slice(nomes(padrao.pai).indexOf('pinsContainer') + 1)
+    expect(escondidos).toEqual(depoisDosPinos)
+    // O jeito de antes (tudo acima dos pinos no `world`) esconderia as paredes, as portas e o resto.
+    const porIndice = nomes(pai).slice(nomes(pai).indexOf('pinsContainer') + 1)
+    expect(porIndice).toEqual(expect.arrayContaining(['wallsGraphics', 'doorsGraphics', 'stairsGraphics', 'propsContainer', 'lightsContainer', 'tokensContainer']))
+  })
+
+  it('troca de cena em fatias: os nós CRIADOS das faixas de uma camada adiada se escondem junto (os de hoje o PixiCanvas já lista)', () => {
+    const { pilha, bases } = montar()
+    const livre: CamadaId = 'livre_x'
+    pilha.atualizar(entrada(modelo([...CAMADAS_PADRAO, livre]), { pares: [...PARES_NATIVOS, { faixa: 'drawingsGraphics', camada: livre }, { faixa: 'lightsContainer', camada: livre }] }))
+    const desenhos = nosCriadosDasFaixas(pilha, ['drawingsGraphics', 'secretDrawingsGraphics', 'pathsGraphics', 'secretPathsGraphics']).map((n) => n.nome)
+    expect(desenhos).toEqual(['drawingsGraphics|livre_x'])
+    expect(nosCriadosDasFaixas(pilha, ['lightsContainer']).map((n) => n.nome)).toEqual(['lightsContainer|livre_x'])
+    expect(nosCriadosDasFaixas(pilha, ['lightsContainer'])).not.toContain(bases.get('lightsContainer'))
+  })
+})
+
+describe('LIMITACAO ATUAL (fixada para a fatia futura mudar de propósito)', () => {
+  it('LIMITACAO ATUAL: com Objetos e Decoração separados, o tapete de Decoração vai para o nó de CIMA (acima das cadeiras de Objetos) e o clique segue a ordem do array, não a dos nós', () => {
+    const { pilha } = montar()
+    pilha.atualizar(entrada(MODELO_PADRAO, { alfa: (c) => (c === 'objetos' ? 0.4 : 1) }))
+    const tapete: Prop = { id: 'tapete', src: '', x: 64, y: 64, width: 128, height: 128, linkedMapPath: null, mobilia: 'tapete', layer: 'decoracao' }
+    const bau: Prop = { id: 'bau', src: '', x: 64, y: 64, width: 64, height: 64, linkedMapPath: null, mobilia: 'bau', layer: 'decoracao' }
+    const cadeira: Prop = { id: 'cadeira', src: '', x: 64, y: 64, width: 64, height: 64, linkedMapPath: null, mobilia: 'cadeira' }
+    const camadaDoMovel = (p: Prop): CamadaId => p.layer ?? 'objetos'
+    const baldes = distribuir([tapete, bau, cadeira], pilha.nosDaFaixa('propsContainer'), camadaDoMovel)
+    // Nó de baixo (Objetos): a cadeira. Nó de cima (Decoração): tapete e baú, por cima da cadeira na tela.
+    expect(baldes.map((b) => b.itens.map((p) => p.id))).toEqual([['cadeira'], ['tapete', 'bau']])
+    // O baú desenha por cima da cadeira, mas o clique pega a cadeira (a última do array).
+    expect(findPropAt([tapete, bau, cadeira], { x: 64, y: 64 })?.id).toBe('cadeira')
+  })
+})
+
+describe('reordenar não repinta (portões de shapesRedraw)', () => {
+  function snapshot(map: MapData, pilha: Pilha<NoFalso>): ShapesSnapshot {
+    return { map, selection: [], activeTool: 'select', selectedConcealZoneId: null, selectedPinId: null, travel: [], cameraScale: 1, rendererResolution: 1, rotatingRoom: false, camadas: pilha.assinaturaDa }
+  }
+
+  function espiao(): { pinturas: ShapesLayer[]; redesenhar: ReturnType<typeof createShapesRedrawer> } {
+    const pinturas: ShapesLayer[] = []
+    const espia = (camada: ShapesLayer) => () => {
+      pinturas.push(camada)
+    }
+    const paint: Record<ShapesLayer, () => void> = {
+      floor: espia('floor'), gridMask: espia('gridMask'), floorSelection: espia('floorSelection'), mapLines: espia('mapLines'),
+      mapFrame: espia('mapFrame'), regions: espia('regions'), perigos: espia('perigos'), drawings: espia('drawings'),
+      texturas: espia('texturas'), relevo: espia('relevo'), carimbos: espia('carimbos'), hazards: espia('hazards'),
+      areaTriggers: espia('areaTriggers'), faccoes: espia('faccoes'), conveyors: espia('conveyors'), roomNames: espia('roomNames'),
+      nomesDosLugares: espia('nomesDosLugares'), walls: espia('walls'), stairs: espia('stairs'), nuvens: espia('nuvens'),
+      lights: espia('lights'), watchCones: espia('watchCones'), patrolRoutes: espia('patrolRoutes'), concealZones: espia('concealZones'),
+      pins: espia('pins'), textLabels: espia('textLabels'), handles: espia('handles'), areaOutline: espia('areaOutline'),
+    }
+    expect(Object.keys(paint)).toHaveLength(SHAPES_LAYERS.length)
+    return { pinturas, redesenhar: createShapesRedrawer(paint) }
+  }
+
+  it('mapa com só a lista de camadas mudada e a mesma assinatura da pilha: nenhuma camada repinta', () => {
+    const { pinturas, redesenhar } = espiao()
+    const { pilha } = montar()
+    pilha.atualizar(entrada(MODELO_PADRAO))
+    const mapa = createEmptyMap('m', 'Mapa', 8, 8, 64)
+    redesenhar(snapshot(mapa, pilha))
+    expect(pinturas.length).toBeGreaterThan(0)
+
+    pinturas.length = 0
+    const movido = movida('chao', 'salas')
+    pilha.atualizar(entrada(movido))
+    expect(redesenhar(snapshot({ ...mapa, modeloCamadas: movido }, pilha))).toEqual([])
+    expect(pinturas).toEqual([])
+  })
+
+  it('assinatura POR FAIXA: separar só os móveis não repinta camada vetorial nenhuma; separar Paredes e Portas repinta só linhas e paredes', () => {
+    const { redesenhar } = espiao()
+    const { pilha } = montar()
+    pilha.atualizar(entrada(MODELO_PADRAO))
+    const mapa = createEmptyMap('m', 'Mapa', 8, 8, 64)
+    redesenhar(snapshot(mapa, pilha))
+    const moveis = pilha.assinaturaDa('propsContainer')
+
+    // Objetos e Decoração com opacidades diferentes: só a faixa dos móveis se separa (eles repintam fora daqui, por `redrawProps`).
+    pilha.atualizar(entrada(MODELO_PADRAO, { alfa: (c) => (c === 'objetos' ? 0.4 : 1) }))
+    expect(pilha.assinaturaDa('propsContainer')).not.toBe(moveis)
+    expect(redesenhar(snapshot(mapa, pilha))).toEqual([])
+
+    // Paredes a 50%: linhas e paredes (as duas faixas de Paredes e Portas) se separam; escadas, desenhos e luzes ficam.
+    pilha.atualizar(entrada(MODELO_PADRAO, { alfa: (c) => (c === 'objetos' ? 0.4 : c === 'paredes' ? 0.5 : 1) }))
+    expect(redesenhar(snapshot(mapa, pilha))).toEqual(['mapLines', 'walls'])
+  })
+
+  it('linha numa camada escondida: esconder a camada repinta as linhas (o portão olha a lista inteira de ocultas)', () => {
+    const { redesenhar } = espiao()
+    const { pilha } = montar()
+    pilha.atualizar(entrada(MODELO_PADRAO))
+    // `hiddenLayers` ainda é LayerId[] (fatia 6): a camada livre não se esconde hoje; Objetos é o caso alcançável.
+    const linha: MapData['lines'][number] = { id: 'l1', points: [{ x: 0, y: 0 }, { x: 64, y: 0 }], closed: false, dotted: false, color: '#ffffff', width: 2, camada: 'objetos' }
+    const mapa: MapData = { ...createEmptyMap('m', 'Mapa', 8, 8, 64), lines: [linha] }
+    redesenhar(snapshot(mapa, pilha))
+    expect(redesenhar(snapshot({ ...mapa, hiddenLayers: ['objetos'] }, pilha))).toContain('mapLines')
+  })
 })
 
 describe('distribuir e pares', () => {
+  it('um renderer por nó: o de hoje no nó de hoje, o criado nasce na primeira pintura e sai com o nó', () => {
+    const base = new NoFalso('base')
+    const criado = new NoFalso('criado')
+    const soltos: string[] = []
+    let feitos = 0
+    const porNo = criarPorNo(base, 'hoje', () => `novo${(feitos += 1)}`, (r) => soltos.push(r))
+    expect(porNo.de(base)).toBe('hoje')
+    expect(feitos).toBe(0)
+    expect(porNo.de(criado)).toBe('novo1')
+    expect(porNo.de(criado)).toBe('novo1')
+    porNo.soltar(base)
+    porNo.soltar(criado)
+    expect(soltos).toEqual(['novo1'])
+    expect(porNo.todos()).toEqual(['hoje'])
+  })
+
   const nosFalsos = (lista: { camadas: CamadaId[]; base: boolean }[]) => lista.map((n, i) => ({ no: new NoFalso(`n${i}`), ...n }))
 
   it('faixa com um nó só devolve o MESMO array (portão Object.is), sem olhar os itens', () => {

@@ -19,8 +19,11 @@ import {
   type RegiaoDoMovel,
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
+// Só o tipo: o Meio-Termo dos móveis (motor, materiais, tabelas de ruído) carrega sob demanda, com a chave ligada.
+import type { RasterDosMoveis } from './rasterDosMoveis'
 
 /**
  * OBJETOS COMO SILHUETA — o móvel do mestre na tela do JOGADOR.
@@ -334,10 +337,122 @@ function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidt
   graphics.stroke({ width: edgeWidth, color: edge.color, alpha: edge.alpha, cap: 'butt' })
 }
 
+/** A silhueta de linhas de um objeto (o desenho de sempre): fundo, áreas de cor própria, contorno e glifo. */
+function drawSilhouette(graphics: Graphics, prop: PropSilhouette, grid: PixelGrid, edgeWidth: number): void {
+  const style = silhouetteStyle(prop)
+  if (ehMovelVazado(prop.mobilia)) {
+    // Cerca: sem caixa atrás, só mourões e fio; "Preencher" e "Cor" não têm onde pintar.
+    strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
+    return
+  }
+  // A fogueira é redonda só de cima: de lado vale o perfil das pedras.
+  const round = hasRoundSilhouette(prop)
+  const outline = round ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
+  graphics.poly(outline, true)
+  if (style.fill !== null) {
+    graphics.fill(style.fill)
+    // Áreas de cor própria entre o fundo e o fio; depois delas o contorno volta para o fio.
+    if (fillFurnitureAreas(graphics, prop, style, round ? null : grid)) graphics.poly(outline, true)
+  }
+  graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })
+  strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
+}
+
+/** A imagem sai com a cor dela: sem tinta por cima e opaca (o alfa do último `fill` não vaza para a imagem). */
+const IMAGE_TINT = 0xffffff
+const IMAGE_ALPHA = 1
+
+type ModuloDoRaster = typeof import('./rasterDosMoveis')
+
+let moduloDoRaster: ModuloDoRaster | null = null
+let carregandoORaster: Promise<ModuloDoRaster> | null = null
+/** Quem se pintou antes do módulo chegar: repinta quando ele chega. */
+const esperandoORaster = new Map<Graphics, () => void>()
+/** Os `Graphics` que já avisam o raster quando são destruídos. */
+const donosVigiados = new WeakSet<Graphics>()
+
+/**
+ * Carrega o Meio-Termo dos móveis (o raster, o motor, os materiais e as
+ * tabelas de ruído) uma vez só. Com a chave desligada nada disso entra no
+ * início do editor nem do jogador.
+ */
+export function carregarMoveisDoMeioTermo(): Promise<ModuloDoRaster> {
+  carregandoORaster ??= import('./rasterDosMoveis').then((modulo) => {
+    moduloDoRaster = modulo
+    const repinturas = [...esperandoORaster.values()]
+    esperandoORaster.clear()
+    for (const repintar of repinturas) repintar()
+    return modulo
+  })
+  return carregandoORaster
+}
+
+/**
+ * O raster da sessão, se o módulo já chegou; senão pede o módulo, guarda a
+ * repintura deste `Graphics` para quando ele chegar e devolve `null` (a
+ * passada sai no desenho de linhas).
+ */
+function rasterParaPassada(graphics: Graphics, repintar: () => void): RasterDosMoveis | null {
+  if (moduloDoRaster === null) {
+    esperandoORaster.set(graphics, repintar)
+    void carregarMoveisDoMeioTermo()
+    return null
+  }
+  const modulo = moduloDoRaster
+  if (!donosVigiados.has(graphics)) {
+    donosVigiados.add(graphics)
+    graphics.once('destroyed', () => modulo.rasterDosMoveis().soltarDono(graphics))
+  }
+  return modulo.rasterDosMoveis()
+}
+
+/**
+ * MEIO-TERMO (chave de obra `meioTermoLigado()`): o móvel com textura, a
+ * imagem pronta de `rasterDosMoveis.ts` colada com `graphics.texture` e girada
+ * com o objeto por `setTransform` (a luz gira junto, sem gerar de novo).
+ * Enquanto a imagem não fica pronta, cola a pronta de outro nível do mesmo
+ * desenho ou, sem nenhuma, o desenho de linhas de sempre (provisório). Pronta
+ * a imagem, o raster chama este `Graphics` para se repintar: o provisório SAI
+ * (nos cantos chanfrados e no vazio do L da cadeira a imagem é transparente).
+ * Devolve `false` se o tipo ainda não tem desenho com textura (fica o de linhas).
+ */
+function drawTexturedFurniture(
+  graphics: Graphics,
+  prop: PropSilhouette,
+  raster: RasterDosMoveis,
+  modulo: ModuloDoRaster,
+  cameraScale: number,
+  rendererResolution: number,
+  grid: PixelGrid,
+  edgeWidth: number,
+): boolean {
+  const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution)
+  if (imagem === null) return false
+  const mostrar = imagem.mostrar
+  if (mostrar === null) {
+    drawSilhouette(graphics, prop, grid, edgeWidth)
+    return true
+  }
+  raster.marcarColada(mostrar)
+  const r = modulo.retanguloNoMundo(mostrar, prop.width, prop.height)
+  const trig = rotationTrig(prop.rotation ?? 0)
+  graphics
+    .save()
+    .setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA })
+    .setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
+    .texture(mostrar.textura, IMAGE_TINT, r.x, r.y, r.w, r.h)
+    .restore()
+  return true
+}
+
 /**
  * Pinta a silhueta de cada objeto em `graphics` (limpa antes) e devolve quantas
  * pintou. Móvel da mobília desenhada ganha o glifo por cima. Objeto sem geometria desenhável (tamanho zero, número não finito de
  * um arquivo estragado) fica de fora em vez de virar borrão ou derrubar o quadro.
+ * Com o Meio-Termo ligado, os móveis que já têm textura saem como imagem
+ * (`drawTexturedFurniture`) e este `Graphics` se repinta sozinho, com os
+ * mesmos argumentos, quando uma imagem que ele pediu fica pronta (quem chamou
+ * não precisa saber); desligado, nenhum caminho novo roda.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
@@ -348,29 +463,24 @@ export function drawPropSilhouettes(
   graphics.clear()
   const grid = pixelGrid(cameraScale, rendererResolution, PROP_SILHOUETTE_EDGE_SCREEN_PX)
   const edgeWidth = strokeWidthInWorld(grid)
-  let drawn = 0
-  // O tapete fica no chão: pintado antes, por baixo de todo objeto.
-  for (const prop of emOrdemDeDesenho(props)) {
-    if (!hasDrawableGeometry(prop)) continue
-    const style = silhouetteStyle(prop)
-    if (ehMovelVazado(prop.mobilia)) {
-      // Cerca: sem caixa atrás, só mourões e fio; "Preencher" e "Cor" não têm onde pintar.
-      strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
-      drawn += 1
-      continue
-    }
-    // A fogueira é redonda só de cima: de lado vale o perfil das pedras.
-    const round = hasRoundSilhouette(prop)
-    const outline = round ? roundSilhouettePoints(prop) : silhouettePolygon(prop, grid)
-    graphics.poly(outline, true)
-    if (style.fill !== null) {
-      graphics.fill(style.fill)
-      // Áreas de cor própria entre o fundo e o fio; depois delas o contorno volta para o fio.
-      if (fillFurnitureAreas(graphics, prop, style, round ? null : grid)) graphics.poly(outline, true)
-    }
-    graphics.stroke({ width: edgeWidth, color: style.edge.color, alpha: style.edge.alpha, join: 'miter' })
-    strokeFurnitureGlyph(graphics, prop, edgeWidth, style.edge)
-    drawn += 1
+  const repintar = (): void => {
+    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution)
   }
-  return drawn
+  const raster = meioTermoLigado() ? rasterParaPassada(graphics, repintar) : null
+  const modulo = moduloDoRaster
+  raster?.abrirPassada(graphics, repintar)
+  try {
+    let drawn = 0
+    // O tapete fica no chão: pintado antes, por baixo de todo objeto.
+    for (const prop of emOrdemDeDesenho(props)) {
+      if (!hasDrawableGeometry(prop)) continue
+      if (raster === null || modulo === null || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
+        drawSilhouette(graphics, prop, grid, edgeWidth)
+      }
+      drawn += 1
+    }
+    return drawn
+  } finally {
+    raster?.fecharPassada()
+  }
 }

@@ -20,6 +20,7 @@
 import type { CamadaId, ModeloDeCamadas } from '../types/map'
 import { ordemDeRender, type EntradaDaOrdem, type Faixa, type ParDeFaixa } from '../lib/camadas/ordem'
 import { ALFA_DO_TELHADO_TRANSPARENTE } from '../stores/telhadosNoEditor'
+import { SECRET_ITEM_ALPHA } from './constants'
 
 /** O pedaço do `Container` do Pixi que a pilha usa. */
 export interface PaiDaPilha<N> {
@@ -145,10 +146,14 @@ export interface Pilha<N> {
   nosDaFaixa(faixa: string): readonly NoDaFaixa<N>[]
   /**
    * Muda só quando muda que camadas desenham em que nó (nunca na troca de
-   * ordem pura nem na de opacidade): entra no portão de repintura das
-   * camadas que distribuem itens por nó.
+   * ordem pura nem na de opacidade), em QUALQUER faixa: diz se algo mudou.
    */
   assinatura(): string
+  /**
+   * A mesma coisa, só da faixa: entra no portão de repintura da camada que
+   * distribui os itens daquela faixa (separar os móveis não repinta as luzes).
+   */
+  assinaturaDa(faixa: string): string
   /** Quantos nós criados existem agora (fora os de hoje). */
   criados(): number
   /** Solta todos os nós criados (desmonte). */
@@ -160,8 +165,9 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
   const criados = new Map<string, { no: N; plano: NoPlanejado }>()
   let plano: NoPlanejado[] = faixas.map((f) => ({ chave: f.id, faixa: f.id, camadas: f.camadas, base: true }))
   let porFaixa = agrupar(plano)
-  let ordemAtual = plano.map((p) => p.chave).join(',')
+  let ordemAtual = chaveDaOrdem(plano)
   let assinaturaAtual = assinar(plano)
+  let assinaturasPorFaixa = assinarPorFaixa(porFaixa)
 
   function noDe(p: NoPlanejado): N {
     if (p.base) return base(p.faixa)
@@ -170,6 +176,15 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
     const novo = opcoes.criar(p)
     criados.set(p.chave, { no: novo, plano: p })
     return novo
+  }
+
+  /**
+   * A ordem COM as camadas de cada nó: a chave do nó de hoje é só o nome da
+   * faixa, e ele pode mudar de camadas sem a ordem das chaves mudar (Paredes
+   * movida sem parede lisa nem linha: ['paredes', 'portas'] vira ['portas']).
+   */
+  function chaveDaOrdem(nos: readonly NoPlanejado[]): string {
+    return nos.map((p) => `${p.chave}:${p.camadas.join('+')}`).join(',')
   }
 
   function agrupar(nos: readonly NoPlanejado[]): Map<string, NoPlanejado[]> {
@@ -190,6 +205,10 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
       .join(',')
   }
 
+  function assinarPorFaixa(grupos: ReadonlyMap<string, NoPlanejado[]>): Map<string, string> {
+    return new Map([...grupos].map(([faixa, nos]) => [faixa, assinar(nos)]))
+  }
+
   function aplicarAlfa(entrada: EntradaDaPilha): void {
     for (const p of plano) {
       if (p.camadas.length === 0) continue
@@ -202,13 +221,14 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
   return {
     atualizar(entrada) {
       const novo = planejarPilha(faixas, entrada)
-      const ordemNova = novo.map((p) => p.chave).join(',')
+      const ordemNova = chaveDaOrdem(novo)
       let mexidos = 0
       if (ordemNova !== ordemAtual) {
         plano = novo
         porFaixa = agrupar(plano)
         ordemAtual = ordemNova
         assinaturaAtual = assinar(plano)
+        assinaturasPorFaixa = assinarPorFaixa(porFaixa)
         mexidos = ordenarFilhos(pai, plano.map(noDe))
         const vivas = new Set(plano.map((p) => p.chave))
         for (const [chave, { no, plano: dele }] of criados) {
@@ -225,6 +245,7 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
       return (porFaixa.get(faixa) ?? []).map((p) => ({ no: noDe(p), camadas: p.camadas, base: p.base }))
     },
     assinatura: () => assinaturaAtual,
+    assinaturaDa: (faixa) => assinaturasPorFaixa.get(faixa) ?? '',
     criados: () => criados.size,
     destruir() {
       for (const { no, plano: dele } of criados.values()) {
@@ -262,6 +283,35 @@ export function distribuir<N, T>(itens: T[], nos: readonly NoDaFaixa<N>[], camad
   return nos.map((n, i) => ({ no: n.no, itens: baldes[i] }))
 }
 
+/** Um renderer com estado (cache de sprite, relógio, gradiente) por nó da faixa. */
+export interface PorNo<N, R> {
+  /** O do nó: o de hoje no container de hoje; nos criados, nasce na primeira pintura. */
+  de(no: N): R
+  /** O nó criado foi descartado: o renderer dele sai junto (o de hoje nunca). */
+  soltar(no: N): void
+  todos(): R[]
+}
+
+export function criarPorNo<N, R>(base: N, deHoje: R, criar: () => R, soltarRenderer: (renderer: R) => void): PorNo<N, R> {
+  const mapa = new Map<N, R>([[base, deHoje]])
+  return {
+    de(no) {
+      const pronto = mapa.get(no)
+      if (pronto !== undefined) return pronto
+      const novo = criar()
+      mapa.set(no, novo)
+      return novo
+    },
+    soltar(no) {
+      const renderer = mapa.get(no)
+      if (renderer === undefined || no === base) return
+      mapa.delete(no)
+      soltarRenderer(renderer)
+    },
+    todos: () => [...mapa.values()],
+  }
+}
+
 /** Um par por faixa e camada presente nos itens (sem repetir). */
 export function paresDosItens<T>(faixa: string, itens: readonly T[], camadaDe: (item: T) => CamadaId): ParDeFaixa[] {
   const vistas = new Set<CamadaId>()
@@ -272,4 +322,41 @@ export function paresDosItens<T>(faixa: string, itens: readonly T[], camadaDe: (
 /** TELHADOS no editor: a opacidade da camada vezes o atalho "Transparente" do mestre. */
 export function alfaDoTelhadoNoEditor(opacidade: number, transparente: boolean): number {
   return opacidade * (transparente ? ALFA_DO_TELHADO_TRANSPARENTE : 1)
+}
+
+const FAIXAS_SECRETAS: ReadonlySet<string> = new Set(['secretStairsGraphics', 'secretDrawingsGraphics', 'secretPathsGraphics'])
+
+/**
+ * A opacidade de cada faixa do editor ANTES da camada (`alfaProprio` da pilha):
+ * o esmaecido do "Oculto para jogadores" e o atalho "Transparente" dos telhados
+ * (só do mestre, de sessão). A pilha multiplica pela opacidade da camada; nos
+ * telhados dá o mesmo que `alfaDoTelhadoNoEditor`, que o desenho deles escreve.
+ */
+export function alfaProprioDaFaixaNoEditor(faixa: string, transparentes: boolean): number {
+  if (faixa === 'telhadosContainer') return alfaDoTelhadoNoEditor(1, transparentes)
+  return FAIXAS_SECRETAS.has(faixa) ? SECRET_ITEM_ALPHA : 1
+}
+
+/**
+ * O que a "Exportar imagem" e o conta-gotas tiram do quadro: os Telhados e as
+ * faixas FIXAS de edição que vêm depois deles em `faixas` (fantasma de teste
+ * até os rótulos das guias) — o mesmo que "tudo acima dos pinos" pegava com a
+ * lista padrão. Pelo NOME da faixa, nunca pelo índice no `world`: com a lista
+ * mandando, uma camada (Anotações descida, livre no topo) fica em qualquer altura.
+ */
+export function nosDeTrabalho<N>(faixas: readonly Faixa[], base: (faixa: string) => N): N[] {
+  const telhados = faixas.findIndex((f) => f.id === 'telhadosContainer')
+  if (telhados < 0) return []
+  const fixasDepois = faixas.slice(telhados + 1).filter((f) => f.camadas.length === 0)
+  return [faixas[telhados], ...fixasDepois].map((f) => base(f.id))
+}
+
+/**
+ * Os nós CRIADOS das faixas, de baixo para cima: a troca de cena em fatias
+ * esconde junto com o container de hoje (que o chamador já conhece) o nó de
+ * uma camada cujo par existe nas duas cenas — senão ele mostraria a cena
+ * anterior até o quadro adiado.
+ */
+export function nosCriadosDasFaixas<N>(pilha: Pilha<N>, faixas: readonly string[]): N[] {
+  return faixas.flatMap((faixa) => pilha.nosDaFaixa(faixa).flatMap((n) => (n.base ? [] : [n.no])))
 }
