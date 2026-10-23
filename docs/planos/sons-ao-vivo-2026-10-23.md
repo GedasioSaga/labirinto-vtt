@@ -179,6 +179,19 @@ Contrato congelado em `docs/planos/sons-f5-plano-tecnico-2026-10-23.md` (seçõe
 6. A chave é zerada em queda, kicked, room.closed, session.replaced, socket novo e detach (`playerConnection.chave.test.ts`).
 7. O corpo da resposta tem teto de 15 MB, mesmo quando o `Content-Length` mente (leitura em stream com teto).
 
+**Correção da F5b depois da revisão (23/10)**
+
+- **A F5b NÃO entra na main antes da F5a.** Sem a rota `/sons/<id>`, a chave e o `net_sons_aventura` do Rust, o mestre vê "Os sons não vão tocar na mesa" (`hostBridge.ts` ~1800) e o jogador não traz arquivo nenhum. O aviso é consequência da F5a ausente e não foi mexido.
+- **Pré-carga em fila** (`lib/sons/aoVivo/motor.ts`): no máximo `PRE_CARGA_MAX_ARQUIVOS` = 4 arquivos (a página manda 4, o aparelho corta o resto), uma busca por vez e só sem outra busca no ar; o toque busca na hora e passa à frente. O 4 vem do contrato da F5a: 30 buscas por 10 s por IP, e os 4 jogadores e a TV podem sair pelo mesmo IP (túnel de uma casa, NAT): 5 x 4 = 20, sobram 10 para os toques. Uma busca de pré-carga por aparelho deixa a vaga do toque nas 2 por chave e nas 6 da sala. O `SOM_PRECARGA_MAX` = 32 do protocolo segue como teto da mensagem.
+- **Decodificar adiantado com orçamento**: o teto de 1 MB é do arquivo comprimido (1 MB de MP3 vira ~25 MB). A pré-carga decodifica um arquivo por vez e só enquanto a estimativa (24x os bytes) cabe na metade do orçamento do cache; o resto fica em bytes e decodifica no clique.
+- **Evento `carregando`** no motor: sai quando a voz que esperava o gesto sai da espera; a faixinha some na hora, sem esperar o arquivo. Volta a esperar (o `<audio>` recusado no iOS), avisa `esperando` de novo.
+- **Mudo**: com o aparelho calado a faixinha não aparece e o `sem-gesto` não vai ao mestre; tirar o Mudo mostra a faixinha.
+- **A TV ignora o Mudo e o volume guardados** no `lb-som` daquele navegador e toca no volume padrão (0,35), o de uma TV que nunca guardou nada; o volume da sala é o da própria TV. Escolhido no lugar de um controle de som na TV por ser o menor que fecha: a TV não tem quem mexa nela, e o Mudo guardado vinha de outra página no mesmo navegador.
+- **Recusa do motor do mestre depois do clique** (o arquivo não abre no WebView2): a página chama `ponte.parar`, e a mesa para o toque também.
+- **Chave da mídia** zerada antes do `setState` de erro (erro do mestre, conta recusada) e no erro `kicked`.
+- Hardening opcional: a instância na rede já é `som-<uuid>` sorteado (`ponteDosSons.ts`), nunca o id do efeito. Revogar as Blob URLs no fim de sessão ficou de fora: pede um método novo no `MotorAoVivo` e mexe em todos os motores de mentira dos testes (hoje elas são revogadas no `desmontar`, que roda quando a conexão da página sai).
+- Visto no print do e2e (390 px): a faixinha "Toque para ouvir" cobre o chip "Fora das salas" do jogador, no topo. Não mexido (layout da faixinha é da F5b; fica para a revisão de design).
+
 ## Decisões do usuário em 23/10
 
 - Plano aprovado; começar pela F1 em paralelo com as camadas.
