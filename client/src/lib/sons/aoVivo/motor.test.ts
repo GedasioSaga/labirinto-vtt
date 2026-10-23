@@ -25,6 +25,7 @@ import {
   FADE_AO_PARAR_MS,
   MAX_LOOPS,
   MAX_SONS_SIMULTANEOS,
+  PRAZO_DO_CARREGAMENTO_MS,
   type EventoDoMotor,
   type OpcoesDoToqueAoVivo,
 } from './motor'
@@ -363,6 +364,68 @@ describe('carregamento e cache', () => {
     m.motor.tocar('sumiu', { tipo: 'arquivo', ref: `midia:${idDeAudio(77)}`, bytes: 10 }, curto)
     await assentar()
     expect(m.doTipo('recusado')).toEqual([{ tipo: 'recusado', instancia: 'sumiu', motivo: 'nao-carregou' }])
+  })
+})
+
+/** O próximo `carregarBytes` só responde quando o teste chamar a função devolvida. */
+function segurarBytes(m: ReturnType<typeof montar>): (bytes: Uint8Array) => void {
+  let entregar: (bytes: Uint8Array) => void = () => undefined
+  m.carregarBytes.mockImplementationOnce(
+    () =>
+      new Promise<Uint8Array>((resolve) => {
+        entregar = resolve
+      }),
+  )
+  return (bytes) => entregar(bytes)
+}
+
+describe('prazo do carregamento e desmontar', () => {
+  it(`carregamento que nunca responde cai em ${PRAZO_DO_CARREGAMENTO_MS} ms: a voz é recusada, a vaga de loop volta e o mesmo arquivo pode ser pedido de novo`, async () => {
+    const m = montar()
+    m.carregarBytes.mockImplementationOnce(() => new Promise<Uint8Array>(() => undefined))
+    const pendurado = m.arquivo(1, DEZ_SEGUNDOS)
+    m.motor.tocar('pendurado', pendurado, emLoop)
+    await vi.advanceTimersByTimeAsync(PRAZO_DO_CARREGAMENTO_MS - 1)
+    expect(m.doTipo('recusado')).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(m.doTipo('recusado')).toEqual([{ tipo: 'recusado', instancia: 'pendurado', motivo: 'nao-carregou' }])
+    for (let i = 0; i < MAX_LOOPS; i++) expect(m.motor.tocar(`loop_${i}`, m.arquivo(10 + i, DEZ_SEGUNDOS), emLoop)).toEqual({ aceito: true })
+    m.motor.pararTudo()
+
+    // O pedido em andamento foi limpo: um toque novo lê de novo, e toca.
+    m.motor.tocar('de_novo', pendurado, curto)
+    await assentar()
+    expect(m.cargasDe(pendurado)).toBe(2)
+    expect(m.doTipo('tocando').map((evento) => evento.instancia)).toContain('de_novo')
+  })
+
+  it(`efeito curto cujo áudio chega ${ESPERA_DO_EFEITO_CURTO_MS} ms ou mais depois do PEDIDO é descartado com 'atrasado'; o loop toca`, async () => {
+    const m = montar()
+    const entregarCurto = segurarBytes(m)
+    m.motor.tocar('sino', m.arquivo(1, DEZ_SEGUNDOS), curto)
+    const entregarLoop = segurarBytes(m)
+    m.motor.tocar('chuva', m.arquivo(2, DEZ_SEGUNDOS), emLoop)
+    await vi.advanceTimersByTimeAsync(ESPERA_DO_EFEITO_CURTO_MS)
+    entregarCurto(new Uint8Array(DEZ_SEGUNDOS))
+    entregarLoop(new Uint8Array(DEZ_SEGUNDOS))
+    await assentar()
+    expect(m.doTipo('recusado')).toEqual([{ tipo: 'recusado', instancia: 'sino', motivo: 'atrasado' }])
+    expect(m.doTipo('tocando').map((evento) => evento.instancia)).toEqual(['chuva'])
+    expect(m.fontesDoMotor()).toHaveLength(1)
+  })
+
+  it('arquivo grande que chega depois de desmontar não deixa URL de Blob viva', async () => {
+    const m = montar()
+    const entregar = segurarBytes(m)
+    m.motor.tocar('trilha', m.arquivo(9, 2 * MB), emLoop)
+    await assentar()
+    m.motor.desmontar()
+    entregar(new Uint8Array(2 * MB))
+    await assentar()
+    const revogadas = new Set(m.revogarUrl.mock.calls.map(([url]) => url))
+    const vivas = m.criarUrlDoAudio.mock.results.map((resultado) => String(resultado.value)).filter((url) => !revogadas.has(url))
+    expect(vivas).toEqual([])
+    expect(m.elementos).toHaveLength(0)
   })
 })
 

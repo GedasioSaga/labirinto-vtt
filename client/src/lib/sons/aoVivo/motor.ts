@@ -11,7 +11,8 @@ import { obterSaidaAoVivoDoNavegador, quandoOAudioRodar } from '../contexto'
  *
  *  - Quem traz os bytes é INJETADO: o mestre lê do disco (`lerAudioGuardado`),
  *    o jogador busca `/media/<id>`. Dois toques do mesmo arquivo ao mesmo tempo
- *    fazem UMA leitura.
+ *    fazem UMA leitura, com prazo (`PRAZO_DO_CARREGAMENTO_MS`); o efeito
+ *    curto cujo áudio chega 2 s depois do pedido é descartado ('atrasado').
  *  - Cache em duas camadas: os bytes como chegaram e o áudio pronto. Até 1 MB
  *    o arquivo fica decodificado (o clique toca na hora); acima, vira Blob
  *    tocado por `<audio>` ligado ao Web Audio, que pula para o meio do arquivo
@@ -39,8 +40,15 @@ export const MAX_LOOPS = 3
 /** Players do YouTube ao mesmo tempo (F6): declarado aqui para os limites morarem num lugar só. */
 export const MAX_YOUTUBE = 2
 export const FADE_AO_PARAR_MS = 150
-/** Efeito curto é evento: esperando o gesto por mais que isto, chegaria fora de hora. */
+/** Efeito curto é evento: esperando o gesto (ou o próprio áudio) por mais que isto, chegaria fora de hora. */
 export const ESPERA_DO_EFEITO_CURTO_MS = 2000
+/**
+ * Bytes que não chegam em tanto tempo viram falha: sem prazo, um carregador
+ * que nunca responde prende a voz numa das vagas para sempre e trava quem
+ * pedir o mesmo arquivo depois. Folgado para os 15 MB do teto pelo túnel (a
+ * F7 mede); o efeito curto já cai bem antes, pela regra dos 2 s.
+ */
+export const PRAZO_DO_CARREGAMENTO_MS = 30_000
 /** Até este tamanho o arquivo fica decodificado; acima, toca por `<audio>` a partir de um Blob. */
 export const DECODIFICADO_ATE_BYTES = 1 * MB
 export const CACHE_NO_COMPUTADOR_BYTES = 150 * MB
@@ -131,6 +139,8 @@ export type MotivoDaRecusa =
   | 'limite-de-loops'
   /** Efeito curto que esperou o gesto destravar o áudio por mais de `ESPERA_DO_EFEITO_CURTO_MS`. */
   | 'sem-gesto'
+  /** Efeito curto cujo áudio chegou `ESPERA_DO_EFEITO_CURTO_MS` ou mais depois do pedido: tocaria fora de hora. */
+  | 'atrasado'
   /** Os bytes não vieram, ou o áudio não decodificou nem tocou. */
   | 'nao-carregou'
   /** A referência não é de um áudio guardado (`midia:<sha256>.<ext>`). */
@@ -228,6 +238,23 @@ function volumeValido(volume: number): number {
 }
 
 /** Pelo nome, não por `instanceof Error`: `DOMException` herda de `Error` só nos navegadores mais novos. */
+/** A promessa, ou a falha quando ela não responde em `prazoMs`. */
+function comPrazo<T>(promessa: Promise<T>, prazoMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const prazo = setTimeout(() => reject(new Error('o áudio não chegou no prazo')), prazoMs)
+    promessa.then(
+      (valor) => {
+        clearTimeout(prazo)
+        resolve(valor)
+      },
+      (erro: unknown) => {
+        clearTimeout(prazo)
+        reject(erro)
+      },
+    )
+  })
+}
+
 function erroDeAutoplay(erro: unknown): boolean {
   return typeof erro === 'object' && erro !== null && 'name' in erro && erro.name === 'NotAllowedError'
 }
@@ -241,6 +268,8 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
   const cache = new Map<string, EntradaDoCache>()
   const buscando = new Map<string, Promise<void>>()
   const decodificando = new Map<string, Promise<BufferAoVivo>>()
+  /** Depois do `desmontar`, o que ainda chega não é guardado: ninguém mais revogaria nem esvaziaria. */
+  let desmontado = false
 
   function emitir(evento: EventoDoMotor): void {
     for (const ouvinte of [...ouvintes]) {
@@ -279,6 +308,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
   }
 
   function guardar(id: string, guardado: Guardado, custo: number): void {
+    if (desmontado) return
     cache.delete(id)
     cache.set(id, { guardado, custo })
     cortarCache()
@@ -297,9 +327,13 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     if (cache.has(id)) return Promise.resolve()
     const emCurso = buscando.get(id)
     if (emCurso !== undefined) return emCurso
-    const busca = Promise.resolve()
-      .then(() => carregarBytes(id))
+    const busca = comPrazo(
+      Promise.resolve().then(() => carregarBytes(id)),
+      PRAZO_DO_CARREGAMENTO_MS,
+    )
       .then((bytes) => {
+        // Antes de criar a URL do Blob: depois do desmontar, ninguém a revogaria.
+        if (desmontado) return
         if (bytes.length > DECODIFICADO_ATE_BYTES) guardar(id, { tipo: 'blob', url: criarUrlDoAudio(bytes, tipoMimeDoId(id)) }, bytes.length)
         else guardar(id, { tipo: 'bytes', bytes }, bytes.length)
       })
@@ -526,6 +560,10 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
 
   function iniciar(voz: Voz<N>, saida: SaidaAoVivo<N>, pronto: AudioPronto): void {
     if (!viva(voz)) return
+    if (!voz.loop && agora() - voz.pedidoEmMs >= ESPERA_DO_EFEITO_CURTO_MS) {
+      recusarVoz(voz, 'atrasado')
+      return
+    }
     // Suspenso de novo enquanto carregava (tela bloqueada no celular): espera o próximo gesto.
     if (saida.ctx.state !== 'running') {
       esperarGesto(voz)
@@ -666,6 +704,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     },
 
     desmontar() {
+      desmontado = true
       for (const voz of [...vozes.values()]) encerrarVoz(voz, 0, 'parado')
       desligarPreferencia()
       desligarDestravar()
