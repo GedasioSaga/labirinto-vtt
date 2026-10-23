@@ -221,4 +221,23 @@ describe('drawPropSilhouettes com o Meio-Termo desligado', () => {
     expect(acoes(g)).not.toContain('texture')
     expect(raster.geradas).toBe(0)
   })
+
+  it('lista mista (um móvel antigo e uma peça nova): a peça nova vira imagem e o móvel antigo nem pede a dele', async () => {
+    await carregarMoveisDoMeioTermo()
+    const { raster, rodar } = rasterComFila()
+    const pedir = vi.spyOn(raster, 'imagemParaDesenhar')
+    const antigo = barril()
+    const nova = barril({ id: 'v', mobilia: 'vaso', x: 200, width: 25, height: 25, mobiliaCor: '#8a5a46' })
+    const g = new Graphics()
+    expect(drawPropSilhouettes(g, [antigo, nova], 1, 1)).toBe(2)
+    rodar()
+    expect(drawPropSilhouettes(g, [antigo, nova], 1, 1)).toBe(2)
+    expect(pedir).toHaveBeenCalled()
+    expect(pedir.mock.calls.map(([prop]) => prop.mobilia)).not.toContain('barril')
+    // A peça nova numa imagem só; o barril no desenho de linhas de sempre (fundo, contorno e glifo).
+    expect(acoes(g).filter((a) => a === 'texture')).toHaveLength(1)
+    expect(acoes(g)).toContain('fill')
+    expect(acoes(g)).toContain('stroke')
+    expect(raster.geradas).toBe(1)
+  })
 })
