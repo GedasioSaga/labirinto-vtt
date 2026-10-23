@@ -25,7 +25,33 @@ const CONTORNO_MINIMO = 0.06
 const LUMINANCIA_LINEAR_MINIMA = 0.03
 const OPACIDADE_DOS_OPACOS_MINIMA = 0.98
 const OPACIDADE_DO_MIOLO_MINIMA = 0.96
+/**
+ * Fração máxima do MIOLO das peças abaixo do alfa opaco (242). A média do
+ * miolo (0,96) não morde uma peça inteira meio transparente: o anel do vaso com
+ * alfa x 0,9 fica ~0,93 em cima da sombra de contato, sai do grupo dos opacos e
+ * a média do miolo ainda dá ~0,965. Contar os pixels morde: ali são ~42% do miolo.
+ * O teto é 5%, não 2%: a fresta de menos de 1 pixel entre o tampo e a travessa
+ * da mesa quadrada no nível 1 já dá 4,2% (medido), e é a mesma fresta da mesa
+ * antiga. O vaso tem ainda a prova direta no anel (`vaso: o anel da boca é uma
+ * camada só, opaca`).
+ */
+const MIOLO_TRANSLUCIDO_MAXIMO = 0.05
 const NIVEIS = [1, 2, 3] as const
+
+/** Fração dos pixels de miolo (peça com os 4 vizinhos também de peça) com alfa abaixo do opaco. */
+function mioloTranslucido(px: Uint8ClampedArray, W: number, H: number): number {
+  const dePeca = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H && px[(y * W + x) * 4 + 3] >= ALFA_DE_PECA
+  let miolo = 0
+  let translucidos = 0
+  for (let y = 0; y < H; y += 1) {
+    for (let x = 0; x < W; x += 1) {
+      if (!dePeca(x, y) || !dePeca(x - 1, y) || !dePeca(x + 1, y) || !dePeca(x, y - 1) || !dePeca(x, y + 1)) continue
+      miolo += 1
+      if (px[(y * W + x) * 4 + 3] < ALFA_OPACO) translucidos += 1
+    }
+  }
+  return miolo > 0 ? translucidos / miolo : 0
+}
 
 interface Caso {
   readonly tipo: TipoComTextura
@@ -138,6 +164,7 @@ describe('peças novas da MT4: pixels medidos', () => {
           expect(m.luminanciaLinearMinima).toBeGreaterThanOrEqual(LUMINANCIA_LINEAR_MINIMA)
           expect(m.opacidadeDosOpacos).toBeGreaterThanOrEqual(OPACIDADE_DOS_OPACOS_MINIMA)
           expect(m.opacidadeDoMiolo).toBeGreaterThanOrEqual(OPACIDADE_DO_MIOLO_MINIMA)
+          expect(mioloTranslucido(pixels, limites.W, limites.H), 'miolo abaixo do opaco').toBeLessThanOrEqual(MIOLO_TRANSLUCIDO_MAXIMO)
         })
       }
     }
@@ -281,6 +308,23 @@ describe('peças novas da MT4: o que cada peça é', () => {
     const boca = noPonto(im, 0.25 * G * 0.88, 0)
     expect(im.px[boca + 3]).toBeGreaterThanOrEqual(ALFA_OPACO)
     expect(im.px[boca]).toBeGreaterThan(im.px[boca + 1])
+  })
+
+  it('vaso: o anel da boca é uma camada só, opaca (alfa >= 250 entre 6,2k e 7,4k, nos níveis 2 e 3)', () => {
+    const k = (0.25 * G) / 7.8
+    for (const vaso of ['barro', 'arenito', 'granito'] as const) {
+      for (const nivel of [2, 3]) {
+        const im = imagem({ tipo: 'vaso', lado: 'frente', materiais: [vaso], casasW: 0.5, casasH: 0.5, semente: 7 }, nivel)
+        let menor = 255
+        for (let j = 0; j < im.H; j += 1) {
+          for (let i = 0; i < im.W; i += 1) {
+            const r = Math.hypot(im.x0 + (i + 0.5) / im.S, im.y0 + (j + 0.5) / im.S)
+            if (r >= 6.2 * k && r <= 7.4 * k) menor = Math.min(menor, im.px[(j * im.W + i) * 4 + 3])
+          }
+        }
+        expect(menor, `${vaso} no nível ${nivel}`).toBeGreaterThanOrEqual(250)
+      }
+    }
   })
 
   it('barraca de frente: a água de cima do toldo é mais clara que a de baixo', () => {
