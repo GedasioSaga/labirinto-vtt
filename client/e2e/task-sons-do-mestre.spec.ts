@@ -378,6 +378,8 @@ test('o mestre ouve o dado e a passagem de verdade; o pino de viagem do editor f
   // SESSÃO: o mestre manda Ana à Cripta. A ficha troca de cena de verdade: passagem, uma vez.
   await abrirAbaJogo(mestre)
   const grupo = mestre.locator('#lb-rail-panel-room').getByRole('region', { name: 'Grupo', exact: true })
+  // Depois do Atribuir o app abre a ficha da jogadora na aba Ficha; "Mandar para…" mora na aba Ações.
+  await grupo.getByRole('radio', { name: 'Ações', exact: true }).click()
   await grupo.getByRole('listitem').filter({ hasText: JOGADORA }).getByRole('button', { name: /^Mandar para(…|\.\.\.)$/ }).click()
   const envio = mestre.getByRole('form', { name: `Mandar ${JOGADORA} para outra cena` })
   await envio.getByLabel('Cena').selectOption({ label: CENA_B })
