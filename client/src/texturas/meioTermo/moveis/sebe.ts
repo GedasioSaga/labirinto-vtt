@@ -1,34 +1,54 @@
 /**
  * SEBE de cima com volume (peça nova da MT5): desenho original inspirado na
- * sebe do Estilo Mother da vila (`docs/design/vila-estilo-mother/prototipo/
- * mother.js`, `sebe`): uma fileira de copinhas redondas de folha, as do lado da
- * luz por cima, sobre um miolo de folha mais escura que fecha os vãos, e umas
- * florzinhas. Material: `folhas` (buxo ou alfeneiro); as flores são fixas.
+ * `folhagem` do Estilo Mother da vila (`docs/design/vila-estilo-mother/
+ * prototipo/mother.js:274`): UMA massa de folha com um contorno só por fora,
+ * por cima dela as copas no tom de base (puxadas para a luz e recortadas pela
+ * massa, então a massa escura só aparece embaixo à direita de cada uma) e um
+ * realce em 60% delas; mais umas florzinhas. Material: `folhas` (buxo ou
+ * alfeneiro); as flores são fixas.
+ *
+ * Revisão de design da MT5: cada copinha tinha chanfro e contorno próprios, o
+ * escuro das bordas caía abaixo do piso de luz e virava marrom (20 a 26% da
+ * sebe), e ela lia como colar de contas. Agora são 3 tons chapados (massa 0,80,
+ * copa 1,0, realce 1,16), sem chanfro, e o escuro levantado é verde
+ * (`PISO_DA_FOLHA`).
  *
  * A geometria é a da CERCA (`geometriaDaCerca` de `lib/mobilia.ts`): o eixo
  * pela reta ou pelo ARCO da sebe curva, com as pontas onde a cerca põe os
- * mourões das pontas. As copinhas se repartem pelo comprimento do arco a ~0,36
- * da espessura, então a sebe esticada ganha mais copinhas, nunca copinhas
- * esticadas, e a seleção e o clique (que leem a mesma faixa) caem em cima do
- * desenho. A sebe longa sai em ladrilhos (`pixi/rasterDosMoveis.ts`), como a cerca.
+ * mourões das pontas. As copas se repartem pelo comprimento do arco a ~0,36
+ * da espessura, então a sebe esticada ganha mais copas, nunca copas esticadas,
+ * e a seleção e o clique (que leem a mesma faixa) caem em cima do desenho. A
+ * sebe longa sai em ladrilhos (`pixi/rasterDosMoveis.ts`), como a cerca.
  */
 import { geometriaDaCerca } from '../../../lib/mobilia'
 import { hash, rgb } from '../../ruido'
 import type { StairArc } from '../../../lib/stairCurve'
-import { capsula, elipse, type Forma, type Ponto } from './formas'
-import { contato, texFolhagem, type MaterialDaPeca } from './motor'
+import { dentroDe, elipse, type Forma, type Ponto } from './formas'
+import { contato, PISO_DA_FOLHA, texFolhagem, type MaterialDaPeca } from './motor'
 import type { MontarMovel } from './contexto'
 
 /** Altura da sebe em casas (a sombra no chão). */
 const ALTURA_DA_SEBE = 0.55
-/** Passo entre copinhas e o raio delas, em fração da espessura (`mother.js`: 8 px e 6 a 8,2 px numa sebe de 22). */
+/** Passo entre copas e o raio delas, em fração da espessura (`mother.js`: 8 px e 6 a 8,2 px numa sebe de 22). */
 const PASSO_DAS_COPAS = 0.36
 const RAIO_MINIMO = 0.3
 const RAIO_VARIA = 0.07
-/** Quanto a copinha sai do eixo para cada lado (fração da espessura). */
+/** Quanto a copa sai do eixo para cada lado (fração da espessura). */
 const DESVIO = 0.055
-/** O miolo escuro que fecha os vãos entre as copinhas (meia espessura dele, em fração da espessura). */
-const MIOLO = 0.3
+/** A MASSA: meia espessura 0,40 da espessura, ondulando ±0,05 com período de 0,42 (a borda da união das copinhas). */
+const MASSA = 0.4
+const ONDA = 0.05
+const PERIODO_DA_ONDA = 0.42
+const TOM_DA_MASSA = 0.8
+const CONTORNO_DA_MASSA = 0.2
+/** A COPA no tom de base: 0,88 do raio, puxada para a luz (-0,15 r, -0,17 r), como em `folhagem`. */
+const COPA = 0.88
+const PUXA_X = 0.15
+const PUXA_Y = 0.17
+/** O REALCE: raio 0,3 r em (-0,36 r, -0,4 r), no tom 1,16, em 60% das copas. */
+const REALCE = 0.3
+const TOM_DO_REALCE = 1.16
+const COM_REALCE = 0.6
 
 /** Flores fixas, tons contidos da vila (saturação HSV até 0,48). */
 const FLORES: readonly MaterialDaPeca[] = [
@@ -38,21 +58,45 @@ const FLORES: readonly MaterialDaPeca[] = [
 ]
 const MIOLO_DA_FLOR: MaterialDaPeca = { classe: 'liso', rgb: rgb('#c9a24f') }
 
-/** Luz de cima à esquerda, no chão: a copinha mais deste lado vai por cima. */
-const LUZ_X = -0.79
-const LUZ_Y = -0.61
+interface Onda {
+  /** Amplitude e período, em px do protótipo. */
+  readonly amp: number
+  readonly periodo: number
+}
 
 /**
- * A faixa de raio `r` em volta do eixo: a cápsula na sebe reta e, na curva, a
- * distância exata ao ARCO (|distância ao centro - raio|, e as pontas como
- * círculos). Uma conta por pixel: a `cadeia` dos pontos das copinhas olhava os
- * ~22 pedaços em cada pixel da caixa inteira (o miolo vazio do arco incluso) e
- * a sebe curva de 4 casas levava ~160 ms a 3x.
+ * A faixa de raio `r` em volta do eixo, com a borda ondulada por `onda`: a
+ * cápsula na sebe reta e, na curva, a distância exata ao ARCO (|distância ao
+ * centro - raio|, e as pontas como círculos). Uma conta por pixel: a `cadeia`
+ * dos pontos das copinhas olhava os ~22 pedaços em cada pixel da caixa inteira
+ * (o miolo vazio do arco incluso) e a sebe curva de 4 casas levava ~160 ms a 3x.
+ * A onda anda pelo comprimento do eixo, defasada um quarto de período de um
+ * lado para o outro (com a mesma fase dos dois lados ela lia como contas).
  */
-function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number): Forma {
+function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number, onda: Onda | null = null): Forma {
   const [ax, ay] = eixo[0]
   const [bx, by] = eixo[eixo.length - 1]
-  if (arco === null) return capsula(ax, ay, bx, by, r)
+  const amp = onda?.amp ?? 0
+  const k = onda === null ? 0 : (Math.PI * 2) / onda.periodo
+  const borda = (s: number, lado: number): number => r + amp * Math.sin(k * s + lado)
+  const QUARTO = Math.PI / 2
+  if (arco === null) {
+    const L = Math.hypot(bx - ax, by - ay) || 1
+    const ux = (bx - ax) / L
+    const uy = (by - ay) / L
+    const f = r + amp + 0.5
+    return {
+      b: [Math.min(ax, bx) - f, Math.min(ay, by) - f, Math.max(ax, bx) + f, Math.max(ay, by) + f],
+      d(x, y) {
+        const px = x - ax
+        const py = y - ay
+        const ao = px * ux + py * uy
+        const s = ao < 0 ? 0 : ao > L ? L : ao
+        const cruz = px * uy - py * ux
+        return Math.hypot(px - ux * s, py - uy * s) - borda(s, cruz >= 0 ? 0 : QUARTO)
+      },
+    }
+  }
   const { x: cx, y: cy } = arco.center
   const R = arco.radius
   const inicio = arco.startAngle
@@ -62,13 +106,18 @@ function faixa(eixo: readonly Ponto[], arco: StairArc | null, r: number): Forma 
   const xs = eixo.map(([x]) => x)
   const ys = eixo.map(([, y]) => y)
   // O arco passa um pouco por fora da corda entre dois pontos vizinhos do eixo.
-  const folga = r + R * (1 - Math.cos(giro / (eixo.length - 1) / 2)) + 0.5
+  const folga = r + amp + R * (1 - Math.cos(giro / (eixo.length - 1) / 2)) + 0.5
   return {
     b: [Math.min(...xs) - folga, Math.min(...ys) - folga, Math.max(...xs) + folga, Math.max(...ys) + folga],
     d(x, y) {
       const rel = ((((Math.atan2(y - cy, x - cx) - inicio) * sentido) % volta) + volta) % volta
-      if (rel <= giro) return Math.abs(Math.hypot(x - cx, y - cy) - R) - r
-      return Math.min(Math.hypot(x - ax, y - ay), Math.hypot(x - bx, y - by)) - r
+      if (rel <= giro) {
+        const doCentro = Math.hypot(x - cx, y - cy)
+        return Math.abs(doCentro - R) - borda(rel * R, doCentro >= R ? 0 : QUARTO)
+      }
+      const daPonta = Math.hypot(x - ax, y - ay)
+      const daOutra = Math.hypot(x - bx, y - by)
+      return daPonta <= daOutra ? daPonta - borda(0, 0) : daOutra - borda(giro * R, 0)
     },
   }
 }
@@ -116,25 +165,34 @@ export const montarSebe: MontarMovel = (c, cena) => {
     const desvio = (hash(i, sorteio, 17) - 0.5) * 2 * DESVIO * esp
     copas.push({ x: x + nx * desvio, y: y + ny * desvio, r: esp * (RAIO_MINIMO + RAIO_VARIA * hash(i, sorteio, 18)), i })
   }
-  const corpo = faixa(eixo, arco, MIOLO * esp)
+  const massa = faixa(eixo, arco, MASSA * esp, { amp: ONDA * esp, periodo: PERIODO_DA_ONDA * esp })
   // Sombra SOLTA (sem as amostras arrastadas do pé até a ponta): a sebe é uma massa fechada que
   // cobre o próprio pé, e o contato escurece a base. Arrastada, a sombra lia a forma até 1 + n vezes
   // por pixel e a sebe curva de 4 casas levava ~120 ms só de sombra a 3x.
-  cena.sombras.push({ forma: faixa(eixo, arco, 0.4 * esp), z: c.g * ALTURA_DA_SEBE, solta: true }, contato(corpo, 0.26))
+  const pe = faixa(eixo, arco, MASSA * esp)
+  cena.sombras.push({ forma: pe, z: c.g * ALTURA_DA_SEBE, solta: true }, contato(pe, 0.26))
+  // O escuro levantado da folha é verde, não o marrom da nogueira.
+  cena.corDoPiso = PISO_DA_FOLHA
   const P = c.peca
   const folhas = c.m.folhas
-  cena.partes.push(P(corpo, folhas, { textura: texFolhagem, bisel: 0.25 * esp, contorno: 0.24, tom: 0.7, semente: 30 }))
-  // As do lado da luz por último (por cima), como a folhagem do protótipo.
-  const ordem = [...copas].sort((a, b) => a.x * LUZ_X + a.y * LUZ_Y - (b.x * LUZ_X + b.y * LUZ_Y))
-  for (const copa of ordem) {
-    cena.partes.push(P(elipse(copa.x, copa.y, copa.r, copa.r), folhas, { textura: texFolhagem, bisel: copa.r * 0.85, contorno: 0.2, tom: 0.9 + 0.14 * hash(copa.i, sorteio, 19), semente: 40 + copa.i }))
+  const L = cena.partes
+  // De baixo para cima (a última fica por cima): a massa, as copas, os realces, as flores.
+  L.push(P(massa, folhas, { textura: texFolhagem, bisel: 0, contorno: CONTORNO_DA_MASSA, tom: TOM_DA_MASSA, semente: 30 }))
+  for (const copa of copas) {
+    const r = copa.r * COPA
+    L.push(P(dentroDe(elipse(copa.x - PUXA_X * copa.r, copa.y - PUXA_Y * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: 1, semente: 40 + copa.i }))
+  }
+  for (const copa of copas) {
+    if (hash(copa.i, sorteio, 19) >= COM_REALCE) continue
+    const r = copa.r * REALCE
+    L.push(P(dentroDe(elipse(copa.x - 0.36 * copa.r, copa.y - 0.4 * copa.r, r, r), massa), folhas, { textura: texFolhagem, bisel: 0, contorno: 0, tom: TOM_DO_REALCE, semente: 60 + copa.i }))
   }
   for (const copa of copas) {
     if (hash(copa.i, sorteio, 21) >= 0.3) continue
     const fr = 0.075 * esp
     const fx = copa.x - copa.r * 0.3
     const fy = copa.y - copa.r * 0.3
-    cena.partes.push(P(elipse(fx, fy, fr, fr), FLORES[copa.i % FLORES.length], { bisel: fr * 0.7, contorno: 0.14, semente: 70 + copa.i }))
-    cena.partes.push(P(elipse(fx, fy, fr * 0.38, fr * 0.38), MIOLO_DA_FLOR, { bisel: 0, contorno: 0, semente: 80 + copa.i }))
+    L.push(P(elipse(fx, fy, fr, fr), FLORES[copa.i % FLORES.length], { bisel: fr * 0.7, contorno: 0.14, semente: 70 + copa.i }))
+    L.push(P(elipse(fx, fy, fr * 0.38, fr * 0.38), MIOLO_DA_FLOR, { bisel: 0, contorno: 0, semente: 80 + copa.i }))
   }
 }

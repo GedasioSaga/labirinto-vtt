@@ -36,6 +36,12 @@ const BORDA_EM_CASAS = 0.14
 /** Medalhão de cada casa: meia diagonal ao longo (em casas) e atravessada (fração do campo). */
 const MEDALHAO_AO_LONGO = 0.3
 const MEDALHAO_ATRAVESSADO = 0.62
+/**
+ * Os 2 fios claros da divisa de cada casa (revisão de design da MT5): 1 px de
+ * largura cada, com 2 px de vão entre eles (centros a 3 px), em px do protótipo.
+ */
+const DIVISA_MEIO_FIO = 0.5
+const DIVISA_ENTRE_FIOS = 3
 
 interface GeometriaDoLongo {
   /** Meio comprimento do corpo (sem a franja) e meia largura. */
@@ -70,6 +76,9 @@ function texLongo(t: CoresDoTapete, g: GeometriaDoLongo, deitado: boolean): Text
     tingir(s, t.miolo, cobre((q / MIOLO_DO_MEDALHAO - 1) * g.escalaM * MIOLO_DO_MEDALHAO, S))
     const B = g.borda
     const kB = cobre(de - B, S)
+    // A divisa de cada casa: 2 fios claros atravessando o campo (o que separa a passadeira do tapete da MT3).
+    const daDivisa = Math.abs(fase - Math.round(fase)) * G
+    tingir(s, t.claro, cobre(Math.abs(daDivisa - DIVISA_ENTRE_FIOS / 2) - DIVISA_MEIO_FIO, S) * (1 - kB))
     tingir(s, t.escuro, kB)
     if (kB > 0) {
       tingir(s, t.meio, cobre(Math.abs(de - B / 2) - MEIO_FIO_DO_MOTIVO, S) * kB)

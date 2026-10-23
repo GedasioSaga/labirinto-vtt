@@ -172,6 +172,31 @@ describe('MT5: a placa de seta pinta o giro, com a sombra e a luz fixas', () => 
   })
 })
 
+/**
+ * A SEBE É VERDE ATÉ A BORDA (revisão de design da MT5): com chanfro e contorno
+ * em cada copinha, 20 a 26% dos pixels dela saíam marrons (o escuro levantado
+ * para o da nogueira). Conta o pixel opaco ESCURO (luminância < 90) puxado para
+ * o vermelho (r > g): as flores claras ficam de fora pela luz.
+ */
+describe('MT5: a sebe não tem borda marrom', () => {
+  for (const { nome, prop } of TIPOS_MT5.sebe) {
+    it(`${nome}: menos de 1% dos pixels opacos escuros puxam para o marrom, a 1x e a 3x`, () => {
+      for (const nivel of [1, 3]) {
+        const { pixels } = pintarMovel(desenhoDoApp(prop, nivel), escalaDoNivel(nivel))
+        let opacos = 0
+        let marrons = 0
+        for (let o = 0; o < pixels.length; o += 4) {
+          if (pixels[o + 3] < ALFA_OPACO) continue
+          opacos += 1
+          const luz = 0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]
+          if (luz < 90 && pixels[o] > pixels[o + 1]) marrons += 1
+        }
+        expect(marrons / opacos, `nível ${nivel}`).toBeLessThan(0.01)
+      }
+    })
+  }
+})
+
 describe('MT5: a sebe segue o arco, no editor e no jogador', () => {
   // Sebe de 4 casas deitada com 90°: a corda passa pelo centro da caixa e o arco fica a uma flecha dela, para baixo.
   const curva = peca('sebe', 4, 0.5, 'buxo', null, { id: 'sebe-1', x: 300, y: 300, mobiliaCurva: 90 })
@@ -255,6 +280,36 @@ describe('MT5: a borda do tapete longo é igual por casa, em 3 comprimentos', ()
       for (const perfil of todos) {
         const diferenca = Math.max(...perfil.map((v, b) => Math.abs(v - ref[b])))
         expect(diferenca, `nível ${nivel}`).toBeLessThanOrEqual(14)
+      }
+    }
+  })
+
+  it('na divisa de cada casa, 2 fios claros atravessam o campo (1 px cada, 2 px de vão): mais claros que o campo dos dois lados', () => {
+    const nivel = 3
+    const S = escalaDoNivel(nivel)
+    const casas = 4
+    const { limites, pixels } = pintarMovel(desenhoDoApp(peca('tapeteLongo', 1, casas, 'vinho', null), nivel), S)
+    // Luminância média numa linha atravessada (y em px do protótipo), no meio do campo (|x| até 0,1 casa).
+    const linha = (y: number): number => {
+      const j = Math.floor((y - limites.y0) * S)
+      let soma = 0
+      let n = 0
+      for (let i = 0; i < limites.W; i += 1) {
+        const x = limites.x0 + (i + 0.5) / S
+        if (Math.abs(x) > 0.1 * G) continue
+        const o = (j * limites.W + i) * 4
+        soma += 0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]
+        n += 1
+      }
+      return soma / n
+    }
+    const topo = -(casas * G) / 2
+    for (let k = 1; k < casas; k += 1) {
+      const divisa = topo + k * G
+      for (const lado of [-1, 1]) {
+        const fio = linha(divisa + lado * 1.5)
+        expect(fio - linha(divisa + lado * 6), `divisa ${k}, lado ${lado}: fio contra o campo`).toBeGreaterThan(15)
+        expect(fio - linha(divisa), `divisa ${k}, lado ${lado}: fio contra o vão`).toBeGreaterThan(15)
       }
     }
   })
