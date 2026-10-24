@@ -290,11 +290,35 @@ Só `desktop/src-tauri`: `net/conexao.rs` (novo), `net/server.rs`, `net/sons.rs`
 
 ## F5d (fechar `/media` ao áudio + endurecimento da LAN), 24/10
 
-Estado na PAUSA do orquestrador (branch `feat/sons-f5d`, nada de Rust commitado ainda):
-- Escrito e NÃO compilado: `desktop/src-tauri/src/net/conexao.rs` (backup em `scratchpad/conexao.rs.f5d-wip`) com (1) prazo total que só sai quando o socket escoa depois da resposta (`Corte::resposta_saiu` + `escoou` no `poll_flush`; o `drop` do corpo não tira mais), (2) `Semaphore` de 128 no `ListenerDaSala::accept` (vaga guardada no socket) e prazo do cabeçalho de 10 s (do aceite e do fim de cada resposta, menos no 101) lido no `poll_read`, middleware `vigiar_pedido`, (3) relógio de escrita vence em min(sem progresso, prazo total); 7 testes de unidade novos.
-- Falta: `server.rs` (`serve_com_limites`, `.layer(from_fn(vigiar_pedido))`, `ListenerDaSala::novo` com `LimitesDaSala`), tirar o `Drop` do `CorpoDoSom` (`sons.rs`), dependência direta `http-body 1` (já no `Cargo.lock`), (4) `file_name` igual a `midia` em `caminho_real_confere`, teste de integração (keep-alive ocioso cai, WebSocket não), clippy, test e as mutações.
-- Divergência a registrar: zerar o prazo no início do pedido seguinte (sugestão da auditoria) não basta: o hyper lê o pedido seguinte (pipelining) antes de escoar o buffer; por isso o prazo sai no `poll_flush` do socket.
-- `/media` NÃO virado: espera o commit da dança do agente TypeScript.
+Lado Rust, só `desktop/src-tauri`: `net/conexao.rs`, `net/server.rs`, `net/sons.rs`, `Cargo.toml` (dependência direta `http-body 1`, já no `Cargo.lock`, aprovada pelo orquestrador), `tests/net_conexoes.rs` (novo), `tests/net_sons.rs`, `tests/net_server.rs`. Commit `102aa48c`. Lado TypeScript (a dança por `/sons`): `4a0041f2`, `fe4fd005`.
+
+| Item | Correção | Prova (vermelho na mutação) |
+|---|---|---|
+| F5d `/media` serve áudio sem chave | `media_file`: id de áudio (`eh_audio`) é o mesmo 404 do id que não existe, antes de tocar o disco; o tipo lido passa por um segundo filtro. Áudio só sai por `/sons/{id}` | `media_nao_serve_audio_f5d` (o antigo `achado_f5d_...` invertido: mp3/ogg/wav/m4a dão 404 byte a byte igual ao ausente, mesmo liberados; `/sons` com a chave serve; a png segue 200), `media_nao_serve_o_audio_nem_dentro_do_teto` |
+| 1 prazo total some com o corpo solto (~400 KB presos) | o `drop` do `CorpoDoSom` não tira mais o prazo; o `CorpoVigiado` (middleware `vigiar_pedido`) marca `resposta_saiu`, e o prazo só sai no `poll_flush` do socket (o hyper só o chama com o buffer dele vazio) | `corpo_vencido_da_erro_e_marca_o_socket` (invertido), `resposta_que_saiu_segura_o_prazo_ate_o_socket_escoar`, `escoar_tira_o_prazo_total_e_arma_o_do_cabecalho` |
+| 2 sem teto de conexões nem prazo do cabeçalho | `Semaphore` de `CONEXOES_MAX` (128) no `ListenerDaSala::accept`, a vaga mora no socket, a excedente é fechada no aceite; prazo do cabeçalho de 10 s (`PRAZO_DO_CABECALHO`) no `poll_read`, do aceite e de cada resposta escoada até o pedido chegar ao roteador; bytes gotejando não renovam; o 101 nunca volta a esperar | `cabecalho_gotejando_cai_no_prazo`, `cabecalho_que_chegou_nao_tem_prazo`, `sala_cheia_fecha_a_conexao_excedente`, `pedido_que_nao_termina_cai_no_prazo_do_cabecalho`, `keep_alive_ocioso_cai_no_prazo_do_cabecalho`, `websocket_nao_cai_no_prazo_do_cabecalho`, `a_conexao_129_e_fechada_no_aceite` |
+| 3 prazo total chegava a ~150 s | o relógio da escrita parada vence em min(sem progresso, prazo total) (`Sleep::reset`) | `prazo_total_vence_a_escrita_parada_antes_do_prazo_sem_progresso` |
+| 4 junção na `midia` para a pasta irmã | `caminho_real_confere` exige `raiz_real.file_name()` igual a `midia` (ASCII, sem caixa) | `caminho_real_tem_de_ser_exatamente_raiz_mais_id` (casos `outra` e `MIDIA`) |
+
+**Decisões e divergências**
+
+- **(1) o prazo sai no `poll_flush`, não no início do pedido seguinte** (a sugestão da auditoria). O hyper 1.11 lê o cabeçalho seguinte assim que a resposta termina (`can_read_head` do servidor não olha o buffer de escrita): com pipelining, o pedido 2 zeraria o prazo com o fim do pedido 1 ainda no buffer, e o gotejamento voltaria. O middleware fica, para marcar o fim da resposta e para tirar o prazo do cabeçalho.
+- **(2) o prazo do cabeçalho vale também para a keep-alive ociosa** (como o `header_read_timeout` do hyper, que arma a cada cabeçalho). Sem isso, um pedido rápido seguido de silêncio seguraria a vaga para sempre e 128 conexões ociosas fechariam a sala. O navegador reabre a conexão fechada por ociosidade sozinho.
+- **Sala cheia fecha na hora** (`try_acquire_owned` depois do `accept`), em vez de esperar vaga antes do `accept`: sem ramo de erro impossível, e a conexão excedente recebe o fechamento em vez de ficar parada no backlog.
+- `serve_com_limites(listener, room, LimitesDaSala)` é novo; `serve` e `serve_com_prazo` mantêm a assinatura.
+
+**Riscos que ficam**
+
+- Cliente com pipelining: o prazo do cabeçalho pode armar enquanto o pedido seguinte já roda (o escoar do pedido anterior chega depois do middleware do seguinte); se esse pedido levar mais de 10 s lendo do socket, a conexão cai. Navegador e `cloudflared` não fazem pipelining.
+- Comentários no TypeScript ainda citam `/media` para áudio (`lib/sons/aoVivo/motor.ts:13`, `net/ponteDosSons.ts:45`, `net/hostBridge.ts:1153`, `net/protocol.ts:2243` e `:2355`); o código não busca áudio por `/media` (só `ImagemDaMesa` usa `URL_DA_MIDIA_NA_SALA`). São do dono do TypeScript.
+- `media::ler_midia` ainda sabe ler áudio (os testes dela usam); a rota é que recusa.
+
+**Evidência (24/10)**
+
+- Tudo pela fila (`suite-lock.cjs --nome f5d-rust`), com `CARGO_INCREMENTAL=0` e `CARGO_PROFILE_DEV_DEBUG=0`.
+- `cargo clippy --all-targets --all-features -- -D warnings -W clippy::unwrap_used -W clippy::expect_used`: exit 0, sem aviso.
+- `cargo test --all-targets`: lib 112, `net_conexoes` 4, `net_dev_proxy` 4, `net_server` 14, `net_sons` 13 + 1 ignorado (o link de arquivo, ver F5a), 0 falhas.
+- 11 mutações em 5 rodadas (cada rodada com mutações de testes disjuntos; restaurar por cópia e atualizar o mtime), todas VERMELHAS: M1 relógio só sem progresso; M2 `resposta_saiu` tira o prazo; M3 `drop` do corpo tira o prazo; M4 `escoou` sem tirar o prazo; M5 `escoou` sem armar o cabeçalho (sozinha também: o keep-alive fica aberto); M6 leitura sem prazo do cabeçalho; M7 `accept` sem semáforo; M8 vigiar também o 101; M9 sem `file_name`; M10 `/media` sem recusar áudio; M11 roteador sem o middleware (o WebSocket cai no prazo do aceite).
 
 ## Decisões do usuário em 23/10
 
