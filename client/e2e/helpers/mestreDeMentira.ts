@@ -10,7 +10,14 @@ import { expect, type Page } from '@playwright/test'
  * Mesmo transporte de `task-controle-de-som.spec.ts`, num lugar só para os
  * specs que precisam da tela inteira do mestre (ex. `ui-onde-foi-parar`).
  */
-export async function abrirAventuraDeMentira(page: Page, arquivos: Record<string, string>, nomeDaAventura: string, codigo: string): Promise<void> {
+export async function abrirAventuraDeMentira(
+  page: Page,
+  arquivos: Record<string, string>,
+  nomeDaAventura: string,
+  codigo: string,
+  /** Endereço do app (ex. `/?obra=meio-termo` para a obra do Meio-Termo). */
+  endereco = '/',
+): Promise<void> {
   await page.addInitScript(
     ({ arquivos, codigo }: { arquivos: Record<string, string>; codigo: string }) => {
       const textos: Record<string, string> = { ...arquivos }
@@ -94,7 +101,7 @@ export async function abrirAventuraDeMentira(page: Page, arquivos: Record<string
     },
     { arquivos, codigo },
   )
-  await page.goto('/')
+  await page.goto(endereco)
   await page.getByRole('button', { name: /Carregar Mapa existente/ }).click()
   await page.getByRole('button', { name: new RegExp(nomeDaAventura) }).click()
   await page.waitForSelector('canvas')
