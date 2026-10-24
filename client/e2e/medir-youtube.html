@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Medir YouTube escondido</title>
+<style>
+  :root { color-scheme: light dark; --fundo: #f6f1e6; --tinta: #2b2116; --linha: #c9b99a; }
+  @media (prefers-color-scheme: dark) { :root { --fundo: #1d1812; --tinta: #efe3cc; --linha: #5a4a33; } }
+  body { margin: 0; padding: 16px; font: 15px/1.5 system-ui, sans-serif; background: var(--fundo); color: var(--tinta); }
+  main { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+  label { display: grid; gap: 4px; }
+  input, button { font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--linha); background: transparent; color: inherit; }
+  button { cursor: pointer; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--linha); border-radius: 6px; padding: 10px; min-height: 120px; }
+  .palco { position: fixed; left: -10000px; top: 0; width: 200px; height: 200px; overflow: hidden; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Medir o YouTube escondido (sons ao vivo, F6)</h1>
+  <p>Abra esta página no aparelho que quer medir (PC, celular, TV) e toque em Medir. Ela toca uns segundos de um vídeo pelo player escondido, do mesmo jeito que o app, em 3 variantes, e mostra o que aconteceu. Copie o resultado e mande para quem pediu.</p>
+  <label>Id do vídeo (11 caracteres)
+    <input id="video" value="M7lc1UVf-VE" maxlength="11" autocomplete="off">
+  </label>
+  <button id="medir" type="button">Medir</button>
+  <pre id="saida" aria-live="polite">Nada medido ainda.</pre>
+</main>
+<script>
+'use strict';
+// Mesma conversa por mensagem do app (client/src/lib/sons/youtube/apiDoYoutube.ts), escrita à mão: esta página não passa pelo vite.
+const FORMA = /^[A-Za-z0-9_-]{11}$/;
+const ESPERA_MS = 12000;
+const saida = document.getElementById('saida');
+const linhas = [];
+function anotar(texto) { linhas.push(texto); saida.textContent = linhas.join('\n'); }
+
+const VARIANTES = [
+  { nome: 'app: nocookie, sandbox, fora da tela', host: 'https://www.youtube-nocookie.com', sandbox: true },
+  { nome: 'nocookie sem sandbox, fora da tela', host: 'https://www.youtube-nocookie.com', sandbox: false },
+  { nome: 'youtube.com, sandbox, fora da tela', host: 'https://www.youtube.com', sandbox: true },
+];
+
+function medirVariante(variante, video, id) {
+  return new Promise((resolve) => {
+    const inicio = performance.now();
+    const ms = () => Math.round(performance.now() - inicio);
+    const r = { variante: variante.nome, pronto_ms: null, tocando_ms: null, estados: [], erro: null };
+    const palco = document.createElement('div');
+    palco.className = 'palco';
+    palco.setAttribute('aria-hidden', 'true');
+    const iframe = document.createElement('iframe');
+    if (variante.sandbox) iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    iframe.setAttribute('allow', 'autoplay; encrypted-media');
+    iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    iframe.width = '200'; iframe.height = '200'; iframe.tabIndex = -1; iframe.title = 'medição';
+    const p = new URLSearchParams({ enablejsapi: '1', origin: location.origin, playsinline: '1', autoplay: '0', controls: '0' });
+    iframe.src = variante.host + '/embed/' + encodeURIComponent(video) + '?' + p.toString();
+    let ouvido = false, pronto = false;
+    const mandar = (m) => iframe.contentWindow && iframe.contentWindow.postMessage(JSON.stringify(Object.assign({ id, channel: 'widget' }, m)), variante.host);
+    const fim = (motivo) => {
+      clearInterval(escuta); clearTimeout(prazo); removeEventListener('message', aoMensagem);
+      mandar({ event: 'command', func: 'pauseVideo', args: [] });
+      r.fim = motivo; r.total_ms = ms();
+      setTimeout(() => { palco.remove(); resolve(r); }, 300);
+    };
+    const aoMensagem = (e) => {
+      if (e.origin !== variante.host || e.source !== iframe.contentWindow || typeof e.data !== 'string') return;
+      let m; try { m = JSON.parse(e.data); } catch (_) { return; }
+      if (!m || typeof m.event !== 'string') return;
+      ouvido = true;
+      if (m.event === 'onReady' && !pronto) {
+        pronto = true; r.pronto_ms = ms();
+        mandar({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
+        mandar({ event: 'command', func: 'addEventListener', args: ['onError'] });
+        mandar({ event: 'command', func: 'setVolume', args: [20] });
+        mandar({ event: 'command', func: 'loadVideoById', args: [{ videoId: video, startSeconds: 30 }] });
+      }
+      const estado = m.event === 'onStateChange' ? m.info : (m.event === 'infoDelivery' && m.info ? m.info.playerState : undefined);
+      if (typeof estado === 'number' && r.estados[r.estados.length - 1] !== estado) {
+        r.estados.push(estado);
+        if (estado === 1 && r.tocando_ms === null) { r.tocando_ms = ms(); setTimeout(() => fim('tocou'), 2500); }
+      }
+      if (m.event === 'onError') { r.erro = m.info; fim('erro'); }
+    };
+    addEventListener('message', aoMensagem);
+    const escuta = setInterval(() => { if (!ouvido) mandar({ event: 'listening' }); else clearInterval(escuta); }, 250);
+    const prazo = setTimeout(() => fim(pronto ? 'sem PLAYING no prazo (autoplay recusado?)' : 'player não respondeu'), ESPERA_MS);
+    palco.appendChild(iframe);
+    document.body.appendChild(palco);
+  });
+}
+
+document.getElementById('medir').addEventListener('click', async () => {
+  const video = document.getElementById('video').value.trim();
+  linhas.length = 0;
+  if (!FORMA.test(video)) { anotar('Id inválido: são 11 letras, números, - ou _.'); return; }
+  anotar('origem: ' + location.origin);
+  anotar('navegador: ' + navigator.userAgent);
+  anotar('data: ' + new Date().toISOString());
+  const resultados = [];
+  let id = 1;
+  for (const variante of VARIANTES) {
+    anotar('medindo: ' + variante.nome + ' ...');
+    const r = await medirVariante(variante, video, id++);
+    resultados.push(r);
+    anotar(JSON.stringify(r));
+  }
+  window.__medicaoDoYoutube = { origem: location.origin, navegador: navigator.userAgent, resultados };
+  anotar('PRONTO. Estados: -1 não começou, 0 acabou, 1 tocando, 2 pausado, 3 carregando, 5 pronto. Erros: 2 id, 5 player, 100 removido, 101/150 incorporação bloqueada, 153 sem Referer/origem.');
+});
+</script>
+</body>
+</html>

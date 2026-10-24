@@ -1,5 +1,7 @@
 import { refDoId } from '../lib/midia'
-import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type DependenciasDoMotor, type ElementoDeAudio, type MotivoDaRecusa, type MotorAoVivo, type ReservaDeAudios } from '../lib/sons/aoVivo/motor'
+import type { CarregadorDeBytes, DependenciasDoMotor, ElementoDeAudio, MotivoDaRecusa, MotorAoVivo, ReservaDeAudios } from '../lib/sons/aoVivo/motor'
+import { criarMotorDoNavegadorComYoutube } from '../lib/sons/aoVivo/motorComYoutube'
+import type { FonteDoSom } from '../lib/sons/biblioteca'
 import { estaCalado, PREFERENCIA_DE_SOM_PADRAO, useSomStore } from '../stores/somStore'
 import { destravarAudioAgora, destravarAudioNoPrimeiroGesto } from '../lib/sons/contexto'
 import type { MotivoDaFalhaDoSom, SomHostMessage } from '../net/protocol'
@@ -35,6 +37,8 @@ const MOTIVO_DA_FALHA: Record<MotivoDaRecusa, MotivoDaFalhaDoSom> = {
   'nao-carregou': 'nao-carregou',
   'fonte-invalida': 'fonte-invalida',
   'fonte-sem-suporte': 'fonte-sem-suporte',
+  'youtube-bloqueado': 'youtube-bloqueado',
+  'youtube-indisponivel': 'youtube-indisponivel',
 }
 
 /** Um WAV mudo de 8 amostras (8 bits, 8 kHz): o `play()` dentro do toque que destrava o `<audio>` no iOS. */
@@ -173,7 +177,8 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
   const reservas = deps.reservas ?? criarReservaDoGesto()
   const carregar = criarCarregadorDaSala({ chave: () => conexao.chaveDaMidia(), buscar: deps.buscar ?? ((url, init) => fetch(url, init)) })
   const preferencia = deps.ignorarPreferenciaGuardada === true ? PREFERENCIA_FIXA_DA_TV : (deps.preferencia ?? PREFERENCIA_DO_APARELHO)
-  const criarMotor = deps.criarMotor ?? ((carregarBytes, reservasDoMotor, preferenciaDoMotor) => criarMotorAoVivoDoNavegador(carregarBytes, { reservas: reservasDoMotor, preferencia: preferenciaDoMotor }))
+  // O mesmo player escondido do mestre toca o YouTube aqui (jogador e TV); o toque na faixinha dá o play dentro do gesto.
+  const criarMotor = deps.criarMotor ?? ((carregarBytes, reservasDoMotor, preferenciaDoMotor) => criarMotorDoNavegadorComYoutube(carregarBytes, { reservas: reservasDoMotor, preferencia: preferenciaDoMotor }))
   const motor = criarMotor(carregar, reservas, preferencia)
   const destravarAgora = deps.destravarAgora ?? destravarAudioAgora
   /** Com Mudo (ou volume 0) ninguém quer ouvir: nem faixinha, nem "não tocou" ao mestre. */
@@ -233,8 +238,12 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
         contouSemGesto.delete(msg.instancia)
         if (msg.loop) loops.add(msg.instancia)
         else loops.delete(msg.instancia)
-        // `bytes` é o tamanho para a aba do mestre; o motor não o usa, e a rede não o leva.
-        const fonte = { tipo: 'arquivo' as const, ref: refDoId(msg.fonte.midia), bytes: 0 }
+        const fonte: FonteDoSom =
+          msg.fonte.tipo === 'youtube'
+            ? // Só o id (o protocolo já conferiu; o motor confere de novo antes de montar o endereço), início e fim.
+              { tipo: 'youtube', video: msg.fonte.video, ...(msg.fonte.inicioS === undefined ? {} : { inicioS: msg.fonte.inicioS }), ...(msg.fonte.fimS === undefined ? {} : { fimS: msg.fonte.fimS }) }
+            : // `bytes` é o tamanho para a aba do mestre; o motor não o usa, e a rede não o leva.
+              { tipo: 'arquivo', ref: refDoId(msg.fonte.midia), bytes: 0 }
         motor.tocar(msg.instancia, fonte, { loop: msg.loop, volumeDoEfeito: msg.volume, ...(msg.deslocamentoS === undefined ? {} : { deslocamentoS: msg.deslocamentoS }) })
         return
       }

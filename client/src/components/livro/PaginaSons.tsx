@@ -3,7 +3,7 @@ import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
 import { assinarRedeDosSons, criarPonteDosSons, informarPastaDosSons, redeDosSons, type PonteDosSons } from '../../net/ponteDosSons'
-import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AlvoDosSons, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type MudancaNoEfeito, type PastaDeSons } from '../../lib/sons/biblioteca'
+import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AlvoDosSons, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type EfeitoNovo, type MudancaNoEfeito, type PastaDeSons } from '../../lib/sons/biblioteca'
 import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { useAdventureStore } from '../../stores/adventureStore'
@@ -15,6 +15,7 @@ import { CampoLiga } from '../grimorio/CampoLiga'
 import { CampoSel } from '../grimorio/CampoTexto'
 import { Dialogo } from '../grimorio/Dialogo'
 import { andarPelosRadios, classes, movimentoReduzido } from '../grimorio/comum'
+import { ColarLinkDoYoutube } from './ColarLinkDoYoutube'
 import { TituloDaPagina } from './FolhaDoLivro'
 import { IconeDoLivro } from './icones'
 import './sons.css'
@@ -72,6 +73,8 @@ const FRASE_DA_RECUSA: Record<MotivoDaRecusa, { tipo: ToastKind; frase: (nome: s
   'nao-carregou': { tipo: 'error', frase: (nome) => `${nome} não tocou: o arquivo não abriu neste computador.` },
   'fonte-invalida': { tipo: 'error', frase: (nome) => `${nome} não tocou: o arquivo dele não está guardado neste computador.` },
   'fonte-sem-suporte': { tipo: 'info', frase: (nome) => `${nome} ainda não toca por aqui.` },
+  'youtube-bloqueado': { tipo: 'error', frase: (nome) => `${nome} não tocou: este vídeo não deixa tocar fora do YouTube.` },
+  'youtube-indisponivel': { tipo: 'error', frase: (nome) => `${nome} não tocou: o vídeo foi removido ou é privado.` },
 }
 
 /** "Não deu para importar x.wav: esse áudio passa de 15 MB." com a frase da store (minúscula) ou a frase pronta (maiúscula). */
@@ -235,6 +238,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const [filtro, setFiltro] = useState<Filtro>({ tipo: 'todos' })
   const [editando, setEditando] = useState<string | null>(null)
   const [importando, setImportando] = useState<string | null>(null)
+  const [colandoLink, setColandoLink] = useState(false)
   const [recusas, setRecusas] = useState<string[]>([])
   const [arquivosDaMidia, setArquivosDaMidia] = useState<ArquivosDaMidia | null>(null)
   const arquivo = useRef<HTMLInputElement>(null)
@@ -312,6 +316,15 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const semAventura = aventuraId === null
   const cheia = biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX
   const podeImportar = !semAventura && !carregando && podeGravar && !cheia && importando === null
+  const podeColarLink = !semAventura && !carregando && podeGravar && !cheia
+
+  /** O som do YouTube entra na biblioteca; a frase da recusa volta ao formulário (o aviso da página fica atrás dele). */
+  const guardarLink = (novo: EfeitoNovo): string | null => {
+    const efeito = useBibliotecaDeSonsStore.getState().adicionarEfeito(novo)
+    if (efeito === null) return `O som não entrou. ${impedimentoDaLoja() ?? `Confira o nome (1 a ${NOME_DE_SOM_MAX} caracteres) e o trecho.`}`
+    useToastStore.getState().push('info', `${efeito.nome} entrou na biblioteca.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
+    return null
+  }
   // O porquê do Importar parado, logo abaixo dele. Sem aventura quem explica é o vazio (ele aparece
   // logo abaixo, sempre: sem aventura não há som); lendo, quem diz é a mensagem no lugar da grade.
   const motivoNoTopo = semAventura || carregando ? null : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
@@ -369,6 +382,10 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
             <IconeDoLivro nome="importar" />
             Importar sons
           </Botao>
+          <Botao tamanho="p" disabled={!podeColarLink} onClick={() => setColandoLink(true)}>
+            <IconeLink />
+            Colar link
+          </Botao>
         </div>
         {motivoNoTopo !== null && <p className="lb-sons__nota lb-sons__nota--latao">{motivoNoTopo}</p>}
         {/* Linha própria: em 262 px os dois botões e o texto não cabem lado a lado sem cortar. */}
@@ -425,6 +442,10 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
           {midiaBytes > MIDIA_PESADA_BYTES && <span> Passou de 200 MB: levar e abrir a aventura fica lento. Apagar um som tira o botão, mas o áudio dele continua na pasta midia da aventura.</span>}
         </p>
       )}
+
+      <Dialogo aberto={colandoLink} titulo="Som do YouTube" onFechar={() => setColandoLink(false)} pequeno>
+        {colandoLink && <ColarLinkDoYoutube motor={motor} onGuardar={guardarLink} onFechar={() => setColandoLink(false)} />}
+      </Dialogo>
 
       <Dialogo aberto={efeitoEditado !== undefined} titulo="Editar som" onFechar={() => setEditando(null)} pequeno>
         {efeitoEditado !== undefined && <EditorDoSom key={efeitoEditado.id} efeito={efeitoEditado} biblioteca={biblioteca} motor={motor} ponte={ponte} tocando={toques.has(efeitoEditado.id)} onFechar={() => setEditando(null)} />}
@@ -670,6 +691,7 @@ function VazioDosSons({ semAventura, podeImportar, onImportar }: { semAventura: 
 
 function rotuloDoBotao(efeito: EfeitoDeSom, tocando: boolean): string {
   const partes = [efeito.nome]
+  if (efeito.fonte.tipo === 'youtube') partes.push('pelo YouTube')
   if (efeito.atalho !== undefined) partes.push(`tecla ${efeito.atalho}`)
   if (efeito.loop) partes.push(tocando ? 'repetindo, toque para parar' : 'repete até parar')
   return partes.join(', ')
@@ -955,6 +977,10 @@ function IconeSvg({ d }: { d: string }) {
       <path d={d} />
     </svg>
   )
+}
+
+function IconeLink() {
+  return <IconeSvg d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1.5 1.5 M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1.5-1.5" />
 }
 
 function IconeParar() {

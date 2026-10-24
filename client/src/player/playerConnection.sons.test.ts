@@ -79,7 +79,7 @@ describe('playerConnection: som.* chega a ouvirSons', () => {
       { ...TOCAR, volume: 2 },
       { ...TOCAR, volume: null },
       { ...TOCAR, instancia: '../x' },
-      { ...TOCAR, fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ' } },
+      { ...TOCAR, fonte: { tipo: 'youtube', video: 'dQw4w9WgX<Q' } },
       { ...TOCAR, fonte: { tipo: 'arquivo', midia: 'C:/aventura/grito.mp3' } },
       { ...TOCAR, deslocamentoS: -3 },
       { type: 'som.parar' },

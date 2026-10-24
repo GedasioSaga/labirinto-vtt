@@ -167,8 +167,12 @@ export type MotivoDaRecusa =
   | 'nao-carregou'
   /** A referência não é de um áudio guardado (`midia:<sha256>.<ext>`). */
   | 'fonte-invalida'
-  /** YouTube: fica para a F6. */
+  /** Fonte que este motor não toca: o de arquivo recusa YouTube (quem toca vídeo é `motorComYoutube.ts`). */
   | 'fonte-sem-suporte'
+  /** YouTube, erros 101, 150 e 153: o vídeo não deixa tocar fora do YouTube (dono, região ou origem sem Referer). */
+  | 'youtube-bloqueado'
+  /** YouTube, erro 100: o vídeo foi removido ou é privado. */
+  | 'youtube-indisponivel'
 
 export type MotivoDoFim = 'fim' | 'parado' | 'derrubado'
 
