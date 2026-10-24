@@ -18,7 +18,7 @@ export const PERIODOS: readonly Periodo[] = ['dia', 'tarde', 'noite']
 /** Sessão sem período, cena interior e valor que não se lê: dia. */
 export const PERIODO_PADRAO: Periodo = 'dia'
 
-/** O nome do período da manhã no relógio antigo (`lib/campaignClock.ts`): só se LÊ, nunca se grava. */
+/** O nome do período da manhã no relógio de campanha antigo (saiu na Luz L1): só se LÊ, nunca se grava. */
 const MANHA_ANTIGA = 'manha'
 
 /** O que pode chegar como período: o tipo novo ou o 'manha' do relógio antigo. */
@@ -40,6 +40,28 @@ export function periodoDaCena(map: Pick<MapData, 'externa' | 'periodoFixo'>, ses
   if (fixo !== undefined) return fixo
   if (map.externa !== true) return PERIODO_PADRAO
   return lerPeriodo(sessao) ?? PERIODO_PADRAO
+}
+
+/**
+ * Marca de cena externa (segue o período da sessão): desligar tira o campo, e
+ * a cena volta a ser igual a mapa antigo.
+ */
+export function comCenaExterna(map: MapData, externa: boolean): MapData {
+  if (externa) return map.externa === true ? map : { ...map, externa: true }
+  if (map.externa === undefined) return map
+  const { externa: _interna, ...rest } = map
+  return rest
+}
+
+/**
+ * Quanto sobra do raio de visão à noite (a regra do relógio antigo, "noite =
+ * metade da visão"), até a L2 trazer `visaoPorPeriodo` por cena.
+ */
+export const VISAO_DA_NOITE = 0.5
+
+/** O raio de visão no período da cena: cai à noite, igual no resto. */
+export function raioNoPeriodo(raio: number, periodo: Periodo): number {
+  return periodo === 'noite' ? Math.round(raio * VISAO_DA_NOITE) : raio
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -95,6 +117,47 @@ export function ambienteDoPeriodo(map: Pick<MapData, 'ambientePorPeriodo'>, peri
 
 function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// O que o jogador recebe (`snapshot.luz`)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * O período como o jogador o recebe: o da cena DELE e a tinta desse período.
+ * Nunca as marcas da cena (`externa`, `periodoFixo`), a tinta dos outros
+ * períodos, nem o período de outra cena.
+ */
+export interface LuzDoJogador extends Ambiente {
+  periodo: Periodo
+}
+
+/**
+ * `snapshot.luz` desta cena com a sessão em `sessao`. `null` (o campo nem
+ * sai, e o snapshot fica igual ao de antes da Luz) quando o mestre não tem
+ * período ou quando a cena está de dia — dia não tem tinta.
+ */
+export function luzParaJogador(map: Pick<MapData, 'externa' | 'periodoFixo' | 'ambientePorPeriodo'>, sessao: PeriodoLido | null): LuzDoJogador | null {
+  if (sessao === null) return null
+  const periodo = periodoDaCena(map, sessao)
+  if (periodo === PERIODO_PADRAO) return null
+  const { cor, forca } = ambienteDoPeriodo(map, periodo)
+  return { periodo, cor, forca }
+}
+
+/**
+ * `snapshot.luz` como chegou da rede, só com os campos conhecidos. `null` =
+ * fora da forma (período que não é tarde/noite/dia, cor fora de `#rrggbb`,
+ * força fora de 0..1): quem lê recusa a mensagem inteira.
+ */
+export function lerLuzDoJogador(valor: unknown): LuzDoJogador | null {
+  if (!ehObjeto(valor)) return null
+  const periodo = PERIODOS.find((p) => p === valor.periodo)
+  const cor = corValida(valor.cor)
+  const forca = valor.forca
+  if (periodo === undefined || cor === undefined) return null
+  if (typeof forca !== 'number' || !Number.isFinite(forca) || forca < 0 || forca > 1) return null
+  return { periodo, cor, forca }
 }
 
 function lerAmbienteDoPeriodo(valor: unknown): AmbienteDoPeriodo | undefined {

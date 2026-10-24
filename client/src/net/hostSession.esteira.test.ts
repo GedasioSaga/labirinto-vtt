@@ -7,14 +7,14 @@
 import { describe, expect, it } from 'vitest'
 import { ficha, torre } from '../lib/__fixtures__/hazardTower'
 import { advanceConveyors } from '../lib/conveyors'
-import type { Conveyor, MapData, Token } from '../types/map'
+import type { Conveyor, MapData, Periodo, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 
 const CODE = 'ESTEIR'
 
-function mesa(source: MapData | HostWorld, getClock?: () => number | null) {
+function mesa(source: MapData | HostWorld, getPeriodo?: () => Periodo | null) {
   let n = 0
-  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}`, getClock })
+  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}`, getPeriodo })
   const jogadores: [clientId: string, name: string, tokenId: string][] = [
     ['c1', 'Ana', 'ana'],
     ['c2', 'Bia', 'bia'],
@@ -149,8 +149,8 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
     expect(posicoes(mapaRecebido(r, 'c1')).ana).toEqual({ x: 375, y: 200 })
   })
 
-  it('tokenVisionRadii é o raio que o host aplica: cena, fator do jogador e noite do relógio entram; NPC sem dono fica de fora', () => {
-    let hora = 12
+  it('tokenVisionRadii é o raio que o host aplica: cena, fator do jogador e noite do período entram; NPC sem dono fica de fora', () => {
+    let hora: Periodo = 'tarde'
     const antes: MapData = { ...torre({ tokens: [ficha('ana', 125, 200), ficha('npc', 375, 200), ficha('bia', 1375, 200)] }), visionCells: 4 }
     const s = mesa(antes, () => hora)
     const ana = s.listPlayers().find((p) => p.name === 'Ana')
@@ -164,8 +164,8 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
     expect(s.tokenVisionRadii(antes).get('ana')).toBe(100)
     expect(s.tokenVisionRadii(antes).get('bia')).toBe(200)
 
-    // "Próximo apito" que leva à noite numa cena externa: a visão cai pela metade.
-    hora = 23
+    // O mestre aperta Noite numa cena externa: a visão cai pela metade.
+    hora = 'noite'
     const externa: MapData = { ...antes, externa: true }
     expect(Object.fromEntries(s.tokenVisionRadii(externa))).toEqual({ ana: 50, bia: 100 })
     // Cena interna não escurece.
@@ -184,7 +184,7 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
       visionCells: 1,
       externa: true,
     }
-    const s = mesa(antes, () => 23)
+    const s = mesa(antes, () => 'noite')
     const ana = s.listPlayers().find((p) => p.name === 'Ana')
     if (ana === undefined) throw new Error('esperava Ana na sala')
     s.setVisionFactor(ana.playerId, 0.5)

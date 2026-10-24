@@ -2503,19 +2503,17 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 /* Um poço só, com filete entre as linhas: sete caixas de borda própria eram
    sete cartões disputando o olho; a linha fina é o traço do minimapa. */
-/* RELÓGIO DA CAMPANHA: mesma coluna da Iniciativa, a hora grande e o período ao lado. */
-.lb-clock {
+/* DIA/TARDE/NOITE: mesma coluna da Iniciativa — o segmentado do período, a dica e a marca da cena aberta. */
+.lb-periodo {
   display: flex;
   flex-direction: column;
   gap: var(--lb-space-2);
   flex: none;
 }
 
-.lb-clock__now {
-  display: flex;
-  align-items: baseline;
-  gap: var(--lb-space-2);
-  margin: 0;
+/* A frase do que a cena aberta mostra: o texto da dica, um tom mais claro, porque é o estado de agora. */
+.lb-periodo__estado {
+  color: var(--lb-color-parchment);
 }
 
 /* Teste secreto (aba Jogo): nome do teste, quem faz, e as respostas embaixo,
@@ -2696,31 +2694,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   background: var(--lb-color-stone-hover);
 }
 
-.lb-clock__hour {
-  font-size: 20px;
-  color: var(--lb-color-parchment);
-}
-
-.lb-clock__period {
-  color: var(--lb-color-parchment);
-  opacity: 0.8;
-}
-
-.lb-clock__actions {
-  display: flex;
-  gap: var(--lb-space-2);
-}
-
-.lb-clock__actions > .lb-btn {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.lb-clock__dark {
-  margin: 0;
-  color: var(--lb-color-parchment);
-  opacity: 0.8;
-}
 
 .lb-party__list {
   display: flex;

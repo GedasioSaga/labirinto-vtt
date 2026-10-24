@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sons do YouTube</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #f5f5f5; --ink: #2d3142; --muted: #4f5d75; --soft: #7a8399; --rule: rgba(45,49,66,0.10); --accent: #eb6c36; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Geist', sans-serif; }
+  main { max-width: 800px; margin: 0 auto; padding: 40px 16px 32px; }
+  .eyebrow { font-family: 'Geist Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.75rem; margin: 0 0 8px; }
+  h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.25rem; margin: 32px 0 8px; }
+  p, li { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 20px; }
+  svg { width: 100%; height: auto; display: block; }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--rule); font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--soft); }
+  code { font-family: 'Geist Mono', monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Labirinto VTT · sistema 4 · sons ao vivo · F6</p>
+  <h1>Sons do YouTube, só o áudio</h1>
+  <p>O mestre cola o link de um vídeo na aba Sons e guarda um botão. O botão toca só o som, por um player do YouTube escondido que existe em cada aparelho (mestre, jogador e TV). Do link sobra o id de 11 caracteres e o trecho em segundos. A mensagem da rede leva só isso, e o áudio não passa pelo servidor da sala: cada aparelho fala sozinho com o YouTube. Estado em 24/10/2026, na main depois do lote 4. A cadeia dos sons de arquivo, com a fronteira de segurança do servidor da sala, está em <code>sons-ao-vivo.html</code>.</p>
+
+  <svg viewBox="0 0 808 512" role="img" aria-labelledby="sons-youtube-title sons-youtube-desc">
+    <title id="sons-youtube-title">Sons do YouTube, do link colado ao player escondido</title>
+    <desc id="sons-youtube-desc">O mestre cola um link na aba Sons, o leitor de link guarda só o id e o trecho na biblioteca, e a rede leva só esses dados. O motor com YouTube de cada aparelho abre um player escondido num iframe isolado e fala com ele por mensagens que conferem origem e fonte, sem carregar o script iframe_api na origem do app. O YouTube devolve estado e erro.</desc>
+    <defs>
+      <marker id="sy-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="sy-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+      </marker>
+    </defs>
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+    <!-- Setas antes das caixas -->
+    <!-- Colar link -> leitor -->
+    <path d="M192 80 H324" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sy-arrow)"/>
+    <rect x="224" y="60" width="68" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="258" y="69" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LINK COLADO</text>
+    <!-- Leitor -> fonte na biblioteca -->
+    <path d="M484 80 H616" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sy-arrow)"/>
+    <rect x="516" y="60" width="68" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="550" y="69" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ID + TRECHO</text>
+    <!-- Biblioteca -> ponte e rede -->
+    <path d="M696 128 V176" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sy-arrow)"/>
+    <rect x="704" y="144" width="40" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="724" y="153" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOCAR</text>
+    <!-- Rede -> motor (WebSocket da sala) -->
+    <path d="M616 224 H484" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#sy-arrow-link)"/>
+    <rect x="504" y="204" width="92" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="550" y="213" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CONFERE DE NOVO</text>
+    <!-- Motor -> player escondido -->
+    <path d="M324 224 H192" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sy-arrow)"/>
+    <rect x="212" y="204" width="92" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="258" y="213" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SÓ APÓS O GESTO</text>
+    <!-- Player escondido -> conversa -->
+    <path d="M112 272 V320" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sy-arrow)"/>
+    <rect x="120" y="288" width="44" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="142" y="297" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IFRAME</text>
+    <!-- Conversa -> YouTube (comandos) -->
+    <path d="M192 356 H324" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#sy-arrow-link)"/>
+    <rect x="224" y="336" width="68" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="258" y="345" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">POSTMESSAGE</text>
+    <!-- YouTube -> conversa (estado e erro) -->
+    <path d="M324 380 H192" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#sy-arrow)"/>
+    <rect x="220" y="388" width="76" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="258" y="397" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ESTADO E ERRO</text>
+
+    <!-- Colar link -->
+    <rect x="32" y="32" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="32" width="160" height="96" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+    <rect x="40" y="40" width="40" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+    <text x="60" y="49" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TELA</text>
+    <text x="112" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Colar link</text>
+    <text x="112" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ColarLinkDoYoutube.tsx</text>
+    <text x="112" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">dentro da PaginaSons</text>
+    <text x="112" y="112" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">prévia só com o id</text>
+
+    <!-- Leitor do link -->
+    <rect x="324" y="32" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="324" y="32" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="332" y="40" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="352" y="49" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PURO</text>
+    <text x="404" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Leitor do link</text>
+    <text x="404" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">youtube/linkDoYoutube.ts</text>
+    <text x="404" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">8 formatos, só o id de 11</text>
+    <text x="404" y="112" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">recusa o resto</text>
+
+    <!-- Fonte do YouTube na biblioteca -->
+    <rect x="616" y="32" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="616" y="32" width="160" height="96" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="624" y="40" width="44" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="646" y="49" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
+    <text x="696" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fonte do YouTube</text>
+    <text x="696" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lib/sons/biblioteca.ts</text>
+    <text x="696" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">{ video, inicioS, fimS }</text>
+    <text x="696" y="112" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sons.json versão 1</text>
+
+    <!-- Player escondido (fronteira) -->
+    <rect x="32" y="176" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="176" width="160" height="96" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <rect x="40" y="184" width="68" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+    <text x="74" y="193" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FRONTEIRA</text>
+    <text x="112" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Player escondido</text>
+    <text x="112" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">youtube/playerEscondido.ts</text>
+    <text x="112" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">iframe nocookie, fora da tela</text>
+    <text x="112" y="256" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sandbox, só depois do gesto</text>
+
+    <!-- Motor com YouTube -->
+    <rect x="324" y="176" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="324" y="176" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="332" y="184" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="354" y="193" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ÁUDIO</text>
+    <text x="404" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Motor com YouTube</text>
+    <text x="404" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">aoVivo/motorComYoutube.ts</text>
+    <text x="404" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">youtube/motorDoYoutube.ts</text>
+    <text x="404" y="256" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">mesmo contrato do local</text>
+
+    <!-- som.tocar na rede -->
+    <rect x="616" y="176" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="616" y="176" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="624" y="184" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="644" y="193" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">REDE</text>
+    <text x="696" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">som.tocar na rede</text>
+    <text x="696" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ponteDosSons · hostBridge</text>
+    <text x="696" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">só o id e o trecho</text>
+    <text x="696" y="256" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">/sons não libera nada</text>
+
+    <!-- Conversa com o player (foco) -->
+    <rect x="32" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="320" width="160" height="96" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="40" y="328" width="60" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+    <text x="70" y="337" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MENSAGEM</text>
+    <text x="112" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Conversa com o player</text>
+    <text x="112" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">youtube/apiDoYoutube.ts</text>
+    <text x="112" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">confere origin e source</text>
+    <text x="112" y="400" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sem iframe_api na origem</text>
+
+    <!-- YouTube (externo) -->
+    <rect x="324" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="324" y="320" width="160" height="96" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <rect x="332" y="328" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+    <text x="360" y="337" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">EXTERNO</text>
+    <text x="404" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">YouTube</text>
+    <text x="404" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">www.youtube-nocookie.com</text>
+    <text x="404" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">/embed/&lt;id&gt;</text>
+    <text x="404" y="400" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">precisa de internet</text>
+
+    <!-- Legenda -->
+    <line x1="32" y1="440" x2="776" y2="440" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="32" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <rect x="104" y="456" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+    <text x="128" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TELA</text>
+    <rect x="172" y="456" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <text x="196" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">DISCO</text>
+    <rect x="244" y="456" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="268" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
+    <rect x="320" y="456" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="344" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FRONTEIRA: SANDBOX</text>
+    <rect x="456" y="456" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="480" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO: SEM IFRAME_API</text>
+    <rect x="600" y="456" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <text x="624" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">EXTERNO: YOUTUBE</text>
+    <line x1="32" y1="484" x2="64" y2="484" stroke="#2e5aa8" stroke-width="1"/>
+    <text x="72" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FALA COM FORA: SALA OU YOUTUBE</text>
+    <line x1="248" y1="484" x2="280" y2="484" stroke="#4f5d75" stroke-width="1"/>
+    <text x="288" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">DENTRO DO APARELHO</text>
+    <line x1="408" y1="484" x2="440" y2="484" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
+    <text x="448" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">VOLTA: ESTADO E ERRO</text>
+  </svg>
+
+  <h2>Na ordem</h2>
+  <ol>
+    <li>Colar link. Um botão da <code>PaginaSons</code> abre o diálogo "Som do YouTube" com <code>ColarLinkDoYoutube</code>. A prévia mostra só o id lido do link, sem chamar o YouTube (o título de verdade pediria uma chamada). Os campos "Começa em" e "Termina em" aceitam <code>90</code>, <code>1m30s</code>, <code>1:30</code> e <code>1:02:03</code>, até 12 h. "Ouvir" prova o vídeo neste computador antes de guardar. O aviso fixo diz que toca pelo YouTube, só o som, e que precisa de internet no computador do mestre e em cada aparelho da mesa.</li>
+    <li>Leitor. <code>lerLinkDoYoutube</code> aceita 8 formatos: <code>watch?v=</code>, <code>youtu.be/</code>, <code>shorts/</code>, <code>embed/</code>, <code>live/</code>, <code>music.youtube.com</code>, <code>m.youtube.com</code> e <code>youtube-nocookie.com/embed/</code>, com ou sem <code>t=</code>, <code>list=</code>, <code>si=</code>. Recusa outro domínio (inclusive o que só termina em youtube.com), id fora de <code>[A-Za-z0-9_-]{11}</code>, esquema que não é http ou https, usuário, senha, porta, HTML e texto acima de 2048 caracteres. Só o id e o início sobrevivem; o endereço do player é montado do id, nunca do texto colado.</li>
+    <li>Fonte. A biblioteca guarda <code>{ tipo: 'youtube', video, inicioS?, fimS? }</code> no <code>sons.json</code> versão 1. O <code>fimS</code> é campo novo na mesma versão: o app anterior à F6 lê a fonte campo a campo e só deixa o <code>fimS</code> de fora. Início ou fim torto sai sozinho e o efeito fica; o fim tem de ser maior que o início.</li>
+    <li>Rede. <code>fonteDeSomNaRede</code> (<code>ponteDosSons.ts</code>) confere o id de novo antes de mandar. <code>som.tocar</code> leva só o id e o trecho, nunca o link nem o nome. <code>hostBridge</code> e <code>liberacaoDosSons</code> liberam só arquivo, então o YouTube não libera nada em <code>/sons</code>. Jogador e TV passam por <code>parseSomHostMessage</code>: id fora da forma, trecho torto ou campo a mais recusa a mensagem ou descarta o campo. Jogador antigo recusa o <code>som.tocar</code> com YouTube inteiro e segue com o resto.</li>
+    <li>Motor. <code>criarMotorDoNavegadorComYoutube</code> junta o motor de arquivos (Web Audio) e o <code>motorDoYoutube</code>, roteia por <code>fonte.tipo</code> e fala o mesmo contrato <code>MotorAoVivo</code>, com os mesmos eventos. O computador do mestre (<code>carregadorDoMestre</code>), o jogador e a TV (<code>sonsAoVivoDoJogador</code>) usam este motor, e o motor confere o id mais uma vez antes de montar o endereço. Nada do YouTube carrega antes do gesto: o pedido que chega antes espera (a faixinha de tocar para ouvir) e o efeito curto desiste em 2 s. O teto de 3 loops (<code>MAX_LOOPS</code>) conta os dois lados. No máximo 2 players (<code>MAX_YOUTUBE</code>): o 3º vídeo derruba o mais antigo. Com loop, o fim do vídeo volta a <code>inicioS</code>, não ao zero. Volume é o do efeito vezes o do aparelho ao quadrado, e o Mudo zera sem parar.</li>
+    <li>Player escondido. <code>playerEscondido.ts</code> monta <code>https://www.youtube-nocookie.com/embed/&lt;id&gt;</code> só do id conferido e da origem da página (<code>origin=</code>). O iframe tem <code>sandbox="allow-scripts allow-same-origin"</code>, <code>allow="autoplay; encrypted-media"</code> e <code>referrerpolicy="strict-origin-when-cross-origin"</code> (sem Referer o player dá o erro 153). Fica em 200 x 200 px num palco com <code>left: -10000px</code>, <code>opacity: 0</code> e <code>aria-hidden</code>, que só nasce no primeiro toque.</li>
+    <li>Conversa. <code>apiDoYoutube.ts</code> não carrega o script <code>iframe_api</code> do YouTube. Esse script rodaria na origem do app e, no Tauri, um script de terceiro ali enxerga <code>__TAURI_INTERNALS__.invoke</code>, ou seja, o disco da aventura e a sala. Em vez disso o arquivo fala direto com o iframe pelo protocolo de mensagens do widget (<code>listening</code>, <code>command</code>, <code>onReady</code>, <code>onStateChange</code>, <code>onError</code>, <code>infoDelivery</code>), confere <code>origin</code> e <code>source</code> de cada mensagem, joga fora o que não é JSON com <code>event</code> em texto ou passa de 256 KB, e só manda para a origem do player. Comandos antes do <code>onReady</code> esperam numa fila. O <code>listening</code> repete a cada 250 ms até o player responder.</li>
+    <li>Erro do player vira recusa com motivo, sem travar e deixando a vaga para o próximo: 2 é <code>fonte-invalida</code>; 100 é <code>youtube-indisponivel</code> ("removido ou privado"); 101, 150 e 153 são <code>youtube-bloqueado</code> ("não deixa tocar fora do YouTube"); o resto é <code>nao-carregou</code>.</li>
+  </ol>
+
+  <h2>Problemas conhecidos</h2>
+  <ul>
+    <li>Política do YouTube: tocar só o áudio com o player escondido contraria a política dele para players incorporados (o player precisa estar visível). O "só áudio" vem do pedido da F6, e o plano deixa o risco registrado para o usuário decidir. Se virar problema, o caminho previsto é mostrar o player pequeno no livro do mestre.</li>
+    <li>O protocolo de mensagens do widget é interno do YouTube e não é documentado. Se mudar, quebra em <code>apiDoYoutube.ts</code>. Voltar ao <code>iframe_api</code> oficial é trocar só esse arquivo, aceitando o script de terceiro na origem do app.</li>
+    <li>Vídeo não se pré-carrega: <code>precarregar</code> só passa arquivos. O primeiro toque de cada vídeo espera o player ficar pronto.</li>
+    <li>iOS: sem toque, o vídeo fica parado no começo. O motor volta o loop a esperar e o toque na faixinha chama <code>playVideo()</code> dentro do gesto. Isto só foi testado com a API falsa.</li>
+    <li>Sem os limites do servidor (2 por chave, 6 na sala, 30 por 10 s por IP): o YouTube não passa por <code>/sons</code>. O único teto é o local, de 2 players por aparelho.</li>
+  </ul>
+
+  <h2>Números e onde conferir</h2>
+  <ul>
+    <li>Segundo a seção "F6 medição" do plano (24/10, só PC): Chromium 1243 e Edge headless, 5 origens (<code>http</code> e <code>https</code> em <code>tauri.localhost</code>, <code>localhost:1420</code>, um IP de LAN e um túnel), contra o YouTube de verdade: 30 de 30 tocaram, nenhum erro 153. Variante do app: pronto em 757 a 1278 ms, tocando em 1135 a 1756 ms. Não reexecutei ao desenhar.</li>
+    <li>Não verificado, por ordem do usuário de nada de celular: autoplay do iframe no iOS Safari, Android com tela bloqueada, TV da mesa e o WebView2 real do app instalado. Também não medidos: volume e Mudo no player real (só pela API falsa) e se o YouTube mostra anúncio antes do áudio.</li>
+    <li>Testes: <code>lib/sons/youtube/linkDoYoutube.test.ts</code>, <code>fonteDoYoutube.test.ts</code>, <code>motorDoYoutube.test.ts</code> (API falsa), <code>net/protocol.youtube.test.ts</code>, <code>player/sonsAoVivoDoJogador.test.ts</code>. E2E: <code>client/e2e/task-sons-youtube.spec.ts</code>, com um embed de stub local e sem rede externa. Ferramenta de medição: <code>client/e2e/medir-youtube.html</code>.</li>
+  </ul>
+
+  <footer>Fontes: client/src/components/livro/ColarLinkDoYoutube.tsx · client/src/components/livro/PaginaSons.tsx · client/src/lib/sons/youtube/ (linkDoYoutube.ts, motorDoYoutube.ts, playerEscondido.ts, apiDoYoutube.ts) · client/src/lib/sons/aoVivo/motorComYoutube.ts · client/src/lib/sons/aoVivo/motor.ts · client/src/lib/sons/aoVivo/carregadorDoMestre.ts · client/src/lib/sons/biblioteca.ts · client/src/net/ponteDosSons.ts · client/src/net/hostBridge.ts · client/src/net/liberacaoDosSons.ts · client/src/net/protocol.ts · client/src/player/sonsAoVivoDoJogador.ts · plano docs/planos/sons-ao-vivo-2026-10-23.md (F6)</footer>
+</main>
+</body>
+</html>

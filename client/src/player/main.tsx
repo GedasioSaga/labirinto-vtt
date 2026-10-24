@@ -51,7 +51,6 @@ import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
-import { PlayerClockBadge } from './PlayerClockBadge'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -73,6 +72,7 @@ import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
 import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
 import { isPlayerSafePinImage } from '../lib/pins'
+import { PERIODO_PADRAO } from '../lib/periodo'
 import { DiceFeed } from '../components/DiceControls'
 import type { DiceRollEntry } from '../lib/dice'
 import type { DestinationMark, SignalMark } from '../lib/signals'
@@ -1589,14 +1589,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
           {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
           {/*
-            SELO DE ESTADO: "Tela acesa" e a hora do dia. Só informam. No
-            notebook ficam no fim desta coluna; no celular, no canto de baixo à
-            esquerda (player.css) — antes a hora morava sozinha embaixo à
-            direita e cruzava o zoom.
+            SELO DE ESTADO: "Tela acesa". Só informa. No notebook fica no fim
+            desta coluna; no celular, no canto de baixo à esquerda (player.css).
+            `data-periodo`: o período da cena dele (Dia/Tarde/Noite, ausente =
+            dia), sem texto na tela — a tinta do período é da L4b; o selo da
+            hora saiu com o relógio de campanha (Luz L1).
           */}
-          <div className="pp-estado">
+          <div className="pp-estado" data-periodo={state.luz?.periodo ?? PERIODO_PADRAO}>
             <PlayerScreenAwake active={screenAwake} />
-            <PlayerClockBadge relogio={state.relogio} />
           </div>
           {/*
             DADO ROLADO NA SALA: as últimas rolagens da mesa, no pé da coluna,

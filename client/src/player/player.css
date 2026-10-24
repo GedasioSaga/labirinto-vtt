@@ -730,32 +730,6 @@
 }
 
 /*
- * RELÓGIO DA CAMPANHA: a hora aproximada num selo pequeno, no selo de estado
- * (`.pp-estado`, junto da "Tela acesa"). Antes morava sozinho no canto de
- * baixo à direita, a 12 px do rodapé, e cruzava o zoom. Não recebe toque: o
- * mapa por baixo continua arrastável. "Pouca luz" troca o contorno por um azul
- * frio e apagado, sem cor nova no mapa.
- */
-.pp-clock {
-  margin: 0;
-  padding: 4px 12px;
-  font-family: var(--lb-font-sans, system-ui, sans-serif);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--lb-color-parchment, #eceae4);
-  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
-  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
-  border-radius: 999px;
-  pointer-events: none;
-}
-
-.pp-clock--escuro {
-  color: rgba(236, 234, 228, 0.78);
-  border-color: rgba(120, 150, 200, 0.55);
-}
-
-/*
  * CANTO DA DIREITA (`main.tsx`): abas de andar, "Onde estou" (a cena e a
  * sala, num selo só), confronto e selo de estado numa coluna só, alinhada à
  * direita, com o vão do tema entre um e outro — como a pilha de botões do

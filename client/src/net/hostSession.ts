@@ -14,7 +14,6 @@ import {
   alarmForPlayer,
   allPlayerTokens,
   claimableTokensForPlayer,
-  clockForPlayer,
   comCabineParaJogador,
   diceRollForPlayer,
   emptyPlanMemory,
@@ -53,7 +52,7 @@ import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type Hos
 import { ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, espiadaCabe, isDaVista } from '../lib/espiar'
 import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
-import { visionRadiusAtHour } from '../lib/campaignClock'
+import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { clampNoiseRangeCells } from '../lib/noise'
@@ -1679,11 +1678,12 @@ export interface HostSessionOptions {
    */
   getTurn?: () => TurnRef | null
   /**
-   * RELÓGIO DA CAMPANHA: a hora do dia no mestre (0 a 23), lida a cada
-   * snapshot. Ausente ou `null` = sem relógio. O jogador só recebe o recorte
-   * disto (`clockForPlayer`); a cena externa à noite encolhe a visão dele.
+   * DIA/TARDE/NOITE: o período da sessão no mestre, lido a cada recorte.
+   * Ausente ou `null` = mestre sem período (o campo `luz` nem sai). Cada
+   * jogador recebe só o período da cena DELE (`periodoDaCena`) e a tinta
+   * dele (`luzParaJogador`); à noite a visão dele cai (`raioNoPeriodo`).
    */
-  getClock?: () => number | null
+  getPeriodo?: () => PeriodoLido | null
   /** Chave da tela da mesa (teste). Ausente = um UUID novo por sala, fora de `randomId`. */
   tableKey?: string
   /**
@@ -3630,20 +3630,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return chosen === undefined ? [] : inRoomOrder(chosen)
   }
 
-  /** A hora do relógio da campanha agora; `null` = o mestre não tem relógio. */
-  const clockHour = (): number | null => options.getClock?.() ?? null
+  /** O período da sessão agora; `null` = o mestre não tem período. */
+  const sessionPeriod = (): PeriodoLido | null => options.getPeriodo?.() ?? null
 
   /**
-   * RELÓGIO DA CAMPANHA: o raio do jogador NESTA cena, agora. À noite, numa
-   * cena externa, cai — e é este raio que todo recorte usa (snapshot, porta,
-   * item, alavanca, tela da mesa), então o que ficou no escuro não viaja nem
-   * pode ser tocado. O painel do mestre continua mostrando o raio de base.
+   * DIA/TARDE/NOITE: o raio do jogador NESTA cena, agora. À noite (cena
+   * externa com a sessão à noite, ou cena fixa na noite) cai — e é este raio
+   * que todo recorte usa (snapshot, porta, item, alavanca, tela da mesa),
+   * então o que ficou no escuro não viaja nem pode ser tocado. O painel do
+   * mestre continua mostrando o raio de base.
    */
   const radiusIn = (playerId: string, map: MapData): number => {
-    const hour = clockHour()
-    // "Visão nesta cena" e o fator do jogador entram antes da hora (`radiusFor` com o mapa).
+    const periodo = sessionPeriod()
+    // "Visão nesta cena" e o fator do jogador entram antes do período (`radiusFor` com o mapa).
     const base = radiusFor(playerId, map)
-    return hour === null ? base : visionRadiusAtHour(base, hour, map)
+    return periodo === null ? base : raioNoPeriodo(base, periodoDaCena(map, periodo))
   }
   /**
    * RAIO POR FICHA: o raio de cada ficha que `playerId` vê. A emprestada
@@ -4409,9 +4410,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (porAtravessar.length > 0) base.porAtravessar = porAtravessar
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
     if (andares !== undefined) base.andares = andares
-    // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
-    const relogio = clockForPlayer(clockHour(), map)
-    if (relogio !== null) base.relogio = relogio
+    // DIA/TARDE/NOITE: o período DESTA cena e a tinta dele. De dia (ou sem período no mestre) o campo nem sai.
+    const luz = luzParaJogador(map, sessionPeriod())
+    if (luz !== null) base.luz = luz
     // CONE PELO VÃO: campo aditivo, só vai quando há cone.
     if (view.glimpses.length > 0) base.glimpses = view.glimpses
     // ENCONTRO MARCADO: sem ficha esperando, o campo nem vai: o snapshot sai idêntico ao de antes da feature.
@@ -4471,7 +4472,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const cabines = world.cabines
     const ocupadas = ocupadasKey(playerId, world)
     const inputs = scene === null ? null : viewInputsFor(playerId, world, scene)
-    const session = JSON.stringify([options.getTurn?.() ?? null, clockHour(), factorFor(playerId)])
+    // DIA/TARDE/NOITE: entra o período DA CENA dele, não o da sessão — a troca não mexe em quem está numa cena interior ou fixa.
+    const periodoAqui = sessionPeriod()
+    const session = JSON.stringify([options.getTurn?.() ?? null, map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&

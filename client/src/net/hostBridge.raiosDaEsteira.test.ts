@@ -2,11 +2,11 @@
  * MOVIMENTO IMPOSTO pela PONTE: o App pede à ponte o raio de cada ficha com
  * dono (`tokenVisionRadii`) para a esteira e a cabine decidirem quem segura
  * quem. Tem de ser o raio que a sessão APLICA ao recorte do jogador — com
- * "Visão nesta cena" e a noite do relógio do mestre —, não o de base.
+ * "Visão nesta cena" e a noite do período do mestre —, não o de base.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Token } from '../types/map'
+import type { MapData, Periodo, Token } from '../types/map'
 import { createHostBridge } from './hostBridge'
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
@@ -16,7 +16,7 @@ function ficha(id: string, x: number): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y: 125, size: 1, image: null }
 }
 
-function setup(hora: { atual: number }) {
+function setup(hora: { atual: Periodo }) {
   const handlers = new Map<string, (event: { payload: unknown }) => void>()
   const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
   const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
@@ -33,7 +33,7 @@ function setup(hora: { atual: number }) {
     onPlayersChange: () => undefined,
     now: () => 0,
     visionRadius: 700,
-    getClock: () => hora.atual,
+    getPeriodo: () => hora.atual,
   })
   const emit = (name: string, payload: unknown) => {
     const handler = handlers.get(name)
@@ -49,13 +49,13 @@ afterEach(() => {
 
 describe('HostBridge.tokenVisionRadii — o raio que a sessão aplica, para a esteira', () => {
   it('sala fechada: nenhum raio (ninguém tem dono)', () => {
-    const { bridge, map } = setup({ atual: 12 })
+    const { bridge, map } = setup({ atual: 'tarde' })
     expect(bridge.tokenVisionRadii(map).size).toBe(0)
   })
 
   it('sala aberta: a ficha do jogador leva o raio da cena (4 casas = 200 px), não o de base (700); à noite na cena externa, a metade', async () => {
     vi.useFakeTimers()
-    const hora = { atual: 12 }
+    const hora: { atual: Periodo } = { atual: 'tarde' }
     const { bridge, emit, map } = setup(hora)
     await bridge.start()
     emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
@@ -66,7 +66,7 @@ describe('HostBridge.tokenVisionRadii — o raio que a sessão aplica, para a es
     expect(bridge.players().find((p) => p.name === 'Ana')?.visionRadius).toBe(700)
     expect(Object.fromEntries(bridge.tokenVisionRadii(map))).toEqual({ ana: 200 })
 
-    hora.atual = 23
+    hora.atual = 'noite'
     expect(bridge.tokenVisionRadii({ ...map, externa: true }).get('ana')).toBe(100)
 
     await bridge.stop()

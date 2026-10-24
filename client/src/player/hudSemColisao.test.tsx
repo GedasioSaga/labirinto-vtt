@@ -524,16 +524,15 @@ describe('canto da direita', () => {
   })
 })
 
-describe('selo de estado: a hora do dia e a "Tela acesa"', () => {
-  // A hora do dia morava sozinha a 12 px do rodapé, no canto do zoom, e
-  // cruzava o grupo do + e do −. Agora ela e a "Tela acesa" formam um selo só.
+describe('selo de estado: a "Tela acesa"', () => {
+  // O selo da hora do dia saiu com o relógio de campanha (Luz L1); o selo de
+  // estado continua sendo o fim da coluna do canto.
   it('no notebook o selo é o fim da coluna do canto, alinhado à direita, sem lugar próprio', async () => {
     const css = await lerPlayerCss()
     const estado = regraBase(css, '.pp-estado')
     expect(estado.get('display')).toBe('flex')
     expect(estado.get('justify-content')).toBe('flex-end')
     expect(posicoes(estado)).toEqual([])
-    expect(posicoes(regraBase(css, '.pp-clock'))).toEqual([])
   })
 
   it('em tela de gaveta, no canto de baixo à esquerda, crescendo para cima, sem chegar à coluna do zoom', async () => {

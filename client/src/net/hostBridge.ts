@@ -121,6 +121,7 @@ import { criarSaidaEmOrdem } from './pacoteComprimido'
 import { midiasDaMensagem } from './liberacaoDosSons'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
+import type { PeriodoLido } from '../lib/periodo'
 import { hazardEntryLine } from '../lib/hazards'
 import type { DiceRequest } from '../lib/dice'
 import { areaTriggerEntryLine } from '../lib/areaTriggers'
@@ -316,8 +317,8 @@ export interface HostBridgeDeps {
   onPlayerLaser?: (laser: HostPlayerLaser) => void
   /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
   getTurn?: () => TurnRef | null
-  /** RELÓGIO DA CAMPANHA: a hora do dia no mestre. O jogador só recebe o recorte (`clockForPlayer`). */
-  getClock?: () => number | null
+  /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
+  getPeriodo?: () => PeriodoLido | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
   onTableScreensChange?: (screens: number) => void
   /** Chamado NOVO de um jogador: o bipe. A linha na caixa "Chamados" a ponte já põe. */
@@ -691,8 +692,8 @@ export interface HostBridge extends RedeDosSons {
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
-  /** O relógio da campanha andou: snapshot na hora, com o período (e a visão da noite) novos. */
-  notifyClockChanged(): void
+  /** O mestre trocou Dia/Tarde/Noite: snapshot na hora, com o período (e a visão da noite) novos. */
+  notifyPeriodoChanged(): void
   /**
    * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
    * esperar. Snapshot imediato. Sala fechada: nada.
@@ -3659,7 +3660,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
         now: deps.now,
         getTurn: deps.getTurn,
-        getClock: deps.getClock,
+        getPeriodo: deps.getPeriodo,
         restoreSeats,
         restoreExploration,
         restoreMyNotes,
@@ -3787,8 +3788,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     },
 
-    notifyClockChanged() {
-      // Mesmo caminho da vez: o período e o raio da noite saem no snapshot de agora.
+    notifyPeriodoChanged() {
+      // Mesmo caminho da vez: o período e o raio da noite saem no snapshot de agora (uma mensagem por jogador).
       cancelPendingBroadcast()
       broadcastNow()
     },

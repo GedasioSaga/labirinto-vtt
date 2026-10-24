@@ -20,8 +20,6 @@ export interface FeatureFlags {
   painelPistas: boolean
   /** Aba Jogo: seção "Iniciativa". A ordem guardada continua no mapa. */
   iniciativa: boolean
-  /** Aba Jogo: "Relógio da campanha" (+1 hora / Próximo período). A hora guardada continua. */
-  relogioDaCampanha: boolean
   /** Aba Jogo: "Confronto nesta cena". */
   confronto: boolean
   /** "Andar do prédio" na janela Configurações do mapa. Prédio e andar guardados continuam valendo. */
@@ -40,7 +38,6 @@ export const FEATURES: Readonly<FeatureFlags> = {
   // Pedido do usuário em 06/10/2026: tirar da aba Jogo.
   painelPistas: false,
   iniciativa: false,
-  relogioDaCampanha: false,
   confronto: false,
   // Pedido do usuário em 07/10/2026: tirar da janela Configurações do mapa.
   andarDoPredio: false,
