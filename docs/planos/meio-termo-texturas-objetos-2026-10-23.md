@@ -307,3 +307,15 @@ Controle positivo: o ladrilho de antes REPROVA nas mesmas medidas (346 a 356 blo
 - NÃO VERIFICADO EM CELULAR (ordem do usuário de 24/10/2026: só PC). Não medido: o editor (um `Graphics` por móvel) e o build de produção.
 
 **Para o usuário ver, na folha** (`docs/design/objetos/provas/mt-mesas-folha-de-contato.png`, 12 quadros: as 3 formas nas 3 madeiras e a de 3 x 1, cada um com ANTES e DEPOIS no nível 1 e no nível 3, o tempo do depois embaixo): (1) lê como mesa a 1x (o quadro pequeno)? (2) as pernas à mostra nas quinas, como pernas abertas, servem, ou prefere a mesa com a frente aparecendo (as duas pernas da frente embaixo do tampo, como em vista 3/4)? (3) a borda clara está forte ou fraca?
+
+### MT9 medido (retoque Q, 24/10/2026, worktree `feat/mt9`)
+
+**O que entrou (só encanamento; a chave de obra continua DESLIGADA e nada muda na tela).** Quatro campos opcionais em `types/map.ts`: `RoomMeta.chamine?: true`, `Prop.mobiliaDesenho?: 'linhas'`, `MapData.vistaDosMoveis?: 'tres-quartos'` e `Wall.grade?: true`. Leitura estrita em `lib/mapFile.ts` (`roomChamineFromFile`, `gradeDoArquivo`, `vistaDosMoveisField`) e em `propMobiliaFromFile` (`normalizarDesenhoDoMovel`): só o valor válido entra, o resto sai sem a chave. Recorte do jogador (`lib/fogFilter.ts`): os campos do móvel passam pela PORTA ÚNICA `mobiliaParaJogador(prop)` em `lib/mobilia.ts` (o bloco que morava em `propForPlayer`, mais o desenho); a chaminé segue o `roof`, como o modelo e a cor; a grade passa por `gradeSoNaJanela`; a vista volta por `vistaDosMoveisParaJogador`. Store: `definirChamine` e `definirVistaDosMoveis` (`lib/mapFactory.ts`, `stores/mapStore.ts`), com desfazer. Desenho: `telhadoParaDesenhar(regiao, camada)` em `pixi/telhadosRenderer.ts` (o item ganhou `chamine?: true`, que o renderer ainda ignora), usado por `PixiCanvas` e `PlayerView`; `drawPropSilhouettes` ganhou o 5º parâmetro opcional `vistaDosMoveis` (assinatura compatível), que o editor (`PropsView.vistaDosMoveis`, repinta ao trocar a vista por uma assinatura da store) e o jogador (vista na chave `lastPropsKey`; chaminé na chave dos telhados) passam. `hostSession` NÃO mudou: o teste do pacote real mostrou os campos chegando (snapshot e delta levam o mapa inteiro).
+
+**Decisões não óbvias (a recomendada, registrada aqui):**
+
+- `mobiliaDesenho: 'linhas'` vale em QUALQUER tipo do catálogo (as peças novas também). Quais tipos o catálogo oferece em linhas é da MT12; a leitura só garante o tipo válido.
+- A vista dos móveis só vai ao jogador com ALGUM móvel (tipo do catálogo) no recorte dele: sem móvel à vista, com Objetos escondida dos jogadores, ou só objeto de imagem, o campo nem sai.
+- A grade só atravessa numa parede que é `janela` e sem porta; fora disso a parede chega sem ela (inclusive o pedaço de porta secreta, que já perdia a `janela`).
+- `definirChamine` não exige o teto ligado (o mestre pode marcar antes); o desenho e o recorte só a usam com o teto. Desligar TIRA o campo.
+- Trailer do commit: o sistema mandou `Claude Opus 5.5`, e ele venceu o pedido (`Sonnet 5.5`).
