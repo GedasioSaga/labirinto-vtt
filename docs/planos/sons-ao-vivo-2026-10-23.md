@@ -293,3 +293,11 @@ Só `desktop/src-tauri`: `net/conexao.rs` (novo), `net/server.rs`, `net/sons.rs`
 - Plano aprovado; começar pela F1 em paralelo com as camadas.
 - A TV da mesa também toca os sons (ver seção 2).
 - Fechamento (b) do `/media` (recomendado, opção TypeScript barata): o áudio da biblioteca de sons não entra mais em `<appData>/midia`; fica em `<aventura>/midia` e só sai por `/sons/{id}` (ver F5b).
+
+## F6 (YouTube), estado na pausa de 24/10
+
+- Pronto, SEM rodar (pausa do orquestrador antes da 1ª suíte; sem commit): `lib/sons/youtube/linkDoYoutube.ts` (8 formatos, recusa domínio falso, id torto, javascript:/data:, userinfo, porta, HTML; `segundosDoTempo`/`textoDoTempo`) e `linkDoYoutube.test.ts`.
+- Conferido: `tauri.conf.json` tem `"csp": null` e o Rust não manda CSP, Referrer-Policy nem X-Frame-Options: o iframe do YouTube NÃO pede mudança em `desktop/`.
+- Falta: `fimS` na fonte (`biblioteca.ts`); `apiDoYoutube.ts` (carrega `iframe_api` só no 1º toque depois do gesto), `playerEscondido.ts` (iframe nocookie fora da tela, sandbox `allow-scripts allow-same-origin`, `allow="autoplay; encrypted-media"`, referrer `strict-origin-when-cross-origin`), `motorDoYoutube.ts` (ENDED+loop volta a `inicioS`; 101/150/153 = `youtube-bloqueado`, 100 = `youtube-indisponivel`) e `aoVivo/motorComYoutube.ts` (roteia por `fonte.tipo`, conta loops dos dois lados).
+- Falta: `protocol.ts` (fonte youtube só com id validado e números), `hostBridge.ts` (liberar só arquivo), `ponteDosSons.ts`, `sonsAoVivoDoJogador.ts`, `carregadorDoMestre.ts`, "Colar link" na `PaginaSons`, e2e `task-sons-youtube.spec.ts` com stub, `e2e/medir-youtube.html` e a seção "F6 medição"; 3 testes antigos que esperam o YouTube recusado na rede mudam (`protocol.sons`, `playerConnection.sons`, `ponteDosSons`).
+- Parou em: escrever `fimS` em `biblioteca.ts`. Próximo passo ao retomar: rodar `vitest run src/lib/sons/youtube` pela fila (`suite-lock.cjs`), depois seguir a lista acima.
