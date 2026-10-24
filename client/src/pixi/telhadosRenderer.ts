@@ -3,7 +3,7 @@ import type { RegionPoint } from '../types/map'
 import { CURVAS } from '../cenario/revelacao/tempo'
 import { BEIRAL_PX } from '../lib/telhado/aguas'
 import { corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
-import { pintarTelhado } from '../texturas/telhado'
+import { comecarTelhado, pintarTelhado, type ImagemDoTelhado, type PinturaDoTelhado } from '../texturas/telhado'
 
 /*
  * TELHADOS DESENHADOS (pedido de 19/10/2026, protótipo aprovado em
@@ -27,6 +27,12 @@ import { pintarTelhado } from '../texturas/telhado'
  * do quadro que pediu. Enquanto ela não fica pronta o telhado sai chapado, na
  * cor base. A mesma (pontos, modelo, cor) nunca é pintada duas vezes enquanto
  * está guardada.
+ *
+ * A PALHA (MT6) custa mais por pixel: a textura de 1 milhão de pixels levava
+ * ~55 ms na CPU 1x e passava dos 200 ms na CPU 4x do jogador. Ela é pintada em
+ * fatias de `FATIA_DA_PINTURA_MS` (uma tarefa por fatia, linha a linha, com os
+ * mesmos bytes de pintar de uma vez: `comecarTelhado`). Telha e madeira
+ * continuam numa tarefa só, como antes.
  */
 
 export const DURACAO_DO_TELHADO_MS = 300
@@ -41,6 +47,8 @@ export const SOMBRA_DO_TELHADO_Y = 8
 const COR_DA_SOMBRA = 0x0a0c06
 /** ~50 ms de pintura no pior caso medido (madeira, 1024 × 1024 a escala 1). */
 export const MAXIMO_DE_PIXELS_DA_TEXTURA = 1024 * 1024
+/** Tempo de pintura por tarefa na palha em fatias (a mesma fatia do relevo, `drawRelevo.ts`). */
+export const FATIA_DA_PINTURA_MS = 8
 /** Texturas sem telhado nenhum usando que ficam guardadas (trocar de cor e voltar não repinta). */
 const TEXTURAS_GUARDADAS = 12
 /** Margem da imagem de `pintarTelhado` (beiral + 1 px). */
@@ -80,8 +88,14 @@ export interface OpcoesDosTelhados {
   movimento?: MovimentoDosTelhados
   /** Pinta e sobe para a GPU. Padrão: `pintarTelhado` num canvas. `null` = telhado vazio (polígono quebrado). */
   gerarTextura?: (points: readonly RegionPoint[], modelo: ModeloDoTeto, cor: string) => TexturaDoTelhado | null
-  /** Roda a pintura fora do quadro atual. Padrão: `setTimeout(…, 0)`, uma tarefa por textura. */
+  /** Roda a pintura fora do quadro atual. Padrão: `setTimeout(…, 0)`, uma tarefa por textura (por fatia, na palha). */
   agendar?: (tarefa: () => void) => void
+  /** Tempo de pintura por tarefa na palha. Padrão `FATIA_DA_PINTURA_MS`. */
+  fatiaMs?: number
+  /** O relógio da fatia, em ms. Padrão `performance.now()`. */
+  agoraDaPintura?: () => number
+  /** Sobe a imagem pintada para a GPU (sem `gerarTextura`). Padrão: um canvas 2D com mipmap. */
+  subirTextura?: (imagem: ImagemDoTelhado) => TexturaDoTelhado | null
 }
 
 export interface TelhadosRenderer {
@@ -174,13 +188,38 @@ export function gerarTexturaDoTelhado(points: readonly RegionPoint[], modelo: Mo
   const tela = document.createElement('canvas')
   const g = typeof ImageData === 'undefined' ? null : tela.getContext('2d')
   if (g === null) return null
-  const imagem = pintarTelhado(points, modelo, cor, escalaDaTexturaDoTelhado(points))
+  return texturaNoCanvas(tela, g, pintarTelhado(points, modelo, cor, escalaDaTexturaDoTelhado(points)))
+}
+
+/** Um canvas 2D para subir a imagem, ou `null` sem 2D (o jsdom dos testes): aí nem adianta pintar. */
+function canvas2D(): { tela: HTMLCanvasElement; g: CanvasRenderingContext2D } | null {
+  const tela = document.createElement('canvas')
+  const g = typeof ImageData === 'undefined' ? null : tela.getContext('2d')
+  return g === null ? null : { tela, g }
+}
+
+/** A imagem pintada no canvas e numa textura com mipmap. Imagem vazia: `null`. */
+function texturaNoCanvas(tela: HTMLCanvasElement, g: CanvasRenderingContext2D, imagem: ImagemDoTelhado): TexturaDoTelhado | null {
   if (imagem.largura === 0 || imagem.altura === 0) return null
   tela.width = imagem.largura
   tela.height = imagem.altura
   g.putImageData(new ImageData(new Uint8ClampedArray(imagem.pixels), imagem.largura, imagem.altura), 0, 0)
   const texture = new Texture({ source: new CanvasSource({ resource: tela, autoGenerateMipmaps: true, scaleMode: 'linear' }) })
   return { texture, origemX: imagem.origemX, origemY: imagem.origemY, escala: imagem.escala }
+}
+
+/** Imagem vazia (polígono quebrado) não sobe: o telhado fica no chapado. */
+function subirSeTiver(subir: (imagem: ImagemDoTelhado) => TexturaDoTelhado | null, imagem: ImagemDoTelhado): TexturaDoTelhado | null {
+  return imagem.largura === 0 || imagem.altura === 0 ? null : subir(imagem)
+}
+
+/** Pinta linha a linha até a fatia de `fatiaMs` acabar. Devolve `true` quando a imagem ficou pronta. */
+export function pintarUmaFatia(pintura: PinturaDoTelhado, fatiaMs: number, agora: () => number): boolean {
+  const inicio = agora()
+  for (;;) {
+    if (pintura.pintarLinhas(1)) return true
+    if (agora() - inicio >= fatiaMs) return false
+  }
 }
 
 function corNumerica(hex: string): number {
@@ -210,6 +249,10 @@ function spriteDa(textura: TexturaDoTelhado): Sprite {
 export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): TelhadosRenderer {
   const { movimento } = opcoes
   const gerar = opcoes.gerarTextura ?? gerarTexturaDoTelhado
+  /** Sem `gerarTextura` injetado, telha e madeira saem numa tarefa e a palha em fatias. */
+  const pintarDeVerdade = opcoes.gerarTextura === undefined
+  const fatiaMs = opcoes.fatiaMs ?? FATIA_DA_PINTURA_MS
+  const agoraDaPintura = opcoes.agoraDaPintura ?? (() => performance.now())
   const agendar = opcoes.agendar ?? ((tarefa: () => void) => void setTimeout(tarefa, 0))
   const relogio = movimento?.now ?? (() => performance.now())
   const telhados = new Map<string, Telhado>()
@@ -222,6 +265,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   /** Texturas sem uso, da mais velha para a mais nova. */
   const semUso = new Set<string>()
   const fila: string[] = []
+  /** A palha que está sendo pintada em fatias (a chave volta para a frente da fila entre uma fatia e outra). */
+  let emFatias: { chave: string; pintura: PinturaDoTelhado; subir: (imagem: ImagemDoTelhado) => TexturaDoTelhado | null } | null = null
   let agendado = false
   let mapaAtual: string | null = null
   let ligado = false
@@ -262,6 +307,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     const entrada = cache.get(chave)
     cache.delete(chave)
     pedidos.delete(chave)
+    if (emFatias?.chave === chave) emFatias = null
     if (entrada?.textura) entrada.textura.texture.destroy(true)
   }
 
@@ -285,13 +331,42 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
       const entrada = cache.get(chave)
       const pedido = pedidos.get(chave)
       if (entrada !== undefined && pedido !== undefined && entrada.textura === undefined) {
-        entrada.textura = gerar(pedido.points, pedido.modelo, pedido.cor)
+        const textura = pintarDeVerdade ? pintarDoPedido(chave, pedido) : gerar(pedido.points, pedido.modelo, pedido.cor)
+        if (textura === undefined) {
+          // Falta pintar: a mesma palha continua na próxima tarefa, antes das outras.
+          fila.unshift(chave)
+          agendarPintura()
+          return
+        }
+        entrada.textura = textura
         pintadas += 1
         pedidos.delete(chave)
         for (const t of telhados.values()) if (t.chave === chave) vestir(t, entrada.textura)
       }
     }
     agendarPintura()
+  }
+
+  /** Telha e madeira de uma vez (o caminho de antes); a palha uma fatia por chamada (`undefined` = ainda falta). */
+  function pintarDoPedido(chave: string, pedido: Pick<TelhadoParaDesenhar, 'points' | 'modelo' | 'cor'>): TexturaDoTelhado | null | undefined {
+    if (pedido.modelo !== 'palha') {
+      const subir = opcoes.subirTextura
+      if (subir === undefined) return gerarTexturaDoTelhado(pedido.points, pedido.modelo, pedido.cor)
+      return subirSeTiver(subir, pintarTelhado(pedido.points, pedido.modelo, pedido.cor, escalaDaTexturaDoTelhado(pedido.points)))
+    }
+    if (emFatias === null || emFatias.chave !== chave) {
+      let subir = opcoes.subirTextura
+      if (subir === undefined) {
+        const canvas = canvas2D()
+        if (canvas === null) return null
+        subir = (imagem) => texturaNoCanvas(canvas.tela, canvas.g, imagem)
+      }
+      emFatias = { chave, pintura: comecarTelhado(pedido.points, pedido.modelo, pedido.cor, escalaDaTexturaDoTelhado(pedido.points)), subir }
+    }
+    if (!pintarUmaFatia(emFatias.pintura, fatiaMs, agoraDaPintura)) return undefined
+    const { pintura, subir } = emFatias
+    emFatias = null
+    return subirSeTiver(subir, pintura.imagem)
   }
 
   /** Troca o chapado pela textura (ou fica no chapado, se a pintura deu vazio). */
@@ -528,6 +603,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
       limpar()
       destruido = true
       fila.length = 0
+      emFatias = null
       for (const chave of [...cache.keys()]) esquecerTextura(chave)
     },
   }

@@ -149,10 +149,6 @@
   padding-top: var(--lb-space-2);
 }
 
-.lb-telhado .gr-seg__op {
-  gap: 8px;
-}
-
 .lb-telhado__miniatura {
   display: block;
   width: 33px;
