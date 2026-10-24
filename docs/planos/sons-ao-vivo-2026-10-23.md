@@ -203,6 +203,44 @@ Achado da auditoria da F5b: `/media/{id}` serve `<appData>/midia` sem chave e se
 - **Fica aberto**: (1) cópias antigas: o áudio da biblioteca que uma versão anterior já pôs em `<appData>/midia` (importado neste computador ou trazido ao abrir) continua lá e continua servido por `/media` sem chave, até o usuário limpar ou até a F5d; (2) o som importado numa aventura nova antes da primeira gravação fica em `<appData>/midia`. Limpeza opcional proposta, NÃO feita: ao gravar, apagar de `<appData>/midia` o áudio que o `sons.json` cita, que já está inteiro e com hash conferido em `<aventura>/midia` e que nenhum pino de dança usa. É barata, mas apaga arquivo global do app e a lista da dança exige ler todas as cenas: pede decisão do usuário.
 - **A F5a ainda precisa** da rota `/sons/{id}` (chave, liberação por conexão, `net_sons_aventura`): sem ela o som da biblioteca não chega a jogador nem TV. A F5d continua necessária para fechar `/media` ao áudio da dança e às cópias antigas.
 
+## F5a (lado Rust dos sons ao vivo), 23/10
+
+Feita na branch `feat/sons-ao-vivo`, só em `desktop/src-tauri`: `net/sons.rs` (novo), `net/server.rs` (chave, rota, limpeza), `net/commands.rs` (`net_send` com `liberar`, `net_sons_aventura`), `lib.rs`, `tests/net_sons.rs` (novo). Contrato da seção 2 de `sons-f5-plano-tecnico-2026-10-23.md`.
+
+**Como ficou (o que o TypeScript confere)**
+
+- Primeiro frame de toda conexão (jogador e TV): `{"type":"midia.chave","chave":"<64 hex minúsculos>"}`, posto na fila antes de o mestre saber da conexão. 32 bytes de `OsRng`; se o SO não der aleatoriedade, a conexão segue sem chave e sem sons.
+- `GET /sons/{id}` com `X-Labirinto-Chave: <64 hex minúsculos>`. Ordem: método, `Host` (IP literal ou o túnel ativo), taxa e simultâneas (429), chave, liberação, caminho real, teto, assinatura e hash.
+- 200: `Content-Type` pela assinatura (`audio/mpeg|ogg|wav|mp4`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`, `Cross-Origin-Resource-Policy: same-origin`, `Vary: X-Labirinto-Chave`. Sem Range.
+- Toda recusa: o MESMO 404, corpo vazio, `nosniff`, `private, no-store`, `Vary` (teste compara byte a byte, menos `date`). Método que não é GET (HEAD também) e `Host` de fora também caem nele, não em 405.
+- 429 com `Retry-After` em segundos inteiros: 1 quando falta vaga simultânea; até 10 (o tempo até a busca mais velha sair da janela) na taxa por IP.
+- `net_send({ clientId, msg, liberar? })`: erros `midia-invalida` (id que não é áudio), `limite-de-liberacao` (mais de 32 no envio ou mais de 256 na conexão), `cliente-invalido` (conexão que o servidor não tem). Sem `liberar`, o de sempre. `net_sons_aventura({ pasta })`: `sem-sala`, `pasta-invalida`.
+
+**Decisões e divergências do plano**
+
+- **Pasta**: guardo `canonicalize(pasta)` + `midia` (não `canonicalize(pasta/midia)`), porque a aventura sem som ainda não tem `midia`. Na leitura, o caminho REAL do arquivo tem de ser EXATAMENTE `<raiz>/<id>`: link ou junção no arquivo ou na própria `midia` leva o caminho para outro lugar e dá 404. Mais estrito que `starts_with`.
+- **Pasta recusada tira a anterior** (a sala nunca segue servindo a aventura que o mestre deixou); a mesma pasta de novo não revoga; outra pasta ou `null` revoga tudo.
+- **Simultâneas por chave contam a chave como veio no cabeçalho**, antes de saber se vale: o 429 é decidido antes de olhar chave e id. Sem chave ou chave torta dividem um balde de 2. O 429 não conta na taxa.
+- **A vaga vive no corpo**: o 200 sai em pedaços de 256 KiB lidos e com o SHA-256 conferido ANTES do primeiro byte (o hash precisa do arquivo inteiro); cada pedaço é solto ao sair, e a vaga só volta quando o último sai ou o cliente desiste. Para isso entrou a dependência direta `futures-core 0.3` (já estava no `Cargo.lock` pelo axum; nada novo baixado). Pico de memória continua 6 x 15 MB.
+- **Tempo constante**: a comparação lê sempre os 32 bytes, sem sair no primeiro diferente, e a busca passa por todas as chaves da sala sem parar na que bate (teste conta as leituras). Escrito à mão, sem o crate `subtle`.
+- **Tabela de IPs com teto de 4096**: cheia, IP novo recebe 429 até a janela limpar.
+- **m4a estrito só em `/sons`**: caixa `ftyp` de 16 bytes ou mais, múltipla de 4, que cabe no arquivo, e marca `M4A `, `M4B `, `mp42` ou `isom` (as mesmas do TS). `/media` fica como está até a F5d.
+- `Cache-Control: private, no-store` no lugar de só `no-store`.
+- `tests/net_server.rs`: 2 testes passaram a ler o `midia.chave` antes da primeira mensagem.
+
+**Riscos que ficam**
+
+- TOCTOU entre `canonicalize` e `open` (trocar o arquivo por um link no meio): exige atacante local na pasta da aventura, e o hash igual ao id torna inútil (só confirma conteúdo que ele já conhece). Link físico idem.
+- Link de ARQUIVO no Windows pede privilégio: na máquina de teste o caso foi pulado (`symlink_file` recusado) e a junção da `midia` cobre o caminho real; o `symlink_metadata` recusa o link de arquivo antes.
+- A F5d (fechar `/media` ao áudio) continua pendente; o teste `achado_f5d_media_ainda_serve_audio_sem_chave` prova o buraco de hoje e deve ser invertido nela.
+
+**Evidência (23/10)**
+
+- `cargo clippy --all-targets --all-features -- -D warnings -W clippy::unwrap_used -W clippy::expect_used`: exit 0, sem aviso.
+- `cargo test --lib --test net_sons --test net_server`: 90 + 11 + 14 passaram, 0 falhas; `--test net_dev_proxy`: 4 passaram.
+- 16 mutações, uma por vez (aplicar, `cargo test --lib --test net_sons`, reverter), todas VERMELHAS: comparação que sai no 1º byte (`comparacao_le_sempre_os_32_bytes`, `busca_da_chave_passa_por_todas_as_conexoes`); chave ausente aceita (`oraculo_...`); id fora do liberado (`trocar_a_raiz_...`); link seguido (`symlink_e_juncao_nao_saem`); tipo pela extensão (`tipo_vem_da_assinatura_...`, `le_o_audio_em_pedacos_...`); 403 no não liberado e `no-store` faltando num caminho (`oraculo_...` e outros 5); taxa sem teto (`taxa_por_ip_...`); simultâneas sem teto (`simultaneas_duas_por_chave_...`); vaga solta antes do corpo (`simultaneas_seguram_a_vaga_ate_o_corpo_sair`); queda sem limpeza (`queda_e_kick_apagam_a_chave`); kick sem limpeza (`kick_esquece_a_conexao_dos_sons`); envio falho sem desfazer (`net_send_libera_antes_e_desfaz_se_falhar`); troca de aventura sem revogar (`trocar_a_raiz_...`); liberadas sem teto (`liberadas_por_conexao_tem_teto`); m4a com qualquer marca (`m4a_exige_ftyp_...`).
+- Não rodado aqui: o e2e `task-sons-ao-vivo-arquivo` (TypeScript, fica para o orquestrador) e a prova real `tauri dev` + navegador.
+
 ## Decisões do usuário em 23/10
 
 - Plano aprovado; começar pela F1 em paralelo com as camadas.
