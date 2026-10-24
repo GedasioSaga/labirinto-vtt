@@ -7,14 +7,16 @@
  * modelo (camada livre apagada devolve o item à padrão do tipo). Tudo, não só
  * o visível: esconder camada não remonta a pilha.
  *
- * Fora daqui (fatia 3b, antes da 8): fichas, pinos, salas, texto, chão,
- * raster, carimbos e telhados com camada escolhida continuam no container de
- * hoje — a ordem e a opacidade da camada deles valem, o nó próprio não.
+ * Fatia 3b: fichas, pinos e telhados também dividem. Fora daqui (fixado como
+ * "LIMITACAO ATUAL" em `paresDoEditor.test.ts`): salas (fundo, borda, nome),
+ * texto, chão, raster e carimbos com camada escolhida continuam no container
+ * de hoje — a ordem e a opacidade da camada deles valem, o nó próprio não.
  */
 import type { Drawing, MapData, Stair, Wall } from '../types/map'
 import type { ParDeFaixa } from '../lib/camadas/ordem'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
+import { roomHasRoof } from '../lib/roomOps'
 import { paresDosItens } from './pilhaDeCamadas'
 
 export function criarParesDoEditor(): (map: MapData) => ParDeFaixa[] {
@@ -57,6 +59,16 @@ export function criarParesDoEditor(): (map: MapData) => ParDeFaixa[] {
       }),
       ...daLista(map.props, modelo, () => paresDosItens('propsContainer', map.props, (p) => camadas.camadaDe('objeto', p))),
       ...daLista(map.lights, modelo, () => paresDosItens('lightsContainer', map.lights, (l) => camadas.camadaDe('luz', l))),
+      ...daLista(map.tokens, modelo, () => paresDosItens('tokensContainer', map.tokens, (t) => camadas.camadaDe('ficha', t))),
+      ...daLista(map.pins, modelo, () => paresDosItens('pinsContainer', map.pins, (p) => camadas.camadaDe('pino', p))),
+      // O telhado mora na sala (`RoomMeta.camadaDoTelhado`): só a sala com teto tem par.
+      ...daLista(map.regions, modelo, () =>
+        paresDosItens(
+          'telhadosContainer',
+          map.regions.filter((r) => roomHasRoof(r.room)),
+          (r) => camadas.camadaDe('telhado', r),
+        ),
+      ),
     ]
   }
 }

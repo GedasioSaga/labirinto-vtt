@@ -109,6 +109,8 @@ import { corDoPincel } from '../lib/camadasDoPincel'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
+/** CAMADAS: faixas cujo renderer é um só (cache por id) e só MUDA a vista de nó; o nó criado que sai devolve as vistas ao de hoje. */
+const FAIXAS_DE_VISTA_UNICA: ReadonlySet<string> = new Set(['tokensContainer', 'telhadosContainer'])
 /** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
  *  feita para aparecer sobre o chão) some no fundo 0x2b2b2b. */
 const OUTSIDE_FLOOR_GRID_COLOR = 0xd8d8d8
@@ -298,7 +300,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
+import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, noDoItem, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
 import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
@@ -1367,8 +1369,10 @@ export function PixiCanvas({
           no.label = plano.chave
           return no
         },
-        descartar: (no) => {
+        descartar: (no, plano) => {
           for (const soltar of aoDescartarNo) soltar(no)
+          // Fichas e telhados: a vista mora no renderer ÚNICO (cache por id) e só muda de nó; o nó que sai devolve as dele ao de hoje.
+          if (FAIXAS_DE_VISTA_UNICA.has(plano.faixa) && no.children.length > 0) baseDaFaixa(plano.faixa).addChild(...no.children)
           no.destroy({ children: true })
         },
         alfaProprio: alfaProprioDaFaixa,
@@ -1822,6 +1826,7 @@ export function PixiCanvas({
         pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
         el.dataset.ordemDaPilha = pilha.ordemDasCamadas()
+        el.dataset.ordemDosNos = pilha.ordemDosNos()
         // `formas`: algo mudou; os portões por faixa (`assinaturaDa`) dizem QUAL camada repinta.
         return { formas: pilha.assinatura() !== assinatura, moveis: pilha.assinaturaDa('propsContainer') !== moveis }
       }
@@ -2019,15 +2024,19 @@ export function PixiCanvas({
       /** TELHADOS no editor: o olho do mestre da camada Telhados e o atalho Transparente (`stores/telhadosNoEditor.ts`). */
       const paintTelhados = (regioes: Region[], mapaId: string) => {
         const { transparentes } = useTelhadosNoEditor.getState()
-        const ligados = contextoDeCamadas(sceneState().map).mestreVe('telhados')
+        const camadas = contextoDeCamadas(sceneState().map)
+        const ligados = camadas.mestreVe('telhados')
         telhadosContainer.visible = ligados
         // Opacidade da camada Telhados vezes o atalho "Transparente" (a pilha usa a mesma conta).
-        telhadosContainer.alpha = alfaDoTelhadoNoEditor(contextoDeCamadas(sceneState().map).alfa('telhados'), transparentes)
-        const salas = ligados ? regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3) : []
+        telhadosContainer.alpha = alfaDoTelhadoNoEditor(camadas.alfa('telhados'), transparentes)
+        // CAMADAS (fatia 3b): o telhado de camada escolhida desenha no nó dela, com o olho do mestre dela.
+        const daSala = (r: Region) => camadas.camadaDe('telhado', r)
+        const noDoTelhado = noDoItem(pilha.nosDaFaixa('telhadosContainer'), daSala)
+        const salas = regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3 && camadas.mestreVe(daSala(r)))
         telhadosRenderer.desenhar(
           salas.map((r) => {
             const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
-            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: telhadosContainer }
+            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r) }
           }),
           mapaId,
         )
@@ -2107,15 +2116,14 @@ export function PixiCanvas({
        */
       const paintPins = () => {
         const { map, selectedPinId } = sceneState()
-        // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
-        pinsRenderer.draw(
-          pinsContainer,
-          visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
-          selectedPinId,
-          unlinkedTravelPinIds(useAdventureStore.getState(), map),
-          pinSizeScale(camera.scale),
-          pinSizeFloorFor(map.pins, camera.scale),
-        )
+        const camadas = contextoDeCamadas(map)
+        const semPar = unlinkedTravelPinIds(useAdventureStore.getState(), map)
+        // CAMADAS (fatia 3b): o pino de camada escolhida desenha no nó dela, com renderer próprio.
+        const pinos = visiblePins(map.pins, map).filter((pin) => !pin.hidden)
+        for (const { no, itens } of distribuir(pinos, pilha.nosDaFaixa('pinsContainer'), (p: Pin) => camadas.camadaDe('pino', p))) {
+          // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
+          pinosPorNo.de(no).draw(no, itens, selectedPinId, semPar, pinSizeScale(camera.scale), pinSizeFloorFor(map.pins, camera.scale))
+        }
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
         if (marksGraphics.parent !== pinsContainer) pinsContainer.addChildAt(marksGraphics, 0)
@@ -2366,6 +2374,7 @@ export function PixiCanvas({
       const faixasDividasDaCamada: Partial<Record<ShapesLayer, readonly string[]>> = {
         drawings: ['drawingsGraphics', 'secretDrawingsGraphics', 'pathsGraphics', 'secretPathsGraphics'],
         lights: ['lightsContainer'],
+        pins: ['pinsContainer'],
       }
       // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
       // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
@@ -2423,9 +2432,12 @@ export function PixiCanvas({
         // A imagem exportada sai com as fichas paradas no lugar final.
         const remoteMoveIds = consumirMovimentosRemotos()
         const glide = exportScene === null ? { sceneId: cenaAberta(), remoteMoveIds } : undefined
+        // CAMADAS (fatia 3b): a ficha de camada escolhida desenha no nó dela, e some com o olho do mestre dela.
+        const camadasDasFichas = contextoDeCamadas(map)
+        const noDaFicha = noDoItem(pilha.nosDaFaixa('tokensContainer'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
         const changedLabels = tokensRenderer.draw(
           tokensContainer,
-          visibleTokens(map.tokens, map.hiddenLayers),
+          visibleTokens(map.tokens, map),
           map.grid,
           single?.kind === 'token' ? single.id : null,
           camera.scale,
@@ -2434,6 +2446,7 @@ export function PixiCanvas({
           glide,
           pinosDaCena(map),
           vidasDoMapa(map),
+          noDaFicha,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -2516,6 +2529,8 @@ export function PixiCanvas({
       const concealZonesRenderer = createConcealZonesRenderer()
       // O editor é o único que desenha o nome só do mestre ao lado do pino.
       const pinsRenderer = createPinsRenderer({ showNames: true })
+      const pinosPorNo = criarPorNo<Container, ReturnType<typeof createPinsRenderer>>(pinsContainer, pinsRenderer, () => createPinsRenderer({ showNames: true }), () => {})
+      aoDescartarNo.push((no) => pinosPorNo.soltar(no))
       const marksGraphics = new Graphics()
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
