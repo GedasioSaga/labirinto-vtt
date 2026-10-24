@@ -92,6 +92,7 @@ import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from '.
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
 import { Acoes } from './components/grimorio/Botao'
@@ -3205,6 +3206,9 @@ function App() {
       <div className="lb-editor__base" ref={editorBaseRef}>
         <Toolbar activeTool={activeTool} onSelectTool={armarPelaBarra} lastDrawingTool={lastDrawingTool} variantBindings={variantBindings} />
       </div>
+
+      {/* AVISO AO MESTRE (caminhos, F0): NPC andando sozinho parado por porta trancada. */}
+      <AvisoDaRotina />
 
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
           Ficha, Cena, Aventura e Acervo e o topo com as ações do mapa (a

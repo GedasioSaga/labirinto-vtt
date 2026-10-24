@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
+import { type AvisoDePortaTrancada, avisosDePortaTrancada, mesmosAvisos } from '../lib/avisosDaRotina'
 import { comPortasDoNpc } from '../lib/caminhamento/tiqueDosNpcs'
 import { adiarEsperas, calarFicha, chaveDaPatrulha, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, passosDaRota, seguirPatrulha, type PatrulhasAndando } from '../lib/patrulhaAndando'
 import { subscribeToOpenings } from './adventureStore'
@@ -24,6 +25,8 @@ import { motorDosNpcs, regarAgenda } from './rotinaAndandoStore'
  */
 interface PatrulhaAndandoState {
   andando: PatrulhasAndando
+  /** AVISO AO MESTRE: as portas trancadas que param quem patrulha, como na rotina andando. */
+  avisos: readonly AvisoDePortaTrancada[]
   /** Fichas que um jogador segura: ficam onde estão, com a patrulha ligada. */
   fixas: ReadonlySet<string>
   /** Fichas que o mestre arrasta agora no canvas: o arrasto manda, a patrulha espera. */
@@ -62,9 +65,16 @@ function acertarRelogio(andando: PatrulhasAndando): void {
   }
 }
 
+/** Os avisos de `andando`: a patrulha anda só no mapa aberto. */
+function avisosDaPatrulha(andando: PatrulhasAndando): AvisoDePortaTrancada[] {
+  return avisosDePortaTrancada('patrulha', andando, () => useMapStore.getState().map)
+}
+
 export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get) => {
   const trocar = (andando: PatrulhasAndando) => {
-    if (andando !== get().andando) set({ andando })
+    const avisos = avisosDaPatrulha(andando)
+    const mudouAviso = !mesmosAvisos(avisos, get().avisos)
+    if (andando !== get().andando || mudouAviso) set(mudouAviso ? { andando, avisos } : { andando })
     acertarRelogio(andando)
   }
   const largar = (ids: Iterable<string>) => {
@@ -73,6 +83,7 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
   }
   return {
     andando: new Map(),
+    avisos: [],
     fixas: new Set(),
     arrastadas: new Set(),
     ligar: (tokenId) => trocar(ligarPatrulha(get().andando, useMapStore.getState().map, tokenId, agoraDosNpcs())),
@@ -120,6 +131,15 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
 // passa por aqui: a ficha sai do mapa aberto e o próximo tique a desliga.
 const pararAoAbrir = subscribeToOpenings(() => usePatrulhaAndandoStore.getState().reset())
 
+// AVISO AO MESTRE: porta destrancada (ou trancada) no mapa aberto muda o aviso na hora, sem esperar tique.
+const seguirAsPortas = useMapStore.subscribe((estado, antes) => {
+  if (estado.map.walls === antes.map.walls) return
+  const { andando, avisos } = usePatrulhaAndandoStore.getState()
+  if (andando.size === 0) return
+  const novos = avisosDaPatrulha(andando)
+  if (!mesmosAvisos(novos, avisos)) usePatrulhaAndandoStore.setState({ avisos: novos })
+})
+
 // PAUSA GERAL: o mesmo acordo da rotina andando.
 const seguirAPausa = assinarPausa(
   () => acertarRelogio(usePatrulhaAndandoStore.getState().andando),
@@ -136,6 +156,7 @@ const seguirAPausa = assinarPausa(
 import.meta.hot?.accept(() => import.meta.hot?.invalidate())
 import.meta.hot?.dispose(() => {
   pararAoAbrir()
+  seguirAsPortas()
   seguirAPausa()
   if (relogio !== null) clearInterval(relogio)
   relogio = null
