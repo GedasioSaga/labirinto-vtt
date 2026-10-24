@@ -18,6 +18,7 @@ import { filterMapForPlayer, planOfWholeMap } from '../src/lib/fogFilter'
 import { deserializeMap, serializeMap } from '../src/lib/mapFile'
 import { MATERIAIS } from '../src/texturas/meioTermo/materiais'
 import type { MapData, Prop, Region, RegionPoint, TipoMobilia, Wall } from '../src/types/map'
+import { abrirAventuraDeMentira } from './helpers/mestreDeMentira'
 
 const GRADE = 64
 const COLUNAS = 22
@@ -221,6 +222,94 @@ test('jogador com a sala mobiliada em 3/4 e a obra ligada: tarefa longa < 200 ms
   console.log(`[medida] jogador 1440, obra ligada, 17 móveis. De cima: ${resumo(deCima)}. Em 3/4: ${resumo(tres)}`)
   expect(Math.max(0, ...tres.longas)).toBeLessThan(TETO_DA_TAREFA_LONGA_MS)
   expect(tres.p95).toBeLessThanOrEqual(TETO_DO_P95_DO_QUADRO_MS)
+})
+
+// ---------- o editor de verdade: o interruptor "Vista 3/4" ----------
+
+const PASTA_DO_MESTRE = 'C:/appdata/maps/map_mt11'
+/** Diferença de canal (0-255) a partir da qual o pixel "mudou". */
+const MUDOU = 8
+type Png = Awaited<ReturnType<Page['screenshot']>>
+
+function discoDoMestre(): Record<string, string> {
+  const aventura = { version: 1, id: 'adv_mt11', name: 'Taverna', startSceneId: 'scene_mt11', scenes: [{ id: 'scene_mt11', name: 'Taverna', file: 'map.json' }] }
+  return { [`${PASTA_DO_MESTRE}/map.json`]: serializeMap(salaMobiliada(undefined)), [`${PASTA_DO_MESTRE}/adventure.json`]: JSON.stringify(aventura, null, 2) }
+}
+
+async function fotoDoCanvas(page: Page): Promise<Png> {
+  return page.locator('canvas').first().screenshot({ animations: 'disabled' })
+}
+
+async function fotoParada(page: Page): Promise<Png> {
+  let anterior = await fotoDoCanvas(page)
+  for (let i = 0; i < 40; i += 1) {
+    await page.waitForTimeout(150)
+    const atual = await fotoDoCanvas(page)
+    if (atual.equals(anterior)) return atual
+    anterior = atual
+  }
+  return anterior
+}
+
+async function fracaoQueMuda(page: Page, a: Png, b: Png): Promise<number> {
+  return page.evaluate(
+    async ([pngA, pngB, mudou]) => {
+      const ler = async (png: string): Promise<ImageData> => {
+        const imagem = new Image()
+        imagem.src = `data:image/png;base64,${png}`
+        await imagem.decode()
+        const tela = document.createElement('canvas')
+        tela.width = imagem.width
+        tela.height = imagem.height
+        const g = tela.getContext('2d')
+        if (g === null) throw new Error('sem 2D')
+        g.drawImage(imagem, 0, 0)
+        return g.getImageData(0, 0, imagem.width, imagem.height)
+      }
+      const [x, y] = await Promise.all([ler(pngA), ler(pngB)])
+      if (x.width !== y.width || x.height !== y.height) return 1
+      let n = 0
+      for (let i = 0; i < x.data.length; i += 4) {
+        if (Math.max(Math.abs(x.data[i] - y.data[i]), Math.abs(x.data[i + 1] - y.data[i + 1]), Math.abs(x.data[i + 2] - y.data[i + 2])) >= mudou) n += 1
+      }
+      return n / (x.width * x.height)
+    },
+    [a.toString('base64'), b.toString('base64'), MUDOU] as const,
+  )
+}
+
+async function vistaNaStore(page: Page): Promise<string | null> {
+  return page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().map.vistaDosMoveis ?? null)
+}
+
+test('editor com a obra: "Vista 3/4" no painel do móvel muda a tela, grava no mapa e volta com Ctrl+Z; nenhuma tarefa de 200 ms', async ({ page }) => {
+  test.setTimeout(180_000)
+  await observarTarefasLongas(page)
+  await abrirAventuraDeMentira(page, discoDoMestre(), 'Taverna', 'MT11A', '/?obra=meio-termo')
+  await page.evaluate(async () => {
+    const store = (await import('/src/stores/mapStore.ts')).useMapStore.getState()
+    store.setActiveTool('select')
+    store.setSelection([{ kind: 'prop', id: 'mesa-9-7' }])
+  })
+  const interruptor = page.getByRole('checkbox', { name: 'Vista 3/4' })
+  await expect(interruptor).toBeVisible()
+  await expect(interruptor).not.toBeChecked()
+  const antes = await fotoParada(page)
+  const noClique = await page.evaluate(() => performance.now())
+  await interruptor.check()
+  await expect.poll(() => vistaNaStore(page)).toBe('tres-quartos')
+  const depois = await fotoParada(page)
+  const mudou = await fracaoQueMuda(page, antes, depois)
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => vistaNaStore(page)).toBeNull()
+  await expect(interruptor).not.toBeChecked()
+  const desfeita = await fotoParada(page)
+  const sobrou = await fracaoQueMuda(page, antes, desfeita)
+  const longas = await tarefasLongas(page, noClique)
+  console.log(`[medida] editor: a 3/4 muda ${(100 * mudou).toFixed(1)}% do canvas; depois do Ctrl+Z sobra ${(100 * sobrou).toFixed(2)}%; maior tarefa longa nos cliques ${Math.max(0, ...longas).toFixed(0)} ms`)
+  expect(mudou).toBeGreaterThan(0.01)
+  expect(sobrou).toBeLessThan(0.002)
+  expect(Math.max(0, ...longas)).toBeLessThan(TETO_DA_TAREFA_LONGA_MS)
 })
 
 test('prova: o jogador a 1440 com a sala mobiliada em 3/4', async ({ browser }) => {
