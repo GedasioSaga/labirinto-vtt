@@ -29,10 +29,10 @@
   <p>No editor (fatia 3, <code>pixi/pilhaDeCamadas.ts</code>) o <code>addChild</code> do mundo sai de <code>FAIXAS_EDITOR</code>. Cada faixa tem o container de hoje; mover camada só troca containers de lugar, sem repintar. Par (faixa, camada) que não é o de hoje (item noutra camada, camada livre) ganha nó próprio só enquanto tem itens. Faixa dividida (Paredes e Portas; Objetos e Decoração) se separa quando há camada entre as duas na lista ou quando as opacidades diferem. Opacidade é o <code>alpha</code> do nó; Telhados = opacidade × Transparente.</p>
 
   <h2>Da lista à pilha de nós</h2>
-  <p>Desde a fatia 4 o jogador monta a mesma pilha do editor, e desde as fatias 6 e 7 a lista vem do painel (13 padrão mais as livres, ver <a href="camadas-livres.html">camadas-livres</a>). A função <code>criarPilha</code> é uma só: a lista dá a ordem, cada item cai num par (faixa, camada) pela sua camada, e o par só vira nó quando tem itens. O jogador não recebe a lista do mestre: recebe o recorte do host, só com id e opacidade.</p>
+  <p>Desde a fatia 4 o jogador monta a mesma pilha do editor, e desde as fatias 6 e 7 a lista vem do painel (13 padrão mais as livres, ver <a href="camadas-livres.html">camadas-livres</a>). A função <code>criarPilha</code> é uma só: a lista dá a ordem, cada item cai num par (faixa, camada) pela sua camada, e o par só vira nó quando tem itens. Desde as fatias 3b e 4b (24/10/2026) fichas, pinos, luzes, portas, linhas e marcadores e telhados do editor desenham no nó da camada que escolheram, em vez de ficar no container de hoje; o que ainda não migrou está no nó tracejado. O jogador não recebe a lista do mestre: recebe o recorte do host, só com id e opacidade.</p>
   <svg viewBox="0 0 720 496" role="img" aria-labelledby="pilha-lista-title pilha-lista-desc">
     <title id="pilha-lista-title">Da lista de camadas à pilha de nós</title>
-    <desc id="pilha-lista-desc">A lista de camadas e a camada de cada item entram na pilha de nós, que desenha o mundo do editor e a tela do jogador. O jogador recebe a lista já recortada pelo host, só com id e opacidade. Itens de vários tipos ainda desenham no container de hoje (fatias 3b e 4b pendentes).</desc>
+    <desc id="pilha-lista-desc">A lista de camadas e a camada de cada item entram na pilha de nós, que desenha o mundo do editor e a tela do jogador. O jogador recebe a lista já recortada pelo host, só com id e opacidade. Sala, texto, chão, raster, carimbos e os telhados do jogador ainda desenham no container de hoje.</desc>
     <defs>
       <marker id="pl-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -57,9 +57,13 @@
     <rect x="196" y="196" width="80" height="12" rx="2" fill="#f5f5f5"/>
     <text x="236" y="205" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NÓS DO EDITOR</text>
     <!-- Pilha -> jogador -->
-    <path d="M360 256 V352 Q360 360 368 360 H528" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#pl-arrow)"/>
-    <rect x="408" y="340" width="80" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="448" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NÓS DO JOGADOR</text>
+    <path d="M400 256 V352 Q400 360 408 360 H528" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#pl-arrow)"/>
+    <rect x="416" y="340" width="80" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="456" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NÓS DO JOGADOR</text>
+    <!-- Pilha -> o que fica no container de hoje (tracejada: não vira nó) -->
+    <path d="M320 256 V352 Q320 360 312 360 H192" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#pl-arrow)"/>
+    <rect x="216" y="340" width="80" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="256" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEM NÓ PRÓPRIO</text>
     <!-- Recorte do host -> jogador (rede) -->
     <path d="M608 256 V320" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#pl-arrow-link)"/>
     <rect x="616" y="282" width="68" height="12" rx="2" fill="#f5f5f5"/>
@@ -74,14 +78,14 @@
     <text x="112" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">painel: 13 padrão + livres</text>
     <text x="112" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">olhos, cadeado, opacidade</text>
 
-    <!-- Itens com camada (3b/4b pendente) -->
+    <!-- Itens com camada (3b/4b feitas) -->
     <rect x="528" y="32" width="160" height="80" rx="6" fill="#f5f5f5"/>
-    <rect x="528" y="32" width="160" height="80" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
-    <rect x="536" y="40" width="88" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
-    <text x="580" y="49" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">3B/4B PENDENTE</text>
+    <rect x="528" y="32" width="160" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="536" y="40" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="556" y="49" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ITENS</text>
     <text x="608" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Itens com camada</text>
-    <text x="608" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">nó próprio: paredes, móveis,</text>
-    <text x="608" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">escadas e desenhos</text>
+    <text x="608" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">cada tipo de item cai no nó</text>
+    <text x="608" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">da camada que ele escolheu</text>
 
     <!-- Editor -->
     <rect x="32" y="176" width="160" height="80" rx="6" fill="#f5f5f5"/>
@@ -90,13 +94,13 @@
     <text x="64" y="193" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">EDITOR</text>
     <text x="112" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor (mundo)</text>
     <text x="112" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PixiCanvas · paresDoEditor</text>
-    <text x="112" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">data-ordem-da-pilha</text>
+    <text x="112" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">data-ordem-dos-nos</text>
 
-    <!-- Pilha de nós -->
+    <!-- Pilha de nós (foco) -->
     <rect x="280" y="176" width="160" height="80" rx="6" fill="#f5f5f5"/>
-    <rect x="280" y="176" width="160" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <rect x="288" y="184" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-    <text x="308" y="193" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PILHA</text>
+    <rect x="280" y="176" width="160" height="80" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="288" y="184" width="40" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+    <text x="308" y="193" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PILHA</text>
     <text x="360" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pilha de nós</text>
     <text x="360" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pilhaDeCamadas.ts</text>
     <text x="360" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ordem.ts · FAIXAS_*</text>
@@ -109,6 +113,15 @@
     <text x="608" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Recorte do host</text>
     <text x="608" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">fogFilter.ts · doJogador.ts</text>
     <text x="608" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">camadasDoJogador: id + alfa</text>
+
+    <!-- No container de hoje (limite da 3b/4b) -->
+    <rect x="32" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="320" width="160" height="80" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+    <rect x="40" y="328" width="48" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+    <text x="64" y="337" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LIMITE</text>
+    <text x="112" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">No container de hoje</text>
+    <text x="112" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sala, texto, chão, raster,</text>
+    <text x="112" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">carimbos; telhados (jogador)</text>
 
     <!-- Tela do jogador -->
     <rect x="528" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
@@ -124,27 +137,36 @@
     <text x="32" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
     <rect x="104" y="440" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
     <text x="128" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ENTRADA</text>
-    <rect x="216" y="440" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <text x="240" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
-    <rect x="312" y="440" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
-    <text x="336" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FRONTEIRA DO HOST</text>
-    <rect x="440" y="440" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
-    <text x="464" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PENDENTE (3B/4B)</text>
-    <rect x="564" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
-    <text x="588" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NAVEGADOR DO JOGADOR</text>
+    <rect x="184" y="440" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="208" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
+    <rect x="256" y="440" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="280" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO: A PILHA</text>
+    <rect x="360" y="440" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="384" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FRONTEIRA</text>
+    <rect x="444" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <text x="468" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TELA DO JOGADOR</text>
+    <rect x="560" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="584" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CONTAINER DE HOJE</text>
     <line x1="32" y1="469" x2="64" y2="469" stroke="#2e5aa8" stroke-width="1"/>
     <text x="72" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">REDE: PACOTE DO MAPA</text>
     <line x1="240" y1="469" x2="272" y2="469" stroke="#4f5d75" stroke-width="1"/>
     <text x="280" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NO MESMO PROGRAMA</text>
+    <line x1="448" y1="469" x2="480" y2="469" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
+    <text x="488" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NÃO VIRA NÓ PRÓPRIO</text>
   </svg>
 
   <ul>
-    <li>Um núcleo só: o jogador importa <code>criarPilha</code> e <code>paresDosItens</code> de <code>pixi/pilhaDeCamadas.ts</code>. O que muda é a lista de faixas (<code>FAIXAS_EDITOR</code> ou <code>FAIXAS_JOGADOR</code>) e de onde vêm o modelo e as opacidades: do mapa do mestre, no editor; de <code>camadasDoJogador</code>, no jogador.</li>
-    <li>Marcas que os testes de ponta a ponta leem: o canvas do editor leva <code>data-nos-da-pilha</code> (quantos nós tem o mundo) e <code>data-ordem-da-pilha</code> (a ordem das camadas); a tela do jogador leva <code>data-nos-da-pilha</code> e <code>data-alfas-da-pilha</code> (a opacidade de cada nó, em %).</li>
+    <li>Um núcleo só: o jogador importa <code>criarPilha</code> e <code>paresDosItens</code> de <code>pixi/pilhaDeCamadas.ts</code>. O que muda é a lista de faixas (<code>FAIXAS_EDITOR</code> ou <code>FAIXAS_JOGADOR</code>) e de onde vêm o modelo e as opacidades: do mapa do mestre, no editor; de <code>camadasDoJogador</code>, no jogador. Quem pinta recebe os itens já divididos por nó (<code>distribuir</code>); renderer com estado (luzes, pinos, portas, móveis) ganha um por nó (<code>criarPorNo</code>).</li>
+    <li>Fichas são a exceção: o renderer é um só e a vista de cada ficha muda de nó (<code>noDoItem</code>), para o zoom, o "levantar" e o pulso da vez seguirem únicos. <code>noDoItem</code> devolve <code>undefined</code> quando a faixa tem um nó só (caminho rápido). Nó descartado devolve os filhos ao container de hoje antes de ser destruído, senão destruiria a ficha viva.</li>
+    <li>Marcas que os testes de ponta a ponta leem, no elemento que guarda o canvas: <code>data-nos-da-pilha</code> (quantos nós tem o mundo; editor e jogador); <code>data-ordem-dos-nos</code> (faixa e camadas de cada nó, de baixo para cima, no formato <code>faixa:camada+camada,…</code>; editor e jogador; lida por <code>e2e/task-camadas-itens-no-no.spec.ts</code>); <code>data-ordem-da-pilha</code> (só as camadas de cada nó, sem a faixa; só no editor); <code>data-alfas-da-pilha</code> (a opacidade de cada nó, em %; só no jogador).</li>
     <li>Jogador, duas zonas fixas: a planta sob a névoa e, por cima dela, luz de longe, telhados, porta no telhado, pílulas, marcas, pinos e fichas. Reordenar a lista só permuta dentro de cada zona.</li>
     <li>Recorte do host: <code>camadasDoJogador</code> vai na ordem da lista, só com as camadas que o jogador vê e só quando algo difere do padrão. O nome nunca atravessa.</li>
-    <li>Pendente (3b e 4b), item com camada escolhida que ainda desenha no container de hoje, com a ordem e a opacidade da camada nativa dele. No editor: fichas, pinos, salas (fundo, borda e nome), texto, chão e raster, carimbos e telhados. No jogador: retângulo da porta e halo, portas no telhado, linhas e marcadores, luzes, fichas, pinos, salas, chão, carimbos e telhados. Dividem por nó hoje, no editor, paredes, portas, escadas, linhas e marcadores, desenhos, móveis e luzes; no jogador, o traço das paredes, os móveis, as escadas e os desenhos. Os testes "LIMITACAO ATUAL" de <code>pixi/paresDoEditor.test.ts</code> e <code>player/pilhaDoJogador.test.ts</code> ficam vermelhos quando a 3b e a 4b mudarem isso.</li>
-    <li>Limitação aceita da fatia 3: com a faixa dos móveis separada, o tapete de Decoração desenha acima das cadeiras de Objetos e o clique segue a ordem de <code>map.props</code>, então pega o móvel escondido por baixo do visível. O conserto vai junto da 3b.</li>
+    <li>Último avistamento (<code>player/lastSeen.ts</code>): a memória guarda a camada de cada ficha vista (<code>LastSeenMemory.camadas</code>). Camada que sai da lista do jogador apaga o contorno daquela ficha. Pegadinha: num mapa v2 com uma camada padrão escondida e o resto padrão a 100%, o host não manda a lista (<code>fogFilter.camadasDoJogador.test.ts</code> fixa isso); o jogador não sabe da camada e o contorno fica. Livre que esvazia também sai da lista, então a última ficha dela, ao sair da visão, perde o contorno. Os contornos em si continuam no container de hoje (ordem e opacidade de Fichas).</li>
+    <li>Feito na 3b e na 4b. Editor: fichas (<code>tokensContainer</code>; livre escondida do mestre some, porque agora esconde pelo mapa), pinos (<code>pinsContainer</code>) e telhados (<code>telhadosContainer</code>; a sala com <code>camadaDoTelhado</code> vai ao nó dela). Jogador: fichas (<code>tokens</code>), pinos (<code>pins</code>), luzes de perto (<code>lights</code>) e de longe (<code>farLights</code>), portas (retângulo em <code>doors</code>, halo em <code>doorHints</code> e a cópia sobre o telhado em <code>portasNoTelhado</code>), linhas e marcadores do chão. Os renderers por nó do jogador são <code>luzesPorNo</code>, <code>pinosPorNo</code>, <code>portasPorNo</code> e <code>portasNoTelhadoPorNo</code>. Sem camada escolhida nada muda: um nó por faixa, a mesma lista.</li>
+    <li>Ficam no container de hoje, fixados como "LIMITACAO ATUAL" em <code>pixi/paresDoEditor.test.ts</code> e <code>player/pilhaDoJogador.test.ts</code> (os testes ficam vermelhos quando alguém mudar isso): salas (fundo, borda e nome), texto, chão, raster e carimbos, no editor e no jogador; e os telhados do jogador, porque as máscaras do espiar (<code>roofCut</code>, <code>peekMask</code>) estão presas ao container de hoje.</li>
+    <li>Já dividiam por nó antes da 3b e da 4b: no editor, paredes, portas, escadas, linhas e marcadores, desenhos, móveis e luzes; no jogador, o traço das paredes, os móveis, as escadas e os desenhos.</li>
+    <li>Custo medido no editor (mapa denso padrão, mediana de 5, ms por quadro, antes e depois): pan 9,93 para 10,29 (+3,6%), zoom 13,78 para 15,17 (+10,1%), repintura 13,13 para 13,38 (+1,9%), visibilidade 14,50 para 14,54 (+0,3%); tarefa longa máxima de 50 ms. Não verificado: CPU no jogador e qualquer coisa em celular (ordem do usuário em 24/10: foco só no PC).</li>
+    <li>Limitação aceita da fatia 3: com a faixa dos móveis separada, o tapete de Decoração desenha acima das cadeiras de Objetos e o clique segue a ordem de <code>map.props</code>, então pega o móvel escondido por baixo do visível. O plano prometia o conserto junto da 3b; o registro de 24/10 não diz se entrou. Não verificado.</li>
   </ul>
 
   <h2>Editor</h2>
@@ -227,7 +249,7 @@
     <text x="376" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FIXO: DIVIDE AS DUAS ZONAS</text>
   </svg>
 
-  <footer>Fontes: client/src/lib/camadas/ordem.ts · client/src/pixi/pilhaDeCamadas.ts · client/src/pixi/paresDoEditor.ts · client/src/pixi/PixiCanvas.tsx (addChild ~1263-1345; data-nos-da-pilha, data-ordem-da-pilha) · client/src/player/PlayerView.tsx (addChild ~3055-3138; data-nos-da-pilha, data-alfas-da-pilha) · client/src/player/pilhaDoJogador.ts · client/src/lib/camadas/doJogador.ts · client/src/lib/fogFilter.ts · plano docs/planos/camadas-fase3-2026-10-22.md</footer>
+  <footer>Fontes: client/src/lib/camadas/ordem.ts · client/src/pixi/pilhaDeCamadas.ts (ordemDosNos, noDoItem, distribuir, criarPorNo) · client/src/pixi/paresDoEditor.ts · client/src/pixi/PixiCanvas.tsx (addChild ~1263-1345; data-nos-da-pilha, data-ordem-da-pilha, data-ordem-dos-nos) · client/src/player/PlayerView.tsx (addChild ~3055-3138; data-nos-da-pilha, data-ordem-dos-nos, data-alfas-da-pilha; luzesPorNo, pinosPorNo, portasPorNo, portasNoTelhadoPorNo) · client/src/player/pilhaDoJogador.ts · client/src/player/lastSeen.ts · client/src/lib/camadas/doJogador.ts · client/src/lib/fogFilter.ts · plano docs/planos/camadas-fase3-2026-10-22.md (seção Fatias 3b e 4b)</footer>
 </main>
 </body>
 </html>
