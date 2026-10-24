@@ -55,6 +55,7 @@ import { normalizarCorDaPorta } from './corDaPorta'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
+import { lerAmbientePorPeriodo, lerPeriodo, lerVisaoPorPeriodo } from './periodo'
 import { isDaVista } from './espiar'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
@@ -949,6 +950,11 @@ function deserializeMapFields(json: string): MapData {
     ...arrivalTextField(parsed.textoChegada),
     // RELÓGIO DA CAMPANHA: campo NOVO e OPCIONAL, mesmo padrão de `worldMap`.
     ...(parsed.externa === true ? { externa: true } : {}),
+    // DIA/TARDE/NOITE: campo NOVO e OPCIONAL. 'manha' antigo abre como 'dia';
+    // valor torto abre sem o campo, e o resto do mapa abre igual (`lerPeriodo`).
+    ...periodoFixoField(parsed.periodoFixo),
+    // Tinta de ambiente e visão por período: campos NOVOS e OPCIONAIS; parte torta sai (`lib/periodo.ts`).
+    ...ambienteEVisaoPorPeriodoFields(parsed.ambientePorPeriodo, parsed.visaoPorPeriodo),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
@@ -962,6 +968,22 @@ function deserializeMapFields(json: string): MapData {
 function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
   const textoChegada = readArrivalText(raw)
   return textoChegada === undefined ? {} : { textoChegada }
+}
+
+/** `periodoFixo` só entra no mapa quando o arquivo traz um período: mapa de antes não ganha campo. */
+function periodoFixoField(raw: unknown): Pick<MapData, 'periodoFixo'> {
+  const periodoFixo = lerPeriodo(raw)
+  return periodoFixo === undefined ? {} : { periodoFixo }
+}
+
+/** DIA/TARDE/NOITE: cada campo só entra com alguma parte lida — mapa de antes não ganha chave. */
+function ambienteEVisaoPorPeriodoFields(ambiente: unknown, visao: unknown): Pick<MapData, 'ambientePorPeriodo' | 'visaoPorPeriodo'> {
+  const ambientePorPeriodo = lerAmbientePorPeriodo(ambiente)
+  const visaoPorPeriodo = lerVisaoPorPeriodo(visao)
+  return {
+    ...(ambientePorPeriodo === undefined ? {} : { ambientePorPeriodo }),
+    ...(visaoPorPeriodo === undefined ? {} : { visaoPorPeriodo }),
+  }
 }
 
 /** `andar` só entra no mapa quando o arquivo traz prédio e rótulo válidos: mapa de antes não ganha campo. */

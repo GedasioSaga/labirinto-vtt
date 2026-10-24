@@ -1,5 +1,6 @@
-import type { MapData, ModeloDeCamadas } from '../types/map'
+import type { MapData, ModeloDeCamadas, Periodo } from '../types/map'
 import { lerModeloDeCamadas } from './camadas/arquivo'
+import { lerPeriodo } from './periodo'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
@@ -94,6 +95,13 @@ export interface Adventure {
    * chave. Aditivo: `ADVENTURE_VERSION` não muda.
    */
   camadas?: ModeloDeCamadas
+  /**
+   * DIA/TARDE/NOITE: o período da sessão, guardado na aventura (decisão D6).
+   * Ausente = dia — é assim que toda aventura antiga abre, e grava sem a
+   * chave. Cada cena decide se o segue (`lib/periodo.ts`). 'manha' antigo
+   * abre como 'dia'; valor torto sai. Aditivo: `ADVENTURE_VERSION` não muda.
+   */
+  periodo?: Periodo
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -255,6 +263,8 @@ export function parseAdventure(json: string): Adventure {
   const personagens = personagensDoArquivo(parsed.personagens)
   // CAMADAS: idem — sem a chave, a aventura continua sem ela; entrada torta sai.
   const camadas = lerModeloDeCamadas(parsed.camadas)
+  // PERÍODO DA SESSÃO: idem; 'manha' antigo abre como 'dia' e nunca volta ao arquivo.
+  const periodo = lerPeriodo(parsed.periodo)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
@@ -266,6 +276,7 @@ export function parseAdventure(json: string): Adventure {
     ...(sistemaDeRpg === undefined ? {} : { sistemaDeRpg }),
     ...(personagens === undefined ? {} : { personagens }),
     ...(camadas === undefined ? {} : { camadas }),
+    ...(periodo === undefined ? {} : { periodo }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)
