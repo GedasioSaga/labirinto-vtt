@@ -7,6 +7,9 @@ import type { Camera } from './world'
 import { assinarTexturas, texturaDoCatalogo } from '../texturas/catalogo'
 import { LADO_DO_LADRILHO, pixelsEmFatias } from '../texturas/ladrilhos'
 import { rasterizarTexturas } from './texturasRaster'
+import { meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
+import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoEmPedacos } from './pedacosDoChao'
 
 /**
  * TEXTURAS no palco (`lib/texturas.ts`): acima do chão das regiões e dos
@@ -57,6 +60,10 @@ export interface OpcoesDasTexturas {
   rasterizar?: (plano: PlanoDasTexturas, cancelado: () => boolean) => Promise<HTMLCanvasElement[] | null>
   ladrilho?: (id: string, importada: TexturaImportada | undefined, cancelado: () => boolean) => Promise<Texture | null>
   mascara?: (tela: HTMLCanvasElement) => Texture
+  /** Meio-Termo (MT7): os pixels de um ladrilho pronto (padrão: lidos da tela dele); `null` = a camada fica só com o ladrilho repetido. */
+  pixelsDoLadrilho?: (ladrilho: Texture) => ImagemDoLadrilho | null
+  /** Meio-Termo (MT7): o cache dos pedaços do chão (os testes passam um com fila e teto controlados). */
+  cacheDoChao?: CacheDoChao
 }
 
 export interface TexturasRenderer {
@@ -126,8 +133,25 @@ export function soltarPintura(alvo: Container): void {
     } else if (filho instanceof Sprite && !filho.destroyed) {
       filho.texture.destroy(true)
       filho.destroy()
+    } else {
+      // Meio-Termo (MT7): o chão em pedaços solta os pedaços (o cache os guarda) e o ladrilho por baixo.
+      chaoDoGrupo(filho)?.soltar()
     }
   }
+}
+
+/** Os pixels de um ladrilho pronto, lidos da tela dele (o do catálogo e o importado nascem numa tela 2D). */
+function pixelsDaTelaDoLadrilho(ladrilho: Texture): ImagemDoLadrilho | null {
+  const tela: unknown = ladrilho.source.resource
+  if (typeof HTMLCanvasElement === 'undefined' || !(tela instanceof HTMLCanvasElement) || tela.width !== tela.height || tela.width === 0) return null
+  const g = tela.getContext('2d')
+  if (g === null) return null
+  return { lado: tela.width, pixels: g.getImageData(0, 0, tela.width, tela.height).data }
+}
+
+/** Marca no relógio da página (o e2e mede a primeira pintura e o chão pronto por elas). */
+function marcar(nome: string): void {
+  if (typeof performance !== 'undefined' && typeof performance.mark === 'function') performance.mark(nome)
 }
 
 /**
@@ -208,12 +232,16 @@ function mesmosItens<T>(a: readonly T[], b: readonly T[]): boolean {
 interface Recortavel {
   repetida: TilingSprite
   caixa: Caixa
+  /** Meio-Termo: os pedaços do chão por cima da repetida (que vira o placeholder). */
+  chao?: ChaoEmPedacos
 }
 
-/** O que está no palco (ou saindo): a entrada, a versão do catálogo e, quando preciso, a assinatura das formas. */
+/** O que está no palco (ou saindo): a entrada, a versão do catálogo, o estilo e, quando preciso, a assinatura das formas. */
 interface Pedida {
   entrada: EntradaDasTexturas
   versao: number
+  /** `versaoDoEstilo()` da pintura: ligar ou desligar o Meio-Termo pinta de novo. */
+  estilo: string
   formas?: string
 }
 
@@ -234,7 +262,7 @@ function mesmasImportadas(a: readonly TexturaImportada[], b: readonly TexturaImp
  */
 function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): boolean {
   const a = pedida.entrada
-  if (a.cena !== b.cena || pedida.versao !== versaoB) return false
+  if (a.cena !== b.cena || pedida.versao !== versaoB || pedida.estilo !== versaoDoEstilo()) return false
   if (a.mapa.width !== b.mapa.width || a.mapa.height !== b.mapa.height || a.mapa.grid !== b.mapa.grid) return false
   if (!mesmasImportadas(a.importadas ?? SEM_ITENS, b.importadas ?? SEM_ITENS)) return false
   if (a.passos !== b.passos && assinaturaDasTexturas(a.passos) !== assinaturaDasTexturas(b.passos)) return false
@@ -257,6 +285,11 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   const rasterizar = opcoes.rasterizar ?? rasterizarTexturas
   const ladrilho = opcoes.ladrilho ?? ladrilhoPadrao
   const mascaraDe = opcoes.mascara ?? ((tela: HTMLCanvasElement) => Texture.from(tela, true))
+  const pixelsDoLadrilho = opcoes.pixelsDoLadrilho ?? pixelsDaTelaDoLadrilho
+  /** Meio-Termo: os pedaços do chão, criados na primeira pintura com a chave ligada. */
+  let cacheDoChao: CacheDoChao | null = opcoes.cacheDoChao ?? null
+  /** Os pixels lidos de cada ladrilho pronto (uma leitura por ladrilho). */
+  const pixelsLidos = new WeakMap<Texture, ImagemDoLadrilho | null>()
 
   /** Ladrilhos já feitos, por id (a importada pelo id, que é único por imagem). */
   const ladrilhos = new Map<string, Promise<Texture | null>>()
@@ -371,6 +404,22 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   }
 
   /**
+   * Meio-Termo (MT7): o chão de uma textura neste mapa, lido dos pixels do
+   * ladrilho pronto. `null` = sem pixels (ladrilho de teste, tela sem 2D): a
+   * camada fica só com o ladrilho repetido, como hoje.
+   */
+  function chaoDaCamada(id: string, ladrilho: Texture, lado: number): { chave: string; chao: ChaoDaTextura } | null {
+    let pixels = pixelsLidos.get(ladrilho)
+    if (pixels === undefined) {
+      pixels = pixelsDoLadrilho(ladrilho)
+      pixelsLidos.set(ladrilho, pixels)
+    }
+    if (pixels === null) return null
+    const chao: ChaoDaTextura = { ladrilho: pixels, ladoNoMundo: lado, semente: sementeDoChao(id), torcao: torcaoDaTextura(texturaDoCatalogo(id)) }
+    return { chave: `${id}#${versaoDoCatalogo}#${lado}#${versaoDoEstilo()}`, chao }
+  }
+
+  /**
    * Cada camada do plano (a textura repetida vista pela máscara dela) dentro
    * de `alvo`, recortada em `vista` (`null` = a pintura inteira, a do PNG).
    * Devolve cada repetida com a caixa da pintura dela, para recortar de novo.
@@ -381,6 +430,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     entrada: EntradaDasTexturas,
     { ladrilhoDe, mascaras }: { ladrilhoDe: Map<string, Texture | null>; mascaras: HTMLCanvasElement[] },
     vista: Caixa | null,
+    meioTermo = false,
   ): Recortavel[] {
     const montadas: Recortavel[] = []
     plano.camadas.forEach((c, i) => {
@@ -396,6 +446,16 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       const mascara = new Sprite(mascaraDe(tela))
       mascara.position.set(c.caixa.minX, c.caixa.minY)
       mascara.scale.set(1 / plano.escala)
+      const doChao = meioTermo ? chaoDaCamada(c.textura, tile, lado) : null
+      if (doChao !== null) {
+        // Meio-Termo: os pedaços por posição por cima da repetida, os dois pela mesma máscara.
+        cacheDoChao ??= new CacheDoChao()
+        const chao = montarChaoEmPedacos({ cache: cacheDoChao, chaveDoChao: doChao.chave, chao: doChao.chao, caixa: c.caixa, repetida, vista, aoFicarPronto: () => marcar('chao:pronto') })
+        alvo.addChild(chao.grupo, mascara)
+        chao.grupo.setMask({ mask: mascara, channel: 'alpha' })
+        montadas.push({ repetida, caixa: c.caixa, chao })
+        return
+      }
       alvo.addChild(repetida, mascara)
       repetida.setMask({ mask: mascara, channel: 'alpha' })
       montadas.push({ repetida, caixa: c.caixa })
@@ -415,8 +475,9 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const pronto = await prepararPlano(plano, entrada, cancelado)
     if (pronto === null) return
     limparPalco()
-    noPalco = montarPlano(camada, plano, entrada, pronto, vista)
+    noPalco = montarPlano(camada, plano, entrada, pronto, vista, meioTermoLigado())
     cenaNoPalco = entrada.cena
+    marcar('texturas:no-palco')
     mudarVisibilidade(camada.children.length > 0)
     opcoes.aoGerar?.({ ms: performance.now() - inicio, camadas: plano.camadas.length, pixels: pixelsDoPlano(plano) })
   }
@@ -441,7 +502,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const cenaNova = cenaNoPalco !== entrada.cena
     // Cena nova: a pintura da anterior sai NA HORA (não fica por cima do mapa novo).
     if (cenaNova) limparPalco()
-    pedida = { entrada, versao: versaoDoCatalogo }
+    pedida = { entrada, versao: versaoDoCatalogo, estilo: versaoDoEstilo() }
     cancelarEspera()
     geracao += 1
     const minha = geracao
@@ -472,7 +533,16 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
         alvo.destroy()
         return null
       }
-      montarPlano(alvo, plano, entrada, pronto, null)
+      const montadas = montarPlano(alvo, plano, entrada, pronto, null, meioTermoLigado())
+      // Meio-Termo: a imagem só sai com os pedaços da pintura inteira prontos (desligado, nada a esperar).
+      if (montadas.some((m) => m.chao !== undefined)) {
+        await Promise.all(montadas.map((m) => m.chao?.pronto()))
+        if (destruido) {
+          soltarPintura(alvo)
+          alvo.destroy()
+          return null
+        }
+      }
       return alvo
     } catch (erro: unknown) {
       // Como o `gerarAParte` do relevo: o PNG sai sem a textura em vez de não sair (o palco faz o mesmo no `.catch` do `pintar`).
@@ -489,7 +559,10 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     pintarAParte,
     ajustarAVista: (agora) => {
       vista = agora
-      for (const { repetida, caixa } of noPalco) recortarNaVista(repetida, caixa, vista)
+      for (const { repetida, caixa, chao } of noPalco) {
+        recortarNaVista(repetida, caixa, vista)
+        chao?.ajustar(vista)
+      }
     },
     ladrilhoParaPrevia: (id, importadas) => {
       if (destruido) return null
@@ -508,6 +581,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       for (const promessa of ladrilhos.values()) void promessa.then((t) => t?.destroy(true))
       ladrilhos.clear()
       prontos.clear()
+      // Os pedaços do chão já foram soltos pelo `limparPalco`: o cache destrói todos.
+      cacheDoChao?.destruir()
       camada.destroy()
     },
   }
