@@ -221,6 +221,38 @@ describe('sons ao vivo do jogador: toca o que o mestre manda', () => {
     sons.desinstalar()
   })
 
+  it('YouTube (F6): o motor recebe só o id validado e o trecho; id torto nem chega ao motor', () => {
+    const sockets: FakeSocket[] = []
+    const conexao = createPlayerConnection({ url: 'ws://h/ws', code: 'ABC123', name: 'Ana', storage: null, createSocket: () => sockets[sockets.push(new FakeSocket()) - 1] })
+    const socket = sockets[0]
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p', resumeToken: 't', name: 'Ana' })
+    const tocados: unknown[] = []
+    const sons = instalarSonsAoVivo(conexao, {
+      destravarNoPrimeiroGesto: () => () => undefined,
+      criarMotor: () => ({
+        tocar: (instancia, fonte, opcoes) => {
+          tocados.push({ instancia, fonte, opcoes })
+          return { aceito: true }
+        },
+        parar: () => undefined,
+        pararTudo: () => undefined,
+        mudarVolume: () => undefined,
+        precarregar: () => undefined,
+        assinar: () => () => undefined,
+        desmontar: () => undefined,
+      }),
+    })
+    socket.receive({ type: 'som.tocar', instancia: 'som-y', fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ', inicioS: 42, fimS: 90, url: 'https://youtu.be/x' }, volume: 0.5, loop: true })
+    socket.receive({ type: 'som.tocar', instancia: 'som-z', fonte: { tipo: 'youtube', video: 'https://youtu.be/dQw4w9WgXcQ' }, volume: 0.5, loop: false })
+    socket.receive({ type: 'som.tocar', instancia: 'som-s', fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ' }, volume: 1, loop: false })
+    expect(tocados).toEqual([
+      { instancia: 'som-y', fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ', inicioS: 42, fimS: 90 }, opcoes: { loop: true, volumeDoEfeito: 0.5 } },
+      { instancia: 'som-s', fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ' }, opcoes: { loop: false, volumeDoEfeito: 1 } },
+    ])
+    sons.desinstalar()
+  })
+
   it('efeito curto que esperou o gesto 2 s é descartado e vira "sem-gesto"; o toque depois não o toca', async () => {
     const s = sala()
     s.tocar('som-grito', s.arquivo(2, 1), false)

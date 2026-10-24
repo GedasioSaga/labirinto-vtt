@@ -86,7 +86,7 @@ describe('parseSomHostMessage: entrada torta é recusada inteira, sem exceção'
     ['fonte null', { ...TOCAR, fonte: null }],
     ['fonte em texto', { ...TOCAR, fonte: `midia:${ID}` }],
     ['fonte lista', { ...TOCAR, fonte: [ID] }],
-    ['fonte de tipo inesperado (youtube é da F6)', { ...TOCAR, fonte: { tipo: 'youtube', video: 'dQw4w9WgXcQ' } }],
+    ['youtube com o link no lugar do id (F6: só o id de 11 caracteres)', { ...TOCAR, fonte: { tipo: 'youtube', video: 'https://youtu.be/dQw4w9WgXcQ' } }],
     ['fonte de tipo desconhecido', { ...TOCAR, fonte: { tipo: 'url', midia: ID } }],
     ['fonte só com ref (forma do disco do mestre)', { ...TOCAR, fonte: { tipo: 'arquivo', ref: `midia:${ID}` } }],
     ['midia com prefixo midia:', { ...TOCAR, fonte: { tipo: 'arquivo', midia: `midia:${ID}` } }],

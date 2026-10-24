@@ -117,16 +117,24 @@ describe('criarPonteDosSons', () => {
     expect(motor.tocar).not.toHaveBeenCalled()
   })
 
-  it('sem sala: só o mestre ouve; YouTube ainda não vai pela rede (F6)', () => {
+  it('sem sala: só o mestre ouve; o YouTube vai pela rede só como id do vídeo e trecho (F6)', () => {
     const motor = motorFalso()
     const semSala = criarPonteDosSons({ motor, rede: () => null })
     expect(semSala.tocar(efeito('som_1'), { tipo: 'todos' }, { local: true })).toEqual({ local: { aceito: true }, rede: null })
     const video = 'dQw4w9WgXcQ'
     if (!ehVideoDoYoutube(video)) throw new Error('id de vídeo válido')
     const rede = redeFalsa()
-    const comSala = criarPonteDosSons({ motor, rede: () => rede })
-    comSala.tocar({ ...efeito('som_yt'), fonte: { tipo: 'youtube', video } }, { tipo: 'todos' }, { local: true })
-    expect(rede.tocarSomAoVivo).not.toHaveBeenCalled()
+    const comSala = criarPonteDosSons({ motor, rede: () => rede, novaInstancia: apelidos() })
+    comSala.tocar({ ...efeito('som_yt'), nome: 'Bardo da Taverna', fonte: { tipo: 'youtube', video, inicioS: 42, fimS: 90 } }, { tipo: 'todos' }, { local: true })
+    expect(rede.tocarSomAoVivo).toHaveBeenCalledWith(expect.objectContaining({ instancia: 'apelido-1', fonte: { tipo: 'youtube', video, inicioS: 42, fimS: 90 } }), { tipo: 'todos' })
+    // Nunca o link nem o nome: só o id de 11 caracteres atravessa.
+    expect(JSON.stringify(rede.tocarSomAoVivo.mock.calls)).not.toMatch(/youtube\.com|youtu\.be|https?:|Bardo|som_yt/)
+  })
+
+  it('YouTube com id torto (vindo de fora do validador) não vira fonte da rede', () => {
+    // O JSON cru passa por cima do tipo (o `Object.assign` com `unknown` não muda o tipo declarado): a ponte confere de novo.
+    const torto: unknown = JSON.parse('{"tipo":"youtube","video":"https://youtu.be/dQw4w9WgXcQ"}')
+    expect(fonteDeSomNaRede(Object.assign({ tipo: 'arquivo' as const, ref: '', bytes: 1 }, torto))).toBeNull()
   })
 
   it('parar e volume usam o apelido; efeito que nunca foi à rede não manda nada; Parar tudo para os dois lados', () => {

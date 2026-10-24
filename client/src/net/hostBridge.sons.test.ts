@@ -395,7 +395,7 @@ describe('hostBridge: segurança do canal dos sons', () => {
       expect(msg).toEqual(crua)
       if (msg?.type === 'som.tocar') {
         expect(Object.keys(msg.fonte).sort()).toEqual(['midia', 'tipo'])
-        expect(msg.fonte.midia).toMatch(FORMA_DO_ID)
+        expect(msg.fonte.tipo === 'arquivo' ? msg.fonte.midia : '').toMatch(FORMA_DO_ID)
       }
       if (msg?.type === 'som.precarregar') for (const id of msg.midias) expect(id).toMatch(FORMA_DO_ID)
     }

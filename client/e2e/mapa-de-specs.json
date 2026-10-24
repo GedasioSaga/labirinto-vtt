@@ -111,6 +111,7 @@
         "client/src/player/quandoTocarSom.ts",
         "client/src/components/ControleDeSom.*",
         "client/src/components/livro/PaginaSons.tsx",
+        "client/src/components/livro/ColarLinkDoYoutube.tsx",
         "client/src/components/livro/sons.css",
         "client/src/portas/somDePorta.ts",
         "client/src/portas/somDasPortasDoPacote.ts",

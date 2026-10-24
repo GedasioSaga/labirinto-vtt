@@ -1,4 +1,4 @@
-import type { AlvoDosSons, EfeitoDeSom, FonteDoSom } from '../lib/sons/biblioteca'
+import { ehVideoDoYoutube, type AlvoDosSons, type EfeitoDeSom, type FonteDoSom } from '../lib/sons/biblioteca'
 import type { MotorAoVivo, ResultadoDoToque } from '../lib/sons/aoVivo/motor'
 import { idDaRefDeAudio } from '../lib/midia'
 import type { FonteDeSomNaRede } from './protocol'
@@ -103,9 +103,13 @@ export function avisarFalhaDeSom(): void {
   avisarOuvintes()
 }
 
-/** A fonte como atravessa a rede; `null` para o que a rede ainda não leva (YouTube: F6) ou ref torta. */
+/** A fonte como atravessa a rede; `null` = ref torta. YouTube: só o id do vídeo e o trecho (nunca link nem nome). */
 export function fonteDeSomNaRede(fonte: FonteDoSom): FonteDeSomNaRede | null {
-  if (fonte.tipo !== 'arquivo') return null
+  if (fonte.tipo === 'youtube') {
+    // Conferido de novo: o que sai daqui vira endereço de iframe em cada aparelho.
+    if (!ehVideoDoYoutube(fonte.video)) return null
+    return { tipo: 'youtube', video: fonte.video, ...(fonte.inicioS === undefined ? {} : { inicioS: fonte.inicioS }), ...(fonte.fimS === undefined ? {} : { fimS: fonte.fimS }) }
+  }
   const midia = idDaRefDeAudio(fonte.ref)
   return midia === null ? null : { tipo: 'arquivo', midia }
 }

@@ -21,7 +21,8 @@ export function midiasDaMensagem(carga: object): string[] {
   if (Reflect.get(carga, 'type') === 'danca.convite') return musicaDoConvite(carga)
   const msg = parseSomHostMessage(carga)
   if (msg === null) return []
-  if (msg.type === 'som.tocar') return [msg.fonte.midia]
+  // O YouTube não passa pelo servidor da sala (cada aparelho abre o player dele): não libera nada.
+  if (msg.type === 'som.tocar') return msg.fonte.tipo === 'arquivo' ? [msg.fonte.midia] : []
   if (msg.type === 'som.precarregar') return [...msg.midias]
   return []
 }

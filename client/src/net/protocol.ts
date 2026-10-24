@@ -13,6 +13,7 @@ import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ehIdDeAudio } from '../lib/midia'
+import { ehVideoDoYoutube, type VideoDoYoutube } from '../lib/sons/biblioteca'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
@@ -2252,12 +2253,13 @@ export const SOM_PRECARGA_MAX = 32
 /**
  * A fonte como atravessa a rede: só o id do áudio guardado (`<sha256>.<ext>`,
  * o mesmo nome que `/sons/<id>` serve). Nunca o nome do efeito, a pasta, a
- * `ref` do disco do mestre ou um caminho. YouTube é da F6.
+ * `ref` do disco do mestre ou um caminho. YouTube (F6): só o id de 11
+ * caracteres do vídeo e o trecho em segundos; nunca o link colado nem o nome.
+ * O áudio do YouTube não passa pelo servidor da sala: cada aparelho abre o
+ * player dele. Jogador antigo recusa o `som.tocar` com YouTube inteiro (fonte
+ * de tipo que ele não conhece) e segue com o resto.
  */
-export interface FonteDeSomNaRede {
-  tipo: 'arquivo'
-  midia: string
-}
+export type FonteDeSomNaRede = { tipo: 'arquivo'; midia: string } | { tipo: 'youtube'; video: VideoDoYoutube; inicioS?: number; fimS?: number }
 
 /**
  * Toca `fonte` como `instancia`; a mesma instância tocando antes é trocada por
@@ -2299,7 +2301,7 @@ export interface SomPrecarregarMessage {
 export type SomHostMessage = SomTocarMessage | SomPararMessage | SomPararTudoMessage | SomVolumeMessage | SomPrecarregarMessage
 
 /** Por que o som não tocou no aparelho: lista fechada (a do motor, `lib/sons/aoVivo/motor.ts`). */
-export const MOTIVOS_DA_FALHA_DO_SOM = ['sem-gesto', 'atrasado', 'nao-carregou', 'fonte-invalida', 'fonte-sem-suporte', 'limite-de-loops'] as const
+export const MOTIVOS_DA_FALHA_DO_SOM = ['sem-gesto', 'atrasado', 'nao-carregou', 'fonte-invalida', 'fonte-sem-suporte', 'limite-de-loops', 'youtube-bloqueado', 'youtube-indisponivel'] as const
 export type MotivoDaFalhaDoSom = (typeof MOTIVOS_DA_FALHA_DO_SOM)[number]
 
 /**
@@ -2326,8 +2328,24 @@ function ehMotivoDaFalhaDoSom(value: unknown): value is MotivoDaFalhaDoSom {
   return typeof value === 'string' && MOTIVOS_DA_FALHA_DO_SOM.some((motivo) => motivo === value)
 }
 
+/** Segundos de um trecho do YouTube: número finito de 0 até o teto do deslocamento. */
+function ehSegundoDoTrecho(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= SOM_DESLOCAMENTO_MAX_S
+}
+
+/** O YouTube na rede: id conferido (11 caracteres da forma do YouTube) e trecho em segundos; início ou fim torto recusa inteiro. */
+function parseFonteDoYoutubeNaRede(value: Record<string, unknown>): FonteDeSomNaRede | null {
+  const { video, inicioS, fimS } = value
+  if (!ehVideoDoYoutube(video)) return null
+  if (inicioS !== undefined && !ehSegundoDoTrecho(inicioS)) return null
+  if (fimS !== undefined && (!ehSegundoDoTrecho(fimS) || fimS <= (inicioS ?? 0))) return null
+  return { tipo: 'youtube', video, ...(inicioS === undefined ? {} : { inicioS }), ...(fimS === undefined ? {} : { fimS }) }
+}
+
 function parseFonteDeSomNaRede(value: unknown): FonteDeSomNaRede | null {
-  if (!isRecord(value) || value.tipo !== 'arquivo' || !ehIdDeAudio(value.midia)) return null
+  if (!isRecord(value)) return null
+  if (value.tipo === 'youtube') return parseFonteDoYoutubeNaRede(value)
+  if (value.tipo !== 'arquivo' || !ehIdDeAudio(value.midia)) return null
   return { tipo: 'arquivo', midia: value.midia }
 }
 

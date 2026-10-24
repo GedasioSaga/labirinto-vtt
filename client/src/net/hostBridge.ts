@@ -1628,6 +1628,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const copiaDoAlvo = (alvo: AlvoDosSons): AlvoDosSons => (alvo.tipo === 'escolhidos' ? { tipo: 'escolhidos', playerIds: [...alvo.playerIds] } : { ...alvo })
 
   /** Anota, por conexão, os áudios que saíram para ela. */
+  /** O que a sala serve por `/sons/<id>` para esta fonte: o arquivo. O YouTube não passa pelo servidor (cada aparelho abre o player dele). */
+  const midiasDaFonte = (fonte: FonteDeSomNaRede): string[] => (fonte.tipo === 'arquivo' ? [fonte.midia] : [])
+
   const liberarMidias = (clientIds: Iterable<string>, midias: readonly string[]) => {
     for (const clientId of clientIds) {
       const liberadas = midiasLiberadas.get(clientId) ?? new Set<string>()
@@ -1672,7 +1675,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       for (const clientId of agora) {
         if (loop.ouvintes.has(clientId)) continue
         outbound.push({ clientId, msg: { type: 'som.tocar', instancia, fonte: loop.fonte, volume: loop.volume, loop: true, deslocamentoS } })
-        liberarMidias([clientId], [loop.fonte.midia])
+        liberarMidias([clientId], midiasDaFonte(loop.fonte))
       }
       const falhas = falhasDosSons.get(instancia)
       for (const clientId of loop.ouvintes) {
@@ -1707,7 +1710,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     esquecerSom(instancia)
     if (msg.loop) loopsAoVivo.set(instancia, { fonte: msg.fonte, volume: msg.volume, alvo: copiaDoAlvo(alvo), inicioEmMs: now(), ouvintes: new Set(ouvintes) })
     else lembrarEfeitoCurto(instancia, new Set(ouvintes))
-    liberarMidias(ouvintes, [msg.fonte.midia])
+    liberarMidias(ouvintes, midiasDaFonte(msg.fonte))
     if (outbound.length > 0) void dispatch({ outbound })
     return { ok: true, enviados: ouvintes.length }
   }

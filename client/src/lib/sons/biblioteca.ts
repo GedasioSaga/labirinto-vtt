@@ -52,8 +52,13 @@ export type VideoDoYoutube = string & { readonly [MARCA_DO_VIDEO_DO_YOUTUBE]: tr
 export type FonteDoSom =
   /** `ref` = `midia:<sha256>.<mp3|ogg|wav|m4a>` (`lib/midia.ts`); `bytes` = tamanho do arquivo. */
   | { tipo: 'arquivo'; ref: string; bytes: number }
-  /** `inicioS`: de onde o vídeo começa (e para onde o loop volta), em segundos. */
-  | { tipo: 'youtube'; video: VideoDoYoutube; inicioS?: number }
+  /**
+   * `inicioS`: de onde o vídeo começa (e para onde o loop volta), em segundos.
+   * `fimS` (F6): onde para (ou de onde o loop volta), sempre depois do início;
+   * ausente = até o fim do vídeo. Campo novo na mesma versão 1: o app anterior
+   * à F6 lê a fonte campo a campo e só deixa o `fimS` de fora.
+   */
+  | { tipo: 'youtube'; video: VideoDoYoutube; inicioS?: number; fimS?: number }
 
 export type FonteDeArquivo = Extract<FonteDoSom, { tipo: 'arquivo' }>
 
@@ -146,6 +151,11 @@ function inicioValido(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
+/** O fim do trecho do YouTube: número finito e depois do início (fim igual ao início não toca nada). */
+function fimValido(value: unknown, inicioS: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > inicioS
+}
+
 /** O nome aparado; `null` quando fica vazio ou passa de 40 caracteres. */
 export function nomeDeSomLimpo(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
@@ -168,10 +178,12 @@ export function fonteDoSomLida(value: unknown): FonteDoSom | null {
     return ehRefDeAudio(ref) && tamanhoDeAudioValido(bytes) ? { tipo: 'arquivo', ref, bytes } : null
   }
   if (value.tipo === 'youtube') {
-    const { video, inicioS } = value
+    const { video, inicioS, fimS } = value
     if (!ehVideoDoYoutube(video)) return null
-    // O início é opcional: o torto sai sozinho e o vídeo começa do zero, em vez de o efeito se perder por ele.
-    return inicioValido(inicioS) ? { tipo: 'youtube', video, inicioS } : { tipo: 'youtube', video }
+    // Início e fim são opcionais: o torto sai sozinho (o vídeo vai do zero, ou até o fim), em vez de o efeito se perder por ele.
+    const inicio = inicioValido(inicioS) ? inicioS : undefined
+    const fim = fimValido(fimS, inicio ?? 0) ? fimS : undefined
+    return { tipo: 'youtube', video, ...(inicio === undefined ? {} : { inicioS: inicio }), ...(fim === undefined ? {} : { fimS: fim }) }
   }
   return null
 }

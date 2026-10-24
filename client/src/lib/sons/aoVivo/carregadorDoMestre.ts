@@ -6,7 +6,8 @@ import { lerAudioGuardado } from '../../midiaNoDisco'
 import { useBibliotecaDeSonsStore } from '../../../stores/bibliotecaDeSonsStore'
 import { useToastStore } from '../../../stores/toastStore'
 import type { BibliotecaDeSons } from '../biblioteca'
-import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type MotorAoVivo } from './motor'
+import type { CarregadorDeBytes, MotorAoVivo } from './motor'
+import { criarMotorDoNavegadorComYoutube } from './motorComYoutube'
 
 /**
  * O LADO DO MESTRE dos sons ao vivo (Sistema 4, fatia F3): de onde vêm os
@@ -68,7 +69,7 @@ let motorDoMestre: MotorAoVivo | null = null
 
 /** O motor dos sons ao vivo do app do mestre: um só, criado no primeiro pedido (a aba Sons fica sempre montada). */
 export function obterMotorDoMestre(): MotorAoVivo {
-  motorDoMestre ??= criarMotorAoVivoDoNavegador(carregarBytesDoMestre)
+  motorDoMestre ??= criarMotorDoNavegadorComYoutube(carregarBytesDoMestre)
   return motorDoMestre
 }
 
