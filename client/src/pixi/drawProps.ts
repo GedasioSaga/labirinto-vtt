@@ -9,6 +9,7 @@ import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
 import { ehMovelDoChao } from '../lib/mobilia'
+import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
 /**
@@ -122,6 +123,8 @@ export interface PropsRenderer {
 interface FurnitureEntry {
   drawing: Graphics
   painted: { prop: Prop; cameraScale: number; rendererResolution: number; vistaDosMoveis: MapData['vistaDosMoveis'] } | null
+  /** A chama da fogueira (o nó logo acima do desenho), para a ordem da 3/4 levá-la junto. */
+  chama: Container | null
 }
 
 /**
@@ -255,6 +258,7 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
     // Fogueira que sumiu (apagada, outro tipo, camada oculta) leva a chama; o relógio liga ou desliga.
     chamas.podar(fogueiras)
+    if (tresQuartosAtivo(view.vistaDosMoveis)) ordenarPelaBase(container, props)
     // O chão volta ao fundo: o que entrou agora com `addChildAt(…, 0)` passou por
     // baixo dele. Mapa sem tapete nunca ganha o chão (a lista de filhos fica a de sempre).
     if (floor.children.length > 0) {
@@ -275,7 +279,7 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     if (!entry) {
       const drawing = new Graphics()
       drawing.label = FURNITURE_LABEL
-      entry = { drawing, painted: null }
+      entry = { drawing, painted: null, chama: null }
       furnitureCache.set(prop.id, entry)
     }
     // O tapete (e o tapete longo, MT5) mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
@@ -301,9 +305,34 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     entry.painted = { prop, cameraScale, rendererResolution, vistaDosMoveis }
     // A chama da fogueira, logo acima do desenho dela (o mesmo fantasma); outro tipo não tem chama.
     const chama = chamas.colocar(prop, view)
+    entry.chama = chama
     if (chama === null) return
     if (chama.parent !== container) container.addChildAt(chama, container.getChildIndex(entry.drawing) + 1)
     chama.alpha = propAlpha(prop)
+  }
+
+  /**
+   * VISTA 3/4 (MT11): os móveis dos objetos (o chão fica como está) trocam de
+   * lugar entre si pela BASE, o mais ao sul por cima, cada chama logo acima da
+   * sua fogueira. As imagens de objeto e o destaque não saem do lugar: os
+   * móveis só ocupam, na nova ordem, os mesmos índices que já tinham.
+   */
+  function ordenarPelaBase(container: Container, props: readonly Prop[]): void {
+    const nos: Container[] = []
+    for (const prop of emOrdemDoTresQuartos(props.filter((p) => p.mobilia !== undefined && !ehMovelDoChao(p.mobilia)))) {
+      const entry = furnitureCache.get(prop.id)
+      if (entry === undefined || entry.drawing.parent !== container) continue
+      nos.push(entry.drawing)
+      if (entry.chama !== null && !entry.chama.destroyed && entry.chama.parent === container) nos.push(entry.chama)
+    }
+    if (nos.length < 2) return
+    const doConjunto = new Set<Container>(nos)
+    const filhos = container.children
+    const alvo: Container[] = []
+    let proximo = 0
+    for (const filho of filhos) alvo.push(doConjunto.has(filho) ? nos[proximo++] : filho)
+    if (alvo.every((no, i) => filhos[i] === no)) return
+    alvo.forEach((no, i) => container.setChildIndex(no, i))
   }
 
   /** Fantasma do "Oculto no editor" e destaque de seleção, iguais para imagem e móvel. */

@@ -21,6 +21,7 @@ import {
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { ehPecaNova } from '../lib/mobilia/pecasNovas'
+import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 // Só o tipo: o raster dos móveis do Meio-Termo (o motor e as tabelas de ruído) carrega sob demanda.
@@ -469,8 +470,9 @@ function drawTexturedFurniture(
   rendererResolution: number,
   grid: PixelGrid,
   edgeWidth: number,
+  vista: 'tres-quartos' | undefined,
 ): boolean {
-  const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution)
+  const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution, vista)
   if (imagem === null) return false
   const mostrar = imagem.mostrar
   if (mostrar === null) {
@@ -478,8 +480,8 @@ function drawTexturedFurniture(
     return true
   }
   raster.marcarColada(mostrar)
-  // A placa de seta traz o quarto de volta pintado (a sombra e a luz não giram): aqui só gira o resto.
-  const trig = rotationTrig((prop.rotation ?? 0) - modulo.giroDaImagem(prop))
+  // A placa de seta (e, na 3/4, todo móvel derivado) traz o quarto de volta pintado (a sombra e a luz não giram): aqui só gira o resto.
+  const trig = rotationTrig((prop.rotation ?? 0) - modulo.giroDaImagem(prop, vista))
   graphics.save().setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA }).setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
   // A cerca longa vem em ladrilhos (cada um com a sua textura, lado a lado); o resto, numa imagem só.
   for (const ladrilho of mostrar.ladrilhos) {
@@ -501,8 +503,11 @@ function drawTexturedFurniture(
  * imagem, e sem peça nova na lista nenhum caminho novo roda.
  *
  * `vistaDosMoveis` é a vista da cena (`MapData.vistaDosMoveis`, Meio-Termo),
- * que o editor e o jogador passam igual. Por enquanto ela só segue adiante (o
- * repintar a leva junto): quem a desenha é a MT11, e até lá nada muda na tela.
+ * que o editor e o jogador passam igual. Com a chave de obra LIGADA e a cena
+ * em 3/4 (MT11), cada móvel com textura sai na imagem 3/4 (o tampo sobe, a
+ * frente aparece embaixo) e a ordem passa a ser pela BASE (o móvel mais ao sul
+ * por cima, `emOrdemDoTresQuartos`), dentro desta lista (a faixa da camada).
+ * Sem a chave, a vista é ignorada: a ordem e as imagens são as de antes.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
@@ -522,13 +527,15 @@ export function drawPropSilhouettes(
   const comTextura = (prop: PropSilhouette): boolean => obraLigada || ehPecaNova(prop.mobilia)
   const raster = obraLigada || props.some(comTextura) ? rasterParaPassada(graphics, repintar) : null
   const modulo = moduloDoRaster
+  // A 3/4 só com a chave de obra: desligada, a vista do arquivo não muda nada na tela.
+  const vista = obraLigada && vistaDosMoveis === 'tres-quartos' ? vistaDosMoveis : undefined
   raster?.abrirPassada(graphics, repintar)
   try {
     let drawn = 0
-    // O tapete fica no chão: pintado antes, por baixo de todo objeto.
-    for (const prop of emOrdemDeDesenho(props)) {
+    // O tapete fica no chão: pintado antes, por baixo de todo objeto. Na 3/4, o resto pela base.
+    for (const prop of vista === undefined ? emOrdemDeDesenho(props) : emOrdemDoTresQuartos(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1

@@ -35,6 +35,7 @@ import { montarJardineira } from './jardineira'
 import { montarArcoDoPortao } from './arcoDoPortao'
 import { montarPlacaDeSeta } from './placaDeSeta'
 import { montarTapeteLongo } from './tapeteLongo'
+import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -122,6 +123,12 @@ export interface DesenhoDoMovel {
    * sempre; a tela gira a imagem só pelo que sobra (`giroDaImagem`).
    */
   readonly giro?: number
+  /**
+   * Vista 3/4 do mapa (MT11, `tresQuartos.ts`): o tampo sobe e a frente
+   * aparece embaixo. Ausente = "de cima com volume", a cena de antes byte a
+   * byte. Na 3/4 o `giro` (quarto de volta) vale para todo móvel derivado.
+   */
+  readonly vista?: 'tres-quartos'
 }
 
 /**
@@ -154,7 +161,10 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const cena: Cena = { partes: [], sombras: [] }
   const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
-  return cena
+  if (d.vista !== 'tres-quartos') return cena
+  // 3/4: o quarto de volta é pintado antes de subir o tampo (a frente fica embaixo na tela); a placa já pinta o dela.
+  const girada = pintaOGiroNaTresQuartos(d.tipo, d.lado) ? girarCena(cena, (d.giro ?? 0) / 90) : cena
+  return cenaEmTresQuartos(girada, perfilDoTresQuartos(d.tipo, d.lado), contexto.peca)
 }
 
 /** A imagem inteira de uma vez, em `S` pixels por px do protótipo (teste e folha de contato). */

@@ -1,6 +1,7 @@
 import { Container, Graphics, GraphicsContext, type Ticker } from 'pixi.js'
-import type { Prop } from '../types/map'
+import type { MapData, Prop } from '../types/map'
 import { chamaDaFogueira, vistaDoMovel } from '../lib/mobilia'
+import { deslocamentoDaChama } from '../lib/mobilia/vistaTresQuartos'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 
 /**
@@ -206,6 +207,12 @@ export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'ro
 /** Zoom do quadro: a fagulha tem um raio mínimo em px de tela. */
 export interface TelaDasChamas {
   cameraScale: number
+  /**
+   * Vista dos móveis do mapa (MT11). Na 3/4, com a chave de obra ligada, a
+   * lenha sobe na imagem e a chama sobe junto (`deslocamentoDaChama`).
+   * Ausente = "de cima", a chama no lugar de sempre.
+   */
+  vistaDosMoveis?: MapData['vistaDosMoveis']
 }
 
 export interface MovimentoDasChamas {
@@ -387,7 +394,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       }
       const centro = { x: prop.x, y: prop.y }
       const ancora = rotatePointAround({ x: prop.x + forma.ancora.x, y: prop.y + forma.ancora.y }, centro, rotationTrig(prop.rotation ?? 0))
-      chama.no.position.set(ancora.x, ancora.y + forma.desvio)
+      // Na 3/4 a chama sobe com a lenha, sempre para cima na tela (não gira com a fogueira).
+      chama.no.position.set(ancora.x, ancora.y + forma.desvio + deslocamentoDaChama(prop, tela.vistaDosMoveis))
       chama.altura = forma.altura
       const escala = Number.isFinite(tela.cameraScale) && tela.cameraScale > 0 ? tela.cameraScale : 1
       const raio = Math.max(RAIO_MINIMO_DA_FAGULHA_EM_PX / escala, RAIO_DA_FAGULHA * Math.min(prop.width, prop.height))
