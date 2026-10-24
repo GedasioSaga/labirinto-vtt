@@ -10,6 +10,8 @@ import {
   type PlanoDoRelevo,
 } from '../lib/relevo'
 import type { RegionPoint } from '../types/map'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { corDoBarranco, LARGURA_DO_CONTORNO, TONS_DO_BARRANCO } from '../texturas/meioTermo/barranco'
 
 /**
  * RELEVO — rasterização do plano (`lib/relevo.ts`) numa tela 2D, uma vez por
@@ -150,6 +152,8 @@ export async function rasterizarRelevo(plano: PlanoDoRelevo, cancelado: () => bo
 async function gerarRelevo(plano: PlanoDoRelevo, cancelado: () => boolean, marcarEtapa: (etapa: EtapaDoRelevo) => void): Promise<HTMLCanvasElement | null> {
   const { largura, altura } = tamanhoDaTextura(plano)
   const { escala, unidade, retangulo } = plano
+  // CHAVE DE OBRA do Meio-Termo, lida uma vez por geração: a parede inteira sai num estilo só.
+  const barrancoLiso = meioTermoLigado()
   // Px do protótipo → pixels desta tela.
   const px = unidade * escala
   const mundo = (g: Pincel) => g.setTransform(escala, 0, 0, escala, -retangulo.x * escala, -retangulo.y * escala)
@@ -191,7 +195,7 @@ async function gerarRelevo(plano: PlanoDoRelevo, cancelado: () => boolean, marca
 
   // PENHASCO: a parede de pedra debaixo da costa riscada (`montarParede`).
   // No jogador, o perfil já vem cortado pelo conhecido (`perfilDoPenhasco`).
-  const parede = plano.penhascos.length > 0 ? await montarParede(plano, terra, cancelado) : null
+  const parede = plano.penhascos.length > 0 ? await montarParede(plano, terra, cancelado, barrancoLiso) : null
   if (cancelado()) return descartarTudo(terra, ...opcional(conhecido), ...opcional(parede?.tela ?? null))
   marcarEtapa('parede')
 
@@ -335,8 +339,13 @@ const POR_AMOSTRA = 3
  *
  * Uma tela só, do tamanho da parede, sem ler pixel; no jogador o perfil já vem
  * cortado pelo que ele conhece.
+ *
+ * BARRANCO LISO (Meio-Termo, `barrancoLiso`, atrás da chave de obra): as
+ * mesmas faixas e as mesmas pausas, só a cor muda — o perfil liso de
+ * `corDoBarranco` (realce em cima, sombra embaixo, sem as 6 faixas) — e uma
+ * faixa a mais no fim, o contorno do pé. Nenhuma tela a mais, nenhum sorteio.
  */
-async function montarParede(plano: PlanoDoRelevo, terra: Tela, cancelado: () => boolean): Promise<ParedeDoPenhasco | null> {
+async function montarParede(plano: PlanoDoRelevo, terra: Tela, cancelado: () => boolean, barrancoLiso: boolean): Promise<ParedeDoPenhasco | null> {
   // O perfil (a costa amostrada a cada texel) numa tarefa só dele, longe da terra e das faixas.
   await ceder()
   if (cancelado()) return null
@@ -353,8 +362,18 @@ async function montarParede(plano: PlanoDoRelevo, terra: Tela, cancelado: () => 
   if (quadro === null) return null
   // Uma faixa por texel na parede mais alta (na Média de sempre, uma por linha).
   const faixas = passosDaMedia * Math.max(1, Math.ceil(perfil.maisAlta / altura - 1e-9))
-  const corDaFaixa = (t: number) => corDaParede(((t + 0.5) / faixas) * (passosDaMedia / px))
-  return extrudarParede(fitas, quadro, faixas, corDaFaixa, terra, cancelado)
+  const corDaFaixa = barrancoLiso
+    ? (t: number) => corDoBarranco((t + 0.5) / faixas)
+    : (t: number) => corDaParede(((t + 0.5) / faixas) * (passosDaMedia / px))
+  // O contorno do pé tem espessura fixa (px do protótipo), não fração da altura: na parede Alta ele não engrossa.
+  const contorno = barrancoLiso ? { cor: TONS_DO_BARRANCO.contorno, texels: Math.max(1, LARGURA_DO_CONTORNO * px) } : null
+  return extrudarParede(fitas, quadro, faixas, corDaFaixa, contorno, terra, cancelado)
+}
+
+/** O contorno do pé do barranco liso: a cor e a espessura, em texels. */
+interface ContornoDoPe {
+  cor: readonly number[]
+  texels: number
 }
 
 /**
@@ -446,6 +465,7 @@ async function extrudarParede(
   quadro: Quadro,
   faixas: number,
   corDaFaixa: (t: number) => readonly number[],
+  contorno: ContornoDoPe | null,
   terra: Tela,
   cancelado: () => boolean,
 ): Promise<ParedeDoPenhasco | null> {
@@ -472,11 +492,31 @@ async function extrudarParede(
       if (cancelado()) return descartarTudo(tela)
     }
   }
+  if (contorno !== null) pintarContornoDoPe(g, fitas, contorno)
   g.setTransform(1, 0, 0, 1, 0, 0)
   g.globalCompositeOperation = 'destination-out'
   g.drawImage(terra, -quadro.x, -quadro.y)
   g.globalCompositeOperation = 'source-over'
   return { tela, x: quadro.x, y: quadro.y }
+}
+
+/**
+ * O contorno do pé: uma faixa da espessura dele subindo do pé de cada
+ * amostra, por cima das faixas. Onde a parede é mais baixa que o contorno (a
+ * ponta da rampa), ela vira contorno inteira: a ponta fecha como a do
+ * protótipo, sem o lábio claro sobrar solto.
+ */
+function pintarContornoDoPe(g: Pincel, fitas: readonly Float64Array[], contorno: ContornoDoPe): void {
+  const w = contorno.texels
+  g.beginPath()
+  for (const fita of fitas) {
+    g.moveTo(fita[0], fita[1] + Math.max(0, fita[2] - w))
+    for (let k = POR_AMOSTRA; k < fita.length; k += POR_AMOSTRA) g.lineTo(fita[k], fita[k + 1] + Math.max(0, fita[k + 2] - w))
+    for (let k = fita.length - POR_AMOSTRA; k >= 0; k -= POR_AMOSTRA) g.lineTo(fita[k], fita[k + 1] + fita[k + 2])
+    g.closePath()
+  }
+  g.fillStyle = rgba(contorno.cor, 1)
+  g.fill()
 }
 
 function preencher(g: Pincel, poligono: readonly RegionPoint[]): void {

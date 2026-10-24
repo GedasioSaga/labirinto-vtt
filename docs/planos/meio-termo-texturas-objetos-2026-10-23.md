@@ -183,3 +183,11 @@ Duas revisões independentes (design; correção, testes e desempenho). O que mu
 **Cumeeira amarrada: FORA agora, REABRE na MT10** (com a chaminé): pintar por cima, depois do laço, só nos pixels a até 3,4 px do cume, sem mexer na folga do bloco rápido (que vale para todos os modelos). **Divergências do protótipo ACEITAS** na revisão: fio ondulado, V de 12 x 7 px, franja pelo recuo da borda e sem contorno.
 
 **Para o usuário decidir, na folha:** (1) a palha no zoom de 300% ainda lê como tricô? (2) a cor do app (`#d3b56e`, mais pálida) ou a do resultado do protótipo (`#cb9940`, croma 0,121, acima do teto de 0,1118 da regra 5)? (3) a palha na terra (ΔE 0,042) basta ou pede borda/sombra mais forte?
+
+### MT8 (barranco liso, PAUSADA em 24/10/2026, worktree `feat/mt8`, nada commitado)
+
+- **Pronto, sem verificar:** `texturas/meioTermo/barranco.ts` (perfil liso realce → base → sombra nos tons `barranco`, contorno pela receita do protótipo a 60% da luz, piso 0,06 com folga 0,07, sem sorteio); `relevoRaster.ts` lê a chave uma vez por geração e, ligada, troca só a cor das mesmas faixas e pinta uma faixa de contorno no pé (nenhuma tela a mais); testes em `barranco.test.ts`, bloco "barranco liso (MT8)" em `relevoRaster.test.ts` e `e2e/task-meio-termo-barranco.spec.ts` (pixels, tempo, jogador 390 com CPU 4x, folha com `GERAR_PROVAS_MT8=1`).
+- **Vermelho conferido (código de antes, numa cópia de `2d376778`):** o teste "ligada" reprova (energia Sobel do Baixo 0,0564 contra o teto 0,02); digitais da chave desligada tiradas: 3111649189, 1344256651, 813745873.
+- **Achado:** o "contraste do pé" (OKLab ≥ 0,06) o barranco antigo também passa (0,209), então saiu do controle positivo; o antigo reprova na energia e no piso de luz (0,0594 < 0,06, por pouco).
+- **Falta:** rodar o código novo (vitest da área, os 2 tsc, o e2e; as duas rodadas na fila foram canceladas antes de começar), fixar o teto de energia POR ALTURA (o Baixo liso deve passar de 0,02, a parede curta tem gradiente mais íngreme), folha de contato, golden estrito, 3 jornadas seladas, `task-meio-termo-*`, vite build, divergências (realce contínuo em vez de traços partidos, pé reto em vez de zigue-zague, sem grama felpuda) e o commit.
+- **Onde parou:** antes da primeira rodada do código novo; retomar pelo laço `vitest related` dos 2 testes + tsc, depois o e2e.

@@ -19,6 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Drawing, Region, RegionPoint, TracoDePenhasco } from '../types/map'
 import { AJUSTE_DO_PENHASCO, alturaDaParede, planoComPenhascos, planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
 import { rasterizarRelevo } from './relevoRaster'
+import { trocarObraNoTeste } from '../lib/estiloDoMapa'
+import { oklabDoRgb } from '../texturas/meioTermo/materiais'
 
 type Cor = [number, number, number, number]
 
@@ -767,3 +769,206 @@ describe('rasterizarRelevo — perfil suave do penhasco (casos A e B)', { timeou
     expect(telas.length - depois - daTerra).toBeLessThanOrEqual(3)
   })
 })
+
+/**
+ * BARRANCO LISO (fatia MT8 do Meio-Termo, atrás da chave de obra): a parede
+ * do penhasco deixa as 6 faixas e vira preenchimento liso, com realce em
+ * cima, sombra embaixo e contorno fino no pé (`texturas/meioTermo/barranco.ts`).
+ * As medidas são da textura que o app gera (`rasterizarRelevo`, sem semente:
+ * a cor depende só da fração da altura), nas 3 alturas do pincel.
+ *
+ * Os limites são fixos e ficam entre o barranco antigo e o novo: a mesma
+ * medida, com a chave desligada, REPROVA (controle positivo).
+ */
+describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 120_000 }, () => {
+  afterEach(() => trocarObraNoTeste(false))
+
+  /** Alfa a partir do qual o texel é parede (a sombra no mar não passa de 0,55; a luz da terra, de 0,5). */
+  const PAREDE = 0.95
+  /**
+   * Teto da energia de borda (Sobel na luz, média do miolo da parede). Medido
+   * nesta tela falsa, no código de antes da MT8: o barranco antigo Baixo dá
+   * 0,0564. (Médio e Alto: na próxima rodada.)
+   */
+  const ENERGIA_MAXIMA = 0.02
+  /** Luminância linear mínima do contorno (regra 1 do estilo: nunca preto). */
+  const PISO_DO_CONTORNO = 0.06
+  /** Contraste mínimo (OKLab) do contorno do pé contra a parede logo acima: contorno que se lê. */
+  const CONTRASTE_DO_CONTORNO = 0.06
+  /** Saturação HSV p95 máxima (o limite das peças desde a MT2). */
+  const SATURACAO_MAXIMA = 0.62
+
+  const continente = regiao('continente', retangulo(0, 0, 1000, 1000))
+  const ALTURAS = [['baixo', 'baixo'], ['medio', undefined], ['alto', 'alto']] as const
+
+  function costaInteira(altura: TracoDePenhasco['altura']): PlanoDoRelevo {
+    const pontos: RegionPoint[] = []
+    for (let x = 0; x <= 1000; x += 20) pontos.push({ x, y: 1000 })
+    const traco: TracoDePenhasco = { id: 'a', modo: 'riscar', raio: 40, pontos, ...(altura === undefined ? {} : { altura }) }
+    return planoComPenhascos(plano([continente]), [traco], TETO)
+  }
+
+  function linear(c: number): number {
+    const u = c / 255
+    return u <= 0.04045 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
+  }
+
+  interface MedidaDoBarranco {
+    pixels: number
+    energia: number
+    contornoMinimo: number
+    contornoOklabMinimo: number
+    luzMinima: number
+    saturacaoP95: number
+    contrasteDoPe: number
+  }
+
+  function medirBarranco(tela: TelaFalsa): MedidaDoBarranco {
+    const w = tela.width
+    const h = tela.height
+    const parede = (i: number, j: number) => i >= 0 && j >= 0 && i < w && j < h && tela.alfa(i, j) >= PAREDE
+    const cor = (i: number, j: number): [number, number, number] => {
+      const k = (j * w + i) * 4
+      const a = tela.dados[k + 3]
+      return [tela.dados[k] / a, tela.dados[k + 1] / a, tela.dados[k + 2] / a]
+    }
+    const luma = (i: number, j: number) => {
+      const [r, g, b] = cor(i, j)
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    }
+    let pixels = 0
+    let somaEnergia = 0
+    let miolo = 0
+    let contornoMinimo = Infinity
+    let contornoOklabMinimo = Infinity
+    let luzMinima = Infinity
+    const saturacoes: number[] = []
+    const pe: [number, number, number][] = []
+    const acima: [number, number, number][] = []
+    for (let j = 0; j < h; j += 1) {
+      for (let i = 0; i < w; i += 1) {
+        if (!parede(i, j)) continue
+        pixels += 1
+        const c = cor(i, j)
+        const lum = 0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2])
+        luzMinima = Math.min(luzMinima, lum)
+        const mx = Math.max(...c)
+        saturacoes.push(mx > 0 ? (mx - Math.min(...c)) / mx : 0)
+        const borda = !parede(i - 1, j) || !parede(i + 1, j) || !parede(i, j - 1) || !parede(i, j + 1)
+        if (borda) {
+          contornoMinimo = Math.min(contornoMinimo, lum)
+          contornoOklabMinimo = Math.min(contornoOklabMinimo, oklabDoRgb(Math.round(c[0]), Math.round(c[1]), Math.round(c[2]))[0])
+        }
+        // O pé: parede com o mar logo abaixo e parede nos 4 texels de cima (longe da rampa e da ponta).
+        if (!parede(i, j + 1) && [1, 2, 3, 4].every((d) => parede(i, j - d))) {
+          pe.push(oklabDoRgb(Math.round(c[0]), Math.round(c[1]), Math.round(c[2])))
+          const c4 = cor(i, j - 4)
+          acima.push(oklabDoRgb(Math.round(c4[0]), Math.round(c4[1]), Math.round(c4[2])))
+        }
+        let todos = true
+        for (let dj = -1; dj <= 1 && todos; dj += 1) for (let di = -1; di <= 1 && todos; di += 1) todos = parede(i + di, j + dj)
+        if (!todos) continue
+        const p = (di: number, dj: number) => luma(i + di, j + dj)
+        const gx = p(1, -1) + 2 * p(1, 0) + p(1, 1) - p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
+        const gy = p(-1, 1) + 2 * p(0, 1) + p(1, 1) - p(-1, -1) - 2 * p(0, -1) - p(1, -1)
+        somaEnergia += Math.hypot(gx, gy) / 8
+        miolo += 1
+      }
+    }
+    saturacoes.sort((a, b) => a - b)
+    const media = (l: [number, number, number][]) => [0, 1, 2].map((k) => l.reduce((s, v) => s + v[k], 0) / Math.max(1, l.length))
+    const [pa, pb] = [media(pe), media(acima)]
+    return {
+      pixels,
+      energia: miolo > 0 ? somaEnergia / miolo : 0,
+      contornoMinimo,
+      contornoOklabMinimo,
+      luzMinima,
+      saturacaoP95: saturacoes.length > 0 ? saturacoes[Math.floor(saturacoes.length * 0.95)] : 0,
+      contrasteDoPe: Math.hypot(pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]),
+    }
+  }
+
+  async function medirNasAlturas(ligada: boolean): Promise<Map<string, MedidaDoBarranco>> {
+    trocarObraNoTeste(ligada)
+    const medidas = new Map<string, MedidaDoBarranco>()
+    for (const [nome, altura] of ALTURAS) medidas.set(nome, medirBarranco(await gerar(costaInteira(altura))))
+    return medidas
+  }
+
+  const texto = (m: MedidaDoBarranco) =>
+    `energia ${m.energia.toFixed(4)}, contorno ${m.contornoMinimo.toFixed(4)} (OKLab L ${m.contornoOklabMinimo.toFixed(3)}), luz mínima ${m.luzMinima.toFixed(4)}, ` +
+    `saturação p95 ${m.saturacaoP95.toFixed(3)}, contraste do pé ${m.contrasteDoPe.toFixed(3)}, ${m.pixels} texels`
+
+  it('ligada: o barranco é liso (energia de borda abaixo do teto), com contorno que se lê e nunca preto, e cor contida', async () => {
+    const medidas = await medirNasAlturas(true)
+    for (const [nome, m] of medidas) console.log(`[medida] barranco liso, ${nome}: ${texto(m)}`)
+    for (const [nome, m] of medidas) {
+      expect(m.pixels, nome).toBeGreaterThan(500)
+      expect(m.energia, `${nome}: ${texto(m)}`).toBeLessThan(ENERGIA_MAXIMA)
+      expect(m.contornoMinimo, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(PISO_DO_CONTORNO)
+      expect(m.luzMinima, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(PISO_DO_CONTORNO)
+      expect(m.contrasteDoPe, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(CONTRASTE_DO_CONTORNO)
+      expect(m.saturacaoP95, `${nome}: ${texto(m)}`).toBeLessThanOrEqual(SATURACAO_MAXIMA)
+    }
+  })
+
+  it('controle positivo: o barranco antigo (chave desligada) reprova nos mesmos limites', async () => {
+    const medidas = await medirNasAlturas(false)
+    for (const [nome, m] of medidas) console.log(`[medida] barranco antigo, ${nome}: ${texto(m)}`)
+    // O contraste do pé o antigo passa (a base molhada é bem mais escura que a faixa de cima): ele reprova na energia e no piso de luz.
+    for (const [nome, m] of medidas) {
+      expect(m.energia, `${nome}: ${texto(m)}`).toBeGreaterThan(ENERGIA_MAXIMA)
+      expect(m.luzMinima, `${nome}: ${texto(m)}`).toBeLessThan(PISO_DO_CONTORNO)
+    }
+  })
+
+  /** Digital FNV-1a dos bytes da textura (os floats da tela falsa, sem arredondar). */
+  function digital(tela: TelaFalsa): number {
+    const bytes = new Uint8Array(tela.dados.buffer, tela.dados.byteOffset, tela.dados.byteLength)
+    let d = 2166136261
+    for (let k = 0; k < bytes.length; k += 1) d = Math.imul(d ^ bytes[k], 16777619)
+    return d >>> 0
+  }
+
+  /** As 3 cenas da digital: Médio na costa inteira (mestre), as 3 alturas com borracha, e o jogador com a visão cortando a costa. */
+  async function digitais(): Promise<number[]> {
+    const pontos = (de: number, ate: number) => Array.from({ length: Math.floor((ate - de) / 20) + 1 }, (_, k) => ({ x: de + k * 20, y: 1000 }))
+    const tres: TracoDePenhasco[] = [
+      { id: 'b', modo: 'riscar', raio: 40, pontos: pontos(0, 340), altura: 'baixo' },
+      { id: 'm', modo: 'riscar', raio: 40, pontos: pontos(340, 660) },
+      { id: 'a', modo: 'riscar', raio: 40, pontos: pontos(660, 1000), altura: 'alto' },
+      { id: 'e', modo: 'apagar', raio: 50, pontos: [{ x: 500, y: 1000 }] },
+    ]
+    const jogador = planoComPenhascos({ ...plano([continente]), conhecido: { visao: [retangulo(0, 900, 700, 1500)] } }, [tres[1], tres[2]], TETO)
+    return [digital(await gerar(costaInteira(undefined))), digital(await gerar(planoComPenhascos(plano([continente]), tres, TETO))), digital(await gerar(jogador))]
+  }
+
+  it('chave desligada: a textura sai byte a byte igual à de antes da MT8 (3 cenas)', async () => {
+    trocarObraNoTeste(false)
+    // Tiradas no commit 2d376778 (antes da MT8), nesta tela falsa.
+    expect(await digitais()).toEqual(DIGITAIS_ANTES_DA_MT8)
+  })
+
+  it('ligada: sem Math.random, a mesma textura duas vezes, e nenhuma tela a mais que a desligada', async () => {
+    const sorteio = vi.spyOn(Math, 'random')
+    trocarObraNoTeste(false)
+    const antes = telas.length
+    await gerar(costaInteira('alto'))
+    const telasDesligada = telas.length - antes
+    trocarObraNoTeste(true)
+    const meio = telas.length
+    const a = await gerar(costaInteira('alto'))
+    const telasLigada = telas.length - meio
+    const b = await gerar(costaInteira('alto'))
+    expect(sorteio).not.toHaveBeenCalled()
+    expect(digital(a)).toBe(digital(b))
+    expect(telasLigada).toBeLessThanOrEqual(telasDesligada)
+    // Toda tela de trabalho é descartada (largura 0); só a saída fica.
+    const vivas = telas.slice(meio).filter((t) => t.width > 0 && !Object.is(t, a) && !Object.is(t, b))
+    expect(vivas.length).toBe(0)
+  })
+})
+
+/** Medidas com o `relevoRaster.ts` do commit 2d376778 (antes da MT8), numa cópia dele, nesta tela falsa. */
+const DIGITAIS_ANTES_DA_MT8: readonly number[] = [3111649189, 1344256651, 813745873]
