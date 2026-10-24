@@ -60,6 +60,8 @@ const GATILHOS_DO_N2 = [
   'client/projetosDoVitest.d.ts',
   'client/tsconfig*.json',
   'client/playwright.config.ts',
+  'client/playwright.conhecidas.config.ts',
+  'client/e2e/vermelhas-conhecidas.json',
   'client/porta.js',
   'client/e2e/helpers/**',
   'client/e2e/fixtures/**',
@@ -304,7 +306,9 @@ function nomesDoRelatorioE2e(relatorio) {
 }
 
 function lerConhecidas(arquivo = CONHECIDAS_JSON) {
-  return fs.existsSync(arquivo) ? new Set(lerJson(arquivo)) : new Set()
+  if (!fs.existsSync(arquivo)) return new Set()
+  const bruto = lerJson(arquivo)
+  return new Set(Array.isArray(bruto) ? bruto : bruto.testes)
 }
 
 /** Falha nova reprova; conhecida que passou só avisa (a lista deve ser enxugada). */
@@ -312,11 +316,13 @@ function compararComConhecidas(falhas, passaram, conhecidas) {
   return { novas: [...falhas].filter((n) => !conhecidas.has(n)).sort(), curadas: [...conhecidas].filter((n) => passaram.has(n)).sort() }
 }
 
-function etapaDeE2e(specs, titulo) {
+/** N0/N1 pulam por título os vermelhos conhecidos (todo o resto tem de passar); o N2 roda tudo e compara. */
+function etapaDeE2e(specs, titulo, nivel) {
   // O playwright.config.ts usa 2 workers porque várias árvores rodavam juntas;
   // dentro da vaga da fila a máquina é só desta suíte.
   const env = process.env.PW_WORKERS ? {} : { PW_WORKERS: '4' }
-  return { id: 'e2e', tipo: 'e2e', titulo, exe: process.execPath, cwd: CLIENTE, env, args: [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--reporter=list,json', '--retries=0', ...specs] }
+  const config = nivel === 2 ? 'playwright.config.ts' : 'playwright.conhecidas.config.ts'
+  return { id: 'e2e', tipo: 'e2e', titulo, exe: process.execPath, cwd: CLIENTE, env, args: [PLAYWRIGHT, 'test', '--config', config, '--reporter=list,json', '--retries=0', ...specs] }
 }
 
 function etapasDeCargo() {
@@ -360,8 +366,9 @@ function montarPlano({ nivelPedido, base, topo, mergeBase, arquivos, ctx, so }) 
   if (nivel === 0 && c.desconhecidos.length > 0) avisos.push('sem mapa (no N1 isto vira N2): ' + c.desconhecidos.slice(0, 6).join(', '))
   const etapas = [...etapasDeTsc(ctx.cache), ...etapasDeVitest(nivel, c, plano)]
   // N2 não passa filtro: o Playwright pega todo spec de client/e2e, até um que o mapa não conheça.
-  if (nivel === 2) etapas.push(etapaDeE2e([], 'e2e: todos os specs de client/e2e (' + e2e.specs.length + ')'))
-  else if (e2e.specs.length > 0) etapas.push(etapaDeE2e(e2e.specs, 'e2e: ' + e2e.specs.length + ' specs'))
+  const pulados = ctx.conhecidas ? ctx.conhecidas.size : 0
+  if (nivel === 2) etapas.push(etapaDeE2e([], 'e2e: todos os specs de client/e2e (' + e2e.specs.length + '), falhas comparadas com ' + pulados + ' conhecidas', 2))
+  else if (e2e.specs.length > 0) etapas.push(etapaDeE2e(e2e.specs, 'e2e: ' + e2e.specs.length + ' specs, sem os ' + pulados + ' vermelhos conhecidos', nivel))
   const comCargo = nivel >= 1 && c.desktop.length > 0
   if (comCargo) etapas.push(...etapasDeCargo())
   const desempenho = etapaDeDesempenho(nivel, c)
@@ -536,6 +543,7 @@ async function contextoReal() {
     projetos: lerProjetos(),
     mapa: lerJson(MAPA_JSON),
     specs: specsExistentes(),
+    conhecidas: lerConhecidas(),
     cache: path.join(CLIENTE, 'node_modules', '.cache', 'teste-rapido-' + portaDoProjeto()),
     existe: (rel) => fs.existsSync(path.join(RAIZ, rel)),
   }

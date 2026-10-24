@@ -47,7 +47,11 @@ Paridade por NOME: 18952 linhas (arquivo + nome completo de cada teste) antes e 
 
 ## e2e vermelhos pré-existentes
 
-O e2e inteiro já falha na main: **154 testes** em 65 specs no N2 de 24/10/2026 (o orquestrador confirmou na main, porta 1420, cache quente). A **triagem de causa é de outro agente**. O N2 compara as falhas com `client/e2e/vermelhas-conhecidas.json` (nomes `arquivo › describe › título`, como o reporter list imprime): PASSA se todas forem conhecidas, REPROVA listando as NOVAS, e só AVISA quando uma conhecida passa a passar (enxugue a lista). Abaixo do N2 a comparação só aparece na linha da etapa, sem mudar o veredito. A guarda reprova a lista que tiver teste de spec que o N1 roda (golden, seladas, fumaça, áreas). **Por isso a lista ainda não existe:** 111 das 154 caem em specs de área (golden, seladas e fumaça: nenhuma); quem decide é o orquestrador (tirar esses specs das áreas ou aceitar a comparação também no N1). `TESTE_RAPIDO_CONHECIDAS=<arquivo>` aponta outra lista.
+O e2e inteiro já falha na main: **154 testes** em 65 specs no N2 de 24/10/2026 (o orquestrador confirmou na main, porta 1420, cache quente). Estão em `client/e2e/vermelhas-conhecidas.json` (nomes `arquivo › describe › título`, como o reporter list imprime). **Decisão (orquestrador, 24/10/2026): a lista é um baseline, não uma anistia.** O conserto de causa é da triagem `a96045d4321beb493`; esta ferramenta só impede que o vermelho velho esconda um novo.
+
+- **N0/N1** rodam com `playwright.conhecidas.config.ts`: o `grepInvert` pula cada conhecido por título EXATO (regex escapada; o Playwright casa "arquivo describe título" separados por espaço). Nada espera o timeout de teste já vermelho, e todo o resto tem de passar: falha ali é nova.
+- **N2** roda TUDO com o config de sempre: PASSA se falhas ⊆ conhecidas, REPROVA listando as NOVAS, AVISA quando uma conhecida passou a passar (tire-a da lista).
+- **Guarda:** golden, as 3 seladas e a fumaça nunca entram na lista; teste de spec de área pode entrar (o N1 o pula, o N2 o vigia). Teste conhecido de spec que não existe também reprova. Mudar a lista ou o config força o N2.
 
 ## N2 reprova uma main já integrada
 

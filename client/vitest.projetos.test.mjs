@@ -129,10 +129,17 @@ describe('decisão do scripts/teste-rapido.cjs', () => {
 })
 
 describe('e2e vermelhos pré-existentes (e2e/vermelhas-conhecidas.json)', () => {
-  it('nenhum teste conhecido mora num spec que o N1 roda (golden, seladas, fumaça, áreas)', () => {
-    const doN1 = ferramenta.expandirSpecs([...mapa.sempre, ...mapa.fumaca, ...mapa.areas.flatMap((a) => [...a.specs, ...(a.n0 || [])])], specs)
-    const proibidos = [...ferramenta.lerConhecidas()].filter((nome) => doN1.has(nome.split(' › ')[0]))
+  // Spec de ÁREA pode ter vermelho conhecido (o N1 o pula por título e o N2 o vigia).
+  // Golden, seladas e fumaça nunca são tolerados.
+  it('nenhum teste conhecido mora no golden, nas seladas ou na fumaça', () => {
+    const intocaveis = ferramenta.expandirSpecs([...mapa.sempre, ...mapa.fumaca], specs)
+    const proibidos = [...ferramenta.lerConhecidas()].filter((nome) => intocaveis.has(nome.split(' › ')[0]))
     expect(proibidos).toEqual([])
+  })
+
+  it('todo teste conhecido aponta para um spec que existe', () => {
+    const fantasmas = [...ferramenta.lerConhecidas()].filter((nome) => !specs.includes(nome.split(' › ')[0]))
+    expect(fantasmas).toEqual([])
   })
 
   it('o nome sai do JSON do Playwright no formato do reporter list', () => {
