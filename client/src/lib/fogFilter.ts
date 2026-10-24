@@ -60,7 +60,6 @@ import { coresDosPinos } from './marcadorDeContinente'
 import { ceuDasNuvensDoRecorte } from './nuvens'
 import { SIGNAL_NEUTRAL_COLOR } from './signals'
 import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
-import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 import { noiseDirection, type NoiseDirection } from './noise'
 import { setaDoAbalo, type AbaloSeta } from './abalo'
 import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
@@ -3586,8 +3585,10 @@ function recorteDoGrupo(
   // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
   // MAPA POR ANDARES: o nome do prédio é do mestre; o rótulo do andar viaja à
   // parte (`snapshot.andares`), só quando o host decide que ele vale.
-  // RELÓGIO DA CAMPANHA: a marca "externa" também é do mestre; o jogador
-  // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
+  // DIA/TARDE/NOITE: as marcas de período da cena (externa, período fixo, a
+  // tinta e a visão de cada período) são do mestre; o jogador recebe só o
+  // período da cena dele e a tinta desse período, à parte (`snapshot.luz`,
+  // `luzParaJogador` em `lib/periodo.ts`).
   // NÍVEL DE ALERTA da cena: é do mestre, e sai junto — "caçada" no pacote
   // contaria ao jogador o que a cena já sabe dele.
   // ESTEIRA: regra do mestre (sala, direção, passo) — nunca sai. O jogador vê só
@@ -3598,6 +3599,9 @@ function recorteDoGrupo(
     textoChegada: _arrivalText,
     andar: _masterFloor,
     externa: _masterOutdoor,
+    periodoFixo: _masterFixedPeriod,
+    ambientePorPeriodo: _masterAmbient,
+    visaoPorPeriodo: _masterPeriodVision,
     alerta: _masterAlert,
     conveyors: _masterConveyors,
     ...mapWithoutHazards
@@ -4499,18 +4503,6 @@ export function filterMapForHost(map: MapData): MapData {
 export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
   if (turn === null || turn.mapId !== view.id) return null
   return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
-}
-
-/**
- * RELÓGIO DA CAMPANHA como o jogador pode recebê-lo: o PERÍODO (manhã, tarde,
- * noite), nunca a hora exata, e `escuro` só quando a cena DELE (`map`, a cena
- * da ficha dele) é externa e é noite. Sem relógio no mestre: `null`, e o campo
- * nem sai.
- */
-export function clockForPlayer(hour: number | null, map: Pick<MapData, 'externa'>): PlayerClock | null {
-  if (hour === null) return null
-  const periodo = periodOfHour(hour)
-  return isDarkAt(hour, map) ? { periodo, escuro: true } : { periodo }
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */

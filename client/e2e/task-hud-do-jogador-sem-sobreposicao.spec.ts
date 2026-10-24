@@ -4,7 +4,7 @@
 // barra de cima, a coluna do canto da direita (abas de andar, "Onde estou",
 // confronto e as rolagens no pé), a pilha do canto de baixo à direita (zoom,
 // "Chamar o mestre", alto-falante), a coluna das ações do lugar (espiar,
-// trancar, subir), a faixa "Sua vez", o selo de estado (hora do dia, tela
+// trancar, subir), a faixa "Sua vez", o selo de estado (tela
 // acesa), a faixa do alarme, a faixa da porta trancada e os avisos — nos
 // tamanhos de tela que o jogador usa: o notebook do mestre (1280 x 800), o
 // tablet em pé com a coluna do painel aberta (768 x 1024), o celular em pé
@@ -58,7 +58,7 @@ const VISAO_TODA: RegionPoint[][] = [
  */
 type Porta = 'fechada' | 'aberta' | 'trancada'
 
-/** O que a cena acende, além do que todo recorte traz (a ficha, a escada, a vez, a hora do dia). */
+/** O que a cena acende, além do que todo recorte traz (a ficha, a escada, a vez). */
 interface Cena {
   porta: Porta
   /** Quem divide a fila do confronto com a Ana, na ordem. */
@@ -124,7 +124,6 @@ function recorte(cena: Cena): Record<string, unknown> {
     turn: 'ficha-ana',
     confronto: { fila: map.tokens.map((t) => t.id), vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 },
     ...(cena.andares ? { andares: { atual: '1F', outros: [outroAndar()] } } : {}),
-    relogio: { periodo: 'noite', escuro: true },
   }
 }
 
@@ -262,7 +261,6 @@ const FLUTUANTES: readonly Flutuante[] = [
   { nome: 'Onde estou', seletor: '.pp-where', toque: true },
   { nome: 'confronto', seletor: '.pp-confronto', toque: false },
   { nome: 'Sua vez', seletor: '.pp-turn', toque: false },
-  { nome: 'hora do dia', seletor: '.pp-clock', toque: false },
   { nome: 'tela acesa', seletor: '.pp-awake', toque: false },
   { nome: 'zoom', seletor: '.pp-zoom', toque: true },
   { nome: 'som', seletor: '.pp-som .lb-som__gatilho', toque: true },
@@ -390,7 +388,6 @@ const ACESOS = [
   'Onde estou',
   'confronto',
   'Sua vez',
-  'hora do dia',
   'tela acesa',
   'zoom',
   'som',
@@ -783,7 +780,7 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
 
       // Só a pausa, no segundo andar: ela não cobre o selo de estado, e ele fica à vista.
       const soAPausa = await medirEFotografar(page, `pausa-${tela.width}x${tela.height}`)
-      expect(apagados(soAPausa, ['aviso que fica', 'hora do dia', 'tela acesa', 'Espiar pela porta', 'ferrolho', 'Sua vez'])).toEqual([])
+      expect(apagados(soAPausa, ['aviso que fica', 'tela acesa', 'Espiar pela porta', 'ferrolho', 'Sua vez'])).toEqual([])
       expect(problemas(soAPausa, tela, alvoMinimo(tela))).toEqual([])
 
       // A resposta do mestre a uma ação no ponto passa pelo chão: o selo sai de baixo dela.
@@ -792,7 +789,7 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
       await expect(page.locator('.pp-notice--point')).toBeVisible()
       const comOAviso = await medirEFotografar(page, `pausa-e-aviso-${tela.width}x${tela.height}`)
       expect(apagados(comOAviso, ['aviso que fica', 'aviso', 'Espiar pela porta', 'ferrolho', 'Sua vez', 'Onde estou', 'confronto'])).toEqual([])
-      expect(comOAviso.some((m) => m.nome === 'hora do dia'), 'o selo de estado embaixo do aviso do chão').toBe(false)
+      expect(comOAviso.some((m) => m.nome === 'tela acesa'), 'o selo de estado embaixo do aviso do chão').toBe(false)
       expect(problemas(comOAviso, tela, alvoMinimo(tela))).toEqual([])
     })
   })
@@ -817,7 +814,7 @@ for (const tela of [TABLET_EM_PE, TABLET_DEITADO]) {
       await expect(page.getByRole('complementary', { name: 'Painel do jogador' })).toBeVisible()
 
       const medidas = await medirEFotografar(page, `coluna-do-painel-${tela.width}x${tela.height}`)
-      const acesos = ['gaveta do painel', 'Sua vez', 'Onde estou', 'confronto', 'ferrolho', 'escada', 'rolagens', 'hora do dia', 'zoom', 'som', 'mão do chamado', 'linha do chamado']
+      const acesos = ['gaveta do painel', 'Sua vez', 'Onde estou', 'confronto', 'ferrolho', 'escada', 'rolagens', 'zoom', 'som', 'mão do chamado', 'linha do chamado']
       expect(apagados(medidas, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
     })

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { ExitPassage, MapData, ModeloDeCamadas, Pin, PinDestination, PinPassage, Stair } from '../types/map'
+import type { ExitPassage, MapData, ModeloDeCamadas, Periodo, Pin, PinDestination, PinPassage, Stair } from '../types/map'
 import { modeloParaOPasso } from '../lib/camadas/modelo'
+import { PERIODO_PADRAO } from '../lib/periodo'
 import {
   buildingOfStair,
   buildPartnerStair,
@@ -26,6 +27,7 @@ import {
   ADVENTURE_VERSION,
   baseName,
   cleanSceneName,
+  comPeriodo,
   nestScene,
   newSceneId,
   removeSceneKeepingInside,
@@ -224,6 +226,12 @@ interface AdventureState {
   pasta: PastaAberta | null
   /** A cópia da pasta mudou desde a última gravação (`gravarPasta`). */
   pastaSuja: boolean
+  /**
+   * DIA/TARDE/NOITE do MAPA SOLTO: sem `adventure.json` não há onde gravar, e
+   * o período vale só nesta sessão (passa à aventura que nasce do mapa). Com
+   * aventura, quem manda é `adventure.periodo`. Leia por `periodoDaSessao`.
+   */
+  periodoSolto: Periodo
 
   /** Mapa novo ou solto: esquece qualquer aventura anterior. */
   reset: () => void
@@ -325,6 +333,13 @@ interface AdventureState {
    * `false` no mapa solto: sem aventura não há onde guardar a agenda.
    */
   setAgenda: (agenda: AgendaDaCampanha) => boolean
+  /**
+   * DIA/TARDE/NOITE (decisão D6): troca o período da sessão. Com aventura,
+   * grava em `adventure.periodo` e pede Salvar como a agenda, fora do desfazer
+   * da cena aberta; Dia tira o campo (ausente = dia). No mapa solto fica só na
+   * sessão (`periodoSolto`). O mesmo período de novo não muda nada.
+   */
+  setPeriodo: (periodo: Periodo) => void
   /**
    * SISTEMA DE RPG da aventura (um só, para todas as cenas); `null` tira. Pede
    * Salvar como a agenda, fora do desfazer da cena aberta. `false` no mapa
@@ -573,7 +588,17 @@ const EMPTY = {
   cameraRequest: null,
   pasta: null,
   pastaSuja: false,
+  periodoSolto: PERIODO_PADRAO,
 } satisfies Partial<AdventureState>
+
+/**
+ * DIA/TARDE/NOITE: o período da sessão — o da aventura (ausente = dia) ou, no
+ * mapa solto, o da sessão. É o que o host lê a cada recorte (`getPeriodo`).
+ */
+export function periodoDaSessao(state: Pick<AdventureState, 'adventure' | 'periodoSolto'>): Periodo {
+  if (state.adventure === null) return state.periodoSolto
+  return state.adventure.periodo ?? PERIODO_PADRAO
+}
 
 /** Lista pronta para a tela: a cena aberta conta os tokens do mapa vivo. */
 export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>, liveMap: MapData): SceneListItem[] {
@@ -1154,18 +1179,21 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
 function aventuraDoMapaSolto(
   live: MapData,
   loosePath: string | null,
+  periodoSolto: Periodo,
 ): { adventure: Adventure; activeSceneId: string; nascimento: Partial<AdventureState> } {
   const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
+  const nascida: Adventure = {
+    version: ADVENTURE_VERSION,
+    id: `adv_${crypto.randomUUID()}`,
+    name: live.name,
+    startSceneId: root.id,
+    scenes: [root],
+    // CAMADAS (fatia 7): a lista que o mapa solto já tinha passa a ser a da aventura.
+    ...(live.modeloCamadas === undefined ? {} : { camadas: live.modeloCamadas }),
+  }
   return {
-    adventure: {
-      version: ADVENTURE_VERSION,
-      id: `adv_${crypto.randomUUID()}`,
-      name: live.name,
-      startSceneId: root.id,
-      scenes: [root],
-      // CAMADAS (fatia 7): a lista que o mapa solto já tinha passa a ser a da aventura.
-      ...(live.modeloCamadas === undefined ? {} : { camadas: live.modeloCamadas }),
-    },
+    // DIA/TARDE/NOITE: o período que a sessão do mapa solto já tinha passa a ser o da aventura.
+    adventure: comPeriodo(nascida, periodoSolto),
     activeSceneId: root.id,
     nascimento: { rootPath: loosePath, rootMapId: live.id, dir: null },
   }
@@ -1186,7 +1214,7 @@ function withEmptyScene(
 ): { id: string; patch: Partial<AdventureState> } {
   const { adventure, activeSceneId, nascimento } =
     state.adventure === null || state.activeSceneId === null
-      ? aventuraDoMapaSolto(live, loosePath)
+      ? aventuraDoMapaSolto(live, loosePath, state.periodoSolto)
       : { adventure: state.adventure, activeSceneId: state.activeSceneId, nascimento: {} }
   const id = newSceneId()
   const sceneName = cleanSceneName(name)
@@ -1388,7 +1416,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   virarAventura: (loosePath) => {
     const state = get()
     if (state.adventure !== null && state.activeSceneId !== null) return false
-    const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(useMapStore.getState().map, loosePath)
+    const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(useMapStore.getState().map, loosePath, state.periodoSolto)
     // Pede Salvar como a cena nova: o `adventure.json` ainda não existe no disco.
     set({ adventure, activeSceneId, ...nascimento, structureDirty: true })
     return true
@@ -1537,6 +1565,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (adventure === null) return false
     set({ adventure: { ...adventure, agenda }, structureDirty: true })
     return true
+  },
+
+  setPeriodo: (periodo) => {
+    const state = get()
+    if (periodoDaSessao(state) === periodo) return
+    const { adventure } = state
+    if (adventure === null) {
+      set({ periodoSolto: periodo })
+      return
+    }
+    set({ adventure: comPeriodo(adventure, periodo), structureDirty: true })
   },
 
   setSistemaDeRpg: (sistemaId) => {

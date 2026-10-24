@@ -47,7 +47,6 @@ import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
-import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
@@ -129,6 +128,7 @@ import {
   temRpgNoMapa,
   pinExitsTravelOf,
   pinScenesOf,
+  periodoDaSessao,
   pinTravelOptions,
   sceneDeletionInfo,
   sceneList,
@@ -795,7 +795,8 @@ function App() {
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
   const initiativeValues = useInitiativeStore((state) => state.values)
   const initiativeTurn = useInitiativeStore((state) => state.turn)
-  const clockHour = useClockStore((state) => state.hour)
+  // DIA/TARDE/NOITE: o período da sessão (o da aventura; no mapa solto, o da sessão).
+  const periodoAtual = useAdventureStore(periodoDaSessao)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
   // meio não pode gravar os donos desta sala na mesa da outra.
@@ -886,8 +887,8 @@ function App() {
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
-        // O relógio vai no snapshot recortado (`clockForPlayer`): só o período, nunca a hora.
-        getClock: () => useClockStore.getState().hour,
+        // O período vai no snapshot recortado (`luzParaJogador`): só o da cena de cada jogador, nunca hora.
+        getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
         onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -939,7 +940,7 @@ function App() {
       getMap: () => useMapStore.getState().map,
       getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
       getTurn: () => useInitiativeStore.getState().turn,
-      getClock: () => useClockStore.getState().hour,
+      getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
       criarJanela: criarJanelaDoSistema,
@@ -1010,11 +1011,11 @@ function App() {
       }),
     [],
   )
-  // O relógio andou: o período e a visão da noite chegam na hora, sem esperar outra edição.
+  // O mestre trocou Dia/Tarde/Noite: o período e a visão da noite chegam na hora, numa mensagem só.
   useEffect(
     () =>
-      useClockStore.subscribe((state, previous) => {
-        if (state.hour !== previous.hour) notificarPontes((ponte) => ponte.notifyClockChanged())
+      useAdventureStore.subscribe((state, previous) => {
+        if (periodoDaSessao(state) !== periodoDaSessao(previous)) notificarPontes((ponte) => ponte.notifyPeriodoChanged())
       }),
     [],
   )
@@ -1261,12 +1262,12 @@ function App() {
           },
           onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
         },
-        clock: {
-          hour: clockHour,
-          outdoor: map.externa === true,
-          onAdvanceHour: () => useClockStore.getState().advanceHour(),
-          onNextPeriod: () => useClockStore.getState().nextPeriod(),
-          onOutdoorChange: setOutdoor,
+        periodo: {
+          periodo: periodoAtual,
+          externa: map.externa === true,
+          ...(map.periodoFixo === undefined ? {} : { periodoFixo: map.periodoFixo }),
+          onPeriodoChange: (periodo) => useAdventureStore.getState().setPeriodo(periodo),
+          onExternaChange: setOutdoor,
         },
         clues: hostCluesProps({
           world,

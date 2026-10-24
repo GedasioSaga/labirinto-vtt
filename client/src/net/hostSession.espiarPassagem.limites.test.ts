@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Espiada } from '../lib/espiar'
-import type { MapData, Pin, Token } from '../types/map'
+import type { MapData, Periodo, Pin, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
 
@@ -19,8 +19,8 @@ const SALAO = 'cena-salao'
 const CRIPTA = 'cena-cripta'
 const VERMELHO = '#c0392b'
 const COR_DA_BIA = '#2e86c1'
-const HORA_DIA = 12
-const HORA_NOITE = 23
+const PERIODO_DIA: Periodo = 'tarde'
+const PERIODO_NOITE: Periodo = 'noite'
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null, ...extra }
@@ -66,13 +66,13 @@ function welcomeOf(messages: { msg: HostMessage }[]): { playerId: string } {
   return first
 }
 
-function mesa(w: HostWorld, hora: number | null = null) {
+function mesa(w: HostWorld, periodo: Periodo | null = null) {
   let n = 0
   const s = createHostSession({
     code: CODE,
     visionRadius: RADIUS,
     now: () => 1_000_000,
-    getClock: () => hora,
+    getPeriodo: () => periodo,
     randomId: () => {
       n += 1
       return `id-${n}`
@@ -110,10 +110,10 @@ describe('hostSession: a espiada respeita a visão da cena de lá', () => {
 
   it('SEGURANÇA — noite na Cripta externa: o raio cai à metade, e o vulto a 3 casas some', () => {
     const cripta: Partial<MapData> = { visionCells: 4, externa: true }
-    const dia = vistaDe(mesa(mundo({ cripta }), HORA_DIA).espiar())
+    const dia = vistaDe(mesa(mundo({ cripta }), PERIODO_DIA).espiar())
     expect(dia.raio).toBe(4 * GRID)
     expect(dia.tokens).toEqual([{ x: 150, y: 0, size: 1, color: VERMELHO }])
-    const noite = vistaDe(mesa(mundo({ cripta }), HORA_NOITE).espiar())
+    const noite = vistaDe(mesa(mundo({ cripta }), PERIODO_NOITE).espiar())
     expect(noite.raio).toBe(2 * GRID)
     expect(noite.tokens).toEqual([])
   })

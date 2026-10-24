@@ -44,7 +44,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
-import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
+import { comCenaExterna } from '../lib/periodo'
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
@@ -1265,7 +1265,7 @@ interface MapStoreState {
   apagarTodosOsCarimbos: () => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
-  /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
+  /** DIA/TARDE/NOITE: a cena aberta é externa e segue o período da sessão (`comCenaExterna`, `lib/periodo.ts`). Com desfazer. */
   setOutdoor: (outdoor: boolean) => void
   /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
   setSceneFloor: (andar: SceneFloor | undefined) => void
@@ -2947,7 +2947,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (setArrivalTextOnMap(get().map, text) === get().map) return
       withHistory((map) => setArrivalTextOnMap(map, text))
     },
-    setOutdoor: (outdoor) => withHistory((map) => setOutdoorOnMap(map, outdoor)),
+    setOutdoor: (outdoor) => withHistory((map) => comCenaExterna(map, outdoor)),
     setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
     setSceneVisionCells: (cells) => withHistory((map) => mapFactory.setSceneVisionCells(map, cells)),
     setSceneDark: (dark) => {

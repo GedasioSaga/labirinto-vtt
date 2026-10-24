@@ -24,7 +24,7 @@ import type { PartySectionProps } from './PartySection'
 import { GrupoCompacto } from './GrupoCompacto'
 import type { CenaNaOrdem } from '../lib/grupoPorCena'
 import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
-import { CampaignClockSection, type CampaignClockSectionProps } from './CampaignClockSection'
+import { PeriodoDaSessaoSection, type PeriodoDaSessaoSectionProps } from './PeriodoDaSessaoSection'
 import type { TableScreenSectionProps } from './TableScreenSection'
 import type { TravelLogSectionProps } from './TravelLogSection'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
@@ -68,8 +68,8 @@ export interface RoomPanelProps {
   secretCheck?: SecretCheckSectionProps
   /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
   initiative?: InitiativeSectionProps
-  /** Seção "Relógio da campanha" (hora do dia e cena externa). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
-  clock?: CampaignClockSectionProps
+  /** Seção "Período" (Dia/Tarde/Noite da sessão e cena externa). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
+  periodo?: PeriodoDaSessaoSectionProps
   /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
   travelLog?: TravelLogSectionProps
   /** CONFRONTO da cena aberta no editor (vez e passo). Ausente = sem a seção. */
@@ -1476,7 +1476,7 @@ export function RoomPanel({
   tokens,
   party,
   initiative,
-  clock,
+  periodo,
   confronto,
   onAssign,
   onUnassign,
@@ -1509,7 +1509,6 @@ export function RoomPanel({
 }: RoomPanelProps) {
   // Escondidos por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
   const iniciativaVisivel = flags.iniciativa ? initiative : undefined
-  const relogioVisivel = flags.relogioDaCampanha ? clock : undefined
   if (room === null) {
     return (
       <section className="lb-section lb-room">
@@ -1521,7 +1520,8 @@ export function RoomPanel({
         {rpg}
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
         {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
-        {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
+        {/* DIA/TARDE/NOITE também sem sala: o mestre escolhe o período antes de abrir a mesa. */}
+        {periodo !== undefined && <PeriodoDaSessaoSection {...periodo} />}
       </section>
     )
   }
@@ -1564,8 +1564,8 @@ export function RoomPanel({
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
       {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
 
-      {/* O relógio depois da iniciativa: anda entre as cenas, não a cada vez. */}
-      {relogioVisivel !== undefined && <CampaignClockSection {...relogioVisivel} />}
+      {/* O período depois da iniciativa: muda entre as cenas, não a cada vez. */}
+      {periodo !== undefined && <PeriodoDaSessaoSection {...periodo} />}
 
       {/* CONFRONTO da cena aberta: ação de mesa, logo depois de quem está onde. */}
       {flags.confronto && confronto !== undefined && (

@@ -6,7 +6,7 @@ import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHaza
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { cleanFloorLabel } from '../lib/buildingFloors'
-import { readPlayerClock, type PlayerClock } from '../lib/campaignClock'
+import { lerLuzDoJogador, type LuzDoJogador } from '../lib/periodo'
 import { lerPortasPorAtravessar } from '../lib/portasPorAtravessar'
 import {
   COINS_GIVE_REJECTIONS,
@@ -287,8 +287,8 @@ export interface PlayerState {
   gatilhos?: PlayerAreaTrigger[]
   /** MAPA POR ANDARES: o andar dele e os outros que ele já conhece. Ausente = sem abas. */
   andares?: PlayerFloors
-  /** RELÓGIO DA CAMPANHA: o período do dia e se a cena dele está escura. Ausente = mestre sem relógio. */
-  relogio?: PlayerClock
+  /** DIA/TARDE/NOITE: o período da cena dele e a tinta desse período. Ausente = dia (ou mestre sem período). */
+  luz?: LuzDoJogador
   /**
    * PORTAS POR ATRAVESSAR: ids das portas do mapa recebido cujo outro lado ainda
    * está na névoa para ele (a tela desenha um ponto claro nelas). Só id de porta
@@ -3354,7 +3354,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     where: SnapshotPlaces,
     gatilhos: PlayerAreaTrigger[],
     andares: PlayerFloors | undefined,
-    relogio: PlayerClock | undefined,
+    luz: LuzDoJogador | undefined,
     glimpses: RegionPoint[][],
     elsewhere: OwnTokenElsewhere[],
     peek: RoofPeek | undefined,
@@ -3424,7 +3424,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       hazards,
       gatilhos,
       andares,
-      relogio,
+      luz,
       porAtravessar: doorsToCross,
       turn: turnOnMap,
       confronto,
@@ -3505,7 +3505,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       {},
       state.gatilhos ?? [],
       state.andares,
-      state.relogio,
+      state.luz,
       state.glimpses ?? [],
       state.elsewhere ?? [],
       state.peek,
@@ -3847,7 +3847,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           hazardNotice: undefined,
           gatilhos: undefined,
           andares: undefined,
-          relogio: undefined,
+          luz: undefined,
           porAtravessar: undefined,
           turn: undefined,
           signals: undefined,
@@ -4489,9 +4489,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // MAPA POR ANDARES: ausente = sem abas; malformado derruba a mensagem.
         const andares = data.andares === undefined ? undefined : parseFloors(data.andares)
         if (andares === null) return
-        // RELÓGIO DA CAMPANHA: ausente = sem relógio; malformado derruba a mensagem.
-        const relogio = data.relogio === undefined ? undefined : readPlayerClock(data.relogio)
-        if (relogio === null) return
+        // DIA/TARDE/NOITE: ausente = dia; malformado derruba a mensagem. O `relogio` de mestre antigo é ignorado.
+        const luz = data.luz === undefined ? undefined : lerLuzDoJogador(data.luz)
+        if (luz === null) return
         if (data.peek !== undefined && !isRoofPeek(data.peek)) return
         let elsewhere: OwnTokenElsewhere[] = []
         if (data.elsewhere !== undefined) {
@@ -4504,7 +4504,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
         if (porAtravessar === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, relogio, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar)
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar)
         return
       }
       case 'wait.state':
@@ -4783,7 +4783,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 

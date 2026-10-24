@@ -1,6 +1,6 @@
 import type { MapData, ModeloDeCamadas, Periodo } from '../types/map'
 import { lerModeloDeCamadas } from './camadas/arquivo'
-import { lerPeriodo } from './periodo'
+import { lerPeriodo, PERIODO_PADRAO } from './periodo'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
@@ -281,6 +281,18 @@ export function parseAdventure(json: string): Adventure {
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)
   return agenda === undefined ? adventure : { ...adventure, agenda }
+}
+
+/**
+ * DIA/TARDE/NOITE: a aventura com o período da sessão em `periodo`. Dia tira
+ * a chave (ausente = dia), então a aventura que volta para o dia grava igual
+ * à de antes da Luz. A ordem das outras chaves não muda.
+ */
+export function comPeriodo(adventure: Adventure, periodo: Periodo): Adventure {
+  if (periodo !== PERIODO_PADRAO) return { ...adventure, periodo }
+  if (adventure.periodo === undefined) return adventure
+  const { periodo: _antigo, ...semPeriodo } = adventure
+  return semPeriodo
 }
 
 export function serializeAdventure(adventure: Adventure): string {
