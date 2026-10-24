@@ -3,6 +3,7 @@ import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { camadaDosItens, motivoParaNaoMover, nomeDaCamada, refsDaSelecao, type RefDeItem } from '../lib/camadas/mover'
 import { ehCamadaId } from '../lib/camadas/padrao'
 import { useMapStore } from '../stores/mapStore'
+import './SeletorDeCamada.css'
 
 /** A frase honesta do telhado: no jogador ele ainda desenha com a ordem e a opacidade de Telhados (fatia 4b). */
 const NOTA_DO_TELHADO = 'Para os jogadores, o telhado segue a ordem e a opacidade de Telhados por enquanto; esconder vale.'
@@ -38,7 +39,7 @@ function CampoDeCamada({ rotulo, refs, nota }: CampoDeCamadaProps) {
       </label>
       <select
         id={id}
-        className="lb-input"
+        className="lb-input lb-seletor-de-camada"
         value={atual === 'varias' ? VARIAS : atual}
         disabled={motivo !== null}
         aria-describedby={frase === undefined ? undefined : idDaFrase}

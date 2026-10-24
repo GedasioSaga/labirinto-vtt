@@ -1,0 +1,18 @@
+/* CONTRASTE DE COMPONENTE (WCAG 1.4.11; contrato em e2e/task-contraste-aa.spec.ts).
+   O filete de 1 px do `.lb-input` só tem exceção no campo de DIGITAR (rótulo,
+   texto e anel de foco o identificam); este é de ESCOLHER e mora na ficha logo
+   abaixo da cabeça, sem cursor nem exemplo. A borda de pergaminho apagado dá
+   4,8:1 contra a pedra da ficha (1,24:1 com o filete). Pairar clareia um degrau
+   (nunca apaga, como no `.lb-input`) e o foco de teclado segue no latão.
+   Desligado fica com o filete: fora da regra, como a WCAG manda. */
+.lb-input.lb-seletor-de-camada:not(:disabled) {
+  border-color: var(--lb-color-parchment-faint);
+}
+
+.lb-input.lb-seletor-de-camada:not(:disabled):hover {
+  border-color: var(--lb-color-parchment-dim);
+}
+
+.lb-input.lb-seletor-de-camada:not(:disabled):focus-visible {
+  border-color: var(--lb-color-brass);
+}
