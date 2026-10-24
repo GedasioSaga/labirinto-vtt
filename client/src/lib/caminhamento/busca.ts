@@ -20,6 +20,10 @@ import { avancarMalha } from './marcos'
  *    Achou = `porta-trancada` (com as portas que o mestre teria de destrancar);
  *    senão, `sem-caminho`.
  *
+ * O andar do jogador (`lib/knownPath.ts`) usa a mesma busca, sem fichas, com
+ * MÁSCARA (só o chão que ele conhece) e com a porta fechada barrando como a
+ * trancada (`portaFechadaBarra`): o host não abre porta no passo dele.
+ *
  * Puro: sem store, sem DOM, sem Pixi.
  */
 
@@ -40,6 +44,22 @@ export interface ConsultaDeCaminho {
   folgaExtra?: number
   /** Quanto custa abrir e fechar uma porta, em px de caminho. Padrão: `CUSTO_DA_PORTA` casas. */
   custoPorPorta?: number
+  /**
+   * MÁSCARA: onde a ficha pode pisar (o jogador: só o chão que ele já
+   * conhece). Ausente = o mapa todo. Ponto da rede fora dela não entra; a
+   * diagonal entra só com os dois cantos retos também dentro; perna, traço
+   * direto e alisado são amostrados a cada
+   * `passoDaMascara` px, nas mesmas posições em que o host confere o chão.
+   */
+  mascara?: (x: number, y: number) => boolean
+  /** Passo das amostras de um traço na máscara, em px. Padrão: um quarto da casa (`AMOSTRAS_POR_CASA`). */
+  passoDaMascara?: number
+  /**
+   * Porta fechada (destrancada) não abre: barra como a trancada e, como ela,
+   * entra no motivo (`porta-trancada`, com o id em `portas`). É o andar do
+   * jogador: o host recusa o passo que cruza porta fechada.
+   */
+  portaFechadaBarra?: boolean
 }
 
 export type MotivoSemCaminho = 'porta-trancada' | 'sem-caminho' | 'ocupado'
@@ -110,10 +130,64 @@ export interface Busca {
   rodada: Rodada | null
   fichasQueAtrapalham: Set<string>
   trancasVistas: Set<number>
+  /** Portas fechadas que barraram uma aresta (só com `portaFechadaBarra`): como as trancas, levam à última rodada. */
+  fechadasVistas: Set<number>
+  /** A máscara já lida, por ponto da rede: 0 = não lido, `DENTRO`, `FORA`. `null` sem máscara. */
+  naMascara: Uint8Array | null
 }
 
 const ABERTO = 1
 const FECHADO = 2
+const DENTRO = 1
+const FORA = 2
+/** Amostras por casa num traço conferido na máscara: o passo com que o host confere o chão (`moveValidation`). */
+const AMOSTRAS_POR_CASA = 4
+/** Teto de amostras de um traço, como no host (`MAX_PATH_SAMPLES`). */
+const MAX_AMOSTRAS_DO_TRACO = 10_000
+
+/** O ponto `no` da rede está na máscara: lido uma vez por busca. */
+function noNaMascara(b: Busca, no: number): boolean {
+  const lidos = b.naMascara
+  if (lidos === null) return true
+  const lido = lidos[no] ?? 0
+  if (lido !== 0) return lido === DENTRO
+  const m = b.malha
+  const i = no % m.nx
+  const dentro = b.consulta.mascara?.(m.x0 + i * m.grid, m.y0 + ((no - i) / m.nx) * m.grid) ?? true
+  lidos[no] = dentro ? DENTRO : FORA
+  return dentro
+}
+
+/**
+ * A aresta de `no` (em i, j) ao vizinho `outro` (em ni, nj) fica na máscara:
+ * o vizinho dentro e, na diagonal, os dois cantos retos também (não corta a
+ * quina do escuro). O traço entre dois pontos é conferido inteiro só onde vira
+ * trecho (alisado, perna, e a conferência final de `lib/knownPath.ts`).
+ */
+function arestaNaMascara(b: Busca, outro: number, i: number, j: number, ni: number, nj: number): boolean {
+  if (!noNaMascara(b, outro)) return false
+  if (ni === i || nj === j) return true
+  const nx = b.malha.nx
+  return noNaMascara(b, ni + j * nx) && noNaMascara(b, i + nj * nx)
+}
+
+/**
+ * O traço a-z fica na máscara, amostrado como o host amostra o chão (mesmo
+ * passo, mesmas posições). A ponta `a` não conta: é onde a ficha já está, ou
+ * um ponto da rede já conferido.
+ */
+function tracoNaMascara(b: Busca, a: Point, z: Point): boolean {
+  const mascara = b.consulta.mascara
+  if (mascara === undefined) return true
+  const passo = b.consulta.passoDaMascara ?? Math.max(b.malha.grid / AMOSTRAS_POR_CASA, 1)
+  const querido = Math.ceil(Math.hypot(z.x - a.x, z.y - a.y) / passo)
+  const amostras = Number.isFinite(querido) ? Math.min(MAX_AMOSTRAS_DO_TRACO, Math.max(1, querido)) : MAX_AMOSTRAS_DO_TRACO
+  for (let k = 1; k <= amostras; k += 1) {
+    const t = k / amostras
+    if (!mascara(a.x + (z.x - a.x) * t, a.y + (z.y - a.y) * t)) return false
+  }
+  return true
+}
 
 /** As fichas que contam como obstáculo para quem sai de `de`, com o alcance de cada uma. */
 export function obstaculosPara(de: Point, fichas: readonly FichaNoCaminho[], raio: number, grid: number, folgaExtra: number = 0): Obstaculo[] {
@@ -190,8 +264,12 @@ function noMaisPerto(m: Malha, p: Point): [number, number] {
  * Os pontos da rede em volta de `p` que a perna alcança, com a distância: os
  * vizinhos de casa primeiro; só sem nenhum, o anel de fora (até
  * `ALCANCE_DA_PERNA` casas) — a ficha quase sempre está num ponto da rede.
+ * Com máscara, o ponto e a perna ficam nela (`chegando`: a perna vai do ponto
+ * da rede a `p`, e `p` conta; saindo, `p` é onde a ficha já está).
  */
-function pontosEmVolta(m: Malha, paredes: readonly Wall[], p: Point, obstaculos: readonly Obstaculo[] | null, bloqueio: Uint8Array | null): Map<number, number> {
+function pontosEmVolta(b: Busca, p: Point, obstaculos: readonly Obstaculo[] | null, bloqueio: Uint8Array | null, chegando: boolean): Map<number, number> {
+  const m = b.malha
+  const paredes = b.paredes
   const pontos = new Map<number, number>()
   if (m.nx === 0 || m.ny === 0) return pontos
   const [ci, cj] = noMaisPerto(m, p)
@@ -204,8 +282,11 @@ function pontosEmVolta(m: Malha, paredes: readonly Wall[], p: Point, obstaculos:
         if (i < 0 || j < 0 || i >= m.nx || j >= m.ny) continue
         const no = i + j * m.nx
         if (bloqueio !== null && bloqueio[no] === 1) continue
+        if (!noNaMascara(b, no)) continue
         const c = pontoDoNo(m, no)
-        if (pernaPassa(m, paredes, p, c, obstaculos)) pontos.set(no, Math.hypot(c.x - p.x, c.y - p.y))
+        if (!pernaPassa(m, paredes, p, c, obstaculos)) continue
+        if (!(chegando ? tracoNaMascara(b, c, p) : tracoNaMascara(b, p, c))) continue
+        pontos.set(no, Math.hypot(c.x - p.x, c.y - p.y))
       }
     }
   }
@@ -384,8 +465,8 @@ function comecarRodada(b: Busca): void {
   marcarFichas(m, r)
   const comFichas = b.fase.comFichas ? obstaculos : null
   const bloqueio = b.fase.comFichas ? r.memoria.bloqueioFicha : null
-  const inicio = pontosEmVolta(m, b.paredes, de, comFichas, bloqueio)
-  r.chegada = pontosEmVolta(m, b.paredes, para, comFichas, bloqueio)
+  const inicio = pontosEmVolta(b, de, comFichas, bloqueio, false)
+  r.chegada = pontosEmVolta(b, para, comFichas, bloqueio, true)
   b.rodada = r
   if (r.chegada.size === 0) return
   medirAlvos(m, r)
@@ -432,6 +513,10 @@ function custoDaPorta(b: Busca, r: Rodada, no: number, dir: number, px: number, 
   if ((porta & bit) !== 0) {
     const k = m.portaDaAresta.get(no * 8 + dir)
     if (k !== undefined && r.portaFechada[k] === 1) {
+      if (b.consulta.portaFechadaBarra === true && !b.fase.trancaPassa) {
+        b.fechadasVistas.add(k)
+        return -1
+      }
       const w = b.paredes[k]
       // Porta de um lado: fechada, só abre de quem está do lado certo. Em cima da linha
       // não há lado errado: a ficha de duas casas anda pelos cantos e passa por ela.
@@ -475,6 +560,7 @@ function andarRodada(b: Busca, orcamento: number): number | undefined {
   const { g, h: estimado, veio, marca } = r.memoria
   const fim = m.nx * m.ny
   const comFichas = b.fase.comFichas
+  const comMascara = b.naMascara !== null
   const custoReto = m.grid
   const custoDiagonal = m.grid * RAIZ_DE_2
   let feitos = 0
@@ -513,6 +599,7 @@ function andarRodada(b: Busca, orcamento: number): number | undefined {
       if (ni < 0 || nj < 0 || ni >= m.nx || nj >= m.ny) continue
       const outro = ni + nj * m.nx
       if (marca[outro] === FECHADO) continue
+      if (comMascara && !arestaNaMascara(b, outro, i, j, ni, nj)) continue
       let custo = dir < 4 ? custoReto : custoDiagonal
       if ((especial & bit) !== 0) {
         const extra = custoDaPorta(b, r, no, dir, px, py)
@@ -635,7 +722,7 @@ function montarCaminho(b: Busca, r: Rodada, fim: number): ResultadoDoCaminho {
   pecas[pecas.length - 1]?.pontos.push({ x: para.x, y: para.y })
 
   const obstaculos = b.fase.comFichas ? r.obstaculos : null
-  const passa = (x: Point, y: Point) => tracoLivre(m, b.paredes, x, y, obstaculos)
+  const passa = (x: Point, y: Point) => tracoLivre(m, b.paredes, x, y, obstaculos) && tracoNaMascara(b, x, y)
   const pontos: PontoDoCaminho[] = []
   let portas = 0
   for (const peca of pecas) {
@@ -673,14 +760,17 @@ export function comprimentoDe(pontos: readonly Point[]): number {
   return total
 }
 
-/** As portas trancadas no caminho da rodada que as deixou passar. */
+/** As portas trancadas (e, com `portaFechadaBarra`, as fechadas) no caminho da rodada que as deixou passar. */
 function trancasNoCaminho(b: Busca, r: Rodada, fim: number): string[] {
   const m = b.malha
   const nos = nosDoCaminho(r, fim)
   const ids = new Set<string>()
+  const fechadaConta = b.consulta.portaFechadaBarra === true
   for (let i = 1; i < nos.length; i += 1) {
     const a = nos[i - 1] ?? 0
-    const k = m.trancaDaAresta.get(a * 8 + direcaoEntre(m, a, nos[i] ?? 0))
+    const aresta = a * 8 + direcaoEntre(m, a, nos[i] ?? 0)
+    const fechada = fechadaConta ? m.portaDaAresta.get(aresta) : undefined
+    const k = m.trancaDaAresta.get(aresta) ?? (fechada !== undefined && r.portaFechada[fechada] === 1 ? fechada : undefined)
     const w = k === undefined ? undefined : b.paredes[k]
     if (w !== undefined) ids.add(w.id)
   }
@@ -696,8 +786,8 @@ function direto(b: Busca): boolean {
   const { de, para, fichas, folgaExtra } = b.consulta
   const m = b.malha
   const obstaculos = obstaculosPara(de, fichas, m.raio, m.grid, folgaExtra)
-  if (Math.hypot(para.x - de.x, para.y - de.y) <= m.grid && pernaPassa(m, b.paredes, de, para, obstaculos)) return true
-  return tracoLivre(m, b.paredes, de, para, obstaculos)
+  const curto = Math.hypot(para.x - de.x, para.y - de.y) <= m.grid && pernaPassa(m, b.paredes, de, para, obstaculos)
+  return (curto || tracoLivre(m, b.paredes, de, para, obstaculos)) && tracoNaMascara(b, de, para)
 }
 
 /**
@@ -718,6 +808,8 @@ export function iniciarBusca(malha: Malha, paredes: readonly Wall[], consulta: C
     rodada: null,
     fichasQueAtrapalham: new Set(),
     trancasVistas: new Set(),
+    fechadasVistas: new Set(),
+    naMascara: consulta.mascara === undefined ? null : new Uint8Array(malha.nx * malha.ny),
   }
   const { de, para } = consulta
   if (de.x === para.x && de.y === para.y) {
@@ -773,7 +865,7 @@ export function avancarBusca(b: Busca, orcamento: number): boolean {
     comecarRodada(b)
     return false
   }
-  if (!trancaPassa && b.trancasVistas.size > 0) {
+  if (!trancaPassa && (b.trancasVistas.size > 0 || b.fechadasVistas.size > 0)) {
     b.fase = { comFichas: false, trancaPassa: true }
     comecarRodada(b)
     return false

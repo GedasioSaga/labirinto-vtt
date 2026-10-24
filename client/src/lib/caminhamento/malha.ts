@@ -35,7 +35,7 @@ export interface MapaDoCaminho {
 export const TOLERANCIA_DO_DESENHO = 0.1
 /**
  * Folga mínima da parede, em fração da casa, para ficha pequena: com menos
- * que isto ela raspa a quina (o mesmo número de `lib/caminhoEmGrade.ts`).
+ * que isto ela raspa a quina (o número da antiga busca em grade, aposentada na F1 de CAMINHOS).
  */
 export const FOLGA_MINIMA = 0.3
 

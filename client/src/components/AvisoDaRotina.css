@@ -1,0 +1,116 @@
+/*
+ * AVISO AO MESTRE (caminhos, F0) — components/AvisoDaRotina.tsx.
+ *
+ * Canto de baixo à esquerda do mapa: acima da barra de ferramentas
+ * (`--lb-base-altura`, medida pelo App) e entre os dois livros
+ * (`--lb-livroesq-espaco` e `--lb-coldir-espaco`, livro/livro.css). Os avisos
+ * do app moram no alto à direita e o chip da cena no alto ao centro: ninguém
+ * disputa o lugar. O mesmo material da torrada (grimorio.css), mais baixo.
+ */
+.lb-aviso-rotina {
+  position: absolute;
+  z-index: 25;
+  left: calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre)) + var(--lb-layout-edge-gap));
+  right: calc(var(--lb-coldir-espaco, 0px) + var(--lb-layout-edge-gap));
+  bottom: calc(var(--lb-layout-edge-gap) * 2 + var(--lb-base-altura, 56px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+  container: lb-aviso-rotina / inline-size;
+}
+
+.lb-aviso-rotina__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.lb-aviso-rotina__item {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, 100%);
+  min-height: 36px;
+  padding: 4px 4px 4px 10px;
+  background: #0f0d0a;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  transition:
+    opacity 180ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 180ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@starting-style {
+  .lb-aviso-rotina__item {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* O cadeado na cor da porta trancada do mapa: diz "porta" antes de ler. */
+.lb-aviso-rotina__icone {
+  display: inline-flex;
+  flex: none;
+  color: var(--lb-color-ember);
+}
+
+.lb-aviso-rotina__texto {
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.lb-aviso-rotina__fechar {
+  position: relative;
+  flex: none;
+}
+
+/* 28 px de botão e 44 px de alvo: o dedo acerta sem o aviso crescer. */
+.lb-aviso-rotina__fechar::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.lb-aviso-rotina__mais {
+  pointer-events: auto;
+  margin: 0;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: rgba(15, 13, 10, 0.85);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Sem mapa à vista entre os livros (celular com o livro aberto): o aviso
+   espera o livro recolher, em vez de tapá-lo ou virar uma coluna de letras.
+   No fim do arquivo: as regras de cima, de mesmo peso, venceriam o `none`. */
+@container lb-aviso-rotina (max-width: 199px) {
+  .lb-aviso-rotina__lista,
+  .lb-aviso-rotina__mais {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-aviso-rotina__item {
+    transition: opacity 120ms ease;
+  }
+
+  @starting-style {
+    .lb-aviso-rotina__item {
+      transform: none;
+    }
+  }
+}

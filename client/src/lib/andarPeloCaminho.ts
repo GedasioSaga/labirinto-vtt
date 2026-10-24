@@ -1,42 +1,19 @@
 import type { Point } from '../pixi/world'
-import type { MapData } from '../types/map'
-import { acharCaminho } from './caminhoEmGrade'
-import { isTokenPathClear } from './collision'
 
 /**
  * ANDAR PELO CAMINHO — o passo de quem anda sozinho no mapa (a rotina andando
- * e a patrulha andando), da mesma forma para os dois. O trecho até o destino
- * sai do caminho em grade (`lib/caminhoEmGrade.ts`): contorna parede, passa por
- * porta aberta, nunca atravessa parede nem porta fechada. É calculado uma vez
- * por trecho e guardado no estado do agendador; se o próximo canto deixa de
- * ser alcançável (porta fechou no caminho, o mestre mudou a ficha de lugar),
- * recalcula. Sem caminho, a ficha NÃO pula: o agendador a deixa onde está e
- * tenta de novo em `TENTAR_DE_NOVO_MS` — abriu a porta, ela segue.
+ * e a patrulha andando, pelo `caminhamento/andarilho.ts`), da mesma forma para
+ * os dois. Só o PASSO: o caminho vem do motor (`caminhamento/busca.ts`). A
+ * busca em grade que morava aqui (`trajetoAte`, sobre `lib/caminhoEmGrade.ts`)
+ * foi aposentada na F1 de CAMINHOS (23/10/2026): não tinha mais quem chamasse.
+ * Sem caminho, a ficha NÃO pula: o agendador a deixa onde está e tenta de novo
+ * em `TENTAR_DE_NOVO_MS` — abriu a porta, ela segue.
  *
  * Puro: sem store, sem DOM.
  */
 
 /** Sem caminho até o destino (porta fechada, sala sem saída): de quanto em quanto ela procura de novo. */
 export const TENTAR_DE_NOVO_MS = 1000
-
-/**
- * Os cantos que faltam até `destino` (o último é ele): o trajeto guardado, se
- * ainda leva lá e o próximo canto continua alcançável daqui; senão, um caminho
- * novo. Já no destino: `[]`. `null`: sem caminho agora.
- */
-export function trajetoAte(aqui: Point, destino: Point, guardado: readonly Point[] | undefined, map: Pick<MapData, 'walls' | 'grid' | 'width' | 'height'>): readonly Point[] | null {
-  const ultimo = guardado?.[guardado.length - 1]
-  const proximo = guardado?.[0]
-  const valeAinda =
-    guardado !== undefined &&
-    ultimo !== undefined &&
-    proximo !== undefined &&
-    ultimo.x === destino.x &&
-    ultimo.y === destino.y &&
-    isTokenPathClear(aqui, proximo, map.walls, map.grid)
-  if (valeAinda) return guardado
-  return acharCaminho(aqui, destino, map)?.slice(1) ?? null
-}
 
 /**
  * Um passo de `aqui` pelo `trajeto`, de `passo` px. Para EM cada canto em vez
