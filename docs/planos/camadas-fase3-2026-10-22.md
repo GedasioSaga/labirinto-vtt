@@ -263,3 +263,11 @@ Por tipo: container de hoje, nó destino (`faixa|camada`, criado pela pilha só 
 - **Portas (jogador):** `doors` e `portasNoTelhado` (animador por nó), `doorHints` (traço por nó). O editor já dividia.
 - **Telhados (editor):** o renderer já recebe a camada por sala (`camada`); a sala com `camadaDoTelhado` vai ao nó dela. Jogador: máscaras do espiar (`roofCut`, `peekMask`) presas ao container de hoje; risco alto, fica para depois se não couber.
 - **Texto, carimbos, salas (fundo, borda, nome) e chão (segunda instância do `floorRenderer`, contorno dividido):** só se couber; o que sobrar fica fixado como "LIMITACAO ATUAL" em `paresDoEditor.test.ts` e `pilhaDoJogador.test.ts`.
+
+### Resultado (24/10/2026)
+
+- **Feito:** editor com fichas, pinos e telhados; jogador com fichas, pinos, luzes (perto e longe), portas (retângulo, halo, cópia sobre o telhado), linhas e marcadores do chão; `lastSeen` apaga o contorno quando a camada sai do pacote. A pilha expõe `data-ordem-dos-nos` (faixa e camadas de cada nó, de baixo para cima), lido pelo e2e `task-camadas-itens-no-no.spec.ts`.
+- **Ficou (LIMITACAO ATUAL fixada nos testes):** editor com salas (fundo, borda, nome), texto, chão, raster e carimbos; jogador com esses mesmos itens e os telhados (máscaras do espiar).
+- **lastSeen:** num mapa v2 com uma camada padrão escondida dos jogadores e o resto padrão a 100%, o host não manda a lista (`fogFilter.camadasDoJogador.test.ts` fixa isso). O jogador não sabe da camada, e o contorno fica. Livre que esvazia também sai da lista: a última ficha dela, ao sair da visão, perde o contorno.
+- **CPU (editor, mapa denso padrão, mediana de 5, A=ad439f97 e D alternados, ms por quadro):** pan 9,93→10,29 (+3,6%), zoom 13,78→15,17 (+10,1%), repintura 13,13→13,38 (+1,9%), visibilidade 14,50→14,54 (+0,3%). Tarefa longa máxima 50 ms.
+- **Não verificado:** CPU no jogador; caminho novo com fichas em livre contra a base. **Não verificado em celular** (ordem do usuário, 24/10: foco só no PC).
