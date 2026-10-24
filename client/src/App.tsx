@@ -66,6 +66,8 @@ import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, 
 import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
 import { itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
 import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
+import { prepararMusicaDaDancaNaMesa } from './lib/musicaDaDancaNaAventura'
+import { useBibliotecaDeSonsStore } from './stores/bibliotecaDeSonsStore'
 import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
@@ -2540,6 +2542,11 @@ function App() {
         players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
         danca,
         ponte: () => hostBridgeRef.current,
+        // SONS F5d: a música importada sai para a mesa só da pasta da aventura (`/sons`); sem pasta, o convite não sai.
+        prepararMusica: () => {
+          const minigame = pin.minigame ?? MINIGAME_PADRAO
+          return minigame.jogo !== 'danca' || prepararMusicaDaDancaNaMesa(minigame.musica, useBibliotecaDeSonsStore.getState().dir)
+        },
       },
     ),
     aoVivoDaPesca: pescaNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {

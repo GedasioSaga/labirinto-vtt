@@ -33,8 +33,25 @@ export interface OpcoesDoCarregadorDaSala {
   agora?: () => number
 }
 
+/**
+ * O pedido de um áudio à sala, com a chave no cabeçalho: mesma origem, sem
+ * credencial, sem cache e sem seguir redirecionamento. É o mesmo para os sons
+ * ao vivo e para a música da dança (F5d), que passam pela mesma rota.
+ */
+export function pedidoDeAudioNaSala(chave: string, sinal: AbortSignal): RequestInit {
+  return {
+    method: 'GET',
+    headers: { [CABECALHO_DA_CHAVE_DA_MIDIA]: chave },
+    cache: 'no-store',
+    credentials: 'omit',
+    redirect: 'error',
+    mode: 'same-origin',
+    signal: sinal,
+  }
+}
+
 /** `Retry-After` em segundos; data HTTP ou lixo viram a espera padrão. */
-function esperaDoRetryAfter(valor: string | null): number {
+export function esperaDoRetryAfter(valor: string | null): number {
   if (valor === null || !/^\d+$/.test(valor.trim())) return ESPERA_PADRAO_DO_429_MS
   return Number(valor.trim()) * 1000
 }
@@ -105,15 +122,7 @@ export function criarCarregadorDaSala({
   function pedir(id: string, sinal: AbortSignal): Promise<Response> | null {
     const chaveAgora = chave()
     if (chaveAgora === null) return null
-    return buscar(`/sons/${id}`, {
-      method: 'GET',
-      headers: { [CABECALHO_DA_CHAVE_DA_MIDIA]: chaveAgora },
-      cache: 'no-store',
-      credentials: 'omit',
-      redirect: 'error',
-      mode: 'same-origin',
-      signal: sinal,
-    })
+    return buscar(`/sons/${id}`, pedidoDeAudioNaSala(chaveAgora, sinal))
   }
 
   return (id) => {

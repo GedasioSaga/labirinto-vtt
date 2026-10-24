@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { ImagemDaMesa } from '../../components/ImagemDaMesa'
 import { resolverComBase, resolverSoEmbutida } from '../../lib/midia'
 import type { AjustesDaTelaDaDanca } from '../../minigames/danca/tela/DancaOverlay'
-import { FONTES_DO_NAVEGADOR } from '../../minigames/danca/tela/musicaImportada'
+import { fontesLocais } from '../../minigames/danca/tela/musicaImportada'
 import type { AjustesDaTelaDaPesca } from '../../minigames/pesca/tela/PescaOverlay'
 import { abrirCanalDoNavegador, type Canal } from '../../net/visaoDeTeste/canal'
 import { lerMensagemDoHost, SESSAO_VALIDA, type MensagemDaJanela } from '../../net/visaoDeTeste/protocoloDoCanal'
@@ -88,13 +88,13 @@ const LISTA_VAZIA: Lista = { fichas: [], fichaSelecionadaId: null }
 /**
  * MINIGAME DE DANÇA nesta janela: a música importada vem da pasta de mídia do
  * mestre (a mesma base das imagens, a `midia` do `config`), porque aqui não há
- * a rota `/media/` da sala; e a tela da dança entra na caixa da tela do
+ * sala nem a rota `/sons/` dela; e a tela da dança entra na caixa da tela do
  * jogador (`tela`), embaixo da barra, que continua à vista e respondendo.
- * Sem base, a música baixa do lugar de sempre e falha com a frase dela.
+ * Sem base, a música vai pela sala, que esta janela não tem, e falha com a frase dela.
  */
 function ajustesDaDanca(midia: string | undefined, tela: HTMLDivElement | null): AjustesDaTelaDaDanca {
   return {
-    ...(midia === undefined ? {} : { fontesDaMusica: { ...FONTES_DO_NAVEGADOR, base: midia } }),
+    ...(midia === undefined ? {} : { fontesDaMusica: fontesLocais(midia) }),
     ...(tela === null ? {} : { raiz: tela }),
   }
 }

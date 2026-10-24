@@ -67,6 +67,7 @@ import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
+import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
@@ -677,7 +678,7 @@ interface SessionProps {
   onAcaoNoOlhar?: () => void
   /**
    * MINIGAME DE DANÇA na Visão de jogador: de onde a tela da dança baixa a
-   * música importada (a pasta de mídia do mestre, não a rota `/media/` da
+   * música importada (a pasta de mídia do mestre, não a rota `/sons/` da
    * sala, que aquela janela não tem) e onde ela entra (a caixa embaixo da
    * barra do teste). Ausente = o jogador de sempre.
    */
@@ -738,6 +739,8 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
+  const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
   // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
   // mesa: pelo servidor da sala no navegador, pelo Rust na janela da Visão de
   // jogador. Uma vez por página; sem pacote, 404 e silêncio.
@@ -2102,7 +2105,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
         {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={() => setRevelacao(null)} />}
         {/* DANÇA: o convite do mestre abre a tela da dança por cima do mapa, até o resultado ou o encerramento. */}
-        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} {...ajustesDaDanca} />}
+        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} fontesDaMusica={musicaDaSala} {...ajustesDaDanca} />}
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
