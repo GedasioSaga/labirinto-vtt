@@ -288,6 +288,14 @@ Só `desktop/src-tauri`: `net/conexao.rs` (novo), `net/server.rs`, `net/sons.rs`
 - 19 mutações, uma por vez (aplicar, rodar só os testes do achado com `--no-fail-fast`, restaurar e atualizar o mtime), todas VERMELHAS: relógio que não derruba, progresso que não desarma, corte que não acorda, listener sem prazo, socket que ignora o prazo total, fluxo que ignora o prazo, prazo que não vai ao socket, esquecer sem cortar, vez ignorada, `None` sem vez, comparação com a raiz guardada, sem `is_dir` da raiz, sem `parent`, aparelho ignorado, socket que não amarra o aparelho, chave guardada como veio, sem despejo, envio que não confirma, `Retry-After` sem arredondar. A do "corte que não acorda" ficou VERDE na primeira rodada (o `timeout` de 10 s do teste acordava a escrita e ela via o corte); o teste passou a exigir o corte em menos de 5 s (commit `ce523f97`) e a mutação ficou vermelha.
 - Depois das mutações: clippy de novo exit 0 e os mesmos 106 + 4 + 14 + 13 (1 ignorado) verdes.
 
+## F5d (fechar `/media` ao áudio + endurecimento da LAN), 24/10
+
+Estado na PAUSA do orquestrador (branch `feat/sons-f5d`, nada de Rust commitado ainda):
+- Escrito e NÃO compilado: `desktop/src-tauri/src/net/conexao.rs` (backup em `scratchpad/conexao.rs.f5d-wip`) com (1) prazo total que só sai quando o socket escoa depois da resposta (`Corte::resposta_saiu` + `escoou` no `poll_flush`; o `drop` do corpo não tira mais), (2) `Semaphore` de 128 no `ListenerDaSala::accept` (vaga guardada no socket) e prazo do cabeçalho de 10 s (do aceite e do fim de cada resposta, menos no 101) lido no `poll_read`, middleware `vigiar_pedido`, (3) relógio de escrita vence em min(sem progresso, prazo total); 7 testes de unidade novos.
+- Falta: `server.rs` (`serve_com_limites`, `.layer(from_fn(vigiar_pedido))`, `ListenerDaSala::novo` com `LimitesDaSala`), tirar o `Drop` do `CorpoDoSom` (`sons.rs`), dependência direta `http-body 1` (já no `Cargo.lock`), (4) `file_name` igual a `midia` em `caminho_real_confere`, teste de integração (keep-alive ocioso cai, WebSocket não), clippy, test e as mutações.
+- Divergência a registrar: zerar o prazo no início do pedido seguinte (sugestão da auditoria) não basta: o hyper lê o pedido seguinte (pipelining) antes de escoar o buffer; por isso o prazo sai no `poll_flush` do socket.
+- `/media` NÃO virado: espera o commit da dança do agente TypeScript.
+
 ## Decisões do usuário em 23/10
 
 - Plano aprovado; começar pela F1 em paralelo com as camadas.
