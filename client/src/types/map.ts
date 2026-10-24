@@ -362,6 +362,15 @@ export interface Light extends NoPiso, NaCamada {
    * (`lib/fogFilter.ts`, lista do que vai). Ausente = luz de sempre.
    */
   porEstado?: RegraDeEstado<EfeitoNaLuz>
+  /**
+   * LUZ QUE ACENDE SOZINHA (Luz L3): os períodos em que a luz está acesa
+   * (lampião e tocha: tarde e noite). Ausente = sempre acesa (a luz de antes,
+   * sem linha de migração); `[]` = nunca; `apagada` e `porEstado` vencem; cena
+   * interior ignora a troca (`luzAcesaNoPeriodo` em `lib/periodo.ts`). NUNCA
+   * sai no recorte do jogador: ele só recebe a luz acesa no período da cena
+   * dele (`lib/fogFilter.ts`). Valor torto do arquivo sai (`lerAcesaEm`).
+   */
+  acesaEm?: Periodo[]
 }
 
 export interface RegionPoint {

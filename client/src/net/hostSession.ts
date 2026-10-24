@@ -34,7 +34,7 @@ import {
   pisoDoGrupo,
   pisoDoJogador,
   playerEyeTokens,
-  raioDaNoite,
+  raioDoPeriodo,
   roomClueForPlayer,
   sceneNameForPlayer,
   turnForPlayer,
@@ -3648,22 +3648,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Luz L2: as casas do período (`visaoPorPeriodo`) levam o mesmo fator do jogador.
     return periodo === null ? base : raioNoPeriodo(base, periodoDaCena(map, periodo), map, factorFor(playerId))
   }
-  /** A cena está à noite agora (externa com a sessão à noite, ou fixa na noite). */
-  const noiteNaCena = (map: MapData): boolean => {
-    const periodo = sessionPeriod()
-    return periodo !== null && periodoDaCena(map, periodo) === 'noite'
-  }
   /**
    * RAIO POR FICHA: o raio de cada ficha que `playerId` vê. A emprestada
    * enxerga com o raio do DONO (personagem sem visão no escuro continua sem
    * ela nas mãos de outro), senão a névoa em volta dela mudaria conforme quem
    * a joga e o explorado do dono gravaria um recorte que ninguém viu. O
-   * período da cena vale para as duas (`radiusIn`); à noite o raio vai marcado
-   * (`raioDaNoite`) e o recorte soma o claro das luzes na linha de visão.
+   * período da cena vale para as duas (`radiusIn`) e vai marcado no raio
+   * (`raioDoPeriodo`): à noite o recorte soma o claro das luzes na linha de
+   * visão (L2), e só conta a luz acesa no período da cena (`acesaEm`, L3).
    */
   const tokenRadiusIn = (playerId: string, map: MapData): ((tokenId: string) => number) => {
     const raio = (tokenId: string): number => radiusIn(loans.get(tokenId)?.ownerId ?? playerId, map)
-    return noiteNaCena(map) ? raioDaNoite(raio) : raio
+    const periodo = sessionPeriod()
+    return periodo === null ? raio : raioDoPeriodo(raio, periodoDaCena(map, periodo))
   }
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -3906,7 +3903,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return allScenes(world).flatMap((scene) => {
       if (sceneKey(scene) === sceneKey(here) || !ownsTokenIn(playerId, scene)) return []
       const memory = existingMemory(playerId, scene.map)
-      const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors, pinAudiences, undefined, loansFor(playerId), undefined, undefined, memory?.secretRooms)
+      // Luz L3: o raio do período DAQUELA cena (`tokenRadiusIn`), como o snapshot de lá.
+      const view = filterMapForPlayer(scene.map, playerId, ownership, tokenRadiusIn(playerId, scene.map), memory?.exp, memory?.doors, pinAudiences, undefined, loansFor(playerId), undefined, undefined, memory?.secretRooms)
       return ownTokensInView(view, owned)
     })
   }
@@ -6074,8 +6072,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map, world)
-    // Sem o espiar de antes: a porta tem de estar à vista pela visão de sempre.
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), undefined, secretReveals)
+    // Sem o espiar de antes: a porta tem de estar à vista pela visão de sempre,
+    // no período da cena (Luz L3: à noite, a visão curta e o claro das luzes).
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), undefined, secretReveals)
     // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Aberta, trancada ou não, responde igual: o jogador a recebe aberta e sem cadeado, e o pedido não pode contar o resto.
@@ -8286,7 +8285,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const lock = pin?.segredo
     if (pin === undefined || lock === undefined || !isLockClosed(pin)) return naoAbre
     const memory = memoryFor(playerId, scene.map, world)
-    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    // Luz L3: o raio do período da cena, o mesmo do snapshot (`tokenRadiusIn`).
+    const view = filterMapForPlayer(scene.map, playerId, ownership, tokenRadiusIn(playerId, scene.map), memory.exp, memory.doors, pinAudiences)
     if (!view.map.pins.some((p) => p.id === pin.id)) return naoAbre
     const owned = new Set(ownership[playerId] ?? [])
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
@@ -8329,7 +8329,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const base = msg.tipo === 'bilhete' ? { tipo: msg.tipo, texto: msg.texto } : { tipo: msg.tipo, rumo: msg.rumo }
     const prova: MarcaNoLugar = { id: randomId(), ...point, ...base }
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer({ ...map, marcas: [prova] }, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    // Luz L3: o raio do período da cena, o mesmo do snapshot (`tokenRadiusIn`).
+    const view = filterMapForPlayer({ ...map, marcas: [prova] }, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences)
     const owned = new Set(ownership[playerId] ?? [])
     // Fichas do recorte: ficha escondida pelo mestre (ou na camada oculta) não crava nada.
     // Ficha SECRETA também não: o dono a recebe, mas os outros não — a marca
@@ -8928,7 +8929,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const owned = new Set(ownership[playerId] ?? [])
     if (scene === null || owned.has(msg.tokenId)) return reject('unavailable')
     const memory = memoryFor(playerId, scene.map, world)
-    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    // Luz L3: o raio do período da cena, o mesmo do snapshot (`tokenRadiusIn`).
+    const view = filterMapForPlayer(scene.map, playerId, ownership, tokenRadiusIn(playerId, scene.map), memory.exp, memory.doors, pinAudiences)
     const seen = view.map.tokens.find((t) => t.id === msg.tokenId)
     const target = scene.map.tokens.find((t) => t.id === msg.tokenId)
     if (seen === undefined || target === undefined) return reject('unavailable')

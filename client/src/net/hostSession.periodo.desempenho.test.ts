@@ -11,7 +11,7 @@
  * Teste de tempo: mora no projeto `desempenho` (`client/vitest.projetos.json`).
  */
 import { describe, expect, it } from 'vitest'
-import { filterMapForPlayer, raioDaNoite, type VisionRadius } from '../lib/fogFilter'
+import { filterMapForPlayer, raioDaNoite, raioDoPeriodo, type VisionRadius } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { FloorPiece, Light, MapData, Periodo, Region, Token, Wall } from '../types/map'
 import { createHostSession, type HostSession } from './hostSession'
@@ -33,6 +33,8 @@ const SWITCH_BUDGET_MS = 200
 const FILTER_ROUNDS = 30
 /** Guarda da L2: a noite com luz mediu 3,3x a noite de antes (só o raio curto); acima de 5x algo piorou. */
 const L2_RAZAO_MAXIMA = 5
+/** Guarda da L3: a noite com os lampiões que acendem sozinhos não passa de 20% acima da noite da L2. */
+const L3_RAZAO_MAXIMA = 1.2
 /** Abaixo disto a diferença é ruído do relógio (o p95 de antes fica perto de 1 ms). */
 const RUIDO_MS = 0.25
 
@@ -185,6 +187,49 @@ describe('Dia/Tarde/Noite: custo no mestre na vila com 20 luzes e 30 NPCs', () =
       expect(depois).toBeLessThanOrEqual(Math.max(antes * L2_RAZAO_MAXIMA, antes + RUIDO_MS))
     }
     console.info(`[luz-l2] recorte p95 por jogador à noite: ${linhas.join(' | ')}`)
+  })
+
+  /**
+   * Luz L3: os 20 lampiões acendem sozinhos (`acesaEm` tarde e noite, o
+   * padrão da ferramenta). O recorte tira a luz apagada antes de tudo; à
+   * noite (todas acesas) o custo é o da L2, e de dia (todas apagadas) cai.
+   */
+  it('Luz L3, a vila com os 20 lampiões que acendem sozinhos: p95 <= 10 ms e a noite não piora a da L2', () => {
+    const map = vila(true)
+    const sozinhas: MapData = { ...map, lights: map.lights.map((l) => ({ ...l, acesaEm: ['tarde', 'noite'] })) }
+    const raio = (periodo: Periodo): VisionRadius => raioDoPeriodo(() => (periodo === 'noite' ? 150 : VISION), periodo)
+    // A noite da L2 e a da L3 medidas ALTERNADAS (o melhor de 3 de cada): em sequência, a ordem e o aquecimento pesavam mais que a diferença (1 de 4 rodadas deu 1,27x).
+    const l2: number[] = []
+    const l3: number[] = []
+    for (let vez = 0; vez < 3; vez += 1) {
+      l2.push(filtroP95(map, raioDaNoite(() => 150)))
+      l3.push(filtroP95(sozinhas, raio('noite')))
+    }
+    const l2Noite = Math.min(...l2)
+    const noite = Math.min(...l3)
+    const medidas = (['dia', 'tarde'] as const).map((periodo) => [periodo, filtroP95(sozinhas, raio(periodo))] as const)
+    console.info(`[luz-l3] recorte p95 por jogador, lampiões que acendem sozinhos: ${medidas.map(([p, ms]) => `${p} ${ms.toFixed(2)} ms`).join(' | ')} | noite ${noite.toFixed(2)} ms (L2 noite ${l2Noite.toFixed(2)} ms)`)
+    for (const [periodo, ms] of [...medidas, ['noite', noite] as const]) expect(ms, periodo).toBeLessThanOrEqual(FILTER_P95_BUDGET_MS)
+    expect(noite).toBeLessThanOrEqual(Math.max(l2Noite * L3_RAZAO_MAXIMA, l2Noite + RUIDO_MS))
+  })
+
+  it('Luz L3: troca de período com 7 jogadores e os lampiões que acendem sozinhos, nenhuma tarefa >= 200 ms', () => {
+    const base = vila(true)
+    const map: MapData = { ...base, lights: base.lights.map((l) => ({ ...l, acesaEm: ['tarde', 'noite'] })) }
+    const periodo: { atual: Periodo } = { atual: 'dia' }
+    const { session, clients } = mesa(map, periodo)
+    const tempos: number[] = []
+    for (const proximo of ['tarde', 'noite', 'dia', 'noite'] as const) {
+      periodo.atual = proximo
+      const start = performance.now()
+      const envio = session.broadcast(map).outbound
+      for (const o of envio) JSON.stringify(o.msg)
+      tempos.push(performance.now() - start)
+      expect(envio.map((o) => o.clientId).sort()).toEqual([...clients].sort())
+    }
+    const pior = Math.max(...tempos)
+    console.info(`[luz-l3] troca com 7 jogadores e lampiões sozinhos: ${tempos.map((t) => t.toFixed(1)).join(' / ')} ms (pior ${pior.toFixed(1)})`)
+    expect(pior).toBeLessThan(SWITCH_BUDGET_MS)
   })
 
   it('troca de período com 7 jogadores: 1 mensagem por jogador e nenhuma tarefa >= 200 ms', () => {

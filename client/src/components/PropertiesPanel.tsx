@@ -68,6 +68,7 @@ import type { TokenPatrolControlsProps } from './TokenPatrolControls'
 import type { TokenCarryControlsProps } from './TokenCarryControls'
 import type { TokenVehicleControlsProps } from './TokenVehicleControls'
 import { LightControls, type LightControlsProps } from './LightControls'
+import { PresetDeLuzControls, type PresetDeLuzControlsProps } from './PresetDeLuzControls'
 import type { TokenLightsControlsProps } from './TokenLightsControls'
 import type { TokenSeenByProps } from './TokenSeenBy'
 import { FichaDoToken } from './livro/FichaDoToken'
@@ -293,8 +294,10 @@ interface PropertiesPanelProps {
     Required<Pick<RoomControlsProps, 'onRaioDeVisaoChange'>>
   selectedLight: Light | null
   /** `onVistaDeLongeChange` obrigatória pelo mesmo motivo de `room.onRaioDeVisaoChange`. */
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge' | 'porEstado'> &
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge' | 'porEstado' | 'acesaEm'> &
     Required<Pick<LightControlsProps, 'onVistaDeLongeChange'>>
+  /** Luz L3: o preset da próxima luz da ferramenta Luz. Ausente/`null` = a seção não aparece. */
+  presetDeLuz?: PresetDeLuzControlsProps | null
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
   /**
@@ -408,6 +411,7 @@ export function PropertiesPanel({
   activeTool,
   groups,
   lineCap,
+  presetDeLuz,
   paredesAoRedor,
   paredePresa,
   lineShape,
@@ -1045,6 +1049,12 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
+        {/* Luz L3: com a ferramenta Luz na mão, o preset da próxima luz. */}
+        {presetDeLuz && (
+          <ToolPropertiesSection group="lightPreset" groups={groups}>
+            <PresetDeLuzControls {...presetDeLuz} />
+          </ToolPropertiesSection>
+        )}
         {selectedLight && (
           <ToolPropertiesSection group="lightControls" groups={groups}>
             <LightControls
@@ -1053,6 +1063,7 @@ export function PropertiesPanel({
               attachedTokenId={selectedLight.attachedTokenId ?? null}
               vistaDeLonge={selectedLight.vistaDeLonge === true}
               porEstado={selectedLight.porEstado}
+              acesaEm={selectedLight.acesaEm}
               {...lightControls}
               estado={estadoDaLuz}
             />

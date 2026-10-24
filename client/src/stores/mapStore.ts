@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -17,6 +17,7 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
+import { PRESET_DE_LUZ_PADRAO, type PresetDeLuz } from '../lib/presetsDeLuz'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
@@ -44,7 +45,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
-import { comCenaExterna } from '../lib/periodo'
+import { comAcesaEm, comCenaExterna } from '../lib/periodo'
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
@@ -515,6 +516,10 @@ interface MapStoreState {
    *  linha/pincel/curva JÁ CRIADA e selecionada. */
   drawCap: DrawingCap
   setDrawCap: (cap: DrawingCap) => void
+  /** Luz L3: o preset (Luz, Tocha, Lampião, Fogueira) da PRÓXIMA luz da
+   *  ferramenta Luz — preferência de ferramenta, mesma classe de `drawCap`. */
+  lightPreset: PresetDeLuz
+  setLightPreset: (preset: PresetDeLuz) => void
   /** Estilo do traço ("Contínua | Tracejada | Pontilhada") da PRÓXIMA linha
    *  ou curva — preferência de ferramenta, mesma classe de `drawCap`. É o que
    *  separa passagem secreta / limite sugerido de parede. Não confundir com
@@ -709,6 +714,8 @@ interface MapStoreState {
   updateLight: (id: string, patch: Partial<Light>) => void
   /** Tocha presa na ficha: prende a luz em `tokenId` ou solta (`null`). Com histórico. */
   setLightAttachment: (id: string, tokenId: string | null) => void
+  /** Luz L3: "Acesa em" da luz (`comAcesaEm`: os três períodos tiram o campo). Com histórico; sem mudança, sem passo. */
+  setLightAcesaEm: (id: string, periodos: Periodo[]) => void
   /**
    * Variante "live" de updateLight, restrita ao raio: aplica no `map` SEM
    * empurrar pra `past` — pensada pro pointermove do arrasto da alça de raio
@@ -1895,6 +1902,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     carimboLargura: LARGURA_DO_SPRAY_PADRAO,
     carimboDensidade: DENSIDADE_PADRAO,
     drawCap: 'round',
+    lightPreset: PRESET_DE_LUZ_PADRAO,
     drawDash: 'solid',
     drawTexture: 'pen',
     brushMode: 'traco',
@@ -2098,6 +2106,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (Number.isFinite(densidade)) set({ carimboDensidade: limitarCarimbo(Math.round(densidade * 100) / 100, DENSIDADE_MIN, DENSIDADE_MAX) })
     },
     setDrawCap: (cap) => set({ drawCap: cap }),
+    setLightPreset: (preset) => set({ lightPreset: preset }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
     setBrushMode: (mode) => set({ brushMode: mode }),
@@ -2155,6 +2164,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       lights: map.lights.map((l) => (l.id === id ? { ...l, ...patch } : l)),
     })),
     setLightAttachment: (id, tokenId) => withHistory((map) => mapFactory.setLightAttachment(map, id, tokenId)),
+    setLightAcesaEm: (id, periodos) =>
+      withHistory((map) => {
+        let mudou = false
+        const lights = map.lights.map((l) => {
+          if (l.id !== id) return l
+          const nova = comAcesaEm(l, periodos)
+          mudou = nova !== l
+          return nova
+        })
+        return mudou ? { ...map, lights } : map
+      }),
     updateLightRadiusLive: (id, radius) => set((state) => ({
       map: {
         ...state.map,

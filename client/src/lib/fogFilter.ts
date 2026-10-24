@@ -1,4 +1,5 @@
-import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
+import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
+import { lerPeriodo, luzAcesaNoPeriodo } from './periodo'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { importadasParaJogador, texturasParaJogador } from './texturas'
@@ -93,18 +94,52 @@ export type VisionRadius = number | ((tokenId: string) => number)
  * porque é ele que todo recorte do host recebe (`tokenRadiusIn`): snapshot,
  * porta, item, tela da mesa — nenhum esquece a noite.
  */
-export interface RaioDaNoite {
-  (tokenId: string): number
+export interface RaioDaNoite extends RaioDoPeriodo {
   readonly noite: true
+  readonly periodo: 'noite'
+}
+
+/**
+ * O PERÍODO DA CENA (Luz L3) também viaja no raio, pelo mesmo motivo: a luz
+ * que acende sozinha (`Light.acesaEm`) só conta no período da cena, e todo
+ * recorte do host já recebe o raio. Raio sem marca = período de
+ * `periodoDaCena` sem sessão (o fixo da cena, ou dia).
+ */
+export interface RaioDoPeriodo {
+  (tokenId: string): number
+  readonly periodo: Periodo
 }
 
 /** Marca o raio de cada ficha como o de uma cena à noite. */
 export function raioDaNoite(raio: (tokenId: string) => number): RaioDaNoite {
-  return Object.assign((tokenId: string) => raio(tokenId), { noite: true as const })
+  return Object.assign((tokenId: string) => raio(tokenId), { noite: true as const, periodo: 'noite' as const })
+}
+
+/** Marca o raio de cada ficha com o período da cena (`periodoDaCena`); a noite liga o escuro (`raioDaNoite`). */
+export function raioDoPeriodo(raio: (tokenId: string) => number, periodo: Periodo): RaioDoPeriodo {
+  if (periodo === 'noite') return raioDaNoite(raio)
+  return Object.assign((tokenId: string) => raio(tokenId), { periodo })
 }
 
 function ehRaioDaNoite(raio: VisionRadius): boolean {
   return typeof raio === 'function' && 'noite' in raio && raio.noite === true
+}
+
+/** O período marcado no raio; sem marca (ou marca torta), `undefined`. */
+function periodoDoRaio(raio: VisionRadius): Periodo | undefined {
+  return typeof raio === 'function' && 'periodo' in raio ? lerPeriodo(raio.periodo) : undefined
+}
+
+/**
+ * LUZ QUE ACENDE SOZINHA (Luz L3): o mapa só com as luzes acesas no período
+ * da cena do grupo (`luzAcesaNoPeriodo`). Vai ANTES de toda regra: a luz
+ * apagada no período não ilumina, não revela ficha, não sai nem como ponto
+ * de longe — como se não existisse. Nada apagado: o MESMO mapa (cache).
+ */
+function soLuzesAcesas(map: MapData, viewers: readonly GroupViewer[]): MapData {
+  const periodo = viewers.map((viewer) => periodoDoRaio(viewer.visionRadius)).find((p) => p !== undefined)
+  const acesas = map.lights.filter((l) => luzAcesaNoPeriodo(l, map, periodo))
+  return acesas.length === map.lights.length ? map : { ...map, lights: acesas }
 }
 
 export interface PlayerMapView {
@@ -2252,7 +2287,8 @@ function recorteDoGrupo(
    * MESMO. `explored` e `seenDoors` já vêm do piso certo (a memória do host é por piso).
    */
   // Camada a 0% conta como escondida dos jogadores daqui para baixo (`comCamadaApagadaOcultaDoJogador`).
-  const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(mapaInteiro, pisoDoGrupo(mapaInteiro, viewers, loans)))
+  // Luz L3: a luz apagada no período da cena sai antes de tudo (`soLuzesAcesas`).
+  const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(soLuzesAcesas(mapaInteiro, viewers), pisoDoGrupo(mapaInteiro, viewers, loans)))
   if (isWorldMap(map))
     return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras })
   // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item

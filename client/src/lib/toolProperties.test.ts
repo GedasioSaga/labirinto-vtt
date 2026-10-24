@@ -39,6 +39,11 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
     expect(groupsOf('line').has('lineCap')).toBe(true)
   })
 
+  it('Luz L3: o preset da próxima luz aparece só com a ferramenta Luz', () => {
+    expect(groupsOf('light').has('lightPreset')).toBe(true)
+    expect(groupsOf('select', { light: true }).has('lightPreset')).toBe(false)
+  })
+
   it('ferramenta Pincel (freehand) e Curva também mostram lineCap — mesmo trio do schema F4-0', () => {
     expect(groupsOf('brush').has('lineCap')).toBe(true)
     expect(groupsOf('curve').has('lineCap')).toBe(true)

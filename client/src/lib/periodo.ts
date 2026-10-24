@@ -1,4 +1,4 @@
-import type { AmbienteDoPeriodo, MapData, Periodo } from '../types/map'
+import type { AmbienteDoPeriodo, Light, MapData, Periodo } from '../types/map'
 import { SCENE_VISION_CELLS_MAX } from './sceneVision'
 
 /**
@@ -218,4 +218,68 @@ export function lerVisaoPorPeriodo(valor: unknown): MapData['visaoPorPeriodo'] {
     if (casas !== undefined) lido[periodo] = casas
   }
   return Object.keys(lido).length === 0 ? undefined : lido
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Luz que acende sozinha (Luz L3): `Light.acesaEm`
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * `Light.acesaEm` de arquivo ou rede: a lista de períodos, sem repetição e na
+ * ordem dia, tarde, noite ('manha' do relógio antigo vira 'dia'). Lista com
+ * qualquer item torto, ou o que não é lista, volta `undefined` INTEIRO: a luz
+ * volta a ser a de sempre (acesa), nunca "nunca acesa" por engano.
+ */
+export function lerAcesaEm(valor: unknown): Periodo[] | undefined {
+  if (!Array.isArray(valor)) return undefined
+  const lidos = new Set<Periodo>()
+  for (const item of valor) {
+    const periodo = lerPeriodo(item)
+    if (periodo === undefined) return undefined
+    lidos.add(periodo)
+  }
+  return PERIODOS.filter((periodo) => lidos.has(periodo))
+}
+
+/** Cena interior (D1): sem `periodoFixo` legível e sem a marca `externa`. Ignora a troca de período. */
+export function cenaInterior(cena: Pick<MapData, 'externa' | 'periodoFixo'>): boolean {
+  return cena.externa !== true && lerPeriodo(cena.periodoFixo) === undefined
+}
+
+/**
+ * A luz está acesa nesta cena com a sessão em `sessao` (o período da cena sai
+ * de `periodoDaCena`; sessão ausente = dia)? A ordem da regra:
+ *  1. `apagada` vence (apagada na mão ou pelo estado);
+ *  2. `porEstado` vence: a luz que obedece a um estado não acende nem apaga
+ *     sozinha (o efeito do estado já está gravado em `apagada`);
+ *  3. cena interior ignora a troca (D1): acesa, como sempre;
+ *  4. `acesaEm` ausente ou torto (relido aqui: o mapa pode vir cru) = sempre
+ *     acesa; senão, acesa só nos períodos da lista (`[]` = nunca).
+ */
+export function luzAcesaNoPeriodo(
+  luz: Pick<Light, 'apagada' | 'porEstado' | 'acesaEm'>,
+  cena: Pick<MapData, 'externa' | 'periodoFixo'>,
+  sessao: PeriodoLido | null | undefined,
+): boolean {
+  if (luz.apagada === true) return false
+  if (luz.porEstado !== undefined || cenaInterior(cena)) return true
+  const acesaEm = lerAcesaEm(luz.acesaEm)
+  return acesaEm === undefined || acesaEm.includes(periodoDaCena(cena, sessao))
+}
+
+/**
+ * "Acesa em" escolhido no painel da luz. Os três períodos tiram o campo (a luz
+ * volta igual à de antes, byte a byte no arquivo); nenhum grava `[]`. Luz que
+ * já está assim volta o MESMO objeto (sem passo de desfazer à toa).
+ */
+export function comAcesaEm(luz: Light, periodos: readonly Periodo[]): Light {
+  const escolhidos = PERIODOS.filter((periodo) => periodos.includes(periodo))
+  const atual = lerAcesaEm(luz.acesaEm)
+  if (escolhidos.length === PERIODOS.length) {
+    if (!('acesaEm' in luz)) return luz
+    const { acesaEm: _sempreAcesa, ...semCampo } = luz
+    return semCampo
+  }
+  if (atual !== undefined && atual.length === escolhidos.length && atual.every((periodo, i) => periodo === escolhidos[i])) return luz
+  return { ...luz, acesaEm: escolhidos }
 }

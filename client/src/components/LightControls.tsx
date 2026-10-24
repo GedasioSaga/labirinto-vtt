@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
-import type { Light } from '../types/map'
+import { lerAcesaEm } from '../lib/periodo'
+import type { Light, Periodo } from '../types/map'
 import { Toggle } from './Toggle'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 import { Essencial } from './grimorio/Cartoes'
@@ -33,6 +34,65 @@ export interface LightControlsProps {
   estado?: ReactNode
   /** `Light.porEstado`, a regra que o `EstadoDaLuz` edita: dá o resumo da ficha, como na porta. */
   porEstado?: Light['porEstado']
+  /** `Light.acesaEm` (Luz L3). Sem `onAcesaEmChange` a escolha "Acesa em" não aparece. */
+  acesaEm?: Light['acesaEm']
+  /** Grava os períodos marcados (`comAcesaEm`): os três tiram o campo. */
+  onAcesaEmChange?: (periodos: Periodo[]) => void
+}
+
+const ESCOLHAS_DE_PERIODO: readonly { periodo: Periodo; rotulo: string }[] = [
+  { periodo: 'dia', rotulo: 'Dia' },
+  { periodo: 'tarde', rotulo: 'Tarde' },
+  { periodo: 'noite', rotulo: 'Noite' },
+]
+
+interface AcesaEmProps {
+  acesaEm: Light['acesaEm']
+  onChange: (periodos: Periodo[]) => void
+  /** A luz obedece a um estado do mundo: o período não manda nela. */
+  porEstado: boolean
+}
+
+/**
+ * "Acesa em: Dia / Tarde / Noite" (Luz L3): liga e desliga de vários ao mesmo
+ * tempo (`aria-pressed`), na pastilha `lb-seg`. Campo ausente ou torto = os
+ * três marcados (sempre acesa). Com a regra do estado, ela manda e a escolha
+ * fica parada, dizendo por quê.
+ */
+function AcesaEm({ acesaEm, onChange, porEstado }: AcesaEmProps) {
+  const rotuloId = `${useId()}-acesa-em`
+  const dicaId = `${rotuloId}-dica`
+  const marcados = lerAcesaEm(acesaEm) ?? ESCOLHAS_DE_PERIODO.map((e) => e.periodo)
+  const alternar = (periodo: Periodo) =>
+    onChange(marcados.includes(periodo) ? marcados.filter((p) => p !== periodo) : [...marcados, periodo])
+  return (
+    <div className="lb-field">
+      <span className="lb-label" id={rotuloId}>
+        Acesa em
+      </span>
+      <div className="lb-seg" role="group" aria-labelledby={rotuloId} aria-describedby={dicaId}>
+        {ESCOLHAS_DE_PERIODO.map(({ periodo, rotulo }) => (
+          <button
+            key={periodo}
+            type="button"
+            className="lb-seg__option"
+            aria-pressed={marcados.includes(periodo)}
+            disabled={porEstado}
+            onClick={() => alternar(periodo)}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+      <p className="lb-field__hint" id={dicaId}>
+        {porEstado
+          ? 'Esta luz segue o estado do mundo, não o período.'
+          : marcados.length === 0
+            ? 'Nenhum período marcado: a luz não acende nas cenas externas.'
+            : 'Nas cenas externas, acende e apaga sozinha quando o período muda. Em cena interior, fica acesa.'}
+      </p>
+    </div>
+  )
 }
 
 const FICHA_SEM_NOME = 'Ficha sem nome'
@@ -79,6 +139,8 @@ export function LightControls({
   onVistaDeLongeChange,
   estado,
   porEstado,
+  acesaEm,
+  onAcesaEmChange,
 }: LightControlsProps) {
   const farHintId = `${useId()}-vista-de-longe`
   // Vínculo com ficha que não está mais na cena conta como solta.
@@ -113,6 +175,7 @@ export function LightControls({
               onChange={(event) => onIntensityChange(Number(event.target.value))}
             />
           </div>
+          {onAcesaEmChange !== undefined && <AcesaEm acesaEm={acesaEm} onChange={onAcesaEmChange} porEstado={porEstado !== undefined} />}
           {onVistaDeLongeChange !== undefined && (
             <>
               <Toggle label="Vista de longe" checked={vistaDeLonge === true} onChange={onVistaDeLongeChange} describedBy={farHintId} />
