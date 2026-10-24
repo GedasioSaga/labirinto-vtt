@@ -9,7 +9,7 @@ import { criarAudioDoNavegador, ganhoDaMesa, type AudioDaDanca, type CriarAudioD
 import { Calibracao, type ToqueDaCalibracao } from './Calibracao'
 import { Convite } from './Convite'
 import { MotorDaDanca, type AmbienteDoMotor } from './motor'
-import { baixarMusica, ErroDaMusica, FONTES_DO_NAVEGADOR, type EstadoDaMusica, type FontesDaMusica } from './musicaImportada'
+import { baixarMusica, ErroDaMusica, FONTES_SEM_SALA, type EstadoDaMusica, type FontesDaMusica } from './musicaImportada'
 import { Palco } from './Palco'
 import { configDaPartida, dificuldadeDaPartida } from './partidaDoConvite'
 import { armazemDoNavegador, gravarPreferencias, lerPreferencias, type ArmazemDaDanca, type PreferenciasDaDanca } from './preferencias'
@@ -32,6 +32,11 @@ export interface DancaOverlayProps {
   acoes: AcoesDaDanca
   /** Trocas para o teste e a vitrine; o app usa os do navegador. */
   criarAudio?: CriarAudioDaDanca
+  /**
+   * De onde vem a música importada: o jogador passa a sala (`/sons/<id>` com a
+   * chave da conexão), a Visão de jogador a mídia do mestre. Ausente = sem sala
+   * (a vitrine, os testes): a música importada falha com a frase dela.
+   */
   fontesDaMusica?: FontesDaMusica
   armazem?: ArmazemDaDanca | null
   ambiente?: AmbienteDoMotor
@@ -88,7 +93,7 @@ function usarMusicaImportada(danca: DancaDoJogador, fontes: FontesDaMusica): { e
 
 type Tela = 'convite' | 'calibra' | 'pista' | 'resultado' | 'encerrada'
 
-function TelaDaDanca({ danca, playerId, acoes, criarAudio = criarAudioDoNavegador, fontesDaMusica = FONTES_DO_NAVEGADOR, armazem, ambiente, raiz }: DancaOverlayProps) {
+function TelaDaDanca({ danca, playerId, acoes, criarAudio = criarAudioDoNavegador, fontesDaMusica = FONTES_SEM_SALA, armazem, ambiente, raiz }: DancaOverlayProps) {
   const acoesRef = useRef(acoes)
   acoesRef.current = acoes
   const reduzido = usarMovimentoReduzido()

@@ -1534,12 +1534,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * grande vai comprimida (`pacoteComprimido.ts`) e as de trás esperam por
    * ela. Nunca rejeita: falha vira toast.
    */
-  const sendToClient = criarSaidaEmOrdem((clientId, carga) => {
+  const sendToClient = criarSaidaEmOrdem((clientId, carga, original) => {
     // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
     const owner = session
     // SONS AO VIVO (F5): o áudio que ESTA mensagem entrega a ESTA conexão sai liberado no mesmo envio
     // (o servidor só serve `/sons/<id>` ao liberado). Sem áudio, sem o campo: o Rust de antes ignora.
-    const liberar = midiasDaMensagem(carga)
+    // Lido da mensagem original, não do envelope `{gz}`: o convite da dança (F5d) vai comprimido e libera a música.
+    const liberar = midiasDaMensagem(original)
     return deps.invoke('net_send', liberar.length > 0 ? { clientId, msg: carga, liberar } : { clientId, msg: carga }).then(
       () => undefined,
       (error: unknown) => {

@@ -1,4 +1,4 @@
-import type { DancaAoVivo } from '../net/dancaNoHost'
+import type { DancaAoVivo, DancaConviteResultado } from '../net/dancaNoHost'
 import type { HostBridge } from '../net/hostBridge'
 import type { EstadoDaVisao } from '../net/visaoDeTeste/visaoDeTeste'
 import type { DancaAoVivoProps, JogadorDaDanca } from './DancaAoVivo'
@@ -30,7 +30,16 @@ interface FonteDaDanca {
 
 export interface SalaDaDanca extends FonteDaDanca {
   aberta: boolean
+  /**
+   * SONS F5d: antes do convite da SALA, a música do pino pode sair para a mesa?
+   * (`prepararMusicaDaDancaNaMesa`: a importada pede a pasta da aventura, de
+   * onde `/sons` a serve.) `false` = o convite não sai e o painel avisa.
+   * Ausente = sem conferência. O teste (Visão de jogador) nunca passa por aqui.
+   */
+  prepararMusica?: () => boolean
 }
+
+const SEM_PASTA_PARA_A_MUSICA: DancaConviteResultado = { ok: false, motivo: 'musica' }
 
 export interface TesteDaDanca {
   estado: EstadoDaVisao
@@ -56,5 +65,9 @@ export function dancaNoPainel(pinId: string, teste: TesteDaDanca, sala: SalaDaDa
     const players = teste.estado.jogadores.map(({ playerId, name }) => ({ playerId, name: `${PREFIXO_DO_TESTE}${name}` }))
     return dancaPela(pinId, { players, danca: teste.estado.danca, ponte: teste.ponte })
   }
-  return sala.aberta ? dancaPela(pinId, sala) : null
+  if (!sala.aberta) return null
+  const painel = dancaPela(pinId, sala)
+  const { prepararMusica } = sala
+  if (prepararMusica === undefined) return painel
+  return { ...painel, onConvidar: (playerIds) => (prepararMusica() ? painel.onConvidar(playerIds) : SEM_PASTA_PARA_A_MUSICA) }
 }

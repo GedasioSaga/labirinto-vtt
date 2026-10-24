@@ -203,20 +203,22 @@ export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): EntradaE
  * nada na fila do cliente, a mensagem sai na hora, como antes.
  *
  * `mandar` nunca rejeita (o `net_send` do mestre já vira toast na falha): a
- * fila depende disso para seguir.
+ * fila depende disso para seguir. Recebe também a mensagem `original`, a de
+ * antes do envelope: o que ela libera (`liberacaoDosSons.ts`) se lê dela, e
+ * não do `{gz}` (o convite da dança comprimido continuaria liberando a música).
  */
 export function criarSaidaEmOrdem(
-  mandar: (clientId: string, carga: object) => Promise<void>,
+  mandar: (clientId: string, carga: object, original: object) => Promise<void>,
 ): (clientId: string, msg: object, aceitaGzip: boolean) => Promise<void> {
   const emCurso = new Map<string, Promise<void>>()
   return (clientId, msg, aceitaGzip) => {
     const anterior = emCurso.get(clientId)
     const texto = aceitaGzip ? JSON.stringify(msg) : ''
     const comprimir = aceitaGzip && valeComprimir(texto)
-    if (!comprimir && anterior === undefined) return mandar(clientId, msg)
+    if (!comprimir && anterior === undefined) return mandar(clientId, msg, msg)
     // Comprime já, em paralelo com o que ainda está na fila; manda na vez.
     const carga: Promise<object> = comprimir ? comprimirPacote(texto).then((pacote) => pacote ?? msg) : Promise.resolve(msg)
-    const passo = (anterior ?? Promise.resolve()).then(() => carga).then((pronta) => mandar(clientId, pronta))
+    const passo = (anterior ?? Promise.resolve()).then(() => carga).then((pronta) => mandar(clientId, pronta, msg))
     emCurso.set(clientId, passo)
     const liberar = () => {
       if (emCurso.get(clientId) === passo) emCurso.delete(clientId)

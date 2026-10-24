@@ -1,0 +1,20 @@
+# Sons F5d, lado TypeScript (24/10)
+
+A música importada do minigame de dança deixa de sair por `/media/<id>` (sem chave) e passa pela rota dos sons ao vivo, `/sons/<id>`, com a chave da conexão e a liberação por conexão da F5a. Feita na branch `feat/sons-f5d` (base `a4a61adf`), só em `client/`. O Rust da F5d (fechar `/media` ao áudio) entra DEPOIS deste commit.
+
+**O que mudou**
+
+- **Jogador** (`minigames/danca/tela/musicaImportada.ts`): `FontesDaMusica.origem` é `{ tipo: 'sala', chave }` ou `{ tipo: 'local', base }`. Na sala, `GET /sons/<id>` com `X-Labirinto-Chave` e o MESMO `RequestInit` dos sons ao vivo (`pedidoDeAudioNaSala`, exportado de `player/carregadorDeSons.ts`, junto com `esperaDoRetryAfter`): mesma origem, sem credencial, sem cache, sem seguir redirecionamento. 429 ganha UMA nova tentativa (até 10 s de `Retry-After`) com a chave de agora. Teto de 15 MB pelo `Content-Length` e na leitura. O tipo da resposta tem de ser `audio/*`. `player/main.tsx` passa `fontesDaSala(() => connection.chaveDaMidia())`; a Visão de jogador (`player/visaoDeTeste/entrada.tsx`) passa `fontesLocais(<mídia do mestre>)`, sem sala e sem chave; o padrão do `DancaOverlay` (vitrine, testes) é sem sala.
+- **Frases do jogador** (sem chave, id nem caminho): sem chave, "A conexão com a sala ainda não está pronta…"; 404, "A música não chegou da sala. Peça ao mestre para chamar para dançar de novo."; 429 duas vezes, "A sala está ocupada…"; não é áudio ou passa do teto, frase própria; rede, a de antes.
+- **Liberação** (`net/liberacaoDosSons.ts`): `danca.convite` com música importada libera o id (pelo `parseDancaHostMessage` e `idDaRefDeAudio`; faixa demo e convite torto não liberam). Vai no MESMO `net_send` do convite, só a quem foi chamado, e o convite sai antes do `danca.comecar`: o jogador baixa assim que o convite chega. A reentrada que recebe o convite de novo é liberada de novo pelo mesmo caminho.
+- **Convite comprimido**: o convite com a coreografia passa fácil dos 32 KB do gzip, e a liberação era lida do envelope `{gz}` (sairia vazia). `criarSaidaEmOrdem` (`net/pacoteComprimido.ts`) passa a mensagem original ao `mandar`, e o `sendToClient` do `hostBridge.ts` lê a liberação dela.
+- **Onde a música mora** (`lib/musicaDaDancaNaAventura.ts`, novo): importar grava em `<appData>/midia` (o mestre toca neste computador e a Visão de jogador lê) E em `<aventura>/midia` (a pasta da biblioteca de sons, a mesma que a aba Sons informa ao Rust por `net_sons_aventura`). `<appData>/midia` deixa de ser a fonte do jogador.
+- **Convite da sala** (`components/dancaNoPainel.ts`, `App.tsx`): antes do convite, `prepararMusica` (`prepararMusicaDaDancaNaMesa`). Faixa demo sai sempre. Música importada SEM pasta da aventura (aventura nova ainda não salva): o convite não sai, motivo `'musica'` (`DancaConviteResultado`), e o painel diz "A música importada só chega aos jogadores com a aventura salva numa pasta. Salve a aventura, ou use a faixa demo, e chame de novo." Com pasta, a cópia em `<aventura>/midia` é garantida em segundo plano, com o hash conferido (dança gravada antes da F5d: a música só estava em `<appData>/midia`); o que não dá vira aviso sem caminho. A Visão de jogador não passa por isso.
+
+**Decisões**
+
+- Mapa sem pasta: recusar o convite com aviso (o caminho mais simples, decisão desta fatia). A faixa demo segue valendo sem pasta.
+- A cópia para a pasta no convite corre em segundo plano porque o convite é síncrono no painel. Risco: na PRIMEIRA vez de uma dança antiga (música só em `<appData>`), o jogador pode pedir antes de a cópia acabar e levar o 404; "Tentar de novo" resolve. Música importada depois da F5d já nasce na pasta.
+- `MinigameControls.CAMINHO_DO_APP.guardar` lê a pasta da loja da biblioteca de sons (`dir`), a mesma do `carregadorDoMestre`.
+
+**Para o Rust da F5d**: `/media` pode passar a dar 404 a áudio a partir deste commit. O jogador nunca mais pede música a `/media` (provado no e2e). A Visão de jogador lê a música pela ponte de arquivos (`convertFileSrc` da `<appData>/midia`), não por `/media`.

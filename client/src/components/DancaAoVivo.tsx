@@ -35,12 +35,16 @@ export interface DancaAoVivoProps {
 
 export const CHAMAR_PARA_DANCAR = 'Chamar para dançar'
 
+/** A música importada só sai para a mesa da pasta da aventura (SONS F5d): a aventura nova ainda não tem uma. */
+export const MUSICA_SEM_PASTA = 'A música importada só chega aos jogadores com a aventura salva numa pasta. Salve a aventura, ou use a faixa demo, e chame de novo.'
+
 /** O aviso quando o convite não saiu (o que saiu aparece na lista ao vivo). */
 export function textoDoConviteRecusado(resultado: DancaConviteResultado | null): string | null {
   if (resultado === null) return 'Não deu: a sala não está aberta.'
   if (resultado.ok) return null
   if (resultado.motivo === 'pino') return 'Este pino não está mais no mapa.'
   if (resultado.motivo === 'ocupada') return 'Já há uma dança acontecendo. Encerre aquela antes.'
+  if (resultado.motivo === 'musica') return MUSICA_SEM_PASTA
   return 'Ninguém marcado está jogando agora.'
 }
 
