@@ -1,5 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
@@ -473,20 +473,32 @@ async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>) -> Res
 /// Núcleo de `net_sons_aventura`. Pasta recusada também tira a de antes: a
 /// sala nunca segue servindo a aventura que o mestre deixou.
 pub async fn definir_aventura_dos_sons(room: &Room, pasta: Option<String>) -> Result<(), String> {
+    definir_aventura_dos_sons_com(room, pasta, sons::raiz_da_aventura).await
+}
+
+/// `conferir` é `sons::raiz_da_aventura`; o teste troca por uma que espera.
+/// Cada chamada pega a sua vez ANTES da conferência (que pode demorar numa
+/// pasta de rede): só a vez mais nova muda a raiz, inclusive contra um `None`
+/// dado depois. A chamada velha devolve o resultado da pasta dela, sem aplicar.
+async fn definir_aventura_dos_sons_com<F>(room: &Room, pasta: Option<String>, conferir: F) -> Result<(), String>
+where
+    F: FnOnce(&Path) -> Result<PathBuf, ErroDosSons> + Send + 'static,
+{
+    let vez = room.nova_vez_dos_sons();
     let Some(pasta) = pasta else {
-        room.definir_aventura_dos_sons(None);
+        room.definir_aventura_dos_sons(vez, None);
         return Ok(());
     };
-    let conferida = tokio::task::spawn_blocking(move || sons::raiz_da_aventura(Path::new(&pasta)))
+    let conferida = tokio::task::spawn_blocking(move || conferir(Path::new(&pasta)))
         .await
         .unwrap_or(Err(ErroDosSons::PastaInvalida));
     match conferida {
         Ok(raiz) => {
-            room.definir_aventura_dos_sons(Some(raiz));
+            room.definir_aventura_dos_sons(vez, Some(raiz));
             Ok(())
         }
         Err(erro) => {
-            room.definir_aventura_dos_sons(None);
+            room.definir_aventura_dos_sons(vez, None);
             Err(erro.texto().to_owned())
         }
     }
@@ -641,6 +653,70 @@ mod tests {
         let room = test_room();
         *state.room.lock().await = Some(OpenRoom { room: room.clone(), port: 7777 });
         (state, room)
+    }
+
+    /// Pasta de aventura com `adventure.json`, só deste teste.
+    fn aventura_de_teste(nome: &str) -> Result<PathBuf, String> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-commands-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&pasta);
+        std::fs::create_dir_all(&pasta).map_err(|e| e.to_string())?;
+        std::fs::write(pasta.join(sons::ARQUIVO_DA_AVENTURA), b"{}").map_err(|e| e.to_string())?;
+        Ok(pasta)
+    }
+
+    type Conferir = Box<dyn FnOnce(&Path) -> Result<PathBuf, ErroDosSons> + Send>;
+
+    /// Conferência de pasta de rede lenta: avisa quando começou e só termina
+    /// quando o teste solta (a ordem fica na mão do teste, sem relógio).
+    fn conferencia_presa() -> (Conferir, tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        let (comecou_tx, comecou_rx) = tokio::sync::oneshot::channel();
+        let (solta_tx, solta_rx) = std::sync::mpsc::channel::<()>();
+        let conferir: Conferir = Box::new(move |pasta: &Path| {
+            let _ = comecou_tx.send(());
+            let _ = solta_rx.recv();
+            sons::raiz_da_aventura(pasta)
+        });
+        (conferir, comecou_rx, solta_tx)
+    }
+
+    /// Começa `definir_aventura_dos_sons` com a conferência presa e espera ela
+    /// pegar a vez; devolve a tarefa e o gatilho que a solta.
+    async fn conferencia_lenta(
+        room: &Arc<Room>,
+        pasta: &Path,
+    ) -> Result<(tokio::task::JoinHandle<Result<(), String>>, std::sync::mpsc::Sender<()>), String> {
+        let (conferir, comecou, solta) = conferencia_presa();
+        let room = room.clone();
+        let pasta = Some(pasta.to_string_lossy().into_owned());
+        let tarefa = tokio::spawn(async move { definir_aventura_dos_sons_com(&room, pasta, conferir).await });
+        comecou.await.map_err(|e| e.to_string())?;
+        Ok((tarefa, solta))
+    }
+
+    /// A conferência velha (pasta de rede lenta) termina DEPOIS da nova e não
+    /// passa por cima dela, nem de um `None`. Mutações vermelhas: aplicar sem
+    /// olhar a vez; `None` sem pegar vez.
+    #[tokio::test]
+    async fn conferencia_velha_nao_passa_por_cima_da_nova() -> Result<(), String> {
+        let room = test_room();
+        let velha = aventura_de_teste("vez-velha")?;
+        let nova = aventura_de_teste("vez-nova")?;
+
+        let (lenta, solta) = conferencia_lenta(&room, &velha).await?;
+        definir_aventura_dos_sons(&room, Some(nova.to_string_lossy().into_owned())).await?;
+        let _ = solta.send(());
+        assert_eq!(lenta.await.map_err(|e| e.to_string())?, Ok(()));
+        assert_eq!(room.raiz_dos_sons(), Some(sons::raiz_da_aventura(&nova).map_err(|e| e.texto().to_owned())?));
+
+        let (lenta, solta) = conferencia_lenta(&room, &velha).await?;
+        definir_aventura_dos_sons(&room, None).await?;
+        let _ = solta.send(());
+        assert_eq!(lenta.await.map_err(|e| e.to_string())?, Ok(()));
+        assert_eq!(room.raiz_dos_sons(), None, "a pasta velha voltou depois do None");
+
+        let _ = std::fs::remove_dir_all(&velha);
+        let _ = std::fs::remove_dir_all(&nova);
+        Ok(())
     }
 
     /// Túnel falso: `ping` no lugar do `cloudflared` e a sala com nome público.

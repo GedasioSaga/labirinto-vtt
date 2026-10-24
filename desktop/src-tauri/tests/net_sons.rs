@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use labirinto_lib::net::commands;
+use labirinto_lib::net::conexao;
 use labirinto_lib::net::media;
 use labirinto_lib::net::server::{self, AssetSource, ClientId, NetSink, PeerEvent, Room};
 use labirinto_lib::net::sons;
@@ -74,12 +75,17 @@ fn criar_aventura(nome: &str) -> PathBuf {
 }
 
 async fn abrir_sala(nome: &str) -> Sala {
+    abrir_sala_com_prazo(nome, conexao::PRAZO_SEM_PROGRESSO).await
+}
+
+/// Sala com outro prazo de escrita sem progresso (o teste não espera 30 s).
+async fn abrir_sala_com_prazo(nome: &str, prazo: Duration) -> Sala {
     let sink = Arc::new(Sink::default());
     let assets: AssetSource = Arc::new(|_: &str| None);
     let room = Room::new(CODE.to_owned(), sink.clone(), assets);
     let listener = server::bind(IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 1).await.unwrap();
     let addr = listener.local_addr().unwrap();
-    tokio::spawn(server::serve(listener, room.clone()));
+    tokio::spawn(server::serve_com_prazo(listener, room.clone(), prazo));
     let aventura = criar_aventura(nome);
     commands::definir_aventura_dos_sons(&room, Some(aventura.to_string_lossy().into_owned())).await.unwrap();
     Sala { addr, room, sink, aventura }
@@ -113,6 +119,8 @@ struct Jogador {
     ws: Ws,
     chave: String,
     id: ClientId,
+    /// O aparelho (`127.0.0.<origem>`) do socket: a chave só vale dele.
+    origem: u8,
 }
 
 async fn esperar_peer(sala: &Sala, achar: impl Fn(&(ClientId, PeerEvent, Option<String>)) -> bool) -> ClientId {
@@ -127,16 +135,18 @@ async fn esperar_peer(sala: &Sala, achar: impl Fn(&(ClientId, PeerEvent, Option<
     }
 }
 
-async fn entrar(sala: &Sala, nome: &str) -> Jogador {
+/// Entra na sala com o socket saindo de `127.0.0.<origem>` (o aparelho).
+async fn entrar(sala: &Sala, nome: &str, origem: u8) -> Jogador {
     let mut req = format!("ws://{}/ws", sala.addr).into_client_request().unwrap();
     req.headers_mut().insert("Origin", HeaderValue::from_str(&format!("http://{}", sala.addr)).unwrap());
-    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    let tcp = tcp_de(sala, origem).await;
+    let (mut ws, _) = tokio_tungstenite::client_async(req, MaybeTlsStream::Plain(tcp)).await.unwrap();
     ws.send(Message::text(json!({"type":"join","code":CODE,"name":nome}).to_string())).await.unwrap();
     let primeiro: Value = serde_json::from_str(&proximo_texto(&mut ws).await).unwrap();
     assert_eq!(primeiro["type"], "midia.chave", "o primeiro frame não foi a chave: {primeiro}");
     let chave = primeiro["chave"].as_str().unwrap().to_owned();
     let id = esperar_peer(sala, |(_, evento, quem)| *evento == PeerEvent::Connected && quem.as_deref() == Some(nome)).await;
-    Jogador { ws, chave, id }
+    Jogador { ws, chave, id, origem }
 }
 
 /// O que o host faz ao mandar `som.tocar`: libera no mesmo `net_send`.
@@ -197,6 +207,19 @@ async fn pedir_som(sala: &Sala, origem: u8, id: &str, chave: Option<&str>) -> Re
     pedir_bruto(sala, origem, &requisicao("GET", &format!("/sons/{id}"), &sala.addr.to_string(), chave)).await
 }
 
+/// Repete o pedido até a resposta não ser 429 (as vagas voltando).
+async fn esperar_sem_429(sala: &Sala, origem: u8, id: &str, chave: &str) -> Resposta {
+    let prazo = tokio::time::Instant::now() + WAIT;
+    loop {
+        let resposta = pedir_som(sala, origem, id, Some(chave)).await;
+        if resposta.status != 429 {
+            return resposta;
+        }
+        assert!(tokio::time::Instant::now() < prazo, "as vagas não voltaram");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 fn assert_recusa(resposta: &Resposta, caso: &str) {
     assert_eq!(resposta.status, 404, "{caso}: {resposta:?}");
     assert!(resposta.corpo.is_empty(), "{caso}: 404 com corpo");
@@ -220,8 +243,8 @@ async fn achado_f5d_media_ainda_serve_audio_sem_chave() {
 #[tokio::test]
 async fn chave_e_o_primeiro_frame_e_unica_por_conexao() {
     let sala = abrir_sala("chave").await;
-    let mut ana = entrar(&sala, "Ana").await;
-    let bruno = entrar(&sala, "Bruno").await;
+    let mut ana = entrar(&sala, "Ana", 1).await;
+    let bruno = entrar(&sala, "Bruno", 2).await;
     for chave in [&ana.chave, &bruno.chave] {
         assert_eq!(chave.len(), 64);
         assert!(chave.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)), "{chave}");
@@ -235,26 +258,26 @@ async fn chave_e_o_primeiro_frame_e_unica_por_conexao() {
 #[tokio::test]
 async fn liberado_a_ana_nao_serve_ao_bruno() {
     let sala = abrir_sala("ana-bruno").await;
-    let ana = entrar(&sala, "Ana").await;
-    let bruno = entrar(&sala, "Bruno").await;
+    let ana = entrar(&sala, "Ana", 1).await;
+    let bruno = entrar(&sala, "Bruno", 2).await;
     // Pouco mais de 1 MB: o corpo sai em vários pedaços e chega igual.
     let bytes = audio(OGG, 1024 * 1024 + 3, 0x5a);
     let id = gravar(&sala.midia(), &bytes, "ogg");
     liberar(&sala, &ana, std::slice::from_ref(&id));
 
-    let da_ana = pedir_som(&sala, 1, &id, Some(&ana.chave)).await;
+    let da_ana = pedir_som(&sala, ana.origem, &id, Some(&ana.chave)).await;
     assert_eq!(da_ana.status, 200);
     assert_eq!(da_ana.corpo, bytes);
-    assert_recusa(&pedir_som(&sala, 2, &id, Some(&bruno.chave)).await, "chave do Bruno");
+    assert_recusa(&pedir_som(&sala, bruno.origem, &id, Some(&bruno.chave)).await, "chave do Bruno");
 
     liberar(&sala, &bruno, std::slice::from_ref(&id));
-    assert_eq!(pedir_som(&sala, 2, &id, Some(&bruno.chave)).await.status, 200);
+    assert_eq!(pedir_som(&sala, bruno.origem, &id, Some(&bruno.chave)).await.status, 200);
 }
 
 #[tokio::test]
 async fn tipo_pela_assinatura_com_nosniff() {
     let sala = abrir_sala("tipo").await;
-    let ana = entrar(&sala, "Ana").await;
+    let ana = entrar(&sala, "Ana", 1).await;
     let casos = [(MP3, "mp3", "audio/mpeg"), (OGG, "ogg", "audio/ogg"), (WAV, "wav", "audio/wav"), (M4A, "m4a", "audio/mp4")];
     let ids: Vec<String> = casos.iter().map(|(bytes, extensao, _)| gravar(&sala.midia(), bytes, extensao)).collect();
     liberar(&sala, &ana, &ids);
@@ -276,12 +299,13 @@ async fn tipo_pela_assinatura_com_nosniff() {
 }
 
 /// Mutações vermelhas: 403 no não liberado, `no-store` faltando num caminho,
-/// chave ausente aceita, tipo pela extensão, link seguido.
+/// chave ausente aceita, tipo pela extensão, chave de outro aparelho aceita.
+/// O link de ARQUIVO tem teste próprio (no Windows pede modo de desenvolvedor).
 #[tokio::test]
 async fn oraculo_todas_as_recusas_sao_o_mesmo_404() {
     let sala = abrir_sala("oraculo").await;
-    let ana = entrar(&sala, "Ana").await;
-    let bruno = entrar(&sala, "Bruno").await;
+    let ana = entrar(&sala, "Ana", 1).await;
+    let bruno = entrar(&sala, "Bruno", 2).await;
     let midia = sala.midia();
     let ok = gravar(&midia, MP3, "mp3");
     let nao_liberado = gravar(&midia, OGG, "ogg");
@@ -291,27 +315,17 @@ async fn oraculo_todas_as_recusas_sao_o_mesmo_404() {
     let hash_errado = format!("{}.mp3", media::hash_hex(b"outro conteudo"));
     std::fs::write(midia.join(&hash_errado), MP3).unwrap();
     let m4a_de_video = gravar(&midia, b"\x00\x00\x00\x18ftypmp41\x00\x00\x00\x00isommp41", "m4a");
-    let mut liberados = vec![ok.clone(), inexistente.clone(), grande.clone(), png_como_mp3.clone(), hash_errado.clone(), m4a_de_video.clone()];
-    // Link de arquivo apontando para fora da pasta (no Windows pede privilégio).
-    let fora = sala.aventura.join("fora.mp3");
-    let alvo_de_fora = audio(MP3, 64, 1);
-    std::fs::write(&fora, &alvo_de_fora).unwrap();
-    let link = format!("{}.mp3", media::hash_hex(&alvo_de_fora));
-    let tem_link = criar_link_de_arquivo(&fora, &midia.join(&link));
-    if tem_link {
-        liberados.push(link.clone());
-    } else {
-        eprintln!("sem privilégio para link de arquivo: o caso do link fica no teste da junção");
-    }
+    let liberados = vec![ok.clone(), inexistente.clone(), grande.clone(), png_como_mp3.clone(), hash_errado.clone(), m4a_de_video.clone()];
     liberar(&sala, &ana, &liberados);
     assert_eq!(pedir_som(&sala, 1, &ok, Some(&ana.chave)).await.status, 200, "o caminho feliz tem de abrir");
 
     let host = sala.addr.to_string();
     let inventada = "0".repeat(64);
-    let mut casos: Vec<(&str, Resposta)> = vec![
+    let casos: Vec<(&str, Resposta)> = vec![
         ("sem chave", pedir_som(&sala, 1, &ok, None).await),
         ("chave inventada", pedir_som(&sala, 1, &ok, Some(&inventada)).await),
         ("chave de outro", pedir_som(&sala, 1, &ok, Some(&bruno.chave)).await),
+        ("chave certa de outro aparelho", pedir_som(&sala, 3, &ok, Some(&ana.chave)).await),
         ("chave torta", pedir_som(&sala, 1, &ok, Some(&ana.chave.to_uppercase())).await),
         ("não liberado existente", pedir_som(&sala, 1, &nao_liberado, Some(&ana.chave)).await),
         ("liberado inexistente", pedir_som(&sala, 1, &inexistente, Some(&ana.chave)).await),
@@ -324,14 +338,33 @@ async fn oraculo_todas_as_recusas_sao_o_mesmo_404() {
         ("POST", pedir_bruto(&sala, 1, &requisicao("POST", &format!("/sons/{ok}"), &host, Some(&ana.chave))).await),
         ("Host de outro site", pedir_bruto(&sala, 1, &requisicao("GET", &format!("/sons/{ok}"), "evil.example", Some(&ana.chave))).await),
     ];
-    if tem_link {
-        casos.push(("link para fora", pedir_som(&sala, 1, &link, Some(&ana.chave)).await));
-    }
     let (_, primeira) = &casos[0];
     for (caso, resposta) in &casos {
         assert_recusa(resposta, caso);
         assert_eq!(resposta, primeira, "a recusa \"{caso}\" se distingue das outras");
     }
+}
+
+/// Link de ARQUIVO apontando para fora da pasta: o mesmo 404 das outras
+/// recusas. Criar o link no Windows pede o modo de desenvolvedor; lá o teste
+/// é ignorado e roda com `cargo test --test net_sons -- --ignored`.
+#[tokio::test]
+#[cfg_attr(windows, ignore = "symlink_file pede o modo de desenvolvedor do Windows")]
+async fn link_de_arquivo_para_fora_e_o_mesmo_404() {
+    let sala = abrir_sala("link").await;
+    let ana = entrar(&sala, "Ana", 1).await;
+    let fora = sala.aventura.join("fora.mp3");
+    let alvo_de_fora = audio(MP3, 64, 1);
+    std::fs::write(&fora, &alvo_de_fora).unwrap();
+    let link = format!("{}.mp3", media::hash_hex(&alvo_de_fora));
+    assert!(
+        criar_link_de_arquivo(&fora, &sala.midia().join(&link)),
+        "não deu para criar o link de arquivo (no Windows, ligue o modo de desenvolvedor)"
+    );
+    liberar(&sala, &ana, std::slice::from_ref(&link));
+    let recusa = pedir_som(&sala, ana.origem, &link, Some(&ana.chave)).await;
+    assert_recusa(&recusa, "link para fora");
+    assert_eq!(recusa, pedir_som(&sala, ana.origem, &link, None).await, "o 404 do link se distingue");
 }
 
 #[cfg(windows)]
@@ -373,7 +406,7 @@ fn remover_juncao(link: &Path) {
 #[tokio::test]
 async fn symlink_e_juncao_nao_saem() {
     let sala = abrir_sala("juncao").await;
-    let ana = entrar(&sala, "Ana").await;
+    let ana = entrar(&sala, "Ana", 1).await;
     // A `midia` da aventura vira uma junção para uma pasta fora dela.
     let fora = sala.aventura.with_file_name(format!("labirinto-net-sons-fora-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&fora);
@@ -405,7 +438,7 @@ async fn symlink_e_juncao_nao_saem() {
 #[tokio::test]
 async fn trocar_aventura_revoga_e_so_serve_a_aberta() {
     let sala = abrir_sala("troca-a").await;
-    let ana = entrar(&sala, "Ana").await;
+    let ana = entrar(&sala, "Ana", 1).await;
     let id = gravar(&sala.midia(), MP3, "mp3");
     liberar(&sala, &ana, std::slice::from_ref(&id));
     assert_eq!(pedir_som(&sala, 1, &id, Some(&ana.chave)).await.status, 200);
@@ -438,8 +471,8 @@ async fn trocar_aventura_revoga_e_so_serve_a_aberta() {
 #[tokio::test]
 async fn queda_e_kick_apagam_a_chave() {
     let sala = abrir_sala("queda").await;
-    let ana = entrar(&sala, "Ana").await;
-    let mut bia = entrar(&sala, "Bia").await;
+    let ana = entrar(&sala, "Ana", 1).await;
+    let mut bia = entrar(&sala, "Bia", 2).await;
     let id = gravar(&sala.midia(), OGG, "ogg");
     liberar(&sala, &ana, std::slice::from_ref(&id));
     liberar(&sala, &bia, std::slice::from_ref(&id));
@@ -455,7 +488,7 @@ async fn queda_e_kick_apagam_a_chave() {
     assert_recusa(&pedir_som(&sala, 2, &id, Some(&bia.chave)).await, "chave de quem caiu");
 
     // Quem volta ganha chave nova; a velha continua morta.
-    let bia_de_novo = entrar(&sala, "Bia").await;
+    let bia_de_novo = entrar(&sala, "Bia", 2).await;
     assert_ne!(bia_de_novo.chave, bia.chave);
     liberar(&sala, &bia_de_novo, std::slice::from_ref(&id));
     assert_eq!(pedir_som(&sala, 2, &id, Some(&bia_de_novo.chave)).await.status, 200);
@@ -466,7 +499,7 @@ async fn queda_e_kick_apagam_a_chave() {
 #[tokio::test]
 async fn liberar_recusa_imagem_e_id_torto() {
     let sala = abrir_sala("liberar").await;
-    let mut ana = entrar(&sala, "Ana").await;
+    let mut ana = entrar(&sala, "Ana", 1).await;
     let audio_ok = gravar(&sala.midia(), MP3, "mp3");
     let imagem = gravar(&sala.midia(), PNG, "png");
     let id_ana = ana.id.to_string();
@@ -491,18 +524,20 @@ async fn liberar_recusa_imagem_e_id_torto() {
 #[tokio::test]
 async fn taxa_e_simultaneas_dao_429_igual_para_id_valido_e_invalido() {
     let sala = abrir_sala("taxa").await;
-    let ana = entrar(&sala, "Ana").await;
+    let ana = entrar(&sala, "Ana", 9).await;
+    let bruno = entrar(&sala, "Bruno", 10).await;
     let id = gravar(&sala.midia(), MP3, "mp3");
     liberar(&sala, &ana, std::slice::from_ref(&id));
+    liberar(&sala, &bruno, std::slice::from_ref(&id));
     let torto = "x".repeat(10);
     for n in 0..sons::BUSCAS_MAX_POR_IP {
         let alvo = if n % 2 == 0 { id.as_str() } else { torto.as_str() };
-        assert_ne!(pedir_som(&sala, 9, alvo, Some(&ana.chave)).await.status, 429, "busca {n}");
+        assert_ne!(pedir_som(&sala, ana.origem, alvo, Some(&ana.chave)).await.status, 429, "busca {n}");
     }
     let respostas = [
-        pedir_som(&sala, 9, &id, Some(&ana.chave)).await,
-        pedir_som(&sala, 9, &torto, Some(&ana.chave)).await,
-        pedir_som(&sala, 9, &torto, None).await,
+        pedir_som(&sala, ana.origem, &id, Some(&ana.chave)).await,
+        pedir_som(&sala, ana.origem, &torto, Some(&ana.chave)).await,
+        pedir_som(&sala, ana.origem, &torto, None).await,
     ];
     // O `Retry-After` conta o tempo até a busca mais velha sair da janela: muda
     // com o relógio, nunca com o id. O resto é byte a byte igual.
@@ -515,7 +550,7 @@ async fn taxa_e_simultaneas_dao_429_igual_para_id_valido_e_invalido() {
     assert_eq!(sem_espera(&respostas[0]), sem_espera(&respostas[1]));
     assert_eq!(sem_espera(&respostas[0]), sem_espera(&respostas[2]));
     // Outro aparelho segue livre.
-    assert_eq!(pedir_som(&sala, 10, &id, Some(&ana.chave)).await.status, 200);
+    assert_eq!(pedir_som(&sala, bruno.origem, &id, Some(&bruno.chave)).await.status, 200);
 }
 
 /// Busca presa: manda o pedido, lê só o cabeçalho e para de ler. O corpo de
@@ -539,37 +574,80 @@ async fn busca_presa(sala: &Sala, origem: u8, id: &str, chave: &str) -> TcpStrea
 #[tokio::test]
 async fn simultaneas_seguram_a_vaga_ate_o_corpo_sair() {
     let sala = abrir_sala("simultaneas").await;
-    let jogadores = [entrar(&sala, "Ana").await, entrar(&sala, "Bruno").await, entrar(&sala, "Carla").await];
+    let jogadores = [entrar(&sala, "Ana", 20).await, entrar(&sala, "Bruno", 30).await, entrar(&sala, "Carla", 31).await];
     let wav = audio(WAV, usize::try_from(media::MIDIA_AUDIO_MAX_BYTES).unwrap(), 0x11);
     let id = gravar(&sala.midia(), &wav, "wav");
     for jogador in &jogadores {
         liberar(&sala, jogador, std::slice::from_ref(&id));
     }
     let [ana, bruno, carla] = &jogadores;
-    let mut presas = vec![busca_presa(&sala, 20, &id, &ana.chave).await, busca_presa(&sala, 21, &id, &ana.chave).await];
+    let mut presas = vec![busca_presa(&sala, ana.origem, &id, &ana.chave).await, busca_presa(&sala, ana.origem, &id, &ana.chave).await];
     // Terceira com a chave da Ana: 429 igual para id válido e torto.
-    let valido = pedir_som(&sala, 22, &id, Some(&ana.chave)).await;
-    let torto = pedir_som(&sala, 22, "torto", Some(&ana.chave)).await;
+    let valido = pedir_som(&sala, ana.origem, &id, Some(&ana.chave)).await;
+    let torto = pedir_som(&sala, ana.origem, "torto", Some(&ana.chave)).await;
     assert_eq!(valido.status, 429);
     assert_eq!(valido.cabecalho("retry-after"), Some("1"));
     assert_eq!(valido, torto);
-    for (n, jogador) in [bruno, bruno, carla, carla].into_iter().enumerate() {
-        let origem = 30 + u8::try_from(n).unwrap();
-        presas.push(busca_presa(&sala, origem, &id, &jogador.chave).await);
+    for jogador in [bruno, bruno, carla, carla] {
+        presas.push(busca_presa(&sala, jogador.origem, &id, &jogador.chave).await);
     }
     // Seis no ar: até quem não tem chave nenhuma espera.
     assert_eq!(pedir_som(&sala, 40, &id, None).await.status, 429);
     // Soltar as buscas devolve as vagas.
     drop(presas);
-    let prazo = tokio::time::Instant::now() + WAIT;
-    loop {
-        let resposta = pedir_som(&sala, 41, &id, Some(&ana.chave)).await;
-        if resposta.status == 200 {
-            assert_eq!(resposta.corpo.len(), wav.len());
-            break;
-        }
-        assert_eq!(resposta.status, 429);
-        assert!(tokio::time::Instant::now() < prazo, "as vagas não voltaram");
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    let resposta = esperar_sem_429(&sala, ana.origem, &id, &ana.chave).await;
+    assert_eq!(resposta.status, 200);
+    assert_eq!(resposta.corpo.len(), wav.len());
+}
+
+/// Lê o que a sala ainda manda numa busca parada; a sala tem de FECHAR a
+/// conexão antes do fim do arquivo.
+async fn conferir_que_a_sala_fechou(presa: &mut TcpStream, tamanho_do_arquivo: usize) {
+    let mut resto = Vec::new();
+    let lido = tokio::time::timeout(WAIT, presa.read_to_end(&mut resto)).await.expect("a sala não fechou a busca parada");
+    assert!(lido.is_err() || resto.len() < tamanho_do_arquivo, "a busca parada recebeu o arquivo inteiro");
+}
+
+/// Prazo de escrita (aba congelada, janela zero): sem ler nada, as duas buscas
+/// da Ana caem depois do prazo sem progresso e as vagas voltam. Mutação
+/// vermelha: `ListenerDaSala` sem o embrulho do prazo (as vagas nunca voltam).
+#[tokio::test]
+async fn busca_parada_cai_no_prazo_e_devolve_a_vaga() {
+    let sala = abrir_sala_com_prazo("prazo", Duration::from_secs(1)).await;
+    let ana = entrar(&sala, "Ana", 50).await;
+    let wav = audio(WAV, usize::try_from(media::MIDIA_AUDIO_MAX_BYTES).unwrap(), 0x22);
+    let id = gravar(&sala.midia(), &wav, "wav");
+    liberar(&sala, &ana, std::slice::from_ref(&id));
+    let mut presas = [busca_presa(&sala, ana.origem, &id, &ana.chave).await, busca_presa(&sala, ana.origem, &id, &ana.chave).await];
+    assert_eq!(pedir_som(&sala, ana.origem, &id, Some(&ana.chave)).await.status, 429, "as duas buscas paradas seguram as vagas");
+    let resposta = esperar_sem_429(&sala, ana.origem, &id, &ana.chave).await;
+    assert_eq!(resposta.status, 200);
+    assert_eq!(resposta.corpo.len(), wav.len());
+    for presa in &mut presas {
+        conferir_que_a_sala_fechou(presa, wav.len()).await;
+    }
+}
+
+/// Queda do dono da chave: as buscas dela caem na hora (antes do prazo de
+/// escrita de 30 s) e as vagas voltam com a memória. Mutação vermelha:
+/// esquecer a chave sem `cortar_da_chave`.
+#[tokio::test]
+async fn queda_corta_as_buscas_da_chave() {
+    let sala = abrir_sala("queda-corta").await;
+    let mut ana = entrar(&sala, "Ana", 60).await;
+    let wav = audio(WAV, usize::try_from(media::MIDIA_AUDIO_MAX_BYTES).unwrap(), 0x33);
+    let id = gravar(&sala.midia(), &wav, "wav");
+    liberar(&sala, &ana, std::slice::from_ref(&id));
+    let mut presas = [busca_presa(&sala, ana.origem, &id, &ana.chave).await, busca_presa(&sala, ana.origem, &id, &ana.chave).await];
+    assert_eq!(pedir_som(&sala, ana.origem, &id, Some(&ana.chave)).await.status, 429);
+
+    ana.ws.close(None).await.unwrap();
+    let ana_id = ana.id;
+    esperar_peer(&sala, |(cliente, evento, _)| *cliente == ana_id && *evento == PeerEvent::Disconnected).await;
+    // As vagas voltaram e a chave morreu: o mesmo pedido agora é o 404, não 429.
+    let resposta = esperar_sem_429(&sala, ana.origem, &id, &ana.chave).await;
+    assert_recusa(&resposta, "chave de quem caiu, com as buscas dela cortadas");
+    for presa in &mut presas {
+        conferir_que_a_sala_fechou(presa, wav.len()).await;
     }
 }
