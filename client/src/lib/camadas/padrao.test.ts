@@ -40,19 +40,19 @@ describe('as 13 camadas padrão', () => {
     expect(MODELO_PADRAO.ordem.map((c) => c.id)).toEqual(CAMADAS_PADRAO)
     expect(indicePadrao('chao')).toBe(0)
     expect(indicePadrao('telhados')).toBe(12)
-    expect(indicePadrao('livre_abc')).toBe(-1)
+    expect(indicePadrao('livre_2d356976')).toBe(-1)
   })
 
   it('reconhece id de camada: as 13 e livre_ com id curto; o resto não', () => {
     for (const id of CAMADAS_PADRAO) expect(ehCamadaId(id)).toBe(true)
-    expect(ehCamadaId('livre_k3j9')).toBe(true)
+    expect(ehCamadaId('livre_e644c9bd')).toBe(true)
     expect(ehCamadaId('livre_')).toBe(false)
-    expect(ehCamadaId('livre_com espaço')).toBe(false)
+    expect(ehCamadaId('livre_3e17fc4b espaço')).toBe(false)
     expect(ehCamadaId('grid')).toBe(false)
     expect(ehCamadaId(7)).toBe(false)
     expect(ehCamadaId(undefined)).toBe(false)
     expect(ehCamadaPadrao('salas')).toBe(true)
-    expect(ehCamadaPadrao('livre_x')).toBe(false)
+    expect(ehCamadaPadrao('livre_16bcc5fe')).toBe(false)
   })
 })
 
@@ -76,7 +76,7 @@ describe('camada padrão de cada tipo (tabela do plano)', () => {
     expect(camadaPadraoDe('objeto', objeto)).toBe('objetos')
     expect(camadaPadraoDe('objeto', { ...objeto, layer: 'decoracao' })).toBe('decoracao')
     expect(camadaEscolhidaDe('objeto', { ...objeto, layer: 'decoracao' })).toBeUndefined()
-    expect(camadaEscolhidaDe('objeto', { ...objeto, layer: 'decoracao', camada: 'livre_a' })).toBe('livre_a')
+    expect(camadaEscolhidaDe('objeto', { ...objeto, layer: 'decoracao', camada: 'livre_1fbcd429' })).toBe('livre_1fbcd429')
   })
 
   it('desenho: texto e caminho são Anotações; todo o resto é Desenhos', () => {
@@ -88,9 +88,9 @@ describe('camada padrão de cada tipo (tabela do plano)', () => {
   })
 
   it('a camada escolhida do telhado mora em RoomMeta.camadaDoTelhado, não no campo da região', () => {
-    const sala: Region = { ...regiao, camada: 'livre_r', room: { shape: 'rect', name: 'Sala', roof: true, camadaDoTelhado: 'livre_t' } }
-    expect(camadaEscolhidaDe('regiao', sala)).toBe('livre_r')
-    expect(camadaEscolhidaDe('telhado', sala)).toBe('livre_t')
+    const sala: Region = { ...regiao, camada: 'livre_0cbcb640', room: { shape: 'rect', name: 'Sala', roof: true, camadaDoTelhado: 'livre_12bcbfb2' } }
+    expect(camadaEscolhidaDe('regiao', sala)).toBe('livre_0cbcb640')
+    expect(camadaEscolhidaDe('telhado', sala)).toBe('livre_12bcbfb2')
     expect(camadaEscolhidaDe('telhado', regiao)).toBeUndefined()
   })
 })

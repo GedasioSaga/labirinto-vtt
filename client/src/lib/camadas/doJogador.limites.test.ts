@@ -8,9 +8,9 @@ import type { CamadaDoJogador } from '../../types/map'
 import { lerCamadasDoJogador } from './doJogador'
 import { CAMADAS_PADRAO } from './padrao'
 
-/** As 13 padrão mais `livres` camadas livres de id curto. */
+/** As 13 padrão mais `livres` camadas livres (id do formato da fatia 7: `livre_` + 8 hexa). */
 function lista(livres: number): CamadaDoJogador[] {
-  return [...CAMADAS_PADRAO.map((id) => ({ id })), ...Array.from({ length: livres }, (_, i): CamadaDoJogador => ({ id: `livre_${i}` }))]
+  return [...CAMADAS_PADRAO.map((id) => ({ id })), ...Array.from({ length: livres }, (_, i): CamadaDoJogador => ({ id: `livre_${i.toString(16).padStart(8, '0')}` }))]
 }
 
 describe('lerCamadasDoJogador: tamanho da lista', () => {
@@ -29,12 +29,12 @@ describe('lerCamadasDoJogador: tamanho da lista', () => {
 
 describe('lerCamadasDoJogador: tamanho do id', () => {
   // Lista crua (o leitor recebe `unknown` da rede): a leitura é que decide se o id vale.
-  const comId = (id: string): unknown => [{ id: 'salas' }, { id: 'livre_a' }, { id }]
+  const comId = (id: string): unknown => [{ id: 'salas' }, { id: 'livre_1fbcd429' }, { id }]
 
   it('id de 40 caracteres passa', () => {
     const id = `livre_${'a'.repeat(34)}`
     expect(id).toHaveLength(40)
-    expect(lerCamadasDoJogador(comId(id))?.map((c) => c.id)).toEqual(['salas', 'livre_a', id])
+    expect(lerCamadasDoJogador(comId(id))?.map((c) => c.id)).toEqual(['salas', 'livre_1fbcd429', id])
   })
 
   it('id de 41 caracteres: a lista inteira vale como ausente', () => {

@@ -41,7 +41,7 @@ const TAREFA_LONGA_MAXIMA_MS = 200
 const TETO_CPU_POR_QUADRO_MS = 30
 /** Depois <= antes + 15% (critério da revisão da fatia 3). */
 const FOLGA_SOBRE_ANTES = 1.15
-const LIVRE: CamadaId = 'livre_desempenho'
+const LIVRE: CamadaId = 'livre_af8e74a2'
 
 test.use({ viewport: { width: 1440, height: 900 }, trace: 'off', video: 'off' })
 

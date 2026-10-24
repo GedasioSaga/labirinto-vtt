@@ -498,6 +498,41 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M7.5 11.5H2.5" />
         </>
       )
+    // As peças novas do lote 2 (MT5).
+    case 'sebe':
+      // Três lóbulos de r 3,2 sobre a base reta, 8 de altura (a 6 de altura a fileira de copinhas lia como cápsula achatada).
+      return <path d="M3.8 16V11.2a3.2 3.2 0 0 1 5.7-2a3.2 3.2 0 0 1 5 0a3.2 3.2 0 0 1 5.7 2V16z" />
+    case 'jardineira':
+      // O cocho de frente e três flores acima da borda (de cima, a caixa com bolinhas lia como teclado).
+      return (
+        <>
+          <path d="M4 13h16l-1.5 6h-13z" />
+          <circle cx="7.5" cy="10" r="2" />
+          <circle cx="12" cy="9" r="2" />
+          <circle cx="16.5" cy="10" r="2" />
+        </>
+      )
+    case 'arcoDoPortao':
+      // De frente: os dois postes, a trave por cima e a placa pendurada por duas correntinhas (de cima ele lia como drone).
+      return (
+        <>
+          <path d="M5 21V7M19 21V7M3 7h18M10 7v3M14 7v3" />
+          <rect x="8.5" y="10" width="7" height="4.5" />
+        </>
+      )
+    case 'placaDeSeta':
+      // A tábua com rabo de andorinha apontando e o poste embaixo (com o círculo no meio ela lia como pilha).
+      return <path d="M4 6h11l4 3.5-4 3.5H4l2-3.5zM9 13v8" />
+
+    case 'tapeteLongo':
+      // A passadeira em pé: comprida e estreita, um losango por casa e a franja nas pontas.
+      return (
+        <>
+          <rect x="8" y="3.5" width="8" height="17" />
+          <path d="M12 6.2l1.8 1.8-1.8 1.8-1.8-1.8zM12 14.2l1.8 1.8-1.8 1.8-1.8-1.8z" />
+          <path d="M9.5 3.5V2M12 3.5V2M14.5 3.5V2M9.5 20.5V22M12 20.5V22M14.5 20.5V22" />
+        </>
+      )
   }
 }
 
@@ -759,6 +794,35 @@ export function EyeIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
       <circle cx="12" cy="12" r="3" />
+    </Icon>
+  )
+}
+
+/**
+ * Dois bustos, um à frente do outro: o olho "Jogadores veem" do painel de
+ * Camadas. Ícone próprio para não ser um segundo olho igual ao do mestre na
+ * mesma linha (dois olhos idênticos lado a lado não dizem qual é qual).
+ */
+export function JogadoresIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0111 0" />
+      <path d="M15 6.2a2.6 2.6 0 110 5.2" />
+      <path d="M16.6 13.9a5.2 5.2 0 013.9 5.1" />
+    </Icon>
+  )
+}
+
+/** Os mesmos bustos cortados pela diagonal do `EyeOffIcon`: os jogadores não veem. */
+export function JogadoresOcultosIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="3" />
+      <path d="M3.5 19a5.5 5.5 0 0111 0" />
+      <path d="M15 6.2a2.6 2.6 0 110 5.2" />
+      <path d="M16.6 13.9a5.2 5.2 0 013.9 5.1" />
+      <path d="M4 4l16 16" />
     </Icon>
   )
 }

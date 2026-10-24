@@ -104,8 +104,8 @@ describe('App: livro da mesa', () => {
     expect(botao('Cenas', false, livro() ?? container)).toBeUndefined()
     const abas = Array.from(livro()?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)
     expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo'])
-    // Navegador puro: sem sala, o livro da mesa só tem o marcador Cenas e nenhum topo da Sala.
-    expect(Array.from(direita?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)).toEqual(['Cenas'])
+    // Navegador puro: sem sala, o livro da mesa só tem os marcadores Cenas e Sons e nenhum topo da Sala.
+    expect(Array.from(direita?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)).toEqual(['Cenas', 'Sons'])
     expect(direita?.querySelector('.gr-pagina__topo')).toBeNull()
     expect(editor()?.dataset.coldir).toBe('aberta')
   })

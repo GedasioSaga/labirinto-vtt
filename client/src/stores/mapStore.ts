@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
@@ -17,7 +17,7 @@ import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
-import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
+import { clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { corDaCamada, type CamadaDoChao } from '../lib/camadasDoChao'
 import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
@@ -77,10 +77,15 @@ import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } f
 import { useToastStore } from './toastStore'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
+import { contextoDeCamadas } from '../lib/camadas/consulta'
+import { alternarOlhoDosJogadores, definirOpacidade } from '../lib/camadas/estado'
+import * as modeloDeCamadas from '../lib/camadas/modelo'
+import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
+import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
 import type { CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
-import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer, visibleRegions, visibleDrawings } from '../lib/layers'
+import { visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import {
   comTexturas,
@@ -238,48 +243,44 @@ function moveTokenExplaining(map: MapData, token: Token, targetX: number, target
 }
 
 /**
- * Deriva a LayerId da entidade atualmente selecionada, usando as mesmas
- * funções `*Layer` de lib/layers.ts que render e hit-test já usam — nunca
- * reimplementar a derivação aqui. `null` quando não há seleção do tipo
- * coberto ou a entidade referenciada não existe mais no mapa. Usada só por
- * `toggleLayerVisibility`, pra saber se precisa limpar a seleção ao ocultar
- * a camada em que ela está.
+ * A camada (a que guarda olho e cadeado: `camadaQueManda`) da entidade
+ * selecionada, pelo ponto único (`lib/camadas/consulta.ts`): a escolhida do
+ * item ou a padrão do tipo, com Chão respondendo por Salas no mapa de antes.
+ * `null` quando o tipo não mora em camada ou a entidade sumiu. Usada pelo
+ * olho e pelo cadeado para tirar da seleção o que deixou de ser mexível.
  */
-function layerForSelection(map: MapData, selection: Selection): LayerId | null {
+function camadaDaSelecao(map: MapData, selection: Selection): CamadaId | null {
+  const camadas = contextoDeCamadas(map)
+  const daCamada = <K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K] | undefined): CamadaId | null =>
+    item === undefined ? null : camadas.camadaQueManda(camadas.camadaDe(tipo, item))
   switch (selection.kind) {
-    case 'wall': {
-      const wall = map.walls.find((w) => w.id === selection.id)
-      return wall ? wallLayer(wall) : null
-    }
-    case 'region': {
-      const region = map.regions.find((r) => r.id === selection.id)
-      return region ? regionLayer(region) : null
-    }
-    case 'light': {
-      const light = map.lights.find((l) => l.id === selection.id)
-      return light ? lightLayer(light) : null
-    }
-    case 'token': {
-      const token = map.tokens.find((t) => t.id === selection.id)
-      return token ? tokenLayer(token) : null
-    }
-    case 'prop': {
-      const prop = map.props.find((p) => p.id === selection.id)
-      return prop ? propLayer(prop) : null
-    }
-    case 'stair': {
-      const stair = map.stairs.find((s) => s.id === selection.id)
-      return stair ? stairLayer(stair) : null
-    }
-    case 'drawing': {
-      const drawing = map.drawings.find((d) => d.id === selection.id)
-      return drawing ? drawingLayer(drawing) : null
-    }
+    case 'wall':
+      return daCamada('parede', map.walls.find((w) => w.id === selection.id))
+    case 'region':
+      return daCamada('regiao', map.regions.find((r) => r.id === selection.id))
+    case 'light':
+      return daCamada('luz', map.lights.find((l) => l.id === selection.id))
+    case 'token':
+      return daCamada('ficha', map.tokens.find((t) => t.id === selection.id))
+    case 'prop':
+      return daCamada('objeto', map.props.find((p) => p.id === selection.id))
+    case 'stair':
+      return daCamada('escada', map.stairs.find((s) => s.id === selection.id))
+    case 'drawing':
+      return daCamada('desenho', map.drawings.find((d) => d.id === selection.id))
     case 'floor':
-      return map.floor.some((p) => p.id === selection.id) ? FLOOR_LAYER : null
+      return daCamada('peca', map.floor.find((p) => p.id === selection.id))
     default:
       return null
   }
+}
+
+/** O que sobra da seleção depois do olho ou do cadeado: sai o item cuja camada, no mapa NOVO, o mestre não vê ou travou. */
+function selecaoQueSobra(map: MapData, selection: SelectionSet, sai: (camada: CamadaId) => boolean): SelectionSet {
+  return selection.filter((item) => {
+    const camada = camadaDaSelecao(map, item)
+    return camada === null || !sai(camada)
+  })
 }
 
 /**
@@ -922,16 +923,30 @@ interface MapStoreState {
    *  `mapFactory.setMapSize`. */
   setMapSize: (width: number, height: number) => void
   setBackground: (background: MapData['background']) => void
-  /** Esconde/mostra uma camada inteira (LayerId, 9 valores — types/map.ts).
-   *  Se o item hoje selecionado pertence à camada que está sendo OCULTADA
-   *  (não ao mostrá-la de novo), a seleção é limpa junto — evita continuar
-   *  "editando" algo que sumiu da tela. */
-  toggleLayerVisibility: (id: LayerId) => void
-  /** Onda 4, Frente D (camadas) — trava/destrava uma LayerId inteira. Mesmo
-   *  cuidado de `toggleLayerVisibility`: se o item hoje selecionado pertence
-   *  à camada que está sendo TRAVADA (não ao destravar), a seleção é limpa
-   *  junto — evita continuar "editando" algo que a UI não deixa mais mover. */
-  toggleLayerLock: (id: LayerId) => void
+  /** Olho "Mestre vê" de uma camada (fatia 6: qualquer das 13 ou livre;
+   *  `lib/camadas/estado.ts`). O item selecionado que some da tela sai da
+   *  seleção — evita continuar "editando" algo que sumiu. */
+  toggleLayerVisibility: (id: CamadaId) => void
+  /** Onda 4, Frente D (camadas) — cadeado de uma camada. Mesmo cuidado de
+   *  `toggleLayerVisibility`: o item selecionado que fica travado sai da
+   *  seleção — a UI não deixa mais movê-lo. */
+  toggleLayerLock: (id: CamadaId) => void
+  /** Fatia 6 — olho "Jogadores veem". O primeiro uso vira o mapa v2
+   *  (`paraVersao2`), sem mudar nada na tela; um passo de Ctrl+Z. */
+  alternarOlhoDosJogadores: (id: CamadaId) => void
+  /** Fatia 6 — opacidade da camada, de 0 a 1 (a mesma para mestre e
+   *  jogadores). `gesto`: os valores de UM arrasto do slider emendam num passo
+   *  só de Ctrl+Z (o slider manda o mesmo gesto do apertar ao soltar);
+   *  ausente, um passo por chamada. Valor igual não grava nada. */
+  definirOpacidadeDaCamada: (id: CamadaId, opacidade: number, gesto?: string) => void
+  /** Fatia 7 — camada livre nova, logo acima de `acimaDe` (ou no topo). Um
+   *  passo de Ctrl+Z por gesto, como as três abaixo. `null` no teto. */
+  criarCamadaLivre: (acimaDe?: CamadaId) => CamadaId | null
+  renomearCamada: (id: CamadaId, nome: string) => void
+  /** `destino`: índice na lista de BAIXO para CIMA (0 = desenha por baixo de todas). */
+  moverCamada: (id: CamadaId, destino: number) => void
+  /** Os itens dela voltam à camada padrão do tipo, e o aviso diz quantos (com "Desfazer"). */
+  apagarCamadaLivre: (id: CamadaId) => void
   setPropLayer: (id: string, layer: Prop['layer']) => void
   /** PROPRIEDADES DO MÓVEL — "Tipo" do painel: troca o tipo no lugar, tamanho
    *  padrão do tipo novo. Um passo no desfazer; o que não muda nada não entra. */
@@ -2376,26 +2391,59 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
     toggleLayerVisibility: (id) => {
-      const { map, selection } = get()
-      const isHiding = !map.hiddenLayers.includes(id)
+      const eraDeAntes = get().map.versaoDasCamadas !== 2
       withHistory((m) => mapFactory.toggleLayerVisibility(m, id))
-      // Onda 4, item 24 — `selection` agora é um CONJUNTO: só tira do
-      // conjunto os itens da camada que está sendo ocultada, preserva o
-      // resto (antes, com um item só, "tirar esse" e "limpar tudo" eram a
-      // mesma operação; com N itens não são mais).
-      if (isHiding) {
-        const remaining = selection.filter((item) => layerForSelection(map, item) !== id)
-        if (remaining.length !== selection.length) set({ selection: remaining })
-      }
+      if (eraDeAntes && get().map.versaoDasCamadas === 2) avisarViradaParaV2(get().map.id)
+      // Onda 4, item 24 — `selection` é um CONJUNTO: só sai o que ficou
+      // invisível para o mestre; o resto da seleção fica.
+      const { map, selection } = get()
+      const camadas = contextoDeCamadas(map)
+      const remaining = selecaoQueSobra(map, selection, (camada) => !camadas.mestreVe(camada))
+      if (remaining.length !== selection.length) set({ selection: remaining })
     },
     toggleLayerLock: (id) => {
-      const { map, selection } = get()
-      const isLocking = !map.lockedLayers.includes(id)
+      const eraDeAntes = get().map.versaoDasCamadas !== 2
       withHistory((m) => mapFactory.toggleLayerLock(m, id))
-      if (isLocking) {
-        const remaining = selection.filter((item) => layerForSelection(map, item) !== id)
-        if (remaining.length !== selection.length) set({ selection: remaining })
+      if (eraDeAntes && get().map.versaoDasCamadas === 2) avisarViradaParaV2(get().map.id)
+      const { map, selection } = get()
+      const camadas = contextoDeCamadas(map)
+      const remaining = selecaoQueSobra(map, selection, (camada) => camadas.travada(camada))
+      if (remaining.length !== selection.length) set({ selection: remaining })
+    },
+    alternarOlhoDosJogadores: (id) => withHistory((map) => alternarOlhoDosJogadores(map, id)),
+    definirOpacidadeDaCamada: (id, opacidade, gesto) => {
+      if (definirOpacidade(get().map, id, opacidade) === get().map) return
+      // O mesmo gesto (um arrasto do slider) emenda num passo só de Ctrl+Z; gesto novo, passo novo.
+      withHistory((map) => definirOpacidade(map, id, opacidade), gesto === undefined ? undefined : `camada-opacidade:${id}:${gesto}`)
+    },
+    criarCamadaLivre: (acimaDe) => {
+      const criada = modeloDeCamadas.criarCamadaLivre(get().map, { acimaDe })
+      if (criada === null) {
+        useToastStore.getState().push('info', modeloDeCamadas.AVISO_DO_TETO, undefined, { chave: 'camadas-teto' })
+        return null
       }
+      withHistory(() => criada.map)
+      return criada.id
+    },
+    renomearCamada: (id, nome) => {
+      const depois = modeloDeCamadas.renomearCamada(get().map, id, nome)
+      if (depois !== get().map) withHistory(() => depois)
+    },
+    moverCamada: (id, destino) => {
+      const depois = modeloDeCamadas.moverCamada(get().map, id, destino)
+      if (depois !== get().map) withHistory(() => depois)
+    },
+    apagarCamadaLivre: (id) => {
+      const nome = get().map.modeloCamadas?.ordem.find((c) => c.id === id)?.nome
+      const apagada = modeloDeCamadas.apagarCamadaLivre(get().map, id)
+      if (apagada.map === get().map) return
+      withHistory(() => apagada.map)
+      const depois = get().map
+      // 8 s: o aviso é longo (nome, quantos, se estavam escondidos) e tem um botão.
+      useToastStore.getState().push('info', modeloDeCamadas.avisoDaCamadaApagada(nome, apagada), modeloDeCamadas.DURACAO_DO_AVISO_DE_APAGAR, {
+        // Desfaz só enquanto nada mudou depois (senão o Ctrl+Z levaria outro passo); mudou, e o botão diz o que fazer em vez de calar.
+        actions: [{ label: 'Desfazer', run: () => (get().map === depois ? get().undo() : useToastStore.getState().push('info', modeloDeCamadas.AVISO_DESFAZER_DEPOIS_DE_OUTRA)) }],
+      })
     },
     setPropLayer: (id, layer) => withHistory((map) => mapFactory.setPropLayer(map, id, layer)),
     trocarTipoDoMovel: (id, tipo) => {
@@ -2751,8 +2799,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // As formas e os passos do piso em edição, como a tela os mostra: os de outro piso, ali embaixo, não contam.
       const doPiso = mapaDoPiso(map, pisoAtivo)
       const antes = doPiso.texturas ?? []
-      const regioes = visibleRegions(doPiso.regions, map.hiddenLayers)
-      const desenhos = visibleDrawings(doPiso.drawings, map.hiddenLayers)
+      // Pelo MAPA, não pela lista: no mapa v2 Desenhos é camada própria, fora de Anotações.
+      const regioes = visibleRegions(doPiso.regions, map)
+      const desenhos = visibleDrawings(doPiso.drawings, map)
       const passo: PinceladaDeTextura = { ...pincelada, id: crypto.randomUUID() }
       const { lista, resultado } = somarPincelada(antes, passo, (alvo) => caixaDoAlvo(alvo, regioes, desenhos))
       // O passo novo ganha o piso em edição no `withHistory` (`nascemNoPiso`).
@@ -2769,7 +2818,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       }
       // A forma é a que esta tela mostra: as regiões e os desenhos do piso em edição, nas camadas à vista.
       const doPiso = mapaDoPiso(map, pisoAtivo)
-      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map.hiddenLayers), visibleDrawings(doPiso.drawings, map.hiddenLayers), ponto)
+      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map), visibleDrawings(doPiso.drawings, map), ponto)
       if (alvo === null) return 'fora-de-forma'
       const antes = doPiso.texturas ?? []
       const { lista, resultado } = somarPincelada(antes, { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo })

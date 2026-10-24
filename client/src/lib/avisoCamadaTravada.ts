@@ -1,4 +1,4 @@
-import { LAYER_IDS, type CamadaId, type LayerId } from '../types/map'
+import { LAYER_IDS, type CamadaId } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import { ehCamadaPadrao, ROTULOS_DAS_CAMADAS } from './camadas/padrao'
@@ -11,11 +11,10 @@ import { ehCamadaPadrao, ROTULOS_DAS_CAMADAS } from './camadas/padrao'
  * onde desfazer.
  */
 export function avisarCamadaTravada(camada: CamadaId): void {
-  const layer = camadaGuardada(camada)
   useToastStore.getState().push('info', `A camada ${rotuloDaCamada(camada)} está travada`, undefined, {
     chave: `camada-travada:${camada}`,
-    // Cadeado que o mapa de hoje não guarda (Terreno, Chão, livre): sem botão que não faria nada.
-    ...(layer === undefined ? {} : { actions: [{ label: 'Destravar', run: () => destravar(layer) }] }),
+    // Cadeado que este mapa não guarda (camada nova num mapa de antes): sem botão que não faria nada.
+    ...(mapaGuarda(camada) ? { actions: [{ label: 'Destravar', run: () => destravar(camada) }] } : {}),
   })
 }
 
@@ -26,15 +25,20 @@ function rotuloDaCamada(camada: CamadaId): string {
   return nome === undefined || nome === '' ? 'sem nome' : nome
 }
 
-/** A camada que o cadeado e o olho de hoje guardam (`MapData.lockedLayers`/`hiddenLayers` ainda são das 9). */
-function camadaGuardada(camada: CamadaId): LayerId | undefined {
-  return LAYER_IDS.find((id) => id === camada)
+/**
+ * O olho e o cadeado desta camada moram em `hiddenLayers`/`lockedLayers` do
+ * mapa aberto? Num mapa v2, toda camada (as 13 e as livres: as listas foram
+ * alargadas na fatia 6). Num mapa de antes, só as 9 de antes — Chão e
+ * Desenhos seguem Salas e Anotações, e uma entrada deles ali seria muda.
+ */
+function mapaGuarda(camada: CamadaId): boolean {
+  return useMapStore.getState().map.versaoDasCamadas === 2 || LAYER_IDS.some((id) => id === camada)
 }
 
 /** Só destrava: o botão velho de um aviso não pode travar de novo o que já foi liberado. */
-function destravar(layer: LayerId): void {
+function destravar(camada: CamadaId): void {
   const { map, toggleLayerLock } = useMapStore.getState()
-  if (map.lockedLayers.includes(layer)) toggleLayerLock(layer)
+  if (map.lockedLayers.includes(camada)) toggleLayerLock(camada)
 }
 
 /**
@@ -44,16 +48,15 @@ function destravar(layer: LayerId): void {
  * camada e o "Mostrar" ali mesmo, sem ir atrás do olho na lista de Camadas.
  */
 export function avisarCamadaOculta(camada: CamadaId): void {
-  const layer = camadaGuardada(camada)
   useToastStore.getState().push('info', `A camada ${rotuloDaCamada(camada)} está oculta`, undefined, {
     chave: `camada-oculta:${camada}`,
-    // Olho que o mapa de hoje não guarda: sem botão que não faria nada.
-    ...(layer === undefined ? {} : { actions: [{ label: 'Mostrar', run: () => mostrar(layer) }] }),
+    // Olho que este mapa não guarda (camada nova num mapa de antes): sem botão que não faria nada.
+    ...(mapaGuarda(camada) ? { actions: [{ label: 'Mostrar', run: () => mostrar(camada) }] } : {}),
   })
 }
 
 /** Só mostra: o botão velho de um aviso não pode ocultar de novo o que já voltou a aparecer. */
-function mostrar(layer: LayerId): void {
+function mostrar(camada: CamadaId): void {
   const { map, toggleLayerVisibility } = useMapStore.getState()
-  if (map.hiddenLayers.includes(layer)) toggleLayerVisibility(layer)
+  if (map.hiddenLayers.includes(camada)) toggleLayerVisibility(camada)
 }

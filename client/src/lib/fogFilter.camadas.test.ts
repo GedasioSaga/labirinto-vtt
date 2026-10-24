@@ -25,9 +25,9 @@ const JOGADOR = 'jogador'
 const RAIO = 5000
 const NOME_SECRETO = 'Segredo do Lich'
 const NOME_DO_OLHO = 'Camada do olho'
-const LIVRE: CamadaId = 'livre_x'
+const LIVRE: CamadaId = 'livre_16bcc5fe'
 /** O olho do jogador mora numa camada livre que nunca se esconde: assim ele enxerga em todo caso, inclusive com Tokens oculta. */
-const CAMADA_DO_OLHO: CamadaId = 'livre_olho'
+const CAMADA_DO_OLHO: CamadaId = 'livre_ef17883c'
 const MODELO: ModeloDeCamadas = { ordem: [...MODELO_PADRAO.ordem, { id: LIVRE, nome: NOME_SECRETO }, { id: CAMADA_DO_OLHO, nome: NOME_DO_OLHO }] }
 const CHAVES_DO_MESTRE = ['modeloCamadas', 'ocultasDoJogador', 'opacidadeDasCamadas', 'versaoDasCamadas']
 
@@ -236,10 +236,10 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
   })
 
   it('camada livre desconhecida que NÃO está escondida dos jogadores: o item sai na padrão do tipo, sem o campo', () => {
-    const { modeloCamadas: _semModelo, ...map } = mapaV2([LIVRE], 'livre_outra')
+    const { modeloCamadas: _semModelo, ...map } = mapaV2([LIVRE], 'livre_edd8d147')
     for (const [quem, view] of recortes(map)) {
       expect(idsEntregues(view).sort(), quem).toEqual([...TODOS_OS_IDS].sort())
-      expect(JSON.stringify(view.map), quem).not.toContain('livre_outra')
+      expect(JSON.stringify(view.map), quem).not.toContain('livre_edd8d147')
     }
   })
 
@@ -248,7 +248,7 @@ describe('camada escondida só dos jogadores: nada dela chega ao jogador nem à 
     const torta: unknown = 'Covil do Lich'
     const map: MapData = {
       ...base,
-      walls: base.walls.map((w) => (w.id === 'w1' ? { ...w, camada: 'livre_apagada' } : w)),
+      walls: base.walls.map((w) => (w.id === 'w1' ? { ...w, camada: 'livre_d30eefbd' } : w)),
       floor: base.floor.map((f) => Object.assign({}, f, { camada: torta })),
     }
     for (const [quem, view] of recortes(map)) {

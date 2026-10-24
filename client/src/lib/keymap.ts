@@ -330,6 +330,25 @@ export function isEditableTarget(tagName: string, inputType?: string, contentEdi
   return !INPUT_QUE_NAO_DIGITA.has(inputType.toLowerCase())
 }
 
+/** INPUT sem texto onde o Ctrl+Z do mapa vale: não há o que o campo desfazer. */
+const INPUT_QUE_DEIXA_DESFAZER: ReadonlySet<string> = new Set(['range', 'checkbox', 'radio'])
+
+/**
+ * O Ctrl+Z/Ctrl+Y global (desfazer do mapa, `App.tsx`) vale com o foco aqui?
+ * Revisão da fatia 6: arrastar a opacidade de uma camada deixa o foco no
+ * controle deslizante, e o Ctrl+Z logo depois não fazia nada. Controle
+ * deslizante, interruptor e rádio não têm texto para desfazer: o Ctrl+Z é do
+ * mapa. Campo de texto, número, busca, TEXTAREA, SELECT e `contenteditable`
+ * NUNCA: lá o Ctrl+Z é do campo. Lista do que deixa, não do que barra: tipo
+ * novo ou desconhecido continua barrando.
+ */
+export function focoDeixaDesfazerGlobal(tagName: string, inputType?: string, contentEditable = false): boolean {
+  if (contentEditable) return false
+  if (tagName === 'TEXTAREA' || tagName === 'SELECT') return false
+  if (tagName !== 'INPUT') return true
+  return inputType !== undefined && INPUT_QUE_DEIXA_DESFAZER.has(inputType.toLowerCase())
+}
+
 /**
  * Decide a ação para uma tecla — sem tocar em DOM, store ou `PixiCanvas`.
  * `null` significa "não é atalho nosso, deixe o navegador/campo tratar".

@@ -94,9 +94,9 @@ describe('aviso com o rótulo das 13 camadas (fase 3, fatia 5)', () => {
 
   it('camada livre usa o nome do modelo; sem nome não aparece id nem "undefined"', () => {
     const { map } = useMapStore.getState()
-    useMapStore.setState({ map: { ...map, modeloCamadas: { ordem: [{ id: 'livre_a1', nome: 'Armadilhas' }, { id: 'livre_b2' }] } } })
-    avisarCamadaTravada('livre_a1')
-    avisarCamadaTravada('livre_b2')
+    useMapStore.setState({ map: { ...map, modeloCamadas: { ordem: [{ id: 'livre_0e41e1c8', nome: 'Armadilhas' }, { id: 'livre_7f3a44e6' }] } } })
+    avisarCamadaTravada('livre_0e41e1c8')
+    avisarCamadaTravada('livre_7f3a44e6')
     expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toEqual([
       'A camada Armadilhas está travada',
       'A camada sem nome está travada',
@@ -116,7 +116,7 @@ describe('aviso com o rótulo das 13 camadas (fase 3, fatia 5)', () => {
   })
 
   it('camada livre também fica sem botão (o cadeado dela ainda não tem onde morar)', () => {
-    avisarCamadaTravada('livre_a1')
+    avisarCamadaTravada('livre_0e41e1c8')
     expect(botaoDestravar()).toBeUndefined()
   })
 
@@ -126,5 +126,30 @@ describe('aviso com o rótulo das 13 camadas (fase 3, fatia 5)', () => {
     useToastStore.setState({ toasts: [] })
     avisarCamadaOculta('salas')
     expect(botaoMostrar()).toBeDefined()
+  })
+})
+
+describe('mapa v2: "Destravar" e "Mostrar" em qualquer camada (revisão da fatia 6)', () => {
+  const comV2 = (extra: Partial<ReturnType<typeof useMapStore.getState>['map']>) => {
+    const { map } = useMapStore.getState()
+    useMapStore.setState({ map: { ...map, versaoDasCamadas: 2, ocultasDoJogador: [], ...extra } })
+  }
+
+  it.each(['chao', 'terreno', 'telhados', 'livre_0e41e1c8'] as const)('%s travada: "Destravar" aparece e destrava', (camada) => {
+    comV2({ lockedLayers: [camada], modeloCamadas: { ordem: [{ id: 'livre_0e41e1c8', nome: 'Armadilhas' }] } })
+    avisarCamadaTravada(camada)
+    const destravar = botaoDestravar()
+    expect(destravar).toBeDefined()
+    destravar?.run()
+    expect(useMapStore.getState().map.lockedLayers).not.toContain(camada)
+  })
+
+  it.each(['chao', 'desenhos', 'terreno'] as const)('%s oculta: "Mostrar" aparece e mostra', (camada) => {
+    comV2({ hiddenLayers: [camada] })
+    avisarCamadaOculta(camada)
+    const mostrar = botaoMostrar()
+    expect(mostrar).toBeDefined()
+    mostrar?.run()
+    expect(useMapStore.getState().map.hiddenLayers).not.toContain(camada)
   })
 })

@@ -1,0 +1,486 @@
+/*
+ * CAMADAS (fase 3, fatia 6): 13 linhas com o nome (que abre a linha), a
+ * contagem, o olho do mestre, o olho dos jogadores e o cadeado. A opacidade,
+ * o controle mais raro, mora dentro da linha aberta (uma por vez). Herda a
+ * lista compacta de `.lb-layers` (main.css); aqui só o que a linha acrescenta.
+ *
+ * A linha fechada é quieta: só a camada mexida (opacidade abaixo de 100%)
+ * mostra a porcentagem em latão ao lado do nome, para o olho achar, nas 13, a
+ * que está diferente. A abertura copia a ficha do Grimório
+ * (`.gr-ficha__corpo`, grimorio.css) a 160 ms; com movimento reduzido, nada
+ * se move.
+ */
+
+.lb-camadas {
+  gap: 1px;
+}
+
+/* O `li` deixa de ser a fileira: a fileira é a cabeça; o slider e o que é
+   aninhado vêm embaixo. `contain: paint` prende a pintura do arrasto na linha
+   mexida (o painel inteiro repintava a cada quadro). */
+.lb-camadas .lb-camadas__linha {
+  display: block;
+  min-height: 0;
+  contain: paint;
+}
+
+/* Com a pintura presa na linha, o anel de foco vai para DENTRO do controle. */
+.lb-camadas .lb-camadas__linha :focus-visible {
+  outline-offset: -2px;
+}
+
+.lb-camadas__cabeca {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1, 4px);
+  min-height: 32px;
+}
+
+/* O nome é botão com cara de texto da lista. Base 0 e min-width 0: nome
+   comprido encolhe com reticências em vez de empurrar os botões. */
+.lb-camadas__nome {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 4px 0 2px;
+  border: 0;
+  border-radius: var(--lb-radius-sm, 4px);
+  background: none;
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-camadas__nome:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-camadas__nome:hover .lb-camadas__divisa {
+    color: var(--lb-color-parchment-dim);
+  }
+}
+
+.lb-camadas__rotulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A divisa: 12 px, apagada; deitada fechada, em pé aberta. */
+.lb-camadas__divisa {
+  flex: none;
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas__linha[data-aberta] .lb-camadas__divisa {
+  transform: none;
+}
+
+/* A porcentagem da camada mexida: `::after` (fora do texto da linha). */
+.lb-camadas__pct::after {
+  content: attr(data-pct);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass);
+}
+
+/* Os três botões não encolhem: painel estreito quebra a fileira (no toque), não espreme o alvo. */
+.lb-camadas .lb-camadas__bt {
+  flex: none;
+}
+
+.lb-camadas__conta {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Camada vazia: o 0 apagado, ainda legível (4,5:1). */
+.lb-camadas__conta[data-zero] {
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Camada oculta para o mestre: nome, contagem e porcentagem apagados por COR
+   (4,5:1), não por opacidade (que caía abaixo do AA). Os botões seguem
+   legíveis para o mestre achar onde mostrar de novo. */
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__nome,
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__conta,
+.lb-camadas .lb-camadas__linha[data-hidden] .lb-camadas__pct::after {
+  opacity: 1;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A linha aberta: o slider na largura toda e a nota. Mesma gramática da ficha
+   do Grimório: a altura anda por `grid-template-rows`, o miolo some por
+   opacidade. */
+/* Fecha mais rápido do que abre (120 contra 160 ms): abrir é a mão pedindo,
+   fechar é o sistema respondendo. Altura por grade é a exceção aceita do
+   acordeão (não há transform que faça o vizinho de baixo descer). */
+.lb-camadas__corpo {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 120ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas__linha[data-aberta] .lb-camadas__corpo {
+  grid-template-rows: 1fr;
+  transition-duration: 160ms;
+}
+
+/* Fechado, o miolo some também por `visibility` (depois do esmaecer): fora
+   da árvore de acessibilidade e do clique, além do `inert` do corpo. */
+.lb-camadas__miolo {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 0s linear 120ms;
+}
+
+.lb-camadas__linha[data-aberta] .lb-camadas__miolo {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 120ms ease 40ms, visibility 0s;
+}
+
+.lb-camadas__dentro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 4px 8px 20px;
+}
+
+/* Sempre opaco (o apagado reprovava o contraste e parecia desabilitado): a
+   cor de pergaminho à toa, o latão só na camada mexida. */
+.lb-camadas .lb-camadas__faixa {
+  width: 100%;
+  cursor: pointer;
+  accent-color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__linha[data-esmaecida] .lb-camadas__faixa {
+  accent-color: var(--lb-color-brass);
+}
+
+.lb-camadas__nota {
+  font-size: var(--lb-font-size-xs, 10.5px);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Chave dos ícones, acima da lista. */
+.lb-camadas__legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--lb-space-3, 12px);
+  margin: var(--lb-space-2, 8px) 0 var(--lb-space-1, 4px);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__chave {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lb-camadas__chave svg {
+  flex: none;
+}
+
+/* O que mora dentro de uma camada (as camadas de pincel do Chão, o atalho
+   Transparente dos Telhados): a gramática do subgrupo do Grimório, com o
+   filete tracejado em cima, sem recuo — o nome comprido precisa da largura. */
+.lb-camadas__aninhado {
+  margin: 4px 0 8px;
+  padding: 8px 0 0;
+  border-left: 0;
+  border-top: 1px dashed var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+}
+
+.lb-camadas__aninhado .lb-quick-toggles {
+  margin: 0;
+}
+
+/* Aninhada, a lista do chão fica sem a pipeta na linha: a cor se escolhe no
+   seletor (que tem a sua), e os 22 px vão para o nome. */
+.lb-camadas__aninhado .lb-floor-layers .lb-campo-cor__pipeta {
+  display: none;
+}
+
+.lb-camadas__titulo-aninhado {
+  margin: 4px 0 2px;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold, 600);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* FATIA 7: a lista muda. A alça (seis pontos, apagada) arrasta a linha pelo
+   ponteiro; o teclado usa Subir/Descer no miolo. `touch-action: none`: no
+   dedo, arrastar a alça move a linha em vez de rolar o livro. */
+.lb-camadas__alca {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Pendurada na margem do livro (a lista recua 12 px): o nome da camada não perde largura para ela. */
+  width: 12px;
+  min-height: 32px;
+  margin-inline-end: -4px;
+  color: var(--lb-color-parchment-faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+.lb-camadas[data-ordenavel] {
+  margin-inline-start: -12px;
+}
+
+.lb-camadas[data-ordenavel] .lb-camadas__aninhado {
+  margin-inline-start: 12px;
+}
+
+/* A porcentagem só ocupa lugar (e o gap) quando há porcentagem. */
+.lb-camadas__pct:not([data-pct]) {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-camadas__alca:hover {
+    color: var(--lb-color-parchment-dim);
+  }
+}
+
+/* Durante o arrasto: a linha pega levanta (fundo e sombra, acima das outras)
+   e segue o ponteiro sem atraso; as vizinhas abrem espaço em 180 ms. */
+.lb-camadas[data-arrastando] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.lb-camadas[data-arrastando] > .lb-camadas__linha {
+  transition: transform 180ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+/* Pega, e ainda depois de solta enquanto assenta (o FLIP de 150 ms): a sombra pousa junto com a linha. */
+.lb-camadas > .lb-camadas__linha[data-arrastada] {
+  position: relative;
+  z-index: 1;
+  transition: none;
+  /* Camada própria só enquanto está pega: segue o ponteiro sem repintar a lista. */
+  will-change: transform;
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-md);
+  border-radius: var(--lb-radius-sm, 4px);
+}
+
+.lb-camadas[data-arrastando] .lb-camadas__alca {
+  cursor: grabbing;
+}
+
+/* Renomear: o campo ocupa o lugar do nome, na mesma altura, e o contador diz quanto cabe. */
+.lb-camadas__edicao {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-camadas__campo {
+  flex: 1 1 0;
+  /* Nunca vira um fio: com o contador "49/40" ao lado, o campo segura 8 caracteres à vista. */
+  min-width: 8ch;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-sm, 4px);
+  background: var(--lb-color-stone-sunken);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+.lb-camadas__campo:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+}
+
+.lb-camadas__contador {
+  flex: none;
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-camadas__contador[data-passou] {
+  color: var(--lb-color-brass);
+}
+
+/* Nome recusado: o motivo, logo abaixo da linha, em latão (some no próximo gesto). */
+.lb-camadas__recusa {
+  margin: 2px 0 4px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass);
+}
+
+/* Camada apagada que ainda esconde itens: só o nome apagado e o olho dos jogadores. */
+.lb-camadas--apagadas {
+  margin-top: var(--lb-space-2, 8px);
+}
+
+.lb-camadas__apagada {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--lb-font-size-md);
+  font-style: italic;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Subir, Descer, Renomear, Apagar: texto curto, na largura que houver (quebram, não espremem). */
+.lb-camadas__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.lb-camadas__acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--lb-gr-filete-forte, rgba(236, 234, 228, 0.16));
+  border-radius: var(--lb-radius-sm, 4px);
+  background: none;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition: transform 160ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-camadas__acao:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lb-camadas__acao:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+/* No extremo da lista: apagado por cor (o botão continua legível, só não age). */
+.lb-camadas__acao:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: default;
+}
+
+.lb-camadas__acao--apagar {
+  margin-left: auto;
+}
+
+/* "+ Nova camada" mora no alto, entre a legenda e a lista (a camada nasce no topo). */
+.lb-camadas__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 var(--lb-space-2, 8px);
+}
+
+/* Movimento reduzido: nada se move (altura e giro da divisa saltam); o
+   esmaecer do miolo fica, que é cor e não movimento. No arrasto, as vizinhas
+   saltam para o lugar novo em vez de deslizar. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-camadas__divisa,
+  .lb-camadas__corpo,
+  .lb-camadas__linha[data-aberta] .lb-camadas__corpo,
+  .lb-camadas[data-arrastando] > .lb-camadas__linha,
+  .lb-camadas__acao {
+    transition-duration: 0ms;
+  }
+}
+
+/* Dedo: alvo de 44 px nos três botões e no slider, o nome com 36 px. Três
+   44 px não cabem ao lado do nome no livro do celular (~210 px), então a
+   fileira quebra: nome e contagem em cima, os três botões embaixo, à
+   direita. A lista do chão aninhada ganha os mesmos 44 px e a mesma quebra. */
+@media (pointer: coarse) {
+  .lb-camadas__cabeca {
+    flex-wrap: wrap;
+  }
+
+  .lb-camadas__nome {
+    flex: 1 0 calc(100% - 9ch);
+    min-height: 36px;
+  }
+
+  .lb-camadas__conta + .lb-camadas__bt {
+    margin-left: auto;
+  }
+
+  .lb-camadas .lb-camadas__bt {
+    width: var(--lb-control-touch, 44px);
+    height: var(--lb-control-touch, 44px);
+  }
+
+  .lb-camadas .lb-camadas__faixa {
+    height: var(--lb-control-touch, 44px);
+  }
+
+  /* A alça cabe no dedo (44 de altura) sem roubar a largura do nome; no dedo ela não pende na margem (a borda da tela é perto). */
+  .lb-camadas__alca {
+    width: 28px;
+    min-height: var(--lb-control-touch, 44px);
+    margin-inline-end: 0;
+  }
+
+  .lb-camadas[data-ordenavel],
+  .lb-camadas[data-ordenavel] .lb-camadas__aninhado {
+    margin-inline-start: 0;
+  }
+
+  .lb-camadas__alca + .lb-camadas__nome,
+  .lb-camadas__alca + .lb-camadas__edicao {
+    flex: 1 0 calc(100% - 9ch - 32px);
+  }
+
+  .lb-camadas__acao,
+  .lb-camadas__nova,
+  .lb-camadas__campo {
+    min-height: var(--lb-control-touch, 44px);
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row {
+    flex-wrap: wrap;
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row > .lb-layers__name {
+    flex: 1 0 calc(100% - 32px);
+    min-height: 36px;
+  }
+
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__row > .lb-iconbtn--sm {
+    flex: none;
+    width: var(--lb-control-touch, 44px);
+    height: var(--lb-control-touch, 44px);
+  }
+}
+
+@media (pointer: coarse) {
+  .lb-camadas__aninhado .lb-floor-layers .lb-layers__name + .lb-iconbtn--sm {
+    margin-left: auto;
+  }
+}

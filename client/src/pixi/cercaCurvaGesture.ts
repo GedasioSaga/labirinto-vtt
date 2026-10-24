@@ -4,6 +4,7 @@ import { useMapStore } from '../stores/mapStore'
 import { canInteractInLayer, propLayer } from '../lib/layers'
 import { isOnFenceCurveHandle, screenToWorldTolerance } from '../lib/handleHitArea'
 import { arrastarCurvaDaCerca, ENCAIXE_DA_RETA_PX_DE_TELA } from '../lib/cercaCurva'
+import { aceitaCurva } from '../lib/mobilia'
 
 /**
  * Gesto da ALÇA DE CURVAR A CERCA (pedido de 13/10/2026), sem Pixi: o
@@ -46,7 +47,7 @@ export function createCercaCurvaGesture(store: CercaCurvaStore = useMapStore) {
     begin(propId: string, ponto: Point, cameraScale: number): boolean {
       const map = store.getState().map
       const prop = map.props.find((p) => p.id === propId)
-      if (prop === undefined || prop.mobilia !== 'cerca' || !canInteractInLayer(prop, propLayer(prop), map.lockedLayers)) return false
+      if (prop === undefined || !aceitaCurva(prop.mobilia) || !canInteractInLayer(prop, propLayer(prop), map.lockedLayers)) return false
       if (!isOnFenceCurveHandle(prop, ponto, cameraScale)) return false
       arrasto = { propId, antes: map, inicial: prop, encaixeDaReta: screenToWorldTolerance(ENCAIXE_DA_RETA_PX_DE_TELA, cameraScale), atual: prop }
       return true

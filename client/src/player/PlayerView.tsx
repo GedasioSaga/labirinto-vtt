@@ -3,7 +3,7 @@ import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { Drawing, LayerId, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
+import type { CamadaId, Drawing, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
@@ -1398,7 +1398,7 @@ function redrawNomesDosLugares(
   map: MapData,
   regioes: Region[] | null,
   desenhos: Drawing[],
-  hidden: readonly LayerId[],
+  hidden: readonly CamadaId[],
   opcoes: { conhecido: ConhecidoDoRelevo; ocultos: readonly (readonly RegionPoint[])[]; animar: boolean },
 ): void {
   if (regioes === null) {
@@ -2202,7 +2202,11 @@ function PlayerViewDoCanvas({
     scene.entradaDaPilha = { map, camadas: map.camadasDoJogador, pares: chave }
     scene.pilha.atualizar(entradaDoJogador(map, pares))
     const el = containerRef.current
-    if (el) el.dataset.nosDaPilha = String(scene.world.children.length)
+    if (el) {
+      el.dataset.nosDaPilha = String(scene.world.children.length)
+      // A opacidade de cada nó, em %: o teste prova que o alfa da camada CHEGA ao nó (não só que um quadro mudou).
+      el.dataset.alfasDaPilha = scene.world.children.map((no) => String(Math.round(no.alpha * 100))).join(',')
+    }
   }
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */

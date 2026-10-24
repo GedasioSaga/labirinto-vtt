@@ -13,7 +13,7 @@
  */
 import type { CamadaId, MapData } from '../../types/map'
 import { canInteract, type Lockable } from '../itemTransform'
-import { CAMADAS_PADRAO, camadaEscolhidaDe, camadaPadraoDe, ehCamadaId, ehCamadaPadrao, type ItemPorTipo, type TipoDeObjeto } from './padrao'
+import { CAMADAS_PADRAO, camadaEscolhidaDe, camadaPadraoDe, ehCamadaId, ehCamadaPadrao, pareceCamadaLivre, type ItemPorTipo, type TipoDeObjeto } from './padrao'
 
 export interface ContextoDeCamadas {
   /** A camada do item: a escolhida, se existe; senão a padrão do tipo. */
@@ -95,8 +95,9 @@ function criarContexto(map: CamposDeCamadas): ContextoDeCamadas {
 
   function jogadorVeItem<K extends TipoDeObjeto>(tipo: K, item: ItemPorTipo[K]): boolean {
     const escolhida: unknown = camadaEscolhidaDe(tipo, item)
-    // Livre escondida dos jogadores falha FECHADA; a desconhecida que não está escondida segue a padrão do tipo.
-    if (ehCamadaId(escolhida) && !ehCamadaPadrao(escolhida) && ocultasDoJogador.has(escolhida)) return false
+    // Livre escondida dos jogadores falha FECHADA, mesmo apagada do modelo ou com id fora do formato
+    // (fatia 7); a desconhecida que não está escondida segue a padrão do tipo.
+    if (pareceCamadaLivre(escolhida) && ocultasDoJogador.has(escolhida)) return false
     return jogadorVe(camadaDe(tipo, item))
   }
 

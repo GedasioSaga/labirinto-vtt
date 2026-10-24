@@ -179,7 +179,7 @@ export const BLOCOS: readonly Bloco[] = [
   },
   {
     tela: 'mestre', titulo: 'Grupo Esta cena', estado: 'editor com aventura, Selecionar, nada selecionado', escopo: 'esquerda',
-    vai: 'Página Cena do livro do mestre: a busca no topo, e as fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa, Camadas do chão e Camadas, com o resumo (feito)', fatia: '2 (casca), 18a (fichas) e 18b (busca no topo)',
+    vai: 'Página Cena do livro do mestre: a busca no topo, e as fichas Objetos do mapa, Locais, Marcas, Território, Chão do mapa e Camadas (com as camadas do chão aninhadas na linha Chão), com o resumo (feito)', fatia: '2 (casca), 18a (fichas) e 18b (busca no topo)',
     linhas: [
       { ...l('Objetos do mapa: busca', ['searchbox', 'Buscar objeto'], marcador('Cena')), vai: 'Busca do topo do marcador Cena, à vista com a ficha Objetos do mapa fechada; digitar abre a lista, com os achados das outras cenas (feito)' },
       { controle: 'Objetos do mapa: Ctrl+K põe o cursor na busca', caminho: [], tecla: 'Control+k', alvo: ['searchbox', 'Buscar objeto'], focado: true, vai: 'Ctrl+K foca a busca do topo da página Cena e abre Objetos do mapa' },
@@ -194,15 +194,19 @@ export const BLOCOS: readonly Bloco[] = [
       l('Camadas: Grudar Token no centro', cx('Grudar Token no centro'), marcador('Cena'), b('Camadas')),
       l('Camadas: Grudar Parede na grade', cx('Grudar Parede na grade'), marcador('Cena'), b('Camadas')),
       l('Camadas: Grudar Objeto na grade', cx('Grudar Objeto na grade'), marcador('Cena'), b('Camadas')),
-      ...(['Paredes', 'Portas', 'Salas', 'Escadas', 'Objetos', 'Decoração', 'Iluminação', 'Tokens', 'Anotações'].flatMap((c) => [
+      // Fatia 6 das camadas: as 13 da lista, cada uma com os dois olhos, a trava e a opacidade (que abre pelo NOME da linha).
+      ...(['Telhados', 'Anotações', 'Tokens', 'Iluminação', 'Decoração', 'Objetos', 'Escadas', 'Portas', 'Paredes', 'Terreno', 'Desenhos', 'Salas', 'Chão'].flatMap((c) => [
         l(`Camadas: olho de ${c}`, b(`Ocultar ${c}`), marcador('Cena'), b('Camadas')),
+        l(`Camadas: olho dos jogadores de ${c}`, b(`Ocultar ${c} dos jogadores`), marcador('Cena'), b('Camadas')),
         l(`Camadas: trava de ${c}`, b(`Travar ${c}`), marcador('Cena'), b('Camadas')),
+        l(`Camadas: opacidade de ${c}`, ['slider', `Opacidade de ${c}`], marcador('Cena'), b('Camadas'), b(`${c}, opacidade`)),
       ])),
+      l('Camadas: Telhados Transparente', cx('Transparente'), marcador('Cena'), b('Camadas')),
     ],
   },
   {
     tela: 'mestre', titulo: 'Camadas do chão', estado: 'peça de chão selecionada', escopo: 'esquerda', preparo: sel('floor', 'f1'),
-    vai: 'Marcador Cena, ficha Camadas do chão (nota "ir: cena" com a ferramenta Chão)', fatia: '7 e 18',
+    vai: 'Marcador Cena, ficha Camadas, aninhada na linha Chão (nota "ir: cena" com a ferramenta Chão)', fatia: '7, 18 e 6 das camadas',
     linhas: [l('Camadas do chão: lista das peças', ['heading', 'Camadas do chão'])],
   },
   {
@@ -246,7 +250,8 @@ export const BLOCOS: readonly Bloco[] = [
       l('Chão: Tamanho do pincel', rg('Tamanho do pincel'), b('Opções de Chão')),
       l('Chão: Operação', rg('Operação'), b('Opções de Chão')),
       l('Escada: Tamanho', rg('Tamanho'), b('Opções de Escada')),
-      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto'))),
+      ...['Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Tapete longo', 'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta'].map((o) => l(`Objetos: ${o}`, ['radio', o], b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto'))),
+      l('Objetos: Atalho Árvore redonda (arma o Carimbo)', b('Árvore redonda'), b('Opções de Objeto'), ['radio', 'Móvel'], b('Opções de Objeto')),
       l('Desenho: Forma (7 formas)', rg('Forma'), b('Opções de Desenho')),
       l('Desenho: Modo (Traço livre / Balde)', rg('Modo'), b('Opções de Desenho')),
       l('Desenho: Textura do traço', rg('Textura do traço'), b('Opções de Desenho')),

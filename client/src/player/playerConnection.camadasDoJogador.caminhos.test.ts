@@ -49,7 +49,7 @@ function conectar(name: string) {
 
 const ANA: Token = { id: 't1', characterId: null, name: 'Ana', x: 125, y: 125, size: 1, image: null }
 const MAPA: MapData = { ...createEmptyMap('m1', 'Mapa', 10, 10, 50), tokens: [ANA] }
-const BOA = [{ id: 'salas' }, { id: 'chao' }, { id: 'livre_a1', alfa: 0.4 }]
+const BOA = [{ id: 'salas' }, { id: 'chao' }, { id: 'livre_0e41e1c8', alfa: 0.4 }]
 
 describe('tela da mesa (TV): a mesma leitura do jogador', () => {
   it('lista boa chega como veio; torta vira o padrão sem derrubar a mensagem', () => {

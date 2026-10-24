@@ -13,13 +13,13 @@ import { createEmptyMap } from './mapFactory'
 import { parseRecoveryCopy, serializeRecoveryCopy, type RecoveryCopy } from './recoveryCopy'
 
 const NOME_SECRETO = 'Segredo do Lich'
-const MODELO: ModeloDeCamadas = { ordem: [...MODELO_PADRAO.ordem, { id: 'livre_x', nome: NOME_SECRETO }] }
+const MODELO: ModeloDeCamadas = { ordem: [...MODELO_PADRAO.ordem, { id: 'livre_16bcc5fe', nome: NOME_SECRETO }] }
 
 function mapaComCamadaLivre(id: string): MapData {
   return {
     ...createEmptyMap(id, 'Cripta', 10, 10, 64),
-    walls: [{ ...parede, camada: 'livre_x' }],
-    ocultasDoJogador: ['livre_x'],
+    walls: [{ ...parede, camada: 'livre_16bcc5fe' }],
+    ocultasDoJogador: ['livre_16bcc5fe'],
     versaoDasCamadas: 2,
     modeloCamadas: MODELO,
   }
@@ -44,8 +44,8 @@ describe('cópia de recuperação com camada livre', () => {
     const volta = parseRecoveryCopy(serializeRecoveryCopy(copia()))
     expect(volta?.map.modeloCamadas).toEqual(MODELO)
     expect(volta?.scenes['cena-2']?.modeloCamadas).toEqual(MODELO)
-    expect(volta?.map.walls[0]?.camada).toBe('livre_x')
-    expect(volta?.map.ocultasDoJogador).toEqual(['livre_x'])
+    expect(volta?.map.walls[0]?.camada).toBe('livre_16bcc5fe')
+    expect(volta?.map.ocultasDoJogador).toEqual(['livre_16bcc5fe'])
     expect(volta?.map.versaoDasCamadas).toBe(2)
   })
 

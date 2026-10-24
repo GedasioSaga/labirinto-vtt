@@ -82,8 +82,8 @@ function contextoFalso(): { g: CanvasRenderingContext2D; anotacao: Anotacao } {
 }
 
 describe('biblioteca de carimbos', () => {
-  it('oito objetos, ids da forma do pacote, nenhum repetido', () => {
-    expect(IDS_DOS_EMBUTIDOS).toEqual(['pinheiro', 'pinheiro-nevado', 'arvore', 'arbusto', 'palmeira', 'pedras', 'poca', 'juncos'])
+  it('nove objetos (a árvore redonda da MT5 logo depois da árvore), ids da forma do pacote, nenhum repetido', () => {
+    expect(IDS_DOS_EMBUTIDOS).toEqual(['pinheiro', 'pinheiro-nevado', 'arvore', 'arvore-redonda', 'arbusto', 'palmeira', 'pedras', 'poca', 'juncos'])
     for (const id of IDS_DOS_EMBUTIDOS) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
   })
 

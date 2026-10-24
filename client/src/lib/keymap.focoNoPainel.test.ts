@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEditableTarget, resolveShortcut, type ShortcutEvent } from './keymap'
+import { focoDeixaDesfazerGlobal, isEditableTarget, resolveShortcut, type ShortcutEvent } from './keymap'
 
 // Achados 10 e 11 do passeio de 20/09/2026: atalho com o foco no painel.
 // Réguas de ponta a ponta em `e2e/task-jornada-atalho-com-foco-no-painel.spec.ts`.
@@ -88,5 +88,28 @@ describe('resolveShortcut — a regra do ?', () => {
   it('a barra sem Shift (/) não troca nada, e Shift+letra segue reservado', () => {
     expect(resolveShortcut(evt({ key: '/' }))).toBeNull()
     expect(resolveShortcut(evt({ key: 'W', shiftKey: true }))).toBeNull()
+  })
+})
+
+describe('focoDeixaDesfazerGlobal — Ctrl+Z com o foco num controle sem texto (revisão da fatia 6)', () => {
+  it.each(['range', 'checkbox', 'radio', 'RANGE'])('INPUT %s: o Ctrl+Z desfaz o mapa', (tipo) => {
+    expect(focoDeixaDesfazerGlobal('INPUT', tipo)).toBe(true)
+  })
+
+  it.each(['text', 'number', 'search', 'email', 'password', 'url', 'tel'])('INPUT %s: o Ctrl+Z é do campo', (tipo) => {
+    expect(focoDeixaDesfazerGlobal('INPUT', tipo)).toBe(false)
+  })
+
+  it('INPUT sem tipo (texto), TEXTAREA, SELECT e contenteditable: o Ctrl+Z é do campo', () => {
+    expect(focoDeixaDesfazerGlobal('INPUT')).toBe(false)
+    expect(focoDeixaDesfazerGlobal('TEXTAREA')).toBe(false)
+    expect(focoDeixaDesfazerGlobal('SELECT')).toBe(false)
+    expect(focoDeixaDesfazerGlobal('DIV', undefined, true)).toBe(false)
+  })
+
+  it('fora de campo (botão, canvas, corpo): o Ctrl+Z desfaz o mapa', () => {
+    expect(focoDeixaDesfazerGlobal('BUTTON')).toBe(true)
+    expect(focoDeixaDesfazerGlobal('CANVAS')).toBe(true)
+    expect(focoDeixaDesfazerGlobal('BODY')).toBe(true)
   })
 })

@@ -218,14 +218,14 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
 
   it('CAMADAS: a janela de teste recebe o recorte do host — nada da camada escondida dos jogadores, nem o nome da camada livre', async () => {
     const SEGREDO = 'Segredo do Lich'
-    const paredeDoLich: Wall = { ...PAREDE, id: 'parede-do-lich', x1: 100, y1: 75, x2: 150, y2: 75, camada: 'livre_x' }
+    const paredeDoLich: Wall = { ...PAREDE, id: 'parede-do-lich', x1: 100, y1: 75, x2: 150, y2: 75, camada: 'livre_16bcc5fe' }
     useMapStore.getState().loadMap({
       ...salao(),
       walls: [PORTA, PAREDE, paredeDoLich],
-      ocultasDoJogador: ['livre_x'],
-      opacidadeDasCamadas: { livre_x: 0.5 },
+      ocultasDoJogador: ['livre_16bcc5fe'],
+      opacidadeDasCamadas: { livre_16bcc5fe: 0.5 },
       versaoDasCamadas: 2,
-      modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'salas' }, { id: 'paredes' }, { id: 'livre_x', nome: SEGREDO }] },
+      modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'salas' }, { id: 'paredes' }, { id: 'livre_16bcc5fe', nome: SEGREDO }] },
     })
     const janela = await jogarCom(ANA.id)
     const conexao = janela.conexao()
@@ -235,7 +235,7 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     expect(recebido?.walls.map((w) => w.id)).not.toContain(paredeDoLich.id)
     const texto = JSON.stringify(recebido)
     expect(texto).not.toContain(SEGREDO)
-    expect(texto).not.toContain('livre_x')
+    expect(texto).not.toContain('livre_16bcc5fe')
     for (const chave of ['modeloCamadas', 'ocultasDoJogador', 'opacidadeDasCamadas', 'versaoDasCamadas']) expect(Object.keys(recebido ?? {})).not.toContain(chave)
   })
 

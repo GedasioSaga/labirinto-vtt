@@ -47,9 +47,9 @@ export const MAX_CAMADAS_DO_JOGADOR = 64
 
 /**
  * Teto do id de camada que o jogador aceita: `livre_` e 34 caracteres. O id
- * que a fatia 7 cria é `livre_` e uma parte aleatória de 10 ou mais; o padrão
- * de leitura do mapa (`ehCamadaId`) aceita até 64 depois de `livre_`, folga
- * que a rede não precisa carregar.
+ * que a fatia 7 cria é `livre_` e 8 hexa aleatórios (`novoIdDeCamadaLivre`);
+ * o id no formato de antes lido do arquivo vira `livre_` e 16 hexa
+ * (`idDeCamadaDoArquivo`). Os dois cabem com folga.
  */
 export const MAX_CARACTERES_DO_ID_DE_CAMADA = 40
 

@@ -10,13 +10,14 @@
 
 /**
  * Todos os tipos que o arquivo do mapa aceita: os 11 de antes e as peças novas
- * do lote 1 do Meio-Termo (fatia MT4, registradas em `pecasNovas.ts`). A ordem
+ * dos lotes 1 e 2 do Meio-Termo (fatias MT4 e MT5, registradas em `pecasNovas.ts`). A ordem
  * e a lista que a setinha da ferramenta Objetos oferece moram em
  * `pecasNovas.ts` (`TIPOS_NO_CATALOGO`): peça nova só entra lá com o desenho pronto.
  */
 export const TIPOS_MOBILIA = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

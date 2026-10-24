@@ -1,5 +1,4 @@
-import type { ConcealZone, DoorState, FloorStyle, LayerId, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
-import { LAYER_IDS } from '../types/map'
+import type { CamadaId, ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -81,8 +80,8 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { pisosDoArquivo } from './pisos'
-import { ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
-import { ehCamadaId } from './camadas/padrao'
+import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
+import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
 
@@ -363,8 +362,10 @@ function readPropItem(doArquivo: Prop): Prop {
 function roomRoofLayerFromFile(region: Region): Region {
   const room = region.room
   if (!room || typeof room !== 'object' || !('camadaDoTelhado' in room) || ehCamadaId(room.camadaDoTelhado)) return region
-  const { camadaDoTelhado: _torta, ...semCamada } = room
-  return { ...region, room: semCamada }
+  const { camadaDoTelhado: cru, ...semCamada } = room
+  // Fatia 7: id de camada livre do formato de antes vira o hexa dele (`idDeCamadaDoArquivo`).
+  const camadaDoTelhado = idDeCamadaDoArquivo(cru)
+  return { ...region, room: camadaDoTelhado === undefined ? semCamada : { ...semCamada, camadaDoTelhado } }
 }
 
 /**
@@ -387,19 +388,19 @@ function tokenVehicleFromFile(token: Token): Token {
 }
 
 /**
- * Cadeado e olho (`lockedLayers`, `hiddenLayers`): só as 9 camadas de hoje
- * (`LAYER_IDS`). Outro valor ('terreno', 'chao', camada livre, lixo) sai:
- * sem linha no painel para soltar, seria trava sem saída e o "Destravar" do
- * aviso não teria o que soltar. A fatia 6 decide onde moram os das 13; até
- * lá, os valores válidos ficam como estão, na mesma ordem (round-trip do
- * mapa antigo idêntico).
+ * Cadeado e olho (`lockedLayers`, `hiddenLayers`). Fatia 6: as duas listas
+ * moram para TODA camada (13 padrão e livres), mas os ids novos só existem no
+ * mapa v2 (`lib/camadas/estado.ts`). Mapa de antes: só as 9 de antes
+ * (`LAYER_IDS`); 'chao' ali seria mudo (Chão segue Salas) e 'telhados' sumiria
+ * para todos sem nunca ter sido escolhido. Mapa v2: todo id de camada
+ * (`ehCamadaId`). O que não é id sai; os bons ficam como estão, na mesma
+ * ordem (round-trip idêntico).
  */
-function camadasDoArquivo(value: unknown): LayerId[] {
-  return Array.isArray(value) ? value.filter(ehLayerId) : []
-}
-
-function ehLayerId(value: unknown): value is LayerId {
-  return LAYER_IDS.some((id) => id === value)
+function camadasDoArquivo(value: unknown, versao2: boolean): CamadaId[] {
+  if (!Array.isArray(value)) return []
+  if (!versao2) return value.filter(ehCamadaDeAntes)
+  // Fatia 7: id de camada livre do formato de antes vira o hexa dele; o resto que não é id sai (sem repetir, até o teto).
+  return idsDoArquivo(value)
 }
 
 /**
@@ -887,10 +888,10 @@ function deserializeMapFields(json: string): MapData {
     ...marcasDoArquivo(parsed.marcas),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
-    hiddenLayers: camadasDoArquivo(parsed.hiddenLayers),
+    hiddenLayers: camadasDoArquivo(parsed.hiddenLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),
     // NOVO (Onda 4, Frente D) — mesmo padrão de hiddenLayers acima: mapa
     // salvo antes deste campo existir abre com nada travado.
-    lockedLayers: camadasDoArquivo(parsed.lockedLayers),
+    lockedLayers: camadasDoArquivo(parsed.lockedLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),
     // CAMADAS (fase 3): campos NOVOS e OPCIONAIS. Ausente continua ausente; torto sai (`lib/camadas/arquivo.ts`).
     ...ocultasDoJogadorDoArquivo(parsed.ocultasDoJogador),
     ...opacidadesDoArquivo(parsed.opacidadeDasCamadas),

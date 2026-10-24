@@ -42,7 +42,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
-import { isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
+import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
@@ -209,7 +209,7 @@ import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
-import { garantirAventura } from './stores/virarAventura'
+import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
 import { useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
@@ -234,7 +234,7 @@ import * as mapFactory from './lib/mapFactory'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { portaComAnimacao } from './portas/animacoesDePorta'
 import { chaveDaCorDaPorta, portaComCor } from './lib/corDaPorta'
-import { countEntitiesByLayer } from './lib/layers'
+import { contarItensPorCamada } from './lib/camadas/estado'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
@@ -610,6 +610,9 @@ function App() {
   // Onda 4, Frente D (camadas) — trava de camada + seletor "camada do Prop
   // selecionado" (setPropLayer já existia órfão desde a Fase 1).
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
+  // Fase 3, fatia 6: o olho "Jogadores veem" e a opacidade de cada camada.
+  const alternarOlhoDosJogadores = useMapStore((state) => state.alternarOlhoDosJogadores)
+  const definirOpacidadeDaCamada = useMapStore((state) => state.definirOpacidadeDaCamada)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
   const setLightAttachment = useMapStore((state) => state.setLightAttachment)
@@ -1540,6 +1543,17 @@ function App() {
   const sliderDragBefore = useRef<Map<string, MapData>>(new Map())
   const sliderCommitTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
+  /** Fecha agora os arrastos que esperam a inatividade: o Ctrl+Z com o foco no slider desfaz o arrasto inteiro. */
+  const fecharArrastosDeSlider = () => {
+    for (const [key, timer] of sliderCommitTimers.current) {
+      clearTimeout(timer)
+      const before = sliderDragBefore.current.get(key)
+      if (before) useMapStore.getState().commitDragHistory(before)
+    }
+    sliderCommitTimers.current.clear()
+    sliderDragBefore.current.clear()
+  }
+
   const liveSliderChange = (key: string, applyLive: () => void) => {
     if (!sliderCommitTimers.current.has(key)) {
       sliderDragBefore.current.set(key, useMapStore.getState().map)
@@ -1563,11 +1577,15 @@ function App() {
       if (screen !== 'editor') return
 
       const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+      // Campo de texto: o Ctrl+Z é dele. Controle deslizante, interruptor e rádio não têm texto: o Ctrl+Z é do mapa.
+      if (target && !focoDeixaDesfazerGlobal(target.tagName, target instanceof HTMLInputElement ? target.type : undefined, target.isContentEditable)) return
 
       const ctrlOrCmd = event.ctrlKey || event.metaKey
       if (!ctrlOrCmd) return
       const key = event.key.toLowerCase()
+      // Arrasto de um controle deslizante ainda aberto (o passo dele fecha por inatividade):
+      // fecha agora, para o Ctrl+Z desfazer o arrasto inteiro e não ficar um passo órfão depois.
+      if (key === 'z' || key === 'y') fecharArrastosDeSlider()
 
       if (key === 'z' && event.shiftKey) {
         event.preventDefault()
@@ -1604,6 +1622,8 @@ function App() {
    * importar. O caminho é lido pela ref na hora da resposta.
    */
   const garantirAventuraDoMapa = () => garantirAventura({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current })
+  /** CAMADAS (fatia 7): criar e ordenar mudam a lista da aventura; no mapa solto, pergunta antes de ele virar aventura. */
+  const acoesDoModeloDeCamadas = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current }))
 
   /**
    * Salvamento automático com recuperação: ao abrir, procura a cópia de
@@ -3535,11 +3555,13 @@ function App() {
             }}
             grid={gridControls}
             layers={{
-              hiddenLayers: map.hiddenLayers,
-              lockedLayers: map.lockedLayers,
-              counts: countEntitiesByLayer(map),
+              camadas: map,
+              counts: contarItensPorCamada(map),
               onToggleLayer: toggleLayerVisibility,
+              onTogglePlayers: alternarOlhoDosJogadores,
               onToggleLock: toggleLayerLock,
+              onOpacity: definirOpacidadeDaCamada,
+              modelo: acoesDoModeloDeCamadas,
             }}
             onSetPropLayer={setPropLayer}
             selection={{

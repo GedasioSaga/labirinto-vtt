@@ -1366,12 +1366,25 @@ body:has(.lb-toolvariant-menu) > .gr-balao {
   --lb-toolvariant-coluna: 224px;
 }
 
-/* O menu de Objetos (20 nomes, vários de três palavras: "Quadro de avisos",
+/* O menu de Objetos (25 nomes, vários de três palavras: "Quadro de avisos",
    "Barraca de feira") quebrava 5 nomes em duas linhas com a coluna de 224px.
    Só ele ganha a coluna mais larga (~316px de menu); os outros seguem com 224.
-   O seletor lê o rótulo do grupo, o mesmo que o leitor de tela anuncia. */
-.lb-toolvariant-menu:has(.lb-toolvariant-menu__options[aria-label='Objeto']) {
+   Desde a MT5 ele vem em 3 partes (Dentro de casa, Rua e jardim, Feira). */
+.lb-toolvariant-menu:has(.lb-toolvariant-menu__parte-do-objeto) {
   --lb-toolvariant-coluna: 300px;
+}
+
+/* O atalho da árvore fecha a parte "Rua e jardim": uma linha inteira, logo
+   abaixo da grade (o mesmo respiro de 2px entre as opções), com a legenda
+   "carimbo" à direita dizendo que ele arma outra ferramenta. */
+.lb-toolvariant-menu__atalho {
+  margin-top: 2px;
+}
+
+.lb-toolvariant-menu__option-legenda {
+  margin-left: auto;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
 }
 
 .lb-toolvariant-menu--multi .lb-toolvariant-menu__coluna + .lb-toolvariant-menu__coluna {

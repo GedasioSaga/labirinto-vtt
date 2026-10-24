@@ -1821,6 +1821,7 @@ export function PixiCanvas({
         const moveis = pilha.assinaturaDa('propsContainer')
         pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
+        el.dataset.ordemDaPilha = pilha.ordemDasCamadas()
         // `formas`: algo mudou; os portões por faixa (`assinaturaDa`) dizem QUAL camada repinta.
         return { formas: pilha.assinatura() !== assinatura, moveis: pilha.assinaturaDa('propsContainer') !== moveis }
       }
@@ -1884,7 +1885,8 @@ export function PixiCanvas({
       const redrawGridMask = () => {
         const { map } = sceneState()
         const rasterMode = map.floorStyle.renderMode === 'raster'
-        const floorPolygons = rasterMode || map.hiddenLayers.includes('salas') ? [] : floorRenderer.polygons()
+        // O olho do mestre de Chão (no mapa de antes, o de Salas: o ponto único já responde assim).
+        const floorPolygons = rasterMode || !contextoDeCamadas(map).mestreVe('chao') ? [] : floorRenderer.polygons()
         const hasFloor = buildFloorMask(
           gridFloorMask,
           visibleRegions(map.regions, map.hiddenLayers),
@@ -2014,9 +2016,10 @@ export function PixiCanvas({
         paintTelhados(regioes, map.id)
       }
 
-      /** TELHADOS no editor: os botões Telhados e Transparente (`stores/telhadosNoEditor.ts`). */
+      /** TELHADOS no editor: o olho do mestre da camada Telhados e o atalho Transparente (`stores/telhadosNoEditor.ts`). */
       const paintTelhados = (regioes: Region[], mapaId: string) => {
-        const { ligados, transparentes } = useTelhadosNoEditor.getState()
+        const { transparentes } = useTelhadosNoEditor.getState()
+        const ligados = contextoDeCamadas(sceneState().map).mestreVe('telhados')
         telhadosContainer.visible = ligados
         // Opacidade da camada Telhados vezes o atalho "Transparente" (a pilha usa a mesma conta).
         telhadosContainer.alpha = alfaDoTelhadoNoEditor(contextoDeCamadas(sceneState().map).alfa('telhados'), transparentes)
@@ -2127,7 +2130,7 @@ export function PixiCanvas({
           redrawMapRaster(map)
         } else {
           clearMapRaster()
-          floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle, mapFloorClip(map))
+          floorRenderer.draw(floorGraphics, contextoDeCamadas(map).mestreVe('chao') ? map.floor : EMPTY_FLOOR, map.floorStyle, mapFloorClip(map))
         }
       }
 
@@ -2136,7 +2139,7 @@ export function PixiCanvas({
         const single = selectionSingle(selection)
         floorRenderer.drawSelection(
           floorSelectionGraphics,
-          single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
+          single?.kind === 'floor' && contextoDeCamadas(map).mestreVe('chao') ? map.floor.find((p) => p.id === single.id) ?? null : null,
           map.floorStyle.sampleStep,
         )
       }
@@ -2200,7 +2203,7 @@ export function PixiCanvas({
         cena: map.id,
         mapa: map,
         regioes: visibleRegions(map.regions, map.hiddenLayers),
-        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map),
         // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
         penhascos: map.penhascos,
       })
@@ -2214,7 +2217,7 @@ export function PixiCanvas({
         passos: map.texturas,
         importadas: map.texturasImportadas,
         regioes: visibleRegions(map.regions, map.hiddenLayers),
-        desenhos: visibleDrawings(map.drawings, map.hiddenLayers),
+        desenhos: visibleDrawings(map.drawings, map),
       })
       const redrawLayers = createShapesRedrawer({
         floor: paintFloor,
@@ -2289,7 +2292,7 @@ export function PixiCanvas({
             nomesDosLugaresLigados(map)
               ? {
                   cena: map.id,
-                  lugares: lugaresComNome(visibleRegions(map.regions, map.hiddenLayers), visibleDrawings(map.drawings, map.hiddenLayers), {
+                  lugares: lugaresComNome(visibleRegions(map.regions, map.hiddenLayers), visibleDrawings(map.drawings, map), {
                     textoDe: roomLabelText,
                   }),
                   animar: true,
@@ -2318,7 +2321,7 @@ export function PixiCanvas({
         textLabels: () => {
           const { map, selection } = sceneState()
           const single = selectionSingle(selection)
-          textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
+          textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map), single?.kind === 'drawing' ? single.id : null)
         },
         handles: paintEditHandles,
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
@@ -2499,9 +2502,9 @@ export function PixiCanvas({
       const tokenDragDistanceRenderer = createMeasurementIndicatorRenderer()
       // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
       // Com os telhados desenhados à mostra, a marca do teto sai (os dois diriam a mesma coisa).
-      // Cada abertura do editor começa com os telhados ligados e transparentes.
+      // Cada abertura do editor começa com os telhados transparentes; mostrar ou não é o olho do mestre da camada Telhados.
       useTelhadosNoEditor.getState().reiniciar()
-      const regionsRenderer = createRegionsRenderer({ roofMarker: () => !useTelhadosNoEditor.getState().ligados })
+      const regionsRenderer = createRegionsRenderer({ roofMarker: () => !contextoDeCamadas(sceneState().map).mestreVe('telhados') })
       const telhadosRenderer = createTelhadosRenderer()
       const roomNamesRenderer = createRoomNamesRenderer()
       // O campo de nome sobre o canvas imita a plaquinha: enquanto ele está aberto,
@@ -2562,7 +2565,7 @@ export function PixiCanvas({
             originY: 0,
             width,
             height,
-            floor: !hidden.includes('salas') && map.floor.length > 0 ? compileFloor(map.floor) : null,
+            floor: contextoDeCamadas(map).mestreVe('chao') && map.floor.length > 0 ? compileFloor(map.floor) : null,
             lines: hidden.includes('paredes') ? [] : map.lines,
             markers: hidden.includes('portas') ? [] : map.markers,
           },
@@ -2960,11 +2963,21 @@ export function PixiCanvas({
       // dois vê `map.hiddenLayers` mudar, então ocultar a camada 'tokens' ou
       // 'objetos'/'decoracao' pelo LayersPanel não redesenharia essas camadas
       // sozinho. Assinatura extra, só pra isso, sem duplicar a lógica de redraw.
+      // TERRENO (fatia 6): o olho do mestre da camada esconde texturas, relevo,
+      // carimbos e nuvens (presos em Terreno, sem camada por item). Por
+      // `renderable`, não `visible`: o `visible` dessas camadas é da montagem em
+      // fatias da troca de cena, e os dois não podem brigar.
+      const aplicarOlhoDoTerreno = () => {
+        const mostra = contextoDeCamadas(sceneState().map).mestreVe('terreno')
+        for (const no of [texturas.camada, relevoContainer, carimbos.camada, nuvensContainer]) no.renderable = mostra
+      }
+      aplicarOlhoDoTerreno()
       const unsubscribeHiddenLayersForTokensAndProps = useMapStore.subscribe(
         (state) => state.map.hiddenLayers,
         () => {
           redrawTokens()
           redrawProps()
+          aplicarOlhoDoTerreno()
         },
       )
       // CAMADAS: mover uma camada na lista ou mudar a opacidade dela não toca nas

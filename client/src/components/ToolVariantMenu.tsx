@@ -1,4 +1,5 @@
-import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMapStore } from '../stores/mapStore'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
@@ -6,7 +7,14 @@ import type { FloorShapeKind } from '../lib/floorTool'
 import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { CamadaDoChao } from '../lib/camadasDoChao'
 import type { BrushMode } from '../lib/baldeDeTinta'
-import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
+import {
+  ATALHO_DA_ARVORE,
+  PARTE_COM_O_ATALHO_DA_ARVORE,
+  PARTES_DO_MENU_DE_OBJETO,
+  type ToolVariantGroup,
+  type ToolVariantOption,
+  type ToolVariantStoreKey,
+} from '../lib/toolVariants'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
@@ -352,6 +360,128 @@ function VariantGroup({
 }
 
 /**
+ * ATALHO DA ÁRVORE (fatia MT5 do Meio-Termo): a árvore continua CARIMBO, não
+ * móvel; no menu do Objeto ela tem este atalho, que arma a ferramenta Carimbo
+ * já com a árvore redonda escolhida (o mesmo caminho do botão da barra para a
+ * ferramenta e a mesma escolha do painel de carimbos). Não é rádio: não é um
+ * valor do eixo Objeto, é uma ação. Sem tecla nova.
+ */
+function AtalhoDaArvore({ bindings, onPicked }: { bindings: ToolVariantBindings; onPicked: () => void }) {
+  const descId = useId()
+  const setCarimboEscolhido = useMapStore((s) => s.setCarimboEscolhido)
+  const setCarimboModo = useMapStore((s) => s.setCarimboModo)
+  return (
+    <div className="lb-toolvariant-menu__atalho" role="group" aria-label="Atalho">
+      <button
+        type="button"
+        aria-label={ATALHO_DA_ARVORE.label}
+        aria-describedby={descId}
+        title={ATALHO_DA_ARVORE.description}
+        className="lb-toolvariant-menu__option lb-toolvariant-menu__option--icon"
+        onClick={() => {
+          setCarimboEscolhido(ATALHO_DA_ARVORE.carimbo)
+          // O modo do Carimbo mora na store: com a Borracha como última escolha, o
+          // clique no mapa APAGARIA árvores em vez de pôr a árvore redonda.
+          setCarimboModo('carimbo')
+          bindings.drawShape.onChange(ATALHO_DA_ARVORE.ferramenta)
+          onPicked()
+        }}
+      >
+        <span className="lb-toolvariant-menu__option-icon" aria-hidden="true">
+          <IconeDaArvoreRedonda />
+        </span>
+        <span className="lb-toolvariant-menu__option-text">
+          <span>{ATALHO_DA_ARVORE.label}</span>
+          <span id={descId} className="lb-toolvariant-menu__option-desc">
+            {ATALHO_DA_ARVORE.description}
+          </span>
+        </span>
+        <span className="lb-toolvariant-menu__option-legenda" aria-hidden="true">
+          {ATALHO_DA_ARVORE.legenda}
+        </span>
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A copa redonda de cima, na família dos ícones do menu (`icons.tsx`: viewBox
+ * 24, traço 1,6, só contorno): 6 lóbulos em volta do centro, o toco do tronco e
+ * um risco de luz no alto à esquerda.
+ */
+function IconeDaArvoreRedonda() {
+  return (
+    <svg
+      width={MOBILIA_ICON_SIZE}
+      height={MOBILIA_ICON_SIZE}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      focusable="false"
+    >
+      <path d="M14.8 5.65a3.3 3.3 0 0 1 2.8 4.85a3.3 3.3 0 0 1-2.8 4.85a3.3 3.3 0 0 1-5.6 0a3.3 3.3 0 0 1-2.8-4.85a3.3 3.3 0 0 1 2.8-4.85a3.3 3.3 0 0 1 5.6 0Z" />
+      <path d="M12 16.9v3.2M9 9.8a3.3 3.3 0 0 1 2.6-2.5" />
+    </svg>
+  )
+}
+
+/**
+ * O grupo Objeto em 3 PARTES (`PARTES_DO_MENU_DE_OBJETO`, revisão de design
+ * da MT5), cada uma com o título `lb-eyebrow` dos outros grupos e a própria
+ * grade de 2 colunas lida em pares. O eixo é um só: as 3 grades marcam e
+ * escrevem o mesmo `mobiliaTipo`. Tipo do catálogo sem parte (peça nova de um
+ * lote futuro) não some: entra no fim da última. O atalho da árvore fecha a
+ * parte "Rua e jardim", com a legenda "carimbo" (ele arma outra ferramenta).
+ */
+function PartesDoObjeto({
+  group,
+  bindings,
+  onPicked,
+  onAtalho,
+}: {
+  group: ToolVariantGroup
+  bindings: ToolVariantBindings
+  onPicked: () => void
+  onAtalho: () => void
+}) {
+  const { opcoes, marcada, escolher } = eixoDaVariante(group, bindings)
+  const porId = new Map(opcoes.map((opcao) => [opcao.id, opcao]))
+  const nasPartes = new Set<string>(PARTES_DO_MENU_DE_OBJETO.flatMap((parte) => parte.tipos))
+  const sobra = opcoes.filter((opcao) => !nasPartes.has(opcao.id))
+  const ultima = PARTES_DO_MENU_DE_OBJETO.length - 1
+  return (
+    <>
+      {PARTES_DO_MENU_DE_OBJETO.map((parte, indice) => {
+        const daParte = [...parte.tipos.flatMap((tipo) => porId.get(tipo) ?? []), ...(indice === ultima ? sobra : [])]
+        return (
+          <div className="lb-toolvariant-menu__group lb-toolvariant-menu__parte-do-objeto" key={parte.titulo}>
+            <h3 className="lb-eyebrow">{parte.titulo}</h3>
+            <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={parte.titulo}>
+              {daParte.map((opcao) => (
+                <VariantOption
+                  key={opcao.id}
+                  option={opcao}
+                  checked={opcao.id === marcada}
+                  icon={opcao.icon}
+                  onPick={() => {
+                    escolher(opcao.id)
+                    onPicked()
+                  }}
+                />
+              ))}
+            </div>
+            {parte.titulo === PARTE_COM_O_ATALHO_DA_ARVORE && <AtalhoDaArvore bindings={bindings} onPicked={onAtalho} />}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+/**
  * Teto de colunas. Duas resolvem o menu mais alto que existe (Chão: 4 grupos,
  * 18 opções) e ainda deixam o popover mais estreito que um terço da janela;
  * daí em diante um menu de ferramenta viraria painel, e quem assume é a
@@ -497,16 +627,29 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         // — sem isso a segunda coluna abriria com um risco solto no topo.
         <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
           {grupos.map((group) => (
-            <VariantGroup
-              key={group.storeKey}
-              group={group}
-              bindings={bindings}
-              onPicked={() => {
-                onChoose?.(group.storeKey)
-                onClose()
-              }}
-              iconFor={iconFor}
-            />
+            <Fragment key={group.storeKey}>
+              {group.storeKey === 'mobiliaTipo' ? (
+                <PartesDoObjeto
+                  group={group}
+                  bindings={bindings}
+                  onPicked={() => {
+                    onChoose?.(group.storeKey)
+                    onClose()
+                  }}
+                  onAtalho={onClose}
+                />
+              ) : (
+                <VariantGroup
+                  group={group}
+                  bindings={bindings}
+                  onPicked={() => {
+                    onChoose?.(group.storeKey)
+                    onClose()
+                  }}
+                  iconFor={iconFor}
+                />
+              )}
+            </Fragment>
           ))}
         </div>
       ))}

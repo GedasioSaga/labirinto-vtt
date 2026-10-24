@@ -3,6 +3,7 @@ import type { DrawingTool } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { pinSizeFloorFor, pinSizeScale } from '../lib/pins'
 import { resolveHighlightedRegionId } from './drawRegions'
+import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { hazardsOf } from '../lib/hazards'
 import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
@@ -122,7 +123,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
   const single = selectionSingle(selection)
   const selectedId = (kind: string): string | null => (single !== null && single.kind === kind ? single.id : null)
   const rasterMode = map.floorStyle.renderMode === 'raster'
-  const floorHidden = hidden.includes('salas')
+  // O olho do mestre de Chão (fatia 6): no mapa antigo segue Salas; no v2 é dele.
+  const floorHidden = !contextoDeCamadas(map).mestreVe('chao')
   // Só as camadas que dividem os itens pelos nós da pilha (paredes, portas, escadas, linhas, desenhos, luzes), cada uma pelas faixas dela.
   const nos = (faixa: string): string => snapshot.camadas?.(faixa) ?? ''
 

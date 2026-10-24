@@ -30,6 +30,11 @@ import { montarQuadroDeAvisos } from './quadroDeAvisos'
 import { montarPoco } from './poco'
 import { montarBarraca } from './barraca'
 import { montarCarroca } from './carroca'
+import { montarSebe } from './sebe'
+import { montarJardineira } from './jardineira'
+import { montarArcoDoPortao } from './arcoDoPortao'
+import { montarPlacaDeSeta } from './placaDeSeta'
+import { montarTapeteLongo } from './tapeteLongo'
 
 const MONTADORES = {
   barril: montarBarril,
@@ -54,6 +59,12 @@ const MONTADORES = {
   poco: montarPoco,
   barraca: montarBarraca,
   carroca: montarCarroca,
+  // Lote 2 (MT5): a sebe tem a geometria da cerca (com a curva); o tapete longo mora no chão.
+  sebe: montarSebe,
+  jardineira: montarJardineira,
+  arcoDoPortao: montarArcoDoPortao,
+  placaDeSeta: montarPlacaDeSeta,
+  tapeteLongo: montarTapeteLongo,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -81,6 +92,7 @@ export function escalaDoNivel(nivel: number): number {
 export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
@@ -104,6 +116,12 @@ export interface DesenhoDoMovel {
   readonly curva?: number
   /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). */
   readonly variante?: number
+  /**
+   * Só na placa de seta: o giro do objeto em quartos de volta (90, 180 ou 270;
+   * ausente = 0). A seta sai pintada já girada, com a sombra e a luz no lugar de
+   * sempre; a tela gira a imagem só pelo que sobra (`giroDaImagem`).
+   */
+  readonly giro?: number
 }
 
 /**
@@ -134,7 +152,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0 }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
   return cena
 }

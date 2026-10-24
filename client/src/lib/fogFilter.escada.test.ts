@@ -107,7 +107,7 @@ describe('fogFilter: camada do pino de escada (fatia 2 das camadas)', () => {
   const pinosQueSaem = (map: MapData): string[] => (filterMapForPlayer(map, 'p1', POSSE, RAIO).map.pins ?? []).map((p) => p.id)
 
   it('camada torta no pino (livre que o mapa não tem): segue a escada, mesmo com Anotações escondida', () => {
-    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_apagada' }, ['anotacoes']))).toEqual([ID_DO_PINO])
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_d30eefbd' }, ['anotacoes']))).toEqual([ID_DO_PINO])
   })
 
   it('sem camada escolhida: segue a escada, mesmo com Anotações escondida', () => {
@@ -120,6 +120,6 @@ describe('fogFilter: camada do pino de escada (fatia 2 das camadas)', () => {
   })
 
   it('camada livre escondida dos jogadores, sem o modelo no mapa: o pino não sai (falha fechada)', () => {
-    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_x' }, ['livre_x']))).toEqual([])
+    expect(pinosQueSaem(comCamadas({ ...PINO, camada: 'livre_16bcc5fe' }, ['livre_16bcc5fe']))).toEqual([])
   })
 })
