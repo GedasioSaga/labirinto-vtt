@@ -6,6 +6,7 @@ import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../l
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
 import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, temTextura, type DesenhoDoMovel } from '../texturas/meioTermo/moveis'
+import { pintaOGiroNaTresQuartos } from '../texturas/meioTermo/moveis/tresQuartos'
 import { G } from '../texturas/meioTermo/moveis/contexto'
 import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
 
@@ -38,8 +39,8 @@ import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Ce
  * passada dele.
  */
 
-/** A única vista desta fatia; a 3/4 chega com a MT11. */
-export type VistaDoMapa = 'de-cima'
+/** A vista dos móveis na chave da imagem: "de cima com volume" ou a 3/4 do mapa (MT11). */
+export type VistaDoMapa = 'de-cima' | 'tres-quartos'
 
 export const NIVEL_MAXIMO = 3
 /** Passo da pegada na chave, em casas: 0,5, 0,6, 0,7 e 0,8 caem exatos. */
@@ -114,8 +115,10 @@ export type MovelParaImagem = Pick<
  * giram a imagem inteira, como sempre (a sombra gira junto: limite registrado
  * no plano, seção MT5).
  */
-export function giroDaImagem(prop: Pick<MovelParaImagem, 'mobilia' | 'rotation'>): number {
-  if (prop.mobilia !== 'placaDeSeta') return 0
+export function giroDaImagem(prop: Pick<MovelParaImagem, 'mobilia' | 'mobiliaVista' | 'rotation'>, vista?: 'tres-quartos'): number {
+  // Na 3/4 (MT11) todo móvel derivado pinta o quarto de volta: a frente fica embaixo na tela.
+  const pinta = prop.mobilia === 'placaDeSeta' || (vista === 'tres-quartos' && prop.mobilia !== undefined && pintaOGiroNaTresQuartos(prop.mobilia, vistaDoMovel(prop)))
+  if (!pinta) return 0
   const quartos = Math.round((prop.rotation ?? 0) / 90)
   return Number.isFinite(quartos) ? (((quartos % 4) + 4) % 4) * 90 : 0
 }
@@ -208,7 +211,7 @@ function sementeDoTexto(texto: string): number {
 }
 
 /** A chave da imagem do móvel, ou `null` se o tipo ainda não tem desenho com textura. */
-export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number): ChaveDoMovel | null {
+export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ChaveDoMovel | null {
   const tipo = prop.mobilia
   if (!temTextura(tipo)) return null
   const semSemente = {
@@ -221,11 +224,18 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'lapide' ? { variante: varianteDaLapide(prop.id) } : {}),
     ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
   }
-  const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
+  const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
+  // A semente sai sempre do desenho "de cima": o mesmo móvel tem o mesmo veio nas duas vistas.
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
   // O desenho leva a forma do tapete e a volta da cerca (já quantizada pela flecha): é o que a cena da imagem lê.
   const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva }
-  return { ...parcial, desenho, nivel: nivelDeResolucao(cameraScale, rendererResolution) }
+  const nivel = nivelDeResolucao(cameraScale, rendererResolution)
+  if (vista !== 'tres-quartos') return { ...parcial, desenho, nivel }
+  // 3/4 (MT11): outra imagem (a vista entra no texto da chave) e o quarto de volta pintado em todo móvel derivado.
+  const giro = giroDaImagem(prop, vista)
+  const { giro: _giroDeCima, ...semGiro } = desenho
+  const tresQuartos = { ...semGiro, ...(giro !== 0 ? { giro } : {}), vista }
+  return { ...parcial, vistaDoMapa: 'tres-quartos', desenho: tresQuartos, nivel }
 }
 
 /** O teto de bytes do aparelho: menor com dedo (celular, tablet). */
@@ -495,8 +505,8 @@ export class RasterDosMoveis {
    * A imagem do móvel nesta câmera: a guardada, ou uma nova, transparente,
    * que entra na fila. `null` = o tipo ainda não tem desenho com textura.
    */
-  imagemDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number): ImagemDoMovel | null {
-    const chave = chaveDoMovel(prop, cameraScale, rendererResolution)
+  imagemDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemDoMovel | null {
+    const chave = chaveDoMovel(prop, cameraScale, rendererResolution, vista)
     if (chave === null) return null
     return this.pedir(chave)
   }
@@ -506,8 +516,8 @@ export class RasterDosMoveis {
    * pronta de outro nível do mesmo desenho (a troca de zoom não volta ao
    * desenho de linhas); senão nenhuma.
    */
-  imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number): ImagemParaDesenhar | null {
-    const chave = chaveDoMovel(prop, cameraScale, rendererResolution)
+  imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
+    const chave = chaveDoMovel(prop, cameraScale, rendererResolution, vista)
     if (chave === null) return null
     const pedida = this.pedir(chave)
     if (pedida.pronta) return { pedida, mostrar: pedida }

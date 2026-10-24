@@ -24,6 +24,9 @@ const PALHA = PALETA_DO_TETO.palha[0].hex
 /** 6 x 4 casas de 50: cumeeira em y = 100, de x = 100 a x = 200 (telhado de quatro águas). */
 const SALA: readonly PontoDoTelhado[] = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }]
 const CUME_Y = 100
+/** MT10b: a amarra escurece o feixe pelo menos isto a 1x (1,5x o de antes, 21,7%) e no máximo isto. */
+const CONTRASTE_MINIMO_DA_AMARRA = 0.33
+const CONTRASTE_MAXIMO_DA_AMARRA = 0.5
 
 function aoMapa(img: ImagemDoTelhado, px: number, py: number): [number, number] {
   return [img.origemX + (px + 0.5) / img.escala, img.origemY + (py + 0.5) / img.escala]
@@ -31,6 +34,37 @@ function aoMapa(img: ImagemDoTelhado, px: number, py: number): [number, number] 
 
 function luzEm(img: ImagemDoTelhado, o: number): number {
   return luminanciaDoRgb([img.pixels[o], img.pixels[o + 1], img.pixels[o + 2]])
+}
+
+/**
+ * Quanto a amarra escurece o feixe a 1x (MT10b): em cada lado do cume, a luz
+ * média das 2 colunas em volta de cada amarra (x = 9n; a 1x ela cai entre duas
+ * colunas) contra a das 3 colunas do meio entre duas amarras, nas linhas a até
+ * 2,5 px do cume. Contraste = 1 - amarra / meio.
+ */
+function contrasteDasAmarrasA1x(img: ImagemDoTelhado): { contraste: number; luzDaAmarra: number }[] {
+  const luzDaColuna = (px: number, linhas: readonly number[]) => linhas.reduce((s, py) => s + luzEm(img, (py * img.largura + px) * 4), 0) / linhas.length
+  const linhasDoLado = (claro: boolean) => {
+    const linhas: number[] = []
+    for (let py = 0; py < img.altura; py += 1) {
+      const y = aoMapa(img, 0, py)[1]
+      if (Math.abs(y - CUME_Y) <= 2.5 && y < CUME_Y === claro) linhas.push(py)
+    }
+    return linhas
+  }
+  const coluna = (x: number) => Math.round((x - img.origemX) * img.escala - 0.5)
+  return [true, false].map((lado) => {
+    const linhas = linhasDoLado(lado)
+    let amarra = 0
+    let meio = 0
+    let n = 0
+    for (let x = 108; x <= 180; x += PASSO_DA_AMARRA_PX) {
+      amarra += (luzDaColuna(coluna(x - 0.5), linhas) + luzDaColuna(coluna(x + 0.5), linhas)) / 2
+      meio += (luzDaColuna(coluna(x + 3.5), linhas) + luzDaColuna(coluna(x + 4.5), linhas) + luzDaColuna(coluna(x + 5.5), linhas)) / 3
+      n += 1
+    }
+    return { contraste: 1 - amarra / meio, luzDaAmarra: amarra / n }
+  })
 }
 
 describe('cumeeira amarrada da palha', () => {
@@ -92,6 +126,21 @@ describe('cumeeira amarrada da palha', () => {
     const passos = vales.slice(1).map((x, k) => x - vales[k]).sort((a, b) => a - b)
     const passoMediano = passos[Math.floor(passos.length / 2)]
     expect(Math.abs(passoMediano - PASSO_DA_AMARRA_PX)).toBeLessThanOrEqual(0.6)
+  })
+
+  it('MT10b: a 1x as amarras aparecem (escurecem o feixe) sem ficar berrantes, nos dois lados do cume', () => {
+    for (const cor of [PALHA, PALETA_DO_TETO.palha[5].hex]) {
+      const img = pintarTelhado(SALA, 'palha', cor, 1, { cumeeiraAmarrada: true })
+      const lados = contrasteDasAmarrasA1x(img)
+      console.log(`[medida] ${cor} a 1x: amarra escurece ${lados.map((l) => `${(100 * l.contraste).toFixed(1)}% (luz ${l.luzDaAmarra.toFixed(3)})`).join(' / ')}`)
+      for (const l of lados) {
+        // Antes da MT10b: 21,7% no lado claro e 25,9% no escuro (a palha dourada): quase não liam.
+        expect(l.contraste).toBeGreaterThanOrEqual(CONTRASTE_MINIMO_DA_AMARRA)
+        // Sem ficar berrante: a amarra não apaga o feixe, e nunca vira preto.
+        expect(l.contraste).toBeLessThanOrEqual(CONTRASTE_MAXIMO_DA_AMARRA)
+        expect(l.luzDaAmarra).toBeGreaterThanOrEqual(0.06)
+      }
+    }
   })
 
   it('sem preto: a faixa inteira fica com luminância >= 0,06', () => {

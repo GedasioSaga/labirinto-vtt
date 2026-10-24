@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { dentroDoPoligono, prepararAguas, type PontoDoTelhado } from '../lib/telhado/aguas'
 import { PALETA_DO_TETO, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { comecarTelhado, pintarTelhado, type ImagemDoTelhado } from './telhado'
-import { alcanceDaChamine, caixaDaChamine, chamineDoPoligono, LADO_DA_CHAMINE_PX, type CaixaNoMapa } from './meioTermo/chamine'
+import {
+  alcanceDaChamine,
+  caixaDaChamine,
+  chamineDoPoligono,
+  dentroDaChamine,
+  LADO_DA_CHAMINE_PX,
+  LADO_MINIMO_DA_CHAMINE_PX,
+  type CaixaNoMapa,
+} from './meioTermo/chamine'
 import { luminanciaDoRgb } from './meioTermo/barranco'
 
 /** Os mesmos bytes (sem Buffer: o tsconfig do app não tem os tipos do Node). */
@@ -90,8 +98,28 @@ describe('chaminé: onde ela fica', () => {
       for (const [x, y] of [[caixa.x0, caixa.y0], [caixa.x1, caixa.y0], [caixa.x0, caixa.y1], [caixa.x1, caixa.y1]]) {
         expect(dentroDoPoligono(geo, x, y)).toBe(true)
       }
-      expect(caixa.x1 - caixa.x0).toBeGreaterThanOrEqual(LADO_DA_CHAMINE_PX)
+      expect(c.lado).toBeGreaterThanOrEqual(LADO_MINIMO_DA_CHAMINE_PX)
+      expect(c.lado).toBeLessThanOrEqual(LADO_DA_CHAMINE_PX)
+      expect(caixa.x1 - caixa.x0).toBeGreaterThanOrEqual(c.lado)
     }
+  })
+
+  it('MT10b: 0,4 casa de referência (20 px) nas casas de 4x3 para cima; na água rasa encolhe até 11 px (o protótipo)', () => {
+    expect(LADO_DA_CHAMINE_PX).toBe(0.4 * CASA)
+    expect(LADO_MINIMO_DA_CHAMINE_PX).toBe(11)
+    for (const poligono of [sala(4, 3), sala(6, 4), sala(8, 6), sala(4, 2), sala(5, 3), EL]) {
+      expect(chamineDoPoligono(poligono)?.lado).toBe(LADO_DA_CHAMINE_PX)
+    }
+    // 3x2: a água de trás tem 39 px de fundura onde a chaminé fica (o espigão a 45 graus): 0,4 dela.
+    const pequena = chamineDoPoligono(sala(3, 2))
+    expect(pequena?.lado).toBeGreaterThan(LADO_MINIMO_DA_CHAMINE_PX)
+    expect(pequena?.lado).toBeLessThan(LADO_DA_CHAMINE_PX)
+    // 2x2: 26 px de fundura, a chaminé do protótipo (11 px), no mesmo lugar de antes da MT10b.
+    const minima = chamineDoPoligono(sala(2, 2))
+    expect(minima?.lado).toBe(LADO_MINIMO_DA_CHAMINE_PX)
+    expect(minima?.x).toBeCloseTo(74, 6)
+    expect(minima?.y).toBeGreaterThan(0.54 * 24)
+    expect(minima?.y).toBeLessThan(0.54 * 27)
   })
 
   it('na sala em L também cai dentro, e a mesma sala dá sempre o mesmo lugar', () => {
@@ -134,22 +162,50 @@ describe('chaminé: os pixels', () => {
     }
   }
 
-  it('sem contorno preto e com a cor contida: luminância >= 0,06 e saturação p95 <= 0,62 na caixa', () => {
+  it('sem contorno preto e com a cor contida: a pedra da chaminé na caixa tem luminância >= 0,06 e saturação p95 <= 0,62', () => {
+    // MT10b: a caixa de 20 px inclui, nos dentes entre o corpo e a face e nos cantos
+    // arredondados, pixels do TELHADO com a sombra da chaminé, que tem o piso de luz
+    // próprio (0,045, o teste de baixo). O critério de 0,06 vale para a pedra (corpo e face).
     for (const modelo of MODELOS) {
-      const poligono = sala(4, 3)
-      const c = chamineDoPoligono(poligono)
-      if (c === null) throw new Error('sem chaminé')
-      const com = pintarTelhado(poligono, modelo, COR[modelo], 3, { chamine: true })
-      const luz: number[] = []
-      const sat: number[] = []
-      cadaPixel(com, caixaDaChamine(c), false, (o) => {
-        const p = com.pixels
-        luz.push(luminanciaDoRgb([p[o], p[o + 1], p[o + 2]]))
-        sat.push(saturacaoHsv(p[o], p[o + 1], p[o + 2]))
-      })
-      sat.sort((a, b) => a - b)
-      expect(Math.min(...luz)).toBeGreaterThanOrEqual(0.06)
-      expect(sat[Math.floor(sat.length * 0.95)]).toBeLessThanOrEqual(0.62)
+      for (const poligono of [sala(4, 3), sala(3, 2), sala(2, 2)]) {
+        const c = chamineDoPoligono(poligono)
+        if (c === null) throw new Error('sem chaminé')
+        const com = pintarTelhado(poligono, modelo, COR[modelo], 3, { chamine: true })
+        const luz: number[] = []
+        const sat: number[] = []
+        cadaPixel(com, caixaDaChamine(c), false, (o) => {
+          const px = (o / 4) % com.largura
+          const py = Math.floor(o / 4 / com.largura)
+          if (!dentroDaChamine(c, com.origemX + (px + 0.5) / com.escala, com.origemY + (py + 0.5) / com.escala)) return
+          const p = com.pixels
+          luz.push(luminanciaDoRgb([p[o], p[o + 1], p[o + 2]]))
+          sat.push(saturacaoHsv(p[o], p[o + 1], p[o + 2]))
+        })
+        sat.sort((a, b) => a - b)
+        expect(luz.length).toBeGreaterThan(0)
+        expect(Math.min(...luz)).toBeGreaterThanOrEqual(0.06)
+        expect(sat[Math.floor(sat.length * 0.95)]).toBeLessThanOrEqual(0.62)
+      }
+    }
+  })
+
+  it('a sombra no telhado tem piso de luz 0,045: nenhum pixel do alcance fica abaixo disso (ou do que já era)', () => {
+    for (const modelo of MODELOS) {
+      for (const cor of [COR[modelo], PALETA_DO_TETO[modelo][PALETA_DO_TETO[modelo].length - 1].hex]) {
+        const poligono = sala(4, 3)
+        const c = chamineDoPoligono(poligono)
+        if (c === null) throw new Error('sem chaminé')
+        const com = pintarTelhado(poligono, modelo, cor, 3, { chamine: true })
+        const sem = pintarTelhado(poligono, modelo, cor, 3)
+        let abaixo = 0
+        cadaPixel(com, alcanceDaChamine(c), false, (o) => {
+          const luzCom = luminanciaDoRgb([com.pixels[o], com.pixels[o + 1], com.pixels[o + 2]])
+          const luzSem = luminanciaDoRgb([sem.pixels[o], sem.pixels[o + 1], sem.pixels[o + 2]])
+          // 0,002 de folga: o arredondamento do canal para 0-255.
+          if (luzCom < Math.min(luzSem, 0.045) - 0.002) abaixo += 1
+        })
+        expect(abaixo).toBe(0)
+      }
     }
   })
 

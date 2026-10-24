@@ -370,3 +370,72 @@ Controle positivo: o ladrilho de antes REPROVA nas mesmas medidas (346 a 356 blo
 **Perguntas ao usuário (na folha):** (1) a chaminé de 11 px ficou com cara de respiro numa casa de 50 a 64 px; crescer para ~0,4 casa? (2) a chaminé na metade da direita da água de trás serve, ou prefere outro lado? (3) a cumeeira amarrada da palha ficou discreta (faixa mais escura, amarras quase não aparecem a 1x); reforçar? (4) a grade vista de cima sai como trilho com contas a 300% e quase como pontilhado a 50% e 100%; está legível?
 
 **Fora desta fatia:** a ferramenta de parede que já cria a grade (hoje é a janela + o interruptor); a grade em parede com porta; o desenho da grade no tema claro do app (o canvas é o mesmo nos dois temas; não olhei o tema claro); o celular (fora por ordem do usuário em 24/10). Não medido: o som (não há) e o p95 do quadro ao andar o mapa com chaminés.
+
+### MT10b medido (ajuste da MT10 pelas respostas do usuário, 24/10/2026, worktree `feat/mt10`)
+
+**Respostas (24/10):** chaminé para ~0,4 casa; a posição (metade da direita da água de trás) fica; grade reforçada a 100% (a 50% e 100% parecia pontilhado); cumeeira sem resposta, aplicada a recomendação (amarras um pouco mais legíveis a 1x, sem berrar). A chave de obra continua DESLIGADA.
+
+**O que mudou (só `texturas/meioTermo/chamine.ts`, `texturas/meioTermo/cumeeiraAmarrada.ts` e `pixi/gradeDePrisao.ts`; nenhum arquivo quente):**
+
+- CHAMINÉ: `LADO_DA_CHAMINE_PX` 11 -> 20 (0,4 da casa de referência de 50 px; não existe constante de casa no código, a referência é a da seção 7). As medidas do protótipo (canto, face, sombra, boca, furo, juntas) crescem com o lado; os traços (contornos, luz, largura da junta) são o peso do estilo e não crescem. Decisão não óbvia: na água rasa ela ENCOLHE em vez de sumir: o lado é 0,4 da fundura da água no ponto, entre 11 (`LADO_MINIMO_DA_CHAMINE_PX`, o do protótipo) e 20, e desce de 1 em 1 px até caber com a sombra; a fundura mínima continua 22 px. Toda sala que tinha chaminé antes continua tendo (no lado 11 a geometria é a de antes). Casas de 4x3 para cima: 20 px; 3x2: ~15,6 px; 2x2: 11 px. `ChamineNoTelhado` ganhou `lado`; `dentroDaChamine` (pedra do corpo e da face) é novo.
+- CUMEEIRA: amarra mais larga (`MEIA_LARGURA_DA_AMARRA` 0,5 -> 0,7) e mais escura (`ESCURO_DA_AMARRA` 0,22 -> 0,28); o teto do escuro (0,3), a faixa de 3,4 px e o passo de 9 px não mudaram. A 1x a amarra cai entre duas colunas e cada uma levava só metade do escuro: por isso sumia.
+- GRADE: trilho 1,6 -> 2,6 px do mundo, raio da barra 1,9 -> 2,6; pisos de tela: trilho 1 -> 2 px, raio 1,2 -> 2 px, passo 4 -> 7 px (contorno 0,75 igual). As cores não mudaram.
+
+**Medido:**
+
+| Aceite | Prova |
+|---|---|
+| Chaminé de ~0,4 casa | `chamine.test.ts` "MT10b: 0,4 casa": lado 20 em 4x3, 6x4, 8x6, 4x2, 5x3 e L; 3x2 entre 11 e 20; 2x2 = 11 no lugar de antes |
+| Muda 83-100% da caixa; nada fora do alcance | `chamine.test.ts` (telha, madeira e palha, a 1x e 3x, 3 polígonos); editor real a 300%: 79,9% do recorte com folga (a MT10: 68,9%), Ctrl+Z < 2% |
+| Luminância >= 0,06 e saturação p95 <= 0,62; sombra com piso 0,045; sem contorno preto | `chamine.test.ts`: o 0,06 vale para a PEDRA (corpo e face) na caixa, em 3 salas e 3 modelos. Divergência registrada: com 20 px a caixa inclui dentes e cantos de TELHADO sob a sombra, que chegam a 0,047 pelo piso da sombra (a telha de barro a 3x já tem 0,050 ali sem chaminé); teste novo do piso: no alcance nenhum pixel fica abaixo de min(o de antes, 0,045), com a cor da paleta e a mais escura |
+| Amarras legíveis a 1x sem berrar | `telhadoPalha.cumeeira.test.ts` "MT10b": a amarra escurece o feixe 21,7% / 25,9% (lados claro e escuro, palha dourada) -> 37,7% / 43,0%; palha com musgo 38,8% / 44,0%; janela aceita 33% a 50%, luz da amarra >= 0,06 (a menor: 0,094). Faixa a 3,4 px, espigão e rincão: os testes da MT10 passaram sem mudar |
+| Grade como trilho contínuo com contas a 50%, 100% e 300% | `drawWalls.grade.test.ts`: a conta passa de 1,4x a largura do trilho (1,57 a 1,62) e sobra >= 1 px de trilho entre duas; pisos em 0,25/0,5/1/3; a 100% trilho e raio >= 2,4. Editor real: a grade muda 21,3% da faixa da janela (MT10: 16,4%); cores >= 0,06 (teste da MT10) |
+| Mutações vermelhas | 9 de 9: M9 lado 11; M10 sem encolher; M11 meia-largura 0,5; M12 escuro 0,22; M13 trilho 1,6; M14 raio 1,9; M15 piso do trilho 1; M16 piso do raio 1,2; M17 piso do passo 4 (aplicadas e revertidas) |
+| Chave DESLIGADA | `telhadosRenderer.chamine.test.ts` (bytes e chave do cache iguais), `drawWalls.grade.test.ts` (janela igual), e2e "editor SEM a obra"; golden estrito 19 de 19 sem regravar; jornadas seladas camada travada 2, visibilidade 1, atalho com foco no painel 5 |
+| Tempo a 3x <= 50 ms (morna); tarefa longa < 200 ms | Chromium 1243, 1 worker, 6x4 casas de 64, 2 rodadas: MORNA telha com chaminé 35,4 e 36,3 ms, palha com chaminé e cumeeira 44,1 e 42,7 ms (sem nada: 34,7/34,0 e 39,4/39,0). FRIA 48,9/47,8 e 59,0/58,9 ms (teto de 100 na suíte). Maior tarefa longa nos cliques do editor: 0 ms |
+
+- **Vermelho de origem:** os 5 testes novos ou mudados falharam contra o código da MT10 (lado sem campo, contraste 21,7%, pisos da grade).
+- **Testes:** tsc do app e do e2e 0 erros. O `teste-rapido` pedido em N1 subiu sozinho para N2 (o spec novo de provas): vitest rápido + lento 17955 passaram, 9 pulados, 0 falhas; desempenho 10 arquivos, 203 testes, 0 falhas; tsc do e2e falhou no spec novo (o shim de `node:fs` do e2e não tem `readFileSync(caminho, 'utf8')`), corrigido e repassado com 0 erros; e2e 643 passaram e 159 falharam = 154 conhecidas + 5 NOVAS, todas de tempo ou desempenho com a suíte inteira na máquina (camadas-desempenho 2, tempo da MT10, pecas-lote2 tempo, telhado-palha tempo). Os 4 specs sozinhos, 1 worker: 14 passaram, 2 puladas (provas), 0 falhas.
+- **Provas:** `docs/design/objetos/provas/mt10b-folha-de-contato.png` (14 quadros, cada um com ANTES à esquerda e DEPOIS à direita e o tempo embaixo: grade a 50%, 100% e 300% no editor real; telha e palha a 1x, pintadas a 3x e no zoom de 300% do app; cumeeira a 1x com os pixels ampliados e a 300%; escuro: telha preta a 1x e 300%, cumeeira da palha com musgo a 1x). Gerada por `e2e/task-meio-termo-mt10b-provas.spec.ts` (`GERAR_PROVAS_MT10B=antes` com os 3 fontes de `8eb5525a` no lugar, depois `=depois`, `MT10B_ANTES=<json>`).
+
+**Fora / não verificado:** o jogador a 1440 com a chaminé nova (a `mt10-jogador-1440.png` é a de antes); o tema claro do app (o canvas é o mesmo); o celular (fora por ordem do usuário); o p95 do quadro ao andar o mapa com chaminés. A grade continua cinza-azulada sobre o chão escuro (as cores do ferro não mudaram; se a 100% ainda ler fraca, a próxima alavanca é a cor do trilho, não o tamanho).
+
+### MT11 medido (vista 3/4 dos móveis e chave por mapa, 24/10/2026, worktree `feat/mt10`)
+
+**O que entrou:** com a chave de obra ligada e `MapData.vistaDosMoveis === 'tres-quartos'`, os 25 tipos do catálogo saem em 3/4 (frente e topo, base apoiada, sombra de baixo), pelo mesmo motor e com as mesmas regras de cor e sombra. Sem a vista, ou com a chave desligada, nada muda (caminho sem vista idêntico byte a byte; chave do cache igual à de antes). Arquivos: `texturas/meioTermo/moveis/tresQuartos.ts` (novo), `moveis/index.ts` e `moveis/motor.ts` (campo opcional `curvaX`), `lib/mobilia/vistaTresQuartos.ts` (novo, leve: ordem, base, chama), `pixi/rasterDosMoveis.ts`, `pixi/drawPropSilhouettes.ts`, `pixi/drawProps.ts`, `pixi/chamasDasFogueiras.ts`, `components/MobiliaControls.tsx`. Nenhum arquivo quente.
+
+**Decisões não óbvias (a recomendada, registrada):**
+
+- ALTURAS tiradas das sombras que cada montador já declara: sombra com z > 0 e sem `solta` = COLUNA (ganha a frente varrida do chão até z); sombra `solta` = TAMPO no ar (ganha a beirada de 0,06 casa); cada peça sobe a altura da estrutura mais alta que contém o meio dela. A frente tem o tom 0,74 do protótipo aprovado (`folha-contato.png`). Assim nenhum tipo precisou de desenho próprio, e móvel novo entra na 3/4 sozinho.
+- TIPOS EM PÉ (lápide, quadro de avisos, barraca, e a vista Lado de qualquer tipo) só ganham a sombra de baixo, como no protótipo: já são desenhados de frente.
+- Ajustes por tipo: fogueira (a lenha sobe 4 px do protótipo, a chama junto), tapete e tapete longo (sobem a espessura com a franja), lampião vira POSTE de ferro (0,035 casa) com a cabeça no alto, carroça com beirada de 0,3 casa, sebe MACIÇA (a sombra dela é solta desde a MT5, mas a beirada vai até o chão e ganha contato).
+- SEMENTE: a 3/4 usa a semente da vista de cima (o veio não muda ao trocar a vista); a chave do cache ganha `|tres-quartos|`.
+- GIRO: nos tipos derivados o quarto de volta é pintado na cena, com a luz fixa (a frente fica sempre embaixo); a placa de seta já pintava o dela; os tipos em pé giram a imagem, como antes.
+- ORDEM: chão (tapetes) primeiro, na ordem da lista; o resto pela BASE da pegada girada, do norte para o sul (empate: a lista). No jogador, dentro de cada faixa; no editor, os desenhos trocam de índice entre si (o chão e as imagens ficam onde estão). Ao desligar a vista na mesma sessão, o editor mantém a ordem da base até o próximo desenho completo da camada (a pilha das imagens é a mesma; só a ordem entre móveis sobrepostos difere).
+- CHAMA: no editor desloca -3,57 px de mundo na 3/4. No JOGADOR depende de 1 linha em arquivo quente (abaixo); o lampião não tem chama animada (o vidro aceso é da imagem e sobe junto).
+- CONTROLE: "Vista 3/4" no fim da parte essencial do painel do móvel, só com a obra ligada, com a nota "Vale para todos os móveis deste mapa: a frente de cada um aparece embaixo do tampo." Grava por `definirVistaDosMoveis` (Ctrl+Z).
+
+**Medido:**
+
+| Aceite | Prova |
+|---|---|
+| Todo tipo do catálogo em 3/4 (falha se faltar um) | `tresQuartos.test.ts` percorre `TIPOS_MOBILIA`: perfil, chave, mesma semente; por tipo nos níveis 1 e 3: imagem muda, determinística, saturação p95 <= 0,62, luz >= piso, contorno >= 0,06; o tampo sobe >= 1 px (derivados) ou a sombra de baixo cresce (em pé) |
+| Mesas 3 formas x 3 madeiras | perna da frente opaca e chão entre as pernas nas 9 |
+| Ordem pela base, 3 sobrepostos | `drawPropSilhouettes.tresQuartos.test.ts`: jogador [tapete, 180, 200, 230]; sem a vista a ordem da lista; base da pegada girada (cama 1x3 a 90°); editor reordena |
+| Chave desligada não pinta | a mesma imagem e o mesmo retângulo com e sem a vista; com a obra a imagem é outra e sobe > 10 px |
+| Chama desloca | `colocar` com a obra e a 3/4: y - 3,571; sem a obra ou de Lado: o de sempre |
+| Controle com desfazer, só com a obra | `MobiliaControls.vistaTresQuartos.test.tsx` (some sem a obra; liga, Ctrl+Z, refaz, desliga sem deixar campo) |
+| Vermelho de origem | os 3 arquivos novos falharam contra o código de antes (2 sem o módulo, 1 sem o interruptor) |
+| Mutações vermelhas | 8 de 8: vista ignorada (36 falhas), ordem sem base, chave desligada pintando, chama sem deslocamento, editor sem ordenar, painel sem a chave, giro não pintado, frente sem pernas |
+| Tempo a 3x por peça, semente do app | Chromium 1243, 1 worker, `e2e/task-meio-termo-tres-quartos.spec.ts`: MORNA de 3,7 (quadro de avisos) a 33,2 ms (armário), todas <= 50; FRIA de 9,8 a 60,5 ms (armário 60,5, catre 58,0, tapete 50,5; teto registrado de 100, seção 7). Maior tarefa longa por página 96 ms |
+| p95 do quadro <= 20 ms; tarefa longa < 200 ms | jogador a 1440 com 17 móveis e a obra: em 3/4 p95 16,8 ms em 175 quadros, 1 tarefa longa de 63 ms; de cima (controle) p95 16,8 ms, maior 179 ms |
+| O interruptor no editor de verdade | e2e "editor com a obra": "Vista 3/4" aparece com a mesa selecionada; ligar muda 6,0% do canvas e grava `tres-quartos`; Ctrl+Z volta a nada e sobra 0,12%; maior tarefa longa nos cliques 83 ms |
+
+- **Divergência registrada:** a primeira medida de tempo pintava as 6 imagens (fria + 5 mornas) numa tarefa só e acusou 241 ms no armário; é a soma do teste, não do app (o app pinta um móvel por fatia). O teste agora cede entre as pinturas.
+- **Vizinhos:** 33 arquivos de teste dos móveis, da mobília e do painel: 961 passaram, 9 pulados, 0 falhas. tsc do app e do e2e: 0 erros.
+- **Portão:** o `teste-rapido` pedido em N1 subiu sozinho para N2 (53 min): vitest rápido + lento 18051 passaram, 10 pulados, 0 falhas; desempenho 205 testes, 0 falhas; tsc do app e do e2e 0 erros; golden estrito 19 de 19 sem regravar; e2e 648 passaram e 158 falharam. Do Meio-Termo falharam só os 3 testes de TEMPO (chaminé, palha e o da 3/4), com a suíte inteira na máquina: o da 3/4 deu armário fria 138,8 / morna 69,4 e tapete morna 64,9 ms sob carga; sozinho, 1 worker, passou com morna máxima 33,2 e fria máxima 60,5. O jogador em 3/4 e o editor passaram na suíte inteira.
+- **Provas:** `docs/design/objetos/provas/mt11-folha-de-contato.png` (16 quadros, os 25 tipos, em cima de cima e embaixo 3/4, 3 madeiras, as 9 mesas, giro de 90°, chão claro e escuro, o tempo da 3/4 no nível 3 embaixo; `GERAR_FOLHA_MT11=1` em `folhaDeContatoMt11.test.ts`) e `mt11-jogador-1440.png` (sala mobiliada em 3/4 no jogador, painel recolhido; `GERAR_PROVAS_MT11=1`).
+
+**Patch em arquivo quente, NÃO aplicado (Luz L4b escreve nele):** `client/src/player/PlayerView.tsx:2197`, trocar `{ cameraScale: scale }` por `{ cameraScale: scale, vistaDosMoveis }` na chamada de `sincronizarChamas` (a variável já existe na linha 2179). Sem ele a chama da fogueira no JOGADOR fica 3,6 px abaixo da lenha na 3/4.
+
+**Fora / não verificado:** a chama no jogador (depende do patch); o tema claro do app; o celular (fora por ordem do usuário); o p95 ao arrastar a câmera com muitos móveis; móvel com giro fora de múltiplos de 90° em 3/4 (sem teste). Perguntas na folha: a altura do armário (bancada + armário de cima), a sebe maciça como um muro verde, o lampião como poste, os tipos em pé quase iguais nas duas vistas, o veio da frente (de pé no redondo, deitado no resto).

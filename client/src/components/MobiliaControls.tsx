@@ -18,6 +18,8 @@ import {
 import { catalogoComOTipo, ehPecaNova } from '../lib/mobilia/pecasNovas'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { useMapStore } from '../stores/mapStore'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
 import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { Toggle } from './Toggle'
@@ -194,6 +196,29 @@ function tomDaCamaPadrao(): string {
 }
 const COR_DA_CAMA_PADRAO = tomDaCamaPadrao()
 
+/**
+ * O interruptor "Vista 3/4" do MAPA (`MapData.vistaDosMoveis`): lê e grava
+ * direto na store, com desfazer (`definirVistaDosMoveis`), como a "Chaminé"
+ * da Sala. Desligar volta a "de cima" (o campo sai do mapa).
+ */
+function VistaTresQuartosDoMapa() {
+  const ajudaId = useId()
+  const ligada = useMapStore((state) => state.map.vistaDosMoveis === 'tres-quartos')
+  return (
+    <div className="lb-switch-com-ajuda">
+      <Toggle
+        label="Vista 3/4"
+        checked={ligada}
+        onChange={(ligar) => useMapStore.getState().definirVistaDosMoveis(ligar ? 'tres-quartos' : undefined)}
+        describedBy={ajudaId}
+      />
+      <p className="gr-nota" id={ajudaId}>
+        Vale para todos os móveis deste mapa: a frente de cada um aparece embaixo do tampo.
+      </p>
+    </div>
+  )
+}
+
 /** O pedaço do móvel que a ficha do objeto põe em cada lugar: o essencial (o que a peça É) ou a ficha Aparência. */
 export type ParteDoMovel = 'essencial' | 'aparencia'
 
@@ -288,6 +313,10 @@ export function MobiliaControls({
             </div>
           </div>
         )}
+        {/* VISTA 3/4 DO MAPA (Meio-Termo, MT11): vale para todos os móveis do mapa, então mora
+            no fim do essencial, depois do que é só desta peça. Só com a chave de obra: sem ela a
+            vista não desenha nada, e controle sem efeito não entra. */}
+        {meioTermoLigado() && <VistaTresQuartosDoMapa />}
       </section>
     )
   }

@@ -201,6 +201,12 @@ export interface Peca {
   readonly arco: Arco | undefined
   readonly recesso: Recesso | undefined
   readonly curvaY: CurvaY | undefined
+  /**
+   * A mesma curva de `curvaY`, ao longo de x: só a peça girada um quarto de
+   * volta na vista 3/4 (`tresQuartos.ts`, a tampa em arco do baú deitada de
+   * lado) a tem. Ausente = o caminho de sempre, byte a byte.
+   */
+  readonly curvaX?: CurvaY
   readonly projeta: Projecao | undefined
   readonly metal: number
   readonly tex: Textura | null
@@ -551,7 +557,7 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
   const [px0, py0, px1, py1] = janela(alvo, f.b, p.dx, p.dy, p.suave + 2 * inv)
   if (px1 <= px0 || py1 <= py0) return
   const [br, bg, bb] = p.base
-  const { bisel, tex, metal, contorno, ruga, alfa, polar, arco, recesso: rec, curvaY: curva } = p
+  const { bisel, tex, metal, contorno, ruga, alfa, polar, arco, recesso: rec, curvaY: curva, curvaX } = p
   const cosE = Math.cos(p.eixo)
   const sinE = Math.sin(p.eixo)
   const M = alvo.sombra
@@ -580,6 +586,11 @@ function* pintarParte(alvo: Alvo, p: Peca): Generator<void, void, void> {
         let q = (y - curva.c) / curva.r
         q = q > 0.97 ? 0.97 : q < -0.97 ? -0.97 : q
         ny += (curva.forca * q) / Math.sqrt(1 - q * q)
+      }
+      if (curvaX !== undefined) {
+        let q = (x - curvaX.c) / curvaX.r
+        q = q > 0.97 ? 0.97 : q < -0.97 ? -0.97 : q
+        nx += (curvaX.forca * q) / Math.sqrt(1 - q * q)
       }
       let u: number
       let v: number

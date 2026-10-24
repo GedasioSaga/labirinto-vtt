@@ -17,14 +17,19 @@ export const LARGURA_DA_CUMEEIRA_AMARRADA_PX = 3.4
 export const PASSO_DA_AMARRA_PX = 9
 /** A amarra cruza a faixa até esta distância do cume (o traço de 6 px do protótipo). */
 const ALCANCE_DA_AMARRA = 3
-const MEIA_LARGURA_DA_AMARRA = 0.5
+/**
+ * MT10b: a amarra ficou mais larga (0,5 -> 0,7) e mais escura (0,22 -> 0,28)
+ * para aparecer a 1x. A 1x ela cai entre duas colunas de pixel; com 0,5 cada
+ * coluna levava só metade do escuro e o feixe quase não mostrava a amarra.
+ */
+const MEIA_LARGURA_DA_AMARRA = 0.7
 /** O contorno da faixa, na própria cor (1,3 px do protótipo, no traço de 72% do Meio-Termo). */
 const CONTORNO = 1.3 * 0.72
 /** Luz do feixe: o lado virado para a luz clareia, o outro escurece (o realce e a sombra do protótipo). */
 const LUZ_DO_LADO_CLARO = 0.09
 const LUZ_DO_LADO_ESCURO = -0.06
 const ESCURO_DO_CONTORNO = 0.25
-const ESCURO_DA_AMARRA = 0.22
+const ESCURO_DA_AMARRA = 0.28
 /** O escuro somado nunca passa disto (piso de luz: a palha mais escura fica acima de 0,06). */
 export const ESCURO_MAXIMO_DA_CUMEEIRA = 0.3
 
