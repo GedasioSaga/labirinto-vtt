@@ -347,15 +347,20 @@ function luzDaPalha(v: number, u: number, luzAoLongo: number): number {
     v,
     u,
     luzAoLongo,
-    v * DERIVA_POR_V + DERIVA_NO_ZERO,
+    derivaNaFase(v * DERIVA_POR_V + DERIVA_NO_ZERO),
     u * ONDA1_POR_U + v * ONDA1_POR_V + ONDA1_NO_ZERO,
     u * ONDA2_POR_U + v * ONDA2_POR_V + ONDA2_NO_ZERO,
   )
 }
 
-/** `luzDaPalha` com as fases da deriva e das ondas já calculadas (em passos da tabela). */
-function luzDaPalhaNasFases(v: number, u: number, luzAoLongo: number, faseDaDeriva: number, faseDaOnda1: number, faseDaOnda2: number): number {
-  const ul = u + 1.6 * SENO[(faseDaDeriva | 0) & MASCARA_DO_SENO]
+/** O quanto o bico do V anda ao longo do beiral (px do mapa), da fase da deriva em passos da tabela. */
+function derivaNaFase(fase: number): number {
+  return 1.6 * SENO[(fase | 0) & MASCARA_DO_SENO]
+}
+
+/** `luzDaPalha` com a deriva (px) e as fases das ondas (em passos da tabela) já calculadas. */
+function luzDaPalhaNasFases(v: number, u: number, luzAoLongo: number, deriva: number, faseDaOnda1: number, faseDaOnda2: number): number {
+  const ul = u + deriva
   const q = ul * INVERSO_DO_PASSO_DA_ESPINHA
   const coluna = Math.floor(q)
   const fr = q - coluna
@@ -542,8 +547,11 @@ function pintarCorridaDaPalha(
   const passoDaDeriva = passoV * DERIVA_POR_V
   const passoDaOnda1 = passoU * ONDA1_POR_U + passoV * ONDA1_POR_V
   const passoDaOnda2 = passoU * ONDA2_POR_U + passoV * ONDA2_POR_V
+  // Água de beiral deitado ou em pé (régua ao longo de x ou de y): numa delas a altura não muda na corrida e a deriva é uma só.
+  const derivaFixa = passoV === 0 ? derivaNaFase(faseDaDeriva) : Number.NaN
   for (let i = 0; i < quantos; i += 1, o += 4) {
-    let luz = luzDaAgua + luzDaPalhaNasFases(v, u, luzAoLongo, faseDaDeriva, faseDaOnda1, faseDaOnda2)
+    const deriva = passoV === 0 ? derivaFixa : derivaNaFase(faseDaDeriva)
+    let luz = luzDaAgua + luzDaPalhaNasFases(v, u, luzAoLongo, deriva, faseDaOnda1, faseDaOnda2)
     const vb = v < alcanceDaFranja ? v - franjaDaPalha(u) : v
     if (vb < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, vb)) // ponta do beiral escura
     luz += GRAO[linhaDoGrao + (Math.floor(gx) & (LADO_DO_GRAO - 1))]
