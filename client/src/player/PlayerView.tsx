@@ -2228,7 +2228,7 @@ function PlayerViewDoCanvas({
     scene.propsCount = desenhadas
     // Fogueira que sai da visão (ou da camada visível) leva a chama junto.
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('chamasCamada'), deObjeto)) {
-      sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale })
+      sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale, vistaDosMoveis })
     }
     const pares = nosEmPar(scene.pilha.nosDaFaixa('propImages'), scene.pilha.nosDaFaixa('propLabels'))
     const contagem: PropLooksCount = { images: 0, labels: 0 }

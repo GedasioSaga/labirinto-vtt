@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container, FillGradient, Graphics, Matrix, Texture } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { LuzDoJogador } from '../lib/periodo'
-import type { Light, MapData, RegionPoint } from '../types/map'
+import { trocarObraNoTeste } from '../lib/estiloDoMapa'
+import { DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS } from '../lib/mobilia/vistaTresQuartos'
+import type { Light, MapData, Prop, RegionPoint } from '../types/map'
 import { DEFAULT_PLAYER_SETTINGS } from './PlayerPanel'
 import { PlayerView } from './PlayerView'
 
@@ -157,6 +159,26 @@ describe('PlayerView — a tinta do período e a luz quente (mapa de luz)', () =
     await mostra(pacote([{ ...LAMPIAO, x: 260 }]), NOITE)
     quadro()
     expect(tela.redesenhos).toBe(2)
+  })
+
+  it('MT11: na vista 3/4 com a obra ligada, a chama da fogueira do jogador sobe com a lenha, como no editor', async () => {
+    const fogueira: Prop = { id: 'fogo-1', src: '', x: 200, y: 100, width: 64, height: 64, linkedMapPath: null, mobilia: 'fogueira' }
+    const chama = (): Container | undefined => {
+      const achar = (no: Container): Container | undefined => (no.label === 'chama:fogo-1' ? no : no.children.map(achar).find((c) => c !== undefined))
+      return achar(mundo())
+    }
+    trocarObraNoTeste(true)
+    try {
+      await mostra({ ...pacote([]), props: [fogueira] })
+      quadro()
+      const deCima = chama()?.position.y
+      await mostra({ ...pacote([]), props: [fogueira], vistaDosMoveis: 'tres-quartos' })
+      quadro()
+      expect(deCima).toBeDefined()
+      expect(chama()?.position.y).toBeCloseTo((deCima ?? 0) + DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS, 6)
+    } finally {
+      trocarObraNoTeste(false)
+    }
   })
 
   it('voltar ao dia tira o mapa de luz do mundo e devolve o halo', async () => {
