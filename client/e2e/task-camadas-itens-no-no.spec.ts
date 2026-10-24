@@ -85,6 +85,20 @@ function noDe(nos: readonly string[], faixa: string, camada: CamadaId): number {
   })
 }
 
+type Recorte = Awaited<ReturnType<Page['screenshot']>>
+
+/** O recorte depois de parar de mudar (fonte do nome e textura da ficha chegam alguns quadros depois). */
+async function estavel(page: Page, tirar: () => Promise<Recorte>): Promise<Recorte> {
+  let antes = await tirar()
+  for (let tentativa = 0; tentativa < 30; tentativa++) {
+    await page.waitForTimeout(150)
+    const agora = await tirar()
+    if (agora.equals(antes)) return agora
+    antes = agora
+  }
+  throw new Error('o recorte não parou de mudar em 4,5 s')
+}
+
 async function trocarMapa(page: Page, mudar: Partial<MapData>): Promise<void> {
   await page.evaluate(async (campos) => {
     const { useMapStore } = await import('/src/stores/mapStore.ts')
@@ -130,11 +144,13 @@ test.describe('editor: o item de camada escolhida desenha no nó da camada', () 
 
   test('esconder B do mestre tira a ficha de B da tela; a de A fica', async ({ page }) => {
     await enterEditor(page)
+    // Sem as luzes: o brilho da luz de B também some ao esconder B e mudaria o recorte mesmo sem a ficha sair.
+    const semLuzes: MapData = { ...mapaDasDuas([...CAMADAS_PADRAO]), lights: [] }
     await page.evaluate(async (mapa) => {
       const { useMapStore } = await import('/src/stores/mapStore.ts')
       useMapStore.getState().loadMap(mapa)
       useMapStore.getState().setActiveTool('select')
-    }, mapaDasDuas([...CAMADAS_PADRAO]))
+    }, semLuzes)
     await trocarMapa(page, { modeloCamadas: modelo([...CAMADAS_PADRAO, A, B]), versaoDasCamadas: 2 })
     await page.evaluate(async () => {
       const { useAdventureStore } = await import('/src/stores/adventureStore.ts')
@@ -145,14 +161,19 @@ test.describe('editor: o item de camada escolhida desenha no nó da camada', () 
     const caixa = await page.locator('[data-ordem-dos-nos]').first().boundingBox()
     if (caixa === null) throw new Error('o canvas do editor não tem caixa')
     const recorte = (x: number, y: number) => ({ x: caixa.x + x - 40, y: caixa.y + y - 40, width: 80, height: 80 })
-    const fichaB = async () => page.screenshot({ clip: recorte(672, 480) })
-    const fichaA = async () => page.screenshot({ clip: recorte(160, 480) })
+    const fichaB = async () => estavel(page, () => page.screenshot({ clip: recorte(672, 480) }))
+    const fichaA = async () => estavel(page, () => page.screenshot({ clip: recorte(160, 480) }))
     const comB = await fichaB()
     const comA = await fichaA()
     await trocarMapa(page, { hiddenLayers: [B] })
     await quadros(page)
-    expect((await fichaB()).equals(comB), 'a ficha de B continuou na tela com B escondida do mestre').toBe(false)
+    const escondida = await fichaB()
+    expect(escondida.equals(comB), 'a ficha de B continuou na tela com B escondida do mestre').toBe(false)
     expect((await fichaA()).equals(comA), 'a ficha de A mudou sem ninguém mexer em A').toBe(true)
+    // Some INTEIRA (não só esmaece): o recorte é o mesmo do mapa sem a ficha de B.
+    await trocarMapa(page, { hiddenLayers: [], tokens: semLuzes.tokens.filter((t) => t.id !== 't-b') })
+    await quadros(page)
+    expect(escondida.equals(await fichaB()), 'com B escondida, o lugar da ficha não ficou igual ao mapa sem ela').toBe(true)
   })
 })
 
