@@ -434,3 +434,9 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - **Em voo agora:** Luz L1 (dono da faixa quente, `C:/dev/labirinto-luz`, feat/luz, inclui o recorte do jogador tirar `periodoFixo`/`ambientePorPeriodo`/`visaoPorPeriodo`), Batalha B1+B2 (`C:/dev/labirinto-batalha`, feat/batalha, arquivos novos em `lib/batalha/`), documentador atualizando `caminhos-npc` e `sons-ao-vivo` (main).
 - **Esperando o usuário:** página https://claude.ai/artifact/VRkaj16jWi7AUEb9CXNCJ4 (mesas e MT8). Depois: MT12 (liga chave de obra e regrava golden). Ambiente configurável por mapa: L0 feita, painel é a L4c.
 - **Dívidas Fase 4:** 155 e2e vermelhos; pesca (a); clique do editor em camada livre escondida (`selectionHitTest.ts:357`); selo das jornadas (exige autorização); aviso de política de embed do YouTube (F6); `task-camadas-painel` instável.
+
+## Atualização 24/10 ~12h30 — lote 5 (Luz L1) integrado, MT9 e Batalha B1/B2 em curso
+- **Lote 5 na main** (`291b4a03`, tag `pre-integra-17`, bundle `labirinto-2026-10-24-6.bundle` verificado): Luz L1 (`9f2dfdd0`). N2 rodado pelo agente no worktree da luz: tsc 0, vitest 17.797 verdes, desempenho 202, e2e 642 verdes; 157 vermelhos = 154 conhecidos + 3 de tempo do Meio-Termo (mesas, peças-lote2, palha) que passam sozinhos (3 de 3); `task-camadas-painel` passou desta vez (instável; ainda na lista de conhecidas, decidir na Fase 4). Depois do gate a main só ganhou commits de docs.
+- **Em voo:** MT9 (Q, retoque quente, dono único da faixa quente, `C:/dev/labirinto-mt9`, feat/mt9, só plumbing, sem desenho novo); Batalha B1+B2 (`C:/dev/labirinto-batalha`, feat/batalha); documentador (diagramas de fase 2 e período).
+- **Ordem da faixa quente:** MT9, depois Luz L2 e L3 (`C:/dev/labirinto-luz`), depois MT10/MT11/MT12, B3/B4, Caminhos F3/F4.
+- Painel Período novo ainda não visto a olho (só e2e). Usuário confere em `localhost:1420` (servidor da main).
