@@ -228,7 +228,8 @@ async function esperarAsEntradas(page: Page): Promise<void> {
       document
         .getAnimations()
         .filter((animacao) => animacao.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY)
-        .map((animacao) => animacao.finished),
+        // Animação cancelada no meio (o elemento saiu da tela) rejeita `finished` com AbortError: ela já não ocupa lugar, então não é motivo para reprovar.
+        .map((animacao) => animacao.finished.catch(() => undefined)),
     ),
   )
 }
