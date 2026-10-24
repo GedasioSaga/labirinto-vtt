@@ -250,3 +250,16 @@ Três revisões (correção, segurança, design) deram 23 itens; um corretor só
 - O que a revisão acrescentou não pesa: o painel de c9727f24 (antes da revisão) contra o de agora, alternados, o resto igual, com a máquina carregada por outra linha: 3,51 / 3,87 contra 3,70 / 3,70 (gesto inteiro), 3,54 / 3,93 contra 3,77 / 3,80 (só o arrasto). Sem a rolagem na borda e sem a FLIP: 2,85, dentro do ruído das corridas de D. A diferença contra a base é a da fatia (registrada acima como +20%) com o ruído do dia; a FLIP roda no compositor (WAAPI, só `transform`).
 
 **Fora desta revisão:** em 390 px, o selo "100%" e a barra de ferramentas cobrem as últimas linhas do livro (já registrado pela revisão de design; é do layout do livro, não do painel).
+
+## Fatias 3b e 4b: itens com camada escolhida no nó da camada (plano, 23/10/2026)
+
+Por tipo: container de hoje, nó destino (`faixa|camada`, criado pela pilha só com itens) e risco. Sem camada escolhida, nenhum par novo: um nó por faixa, a mesma lista, golden idêntico.
+
+- **Fichas:** editor `tokensContainer` (um renderer só, com cache por id; o embrulho da ficha muda de nó, em vez de um renderer por nó, para `setCameraScale`, `levantar` e o pulso da vez seguirem únicos); jogador `tokens` (as views por id mudam de nó; o nó de fichas herda o `eventMode` do de hoje, senão o arrasto morre). Risco: nó descartado destruiria embrulho vivo; o descarte devolve os filhos ao container de hoje antes de destruir. Editor passa a esconder pelo mapa (`visibleTokens(…, map)`): livre escondida do mestre some.
+- **Último avistamento (`lastSeen`, decisão do usuário):** camada da ficha que sai da lista do jogador apaga o contorno. Os contornos ficam no container de hoje (ordem e opacidade de Tokens).
+- **Pinos:** editor `pinsContainer`, jogador `pins`; um renderer por nó (`criarPorNo`), como móveis e luzes. Risco: as marcas (bilhetes) ficam só no de hoje.
+- **Luzes (jogador):** `lights` (renderer por nó, gradientes próprios) e `farLights` (função pura por nó). O editor já dividia.
+- **Linhas e marcadores (jogador):** `mapLines`, como o editor (`paintMapLines`). Risco: a chave do chão ganha a assinatura da faixa.
+- **Portas (jogador):** `doors` e `portasNoTelhado` (animador por nó), `doorHints` (traço por nó). O editor já dividia.
+- **Telhados (editor):** o renderer já recebe a camada por sala (`camada`); a sala com `camadaDoTelhado` vai ao nó dela. Jogador: máscaras do espiar (`roofCut`, `peekMask`) presas ao container de hoje; risco alto, fica para depois se não couber.
+- **Texto, carimbos, salas (fundo, borda, nome) e chão (segunda instância do `floorRenderer`, contorno dividido):** só se couber; o que sobrar fica fixado como "LIMITACAO ATUAL" em `paresDoEditor.test.ts` e `pilhaDoJogador.test.ts`.
