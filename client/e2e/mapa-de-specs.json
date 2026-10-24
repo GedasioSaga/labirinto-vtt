@@ -157,14 +157,21 @@
       "fontes": [
         "client/src/**/*caminho*",
         "client/src/**/*Caminho*",
-        "client/src/lib/caminhamento/**"
+        "client/src/lib/caminhamento/**",
+        "client/src/lib/cliqueParaAndar*",
+        "client/src/**/*CliqueParaAndar*",
+        "client/src/pixi/drawMarcaDaCaminhada.ts"
       ],
       "n0": [
-        "task-jornada-pincel-balde-caminhos.spec.ts"
+        "task-jornada-pincel-balde-caminhos.spec.ts",
+        "task-caminhos-clique-para-andar.spec.ts"
       ],
       "specs": [
         "task-jornada-caminho-com-cor-propria.spec.ts",
-        "task-jornada-pincel-balde-caminhos.spec.ts"
+        "task-jornada-pincel-balde-caminhos.spec.ts",
+        "task-caminhos-andar-ate-aqui.spec.ts",
+        "task-caminhos-aviso-mestre.spec.ts",
+        "task-caminhos-clique-para-andar.spec.ts"
       ]
     },
     {
