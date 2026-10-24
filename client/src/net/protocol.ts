@@ -7,6 +7,7 @@ import type { PlayerClock } from '../lib/campaignClock'
 import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import type { MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
@@ -534,6 +535,13 @@ export interface TokenMoveMessage {
   tokenId: string
   x: number
   y: number
+  /**
+   * CLICAR PARA ANDAR (CAMINHOS F2): trecho de caminhada (clique no chão ou
+   * "Andar até aqui"), não arrasto. Só ACRESCENTA recusas no host
+   * (`caminhada_desligada`, `nevoa`); nunca afrouxa passo, parede, trava nem
+   * vez. Leitura tolerante: só `true` vale, e host antigo ignora o campo.
+   */
+  caminhada?: true
 }
 
 export interface PingMessage {
@@ -1452,9 +1460,11 @@ export interface ClueShownMessage {
 
 /**
  * Por que o host recusou o movimento: as recusas da validação do mapa, mais
- * `paused` — a cena do jogador está pausada (o mestre está com outro grupo).
+ * `paused` — a cena do jogador está pausada (o mestre está com outro grupo) —
+ * e as do trecho de caminhada (`MotivoDaCaminhada`: chave da cena desligada,
+ * trecho fora do que ele conhece). Jogador antigo desfaz sem frase.
  */
-export type TokenMoveRejectionReason = TokenMoveRejection | 'paused'
+export type TokenMoveRejectionReason = TokenMoveRejection | 'paused' | MotivoDaCaminhada
 
 /** A cena do jogador está (ou deixou de estar) pausada pelo mestre. */
 export interface ScenePausedMessage {
@@ -2052,7 +2062,8 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
   if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
-  return { type: 'token.move', reqId, tokenId, x, y }
+  // Marca torta (não `true`) não é marca: o passo segue como arrasto.
+  return obj.caminhada === true ? { type: 'token.move', reqId, tokenId, x, y, caminhada: true } : { type: 'token.move', reqId, tokenId, x, y }
 }
 
 /**

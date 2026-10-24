@@ -108,6 +108,7 @@ import { regioesComContagem } from '../lib/portasPorAtravessar'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawSignals'
+import { desenharMarcaDaCaminhada } from '../pixi/drawMarcaDaCaminhada'
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type DestinationMark, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
@@ -258,6 +259,14 @@ interface PlayerViewProps {
   onPinsChoose?: (pinIds: string[]) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
+  /**
+   * CLICAR PARA ANDAR: clique simples e parado do MOUSE no chão vazio (sem
+   * pino, bilhete, ficha, item, porta nem nome de Sala), em px de mundo. O
+   * toque do dedo não chama (só PC nesta fatia). Ausente = o clique não faz nada.
+   */
+  onFloorClick?: (x: number, y: number) => void
+  /** CLICAR PARA ANDAR: onde a caminhada em curso termina (a marca no chão); `null`/ausente = sem caminhada. */
+  destinoDaCaminhada?: { x: number; y: number } | null
   /** BILHETE NO LUGAR: toque curto num bilhete deixado no chão abre o cartão dele. */
   onMarkOpen?: (markId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
@@ -1844,6 +1853,8 @@ function PlayerViewDoCanvas({
   onItemNoChaoOpen,
   onPinsChoose,
   onRoomOpen,
+  onFloorClick,
+  destinoDaCaminhada = null,
   onMarkOpen,
   laser,
   laserArmed = false,
@@ -1908,6 +1919,8 @@ function PlayerViewDoCanvas({
     onItemNoChaoOpen,
     onPinsChoose,
     onRoomOpen,
+    onFloorClick,
+    destinoDaCaminhada,
     onMarkOpen,
     laser,
     laserArmed,
@@ -3621,6 +3634,27 @@ function PlayerViewDoCanvas({
       }
       app.ticker.add(tickDestinations)
 
+      // CLICAR PARA ANDAR: a marca no destino da caminhada, de tamanho fixo na
+      // tela. Desenhada uma vez; por quadro só muda onde fica (a câmera anda).
+      const marcaDaCaminhada = desenharMarcaDaCaminhada()
+      signalsLayer.addChild(marcaDaCaminhada)
+      let destinoMarcado = ''
+      el.dataset.destinoDaCaminhada = destinoMarcado
+      const tickMarcaDaCaminhada = () => {
+        const destino = latestRef.current.destinoDaCaminhada
+        const chave = destino === null || destino === undefined ? '' : `${destino.x},${destino.y}`
+        // Para o e2e: o destino marcado (canvas WebGL não é legível pelo DOM).
+        if (chave !== destinoMarcado) {
+          el.dataset.destinoDaCaminhada = chave
+          destinoMarcado = chave
+        }
+        marcaDaCaminhada.visible = destino !== null && destino !== undefined
+        if (destino === null || destino === undefined) return
+        const naTela = scene.world.toGlobal(destino)
+        marcaDaCaminhada.position.set(naTela.x, naTela.y)
+      }
+      app.ticker.add(tickMarcaDaCaminhada)
+
       // Anotações pessoais: paradas, mas presas à tela como as bandeirinhas, então acompanham a câmera.
       const personalNotesRenderer = createPersonalNotesRenderer()
       let personalNotesDrawn = 0
@@ -4047,7 +4081,14 @@ function PlayerViewDoCanvas({
           // O nome da Sala fica no MEIO dela, longe das portas: a porta vem
           // antes só para o toque na parede nunca virar leitura de texto.
           const roomId = roomTextAtScreen(scene, drag.startX, drag.startY)
-          if (roomId !== null) latestRef.current.onRoomOpen?.(roomId)
+          if (roomId !== null) {
+            latestRef.current.onRoomOpen?.(roomId)
+            return
+          }
+          // CLICAR PARA ANDAR: sobrou o chão vazio. Só o mouse (PC): o toque curto do dedo fica como está.
+          if (event.pointerType === 'touch') return
+          const chao = scene.world.toLocal({ x: drag.startX, y: drag.startY })
+          latestRef.current.onFloorClick?.(chao.x, chao.y)
           return
         }
         if (drag?.kind !== 'token') return
@@ -4138,6 +4179,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickDestinations)
+        app.ticker.remove(tickMarcaDaCaminhada)
         app.ticker.remove(tickPersonalNotes)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)

@@ -8,6 +8,7 @@ import { LayersPanel, type LayersPanelProps } from '../LayersPanel'
 import { TerritorioControls, type TerritorioControlsProps } from '../TerritorioControls'
 import { Fichas } from '../grimorio/Ficha'
 import { Nota } from '../grimorio/Nota'
+import { ChaveCliqueParaAndar } from './ChaveCliqueParaAndar'
 import { FichaDaPagina } from './FichaDaPagina'
 import { TituloDaPagina } from './FolhaDoLivro'
 
@@ -61,6 +62,8 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
           <Nota ir={{ rotulo: 'Configurar', onClick: mapaVivo.onAbrir }}>Mapa vivo: {mapaVivo.ligado ? 'ligado' : 'desligado'}.</Nota>
         </div>
       )}
+      {/* CLICAR PARA ANDAR: a chave é desta cena e o mestre a mexe durante o jogo, então fica à vista, fora das fichas. */}
+      <ChaveCliqueParaAndar />
       <div className="lb-zona gr-paginas">
         <Fichas>
           {objetos}

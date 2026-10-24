@@ -59,6 +59,7 @@ import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
 import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } from '../lib/moveValidation'
+import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
@@ -2661,6 +2662,12 @@ interface PlayerMemory extends SceneMemory {
   /** Zonas ocultas e tetos fechados do último snapshot: o que ele já sabe que está escondido. */
   covered: RegionPoint[][]
   /**
+   * CLICAR PARA ANDAR: só as zonas ocultas do último snapshot (o `concealed`
+   * que ele recebeu, sem os tetos): a mesma máscara do caminho que a tela dele
+   * calcula. Ausente = nenhum snapshot ainda.
+   */
+  ocultas?: RegionPoint[][]
+  /**
    * Veio da mesa guardada e ainda não foi conferida contra o mapa de hoje: no
    * primeiro uso, o que o mestre escondeu desde então sai da memória.
    */
@@ -4361,6 +4368,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
     memory.party = partyTokens
     memory.covered = [...view.concealed, ...view.roofs]
+    memory.ocultas = view.concealed
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
     const where = sceneName === undefined ? {} : { sceneName }
     const explored = encodeExploration(exp)
@@ -5653,6 +5661,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { ...result, waitsChanged: true }
   }
 
+  /**
+   * CLICAR PARA ANDAR: o trecho da ficha até (`to.x`, `to.y`) fica todo no que
+   * o jogador conhece — a visão e a memória do último snapshot dele, fora das
+   * zonas ocultas que ele recebeu. Sem snapshot ainda, ele não conhece nada.
+   */
+  function caminhadaNoConhecido(playerId: string, map: MapData, tokenId: string, to: { x: number; y: number }): boolean {
+    const memory = existingMemory(playerId, map)
+    const token = map.tokens.find((t) => t.id === tokenId)
+    if (memory === undefined || token === undefined) return false
+    return trechoNoConhecido(map, token, to, { explored: memory.exp, vision: memory.vision, concealed: memory.ocultas ?? memory.covered })
+  }
+
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -5667,6 +5687,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (isWorldMap(scene.map)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'locked' })
     // VOLTO JÁ: a ficha de quem saiu da mesa fica travada, como a que o mestre trava.
     if (awayPlayers.has(playerId)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'locked' })
+    // CLICAR PARA ANDAR: o mestre desligou a caminhada nesta cena; o arrasto (sem a marca) segue.
+    if (msg.caminhada === true && !cliqueParaAndarLigado(scene.map)) {
+      return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'caminhada_desligada' })
+    }
     // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
     // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
     // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
@@ -5695,6 +5719,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       gastoNaVez: gastoNaVez(scene.map),
     })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
+    // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
+    // tela dele, aqui no host). Depois de todas as recusas de sempre: a marca só acrescenta.
+    if (msg.caminhada === true && !caminhadaNoConhecido(playerId, scene.map, msg.tokenId, result)) {
+      return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'nevoa' })
+    }
     // CONGELAR FICHA: a própria ficha congelada já voltou pela trava do passo
     // (`travaDaFichaDoJogador`). Quem iria PRESO a ela — a bordo do veículo,
     // levado — anda junto no mapa do mestre (`setTokenPosition`): congelado

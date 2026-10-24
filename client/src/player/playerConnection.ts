@@ -149,6 +149,7 @@ import type { AbaloSeta } from '../lib/abalo'
 import { isDaVista, type Espiada } from '../lib/espiar'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import { cliqueParaAndarLigado, planejarCaminhada, type AvisoDoClique, type MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import type { RoofPeek } from '../lib/fogFilter'
 import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
@@ -334,6 +335,12 @@ export interface PlayerState {
    * VEÍCULO: a recusa do "Subir" (`VehicleNotice`) sai no mesmo lugar.
    */
   moveNotice?: { id: number; reason: MoveNoticeReason }
+  /**
+   * CLICAR PARA ANDAR: a caminhada em curso (clique no chão ou "Andar até
+   * aqui") e o ponto onde ela termina — a marca no destino. Some ao chegar, ao
+   * parar (recusa, arrasto, novo clique, ficha congelada) e na troca de cena.
+   */
+  caminhada?: { tokenId: string; destino: { x: number; y: number } }
   /**
    * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
    * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
@@ -1093,6 +1100,14 @@ export interface PlayerConnection {
    */
   requestWalk(tokenId: string, legs: readonly { x: number; y: number }[]): boolean
   /**
+   * CLICAR PARA ANDAR: o clique no chão em (`x`, `y`) de mundo. Calcula o
+   * caminho só com o que esta tela conhece (destino ocupado: a casa livre mais
+   * próxima) e anda como o `requestWalk`, com a marca no destino
+   * (`state.caminhada`). `false` e nada sai quando não anda; o aviso do rodapé
+   * diz por quê (chave da cena desligada, caminho desconhecido, cercado).
+   */
+  walkTo(tokenId: string, x: number, y: number): boolean
+  /**
    * Sinal no ponto (px de mundo). `audience: 'master'` só o mestre vê (o do
    * toque longo). `false` se não está jogando ou o socket não está aberto.
    */
@@ -1529,11 +1544,28 @@ export const VEHICLE_NOTICE_TEXT: Record<VehicleNotice, string> = {
   veiculo_cheio: 'Veículo cheio',
   veiculo_longe: 'Chegue mais perto do veículo',
 }
-/** O que o aviso do rodapé (`moveNotice`) pode dizer. */
-export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice
-const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'congelado', 'outside_map', 'wall', 'outside_floor', 'occupied', 'too_far', 'a_bordo']
+/**
+ * O que o aviso do rodapé (`moveNotice`) pode dizer. CLICAR PARA ANDAR: as
+ * recusas do trecho marcado (`MotivoDaCaminhada`) e o clique que nem saiu
+ * (`AvisoDoClique`: chave desligada, caminho desconhecido, cercado).
+ */
+export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice | MotivoDaCaminhada | AvisoDoClique
+const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
+  'unknown_token',
+  'not_owner',
+  'locked',
+  'congelado',
+  'outside_map',
+  'wall',
+  'outside_floor',
+  'occupied',
+  'too_far',
+  'a_bordo',
+  'caminhada_desligada',
+  'nevoa',
+]
 
-function isMoveRejection(value: unknown): value is TokenMoveRejection {
+function isMoveRejection(value: unknown): value is TokenMoveRejection | MotivoDaCaminhada {
   return MOVE_REJECTIONS.some((reason) => reason === value)
 }
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
@@ -1660,6 +1692,8 @@ export const WALK_LEG_PAUSE_MS = TOKEN_GLIDE_MS
 /** Caminhada em curso: os trechos que faltam e o pedido que espera o host. */
 interface Walk {
   tokenId: string
+  /** Onde ela termina (a marca na tela): o fim do último trecho. */
+  destino: { x: number; y: number }
   legs: { x: number; y: number }[]
   /** Trecho enviado e ainda sem resposta; `null` entre trechos. */
   reqId: string | null
@@ -3179,12 +3213,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * Move otimista: aplica local e envia. Devolve o `reqId` do pedido, ou
    * `null` se o token não existe ou o socket não está aberto.
    */
-  function sendMove(tokenId: string, x: number, y: number): string | null {
+  function sendMove(tokenId: string, x: number, y: number, caminhada = false): string | null {
     const map = state.map
     const token = map?.tokens.find((t) => t.id === tokenId)
     if (!map || !token) return null
     const reqId = `m${nextReqId++}`
-    if (!send({ type: 'token.move', reqId, tokenId, x, y })) return null
+    // CLICAR PARA ANDAR: o trecho de caminhada vai marcado; o arrasto, sem a marca.
+    if (!send(caminhada ? { type: 'token.move', reqId, tokenId, x, y, caminhada: true } : { type: 'token.move', reqId, tokenId, x, y })) return null
     pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
     // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
     // reunido): já viu onde está, o aviso sai.
@@ -3198,9 +3233,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return reqId
   }
 
+  /** A caminhada acabou (chegou ou parou): a marca do destino sai da tela. */
+  function endWalk(): void {
+    walk = null
+    if (state.caminhada !== undefined) setState({ caminhada: undefined })
+  }
+
   function stopWalk(): void {
     if (walk !== null && walk.timer !== null) clearTimeout(walk.timer)
-    walk = null
+    endWalk()
   }
 
   /** Manda o próximo trecho da caminhada; sem trecho, ou sem jogo, ela acaba. */
@@ -3209,15 +3250,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (current === null) return
     const next = current.legs.shift()
     if (next === undefined || state.status !== 'playing') {
-      walk = null
+      endWalk()
       return
     }
-    const reqId = sendMove(current.tokenId, next.x, next.y)
+    const reqId = sendMove(current.tokenId, next.x, next.y, true)
     if (reqId === null) {
-      walk = null
+      endWalk()
       return
     }
     current.reqId = reqId
+  }
+
+  /**
+   * Começa a caminhada pelos `legs` (fins de trecho, já validados); a marca vai
+   * no último. Chave da cena desligada: nada sai e o aviso diz por quê.
+   */
+  function startWalk(tokenId: string, legs: readonly { x: number; y: number }[]): boolean {
+    stopWalk()
+    if (state.status !== 'playing' || legs.length === 0) return false
+    if (!legs.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
+    const map = state.map
+    if (map === undefined || !map.tokens.some((t) => t.id === tokenId)) return false
+    if (!cliqueParaAndarLigado(map)) {
+      showMoveNotice('caminhada_desligada')
+      return false
+    }
+    const rounded = legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }))
+    const destino = rounded[rounded.length - 1]
+    if (destino === undefined) return false
+    walk = { tokenId, destino, legs: rounded, reqId: null, timer: null, at: null }
+    setState({ caminhada: { tokenId, destino } })
+    stepWalk()
+    return walk !== null
   }
 
   /** O host aceitou o trecho: o próximo sai depois de a ficha deslizar até a esquina. */
@@ -3238,9 +3302,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * Com trecho em voo não dá para saber (o snapshot pode ser de antes do trecho).
    */
   function walkMovedByOthers(map: MapData): boolean {
-    if (walk === null || walk.reqId !== null || walk.at === null) return false
+    if (walk === null) return false
     const { tokenId, at } = walk
     const token = map.tokens.find((t) => t.id === tokenId)
+    // O mestre congelou ou segurou a ficha (ou desligou a caminhada): o trecho
+    // seguinte nem sai — para em no máximo o trecho que já estava no ar.
+    if (token !== undefined && (token.congelado === true || token.locked === true || !cliqueParaAndarLigado(map))) return true
+    if (walk.reqId !== null || at === null) return false
     return token === undefined || token.x !== at.x || token.y !== at.y
   }
 
@@ -4747,13 +4815,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return sendMove(tokenId, x, y) !== null
     },
     requestWalk(tokenId, legs) {
-      stopWalk()
-      if (state.status !== 'playing' || legs.length === 0) return false
-      if (!legs.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
-      if (!state.map?.tokens.some((t) => t.id === tokenId)) return false
-      walk = { tokenId, legs: legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), reqId: null, timer: null, at: null }
-      stepWalk()
-      return walk !== null
+      return startWalk(tokenId, legs)
+    },
+    walkTo(tokenId, x, y) {
+      const map = state.map
+      const token = map?.tokens.find((t) => t.id === tokenId)
+      if (state.status !== 'playing' || map === undefined || token === undefined || state.vision === undefined) return false
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+      const plano = planejarCaminhada(map, token, { x, y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
+      if (plano.tipo === 'aviso') {
+        // Nada sai: a caminhada de antes para (o clique novo manda nela) e o aviso diz por quê.
+        stopWalk()
+        showMoveNotice(plano.motivo)
+        return false
+      }
+      return startWalk(tokenId, plano.trechos)
     },
     sendSignal(x, y, audience) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
