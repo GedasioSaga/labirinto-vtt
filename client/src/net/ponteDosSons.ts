@@ -42,7 +42,7 @@ export interface RedeDosSons {
   falhasDoSom(instancia: string): number
   /**
    * Os ids de áudio que esta sala mandou à conexão `clientId` (tocar ou
-   * pré-carregar): o que a F5 pode servir por `/media/<id>` a ELA. Sem
+   * pré-carregar): o que a F5 pode servir por `/sons/<id>` a ELA. Sem
    * `clientId`, a união de todas (só leitura do mestre).
    */
   midiasDeSomLiberadas(clientId?: string): string[]

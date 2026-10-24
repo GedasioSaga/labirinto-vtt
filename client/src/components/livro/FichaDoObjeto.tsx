@@ -1,6 +1,8 @@
 import type { Prop } from '../../types/map'
-import { LAYER_LABELS, propLayer } from '../../lib/layers'
+import { contextoDeCamadas } from '../../lib/camadas/consulta'
+import { nomeDaCamada } from '../../lib/camadas/mover'
 import { ehPecaNova } from '../../lib/mobilia/pecasNovas'
+import { useMapStore } from '../../stores/mapStore'
 import { MATERIAIS } from '../../texturas/meioTermo/materiais'
 import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
@@ -8,7 +10,6 @@ import { ItemNoChaoControls, type ItemNoChaoControlsProps } from '../ItemNoMapaC
 import { ItemTransformControls, type ItemTransformControlsProps } from '../ItemTransformControls'
 import { materiaisDaPeca } from '../MaterialDaPeca'
 import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
-import { PropLayerControls, type PropLayerControlsProps } from '../PropLayerControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import './fichaDoItem.css'
@@ -18,8 +19,9 @@ import './fichaDoItem.css'
  * da porta, sem perder controle). O essencial diz o que a peça É — Tipo, Vista
  * e Forma do móvel, ou o item no chão; a imagem solta não tem essencial — e as
  * fichas Aparência (só o móvel: Preencher, Cor, as cores da cama e Cor da
- * linha), No mapa (Rotação, Travado, Oculto no editor, Oculto para jogadores e
- * a Camada) e Para os jogadores (rótulo e imagem; o item no chão não tem: a
+ * linha), No mapa (Rotação, Travado, Oculto no editor e Oculto para jogadores;
+ * a Camada mora no topo da ficha desde a fatia 8 das camadas, o resumo ainda a
+ * diz) e Para os jogadores (rótulo e imagem; o item no chão não tem: a
  * imagem dele já é o que o jogador vê). "No mapa" nasce aberta: Travado e
  * Oculto são gestos de mesa e ficavam à vista, como na trava do token. Os
  * controles e os handlers são os de antes.
@@ -34,7 +36,6 @@ export interface FichaDoObjetoProps {
   /** Ligação do item no chão; ausente, o objeto de item cai no corpo do móvel, como antes. */
   itemNoChao?: Omit<ItemNoChaoControlsProps, 'item'>
   transform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
-  onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
   player: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
 }
 
@@ -51,11 +52,11 @@ function resumoDaAparencia(prop: Prop): string {
   return corPropria ? 'Cor própria' : 'Padrão'
 }
 
-/** O que pesa no mapa, numa palavra: oculto e travado antes da camada. */
-function resumoNoMapa(prop: Prop): string {
+/** O que pesa no mapa, numa palavra: oculto e travado antes da camada (a escolhida, que o seletor do topo da ficha troca). */
+function resumoNoMapa(prop: Prop, camada: string): string {
   if (prop.secret === true) return 'Oculto'
   if (prop.locked === true) return 'Travado'
-  return LAYER_LABELS[propLayer(prop)]
+  return camada
 }
 
 function resumoParaOsJogadores(prop: Prop): string {
@@ -64,7 +65,8 @@ function resumoParaOsJogadores(prop: Prop): string {
   return prop.playerImage !== undefined ? 'Com imagem' : 'Só a silhueta'
 }
 
-export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, onSetPropLayer, player }: FichaDoObjetoProps) {
+export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: FichaDoObjetoProps) {
+  const camada = useMapStore((state) => nomeDaCamada(state.map, contextoDeCamadas(state.map).camadaDe('objeto', prop)))
   const ehItem = prop.item !== undefined
   // A mesma escolha de antes: o item no chão com a ligação montada mostra o item; o resto, o móvel (se for móvel).
   const item = ehItem && itemNoChao !== undefined ? prop.item : undefined
@@ -90,7 +92,7 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, onSetPropL
             <MobiliaControls prop={prop} {...mobilia} parte="aparencia" />
           </FichaDoObjetoLembrada>
         )}
-        <FichaDoObjetoLembrada id="no-mapa" titulo="No mapa" icone="cadeado" padrao resumo={resumoNoMapa(prop)}>
+        <FichaDoObjetoLembrada id="no-mapa" titulo="No mapa" icone="cadeado" padrao resumo={resumoNoMapa(prop, camada)}>
           <ItemTransformControls
             title={titulo}
             semTitulo
@@ -100,7 +102,6 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, onSetPropL
             secret={prop.secret === true}
             {...transform}
           />
-          <PropLayerControls prop={prop} onSetPropLayer={onSetPropLayer} />
         </FichaDoObjetoLembrada>
         {!ehItem && (
           <FichaDoObjetoLembrada id="jogadores" titulo="Para os jogadores" icone="pessoa" padrao={false} resumo={resumoParaOsJogadores(prop)}>

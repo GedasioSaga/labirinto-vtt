@@ -12,6 +12,12 @@
  *   hachura no zoom normal.
  * - Madeira: tábuas que descem da cumeeira ao beiral, largura sorteada por
  *   hash, veio fraco, fresta escura entre elas e emenda de topo de vez em quando.
+ * - Palha (Meio-Termo, MT6): fileiras paralelas ao beiral cuja borda é a
+ *   espinha de peixe (um V a cada `PASSO_DA_ESPINHA_PX`, bico para a
+ *   cumeeira). A borda não é reta: uma onda sutil (`ondaDoFioDaPalha`) e a
+ *   deriva do bico com a altura tiram o risco e a grade (regra do estilo: sem
+ *   hachura). Cada metade do V pega a luz de um lado, os fios descem inclinados
+ *   e a ponta do beiral é franjada (a borda da imagem avança e recua).
  * - Luz por água vinda de cima à esquerda (como o protótipo de 18/10), cumeeira
  *   e espigão um pouco mais claros, rincão e ponta do beiral mais escuros.
  *
@@ -62,10 +68,18 @@ const BLOCO_PX = 16
 /** Largura da cumeeira clara (px do mapa a partir da emenda): o bloco rápido fica longe dela. */
 const FAIXA_DA_CUMEEIRA_PX = 2.4
 
+/** Altura de uma fileira de palha, do beiral para a cumeeira (px do mapa). */
+export const CURSO_DA_PALHA_PX = 7
+/** Largura de um V da espinha de peixe ao longo do beiral (px do mapa). */
+export const PASSO_DA_ESPINHA_PX = 12
+/** Quanto o bico do V sobe para a cumeeira (px do mapa): braço com inclinação de 0,53, o V ainda lê com a onda por cima. */
+const ALTURA_DA_ESPINHA_PX = 3.2
+
 const TAU = Math.PI * 2
 const SEMENTE_DA_TELHA = 7103
 const SEMENTE_DA_TABUA = 9241
 const SEMENTE_DO_GRAO = 3313
+const SEMENTE_DA_PALHA = 5527
 
 // ---------- tabelas (montadas uma vez, na importação) ----------
 
@@ -80,6 +94,16 @@ for (let i = 0; i < PASSOS_DO_PERFIL; i += 1) {
   PERFIL_COS[i] = Math.cos(f * TAU)
   PERFIL_SEN[i] = Math.sin(f * TAU)
   LUZ_NA_FILEIRA[i] = -0.18 * passoSuave(0.6, 1, f) + 0.045 * (1 - passoSuave(0, 0.18, f))
+}
+/**
+ * Luz ao longo de uma fileira de palha (0 = a ponta dos fios, perto do
+ * beiral; 1 = embaixo da fileira de cima): a ponta pega luz e a sombra da
+ * fileira de cima escurece AOS POUCOS (meia fileira de rampa), sem risco fino.
+ */
+const LUZ_NA_FILEIRA_DA_PALHA = new Float64Array(PASSOS_DO_PERFIL)
+for (let i = 0; i < PASSOS_DO_PERFIL; i += 1) {
+  const f = (i + 0.5) / PASSOS_DO_PERFIL
+  LUZ_NA_FILEIRA_DA_PALHA[i] = -0.2 * passoSuave(0.5, 1, f) + 0.07 * (1 - passoSuave(0, 0.22, f))
 }
 
 const PASSOS_DO_SENO = 1024
@@ -116,6 +140,10 @@ const M_DESLOCAMENTO = 8
 const M_TABUA_DO_PEDACO = 9
 const M_PEDACO = 10
 const M_SORTEIO = 11
+const M_COLUNA_DA_PALHA = 12
+const M_FILEIRA_DA_PALHA = 13
+const M_TOM_DA_PALHA = 14
+const M_FASE_DA_PALHA = 15
 
 function esquecer(): void {
   MEMORIA.fill(Number.NaN)
@@ -248,11 +276,135 @@ function luzDaMadeira(v: number, u: number, luzAoLongo: number): number {
   return luz
 }
 
+/** O bico do V anda ao longo do beiral conforme a altura: as colunas da espinha não se alinham de fileira em fileira. */
+function derivaDaEspinha(v: number): number {
+  return 1.6 * seno(v * 0.19 + 1.1)
+}
+
+/**
+ * A ONDA do fio da palha no ponto (px do mapa, somada à altura): dois senos de
+ * passo diferente ao longo do beiral, com fase que muda com a altura, então
+ * cada fileira ondula de um jeito. Até 0,85 px: sutil, só tira o risco reto.
+ */
+export function ondaDoFioDaPalha(u: number, v: number): number {
+  return 0.55 * seno(u * 0.47 + v * 0.61 + 0.4) + 0.3 * seno(u * 1.13 - v * 0.37 + 2.2)
+}
+
+const DOBRO_DA_ALTURA_DA_ESPINHA = 2 * ALTURA_DA_ESPINHA_PX
+const INVERSO_DO_PASSO_DA_ESPINHA = 1 / PASSO_DA_ESPINHA_PX
+const INVERSO_DO_CURSO_DA_PALHA = 1 / CURSO_DA_PALHA_PX
+const MASCARA_DO_SENO = PASSOS_DO_SENO - 1
+
+/** Altura do V da espinha na fração `fr` do passo (0 e 1 = fundo do V, 0,5 = bico). */
+function alturaDaEspinha(fr: number): number {
+  return fr < 0.5 ? DOBRO_DA_ALTURA_DA_ESPINHA * fr : DOBRO_DA_ALTURA_DA_ESPINHA * (1 - fr)
+}
+
+/**
+ * Em que fileira de palha cai o ponto (`v` = altura desde a ponta do beiral,
+ * `u` = régua ao longo da borda), com a parte quebrada: a borda da fileira `n`
+ * passa onde esta conta vale `n`. Cresce com `v` em todo ponto (a derivada
+ * fica acima de 0,38: 1 − 0,53 × 0,30 da deriva − 0,45 da onda), então cada
+ * coluna cruza cada borda uma vez só.
+ */
+export function fileiraDaPalha(u: number, v: number): number {
+  const q = (u + derivaDaEspinha(v)) * INVERSO_DO_PASSO_DA_ESPINHA
+  return (v - alturaDaEspinha(q - Math.floor(q)) + ondaDoFioDaPalha(u, v)) * INVERSO_DO_CURSO_DA_PALHA
+}
+
+/** O máximo que a franja recua (px do mapa). */
+const FRANJA_MAXIMA_PX = 1.6
+
+/** A franja do beiral de palha: as pontas recuam de 0 a `FRANJA_MAXIMA_PX`, em meias-luas de 4,6 px com onda. */
+function franjaDaPalha(u: number): number {
+  return 0.8 + 0.8 * seno(u * (TAU / 4.6) + 0.9 * seno(u * 0.83))
+}
+
+/*
+ * Fases da palha já em passos da tabela do seno (o ângulo × `SENO_POR_RADIANO`):
+ * a deriva do bico e as duas ondas do fio são senos de uma conta linear em `v`
+ * e `u`, então a corrida (`pintarCorridaDaPalha`) anda nelas por soma, sem
+ * multiplicar a cada pixel. Os números são os de `derivaDaEspinha` e
+ * `ondaDoFioDaPalha`.
+ */
+const DERIVA_POR_V = 0.19 * SENO_POR_RADIANO
+const DERIVA_NO_ZERO = 1.1 * SENO_POR_RADIANO
+const ONDA1_POR_U = 0.47 * SENO_POR_RADIANO
+const ONDA1_POR_V = 0.61 * SENO_POR_RADIANO
+const ONDA1_NO_ZERO = 0.4 * SENO_POR_RADIANO
+const ONDA2_POR_U = 1.13 * SENO_POR_RADIANO
+const ONDA2_POR_V = -0.37 * SENO_POR_RADIANO
+const ONDA2_NO_ZERO = 2.2 * SENO_POR_RADIANO
+
+/**
+ * Palha em espinha de peixe no ponto (mesmos `v` e `u` da telha). Devolve a
+ * variação de luz. É a mesma conta de `fileiraDaPalha` (deriva, V e onda),
+ * escrita por extenso com a tabela do seno para não depender do inline das
+ * funções pequenas no laço por pixel.
+ */
+function luzDaPalha(v: number, u: number, luzAoLongo: number): number {
+  return luzDaPalhaNasFases(
+    v,
+    u,
+    luzAoLongo,
+    derivaNaFase(v * DERIVA_POR_V + DERIVA_NO_ZERO),
+    u * ONDA1_POR_U + v * ONDA1_POR_V + ONDA1_NO_ZERO,
+    u * ONDA2_POR_U + v * ONDA2_POR_V + ONDA2_NO_ZERO,
+  )
+}
+
+/** O quanto o bico do V anda ao longo do beiral (px do mapa), da fase da deriva em passos da tabela. */
+function derivaNaFase(fase: number): number {
+  return 1.6 * SENO[(fase | 0) & MASCARA_DO_SENO]
+}
+
+/** `luzDaPalha` com a deriva (px) e as fases das ondas (em passos da tabela) já calculadas. */
+function luzDaPalhaNasFases(v: number, u: number, luzAoLongo: number, deriva: number, faseDaOnda1: number, faseDaOnda2: number): number {
+  const ul = u + deriva
+  const q = ul * INVERSO_DO_PASSO_DA_ESPINHA
+  const coluna = Math.floor(q)
+  const fr = q - coluna
+  // Metade esquerda do V (sobe) ou direita (desce): cada uma pega a luz de um lado, como a telha.
+  const sobe = fr < 0.5
+  const braco = sobe ? 1 : -1
+  const onda = 0.55 * SENO[(faseDaOnda1 | 0) & MASCARA_DO_SENO] + 0.3 * SENO[(faseDaOnda2 | 0) & MASCARA_DO_SENO]
+  const s = (v - (sobe ? DOBRO_DA_ALTURA_DA_ESPINHA * fr : DOBRO_DA_ALTURA_DA_ESPINHA * (1 - fr)) + onda) * INVERSO_DO_CURSO_DA_PALHA
+  const fileira = Math.floor(s)
+  const m = MEMORIA
+  if (m[M_COLUNA_DA_PALHA] !== coluna || m[M_FILEIRA_DA_PALHA] !== fileira) {
+    m[M_COLUNA_DA_PALHA] = coluna
+    m[M_FILEIRA_DA_PALHA] = fileira
+    // Um sorteio só por feixe (o V entre duas bordas): o tom e a fase dos fios saem dele.
+    const sorteio = hash(coluna, fileira, SEMENTE_DA_PALHA)
+    // Cada feixe um tom, contido: com 0,09 os feixes viravam colunas de V ("tricô" a 3x, revisão de design da MT6).
+    m[M_TOM_DA_PALHA] = (sorteio - 0.5) * 0.05
+    m[M_FASE_DA_PALHA] = sorteio * TAU * 7
+  }
+  return (
+    0.045 + // devolve a média ao tom escolhido (a sombra da fileira escurece em média)
+    m[M_TOM_DA_PALHA] +
+    LUZ_NA_FILEIRA_DA_PALHA[((s - fileira) * PASSOS_DO_PERFIL) | 0] +
+    braco * luzAoLongo * 0.02 +
+    // Os fios descem quase retos, um pouco inclinados para o lado do braço (a espinha), ~2 px entre um e outro:
+    // o fio é que dá a textura, não o feixe (autocorrelação a 1 fileira, a 3x: 0,324 antes, meta <= 0,25).
+    SENO[((((ul - braco * 0.15 * v) * 3.2 + m[M_FASE_DA_PALHA]) * SENO_POR_RADIANO) | 0) & MASCARA_DO_SENO] * 0.1
+  )
+}
+
 // ---------- a imagem ----------
 
 interface Pincel {
   readonly geo: GeometriaDasAguas
   readonly madeira: boolean
+  readonly palha: boolean
+  /** Média dos 3 canais da cor: para onde o claro da palha anda. */
+  readonly neutro: number
+  /**
+   * Altura a partir da qual a franja não muda mais nada: a ponta escura acaba
+   * (2,2 px) e a cobertura já é cheia (0,5 / k). Acima dela a franja nem é
+   * calculada (os mesmos bytes, mais rápido).
+   */
+  readonly alcanceDaFranja: number
   readonly k: number
   readonly baseR: number
   readonly baseG: number
@@ -265,7 +417,11 @@ interface Pincel {
 function luzDoDesenho(pincel: Pincel, agua: number, v: number, u: number): number {
   return (
     pincel.luzDaAgua[agua] +
-    (pincel.madeira ? luzDaMadeira(v, u, pincel.luzAoLongo[agua]) : luzDaTelha(v, u, pincel.luzAoLongo[agua]))
+    (pincel.madeira
+      ? luzDaMadeira(v, u, pincel.luzAoLongo[agua])
+      : pincel.palha
+        ? luzDaPalha(v, u, pincel.luzAoLongo[agua])
+        : luzDaTelha(v, u, pincel.luzAoLongo[agua]))
   )
 }
 
@@ -295,14 +451,26 @@ function pintarPixel(
     if (rincao) luz -= 0.12 * (1 - passoSuave(0.4, 1.7, ate))
     else luz += 0.1 * (1 - passoSuave(0.9, FAIXA_DA_CUMEEIRA_PX, ate))
   }
-  if (v < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, v)) // ponta do beiral escura
+  // Na palha a ponta do beiral é a franja: a borda recua conforme a régua.
+  const vb = pincel.palha && v < pincel.alcanceDaFranja ? v - franjaDaPalha(u) : v
+  if (vb < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, vb)) // ponta do beiral escura
   luz += GRAO[(Math.floor(y * 2) & (LADO_DO_GRAO - 1)) * LADO_DO_GRAO + (Math.floor(x * 2) & (LADO_DO_GRAO - 1))]
-  const somada = LUZ_SOMADA * luz
   const p = pincel.pixels
-  p[o] = pincel.baseR * (1 + luz) + somada
-  p[o + 1] = pincel.baseG * (1 + luz) + somada
-  p[o + 2] = pincel.baseB * (1 + luz) + somada
-  const cobertura = v * pincel.k + 0.5
+  if (pincel.palha) {
+    // A palha clareia para o neutro (ponta queimada de sol): o claro não fica mais amarelo que a cor
+    // escolhida; o escuro é o de sempre. Sem `if` no sinal da luz (é sorteado pixel a pixel): max e min.
+    const escuro = Math.min(luz, 0)
+    const d = LUZ_SOMADA * escuro + Math.max(luz, 0) * (pincel.neutro + LUZ_SOMADA)
+    p[o] = pincel.baseR * (1 + escuro) + d
+    p[o + 1] = pincel.baseG * (1 + escuro) + d
+    p[o + 2] = pincel.baseB * (1 + escuro) + d
+  } else {
+    const somada = LUZ_SOMADA * luz
+    p[o] = pincel.baseR * (1 + luz) + somada
+    p[o + 1] = pincel.baseG * (1 + luz) + somada
+    p[o + 2] = pincel.baseB * (1 + luz) + somada
+  }
+  const cobertura = vb * pincel.k + 0.5
   p[o + 3] = cobertura >= 1 ? 255 : cobertura * 255
 }
 
@@ -347,6 +515,63 @@ function pintarCorrida(
   }
 }
 
+/**
+ * A corrida da PALHA (a de telha e madeira, `pintarCorrida`, é a de antes da
+ * MT6, byte a byte e no tempo). As fases da deriva e das ondas andam por soma;
+ * a franja só é olhada perto do beiral; o claro vai para o neutro.
+ */
+function pintarCorridaDaPalha(
+  pincel: Pincel,
+  o: number,
+  x: number,
+  y: number,
+  passo: number,
+  agua: number,
+  v: number,
+  u: number,
+  passoV: number,
+  passoU: number,
+  quantos: number,
+): void {
+  const p = pincel.pixels
+  const { baseR, baseG, baseB, k, alcanceDaFranja } = pincel
+  const claro = pincel.neutro + LUZ_SOMADA
+  const luzDaAgua = pincel.luzDaAgua[agua]
+  const luzAoLongo = pincel.luzAoLongo[agua]
+  const linhaDoGrao = (Math.floor(y * 2) & (LADO_DO_GRAO - 1)) * LADO_DO_GRAO
+  let gx = x * 2
+  const passoDoGrao = passo * 2
+  let faseDaDeriva = v * DERIVA_POR_V + DERIVA_NO_ZERO
+  let faseDaOnda1 = u * ONDA1_POR_U + v * ONDA1_POR_V + ONDA1_NO_ZERO
+  let faseDaOnda2 = u * ONDA2_POR_U + v * ONDA2_POR_V + ONDA2_NO_ZERO
+  const passoDaDeriva = passoV * DERIVA_POR_V
+  const passoDaOnda1 = passoU * ONDA1_POR_U + passoV * ONDA1_POR_V
+  const passoDaOnda2 = passoU * ONDA2_POR_U + passoV * ONDA2_POR_V
+  // Água de beiral deitado ou em pé (régua ao longo de x ou de y): numa delas a altura não muda na corrida e a deriva é uma só.
+  const derivaFixa = passoV === 0 ? derivaNaFase(faseDaDeriva) : Number.NaN
+  for (let i = 0; i < quantos; i += 1, o += 4) {
+    const deriva = passoV === 0 ? derivaFixa : derivaNaFase(faseDaDeriva)
+    let luz = luzDaAgua + luzDaPalhaNasFases(v, u, luzAoLongo, deriva, faseDaOnda1, faseDaOnda2)
+    const vb = v < alcanceDaFranja ? v - franjaDaPalha(u) : v
+    if (vb < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, vb)) // ponta do beiral escura
+    luz += GRAO[linhaDoGrao + (Math.floor(gx) & (LADO_DO_GRAO - 1))]
+    // O claro da palha vai para o neutro, sem `if` no sinal da luz (como em `pintarPixel`).
+    const escuro = Math.min(luz, 0)
+    const d = LUZ_SOMADA * escuro + Math.max(luz, 0) * claro
+    p[o] = baseR * (1 + escuro) + d
+    p[o + 1] = baseG * (1 + escuro) + d
+    p[o + 2] = baseB * (1 + escuro) + d
+    const cobertura = vb * k + 0.5
+    p[o + 3] = cobertura >= 1 ? 255 : cobertura * 255
+    v += passoV
+    u += passoU
+    gx += passoDoGrao
+    faseDaDeriva += passoDaDeriva
+    faseDaOnda1 += passoDaOnda1
+    faseDaOnda2 += passoDaOnda2
+  }
+}
+
 function pintarDaAmostra(pincel: Pincel, o: number, x: number, y: number, a: AmostraDaAgua): void {
   pintarPixel(pincel, o, x, y, a.agua, a.dist + BEIRAL_PX, a.aoLongo + pincel.geo.regua[a.agua], a.vizinha, a.ateEmenda, a.rincao)
 }
@@ -357,9 +582,43 @@ function pintarDaAmostra(pincel: Pincel, o: number, x: number, y: number, a: Amo
  * sem lançar. Cor inválida: a padrão do modelo. Modelo desconhecido: telhas.
  */
 export function pintarTelhado(poligono: readonly PontoDoTelhado[], modelo: ModeloDoTeto, corHex: string, escala = 1): ImagemDoTelhado {
+  const pintura = comecarTelhado(poligono, modelo, corHex, escala)
+  pintura.pintarLinhas(Number.POSITIVE_INFINITY)
+  return pintura.imagem
+}
+
+/** Um telhado sendo pintado aos poucos: a imagem já existe (vazia) e cada chamada pinta mais linhas. */
+export interface PinturaDoTelhado {
+  readonly imagem: ImagemDoTelhado
+  /** Pinta até `quantas` linhas a mais (de cima para baixo). Devolve `true` quando a imagem está pronta. */
+  pintarLinhas: (quantas: number) => boolean
+}
+
+interface EstadoDaPintura {
+  readonly geo: GeometriaDasAguas
+  readonly pincel: Pincel
+  readonly ponta: AmostraDaAgua
+  readonly outraPonta: AmostraDaAgua
+  readonly cruzamentos: Float64Array
+  readonly origemX: number
+  readonly origemY: number
+  readonly largura: number
+  readonly passo: number
+  readonly alcance: number
+  readonly folgaDoBloco: number
+}
+
+/**
+ * `pintarTelhado` em pedaços (o renderer pinta a palha em fatias de 8 ms): os
+ * mesmos bytes, pintando a imagem inteira de uma vez ou linha a linha.
+ */
+export function comecarTelhado(poligono: readonly PontoDoTelhado[], modelo: ModeloDoTeto, corHex: string, escala = 1): PinturaDoTelhado {
   const geo = prepararAguas(poligono)
-  if (geo === null) return { largura: 0, altura: 0, origemX: 0, origemY: 0, escala: escalaDoTelhado(1, 1, escala), pixels: new Uint8ClampedArray(0) }
-  const modeloUsado: ModeloDoTeto = modelo === 'madeira' ? 'madeira' : 'telhas'
+  if (geo === null) {
+    const vazia = { largura: 0, altura: 0, origemX: 0, origemY: 0, escala: escalaDoTelhado(1, 1, escala), pixels: new Uint8ClampedArray(0) }
+    return { imagem: vazia, pintarLinhas: () => true }
+  }
+  const modeloUsado: ModeloDoTeto = modelo === 'madeira' || modelo === 'palha' ? modelo : 'telhas'
   const [baseR, baseG, baseB] = rgb(corDoTetoOuPadrao(modeloUsado, corHex))
 
   const margem = BEIRAL_PX + 1
@@ -380,21 +639,48 @@ export function pintarTelhado(poligono: readonly PontoDoTelhado[], modelo: Model
     luzDaAgua[i] = (-geo.nx[i] * LUZ_X - geo.ny[i] * LUZ_Y) * FORCA_DA_LUZ_NA_AGUA
     luzAoLongo[i] = geo.dx[i] * LUZ_X + geo.dy[i] * LUZ_Y
   }
-  const pincel: Pincel = { geo, madeira: modeloUsado === 'madeira', k, baseR, baseG, baseB, luzDaAgua, luzAoLongo, pixels }
-  esquecer()
-
-  const ponta = novaAmostraDaAgua()
-  const outraPonta = novaAmostraDaAgua()
-  const cruzamentos = new Float64Array(n)
+  const pincel: Pincel = { geo, madeira: modeloUsado === 'madeira', palha: modeloUsado === 'palha', neutro: (baseR + baseG + baseB) / 3, alcanceDaFranja: FRANJA_MAXIMA_PX + Math.max(2.2, 0.5 / k), k, baseR, baseG, baseB, luzDaAgua, luzAoLongo, pixels }
   const passo = 1 / k
-  // Meio pixel além do beiral, para a borda sair suavizada.
-  const alcance = BEIRAL_PX + 0.5 * passo
-  // Com a mesma dona e a mesma vizinha nas duas pontas, a distância até a emenda é linear ao longo do
-  // bloco: as duas pontas longe da faixa da cumeeira bastam (1 px de folga para o arredondamento).
-  const folgaDoBloco = FAIXA_DA_CUMEEIRA_PX + 1
+  const estado: EstadoDaPintura = {
+    geo,
+    pincel,
+    ponta: novaAmostraDaAgua(),
+    outraPonta: novaAmostraDaAgua(),
+    cruzamentos: new Float64Array(n),
+    origemX,
+    origemY,
+    largura,
+    passo,
+    // Meio pixel além do beiral, para a borda sair suavizada.
+    alcance: BEIRAL_PX + 0.5 * passo,
+    // Com a mesma dona e a mesma vizinha nas duas pontas, a distância até a emenda é linear ao longo do
+    // bloco: as duas pontas longe da faixa da cumeeira bastam (1 px de folga para o arredondamento).
+    folgaDoBloco: FAIXA_DA_CUMEEIRA_PX + 1,
+  }
+  const imagem: ImagemDoTelhado = { largura, altura, origemX, origemY, escala: k, pixels }
+  let linha = 0
+  return {
+    imagem,
+    pintarLinhas(quantas: number): boolean {
+      const ate = Math.min(altura, linha + Math.max(1, quantas))
+      if (linha < ate) {
+        // A memória curta só lembra sorteios puros: outra pintura no meio não muda nada, mas começa limpa.
+        esquecer()
+        pintarAsLinhas(estado, linha, ate)
+        linha = ate
+      }
+      return linha >= altura
+    },
+  }
+}
+
+/** Pinta as linhas `py0` (inclusive) a `py1` (exclusive) da imagem. */
+function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void {
+  const { geo, pincel, ponta, outraPonta, cruzamentos, origemX, origemY, largura, passo, alcance, folgaDoBloco } = estado
+  const { k, palha } = pincel
   const { regua, nx, dx } = geo
 
-  for (let py = 0; py < altura; py += 1) {
+  for (let py = py0; py < py1; py += 1) {
     const y = origemY + (py + 0.5) * passo
     const total = cruzamentosDaLinha(geo, y, cruzamentos)
     let proximo = 0
@@ -427,7 +713,9 @@ export function pintarTelhado(poligono: readonly PontoDoTelhado[], modelo: Model
       ) {
         // Mesma água nas duas pontas e longe de emenda: o plano é um só, altura e régua andam por soma.
         const a = ponta.agua
-        pintarCorrida(pincel, (py * largura + px0) * 4, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1)
+        const o = (py * largura + px0) * 4
+        if (palha) pintarCorridaDaPalha(pincel, o, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1)
+        else pintarCorrida(pincel, o, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1)
         px0 = px1 + 1
         continue
       }
@@ -446,5 +734,4 @@ export function pintarTelhado(poligono: readonly PontoDoTelhado[], modelo: Model
       px0 = px1 + 1
     }
   }
-  return { largura, altura, origemX, origemY, escala: k, pixels }
 }

@@ -112,20 +112,21 @@ describe('colegas no palco', () => {
   })
 })
 
-describe('música importada', () => {
+describe('música importada (base local, a da Visão de jogador; a sala está em musicaImportada.test.ts)', () => {
   const sinal = (): AbortSignal => new AbortController().signal
+  const BASE = 'http://asset.localhost/midia/'
 
   function fontes(resposta: () => Promise<Response>, decodificar: FontesDaMusica['decodificar'] = () => Promise.resolve({ duration: 41 } as AudioBuffer)): FontesDaMusica {
-    return { buscar: vi.fn(resposta) as unknown as typeof fetch, decodificar, base: '/media/' }
+    return { buscar: vi.fn(resposta) as unknown as typeof fetch, decodificar, origem: { tipo: 'local', base: BASE } }
   }
 
-  it('baixa de /media/<id> mostrando o progresso e decodifica', async () => {
+  it('baixa da base local mostrando o progresso e decodifica', async () => {
     const corpo = new Uint8Array(1000)
     const f = fontes(() => Promise.resolve(new Response(corpo, { status: 200, headers: { 'content-length': '1000' } })))
     const estados: string[] = []
     const buffer = await baixarMusica(`midia:${AUDIO_ID}`, (e) => estados.push(e.fase === 'baixando' ? `baixando ${e.fracao}` : e.fase), sinal(), f)
     expect(buffer.duration).toBe(41)
-    expect(f.buscar).toHaveBeenCalledWith(`/media/${AUDIO_ID}`, expect.anything())
+    expect(f.buscar).toHaveBeenCalledWith(`${BASE}${AUDIO_ID}`, expect.anything())
     expect(estados[0]).toBe('baixando 0')
     expect(estados).toContain('baixando 1')
     expect(estados.at(-1)).toBe('decodificando')

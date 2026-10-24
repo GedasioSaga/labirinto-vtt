@@ -227,17 +227,41 @@ fn assert_recusa(resposta: &Resposta, caso: &str) {
     assert_eq!(resposta.cabecalho("x-content-type-options"), Some("nosniff"), "{caso}");
 }
 
-/// O ACHADO da F5: `/media` serve áudio de `<appData>/midia` sem chave nem
-/// sala (é a música da dança). Fica verde até a F5d, que o inverte.
+/// F5d (o achado da F5, invertido): `/media` não serve áudio nenhum, de
+/// nenhum tipo, nem para o dono da chave nem com o áudio liberado a ele; é o
+/// MESMO 404 do id que não existe. A imagem da mesma pasta continua saindo, e
+/// o áudio liberado sai só por `/sons` com a chave. Mutação vermelha: tirar a
+/// recusa de áudio da rota `/media`.
 #[tokio::test]
-async fn achado_f5d_media_ainda_serve_audio_sem_chave() {
-    let sala = abrir_sala("achado").await;
-    let id = gravar(&sala.midia(), MP3, "mp3");
+async fn media_nao_serve_audio_f5d() {
+    let sala = abrir_sala("media-sem-audio").await;
+    let ana = entrar(&sala, "Ana", 70).await;
     sala.room.set_media_dir(sala.midia());
-    let resposta = pedir_bruto(&sala, 1, &requisicao("GET", &format!("/media/{id}"), &sala.addr.to_string(), None)).await;
-    assert_eq!(resposta.status, 200);
-    // A rota nova não tem esse buraco: o mesmo id, sem chave, é 404.
-    assert_recusa(&pedir_som(&sala, 1, &id, None).await, "sons sem chave");
+    let media = |id: &str| requisicao("GET", &format!("/media/{id}"), &sala.addr.to_string(), None);
+    let ausente = pedir_bruto(&sala, ana.origem, &media(&format!("{}.png", "0".repeat(64)))).await;
+    assert_eq!(ausente.status, 404);
+    let mut ids = Vec::new();
+    for (assinatura, extensao) in [(MP3, "mp3"), (OGG, "ogg"), (WAV, "wav"), (M4A, "m4a")] {
+        let id = gravar(&sala.midia(), assinatura, extensao);
+        let resposta = pedir_bruto(&sala, ana.origem, &media(&id)).await;
+        assert_eq!(resposta, ausente, "{extensao}: /media serviu áudio ou recusou diferente");
+        ids.push(id);
+    }
+    liberar(&sala, &ana, &ids);
+    for id in &ids {
+        let pela_media = pedir_bruto(&sala, ana.origem, &media(id)).await;
+        assert_eq!(pela_media, ausente, "{id}: liberado, /media serviu");
+        let pelos_sons = pedir_som(&sala, ana.origem, id, Some(&ana.chave)).await;
+        assert_eq!(pelos_sons.status, 200, "{id}: /sons com a chave não serviu");
+    }
+    // Sem chave, nem `/sons` serve.
+    assert_recusa(&pedir_som(&sala, ana.origem, &ids[0], None).await, "sons sem chave");
+    // A imagem da mesma pasta continua em `/media`.
+    let png = gravar(&sala.midia(), PNG, "png");
+    let imagem = pedir_bruto(&sala, ana.origem, &media(&png)).await;
+    assert_eq!(imagem.status, 200);
+    assert_eq!(imagem.cabecalho("content-type"), Some("image/png"));
+    assert_eq!(imagem.corpo, PNG);
 }
 
 #[tokio::test]

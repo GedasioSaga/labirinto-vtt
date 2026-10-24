@@ -58,22 +58,48 @@ const LIVRE: CamadaId = 'livre_d86ed5d3'
 const comLivre = (map: MapData): MapData => ({ ...map, modeloCamadas: { ordem: [...CAMADAS_PADRAO, LIVRE].map((id) => ({ id })) } })
 
 describe('pares do editor', () => {
-  it('LIMITACAO ATUAL: fichas, pinos, salas (e o telhado delas), texto e chão com camada escolhida NÃO ganham par (ficam no container de hoje)', () => {
+  /** Ficha, pino, sala (com o telhado) e chão numa livre; o texto conta à parte. */
+  function mapaComTudoNaLivre(): MapData {
     let map = createEmptyMap('m', 'Mapa', 16, 12, 64)
     map = addToken(map, { id: 't1', characterId: null, name: 'Ana', x: 96, y: 96, size: 1, image: null, camada: LIVRE })
     map = addPin(map, { ...buildPin('p1', { x: 160, y: 160 }, 'exclamacao'), camada: LIVRE })
     const sala = buildRoomFromDraft('r1', ['w1', 'w2', 'w3', 'w4'], { x: 64, y: 64 }, { x: 448, y: 384 }, undefined, undefined, 'Sala')
-    map = addRoom(map, { ...sala.region, camada: LIVRE, room: { ...(sala.region.room ?? { shape: 'rect', name: 'Sala' }), camadaDoTelhado: LIVRE } }, sala.walls)
+    map = addRoom(map, { ...sala.region, camada: LIVRE, room: { ...(sala.region.room ?? { shape: 'rect', name: 'Sala' }), roof: true, camadaDoTelhado: LIVRE } }, sala.walls)
     map = addDrawing(map, { ...buildTextDrawing('d1', { x: 200, y: 200 }, '#ffffff', 20), camada: LIVRE })
     const forma = buildBlocosShape(64, [{ col: 1, row: 1 }])
     if (forma === null) throw new Error('sem forma')
-    map = addFloorPiece(map, { ...buildFloorPiece('f1', forma, 'add'), camada: LIVRE })
-    const pares = criarParesDoEditor()(comLivre(map))
+    return comLivre(addFloorPiece(map, { ...buildFloorPiece('f1', forma, 'add'), camada: LIVRE }))
+  }
+
+  it('fatia 3b: fichas, pinos e o telhado da sala com camada escolhida ganham par e nó próprio', () => {
+    const map = mapaComTudoNaLivre()
+    const pares = criarParesDoEditor()(map)
     const faixasDaLivre = pares.filter((par) => par.camada === LIVRE).map((par) => par.faixa)
-    // Hoje nenhuma dessas faixas divide itens por nó. Quando a fatia 3b chegar, este teste muda junto.
-    expect(faixasDaLivre).toEqual([])
+    for (const faixa of ['tokensContainer', 'pinsContainer', 'telhadosContainer']) expect(faixasDaLivre, faixa).toContain(faixa)
     const { pilha } = montarPilha()
-    pilha.atualizar({ modelo: comLivre(map).modeloCamadas ?? { ordem: [] }, alfa: () => 1, pares })
+    pilha.atualizar({ modelo: map.modeloCamadas ?? { ordem: [] }, alfa: () => 1, pares })
+    for (const faixa of ['tokensContainer', 'pinsContainer', 'telhadosContainer']) {
+      const nos = pilha.nosDaFaixa(faixa)
+      expect(nos.map((n) => n.camadas.join('+')), faixa).toEqual([faixa === 'telhadosContainer' ? 'telhados' : faixa === 'pinsContainer' ? 'anotacoes' : 'tokens', LIVRE])
+    }
+  })
+
+  it('LIMITACAO ATUAL: salas (fundo, borda, nome), texto e chão com camada escolhida NÃO ganham par (ficam no container de hoje)', () => {
+    const faixasDaLivre = criarParesDoEditor()(mapaComTudoNaLivre())
+      .filter((par) => par.camada === LIVRE)
+      .map((par) => par.faixa)
+    for (const faixa of ['regionsContainer', 'regionStrokesContainer', 'roomNamesContainer', 'textLabelsContainer', 'floorGraphics', 'mapRasterSprite', 'carimbos']) {
+      expect(faixasDaLivre, faixa).not.toContain(faixa)
+    }
+  })
+
+  it('mapa sem camada escolhida: nenhum par fora do nativo, a pilha não cria nó', () => {
+    let map = createEmptyMap('m', 'Mapa', 16, 12, 64)
+    map = addToken(map, { id: 't1', characterId: null, name: 'Ana', x: 96, y: 96, size: 1, image: null })
+    map = addPin(map, buildPin('p1', { x: 160, y: 160 }, 'exclamacao'))
+    const pares = criarParesDoEditor()(map)
+    const { pilha } = montarPilha()
+    pilha.atualizar({ modelo: { ordem: CAMADAS_PADRAO.map((id) => ({ id })) }, alfa: () => 1, pares })
     expect(pilha.criados()).toBe(0)
   })
 

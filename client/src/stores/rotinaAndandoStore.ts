@@ -1,8 +1,10 @@
 /// <reference types="vite/client" />
 import { create } from 'zustand'
+import { type AvisoDePortaTrancada, avisosDePortaTrancada, mesmosAvisos } from '../lib/avisosDaRotina'
 import { ORCAMENTO_POR_QUADRO_MS } from '../lib/caminhamento/agenda'
 import { comPortasDoNpc, type MotorDosNpcs, motorComRelogio, type PortaDoNpc, QUADRO_DA_AGENDA_MS } from '../lib/caminhamento/tiqueDosNpcs'
 import { adiarEsperas, chaveDaRotina, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
+import type { CenaDaRotina } from '../lib/rotinaDoNpc'
 import type { MapData } from '../types/map'
 import { subscribeToOpenings, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
@@ -21,6 +23,12 @@ import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcs
  */
 interface RotinaAndandoState {
   andando: RotinasAndando
+  /**
+   * AVISO AO MESTRE: as portas trancadas que param quem anda, uma por NPC e
+   * porta (`lib/avisosDaRotina.ts`). A mesma lista enquanto nada muda: a tela
+   * (`components/AvisoDaRotina.tsx`) não redesenha a cada tique.
+   */
+  avisos: readonly AvisoDePortaTrancada[]
   /** Fichas que um jogador segura: ficam onde estão, com a rotina ligada. */
   fixas: ReadonlySet<string>
   ligar: (tokenId: string) => void
@@ -83,9 +91,21 @@ function aplicarPortas(portas: readonly PortaDoNpc[]): void {
   }
 }
 
+/** Os avisos de `andando`, cada ficha no mapa da cena onde está agora (a aberta pelo mapa vivo, as de fundo pelo cache). */
+function avisosDaRotina(andando: RotinasAndando): AvisoDePortaTrancada[] {
+  // As cenas só são lidas se alguém estiver parado por porta: o tique comum não paga a busca.
+  let cenas: readonly CenaDaRotina[] | null = null
+  return avisosDePortaTrancada('rotina', andando, (tokenId) => {
+    cenas ??= useAdventureStore.getState().cenasDaRotina()
+    return cenas.find((c) => c.map.tokens.some((t) => t.id === tokenId))?.map
+  })
+}
+
 export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => {
   const trocar = (andando: RotinasAndando) => {
-    if (andando !== get().andando) set({ andando })
+    const avisos = avisosDaRotina(andando)
+    const mudouAviso = !mesmosAvisos(avisos, get().avisos)
+    if (andando !== get().andando || mudouAviso) set(mudouAviso ? { andando, avisos } : { andando })
     acertarRelogio(andando)
   }
   const largar = (ids: Iterable<string>) => {
@@ -94,6 +114,7 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
   }
   return {
     andando: new Map(),
+    avisos: [],
     fixas: new Set(),
     ligar: (tokenId) => trocar(ligarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), tokenId, estadosDaAventura(), agoraDosNpcs())),
     desligar: (tokenId) => {
@@ -122,6 +143,16 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
 // aqui — a ficha segue andando na cena de fundo.
 const pararAoAbrir = subscribeToOpenings(() => useRotinaAndandoStore.getState().reset())
 
+// AVISO AO MESTRE: o mestre destrancou (ou trancou) uma porta do mapa aberto —
+// o aviso acompanha na hora, sem esperar tique (com os NPCs pausados não há tique).
+const seguirAsPortas = useMapStore.subscribe((estado, antes) => {
+  if (estado.map.walls === antes.map.walls) return
+  const { andando, avisos } = useRotinaAndandoStore.getState()
+  if (andando.size === 0) return
+  const novos = avisosDaRotina(andando)
+  if (!mesmosAvisos(novos, avisos)) useRotinaAndandoStore.setState({ avisos: novos })
+})
+
 // PAUSA GERAL: pausar para o relógio sem desligar ninguém; retomar empurra as
 // esperas no posto pelo tempo pausado e religa o relógio.
 const seguirAPausa = assinarPausa(
@@ -141,6 +172,7 @@ const seguirAPausa = assinarPausa(
 import.meta.hot?.accept(() => import.meta.hot?.invalidate())
 import.meta.hot?.dispose(() => {
   pararAoAbrir()
+  seguirAsPortas()
   seguirAPausa()
   if (relogio !== null) clearInterval(relogio)
   relogio = null

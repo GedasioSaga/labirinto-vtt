@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import type { LeverDoorOption } from '../lib/lever'
-import { guardarAudio, lerAudioGuardado } from '../lib/midiaNoDisco'
+import { lerAudioGuardado } from '../lib/midiaNoDisco'
+import { guardarMusicaDaDanca } from '../lib/musicaDaDancaNaAventura'
+import { useBibliotecaDeSonsStore } from '../stores/bibliotecaDeSonsStore'
 import {
   prepararMusicaImportada,
   reajustar,
@@ -82,7 +84,8 @@ async function decodificarNoNavegador(bytes: Uint8Array): Promise<AudioDecodific
 }
 
 const CAMINHO_DO_APP: CaminhoDaMusica = {
-  guardar: guardarAudio,
+  // SONS F5d: também na pasta da aventura aberta (a da biblioteca de sons), de onde `/sons` serve a mesa.
+  guardar: (bytes) => guardarMusicaDaDanca(bytes, useBibliotecaDeSonsStore.getState().dir),
   ler: lerAudioGuardado,
   decodificar: decodificarNoNavegador,
   preparar: prepararMusicaImportada,

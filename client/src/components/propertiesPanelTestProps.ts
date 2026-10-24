@@ -76,7 +76,6 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
     doorMode: { mode: 'porta', onModeChange: nada },
     wallStyle: { wallKind: undefined, onWallKindChange: nada },
     selectedProp: null,
-    onSetPropLayer: nada,
     propTransform: { onLockedChange: nada },
     propPlayer: { onLabelChange: nada, onShowImageChange: nada },
     propMobilia: { onTipoChange: nada, onVistaChange: nada, onFormaChange: nada, onAparenciaChange: nada },

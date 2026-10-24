@@ -40,7 +40,8 @@ describe('mapFile — modelo e cor do telhado', () => {
   })
 
   it('modelo desconhecido sai; a cor válida fica', () => {
-    const room = doArquivo({ modeloDoTeto: 'palha', corDoTeto: '#4d5f4f' }).regions[0].room
+    // 'palha' virou modelo de verdade na MT6 (`telhadoPalha.rede.test.ts`); 'sape' segue desconhecido.
+    const room = doArquivo({ modeloDoTeto: 'sape', corDoTeto: '#4d5f4f' }).regions[0].room
     expect(room !== undefined && 'modeloDoTeto' in room).toBe(false)
     expect(room?.corDoTeto).toBe('#4d5f4f')
   })

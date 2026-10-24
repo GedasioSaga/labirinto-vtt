@@ -158,6 +158,8 @@ export interface Pilha<N> {
   criados(): number
   /** As camadas de cada nó que desenha, de BAIXO para CIMA ("chao,salas,paredes+portas,…"): a ordem REAL da pilha, para os testes de ponta a ponta. */
   ordemDasCamadas(): string
+  /** Cada nó que desenha, de BAIXO para CIMA, com a faixa: "tokensContainer:tokens,tokensContainer:livre_x,…" (o nó de cada TIPO de item, para os testes de ponta a ponta). */
+  ordemDosNos(): string
   /** Solta todos os nós criados (desmonte). */
   destruir(): void
 }
@@ -254,6 +256,11 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
         .filter((p) => p.camadas.length > 0)
         .map((p) => p.camadas.join('+'))
         .join(','),
+    ordemDosNos: () =>
+      plano
+        .filter((p) => p.camadas.length > 0)
+        .map((p) => `${p.faixa}:${p.camadas.join('+')}`)
+        .join(','),
     destruir() {
       for (const { no, plano: dele } of criados.values()) {
         pai.removeChild(no)
@@ -288,6 +295,20 @@ export function distribuir<N, T>(itens: T[], nos: readonly NoDaFaixa<N>[], camad
   const baldes: T[][] = nos.map(() => [])
   for (const item of itens) baldes[porCamada.get(camadaDe(item)) ?? indiceDaBase].push(item)
   return nos.map((n, i) => ({ no: n.no, itens: baldes[i] }))
+}
+
+/**
+ * O nó de cada item, para quem guarda as vistas por id num renderer SÓ (as
+ * fichas): a vista muda de nó em vez de nascer de novo, e o renderer segue
+ * único (zoom, levantar, pulso da vez). `undefined` = a faixa tem um nó só
+ * (caminho rápido: nada muda de lugar). Item de camada sem nó cai no de hoje.
+ */
+export function noDoItem<N, T>(nos: readonly NoDaFaixa<N>[], camadaDe: (item: T) => CamadaId): ((item: T) => N) | undefined {
+  const base = nos.find((n) => n.base) ?? nos[0]
+  if (nos.length < 2 || base === undefined) return undefined
+  const porCamada = new Map<CamadaId, N>()
+  for (const n of nos) for (const c of n.camadas) if (!porCamada.has(c)) porCamada.set(c, n.no)
+  return (item) => porCamada.get(camadaDe(item)) ?? base.no
 }
 
 /** Um renderer com estado (cache de sprite, relógio, gradiente) por nó da faixa. */

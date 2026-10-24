@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camadas livres</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #f5f5f5; --ink: #2d3142; --muted: #4f5d75; --soft: #7a8399; --rule: rgba(45,49,66,0.10); --accent: #eb6c36; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Geist', sans-serif; }
+  main { max-width: 800px; margin: 0 auto; padding: 40px 16px 32px; }
+  .eyebrow { font-family: 'Geist Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.75rem; margin: 0 0 8px; }
+  h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.25rem; margin: 32px 0 8px; }
+  p, li { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  p { margin: 0 0 12px; }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  svg { width: 100%; height: auto; display: block; }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--rule); font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--soft); }
+  code { font-family: 'Geist Mono', monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Labirinto VTT · fase 3 · fatias 6 e 7 · camadas livres</p>
+  <h1>Camadas livres e modelo compartilhado</h1>
+  <p>O que o mestre faz no painel das 13 camadas e por onde isso passa até a tela do jogador. A lista de camadas (nomes e ordem) é UMA por aventura; cada cena guarda o próprio estado (olhos, cadeado, opacidade). Camada livre é a que o mestre cria: o id é <code>livre_</code> mais 8 hexa sorteados, nunca derivado do nome. O desenho da pilha em si está em <a href="pilha-de-camadas.html">pilha-de-camadas</a>.</p>
+
+  <svg viewBox="0 0 720 496" role="img" aria-labelledby="camadas-livres-title camadas-livres-desc">
+    <title id="camadas-livres-title">Camadas livres: do painel ao jogador</title>
+    <desc id="camadas-livres-desc">O painel de camadas muda o mapa da cena; o modelo de camadas é copiado para a aventura e salvo no disco. O editor desenha a pilha pela lista, e o recorte do host manda ao jogador só o id e a opacidade de cada camada, nunca o nome.</desc>
+    <defs>
+      <marker id="cl-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="cl-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+      </marker>
+    </defs>
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+    <!-- Setas antes das caixas -->
+    <!-- Painel -> mapa da cena -->
+    <path d="M192 72 H280" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="204" y="52" width="64" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="236" y="61" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CRIA/ORDENA</text>
+    <!-- Mapa da cena -> pilha do editor -->
+    <path d="M440 72 H528" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="448" y="52" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="484" y="61" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ORDEM + ALFA</text>
+    <!-- Mapa da cena <-> modelo da aventura (duas setas paralelas) -->
+    <path d="M344 112 V176" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="256" y="138" width="80" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="332" y="147" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.06em">COPIA O MODELO</text>
+    <path d="M376 176 V112" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="384" y="138" width="64" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="388" y="147" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">PÕE NA CENA</text>
+    <!-- Modelo da aventura -> arquivos -->
+    <path d="M440 216 H528" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="464" y="196" width="40" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="484" y="205" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SALVA</text>
+    <!-- Mapa da cena -> recorte do host -->
+    <path d="M280 96 H244 Q236 96 236 104 V208 Q236 216 228 216 H192" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="148" y="138" width="80" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="224" y="147" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="end" letter-spacing="0.06em">MAPA COMPLETO</text>
+    <!-- Recorte do host -> jogador (rede) -->
+    <path d="M112 256 V320" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#cl-arrow-link)"/>
+    <rect x="120" y="282" width="68" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="124" y="291" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">SÓ ID + ALFA</text>
+
+    <!-- Painel das camadas -->
+    <rect x="32" y="32" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="32" width="160" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+    <rect x="40" y="40" width="36" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+    <text x="58" y="49" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TELA</text>
+    <text x="112" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Painel das camadas</text>
+    <text x="112" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">LayersPanel.tsx</text>
+    <text x="112" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">olhos, cadeado, opacidade</text>
+
+    <!-- Mapa da cena -->
+    <rect x="280" y="32" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="280" y="32" width="160" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="288" y="40" width="48" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="312" y="49" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ESTADO</text>
+    <text x="360" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mapa da cena</text>
+    <text x="360" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">mapStore · modelo.ts</text>
+    <text x="360" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1 passo de Ctrl+Z por gesto</text>
+
+    <!-- Pilha do editor -->
+    <rect x="528" y="32" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="528" y="32" width="160" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="536" y="40" width="48" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="560" y="49" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">EDITOR</text>
+    <text x="608" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pilha do editor</text>
+    <text x="608" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pilhaDeCamadas.ts</text>
+    <text x="608" y="100" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ordem do painel = desenho</text>
+
+    <!-- Recorte do host -->
+    <rect x="32" y="176" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="176" width="160" height="80" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <rect x="40" y="184" width="64" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+    <text x="72" y="193" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FRONTEIRA</text>
+    <text x="112" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Recorte do host</text>
+    <text x="112" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">fogFilter.ts</text>
+    <text x="112" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">nome nunca atravessa</text>
+
+    <!-- Modelo da aventura (focal) -->
+    <rect x="280" y="176" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="280" y="176" width="160" height="80" rx="6" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="288" y="184" width="48" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+    <text x="312" y="193" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MODELO</text>
+    <text x="360" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Modelo da aventura</text>
+    <text x="360" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">adventureStore.ts</text>
+    <text x="360" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">camadas: nomes e ordem</text>
+
+    <!-- Arquivos -->
+    <rect x="528" y="176" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="528" y="176" width="160" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="536" y="184" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="556" y="193" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
+    <text x="608" y="216" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Arquivos</text>
+    <text x="608" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">adventure.json: camadas</text>
+    <text x="608" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">map.json: estado da cena</text>
+
+    <!-- Tela do jogador -->
+    <rect x="32" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="320" width="160" height="80" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <rect x="40" y="328" width="64" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+    <text x="72" y="337" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NAVEGADOR</text>
+    <text x="112" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tela do jogador</text>
+    <text x="112" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pilhaDoJogador.ts</text>
+    <text x="112" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lê id + alfa, sem nomes</text>
+
+    <!-- Aparte editorial -->
+    <line x1="280" y1="328" x2="280" y2="392" stroke="#7a8399" stroke-width="0.8"/>
+    <text x="296" y="352" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', serif">O nome da camada livre fica só na aventura.</text>
+    <text x="296" y="372" fill="#4f5d75" font-size="14" font-style="italic" font-family="'Instrument Serif', serif">Ao jogador chegam o id (livre_ + 8 hexa) e a opacidade.</text>
+
+    <!-- Legenda -->
+    <line x1="32" y1="424" x2="688" y2="424" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="32" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <rect x="104" y="440" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+    <text x="128" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TELA</text>
+    <rect x="176" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <text x="200" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ESTADO, DISCO</text>
+    <rect x="284" y="440" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="308" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
+    <rect x="360" y="440" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="384" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">MODELO COMPARTILHADO</text>
+    <rect x="504" y="440" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="528" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FRONTEIRA</text>
+    <rect x="596" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <text x="620" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NAVEGADOR</text>
+    <line x1="32" y1="469" x2="64" y2="469" stroke="#2e5aa8" stroke-width="1"/>
+    <text x="72" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">REDE: PACOTE DO MAPA</text>
+    <line x1="232" y1="469" x2="264" y2="469" stroke="#4f5d75" stroke-width="1"/>
+    <text x="272" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">DENTRO DO PROGRAMA</text>
+  </svg>
+
+  <h2>O que cada passo garante</h2>
+  <ul>
+    <li>Painel (<code>components/LayersPanel.tsx</code>): 13 linhas, de Telhados (em cima) a Chão (embaixo). Cada uma tem dois olhos (você vê; jogadores veem), cadeado e opacidade (passo de 1%; 100% remove a chave do arquivo). As livres também renomeiam, sobem e descem (teclado ou alça de arrastar) e se apagam; as 13 padrão só reordenam. "+ Nova camada" cria acima da linha aberta, com o nome "Nova camada" já selecionado. Teto de 51 livres (13 + 51 = 64).</li>
+    <li>Mapa da cena (<code>stores/mapStore.ts</code>, com <code>lib/camadas/modelo.ts</code> e <code>estado.ts</code>): cada gesto é um passo de Ctrl+Z, e um arrasto de opacidade também. Apagar uma livre devolve os itens à camada padrão do tipo e avisa "Camada X apagada: N itens voltaram às camadas padrão", com Desfazer. Mapa antigo vira v2 (<code>versaoDasCamadas: 2</code>) no primeiro controle que ele não sabe guardar, gravando as regras antigas de forma explícita (Chão segue Salas; Desenhos segue Anotações).</li>
+    <li>Modelo da aventura (<code>stores/adventureStore.ts</code>): copia <code>modeloCamadas</code> do mapa aberto para <code>adventure.camadas</code> e, ao trocar de cena, põe o modelo da aventura no mapa, no passado e no futuro do Ctrl+Z (<code>modeloParaOPasso</code>). Lista igual à padrão tira <code>camadas</code> do arquivo. Mapa solto: criar e ordenar perguntam antes de virar aventura.</li>
+    <li>Arquivos: o <code>adventure.json</code> leva só a lista; o <code>map.json</code> leva olhos, cadeado, opacidade e o campo <code>camada</code> de cada item. Camada livre que sumiu cai na camada padrão do tipo, e item escondido dos jogadores continua escondido (falha fechada). O app 0.4.36 ignora tudo isso e, ao salvar, perde a lista e os nomes (os itens ficam).</li>
+    <li>Recorte do host (<code>lib/fogFilter.ts</code>, <code>lib/camadas/doJogador.ts</code>): manda <code>camadasDoJogador</code>, uma lista de <code>{ id, alfa? }</code> na ordem do painel, só com as camadas que os jogadores veem e só quando algo difere do padrão. Nome, modelo, <code>ocultasDoJogador</code>, versão e cadeado não atravessam. Camada a 0% conta como escondida dos jogadores; Telhados escondida tira o teto, e o jogador vê o interior.</li>
+    <li>Tela do jogador: <code>lerCamadasDoJogador</code> recusa lista com mais de 64 entradas ou id com mais de 40 caracteres, e a tela cai na ordem padrão. O host não limita; um mestre com mais de 51 livres com itens faz o jogador cair na ordem padrão.</li>
+  </ul>
+
+  <footer>Fontes: client/src/components/LayersPanel.tsx · client/src/lib/camadas/modelo.ts · client/src/lib/camadas/estado.ts · client/src/lib/camadas/doJogador.ts · client/src/stores/adventureStore.ts · client/src/stores/mapStore.ts · client/src/pixi/pilhaDeCamadas.ts · client/src/player/pilhaDoJogador.ts · client/src/lib/fogFilter.ts · plano docs/planos/camadas-fase3-2026-10-22.md</footer>
+</main>
+</body>
+</html>

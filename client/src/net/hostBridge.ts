@@ -1150,7 +1150,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const janelasDeFalhaDeSom = new Map<string, { inicio: number; contagem: number }>()
   /**
    * SONS AO VIVO: por conexão, os áudios que esta sala mandou a ELA (tocar ou
-   * pré-carregar): o que a F5 pode servir por `/media` a quem pedir. Sai ao cair.
+   * pré-carregar): o que a F5 pode servir por `/sons/<id>` a quem pedir. Sai ao cair.
    */
   const midiasLiberadas = new Map<string, Set<string>>()
   /** SONS AO VIVO: a pré-carga de agora; `null` = nenhuma (a F5 chama com a audiência do seletor). */
@@ -1534,12 +1534,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * grande vai comprimida (`pacoteComprimido.ts`) e as de trás esperam por
    * ela. Nunca rejeita: falha vira toast.
    */
-  const sendToClient = criarSaidaEmOrdem((clientId, carga) => {
+  const sendToClient = criarSaidaEmOrdem((clientId, carga, original) => {
     // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
     const owner = session
     // SONS AO VIVO (F5): o áudio que ESTA mensagem entrega a ESTA conexão sai liberado no mesmo envio
     // (o servidor só serve `/sons/<id>` ao liberado). Sem áudio, sem o campo: o Rust de antes ignora.
-    const liberar = midiasDaMensagem(carga)
+    // Lido da mensagem original, não do envelope `{gz}`: o convite da dança (F5d) vai comprimido e libera a música.
+    const liberar = midiasDaMensagem(original)
     return deps.invoke('net_send', liberar.length > 0 ? { clientId, msg: carga, liberar } : { clientId, msg: carga }).then(
       () => undefined,
       (error: unknown) => {

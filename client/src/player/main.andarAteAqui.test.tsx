@@ -239,10 +239,11 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
       act(() => botao('segurar beco').click())
       act(() => itemDoMenu().click())
       respondeTrechos('aceita')
-      // Parado na esquina de cima, a oeste do prédio: dali a praça é linha reta.
+      // Parado na esquina de uma das ruas, a oeste do prédio: dali a praça é linha reta. As duas ruas
+      // custam o mesmo (empate): vale qualquer uma (F1 de CAMINHOS: no empate, compara custo, não pontos).
       const esquina = mestre().trechos().at(-1)
       expect(esquina?.x).toBeLessThanOrEqual(400)
-      expect(esquina?.y).toBeLessThan(150)
+      expect(esquina !== undefined && (esquina.y < 150 || esquina.y > 450)).toBe(true)
       expect(esquina).toBeDefined()
 
       act(() => botao('segurar praca').click())
