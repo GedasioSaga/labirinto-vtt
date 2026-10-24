@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luz do dia e da noite</title>
+<!--
+  Protótipo L4a do sistema Luz e Dia/Tarde/Noite (docs/planos/luz-dia-tarde-noite-2026-10-24.md).
+  Autocontido: abre com duplo clique, sem rede. Só PC.
+  A montagem imita o mapaDeLuz.ts planejado para L4b: uma textura a meia resolução
+  pintada com a cor do período, luzes recortadas pela parede somadas por cima
+  (blend aditivo) e o resultado aplicado sobre o mapa em multiply.
+  Tokens da interface copiados de client/src/theme.ts; cores do mapa do estilo
+  Meio-Termo (docs/design/vila-meio-termo/README.md, seção Paleta).
+-->
+<style>
+  :root {
+    --ink: #121214;
+    --stone: #1a1a1e;
+    --raised: #232328;
+    --hover: #2c2c33;
+    --sunken: #141417;
+    --canvas: #2b2b2b;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #eceae4;
+    --dim: #a2a09a;
+    --faint: #858480;
+    --brass: #e0a44a;
+    --brass-bright: #f3ba66;
+    --brass-soft: rgba(224, 164, 74, 0.14);
+    --brass-contrast: #1c1608;
+    --f-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+    --f-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    --f-num: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+    --f-code: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+    --r-s: 6px; --r-m: 10px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font: 14px/1.5 var(--f-sans);
+    min-width: 1200px;
+    padding: var(--s6) var(--s6) var(--s7);
+  }
+  h1, h2, p, dl, dd, ol { margin: 0; }
+  .topo { max-width: 1320px; margin: 0 auto var(--s5); }
+  .topo h1 {
+    font: 400 30px/1.15 var(--f-display);
+    letter-spacing: 0.005em;
+    margin-bottom: var(--s2);
+  }
+  .topo p { color: var(--dim); max-width: 72ch; }
+
+  .palco {
+    max-width: 1320px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(640px, 960px) 336px;
+    gap: var(--s5);
+    align-items: start;
+  }
+  .mapa { margin: 0; }
+  .moldura {
+    background: var(--canvas);
+    border-radius: var(--r-m);
+    overflow: hidden;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .moldura canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 600; }
+  .mapa figcaption { color: var(--dim); margin-top: var(--s3); max-width: 80ch; }
+  .mapa figcaption strong { color: var(--text); font-weight: 600; }
+
+  .painel {
+    background: var(--stone);
+    border-radius: var(--r-m);
+    box-shadow: 0 0 0 1px var(--line);
+    padding: var(--s4);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+  .painel > * { min-width: 0; }
+  fieldset.grupo { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .grupo > legend, .grupo > h2 {
+    font: 600 13px/1.3 var(--f-sans);
+    color: var(--text);
+    padding: 0;
+    margin-bottom: var(--s2);
+  }
+  .grupo + .grupo { border-top: 1px solid var(--line); padding-top: var(--s4); }
+  .nota, .motivo { color: var(--faint); font-size: 12.5px; margin-top: var(--s2); }
+  .motivo { color: var(--dim); }
+
+  /* Controle segmentado em cima de rádio nativo: teclado e leitor de tela de graça. */
+  .segmentos {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    background: var(--sunken);
+    border-radius: var(--r-s);
+    padding: 3px;
+    gap: 3px;
+  }
+  .segmentos input, .opcoes input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .segmentos label {
+    display: flex; align-items: center; justify-content: center; gap: var(--s2);
+    min-height: 34px;
+    border-radius: 4px;
+    color: var(--dim);
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .segmentos label:active { transform: scale(0.97); }
+  .segmentos input:checked + label { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.35); }
+  .segmentos input:focus-visible + label, .opcoes input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .segmentos input:not(:checked) + label:hover { background: var(--hover); color: var(--text); }
+  }
+  kbd {
+    font: 500 11px/1 var(--f-num);
+    color: var(--faint);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 2px 4px;
+  }
+  .segmentos input:checked + label kbd { color: var(--brass); border-color: rgba(224, 164, 74, 0.4); }
+
+  .opcoes { display: grid; gap: var(--s1); }
+  .opcoes label {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: var(--s2);
+    padding: 6px var(--s2);
+    border-radius: var(--r-s);
+    cursor: pointer;
+    color: var(--dim);
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .opcoes input:checked + label { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  @media (hover: hover) and (pointer: fine) { .opcoes input:not(:checked) + label:hover { background: var(--hover); } }
+  .amostra { width: 18px; height: 18px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+  .hex { font: 13px/1 var(--f-num); color: var(--faint); font-variant-numeric: tabular-nums; }
+  .selo {
+    font: 500 11.5px/1 var(--f-sans);
+    color: var(--brass-bright);
+    background: var(--brass-soft);
+    border-radius: 999px;
+    padding: 3px 7px;
+    white-space: nowrap;
+  }
+
+  .ajuste { display: grid; grid-template-columns: 1fr auto; align-items: baseline; row-gap: 2px; }
+  .ajuste + .ajuste { margin-top: var(--s3); }
+  .ajuste label { color: var(--dim); }
+  .ajuste output { font: 500 14px/1 var(--f-num); color: var(--text); font-variant-numeric: tabular-nums; }
+  .ajuste input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--brass); margin: 4px 0 0; }
+  .ajuste input[type=range]:disabled { opacity: 0.35; }
+  .ajuste .motivo { grid-column: 1 / -1; margin-top: 2px; }
+  .subtitulo { color: var(--faint); font-size: 12.5px; margin: var(--s4) 0 var(--s2); }
+  .caixa { display: flex; gap: var(--s2); align-items: center; color: var(--dim); margin-top: var(--s4); cursor: pointer; }
+  .caixa input { accent-color: var(--brass); width: 16px; height: 16px; margin: 0; }
+
+  .botao {
+    font: 500 13.5px/1 var(--f-sans);
+    color: var(--text);
+    background: var(--raised);
+    border: 0;
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    border-radius: var(--r-s);
+    min-height: 34px;
+    padding: 0 var(--s3);
+    cursor: pointer;
+    transition: background-color 160ms ease, transform 160ms var(--ease-out);
+  }
+  .botao:active { transform: scale(0.97); }
+  .botao:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) { .botao:hover { background: var(--hover); } }
+  .botao[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.35); }
+  .linha-botoes { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s3); }
+  .status { color: var(--brass-bright); font-size: 12.5px; }
+
+  pre {
+    margin: 0;
+    background: var(--sunken);
+    border-radius: var(--r-s);
+    padding: var(--s3);
+    font: 12px/1.55 var(--f-code);
+    color: #d8d5cc;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .bloco { max-width: 1320px; margin: var(--s7) auto 0; }
+  .bloco > h2 { font: 400 22px/1.2 var(--f-display); margin-bottom: var(--s2); }
+  .bloco > p { color: var(--dim); max-width: 80ch; margin-bottom: var(--s4); }
+
+  .regras dl {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 76ch);
+    gap: var(--s2) var(--s5);
+  }
+  .regras dt { color: var(--text); font-weight: 600; }
+  .regras dd { color: var(--dim); }
+
+  .linha-variantes { display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: var(--s4); align-items: start; }
+  .linha-variantes + .linha-variantes { margin-top: var(--s5); }
+  .linha-variantes > h3 { font: 600 15px/1.3 var(--f-sans); margin: 0; padding-top: var(--s1); }
+  .linha-variantes > h3 span { display: block; color: var(--faint); font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+  .cartao {
+    background: var(--stone);
+    border-radius: var(--r-m);
+    box-shadow: 0 0 0 1px var(--line);
+    padding: var(--s3);
+    display: grid;
+    gap: var(--s2);
+  }
+  .cartao.escolhida { box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.55); }
+  .cartao canvas { width: 100%; height: auto; aspect-ratio: 960 / 600; border-radius: var(--r-s); display: block; background: var(--canvas); }
+  .cartao .cabeca { display: flex; align-items: center; gap: var(--s2); }
+  .cartao .nome { font-weight: 600; }
+  .cartao .cabeca .selo { margin-left: auto; }
+  .medidas { display: grid; grid-template-columns: auto 1fr; gap: 0 var(--s3); color: var(--dim); font-size: 12.5px; }
+  .medidas dd { font: 13px/1.45 var(--f-num); color: var(--text); font-variant-numeric: tabular-nums; }
+  .materiais { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--s1); }
+  .material { display: grid; gap: 2px; }
+  .material i { display: block; height: 18px; border-radius: 3px; }
+  .material span { font-size: 11px; color: var(--faint); text-align: center; }
+
+  .perguntas ol { padding-left: 1.4em; display: grid; gap: var(--s3); max-width: 86ch; }
+  .perguntas li { color: var(--text); }
+  .perguntas li span { color: var(--dim); }
+  .rodape { max-width: 1320px; margin: var(--s7) auto 0; color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: var(--s4); }
+</style>
+</head>
+<body>
+<header class="topo">
+  <h1>Luz do dia, da tarde e da noite</h1>
+  <p>Protótipo para aprovar as cores antes de mexer no app. Troque o período, compare as cores lado a lado e ajuste os números; os valores viram constantes no fim do painel.</p>
+</header>
+
+<main class="palco">
+  <figure class="mapa">
+    <div class="moldura"><canvas id="mapa" width="960" height="600" role="img" aria-label="Mapa de exemplo"></canvas></div>
+    <figcaption>
+      <strong>O que olhar:</strong> a fogueira para no muro de pedra (a sombra fica do lado direito dele) e o lampião para na parede da casa (o telhado não acende).
+      A ficha azul é a sua; a vermelha é um guarda parado sob o lampião.
+    </figcaption>
+  </figure>
+
+  <aside class="painel" aria-label="Controles do protótipo">
+    <fieldset class="grupo">
+      <legend>Período</legend>
+      <div class="segmentos">
+        <input type="radio" name="periodo" id="p-dia" value="dia"><label for="p-dia">Dia <kbd>1</kbd></label>
+        <input type="radio" name="periodo" id="p-tarde" value="tarde"><label for="p-tarde">Tarde <kbd>2</kbd></label>
+        <input type="radio" name="periodo" id="p-noite" value="noite"><label for="p-noite">Noite <kbd>3</kbd></label>
+      </div>
+      <p class="nota">A troca leva 1,5 s, como no plano.</p>
+    </fieldset>
+
+    <fieldset class="grupo">
+      <legend>Quem olha</legend>
+      <div class="segmentos">
+        <input type="radio" name="visao" id="v-mestre" value="mestre"><label for="v-mestre">Visão do mestre</label>
+        <input type="radio" name="visao" id="v-jogador" value="jogador"><label for="v-jogador">Ver como jogador <kbd>V</kbd></label>
+      </div>
+      <p class="nota" id="nota-visao"></p>
+    </fieldset>
+
+    <fieldset class="grupo">
+      <legend id="legenda-cor">Cor da noite</legend>
+      <div class="opcoes" id="opcoes-cor"></div>
+      <p class="motivo" id="motivo-cor" hidden>De dia não há tinta: o mapa fica igual ao de hoje.</p>
+    </fieldset>
+
+    <fieldset class="grupo">
+      <legend>Ajustes</legend>
+      <div class="ajuste">
+        <label for="a-intensidade" id="rotulo-intensidade">Força da tinta da noite</label><output for="a-intensidade" id="o-intensidade"></output>
+        <input type="range" id="a-intensidade" min="0" max="100" step="1">
+        <p class="motivo" id="motivo-intensidade" hidden>Desligado de dia: o dia não tem tinta.</p>
+      </div>
+      <p class="subtitulo">Fogueira, sempre acesa</p>
+      <div class="ajuste">
+        <label for="a-fog-forca">Força</label><output for="a-fog-forca" id="o-fog-forca"></output>
+        <input type="range" id="a-fog-forca" min="0" max="100" step="1">
+      </div>
+      <div class="ajuste">
+        <label for="a-fog-raio">Alcance</label><output for="a-fog-raio" id="o-fog-raio"></output>
+        <input type="range" id="a-fog-raio" min="2" max="10" step="0.5">
+      </div>
+      <p class="subtitulo">Lampião, acende sozinho à tarde e à noite</p>
+      <div class="ajuste">
+        <label for="a-lamp-forca">Força</label><output for="a-lamp-forca" id="o-lamp-forca"></output>
+        <input type="range" id="a-lamp-forca" min="0" max="100" step="1">
+      </div>
+      <div class="ajuste">
+        <label for="a-lamp-raio">Alcance</label><output for="a-lamp-raio" id="o-lamp-raio"></output>
+        <input type="range" id="a-lamp-raio" min="1" max="8" step="0.5">
+      </div>
+      <p class="subtitulo">Luz e ficha</p>
+      <div class="ajuste">
+        <label for="a-calor">Calor da luz</label><output for="a-calor" id="o-calor"></output>
+        <input type="range" id="a-calor" min="0" max="100" step="1">
+      </div>
+      <div class="ajuste">
+        <label for="a-luz-tarde">Luz à tarde</label><output for="a-luz-tarde" id="o-luz-tarde"></output>
+        <input type="range" id="a-luz-tarde" min="0" max="100" step="1">
+        <p class="nota">À tarde a luz só tira o laranja (o multiply nunca passa da cor do dia), e forte demais deixa a grama verde em volta. À noite ela entra inteira.</p>
+      </div>
+      <div class="ajuste">
+        <label for="a-contorno">Contorno da sua ficha</label><output for="a-contorno" id="o-contorno"></output>
+        <input type="range" id="a-contorno" min="0" max="4" step="0.5">
+      </div>
+      <label class="caixa"><input type="checkbox" id="a-visao"> Mostrar o alcance de visão da sua ficha</label>
+      <div class="linha-botoes"><button type="button" class="botao" id="restaurar">Voltar aos valores sugeridos</button></div>
+    </fieldset>
+
+    <section class="grupo">
+      <h2>Constantes</h2>
+      <pre><code id="constantes"></code></pre>
+      <div class="linha-botoes">
+        <button type="button" class="botao" id="copiar">Copiar constantes</button>
+        <span class="status" id="copiado" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<section class="bloco regras" aria-labelledby="t-regras">
+  <h2 id="t-regras">O que cada período faz no jogo</h2>
+  <dl>
+    <dt>Alcance de visão</dt>
+    <dd>Dia e tarde: visão cheia. Noite: metade, como hoje. O mapa pode definir outro alcance, em casas, para a tarde e para a noite.</dd>
+    <dt>Cena interior</dt>
+    <dd>Ignora a troca. Só a cena marcada como externa segue o período da sessão; uma cena também pode ter um período fixo.</dd>
+    <dt>Luz que acende sozinha</dt>
+    <dd>Lampião, fogueira e tocha podem acender só em certos períodos (o lampião daqui acende à tarde e à noite). Apagar na mão vence a regra, e o jogador nunca recebe a regra, só a luz.</dd>
+    <dt>No escuro</dt>
+    <dd>Um NPC no escuro a 8 casas não aparece; sob um lampião, com linha de visão livre, aparece. Luz atrás de parede não revela nada.</dd>
+  </dl>
+</section>
+
+<section class="bloco comparar" aria-labelledby="t-comparar">
+  <h2 id="t-comparar">As cores lado a lado</h2>
+  <p>Como o jogador vê, com os ajustes do painel. Brilho e vivacidade são a média do quadro (OKLCH, de 0 a 100); o dia serve de régua. Os quadradinhos mostram cada material de dia (metade de cima) e com a tinta (metade de baixo): é ali que o barro aparece.</p>
+  <div class="linha-variantes" id="linha-noite"></div>
+  <div class="linha-variantes" id="linha-tarde"></div>
+</section>
+
+<section class="bloco perguntas" aria-labelledby="t-perguntas">
+  <h2 id="t-perguntas">Três perguntas para você</h2>
+  <ol id="lista-perguntas"></ol>
+</section>
+
+<p class="rodape">Fora deste protótipo, de propósito: chama que tremula (o mapa de luz só é refeito quando algo muda, e tremular obrigaria a refazer a cada quadro), som por período (fatia L6) e celular.</p>
+
+<script>
+(function () {
+  'use strict'
+
+  /* ---------- números do mundo ---------- */
+  const W = 960
+  const H = 600
+  const CASA = 40
+  const TAU = Math.PI * 2
+  const DPR = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
+  const TRANSICAO_PERIODO_MS = 1500
+  const TRANSICAO_COR_MS = 300
+  const TINTA_NO_MESTRE = 0.5
+  const VISAO_CASAS = 8
+  const VISAO_NOITE = 0.5
+  /** Queda da luz do centro (0) até o alcance (1): curva quase quadrática. */
+  const QUEDA = [[0, 1], [0.25, 0.82], [0.5, 0.5], [0.75, 0.2], [1, 0]]
+  const LUZ_FRIA = [255, 226, 180]
+  const LUZ_QUENTE = [255, 154, 76]
+
+  const VARIANTES = {
+    noite: [
+      { id: 'ardosia', nome: 'Azul-ardósia', hex: '#465a92' },
+      { id: 'violeta', nome: 'Azul-violeta', hex: '#5a5488' },
+      { id: 'petroleo', nome: 'Verde-petróleo', hex: '#3d6672' },
+    ],
+    tarde: [
+      { id: 'ambar', nome: 'Âmbar', hex: '#f2b071' },
+      { id: 'pessego', nome: 'Pêssego-rosado', hex: '#f0aa98' },
+      { id: 'lilas', nome: 'Dourado-lilás', hex: '#d9a8b8' },
+    ],
+  }
+  const RECOMENDADA = { noite: 'ardosia', tarde: 'pessego' }
+
+  const PADRAO = Object.freeze({
+    periodo: 'noite',
+    visao: 'jogador',
+    variante: { tarde: RECOMENDADA.tarde, noite: RECOMENDADA.noite },
+    intensidade: { tarde: 0.6, noite: 0.85 },
+    fogueira: { forca: 0.95, raio: 5 },
+    lampiao: { forca: 0.85, raio: 3.5 },
+    calor: 0.55,
+    luzTarde: 0.3,
+    contorno: 2.5,
+    mostrarVisao: true,
+  })
+  const clonar = (o) => JSON.parse(JSON.stringify(o))
+  let estado = clonar(PADRAO)
+
+  /* ---------- cor ---------- */
+  const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] }
+  const rgbHex = (c) => '#' + c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('')
+  const mistura = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t)
+  const css = (c, a) => a === undefined ? `rgb(${c.map(Math.round).join(',')})` : `rgba(${c.map(Math.round).join(',')},${a})`
+  const multiplicar = (a, b) => a.map((v, i) => (v * b[i]) / 255)
+  const limitar = (v, a, b) => Math.min(b, Math.max(a, v))
+  const suave01 = (t) => { t = limitar(t, 0, 1); return t * t * (3 - 2 * t) }
+  const BRANCO = [255, 255, 255]
+
+  const LIN = new Float32Array(256)
+  for (let i = 0; i < 256; i++) { const c = i / 255; LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+  function oklab(r, g, b) {
+    const R = LIN[r], G = LIN[g], B = LIN[b]
+    const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+    const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+    const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+    return [
+      0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+    ]
+  }
+
+  /* ---------- ruído determinístico (mesma entrada, mesma imagem) ---------- */
+  function hash2(ix, iy, semente) {
+    let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(semente, 1442695041)) | 0
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    h ^= h >>> 16
+    return (h >>> 0) / 4294967295
+  }
+  function ruido(x, y, semente) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy)
+    const a = hash2(ix, iy, semente), b = hash2(ix + 1, iy, semente), c = hash2(ix, iy + 1, semente), d = hash2(ix + 1, iy + 1, semente)
+    return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy
+  }
+  const fbm = (x, y, s) => ruido(x / 90, y / 90, s) * 0.55 + ruido(x / 34, y / 34, s + 7) * 0.3 + ruido(x / 9, y / 9, s + 13) * 0.15
+
+  /* ---------- o mapa de exemplo ---------- */
+  const CASA_R = { x: 250, y: 110, w: 240, h: 190 }
+  const MURO = { x: 804, y: 280, w: 16, h: 200 }
+  const FOGUEIRA = { x: 700, y: 392 }
+  const LAMPIAO = { x: 424, y: 322 }
+  const FICHA_EU = { x: 200, y: 468 }
+  const FICHA_GUARDA = { x: 472, y: 356 }
+  const CAMINHOS = [
+    { pts: [[30, 650], [120, 540], [200, 470], [290, 400], [370, 334]], meia: 17 },
+    { pts: [[290, 400], [420, 422], [560, 412], [650, 396]], meia: 15 },
+  ]
+  const CLAREIRA = { x: 700, y: 392, r: 64 }
+  /** Paredes que barram a luz: a casa (fechada), o muro (pela linha do meio) e a borda do mapa. */
+  const PAREDES = [
+    [250, 110, 490, 110], [490, 110, 490, 300], [490, 300, 250, 300], [250, 300, 250, 110],
+    [812, 280, 812, 480],
+    [0, 0, W, 0], [W, 0, W, H], [W, H, 0, H], [0, H, 0, 0],
+  ]
+  const ARVORES = [[110, 120, 46], [575, 64, 40], [905, 110, 50], [925, 560, 44], [70, 310, 34], [600, 560, 30]]
+  const ARBUSTOS = [[548, 318, 18], [214, 336, 15], [700, 520, 19], [880, 336, 17], [880, 420, 14], [140, 420, 13]]
+  const FLORES = [[150, 230], [640, 190], [760, 560], [330, 520], [878, 470], [40, 470], [460, 520]]
+
+  function distSegmento(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay
+    const t = limitar(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1)
+    const x = ax + t * dx - px, y = ay + t * dy - py
+    return Math.sqrt(x * x + y * y)
+  }
+  /** Distância com sinal até a terra (negativa dentro). */
+  function distanciaTerra(x, y) {
+    let d = Math.hypot(x - CLAREIRA.x, y - CLAREIRA.y) - CLAREIRA.r
+    for (const c of CAMINHOS) {
+      for (let i = 0; i < c.pts.length - 1; i++) {
+        const [ax, ay] = c.pts[i], [bx, by] = c.pts[i + 1]
+        const v = distSegmento(x, y, ax, ay, bx, by) - c.meia
+        if (v < d) d = v
+      }
+    }
+    return d
+  }
+
+  function pintarChao() {
+    const tela = document.createElement('canvas')
+    tela.width = W; tela.height = H
+    const g = tela.getContext('2d')
+    const img = g.createImageData(W, H)
+    const px = img.data
+    const gS = hexRgb('#76ac6d'), gM = hexRgb('#8cbf80'), gR = hexRgb('#a2cc92')
+    const tS = hexRgb('#c8915a'), tM = hexRgb('#dda56c'), tR = hexRgb('#e8b985'), tBorda = hexRgb('#b07a4a')
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const n = fbm(x, y, 1)
+        let cor = n < 0.5 ? mistura(gS, gM, suave01((n - 0.22) / 0.28)) : mistura(gM, gR, suave01((n - 0.5) / 0.28))
+        const dd = distanciaTerra(x, y) + (ruido(x / 11, y / 11, 5) - 0.5) * 7
+        if (dd < 2) {
+          const nt = fbm(x + 400, y + 200, 9)
+          let ct = nt < 0.5 ? mistura(tS, tM, suave01((nt - 0.22) / 0.28)) : mistura(tM, tR, suave01((nt - 0.5) / 0.28))
+          if (dd > -4) ct = mistura(ct, tBorda, 0.4 * suave01((dd + 4) / 4))
+          cor = mistura(cor, ct, suave01((2 - dd) / 3))
+        }
+        const grao = (hash2(x, y, 3) - 0.5) * 7
+        const i = (y * W + x) * 4
+        px[i] = cor[0] + grao; px[i + 1] = cor[1] + grao; px[i + 2] = cor[2] + grao; px[i + 3] = 255
+      }
+    }
+    g.putImageData(img, 0, 0)
+    return tela
+  }
+
+  function caminho(g, pts) { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath() }
+  function retRedondo(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r) }
+  function sombraSuave(g, blur, ox, oy, cor) { g.shadowColor = cor || 'rgba(34, 54, 30, 0.36)'; g.shadowBlur = blur * DPR; g.shadowOffsetX = ox * DPR; g.shadowOffsetY = oy * DPR }
+  function elipseSombra(g, x, y, rx, ry, a) {
+    g.save(); g.fillStyle = `rgba(30, 48, 28, ${a})`; g.filter = 'blur(2px)'
+    g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); g.restore()
+  }
+
+  function pintarTufos(g) {
+    for (let i = 0; i < 220; i++) {
+      const x = hash2(i, 1, 21) * W, y = hash2(i, 2, 21) * H
+      if (distanciaTerra(x, y) < 6) continue
+      if (x > CASA_R.x - 6 && x < CASA_R.x + CASA_R.w + 12 && y > CASA_R.y - 6 && y < CASA_R.y + CASA_R.h + 16) continue
+      g.strokeStyle = hash2(i, 3, 21) < 0.5 ? 'rgba(86, 140, 78, 0.55)' : 'rgba(176, 214, 158, 0.5)'
+      g.lineWidth = 1.2
+      g.beginPath()
+      for (let k = -1; k <= 1; k++) { g.moveTo(x + k * 2.2, y + 2); g.lineTo(x + k * 3.4, y - 3 - (k === 0 ? 1.5 : 0)) }
+      g.stroke()
+    }
+  }
+  function pintarFlores(g) {
+    const cores = ['#e8a2c4', '#f0d266', '#f3efe2', '#a87fcb']
+    FLORES.forEach(([cx, cy], k) => {
+      for (let i = 0; i < 9; i++) {
+        const a = hash2(k, i, 31) * TAU, r = hash2(k, i, 32) * 16
+        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+        g.fillStyle = cores[(k + i) % cores.length]
+        g.beginPath(); g.arc(x, y, 2, 0, TAU); g.fill()
+        g.fillStyle = 'rgba(120, 90, 40, 0.5)'; g.beginPath(); g.arc(x, y, 0.7, 0, TAU); g.fill()
+      }
+    })
+  }
+
+  function pintarCasa(g) {
+    const { x, y, w, h } = CASA_R
+    g.save(); sombraSuave(g, 12, 7, 9); g.fillStyle = '#b8984f'; g.fillRect(x, y, w, h); g.restore()
+    const m = h / 2
+    const A = [x, y], B = [x + w, y], C = [x + w, y + h], D = [x, y + h], R1 = [x + m, y + m], R2 = [x + w - m, y + m]
+    const faces = [
+      { pts: [A, B, R2, R1], cor: '#dcbd74', fio: 'h' },
+      { pts: [D, A, R1], cor: '#e7cb88', fio: 'v' },
+      { pts: [B, C, R2], cor: '#c29c54', fio: 'v' },
+      { pts: [C, D, R1, R2], cor: '#cdaa60', fio: 'h' },
+    ]
+    for (const f of faces) {
+      g.save(); caminho(g, f.pts); g.fillStyle = f.cor; g.fill(); g.clip()
+      g.lineWidth = 1
+      for (let s = 0; s < 2; s++) {
+        g.strokeStyle = s === 0 ? 'rgba(122, 92, 38, 0.26)' : 'rgba(250, 232, 180, 0.22)'
+        const off = s === 0 ? 0 : 2
+        if (f.fio === 'h') {
+          for (let yy = y - 4 + off; yy < y + h + 6; yy += 5) {
+            g.beginPath()
+            for (let xx = x; xx <= x + w; xx += 3) { const v = yy + Math.sin(xx * 0.6 + yy * 1.7) * 1.1; xx === x ? g.moveTo(xx, v) : g.lineTo(xx, v) }
+            g.stroke()
+          }
+        } else {
+          for (let xx = x - 4 + off; xx < x + w + 6; xx += 5) {
+            g.beginPath()
+            for (let yy = y; yy <= y + h; yy += 3) { const v = xx + Math.sin(yy * 0.6 + xx * 1.7) * 1.1; yy === y ? g.moveTo(v, yy) : g.lineTo(v, yy) }
+            g.stroke()
+          }
+        }
+      }
+      g.restore()
+    }
+    g.lineCap = 'round'
+    for (const [p, q] of [[A, R1], [D, R1], [B, R2], [C, R2], [R1, R2]]) {
+      g.strokeStyle = 'rgba(132, 102, 46, 0.55)'; g.lineWidth = 2.4
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke()
+      g.strokeStyle = 'rgba(248, 228, 172, 0.75)'; g.lineWidth = 1
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke()
+    }
+    g.strokeStyle = '#94763a'; g.lineWidth = 1.6; g.strokeRect(x + 0.8, y + 0.8, w - 1.6, h - 1.6)
+    // chaminé de pedra
+    g.save(); sombraSuave(g, 4, 3, 4); retRedondo(g, 432, 138, 20, 20, 2); g.fillStyle = '#c3c0b2'; g.fill(); g.restore()
+    retRedondo(g, 432, 138, 20, 20, 2); g.strokeStyle = '#8e8b7f'; g.lineWidth = 1.2; g.stroke()
+    g.fillStyle = '#4e4b45'; retRedondo(g, 437, 143, 10, 10, 1.5); g.fill()
+    // degrau e porta (creme com contorno, como no protótipo)
+    retRedondo(g, 346, 316, 48, 10, 2.5); g.fillStyle = '#c3c0b2'; g.fill(); g.strokeStyle = '#8f8b7d'; g.lineWidth = 1; g.stroke()
+    g.save(); sombraSuave(g, 3, 1, 2, 'rgba(40, 40, 30, 0.35)'); retRedondo(g, 352, 298, 36, 20, 2); g.fillStyle = '#efe2c2'; g.fill(); g.restore()
+    retRedondo(g, 352, 298, 36, 20, 2); g.strokeStyle = '#a8915e'; g.lineWidth = 1.4; g.stroke()
+    g.strokeStyle = 'rgba(150, 120, 70, 0.4)'; g.lineWidth = 1
+    for (const xx of [364, 376]) { g.beginPath(); g.moveTo(xx, 300); g.lineTo(xx, 316); g.stroke() }
+    g.fillStyle = '#b89552'; g.beginPath(); g.arc(383, 309, 1.8, 0, TAU); g.fill()
+  }
+
+  function pintarMuro(g) {
+    const { x, y, w, h } = MURO
+    g.save(); sombraSuave(g, 6, 5, 6); g.fillStyle = '#b4b0a2'; g.fillRect(x, y, w, h); g.restore()
+    let yy = y, k = 0
+    while (yy < y + h) {
+      const alt = Math.min(y + h - yy, 16 + Math.floor(hash2(k, 0, 41) * 10))
+      const tom = 186 + Math.floor((hash2(k, 1, 41) - 0.5) * 18)
+      retRedondo(g, x + 1, yy + 1, w - 2, alt - 2, 2.5)
+      g.fillStyle = `rgb(${tom + 9}, ${tom + 7}, ${tom - 6})`; g.fill()
+      g.strokeStyle = 'rgba(232, 229, 218, 0.55)'; g.lineWidth = 1
+      g.beginPath(); g.moveTo(x + 2.5, yy + alt - 3); g.lineTo(x + 2.5, yy + 2.5); g.lineTo(x + w - 3, yy + 2.5); g.stroke()
+      yy += alt; k++
+    }
+    g.strokeStyle = '#7f7b6e'; g.lineWidth = 1.4; g.strokeRect(x + 0.7, y + 0.7, w - 1.4, h - 1.4)
+  }
+
+  function pintarArvore(g, x, y, r) {
+    elipseSombra(g, x + r * 0.22, y + r * 0.3, r * 0.95, r * 0.7, 0.32)
+    const bolas = []
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * TAU + hash2(x, i, 51), d = r * 0.42
+      bolas.push([x + Math.cos(a) * d, y + Math.sin(a) * d, r * (0.5 + hash2(y, i, 52) * 0.12)])
+    }
+    bolas.push([x, y, r * 0.62])
+    g.fillStyle = '#3f7444'
+    for (const [bx, by, br] of bolas) { g.beginPath(); g.arc(bx, by, br + 1.8, 0, TAU); g.fill() }
+    g.fillStyle = '#5c9a5a'
+    for (const [bx, by, br] of bolas) { g.beginPath(); g.arc(bx, by, br, 0, TAU); g.fill() }
+    g.fillStyle = '#76b169'
+    for (const [bx, by, br] of bolas) { g.beginPath(); g.arc(bx - br * 0.22, by - br * 0.26, br * 0.62, 0, TAU); g.fill() }
+    g.fillStyle = 'rgba(166, 210, 140, 0.55)'
+    for (const [bx, by, br] of bolas) { g.beginPath(); g.arc(bx - br * 0.36, by - br * 0.42, br * 0.22, 0, TAU); g.fill() }
+  }
+  function pintarArbusto(g, x, y, r) {
+    elipseSombra(g, x + 3, y + 4, r * 1.05, r * 0.75, 0.3)
+    const bolas = [[x - r * 0.4, y, r * 0.66], [x + r * 0.4, y + r * 0.05, r * 0.62], [x, y - r * 0.32, r * 0.66]]
+    g.fillStyle = '#4b8150'; for (const [a, b, c] of bolas) { g.beginPath(); g.arc(a, b, c + 1.5, 0, TAU); g.fill() }
+    g.fillStyle = '#6aa65f'; for (const [a, b, c] of bolas) { g.beginPath(); g.arc(a, b, c, 0, TAU); g.fill() }
+    g.fillStyle = '#84bb73'; for (const [a, b, c] of bolas) { g.beginPath(); g.arc(a - c * 0.25, b - c * 0.3, c * 0.5, 0, TAU); g.fill() }
+  }
+
+  function pintarBarrilECaixa(g) {
+    elipseSombra(g, 520, 258, 13, 10, 0.3)
+    g.beginPath(); g.arc(516, 250, 12, 0, TAU); g.fillStyle = '#a07b51'; g.fill()
+    g.lineWidth = 2; g.strokeStyle = '#5d6164'; g.beginPath(); g.arc(516, 250, 11, 0, TAU); g.stroke()
+    g.beginPath(); g.arc(516, 250, 7, 0, TAU); g.strokeStyle = 'rgba(93, 97, 100, 0.8)'; g.lineWidth = 1.4; g.stroke()
+    g.fillStyle = 'rgba(214, 186, 140, 0.45)'; g.beginPath(); g.arc(513, 247, 4, 0, TAU); g.fill()
+    g.save(); sombraSuave(g, 4, 3, 4); retRedondo(g, 508, 274, 22, 22, 2); g.fillStyle = '#b9995f'; g.fill(); g.restore()
+    retRedondo(g, 508, 274, 22, 22, 2); g.strokeStyle = '#7e6638'; g.lineWidth = 1.3; g.stroke()
+    g.beginPath(); g.moveTo(510, 276); g.lineTo(528, 294); g.moveTo(528, 276); g.lineTo(510, 294); g.strokeStyle = 'rgba(126, 102, 56, 0.7)'; g.stroke()
+  }
+
+  function pintarFogueira(g) {
+    const { x, y } = FOGUEIRA
+    const chao = g.createRadialGradient(x, y, 4, x, y, 30)
+    chao.addColorStop(0, 'rgba(64, 44, 30, 0.55)'); chao.addColorStop(1, 'rgba(64, 44, 30, 0)')
+    g.fillStyle = chao; g.beginPath(); g.arc(x, y, 30, 0, TAU); g.fill()
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * TAU + 0.2, sx = x + Math.cos(a) * 18, sy = y + Math.sin(a) * 16
+      g.beginPath(); g.ellipse(sx, sy, 6, 5, a, 0, TAU); g.fillStyle = '#c3c0b2'; g.fill(); g.strokeStyle = '#8f8b7d'; g.lineWidth = 1; g.stroke()
+      g.beginPath(); g.ellipse(sx - 1.3, sy - 1.5, 2.6, 1.8, a, 0, TAU); g.fillStyle = 'rgba(236, 233, 222, 0.7)'; g.fill()
+    }
+    for (const a of [0.5, 2.1, 3.6]) {
+      g.save(); g.translate(x, y); g.rotate(a)
+      retRedondo(g, -13, -3.2, 26, 6.4, 3); g.fillStyle = '#775739'; g.fill(); g.strokeStyle = '#523b25'; g.lineWidth = 1; g.stroke()
+      g.beginPath(); g.arc(12, 0, 2.6, 0, TAU); g.fillStyle = '#c29a66'; g.fill()
+      g.restore()
+    }
+    const chama = (s, cor) => {
+      g.beginPath(); g.moveTo(x, y - 15 * s)
+      g.bezierCurveTo(x + 9 * s, y - 4 * s, x + 8 * s, y + 7 * s, x, y + 7 * s)
+      g.bezierCurveTo(x - 8 * s, y + 7 * s, x - 9 * s, y - 4 * s, x, y - 15 * s)
+      g.fillStyle = cor; g.fill()
+    }
+    chama(1, '#e6793f'); chama(0.72, '#f2a548'); chama(0.42, '#f7dc7a')
+  }
+
+  function pintarLampiao(g) {
+    const { x, y } = LAMPIAO
+    elipseSombra(g, x + 4, y + 6, 9, 6, 0.32)
+    retRedondo(g, x - 7, y - 7, 14, 14, 3); g.fillStyle = '#5d6164'; g.fill(); g.strokeStyle = '#3d4043'; g.lineWidth = 1.2; g.stroke()
+    retRedondo(g, x - 4, y - 4, 8, 8, 1.5); g.fillStyle = '#ffe6a6'; g.fill()
+    g.fillStyle = '#b89552'; g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill()
+  }
+
+  const FICHAS = {
+    eu: { ...FICHA_EU, cor: '#5b7fb8', escura: '#2f4a78', clara: '#e9eef6' },
+    guarda: { ...FICHA_GUARDA, cor: '#b5654c', escura: '#7a3f2c', clara: '#f6e7df' },
+  }
+  const RAIO_FICHA = 17
+  function pintarFicha(g, f) {
+    elipseSombra(g, f.x + 3, f.y + 5, 16, 11, 0.35)
+    g.beginPath(); g.arc(f.x, f.y, RAIO_FICHA, 0, TAU); g.fillStyle = f.cor; g.fill()
+    g.save(); g.beginPath(); g.arc(f.x, f.y, RAIO_FICHA - 2, 0, TAU); g.clip()
+    g.fillStyle = f.clara
+    g.beginPath(); g.arc(f.x, f.y - 4, 5.5, 0, TAU); g.fill()
+    g.beginPath(); g.ellipse(f.x, f.y + 12, 10.5, 8, 0, Math.PI, TAU); g.fill()
+    g.restore()
+    g.beginPath(); g.arc(f.x, f.y, RAIO_FICHA - 1, 0, TAU); g.strokeStyle = f.escura; g.lineWidth = 2; g.stroke()
+  }
+
+  function pintarCena() {
+    const tela = document.createElement('canvas')
+    tela.width = W * DPR; tela.height = H * DPR
+    const g = tela.getContext('2d')
+    g.imageSmoothingQuality = 'high'
+    g.drawImage(pintarChao(), 0, 0, tela.width, tela.height)
+    g.setTransform(DPR, 0, 0, DPR, 0, 0)
+    pintarTufos(g)
+    pintarFlores(g)
+    pintarFogueira(g)
+    pintarBarrilECaixa(g)
+    ARBUSTOS.forEach(([x, y, r]) => pintarArbusto(g, x, y, r))
+    pintarMuro(g)
+    pintarCasa(g)
+    pintarLampiao(g)
+    pintarFicha(g, FICHAS.eu)
+    pintarFicha(g, FICHAS.guarda)
+    ARVORES.forEach(([x, y, r]) => pintarArvore(g, x, y, r))
+    return tela
+  }
+
+  /* ---------- luz: polígono de visão a partir da luz, barrado pelas paredes ---------- */
+  function poligonoDeVisao(px, py) {
+    const angulos = []
+    for (const [ax, ay, bx, by] of PAREDES) {
+      for (const [x, y] of [[ax, ay], [bx, by]]) { const a = Math.atan2(y - py, x - px); angulos.push(a - 1e-4, a, a + 1e-4) }
+    }
+    for (let i = 0; i < 64; i++) angulos.push(-Math.PI + (i / 64) * TAU)
+    const pts = []
+    for (const a of angulos) {
+      const dx = Math.cos(a), dy = Math.sin(a)
+      let tMin = Infinity
+      for (const [ax, ay, bx, by] of PAREDES) {
+        const sx = bx - ax, sy = by - ay
+        const den = dx * sy - dy * sx
+        if (Math.abs(den) < 1e-9) continue
+        const t = ((ax - px) * sy - (ay - py) * sx) / den
+        const u = ((ax - px) * dy - (ay - py) * dx) / den
+        if (t > 0 && u >= 0 && u <= 1 && t < tMin) tMin = t
+      }
+      if (tMin < Infinity) pts.push([a, px + dx * tMin, py + dy * tMin])
+    }
+    pts.sort((p, q) => p[0] - q[0])
+    return pts.map((p) => [p[1], p[2]])
+  }
+  const POLI = { fogueira: poligonoDeVisao(FOGUEIRA.x, FOGUEIRA.y), lampiao: poligonoDeVisao(LAMPIAO.x, LAMPIAO.y) }
+
+  /** Mapa de luz a meia resolução, como o RenderTexture planejado para L4b. */
+  const mapaLuz = document.createElement('canvas')
+  mapaLuz.width = W / 2; mapaLuz.height = H / 2
+  const mctx = mapaLuz.getContext('2d')
+
+  function montarMapaDeLuz(tinta, luzes) {
+    const k = mapaLuz.width / W
+    mctx.setTransform(1, 0, 0, 1, 0, 0)
+    mctx.globalCompositeOperation = 'source-over'
+    mctx.fillStyle = css(tinta)
+    mctx.fillRect(0, 0, mapaLuz.width, mapaLuz.height)
+    mctx.globalCompositeOperation = 'lighter'
+    for (const L of luzes) {
+      if (L.forca <= 0.002) continue
+      const r = L.raio * CASA * k, cx = L.x * k, cy = L.y * k
+      mctx.save()
+      caminho(mctx, L.poli.map(([x, y]) => [x * k, y * k]))
+      mctx.clip()
+      const gr = mctx.createRadialGradient(cx, cy, 0, cx, cy, r)
+      for (const [s, f] of QUEDA) gr.addColorStop(s, css(L.cor, limitar(L.forca * f, 0, 1)))
+      mctx.fillStyle = gr
+      mctx.fillRect(cx - r, cy - r, r * 2, r * 2)
+      mctx.restore()
+    }
+    mctx.globalCompositeOperation = 'source-over'
+  }
+
+  const corDaLuz = () => mistura(LUZ_FRIA, LUZ_QUENTE, estado.calor)
+  function luzesDe(fog, lamp) {
+    const cor = corDaLuz()
+    return [
+      { x: FOGUEIRA.x, y: FOGUEIRA.y, raio: estado.fogueira.raio, forca: fog, cor, poli: POLI.fogueira },
+      { x: LAMPIAO.x, y: LAMPIAO.y, raio: estado.lampiao.raio, forca: lamp, cor, poli: POLI.lampiao },
+    ]
+  }
+
+  function tintaDe(periodo, idVariante, intensidade) {
+    if (periodo === 'dia') return BRANCO.slice()
+    const v = VARIANTES[periodo].find((x) => x.id === idVariante)
+    return mistura(BRANCO, hexRgb(v.hex), intensidade)
+  }
+
+  /** Desenha o quadro: mapa, mapa de luz em multiply e, por cima, o que não recebe tinta. */
+  function desenhar(ctx, q) {
+    const cw = ctx.canvas.width, ch = ctx.canvas.height
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(CENA, 0, 0, cw, ch)
+    montarMapaDeLuz(q.tinta, luzesDe(q.fog, q.lamp))
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.globalAlpha = q.alphaTinta
+    ctx.drawImage(mapaLuz, 0, 0, cw, ch)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+    const k = cw / W
+    ctx.setTransform(k, 0, 0, k, 0, 0)
+    // Contorno só na ficha do próprio jogador, e só quando escurece (decisão D2).
+    if (q.jogador && estado.contorno > 0) {
+      const lum = (0.2126 * q.tinta[0] + 0.7152 * q.tinta[1] + 0.0722 * q.tinta[2]) / 255
+      const a = limitar((1 - lum - 0.12) / 0.3, 0, 1)
+      if (a > 0.01) {
+        const f = FICHAS.eu, c = estado.contorno
+        ctx.globalAlpha = a
+        ctx.beginPath(); ctx.arc(f.x, f.y, RAIO_FICHA + 1 + c / 2, 0, TAU); ctx.lineWidth = c; ctx.strokeStyle = '#f3efe2'; ctx.stroke()
+        ctx.beginPath(); ctx.arc(f.x, f.y, RAIO_FICHA + 1 + c + 0.6, 0, TAU); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(18, 18, 20, 0.55)'; ctx.stroke()
+        ctx.globalAlpha = 1
+      }
+    }
+    if (q.visao) {
+      const f = FICHAS.eu, r = q.visao * CASA
+      ctx.save()
+      ctx.setLineDash([7, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(236, 234, 228, 0.6)'
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, TAU); ctx.stroke()
+      ctx.setLineDash([])
+      const texto = `visão: ${formatar(q.visao, 1)} casas`
+      ctx.font = '500 12px Bahnschrift, "Segoe UI", sans-serif'
+      const tw = ctx.measureText(texto).width
+      const ty = Math.max(16, f.y - r)
+      ctx.fillStyle = 'rgba(18, 18, 20, 0.78)'; retRedondo(ctx, f.x - tw / 2 - 7, ty - 10, tw + 14, 20, 10); ctx.fill()
+      ctx.fillStyle = '#eceae4'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(texto, f.x, ty + 0.5)
+      ctx.restore()
+    }
+  }
+
+  /* ---------- estado exibido e transição ---------- */
+  /** Quanto da força da luz entra em cada período (o lampião só acende à tarde e à noite). */
+  const fatorDeLuz = (p) => (p === 'noite' ? 1 : p === 'tarde' ? estado.luzTarde : 0)
+  function alvo() {
+    const p = estado.periodo
+    return {
+      tinta: tintaDe(p, estado.variante[p], estado.intensidade[p]),
+      fog: estado.fogueira.forca * fatorDeLuz(p),
+      lamp: estado.lampiao.forca * fatorDeLuz(p),
+      visaoCasas: VISAO_CASAS * (p === 'noite' ? VISAO_NOITE : 1),
+    }
+  }
+  const lerp = (a, b, t) => a + (b - a) * t
+  const suaveIdaVolta = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+  let exibido = alvo()
+  let anim = null
+  let quadroPedido = 0
+
+  function iniciarTransicao(ms) {
+    anim = { de: { ...exibido, tinta: exibido.tinta.slice() }, inicio: performance.now(), ms }
+    pedirQuadro()
+  }
+  function pedirQuadro() { if (!quadroPedido) quadroPedido = requestAnimationFrame(quadro) }
+
+  const canvasMapa = document.getElementById('mapa')
+  canvasMapa.width = W * DPR; canvasMapa.height = H * DPR
+  const ctxMapa = canvasMapa.getContext('2d')
+  const medidas = { quadrosMs: [] }
+  window.__luz = medidas
+
+  function quadro(agora) {
+    quadroPedido = 0
+    const t0 = performance.now()
+    const a = alvo()
+    if (anim) {
+      const t = Math.min(1, (agora - anim.inicio) / anim.ms)
+      const e = suaveIdaVolta(t)
+      exibido = {
+        tinta: mistura(anim.de.tinta, a.tinta, e),
+        fog: lerp(anim.de.fog, a.fog, e),
+        lamp: lerp(anim.de.lamp, a.lamp, e),
+        visaoCasas: lerp(anim.de.visaoCasas, a.visaoCasas, e),
+      }
+      if (t < 1) pedirQuadro(); else anim = null
+    } else {
+      exibido = a
+    }
+    const jogador = estado.visao === 'jogador'
+    desenhar(ctxMapa, {
+      tinta: exibido.tinta, fog: exibido.fog, lamp: exibido.lamp,
+      alphaTinta: jogador ? 1 : TINTA_NO_MESTRE,
+      jogador,
+      visao: estado.mostrarVisao ? exibido.visaoCasas : 0,
+    })
+    medidas.quadrosMs.push(performance.now() - t0)
+    if (medidas.quadrosMs.length > 400) medidas.quadrosMs.shift()
+  }
+
+  /* ---------- cartões de comparação ---------- */
+  const MATERIAIS = [['grama', '#8cbf80'], ['terra', '#dda56c'], ['palha', '#d6b56a'], ['telha', '#b56e50'], ['pedra', '#c3c0b2'], ['madeira', '#a07b51']]
+  const cartoes = []
+  let reguaDia = null
+
+  function medir(ctx) {
+    const { width: w, height: h } = ctx.canvas
+    const d = ctx.getImageData(0, 0, w, h).data
+    let sL = 0, sC = 0, n = 0
+    for (let i = 0; i < d.length; i += 16) {
+      const [L, A, B] = oklab(d[i], d[i + 1], d[i + 2])
+      sL += L; sC += Math.sqrt(A * A + B * B); n++
+    }
+    return { brilho: (sL / n) * 100, vivacidade: (sC / n) * 100 }
+  }
+
+  function montarCartoes() {
+    for (const periodo of ['noite', 'tarde']) {
+      const linha = document.getElementById('linha-' + periodo)
+      const titulo = document.createElement('h3')
+      titulo.innerHTML = periodo === 'noite' ? 'Noite<span>três azuis frios</span>' : 'Tarde<span>três luzes quentes</span>'
+      linha.appendChild(titulo)
+      for (const v of VARIANTES[periodo]) {
+        const art = document.createElement('article')
+        art.className = 'cartao'
+        const tela = document.createElement('canvas')
+        tela.width = 320 * DPR; tela.height = 200 * DPR
+        tela.setAttribute('role', 'img')
+        tela.setAttribute('aria-label', `Mapa à ${periodo} com ${v.nome}`)
+        const cab = document.createElement('div')
+        cab.className = 'cabeca'
+        cab.innerHTML = `<span class="amostra" style="background:${v.hex}"></span><span class="nome">${v.nome}</span><span class="hex">${v.hex}</span>` +
+          (RECOMENDADA[periodo] === v.id ? '<span class="selo">Recomendada</span>' : '')
+        const med = document.createElement('dl')
+        med.className = 'medidas'
+        const mats = document.createElement('div')
+        mats.className = 'materiais'
+        const botao = document.createElement('button')
+        botao.type = 'button'
+        botao.className = 'botao'
+        botao.addEventListener('click', () => escolherVariante(periodo, v.id))
+        art.append(tela, cab, med, mats, botao)
+        linha.appendChild(art)
+        cartoes.push({ periodo, v, art, ctx: tela.getContext('2d'), med, mats, botao })
+      }
+    }
+  }
+
+  function atualizarCartoes() {
+    if (!reguaDia) {
+      const t = document.createElement('canvas'); t.width = 320 * DPR; t.height = 200 * DPR
+      const c = t.getContext('2d'); c.drawImage(CENA, 0, 0, t.width, t.height)
+      reguaDia = medir(c)
+    }
+    for (const c of cartoes) {
+      const tinta = tintaDe(c.periodo, c.v.id, estado.intensidade[c.periodo])
+      const f = fatorDeLuz(c.periodo)
+      desenhar(c.ctx, { tinta, fog: estado.fogueira.forca * f, lamp: estado.lampiao.forca * f, alphaTinta: 1, jogador: true, visao: 0 })
+      const m = medir(c.ctx)
+      c.medida = m
+      c.med.innerHTML = `<dt>Brilho</dt><dd>${formatar(m.brilho, 0)} <span style="color:var(--faint)">(dia ${formatar(reguaDia.brilho, 0)})</span></dd>` +
+        `<dt>Vivacidade</dt><dd>${formatar(m.vivacidade, 1)} <span style="color:var(--faint)">(dia ${formatar(reguaDia.vivacidade, 1)})</span></dd>`
+      c.mats.innerHTML = MATERIAIS.map(([nome, hex]) => {
+        const base = hexRgb(hex), comTinta = multiplicar(base, tinta)
+        return `<div class="material" title="${nome}: ${hex} vira ${rgbHex(comTinta)}"><i style="background:linear-gradient(${hex} 50%, ${css(comTinta)} 50%)"></i><span>${nome}</span></div>`
+      }).join('')
+      const escolhida = estado.variante[c.periodo] === c.v.id
+      c.art.classList.toggle('escolhida', escolhida)
+      c.botao.setAttribute('aria-pressed', String(escolhida))
+      c.botao.textContent = escolhida ? 'Em uso' : 'Usar esta cor'
+    }
+  }
+  let cartoesPedidos = 0
+  function pedirCartoes() { if (!cartoesPedidos) cartoesPedidos = requestAnimationFrame(() => { cartoesPedidos = 0; atualizarCartoes() }) }
+
+  /* ---------- painel ---------- */
+  const $ = (id) => document.getElementById(id)
+  const formatar = (v, casas) => v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })
+  const NOME_PERIODO = { dia: 'do dia', tarde: 'da tarde', noite: 'da noite' }
+
+  const AJUSTES = [
+    { id: 'a-fog-forca', saida: 'o-fog-forca', ler: () => estado.fogueira.forca * 100, gravar: (v) => { estado.fogueira.forca = v / 100 }, texto: (v) => `${Math.round(v)}%` },
+    { id: 'a-fog-raio', saida: 'o-fog-raio', ler: () => estado.fogueira.raio, gravar: (v) => { estado.fogueira.raio = v }, texto: (v) => `${formatar(v, 1)} casas` },
+    { id: 'a-lamp-forca', saida: 'o-lamp-forca', ler: () => estado.lampiao.forca * 100, gravar: (v) => { estado.lampiao.forca = v / 100 }, texto: (v) => `${Math.round(v)}%` },
+    { id: 'a-lamp-raio', saida: 'o-lamp-raio', ler: () => estado.lampiao.raio, gravar: (v) => { estado.lampiao.raio = v }, texto: (v) => `${formatar(v, 1)} casas` },
+    { id: 'a-calor', saida: 'o-calor', ler: () => estado.calor * 100, gravar: (v) => { estado.calor = v / 100 }, texto: (v) => `${Math.round(v)}% ${rgbHex(mistura(LUZ_FRIA, LUZ_QUENTE, v / 100))}` },
+    { id: 'a-luz-tarde', saida: 'o-luz-tarde', ler: () => estado.luzTarde * 100, gravar: (v) => { estado.luzTarde = v / 100 }, texto: (v) => `${Math.round(v)}%` },
+    { id: 'a-contorno', saida: 'o-contorno', ler: () => estado.contorno, gravar: (v) => { estado.contorno = v }, texto: (v) => `${formatar(v, 1)} px` },
+  ]
+
+  function sincronizarPainel() {
+    const p = estado.periodo
+    $('p-' + p).checked = true
+    $('v-' + estado.visao).checked = true
+    $('nota-visao').textContent = estado.visao === 'mestre'
+      ? 'O mestre vê a tinta a 50%, para enxergar o mapa todo.'
+      : 'O jogador vê a tinta cheia e o contorno na própria ficha.'
+    // cor do período
+    $('legenda-cor').textContent = 'Cor ' + NOME_PERIODO[p]
+    const opcoes = $('opcoes-cor')
+    opcoes.innerHTML = ''
+    $('motivo-cor').hidden = p !== 'dia'
+    if (p !== 'dia') {
+      for (const v of VARIANTES[p]) {
+        const id = `c-${p}-${v.id}`
+        const input = document.createElement('input')
+        input.type = 'radio'; input.name = 'cor-' + p; input.id = id; input.value = v.id
+        input.checked = estado.variante[p] === v.id
+        input.addEventListener('change', () => escolherVariante(p, v.id))
+        const label = document.createElement('label')
+        label.htmlFor = id
+        label.innerHTML = `<span class="amostra" style="background:${v.hex}"></span><span>${v.nome} <span class="hex">${v.hex}</span></span>` +
+          (RECOMENDADA[p] === v.id ? '<span class="selo">Recomendada</span>' : '<span></span>')
+        opcoes.append(input, label)
+      }
+    }
+    // intensidade
+    const rIntens = $('a-intensidade')
+    $('rotulo-intensidade').textContent = 'Força da tinta ' + NOME_PERIODO[p]
+    rIntens.disabled = p === 'dia'
+    $('motivo-intensidade').hidden = p !== 'dia'
+    const vi = p === 'dia' ? 0 : estado.intensidade[p] * 100
+    rIntens.value = String(Math.round(vi))
+    $('o-intensidade').textContent = p === 'dia' ? 'sem tinta' : `${Math.round(vi)}%`
+    for (const a of AJUSTES) { $(a.id).value = String(a.ler()); $(a.saida).textContent = a.texto(a.ler()) }
+    $('a-visao').checked = estado.mostrarVisao
+    canvasMapa.setAttribute('aria-label', `Mapa de exemplo ${NOME_PERIODO[p]}, ${estado.visao === 'mestre' ? 'na visão do mestre' : 'como o jogador vê'}`)
+    escreverConstantes()
+  }
+
+  const hex0x = (h) => '0x' + h.slice(1)
+  function escreverConstantes() {
+    const vt = VARIANTES.tarde.find((v) => v.id === estado.variante.tarde)
+    const vn = VARIANTES.noite.find((v) => v.id === estado.variante.noite)
+    const n2 = (v) => Number(v.toFixed(2))
+    $('constantes').textContent =
+`// Protótipo L4a. Tinta final = mistura(branco, cor, intensidade),
+// aplicada em multiply; o dia não tem tinta.
+export const TINTA_DO_PERIODO = {
+  dia: { cor: 0xffffff, intensidade: 0 },
+  tarde: { cor: ${hex0x(vt.hex)}, intensidade: ${n2(estado.intensidade.tarde)} }, // ${vt.nome}
+  noite: { cor: ${hex0x(vn.hex)}, intensidade: ${n2(estado.intensidade.noite)} }, // ${vn.nome}
+} as const
+export const TINTA_NO_MESTRE = ${TINTA_NO_MESTRE}
+export const RESOLUCAO_DO_MAPA_DE_LUZ = 0.5
+export const COR_DA_LUZ = ${hex0x(rgbHex(corDaLuz()))} // calor ${n2(estado.calor)}
+export const QUEDA_DA_LUZ = ${JSON.stringify(QUEDA).replace(/,/g, ', ')}
+export const LUZ_POR_PERIODO = { dia: 0, tarde: ${n2(estado.luzTarde)}, noite: 1 } as const
+export const LUZ_PADRAO = {
+  fogueira: { forca: ${n2(estado.fogueira.forca)}, alcanceCasas: ${estado.fogueira.raio} },
+  lampiao: { forca: ${n2(estado.lampiao.forca)}, alcanceCasas: ${estado.lampiao.raio}, acesaEm: ['tarde', 'noite'] },
+} as const
+export const CONTORNO_DA_FICHA_PX = ${estado.contorno}
+export const TRANSICAO_DO_PERIODO_MS = ${TRANSICAO_PERIODO_MS}`
+  }
+
+  function trocarPeriodo(p) {
+    if (p === estado.periodo) return
+    estado.periodo = p
+    sincronizarPainel()
+    iniciarTransicao(TRANSICAO_PERIODO_MS)
+  }
+  function trocarVisao(v) {
+    if (v === estado.visao) return
+    estado.visao = v
+    sincronizarPainel()
+    pedirQuadro()
+  }
+  function escolherVariante(periodo, id) {
+    if (estado.variante[periodo] === id) return
+    estado.variante[periodo] = id
+    sincronizarPainel()
+    if (periodo === estado.periodo) iniciarTransicao(TRANSICAO_COR_MS)
+    pedirCartoes()
+  }
+
+  document.querySelectorAll('input[name=periodo]').forEach((el) => el.addEventListener('change', () => trocarPeriodo(el.value)))
+  document.querySelectorAll('input[name=visao]').forEach((el) => el.addEventListener('change', () => trocarVisao(el.value)))
+  $('a-intensidade').addEventListener('input', (e) => {
+    if (estado.periodo === 'dia') return
+    estado.intensidade[estado.periodo] = Number(e.target.value) / 100
+    $('o-intensidade').textContent = `${e.target.value}%`
+    escreverConstantes(); pedirQuadro(); pedirCartoes()
+  })
+  for (const a of AJUSTES) {
+    $(a.id).addEventListener('input', (e) => {
+      const v = Number(e.target.value)
+      a.gravar(v)
+      $(a.saida).textContent = a.texto(v)
+      escreverConstantes(); pedirQuadro(); pedirCartoes()
+    })
+  }
+  $('a-visao').addEventListener('change', (e) => { estado.mostrarVisao = e.target.checked; pedirQuadro() })
+  $('restaurar').addEventListener('click', () => {
+    const { periodo, visao } = estado
+    estado = clonar(PADRAO)
+    estado.periodo = periodo; estado.visao = visao
+    sincronizarPainel(); iniciarTransicao(TRANSICAO_COR_MS); pedirCartoes()
+  })
+  let timerCopiado = 0
+  $('copiar').addEventListener('click', async () => {
+    const texto = $('constantes').textContent
+    let ok = false
+    try { await navigator.clipboard.writeText(texto); ok = true } catch (_) {
+      const area = document.createElement('textarea')
+      area.value = texto; area.style.position = 'fixed'; area.style.opacity = '0'
+      document.body.appendChild(area); area.select()
+      try { ok = document.execCommand('copy') } catch (__) { ok = false }
+      area.remove()
+    }
+    $('copiado').textContent = ok ? 'Copiado' : 'Não deu para copiar: selecione o texto e use Ctrl+C'
+    clearTimeout(timerCopiado)
+    timerCopiado = setTimeout(() => { $('copiado').textContent = '' }, 2400)
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    const alvoTag = e.target && e.target.tagName
+    if (alvoTag === 'TEXTAREA' || (alvoTag === 'INPUT' && e.target.type === 'text')) return
+    const mapa = { '1': 'dia', '2': 'tarde', '3': 'noite' }
+    // Se o foco está no grupo, ele acompanha a troca (senão o anel fica no segmento antigo).
+    const focoNoGrupo = (nome) => document.activeElement && document.activeElement.name === nome
+    if (mapa[e.key]) {
+      const seguir = focoNoGrupo('periodo')
+      trocarPeriodo(mapa[e.key])
+      if (seguir) $('p-' + estado.periodo).focus()
+      return
+    }
+    if (e.key === 'v' || e.key === 'V') {
+      const seguir = focoNoGrupo('visao')
+      trocarVisao(estado.visao === 'mestre' ? 'jogador' : 'mestre')
+      if (seguir) $('v-' + estado.visao).focus()
+    }
+  })
+
+  /* ---------- perguntas ---------- */
+  $('lista-perguntas').innerHTML = [
+    ['Noite:', 'fico com o azul-ardósia (#465a92) a 85%? Ou prefere o azul-violeta, o verde-petróleo, ou outra força?'],
+    ['Tarde:', 'fico com o pêssego-rosado (#f0aa98) a 60%? Ou prefere o âmbar, o dourado-lilás, ou outra força?'],
+    ['Luz e ficha:', 'o calor de 55%, a fogueira com 5 casas e o lampião com 3,5 casas servem de padrão, e o contorno creme de 2,5 px deixa a sua ficha fácil de achar à noite?'],
+  ].map(([a, b]) => `<li>${a} <span>${b}</span></li>`).join('')
+
+  /* ---------- início ---------- */
+  const t0 = performance.now()
+  const CENA = pintarCena()
+  medidas.cenaMs = performance.now() - t0
+  sincronizarPainel()
+  montarCartoes()
+  exibido = alvo()
+  pedirQuadro()
+  atualizarCartoes()
+  medidas.pronto = true
+})()
+</script>
+</body>
+</html>
