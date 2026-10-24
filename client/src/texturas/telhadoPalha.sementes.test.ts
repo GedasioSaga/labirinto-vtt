@@ -76,3 +76,39 @@ it('1000 salas de palha, na escala do app e a 3x: todas no alvo de cor do estilo
   )
   expect(falhas.slice(0, 10)).toEqual([])
 })
+
+/** Salas grandes (1100 a 2200 por 950 a 1700 px, na grade): passam de 1 milhão de pixels e o app pinta abaixo de 1x. */
+function salaGrandeSorteada(i: number): readonly PontoDoTelhado[] {
+  const r = sorteador(51_001 + i)
+  const g = [40, 50, 64, 70][Math.floor(r() * 4)]
+  const x0 = Math.floor(r() * 40) * g
+  const y0 = Math.floor(r() * 40) * g
+  const w = Math.ceil((1100 + r() * 1100) / g) * g
+  const h = Math.ceil((950 + r() * 750) / g) * g
+  return [{ x: x0, y: y0 }, { x: x0 + w, y: y0 }, { x: x0 + w, y: y0 + h }, { x: x0, y: y0 + h }]
+}
+
+const SALAS_GRANDES = 60
+
+it(`${SALAS_GRANDES} salas grandes de palha, na escala do app ABAIXO de 1x (V de ~6 px, fio de ~1 px, serrilhado): no alvo de cor`, { timeout: 600_000 }, () => {
+  const falhas: string[] = []
+  const pior = { saturacao: 0, croma: 0, acimaDaCor: -Infinity, menorEscala: Infinity }
+  for (let i = 0; i < SALAS_GRANDES; i += 1) {
+    const sala = salaGrandeSorteada(i)
+    const cor = PALETA_DO_TETO.palha[i % 6].hex
+    const escala = escalaDaTexturaDoTelhado(sala)
+    expect(escala, `sala grande ${i}`).toBeLessThan(1)
+    pior.menorEscala = Math.min(pior.menorEscala, escala)
+    const m = medirCorDoTelhado(pintarTelhado(sala, 'palha', cor, escala))
+    pior.saturacao = Math.max(pior.saturacao, m.saturacaoP95)
+    pior.croma = Math.max(pior.croma, m.cromaP95)
+    pior.acimaDaCor = Math.max(pior.acimaDaCor, m.cromaMedio - croma(oklabDoHex(cor)))
+    const f = falhasDaCor(m, cor)
+    if (f.length > 0) falhas.push(`sala grande ${i} (${cor}, ${escala.toFixed(2)}x): ${f.join(', ')}`)
+  }
+  console.log(
+    `[medida] ${SALAS_GRANDES} salas grandes (escala de ${pior.menorEscala.toFixed(2)}x a menos de 1x): pior saturação p95 ${pior.saturacao.toFixed(3)}, ` +
+      `pior croma p95 ${pior.croma.toFixed(4)}, pior croma médio acima da cor ${pior.acimaDaCor.toFixed(4)}`,
+  )
+  expect(falhas.slice(0, 10)).toEqual([])
+})
