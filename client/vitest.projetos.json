@@ -12,7 +12,7 @@
     { "glob": "src/net/entradaComConta.test.ts", "porque": "teto de tempo; falha sob carga" },
     { "glob": "src/texturas/meioTermo/moveis/moveisMt3.test.ts", "porque": "teto de tempo; falha sob carga" },
     { "glob": "src/player/main.sonsAoVivo.test.tsx", "porque": "teto de tempo; falha sob carga (chegou da Sons F5a/F5b em 24/10/2026)" },
-    { "glob": "src/texturas/telhadoPalha.test.ts", "porque": "teto de tempo; falha sob carga", "pendente": "Meio-Termo (labirinto-meiotermo, -mt7, -mt8)" }
+    { "glob": "src/texturas/telhadoPalha.test.ts", "porque": "teto de tempo; falha sob carga (chegou da MT6 em 24/10/2026)" }
   ],
   "_sempreNoN1": "Mapas salvos abrem idênticos: round-trip de maps/L1.json contra a digital anterior (roundtrip-924c2bdd) e o mapa de versão antiga. Rodam em todo N1, mude o que mudar.",
   "sempreNoN1": [
