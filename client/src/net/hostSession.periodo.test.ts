@@ -27,8 +27,8 @@ function cena(sceneId: string, name: string, tokens: Token[], marcas: Partial<Ma
   return { sceneId, name, map: { ...createEmptyMap(`m-${sceneId}`, name, 40, 40, 50), tokens, ...marcas } }
 }
 
-/** Lampião que a L3 vai acender sozinho: o campo ainda não existe no tipo, então vem forjado. */
-const LAMPIAO = { id: 'lampiao', x: CENTRO + 100, y: CENTRO, radius: 150, color: '#ffb347', intensity: 0.8, acesaEm: ['noite'] } as Light // forja de propósito: prova que campo desconhecido da luz não viaja
+/** Lampião que acende sozinho à noite (Luz L3): o campo `acesaEm` nunca viaja. */
+const LAMPIAO: Light = { id: 'lampiao', x: CENTRO + 100, y: CENTRO, radius: 150, color: '#ffb347', intensity: 0.8, acesaEm: ['noite'] }
 
 /**
  * Pátio (externo) com Ana e um lobo a 500 px dela; Cripta (interior, sem

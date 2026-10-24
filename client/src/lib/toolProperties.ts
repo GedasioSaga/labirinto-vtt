@@ -36,6 +36,8 @@ export type PropertyGroupId =
   | 'itemTransform'
   | 'tokenImage'
   | 'lightControls'
+  /** Luz L3: o preset (Luz, Tocha, Lampião, Fogueira) da PRÓXIMA luz da ferramenta Luz (`PresetDeLuzControls`). */
+  | 'lightPreset'
   | 'stairControls'
   | 'stairSize'
   | 'room'
@@ -78,7 +80,7 @@ export type PropertyGroupId =
 export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'drawingStyle', 'lineCap', 'fill', 'regionStyle', 'polygonSides', 'textLabel',
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
-  'lightControls', 'stairControls', 'stairSize', 'room',
+  'lightControls', 'lightPreset', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
   'revealBrush', 'penhasco', 'texturas', 'carimbos', 'paredesAoRedor', 'paredePresa',
@@ -327,6 +329,8 @@ export function relevantPropertyGroups(
   }
 
   if (light) groups.add('lightControls')
+  // Luz L3: preferência da PRÓXIMA luz, como `lineCap` da ferramenta de traço.
+  if (activeTool === 'light') groups.add('lightPreset')
 
   // Escada — `stairControls` é a seção de hoje (direção); `stairSize` é NOVA
   // (P/M/G, pedido do usuário) e sempre acompanha a mesma condição — quem

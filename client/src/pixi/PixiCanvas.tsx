@@ -158,10 +158,10 @@ import {
 } from './drawDraft'
 import { findTokenAt, snapPointForTarget } from './tokenInteraction'
 import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
+import { luzDoPreset } from '../lib/presetsDeLuz'
 import {
   isValidWallDraft,
   buildWallFromDraft,
-  buildLightAt,
   buildRegionFromPoints,
   isValidFreehandDraft,
   buildFreehandDrawing,
@@ -6816,7 +6816,7 @@ export function PixiCanvas({
 
         if (mode === 'drawing-light' && lightDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addLight } = useMapStore.getState()
+          const { map, addLight, lightPreset } = useMapStore.getState()
           // Compara contra o ponto bruto do pointerdown (lightDraftRawStart), nao
           // contra lightDraftCenter (que pode estar snapado) — senao, com "Travar
           // na grade" ativo, um clique simples ja nasce com dragDistance inflado
@@ -6827,12 +6827,12 @@ export function PixiCanvas({
           // cair no centro snapado no pior caso ainda é o comportamento antigo.
           const dragOrigin = lightDraftRawStart ?? lightDraftCenter
           const dragDistance = Math.hypot(worldPoint.x - dragOrigin.x, worldPoint.y - dragOrigin.y)
-          // Clique simples (sem arrasto de verdade): mantem o comportamento de
-          // hoje, raio padrao proporcional ao grid. Arrasto real: usa a
-          // distancia arrastada como raio novo.
+          // Clique simples (sem arrasto de verdade): o alcance do preset
+          // (Luz L3: Luz, Tocha, Lampião, Fogueira), proporcional ao grid.
+          // Arrasto real: usa a distancia arrastada como raio novo.
           const light = dragDistance < LIGHT_CLICK_THRESHOLD
-            ? buildLightAt(crypto.randomUUID(), lightDraftCenter, map.grid)
-            : buildLightAt(crypto.randomUUID(), lightDraftCenter, map.grid, dragDistance)
+            ? luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset)
+            : luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset, dragDistance)
           addLight(light)
           lightDraftCenter = null
           lightDraftRawStart = null

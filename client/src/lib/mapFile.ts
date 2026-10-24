@@ -55,7 +55,7 @@ import { normalizarCorDaPorta } from './corDaPorta'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
-import { lerAmbientePorPeriodo, lerPeriodo, lerVisaoPorPeriodo } from './periodo'
+import { lerAcesaEm, lerAmbientePorPeriodo, lerPeriodo, lerVisaoPorPeriodo } from './periodo'
 import { isDaVista } from './espiar'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readPinAttachment } from './pinAttach'
@@ -616,15 +616,18 @@ function concealZoneFromFile(zone: ConcealZone): ConcealZone {
 }
 
 /**
- * Luz lida do disco: os dois campos do ESTADO DO MUNDO passam por conferência.
- * `apagada` só volta `true`; regra torta some. Ausentes continuam ausentes.
+ * Luz lida do disco: os dois campos do ESTADO DO MUNDO e o `acesaEm` (Luz L3)
+ * passam por conferência. `apagada` só volta `true`; regra torta e `acesaEm`
+ * torto somem (`lerAcesaEm`). Ausentes continuam ausentes.
  */
 function lightFromFile(light: Light): Light {
-  if (!('porEstado' in light) && !('apagada' in light)) return light
-  const { porEstado, apagada, ...rest } = light
+  if (!('porEstado' in light) && !('apagada' in light) && !('acesaEm' in light)) return light
+  const { porEstado, apagada, acesaEm, ...rest } = light
   const regra = regraDoArquivo(porEstado, isEfeitoNaLuz)
   const withRule: Light = regra === undefined ? rest : { ...rest, porEstado: regra }
-  return apagada === true ? { ...withRule, apagada: true } : withRule
+  const withState: Light = apagada === true ? { ...withRule, apagada: true } : withRule
+  const periodos = lerAcesaEm(acesaEm)
+  return periodos === undefined ? withState : { ...withState, acesaEm: periodos }
 }
 
 /** BOLSA do arquivo: ausente fica ausente; valor torto some (bolsa vazia) em vez de ir parar na tela. */
