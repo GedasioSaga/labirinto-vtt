@@ -17,4 +17,12 @@ A música importada do minigame de dança deixa de sair por `/media/<id>` (sem c
 - A cópia para a pasta no convite corre em segundo plano porque o convite é síncrono no painel. Risco: na PRIMEIRA vez de uma dança antiga (música só em `<appData>`), o jogador pode pedir antes de a cópia acabar e levar o 404; "Tentar de novo" resolve. Música importada depois da F5d já nasce na pasta.
 - `MinigameControls.CAMINHO_DO_APP.guardar` lê a pasta da loja da biblioteca de sons (`dir`), a mesma do `carregadorDoMestre`.
 
+**Evidência (24/10, pela fila `suite-lock.cjs`; commit `4a0041f2`)**
+
+- `rtk proxy npx tsc --noEmit` e `-p tsconfig.e2e.json`: saída vazia, exit 0.
+- Testes novos (escritos antes do código): `musicaImportada.test.ts` (7), `hostBridge.dancaLiberada.test.ts` (4), `lib/musicaDaDancaNaAventura.test.ts` (6), `dancaNoPainel.musica.test.ts` (3); junto com `apoioDaTela.test.ts` e `dancaNoPainel.test.ts`: 6 arquivos, 30 testes verdes.
+- `npx vitest related --run` dos 14 arquivos mudados: 571 arquivos, 4253 testes verdes.
+- e2e (`LAB_NAVEGADOR` = chromium-1243): `task-jornada-danca` (a, b, c, d), `task-jornada-danca-visao-de-jogador`, `task-sons-ao-vivo-arquivo` (2): 7 verdes em 2,5 min. O (d) confere que a música veio por `/sons` com a chave do jogador e liberada a ele, sem recusa e sem nenhum pedido a `/media`.
+- 7 mutações, uma por vez (aplicar, rodar só o teste dela, restaurar), todas VERMELHAS: jogador volta a `/media`; jogador sem a chave no cabeçalho; convite não libera; liberação lida do envelope gzip; convite sai sem pasta; importar não grava na pasta; garantir sem conferir o hash.
+
 **Para o Rust da F5d**: `/media` pode passar a dar 404 a áudio a partir deste commit. O jogador nunca mais pede música a `/media` (provado no e2e). A Visão de jogador lê a música pela ponte de arquivos (`convertFileSrc` da `<appData>/midia`), não por `/media`.
