@@ -2,6 +2,8 @@ import type { Container, Graphics } from 'pixi.js'
 import type { Wall, WallThickness, WallThicknessPreset } from '../types/map'
 import { SELECTION_COLOR } from './constants'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { desenharGrade } from './gradeDePrisao'
 
 /**
  * Espessura da parede (Fase 6, pedido do usuário: "se eu quero poligono finos
@@ -325,7 +327,11 @@ export function drawWalls(
     // A invisível vem antes: janela ou passagem invisível continua invisível.
     if (isInvisivel(wall)) {
       if (marcarPassagem) drawParedeInvisivel(graphics, wall, cameraScale, rendererResolution)
-    } else if (isJanela(wall)) drawJanela(graphics, wall, cameraScale, rendererResolution)
+    } else if (isJanela(wall)) {
+      // GRADE DE PRISÃO (MT10): só com a obra do Meio-Termo ligada; desligada, a janela de sempre.
+      if (wall.grade === true && meioTermoLigado()) desenharGrade(graphics, wall, cameraScale)
+      else drawJanela(graphics, wall, cameraScale, rendererResolution)
+    }
     else if (marcarPassagem && isPassagem(wall)) drawPassagem(graphics, wall, resolveWallStyle(wall, cameraScale, rendererResolution), cameraScale)
   }
 }

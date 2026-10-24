@@ -1064,6 +1064,8 @@ interface MapStoreState {
   setRoomRoofStyle: (id: string, patch: mapFactory.RoomRoofStylePatch) => void
   /** CHAMINÉ do telhado da Sala (`RoomMeta.chamine`, Meio-Termo), com histórico. */
   definirChamine: (id: string, ligada: boolean) => void
+  /** GRADE DE PRISÃO numa janela sem porta (`Wall.grade`, MT10). Com histórico; o que não muda nada não gasta entrada. */
+  definirGrade: (id: string, ligada: boolean) => void
   /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
@@ -2626,6 +2628,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirChamine: (id, ligada) => {
       if (mapFactory.definirChamine(get().map, id, ligada) === get().map) return
       withHistory((map) => mapFactory.definirChamine(map, id, ligada))
+    },
+    definirGrade: (id, ligada) => {
+      if (mapFactory.definirGrade(get().map, id, ligada) === get().map) return
+      withHistory((map) => mapFactory.definirGrade(map, id, ligada))
     },
     definirVistaDosMoveis: (vista) => {
       if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return

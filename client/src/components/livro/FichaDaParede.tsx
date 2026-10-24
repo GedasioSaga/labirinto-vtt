@@ -25,12 +25,12 @@ export interface FichaDaParedeProps {
 }
 
 /** O que atravessa a parede, numa palavra: a janela e as duas passagens. */
-function resumoDoQueDeixa({ janela, passagem }: WallStyleControlsProps): string {
+function resumoDoQueDeixa({ janela, grade, passagem }: WallStyleControlsProps): string {
   const passa = passagem?.deixaPassar === true
   const ve = janela === true || passagem?.deixaVer === true
   if (passa && ve) return 'Ver e passar'
   if (passa) return 'Passar'
-  if (janela === true) return 'Janela'
+  if (janela === true) return grade?.ligada === true ? 'Grade' : 'Janela'
   return ve ? 'Ver' : 'Nada'
 }
 

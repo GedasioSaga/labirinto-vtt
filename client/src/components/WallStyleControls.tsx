@@ -91,6 +91,12 @@ export interface WallStyleControlsProps {
   janela?: boolean
   onJanelaChange?: (janela: boolean) => void
   /**
+   * GRADE DE PRISÃO (Meio-Termo, MT10): a janela desenhada como barras de
+   * ferro. Só entra numa janela sem porta e com a obra do Meio-Termo ligada
+   * (quem decide é `gradeDaParede`); sem ele o interruptor não aparece.
+   */
+  grade?: { ligada: boolean; onChange: (ligada: boolean) => void }
+  /**
    * PASSAGEM E COR (pedido de 07/10/2026) — só da parede JÁ SELECIONADA, como
    * a janela: sem o handler o controle não aparece. `deixaPassar` é
    * `!blocksMove`, `deixaVer` é `!blocksLight`; `color` `null` = cor padrão.
@@ -142,6 +148,7 @@ export function WallStyleControls({
   onThicknessChange,
   janela,
   onJanelaChange,
+  grade,
   passagem,
   cor,
   avancado,
@@ -170,6 +177,9 @@ export function WallStyleControls({
       )}
       {mostra('deixa') && onJanelaChange && (
         <Toggle label="Janela (vê, não passa)" checked={janela === true} onChange={onJanelaChange} />
+      )}
+      {mostra('deixa') && janela === true && grade && (
+        <Toggle label="Grade de prisão (barras de ferro)" checked={grade.ligada} onChange={grade.onChange} />
       )}
       {mostra('deixa') && passagem && (
         <>
