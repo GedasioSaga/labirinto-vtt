@@ -310,9 +310,8 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
 import { isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
-import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
 import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
-import { createTelhadosRenderer } from './telhadosRenderer'
+import { createTelhadosRenderer, telhadoParaDesenhar } from './telhadosRenderer'
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
 import { stairHandleLabel } from '../lib/stairHandles'
@@ -2040,10 +2039,7 @@ export function PixiCanvas({
         const noDoTelhado = noDoItem(pilha.nosDaFaixa('telhadosContainer'), daSala)
         const salas = regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3 && camadas.mestreVe(daSala(r)))
         telhadosRenderer.desenhar(
-          salas.map((r) => {
-            const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
-            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r) }
-          }),
+          salas.map((r) => telhadoParaDesenhar(r, noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r))),
           mapaId,
         )
       }
@@ -2642,7 +2638,8 @@ export function PixiCanvas({
         // O fio do móvel desenhado é em px de tela: sem zoom e resolução ele
         // cairia em 1 px de mundo e engrossaria com o zoom (4 px no máximo).
         const camadas = contextoDeCamadas(map)
-        const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution }
+        // A VISTA DOS MÓVEIS da cena (Meio-Termo) vai junto, como no jogador.
+        const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, vistaDosMoveis: map.vistaDosMoveis }
         for (const { no, itens } of distribuir(visibleProps(map.props, map), pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
           propsPorNo.de(no).draw(no, itens, single?.kind === 'prop' ? single.id : null, vista)
         }
@@ -3003,6 +3000,8 @@ export function PixiCanvas({
           aplicarOlhoDoTerreno()
         },
       )
+      // VISTA DOS MÓVEIS (Meio-Termo): trocar a vista da cena não toca em `map.props`; os móveis repintam com ela.
+      const unsubscribeVistaDosMoveis = useMapStore.subscribe((state) => state.map.vistaDosMoveis, () => redrawProps())
       // CAMADAS: mover uma camada na lista ou mudar a opacidade dela não toca nas
       // listas do mapa, então nenhuma assinatura acima acorda. A pilha remonta
       // (troca os containers de lugar, ajusta o alpha) sem repintar. Só quando um
@@ -8694,6 +8693,7 @@ export function PixiCanvas({
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
+        unsubscribeVistaDosMoveis()
         unsubscribeCamadas()
         unsubscribePisoAtivo()
         unsubscribeStraightenGhost()

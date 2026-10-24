@@ -17,8 +17,7 @@ import { countExploredCells, forEachExploredNotch, forEachExploredRun } from '..
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
-import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao } from '../lib/telhado/paletas'
-import { createTelhadosRenderer, type TelhadosRenderer } from '../pixi/telhadosRenderer'
+import { createTelhadosRenderer, telhadoParaDesenhar, type TelhadosRenderer } from '../pixi/telhadosRenderer'
 import { portasDeFora, portasNoTelhado, salasComTetoDe } from '../lib/telhado/portasDeFora'
 import type { PlayerHazard } from '../lib/hazards'
 import { drawHazardAreas } from '../pixi/drawHazards'
@@ -1562,16 +1561,14 @@ function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined
   // Sem visão de quem espia não há o que recortar: o telhado sai inteiro.
   const peeked = peekVision.length === 0 ? [] : roofs.filter((r) => peekedIds.has(r.id))
   const whole = peeked.length === 0 ? roofs : roofs.filter((r) => !peekedIds.has(r.id))
-  const estilo = (r: Region) => [r.room?.modeloDoTeto ?? null, r.room?.corDoTeto ?? null]
+  // A chaminé (Meio-Termo) entra na chave: ligar ou desligar repinta o telhado.
+  const estilo = (r: Region) => [r.room?.modeloDoTeto ?? null, r.room?.corDoTeto ?? null, r.room?.chamine ?? null]
   const key = JSON.stringify([mapaId, whole.map((r) => [r.id, r.points, estilo(r)]), peeked.map((r) => [r.id, r.points, estilo(r)]), peeked.length === 0 ? [] : peekVision])
   if (key === scene.lastRoofsKey) return
   scene.lastRoofsKey = key
   const peekedSet = new Set(peeked.map((r) => r.id))
   scene.telhados.desenhar(
-    roofs.map((r) => {
-      const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
-      return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: peekedSet.has(r.id) ? scene.peekedRoofs : scene.roofs }
-    }),
+    roofs.map((r) => telhadoParaDesenhar(r, peekedSet.has(r.id) ? scene.peekedRoofs : scene.roofs)),
     mapaId,
   )
   // VER PELA PORTA ABERTA: o telhado do prédio espiado continua lá, com um
@@ -2178,7 +2175,9 @@ function PlayerViewDoCanvas({
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
     const nos = FAIXAS_DOS_MOVEIS.map((faixa) => scene.pilha.assinaturaDa(faixa)).join(';')
-    const key = JSON.stringify([props, scale, res, currentMap.grid, nos])
+    // VISTA DOS MÓVEIS (Meio-Termo): a da cena, como no editor; trocar repinta.
+    const vistaDosMoveis = currentMap.vistaDosMoveis
+    const key = JSON.stringify([props, scale, res, currentMap.grid, nos, vistaDosMoveis ?? null])
     if (key === scene.lastPropsKey) return
     scene.lastPropsKey = key
     const camadas = contextoDoJogador(currentMap)
@@ -2190,7 +2189,7 @@ function PlayerViewDoCanvas({
     // opacidade própria separa dos de Objetos); mapa de hoje = um nó por faixa.
     let desenhadas = 0
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('props'), deObjeto)) {
-      if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res)
+      if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis)
     }
     scene.propsCount = desenhadas
     // Fogueira que sai da visão (ou da camada visível) leva a chama junto.

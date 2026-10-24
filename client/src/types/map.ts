@@ -186,6 +186,15 @@ export interface Wall extends NoPiso, NaCamada {
    */
   janela?: boolean
   /**
+   * GRADE DE PRISÃO (Meio-Termo, retoque Q): a janela (`janela`) desenhada como
+   * grade de barras. Só DESENHO: quem deixa ver e barra o passo é a `janela`,
+   * e a grade só vale nela, numa parede sem porta. Só `true` é gravado e lido
+   * (`lib/mapFile.ts`); ausente = a janela de traço duplo de sempre, sem linha
+   * de migração. O jogador a recebe só na parede que ele já recebe e que é
+   * janela (`lib/fogFilter.ts`). O desenho é da MT10.
+   */
+  grade?: true
+  /**
    * Cor da linha (`#rrggbb`), escolhida no painel da parede. `undefined` = a
    * cor padrão (`WALL_COLOR`, `pixi/drawWalls.ts`), sem linha de migração.
    */
@@ -421,6 +430,12 @@ export interface RoomMeta {
   corDoTeto?: string
   /** CAMADA DO TELHADO (`lib/camadas`): ausente = Telhados, como o resto do mapa de antes. */
   camadaDoTelhado?: CamadaId
+  /** CHAMINÉ (Meio-Termo, retoque Q): o telhado da Sala ganha chaminé. Só
+   *  DESENHO e só com `roof` ligado. Só `true` é gravado e lido (`lib/mapFile.ts`,
+   *  `definirChamine` em `lib/mapFactory.ts`); ausente = sem chaminé, sem
+   *  migração. Atravessa ao jogador junto do modelo e da cor: só com o teto
+   *  fechado (`lib/fogFilter.ts`). O desenho é da MT10. */
+  chamine?: true
   /**
    * CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto". O jogador NÃO
    * recebe a Sala (nem silhueta, nem nome, nem pino, desenho ou escada de
@@ -1669,6 +1684,12 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  lados e no pé), `#rrggbb` com as mesmas regras de `mobiliaCorDoTravesseiro`.
    *  Ausente = o desenho de sempre. */
   mobiliaCorDoCobertor?: string
+  /** DESENHO DO MÓVEL (Meio-Termo, retoque Q): `'linhas'` = a versão antiga, de
+   *  linhas, mesmo com o Meio-Termo ligado (o catálogo a oferece na MT12).
+   *  Ausente = o desenho do estilo da casa, sem linha de migração. Só `'linhas'`
+   *  num tipo do catálogo é lido e atravessa (`lib/mobilia.ts`); vai ao jogador
+   *  junto do tipo. */
+  mobiliaDesenho?: 'linhas'
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
@@ -2368,6 +2389,15 @@ export interface MapData {
    * arquivo sai (`lerVisaoPorPeriodo`).
    */
   visaoPorPeriodo?: { tarde?: number; noite?: number }
+  /**
+   * VISTA DOS MÓVEIS desta cena (Meio-Termo, retoque Q): `'tres-quartos'` vira
+   * os móveis desenhados para a vista 3/4. Ausente = "de cima com volume", o
+   * padrão, sem linha de migração. Só `'tres-quartos'` é gravado e lido
+   * (`lib/mapFile.ts`, `definirVistaDosMoveis` em `lib/mapFactory.ts`). O
+   * jogador a recebe só com algum móvel no recorte (`lib/fogFilter.ts`). O
+   * desenho é da MT11.
+   */
+  vistaDosMoveis?: 'tres-quartos'
   /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar

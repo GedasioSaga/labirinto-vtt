@@ -1,6 +1,6 @@
 import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import type { Prop } from '../types/map'
+import type { MapData, Prop } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
@@ -101,6 +101,8 @@ function fileBaseName(path: string): string {
 export interface PropsView {
   cameraScale: number
   rendererResolution: number
+  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo): segue para `drawPropSilhouettes`, como no jogador. */
+  vistaDosMoveis?: MapData['vistaDosMoveis']
 }
 
 export interface PropsRenderer {
@@ -119,7 +121,7 @@ export interface PropsRenderer {
  */
 interface FurnitureEntry {
   drawing: Graphics
-  painted: { prop: Prop; cameraScale: number; rendererResolution: number } | null
+  painted: { prop: Prop; cameraScale: number; rendererResolution: number; vistaDosMoveis: MapData['vistaDosMoveis'] } | null
 }
 
 /**
@@ -283,19 +285,20 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       container.addChildAt(entry.drawing, 0)
     }
     const { painted } = entry
-    const { cameraScale, rendererResolution } = view
+    const { cameraScale, rendererResolution, vistaDosMoveis } = view
     // Mesma pintura: o desenho de antes continua valendo, nada a limpar.
     if (
       painted !== null &&
       painted.prop === prop &&
       painted.cameraScale === cameraScale &&
-      painted.rendererResolution === rendererResolution
+      painted.rendererResolution === rendererResolution &&
+      painted.vistaDosMoveis === vistaDosMoveis
     ) {
       return
     }
-    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution)
+    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution, vistaDosMoveis)
     entry.drawing.alpha = propAlpha(prop)
-    entry.painted = { prop, cameraScale, rendererResolution }
+    entry.painted = { prop, cameraScale, rendererResolution, vistaDosMoveis }
     // A chama da fogueira, logo acima do desenho dela (o mesmo fantasma); outro tipo não tem chama.
     const chama = chamas.colocar(prop, view)
     if (chama === null) return

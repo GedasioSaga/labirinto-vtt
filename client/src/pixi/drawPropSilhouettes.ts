@@ -1,5 +1,5 @@
 import type { Graphics } from 'pixi.js'
-import type { Prop } from '../types/map'
+import type { MapData, Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 import {
   contornoDeLado,
@@ -113,6 +113,7 @@ export type PropSilhouette = Pick<
   | 'mobiliaForma'
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
+  | 'mobiliaDesenho'
 > &
   // O id só escolhe a variação da lápide (`varianteDaLapide`); quem chama passa o objeto inteiro.
   Partial<Pick<Prop, 'id'>>
@@ -498,18 +499,23 @@ function drawTexturedFurniture(
  * mesmos argumentos, quando uma imagem que ele pediu fica pronta (quem chamou
  * não precisa saber); desligado, só a PEÇA NOVA (MT4, `ehPecaNova`) sai em
  * imagem, e sem peça nova na lista nenhum caminho novo roda.
+ *
+ * `vistaDosMoveis` é a vista da cena (`MapData.vistaDosMoveis`, Meio-Termo),
+ * que o editor e o jogador passam igual. Por enquanto ela só segue adiante (o
+ * repintar a leva junto): quem a desenha é a MT11, e até lá nada muda na tela.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
   props: readonly PropSilhouette[],
   cameraScale = 1,
   rendererResolution = 1,
+  vistaDosMoveis?: MapData['vistaDosMoveis'],
 ): number {
   graphics.clear()
   const grid = pixelGrid(cameraScale, rendererResolution, PROP_SILHOUETTE_EDGE_SCREEN_PX)
   const edgeWidth = strokeWidthInWorld(grid)
   const repintar = (): void => {
-    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution)
+    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis)
   }
   // A chave de obra vale para os 11 móveis de antes; a PEÇA NOVA (MT4) sai sempre com textura.
   const obraLigada = meioTermoLigado()

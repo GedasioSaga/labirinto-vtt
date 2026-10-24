@@ -1,4 +1,4 @@
-import type { CamadaId, ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token } from '../types/map'
+import type { CamadaId, ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -71,7 +71,7 @@ import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { confrontoFromFile } from './confronto'
 import { perigosFromFile } from './perigo'
-import { propMobiliaFromFile } from './mobilia'
+import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
@@ -533,6 +533,23 @@ function roomLabelStyleFromFile(region: Region): Region {
   return { ...region, room: sanitizeRoomLabelStyle(room) }
 }
 
+/** CHAMINÉ (`RoomMeta.chamine`, Meio-Termo) — campo NOVO e OPCIONAL: ausente
+ *  continua ausente; só `true` volta, o resto SAI. */
+function roomChamineFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('chamine' in room) || room.chamine === true) return region
+  const { chamine: _torta, ...semChamine } = room
+  return { ...region, room: semChamine }
+}
+
+/** GRADE DE PRISÃO (`Wall.grade`, Meio-Termo) — campo NOVO e OPCIONAL: ausente
+ *  continua ausente; só `true` volta, o resto SAI. */
+function gradeDoArquivo(wall: Wall): Wall {
+  if (!('grade' in wall) || wall.grade === true) return wall
+  const { grade: _torta, ...semGrade } = wall
+  return semGrade
+}
+
 /** MODELO E COR DO TELHADO — campos NOVOS e OPCIONAIS: ausentes continuam
  *  ausentes (telha barro). Modelo fora de `MODELOS_DO_TETO` (telhas, madeira,
  *  palha desde a MT6) e cor que não é
@@ -665,15 +682,16 @@ function deserializeMapFields(json: string): MapData {
     // wallKind ausente fica undefined de propósito (=== 'exterior').
     // CAMADA (`lib/camadas`): em TODA entidade abaixo, `camada` torta perde a
     // chave (`semCamadaTorta`); ausente continua ausente.
-    walls: entityList(parsed.walls).map((w) => semCamadaTorta({
+    // GRADE DE PRISÃO (`Wall.grade`, Meio-Termo): só `true` volta (`gradeDoArquivo`).
+    walls: entityList(parsed.walls).map((w) => semCamadaTorta(gradeDoArquivo({
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
-    })),
+    }))),
     lights: entityList(parsed.lights).map(lightFromFile).map(semCamadaTorta),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      semCamadaTorta(roomRoofLayerFromFile(roomRoofStyleFromFile(roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })))))))))),
+      semCamadaTorta(roomChamineFromFile(roomRoofLayerFromFile(roomRoofStyleFromFile(roomLabelStyleFromFile(roomVisionRadiusFromFile(roomFaccaoFromFile(roomSeeThroughFromFile(roomDarkFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))))))))))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -955,6 +973,9 @@ function deserializeMapFields(json: string): MapData {
     ...periodoFixoField(parsed.periodoFixo),
     // Tinta de ambiente e visão por período: campos NOVOS e OPCIONAIS; parte torta sai (`lib/periodo.ts`).
     ...ambienteEVisaoPorPeriodoFields(parsed.ambientePorPeriodo, parsed.visaoPorPeriodo),
+    // VISTA DOS MÓVEIS (Meio-Termo): campo NOVO e OPCIONAL. Só `'tres-quartos'`
+    // volta; o resto abre "de cima", sem o campo (`lerVistaDosMoveis`).
+    ...vistaDosMoveisField(parsed.vistaDosMoveis),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
@@ -968,6 +989,12 @@ function deserializeMapFields(json: string): MapData {
 function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
   const textoChegada = readArrivalText(raw)
   return textoChegada === undefined ? {} : { textoChegada }
+}
+
+/** `vistaDosMoveis` só entra no mapa quando o arquivo traz a vista 3/4: mapa de antes não ganha campo. */
+function vistaDosMoveisField(raw: unknown): Pick<MapData, 'vistaDosMoveis'> {
+  const vistaDosMoveis = lerVistaDosMoveis(raw)
+  return vistaDosMoveis === undefined ? {} : { vistaDosMoveis }
 }
 
 /** `periodoFixo` só entra no mapa quando o arquivo traz um período: mapa de antes não ganha campo. */

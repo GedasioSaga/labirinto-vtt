@@ -1062,6 +1062,10 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** MODELO E COR DO TELHADO da Sala (`RoomMeta.modeloDoTeto` / `corDoTeto`), com histórico. */
   setRoomRoofStyle: (id: string, patch: mapFactory.RoomRoofStylePatch) => void
+  /** CHAMINÉ do telhado da Sala (`RoomMeta.chamine`, Meio-Termo), com histórico. */
+  definirChamine: (id: string, ligada: boolean) => void
+  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
+  definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
   setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
@@ -2618,6 +2622,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // O seletor nativo de cor dispara a cada arraste: "Outra cor…" emenda num passo só de Ctrl+Z.
       const typingKey = patch.modelo === undefined && patch.cor !== undefined && patch.cor !== null ? `room-roof-color:${id}` : undefined
       withHistory((map) => mapFactory.setRoomRoofStyle(map, id, patch), typingKey)
+    },
+    definirChamine: (id, ligada) => {
+      if (mapFactory.definirChamine(get().map, id, ligada) === get().map) return
+      withHistory((map) => mapFactory.definirChamine(map, id, ligada))
+    },
+    definirVistaDosMoveis: (vista) => {
+      if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return
+      withHistory((map) => mapFactory.definirVistaDosMoveis(map, vista))
     },
     setRoomComodo: (id, comodo) => {
       if (mapFactory.setRoomComodo(get().map, id, comodo) === get().map) return

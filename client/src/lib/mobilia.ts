@@ -1,4 +1,4 @@
-import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FormaDoTapete, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 import { TIPOS_MOBILIA } from './mobilia/tipos'
 import {
@@ -239,6 +239,42 @@ export function normalizarVistaDoMovel(tipo: TipoMobilia | undefined, valor: unk
 /** A vista que vale para o objeto: `'lado'` só num tipo com vista; o resto é `'frente'`. */
 export function vistaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaVista'>): VistaMobilia {
   return normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista) ?? 'frente'
+}
+
+/**
+ * O DESENHO do móvel (`Prop.mobiliaDesenho`, Meio-Termo) na forma única que o
+ * mapa guarda: só `'linhas'`, e só num tipo do catálogo; o resto vira
+ * `undefined` (o desenho do estilo da casa). Mesma porta na leitura do arquivo
+ * e na travessia para o jogador.
+ */
+export function normalizarDesenhoDoMovel(tipo: unknown, valor: unknown): 'linhas' | undefined {
+  return valor === 'linhas' && ehTipoMobilia(tipo) ? 'linhas' : undefined
+}
+
+/** `prop` com o desenho na forma que o mapa guarda. Mesma referência se nada muda. */
+function comDesenhoGravado(prop: Prop, desenho: 'linhas' | undefined): Prop {
+  if (prop.mobiliaDesenho === desenho) return prop
+  const { mobiliaDesenho: _desenho, ...semDesenho } = prop
+  return desenho === undefined ? semDesenho : { ...semDesenho, mobiliaDesenho: desenho }
+}
+
+/**
+ * A VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo) na forma
+ * única que o mapa guarda: só `'tres-quartos'`; o resto (o padrão "de cima",
+ * texto torto, arquivo editado à mão) vira `undefined`.
+ */
+export function lerVistaDosMoveis(valor: unknown): MapData['vistaDosMoveis'] {
+  return valor === 'tres-quartos' ? 'tres-quartos' : undefined
+}
+
+/**
+ * A vista dos móveis como o jogador a recebe: só quando o recorte dele leva
+ * algum móvel (é o único desenho que a lê). Sem móvel à vista, ou com a camada
+ * dos objetos escondida, o campo nem sai.
+ */
+export function vistaDosMoveisParaJogador(valor: unknown, propsDoRecorte: readonly Pick<Prop, 'mobilia'>[]): MapData['vistaDosMoveis'] {
+  const vista = lerVistaDosMoveis(valor)
+  return vista !== undefined && propsDoRecorte.some((p) => ehTipoMobilia(p.mobilia)) ? vista : undefined
 }
 
 /**
@@ -1469,7 +1505,8 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaCurva' in prop) &&
     !('mobiliaForma' in prop) &&
     !('mobiliaCorDoTravesseiro' in prop) &&
-    !('mobiliaCorDoCobertor' in prop)
+    !('mobiliaCorDoCobertor' in prop) &&
+    !('mobiliaDesenho' in prop)
   ) {
     return prop
   }
@@ -1483,6 +1520,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaForma: _forma,
     mobiliaCorDoTravesseiro: _corDoTravesseiro,
     mobiliaCorDoCobertor: _corDoCobertor,
+    mobiliaDesenho: _desenho,
     ...comum
   } = prop
   return comum
@@ -1499,7 +1537,8 @@ function semNadaDeMovel(prop: Prop): Prop {
  */
 export function propMobiliaFromFile(prop: Prop): Prop {
   if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
-  const lido = comFormaGravada(
+  // DESENHO (Meio-Termo): só `'linhas'`; o resto some.
+  const lido = comDesenhoGravado(comFormaGravada(
     comCurvaGravada(
       comVistaGravada(
         comAparenciaGravada(prop, {
@@ -1517,11 +1556,48 @@ export function propMobiliaFromFile(prop: Prop): Prop {
     ),
     // TAPETE: só `'redondo'`, e só no tapete; o resto some.
     normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma),
-  )
+  ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho))
   const mesmo =
     mesmaAparenciaDoMovel(lido, prop) &&
     lido.mobiliaVista === prop.mobiliaVista &&
     lido.mobiliaCurva === prop.mobiliaCurva &&
-    lido.mobiliaForma === prop.mobiliaForma
+    lido.mobiliaForma === prop.mobiliaForma &&
+    lido.mobiliaDesenho === prop.mobiliaDesenho
   return mesmo ? prop : lido
+}
+
+/**
+ * O MÓVEL como o jogador o recebe: a PORTA ÚNICA da travessia (`lib/fogFilter.ts`).
+ * Só os campos que o desenho dele pinta, cada um pela mesma porta da leitura
+ * do arquivo (a travessia não confia no mapa do mestre: colar, acervo e a
+ * cópia de recuperação não passam pela leitura). Só o que difere do padrão
+ * vira campo, na ordem de sempre. Objeto sem tipo do catálogo: nada.
+ */
+export function mobiliaParaJogador(prop: Prop): Partial<Prop> {
+  if (prop.mobilia === undefined) return {}
+  const paraJogador: Partial<Prop> = { mobilia: prop.mobilia }
+  // A APARÊNCIA ("Preencher", "Cor", "Cor da linha"): só `#rrggbb`.
+  if (prop.mobiliaPreenchido === false) paraJogador.mobiliaPreenchido = false
+  const cor = normalizarCorDoMovel(prop.mobiliaCor)
+  if (cor !== undefined) paraJogador.mobiliaCor = cor
+  const corDaLinha = normalizarCorDoMovel(prop.mobiliaCorDaLinha)
+  if (corDaLinha !== undefined) paraJogador.mobiliaCorDaLinha = corDaLinha
+  // A VISTA: só `'lado'` num tipo com vista; de frente (o padrão), nada.
+  const vista = normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista)
+  if (vista !== undefined) paraJogador.mobiliaVista = vista
+  // A CURVA da cerca: só na cerca, número finito até meia volta; a reta não vira campo.
+  const curva = normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva)
+  if (curva !== undefined) paraJogador.mobiliaCurva = curva
+  // A FORMA do tapete: só `'redondo'` e só no tapete.
+  const forma = normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma)
+  if (forma !== undefined) paraJogador.mobiliaForma = forma
+  // As cores de TECIDO da cama: só na cama e só `#rrggbb`.
+  const corDoTravesseiro = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro)
+  if (corDoTravesseiro !== undefined) paraJogador.mobiliaCorDoTravesseiro = corDoTravesseiro
+  const corDoCobertor = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoCobertor)
+  if (corDoCobertor !== undefined) paraJogador.mobiliaCorDoCobertor = corDoCobertor
+  // O DESENHO (Meio-Termo): só `'linhas'` num tipo do catálogo.
+  const desenho = normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)
+  if (desenho !== undefined) paraJogador.mobiliaDesenho = desenho
+  return paraJogador
 }

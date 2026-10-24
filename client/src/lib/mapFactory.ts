@@ -1961,6 +1961,26 @@ export function setRoomRoofStyle(map: MapData, id: string, patch: RoomRoofStyleP
   return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room } : r)) }
 }
 
+/** CHAMINÉ do telhado da Sala (`RoomMeta.chamine`, Meio-Termo). Ligar grava
+ * `true`; desligar TIRA o campo (o arquivo do mapa que nunca mexeu nisso sai
+ * igual). Mesmo contrato de `setRoomRoof`: região comum, id inexistente ou
+ * valor igual devolve o mesmo `map`. Não exige o teto: o desenho só sai com ele. */
+export function definirChamine(map: MapData, id: string, ligada: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.chamine === true) === ligada) return map
+  const { chamine: _antes, ...semChamine } = region.room
+  const room: RoomMeta = ligada ? { ...semChamine, chamine: true } : semChamine
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room } : r)) }
+}
+
+/** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo). `undefined`
+ * volta ao padrão "de cima" e TIRA o campo; a mesma vista devolve o mesmo `map`. */
+export function definirVistaDosMoveis(map: MapData, vista: MapData['vistaDosMoveis']): MapData {
+  if (map.vistaDosMoveis === vista) return map
+  const { vistaDosMoveis: _antes, ...semVista } = map
+  return vista === undefined ? semVista : { ...semVista, vistaDosMoveis: vista }
+}
+
 /** CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto" (`RoomMeta.comodo`).
  * Mesmo contrato de `setRoomRoof`: região comum, id inexistente ou valor igual
  * devolve o mesmo `map`. Ligar desliga o teto, na MESMA entrada de histórico:

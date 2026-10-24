@@ -34,7 +34,7 @@ import { withoutAttachment } from './lightAttachment'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
-import { normalizarCorDeTecido, normalizarCorDoMovel, normalizarCurvaDaCerca, normalizarFormaDoTapete, normalizarVistaDoMovel } from './mobilia'
+import { mobiliaParaJogador, vistaDosMoveisParaJogador } from './mobilia'
 import { amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
@@ -3833,6 +3833,8 @@ function recorteDoGrupo(
     opacidadeDasCamadas: _opacidadesDoMestre,
     versaoDasCamadas: _versaoDasCamadas,
     camadasDoJogador: _camadasDeOutroRecorte,
+    // VISTA DOS MÓVEIS (Meio-Termo): volta mais abaixo, só com móvel no recorte.
+    vistaDosMoveis: vistaDoMestre,
     ...mapSemConfronto
   } = mapWithoutHazards
   const filtered: MapData = {
@@ -3962,7 +3964,8 @@ function recorteDoGrupo(
           r.room.foraVeDentro === undefined &&
           r.room.modeloDoTeto === undefined &&
           r.room.corDoTeto === undefined &&
-          r.room.camadaDoTelhado === undefined
+          r.room.camadaDoTelhado === undefined &&
+          r.room.chamine === undefined
         )
           return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
@@ -3983,6 +3986,7 @@ function recorteDoGrupo(
           modeloDoTeto,
           corDoTeto,
           camadaDoTelhado,
+          chamine,
           ...room
         } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
@@ -4006,6 +4010,8 @@ function recorteDoGrupo(
             // CAMADA DO TELHADO: idem. Com o teto escondido dos jogadores pela
             // camada (ou aberto), o campo diria que a sala tem teto e o id da camada.
             ...(roofClosed && camadaDoTelhado !== undefined ? { camadaDoTelhado } : {}),
+            // CHAMINÉ (Meio-Termo): é desenho do telhado, então segue o `roof`. Só `true`.
+            ...(roofClosed && chamine === true ? { chamine } : {}),
             dark: undefined,
             ...(showText ? { textoAoEntrar: clampRoomText(textoAoEntrar) } : {}),
           },
@@ -4034,7 +4040,7 @@ function recorteDoGrupo(
         ]
       }),
       ...forgottenWallsStillRemembered(),
-    ].map(wallWithPlayerDoor),
+    ].map((w) => wallWithPlayerDoor(gradeSoNaJanela(w))),
     floor: playerFloor,
     // Pino de ponto de interesse: anotação estática, então vale o explorado
     // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
@@ -4124,7 +4130,10 @@ function recorteDoGrupo(
       .map((r) => r.id),
   )
   const perigos = perigosDoMestre === undefined ? [] : perigosParaJogador(perigosDoMestre, salasVistasAgora)
-  const comPerigos: MapData = perigos.length > 0 ? { ...filtered, perigos } : filtered
+  // VISTA DOS MÓVEIS: só a desta cena, e só com algum móvel que ele recebe (`lib/mobilia.ts`).
+  const vistaDosMoveis = vistaDosMoveisParaJogador(vistaDoMestre, filtered.props)
+  const comVista: MapData = vistaDosMoveis === undefined ? filtered : { ...filtered, vistaDosMoveis }
+  const comPerigos: MapData = perigos.length > 0 ? { ...comVista, perigos } : comVista
   /**
    * TEXTURAS: o pincel e a borracha só no pedaço junto do que ele conhece (o
    * mesmo corte do penhasco); o balde só se a forma que ele enche saiu no
@@ -4366,6 +4375,18 @@ function lightForPlayer(light: Light): Light {
 function regionForPlayer(region: Region): Region {
   const { data: _data, tag: _tag, locked: _locked, ...drawn } = region
   return { ...drawn, tag: '', data: {} }
+}
+
+/**
+ * GRADE DE PRISÃO (`Wall.grade`, Meio-Termo): é desenho da JANELA (vê e não
+ * passa) numa parede sem porta. Fora disso a grade não tem o que desenhar e
+ * não sai — inclusive no pedaço de porta secreta, que já chega sem `janela`
+ * (`secretDoorAsWall`). Só `true` atravessa. Mesma referência quando não há o que tirar.
+ */
+function gradeSoNaJanela(wall: Wall): Wall {
+  if (!('grade' in wall) || (wall.grade === true && wall.janela === true && wall.door === null)) return wall
+  const { grade: _grade, ...semGrade } = wall
+  return semGrade
 }
 
 function wallWithPlayerDoor(wall: Wall): Wall {
@@ -5051,38 +5072,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   if (prop.camada !== undefined) forPlayer.camada = prop.camada
   // MOBÍLIA DESENHADA: o tipo é o desenho que a tela do jogador pinta por cima
   // da silhueta. Só chega aqui o móvel que ele enxerga (o filtro acima tirou o
-  // resto), então o tipo não diz nada que a silhueta na tela já não diga.
-  if (prop.mobilia !== undefined) {
-    forPlayer.mobilia = prop.mobilia
-    // A APARÊNCIA do móvel ("Preencher", "Cor", "Cor da linha") vai junto: o
-    // jogador vê o móvel como o mestre pintou. Só o que difere do padrão vira
-    // campo, e a cor passa de novo pela porta de `lib/mobilia.ts` (só `#rrggbb`),
-    // como o rótulo passa pela de `propPlayerLook.ts`: a travessia não confia no
-    // mapa do mestre, e à rede só vai o que o desenho sabe pintar.
-    if (prop.mobiliaPreenchido === false) forPlayer.mobiliaPreenchido = false
-    const cor = normalizarCorDoMovel(prop.mobiliaCor)
-    if (cor !== undefined) forPlayer.mobiliaCor = cor
-    const corDaLinha = normalizarCorDoMovel(prop.mobiliaCorDaLinha)
-    if (corDaLinha !== undefined) forPlayer.mobiliaCorDaLinha = corDaLinha
-    // A VISTA também: cadeira ou baú de lado chega de lado. Só `'lado'` num tipo
-    // com vista vira campo; de frente (o padrão) ou num tipo sem vista, nada.
-    const vista = normalizarVistaDoMovel(prop.mobilia, prop.mobiliaVista)
-    if (vista !== undefined) forPlayer.mobiliaVista = vista
-    // A CURVA da cerca também: o jogador vê o mesmo arco. Só na cerca, número
-    // finito até meia volta (`normalizarCurvaDaCerca`); a reta não vira campo.
-    const curva = normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva)
-    if (curva !== undefined) forPlayer.mobiliaCurva = curva
-    // A FORMA do tapete também: o redondo chega redondo. Só `'redondo'` e só no
-    // tapete (`normalizarFormaDoTapete`); o retangular (o padrão) não vira campo.
-    const forma = normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma)
-    if (forma !== undefined) forPlayer.mobiliaForma = forma
-    // As cores de TECIDO da cama também: travesseiro e cobertor chegam pintados.
-    // Só na cama e só `#rrggbb` (`normalizarCorDeTecido`); sem cor, nada.
-    const corDoTravesseiro = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro)
-    if (corDoTravesseiro !== undefined) forPlayer.mobiliaCorDoTravesseiro = corDoTravesseiro
-    const corDoCobertor = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoCobertor)
-    if (corDoCobertor !== undefined) forPlayer.mobiliaCorDoCobertor = corDoCobertor
-  }
+  // resto), então o tipo não diz nada que a silhueta na tela já não diga. A
+  // aparência, a vista, a curva, a forma, o tecido e o desenho (Meio-Termo) vão
+  // junto, pela PORTA ÚNICA de `lib/mobilia.ts`: só o que o desenho sabe pintar.
+  Object.assign(forPlayer, mobiliaParaJogador(prop))
   // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
   // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
   // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra

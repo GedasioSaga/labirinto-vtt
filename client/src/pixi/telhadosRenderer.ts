@@ -1,8 +1,8 @@
 import { CanvasSource, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
-import type { RegionPoint } from '../types/map'
+import type { Region, RegionPoint } from '../types/map'
 import { CURVAS } from '../cenario/revelacao/tempo'
 import { BEIRAL_PX } from '../lib/telhado/aguas'
-import { corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
+import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { comecarTelhado, pintarTelhado, type ImagemDoTelhado, type PinturaDoTelhado } from '../texturas/telhado'
 
 /*
@@ -62,6 +62,21 @@ export interface TelhadoParaDesenhar {
   cor: string
   /** Onde o telhado mora (no jogador: `roofs` ou `peekedRoofs`, que leva a máscara do espiar). */
   camada: Container
+  /** CHAMINÉ (`RoomMeta.chamine`, Meio-Termo): só `true`. O desenho é da MT10; aqui ela só chega. */
+  chamine?: true
+}
+
+/**
+ * O telhado de uma Sala do jeito que o renderer recebe: o MESMO caminho no
+ * editor (`pixi/PixiCanvas.tsx`) e no jogador (`player/PlayerView.tsx`), para
+ * modelo, cor e chaminé nunca divergirem entre as duas telas. `camada` é o nó
+ * onde ele mora (a camada do telhado no editor; `roofs`/`peekedRoofs` no jogador).
+ */
+export function telhadoParaDesenhar(regiao: Pick<Region, 'id' | 'points' | 'room'>, camada: Container): TelhadoParaDesenhar {
+  const modelo = regiao.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
+  const telhado: TelhadoParaDesenhar = { id: regiao.id, points: regiao.points, modelo, cor: corDoTetoOuPadrao(modelo, regiao.room?.corDoTeto), camada }
+  if (regiao.room?.chamine === true) telhado.chamine = true
+  return telhado
 }
 
 export interface MovimentoDosTelhados {
