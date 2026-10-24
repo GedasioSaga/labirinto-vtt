@@ -216,7 +216,8 @@ Feita na branch `feat/sons-ao-vivo`, só em `desktop/src-tauri`: `net/sons.rs` (
 - 200: `Content-Type` pela assinatura (`audio/mpeg|ogg|wav|mp4`), `Content-Length`, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`, `Cross-Origin-Resource-Policy: same-origin`, `Vary: X-Labirinto-Chave`. Sem Range.
 - Toda recusa: o MESMO 404, corpo vazio, `nosniff`, `private, no-store`, `Vary` (teste compara byte a byte, menos `date`). Método que não é GET (HEAD também) e `Host` de fora também caem nele, não em 405.
 - 429 com `Retry-After` em segundos inteiros: 1 quando falta vaga simultânea; até 10 (o tempo até a busca mais velha sair da janela) na taxa por IP.
-- `net_send({ clientId, msg, liberar? })`: erros `midia-invalida` (id que não é áudio), `limite-de-liberacao` (mais de 32 no envio ou mais de 256 na conexão), `cliente-invalido` (conexão que o servidor não tem). Sem `liberar`, o de sempre. `net_sons_aventura({ pasta })`: `sem-sala`, `pasta-invalida`.
+- `net_send({ clientId, msg, liberar? })`: erros `midia-invalida` (id que não é áudio), `limite-de-liberacao` (mais de 32 no envio; desde a correção da auditoria, passar de 256 na conexão NÃO é erro: sai a liberação mais velha), `cliente-invalido` (conexão que o servidor não tem). Sem `liberar`, o de sempre. `net_sons_aventura({ pasta })`: `sem-sala`, `pasta-invalida`.
+- Desde a correção da auditoria: fora do túnel, a chave só vale do aparelho (IP, ou o /64 no IPv6) que abriu o socket; a busca de outro aparelho é o mesmo 404.
 
 **Decisões e divergências do plano**
 
@@ -233,7 +234,7 @@ Feita na branch `feat/sons-ao-vivo`, só em `desktop/src-tauri`: `net/sons.rs` (
 **Riscos que ficam**
 
 - TOCTOU entre `canonicalize` e `open` (trocar o arquivo por um link no meio): exige atacante local na pasta da aventura, e o hash igual ao id torna inútil (só confirma conteúdo que ele já conhece). Link físico idem.
-- Link de ARQUIVO no Windows pede privilégio: na máquina de teste o caso foi pulado (`symlink_file` recusado) e a junção da `midia` cobre o caminho real; o `symlink_metadata` recusa o link de arquivo antes.
+- Link de ARQUIVO no Windows pede o modo de desenvolvedor: desde a correção da auditoria o caso é o teste próprio `link_de_arquivo_para_fora_e_o_mesmo_404`, `#[ignore]` no Windows (roda com `cargo test --test net_sons -- --ignored` numa máquina com o modo ligado; falha com mensagem se não conseguir criar o link). Nesta máquina ele NÃO rodou; quem barra o link é o `symlink_metadata` do arquivo (`is_file` falso para link).
 - A F5d (fechar `/media` ao áudio) continua pendente; o teste `achado_f5d_media_ainda_serve_audio_sem_chave` prova o buraco de hoje e deve ser invertido nela.
 
 **Evidência (23/10)**
@@ -242,6 +243,49 @@ Feita na branch `feat/sons-ao-vivo`, só em `desktop/src-tauri`: `net/sons.rs` (
 - `cargo test --lib --test net_sons --test net_server`: 90 + 11 + 14 passaram, 0 falhas; `--test net_dev_proxy`: 4 passaram.
 - 16 mutações, uma por vez (aplicar, `cargo test --lib --test net_sons`, reverter), todas VERMELHAS: comparação que sai no 1º byte (`comparacao_le_sempre_os_32_bytes`, `busca_da_chave_passa_por_todas_as_conexoes`); chave ausente aceita (`oraculo_...`); id fora do liberado (`trocar_a_raiz_...`); link seguido (`symlink_e_juncao_nao_saem`); tipo pela extensão (`tipo_vem_da_assinatura_...`, `le_o_audio_em_pedacos_...`); 403 no não liberado e `no-store` faltando num caminho (`oraculo_...` e outros 5); taxa sem teto (`taxa_por_ip_...`); simultâneas sem teto (`simultaneas_duas_por_chave_...`); vaga solta antes do corpo (`simultaneas_seguram_a_vaga_ate_o_corpo_sair`); queda sem limpeza (`queda_e_kick_apagam_a_chave`); kick sem limpeza (`kick_esquece_a_conexao_dos_sons`); envio falho sem desfazer (`net_send_libera_antes_e_desfaz_se_falhar`); troca de aventura sem revogar (`trocar_a_raiz_...`); liberadas sem teto (`liberadas_por_conexao_tem_teto`); m4a com qualquer marca (`m4a_exige_ftyp_...`).
 - Não rodado aqui: o e2e `task-sons-ao-vivo-arquivo` (TypeScript, fica para o orquestrador) e a prova real `tauri dev` + navegador.
+
+### F5a, correção da auditoria de segurança e da revisão (23/10, rodada 2)
+
+Só `desktop/src-tauri`: `net/conexao.rs` (novo), `net/server.rs`, `net/sons.rs`, `net/commands.rs`, `net/mod.rs`, `tests/net_sons.rs`. Commit `899b13c3`.
+
+| Achado | Correção | Prova (teste vermelho na mutação) |
+|---|---|---|
+| 1 (médio) vaga presa ao corpo sem prazo de escrita | (a) `ListenerDaSala` embrulha todo `TcpStream` em `ComPrazoDeEscrita`: escrita pendente 30 s sem NENHUM byte saindo é erro e a conexão cai, levando corpo, vaga e memória. (b) `CorpoDoSom` com prazo total de 120 s: o fluxo dá erro e solta os pedaços. (c) queda e kick cortam as conexões HTTP que levam corpo para a chave | `escrita_parada_cai_no_prazo`, `cada_byte_que_sai_renova_o_prazo`, `corte_derruba_a_escrita_parada_na_hora`, `prazo_total_vencido_recusa_a_proxima_escrita`, `corpo_vencido_da_erro_e_marca_o_socket`, `busca_parada_cai_no_prazo_e_devolve_a_vaga`, `queda_corta_as_buscas_da_chave`, `kick_esquece_a_conexao_dos_sons` |
+| 2 (médio) corrida no `net_sons_aventura` | `SonsDaSala.vez`: cada chamada pega a vez ANTES da conferência (o `None` também); só a vez mais nova muda a raiz | `vez_velha_nao_muda_a_raiz`, `conferencia_velha_nao_passa_por_cima_da_nova` (determinístico: a conferência velha fica presa num canal até a nova terminar) |
+| 3 (médio) `Midia` com outra caixa dava 404 no Windows | na leitura: `symlink_metadata(raiz).is_dir()` (recusa junção na `midia`) e o arquivo real tem de ser `canonicalize(raiz).join(id)` | `midia_com_outra_caixa_serve_no_windows`, `juncao_na_midia_nao_sai_nem_para_dentro_da_aventura`, `aventura_trocada_por_juncao_depois_de_aberta_nao_sai` |
+| 4 (baixo) chave não presa ao aparelho | `Conexao.aparelho = limit_key(ip)` fora do túnel (`None` pelo túnel); `autorizar` exige o mesmo `limit_key` do pedido | `chave_so_vale_no_aparelho_que_abriu_fora_do_tunel`, caso novo "chave certa de outro aparelho" no `oraculo_...` |
+| 5 (endurecimento) chave secreta como chave do `HashMap` | `LimiteDasBuscas` guarda só o SHA-256 da chave | `limite_guarda_o_resumo_e_nao_a_chave` |
+| 6 (baixo) 256 liberações travavam todo `net_send` | sai a liberação mais velha; quem é liberado de novo vira o mais novo; o despejo só acontece DEPOIS do envio sair (`confirmar`), então envio que falha não apaga nada | `teto_de_liberadas_tira_a_mais_velha`, `envio_que_falha_no_teto_nao_despeja_nada`, `net_send_no_teto_despeja_a_liberacao_mais_velha` |
+| 7 testes | `Retry-After` para cima (6,1 s vira "7"); link de arquivo virou teste próprio ignorado no Windows | `retry_after_arredonda_para_cima`; `link_de_arquivo_para_fora_e_o_mesmo_404` |
+
+**Decisões e divergências desta rodada**
+
+- **(c) corta a conexão em vez de só zerar a conta.** Zerar a vaga na queda deixaria o corpo (até 15 MB) preso no socket parado até o prazo de 30 s; um jogador que reconecta em laço juntaria corpos sem teto (o teto de 6 por sala deixaria de limitar a memória). Cada conexão HTTP tem um `Corte` (no `ConnectInfo`, tipo `ConexaoHttp`): a queda ou o kick o aciona, a escrita parada acorda e dá erro, o hyper derruba a conexão e a vaga volta no `drop` do corpo, junto com a memória. Na prática volta em milissegundos (o teste espera menos de 10 s com prazo de escrita de 30 s).
+- **(b) o prazo total vale também no socket.** Com o buffer do hyper cheio, ele não pede pedaço novo ao corpo; um cliente que goteja 1 byte a cada 29 s escaparia de (a) e de um prazo só no fluxo. O `CorpoDoSom` marca o prazo no `Corte` da conexão e o `ComPrazoDeEscrita` recusa a escrita seguinte depois dele (visto no máximo 30 s depois, na próxima escrita). Ao soltar o corpo o prazo sai, e a resposta seguinte da mesma conexão (keep-alive) começa sem prazo.
+- **120 s de prazo total**: 15 MB em 120 s pede ~1 Mbit/s; o som típico (até 3 MB) passa com 200 kbit/s.
+- **O prazo de escrita vale para toda conexão da sala, inclusive o WebSocket.** Só arma com escrita pendente: quem só está ouvindo não cai; um jogador cujo socket não aceita NENHUM byte por 30 s cai (o navegador lê o socket mesmo com a aba em segundo plano).
+- **3: além do pedido, a raiz real tem de continuar na mesma aventura** (`parent` igual ao guardado). Só com `canonicalize(raiz)`, uma junção posta no lugar da pasta da aventura DEPOIS do `net_sons_aventura` passaria (antes era barrada pela comparação com a raiz fixa). Renomear só a caixa da pasta da aventura com a sala aberta dá 404 até o mestre reabrir.
+- **2: a chamada velha devolve o resultado da pasta dela, sem aplicar** (`Ok` se a pasta era válida, `pasta-invalida` se não). Quem manda é a vez mais nova.
+- **4: pelo túnel não há amarra**, nos dois sentidos: chave de socket aberto pelo túnel vale de qualquer aparelho; chave de socket da LAN pedida pelo túnel cai no 404 (o IP efetivo é outro).
+- Os testes de integração passaram a abrir o socket de cada jogador de `127.0.0.<origem>` (`entrar(sala, nome, origem)`), e cada busca sai do aparelho do dono da chave.
+- `server::serve` continua com a mesma assinatura; `serve_com_prazo` existe para o teste não esperar 30 s.
+
+**Riscos que ficam**
+
+- **`busca_presa` no macOS**: os testes de vaga presa (`simultaneas_seguram_a_vaga_ate_o_corpo_sair`, `busca_parada_cai_no_prazo_e_devolve_a_vaga`, `queda_corta_as_buscas_da_chave`) contam com 15 MB não caber nos buffers do loopback. No macOS o autoajuste de buffer pode chegar a vários MB por lado (`kern.ipc.maxsockbuf`); se o corpo inteiro couber, a busca não fica parada e esses testes falham ou oscilam lá. No Windows passaram.
+- Cliente que goteja: (a) e (b) juntos limitam a vaga a 120 s mais no máximo 30 s.
+- O link de arquivo não foi exercitado nesta máquina (sem modo de desenvolvedor).
+
+**Fora do escopo agora**
+
+- **F5d** (fechar `/media` ao áudio e migrar a dança para `/sons`) é a próxima fatia e NÃO bloqueia integrar a F5a.
+- **Cache do hash** por (caminho, tamanho, mtime): depois. Hoje cada busca lê e confere o arquivo inteiro.
+
+**Evidência (23/10, rodada 2)**
+
+- `cargo clippy --all-targets --all-features -- -D warnings -W clippy::unwrap_used -W clippy::expect_used`: exit 0, sem aviso.
+- `cargo test --lib --test net_sons --test net_server --test net_dev_proxy` (com `CARGO_INCREMENTAL=0` e `CARGO_PROFILE_DEV_DEBUG=0`): lib 106, `net_dev_proxy` 4, `net_server` 14, `net_sons` 13 passaram e 1 ignorado (o link de arquivo), 0 falhas.
+- MUTACOES_AQUI
 
 ## Decisões do usuário em 23/10
 

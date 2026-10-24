@@ -238,7 +238,8 @@ mod tests {
         Ok(())
     }
 
-    /// Mutação vermelha: `cortar` sem acordar a escrita parada.
+    /// Mutação vermelha: `cortar` sem acordar a escrita parada (ela só veria o
+    /// corte quando outra coisa a acordasse, aqui o `timeout` de 10 s).
     #[tokio::test]
     async fn corte_derruba_a_escrita_parada_na_hora() -> Resultado {
         let (servidor, _cliente) = tokio::io::duplex(8);
@@ -249,8 +250,10 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
             corte.cortar();
         });
+        let inicio = Instant::now();
         let escrita = tokio::time::timeout(Duration::from_secs(10), io.write_all(&[1])).await?;
         assert_eq!(escrita.err().map(|erro| erro.kind()), Some(io::ErrorKind::ConnectionAborted));
+        assert!(inicio.elapsed() < Duration::from_secs(5), "o corte só valeu em {:?}", inicio.elapsed());
         Ok(())
     }
 
