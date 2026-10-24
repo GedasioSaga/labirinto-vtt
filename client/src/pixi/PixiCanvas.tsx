@@ -1821,6 +1821,7 @@ export function PixiCanvas({
         const moveis = pilha.assinaturaDa('propsContainer')
         pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
+        el.dataset.ordemDaPilha = pilha.ordemDasCamadas()
         // `formas`: algo mudou; os portões por faixa (`assinaturaDa`) dizem QUAL camada repinta.
         return { formas: pilha.assinatura() !== assinatura, moveis: pilha.assinaturaDa('propsContainer') !== moveis }
       }

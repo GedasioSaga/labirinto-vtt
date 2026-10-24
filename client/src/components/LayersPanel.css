@@ -235,12 +235,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Estreita (8 px): no livro do mestre o nome da camada disputa cada pixel. */
-  width: 8px;
-  min-height: 28px;
+  /* Pendurada na margem do livro (a lista recua 12 px): o nome da camada não perde largura para ela. */
+  width: 12px;
+  min-height: 32px;
+  margin-inline-end: -4px;
   color: var(--lb-color-parchment-faint);
   cursor: grab;
   touch-action: none;
+}
+
+.lb-camadas[data-ordenavel] {
+  margin-inline-start: -12px;
+}
+
+.lb-camadas[data-ordenavel] .lb-camadas__aninhado {
+  margin-inline-start: 12px;
+}
+
+/* A porcentagem só ocupa lugar (e o gap) quando há porcentagem. */
+.lb-camadas__pct:not([data-pct]) {
+  display: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -260,7 +274,8 @@
   transition: transform 180ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
-.lb-camadas[data-arrastando] > .lb-camadas__linha[data-arrastada] {
+/* Pega, e ainda depois de solta enquanto assenta (o FLIP de 150 ms): a sombra pousa junto com a linha. */
+.lb-camadas > .lb-camadas__linha[data-arrastada] {
   position: relative;
   z-index: 1;
   transition: none;
@@ -286,7 +301,8 @@
 
 .lb-camadas__campo {
   flex: 1 1 0;
-  min-width: 0;
+  /* Nunca vira um fio: com o contador "49/40" ao lado, o campo segura 8 caracteres à vista. */
+  min-width: 8ch;
   min-height: 28px;
   padding: 0 6px;
   border: 1px solid var(--lb-color-brass);
@@ -310,6 +326,26 @@
 
 .lb-camadas__contador[data-passou] {
   color: var(--lb-color-brass);
+}
+
+/* Nome recusado: o motivo, logo abaixo da linha, em latão (some no próximo gesto). */
+.lb-camadas__recusa {
+  margin: 2px 0 4px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass);
+}
+
+/* Camada apagada que ainda esconde itens: só o nome apagado e o olho dos jogadores. */
+.lb-camadas--apagadas {
+  margin-top: var(--lb-space-2, 8px);
+}
+
+.lb-camadas__apagada {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--lb-font-size-md);
+  font-style: italic;
+  color: var(--lb-color-parchment-dim);
 }
 
 /* Subir, Descer, Renomear, Apagar: texto curto, na largura que houver (quebram, não espremem). */
@@ -355,12 +391,13 @@
   margin-left: auto;
 }
 
+/* "+ Nova camada" mora no alto, entre a legenda e a lista (a camada nasce no topo). */
 .lb-camadas__rodape {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  margin-top: var(--lb-space-2, 8px);
+  margin: 0 0 var(--lb-space-2, 8px);
 }
 
 /* Movimento reduzido: nada se move (altura e giro da divisa saltam); o
@@ -403,10 +440,16 @@
     height: var(--lb-control-touch, 44px);
   }
 
-  /* A alça cabe no dedo (44 de altura) sem roubar a largura do nome. */
+  /* A alça cabe no dedo (44 de altura) sem roubar a largura do nome; no dedo ela não pende na margem (a borda da tela é perto). */
   .lb-camadas__alca {
     width: 28px;
     min-height: var(--lb-control-touch, 44px);
+    margin-inline-end: 0;
+  }
+
+  .lb-camadas[data-ordenavel],
+  .lb-camadas[data-ordenavel] .lb-camadas__aninhado {
+    margin-inline-start: 0;
   }
 
   .lb-camadas__alca + .lb-camadas__nome,

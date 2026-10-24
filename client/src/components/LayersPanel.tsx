@@ -1,8 +1,8 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as PointerEventDoReact, type ReactNode } from 'react'
 import type { CamadaId } from '../types/map'
 import { contextoDeCamadas, type CamposDeCamadas } from '../lib/camadas/consulta'
-import { NOME_DE_CAMADA_MAX, lerNomeDeCamada } from '../lib/camadas/arquivo'
-import { MAX_CAMADAS_LIVRES, quantasLivres } from '../lib/camadas/modelo'
+import { NOME_DE_CAMADA_MAX, PONTOS_POR_CARACTERE_MAX, grafemas, lerNomeDeCamada } from '../lib/camadas/arquivo'
+import { MAX_CAMADAS_LIVRES, camadasApagadasEscondidas, quantasLivres } from '../lib/camadas/modelo'
 import { ehCamadaDeAntes, ehCamadaPadrao, ROTULOS_DAS_CAMADAS } from '../lib/camadas/padrao'
 import { ChevronDownIcon, ChevronUpIcon, EyeIcon, EyeOffIcon, JogadoresIcon, JogadoresOcultosIcon, LockIcon, UnlockIcon } from './icons'
 import './LayersPanel.css'
@@ -48,6 +48,37 @@ const novoGesto = (origem: 'arrasto' | 'tecla'): string => `${origem}-${(ultimoG
 
 /** Distância (px) que o ponteiro anda na alça antes de o arrasto começar: um toque parado não mexe a lista. */
 const LIMIAR_DO_ARRASTO = 4
+/** Soltar: a linha assenta na vaga nova (só `transform`). */
+const ASSENTAR_AO_SOLTAR_MS = 150
+/** Esc ou cancelar: a linha volta ao lugar, um pouco mais devagar (andou mais). */
+const VOLTAR_AO_LUGAR_MS = 200
+/** As vizinhas voltam com a transição de 180 ms do CSS: `data-arrastando` fica até elas chegarem. */
+const VIZINHAS_VOLTAM_MS = 180
+const CURVA_DE_SAIDA = 'cubic-bezier(0.23, 1, 0.32, 1)'
+/** Além da primeira e da última vaga, a linha anda 30% do ponteiro (resiste em vez de bater numa parede). */
+const RESISTENCIA_NA_PONTA = 0.3
+/** Ponteiro a esta distância (px) da borda do livro rola o livro, até `ROLAGEM_MAX` px por quadro. */
+const BORDA_QUE_ROLA = 32
+const ROLAGEM_MAX = 12
+/** O campo do nome aceita até o dobro do teto (o contador mostra "49/40"); acima disso é colagem gigante. */
+const TETO_DO_CAMPO = NOME_DE_CAMADA_MAX * 2
+
+const movimentoReduzido = (): boolean => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/** FLIP: a linha sai de onde estava (`delta` px acima/abaixo) e assenta. Sem deslocamento (ou sem WAAPI), nada. */
+function assentar(li: HTMLElement, delta: number, duracao: number): Animation | null {
+  if (Math.abs(delta) < 0.5 || typeof li.animate !== 'function') return null
+  return li.animate([{ transform: `translateY(${delta}px)` }, { transform: 'none' }], { duration: duracao, easing: CURVA_DE_SAIDA })
+}
+
+/** O ancestral que rola (o livro do mestre); `null` se nada rola. */
+function rolagemDe(el: HTMLElement): HTMLElement | null {
+  for (let pai = el.parentElement; pai !== null; pai = pai.parentElement) {
+    const { overflowY } = getComputedStyle(pai)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && pai.scrollHeight > pai.clientHeight) return pai
+  }
+  return null
+}
 
 /** O que a linha pede ao painel: referências ESTÁVEIS (a linha é `memo` e não re-renderiza por callback novo). */
 interface AcoesDaLinha {
@@ -87,6 +118,8 @@ interface LinhaProps {
   /** Posição de CIMA para BAIXO (0 = Telhados, por padrão) e o total: os extremos desligam Subir/Descer. */
   posicao: number
   total: number
+  /** O nome recusado na última edição e o motivo (só camada livre); some no próximo gesto. */
+  recusa: string | undefined
   acoes: AcoesDaLinha
 }
 
@@ -104,17 +137,13 @@ function Alca() {
   )
 }
 
-/** Quantos caracteres VISÍVEIS (o emoji conta 1, como no teto do nome). */
-function contarVisiveis(texto: string): number {
-  return Array.from(new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }).segment(texto)).length
-}
-
 /** O campo de renomear: nasce com o nome selecionado; Enter grava, Esc desiste, sair do campo grava. */
 function CampoDoNome({ id, rotulo, acoes }: { id: CamadaId; rotulo: string; acoes: AcoesDaLinha }) {
   const campo = useRef<HTMLInputElement>(null)
   const terminou = useRef(false)
   const [valor, setValor] = useState(rotulo)
   const contadorId = useId()
+  const passouId = useId()
   useLayoutEffect(() => {
     campo.current?.focus()
     campo.current?.select()
@@ -124,7 +153,9 @@ function CampoDoNome({ id, rotulo, acoes }: { id: CamadaId; rotulo: string; acoe
     terminou.current = true
     acoes.terminarEdicao(id, nome)
   }
-  const visiveis = contarVisiveis(valor)
+  // Caracteres VISÍVEIS (o emoji conta 1, como no teto do nome).
+  const visiveis = grafemas(valor).length
+  const passou = visiveis > NOME_DE_CAMADA_MAX
   return (
     <span className="lb-camadas__edicao">
       <input
@@ -133,12 +164,17 @@ function CampoDoNome({ id, rotulo, acoes }: { id: CamadaId; rotulo: string; acoe
         type="text"
         dir="auto"
         value={valor}
-        // O teto de verdade é de caracteres VISÍVEIS (`lerNomeDeCamada`); este só segura colagem gigante.
-        maxLength={NOME_DE_CAMADA_MAX * 4}
+        // O teto de verdade é de caracteres VISÍVEIS (`lerNomeDeCamada`, e o `onChange` em grafemas); este só segura
+        // colagem gigante, com folga para o dobro do teto no maior caractere aceito (pontos de código em UTF-16).
+        maxLength={TETO_DO_CAMPO * PONTOS_POR_CARACTERE_MAX * 2}
         aria-label={`Nome da camada ${rotulo}`}
-        aria-describedby={contadorId}
-        aria-invalid={visiveis > NOME_DE_CAMADA_MAX || undefined}
-        onChange={(evento) => setValor(evento.currentTarget.value)}
+        aria-describedby={passou ? `${contadorId} ${passouId}` : contadorId}
+        aria-invalid={passou || undefined}
+        onChange={(evento) => {
+          const texto = evento.currentTarget.value
+          const partes = grafemas(texto)
+          setValor(partes.length > TETO_DO_CAMPO ? partes.slice(0, TETO_DO_CAMPO).join('') : texto)
+        }}
         onBlur={() => terminar(valor)}
         onKeyDown={(evento) => {
           // Nada daqui segue para o mapa (Esc não larga a seleção, letra não troca de ferramenta).
@@ -152,9 +188,15 @@ function CampoDoNome({ id, rotulo, acoes }: { id: CamadaId; rotulo: string; acoe
           }
         }}
       />
-      <span className="lb-camadas__contador" id={contadorId} data-passou={visiveis > NOME_DE_CAMADA_MAX ? '' : undefined}>
-        {visiveis > NOME_DE_CAMADA_MAX ? `Cabem ${NOME_DE_CAMADA_MAX}: o resto sai` : `${visiveis}/${NOME_DE_CAMADA_MAX}`}
+      {/* Sempre "n/40" (passou: em latão), com largura fixa: o campo não encolhe. A frase vai ao leitor de tela. */}
+      <span className="lb-camadas__contador" id={contadorId} data-passou={passou ? '' : undefined}>
+        {`${visiveis}/${NOME_DE_CAMADA_MAX}`}
       </span>
+      {passou && (
+        <span className="lb-sr-only" id={passouId}>
+          Cabem {NOME_DE_CAMADA_MAX}: o resto sai
+        </span>
+      )}
     </span>
   )
 }
@@ -173,7 +215,7 @@ function CampoDoNome({ id, rotulo, acoes }: { id: CamadaId; rotulo: string; acoe
  * "Renomear") e apaga.
  */
 const LinhaDaCamada = memo(function LinhaDaCamada(props: LinhaProps) {
-  const { id, rotulo, conta, mestreVe, jogadoresVeem, travada, pct, olhoParaTodos, aberta, ordenavel, livre, editando, posicao, total, acoes } = props
+  const { id, rotulo, conta, mestreVe, jogadoresVeem, travada, pct, olhoParaTodos, aberta, ordenavel, livre, editando, posicao, total, recusa, acoes } = props
   const gesto = useRef<string | null>(null)
   const nome = useRef<HTMLButtonElement>(null)
   const subir = useRef<HTMLButtonElement>(null)
@@ -223,7 +265,7 @@ const LinhaDaCamada = memo(function LinhaDaCamada(props: LinhaProps) {
       <div className="lb-camadas__cabeca">
         {ordenavel && (
           // Só o ponteiro arrasta; o teclado e o leitor de tela usam "Subir"/"Descer" no miolo da linha.
-          <span className="lb-camadas__alca" aria-hidden="true" title={`Arraste para mudar ${rotulo} de altura`} onPointerDown={(evento) => acoes.pegar(id, evento)}>
+          <span className="lb-camadas__alca" aria-hidden="true" title={`Arraste para pôr ${rotulo} por cima ou por baixo`} onPointerDown={(evento) => acoes.pegar(id, evento)}>
             <Alca />
           </span>
         )}
@@ -248,7 +290,11 @@ const LinhaDaCamada = memo(function LinhaDaCamada(props: LinhaProps) {
             aria-controls={corpoId}
             aria-label={`${rotulo}, opacidade`}
             title={livre && ordenavel ? `${rotulo} (duplo clique renomeia)` : rotulo}
-            onClick={() => acoes.alternar(id)}
+            onClick={(evento) => {
+              // O 2º clique do duplo (renomear) não fecha a linha que o 1º abriu.
+              if (evento.detail > 1 && livre && ordenavel) return
+              acoes.alternar(id)
+            }}
             onDoubleClick={livre && ordenavel ? () => acoes.editar(id) : undefined}
             onKeyDown={fecharComEsc}
           >
@@ -295,6 +341,11 @@ const LinhaDaCamada = memo(function LinhaDaCamada(props: LinhaProps) {
           {travada ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
         </button>
       </div>
+      {recusa !== undefined && (
+        <p className="lb-camadas__recusa" role="status">
+          {recusa}
+        </p>
+      )}
       {/* Fechada, a linha fica montada (a abertura anima como a ficha do Grimório) e `inert`: fora do Tab e do leitor. */}
       <div className="lb-camadas__corpo" id={corpoId} inert={!aberta} onKeyDown={fecharComEsc}>
         <div className="lb-camadas__miolo">
@@ -327,7 +378,7 @@ const LinhaDaCamada = memo(function LinhaDaCamada(props: LinhaProps) {
             )}
             {/* Também só com a linha aberta: fechada, o texto da linha é só nome e contagem (as jornadas leem "Paredes 1"). */}
             {ordenavel && aberta && (
-              <div className="lb-camadas__acoes" role="group" aria-label={`Lista: ${rotulo}`}>
+              <div className="lb-camadas__acoes" role="group" aria-label={`Ordem e nome de ${rotulo}`}>
                 <button ref={subir} type="button" className="lb-camadas__acao" aria-label={`Subir ${rotulo}`} title="Desenha por cima da camada de cima" disabled={ehATopo} onClick={() => passo(1)}>
                   <ChevronUpIcon size={14} />
                   Subir
@@ -377,6 +428,24 @@ interface Arrasto {
   pintado: number
   altura: number
   andou: boolean
+  /** A lista ao pegar: mudou no meio (Ctrl+Z), e soltar não move com índice velho. */
+  ordem: string
+  /** O último Y do ponteiro (a rolagem automática recalcula com ele). */
+  ultimoY: number
+  /** O livro que rola, onde estava ao pegar e a caixa dele. */
+  rolagem: HTMLElement | null
+  rolagemInicial: number
+  caixaDaRolagem: { top: number; bottom: number }
+  /** O quadro da rolagem automática em curso. */
+  quadro: number | null
+}
+
+/** Depois de soltar, o quadro seguinte ao da ordem nova: a linha sai de `topo` e assenta. */
+interface Pouso {
+  id: CamadaId
+  topo: number
+  /** A lista ao pegar: se ainda é ela, a ordem nova não chegou (mapa solto perguntando) e a linha volta ao lugar. */
+  ordem: string
 }
 
 /**
@@ -400,15 +469,44 @@ export function LayersPanel(props: LayersPanelProps) {
   const [editando, setEditando] = useState<CamadaId | null>(null)
   const [anuncio, setAnuncio] = useState('')
   const [arrastando, setArrastando] = useState<CamadaId | null>(null)
+  /** A linha que acabou de ser solta e ainda assenta: continua levantada (fundo e sombra) até pousar. */
+  const [pousando, setPousando] = useState<CamadaId | null>(null)
+  /** Nome recusado (sem caractere que se veja): a linha diz o motivo até o próximo gesto. */
+  const [recusa, setRecusa] = useState<{ id: CamadaId; texto: string } | null>(null)
   const lista = useRef<HTMLUListElement>(null)
   const arrasto = useRef<Arrasto | null>(null)
+  const pouso = useRef<Pouso | null>(null)
+  const vizinhasVoltando = useRef<number | null>(null)
+  /** Depois de apagar: o foco vai ao nome da vizinha (a de baixo; a de cima se era a última), não ao corpo da página. */
+  const focoDepoisDeApagar = useRef<{ apagada: CamadaId; vizinha: CamadaId | undefined } | null>(null)
   const ordenavel = modelo !== undefined
   const noTeto = quantasLivres(camadas) >= MAX_CAMADAS_LIVRES
+  const apagadas = camadasApagadasEscondidas(camadas)
 
   // Quem envolve passa callbacks novos a cada render: a linha recebe ações estáveis que chamam as de AGORA.
   const atuais = useRef(props)
   useLayoutEffect(() => {
     atuais.current = props
+  })
+
+  // Depois do quadro que trouxe a ordem nova (ou o "apagar"): FLIP da linha solta e o foco da vizinha.
+  useLayoutEffect(() => {
+    const p = pouso.current
+    if (p !== null) {
+      pouso.current = null
+      const pousou = () => setPousando((atual) => (atual === p.id ? null : atual))
+      const li = lista.current?.querySelector<HTMLElement>(`:scope > li[data-camada="${p.id}"]`) ?? null
+      // A ordem nova ainda não chegou (o mapa solto pergunta antes): a linha volta ao lugar de onde saiu.
+      const voltou = contextoDeCamadas(camadas).ordem.join(',') === p.ordem
+      const animacao = li === null ? null : assentar(li, p.topo - li.getBoundingClientRect().top, voltou ? VOLTAR_AO_LUGAR_MS : ASSENTAR_AO_SOLTAR_MS)
+      if (animacao === null) pousou()
+      else animacao.finished.then(pousou, pousou)
+    }
+    const foco = focoDepoisDeApagar.current
+    if (foco !== null && !contextoDeCamadas(camadas).ordem.includes(foco.apagada)) {
+      focoDepoisDeApagar.current = null
+      if (foco.vizinha !== undefined) lista.current?.querySelector<HTMLElement>(`:scope > li[data-camada="${foco.vizinha}"] .lb-camadas__nome`)?.focus()
+    }
   })
 
   const acoes = useMemo<AcoesDaLinha>(() => {
@@ -434,32 +532,93 @@ export function LayersPanel(props: LayersPanelProps) {
         else li.style.transform = ''
       })
     }
+    /** As vizinhas voltam ao lugar com a transição do CSS, que só vale com `data-arrastando`: ele sai depois delas. */
+    const soltarAsVizinhasDepois = () => {
+      if (vizinhasVoltando.current !== null) window.clearTimeout(vizinhasVoltando.current)
+      vizinhasVoltando.current = window.setTimeout(() => {
+        vizinhasVoltando.current = null
+        if (arrasto.current === null) setArrastando(null)
+      }, VIZINHAS_VOLTAM_MS)
+    }
     const encerrar = (a: Arrasto, confirmar: boolean) => {
       window.removeEventListener('pointermove', aoMover)
       window.removeEventListener('pointerup', aoSoltar)
       window.removeEventListener('pointercancel', aoCancelar)
       window.removeEventListener('keydown', aoTeclar, true)
       if (a.alca.hasPointerCapture(a.ponteiro)) a.alca.releasePointerCapture(a.ponteiro)
+      if (a.quadro !== null) cancelAnimationFrame(a.quadro)
       arrasto.current = null
-      setArrastando(null)
-      // Tirar os deslocamentos e mudar a ordem no MESMO quadro: a linha já está onde vai ficar.
+      const linha = a.linhas[a.de]
+      // FLIP: onde a linha está AGORA (com o deslocamento do arrasto), antes de limpar.
+      const topo = a.andou ? linha.getBoundingClientRect().top : 0
+      // Ctrl+Z no meio do arrasto mudou a lista: o índice de agora é velho, e soltar não move nada.
+      const listaMudou = ordemAgora().join(',') !== a.ordem
+      const move = confirmar && a.andou && a.para !== a.de && !listaMudou
       for (const li of a.linhas) li.style.transform = ''
-      if (confirmar && a.andou && a.para !== a.de) mover(a.id, a.linhas.length - 1 - a.para)
+      const reduzido = movimentoReduzido()
+      if (move) {
+        // Tirar os deslocamentos e mudar a ordem no MESMO quadro; a linha sai de onde estava e assenta (efeito acima).
+        setArrastando(null)
+        if (!reduzido) {
+          pouso.current = { id: a.id, topo, ordem: a.ordem }
+          setPousando(a.id)
+        }
+        mover(a.id, a.linhas.length - 1 - a.para)
+        return
+      }
+      if (!a.andou || reduzido) {
+        setArrastando(null)
+        return
+      }
+      // Volta ao lugar (Esc, cancelado, soltou onde estava, lista mudou): a linha desliza de volta, as vizinhas também.
+      assentar(linha, topo - linha.getBoundingClientRect().top, confirmar ? ASSENTAR_AO_SOLTAR_MS : VOLTAR_AO_LUGAR_MS)
+      soltarAsVizinhasDepois()
     }
-    function aoMover(evento: PointerEvent) {
-      const a = arrasto.current
-      if (a === null || evento.pointerId !== a.ponteiro) return
-      const dy = evento.clientY - a.inicioY
+    /** A posição da linha pega para o ponteiro em `a.ultimoY` (e a rolagem andada desde o pegar). */
+    const acompanhar = (a: Arrasto) => {
+      const rolou = a.rolagem === null ? 0 : a.rolagem.scrollTop - a.rolagemInicial
+      let dy = a.ultimoY - a.inicioY + rolou
       if (!a.andou) {
         if (Math.abs(dy) < LIMIAR_DO_ARRASTO) return
         a.andou = true
         setArrastando(a.id)
       }
+      // Além da primeira e da última vaga, a linha resiste (anda 30% do que o ponteiro anda).
+      const acima = a.meios[0] - a.meios[a.de]
+      const abaixo = a.meios[a.meios.length - 1] - a.meios[a.de]
+      if (dy < acima) dy = acima + (dy - acima) * RESISTENCIA_NA_PONTA
+      else if (dy > abaixo) dy = abaixo + (dy - abaixo) * RESISTENCIA_NA_PONTA
       // O destino é a linha cujo meio o ponteiro passou (medido ao pegar, antes de qualquer deslocamento).
       // Posição nova = quantas das OUTRAS linhas têm o meio acima do meio da linha pega.
       const y = a.meios[a.de] + dy
       a.para = a.meios.filter((meio, i) => i !== a.de && meio < y).length
       pintarArrasto(a, dy)
+    }
+    /** Quanto o livro rola neste quadro: até 12 px, mais perto da borda mais rápido; 0 fora da faixa de 32 px. */
+    const passoDaRolagem = (a: Arrasto): number => {
+      if (a.rolagem === null || !a.andou) return 0
+      const doTopo = a.ultimoY - a.caixaDaRolagem.top
+      const daBase = a.caixaDaRolagem.bottom - a.ultimoY
+      const forca = (distancia: number) => Math.max(1, Math.round(ROLAGEM_MAX * (1 - Math.max(0, distancia) / BORDA_QUE_ROLA)))
+      if (doTopo < BORDA_QUE_ROLA) return -forca(doTopo)
+      if (daBase < BORDA_QUE_ROLA) return forca(daBase)
+      return 0
+    }
+    function rolarNaBorda(a: Arrasto) {
+      a.quadro = null
+      const passo = arrasto.current === a ? passoDaRolagem(a) : 0
+      if (passo === 0 || a.rolagem === null) return
+      const antes = a.rolagem.scrollTop
+      a.rolagem.scrollTop = antes + passo
+      if (a.rolagem.scrollTop !== antes) acompanhar(a)
+      a.quadro = requestAnimationFrame(() => rolarNaBorda(a))
+    }
+    function aoMover(evento: PointerEvent) {
+      const a = arrasto.current
+      if (a === null || evento.pointerId !== a.ponteiro) return
+      a.ultimoY = evento.clientY
+      acompanhar(a)
+      if (a.quadro === null && passoDaRolagem(a) !== 0) a.quadro = requestAnimationFrame(() => rolarNaBorda(a))
     }
     function aoSoltar(evento: PointerEvent) {
       const a = arrasto.current
@@ -482,18 +641,35 @@ export function LayersPanel(props: LayersPanelProps) {
       olhoDosJogadores: (id) => atuais.current.onTogglePlayers(id),
       cadeado: (id) => atuais.current.onToggleLock(id),
       opacidade: (id, opacidade, gesto) => atuais.current.onOpacity(id, opacidade, gesto),
-      alternar: (id) => setAberta((atual) => (atual === id ? null : id)),
+      alternar: (id) => {
+        setRecusa(null)
+        setAberta((atual) => (atual === id ? null : id))
+      },
       fechar: (id) => setAberta((atual) => (atual === id ? null : atual)),
       passo: (id, sentido) => {
         const de = ordemAgora().indexOf(id)
         if (de !== -1) mover(id, de + sentido)
       },
-      editar: (id) => setEditando(id),
+      editar: (id) => {
+        setRecusa(null)
+        setEditando(id)
+      },
       terminarEdicao: (id, nome) => {
         setEditando(null)
-        if (nome !== null && lerNomeDeCamada(nome) !== undefined) atuais.current.modelo?.renomear(id, nome)
+        if (nome === null) return
+        if (lerNomeDeCamada(nome) !== undefined) {
+          atuais.current.modelo?.renomear(id, nome)
+          return
+        }
+        // Sem nenhum caractere que se veja (em branco, ou só invisíveis): o nome de antes fica, e a linha diz por quê.
+        const texto = `Nome sem letra que se veja: continua "${rotuloDe(id, atuais.current.camadas)}".`
+        setRecusa({ id, texto })
+        setAnuncio(texto)
       },
       apagar: (id) => {
+        const deCima = [...ordemAgora()].reverse()
+        const i = deCima.indexOf(id)
+        focoDepoisDeApagar.current = { apagada: id, vizinha: deCima[i + 1] ?? deCima[i - 1] }
         setAberta((atual) => (atual === id ? null : atual))
         atuais.current.modelo?.apagar(id)
       },
@@ -504,8 +680,13 @@ export function LayersPanel(props: LayersPanelProps) {
         const linhas = Array.from(lista.current.querySelectorAll<HTMLElement>(':scope > li[data-camada]'))
         const de = linhas.findIndex((li) => li.dataset.camada === id)
         if (de === -1) return
-        const caixas = linhas.map((li) => li.getBoundingClientRect())
+        // Pegar de novo enquanto a anterior assenta: a linha vai já para o lugar dela (a animação não briga com o ponteiro).
+        for (const li of linhas) for (const animacao of li.getAnimations?.() ?? []) if (!(animacao instanceof CSSTransition)) animacao.cancel()
+        // Posições de LAYOUT (sem os `transform` das vizinhas que ainda voltam): o meio de cada linha e o vão entre elas.
+        const caixas = linhas.map((li) => ({ top: li.offsetTop, height: li.offsetHeight, bottom: li.offsetTop + li.offsetHeight }))
         const gap = linhas.length > 1 ? caixas[1].top - caixas[0].bottom : 0
+        const rolagem = rolagemDe(lista.current)
+        const caixaDaRolagem = rolagem?.getBoundingClientRect() ?? { top: -Infinity, bottom: Infinity }
         evento.currentTarget.setPointerCapture(evento.pointerId)
         arrasto.current = {
           id,
@@ -519,6 +700,12 @@ export function LayersPanel(props: LayersPanelProps) {
           pintado: de,
           altura: caixas[de].height + gap,
           andou: false,
+          ordem: ordemAgora().join(','),
+          ultimoY: evento.clientY,
+          rolagem,
+          rolagemInicial: rolagem?.scrollTop ?? 0,
+          caixaDaRolagem: { top: caixaDaRolagem.top, bottom: caixaDaRolagem.bottom },
+          quadro: null,
         }
         window.addEventListener('pointermove', aoMover)
         window.addEventListener('pointerup', aoSoltar)
@@ -532,13 +719,18 @@ export function LayersPanel(props: LayersPanelProps) {
   useEffect(
     () => () => {
       const a = arrasto.current
-      if (a !== null) for (const li of a.linhas) li.style.transform = ''
+      if (a !== null) {
+        for (const li of a.linhas) li.style.transform = ''
+        if (a.quadro !== null) cancelAnimationFrame(a.quadro)
+      }
+      if (vizinhasVoltando.current !== null) window.clearTimeout(vizinhasVoltando.current)
       arrasto.current = null
     },
     [],
   )
 
   const criar = () => {
+    setRecusa(null)
     void modelo?.criar(aberta ?? undefined).then((id) => {
       if (id === null) return
       setAberta(null)
@@ -565,7 +757,26 @@ export function LayersPanel(props: LayersPanelProps) {
           Trava
         </span>
       </p>
-      <ul ref={lista} className="lb-layers lb-camadas" aria-label="Camadas do mapa" data-arrastando={arrastando === null ? undefined : ''}>
+      {/* No alto, logo depois da legenda: a camada nasce no topo (ou acima da aberta), perto de onde aparece. */}
+      {ordenavel && (
+        <div className="lb-camadas__rodape">
+          <button type="button" className="lb-btn lb-camadas__nova" onClick={criar} disabled={noTeto} aria-describedby={noTeto ? 'lb-camadas-teto' : undefined}>
+            + Nova camada
+          </button>
+          {noTeto && (
+            <span className="lb-camadas__nota" id="lb-camadas-teto">
+              Limite de {MAX_CAMADAS_LIVRES} camadas novas: apague uma para criar outra.
+            </span>
+          )}
+        </div>
+      )}
+      <ul
+        ref={lista}
+        className="lb-layers lb-camadas"
+        aria-label="Camadas do mapa"
+        data-arrastando={arrastando === null ? undefined : ''}
+        data-ordenavel={ordenavel ? '' : undefined}
+      >
         {deCimaParaBaixo.map((id, posicao) => {
           const mestreVe = contexto.mestreVe(id)
           const pct = Math.round(contexto.alfa(id) * 100)
@@ -578,7 +789,7 @@ export function LayersPanel(props: LayersPanelProps) {
               data-hidden={mestreVe ? undefined : ''}
               data-esmaecida={pct < 100 ? '' : undefined}
               data-aberta={aberta === id ? '' : undefined}
-              data-arrastada={arrastando === id ? '' : undefined}
+              data-arrastada={arrastando === id || pousando === id ? '' : undefined}
             >
               <LinhaDaCamada
                 id={id}
@@ -595,6 +806,7 @@ export function LayersPanel(props: LayersPanelProps) {
                 editando={editando === id}
                 posicao={posicao}
                 total={deCimaParaBaixo.length}
+                recusa={recusa?.id === id ? recusa.texto : undefined}
                 acoes={acoes}
               />
               {aninhado !== undefined && <div className="lb-camadas__aninhado">{aninhado}</div>}
@@ -602,17 +814,31 @@ export function LayersPanel(props: LayersPanelProps) {
           )
         })}
       </ul>
-      {ordenavel && (
-        <div className="lb-camadas__rodape">
-          <button type="button" className="lb-btn lb-camadas__nova" onClick={criar} disabled={noTeto} aria-describedby={noTeto ? 'lb-camadas-teto' : undefined}>
-            + Nova camada
-          </button>
-          {noTeto && (
-            <span className="lb-camadas__nota" id="lb-camadas-teto">
-              Limite de {MAX_CAMADAS_LIVRES} camadas novas: apague uma para criar outra.
-            </span>
-          )}
-        </div>
+      {/* Camada apagada noutra cena (ou perdida por um cliente antigo) que ainda esconde itens dos jogadores:
+          eles continuam escondidos (falha FECHADA) até o mestre mostrar aqui. */}
+      {apagadas.length > 0 && (
+        <ul className="lb-layers lb-camadas lb-camadas--apagadas" aria-label="Camadas apagadas que escondem itens">
+          {apagadas.map((id, i) => {
+            const nome = apagadas.length === 1 ? 'Camada apagada' : `Camada apagada ${i + 1}`
+            return (
+              <li key={id} className="lb-layers__row lb-camadas__linha" data-camada-apagada={id}>
+                <div className="lb-camadas__cabeca">
+                  <span className="lb-camadas__apagada">{nome}</span>
+                  <button
+                    type="button"
+                    className="lb-iconbtn lb-iconbtn--sm lb-camadas__bt"
+                    aria-pressed={true}
+                    aria-label={`Mostrar aos jogadores os itens de ${nome}`}
+                    title="Os itens dela estão escondidos dos jogadores; mostrar põe cada um na camada padrão do tipo"
+                    onClick={() => acoes.olhoDosJogadores(id)}
+                  >
+                    <JogadoresOcultosIcon size={16} />
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       )}
       <p className="lb-sr-only" aria-live="polite">
         {anuncio}

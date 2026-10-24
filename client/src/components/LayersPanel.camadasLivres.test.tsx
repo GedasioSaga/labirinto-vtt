@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MapData } from '../types/map'
 import { apagarCamadaLivre, criarCamadaLivre, moverCamada, renomearCamada } from '../lib/camadas/modelo'
+import { NOME_DE_CAMADA_MAX, PONTOS_POR_CARACTERE_MAX } from '../lib/camadas/arquivo'
 import { createEmptyMap } from '../lib/mapFactory'
 import { LayersPanel, type AcoesDoModelo } from './LayersPanel'
 
@@ -57,6 +58,14 @@ const botao = (nome: string): HTMLButtonElement => {
   return achado
 }
 const linhas = (): string[] => Array.from(alvo.querySelectorAll('li[data-camada]')).map((li) => li.getAttribute('data-camada') ?? '')
+
+/** Escreve no campo como o React espera (o setter nativo e o evento `input`). */
+async function escrever(campo: HTMLInputElement, texto: string): Promise<void> {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(campo, texto)
+    campo.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
 
 async function montar(pedidos: Pedido[], comModelo = true): Promise<void> {
   await act(async () => raiz.render(<Harness pedidos={pedidos} inicial={createEmptyMap('m', 'M', 4, 4, 64)} comModelo={comModelo} />))
@@ -141,6 +150,97 @@ describe('painel: camadas livres', () => {
     expect(alvo.querySelector('[aria-label="Subir Salas"]')).toBeNull()
     expect(Array.from(alvo.querySelectorAll('button')).some((b) => b.textContent === '+ Nova camada')).toBe(false)
     expect(alvo.querySelector('li[data-camada="paredes"]')?.textContent).toMatch(/^Paredes\s*1$/)
+  })
+
+  it('revisão: "+ Nova camada" mora ACIMA da lista; a alça e o grupo da linha dizem o que fazem', async () => {
+    await montar([])
+    const ul = alvo.querySelector('ul[aria-label="Camadas do mapa"]')
+    if (ul === null) throw new Error('sem lista')
+    expect(botao('+ Nova camada').compareDocumentPosition(ul) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(alvo.querySelector('li[data-camada="paredes"] .lb-camadas__alca')?.getAttribute('title')).toBe('Arraste para pôr Paredes por cima ou por baixo')
+    await act(async () => botao('Salas, opacidade').click())
+    expect(alvo.querySelector('li[data-camada="salas"] [role="group"]')?.getAttribute('aria-label')).toBe('Ordem e nome de Salas')
+  })
+
+  it('revisão: o contador vai a "49/40" (em latão, campo inválido, a frase para o leitor) e chega a 40 com 40 emojis', async () => {
+    await montar([])
+    await act(async () => botao('+ Nova camada').click())
+    const campo = alvo.querySelector<HTMLInputElement>('input[type="text"]')
+    if (campo === null) throw new Error('sem campo')
+    // A trava de colagem nunca corta antes de 40 caracteres do maior tamanho aceito (10 pontos, 2 unidades cada).
+    expect(campo.maxLength).toBeGreaterThanOrEqual(NOME_DE_CAMADA_MAX * PONTOS_POR_CARACTERE_MAX * 2)
+    await escrever(campo, '👨‍👩‍👧'.repeat(NOME_DE_CAMADA_MAX))
+    const contador = alvo.querySelector('.lb-camadas__contador')
+    expect(contador?.textContent).toBe('40/40')
+    expect(campo.getAttribute('aria-invalid')).toBeNull()
+    await escrever(campo, 'Ω'.repeat(49))
+    expect(contador?.textContent).toBe('49/40')
+    expect(contador?.hasAttribute('data-passou')).toBe(true)
+    expect(campo.getAttribute('aria-invalid')).toBe('true')
+    const frases = (campo.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent)
+    expect(frases).toContain('Cabem 40: o resto sai')
+    // Colagem gigante: o campo segura o dobro do teto, em caracteres visíveis.
+    await escrever(campo, 'Ω'.repeat(500))
+    expect(Array.from(campo.value)).toHaveLength(NOME_DE_CAMADA_MAX * 2)
+  })
+
+  it('revisão: nome só de invisíveis é RECUSADO; o nome de antes fica e a linha diz por quê', async () => {
+    const pedidos: Pedido[] = []
+    await montar(pedidos)
+    await act(async () => botao('+ Nova camada').click())
+    const campo = alvo.querySelector<HTMLInputElement>('input[type="text"]')
+    if (campo === null) throw new Error('sem campo')
+    const id = linhas()[0]
+    await escrever(campo, String.fromCodePoint(0x200b, 0x200b))
+    await act(async () => campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(pedidos.some(([tipo]) => tipo === 'renomear')).toBe(false)
+    expect(alvo.querySelector(`li[data-camada="${id}"] .lb-camadas__rotulo`)?.textContent).toBe('Nova camada')
+    expect(alvo.querySelector(`li[data-camada="${id}"] [role="status"]`)?.textContent).toBe('Nome sem letra que se veja: continua "Nova camada".')
+  })
+
+  it('revisão: o 2º clique do duplo não fecha a linha que o 1º abriu (o duplo renomeia)', async () => {
+    await montar([])
+    await act(async () => botao('+ Nova camada').click())
+    await act(async () => alvo.querySelector<HTMLInputElement>('input[type="text"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    const id = linhas()[0]
+    const nome = botao('Nova camada, opacidade')
+    await act(async () => nome.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })))
+    await act(async () => nome.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 })))
+    expect(alvo.querySelector(`li[data-camada="${id}"]`)?.hasAttribute('data-aberta')).toBe(true)
+    await act(async () => nome.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+    expect(alvo.querySelector('input[type="text"]')).not.toBeNull()
+  })
+
+  it('revisão: apagar põe o foco no nome da vizinha de baixo (ou da de cima, se era a última), nunca no corpo da página', async () => {
+    await montar([])
+    await act(async () => botao('+ Nova camada').click())
+    await act(async () => alvo.querySelector<HTMLInputElement>('input[type="text"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    await act(async () => botao('Nova camada, opacidade').click())
+    await act(async () => botao('Apagar a camada Nova camada').click())
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Telhados, opacidade')
+    // A última da lista: o foco sobe.
+    await act(async () => botao('Chão, opacidade').click())
+    await act(async () => botao('+ Nova camada').click())
+    await act(async () => alvo.querySelector<HTMLInputElement>('input[type="text"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    await act(async () => botao('Nova camada, opacidade').click())
+    await act(async () => botao('Descer Nova camada').click())
+    expect(linhas().at(-1)).toMatch(/^livre_/)
+    await act(async () => botao('Apagar a camada Nova camada').click())
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Chão, opacidade')
+  })
+
+  it('revisão: camada apagada que ainda esconde itens dos jogadores ganha a linha "Camada apagada", e o olho dela mostra', async () => {
+    const pedidos: string[] = []
+    const camadas = { hiddenLayers: [], lockedLayers: [], versaoDasCamadas: 2 as const, ocultasDoJogador: ['livre_0badc0de' as const] }
+    await act(async () =>
+      raiz.render(<LayersPanel camadas={camadas} counts={{}} onToggleLayer={() => {}} onTogglePlayers={(id) => pedidos.push(id)} onToggleLock={() => {}} onOpacity={() => {}} />),
+    )
+    const mostrar = botao('Mostrar aos jogadores os itens de Camada apagada')
+    expect(mostrar.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => mostrar.click())
+    expect(pedidos).toEqual(['livre_0badc0de'])
+    // A linha não entra na lista que se arrasta (nem conta como camada).
+    expect(linhas()).not.toContain('livre_0badc0de')
   })
 
   it('com `modelo`, a linha continua "Paredes 1" (alça e ações não têm texto na linha fechada... só no miolo)', async () => {

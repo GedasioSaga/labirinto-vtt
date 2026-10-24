@@ -156,6 +156,8 @@ export interface Pilha<N> {
   assinaturaDa(faixa: string): string
   /** Quantos nós criados existem agora (fora os de hoje). */
   criados(): number
+  /** As camadas de cada nó que desenha, de BAIXO para CIMA ("chao,salas,paredes+portas,…"): a ordem REAL da pilha, para os testes de ponta a ponta. */
+  ordemDasCamadas(): string
   /** Solta todos os nós criados (desmonte). */
   destruir(): void
 }
@@ -247,6 +249,11 @@ export function criarPilha<N>(opcoes: OpcoesDaPilha<N>): Pilha<N> {
     assinatura: () => assinaturaAtual,
     assinaturaDa: (faixa) => assinaturasPorFaixa.get(faixa) ?? '',
     criados: () => criados.size,
+    ordemDasCamadas: () =>
+      plano
+        .filter((p) => p.camadas.length > 0)
+        .map((p) => p.camadas.join('+'))
+        .join(','),
     destruir() {
       for (const { no, plano: dele } of criados.values()) {
         pai.removeChild(no)
