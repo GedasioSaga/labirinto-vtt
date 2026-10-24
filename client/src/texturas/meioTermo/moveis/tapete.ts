@@ -24,7 +24,7 @@ import { G, materialDaPeca, sombraDeLado, type ContextoDoMovel, type MontarMovel
 /** O creme do fio claro (`objetos.js:329`). */
 const CREME: Rgb = [232, 223, 202]
 
-interface CoresDoTapete {
+export interface CoresDoTapete {
   readonly campo: Rgb
   readonly escuro: Rgb
   readonly meio: Rgb
@@ -41,25 +41,25 @@ function misturar(a: Rgb, b: Rgb, t: number): Rgb {
 }
 
 /** Borda e medalhão mais escuros (x 0,70, como o desenho de linhas), fio claro puxado para o creme. */
-function coresDoTapete(base: Rgb): CoresDoTapete {
+export function coresDoTapete(base: Rgb): CoresDoTapete {
   return { campo: base, escuro: escalar(base, 0.7), meio: escalar(base, 0.8), claro: misturar(base, CREME, 0.38), miolo: misturar(base, CREME, 0.2) }
 }
 
 /** Quanto um pixel de lado 1/S está dentro de uma área a `dist` px da borda (negativo dentro): borda suave sem supersample. */
-function cobre(dist: number, S: number): number {
+export function cobre(dist: number, S: number): number {
   const k = 0.5 - dist * S
   return k <= 0 ? 0 : k >= 1 ? 1 : k
 }
 
 /** Puxa a cor do ponto para `c` em `k`. */
-function tingir(s: Float32Array, c: Rgb, k: number): void {
+export function tingir(s: Float32Array, c: Rgb, k: number): void {
   if (k <= 0) return
   s[0] += (c[0] - s[0]) * k
   s[1] += (c[1] - s[1]) * k
   s[2] += (c[2] - s[2]) * k
 }
 
-function pintarCampo(s: Float32Array, c: Rgb): void {
+export function pintarCampo(s: Float32Array, c: Rgb): void {
   s[0] = c[0]
   s[1] = c[1]
   s[2] = c[2]
@@ -88,7 +88,7 @@ export function distanciaAoMotivo(s: number, v: number, borda: number): number {
 }
 
 /** Fio de 0,5 px do contorno do losango e o ponto escuro do meio dele. */
-const MEIO_FIO_DO_MOTIVO = 0.45
+export const MEIO_FIO_DO_MOTIVO = 0.45
 
 /** Medalhão e cantos do retangular, por tapete (não por pixel). U = ao longo, V = atravessado. */
 interface GeometriaDoRetangular {
@@ -116,7 +116,7 @@ function geometriaDoRetangular(hu: number, hv: number, borda: number): Geometria
 }
 
 /** O ruído de lã do tapete inteiro (o mesmo do protótipo). */
-function ruidoDeLa(u: number, v: number): number {
+export function ruidoDeLa(u: number, v: number): number {
   return ruido(u * 0.5 + 9, v * 0.5) * 0.08 + ruido(u * 0.12, v * 0.12 + 3) * 0.06 + Math.sin((u + v) * 2.6) * 0.012
 }
 
@@ -155,7 +155,7 @@ function texRetangular(t: CoresDoTapete, g: GeometriaDoRetangular, deitado: bool
 }
 
 /** O miolo do medalhão em losango, em fração dele (o mesmo no retangular e no redondo). */
-const MIOLO_DO_MEDALHAO = 0.42
+export const MIOLO_DO_MEDALHAO = 0.42
 
 /**
  * O desenho do redondo: a borda com o fio do meio, UM fio claro por dentro
@@ -198,9 +198,9 @@ function texDeLado(t: CoresDoTapete, hw: number, borda: number): Textura {
 }
 
 /** Fios da franja, de 1,6 px, saindo da ponta do corpo, cada um de um comprimento (`objetos.js:620-631`). */
-const LARGURA_DO_FIO = 1.6
+export const LARGURA_DO_FIO = 1.6
 
-function texFranja(corpo: number, comprimento: number, lado: number, deitado: boolean): Textura {
+export function texFranja(corpo: number, comprimento: number, lado: number, deitado: boolean): Textura {
   return (_u, _v, x, y, _p, s, S) => {
     const U = deitado ? x : y
     const V = deitado ? y : x
@@ -216,14 +216,14 @@ function texFranja(corpo: number, comprimento: number, lado: number, deitado: bo
 }
 
 /** Frações do desenho de linhas (`TAPETE_DE_CIMA`, `TAPETE_REDONDO` e `TAPETE_DE_LADO` de `lib/mobilia.ts`). */
-const FRANJA = 0.06
+export const FRANJA = 0.06
 const BORDA = 0.12
 const MEDALHAO_REDONDO = 0.6
 const TOPO_DE_LADO = 0.6
 const FRANJA_DE_LADO = 0.04
 const BORDA_DE_LADO = 0.08
 /** Sombra do tapete: quase rente ao chão. */
-const SOMBRA_DO_TAPETE = { z: 1.5, forca: 0.22, suave: 1.2 } as const
+export const SOMBRA_DO_TAPETE = { z: 1.5, forca: 0.22, suave: 1.2 } as const
 
 function montarTapeteDeLado(c: ContextoDoMovel, cena: Cena): void {
   const { hw, hh, w, h, peca: P } = c

@@ -21,6 +21,11 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   poco: [1.5, 1.5],
   barraca: [2, 2],
   carroca: [2, 1.25],
+  sebe: [2, 0.5],
+  jardineira: [1, 0.5],
+  arcoDoPortao: [2, 0.5],
+  placaDeSeta: [0.5, 0.5],
+  tapeteLongo: [1, 4],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -33,10 +38,15 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   poco: ['Poço', 'um poço'],
   barraca: ['Barraca de feira', 'uma barraca de feira'],
   carroca: ['Carroça', 'uma carroça'],
+  sebe: ['Sebe', 'uma sebe'],
+  jardineira: ['Jardineira', 'uma jardineira'],
+  arcoDoPortao: ['Arco do portão', 'um arco do portão'],
+  placaDeSeta: ['Placa de seta', 'uma placa de seta'],
+  tapeteLongo: ['Tapete longo', 'um tapete longo'],
 }
 
 describe('peças novas: registro', () => {
-  it('os 9 tipos do lote 1 estão no catálogo de tipos, depois dos 11 de antes', () => {
+  it('os 14 tipos dos lotes 1 e 2 estão no catálogo de tipos, depois dos 11 de antes', () => {
     expect(PECAS_NOVAS).toEqual(Object.keys(TAMANHOS))
     expect(TIPOS_MOBILIA.slice(0, 11)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
     for (const tipo of PECAS_NOVAS) {
@@ -102,7 +112,12 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO.filter((tipo) => TIPOS_MOBILIA.slice(0, 11).includes(tipo))).toEqual(TIPOS_MOBILIA.slice(0, 11))
     const mesa = TIPOS_NO_CATALOGO.indexOf('mesa')
     expect(TIPOS_NO_CATALOGO.slice(mesa, mesa + 3)).toEqual(['mesa', 'mesaQuadrada', 'mesaRedonda'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(20)
+    const cerca = TIPOS_NO_CATALOGO.indexOf('cerca')
+    expect(TIPOS_NO_CATALOGO.slice(cerca, cerca + 3)).toEqual(['cerca', 'sebe', 'jardineira'])
+    const tapete = TIPOS_NO_CATALOGO.indexOf('tapete')
+    expect(TIPOS_NO_CATALOGO.slice(tapete, tapete + 2)).toEqual(['tapete', 'tapeteLongo'])
+    expect(TIPOS_NO_CATALOGO.slice(-2)).toEqual(['arcoDoPortao', 'placaDeSeta'])
+    expect(TIPOS_NO_CATALOGO).toHaveLength(25)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

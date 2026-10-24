@@ -24,6 +24,28 @@ describe('findPropAt', () => {
   })
 })
 
+describe('findPropAt — objeto girado (revisão da MT5)', () => {
+  // Sebe de 2 x 0,5 casa (100 x 25) girada 90°: na tela ela fica em pé (25 x 100).
+  const sebe: Prop = { id: 'sebe', src: '', x: 0, y: 0, width: 100, height: 25, linkedMapPath: null, mobilia: 'sebe', rotation: 90 }
+
+  it('o clique no desenho girado pega o objeto; fora dele (onde só a caixa sem giro passava), não', () => {
+    expect(findPropAt([sebe], { x: 0, y: 45 })?.id).toBe('sebe')
+    expect(findPropAt([sebe], { x: 5, y: -45 })?.id).toBe('sebe')
+    expect(findPropAt([sebe], { x: 45, y: 0 })).toBeNull()
+  })
+
+  it('giro de 45°: a ponta da diagonal pega, o canto da caixa sem giro não', () => {
+    const tapete: Prop = { id: 'longo', src: '', x: 0, y: 0, width: 200, height: 50, linkedMapPath: null, mobilia: 'tapeteLongo', rotation: 45 }
+    expect(findPropAt([tapete], { x: 63, y: 63 })?.id).toBe('longo')
+    expect(findPropAt([tapete], { x: 95, y: -20 })).toBeNull()
+  })
+
+  it('sem giro (ou giro 0), a caixa de sempre', () => {
+    expect(findPropAt([{ ...sebe, rotation: 0 }], { x: 45, y: 0 })?.id).toBe('sebe')
+    expect(findPropAt([{ ...sebe, rotation: undefined }], { x: 45, y: 0 })?.id).toBe('sebe')
+  })
+})
+
 describe('findPropAt — o tapete fica no chão', () => {
   const tapete: Prop = { id: 'tapete', src: '', x: 0, y: 0, width: 120, height: 80, linkedMapPath: null, mobilia: 'tapete' }
   const cadeira: Prop = { id: 'cadeira', src: '', x: 0, y: 0, width: 20, height: 20, linkedMapPath: null, mobilia: 'cadeira' }

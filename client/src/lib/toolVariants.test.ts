@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DRAWING_SHAPE_GROUP,
   OBJETO_KIND_GROUP,
+  PARTE_COM_O_ATALHO_DA_ARVORE,
+  PARTES_DO_MENU_DE_OBJETO,
   SALA_SHAPE_GROUP,
   clusterOptionLabel,
   clusterVariantGroups,
@@ -198,7 +200,7 @@ describe('TOOL_VARIANTS', () => {
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
   })
 
-  it('Objetos oferece os 11 móveis e as 9 peças novas da MT4 na ordem do catálogo (as mesas novas logo depois da Mesa), com o nome que o mestre lê', () => {
+  it('Objetos oferece os 11 móveis, as 9 peças novas da MT4 e as 5 da MT5 na ordem do catálogo (as mesas novas depois da Mesa, sebe e jardineira depois da Cerca, tapete longo depois do Tapete, arco e placa no fim), com o nome que o mestre lê', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     expect(entry.groups).toHaveLength(1)
@@ -206,12 +208,13 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.storeKey).toBe('mobiliaTipo')
     expect(grupo.label).toBe('Objeto')
     expect(grupo.options.map((o) => o.value)).toEqual([
-      'barril', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
-      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+      'barril', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'cadeira', 'cerca', 'sebe', 'jardineira', 'armario', 'aparador', 'fogueira', 'tapete', 'tapeteLongo',
+      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta',
     ])
+    expect(grupo.options).toHaveLength(25)
     expect(grupo.options.map((o) => o.label)).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete',
-      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça',
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Tapete longo',
+      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta',
     ])
     expect(grupo.options[3].description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
@@ -226,6 +229,29 @@ describe('TOOL_VARIANTS', () => {
       'Clique no mapa para pôr uma barraca de feira.',
       'Clique no mapa para pôr uma carroça.',
     ])
+    const mt5 = ['sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta']
+    expect(mt5.map((v) => grupo.options.find((o) => o.value === v)?.description)).toEqual([
+      'Clique no mapa para pôr uma sebe.',
+      'Clique no mapa para pôr uma jardineira.',
+      'Clique no mapa para pôr um tapete longo.',
+      'Clique no mapa para pôr um arco do portão.',
+      'Clique no mapa para pôr uma placa de seta.',
+    ])
+  })
+
+  it('o menu do Objeto se divide em 3 partes (Dentro de casa 12, Rua e jardim 10, Feira 3) e todo tipo do catálogo cai em exatamente uma', () => {
+    const entry = TOOL_VARIANTS.mobilia
+    if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
+    const catalogo = entry.groups[0].options.map((o) => o.value)
+    expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
+      ['Dentro de casa', 12],
+      ['Rua e jardim', 10],
+      ['Feira', 3],
+    ])
+    const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)
+    expect(new Set(nasPartes).size).toBe(nasPartes.length)
+    expect([...nasPartes].sort()).toEqual([...catalogo].sort())
+    expect(PARTES_DO_MENU_DE_OBJETO.map((p) => p.titulo)).toContain(PARTE_COM_O_ATALHO_DA_ARVORE)
   })
 
   it('a escolha de Objetos ecoa na barra só com a ferramenta Objetos', () => {

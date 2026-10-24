@@ -485,11 +485,75 @@ function desenharJuncos(g: CanvasRenderingContext2D, giro: number, semente: numb
 }
 
 // ---------------------------------------------------------------------------
+// Árvore redonda (fatia MT5 do Meio-Termo): a copa redonda vista de cima,
+// desenho ORIGINAL inspirado na árvore do Estilo Mother da vila
+// (`docs/design/vila-estilo-mother/prototipo/mother.js`, `arvore`): sete
+// lóbulos em volta e um no meio, com um contorno verde-escuro (nunca preto)
+// por fora, a massa escura, a média puxada para a luz (cima à esquerda) e
+// brilhos pequenos; às vezes umas flores. Só a pontinha do tronco aparece
+// embaixo. A árvore antiga (`arvore`) não muda: os mapas antigos ficam iguais.
+
+const REDONDA_CONTORNO: Rgb = [40, 88, 62]
+const REDONDA_ESCURO: Rgb = [58, 116, 80]
+const REDONDA_MEDIO: Rgb = [80, 148, 100]
+const REDONDA_CLARO: Rgb = [128, 182, 130]
+const REDONDA_FLOR_ROSA: Rgb = [222, 168, 192]
+const REDONDA_FLOR_BRANCA: Rgb = [236, 232, 218]
+
+/** Centro e raio da copa redonda no quadro de unidades (o pé do objeto em 0, 0). */
+const COPA_REDONDA = { cy: -0.46, raio: 0.42 } as const
+
+function lobulosRedondos(semente: number, giro: number, encolher: number, dx: number, dy: number): Array<[number, number, number]> {
+  const { cy, raio } = COPA_REDONDA
+  const lista: Array<[number, number, number]> = []
+  for (let i = 0; i < 7; i++) {
+    const a = giro + (i / 7) * Math.PI * 2 + sorteio(semente, 40 + i) * 0.7
+    const d = raio * (0.44 + 0.1 * sorteio(semente, 50 + i)) * encolher
+    lista.push([dx + Math.cos(a) * d, cy + dy + Math.sin(a) * d, raio * (0.44 + 0.1 * sorteio(semente, 60 + i)) * encolher])
+  }
+  lista.push([dx - raio * 0.06, cy + dy - raio * 0.08, raio * 0.56 * encolher])
+  return lista
+}
+
+function desenharArvoreRedonda(g: CanvasRenderingContext2D, giro: number, semente: number): void {
+  // A pontinha do tronco, por baixo da copa.
+  g.fillStyle = css(TRONCO_SOMBRA)
+  g.beginPath()
+  g.ellipse(0.01, -0.06, 0.05, 0.07, 0, 0, Math.PI * 2)
+  g.fill()
+  g.fillStyle = css(TRONCO)
+  g.beginPath()
+  g.ellipse(-0.012, -0.07, 0.03, 0.06, 0, 0, Math.PI * 2)
+  g.fill()
+  // Contorno: a mesma copa um pouco maior, no verde-escuro.
+  g.fillStyle = css(REDONDA_CONTORNO)
+  circulos(g, lobulosRedondos(semente, giro, 1, 0, 0).map(([x, y, r]) => [x, y, r + 0.025] as [number, number, number]))
+  g.fillStyle = css(REDONDA_ESCURO)
+  circulos(g, lobulosRedondos(semente, giro, 1, 0, 0))
+  g.fillStyle = css(REDONDA_MEDIO)
+  circulos(g, lobulosRedondos(semente, giro, 0.8, -COPA_REDONDA.raio * 0.1, -COPA_REDONDA.raio * 0.12))
+  g.fillStyle = css(REDONDA_CLARO)
+  circulos(g, lobulosRedondos(semente, giro, 0.36, -COPA_REDONDA.raio * 0.34, -COPA_REDONDA.raio * 0.36))
+  // Às vezes floresce: cinco florzinhas espalhadas pela copa.
+  if (sorteio(semente, 70) < 0.4) {
+    g.fillStyle = css(sorteio(semente, 71) < 0.5 ? REDONDA_FLOR_ROSA : REDONDA_FLOR_BRANCA)
+    const flores: Array<[number, number, number]> = []
+    for (let i = 0; i < 5; i++) {
+      const a = sorteio(semente, 80 + i) * Math.PI * 2
+      const d = COPA_REDONDA.raio * (0.2 + 0.5 * sorteio(semente, 90 + i))
+      flores.push([Math.cos(a) * d, COPA_REDONDA.cy + Math.sin(a) * d, 0.028])
+    }
+    circulos(g, flores)
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 export const CARIMBOS_EMBUTIDOS: readonly DefinicaoDeCarimbo[] = [
   { id: 'pinheiro', nome: 'Pinheiro', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, false) },
   { id: 'pinheiro-nevado', nome: 'Pinheiro com neve', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, true) },
   { id: 'arvore', nome: 'Árvore', tamanho: 15, sombra: 'em-pe', desenhar: desenharArvore },
+  { id: 'arvore-redonda', nome: 'Árvore redonda', tamanho: 14, sombra: 'em-pe', desenhar: desenharArvoreRedonda },
   { id: 'arbusto', nome: 'Arbusto', tamanho: 6, sombra: 'baixa', desenhar: (g, giro, semente) => desenharCopa(g, giro, semente, TONS_DO_ARBUSTO, -0.3, 0.4) },
   { id: 'palmeira', nome: 'Palmeira', tamanho: 13, sombra: 'em-pe', desenhar: desenharPalmeira },
   { id: 'pedras', nome: 'Pedras', tamanho: 10, sombra: 'baixa', desenhar: desenharPedras },
@@ -511,6 +575,12 @@ export const PALETA_DOS_EMBUTIDOS: readonly Rgb[] = [
   PINHO_FRIO_ESCURO,
   ...Object.values(TONS_DA_ARVORE),
   ARVORE_SOMBRA_DA_COPA,
+  REDONDA_CONTORNO,
+  REDONDA_ESCURO,
+  REDONDA_MEDIO,
+  REDONDA_CLARO,
+  REDONDA_FLOR_ROSA,
+  REDONDA_FLOR_BRANCA,
   ...Object.values(TONS_DO_ARBUSTO),
   PALMEIRA_TRONCO,
   PALMEIRA_TRONCO_SOMBRA,

@@ -498,6 +498,41 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M7.5 11.5H2.5" />
         </>
       )
+    // As peças novas do lote 2 (MT5).
+    case 'sebe':
+      // Três lóbulos de r 3,2 sobre a base reta, 8 de altura (a 6 de altura a fileira de copinhas lia como cápsula achatada).
+      return <path d="M3.8 16V11.2a3.2 3.2 0 0 1 5.7-2a3.2 3.2 0 0 1 5 0a3.2 3.2 0 0 1 5.7 2V16z" />
+    case 'jardineira':
+      // O cocho de frente e três flores acima da borda (de cima, a caixa com bolinhas lia como teclado).
+      return (
+        <>
+          <path d="M4 13h16l-1.5 6h-13z" />
+          <circle cx="7.5" cy="10" r="2" />
+          <circle cx="12" cy="9" r="2" />
+          <circle cx="16.5" cy="10" r="2" />
+        </>
+      )
+    case 'arcoDoPortao':
+      // De frente: os dois postes, a trave por cima e a placa pendurada por duas correntinhas (de cima ele lia como drone).
+      return (
+        <>
+          <path d="M5 21V7M19 21V7M3 7h18M10 7v3M14 7v3" />
+          <rect x="8.5" y="10" width="7" height="4.5" />
+        </>
+      )
+    case 'placaDeSeta':
+      // A tábua com rabo de andorinha apontando e o poste embaixo (com o círculo no meio ela lia como pilha).
+      return <path d="M4 6h11l4 3.5-4 3.5H4l2-3.5zM9 13v8" />
+
+    case 'tapeteLongo':
+      // A passadeira em pé: comprida e estreita, um losango por casa e a franja nas pontas.
+      return (
+        <>
+          <rect x="8" y="3.5" width="8" height="17" />
+          <path d="M12 6.2l1.8 1.8-1.8 1.8-1.8-1.8zM12 14.2l1.8 1.8-1.8 1.8-1.8-1.8z" />
+          <path d="M9.5 3.5V2M12 3.5V2M14.5 3.5V2M9.5 20.5V22M12 20.5V22M14.5 20.5V22" />
+        </>
+      )
   }
 }
 

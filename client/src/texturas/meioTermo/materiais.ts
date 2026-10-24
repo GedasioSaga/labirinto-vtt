@@ -17,7 +17,7 @@
 import type { TipoMobilia } from '../../lib/mobilia/tipos'
 import { PALETA_MEIO_TERMO, type TokenDaPaleta } from './paleta'
 
-export type ClasseDoMaterial = 'madeira' | 'metal' | 'tecido' | 'pedra' | 'palha' | 'corda' | 'casca'
+export type ClasseDoMaterial = 'madeira' | 'metal' | 'tecido' | 'pedra' | 'palha' | 'corda' | 'casca' | 'folha'
 
 export type IdDoMaterial =
   | 'carvalho' | 'nogueira' | 'pinho' | 'cerejeira' | 'velha'
@@ -26,6 +26,7 @@ export type IdDoMaterial =
   | 'granito' | 'arenito' | 'ardosia' | 'barro'
   | 'palha' | 'corda'
   | 'lenhaCarvalho' | 'lenhaPinho' | 'lenhaBetula'
+  | 'buxo' | 'alfeneiro'
 
 /** Opções que usam a madeira do próprio móvel: o assento "Madeira" da cadeira e as "Varas" da cerca. Não têm cor própria. */
 export type ReferenciaAMadeira = 'mesma' | 'varas'
@@ -72,6 +73,9 @@ const TOM_DA_CEREJEIRA = '#926149'
 const TOM_DA_LA_AZUL = '#4b648e'
 /** Barro do vaso: a terracota (#b56e50) saturava 0,56 antes da textura; este fica em 0,46. */
 const TOM_DO_BARRO = '#a8735a'
+/** Folhas da sebe (MT5): o buxo é o verde escuro da vila mais calmo; o alfeneiro, o claro. */
+const TOM_DO_BUXO = '#557f57'
+const TOM_DO_ALFENEIRO = '#74955c'
 
 /**
  * Carvalho e madeira velha no MÓVEL ficam mais escuros que o token da vila
@@ -110,6 +114,10 @@ export const MATERIAIS: Readonly<Record<IdDoMaterial, Material>> = {
   lenhaCarvalho: material('lenhaCarvalho', 'Carvalho', 'casca', '#55453a', 'lenha', 1),
   lenhaPinho: material('lenhaPinho', 'Pinho', 'casca', '#6c4c3a', 'lenha', 1.1),
   lenhaBetula: material('lenhaBetula', 'Bétula', 'casca', '#cbc4b4', 'linho', 1),
+  // As folhas da sebe (MT5). O verde da vila (#55ae74, #469a63) dá saturação HSV 0,51 a 0,55
+  // antes da sombra; estes tons ficam em 0,35 e 0,40, contidos como o resto do mapa.
+  buxo: materialDeTomProprio('buxo', 'Buxo', 'folha', '#3d5e40', TOM_DO_BUXO),
+  alfeneiro: materialDeTomProprio('alfeneiro', 'Alfeneiro', 'folha', '#5a7a48', TOM_DO_ALFENEIRO),
 }
 
 /** A opção é um material com cor própria (e não a madeira do móvel)? */
@@ -157,6 +165,12 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   poco: [lugar('pedras', 'Pedras', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   barraca: [lugar('toldo', 'Toldo', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   carroca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  // Lote 2 (MT5). As flores da sebe e da jardineira são fixas (tons contidos da vila).
+  sebe: [lugar('folhas', 'Folhas', ['buxo', 'alfeneiro'], 'buxo')],
+  jardineira: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  arcoDoPortao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('placa', 'Placa', MADEIRAS, 'pinho')],
+  placaDeSeta: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  tapeteLongo: [lugar('tecido', 'Tecido', TECIDOS, 'vinho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

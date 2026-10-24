@@ -194,9 +194,10 @@ describe('cerca — mourões redondos ligados por um fio', () => {
     expect(cerca.height).toBe(0.25 * GRADE)
   })
 
-  it('é o único móvel vazado: sem caixa de silhueta atrás, o chão aparece entre os mourões', () => {
+  it('a cerca e a sebe (MT5, a mesma geometria) são os móveis vazados: sem caixa de silhueta atrás, o chão aparece entre os mourões', () => {
     expect(ehMovelVazado('cerca')).toBe(true)
-    for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'cerca')) expect(ehMovelVazado(tipo)).toBe(false)
+    expect(ehMovelVazado('sebe')).toBe(true)
+    for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'cerca' && t !== 'sebe')) expect(ehMovelVazado(tipo)).toBe(false)
     expect(ehMovelVazado(undefined)).toBe(false)
   })
 

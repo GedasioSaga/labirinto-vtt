@@ -222,8 +222,8 @@ function comFormaGravada(prop: Prop, forma: 'redondo' | undefined): Prop {
  * devolve a mesma lista.
  */
 export function emOrdemDeDesenho<T extends Pick<Prop, 'mobilia'>>(props: readonly T[]): readonly T[] {
-  if (!props.some((p) => p.mobilia === 'tapete')) return props
-  return [...props.filter((p) => p.mobilia === 'tapete'), ...props.filter((p) => p.mobilia !== 'tapete')]
+  if (!props.some((p) => ehMovelDoChao(p.mobilia))) return props
+  return [...props.filter((p) => ehMovelDoChao(p.mobilia)), ...props.filter((p) => !ehMovelDoChao(p.mobilia))]
 }
 
 /**
@@ -257,7 +257,26 @@ export function ehMovelRedondo(tipo: TipoMobilia | undefined, vista: VistaMobili
  * mourões e fio, com o chão aparecendo entre eles (`pixi/drawPropSilhouettes.ts`).
  */
 export function ehMovelVazado(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'cerca'
+  // A sebe (MT5) também: o provisório dela é só a faixa (`tracosDoGlifo`), sem a caixa reta atrás da curva.
+  return tipo === 'cerca' || tipo === 'sebe'
+}
+
+/**
+ * Tipos com a geometria da cerca e a VOLTA (`Prop.mobiliaCurva`): a cerca e a
+ * sebe (MT5). A alça de curvar, o arrasto, a leitura do arquivo, a travessia
+ * para o jogador e o desenho leem esta lista.
+ */
+export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'cerca' || tipo === 'sebe'
+}
+
+/**
+ * Móveis que moram no CHÃO, por baixo de todo objeto: o tapete e o tapete
+ * longo (MT5). A ordem de desenho, o contêiner do chão do editor e o clique
+ * (que pega o tapete por último) leem esta lista.
+ */
+export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'tapete' || tipo === 'tapeteLongo'
 }
 
 /** Lados do polígono que imita a elipse: redondo a olho no zoom máximo, poucos pontos. */
@@ -431,7 +450,7 @@ export const CERCA_VOLTA_MAXIMA = STAIR_CURVE_MAX_TURN_DEGREES
  * para o jogador e no desenho.
  */
 export function normalizarCurvaDaCerca(tipo: TipoMobilia | undefined, valor: unknown): number | undefined {
-  if (tipo !== 'cerca' || typeof valor !== 'number' || !Number.isFinite(valor) || valor === 0) return undefined
+  if (!aceitaCurva(tipo) || typeof valor !== 'number' || !Number.isFinite(valor) || valor === 0) return undefined
   return Math.max(-CERCA_VOLTA_MAXIMA, Math.min(CERCA_VOLTA_MAXIMA, valor))
 }
 
@@ -1195,6 +1214,8 @@ export function tracosDoGlifo(
 ): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
   if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura, forma)
+  // A sebe (MT5) tem a geometria da cerca: o provisório é a faixa dela, reta ou dobrada no arco.
+  if (tipo === 'sebe') return contorno(contornoDaCerca(largura, altura, voltaDaCerca))
   if (ehPecaNova(tipo)) return tracosDaPecaNova(tipo, largura, altura, false)
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2

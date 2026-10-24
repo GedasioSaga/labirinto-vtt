@@ -91,7 +91,7 @@ function suave01(t: number): number {
 
 // ---------- materiais e peças ----------
 
-export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'liso'
+export type ClasseDaPeca = 'madeira' | 'metal' | 'tecido' | 'palha' | 'pedra' | 'corda' | 'casca' | 'folha' | 'liso'
 
 /** O material como o pintor o lê: a classe escolhe a textura, `rgb` é o tom em luz neutra. */
 export interface MaterialDaPeca {
@@ -222,11 +222,27 @@ export interface Sombra {
 export interface Cena {
   readonly partes: Peca[]
   readonly sombras: Sombra[]
+  /**
+   * O escuro em que o pixel escuro demais é levantado (o piso de luz).
+   * Ausente = o escuro quente da nogueira (`COR_DO_PISO`). A sebe (classe
+   * folha) usa `PISO_DA_FOLHA`: com a nogueira, o contorno dela saía marrom.
+   */
+  corDoPiso?: Rgb
 }
+
+/**
+ * O escuro da FOLHA (revisão de design da MT5): verde-escuro `#2f4a35`, com
+ * luminância linear 0,058, acima do piso de 0,045. É o tom em que a borda
+ * escura da sebe é levantada, no lugar do marrom da nogueira.
+ */
+export const PISO_DA_FOLHA: Rgb = [0x2f, 0x4a, 0x35]
+
+/** Borrão do contato (px do protótipo). */
+export const SUAVE_DO_CONTATO = 1.3
 
 /** Contato da peça com o chão: a sombra curta e firme bem no pé. */
 export function contato(forma: Forma, forca = 0.3): Sombra {
-  return { forma, z: 0, suave: 1.3, forca }
+  return { forma, z: 0, suave: SUAVE_DO_CONTATO, forca }
 }
 
 export type CriarPeca = (forma: Forma, mat: MaterialDaPeca, o?: OpcoesDaPeca) => Peca
@@ -415,6 +431,16 @@ function texCasca(u: number, v: number, _x: number, _y: number, p: Peca, s: Floa
   s[3] += luz
 }
 
+/**
+ * Folha (a sebe da MT5, como `texFolha` do vaso): luz manchada em duas
+ * escalas, sem listra; cada lóbulo desloca o ruído pela própria semente. Fraca
+ * (até ±0,1, revisão de design da MT5): quem dá o volume são os 3 tons da
+ * folhagem (massa, copa e realce); com ±0,44 a sebe virava granulado.
+ */
+export function texFolhagem(_u: number, _v: number, x: number, y: number, p: Peca, s: Float32Array): void {
+  s[3] += ruido(x * 0.42 + p.su, y * 0.42 + p.sv) * 0.07 + ruido(x * 1.05 + 7, y * 1.05) * 0.03
+}
+
 const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   madeira: texMadeira,
   metal: texMetal,
@@ -423,6 +449,7 @@ const TEXTURA: Readonly<Record<ClasseDaPeca, Textura | null>> = {
   pedra: texPedra,
   corda: texCorda,
   casca: texCasca,
+  folha: texFolhagem,
   liso: null,
 }
 
@@ -676,7 +703,8 @@ const PASSO_DA_SOMBRA = 2.5
 const BORDA_DA_SOMBRA_NO_PE = 0.8
 const AMOSTRAS_MAXIMAS_DA_SOMBRA = 20
 
-function bordaDaSombra(s: Sombra): number {
+/** Meia largura do borrão da sombra (px do protótipo): a forma não escurece o chão a mais que isto de fora dela. */
+export function bordaDaSombra(s: Pick<Sombra, 'z' | 'suave'>): number {
   return s.suave ?? BORDA_DA_SOMBRA_NO_PE + 0.09 * s.z
 }
 
@@ -805,19 +833,33 @@ function canal8(v: number): number {
   return v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v)
 }
 
+/** O escuro do levantamento e a luminância linear dele. */
+interface Piso {
+  readonly cor: Rgb
+  readonly luz: number
+}
+
+const PISO_DA_NOGUEIRA: Piso = { cor: COR_DO_PISO, luz: LUZ_DO_PISO }
+
+function pisoDaCena(cena: Cena): Piso {
+  const cor = cena.corDoPiso
+  return cor === undefined ? PISO_DA_NOGUEIRA : { cor, luz: luminanciaLinear(cor[0], cor[1], cor[2]) }
+}
+
 /** A cor do pixel (8 bits, cor pura) em `COR`, levantada até o piso de luz se for escura demais. */
 const COR = new Float64Array(3)
-function levantar(r: number, g: number, b: number, alfa: number): void {
+function levantar(r: number, g: number, b: number, alfa: number, piso: Piso): void {
   let r8 = canal8(r)
   let g8 = canal8(g)
   let b8 = canal8(b)
   if (alfa >= ALFA_DO_LEVANTAMENTO) {
     const L = luminanciaLinear(r8, g8, b8)
     if (L < PISO_DE_LUZ) {
-      const t = Math.min(1, ((PISO_DE_LUZ - L) / Math.max(0.001, LUZ_DO_PISO - L)) * EXCESSO_DO_LEVANTAMENTO)
-      r8 = canal8(r8 + (COR_DO_PISO[0] - r8) * t)
-      g8 = canal8(g8 + (COR_DO_PISO[1] - g8) * t)
-      b8 = canal8(b8 + (COR_DO_PISO[2] - b8) * t)
+      const alvo = piso.cor
+      const t = Math.min(1, ((PISO_DE_LUZ - L) / Math.max(0.001, piso.luz - L)) * EXCESSO_DO_LEVANTAMENTO)
+      r8 = canal8(r8 + (alvo[0] - r8) * t)
+      g8 = canal8(g8 + (alvo[1] - g8) * t)
+      b8 = canal8(b8 + (alvo[2] - b8) * t)
     }
   }
   COR[0] = r8
@@ -833,7 +875,7 @@ function levantar(r: number, g: number, b: number, alfa: number): void {
  * espera; sem ela, a cor pura (a que o teste mede). A textura só sobe para a
  * placa depois do último passo, então nunca aparece pela metade.
  */
-function* compor(alvo: Alvo, chao: Float32Array, destino: Uint8ClampedArray, premultiplicada: boolean): Generator<void, void, void> {
+function* compor(alvo: Alvo, chao: Float32Array, destino: Uint8ClampedArray, premultiplicada: boolean, piso: Piso): Generator<void, void, void> {
   const { buf, W, H } = alvo
   for (let py = 0, o = 0; py < H; py += 1) {
     const linha = (py & (LADO_DO_PONTILHADO - 1)) * LADO_DO_PONTILHADO
@@ -856,6 +898,7 @@ function* compor(alvo: Alvo, chao: Float32Array, destino: Uint8ClampedArray, pre
         (buf[o + 1] + resta * baixo * SOMBRA_COR[1]) / a + pr,
         (buf[o + 2] + resta * baixo * SOMBRA_COR[2]) / a + pr,
         alfa,
+        piso,
       )
       const k = premultiplicada ? alfa / 255 : 1
       destino[o] = COR[0] * k
@@ -895,7 +938,7 @@ export function* pintarCenaEmPassos(
   }
   const chao = new Float32Array(W * H)
   yield* pintarSombras(alvo, cena.sombras, chao)
-  yield* compor(alvo, chao, destino, premultiplicada)
+  yield* compor(alvo, chao, destino, premultiplicada, pisoDaCena(cena))
 }
 
 /** A cena inteira de uma vez (teste, folha de contato): RGBA de cor pura. */

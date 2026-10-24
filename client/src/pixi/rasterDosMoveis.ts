@@ -60,8 +60,9 @@ export const PASSO_DA_FLECHA = 0.02
  * pixels passa de `PIXELS_MAXIMOS_EM_LADRILHOS`. Numa imagem só, cortada no
  * lado máximo, a cerca de 20 casas no nível 3 saía com 0,91 pixel por px em
  * vez de 2,68 (mourão e fio viravam borrão) e a de 100 no nível 1, com 0,18.
+ * A sebe e o tapete longo (MT5) também têm comprimento livre e saem do mesmo jeito.
  */
-const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca'])
+const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca', 'sebe', 'tapeteLongo'])
 const MEGABYTE = 1024 * 1024
 export const TETO_NO_COMPUTADOR = 64 * MEGABYTE
 export const TETO_NO_TOQUE = 24 * MEGABYTE
@@ -102,7 +103,22 @@ export type MovelParaImagem = Pick<
   'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor'
 > &
   // Só a lápide lê o id: a variação do desenho sai dele (`varianteDaLapide`).
-  Partial<Pick<Prop, 'id'>>
+  // Só a placa de seta lê o giro: o quarto de volta é pintado na imagem (`giroDaImagem`).
+  Partial<Pick<Prop, 'id' | 'rotation'>>
+
+/**
+ * O giro que a IMAGEM já traz pintado, em graus: só a placa de seta, em
+ * quartos de volta (o mais perto do giro do objeto). A tela gira a imagem só
+ * pelo resto (`rotation - giroDaImagem`), então a seta aponta para onde o
+ * objeto aponta e a sombra e a luz ficam fixas no mapa. Os outros móveis
+ * giram a imagem inteira, como sempre (a sombra gira junto: limite registrado
+ * no plano, seção MT5).
+ */
+export function giroDaImagem(prop: Pick<MovelParaImagem, 'mobilia' | 'rotation'>): number {
+  if (prop.mobilia !== 'placaDeSeta') return 0
+  const quartos = Math.round((prop.rotation ?? 0) / 90)
+  return Number.isFinite(quartos) ? (((quartos % 4) + 4) % 4) * 90 : 0
+}
 
 /** Pixels da imagem por px de mundo: 1, 2 ou 3 (a 4x a cama passava de 50 ms). */
 export function nivelDeResolucao(cameraScale: number, rendererResolution: number): number {
@@ -142,8 +158,11 @@ function materiaisDoMovel(prop: MovelParaImagem, tipo: DesenhoDoMovel['tipo']): 
 function textoDoDesenho(chave: Omit<ChaveDoMovel, 'nivel'>): string {
   const d = chave.desenho
   const partes = [d.tipo, chave.vistaDoMapa, d.lado, d.materiais.join(','), chave.forma, chave.chaveDaCurva, passosNaChave(d.casasW), passosNaChave(d.casasH)]
-  // A variação (só a lápide) entra no fim e só quando existe: a chave dos outros tipos fica a mesma de antes.
-  return (d.variante === undefined ? partes : [...partes, `v${d.variante}`]).join('|')
+  // A variação (só a lápide) e o giro pintado (só a placa, fora do 0) entram no fim e só quando existem:
+  // a chave dos outros tipos, e a da placa sem giro, fica a mesma de antes.
+  if (d.variante !== undefined) partes.push(`v${d.variante}`)
+  if (d.giro !== undefined) partes.push(`q${d.giro}`)
+  return partes.join('|')
 }
 
 /** A flecha (px de mundo) que a volta `graus` dá na corda da cerca, a mesma conta do desenho de linhas. */
@@ -200,6 +219,7 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     casasH: casasDe(prop.height),
     semente: 0,
     ...(prop.mobilia === 'lapide' ? { variante: varianteDaLapide(prop.id) } : {}),
+    ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as const, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
