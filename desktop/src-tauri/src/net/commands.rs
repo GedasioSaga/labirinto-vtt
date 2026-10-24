@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
@@ -12,7 +13,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
 use super::animacoes;
-use super::server::{self, lock, Asset, ClientId, NetSink, PeerEvent, Room, SendError};
+use super::server::{self, lock, Asset, ClientId, ErroAoLiberar, NetSink, PeerEvent, Room, SendError};
+use super::sons::{self, ErroDosSons};
 use super::tunnel::{self, CloseReason, SharedChild, TunnelEvent, TUNNEL_EVENT};
 
 const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -421,10 +423,73 @@ pub async fn net_stop_tunnel<R: Runtime>(app: AppHandle<R>, state: State<'_, Net
     Ok(())
 }
 
+/// `liberar` (SONS AO VIVO): os áudios que esta mensagem entrega a esta
+/// conexão, liberados em `/sons/{id}` no mesmo passo do envio. Ausente ou
+/// vazio, o `net_send` é o de sempre.
 #[tauri::command]
-pub async fn net_send(state: State<'_, NetState>, client_id: String, msg: Value) -> Result<(), String> {
+pub async fn net_send(
+    state: State<'_, NetState>,
+    client_id: String,
+    msg: Value,
+    liberar: Option<Vec<String>>,
+) -> Result<(), String> {
     let room = active_room(&state).await?;
-    send_to(&room, &client_id, &msg)
+    send_to_liberando(&room, &client_id, &msg, liberar.as_deref().unwrap_or_default())
+}
+
+/// Núcleo de `net_send` com `liberar`, sem `State` do Tauri (testável).
+pub fn send_to_liberando(room: &Room, client_id: &str, msg: &Value, liberar: &[String]) -> Result<(), String> {
+    if liberar.is_empty() {
+        return send_to(room, client_id, msg);
+    }
+    if !msg.is_object() {
+        return Err("msg precisa ser um objeto JSON".into());
+    }
+    let id = parse_client_id(client_id)?;
+    room.send_liberando(id, msg, liberar).map_err(|erro| match erro {
+        ErroAoLiberar::Envio(envio) => send_error(envio),
+        ErroAoLiberar::Sons(sons) => sons.texto().to_owned(),
+    })
+}
+
+/// SONS AO VIVO: a pasta da aventura aberta, de onde `/sons/{id}` lê;
+/// `null` = nenhuma (a rota só dá 404).
+#[tauri::command]
+pub async fn net_sons_aventura(state: State<'_, NetState>, pasta: Option<String>) -> Result<(), String> {
+    sons_aventura_no_estado(&state, pasta).await
+}
+
+async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>) -> Result<(), String> {
+    let room = state
+        .room
+        .lock()
+        .await
+        .as_ref()
+        .map(|open| open.room.clone())
+        .ok_or_else(|| ErroDosSons::SemSala.texto().to_owned())?;
+    definir_aventura_dos_sons(&room, pasta).await
+}
+
+/// Núcleo de `net_sons_aventura`. Pasta recusada também tira a de antes: a
+/// sala nunca segue servindo a aventura que o mestre deixou.
+pub async fn definir_aventura_dos_sons(room: &Room, pasta: Option<String>) -> Result<(), String> {
+    let Some(pasta) = pasta else {
+        room.definir_aventura_dos_sons(None);
+        return Ok(());
+    };
+    let conferida = tokio::task::spawn_blocking(move || sons::raiz_da_aventura(Path::new(&pasta)))
+        .await
+        .unwrap_or(Err(ErroDosSons::PastaInvalida));
+    match conferida {
+        Ok(raiz) => {
+            room.definir_aventura_dos_sons(Some(raiz));
+            Ok(())
+        }
+        Err(erro) => {
+            room.definir_aventura_dos_sons(None);
+            Err(erro.texto().to_owned())
+        }
+    }
 }
 
 #[tauri::command]
@@ -540,6 +605,13 @@ mod tests {
         assert_eq!(player_urls(&[], 7777), vec!["http://127.0.0.1:7777/player".to_owned()]);
         let lan = [Ipv4Addr::new(192, 168, 0, 5)];
         assert_eq!(player_urls(&lan, 7778), vec!["http://192.168.0.5:7778/player".to_owned()]);
+    }
+
+    #[tokio::test]
+    async fn sons_aventura_sem_sala_e_sem_sala() {
+        let state = NetState::default();
+        assert_eq!(sons_aventura_no_estado(&state, None).await, Err("sem-sala".to_owned()));
+        assert_eq!(sons_aventura_no_estado(&state, Some("C:/qualquer".to_owned())).await, Err("sem-sala".to_owned()));
     }
 
     #[test]
