@@ -2096,6 +2096,20 @@ export interface MovementRules {
   tokensOccupy?: boolean
 }
 
+/**
+ * DIA/TARDE/NOITE: o período da sessão (`Adventure.periodo`) e o de uma cena
+ * (`MapData.periodoFixo`). Quem diz o período de uma cena é `lib/periodo.ts`
+ * (`periodoDaCena`). O 'manha' do relógio antigo é lido como 'dia' e nunca é
+ * gravado (`lerPeriodo`).
+ */
+export type Periodo = 'dia' | 'tarde' | 'noite'
+
+/** Tinta de ambiente de um período numa cena: `cor` em `#rrggbb`, `forca` de 0 a 1. Campo ausente = o padrão. */
+export interface AmbienteDoPeriodo {
+  cor?: string
+  forca?: number
+}
+
 export interface MapData {
   id: string
   name: string
@@ -2325,6 +2339,26 @@ export interface MapData {
    * recebe só se está escuro, à parte (`clockForPlayer`).
    */
   externa?: true
+  /**
+   * DIA/TARDE/NOITE: a cena fica sempre neste período, qualquer que seja o da
+   * sessão (vence `externa`). Ausente = segue a regra de `periodoDaCena`, sem
+   * linha de migração; valor torto do arquivo sai (`lerPeriodo`).
+   */
+  periodoFixo?: Periodo
+  /**
+   * DIA/TARDE/NOITE: a tinta de ambiente desta cena à tarde e à noite (em
+   * certas cenas a noite apaga quase tudo, noutras quase nada). Cada campo
+   * ausente usa o padrão (`AMBIENTE_PADRAO`); o dia nunca tem tinta. Quem lê é
+   * `ambienteDoPeriodo` (`lib/periodo.ts`). Ausente = o padrão, sem linha de
+   * migração; parte torta do arquivo sai (`lerAmbientePorPeriodo`).
+   */
+  ambientePorPeriodo?: { tarde?: AmbienteDoPeriodo; noite?: AmbienteDoPeriodo }
+  /**
+   * DIA/TARDE/NOITE: o raio de visão nesta cena à tarde e à noite, em casas.
+   * Ausente = a regra de hoje (noite = metade da visão). Parte torta do
+   * arquivo sai (`lerVisaoPorPeriodo`).
+   */
+  visaoPorPeriodo?: { tarde?: number; noite?: number }
   /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
