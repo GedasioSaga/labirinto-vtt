@@ -23,9 +23,24 @@ import { tonsDoMeio } from './tons'
  * mesmos bytes pintando de uma vez ou em fatias.
  */
 
-/** Lado da chaminé, em px do mapa (o protótipo: 11 px no zoom 100%). */
-export const LADO_DA_CHAMINE_PX = 11
-const MEIO = LADO_DA_CHAMINE_PX / 2
+/**
+ * Lado da chaminé, em px do mapa: 0,4 da casa de referência de 50 px (MT10b,
+ * pedido do usuário em 24/10: a de 11 px do protótipo parecia um respiro).
+ */
+export const LADO_DA_CHAMINE_PX = 20
+/**
+ * Na água rasa a chaminé encolhe até o lado do protótipo (11 px) e, abaixo
+ * dele, não sai: toda sala que tinha chaminé antes da MT10b continua tendo.
+ */
+export const LADO_MINIMO_DA_CHAMINE_PX = 11
+/** A chaminé ocupa no máximo esta fração da fundura da água (a casa pequena leva chaminé menor). */
+const FRACAO_DA_FUNDURA = 0.4
+/**
+ * As medidas do desenho são as do protótipo para o lado de 11 px e crescem com
+ * o lado (cantos, face, sombra, boca, juntas). Os TRAÇOS (contornos, luz,
+ * largura da junta) são o peso do estilo e não crescem.
+ */
+const LADO_DO_PROTOTIPO = 11
 const CANTO = 1.6
 /** A face do lado da sombra: o corpo deslocado (o volume da pedra). */
 const FACE_X = 1.2
@@ -43,6 +58,10 @@ const LUZ = 1 * TRACO
 const LARGURA_DA_LUZ = LUZ * 1.7
 const JUNTA = 0.7
 const JUNTA_ALFA = 0.4
+/** As juntas das pedras: a fiada (horizontal) e as duas verticais, uma acima e outra abaixo dela. */
+const JUNTA_DA_FIADA_Y = -1.2
+const JUNTA_DE_CIMA_X = -1
+const JUNTA_DE_BAIXO_X = 2.2
 const BOCA = 2.8
 const BOCA_CANTO = 1
 const BOCA_CONTORNO = 1.1 * TRACO
@@ -52,8 +71,8 @@ const FURO_CANTO = 0.8
 const FRACAO_DA_ALTURA = 0.54
 /** Onde, ao longo da borda de trás: a metade da direita (0,74) e, se não couber, a da esquerda. */
 const AO_LONGO = 0.74
-/** A água precisa ter pelo menos isto de fundura para a chaminé caber com folga. */
-const FUNDURA_MINIMA = 2 * LADO_DA_CHAMINE_PX
+/** A água precisa ter pelo menos isto de fundura para a menor chaminé caber com folga (22 px, como antes). */
+const FUNDURA_MINIMA = 2 * LADO_MINIMO_DA_CHAMINE_PX
 /** Nenhum pixel do telhado fica abaixo desta luminância pela sombra da chaminé (`meio.js:86`). */
 const PISO_DE_LUZ = 0.045
 
@@ -61,6 +80,13 @@ export interface ChamineNoTelhado {
   /** Centro do corpo, em px do mapa. */
   readonly x: number
   readonly y: number
+  /** Lado do corpo, em px do mapa (de `LADO_MINIMO_DA_CHAMINE_PX` a `LADO_DA_CHAMINE_PX`). */
+  readonly lado: number
+}
+
+/** Quanto as medidas do protótipo crescem nesta chaminé. */
+function fator(c: ChamineNoTelhado): number {
+  return c.lado / LADO_DO_PROTOTIPO
 }
 
 export interface CaixaNoMapa {
@@ -72,18 +98,45 @@ export interface CaixaNoMapa {
 
 /** A caixa do corpo com a face (o que a prova de presença mede). */
 export function caixaDaChamine(c: ChamineNoTelhado): CaixaNoMapa {
-  return { x0: c.x - MEIO, y0: c.y - MEIO, x1: c.x + MEIO + FACE_X, y1: c.y + MEIO + FACE_Y }
+  const meio = c.lado / 2
+  const s = fator(c)
+  return { x0: c.x - meio, y0: c.y - meio, x1: c.x + meio + FACE_X * s, y1: c.y + meio + FACE_Y * s }
 }
 
 /** Tudo o que a chaminé pode pintar (corpo, contorno, face e sombra): fora disto nenhum byte muda. */
 export function alcanceDaChamine(c: ChamineNoTelhado): CaixaNoMapa {
+  const meio = c.lado / 2
+  const s = fator(c)
   const folga = CONTORNO_DO_CORPO
   return {
-    x0: c.x - MEIO - folga - 1,
-    y0: c.y - MEIO - folga - 1,
-    x1: c.x + MEIO + Math.max(FACE_X + CONTORNO_DA_FACE, SOMBRA_X + SOMBRA_BORRAO) + 1,
-    y1: c.y + MEIO + Math.max(FACE_Y + CONTORNO_DA_FACE, SOMBRA_Y + SOMBRA_BORRAO) + 1,
+    x0: c.x - meio - folga - 1,
+    y0: c.y - meio - folga - 1,
+    x1: c.x + meio + Math.max(FACE_X * s + CONTORNO_DA_FACE, (SOMBRA_X + SOMBRA_BORRAO) * s) + 1,
+    y1: c.y + meio + Math.max(FACE_Y * s + CONTORNO_DA_FACE, (SOMBRA_Y + SOMBRA_BORRAO) * s) + 1,
   }
+}
+
+/**
+ * O ponto (px do mapa) cai na pedra da chaminé (corpo ou face)? Na caixa, o
+ * resto são os dentes entre o corpo e a face e os cantos arredondados: telhado,
+ * às vezes com a sombra (que tem o piso de luz próprio, 0,045).
+ */
+export function dentroDaChamine(c: ChamineNoTelhado, x: number, y: number): boolean {
+  const meio = c.lado / 2
+  const s = fator(c)
+  return (
+    distanciaAoRetangulo(x, y, c.x, c.y, meio, meio, CANTO * s) <= 0 ||
+    distanciaAoRetangulo(x, y, c.x + FACE_X * s, c.y + FACE_Y * s, meio, meio, CANTO * s) <= 0
+  )
+}
+
+/** Os lados a tentar, do maior que a fundura deixa até o mínimo (de 1 em 1 px, o mínimo sempre por último). */
+function ladosPossiveis(fundura: number): number[] {
+  const maior = Math.min(LADO_DA_CHAMINE_PX, Math.max(LADO_MINIMO_DA_CHAMINE_PX, FRACAO_DA_FUNDURA * fundura))
+  const lados: number[] = []
+  for (let lado = maior; lado > LADO_MINIMO_DA_CHAMINE_PX; lado -= 1) lados.push(lado)
+  lados.push(LADO_MINIMO_DA_CHAMINE_PX)
+  return lados
 }
 
 /** A borda de trás: a de normal de dentro mais para baixo (a borda de cima); empate, a mais comprida. */
@@ -114,15 +167,17 @@ export function posicaoDaChamine(geo: GeometriaDasAguas): ChamineNoTelhado | nul
     }
     if (fundura < FUNDURA_MINIMA) continue
     const h = FRACAO_DA_ALTURA * fundura
-    const c = { x: px + geo.nx[i] * h, y: py + geo.ny[i] * h }
-    const a = alcanceDaChamine(c)
-    const cabe = [
-      [a.x0, a.y0],
-      [a.x1, a.y0],
-      [a.x0, a.y1],
-      [a.x1, a.y1],
-    ].every(([x, y]) => dentroDoPoligono(geo, x, y))
-    if (cabe) return c
+    for (const lado of ladosPossiveis(fundura)) {
+      const c = { x: px + geo.nx[i] * h, y: py + geo.ny[i] * h, lado }
+      const a = alcanceDaChamine(c)
+      const cabe = [
+        [a.x0, a.y0],
+        [a.x1, a.y0],
+        [a.x0, a.y1],
+        [a.x1, a.y1],
+      ].every(([x, y]) => dentroDoPoligono(geo, x, y))
+      if (cabe) return c
+    }
   }
   return null
 }
@@ -211,6 +266,10 @@ export function pintarChamineNaLinha(
   const y = origemY + (py + 0.5) * passo
   const a = alcanceDaChamine(c)
   if (y < a.y0 || y > a.y1) return
+  const meio = c.lado / 2
+  const s = fator(c)
+  const canto = CANTO * s
+  const fiada = c.y + JUNTA_DA_FIADA_Y * s
   const px0 = Math.max(0, Math.floor((a.x0 - origemX) * k))
   const px1 = Math.min(largura - 1, Math.ceil((a.x1 - origemX) * k))
   for (let px = px0; px <= px1; px += 1) {
@@ -218,33 +277,33 @@ export function pintarChamineNaLinha(
     const o = (py * largura + px) * 4
     if (pixels[o + 3] === 0) continue
     // 1. Sombra no telhado (suave, deslocada pela altura).
-    const dSombra = distanciaAoRetangulo(x, y, c.x + SOMBRA_X, c.y + SOMBRA_Y, MEIO, MEIO, CANTO)
-    sombrear(pixels, o, suave(0.5 - dSombra / SOMBRA_BORRAO))
+    const dSombra = distanciaAoRetangulo(x, y, c.x + SOMBRA_X * s, c.y + SOMBRA_Y * s, meio, meio, canto)
+    sombrear(pixels, o, suave(0.5 - dSombra / (SOMBRA_BORRAO * s)))
     // 2. A face do lado da sombra, com o contorno dela.
-    const dFace = distanciaAoRetangulo(x, y, c.x + FACE_X, c.y + FACE_Y, MEIO, MEIO, CANTO)
+    const dFace = distanciaAoRetangulo(x, y, c.x + FACE_X * s, c.y + FACE_Y * s, meio, meio, canto)
     pintarCor(pixels, o, FACE, cobertura(dFace, k))
     pintarCor(pixels, o, PEDRA.contorno, traco(dFace, CONTORNO_DA_FACE, k))
     // 3. O corpo: pedra, realce por dentro em cima e à esquerda, sombra embaixo e à direita, juntas, contorno.
-    const dCorpo = distanciaAoRetangulo(x, y, c.x, c.y, MEIO, MEIO, CANTO)
+    const dCorpo = distanciaAoRetangulo(x, y, c.x, c.y, meio, meio, canto)
     const corpo = cobertura(dCorpo, k)
     if (corpo > 0) {
       pintarCor(pixels, o, PEDRA.base, corpo)
-      const dRealce = distanciaAoRetangulo(x - LUZ, y - LUZ, c.x, c.y, MEIO, MEIO, CANTO)
+      const dRealce = distanciaAoRetangulo(x - LUZ, y - LUZ, c.x, c.y, meio, meio, canto)
       pintarCor(pixels, o, PEDRA.realce, traco(dRealce, LARGURA_DA_LUZ, k) * corpo)
-      const dSombraDentro = distanciaAoRetangulo(x + LUZ, y + LUZ, c.x, c.y, MEIO, MEIO, CANTO)
+      const dSombraDentro = distanciaAoRetangulo(x + LUZ, y + LUZ, c.x, c.y, meio, meio, canto)
       pintarCor(pixels, o, PEDRA.sombra, traco(dSombraDentro, LARGURA_DA_LUZ, k) * corpo)
       const dJunta = Math.min(
-        distanciaAoSegmento(x, y, c.x - MEIO, c.y - 1.2, c.x + MEIO, c.y - 1.2),
-        distanciaAoSegmento(x, y, c.x - 1, c.y - MEIO, c.x - 1, c.y - 1.2),
-        distanciaAoSegmento(x, y, c.x + 2.2, c.y - 1.2, c.x + 2.2, c.y + MEIO),
+        distanciaAoSegmento(x, y, c.x - meio, fiada, c.x + meio, fiada),
+        distanciaAoSegmento(x, y, c.x + JUNTA_DE_CIMA_X * s, c.y - meio, c.x + JUNTA_DE_CIMA_X * s, fiada),
+        distanciaAoSegmento(x, y, c.x + JUNTA_DE_BAIXO_X * s, fiada, c.x + JUNTA_DE_BAIXO_X * s, c.y + meio),
       )
       pintarCor(pixels, o, LINHA_DA_JUNTA, traco(dJunta, JUNTA, k) * JUNTA_ALFA * corpo)
     }
     pintarCor(pixels, o, PEDRA.contorno, traco(dCorpo, CONTORNO_DO_CORPO, k))
     // 4. A boca de metal e o furo escuro.
-    const dBoca = distanciaAoRetangulo(x, y, c.x, c.y, BOCA, BOCA, BOCA_CANTO)
+    const dBoca = distanciaAoRetangulo(x, y, c.x, c.y, BOCA * s, BOCA * s, BOCA_CANTO * s)
     pintarCor(pixels, o, METAL.base, cobertura(dBoca, k))
     pintarCor(pixels, o, METAL.contorno, traco(dBoca, BOCA_CONTORNO, k))
-    pintarCor(pixels, o, METAL.contorno, cobertura(distanciaAoRetangulo(x, y, c.x, c.y, FURO, FURO, FURO_CANTO), k))
+    pintarCor(pixels, o, METAL.contorno, cobertura(distanciaAoRetangulo(x, y, c.x, c.y, FURO * s, FURO * s, FURO_CANTO * s), k))
   }
 }

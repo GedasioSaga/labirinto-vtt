@@ -80,16 +80,34 @@ describe('drawWalls: grade de prisão', () => {
     }
   })
 
-  it('em 3 zooms a barra tem pelo menos 1,2 px de tela de raio e o passo pelo menos 4 px de tela', () => {
-    for (const escala of [0.25, 1, 3]) {
+  it('MT10b: em 4 zooms, trilho de pelo menos 2 px de tela, barra de 2 px de raio e passo de 7 px', () => {
+    for (const escala of [0.25, 0.5, 1, 3]) {
       const geo = geometriaDaGrade(janela({ x2: 400 }), escala)
-      expect(geo.raio * escala).toBeGreaterThanOrEqual(1.2)
+      expect(geo.raio * escala).toBeGreaterThanOrEqual(2)
+      expect(geo.trilho * escala).toBeGreaterThanOrEqual(2)
       const xs = geo.barras.map((b) => b.x)
       const passos = xs.slice(1).map((x, k) => x - xs[k])
-      expect(Math.min(...passos) * escala).toBeGreaterThanOrEqual(4)
+      expect(Math.min(...passos) * escala).toBeGreaterThanOrEqual(7)
       // Espaçadas por igual: o mesmo passo do começo ao fim.
       expect(Math.max(...passos) - Math.min(...passos)).toBeLessThan(1e-6)
     }
+  })
+
+  it('MT10b: lê como trilho contínuo com contas a 50%, 100% e 300% (contas maiores que o trilho, sem se encostarem)', () => {
+    for (const escala of [0.5, 1, 3]) {
+      const geo = geometriaDaGrade(janela({ x2: 400 }), escala)
+      const conta = 2 * geo.raio + 2 * geo.contorno
+      const trilho = geo.trilho + 2 * geo.contorno
+      const passo = geo.barras[1].x - geo.barras[0].x
+      // A conta sai do trilho dos dois lados: o diâmetro dela passa de 1,4 vezes a largura do trilho.
+      expect(conta / trilho).toBeGreaterThanOrEqual(1.4)
+      // Entre duas contas sobra trilho à vista: pelo menos 1 px de tela.
+      expect((passo - conta) * escala).toBeGreaterThanOrEqual(1)
+    }
+    // O reforço a 100% que o usuário pediu (24/10): o trilho de antes tinha 1,6 px e a barra 1,9 px de raio.
+    const a100 = geometriaDaGrade(janela({ x2: 400 }), 1)
+    expect(a100.trilho).toBeGreaterThanOrEqual(2.4)
+    expect(a100.raio).toBeGreaterThanOrEqual(2.4)
   })
 
   it('grade sem janela, ou parede com porta, não vira grade (a regra da MT9)', () => {

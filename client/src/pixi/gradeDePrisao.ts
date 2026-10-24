@@ -10,9 +10,9 @@ import { numeroDoRgb, tonsDoMeio } from '../texturas/meioTermo/tons'
  * esquerda (a luz do mapa) e uma sombra curta no chão, embaixo e à direita.
  *
  * Tamanho em px do MUNDO (a grade é um objeto, cresce com o zoom), com piso em
- * px de TELA para não sumir no zoom longe: o raio nunca fica abaixo de 1,2 px
- * de tela e o passo nunca abaixo de 4 px de tela (no zoom longe as barras
- * ficam mais espaçadas, em vez de virar uma faixa).
+ * px de TELA para não sumir no zoom longe: o raio e o trilho nunca ficam abaixo
+ * de 2 px de tela e o passo nunca abaixo de 7 px de tela (no zoom longe as
+ * barras ficam mais espaçadas, em vez de virar uma faixa).
  *
  * Só desenho: quem deixa ver e barra o passo é a `janela` (`lib/visibility.ts`,
  * `lib/collision.ts`). Quem chama (`drawWalls.ts`) só chega aqui com a chave
@@ -21,15 +21,21 @@ import { numeroDoRgb, tonsDoMeio } from '../texturas/meioTermo/tons'
 
 /** Passo entre as barras, em px do mundo (5 barras por casa de 50). */
 export const PASSO_DA_GRADE_PX = 10
-/** Raio da cabeça da barra, em px do mundo. */
-export const RAIO_DA_BARRA_PX = 1.9
-/** Largura do trilho, em px do mundo. */
-export const LARGURA_DO_TRILHO_PX = 1.6
+/**
+ * Raio da cabeça da barra e largura do trilho, em px do mundo. MT10b (pedido do
+ * usuário em 24/10: a 50% e a 100% a grade parecia pontilhado): o trilho foi de
+ * 1,6 para 2,6 e a barra de 1,9 para 2,6 de raio, para ler como trilho
+ * contínuo com contas (a conta sai do trilho dos dois lados e, entre duas,
+ * sobra trilho à vista).
+ */
+export const RAIO_DA_BARRA_PX = 2.6
+export const LARGURA_DO_TRILHO_PX = 2.6
 const CONTORNO_PX = 0.8
-const RAIO_MINIMO_NA_TELA = 1.2
-const PASSO_MINIMO_NA_TELA = 4
+/** Pisos em px de TELA (MT10b: raio 1,2 -> 2, trilho 1 -> 2, passo 4 -> 7). */
+const RAIO_MINIMO_NA_TELA = 2
+const PASSO_MINIMO_NA_TELA = 7
 const CONTORNO_MINIMO_NA_TELA = 0.75
-const TRILHO_MINIMO_NA_TELA = 1
+const TRILHO_MINIMO_NA_TELA = 2
 /** Folga entre barras: o passo nunca fica menor que 2,6 raios (as cabeças não se encostam). */
 const PASSO_EM_RAIOS = 2.6
 const SOMBRA_ALFA = 0.3
