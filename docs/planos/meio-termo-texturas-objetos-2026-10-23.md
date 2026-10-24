@@ -399,3 +399,41 @@ Controle positivo: o ladrilho de antes REPROVA nas mesmas medidas (346 a 356 blo
 - **Provas:** `docs/design/objetos/provas/mt10b-folha-de-contato.png` (14 quadros, cada um com ANTES à esquerda e DEPOIS à direita e o tempo embaixo: grade a 50%, 100% e 300% no editor real; telha e palha a 1x, pintadas a 3x e no zoom de 300% do app; cumeeira a 1x com os pixels ampliados e a 300%; escuro: telha preta a 1x e 300%, cumeeira da palha com musgo a 1x). Gerada por `e2e/task-meio-termo-mt10b-provas.spec.ts` (`GERAR_PROVAS_MT10B=antes` com os 3 fontes de `8eb5525a` no lugar, depois `=depois`, `MT10B_ANTES=<json>`).
 
 **Fora / não verificado:** o jogador a 1440 com a chaminé nova (a `mt10-jogador-1440.png` é a de antes); o tema claro do app (o canvas é o mesmo); o celular (fora por ordem do usuário); o p95 do quadro ao andar o mapa com chaminés. A grade continua cinza-azulada sobre o chão escuro (as cores do ferro não mudaram; se a 100% ainda ler fraca, a próxima alavanca é a cor do trilho, não o tamanho).
+
+### MT11 medido (vista 3/4 dos móveis e chave por mapa, 24/10/2026, worktree `feat/mt10`)
+
+**O que entrou:** com a chave de obra ligada e `MapData.vistaDosMoveis === 'tres-quartos'`, os 25 tipos do catálogo saem em 3/4 (frente e topo, base apoiada, sombra de baixo), pelo mesmo motor e com as mesmas regras de cor e sombra. Sem a vista, ou com a chave desligada, nada muda (caminho sem vista idêntico byte a byte; chave do cache igual à de antes). Arquivos: `texturas/meioTermo/moveis/tresQuartos.ts` (novo), `moveis/index.ts` e `moveis/motor.ts` (campo opcional `curvaX`), `lib/mobilia/vistaTresQuartos.ts` (novo, leve: ordem, base, chama), `pixi/rasterDosMoveis.ts`, `pixi/drawPropSilhouettes.ts`, `pixi/drawProps.ts`, `pixi/chamasDasFogueiras.ts`, `components/MobiliaControls.tsx`. Nenhum arquivo quente.
+
+**Decisões não óbvias (a recomendada, registrada):**
+
+- ALTURAS tiradas das sombras que cada montador já declara: sombra com z > 0 e sem `solta` = COLUNA (ganha a frente varrida do chão até z); sombra `solta` = TAMPO no ar (ganha a beirada de 0,06 casa); cada peça sobe a altura da estrutura mais alta que contém o meio dela. A frente tem o tom 0,74 do protótipo aprovado (`folha-contato.png`). Assim nenhum tipo precisou de desenho próprio, e móvel novo entra na 3/4 sozinho.
+- TIPOS EM PÉ (lápide, quadro de avisos, barraca, e a vista Lado de qualquer tipo) só ganham a sombra de baixo, como no protótipo: já são desenhados de frente.
+- Ajustes por tipo: fogueira (a lenha sobe 4 px do protótipo, a chama junto), tapete e tapete longo (sobem a espessura com a franja), lampião vira POSTE de ferro (0,035 casa) com a cabeça no alto, carroça com beirada de 0,3 casa, sebe MACIÇA (a sombra dela é solta desde a MT5, mas a beirada vai até o chão e ganha contato).
+- SEMENTE: a 3/4 usa a semente da vista de cima (o veio não muda ao trocar a vista); a chave do cache ganha `|tres-quartos|`.
+- GIRO: nos tipos derivados o quarto de volta é pintado na cena, com a luz fixa (a frente fica sempre embaixo); a placa de seta já pintava o dela; os tipos em pé giram a imagem, como antes.
+- ORDEM: chão (tapetes) primeiro, na ordem da lista; o resto pela BASE da pegada girada, do norte para o sul (empate: a lista). No jogador, dentro de cada faixa; no editor, os desenhos trocam de índice entre si (o chão e as imagens ficam onde estão). Ao desligar a vista na mesma sessão, o editor mantém a ordem da base até o próximo desenho completo da camada (a pilha das imagens é a mesma; só a ordem entre móveis sobrepostos difere).
+- CHAMA: no editor desloca -3,57 px de mundo na 3/4. No JOGADOR depende de 1 linha em arquivo quente (abaixo); o lampião não tem chama animada (o vidro aceso é da imagem e sobe junto).
+- CONTROLE: "Vista 3/4" no fim da parte essencial do painel do móvel, só com a obra ligada, com a nota "Vale para todos os móveis deste mapa: a frente de cada um aparece embaixo do tampo." Grava por `definirVistaDosMoveis` (Ctrl+Z).
+
+**Medido:**
+
+| Aceite | Prova |
+|---|---|
+| Todo tipo do catálogo em 3/4 (falha se faltar um) | `tresQuartos.test.ts` percorre `TIPOS_MOBILIA`: perfil, chave, mesma semente; por tipo nos níveis 1 e 3: imagem muda, determinística, saturação p95 <= 0,62, luz >= piso, contorno >= 0,06; o tampo sobe >= 1 px (derivados) ou a sombra de baixo cresce (em pé) |
+| Mesas 3 formas x 3 madeiras | perna da frente opaca e chão entre as pernas nas 9 |
+| Ordem pela base, 3 sobrepostos | `drawPropSilhouettes.tresQuartos.test.ts`: jogador [tapete, 180, 200, 230]; sem a vista a ordem da lista; base da pegada girada (cama 1x3 a 90°); editor reordena |
+| Chave desligada não pinta | a mesma imagem e o mesmo retângulo com e sem a vista; com a obra a imagem é outra e sobe > 10 px |
+| Chama desloca | `colocar` com a obra e a 3/4: y - 3,571; sem a obra ou de Lado: o de sempre |
+| Controle com desfazer, só com a obra | `MobiliaControls.vistaTresQuartos.test.tsx` (some sem a obra; liga, Ctrl+Z, refaz, desliga sem deixar campo) |
+| Vermelho de origem | os 3 arquivos novos falharam contra o código de antes (2 sem o módulo, 1 sem o interruptor) |
+| Mutações vermelhas | 8 de 8: vista ignorada (36 falhas), ordem sem base, chave desligada pintando, chama sem deslocamento, editor sem ordenar, painel sem a chave, giro não pintado, frente sem pernas |
+| Tempo a 3x por peça, semente do app | Chromium 1243, 1 worker, `e2e/task-meio-termo-tres-quartos.spec.ts`: MORNA de 3,7 (quadro de avisos) a 33,2 ms (armário), todas <= 50; FRIA de 9,8 a 60,5 ms (armário 60,5, catre 58,0, tapete 50,5; teto registrado de 100, seção 7). Maior tarefa longa por página 96 ms |
+| p95 do quadro <= 20 ms; tarefa longa < 200 ms | jogador a 1440 com 17 móveis e a obra: em 3/4 p95 16,8 ms em 175 quadros, 1 tarefa longa de 63 ms; de cima (controle) p95 16,8 ms, maior 179 ms |
+
+- **Divergência registrada:** a primeira medida de tempo pintava as 6 imagens (fria + 5 mornas) numa tarefa só e acusou 241 ms no armário; é a soma do teste, não do app (o app pinta um móvel por fatia). O teste agora cede entre as pinturas.
+- **Vizinhos:** 33 arquivos de teste dos móveis, da mobília e do painel: 961 passaram, 9 pulados, 0 falhas. tsc do app e do e2e: 0 erros.
+- **Provas:** `docs/design/objetos/provas/mt11-folha-de-contato.png` (16 quadros, os 25 tipos, em cima de cima e embaixo 3/4, 3 madeiras, as 9 mesas, giro de 90°, chão claro e escuro, o tempo da 3/4 no nível 3 embaixo; `GERAR_FOLHA_MT11=1` em `folhaDeContatoMt11.test.ts`) e `mt11-jogador-1440.png` (sala mobiliada em 3/4 no jogador, painel recolhido; `GERAR_PROVAS_MT11=1`).
+
+**Patch em arquivo quente, NÃO aplicado (Luz L4b escreve nele):** `client/src/player/PlayerView.tsx:2197`, trocar `{ cameraScale: scale }` por `{ cameraScale: scale, vistaDosMoveis }` na chamada de `sincronizarChamas` (a variável já existe na linha 2179). Sem ele a chama da fogueira no JOGADOR fica 3,6 px abaixo da lenha na 3/4.
+
+**Fora / não verificado:** a chama no jogador (depende do patch); o tema claro do app; o celular (fora por ordem do usuário); o p95 ao arrastar a câmera com muitos móveis; móvel com giro fora de múltiplos de 90° em 3/4 (sem teste). Perguntas na folha: a altura do armário (bancada + armário de cima), a sebe maciça como um muro verde, o lampião como poste, os tipos em pé quase iguais nas duas vistas, o veio da frente (de pé no redondo, deitado no resto).
