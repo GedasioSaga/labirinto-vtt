@@ -34,6 +34,7 @@ import {
   pisoDoGrupo,
   pisoDoJogador,
   playerEyeTokens,
+  raioDaNoite,
   roomClueForPlayer,
   sceneNameForPlayer,
   turnForPlayer,
@@ -3644,16 +3645,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const periodo = sessionPeriod()
     // "Visão nesta cena" e o fator do jogador entram antes do período (`radiusFor` com o mapa).
     const base = radiusFor(playerId, map)
-    return periodo === null ? base : raioNoPeriodo(base, periodoDaCena(map, periodo))
+    // Luz L2: as casas do período (`visaoPorPeriodo`) levam o mesmo fator do jogador.
+    return periodo === null ? base : raioNoPeriodo(base, periodoDaCena(map, periodo), map, factorFor(playerId))
+  }
+  /** A cena está à noite agora (externa com a sessão à noite, ou fixa na noite). */
+  const noiteNaCena = (map: MapData): boolean => {
+    const periodo = sessionPeriod()
+    return periodo !== null && periodoDaCena(map, periodo) === 'noite'
   }
   /**
    * RAIO POR FICHA: o raio de cada ficha que `playerId` vê. A emprestada
    * enxerga com o raio do DONO (personagem sem visão no escuro continua sem
    * ela nas mãos de outro), senão a névoa em volta dela mudaria conforme quem
    * a joga e o explorado do dono gravaria um recorte que ninguém viu. O
-   * relógio da campanha vale para as duas (`radiusIn`).
+   * período da cena vale para as duas (`radiusIn`); à noite o raio vai marcado
+   * (`raioDaNoite`) e o recorte soma o claro das luzes na linha de visão.
    */
-  const tokenRadiusIn = (playerId: string, map: MapData) => (tokenId: string): number => radiusIn(loans.get(tokenId)?.ownerId ?? playerId, map)
+  const tokenRadiusIn = (playerId: string, map: MapData): ((tokenId: string) => number) => {
+    const raio = (tokenId: string): number => radiusIn(loans.get(tokenId)?.ownerId ?? playerId, map)
+    return noiteNaCena(map) ? raioDaNoite(raio) : raio
+  }
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
