@@ -469,3 +469,9 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - Fila: Luz L4c (painel "Ambiente da cena"), L5 (transição 1,5 s), L6 (som por período); MT12 (liga a chave de obra, regrava o golden), MT13; Batalha B3 e B4 (decidir onde medir), Caminhos F3 e F4; Sons F7; Fase 4 (otimização).
 - Pendente de diagramas (fontes mudaram): `telhado`, `arquitetura-render-editor`, `periodo-da-sessao` (a L3 já editou), `fase-2-plano`.
 - Lista de vermelhas conhecidas: `task-camadas-painel` passou em 5 N2 seguidos mas falhou sozinha 2x no começo do dia; decidir na Fase 4.
+
+## Atualização 24/10 ~21h — lote 12 (MT11) integrado
+- Main `9a7ac582` (tag `pre-integra-24`, bundle `labirinto-2026-10-24-13.bundle` verificado): MT11 (vista 3/4 dos móveis + chave por mapa). Depois do merge com a main: tsc 0 (app e e2e) e 852 testes de móveis, mobília e silhuetas verdes; o N2 do agente tinha 18.051 verdes.
+- **Pendente para a L4b (dona de `PlayerView.tsx`):** patch de 1 linha na linha ~2197, `{ cameraScale: scale }` para `{ cameraScale: scale, vistaDosMoveis }`; mensagem já enviada ao agente da L4b. Conferir no relatório dela.
+- Usuário precisa aprovar a folha `mt11-folha-de-contato.png` (página "Móveis em 3/4" em preparação). Depois: MT12 (liga a chave de obra e regrava o golden) e MT13 (limpeza e medição).
+- Em voo: Luz L4b (`C:/dev/labirinto-luz`) e a página da MT11.
