@@ -146,6 +146,8 @@ export interface TokensRenderer {
    * `vidas`: BARRA DE VIDA — a vida da ficha do sistema ligada a cada token
    * (`lib/vidaDaFicha.ts`, `vidasDaCena`); o mestre vê a de toda ficha ligada.
    * Omitido = nenhuma barra. `Token.health` (a vida antiga do token) não é lido.
+   * `noDaFicha`: CAMADAS (fatia 3b) — o nó da pilha da camada de cada ficha; a
+   * vista dela muda de nó (o cache segue um só). Omitido = tudo em `container`.
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -163,6 +165,7 @@ export interface TokensRenderer {
     glide?: TokenGlideContext,
     pinos?: ReadonlyMap<string, string>,
     vidas?: VidasDaCena,
+    noDaFicha?: (token: Token) => Container,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -684,13 +687,15 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     glide?: TokenGlideContext,
     pinos: ReadonlyMap<string, string> = NO_PINS,
     vidas: VidasDaCena = SEM_VIDAS,
+    noDaFicha?: (token: Token) => Container,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
     for (const [id, entry] of cache) {
       if (!currentIds.has(id)) {
-        container.removeChild(entry.wrapper)
+        // A vista pode estar num nó de camada (`noDaFicha`), não só em `container`.
+        entry.wrapper.removeFromParent()
         entry.wrapper.destroy({ children: true })
         cache.delete(id)
         // Animação de quem saiu do mapa morre junto: o quadro seguinte não mexe em wrapper destruído.
@@ -756,6 +761,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
+      // CAMADAS: a ficha de camada escolhida desenha no nó dela; mudou de camada, a vista muda de nó.
+      const alvo = noDaFicha === undefined ? container : noDaFicha(token)
+      if (entry.wrapper.parent !== alvo) alvo.addChild(entry.wrapper)
 
       // Passo do jogador: do lugar antigo ao novo. A ficha na mão do mestre
       // nunca desliza atrás do ponteiro, e a que o mestre mexeu vai direto —
