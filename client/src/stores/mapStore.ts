@@ -10,6 +10,7 @@ import type {
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
+import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -1224,6 +1225,8 @@ interface MapStoreState {
   setNomesDosLugares: (ligado: boolean) => void
   /** Chave "Nuvens" da cena aberta (`lib/nuvens.ts`): nuvens finas passando, com a sombra no chão. Com desfazer. */
   setNuvens: (ligado: boolean) => void
+  /** Chave "Clicar para andar" da cena aberta (`lib/cliqueParaAndar.ts`): o jogador clica no chão e a ficha anda. Com desfazer. */
+  setCliqueParaAndar: (ligado: boolean) => void
   /**
    * PENHASCO (`lib/penhasco.ts`): solta um risco do pincel. Um risco é UM passo
    * no desfazer; risco que não muda nada (sem costa debaixo, borracha no
@@ -2933,6 +2936,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
       if (mapFactory.setNuvens(get().map, ligado) === get().map) return
       withHistory((map) => mapFactory.setNuvens(map, ligado))
+    },
+    setCliqueParaAndar: (ligado) => {
+      // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (comCliqueParaAndar(get().map, ligado) === get().map) return
+      withHistory((map) => comCliqueParaAndar(map, ligado))
     },
     setArrivalText: (text) => {
       // O mesmo texto devolve o mesmo mapa: sem passo vazio no desfazer.

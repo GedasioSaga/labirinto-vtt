@@ -2258,6 +2258,14 @@ export interface MapData {
    */
   nuvens?: boolean
   /**
+   * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
+   * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
+   * só `false` desliga, e aí o host recusa todo trecho de caminhada
+   * (`caminhada_desligada`) — clique no chão e "Andar até aqui". O arrasto
+   * continua. Atravessa no recorte do jogador: a tela dele avisa sem mandar nada.
+   */
+  cliqueParaAndar?: boolean
+  /**
    * O CÉU das nuvens (`lib/nuvens.ts`, `ceuDoMapa`), em px de mundo. Só existe
    * no RECORTE do jogador, e só com as nuvens ligadas: o host o calcula SÓ do
    * chão que o recorte manda (acabamento do relevo, 10/10/2026). Tirado do chão

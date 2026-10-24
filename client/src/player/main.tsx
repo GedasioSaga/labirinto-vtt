@@ -791,6 +791,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
   const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
   const closePointMenu = useCallback(() => setPointMenu(null), [])
+  /** CLICAR PARA ANDAR: o toque de agora começou com o menu do toque longo aberto (ele só fecha o menu). */
+  const cliqueFechouMenu = useRef(false)
+  /** A última ficha dele que ele arrastou: é ela que anda no clique (o NPC emprestado, se foi ele). */
+  const ultimaFichaArrastada = useRef<string | null>(null)
   /**
    * MINHAS NOTAS de todas as cenas: a lista que o host guarda para ELE
    * (`mynotes.book`) e devolve em qualquer cena, ao recarregar e na sessão
@@ -1330,10 +1334,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     // O aviso mais novo é o do movimento (o `id` dos dois sai do mesmo contador).
     const moveNoticeShown = actionNotice !== null && state.moveNotice?.id === actionNotice.id
-    // ANDAR ATÉ AQUI: quem anda é a primeira ficha dele nesta cena. Sem nenhuma,
-    // não há quem ande, e o menu do toque longo vem sem o item.
+    // ANDAR ATÉ AQUI e CLICAR PARA ANDAR: quem anda é a última ficha dele que ele
+    // arrastou nesta cena (o NPC emprestado, se foi ele), senão a primeira. Sem
+    // nenhuma, não há quem ande, e o menu do toque longo vem sem o item.
     const playingMap = state.map
-    const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
+    const fichasDele = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id))
+    const walkerId = (fichasDele.find((t) => t.id === ultimaFichaArrastada.current) ?? fichasDele.at(0))?.id ?? null
     // CHAT: só de quem joga com ficha; sem ela, a aba nem aparece.
     const chatLog = chatOf(state)
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
@@ -1382,7 +1388,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             focusAnimate={focus.animate}
             focusSnap={focus.snap}
             arrivalKey={state.map.id}
-            onMove={(id, x, y) => connection.requestMove(id, x, y)}
+            onMove={(id, x, y) => {
+              ultimaFichaArrastada.current = id
+              connection.requestMove(id, x, y)
+            }}
+            onFloorClick={(x, y) => {
+              // O clique que só fechou o menu do toque longo não anda.
+              if (cliqueFechouMenu.current) return
+              if (walkerId !== null && isPointInsideMap(playingMap, x, y)) connection.walkTo(walkerId, x, y)
+            }}
+            destinoDaCaminhada={state.caminhada?.destino ?? null}
             signals={state.signals ?? NO_SIGNALS}
             laser={state.laser}
             signalArmed={signalArmed}
@@ -1398,7 +1413,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // A câmera arrasta além da borda: fora do mapa não há o que procurar.
               if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch, tokenId: walkerId })
             }}
-            onMapPointerDown={closePointMenu}
+            onMapPointerDown={() => {
+              cliqueFechouMenu.current = pointMenu !== null
+              closePointMenu()
+            }}
             destinations={state.destinations ?? NO_DESTINATIONS}
             destinationArmed={destinationArmed}
             onDestination={(x, y) => {
