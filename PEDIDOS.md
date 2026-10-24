@@ -1823,3 +1823,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 ## 24/10/2026 (resposta do usuário ao protótipo da Luz L4a)
 
 - Literal: "1- aZUL-Ardósia, 2-Ambar 3-Eu quero no programa poder configurar as propriedades, exemplo em certos mapas a noite vai destruir a visão toda e em outra quase nada." Fila: (1) noite azul-ardósia `#465a92` a 85%; (2) tarde âmbar `#f2b071` a 60%; (3) ambiente CONFIGURÁVEL POR MAPA/CENA no programa (cor, força e visão por período; noite pode ir de quase nada a escuridão total). Vai para a L0 (tipos `ambientePorPeriodo` e provedor `ambienteDoPeriodo`, sem UI) e para a nova L4c (painel "Ambiente da cena", depois da L4b). Plano em `docs/planos/luz-dia-tarde-noite-2026-10-24.md` (D7).
+
+## 24/10/2026 (resposta do usuário depois da página "Mesas e barranco" e dos diagramas)
+
+- Literal: "Gostei de tudo". Interpretação do orquestrador (a confirmar se o usuário discordar): aprova as mesas novas (3 formas x 3 madeiras, pernas, sombra de baixo) e a MT8 como entregues (terracota do Meio-Termo, realce do lábio como está, contorno fino do pé), e os diagramas. Efeito: libera a MT12 (ligar a chave de obra e regravar o golden) para depois da MT9 a MT11. Ordem da faixa quente: Luz L1 (em curso), depois MT9, depois L2/L3 e MT10/MT11 conforme os arquivos.
