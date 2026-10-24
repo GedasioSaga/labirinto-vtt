@@ -24,7 +24,7 @@ import { drawHazardAreas } from '../pixi/drawHazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
-import { visionSegments } from '../lib/visibility'
+import { visionSegments, type Segment } from '../lib/visibility'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
@@ -77,6 +77,8 @@ import { nuvensLigadas } from '../lib/nuvens'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
+import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
+import type { LuzDoJogador } from '../lib/periodo'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
@@ -184,6 +186,12 @@ interface PlayerViewProps {
   /** PORTAS POR ATRAVESSAR: portas com o outro lado ainda na névoa (o host já recortou); ganham um ponto claro. */
   porAtravessar?: readonly string[]
   ownTokens: string[]
+  /**
+   * LUZ (Luz L4b): o período da cena DESTE jogador e a tinta dele
+   * (`snapshot.luz`). Ausente ou `null` = dia, sem tinta: a tela sai igual à
+   * de antes da Luz.
+   */
+  luz?: LuzDoJogador | null
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
   /**
@@ -488,6 +496,20 @@ function rasterizeMap(map: MapData): Texture | null {
 /** Paredes visíveis ao jogador, respeitando as camadas ocultas do mestre (mesma regra do raster). */
 function visibleWalls(map: MapData): Wall[] {
   return wallsOnVisibleLayers(map.walls, map.hiddenLayers)
+}
+
+/**
+ * O que barra a luz (paredes que o jogador enxerga + borda do chão), o mesmo
+ * para o halo e para o mapa de luz (Luz L4b). Memorizado pela revisão de
+ * paredes, chão e camadas: contornar o chão da cena inteira é a parte cara, e
+ * a troca de período (que refaz o mapa de luz) não muda nada disso.
+ */
+function obstaculosDasLuzes(scene: Pick<Scene, 'revisaoDosObstaculos' | 'obstaculosDasLuzes'>, map: MapData): Segment[] {
+  const revisao = scene.revisaoDosObstaculos.de([map.walls, map.floor, map.hiddenLayers])
+  if (scene.obstaculosDasLuzes !== null && scene.obstaculosDasLuzes.revisao === revisao) return scene.obstaculosDasLuzes.segmentos
+  const segmentos = visionSegments({ ...map, walls: visibleWalls(map) })
+  scene.obstaculosDasLuzes = { revisao, segmentos }
+  return segmentos
 }
 
 function wallsOnVisibleLayers(walls: readonly Wall[], hidden: MapData['hiddenLayers']): Wall[] {
@@ -1161,7 +1183,17 @@ interface Scene {
   /** Halos das luzes do mestre, recortados pelas paredes; sob a névoa. */
   lights: Container
   lightsRenderer: ReturnType<typeof createLightsRenderer>
-  lightsKey: ContentKey
+  /** CHAVE DE REVISÃO dos halos (Luz L4b): no lugar do `JSON.stringify` de luzes, paredes e chão. */
+  revisaoDasLuzes: Revisao
+  lightsRev: number
+  /** Halos escondidos: a tinta da tarde/noite está ligada e quem acende o mapa é o mapa de luz. */
+  lightsSemHalo: boolean
+  /** MAPA DE LUZ (Luz L4b): a tinta do período e a luz quente em multiply, por cima do mundo. */
+  mapaDeLuz: MapaDeLuz
+  revisaoDoMapaDeLuz: Revisao
+  /** O que barra a luz, por revisão de paredes, chão e camadas (`obstaculosDasLuzes`). */
+  revisaoDosObstaculos: Revisao
+  obstaculosDasLuzes: { revisao: number; segmentos: Segment[] } | null
   /** Nunca visto: preto opaco fora de (explorado ∪ visão). */
   fogUnknown: Graphics
   knownMask: Graphics
@@ -1825,6 +1857,7 @@ function PlayerViewDoCanvas({
   peek,
   porAtravessar = NO_DOORS_TO_CROSS,
   ownTokens,
+  luz = null,
   turnTokenId = null,
   waitingTokens = NO_WAITING,
   settings,
@@ -1895,6 +1928,7 @@ function PlayerViewDoCanvas({
     peek,
     porAtravessar,
     ownTokens,
+    luz,
     turnTokenId,
     waitingTokens,
     settings,
@@ -2319,16 +2353,20 @@ function PlayerViewDoCanvas({
   function redrawLights(scene: Scene): void {
     const currentMap = latestRef.current.map
     const lights = visibleLights(currentMap.lights, currentMap.hiddenLayers)
-    // Portão por referência (`contentChanged`): o passo da ficha não serializa luzes, paredes e chão.
-    // A sombra usa o chão INTEIRO, não o recortado da tela (`lastFloorKey`
-    // muda a cada pedaço explorado e refaria o contorno da cena toda a cada passo).
-    const changed = contentChanged(scene.lightsKey, [currentMap.lights, currentMap.walls, currentMap.floor, currentMap.hiddenLayers, scene.pilha.assinaturaDa('lights')], () =>
-      lights.length === 0 ? JSON.stringify([lights]) : JSON.stringify([lights, visibleWalls(currentMap), currentMap.floor]),
-    )
-    if (!changed) return
+    // CHAVE DE REVISÃO (Luz L4b): mesmas referências = mesma revisão, e lista
+    // nova com o mesmo conteúdo também (comparação por valor, sem serializar
+    // luzes, paredes e chão a cada snapshot). A sombra usa o chão INTEIRO, não
+    // o recortado da tela (`lastFloorKey` muda a cada pedaço explorado e
+    // refaria o contorno da cena toda a cada passo).
+    const revisao = scene.revisaoDasLuzes.de([currentMap.lights, currentMap.walls, currentMap.floor, currentMap.hiddenLayers, scene.pilha.assinaturaDa('lights')])
+    // Tarde e noite com tinta: quem acende é o mapa de luz, e o halo de sempre some.
+    const semHalo = tintaDoJogador(latestRef.current.luz) !== null
+    if (revisao === scene.lightsRev && semHalo === scene.lightsSemHalo) return
+    scene.lightsRev = revisao
+    scene.lightsSemHalo = semHalo
     // Sem luz não há sombra a recortar: nada de contornar o chão da cena
     // inteira (numa cidade de milhares de salas, isso travava o celular).
-    const opcoes = lights.length === 0 ? { occluders: [], showMarkers: false } : { occluders: visionSegments({ ...currentMap, walls: visibleWalls(currentMap) }), showMarkers: false }
+    const opcoes = lights.length === 0 || semHalo ? { occluders: [], showMarkers: false, semHalo } : { occluders: obstaculosDasLuzes(scene, currentMap), showMarkers: false }
     // CAMADAS (fatia 4b): a luz de camada escolhida desenha no nó dela, com renderer (e gradientes) próprio.
     const camadas = contextoDoJogador(currentMap)
     for (const { no, itens } of distribuir(lights, scene.pilha.nosDaFaixa('lights'), (l: Light) => camadas.camadaDe('luz', l))) {
@@ -3369,6 +3407,11 @@ function PlayerViewDoCanvas({
       const routeLayer = new Graphics()
       routeLayer.eventMode = 'none'
       app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, routeLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
+      // MAPA DE LUZ (Luz L4b): por cima de tudo do mundo (as fichas escurecem à
+      // noite, D2), com o contorno da própria ficha logo acima. Régua, sinais e
+      // notas moram fora do mundo e não escurecem. Só entra no mundo com tinta
+      // (`tickMapaDeLuz`): de dia o mundo tem os mesmos filhos de antes da Luz.
+      const mapaDeLuz = criarMapaDeLuz(app.renderer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -3437,7 +3480,13 @@ function PlayerViewDoCanvas({
         nuvens,
         lugaresKey: emptyContentKey(),
         lugares: [],
-        lightsKey: emptyContentKey(),
+        revisaoDasLuzes: criarRevisao(),
+        lightsRev: 0,
+        lightsSemHalo: false,
+        mapaDeLuz,
+        revisaoDoMapaDeLuz: criarRevisao(),
+        revisaoDosObstaculos: criarRevisao(),
+        obstaculosDasLuzes: null,
         fogUnknown,
         knownMask,
         fogDim,
@@ -3783,6 +3832,47 @@ function PlayerViewDoCanvas({
         syncLastSeen(scene, Date.now())
       }
       app.ticker.add(tickLastSeen)
+
+      // MAPA DE LUZ (Luz L4b), depois de câmera e fichas do quadro: o mapa só
+      // se refaz quando muda luz, parede, tinta ou vista (chave dentro dele).
+      const tickMapaDeLuz = () => {
+        const { map: m, luz, ownTokens: own } = latestRef.current
+        const tinta = tintaDoJogador(luz)
+        // A troca de período ligou ou desligou a tinta: o halo de sempre volta ou some junto.
+        if ((tinta !== null) !== scene.lightsSemHalo) redrawLights(scene)
+        if (tinta === null) {
+          scene.mapaDeLuz.atualizar(null)
+          return
+        }
+        // Sempre os dois últimos filhos do mundo: a pilha pode ter criado um nó de camada depois deles.
+        const filhos = world.children
+        if (filhos[filhos.length - 2] !== scene.mapaDeLuz.sprite || filhos[filhos.length - 1] !== scene.mapaDeLuz.contorno) {
+          world.addChild(scene.mapaDeLuz.sprite, scene.mapaDeLuz.contorno)
+        }
+        const fichas: FichaComContorno[] = []
+        for (const id of own) {
+          const view = scene.tokenViews.get(id)
+          if (view !== undefined && view.wrapper.visible && view.pino === null) fichas.push({ x: view.wrapper.x, y: view.wrapper.y, raio: view.radius })
+        }
+        const refeitosAntes = scene.mapaDeLuz.medidas.refeitos
+        scene.mapaDeLuz.atualizar({
+          tinta,
+          revisao: scene.revisaoDoMapaDeLuz.de([m.lights, m.walls, m.floor, m.hiddenLayers]),
+          luzes: () => visibleLights(m.lights, m.hiddenLayers),
+          obstaculos: () => obstaculosDasLuzes(scene, m),
+          mapa: { largura: m.width * m.grid, altura: m.height * m.grid },
+          vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
+          fichas,
+        })
+        const { refeitos, ultimoMs, maiorMs } = scene.mapaDeLuz.medidas
+        // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
+        if (refeitos !== refeitosAntes) {
+          el.dataset.mapaDeLuzRefeitos = String(refeitos)
+          el.dataset.mapaDeLuzMs = ultimoMs.toFixed(2)
+          el.dataset.mapaDeLuzMaiorMs = maiorMs.toFixed(2)
+        }
+      }
+      app.ticker.add(tickMapaDeLuz)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
@@ -4189,6 +4279,8 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickPulse)
         app.ticker.remove(tickMarcadores)
         app.ticker.remove(tickRevisit)
+        app.ticker.remove(tickMapaDeLuz)
+        scene.mapaDeLuz.destruir()
         for (const animador of [...scene.portasPorNo.todos(), ...scene.portasNoTelhadoPorNo.todos()]) animador.cancelar()
         scene.telhados.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.

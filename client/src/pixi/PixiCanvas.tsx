@@ -13,7 +13,7 @@ import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
-import { personagensAtivos, pinTravelOf, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
+import { periodoDaSessao, personagensAtivos, pinTravelOf, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -52,6 +52,8 @@ import { createAnimadorDePortas } from './animadorDePortas'
 import { tocarSomDePorta } from '../portas/somDePorta'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
+import { TINTA_NO_EDITOR, criarMapaDeLuz, criarRevisao, tintaDaCena } from './mapaDeLuz'
+import { luzAcesaNoPeriodo } from '../lib/periodo'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
@@ -311,6 +313,7 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
 import { isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
 import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
+import { useTintaNoEditor } from '../stores/tintaNoEditor'
 import { createTelhadosRenderer, telhadoParaDesenhar } from './telhadosRenderer'
 import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
@@ -1999,13 +2002,16 @@ export function PixiCanvas({
         return segments
       }
 
+      /** Tarde e noite com tinta (Luz L4b): quem acende o mapa é o mapa de luz, e o halo de sempre some. */
+      let luzesSemHalo = false
+
       /** Luz com gradiente e marcador de tamanho fixo na tela: no zoom, o renderer refaz só o marcador. */
       const paintLights = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         const camadas = contextoDeCamadas(map)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
-        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: lightOccludersOf(map) }
+        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: lightOccludersOf(map), semHalo: luzesSemHalo }
         for (const { no, itens } of distribuir(visibleLights(map.lights, map), pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
           luzesPorNo.de(no).draw(no, itens, opcoes)
         }
@@ -2540,6 +2546,62 @@ export function PixiCanvas({
       // CAMADAS: luz numa camada que não é a de hoje desenha no nó dela, com renderer (e gradientes) próprio.
       const luzesPorNo = criarPorNo<Container, ReturnType<typeof createLightsRenderer>>(lightsContainer, lightsRenderer, createLightsRenderer, (renderer) => renderer.destroy())
       aoDescartarNo.push((no) => luzesPorNo.soltar(no))
+
+      /**
+       * MAPA DE LUZ (Luz L4b): a tinta do período da cena aberta. O mestre a vê
+       * a 50% (D5); "Ver como jogador" (painel Período) põe a tinta cheia e só
+       * as luzes que os jogadores veem. Mora logo acima dos telhados: fichas,
+       * pinos e telhados escurecem; alças, fantasma de teste e o desenho em
+       * curso ficam por cima, legíveis. O mapa se refaz só quando muda luz,
+       * parede, período, ambiente ou vista (a chave fica dentro dele).
+       */
+      // Só entra no mundo com tinta (abaixo): de dia o mundo tem os mesmos filhos de antes da Luz.
+      const mapaDeLuz = criarMapaDeLuz(app.renderer)
+      const revisaoDoMapaDeLuz = criarRevisao()
+      const tickMapaDeLuz = () => {
+        const map = useMapStore.getState().map
+        const sessao = periodoDaSessao(useAdventureStore.getState())
+        const comoJogador = useTintaNoEditor.getState().comoJogador
+        const tinta = tintaDaCena(map, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        // A troca de período ligou ou desligou a tinta: o halo de sempre volta ou some junto (o marcador fica).
+        if ((tinta !== null) !== luzesSemHalo) {
+          luzesSemHalo = tinta !== null
+          paintLights()
+        }
+        if (tinta === null) {
+          mapaDeLuz.atualizar(null)
+          return
+        }
+        // Logo abaixo do fantasma de teste: a pilha pode ter mexido nos nós desde o último quadro.
+        const fantasma = world.getChildIndex(fantasmaDeTesteContainer)
+        if (world.children[fantasma - 1] !== mapaDeLuz.sprite) {
+          if (mapaDeLuz.sprite.parent !== null) mapaDeLuz.sprite.removeFromParent()
+          world.addChildAt(mapaDeLuz.sprite, world.getChildIndex(fantasmaDeTesteContainer))
+        }
+        const refeitosAntes = mapaDeLuz.medidas.refeitos
+        mapaDeLuz.atualizar({
+          tinta,
+          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, map.floor, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador]),
+          luzes: () => {
+            const camadas = contextoDeCamadas(map)
+            const daCamada = comoJogador ? map.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(map.lights, map)
+            // `hidden` não vai ao jogador (`fogFilter.ts`); `acesaEm` decide se acende no período (L3).
+            return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, map, sessao))
+          },
+          obstaculos: () => lightOccludersOf(map),
+          mapa: { largura: map.width * map.grid, altura: map.height * map.grid },
+          vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
+          fichas: [],
+        })
+        const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
+        // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
+        if (refeitos !== refeitosAntes) {
+          el.dataset.mapaDeLuzRefeitos = String(refeitos)
+          el.dataset.mapaDeLuzMs = ultimoMs.toFixed(2)
+          el.dataset.mapaDeLuzMaiorMs = maiorMs.toFixed(2)
+        }
+      }
+      app.ticker.add(tickMapaDeLuz)
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
         floor: MapData['floor']
@@ -2748,6 +2810,8 @@ export function PixiCanvas({
           // NUVENS fora da imagem: o mapa exportado é o chão, não um instante do céu
           // (a sombra de uma nuvem viraria uma mancha parada no papel).
           nuvensContainer,
+          // A tinta do período também: é a hora da sessão, não o mapa (e está posta para a câmera do editor).
+          mapaDeLuz.sprite,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
@@ -8653,6 +8717,8 @@ export function PixiCanvas({
         app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
+        app.ticker.remove(tickMapaDeLuz)
+        mapaDeLuz.destruir()
         tokensRenderer.cancelarAnimacoes()
         animadorDePortas.cancelar()
         fantasmaRenderer.desmontar()

@@ -60,6 +60,12 @@ export interface LightsDrawOptions {
   occluders?: Segment[]
   /** Marcador da origem é ferramenta de edição: `false` na tela do jogador. */
   showMarkers?: boolean
+  /**
+   * Tarde e noite com tinta (Luz L4b): quem acende o mapa é o mapa de luz
+   * (`pixi/mapaDeLuz.ts`), em blend aditivo sob o multiply. O halo de sempre
+   * por cima somaria um segundo claro laranja; some, e o marcador fica.
+   */
+  semHalo?: boolean
 }
 
 export interface LightsRenderer {
@@ -183,14 +189,20 @@ export function createLightsRenderer(): LightsRenderer {
   }
 
   function draw(container: Container, lights: Light[], options: LightsDrawOptions = {}): void {
-    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true } = options
+    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true, semHalo = false } = options
     const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
     const markersGraphics = ensureHalos(container, lights.length)
-    // Halo e recorte não dependem do zoom nem da seleção: com as mesmas luzes
-    // (item a item — o filtro de camada devolve lista nova a cada redesenho)
-    // e os mesmos obstáculos, só o marcador em px de tela é refeito.
-    if (!sameHalos(lights, occluders)) drawHalos(lights, occluders)
-    lastHalos = { lights: [...lights], occluders }
+    if (semHalo) {
+      for (const { halo } of halos) halo.visible = false
+      // A volta do halo repinta tudo (`drawHalos` refaz o `visible` de cada um).
+      lastHalos = null
+    } else {
+      // Halo e recorte não dependem do zoom nem da seleção: com as mesmas luzes
+      // (item a item — o filtro de camada devolve lista nova a cada redesenho)
+      // e os mesmos obstáculos, só o marcador em px de tela é refeito.
+      if (!sameHalos(lights, occluders)) drawHalos(lights, occluders)
+      lastHalos = { lights: [...lights], occluders }
+    }
 
     markersGraphics.clear()
     markersGraphics.visible = showMarkers

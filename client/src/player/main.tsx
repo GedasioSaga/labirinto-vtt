@@ -1380,6 +1380,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             gatilhos={state.gatilhos}
             porAtravessar={state.porAtravessar}
             ownTokens={ownTokens}
+            // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
+            luz={state.luz}
             waitingTokens={waitingTokens}
             turnTokenId={state.turn ?? null}
             settings={settings}

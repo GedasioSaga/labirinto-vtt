@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { PeriodoDaSessaoSection, type PeriodoDaSessaoSectionProps } from './PeriodoDaSessaoSection'
+import { useTintaNoEditor } from '../stores/tintaNoEditor'
 
 let container: HTMLDivElement
 let root: Root
@@ -57,6 +58,19 @@ describe('PeriodoDaSessaoSection', () => {
     const marca = container.querySelector<HTMLInputElement>('input[type="checkbox"]')
     act(() => marca?.click())
     expect(onExternaChange).toHaveBeenCalledWith(true)
+  })
+
+  it('"Ver como jogador" (Luz L4b) liga a tinta cheia no editor e desliga de novo', () => {
+    useTintaNoEditor.setState({ comoJogador: false })
+    render()
+    const marcas = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+    const ver = marcas.find((m) => m.closest('label')?.textContent?.includes('Ver como jogador'))
+    expect(ver?.checked).toBe(false)
+    act(() => ver?.click())
+    expect(useTintaNoEditor.getState().comoJogador).toBe(true)
+    expect(ver?.checked).toBe(true)
+    act(() => ver?.click())
+    expect(useTintaNoEditor.getState().comoJogador).toBe(false)
   })
 
   it('a frase diz o que a cena aberta mostra agora', () => {

@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type { Periodo } from '../types/map'
 import { PERIODOS } from '../lib/periodo'
 import { Toggle } from './Toggle'
+import { useTintaNoEditor } from '../stores/tintaNoEditor'
 
 export interface PeriodoDaSessaoSectionProps {
   /** O período da sessão (o da aventura; no mapa solto, o da sessão). */
@@ -21,6 +22,9 @@ const PERIODO_NA_FRASE: Readonly<Record<Periodo, string>> = { dia: 'de dia', tar
 
 export const PERIODO_HINT = 'Vale para as cenas externas. As outras cenas não mudam.'
 
+/** O mestre vê a tinta da tarde e da noite pela metade (D5); ligado, vê como os jogadores. */
+export const VER_COMO_JOGADOR_HINT = 'No mapa, a tarde e a noite aparecem pela metade. Ligado, você vê a cor inteira e só as luzes que os jogadores veem.'
+
 /** O que a cena ABERTA mostra aos jogadores agora, em uma frase. */
 export function estadoDaCenaAberta(periodo: Periodo, externa: boolean, periodoFixo: Periodo | undefined): string {
   if (periodoFixo !== undefined) return `Esta cena fica sempre ${PERIODO_NA_FRASE[periodoFixo]}.`
@@ -39,6 +43,9 @@ export function PeriodoDaSessaoSection({ periodo, externa, periodoFixo, onPeriod
   const headingId = useId()
   const hintId = useId()
   const estadoId = useId()
+  const verComoJogadorId = useId()
+  const comoJogador = useTintaNoEditor((estado) => estado.comoJogador)
+  const setComoJogador = useTintaNoEditor((estado) => estado.setComoJogador)
   return (
     <section className="lb-periodo" aria-labelledby={headingId}>
       <h3 id={headingId} className="lb-eyebrow">
@@ -59,6 +66,12 @@ export function PeriodoDaSessaoSection({ periodo, externa, periodoFixo, onPeriod
         {/* `status`: trocar o período ou a marca muda a frase, e o leitor de tela a lê sem roubar o foco. */}
         <p id={estadoId} className="lb-field__hint lb-periodo__estado" role="status">
           {estadoDaCenaAberta(periodo, externa, periodoFixo)}
+        </p>
+      </div>
+      <div className="lb-field">
+        <Toggle label="Ver como jogador" checked={comoJogador} describedBy={verComoJogadorId} onChange={setComoJogador} />
+        <p id={verComoJogadorId} className="lb-field__hint">
+          {VER_COMO_JOGADOR_HINT}
         </p>
       </div>
     </section>
