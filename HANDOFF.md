@@ -445,3 +445,10 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - Main `1941e141` (tag `pre-integra-18`, bundle `labirinto-2026-10-24-7.bundle` verificado): Batalha B1 e B2, só arquivos novos em `client/src/lib/batalha/`. Gate: tsc 0, 33 testes da pasta, guarda de projetos do vitest 314 verdes (sem N2: nenhum arquivo existente mudou).
 - RISCO para B4/B6 (plano `docs/planos/modo-batalha-2026-10-24.md`): o recorte do jogador não traz todas as paredes; medir no host ou mandar só os traços necessários.
 - Worktree `C:/dev/labirinto-batalha` (feat/batalha) fica para B3/B4. Em voo: MT9 (dono da faixa quente) e documentador.
+
+## Atualização 24/10 ~14h30 — lote 7 (MT9) integrado; L2 e MT10 em curso
+- Main `7694da6e` (tag `pre-integra-19`, bundle `labirinto-2026-10-24-8.bundle` verificado): Meio-Termo MT9 (plumbing de chaminé, grade, linhas e vista 3/4; nada muda na tela). N2 do agente verde menos 3 e2e de tempo que passam sozinhos; depois do gate a main só ganhou arquivos novos (Batalha) e docs; tsc e testes-chave conferidos após o merge.
+- **Em voo:** Luz L2 (visão por período, dono da faixa quente, `C:/dev/labirinto-luz`) e Meio-Termo MT10 (chaminé e grade, `C:/dev/labirinto-mt10`, `designer-opus`, sem tocar arquivo quente; folha `mt10-folha-de-contato.png` para o usuário aprovar).
+- **Fila:** Luz L3 (acende sozinha), MT11 (vista 3/4), MT12 (liga a chave de obra e regrava o golden), MT13, Batalha B3 e B4 (decidir onde medir: host ou cliente), Caminhos F3 e F4, Luz L4b, L4c, L5, L6, Sons F7, depois Fase 4.
+- Diagramas pendentes de atualização (fontes da MT9 mudaram): `telhado` (helper e chaminé), possivelmente `pilha-de-camadas`, `camadas-livres`, `vinculo-regiao-parede`, `arquitetura-render-editor`.
+- `task-camadas-painel` passou nos dois últimos N2 (instável): decidir na Fase 4 se sai da lista de conhecidas.
