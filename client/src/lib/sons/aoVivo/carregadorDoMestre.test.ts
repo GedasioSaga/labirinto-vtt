@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@tauri-apps/plugin-fs', async () => (await import('../discoFalso.fixture')).fsFalso)
 vi.mock('@tauri-apps/api/path', async () => (await import('../discoFalso.fixture')).pathFalso)
 
-const { arquivos, criarPastasAte, limparDisco, MIDIA_DO_APP, wav } = await import('../discoFalso.fixture')
+const { arquivos, bytesDe, criarPastasAte, limparDisco, MIDIA_DO_APP, wav } = await import('../discoFalso.fixture')
+const { useToastStore } = await import('../../../stores/toastStore')
 const { arquivosDaMidiaDaAventura, carregarBytesDoMestre, criarCarregadorDoMestre, pesoDaMidiaComSons, tamanhoDaMidiaDaAventura } = await import('./carregadorDoMestre')
 const { AUDIO_GUARDADO_SUMIU } = await import('../../midiaNoDisco')
 const { idDoAudio } = await import('../../midia')
@@ -22,6 +23,7 @@ const AVENTURA = 'C:/aventuras/navio'
 
 beforeEach(() => {
   limparDisco()
+  useToastStore.setState({ toasts: [] })
 })
 
 describe('carregarBytesDoMestre', () => {
@@ -50,20 +52,40 @@ describe('carregarBytesDoMestre', () => {
     }
   })
 
-  it('sem a pasta (aventura nova) ou com o arquivo da pasta trocado, vem de <appData>/midia; sem nenhum dos dois, a frase pronta', async () => {
+  it('sem a pasta (aventura nova) vem de <appData>/midia e nada é escrito; com a pasta aberta e o som faltando ou trocado nela, toca E volta para a pasta (de onde /sons serve a mesa)', async () => {
     const bytes = wav(64, 8)
     const id = await idDoAudio(bytes)
     if (id === null) throw new Error('o teste montou bytes que não são áudio')
     criarPastasAte(MIDIA_DO_APP)
     arquivos.set(`${MIDIA_DO_APP}/${id}`, bytes)
     expect(await criarCarregadorDoMestre(() => null)(id)).toEqual(bytes)
+    expect(arquivos.has(`${AVENTURA}/midia/${id}`)).toBe(false)
 
-    criarPastasAte(`${AVENTURA}/midia`)
+    expect(await criarCarregadorDoMestre(() => AVENTURA)(id)).toEqual(bytes)
+    expect(bytesDe(`${AVENTURA}/midia/${id}`)).toEqual(bytes)
+
+    // Trocado com o mesmo tamanho: o hash decide, e a cópia certa volta.
     arquivos.set(`${AVENTURA}/midia/${id}`, wav(64, 9))
     expect(await criarCarregadorDoMestre(() => AVENTURA)(id)).toEqual(bytes)
+    expect(bytesDe(`${AVENTURA}/midia/${id}`)).toEqual(bytes)
+    expect(useToastStore.getState().toasts).toEqual([])
 
     arquivos.delete(`${MIDIA_DO_APP}/${id}`)
+    arquivos.delete(`${AVENTURA}/midia/${id}`)
     await expect(criarCarregadorDoMestre(() => AVENTURA)(id)).rejects.toThrow(AUDIO_GUARDADO_SUMIU)
+  })
+
+  it('o que não dá para devolver à pasta vira aviso em texto simples, sem caminho; o mestre ainda ouve', async () => {
+    // Em <appData>/midia com conteúdo que não é o do nome: ir para a pasta com esse nome daria o 404 de novo.
+    criarPastasAte(MIDIA_DO_APP)
+    arquivos.set(`${MIDIA_DO_APP}/${ID}`, wav(64, 3))
+    criarPastasAte(`${AVENTURA}/midia`)
+
+    expect(await criarCarregadorDoMestre(() => AVENTURA)(ID)).toEqual(wav(64, 3))
+    expect(arquivos.has(`${AVENTURA}/midia/${ID}`)).toBe(false)
+    const avisos = useToastStore.getState().toasts.map((toast) => toast.text)
+    expect(avisos).toEqual([expect.stringContaining('não toca na mesa')])
+    expect(avisos[0]).not.toMatch(/[A-Za-z]:[\\/]|appdata|aventuras|\.wav/i)
   })
 })
 

@@ -242,8 +242,10 @@ export const AUDIO_NAO_FOI_PARA_A_PASTA = 'não deu para guardar esse áudio na 
  * passar por `<appData>/midia`, que a sala serve sem chave. Mesmo contrato do
  * `guardarAudio`: lança `AUDIO_GRANDE_DEMAIS` acima de 15 MB e
  * `AUDIO_NAO_E_AUDIO` quando a assinatura não é de áudio, antes de tocar no
- * disco. Nunca escreve por um atalho com o nome do id; a cópia inteira que já
- * está lá não é regravada. Devolve a referência `midia:<id>`.
+ * disco. Nunca escreve por um atalho com o nome do id. A cópia que já está lá
+ * só é poupada quando o HASH confere (`lerAudioDaPasta`): a do mesmo tamanho
+ * com outro conteúdo (trocada, corrompida) ficaria para sempre, e `/sons`
+ * daria 404. Devolve a referência `midia:<id>`.
  */
 export async function guardarAudioNaPasta(pasta: string, bytes: Uint8Array): Promise<string> {
   if (bytes.length > MIDIA_AUDIO_MAX_BYTES) throw new Error(AUDIO_GRANDE_DEMAIS)
@@ -254,7 +256,7 @@ export async function guardarAudioNaPasta(pasta: string, bytes: Uint8Array): Pro
     const naPasta = await entradasDaPasta(pasta)
     if (naPasta === null || naPasta.atalhos.has(id)) throw new Error('atalho ou pasta ilegível')
     const alvo = await join(pasta, id)
-    if (!(naPasta.arquivos.has(id) && (await copiaInteira(alvo, bytes.length)))) await writeFile(alvo, bytes)
+    if (!(naPasta.arquivos.has(id) && (await lerAudioDaPasta(pasta, id)) !== null)) await writeFile(alvo, bytes)
   } catch {
     throw new Error(AUDIO_NAO_FOI_PARA_A_PASTA)
   }

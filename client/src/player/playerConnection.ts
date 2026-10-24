@@ -1054,8 +1054,8 @@ function tableJoin(code: string, name: string, tableKey: string | undefined): Jo
 /** Nome que a tela da mesa manda no `join`: o servidor do app exige um nome, e o mestre nunca o lista. */
 export const TABLE_SCREEN_NAME = 'Tela da mesa'
 
-/** SONS AO VIVO (F5): a chave da mídia são 32 bytes em hex (contrato do servidor da sala). */
-const FORMA_DA_CHAVE_DA_MIDIA = /^[0-9a-f]{64}$/i
+/** SONS AO VIVO (F5): a chave da mídia são 32 bytes em hex MINÚSCULO, a única forma que o servidor da sala aceita no cabeçalho. */
+const FORMA_DA_CHAVE_DA_MIDIA = /^[0-9a-f]{64}$/
 
 export interface PlayerConnection {
   getState(): PlayerState

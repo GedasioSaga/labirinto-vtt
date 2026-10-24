@@ -1,9 +1,10 @@
 import { readDir, stat } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
-import { ehIdDeAudio, idDaRefDeAudio, refDoId } from '../../midia'
-import { lerAudioDaPasta, pastaDaMidiaDaAventura } from '../../midiaDaPasta'
+import { ehIdDeAudio, idDaRefDeAudio, idDoAudio, refDoId } from '../../midia'
+import { guardarAudioNaPasta, lerAudioDaPasta, pastaDaMidiaDaAventura } from '../../midiaDaPasta'
 import { lerAudioGuardado } from '../../midiaNoDisco'
 import { useBibliotecaDeSonsStore } from '../../../stores/bibliotecaDeSonsStore'
+import { useToastStore } from '../../../stores/toastStore'
 import type { BibliotecaDeSons } from '../biblioteca'
 import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type MotorAoVivo } from './motor'
 
@@ -14,25 +15,48 @@ import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type MotorAoVivo }
  */
 
 const NAO_E_AUDIO_GUARDADO = 'isso não é um áudio guardado'
+/** Sem caminho nem nome de arquivo: o caminho traz o nome de usuário do Windows. */
+export const SOM_FORA_DA_PASTA =
+  'Um som da biblioteca não estava na pasta da aventura e não deu para pôr lá: ele toca neste computador, mas não toca na mesa. Importe o arquivo de novo.'
+const AVISO_DE_SOM_FORA_DA_PASTA_MS = 7000
+
+/**
+ * O som que só estava em `<appData>/midia` volta para a pasta da aventura, de
+ * onde `/sons/{id}` serve a mesa: sem isso o mestre ouve e a mesa leva 404 sem
+ * saber por quê. Só com o hash conferido (ir com o nome errado daria o mesmo
+ * 404); `guardarAudioNaPasta` regrava a cópia trocada e nunca escreve por
+ * atalho. O que não volta vira aviso. Nunca lança.
+ */
+async function devolverAPasta(pastaDaMidia: string, id: string, bytes: Uint8Array): Promise<void> {
+  try {
+    if ((await idDoAudio(bytes)) === id && (await guardarAudioNaPasta(pastaDaMidia, bytes)) === refDoId(id)) return
+  } catch {
+    // O disco recusou: vira o aviso abaixo.
+  }
+  useToastStore.getState().push('error', SOM_FORA_DA_PASTA, AVISO_DE_SOM_FORA_DA_PASTA_MS, { chave: 'som-fora-da-pasta' })
+}
 
 /**
  * O carregador do mestre: o áudio vem de `<aventura>/midia/<id>`, conferido
  * (`lerAudioDaPasta`), porque o som da biblioteca não mora mais em
  * `<appData>/midia` (fechamento (b) da F5). Sem ele lá, de `<appData>/midia/<id>`:
  * a aventura nova ainda sem pasta guarda ali, e o som de versão anterior pode
- * não ter chegado à pasta. A pasta é perguntada a cada carga: o motor é um só e
- * a aventura aberta muda. Lança com a frase pronta (`AUDIO_GUARDADO_SUMIU`).
+ * não ter chegado à pasta; com a pasta aberta, ele volta para ela
+ * (`devolverAPasta`). A pasta é perguntada a cada carga: o motor é um só e a
+ * aventura aberta muda. Lança com a frase pronta (`AUDIO_GUARDADO_SUMIU`).
  */
 export function criarCarregadorDoMestre(pastaDaAventura: () => string | null): CarregadorDeBytes {
   return async (idDaMidia) => {
     if (!ehIdDeAudio(idDaMidia)) throw new Error(NAO_E_AUDIO_GUARDADO)
     const pasta = pastaDaAventura()
-    if (pasta !== null) {
-      const daAventura = await lerAudioDaPasta(await pastaDaMidiaDaAventura(pasta), idDaMidia)
+    const pastaDaMidia = pasta === null ? null : await pastaDaMidiaDaAventura(pasta)
+    if (pastaDaMidia !== null) {
+      const daAventura = await lerAudioDaPasta(pastaDaMidia, idDaMidia)
       if (daAventura !== null) return daAventura
     }
     const bytes = await lerAudioGuardado(refDoId(idDaMidia))
     if (bytes === null) throw new Error(NAO_E_AUDIO_GUARDADO)
+    if (pastaDaMidia !== null) await devolverAPasta(pastaDaMidia, idDaMidia, bytes)
     return bytes
   }
 }

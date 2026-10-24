@@ -272,6 +272,19 @@ describe('guardarAudioNaPasta e lerAudioDaPasta (o áudio direto na pasta da ave
     expect(await lerAudioDaPasta(PASTA, id)).toEqual(wav(64, 1))
   })
 
+  it('o arquivo do MESMO tamanho com outro conteúdo (trocado ou corrompido) é regravado: o tamanho só não basta, o hash decide', async () => {
+    const id = await idDeAudio(wav(64, 1))
+    criarPastasAte(PASTA)
+    arquivos.set(`${PASTA}/${id}`, wav(64, 2))
+    expect(await guardarAudioNaPasta(PASTA, wav(64, 1))).toBe(`midia:${id}`)
+    expect(bytesDe(`${PASTA}/${id}`)).toEqual(wav(64, 1))
+    expect(await lerAudioDaPasta(PASTA, id)).toEqual(wav(64, 1))
+    // A cópia que já confere não é regravada.
+    fsFalso.writeFile.mockClear()
+    await guardarAudioNaPasta(PASTA, wav(64, 1))
+    expect(fsFalso.writeFile).not.toHaveBeenCalled()
+  })
+
   it('o atalho com o nome do áudio não é escrito: lança a frase sem caminho, e o alvo do atalho fica intacto', async () => {
     const id = await idDeAudio(wav(64, 2))
     const vitima = 'C:/Windows/vitima.dll'

@@ -57,13 +57,16 @@ function conectar(role?: 'table') {
 }
 
 describe('playerConnection: a chave da mídia', () => {
-  it('nasce sem chave; midia.chave com 64 hex vira a chave (maiúscula também serve)', () => {
+  it('nasce sem chave; midia.chave com 64 hex minúsculos vira a chave; maiúscula é torta (o servidor só aceita minúsculos) e a boa fica', () => {
     const { connection, socket } = conectar()
     expect(connection.chaveDaMidia()).toBeNull()
     socket.receive({ type: 'midia.chave', chave: CHAVE })
     expect(connection.chaveDaMidia()).toBe(CHAVE)
     socket.receive({ type: 'midia.chave', chave: OUTRA.toUpperCase() })
-    expect(connection.chaveDaMidia()).toBe(OUTRA.toUpperCase())
+    socket.receive({ type: 'midia.chave', chave: `${OUTRA.slice(0, 63)}A` })
+    expect(connection.chaveDaMidia()).toBe(CHAVE)
+    socket.receive({ type: 'midia.chave', chave: OUTRA })
+    expect(connection.chaveDaMidia()).toBe(OUTRA)
   })
 
   it('chave torta é ignorada (e a boa de antes fica)', () => {
