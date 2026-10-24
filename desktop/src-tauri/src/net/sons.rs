@@ -374,9 +374,15 @@ pub struct AudioConferido {
 ///
 /// Comparar com `raiz_real`, e não com `raiz`, aceita a `midia` gravada no
 /// disco com outra caixa (`Midia`): o Windows a abre, então a rota também.
-/// Junção na própria `midia` quem barra é a leitura (`symlink_metadata`).
+/// Junção na própria `midia` quem barra é a leitura (`symlink_metadata`); por
+/// cima, a `raiz_real` tem de se chamar `midia` (sem diferenciar caixa): uma
+/// junção trocada entre a olhada e o `canonicalize` não leva a pasta irmã.
 pub fn caminho_real_confere(raiz: &Path, raiz_real: &Path, id: &str, real: &Path) -> bool {
-    raiz_real.parent().is_some() && raiz_real.parent() == raiz.parent() && real == raiz_real.join(id)
+    let chama_midia = raiz_real
+        .file_name()
+        .and_then(|nome| nome.to_str())
+        .is_some_and(|nome| nome.eq_ignore_ascii_case(PASTA_DE_MIDIA));
+    chama_midia && raiz_real.parent().is_some() && raiz_real.parent() == raiz.parent() && real == raiz_real.join(id)
 }
 
 /// m4a de áudio: a caixa `ftyp` bem formada e com marca de áudio (vídeo MP4,
@@ -598,10 +604,13 @@ impl Drop for VagaDeBusca {
 /// saem, e a vaga presa até o último. Passado `PRAZO_TOTAL_DO_CORPO`, o fluxo dá
 /// erro (a conexão cai) e o socket da conexão também recusa a escrita seguinte:
 /// o prazo vale até quando o hyper, com o buffer cheio, não pede pedaço novo.
+/// Soltar o corpo NÃO tira o prazo do socket: o hyper ainda guarda até ~400 KB
+/// para escrever. Quem tira é o socket, quando escoa (`Corte::escoou`).
 pub struct CorpoDoSom {
     pedacos: VecDeque<Bytes>,
     vence_em: Instant,
-    vaga: VagaDeBusca,
+    /// Só existe para ser solta junto com o corpo (devolve a vaga).
+    _vaga: VagaDeBusca,
 }
 
 impl CorpoDoSom {
@@ -610,14 +619,7 @@ impl CorpoDoSom {
         // Prazo que não cabe no relógio vence já: o lado seguro.
         let vence_em = agora.checked_add(prazo).unwrap_or(agora);
         vaga.corte.definir_prazo(Some(vence_em));
-        Self { pedacos, vence_em, vaga }
-    }
-}
-
-impl Drop for CorpoDoSom {
-    fn drop(&mut self) {
-        // A próxima resposta da mesma conexão (keep-alive) começa sem prazo.
-        self.vaga.corte.definir_prazo(None);
+        Self { pedacos, vence_em, _vaga: vaga }
     }
 }
 
@@ -864,6 +866,13 @@ mod tests {
         let fora = Path::new("/outra/midia");
         assert!(!caminho_real_confere(raiz, fora, &id, &fora.join(&id)));
         assert!(!caminho_real_confere(Path::new("/"), Path::new("/"), &id, &Path::new("/").join(&id)));
+        // Junção na `midia` levando à pasta IRMÃ (mesmo pai) não passa; a
+        // `MIDIA` em outra caixa, sim (auditoria, achado 4). Mutação
+        // vermelha: sem conferir o nome da raiz real.
+        let irma = Path::new("/aventura/outra");
+        assert!(!caminho_real_confere(raiz, irma, &id, &irma.join(&id)));
+        let caixa_alta = Path::new("/aventura/MIDIA");
+        assert!(caminho_real_confere(raiz, caixa_alta, &id, &caixa_alta.join(&id)));
     }
 
     #[test]
@@ -1198,7 +1207,9 @@ mod tests {
         assert_eq!(proximo(&mut corpo), Some(Err(io::ErrorKind::TimedOut)));
         assert!(corpo.pedacos.is_empty(), "os pedaços ficaram presos");
         drop(corpo);
-        assert!(vencido.erro().is_none(), "a próxima resposta da conexão herdou o prazo");
         assert_eq!(lock(&limite).em_voo_na_sala(), 0);
+        // Solto o corpo, o prazo FICA no socket até ele escoar (auditoria,
+        // achado 1). Mutação vermelha: o `drop` do corpo tirar o prazo.
+        assert_eq!(vencido.erro().map(|erro| erro.kind()), Some(io::ErrorKind::TimedOut), "o corpo solto tirou o prazo do socket");
     }
 }

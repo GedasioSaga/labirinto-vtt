@@ -1942,6 +1942,7 @@ dependencies = [
  "base64 0.22.1",
  "futures-core",
  "futures-util",
+ "http-body",
  "local-ip-address",
  "minisign-verify",
  "qrcode",

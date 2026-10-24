@@ -21,7 +21,7 @@ use tokio::sync::{mpsc, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
 use super::animacoes::Pacote;
-use super::conexao::{ConexaoHttp, ListenerDaSala, PRAZO_SEM_PROGRESSO};
+use super::conexao::{vigiar_pedido, ConexaoHttp, LimitesDaSala, ListenerDaSala};
 use super::sons::{self, ErroDosSons, LimiteDasBuscas, SonsDaSala, VagaDeBusca};
 
 /// Tamanho máximo de uma mensagem recebida de um jogador.
@@ -428,13 +428,15 @@ pub fn router(room: Arc<Room>) -> Router {
         .route("/animacoes/indice.json", get(animacoes_indice))
         .route("/animacoes/{nome}", get(animacoes_arquivo))
         .fallback(dev_fallback)
+        // Depois das rotas e do fallback: vale para todos eles.
+        .layer(axum::middleware::from_fn(vigiar_pedido))
         .with_state(room)
 }
 
 /// Future do servidor; termina quando `room.shutdown()` é chamado. Toda
-/// conexão tem o prazo de escrita de `conexao.rs` (`PRAZO_SEM_PROGRESSO`).
+/// conexão tem os prazos e o teto de `conexao.rs` (`LimitesDaSala`).
 pub fn serve(listener: TcpListener, room: Arc<Room>) -> impl Future<Output = std::io::Result<()>> + Send {
-    serve_com_prazo(listener, room, PRAZO_SEM_PROGRESSO)
+    serve_com_limites(listener, room, LimitesDaSala::default())
 }
 
 /// `serve` com outro prazo de escrita sem progresso (o teste não espera 30 s).
@@ -443,10 +445,19 @@ pub fn serve_com_prazo(
     room: Arc<Room>,
     prazo_sem_progresso: Duration,
 ) -> impl Future<Output = std::io::Result<()>> + Send {
+    serve_com_limites(listener, room, LimitesDaSala { sem_progresso: prazo_sem_progresso, ..LimitesDaSala::default() })
+}
+
+/// `serve` com outros limites (os testes encurtam os prazos e o teto).
+pub fn serve_com_limites(
+    listener: TcpListener,
+    room: Arc<Room>,
+    limites: LimitesDaSala,
+) -> impl Future<Output = std::io::Result<()>> + Send {
     let mut shutdown_rx = room.shutdown_tx.subscribe();
     let app = router(room);
     async move {
-        axum::serve(ListenerDaSala::novo(listener, prazo_sem_progresso), app.into_make_service_with_connect_info::<ConexaoHttp>())
+        axum::serve(ListenerDaSala::novo(listener, limites), app.into_make_service_with_connect_info::<ConexaoHttp>())
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.wait_for(|stopped| *stopped).await;
             })
@@ -929,21 +940,25 @@ pub fn is_safe_asset_path(path: &str) -> bool {
         })
 }
 
-/// `/media/{id}`: a imagem ou o áudio de `<appData>/midia` (item do acervo,
-/// retrato da ficha, música importada do minigame). Toda recusa é o mesmo 404
-/// — id torto, arquivo que falta, grande demais ou que não confere —, para não
-/// ensinar quais ids existem.
+/// `/media/{id}`: SÓ a imagem de `<appData>/midia` (item do acervo, retrato da
+/// ficha). Toda recusa é o mesmo 404 — id torto, arquivo que falta, grande
+/// demais, que não confere ou de áudio —, para não ensinar quais ids existem.
 ///
-/// O corpo sai inteiro (até `MIDIA_AUDIO_MAX_BYTES`, 15 MB), sem `Range`: o
-/// jogador baixa a música uma vez e a decodifica no aparelho; o limite de corpo
-/// do axum (`DefaultBodyLimit`) vale só para o que CHEGA, não para a resposta.
+/// Áudio (SONS F5d, 24/10): nunca sai aqui, nem sem pasta de mídia. Sai só por
+/// `/sons/{id}`, com a chave da conexão e a liberação do host (a música da
+/// dança inclusive); o id de áudio nem toca o disco.
 async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Response {
+    if super::media::tipo_do_id(&id).is_some_and(|tipo| tipo.eh_audio()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
     let Some(pasta) = room.media_dir() else {
         return StatusCode::NOT_FOUND.into_response();
     };
     match super::media::ler_midia(&pasta, &id).await {
-        Ok((bytes, tipo)) => media_response(bytes, tipo.mime()),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        // `ler_midia` já exige o tipo dos bytes igual ao do id; o filtro é a
+        // segunda trava contra áudio.
+        Ok((bytes, tipo)) if !tipo.eh_audio() => media_response(bytes, tipo.mime()),
+        Ok(_) | Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -952,9 +967,9 @@ async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Re
 /// Cloudflare, no link público) não guarda a mídia de uma mesa.
 const CACHE_DA_MIDIA: &str = "private, max-age=31536000, immutable";
 
-/// `mime` é sempre um `TipoDeMidia::mime` (ASCII fixo; `audio/*` para a
-/// música). `same-origin`: só a página do jogador, servida por esta mesma sala,
-/// embute a imagem ou baixa o áudio.
+/// `mime` é sempre um `TipoDeMidia::mime` de imagem (ASCII fixo).
+/// `same-origin`: só a página do jogador, servida por esta mesma sala, embute
+/// a imagem.
 fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
     (
         [
