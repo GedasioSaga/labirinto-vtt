@@ -285,7 +285,8 @@ Só `desktop/src-tauri`: `net/conexao.rs` (novo), `net/server.rs`, `net/sons.rs`
 
 - `cargo clippy --all-targets --all-features -- -D warnings -W clippy::unwrap_used -W clippy::expect_used`: exit 0, sem aviso.
 - `cargo test --lib --test net_sons --test net_server --test net_dev_proxy` (com `CARGO_INCREMENTAL=0` e `CARGO_PROFILE_DEV_DEBUG=0`): lib 106, `net_dev_proxy` 4, `net_server` 14, `net_sons` 13 passaram e 1 ignorado (o link de arquivo), 0 falhas.
-- MUTACOES_AQUI
+- 19 mutações, uma por vez (aplicar, rodar só os testes do achado com `--no-fail-fast`, restaurar e atualizar o mtime), todas VERMELHAS: relógio que não derruba, progresso que não desarma, corte que não acorda, listener sem prazo, socket que ignora o prazo total, fluxo que ignora o prazo, prazo que não vai ao socket, esquecer sem cortar, vez ignorada, `None` sem vez, comparação com a raiz guardada, sem `is_dir` da raiz, sem `parent`, aparelho ignorado, socket que não amarra o aparelho, chave guardada como veio, sem despejo, envio que não confirma, `Retry-After` sem arredondar. A do "corte que não acorda" ficou VERDE na primeira rodada (o `timeout` de 10 s do teste acordava a escrita e ela via o corte); o teste passou a exigir o corte em menos de 5 s (commit `ce523f97`) e a mutação ficou vermelha.
+- Depois das mutações: clippy de novo exit 0 e os mesmos 106 + 4 + 14 + 13 (1 ignorado) verdes.
 
 ## Decisões do usuário em 23/10
 
