@@ -3,6 +3,7 @@ import type { PontoDoTelhado } from '../lib/telhado/aguas'
 import { MODELOS_DO_TETO, NOME_DO_MODELO, PALETA_DO_TETO, corPadraoDoModelo } from '../lib/telhado/paletas'
 import { CURSO_DA_PALHA_PX, fileiraDaPalha, ondaDoFioDaPalha, pintarTelhado, type ImagemDoTelhado } from './telhado'
 import { PALHA_DO_ESTILO, falhasDaCor, medirCorDoTelhado } from './telhadoPalha.testkit'
+import { escalaDaTexturaDoTelhado } from '../pixi/telhadosRenderer'
 
 /**
  * TELHADO DE PALHA (fatia MT6): o 3º modelo, palha em espinha de peixe. O
@@ -16,6 +17,25 @@ const RET = [p(40, 60), p(320, 60), p(320, 220), p(40, 220)]
 const L = [p(0, 0), p(240, 0), p(240, 100), p(100, 100), p(100, 240), p(0, 240)]
 /** Sala grande para medir os fios na água de cima (norte): ali u = x e v = y + beiral. */
 const GRANDE = [p(0, 0), p(400, 0), p(400, 300), p(0, 300)]
+
+/** FNV-1a de 32 bits dos bytes (a mesma de `telhadoSemMudanca.test.ts`). */
+function digital(bytes: Uint8ClampedArray): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < bytes.length; i += 1) {
+    h ^= bytes[i]
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
+}
+
+const DIGITAIS_DA_PALHA: Readonly<Record<string, string>> = {
+  'ret palha 1x': '93a4a03a',
+  'L feno 2x': 'a48ba7a7',
+  'L musgo 3x': '80e2fd68',
+  'ret livre 0,5x': 'b3b7102e',
+  'miniatura palha 2x': 'bc37f5a5',
+  '20x14 casas na escala do app (0,94x)': 'fc4f51e2',
+}
 
 function luz(img: ImagemDoTelhado, i: number): number {
   return 0.2126 * img.pixels[i] + 0.7152 * img.pixels[i + 1] + 0.0722 * img.pixels[i + 2]
@@ -85,14 +105,22 @@ describe('palha: o 3º modelo do telhado', () => {
     expect(diferentes / cheios).toBeGreaterThan(0.5)
   })
 
-  it('mesma entrada, mesmos bytes', () => {
-    // Byte a byte num laço: o `toEqual` de 1 MB de pixels passou de 5 s com a suíte inteira rodando.
-    const a = pintarTelhado(L, 'palha', PALETA_DO_TETO.palha[2].hex, 2).pixels
-    const b = pintarTelhado(L, 'palha', PALETA_DO_TETO.palha[2].hex, 2).pixels
-    let primeiraDiferenca = a.length === b.length ? -1 : 0
-    for (let i = 0; primeiraDiferenca < 0 && i < a.length; i += 1) if (a[i] !== b[i]) primeiraDiferenca = i
-    expect(a.length).toBeGreaterThan(0)
-    expect(primeiraDiferenca).toBe(-1)
+  it('mesma entrada, mesmos bytes: as digitais da palha são FIXAS (qualquer mudança no desenho fica vermelha)', () => {
+    // FNV-1a dos bytes, como em `telhadoSemMudanca.test.ts`. Tiradas depois da revisão de design da MT6
+    // (tom 0,05, luz do braço 0,02, fio de ~2 px a 0,1). Mudou o desenho de propósito? Regrave AQUI, com o motivo.
+    const grande = [p(0, 0), p(20 * 64, 0), p(20 * 64, 14 * 64), p(0, 14 * 64)]
+    const casos: readonly [string, readonly PontoDoTelhado[], string, number][] = [
+      ['ret palha 1x', RET, PALHA_DO_ESTILO, 1],
+      ['L feno 2x', L, PALETA_DO_TETO.palha[2].hex, 2],
+      ['L musgo 3x', L, PALETA_DO_TETO.palha[5].hex, 3],
+      ['ret livre 0,5x', RET, '#3f7fbf', 0.5],
+      ['miniatura palha 2x', [p(9, 9), p(57, 9), p(57, 37), p(9, 37)], PALHA_DO_ESTILO, 2],
+      ['20x14 casas na escala do app (0,94x)', grande, PALHA_DO_ESTILO, escalaDaTexturaDoTelhado(grande)],
+    ]
+    const atual = Object.fromEntries(casos.map(([nome, poligono, cor, k]) => [nome, digital(pintarTelhado(poligono, 'palha', cor, k).pixels)]))
+    // Duas chamadas, os mesmos bytes (a memória curta de sorteios não muda nada entre uma e outra).
+    expect(digital(pintarTelhado(L, 'palha', PALETA_DO_TETO.palha[2].hex, 2).pixels)).toBe(atual['L feno 2x'])
+    expect(atual).toEqual(DIGITAIS_DA_PALHA)
   })
 
   it('a cor manda no tom (média perto da escolhida, cor livre também) e a água virada para a luz é a mais clara', () => {
