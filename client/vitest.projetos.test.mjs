@@ -127,3 +127,25 @@ describe('decisão do scripts/teste-rapido.cjs', () => {
     expect(specsDoE2e(plano)).toContain('task-camadas-golden.spec.ts')
   })
 })
+
+describe('e2e vermelhos pré-existentes (e2e/vermelhas-conhecidas.json)', () => {
+  it('nenhum teste conhecido mora num spec que o N1 roda (golden, seladas, fumaça, áreas)', () => {
+    const doN1 = ferramenta.expandirSpecs([...mapa.sempre, ...mapa.fumaca, ...mapa.areas.flatMap((a) => [...a.specs, ...(a.n0 || [])])], specs)
+    const proibidos = [...ferramenta.lerConhecidas()].filter((nome) => doN1.has(nome.split(' › ')[0]))
+    expect(proibidos).toEqual([])
+  })
+
+  it('o nome sai do JSON do Playwright no formato do reporter list', () => {
+    const relatorio = { suites: [{ title: 'task-x.spec.ts', file: 'task-x.spec.ts', specs: [{ title: 'solto', tests: [{ status: 'unexpected' }] }],
+      suites: [{ title: 'grupo', specs: [{ title: 'dentro', tests: [{ status: 'expected' }] }] }] }] }
+    const { falhas, passaram } = ferramenta.nomesDoRelatorioE2e(relatorio)
+    expect([...falhas]).toEqual(['task-x.spec.ts › solto'])
+    expect([...passaram]).toEqual(['task-x.spec.ts › grupo › dentro'])
+  })
+
+  it('falha nova reprova, conhecida tolera, conhecida que passou vira aviso', () => {
+    const conhecidas = new Set(['a › 1', 'a › 2'])
+    expect(ferramenta.compararComConhecidas(new Set(['a › 1', 'b › 9']), new Set(['a › 2']), conhecidas)).toEqual({ novas: ['b › 9'], curadas: ['a › 2'] })
+    expect(ferramenta.compararComConhecidas(new Set(['a › 1']), new Set(), conhecidas)).toEqual({ novas: [], curadas: [] })
+  })
+})

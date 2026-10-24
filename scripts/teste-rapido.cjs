@@ -39,6 +39,8 @@ const SUITE_LOCK = path.join(os.homedir(), '.claude', 'scripts', 'suite-lock.cjs
 const PROJETOS_JSON = path.join(CLIENTE, 'vitest.projetos.json')
 const MAPA_JSON = path.join(CLIENTE, 'e2e', 'mapa-de-specs.json')
 const TESTE_DA_GUARDA = 'vitest.projetos.test.mjs'
+// e2e vermelhos PRÉ-EXISTENTES (arquivo › título completo): o N2 só reprova falha NOVA.
+const CONHECIDAS_JSON = process.env.TESTE_RAPIDO_CONHECIDAS || path.join(CLIENTE, 'e2e', 'vermelhas-conhecidas.json')
 // O Playwright 1.62 pede o chromium-1234; a máquina tem o 1243 (client/playwright.config.ts).
 const NAVEGADOR_DA_MAQUINA = path.join(os.homedir(), 'AppData', 'Local', 'ms-playwright', 'chromium-1243', 'chrome-win64', 'chrome.exe')
 // Acima disto a lista de arquivos do `vitest related` estoura a linha do cmd.exe
@@ -281,11 +283,40 @@ function etapasDeVitest(nivel, c, plano) {
   return etapas
 }
 
+/** Nomes `arquivo › describe › título` (o formato do reporter list) do JSON do Playwright. */
+function nomesDoRelatorioE2e(relatorio) {
+  const falhas = new Set()
+  const passaram = new Set()
+  const andar = (suite, arquivo, titulos) => {
+    const doArquivo = arquivo || String(suite.file || suite.title).replace(/\\/g, '/').replace(/^e2e\//, '')
+    const caminho = arquivo ? [...titulos, suite.title] : []
+    for (const spec of suite.specs || []) {
+      const nome = [doArquivo, ...caminho, spec.title].join(' › ')
+      for (const t of spec.tests || []) {
+        if (t.status === 'unexpected') falhas.add(nome)
+        else if (t.status === 'expected' || t.status === 'flaky') passaram.add(nome)
+      }
+    }
+    for (const filha of suite.suites || []) andar(filha, doArquivo, caminho)
+  }
+  for (const suite of relatorio.suites || []) andar(suite, null, [])
+  return { falhas, passaram }
+}
+
+function lerConhecidas(arquivo = CONHECIDAS_JSON) {
+  return fs.existsSync(arquivo) ? new Set(lerJson(arquivo)) : new Set()
+}
+
+/** Falha nova reprova; conhecida que passou só avisa (a lista deve ser enxugada). */
+function compararComConhecidas(falhas, passaram, conhecidas) {
+  return { novas: [...falhas].filter((n) => !conhecidas.has(n)).sort(), curadas: [...conhecidas].filter((n) => passaram.has(n)).sort() }
+}
+
 function etapaDeE2e(specs, titulo) {
   // O playwright.config.ts usa 2 workers porque várias árvores rodavam juntas;
   // dentro da vaga da fila a máquina é só desta suíte.
   const env = process.env.PW_WORKERS ? {} : { PW_WORKERS: '4' }
-  return { id: 'e2e', tipo: 'e2e', titulo, exe: process.execPath, cwd: CLIENTE, env, args: [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--reporter=list', '--retries=0', ...specs] }
+  return { id: 'e2e', tipo: 'e2e', titulo, exe: process.execPath, cwd: CLIENTE, env, args: [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--reporter=list,json', '--retries=0', ...specs] }
 }
 
 function etapasDeCargo() {
@@ -389,9 +420,29 @@ function rabo(texto) {
   return texto.split(/\r?\n/).slice(-LINHAS_DO_RABO).map((l) => '      ' + l).join('\n')
 }
 
-async function executarEtapa(etapa, pastaDeLog) {
+/** e2e: compara as falhas com as vermelhas conhecidas. Só o N2 troca o veredito; abaixo é informação. */
+function julgarE2e(arquivoJson, codigo, nivel) {
+  let relatorio
+  try {
+    relatorio = lerJson(arquivoJson)
+  } catch {
+    return { codigo, nota: ' | sem relatório JSON do Playwright' }
+  }
+  const { falhas, passaram } = nomesDoRelatorioE2e(relatorio)
+  const { novas, curadas } = compararComConhecidas(falhas, passaram, lerConhecidas())
+  let nota = ' | ' + falhas.size + ' falhas: ' + (falhas.size - novas.length) + ' conhecidas, ' + novas.length + ' NOVAS'
+  if (curadas.length > 0) nota += ' | aviso: ' + curadas.length + ' conhecidas passaram (enxugue ' + path.basename(CONHECIDAS_JSON) + '): ' + curadas.slice(0, 5).join('; ')
+  if (novas.length > 0) nota += '\n    NOVAS:\n' + novas.map((n) => '      ' + n).join('\n')
+  // Exit ≠ 0 sem falha nenhuma no relatório é ruína (servidor que não subiu): continua vermelho.
+  const soConhecidas = codigo !== 0 && falhas.size > 0 && novas.length === 0
+  return { codigo: nivel === 2 && soConhecidas ? 0 : codigo, nota }
+}
+
+async function executarEtapa(etapa, pastaDeLog, nivel) {
   const log = path.join(pastaDeLog, etapa.id + '.log')
   const jsonDoVitest = path.join(pastaDeLog, etapa.id + '.json')
+  const jsonDoE2e = path.join(pastaDeLog, 'e2e.json')
+  if (etapa.tipo === 'e2e') etapa = { ...etapa, env: { ...etapa.env, PLAYWRIGHT_JSON_OUTPUT_NAME: jsonDoE2e } }
   const extras = etapa.tipo === 'vitest' ? ['--reporter=default', '--reporter=json', '--outputFile.json=' + jsonDoVitest] : []
   let { codigo, ms } = await rodar(etapa, log, extras)
   const texto = fs.readFileSync(log, 'utf8')
@@ -405,6 +456,11 @@ async function executarEtapa(etapa, pastaDeLog) {
     ms += r.ms
     nota += ' | reprise isolada de ' + falhos.length + ' arquivo(s): ' + (r.codigo === 0 ? 'PASSOU (instável sob carga: ' + falhos.join(', ') + ')' : 'falhou de novo')
     if (r.codigo === 0) codigo = 0
+  }
+  if (etapa.tipo === 'e2e') {
+    const julgado = julgarE2e(jsonDoE2e, codigo, nivel)
+    codigo = julgado.codigo
+    nota += julgado.nota
   }
   const ok = codigo === 0
   console.log((ok ? 'PASSOU ' : 'FALHOU ') + etapa.id.padEnd(22) + formatarTempo(ms).padStart(8) + '  ' + nota)
@@ -441,7 +497,7 @@ async function executarPlano(plano) {
       }
       etapa.env = { ...etapa.env, CARGO_TARGET_DIR: alvoDoCargo() }
     }
-    resultados.push(await executarEtapa(etapa, pastaDeLog))
+    resultados.push(await executarEtapa(etapa, pastaDeLog, plano.nivel))
   }
   const falhas = resultados.filter((r) => !r.ok)
   console.log('-'.repeat(72))
@@ -539,6 +595,7 @@ async function principal() {
 module.exports = {
   GATILHOS_DO_N2, IGNORADOS, globParaRegex, casaAlgum, listarArquivos, lerProjetos, projetoDoTeste,
   expandirSpecs, specsExistentes, classificar, foraDaListaBranca, montarPlano,
+  nomesDoRelatorioE2e, compararComConhecidas, lerConhecidas, CONHECIDAS_JSON,
 }
 
 if (require.main === module) {

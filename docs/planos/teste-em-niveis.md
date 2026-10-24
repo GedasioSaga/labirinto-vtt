@@ -45,6 +45,10 @@ O `vitest related` segue só o grafo de importação: CSS, PNG, JSON lido por ca
 
 Paridade por NOME: 18952 linhas (arquivo + nome completo de cada teste) antes e depois, diff vazio; a única diferença é a guarda nova. O que pesa: `rasterDosMoveis.sementes*` soma 1362 s de 1770 s (77%) e o Mt4 sozinho (692 s, um teste de 225 s) é o caminho crítico do `lento`. No resto, o custo é ambiente e import, não teste: o relatório soma `environment 10645s, import 1537s, tests 1805s`. A atacar, nessa ordem: (1) `// @vitest-environment node` nos testes de lógica pura (o jsdom sobe por arquivo); (2) dividir as varreduras de sementes por peça em arquivos (paralelizam entre workers); (3) o `related` gasta ~2 min montando o grafo dos 1738 arquivos, e é isso que deixa o N0 acima de 90 s.
 
+## e2e vermelhos pré-existentes
+
+O e2e inteiro já falha na main: **154 testes** em 65 specs no N2 de 24/10/2026 (o orquestrador confirmou na main, porta 1420, cache quente). A **triagem de causa é de outro agente**. O N2 compara as falhas com `client/e2e/vermelhas-conhecidas.json` (nomes `arquivo › describe › título`, como o reporter list imprime): PASSA se todas forem conhecidas, REPROVA listando as NOVAS, e só AVISA quando uma conhecida passa a passar (enxugue a lista). Abaixo do N2 a comparação só aparece na linha da etapa, sem mudar o veredito. A guarda reprova a lista que tiver teste de spec que o N1 roda (golden, seladas, fumaça, áreas). **Por isso a lista ainda não existe:** 111 das 154 caem em specs de área (golden, seladas e fumaça: nenhuma); quem decide é o orquestrador (tirar esses specs das áreas ou aceitar a comparação também no N1). `TESTE_RAPIDO_CONHECIDAS=<arquivo>` aponta outra lista.
+
 ## N2 reprova uma main já integrada
 
 1. Ache o culpado por bisseção entre as tags `pre-integra-N` (a última verde e a primeira vermelha): `git bisect start <vermelha> <verde>` + `git bisect run node scripts/teste-rapido.cjs --nivel 2 --so <tipo que falhou> --sem-fila` dentro de uma vaga da fila.
