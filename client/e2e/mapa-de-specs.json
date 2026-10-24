@@ -76,7 +76,10 @@
         "client/src/lib/tracadoDaSalaLivre.ts",
         "client/src/components/LayersPanel*",
         "client/src/components/FloorLayersList.tsx",
-        "client/src/components/PropLayerControls.tsx",
+        "client/src/components/SeletorDeCamada*",
+        "client/src/components/MenuDaSelecao*",
+        "client/src/lib/camadas/mover.ts",
+        "client/src/lib/camadas/arrastoDeItem.ts",
         "client/src/pixi/pilhaDeCamadas.ts",
         "client/src/player/pilhaDoJogador.ts",
         "client/src/net/visaoDeTeste/camadaDeTeste.ts"
