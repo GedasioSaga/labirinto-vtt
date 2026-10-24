@@ -1,10 +1,11 @@
 import { readDir, stat } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
-import { idDaRefDeAudio, refDoId } from '../../midia'
-import { pastaDaMidiaDaAventura } from '../../midiaDaPasta'
+import { ehIdDeAudio, idDaRefDeAudio, refDoId } from '../../midia'
+import { lerAudioDaPasta, pastaDaMidiaDaAventura } from '../../midiaDaPasta'
 import { lerAudioGuardado } from '../../midiaNoDisco'
+import { useBibliotecaDeSonsStore } from '../../../stores/bibliotecaDeSonsStore'
 import type { BibliotecaDeSons } from '../biblioteca'
-import { criarMotorAoVivoDoNavegador, type MotorAoVivo } from './motor'
+import { criarMotorAoVivoDoNavegador, type CarregadorDeBytes, type MotorAoVivo } from './motor'
 
 /**
  * O LADO DO MESTRE dos sons ao vivo (Sistema 4, fatia F3): de onde vêm os
@@ -12,12 +13,32 @@ import { criarMotorAoVivoDoNavegador, type MotorAoVivo } from './motor'
  * não importa Tauri; quem lê o disco é este módulo, injetado nele.
  */
 
-/** O áudio guardado `<appData>/midia/<id>`, lido do disco; lança com a frase pronta quando não está lá. */
-export async function carregarBytesDoMestre(idDaMidia: string): Promise<Uint8Array> {
-  const bytes = await lerAudioGuardado(refDoId(idDaMidia))
-  if (bytes === null) throw new Error('isso não é um áudio guardado')
-  return bytes
+const NAO_E_AUDIO_GUARDADO = 'isso não é um áudio guardado'
+
+/**
+ * O carregador do mestre: o áudio vem de `<aventura>/midia/<id>`, conferido
+ * (`lerAudioDaPasta`), porque o som da biblioteca não mora mais em
+ * `<appData>/midia` (fechamento (b) da F5). Sem ele lá, de `<appData>/midia/<id>`:
+ * a aventura nova ainda sem pasta guarda ali, e o som de versão anterior pode
+ * não ter chegado à pasta. A pasta é perguntada a cada carga: o motor é um só e
+ * a aventura aberta muda. Lança com a frase pronta (`AUDIO_GUARDADO_SUMIU`).
+ */
+export function criarCarregadorDoMestre(pastaDaAventura: () => string | null): CarregadorDeBytes {
+  return async (idDaMidia) => {
+    if (!ehIdDeAudio(idDaMidia)) throw new Error(NAO_E_AUDIO_GUARDADO)
+    const pasta = pastaDaAventura()
+    if (pasta !== null) {
+      const daAventura = await lerAudioDaPasta(await pastaDaMidiaDaAventura(pasta), idDaMidia)
+      if (daAventura !== null) return daAventura
+    }
+    const bytes = await lerAudioGuardado(refDoId(idDaMidia))
+    if (bytes === null) throw new Error(NAO_E_AUDIO_GUARDADO)
+    return bytes
+  }
 }
+
+/** O carregador do app: a pasta é a da biblioteca de sons aberta (`dir` nulo = sem pasta ainda). */
+export const carregarBytesDoMestre: CarregadorDeBytes = criarCarregadorDoMestre(() => useBibliotecaDeSonsStore.getState().dir)
 
 let motorDoMestre: MotorAoVivo | null = null
 

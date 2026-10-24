@@ -4,14 +4,17 @@ vi.mock('@tauri-apps/plugin-fs', async () => (await import('../discoFalso.fixtur
 vi.mock('@tauri-apps/api/path', async () => (await import('../discoFalso.fixture')).pathFalso)
 
 const { arquivos, criarPastasAte, limparDisco, MIDIA_DO_APP, wav } = await import('../discoFalso.fixture')
-const { arquivosDaMidiaDaAventura, carregarBytesDoMestre, pesoDaMidiaComSons, tamanhoDaMidiaDaAventura } = await import('./carregadorDoMestre')
+const { arquivosDaMidiaDaAventura, carregarBytesDoMestre, criarCarregadorDoMestre, pesoDaMidiaComSons, tamanhoDaMidiaDaAventura } = await import('./carregadorDoMestre')
 const { AUDIO_GUARDADO_SUMIU } = await import('../../midiaNoDisco')
+const { idDoAudio } = await import('../../midia')
+const { useBibliotecaDeSonsStore } = await import('../../../stores/bibliotecaDeSonsStore')
 const { bibliotecaDeSonsVazia, comEfeitoNovo } = await import('../biblioteca')
 type BibliotecaDeSons = import('../biblioteca').BibliotecaDeSons
 
 /*
  * O LADO DO MESTRE dos sons ao vivo: os bytes que o motor toca vêm de
- * `<appData>/midia/<id>`, e a página mostra quanto pesa `<aventura>/midia/`.
+ * `<aventura>/midia/<id>` (e, sem eles lá, de `<appData>/midia/<id>`), e a
+ * página mostra quanto pesa `<aventura>/midia/`.
  */
 
 const ID = `${'ab'.repeat(32)}.wav`
@@ -28,6 +31,39 @@ describe('carregarBytesDoMestre', () => {
     expect(await carregarBytesDoMestre(ID)).toEqual(wav(64, 3))
     await expect(carregarBytesDoMestre(`${'cd'.repeat(32)}.wav`)).rejects.toThrow(AUDIO_GUARDADO_SUMIU)
     await expect(carregarBytesDoMestre('nao-e-audio.png')).rejects.toThrow('isso não é um áudio guardado')
+  })
+
+  it('o som da biblioteca vem de <aventura>/midia, sem cópia em <appData>/midia (fechamento (b) da F5); a pasta é a da biblioteca aberta', async () => {
+    const bytes = wav(64, 7)
+    const id = await idDoAudio(bytes)
+    if (id === null) throw new Error('o teste montou bytes que não são áudio')
+    criarPastasAte(`${AVENTURA}/midia`)
+    arquivos.set(`${AVENTURA}/midia/${id}`, bytes)
+
+    expect(await criarCarregadorDoMestre(() => AVENTURA)(id)).toEqual(bytes)
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+    useBibliotecaDeSonsStore.setState({ dir: AVENTURA })
+    try {
+      expect(await carregarBytesDoMestre(id)).toEqual(bytes)
+    } finally {
+      useBibliotecaDeSonsStore.setState({ dir: null })
+    }
+  })
+
+  it('sem a pasta (aventura nova) ou com o arquivo da pasta trocado, vem de <appData>/midia; sem nenhum dos dois, a frase pronta', async () => {
+    const bytes = wav(64, 8)
+    const id = await idDoAudio(bytes)
+    if (id === null) throw new Error('o teste montou bytes que não são áudio')
+    criarPastasAte(MIDIA_DO_APP)
+    arquivos.set(`${MIDIA_DO_APP}/${id}`, bytes)
+    expect(await criarCarregadorDoMestre(() => null)(id)).toEqual(bytes)
+
+    criarPastasAte(`${AVENTURA}/midia`)
+    arquivos.set(`${AVENTURA}/midia/${id}`, wav(64, 9))
+    expect(await criarCarregadorDoMestre(() => AVENTURA)(id)).toEqual(bytes)
+
+    arquivos.delete(`${MIDIA_DO_APP}/${id}`)
+    await expect(criarCarregadorDoMestre(() => AVENTURA)(id)).rejects.toThrow(AUDIO_GUARDADO_SUMIU)
   })
 })
 

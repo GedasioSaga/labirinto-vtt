@@ -1,4 +1,4 @@
-import { ehRefDeAudio, idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../midia'
+import { ehIdDeAudio, ehRefDeAudio, idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../midia'
 
 /**
  * BIBLIOTECA DE SONS da aventura (Sistema 4, sons ao vivo; plano em
@@ -14,6 +14,13 @@ import { ehRefDeAudio, idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../midia'
  */
 
 export const VERSAO_DA_BIBLIOTECA_DE_SONS = 1
+/** O arquivo da biblioteca, ao lado do `adventure.json`. Mora aqui (e não no disco) para `midiaDaPasta.ts` lê-lo sem ciclo de import. */
+export const ARQUIVO_DE_SONS = 'sons.json'
+/**
+ * Teto do `sons.json`: 200 efeitos ocupam bem menos de 100 KB. Acima disto o
+ * arquivo nem é lido (um de 2 GB derrubaria o app) e nada é regravado por cima.
+ */
+export const SONS_JSON_MAX_BYTES = 1024 * 1024
 export const NOME_DE_SOM_MAX = 40
 export const EFEITOS_DE_SOM_MAX = 200
 /** Pastas de um nível só, em chips no topo da aba: 50 já não cabem numa olhada. */
@@ -292,6 +299,43 @@ export function idsDeAudioDaBiblioteca(biblioteca: BibliotecaDeSons): string[] {
     if (id !== null) ids.add(id)
   }
   return [...ids].sort()
+}
+
+/** Os áudios que um `sons.json` cita; `'todos'` = não dá para saber quais, então vale para qualquer áudio. */
+export type AudiosCitados = ReadonlySet<string> | 'todos'
+
+/**
+ * Os áudios que o texto de um `sons.json` CITA, para a abertura NÃO os trazer
+ * para `<appData>/midia` (`lib/midiaDaPasta.ts`): aquela pasta a sala serve em
+ * `/media/{id}` sem chave, e o som da biblioteca só sai pela rota com chave
+ * (`/sons/{id}`). Mais largo que `idsDeAudioDaBiblioteca` de propósito: conta
+ * todo texto com forma de id ou de referência de áudio, inclusive no efeito
+ * torto que a leitura descartaria. Na dúvida é `'todos'`: texto que não é JSON
+ * e versão mais nova (a forma nova pode guardar o áudio de outro jeito).
+ */
+export function audiosCitadosNoTexto(texto: string): AudiosCitados {
+  let bruto: unknown
+  try {
+    bruto = JSON.parse(texto)
+  } catch {
+    return 'todos'
+  }
+  if (isRecord(bruto) && typeof bruto.versao === 'number' && bruto.versao > VERSAO_DA_BIBLIOTECA_DE_SONS) return 'todos'
+  const ids = new Set<string>()
+  // Pilha, não recursão: o JSON aninhado fundo (cabe em 1 MB) estouraria a pilha de chamadas.
+  const pendentes: unknown[] = [bruto]
+  while (pendentes.length > 0) {
+    const valor = pendentes.pop()
+    if (typeof valor === 'string') {
+      const id = ehIdDeAudio(valor) ? valor : idDaRefDeAudio(valor)
+      if (id !== null) ids.add(id)
+    } else if (Array.isArray(valor)) {
+      for (const item of valor) pendentes.push(item)
+    } else if (isRecord(valor)) {
+      for (const [chave, item] of Object.entries(valor)) pendentes.push(chave, item)
+    }
+  }
+  return ids
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  audiosCitadosNoTexto,
   bibliotecaDeSonsVazia,
   bibliotecaDoTexto,
   comEfeitoMudado,
@@ -288,6 +289,21 @@ describe('mudanças (puras)', () => {
   it('os ids de áudio que viajam com a pasta: só os arquivos, sem repetir', () => {
     const repetida = comEfeitoNovo(cheia(), { nome: 'Porta 2', fonte: ARQUIVO_A }, 'som_porta2')?.biblioteca ?? cheia()
     expect(idsDeAudioDaBiblioteca(repetida)).toEqual([ID_A, ID_B])
+  })
+
+  it('os áudios que o sons.json cita (para a abertura não os trazer): os da biblioteca, o do efeito torto e o id solto; imagem não conta', () => {
+    expect(audiosCitadosNoTexto(serializarBiblioteca(cheia()))).toEqual(new Set([ID_A, ID_B]))
+    const ID_C = `${'c'.repeat(64)}.ogg`
+    const torto = JSON.stringify({ versao: 1, efeitos: [{ fonte: { ref: `midia:${ID_C}` } }, ID_A, { [ID_B]: 1 }, `midia:${'d'.repeat(64)}.png`] })
+    expect(audiosCitadosNoTexto(torto)).toEqual(new Set([ID_A, ID_B, ID_C]))
+    expect(audiosCitadosNoTexto(JSON.stringify(bibliotecaDeSonsVazia()))).toEqual(new Set())
+  })
+
+  it('na dúvida, todos: texto que não é JSON e versão mais nova; JSON aninhado fundo não derruba', () => {
+    expect(audiosCitadosNoTexto('{ quebrado')).toBe('todos')
+    expect(audiosCitadosNoTexto(JSON.stringify({ versao: 2, efeitos: [] }))).toBe('todos')
+    const fundo = `${'['.repeat(5000)}"midia:${ID_A}"${']'.repeat(5000)}`
+    expect(audiosCitadosNoTexto(fundo)).toEqual(new Set([ID_A]))
   })
 
   it('nome do arquivo importado: sem pasta e sem extensão, aparado, no teto; vazio vira o padrão', () => {

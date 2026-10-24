@@ -76,9 +76,11 @@ interface BibliotecaDeSonsState {
   /** Efeito novo no fim; `null` = recusado (dado inválido, 200 efeitos, sem aventura, lendo). */
   adicionarEfeito: (novo: EfeitoNovo) => EfeitoDeSom | null
   /**
-   * O arquivo de áudio escolhido vira efeito: guardado em `<appData>/midia` e,
-   * na próxima gravação, levado para a pasta da aventura. Lança com a frase
-   * pronta (`AUDIO_GRANDE_DEMAIS`, `AUDIO_NAO_E_AUDIO`, `SONS_SEM_AVENTURA`...).
+   * O arquivo de áudio escolhido vira efeito: gravado direto em
+   * `<aventura>/midia` (fora do `/media` sem chave da sala). A aventura nova,
+   * ainda sem pasta, guarda em `<appData>/midia`, e a primeira gravação leva
+   * para a pasta. Lança com a frase pronta (`AUDIO_GRANDE_DEMAIS`,
+   * `AUDIO_NAO_E_AUDIO`, `SONS_SEM_AVENTURA`...).
    */
   importarArquivoDeSom: (nomeDoArquivo: string, bytes: Uint8Array) => Promise<EfeitoDeSom>
   /** `false` = recusado (efeito que não existe ou campo inválido). Atalho dado a outro sai de quem tinha. */
@@ -210,7 +212,7 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
       const antes = impedimento()
       if (antes !== null) throw new Error(antes)
       const { aventuraId, dir } = get()
-      const fonte = await guardarArquivoDeSom(bytes)
+      const fonte = await guardarArquivoDeSom(bytes, dir)
       // A aventura pode ter trocado enquanto o disco gravava o áudio, e a troca já ter terminado (a outra
       // lida e pronta para mudar): o efeito não vai para a outra. A mesma aventura em outra pasta também é
       // troca (a cópia de backup tem o mesmo id); a aventura nova que ganhou a PRIMEIRA pasta não é.
