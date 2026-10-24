@@ -86,6 +86,27 @@ const BBOX_SLACK = 1e-3
  */
 export type VisionRadius = number | ((tokenId: string) => number)
 
+/**
+ * NOITE NA CENA (Luz L2): o raio de cada ficha numa cena que está à noite
+ * (`periodoDaCena`). Além do raio do período, o claro das luzes na linha de
+ * visão chega, como numa cena escura (`darkVision`). Viaja junto do raio
+ * porque é ele que todo recorte do host recebe (`tokenRadiusIn`): snapshot,
+ * porta, item, tela da mesa — nenhum esquece a noite.
+ */
+export interface RaioDaNoite {
+  (tokenId: string): number
+  readonly noite: true
+}
+
+/** Marca o raio de cada ficha como o de uma cena à noite. */
+export function raioDaNoite(raio: (tokenId: string) => number): RaioDaNoite {
+  return Object.assign((tokenId: string) => raio(tokenId), { noite: true as const })
+}
+
+function ehRaioDaNoite(raio: VisionRadius): boolean {
+  return typeof raio === 'function' && 'noite' in raio && raio.noite === true
+}
+
 export interface PlayerMapView {
   map: MapData
   vision: RegionPoint[][]
@@ -1457,18 +1478,23 @@ const SHADOW_DISTANCE_FRACTION = 0.5
  * muda; a própria nunca) mais longe que `SHADOW_DISTANCE_FRACTION` do raio de
  * TODA ficha dele e fora do raio de toda luz que ele recebe.
  * `otherPlayerTokenIds` já vem sem as fichas dele; `radiusOf` é o raio de
- * cada ficha dele (RAIO POR FICHA, ver `filterMapForGroup`).
+ * cada ficha dele (RAIO POR FICHA, ver `filterMapForGroup`). `litBy` diz se a
+ * luz alcança o ponto de verdade (Luz L2): a parede entre a luz e a ficha
+ * conta, senão a tocha do outro lado da cerca devolvia o rótulo de quem está
+ * no escuro — à noite, com o raio curto, é um canal aberto.
  */
 function shadowOfOtherPlayer(
   otherPlayerTokenIds: ReadonlySet<string>,
   ownTokens: readonly Token[],
   lights: readonly Light[],
   radiusOf: (token: Token) => number,
+  litBy: (light: Light, at: RegionPoint) => boolean,
 ): (token: Token) => boolean {
   return (token) => {
     if (!otherPlayerTokenIds.has(token.id)) return false
     if (ownTokens.some((own) => Math.hypot(own.x - token.x, own.y - token.y) <= radiusOf(own) * SHADOW_DISTANCE_FRACTION)) return false
-    return !lights.some((l) => Math.hypot(l.x - token.x, l.y - token.y) <= l.radius)
+    const at = { x: token.x, y: token.y }
+    return !lights.some((l) => Math.hypot(l.x - token.x, l.y - token.y) <= l.radius && litBy(l, at))
   }
 }
 
@@ -2251,6 +2277,8 @@ function recorteDoGrupo(
     }
   }
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
+  // NOITE NA CENA: o grupo é de uma cena só, então um raio da noite vale para todos.
+  const noite = viewers.some((viewer) => ehRaioDaNoite(viewer.visionRadius))
   // Acordo só vale para ficha que este recorte segura: acordo de outro nunca entra nele.
   const loanOf = (tokenId: string): TokenContract | undefined => (owned.has(tokenId) ? loans?.get(tokenId) : undefined)
   const layerTokens = naCamadaDoJogador('ficha', map.tokens)
@@ -2673,7 +2701,7 @@ function recorteDoGrupo(
   const isInteriorRoom = (r: Region): boolean => underRoofIds.has(r.id) || swallowedByClosedRoof(r)
   const openDarkRooms = darkRoomsOnLayer.filter((r) => !isInteriorRoom(r))
   const darknessForPlayer = (darkRooms: readonly Region[]): Darkness | null => {
-    if (map.dark !== true && darkRooms.length === 0) return null
+    if (map.dark !== true && darkRooms.length === 0 && !noite) return null
     const darkBoxes = boxRings(darkRooms.map((r) => r.points))
     const veils = boxRings(concealed).filter((v) =>
       darkBoxes.some((d) => v.maxX >= d.minX && v.minX <= d.maxX && v.maxY >= d.minY && v.minY <= d.maxY),
@@ -2696,6 +2724,7 @@ function recorteDoGrupo(
     })
     return {
       sceneDark: map.dark === true,
+      noite,
       rooms: darkRooms.map((r) => r.points),
       veils: veils.map((v) => v.ring),
       lights: lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })),
@@ -3758,7 +3787,19 @@ function recorteDoGrupo(
   // `playerId`). "Outro jogador" = as fichas de jogador (`watchTargets`) que
   // não são deste recorte.
   const otherPlayerTokenIds = new Set(playerId === undefined ? [] : [...(watchTargets ?? [])].filter((id) => !owned.has(id)))
-  const isShadow = shadowOfOtherPlayer(otherPlayerTokenIds, ownTokens, playerLights, radiusOf)
+  // O claro de cada luz com as paredes que o jogador conhece, só quando há ficha de outro jogador longe (é raro).
+  const litAreas = new Map<string, RegionPoint[]>()
+  let lightSegments: Segment[] | null = null
+  const litBy = (l: Light, at: RegionPoint): boolean => {
+    let area = litAreas.get(l.id)
+    if (area === undefined) {
+      lightSegments ??= visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls })
+      area = computeVisibility({ x: l.x, y: l.y }, lightSegments, l.radius)
+      litAreas.set(l.id, area)
+    }
+    return area.length >= 3 && pointInRing(at, area)
+  }
+  const isShadow = shadowOfOtherPlayer(otherPlayerTokenIds, ownTokens, playerLights, radiusOf, litBy)
 
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
   // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do

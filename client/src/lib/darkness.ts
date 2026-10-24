@@ -56,6 +56,12 @@ export interface DarkLight {
 export interface Darkness {
   /** Cena inteira escura (`MapData.dark`). */
   sceneDark: boolean
+  /**
+   * NOITE NA CENA (Luz L2): a ficha enxerga o raio do período (que já chega
+   * encolhido) e, além dele, o claro de TODA luz na linha de visão — não só o
+   * das que encostam numa sala escura. Sala escura continua escura.
+   */
+  noite?: boolean
   /** Polígonos das salas escuras que valem para este jogador. */
   rooms: RegionPoint[][]
   /**
@@ -218,10 +224,55 @@ export function darkVision(origin: RegionPoint, segments: Segment[], visionRadiu
     }
   }
 
-  // Numa cena clara, luz só importa onde encosta numa sala escura.
-  const lights = darkness.sceneDark ? darkness.lights : darkness.lights.filter((l) => rooms.some((r) => overlaps(r, lightBox(l))))
+  const lights = darkness.sceneDark ? darkness.lights : darkness.lights.filter((l) => litBeyondSight(l, origin, visionRadius, darkness, rooms))
   if (lights.length > 0) out.push(...litRings(origin, segments, lights, darkness, rooms, veils))
   return out.filter((ring) => ring.length >= 3)
+}
+
+/**
+ * Numa cena clara, a luz só soma onde a visão de sempre não decide: encostada
+ * numa sala escura ou, À NOITE, fora do raio de quem olha. Luz cujo claro
+ * inteiro cabe no raio (e longe de sala escura) não acrescenta nada à visão —
+ * pular a conta dela é o que segura o custo da vila à noite.
+ */
+function litBeyondSight(l: DarkLight, origin: RegionPoint, visionRadius: number, darkness: Darkness, rooms: readonly Boxed[]): boolean {
+  if (rooms.some((r) => overlaps(r, lightBox(l)))) return true
+  return darkness.noite === true && Math.hypot(l.x - origin.x, l.y - origin.y) + l.radius > visionRadius
+}
+
+/** Os segmentos a-b e c-d se tocam ou se cruzam (encostar conta: na dúvida, não está dentro). */
+function segmentsMeet(a: RegionPoint, b: RegionPoint, c: RegionPoint, d: RegionPoint): boolean {
+  const side = (p: RegionPoint, q: RegionPoint, r: RegionPoint): number => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  return side(a, b, c) * side(a, b, d) <= 0 && side(c, d, a) * side(c, d, b) <= 0
+}
+
+/**
+ * `inner` inteiro dentro de `outer`. Nenhuma aresta de um encosta numa do
+ * outro, então as bordas não se cruzam e `inner` está todo dentro ou todo
+ * fora; um vértice dentro decide. Encostar conta como cruzar: vértice em cima
+ * da borda de `outer` dá "não está dentro" (na dúvida, as sementes decidem).
+ */
+function ringInside(inner: Boxed, outer: Boxed): boolean {
+  if (inner.minX < outer.minX || inner.maxX > outer.maxX || inner.minY < outer.minY || inner.maxY > outer.maxY) return false
+  const n = inner.ring.length
+  const m = outer.ring.length
+  for (let j = 0; j < m; j += 1) {
+    const c = outer.ring[j]
+    const d = outer.ring[(j + 1) % m]
+    const loX = Math.min(c.x, d.x)
+    const hiX = Math.max(c.x, d.x)
+    const loY = Math.min(c.y, d.y)
+    const hiY = Math.max(c.y, d.y)
+    // Só a parte de `outer` que passa pela caixa de `inner` pode encostar nele.
+    if (hiX < inner.minX || loX > inner.maxX || hiY < inner.minY || loY > inner.maxY) continue
+    for (let i = 0; i < n; i += 1) {
+      const a = inner.ring[i]
+      const b = inner.ring[(i + 1) % n]
+      if (Math.max(a.x, b.x) < loX || Math.min(a.x, b.x) > hiX || Math.max(a.y, b.y) < loY || Math.min(a.y, b.y) > hiY) continue
+      if (segmentsMeet(a, b, c, d)) return false
+    }
+  }
+  return pointInRing(inner.ring[0], outer.ring)
 }
 
 /** O claro de cada luz que a ficha em `origin` vê, mesmo além do raio dela. */
@@ -246,12 +297,21 @@ function litRings(
     const center = { x: light.x, y: light.y }
     const litArea = boxed(tidy(computeVisibility(center, segments, light.radius)))
     if (litArea.ring.length < 3 || !overlaps(litArea, far)) continue
+    // À NOITE, na rua (longe de sala escura e de véu), o claro que cabe INTEIRO na linha de visão é ele mesmo: sem sementes.
+    const openAir = darkness.noite === true && !darkness.sceneDark && ![...rooms, ...veils].some((r) => overlaps(r, litArea))
+    if (openAir && ringInside(litArea, far)) {
+      out.push(litArea.ring)
+      continue
+    }
     const walls = [...segments, ...ringToSegments(litArea.ring), ...farWalls, ...roomWalls]
     // Cena clara: o claro da luz só soma DENTRO da sala escura e fora do véu; fora dela a visão de sempre já decide.
+    // À NOITE soma também fora das salas (fora do véu): lá fora está escuro além do raio.
     const accepts = (p: RegionPoint): boolean =>
       clearlyInside(p, litArea) &&
       clearlyInside(p, far) &&
-      (darkness.sceneDark || (rooms.some((r) => clearlyInside(p, r)) && veils.every((v) => clearlyOutside(p, v))))
+      (darkness.sceneDark ||
+        ((rooms.some((r) => clearlyInside(p, r)) || (darkness.noite === true && rooms.every((r) => clearlyOutside(p, r)))) &&
+          veils.every((v) => clearlyOutside(p, v))))
     const seeds = [center, origin, ...seedGrid(litArea, Math.min(darkness.cell, light.radius / 2), center)]
     out.push(...fillFromSeeds(seeds, accepts, walls, light.radius * 2 + darkness.cell))
   }

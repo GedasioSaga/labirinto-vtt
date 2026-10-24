@@ -11,7 +11,7 @@
  * Teste de tempo: mora no projeto `desempenho` (`client/vitest.projetos.json`).
  */
 import { describe, expect, it } from 'vitest'
-import { filterMapForPlayer } from '../lib/fogFilter'
+import { filterMapForPlayer, raioDaNoite, type VisionRadius } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { FloorPiece, Light, MapData, Periodo, Region, Token, Wall } from '../types/map'
 import { createHostSession, type HostSession } from './hostSession'
@@ -31,6 +31,10 @@ const FILTER_P95_BUDGET_MS = 10
 /** Teto do plano: nenhuma tarefa longa (>= 200 ms) na troca. */
 const SWITCH_BUDGET_MS = 200
 const FILTER_ROUNDS = 30
+/** Guarda da L2: a noite com luz mediu 3,3x a noite de antes (só o raio curto); acima de 5x algo piorou. */
+const L2_RAZAO_MAXIMA = 5
+/** Abaixo disto a diferença é ruído do relógio (o p95 de antes fica perto de 1 ms). */
+const RUIDO_MS = 0.25
 
 function parede(id: string, x1: number, y1: number, x2: number, y2: number, extra: Partial<Wall> = {}): Wall {
   return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null, ...extra }
@@ -119,17 +123,17 @@ function p95(amostras: number[]): number {
   return ordenadas[Math.min(ordenadas.length - 1, Math.ceil(ordenadas.length * 0.95) - 1)] ?? 0
 }
 
-/** p95 do recorte de um jogador: `FILTER_ROUNDS` rodadas dos 7. */
-function filtroP95(map: MapData): number {
+/** p95 do recorte de um jogador: `FILTER_ROUNDS` rodadas dos 7, com o raio `raio` (o de dia, por padrão). */
+function filtroP95(map: MapData, raio: VisionRadius = VISION): number {
   const ownership: Record<string, string[]> = {}
   for (let i = 0; i < PLAYERS; i += 1) ownership[`p${i}`] = [`heroi${i}`]
   // Aquecimento: o JIT e os caches de visibilidade não entram na medida.
-  for (let i = 0; i < PLAYERS; i += 1) filterMapForPlayer(map, `p${i}`, ownership, VISION)
+  for (let i = 0; i < PLAYERS; i += 1) filterMapForPlayer(map, `p${i}`, ownership, raio)
   const amostras: number[] = []
   for (let rodada = 0; rodada < FILTER_ROUNDS; rodada += 1) {
     for (let i = 0; i < PLAYERS; i += 1) {
       const start = performance.now()
-      filterMapForPlayer(map, `p${i}`, ownership, VISION)
+      filterMapForPlayer(map, `p${i}`, ownership, raio)
       amostras.push(performance.now() - start)
     }
   }
@@ -158,6 +162,29 @@ describe('Dia/Tarde/Noite: custo no mestre na vila com 20 luzes e 30 NPCs', () =
     console.info(`[luz-l1] recorte p95 por jogador: sem campos ${sem.toFixed(2)} ms | com campos ${com.toFixed(2)} ms`)
     expect(sem).toBeLessThanOrEqual(FILTER_P95_BUDGET_MS)
     expect(com).toBeLessThanOrEqual(FILTER_P95_BUDGET_MS)
+  })
+
+  /**
+   * O RISCO do plano medido (24/10/2026): a noite com o claro das luzes é
+   * conta nova (o `darkVision` na vila inteira), não dá para ficar a 20% do
+   * raio curto sem luz. Primeira versão 6,7 ms (5,8x); com o claro inteiro na
+   * linha de visão sem sementes (`ringInside`), 3,5 ms (3,3x). O teto do plano
+   * é o absoluto; a razão segura uma piora acidental.
+   */
+  it('Luz L2, a noite com o claro das luzes (darkVision na vila inteira): p95 <= 10 ms', () => {
+    const linhas: string[] = []
+    for (const [nome, map, raio] of [
+      ['sem campo (350 px)', vila(false), 350],
+      ['noite 3 casas (150 px)', vila(true), 150],
+    ] as const) {
+      // Antes da L2 a noite era só o raio curto (número); agora o raio vai marcado e as luzes entram.
+      const antes = filtroP95(map, raio)
+      const depois = filtroP95(map, raioDaNoite(() => raio))
+      linhas.push(`${nome}: antes ${antes.toFixed(2)} ms, depois ${depois.toFixed(2)} ms`)
+      expect(depois).toBeLessThanOrEqual(FILTER_P95_BUDGET_MS)
+      expect(depois).toBeLessThanOrEqual(Math.max(antes * L2_RAZAO_MAXIMA, antes + RUIDO_MS))
+    }
+    console.info(`[luz-l2] recorte p95 por jogador à noite: ${linhas.join(' | ')}`)
   })
 
   it('troca de período com 7 jogadores: 1 mensagem por jogador e nenhuma tarefa >= 200 ms', () => {

@@ -54,14 +54,30 @@ export function comCenaExterna(map: MapData, externa: boolean): MapData {
 }
 
 /**
- * Quanto sobra do raio de visão à noite (a regra do relógio antigo, "noite =
- * metade da visão"), até a L2 trazer `visaoPorPeriodo` por cena.
+ * Quanto sobra do raio de visão à noite na cena SEM `visaoPorPeriodo.noite`
+ * (a regra do relógio antigo, "noite = metade da visão").
  */
 export const VISAO_DA_NOITE = 0.5
 
-/** O raio de visão no período da cena: cai à noite, igual no resto. */
-export function raioNoPeriodo(raio: number, periodo: Periodo): number {
-  return periodo === 'noite' ? Math.round(raio * VISAO_DA_NOITE) : raio
+/**
+ * O raio de visão (px de mundo) no período da cena. `raio` é a visão cheia de
+ * quem olha nesta cena (com o fator dele); `fator` é o fator de visão do
+ * jogador, que vale também nas casas do período.
+ *  - dia: a cheia, sempre;
+ *  - tarde/noite com `visaoPorPeriodo` da cena: as casas do período x casa x
+ *    fator, nunca acima da cheia (0 apaga a visão);
+ *  - sem o campo (ou com valor torto, relido aqui porque o mapa pode vir cru):
+ *    noite = metade da cheia, tarde = a cheia.
+ * Sem `cena`, só a regra de antes (quem não tem o mapa à mão).
+ */
+export function raioNoPeriodo(raio: number, periodo: Periodo, cena?: Pick<MapData, 'visaoPorPeriodo' | 'grid'>, fator = 1): number {
+  if (periodo === PERIODO_PADRAO) return raio
+  const semCampo = periodo === 'noite' ? Math.round(raio * VISAO_DA_NOITE) : raio
+  const campo: unknown = cena?.visaoPorPeriodo
+  const casas = ehObjeto(campo) ? casasDeVisao(campo[periodo]) : undefined
+  if (cena === undefined || casas === undefined) return semCampo
+  const px = casas * cena.grid * fator
+  return Number.isFinite(px) && px >= 0 ? Math.min(raio, px) : semCampo
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -126,8 +126,8 @@
     <text x="528" y="208" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
     <text x="544" y="208" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace">sem marca: sempre dia</text>
     <line x1="520" y1="224" x2="664" y2="224" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
-    <text x="592" y="242" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">noite: visão pela metade</text>
-    <text x="592" y="254" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">(raioNoPeriodo)</text>
+    <text x="592" y="242" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">visão em casas por período</text>
+    <text x="592" y="254" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">noite: + claro das luzes</text>
     <line x1="520" y1="268" x2="664" y2="268" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
     <text x="592" y="288" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">troca: 1 mensagem</text>
     <text x="592" y="300" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só a quem a cena muda</text>
@@ -186,7 +186,7 @@
     <ol>
       <li><strong>Painel.</strong> Na aba Grupo do <code>RoomPanel</code>, o componente <code>PeriodoDaSessaoSection</code> mostra os botões Dia, Tarde e Noite e a chave "Cena externa" da cena aberta, com uma frase do que a cena mostra agora ("Esta cena segue o período: agora está à noite"). Fica visível com a sala aberta ou fechada.</li>
       <li><strong>Guarda.</strong> O botão chama <code>adventureStore.setPeriodo</code>, que grava <code>Adventure.periodo</code> e pede Salvar. Dia tira a chave (<code>comPeriodo</code>), então a aventura que volta ao dia grava igual à de antes da Luz. Mapa solto, sem aventura: o período fica só na sessão (<code>periodoSolto</code>) e passa à aventura que nascer dele. A chave "Cena externa" grava <code>MapData.externa</code> (<code>comCenaExterna</code>, com desfazer).</li>
-      <li><strong>Host.</strong> A cada recorte, <code>hostSession</code> lê <code>getPeriodo()</code> e chama <code>periodoDaCena(mapa, sessão)</code>: o <code>periodoFixo</code> da cena vence; sem ele, cena <code>externa</code> segue a sessão; cena sem nenhuma das duas marcas é interior e fica sempre de dia. Sessão sem período vale dia. À noite o raio de visão cai pela metade (<code>raioNoPeriodo</code>, <code>VISAO_DA_NOITE = 0,5</code>), e é esse raio que todo recorte usa: o que ficou no escuro não viaja.</li>
+      <li><strong>Host.</strong> A cada recorte, <code>hostSession</code> lê <code>getPeriodo()</code> e chama <code>periodoDaCena(mapa, sessão)</code>: o <code>periodoFixo</code> da cena vence; sem ele, cena <code>externa</code> segue a sessão; cena sem nenhuma das duas marcas é interior e fica sempre de dia. Sessão sem período vale dia. O raio de visão sai de <code>raioNoPeriodo</code> (Luz L2): à tarde e à noite valem as casas de <code>visaoPorPeriodo</code> da cena vezes o fator do jogador, nunca acima da visão cheia (0 apaga a visão); sem o campo, noite = metade (<code>VISAO_DA_NOITE = 0,5</code>) e tarde = cheia. À noite o raio vai marcado (<code>raioDaNoite</code>) e o recorte soma o claro das luzes na linha de visão, como numa cena escura (<code>darkVision</code>). É esse raio que todo recorte usa: o que ficou no escuro não viaja.</li>
       <li><strong>Troca.</strong> O <code>App.tsx</code> assina a loja da aventura e, quando o período muda, chama <code>notifyPeriodoChanged</code>, que manda o snapshot na hora. A chave de sessão do envio usa o período DA CENA de cada jogador, então quem está em cena interior ou fixa não recebe mensagem nenhuma.</li>
       <li><strong>Recorte.</strong> O <code>fogFilter</code> tira <code>externa</code>, <code>periodoFixo</code>, <code>ambientePorPeriodo</code> e <code>visaoPorPeriodo</code> do mapa que vai ao jogador. O host junta <code>snapshot.luz = { periodo, cor, forca }</code> (<code>luzParaJogador</code>): o período da cena dele e a tinta só desse período. De dia, ou com o mestre sem período, o campo nem sai e o snapshot fica igual ao de antes da Luz.</li>
       <li><strong>Jogador.</strong> <code>playerConnection</code> lê <code>luz</code> com <code>lerLuzDoJogador</code>: só os três campos conhecidos, período válido, cor <code>#rrggbb</code>, força de 0 a 1. Fora disso a mensagem inteira é descartada. <code>player/main.tsx</code> escreve o período em <code>.pp-estado[data-periodo]</code> (ausente = dia).</li>
@@ -202,13 +202,15 @@ periodoDaCena({ periodoFixo: 'tarde', externa: true }, 'noite')  // 'tarde': o f
 luzParaJogador({ externa: true }, 'noite')
 // { periodo: 'noite', cor: '#465a92', forca: 0.85 }
 luzParaJogador({ externa: true }, 'dia')                         // null: o campo nem sai
-raioNoPeriodo(8, 'noite')                                        // 4: visão de 8 casas vira 4</code></pre>
+raioNoPeriodo(8, 'noite')                                        // 4: sem a cena, a metade
+raioNoPeriodo(700, 'noite', { grid: 50, visaoPorPeriodo: { noite: 3 } })  // 150: 3 casas
+raioNoPeriodo(700, 'noite', { grid: 50, visaoPorPeriodo: { noite: 30 } }) // 700: nunca acima da cheia</code></pre>
     <p>Os mesmos casos, com a tabela dos 6 da regra, estão em <code>lib/periodo.test.ts</code>. Para rodar os testes do período (45 passaram em 24/10/2026): <code>cd client &amp;&amp; npx vitest run src/lib/periodo.test.ts src/lib/periodo.jogador.test.ts src/lib/fogFilter.periodo.test.ts src/player/playerConnection.luz.test.ts src/net/hostSession.periodo.test.ts</code>.</p>
 
     <h2>Pegadinhas</h2>
     <ul>
       <li>Hoje o jogador só sente a visão menor à noite. A tinta (cor e força de <code>snapshot.luz</code>) chega à tela mas ninguém a desenha: <code>data-periodo</code> não tem estilo ligado a ele até a L4b. O selo "Manhã/Tarde/Noite" do jogador saiu e não tem substituto visível.</li>
-      <li>A visão da noite é fixa em metade até a L2 trazer <code>visaoPorPeriodo</code>. O campo já existe no mapa e é lido do arquivo, mas o host ainda não o usa.</li>
+      <li><code>visaoPorPeriodo</code> já vale no host (L2), mas só se define editando o arquivo do mapa; o painel é a L4c. Noite 0 apaga tudo, até o claro dos lampiões (é a regra de ficha sem visão). Sala com "Raio de visão aqui" troca o raio inteiro, inclusive o da noite.</li>
       <li><code>ambientePorPeriodo</code>, ao contrário, já vale: a cor e a força que o mapa define chegam em <code>snapshot.luz</code>. Sem o campo vale <code>AMBIENTE_PADRAO</code> (noite <code>#465a92</code> a 85%, tarde <code>#f2b071</code> a 60%, dia sem tinta). Cor fora de <code>#rrggbb</code> cai no padrão e força fora de 0 a 1 é grampeada. Por enquanto só se define editando o arquivo do mapa; o painel é a L4c.</li>
       <li><code>periodoFixo</code> também só por arquivo: o host respeita, o painel ainda não tem controle.</li>
       <li>A marca de cena externa é a mesma do relógio antigo (<code>MapData.externa</code>), então mapa antigo segue funcionando. O "manha" de arquivo antigo abre como "dia" e nunca é gravado. Um <code>relogio</code> vindo de mestre antigo é ignorado pelo jogador.</li>
