@@ -245,4 +245,8 @@ Três revisões (correção, segurança, design) deram 23 itens; um corretor só
 - **Ctrl+Z no meio do arrasto:** se a lista mudou, soltar não move nada (o índice era velho).
 - **Ordem real nos testes de ponta a ponta:** `pilha.ordemDasCamadas()` vira `data-ordem-da-pilha` no canvas do editor. Uma camada desenha em várias faixas (o rótulo da sala fica alto), então a pilha não é uma ordem total: o teste confere por par (o primeiro nó de cada camada) e confere o pacote REAL do jogador (`camadasDoJogador`) contra o painel. A tela do jogador se confere pela caixa dos pixels que mudaram (quadrada, com o meio igual), não por "o print mudou".
 
+**CPU do arrasto depois da revisão** (mesmo spec e mapa da medida acima, mediana de 5 rodadas por corrida, ms de CPU por quadro):
+- Contra 34ac6103, 3 corridas alternadas A, D: gesto inteiro 2,31 / 2,35 / 2,45 contra 3,17 / 3,00 / 2,99 (mediana +28%); só o arrasto 2,41 / 2,51 / 2,60 contra 3,22 / 3,01 / 3,03 (+20%); soltura 1,20 contra 2,80 (a base não reordena a pilha); parado igual (1,11 contra 1,10). Nenhuma tarefa longa.
+- O que a revisão acrescentou não pesa: o painel de c9727f24 (antes da revisão) contra o de agora, alternados, o resto igual, com a máquina carregada por outra linha: 3,51 / 3,87 contra 3,70 / 3,70 (gesto inteiro), 3,54 / 3,93 contra 3,77 / 3,80 (só o arrasto). Sem a rolagem na borda e sem a FLIP: 2,85, dentro do ruído das corridas de D. A diferença contra a base é a da fatia (registrada acima como +20%) com o ruído do dia; a FLIP roda no compositor (WAAPI, só `transform`).
+
 **Fora desta revisão:** em 390 px, o selo "100%" e a barra de ferramentas cobrem as últimas linhas do livro (já registrado pela revisão de design; é do layout do livro, não do painel).
