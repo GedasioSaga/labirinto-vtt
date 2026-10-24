@@ -89,7 +89,6 @@ describe('FichaDoObjeto', () => {
   const ligacoes = (): Omit<FichaDoObjetoProps, 'prop'> => ({
     mobilia: { onTipoChange: vi.fn(), onVistaChange: vi.fn(), onFormaChange: vi.fn(), onAparenciaChange: vi.fn() },
     transform: { onRotationChange: vi.fn(), onLockedChange: vi.fn(), onHiddenChange: vi.fn(), onSecretChange: vi.fn() },
-    onSetPropLayer: vi.fn(),
     player: { onLabelChange: vi.fn(), onShowImageChange: vi.fn() },
   })
 
@@ -103,7 +102,7 @@ describe('FichaDoObjeto', () => {
     expect(fechada('Aparência')).toBe(true)
     expect(fechada('No mapa')).toBe(false)
     expect(fechada('Para os jogadores')).toBe(true)
-    expect(ficha('No mapa')?.querySelector('[role="radiogroup"][aria-label="Camada do objeto selecionado"]')).not.toBeNull()
+    expect(ficha('No mapa')?.querySelector('[role="radiogroup"][aria-label="Camada do objeto selecionado"]')).toBeNull()
     expect(ficha('No mapa')?.textContent).toContain('Travado')
     expect(ficha('Para os jogadores')?.textContent).toContain('Rótulo para jogadores')
   })

@@ -94,8 +94,9 @@ const todos = (alvos: readonly Alvo[], ...caminho: Alvo[]): Linha[] => alvos.map
 
 const PAREDE_ESTILO: Alvo[] = [cx('Parede interna'), b('Pegar do mapa a cor da parede'), ['textbox', 'Cor da parede'], rg('Espessura da parede'), ['slider', 'Ajuste fino'], b('Avançado')]
 const REGIAO_ESTILO: Alvo[] = [['textbox', 'Cor'], cx('Hachurado'), rg('Espessura do contorno'), ['slider', 'Ajuste fino'], cx('Preenchido'), b('Avançado')]
-// FICHA DO OBJETO (fatia 16a): "No mapa" nasce aberta (trava, visibilidade e camada à vista); "Para os jogadores" nasce fechada.
-const OBJETO_NO_MAPA: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oculto no editor'), cx('Oculto para jogadores'), rg('Camada do objeto selecionado')]
+// FICHA DO OBJETO (fatia 16a): "No mapa" nasce aberta (trava e visibilidade à vista); "Para os jogadores" nasce fechada.
+// A camada saiu daqui para o seletor "Camada" do topo da ficha (fase 3 das camadas, fatia 8).
+const OBJETO_NO_MAPA: Alvo[] = [['spinbutton', 'Rotação'], cx('Travado'), cx('Oculto no editor'), cx('Oculto para jogadores')]
 const OBJETO_JOGADORES: Alvo[] = [['textbox', 'Rótulo para jogadores'], cx('Mostrar imagem ao jogador')]
 const TRANSICAO = (titulo: string): Alvo[] => [['heading', titulo], b('Nenhuma Chega direto'), b('Procurar animações novas')]
 // FICHA DO PINO (fatia 12): o essencial à vista, a aparência na ficha recolhida e os recursos pelo "+ Adicionar ao pino".

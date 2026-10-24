@@ -607,13 +607,12 @@ function App() {
   const setRegionStrokeJoinForRegion = useMapStore((state) => state.setRegionStrokeJoinForRegion)
   const setWallKindForWall = useMapStore((state) => state.setWallKindForWall)
   const toggleLayerVisibility = useMapStore((state) => state.toggleLayerVisibility)
-  // Onda 4, Frente D (camadas) — trava de camada + seletor "camada do Prop
-  // selecionado" (setPropLayer já existia órfão desde a Fase 1).
+  // Onda 4, Frente D (camadas) — trava de camada. A camada do item selecionado
+  // é o `SeletorDeCamada` da ficha, que fala direto com a store (fatia 8).
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   // Fase 3, fatia 6: o olho "Jogadores veem" e a opacidade de cada camada.
   const alternarOlhoDosJogadores = useMapStore((state) => state.alternarOlhoDosJogadores)
   const definirOpacidadeDaCamada = useMapStore((state) => state.definirOpacidadeDaCamada)
-  const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
   const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
@@ -3563,7 +3562,6 @@ function App() {
               onOpacity: definirOpacidadeDaCamada,
               modelo: acoesDoModeloDeCamadas,
             }}
-            onSetPropLayer={setPropLayer}
             selection={{
               // SelectionControls (Onda 4, item 24) só precisa de um resumo:
               // `kind` do primeiro item (só importa quando count === 1) +
