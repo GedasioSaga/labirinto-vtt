@@ -25,6 +25,8 @@ import {
   zonaIdentity,
 } from './livro/CabecaDaSelecao'
 import { FichaDaParede } from './livro/FichaDaParede'
+import { gradeDaParede } from './gradeDaParede'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { FichaDaPorta } from './livro/FichaDaPorta'
 import { FichaDoObjeto } from './livro/FichaDoObjeto'
 import { FichaDoDesenho } from './livro/FichaDoDesenho'
@@ -507,6 +509,8 @@ export function PropertiesPanel({
   // vale para qualquer seleção, com a ligação de pisos montada.
   const endireitarMudaria = useMapStore(selectEndireitarMudaria)
   const endireitarSelecionados = useMapStore((state) => state.endireitarSelecionados)
+  // GRADE DE PRISÃO da parede selecionada (MT10): só na janela sem porta, com a obra do Meio-Termo ligada.
+  const definirGrade = useMapStore((state) => state.definirGrade)
   // "Abrir para o corredor" da Sala selecionada (fatia 15: saiu do corpo da
   // ficha para o "Mais ações"); a conta e o motivo vêm da store.
   const salaSelecionada = selectedRegion?.room === undefined ? null : selectedRegion
@@ -970,7 +974,7 @@ export function PropertiesPanel({
             inteiro. */}
         {selectedWall !== null && !doorSelected ? (
           <ToolPropertiesSection group="wallStyle" groups={groups}>
-            <FichaDaParede estilo={{ ...wallStyle, avancado: avancadoDaParede }} />
+            <FichaDaParede estilo={{ ...wallStyle, avancado: avancadoDaParede, grade: gradeDaParede(selectedWall, meioTermoLigado(), definirGrade) }} />
           </ToolPropertiesSection>
         ) : (
           !doorSelected && secaoDaParede(false)

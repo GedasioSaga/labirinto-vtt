@@ -1082,6 +1082,27 @@ export function setWallJanela(map: MapData, wallId: string, janela: boolean): Ma
 }
 
 /**
+ * GRADE DE PRISÃO (`Wall.grade`, Meio-Termo, MT10): a janela desenhada como
+ * barras. Só numa parede `janela` sem porta (a regra da MT9: fora disso o
+ * campo nem atravessa o arquivo nem o recorte). Ligar grava `true`; desligar
+ * TIRA o campo. Parede comum, porta, id inexistente ou o mesmo valor devolvem
+ * o MESMO `map` (sem entrada inútil no histórico).
+ */
+export function definirGrade(map: MapData, wallId: string, ligada: boolean): MapData {
+  const alvo = map.walls.find((w) => w.id === wallId)
+  if (alvo === undefined || alvo.door !== null || alvo.janela !== true || (alvo.grade === true) === ligada) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (w.id !== wallId) return w
+      if (ligada) return { ...w, grade: true }
+      const { grade: _grade, ...semGrade } = w
+      return semGrade
+    }),
+  }
+}
+
+/**
  * "Deixa passar" / "Deixa ver" de uma parede (pedido de 07/10/2026): a parede
  * continua desenhada, mas o passo (`blocksMove`) ou a visão (`blocksLight`)
  * atravessa. Mesmo valor = o mesmo mapa, sem entrada inútil no histórico.

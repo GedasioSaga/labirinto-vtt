@@ -7,6 +7,7 @@ import { FACCAO_MAX_LENGTH } from '../lib/faccoes'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP } from '../net/hostSession'
 import { isDefaultRoomLabelStyle, type RoomLabelStyle, type RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import { selectNomeNaPilula, useMapStore } from '../stores/mapStore'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { Toggle } from './Toggle'
 import { EstiloDoTelhado } from './EstiloDoTelhado'
 import type { RoomRoofStylePatch } from '../lib/mapFactory'
@@ -576,6 +577,10 @@ export function RoomControls({
   // Da store: ligar a chave "Nomes dos lugares" no Configurar cena, ou apagar
   // o nome, troca o estilo do título pela dica sem passar pelo App.
   const nomeNaPilula = useMapStore((state) => salaId !== undefined && selectNomeNaPilula(state, salaId))
+  // CHAMINÉ (Meio-Termo, MT10): lida e gravada direto na store, como o nome na
+  // pílula, sem passar pelo App. Só com a obra ligada: desligada, ela nem é desenhada.
+  const chamine = useMapStore((state) => salaId !== undefined && state.map.regions.find((r) => r.id === salaId)?.room?.chamine === true)
+  const mostraChamine = salaId !== undefined && meioTermoLigado()
   const estiloProprio = useEstiloProprioDaSala(salaId, labelStyle)
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
@@ -734,6 +739,9 @@ export function RoomControls({
                     cor={corDoTetoOuPadrao(modeloDoTeto ?? MODELO_PADRAO_DO_TETO, corDoTeto)}
                     onChange={onRoofStyleChange}
                   />
+                )}
+                {roof === true && mostraChamine && (
+                  <Toggle label="Chaminé" checked={chamine} onChange={(ligada) => useMapStore.getState().definirChamine(salaId, ligada)} />
                 )}
               </div>
             )}

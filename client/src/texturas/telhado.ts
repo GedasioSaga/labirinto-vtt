@@ -44,6 +44,15 @@ import {
 } from '../lib/telhado/aguas'
 import { corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { hash, passoSuave, rgb } from './ruido'
+import { pintarChamineNaLinha, posicaoDaChamine, type ChamineNoTelhado } from './meioTermo/chamine'
+import {
+  coberturaDaCumeeira,
+  ehCumeeira,
+  ESCURO_MAXIMO_DA_CUMEEIRA,
+  LARGURA_DA_CUMEEIRA_AMARRADA_PX,
+  luzDaCumeeira,
+  posicaoAoLongoDoCume,
+} from './meioTermo/cumeeiraAmarrada'
 
 /** Comprimento de uma fileira de telha, em px do mapa (4 fileiras por casa de 40 px). */
 export const CURSO_DA_TELHA_PX = 10
@@ -581,10 +590,38 @@ function pintarDaAmostra(pincel: Pincel, o: number, x: number, y: number, a: Amo
  * `escala` pixels por px do mapa. Polígono quebrado: imagem vazia (0 × 0),
  * sem lançar. Cor inválida: a padrão do modelo. Modelo desconhecido: telhas.
  */
-export function pintarTelhado(poligono: readonly PontoDoTelhado[], modelo: ModeloDoTeto, corHex: string, escala = 1): ImagemDoTelhado {
-  const pintura = comecarTelhado(poligono, modelo, corHex, escala)
+export function pintarTelhado(
+  poligono: readonly PontoDoTelhado[],
+  modelo: ModeloDoTeto,
+  corHex: string,
+  escala = 1,
+  extras: ExtrasDoTelhado = {},
+): ImagemDoTelhado {
+  const pintura = comecarTelhado(poligono, modelo, corHex, escala, extras)
   pintura.pintarLinhas(Number.POSITIVE_INFINITY)
   return pintura.imagem
+}
+
+/**
+ * O que o Meio-Termo põe POR CIMA do telhado (fatia MT10). Quem decide é o
+ * renderer (`pixi/telhadosRenderer.ts`, que lê a chave de obra); sem extras,
+ * os bytes são os de antes.
+ */
+export interface ExtrasDoTelhado {
+  /** Chaminé de pedra na água de trás (`texturas/meioTermo/chamine.ts`). */
+  readonly chamine?: boolean
+  /** Só na palha: a cumeeira amarrada (`texturas/meioTermo/cumeeiraAmarrada.ts`). */
+  readonly cumeeiraAmarrada?: boolean
+}
+
+/** Pixels da linha a até 3,4 px do cume, anotados no laço e pintados depois dele. */
+interface PixelsDoCume {
+  quantos: number
+  readonly o: Int32Array
+  readonly x: Float64Array
+  readonly ate: Float64Array
+  readonly aoLongo: Float64Array
+  readonly claro: Uint8Array
 }
 
 /** Um telhado sendo pintado aos poucos: a imagem já existe (vazia) e cada chamada pinta mais linhas. */
@@ -606,13 +643,23 @@ interface EstadoDaPintura {
   readonly passo: number
   readonly alcance: number
   readonly folgaDoBloco: number
+  /** `null` = sem chaminé (não pedida, ou não coube). */
+  readonly chamine: ChamineNoTelhado | null
+  /** `null` = sem cumeeira amarrada (não pedida, ou não é palha). */
+  readonly cume: PixelsDoCume | null
 }
 
 /**
  * `pintarTelhado` em pedaços (o renderer pinta a palha em fatias de 8 ms): os
  * mesmos bytes, pintando a imagem inteira de uma vez ou linha a linha.
  */
-export function comecarTelhado(poligono: readonly PontoDoTelhado[], modelo: ModeloDoTeto, corHex: string, escala = 1): PinturaDoTelhado {
+export function comecarTelhado(
+  poligono: readonly PontoDoTelhado[],
+  modelo: ModeloDoTeto,
+  corHex: string,
+  escala = 1,
+  extras: ExtrasDoTelhado = {},
+): PinturaDoTelhado {
   const geo = prepararAguas(poligono)
   if (geo === null) {
     const vazia = { largura: 0, altura: 0, origemX: 0, origemY: 0, escala: escalaDoTelhado(1, 1, escala), pixels: new Uint8ClampedArray(0) }
@@ -656,6 +703,11 @@ export function comecarTelhado(poligono: readonly PontoDoTelhado[], modelo: Mode
     // Com a mesma dona e a mesma vizinha nas duas pontas, a distância até a emenda é linear ao longo do
     // bloco: as duas pontas longe da faixa da cumeeira bastam (1 px de folga para o arredondamento).
     folgaDoBloco: FAIXA_DA_CUMEEIRA_PX + 1,
+    chamine: extras.chamine === true ? posicaoDaChamine(geo) : null,
+    cume:
+      extras.cumeeiraAmarrada === true && modeloUsado === 'palha'
+        ? { quantos: 0, o: new Int32Array(largura), x: new Float64Array(largura), ate: new Float64Array(largura), aoLongo: new Float64Array(largura), claro: new Uint8Array(largura) }
+        : null,
   }
   const imagem: ImagemDoTelhado = { largura, altura, origemX, origemY, escala: k, pixels }
   let linha = 0
@@ -676,7 +728,7 @@ export function comecarTelhado(poligono: readonly PontoDoTelhado[], modelo: Mode
 
 /** Pinta as linhas `py0` (inclusive) a `py1` (exclusive) da imagem. */
 function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void {
-  const { geo, pincel, ponta, outraPonta, cruzamentos, origemX, origemY, largura, passo, alcance, folgaDoBloco } = estado
+  const { geo, pincel, ponta, outraPonta, cruzamentos, origemX, origemY, largura, passo, alcance, folgaDoBloco, chamine, cume } = estado
   const { k, palha } = pincel
   const { regua, nx, dx } = geo
 
@@ -686,6 +738,7 @@ function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void
     let proximo = 0
     let dentro = false
     let px0 = 0
+    if (cume !== null) cume.quantos = 0
     while (px0 < largura) {
       const x0 = origemX + (px0 + 0.5) * passo
       while (proximo < total && cruzamentos[proximo] <= x0) {
@@ -721,6 +774,7 @@ function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void
       }
       // Bloco difícil (emenda, parede, beiral, donas diferentes): pixel a pixel.
       pintarDaAmostra(pincel, (py * largura + px0) * 4, x0, y, ponta)
+      if (cume !== null) anotarCume(geo, pincel, cume, (py * largura + px0) * 4, x0, y, ponta)
       let dentroAqui = dentro
       let proximoAqui = proximo
       for (let px = px0 + 1; px <= px1; px += 1) {
@@ -729,9 +783,50 @@ function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void
           dentroAqui = !dentroAqui
           proximoAqui += 1
         }
-        if (amostrarAgua(geo, x, y, dentroAqui, alcance, outraPonta)) pintarDaAmostra(pincel, (py * largura + px) * 4, x, y, outraPonta)
+        if (amostrarAgua(geo, x, y, dentroAqui, alcance, outraPonta)) {
+          pintarDaAmostra(pincel, (py * largura + px) * 4, x, y, outraPonta)
+          if (cume !== null) anotarCume(geo, pincel, cume, (py * largura + px) * 4, x, y, outraPonta)
+        }
       }
       px0 = px1 + 1
     }
+    // Por cima, depois do laço da linha: a cumeeira amarrada e então a chaminé.
+    if (cume !== null) pintarCumeDaLinha(pincel, cume, y)
+    if (chamine !== null) pintarChamineNaLinha(pincel.pixels, largura, origemX, origemY, k, py, chamine)
+  }
+}
+
+/** Anota o pixel do bloco lento que cai a até 3,4 px de uma CUMEEIRA (não espigão, não rincão). */
+function anotarCume(geo: GeometriaDasAguas, pincel: Pincel, cume: PixelsDoCume, o: number, x: number, y: number, a: AmostraDaAgua): void {
+  if (a.vizinha < 0 || a.rincao || a.ateEmenda >= LARGURA_DA_CUMEEIRA_AMARRADA_PX || !ehCumeeira(geo, a.agua, a.vizinha)) return
+  const i = cume.quantos
+  if (i >= cume.o.length) return
+  cume.o[i] = o
+  cume.x[i] = x
+  cume.ate[i] = a.ateEmenda
+  cume.aoLongo[i] = posicaoAoLongoDoCume(geo, a.agua, a.vizinha, x, y)
+  cume.claro[i] = pincel.luzDaAgua[a.agua] >= 0 ? 1 : 0
+  cume.quantos = i + 1
+}
+
+/** Pinta a faixa amarrada por cima dos pixels anotados da linha, com a conta de cor da palha. */
+function pintarCumeDaLinha(pincel: Pincel, cume: PixelsDoCume, y: number): void {
+  const p = pincel.pixels
+  const { baseR, baseG, baseB, k } = pincel
+  const claro = pincel.neutro + LUZ_SOMADA
+  const linhaDoGrao = (Math.floor(y * 2) & (LADO_DO_GRAO - 1)) * LADO_DO_GRAO
+  for (let i = 0; i < cume.quantos; i += 1) {
+    const ate = cume.ate[i]
+    const t = coberturaDaCumeeira(ate, k)
+    if (t <= 0) continue
+    let luz = luzDaCumeeira(ate, cume.aoLongo[i], cume.claro[i] === 1, k)
+    luz += GRAO[linhaDoGrao + (Math.floor(cume.x[i] * 2) & (LADO_DO_GRAO - 1))]
+    if (luz < -ESCURO_MAXIMO_DA_CUMEEIRA) luz = -ESCURO_MAXIMO_DA_CUMEEIRA
+    const escuro = Math.min(luz, 0)
+    const d = LUZ_SOMADA * escuro + Math.max(luz, 0) * claro
+    const o = cume.o[i]
+    p[o] = p[o] + (baseR * (1 + escuro) + d - p[o]) * t
+    p[o + 1] = p[o + 1] + (baseG * (1 + escuro) + d - p[o + 1]) * t
+    p[o + 2] = p[o + 2] + (baseB * (1 + escuro) + d - p[o + 2]) * t
   }
 }

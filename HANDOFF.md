@@ -452,3 +452,13 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - **Fila:** Luz L3 (acende sozinha), MT11 (vista 3/4), MT12 (liga a chave de obra e regrava o golden), MT13, Batalha B3 e B4 (decidir onde medir: host ou cliente), Caminhos F3 e F4, Luz L4b, L4c, L5, L6, Sons F7, depois Fase 4.
 - Diagramas pendentes de atualização (fontes da MT9 mudaram): `telhado` (helper e chaminé), possivelmente `pilha-de-camadas`, `camadas-livres`, `vinculo-regiao-parede`, `arquitetura-render-editor`.
 - `task-camadas-painel` passou nos dois últimos N2 (instável): decidir na Fase 4 se sai da lista de conhecidas.
+
+## Atualização 24/10 ~16h — lote 8 (Luz L2) integrado; L3 e MT10 em curso
+- Main `bec25a5f` (tag `pre-integra-20`, bundle `labirinto-2026-10-24-9.bundle` verificado): Luz L2 (visão por período configurável por mapa). N2 do agente: tsc 0, vitest 17.911, desempenho 203, e2e 639 verdes e 160 vermelhos = 154 conhecidos + 6 de tempo que passam sozinhos (13 de 13); golden 19/19; após merge da main conferidos tsc e 67 testes.
+- Divergências aceitas: noite com lampião mostra o que a luz acende (efeito pedido); filtro à noite 3,05 ms (teto 10).
+- Em voo: Luz L3 (acesaEm, presets Tocha/Lampião/Fogueira e as 5 checagens de ação que ainda usam o raio do dia) e MT10 (chaminé e grade, folha `mt10-folha-de-contato.png` para o usuário aprovar).
+
+## Atualização 24/10 ~17h — lote 9 (MT10) integrado
+- Main `a56c6559` (tag `pre-integra-21`, bundle `labirinto-2026-10-24-10.bundle` verificado): MT10 (chaminé, cumeeira amarrada, grade de prisão), chave de obra do Meio-Termo ainda DESLIGADA. N2 do agente: vitest 17.926 verdes, e2e 638 verdes e 164 vermelhos = 154 conhecidos + 10 de tempo que passam sozinhos (24 de 24); depois do merge da main conferidos tsc (app e e2e) e 68 testes-chave.
+- Usuário precisa aprovar a folha MT10 (página "Chaminé e grade" sendo publicada). Respostas decidem tamanho e lado da chaminé, cumeeira e grade; depois MT11 (vista 3/4), MT12 (liga a chave, regrava golden), MT13.
+- Em voo: Luz L3 (`C:/dev/labirinto-luz`) e página da MT10. Pendente: diagramas `telhado` e `arquitetura-render-editor` (MT9/MT10), atualizar `task-camadas-painel` na lista de conhecidas (Fase 4).

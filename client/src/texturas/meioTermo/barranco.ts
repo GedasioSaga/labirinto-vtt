@@ -62,7 +62,8 @@ export function luminanciaDoRgb(c: Rgb): number {
   return 0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2])
 }
 
-function paraHsl(c: Rgb): [number, number, number] {
+/** HSL (matiz em graus, saturação e luz de 0 a 1) de uma cor de 8 bits, como `paraHsl` do protótipo. */
+export function paraHsl(c: Rgb): [number, number, number] {
   const r = c[0] / 255
   const g = c[1] / 255
   const b = c[2] / 255
@@ -76,7 +77,8 @@ function paraHsl(c: Rgb): [number, number, number] {
   return [h * 60, s, l]
 }
 
-function deHsl(h: number, s: number, l: number): Rgb {
+/** A cor de 8 bits de um HSL (matiz em graus), como `deHsl` do protótipo. */
+export function deHsl(h: number, s: number, l: number): Rgb {
   const hh = (((h % 360) + 360) % 360) / 360
   const q = l < 0.5 ? l * (1 + s) : l + s - l * s
   const p = 2 * l - q
