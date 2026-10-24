@@ -462,3 +462,10 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - Main `a56c6559` (tag `pre-integra-21`, bundle `labirinto-2026-10-24-10.bundle` verificado): MT10 (chaminé, cumeeira amarrada, grade de prisão), chave de obra do Meio-Termo ainda DESLIGADA. N2 do agente: vitest 17.926 verdes, e2e 638 verdes e 164 vermelhos = 154 conhecidos + 10 de tempo que passam sozinhos (24 de 24); depois do merge da main conferidos tsc (app e e2e) e 68 testes-chave.
 - Usuário precisa aprovar a folha MT10 (página "Chaminé e grade" sendo publicada). Respostas decidem tamanho e lado da chaminé, cumeeira e grade; depois MT11 (vista 3/4), MT12 (liga a chave, regrava golden), MT13.
 - Em voo: Luz L3 (`C:/dev/labirinto-luz`) e página da MT10. Pendente: diagramas `telhado` e `arquitetura-render-editor` (MT9/MT10), atualizar `task-camadas-painel` na lista de conhecidas (Fase 4).
+
+## Atualização 24/10 ~19h — lotes 10 (Luz L3) e 11 (MT10b) integrados; L4b e MT11 em curso
+- Main `b8775f87` (tags `pre-integra-22` e `pre-integra-23`, bundles `labirinto-2026-10-24-11.bundle` e `-12.bundle` verificados): Luz L3 e MT10b. Conferido após cada merge com a main: tsc app e e2e 0; testes-chave das duas linhas verdes (L3+MT10: 699 testes e 4 e2e; MT10b: 482 testes).
+- Em voo: **Luz L4b** (render da tinta e da luz, dono da faixa quente, `C:/dev/labirinto-luz`; dia = pixels idênticos; folha `l4b-folha-de-contato.png` para o usuário aprovar) e **MT11** (vista 3/4 dos móveis, `C:/dev/labirinto-mt10`, `designer-opus`, folha `mt11-folha-de-contato.png`).
+- Fila: Luz L4c (painel "Ambiente da cena"), L5 (transição 1,5 s), L6 (som por período); MT12 (liga a chave de obra, regrava o golden), MT13; Batalha B3 e B4 (decidir onde medir), Caminhos F3 e F4; Sons F7; Fase 4 (otimização).
+- Pendente de diagramas (fontes mudaram): `telhado`, `arquitetura-render-editor`, `periodo-da-sessao` (a L3 já editou), `fase-2-plano`.
+- Lista de vermelhas conhecidas: `task-camadas-painel` passou em 5 N2 seguidos mas falhou sozinha 2x no começo do dia; decidir na Fase 4.
