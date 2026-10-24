@@ -419,3 +419,10 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 
 - **MT8 PRONTA** (`feat/mt8`, `C:/dev/labirinto-mt8`, commits `6a04e893`, `36a7c989` merge da main, `0393a12c`; chave DESLIGADA): barranco liso, Sobel com teto por altura (Baixo 0,035, Médio 0,02, Alto 0,009; liso 0,0219/0,0099/0,0047; antigo 0,0481/0,0274/0,0135 reprova), contorno `#743d2e` (luminância 0,0725, contraste do pé 0,11 a 0,17), saturação p95 0,490 a 0,603 (teto 0,62), 3 digitais FNV iguais com a chave desligada, 4 de 4 mutações vermelhas, e2e 31 de 31 (golden estrito, seladas, barranco), tsc 0, vitest `related` 584 testes; PC: textura 3000x2000 morna 59 a 63 ms (antigo 60 a 62), sem tarefa longa, jogador 1440 relevo pronto em 280 ms contra 260 a 271, p95 do quadro 16,9 a 17,0. Folha `docs/design/objetos/provas/mt8-folha-de-contato.png` (+ `mt8-jogador-1440.png`): o usuário decide (1) terracota do Meio-Termo ou barranco na cor da terra, (2) o realce do lábio a 100% está forte o bastante (hoje quase só aparece a 300%), (3) contorno fino do pé basta ou quer o zigue-zague do protótipo. NÃO integrada: vai no próximo lote (MT8 + Luz L0 + Caminhos F2 + Sons F6); forçado N2 pelo visual do Meio-Termo.
 - **MESAS** agora (MT em série; MT8 pronta): worktree `C:/dev/labirinto-mesas` branch `feat/mesas` (da main).
+
+## Atualização 24/10 ~09h — deck das camadas e diagrama da Fase 2
+- Deck das camadas publicado (privado): https://claude.ai/artifact/SHnL4b9rRWBDVQY6y9tyHK (12 slides; não conferido renderizado; usuário avisa se algum slide transbordar).
+- Diagrama `docs/diagrams/fase-2-plano.html` corrigido (commit `bd0efc70`): otimização por último, conforme ordem do usuário.
+- Dívida Fase 4: possível bug, o clique do editor pode não achar token em camada livre escondida (`client/src/lib/selectionHitTest.ts:357` usa `visibleTokens(map.tokens, map.hiddenLayers)` da lista antiga). Nenhum teste prova; reproduzir com teste antes de consertar.
+- `docs/design/consolidado/PROGRESSO.md` linha 43 diz 12 fotos de golden; o certo é 19. Corrigir no lote 4.
+- Em voo: Caminhos F2, Sons F6, Luz L0, Luz L4a, mesas. MT8 pronta (aguarda lote 4).
