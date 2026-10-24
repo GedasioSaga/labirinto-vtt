@@ -484,3 +484,36 @@
     margin-left: auto;
   }
 }
+
+/* FATIA 8: a linha da camada que recebe o item arrastado da lista "Objetos do
+   mapa". Acende durante a pausa antes de soltar (latão = recebe); a travada
+   acende apagada e diz que não recebe. Só cor e sombra: a linha não cresce,
+   e o ponteiro não troca de alvo por causa do destaque. */
+.lb-camadas__linha[data-alvo-do-item] {
+  position: relative;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.lb-camadas__linha[data-alvo-do-item='recebe'] {
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+
+.lb-camadas__linha[data-alvo-do-item='recusa'] {
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-strong);
+}
+
+.lb-camadas__linha[data-alvo-do-item='recusa']::after {
+  content: 'travada: não recebe';
+  position: absolute;
+  top: 2px;
+  right: var(--lb-space-2);
+  padding: 0 var(--lb-space-1);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+  pointer-events: none;
+}

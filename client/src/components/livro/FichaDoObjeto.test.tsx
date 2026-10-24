@@ -32,7 +32,6 @@ afterEach(() => {
 const ligacoes = (): Omit<FichaDoObjetoProps, 'prop'> => ({
   mobilia: { onTipoChange: vi.fn(), onVistaChange: vi.fn(), onFormaChange: vi.fn(), onAparenciaChange: vi.fn() },
   transform: { onRotationChange: vi.fn(), onLockedChange: vi.fn(), onHiddenChange: vi.fn(), onSecretChange: vi.fn() },
-  onSetPropLayer: vi.fn(),
   player: { onLabelChange: vi.fn(), onShowImageChange: vi.fn() },
 })
 

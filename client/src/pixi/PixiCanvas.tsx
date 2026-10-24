@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
+import { MenuDaSelecao } from '../components/MenuDaSelecao'
 import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
@@ -959,6 +960,9 @@ export function PixiCanvas({
   // Clique direito numa porta: Abrir/Fechar e Trancar/Destrancar ali mesmo.
   const [doorMenu, setDoorMenu] = useState<{ wallId: string; x: number; y: number } | null>(null)
   const closeDoorMenu = useCallback(() => setDoorMenu(null), [])
+  // Clique direito em cima da seleção: "Mover para camada" (fase 3 das camadas, fatia 8).
+  const [menuDaSelecao, setMenuDaSelecao] = useState<{ x: number; y: number } | null>(null)
+  const fecharMenuDaSelecao = useCallback(() => setMenuDaSelecao(null), [])
   // Clique direito numa parede: o menu "Abrir vão aqui / Desabar parede"
   // (WallGestureMenu). `ponto` é o clique em px de MUNDO, para o vão abrir
   // onde o mestre apontou; `x`/`y` e `limite` são px do contêiner.
@@ -8183,9 +8187,19 @@ export function PixiCanvas({
        */
       let portaDoCliqueDireito: Wall | null = null
       let tokenDoCliqueDireito = false
+      let selecaoDoCliqueDireito = false
+      /** O clique direito caiu num item da seleção (o mesmo alvo do clique de selecionar) ou no pino aberto. */
+      const cliqueNaSelecao = (ponto: Point): boolean => {
+        const state = useMapStore.getState()
+        if (state.selectedPinId !== null && pinAt(state.map, ponto)?.id === state.selectedPinId) return true
+        if (state.selection.length === 0) return false
+        const alvo = findSelectableAt(clickSelectMap(state.map), ponto, pinosNoToque(state.map)) ?? floorHitAt(state.map, ponto)
+        return alvo !== null && selectionHas(state.selection, { kind: alvo.kind, id: alvo.id })
+      }
       const onContextMenu = (event: MouseEvent) => {
         portaDoCliqueDireito = null
         tokenDoCliqueDireito = false
+        selecaoDoCliqueDireito = false
         if (direitoApagaBlocos()) {
           event.preventDefault()
           return
@@ -8207,7 +8221,14 @@ export function PixiCanvas({
         // da porta (DoorContextMenu) no lugar do menu do navegador. O
         // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
         const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), ponto)
-        if (porta === null) return
+        if (porta === null) {
+          // Em cima do que está selecionado (fatia 8 das camadas): "Mover para camada" da seleção inteira.
+          if (!cliqueNaSelecao(ponto)) return
+          event.preventDefault()
+          selecaoDoCliqueDireito = true
+          setMenuDaSelecao({ x: local.x, y: local.y })
+          return
+        }
         event.preventDefault()
         portaDoCliqueDireito = porta
         setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
@@ -8222,7 +8243,7 @@ export function PixiCanvas({
         paraMundo: toWorldPoint,
         escala: () => camera.scale,
         abrir: (menu) => {
-          if (portaDoCliqueDireito !== null || tokenDoCliqueDireito) return
+          if (portaDoCliqueDireito !== null || tokenDoCliqueDireito || selecaoDoCliqueDireito) return
           setMenuDaParede(menu)
         },
       })
@@ -8751,6 +8772,7 @@ export function PixiCanvas({
           <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
         )}
       </ComSaida>
+      <ComSaida>{menuDaSelecao && <MenuDaSelecao key={`${menuDaSelecao.x}-${menuDaSelecao.y}`} {...menuDaSelecao} onClose={fecharMenuDaSelecao} />}</ComSaida>
       {nameEditor && editorPosition && editorCamera && (
         <input
           // Trocar de alvo remonta o campo, para o autoFocus valer de novo.

@@ -1,6 +1,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as PointerEventDoReact, type ReactNode } from 'react'
 import type { CamadaId } from '../types/map'
 import { contextoDeCamadas, type CamposDeCamadas } from '../lib/camadas/consulta'
+import { lerArrasto, soltarNaCamada, temArrastoDeItem } from '../lib/camadas/arrastoDeItem'
 import { NOME_DE_CAMADA_MAX, PONTOS_POR_CARACTERE_MAX, grafemas, lerNomeDeCamada } from '../lib/camadas/arquivo'
 import { MAX_CAMADAS_LIVRES, camadasApagadasEscondidas, quantasLivres } from '../lib/camadas/modelo'
 import { ehCamadaDeAntes, ehCamadaPadrao, ROTULOS_DAS_CAMADAS } from '../lib/camadas/padrao'
@@ -471,6 +472,8 @@ export function LayersPanel(props: LayersPanelProps) {
   const [arrastando, setArrastando] = useState<CamadaId | null>(null)
   /** A linha que acabou de ser solta e ainda assenta: continua levantada (fundo e sombra) até pousar. */
   const [pousando, setPousando] = useState<CamadaId | null>(null)
+  // Fatia 8: a linha que recebe o item arrastado da lista de objetos acende durante a pausa antes de soltar.
+  const [alvoDoItem, setAlvoDoItem] = useState<CamadaId | null>(null)
   /** Nome recusado (sem caractere que se veja): a linha diz o motivo até o próximo gesto. */
   const [recusa, setRecusa] = useState<{ id: CamadaId; texto: string } | null>(null)
   const lista = useRef<HTMLUListElement>(null)
@@ -790,6 +793,25 @@ export function LayersPanel(props: LayersPanelProps) {
               data-esmaecida={pct < 100 ? '' : undefined}
               data-aberta={aberta === id ? '' : undefined}
               data-arrastada={arrastando === id || pousando === id ? '' : undefined}
+              // Travada acende como recusa ("não recebe"); soltar mesmo assim só traz o aviso com "Destravar".
+              data-alvo-do-item={alvoDoItem === id ? (contexto.travada(id) ? 'recusa' : 'recebe') : undefined}
+              onDragOver={(event) => {
+                if (!temArrastoDeItem(event.dataTransfer)) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                if (alvoDoItem !== id) setAlvoDoItem(id)
+              }}
+              onDragLeave={(event) => {
+                if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+                setAlvoDoItem((agora) => (agora === id ? null : agora))
+              }}
+              onDrop={(event) => {
+                setAlvoDoItem(null)
+                const ref = lerArrasto(event.dataTransfer)
+                if (ref === null) return
+                event.preventDefault()
+                soltarNaCamada(ref, id)
+              }}
             >
               <LinhaDaCamada
                 id={id}

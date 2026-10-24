@@ -5,6 +5,7 @@ import { IconeDoLivro } from './livro/icones'
 import { CloseIcon, SearchIcon, TokenIcon } from './icons'
 import { searchAdventure, type AdventureHit, type SceneSearchSource } from '../lib/buscaNaAventura'
 import type { SendCandidate } from '../lib/gatherParty'
+import { escreverArrasto, refDaEntrada } from '../lib/camadas/arrastoDeItem'
 import { filterMapObjects, mapObjectsOf, MAP_OBJECT_GROUPS, type MapObjectEntry } from '../lib/mapObjects'
 import type { AlvoDeMandar, ResultadoDeMandar } from '../stores/buscaDoMestre'
 import type { MapData } from '../types/map'
@@ -313,6 +314,9 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
             aria-keyshortcuts={sendTarget === null ? undefined : 'Shift+Enter'}
             tabIndex={rowKey === tabKey ? 0 : -1}
             title={extra.title}
+            // Fatia 8 das camadas: a linha desta cena se arrasta até uma camada do painel (o caminho sem arrasto é o "Camada" da ficha e o clique direito).
+            draggable={target.where === 'aqui' ? true : undefined}
+            onDragStart={target.where === 'aqui' ? (event) => escreverArrasto(event.dataTransfer, refDaEntrada(target.entry)) : undefined}
             onFocus={() => setFocusKey(rowKey)}
             onClick={() => goTo(target)}
             onKeyDown={(event) => {

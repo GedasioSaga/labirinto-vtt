@@ -174,32 +174,29 @@ test('4. interruptores rápidos da grade dentro de Camadas mudam a store', async
   }
 })
 
-test('5. "Camada do objeto selecionado" mora na seção do objeto e grava a camada do Prop', async ({ page }) => {
+test('5. "Camada" do objeto selecionado mora na ficha e grava a camada do Prop', async ({ page }) => {
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addProp({ id: 'propLayer', src: 'fake.png', x: 400, y: 400, width: 64, height: 64, linkedMapPath: null })
     mod.useMapStore.getState().setSelection([{ kind: 'prop', id: 'propLayer' }])
   })
 
-  const picker = page.getByRole('radiogroup', { name: 'Camada do objeto selecionado' })
+  // Fase 3, fatia 8: o "Objetos | Decoração" virou o seletor "Camada" do topo
+  // da ficha, com todas as camadas. Com o objeto selecionado a seção Camadas
+  // (do mapa) nem aparece (03/10/2026), e o seletor é um só.
+  const picker = page.getByLabel('Camada', { exact: true })
   await expect(picker).toBeVisible()
-  // Saiu de Camadas: com o objeto selecionado a seção Camadas (do mapa) nem
-  // aparece (03/10/2026), e o seletor é um só, o da seção do objeto.
   await expect(sectionHeader(page, 'Camadas')).toHaveCount(0)
-  await expect(page.getByRole('radiogroup', { name: 'Camada do objeto selecionado' })).toHaveCount(1)
-
-  const objects = picker.getByRole('radio', { name: 'Objetos', exact: true })
-  const decoration = picker.getByRole('radio', { name: 'Decoração', exact: true })
-  await expect(objects).toHaveAttribute('aria-checked', 'true')
-  await expect(decoration).toHaveAttribute('aria-checked', 'false')
+  await expect(page.getByLabel('Camada', { exact: true })).toHaveCount(1)
+  await expect(picker).toHaveValue('objetos')
   expect(await getPropLayer(page, 'propLayer')).toBeNull()
 
-  await decoration.click()
+  await picker.selectOption('decoracao')
   await expect.poll(() => getPropLayer(page, 'propLayer')).toBe('decoracao')
-  await expect(decoration).toHaveAttribute('aria-checked', 'true')
-  await expect(objects).toHaveAttribute('aria-checked', 'false')
+  await expect(picker).toHaveValue('decoracao')
 
-  await objects.click()
-  await expect.poll(() => getPropLayer(page, 'propLayer')).toBe('objetos')
-  await expect(objects).toHaveAttribute('aria-checked', 'true')
+  // De volta a Objetos: o campo sai, e o objeto fica como antes.
+  await picker.selectOption('objetos')
+  await expect.poll(() => getPropLayer(page, 'propLayer')).toBeNull()
+  await expect(picker).toHaveValue('objetos')
 })
