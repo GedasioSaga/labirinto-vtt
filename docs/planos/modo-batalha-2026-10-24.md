@@ -25,3 +25,10 @@ Confronto por cena em `lib/confronto.ts` (fila e passo, salvo em `MapData.confro
 
 ## Não confirmado
 Se as cenas da aventura passam pelo mesmo leitor do `mapFile`; se algum mapa real do usuário tem `confronto` salvo; se Shift+B está livre; se o arrasto do jogador já encaixa nos blocos hoje; lista exata de arquivos da fatia 8 de Camadas.
+
+## B1 e B2 (feitas em 24/10/2026, `feat/batalha`, commits `61e03c05` e `80be1289`, lote 6)
+- Arquivos novos em `client/src/lib/batalha/`: `blocos.ts`, `medicao.ts`, os dois testes e `batalha.fixture.ts` (só dos testes). Lógica pura, 33 testes, tsc limpo, guarda de projetos do vitest verde. Nenhum arquivo quente tocado.
+- Provas: 10.000 trajetos livres = max(|dx|,|dy|) (semente 20261024); quina recusada em 100% da fixture (11 desenhos, 116 passos diagonais); 200 de 200 mapas contra uma referência independente (12.000 consultas, 7.080 colineares); esconder paredes muda 0 de 600 respostas (controle: só as paredes do mestre mudaria 385 de 600). 8 mutações vermelhas.
+- Decisões do agente: diagonal só vale se os dois passos retos ao lado valem e nenhuma parede passa a menos de 1/4 de casa (então diagonal nunca entra por porta de 1 casa); contagem de blocos é o menor caminho legal (com parede pode passar de max(|dx|,|dy|); o B4 precisa passar um `limite` real); cone com meia abertura de 26,57° e comprimento em blocos de diagonal = 1; visão segue `hasLineOfSight` (parede colinear não barra, tocar a ponta barra); parede de coordenada absurda é recortada na borda do mapa.
+- **RISCO para B4/B6 (lido, não executado):** o recorte que o jogador recebe (`fogFilter.ts`) não traz paredes invisíveis, paredes de camada escondida dos jogadores nem, ao que parece, paredes ainda não exploradas; num mapa antigo, o olho do mestre esconde dos jogadores também. Se a visão for calculada NO CLIENTE sobre esse recorte, como o plano propõe, esconder paredes mudaria respostas. Decidir no B4: medir no host (resposta pronta) ou mandar ao jogador só os traços necessários.
+- Não verificado: grade hex, `gridOffset`, contorno do chão como obstáculo, tempo da busca em 300x300 sem limite.

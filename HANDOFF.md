@@ -440,3 +440,8 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - **Em voo:** MT9 (Q, retoque quente, dono único da faixa quente, `C:/dev/labirinto-mt9`, feat/mt9, só plumbing, sem desenho novo); Batalha B1+B2 (`C:/dev/labirinto-batalha`, feat/batalha); documentador (diagramas de fase 2 e período).
 - **Ordem da faixa quente:** MT9, depois Luz L2 e L3 (`C:/dev/labirinto-luz`), depois MT10/MT11/MT12, B3/B4, Caminhos F3/F4.
 - Painel Período novo ainda não visto a olho (só e2e). Usuário confere em `localhost:1420` (servidor da main).
+
+## Atualização 24/10 ~12h50 — lote 6 (Batalha B1 e B2) integrado
+- Main `1941e141` (tag `pre-integra-18`, bundle `labirinto-2026-10-24-7.bundle` verificado): Batalha B1 e B2, só arquivos novos em `client/src/lib/batalha/`. Gate: tsc 0, 33 testes da pasta, guarda de projetos do vitest 314 verdes (sem N2: nenhum arquivo existente mudou).
+- RISCO para B4/B6 (plano `docs/planos/modo-batalha-2026-10-24.md`): o recorte do jogador não traz todas as paredes; medir no host ou mandar só os traços necessários.
+- Worktree `C:/dev/labirinto-batalha` (feat/batalha) fica para B3/B4. Em voo: MT9 (dono da faixa quente) e documentador.
