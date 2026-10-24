@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
+import { MenuDaSelecao } from '../components/MenuDaSelecao'
 import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
@@ -109,6 +110,8 @@ import { corDoPincel } from '../lib/camadasDoPincel'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
+/** CAMADAS: faixas cujo renderer é um só (cache por id) e só MUDA a vista de nó; o nó criado que sai devolve as vistas ao de hoje. */
+const FAIXAS_DE_VISTA_UNICA: ReadonlySet<string> = new Set(['tokensContainer', 'telhadosContainer'])
 /** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
  *  feita para aparecer sobre o chão) some no fundo 0x2b2b2b. */
 const OUTSIDE_FLOOR_GRID_COLOR = 0xd8d8d8
@@ -298,7 +301,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
+import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, noDoItem, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
 import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
@@ -957,6 +960,9 @@ export function PixiCanvas({
   // Clique direito numa porta: Abrir/Fechar e Trancar/Destrancar ali mesmo.
   const [doorMenu, setDoorMenu] = useState<{ wallId: string; x: number; y: number } | null>(null)
   const closeDoorMenu = useCallback(() => setDoorMenu(null), [])
+  // Clique direito em cima da seleção: "Mover para camada" (fase 3 das camadas, fatia 8).
+  const [menuDaSelecao, setMenuDaSelecao] = useState<{ x: number; y: number } | null>(null)
+  const fecharMenuDaSelecao = useCallback(() => setMenuDaSelecao(null), [])
   // Clique direito numa parede: o menu "Abrir vão aqui / Desabar parede"
   // (WallGestureMenu). `ponto` é o clique em px de MUNDO, para o vão abrir
   // onde o mestre apontou; `x`/`y` e `limite` são px do contêiner.
@@ -1367,8 +1373,10 @@ export function PixiCanvas({
           no.label = plano.chave
           return no
         },
-        descartar: (no) => {
+        descartar: (no, plano) => {
           for (const soltar of aoDescartarNo) soltar(no)
+          // Fichas e telhados: a vista mora no renderer ÚNICO (cache por id) e só muda de nó; o nó que sai devolve as dele ao de hoje.
+          if (FAIXAS_DE_VISTA_UNICA.has(plano.faixa) && no.children.length > 0) baseDaFaixa(plano.faixa).addChild(...no.children)
           no.destroy({ children: true })
         },
         alfaProprio: alfaProprioDaFaixa,
@@ -1665,6 +1673,8 @@ export function PixiCanvas({
           gridAlignOverlayGraphics,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
           ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
+          // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
+          ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
           laserLayer,
         ]
@@ -1821,6 +1831,8 @@ export function PixiCanvas({
         const moveis = pilha.assinaturaDa('propsContainer')
         pilha.atualizar({ modelo: map.modeloCamadas ?? MODELO_PADRAO, alfa: contextoDeCamadas(map).alfa, pares })
         el.dataset.nosDaPilha = String(world.children.length)
+        el.dataset.ordemDaPilha = pilha.ordemDasCamadas()
+        el.dataset.ordemDosNos = pilha.ordemDosNos()
         // `formas`: algo mudou; os portões por faixa (`assinaturaDa`) dizem QUAL camada repinta.
         return { formas: pilha.assinatura() !== assinatura, moveis: pilha.assinaturaDa('propsContainer') !== moveis }
       }
@@ -2018,15 +2030,19 @@ export function PixiCanvas({
       /** TELHADOS no editor: o olho do mestre da camada Telhados e o atalho Transparente (`stores/telhadosNoEditor.ts`). */
       const paintTelhados = (regioes: Region[], mapaId: string) => {
         const { transparentes } = useTelhadosNoEditor.getState()
-        const ligados = contextoDeCamadas(sceneState().map).mestreVe('telhados')
+        const camadas = contextoDeCamadas(sceneState().map)
+        const ligados = camadas.mestreVe('telhados')
         telhadosContainer.visible = ligados
         // Opacidade da camada Telhados vezes o atalho "Transparente" (a pilha usa a mesma conta).
-        telhadosContainer.alpha = alfaDoTelhadoNoEditor(contextoDeCamadas(sceneState().map).alfa('telhados'), transparentes)
-        const salas = ligados ? regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3) : []
+        telhadosContainer.alpha = alfaDoTelhadoNoEditor(camadas.alfa('telhados'), transparentes)
+        // CAMADAS (fatia 3b): o telhado de camada escolhida desenha no nó dela, com o olho do mestre dela.
+        const daSala = (r: Region) => camadas.camadaDe('telhado', r)
+        const noDoTelhado = noDoItem(pilha.nosDaFaixa('telhadosContainer'), daSala)
+        const salas = regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3 && camadas.mestreVe(daSala(r)))
         telhadosRenderer.desenhar(
           salas.map((r) => {
             const modelo = r.room?.modeloDoTeto ?? MODELO_PADRAO_DO_TETO
-            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: telhadosContainer }
+            return { id: r.id, points: r.points, modelo, cor: corDoTetoOuPadrao(modelo, r.room?.corDoTeto), camada: noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r) }
           }),
           mapaId,
         )
@@ -2106,15 +2122,14 @@ export function PixiCanvas({
        */
       const paintPins = () => {
         const { map, selectedPinId } = sceneState()
-        // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
-        pinsRenderer.draw(
-          pinsContainer,
-          visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
-          selectedPinId,
-          unlinkedTravelPinIds(useAdventureStore.getState(), map),
-          pinSizeScale(camera.scale),
-          pinSizeFloorFor(map.pins, camera.scale),
-        )
+        const camadas = contextoDeCamadas(map)
+        const semPar = unlinkedTravelPinIds(useAdventureStore.getState(), map)
+        // CAMADAS (fatia 3b): o pino de camada escolhida desenha no nó dela, com renderer próprio.
+        const pinos = visiblePins(map.pins, map).filter((pin) => !pin.hidden)
+        for (const { no, itens } of distribuir(pinos, pilha.nosDaFaixa('pinsContainer'), (p: Pin) => camadas.camadaDe('pino', p))) {
+          // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
+          pinosPorNo.de(no).draw(no, itens, selectedPinId, semPar, pinSizeScale(camera.scale), pinSizeFloorFor(map.pins, camera.scale))
+        }
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
         if (marksGraphics.parent !== pinsContainer) pinsContainer.addChildAt(marksGraphics, 0)
@@ -2365,6 +2380,7 @@ export function PixiCanvas({
       const faixasDividasDaCamada: Partial<Record<ShapesLayer, readonly string[]>> = {
         drawings: ['drawingsGraphics', 'secretDrawingsGraphics', 'pathsGraphics', 'secretPathsGraphics'],
         lights: ['lightsContainer'],
+        pins: ['pinsContainer'],
       }
       // Andar denso: o clique pinta paredes e salas, o resto chega uma fatia
       // por quadro (montagemEmFatias.ts). `aria-busy` no editor enquanto monta.
@@ -2422,9 +2438,12 @@ export function PixiCanvas({
         // A imagem exportada sai com as fichas paradas no lugar final.
         const remoteMoveIds = consumirMovimentosRemotos()
         const glide = exportScene === null ? { sceneId: cenaAberta(), remoteMoveIds } : undefined
+        // CAMADAS (fatia 3b): a ficha de camada escolhida desenha no nó dela, e some com o olho do mestre dela.
+        const camadasDasFichas = contextoDeCamadas(map)
+        const noDaFicha = noDoItem(pilha.nosDaFaixa('tokensContainer'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
         const changedLabels = tokensRenderer.draw(
           tokensContainer,
-          visibleTokens(map.tokens, map.hiddenLayers),
+          visibleTokens(map.tokens, map),
           map.grid,
           single?.kind === 'token' ? single.id : null,
           camera.scale,
@@ -2433,6 +2452,7 @@ export function PixiCanvas({
           glide,
           pinosDaCena(map),
           vidasDoMapa(map),
+          noDaFicha,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -2515,6 +2535,8 @@ export function PixiCanvas({
       const concealZonesRenderer = createConcealZonesRenderer()
       // O editor é o único que desenha o nome só do mestre ao lado do pino.
       const pinsRenderer = createPinsRenderer({ showNames: true })
+      const pinosPorNo = criarPorNo<Container, ReturnType<typeof createPinsRenderer>>(pinsContainer, pinsRenderer, () => createPinsRenderer({ showNames: true }), () => {})
+      aoDescartarNo.push((no) => pinosPorNo.soltar(no))
       const marksGraphics = new Graphics()
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
@@ -2719,6 +2741,8 @@ export function PixiCanvas({
           gridAlignOverlayGraphics,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
           ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
+          // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
+          ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
           laserLayer,
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
@@ -8163,9 +8187,19 @@ export function PixiCanvas({
        */
       let portaDoCliqueDireito: Wall | null = null
       let tokenDoCliqueDireito = false
+      let selecaoDoCliqueDireito = false
+      /** O clique direito caiu num item da seleção (o mesmo alvo do clique de selecionar) ou no pino aberto. */
+      const cliqueNaSelecao = (ponto: Point): boolean => {
+        const state = useMapStore.getState()
+        if (state.selectedPinId !== null && pinAt(state.map, ponto)?.id === state.selectedPinId) return true
+        if (state.selection.length === 0) return false
+        const alvo = findSelectableAt(clickSelectMap(state.map), ponto, pinosNoToque(state.map)) ?? floorHitAt(state.map, ponto)
+        return alvo !== null && selectionHas(state.selection, { kind: alvo.kind, id: alvo.id })
+      }
       const onContextMenu = (event: MouseEvent) => {
         portaDoCliqueDireito = null
         tokenDoCliqueDireito = false
+        selecaoDoCliqueDireito = false
         if (direitoApagaBlocos()) {
           event.preventDefault()
           return
@@ -8187,7 +8221,14 @@ export function PixiCanvas({
         // da porta (DoorContextMenu) no lugar do menu do navegador. O
         // `pointerdown` do mesmo botão já saiu sem deixar a ferramenta agir.
         const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), ponto)
-        if (porta === null) return
+        if (porta === null) {
+          // Em cima do que está selecionado (fatia 8 das camadas): "Mover para camada" da seleção inteira.
+          if (!cliqueNaSelecao(ponto)) return
+          event.preventDefault()
+          selecaoDoCliqueDireito = true
+          setMenuDaSelecao({ x: local.x, y: local.y })
+          return
+        }
         event.preventDefault()
         portaDoCliqueDireito = porta
         setDoorMenu({ wallId: porta.id, x: local.x, y: local.y })
@@ -8202,7 +8243,7 @@ export function PixiCanvas({
         paraMundo: toWorldPoint,
         escala: () => camera.scale,
         abrir: (menu) => {
-          if (portaDoCliqueDireito !== null || tokenDoCliqueDireito) return
+          if (portaDoCliqueDireito !== null || tokenDoCliqueDireito || selecaoDoCliqueDireito) return
           setMenuDaParede(menu)
         },
       })
@@ -8731,6 +8772,7 @@ export function PixiCanvas({
           <DoorContextMenu key={`${doorMenu.wallId}-${doorMenu.x}-${doorMenu.y}`} {...doorMenu} onClose={closeDoorMenu} />
         )}
       </ComSaida>
+      <ComSaida>{menuDaSelecao && <MenuDaSelecao key={`${menuDaSelecao.x}-${menuDaSelecao.y}`} {...menuDaSelecao} onClose={fecharMenuDaSelecao} />}</ComSaida>
       {nameEditor && editorPosition && editorCamera && (
         <input
           // Trocar de alvo remonta o campo, para o autoFocus valer de novo.

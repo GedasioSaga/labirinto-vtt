@@ -5,7 +5,7 @@ import { PathStyleControls, type PathStyleControlsProps } from './PathStyleContr
 import type { GridControlsProps } from './GridControls'
 import { CollapsibleSection } from './CollapsibleSection'
 import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
-import type { PropLayerControlsProps } from './PropLayerControls'
+import { SeletorDeCamada } from './SeletorDeCamada'
 import type { PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import {
@@ -199,8 +199,6 @@ interface PropertiesPanelProps {
   doorMode: DoorModeControlsProps
   wallStyle: WallStyleControlsProps
   selectedProp: Prop | null
-  /** "Objetos | Decoração" do Prop selecionado — mora na seção do objeto. */
-  onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   /** "Rótulo para jogadores" e "Mostrar imagem ao jogador" do Objeto selecionado. */
@@ -427,7 +425,6 @@ export function PropertiesPanel({
   doorMode,
   wallStyle,
   selectedProp,
-  onSetPropLayer,
   propTransform,
   propPlayer,
   propMobilia,
@@ -695,6 +692,8 @@ export function PropertiesPanel({
             notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
           />
         )}
+        {/* "Camada" do que está selecionado (fase 3, fatia 8): um lugar só para todo tipo, logo abaixo da cabeça, também com vários itens e com o pino aberto. */}
+        {((selection.selection !== null && !subFichaAberta) || (pinoAberto !== null && selection.selection === null)) && <SeletorDeCamada />}
         {/* O pino fica fora do resumo da seleção: a cabeça dele sai do próprio pino (fatia 12). */}
         {pinoAberto !== null && selection.selection === null && (
           <CabecaDaSelecao
@@ -1010,7 +1009,6 @@ export function PropertiesPanel({
               mobilia={propMobilia}
               itemNoChao={itemNoChao}
               transform={propTransform}
-              onSetPropLayer={onSetPropLayer}
               player={propPlayer}
             />
           </ToolPropertiesSection>

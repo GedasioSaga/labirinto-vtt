@@ -51,16 +51,44 @@ export const MODELO_PADRAO: ModeloDeCamadas = { ordem: CAMADAS_PADRAO.map((id) =
 
 const IDS_PADRAO: ReadonlySet<string> = new Set(CAMADAS_PADRAO)
 
-/** `livre_` + id curto, sem espaço (o id é aleatório, nunca o nome). */
-const ID_LIVRE = /^livre_[A-Za-z0-9_-]{1,64}$/
+/**
+ * Id de camada livre (fatia 7): `livre_` + 8 a 34 dígitos hexadecimais
+ * minúsculos. Só hexa: um nome ("livre_Segredo_do_Lich") não cabe no id, e o
+ * id é o que atravessa para o jogador. O teto de 34 é o do jogador
+ * (`MAX_CARACTERES_DO_ID_DE_CAMADA` = 40, `lib/camadas/doJogador.ts`).
+ */
+const ID_LIVRE = /^livre_[0-9a-f]{8,34}$/
+
+/**
+ * O formato de antes da fatia 7 (qualquer letra, `_` e `-`). Só a LEITURA do
+ * arquivo o reconhece, para trocá-lo por um id hexa (`idDeCamadaDoArquivo`,
+ * `lib/camadas/arquivo.ts`) sem perder os itens nem abrir o que estava escondido.
+ */
+export const ID_LIVRE_DE_ANTES = /^livre_[A-Za-z0-9_-]{1,64}$/
+
+/** Parte aleatória do id que o painel cria: 8 hexa do `crypto.randomUUID` (nunca o nome). */
+export const DIGITOS_DO_ID_NOVO = 8
+
+/** Id novo de camada livre: aleatório, `livre_` + 8 hexa, fora de `usados`. */
+export function novoIdDeCamadaLivre(usados: ReadonlySet<string> = new Set()): CamadaId {
+  for (;;) {
+    const id = `livre_${crypto.randomUUID().replace(/-/g, '').slice(0, DIGITOS_DO_ID_NOVO)}` as const
+    if (!usados.has(id)) return id
+  }
+}
 
 export function ehCamadaPadrao(id: string): id is CamadaPadraoId {
   return IDS_PADRAO.has(id)
 }
 
-/** Valor do arquivo que serve como id de camada: uma das 13 ou uma livre bem formada. */
+/** Id de camada: uma das 13 ou uma livre bem formada (só hexa). */
 export function ehCamadaId(valor: unknown): valor is CamadaId {
   return typeof valor === 'string' && (IDS_PADRAO.has(valor) || ID_LIVRE.test(valor))
+}
+
+/** Parece camada livre (começa com `livre_`), bem formada ou não: o que a regra de falhar FECHADO olha. */
+export function pareceCamadaLivre(valor: unknown): valor is string {
+  return typeof valor === 'string' && valor.startsWith('livre_')
 }
 
 /** Uma das 9 camadas de antes das 13 (`LAYER_IDS`): as únicas que o mapa de antes guarda no olho e no cadeado. */

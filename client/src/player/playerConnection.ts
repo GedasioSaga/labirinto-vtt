@@ -1054,6 +1054,9 @@ function tableJoin(code: string, name: string, tableKey: string | undefined): Jo
 /** Nome que a tela da mesa manda no `join`: o servidor do app exige um nome, e o mestre nunca o lista. */
 export const TABLE_SCREEN_NAME = 'Tela da mesa'
 
+/** SONS AO VIVO (F5): a chave da mídia são 32 bytes em hex MINÚSCULO, a única forma que o servidor da sala aceita no cabeçalho. */
+const FORMA_DA_CHAVE_DA_MIDIA = /^[0-9a-f]{64}$/
+
 export interface PlayerConnection {
   getState(): PlayerState
   subscribe(listener: () => void): () => void
@@ -1069,6 +1072,12 @@ export interface PlayerConnection {
    * além do `join` e do `ping`. `false` = não saiu (forma errada ou sem socket).
    */
   informarSomFalhou(instancia: string, motivo: MotivoDaFalhaDoSom): boolean
+  /**
+   * SONS AO VIVO (F5): a chave que o servidor da sala deu ao socket de agora
+   * (`midia.chave`, 64 hex), para o cabeçalho de `/sons/<id>`. `null` antes
+   * dela chegar, depois da queda e nos fins de sessão. Não vai para log.
+   */
+  chaveDaMidia(): string | null
   /**
    * Move otimista: aplica local e envia. `false` se o token não existe ou o
    * socket não está aberto. Para a caminhada do "Andar até aqui", se houver.
@@ -1885,6 +1894,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * no ponto de agora. Efeito curto é evento: não se guarda.
    */
   const loopsVivos = new Map<string, { msg: SomTocarMessage; recebidoEm: number }>()
+  /**
+   * SONS AO VIVO (F5): a chave que o servidor da sala deu a ESTE socket no
+   * primeiro frame (`midia.chave`), a prova da conexão em `/sons/<id>`. Fora do
+   * estado de propósito (a tela lê o estado, e um log poderia imprimi-lo); some
+   * com o socket e nos fins de sessão. Nunca vai para log, aviso nem `som.falhou`.
+   */
+  let chaveDaMidia: string | null = null
   const pending = new Map<string, PendingMove>()
   /**
    * CHAT com mestre antigo: `reqId` do envio que estava no ar quando chegou um
@@ -3121,6 +3137,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function handleSocketLost(): void {
     // SONS AO VIVO: na volta o mestre manda os loops de novo, no ponto de agora; o parado durante a queda não volta.
     loopsVivos.clear()
+    // A chave era deste socket: a volta recebe outra.
+    chaveDaMidia = null
     // CHAT: a resposta do envio no ar morreu com o socket; "Enviando…" mentiria para sempre.
     if (state.chatSend !== undefined) setState({ chatSend: undefined })
     // AJUSTE RÁPIDO: idem — a ficha otimista volta já ao que a mesa tem, em vez de esperar o prazo.
@@ -3637,6 +3655,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     if (msg.reason === 'device') writeAparelho(storage, null)
     clearReconnectTimers()
+    // Fim de sessão: a chave da mídia não serve mais, e some antes de quem ouve o estado saber do erro.
+    chaveDaMidia = null
     setState({ status: 'error', error: `account_${msg.reason}`, reconnecting: undefined })
   }
 
@@ -4162,6 +4182,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (pesca !== state.pesca) setState({ pesca })
         return
       }
+      case 'midia.chave':
+        // SONS AO VIVO (F5): o primeiro frame do servidor da sala. Torta some calada (e a boa de antes fica).
+        if (typeof data.chave === 'string' && FORMA_DA_CHAVE_DA_MIDIA.test(data.chave)) chaveDaMidia = data.chave
+        return
       case 'som.tocar':
       case 'som.parar':
       case 'som.pararTudo':
@@ -4462,6 +4486,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'kicked':
         writeResume(storage, null)
         loopsVivos.clear()
+        chaveDaMidia = null
         clearReconnectTimers()
         setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
         return
@@ -4469,6 +4494,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
         writeResume(storage, null)
         loopsVivos.clear()
+        chaveDaMidia = null
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -4506,6 +4532,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // faria o mesmo. Só o "Usar aqui" (`reconnect`) traz de volta.
         pending.clear()
         loopsVivos.clear()
+        chaveDaMidia = null
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
@@ -4527,6 +4554,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'kicked') {
           writeResume(storage, null)
           clearReconnectTimers()
+          chaveDaMidia = null
           setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
           return
         }
@@ -4553,6 +4581,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (reason === 'bad_code') writeResume(storage, null)
         // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
         clearReconnectTimers()
+        // Fim de sessão: a chave da mídia some antes de quem ouve o estado saber do erro.
+        chaveDaMidia = null
         setState({ status: 'error', error: reason, reconnecting: undefined })
         return
       }
@@ -4581,6 +4611,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function open(): void {
     pending.clear()
+    // A chave é por socket: a do anterior não prova este (o servidor manda outra no primeiro frame).
+    chaveDaMidia = null
     const current = createSocket(url)
     socket = current
     current.onopen = () => {
@@ -4632,6 +4664,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function detach(): void {
     loopsVivos.clear()
+    chaveDaMidia = null
     clearReconnectTimers()
     stopWalk()
     stopPing()
@@ -4702,6 +4735,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         ouvintesDosSons.delete(listener)
       }
     },
+    chaveDaMidia: () => chaveDaMidia,
     informarSomFalhou(instancia, motivo) {
       // A mesma conferência do host antes de sair: o que ele ignoraria não gasta a cota do servidor.
       const conferida = parseSomFalhou({ type: 'som.falhou', instancia, motivo })

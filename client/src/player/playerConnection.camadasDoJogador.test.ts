@@ -57,7 +57,7 @@ function receberCom(camadasDoJogador: unknown) {
 
 describe('leitura tolerante de camadasDoJogador', () => {
   it('lista boa chega como veio (id e alfa)', () => {
-    const lista = [{ id: 'salas' }, { id: 'chao' }, { id: 'livre_a1', alfa: 0.4 }]
+    const lista = [{ id: 'salas' }, { id: 'chao' }, { id: 'livre_0e41e1c8', alfa: 0.4 }]
     const { connection } = receberCom(lista)
     expect(connection.getState()).toMatchObject({ status: 'playing', rev: 1 })
     expect(connection.getState().map?.camadasDoJogador).toEqual(lista)

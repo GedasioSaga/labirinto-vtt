@@ -157,7 +157,7 @@ describe('ordemDeRender', () => {
   })
 
   it('camada livre vazia não muda nada', () => {
-    const ids = moverPara('livre_vazia', 'paredes', [...CAMADAS_PADRAO, 'livre_vazia'])
+    const ids = moverPara('livre_65422961', 'paredes', [...CAMADAS_PADRAO, 'livre_65422961'])
     expect(pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR))).toEqual(EDITOR_HOJE)
   })
 
@@ -193,14 +193,14 @@ describe('ordemDeRender', () => {
   })
 
   it('camada livre com itens vira bloco logo acima da âncora da camada abaixo dela; entre Paredes e Portas, separa a faixa das paredes', () => {
-    const ids = moverPara('livre_a', 'paredes', [...CAMADAS_PADRAO, 'livre_a'])
-    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_a' }, { faixa: 'floorGraphics', camada: 'livre_a' }]))
+    const ids = moverPara('livre_1fbcd429', 'paredes', [...CAMADAS_PADRAO, 'livre_1fbcd429'])
+    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_1fbcd429' }, { faixa: 'floorGraphics', camada: 'livre_1fbcd429' }]))
     const i = ordem.findIndex(([id]) => id === 'wallsGraphics')
     // Fatia 3: a lista manda, então Portas (acima da livre) vira bloco acima dela, com as três faixas dela.
     expect(ordem.slice(i, i + 7)).toEqual([
       ['wallsGraphics', ['paredes']],
-      ['floorGraphics', ['livre_a']],
-      ['propsContainer', ['livre_a']],
+      ['floorGraphics', ['livre_1fbcd429']],
+      ['propsContainer', ['livre_1fbcd429']],
       ['mapLinesGraphics', ['portas']],
       ['wallsGraphics', ['portas']],
       ['doorsGraphics', ['portas']],
@@ -218,7 +218,7 @@ describe('ordemDeRender', () => {
     const extras = [
       { faixa: 'wallsGraphics', camada: 'paredes' },
       { faixa: 'gridGraphics', camada: 'tokens' },
-      { faixa: 'propsContainer', camada: 'livre_sumiu' },
+      { faixa: 'propsContainer', camada: 'livre_f75c687b' },
       { faixa: 'naoExiste', camada: 'tokens' },
     ] as const satisfies readonly { faixa: string; camada: CamadaId }[] // `as const` só fixa os literais; o `satisfies` confere a forma
 
@@ -228,36 +228,36 @@ describe('ordemDeRender', () => {
   it('camada entre Objetos e Decoração separa a faixa dos móveis: cada bloco fica entre as vizinhas da lista', () => {
     // Fatia 3 (a lista manda): antes, as duas livres caíam juntas acima da faixa dividida.
     const ids: CamadaId[] = [...CAMADAS_PADRAO]
-    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_a')
-    ids.splice(ids.indexOf('decoracao') + 1, 0, 'livre_b')
-    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'wallsGraphics', camada: 'livre_b' }, { faixa: 'pinsContainer', camada: 'livre_a' }]))
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_1fbcd429')
+    ids.splice(ids.indexOf('decoracao') + 1, 0, 'livre_1cbccf70')
+    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'wallsGraphics', camada: 'livre_1cbccf70' }, { faixa: 'pinsContainer', camada: 'livre_1fbcd429' }]))
     const i = ordem.findIndex(([id]) => id === 'propsContainer')
     expect(ordem.slice(i, i + 5)).toEqual([
       ['propsContainer', ['objetos']],
-      ['pinsContainer', ['livre_a']],
+      ['pinsContainer', ['livre_1fbcd429']],
       ['propsContainer', ['decoracao']],
-      ['wallsGraphics', ['livre_b']],
+      ['wallsGraphics', ['livre_1cbccf70']],
       ['lightsContainer', ['iluminacao']],
     ])
   })
 
   it('sem nada entre Paredes e Portas (ou Objetos e Decoração), a faixa dividida continua junta', () => {
-    const ids: CamadaId[] = [...CAMADAS_PADRAO, 'livre_a']
-    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_a' }]))
+    const ids: CamadaId[] = [...CAMADAS_PADRAO, 'livre_1fbcd429']
+    const ordem = pares(ordemDeRender(modelo(ids), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_1fbcd429' }]))
     expect(ordem.find(([id]) => id === 'wallsGraphics')).toEqual(['wallsGraphics', ['paredes', 'portas']])
     expect(ordem.find(([id]) => id === 'propsContainer')).toEqual(['propsContainer', ['objetos', 'decoracao']])
   })
 
   it('camada livre VAZIA entre Paredes e Portas e entre Objetos e Decoração não separa nada: as faixas continuam juntas', () => {
     const ids: CamadaId[] = [...CAMADAS_PADRAO]
-    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_a')
-    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_b')
-    // Itens da livre_c só: as do meio estão vazias.
-    const ordem = pares(ordemDeRender(modelo([...ids, 'livre_c']), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_c' }]))
+    ids.splice(ids.indexOf('paredes') + 1, 0, 'livre_1fbcd429')
+    ids.splice(ids.indexOf('objetos') + 1, 0, 'livre_1cbccf70')
+    // Itens da livre_1dbcd103 só: as do meio estão vazias.
+    const ordem = pares(ordemDeRender(modelo([...ids, 'livre_1dbcd103']), FAIXAS_EDITOR, [{ faixa: 'propsContainer', camada: 'livre_1dbcd103' }]))
     expect(ordem.find(([id]) => id === 'mapLinesGraphics')).toEqual(['mapLinesGraphics', ['paredes', 'portas']])
     expect(ordem.find(([id]) => id === 'wallsGraphics')).toEqual(['wallsGraphics', ['paredes', 'portas']])
     expect(ordem.find(([id]) => id === 'propsContainer')).toEqual(['propsContainer', ['objetos', 'decoracao']])
-    expect(ordem.filter(([, camadas]) => camadas.includes('livre_a') || camadas.includes('livre_b'))).toEqual([])
+    expect(ordem.filter(([, camadas]) => camadas.includes('livre_1fbcd429') || camadas.includes('livre_1cbccf70'))).toEqual([])
   })
 
   it('DESEMPATE ESTÁVEL: pino em Objetos e parede em Decoração (lista padrão) ancoram na mesma faixa dos móveis; o de Objetos fica embaixo', () => {
@@ -330,15 +330,15 @@ describe('ordemDeRender: a lista manda, mesmo com Salas dona de faixas lá no al
   })
 
   it('camada livre entre Objetos e Iluminação fica entre as duas (editor e jogador)', () => {
-    const m = modelo(moverPara('livre_x', 'decoracao', [...CAMADAS_PADRAO, 'livre_x']))
-    const editor = ordemDeRender(m, FAIXAS_EDITOR, [{ faixa: 'floorGraphics', camada: 'livre_x' }, { faixa: 'wallsGraphics', camada: 'livre_x' }])
-    const livre = editor.flatMap((e, i) => (e.camadas.includes('livre_x') ? [i] : []))
+    const m = modelo(moverPara('livre_16bcc5fe', 'decoracao', [...CAMADAS_PADRAO, 'livre_16bcc5fe']))
+    const editor = ordemDeRender(m, FAIXAS_EDITOR, [{ faixa: 'floorGraphics', camada: 'livre_16bcc5fe' }, { faixa: 'wallsGraphics', camada: 'livre_16bcc5fe' }])
+    const livre = editor.flatMap((e, i) => (e.camadas.includes('livre_16bcc5fe') ? [i] : []))
     expect(livre).toHaveLength(2)
     expect(Math.min(...livre)).toBeGreaterThan(onde(editor, 'propsContainer', 'objetos'))
     expect(Math.max(...livre)).toBeLessThan(onde(editor, 'lightsContainer', 'iluminacao'))
 
-    const jogador = ordemDeRender(m, FAIXAS_JOGADOR, [{ faixa: 'floor', camada: 'livre_x' }, { faixa: 'walls', camada: 'livre_x' }])
-    const livreJ = jogador.flatMap((e, i) => (e.camadas.includes('livre_x') ? [i] : []))
+    const jogador = ordemDeRender(m, FAIXAS_JOGADOR, [{ faixa: 'floor', camada: 'livre_16bcc5fe' }, { faixa: 'walls', camada: 'livre_16bcc5fe' }])
+    const livreJ = jogador.flatMap((e, i) => (e.camadas.includes('livre_16bcc5fe') ? [i] : []))
     expect(livreJ).toHaveLength(2)
     expect(Math.min(...livreJ)).toBeGreaterThan(onde(jogador, 'propImages', 'objetos'))
     expect(Math.max(...livreJ)).toBeLessThan(onde(jogador, 'lights', 'iluminacao'))
@@ -406,16 +406,16 @@ function inventarioDeHoje(faixas: readonly Faixa[], extras: readonly ParDeFaixa[
 }
 
 describe('ordemDeRender: propriedade, para qualquer permutação da lista', () => {
-  const LIVRES: CamadaId[] = ['livre_a', 'livre_b']
+  const LIVRES: CamadaId[] = ['livre_1fbcd429', 'livre_1cbccf70']
   const EXTRAS_EDITOR: ParDeFaixa[] = [
-    { faixa: 'wallsGraphics', camada: 'livre_a' },
-    { faixa: 'floorGraphics', camada: 'livre_a' },
-    { faixa: 'propsContainer', camada: 'livre_b' },
-    { faixa: 'pinsContainer', camada: 'livre_b' },
+    { faixa: 'wallsGraphics', camada: 'livre_1fbcd429' },
+    { faixa: 'floorGraphics', camada: 'livre_1fbcd429' },
+    { faixa: 'propsContainer', camada: 'livre_1cbccf70' },
+    { faixa: 'pinsContainer', camada: 'livre_1cbccf70' },
   ]
   const EXTRAS_JOGADOR: ParDeFaixa[] = [
-    { faixa: 'walls', camada: 'livre_a' },
-    { faixa: 'tokens', camada: 'livre_b' },
+    { faixa: 'walls', camada: 'livre_1fbcd429' },
+    { faixa: 'tokens', camada: 'livre_1cbccf70' },
   ]
   const RODADAS = 400
   const sorteio = sorteador(20261022)

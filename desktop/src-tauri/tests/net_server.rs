@@ -132,6 +132,9 @@ async fn join_valido_notifica_mestre_e_encaminha_mensagens() {
     // Contrato com o TS: clientId chega e volta como string decimal.
     let id = client_id.to_string();
     commands::send_to(&room, &id, &json!({"type":"lobby.waiting"})).unwrap();
+    // SONS AO VIVO: o primeiro frame é sempre a chave da mídia (`net_sons.rs`).
+    let chave: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+    assert_eq!(chave["type"], "midia.chave");
     assert_eq!(next_text(&mut ws).await.unwrap(), r#"{"type":"lobby.waiting"}"#);
 
     let err = commands::send_to(&room, "x1", &json!({"type":"lobby.waiting"})).unwrap_err();
@@ -215,6 +218,9 @@ async fn mensagem_acima_de_64kb_e_rejeitada() {
     let (addr, _room, sink) = start_server().await;
     let mut ws = connect(addr, &format!("http://{addr}")).await.unwrap();
     ws.send(Message::text(json!({"type":"join","code":CODE,"name":"Ana"}).to_string())).await.unwrap();
+    // O primeiro frame do join válido é a chave da mídia; depois disso, nada.
+    let chave: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+    assert_eq!(chave["type"], "midia.chave");
 
     let big = json!({"type":"chat","text":"x".repeat(server::MAX_MESSAGE_BYTES + 1)}).to_string();
     // O servidor pode derrubar a conexão ainda durante o envio.
@@ -263,34 +269,26 @@ async fn media_serve_so_a_imagem_da_pasta_da_sala() {
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 
-/// MÚSICA DO MINIGAME: o áudio no teto (15 MB) atravessa a sala inteiro, com o
-/// mime de áudio e os mesmos cabeçalhos da imagem; um byte a mais é 404.
+/// MÚSICA DO MINIGAME (SONS F5d, 24/10): o áudio da pasta da sala, mesmo
+/// válido e dentro do teto, NÃO sai por `/media` (só por `/sons/{id}`, com a
+/// chave); a imagem ao lado continua saindo.
 #[tokio::test]
-async fn media_serve_o_audio_ate_o_teto() {
+async fn media_nao_serve_o_audio_nem_dentro_do_teto() {
     let (addr, room, _sink) = start_server().await;
     let raiz = std::env::temp_dir().join(format!("labirinto-sala-audio-{}", std::process::id()));
     let pasta = raiz.join(media::PASTA_DE_MIDIA);
     std::fs::create_dir_all(&pasta).unwrap();
-    let teto = usize::try_from(media::MIDIA_AUDIO_MAX_BYTES).unwrap();
     let mut mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00".to_vec();
-    mp3.resize(teto, 0);
+    mp3.resize(4096, 0);
     let id = format!("{}.mp3", media::hash_hex(&mp3));
     std::fs::write(pasta.join(&id), &mp3).unwrap();
-    mp3.push(0);
-    let id_grande = format!("{}.mp3", media::hash_hex(&mp3));
-    std::fs::write(pasta.join(&id_grande), &mp3).unwrap();
+    let png: &[u8] = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR";
+    let id_png = format!("{}.png", media::hash_hex(png));
+    std::fs::write(pasta.join(&id_png), png).unwrap();
     room.set_media_dir(pasta.clone());
 
-    let resposta = http_get(addr, &format!("/media/{id}")).await;
-    let (cabecalho, _) = resposta.split_once("\r\n\r\n").unwrap();
-    let cabecalho = cabecalho.to_ascii_lowercase();
-    assert!(cabecalho.starts_with("http/1.1 200"), "{cabecalho}");
-    assert!(cabecalho.contains("content-type: audio/mpeg"));
-    assert!(cabecalho.contains(&format!("content-length: {teto}")), "{cabecalho}");
-    assert!(cabecalho.contains("x-content-type-options: nosniff"));
-    assert!(cabecalho.contains("cache-control: private, max-age=31536000, immutable"));
-    assert!(cabecalho.contains("cross-origin-resource-policy: same-origin"));
-    assert!(http_get(addr, &format!("/media/{id_grande}")).await.starts_with("HTTP/1.1 404"));
+    assert!(http_get(addr, &format!("/media/{id}")).await.starts_with("HTTP/1.1 404"));
+    assert!(http_get(addr, &format!("/media/{id_png}")).await.starts_with("HTTP/1.1 200"));
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 

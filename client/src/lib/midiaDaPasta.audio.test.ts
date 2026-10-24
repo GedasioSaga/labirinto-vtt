@@ -13,10 +13,31 @@ vi.mock('@tauri-apps/api/path', async () => (await import('./sons/discoFalso.fix
 const { arquivos, bytesDe, criarPastasAte, fsFalso, limparDisco, links, MIDIA_DO_APP, png, wav } = await import('./sons/discoFalso.fixture')
 const { useToastStore } = await import('../stores/toastStore')
 const { hashHex, idDoAudio, idDosBytes, MIDIA_AUDIO_MAX_BYTES, tipoDoAudio } = await import('./midia')
-const { copiarMidiaParaAPasta, importarMidiaDaPasta, trazerMidiaAoAbrir } = await import('./midiaDaPasta')
+const { AUDIO_NAO_FOI_PARA_A_PASTA, copiarMidiaParaAPasta, guardarAudioNaPasta, importarMidiaDaPasta, lerAudioDaPasta, trazerMidiaAoAbrir } = await import('./midiaDaPasta')
+const { bibliotecaDeSonsVazia, comEfeitoNovo, serializarBiblioteca, SONS_JSON_MAX_BYTES } = await import('./sons/biblioteca')
 
 const MB = 1024 * 1024
 const PASTA = 'C:/aventura/midia'
+const SONS = 'C:/aventura/sons.json'
+
+/** O texto de um `sons.json` válido com um efeito para cada id de áudio. */
+function sonsJsonQueCita(...ids: string[]): string {
+  let biblioteca = bibliotecaDeSonsVazia()
+  for (const [i, id] of ids.entries()) {
+    const passo = comEfeitoNovo(biblioteca, { nome: `Som ${i}`, fonte: { tipo: 'arquivo', ref: `midia:${id}`, bytes: 64 } }, `som_${i}`)
+    if (passo === null) throw new Error(`o teste não montou o efeito ${i}`)
+    biblioteca = passo.biblioteca
+  }
+  return serializarBiblioteca(biblioteca)
+}
+
+/** Um áudio de verdade (hash conferido) já na pasta da aventura. */
+async function naPasta(bytes: Uint8Array): Promise<string> {
+  const id = await idDeAudio(bytes)
+  criarPastasAte(PASTA)
+  arquivos.set(`${PASTA}/${id}`, bytes)
+  return id
+}
 
 async function idDeAudio(bytes: Uint8Array): Promise<string> {
   const id = await idDoAudio(bytes)
@@ -165,5 +186,126 @@ describe('importarMidiaDaPasta com áudio', () => {
     await imagemComHashDeOutra(4, 5)
     await trazerMidiaAoAbrir('C:/aventura/map.json', 'C:/aventura')
     expect(useToastStore.getState().toasts.map((toast) => toast.text)).toEqual([expect.stringContaining('2 imagens da pasta')])
+  })
+})
+
+/*
+ * FECHAMENTO (b) DA F5 (23/10/2026): `<appData>/midia` a sala serve em
+ * `/media/{id}` sem chave, então o áudio que o `sons.json` cita fica na pasta
+ * da aventura e só sai pela rota com chave (`/sons/{id}`, F5a). O resto da
+ * pasta (imagem, áudio que a biblioteca não cita) volta como antes.
+ */
+describe('importarMidiaDaPasta: o áudio da biblioteca de sons fica na pasta', () => {
+  it('o áudio que o sons.json cita NÃO vai para <appData>/midia; o que ele não cita e a imagem vão; nada sai da pasta', async () => {
+    const daBiblioteca = await naPasta(wav(64, 1))
+    const solto = await naPasta(wav(64, 2))
+    const imagem = await idDosBytes(png(7))
+    if (imagem === null) throw new Error('o teste montou bytes que não são imagem')
+    arquivos.set(`${PASTA}/${imagem}`, png(7))
+    arquivos.set(SONS, sonsJsonQueCita(daBiblioteca))
+
+    const trazida = await trazerMidiaAoAbrir('C:/aventura/map.json', 'C:/aventura')
+
+    expect(trazida).toEqual({ importados: [solto, imagem].sort(), recusados: [], pastaIlegivel: false })
+    expect(arquivos.has(`${MIDIA_DO_APP}/${daBiblioteca}`)).toBe(false)
+    expect(bytesDe(`${PASTA}/${daBiblioteca}`)).toEqual(wav(64, 1))
+  })
+
+  it('aventura sem sons.json: todo áudio volta como hoje', async () => {
+    const id = await naPasta(wav(64, 3))
+    expect(await importarMidiaDaPasta(PASTA)).toEqual({ importados: [id], recusados: [], pastaIlegivel: false })
+    expect(bytesDe(`${MIDIA_DO_APP}/${id}`)).toEqual(wav(64, 3))
+  })
+
+  it('o efeito torto (que a leitura descartaria) também conta: o id citado fica', async () => {
+    const id = await naPasta(wav(64, 4))
+    arquivos.set(SONS, JSON.stringify({ versao: 1, pastas: [], efeitos: [{ id: '???', fonte: { tipo: 'arquivo', ref: `midia:${id}` } }] }))
+    expect((await importarMidiaDaPasta(PASTA)).importados).toEqual([])
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+  })
+
+  it('na dúvida nenhum áudio vai, e a imagem vai: sons.json ilegível, de versão mais nova ou grande demais (este nem é lido)', async () => {
+    const imagem = await idDosBytes(png(9))
+    if (imagem === null) throw new Error('o teste montou bytes que não são imagem')
+    const casos: Array<[string, string]> = [
+      ['ilegível', '{ quebrado'],
+      ['versão mais nova', JSON.stringify({ versao: 99, efeitos: [] })],
+      ['grande demais', ' '.repeat(SONS_JSON_MAX_BYTES + 1)],
+    ]
+    for (const [caso, texto] of casos) {
+      limparDisco()
+      const id = await naPasta(wav(64, 5))
+      arquivos.set(`${PASTA}/${imagem}`, png(9))
+      arquivos.set(SONS, texto)
+      expect((await importarMidiaDaPasta(PASTA)).importados, caso).toEqual([imagem])
+      expect(arquivos.has(`${MIDIA_DO_APP}/${id}`), caso).toBe(false)
+      expect(bytesDe(`${PASTA}/${id}`), caso).toEqual(wav(64, 5))
+    }
+    expect(fsFalso.readTextFile).not.toHaveBeenCalled()
+  })
+
+  it('o disco que recusa ler o sons.json conta como dúvida: o áudio fica', async () => {
+    const id = await naPasta(wav(64, 6))
+    arquivos.set(SONS, sonsJsonQueCita())
+    fsFalso.readTextFile.mockRejectedValueOnce(new Error('os error 5'))
+    expect((await importarMidiaDaPasta(PASTA)).importados).toEqual([])
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+  })
+
+  it('pasta só de imagens nem olha o sons.json', async () => {
+    const imagem = await idDosBytes(png(3))
+    if (imagem === null) throw new Error('o teste montou bytes que não são imagem')
+    criarPastasAte(PASTA)
+    arquivos.set(`${PASTA}/${imagem}`, png(3))
+    arquivos.set(SONS, '{ quebrado')
+    expect((await importarMidiaDaPasta(PASTA)).importados).toEqual([imagem])
+    expect(fsFalso.exists).not.toHaveBeenCalled()
+  })
+})
+
+describe('guardarAudioNaPasta e lerAudioDaPasta (o áudio direto na pasta da aventura)', () => {
+  it('grava em <aventura>/midia e não em <appData>/midia; lê de volta conferido', async () => {
+    const ref = await guardarAudioNaPasta(PASTA, wav(64, 1))
+    const id = ref.slice('midia:'.length)
+    expect(bytesDe(`${PASTA}/${id}`)).toEqual(wav(64, 1))
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+    expect(await lerAudioDaPasta(PASTA, id)).toEqual(wav(64, 1))
+  })
+
+  it('o arquivo do MESMO tamanho com outro conteúdo (trocado ou corrompido) é regravado: o tamanho só não basta, o hash decide', async () => {
+    const id = await idDeAudio(wav(64, 1))
+    criarPastasAte(PASTA)
+    arquivos.set(`${PASTA}/${id}`, wav(64, 2))
+    expect(await guardarAudioNaPasta(PASTA, wav(64, 1))).toBe(`midia:${id}`)
+    expect(bytesDe(`${PASTA}/${id}`)).toEqual(wav(64, 1))
+    expect(await lerAudioDaPasta(PASTA, id)).toEqual(wav(64, 1))
+    // A cópia que já confere não é regravada.
+    fsFalso.writeFile.mockClear()
+    await guardarAudioNaPasta(PASTA, wav(64, 1))
+    expect(fsFalso.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('o atalho com o nome do áudio não é escrito: lança a frase sem caminho, e o alvo do atalho fica intacto', async () => {
+    const id = await idDeAudio(wav(64, 2))
+    const vitima = 'C:/Windows/vitima.dll'
+    criarPastasAte(vitima)
+    arquivos.set(vitima, Uint8Array.from([1, 2, 3]))
+    criarPastasAte(PASTA)
+    links.set(`${PASTA}/${id}`, vitima)
+    await expect(guardarAudioNaPasta(PASTA, wav(64, 2))).rejects.toThrow(AUDIO_NAO_FOI_PARA_A_PASTA)
+    expect(bytesDe(vitima)).toEqual(Uint8Array.from([1, 2, 3]))
+  })
+
+  it('ler: o que não está lá, o de conteúdo trocado e o de mais de 15 MB (sem ler os bytes) dão null', async () => {
+    const id = await idDeAudio(wav(64, 3))
+    expect(await lerAudioDaPasta(PASTA, id)).toBeNull()
+    criarPastasAte(PASTA)
+    arquivos.set(`${PASTA}/${id}`, wav(64, 4))
+    expect(await lerAudioDaPasta(PASTA, id)).toBeNull()
+    const enorme = `${'c'.repeat(64)}.mp3`
+    arquivos.set(`${PASTA}/${enorme}`, new Uint8Array(MIDIA_AUDIO_MAX_BYTES + 1))
+    fsFalso.readFile.mockClear()
+    expect(await lerAudioDaPasta(PASTA, enorme)).toBeNull()
+    expect(fsFalso.readFile).not.toHaveBeenCalled()
   })
 })

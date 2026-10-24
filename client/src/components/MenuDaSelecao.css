@@ -1,0 +1,82 @@
+/* MENU DA SELEÇÃO (fase 3 das camadas, fatia 8): o molde do menu da porta
+   (.lb-portamenu) com o submenu "Mover para camada" ao lado. */
+.lb-menusel {
+  min-width: 12rem;
+}
+
+.lb-menusel__pai {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-menusel__pai[aria-disabled='true'] {
+  color: var(--lb-color-parchment-faint);
+  cursor: default;
+}
+
+.lb-menusel__pai[aria-expanded='true'] {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-menusel__seta {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-menusel__motivo {
+  max-width: 14rem;
+  margin: 0;
+  padding: 2px var(--lb-space-2) 4px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+/* O submenu encosta no menu pai; sem espaço à direita, abre à esquerda.
+   Sem animação própria: abre pelo teclado com frequência, e o pai já entrou. */
+.lb-panel.lb-portamenu.lb-menusel__sub {
+  top: 0;
+  left: calc(100% + 2px);
+  /* Cabe "Decoração" com o "travada" ao lado, sem reticências. */
+  min-width: 13rem;
+  max-height: min(24rem, 70vh);
+  overflow-y: auto;
+  animation: none;
+}
+
+.lb-panel.lb-portamenu.lb-menusel__sub[data-lado='esquerda'] {
+  right: calc(100% + 2px);
+  left: auto;
+}
+
+.lb-menusel__camada {
+  display: grid;
+  grid-template-columns: 1rem 1fr auto;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-menusel__camada:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-menusel__camada:disabled:hover {
+  background: transparent;
+}
+
+.lb-menusel__marca {
+  color: var(--lb-color-brass, var(--lb-color-parchment));
+}
+
+.lb-menusel__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-menusel__estado {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}

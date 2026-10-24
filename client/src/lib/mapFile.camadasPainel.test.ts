@@ -26,9 +26,9 @@ function comCampos(map: MapData, crus: Record<string, unknown>): string {
 
 describe('olho e cadeado das 13 no arquivo', () => {
   it('mapa v2: ids novos e livres voltam iguais, na mesma ordem', () => {
-    const v2 = mapa({ versaoDasCamadas: 2, ocultasDoJogador: ['telhados'], hiddenLayers: ['chao', 'paredes', 'telhados', 'livre_abc123XYZ9'], lockedLayers: ['terreno', 'desenhos'] })
+    const v2 = mapa({ versaoDasCamadas: 2, ocultasDoJogador: ['telhados'], hiddenLayers: ['chao', 'paredes', 'telhados', 'livre_4b95797c'], lockedLayers: ['terreno', 'desenhos'] })
     const lido = idaEVolta(v2)
-    expect(lido.hiddenLayers).toEqual(['chao', 'paredes', 'telhados', 'livre_abc123XYZ9'])
+    expect(lido.hiddenLayers).toEqual(['chao', 'paredes', 'telhados', 'livre_4b95797c'])
     expect(lido.lockedLayers).toEqual(['terreno', 'desenhos'])
     expect(lido.versaoDasCamadas).toBe(2)
   })

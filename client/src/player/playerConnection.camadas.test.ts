@@ -47,7 +47,7 @@ function conectar() {
 }
 
 const ANA: Token = { id: 't1', characterId: null, name: 'Ana', x: 125, y: 125, size: 1, image: null }
-const PAREDE: Wall = { id: 'w1', x1: 50, y1: 50, x2: 200, y2: 50, blocksLight: true, blocksMove: true, door: null, camada: 'livre_x' }
+const PAREDE: Wall = { id: 'w1', x1: 50, y1: 50, x2: 200, y2: 50, blocksLight: true, blocksMove: true, door: null, camada: 'livre_16bcc5fe' }
 
 describe('isMapShape com camadas', () => {
   it('mapa sem nenhum campo de camada (mestre antigo) entra', () => {
@@ -64,13 +64,13 @@ describe('isMapShape com camadas', () => {
       floor: [],
       versaoDasCamadas: 2,
       ocultasDoJogador: [],
-      modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'livre_x', nome: 'Segredo do Lich' }] },
+      modeloCamadas: { ordem: [{ id: 'chao' }, { id: 'livre_16bcc5fe', nome: 'Segredo do Lich' }] },
     }
     const { map } = filterMapForPlayer(mestre, 'p1', { p1: ['t1'] }, 400)
-    expect(map.walls.map((w) => w.camada)).toEqual(['livre_x'])
+    expect(map.walls.map((w) => w.camada)).toEqual(['livre_16bcc5fe'])
     const { connection, socket } = conectar()
     socket.receive({ type: 'snapshot', rev: 1, map, vision: [] })
     expect(connection.getState()).toMatchObject({ status: 'playing', rev: 1 })
-    expect(connection.getState().map?.walls[0]?.camada).toBe('livre_x')
+    expect(connection.getState().map?.walls[0]?.camada).toBe('livre_16bcc5fe')
   })
 })

@@ -10,13 +10,13 @@ import { obterSaidaAoVivoDoNavegador, quandoOAudioRodar } from '../contexto'
  * Sons (F3), a rede (F4) e o jogador (F5) o usam por esta API pequena.
  *
  *  - Quem traz os bytes é INJETADO: o mestre lê do disco (`lerAudioGuardado`),
- *    o jogador busca `/media/<id>`. Dois toques do mesmo arquivo ao mesmo tempo
+ *    o jogador busca `/sons/<id>` (com a chave da sala). Dois toques do mesmo arquivo ao mesmo tempo
  *    fazem UMA leitura, com prazo (`PRAZO_DO_CARREGAMENTO_MS`); o efeito
  *    curto cujo áudio chega 2 s depois do pedido é descartado ('atrasado').
  *  - Cache em duas camadas: os bytes como chegaram e o áudio pronto. Até 1 MB
  *    o arquivo fica decodificado (o clique toca na hora); acima, vira Blob
  *    tocado por `<audio>` ligado ao Web Audio, que pula para o meio do arquivo
- *    sem decodificar 15 MB (e `/media` não tem Range). O corte é pelo tamanho
+ *    sem decodificar 15 MB (e `/sons` não tem Range). O corte é pelo tamanho
  *    total na memória: sai o menos usado que não está tocando.
  *  - Limites: `MAX_SONS_SIMULTANEOS` ao todo e `MAX_LOOPS` loops. Efeito curto
  *    acima do limite derruba o efeito curto mais antigo; loop acima do limite é
@@ -51,6 +51,28 @@ export const ESPERA_DO_EFEITO_CURTO_MS = 2000
 export const PRAZO_DO_CARREGAMENTO_MS = 30_000
 /** Até este tamanho o arquivo fica decodificado; acima, toca por `<audio>` a partir de um Blob. */
 export const DECODIFICADO_ATE_BYTES = 1 * MB
+/**
+ * Quantos arquivos a pré-carga traz, no máximo (o mestre manda os primeiros
+ * favoritos; o aparelho corta o resto). O servidor da sala (plano F5, seção 2)
+ * aceita 30 buscas por 10 s por IP, e os 4 jogadores e a TV podem sair pelo
+ * MESMO IP (o túnel de uma casa, o NAT): 5 x 4 = 20 pré-cargas deixam 10
+ * buscas para os toques desses 10 s. Com 6 seriam 30, e o 1º toque levaria 429.
+ */
+export const PRE_CARGA_MAX_ARQUIVOS = 4
+/**
+ * Buscas da pré-carga ao mesmo tempo, por aparelho, e só quando nenhuma outra
+ * está no ar. O servidor aceita 2 por chave e 6 na sala: com 5 aparelhos, 1
+ * de cada deixa a vaga do toque, que nunca entra na fila.
+ */
+const BUSCAS_DA_PRE_CARGA = 1
+/**
+ * Quanto o áudio comprimido cresce ao decodificar, para decidir ANTES: MP3 de
+ * 128 kbit/s vira 48 kHz, estéreo, 32 bits por amostra (~24x). O WAV cresce
+ * menos; a estimativa alta só faz a pré-carga decodificar menos adiantado.
+ */
+const CRESCIMENTO_AO_DECODIFICAR = 24
+/** A pré-carga decodifica adiantado só até esta fração do orçamento do cache: o resto é do que o clique toca. */
+const FRACAO_DO_CACHE_PARA_ADIANTAR = 0.5
 export const CACHE_NO_COMPUTADOR_BYTES = 150 * MB
 /** Celular (`pointer: coarse`) tem bem menos memória para áudio decodificado. */
 export const CACHE_NO_CELULAR_BYTES = 60 * MB
@@ -153,6 +175,8 @@ export type MotivoDoFim = 'fim' | 'parado' | 'derrubado'
 export type EventoDoMotor =
   /** Pedido antes de o gesto destravar o áudio: a F5 mostra a faixinha "toque para ouvir". */
   | { tipo: 'esperando'; instancia: string }
+  /** O gesto (ou o áudio que voltou a rodar) tirou da espera; ainda falta o arquivo: a faixinha sai. Só vem depois de 'esperando'. */
+  | { tipo: 'carregando'; instancia: string }
   /** Começou a soar; a barra de progresso (F3) anda a partir de `inicioEmMs` (relógio `agora`). */
   | { tipo: 'tocando'; instancia: string; loop: boolean; duracaoS: number; deslocamentoS: number; inicioEmMs: number }
   | { tipo: 'terminou'; instancia: string; motivo: MotivoDoFim }
@@ -188,6 +212,30 @@ export interface DependenciasDoMotor<N> {
   /** Relógio em ms, monotônico. */
   agora: () => number
   orcamentoDoCacheBytes: number
+  /**
+   * Avisa quando a reserva de `<audio>` destravados é reposta (um gesto novo,
+   * F5): o toque que esperava porque o `play()` foi recusado com o contexto já
+   * rodando tenta de novo, já que o aviso de destravamento não viria.
+   */
+  aoReporReservas?: (ouvinte: () => void) => () => void
+}
+
+/**
+ * `<audio>` destravados por um gesto (F5). No iOS só toca depois o elemento
+ * que tocou dentro de um toque; o motor tira daqui antes de criar um novo.
+ */
+export interface ReservaDeAudios {
+  /** Um `<audio>` destravado, que sai da reserva; `null` quando ela acabou. */
+  tirar(): ElementoDeAudio | null
+  /** Avisa a cada reposição (um gesto); devolve a função que tira o ouvinte. */
+  aoRepor(ouvinte: () => void): () => void
+}
+
+export interface OpcoesDoMotorDoNavegador {
+  /** Os `<audio>` destravados pelo toque na faixinha (jogador e TV); sem ela, cada toque cria um novo. */
+  reservas?: ReservaDeAudios
+  /** De onde vêm o volume e o Mudo; o padrão é o do aparelho (`somStore`). A TV passa uma fixa. */
+  preferencia?: Pick<DependenciasDoMotor<AudioNode>, 'lerPreferencia' | 'assinarPreferencia'>
 }
 
 /** O que guarda cada arquivo: os bytes ainda por decodificar, o áudio decodificado ou o Blob do arquivo grande. */
@@ -268,6 +316,10 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
   const cache = new Map<string, EntradaDoCache>()
   const buscando = new Map<string, Promise<void>>()
   const decodificando = new Map<string, Promise<BufferAoVivo>>()
+  /** Ids da pré-carga que ainda não começaram a descer, na ordem pedida. */
+  let filaDaPreCarga: string[] = []
+  /** Uma decodificação adiantada por vez (`adiantarDecodificacao`). */
+  let adiantando = false
   /** Depois do `desmontar`, o que ainda chega não é guardado: ninguém mais revogaria nem esvaziaria. */
   let desmontado = false
 
@@ -339,9 +391,23 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       })
       .finally(() => {
         buscando.delete(id)
+        puxarPreCarga()
       })
     buscando.set(id, busca)
     return busca
+  }
+
+  /**
+   * A próxima da pré-carga desce quando nenhuma busca está no ar: o toque
+   * busca na hora (passa à frente) e a fila espera ele acabar.
+   */
+  function puxarPreCarga(): void {
+    if (desmontado || buscando.size >= BUSCAS_DA_PRE_CARGA) return
+    let id = filaDaPreCarga.shift()
+    while (id !== undefined && (cache.has(id) || buscando.has(id))) id = filaDaPreCarga.shift()
+    if (id === undefined) return
+    // Pré-carga é adiantamento: se falhar, o clique tenta de novo e avisa.
+    garantirBytes(id).then(adiantarDecodificacao, () => undefined)
   }
 
   function decodificar(id: string, bytes: Uint8Array, ctx: ContextoAoVivo<N>): Promise<BufferAoVivo> {
@@ -371,11 +437,39 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     return guardado
   }
 
-  function decodificarOsQueChegaram(ctx: ContextoAoVivo<N>): void {
-    for (const [id, entrada] of [...cache]) {
-      // Pré-carga é adiantamento: se falhar aqui, o clique tenta de novo e avisa.
-      if (entrada.guardado.tipo === 'bytes') decodificar(id, entrada.guardado.bytes, ctx).catch(() => undefined)
+  /** Os bytes guardados que cabem decodificados na parte adiantável do orçamento, pela estimativa; `null` = nenhum. */
+  function proximoParaAdiantar(): { id: string; bytes: Uint8Array } | null {
+    let total = 0
+    for (const entrada of cache.values()) total += entrada.custo
+    const teto = deps.orcamentoDoCacheBytes * FRACAO_DO_CACHE_PARA_ADIANTAR
+    for (const [id, entrada] of cache) {
+      if (entrada.guardado.tipo !== 'bytes' || decodificando.has(id)) continue
+      // Decodificado, o arquivo troca os bytes pelo áudio pronto na conta.
+      if (total - entrada.custo + entrada.custo * CRESCIMENTO_AO_DECODIFICAR <= teto) return { id, bytes: entrada.guardado.bytes }
     }
+    return null
+  }
+
+  /**
+   * Decodifica o que a pré-carga trouxe, UM por vez e só o que cabe: 1 MB de
+   * MP3 vira ~25 MB decodificado, e decodificar todos juntos estoura a memória
+   * do celular antes de o corte do cache agir. O que não coube fica em bytes e
+   * decodifica no clique.
+   */
+  function adiantarDecodificacao(): void {
+    if (adiantando || desmontado) return
+    const saida = obterSaida()
+    if (saida === null || saida.ctx.state !== 'running') return
+    const proximo = proximoParaAdiantar()
+    if (proximo === null) return
+    adiantando = true
+    decodificar(proximo.id, proximo.bytes, saida.ctx)
+      // Adiantamento: se falhar aqui, o clique tenta de novo e avisa.
+      .catch(() => undefined)
+      .finally(() => {
+        adiantando = false
+        adiantarDecodificacao()
+      })
   }
 
   // ---- vozes ----
@@ -593,6 +687,11 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       voz.expira = null
     }
     voz.estado = 'carregando'
+    // Saiu da espera: a faixinha não pede outro toque enquanto o arquivo desce. Se voltar a esperar, avisa de novo.
+    if (voz.avisouEspera) {
+      voz.avisouEspera = false
+      emitir({ tipo: 'carregando', instancia: voz.instancia })
+    }
     audioPronto(voz.id, saida.ctx).then(
       (pronto) => iniciar(voz, saida, pronto),
       () => {
@@ -608,8 +707,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       if (!voz.loop && agora() - voz.pedidoEmMs >= ESPERA_DO_EFEITO_CURTO_MS) recusarVoz(voz, 'sem-gesto')
       else tentarIniciar(voz)
     }
-    const saida = obterSaida()
-    if (saida !== null && saida.ctx.state === 'running') decodificarOsQueChegaram(saida.ctx)
+    adiantarDecodificacao()
   }
 
   /** Abre lugar para uma voz nova derrubando o efeito curto mais antigo (loop nunca é derrubado). */
@@ -636,6 +734,7 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     for (const voz of vozes.values()) aplicarGanho(voz)
   })
   const desligarDestravar = deps.aoDestravar(retomar)
+  const desligarReposicao = deps.aoReporReservas?.(retomar)
 
   return {
     tocar(instancia, fonte, opcoes) {
@@ -687,18 +786,9 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     },
 
     precarregar(ids) {
-      for (const id of ids) {
-        if (!ehIdDeAudio(id)) continue
-        garantirBytes(id)
-          .then(() => {
-            const saida = obterSaida()
-            const entrada = cache.get(id)
-            if (saida === null || saida.ctx.state !== 'running' || entrada === undefined || entrada.guardado.tipo !== 'bytes') return
-            return decodificar(id, entrada.guardado.bytes, saida.ctx)
-          })
-          // Pré-carga é adiantamento: se falhar, o clique tenta de novo e avisa.
-          .catch(() => undefined)
-      }
+      // A pré-carga nova troca a anterior (como no mestre); o que já desce segue.
+      filaDaPreCarga = [...new Set(ids.filter((id) => ehIdDeAudio(id)))].slice(0, PRE_CARGA_MAX_ARQUIVOS)
+      puxarPreCarga()
     },
 
     assinar(ouvinte) {
@@ -710,9 +800,11 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
 
     desmontar() {
       desmontado = true
+      filaDaPreCarga = []
       for (const voz of [...vozes.values()]) encerrarVoz(voz, 0, 'parado')
       desligarPreferencia()
       desligarDestravar()
+      desligarReposicao?.()
       for (const [id, entrada] of [...cache]) descartarDoCache(id, entrada)
       ouvintes.clear()
     },
@@ -725,17 +817,19 @@ function ehCelular(): boolean {
 
 /**
  * O motor do app, com o Web Audio, o `<audio>` e o volume do aparelho de
- * verdade. Cada lado passa quem traz os bytes: o mestre, o disco; o jogador, a
- * sala (`/media/<id>`).
+ * verdade. Cada lado passa quem traz os bytes: o mestre, o disco; o jogador e
+ * a TV, a sala (`/sons/<id>`), com os `<audio>` da reserva destravada no toque.
  */
-export function criarMotorAoVivoDoNavegador(carregarBytes: CarregadorDeBytes): MotorAoVivo {
+export function criarMotorAoVivoDoNavegador(carregarBytes: CarregadorDeBytes, { reservas, preferencia }: OpcoesDoMotorDoNavegador = {}): MotorAoVivo {
   return criarMotorAoVivo<AudioNode>({
     carregarBytes,
     obterSaida: obterSaidaAoVivoDoNavegador,
     aoDestravar: quandoOAudioRodar,
-    lerPreferencia: () => useSomStore.getState(),
-    assinarPreferencia: (ouvinte) => useSomStore.subscribe(() => ouvinte()),
-    criarElementoDeAudio: () => new Audio(),
+    lerPreferencia: preferencia?.lerPreferencia ?? (() => useSomStore.getState()),
+    assinarPreferencia: preferencia?.assinarPreferencia ?? ((ouvinte) => useSomStore.subscribe(() => ouvinte())),
+    // `createMediaElementSource` vale uma vez por elemento: o da reserva sai dela para sempre.
+    criarElementoDeAudio: () => reservas?.tirar() ?? new Audio(),
+    ...(reservas === undefined ? {} : { aoReporReservas: (ouvinte: () => void) => reservas.aoRepor(ouvinte) }),
     criarUrlDoAudio: (bytes, tipoMime) => URL.createObjectURL(new Blob([bytes], { type: tipoMime })),
     revogarUrl: (url) => URL.revokeObjectURL(url),
     agora: () => performance.now(),

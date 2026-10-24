@@ -743,7 +743,6 @@ Parte de: peça de imagem selecionada. Vai para: Página Ficha do objeto: No map
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 | Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 
@@ -758,7 +757,6 @@ Parte de: objeto "m-barril" selecionado no mapa. Vai para: Página Ficha do obje
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -776,7 +774,6 @@ Parte de: objeto "m-catre" selecionado no mapa. Vai para: Página Ficha do objet
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor do travesseiro | textbox "Cor do travesseiro" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -798,7 +795,6 @@ Parte de: objeto "m-cerca" selecionado no mapa. Vai para: Página Ficha do objet
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Rótulo para jogadores | textbox "Rótulo para jogadores" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
 | Mostrar imagem ao jogador | checkbox "Mostrar imagem ao jogador" | (livro do mestre) > clicar button "/^Para os jogadores/" | (do bloco) |
@@ -815,7 +811,6 @@ Parte de: objeto "m-armario" selecionado no mapa. Vai para: Página Ficha do obj
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -834,7 +829,6 @@ Parte de: objeto "m-aparador" selecionado no mapa. Vai para: Página Ficha do ob
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -853,7 +847,6 @@ Parte de: objeto "m-fogueira" selecionado no mapa. Vai para: Página Ficha do ob
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -873,7 +866,6 @@ Parte de: objeto "m-tapete" selecionado no mapa. Vai para: Página Ficha do obje
 | Travado | checkbox "Travado" | (livro do mestre) | (do bloco) |
 | Oculto no editor | checkbox "Oculto no editor" | (livro do mestre) | (do bloco) |
 | Oculto para jogadores | checkbox "Oculto para jogadores" | (livro do mestre) | (do bloco) |
-| Camada do objeto selecionado | radiogroup "Camada do objeto selecionado" | (livro do mestre) | (do bloco) |
 | Preencher | checkbox "Preencher" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor | textbox "Cor" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
 | Cor da linha | textbox "Cor da linha" | (livro do mestre) > clicar button "/^Aparência/" | (do bloco) |
@@ -1241,4 +1233,4 @@ Parte de: jogador no celular, painel aberto. Vai para: Folha com abas: "No mapa"
 | Acervo (fatia 18b): o "+" que põe no centro da vista ("Pôr <nome> no centro do mapa"), na linha do token e no cartão do item | pedem um token guardado no acervo do disco do app e um item no acervo de itens, que o estado de teste não tem; TokenLibraryPanel.linhas.test.tsx e AcervoDeItensPanel.test.tsx alcançam os dois botões, e task-jornada-item-do-acervo-no-mapa.spec.ts põe o item no mapa por ele e confere na tela |
 | Ficha da escada (fatia 16b): o Diâmetro da espiral e o "Revelar para" da escada secreta | pedem escada espiral, ou escada secreta com a sala aberta; FichasDosItens16b.test.tsx e StairControls.tamanho.test.tsx cobrem o Diâmetro, RevealToControls.test.tsx cobre o Revelar para |
 
-Total: 711 controles em 70 blocos.
+Total: 703 controles em 70 blocos.

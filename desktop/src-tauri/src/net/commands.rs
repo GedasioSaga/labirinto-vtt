@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
@@ -12,7 +13,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
 use super::animacoes;
-use super::server::{self, lock, Asset, ClientId, NetSink, PeerEvent, Room, SendError};
+use super::server::{self, lock, Asset, ClientId, ErroAoLiberar, NetSink, PeerEvent, Room, SendError};
+use super::sons::{self, ErroDosSons};
 use super::tunnel::{self, CloseReason, SharedChild, TunnelEvent, TUNNEL_EVENT};
 
 const CODE_ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -421,10 +423,85 @@ pub async fn net_stop_tunnel<R: Runtime>(app: AppHandle<R>, state: State<'_, Net
     Ok(())
 }
 
+/// `liberar` (SONS AO VIVO): os áudios que esta mensagem entrega a esta
+/// conexão, liberados em `/sons/{id}` no mesmo passo do envio. Ausente ou
+/// vazio, o `net_send` é o de sempre.
 #[tauri::command]
-pub async fn net_send(state: State<'_, NetState>, client_id: String, msg: Value) -> Result<(), String> {
+pub async fn net_send(
+    state: State<'_, NetState>,
+    client_id: String,
+    msg: Value,
+    liberar: Option<Vec<String>>,
+) -> Result<(), String> {
     let room = active_room(&state).await?;
-    send_to(&room, &client_id, &msg)
+    send_to_liberando(&room, &client_id, &msg, liberar.as_deref().unwrap_or_default())
+}
+
+/// Núcleo de `net_send` com `liberar`, sem `State` do Tauri (testável).
+pub fn send_to_liberando(room: &Room, client_id: &str, msg: &Value, liberar: &[String]) -> Result<(), String> {
+    if liberar.is_empty() {
+        return send_to(room, client_id, msg);
+    }
+    if !msg.is_object() {
+        return Err("msg precisa ser um objeto JSON".into());
+    }
+    let id = parse_client_id(client_id)?;
+    room.send_liberando(id, msg, liberar).map_err(|erro| match erro {
+        ErroAoLiberar::Envio(envio) => send_error(envio),
+        ErroAoLiberar::Sons(sons) => sons.texto().to_owned(),
+    })
+}
+
+/// SONS AO VIVO: a pasta da aventura aberta, de onde `/sons/{id}` lê;
+/// `null` = nenhuma (a rota só dá 404).
+#[tauri::command]
+pub async fn net_sons_aventura(state: State<'_, NetState>, pasta: Option<String>) -> Result<(), String> {
+    sons_aventura_no_estado(&state, pasta).await
+}
+
+async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>) -> Result<(), String> {
+    let room = state
+        .room
+        .lock()
+        .await
+        .as_ref()
+        .map(|open| open.room.clone())
+        .ok_or_else(|| ErroDosSons::SemSala.texto().to_owned())?;
+    definir_aventura_dos_sons(&room, pasta).await
+}
+
+/// Núcleo de `net_sons_aventura`. Pasta recusada também tira a de antes: a
+/// sala nunca segue servindo a aventura que o mestre deixou.
+pub async fn definir_aventura_dos_sons(room: &Room, pasta: Option<String>) -> Result<(), String> {
+    definir_aventura_dos_sons_com(room, pasta, sons::raiz_da_aventura).await
+}
+
+/// `conferir` é `sons::raiz_da_aventura`; o teste troca por uma que espera.
+/// Cada chamada pega a sua vez ANTES da conferência (que pode demorar numa
+/// pasta de rede): só a vez mais nova muda a raiz, inclusive contra um `None`
+/// dado depois. A chamada velha devolve o resultado da pasta dela, sem aplicar.
+async fn definir_aventura_dos_sons_com<F>(room: &Room, pasta: Option<String>, conferir: F) -> Result<(), String>
+where
+    F: FnOnce(&Path) -> Result<PathBuf, ErroDosSons> + Send + 'static,
+{
+    let vez = room.nova_vez_dos_sons();
+    let Some(pasta) = pasta else {
+        room.definir_aventura_dos_sons(vez, None);
+        return Ok(());
+    };
+    let conferida = tokio::task::spawn_blocking(move || conferir(Path::new(&pasta)))
+        .await
+        .unwrap_or(Err(ErroDosSons::PastaInvalida));
+    match conferida {
+        Ok(raiz) => {
+            room.definir_aventura_dos_sons(vez, Some(raiz));
+            Ok(())
+        }
+        Err(erro) => {
+            room.definir_aventura_dos_sons(vez, None);
+            Err(erro.texto().to_owned())
+        }
+    }
 }
 
 #[tauri::command]
@@ -542,6 +619,13 @@ mod tests {
         assert_eq!(player_urls(&lan, 7778), vec!["http://192.168.0.5:7778/player".to_owned()]);
     }
 
+    #[tokio::test]
+    async fn sons_aventura_sem_sala_e_sem_sala() {
+        let state = NetState::default();
+        assert_eq!(sons_aventura_no_estado(&state, None).await, Err("sem-sala".to_owned()));
+        assert_eq!(sons_aventura_no_estado(&state, Some("C:/qualquer".to_owned())).await, Err("sem-sala".to_owned()));
+    }
+
     #[test]
     fn qr_gera_svg() {
         let svg = qr_svg("http://192.168.0.5:7777/player");
@@ -569,6 +653,70 @@ mod tests {
         let room = test_room();
         *state.room.lock().await = Some(OpenRoom { room: room.clone(), port: 7777 });
         (state, room)
+    }
+
+    /// Pasta de aventura com `adventure.json`, só deste teste.
+    fn aventura_de_teste(nome: &str) -> Result<PathBuf, String> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-commands-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&pasta);
+        std::fs::create_dir_all(&pasta).map_err(|e| e.to_string())?;
+        std::fs::write(pasta.join(sons::ARQUIVO_DA_AVENTURA), b"{}").map_err(|e| e.to_string())?;
+        Ok(pasta)
+    }
+
+    type Conferir = Box<dyn FnOnce(&Path) -> Result<PathBuf, ErroDosSons> + Send>;
+
+    /// Conferência de pasta de rede lenta: avisa quando começou e só termina
+    /// quando o teste solta (a ordem fica na mão do teste, sem relógio).
+    fn conferencia_presa() -> (Conferir, tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+        let (comecou_tx, comecou_rx) = tokio::sync::oneshot::channel();
+        let (solta_tx, solta_rx) = std::sync::mpsc::channel::<()>();
+        let conferir: Conferir = Box::new(move |pasta: &Path| {
+            let _ = comecou_tx.send(());
+            let _ = solta_rx.recv();
+            sons::raiz_da_aventura(pasta)
+        });
+        (conferir, comecou_rx, solta_tx)
+    }
+
+    /// Começa `definir_aventura_dos_sons` com a conferência presa e espera ela
+    /// pegar a vez; devolve a tarefa e o gatilho que a solta.
+    async fn conferencia_lenta(
+        room: &Arc<Room>,
+        pasta: &Path,
+    ) -> Result<(tokio::task::JoinHandle<Result<(), String>>, std::sync::mpsc::Sender<()>), String> {
+        let (conferir, comecou, solta) = conferencia_presa();
+        let room = room.clone();
+        let pasta = Some(pasta.to_string_lossy().into_owned());
+        let tarefa = tokio::spawn(async move { definir_aventura_dos_sons_com(&room, pasta, conferir).await });
+        comecou.await.map_err(|e| e.to_string())?;
+        Ok((tarefa, solta))
+    }
+
+    /// A conferência velha (pasta de rede lenta) termina DEPOIS da nova e não
+    /// passa por cima dela, nem de um `None`. Mutações vermelhas: aplicar sem
+    /// olhar a vez; `None` sem pegar vez.
+    #[tokio::test]
+    async fn conferencia_velha_nao_passa_por_cima_da_nova() -> Result<(), String> {
+        let room = test_room();
+        let velha = aventura_de_teste("vez-velha")?;
+        let nova = aventura_de_teste("vez-nova")?;
+
+        let (lenta, solta) = conferencia_lenta(&room, &velha).await?;
+        definir_aventura_dos_sons(&room, Some(nova.to_string_lossy().into_owned())).await?;
+        let _ = solta.send(());
+        assert_eq!(lenta.await.map_err(|e| e.to_string())?, Ok(()));
+        assert_eq!(room.raiz_dos_sons(), Some(sons::raiz_da_aventura(&nova).map_err(|e| e.texto().to_owned())?));
+
+        let (lenta, solta) = conferencia_lenta(&room, &velha).await?;
+        definir_aventura_dos_sons(&room, None).await?;
+        let _ = solta.send(());
+        assert_eq!(lenta.await.map_err(|e| e.to_string())?, Ok(()));
+        assert_eq!(room.raiz_dos_sons(), None, "a pasta velha voltou depois do None");
+
+        let _ = std::fs::remove_dir_all(&velha);
+        let _ = std::fs::remove_dir_all(&nova);
+        Ok(())
     }
 
     /// Túnel falso: `ping` no lugar do `cloudflared` e a sala com nome público.

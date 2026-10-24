@@ -10,6 +10,8 @@ import type { PlayerConnectionOptions } from './playerConnection'
 import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/contasDosJogadores'
 import { rotuloDoNavegador } from './rotuloDoAparelho'
 import { instalarSonsDoJogador } from './sonsDoJogador'
+import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
+import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 import { pedeGzip } from '../net/pacoteComprimido'
 import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import type { PlayerConnection, PlayerState, SeatClaimNotice, SocketLike, StorageLike } from './playerConnection'
@@ -65,6 +67,7 @@ import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
+import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
@@ -90,7 +93,7 @@ import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoi
 import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle } from '../lib/correio'
 import { chatFacesByName, type ChatChannel } from '../lib/chat'
-import { findKnownPath } from '../lib/knownPath'
+import { findKnownPath, prepararCaminhoConhecido } from '../lib/knownPath'
 import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
@@ -135,6 +138,8 @@ const IGNORE_MOVE = (): void => {}
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 /** O aviso do "Me avise quando der". */
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
+/** Fatia da montagem da malha do "Andar até aqui", em ms: bem abaixo de um quadro. */
+const FATIA_DA_MALHA_MS = 8
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -673,7 +678,7 @@ interface SessionProps {
   onAcaoNoOlhar?: () => void
   /**
    * MINIGAME DE DANÇA na Visão de jogador: de onde a tela da dança baixa a
-   * música importada (a pasta de mídia do mestre, não a rota `/media/` da
+   * música importada (a pasta de mídia do mestre, não a rota `/sons/` da
    * sala, que aquela janela não tem) e onde ela entra (a caixa embaixo da
    * barra do teste). Ausente = o jogador de sempre.
    */
@@ -734,6 +739,8 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
+  const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
   // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
   // mesa: pelo servidor da sala no navegador, pelo Rust na janela da Visão de
   // jogador. Uma vez por página; sem pacote, 404 e silêncio.
@@ -844,6 +851,21 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     if (walker === undefined) return null
     return findKnownPath(map, walker, { x: pointMenu.x, y: pointMenu.y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
   }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
+  /**
+   * A malha do "Andar até aqui" é montada em fatias assim que a cena chega
+   * (`prepararCaminhoConhecido`): no mapa grande, montá-la inteira no toque
+   * longo seria uma tarefa longa. Abrir ou fechar porta não a refaz.
+   */
+  const mapaDoCaminho = state.map
+  useEffect(() => {
+    if (mapaDoCaminho === undefined) return
+    let fatia: ReturnType<typeof setTimeout> | undefined
+    const adiantar = () => {
+      fatia = prepararCaminhoConhecido(mapaDoCaminho, FATIA_DA_MALHA_MS) ? undefined : setTimeout(adiantar, 0)
+    }
+    fatia = setTimeout(adiantar, 0)
+    return () => clearTimeout(fatia)
+  }, [mapaDoCaminho])
   /** Ficha ALHEIA aberta no cartão de ações; `null` = fechado. */
   const [openTokenId, setOpenTokenId] = useState<string | null>(null)
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
@@ -2083,7 +2105,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
         {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={() => setRevelacao(null)} />}
         {/* DANÇA: o convite do mestre abre a tela da dança por cima do mapa, até o resultado ou o encerramento. */}
-        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} {...ajustesDaDanca} />}
+        {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} fontesDaMusica={musicaDaSala} {...ajustesDaDanca} />}
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
@@ -2320,6 +2342,18 @@ export function PlayerApp() {
   // ouvintes da anterior antes de pôr os da nova, e nunca há duas tocando.
   useEffect(() => (session === null ? undefined : instalarSonsDoJogador(session.connection)), [session])
 
+  // SONS AO VIVO (F5): o que o mestre toca, preso à mesma conexão; a faixinha lê a instalação de agora.
+  const [sonsAoVivo, setSonsAoVivo] = useState<SonsAoVivo | null>(null)
+  useEffect(() => {
+    if (session === null) return undefined
+    const sons = instalarSonsAoVivo(session.connection)
+    setSonsAoVivo(sons)
+    return () => {
+      sons.desinstalar()
+      setSonsAoVivo(null)
+    }
+  }, [session])
+
   // Recarregou a página (ou abriu o QR numa aba nova) com a sessão deste
   // aparelho ainda viva: volta direto para a sala, sem passar pelo formulário
   // e como a mesma pessoa. `join` é declaração de função (içada).
@@ -2398,14 +2432,17 @@ export function PlayerApp() {
     )
   }
   return (
-    <Session
-      connection={session.connection}
-      code={session.code}
-      typedName={session.typedName}
-      hostName={hostName}
-      onLeave={leave}
-      onQuit={quit}
-      onSignOut={signOut}
-    />
+    <>
+      <Session
+        connection={session.connection}
+        code={session.code}
+        typedName={session.typedName}
+        hostName={hostName}
+        onLeave={leave}
+        onQuit={quit}
+        onSignOut={signOut}
+      />
+      <FaixaTocarParaOuvir sons={sonsAoVivo} />
+    </>
   )
 }

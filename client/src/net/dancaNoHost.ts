@@ -91,7 +91,11 @@ export interface DancaAoVivo {
   desfecho?: { todosPassaram: boolean; portaAberta: boolean }
 }
 
-export type DancaConviteResultado = { ok: true; sessao: string; convidados: number } | { ok: false; motivo: 'pino' | 'ocupada' | 'ninguem' }
+/**
+ * `musica` não sai da sessão: é o painel da sala que recusa a música importada
+ * sem pasta da aventura, de onde `/sons` a serviria (SONS F5d, `dancaNoPainel.ts`).
+ */
+export type DancaConviteResultado = { ok: true; sessao: string; convidados: number } | { ok: false; motivo: 'pino' | 'ocupada' | 'ninguem' | 'musica' }
 
 /**
  * O desfecho para o INTEGRADOR (a ponte): a porta a destrancar e abrir, os

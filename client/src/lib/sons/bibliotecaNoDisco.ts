@@ -2,29 +2,39 @@ import { exists, readDir, readTextFile, stat, writeTextFile } from '@tauri-apps/
 import { join } from '@tauri-apps/api/path'
 import { useToastStore } from '../../stores/toastStore'
 import { writeTextFileSafely } from '../mapFileIO'
-import { copiarMidiaParaAPasta, pastaDaMidiaDaAventura, type MidiaLevada } from '../midiaDaPasta'
+import { copiarMidiaParaAPasta, guardarAudioNaPasta, pastaDaMidiaDaAventura, type MidiaLevada } from '../midiaDaPasta'
 import { guardarAudio } from '../midiaNoDisco'
-import { bibliotecaDeSonsVazia, bibliotecaDoTexto, idsDeAudioDaBiblioteca, serializarBiblioteca, type BibliotecaDeSons, type FonteDeArquivo } from './biblioteca'
+import {
+  ARQUIVO_DE_SONS,
+  bibliotecaDeSonsVazia,
+  bibliotecaDoTexto,
+  idsDeAudioDaBiblioteca,
+  serializarBiblioteca,
+  SONS_JSON_MAX_BYTES,
+  type BibliotecaDeSons,
+  type FonteDeArquivo,
+} from './biblioteca'
 
 /**
  * A BIBLIOTECA DE SONS NO DISCO: `<pasta da aventura>/sons.json`, ao lado do
  * `adventure.json` (que não ganha campo nenhum), e os áudios em
  * `<pasta da aventura>/midia/` (`lib/midiaDaPasta.ts`), para a aventura levada
- * a outro computador abrir com os sons. Na volta, quem traz os áudios para
- * `<appData>/midia` é a abertura da aventura (`trazerMidiaAoAbrir`), que já
- * confere cada um pela assinatura dos bytes e pelo hash.
+ * a outro computador abrir com os sons.
+ *
+ * O áudio da biblioteca NÃO mora em `<appData>/midia` (fechamento (b) da F5,
+ * 23/10/2026): aquela pasta a sala serve em `/media/{id}` sem chave, e o som
+ * só sai pela rota com chave (`/sons/{id}`), que lê `<aventura>/midia`. A
+ * importação grava direto na pasta da aventura, a abertura não traz o que o
+ * `sons.json` cita (`importarMidiaDaPasta`), e o mestre toca lendo da pasta
+ * da aventura (`aoVivo/carregadorDoMestre.ts`). Exceção: a aventura nova sem
+ * pasta guarda em `<appData>/midia` até a primeira gravação.
  *
  * Aventura antiga não tem `sons.json`: abre vazia, sem aviso, e nada é
  * gravado até o mestre mudar alguma coisa. App antigo abrindo aventura nova
  * ignora o `sons.json` e os áudios.
  */
 
-export const ARQUIVO_DE_SONS = 'sons.json'
-/**
- * Teto do `sons.json`: 200 efeitos ocupam bem menos de 100 KB. Acima disto o
- * arquivo nem é lido (um de 2 GB derrubaria o app) e nada é regravado por cima.
- */
-export const SONS_JSON_MAX_BYTES = 1024 * 1024
+export { ARQUIVO_DE_SONS, SONS_JSON_MAX_BYTES }
 
 /** Avisos de som ficam como os de mídia: pedem leitura, não ação. */
 const AVISO_DE_SOM_MS = 7000
@@ -205,12 +215,15 @@ export function gravarBibliotecaNaAventura(pastaDaAventura: string, biblioteca: 
 }
 
 /**
- * O arquivo de áudio escolhido pelo mestre, guardado em `<appData>/midia`
- * (`guardarAudio`) e pronto para virar a fonte de um efeito. Lança com a frase
- * pronta: `AUDIO_GRANDE_DEMAIS` acima de 15 MB, `AUDIO_NAO_E_AUDIO` quando a
- * assinatura dos bytes não é de MP3, OGG, WAV nem M4A (o nome não conta).
+ * O arquivo de áudio escolhido pelo mestre, pronto para virar a fonte de um
+ * efeito: gravado em `<aventura>/midia` (`guardarAudioNaPasta`), fora da pasta
+ * que `/media` serve sem chave. Só a aventura nova, ainda sem pasta
+ * (`pastaDaAventura` nulo), guarda em `<appData>/midia` (`guardarAudio`), e a
+ * primeira gravação leva o áudio de lá para a pasta que aparecer. Lança com a
+ * frase pronta: `AUDIO_GRANDE_DEMAIS` acima de 15 MB, `AUDIO_NAO_E_AUDIO`
+ * quando a assinatura dos bytes não é de MP3, OGG, WAV nem M4A (o nome não conta).
  */
-export async function guardarArquivoDeSom(bytes: Uint8Array): Promise<FonteDeArquivo> {
-  const ref = await guardarAudio(bytes)
+export async function guardarArquivoDeSom(bytes: Uint8Array, pastaDaAventura: string | null): Promise<FonteDeArquivo> {
+  const ref = pastaDaAventura === null ? await guardarAudio(bytes) : await guardarAudioNaPasta(await pastaDaMidiaDaAventura(pastaDaAventura), bytes)
   return { tipo: 'arquivo', ref, bytes: bytes.length }
 }

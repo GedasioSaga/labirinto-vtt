@@ -66,6 +66,8 @@ import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, 
 import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
 import { itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
 import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
+import { prepararMusicaDaDancaNaMesa } from './lib/musicaDaDancaNaAventura'
+import { useBibliotecaDeSonsStore } from './stores/bibliotecaDeSonsStore'
 import { congelamentoDaMesa } from './lib/congelar'
 import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { useDestinationStore } from './stores/destinationStore'
@@ -92,6 +94,7 @@ import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from '.
 import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
 import { Acoes } from './components/grimorio/Botao'
@@ -209,7 +212,7 @@ import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
-import { garantirAventura } from './stores/virarAventura'
+import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
 import { useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
@@ -607,13 +610,12 @@ function App() {
   const setRegionStrokeJoinForRegion = useMapStore((state) => state.setRegionStrokeJoinForRegion)
   const setWallKindForWall = useMapStore((state) => state.setWallKindForWall)
   const toggleLayerVisibility = useMapStore((state) => state.toggleLayerVisibility)
-  // Onda 4, Frente D (camadas) — trava de camada + seletor "camada do Prop
-  // selecionado" (setPropLayer já existia órfão desde a Fase 1).
+  // Onda 4, Frente D (camadas) — trava de camada. A camada do item selecionado
+  // é o `SeletorDeCamada` da ficha, que fala direto com a store (fatia 8).
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   // Fase 3, fatia 6: o olho "Jogadores veem" e a opacidade de cada camada.
   const alternarOlhoDosJogadores = useMapStore((state) => state.alternarOlhoDosJogadores)
   const definirOpacidadeDaCamada = useMapStore((state) => state.definirOpacidadeDaCamada)
-  const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
   const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
@@ -1622,6 +1624,8 @@ function App() {
    * importar. O caminho é lido pela ref na hora da resposta.
    */
   const garantirAventuraDoMapa = () => garantirAventura({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current })
+  /** CAMADAS (fatia 7): criar e ordenar mudam a lista da aventura; no mapa solto, pergunta antes de ele virar aventura. */
+  const acoesDoModeloDeCamadas = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current }))
 
   /**
    * Salvamento automático com recuperação: ao abrir, procura a cópia de
@@ -2538,6 +2542,11 @@ function App() {
         players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
         danca,
         ponte: () => hostBridgeRef.current,
+        // SONS F5d: a música importada sai para a mesa só da pasta da aventura (`/sons`); sem pasta, o convite não sai.
+        prepararMusica: () => {
+          const minigame = pin.minigame ?? MINIGAME_PADRAO
+          return minigame.jogo !== 'danca' || prepararMusicaDaDancaNaMesa(minigame.musica, useBibliotecaDeSonsStore.getState().dir)
+        },
       },
     ),
     aoVivoDaPesca: pescaNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
@@ -3206,6 +3215,9 @@ function App() {
         <Toolbar activeTool={activeTool} onSelectTool={armarPelaBarra} lastDrawingTool={lastDrawingTool} variantBindings={variantBindings} />
       </div>
 
+      {/* AVISO AO MESTRE (caminhos, F0): NPC andando sozinho parado por porta trancada. */}
+      <AvisoDaRotina />
+
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
           Ficha, Cena, Aventura e Acervo e o topo com as ações do mapa (a
           antiga barra de ações). Grupo, Chat, Cenas e Mesa moram no livro da mesa. */}
@@ -3559,8 +3571,8 @@ function App() {
               onTogglePlayers: alternarOlhoDosJogadores,
               onToggleLock: toggleLayerLock,
               onOpacity: definirOpacidadeDaCamada,
+              modelo: acoesDoModeloDeCamadas,
             }}
-            onSetPropLayer={setPropLayer}
             selection={{
               // SelectionControls (Onda 4, item 24) só precisa de um resumo:
               // `kind` do primeiro item (só importa quando count === 1) +

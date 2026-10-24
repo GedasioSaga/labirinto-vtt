@@ -6,5 +6,5 @@
       "/recreate/*": ["./recreate/*"]
     }
   },
-  "include": ["e2e", "recreate", "playwright.config.ts", "playwright.recreate.config.ts"]
+  "include": ["e2e", "recreate", "playwright.config.ts", "playwright.recreate.config.ts", "playwright.conhecidas.config.ts"]
 }

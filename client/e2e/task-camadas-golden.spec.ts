@@ -529,7 +529,7 @@ test.describe('jogador a 1440 x 900, recorte do host com camadas (fatia 4)', () 
 
   test('Objetos a 40% e uma livre com paredes: o recorte do host leva a lista e a opacidade, sem nome nem modelo', async ({ page }) => {
     test.setTimeout(90_000)
-    const livre: CamadaId = 'livre_g4ld3n'
+    const livre: CamadaId = 'livre_4688d980'
     const casa = mapaCasa()
     const doMestre: MapData = {
       ...casa,

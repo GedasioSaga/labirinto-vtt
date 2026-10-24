@@ -4,9 +4,14 @@ import react from '@vitejs/plugin-react'
 // Porta por árvore de trabalho: 1420 na principal, própria em cada worktree.
 // Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.js).
 import { portaDoProjeto } from './porta.js'
+// Teste em níveis (docs/planos/teste-em-niveis.md): a lista de quem é lento e
+// de quem é sensível a tempo mora em client/vitest.projetos.json.
+import { globsDosProjetos } from './projetosDoVitest.js'
 
 const host = process.env.TAURI_DEV_HOST
 const porta = portaDoProjeto()
+const projetos = globsDosProjetos()
+const EXCLUIDOS_DO_TESTE = ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**']
 
 export default defineConfig({
   plugins: [react()],
@@ -38,6 +43,18 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**'],
+    exclude: EXCLUIDOS_DO_TESTE,
+    // Três projetos que, somados, são EXATAMENTE a suíte de antes (a guarda
+    // vitest.projetos.test.mjs e a paridade por nome provam). `vitest run` sem
+    // --project roda os três: rapido e lento juntos, desempenho depois
+    // (groupOrder 1), sozinho e em série, porque teste de tempo sob carga mente.
+    projects: [
+      { extends: true, test: { name: 'rapido', exclude: [...EXCLUIDOS_DO_TESTE, ...projetos.lento, ...projetos.desempenho] } },
+      { extends: true, test: { name: 'lento', include: projetos.lento } },
+      {
+        extends: true,
+        test: { name: 'desempenho', include: projetos.desempenho, fileParallelism: false, maxWorkers: 1, sequence: { groupOrder: 1 } },
+      },
+    ],
   },
 })

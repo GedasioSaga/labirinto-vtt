@@ -333,7 +333,7 @@ test.describe('editor: o painel das 13 camadas', () => {
 
   test('nome longo de camada livre: reticências, sem rolagem horizontal, botões no lugar', async ({ page }) => {
     const base = mapaDoPainel()
-    const livre = 'livre_z9y8x7w6v5'
+    const livre = 'livre_8f1b7cff'
     const nomeLongo = 'Armadilhas escondidas do porão do Lich que ninguém achou'
     const comLivre: MapData = {
       ...base,

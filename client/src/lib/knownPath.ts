@@ -1,8 +1,12 @@
-import type { MapData, RegionPoint, Wall } from '../types/map'
+import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
-import { isDoorPassable, segmentsIntersect } from './collision'
+import { PAREDES_POR_FATIA } from './caminhamento/agenda'
+import { acharCaminhoNaMalha, type ResultadoDoCaminho } from './caminhamento/busca'
+import { criarMalha, type Malha, malhaPronta, type MapaDoCaminho, mesmaEstrutura, paredesAoLongo } from './caminhamento/malha'
+import { avancarMalha } from './caminhamento/marcos'
+import { isTokenPathClear } from './collision'
 import { isPointExplored, type Exploration } from './exploration'
-import { compileFloor } from './floorSdf'
+import { compileFloor, type CompiledFloor } from './floorSdf'
 import { pointInRing } from './floorContour'
 
 /**
@@ -12,10 +16,16 @@ import { pointInRing } from './floorContour'
  * isto: o que a névoa esconde não entra no cálculo, então nunca vira atalho
  * (se a única rua passa pelo escuro, não há caminho).
  *
+ * A busca é a do motor de caminhamento dos NPCs (`caminhamento/busca.ts`, A*
+ * com marcos), com MÁSCARA (chão conhecido) e sem fichas como obstáculo: quem
+ * decide sobre ficha no caminho é o host. Porta fechada barra (o host não abre
+ * porta no passo do jogador); sem caminho, o motivo diz se é porta trancada,
+ * porta fechada ou falta de caminho conhecido.
+ *
  * O host continua sendo a autoridade: cada trecho devolvido aqui sai como um
  * `token.move` comum, validado sozinho (`validateTokenMove`). Por isso cada
- * trecho segue as mesmas regras de lá — não cruza parede (porta aberta e
- * destrancada deixa passar) e fica no chão, amostrado no mesmo passo.
+ * trecho é conferido de novo, já arredondado, pela regra do arrasto e pelo
+ * chão conhecido amostrado no mesmo passo do host.
  */
 
 export interface KnownArea {
@@ -29,29 +39,59 @@ export interface KnownArea {
 
 type PathMap = Pick<MapData, 'width' | 'height' | 'grid' | 'walls' | 'floor'>
 
-/** Nós do caminho a cada meia célula: corredor de uma célula tem nó no meio, fora da linha da parede. */
-const NODES_PER_GRID = 2
-/** Passo mínimo entre nós, em px de mundo (grade inválida ou minúscula). */
-const MIN_NODE_STEP = 8
-/** Teto de nós da busca: mapa gigante engrossa o passo em vez de travar a tela. */
-const MAX_NODES = 250_000
-/** Amostras do trecho por célula da grade: o mesmo passo com que o host confere o chão. */
-const SAMPLES_PER_GRID = 4
+export type MotivoSemCaminhoConhecido = 'sem-caminho' | 'porta-trancada' | 'porta-fechada'
+
+export type CaminhoConhecido =
+  | { tipo: 'caminho'; trechos: Point[] }
+  | { tipo: 'sem-caminho'; motivo: MotivoSemCaminhoConhecido; portas: string[] }
+
+/**
+ * A rede do passo do jogador tem um ponto a cada MEIA casa (a malha é montada
+ * com a casa partida em dois), como a busca antiga: parede e porta desenhadas
+ * fora da linha da grade (porta de 275 a 325 numa grade de 50) deixam o vão
+ * entre dois centros de casa, e a rede de casa inteira não passava. Mapa
+ * gigante engrossa para uma casa inteira (como a busca antiga engrossava o
+ * passo): a rede fina dele passaria deste teto, e a consulta, de 5 ms.
+ */
+const MAX_PONTOS_DA_REDE_FINA = 90_000
+/**
+ * O raio da ficha na malha: o de uma ficha de meia casa, qualquer que seja o
+ * tamanho dela. O host confere só o CENTRO da ficha (`validateTokenMove`), e a
+ * folga da ficha grande barraria a porta de uma casa por onde ela passa hoje
+ * arrastada.
+ */
+const RAIO_NA_REDE = 0.5
+/** Amostras do trecho por casa: o mesmo passo com que o host confere o chão. */
+const AMOSTRAS_POR_CASA = 4
 /** Teto de amostras de um trecho, como no host (`MAX_PATH_SAMPLES`). */
-const MAX_SEGMENT_SAMPLES = 10_000
-/** Vizinhos: 4 retos e 4 diagonais. */
-const NEIGHBORS: readonly (readonly [number, number])[] = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [1, -1],
-  [-1, 1],
-  [-1, -1],
-]
-/** Distância (em passos de nó) para ligar a origem e o destino, que não caem no centro de um nó. */
-const LINK_RADIUS_STEPS = 1.5
+const MAX_AMOSTRAS_DO_TRECHO = 10_000
+
+const SEM_CAMINHO: CaminhoConhecido = { tipo: 'sem-caminho', motivo: 'sem-caminho', portas: [] }
+
+/** Um anel com a caixa dele: a maioria dos pontos sai pela caixa, sem o teste do polígono. */
+interface AnelComCaixa {
+  pontos: RegionPoint[]
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+function comCaixas(aneis: readonly RegionPoint[][]): AnelComCaixa[] {
+  return aneis
+    .filter((anel) => anel.length >= 3)
+    .map((pontos) => ({
+      pontos,
+      minX: Math.min(...pontos.map((p) => p.x)),
+      minY: Math.min(...pontos.map((p) => p.y)),
+      maxX: Math.max(...pontos.map((p) => p.x)),
+      maxY: Math.max(...pontos.map((p) => p.y)),
+    }))
+}
+
+function emAlgum(aneis: readonly AnelComCaixa[], p: RegionPoint): boolean {
+  return aneis.some((a) => p.x >= a.minX && p.x <= a.maxX && p.y >= a.minY && p.y <= a.maxY && pointInRing(p, a.pontos))
+}
 
 function inRings(point: RegionPoint, rings: readonly RegionPoint[][]): boolean {
   return rings.some((ring) => ring.length >= 3 && pointInRing(point, ring))
@@ -64,295 +104,177 @@ export function isPointKnown(area: KnownArea, point: RegionPoint): boolean {
   return area.explored !== undefined && isPointExplored(area.explored, point)
 }
 
-/** Paredes que barram a ficha agora, com a caixa pronta para descartar rápido. */
-interface Barrier {
-  a: Point
-  b: Point
-  minX: number
-  minY: number
-  maxX: number
-  maxY: number
-}
+/** O chão compilado da última consulta: a mesma lista de peças não compila de novo. */
+let chaoGuardado: { pecas: FloorPiece[]; compilado: CompiledFloor } | null = null
 
-function barriersOf(walls: readonly Wall[]): Barrier[] {
-  return walls
-    .filter((w) => w.blocksMove && !isDoorPassable(w.door))
-    .map((w) => ({
-      a: { x: w.x1, y: w.y1 },
-      b: { x: w.x2, y: w.y2 },
-      minX: Math.min(w.x1, w.x2),
-      minY: Math.min(w.y1, w.y2),
-      maxX: Math.max(w.x1, w.x2),
-      maxY: Math.max(w.y1, w.y2),
-    }))
-}
-
-/** Tudo que a busca consulta, montado uma vez por pedido. */
-interface Terrain {
-  width: number
-  height: number
-  sampleStep: number
-  barriers: Barrier[]
-  onFloor: (x: number, y: number) => boolean
-  area: KnownArea
-}
-
-function createTerrain(map: PathMap, area: KnownArea): Terrain {
-  const compiled = compileFloor(map.floor)
-  const grid = Number.isFinite(map.grid) && map.grid > 0 ? map.grid : MIN_NODE_STEP
-  return {
-    width: map.width * grid,
-    height: map.height * grid,
-    sampleStep: Math.max(grid / SAMPLES_PER_GRID, 1),
-    barriers: barriersOf(map.walls),
-    // Sem peça de chão visível não há chão para restringir (mesma regra do host).
-    onFloor: (x, y) => compiled.bounds === null || compiled.sample(x, y) <= 0,
-    area,
-  }
-}
-
-function insideMap(t: Terrain, p: Point): boolean {
-  return p.x >= 0 && p.y >= 0 && p.x <= t.width && p.y <= t.height
-}
-
-/** Lugar onde a ficha pode estar: dentro do mapa, no chão e conhecido. */
-function isStandable(t: Terrain, p: Point): boolean {
-  return insideMap(t, p) && t.onFloor(p.x, p.y) && isPointKnown(t.area, p)
-}
-
-function crossesBarrier(t: Terrain, a: Point, b: Point): boolean {
-  const minX = Math.min(a.x, b.x)
-  const minY = Math.min(a.y, b.y)
-  const maxX = Math.max(a.x, b.x)
-  const maxY = Math.max(a.y, b.y)
-  return t.barriers.some((w) => w.maxX >= minX && w.minX <= maxX && w.maxY >= minY && w.minY <= maxY && segmentsIntersect(a, b, w.a, w.b))
+function chaoDe(pecas: FloorPiece[]): CompiledFloor {
+  if (chaoGuardado !== null && chaoGuardado.pecas === pecas) return chaoGuardado.compilado
+  const compilado = compileFloor(pecas)
+  chaoGuardado = { pecas, compilado }
+  return compilado
 }
 
 /**
- * Trecho que o host aceita e que o jogador conhece: não cruza parede e toda
- * amostra (pontas incluídas, menos a origem, onde a ficha já está) fica no
- * chão conhecido.
+ * Onde a ficha do jogador pode pisar: dentro do mapa, no chão (sem peça de
+ * chão visível, o chão não restringe — a regra do host) e no que ele conhece
+ * (`isPointKnown`, com as caixas dos anéis na frente).
+ *
+ * O CONHECIDO é conferido nos quatro cantos de um quadrado de meio passo de
+ * amostra em volta do ponto: duas amostras vizinhas de um traço (um passo
+ * entre elas) cobrem o traço inteiro com os quadrados delas, então o traço não
+ * corta a quina do escuro entre uma amostra e outra (o robô achou 2 px assim).
+ * O chão fica na regra do host, ponto a ponto.
  */
-function isLegWalkable(t: Terrain, a: Point, b: Point): boolean {
-  if (crossesBarrier(t, a, b)) return false
-  const wanted = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / t.sampleStep)
-  const samples = Math.min(MAX_SEGMENT_SAMPLES, Math.max(1, wanted))
-  for (let i = 1; i <= samples; i += 1) {
-    const s = i / samples
-    if (!isStandable(t, { x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s })) return false
+function mascaraConhecida(map: PathMap, area: KnownArea): (x: number, y: number) => boolean {
+  const chao = chaoDe(map.floor)
+  const largura = map.width * map.grid
+  const altura = map.height * map.grid
+  const ocultas = comCaixas(area.concealed)
+  const visao = comCaixas(area.vision)
+  const memoria = area.explored
+  const meio = passoDaAmostra(map) / 2
+  const conhece = (x: number, y: number): boolean => {
+    const p = { x, y }
+    if (emAlgum(ocultas, p)) return false
+    if (memoria !== undefined && isPointExplored(memoria, p)) return true
+    return emAlgum(visao, p)
+  }
+  return (x, y) => {
+    if (!(x >= 0 && y >= 0 && x <= largura && y <= altura)) return false
+    if (chao.bounds !== null && chao.sample(x, y) > 0) return false
+    return conhece(x - meio, y - meio) && conhece(x + meio, y - meio) && conhece(x - meio, y + meio) && conhece(x + meio, y + meio)
+  }
+}
+
+/**
+ * A malha do passo do jogador, guardada entre consultas: refeita só quando a
+ * ESTRUTURA das paredes muda (abrir ou fechar porta não muda, `mesmaEstrutura`).
+ * Uma só: o jogador anda numa cena por vez.
+ */
+let malhaGuardada: { malha: Malha; ultimas: readonly Wall[] } | null = null
+
+/** O mapa como a malha do jogador o vê: a casa partida em dois, salvo no mapa gigante (`MAX_PONTOS_DA_REDE_FINA`). */
+function mapaDaRede(map: PathMap): MapaDoCaminho {
+  const nosPorCasa = 4 * map.width * map.height <= MAX_PONTOS_DA_REDE_FINA ? 2 : 1
+  return { walls: map.walls, grid: map.grid / nosPorCasa, width: map.width * nosPorCasa, height: map.height * nosPorCasa }
+}
+
+/**
+ * Adianta a montagem da malha do jogador por até `orcamentoMs` (em fatias de
+ * `PAREDES_POR_FATIA` paredes, como a agenda dos NPCs), para a primeira
+ * consulta não montar tudo de uma vez: num mapa de 300 x 300 casas a malha
+ * inteira leva mais que uma tarefa longa. `true` quando está pronta.
+ */
+export function prepararCaminhoConhecido(map: PathMap, orcamentoMs: number, agora: () => number = () => performance.now()): boolean {
+  if (!mapaValido(map)) return true
+  const malha = malhaDoJogador(map)
+  const inicio = agora()
+  while (!malhaPronta(malha)) {
+    if (agora() - inicio >= orcamentoMs) return false
+    avancarMalha(malha, PAREDES_POR_FATIA)
   }
   return true
 }
 
-/** Fila de prioridade mínima (heap binário) de índices de nó por custo estimado. */
-class MinHeap {
-  private readonly items: number[] = []
-  private readonly keys: number[] = []
-
-  get size(): number {
-    return this.items.length
-  }
-
-  push(item: number, key: number): void {
-    this.items.push(item)
-    this.keys.push(key)
-    let i = this.items.length - 1
-    while (i > 0) {
-      const parent = (i - 1) >> 1
-      if (this.key(parent) <= key) break
-      this.swap(i, parent)
-      i = parent
-    }
-  }
-
-  /** Índice de menor custo; -1 se vazia. */
-  pop(): number {
-    const top = this.items[0]
-    if (top === undefined) return -1
-    const lastItem = this.items.pop()
-    const lastKey = this.keys.pop()
-    if (this.items.length > 0 && lastItem !== undefined && lastKey !== undefined) {
-      this.items[0] = lastItem
-      this.keys[0] = lastKey
-      this.siftDown()
-    }
-    return top
-  }
-
-  private key(i: number): number {
-    return this.keys[i] ?? Number.POSITIVE_INFINITY
-  }
-
-  private swap(i: number, j: number): void {
-    const item = this.items[i]
-    const key = this.keys[i]
-    const otherItem = this.items[j]
-    const otherKey = this.keys[j]
-    if (item === undefined || key === undefined || otherItem === undefined || otherKey === undefined) return
-    this.items[i] = otherItem
-    this.keys[i] = otherKey
-    this.items[j] = item
-    this.keys[j] = key
-  }
-
-  private siftDown(): void {
-    let i = 0
-    for (;;) {
-      const left = i * 2 + 1
-      const right = left + 1
-      let smallest = i
-      if (left < this.items.length && this.key(left) < this.key(smallest)) smallest = left
-      if (right < this.items.length && this.key(right) < this.key(smallest)) smallest = right
-      if (smallest === i) return
-      this.swap(i, smallest)
-      i = smallest
-    }
-  }
+function mapaValido(map: PathMap): boolean {
+  return [map.grid, map.width, map.height].every(Number.isFinite) && map.grid > 0 && map.width > 0 && map.height > 0
 }
 
-interface NodeGrid {
-  step: number
-  cols: number
-  rows: number
-}
-
-function nodeGrid(t: Terrain, grid: number): NodeGrid {
-  let step = Math.max(MIN_NODE_STEP, grid / NODES_PER_GRID)
-  while (Math.ceil(t.width / step) * Math.ceil(t.height / step) > MAX_NODES) step *= 2
-  return { step, cols: Math.max(1, Math.ceil(t.width / step)), rows: Math.max(1, Math.ceil(t.height / step)) }
-}
-
-function nodeCenter(g: NodeGrid, index: number): Point {
-  const col = index % g.cols
-  const row = Math.floor(index / g.cols)
-  return { x: (col + 0.5) * g.step, y: (row + 0.5) * g.step }
-}
-
-/** Nós perto de `p` (até `LINK_RADIUS_STEPS` passos) ligados a ele por um trecho andável. */
-function linkedNodes(t: Terrain, g: NodeGrid, p: Point, walkable: (i: number) => boolean, fromNode: boolean): number[] {
-  const col = Math.floor(p.x / g.step)
-  const row = Math.floor(p.y / g.step)
-  const reach = g.step * LINK_RADIUS_STEPS
-  const found: number[] = []
-  for (let dr = -2; dr <= 2; dr += 1) {
-    for (let dc = -2; dc <= 2; dc += 1) {
-      const c = col + dc
-      const r = row + dr
-      if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) continue
-      const index = r * g.cols + c
-      if (!walkable(index)) continue
-      const center = nodeCenter(g, index)
-      if (Math.hypot(center.x - p.x, center.y - p.y) > reach) continue
-      if (fromNode ? isLegWalkable(t, center, p) : isLegWalkable(t, p, center)) found.push(index)
-    }
+function malhaDoJogador(map: PathMap): Malha {
+  const mapa = mapaDaRede(map)
+  const raio = mapa.grid * RAIO_NA_REDE
+  const g = malhaGuardada
+  const largura = Math.max(1, Math.ceil(mapa.width))
+  const altura = Math.max(1, Math.ceil(mapa.height))
+  const serve =
+    g !== null &&
+    g.malha.grid === mapa.grid &&
+    g.malha.raio === raio &&
+    g.malha.largura === largura &&
+    g.malha.altura === altura &&
+    (g.ultimas === mapa.walls || mesmaEstrutura(g.malha.paredes, mapa.walls))
+  if (serve) {
+    g.ultimas = mapa.walls
+    return g.malha
   }
-  return found
+  const malha = criarMalha(mapa, raio)
+  malhaGuardada = { malha, ultimas: mapa.walls }
+  return malha
+}
+
+/** A porta trancada no caminho dá `porta-trancada`; só porta fechada (que o jogador abre), `porta-fechada`. */
+function motivoDoJogador(r: Extract<ResultadoDoCaminho, { tipo: 'sem-caminho' }>, paredes: readonly Wall[]): MotivoSemCaminhoConhecido {
+  if (r.motivo !== 'porta-trancada') return 'sem-caminho'
+  const trancada = r.portas.some((id) => paredes.find((w) => w.id === id)?.door?.locked === true)
+  return trancada ? 'porta-trancada' : 'porta-fechada'
 }
 
 /**
- * A* nos nós de meia célula, da origem ao destino. Devolve a sequência de
- * pontos (origem e destino incluídos) ou `null`.
+ * Os trechos que vão ao host, já arredondados, passam: pela regra do arrasto
+ * do host (`isTokenPathClear` com a casa do mapa, só com as paredes de perto
+ * do traço, pelos baldes da malha) e com toda amostra (no passo e nas posições
+ * em que o host confere o chão; a origem, onde a ficha já está, não conta) na
+ * máscara.
  */
-function searchNodes(t: Terrain, g: NodeGrid, from: Point, to: Point): Point[] | null {
-  const total = g.cols * g.rows
-  // 0 = não visto, 1 = andável, 2 = bloqueado.
-  const standable = new Uint8Array(total)
-  const walkable = (i: number): boolean => {
-    if (standable[i] === 0) standable[i] = isStandable(t, nodeCenter(g, i)) ? 1 : 2
-    return standable[i] === 1
-  }
-  const goals = new Set(linkedNodes(t, g, to, walkable, true))
-  if (goals.size === 0) return null
-
-  const cost = new Float64Array(total).fill(Number.POSITIVE_INFINITY)
-  const cameFrom = new Int32Array(total).fill(-1)
-  const closed = new Uint8Array(total)
-  const heap = new MinHeap()
-  const estimate = (p: Point) => Math.hypot(to.x - p.x, to.y - p.y)
-  for (const start of linkedNodes(t, g, from, walkable, false)) {
-    const center = nodeCenter(g, start)
-    const g0 = Math.hypot(center.x - from.x, center.y - from.y)
-    if (g0 >= (cost[start] ?? Number.POSITIVE_INFINITY)) continue
-    cost[start] = g0
-    heap.push(start, g0 + estimate(center))
-  }
-
-  while (heap.size > 0) {
-    const current = heap.pop()
-    if (current < 0 || closed[current] === 1) continue
-    closed[current] = 1
-    if (goals.has(current)) return tracePath(g, cameFrom, current, from, to)
-    const here = nodeCenter(g, current)
-    const col = current % g.cols
-    const row = Math.floor(current / g.cols)
-    const base = cost[current] ?? Number.POSITIVE_INFINITY
-    for (const [dc, dr] of NEIGHBORS) {
-      const c = col + dc
-      const r = row + dr
-      if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) continue
-      const next = r * g.cols + c
-      if (closed[next] === 1 || !walkable(next)) continue
-      const there = nodeCenter(g, next)
-      if (crossesBarrier(t, here, there)) continue
-      const tentative = base + Math.hypot(dc, dr) * g.step
-      if (tentative >= (cost[next] ?? Number.POSITIVE_INFINITY)) continue
-      cost[next] = tentative
-      cameFrom[next] = current
-      heap.push(next, tentative + estimate(there))
+function trechosPassam(malha: Malha, map: PathMap, de: Point, trechos: readonly Point[], mascara: (x: number, y: number) => boolean): boolean {
+  const passo = passoDaAmostra(map)
+  let a = de
+  for (const b of trechos) {
+    const perto: Wall[] = []
+    for (const k of paredesAoLongo(malha, a, b)) {
+      const w = map.walls[k]
+      if (w !== undefined) perto.push(w)
     }
+    if (!isTokenPathClear(a, b, perto, map.grid)) return false
+    const querido = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / passo)
+    const amostras = Math.min(MAX_AMOSTRAS_DO_TRECHO, Math.max(1, querido))
+    for (let k = 1; k <= amostras; k += 1) {
+      const t = k / amostras
+      if (!mascara(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)) return false
+    }
+    a = b
   }
-  return null
-}
-
-function tracePath(g: NodeGrid, cameFrom: Int32Array, end: number, from: Point, to: Point): Point[] {
-  const nodes: Point[] = []
-  for (let i = end; i >= 0; i = cameFrom[i] ?? -1) nodes.push(nodeCenter(g, i))
-  nodes.reverse()
-  return [from, ...nodes, to]
+  return true
 }
 
 /**
- * Puxa o barbante: de cada esquina, vai direto ao ponto mais adiante que um
- * trecho andável alcança. Sobram só as esquinas de verdade.
+ * O caminho de `from` até `target` pelo que o jogador conhece, ou por que não
+ * há: `sem-caminho` (destino no escuro, fora do chão, ou nenhum caminho
+ * conhecido chega lá), `porta-trancada` ou `porta-fechada` (há caminho
+ * conhecido, mas passa por ela). Cada trecho termina num ponto inteiro (o
+ * último é o destino arredondado).
  */
-function straighten(t: Terrain, points: readonly Point[]): Point[] {
-  const legs: Point[] = []
-  let anchor = points[0]
-  let i = 1
-  while (anchor !== undefined && i < points.length) {
-    let reach = i
-    for (let j = i + 1; j < points.length; j += 1) {
-      const candidate = points[j]
-      if (candidate === undefined || !isLegWalkable(t, anchor, candidate)) break
-      reach = j
-    }
-    const corner = points[reach]
-    if (corner === undefined) break
-    legs.push(corner)
-    anchor = corner
-    i = reach + 1
+export function caminhoConhecido(map: PathMap, from: Point, target: Point, area: KnownArea): CaminhoConhecido {
+  if (![from.x, from.y, target.x, target.y].every(Number.isFinite) || !mapaValido(map)) return SEM_CAMINHO
+  // O pedido ao host sai em px inteiros (como o arrasto): o caminho é conferido já arredondado.
+  const to = roundPoint(target)
+  const mascara = mascaraConhecida(map, area)
+  if (!mascara(to.x, to.y)) return SEM_CAMINHO
+  const malha = malhaDoJogador(map)
+  const r = acharCaminhoNaMalha(malha, map.walls, { de: from, para: to, fichas: [], mascara, passoDaMascara: passoDaAmostra(map), portaFechadaBarra: true })
+  if (r.tipo === 'sem-caminho') {
+    const motivo = motivoDoJogador(r, map.walls)
+    return { tipo: 'sem-caminho', motivo, portas: motivo === 'sem-caminho' ? [] : r.portas }
   }
-  return legs
+  const pontos = r.pontos.slice(1).map(roundPoint)
+  const trechos = pontos.length > 0 ? pontos : [to]
+  // Arredondar mexe o ponto até meio px: o que a busca aprovou é conferido de novo, como o host vai conferir.
+  return trechosPassam(malha, map, from, trechos, mascara) ? { tipo: 'caminho', trechos } : SEM_CAMINHO
+}
+
+/** O passo com que o host amostra o chão de um trecho (`moveValidation`): as amostras daqui caem nas mesmas posições. */
+function passoDaAmostra(map: PathMap): number {
+  return Math.max(map.grid / AMOSTRAS_POR_CASA, 1)
 }
 
 /**
  * Trechos de `from` até `to` pelo que o jogador conhece: cada ponto devolvido
- * é o fim de um trecho reto (o último é `to`). `null` quando o destino está no
- * escuro, fora do chão, ou nenhum caminho conhecido chega lá.
+ * é o fim de um trecho reto (o último é `to`). `null` quando não há caminho
+ * conhecido (o motivo está em `caminhoConhecido`).
  */
 export function findKnownPath(map: PathMap, from: Point, target: Point, area: KnownArea): Point[] | null {
-  if (![from.x, from.y, target.x, target.y].every(Number.isFinite)) return null
-  // O pedido ao host sai em px inteiros (como o arrasto): o caminho é conferido já arredondado.
-  const to = roundPoint(target)
-  const terrain = createTerrain(map, area)
-  if (!isStandable(terrain, to)) return null
-  if (isLegWalkable(terrain, from, to)) return [to]
-  const grid = Number.isFinite(map.grid) && map.grid > 0 ? map.grid : MIN_NODE_STEP
-  const nodes = searchNodes(terrain, nodeGrid(terrain, grid), from, to)
-  if (nodes === null) return null
-  const [origin, ...rest] = nodes
-  if (origin === undefined) return null
-  return straighten(terrain, [origin, ...rest.map(roundPoint)])
+  const r = caminhoConhecido(map, from, target, area)
+  return r.tipo === 'caminho' ? r.trechos : null
 }
 
 function roundPoint(p: Point): Point {

@@ -42,13 +42,20 @@ export interface RedeDosSons {
   falhasDoSom(instancia: string): number
   /**
    * Os ids de áudio que esta sala mandou à conexão `clientId` (tocar ou
-   * pré-carregar): o que a F5 pode servir por `/media/<id>` a ELA. Sem
+   * pré-carregar): o que a F5 pode servir por `/sons/<id>` a ELA. Sem
    * `clientId`, a união de todas (só leitura do mestre).
    */
   midiasDeSomLiberadas(clientId?: string): string[]
+  /**
+   * A pasta da aventura aberta, de onde o servidor da sala serve `/sons/<id>`
+   * (F5, `net_sons_aventura`); `null` = nenhuma (o servidor deixa de servir).
+   */
+  mudarPastaDosSons(pasta: string | null): void
 }
 
 let redeRegistrada: RedeDosSons | null = null
+/** A pasta que a aba Sons informou por último (`informarPastaDosSons`); vive mais que a sala. */
+let pastaDosSons: string | null = null
 const ouvintesDaRede = new Set<() => void>()
 
 function avisarOuvintes(): void {
@@ -58,12 +65,24 @@ function avisarOuvintes(): void {
 /** A ponte do mestre se registra ao abrir a sala; a função devolvida tira o registro (só se ainda for o dela). */
 export function registrarRedeDosSons(rede: RedeDosSons): () => void {
   redeRegistrada = rede
+  // O servidor da sala nasce sem pasta: só há o que contar se a aba Sons já disse qual é.
+  if (pastaDosSons !== null) rede.mudarPastaDosSons(pastaDosSons)
   avisarOuvintes()
   return () => {
     if (redeRegistrada !== rede) return
     redeRegistrada = null
     avisarOuvintes()
   }
+}
+
+/**
+ * A aba Sons informa a pasta da aventura (a da biblioteca de sons) a cada troca;
+ * a rede de agora a recebe na hora, e a que se registrar depois, ao registrar.
+ */
+export function informarPastaDosSons(pasta: string | null): void {
+  if (pasta === pastaDosSons) return
+  pastaDosSons = pasta
+  redeRegistrada?.mudarPastaDosSons(pasta)
 }
 
 /** A rede de agora; `null` = sala fechada (o som fica só no computador do mestre). */

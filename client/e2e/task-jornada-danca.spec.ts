@@ -12,9 +12,11 @@
 //   TRÊS TELAS DE VERDADE. O mestre é o app inteiro em modo Tauri; Ana e Bruno
 //   são o `player.html` inteiro, cada um no próprio contexto. Só o TRANSPORTE
 //   Rust é falsificado: o WebSocket roteado do jogador vira `net:message` no
-//   mestre, e o `net_send` do mestre volta ao socket por `exposeFunction`. A
-//   rota `/media/<id>` do servidor Rust vira um `route` que serve um wav
-//   gerado aqui.
+//   mestre, e o `net_send` do mestre volta ao socket por `exposeFunction`. Como
+//   o Rust (SONS F5d), cada socket recebe primeiro a `midia.chave`, e a rota
+//   `/sons/<id>` vira um `route` que serve um wav gerado aqui SÓ com a chave
+//   daquele jogador e só se o `net_send` liberou o id a ele (`liberar`);
+//   `/media/<id>` não serve mais áudio e não pode ser pedido.
 //   GESTO REAL nas telas: cliques do mestre no pino e no painel; o jogador
 //   escolhe o ritmo e marca Pronto com o mouse.
 //   AS SETAS: um auto-tocador no jogador (o mesmo da vitrine,
@@ -191,7 +193,7 @@ type HandlerTauri = (evento: EventoTauri) => void
 type JanelaDoMestre = {
   isTauri: boolean
   __emitTauri: (event: string, payload: unknown) => void
-  __labParaJogador: (clientId: string, texto: string) => void
+  __labParaJogador: (clientId: string, texto: string, liberar: string[]) => void
   __TAURI_INTERNALS__: {
     metadata: { currentWindow: { label: string }; currentWebview: { windowLabel: string; label: string } }
     invoke: (cmd: string, args?: unknown) => Promise<unknown>
@@ -205,11 +207,19 @@ interface Rede {
   sockets: Map<string, WebSocketRoute>
   /** Mensagens do jogador entregues ao mestre uma de cada vez, na ordem em que chegaram. */
   fila: Promise<void>
+  /** A chave de cada conexão (`midia.chave`, 64 hex), como o Rust sorteia por socket. */
+  chaves: Map<string, string>
+  /** Os áudios liberados a cada conexão pelo `liberar` do `net_send`, como o Rust guarda. */
+  liberadas: Map<string, Set<string>>
 }
 
 async function mestreAbreAventura(mestre: Page, mapa: MapData): Promise<Rede> {
-  const rede: Rede = { mestre, sockets: new Map(), fila: Promise.resolve() }
-  await mestre.exposeFunction('__labParaJogador', (clientId: string, texto: string) => {
+  const rede: Rede = { mestre, sockets: new Map(), fila: Promise.resolve(), chaves: new Map(), liberadas: new Map() }
+  await mestre.exposeFunction('__labParaJogador', (clientId: string, texto: string, liberar: string[]) => {
+    // Como o Rust: libera ANTES de pôr a mensagem no socket.
+    const liberadas = rede.liberadas.get(clientId) ?? new Set<string>()
+    for (const id of liberar) liberadas.add(id)
+    rede.liberadas.set(clientId, liberadas)
     rede.sockets.get(clientId)?.send(texto)
   })
   await mestre.addInitScript(
@@ -245,9 +255,11 @@ async function mestreAbreAventura(mestre: Page, mapa: MapData): Promise<Rede> {
           switch (cmd) {
             case 'net_start_room':
               return { code: codigo, urls: ['http://192.168.0.7:1420/player.html'], qrSvg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' }
-            case 'net_send':
-              alvo.__labParaJogador(String(campo('clientId')), JSON.stringify(campo('msg')))
+            case 'net_send': {
+              const liberar = campo('liberar')
+              alvo.__labParaJogador(String(campo('clientId')), JSON.stringify(campo('msg')), Array.isArray(liberar) ? liberar.map(String) : [])
               return null
+            }
             case 'plugin:event|listen': {
               const id = Number(campo('handler'))
               const cb = callbacks.get(id)
@@ -392,8 +404,12 @@ declare global {
 interface Jogador {
   page: Page
   nome: string
-  /** Quantas vezes a música importada foi pedida a `/media/<id>`. */
+  /** Quantas vezes a música importada foi ENTREGUE por `/sons/<id>` (com a chave dele e liberada a ele). */
   musicaPedida: () => number
+  /** Quantas vezes `/sons/<id>` recusou (sem chave, chave de outro, não liberado). */
+  musicaRecusada: () => number
+  /** Quantas vezes a música foi pedida a `/media/<id>`, que não serve mais áudio (F5d): deve ficar em 0. */
+  musicaPorMedia: () => number
 }
 
 const contextosDeJogador: BrowserContext[] = []
@@ -479,16 +495,40 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
   const contexto = await browser.newContext({ baseURL, viewport: TELA })
   contextosDeJogador.push(contexto)
   let pedidos = 0
-  // A rota de mídia do servidor Rust: o wav da música importada, e só ele.
+  let recusas = 0
+  let porMedia = 0
+  // Uma chave por jogador, 64 hex minúsculos como a do Rust ('1…1', '2…2').
+  const chave = String(rede.chaves.size + 1).repeat(64)
+  rede.chaves.set(clientId, chave)
+  // A rota dos sons do servidor Rust (F5d): o wav da música importada, só com a chave DESTE
+  // jogador e só se o mestre a liberou a ele. Toda recusa é o mesmo 404 vazio.
+  // Só o caminho da sala: um glob com 'sons' pegaria também os módulos do Vite em /src/lib/sons/.
+  await contexto.route(
+    (url) => url.pathname.startsWith('/sons/'),
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.slice('/sons/'.length)
+      const veio = route.request().headers()['x-labirinto-chave']
+      if (id !== ID_DA_MUSICA || veio !== chave || rede.liberadas.get(clientId)?.has(id) !== true) {
+        recusas += 1
+        await route.fulfill({ status: 404, body: '' })
+        return
+      }
+      pedidos += 1
+      await route.fulfill({ status: 200, contentType: 'audio/wav', body: BufferDoNode.from(wavDeTeste(DURACAO_DA_MUSICA_S)) })
+    },
+  )
+  // `/media/<id>` não serve mais áudio: a música não pode ser pedida ali.
   await contexto.route(`**/media/${ID_DA_MUSICA}`, async (route) => {
-    pedidos += 1
-    await route.fulfill({ status: 200, contentType: 'audio/wav', body: BufferDoNode.from(wavDeTeste(DURACAO_DA_MUSICA_S)) })
+    porMedia += 1
+    await route.fulfill({ status: 404, body: '' })
   })
   const page = await contexto.newPage()
   await page.routeWebSocket(
     (url) => url.pathname === '/ws',
     (ws) => {
       rede.sockets.set(clientId, ws)
+      // Como o Rust: o primeiro frame de toda conexão é a chave dela.
+      ws.send(JSON.stringify({ type: 'midia.chave', chave }))
       ws.onMessage((bruto) => {
         const texto = typeof bruto === 'string' ? bruto : bruto.toString('utf8')
         rede.fila = rede.fila
@@ -517,7 +557,7 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
   await campoNome.pressSequentially(nome, { delay: 20 })
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('status')).toHaveText(/Aguardando o mestre/, { timeout: ESPERA })
-  return { page, nome, musicaPedida: () => pedidos }
+  return { page, nome, musicaPedida: () => pedidos, musicaRecusada: () => recusas, musicaPorMedia: () => porMedia }
 }
 
 const dialogoDaDanca = (j: Jogador): Locator => j.page.getByRole('dialog', { name: `Desafio de dança: ${NPC}` })
@@ -665,11 +705,15 @@ test('(c) pausar, retomar e encerrar para todos: os dois veem cada passo, e nada
   expect(await portaNoMestre(mestre), 'encerrar não abre a porta').toEqual({ open: false, locked: true })
 })
 
-test('(d) música importada: /media/<id> serve o wav aos dois, a coreografia é a mesma nos dois e a dança fecha', async ({ browser, page: mestre, baseURL }) => {
+test('(d) música importada: /sons/<id> com a chave serve o wav aos dois (nunca /media), a coreografia é a mesma nos dois e a dança fecha', async ({ browser, page: mestre, baseURL }) => {
   test.setTimeout(150_000)
   const mapa = mapaDaDanca(MUSICA_IMPORTADA)
   const { ana, bruno, painel } = await mesaConvidada(browser, mestre, baseURL ?? '', mapa)
-  for (const j of [ana, bruno]) expect(j.musicaPedida(), `${j.nome}: a música importada deveria ser baixada da sala`).toBeGreaterThan(0)
+  for (const j of [ana, bruno]) {
+    await expect.poll(() => j.musicaPedida(), { message: `${j.nome}: a música importada deveria vir da sala por /sons, com a chave dele`, timeout: ESPERA }).toBeGreaterThan(0)
+    expect(j.musicaRecusada(), `${j.nome}: /sons não deveria ter recusado (sem chave, chave de outro ou não liberada)`).toBe(0)
+    expect(j.musicaPorMedia(), `${j.nome}: a música não pode ser pedida a /media`).toBe(0)
+  }
   await mestreComeca(painel)
 
   for (const j of [ana, bruno]) await jogadorVeDesfecho(j, 45_000)

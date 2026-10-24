@@ -79,6 +79,8 @@ import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTrava
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { alternarOlhoDosJogadores, definirOpacidade } from '../lib/camadas/estado'
+import * as modeloDeCamadas from '../lib/camadas/modelo'
+import { avisoDoMover, moverParaCamada as moverItensParaCamada, MOTIVO_CAMADA_PADRAO, nomeDaCamada, type RefDeItem, type ResultadoDeMover } from '../lib/camadas/mover'
 import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
 import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
 import type { CamadaId } from '../types/map'
@@ -938,6 +940,20 @@ interface MapStoreState {
    *  só de Ctrl+Z (o slider manda o mesmo gesto do apertar ao soltar);
    *  ausente, um passo por chamada. Valor igual não grava nada. */
   definirOpacidadeDaCamada: (id: CamadaId, opacidade: number, gesto?: string) => void
+  /** Fatia 7 — camada livre nova, logo acima de `acimaDe` (ou no topo). Um
+   *  passo de Ctrl+Z por gesto, como as três abaixo. `null` no teto. */
+  criarCamadaLivre: (acimaDe?: CamadaId) => CamadaId | null
+  renomearCamada: (id: CamadaId, nome: string) => void
+  /** `destino`: índice na lista de BAIXO para CIMA (0 = desenha por baixo de todas). */
+  moverCamada: (id: CamadaId, destino: number) => void
+  /** Os itens dela voltam à camada padrão do tipo, e o aviso diz quantos (com "Desfazer"). */
+  apagarCamadaLivre: (id: CamadaId) => void
+  /**
+   * Fatia 8: os itens vão para `destino` num passo só do Ctrl+Z (ficha, menu
+   * do clique direito e arrastar na lista). Camada travada não recebe nem
+   * entrega (aviso com "Destravar"); o aviso do que moveu traz "Desfazer".
+   */
+  moverParaCamada: (refs: readonly RefDeItem[], destino: CamadaId) => ResultadoDeMover
   setPropLayer: (id: string, layer: Prop['layer']) => void
   /** PROPRIEDADES DO MÓVEL — "Tipo" do painel: troca o tipo no lugar, tamanho
    *  padrão do tipo novo. Um passo no desfazer; o que não muda nada não entra. */
@@ -2406,6 +2422,54 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (definirOpacidade(get().map, id, opacidade) === get().map) return
       // O mesmo gesto (um arrasto do slider) emenda num passo só de Ctrl+Z; gesto novo, passo novo.
       withHistory((map) => definirOpacidade(map, id, opacidade), gesto === undefined ? undefined : `camada-opacidade:${id}:${gesto}`)
+    },
+    criarCamadaLivre: (acimaDe) => {
+      const criada = modeloDeCamadas.criarCamadaLivre(get().map, { acimaDe })
+      if (criada === null) {
+        useToastStore.getState().push('info', modeloDeCamadas.AVISO_DO_TETO, undefined, { chave: 'camadas-teto' })
+        return null
+      }
+      withHistory(() => criada.map)
+      return criada.id
+    },
+    renomearCamada: (id, nome) => {
+      const depois = modeloDeCamadas.renomearCamada(get().map, id, nome)
+      if (depois !== get().map) withHistory(() => depois)
+    },
+    moverCamada: (id, destino) => {
+      const depois = modeloDeCamadas.moverCamada(get().map, id, destino)
+      if (depois !== get().map) withHistory(() => depois)
+    },
+    apagarCamadaLivre: (id) => {
+      const nome = get().map.modeloCamadas?.ordem.find((c) => c.id === id)?.nome
+      const apagada = modeloDeCamadas.apagarCamadaLivre(get().map, id)
+      if (apagada.map === get().map) return
+      withHistory(() => apagada.map)
+      const depois = get().map
+      // 8 s: o aviso é longo (nome, quantos, se estavam escondidos) e tem um botão.
+      useToastStore.getState().push('info', modeloDeCamadas.avisoDaCamadaApagada(nome, apagada), modeloDeCamadas.DURACAO_DO_AVISO_DE_APAGAR, {
+        // Desfaz só enquanto nada mudou depois (senão o Ctrl+Z levaria outro passo); mudou, e o botão diz o que fazer em vez de calar.
+        actions: [{ label: 'Desfazer', run: () => (get().map === depois ? get().undo() : useToastStore.getState().push('info', modeloDeCamadas.AVISO_DESFAZER_DEPOIS_DE_OUTRA)) }],
+      })
+    },
+    moverParaCamada: (refs, destino) => {
+      const antes = get().map
+      const movido = moverItensParaCamada(antes, refs, destino)
+      if (movido.map === antes) {
+        if (movido.camadaQueRecusa !== undefined) avisarCamadaTravada(movido.camadaQueRecusa)
+        else if (movido.recusa === 'origem-travada') useToastStore.getState().push('info', 'O item está travado: destrave na ficha para mudar de camada.')
+        else if (movido.recusa === 'tipo-na-padrao') useToastStore.getState().push('info', MOTIVO_CAMADA_PADRAO)
+        return movido
+      }
+      withHistory(() => movido.map)
+      const depois = get().map
+      useToastStore.getState().push('info', avisoDoMover(movido, nomeDaCamada(depois, destino)), undefined, {
+        // Como o "apagar camada": desfaz só enquanto nada mudou depois; mudou, e o botão diz o que fazer.
+        actions: [{ label: 'Desfazer', run: () => (get().map === depois ? get().undo() : useToastStore.getState().push('info', modeloDeCamadas.AVISO_DESFAZER_DEPOIS_DE_OUTRA)) }],
+      })
+      // Foi para uma camada que o mestre não vê: o item some da tela, e o aviso diz onde está, com "Mostrar".
+      if (!contextoDeCamadas(depois).mestreVe(destino)) avisarCamadaOculta(destino)
+      return movido
     },
     setPropLayer: (id, layer) => withHistory((map) => mapFactory.setPropLayer(map, id, layer)),
     trocarTipoDoMovel: (id, tipo) => {

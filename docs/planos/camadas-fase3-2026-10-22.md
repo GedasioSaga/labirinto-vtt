@@ -211,3 +211,85 @@ Quatro revisores (designer, correção e segurança, testes e desempenho, verifi
   | maior tarefa longa | 103 | 131 | 140 | 0 | 63 | 64 | | |
 
   Limite do critério = 29,27 × 1,15 = 33,66; a mediana depois é 14,68 (50% ABAIXO). Contra o menor A (22,45; limite 25,82) o maior D (15,45) passa. Nenhuma tarefa longa >= 200 ms em nenhuma rodada, a virada incluída. Uma rodada anterior de D, sem A intercalado, deu 16,22, 12,96 e 14,16 no mesmo cenário. O slider de abrir pelo nome não existe na base (sem par A).
+
+## Fatia 7: camadas livres (23/10/2026)
+
+O que mudou na estrutura: `lib/camadas/modelo.ts` (novo: criar, renomear, mover e apagar, funções puras sobre o mapa aberto); a store embrulha cada uma no `withHistory` (um passo por gesto); `stores/adventureStore.ts` copia o modelo do mapa aberto para `adventure.camadas` (assinatura do `useMapStore`) e põe o modelo da aventura no mapa, no passado e no futuro ao trocar de cena; `stores/virarAventura.ts` liga o painel à store (criar e ordenar num mapa solto perguntam antes de virar aventura); `components/LayersPanel.tsx` ganhou a alça, Subir/Descer, Renomear, Apagar e "+ Nova camada".
+
+**Decisões (do escritor, a confirmar pelo orquestrador):**
+- **Id:** `livre_` + 8 hexa de `crypto.randomUUID`, nunca do nome; `ID_LIVRE` só aceita hexa (`livre_Segredo_do_Lich` é recusado no jogador e no arquivo). Um id no formato de ANTES lido do arquivo vira `livre_` + 16 hexa estáveis (FNV-1a com duas sementes, `idDeCamadaDoArquivo`): os itens ficam na camada deles, a camada escondida continua escondida e o texto nunca vai ao jogador. Um palpite do nome antigo só se confere pelo hash.
+- **Só as livres renomeiam e se apagam;** as 13 padrão só reordenam (o nome delas é o de sempre: avisos, seletor e jornadas falam por ele).
+- **Nome:** sem controle, sem marca de direção, sem invisíveis, espaços juntados; teto de 40 caracteres visíveis (grafemas) e de 10 pontos de código por caractere (zalgo não estoura). Campo com `dir=auto`, contador "n/40".
+- **Camada nova** nasce acima da linha aberta (ou no topo), com o nome "Nova camada" (ou "Nova camada N") selecionado para escrever. Teto: 51 livres (13 + 51 = 64, o teto do jogador); no teto o botão se desliga e diz por quê.
+- **Apagar** mexe só na cena ativa, num passo só de Ctrl+Z, e avisa "Camada "X" apagada: N itens voltaram às camadas padrão." (com "(estavam escondidos dos jogadores)" quando era o caso) e o botão Desfazer. Nas outras cenas, o item com o id que sumiu cai na padrão pela leitura e, se a camada estava escondida dos jogadores, continua escondido (falha FECHADA em `jogadorVeItem` para todo id `livre_` escondido, também fora do formato). Lista igual à padrão tira o modelo do arquivo.
+- **Mapa solto:** a lista mora no `adventure.json` (o `map.json` não a leva); criar e ordenar perguntam antes de virar aventura; no "não" nada muda.
+- **Ordenar:** teclado (Subir/Descer na linha aberta; o foco fica no botão que andou; anúncio `aria-live` da posição) e ponteiro (alça de 6 pontos; as vizinhas abrem espaço em 180 ms; Esc ou cancelar devolvem; limiar de 4 px). A ordem do painel é a ordem de desenho no editor e no jogador. Os controles da linha (Subir, Descer, Renomear, Apagar) só aparecem com a linha aberta: fechada, o texto da linha continua "Paredes 1".
+- **Fatias 3b/4b não feitas:** o item que escolhe camada só ganha nó próprio no editor e no jogador nas 3b/4b; os testes "LIMITACAO ATUAL" de `pixi/paresDoEditor.test.ts` e `player/pilhaDoJogador.test.ts` seguem verdes e valem para camada livre.
+
+**Limites registrados:**
+- **Cliente antigo (v0.4.36):** ignora `camada` e `adventure.camadas`; os itens aparecem na padrão do tipo e, ao salvar, a lista e os nomes se perdem (os itens não). O risco de `ocultasDoJogador` é o da fatia 6.
+- **Prints do painel com toque:** com `LAB_PRINTS_DO_PAINEL` ligado, o teste "toque (390 px)" de `task-camadas-painel` falha em "o toque deixou de ser coarse" também na base 34ac6103 (o print de elemento desliga a emulação de toque). Sem prints, passa. Não é da fatia 7.
+- **CPU do arrasto** contra 34ac6103 (`git archive` + duas junções de `node_modules`, mesmo spec fora do repo, mapa denso de 60 salas, 40 passos de ponteiro com um quadro cada, mediana de 5 rodadas; 3 rodadas alternadas A, D): só o arrasto 2,16 / 2,15 / 2,08 contra 2,54 / 2,45 / 2,37 ms por quadro (mediana +14%); o gesto inteiro, com a soltura que reordena a pilha (a base não reordena), 2,03 contra 2,44 (+20%). Parado, igual (0,94 contra 0,99). Nenhuma tarefa longa em nenhuma rodada. `task-camadas-painel-desempenho`: igual à base (opacidade 14,17 contra 13,40; virada 29,04 contra 30,99).
+
+### Revisão da fatia 7 (correções, 23/10/2026)
+
+Três revisões (correção, segurança, design) deram 23 itens; um corretor só, na `feat/camadas`.
+
+**Decisões do corretor (a confirmar):**
+- **Ctrl+Z depois de trocar de cena:** o passado e o futuro da cena que entra guardam as livres que os passos dela usam (`modeloParaOPasso`). Desfazer "apagar" numa cena traz a camada de volta (nome e lugar) mesmo se ela foi apagada em outra cena depois.
+- **Camada apagada em outra cena, ou salva por cliente antigo:** em vez de apagar em todas as cenas, o painel mostra uma linha "Camada apagada" para cada id `livre_` escondido dos jogadores que nenhuma lista nomeia (`camadasApagadasEscondidas`). Os itens continuam escondidos (falha FECHADA) até o mestre clicar no olho; o cadeado de um id órfão não tem efeito (o item cai na padrão), então só o olho aparece.
+- **Teto das listas do arquivo: 1024 ids, não 64.** Cortar a lista de escondidas em 64 mostraria o 65º id órfão escondido (a segurança piora). Ids repetidos saem (`Set`); o modelo para em 51 livres. 100 mil ids abrem em menos de 500 ms.
+- **Nome:** invisíveis novos (sem largura, word joiner, operadores invisíveis, preenchedores hangul, braille vazio, tags); ZWJ e tags ficam dentro do emoji. Teto de 10 pontos de código por caractere mantido: a família de 11 pontos com tom de pele sai inteira (nunca cortada no meio). Nome sem nada que se veja é recusado e a linha diz por quê. O campo aceita até 80 grafemas (o contador "n/40" fica cor de latão acima de 40) e corta no 40º ao gravar.
+- **Hash do id antigo (FNV-1a, 16 hexa):** não é segredo. O id chega ao jogador; um nome antigo curto se adivinha por dicionário a partir do hash. Só vale para arquivo de ANTES (id novo é aleatório); nenhum nome chega.
+- **Movimento:** soltar assenta a linha em 150 ms (FLIP, só `transform`, `cubic-bezier(0.23, 1, 0.32, 1)`), levantada até pousar; Esc e cancelar devolvem em 200 ms e seguram `data-arrastando` 180 ms para as vizinhas voltarem pela transição delas. Além da primeira ou da última vaga a linha anda 30% do ponteiro. A 32 px da borda do livro, o livro rola (até 12 px por quadro) e o arrasto compensa a rolagem em vez de medir de novo. Com movimento reduzido, tudo salta.
+- **Ctrl+Z no meio do arrasto:** se a lista mudou, soltar não move nada (o índice era velho).
+- **Ordem real nos testes de ponta a ponta:** `pilha.ordemDasCamadas()` vira `data-ordem-da-pilha` no canvas do editor. Uma camada desenha em várias faixas (o rótulo da sala fica alto), então a pilha não é uma ordem total: o teste confere por par (o primeiro nó de cada camada) e confere o pacote REAL do jogador (`camadasDoJogador`) contra o painel. A tela do jogador se confere pela caixa dos pixels que mudaram (quadrada, com o meio igual), não por "o print mudou".
+
+**CPU do arrasto depois da revisão** (mesmo spec e mapa da medida acima, mediana de 5 rodadas por corrida, ms de CPU por quadro):
+- Contra 34ac6103, 3 corridas alternadas A, D: gesto inteiro 2,31 / 2,35 / 2,45 contra 3,17 / 3,00 / 2,99 (mediana +28%); só o arrasto 2,41 / 2,51 / 2,60 contra 3,22 / 3,01 / 3,03 (+20%); soltura 1,20 contra 2,80 (a base não reordena a pilha); parado igual (1,11 contra 1,10). Nenhuma tarefa longa.
+- O que a revisão acrescentou não pesa: o painel de c9727f24 (antes da revisão) contra o de agora, alternados, o resto igual, com a máquina carregada por outra linha: 3,51 / 3,87 contra 3,70 / 3,70 (gesto inteiro), 3,54 / 3,93 contra 3,77 / 3,80 (só o arrasto). Sem a rolagem na borda e sem a FLIP: 2,85, dentro do ruído das corridas de D. A diferença contra a base é a da fatia (registrada acima como +20%) com o ruído do dia; a FLIP roda no compositor (WAAPI, só `transform`).
+
+**Fora desta revisão:** em 390 px, o selo "100%" e a barra de ferramentas cobrem as últimas linhas do livro (já registrado pela revisão de design; é do layout do livro, não do painel).
+
+## Fatias 3b e 4b: itens com camada escolhida no nó da camada (plano, 23/10/2026)
+
+Por tipo: container de hoje, nó destino (`faixa|camada`, criado pela pilha só com itens) e risco. Sem camada escolhida, nenhum par novo: um nó por faixa, a mesma lista, golden idêntico.
+
+- **Fichas:** editor `tokensContainer` (um renderer só, com cache por id; o embrulho da ficha muda de nó, em vez de um renderer por nó, para `setCameraScale`, `levantar` e o pulso da vez seguirem únicos); jogador `tokens` (as views por id mudam de nó; o nó de fichas herda o `eventMode` do de hoje, senão o arrasto morre). Risco: nó descartado destruiria embrulho vivo; o descarte devolve os filhos ao container de hoje antes de destruir. Editor passa a esconder pelo mapa (`visibleTokens(…, map)`): livre escondida do mestre some.
+- **Último avistamento (`lastSeen`, decisão do usuário):** camada da ficha que sai da lista do jogador apaga o contorno. Os contornos ficam no container de hoje (ordem e opacidade de Tokens).
+- **Pinos:** editor `pinsContainer`, jogador `pins`; um renderer por nó (`criarPorNo`), como móveis e luzes. Risco: as marcas (bilhetes) ficam só no de hoje.
+- **Luzes (jogador):** `lights` (renderer por nó, gradientes próprios) e `farLights` (função pura por nó). O editor já dividia.
+- **Linhas e marcadores (jogador):** `mapLines`, como o editor (`paintMapLines`). Risco: a chave do chão ganha a assinatura da faixa.
+- **Portas (jogador):** `doors` e `portasNoTelhado` (animador por nó), `doorHints` (traço por nó). O editor já dividia.
+- **Telhados (editor):** o renderer já recebe a camada por sala (`camada`); a sala com `camadaDoTelhado` vai ao nó dela. Jogador: máscaras do espiar (`roofCut`, `peekMask`) presas ao container de hoje; risco alto, fica para depois se não couber.
+- **Texto, carimbos, salas (fundo, borda, nome) e chão (segunda instância do `floorRenderer`, contorno dividido):** só se couber; o que sobrar fica fixado como "LIMITACAO ATUAL" em `paresDoEditor.test.ts` e `pilhaDoJogador.test.ts`.
+
+### Resultado (24/10/2026)
+
+- **Feito:** editor com fichas, pinos e telhados; jogador com fichas, pinos, luzes (perto e longe), portas (retângulo, halo, cópia sobre o telhado), linhas e marcadores do chão; `lastSeen` apaga o contorno quando a camada sai do pacote. A pilha expõe `data-ordem-dos-nos` (faixa e camadas de cada nó, de baixo para cima), lido pelo e2e `task-camadas-itens-no-no.spec.ts`.
+- **Ficou (LIMITACAO ATUAL fixada nos testes):** editor com salas (fundo, borda, nome), texto, chão, raster e carimbos; jogador com esses mesmos itens e os telhados (máscaras do espiar).
+- **lastSeen:** num mapa v2 com uma camada padrão escondida dos jogadores e o resto padrão a 100%, o host não manda a lista (`fogFilter.camadasDoJogador.test.ts` fixa isso). O jogador não sabe da camada, e o contorno fica. Livre que esvazia também sai da lista: a última ficha dela, ao sair da visão, perde o contorno.
+- **CPU (editor, mapa denso padrão, mediana de 5, A=ad439f97 e D alternados, ms por quadro):** pan 9,93→10,29 (+3,6%), zoom 13,78→15,17 (+10,1%), repintura 13,13→13,38 (+1,9%), visibilidade 14,50→14,54 (+0,3%). Tarefa longa máxima 50 ms.
+- **Não verificado:** CPU no jogador; caminho novo com fichas em livre contra a base. **Não verificado em celular** (ordem do usuário, 24/10: foco só no PC).
+
+## Fatia 8: mover item de camada (24/10/2026)
+
+O que mudou na estrutura: `lib/camadas/mover.ts` (novo, puro: `moverParaCamada(map, refs, destino)`, `camadaDosItens`, `motivoParaNaoMover`, `refsDaSelecao`, `avisoDoMover`); `lib/camadas/arrastoDeItem.ts` (novo: o pacote do arrasto nativo, lido com desconfiança); `mapStore.moverParaCamada(refs, destino)` embrulha no `withHistory` (um gesto = um passo, também com vários itens) e avisa; `components/SeletorDeCamada.tsx` (novo, na ficha logo abaixo da cabeça, para todo tipo, vários itens e o pino aberto) substitui `PropLayerControls.tsx` (apagado; `onSetPropLayer` saiu de `App`, `PropertiesPanel` e `FichaDoObjeto`); `components/MenuDaSelecao.tsx` (novo, aberto pelo `PixiCanvas` no clique direito em cima da seleção); `MapObjectsSection` (linha arrastável) e `LayersPanel` (linha da camada recebe).
+
+**Decisões (do escritor, a confirmar):**
+- **Tipos que mudam de camada:** os que já desenham no nó da camada escolhida no editor e no jogador (fatias 3, 3b, 4, 4b): parede, porta, escada, objeto, ficha, pino, luz, desenho (menos texto), linha e marcador, e o telhado (só a ordem e a opacidade no jogador ficam as de Telhados: a ficha diz isso numa frase). Sala/região, peça de chão, carimbo e texto ficam na padrão: o seletor se desliga com "Desenha na camada padrão por enquanto."; na seleção mista eles ficam e o aviso diz "N ficaram onde estavam".
+- **Sala com teto:** dois campos, "Camada" (a sala, desligado) e "Camada do telhado" (o teto, `room.camadaDoTelhado`).
+- **Voltar à padrão do tipo tira o campo** (`camada` ou `camadaDoTelhado`): o arquivo volta byte a byte ao de antes. No objeto, Objetos e Decoração gravam no `layer` de sempre (o cliente antigo entende); as livres e as outras padrão no `camada`. O e2e `task-panel-sections` 5 mudou por isso: Objetos deixa o campo vazio em vez de `layer: 'objetos'`.
+- **Travada:** destino travado recusa tudo (aviso "A camada X está travada" com "Destravar"; no menu e no seletor a opção aparece desligada no lugar dela; no arrasto a linha acende como recusa, "travada: não recebe", e soltar só avisa). Origem travada (ou item com cadeado) fica onde está; o resto da seleção vai.
+- **Camada que o mestre não vê:** mover para ela vale (é um jeito de esconder), e o aviso "A camada X está oculta" com "Mostrar" diz para onde o item foi.
+- **Aviso do que moveu:** "Item movido para X." / "N itens movidos para X." com "Desfazer" (o do "apagar camada": desfaz só se nada mudou depois).
+- **Menu:** abre com o clique direito em cima de um item da SELEÇÃO (o mesmo alvo do clique de selecionar) ou do pino aberto, com qualquer ferramenta. A ficha de jogador (menu dele com jogadores na sala) e a porta (menu dela) continuam ganhando: nelas o "Mover para camada" é pela ficha ou pelo arrasto. Parede selecionada: o menu da seleção ganha do "Abrir vão / Desabar" (que segue no clique direito da parede NÃO selecionada).
+- **Arrasto:** arrastar nativo do navegador (só a linha desta cena; "Outras cenas" não). Item arrastado que está na seleção leva a seleção inteira. Teclado: o caminho sem arrasto é o seletor e o menu.
+- **Ctrl+Z com o foco no `<select>`** é do navegador (regra do `keymap.isEditableTarget`); o "Desfazer" do aviso cobre.
+
+**Limites registrados:**
+- Os usos da seção "Requisitos herdados da revisão da fatia 5" (`abrirVao`, `abrirCorredor`, `endireitar`, `hoverHitTest`, `stairHandleGesture`, `cercaCurvaGesture`, `drawFantasmaDeTeste`, `mobiliaNoPonto`, `paredesAoRedorNoPainel`, `moveAreaSelection`) NÃO foram trocados nesta fatia: com o mover, uma parede posta numa camada travada ainda abre vão por esses caminhos. `layerForSelection` já respondia por `contextoDeCamadas` (`camadaDaSelecao`).
+- Cliente antigo (v0.4.36) ignora `camada` e `camadaDoTelhado`: o item aparece na padrão do tipo (e, se a camada estava escondida dos jogadores, o host novo ainda o esconde; o host antigo não).
+- O menu da ficha de jogador (`TokenContextMenu`, com jogadores na sala) e o da porta não ganharam "Mover para camada" (os testes deles contam os itens): nelas, a ficha e o arrasto.
+
+**Evidência (24/10/2026, na fila `suite-lock`, commit 5988cb2b):** `tsc --noEmit` do app e do `tsconfig.e2e.json` limpos; vitest de 10 arquivos relacionados 110/110 (mover, store, FichasDosItens, FichaDoObjeto, LayersPanel x2, menu da parede, wallGesture, PropertiesPanel mobília e seleção) e `arrastoDeItem.test.ts` 3/3; e2e `task-camadas-mover-item` 3/3, `task-camadas-golden` estrito (19 fotos, sem regravar), as 3 jornadas seladas (`camada-travada`, `layers-visibility`, `atalho-com-foco-no-painel`) e `task-panel-sections` verdes (34/35 na 1ª corrida; o vermelho era o próprio teste do arrasto, que rolava o livro entre apertar e mover; corrigido no teste, 3/3). Mutações vermelhas: mover sem `withHistory` (3 testes da store), destino travado aceito (unidade e store), host perguntando a camada do TIPO e não a do item em `fogFilter` ("expected ['ana','bruno'] to not include 'bruno'"). CPU (`task-camadas-desempenho`, só D, sem A/B: os caminhos medidos não passam pelo código novo): pan 11,33, zoom 14,36, repintura 13,44, visibilidade 14,74 ms por quadro; tarefa longa máxima 0 (50 na troca de camadas do caminho novo).

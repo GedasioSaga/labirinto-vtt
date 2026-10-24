@@ -184,6 +184,43 @@ Duas revisões independentes (design; correção, testes e desempenho). O que mu
 
 **Para o usuário decidir, na folha:** (1) a palha no zoom de 300% ainda lê como tricô? (2) a cor do app (`#d3b56e`, mais pálida) ou a do resultado do protótipo (`#cb9940`, croma 0,121, acima do teto de 0,1118 da regra 5)? (3) a palha na terra (ΔE 0,042) basta ou pede borda/sombra mais forte?
 
+### MT7 (chão sem repetição, 24/10/2026, worktree `feat/mt7`)
+
+**O que entrou.** `texturas/meioTermo/chaoNoMundo.ts` (puro): cada pixel do chão sai do LADRILHO DE HOJE da textura lido numa coordenada torcida (domain warp, ruído sem período em 2 escalas de 1 e 0,37 lado do ladrilho, amplitude 0,15 lado), mais as MANCHAS do protótipo (3 escalas de 230, 80 e 27 px; claro +18% para o branco, escuro −13%, os números do realce e da sombra da grama) e o GRÃO (células de 2 x 2 px, força 22, em luz suave). Semente = FNV do id da textura (`sementeDoChao`, a mesma no app e nos testes). `pixi/pedacosDoChao.ts`: pedaços de 256 x 256 px, nível de detalhe pela vista (o menor nível com até 48 pedaços na vista; 64 na imagem exportada), com mipmap; fila de fatias de 8 ms (um passo de 8 linhas por vez, no mínimo um por fatia); cache LRU por bytes (64 MB no computador, 24 MB com `pointer: coarse`, CPU + placa + mipmap), o pedaço em uso nunca sai e o que sai é destruído (`destroy(true)`); quem sai da vista antes de começar sai da fila; a névoa não pede pedaço (só `ajustarAVista` e a pintura). `drawTexturas.ts`: com a chave LIGADA, cada camada vira um grupo (o `TilingSprite` de hoje por baixo como placeholder + os pedaços por cima) com a mesma máscara; o placeholder some (`renderable`) quando os pedaços da vista chegam; trocar de nível mantém os pedaços de antes por baixo até os novos chegarem; a imagem exportada espera os pedaços. Com a chave DESLIGADA o palco é o de antes (o único acréscimo no caminho desligado é a marca `performance.mark('texturas:no-palco')`, sem pixel).
+
+**Medido** (`chaoNoMundo.test.ts`, 2048 x 2048 px pintados pedaço a pedaço, mapa de 30 x 20 casas de 64, ladrilho de 192 px nas 3 texturas, o pior caso: o de antes repete a cada 2 blocos):
+
+| Bioma | Blocos de 96 iguais (depois / antes) | Pico da autocorrelação 16-384 px (depois / antes) | Sem torção (mutação) | Saturação p95 (depois / antes) | Croma médio | Menor luz OKLab |
+|---|---|---|---|---|---|---|
+| Grama | 0 / 346 de 441 | 0,005 / 0,798 (192 px) | 0,390 | 0,521 / 0,526 | 0,1360 / 0,1421 | 0,616 / 0,678 |
+| Terra | 0 / 351 | 0,004 / 0,846 | 0,460 | 0,449 / 0,445 | 0,0604 / 0,0635 | 0,492 / 0,554 |
+| Floresta | 0 / 356 | 0,044 / 0,811 | 0,741 | 0,815 / 0,816 | 0,0836 / 0,0863 | 0,254 / 0,282 |
+
+Controle positivo: o ladrilho de antes REPROVA nas mesmas medidas (346 a 356 blocos iguais, pico 0,80 a 0,85). Mutação: sem a torção (só manchas e grão) o pico volta a 0,39 a 0,74 e reprova: é a torção que tira a repetição, não o grão. Emenda entre pedaços: salto médio de luz 4,56 na emenda contra 3,12 dentro (teto 1,5 vez). Mesmos bytes em fatias de linhas e de uma vez; sem `Math.random` (espião); o nível 2 tem a mesma cor média do nível 0 (menos de 3 em 255). Pedaço de 256 x 256 no nível 0 em Node: mediana 3,0 ms, pior 4,9 ms.
+
+**e2e** (`e2e/task-meio-termo-chao.spec.ts`, jogador de verdade com o mapa do arquivo, o recorte real e a rede; 1440 x 900, CPU 1x, Chromium 1243, Vite dev, 3 rodadas intercaladas): primeira pintura desligada 2170/1071/1070 ms (mediana 1071), ligada 1131/1084/1081 ms (mediana 1084, +1,2%); chão pronto 1131 a 1177 ms (cerca de 50 ms depois da primeira pintura); arrastar e afastar por ~3 s: quadro p95 16,9 ms desligada e 16,8 ligada; maior tarefa longa 67 ms na abertura ligada, 0 no passeio. 54% do chão do mapa muda de luz (> 6) com a chave contra 0% entre duas aberturas desligadas. Golden das camadas (estrito, sem regravar) e as 3 jornadas seladas passaram (27 testes); `src/pixi` inteiro 138 arquivos / 1955 testes verdes; `tsc` do app e do e2e limpos.
+
+**Divergências do protótipo (motivo):**
+
+- O protótipo pinta a grama do zero (cor base + manchas + carimbos de tufo e flor + grão). O app lê o ladrilho da textura que o mestre escolheu (todas as do catálogo e as importadas) numa coordenada torcida: a textura continua a do mestre, só não repete.
+- Sem tufos e flores sorteados por célula: o ladrilho da grama do app já tem os tufos, e flor em toda textura pintada (inclusive floresta e neve) pede a decisão de em quais texturas ela cai. FORA desta fatia.
+- As manchas valem para todas as texturas naturais com a proporção da grama (18% / 13%), não só para a grama.
+- Luz suave simplificada no grão (`c + d·c·(1−c)`), mesma força 22.
+- As texturas assentadas em casas (convés, lajotas, calçamento) não torcem (a junta fica reta e na grade): a repetição delas é a grade das juntas, como o ritmo de fileira da praça do protótipo (0,36 a 20 px); manchas e grão variam o tom. A autocorrelação delas não foi medida.
+
+**Limites e riscos:**
+
+- **Primeira pintura acima de 400 ms também com a chave desligada** (~1,07 s neste mapa de 3 texturas, ladrilhos gerados em fatias, de antes da MT7): o teto do e2e é 400 ms OU 10% sobre a desligada. Com o placeholder, a MT7 não atrasa a primeira pintura; o chão sem repetição chega ~50 ms depois.
+- **NÃO VERIFICADO EM CELULAR** (ordem do usuário de 24/10/2026: foco só no PC; o teste a 390 px com CPU 4x saiu do aceite). O teto menor de bytes com `pointer: coarse` existe, mas não foi medido.
+- O nível de detalhe sai da vista em px do mundo (o renderer não recebe o tamanho da tela): numa tela pequena com o mapa afastado o pedaço pode ter mais pixels que a tela (o mipmap evita o serrilhado; gasta mais).
+- O teto do cache é macio para os pedaços em uso (a vista inteira fica, mesmo acima dele).
+- A prévia do pincel (enquanto o traço não termina) continua com o ladrilho repetido; ao soltar, a camada vira pedaços.
+- Semente por textura, não por mapa: a mesma textura na mesma posição sai igual em dois mapas.
+- Importadas: o caminho é o mesmo (pixels lidos da tela do ladrilho), sem e2e próprio.
+- Bundle (`vite build`): o código novo cai no chunk compartilhado `LivroDeRegras` (1.286.990 B, 427.831 B gzip); o main ficou com 1.791,64 kB, o mesmo da MT6.
+
+**Para o usuário decidir, na folha** (`docs/design/objetos/provas/mt7-folha-de-contato.png`, 15 quadros: 3 biomas, antes e depois a 100% e a 25%, e depois a 300%; print `mt7-jogador-1440.png`): (1) as manchas claras a 25% (terra) parecem névoa? baixar o claro de 18% para ~12% é um número; (2) flor e tufo sorteados na grama entram (e em quais texturas)?
+
 ### MT8 (barranco liso, PAUSADA em 24/10/2026, worktree `feat/mt8`, nada commitado)
 
 - **Pronto, sem verificar:** `texturas/meioTermo/barranco.ts` (perfil liso realce → base → sombra nos tons `barranco`, contorno pela receita do protótipo a 60% da luz, piso 0,06 com folga 0,07, sem sorteio); `relevoRaster.ts` lê a chave uma vez por geração e, ligada, troca só a cor das mesmas faixas e pinta uma faixa de contorno no pé (nenhuma tela a mais); testes em `barranco.test.ts`, bloco "barranco liso (MT8)" em `relevoRaster.test.ts` e `e2e/task-meio-termo-barranco.spec.ts` (pixels, tempo, jogador 390 com CPU 4x, folha com `GERAR_PROVAS_MT8=1`).

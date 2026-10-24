@@ -13,7 +13,7 @@ import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import { distribuir, type PaiDaPilha } from '../pixi/pilhaDeCamadas'
 import { criarParesDoJogador, criarPilhaDoJogador, entradaDoJogador, nosEmPar } from './pilhaDoJogador'
 
-type MapaDaPilha = Pick<MapData, 'camadasDoJogador' | 'walls' | 'props' | 'stairs' | 'drawings'>
+type MapaDaPilha = Parameters<ReturnType<typeof criarParesDoJogador>>[0]
 
 interface NoFalso {
   readonly nome: string
@@ -143,7 +143,7 @@ describe('pilha do jogador: a lista manda dentro da zona', () => {
     }
     const { pilha, ordem, pai } = montar()
     const todos = new Set(pai.children)
-    const livre: CamadaId = 'livre_abc123'
+    const livre: CamadaId = 'livre_dc888012'
     for (let rodada = 0; rodada < 300; rodada++) {
       const ids: CamadaId[] = [...CAMADAS_PADRAO, livre]
       for (let i = ids.length - 1; i > 0; i--) {
@@ -180,7 +180,7 @@ describe('pilha do jogador: opacidade = alpha do nó', () => {
       { id: 'cadeira', x: 0, y: 0, width: 10, height: 10, src: '', linkedMapPath: null },
       { id: 'tapete', x: 0, y: 0, width: 10, height: 10, src: '', linkedMapPath: null, layer: 'decoracao' },
     ]
-    const map: MapaDaPilha = { camadasDoJogador: lista(CAMADAS_PADRAO, { decoracao: 0.4 }), walls: [], props, stairs: [], drawings: [] }
+    const map: MapaDaPilha = { camadasDoJogador: lista(CAMADAS_PADRAO, { decoracao: 0.4 }), walls: [], props, stairs: [], drawings: [], tokens: [], pins: [], lights: [], lines: [], markers: [] }
     pilha.atualizar(entradaDoJogador(map, criarParesDoJogador()(map)))
     for (const faixa of ['props', 'chamasCamada', 'propImages', 'propLabels']) {
       const nos = pilha.nosDaFaixa(faixa)
@@ -196,7 +196,7 @@ describe('pilha do jogador: opacidade = alpha do nó', () => {
   it('caminho rápido: mapa sem camada escolhida, um nó por faixa, a MESMA lista para os portões', () => {
     const { pilha } = montar()
     const props: Prop[] = [{ id: 'cadeira', x: 0, y: 0, width: 10, height: 10, src: '', linkedMapPath: null }]
-    const map: MapaDaPilha = { walls: [], props, stairs: [], drawings: [] }
+    const map: MapaDaPilha = { walls: [], props, stairs: [], drawings: [], tokens: [], pins: [], lights: [], lines: [], markers: [] }
     pilha.atualizar(entradaDoJogador(map, criarParesDoJogador()(map)))
     const [balde] = distribuir(props, pilha.nosDaFaixa('props'), () => 'objetos')
     expect(balde.itens).toBe(props)
@@ -204,29 +204,50 @@ describe('pilha do jogador: opacidade = alpha do nó', () => {
   })
 })
 
-describe('LIMITACAO ATUAL da fatia 4 (a fatia 3b/4b vira este teste; pré-requisito da fatia 8)', () => {
-  // Com camada escolhida, retângulo da porta e halo (doors, doorHints),
-  // fichas, luzes e pinos ficam no container de hoje: ordem e opacidade da
-  // camada NATIVA deles. Não há interface para escolher camada de item antes
-  // da fatia 8; quando a 3b/4b dividir esses itens por nó, este teste fica
-  // vermelho e vira o aceite dela.
-  it('LIMITACAO ATUAL: fichas, luzes, pinos e o retângulo e o halo da porta numa livre NÃO ganham par', () => {
-    const livre: CamadaId = 'livre_k3j9x2'
-    const base = createEmptyMap('m-limite', 'Limite', 10, 10, 50)
-    const map: MapData = {
+describe('fatia 4b: itens com camada escolhida no nó da camada (pré-requisito da fatia 8)', () => {
+  const livre: CamadaId = 'livre_19e8b9d7'
+  function mapaNaLivre(): MapData {
+    const base = createEmptyMap('m-4b', 'Itens no nó', 10, 10, 50)
+    return {
       ...base,
       camadasDoJogador: lista([...CAMADAS_PADRAO, livre]),
       tokens: [{ id: 'bia', characterId: null, name: 'Bia', x: 75, y: 75, size: 1, image: null, camada: livre }],
       lights: [{ ...buildLightAt('luz', { x: 100, y: 100 }, 50), camada: livre }],
       pins: [{ ...buildPin('pino', { x: 150, y: 150 }, 'exclamacao'), camada: livre }],
       walls: [{ ...buildWallFromDraft('porta', { x: 200, y: 100 }, { x: 250, y: 100 }), door: { kind: 'normal', open: false, locked: false }, camada: livre }],
+      lines: [{ id: 'ln', points: [{ x: 0, y: 300 }, { x: 60, y: 300 }], closed: false, dotted: false, color: '#ffffff', width: 2, camada: livre }],
     }
+  }
+
+  it('fichas, luzes (perto e de longe), pinos, porta (retângulo, halo e por cima do telhado) e linha do chão ganham par na livre', () => {
+    const faixasNaLivre = criarParesDoJogador()(mapaNaLivre())
+      .filter((p) => p.camada === livre)
+      .map((p) => p.faixa)
+    for (const faixa of ['walls', 'tokens', 'lights', 'farLights', 'pins', 'doors', 'doorHints', 'portasNoTelhado', 'mapLines']) expect(faixasNaLivre, faixa).toContain(faixa)
+  })
+
+  it('a livre logo ACIMA de Tokens: o nó da ficha dela fica acima do de hoje; logo acima de Salas: os nós da ficha e da luz dela ficam abaixo dos de hoje', () => {
+    const map = mapaNaLivre()
     const pares = criarParesDoJogador()(map)
-    const faixasNaLivre = pares.filter((p) => p.camada === livre).map((p) => p.faixa)
-    // Só o traço da parede da porta divide (faixa `walls`); o resto fica no container de hoje.
-    expect(faixasNaLivre).toEqual(['walls'])
-    for (const faixa of ['tokens', 'lights', 'farLights', 'pins', 'doors', 'doorHints', 'portasNoTelhado', 'lastSeen']) {
-      expect(pares.some((p) => p.faixa === faixa), faixa).toBe(false)
-    }
+    const acima = montar()
+    acima.pilha.atualizar(entradaDoJogador({ camadasDoJogador: lista(mover(CAMADAS_PADRAO, livre, 'tokens')) }, pares))
+    const nomesAcima = acima.pai.children.map((n) => n.nome)
+    expect(nomesAcima.indexOf(`tokens|${livre}`)).toBeGreaterThan(nomesAcima.indexOf('tokens'))
+    const abaixo = montar()
+    abaixo.pilha.atualizar(entradaDoJogador({ camadasDoJogador: lista(mover(CAMADAS_PADRAO, livre, 'salas')) }, pares))
+    const nomesAbaixo = abaixo.pai.children.map((n) => n.nome)
+    expect(nomesAbaixo.indexOf(`lights|${livre}`)).toBeLessThan(nomesAbaixo.indexOf('lights'))
+    expect(nomesAbaixo.indexOf(`tokens|${livre}`)).toBeLessThan(nomesAbaixo.indexOf('tokens'))
+    // Zona: a ficha da livre continua sobre a névoa, mesmo com a livre no fundo da lista.
+    conferirZonas(abaixo.ordem())
+    // A ficha vai ao nó dela; uma ficha sem camada escolhida fica no de hoje.
+    const fichas = [...map.tokens, { id: 'ana', characterId: null, name: 'Ana', x: 0, y: 0, size: 1, image: null }]
+    const baldes = distribuir(fichas, abaixo.pilha.nosDaFaixa('tokens'), (t) => t.camada ?? 'tokens')
+    expect(baldes.map((b) => b.itens.map((t) => t.id))).toEqual([['bia'], ['ana']])
+  })
+
+  it('LIMITACAO ATUAL: salas (fundo, borda, nome), chão, carimbos, telhados e texto numa livre NÃO ganham par; o contorno "visto por último" fica no nó de hoje', () => {
+    const faixas = criarParesDoJogador()(mapaNaLivre()).map((p) => p.faixa)
+    for (const faixa of ['regions', 'regionStrokes', 'roomNames', 'floor', 'raster', 'carimbosContainer', 'roofs', 'textLabels', 'lastSeen']) expect(faixas, faixa).not.toContain(faixa)
   })
 })
