@@ -292,7 +292,7 @@ describe('ligado à aventura aberta', () => {
 })
 
 describe('áudio importado viaja com a aventura', () => {
-  it('wav de 14 MB: guardado no app, levado para <aventura>/midia ao gravar, e de volta em outro computador com o hash conferido', async () => {
+  it('wav de 14 MB: gravado direto em <aventura>/midia, nunca em <appData>/midia (que /media serve sem chave); reaberto, continua só na pasta', async () => {
     await loja().sincronizarComAAventura('adv_d', AVENTURA)
     const grande = wav(14 * MB, 5)
     const efeito = await loja().importarArquivoDeSom('C:\\sons\\Trovão.wav', grande)
@@ -300,15 +300,33 @@ describe('áudio importado viaja com a aventura', () => {
     if (efeito.fonte.tipo !== 'arquivo') throw new Error('fonte errada')
     const id = efeito.fonte.ref.slice('midia:'.length)
     expect(id).toBe(`${await hashHex(grande)}.wav`)
+    expect(bytesDe(`${AVENTURA}/midia/${id}`).length).toBe(14 * MB)
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
 
     await loja().gravarAgora()
-    expect(bytesDe(`${AVENTURA}/midia/${id}`).length).toBe(14 * MB)
+    expect(JSON.parse(textoDe(SONS)).efeitos[0].fonte.ref).toBe(`midia:${id}`)
 
-    // Outro computador: só a pasta da aventura foi junto.
-    arquivos.delete(`${MIDIA_DO_APP}/${id}`)
+    // Outro computador (ou o mesmo, reaberto): o som da biblioteca fica na pasta e só sai pela rota com chave.
     const trazida = await trazerMidiaAoAbrir(`${AVENTURA}/map.json`, AVENTURA)
-    expect(trazida.importados).toEqual([id])
-    expect(`${await hashHex(bytesDe(`${MIDIA_DO_APP}/${id}`))}.wav`).toBe(id)
+    expect(trazida).toEqual({ importados: [], recusados: [], pastaIlegivel: false })
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+    expect(`${await hashHex(bytesDe(`${AVENTURA}/midia/${id}`))}.wav`).toBe(id)
+  })
+
+  it('corrida: a abertura corre antes de a loja ler a aventura nova (a loja ainda está na anterior): quem decide é o sons.json do disco', async () => {
+    const bytes = wav(64, 6)
+    const id = `${await hashHex(bytes)}.wav`
+    const passo = comEfeitoNovo(bibliotecaDeSonsVazia(), { nome: 'Sino', fonte: { tipo: 'arquivo', ref: `midia:${id}`, bytes: 64 } })
+    if (passo === null) throw new Error('o teste não montou o efeito')
+    criarPastasAte(`${AVENTURA}/midia`)
+    arquivos.set(`${AVENTURA}/midia/${id}`, bytes)
+    arquivos.set(SONS, serializarBiblioteca(passo.biblioteca))
+    await loja().sincronizarComAAventura('adv_antes', 'C:/aventuras/antes')
+    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+
+    expect((await trazerMidiaAoAbrir(`${AVENTURA}/map.json`, AVENTURA)).importados).toEqual([])
+    expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
+    expect(bytesDe(`${AVENTURA}/midia/${id}`)).toEqual(bytes)
   })
 
   it('acima de 15 MB é recusado com AUDIO_GRANDE_DEMAIS; png renomeado para .mp3 com AUDIO_NAO_E_AUDIO; nada muda', async () => {
@@ -375,5 +393,8 @@ describe('áudio importado viaja com a aventura', () => {
     await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS)
     await vi.waitFor(() => expect(arquivos.has(SONS)).toBe(true))
     expect(JSON.parse(textoDe(SONS)).efeitos[0]).toMatchObject({ id: efeito.id, nome: 'Sino' })
+    // Sem pasta na hora de importar, o áudio esperou em <appData>/midia; a primeira gravação o levou para a pasta.
+    if (efeito.fonte.tipo !== 'arquivo') throw new Error('fonte errada')
+    expect(bytesDe(`${AVENTURA}/midia/${efeito.fonte.ref.slice('midia:'.length)}`)).toEqual(wav(64))
   })
 })

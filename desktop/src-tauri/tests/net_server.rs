@@ -132,6 +132,9 @@ async fn join_valido_notifica_mestre_e_encaminha_mensagens() {
     // Contrato com o TS: clientId chega e volta como string decimal.
     let id = client_id.to_string();
     commands::send_to(&room, &id, &json!({"type":"lobby.waiting"})).unwrap();
+    // SONS AO VIVO: o primeiro frame é sempre a chave da mídia (`net_sons.rs`).
+    let chave: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+    assert_eq!(chave["type"], "midia.chave");
     assert_eq!(next_text(&mut ws).await.unwrap(), r#"{"type":"lobby.waiting"}"#);
 
     let err = commands::send_to(&room, "x1", &json!({"type":"lobby.waiting"})).unwrap_err();
@@ -215,6 +218,9 @@ async fn mensagem_acima_de_64kb_e_rejeitada() {
     let (addr, _room, sink) = start_server().await;
     let mut ws = connect(addr, &format!("http://{addr}")).await.unwrap();
     ws.send(Message::text(json!({"type":"join","code":CODE,"name":"Ana"}).to_string())).await.unwrap();
+    // O primeiro frame do join válido é a chave da mídia; depois disso, nada.
+    let chave: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+    assert_eq!(chave["type"], "midia.chave");
 
     let big = json!({"type":"chat","text":"x".repeat(server::MAX_MESSAGE_BYTES + 1)}).to_string();
     // O servidor pode derrubar a conexão ainda durante o envio.

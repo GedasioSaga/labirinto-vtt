@@ -1,0 +1,27 @@
+# Modo batalha (5.2): plano de 24/10/2026
+
+Origem: `docs/planos/roteiro-pos-redesign-2026-10-22.md` seção 5.2. Plano de leitura do `arquiteto-solucoes` sobre a main `37b48d22`. As decisões 1 a 8 seguem as recomendações dele ("faça o recomendado", usuário, 23/10/2026). A ordem do roteiro põe a 5.2 depois da 5.1; só B1 e B2 adiantam com segurança.
+
+## O que já existe
+Confronto por cena em `lib/confronto.ts` (fila e passo, salvo em `MapData.confronto`, `lib/mapFile.ts:638-645`); `gastoDaVez` no host (`hostSession.ts:3295`, `:3506-3517`) e recusas `not_your_turn`/`too_far` (`moveValidation.ts:307-383`); faixa `player/ConfrontoFaixa.tsx`; painel `components/ConfrontoControls.tsx`; Iniciativa separada só de sessão (`lib/initiative.ts`, `stores/initiativeStore.ts`, `InitiativeSection.tsx`, `turn` no snapshot, `PlayerTurnBanner.tsx`, anel da vez em `pixi/tokensRenderer.ts`, atalho Shift+N); flags `iniciativa:false` e `confronto:false` em `lib/features.ts`. Régua do jogador (`player/playerMeasure.ts`, `drawPlayerMeasure.ts`, "mostrar o caminho a colegas" em `player/main.tsx:1267`), modo `chessboard` com diagonal = 1 (`lib/measurement.ts:41`), encaixe no centro da casa (`pixi/tokenInteraction.ts:34`), `clampToMaxStep`, "Andar até aqui" validado por trecho (`hostSession.ts:5656`). Vida do token já está fora (`Token.health` sem uso desde a fatia 10).
+
+## Modelo e protocolo
+- `batalha: boolean` por cena, **só na sessão do host** (`batalhaStore`, `getBatalha(sceneKey)` no molde do `getTurn`); `types/map.ts` não ganha campo. O jogador recebe `batalha?: true` no snapshot (fora do `patch`).
+- O host valida (nunca o cliente): recalcula o destino para o centro da casa (`snapToGridCenter`; ficha de tamanho par vai para o canto; hex usa o encaixe hex), confere parede/chão/ocupação, conta os blocos sempre em `chessboard` e devolve `blocos` em `token.move.accepted`; o cliente só mostra. Diagonal que raspa a quina de uma parede é recusada. O caminho andado fica no host e zera quando a batalha acaba. `maxStepCells` continua valendo.
+- Vazamento: não há ordem de inimigo escondido; `occupied` usa só as fichas que o jogador vê; `wall` pode denunciar porta desconhecida (já anotado em Caminhos); linha de visão calculada no cliente sobre o recorte dele; medida compartilhada passa pelo host só para jogadores da mesma cena, com teto de pontos e números finitos.
+- Remoção do Confronto/Iniciativa sem quebrar mapa salvo: o leitor do `mapFile` passa a ignorar `parsed.confronto` (monta campo a campo; a chave some no próximo salvamento). Mudança de comportamento: mapa salvo com Confronto deixa o jogador de ficar preso. ~1.200 linhas de teste e o e2e `task-jornada-iniciativa.spec.ts` saem; o selo em `portao-selo.json` é do orquestrador.
+
+## Fatias (teste vermelho primeiro; * = arquivo quente)
+- **B1 Blocos** (`lib/batalha/blocos.ts`, novo): 5 diagonais = 5; 3 leste + 2 diagonais = 5; 10.000 trajetos livres com semente fixa contam max(|dx|,|dy|) em 100%; quina de parede recusada em 100% da fixture. Paralelo seguro.
+- **B2 Medição** (`lib/batalha/medicao.ts`, novo): círculo, cone, visão; linha de visão confere com referência independente em 200 de 200 mapas; esconder paredes no mapa do mestre muda 0 respostas. Paralelo seguro.
+- **B3 Remover a interface antiga** (`App.tsx`*, `keymap.ts`*, `player/main.tsx`, `features.ts`): tsc 0; golden sem diferença; fora da janela de Camadas 8.
+- **B4 Host** (`hostSession.ts`*, `types/map.ts`*, `fogFilter.ts`*, `moveValidation.ts`, `protocol.ts`, `mapFile.ts`, `playerConnection.ts`): `getBatalha`, encaixe e `blocos`; saem `turn`, `confronto`, `gastoDaVez`, `not_your_turn`, `too_far`. Aceite: 1.000 pedidos aleatórios em batalha com 0 posições fora do centro da casa; batalha desligada: 500 pedidos com semente fixa dão o mesmo veredito de hoje exceto os dois removidos; mapa com `confronto` salvo abre igual ao mapa sem a chave; `rg "confronto|initiative"` em `client/src` dá 0 exceto um comentário em `mapFile.ts`. Em fila com Caminhos F2-F4 (1 dono). `travaDaFichaDoJogador` também serve escada, veículo e travessia: regressão deve cobrir os três.
+- **B5 Grade por cima, botão e atalho** (`PixiCanvas.tsx`*, `PlayerView.tsx`*, `LivroDaMesa.tsx`*): grade acima das camadas do mapa no editor e no jogador; p95 <= 20 ms e 0 tarefas >= 200 ms em 300x300; depois de Camadas 8.
+- **B6 Ferramentas do jogador** (`playerMeasure.ts`, `drawPlayerMeasure.ts`): protótipo HTML (`designer-opus`, reaproveitando `docs/design/batalha-isometrica/`) e depois `programador-frontend`; "N blocos" igual ao `blocos` do host em 50 de 50; 390 px sem rolagem lateral.
+- **Caminhos F6** (caminhada em batalha por blocos) depois da B4.
+
+## Decisões (recomendadas, aplicadas)
+1 batalha ligada só na sessão (não no arquivo); 2 grade por cima do mapa e dos telhados, abaixo das fichas, marcas e HUD, visível sobre a névoa; 3 contagem de blocos por movimento com caminho andado acumulado até "Zerar caminhos"; 4 círculo quadrado (raio 2 = 25 blocos, coerente com diagonal = 1); 5 cone em 8 direções; 6 medida visível só para quem mede, com o botão "mostrar a colegas" que já existe; 7 batalha desligada em mapa triangular (ligada em quadrado e hex); 8 diagonal raspando quina de parede recusada. Atalho: Shift+B (conferir `keymap.ts`).
+
+## Não confirmado
+Se as cenas da aventura passam pelo mesmo leitor do `mapFile`; se algum mapa real do usuário tem `confronto` salvo; se Shift+B está livre; se o arrasto do jogador já encaixa nos blocos hoje; lista exata de arquivos da fatia 8 de Camadas.

@@ -1,12 +1,13 @@
-import { copyFile, mkdir, readDir, readFile, stat, writeFile } from '@tauri-apps/plugin-fs'
+import { copyFile, exists, mkdir, readDir, readFile, readTextFile, stat, writeFile } from '@tauri-apps/plugin-fs'
 import { dirname, join } from '@tauri-apps/api/path'
 import type { MapData, Token } from '../types/map'
 import type { CartaoDaFicha, Personagem } from './personagem'
 import { useToastStore } from '../stores/toastStore'
 import { baseName } from './adventure'
 import { carriedItemsOf } from './items'
-import { ehIdDeAudio, ehIdDeMidia, idDaRef, idDoAudio, idDosBytes, MIDIA_AUDIO_MAX_BYTES, MIDIA_MAX_BYTES } from './midia'
-import { pastaDaMidia } from './midiaNoDisco'
+import { ehIdDeAudio, ehIdDeMidia, idDaRef, idDoAudio, idDosBytes, MIDIA_AUDIO_MAX_BYTES, MIDIA_MAX_BYTES, refDoId } from './midia'
+import { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO, pastaDaMidia } from './midiaNoDisco'
+import { ARQUIVO_DE_SONS, audiosCitadosNoTexto, SONS_JSON_MAX_BYTES, type AudiosCitados } from './sons/biblioteca'
 
 /**
  * MÍDIA QUE VIAJA COM A AVENTURA. A mídia da mesa mora uma vez só em
@@ -33,10 +34,14 @@ import { pastaDaMidia } from './midiaNoDisco'
  *    `masmorra.midia` vai junto. O ponto no nome também nunca colide com a
  *    `midia` da aventura que esse mapa venha a virar.
  *
- * O ÁUDIO da biblioteca de sons (`lib/sons/bibliotecaNoDisco.ts`) viaja pelo
- * mesmo caminho, com o contrato de áudio de `lib/midia.ts`: o tipo vem da
+ * O ÁUDIO da biblioteca de sons (`lib/sons/bibliotecaNoDisco.ts`) mora na
+ * pasta da aventura, com o contrato de áudio de `lib/midia.ts`: o tipo vem da
  * assinatura dos bytes e o teto é de 15 MB (o da imagem continua 2 MB). Quem
- * diz QUAIS áudios ir é a biblioteca, ao gravar o `sons.json`.
+ * diz QUAIS áudios ir é a biblioteca, ao gravar o `sons.json`. Na volta ele
+ * NÃO entra em `<appData>/midia` (fechamento (b) da F5, 23/10/2026): a sala
+ * serve aquela pasta em `/media/{id}` sem chave, e o som da biblioteca só sai
+ * pela rota com chave (`/sons/{id}`), que lê a pasta da aventura. O áudio que
+ * o `sons.json` não cita volta como a imagem.
  *
  * Nada aqui apaga arquivo: a imagem que deixou de ser usada fica na pasta.
  * Nada aqui lança: a imagem que não foi (ou não voltou) vira aviso, e a
@@ -229,6 +234,53 @@ export async function copiarMidiaParaAPasta(pasta: string, ids: readonly string[
   return levada
 }
 
+/** O disco recusou, ou a pasta tem um atalho com o nome do áudio (poderia apontar para fora dela). Sem caminho: ele traz o nome de usuário do Windows. */
+export const AUDIO_NAO_FOI_PARA_A_PASTA = 'não deu para guardar esse áudio na pasta da aventura (o disco recusou)'
+
+/**
+ * Grava o áudio importado DIRETO em `pasta` (a `midia/` da aventura), sem
+ * passar por `<appData>/midia`, que a sala serve sem chave. Mesmo contrato do
+ * `guardarAudio`: lança `AUDIO_GRANDE_DEMAIS` acima de 15 MB e
+ * `AUDIO_NAO_E_AUDIO` quando a assinatura não é de áudio, antes de tocar no
+ * disco. Nunca escreve por um atalho com o nome do id. A cópia que já está lá
+ * só é poupada quando o HASH confere (`lerAudioDaPasta`): a do mesmo tamanho
+ * com outro conteúdo (trocada, corrompida) ficaria para sempre, e `/sons`
+ * daria 404. Devolve a referência `midia:<id>`.
+ */
+export async function guardarAudioNaPasta(pasta: string, bytes: Uint8Array): Promise<string> {
+  if (bytes.length > MIDIA_AUDIO_MAX_BYTES) throw new Error(AUDIO_GRANDE_DEMAIS)
+  const id = await idDoAudio(bytes)
+  if (id === null) throw new Error(AUDIO_NAO_E_AUDIO)
+  try {
+    await mkdir(pasta, { recursive: true })
+    const naPasta = await entradasDaPasta(pasta)
+    if (naPasta === null || naPasta.atalhos.has(id)) throw new Error('atalho ou pasta ilegível')
+    const alvo = await join(pasta, id)
+    if (!(naPasta.arquivos.has(id) && (await lerAudioDaPasta(pasta, id)) !== null)) await writeFile(alvo, bytes)
+  } catch {
+    throw new Error(AUDIO_NAO_FOI_PARA_A_PASTA)
+  }
+  return refDoId(id)
+}
+
+/**
+ * Os bytes do áudio `id` guardado em `pasta`, conferidos como na abertura: a
+ * pasta pode ter vindo de outro computador. `null` = não está lá, passa de
+ * 15 MB (o tamanho antes dos bytes), ou o conteúdo não é o áudio que o nome
+ * diz. Nunca lança. Os bytes vão só para o motor do mestre, nunca para a rede.
+ */
+export async function lerAudioDaPasta(pasta: string, id: string): Promise<Uint8Array | null> {
+  if (!ehIdDeAudio(id)) return null
+  try {
+    const caminho = await join(pasta, id)
+    if ((await stat(caminho)).size > MIDIA_AUDIO_MAX_BYTES) return null
+    const bytes = await readFile(caminho)
+    return bytes.length <= MIDIA_AUDIO_MAX_BYTES && (await idDoAudio(bytes)) === id ? bytes : null
+  } catch {
+    return null
+  }
+}
+
 /** O que abrir trouxe da pasta. */
 export interface MidiaTrazida {
   /** Ids gravados agora em `<appData>/midia`. */
@@ -258,9 +310,30 @@ async function importarUm(fonte: string, alvo: string, id: string, jaEsta: boole
 }
 
 /**
+ * Os áudios de `pasta` que a abertura deixa onde estão: os que o `sons.json`
+ * irmão dela cita (`<aventura>/sons.json`, ao lado de `<aventura>/midia`). Lido
+ * do disco aqui, e não da loja da biblioteca: a abertura corre antes de a loja
+ * ler a aventura nova, e a loja ainda teria a biblioteca da anterior. Sem
+ * `sons.json`, nenhum: tudo vem como antes. Na dúvida (grande demais, ilegível,
+ * de versão mais nova, ou o disco recusou), `'todos'`: nenhum áudio vem, e
+ * nenhum se perde, porque continua na pasta.
+ */
+async function audiosQueFicamNaPasta(pasta: string): Promise<AudiosCitados> {
+  try {
+    const sons = await join(await dirname(pasta), ARQUIVO_DE_SONS)
+    if (!(await exists(sons))) return new Set()
+    if ((await stat(sons)).size > SONS_JSON_MAX_BYTES) return 'todos'
+    return audiosCitadosNoTexto(await readTextFile(sons))
+  } catch {
+    return 'todos'
+  }
+}
+
+/**
  * Traz para `<appData>/midia` a mídia de `pasta` que falta lá. Idempotente:
  * abrir de novo não regrava nada. Só arquivo com nome de mídia é olhado — o
- * resto da pasta não é desta função.
+ * resto da pasta não é desta função. O áudio da biblioteca de sons fica na
+ * pasta (`audiosQueFicamNaPasta`): `<appData>/midia` sai sem chave por `/media`.
  */
 export async function importarMidiaDaPasta(pasta: string): Promise<MidiaTrazida> {
   const trazida: MidiaTrazida = { importados: [], recusados: [], pastaIlegivel: false }
@@ -272,6 +345,11 @@ export async function importarMidiaDaPasta(pasta: string): Promise<MidiaTrazida>
     // Sem pasta de mídia é o comum (mapa sem imagem, aventura de antes): só a que existe e não abre é problema.
     trazida.pastaIlegivel = await existeComoPasta(pasta)
     return trazida
+  }
+  // O `sons.json` só é lido quando há áudio na pasta: a pasta só de imagens abre como sempre.
+  if (nomes.some(ehIdDeAudio)) {
+    const ficam = await audiosQueFicamNaPasta(pasta)
+    nomes = nomes.filter((id) => !ehIdDeAudio(id) || (ficam !== 'todos' && !ficam.has(id)))
   }
   if (nomes.length === 0) return trazida
   let destino: string

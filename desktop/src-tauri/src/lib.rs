@@ -40,6 +40,7 @@ pub fn run() {
             net::commands::net_room_open,
             net::commands::net_send,
             net::commands::net_kick,
+            net::commands::net_sons_aventura,
             net::commands::net_start_tunnel,
             net::commands::net_stop_tunnel,
             net::commands::animacoes_atualizar,

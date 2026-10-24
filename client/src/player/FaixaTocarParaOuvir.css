@@ -1,0 +1,100 @@
+/*
+ * FAIXINHA "TOQUE PARA OUVIR" (sons ao vivo, fatia F5): o mestre mandou um som
+ * e o navegador ainda não deixou tocar (falta um toque nesta página). Uma
+ * pílula pequena no alto, logo abaixo da barra de cima, centrada: não cobre o
+ * mapa nem as fichas além dela mesma, e o vão em volta continua sendo mapa
+ * (`pointer-events: none` no trilho). Acima do recado do mestre (z 25-26): é
+ * passageira e é a única coisa que destrava o som. Texto fixo, nada do host.
+ *
+ * Movimento: só a entrada, em opacidade e transform, 160 ms ease-out forte
+ * (aparece de vez em quando, não dezenas de vezes por minuto). A saída é na
+ * hora: o toque que a tirou já é a resposta, e o som que começa é a confirmação.
+ */
+.pp-ouvir {
+  position: fixed;
+  top: calc(var(--pp-abaixo-da-barra, 12px) + var(--pp-alarm-space, 0px));
+  left: 0;
+  right: 0;
+  z-index: 27;
+  display: flex;
+  justify-content: center;
+  padding-inline: 16px;
+  pointer-events: none;
+}
+
+.pp-ouvir__botao {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 18px 0 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-gr-papel-alto, #1b1711);
+  border: 1px solid var(--lb-gr-latao-3, #b87d2e);
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+  /* Toque sem a espera do duplo toque, sem o lampejo do navegador e sem selecionar o texto. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Desce da borda de cima: cresce a partir dela, no tempo do recado do mestre (160 ms), com a curva forte. */
+  transform-origin: top center;
+  animation: pp-ouvir-entra 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.pp-ouvir__icone {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--lb-gr-latao-1, #f6cb84);
+}
+
+.pp-ouvir__botao:active {
+  transform: scale(0.97);
+}
+
+.pp-ouvir__botao:focus-visible {
+  outline: 2px solid var(--lb-gr-latao-1, #f6cb84);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pp-ouvir__botao:hover {
+    border-color: var(--lb-gr-latao-1, #f6cb84);
+  }
+}
+
+@keyframes pp-ouvir-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+
+@keyframes pp-ouvir-surge {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Movimento reduzido: aparece só pela opacidade, e o toque não encolhe. */
+@media (prefers-reduced-motion: reduce) {
+  .pp-ouvir__botao {
+    animation-name: pp-ouvir-surge;
+    transition: none;
+  }
+
+  .pp-ouvir__botao:active {
+    transform: none;
+  }
+}

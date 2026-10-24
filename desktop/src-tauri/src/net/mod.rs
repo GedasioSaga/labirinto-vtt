@@ -7,6 +7,8 @@
 
 pub mod animacoes;
 pub mod commands;
+pub mod conexao;
 pub mod media;
 pub mod server;
+pub mod sons;
 pub mod tunnel;

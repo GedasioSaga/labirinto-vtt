@@ -1940,6 +1940,7 @@ version = "0.4.36"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "futures-core",
  "futures-util",
  "local-ip-address",
  "minisign-verify",

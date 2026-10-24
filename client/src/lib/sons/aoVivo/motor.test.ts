@@ -27,6 +27,7 @@ import {
   MAX_LOOPS,
   MAX_SONS_SIMULTANEOS,
   PRAZO_DO_CARREGAMENTO_MS,
+  PRE_CARGA_MAX_ARQUIVOS,
   type EventoDoMotor,
   type OpcoesDoToqueAoVivo,
 } from './motor'
@@ -366,6 +367,109 @@ describe('antes do gesto', () => {
     expect(item(m.doTipo('tocando'), 0)).toMatchObject({ instancia: 'chuva', loop: true, duracaoS: 10 })
     expect(item(m.doTipo('tocando'), 0).deslocamentoS).toBeCloseTo(3)
   })
+
+  it("a voz que esperava o gesto avisa 'carregando' quando o gesto a tira da espera, antes de o arquivo chegar (a faixinha sai na hora)", async () => {
+    const m = montar({ estado: 'suspended', destravar: false })
+    const entregar = segurarBytes(m)
+    m.motor.tocar('chuva', m.arquivo(1, DEZ_SEGUNDOS), emLoop)
+    expect(m.eventos).toEqual([{ tipo: 'esperando', instancia: 'chuva' }])
+    m.gesto()
+    await assentar()
+    expect(m.eventos).toEqual([
+      { tipo: 'esperando', instancia: 'chuva' },
+      { tipo: 'carregando', instancia: 'chuva' },
+    ])
+    entregar(new Uint8Array(DEZ_SEGUNDOS))
+    await assentar()
+    expect(m.doTipo('tocando')).toHaveLength(1)
+    // Quem nunca esperou não avisa 'carregando': a página do mestre não ganha evento novo a cada clique.
+    m.motor.tocar('sino', m.arquivo(2, DEZ_SEGUNDOS), curto)
+    await assentar()
+    expect(m.doTipo('carregando')).toHaveLength(1)
+  })
+})
+
+describe('pré-carga em fila (o servidor da sala aceita 2 buscas por chave, 6 na sala e 30 por 10 s por IP)', () => {
+  const idDa = (fonte: FonteDoSom): string => (fonte.tipo === 'arquivo' ? fonte.ref.slice('midia:'.length) : '')
+
+  it(`33 ids: só os ${PRE_CARGA_MAX_ARQUIVOS} primeiros descem, UMA busca por vez; o toque passa à frente da fila`, async () => {
+    const m = montar()
+    const ids = Array.from({ length: 33 }, (_, i) => idDa(m.arquivo(i + 1, DEZ_SEGUNDOS)))
+    let noAr = 0
+    let maximoNoAr = 0
+    const pendentes: (() => void)[] = []
+    m.carregarBytes.mockImplementation(async () => {
+      noAr += 1
+      maximoNoAr = Math.max(maximoNoAr, noAr)
+      await new Promise<void>((resolve) => pendentes.push(resolve))
+      noAr -= 1
+      return new Uint8Array(DEZ_SEGUNDOS)
+    })
+    m.motor.precarregar(ids)
+    await assentar()
+    expect(m.carregarBytes).toHaveBeenCalledTimes(1)
+
+    // O toque de um som fora da fila busca na hora, sem esperar a pré-carga.
+    const grito = m.arquivo(99, DEZ_SEGUNDOS)
+    m.motor.tocar('grito', grito, curto)
+    await assentar()
+    expect(m.carregarBytes).toHaveBeenCalledTimes(2)
+    expect(m.cargasDe(grito)).toBe(1)
+
+    // Com o toque no ar, a fila não anda: a pré-carga que chega não puxa a próxima.
+    pendentes.shift()?.()
+    await assentar()
+    expect(m.carregarBytes).toHaveBeenCalledTimes(2)
+    pendentes.shift()?.()
+    await assentar()
+    expect(m.carregarBytes).toHaveBeenCalledTimes(3)
+
+    while (pendentes.length > 0) {
+      pendentes.shift()?.()
+      await assentar()
+    }
+    expect(maximoNoAr).toBe(2)
+    expect(m.carregarBytes.mock.calls.map(([id]) => id)).toEqual([ids[0], idDa(grito), ...ids.slice(1, PRE_CARGA_MAX_ARQUIVOS)])
+  })
+
+  for (const comGestoAntes of [true, false]) {
+    it(`o que a pré-carga trouxe decodifica UM por vez e só enquanto cabe no orçamento (${comGestoAntes ? 'áudio já destravado' : 'decodifica no gesto'})`, async () => {
+      // Cabem 2 arquivos de 10 s decodificados na metade adiantável do orçamento, não 3 (a estimativa é 24x os bytes).
+      const m = montar({ estado: comGestoAntes ? 'running' : 'suspended', destravar: comGestoAntes, orcamento: 2 * 9_000_000 })
+      const ids = [1, 2, 3, 4].map((n) => idDa(m.arquivo(n, DEZ_SEGUNDOS)))
+      const decodificarDeVerdade = m.audio.decodeAudioData.getMockImplementation()
+      if (decodificarDeVerdade === undefined) throw new Error('o áudio falso decodifica')
+      let decodificando = 0
+      let maximoDecodificando = 0
+      m.audio.decodeAudioData.mockImplementation(async (dados) => {
+        decodificando += 1
+        maximoDecodificando = Math.max(maximoDecodificando, decodificando)
+        await new Promise<void>((resolve) => setTimeoutDeVerdade(resolve, 0))
+        try {
+          return await decodificarDeVerdade(dados)
+        } finally {
+          decodificando -= 1
+        }
+      })
+      m.motor.precarregar(ids)
+      for (let i = 0; i < 6; i++) await assentar()
+      if (!comGestoAntes) {
+        expect(m.audio.decodeAudioData).not.toHaveBeenCalled()
+        m.gesto()
+        for (let i = 0; i < 6; i++) await assentar()
+      }
+      expect(m.carregarBytes).toHaveBeenCalledTimes(4)
+      expect(maximoDecodificando).toBe(1)
+      expect(m.audio.decodeAudioData).toHaveBeenCalledTimes(2)
+
+      // O que ficou em bytes decodifica no clique, sem buscar de novo.
+      m.motor.tocar('terceiro', m.arquivo(3, DEZ_SEGUNDOS), curto)
+      for (let i = 0; i < 3; i++) await assentar()
+      expect(m.audio.decodeAudioData).toHaveBeenCalledTimes(3)
+      expect(m.carregarBytes).toHaveBeenCalledTimes(4)
+      expect(m.doTipo('tocando').map((evento) => evento.instancia)).toEqual(['terceiro'])
+    })
+  }
 })
 
 describe('carregamento e cache', () => {
@@ -881,7 +985,7 @@ describe('entradas tortas e o motor do navegador', () => {
       window.dispatchEvent(new Event('pointerup'))
       parar()
       await assentar()
-      expect(eventos.map((evento) => evento.tipo)).toEqual(['esperando', 'tocando'])
+      expect(eventos.map((evento) => evento.tipo)).toEqual(['esperando', 'carregando', 'tocando'])
       const fonte = audio.fontes.find((candidata) => candidata.addEventListener.mock.calls.length > 0)
       if (fonte === undefined) throw new Error('o motor não criou fonte')
       // fonte -> ganho do efeito -> entrada ao vivo -> destination, sem o passa-baixa.

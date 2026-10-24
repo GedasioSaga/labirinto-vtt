@@ -6,12 +6,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant as StdInstant};
 
+use axum::body::Body;
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::http::{Method, Uri};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{any, get};
 use axum::Router;
 use serde::Serialize;
 use serde_json::Value;
@@ -20,6 +21,8 @@ use tokio::sync::{mpsc, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
 use super::animacoes::Pacote;
+use super::conexao::{ConexaoHttp, ListenerDaSala, PRAZO_SEM_PROGRESSO};
+use super::sons::{self, ErroDosSons, LimiteDasBuscas, SonsDaSala, VagaDeBusca};
 
 /// Tamanho máximo de uma mensagem recebida de um jogador.
 pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
@@ -104,6 +107,10 @@ pub struct Room {
     media_dir: Mutex<Option<PathBuf>>,
     /// Pacote de onde `/animacoes/...` lê (`<appData>/animacoes`); `None` = só 404.
     animacoes: Mutex<Option<Pacote>>,
+    /// SONS AO VIVO: chave e liberações por conexão e a pasta da aventura (`sons.rs`).
+    sons: Mutex<SonsDaSala>,
+    /// Taxa e buscas simultâneas de `/sons/{id}`; a vaga vive no corpo da resposta.
+    buscas: Arc<Mutex<LimiteDasBuscas>>,
 }
 
 /// Conta joins com código errado por IP. `MAX_BAD_CODES` falhas dentro de
@@ -201,6 +208,13 @@ pub enum SendError {
     Backlogged,
 }
 
+/// Falha de um `net_send` com `liberar`: nada fica liberado e nada sai.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ErroAoLiberar {
+    Envio(SendError),
+    Sons(ErroDosSons),
+}
+
 impl Room {
     pub fn new(code: String, sink: Arc<dyn NetSink>, assets: AssetSource) -> Arc<Self> {
         let (shutdown_tx, _) = watch::channel(false);
@@ -218,7 +232,61 @@ impl Room {
             bad_codes: Mutex::new(BadCodeLimiter::default()),
             media_dir: Mutex::new(None),
             animacoes: Mutex::new(None),
+            sons: Mutex::new(SonsDaSala::default()),
+            buscas: Arc::new(Mutex::new(LimiteDasBuscas::default())),
         })
+    }
+
+    /// `net_sons_aventura` começou: a vez dele (`SonsDaSala::nova_vez`).
+    pub fn nova_vez_dos_sons(&self) -> u64 {
+        lock(&self.sons).nova_vez()
+    }
+
+    /// `net_sons_aventura`: `/sons/{id}` passa a ler só de `raiz` (`<aventura>/midia`,
+    /// já validada por `sons::raiz_da_aventura`); `None` = só 404. Outra pasta
+    /// revoga todas as liberações. Só vale se `vez` ainda é a mais nova;
+    /// devolve se aplicou.
+    pub fn definir_aventura_dos_sons(&self, vez: u64, raiz: Option<PathBuf>) -> bool {
+        lock(&self.sons).definir_raiz_na_vez(vez, raiz)
+    }
+
+    /// A `midia` de onde `/sons/{id}` lê agora.
+    pub fn raiz_dos_sons(&self) -> Option<PathBuf> {
+        lock(&self.sons).raiz().map(PathBuf::from)
+    }
+
+    /// Queda ou kick: a chave morre e as conexões que levavam som para ela
+    /// caem (a vaga e a memória voltam quando o corpo cai). Locks em sequência,
+    /// nunca um dentro do outro.
+    fn esquecer_sons(&self, client_id: ClientId) {
+        let chave = lock(&self.sons).esquecer(client_id);
+        if let Some(chave) = chave {
+            lock(&self.buscas).cortar_da_chave(&chave);
+        }
+    }
+
+    /// `net_send` com `liberar`: libera os áudios para `client_id` e manda a
+    /// mensagem num passo só. Se o envio falha, o que esta chamada liberou é
+    /// desfeito (o que já estava liberado fica).
+    pub fn send_liberando(&self, client_id: ClientId, msg: &Value, liberar: &[String]) -> Result<(), ErroAoLiberar> {
+        sons::conferir_ids_para_liberar(liberar).map_err(ErroAoLiberar::Sons)?;
+        let text = msg.to_string();
+        // O lock dos sons fica preso durante o `try_send` (síncrono, sem await):
+        // nenhuma busca vê a liberação de uma mensagem que acabou não saindo.
+        // Ordem dos locks: sons, depois clientes; ninguém pega no sentido inverso.
+        let mut sala = lock(&self.sons);
+        let novos = sala.liberar(client_id, liberar).map_err(ErroAoLiberar::Sons)?;
+        let enviado = match self.client(client_id) {
+            Some(tx) => tx.try_send(Outgoing::Text(text)).map_err(|_| SendError::Backlogged),
+            None => Err(SendError::UnknownClient),
+        };
+        if let Err(erro) = enviado {
+            sala.desfazer(client_id, &novos);
+            return Err(ErroAoLiberar::Envio(erro));
+        }
+        // Saiu: no teto, só agora saem as liberações mais velhas.
+        sala.confirmar(client_id);
+        Ok(())
     }
 
     /// Passa a servir `/media/{id}` desta pasta (ver `media.rs`).
@@ -276,6 +344,9 @@ impl Room {
         // drop do sender (abaixo) também encerra o loop da conexão.
         let _ = tx.try_send(Outgoing::Kick);
         self.lock_clients().remove(&client_id);
+        // A chave, as liberações e as buscas dela morrem junto: o kick não
+        // espera o socket fechar.
+        self.esquecer_sons(client_id);
         Ok(())
     }
 
@@ -351,6 +422,8 @@ pub fn router(room: Arc<Room>) -> Router {
         .route("/player", get(player_page))
         .route("/assets/{*path}", get(asset_file))
         .route("/media/{id}", get(media_file))
+        // `any`: método errado também é o mesmo 404 da rota, não um 405.
+        .route("/sons/{id}", any(sons_arquivo))
         // A rota fixa vence a com parâmetro: `indice.json` nunca cai em `{nome}`.
         .route("/animacoes/indice.json", get(animacoes_indice))
         .route("/animacoes/{nome}", get(animacoes_arquivo))
@@ -358,12 +431,22 @@ pub fn router(room: Arc<Room>) -> Router {
         .with_state(room)
 }
 
-/// Future do servidor; termina quando `room.shutdown()` é chamado.
+/// Future do servidor; termina quando `room.shutdown()` é chamado. Toda
+/// conexão tem o prazo de escrita de `conexao.rs` (`PRAZO_SEM_PROGRESSO`).
 pub fn serve(listener: TcpListener, room: Arc<Room>) -> impl Future<Output = std::io::Result<()>> + Send {
+    serve_com_prazo(listener, room, PRAZO_SEM_PROGRESSO)
+}
+
+/// `serve` com outro prazo de escrita sem progresso (o teste não espera 30 s).
+pub fn serve_com_prazo(
+    listener: TcpListener,
+    room: Arc<Room>,
+    prazo_sem_progresso: Duration,
+) -> impl Future<Output = std::io::Result<()>> + Send {
     let mut shutdown_rx = room.shutdown_tx.subscribe();
     let app = router(room);
     async move {
-        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        axum::serve(ListenerDaSala::novo(listener, prazo_sem_progresso), app.into_make_service_with_connect_info::<ConexaoHttp>())
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.wait_for(|stopped| *stopped).await;
             })
@@ -373,10 +456,11 @@ pub fn serve(listener: TcpListener, room: Arc<Room>) -> impl Future<Output = std
 
 async fn ws_handler(
     State(room): State<Arc<Room>>,
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    ConnectInfo(conexao): ConnectInfo<ConexaoHttp>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
+    let peer = conexao.par;
     let tunnel_host = room.tunnel_host();
     if !origin_allowed(&headers, peer, tunnel_host.as_deref()) {
         return StatusCode::FORBIDDEN.into_response();
@@ -388,9 +472,12 @@ async fn ws_handler(
     let Some(slot) = PendingSlot::acquire(&room, ip) else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
+    // A chave de mídia fica presa a este aparelho, menos pelo túnel (a
+    // Cloudflare pode alternar IPv4 e IPv6 entre o socket e a busca).
+    let aparelho = (!veio_pelo_tunel(peer, &headers, tunnel_host.as_deref())).then_some(ip);
     ws.max_message_size(MAX_MESSAGE_BYTES)
         .max_frame_size(MAX_MESSAGE_BYTES)
-        .on_upgrade(move |socket| handle_socket(room, socket, slot))
+        .on_upgrade(move |socket| handle_socket(room, socket, slot, aparelho))
 }
 
 /// Anti-CSWSH e anti-DNS-rebinding: `Origin` precisa apontar para o mesmo
@@ -425,8 +512,7 @@ pub fn origin_allowed(headers: &HeaderMap, peer: SocketAddr, tunnel_host: Option
 /// conexão veio do `cloudflared` (loopback) com o `Host` do túnel; de qualquer
 /// outro lugar o cabeçalho é forjável e é ignorado.
 pub fn effective_client_ip(peer: SocketAddr, headers: &HeaderMap, tunnel_host: Option<&str>) -> IpAddr {
-    let via_tunnel = peer.ip().is_loopback() && tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel));
-    if !via_tunnel {
+    if !veio_pelo_tunel(peer, headers, tunnel_host) {
         return peer.ip();
     }
     headers
@@ -434,6 +520,11 @@ pub fn effective_client_ip(peer: SocketAddr, headers: &HeaderMap, tunnel_host: O
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.trim().parse::<IpAddr>().ok())
         .unwrap_or_else(|| peer.ip())
+}
+
+/// Conexão que o `cloudflared` repassa pelo loopback com o `Host` do túnel.
+fn veio_pelo_tunel(peer: SocketAddr, headers: &HeaderMap, tunnel_host: Option<&str>) -> bool {
+    peer.ip().is_loopback() && tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel))
 }
 
 /// Chave dos limites por aparelho (código errado e pendentes). IPv4 como veio;
@@ -476,7 +567,7 @@ fn host_is_literal(host: &str) -> bool {
     name.eq_ignore_ascii_case("localhost") || name.parse::<IpAddr>().is_ok()
 }
 
-async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot) {
+async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot, aparelho: Option<IpAddr>) {
     let mut shutdown_rx = room.shutdown_tx.subscribe();
     let Some((client_id, name, join_msg)) = await_join(&room, &mut socket, slot.ip).await else {
         return;
@@ -488,6 +579,14 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
     };
     drop(slot);
     let (tx, mut rx) = mpsc::channel(OUTBOX_CAPACITY);
+    // SONS AO VIVO: a chave da mídia é o PRIMEIRO frame da fila, antes de o
+    // mestre saber que a conexão existe (e antes do `welcome` dele).
+    let chave = sons::nova_chave();
+    if let Some(chave) = &chave {
+        // Canal recém-criado, vazio e só nosso: a primeira vaga sempre cabe.
+        let _ = tx.try_send(Outgoing::Text(sons::frame_da_chave(chave)));
+    }
+    lock(&room.sons).registrar(client_id, chave, aparelho);
     room.lock_clients().insert(client_id, tx);
     room.sink.on_peer(client_id, PeerEvent::Connected, Some(&name));
     room.sink.on_message(client_id, join_msg);
@@ -536,6 +635,7 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
     }
 
     room.lock_clients().remove(&client_id);
+    room.esquecer_sons(client_id);
     room.sink.on_peer(client_id, PeerEvent::Disconnected, None);
 }
 
@@ -774,12 +874,15 @@ fn dev_path_permitido(path: &str, pelo_tunel: bool) -> bool {
 /// não "Host literal E NÃO o túnel": o túnel também precisa da lista de
 /// caminhos, só que mais curta (`dev_fs_permitido` acima).
 fn dev_fallback_permitido(headers: &HeaderMap, tunnel_host: Option<&str>, path: &str) -> bool {
-    let host_literal = header_str(headers, header::HOST).is_some_and(host_is_literal);
     let pelo_tunel = tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel));
-    if !host_literal && !pelo_tunel {
-        return false;
-    }
-    dev_path_permitido(path, pelo_tunel)
+    host_da_sala(headers, tunnel_host) && dev_path_permitido(path, pelo_tunel)
+}
+
+/// `Host` que é desta sala: IP literal (LAN, loopback) ou o nome do túnel
+/// ativo. Nome qualquer é DNS rebinding.
+fn host_da_sala(headers: &HeaderMap, tunnel_host: Option<&str>) -> bool {
+    header_str(headers, header::HOST).is_some_and(host_is_literal)
+        || tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel))
 }
 
 /// Caminho que nenhuma rota atendeu. Em dev, a página do jogador vinda do Vite
@@ -861,6 +964,103 @@ fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
             (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
         ],
         bytes,
+    )
+        .into_response()
+}
+
+/// `/sons/{id}`: o áudio da aventura aberta, só para a conexão a quem o host o
+/// liberou (`sons.rs`). A ordem é a do contrato da F5: método, `Host`, taxa e
+/// simultâneas (429, antes de olhar chave e id), chave, liberação, caminho
+/// real e, por fim, teto, assinatura e hash. Toda recusa é `recusa_do_som()`,
+/// byte a byte igual; nada aqui vai para log.
+async fn sons_arquivo(
+    State(room): State<Arc<Room>>,
+    ConnectInfo(conexao): ConnectInfo<ConexaoHttp>,
+    method: Method,
+    headers: HeaderMap,
+    uri: Uri,
+) -> Response {
+    if method != Method::GET {
+        return recusa_do_som();
+    }
+    let tunnel_host = room.tunnel_host();
+    if !host_da_sala(&headers, tunnel_host.as_deref()) {
+        return recusa_do_som();
+    }
+    let ip = limit_key(effective_client_ip(conexao.par, &headers, tunnel_host.as_deref()));
+    let chave = headers.get(sons::CABECALHO_DA_CHAVE).and_then(|valor| sons::chave_do_cabecalho(valor.as_bytes()));
+    let vaga = match VagaDeBusca::pedir(&room.buscas, ip, chave.as_ref(), StdInstant::now(), conexao.corte) {
+        Ok(vaga) => vaga,
+        Err(espera) => return muitos_pedidos(espera),
+    };
+    // O caminho cru, sem decodificar `%`: o id válido não tem nenhum.
+    let (Some(chave), Some(id)) = (chave, uri.path().strip_prefix("/sons/")) else {
+        return recusa_do_som();
+    };
+    if !sons::eh_id_de_audio(id) {
+        return recusa_do_som();
+    }
+    let Some(raiz) = lock(&room.sons).autorizar(&chave, id, ip) else {
+        return recusa_do_som();
+    };
+    let id = id.to_owned();
+    match tokio::task::spawn_blocking(move || sons::ler_audio_conferido(&raiz, &id)).await {
+        Ok(Ok(audio)) => resposta_do_som(audio, vaga),
+        Ok(Err(_)) | Err(_) => recusa_do_som(),
+    }
+}
+
+/// `private, no-store`: a URL não leva a chave, então o que um aparelho
+/// guardasse valeria para a próxima sessão; e cache compartilhado (Cloudflare)
+/// nunca guarda o som de uma mesa.
+const CACHE_DO_SOM: &str = "private, no-store";
+/// A resposta depende do cabeçalho da chave, não só da URL.
+const VARY_DO_SOM: &str = "X-Labirinto-Chave";
+
+/// A ÚNICA recusa de `/sons/{id}`: 404, corpo vazio, os mesmos cabeçalhos.
+fn recusa_do_som() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        [
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DO_SOM)),
+            (header::VARY, HeaderValue::from_static(VARY_DO_SOM)),
+        ],
+    )
+        .into_response()
+}
+
+/// 429 com `Retry-After` em segundos inteiros, arredondado para cima (mínimo 1).
+fn muitos_pedidos(espera: Duration) -> Response {
+    // `espera` vem de `sons.rs`: no máximo a janela de 10 s.
+    let segundos = espera.as_secs().saturating_add(u64::from(espera.subsec_nanos() > 0)).max(1);
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        [
+            (header::RETRY_AFTER, HeaderValue::from(segundos)),
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DO_SOM)),
+            (header::VARY, HeaderValue::from_static(VARY_DO_SOM)),
+        ],
+    )
+        .into_response()
+}
+
+/// O 200: tipo pela assinatura (`TipoDeMidia::mime`, ASCII fixo), tamanho
+/// exato e o corpo em fluxo. A vaga da busca vai junto com o corpo e só volta
+/// quando o último pedaço sair (ou o cliente desistir, ou um prazo vencer).
+fn resposta_do_som(audio: sons::AudioConferido, vaga: VagaDeBusca) -> Response {
+    let corpo = Body::from_stream(sons::CorpoDoSom::novo(audio.pedacos, vaga, sons::PRAZO_TOTAL_DO_CORPO));
+    (
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static(audio.tipo.mime())),
+            (header::CONTENT_LENGTH, HeaderValue::from(audio.tamanho)),
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DO_SOM)),
+            (header::VARY, HeaderValue::from_static(VARY_DO_SOM)),
+            (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
+        ],
+        corpo,
     )
         .into_response()
 }
@@ -1365,5 +1565,98 @@ mod tests {
         for corpo in arquivos {
             assert!(!parece_pagina_html(corpo), "{:?} foi tratado como página", String::from_utf8_lossy(corpo));
         }
+    }
+
+    const CHAVE_DO_7: sons::Chave = [7; sons::TAMANHO_DA_CHAVE];
+
+    /// Sala com o cliente 7 conectado e uma fila de saída de `capacidade`.
+    fn sala_com_cliente(capacidade: usize) -> (Arc<Room>, mpsc::Receiver<Outgoing>) {
+        let room = Room::new("ABC234".to_owned(), Arc::new(SinkMudo), Arc::new(|_: &str| None));
+        let (tx, rx) = mpsc::channel(capacidade);
+        lock(&room.sons).registrar(7, Some(CHAVE_DO_7), None);
+        room.lock_clients().insert(7, tx);
+        (room, rx)
+    }
+
+    /// `Retry-After` em segundos inteiros, para cima. Mutação vermelha: sem o
+    /// arredondamento, 6,1 s vira "6" e o jogador volta cedo demais.
+    #[test]
+    fn retry_after_arredonda_para_cima() {
+        let segundos = |espera: Duration| {
+            let resposta = muitos_pedidos(espera);
+            assert_eq!(resposta.status(), StatusCode::TOO_MANY_REQUESTS);
+            resposta.headers().get(header::RETRY_AFTER).and_then(|valor| valor.to_str().ok()).map(str::to_owned)
+        };
+        assert_eq!(segundos(Duration::from_millis(6_100)).as_deref(), Some("7"));
+        assert_eq!(segundos(Duration::from_secs(6)).as_deref(), Some("6"));
+        assert_eq!(segundos(Duration::from_millis(200)).as_deref(), Some("1"));
+        assert_eq!(segundos(Duration::ZERO).as_deref(), Some("1"));
+    }
+
+    /// No teto de liberadas, o `net_send` sai e despeja a mais velha (antes
+    /// recusava tudo). Mutação vermelha: não chamar `confirmar` depois do envio.
+    #[test]
+    fn net_send_no_teto_despeja_a_liberacao_mais_velha() {
+        let msg = serde_json::json!({ "type": "som.tocar" });
+        let (room, _rx) = sala_com_cliente(64);
+        let ids: Vec<String> = (0..sons::LIBERADAS_MAX_POR_CONEXAO).map(|n| format!("{n:064x}.mp3")).collect();
+        for lote in ids.chunks(sons::LIBERAR_MAX_POR_ENVIO) {
+            assert_eq!(room.send_liberando(7, &msg, lote), Ok(()));
+        }
+        let novo = format!("{}.ogg", "f".repeat(64));
+        assert_eq!(room.send_liberando(7, &msg, std::slice::from_ref(&novo)), Ok(()));
+        assert!(lock(&room.sons).esta_liberado(7, &novo));
+        assert!(!lock(&room.sons).esta_liberado(7, &ids[0]), "a mais velha ficou: passou do teto");
+        assert!(lock(&room.sons).esta_liberado(7, &ids[1]));
+    }
+
+    /// SONS AO VIVO: `net_send` com `liberar` libera no mesmo passo do envio e,
+    /// se a mensagem não sai, desfaz só o que ele mesmo liberou.
+    #[test]
+    fn net_send_libera_antes_e_desfaz_se_falhar() {
+        let a = format!("{}.mp3", "a".repeat(64));
+        let b = format!("{}.ogg", "b".repeat(64));
+        let msg = serde_json::json!({ "type": "som.tocar" });
+        let (room, mut rx) = sala_com_cliente(1);
+        assert_eq!(room.send_liberando(7, &msg, std::slice::from_ref(&a)), Ok(()));
+        assert!(lock(&room.sons).esta_liberado(7, &a));
+        // Fila cheia (capacidade 1, nada lido): `b` não fica, `a` (de antes) fica.
+        assert_eq!(room.send_liberando(7, &msg, &[a.clone(), b.clone()]), Err(ErroAoLiberar::Envio(SendError::Backlogged)));
+        assert!(lock(&room.sons).esta_liberado(7, &a));
+        assert!(!lock(&room.sons).esta_liberado(7, &b));
+        assert!(matches!(rx.try_recv(), Ok(Outgoing::Text(texto)) if serde_json::from_str::<Value>(&texto).ok().as_ref() == Some(&msg)));
+        assert!(rx.try_recv().is_err(), "a mensagem recusada saiu");
+
+        // Sem conexão registrada; registrada nos sons mas fora da lista de envio.
+        assert_eq!(room.send_liberando(8, &msg, std::slice::from_ref(&b)), Err(ErroAoLiberar::Sons(ErroDosSons::ClienteInvalido)));
+        lock(&room.sons).registrar(9, None, None);
+        assert_eq!(room.send_liberando(9, &msg, std::slice::from_ref(&b)), Err(ErroAoLiberar::Envio(SendError::UnknownClient)));
+        assert!(!lock(&room.sons).esta_liberado(9, &b));
+        // Imagem e excesso: recusa antes de liberar ou mandar qualquer coisa.
+        let png = format!("{}.png", "c".repeat(64));
+        assert_eq!(room.send_liberando(7, &msg, &[b.clone(), png]), Err(ErroAoLiberar::Sons(ErroDosSons::MidiaInvalida)));
+        let demais = vec![b.clone(); sons::LIBERAR_MAX_POR_ENVIO + 1];
+        assert_eq!(room.send_liberando(7, &msg, &demais), Err(ErroAoLiberar::Sons(ErroDosSons::LimiteDeLiberacao)));
+        assert!(!lock(&room.sons).esta_liberado(7, &b));
+    }
+
+    /// Kick apaga a chave e as liberações na hora, sem esperar o socket fechar,
+    /// e derruba as conexões que levavam som para a chave dele. Mutação
+    /// vermelha: `esquecer` sem `cortar_da_chave`.
+    #[test]
+    fn kick_esquece_a_conexao_dos_sons() {
+        use crate::net::conexao::Corte;
+        let a = format!("{}.wav", "a".repeat(64));
+        let (room, _rx) = sala_com_cliente(4);
+        assert_eq!(room.send_liberando(7, &serde_json::json!({ "type": "x" }), std::slice::from_ref(&a)), Ok(()));
+        let ip = IpAddr::from([10, 0, 0, 7]);
+        let (corte_do_7, corte_de_outro) = (Arc::new(Corte::default()), Arc::new(Corte::default()));
+        let busca_do_7 = VagaDeBusca::pedir(&room.buscas, ip, Some(&CHAVE_DO_7), StdInstant::now(), corte_do_7.clone());
+        let busca_de_outro = VagaDeBusca::pedir(&room.buscas, ip, Some(&[8; sons::TAMANHO_DA_CHAVE]), StdInstant::now(), corte_de_outro.clone());
+        assert!(busca_do_7.is_ok() && busca_de_outro.is_ok());
+        assert_eq!(room.kick(7), Ok(()));
+        assert!(!lock(&room.sons).esta_liberado(7, &a));
+        assert!(corte_do_7.cortada(), "a busca de quem levou kick seguiu no ar");
+        assert!(!corte_de_outro.cortada());
     }
 }
