@@ -25,11 +25,11 @@
 <main>
   <p class="eyebrow">Labirinto VTT · caminhos</p>
   <h1>Caminhos dos NPCs e do jogador</h1>
-  <p>Quem anda sozinho pelo mapa: o NPC com rotina ou patrulha, e o jogador que escolhe "Andar até aqui". Os dois usam o mesmo motor de caminho; o que muda é quem pede, onde o pedido é conferido e quem fica sabendo quando algo trava. Estado em 24/10/2026, na main depois do lote 2: as fatias F0 (aviso ao mestre) e F1 (caminho do jogador pelo motor) estão feitas; F2, F3 e F4 faltam (tracejadas).</p>
+  <p>Quem anda sozinho pelo mapa: o NPC com rotina ou patrulha, e o jogador que escolhe "Andar até aqui" no toque longo ou clica no chão. Os dois usam o mesmo motor de caminho; o que muda é quem pede, onde o pedido é conferido e quem fica sabendo quando algo trava. Estado em 24/10/2026, na main depois do lote 4: as fatias F0 (aviso ao mestre), F1 (caminho do jogador pelo motor) e F2 (clicar para andar) estão feitas; F3 e F4 faltam (tracejadas). O desenho da F2 em detalhe está em <code>caminhos-clique-para-andar.html</code>.</p>
 
-  <svg viewBox="0 0 720 496" role="img" aria-labelledby="caminhos-npc-title caminhos-npc-desc">
+  <svg viewBox="0 0 720 512" role="img" aria-labelledby="caminhos-npc-title caminhos-npc-desc">
     <title id="caminhos-npc-title">Caminhos dos NPCs e do jogador</title>
-    <desc id="caminhos-npc-desc">A rotina e a patrulha dos NPCs e o Andar até aqui do jogador usam o mesmo motor de caminho. A rotina avisa o mestre quando uma porta trancada trava um NPC, e o aviso nunca vai ao jogador. O jogador manda o caminho ao host trecho a trecho, e o host confere parede, ficha congelada e passo máximo. Faltam o clique para andar, o período Dia, Tarde e Noite e o apito sem teleporte.</desc>
+    <desc id="caminhos-npc-desc">A rotina e a patrulha dos NPCs, o Andar até aqui e o clique no chão do jogador usam o mesmo motor de caminho. A rotina avisa o mestre quando uma porta trancada trava um NPC, e o aviso nunca vai ao jogador. O jogador manda o caminho ao host trecho a trecho, e o host confere parede, ficha congelada e passo máximo; o trecho marcado de caminhada passa também pela chave da cena e pela névoa. Faltam o período Dia, Tarde e Noite na rotina e o apito sem teleporte.</desc>
     <defs>
       <marker id="cn-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -65,10 +65,14 @@
     <path d="M300 112 V136 Q300 144 292 144 H160 Q152 144 152 152 V176" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#cn-arrow)"/>
     <rect x="196" y="124" width="80" height="12" rx="2" fill="#f5f5f5"/>
     <text x="236" y="133" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEM TELEPORTE</text>
-    <!-- F2 clicar para andar -> host (falta) -->
-    <path d="M440 360 H528" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#cn-arrow)"/>
+    <!-- F2 clicar para andar -> host (rede): trecho marcado com caminhada:true -->
+    <path d="M440 360 H528" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#cn-arrow-link)"/>
     <rect x="444" y="340" width="80" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="484" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">NÉVOA + CHAVE</text>
+    <text x="484" y="349" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TRECHO MARCADO</text>
+    <!-- F2 clicar para andar -> motor (a mesma busca do Andar até aqui, por knownPath) -->
+    <path d="M360 320 V256" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#cn-arrow)"/>
+    <rect x="368" y="284" width="68" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="402" y="293" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MESMA BUSCA</text>
 
     <!-- F3 Período na rotina (falta) -->
     <rect x="32" y="32" width="160" height="80" rx="6" fill="#f5f5f5"/>
@@ -116,51 +120,53 @@
     <text x="608" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">playerConnection.requestWalk</text>
 
     <!-- Aviso ao mestre (só do mestre) -->
-    <rect x="32" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
-    <rect x="32" y="320" width="160" height="80" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <rect x="32" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="320" width="160" height="96" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
     <rect x="40" y="328" width="88" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
     <text x="84" y="337" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SÓ DO MESTRE</text>
     <text x="112" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Aviso de porta trancada</text>
     <text x="112" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">avisosDaRotina.ts · stores</text>
     <text x="112" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">components/AvisoDaRotina.tsx</text>
 
-    <!-- F2 Clicar para andar (falta) -->
-    <rect x="280" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
-    <rect x="280" y="320" width="160" height="80" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-    <rect x="288" y="328" width="72" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
-    <text x="324" y="337" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FALTA · F2</text>
+    <!-- F2 Clicar para andar (feita) -->
+    <rect x="280" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="280" y="320" width="160" height="96" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <rect x="288" y="328" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+    <text x="316" y="337" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">JOGADOR</text>
     <text x="360" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Clicar para andar</text>
-    <text x="360" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">clique simples + marca</text>
-    <text x="360" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">chave por cena + névoa no host</text>
+    <text x="360" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lib/cliqueParaAndar.ts</text>
+    <text x="360" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">PlayerView.onFloorClick</text>
+    <text x="360" y="400" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">marca no destino</text>
 
     <!-- Host valida cada trecho -->
-    <rect x="528" y="320" width="160" height="80" rx="6" fill="#f5f5f5"/>
-    <rect x="528" y="320" width="160" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="528" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="528" y="320" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
     <rect x="536" y="328" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
     <text x="556" y="337" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOST</text>
     <text x="608" y="360" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Host valida cada trecho</text>
     <text x="608" y="376" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">hostSession · moveValidation</text>
     <text x="608" y="388" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">parede, congelada, passo máx.</text>
+    <text x="608" y="400" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">+ chave da cena e névoa (F2)</text>
 
     <!-- Legenda -->
-    <line x1="32" y1="424" x2="688" y2="424" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-    <text x="32" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
-    <rect x="104" y="440" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
-    <text x="128" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO: MOTOR</text>
-    <rect x="200" y="440" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <text x="224" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
-    <rect x="272" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
-    <text x="296" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">JOGADOR</text>
-    <rect x="348" y="440" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
-    <text x="372" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">SÓ DO MESTRE</text>
-    <rect x="448" y="440" width="16" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
-    <text x="472" y="449" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FALTA NO PLANO</text>
-    <line x1="32" y1="469" x2="64" y2="469" stroke="#2e5aa8" stroke-width="1"/>
-    <text x="72" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">REDE: JOGADOR AO HOST</text>
-    <line x1="240" y1="469" x2="272" y2="469" stroke="#4f5d75" stroke-width="1"/>
-    <text x="280" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NO MESMO PROGRAMA</text>
-    <line x1="448" y1="469" x2="480" y2="469" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
-    <text x="488" y="473" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PLANEJADO, AINDA NÃO FEITO</text>
+    <line x1="32" y1="440" x2="688" y2="440" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="32" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <rect x="104" y="456" width="16" height="12" rx="2" fill="#fdf0e9" stroke="#eb6c36" stroke-width="1"/>
+    <text x="128" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO: MOTOR</text>
+    <rect x="200" y="456" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="224" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CÓDIGO</text>
+    <rect x="272" y="456" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <text x="296" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">JOGADOR</text>
+    <rect x="348" y="456" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="372" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">SÓ DO MESTRE</text>
+    <rect x="448" y="456" width="16" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="472" y="465" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FALTA NO PLANO</text>
+    <line x1="32" y1="484" x2="64" y2="484" stroke="#2e5aa8" stroke-width="1"/>
+    <text x="72" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">REDE: JOGADOR AO HOST</text>
+    <line x1="240" y1="484" x2="272" y2="484" stroke="#4f5d75" stroke-width="1"/>
+    <text x="280" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">NO MESMO PROGRAMA</text>
+    <line x1="448" y1="484" x2="480" y2="484" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
+    <text x="488" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PLANEJADO, AINDA NÃO FEITO</text>
   </svg>
 
   <h2>O que está na main</h2>
@@ -169,13 +175,13 @@
     <li>Rotina e patrulha ficam fora da pasta do motor, em <code>lib/rotinaAndando.ts</code> e <code>lib/patrulhaAndando.ts</code>, e chamam <code>TiqueDosNpcs</code>. Quem dá o passo a cada tique são <code>stores/rotinaAndandoStore.ts</code> (<code>darPassoDaRotina</code>) e <code>stores/patrulhaAndandoStore.ts</code> (<code>darPassoDaPatrulha</code>).</li>
     <li>F0, aviso ao mestre: <code>lib/avisosDaRotina.ts</code> (lógica pura) alimenta o campo <code>avisos</code> dos dois stores (um por NPC e porta, teto de 24); <code>components/AvisoDaRotina.tsx</code> mostra "Porta X trancada: NPC Y parou" no canto de baixo à esquerda, montado em <code>App.tsx</code>. O aviso sai já na primeira falha <code>porta-trancada</code>, não só na desistência, e some quando a porta destranca ou o trecho acha caminho. Vive no store do mestre, nunca no <code>MapData</code>, por isso não entra no pacote do jogador.</li>
     <li>F1, "Andar até aqui" no toque longo: <code>lib/knownPath.ts</code> chama <code>acharCaminhoNaMalha</code> (<code>busca.ts</code>) com a máscara da área conhecida (memória ou visão, menos zona oculta) e sem fichas como obstáculo. <code>player/main.tsx</code> monta a malha em fatias de 8 ms (<code>prepararCaminhoConhecido</code>) quando a cena chega e manda o caminho com <code>connection.requestWalk</code>. As duas buscas paralelas antigas (<code>caminhoEmGrade.ts</code> e seu teste) foram apagadas; <code>andarPeloTrajeto</code> continua para rotina, patrulha e andarilho.</li>
-    <li>Host: <code>net/hostSession.ts</code> chama <code>validateTokenMove</code> e <code>travaDaFichaDoJogador</code> (<code>lib/moveValidation.ts</code>) em cada trecho. Recusas de movimento: <code>not_owner</code>, <code>not_your_turn</code>, <code>outside_map</code>, <code>wall</code>, <code>outside_floor</code>, <code>occupied</code>, <code>too_far</code>; a trava da ficha devolve <code>locked</code>, <code>congelado</code> ou <code>not_your_turn</code>. Não há Rust nisto: o <code>server.rs</code> só repassa.</li>
+    <li>F2, clicar para andar (em detalhe em <code>caminhos-clique-para-andar.html</code>): o clique simples e parado do mouse no chão vazio (<code>PlayerView.onFloorClick</code>) chama <code>connection.walkTo</code>, que planeja só pelo conhecido com <code>planejarCaminhada</code> (<code>lib/cliqueParaAndar.ts</code>, sobre o <code>caminhoConhecido</code> de <code>lib/knownPath.ts</code>) e anda pelo mesmo <code>startWalk</code> do "Andar até aqui". Todo trecho dos dois gestos sai com <code>caminhada: true</code> no <code>token.move</code> (<code>net/protocol.ts</code>). A marca no destino é <code>pixi/drawMarcaDaCaminhada.ts</code>. A chave é <code>MapData.cliqueParaAndar</code> (ausente = ligado), com um interruptor "Clicar para andar" na página Cena (<code>components/livro/ChaveCliqueParaAndar.tsx</code>, com desfazer pelo <code>mapStore</code>). O mestre não ganha a ação: ele arrasta como sempre.</li>
+    <li>Host: <code>net/hostSession.ts</code> chama <code>validateTokenMove</code> e <code>travaDaFichaDoJogador</code> (<code>lib/moveValidation.ts</code>) em cada trecho. Recusas de movimento: <code>not_owner</code>, <code>not_your_turn</code>, <code>outside_map</code>, <code>wall</code>, <code>outside_floor</code>, <code>occupied</code>, <code>too_far</code>; a trava da ficha devolve <code>locked</code>, <code>congelado</code> ou <code>not_your_turn</code>. O trecho marcado (F2) ganha duas recusas a mais: <code>caminhada_desligada</code>, conferida antes de validar o passo, e <code>nevoa</code>, conferida depois de todas as outras, contra a memória do último snapshot do jogador (<code>PlayerMemory.ocultas</code>, campo novo). Não há Rust nisto: o <code>server.rs</code> só repassa.</li>
   </ul>
 
   <h2>O que falta</h2>
   <ul>
-    <li>F2, clicar para andar: clique simples no chão, com marca no destino, em vez de só o toque longo. Campo novo <code>MapData.cliqueParaAndar?</code> (ausente = ligado), mensagem de passo com <code>caminhada:true</code>, e o host passa a recusar com <code>caminhada_desligada</code> e com <code>nevoa</code>. Conferido em 24/10: nenhum desses nomes existe no código. Celular fora de foco por ordem do usuário em 24/10.</li>
-    <li>F3, período na rotina: tipo <code>Periodo = 'dia' | 'tarde' | 'noite'</code> em <code>types/map.ts</code>, <code>PostoDaRotina.periodo?</code> e provedor <code>periodoDaCena(sceneId)</code> que devolve <code>'dia'</code> até a iluminação (5.1) chegar. Hoje <code>planejarRotina</code> e <code>moverNaCena</code> teleportam (<code>stores/adventureStore.ts</code>).</li>
+    <li>F3, período na rotina: o tipo <code>Periodo = 'dia' | 'tarde' | 'noite'</code> e <code>periodoDaCena(map, sessao)</code> já estão na main (Luz L0, <code>types/map.ts</code> e <code>lib/periodo.ts</code>). Falta <code>PostoDaRotina.periodo?</code> (hoje o posto só tem <code>valor</code>, <code>sceneId</code>, <code>x</code> e <code>y</code>) e a rotina usar o período. Hoje <code>planejarRotina</code> e <code>moverNaCena</code> teleportam (<code>stores/adventureStore.ts</code>).</li>
     <li>F4, apito sem teleporte: o apito liga a caminhada em vez de teleportar; o teleporte fica num botão explícito "pular para o posto". Passos da patrulha (Falar, esperar) viram etapas do mesmo motor.</li>
     <li>Mais adiante, fora do diagrama: F5 (painel de rotina por período, protótipo HTML primeiro), F6 (caminhada em batalha, depois da 5.2) e F7 (botão de sessão e cena interior, depois da 5.1).</li>
   </ul>
@@ -186,7 +192,8 @@
     <li>Cliente e host precisam concordar: antes de mandar, cada trecho arredondado passa por <code>isTokenPathClear</code> e pela máscara; se falhar, sai <code>sem-caminho</code> em vez de mandar um trecho que o host recusaria. O host confere só o centro da ficha, então a rede usa raio fixo de meia casa.</li>
     <li>O aviso não tem nome de porta: o rótulo é o tipo ("Porta", "Porta dupla", "Grade") mais "da sala X" quando há sala.</li>
     <li>Pedido de "Andar até aqui" antes de a malha ficar pronta monta o resto de uma vez: até cerca de 450 ms num mapa de 300 x 300, medido no vitest. No browser não apareceu (0 tarefa longa na consulta). Se aparecer, o conserto é o menu esperar a malha em fatias.</li>
-    <li>Destino ocupado ainda é recusado pelo host (<code>occupied</code>). A decisão de parar na casa livre mais próxima está no plano e não foi feita.</li>
+    <li>Destino ocupado: o clique (F2) procura a casa livre mais próxima, a até 2 casas, antes de mandar o trecho. O "Andar até aqui" do menu ainda leva <code>occupied</code> do host.</li>
+    <li>A chave "Clicar para andar" desligada barra os dois gestos de caminhada, o clique e o "Andar até aqui" (<code>caminhada_desligada</code>); o arrasto da ficha, sem a marca, continua. A marca só acrescenta recusas: nunca afrouxa passo máximo, parede, trava nem vez. A névoa do host é mais frouxa que a máscara da tela, então um trecho que a tela calculou não volta com <code>nevoa</code>; sem snapshot, o host não considera nada conhecido.</li>
     <li>Corrida entre NPC e jogador: se o NPC fecha a porta ou entra no trecho de quem caminha, o host recusa (<code>wall</code> ou <code>occupied</code>) e a caminhada para, sem replanejar. O plano propõe replanejar até 2 vezes.</li>
   </ul>
 
@@ -194,10 +201,11 @@
   <ul>
     <li>Mapa 300 x 300 com 18.545 paredes, portas destrancadas abertas: consulta p50 1,39 ms, p95 3,70 ms, máximo 9,67 ms; montagem em 57 fatias, 470 ms no total, maior fatia 10,9 ms. Robô com 20 mapas e 50 sementes: 0 trechos recusados pelo host, 0 pontos fora do conhecido, 472 de 1000 pedidos com caminho (o resto com motivo).</li>
     <li>Testes: <code>lib/knownPath.robo.test.ts</code>, <code>lib/knownPath.desempenho.test.ts</code>, <code>lib/avisosDaRotina.test.ts</code>, <code>components/AvisoDaRotina.test.tsx</code>; ponta a ponta em <code>client/e2e/task-caminhos-aviso-mestre.spec.ts</code> e <code>client/e2e/task-caminhos-andar-ate-aqui.spec.ts</code>.</li>
+    <li>F2: <code>lib/cliqueParaAndar.test.ts</code>, <code>net/hostSession.caminhada.test.ts</code>, <code>player/playerConnection.cliqueParaAndar.test.ts</code>, <code>player/main.cliqueParaAndar.test.tsx</code>, <code>components/livro/ChaveCliqueParaAndar.test.tsx</code>; ponta a ponta em <code>client/e2e/task-caminhos-clique-para-andar.spec.ts</code>. Segundo o registro do plano (24/10, PC): 32,7 casas em 3 trechos, todos aceitos; p95 de quadro 16,8 ms; maior tarefa longa 56 ms. Só PC, por ordem do usuário.</li>
     <li>Não medido ainda: 30 ou mais NPCs com 7 jogadores no Pixi e na rede (só em Node); vazamento pela névoa por porta que abre sozinha, que o plano lista como risco.</li>
   </ul>
 
-  <footer>Fontes: client/src/lib/caminhamento/ (malha.ts, busca.ts, marcos.ts, agenda.ts, andarilho.ts, tiqueDosNpcs.ts) · client/src/lib/rotinaAndando.ts · client/src/lib/patrulhaAndando.ts · client/src/stores/rotinaAndandoStore.ts · client/src/stores/patrulhaAndandoStore.ts · client/src/lib/avisosDaRotina.ts · client/src/components/AvisoDaRotina.tsx · client/src/App.tsx · client/src/lib/knownPath.ts · client/src/player/main.tsx · client/src/player/playerConnection.ts · client/src/net/hostSession.ts · client/src/lib/moveValidation.ts · plano docs/planos/caminhos-2026-10-23.md</footer>
+  <footer>Fontes: client/src/lib/caminhamento/ (malha.ts, busca.ts, marcos.ts, agenda.ts, andarilho.ts, tiqueDosNpcs.ts) · client/src/lib/rotinaAndando.ts · client/src/lib/patrulhaAndando.ts · client/src/stores/rotinaAndandoStore.ts · client/src/stores/patrulhaAndandoStore.ts · client/src/lib/avisosDaRotina.ts · client/src/components/AvisoDaRotina.tsx · client/src/App.tsx · client/src/lib/knownPath.ts · client/src/lib/cliqueParaAndar.ts · client/src/pixi/drawMarcaDaCaminhada.ts · client/src/components/livro/ChaveCliqueParaAndar.tsx · client/src/player/main.tsx · client/src/player/PlayerView.tsx · client/src/player/playerConnection.ts · client/src/net/hostSession.ts · client/src/net/protocol.ts · client/src/lib/moveValidation.ts · client/src/lib/periodo.ts · plano docs/planos/caminhos-2026-10-23.md</footer>
 </main>
 </body>
 </html>
