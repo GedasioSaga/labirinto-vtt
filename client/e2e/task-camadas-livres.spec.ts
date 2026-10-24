@@ -20,6 +20,7 @@ import { buildRoomFromDraft } from '../src/lib/drawingFactory'
 import { createExploration, encodeExploration } from '../src/lib/exploration'
 import { addRoom, addToken, createEmptyMap } from '../src/lib/mapFactory'
 import { filterMapForPlayer, planOfWholeMap } from '../src/lib/fogFilter'
+import { CAMADAS_PADRAO } from '../src/lib/camadas/padrao'
 import type { MapData, RegionPoint } from '../src/types/map'
 
 const GRADE = 64
@@ -56,13 +57,35 @@ async function passos(page: Page): Promise<number> {
   return page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().past.length)
 }
 
-/** A lista que o EDITOR desenha (o modelo do mapa aberto), de CIMA para BAIXO como o painel. */
-async function ordemDoEditor(page: Page): Promise<string[]> {
-  return page.evaluate(async () => {
-    const { contextoDeCamadas } = await import('/src/lib/camadas/consulta.ts')
-    const { useMapStore } = await import('/src/stores/mapStore.ts')
-    return [...contextoDeCamadas(useMapStore.getState().map).ordem].reverse()
-  })
+/** Os nós REAIS da pilha do Pixi do editor (`data-ordem-da-pilha`), de BAIXO para CIMA, cada um com as camadas que desenha. */
+async function nosDaPilha(page: Page): Promise<string[][]> {
+  const bruto = (await page.locator('[data-ordem-da-pilha]').first().getAttribute('data-ordem-da-pilha')) ?? ''
+  return bruto === '' ? [] : bruto.split(',').map((no) => no.split('+'))
+}
+
+/** A lista que o pacote REAL do host leva ao jogador (`camadasDoJogador`), de CIMA para BAIXO; ausente = a padrão. */
+function camadasDoPacote(map: MapData): string[] {
+  const recorte = filterMapForPlayer(map, 'p-ana', { 'p-ana': [FICHA] }, COLUNAS * GRADE, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, planOfWholeMap(map))
+  const lista = recorte.map.camadasDoJogador
+  return (lista === undefined ? [...CAMADAS_PADRAO] : lista.map((c) => c.id)).reverse()
+}
+
+/**
+ * O pacote REAL do jogador na ordem do painel (fonte diferente: o painel não confere a si mesmo). A pilha do
+ * editor não é uma ordem total das camadas (uma camada desenha em várias faixas: o rótulo da sala fica alto),
+ * então ela se confere por par, com `acimaNaPilha`, onde o gesto mexeu.
+ */
+async function pacoteSegueOPainel(page: Page): Promise<void> {
+  const painel = await ordemDoPainel(page)
+  const doJogador = camadasDoPacote(await mapaDoMestre(page))
+  expect(painel.filter((id) => doJogador.includes(id))).toEqual(doJogador)
+}
+
+/** `a` começa por cima de `b` na pilha REAL do editor: o primeiro nó de `a` está acima do primeiro nó de `b`. */
+async function acimaNaPilha(page: Page, a: string, b: string): Promise<boolean> {
+  const nos = await nosDaPilha(page)
+  const base = (id: string): number => nos.findIndex((no) => no.includes(id))
+  return base(a) >= 0 && base(b) >= 0 && base(a) > base(b)
 }
 
 async function abrirPainel(page: Page): Promise<void> {
@@ -132,7 +155,11 @@ test.describe('editor: camadas livres', () => {
     expect(livre).toMatch(/^livre_[0-9a-f]{8}$/)
     expect(await passos(page)).toBe(2)
     await expect(linha(page, livre)).toHaveText(/^Cripta\s*0$/)
-    expect(await ordemDoEditor(page)).toEqual(await ordemDoPainel(page))
+    await pacoteSegueOPainel(page)
+    // "+ Nova camada" mora acima da lista (a camada nasce no topo, perto do botão).
+    const doBotao = await page.getByRole('button', { name: '+ Nova camada' }).boundingBox()
+    const daLista = await lista(page).boundingBox()
+    expect((doBotao?.y ?? Infinity) + (doBotao?.height ?? 0)).toBeLessThanOrEqual(daLista?.y ?? -Infinity)
     await printDoPainel(page, 'livres-1280-criada')
 
     // As quatro paredes do Salão na camada (mover item é a fatia 8: aqui o dado direto, fora do Ctrl+Z).
@@ -141,6 +168,8 @@ test.describe('editor: camadas livres', () => {
       useMapStore.setState((s) => ({ map: { ...s.map, walls: s.map.walls.map((w) => ({ ...w, camada: id as `livre_${string}` })) } })) // as: o id veio do painel
     }, livre)
     await expect(linha(page, livre)).toHaveText(/^Cripta\s*4$/)
+    // Na pilha REAL do editor, as paredes da Cripta ganharam nó, e ele desenha por cima dos Telhados (a Cripta é a de cima).
+    await expect.poll(() => acimaNaPilha(page, livre, 'telhados')).toBe(true)
 
     // (2a) TECLADO: abre a linha, Tab até "Descer Cripta", Enter. O foco fica no botão que andou.
     await botao(page, 'Cripta, opacidade').click()
@@ -148,7 +177,10 @@ test.describe('editor: camadas livres', () => {
     await page.keyboard.press('Enter')
     expect((await ordemDoPainel(page)).slice(0, 2)).toEqual(['telhados', livre])
     await expect(botao(page, 'Descer Cripta')).toBeFocused()
-    expect(await ordemDoEditor(page)).toEqual(await ordemDoPainel(page))
+    // A pilha do editor trocou (Telhados por cima da Cripta), e o pacote do jogador também.
+    await expect.poll(() => acimaNaPilha(page, 'telhados', livre)).toBe(true)
+    expect(camadasDoPacote(await mapaDoMestre(page)).slice(0, 2)).toEqual(['telhados', livre])
+    await pacoteSegueOPainel(page)
     expect(await passos(page)).toBe(3)
     await page.keyboard.press('Escape')
 
@@ -167,31 +199,38 @@ test.describe('editor: camadas livres', () => {
     await page.mouse.move(x, y)
     await page.mouse.down()
     await page.mouse.move(x, y - sobe, { steps: 12 })
-    await page.waitForTimeout(400)
+    // Na pausa antes de soltar, Salas JÁ abriu espaço (o deslocamento chega pela transição de 180 ms).
     await expect(lista(page)).toHaveAttribute('data-arrastando', '')
-    expect(await linha(page, 'salas').evaluate((li) => li.style.transform)).toMatch(/translateY\(\d/)
+    await expect.poll(() => linha(page, 'salas').evaluate((li) => li.style.transform)).toMatch(/translateY\(\d/)
+    expect(await acimaNaPilha(page, 'salas', 'chao')).toBe(true)
     await page.mouse.up()
     await expect(lista(page)).not.toHaveAttribute('data-arrastando', '')
     expect((await ordemDoPainel(page)).slice(-2)).toEqual(['chao', 'salas'])
-    expect(await ordemDoEditor(page)).toEqual(await ordemDoPainel(page))
+    // A pilha REAL do editor trocou: Chão desenha por cima de Salas.
+    await expect.poll(() => acimaNaPilha(page, 'chao', 'salas')).toBe(true)
+    await pacoteSegueOPainel(page)
     expect(await passos(page)).toBe(4)
 
-    // Esc no meio do arrasto: nada muda.
+    // Esc no meio do arrasto (com o arrasto JÁ em curso): nada muda.
     const antesDoEsc = await ordemDoPainel(page)
     await linha(page, 'salas').locator('.lb-camadas__cabeca').scrollIntoViewIfNeeded()
     const alcaDeSalas = await linha(page, 'salas').locator('.lb-camadas__alca').boundingBox()
     if (alcaDeSalas === null) throw new Error('sem alça')
-    await page.mouse.move(alcaDeSalas.x + 5, alcaDeSalas.y + 8)
+    await page.mouse.move(alcaDeSalas.x + alcaDeSalas.width / 2, alcaDeSalas.y + 8)
     await page.mouse.down()
-    await page.mouse.move(alcaDeSalas.x + 5, alcaDeSalas.y - 120, { steps: 8 })
+    await page.mouse.move(alcaDeSalas.x + alcaDeSalas.width / 2, alcaDeSalas.y - 120, { steps: 8 })
+    await expect(lista(page)).toHaveAttribute('data-arrastando', '')
     await page.keyboard.press('Escape')
+    await expect(lista(page)).not.toHaveAttribute('data-arrastando', '')
     await page.mouse.up()
     expect(await ordemDoPainel(page)).toEqual(antesDoEsc)
     expect(await passos(page)).toBe(4)
 
-    // (3) Apagar: o aviso diz quantos voltaram; as paredes voltam a Paredes.
+    // (3) Apagar pelo TECLADO (Enter): o aviso diz quantos voltaram; as paredes voltam a Paredes; o foco vai à vizinha.
     await botao(page, 'Cripta, opacidade').click()
-    await botao(page, 'Apagar a camada Cripta').click()
+    await botao(page, 'Apagar a camada Cripta').focus()
+    await page.keyboard.press('Enter')
+    await expect(page.locator(':focus')).toHaveClass(/lb-camadas__nome/)
     const aviso = page.getByText('Camada "Cripta" apagada: 4 itens voltaram às camadas padrão.')
     await expect(aviso).toBeVisible()
     if (PRINTS !== '') await aviso.locator('xpath=ancestor::*[@role="status" or @role="alert" or contains(@class, "toast")][1]').screenshot({ path: `${PRINTS}/livres-1280-aviso.png` })
@@ -205,8 +244,9 @@ test.describe('editor: camadas livres', () => {
     const desfeito = await mapaDoMestre(page)
     expect(desfeito.modeloCamadas).toBeUndefined()
     expect(desfeito.walls).toEqual(inicial.walls)
-    expect(await ordemDoPainel(page)).toEqual(await ordemDoEditor(page))
-    expect((await ordemDoPainel(page))[0]).toBe('telhados')
+    expect(await ordemDoPainel(page)).toEqual([...CAMADAS_PADRAO].reverse())
+    await expect.poll(() => acimaNaPilha(page, 'salas', 'chao')).toBe(true)
+    await pacoteSegueOPainel(page)
     expect(await page.evaluate(async () => (await import('/src/stores/adventureStore.ts')).useAdventureStore.getState().adventure?.camadas)).toBeUndefined()
     // Ctrl+Shift+Z refaz os 5.
     for (let i = 0; i < 5; i += 1) await page.keyboard.press('Control+Shift+z')
@@ -251,7 +291,145 @@ test.describe('editor: camadas livres', () => {
     await abrirPainel(page)
     expect(await ordemDoPainel(page)).toEqual(antes)
     await expect(linha(page, livre)).toHaveText(/^Cripta\s*2$/)
-    expect(await ordemDoEditor(page)).toEqual(antes)
+    await pacoteSegueOPainel(page)
+    expect(camadasDoPacote(await mapaDoMestre(page))).toContain(livre)
+  })
+})
+
+/** Pega a alça de `id` e leva o ponteiro `dy` px (12 passos), sem soltar; devolve onde o ponteiro está. */
+async function pegarEArrastar(page: Page, id: string, dy: number): Promise<{ x: number; y: number }> {
+  await linha(page, id).locator('.lb-camadas__cabeca').scrollIntoViewIfNeeded()
+  await quadros(page)
+  const caixa = await linha(page, id).locator('.lb-camadas__alca').boundingBox()
+  if (caixa === null) throw new Error(`sem alça em ${id}`)
+  const x = caixa.x + caixa.width / 2
+  const y = caixa.y + caixa.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x, y + dy, { steps: 12 })
+  await expect(lista(page)).toHaveAttribute('data-arrastando', '')
+  return { x, y: y + dy }
+}
+
+/** As animações WAAPI da linha agora (duração e propriedades dos quadros-chave) e se ela está levantada, no MESMO instante. */
+const animacoesDa = (page: Page, id: string) =>
+  linha(page, id).evaluate((li) => ({
+    levantada: li.hasAttribute('data-arrastada'),
+    animacoes: li
+      .getAnimations()
+      .filter((a) => !(a instanceof CSSTransition))
+      .map((a) => ({ duracao: Number(a.effect?.getTiming().duration), propriedades: [...new Set((a.effect instanceof KeyframeEffect ? a.effect.getKeyframes() : []).flatMap((k) => Object.keys(k).filter((p) => !['offset', 'easing', 'composite', 'computedOffset'].includes(p))))] })),
+  }))
+
+test.describe('arrasto: a linha assenta ao soltar e volta animada no Esc (movimento NORMAL)', () => {
+  test.use({ contextOptions: { reducedMotion: 'no-preference' } })
+
+  test('soltar: FLIP de 150 ms só em transform, levantada até pousar; Esc: volta em 200 ms e as vizinhas voltam antes de o arrasto sair', async ({ page }) => {
+    await abrirOEditor(page, mapaDasLivres())
+    const salas = await linha(page, 'salas').boundingBox()
+    const chao = await linha(page, 'chao').boundingBox()
+    if (salas === null || chao === null) throw new Error('sem caixa')
+    await pegarEArrastar(page, 'chao', -(chao.y - salas.y) - 6)
+    await page.mouse.up()
+    // Logo depois de soltar: a ordem já mudou, a linha assenta (150 ms, só transform) e continua levantada.
+    expect((await ordemDoPainel(page)).slice(-2)).toEqual(['chao', 'salas'])
+    expect(await animacoesDa(page, 'chao')).toEqual({ levantada: true, animacoes: [{ duracao: 150, propriedades: ['transform'] }] })
+    await expect(linha(page, 'chao')).not.toHaveAttribute('data-arrastada', '', { timeout: 1000 })
+
+    // Esc: a linha volta em 200 ms; `data-arrastando` fica enquanto as vizinhas voltam (180 ms) e depois sai.
+    await pegarEArrastar(page, 'salas', -120)
+    await page.keyboard.press('Escape')
+    const noEsc = await animacoesDa(page, 'salas')
+    expect(noEsc.animacoes).toEqual([{ duracao: 200, propriedades: ['transform'] }])
+    // Ainda levantada no mesmo instante: o arrasto segura `data-arrastando` enquanto as vizinhas voltam.
+    expect(noEsc.levantada).toBe(true)
+    await expect(lista(page)).not.toHaveAttribute('data-arrastando', '', { timeout: 1000 })
+    await page.mouse.up()
+    expect((await ordemDoPainel(page)).slice(-2)).toEqual(['chao', 'salas'])
+  })
+})
+
+test.describe('arrasto: Ctrl+Z no meio, resistência nas pontas e rolagem do livro', () => {
+  test('Ctrl+Z no meio do arrasto muda a lista: soltar não move nada (o índice era velho)', async ({ page }) => {
+    await abrirOEditor(page, mapaDasLivres())
+    // O último passo do Ctrl+Z é CRIAR uma camada: desfazê-lo no meio do arrasto muda a lista.
+    await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().criarCamadaLivre())
+    await expect(lista(page).locator(':scope > li')).toHaveCount(14)
+    const passosAntes = await passos(page)
+    const salas = await linha(page, 'salas').boundingBox()
+    const chao = await linha(page, 'chao').boundingBox()
+    if (salas === null || chao === null) throw new Error('sem caixa')
+    await pegarEArrastar(page, 'chao', -(chao.y - salas.y) - 6)
+    await page.keyboard.press('Control+z')
+    await expect.poll(async () => passos(page)).toBe(passosAntes - 1)
+    await expect(lista(page).locator(':scope > li')).toHaveCount(13)
+    await page.mouse.up()
+    expect(await ordemDoPainel(page)).toEqual([...CAMADAS_PADRAO].reverse())
+    expect(await passos(page)).toBe(passosAntes - 1)
+  })
+
+  test('além da última vaga a linha resiste (30%); perto da borda do livro, o livro rola e a linha vai longe', async ({ page }) => {
+    await abrirOEditor(page, mapaDasLivres())
+    // 30 camadas livres: a lista passa da altura do livro.
+    await page.evaluate(async () => {
+      const { useMapStore } = await import('/src/stores/mapStore.ts')
+      for (let i = 0; i < 30; i += 1) useMapStore.getState().criarCamadaLivre()
+    })
+    await expect(lista(page).locator(':scope > li')).toHaveCount(43)
+    // Resistência: a de cima puxada 100 px para cima anda ~30 (já está na primeira vaga).
+    const primeira = (await ordemDoPainel(page))[0]
+    await pegarEArrastar(page, primeira, -100)
+    const andou = await linha(page, primeira).evaluate((li) => Number(/translateY\((-?[\d.]+)px\)/.exec(li.style.transform)?.[1] ?? 'NaN'))
+    expect(andou).toBeGreaterThan(-45)
+    expect(andou).toBeLessThan(-15)
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+
+    // Rolagem: Chão (a última) levada até a borda de cima do livro; o livro rola sozinho e, ao soltar, Chão sobe muito.
+    const deAntes = (await ordemDoPainel(page)).indexOf('chao')
+    await linha(page, 'chao').locator('.lb-camadas__cabeca').scrollIntoViewIfNeeded()
+    const alca = await linha(page, 'chao').locator('.lb-camadas__alca').boundingBox()
+    const topoDoLivro = await lista(page).evaluate((ul) => {
+      for (let pai = ul.parentElement; pai !== null; pai = pai.parentElement) {
+        const { overflowY } = getComputedStyle(pai)
+        if ((overflowY === 'auto' || overflowY === 'scroll') && pai.scrollHeight > pai.clientHeight) return { topo: pai.getBoundingClientRect().top, rolado: pai.scrollTop }
+      }
+      return null
+    })
+    if (alca === null || topoDoLivro === null) throw new Error('sem alça ou sem livro que rola')
+    await page.mouse.move(alca.x + alca.width / 2, alca.y + alca.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(alca.x + alca.width / 2, topoDoLivro.topo + 6, { steps: 20 })
+    await expect
+      .poll(() =>
+        lista(page).evaluate((ul) => {
+          for (let pai = ul.parentElement; pai !== null; pai = pai.parentElement) if (pai.scrollHeight > pai.clientHeight && ['auto', 'scroll'].includes(getComputedStyle(pai).overflowY)) return pai.scrollTop
+          return -1
+        }),
+      )
+      .toBeLessThan(topoDoLivro.rolado - 200)
+    await page.mouse.up()
+    expect((await ordemDoPainel(page)).indexOf('chao')).toBeLessThan(deAntes - 5)
+  })
+})
+
+test.describe('1280: a alça pende na margem e os nomes das 13 cabem inteiros', () => {
+  test('nenhum nome padrão corta, a alça fica à vista dentro do livro', async ({ page }) => {
+    await abrirOEditor(page, mapaDasLivres())
+    await linha(page, 'paredes').locator('.lb-camadas__cabeca').scrollIntoViewIfNeeded()
+    await quadros(page)
+    const cortados = await lista(page).evaluate((ul) =>
+      Array.from(ul.querySelectorAll<HTMLElement>(':scope > li > .lb-camadas__cabeca .lb-camadas__rotulo'))
+        .filter((r) => r.scrollWidth > r.clientWidth)
+        .map((r) => `${r.textContent} ${r.clientWidth}/${r.scrollWidth}`),
+    )
+    expect(cortados).toEqual([])
+    const visivel = await linha(page, 'paredes').locator('.lb-camadas__alca').evaluate((alca) => {
+      const caixa = alca.getBoundingClientRect()
+      const no = document.elementFromPoint(caixa.left + caixa.width / 2, caixa.top + caixa.height / 2)
+      return no !== null && (no === alca || alca.contains(no))
+    })
+    expect(visivel).toBe(true)
   })
 })
 
@@ -289,6 +467,39 @@ test.describe('toque (390 px, dedo)', () => {
     await printDoPainel(page, 'livres-390-toque')
   })
 })
+
+/** Os pixels que mudaram entre dois prints (decodificados no navegador): quantos, a caixa deles e se o meio da caixa ficou igual. */
+type Print = Awaited<ReturnType<Locator['screenshot']>>
+
+async function diferenca(pagina: Page, antes: Print, depois: Print): Promise<{ pixels: number; largura: number; altura: number; meioIgual: boolean }> {
+  return pagina.evaluate(
+    async ([a, b]) => {
+      const ler = async (png: string): Promise<ImageData> => {
+        const imagem = await createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob())
+        const tela = new OffscreenCanvas(imagem.width, imagem.height)
+        const contexto = tela.getContext('2d')
+        if (contexto === null) throw new Error('sem 2d')
+        contexto.drawImage(imagem, 0, 0)
+        return contexto.getImageData(0, 0, imagem.width, imagem.height)
+      }
+      const [x, y] = [await ler(a), await ler(b)]
+      const distancia = (i: number) => Math.abs(x.data[i] - y.data[i]) + Math.abs(x.data[i + 1] - y.data[i + 1]) + Math.abs(x.data[i + 2] - y.data[i + 2])
+      let [x0, y0, x1, y1, pixels] = [Infinity, Infinity, -1, -1, 0]
+      for (let py = 0; py < x.height; py += 1)
+        for (let px = 0; px < x.width; px += 1) {
+          if (distancia((py * x.width + px) * 4) <= 30) continue
+          pixels += 1
+          x0 = Math.min(x0, px)
+          y0 = Math.min(y0, py)
+          x1 = Math.max(x1, px)
+          y1 = Math.max(y1, py)
+        }
+      const meio = (Math.round((y0 + y1) / 2) * x.width + Math.round((x0 + x1) / 2)) * 4
+      return { pixels, largura: x1 - x0, altura: y1 - y0, meioIgual: pixels > 0 && distancia(meio) <= 30 }
+    },
+    [antes.toString('base64'), depois.toString('base64')] as const,
+  )
+}
 
 /** O recorte REAL do host com a ficha da Ana atribuída, mandado depois do `welcome` (como no spec do painel). */
 function snapshotDoHost(map: MapData, rev: number): string {
@@ -338,6 +549,7 @@ test.describe('jogador: camada livre escondida dos jogadores pelo recorte do hos
     await expect(jogador.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
     await jogador.addStyleTag({ content: '*:not(canvas) { visibility: hidden !important; } canvas { visibility: visible !important; }' })
     const tela = jogador.locator('canvas').first()
+    await expect.poll(() => jogador.locator('[data-walls-drawn]').first().getAttribute('data-walls-drawn')).toBe('4')
     await quadros(jogador)
     const comParedes = await tela.screenshot()
     // À vista: as paredes e o id chegam; o nome, nunca.
@@ -351,7 +563,14 @@ test.describe('jogador: camada livre escondida dos jogadores pelo recorte do hos
     for (const parede of ['"w1"', '"w2"', '"w3"', '"w4"']) expect(ultimo).not.toContain(parede)
     expect(ultimo).not.toContain(livre)
     expect(ultimo).not.toContain('Segredo')
-    await expect.poll(async () => (await tela.screenshot()).equals(comParedes), { message: 'as paredes continuaram na tela do jogador' }).toBe(false)
+    // O renderer do jogador desenha 0 paredes, e o que muda na TELA é o quadrado das paredes do Salão: a caixa dos
+    // pixels que mudaram é quadrada (as 4 paredes, 256 × 256 no mapa) e o meio da sala (o chão, que fica) não muda.
+    await expect.poll(() => jogador.locator('[data-walls-drawn]').first().getAttribute('data-walls-drawn'), { message: 'as paredes continuaram na tela do jogador' }).toBe('0')
+    await quadros(jogador)
+    const mudou = await diferenca(jogador, comParedes, await tela.screenshot())
+    expect(mudou.pixels).toBeGreaterThan(0)
+    expect(Math.abs(mudou.largura - mudou.altura), JSON.stringify(mudou)).toBeLessThanOrEqual(Math.max(mudou.largura, mudou.altura) * 0.25)
+    expect(mudou.meioIgual, JSON.stringify(mudou)).toBe(true)
     // O mestre continua vendo a camada (o olho dele é outro).
     await expect(botao(page, 'Ocultar Segredo do Lich')).toHaveAttribute('aria-pressed', 'false')
   })
