@@ -1,0 +1,22 @@
+{
+  "_o_que_e": "Projetos do vitest (docs/planos/teste-em-niveis.md). Globs relativos a client/. 'rapido' é tudo que não está aqui: teste novo cai nele sozinho. 'lento' = arquivo que passa de ~20 s (varredura de sementes, folha de contato, benchmark). 'desempenho' = teste que mede tempo e mente sob carga: roda sozinho, em série, por último. 'pendente' = arquivo que ainda vem de outra branch; a guarda (vitest.projetos.test.mjs) reprova glob sem arquivo e reprova 'pendente' que já chegou.",
+  "lento": [
+    { "glob": "src/pixi/rasterDosMoveis.sementes*.test.ts", "porque": "varredura de sementes das peças: Mt4 692 s, Mt5 335 s, Mt3 312 s, base 23 s (24/10/2026, máquina disputada); 77% do tempo somado da suíte" },
+    { "glob": "src/lib/caminhamento/robo*.test.ts", "porque": "robô que joga uma partida inteira num teste só: 17 s e 15 s (24/10/2026)" }
+  ],
+  "desempenho": [
+    { "glob": "src/net/hostSession.custoCom7.test.ts", "porque": "mede custo com 7 jogadores; falha sob carga" },
+    { "glob": "src/lib/paredesDoDesenho.test.ts", "porque": "teto de tempo; falha sob carga" },
+    { "glob": "src/player/folhaSemGrimorio.test.ts", "porque": "teto de tempo; falha sob carga" },
+    { "glob": "src/lib/caminhamento/desempenho*.test.ts", "porque": "teto de tempo do caminhamento" },
+    { "glob": "src/net/entradaComConta.test.ts", "porque": "teto de tempo; falha sob carga" },
+    { "glob": "src/texturas/meioTermo/moveis/moveisMt3.test.ts", "porque": "teto de tempo; falha sob carga" },
+    { "glob": "src/player/main.sonsAoVivo.test.tsx", "porque": "teto de tempo; falha sob carga", "pendente": "feat/sons (labirinto-sons, -f5d, -f6)" },
+    { "glob": "src/texturas/telhadoPalha.test.ts", "porque": "teto de tempo; falha sob carga", "pendente": "Meio-Termo (labirinto-meiotermo, -mt7, -mt8)" }
+  ],
+  "_sempreNoN1": "Mapas salvos abrem idênticos: round-trip de maps/L1.json contra a digital anterior (roundtrip-924c2bdd) e o mapa de versão antiga. Rodam em todo N1, mude o que mudar.",
+  "sempreNoN1": [
+    "src/lib/mapFile.camadas.test.ts",
+    "src/lib/mapFile.legacy.test.ts"
+  ]
+}

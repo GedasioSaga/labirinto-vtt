@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:rapido": "vitest run --project rapido",
+    "test:lento": "vitest run --project lento",
+    "test:desempenho": "vitest run --project desempenho",
+    "test:tudo": "vitest run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

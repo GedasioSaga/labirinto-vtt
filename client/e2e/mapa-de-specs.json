@@ -1,0 +1,422 @@
+{
+  "_o_que_e": "Mapa caminho-fonte -> specs e2e do scripts/teste-rapido.cjs (docs/planos/teste-em-niveis.md). Fontes: globs relativos à RAIZ do repo. Specs: nomes ou globs dentro de client/e2e. Derivado em 24/10/2026 dos imports de /src/ nos specs e dos nomes (task-camadas-*, task-sons-*, task-meio-termo-*, ...). Arquivo de client/src que não casa com nenhuma área acrescenta a 'fumaca' no N1: o mapa pode ficar incompleto sem esconder teste. A guarda (client/vitest.projetos.test.mjs) reprova spec que não existe e fonte que não casa com arquivo nenhum.",
+  "sempre": [
+    "task-camadas-golden.spec.ts",
+    "task-jornada-camada-travada.spec.ts",
+    "task-layers-visibility.spec.ts",
+    "task-jornada-atalho-com-foco-no-painel.spec.ts"
+  ],
+  "fumaca": [
+    "ui-onde-foi-parar.spec.ts",
+    "task-sons-aba.spec.ts",
+    "task-meio-termo-moveis-ligado.spec.ts"
+  ],
+  "centrais": [
+    "client/src/types/map.ts",
+    "client/src/lib/layers.ts",
+    "client/src/stores/mapStore.ts"
+  ],
+  "_quentes_e_visuais": "Lista branca do N1 (conselho de 24/10/2026): mudança num destes força o N2.",
+  "quentes": [
+    "client/src/types/map.ts",
+    "client/src/**/hostSession.ts",
+    "client/src/lib/fogFilter.ts",
+    "client/src/stores/mapStore.ts",
+    "client/src/lib/layers.ts",
+    "client/src/pixi/PixiCanvas.tsx",
+    "client/src/**/PlayerView.tsx",
+    "client/src/App.tsx",
+    "client/src/**/LivroDaMesa.tsx",
+    "client/src/**/keymap.ts"
+  ],
+  "visuais": [
+    "client/src/texturas/**",
+    "client/src/pixi/rasterDosMoveis*",
+    "client/src/pixi/drawProp*"
+  ],
+  "areas": [
+    {
+      "area": "nucleo",
+      "fontes": [
+        "client/src/types/**",
+        "client/src/stores/mapStore.ts",
+        "client/src/App.tsx",
+        "client/src/main.tsx",
+        "client/src/main.css",
+        "client/src/theme.ts",
+        "client/src/pixi/PixiCanvas.tsx",
+        "client/src/pixi/world.ts",
+        "client/src/lib/mapFile.ts",
+        "client/src/lib/mapFactory.ts",
+        "client/src/lib/layers.ts",
+        "client/src/components/Toolbar.tsx",
+        "client/src/components/PropertiesPanel.tsx",
+        "client/src/components/icons.tsx"
+      ],
+      "specs": [
+        "ui-onde-foi-parar.spec.ts",
+        "task-room-tool.spec.ts",
+        "task-door-tool.spec.ts",
+        "task-drawing-tools.spec.ts",
+        "task4-select-delete.spec.ts",
+        "task-token-image.spec.ts",
+        "task-player-map.spec.ts",
+        "task-jornada-nao-perder-trabalho.spec.ts",
+        "task-jornada-salvamento-automatico.spec.ts"
+      ]
+    },
+    {
+      "area": "camadas",
+      "fontes": [
+        "client/src/lib/camadas/**",
+        "client/src/lib/layers.ts",
+        "client/src/lib/avisoCamadaTravada.ts",
+        "client/src/lib/camadasDoChao.ts",
+        "client/src/lib/camadasDoPincel.ts",
+        "client/src/lib/tracadoDaSalaLivre.ts",
+        "client/src/components/LayersPanel*",
+        "client/src/components/FloorLayersList.tsx",
+        "client/src/components/PropLayerControls.tsx",
+        "client/src/pixi/pilhaDeCamadas.ts",
+        "client/src/player/pilhaDoJogador.ts",
+        "client/src/net/visaoDeTeste/camadaDeTeste.ts"
+      ],
+      "n0": [
+        "task-camadas-painel.spec.ts"
+      ],
+      "specs": [
+        "task-camadas-*.spec.ts",
+        "task-layers-visibility.spec.ts",
+        "task-jornada-camada-travada.spec.ts",
+        "task-jornada-atalho-com-foco-no-painel.spec.ts",
+        "task-jornada-atribuir-livres-primeiro.spec.ts",
+        "task-jornada-chegada-em-casa-livre.spec.ts",
+        "task-jornada-mapa-livre-do-painel.spec.ts",
+        "task-jornada-sala-livre.spec.ts",
+        "task-jornada-item-travado.spec.ts"
+      ]
+    },
+    {
+      "area": "sons",
+      "fontes": [
+        "client/src/lib/sons/**",
+        "client/src/stores/somStore.ts",
+        "client/src/stores/bibliotecaDeSonsStore.ts",
+        "client/src/net/audienciaDosSons.ts",
+        "client/src/net/ponteDosSons.ts",
+        "client/src/player/sons*",
+        "client/src/player/quandoTocarSom.ts",
+        "client/src/components/ControleDeSom.*",
+        "client/src/components/livro/PaginaSons.tsx",
+        "client/src/components/livro/sons.css",
+        "client/src/portas/somDePorta.ts",
+        "client/src/portas/somDasPortasDoPacote.ts",
+        "client/src/cenario/revelacao/som.ts"
+      ],
+      "n0": [
+        "task-sons-aba.spec.ts"
+      ],
+      "specs": [
+        "task-sons-*.spec.ts",
+        "task-controle-de-som.spec.ts",
+        "task-som-da-porta-do-jogador.spec.ts",
+        "task-amostra-do-volume.spec.ts"
+      ]
+    },
+    {
+      "area": "meio-termo",
+      "fontes": [
+        "client/src/texturas/**",
+        "client/src/pixi/rasterDosMoveis*",
+        "client/src/pixi/drawProps.ts",
+        "client/src/pixi/drawPropSilhouettes.ts",
+        "client/src/pixi/propInteraction.ts",
+        "client/src/lib/mobilia.ts",
+        "client/src/lib/mobilia/**",
+        "client/src/lib/estiloDoMapa.ts",
+        "client/src/carimbos/**",
+        "client/src/components/FloorStyleControls.*",
+        "client/src/components/FloorPieceControls.tsx"
+      ],
+      "n0": [
+        "task-meio-termo-moveis-ligado.spec.ts"
+      ],
+      "specs": [
+        "task-meio-termo-*.spec.ts",
+        "task-integracao-estilo-sala.spec.ts",
+        "task-portao-estilo-minimapa.spec.ts",
+        "task-floor-pieces.spec.ts"
+      ]
+    },
+    {
+      "area": "caminhos",
+      "fontes": [
+        "client/src/**/*caminho*",
+        "client/src/**/*Caminho*",
+        "client/src/lib/caminhamento/**"
+      ],
+      "n0": [
+        "task-jornada-pincel-balde-caminhos.spec.ts"
+      ],
+      "specs": [
+        "task-jornada-caminho-com-cor-propria.spec.ts",
+        "task-jornada-pincel-balde-caminhos.spec.ts"
+      ]
+    },
+    {
+      "area": "telhado",
+      "fontes": [
+        "client/src/texturas/telhado*",
+        "client/src/lib/telhado/**",
+        "client/src/stores/telhadosNoEditor.ts",
+        "client/src/pixi/telhadosRenderer.ts",
+        "client/src/components/EstiloDoTelhado.tsx",
+        "client/src/player/roofCut.ts"
+      ],
+      "specs": [
+        "task-jornada-telhado.spec.ts",
+        "task-jornada-teto-de-construcao.spec.ts"
+      ]
+    },
+    {
+      "area": "portas",
+      "fontes": [
+        "client/src/portas/**",
+        "client/src/animacoes/porta/**",
+        "client/src/lib/door*",
+        "client/src/lib/corDaPorta.ts",
+        "client/src/lib/ferrolho.ts",
+        "client/src/lib/abrirVao.ts",
+        "client/src/lib/abrirCorredor.ts",
+        "client/src/lib/portasPorAtravessar.ts",
+        "client/src/pixi/drawDoors.ts",
+        "client/src/pixi/animadorDePortas.ts",
+        "client/src/components/Door*"
+      ],
+      "specs": [
+        "task-door-*.spec.ts",
+        "task-player-door.spec.ts",
+        "task-jornada-cor-da-porta.spec.ts",
+        "task-jornada-porta-sem-buraco.spec.ts",
+        "task-alignment-door-curve-portal.spec.ts",
+        "task-som-da-porta-do-jogador.spec.ts",
+        "task-abrir-para-o-corredor.spec.ts",
+        "task-jornada-corredor-aberto-nao-some.spec.ts"
+      ]
+    },
+    {
+      "area": "guias",
+      "fontes": [
+        "client/src/lib/alignmentGuides.ts",
+        "client/src/lib/alignDistribute.ts",
+        "client/src/lib/guideBoxes.ts",
+        "client/src/lib/altMeasure.ts",
+        "client/src/lib/endireitar*",
+        "client/src/lib/toqueDeAlt.ts",
+        "client/src/lib/gridAlign.ts",
+        "client/src/pixi/straightenGhost.ts",
+        "client/src/pixi/drawStraightenGhost.ts",
+        "client/src/pixi/drawSmartGuides.ts",
+        "client/src/pixi/drawGuideLabels.ts",
+        "client/src/components/AlignDistributeControls.*",
+        "client/src/components/GridAlignControls.tsx"
+      ],
+      "specs": [
+        "task-guias-*.spec.ts",
+        "task-alt-*.spec.ts",
+        "task-botao-endireitar.spec.ts",
+        "task-ctrl-reto.spec.ts",
+        "task-snap-targets.spec.ts",
+        "task-vertex-magnet.spec.ts",
+        "task-jornada-alinhar-e-distribuir.spec.ts"
+      ]
+    },
+    {
+      "area": "tokens",
+      "fontes": [
+        "client/src/lib/token*",
+        "client/src/lib/acervoDeItens.ts",
+        "client/src/stores/criarToken.ts",
+        "client/src/stores/acervoDeItensStore.ts",
+        "client/src/stores/awayTokensStore.ts",
+        "client/src/pixi/drawToken*",
+        "client/src/pixi/token*",
+        "client/src/pixi/tokensRenderer.ts",
+        "client/src/components/NovoTokenForm.*",
+        "client/src/components/AcervoDeItensPanel.*"
+      ],
+      "specs": [
+        "task-jornada-acervo-*.spec.ts",
+        "task-jornada-*token*.spec.ts",
+        "task-jornada-item-do-acervo-no-mapa.spec.ts",
+        "task-mais-token-sem-rolar.spec.ts",
+        "task-token-*.spec.ts",
+        "task-wall-zoom-token-name.spec.ts",
+        "task-jornada-barra-de-vida.spec.ts",
+        "task-jornada-condicao-na-ficha.spec.ts"
+      ]
+    },
+    {
+      "area": "pinos",
+      "fontes": [
+        "client/src/lib/pin*",
+        "client/src/pixi/drawPins.ts",
+        "client/src/stores/pinoPeloGesto.ts",
+        "client/src/components/Pin*",
+        "client/src/cenario/revelacao/doPino.ts"
+      ],
+      "specs": [
+        "task-jornada-*pino*.spec.ts",
+        "task-jornada-pinos-ponto-de-interesse.spec.ts"
+      ]
+    },
+    {
+      "area": "cenas",
+      "fontes": [
+        "client/src/lib/scene*",
+        "client/src/lib/grupoPorCena.ts",
+        "client/src/lib/cenaQueEspera.ts",
+        "client/src/components/Scene*",
+        "client/src/components/sceneOverviewArt.ts",
+        "client/src/components/sceneDrag.ts",
+        "client/src/components/MarcasDaCena.tsx",
+        "client/src/cenario/**"
+      ],
+      "specs": [
+        "task-jornada-*cena*.spec.ts",
+        "task-jornada-cenas-com-gente.spec.ts"
+      ]
+    },
+    {
+      "area": "nevoa-e-luz",
+      "fontes": [
+        "client/src/lib/fogFilter.ts",
+        "client/src/lib/exploration.ts",
+        "client/src/lib/conceal*",
+        "client/src/lib/lightAttachment.ts",
+        "client/src/pixi/drawConcealZones.ts",
+        "client/src/pixi/drawLights.ts",
+        "client/src/pixi/drawFarLights.ts",
+        "client/src/components/Conceal*",
+        "client/src/components/LightControls.tsx"
+      ],
+      "specs": [
+        "task-conceal-zone.spec.ts",
+        "task-light-radius-drag.spec.ts",
+        "task-jornada-chegada-oculta.spec.ts",
+        "task-jornada-luz-que-para-na-parede.spec.ts",
+        "task-jornada-pincel-revelar-esconder.spec.ts",
+        "task-jornada-sala-secreta-nao-vaza.spec.ts",
+        "task-jornada-tocha-presa-na-ficha.spec.ts",
+        "task-jornada-zona-oculta-sem-buraco.spec.ts"
+      ]
+    },
+    {
+      "area": "chat",
+      "fontes": [
+        "client/src/lib/chat*",
+        "client/src/lib/pedidoVivo.ts",
+        "client/src/components/MasterChatPanel.*"
+      ],
+      "specs": [
+        "task-jornada-chat-*.spec.ts",
+        "task-jornada-caixa-de-pedidos.spec.ts",
+        "task-jornada-recado-por-cena.spec.ts"
+      ]
+    },
+    {
+      "area": "viagem-e-grupo",
+      "fontes": [
+        "client/src/lib/follow.ts",
+        "client/src/lib/gatherParty.ts",
+        "client/src/lib/party.ts",
+        "client/src/lib/vehicle*",
+        "client/src/stores/followStore.ts",
+        "client/src/components/GatherControls.tsx",
+        "client/src/components/PartySection.tsx",
+        "client/src/components/GrupoCompacto.tsx"
+      ],
+      "specs": [
+        "task-jornada-*viag*.spec.ts",
+        "task-jornada-viajar-junto.spec.ts",
+        "task-jornada-seguir-jogador.spec.ts",
+        "task-jornada-reunir-o-grupo.spec.ts",
+        "task-jornada-painel-do-grupo.spec.ts",
+        "task-jornada-companheiros-do-jogador.spec.ts",
+        "task-veiculo-*.spec.ts"
+      ]
+    },
+    {
+      "area": "salas-e-paredes",
+      "fontes": [
+        "client/src/lib/room*",
+        "client/src/lib/region*",
+        "client/src/lib/floor*",
+        "client/src/lib/refineFloor.ts",
+        "client/src/lib/stairs*",
+        "client/src/pixi/drawRegions.ts",
+        "client/src/pixi/drawRoom*",
+        "client/src/pixi/drawWalls.ts",
+        "client/src/pixi/drawFloor.ts",
+        "client/src/pixi/drawStairs.ts",
+        "client/src/pixi/wallGesture.ts",
+        "client/src/pixi/roomRotateGesture.ts",
+        "client/src/pixi/stair*",
+        "client/src/components/Room*",
+        "client/src/components/Region*"
+      ],
+      "specs": [
+        "task-room-*.spec.ts",
+        "task-region-*.spec.ts",
+        "task-wall-*.spec.ts",
+        "task-stair-tool.spec.ts",
+        "task-sub-sala.spec.ts",
+        "task-many-regions.spec.ts",
+        "task-floor-pieces.spec.ts",
+        "task-jornada-parede-grossa.spec.ts",
+        "task-jornada-saida-sem-parede.spec.ts",
+        "task-jornada-sala-de-verdade.spec.ts",
+        "task-jornada-girar-sala.spec.ts",
+        "task-jornada-escada-*.spec.ts",
+        "task-jornada-visao-sala-inteira.spec.ts"
+      ]
+    },
+    {
+      "area": "jogador",
+      "fontes": [
+        "client/src/player/**",
+        "client/src/net/**"
+      ],
+      "specs": [
+        "task-player-*.spec.ts",
+        "task-jogador-*.spec.ts",
+        "task-jornada-*jogador*.spec.ts",
+        "task-hud-do-jogador-sem-sobreposicao.spec.ts",
+        "task-jornada-so-a-propria-ficha-arrasta.spec.ts",
+        "task-jornada-zoom-no-celular.spec.ts"
+      ]
+    },
+    {
+      "area": "danca",
+      "fontes": [
+        "client/src/minigames/danca/**",
+        "client/src/net/protocoloDaDanca.ts",
+        "client/src/player/estadoDaDanca.ts"
+      ],
+      "specs": [
+        "task-jornada-danca*.spec.ts"
+      ]
+    },
+    {
+      "area": "pesca",
+      "fontes": [
+        "client/src/minigames/pesca/**",
+        "client/src/player/estadoDaPesca.ts"
+      ],
+      "specs": [
+        "task-jornada-pesca.spec.ts"
+      ]
+    }
+  ],
+  "_n0": "Lista curta do N0 (laço do agente, alvo 90 s): area sem n0 roda no N0 só o spec que mudou."
+}
