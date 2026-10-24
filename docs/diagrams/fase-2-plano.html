@@ -56,11 +56,11 @@
 <body>
   <div class="frame">
     <p class="eyebrow">Plano · Fase 2</p>
-    <h1>Na Fase 2, a faixa quente anda com um dono por vez; a faixa livre anda ao lado</h1>
+    <h1>Na Fase 2, a faixa quente anda com um dono por vez; a faixa livre anda ao lado; a otimização fica por último</h1>
 
     <svg viewBox="0 0 1220 548" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="fase-2-plano-title fase-2-plano-desc">
       <title id="fase-2-plano-title">Plano da Fase 2</title>
-      <desc id="fase-2-plano-desc">Depois que a Fase 1 fecha e a otimização termina, uma faixa quente com um dono por vez roda em sequência (Caminhos F2, Luz L1 a L3, Batalha B3 e B4, Caminhos F3 e F4) enquanto uma faixa livre de arquivos novos anda em paralelo; o resto da luz, da batalha e dos caminhos vem depois, e o usuário aprova ou autoriza em quatro pontos.</desc>
+      <desc id="fase-2-plano-desc">Depois que a Fase 1 fecha, uma faixa quente com um dono por vez roda em sequência (Caminhos F2, Luz L1 a L3, Batalha B3 e B4, Caminhos F3 e F4) enquanto uma faixa livre de arquivos novos anda em paralelo desde já; o resto da luz, da batalha e dos caminhos vem depois da faixa quente, a otimização e revisão final fica por último, e o usuário aprova ou autoriza em quatro pontos.</desc>
       <defs>
         <marker id="fase-2-plano-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
       </defs>
@@ -76,22 +76,22 @@
       <text x="28" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">ONDE VOCÊ PARTICIPA</text>
 
       <!-- Faixa quente: contêiner em destaque (o gargalo) -->
-      <rect x="360" y="56" width="628" height="168" rx="8" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
-      <rect x="376" y="68" width="8" height="8" rx="2" fill="#eb6c36"/>
-      <text x="392" y="76" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em"><tspan font-weight="600" fill="#2d3142">FAIXA QUENTE</tspan><tspan fill="#4f5d75"> · UM DONO POR VEZ, EM SEQUÊNCIA · É O GARGALO</tspan></text>
-      <text x="376" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">por quê: todas mexem em types/map.ts, hostSession.ts, fogFilter.ts e PlayerView.tsx</text>
+      <rect x="184" y="56" width="628" height="168" rx="8" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+      <rect x="200" y="68" width="8" height="8" rx="2" fill="#eb6c36"/>
+      <text x="216" y="76" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em"><tspan font-weight="600" fill="#2d3142">FAIXA QUENTE</tspan><tspan fill="#4f5d75"> · UM DONO POR VEZ, EM SEQUÊNCIA · É O GARGALO</tspan></text>
+      <text x="200" y="204" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">por quê: todas mexem em types/map.ts, hostSession.ts, fogFilter.ts e PlayerView.tsx</text>
 
       <!-- Conectores primeiro: a sequência principal -->
-      <line x1="152" y1="132" x2="184" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
-      <line x1="328" y1="132" x2="376" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
-      <line x1="504" y1="132" x2="532" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
-      <line x1="660" y1="132" x2="688" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
-      <line x1="816" y1="132" x2="844" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
-      <line x1="972" y1="132" x2="1020" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="152" y1="132" x2="200" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="328" y1="132" x2="356" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="484" y1="132" x2="512" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="640" y1="132" x2="668" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="796" y1="132" x2="844" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
+      <line x1="1020" y1="132" x2="1052" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#fase-2-plano-arrow)"/>
       <!-- A faixa livre alimenta o que vem depois, sem travar a faixa quente (tracejado) -->
-      <path d="M988 308 H1100 A8 8 0 0 0 1108 300 V196" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#fase-2-plano-arrow)"/>
+      <path d="M812 308 H924 A8 8 0 0 0 932 300 V196" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#fase-2-plano-arrow)"/>
 
-      <!-- 1. Fase 1 fecha -->
+      <!-- Fase 1 fecha -->
       <rect x="24" y="68" width="128" height="128" rx="6" fill="#f5f5f5"/>
       <rect x="24" y="68" width="128" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
       <rect x="32" y="76" width="72" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
@@ -101,86 +101,86 @@
       <text x="88" y="152" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Meio-Termo MT8 a 13</text>
       <text x="88" y="164" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mesas novas</text>
 
-      <!-- 2. Otimização e revisão final -->
-      <rect x="184" y="68" width="144" height="128" rx="6" fill="#f5f5f5"/>
-      <rect x="184" y="68" width="144" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="192" y="76" width="84" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
-      <text x="234" y="85" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VOCÊ AUTORIZA</text>
-      <text x="256" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Otimização e</text>
-      <text x="256" y="122" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">revisão final</text>
-      <text x="256" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">154 e2e, 2 helpers</text>
-      <text x="256" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pesca e v2 do teste</text>
-      <text x="256" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lag e tarefas longas</text>
-      <text x="256" y="178" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">selo: só com seu ok</text>
+      <!-- Faixa quente: quatro passos, um dono por vez -->
+      <rect x="200" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="200" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="208" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="216" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1</text>
+      <text x="264" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Caminhos F2</text>
+      <text x="264" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">clicar para andar</text>
+      <text x="264" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chave por cena</text>
+      <text x="264" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">host confere névoa</text>
 
-      <!-- 3. Faixa quente: quatro passos, um dono por vez -->
-      <rect x="376" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
-      <rect x="376" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="384" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-      <text x="392" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1</text>
-      <text x="440" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Caminhos F2</text>
-      <text x="440" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">clicar para andar</text>
-      <text x="440" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chave por cena</text>
-      <text x="440" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">host confere névoa</text>
+      <rect x="356" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="356" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="364" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="372" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2</text>
+      <text x="420" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Luz L1 a L3</text>
+      <text x="420" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem relógio</text>
+      <text x="420" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">visão por período</text>
+      <text x="420" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">luz acende sozinha</text>
 
-      <rect x="532" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
-      <rect x="532" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="540" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-      <text x="548" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2</text>
-      <text x="596" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Luz L1 a L3</text>
-      <text x="596" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem relógio</text>
-      <text x="596" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">visão por período</text>
-      <text x="596" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">luz acende sozinha</text>
+      <rect x="512" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="512" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="520" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="528" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
+      <text x="576" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Batalha B3 e B4</text>
+      <text x="576" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tira o Confronto</text>
+      <text x="576" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">e a Iniciativa</text>
+      <text x="576" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">host conta blocos</text>
 
-      <rect x="688" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
-      <rect x="688" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="696" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-      <text x="704" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
-      <text x="752" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Batalha B3 e B4</text>
-      <text x="752" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tira o Confronto</text>
-      <text x="752" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">e a Iniciativa</text>
-      <text x="752" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">host conta blocos</text>
-
-      <rect x="844" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
-      <rect x="844" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="852" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-      <text x="860" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4</text>
-      <text x="908" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Caminhos F3 e F4</text>
-      <text x="908" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">período na rotina</text>
-      <text x="908" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">apito e patrulha</text>
-      <text x="908" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem teleporte</text>
+      <rect x="668" y="88" width="128" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="668" y="88" width="128" height="88" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="676" y="94" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="684" y="103" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4</text>
+      <text x="732" y="126" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Caminhos F3 e F4</text>
+      <text x="732" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">período na rotina</text>
+      <text x="732" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">apito e patrulha</text>
+      <text x="732" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem teleporte</text>
 
       <!-- Depois da faixa quente -->
-      <rect x="1020" y="68" width="176" height="128" rx="6" fill="#f5f5f5"/>
-      <rect x="1020" y="68" width="176" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <text x="1108" y="92" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Depois da faixa quente</text>
-      <text x="1108" y="114" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L4b render da luz</text>
-      <text x="1108" y="126" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L5 transição</text>
-      <text x="1108" y="138" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L6 som de ambiente</text>
-      <text x="1108" y="150" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">B5 grade · B6 ferramentas</text>
-      <text x="1108" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Caminhos F6 e F7</text>
-      <text x="1108" y="184" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">dependem da batalha e da luz</text>
+      <rect x="844" y="68" width="176" height="128" rx="6" fill="#f5f5f5"/>
+      <rect x="844" y="68" width="176" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="932" y="92" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Depois da faixa quente</text>
+      <text x="932" y="114" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L4b render da luz</text>
+      <text x="932" y="126" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L5 transição</text>
+      <text x="932" y="138" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L6 som de ambiente</text>
+      <text x="932" y="150" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">B5 grade · B6 ferramentas</text>
+      <text x="932" y="162" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Caminhos F6 e F7</text>
+      <text x="932" y="184" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">dependem da batalha e da luz</text>
+
+      <!-- Otimização e revisão final: por último -->
+      <rect x="1052" y="68" width="144" height="128" rx="6" fill="#f5f5f5"/>
+      <rect x="1052" y="68" width="144" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="1060" y="76" width="84" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
+      <text x="1102" y="85" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VOCÊ AUTORIZA</text>
+      <text x="1124" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Otimização e</text>
+      <text x="1124" y="122" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">revisão final</text>
+      <text x="1124" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">154 e2e, 2 helpers</text>
+      <text x="1124" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pesca e v2 do teste</text>
+      <text x="1124" y="166" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lag e tarefas longas</text>
+      <text x="1124" y="178" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">selo: só com seu ok</text>
 
       <!-- Faixa livre -->
-      <rect x="24" y="268" width="964" height="80" rx="6" fill="#f5f5f5"/>
-      <rect x="24" y="268" width="964" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-      <rect x="884" y="276" width="96" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
-      <text x="932" y="285" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VOCÊ APROVA L4A</text>
-      <text x="506" y="304" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Faixa livre, em paralelo</text>
-      <text x="506" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L0 período e provedor  ·  L4a protótipo HTML das cores Dia/Tarde/Noite  ·  B1 blocos  ·  B2 medição</text>
-      <text x="506" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mais o que não toca arquivo quente. L0 entra na main primeiro e sozinha; o Caminhos faz git merge main.</text>
+      <rect x="24" y="268" width="788" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="268" width="788" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="708" y="276" width="96" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
+      <text x="756" y="285" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VOCÊ APROVA L4A</text>
+      <text x="418" y="304" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Faixa livre, em paralelo</text>
+      <text x="418" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">L0 período e provedor · L4a protótipo HTML das cores Dia/Tarde/Noite · B1 blocos · B2 medição</text>
+      <text x="418" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mais o que não toca arquivo quente. L0 entra na main primeiro e sozinha; o Caminhos faz git merge main.</text>
 
-      <!-- Você -->
-      <rect x="24" y="392" width="964" height="64" rx="6" fill="#f5f5f5"/>
-      <rect x="24" y="392" width="964" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <!-- Você: na ordem em que aparece -->
+      <rect x="24" y="392" width="1172" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="392" width="1172" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
       <text x="48" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">FECHAR A FASE 1</text>
       <text x="48" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Aprova as folhas e as mesas</text>
-      <text x="280" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">OTIMIZAÇÃO</text>
-      <text x="280" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Autoriza o selo das jornadas</text>
-      <text x="512" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">FAIXA LIVRE · LUZ</text>
-      <text x="512" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Aprova o protótipo das cores</text>
-      <text x="744" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">SEMPRE · SÓ NO PC</text>
-      <text x="744" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Joga o que ficar pronto</text>
+      <text x="340" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">FAIXA LIVRE · LUZ</text>
+      <text x="340" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Aprova o protótipo das cores</text>
+      <text x="632" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">OTIMIZAÇÃO · NO FIM</text>
+      <text x="632" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Autoriza o selo das jornadas</text>
+      <text x="924" y="414" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">SEMPRE · SÓ NO PC</text>
+      <text x="924" y="436" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Joga o que ficar pronto</text>
 
       <!-- Legenda: faixa horizontal no pé -->
       <line x1="24" y1="480" x2="1196" y2="480" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
@@ -194,7 +194,7 @@
       <rect x="668" y="494" width="36" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="0.8"/>
       <text x="686" y="503" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VOCÊ</text>
       <text x="712" y="504" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">você decide</text>
-      <text x="24" y="528" font-size="8" font-family="'Geist Mono', monospace"><tspan font-weight="600" fill="#2d3142" letter-spacing="0.14em">GATE POR LOTE</tspan><tspan fill="#4f5d75"> N1 só para .ts/.tsx fora de arquivo quente; N2 para o resto, inclusive toda a faixa quente  ·  </tspan><tspan font-weight="600" fill="#2d3142">NO MÁXIMO 5 AGENTES</tspan><tspan fill="#4f5d75">  ·  </tspan><tspan font-weight="600" fill="#2d3142">SÓ PC</tspan></text>
+      <text x="24" y="528" font-size="8" font-family="'Geist Mono', monospace"><tspan font-weight="600" fill="#2d3142" letter-spacing="0.14em">GATE POR LOTE</tspan><tspan fill="#4f5d75"> N1 só para .ts/.tsx fora de arquivo quente; N2 para o resto, inclusive toda a faixa quente · </tspan><tspan font-weight="600" fill="#2d3142">NO MÁXIMO 5 AGENTES</tspan><tspan fill="#4f5d75"> · </tspan><tspan font-weight="600" fill="#2d3142">SÓ PC</tspan></text>
     </svg>
   </div>
 </body>
