@@ -1827,3 +1827,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 ## 24/10/2026 (resposta do usuário depois da página "Mesas e barranco" e dos diagramas)
 
 - Literal: "Gostei de tudo". Interpretação do orquestrador (a confirmar se o usuário discordar): aprova as mesas novas (3 formas x 3 madeiras, pernas, sombra de baixo) e a MT8 como entregues (terracota do Meio-Termo, realce do lábio como está, contorno fino do pé), e os diagramas. Efeito: libera a MT12 (ligar a chave de obra e regravar o golden) para depois da MT9 a MT11. Ordem da faixa quente: Luz L1 (em curso), depois MT9, depois L2/L3 e MT10/MT11 conforme os arquivos.
+
+## 24/10/2026 (respostas do usuário à página "Chaminé e grade", MT10)
+
+- Literal: "Tamanho da chaminé: crescer para cerca de 0,4 casa; Posição da chaminé: sem resposta; Cumeeira amarrada: sem resposta (teste nota); Grade a 50% e 100%: reforçar a 100%; Mais: sem resposta". Fila: MT10b (chaminé 0,4 casa, grade reforçada a 100%); posição mantida (lado direito da água de trás) e cumeeira reforçada levemente por ser a recomendada; nada disso aparece no app até a MT12 ligar a chave de obra.
