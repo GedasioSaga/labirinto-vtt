@@ -49,7 +49,8 @@ export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>
   ],
   // Croma OKLab: 0,102 (o token) e de 0,043 a 0,084 nas outras.
   palha: [
-    { id: 'palha', nome: 'Palha', hex: '#d6b56a' },
+    // "Palha dourada", e não "Palha": o painel mostraria "Modelo Palha / Cor Palha".
+    { id: 'palha', nome: 'Palha dourada', hex: '#d6b56a' },
     { id: 'palha-clara', nome: 'Palha clara', hex: '#d2bf8c' },
     { id: 'feno', nome: 'Feno', hex: '#b39a5e' },
     { id: 'sape', nome: 'Sapé', hex: '#9a8155' },

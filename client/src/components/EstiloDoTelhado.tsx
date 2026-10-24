@@ -75,7 +75,8 @@ export function EstiloDoTelhado({ modelo, cor, onChange }: EstiloDoTelhadoProps)
   const outra = corDaPaleta(modelo, cor) === null
   return (
     <div className="lb-telhado" data-testid="estilo-do-telhado">
-      <CampoSeg rotulo="Modelo do telhado" opcoes={opcoesDeModelo} valor={modelo} onChange={(valor) => onChange({ modelo: valor })} forma="icone" />
+      {/* Em grade (miniatura em cima, nome embaixo): em linha, a miniatura de 33 px deixava o nome sem lugar a 1280 ("Madei"). */}
+      <CampoSeg rotulo="Modelo do telhado" opcoes={opcoesDeModelo} valor={modelo} onChange={(valor) => onChange({ modelo: valor })} forma="grade" />
       <CampoCor
         rotulo="Cor do telhado"
         opcoes={opcoesDeCor}
