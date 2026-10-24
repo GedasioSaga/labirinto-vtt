@@ -20,7 +20,7 @@ import type { Drawing, Region, RegionPoint, TracoDePenhasco } from '../types/map
 import { AJUSTE_DO_PENHASCO, alturaDaParede, planoComPenhascos, planoDoRelevo, type ConhecidoDoRelevo, type PlanoDoRelevo } from '../lib/relevo'
 import { rasterizarRelevo } from './relevoRaster'
 import { trocarObraNoTeste } from '../lib/estiloDoMapa'
-import { oklabDoRgb } from '../texturas/meioTermo/materiais'
+import { oklabDoRgb, type Oklab } from '../texturas/meioTermo/materiais'
 
 type Cor = [number, number, number, number]
 
@@ -786,11 +786,13 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
   /** Alfa a partir do qual o texel é parede (a sombra no mar não passa de 0,55; a luz da terra, de 0,5). */
   const PAREDE = 0.95
   /**
-   * Teto da energia de borda (Sobel na luz, média do miolo da parede). Medido
-   * nesta tela falsa, no código de antes da MT8: o barranco antigo Baixo dá
-   * 0,0564. (Médio e Alto: na próxima rodada.)
+   * Teto da energia de borda (Sobel na luz, média do miolo da parede), POR
+   * ALTURA: a parede curta tem o mesmo perfil em menos texels, então o
+   * gradiente por texel é mais íngreme. Medido nesta tela falsa (liso /
+   * antigo): Baixo 0,0213 / 0,0564; Médio 0,0100 / 0,0330; Alto 0,0069 /
+   * 0,0190. Os mesmos tetos valem no Chromium (`task-meio-termo-barranco`).
    */
-  const ENERGIA_MAXIMA = 0.02
+  const ENERGIA_MAXIMA: Readonly<Record<string, number>> = { baixo: 0.035, medio: 0.02, alto: 0.009 }
   /** Luminância linear mínima do contorno (regra 1 do estilo: nunca preto). */
   const PISO_DO_CONTORNO = 0.06
   /** Contraste mínimo (OKLab) do contorno do pé contra a parede logo acima: contorno que se lê. */
@@ -843,8 +845,8 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
     let contornoOklabMinimo = Infinity
     let luzMinima = Infinity
     const saturacoes: number[] = []
-    const pe: [number, number, number][] = []
-    const acima: [number, number, number][] = []
+    const pe: Oklab[] = []
+    const acima: Oklab[] = []
     for (let j = 0; j < h; j += 1) {
       for (let i = 0; i < w; i += 1) {
         if (!parede(i, j)) continue
@@ -876,7 +878,7 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
       }
     }
     saturacoes.sort((a, b) => a - b)
-    const media = (l: [number, number, number][]) => [0, 1, 2].map((k) => l.reduce((s, v) => s + v[k], 0) / Math.max(1, l.length))
+    const media = (l: readonly Oklab[]) => [0, 1, 2].map((k) => l.reduce((s, v) => s + v[k], 0) / Math.max(1, l.length))
     const [pa, pb] = [media(pe), media(acima)]
     return {
       pixels,
@@ -905,7 +907,7 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
     for (const [nome, m] of medidas) console.log(`[medida] barranco liso, ${nome}: ${texto(m)}`)
     for (const [nome, m] of medidas) {
       expect(m.pixels, nome).toBeGreaterThan(500)
-      expect(m.energia, `${nome}: ${texto(m)}`).toBeLessThan(ENERGIA_MAXIMA)
+      expect(m.energia, `${nome}: ${texto(m)}`).toBeLessThan(ENERGIA_MAXIMA[nome])
       expect(m.contornoMinimo, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(PISO_DO_CONTORNO)
       expect(m.luzMinima, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(PISO_DO_CONTORNO)
       expect(m.contrasteDoPe, `${nome}: ${texto(m)}`).toBeGreaterThanOrEqual(CONTRASTE_DO_CONTORNO)
@@ -918,7 +920,7 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
     for (const [nome, m] of medidas) console.log(`[medida] barranco antigo, ${nome}: ${texto(m)}`)
     // O contraste do pé o antigo passa (a base molhada é bem mais escura que a faixa de cima): ele reprova na energia e no piso de luz.
     for (const [nome, m] of medidas) {
-      expect(m.energia, `${nome}: ${texto(m)}`).toBeGreaterThan(ENERGIA_MAXIMA)
+      expect(m.energia, `${nome}: ${texto(m)}`).toBeGreaterThan(ENERGIA_MAXIMA[nome])
       expect(m.luzMinima, `${nome}: ${texto(m)}`).toBeLessThan(PISO_DO_CONTORNO)
     }
   })

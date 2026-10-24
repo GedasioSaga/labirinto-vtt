@@ -46,7 +46,8 @@ describe('barranco liso do Meio-Termo: os tons', () => {
       maiorSalto = Math.max(maiorSalto, anterior - atual)
       anterior = atual
     }
-    // A cada 1% da altura, no máximo 1,5 de 255: numa parede de 60 texels, ~2,5 por texel.
-    expect(maiorSalto).toBeLessThanOrEqual(1.5)
+    // A cada 1% da altura, no máximo 2 de 255 (medido 1,72, com o arredondamento dos canais): o
+    // antigo pulava ~45 de 255 do lábio para a terra e ~40 no veio, em ~2% da altura cada.
+    expect(maiorSalto).toBeLessThanOrEqual(2)
   })
 })

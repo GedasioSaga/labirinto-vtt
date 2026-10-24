@@ -221,10 +221,56 @@ Controle positivo: o ladrilho de antes REPROVA nas mesmas medidas (346 a 356 blo
 
 **Para o usuário decidir, na folha** (`docs/design/objetos/provas/mt7-folha-de-contato.png`, 15 quadros: 3 biomas, antes e depois a 100% e a 25%, e depois a 300%; print `mt7-jogador-1440.png`): (1) as manchas claras a 25% (terra) parecem névoa? baixar o claro de 18% para ~12% é um número; (2) flor e tufo sorteados na grama entram (e em quais texturas)?
 
-### MT8 (barranco liso, PAUSADA em 24/10/2026, worktree `feat/mt8`, nada commitado)
+### MT8 medido (barranco liso, 24/10/2026, worktree `feat/mt8`)
 
-- **Pronto, sem verificar:** `texturas/meioTermo/barranco.ts` (perfil liso realce → base → sombra nos tons `barranco`, contorno pela receita do protótipo a 60% da luz, piso 0,06 com folga 0,07, sem sorteio); `relevoRaster.ts` lê a chave uma vez por geração e, ligada, troca só a cor das mesmas faixas e pinta uma faixa de contorno no pé (nenhuma tela a mais); testes em `barranco.test.ts`, bloco "barranco liso (MT8)" em `relevoRaster.test.ts` e `e2e/task-meio-termo-barranco.spec.ts` (pixels, tempo, jogador 390 com CPU 4x, folha com `GERAR_PROVAS_MT8=1`).
-- **Vermelho conferido (código de antes, numa cópia de `2d376778`):** o teste "ligada" reprova (energia Sobel do Baixo 0,0564 contra o teto 0,02); digitais da chave desligada tiradas: 3111649189, 1344256651, 813745873.
-- **Achado:** o "contraste do pé" (OKLab ≥ 0,06) o barranco antigo também passa (0,209), então saiu do controle positivo; o antigo reprova na energia e no piso de luz (0,0594 < 0,06, por pouco).
-- **Falta:** rodar o código novo (vitest da área, os 2 tsc, o e2e; as duas rodadas na fila foram canceladas antes de começar), fixar o teto de energia POR ALTURA (o Baixo liso deve passar de 0,02, a parede curta tem gradiente mais íngreme), folha de contato, golden estrito, 3 jornadas seladas, `task-meio-termo-*`, vite build, divergências (realce contínuo em vez de traços partidos, pé reto em vez de zigue-zague, sem grama felpuda) e o commit.
-- **Onde parou:** antes da primeira rodada do código novo; retomar pelo laço `vitest related` dos 2 testes + tsc, depois o e2e.
+**O que entrou.** `texturas/meioTermo/barranco.ts` (puro, sem sorteio): a cor da parede do penhasco depende só da fração da altura (0 = lábio, 1 = pé). Realce `#c28b71` cheio até 8% e some até 42%, base `#aa745c`, sombra `#915f4a` de 50% a 95%, sempre em smoothstep. O contorno sai pela receita do protótipo (`mother.js`, `tons`, `escuroDoContorno: 0.6` do Meio-Termo): matiz 6° mais quente, saturação +0,12, 60% da luz HSL, subindo de 0,01 em 0,01 até a luminância 0,07. Deu `#743d2e`, luminância 0,0725, OKLab L 0,425. `pixi/relevoRaster.ts` lê `meioTermoLigado()` uma vez por geração. Com a chave ligada, troca só a cor das MESMAS faixas (mesmas pausas a cada 8 faixas) e pinta uma faixa a mais, o contorno do pé, com 1,2 px do protótipo (no mínimo 1 texel), por cima das faixas e antes de apagar a terra. Onde a parede é mais baixa que o contorno (ponta da rampa), ela vira contorno inteira. Nenhuma tela nova, nenhuma textura nova (teto 2048² e `destroy(true)` de antes). `drawRelevo.ts` não mudou: a chave é lida na geração, e a URL não muda no meio da sessão.
+
+**Medido.** Energia de borda = Sobel na luz, média do miolo da parede (pixel com os 8 vizinhos de parede); teto POR ALTURA, porque a parede curta tem o mesmo perfil em menos texels. Teto fixo nos dois testes: Baixo 0,035, Médio 0,02, Alto 0,009.
+
+| Onde | Liso (Baixo / Médio / Alto) | Antigo (Baixo / Médio / Alto) |
+|---|---|---|
+| Tela falsa (`relevoRaster.test.ts`) | 0,0213 / 0,0100 / 0,0069 | 0,0564 / 0,0330 / 0,0190 |
+| Chromium, textura 2048 x 935 (`task-meio-termo-barranco`) | 0,0219 / 0,0099 / 0,0047 | 0,0481 / 0,0274 / 0,0135 |
+
+- **Contorno e piso:** o menor pixel de borda e o menor pixel da parede inteira dão 0,0725 nos dois motores, também com o antialias do Chromium sobre a sombra no mar. O antigo dá 0,0577 a 0,0594 e reprova no piso de 0,06.
+- **Contraste do pé:** pé contra a parede 4 texels acima, em OKLab: 0,11 a 0,17, com o mínimo de 0,06. O antigo Baixo também passa (0,135 a 0,209), então esse critério não entra no controle positivo; o antigo reprova na energia e no piso.
+- **Cor:** saturação HSV p95 de 0,490 a 0,603 (teto 0,62). O Baixo é o mais alto, porque o contorno pesa mais numa parede curta.
+- **Chave desligada:** 3 digitais FNV dos floats da textura, tiradas numa cópia do `relevoRaster.ts` de `2d376778`: 3111649189, 1344256651 e 813745873 (Médio no mestre; 3 alturas com borracha; jogador com a visão cortando a costa). Iguais depois da MT8. O golden estrito das camadas passou sem regravar, junto com as 3 jornadas seladas (31 testes no e2e, com os 4 do barranco).
+- **Sem `Math.random`** (espião), a mesma textura duas vezes, e com a chave ligada nenhuma tela a mais que desligada; toda tela de trabalho é descartada.
+- **Mutações, todas vermelhas:**
+  - sem o contorno do pé: o teste "ligada" (contraste);
+  - chave ignorada (liso sempre): a digital e o controle positivo;
+  - contorno escuro sem piso: os 2 testes de tom e o "ligada";
+  - realce em degrau (some em 8,1% em vez de 42%): o perfil liso.
+  O vermelho de origem também foi conferido: "ligada" contra o código de antes reprova (0,0564 no Baixo).
+- **Tempo (Chromium 1243, Vite dev, PC, CPU 1x; mapa de 3000 x 2000 de mundo, costa com as 3 alturas, intercalado):**
+  - textura morna 59 e 63 ms com o liso contra 60 e 62 ms com o antigo; fria 40 a 43 contra 39 a 42 ms;
+  - etapa da parede 48,2 a 52,1 contra 48,1 a 49,2 ms;
+  - nenhuma tarefa longa (≥ 50 ms) nas 6 gerações. A geração já cede a vez entre as etapas e a cada 8 faixas, então não precisou de fatia nova de 8 ms.
+- **Jogador no PC (1440 x 900, recorte real e rede):**
+  - relevo pronto 280 a 281 ms depois do clique contra 260 a 271 ms com o antigo;
+  - quadro p95 16,9 e 17,0 contra 16,9 ms;
+  - nenhuma tarefa longa durante a geração do relevo; a maior da página, 62 a 69 ms, aparece nas duas.
+- **Bundle:** `vite build` com o main em 1.809,86 kB (565,25 kB gzip). Não foi comparado com a main sem a MT8. `barranco.ts` só importa `ruido.ts` e `paleta.ts`, que já estavam no grafo do main.
+- **Fora da medida:** celular. Por ordem do usuário de 24/10/2026, só PC: sem 390 px e sem CPU 4x.
+
+**Divergências do protótipo (motivo):**
+
+- **Realce contínuo no lábio**, em vez dos traços partidos do protótipo (`faixaDoBarranco`, ligados por `hash(arco / 26)`). O comprimento de arco da fita muda com o recorte da névoa do jogador, então os traços piscariam e andariam enquanto ele explora.
+- **Pé reto, seguindo a costa e a rampa**, em vez do zigue-zague de 9 px. O zigue-zague mudaria a altura da parede e a sombra no mar (a silhueta), o que é geometria, não cor. Fica para outra fatia se o usuário pedir.
+- **Sem a grama felpuda por cima.** A terra do app pode ter qualquer cor ou textura; tufo e flor são assunto do chão (a MT7 deixou isso FORA também).
+- **Contorno só no pé e nas pontas da rampa**, como o caminho do contorno do protótipo (que não passa pela beira de cima). Onde a costa volta para trás, a fita é cortada e a ponta fica sem contorno.
+- **Piso do contorno a 0,07**, não 0,06, para o antialias do Chromium sobre a sombra no mar não puxar o pixel do pé para baixo da regra. Os 60% da luz dão 0,068; o piso sobe para 62% (cerca de 3 em 255).
+- **Cor:** os tokens `barranco` do Meio-Termo (`#aa745c`), tom de terracota, no lugar da areia das 6 faixas de antes (lábio `#e0c088`). No jogador o "mar" do app é o fundo escuro, não o azul do protótipo; o barranco se lê bem nos dois (print `mt8-jogador-1440.png`).
+
+**Limites:**
+
+- **Serrilhado na diagonal a 300%.** A textura do relevo tem até 1 texel por px de mundo (0,68 neste mapa), então na emenda em rampa a 300% o contorno mostra os degraus dos texels. O antigo mostra os mesmos degraus nas faixas escuras.
+- **Saturação no limite no Baixo:** 0,603 contra o teto de 0,62. Uma parede ainda mais curta, perto do mínimo de 1 texel de contorno, chega mais perto do teto. Não medido abaixo do Baixo.
+- **A chave lida por geração:** trocar a chave no meio da sessão (só o teste faz isso) só muda o barranco na próxima geração do relevo.
+
+**Para o usuário decidir, na folha** (`docs/design/objetos/provas/mt8-folha-de-contato.png`, 12 quadros: antes e depois a 50%, 100% e 300%, as emendas Médio-Alto e Baixo-Médio, e Baixo, Médio e Alto a 300%; tempo = mediana de 3 gerações):
+
+1. A terracota do Meio-Termo no lugar da areia agrada, ou o barranco deve puxar para a cor da terra/praia?
+2. O realce do lábio está forte o bastante a 100%? Hoje ele quase só aparece a 300%.
+3. O contorno do pé, fino, basta, ou o pé pede o zigue-zague do protótipo?
