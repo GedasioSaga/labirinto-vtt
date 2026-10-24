@@ -10,13 +10,13 @@ import { obterSaidaAoVivoDoNavegador, quandoOAudioRodar } from '../contexto'
  * Sons (F3), a rede (F4) e o jogador (F5) o usam por esta API pequena.
  *
  *  - Quem traz os bytes é INJETADO: o mestre lê do disco (`lerAudioGuardado`),
- *    o jogador busca `/media/<id>`. Dois toques do mesmo arquivo ao mesmo tempo
+ *    o jogador busca `/sons/<id>` (com a chave da sala). Dois toques do mesmo arquivo ao mesmo tempo
  *    fazem UMA leitura, com prazo (`PRAZO_DO_CARREGAMENTO_MS`); o efeito
  *    curto cujo áudio chega 2 s depois do pedido é descartado ('atrasado').
  *  - Cache em duas camadas: os bytes como chegaram e o áudio pronto. Até 1 MB
  *    o arquivo fica decodificado (o clique toca na hora); acima, vira Blob
  *    tocado por `<audio>` ligado ao Web Audio, que pula para o meio do arquivo
- *    sem decodificar 15 MB (e `/media` não tem Range). O corte é pelo tamanho
+ *    sem decodificar 15 MB (e `/sons` não tem Range). O corte é pelo tamanho
  *    total na memória: sai o menos usado que não está tocando.
  *  - Limites: `MAX_SONS_SIMULTANEOS` ao todo e `MAX_LOOPS` loops. Efeito curto
  *    acima do limite derruba o efeito curto mais antigo; loop acima do limite é

@@ -2240,7 +2240,7 @@ export const SOM_PRECARGA_MAX = 32
 
 /**
  * A fonte como atravessa a rede: só o id do áudio guardado (`<sha256>.<ext>`,
- * o mesmo nome que `/media/<id>` serve). Nunca o nome do efeito, a pasta, a
+ * o mesmo nome que `/sons/<id>` serve). Nunca o nome do efeito, a pasta, a
  * `ref` do disco do mestre ou um caminho. YouTube é da F6.
  */
 export interface FonteDeSomNaRede {
@@ -2352,7 +2352,7 @@ function parseSomPrecarregar(value: Record<string, unknown>): SomPrecarregarMess
 
 /**
  * Valida a mensagem de som que o jogador (ou a TV) recebe. O mestre é
- * confiável, mas o que passa daqui vira fetch de `/media/<id>` e ganho de
+ * confiável, mas o que passa daqui vira fetch de `/sons/<id>` e ganho de
  * áudio: forma errada, id torto, volume fora de 0 a 1, NaN, Infinity ou fonte
  * de tipo inesperado recusam a mensagem inteira, sem exceção. Devolve cópia só
  * com os campos conhecidos.

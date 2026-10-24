@@ -1150,7 +1150,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const janelasDeFalhaDeSom = new Map<string, { inicio: number; contagem: number }>()
   /**
    * SONS AO VIVO: por conexão, os áudios que esta sala mandou a ELA (tocar ou
-   * pré-carregar): o que a F5 pode servir por `/media` a quem pedir. Sai ao cair.
+   * pré-carregar): o que a F5 pode servir por `/sons/<id>` a quem pedir. Sai ao cair.
    */
   const midiasLiberadas = new Map<string, Set<string>>()
   /** SONS AO VIVO: a pré-carga de agora; `null` = nenhuma (a F5 chama com a audiência do seletor). */
