@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Período da sessão</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #f5f5f5; --ink: #2d3142; --muted: #4f5d75; --soft: #7a8399; --rule: rgba(45,49,66,0.10); --accent: #eb6c36; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Geist', sans-serif; }
+  main { max-width: 1220px; margin: 0 auto; padding: 40px 16px 32px; }
+  .prose { max-width: 800px; }
+  .eyebrow { font-family: 'Geist Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.75rem; margin: 0 0 8px; }
+  h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.25rem; margin: 32px 0 8px; }
+  p, li { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 20px; }
+  strong { color: var(--ink); font-weight: 600; }
+  svg { width: 100%; height: auto; display: block; margin: 24px 0 0; }
+  pre { margin: 0 0 12px; padding: 12px 16px; background: #ffffff; border: 1px solid rgba(45,49,66,0.12); border-radius: 6px; overflow-x: auto; }
+  pre code { font-size: 12px; line-height: 1.6; color: var(--ink); }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--rule); font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--soft); }
+  code { font-family: 'Geist Mono', monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Labirinto VTT · luz · L1</p>
+  <h1>Período da sessão: Dia, Tarde e Noite</h1>
+  <div class="prose">
+    <p>O mestre escolhe Dia, Tarde ou Noite uma vez, para a aventura inteira. Cada cena decide se acompanha a escolha, e o host calcula o período de cada cena em separado. O jogador recebe só o período da cena em que está, nunca a escolha do mestre nem as marcas das outras cenas.</p>
+    <p>Isto é a Luz L1: três botões no lugar do relógio de campanha (a hora que corria saiu do app e do protocolo; o snapshot não leva mais hora nenhuma). A pintura da tela com a cor do período ainda não existe; ela é a L4b.</p>
+  </div>
+
+  <svg viewBox="0 0 1220 432" role="img" aria-labelledby="periodo-da-sessao-title periodo-da-sessao-desc">
+    <title id="periodo-da-sessao-title">Período da sessão, do painel do mestre ao jogador</title>
+    <desc id="periodo-da-sessao-desc">O mestre escolhe Dia, Tarde ou Noite no painel Período e a escolha fica na aventura, enquanto a marca de cena externa fica no mapa de cada cena; o host calcula o período de cada cena, o recorte tira do mapa todas as marcas de período e manda ao jogador só o período da cena dele com a tinta correspondente, que a tela do jogador lê de forma estrita.</desc>
+    <defs>
+      <marker id="ps-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+      <marker id="ps-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+    </defs>
+
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+    <!-- Zonas: onde cada coisa roda -->
+    <rect x="16" y="24" width="912" height="336" rx="8" fill="none" stroke="rgba(45,49,66,0.15)" stroke-width="0.8"/>
+    <rect x="1008" y="180" width="196" height="180" rx="8" fill="none" stroke="rgba(45,49,66,0.15)" stroke-width="0.8"/>
+    <text x="32" y="42" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">COMPUTADOR DO MESTRE</text>
+    <text x="1024" y="198" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">TELA DO JOGADOR</text>
+
+    <!-- Setas antes das caixas -->
+    <path d="M192 116 H272" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <rect x="202" y="96" width="60" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="232" y="105" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">setPeriodo</text>
+
+    <path d="M432 116 H512" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <rect x="442" y="96" width="60" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="472" y="105" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">getPeriodo</text>
+
+    <path d="M112 168 V232" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <rect x="120" y="194" width="84" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="162" y="203" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">comCenaExterna</text>
+
+    <path d="M192 284 H512" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <rect x="316" y="264" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="352" y="273" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">mapa da cena</text>
+
+    <path d="M672 284 H752" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <rect x="680" y="264" width="64" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="712" y="273" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">por jogador</text>
+
+    <path d="M832 232 V168" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#ps-arrow)"/>
+    <rect x="840" y="194" width="32" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="856" y="203" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">tira</text>
+
+    <path d="M912 284 H1020" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#ps-arrow-link)"/>
+    <rect x="932" y="264" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="968" y="273" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">snapshot.luz</text>
+
+    <!-- Painel Período -->
+    <rect x="32" y="64" width="160" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="64" width="160" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="40" y="72" width="48" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="64" y="81" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MESTRE</text>
+    <text x="112" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Painel Período</text>
+    <text x="112" y="118" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Dia · Tarde · Noite</text>
+    <text x="112" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">+ chave Cena externa</text>
+    <text x="112" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">aba Grupo (RoomPanel)</text>
+
+    <!-- Período da sessão, na aventura -->
+    <rect x="272" y="64" width="160" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="272" y="64" width="160" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="280" y="72" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="308" y="81" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ARQUIVO</text>
+    <text x="352" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Período da sessão</text>
+    <text x="352" y="118" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Adventure.periodo</text>
+    <text x="352" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">um só para a aventura</text>
+    <text x="352" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Dia tira a chave</text>
+
+    <!-- Marca da cena -->
+    <rect x="32" y="232" width="160" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="232" width="160" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="40" y="240" width="60" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="70" y="249" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">POR CENA</text>
+    <text x="112" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Marca da cena</text>
+    <text x="112" y="286" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">MapData.externa</text>
+    <text x="112" y="298" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">MapData.periodoFixo</text>
+    <text x="112" y="310" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">painel do fixo: L4c</text>
+
+    <!-- Host: onde mora a regra (foco) -->
+    <rect x="512" y="64" width="160" height="272" rx="6" fill="#f5f5f5"/>
+    <rect x="512" y="64" width="160" height="272" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+    <rect x="520" y="72" width="36" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.60)" stroke-width="0.8"/>
+    <text x="538" y="81" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOST</text>
+    <text x="592" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Período por cena</text>
+    <text x="592" y="118" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">periodoDaCena()</text>
+    <rect x="520" y="147" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="528" y="156" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1</text>
+    <text x="544" y="156" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace">periodoFixo vence</text>
+    <rect x="520" y="173" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="528" y="182" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2</text>
+    <text x="544" y="182" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace">externa: da sessão</text>
+    <rect x="520" y="199" width="16" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="528" y="208" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
+    <text x="544" y="208" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace">sem marca: sempre dia</text>
+    <line x1="520" y1="224" x2="664" y2="224" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+    <text x="592" y="242" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">noite: visão pela metade</text>
+    <text x="592" y="254" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">(raioNoPeriodo)</text>
+    <line x1="520" y1="268" x2="664" y2="268" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+    <text x="592" y="288" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">troca: 1 mensagem</text>
+    <text x="592" y="300" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só a quem a cena muda</text>
+    <text x="592" y="312" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">interior e fixa: nada</text>
+
+    <!-- Fica com o mestre (fronteira) -->
+    <rect x="752" y="64" width="160" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="752" y="64" width="160" height="104" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+    <rect x="760" y="72" width="64" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.60)" stroke-width="0.8"/>
+    <text x="792" y="81" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NÃO VIAJA</text>
+    <text x="832" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fica com o mestre</text>
+    <text x="832" y="118" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">externa · periodoFixo</text>
+    <text x="832" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ambientePorPeriodo</text>
+    <text x="832" y="142" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">visaoPorPeriodo</text>
+    <text x="832" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">período de outra cena</text>
+
+    <!-- Recorte do jogador -->
+    <rect x="752" y="232" width="160" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="752" y="232" width="160" height="104" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="760" y="240" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="788" y="249" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RECORTE</text>
+    <text x="832" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Recorte do jogador</text>
+    <text x="832" y="286" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">luzParaJogador()</text>
+    <text x="832" y="298" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">{ periodo, cor, forca }</text>
+    <text x="832" y="310" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">de dia o campo nem sai</text>
+
+    <!-- Jogador recebe -->
+    <rect x="1020" y="220" width="176" height="128" rx="6" fill="#f5f5f5"/>
+    <rect x="1020" y="220" width="176" height="128" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="1028" y="228" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="1056" y="237" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">JOGADOR</text>
+    <text x="1108" y="256" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Jogador recebe</text>
+    <text x="1108" y="274" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lerLuzDoJogador()</text>
+    <text x="1108" y="286" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">estrito: torto derruba</text>
+    <text x="1108" y="298" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">a mensagem inteira</text>
+    <text x="1108" y="318" fill="#2d3142" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">.pp-estado[data-periodo]</text>
+    <text x="1108" y="330" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sem texto; tinta é da L4b</text>
+
+    <!-- Legenda: faixa horizontal no pé -->
+    <line x1="16" y1="384" x2="1204" y2="384" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="16" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <line x1="104" y1="404" x2="136" y2="404" stroke="#4f5d75" stroke-width="1" marker-end="url(#ps-arrow)"/>
+    <text x="144" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">dentro do app do mestre</text>
+    <line x1="288" y1="404" x2="320" y2="404" stroke="#2e5aa8" stroke-width="1" marker-end="url(#ps-arrow-link)"/>
+    <text x="328" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">pela rede, ao jogador</text>
+    <line x1="472" y1="404" x2="504" y2="404" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#ps-arrow)"/>
+    <text x="512" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">o que o recorte tira</text>
+    <rect x="656" y="398" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+    <text x="680" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">onde a regra mora</text>
+    <rect x="808" y="398" width="16" height="12" rx="2" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="832" y="408" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">não viaja ao jogador</text>
+  </svg>
+
+  <div class="prose">
+    <h2>Na ordem</h2>
+    <ol>
+      <li><strong>Painel.</strong> Na aba Grupo do <code>RoomPanel</code>, o componente <code>PeriodoDaSessaoSection</code> mostra os botões Dia, Tarde e Noite e a chave "Cena externa" da cena aberta, com uma frase do que a cena mostra agora ("Esta cena segue o período: agora está à noite"). Fica visível com a sala aberta ou fechada.</li>
+      <li><strong>Guarda.</strong> O botão chama <code>adventureStore.setPeriodo</code>, que grava <code>Adventure.periodo</code> e pede Salvar. Dia tira a chave (<code>comPeriodo</code>), então a aventura que volta ao dia grava igual à de antes da Luz. Mapa solto, sem aventura: o período fica só na sessão (<code>periodoSolto</code>) e passa à aventura que nascer dele. A chave "Cena externa" grava <code>MapData.externa</code> (<code>comCenaExterna</code>, com desfazer).</li>
+      <li><strong>Host.</strong> A cada recorte, <code>hostSession</code> lê <code>getPeriodo()</code> e chama <code>periodoDaCena(mapa, sessão)</code>: o <code>periodoFixo</code> da cena vence; sem ele, cena <code>externa</code> segue a sessão; cena sem nenhuma das duas marcas é interior e fica sempre de dia. Sessão sem período vale dia. À noite o raio de visão cai pela metade (<code>raioNoPeriodo</code>, <code>VISAO_DA_NOITE = 0,5</code>), e é esse raio que todo recorte usa: o que ficou no escuro não viaja.</li>
+      <li><strong>Troca.</strong> O <code>App.tsx</code> assina a loja da aventura e, quando o período muda, chama <code>notifyPeriodoChanged</code>, que manda o snapshot na hora. A chave de sessão do envio usa o período DA CENA de cada jogador, então quem está em cena interior ou fixa não recebe mensagem nenhuma.</li>
+      <li><strong>Recorte.</strong> O <code>fogFilter</code> tira <code>externa</code>, <code>periodoFixo</code>, <code>ambientePorPeriodo</code> e <code>visaoPorPeriodo</code> do mapa que vai ao jogador. O host junta <code>snapshot.luz = { periodo, cor, forca }</code> (<code>luzParaJogador</code>): o período da cena dele e a tinta só desse período. De dia, ou com o mestre sem período, o campo nem sai e o snapshot fica igual ao de antes da Luz.</li>
+      <li><strong>Jogador.</strong> <code>playerConnection</code> lê <code>luz</code> com <code>lerLuzDoJogador</code>: só os três campos conhecidos, período válido, cor <code>#rrggbb</code>, força de 0 a 1. Fora disso a mensagem inteira é descartada. <code>player/main.tsx</code> escreve o período em <code>.pp-estado[data-periodo]</code> (ausente = dia).</li>
+    </ol>
+
+    <h2>Exemplo (confira no código)</h2>
+    <p>Valores devolvidos por <code>client/src/lib/periodo.ts</code>, rodados contra o código em 24/10/2026:</p>
+    <pre><code>import { periodoDaCena, luzParaJogador, raioNoPeriodo } from './lib/periodo'
+
+periodoDaCena({ externa: true }, 'noite')                        // 'noite': segue a sessão
+periodoDaCena({}, 'noite')                                       // 'dia': interior ignora a troca
+periodoDaCena({ periodoFixo: 'tarde', externa: true }, 'noite')  // 'tarde': o fixo vence
+luzParaJogador({ externa: true }, 'noite')
+// { periodo: 'noite', cor: '#465a92', forca: 0.85 }
+luzParaJogador({ externa: true }, 'dia')                         // null: o campo nem sai
+raioNoPeriodo(8, 'noite')                                        // 4: visão de 8 casas vira 4</code></pre>
+    <p>Os mesmos casos, com a tabela dos 6 da regra, estão em <code>lib/periodo.test.ts</code>. Para rodar os testes do período (45 passaram em 24/10/2026): <code>cd client &amp;&amp; npx vitest run src/lib/periodo.test.ts src/lib/periodo.jogador.test.ts src/lib/fogFilter.periodo.test.ts src/player/playerConnection.luz.test.ts src/net/hostSession.periodo.test.ts</code>.</p>
+
+    <h2>Pegadinhas</h2>
+    <ul>
+      <li>Hoje o jogador só sente a visão menor à noite. A tinta (cor e força de <code>snapshot.luz</code>) chega à tela mas ninguém a desenha: <code>data-periodo</code> não tem estilo ligado a ele até a L4b. O selo "Manhã/Tarde/Noite" do jogador saiu e não tem substituto visível.</li>
+      <li>A visão da noite é fixa em metade até a L2 trazer <code>visaoPorPeriodo</code>. O campo já existe no mapa e é lido do arquivo, mas o host ainda não o usa.</li>
+      <li><code>ambientePorPeriodo</code>, ao contrário, já vale: a cor e a força que o mapa define chegam em <code>snapshot.luz</code>. Sem o campo vale <code>AMBIENTE_PADRAO</code> (noite <code>#465a92</code> a 85%, tarde <code>#f2b071</code> a 60%, dia sem tinta). Cor fora de <code>#rrggbb</code> cai no padrão e força fora de 0 a 1 é grampeada. Por enquanto só se define editando o arquivo do mapa; o painel é a L4c.</li>
+      <li><code>periodoFixo</code> também só por arquivo: o host respeita, o painel ainda não tem controle.</li>
+      <li>A marca de cena externa é a mesma do relógio antigo (<code>MapData.externa</code>), então mapa antigo segue funcionando. O "manha" de arquivo antigo abre como "dia" e nunca é gravado. Um <code>relogio</code> vindo de mestre antigo é ignorado pelo jogador.</li>
+      <li>Quando <code>luz</code> vem torta, a mensagem é descartada inteira, não só o campo. É igual aos outros campos do snapshot (gatilhos, andares): malformado derruba a mensagem.</li>
+    </ul>
+
+    <h2>Onde conferir</h2>
+    <ul>
+      <li>Testes: <code>lib/periodo.test.ts</code>, <code>lib/periodo.jogador.test.ts</code>, <code>lib/fogFilter.periodo.test.ts</code> (nenhuma marca sai no mapa do jogador, nem com pacote forjado), <code>net/hostSession.periodo.test.ts</code> (a troca chega em uma mensagem na cena externa e em nenhuma na interior ou fixa), <code>player/playerConnection.luz.test.ts</code>, <code>stores/adventureStore.periodo.test.ts</code>, e2e <code>task-jogador-periodo-da-cena.spec.ts</code>.</li>
+      <li>Não conferido a olho: o painel Período novo foi coberto só por e2e; o usuário ainda não o viu em <code>localhost:1420</code> (HANDOFF de 24/10/2026).</li>
+    </ul>
+  </div>
+
+  <footer>Fontes: client/src/components/PeriodoDaSessaoSection.tsx · client/src/components/RoomPanel.tsx · client/src/stores/adventureStore.ts · client/src/lib/adventure.ts · client/src/lib/periodo.ts · client/src/App.tsx · client/src/net/hostSession.ts · client/src/net/hostBridge.ts · client/src/lib/fogFilter.ts · client/src/net/protocol.ts · client/src/player/playerConnection.ts · client/src/player/main.tsx · docs/planos/luz-dia-tarde-noite-2026-10-24.md (L1)</footer>
+</main>
+</body>
+</html>
