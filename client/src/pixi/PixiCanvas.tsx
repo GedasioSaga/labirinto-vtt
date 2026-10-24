@@ -1669,6 +1669,8 @@ export function PixiCanvas({
           gridAlignOverlayGraphics,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
           ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
+          // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
+          ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
           laserLayer,
         ]
@@ -2735,6 +2737,8 @@ export function PixiCanvas({
           gridAlignOverlayGraphics,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
           ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
+          // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
+          ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
           laserLayer,
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
