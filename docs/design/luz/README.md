@@ -22,3 +22,7 @@
   1. Noite: azul-ardósia a 85%, ou violeta, petróleo, ou outra força?
   2. Tarde: pêssego-rosado a 60% (com a luz a 30%), ou âmbar, dourado-lilás, ou outra força?
   3. Luz e ficha: calor de 55%, fogueira de 5 casas e lampião de 3,5 casas servem de padrão? O contorno de 2,5 px ajuda a achar a sua ficha à noite?
+
+## Decisão do usuário (24/10/2026)
+
+Noite: azul-ardósia `#465a92` a 85%. Tarde: âmbar `#f2b071` a 60% (luz quente a 30% à tarde). Dia sem tinta. Pedido novo: ambiente configurável por mapa no programa (cor, força e visão por período); ver D7 em `docs/planos/luz-dia-tarde-noite-2026-10-24.md`.
