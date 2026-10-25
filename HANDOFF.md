@@ -481,3 +481,34 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - **Servidor de desenvolvimento da main (`localhost:1420`) foi parado pelo sistema por pouca memória; só reabrir se o usuário pedir.**
 - Usuário vê a tinta no app: Grupo > Período (Dia/Tarde/Noite) e "Ver como jogador". Perguntas da L4b: tarde a 50% no editor perto do dia; tirar o halo antigo com tinta; ficha clara perto da fogueira com contorno.
 - Fila: L4c (painel Ambiente da cena), L5 (transição), L6 (som por período); MT12 (liga a chave de obra, regrava golden, espera o usuário aprovar a folha dos móveis 3/4), MT13; Batalha B3 e B4; Caminhos F3 e F4; Sons F7; Fase 4.
+
+## ESTADO PARA RETOMAR (25/10/2026, pausa pedida pelo usuário; nenhum agente em voo)
+
+**Objetivo do Labirinto (VTT de RPG de mesa, Tauri + React + Pixi):** terminar a Fase 1 (Camadas, Sons, Meio-Termo), depois os sistemas novos (Luz Dia/Tarde/Noite, Batalha, Caminhos) e só no fim a otimização (Fase 4). Usuário não programa: explicar em português simples e mostrar como verificar. Só PC, sem teste em celular. Regras: máx 5 agentes em voo, decisão não trivial pelo `conselho`, não chutar, Meio-Termo e Rust 1 escritor por vez, faixa quente (types/map.ts, hostSession.ts, fogFilter.ts, mapStore.ts, PixiCanvas.tsx, PlayerView.tsx, App.tsx, LivroDaMesa.tsx) com 1 dono por vez, só o orquestrador integra na main (tag `pre-integra-N` + bundle + `--ff-only`), suítes pela fila `~/.claude/scripts/suite-lock.cjs`, e NUNCA `git worktree remove --force` (ver memória `worktree-remove-junction`).
+
+**FEITO e na main (HEAD `546f8201`+docs; 13 lotes integrados em 23 a 25/10; PROGRESSO.md linhas 23 a 58):**
+- Camadas: as 8 fatias (13 padrão + livres, dois olhos, cadeado, opacidade, mover item, recorte do host). Apresentação (deck privado): https://claude.ai/artifact/SHnL4b9rRWBDVQY6y9tyHK
+- Sons: F1 a F6 (biblioteca, motor local, `/sons/{id}` com chave, TV, dança, YouTube só áudio). Falta F7.
+- Meio-Termo (chave de obra DESLIGADA): MT0 a MT11 + mesas novas + MT10b. Aprovados pelo usuário: MT2 a MT8, mesas, MT10/MT10b e a vista 3/4 dos móveis (MT11, "perfeito" em 25/10).
+- Caminhos: F0, F1 e F2 (clicar no chão para andar, chave por cena).
+- Luz: L0 (dados), L1 (período Dia/Tarde/Noite no lugar do relógio), L2 (visão por período por mapa), L3 (luz que acende sozinha, presets), L4a (protótipo, cores aprovadas: noite `#465a92` 85%, tarde `#f2b071` 60%), L4b (tinta e luz quente na tela; de dia o mapa é idêntico).
+- Batalha: B1 e B2 (blocos e medição, lógica pura, sem tela).
+- Processo: teste em níveis, fila de suítes, diagramas em `docs/diagrams/` (plano da Fase 2, período da sessão, caminhos, sons), página do plano da Fase 2.
+
+**FALTA (ordem sugerida):**
+1. Luz L4c: painel "Ambiente da cena" (cor, força e visão por período, por mapa; atalhos Noite leve/fechada/Escuridão total). Depois L5 (transição 1,5 s) e L6 (som por período). Worktree `C:/dev/labirinto-luz` (feat/luz; fazer `git merge main`). Pedido do usuário: ambiente configurável por mapa no programa (D7 no plano da Luz).
+2. Meio-Termo: MT12 (liga a chave de obra, regrava o golden de 19 fotos, decide por tipo a "versão em linhas"; ver plano) e MT13 (limpeza, `vite build` +<=60 KB gz, o usuário joga). Worktree `C:/dev/labirinto-mt10` (feat/mt10).
+3. Batalha B3 e B4 (remover interface antiga, host; decidir antes: medir no host ou mandar ao jogador só os traços necessários, porque o recorte do jogador não traz todas as paredes), depois B5 e B6. Worktree `C:/dev/labirinto-batalha`.
+4. Caminhos F3 e F4 (rotina de NPC por período, `PostoDaRotina.periodo?`), depois F6 e F7. Worktree `C:/dev/labirinto-caminhos` (atrasado: `git merge main` antes).
+5. Sons F7 (precisa de aparelho para testar).
+6. Fase 4 (por último): 155 e2e vermelhos antigos (`client/e2e/vermelhas-conhecidas.json`; `task-camadas-painel` instável: decidir), pesca (a) (corrida de produto), clique do editor em camada livre escondida (`selectionHitTest.ts:357`), selo das 67 jornadas (exige autorização do usuário), aviso de política de embed do YouTube (F6), v2 da ferramenta de teste, lag e tarefas longas.
+
+**Pendências de ambiente:** servidor de desenvolvimento da main (`localhost:1420`) parado pelo sistema por pouca memória (reabrir só quando pedirem: `cd C:/dev/labirinto && npm run dev`); 11 pastas antigas de worktree sem registro em `C:/dev` (labirinto-f6, mesas, mt8, camadas, sons, meiotermo, mt7, f5d, ferramenta, lote, lote3; ~1 GB, sem junções; apagar só com ok); 3 itens sujos que não são do trabalho (`docs/verification/task4-e2e-evidencia.png`, `Minigames/`, `docs/design/telhado/provas/pagina-de-teste.html`); disco C: com ~29 GB livres.
+
+**Incidente de 24/10 (corrigido):** `git worktree remove --force` com junções apagou `client/` e `node_modules` da main; restaurado do git + `npm ci`; perdidos só arquivos locais ignorados pelo git.
+
+**Instalador:** gerado em 25/10 por `node scripts/publicar-versao.cjs` (sem `--publicar`, nada vai ao GitHub), versão 0.4.36 (sem bump); caminho e resultado abaixo, na próxima atualização. Publicar uma release é decisão do usuário (`--publicar --notas arquivo`, exige push antes).
+
+**Critério de pronto da retomada:** abrir este arquivo, a seção acima e `docs/design/consolidado/PROGRESSO.md`; confirmar `git log` (HEAD) e `git status` (só os 3 itens sujos); escolher a próxima fatia da lista FALTA; antes de qualquer agente, `git merge main` no worktree da linha.
+
+**Evidência:** N2 do lote 13: tsc 0, vitest 18.086, desempenho 205, e2e 646 verdes (154 conhecidos + 7 de tempo que passam sozinhos); tags `pre-integra-16` a `pre-integra-25`; bundles `C:/dev/labirinto-backup/labirinto-2026-10-24-5.bundle` a `-13.bundle` e `labirinto-2026-10-25-1.bundle`.

@@ -1831,3 +1831,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 ## 24/10/2026 (respostas do usuário à página "Chaminé e grade", MT10)
 
 - Literal: "Tamanho da chaminé: crescer para cerca de 0,4 casa; Posição da chaminé: sem resposta; Cumeeira amarrada: sem resposta (teste nota); Grade a 50% e 100%: reforçar a 100%; Mais: sem resposta". Fila: MT10b (chaminé 0,4 casa, grade reforçada a 100%); posição mantida (lado direito da água de trás) e cumeeira reforçada levemente por ser a recomendada; nada disso aparece no app até a MT12 ligar a chave de obra.
+
+## 25/10/2026 (aprovação dos móveis 3/4 e pedido do instalador)
+
+- Literal: "Os moveis estão perfeito, o que eu quero agora é o seguinte, cria o instalador e salva o que foi feito e o que falta. vamos voltar a trabalhar nisso depois". Fila: (1) MT11 (vista 3/4 dos móveis) APROVADA como está, sem ajustes; (2) gerar o instalador local (`node scripts/publicar-versao.cjs` SEM `--publicar`: só builda e confere a assinatura, nada vai ao GitHub); (3) registrar no HANDOFF o que foi feito e o que falta; o trabalho é retomado depois (sem agentes em voo).
