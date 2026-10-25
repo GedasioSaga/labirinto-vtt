@@ -512,3 +512,9 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 **Critério de pronto da retomada:** abrir este arquivo, a seção acima e `docs/design/consolidado/PROGRESSO.md`; confirmar `git log` (HEAD) e `git status` (só os 3 itens sujos); escolher a próxima fatia da lista FALTA; antes de qualquer agente, `git merge main` no worktree da linha.
 
 **Evidência:** N2 do lote 13: tsc 0, vitest 18.086, desempenho 205, e2e 646 verdes (154 conhecidos + 7 de tempo que passam sozinhos); tags `pre-integra-16` a `pre-integra-25`; bundles `C:/dev/labirinto-backup/labirinto-2026-10-24-5.bundle` a `-13.bundle` e `labirinto-2026-10-25-1.bundle`.
+
+## Atualização 25/10 ~00h50 — instalador 0.5.0 gerado (nada publicado)
+- Versão subida para **0.5.0** (commit `chore(release): v0.5.0`: `package.json`, `client/package.json`, `desktop/src-tauri/Cargo.toml`, `Cargo.lock`, `tauri.conf.json`). A v0.4.36 já estava publicada no GitHub (Latest, 20/10).
+- Instalador local gerado por `node scripts/publicar-versao.cjs` (sem `--publicar`), 259 s, assinatura conferida contra a chave pública do app: `C:/dev/labirinto/desktop/src-tauri/target/release/bundle/nsis/Labirinto_0.5.0_x64-setup.exe` (3,4 MB), `.../msi/Labirinto_0.5.0_x64_en-US.msi` (4,2 MB), `.sig` de cada um e `.../bundle/latest.json`. **Nada foi enviado ao GitHub.** Não instalado nem testado a mão.
+- Para publicar (só se o usuário pedir): `git push`, depois `node scripts/publicar-versao.cjs --publicar --notas <arquivo.md>` (o script exige HEAD igual ao remoto e recusa tag existente).
+- Servidor de desenvolvimento da main (`localhost:1420`) continua no ar (o sistema só encerrou o comando que o abriu).
