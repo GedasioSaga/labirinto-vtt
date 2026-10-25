@@ -518,3 +518,8 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - Instalador local gerado por `node scripts/publicar-versao.cjs` (sem `--publicar`), 259 s, assinatura conferida contra a chave pública do app: `C:/dev/labirinto/desktop/src-tauri/target/release/bundle/nsis/Labirinto_0.5.0_x64-setup.exe` (3,4 MB), `.../msi/Labirinto_0.5.0_x64_en-US.msi` (4,2 MB), `.sig` de cada um e `.../bundle/latest.json`. **Nada foi enviado ao GitHub.** Não instalado nem testado a mão.
 - Para publicar (só se o usuário pedir): `git push`, depois `node scripts/publicar-versao.cjs --publicar --notas <arquivo.md>` (o script exige HEAD igual ao remoto e recusa tag existente).
 - Servidor de desenvolvimento da main (`localhost:1420`) continua no ar (o sistema só encerrou o comando que o abriu).
+
+## Atualização 25/10 ~00h50 — release v0.5.0 PUBLICADA
+- A pedido do usuário ("publique"): `git push origin main` (568 commits, push normal; gitleaks sem segredos: 2 falsos positivos em ids de camada de teste) e `node scripts/publicar-versao.cjs --publicar --notas <notas>`. Release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.0 com `Labirinto_0.5.0_x64-setup.exe`, `.msi`, assinaturas e `latest.json` (o endereço público `releases/latest/download/latest.json` já responde 0.5.0). Os apps instalados em 0.4.x passam a receber a atualização.
+- Notas da versão: camadas completas, Dia/Tarde/Noite (tinta, luz, painel Período), clicar para andar, sons ao vivo com YouTube só áudio; Meio-Termo avisado como desligado.
+- O commit deste registro fica só local até o próximo push.
