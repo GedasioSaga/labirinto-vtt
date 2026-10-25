@@ -475,3 +475,9 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 - **Pendente para a L4b (dona de `PlayerView.tsx`):** patch de 1 linha na linha ~2197, `{ cameraScale: scale }` para `{ cameraScale: scale, vistaDosMoveis }`; mensagem já enviada ao agente da L4b. Conferir no relatório dela.
 - Usuário precisa aprovar a folha `mt11-folha-de-contato.png` (página "Móveis em 3/4" em preparação). Depois: MT12 (liga a chave de obra e regrava o golden) e MT13 (limpeza e medição).
 - Em voo: Luz L4b (`C:/dev/labirinto-luz`) e a página da MT11.
+
+## Atualização 25/10 ~00h30 — lote 13 (Luz L4b) integrado
+- Main com a Luz L4b (tag `pre-integra-25`, bundle `labirinto-2026-10-25-1.bundle` verificado). N2 do agente: tsc 0, vitest 18.086, desempenho 205, e2e 646 verdes e 161 vermelhos = 154 conhecidos + 7 de tempo/quadro; rodados sozinhos 28 passaram e 1 (tempo da chaminé, margem de 0,2 ms) passou 4 de 4 na repetição. Depois do merge com a main: tsc 0.
+- **Servidor de desenvolvimento da main (`localhost:1420`) foi parado pelo sistema por pouca memória; só reabrir se o usuário pedir.**
+- Usuário vê a tinta no app: Grupo > Período (Dia/Tarde/Noite) e "Ver como jogador". Perguntas da L4b: tarde a 50% no editor perto do dia; tirar o halo antigo com tinta; ficha clara perto da fogueira com contorno.
+- Fila: L4c (painel Ambiente da cena), L5 (transição), L6 (som por período); MT12 (liga a chave de obra, regrava golden, espera o usuário aprovar a folha dos móveis 3/4), MT13; Batalha B3 e B4; Caminhos F3 e F4; Sons F7; Fase 4.
