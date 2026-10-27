@@ -27,6 +27,39 @@ describe('pixelsEmFatias', () => {
     ceder.mockRestore()
   })
 
+  it('o mesmo ladrilho pedido de novo não refaz a cor (F5): mesmos bytes, zero chamadas', async () => {
+    let chamadas = 0
+    const cor = (u: number, v: number) => {
+      chamadas += 1
+      return serra.cor(u, v)
+    }
+    const primeiro = await pixelsEmFatias(cor, 32, () => false)
+    const antes = chamadas
+    const segundo = await pixelsEmFatias(cor, 32, () => false)
+    expect(antes).toBe(32 * 32)
+    expect(chamadas).toBe(antes)
+    expect(segundo).toEqual(pixelsDoLadrilho(serra.cor, 32))
+    expect(segundo).toBe(primeiro)
+  })
+
+  it('dois pedidos ao mesmo tempo dividem uma geração; quem desiste recebe null e não derruba o outro', async () => {
+    let chamadas = 0
+    const cor = (u: number, v: number) => {
+      chamadas += 1
+      return serra.cor(u, v)
+    }
+    const [desistiu, ficou] = await Promise.all([pixelsEmFatias(cor, 24, () => true, 0), pixelsEmFatias(cor, 24, () => false, 0)])
+    expect(desistiu).toBeNull()
+    expect(ficou).toEqual(pixelsDoLadrilho(serra.cor, 24))
+    expect(chamadas).toBe(24 * 24)
+  })
+
+  it('todos desistem: null; quem pede depois gera de novo', async () => {
+    const cor = (u: number, v: number) => serra.cor(u, v)
+    expect(await pixelsEmFatias(cor, 16, () => true, 0)).toBeNull()
+    expect(await pixelsEmFatias(cor, 16, () => false, 0)).toEqual(pixelsDoLadrilho(serra.cor, 16))
+  })
+
   it('cor de fora que lança: null, sem erro solto', async () => {
     const quebrada = () => {
       throw new Error('cor do pacote quebrada')
