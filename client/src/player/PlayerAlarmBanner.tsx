@@ -51,7 +51,7 @@ export function PlayerAlarmBanner({ text, vibrationTarget }: PlayerAlarmBannerPr
 
   const ref = useRef<HTMLDivElement | null>(null)
   // A altura da faixa vai para `--pp-alarm-space`, e o que fica no alto
-  // (painel, "Sua vez", recado, cartão do pino) desce junto: a faixa não tapa
+  // (painel, recado, cartão do pino) desce junto: a faixa não tapa
   // nada. Texto de duas linhas no celular muda a altura — o observador acompanha.
   useLayoutEffect(() => {
     const el = ref.current

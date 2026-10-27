@@ -221,6 +221,150 @@ export function lerVisaoPorPeriodo(valor: unknown): MapData['visaoPorPeriodo'] {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Painel "Ambiente da cena" (Luz L4c): o que o mestre grava na cena
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Os períodos que a cena ajusta (tinta e visão). */
+export type PeriodoConfiguravel = Exclude<Periodo, 'dia'>
+export const PERIODOS_AJUSTAVEIS: readonly PeriodoConfiguravel[] = PERIODOS_CONFIGURAVEIS
+
+type AmbientesDaCena = NonNullable<MapData['ambientePorPeriodo']>
+type VisoesDaCena = NonNullable<MapData['visaoPorPeriodo']>
+
+/**
+ * "Período fixo" da cena: ela fica sempre neste período (vence `externa`).
+ * `undefined` ("Nenhum") tira o campo; o mesmo valor devolve o mesmo mapa.
+ */
+export function comPeriodoFixo(map: MapData, periodo: Periodo | undefined): MapData {
+  if (periodo === undefined) {
+    if (!('periodoFixo' in map)) return map
+    const { periodoFixo: _livre, ...rest } = map
+    return rest
+  }
+  return map.periodoFixo === periodo ? map : { ...map, periodoFixo: periodo }
+}
+
+/** `ambientePorPeriodo` na ordem do arquivo (tarde, noite); vazio tira a chave. */
+function comAmbientes(map: MapData, valores: AmbientesDaCena): MapData {
+  const { tarde, noite } = valores
+  if (tarde !== undefined || noite !== undefined) return { ...map, ambientePorPeriodo: { ...(tarde === undefined ? {} : { tarde }), ...(noite === undefined ? {} : { noite }) } }
+  if (!('ambientePorPeriodo' in map)) return map
+  const { ambientePorPeriodo: _semTinta, ...rest } = map
+  return rest
+}
+
+/** `visaoPorPeriodo` na ordem do arquivo (tarde, noite); vazio tira a chave. */
+function comVisoes(map: MapData, valores: VisoesDaCena): MapData {
+  const { tarde, noite } = valores
+  if (tarde !== undefined || noite !== undefined) return { ...map, visaoPorPeriodo: { ...(tarde === undefined ? {} : { tarde }), ...(noite === undefined ? {} : { noite }) } }
+  if (!('visaoPorPeriodo' in map)) return map
+  const { visaoPorPeriodo: _semVisao, ...rest } = map
+  return rest
+}
+
+/** O objeto por período sem a entrada de `periodo`. */
+function semOPeriodo<T>(valores: { tarde?: T; noite?: T }, periodo: PeriodoConfiguravel): { tarde?: T; noite?: T } {
+  if (periodo === 'tarde') {
+    const { tarde: _fora, ...rest } = valores
+    return rest
+  }
+  const { noite: _fora, ...rest } = valores
+  return rest
+}
+
+/**
+ * Cor e/ou força da tinta de um período da cena. Força fora de 0..1 é
+ * grampeada; força que não é número e cor fora de `#rrggbb` não mudam nada.
+ * O mesmo valor devolve o mesmo mapa (sem passo de desfazer à toa).
+ */
+export function comAmbienteDoPeriodo(map: MapData, periodo: PeriodoConfiguravel, patch: AmbienteDoPeriodo): MapData {
+  const atual = lerAmbientePorPeriodo(map.ambientePorPeriodo) ?? {}
+  const antes = atual[periodo]
+  let cor = antes?.cor
+  let forca = antes?.forca
+  if (patch.cor !== undefined) {
+    cor = corValida(patch.cor)
+    if (cor === undefined) return map
+  }
+  if (patch.forca !== undefined) {
+    forca = forcaGrampeada(patch.forca)
+    if (forca === undefined) return map
+  }
+  if (cor === antes?.cor && forca === antes?.forca) return map
+  return comAmbientes(map, { ...atual, [periodo]: { ...(cor === undefined ? {} : { cor }), ...(forca === undefined ? {} : { forca }) } })
+}
+
+/**
+ * Visão de um período em casas (0 a `SCENE_VISION_CELLS_MAX`; 0 apaga a
+ * visão). `undefined` volta à regra de sempre (noite = metade) e tira o
+ * campo; fração, negativo e acima do teto não mudam nada.
+ */
+export function comVisaoDoPeriodo(map: MapData, periodo: PeriodoConfiguravel, casas: number | undefined): MapData {
+  const atual = lerVisaoPorPeriodo(map.visaoPorPeriodo) ?? {}
+  if (atual[periodo] === casas) return map
+  if (casas === undefined) return comVisoes(map, semOPeriodo(atual, periodo))
+  const valida = casasDeVisao(casas)
+  return valida === undefined ? map : comVisoes(map, { ...atual, [periodo]: valida })
+}
+
+/** "Voltar ao padrão" de um período: tira a tinta e a visão dele (o outro período fica). */
+export function semAjusteDoPeriodo(map: MapData, periodo: PeriodoConfiguravel): MapData {
+  if (!periodoAjustado(map, periodo)) return map
+  const semTinta = comAmbientes(map, semOPeriodo(lerAmbientePorPeriodo(map.ambientePorPeriodo) ?? {}, periodo))
+  return comVisoes(semTinta, semOPeriodo(lerVisaoPorPeriodo(map.visaoPorPeriodo) ?? {}, periodo))
+}
+
+/** O período tem algo próprio da cena (tinta ou visão): "Voltar ao padrão" tem o que fazer. */
+export function periodoAjustado(map: Pick<MapData, 'ambientePorPeriodo' | 'visaoPorPeriodo'>, periodo: PeriodoConfiguravel): boolean {
+  return lerAmbientePorPeriodo(map.ambientePorPeriodo)?.[periodo] !== undefined || lerVisaoPorPeriodo(map.visaoPorPeriodo)?.[periodo] !== undefined
+}
+
+/** Visão de um período como a cena a guarda (`undefined` = a regra de sempre). */
+export function visaoDoPeriodo(map: Pick<MapData, 'visaoPorPeriodo'>, periodo: PeriodoConfiguravel): number | undefined {
+  return lerVisaoPorPeriodo(map.visaoPorPeriodo)?.[periodo]
+}
+
+export type IdDoAtalhoDaNoite = 'noite-leve' | 'noite-fechada' | 'escuridao-total'
+
+export interface AtalhoDaNoite extends Ambiente {
+  id: IdDoAtalhoDaNoite
+  rotulo: string
+  /** Visão da noite em casas; `undefined` = a regra de sempre (metade da visão da cena). */
+  visao: number | undefined
+  /** O porquê, dito ao mestre no balão do botão. */
+  dica: string
+}
+
+/**
+ * Os três atalhos da noite (Luz L4c), do mais claro ao mais escuro:
+ *  - Noite leve: a cor aprovada a 50% e a visão de sempre (metade), para dar
+ *    clima de noite sem esconder o mapa do jogo;
+ *  - Noite fechada: a noite aprovada no protótipo (85%) e 3 casas de visão,
+ *    menos que o alcance do lampião (3,5): longe da luz, só o vizinho;
+ *  - Escuridão total: tinta cheia quase preta e visão 0 (a noite que apaga a
+ *    visão, pedido D7): o jogador não vê nada, nem o claro dos lampiões (L2).
+ */
+export const ATALHOS_DA_NOITE: readonly AtalhoDaNoite[] = [
+  { id: 'noite-leve', rotulo: 'Noite leve', cor: AMBIENTE_PADRAO.noite.cor, forca: 0.5, visao: undefined, dica: 'Tinta a 50% e a visão de sempre (metade): clima de noite sem esconder o mapa.' },
+  { id: 'noite-fechada', rotulo: 'Noite fechada', cor: AMBIENTE_PADRAO.noite.cor, forca: AMBIENTE_PADRAO.noite.forca, visao: 3, dica: 'Tinta a 85% e 3 casas de visão: longe de um lampião, só o vizinho.' },
+  { id: 'escuridao-total', rotulo: 'Escuridão total', cor: '#10131f', forca: 1, visao: 0, dica: 'Tinta cheia e visão 0: o jogador não vê nada, nem o claro dos lampiões.' },
+]
+
+/** Aplica um atalho na noite da cena (tinta e visão de uma vez); a tarde fica como está. */
+export function comAtalhoDaNoite(map: MapData, id: IdDoAtalhoDaNoite): MapData {
+  const atalho = ATALHOS_DA_NOITE.find((a) => a.id === id)
+  if (atalho === undefined) return map
+  return comVisaoDoPeriodo(comAmbienteDoPeriodo(map, 'noite', { cor: atalho.cor, forca: atalho.forca }), 'noite', atalho.visao)
+}
+
+/** O atalho com que a noite da cena casa agora (tinta e visão), se algum. */
+export function atalhoDaNoiteAtual(map: Pick<MapData, 'ambientePorPeriodo' | 'visaoPorPeriodo'>): IdDoAtalhoDaNoite | undefined {
+  const { cor, forca } = ambienteDoPeriodo(map, 'noite')
+  const visao = visaoDoPeriodo(map, 'noite')
+  return ATALHOS_DA_NOITE.find((a) => a.cor.toLowerCase() === cor.toLowerCase() && a.forca === forca && a.visao === visao)?.id
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Luz que acende sozinha (Luz L3): `Light.acesaEm`
 // ───────────────────────────────────────────────────────────────────────────
 

@@ -76,29 +76,21 @@ export type Action =
   | { kind: 'group' }
   /** Ctrl+Shift+G — desfaz o grupo de quem está selecionado. */
   | { kind: 'ungroup' }
-  /** Shift+N — passa a vez da iniciativa (o mesmo que o botão "Próxima vez"). */
-  | { kind: 'nextTurn' }
   /** Shift+P — pausa ou retoma todo NPC andando sozinho (rotina e patrulha). */
   | { kind: 'pauseNpcs' }
 
 /**
- * Tecla do "Próxima vez" da iniciativa, no formato de `aria-keyshortcuts`
- * (é assim que o botão anuncia o atalho). Todas as letras sem modificador já
- * são ferramentas (N é a Sala); Shift+letra estava livre, e N é de "next".
- */
-export const NEXT_TURN_SHORTCUT = 'Shift+N'
-
-/**
- * Tecla do "Pausar NPCs" da barra de cima, no mesmo formato. P sozinho é o
- * Pincel; Shift+P estava livre, e P é de "pausa".
+ * Tecla do "Pausar NPCs" da barra de cima, no formato de `aria-keyshortcuts`
+ * (é assim que o botão anuncia o atalho). P sozinho é o Pincel; Shift+P
+ * estava livre, e P é de "pausa".
  */
 export const PAUSE_NPCS_SHORTCUT = 'Shift+P'
 
 /**
  * Recolhe ou abre a página do livro da mesa (Grupo, Chat, Cenas e Mesa), no mesmo formato.
  * J de Jogo, a primeira aba da coluna da direita que o livro substituiu;
- * Shift+J estava livre e segue a família dos Shift+letra do mestre (Shift+N,
- * Shift+P). Fora do `resolveShortcut`: quem ouve é o próprio livro
+ * Shift+J estava livre e segue a família dos Shift+letra do mestre
+ * (Shift+P). Fora do `resolveShortcut`: quem ouve é o próprio livro
  * (`isRightColumnShortcut`, livro/LivroDaMesa.tsx).
  */
 export const RIGHT_COLUMN_SHORTCUT = 'Shift+J'
@@ -222,7 +214,7 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // grupo só dele.
   mobilia: '',
   // Penhasco: letra sozinha não sobrou nenhuma, então ele abre a família das
-  // ferramentas de Shift+letra (a mesma dos atalhos do mestre, Shift+N/P/J).
+  // ferramentas de Shift+letra (a mesma dos atalhos do mestre, Shift+P/J).
   // C de "costa", onde o pincel risca; Shift+C estava livre.
   penhasco: 'Shift+C',
   // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
@@ -418,10 +410,8 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // Duas leituras, a do pino primeiro: com um pino que ele sabe trocar, o `?`
   // é do pino; sem, abre a tela de atalhos — antes a tecla sumia sem efeito.
   if (key === '?' && !evt.altKey) return evt.canTogglePinType ? { kind: 'togglePinType' } : { kind: 'showShortcuts' }
-  // Shift+N (`NEXT_TURN_SHORTCUT`): a próxima vez da iniciativa. Também antes
-  // da trava de Shift, pelo mesmo motivo do `?`.
-  if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
-  // Shift+P (`PAUSE_NPCS_SHORTCUT`): pausa geral dos NPCs, pelo mesmo caminho.
+  // Shift+P (`PAUSE_NPCS_SHORTCUT`): pausa geral dos NPCs. Também antes da
+  // trava de Shift, pelo mesmo motivo do `?`.
   if (evt.shiftKey && !evt.altKey && lower === 'p') return { kind: 'pauseNpcs' }
   // Ferramenta de Shift+letra (o Penhasco): pelo mesmo caminho, antes da trava.
   const comShift = evt.shiftKey && !evt.altKey ? TOOL_BY_SHIFT_LETTER.get(lower) : undefined

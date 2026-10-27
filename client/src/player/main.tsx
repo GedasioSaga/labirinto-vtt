@@ -3,7 +3,6 @@ import type { FormEvent, ReactNode } from 'react'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
 import { textoDaRecusaDaPesca } from './estadoDaPesca'
-import { ConfrontoFaixa } from './ConfrontoFaixa'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
@@ -50,7 +49,7 @@ import { PlayerEscada } from './PlayerEscada'
 import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
-import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
+import { TurnWaitNotice } from './TurnWaitNotice'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -1577,19 +1576,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         />
         {/*
           CANTO DA DIREITA: abas de andar, "Onde estou" (a cena e a sala, num
-          selo só), confronto, o selo de estado e, no pé, as rolagens, numa
-          coluna só que desce do alto até logo acima do alto-falante. Antes
-          cada um se prendia sozinho e um cobria o outro: as rolagens caíam
-          sobre o pé do confronto no celular deitado. Na coluna, quem cede
-          lugar são as rolagens (player.css). Depois do painel no DOM: o Tab
+          selo só), o selo de estado e, no pé, as rolagens, numa coluna só
+          que desce do alto até logo acima do alto-falante. Antes cada um se
+          prendia sozinho e um cobria o outro. Na coluna, quem cede lugar são
+          as rolagens (player.css). Depois do painel no DOM: o Tab
           segue a leitura (painel no alto à esquerda, esta coluna à direita,
           zoom embaixo à direita).
         */}
         <div className="pp-canto">
           {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
           <PlayerWhereAmI sceneName={state.sceneName} where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
-          {/* CONFRONTO na cena dele: de quem é a vez e o que resta do passo. */}
-          {state.confronto && <ConfrontoFaixa confronto={state.confronto} tokens={state.map.tokens} />}
           {/*
             SELO DE ESTADO: "Tela acesa". Só informa. No notebook fica no fim
             desta coluna; no celular, no canto de baixo à esquerda (player.css).
@@ -1619,10 +1615,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           notebook e no celular em pé, à esquerda, na altura do som; deitado,
           embaixo da barra), em vez de três botões presos cada um num canto: a
           escada morava no lugar da mão do "Chamar o mestre" e sumia atrás dela.
-          No celular deitado a faixa "Sua vez" abre esta coluna (player.css).
         */}
         <div className="pp-lugar">
-          <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
           <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
           {/* Com cartão aberto por cima, o botão sai: um toque nele não pode fechar o cartão e trancar junto. */}
           {noCardOnTop && (

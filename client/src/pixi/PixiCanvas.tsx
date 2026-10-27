@@ -20,7 +20,7 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
-import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { useInitiativeStore } from '../stores/initiativeStore'
 import { alternarPausaDosNpcs } from '../stores/npcsAndando'
 import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
 import { turnTokenIdOn } from '../lib/initiative'
@@ -2558,11 +2558,20 @@ export function PixiCanvas({
       // Só entra no mundo com tinta (abaixo): de dia o mundo tem os mesmos filhos de antes da Luz.
       const mapaDeLuz = criarMapaDeLuz(app.renderer)
       const revisaoDoMapaDeLuz = criarRevisao()
+      let ultimaTintaEscrita = ''
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
         const sessao = periodoDaSessao(useAdventureStore.getState())
-        const comoJogador = useTintaNoEditor.getState().comoJogador
-        const tinta = tintaDaCena(map, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        const { comoJogador, previa } = useTintaNoEditor.getState()
+        // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
+        const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
+        const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        // Para o e2e ler a tinta aplicada no quadro em que ela mudou (o gesto da força no painel).
+        const textoDaTinta = tinta === null ? 'nenhuma' : `${tinta.periodo} ${tinta.rgb.toString(16).padStart(6, '0')} ${tinta.alfa}`
+        if (textoDaTinta !== ultimaTintaEscrita) {
+          ultimaTintaEscrita = textoDaTinta
+          el.dataset.mapaDeLuzTinta = textoDaTinta
+        }
         // A troca de período ligou ou desligou a tinta: o halo de sempre volta ou some junto (o marcador fica).
         if ((tinta !== null) !== luzesSemHalo) {
           luzesSemHalo = tinta !== null
@@ -2581,12 +2590,12 @@ export function PixiCanvas({
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
           tinta,
-          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, map.floor, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador]),
+          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, map.floor, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
             const camadas = contextoDeCamadas(map)
             const daCamada = comoJogador ? map.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(map.lights, map)
             // `hidden` não vai ao jogador (`fogFilter.ts`); `acesaEm` decide se acende no período (L3).
-            return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, map, sessao))
+            return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, cena, sessao))
           },
           obstaculos: () => lightOccludersOf(map),
           mapa: { largura: map.width * map.grid, altura: map.height * map.grid },
@@ -8584,19 +8593,11 @@ export function PixiCanvas({
           case 'showShortcuts':
             onShowShortcutsRef.current?.()
             break
-          // Shift+N — a mesma "Próxima vez" do painel Iniciativa (aba Jogo),
-          // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
           // Shift+P — o mesmo "Pausar NPCs" da barra de cima: congela (ou
           // retoma) toda rotina e patrulha andando. Sem ninguém andando, nada.
           case 'pauseNpcs':
             alternarPausaDosNpcs()
             break
-          case 'nextTurn': {
-            const { map: mapaDaVez } = useMapStore.getState()
-            // Atalho de teclado não anima: o anel aparece parado na ficha seguinte.
-            tokensRenderer.semPulsoDaVez(() => advanceTurn(mapaDaVez.id, mapaDaVez.tokens))
-            break
-          }
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break

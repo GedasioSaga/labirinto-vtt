@@ -23,11 +23,9 @@ import type { SecretCheckSectionProps } from './SecretCheckSection'
 import type { PartySectionProps } from './PartySection'
 import { GrupoCompacto } from './GrupoCompacto'
 import type { CenaNaOrdem } from '../lib/grupoPorCena'
-import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
 import { PeriodoDaSessaoSection, type PeriodoDaSessaoSectionProps } from './PeriodoDaSessaoSection'
 import type { TableScreenSectionProps } from './TableScreenSection'
 import type { TravelLogSectionProps } from './TravelLogSection'
-import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
 import { EscolherFichaDeTeste, RetratoDaFicha, type AberturaDaEscolha } from './EscolherFichaDeTeste'
@@ -66,14 +64,10 @@ export interface RoomPanelProps {
   clues: CluesSectionProps
   /** Seção "Teste secreto" (pedir a escolhidos e ler as respostas). Ausente = sem a seção. */
   secretCheck?: SecretCheckSectionProps
-  /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
-  initiative?: InitiativeSectionProps
   /** Seção "Período" (Dia/Tarde/Noite da sessão e cena externa). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
   periodo?: PeriodoDaSessaoSectionProps
   /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
   travelLog?: TravelLogSectionProps
-  /** CONFRONTO da cena aberta no editor (vez e passo). Ausente = sem a seção. */
-  confronto?: ConfrontoControlsProps
   tunnel: TunnelState
   /**
    * Retomar a mesa: quem tem ficha guardada ("Ana e Bruno"). Com isto, "Abrir
@@ -135,7 +129,7 @@ export interface RoomPanelProps {
   onToggleLaser?(): void
   /** "Ruído": arma o ruído (o próximo clique no mapa o dispara) e escolhe o alcance. Ausente = sem o controle. */
   noise?: NoiseControlProps
-  /** Default `FEATURES`: Pistas, Iniciativa, Relógio e Confronto só aparecem com a flag ligada. */
+  /** Default `FEATURES`: as Pistas só aparecem com a flag ligada. */
   flags?: Readonly<FeatureFlags>
   /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
   table?: TableScreenSectionProps
@@ -1475,9 +1469,7 @@ export function RoomPanel({
   players,
   tokens,
   party,
-  initiative,
   periodo,
-  confronto,
   onAssign,
   onUnassign,
   onLend,
@@ -1507,8 +1499,6 @@ export function RoomPanel({
   onAnswerTravel,
   rpg,
 }: RoomPanelProps) {
-  // Escondidos por pedido do usuário (`lib/features.ts`): o resto do app segue igual.
-  const iniciativaVisivel = flags.iniciativa ? initiative : undefined
   if (room === null) {
     return (
       <section className="lb-section lb-room">
@@ -1518,8 +1508,6 @@ export function RoomPanel({
         </div>
         {/* Ficha e regra também valem sem sala: o mestre prepara antes de abrir a mesa. */}
         {rpg}
-        {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
-        {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
         {/* DIA/TARDE/NOITE também sem sala: o mestre escolhe o período antes de abrir a mesa. */}
         {periodo !== undefined && <PeriodoDaSessaoSection {...periodo} />}
       </section>
@@ -1561,19 +1549,8 @@ export function RoomPanel({
       {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
       {flags.painelPistas && players.length > 0 && <CluesSection {...clues} />}
 
-      {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
-      {iniciativaVisivel !== undefined && <InitiativeSection {...iniciativaVisivel} />}
-
-      {/* O período depois da iniciativa: muda entre as cenas, não a cada vez. */}
+      {/* O período depois do Grupo e das Pistas: muda entre as cenas. */}
       {periodo !== undefined && <PeriodoDaSessaoSection {...periodo} />}
-
-      {/* CONFRONTO da cena aberta: ação de mesa, logo depois de quem está onde. */}
-      {flags.confronto && confronto !== undefined && (
-        <div className="lb-field">
-          <h3 className="lb-eyebrow">Confronto</h3>
-          <ConfrontoControls {...confronto} />
-        </div>
-      )}
 
       {/* Personagens e Contas no fim: o Grupo é o que o mestre consulta a cada cena. */}
       {rpg}

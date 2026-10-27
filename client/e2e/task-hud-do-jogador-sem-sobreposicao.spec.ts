@@ -1,10 +1,10 @@
 // E2E do HUD do jogador: nada por cima de nada, nada fora da tela.
 //
 // O QUE PROVA: os controles e selos que flutuam sobre o mapa do jogador — a
-// barra de cima, a coluna do canto da direita (abas de andar, "Onde estou",
-// confronto e as rolagens no pé), a pilha do canto de baixo à direita (zoom,
+// barra de cima, a coluna do canto da direita (abas de andar, "Onde estou"
+// e as rolagens no pé), a pilha do canto de baixo à direita (zoom,
 // "Chamar o mestre", alto-falante), a coluna das ações do lugar (espiar,
-// trancar, subir), a faixa "Sua vez", o selo de estado (tela
+// trancar, subir), o selo de estado (tela
 // acesa), a faixa do alarme, a faixa da porta trancada e os avisos — nos
 // tamanhos de tela que o jogador usa: o notebook do mestre (1280 x 800), o
 // tablet em pé com a coluna do painel aberta (768 x 1024), o celular em pé
@@ -12,12 +12,12 @@
 // navegador, 667 x 375 e 568 x 320).
 //
 // Primeiro com TUDO aceso ao mesmo tempo: a ficha encostada numa escada que
-// liga pisos E numa porta fechada, abas de andar, confronto, "Sua vez", hora
+// liga pisos E numa porta fechada, abas de andar, hora
 // do dia, tela acesa, quatro rolagens (a mais nova de nome comprido e quatro
 // dados), a mão do "Chamar o mestre" acesa (duas linhas) e os quatro atalhos
 // da barra (com a "Ficha" de personagem). Depois os casos que apertam um canto
 // da tela: a porta trancada com a faixa dos pedidos no celular deitado (com e
-// sem alarme), o alarme com o confronto de sete fichas, a pausa com um aviso
+// sem alarme), o alarme num mapa com sete fichas, a pausa com um aviso
 // que passa, e o tablet com a coluna do painel aberta, sem abas de andar e com
 // a porta aberta.
 //
@@ -58,10 +58,10 @@ const VISAO_TODA: RegionPoint[][] = [
  */
 type Porta = 'fechada' | 'aberta' | 'trancada'
 
-/** O que a cena acende, além do que todo recorte traz (a ficha, a escada, a vez). */
+/** O que a cena acende, além do que todo recorte traz (a ficha, a escada). */
 interface Cena {
   porta: Porta
-  /** Quem divide a fila do confronto com a Ana, na ordem. */
+  /** As outras fichas do mapa, além da Ana. */
   fila: readonly string[]
   /** Outro andar do prédio que ele já conhece: acende as abas de andar. */
   andares: boolean
@@ -76,7 +76,7 @@ interface Cena {
 }
 
 const FILA_CURTA = ['Rato 1', 'Bia']
-/** Sete fichas na fila: no celular ela quebra em três linhas. */
+/** Sete fichas no mapa, com a Ana. */
 const FILA_LONGA = ['Rato 1', 'Bia', 'Rato 2', 'Bartolomeu', 'Rato 3', 'Guarda do porto']
 const CENA_CHEIA: Cena = { porta: 'fechada', fila: FILA_CURTA, andares: true }
 
@@ -121,8 +121,6 @@ function recorte(cena: Cena): Record<string, unknown> {
     ownTokens: ['ficha-ana'],
     concealed: [],
     sceneName: 'Casa do porto',
-    turn: 'ficha-ana',
-    confronto: { fila: map.tokens.map((t) => t.id), vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 },
     ...(cena.andares ? { andares: { atual: '1F', outros: [outroAndar()] } } : {}),
   }
 }
@@ -198,8 +196,8 @@ async function jogadorEntra(page: Page, cena: Cena = CENA_CHEIA): Promise<HostDe
 
 /**
  * As quatro rolagens chegam. Com `aVista`, a mais nova — a mais larga —
- * aparece com o total à vista; sem, basta ter chegado: com alarme e confronto
- * longo a coluna do canto pode não ter altura para nenhuma, e quem cede são elas.
+ * aparece com o total à vista; sem, basta ter chegado: com alarme a coluna do
+ * canto pode não ter altura para nenhuma, e quem cede são elas.
  */
 async function rolarTudo(page: Page, host: HostDeMentira, aVista = true): Promise<void> {
   for (const [i, uma] of ROLAGENS.entries()) host.mandar(rolagem(`r${i}`, uma))
@@ -259,8 +257,6 @@ const FLUTUANTES: readonly Flutuante[] = [
   { nome: 'alarme', seletor: '.pp-alarm', toque: false },
   { nome: 'abas de andar', seletor: '.pp-floors__list', toque: true },
   { nome: 'Onde estou', seletor: '.pp-where', toque: true },
-  { nome: 'confronto', seletor: '.pp-confronto', toque: false },
-  { nome: 'Sua vez', seletor: '.pp-turn', toque: false },
   { nome: 'tela acesa', seletor: '.pp-awake', toque: false },
   { nome: 'zoom', seletor: '.pp-zoom', toque: true },
   { nome: 'som', seletor: '.pp-som .lb-som__gatilho', toque: true },
@@ -386,8 +382,6 @@ const ACESOS = [
   'Inventário',
   'abas de andar',
   'Onde estou',
-  'confronto',
-  'Sua vez',
   'tela acesa',
   'zoom',
   'som',
@@ -431,12 +425,6 @@ async function medirEFotografar(page: Page, nome: string): Promise<Medida[]> {
 function apagados(medidas: readonly Medida[], acesos: readonly string[]): string[] {
   const medidos = new Set(medidas.map((m) => m.nome))
   return acesos.filter((nome) => !medidos.has(nome))
-}
-
-function caixaDe(medidas: readonly Medida[], nome: string): Medida {
-  const achada = medidas.find((m) => m.nome === nome)
-  if (achada === undefined) throw new Error(`${nome} não foi medido`)
-  return achada
 }
 
 /**
@@ -715,7 +703,7 @@ for (const { tela, alarme } of PORTA_TRANCADA) {
       await expect(page.getByRole('button', { name: 'Subir ao 1º piso' })).toBeVisible()
 
       const comAFaixa = await medirEFotografar(page, `porta-trancada-${tela.width}x${tela.height}${alarme ? '-alarme' : ''}`)
-      const acesos = ['faixa da porta', 'pedido da porta', 'Espiar pela porta', 'escada', 'Sua vez', 'Onde estou', 'zoom', 'mão do chamado', ...(alarme ? ['alarme'] : [])]
+      const acesos = ['faixa da porta', 'pedido da porta', 'Espiar pela porta', 'escada', 'Onde estou', 'zoom', 'mão do chamado', ...(alarme ? ['alarme'] : [])]
       expect(apagados(comAFaixa, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       expect(problemas(comAFaixa, tela, alvoMinimo(tela))).toEqual([])
 
@@ -730,33 +718,26 @@ for (const { tela, alarme } of PORTA_TRANCADA) {
 }
 
 /*
- * ALARME E CONFRONTO LONGO: a faixa do alarme empurra tudo o que mora no alto
- * para baixo, e a fila de sete fichas quebra em três linhas. A coluna do canto
- * passava do pé — por cima do alto-falante e das ações do lugar (320 x 568),
- * e até o "Esperando o mestre" (844 x 340). Agora as rolagens cedem primeiro
- * e, quando nem os selos cabem, a fila do confronto: a coluna nunca passa do pé.
+ * ALARME: a faixa do alarme empurra tudo o que mora no alto para baixo. A
+ * coluna do canto passava do pé — por cima do alto-falante e das ações do
+ * lugar (320 x 568), e até o "Esperando o mestre" (844 x 340). Agora as
+ * rolagens cedem lugar.
  */
 for (const tela of [EM_PE_ESTREITO, EM_PE, DEITADO_BAIXO, DEITADO_PEQUENO, NOTEBOOK]) {
-  test.describe(`alarme e confronto longo ${nomeDaTela(tela)}`, () => {
+  test.describe(`alarme ${nomeDaTela(tela)}`, () => {
     test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
 
-    test('a coluna do canto não passa do pé, e nada cruza nada', async ({ page }) => {
+    test('nada cruza nada e nada sai da tela', async ({ page }) => {
       const host = await jogadorEntra(page, { porta: 'fechada', fila: FILA_LONGA, andares: true })
       await rolarTudo(page, host, false)
       await soarOAlarme(page, host)
       await chamarOMestre(page)
       await expect(page.getByRole('button', { name: 'Trancar deste lado' })).toBeVisible()
 
-      const medidas = await medirEFotografar(page, `alarme-confronto-${tela.width}x${tela.height}`)
-      const acesos = ['alarme', 'abas de andar', 'Onde estou', 'confronto', 'Sua vez', 'zoom', 'som', 'mão do chamado', 'linha do chamado', 'escada', 'ferrolho', 'Espiar pela porta']
+      const medidas = await medirEFotografar(page, `alarme-${tela.width}x${tela.height}`)
+      const acesos = ['alarme', 'abas de andar', 'Onde estou', 'zoom', 'som', 'mão do chamado', 'linha do chamado', 'escada', 'ferrolho', 'Espiar pela porta']
       expect(apagados(medidas, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
-
-      // A vez continua inteira à vista; a fila corta por baixo (ou à direita, deitado) dentro da faixa.
-      await expect(page.getByRole('region', { name: 'Confronto' }).getByText('Sua vez · 6 casas')).toBeInViewport({ ratio: 1 })
-      const confronto = caixaDe(medidas, 'confronto')
-      const pe = await page.locator('.pp-canto').evaluate((canto) => canto.getBoundingClientRect().bottom)
-      expect(confronto.y + confronto.altura, 'o pé do confronto dentro do pé da coluna do canto').toBeLessThanOrEqual(pe + FOLGA)
     })
   })
 }
@@ -780,7 +761,7 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
 
       // Só a pausa, no segundo andar: ela não cobre o selo de estado, e ele fica à vista.
       const soAPausa = await medirEFotografar(page, `pausa-${tela.width}x${tela.height}`)
-      expect(apagados(soAPausa, ['aviso que fica', 'tela acesa', 'Espiar pela porta', 'ferrolho', 'Sua vez'])).toEqual([])
+      expect(apagados(soAPausa, ['aviso que fica', 'tela acesa', 'Espiar pela porta', 'ferrolho'])).toEqual([])
       expect(problemas(soAPausa, tela, alvoMinimo(tela))).toEqual([])
 
       // A resposta do mestre a uma ação no ponto passa pelo chão: o selo sai de baixo dela.
@@ -788,7 +769,7 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
       host.mandar({ type: 'point.action.answer', action: 'chamar', answer: 'seen' })
       await expect(page.locator('.pp-notice--point')).toBeVisible()
       const comOAviso = await medirEFotografar(page, `pausa-e-aviso-${tela.width}x${tela.height}`)
-      expect(apagados(comOAviso, ['aviso que fica', 'aviso', 'Espiar pela porta', 'ferrolho', 'Sua vez', 'Onde estou', 'confronto'])).toEqual([])
+      expect(apagados(comOAviso, ['aviso que fica', 'aviso', 'Espiar pela porta', 'ferrolho', 'Onde estou'])).toEqual([])
       expect(comOAviso.some((m) => m.nome === 'tela acesa'), 'o selo de estado embaixo do aviso do chão').toBe(false)
       expect(problemas(comOAviso, tela, alvoMinimo(tela))).toEqual([])
     })
@@ -799,14 +780,13 @@ for (const tela of [DEITADO_PEQUENO, DEITADO_BAIXO]) {
  * TABLET COM A COLUNA DO PAINEL ABERTA: o mapa que sobra tem uns 370 px. A
  * porta aberta dá o rótulo mais comprido do ferrolho ("Fechar e trancar deste
  * lado"), que passava do meio da faixa e cruzava a rolagem; sem abas de
- * andar, o "Onde estou" é o primeiro selo da coluna do canto e mora na altura
- * da faixa "Sua vez", centrada no mapa que sobra.
+ * andar, o "Onde estou" é o primeiro selo da coluna do canto.
  */
 for (const tela of [TABLET_EM_PE, TABLET_DEITADO]) {
   test.describe(`coluna do painel aberta ${nomeDaTela(tela)}`, () => {
     test.use({ viewport: { width: tela.width, height: tela.height }, hasTouch: tela.toque, isMobile: tela.toque })
 
-    test('a faixa "Sua vez", o "Onde estou", o ferrolho e as rolagens não se cruzam', async ({ page }) => {
+    test('o "Onde estou", o ferrolho e as rolagens não se cruzam', async ({ page }) => {
       const host = await jogadorEntra(page, { porta: 'aberta', fila: FILA_CURTA, andares: false })
       await rolarTudo(page, host)
       await chamarOMestre(page)
@@ -814,7 +794,7 @@ for (const tela of [TABLET_EM_PE, TABLET_DEITADO]) {
       await expect(page.getByRole('complementary', { name: 'Painel do jogador' })).toBeVisible()
 
       const medidas = await medirEFotografar(page, `coluna-do-painel-${tela.width}x${tela.height}`)
-      const acesos = ['gaveta do painel', 'Sua vez', 'Onde estou', 'confronto', 'ferrolho', 'escada', 'rolagens', 'zoom', 'som', 'mão do chamado', 'linha do chamado']
+      const acesos = ['gaveta do painel', 'Onde estou', 'ferrolho', 'escada', 'rolagens', 'zoom', 'som', 'mão do chamado', 'linha do chamado']
       expect(apagados(medidas, acesos), 'flutuantes que deviam estar acesos e não foram medidos').toEqual([])
       expect(problemas(medidas, tela, alvoMinimo(tela))).toEqual([])
     })

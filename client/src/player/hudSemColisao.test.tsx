@@ -24,8 +24,6 @@ const DEITADO = '(max-height: 480px)'
 const ESTREITA = '(max-width: 379px) and (max-height: 480px)'
 /** Onde as ações do lugar ficam só com o começo do rótulo: tela estreita e celular deitado. */
 const ROTULO_CURTO = '(max-width: 379px), (max-height: 480px)'
-/** Janela de coluna (não gaveta) estreita: tablet em pé, notebook com a janela pela metade. */
-const JANELA_ESTREITA = '(min-width: 700px) and (max-width: 1099px) and (min-height: 481px)'
 /** Celular em pé: gaveta, mas sem o chão da esquerda do celular deitado. */
 const EM_PE = '(max-width: 699px) and (min-height: 481px)'
 /** Em pé, os avisos com modificador que moram acima do selo de estado (a faixa da porta mora no chão). */
@@ -174,7 +172,7 @@ describe('ações do lugar: uma coluna só, na metade esquerda', () => {
     expect(base).toBeGreaterThanOrEqual(px(regraBase(css, '.pp-call').get('bottom'), v) + 2 * LINHA)
   })
 
-  it('fica na sua metade da faixa livre: do outro lado moram as rolagens e o confronto', async () => {
+  it('fica na sua metade da faixa livre: do outro lado moram as rolagens', async () => {
     // Com o teto em 50vw, medido da borda e não do painel: a 768 com a coluna
     // aberta o "Fechar e trancar deste lado" passava do meio e cruzava a rolagem.
     expect(regraBase(await lerPlayerCss(), '.pp-lugar').get('max-width')).toBe('var(--pp-meia-faixa)')
@@ -193,16 +191,11 @@ describe('ações do lugar: uma coluna só, na metade esquerda', () => {
     expect(emQualquerMidia(css, seletor).flatMap(posicoes)).toEqual([])
   })
 
-  it('deitado, sobe para logo abaixo da barra, aberta pela faixa "Sua vez" no fluxo dela', async () => {
+  it('deitado, sobe para logo abaixo da barra', async () => {
     const css = await lerPlayerCss()
     const lugar = regraNaMidia(css, DEITADO, '.pp-lugar')
     expect(px(lugar.get('top'), variaveis(css, DEITADO))).toBe(12 + 1 + 12 + px('var(--lb-control-touch)') + VAO)
     expect(lugar.get('top')).toContain('--pp-alarm-space')
-    const vez = regraNaMidia(css, DEITADO, '.pp-lugar > .pp-turn')
-    expect(vez.get('position')).toBe('static')
-    expect(vez.get('transform')).toBe('none')
-    // Uma linha só, com teto na coluna: a grade abaixo tem linhas da altura do alvo de toque.
-    expect(vez.get('max-width')).toBe('var(--pp-meia-faixa)')
   })
 
   it('deitado, tem pé: desce só até o segundo andar do chão da esquerda, onde moram o selo de estado e os avisos', async () => {
@@ -471,7 +464,7 @@ describe('canto da direita', () => {
   // 390 x 844 a barra cobria as abas e o selo, o alarme cobria o selo, e o
   // confronto descia para cima do "Chamar o mestre", do aviso e do ferrolho.
   // O selo da cena e o "Onde estou" viraram um selo só (`.pp-where`).
-  const FILHOS = ['.pp-floors', '.pp-where', '.pp-confronto', '.pp-rolagens', '.pp-dice-feed']
+  const FILHOS = ['.pp-floors', '.pp-where', '.pp-rolagens', '.pp-dice-feed']
 
   it('uma coluna só, presa ao canto, com o vão do tema entre os selos e descendo com o alarme', async () => {
     const css = await lerPlayerCss()
@@ -489,14 +482,10 @@ describe('canto da direita', () => {
     expect(canto.get('pointer-events')).toBe('none')
   })
 
-  it('as rolagens cedem primeiro; quando nem os selos cabem, cede a fila do confronto, e os outros selos ficam inteiros', async () => {
-    // Com todos os selos rígidos, alarme e confronto longo empurravam a
-    // coluna para fora do pé: por cima do alto-falante e das ações do lugar
-    // (320 x 568), e até o "Esperando o mestre" (844 x 340).
+  it('as rolagens cedem lugar, e os selos ficam inteiros', async () => {
     const css = await lerPlayerCss()
     expect(regraBase(css, '.pp-canto > *').get('flex-shrink')).toBe('0')
     expect(regraBase(css, '.pp-rolagens').get('flex')).toBe('1 1 0')
-    expect(regraBase(css, '.pp-canto > .pp-confronto').get('flex-shrink')).toBe('1')
   })
 
   it('no celular desce para baixo da barra: borda, filete, respiro, alvo de toque e o vão', async () => {
@@ -735,26 +724,6 @@ describe('celular deitado: a pilha do canto de baixo sem altura de sobra', () =>
     expect(px(regraBase(css, '.pp-canto').get('bottom'), v)).toBe(px('var(--pp-base-rolagens)', v))
   })
 
-  it('o confronto numa linha só (a vez e a fila lado a lado): a fila que não cabe corta à direita, apagando, e a vez fica', async () => {
-    // Com a fila quebrando linha, sete fichas davam três linhas (71 px) e a
-    // coluna passava do pé, até o "Esperando o mestre" (844 x 340).
-    const css = await lerPlayerCss()
-    const confronto = regraNaMidia(css, DEITADO, '.pp-confronto')
-    expect(confronto.get('flex-direction')).toBe('row')
-    expect(confronto.get('flex-wrap')).toBe('nowrap')
-    expect(regraNaMidia(css, DEITADO, '.pp-confronto__vez').get('flex')).toBe('none')
-    const fila = regraNaMidia(css, DEITADO, '.pp-confronto__fila')
-    expect(fila.get('margin')).toBe('0')
-    expect(fila.get('flex-wrap')).toBe('nowrap')
-    expect(fila.get('min-width')).toBe('0')
-    // O corte é o de sempre da fila (fora de @media); deitado ele só muda de lado.
-    expect(regraBase(css, '.pp-confronto__fila').get('overflow')).toBe('hidden')
-    // O apagado mora no respiro da direita: sem corte, ele cai sobre o vazio e não se vê.
-    expect(fila.get('padding')).toBe('0 var(--pp-confronto-respiro-x) 0 0')
-    expect(fila.get('mask-image')).toBe('linear-gradient(to right, #000 calc(100% - var(--pp-confronto-respiro-x)), transparent)')
-    expect(regraNaMidia(css, DEITADO, '.pp-confronto__item').get('flex')).toBe('none')
-  })
-
   it('aberto, o alto-falante passa por cima do chamado: preso à margem da tela, o popover desce até a linha do aviso', async () => {
     const css = await lerPlayerCss()
     const aberto = Number(regraBase(css, '.pp-som:has(.lb-som__pop)').get('z-index'))
@@ -787,59 +756,6 @@ describe('duas colunas dividem a faixa livre do mapa ao meio', () => {
     const metade = meiaFaixa(css, largura, ocupa, midia)
     expect(metade).toBeGreaterThan(100)
     expect(esquerda + metade + VAO + metade + direita).toBeCloseTo(largura, 5)
-  })
-
-  it('o confronto também fica na metade da direita: com a coluna curta, ele desce até a altura das ações do lugar', async () => {
-    expect(regraBase(await lerPlayerCss(), '.pp-confronto').get('max-width')).toBe('min(320px, 100%, var(--pp-meia-faixa))')
-  })
-})
-
-describe('confronto: a vez fica, a fila cede', () => {
-  // Alarme e confronto longo empurravam a coluna do canto para fora do pé
-  // (320 x 568, 844 x 340): os selos não encolhiam. O confronto é o único
-  // selo de altura solta — a fila quebra linha com mais fichas —, e agora ele
-  // cede depois das rolagens: a fila corta por baixo, apagando, e a vez fica.
-  it('em pé e no notebook, a vez no alto e a fila embaixo, numa coluna', async () => {
-    const confronto = regraBase(await lerPlayerCss(), '.pp-confronto')
-    expect(confronto.get('display')).toBe('flex')
-    expect(confronto.get('flex-direction')).toBe('column')
-  })
-
-  it('a fila encolhe até sumir, cortada por baixo e apagando no respiro de baixo, que passa a ser dela', async () => {
-    const css = await lerPlayerCss()
-    const fila = regraBase(css, '.pp-confronto__fila')
-    expect(fila.get('min-height')).toBe('0')
-    expect(fila.get('overflow')).toBe('hidden')
-    expect(fila.get('padding')).toBe('0 0 var(--pp-confronto-respiro)')
-    // Sem corte, o apagado cai sobre o respiro vazio e não se vê.
-    expect(fila.get('mask-image')).toBe('linear-gradient(to bottom, #000 calc(100% - var(--pp-confronto-respiro)), transparent)')
-    expect(fila.get('-webkit-mask-image')).toBe(fila.get('mask-image'))
-    expect(regraBase(css, '.pp-confronto:has(> .pp-confronto__fila)').get('padding-bottom')).toBe('0')
-  })
-
-  it('a vez nunca encolhe: o piso da faixa é o respiro de cima, a linha da vez, a margem da fila, o respiro dela e o filete', async () => {
-    const css = await lerPlayerCss()
-    expect(regraBase(css, '.pp-confronto__vez').get('flex')).toBe('none')
-    expect(regraBase(css, '.pp-confronto__fila').get('margin')).toBe('4px 0 0')
-    expect(regraBase(css, '.pp-confronto:has(> .pp-confronto__fila)').get('min-height')).toBe('calc(2 * var(--pp-confronto-respiro) + 1lh + 4px + 2px)')
-  })
-
-  it('o respiro da faixa mora em variáveis: 8 e 12 px no notebook, 6 e 10 px nas telas de gaveta', async () => {
-    const css = await lerPlayerCss()
-    const confronto = regraBase(css, '.pp-confronto')
-    expect(confronto.get('padding')).toBe('var(--pp-confronto-respiro) var(--pp-confronto-respiro-x)')
-    expect(confronto.get('--pp-confronto-respiro')).toBe('8px')
-    expect(confronto.get('--pp-confronto-respiro-x')).toBe('12px')
-    const gaveta = regraNaMidia(css, GAVETA, '.pp-confronto')
-    expect(gaveta.get('--pp-confronto-respiro')).toBe('6px')
-    expect(gaveta.get('--pp-confronto-respiro-x')).toBe('10px')
-  })
-
-  it('deitado, a faixa é uma linha só: o respiro de baixo volta a ser dela, o da direita passa para a fila', async () => {
-    const comFila = regraNaMidia(await lerPlayerCss(), DEITADO, '.pp-confronto:has(> .pp-confronto__fila)')
-    expect(comFila.get('padding-bottom')).toBe('var(--pp-confronto-respiro)')
-    expect(comFila.get('padding-right')).toBe('0')
-    expect(comFila.get('min-height')).toBe('auto')
   })
 })
 
@@ -903,31 +819,5 @@ describe('celular deitado: o chão da esquerda', () => {
   it('o selo de estado, também no chão, sai de baixo dos avisos que passam; os do segundo andar não o cobrem, e ele fica', async () => {
     const segundoAndar = SEGUNDO_ANDAR.filter((seletor) => seletor.startsWith('.pp-notice--')).map((seletor) => seletor.replace('.pp-notice--', ''))
     expect(regraNaMidia(await lerPlayerCss(), DEITADO, seloSaiDeBaixo(segundoAndar)).get('opacity')).toBe('0')
-  })
-})
-
-describe('janela estreita com a coluna do painel aberta: a faixa "Sua vez" e a coluna do canto', () => {
-  // A 768 px com a coluna do painel aberta, a faixa "Sua vez" fica no meio do
-  // mapa que sobra — e o "Onde estou", primeiro selo da coluna do canto sem
-  // abas de andar, morava na mesma altura: a faixa cobria o começo dele.
-  it('a faixa é uma linha só, com teto na faixa livre: a altura dela é a da régua', async () => {
-    const css = await lerPlayerCss()
-    const vez = regraBase(css, '.pp-turn')
-    expect(vez.get('white-space')).toBe('nowrap')
-    expect(vez.get('overflow')).toBe('hidden')
-    expect(vez.get('text-overflow')).toBe('ellipsis')
-    expect(vez.get('max-width')).toBe('calc(100vw - 24px - var(--pp-painel-ocupa, 0px))')
-    expect(vez.get('font-size')).toBe('15px')
-    expect(vez.get('line-height')).toBe('1.45')
-    expect(vez.get('padding')).toBe('6px 16px')
-    expect(px('var(--pp-faixa-da-vez)', variaveis(css))).toBeCloseTo(15 * 1.45 + 2 * 6 + 2, 5)
-  })
-
-  it('com a faixa acesa e a coluna do painel aberta, a coluna do canto começa logo abaixo dela', async () => {
-    const css = await lerPlayerCss()
-    const v = variaveis(css)
-    const canto = regraNaMidia(css, JANELA_ESTREITA, 'body:has(.pp-panel:not([hidden])):has(.pp-turn:not(:empty)) .pp-canto')
-    expect(px(canto.get('top'), v)).toBeCloseTo(12 + px('var(--pp-faixa-da-vez)', v) + VAO, 5)
-    expect(canto.get('top')).toContain('--pp-alarm-space')
   })
 })
