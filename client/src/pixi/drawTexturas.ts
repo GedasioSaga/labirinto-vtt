@@ -10,6 +10,7 @@ import { rasterizarTexturas } from './texturasRaster'
 import { meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
 import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoEmPedacos } from './pedacosDoChao'
+import { chaoLeveLigado, useChaoLeveStore } from '../stores/chaoLeveStore'
 
 /**
  * TEXTURAS no palco (`lib/texturas.ts`): acima do chão das regiões e dos
@@ -241,9 +242,14 @@ interface Recortavel {
 interface Pedida {
   entrada: EntradaDasTexturas
   versao: number
-  /** `versaoDoEstilo()` da pintura: ligar ou desligar o Meio-Termo pinta de novo. */
+  /** `estiloDaPintura()`: ligar ou desligar o Meio-Termo, ou o chão leve, pinta de novo. */
   estilo: string
   formas?: string
+}
+
+/** O estilo da pintura do palco: o do mapa e, por cima, o "Chão leve" deste aparelho (`stores/chaoLeveStore.ts`). */
+function estiloDaPintura(): string {
+  return chaoLeveLigado() ? `${versaoDoEstilo()}#chao-leve` : versaoDoEstilo()
 }
 
 /** Assinatura das formas que o balde enche: o conteúdo, para quando as referências mudam sem mudar nada (o jogador). */
@@ -263,7 +269,7 @@ function mesmasImportadas(a: readonly TexturaImportada[], b: readonly TexturaImp
  */
 function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): boolean {
   const a = pedida.entrada
-  if (a.cena !== b.cena || pedida.versao !== versaoB || pedida.estilo !== versaoDoEstilo()) return false
+  if (a.cena !== b.cena || pedida.versao !== versaoB || pedida.estilo !== estiloDaPintura()) return false
   if (a.mapa.width !== b.mapa.width || a.mapa.height !== b.mapa.height || a.mapa.grid !== b.mapa.grid) return false
   // Trocar "Manchas do chão" pinta de novo (os pedaços do chão mudam de chave).
   if ((a.mapa.manchasDoChao === true) !== (b.mapa.manchasDoChao === true)) return false
@@ -333,6 +339,10 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     }
     versaoDoCatalogo += 1
     if (ultimaEntrada !== null) atualizar(ultimaEntrada)
+  })
+  /** Trocar o "Chão leve" repinta o chão na hora, sem recarregar (`estiloDaPintura` muda). */
+  const pararDeOuvirChaoLeve = useChaoLeveStore.subscribe((agora, antes) => {
+    if (agora.ligado !== antes.ligado && ultimaEntrada !== null) atualizar(ultimaEntrada)
   })
 
   /** Destrói os ladrilhos descartados, menos o da prévia (fica para a próxima vez, ou para o `destruir`). */
@@ -480,7 +490,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const pronto = await prepararPlano(plano, entrada, cancelado)
     if (pronto === null) return
     limparPalco()
-    noPalco = montarPlano(camada, plano, entrada, pronto, vista, meioTermoLigado())
+    // "Chão leve" (deste aparelho): o chão sai no ladrilho repetido do desenho de linhas, sem os pedaços.
+    noPalco = montarPlano(camada, plano, entrada, pronto, vista, meioTermoLigado() && !chaoLeveLigado())
     cenaNoPalco = entrada.cena
     marcar('texturas:no-palco')
     mudarVisibilidade(camada.children.length > 0)
@@ -507,7 +518,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const cenaNova = cenaNoPalco !== entrada.cena
     // Cena nova: a pintura da anterior sai NA HORA (não fica por cima do mapa novo).
     if (cenaNova) limparPalco()
-    pedida = { entrada, versao: versaoDoCatalogo, estilo: versaoDoEstilo() }
+    pedida = { entrada, versao: versaoDoCatalogo, estilo: estiloDaPintura() }
     cancelarEspera()
     geracao += 1
     const minha = geracao
@@ -581,6 +592,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       destruido = true
       cancelarEspera()
       pararDeOuvir()
+      pararDeOuvirChaoLeve()
       limparPalco()
       // `destruido` já está ligado: o `limparPalco` acima soltou também o da prévia.
       for (const promessa of ladrilhos.values()) void promessa.then((t) => t?.destroy(true))

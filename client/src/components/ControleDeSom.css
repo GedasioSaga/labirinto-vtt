@@ -375,6 +375,25 @@
   color: var(--lb-color-parchment-dim, #a2a09a);
 }
 
+/* "Chão leve" (preferência do aparelho, `stores/chaoLeveStore.ts`): a caixa nativa, separada do som por um fio. */
+.lb-som__chao-leve {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lb-color-stone-line, rgba(255, 255, 255, 0.08));
+  font-size: 13px;
+  color: var(--lb-color-parchment, #e6e3da);
+  cursor: pointer;
+}
+
+.lb-som__chao-leve input {
+  margin: 0;
+  accent-color: var(--lb-color-brass-bright, #f3ba66);
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-som__pop {
     animation: none;

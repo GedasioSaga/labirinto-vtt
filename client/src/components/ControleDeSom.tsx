@@ -3,6 +3,7 @@ import { destravarAudioNoPrimeiroGesto } from '../lib/sons/contexto'
 import type { SomId } from '../lib/sons/receitas'
 import { tocarAmostra } from '../lib/sons/tocarSom'
 import { estaCalado, percentualDoVolume, useSomStore } from '../stores/somStore'
+import { AJUDA_DO_CHAO_LEVE, useChaoLeveStore } from '../stores/chaoLeveStore'
 import { SomIcon, SomMudoIcon } from './icons'
 import './ControleDeSom.css'
 
@@ -118,6 +119,8 @@ export function ControleDeSom({ variante, className, tocar = tocarAmostra, destr
   const tituloId = useId()
   const dicaId = useId()
   const barraId = useId()
+  const chaoLeveAjudaId = useId()
+  const chaoLeve = useChaoLeveStore((estado) => estado.ligado)
   const aberto = abertura !== null
   // Na ficha a barra está sempre à vista: soltar a alça toca a amostra do mesmo jeito.
   const barraAVista = variante === 'ficha' || aberto
@@ -237,7 +240,8 @@ export function ControleDeSom({ variante, className, tocar = tocarAmostra, destr
     const alvo = evento.target
     const fecha = aberto && evento.key === 'Escape'
     const daBarra = alvo instanceof HTMLInputElement && alvo.type === 'range' && TECLAS_DA_BARRA.has(evento.key)
-    const doBotao = alvo instanceof HTMLButtonElement && TECLAS_DO_BOTAO.has(evento.key)
+    // A caixa do "Chão leve" é apertada como botão: o Espaço não pode vazar para os atalhos.
+    const doBotao = (alvo instanceof HTMLButtonElement || (alvo instanceof HTMLInputElement && alvo.type === 'checkbox')) && TECLAS_DO_BOTAO.has(evento.key)
     if (!fecha && !daBarra && !doBotao) return
     // A tecla é deste controle. No mestre a seta também empurraria o objeto
     // selecionado no mapa e o Espaço armaria o arrasto da vista; o Esc fecharia
@@ -349,6 +353,14 @@ export function ControleDeSom({ variante, className, tocar = tocarAmostra, destr
           </div>
           <p id={dicaId} className="lb-som__dica">
             Sons baixos de clima.
+          </p>
+          {/* O jogador não tem outro menu do aparelho: o "Chão leve" mora aqui, abaixo do som. */}
+          <label className="lb-som__chao-leve">
+            <input type="checkbox" checked={chaoLeve} aria-describedby={chaoLeveAjudaId} onChange={(evento) => useChaoLeveStore.getState().definir(evento.currentTarget.checked)} />
+            Chão leve
+          </label>
+          <p id={chaoLeveAjudaId} className="lb-som__dica">
+            {AJUDA_DO_CHAO_LEVE}
           </p>
         </div>
       )}

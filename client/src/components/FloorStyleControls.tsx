@@ -2,6 +2,7 @@ import { useId } from 'react'
 import type { FloorStyle, MapFrame } from '../types/map'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { useMapStore } from '../stores/mapStore'
+import { AJUDA_DO_CHAO_LEVE, useChaoLeveStore } from '../stores/chaoLeveStore'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { Toggle } from './Toggle'
 import './FloorStyleControls.css'
@@ -50,6 +51,23 @@ function ManchasDoChaoDoMapa() {
       />
       <p className="lb-field__hint" id={ajudaId}>
         Manchas claras e escuras sobre as texturas do chão deste mapa, para o mestre e para os jogadores.
+      </p>
+    </>
+  )
+}
+
+/**
+ * O interruptor "Chão leve" DESTE COMPUTADOR (`stores/chaoLeveStore.ts`): não
+ * entra no mapa nem no desfazer; vale para todos os mapas abertos aqui.
+ */
+function ChaoLeveDaMaquina() {
+  const ajudaId = `${useId()}-chao-leve`
+  const ligado = useChaoLeveStore((state) => state.ligado)
+  return (
+    <>
+      <Toggle label="Chão leve" checked={ligado} describedBy={ajudaId} onChange={(ligar) => useChaoLeveStore.getState().definir(ligar)} />
+      <p className="lb-field__hint" id={ajudaId}>
+        {AJUDA_DO_CHAO_LEVE}
       </p>
     </>
   )
@@ -131,6 +149,8 @@ export function FloorStyleControls({
 
       {/* As manchas só existem no desenho do Meio-Termo (`texturas/meioTermo/chaoNoMundo.ts`). */}
       {meioTermoLigado() && <ManchasDoChaoDoMapa />}
+      {/* O chão em pedaços também só existe no Meio-Termo: desligado, o chão já é o leve. */}
+      {meioTermoLigado() && <ChaoLeveDaMaquina />}
 
       {/* Decisão do usuário (14/09/2026): controles técnicos ficam no Avançado, fechado, com a frase do que fazem. */}
       <AdvancedSection>
