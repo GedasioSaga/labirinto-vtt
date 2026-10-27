@@ -1,3 +1,4 @@
+import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { ExploredWire } from '../lib/exploration'
 import type { MapData, RegionPoint, Token } from '../types/map'
 
@@ -53,9 +54,73 @@ export interface ViewPatch {
   concealed?: RegionPoint[][]
 }
 
-/** Igualdade de valor do que viaja em JSON. Mesma referência sai de graça. */
+/**
+ * Igualdade de valor do que viaja em JSON. Mesma referência sai de graça (o
+ * host devolve o MESMO array quando os itens de um campo não mudaram, ver
+ * `reuseUnchanged`). O resto anda pela estrutura e pára na primeira
+ * diferença, sem montar o texto dos dois lados: com o mapa 200x200 eram
+ * ~170 KB de JSON.stringify por passo de ficha.
+ *
+ * Mesma regra do JSON: campo `undefined` é campo ausente, e número que o JSON
+ * vira `null` (NaN, Infinity) é igual a `null`. A ordem das chaves não conta
+ * (o JSON contava: só mandava um patch a mais, nunca a menos).
+ */
 function sameValue(a: unknown, b: unknown): boolean {
-  return a === b || JSON.stringify(a) === JSON.stringify(b)
+  if (a === b) return true
+  if (typeof a === 'number' && typeof b === 'number') return !Number.isFinite(a) && !Number.isFinite(b)
+  if (typeof a === 'number' && !Number.isFinite(a)) return b === null
+  if (typeof b === 'number' && !Number.isFinite(b)) return a === null
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false
+    for (let i = 0; i < a.length; i += 1) {
+      // No array, `undefined` vira `null` no JSON.
+      const x: unknown = a[i] === undefined ? null : a[i]
+      const y: unknown = b[i] === undefined ? null : b[i]
+      if (!sameValue(x, y)) return false
+    }
+    return true
+  }
+  if (Array.isArray(b)) return false
+  const left = a as Record<string, unknown>
+  const right = b as Record<string, unknown>
+  let count = 0
+  for (const key in left) {
+    if (left[key] === undefined) continue
+    count += 1
+    if (!sameValue(left[key], right[key])) return false
+  }
+  for (const key in right) if (right[key] !== undefined) count -= 1
+  return count === 0
+}
+
+/**
+ * A tela de agora com os campos do mapa que não mudaram trocados pelo array
+ * da tela ANTERIOR (mesmos itens, mesma ordem, por referência). O patch
+ * seguinte resolve esses campos por identidade em `sameValue`. Não muda o
+ * conteúdo: só troca array por outro com os mesmos itens.
+ */
+export function reuseUnchanged(prev: PlayerViewContent, next: PlayerViewContent): PlayerViewContent {
+  if (!cacheDoRecorte.ligado || prev.map === next.map) return next
+  const before = prev.map as unknown as Record<string, unknown>
+  const after = next.map as unknown as Record<string, unknown>
+  let map: Record<string, unknown> | null = null
+  for (const key in after) {
+    const old = before[key]
+    const now = after[key]
+    if (old === now || !Array.isArray(old) || !Array.isArray(now) || old.length !== now.length) continue
+    let same = true
+    for (let i = 0; i < now.length; i += 1) {
+      if (old[i] !== now[i]) {
+        same = false
+        break
+      }
+    }
+    if (!same) continue
+    map ??= { ...after }
+    map[key] = old
+  }
+  return map === null ? next : { ...next, map: map as unknown as MapData }
 }
 
 /**
