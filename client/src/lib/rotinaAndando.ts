@@ -1,9 +1,10 @@
-import type { PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import type { Periodo, PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
 import { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
 import type { Andarilho } from './caminhamento/andarilho'
 import { type AvisoDoNpc, avisoDepoisDeChegar, avisoDoFim, type MotorDosNpcs, motorImediato, type PortaDoNpc, TiqueDosNpcs } from './caminhamento/tiqueDosNpcs'
 import { estaCongelada } from './congelar'
 import type { EstadoDoMundo } from './estadoDoMundo'
+import { periodoDaCena } from './periodo'
 import type { CenaDaRotina, MovimentoDaRotina } from './rotinaDoNpc'
 
 /**
@@ -106,6 +107,11 @@ function estaNoPosto(sceneId: string, token: Token, posto: PostoDaRotina): boole
   return posto.sceneId === sceneId && posto.x === token.x && posto.y === token.y
 }
 
+/** ROTINA POR PERÍODO: o posto vale em `periodo` (posto sem período vale em todos). */
+export function postoNoPeriodo(posto: PostoDaRotina, periodo: Periodo): boolean {
+  return posto.periodo === undefined || posto.periodo === periodo
+}
+
 /**
  * Liga a rotina de `tokenId`: a ficha sai rumo ao posto seguinte ao que ela
  * ocupa (ou ao primeiro, se não está em nenhum). Ficha que não está em cena
@@ -158,6 +164,11 @@ function rumoAoSeguinte(destino: number, total: number, esperaAte: number, andar
  *   no posto: não anda;
  * - ficha que sumiu ou perdeu a rotina: desliga.
  * Ao chegar ao posto, espera `ESPERA_NO_POSTO_MS` e mira o próximo.
+ * ROTINA POR PERÍODO: só contam os postos do período da cena onde a ficha está
+ * (`periodoDaCena` com a sessão em `sessao`; posto sem período conta sempre).
+ * Na troca, o posto que deixou de valer sai do loop e ela mira o seguinte que
+ * vale, andando pelo motor como em qualquer trecho; sem nenhum que valha, fica
+ * onde está até o período mudar.
  * `motor`: a agenda de caminhos do editor; sem ele, cada caminho sai no mesmo tique.
  */
 export function darPassoDaRotina(
@@ -167,6 +178,7 @@ export function darPassoDaRotina(
   now: number,
   fixas: ReadonlySet<string> = new Set(),
   motor: MotorDosNpcs = MOTOR_IMEDIATO,
+  sessao: Periodo | null = null,
 ): TiqueDaRotina {
   const movimentos: MovimentoDaRotina[] = []
   const next = new Map<string, FichaAndando>()
@@ -184,8 +196,9 @@ export function darPassoDaRotina(
       continue
     }
     const postos = postosEmOrdem(rotina, estados)
-    // O primeiro posto a partir do destino que está numa cena carregada.
-    const passo = postos.map((_, i) => (ficha.destino + i) % postos.length).find((i) => carregadas.has(postos[i].sceneId))
+    const periodo = periodoDaCena(achada.cena.map, sessao)
+    // O primeiro posto a partir do destino que está numa cena carregada e vale no período da cena dela.
+    const passo = postos.map((_, i) => (ficha.destino + i) % postos.length).find((i) => carregadas.has(postos[i].sceneId) && postoNoPeriodo(postos[i], periodo))
     if (passo === undefined) {
       next.set(tokenId, ficha)
       continue

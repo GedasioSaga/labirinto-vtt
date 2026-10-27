@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { ROTULO_ALERTA } from '../../lib/faccoes'
+import { AmbienteDaCenaControls, resumoDoAmbiente, type AmbienteDaCenaControlsProps } from '../AmbienteDaCenaControls'
 import { FloorLayersList, type FloorLayersListProps } from '../FloorLayersList'
 import { FloorStyleControls, type FloorStyleControlsProps } from '../FloorStyleControls'
 import { GridQuickToggles, TransparenteDosTelhados, type GridControlsProps } from '../GridControls'
@@ -26,6 +27,8 @@ export interface PaginaCenaProps {
   grid: GridControlsProps
   /** Leitura do "Mapa vivo" da cena e quem abre o "Configurar cena" nessa seção; ausente, a linha não aparece. */
   mapaVivo?: MapaVivoDaCena
+  /** "Ambiente da cena" (Luz L4c): tarde e noite desta cena e o período fixo; ausente, a ficha não aparece. */
+  ambiente?: AmbienteDaCenaControlsProps
 }
 
 export interface MapaVivoDaCena {
@@ -50,7 +53,7 @@ function resumoDasCamadas(layers: LayersPanelProps): string {
  * delas, os mesmos controles. A página mostra tudo sempre, sem o "momento de mapa" que escondia
  * seções conforme a ferramenta: quem abriu o marcador Cena veio ver a cena.
  */
-export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid, mapaVivo }: PaginaCenaProps) {
+export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, territorio, floorStyle, floorLayers, layers, grid, mapaVivo, ambiente }: PaginaCenaProps) {
   // Com o pincel do chão na mão a lista aparece mesmo sem peça: é nela que se vê onde a primeira pincelada cai.
   const temCamadasDoChao = floorLayers !== undefined && (floorLayers.floor.length > 0 || floorLayers.pincel !== undefined)
   return (
@@ -77,6 +80,12 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
           <FichaDaPagina id="floor" titulo="Chão do mapa" icone="chao" padrao resumo={floorStyle.style.strokeColor === null ? 'Sem contorno' : 'Com contorno'}>
             <FloorStyleControls {...floorStyle} />
           </FichaDaPagina>
+          {/* Nasce fechada e só existe aberta (`lazy`): fechar a ficha desliga a prévia do período no mapa. */}
+          {ambiente !== undefined && (
+            <FichaDaPagina id="ambiente" titulo="Ambiente da cena" icone="luz" padrao={false} lazy resumo={resumoDoAmbiente(ambiente.cena)}>
+              <AmbienteDaCenaControls {...ambiente} />
+            </FichaDaPagina>
+          )}
           <FichaDaPagina id="layers" titulo="Camadas" icone="cenas" padrao resumo={resumoDasCamadas(layers)}>
             <LayersPanel
               {...layers}

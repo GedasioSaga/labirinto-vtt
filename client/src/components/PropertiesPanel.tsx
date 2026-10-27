@@ -119,6 +119,7 @@ import { FolhaDoLivro } from './livro/FolhaDoLivro'
 import { PaginaAcervo } from './livro/PaginaAcervo'
 import { PaginaAventura } from './livro/PaginaAventura'
 import { PaginaCena, type MapaVivoDaCena } from './livro/PaginaCena'
+import type { AmbienteDaCenaControlsProps } from './AmbienteDaCenaControls'
 import './PropertiesPanel.css'
 
 interface PropertiesPanelProps {
@@ -161,6 +162,8 @@ interface PropertiesPanelProps {
   mapGrid: number
   /** "Mapa vivo: ligado" da página Cena, que abre o "Configurar cena" nessa seção. */
   mapaVivo?: MapaVivoDaCena
+  /** "Ambiente da cena" da página Cena (Luz L4c); ausente, a ficha não aparece. */
+  ambiente?: AmbienteDaCenaControlsProps
   activeTool: DrawingTool
   /** F4 (integrador I8) — N2 "painel contextual": saída de
    *  `relevantPropertyGroups` (lib/toolProperties.ts), computada em App.tsx a
@@ -410,6 +413,7 @@ export function PropertiesPanel({
   mapHeight,
   mapGrid,
   mapaVivo,
+  ambiente,
   activeTool,
   groups,
   lineCap,
@@ -1141,6 +1145,7 @@ export function PropertiesPanel({
           layers={layers}
           grid={grid}
           mapaVivo={mapaVivo}
+          ambiente={ambiente}
         />
       </FolhaDoLivro>
       <FolhaDoLivro pagina="aventura">
