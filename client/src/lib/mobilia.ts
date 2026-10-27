@@ -10,6 +10,7 @@ import {
   TAMANHO_DE_LADO_DAS_PECAS_NOVAS,
   tracosDaPecaNova,
 } from './mobilia/pecasNovas'
+import { ofereceDesenhoEmLinhas } from './mobilia/desenhoDoMovel'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -1337,7 +1338,9 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
     forma,
   )
   // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
-  const movel = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  const curvado = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  // A versão em linhas só existe nos 11 de antes (MT12): a peça nova sai sempre com textura.
+  const movel = ofereceDesenhoEmLinhas(tipo) ? curvado : comDesenhoGravado(curvado, undefined)
   if (!ehPecaNova(tipo) || !('mobiliaPreenchido' in movel)) return movel
   const { mobiliaPreenchido: _preenchido, ...semPreenchido } = movel
   return semPreenchido
@@ -1421,6 +1424,12 @@ export interface AparenciaDoMovelPatch {
   corDaLinha?: string | null
   corDoTravesseiro?: string | null
   corDoCobertor?: string | null
+  /**
+   * O DESENHO com o Meio-Termo (MT12): `'linhas'` pede a versão de antes, `null`
+   * volta à textura (o campo sai do objeto). Só os tipos com versão em linhas
+   * (`ofereceDesenhoEmLinhas`) aceitam; nos outros o pedido não muda nada.
+   */
+  desenho?: 'linhas' | null
 }
 
 interface AparenciaDoMovel {
@@ -1464,13 +1473,21 @@ function corDepoisDoPedido(antes: string | undefined, pedido: string | null | un
  * havia: o pedido é ignorado, como o arquivo faria.
  */
 export function comAparenciaDoMovel(prop: Prop, patch: AparenciaDoMovelPatch): Prop {
-  return comAparenciaGravada(prop, {
+  const pintado = comAparenciaGravada(prop, {
     preenchido: patch.preenchido ?? prop.mobiliaPreenchido !== false,
     cor: corDepoisDoPedido(prop.mobiliaCor, patch.cor),
     corDaLinha: corDepoisDoPedido(prop.mobiliaCorDaLinha, patch.corDaLinha),
     corDoTravesseiro: normalizarCorDeTecido(prop.mobilia, corDepoisDoPedido(prop.mobiliaCorDoTravesseiro, patch.corDoTravesseiro)),
     corDoCobertor: normalizarCorDeTecido(prop.mobilia, corDepoisDoPedido(prop.mobiliaCorDoCobertor, patch.corDoCobertor)),
   })
+  return comDesenhoGravado(pintado, desenhoDepoisDoPedido(prop, patch.desenho))
+}
+
+/** O desenho depois do pedido: sem pedido fica o de antes, `null` tira, `'linhas'` só no tipo que tem a versão em linhas. */
+function desenhoDepoisDoPedido(prop: Prop, pedido: 'linhas' | null | undefined): 'linhas' | undefined {
+  if (pedido === undefined) return prop.mobiliaDesenho
+  if (pedido === null) return undefined
+  return ofereceDesenhoEmLinhas(prop.mobilia) ? 'linhas' : prop.mobiliaDesenho
 }
 
 /** Os dois objetos têm a mesma aparência de móvel ("Preencher", as três cores da cama, "Cor da linha"). */
@@ -1480,7 +1497,8 @@ export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
     a.mobiliaCor === b.mobiliaCor &&
     a.mobiliaCorDaLinha === b.mobiliaCorDaLinha &&
     a.mobiliaCorDoTravesseiro === b.mobiliaCorDoTravesseiro &&
-    a.mobiliaCorDoCobertor === b.mobiliaCorDoCobertor
+    a.mobiliaCorDoCobertor === b.mobiliaCorDoCobertor &&
+    a.mobiliaDesenho === b.mobiliaDesenho
   )
 }
 

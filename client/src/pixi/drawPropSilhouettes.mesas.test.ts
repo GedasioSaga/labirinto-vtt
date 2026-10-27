@@ -57,6 +57,7 @@ afterEach(() => {
 
 describe('mesas e a chave de obra do Meio-Termo', () => {
   it('chave DESLIGADA: a mesa antiga continua no desenho de linhas (nenhuma imagem pedida); a quadrada e a redonda saem em imagem', async () => {
+    trocarObraNoTeste(false)
     await carregarMoveisDoMeioTermo()
     const { raster, rodar } = rasterComFila()
     const g = new Graphics()

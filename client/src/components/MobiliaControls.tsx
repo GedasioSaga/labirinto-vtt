@@ -15,7 +15,8 @@ import {
   vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from '../lib/mobilia'
-import { catalogoComOTipo, ehPecaNova } from '../lib/mobilia/pecasNovas'
+import { catalogoComOTipo } from '../lib/mobilia/pecasNovas'
+import { ofereceDesenhoEmLinhas, saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
@@ -196,6 +197,12 @@ function tomDaCamaPadrao(): string {
 }
 const COR_DA_CAMA_PADRAO = tomDaCamaPadrao()
 
+/** As duas versões do móvel de antes com o Meio-Termo (MT12): `null` tira o pedido de linhas (volta à textura). */
+const DESENHOS_DO_MOVEL: readonly { rotulo: string; desenho: 'linhas' | null }[] = [
+  { rotulo: 'Textura', desenho: null },
+  { rotulo: 'Linhas', desenho: 'linhas' },
+]
+
 /**
  * O interruptor "Vista 3/4" do MAPA (`MapData.vistaDosMoveis`): lê e grava
  * direto na store, com desfazer (`definirVistaDosMoveis`), como a "Chaminé"
@@ -226,9 +233,10 @@ export type ParteDoMovel = 'essencial' | 'aparencia'
  * MÓVEL — o que só o móvel desenhado (objeto com `mobilia`) tem: o tipo, a
  * vista (só os tipos com vista), a forma (só o tapete) e a aparência da
  * silhueta. Objeto de imagem não mostra nada. Na ficha do objeto (fatia 16a)
- * vem em dois pedaços: `essencial` (Tipo, Vista e Forma: o que diz o que a
- * peça É) e `aparencia` (Preencher, Cor, as cores da cama e Cor da linha, na
- * ficha Aparência). Nenhum controle trava com "Travado": ele segura o gesto no
+ * vem em dois pedaços: `essencial` (Tipo, Vista, Forma e, com o Meio-Termo, o
+ * Desenho: o que diz o que a peça É) e `aparencia` (na ficha Aparência: o
+ * material de cada lugar no móvel com textura; Preencher, Cor, as cores da
+ * cama e Cor da linha no desenho de linhas). Nenhum controle trava com "Travado": ele segura o gesto no
  * mapa, não o painel.
  */
 export function MobiliaControls({
@@ -313,6 +321,28 @@ export function MobiliaControls({
             </div>
           </div>
         )}
+        {/* DESENHO (Meio-Termo, MT12): a versão com textura (o padrão) ou a EM LINHAS, a de antes,
+            com cor livre. Só nos 11 móveis de antes (a peça nova nasceu com textura) e só com a
+            chave de obra: sem ela tudo já é o desenho de linhas, e controle sem efeito não entra. */}
+        {meioTermoLigado() && ofereceDesenhoEmLinhas(tipo) && (
+          <div className="lb-field">
+            <span className="lb-label">Desenho</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Desenho">
+              {DESENHOS_DO_MOVEL.map((opcao) => (
+                <button
+                  key={opcao.rotulo}
+                  type="button"
+                  role="radio"
+                  aria-checked={(prop.mobiliaDesenho === 'linhas') === (opcao.desenho === 'linhas')}
+                  className="lb-seg__option"
+                  onClick={() => onAparenciaChange(prop.id, { desenho: opcao.desenho })}
+                >
+                  {opcao.rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* VISTA 3/4 DO MAPA (Meio-Termo, MT11): vale para todos os móveis do mapa, então mora
             no fim do essencial, depois do que é só desta peça. Só com a chave de obra: sem ela a
             vista não desenha nada, e controle sem efeito não entra. */}
@@ -321,8 +351,9 @@ export function MobiliaControls({
     )
   }
 
-  // PEÇA NOVA (MT4): sai sempre com textura, então a aparência é o MATERIAL (o hex oficial nos campos de cor de sempre).
-  if (ehPecaNova(tipo)) return <MaterialDaPeca prop={prop} tipo={tipo} onAparenciaChange={onAparenciaChange} />
+  // COM TEXTURA (a peça nova sempre; os 11 de antes com o Meio-Termo e sem pedir linhas): a aparência é o
+  // MATERIAL (o hex oficial nos campos de cor de sempre). "Preencher" e a cor livre só no desenho de linhas.
+  if (saiComTextura(prop, meioTermoLigado())) return <MaterialDaPeca prop={prop} tipo={tipo} onAparenciaChange={onAparenciaChange} />
 
   const corId = `${baseId}-cor`
   const corDaLinhaId = `${baseId}-cor-da-linha`

@@ -226,6 +226,7 @@ async function abrirNoEditor(page: Page, map: MapData): Promise<void> {
   }, CAMERA_DO_EDITOR)
   await expect.poll(() => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)).toEqual(CAMERA_DO_EDITOR)
   await soOCanvas(page)
+  await moveisProntos(page)
 }
 
 interface CenaDoJogador {
@@ -262,6 +263,33 @@ async function entrarComoAna(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByRole('group', { name: 'Zoom do mapa' })).toBeVisible()
   await soOCanvas(page)
+  await moveisProntos(page)
+}
+
+/**
+ * MT12: com o Meio-Termo ligado (o padrão do produto), os móveis de antes
+ * saem em IMAGEM, gerada em fatias depois que o módulo das imagens chega
+ * (import dinâmico); até lá fica o desenho de linhas provisório. A foto espera
+ * o módulo (que repinta quem o esperava e enfileira as imagens) e a fila
+ * vazia. Sem isto a regravação pegou o provisório em 3 das 8 fotos do
+ * jogador (medido em 27/10/2026): a tela fica parada em linhas enquanto o
+ * módulo carrega, e a foto estável sai antes da hora.
+ */
+async function moveisProntos(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await (await import('/src/pixi/drawPropSilhouettes.ts')).carregarMoveisDoMeioTermo()
+  })
+  await expect.poll(() => page.evaluate(async () => (await import('/src/pixi/rasterDosMoveis.ts')).rasterDosMoveis().naFila), { timeout: 20_000 }).toBe(0)
+  // O chão sem repetição (MT7) e o relevo também saem em fatias: a tela tem de ficar parada por um intervalo
+  // maior que o da foto estável do Playwright, que pega dois quadros seguidos.
+  const canvas = page.locator('canvas').first()
+  let anterior = await canvas.screenshot({ animations: 'disabled' })
+  for (let i = 0; i < 40; i += 1) {
+    await page.waitForTimeout(400)
+    const atual = await canvas.screenshot({ animations: 'disabled' })
+    if (atual.equals(anterior)) return
+    anterior = atual
+  }
 }
 
 test.describe('editor a 1440 x 900', () => {

@@ -86,10 +86,13 @@ describe('MaterialDaPeca: o material da peça nova', () => {
     expect(pedidos).toEqual([{ cor: '#7e7b76' }])
   })
 
-  it('peça de um lugar só (a lápide) tem um grupo; móvel antigo continua com as cores livres', () => {
+  it('peça de um lugar só (a lápide) tem um grupo; móvel antigo com textura (MT12) tem o material, e em linhas as cores livres', () => {
     pintar({ ...POCO, mobilia: 'lapide' }, [])
     expect(caixa.querySelectorAll('[role="radiogroup"]')).toHaveLength(1)
     pintar({ ...POCO, mobilia: 'mesa' }, [])
+    expect(caixa.querySelectorAll('[role="radiogroup"]')).toHaveLength(1)
+    expect(caixa.textContent).not.toContain('Preencher')
+    pintar({ ...POCO, mobilia: 'mesa', mobiliaDesenho: 'linhas' }, [])
     expect(caixa.textContent).toContain('Preencher')
   })
 })

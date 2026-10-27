@@ -188,14 +188,14 @@ test('o mesmo mapa no jogador: com ?obra=meio-termo os móveis saem em imagem, d
   test.setTimeout(120_000)
   const desligada = await browser.newPage()
   const ligada = await browser.newPage()
-  const semObra = await fotoDoJogador(desligada, '')
+  const semObra = await fotoDoJogador(desligada, '?obra=linhas')
   const comObra = await fotoDoJogador(ligada, '?obra=meio-termo')
   const diferentes = await pixelsDiferentes(ligada, semObra, comObra)
   expect(diferentes).toBeGreaterThan(PIXELS_DIFERENTES_MINIMOS)
   // Controle: a obra desligada aberta de novo quase não muda (medido: 16 pixels de ruído entre aberturas),
   // então a diferença acima é dos móveis, não da abertura. Teto: 1% dela.
   const outraVez = await browser.newPage()
-  const semObraDeNovo = await fotoDoJogador(outraVez, '')
+  const semObraDeNovo = await fotoDoJogador(outraVez, '?obra=linhas')
   expect(await pixelsDiferentes(ligada, semObra, semObraDeNovo)).toBeLessThan(diferentes / 100)
   await Promise.all([desligada.close(), ligada.close(), outraVez.close()])
 })
@@ -277,7 +277,7 @@ test('MT3 no jogador: cerca reta e curva, armário, aparador, fogueira e os dois
   const mapa = mapaDosMoveisDaMt3()
   const desligada = await browser.newPage()
   const ligada = await browser.newPage()
-  const semObra = await fotoDoJogador(desligada, '', mapa)
+  const semObra = await fotoDoJogador(desligada, '?obra=linhas', mapa)
   const comObra = await fotoDoJogador(ligada, '?obra=meio-termo', mapa)
   const diferentes = await pixelsDiferentes(ligada, semObra, comObra)
   // Só o tapete retangular (3 x 2 casas) a 1:1 cobre mais de 20 mil pixels.
@@ -289,7 +289,7 @@ test('MT3 no jogador: cerca reta e curva, armário, aparador, fogueira e os dois
   for (const m of porMovel) expect(m.diferentes / m.area, m.nome).toBeGreaterThanOrEqual(FRACAO_MINIMA_POR_MOVEL)
   // Controle: sem a obra, aberto de novo, o mesmo mapa sai igual (o desenho chapado de sempre), a menos do ruído de abertura.
   const outraVez = await browser.newPage()
-  const semObraDeNovo = await fotoDoJogador(outraVez, '', mapa)
+  const semObraDeNovo = await fotoDoJogador(outraVez, '?obra=linhas', mapa)
   expect(await pixelsDiferentes(ligada, semObra, semObraDeNovo)).toBeLessThan(diferentes / 100)
   for (const m of await diferencasPorMovel(ligada, semObra, semObraDeNovo, mapa)) expect(m.diferentes / m.area, `${m.nome} (controle)`).toBeLessThan(FRACAO_MINIMA_POR_MOVEL / 10)
   await Promise.all([desligada.close(), ligada.close(), outraVez.close()])

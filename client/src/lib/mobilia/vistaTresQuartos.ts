@@ -1,6 +1,7 @@
 import type { MapData, Prop } from '../../types/map'
 import { meioTermoLigado } from '../estiloDoMapa'
 import { ehMovelDoChao } from '../mobilia'
+import { desenhaEmLinhas } from './desenhoDoMovel'
 import { rotationTrig } from '../roomRotation'
 
 /**
@@ -30,9 +31,12 @@ const PX_DE_MUNDO_POR_CASA = 50
 /** Deslocamento da chama da fogueira na 3/4, em px de mundo (negativo = para cima na tela, em qualquer giro). */
 export const DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS = -(ALTURA_DA_LENHA_EM_TRES_QUARTOS * PX_DE_MUNDO_POR_CASA) / PX_DO_PROTOTIPO_POR_CASA
 
-/** O deslocamento da chama desta fogueira (px de mundo, em y da tela): 0 fora da 3/4 e na fogueira de lado (já em pé). */
-export function deslocamentoDaChama(prop: Pick<Prop, 'mobiliaVista'>, vista: MapData['vistaDosMoveis'] | undefined): number {
-  if (!tresQuartosAtivo(vista)) return 0
+/**
+ * O deslocamento da chama desta fogueira (px de mundo, em y da tela): 0 fora da 3/4, na fogueira de lado
+ * (já em pé) e na fogueira EM LINHAS (MT12: o desenho de antes não sobe a lenha).
+ */
+export function deslocamentoDaChama(prop: Pick<Prop, 'mobilia' | 'mobiliaVista' | 'mobiliaDesenho'>, vista: MapData['vistaDosMoveis'] | undefined): number {
+  if (!tresQuartosAtivo(vista) || desenhaEmLinhas(prop)) return 0
   return prop.mobiliaVista === 'lado' ? 0 : DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS
 }
 

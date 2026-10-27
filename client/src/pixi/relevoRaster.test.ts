@@ -461,6 +461,9 @@ describe('rasterizarRelevo — divisas pintadas (fatia 1b)', () => {
 })
 
 describe('rasterizarRelevo — penhasco (fatia 3)', () => {
+  // O penhasco de antes (v0.4.24) é o desenho de linhas (`?obra=linhas`): desde a MT12 o padrão é o barranco liso (MT8).
+  beforeEach(() => trocarObraNoTeste(false))
+  afterEach(() => trocarObraNoTeste())
   // Terra de 0 a 1000. A costa de baixo (y = 1000) é a da parede à vista.
   // Opaco = parede: a sombra no mar nunca passa de 0,55 de alfa.
   const continente = regiao('continente', retangulo(0, 0, 1000, 1000))

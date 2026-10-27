@@ -63,8 +63,16 @@ describe('FichaDoObjeto: resumo da Aparência', () => {
     expect(resumoDaAparencia(lampiao)).toBe('Latão')
   })
 
-  it('os 11 móveis de antes seguem como eram: Padrão, Cor própria e Sem fundo', () => {
+  it('os 11 móveis de antes com textura (Meio-Termo, MT12): o material; a cor livre de antes vira o mais perto', () => {
     const mesa = criarMovel('mesa', CENTRO, 64, 'm1')
+    expect(resumoDaAparencia(mesa)).toBe('Carvalho')
+    expect(resumoDaAparencia({ ...mesa, mobiliaCor: MATERIAIS.nogueira.hex })).toBe('Nogueira')
+    const cerca = criarMovel('cerca', CENTRO, 64, 'c1')
+    expect(resumoDaAparencia(cerca)).toBe('Carvalho, Varas')
+  })
+
+  it('os 11 móveis de antes EM LINHAS seguem como eram: Padrão, Cor própria e Sem fundo', () => {
+    const mesa: Prop = { ...criarMovel('mesa', CENTRO, 64, 'm1'), mobiliaDesenho: 'linhas' }
     expect(resumoDaAparencia(mesa)).toBe('Padrão')
     expect(resumoDaAparencia({ ...mesa, mobiliaCor: '#8b4513' })).toBe('Cor própria')
     expect(resumoDaAparencia({ ...mesa, mobiliaPreenchido: false, mobiliaCor: '#8b4513' })).toBe('Sem fundo')

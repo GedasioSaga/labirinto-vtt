@@ -47,6 +47,7 @@ function rgbDe(cor: number): [number, number, number] {
 
 describe('drawWalls: grade de prisão', () => {
   it('chave DESLIGADA: a janela com grade sai igual à janela sem grade', () => {
+    trocarObraNoTeste(false)
     for (const escala of [0.25, 1, 3]) {
       expect(resumo(desenhar([janela({ grade: true })], escala))).toBe(resumo(desenhar([janela()], escala)))
     }

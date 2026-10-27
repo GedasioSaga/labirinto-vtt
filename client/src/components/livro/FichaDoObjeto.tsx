@@ -1,14 +1,14 @@
 import type { Prop } from '../../types/map'
 import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { nomeDaCamada } from '../../lib/camadas/mover'
-import { ehPecaNova } from '../../lib/mobilia/pecasNovas'
+import { meioTermoLigado } from '../../lib/estiloDoMapa'
+import { saiComTextura } from '../../lib/mobilia/desenhoDoMovel'
 import { useMapStore } from '../../stores/mapStore'
-import { MATERIAIS } from '../../texturas/meioTermo/materiais'
 import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
 import { ItemNoChaoControls, type ItemNoChaoControlsProps } from '../ItemNoMapaControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from '../ItemTransformControls'
-import { materiaisDaPeca } from '../MaterialDaPeca'
+import { materiaisDaPeca, nomeDaOpcao } from '../MaterialDaPeca'
 import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
@@ -45,8 +45,9 @@ function FichaDoObjetoLembrada(props: Omit<FichaLembradaProps, 'prefixo'>) {
 }
 
 function resumoDaAparencia(prop: Prop): string {
-  // A peça nova tem material, não cor livre nem "Preencher" (sai sempre com textura): o nome do material de cada lugar.
-  if (ehPecaNova(prop.mobilia)) return materiaisDaPeca(prop, prop.mobilia).map(({ material }) => MATERIAIS[material].nome).join(', ')
+  // O móvel com textura (a peça nova sempre; os de antes com o Meio-Termo, fora da versão em linhas) tem material,
+  // não cor livre nem "Preencher": o nome do material de cada lugar.
+  if (prop.mobilia !== undefined && saiComTextura(prop, meioTermoLigado())) return materiaisDaPeca(prop, prop.mobilia).map(({ material }) => nomeDaOpcao(material)).join(', ')
   if (prop.mobiliaPreenchido === false) return 'Sem fundo'
   const corPropria = [prop.mobiliaCor, prop.mobiliaCorDaLinha, prop.mobiliaCorDoTravesseiro, prop.mobiliaCorDoCobertor].some((cor) => cor !== undefined)
   return corPropria ? 'Cor própria' : 'Padrão'

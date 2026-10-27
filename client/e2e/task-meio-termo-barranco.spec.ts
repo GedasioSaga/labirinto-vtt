@@ -30,6 +30,8 @@ test.use({ trace: 'off', video: 'off', viewport: { width: 1440, height: 900 }, c
 const PROVAS = '../docs/design/objetos/provas'
 const GERAR_PROVAS = process.env.GERAR_PROVAS_MT8 === '1'
 const OBRA = '?obra=meio-termo'
+/** O desenho de antes, pedido pela URL: desde a MT12 a obra é o padrão e "sem ela" é `?obra=linhas`. */
+const SEM_OBRA = '?obra=linhas'
 
 /** O mapa da medida: 60 x 40 casas de 50 px (3000 x 2000 de mundo), a ilha de 200 a 2800 por 200 a 1200. */
 const GRADE = 50
@@ -191,7 +193,7 @@ const texto = (m: MedidaDoTrecho) =>
 test('pixels no Chromium: com ?obra o barranco é liso, de contorno legível e nunca preto; sem ela, o antigo reprova', async ({ browser }) => {
   test.setTimeout(120_000)
   const [ligada, desligada] = await Promise.all([browser.newPage(), browser.newPage()])
-  await Promise.all([ligada.goto(`/player.html${OBRA}`), desligada.goto('/player.html')])
+  await Promise.all([ligada.goto(`/player.html${OBRA}`), desligada.goto(`/player.html${SEM_OBRA}`)])
   const novo = await medirTextura(ligada)
   const antigo = await medirTextura(desligada)
   console.log(`[medida] Chromium, textura ${novo.largura}x${novo.altura}. Liso: ${novo.trechos.map(texto).join('; ')}`)
@@ -257,7 +259,7 @@ test('tempo: a textura com o barranco liso custa o mesmo que a antiga, sem taref
   test.setTimeout(180_000)
   const medidas: { nome: string; t: TempoDaTextura }[] = []
   // Intercaladas: a carga da máquina pesa igual nas duas.
-  for (const [nome, busca] of [['antigo', ''], ['liso', OBRA], ['antigo', ''], ['liso', OBRA]] as const) {
+  for (const [nome, busca] of [['antigo', SEM_OBRA], ['liso', OBRA], ['antigo', SEM_OBRA], ['liso', OBRA]] as const) {
     const page = await browser.newPage()
     await page.goto(`/player.html${busca}`)
     medidas.push({ nome, t: await medirTempo(page) })
@@ -358,7 +360,7 @@ async function medirJogador(page: Page, busca: string): Promise<MedidaDoJogador>
 test('jogador no PC: o barranco liso chega pelo recorte e pela rede sem tarefa longa nova nem quadro pior', async ({ browser }) => {
   test.setTimeout(240_000)
   const medidas: { nome: string; m: MedidaDoJogador }[] = []
-  for (const [nome, busca] of [['antigo', ''], ['liso', OBRA], ['antigo', ''], ['liso', OBRA]] as const) {
+  for (const [nome, busca] of [['antigo', SEM_OBRA], ['liso', OBRA], ['antigo', SEM_OBRA], ['liso', OBRA]] as const) {
     const page = await browser.newPage()
     medidas.push({ nome, m: await medirJogador(page, busca) })
     if (GERAR_PROVAS && nome === 'liso' && medidas.length === 2) await page.screenshot({ path: `${PROVAS}/mt8-jogador-1440.png` })

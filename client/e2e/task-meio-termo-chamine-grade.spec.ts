@@ -24,6 +24,8 @@ import { abrirAventuraDeMentira } from './helpers/mestreDeMentira'
 
 const GRADE = 50
 const OBRA = '?obra=meio-termo'
+/** O desenho de antes, pedido pela URL: desde a MT12 a obra é o padrão e "sem ela" é `?obra=linhas`. */
+const SEM_OBRA = '?obra=linhas'
 const PASTA_DO_MESTRE = 'C:/appdata/maps/map_mt10'
 const PROVAS = '../docs/design/objetos/provas'
 const GERAR_PROVAS = process.env.GERAR_PROVAS_MT10 === '1'
@@ -243,7 +245,7 @@ test('editor com a obra: Chaminé e Grade de prisão gravam com Ctrl+Z e mudam a
 
 test('editor SEM a obra: nem Chaminé nem Grade de prisão aparecem', async ({ page }) => {
   test.setTimeout(120_000)
-  await abrirAventuraDeMentira(page, discoDoMestre(), 'Vila', 'MT10B')
+  await abrirAventuraDeMentira(page, discoDoMestre(), 'Vila', 'MT10B', `/${SEM_OBRA}`)
   await selecionar(page, 'region', 'casa')
   await expect(page.getByRole('radiogroup', { name: 'Modelo do telhado' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Chaminé' })).toHaveCount(0)

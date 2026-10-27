@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { Container, Texture } from 'pixi.js'
+import { trocarObraNoTeste } from '../lib/estiloDoMapa'
 import { comecarTelhado, pintarTelhado, type ImagemDoTelhado } from '../texturas/telhado'
 import { PALETA_DO_TETO, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { createTelhadosRenderer, escalaDaTexturaDoTelhado, type TexturaDoTelhado } from './telhadosRenderer'
@@ -62,17 +63,23 @@ function desenharUma(m: ReturnType<typeof montar>, modelo: ModeloDoTeto, cor: st
 }
 
 describe('palha em fatias', () => {
-  it('a palha sai em várias tarefas e a imagem é a mesma de pintar de uma vez', () => {
-    const m = montar()
-    const cor = PALETA_DO_TETO.palha[0].hex
-    desenharUma(m, 'palha', cor)
-    const tarefas = m.rodarTudo()
-    expect(m.subidas).toHaveLength(1)
-    expect(tarefas).toBeGreaterThanOrEqual(3)
-    expect(m.renderer.pintadas()).toBe(1)
-    const deUmaVez = pintarTelhado(SALA, 'palha', cor, escalaDaTexturaDoTelhado(SALA))
-    expect(digital(m.subidas[0].pixels)).toBe(digital(deUmaVez.pixels))
-  })
+  afterEach(() => trocarObraNoTeste())
+
+  // Com o Meio-Termo (o padrão desde a MT12) o renderer pinta a palha com a cumeeira amarrada; sem ele, sem.
+  for (const [obra, extras] of [[true, { cumeeiraAmarrada: true }], [false, {}]] as const) {
+    it(`a palha sai em várias tarefas e a imagem é a mesma de pintar de uma vez (Meio-Termo ${obra ? 'ligado' : 'desligado'})`, () => {
+      trocarObraNoTeste(obra)
+      const m = montar()
+      const cor = PALETA_DO_TETO.palha[0].hex
+      desenharUma(m, 'palha', cor)
+      const tarefas = m.rodarTudo()
+      expect(m.subidas).toHaveLength(1)
+      expect(tarefas).toBeGreaterThanOrEqual(3)
+      expect(m.renderer.pintadas()).toBe(1)
+      const deUmaVez = pintarTelhado(SALA, 'palha', cor, escalaDaTexturaDoTelhado(SALA), extras)
+      expect(digital(m.subidas[0].pixels)).toBe(digital(deUmaVez.pixels))
+    })
+  }
 
   it('telha e madeira continuam numa tarefa só', () => {
     for (const modelo of ['telhas', 'madeira'] as const) {

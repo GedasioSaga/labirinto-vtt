@@ -27,6 +27,8 @@ const COLUNAS = 30
 const LINHAS = 20
 const FICHA = 'ficha-ana'
 const OBRA = '?obra=meio-termo'
+/** O desenho de antes, pedido pela URL: desde a MT12 a obra é o padrão e "sem ela" é `?obra=linhas`. */
+const SEM_OBRA = '?obra=linhas'
 const RODADAS = 3
 const PIORA_MAXIMA = 1.1
 const TETO_DA_PRIMEIRA_PINTURA_MS = 400
@@ -111,7 +113,7 @@ interface Abertura {
 async function abrir(page: Page, comObra: boolean): Promise<Abertura> {
   await instrumentar(page)
   await page.routeWebSocket((url) => url.pathname === '/ws', host())
-  await page.goto(`/player.html${comObra ? OBRA : ''}`)
+  await page.goto(`/player.html${comObra ? OBRA : SEM_OBRA}`)
   await page.getByLabel('Código da sala').fill('CHAO77')
   await page.getByLabel('Seu nome').fill('Ana')
   await page.getByRole('button', { name: 'Entrar' }).click()

@@ -44,6 +44,7 @@ function interruptor(): HTMLInputElement | null {
 
 describe('interruptor "Vista 3/4" do mapa', () => {
   it('não aparece com a obra desligada', () => {
+    trocarObraNoTeste(false)
     render()
     expect(interruptor()).toBeNull()
   })

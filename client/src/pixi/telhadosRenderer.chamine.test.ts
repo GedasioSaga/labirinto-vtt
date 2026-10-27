@@ -66,6 +66,7 @@ const ESCALA = escalaDaTexturaDoTelhado(CASA)
 describe('telhadosRenderer: chaminé e cumeeira amarrada', () => {
   for (const modelo of ['telhas', 'madeira', 'palha'] as const) {
     it(`${modelo}, chave DESLIGADA: pinta como antes e ligar a chaminé não repinta`, () => {
+      trocarObraNoTeste(false)
       const t = montar()
       t.renderer.desenhar([t.telhado(modelo, true)], 'm')
       t.pintarTudo()

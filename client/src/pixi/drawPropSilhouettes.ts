@@ -20,7 +20,7 @@ import {
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
-import { ehPecaNova } from '../lib/mobilia/pecasNovas'
+import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -500,7 +500,9 @@ function drawTexturedFurniture(
  * (`drawTexturedFurniture`) e este `Graphics` se repinta sozinho, com os
  * mesmos argumentos, quando uma imagem que ele pediu fica pronta (quem chamou
  * não precisa saber); desligado, só a PEÇA NOVA (MT4, `ehPecaNova`) sai em
- * imagem, e sem peça nova na lista nenhum caminho novo roda.
+ * imagem, e sem peça nova na lista nenhum caminho novo roda. O móvel de antes
+ * com `mobiliaDesenho: 'linhas'` (MT12) sai no desenho de linhas mesmo com a
+ * chave ligada (`saiComTextura`).
  *
  * `vistaDosMoveis` é a vista da cena (`MapData.vistaDosMoveis`, Meio-Termo),
  * que o editor e o jogador passam igual. Com a chave de obra LIGADA e a cena
@@ -522,9 +524,10 @@ export function drawPropSilhouettes(
   const repintar = (): void => {
     if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis)
   }
-  // A chave de obra vale para os 11 móveis de antes; a PEÇA NOVA (MT4) sai sempre com textura.
+  // A chave de obra vale para os 11 móveis de antes, menos o que pediu a versão EM LINHAS (MT12);
+  // a PEÇA NOVA (MT4) sai sempre com textura (`saiComTextura`).
   const obraLigada = meioTermoLigado()
-  const comTextura = (prop: PropSilhouette): boolean => obraLigada || ehPecaNova(prop.mobilia)
+  const comTextura = (prop: PropSilhouette): boolean => saiComTextura(prop, obraLigada)
   const raster = obraLigada || props.some(comTextura) ? rasterParaPassada(graphics, repintar) : null
   const modulo = moduloDoRaster
   // A 3/4 só com a chave de obra: desligada, a vista do arquivo não muda nada na tela.
