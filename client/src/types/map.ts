@@ -1609,6 +1609,12 @@ export interface PostoDaRotina {
   sceneId: string
   x: number
   y: number
+  /**
+   * ROTINA POR PERÍODO: o posto só vale neste período da cena onde o NPC está
+   * (`periodoDaCena`); ausente = em todos (o posto de antes do campo). Só do
+   * mestre: a rotina inteira fica fora do recorte do jogador.
+   */
+  periodo?: Periodo
 }
 
 /** O acordo do ajudante contratado (`Token.contrato`). */

@@ -19,7 +19,11 @@ const tobias: Token = {
   npc: true,
   rotina: {
     estadoId: 'estado_apito_secreto',
-    postos: [{ valor: 'MeioSecreto', sceneId: 'cena_confessionario_77', x: 300, y: 250 }],
+    postos: [
+      { valor: 'MeioSecreto', sceneId: 'cena_confessionario_77', x: 300, y: 250 },
+      // Posto por período (Caminhos F3): o período em que ele vai lá também é do mestre.
+      { valor: 'BrasaSecreta', sceneId: 'cena_confessionario_77', x: 400, y: 250, periodo: 'noite' },
+    ],
   },
 }
 const gabi: Token = { id: 'gabi', characterId: null, name: 'Gabi', x: 100, y: 100, size: 1, image: null }
@@ -29,6 +33,8 @@ function semRotina(texto: string) {
   expect(texto).not.toContain('estado_apito_secreto')
   expect(texto).not.toContain('MeioSecreto')
   expect(texto).not.toContain('cena_confessionario_77')
+  expect(texto).not.toContain('BrasaSecreta')
+  expect(texto).not.toContain('"periodo"')
 }
 
 describe('filterMapForPlayer: a rotina do NPC nunca sai', () => {
