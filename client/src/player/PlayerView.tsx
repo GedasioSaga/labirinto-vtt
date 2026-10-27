@@ -5,6 +5,7 @@ import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } fr
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
+import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, noDoItem, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
 import { FAIXAS_DOS_MOVEIS, criarParesDoJogador, criarPilhaDoJogador, entradaDoJogador, nosEmPar } from './pilhaDoJogador'
@@ -3095,6 +3096,7 @@ function PlayerViewDoCanvas({
         return
       }
       initialized = true
+      registrarNaSonda('appJogador', app)
       el.appendChild(app.canvas)
       // Contexto perdido: quem está em volta (`PlayerView`) troca este Pixi por
       // um novo. `onContextoPerdido` é estável (useCallback) e cada geração

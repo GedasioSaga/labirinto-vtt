@@ -6,8 +6,15 @@ import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
 import { carregarPacoteDaPagina } from './lib/pacoteDeAnimacoes'
+import { registrarNaSonda } from './lib/sondaDeDesempenho'
+import { useAdventureStore } from './stores/adventureStore'
+import { useMapStore } from './stores/mapStore'
 import { themeCss } from './theme'
 import './main.css'
+
+// Harness de desempenho (`client/desempenho/`): só no dev e no build `VITE_LAB_SONDA=1`.
+registrarNaSonda('mapStore', useMapStore)
+registrarNaSonda('adventureStore', useAdventureStore)
 
 // Animações do pacote JÁ INSTALADO (baixado numa abertura anterior), antes do
 // primeiro render: a galeria e o mapa já nascem com elas. Só no app — fora
