@@ -3448,6 +3448,17 @@ function App() {
                 setConfiguringSceneId(activeSceneId ?? '')
               },
             }}
+            // AMBIENTE DA CENA (Luz L4c): cada mudança entra no Ctrl+Z; a força anda ao vivo e vira um passo no fim do arrasto.
+            ambiente={{
+              periodoDaSessao: periodoAtual,
+              cena: map,
+              onPeriodoFixoChange: (periodo) => useMapStore.getState().setPeriodoFixo(periodo),
+              onCorChange: (periodo, cor) => useMapStore.getState().setAmbienteDaCena(periodo, { cor }, `ambiente:${periodo}:cor`),
+              onForcaChange: (periodo, forca) => liveSliderChange(`ambiente-forca-${periodo}`, () => useMapStore.getState().setAmbienteDaCenaLive(periodo, { forca })),
+              onVisaoChange: (periodo, casas) => useMapStore.getState().setVisaoDoPeriodo(periodo, casas),
+              onAtalho: (id) => useMapStore.getState().aplicarAtalhoDaNoite(id),
+              onPadrao: (periodo) => useMapStore.getState().voltarAoPadraoDoPeriodo(periodo),
+            }}
             activeTool={activeTool}
             groups={propertyGroups}
             lineCap={

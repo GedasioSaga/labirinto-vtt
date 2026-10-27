@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -45,7 +45,17 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
-import { comAcesaEm, comCenaExterna } from '../lib/periodo'
+import {
+  comAcesaEm,
+  comAmbienteDoPeriodo,
+  comAtalhoDaNoite,
+  comCenaExterna,
+  comPeriodoFixo,
+  comVisaoDoPeriodo,
+  semAjusteDoPeriodo,
+  type IdDoAtalhoDaNoite,
+  type PeriodoConfiguravel,
+} from '../lib/periodo'
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
@@ -1280,6 +1290,19 @@ interface MapStoreState {
   setArrivalText: (text: string) => void
   /** DIA/TARDE/NOITE: a cena aberta é externa e segue o período da sessão (`comCenaExterna`, `lib/periodo.ts`). Com desfazer. */
   setOutdoor: (outdoor: boolean) => void
+  /**
+   * AMBIENTE DA CENA (Luz L4c, painel da página Cena; funções puras em
+   * `lib/periodo.ts`). Cada uma é UM passo de desfazer, e nada muda = nenhum
+   * passo. `setAmbienteDaCena` com `typingKey` emenda os quadros do seletor
+   * de cor nativo; `setAmbienteDaCenaLive` é o arrasto da força, SEM passo,
+   * fechado pelo `commitDragHistory` do App (`liveSliderChange`).
+   */
+  setPeriodoFixo: (periodo: Periodo | undefined) => void
+  setAmbienteDaCena: (periodo: PeriodoConfiguravel, patch: AmbienteDoPeriodo, typingKey?: string) => void
+  setAmbienteDaCenaLive: (periodo: PeriodoConfiguravel, patch: AmbienteDoPeriodo) => void
+  setVisaoDoPeriodo: (periodo: PeriodoConfiguravel, casas: number | undefined) => void
+  aplicarAtalhoDaNoite: (id: IdDoAtalhoDaNoite) => void
+  voltarAoPadraoDoPeriodo: (periodo: PeriodoConfiguravel) => void
   /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
   setSceneFloor: (andar: SceneFloor | undefined) => void
   /** "Visão nesta cena" em quadrados; `undefined` = sem valor. Com histórico. */
@@ -1809,6 +1832,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       past: pushPast(state.past, prevMap),
       future: [],
     }))
+  }
+
+  /** O passo só entra no desfazer quando o mapa mudou de verdade (Ambiente da cena, Luz L4c). */
+  const passoSeMudou = (updater: (map: MapData) => MapData, typingKey?: string) => {
+    if (updater(get().map) === get().map) return
+    withHistory(updater, typingKey)
   }
 
   /** Resultado de "Abrir vão aqui"/"Desabar parede" (`lib/abrirVao`). Parede
@@ -2986,6 +3015,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => setArrivalTextOnMap(map, text))
     },
     setOutdoor: (outdoor) => withHistory((map) => comCenaExterna(map, outdoor)),
+    setPeriodoFixo: (periodo) => passoSeMudou((map) => comPeriodoFixo(map, periodo)),
+    setAmbienteDaCena: (periodo, patch, typingKey) => passoSeMudou((map) => comAmbienteDoPeriodo(map, periodo, patch), typingKey),
+    setAmbienteDaCenaLive: (periodo, patch) => {
+      const map = get().map
+      const next = comAmbienteDoPeriodo(map, periodo, patch)
+      if (next !== map) set({ map: next })
+    },
+    setVisaoDoPeriodo: (periodo, casas) => passoSeMudou((map) => comVisaoDoPeriodo(map, periodo, casas), `ambiente:${periodo}:visao`),
+    aplicarAtalhoDaNoite: (id) => passoSeMudou((map) => comAtalhoDaNoite(map, id)),
+    voltarAoPadraoDoPeriodo: (periodo) => passoSeMudou((map) => semAjusteDoPeriodo(map, periodo)),
     setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
     setSceneVisionCells: (cells) => withHistory((map) => mapFactory.setSceneVisionCells(map, cells)),
     setSceneDark: (dark) => {

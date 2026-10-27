@@ -1987,6 +1987,25 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   gap: var(--lb-space-2);
 }
 
+/* AMBIENTE DA CENA (Luz L4c): os campos de sempre, em três grupos (período
+   fixo; tarde ou noite; o que só o editor vê) separados pelo fio do painel. */
+.lb-ambiente,
+.lb-ambiente__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-ambiente__grupo {
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* "Voltar ao padrão" não é a ação da ficha: fica do tamanho do texto, à esquerda. */
+.lb-ambiente__grupo > .lb-btn {
+  align-self: flex-start;
+}
+
 .lb-territorio__legenda {
   display: flex;
   flex-direction: column;
