@@ -51,6 +51,7 @@ const CASOS = [
   { id: 'real-mt-1440-dpr15', mapa: 'real', obra: 'meio-termo', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'real-linhas-1440-dpr15', mapa: 'real', obra: 'linhas', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'sint200-mt-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: QHD_150, perfil: false, fases: 'mesa' },
+  { id: 'sint200-linhas-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'linhas', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'sint200-mt-1080', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint100-mt-1080', mapa: 'sintetico', lado: 100, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint50-mt-1080', mapa: 'sintetico', lado: 50, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
@@ -153,8 +154,10 @@ function main() {
  * Confere o resultado com os limites (`docs/desempenho/limites.json`). Cada regra:
  * `{ casos: [ids], cenarios: [nomes], papeis: [papeis], fps_min, p95_max_ms }` sobre os
  * cenários, ou `{ casos, gpu: [chaves do registro], mb_max, lado_max_px }` sobre a memória
- * de textura. Caso pedido que não rodou, cenário que faltou ou campo ausente REPROVA:
- * limite que não mede nada não protege nada.
+ * de textura, ou `{ casos, filtro: [chaves do registro], passadas_max }` sobre as passadas
+ * de filtro por quadro (`passadasDeFiltro` do spec). Nos cenários também `longas_max_ms`
+ * (maior tarefa longa). Caso pedido que não rodou, cenário que faltou ou campo ausente
+ * REPROVA: limite que não mede nada não protege nada.
  */
 function conferirLimites(limites, linhas) {
   const reprovas = []
@@ -164,6 +167,14 @@ function conferirLimites(limites, linhas) {
       const r = porCaso.get(id)
       if (r === undefined) {
         reprovas.push(`${id}: o caso não rodou (mapa real ausente?) [${regra.nome}]`)
+        continue
+      }
+      if (regra.filtro) {
+        for (const chave of regra.filtro) {
+          const f = r[chave]
+          if (!f) reprovas.push(`${id} ${chave}: sem medida [${regra.nome}]`)
+          else if (f.passadas_por_quadro > regra.passadas_max) reprovas.push(`${id} ${chave}: ${f.passadas_por_quadro} passadas de filtro por quadro > ${regra.passadas_max} [${regra.nome}]`)
+        }
         continue
       }
       if (regra.gpu) {
@@ -188,6 +199,7 @@ function conferirLimites(limites, linhas) {
           }
           if (regra.fps_min !== undefined && c.fps < regra.fps_min) reprovas.push(`${id} ${papel} ${nome}: ${c.fps} fps < ${regra.fps_min} [${regra.nome}]`)
           if (regra.p95_max_ms !== undefined && c.quadro_p95_ms > regra.p95_max_ms) reprovas.push(`${id} ${papel} ${nome}: p95 ${c.quadro_p95_ms} ms > ${regra.p95_max_ms} [${regra.nome}]`)
+          if (regra.longas_max_ms !== undefined && c.longas_max_ms >= regra.longas_max_ms) reprovas.push(`${id} ${papel} ${nome}: tarefa longa de ${c.longas_max_ms} ms >= ${regra.longas_max_ms} [${regra.nome}]`)
         }
       }
     }
