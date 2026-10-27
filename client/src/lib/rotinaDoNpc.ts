@@ -1,4 +1,5 @@
 import type { MapData, PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import { lerPeriodo } from './periodo'
 
 /**
  * ROTINA DO NPC — cada ficha tem um posto por turno, até em outra cena, e ao
@@ -81,10 +82,16 @@ export function moverNaCena(map: MapData, movimentos: readonly MovimentoDaRotina
   return mudou ? { ...map, tokens } : map
 }
 
-/** A rotina com `posto` no lugar do posto do mesmo valor (valor novo vai para o fim). */
+/**
+ * A rotina com `posto` no lugar do posto do mesmo valor (valor novo vai para o
+ * fim). `posto` sem `periodo` mantém o período do que ele troca: "Gravar aqui"
+ * de novo muda o lugar, não o período.
+ */
 export function gravarPosto(rotina: RotinaDoNpc, posto: PostoDaRotina): RotinaDoNpc {
-  if (!rotina.postos.some((p) => p.valor === posto.valor)) return { ...rotina, postos: [...rotina.postos, posto] }
-  return { ...rotina, postos: rotina.postos.map((p) => (p.valor === posto.valor ? posto : p)) }
+  const trocado = rotina.postos.find((p) => p.valor === posto.valor)
+  if (trocado === undefined) return { ...rotina, postos: [...rotina.postos, posto] }
+  const novo = posto.periodo === undefined && trocado.periodo !== undefined ? { ...posto, periodo: trocado.periodo } : posto
+  return { ...rotina, postos: rotina.postos.map((p) => (p.valor === posto.valor ? novo : p)) }
 }
 
 /** A rotina sem o posto de `valor`: naquele turno a ficha passa a ficar onde está. */
@@ -114,10 +121,12 @@ function numeroFinito(value: unknown): value is number {
 
 function postoDoArquivo(raw: unknown): PostoDaRotina | null {
   if (!isRecord(raw)) return null
-  const { valor, sceneId, x, y } = raw
+  const { valor, sceneId, x, y, periodo } = raw
   if (typeof valor !== 'string' || typeof sceneId !== 'string' || sceneId.length === 0) return null
   if (!numeroFinito(x) || !numeroFinito(y)) return null
-  return { valor, sceneId, x, y }
+  // Período torto sai e o posto fica, valendo em todos (o posto de antes do campo); 'manha' do relógio antigo é 'dia'.
+  const lido = lerPeriodo(periodo)
+  return { valor, sceneId, x, y, ...(lido === undefined ? {} : { periodo: lido }) }
 }
 
 /**

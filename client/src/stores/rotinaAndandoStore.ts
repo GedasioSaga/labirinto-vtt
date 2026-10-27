@@ -6,7 +6,7 @@ import { comPortasDoNpc, type MotorDosNpcs, motorComRelogio, type PortaDoNpc, QU
 import { adiarEsperas, chaveDaRotina, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
 import type { CenaDaRotina } from '../lib/rotinaDoNpc'
 import type { MapData } from '../types/map'
-import { subscribeToOpenings, useAdventureStore } from './adventureStore'
+import { periodoDaSessao, subscribeToOpenings, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
 
@@ -124,8 +124,10 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
     setFixas: (fixas) => set({ fixas }),
     darPasso: () => {
       const { andando, fixas } = get()
-      const cenas = useAdventureStore.getState().cenasDaRotina()
-      const tique = darPassoDaRotina(cenas, andando, estadosDaAventura(), Date.now(), fixas, motorDosNpcs)
+      const aventura = useAdventureStore.getState()
+      const cenas = aventura.cenasDaRotina()
+      // ROTINA POR PERÍODO: o período da sessão a cada tique; a troca chega no tique seguinte, sem assinatura.
+      const tique = darPassoDaRotina(cenas, andando, estadosDaAventura(), Date.now(), fixas, motorDosNpcs, periodoDaSessao(aventura))
       useAdventureStore.getState().moverFichasDaRotina(tique.movimentos)
       aplicarPortas(tique.portas)
       trocar(tique.andando)
