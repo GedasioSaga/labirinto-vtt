@@ -46,8 +46,7 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
-import { turnTokenIdOn } from './lib/initiative'
+import { useInitiativeStore } from './stores/initiativeStore'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -90,7 +89,6 @@ import {
 import { createTauriChatStore, type ChatStore } from './lib/chatStore'
 import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
-import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
 import { AvisoDaRotina } from './components/AvisoDaRotina'
@@ -350,8 +348,6 @@ const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
-/** Cena sem nenhum valor de iniciativa: referência estável, sem render novo à toa. */
-const NO_INITIATIVE_VALUES: Readonly<Record<string, number>> = {}
 /** Sala sem conversa: o chat do mestre antes da primeira linha e depois de fechar a sala. */
 const NO_MASTER_CHAT: MasterChatState = { global: [], scenes: [] }
 /** Sala sem ninguém: o chat do mestre sem foto nenhuma, o mesmo mapa vazio a cada render. */
@@ -795,9 +791,6 @@ function App() {
     gridSettings: map.gridSettings,
     onGridSettingsChange: setGridSettings,
   }
-  // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
-  const initiativeValues = useInitiativeStore((state) => state.values)
-  const initiativeTurn = useInitiativeStore((state) => state.turn)
   // DIA/TARDE/NOITE: o período da sessão (o da aventura; no mapa solto, o da sessão).
   const periodoAtual = useAdventureStore(periodoDaSessao)
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -1236,35 +1229,8 @@ function App() {
             },
           },
         },
-        initiative: {
-          tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
-          values: initiativeValues[map.id] ?? NO_INITIATIVE_VALUES,
-          turnTokenId: turnTokenIdOn(initiativeTurn, map),
-          onValueChange: (tokenId, value) => useInitiativeStore.getState().setValue(map.id, tokenId, value),
-          onStart: () => startTurn(map.id, map.tokens),
-          onNext: () => advanceTurn(map.id, map.tokens),
-          onStop: () => useInitiativeStore.getState().stop(),
-        },
         // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
         travelLog: adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel },
-        // CONFRONTO da cena aberta. Grava como mudança de MESA
-        // (`applyPlayerChange`): fora do Ctrl+Z do editor, e o host manda
-        // a faixa nova no broadcast que toda mudança do mapa dispara.
-        confronto: {
-          fichas: map.tokens.map((t) => ({ id: t.id, nome: t.name })),
-          confronto: map.confronto,
-          onIniciar: (fila, passo) => {
-            const novo = iniciarConfronto(fila, passo)
-            if (novo !== null) useMapStore.getState().applyPlayerChange((m) => comConfronto(m, novo))
-          },
-          onProximaVez: () => {
-            const atual = useMapStore.getState().map
-            if (atual.confronto === undefined) return
-            const proximo = proximaVez(atual.confronto, new Set(atual.tokens.map((t) => t.id)))
-            useMapStore.getState().applyPlayerChange((m) => comConfronto(m, proximo))
-          },
-          onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
-        },
         periodo: {
           periodo: periodoAtual,
           externa: map.externa === true,

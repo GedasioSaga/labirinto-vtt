@@ -116,13 +116,10 @@ describe('RoomPanel: painel Pistas na aba Jogo', () => {
     expect(calls).toEqual(['stop', 'go'])
   })
 
-  it('com as flags padrão a aba Jogo não mostra Pistas, Iniciativa nem Confronto (o relógio de campanha saiu na Luz L1)', () => {
-    // As seções recebem props de verdade: o que as tira é só a flag.
-    const presente = {} as never
+  it('com as flags padrão a aba Jogo não mostra Pistas; Iniciativa e Confronto saíram de vez (modo batalha, B3) e o relógio de campanha na Luz L1', () => {
+    // As Pistas recebem props de verdade: o que as tira é só a flag.
     act(() =>
-      root.render(
-        <RoomPanel room={ROOM} players={JOGADORES} tokens={[]} tunnel={IDLE} {...handlers} clues={hostCluesProps(ligacao())} initiative={presente} confronto={presente} />,
-      ),
+      root.render(<RoomPanel room={ROOM} players={JOGADORES} tokens={[]} tunnel={IDLE} {...handlers} clues={hostCluesProps(ligacao())} />),
     )
     expect(container.querySelector('.lb-clues')).toBeNull()
     const texto = container.textContent ?? ''

@@ -114,8 +114,7 @@ export const BAR_WIDTH_VAR = '--pp-bar-w'
 /**
  * Variável CSS (na raiz da página) com o que a COLUNA aberta tira da esquerda
  * do mapa: a largura dela mais o vão do tema. Fechada, ou gaveta, vale 0. A
- * coluna das ações do lugar e a faixa "Sua vez" começam depois dela, e não por
- * baixo dela.
+ * coluna das ações do lugar começa depois dela, e não por baixo dela.
  */
 export const PANEL_SPACE_VAR = '--pp-painel-ocupa'
 /** O vão entre a coluna aberta e o que mora à direita dela (`--lb-control-gap` do tema). */

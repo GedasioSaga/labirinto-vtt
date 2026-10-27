@@ -297,7 +297,9 @@ describe('PixiCanvas — ficha levanta ao ser arrastada (M20)', () => {
 })
 
 describe('PixiCanvas — anel da vez entra com pulso (M21)', () => {
-  it('a vez passa pelo painel: o anel fecha sobre a ficha; pelo Shift+N: aparece parado', async () => {
+  // O Shift+N que passava a vez saiu com a Iniciativa (modo batalha, B3); o
+  // anel continua até a B4 tirar o `turn` do host.
+  it('a vez passa: o anel fecha sobre a ficha; o Shift+N não passa mais a vez', async () => {
     useInitiativeStore.setState({ values: { [MAPA_ID]: { lanterna: 20, machado: 10 } } })
     await monta()
     congelaRelogio()
@@ -311,10 +313,8 @@ describe('PixiCanvas — anel da vez entra com pulso (M21)', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'N', shiftKey: true, bubbles: true }))
     })
-    expect(useInitiativeStore.getState().turn).toEqual({ mapId: MAPA_ID, tokenId: 'machado' })
-    expect(anelDaVez('Lanterna')).toBeUndefined()
-    expect(anelDaVez('Machado')?.alpha).toBe(1)
-    expect(anelDaVez('Machado')?.scale.x).toBe(1)
+    expect(useInitiativeStore.getState().turn).toEqual({ mapId: MAPA_ID, tokenId: 'lanterna' })
+    expect(anelDaVez('Machado')).toBeUndefined()
   })
 })
 

@@ -20,7 +20,7 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
-import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { useInitiativeStore } from '../stores/initiativeStore'
 import { alternarPausaDosNpcs } from '../stores/npcsAndando'
 import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
 import { turnTokenIdOn } from '../lib/initiative'
@@ -8584,19 +8584,11 @@ export function PixiCanvas({
           case 'showShortcuts':
             onShowShortcutsRef.current?.()
             break
-          // Shift+N — a mesma "Próxima vez" do painel Iniciativa (aba Jogo),
-          // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
           // Shift+P — o mesmo "Pausar NPCs" da barra de cima: congela (ou
           // retoma) toda rotina e patrulha andando. Sem ninguém andando, nada.
           case 'pauseNpcs':
             alternarPausaDosNpcs()
             break
-          case 'nextTurn': {
-            const { map: mapaDaVez } = useMapStore.getState()
-            // Atalho de teclado não anima: o anel aparece parado na ficha seguinte.
-            tokensRenderer.semPulsoDaVez(() => advanceTurn(mapaDaVez.id, mapaDaVez.tokens))
-            break
-          }
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break

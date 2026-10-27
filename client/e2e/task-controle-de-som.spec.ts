@@ -5,8 +5,8 @@
 //   - Jogador: `player.html`, com o host feito pelo próprio teste no WebSocket
 //     roteado (como task-sons-do-jogador.spec.ts). A pilha do canto de baixo à
 //     direita é medida pelas caixas reais em 1280, 390 e 320 px de largura e
-//     no celular deitado (844 x 390, e 844 x 340 com a barra do navegador),
-//     com um confronto aberto: o alto-falante e o popover não podem sair da
+//     no celular deitado (844 x 390, e 844 x 340 com a barra do navegador):
+//     o alto-falante e o popover não podem sair da
 //     tela nem cobrir o zoom, a mão do "Chamar o mestre" (inclusive com a
 //     linha "Esperando o mestre"), as rolagens, a coluna do canto de cima nem
 //     a gaveta do painel. O áudio é o Web Audio de verdade, só registrado.
@@ -57,16 +57,10 @@ const VISAO_TODA: RegionPoint[][] = [
 
 function mapaDoJogador(): MapData {
   const comAna = addToken(createEmptyMap('m1', 'Salão', 20, 20, 50), { id: 'ficha-ana', characterId: null, name: 'Ana', x: 125, y: 125, size: 1, image: null })
-  // Os outros da fila do confronto: a faixa só mostra quem chegou no recorte.
+  // Mais duas fichas no recorte: o mapa do jogador com gente em volta.
   const comRato = addToken(comAna, { id: 'rato-1', characterId: null, name: 'Rato 1', x: 225, y: 125, size: 1, image: null })
   return addToken(comRato, { id: 'bia', characterId: null, name: 'Bia', x: 325, y: 125, size: 1, image: null })
 }
-
-/**
- * A vez num confronto, a faixa da coluna do canto de cima à direita: com ela
- * aberta, a coluna desce até a faixa do alto-falante no celular deitado.
- */
-const CONFRONTO = { fila: ['ficha-ana', 'rato-1', 'bia'], vez: 'ficha-ana', suaVez: true, passo: 6, restam: 6 }
 
 /** Roda NA PÁGINA, antes de qualquer script dela: registra o áudio que começa a tocar. */
 function instrumentarWebAudio(): void {
@@ -108,7 +102,7 @@ async function estadosDosContextos(page: Page): Promise<string[]> {
   })
 }
 
-/** Campos a mais do recorte que o host manda (o confronto da cena, por exemplo). */
+/** Campos a mais do recorte que o host manda. */
 type ExtrasDoRecorte = Record<string, unknown>
 
 /** O host de mentira: a cada `join` (a entrada e a volta depois de recarregar) responde com a sessão e o recorte. */
@@ -207,18 +201,17 @@ const TELAS: ReadonlyArray<{ width: number; height: number }> = [
 for (const tela of TELAS) {
   test(`jogador ${tela.width}x${tela.height}: o alto-falante entra na pilha do canto sem cobrir zoom, mão, rolagens, coluna do canto nem gaveta`, async ({ page }) => {
     await page.setViewportSize(tela)
-    const host = await jogadorEntra(page, { confronto: CONFRONTO })
+    const host = await jogadorEntra(page)
     host.mandar(rolagem('r1', 17))
     host.mandar(rolagem('r2', 4))
     const som = page.getByRole('button', { name: 'Som', exact: true })
     const zoom = page.getByRole('group', { name: 'Zoom do mapa' })
     const mao = page.getByRole('button', { name: 'Chamar o mestre' })
     const rolagens = page.getByRole('log', { name: 'Rolagens' })
-    // A coluna do canto de cima à direita: o "Onde estou" e, com o confronto aberto, a faixa da vez.
+    // A coluna do canto de cima à direita: o "Onde estou".
     const canto = page.locator('.pp-canto')
     await expect(som).toBeVisible()
     await expect(rolagens.getByText('17')).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Confronto' })).toBeVisible()
 
     const caixaDoSom = await caixa(som)
     expect(dentroDaTela(caixaDoSom, tela)).toBe(true)
