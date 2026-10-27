@@ -1835,3 +1835,9 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 ## 25/10/2026 (aprovação dos móveis 3/4 e pedido do instalador)
 
 - Literal: "Os moveis estão perfeito, o que eu quero agora é o seguinte, cria o instalador e salva o que foi feito e o que falta. vamos voltar a trabalhar nisso depois". Fila: (1) MT11 (vista 3/4 dos móveis) APROVADA como está, sem ajustes; (2) gerar o instalador local (`node scripts/publicar-versao.cjs` SEM `--publicar`: só builda e confere a assinatura, nada vai ao GitHub); (3) registrar no HANDOFF o que foi feito e o que falta; o trabalho é retomado depois (sem agentes em voo).
+
+## 27/10/2026 (retomada "vá com tudo")
+
+- Literal: "Pode continuar de onde estavamos, mas agora optimizado no maximo ou seja vá com tudo." Respostas da abertura: recomendador Não; conselho Não; 0.5.1 "Publicar direto"; linhas "Tudo de uma vez". Fila: MT12 (liga o Meio-Termo) e publicar 0.5.1 no GitHub; Luz L4c; Batalha B3 (e B4 depois de Caminhos F3/F4); Caminhos F3 e F4.
+- Regras de jogo da Batalha (respostas do usuário ao veredito do conselho sobre as paredes da B4): esbarrar em parede invisível "Revela e avisa"; parede invisível corta a medição do jogador: "Não corta". Registrado em `docs/planos/modo-batalha-2026-10-24.md`.
+- Literal (com print de um penhasco em faixas marrons, borrado, solto no canto entre dois platôs de grama): "você vai ajeitar o penhasco e relevo também?". Fila: diagnóstico só de leitura (chave do Meio-Termo ligada resolve o quê; o que sobra); conserto do que sobrar como fatia própria do Meio-Termo depois da MT12 (1 escritor do Meio-Termo por vez); entra na 0.5.1 se for pequeno, senão na 0.5.2.
