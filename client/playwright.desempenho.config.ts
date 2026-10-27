@@ -21,6 +21,7 @@ const TEMP = process.env.TEMP || process.env.TMP || process.env.TMPDIR || '/tmp'
 const ARGS = ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', process.env.LAB_GPU === 'baixa' ? '--force-low-power-gpu' : '--force-high-performance-gpu']
 /** `LAB_NAVEGADOR`: caminho de um chrome.exe, `msedge`, ou vazio (o Chromium do Playwright). */
 const NAVEGADOR = process.env.LAB_NAVEGADOR ?? ''
+const FOTOS = process.env.LAB_DES_FOTOS ?? ''
 const EXECUTAVEL = NAVEGADOR === '' || NAVEGADOR === 'msedge' ? '' : NAVEGADOR
 
 if (MODO === 'prod' && DIST === '') throw new Error('LAB_DES_DIST vazio: rode pelo scripts/medir-desempenho.cjs (ele faz o build)')
@@ -33,6 +34,9 @@ export default defineConfig({
   workers: 1,
   outputDir: `${TEMP.replace(/[\\/]+$/, '')}/labirinto-desempenho/artefatos-${Date.now()}`,
   reporter: [['list']],
+  // Modo foto do spec: as referências ficam em `LAB_DES_FOTOS` (fora do repo; a do mapa real é conteúdo do usuário).
+  ...(FOTOS === '' ? {} : { snapshotPathTemplate: `${FOTOS.replace(/[\\/]+$/, '')}/{arg}{ext}` }),
+  updateSnapshots: process.env.LAB_DES_ATUALIZAR_FOTOS === '1' ? 'all' : 'none',
   use: {
     baseURL: `http://localhost:${PORTA}`,
     trace: 'off',

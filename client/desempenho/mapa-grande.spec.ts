@@ -28,7 +28,7 @@
 // O que NÃO é: portão. Nada aqui reprova por número; reprova só se a mesa não
 // abrir. As metas entram quando a otimização tiver alvo.
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
-import { test, type Browser, type BrowserContext, type CDPSession, type Page, type WebSocketRoute } from '@playwright/test'
+import { expect, test, type Browser, type BrowserContext, type CDPSession, type Page, type WebSocketRoute } from '@playwright/test'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
@@ -51,6 +51,13 @@ const CASO_PADRAO: Caso = { id: 'real-mt-1080', mapa: 'real', obra: 'meio-termo'
 const CASOS: Caso[] = process.env.LAB_DES_CASOS ? (JSON.parse(process.env.LAB_DES_CASOS) as Caso[]) : [CASO_PADRAO] // as: o JSON vem do scripts/medir-desempenho.cjs, que monta a lista
 const SAIDA = process.env.LAB_DES_SAIDA ?? ''
 const MAPA_REAL = process.env.LAB_DES_MAPA_REAL ?? ''
+/**
+ * MODO FOTO (`LAB_DES_FOTOS` = pasta das referências, fora do repo: o mapa real é do usuário):
+ * nenhum cenário roda; o canvas do mestre é fotografado em 3 zooms (mapa inteiro, médio, perto) e o do
+ * jogador em 2 (ao abrir, perto), e cada foto tem de bater 0 px com a referência
+ * (`LAB_DES_ATUALIZAR_FOTOS=1` grava). A câmera chega lá pelos mesmos gestos, sem tempo no meio.
+ */
+const FOTOS = process.env.LAB_DES_FOTOS ?? ''
 
 const AVENTURA = 'Mesa de medida'
 const PASTA = 'C:/appdata/maps/map_medida'
@@ -439,6 +446,72 @@ async function perfilar(medidas: Medida[], medidores: Medidor[], mapear: Mapeado
 
 // ---------------------------------------------------------------- Pixi e câmera
 
+/**
+ * Passadas de filtro por quadro (máscara alfa = um filtro do Pixi) e o tamanho
+ * da área e da textura temporária de cada uma, por ~`quadros` quadros. Prova
+ * da F1 (otimização 200x200): a textura do filtro é a área arredondada para
+ * potência de 2 (`TexturePool.getOptimalTexture`), e a máscara não recorta na
+ * tela (`clipToViewport: false`); área maior que a tela = textura de 8192 px.
+ */
+async function passadasDeFiltro(page: Page, chave: 'appMestre' | 'appJogador', quadros = 60) {
+  return page.evaluate(
+    ({ k, n }) =>
+      new Promise<Record<string, unknown> | null>((resolver) => {
+        type Bounds = { width: number; height: number }
+        type Dados = { bounds: Bounds; skip: boolean; inputTexture?: { source: { pixelWidth: number; pixelHeight: number } } }
+        type SistemaDeFiltro = { push: (i: unknown) => void; _filterStack: Dados[]; _filterStackIndex: number }
+        const app = (window as unknown as Janela).__labSonda?.[k] as { renderer: { filter: SistemaDeFiltro; resolution: number } } | undefined // as: o Application do Pixi pendurado pela sonda
+        if (app === undefined) {
+          resolver(null)
+          return
+        }
+        const sistema = app.renderer.filter
+        const original = sistema.push
+        let passadas = 0
+        let areaPx = 0
+        const texturas = new Map<string, number>()
+        let maiorArea = ''
+        let maiorAreaPx = 0
+        sistema.push = function (this: SistemaDeFiltro, instrucao: unknown) {
+          original.call(this, instrucao)
+          const d = this._filterStack[this._filterStackIndex - 1]
+          if (d === undefined || d.skip) return
+          const res = app.renderer.resolution
+          const px = d.bounds.width * res * d.bounds.height * res
+          passadas += 1
+          areaPx += px
+          if (px > maiorAreaPx) {
+            maiorAreaPx = px
+            maiorArea = `${Math.round(d.bounds.width * res)}x${Math.round(d.bounds.height * res)}`
+          }
+          const t = d.inputTexture?.source
+          if (t !== undefined) {
+            const dim = `${t.pixelWidth}x${t.pixelHeight}`
+            texturas.set(dim, (texturas.get(dim) ?? 0) + 1)
+          }
+        }
+        let contados = 0
+        const passo = () => {
+          contados += 1
+          if (contados <= n) {
+            requestAnimationFrame(passo)
+            return
+          }
+          sistema.push = original
+          resolver({
+            quadros: n,
+            passadas_por_quadro: Math.round((passadas / n) * 10) / 10,
+            megapixels_de_area_por_quadro: Math.round(areaPx / n / 1e4) / 100,
+            maior_area_px: maiorArea,
+            texturas_do_filtro: Object.fromEntries([...texturas].map(([dim, q]) => [dim, Math.round((q / n) * 10) / 10])),
+          })
+        }
+        requestAnimationFrame(passo)
+      }),
+    { k: chave, n: quadros },
+  )
+}
+
 /** Texturas do Pixi (GPU) e nós da cena, pela sonda. */
 async function memoriaDaGpu(page: Page, chave: 'appMestre' | 'appJogador') {
   return page.evaluate((k) => {
@@ -532,7 +605,7 @@ async function aproximarNa(page: Page, chave: 'appMestre' | 'appJogador', mundo:
 }
 
 /** Mestre: traz o ponto ao centro com o botão do meio (passos de até 40% da tela) e aproxima nele com a roda. */
-async function centrarEAproximar(page: Page, mundo: { x: number; y: number }, grade: number): Promise<void> {
+async function centrarEAproximar(page: Page, mundo: { x: number; y: number }, grade: number, alvo = 40): Promise<void> {
   const c = await centroDoCanvas(page)
   for (let i = 0; i < 8; i++) {
     const p = await naTela(page, 'appMestre', mundo.x, mundo.y)
@@ -542,7 +615,14 @@ async function centrarEAproximar(page: Page, mundo: { x: number; y: number }, gr
     await arrastar(page, 'middle', (t) => ({ x: c.x - dx / 2 + dx * t, y: c.y - dy / 2 + dy * t }), 250)
     await page.waitForTimeout(100)
   }
-  await aproximarNa(page, 'appMestre', mundo, grade)
+  await aproximarNa(page, 'appMestre', mundo, grade, alvo)
+}
+
+/** Modo foto: o canvas da página contra a referência, 0 px (espera o chão em pedaços ficar parado). */
+async function foto(page: Page, nome: string): Promise<void> {
+  if (FOTOS === '') return
+  await page.waitForTimeout(3000)
+  await expect.soft(page.locator('canvas').first()).toHaveScreenshot(`${nome}.png`, { maxDiffPixels: 0, timeout: 60_000 })
 }
 
 // ---------------------------------------------------------------- abrir
@@ -668,6 +748,7 @@ for (const caso of CASOS) {
     const centro = await centroDoCanvas(mestre)
     const circulo = (raio: number) => (t: number) => ({ x: centro.x + raio * Math.cos(t * Math.PI * 3), y: centro.y + raio * Math.sin(t * Math.PI * 3) })
     const cenario = async (nome: string, medidores: Medidor[], acao: () => Promise<Record<string, unknown> | void>, preparar?: () => Promise<void>) => {
+      if (FOTOS !== '') return
       marco(`cenário ${nome}`)
       if (preparar) await preparar()
       const fioAntes = fio.length
@@ -683,6 +764,13 @@ for (const caso of CASOS) {
       await medidores[0].page.waitForTimeout(800)
     }
 
+    await foto(mestre, `${caso.id}-mestre-inteiro`)
+    registro.filtro_mestre_ao_abrir = await passadasDeFiltro(mestre, 'appMestre')
+    if (FOTOS !== '') {
+      // Zoom médio (uma casa ~16 px) antes do perto: a mesma sequência de gestos em toda rodada.
+      await centrarEAproximar(mestre, npc, map.grid, 16)
+      await foto(mestre, `${caso.id}-mestre-medio`)
+    }
     await cenario('parado-5s', soMestre, () => mestre.waitForTimeout(5000))
     await cenario('pan-mapa-inteiro-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
     await cenario('zoom-roda-2s-dentro-2s-fora', soMestre, async () => {
@@ -693,6 +781,8 @@ for (const caso of CASOS) {
     // Perto da ficha (uma casa ~40 px), como na jogada.
     await centrarEAproximar(mestre, npc, map.grid)
     registro.gpu_mestre_perto = await memoriaDaGpu(mestre, 'appMestre')
+    registro.filtro_mestre_perto = await passadasDeFiltro(mestre, 'appMestre')
+    await foto(mestre, `${caso.id}-mestre-perto`)
     await cenario('pan-perto-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
     await centrarEAproximar(mestre, npc, map.grid)
     let idaDoNpc = 1
@@ -783,6 +873,7 @@ for (const caso of CASOS) {
         longas: await longasEntre(jogador, antesDeAtribuir, antesDeAtribuir + abrirJogador.interativo_ms),
       }
       registro.gpu_jogador_ao_abrir = await memoriaDaGpu(jogador, 'appJogador')
+      await foto(jogador, `${caso.id}-jogador-abrir`)
       const cdpJogador = await ctxJogador.newCDPSession(jogador)
       await cdpJogador.send('Performance.enable', { timeDomain: 'threadTicks' })
       const mesa: Medidor[] = [
@@ -798,6 +889,8 @@ for (const caso of CASOS) {
         return { x: app.stage.children[0].x, y: app.stage.children[0].y }
       })
 
+      registro.filtro_mesa_mestre = await passadasDeFiltro(mestre, 'appMestre')
+      registro.filtro_mesa_jogador = await passadasDeFiltro(jogador, 'appJogador')
       await cenario('mesa-parado-5s', mesa, () => jogador.waitForTimeout(5000))
       await cenario('mesa-jogador-pan-3s', mesa, async () => {
         const antes = await posicaoDoMundo()
@@ -811,6 +904,7 @@ for (const caso of CASOS) {
       })
       registro.gpu_jogador_depois_do_zoom = await memoriaDaGpu(jogador, 'appJogador')
       await aproximarNa(jogador, 'appJogador', fichaDoJogador, map.grid)
+      await foto(jogador, `${caso.id}-jogador-perto`)
       let idaDoJogador = 1
       const fichaAtual = { x: fichaDoJogador.x, y: fichaDoJogador.y }
       // Para a direita; se o passo não sair (parede no caminho, o mestre recusa), a passada seguinte tenta uma direção sem parede.

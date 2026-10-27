@@ -10,6 +10,11 @@
  *   node scripts/medir-desempenho.cjs --modo dev                   # vite de desenvolvimento (perfil legível)
  *   node scripts/medir-desempenho.cjs --sem-build                  # reaproveita o build anterior
  *   node scripts/medir-desempenho.cjs --gravar docs/desempenho/linha-de-base-AAAA-MM-DD.json
+ *   node scripts/medir-desempenho.cjs --so ... --limites docs/desempenho/limites.json   # reprova (código 1) fora dos limites
+ *
+ * VARIÁVEIS: `LAB_DES_DIST` = pasta do build (padrão %TEMP%/labirinto-desempenho/dist;
+ * duas fatias medindo em fila não pisam no build uma da outra). `LAB_DES_FOTOS` = pasta das
+ * fotos de referência (modo foto do spec: só fotos, sem cenários; `LAB_DES_ATUALIZAR_FOTOS=1` grava).
  *
  * O QUE FAZ:
  *   1. build de produção do client com a sonda (`VITE_LAB_SONDA=1`, ver
@@ -45,6 +50,7 @@ const CASOS = [
   { id: 'real-linhas-1080', mapa: 'real', obra: 'linhas', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'real-mt-1440-dpr15', mapa: 'real', obra: 'meio-termo', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'real-linhas-1440-dpr15', mapa: 'real', obra: 'linhas', tela: QHD_150, perfil: false, fases: 'mesa' },
+  { id: 'sint200-mt-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'sint200-mt-1080', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint100-mt-1080', mapa: 'sintetico', lado: 100, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint50-mt-1080', mapa: 'sintetico', lado: 50, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
@@ -55,7 +61,7 @@ const CONJUNTOS = {
 }
 
 function lerArgs(argv) {
-  const out = { modo: 'prod', conjunto: 'linha-de-base', so: null, semBuild: false, gravar: null, mapaReal: process.env.LAB_DES_MAPA_REAL || '', semPerfil: false }
+  const out = { modo: 'prod', conjunto: 'linha-de-base', so: null, semBuild: false, gravar: null, mapaReal: process.env.LAB_DES_MAPA_REAL || '', semPerfil: false, limites: null }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--modo') out.modo = argv[++i]
@@ -66,6 +72,7 @@ function lerArgs(argv) {
     else if (a === '--janela') process.env.LAB_DES_JANELA = '1'
     else if (a === '--gravar') out.gravar = argv[++i]
     else if (a === '--mapa-real') out.mapaReal = argv[++i]
+    else if (a === '--limites') out.limites = argv[++i]
     else if (a === '--help' || a === '-h') {
       console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0])
       process.exit(0)
@@ -106,7 +113,7 @@ function main() {
   const casos = CASOS.filter((c) => ids.includes(c.id)).map((c) => (args.semPerfil ? { ...c, perfil: false } : c))
   if (casos.length === 0) throw new Error(`nenhum caso com os ids ${ids.join(',')}`)
   fs.mkdirSync(TEMP, { recursive: true })
-  const dist = path.join(TEMP, 'dist')
+  const dist = process.env.LAB_DES_DIST || path.join(TEMP, 'dist')
 
   if (args.modo === 'prod' && !args.semBuild) {
     console.log(`[medir] build de produção com a sonda -> ${dist}`)
@@ -133,7 +140,59 @@ function main() {
     fs.writeFileSync(destino, `${JSON.stringify({ gerado_em: new Date().toISOString(), modo: args.modo, build: args.modo === 'prod' ? 'vite build, VITE_LAB_SONDA=1, --minify false, --sourcemap' : 'vite dev', casos: linhas }, null, 1)}\n`)
     console.log(`\n[medir] gravado em ${destino}`)
   }
+  if (args.limites) {
+    const reprovas = conferirLimites(JSON.parse(fs.readFileSync(path.resolve(RAIZ, args.limites), 'utf8')), linhas)
+    console.log(`\n[medir] limites (${args.limites}): ${reprovas.length === 0 ? 'PASSOU' : `REPROVOU em ${reprovas.length}`}`)
+    for (const r of reprovas) console.log(`  REPROVA ${r}`)
+    if (reprovas.length > 0) process.exit(1)
+  }
   process.exit(status)
+}
+
+/**
+ * Confere o resultado com os limites (`docs/desempenho/limites.json`). Cada regra:
+ * `{ casos: [ids], cenarios: [nomes], papeis: [papeis], fps_min, p95_max_ms }` sobre os
+ * cenários, ou `{ casos, gpu: [chaves do registro], mb_max, lado_max_px }` sobre a memória
+ * de textura. Caso pedido que não rodou, cenário que faltou ou campo ausente REPROVA:
+ * limite que não mede nada não protege nada.
+ */
+function conferirLimites(limites, linhas) {
+  const reprovas = []
+  const porCaso = new Map(linhas.map((r) => [r.caso.id, r]))
+  for (const regra of limites.regras) {
+    for (const id of regra.casos) {
+      const r = porCaso.get(id)
+      if (r === undefined) {
+        reprovas.push(`${id}: o caso não rodou (mapa real ausente?) [${regra.nome}]`)
+        continue
+      }
+      if (regra.gpu) {
+        for (const chave of regra.gpu) {
+          const g = r[chave]
+          if (!g) {
+            reprovas.push(`${id} ${chave}: sem medida [${regra.nome}]`)
+            continue
+          }
+          if (regra.mb_max !== undefined && g.mb_rgba > regra.mb_max) reprovas.push(`${id} ${chave}: ${g.mb_rgba} MB > ${regra.mb_max} [${regra.nome}]`)
+          const lado = Math.max(0, ...(g.maiores ?? []).map((d) => Math.max(...d.split(' ')[0].split('x').map(Number))))
+          if (regra.lado_max_px !== undefined && lado > regra.lado_max_px) reprovas.push(`${id} ${chave}: textura de ${lado} px > ${regra.lado_max_px} [${regra.nome}]`)
+        }
+        continue
+      }
+      for (const nome of regra.cenarios) {
+        for (const papel of regra.papeis) {
+          const c = (r.cenarios ?? []).find((x) => x.cenario === nome && x.papel === papel)
+          if (c === undefined) {
+            reprovas.push(`${id} ${papel} ${nome}: cenário não mediu [${regra.nome}]`)
+            continue
+          }
+          if (regra.fps_min !== undefined && c.fps < regra.fps_min) reprovas.push(`${id} ${papel} ${nome}: ${c.fps} fps < ${regra.fps_min} [${regra.nome}]`)
+          if (regra.p95_max_ms !== undefined && c.quadro_p95_ms > regra.p95_max_ms) reprovas.push(`${id} ${papel} ${nome}: p95 ${c.quadro_p95_ms} ms > ${regra.p95_max_ms} [${regra.nome}]`)
+        }
+      }
+    }
+  }
+  return reprovas
 }
 
 main()
