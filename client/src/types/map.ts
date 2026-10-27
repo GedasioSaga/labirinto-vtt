@@ -2414,6 +2414,15 @@ export interface MapData {
    */
   vistaDosMoveis?: 'tres-quartos'
   /**
+   * MANCHAS DO CHÃO desta cena (Meio-Termo, pedido de 27/10/2026): `true`
+   * clareia e escurece as texturas do chão em manchas largas
+   * (`texturas/meioTermo/chaoNoMundo.ts`). Ausente = desligadas, inclusive em
+   * mapa de antes do campo, sem linha de migração; só `true` é gravado e lido
+   * (`lib/mapFile.ts`, `definirManchasDoChao` em `lib/mapFactory.ts`).
+   * Atravessa no recorte do jogador: a tela dele pinta o mesmo chão.
+   */
+  manchasDoChao?: true
+  /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
    * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha

@@ -36,7 +36,8 @@ export const ESCALA_DA_IMPORTADA = 40
 export interface EntradaDasTexturas {
   /** Id da cena (`MapData.id`): cena nova solta a pintura da anterior na hora. */
   cena: string
-  mapa: Pick<MapData, 'width' | 'height' | 'grid'>
+  /** O tamanho e a chave "Manchas do chão" (`manchasDoChao`, Meio-Termo) do mapa desta tela. */
+  mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'manchasDoChao'>
   /** Os passos que ESTA tela recebeu (no jogador, os do recorte dele). */
   passos: readonly PinceladaDeTextura[] | undefined
   importadas: readonly TexturaImportada[] | undefined
@@ -264,6 +265,8 @@ function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): b
   const a = pedida.entrada
   if (a.cena !== b.cena || pedida.versao !== versaoB || pedida.estilo !== versaoDoEstilo()) return false
   if (a.mapa.width !== b.mapa.width || a.mapa.height !== b.mapa.height || a.mapa.grid !== b.mapa.grid) return false
+  // Trocar "Manchas do chão" pinta de novo (os pedaços do chão mudam de chave).
+  if ((a.mapa.manchasDoChao === true) !== (b.mapa.manchasDoChao === true)) return false
   if (!mesmasImportadas(a.importadas ?? SEM_ITENS, b.importadas ?? SEM_ITENS)) return false
   if (a.passos !== b.passos && assinaturaDasTexturas(a.passos) !== assinaturaDasTexturas(b.passos)) return false
   // A sala por cima da textura (passo `sala`) segue a forma da sala, como o balde.
@@ -406,17 +409,19 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   /**
    * Meio-Termo (MT7): o chão de uma textura neste mapa, lido dos pixels do
    * ladrilho pronto. `null` = sem pixels (ladrilho de teste, tela sem 2D): a
-   * camada fica só com o ladrilho repetido, como hoje.
+   * camada fica só com o ladrilho repetido, como hoje. `manchas` (a chave
+   * "Manchas do chão" do mapa) entra na chave dos pedaços: o pedaço pintado
+   * com manchas nunca serve ao mapa sem elas, e vice-versa.
    */
-  function chaoDaCamada(id: string, ladrilho: Texture, lado: number): { chave: string; chao: ChaoDaTextura } | null {
+  function chaoDaCamada(id: string, ladrilho: Texture, lado: number, manchas: boolean): { chave: string; chao: ChaoDaTextura } | null {
     let pixels = pixelsLidos.get(ladrilho)
     if (pixels === undefined) {
       pixels = pixelsDoLadrilho(ladrilho)
       pixelsLidos.set(ladrilho, pixels)
     }
     if (pixels === null) return null
-    const chao: ChaoDaTextura = { ladrilho: pixels, ladoNoMundo: lado, semente: sementeDoChao(id), torcao: torcaoDaTextura(texturaDoCatalogo(id)) }
-    return { chave: `${id}#${versaoDoCatalogo}#${lado}#${versaoDoEstilo()}`, chao }
+    const chao: ChaoDaTextura = { ladrilho: pixels, ladoNoMundo: lado, semente: sementeDoChao(id), torcao: torcaoDaTextura(texturaDoCatalogo(id)), manchas }
+    return { chave: `${id}#${versaoDoCatalogo}#${lado}#${versaoDoEstilo()}#${manchas ? 'manchas' : 'liso'}`, chao }
   }
 
   /**
@@ -446,7 +451,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       const mascara = new Sprite(mascaraDe(tela))
       mascara.position.set(c.caixa.minX, c.caixa.minY)
       mascara.scale.set(1 / plano.escala)
-      const doChao = meioTermo ? chaoDaCamada(c.textura, tile, lado) : null
+      const doChao = meioTermo ? chaoDaCamada(c.textura, tile, lado, entrada.mapa.manchasDoChao === true) : null
       if (doChao !== null) {
         // Meio-Termo: os pedaços por posição por cima da repetida, os dois pela mesma máscara.
         cacheDoChao ??= new CacheDoChao()

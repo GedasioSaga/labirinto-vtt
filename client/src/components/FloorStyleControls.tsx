@@ -1,5 +1,7 @@
 import { useId } from 'react'
 import type { FloorStyle, MapFrame } from '../types/map'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { useMapStore } from '../stores/mapStore'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { Toggle } from './Toggle'
 import './FloorStyleControls.css'
@@ -29,6 +31,29 @@ const SAMPLE_STEP_OPTIONS: Array<{ value: number; label: string }> = [
   { value: 1, label: 'Média' },
   { value: 2, label: 'Rápida' },
 ]
+
+/**
+ * O interruptor "Manchas do chão" do MAPA (`MapData.manchasDoChao`, Meio-Termo):
+ * lê e grava direto na store, com desfazer (`definirManchasDoChao`), como a
+ * "Vista 3/4" dos móveis. Nasce desligado; desligar tira o campo do mapa.
+ */
+function ManchasDoChaoDoMapa() {
+  const ajudaId = `${useId()}-manchas`
+  const ligadas = useMapStore((state) => state.map.manchasDoChao === true)
+  return (
+    <>
+      <Toggle
+        label="Manchas do chão"
+        checked={ligadas}
+        describedBy={ajudaId}
+        onChange={(ligar) => useMapStore.getState().definirManchasDoChao(ligar)}
+      />
+      <p className="lb-field__hint" id={ajudaId}>
+        Manchas claras e escuras sobre as texturas do chão deste mapa, para o mestre e para os jogadores.
+      </p>
+    </>
+  )
+}
 
 /**
  * Estilo do chão do MAPA inteiro (não de uma peça). A criação de peças a
@@ -103,6 +128,9 @@ export function FloorStyleControls({
           Vale para o chão por peças e para o minimapa recriado. Este mapa ainda não tem nenhum: use a ferramenta Chão ou o menu da imagem de fundo.
         </p>
       )}
+
+      {/* As manchas só existem no desenho do Meio-Termo (`texturas/meioTermo/chaoNoMundo.ts`). */}
+      {meioTermoLigado() && <ManchasDoChaoDoMapa />}
 
       {/* Decisão do usuário (14/09/2026): controles técnicos ficam no Avançado, fechado, com a frase do que fazem. */}
       <AdvancedSection>

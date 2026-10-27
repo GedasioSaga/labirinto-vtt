@@ -37,13 +37,18 @@ export function ladrilhoDe(id: string): ImagemDoLadrilho {
   return img
 }
 
-/** O chão da textura no mapa, com a semente e a torção que o app usa (`drawTexturas`). */
+/**
+ * O chão da textura no mapa, com a semente e a torção que o app usa
+ * (`drawTexturas`). Manchas LIGADAS (o mapa com "Manchas do chão"): as medidas
+ * destes testes são as das manchas aprovadas.
+ */
 export function chaoDe(id: string, mapa: { width: number; height: number; grid: number } = MAPA_DE_PROVA): ChaoDaTextura {
   return {
     ladrilho: ladrilhoDe(id),
     ladoNoMundo: ladoDoLadrilhoNoMundo(mapa, escalaDaTextura(id)),
     semente: sementeDoChao(id),
     torcao: torcaoDaTextura(texturaDoCatalogo(id)),
+    manchas: true,
   }
 }
 

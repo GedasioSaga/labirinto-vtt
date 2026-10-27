@@ -171,6 +171,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
             map.texturasImportadas,
             // A sala por cima da textura (passo `sala`) também segue a forma da sala.
             map.texturas.some((p) => p.tipo === 'balde' || p.tipo === 'sala') ? [map.regions, map.drawings, hidden] : null,
+            // MANCHAS DO CHÃO (Meio-Termo): trocar a chave repinta o chão na hora.
+            map.manchasDoChao === true,
             map.width,
             map.height,
             map.grid,

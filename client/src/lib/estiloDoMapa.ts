@@ -16,7 +16,8 @@
  *
  * Só os renderers e os painéis do Meio-Termo leem esta chave
  * (`drawPropSilhouettes`, `drawTexturas`, `relevoRaster`, `drawWalls`,
- * `telhadosRenderer`, `MobiliaControls`, `RoomControls`, `PropertiesPanel`),
+ * `telhadosRenderer`, `MobiliaControls`, `RoomControls`, `PropertiesPanel`,
+ * `FloorStyleControls`),
  * nunca `PixiCanvas` nem `PlayerView`.
  */
 

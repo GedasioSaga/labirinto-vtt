@@ -2002,6 +2002,14 @@ export function definirVistaDosMoveis(map: MapData, vista: MapData['vistaDosMove
   return vista === undefined ? semVista : { ...semVista, vistaDosMoveis: vista }
 }
 
+/** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo). Desligar
+ * TIRA o campo (ausente = desligadas); o mesmo estado devolve o mesmo `map`. */
+export function definirManchasDoChao(map: MapData, ligadas: boolean): MapData {
+  if ((map.manchasDoChao === true) === ligadas) return map
+  const { manchasDoChao: _antes, ...semManchas } = map
+  return ligadas ? { ...semManchas, manchasDoChao: true } : semManchas
+}
+
 /** CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto" (`RoomMeta.comodo`).
  * Mesmo contrato de `setRoomRoof`: região comum, id inexistente ou valor igual
  * devolve o mesmo `map`. Ligar desliga o teto, na MESMA entrada de histórico:

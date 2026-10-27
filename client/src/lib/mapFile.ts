@@ -979,6 +979,9 @@ function deserializeMapFields(json: string): MapData {
     // VISTA DOS MÓVEIS (Meio-Termo): campo NOVO e OPCIONAL. Só `'tres-quartos'`
     // volta; o resto abre "de cima", sem o campo (`lerVistaDosMoveis`).
     ...vistaDosMoveisField(parsed.vistaDosMoveis),
+    // MANCHAS DO CHÃO (Meio-Termo): campo NOVO e OPCIONAL, mesmo padrão de
+    // `worldMap`. Só `true` vale; ausente (ou torto) abre sem manchas.
+    ...(parsed.manchasDoChao === true ? { manchasDoChao: true } : {}),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.

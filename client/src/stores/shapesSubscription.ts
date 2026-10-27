@@ -57,6 +57,8 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       // TEXTURAS (`lib/texturas.ts`): a pincelada nova muda a pintura, sem mexer em forma nenhuma.
       state.map.texturas,
       state.map.texturasImportadas,
+      // MANCHAS DO CHÃO (Meio-Termo): a chave repinta as texturas sem mexer em forma nenhuma.
+      state.map.manchasDoChao,
       // CARIMBOS (`lib/carimbos.ts`): o objeto novo muda a camada deles, sem mexer em forma nenhuma.
       state.map.carimbos,
       state.map.carimbosImportados,

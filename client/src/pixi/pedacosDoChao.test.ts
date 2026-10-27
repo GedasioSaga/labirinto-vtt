@@ -22,7 +22,7 @@ function ladrilhoXadrez(lado = 16): ImagemDoLadrilho {
   return { lado, pixels }
 }
 
-const CHAO: ChaoDaTextura = { ladrilho: ladrilhoXadrez(), ladoNoMundo: 192, semente: 7, torcao: 0.15 }
+const CHAO: ChaoDaTextura = { ladrilho: ladrilhoXadrez(), ladoNoMundo: 192, semente: 7, torcao: 0.15, manchas: true }
 
 /** Fila manual: cada `rodar()` executa as fatias agendadas até aquele momento. */
 function filaManual() {

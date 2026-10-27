@@ -1085,6 +1085,8 @@ interface MapStoreState {
   definirGrade: (id: string, ligada: boolean) => void
   /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
+  /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo), com histórico; desligar tira o campo. */
+  definirManchasDoChao: (ligadas: boolean) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
   setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
@@ -2685,6 +2687,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirVistaDosMoveis: (vista) => {
       if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return
       withHistory((map) => mapFactory.definirVistaDosMoveis(map, vista))
+    },
+    definirManchasDoChao: (ligadas) => {
+      if (mapFactory.definirManchasDoChao(get().map, ligadas) === get().map) return
+      withHistory((map) => mapFactory.definirManchasDoChao(map, ligadas))
     },
     setRoomComodo: (id, comodo) => {
       if (mapFactory.setRoomComodo(get().map, id, comodo) === get().map) return

@@ -10,7 +10,10 @@
  * 2. as MANCHAS do protótipo aprovado (`vila-meio-termo/prototipo/meio.js:255-283`):
  *    ruído em 3 escalas (230, 80 e 27 px) que clareia para o realce e
  *    escurece para a sombra, com os números da grama (`#8cbf80` → realce
- *    `#a2cc92`, sombra `#76ac6d`);
+ *    `#a2cc92`, sombra `#76ac6d`). Só com o interruptor "Manchas do chão" do
+ *    mapa ligado (`MapData.manchasDoChao`, que chega em `ChaoDaTextura.manchas`;
+ *    pedido de 27/10/2026: as grandes pareciam névoa no chão). Desligado, o
+ *    pixel sai sem mancha nenhuma, e a torção e o grão continuam iguais;
  * 3. o GRÃO de papel do protótipo (`meio.js:285-308`): ruído branco em células
  *    de 2 x 2 px do mundo, em luz suave, força 22.
  *
@@ -40,7 +43,7 @@ export const TORCAO_DO_ASSENTAMENTO = 0
 const TORCAO_LARGA = { lado: 1, peso: 0.65 }
 const TORCAO_FINA = { lado: 0.37, peso: 0.35 }
 
-/** Manchas: o protótipo clareia 18% para o branco e escurece 13% (do realce e da sombra da grama). */
+/** Manchas (só com `ChaoDaTextura.manchas`): o protótipo clareia 18% para o branco e escurece 13% (do realce e da sombra da grama). */
 const MANCHA_CLARA = 0.18
 const MANCHA_ESCURA = 0.13
 const GANHO_DA_MANCHA = 1.5
@@ -55,7 +58,7 @@ export interface ImagemDoLadrilho {
   readonly pixels: Uint8ClampedArray
 }
 
-/** O chão de UMA textura num mapa: o ladrilho dela, o tamanho dele no mundo, a semente e a torção. */
+/** O chão de UMA textura num mapa: o ladrilho dela, o tamanho dele no mundo, a semente, a torção e as manchas. */
 export interface ChaoDaTextura {
   readonly ladrilho: ImagemDoLadrilho
   /** Lado do ladrilho no mundo, em px (`drawTexturas.ladoDoLadrilhoNoMundo`). */
@@ -63,6 +66,8 @@ export interface ChaoDaTextura {
   readonly semente: number
   /** Amplitude da torção em fração de `ladoNoMundo`. */
   readonly torcao: number
+  /** O interruptor "Manchas do chão" do mapa (`MapData.manchasDoChao`): `false` = sem manchas. */
+  readonly manchas: boolean
 }
 
 /**
@@ -142,7 +147,7 @@ export interface PinturaDoPedaco {
   linha: number
 }
 
-/** Torção e manchas nos pontos da grade grossa do pedaço (33 x 33 pontos, 3 campos). */
+/** Torção e manchas nos pontos da grade grossa do pedaço (33 x 33 pontos, 3 campos); manchas desligadas = campo 0, que não clareia nem escurece. */
 function gradeDoPedaco(chao: ChaoDaTextura, pedaco: Pedaco): Float32Array {
   const grade = new Float32Array(PONTOS_DA_GRADE * PONTOS_DA_GRADE * CAMPOS)
   const passo = 2 ** pedaco.nivel
@@ -161,7 +166,7 @@ function gradeDoPedaco(chao: ChaoDaTextura, pedaco: Pedaco): Float32Array {
         grade[o] = amplitude * (ruidoDeValor(x / larga, y / larga, s + 10) * TORCAO_LARGA.peso + ruidoDeValor(x / fina, y / fina, s + 11) * TORCAO_FINA.peso)
         grade[o + 1] = amplitude * (ruidoDeValor(x / larga, y / larga, s + 20) * TORCAO_LARGA.peso + ruidoDeValor(x / fina, y / fina, s + 21) * TORCAO_FINA.peso)
       }
-      grade[o + 2] = ruidoDoMundo(x, y, s)
+      if (chao.manchas) grade[o + 2] = ruidoDoMundo(x, y, s)
     }
   }
   return grade
@@ -239,7 +244,7 @@ export function pintarLinhas(chao: ChaoDaTextura, pedaco: Pedaco, p: PinturaDoPe
       const pb = fu * (1 - fv)
       const pc = (1 - fu) * fv
       const pd = fu * fv
-      // Manchas (claro para o branco, escuro por multiplicação) e grão em luz suave.
+      // Manchas (claro para o branco, escuro por multiplicação; com elas desligadas `n` é 0 e as duas viram identidade) e grão em luz suave.
       const k = Math.min(1, Math.abs(n) * GANHO_DA_MANCHA)
       const claro = n > 0 ? MANCHA_CLARA * k : 0
       const escuro = n > 0 ? 1 : 1 - MANCHA_ESCURA * k
