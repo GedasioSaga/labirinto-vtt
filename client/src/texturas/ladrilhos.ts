@@ -73,6 +73,68 @@ export async function pixelsEmFatias(
   fatiaMs = FATIA_DO_LADRILHO_MS,
   amostras = 1,
 ): Promise<Uint8ClampedArray | null> {
+  const chave = `${lado}:${amostras}`
+  const pronto = prontos.get(cor)?.get(chave)
+  if (pronto !== undefined) return pronto
+  let porChave = emCurso.get(cor)
+  if (porChave === undefined) {
+    porChave = new Map()
+    emCurso.set(cor, porChave)
+  }
+  const doCor = porChave
+  let geracao = doCor.get(chave)
+  if (geracao === undefined) {
+    const interessados = [cancelado]
+    const fim = gerarEmFatias(cor, lado, () => interessados.every((c) => c()), fatiaMs, amostras).then((resultado) => {
+      doCor.delete(chave)
+      if (resultado.pixels !== null) {
+        const guardados = prontos.get(cor) ?? new Map<string, Uint8ClampedArray>()
+        guardados.set(chave, resultado.pixels)
+        prontos.set(cor, guardados)
+      }
+      return resultado
+    })
+    geracao = { interessados, fim }
+    doCor.set(chave, geracao)
+  } else {
+    geracao.interessados.push(cancelado)
+  }
+  const resultado = await geracao.fim
+  // Quem desistiu recebe `null`, como antes, mesmo que outro tenha levado a geração até o fim.
+  if (cancelado()) return null
+  if (resultado.pixels !== null) return resultado.pixels
+  // A geração parou porque os outros desistiram e este chegou no fim dela:
+  // começa de novo. A cor que lançou (`erro`) não tenta outra vez.
+  if (resultado.motivo === 'cancelado' && !cancelado()) return pixelsEmFatias(cor, lado, cancelado, fatiaMs, amostras)
+  return null
+}
+
+/**
+ * O MESMO ladrilho pedido de novo (outra camada, outra tela, o mapa aberto de
+ * novo) sai daqui sem refazer o ruído (F5, 27/10/2026: abrir o mapa grande
+ * gastava segundos de CPU nas texturas). Chave: a função de cor e o lado. Só
+ * em memória: a embutida é fixa, e a do pacote troca de função quando o
+ * pacote muda. Quem recebe não altera os bytes (a tela copia, a miniatura só lê).
+ */
+const prontos = new WeakMap<CorDaTextura, Map<string, Uint8ClampedArray>>()
+
+interface FimDaGeracao {
+  pixels: Uint8ClampedArray | null
+  motivo: 'pronto' | 'cancelado' | 'erro'
+}
+
+/** Uma geração em curso, dividida por quem pediu o mesmo ladrilho: para só quando TODOS desistem. */
+interface Geracao {
+  interessados: Array<() => boolean>
+  fim: Promise<FimDaGeracao>
+}
+const emCurso = new WeakMap<CorDaTextura, Map<string, Geracao>>()
+
+async function gerarEmFatias(cor: CorDaTextura, lado: number, cancelado: () => boolean, fatiaMs: number, amostras: number): Promise<FimDaGeracao> {
+  // A primeira fatia também espera a vez: quem pede doze ladrilhos ao abrir o
+  // mapa somava doze fatias dentro da tarefa da montagem (~100 ms, F5).
+  await ceder()
+  if (cancelado()) return { pixels: null, motivo: 'cancelado' }
   const dados = new Uint8ClampedArray(lado * lado * 4)
   let linha = 0
   while (linha < lado) {
@@ -85,12 +147,12 @@ export async function pixelsEmFatias(
       } while (linha < lado && performance.now() - inicio < fatiaMs)
     } catch {
       // A cor de uma textura de fora quebrou: ela fica de fora, as outras seguem.
-      return null
+      return { pixels: null, motivo: 'erro' }
     }
     if (linha < lado) {
       await ceder()
-      if (cancelado()) return null
+      if (cancelado()) return { pixels: null, motivo: 'cancelado' }
     }
   }
-  return dados
+  return { pixels: dados, motivo: 'pronto' }
 }

@@ -26,6 +26,21 @@ export function mod(n: number, m: number): number {
   return ((n % m) + m) % m
 }
 
+/**
+ * `mod` para índice INTEIRO da grade e período inteiro positivo: o mesmo
+ * número (com inteiros as duas contas são exatas), sem a segunda divisão.
+ * `+ 0` vira o -0 em 0, como `mod` faz. Só para quem já sabe que os dois são
+ * inteiros: com fração o `mod` de cima arredonda diferente.
+ */
+function modInteiro(n: number, m: number): number {
+  const r = n % m
+  return r < 0 ? r + m : r + 0
+}
+
+function periodoInteiro(m: number): boolean {
+  return Number.isInteger(m) && m > 0
+}
+
 /** Curva quíntica (derivada segunda contínua): sem o quadriculado do `smoothstep` simples no relevo sombreado. */
 function suave(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10)
@@ -76,18 +91,46 @@ function tabelaDeGradientes(periodo: number, semente: number): Float64Array | nu
  * se repete a cada `periodo` (inteiro). Sai em torno de [-0,7, 0,7].
  */
 export function gradiente(x: number, y: number, periodo: number, semente: number): number {
+  const tabela = tabelaDeGradientes(periodo, semente)
+  return tabela !== null ? gradienteNaTabela(x, y, periodo, tabela) : gradienteNaHora(x, y, periodo, semente)
+}
+
+/**
+ * O `gradiente` com a tabela pronta, sem fechar função nem dividir duas vezes
+ * por canto: as MESMAS contas, na mesma ordem (o ladrilho sai idêntico bit a
+ * bit, `ruido.test.ts` e `embutidas.hash.test.ts`). Abrir o mapa grande
+ * passava ~1 s aqui (F5, 27/10/2026).
+ */
+function gradienteNaTabela(x: number, y: number, periodo: number, tabela: Float64Array): number {
   const x0 = Math.floor(x)
   const y0 = Math.floor(y)
   const fx = x - x0
   const fy = y - y0
-  const tabela = tabelaDeGradientes(periodo, semente)
+  const ix0 = modInteiro(x0, periodo)
+  const ix1 = modInteiro(x0 + 1, periodo)
+  const linha0 = modInteiro(y0, periodo) * periodo
+  const linha1 = modInteiro(y0 + 1, periodo) * periodo
+  let k = (linha0 + ix0) * 2
+  const a = tabela[k] * fx + tabela[k + 1] * fy
+  k = (linha0 + ix1) * 2
+  const b = tabela[k] * (fx - 1) + tabela[k + 1] * fy
+  k = (linha1 + ix0) * 2
+  const c = tabela[k] * fx + tabela[k + 1] * (fy - 1)
+  k = (linha1 + ix1) * 2
+  const d = tabela[k] * (fx - 1) + tabela[k + 1] * (fy - 1)
+  const sx = suave(fx)
+  return lerp(lerp(a, b, sx), lerp(c, d, sx), suave(fy))
+}
+
+/** O `gradiente` sem tabela (período grande ou fracionário): o seno na hora, como sempre foi. */
+function gradienteNaHora(x: number, y: number, periodo: number, semente: number): number {
+  const x0 = Math.floor(x)
+  const y0 = Math.floor(y)
+  const fx = x - x0
+  const fy = y - y0
   const canto = (cx: number, cy: number, dx: number, dy: number): number => {
     const ix = mod(cx, periodo)
     const iy = mod(cy, periodo)
-    if (tabela !== null) {
-      const k = (iy * periodo + ix) * 2
-      return tabela[k] * dx + tabela[k + 1] * dy
-    }
     const angulo = hash(ix, iy, semente) * Math.PI * 2
     return Math.cos(angulo) * dx + Math.sin(angulo) * dy
   }
@@ -105,11 +148,49 @@ export function valor(x: number, y: number, periodo: number, semente: number): n
   const y0 = Math.floor(y)
   const sx = suave(x - x0)
   const sy = suave(y - y0)
-  const ix0 = mod(x0, periodo)
-  const iy0 = mod(y0, periodo)
-  const ix1 = mod(x0 + 1, periodo)
-  const iy1 = mod(y0 + 1, periodo)
+  const resto = periodoInteiro(periodo) ? modInteiro : mod
+  const ix0 = resto(x0, periodo)
+  const iy0 = resto(y0, periodo)
+  const ix1 = resto(x0 + 1, periodo)
+  const iy1 = resto(y0 + 1, periodo)
   return lerp(lerp(hash(ix0, iy0, semente), hash(ix1, iy0, semente), sx), lerp(hash(ix0, iy1, semente), hash(ix1, iy1, semente), sx), sy)
+}
+
+const pilhasDeTabelas = new Map<number, readonly (Float64Array | null)[]>()
+/** Teto das chaves numéricas de `tabelasDasOitavas` (fora disso, uma busca por oitava como antes). */
+const SEMENTE_MAXIMA_DA_PILHA = 2 ** 30
+const OITAVAS_MAXIMAS_DA_PILHA = 32
+
+/**
+ * As tabelas de todas as oitavas de um `fbm`/`cristas` (período `base`·2^i,
+ * semente `semente + i·salto`) numa busca só por ponto, no lugar de uma por
+ * oitava. `null` = parâmetros fora das chaves (fração, grande): cada oitava
+ * pede o `gradiente` como sempre. Oitava com período acima da tabela fica `null`.
+ */
+function tabelasDasOitavas(base: number, oitavas: number, semente: number, salto: 101 | 131): readonly (Float64Array | null)[] | null {
+  if (
+    !Number.isInteger(base) ||
+    base < 1 ||
+    base > PERIODO_MAXIMO_DA_TABELA ||
+    !Number.isInteger(oitavas) ||
+    oitavas < 0 ||
+    oitavas >= OITAVAS_MAXIMAS_DA_PILHA ||
+    !Number.isInteger(semente) ||
+    Math.abs(semente) >= SEMENTE_MAXIMA_DA_PILHA
+  ) {
+    return null
+  }
+  const chave = (((semente + SEMENTE_MAXIMA_DA_PILHA) * (PERIODO_MAXIMO_DA_TABELA + 1) + base) * OITAVAS_MAXIMAS_DA_PILHA + oitavas) * 2 + (salto === 101 ? 0 : 1)
+  const pronta = pilhasDeTabelas.get(chave)
+  if (pronta !== undefined) return pronta
+  const pilha: (Float64Array | null)[] = []
+  let periodo = base
+  for (let i = 0; i < oitavas; i += 1) {
+    pilha.push(tabelaDeGradientes(periodo, semente + i * salto))
+    periodo *= 2
+  }
+  pilhasDeTabelas.set(chave, pilha)
+  return pilha
 }
 
 /**
@@ -118,12 +199,15 @@ export function valor(x: number, y: number, periodo: number, semente: number): n
  * repetindo). Sai normalizada em torno de [-1, 1].
  */
 export function fbm(u: number, v: number, base: number, oitavas: number, semente: number, ganho = 0.5): number {
+  const pilha = tabelasDasOitavas(base, oitavas, semente, 101)
   let soma = 0
   let amplitude = 1
   let total = 0
   let periodo = base
   for (let i = 0; i < oitavas; i += 1) {
-    soma += gradiente(u * periodo, v * periodo, periodo, semente + i * 101) * amplitude
+    const tabela = pilha === null ? null : pilha[i]
+    const n = tabela !== null ? gradienteNaTabela(u * periodo, v * periodo, periodo, tabela) : gradiente(u * periodo, v * periodo, periodo, semente + i * 101)
+    soma += n * amplitude
     total += amplitude
     amplitude *= ganho
     periodo *= 2
@@ -136,12 +220,15 @@ export function fbm(u: number, v: number, base: number, oitavas: number, semente
  * forma de serra e rocha. Sai em [0, 1].
  */
 export function cristas(u: number, v: number, base: number, oitavas: number, semente: number): number {
+  const pilha = tabelasDasOitavas(base, oitavas, semente, 131)
   let soma = 0
   let amplitude = 1
   let total = 0
   let periodo = base
   for (let i = 0; i < oitavas; i += 1) {
-    const n = 1 - Math.abs(gradiente(u * periodo, v * periodo, periodo, semente + i * 131) * 1.4)
+    const tabela = pilha === null ? null : pilha[i]
+    const g = tabela !== null ? gradienteNaTabela(u * periodo, v * periodo, periodo, tabela) : gradiente(u * periodo, v * periodo, periodo, semente + i * 131)
+    const n = 1 - Math.abs(g * 1.4)
     soma += n * n * amplitude
     total += amplitude
     amplitude *= 0.5
@@ -171,12 +258,13 @@ export function vizinhos(u: number, v: number, n: number, semente: number, folga
   const y = v * n
   const cx = Math.floor(x)
   const cy = Math.floor(y)
+  const resto = periodoInteiro(n) ? modInteiro : mod
   for (let oy = -1; oy <= 1; oy += 1) {
     for (let ox = -1; ox <= 1; ox += 1) {
       const gx = cx + ox
       const gy = cy + oy
-      const ix = mod(gx, n)
-      const iy = mod(gy, n)
+      const ix = resto(gx, n)
+      const iy = resto(gy, n)
       const px = gx + 0.5 + (hash(ix, iy, semente) - 0.5) * 2 * folga
       const py = gy + 0.5 + (hash(ix, iy, semente + 7) - 0.5) * 2 * folga
       visita({ dx: x - px, dy: y - py, ix, iy })

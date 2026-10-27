@@ -94,7 +94,13 @@ export function marchingSquares(
   }
 
   for (let j = 0; j + 1 < rows; j += 1) {
+    const linha = j * cols
     for (let i = 0; i + 1 < cols; i += 1) {
+      // Célula toda dentro ou toda fora (quase todas): nenhuma aresta cruza,
+      // pula antes de montar os objetos da célula. Era a alocação por célula,
+      // milhões delas no chão de 200 × 200 casas, que pesava ao abrir (F5).
+      const dentro = values[linha + i] < 0
+      if (values[linha + i + 1] < 0 === dentro && values[linha + cols + i + 1] < 0 === dentro && values[linha + cols + i] < 0 === dentro) continue
       // Cantos no sentido horário da tela: a (topo-esq), b (topo-dir), c (baixo-dir), d (baixo-esq).
       const corners = [
         { x: i, y: j, v: at(i, j) },
@@ -202,25 +208,30 @@ export function sampleFloorGrid(
   const uniformSign = new Float32Array((coarseCols - 1) * (coarseRows - 1))
   for (let cj = 0; cj + 1 < coarseRows; cj += 1) {
     for (let ci = 0; ci + 1 < coarseCols; ci += 1) {
-      const corners = [
-        coarse[cj * coarseCols + ci],
-        coarse[cj * coarseCols + ci + 1],
-        coarse[(cj + 1) * coarseCols + ci],
-        coarse[(cj + 1) * coarseCols + ci + 1],
-      ]
-      const strongest = corners.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a))
+      // O canto de maior |d| (o primeiro, no empate), sem montar lista por célula.
+      let strongest = coarse[cj * coarseCols + ci]
+      const b1 = coarse[cj * coarseCols + ci + 1]
+      if (Math.abs(b1) > Math.abs(strongest)) strongest = b1
+      const b2 = coarse[(cj + 1) * coarseCols + ci]
+      if (Math.abs(b2) > Math.abs(strongest)) strongest = b2
+      const b3 = coarse[(cj + 1) * coarseCols + ci + 1]
+      if (Math.abs(b3) > Math.abs(strongest)) strongest = b3
       uniformSign[cj * (coarseCols - 1) + ci] = Math.abs(strongest) > reach ? Math.sign(strongest) : 0
     }
   }
 
   const values = new Float32Array(cols * rows)
   const probe = step * SEAM_PROBE_FRACTION
+  // A coluna grossa de cada coluna fina, contada uma vez (era a cada amostra).
+  const colunaGrossa = new Int32Array(cols)
+  for (let i = 0; i < cols; i += 1) colunaGrossa[i] = Math.min(Math.floor(i / coarseFactor), coarseCols - 2)
   for (let j = 0; j < rows; j += 1) {
     const cj = Math.min(Math.floor(j / coarseFactor), coarseRows - 2)
+    const linhaGrossa = cj * (coarseCols - 1)
+    const linha = j * cols
     for (let i = 0; i < cols; i += 1) {
-      const ci = Math.min(Math.floor(i / coarseFactor), coarseCols - 2)
-      const sign = uniformSign[cj * (coarseCols - 1) + ci]
-      values[j * cols + i] = sign !== 0 ? sign * coarseStep : sampleAcrossSeam(sample, originX + i * step, originY + j * step, probe)
+      const sign = uniformSign[linhaGrossa + colunaGrossa[i]]
+      values[linha + i] = sign !== 0 ? sign * coarseStep : sampleAcrossSeam(sample, originX + i * step, originY + j * step, probe)
     }
   }
   return values
@@ -340,8 +351,60 @@ export function extractFloorRings(pieces: FloorPiece[], options: ContourOptions 
   })
 }
 
-/** Agrupa os anéis em polígonos com buracos, maior primeiro. */
+/**
+ * CONTORNO GUARDADO por versão do chão (F5, 27/10/2026: abrir o mapa grande
+ * refazia o mesmo contorno em várias telas e a cada abertura). Primeiro pela
+ * lista de peças (a store é imutável: mesma lista = mesmo chão); depois pelo
+ * DESENHO das peças (forma, operação, giro, visibilidade, modificadores, o
+ * que o campo de distância lê em `floorSdf.ts`) e pelas opções, para o mapa
+ * aberto de novo e a lista nova com as mesmas peças. Quem recebe só lê.
+ */
+const contornosPorLista = new WeakMap<FloorPiece[], Map<string, FloorPolygon[]>>()
+const contornosRecentes: Array<{ chave: string; polygons: FloorPolygon[] }> = []
+/** Quantos desenhos de chão ficam guardados (o do editor, o da visão, as camadas de cor). */
+const CONTORNOS_GUARDADOS = 8
+
+/** Número que não é finito vira texto: no JSON ele viraria `null` e dois chãos diferentes teriam a mesma chave. */
+function semNaoFinito(_chave: string, valor: unknown): unknown {
+  return typeof valor === 'number' && !Number.isFinite(valor) ? `n:${valor}` : valor
+}
+
+function chaveDoContorno(pieces: readonly FloorPiece[], opcoes: string): string {
+  const desenho = pieces.map((p) => [p.shape, p.op, p.rotation ?? 0, !!p.hidden, p.modifiers])
+  return `${opcoes}|${JSON.stringify(desenho, semNaoFinito)}`
+}
+
+function chaveDasOpcoes(options: ContourOptions): string {
+  const { clip } = options
+  return JSON.stringify([options.step ?? null, options.tolerance ?? null, options.maxSamples ?? null, clip ? [clip.minX, clip.minY, clip.maxX, clip.maxY] : null], semNaoFinito)
+}
+
+/** Agrupa os anéis em polígonos com buracos, maior primeiro. Guardado por versão do chão (acima). */
 export function buildFloorOutline(pieces: FloorPiece[], options: ContourOptions = {}): FloorPolygon[] {
+  const opcoes = chaveDasOpcoes(options)
+  let daLista = contornosPorLista.get(pieces)
+  const daMesmaLista = daLista?.get(opcoes)
+  if (daMesmaLista !== undefined) return daMesmaLista
+  const chave = chaveDoContorno(pieces, opcoes)
+  const k = contornosRecentes.findIndex((e) => e.chave === chave)
+  let polygons: FloorPolygon[]
+  if (k >= 0) {
+    polygons = contornosRecentes[k].polygons
+    contornosRecentes.push(...contornosRecentes.splice(k, 1))
+  } else {
+    polygons = contornarChao(pieces, options)
+    contornosRecentes.push({ chave, polygons })
+    if (contornosRecentes.length > CONTORNOS_GUARDADOS) contornosRecentes.shift()
+  }
+  if (daLista === undefined) {
+    daLista = new Map()
+    contornosPorLista.set(pieces, daLista)
+  }
+  daLista.set(opcoes, polygons)
+  return polygons
+}
+
+function contornarChao(pieces: FloorPiece[], options: ContourOptions): FloorPolygon[] {
   const rings = extractFloorRings(pieces, options)
   if (rings.length === 0) return []
   const withArea = rings.map((ring) => ({ ring, area: signedArea(ring) }))
