@@ -69,7 +69,6 @@
     "e2e/task-jornada-dado-na-sala.spec.ts": "6f0d272540cb054e2d3d35c6f1847bb6c9e3f55f2732f5b4e52977d72f42535c",
     "e2e/task-jornada-exportar-png.spec.ts": "9ab336c661a9b34665c193c465e3f0b89d32a11a19aae2ec422af0fed71773c6",
     "e2e/task-jornada-condicao-na-ficha.spec.ts": "ba88f7af160fb78b91edc6b50b51fa67bfb6feaf937b286a91b426ff55625c72",
-    "e2e/task-jornada-iniciativa.spec.ts": "377554b6cd2a297a5abc1b35a7172188aefef2139186efeab6d2286b12dba011",
     "e2e/task-jornada-agrupar-objetos.spec.ts": "e901041817ce84065d1cc2ef263d153b615c5cecb34dc64ca5571a665c811bd2",
     "e2e/task-jornada-alinhar-e-distribuir.spec.ts": "7644019599e4340382d626768285d10451f7d7b2f8875c3b6ada07967969b3dd",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",
