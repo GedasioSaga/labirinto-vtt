@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relevo e penhasco</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo de dados · Relevo e penhasco</p>
+    <h1>Onde nascem os três defeitos do penhasco, do mapa até a tela</h1>
+
+    <svg viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="relevo-penhasco-title relevo-penhasco-desc">
+      <title id="relevo-penhasco-title">Relevo e penhasco: do mapa até a tela</title>
+      <desc id="relevo-penhasco-desc">O mapa vira contorno e amostras em relevo.ts, depois uma textura de no máximo 2048 texels em relevoRaster.ts, que drawRelevo.ts estica na tela; o vão no canto nasce no contorno, o borrão no teto da textura e a cor de madeira nas faixas antigas, que a MT12 troca pela terracota.</desc>
+      <defs>
+        <marker id="relevo-penhasco-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="relevo-penhasco-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Conectores primeiro: o caminho do dado -->
+      <line x1="236" y1="88" x2="284" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#relevo-penhasco-arrow)"/>
+      <line x1="464" y1="88" x2="512" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#relevo-penhasco-arrow)"/>
+      <line x1="692" y1="88" x2="740" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#relevo-penhasco-arrow)"/>
+      <line x1="920" y1="88" x2="968" y2="88" stroke="#4f5d75" stroke-width="1" marker-end="url(#relevo-penhasco-arrow)"/>
+
+      <!-- Defeitos apontando para onde nascem -->
+      <line x1="374" y1="192" x2="374" y2="120" stroke="#eb6c36" stroke-width="1" marker-end="url(#relevo-penhasco-arrow-accent)"/>
+      <line x1="572" y1="192" x2="572" y2="120" stroke="#eb6c36" stroke-width="1" marker-end="url(#relevo-penhasco-arrow-accent)"/>
+      <path d="M832 192 V160 A8 8 0 0 0 824 152 H640 A8 8 0 0 1 632 144 V120" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#relevo-penhasco-arrow)"/>
+      <rect x="696" y="132" width="88" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="740" y="141" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">COR DA FAIXA</text>
+
+      <!-- Nós do caminho -->
+      <rect x="56" y="60" width="180" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="56" y="60" width="180" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="146" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mapa do mestre</text>
+      <text x="146" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">regiões + riscos de penhasco</text>
+
+      <rect x="284" y="60" width="180" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="284" y="60" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="374" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Contorno e amostras</text>
+      <text x="374" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lib/relevo.ts</text>
+
+      <rect x="512" y="60" width="180" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="512" y="60" width="180" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="602" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Textura do relevo</text>
+      <text x="602" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">relevoRaster.ts · teto 2048</text>
+
+      <rect x="740" y="60" width="180" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="740" y="60" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="830" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Desenho no Pixi</text>
+      <text x="830" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">drawRelevo.ts:284 estica</text>
+
+      <rect x="968" y="60" width="180" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="968" y="60" width="180" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="1058" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tela</text>
+      <text x="1058" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">~6 px por texel a 100%</text>
+
+      <!-- Defeitos (focais: os dois que a MT12 não resolve) -->
+      <rect x="284" y="192" width="180" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="284" y="192" width="180" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="374" y="212" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Vão azul no canto</text>
+      <text x="374" y="228" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">divisa vira "terra" (:925)</text>
+      <text x="374" y="244" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">~35 linhas · 0.5.2</text>
+
+      <rect x="512" y="192" width="180" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="512" y="192" width="180" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="602" y="212" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Borrão</text>
+      <text x="602" y="228" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">0,16 texel por px de mundo</text>
+      <text x="602" y="244" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">parede como malha · 0.5.2</text>
+
+      <rect x="740" y="192" width="180" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="740" y="192" width="180" height="64" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="830" y="212" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Faixas cor de madeira</text>
+      <text x="830" y="228" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">relevo.ts:136-143</text>
+      <text x="830" y="244" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">MT12 liga a terracota · 0.5.1</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="292" x2="1176" y2="292" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <line x1="120" y1="312" x2="152" y2="312" stroke="#4f5d75" stroke-width="1" marker-end="url(#relevo-penhasco-arrow)"/>
+      <text x="164" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">caminho do dado</text>
+      <rect x="320" y="306" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="344" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">defeito a consertar na fatia "Relevo nítido"</text>
+      <rect x="640" y="306" width="16" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="664" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">resolvido ao ligar o Meio-Termo</text>
+    </svg>
+  </div>
+</body>
+</html>
