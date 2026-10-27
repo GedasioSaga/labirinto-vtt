@@ -7,6 +7,7 @@ import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLo
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire, type MemoryRing } from '../lib/exploration'
+import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import { pointInRing } from '../lib/floorContour'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
@@ -199,7 +200,7 @@ import {
   type NoteEntry,
 } from './protocol'
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
-import { diffView, isEmptyViewPatch, type PlayerViewContent } from './viewPatch'
+import { diffView, isEmptyViewPatch, reuseUnchanged, type PlayerViewContent } from './viewPatch'
 import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_LENGTH, cleanChatText, findMentions, nameSkeleton, takeChatTurn, type ChatChannel } from '../lib/chat'
 import type { ChatHistory } from '../lib/chatStore'
@@ -3054,6 +3055,41 @@ function doorsKey(doors: ReadonlyMap<string, DoorState>): string {
   return JSON.stringify([...doors])
 }
 
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
+  return true
+}
+
+/** O último explorado codificado de cada memória: o que ele era (cópia dos bits) e o que saiu. */
+const lastEncoded = new WeakMap<Exploration, { cell: number; cols: number; rows: number; bits: Uint8Array; rings: MemoryRing[]; ringCount: number; wire: ExploredWire }>()
+
+/**
+ * `encodeExploration` que devolve o MESMO objeto quando o explorado não mudou
+ * desde a última vez (os bits iguais, byte a byte, e os anéis: a lista só
+ * cresce por `push` ou é trocada inteira). No mapa 200x200 eram ~107 KB de
+ * base64 refeitos a cada passo do NPC que o mestre arrasta; e o mesmo objeto
+ * faz o patch resolver o explorado por identidade.
+ */
+function encodeExplorationKept(exp: Exploration): ExploredWire {
+  if (!cacheDoRecorte.ligado) return encodeExploration(exp)
+  const kept = lastEncoded.get(exp)
+  if (
+    kept !== undefined &&
+    kept.cell === exp.cell &&
+    kept.cols === exp.cols &&
+    kept.rows === exp.rows &&
+    kept.rings === exp.rings &&
+    kept.ringCount === exp.rings.length &&
+    sameBytes(kept.bits, exp.bits)
+  ) {
+    return kept.wire
+  }
+  const wire = encodeExploration(exp)
+  lastEncoded.set(exp, { cell: exp.cell, cols: exp.cols, rows: exp.rows, bits: exp.bits.slice(), rings: exp.rings, ringCount: exp.rings.length, wire })
+  return wire
+}
+
 export function createHostSession(options: HostSessionOptions): HostSession {
   const now = options.now ?? Date.now
   const randomId = options.randomId ?? (() => crypto.randomUUID())
@@ -4381,7 +4417,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     memory.ocultas = view.concealed
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
     const where = sceneName === undefined ? {} : { sceneName }
-    const explored = encodeExploration(exp)
+    const explored = encodeExplorationKept(exp)
     const previous = memory.sentExplored
     // Sala secreta descoberta agora também muda o recorte seguinte.
     const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings && memory.secretRooms.size === discoveredBefore
@@ -4506,7 +4542,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const snapshot = snapshotMsgs === null ? null : (snapshotMsgs[0] as SnapshotMessage)
     const cards = snapshotMsgs === null ? [] : snapshotMsgs.slice(1)
     const after = map === null ? undefined : existingMemory(playerId, map)
-    const view = snapshot === null ? null : contentOf(snapshot)
+    // O campo do mapa com os mesmos itens volta como o array da tela anterior: o patch o resolve por identidade.
+    const fresh = snapshot === null ? null : contentOf(snapshot)
+    const view = fresh === null || last === undefined || last.view === null ? fresh : reuseUnchanged(last.view, fresh)
     const extras = snapshot === null ? null : extrasOf(snapshot)
     const out = messageFor(clientId, last, snapshot, view, extras, force)
     const memorySettled =

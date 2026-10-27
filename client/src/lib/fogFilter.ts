@@ -23,6 +23,7 @@ import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
 import { camadasDoJogadorDoMapa } from './camadas/doJogador'
 import { ehCamadaDeAntes, ehCamadaId, ehCamadaPadrao, soCamadasDeAntes } from './camadas/padrao'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
+import { cacheDoRecorte, porReferencia } from './cacheDoRecorte'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
 import type { MinigameVisivel } from '../minigames/tipos'
@@ -600,6 +601,19 @@ function boxOf(points: readonly RegionPoint[]): Box | null {
   return { minX, minY, maxX, maxY }
 }
 
+/** Caixa de cada lista de pontos, por referência (a lista do mapa é imutável). Só leitura. */
+const boxByPoints = new WeakMap<readonly RegionPoint[], Box | null>()
+const keptBoxOf = (points: readonly RegionPoint[]): Box | null => porReferencia(boxByPoints, points, () => boxOf(points))
+
+/** A caixa dos pontos encosta na caixa de alguma das `boxes`? Fora disso nenhum ponto está em nenhuma delas. */
+function boxTouchesAny(points: readonly RegionPoint[], boxes: readonly Box[]): boolean {
+  if (boxes.length === 0) return false
+  // Sem o cache (teste de igualdade), o caminho antigo: ponto a ponto.
+  if (!cacheDoRecorte.ligado) return true
+  const box = keptBoxOf(points)
+  return box !== null && boxes.some((b) => box.maxX >= b.minX && box.minX <= b.maxX && box.maxY >= b.minY && box.minY <= b.maxY)
+}
+
 interface BoxedRing extends Box {
   ring: RegionPoint[]
 }
@@ -762,6 +776,17 @@ const DOOR_EXPLORED_PROBE_CELLS = 1.5
  * polígono (centróide de polígono côncavo); se nenhuma sobra, usa todas.
  */
 function interiorSamples(points: readonly RegionPoint[], ring?: RegionPoint[]): RegionPoint[] {
+  // Com a sala aberta o recorte sai a cada passo de ficha, e as amostras de
+  // cada sala e desenho eram refeitas todas as vezes. Guardadas por referência
+  // da lista de pontos (o mapa é imutável); quem usa só lê.
+  if (ring === undefined) return porReferencia(interiorByPoints, points, () => computeInteriorSamples(points))
+  if (ring === points) return porReferencia(interiorByRing, points, () => computeInteriorSamples(points, ring))
+  return computeInteriorSamples(points, ring)
+}
+const interiorByPoints = new WeakMap<readonly RegionPoint[], RegionPoint[]>()
+const interiorByRing = new WeakMap<readonly RegionPoint[], RegionPoint[]>()
+
+function computeInteriorSamples(points: readonly RegionPoint[], ring?: RegionPoint[]): RegionPoint[] {
   if (points.length === 0) return []
   let sx = 0
   let sy = 0
@@ -804,6 +829,11 @@ const CONTOUR_PUSH = 4
  * ela cairia na borda da visão de quem está do lado de fora.
  */
 function contourSamples(points: readonly RegionPoint[]): RegionPoint[] {
+  return porReferencia(contourByPoints, points, () => computeContourSamples(points))
+}
+const contourByPoints = new WeakMap<readonly RegionPoint[], RegionPoint[]>()
+
+function computeContourSamples(points: readonly RegionPoint[]): RegionPoint[] {
   const n = points.length
   if (n === 0) return []
   let sx = 0
@@ -836,6 +866,12 @@ function contourSamples(points: readonly RegionPoint[]): RegionPoint[] {
  * crus. Traço sem pontos devolve lista vazia e nunca é enviado.
  */
 function drawingSamplePoints(drawing: Drawing): RegionPoint[] {
+  return porReferencia(samplesByDrawing, drawing, () => computeDrawingSamplePoints(drawing))
+}
+/** Por referência do desenho: desenho editado é objeto novo e recalcula. */
+const samplesByDrawing = new WeakMap<Drawing, RegionPoint[]>()
+
+function computeDrawingSamplePoints(drawing: Drawing): RegionPoint[] {
   switch (drawing.kind) {
     case 'freehand':
     case 'curve':
@@ -2348,6 +2384,8 @@ function recorteDoGrupo(
     pointInRing(point, zone.ring) &&
     !(zone.unveiled.size > 0 && zone.unveiled.has(cellKeyAt(point)))
   const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && zones.some((zone) => hidesPoint(zone, point))
+  /** Algum ponto da lista numa zona ativa? A caixa da lista longe de toda zona responde sem olhar ponto a ponto. */
+  const anyInConcealZone = (points: readonly RegionPoint[]): boolean => boxTouchesAny(points, zones) && points.some(inConcealZone)
 
   // Sala "Oculta para jogadores" leva junto as paredes dela e o que está dentro dela.
   const allSecretRooms = secretRoomsOf(map)
@@ -2559,7 +2597,8 @@ function recorteDoGrupo(
    */
   const insideZone = (w: Wall): boolean => nearZone(w) && (wallStepSamples(w) ?? wallSamples(w)).every(inZoneRing)
   const outsideZones = (points: readonly RegionPoint[]): readonly RegionPoint[] =>
-    zones.length === 0 ? points : points.filter((p) => !hiddenByZone(p))
+    // Fora da caixa de toda zona nada é escondido por zona (o pincel também só vale dentro dela, `brushedRoom`).
+    !boxTouchesAny(points, zones) ? points : points.filter((p) => !hiddenByZone(p))
   /**
    * Forma com algum trecho que a zona ainda esconde (fora do pedaço pintado,
    * ou na sala que o pincel não abre), medido no CONTORNO e no interior, não
@@ -3254,7 +3293,7 @@ function recorteDoGrupo(
   const lines = recallItems(map.lines, remembered?.lines, {
     allowed: () => true,
     shown: (l) => jogadorVeItem('linha', l),
-    placeOk: (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone),
+    placeOk: (l) => !l.points.some(inHiddenPlace) && !anyInConcealZone(l.points),
     seenNow: (l) => isShapeVisible(l.points) || comodoSeenShape(l.points),
     unseenOk: (l) => exploredShape(l.points),
   })
@@ -3285,7 +3324,7 @@ function recorteDoGrupo(
       const samples = drawingSamplePoints(d)
       if (samples.some(inHiddenPlace)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
-      if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
+      if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
       return outsideZones(samples).length > 0
     },
     seenNow: (d) => isShapeVisible(drawingSamplePoints(d)) || comodoSeenShape(drawingSamplePoints(d)),
@@ -3978,7 +4017,7 @@ function recorteDoGrupo(
       (m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && (memoryMode || isPointKnown({ x: m.cx, y: m.cy })),
     ),
     lines: naCamadaDoJogador('linha', recalledList(map.lines, lines, memoryMode)).filter(
-      (l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && (memoryMode || isShapeKnown(l.points, { points: l.points, closed: l.closed })),
+      (l) => !l.points.some(inHiddenPlace) && !anyInConcealZone(l.points) && (memoryMode || isShapeKnown(l.points, { points: l.points, closed: l.closed })),
     ),
     // Luz: ver `playerLights`/`sentLights` (teto fechado, tocha presa na ficha,
     // outro piso, fumaça, luz apagada pelo estado, vista de longe).
@@ -3995,7 +4034,7 @@ function recorteDoGrupo(
       const samples = drawingSamplePoints(d)
       if (samples.some(inHiddenPlace)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
-      if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
+      if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
       return memoryMode || isShapeKnown(samples, drawingOutline(d))
     }),
     // Cômodo lembrado sai pela regra dele, na versão de agora (`recalledList`).

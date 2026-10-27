@@ -32,6 +32,7 @@ import { expect, test, type Browser, type BrowserContext, type CDPSession, type 
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
+import { conferirMetasF3, ligarProvaF3, lerProvaF3, metasF3Ligadas, provaF3Ligada } from './metas-f3'
 
 // ---------------------------------------------------------------- casos
 
@@ -826,19 +827,27 @@ for (const caso of CASOS) {
     await cenario('pan-perto-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
     await centrarEAproximar(mestre, npc, map.grid)
     let idaDoNpc = 1
-    const arrastarNpc = async () => {
-      const de = { x: npc.x, y: npc.y }
-      const para = { x: npc.x + idaDoNpc * 10 * map.grid, y: npc.y }
+    const arrastarNpc = async (ficha: Token = npc) => {
+      // A ficha de VERDADE: no mapa real a parede pára o arrasto no meio, e partir do alvo antigo
+      // pegava o chão (laço de seleção) e o passo seguinte arrastava a seleção, com a ficha do jogador junto.
+      // `setActiveTool('select')` também limpa a seleção.
+      const real = await mestre.evaluate((id) => {
+        const s = (window as unknown as Janela).__labSonda as { mapStore: { getState: () => { map: MapData; setActiveTool: (t: string) => void } } } // as: a sonda do app
+        s.mapStore.getState().setActiveTool('select')
+        return s.mapStore.getState().map.tokens.find((t) => t.id === id)
+      }, ficha.id)
+      if (real !== undefined) Object.assign(ficha, { x: real.x, y: real.y })
+      const de = { x: ficha.x, y: ficha.y }
+      const para = { x: ficha.x + idaDoNpc * 10 * map.grid, y: ficha.y }
       const a = await naTela(mestre, 'appMestre', de.x, de.y)
       const b = await naTela(mestre, 'appMestre', para.x, para.y)
       await arrastar(mestre, 'left', (t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }), 1500, 150)
-      npc.x = para.x
       idaDoNpc = -idaDoNpc
       await mestre.waitForTimeout(1000)
-      const depois = await mestre.evaluate((id) => ((window as unknown as Janela).__labSonda as { mapStore: { getState: () => { map: MapData } } }).mapStore.getState().map.tokens.find((t) => t.id === id), npc.id) // as: a sonda do app
+      const depois = await mestre.evaluate((id) => ((window as unknown as Janela).__labSonda as { mapStore: { getState: () => { map: MapData } } }).mapStore.getState().map.tokens.find((t) => t.id === id), ficha.id) // as: a sonda do app
       return { ficha_andou_px: depois === undefined ? null : Math.round(depois.x - de.x) }
     }
-    await cenario('arrastar-ficha-10-casas', soMestre, arrastarNpc)
+    await cenario('arrastar-ficha-10-casas', soMestre, () => arrastarNpc())
     const esconderZonas = async () => {
       await mestre.evaluate((ids) => {
         const s = (window as unknown as Janela).__labSonda as { mapStore: { getState: () => { updateConcealZone: (id: string, p: { revealed: boolean }) => void } } } // as: a sonda do app
@@ -972,8 +981,11 @@ for (const caso of CASOS) {
       await centrarEAproximar(mestre, npc, map.grid)
       await cenario('mesa-jogador-ve-mestre-mover-ficha', mesa, async () => {
         const antes = { n: enviados.n, bytes: enviados.bytes }
-        const r = await arrastarNpc()
-        return { ...r, mensagens_do_mestre: enviados.n - antes.n, bytes_do_mestre: enviados.bytes - antes.bytes }
+        if (provaF3Ligada()) await ligarProvaF3(mestre)
+        // `LAB_DES_F3_FICHA=jogador`: o mestre arrasta a ficha do JOGADOR (a visão dele muda a cada passo).
+        const r = await arrastarNpc(process.env.LAB_DES_F3_FICHA === 'jogador' ? fichaDoJogador : npc)
+        const prova = provaF3Ligada() ? { prova_f3: await lerProvaF3(mestre) } : {}
+        return { ...r, mensagens_do_mestre: enviados.n - antes.n, bytes_do_mestre: enviados.bytes - antes.bytes, ...prova }
       })
       await cenario(
         'mesa-mestre-revela-nevoa-6-zonas',
@@ -1011,5 +1023,6 @@ for (const caso of CASOS) {
     registro.erros_de_pagina = erros
     if (SAIDA !== '') appendFileSync(SAIDA, `${JSON.stringify(registro)}\n`)
     console.log(`DESEMPENHO ${caso.id} ${JSON.stringify({ abrir_mestre: registro.abrir_mestre, abrir_jogador: registro.abrir_jogador, cenarios: cenarios.map((c) => [c.papel, c.cenario, c.fps, c.quadro_p95_ms, c.longas_max_ms, c.cpu_ms_por_s]) })}`)
+    if (metasF3Ligadas()) expect(conferirMetasF3({ caso, cenarios }), 'metas da F3 (client/desempenho/metas-f3.ts)').toEqual([])
   })
 }
