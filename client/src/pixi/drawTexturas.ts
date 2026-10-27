@@ -450,9 +450,10 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       if (doChao !== null) {
         // Meio-Termo: os pedaços por posição por cima da repetida, os dois pela mesma máscara.
         cacheDoChao ??= new CacheDoChao()
-        const chao = montarChaoEmPedacos({ cache: cacheDoChao, chaveDoChao: doChao.chave, chao: doChao.chao, caixa: c.caixa, repetida, vista, aoFicarPronto: () => marcar('chao:pronto') })
+        // A máscara entra como filtro com a área presa à vista (`mascaraNaVista`, pedacosDoChao.ts), não por
+        // `setMask`: os pedaços passam da vista, e a textura do filtro chegava a 8192 px por camada a cada quadro.
+        const chao = montarChaoEmPedacos({ cache: cacheDoChao, chaveDoChao: doChao.chave, chao: doChao.chao, caixa: c.caixa, repetida, vista, mascara, aoFicarPronto: () => marcar('chao:pronto') })
         alvo.addChild(chao.grupo, mascara)
-        chao.grupo.setMask({ mask: mascara, channel: 'alpha' })
         montadas.push({ repetida, caixa: c.caixa, chao })
         return
       }

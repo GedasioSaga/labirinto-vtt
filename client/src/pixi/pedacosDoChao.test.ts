@@ -6,7 +6,7 @@
  * repetido (placeholder) e, DESLIGADA, monta o mesmo de antes.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Container, Sprite, Texture, TilingSprite } from 'pixi.js'
+import { Container, MaskFilter, Sprite, Texture, TilingSprite, type Rectangle } from 'pixi.js'
 import type { PinceladaDeTextura } from '../types/map'
 import { trocarObraNoTeste } from '../lib/estiloDoMapa'
 import { LADO_DO_PEDACO, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
@@ -173,6 +173,44 @@ describe('a camada em pedaços', () => {
     camada.soltar()
     cache.destruir()
   })
+
+  it('F1: a máscara entra como filtro com a área presa a vista ∩ caixa, que anda com a vista (mesmo sem trocar de pedaços)', () => {
+    const fila = filaManual()
+    const cache = new CacheDoChao({ agendar: fila.agendar, fatiaMs: 1000 })
+    const mascara = new Sprite(Texture.WHITE)
+    const caixa = { minX: 100, minY: 50, maxX: 2000, maxY: 1500 }
+    const camada = montarChaoEmPedacos({ cache, chaveDoChao: 'grama#0#192#meio-termo-1', chao: CHAO, caixa, repetida: new TilingSprite({ texture: Texture.WHITE }), vista: { minX: 0.4, minY: 0, maxX: 600.2, maxY: 400 }, mascara })
+    const filtro = camada.grupo.filters?.[0]
+    expect(filtro).toBeInstanceOf(MaskFilter)
+    expect((filtro as MaskFilter).sprite).toBe(mascara)
+    expect((filtro as MaskFilter).channel).toBe('alpha')
+    expect(camada.grupo.mask).toBeFalsy()
+    // A máscara fica na cena (anda com o mundo) sem desenhar, como no `setMask` de sprite.
+    expect(mascara.renderable).toBe(false)
+    // Vista ∩ caixa, com pixel inteiro para fora (como o recorte da repetida).
+    const area = () => {
+      const a = camada.grupo.filterArea as Rectangle | undefined // as: o getter do Pixi pode não ter área
+      if (a === undefined) throw new Error('sem área do filtro')
+      return { x: a.x, y: a.y, w: a.width, h: a.height }
+    }
+    expect(area()).toEqual({ x: 100, y: 50, w: 501, h: 350 })
+    // Pan dentro da mesma faixa de pedaços: a área anda junto.
+    camada.ajustar({ minX: 150, minY: 60, maxX: 750, maxY: 460 })
+    expect(area()).toEqual({ x: 150, y: 60, w: 600, h: 400 })
+    // Zoom afastado: a área fica presa à caixa da pintura.
+    camada.ajustar({ minX: -5000, minY: -5000, maxX: 9000, maxY: 9000 })
+    expect(area()).toEqual({ x: 100, y: 50, w: 1900, h: 1450 })
+    // Fora da vista: o grupo não desenha (área vazia faria o Pixi pular o filtro e desenhar sem máscara).
+    camada.ajustar({ minX: 3000, minY: 3000, maxX: 3600, maxY: 3400 })
+    expect(camada.grupo.renderable).toBe(false)
+    camada.ajustar({ minX: 0, minY: 0, maxX: 600, maxY: 400 })
+    expect(camada.grupo.renderable).toBe(true)
+    // Soltar tira o filtro antes da textura da máscara sair.
+    const destruir = vi.spyOn(filtro as MaskFilter, 'destroy')
+    camada.soltar()
+    expect(destruir).toHaveBeenCalled()
+    cache.destruir()
+  })
 })
 
 describe('drawTexturas com a chave de obra (MT7)', () => {
@@ -217,7 +255,7 @@ describe('drawTexturas com a chave de obra (MT7)', () => {
     await vi.advanceTimersByTimeAsync(0)
     const grupo = r.camada.children[0]
     expect(chaoDoGrupo(grupo)).toBeDefined()
-    expect(grupo.mask).toBeInstanceOf(Sprite)
+    expect((grupo.filters?.[0] as MaskFilter).sprite).toBeInstanceOf(Sprite)
     expect(grupo.children[0]).toBeInstanceOf(TilingSprite)
     expect(cache.quantos).toBeGreaterThan(0)
     fila.tudo()

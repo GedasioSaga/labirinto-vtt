@@ -618,11 +618,51 @@ async function centrarEAproximar(page: Page, mundo: { x: number; y: number }, gr
   await aproximarNa(page, 'appMestre', mundo, grade, alvo)
 }
 
-/** Modo foto: o canvas da página contra a referência, 0 px (espera o chão em pedaços ficar parado). */
-async function foto(page: Page, nome: string): Promise<void> {
+/**
+ * Modo foto: SÓ a camada das texturas (o chão pintado) no canvas, contra a
+ * referência, 0 px. O resto da cena fica escondido durante a foto: a tela
+ * inteira anima (nuvens, água, brilho) e nunca fica parada duas vezes seguidas.
+ * A foto espera o chão em pedaços parar de chegar (duas capturas iguais).
+ */
+async function foto(page: Page, chave: 'appMestre' | 'appJogador', nome: string): Promise<void> {
   if (FOTOS === '') return
+  const achou = await page.evaluate((k) => {
+    type No = { label?: string; visible: boolean; parent?: No | null; children?: No[]; mask?: unknown }
+    const app = (window as unknown as Janela).__labSonda?.[k] as { stage: No } | undefined // as: o Application do Pixi pendurado pela sonda
+    if (app === undefined) return false
+    const achar = (n: No): No | null => {
+      if (n.label === 'texturas') return n
+      for (const f of n.children ?? []) {
+        const r = achar(f)
+        if (r !== null) return r
+      }
+      return null
+    }
+    const alvo = achar(app.stage)
+    if (alvo === null) return false
+    // As máscaras ficam: a do conhecido do jogador é irmã do contêiner das texturas (escondida, apagaria tudo).
+    const mascaras = new Set<unknown>()
+    for (let n: No | null | undefined = alvo; n; n = n.parent) if (n.mask) mascaras.add(n.mask)
+    const escondidos: No[] = []
+    for (let n: No = alvo; n.parent; n = n.parent) {
+      for (const irmao of n.parent.children ?? []) {
+        if (irmao !== n && irmao.visible && !mascaras.has(irmao)) {
+          irmao.visible = false
+          escondidos.push(irmao)
+        }
+      }
+    }
+    ;(window as unknown as { __labFotoEscondidos?: No[] }).__labFotoEscondidos = escondidos // as: campo nosso no window, para mostrar de novo depois
+    return true
+  }, chave)
+  if (!achou) throw new Error(`foto ${nome}: camada 'texturas' não achada`)
   await page.waitForTimeout(3000)
-  await expect.soft(page.locator('canvas').first()).toHaveScreenshot(`${nome}.png`, { maxDiffPixels: 0, timeout: 60_000 })
+  await expect.soft(page.locator('canvas').first()).toHaveScreenshot(`${nome}.png`, { maxDiffPixels: 0, scale: 'device', timeout: 60_000 })
+  await page.evaluate(() => {
+    const w = window as unknown as { __labFotoEscondidos?: Array<{ visible: boolean }> } // as: o campo pendurado acima
+    for (const n of w.__labFotoEscondidos ?? []) n.visible = true
+    w.__labFotoEscondidos = []
+  })
 }
 
 // ---------------------------------------------------------------- abrir
@@ -764,12 +804,12 @@ for (const caso of CASOS) {
       await medidores[0].page.waitForTimeout(800)
     }
 
-    await foto(mestre, `${caso.id}-mestre-inteiro`)
+    await foto(mestre, 'appMestre', `${caso.id}-mestre-inteiro`)
     registro.filtro_mestre_ao_abrir = await passadasDeFiltro(mestre, 'appMestre')
     if (FOTOS !== '') {
       // Zoom médio (uma casa ~16 px) antes do perto: a mesma sequência de gestos em toda rodada.
       await centrarEAproximar(mestre, npc, map.grid, 16)
-      await foto(mestre, `${caso.id}-mestre-medio`)
+      await foto(mestre, 'appMestre', `${caso.id}-mestre-medio`)
     }
     await cenario('parado-5s', soMestre, () => mestre.waitForTimeout(5000))
     await cenario('pan-mapa-inteiro-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
@@ -782,7 +822,7 @@ for (const caso of CASOS) {
     await centrarEAproximar(mestre, npc, map.grid)
     registro.gpu_mestre_perto = await memoriaDaGpu(mestre, 'appMestre')
     registro.filtro_mestre_perto = await passadasDeFiltro(mestre, 'appMestre')
-    await foto(mestre, `${caso.id}-mestre-perto`)
+    await foto(mestre, 'appMestre', `${caso.id}-mestre-perto`)
     await cenario('pan-perto-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
     await centrarEAproximar(mestre, npc, map.grid)
     let idaDoNpc = 1
@@ -873,7 +913,7 @@ for (const caso of CASOS) {
         longas: await longasEntre(jogador, antesDeAtribuir, antesDeAtribuir + abrirJogador.interativo_ms),
       }
       registro.gpu_jogador_ao_abrir = await memoriaDaGpu(jogador, 'appJogador')
-      await foto(jogador, `${caso.id}-jogador-abrir`)
+      await foto(jogador, 'appJogador', `${caso.id}-jogador-abrir`)
       const cdpJogador = await ctxJogador.newCDPSession(jogador)
       await cdpJogador.send('Performance.enable', { timeDomain: 'threadTicks' })
       const mesa: Medidor[] = [
@@ -904,7 +944,7 @@ for (const caso of CASOS) {
       })
       registro.gpu_jogador_depois_do_zoom = await memoriaDaGpu(jogador, 'appJogador')
       await aproximarNa(jogador, 'appJogador', fichaDoJogador, map.grid)
-      await foto(jogador, `${caso.id}-jogador-perto`)
+      await foto(jogador, 'appJogador', `${caso.id}-jogador-perto`)
       let idaDoJogador = 1
       const fichaAtual = { x: fichaDoJogador.x, y: fichaDoJogador.y }
       // Para a direita; se o passo não sair (parede no caminho, o mestre recusa), a passada seguinte tenta uma direção sem parede.
