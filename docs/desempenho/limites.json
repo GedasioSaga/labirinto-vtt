@@ -1,0 +1,15 @@
+{
+  "sobre": "Limites do harness (scripts/medir-desempenho.cjs --limites). Fatia F1 da otimização 200x200 (docs/planos/otimizacao-200x200-2026-10-27.md): 1440 a 150% com Meio-Termo, mapa real e sintético. Caso que não rodou ou cenário que faltou REPROVA. 'nao-piorar' guarda o 1080 na base de 27/10 menos 10%.",
+  "regras": [
+    { "nome": "F1 parado", "casos": ["real-mt-1440-dpr15", "sint200-mt-1440-dpr15"], "cenarios": ["mesa-parado-5s"], "papeis": ["mestre", "jogador"], "fps_min": 58 },
+    { "nome": "F1 parado (mestre sozinho)", "casos": ["real-mt-1440-dpr15", "sint200-mt-1440-dpr15"], "cenarios": ["parado-5s"], "papeis": ["mestre"], "fps_min": 58 },
+    { "nome": "F1 ficha andando (mestre sozinho)", "casos": ["real-mt-1440-dpr15", "sint200-mt-1440-dpr15"], "cenarios": ["arrastar-ficha-10-casas"], "papeis": ["mestre"], "fps_min": 55 },
+    { "nome": "F1 ficha andando (mesa)", "casos": ["real-mt-1440-dpr15", "sint200-mt-1440-dpr15"], "cenarios": ["mesa-jogador-ve-mestre-mover-ficha", "mesa-jogador-arrasta-propria-ficha-10-casas"], "papeis": ["mestre", "jogador"], "fps_min": 55 },
+    { "nome": "F1 textura", "casos": ["real-mt-1440-dpr15", "sint200-mt-1440-dpr15"], "gpu": ["gpu_mestre_perto", "gpu_jogador_fim"], "mb_max": 200, "lado_max_px": 4096 },
+    { "nome": "nao-piorar 1080 parado", "casos": ["sint200-mt-1080"], "cenarios": ["parado-5s"], "papeis": ["mestre"], "fps_min": 54 },
+    { "nome": "nao-piorar 1080 ficha", "casos": ["sint200-mt-1080"], "cenarios": ["arrastar-ficha-10-casas"], "papeis": ["mestre"], "fps_min": 45 },
+    { "nome": "nao-piorar 1080 mesa", "casos": ["sint200-mt-1080"], "cenarios": ["mesa-parado-5s"], "papeis": ["mestre"], "fps_min": 39 },
+    { "nome": "nao-piorar 1080 mesa ficha", "casos": ["sint200-mt-1080"], "cenarios": ["mesa-jogador-ve-mestre-mover-ficha"], "papeis": ["mestre"], "fps_min": 37 },
+    { "nome": "nao-piorar 1080 jogador", "casos": ["sint200-mt-1080"], "cenarios": ["mesa-parado-5s", "mesa-jogador-ve-mestre-mover-ficha"], "papeis": ["jogador"], "fps_min": 54 }
+  ]
+}

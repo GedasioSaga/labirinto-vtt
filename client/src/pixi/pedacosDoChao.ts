@@ -1,4 +1,4 @@
-import { BufferImageSource, Container, Sprite, Texture, type TilingSprite } from 'pixi.js'
+import { BufferImageSource, Container, MaskFilter, Rectangle, Sprite, Texture, type TilingSprite } from 'pixi.js'
 import type { Caixa } from '../lib/texturas'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LADO_DO_PEDACO, comecarPedaco, ladoDoPedacoNoMundo, pintarLinhas, type ChaoDaTextura, type Pedaco, type PinturaDoPedaco } from '../texturas/meioTermo/chaoNoMundo'
@@ -309,8 +309,59 @@ export interface MontagemDoChao {
   /** O ladrilho repetido de hoje, já recortado na vista: fica por baixo até os pedaços chegarem. */
   repetida: TilingSprite
   vista: Caixa | null
+  /**
+   * A máscara alfa da camada (a pintura dela). O grupo passa por ela num
+   * filtro com a ÁREA PRESA À VISTA (`mascaraNaVista`); sem ela, o grupo não
+   * é mascarado (testes do cache).
+   */
+  mascara?: Sprite
   /** Avisado cada vez que todos os pedaços da vista ficam prontos. */
   aoFicarPronto?: () => void
+}
+
+/**
+ * A máscara do grupo de pedaços com a área do filtro presa a vista ∩ caixa.
+ *
+ * POR QUE NÃO `setMask` (otimização 200x200, fatia F1, medida em 27/10/2026):
+ * o Pixi 8 passa a área mascarada por uma textura temporária do tamanho da
+ * caixa do conteúdo NA TELA, sem recortar na janela (`MaskFilter` nasce com
+ * `clipToViewport: false`), arredondada para potência de 2. Os pedaços passam
+ * da vista (pedaço inteiro na borda e, na troca de nível, os do nível
+ * anterior, até 2^k vezes maiores): a área chegava a 8192 px de lado por
+ * camada a cada quadro. Com `filterArea` = vista ∩ caixa, a textura tem no
+ * máximo o tamanho da tela, como no modo linhas (ladrilho cortado à vista).
+ * O que fica de fora da área está fora da tela: a imagem não muda.
+ */
+function mascaraNaVista(grupo: Container, mascara: Sprite, caixa: Caixa): { ajustar: (vista: Caixa | null) => void; soltar: () => void } {
+  // Os mesmos parâmetros do `AlphaMaskEffect` do `setMask` (resolução e antialias da tela, canal alfa).
+  const filtro = new MaskFilter({ sprite: mascara, channel: 'alpha', inverse: false, resolution: 'inherit', antialias: 'inherit' })
+  // Como o `setMask` de um sprite: a máscara fica na cena (a matriz dela anda com o mundo), mas não desenha.
+  mascara.renderable = false
+  grupo.filters = [filtro]
+  const area = new Rectangle()
+  return {
+    ajustar: (vista) => {
+      if (vista === null) {
+        // A pintura inteira (PNG): a área volta a ser a caixa do conteúdo, como antes.
+        grupo.filterArea = null as unknown as Rectangle // as: o Pixi aceita null (volta à caixa do conteúdo); o tipo do setter não diz
+        grupo.renderable = true
+        return
+      }
+      const naVista = areaNaVista(caixa, vista)
+      // Fora da vista nada se vê; e área vazia faria o Pixi PULAR o filtro e desenhar o grupo sem máscara.
+      grupo.renderable = naVista !== null
+      if (naVista === null) return
+      area.x = naVista.minX
+      area.y = naVista.minY
+      area.width = naVista.maxX - naVista.minX
+      area.height = naVista.maxY - naVista.minY
+      grupo.filterArea = area
+    },
+    soltar: () => {
+      grupo.filters = null
+      filtro.destroy()
+    },
+  }
 }
 
 export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
@@ -327,6 +378,7 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
   let assinatura: string | null = null
   let solto = false
   let esperando: (() => void)[] = []
+  const mascarada = m.mascara === undefined ? null : mascaraNaVista(grupo, m.mascara, m.caixa)
 
   const contarFaltam = (): number => {
     let n = 0
@@ -368,6 +420,8 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
 
   function ajustar(vista: Caixa | null): void {
     if (solto) return
+    // A área do filtro anda com a vista a cada chamada (o pan não muda a faixa de pedaços, mas muda a vista).
+    mascarada?.ajustar(vista)
     const nivel = vista === null ? nivelDaVista(m.caixa, MAX_PEDACOS_NO_PNG) : nivelDaVista(vista)
     const area = vista === null ? m.caixa : areaNaVista(m.caixa, vista)
     const f = area === null ? null : faixaDaArea(area, nivel)
@@ -424,6 +478,8 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
       for (const r of esperando) r()
       esperando = []
       camadasDoChao.delete(grupo)
+      // O filtro sai antes da textura da máscara (`soltarPintura` a destrói logo depois).
+      mascarada?.soltar()
       grupo.mask = null
       // O placeholder sai sem levar o ladrilho (que é do cache de ladrilhos do renderer).
       m.repetida.mask = null

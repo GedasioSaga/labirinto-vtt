@@ -54,7 +54,8 @@ function pedidaPelaUrl(): boolean | undefined {
     urlLida = true
     // Fora do navegador (Node, worker sem `location`) não há URL para ler.
     const search = typeof location === 'undefined' ? '' : location.search
-    pedidaNaUrl = obraDaUrl(import.meta.env.DEV, search)
+    // O build da sonda de desempenho (`VITE_LAB_SONDA=1`) também lê a URL: é como o harness mede o desenho de linhas em produção.
+    pedidaNaUrl = obraDaUrl(import.meta.env.DEV || import.meta.env.VITE_LAB_SONDA === '1', search)
   }
   return pedidaNaUrl
 }

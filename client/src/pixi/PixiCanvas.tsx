@@ -5,6 +5,7 @@ import { MenuDaSelecao } from '../components/MenuDaSelecao'
 import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
+import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
@@ -1079,6 +1080,7 @@ export function PixiCanvas({
         return
       }
       initialized = true
+      registrarNaSonda('appMestre', app)
       // Bloco, não o `inline` padrão do <canvas>: inline, ele mora numa linha de
       // texto que reserva embaixo o espaço das letras que descem, e com o
       // contêiner de 100% de altura essa sobra (5 px) vazava até o `.lb-editor`.
