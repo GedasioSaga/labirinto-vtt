@@ -8,6 +8,7 @@ import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
 import { carregarPacoteDaPagina } from './lib/pacoteDeAnimacoes'
 import { registrarNaSonda } from './lib/sondaDeDesempenho'
 import { useAdventureStore } from './stores/adventureStore'
+import { useBatalhaStore } from './stores/batalhaStore'
 import { useMapStore } from './stores/mapStore'
 import { themeCss } from './theme'
 import './main.css'
@@ -15,6 +16,8 @@ import './main.css'
 // Harness de desempenho (`client/desempenho/`): só no dev e no build `VITE_LAB_SONDA=1`.
 registrarNaSonda('mapStore', useMapStore)
 registrarNaSonda('adventureStore', useAdventureStore)
+// MODO BATALHA (B5): o harness liga a batalha para medir o pan com a grade de batalha (`LAB_DES_BATALHA=1`).
+registrarNaSonda('batalhaStore', useBatalhaStore)
 
 // Animações do pacote JÁ INSTALADO (baixado numa abertura anterior), antes do
 // primeiro render: a galeria e o mapa já nascem com elas. Só no app — fora

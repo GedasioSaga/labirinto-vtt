@@ -35,8 +35,8 @@ function desenhado(g: unknown): boolean {
 }
 
 describe('jogador — ficha de jogador no mapa de continente', () => {
-  it('chega com `pino`: vira o pino, sem disco, vida, condição nem anel da vez', () => {
-    const view = createTokenView(ficha({ pino: '#64b5f6', health: { current: 2, max: 9, shownToPlayers: true }, conditions: ['caido'] }), GRADE, true, true)
+  it('chega com `pino`: vira o pino, sem disco, vida nem condição', () => {
+    const view = createTokenView(ficha({ pino: '#64b5f6', health: { current: 2, max: 9, shownToPlayers: true }, conditions: ['caido'] }), GRADE, true)
     const marcador = marcadorDe(view)
     expect(marcador?.visible).toBe(true)
     expect(desenhado(view.body)).toBe(false)

@@ -19,6 +19,7 @@ import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { criarPortaoDaVista } from './vistaCoberta'
+import { criarGradeDaBatalha } from './gradeDaBatalha'
 import { preaquecerContornoDoChao, proximaTarefa } from './aberturaDoEditor'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
@@ -751,6 +752,8 @@ interface PixiCanvasProps {
    * chegam por `map.grid`/`map.gridOffset`, não por esta prop).
    */
   gridAlignPreview?: GridAlignResult | null
+  /** MODO BATALHA (B5): a cena aberta está em batalha; a grade de batalha aparece por cima do mapa (`gradeDaBatalha.ts`). */
+  batalhaLigada?: boolean
   /**
    * Reporta as dimensões NATURAIS (px) da textura de fundo carregada, depois
    * que `redrawBackground` resolve `Assets.load` — `null` sem fundo de
@@ -902,6 +905,7 @@ const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
 
 export function PixiCanvas({
   gridAlignPreview = null,
+  batalhaLigada = false,
   onBackgroundImageSizeChange,
   resetZoomRequest,
   cameraRequest = null,
@@ -1017,6 +1021,13 @@ export function PixiCanvas({
   // ZoomHud, que o App repassa; o Ctrl+0 é resolvido aqui dentro, pelo
   // atalho `zoomReset`) — ver docstring de `resetZoomRequest` acima.
   const resetZoomRequestRef = useRef<(() => void) | null>(null)
+  // Mesma ponte para a batalha: a prop muda fora do `setup()`; o valor vivo fica no ref para o primeiro desenho.
+  const batalhaLigadaRef = useRef(batalhaLigada)
+  batalhaLigadaRef.current = batalhaLigada
+  const gradeDaBatalhaRedrawRef = useRef<((ligada: boolean) => void) | null>(null)
+  useEffect(() => {
+    gradeDaBatalhaRedrawRef.current?.(batalhaLigada)
+  }, [batalhaLigada])
 
   useEffect(() => {
     gridAlignOverlayRedrawRef.current?.(gridAlignPreview)
@@ -1224,6 +1235,8 @@ export function PixiCanvas({
       // ROTA DE PATRULHA: a ronda de cada NPC, também embaixo das fichas e só do mestre.
       const patrolRoutesGraphics = new Graphics()
       patrolRoutesGraphics.eventMode = 'none'
+      // MODO BATALHA (B5): a grade de batalha, só com a batalha ligada na cena aberta.
+      const gradeDaBatalha = criarGradeDaBatalha()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -1342,6 +1355,7 @@ export function PixiCanvas({
         lightsContainer,
         watchConesGraphics,
         patrolRoutesGraphics,
+        gradeDaBatalha: gradeDaBatalha.camada,
         nomesDosLugaresContainer,
         tokensContainer,
         concealZonesContainer,
@@ -1955,6 +1969,9 @@ export function PixiCanvas({
         // DESEMPENHO (F8): mesmo gatilho (toda câmera e todo tamanho de tela): as pílulas
         // de nome inteiras fora da vista saem do desenho. Exportando, a vista é a cena inteira.
         nomesDosLugares.recortarNaVista(viewport)
+        // MODO BATALHA (B5): o mesmo gatilho e o mesmo portão com folga; a imagem exportada sai sem a grade de batalha.
+        gradeDaBatalha.definir(batalhaLigadaRef.current, map)
+        gradeDaBatalha.ajustarAVista(exportScene === null ? viewport : null, camera.scale, app.renderer.resolution)
         if (exportScene !== null) {
           portaoDaMoldura.esquecer()
           drawMapBounds(mapBoundsGraphics, map, viewport, pixel)
@@ -2791,6 +2808,7 @@ export function PixiCanvas({
       void redrawBackground()
       gridAlignOverlayRedrawRef.current = redrawGridAlignOverlay
       redrawGridAlignOverlay(gridAlignPreview)
+      gradeDaBatalhaRedrawRef.current = (ligada) => gradeDaBatalha.definir(ligada, sceneState().map)
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
       const redrawScene = () => {
@@ -8820,6 +8838,7 @@ export function PixiCanvas({
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
         gridAlignOverlayRedrawRef.current = null
+        gradeDaBatalhaRedrawRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
         editingRoomRef.current = null

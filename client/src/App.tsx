@@ -91,6 +91,7 @@ import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { ControleDaBatalha } from './components/livro/ControleDaBatalha'
 import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
@@ -1364,6 +1365,9 @@ function App() {
   const followingId = useFollowStore((state) => state.playerId)
   // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
   const openSceneId = adventure === null ? null : activeSceneId
+  // MODO BATALHA (B5): a chave da cena aberta, a mesma de `tableSceneKey(world.open)` (o id da cena, senão o do mapa).
+  const chaveDaCenaAberta = activeSceneId ?? map.id
+  const batalhaNaCenaAberta = useBatalhaStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -3125,6 +3129,7 @@ function App() {
       <div className="lb-editor__canvas" ref={canvasHostRef} onPointerDownCapture={(event) => apertarNoMapa(event)}>
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
+          batalhaLigada={batalhaNaCenaAberta}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
@@ -4188,6 +4193,7 @@ function App() {
         }
         chat={sala === undefined ? undefined : chatDaMesa()}
         mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
+        batalha={<ControleDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />}
         cenas={
           <ScenesSection
             scenes={scenesPanel}

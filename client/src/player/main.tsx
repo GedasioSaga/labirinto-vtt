@@ -63,6 +63,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
+import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
@@ -1385,6 +1386,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             ownTokens={ownTokens}
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}
+            // MODO BATALHA (B5): a grade de batalha só no andar da cena dele.
+            batalha={state.batalha === true}
             waitingTokens={waitingTokens}
             settings={settings}
             focusTokenId={focus.tokenId}
@@ -2121,6 +2124,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
+        {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
+        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} />
         {reconnecting}
       </PlayerErrorBoundary>
     )

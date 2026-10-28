@@ -63,6 +63,8 @@ const MAPA_REAL = process.env.LAB_DES_MAPA_REAL ?? ''
  * (`LAB_DES_ATUALIZAR_FOTOS=1` grava). A câmera chega lá pelos mesmos gestos, sem tempo no meio.
  */
 const FOTOS = process.env.LAB_DES_FOTOS ?? ''
+/** MODO BATALHA (B5): `LAB_DES_BATALHA=1` liga a batalha na cena antes dos cenários (grade de batalha no mestre e no jogador). */
+const BATALHA = process.env.LAB_DES_BATALHA === '1'
 
 const AVENTURA = 'Mesa de medida'
 const PASTA = 'C:/appdata/maps/map_medida'
@@ -794,6 +796,17 @@ for (const caso of CASOS) {
       const s = (window as unknown as Janela).__labSonda as { mapStore: { getState: () => { setActiveTool: (t: string) => void } } } // as: a sonda do app
       s.mapStore.getState().setActiveTool('select')
     })
+    if (BATALHA) {
+      await mestre.evaluate(() => {
+        // as: a sonda do app (`registrarNaSonda` em src/main.tsx); a chave é a de `tableSceneKey` (id da cena, senão do mapa).
+        const s = (window as unknown as Janela).__labSonda as {
+          mapStore: { getState: () => { map: { id: string } } }
+          adventureStore: { getState: () => { activeSceneId: string | null } }
+          batalhaStore: { getState: () => { ligar: (chave: string) => void } }
+        }
+        s.batalhaStore.getState().ligar(s.adventureStore.getState().activeSceneId ?? s.mapStore.getState().map.id)
+      })
+    }
     await mestre.waitForTimeout(1500)
 
     const centro = await centroDoCanvas(mestre)
