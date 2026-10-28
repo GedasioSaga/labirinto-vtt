@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Labirinto — arquitetura de render do editor</title>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -40,6 +41,37 @@
   .sub { margin: 0 0 2rem; font-size: 0.875rem; color: var(--muted); max-width: 62ch; }
   .canvas { overflow-x: auto; }
   svg { display: block; width: 100%; height: auto; min-width: 880px; }
+  .cards {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .card {
+    background: #ffffff;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.25rem;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(45, 49, 66, 0.08);
+  }
+  .card-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .card-dot.coral { background: var(--accent); }
+  .card-dot.ink { background: var(--ink); }
+  .card-dot.muted { background: var(--muted); }
+  .card h3 { margin: 0; font-size: 0.875rem; font-weight: 600; letter-spacing: -0.005em; }
+  .card p { margin: 0 0 0.5rem; font-size: 0.8125rem; line-height: 1.55; color: var(--muted); }
+  .card ul { margin: 0; padding: 0; list-style: none; font-size: 0.8125rem; line-height: 1.55; color: var(--muted); }
+  .card li { margin-bottom: 0.3rem; padding-left: 0.875rem; position: relative; }
+  .card li::before { content: "–"; position: absolute; left: 0; color: var(--soft); }
+  .card code { font-family: 'Geist Mono', monospace; font-size: 0.75rem; color: var(--ink); }
+  @media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
   footer {
     margin-top: 2.5rem;
     padding-top: 1rem;
@@ -57,14 +89,17 @@
   <p class="eyebrow">Labirinto · Dungeon Map</p>
   <h1>Arquitetura de render do editor</h1>
   <p class="sub">
-    Do arquivo em disco até o pixel. Extraído do grafo do repositório em 31/08/2026
-    (810 nós, 1710 arestas). <strong>PixiCanvas.tsx</strong> é o nó-deus — 56&nbsp;KB e 63 arestas —
-    e é exatamente onde as ferramentas novas do <code>Ferramentas.txt</code> querem entrar.
+    Do arquivo em disco até o pixel, na v0.5.4. <strong>PixiCanvas.tsx</strong> segue sendo o nó-deus
+    (480&nbsp;KB, 8.946 linhas). O que mudou está embaixo dele: a <strong>vitrine das texturas</strong> (F7)
+    compõe a pilha de camadas uma vez e o quadro só desenha sprites, e a <strong>vista e abertura</strong> (F8)
+    deixam de refazer o que a câmera não mudou.
   </p>
 
   <div class="canvas">
-  <svg viewBox="0 0 1000 900" xmlns="http://www.w3.org/2000/svg" role="img"
-       aria-label="Fluxo: map.json para MapData para useMapStore para PixiCanvas para módulos draw, com as ferramentas novas plugando em PixiCanvas e no schema">
+  <svg viewBox="0 0 1000 816" xmlns="http://www.w3.org/2000/svg" role="img"
+       aria-labelledby="arquitetura-render-editor-title arquitetura-render-editor-desc">
+    <title id="arquitetura-render-editor-title">Arquitetura de render do editor</title>
+    <desc id="arquitetura-render-editor-desc">Fluxo do arquivo em disco até o pixel: o estado alimenta o PixiCanvas, que usa os módulos de desenho, o recorte de vista e abertura, e a pilha de texturas, composta em ladrilhos pela vitrine.</desc>
     <defs>
       <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -77,158 +112,194 @@
     <rect width="100%" height="100%" fill="#f5f5f5"/>
 
     <!-- ============ zonas ============ -->
-    <rect x="360" y="40" width="280" height="104" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-    <rect x="440" y="44" width="120" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="500" y="53" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">PERSISTÊNCIA</text>
+    <rect x="60" y="40" width="880" height="104" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <rect x="72" y="44" width="112" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="80" y="53" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">ESTADO, UI E DISCO</text>
 
-    <rect x="80" y="280" width="820" height="104" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-    <rect x="436" y="284" width="108" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="490" y="293" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">ESTADO E UI</text>
-
-    <rect x="80" y="424" width="820" height="248" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-    <rect x="440" y="428" width="120" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="500" y="437" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">RENDER (PIXIJS)</text>
+    <rect x="60" y="184" width="880" height="560" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <rect x="72" y="188" width="96" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="80" y="197" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">RENDER (PIXIJS)</text>
 
     <!-- ============ arrows (antes das caixas) ============ -->
-    <!-- A1 map.json -> MapData -->
-    <line x1="500" y1="128" x2="500" y2="192" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-    <rect x="512" y="148" width="80" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="552" y="157" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LOAD / SAVE</text>
+    <!-- A1 Toolbar + App -> store -->
+    <line x1="300" y1="100" x2="380" y2="100" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="316" y="78" width="48" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="340" y="87" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AÇÕES</text>
 
-    <!-- A2 MapData -> store -->
-    <line x1="500" y1="248" x2="500" y2="312" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <!-- A2 disco -> store -->
+    <line x1="700" y1="100" x2="620" y2="100" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="624" y="78" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="660" y="87" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LOAD / SAVE</text>
 
     <!-- A3 store -> PixiCanvas -->
-    <line x1="500" y1="368" x2="500" y2="456" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
-    <rect x="512" y="400" width="76" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="550" y="409" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SUBSCRIBE</text>
+    <line x1="500" y1="128" x2="500" y2="216" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="512" y="160" width="76" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="550" y="169" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SUBSCRIBE</text>
 
-    <!-- A4 Toolbar -> store -->
-    <line x1="300" y1="340" x2="380" y2="340" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-    <rect x="304" y="314" width="72" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="340" y="323" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FERRAMENTA</text>
-
-    <!-- A5 App -> store -->
-    <line x1="700" y1="340" x2="620" y2="340" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-    <rect x="624" y="314" width="72" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="660" y="323" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AÇÕES</text>
-
-    <!-- A6 PixiCanvas -> draw* -->
-    <path d="M 560,520 V 552 Q 560,560 568,560 H 792 Q 800,560 800,568 V 592"
+    <!-- A4 PixiCanvas -> vista e abertura (esquerda) -->
+    <path d="M 440,280 V 312 Q 440,320 432,320 H 208 Q 200,320 200,328 V 352"
           fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-    <rect x="640" y="534" width="60" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="670" y="543" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DESENHA</text>
+    <rect x="276" y="298" width="88" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="320" y="307" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PAN E ABERTURA</text>
 
-    <!-- A7 PixiCanvas -> lib -->
-    <path d="M 440,520 V 552 Q 440,560 432,560 H 208 Q 200,560 200,568 V 592"
+    <!-- A5 PixiCanvas -> draw* (direita) -->
+    <path d="M 560,280 V 312 Q 560,320 568,320 H 792 Q 800,320 800,328 V 352"
           fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
-    <rect x="288" y="534" width="64" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="320" y="543" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HIT-TEST</text>
+    <rect x="648" y="298" width="64" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="680" y="307" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DESENHA</text>
 
-    <!-- A8 Ferramentas -> PixiCanvas (tracejado) -->
-    <line x1="500" y1="724" x2="500" y2="524" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-accent)"/>
-    <rect x="512" y="628" width="88" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="556" y="637" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PLUGAM AQUI</text>
+    <!-- A6 PixiCanvas -> drawTexturas (centro) -->
+    <line x1="500" y1="280" x2="500" y2="352" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="512" y="330" width="84" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="554" y="339" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PASSA O PALCO</text>
 
-    <!-- A9 Ferramentas -> MapData (tracejado, contorno pela direita) -->
-    <path d="M 680,756 H 932 Q 940,756 940,748 V 228 Q 940,220 932,220 H 604"
-          fill="none" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-accent)"/>
-    <rect x="848" y="398" width="84" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="890" y="407" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SCHEMA NOVO</text>
+    <!-- A7 drawTexturas -> pedacosDoChao -->
+    <line x1="500" y1="432" x2="500" y2="496" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="512" y="458" width="64" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="544" y="467" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MEIO-TERMO</text>
+
+    <!-- A8 pedacosDoChao -> vitrine -->
+    <line x1="500" y1="576" x2="500" y2="640" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="512" y="602" width="88" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="556" y="611" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ENTRA NA PILHA</text>
+
+    <!-- A9 drawTexturas -> vitrine (tracejado: pilha sem os pedaços do chão) -->
+    <path d="M 600,392 H 640 Q 648,392 648,400 V 672 Q 648,680 640,680 H 620"
+          fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+    <rect x="660" y="530" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="696" y="539" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SEM PEDAÇOS</text>
 
     <!-- ============ nós ============ -->
-    <!-- N1 map.json -->
-    <rect x="400" y="72" width="200" height="56" rx="6" fill="#f5f5f5"/>
-    <rect x="400" y="72" width="200" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
-    <rect x="408" y="78" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-    <text x="426" y="87" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
-    <text x="500" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">map.json + assets</text>
-    <text x="500" y="122" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">%APPDATA%/maps/&lt;id&gt;/</text>
+    <!-- Toolbar + App -->
+    <rect x="100" y="72" width="200" height="56" rx="6" fill="#f5f5f5"/>
+    <rect x="100" y="72" width="200" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+    <rect x="108" y="78" width="24" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+    <text x="120" y="87" fill="#7a8399" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+    <text x="200" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Toolbar + App.tsx</text>
+    <text x="200" y="122" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ferramentas · telas · arquivo</text>
 
-    <!-- N2 MapData -->
-    <rect x="400" y="192" width="200" height="56" rx="6" fill="#f5f5f5"/>
-    <rect x="400" y="192" width="200" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <rect x="408" y="198" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
-    <text x="428" y="207" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SCHEMA</text>
-    <text x="500" y="228" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">MapData</text>
-    <text x="500" y="242" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">walls · lights · regions · tokens</text>
+    <!-- useMapStore -->
+    <rect x="380" y="72" width="240" height="56" rx="6" fill="#f5f5f5"/>
+    <rect x="380" y="72" width="240" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="388" y="78" width="36" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="406" y="87" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+    <text x="500" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">useMapStore</text>
+    <text x="500" y="122" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">zustand · undo/redo por snapshot</text>
 
-    <!-- N5 Toolbar -->
-    <rect x="100" y="312" width="200" height="56" rx="6" fill="#f5f5f5"/>
-    <rect x="100" y="312" width="200" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
-    <rect x="108" y="318" width="24" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
-    <text x="120" y="327" fill="#7a8399" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
-    <text x="200" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Toolbar + Painel</text>
-    <text x="200" y="362" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">15 ferramentas hoje</text>
+    <!-- map.json + assets -->
+    <rect x="700" y="72" width="200" height="56" rx="6" fill="#f5f5f5"/>
+    <rect x="700" y="72" width="200" height="56" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+    <rect x="708" y="78" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="726" y="87" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
+    <text x="800" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">map.json + assets</text>
+    <text x="800" y="122" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">MapData · %APPDATA%/maps/&lt;id&gt;/</text>
 
-    <!-- N3 useMapStore -->
-    <rect x="380" y="312" width="240" height="56" rx="6" fill="#f5f5f5"/>
-    <rect x="380" y="312" width="240" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <rect x="388" y="318" width="36" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
-    <text x="406" y="327" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
-    <text x="500" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">useMapStore</text>
-    <text x="500" y="362" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">zustand · undo/redo por snapshot</text>
+    <!-- PixiCanvas — FOCAL -->
+    <rect x="380" y="216" width="240" height="64" rx="6" fill="#f5f5f5"/>
+    <rect x="380" y="216" width="240" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="388" y="222" width="52" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+    <text x="414" y="231" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NÓ-DEUS</text>
+    <text x="500" y="256" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PixiCanvas.tsx</text>
+    <text x="500" y="272" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">480 KB · 8.946 linhas · 1 arquivo</text>
 
-    <!-- N4 App.tsx -->
-    <rect x="700" y="312" width="180" height="56" rx="6" fill="#f5f5f5"/>
-    <rect x="700" y="312" width="180" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <rect x="708" y="318" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-    <text x="726" y="327" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">REACT</text>
-    <text x="790" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">App.tsx</text>
-    <text x="790" y="362" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">telas + I/O de arquivo</text>
+    <!-- Vista e abertura (F8) -->
+    <rect x="100" y="352" width="200" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="100" y="352" width="200" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="108" y="358" width="56" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="136" y="367" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NOVO · F8</text>
+    <text x="200" y="390" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Vista e abertura</text>
+    <text x="200" y="406" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">vistaCoberta · aberturaDoEditor</text>
+    <text x="200" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">moldura com 1 tela de folga</text>
 
-    <!-- N6 PixiCanvas — FOCAL -->
-    <rect x="380" y="456" width="240" height="64" rx="6" fill="#f5f5f5"/>
-    <rect x="380" y="456" width="240" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
-    <rect x="388" y="462" width="52" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
-    <text x="414" y="471" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NÓ-DEUS</text>
-    <text x="500" y="496" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PixiCanvas.tsx</text>
-    <text x="500" y="512" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">56 KB · 63 arestas · 1 arquivo</text>
+    <!-- drawTexturas -->
+    <rect x="400" y="352" width="200" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="400" y="352" width="200" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="408" y="358" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="428" y="367" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RENDER</text>
+    <text x="500" y="390" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">drawTexturas.ts</text>
+    <text x="500" y="406" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">opção palco liga a vitrine</text>
+    <text x="500" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Chão leve: sem pedaços do chão</text>
 
-    <!-- N8 lib/ -->
-    <rect x="100" y="592" width="200" height="64" rx="6" fill="#f5f5f5"/>
-    <rect x="100" y="592" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <rect x="108" y="598" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-    <text x="124" y="607" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PURO</text>
-    <text x="200" y="630" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">lib/ — geometria</text>
-    <text x="200" y="646" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mapFactory · selectionHitTest</text>
+    <!-- módulos draw* -->
+    <rect x="700" y="352" width="200" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="700" y="352" width="200" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="708" y="358" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="728" y="367" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RENDER</text>
+    <text x="800" y="390" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">módulos draw*</text>
+    <text x="800" y="406" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">paredes · tokens · grade · nomes</text>
+    <text x="800" y="420" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">só desenha o que a tela vê</text>
 
-    <!-- N7 draw* -->
-    <rect x="700" y="592" width="200" height="64" rx="6" fill="#f5f5f5"/>
-    <rect x="700" y="592" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <rect x="708" y="598" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
-    <text x="728" y="607" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RENDER</text>
-    <text x="800" y="630" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">módulos draw*</text>
-    <text x="800" y="646" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">walls · grid · tokens · regions</text>
+    <!-- pedacosDoChao -->
+    <rect x="400" y="496" width="200" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="400" y="496" width="200" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="408" y="502" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="420" y="511" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">F1</text>
+    <text x="500" y="534" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">pedacosDoChao.ts</text>
+    <text x="500" y="550" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chão Meio-Termo · MaskFilter</text>
+    <text x="500" y="564" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">área = vista ∩ (caixa ∪ máscara)</text>
 
-    <!-- N9 Ferramentas novas — FOCAL -->
-    <rect x="320" y="724" width="360" height="64" rx="6" fill="#f5f5f5"/>
-    <rect x="320" y="724" width="360" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,4"/>
-    <rect x="328" y="730" width="56" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
-    <text x="356" y="739" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">A CONSTRUIR</text>
-    <text x="500" y="764" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ferramentas.txt — 13 grupos</text>
-    <text x="500" y="780" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">salas · portas · escadas · corredores · camadas · névoa</text>
+    <!-- vitrineDasTexturas — FOCAL -->
+    <rect x="380" y="640" width="240" height="80" rx="6" fill="#f5f5f5"/>
+    <rect x="380" y="640" width="240" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="388" y="646" width="56" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+    <text x="416" y="655" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NOVO · F7</text>
+    <text x="500" y="678" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">vitrineDasTexturas.ts</text>
+    <text x="500" y="694" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ladrilhos de 960 px (tela + 12,5%)</text>
+    <text x="500" y="708" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">o quadro desenha só sprites</text>
 
     <!-- ============ legenda ============ -->
-    <line x1="30" y1="832" x2="970" y2="832" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
-    <text x="30" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+    <line x1="30" y1="776" x2="970" y2="776" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="30" y="792" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
 
-    <rect x="140" y="840" width="16" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
-    <text x="164" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PONTO DE PRESSÃO</text>
+    <rect x="140" y="784" width="16" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+    <text x="164" y="792" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO</text>
 
-    <rect x="330" y="840" width="16" height="10" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <text x="354" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ESTADO</text>
+    <rect x="260" y="784" width="16" height="10" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <text x="284" y="792" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ESTADO</text>
 
-    <rect x="450" y="840" width="16" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
-    <text x="474" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">MÓDULO PURO</text>
+    <rect x="380" y="784" width="16" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="404" y="792" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">MÓDULO DE RENDER</text>
 
-    <line x1="620" y1="845" x2="656" y2="845" stroke="#eb6c36" stroke-width="1" stroke-dasharray="4,3"/>
-    <text x="664" y="848" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TRABALHO FUTURO</text>
+    <line x1="580" y1="789" x2="616" y2="789" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="624" y="792" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">CAMINHO ALTERNATIVO</text>
   </svg>
   </div>
 
+  <div class="cards">
+    <section class="card">
+      <div class="card-header"><span class="card-dot coral"></span><h3>Vitrine das texturas (F7)</h3></div>
+      <p>Cada camada de textura passa por uma máscara alfa, e no Pixi isso é um filtro: uma passada de tela cheia por camada. Com 17 a 20 camadas, o quadro pagava 17 a 20 passadas, parado ou não. A pilha não muda de um quadro para outro, só a câmera anda.</p>
+      <p>A vitrine compõe a pilha em ladrilhos de 960 px (tela mais 12,5% de margem), cada um numa <code>RenderTexture</code>. Compõe de novo quando:</p>
+      <ul>
+        <li>a pintura muda;</li>
+        <li>a vista gasta metade da margem;</li>
+        <li>o zoom passa de 1,2x desde a composição;</li>
+        <li>a câmera para (150 ms) fora do lugar da composição.</li>
+      </ul>
+      <p style="margin-top:0.5rem">Se o renderer não tiver tela (teste de componente, Pixi que não iniciou), as camadas ficam direto na cena, como antes.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><span class="card-dot ink"></span><h3>Chão: pedaços ou ladrilho</h3></div>
+      <ul>
+        <li><strong>Chão leve</strong>, opção por máquina: troca o chão em pedaços pelo ladrilho repetido do modo linhas (a seta tracejada).</li>
+        <li>A máscara do chão Meio-Termo é um <code>MaskFilter</code>, não <code>setMask</code>. Com a área presa a vista ∩ (caixa ∪ máscara), a textura temporária do filtro cabe na tela. Antes chegava a 8192 px de lado por camada, a cada quadro.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><span class="card-dot muted"></span><h3>Câmera e abertura (F8)</h3></div>
+      <ul>
+        <li>Moldura do mapa com uma tela de folga: pan dentro da folga não refaz o <code>Graphics</code>, e por isso não refaz o lote do mundo.</li>
+        <li>Grade desligada: as duas camadas da grade saem do quadro.</li>
+        <li>Pílulas de nome inteiras fora da tela não desenham.</li>
+        <li>Abertura: o contorno do chão sai numa tarefa própria enquanto o Pixi inicia, e a montagem começa noutra. No mapa 200x200 era uma tarefa só, de 600 a 850 ms.</li>
+      </ul>
+    </section>
+  </div>
+
   <footer>
-    Labirinto · extraído de graphify-out/graph.json em 31/08/2026 · commit d5e5ad1
+    Labirinto · estrutura do grafo de 31/08/2026, atualizada pelo código da v0.5.4 em 27/10/2026 · commit 7d4b2b73
   </footer>
 </main>
 </body>
