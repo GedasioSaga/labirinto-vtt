@@ -1,0 +1,76 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#83b678",
+  "detalhes": {
+    "afastarCasas": 1.0,
+    "agrupamento": 0.9,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.22,
+    "escalaMax": 1.3,
+    "escalaMin": 1.05,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.2,
+      1.0,
+      1.0,
+      0.6
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 3204,
+    "variacaoDeTom": 0.035
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.1165365105262,
+      "miolo": 1.12044287573857,
+      "razao": 0.996513552545204
+    },
+    "base-2.png": {
+      "borda": 1.1601561808493,
+      "miolo": 1.11078555952796,
+      "razao": 1.04444658187879
+    },
+    "base-3.png": {
+      "borda": 0.998698322218843,
+      "miolo": 1.08203143206386,
+      "razao": 0.922984575701216
+    }
+  },
+  "id": "bosque",
+  "idDoApp": "bosque",
+  "lote": 2,
+  "memoria": {
+    "discoBytes": 771538,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 3142
+  },
+  "nome": "Bosque",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.04,
+    "escala": 6.0,
+    "semente": 3168
+  }
+}

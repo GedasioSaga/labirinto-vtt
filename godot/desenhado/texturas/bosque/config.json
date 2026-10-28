@@ -1,0 +1,35 @@
+{
+  "id": "bosque",
+  "nome": "Bosque",
+  "idDoApp": "bosque",
+  "onda": 1,
+  "lote": 2,
+  "semente": 31,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2,
+    "faixa": 0.12,
+    "corte": 0.18
+  },
+  "tom": {
+    "escala": 6,
+    "amplitude": 0.04
+  },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [
+      1.2,
+      1,
+      1,
+      0.6
+    ],
+    "densidade": 0.22,
+    "agrupamento": 0.9,
+    "escalaMin": 1.05,
+    "escalaMax": 1.3,
+    "variacaoDeTom": 0.035,
+    "afastarCasas": 1
+  }
+}
