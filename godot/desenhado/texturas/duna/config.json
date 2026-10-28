@@ -1,0 +1,37 @@
+{
+  "id": "duna",
+  "nome": "Duna",
+  "idDoApp": "duna",
+  "onda": 1,
+  "lote": 3,
+  "semente": 67,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2.0,
+    "faixa": 0.12,
+    "corte": 0.15
+  },
+  "tom": {
+    "escala": 6.0,
+    "amplitude": 0.05
+  },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [
+      1.0,
+      1.1,
+      1.0,
+      0.9
+    ],
+    "densidade": 0.026,
+    "agrupamento": 1,
+    "escalaMin": 1.5,
+    "escalaMax": 2.0,
+    "variacaoDeTom": 0.03,
+    "afastarCasas": 3.6,
+    "passoCasas": 4.0,
+    "espelhar": true
+  }
+}
