@@ -81,6 +81,11 @@ describe('PenhascoControls', () => {
     expect(useMapStore.getState().map.relevo).toBeUndefined()
     expect(temBotao('Ligar o relevo')).toBe(false)
     expect(useMapStore.getState().past).toHaveLength(1)
+    // Mapa comum (28/10: Penhasco em todo tipo de mapa): o relevo nasce desligado e o botão grava a escolha.
+    act(() => useMapStore.getState().loadMap(createEmptyMap('vila', 'Vila', 20, 20, 50)))
+    act(() => botao('Ligar o relevo').click())
+    expect(useMapStore.getState().map.relevo).toBe(true)
+    expect(temBotao('Ligar o relevo')).toBe(false)
   })
 
   it('"Apagar todos os penhascos" só aparece com penhasco, e limpa', () => {

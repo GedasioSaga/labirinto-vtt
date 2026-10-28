@@ -4,8 +4,9 @@ import { pisoDe, pisoLido } from './pisos'
 
 /**
  * BARRANCO (protótipo aprovado em 28/10/2026, `docs/design/barranco/`): a
- * parede de terra que dá parte alta e parte baixa nos mapas que não são de
- * continente. O Penhasco continua só no continente (`lib/penhasco.ts`).
+ * parede de terra que dá parte alta e parte baixa ao mapa. Desde 28/10 o
+ * mestre escolhe entre ele e o Penhasco (`lib/penhasco.ts`) em qualquer tipo
+ * de mapa; os dois convivem.
  *
  * Dois jeitos de desenhar, que convivem:
  * - RISCO: a beira de cima, cortada livre, com o lado baixo (`lado`) para onde

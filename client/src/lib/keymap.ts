@@ -234,7 +234,7 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // C de "costa", onde o pincel risca; Shift+C estava livre.
   penhasco: 'Shift+C',
   // Barranco: sem letra. As livres que sobraram são de outros (Shift+B é a batalha);
-  // ele mora ao lado do Penhasco na barra, e o Penhasco só aparece no continente.
+  // ele mora ao lado do Penhasco na barra, e a barra o alcança em todo mapa.
   barranco: '',
   // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
   // Shift+T estava livre e é o T de "textura".

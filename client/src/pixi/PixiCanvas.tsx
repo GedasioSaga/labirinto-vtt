@@ -144,7 +144,7 @@ import { createContaGotasGesture } from './contaGotasGesture'
 import { pixelDaTela, rgbaParaHex } from '../lib/contaGotas'
 import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { useDonosDasFichasStore } from '../stores/donosDasFichasStore'
-import { coresDosPinos, isContinente, type PinosNoToque } from '../lib/marcadorDeContinente'
+import { coresDosPinos, type PinosNoToque } from '../lib/marcadorDeContinente'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -8703,16 +8703,9 @@ export function PixiCanvas({
             if (oQueSumiu !== null) useToastStore.getState().push('info', `${oQueSumiu} — Ctrl+Z desfaz`)
             break
           }
-          case 'selectTool': {
-            // Penhasco só em mapa de continente, como o botão da barra (decisão 6 de
-            // 28/10): nos outros mapas o atalho explica e aponta o Barranco.
-            if (action.tool === 'penhasco' && !isContinente(useMapStore.getState().map)) {
-              useToastStore.getState().push('info', 'O Penhasco é só de mapa de continente. Neste mapa, use a ferramenta Barranco.')
-              break
-            }
+          case 'selectTool':
             useMapStore.getState().setActiveTool(action.tool)
             break
-          }
           // `?` (achado 11 do passeio de 20/09/2026): alterna "!"/"?" do pino
           // SELECIONADO — o mapa de teclas só manda isto quando `pinoDoAtalho`
           // achou um, e é ele de novo que diz qual pino e para que tipo. O

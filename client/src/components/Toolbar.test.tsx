@@ -108,7 +108,7 @@ describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
     expect(nomes).toEqual([
       ['Selecionar'],
       ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Caminho', 'Objeto', 'Luz'],
-      ['Penhasco', 'Texturas', 'Carimbos'],
+      ['Penhasco', 'Barranco', 'Texturas', 'Carimbos'],
       ['Zona oculta', 'Pincel de revelar'],
       ['Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'],
     ])
