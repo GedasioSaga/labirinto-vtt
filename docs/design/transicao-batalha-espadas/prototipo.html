@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abertura de batalha</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  --acento: #a8741f;
+  --acento-tinta: #ffffff;
+  --acento-suave: #f3e6cf;
+  --foco: #2a6fdb;
+  --raio: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #e0a948;
+    --acento-tinta: #1a1408;
+    --acento-suave: #3a2f1c;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #e0a948;
+  --acento-tinta: #1a1408;
+  --acento-suave: #3a2f1c;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; max-width: 65ch; }
+.ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 12px; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo .rotulo { color: var(--tinta-2); font-size: 0.9375rem; }
+.segmentos { display: inline-flex; padding: 4px; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+.segmentos button { border-color: transparent; min-width: 160px; }
+.segmentos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); box-shadow: none; }
+input[type="text"] {
+  min-height: 44px; width: 260px; max-width: 100%; padding: 0 14px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-size: 1rem;
+}
+input[type="text"]::placeholder { color: var(--tinta-2); }
+.dica { color: var(--tinta-2); font-size: 0.8125rem; }
+.descricao { margin: 0 0 12px; color: var(--tinta-2); font-size: 0.9375rem; min-height: 1.5em; max-width: 70ch; }
+/* Mesmas camadas da tela de transição do app (TransicaoTela + transicoes.css). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.granulado { opacity: 0.06; mix-blend-mode: screen; pointer-events: none; }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%); pointer-events: none; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+.depois {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center;
+  color: #b3aa99; font-size: 0.9375rem; pointer-events: none;
+  opacity: 0; transition: opacity 200ms var(--ease-out);
+}
+.depois[data-visivel="true"] { opacity: 1; transition-duration: 400ms; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled:active { transform: none; }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+.barra button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; max-width: 75ch; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: background-color 160ms ease, color 160ms ease; }
+  button:active { transform: none; }
+}
+@media (max-width: 520px) {
+  .tempo { margin-left: 0; width: 100%; }
+  .segmentos, .campo, input[type="text"] { width: 100%; }
+  .segmentos button { flex: 1; min-width: 0; padding: 0 8px; }
+}
+</style>
+<script>// Gerado por montar.cjs (esbuild 0.28.2) a partir de client/src. Não edite aqui.
+var AberturasDeBatalha=(()=>{var Fe=Object.defineProperty;var Po=Object.getOwnPropertyDescriptor;var Fo=Object.getOwnPropertyNames;var Oo=Object.prototype.hasOwnProperty;var wo=(a,t)=>{for(var e in t)Fe(a,e,{get:t[e],enumerable:!0})},_o=(a,t,e,o)=>{if(t&&typeof t=="object"||typeof t=="function")for(let r of Fo(t))!Oo.call(a,r)&&r!==e&&Fe(a,r,{get:()=>t[r],enumerable:!(o=Po(t,r))||o.enumerable});return a};var Io=a=>_o(Fe({},"__esModule",{value:!0}),a);var fa={};wo(fa,{NOME_MAX_LETRAS:()=>We,NOME_PADRAO:()=>Ve,espadasCruzadas:()=>mo,metaEspadasCruzadas:()=>fo});function oe(a){let t=a;return()=>(t=t*16807%2147483647)/2147483647}var Oe=a=>Math.min(1,Math.max(0,a)),b=(a,t,e)=>Oe((a-t)/(e-t)),ae=a=>-(Math.cos(Math.PI*a)-1)/2,R=a=>1-Math.pow(1-a,3);var Ve="Royals",We=24,me={duracao:2.8,fadeInFim:.12,entradaFim:.38,armadaFim:.48,impacto:.6,pausaDoChoque:.035,revelaInicio:.66,revelaFim:1.02,esfriaFim:1.45,brilhoDaLaminaInicio:1.3,brilhoDaLaminaFim:1.75,brilhoDoNomeInicio:1.45,brilhoDoNomeFim:1.95,corte:2.1,fechaInicio:2.16,fechaFim:2.52,fadeOutInicio:2.52},Xe={surgeFim:.4,impacto:.42,revelaInicio:.5,revelaFim:.95,esfriaFim:1.35,fadeOutInicio:2.25};function Ro(a){let t=(a??"").replace(/\s+/g," ").trim();return t===""?Ve:Array.from(t).slice(0,We).join("")}var so=.628,E=.2,co=34,we=Math.tan(co*Math.PI/360),ke=6.6,Uo=1.45,Le=480,Be=1600,_e=520,Go=640,ue=2048,ye=640,qe=4.4,No=qe*ye/ue,eo=.6,ko=330,Lo=1760,Bo="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",Ie=64,Re=26,k=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,qo=`
+varying vec2 vPos;
+void main() {
+  vPos = position.xy;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,zo=`
+attribute vec3 cor;
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  vUv = uv;
+  vCor = cor;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Vo=`
+uniform vec3 uCentro;
+uniform vec3 uBorda;
+varying vec2 vPos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main() {
+  float r = length(vPos / vec2(7.0, 4.4));
+  vec3 cor = mix(uCentro, uBorda, smoothstep(0.0, 1.0, r));
+  cor += (hash(floor(vPos * 90.0)) - 0.5) * 0.012;
+  gl_FragColor = vec4(cor, 1.0);
+}`,Wo=`
+uniform sampler2D mapa;
+uniform float uOpacidade;
+uniform float uLuz;
+uniform float uCalor;
+uniform float uBrilho;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  if (c.a < 0.004) discard;
+  float lamina = smoothstep(0.352, 0.37, vUv.y);
+  float aco = smoothstep(0.15, 0.5, dot(c.rgb, vec3(0.333)));
+  vec3 cor = c.rgb * uLuz;
+  float perto = exp(-abs(vUv.y - 0.6) * 7.0);
+  cor += vec3(1.0, 0.7, 0.36) * perto * uCalor * (0.35 + 0.65 * lamina) * c.a;
+  float b = (vUv.y - uBrilho) / 0.028;
+  float faixa = exp(-b * b);
+  cor += vec3(1.0, 0.97, 0.9) * faixa * lamina * aco * 0.7;
+  gl_FragColor = vec4(cor, c.a * uOpacidade);
+}`,Xo=`
+uniform sampler2D mapa;
+uniform float uRevela;
+uniform float uOpacidade;
+uniform float uLargura;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  float d = abs(vUv.x - 0.5) * 2.0 / uLargura;
+  float frente = uRevela * 1.6;
+  float revelado = 1.0 - smoothstep(frente - 0.25, frente, d);
+  gl_FragColor = vec4(c.rgb, c.a * revelado * uOpacidade);
+}`,Eo=`
+uniform sampler2D mascara;
+uniform float uRevela;
+uniform float uCalor;
+uniform float uBrilho;
+uniform float uOpacidade;
+uniform float uLargura;
+varying vec2 vUv;
+void main() {
+  vec4 k = texture2D(mascara, vUv);
+  float letra = k.r;
+  float halo = k.g;
+  float d = abs(vUv.x - 0.5) * 2.0 / uLargura;
+  float frente = uRevela * 1.6;
+  float revelado = 1.0 - smoothstep(frente - 0.25, frente, d);
+  vec3 quente = mix(vec3(0.95, 0.38, 0.1), vec3(1.0, 0.94, 0.8), uCalor);
+  vec3 cor = quente * (letra * 0.95 + halo * 0.55) * uCalor * revelado;
+  float f = (d - frente + 0.1) / 0.08;
+  float naFrente = exp(-f * f) * step(0.001, uRevela) * (1.0 - step(0.999, uRevela));
+  cor += vec3(1.0, 0.86, 0.6) * naFrente * (letra + halo * 0.6);
+  float s = (vUv.x - 0.5) / uLargura + 0.5 + (vUv.y - 0.5) * 0.18;
+  float b = (s - uBrilho) / 0.045;
+  float faixa = exp(-b * b);
+  cor += vec3(1.0, 0.95, 0.82) * faixa * letra * 0.8;
+  gl_FragColor = vec4(cor * uOpacidade, 1.0);
+}`,Ko=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float r2 = dot(p, p);
+  float v = exp(-r2 * 28.0) * 1.2 + exp(-r2 * 5.0) * 0.45;
+  v *= 1.0 - smoothstep(0.7, 1.0, r2);
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,jo=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float h = exp(-abs(p.y) * 60.0) * pow(max(0.0, 1.0 - abs(p.x)), 2.0);
+  float v = exp(-abs(p.x) * 60.0) * pow(max(0.0, 1.0 - abs(p.y)), 2.0);
+  float miolo = exp(-dot(p, p) * 40.0);
+  gl_FragColor = vec4(uCor * (h + v * 0.8 + miolo) * uForca, 1.0);
+}`,Zo=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  float r = length(vUv * 2.0 - 1.0);
+  float fino = (r - 0.8) / 0.035;
+  float largo = (r - 0.8) / 0.12;
+  float v = exp(-fino * fino) + exp(-largo * largo) * 0.25;
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,$o=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  gl_FragColor = vec4(uCor * exp(-dot(p, p) * 3.2) * uForca, 1.0);
+}`,Jo=`
+uniform vec3 uCor;
+uniform float uForca;
+void main() {
+  gl_FragColor = vec4(uCor * uForca, 1.0);
+}`,Yo=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uDesenho;
+varying vec2 vUv;
+void main() {
+  float a = abs(vUv.y - 0.5) * 2.0;
+  float v = exp(-a * a * 60.0) + exp(-a * a * 6.0) * 0.25;
+  float desenhado = step(vUv.x, uDesenho);
+  float pontas = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x);
+  gl_FragColor = vec4(uCor * v * desenhado * pontas * uForca, 1.0);
+}`,Qo=`
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  float a = (vUv.y - 0.5) / 0.25;
+  float atraves = exp(-a * a);
+  float aoLongo = smoothstep(0.0, 1.0, vUv.x) * (1.0 - smoothstep(0.85, 1.0, vUv.x) * 0.5);
+  gl_FragColor = vec4(vCor * atraves * aoLongo, 1.0);
+}`,Ho=`
+void main() {
+  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+}`;function ze(a,t){let e=document.createElement("canvas");e.width=a,e.height=t;let o=e.getContext("2d");if(!o)throw new Error("canvas 2D indisponível");return[e,o]}var $="#2a1f1a";function Ue(a,t,e){let o=a.createLinearGradient(0,t,0,e);return o.addColorStop(0,"#f3d991"),o.addColorStop(.35,"#cf9f4c"),o.addColorStop(.7,"#94692b"),o.addColorStop(1,"#5e4219"),o}function ea(a){let[t,e]=ze(Le,Be),o=Le/2,r=oe(1931);e.lineJoin="round",e.lineCap="round";let s=new Path2D;s.moveTo(o-42,1034),s.lineTo(o-31,330),s.quadraticCurveTo(o-30,150,o,34),s.quadraticCurveTo(o+30,150,o+31,330),s.lineTo(o+42,1034),s.closePath(),e.strokeStyle=$,e.lineWidth=7,e.stroke(s),e.save(),e.clip(s);let n=e.createLinearGradient(o-42,0,o,0);n.addColorStop(0,"#c3cad2"),n.addColorStop(1,"#eef1f4"),e.fillStyle=n,e.fillRect(o-50,0,50,1040);let l=e.createLinearGradient(o,0,o+42,0);l.addColorStop(0,"#7d848e"),l.addColorStop(1,"#5a616a"),e.fillStyle=l,e.fillRect(o,0,50,1040);let C=x=>{let d=new Path2D;return d.moveTo(o+x*42,1034),d.lineTo(o+x*31,330),d.quadraticCurveTo(o+x*30,150,o,34),d};e.lineWidth=5,e.strokeStyle="#f6f8fa",e.stroke(C(-1)),e.strokeStyle="#3f454d",e.stroke(C(1));let f=e.createLinearGradient(0,360,0,660);f.addColorStop(0,"rgba(255, 248, 235, 0)"),f.addColorStop(.5,"rgba(255, 248, 235, 0.22)"),f.addColorStop(1,"rgba(255, 248, 235, 0)"),e.fillStyle=f,e.fillRect(o-50,360,100,300);let u=e.createLinearGradient(0,880,0,1034);u.addColorStop(0,"rgba(30, 20, 15, 0)"),u.addColorStop(1,"rgba(30, 20, 15, 0.22)"),e.fillStyle=u,e.fillRect(o-50,880,100,160),e.strokeStyle="rgba(255, 255, 255, 0.55)",e.lineWidth=1.5,e.beginPath(),e.moveTo(o-.5,1030),e.lineTo(o-.5,60),e.stroke();let m=e.createLinearGradient(o-8,0,o+8,0);m.addColorStop(0,"#4d535b"),m.addColorStop(.45,"#9ea5ae"),m.addColorStop(1,"#646b74"),e.fillStyle=m,e.beginPath(),e.roundRect(o-8,430,16,584,8),e.fill(),e.strokeStyle="rgba(40, 44, 50, 0.8)",e.lineWidth=1.5,e.stroke(),e.lineWidth=1;for(let x=0;x<90;x++){let d=o+(r()-.5)*70,O=120+r()*900,U=6+r()*20,L=(r()-.5)*.9;e.strokeStyle=r()<.5?`rgba(255, 255, 255, ${.05+r()*.05})`:`rgba(20, 24, 30, ${.05+r()*.05})`,e.beginPath(),e.moveTo(d,O),e.lineTo(d+Math.sin(L)*U,O+Math.cos(L)*U),e.stroke()}e.restore();let v=new Path2D;v.moveTo(o-25,1100),v.quadraticCurveTo(o-31,1243,o-25,1386),v.lineTo(o+25,1386),v.quadraticCurveTo(o+31,1243,o+25,1100),v.closePath(),e.strokeStyle=$,e.lineWidth=6,e.stroke(v),e.save(),e.clip(v);let S=e.createLinearGradient(o-30,0,o+30,0);S.addColorStop(0,"#3a2317"),S.addColorStop(.27,"#7a4e35"),S.addColorStop(.57,"#53321f"),S.addColorStop(1,"#2a1810"),e.fillStyle=S,e.fillRect(o-40,1090,80,310);for(let x=1084;x<1400;x+=22)e.strokeStyle="rgba(28, 14, 8, 0.65)",e.lineWidth=6,e.beginPath(),e.moveTo(o-34,x),e.lineTo(o+34,x+16),e.stroke(),e.strokeStyle="rgba(255, 214, 170, 0.16)",e.lineWidth=2,e.beginPath(),e.moveTo(o-34,x-5),e.lineTo(o+34,x+11),e.stroke();e.restore(),e.fillStyle=$,e.beginPath(),e.roundRect(o-36,1377,72,24,9),e.fill(),e.fillStyle=Ue(e,1380,1398),e.beginPath(),e.roundRect(o-33,1380,66,18,7),e.fill();let g=(x,d=0)=>{let O=new Path2D;return O.moveTo(o,1056+d),O.quadraticCurveTo(o+x*120,1066+d,o+x*192,1016+d),O},y=new Path2D;y.moveTo(o,1e3),y.lineTo(o+46,1030),y.lineTo(o+38,1082),y.lineTo(o,1110),y.lineTo(o-38,1082),y.lineTo(o-46,1030),y.closePath(),e.strokeStyle=$,e.fillStyle=$,e.lineWidth=42,e.stroke(g(-1)),e.stroke(g(1));for(let x of[-1,1])e.beginPath(),e.arc(o+x*198,1008,26,0,Math.PI*2),e.fill();e.lineWidth=12,e.stroke(y);let F=Ue(e,985,1090);e.strokeStyle=F,e.lineWidth=32,e.stroke(g(-1)),e.stroke(g(1));for(let x of[-1,1]){let d=e.createRadialGradient(o+x*198-7,1e3,2,o+x*198,1008,24);d.addColorStop(0,"#fbe8b6"),d.addColorStop(.45,"#cf9f4c"),d.addColorStop(1,"#6e4e1e"),e.fillStyle=d,e.beginPath(),e.arc(o+x*198,1008,21,0,Math.PI*2),e.fill()}e.strokeStyle="rgba(255, 241, 205, 0.55)",e.lineWidth=3,e.stroke(g(-1,-9)),e.stroke(g(1,-9)),e.fillStyle=F,e.fill(y),e.save(),e.translate(o,1054),e.scale(.74,.74),e.translate(-o,-1054),e.strokeStyle="rgba(90, 60, 20, 0.7)",e.lineWidth=3,e.stroke(y),e.restore();let M=e.createRadialGradient(o-4,1046,1,o,1054,20);M.addColorStop(0,"#e8857c"),M.addColorStop(.45,"#a0262d"),M.addColorStop(1,"#5a1016"),e.fillStyle=M,e.beginPath(),e.ellipse(o,1054,13,18,0,0,Math.PI*2),e.fill(),e.strokeStyle="#2a1612",e.lineWidth=2.5,e.stroke(),e.fillStyle="rgba(255, 235, 230, 0.8)",e.beginPath(),e.ellipse(o-4,1045,3,5,-.3,0,Math.PI*2),e.fill(),e.fillStyle=$,e.beginPath(),e.arc(o,1486,15,0,Math.PI*2),e.fill(),e.fillStyle=Ue(e,1476,1497),e.beginPath(),e.arc(o,1486,11,0,Math.PI*2),e.fill(),e.fillStyle=$,e.beginPath(),e.arc(o,1438,45,0,Math.PI*2),e.fill();let D=e.createRadialGradient(o-13,1424,3,o,1438,46);return D.addColorStop(0,"#fff0c2"),D.addColorStop(.3,"#dcae5c"),D.addColorStop(.75,"#9c712f"),D.addColorStop(1,"#5b3f18"),e.fillStyle=D,e.beginPath(),e.arc(o,1438,40,0,Math.PI*2),e.fill(),e.strokeStyle="rgba(70, 45, 15, 0.55)",e.lineWidth=2,e.beginPath(),e.arc(o,1438,27,0,Math.PI*2),e.stroke(),e.strokeStyle="rgba(255, 240, 200, 0.5)",e.lineWidth=1.5,e.beginPath(),e.arc(o-1,1437,27,Math.PI,Math.PI*1.5),e.stroke(),new a.CanvasTexture(t)}function oa(a,t){let[e,o]=ze(ue,ye),r=U=>`600 ${U}px ${Bo}`;o.font=r(100);let s=Math.max(1,o.measureText(t).width),n=Math.min(ko,100*Lo/s);o.font=r(n),o.textAlign="center",o.textBaseline="alphabetic";let l=o.measureText(t),C=l.actualBoundingBoxAscent||n*.7,f=l.actualBoundingBoxDescent||0,u=o.measureText("H").actualBoundingBoxAscent||n*.68,m=ue/2,v=ye/2+(C-f)/2,S=n*.075,g=v-u,y=v+u*.2;o.lineJoin="round",o.miterLimit=2,o.strokeStyle="#2b1d10",o.lineWidth=S,o.strokeText(t,m,v);let F=o.createLinearGradient(0,g,0,y);F.addColorStop(0,"#fbe9b4"),F.addColorStop(.5,"#c8973f"),F.addColorStop(1,"#6e4c1c"),o.strokeStyle=F,o.lineWidth=n*.034,o.strokeText(t,m,v);let M=o.createLinearGradient(0,g,0,y);M.addColorStop(0,"#fff3cf"),M.addColorStop(.22,"#f0d28a"),M.addColorStop(.46,"#c8973f"),M.addColorStop(.52,"#8a5f22"),M.addColorStop(.58,"#d9b468"),M.addColorStop(.8,"#b88a3c"),M.addColorStop(1,"#6e4c1c"),o.fillStyle=M,o.fillText(t,m,v),o.save(),o.globalCompositeOperation="source-atop";let D=oe(5381);o.lineWidth=1.2;for(let U=0;U<220;U++){let L=m+(D()-.5)*l.width,B=g+D()*(y-g+f),q=4+D()*16,G=D()*Math.PI;o.strokeStyle=D()<.5?"rgba(255, 240, 200, 0.09)":"rgba(50, 30, 10, 0.1)",o.beginPath(),o.moveTo(L,B),o.lineTo(L+Math.cos(G)*q,B+Math.sin(G)*q),o.stroke()}o.restore(),o.save(),o.globalCompositeOperation="destination-over",o.fillStyle="#120c08",o.strokeStyle="#120c08",o.lineWidth=S,o.shadowColor="rgba(0, 0, 0, 0.85)",o.shadowBlur=n*.1,o.shadowOffsetY=n*.045,o.fillText(t,m,v),o.strokeText(t,m,v),o.shadowColor="rgba(8, 5, 3, 0.6)",o.shadowBlur=n*.4,o.shadowOffsetY=0,o.fillText(t,m,v),o.strokeText(t,m,v),o.restore();let[x,d]=ze(ue/2,ye/2);d.fillStyle="#000",d.fillRect(0,0,x.width,x.height),d.font=r(n/2),d.textAlign="center",d.textBaseline="alphabetic",d.lineJoin="round";let O=5e3;return d.save(),d.shadowColor="rgb(0, 255, 0)",d.shadowBlur=n*.14,d.shadowOffsetX=O,d.fillStyle="#fff",d.fillText(t,m/2-O,v/2),d.fillText(t,m/2-O,v/2),d.restore(),d.globalCompositeOperation="lighter",d.fillStyle="rgb(255, 0, 0)",d.strokeStyle="rgb(255, 0, 0)",d.lineWidth=S/2,d.fillText(t,m/2,v/2),d.strokeText(t,m/2,v/2),{metal:new a.CanvasTexture(e),mascara:new a.CanvasTexture(x),fracao:Math.min(1,(l.width+S)/ue)}}var aa={x:-6.4,y:-1.7,rz:-1.4,ry:1.15},oo={x:-1.1,y:.1,rz:-.27,ry:0},ao={x:-1.26,y:.15,rz:-.17,ry:0},to={x:0,y:0,rz:-so,ry:0};function Ge(a,t,e){return{x:a.x+(t.x-a.x)*e,y:a.y+(t.y-a.y)*e,rz:a.rz+(t.rz-a.rz)*e,ry:a.ry+(t.ry-a.ry)*e}}var lo=a=>a*a*a;function Ne(a,t){let e=me;if(t)return to;if(a<e.entradaFim)return Ge(aa,oo,R(b(a,0,e.entradaFim)));if(a<e.armadaFim)return Ge(oo,ao,ae(b(a,e.entradaFim,e.armadaFim)));if(a<e.impacto)return Ge(ao,to,lo(b(a,e.armadaFim,e.impacto)));let o=Math.max(0,a-e.impacto-e.pausaDoChoque),r=Math.exp(-o*9)*Math.sin(o*30);return{x:-.075*r,y:0,rz:-so+.055*r,ry:0}}function ta(a,t){return a<=0?0:a/t*Math.exp(1-a/t)}function na(a,t,e){let o=me;if(t)return{x:0,y:0,z:e,giro:0};let r=e/ke,s=e*(1-.045*ae(b(a,o.impacto,o.fechaFim))),n=a-o.impacto;s-=.25*r*ta(n,.05);let l=n>0?.07*r*Math.exp(-n*11):0;return{x:l*(Math.sin(n*93)+.5*Math.sin(n*151)),y:l*.8*(Math.cos(n*79)+.5*Math.sin(n*137)),z:s,giro:n>0?.012*Math.exp(-n*11)*Math.sin(n*71):0}}function ra(a,t){let e=me,o=1-b(a,0,e.fadeInFim),r=t?ae(b(a,Xe.fadeOutInicio,e.duracao)):b(a,e.fadeOutInicio,e.duracao);return Math.max(o,r)}function no(a,t,e,o,r){let s=new Float32Array(t*12),n=new Float32Array(t*12),l=new Float32Array(t*8),C=[];for(let g=0;g<t;g++){l.set([0,0,0,1,1,1,1,0],g*8);let y=g*4;C.push(y,y+1,y+2,y,y+2,y+3)}let f=r(new a.BufferGeometry),u=new a.BufferAttribute(s,3).setUsage(a.DynamicDrawUsage),m=new a.BufferAttribute(n,3).setUsage(a.DynamicDrawUsage);f.setAttribute("position",u),f.setAttribute("cor",m),f.setAttribute("uv",new a.BufferAttribute(l,2)),f.setIndex(C);let v=r(new a.ShaderMaterial({vertexShader:zo,fragmentShader:Qo,transparent:!0,depthWrite:!1,depthTest:!1,blending:a.AdditiveBlending,side:a.DoubleSide})),S=new a.Mesh(f,v);return S.frustumCulled=!1,S.renderOrder=o,{malha:S,definir(g,y,F,M,D,x,d,O,U,L){let B=Math.hypot(M,D)||1,q=M/B,G=D/B,Y=-G*d/2,j=q*d/2,fe=y-q*x,te=F-G*x;s.set([fe+Y,te+j,e,fe-Y,te-j,e,y-Y,F-j,e,y+Y,F+j,e],g*12);for(let Z=0;Z<4;Z++)n.set([O,U,L],g*12+Z*3)},esconder(g){s.fill(0,g*12,g*12+12),n.fill(0,g*12,g*12+12)},enviar(){u.needsUpdate=!0,m.needsUpdate=!0}}}function ia(a,t){let e=t.reduzirMovimento,o=me,r=Xe,s=[],n=p=>(s.push(p),p),l=(p,i,h)=>new a.Vector3(p,i,h),C=(p,i,h,c)=>n(new a.ShaderMaterial({vertexShader:p,fragmentShader:i,uniforms:h,transparent:!0,depthWrite:!1,depthTest:!1,blending:c?a.AdditiveBlending:a.NormalBlending,side:a.DoubleSide})),f=(p,i,h)=>{let c=new a.Mesh(p,i);return c.renderOrder=h,c.frustumCulled=!1,c},u=n(new a.PlaneGeometry(1,1)),m=new a.Scene,v=new a.PerspectiveCamera(co,16/9,.1,80);m.add(v);let S=16/9,g=ke,y=new a.Mesh(n(new a.PlaneGeometry(80,45)),n(new a.ShaderMaterial({vertexShader:qo,fragmentShader:Vo,uniforms:{uCentro:{value:l(.13,.085,.065)},uBorda:{value:l(.025,.02,.022)}},depthWrite:!1,depthTest:!1})));y.position.z=-3,y.renderOrder=0,y.frustumCulled=!1,m.add(y);let F={uCor:{value:l(.42,.17,.06)},uForca:{value:0}},M=f(u,C(k,$o,F,!0),1);M.scale.set(9,6,1),M.position.set(0,E,-1.2),m.add(M);let D=oe(2711),x=Array.from({length:Re},()=>({x:(D()*2-1)*3.6,y0:D(),vel:.16+.22*D(),fase:D()*Math.PI*2,tamanho:.02+.02*D()})),d=no(a,Re,-.8,2,n);d.malha.visible=!e,m.add(d.malha);let O=n(ea(a)),U=n(new a.PlaneGeometry(Le/_e,Be/_e)),L=(Be/2-Go)/_e,B=new a.Group;B.position.y=E,m.add(B);let q=[.03,.06],G=(p,i,h)=>{let c={mapa:{value:O},uOpacidade:{value:1},uLuz:{value:1},uCalor:{value:0},uBrilho:{value:-1}},A=new a.Group,T=f(U,C(k,Wo,c,!1),i);return T.position.y=-L,p&&(T.scale.x=-1),A.add(T),A.position.z=h,B.add(A),{grupo:A,uniforms:c}},Y=q.map(()=>G(!0,3,-.03)),j=G(!0,4,-.03),fe=q.map(()=>G(!1,5,.03)),te=G(!1,6,.03),Z=(p,i,h)=>{p.grupo.position.x=i.x*-h,p.grupo.position.y=i.y,p.grupo.rotation.z=i.rz*-h,p.grupo.rotation.y=i.ry*-h},Ee={uCor:{value:l(1,.8,.55)},uForca:{value:0}},pe=f(u,C(k,Zo,Ee,!0),7);pe.position.set(0,E,.3);let Se={uCor:{value:l(1,.86,.6)},uForca:{value:0}},ve=f(u,C(k,Ko,Se,!0),8);ve.position.set(0,E,.35);let Ke={uCor:{value:l(1,.93,.78)},uForca:{value:0}},ne=f(u,C(k,jo,Ke,!0),9);ne.position.set(0,E,.4),pe.visible=!e,ne.visible=!e,m.add(pe,ve,ne);let po=Ro(t.nome),Q=oa(a,po);n(Q.metal),n(Q.mascara);let vo=qe*Q.fracao,V={mapa:{value:Q.metal},mascara:{value:Q.mascara},uRevela:{value:0},uCalor:{value:1},uBrilho:{value:-1},uOpacidade:{value:1},uLargura:{value:Math.max(.05,Q.fracao)}},je=n(new a.PlaneGeometry(qe,No)),re=new a.Group;re.position.set(0,E,eo),re.add(f(je,C(k,Xo,V,!1),11)),re.add(f(je,C(k,Eo,V,!0),12)),m.add(re);let ie=oe(4243),ho=Array.from({length:Ie},()=>{let p=ie()*Math.PI*2,i=ie(),h=Math.sin(p)<0?.6:1;return{cos:Math.cos(p),sen:Math.sin(p),vel:(2.4+5.2*i*i)*h,vida:.32+.55*ie(),atraso:ie()*.03,largura:.016+.014*ie()}}),se=no(a,Ie,.5,13,n);se.malha.visible=!e,m.add(se.malha);let H=new a.Group;H.position.z=-1,v.add(H);let Ze={uCor:{value:l(1,.93,.8)},uForca:{value:0}},Ae=f(u,C(k,Jo,Ze,!0),14);Ae.scale.set(8,8,1),Ae.visible=!e,H.add(Ae);let bo=1.2,go=n(new a.PlaneGeometry(bo*2,.03)),$e=p=>{let i={uCor:{value:l(1,.9,.72)},uForca:{value:0},uDesenho:{value:0}},h=f(go,C(k,Yo,i,!0),15);return h.rotation.z=p,h.visible=!1,H.add(h),{m:h,uniforms:i}},_=Math.PI/180,xo=$e(54*_),Co=$e(126*_),Je=.004,he=6,yo=C(k,Ho,{},!1),be=(p,i,h)=>{let c=p-Je,A=i+Je,T=n(new a.BufferGeometry);T.setAttribute("position",new a.BufferAttribute(new Float32Array([0,0,0,he*Math.cos(c),he*Math.sin(c),0,he*Math.cos(A),he*Math.sin(A),0]),3)),T.setAttribute("uv",new a.BufferAttribute(new Float32Array(6),2));let P=f(T,yo,16);return P.visible=!1,H.add(P),{m:P,dx:Math.cos(h),dy:Math.sin(h)}},So=[be(54*_,126*_,90*_),be(126*_,234*_,180*_),be(234*_,306*_,270*_),be(-54*_,54*_,0)],Ao=(p,i,h,c)=>{let A=we,T=we*S,P=.06;return i>.5?A-c+P:i<-.5?A+c+P:p>.5?T-h+P:T+h+P},To=p=>{for(let c=0;c<Ie;c++){let A=ho[c],T=p-o.impacto-A.atraso;if(T<=0||T>=A.vida){se.esconder(c);continue}let P=Math.exp(-3.4*T),ce=(1-P)/3.4,Te=A.cos*A.vel*ce,Me=A.sen*A.vel*ce-6.5/3.4*(T-ce),ge=A.cos*A.vel*P,z=A.sen*A.vel*P-6.5*(1-P)/3.4,W=T/A.vida,le=Math.pow(1-W,1.6)*1.6,De=Math.min(.38,.05+.04*Math.hypot(ge,z));se.definir(c,Te,E+Me,ge,z,De,A.largura*(1-.5*W),le,(.9-.55*W)*le,Math.max(0,.7-.62*W)*le)}se.enviar()},Mo=p=>{let i=R(b(p,o.impacto,o.impacto+.5));for(let h=0;h<Re;h++){let c=x[h];if(i<=0){d.esconder(h);continue}let A=-2.7+(c.y0*5.4+c.vel*p)%5.4,T=c.x+.1*Math.sin(p*1.1+c.fase),P=(.35+.25*Math.sin(p*6+c.fase*3))*i;d.definir(h,T,A,.1*Math.cos(p*1.1+c.fase),1,c.tamanho*2.2,c.tamanho,P,P*.5,P*.18)}d.enviar()};function Ye(p){let i=Math.max(0,p),h=e?r.impacto:o.impacto,c=i-h,A=c>=0?Math.pow(1-b(c,0,.22),2):0,T=Ne(i,e);Z(te,T,1),Z(j,T,-1);let P=e?R(b(i,0,r.surgeFim)):1,ce=e||i<o.brilhoDaLaminaInicio||i>o.brilhoDaLaminaFim?-1:.37+.63*ae(b(i,o.brilhoDaLaminaInicio,o.brilhoDaLaminaFim)),Te=c>=0?.15+.85*Math.exp(-c*6):0;for(let I of[te,j])I.uniforms.uOpacidade.value=P,I.uniforms.uLuz.value=1+.5*A,I.uniforms.uCalor.value=Te,I.uniforms.uBrilho.value=ce;let Me=(()=>{if(e)return 0;let I=Ne(Math.max(0,i-.016),!1);return(Math.hypot(T.x-I.x,T.y-I.y)+Math.abs(T.rz-I.rz)*1.5)/.016})(),ge=Oe((Me-2.5)/6)*(i<o.impacto+.1?1:0);q.forEach((I,ee)=>{let Pe=Ne(Math.max(0,i-I),e),xe=ge*(ee===0?.35:.15);for(let[w,N]of[[fe[ee],1],[Y[ee],-1]])w.grupo.visible=xe>.003,Z(w,Pe,N),w.uniforms.uOpacidade.value=xe}),e?(Se.uForca.value=c>=0?.6*(1-b(c,0,.5)):0,ve.scale.setScalar(2)):(Se.uForca.value=c>=0?Math.pow(1-b(c,0,.32),2):0,ve.scale.setScalar(.5+3*R(b(c,0,.25))),Ke.uForca.value=c>=0?(1-b(c,0,.28))*b(c,-.01,.02):0,ne.scale.setScalar(.8+1.8*R(b(c,0,.28))),ne.rotation.z=.15*b(c,0,.28),Ee.uForca.value=c>=0?.6*Math.pow(1-b(c,0,.45),1.5):0,pe.scale.setScalar(.3+3.1*R(b(c,0,.45))),Ze.uForca.value=c>=0?.42*Math.pow(1-b(c,0,.14),2):0),F.uForca.value=c>=0?.5+.6*Math.exp(-c*4):.25*b(i,0,.4);let z=e?r.revelaInicio:o.revelaInicio,W=e?r.revelaFim:o.revelaFim,le=e?r.esfriaFim:o.esfriaFim;e?(V.uRevela.value=i>=z?1:0,V.uOpacidade.value=R(b(i,z,W))):(V.uRevela.value=R(b(i,z,W)),V.uOpacidade.value=1),V.uCalor.value=1-R(b(i,z+.05,le)),V.uBrilho.value=i<o.brilhoDoNomeInicio||i>o.brilhoDoNomeFim?-1:-.2+1.45*ae(b(i,o.brilhoDoNomeInicio,o.brilhoDoNomeFim));let De=e?1:(1.14-.14*R(b(i,z,z+.42)))*(1+.025*b(i,W,o.fechaFim));re.scale.setScalar(De),e||(To(i),Mo(i));let X=na(i,e,g);if(v.position.set(X.x,X.y,X.z),v.rotation.set(0,0,X.giro),!e){let I=-X.x/X.z,ee=(E-X.y)/X.z;H.position.set(I,ee,-1);let Pe=[[xo,o.corte],[Co,o.corte+.05]];for(let[w,N]of Pe){let He=(1-b(i,N+.06,N+.3))*(i>=N?1:0);w.m.visible=He>0,w.uniforms.uForca.value=He,w.uniforms.uDesenho.value=R(b(i,N,N+.09))}let xe=lo(b(i,o.fechaInicio,o.fechaFim));for(let w of So){w.m.visible=i>=o.fechaInicio;let N=Ao(w.dx,w.dy,I,ee)*(1-xe);w.m.position.set(w.dx*N,w.dy*N,0)}}return{fade:ra(i,e)}}function Qe(p){S=Math.max(.2,p);let i=we*S,h=vo/2*1.16/i+eo,c=Uo/i;g=Math.max(ke,h,c),v.aspect=S,v.updateProjectionMatrix()}function Do(){for(let p of s)p.dispose();s.length=0}return Qe(S),Ye(0),{scene:m,camera:v,atualizar:Ye,ajustarTela:Qe,criarSom:p=>ua(p,e),descartar:Do}}function K(a,t,e,o,r){a.gain.setValueAtTime(1e-4,t),a.gain.exponentialRampToValueAtTime(Math.max(2e-4,e),t+o),a.gain.exponentialRampToValueAtTime(1e-4,t+o+r)}function sa(a,t){let e=Math.ceil(a.sampleRate*t),o=a.createBuffer(2,e,a.sampleRate);for(let r=0;r<2;r++){let s=oe(r===0?7:11),n=o.getChannelData(r);for(let l=0;l<e;l++)n[l]=(s()*2-1)*Math.pow(1-l/e,3)}return o}function de(a,t,e,o,r){let s=a.ctx.createBufferSource();s.buffer=a.ruido(1);let n=s;for(let l of o)n.connect(l),n=l;n.connect(r),s.start(t),s.stop(t+e)}function J(a,t,e,o=.7){let r=a.createBiquadFilter();return r.type=t,r.frequency.value=e,r.Q.value=o,r}function Ce(a,t,e,o,r,s,n,l){let{ctx:C}=a,f=J(C,"bandpass",s,1.4);f.frequency.setValueAtTime(s,t),f.frequency.exponentialRampToValueAtTime(n,t+e);let u=C.createGain();u.gain.setValueAtTime(1e-4,t),l==="sobe"?(u.gain.exponentialRampToValueAtTime(r,t+e*.95),u.gain.exponentialRampToValueAtTime(1e-4,t+e+.04)):(u.gain.exponentialRampToValueAtTime(r,t+.06),u.gain.exponentialRampToValueAtTime(1e-4,t+e));let m=C.createStereoPanner();m.pan.setValueAtTime(o,t),m.pan.linearRampToValueAtTime(o*.3,t+e),u.connect(m),m.connect(a.seco),de(a,t,e+.08,[f],u)}function uo(a,t,e,o,r){let{ctx:s}=a,n=s.createOscillator();n.frequency.setValueAtTime(o,t),n.frequency.exponentialRampToValueAtTime(r,t+.32);let l=s.createGain();K(l,t,e,.004,.55),n.connect(l),l.connect(a.seco),n.start(t),n.stop(t+.62);let C=s.createGain();K(C,t,e*.6,.002,.14),C.connect(a.seco),de(a,t,.2,[J(s,"lowpass",260)],C);let f=s.createOscillator();f.frequency.value=48;let u=s.createGain();K(u,t,e*.35,.01,.5),f.connect(u),u.connect(a.seco),f.start(t),f.stop(t+.56)}var ca=[[1863,.2,1.5],[2988,.15,1.15],[4227,.11,.9],[5641,.07,.65],[7402,.045,.45]];function ro(a,t,e){let{ctx:o}=a,r=o.createGain();K(r,t,.6*e,.001,.03),r.connect(a.seco),de(a,t,.05,[J(o,"highpass",2500)],r);let s=o.createGain();K(s,t,.32*e,.004,.42),s.connect(a.seco),s.connect(a.sala);let n=J(o,"bandpass",7600,6);n.frequency.setValueAtTime(7600,t),n.frequency.exponentialRampToValueAtTime(3200,t+.3),de(a,t,.5,[J(o,"highpass",1800),n],s);for(let[l,C]of[[1,-.18],[1.0135,.18]]){let f=o.createStereoPanner();f.pan.value=C,f.connect(a.seco),f.connect(a.sala);for(let[u,m,v]of ca){let S=o.createOscillator();S.frequency.value=u*l;let g=o.createGain();K(g,t,m*e*.8,.002,v),S.connect(g),g.connect(f),S.start(t),S.stop(t+v+.05)}}uo(a,t,.95*e,150,42)}function io(a,t){let{ctx:e}=a,o=e.createStereoPanner();o.pan.setValueAtTime(-.3,t),o.pan.linearRampToValueAtTime(.3,t+.5),o.connect(a.seco),o.connect(a.sala);for(let[r,s]of[[3136,.045],[4699,.025]]){let n=e.createOscillator();n.frequency.value=r;let l=e.createGain();K(l,t,s,.004,.7),n.connect(l),l.connect(o),n.start(t),n.stop(t+.75)}}function la(a,t){let{ctx:e}=a,o=J(e,"bandpass",2500,2);o.frequency.setValueAtTime(2500,t),o.frequency.exponentialRampToValueAtTime(9e3,t+.1);let r=e.createGain();K(r,t,.28,.008,.16);let s=e.createStereoPanner();s.pan.setValueAtTime(-.5,t),s.pan.linearRampToValueAtTime(.5,t+.15),r.connect(s),s.connect(a.seco),s.connect(a.sala),de(a,t,.2,[J(e,"highpass",2200),o],r)}function ua(a,t){let{ctx:e}=a,o=e.createDynamicsCompressor();o.threshold.value=-10,o.knee.value=6,o.ratio.value=12,o.attack.value=.002,o.release.value=.25,o.connect(a.destino);let r=e.createConvolver();r.buffer=sa(e,1.5);let s=e.createGain();s.gain.value=.32,r.connect(s),s.connect(o);let n={ctx:e,seco:o,sala:r,ruido:a.ruido},l=me,C=t?[["choque",Xe.impacto,u=>ro(n,u,.75)],["brilho",l.brilhoDoNomeInicio+.12,u=>io(n,u)]]:[["zunido-entrada",.02,u=>{Ce(n,u,.36,-.75,.5,900,2600,"cai"),Ce(n,u+.012,.36,.75,.45,820,2400,"cai")}],["zunido-golpe",l.armadaFim-.02,u=>{let m=l.impacto-l.armadaFim+.02;Ce(n,u,m,-.35,.55,1200,4200,"sobe"),Ce(n,u,m,.35,.5,1100,3900,"sobe")}],["choque",l.impacto,u=>ro(n,u,1)],["brilho",l.brilhoDoNomeInicio+.12,u=>io(n,u)],["corte",l.corte,u=>la(n,u)],["fecha",l.fechaFim,u=>uo(n,u,.55,95,34)]],f=new Set;return{atualizar(u){for(let[m,v,S]of C)u>=v&&!f.has(m)&&(f.add(m),S(e.currentTime))},reiniciar:()=>f.clear()}}var da=ia,mo=da;var fo={nome:"Espadas cruzadas",duracaoNaturalS:2.8,quadroDaMiniaturaS:1.6};return Io(fa);})();
+</script>
+</head>
+<body>
+<main>
+  <h1>Abertura de batalha</h1>
+  <p class="sub">Toca quando o mestre liga o modo batalha, para o mestre, os jogadores e a TV ao mesmo tempo. A primeira opção é Espadas cruzadas, com o nome que você escrever.</p>
+  <div class="ajustes">
+    <div class="campo">
+      <span class="rotulo" id="rotulo-abertura">Abertura</span>
+      <div class="segmentos" role="group" aria-labelledby="rotulo-abertura">
+        <button type="button" data-abertura="espadasCruzadas" aria-pressed="true">Espadas cruzadas</button>
+      </div>
+    </div>
+    <div class="campo">
+      <label class="rotulo" for="nome">Nome que aparece</label>
+      <input type="text" id="nome" value="Royals" autocomplete="off" spellcheck="false" aria-describedby="dica-nome">
+      <span class="dica" id="dica-nome">Vazio usa Royals. Ao parar de digitar, a animação toca de novo; Enter toca na hora.</span>
+    </div>
+  </div>
+  <p class="descricao" id="descricao" aria-live="polite"></p>
+  <div class="palco" id="palco">
+    <canvas id="cena" role="img"></canvas>
+    <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
+    <div class="vinheta" aria-hidden="true"></div>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="depois" id="depois" aria-hidden="true">Aqui o app mostra o mapa da batalha.</div>
+    <div class="erro" id="erro" role="alert"></div>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <button type="button" id="lenta" aria-pressed="false">Câmera lenta</button>
+    <button type="button" id="tela-cheia">Tela cheia</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s / 2,8 s</span>
+  </div>
+  <p class="nota" id="nota-tela-cheia" hidden>Tela cheia indisponível aqui: esta moldura não deixa a página ocupar a tela.</p>
+  <p class="nota">Câmera lenta toca a 1/4 da velocidade para ver o choque; o som continua na velocidade normal. Trocar o nome, o movimento reduzido ou ligar o som recomeça do início. No app, a vinheta, o granulado e a cortina preta são os mesmos desta página.</p>
+</main>
+<script type="module">
+const erro = document.getElementById('erro')
+function mostrarErro(texto) {
+  erro.textContent = texto
+  erro.style.display = 'grid'
+}
+
+let THREE
+try {
+  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js')
+} catch {
+  mostrarErro('Não deu para baixar o three.js da CDN. Esta página precisa de internet para abrir a animação.')
+  throw new Error('three.js indisponível')
+}
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer.
+THREE.ColorManagement.enabled = false
+const B = window.AberturasDeBatalha
+const ABERTURAS = {
+  espadasCruzadas: {
+    criar: B.espadasCruzadas,
+    meta: B.metaEspadasCruzadas,
+    descricao: 'Duas espadas entram pelos lados e se cruzam no centro com um clarão; o nome nasce do choque em ouro em brasa e esfria. No fim, dois cortes em X riscam a tela e ela fecha em preto.',
+  },
+}
+const palco = document.getElementById('palco')
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const depois = document.getElementById('depois')
+const tempo = document.getElementById('tempo')
+const descricao = document.getElementById('descricao')
+const campoNome = document.getElementById('nome')
+const botaoSom = document.getElementById('som')
+const botaoLenta = document.getElementById('lenta')
+const botaoTela = document.getElementById('tela-cheia')
+const caixaReduzir = document.getElementById('reduzir')
+const segmentos = [...document.querySelectorAll('[data-abertura]')]
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+campoNome.maxLength = B.NOME_MAX_LETRAS
+campoNome.placeholder = B.NOME_PADRAO
+campoNome.value = B.NOME_PADRAO
+document.getElementById('dica-nome').textContent = `Vazio usa ${B.NOME_PADRAO}. Ao parar de digitar, a animação toca de novo; Enter toca na hora.`
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  mostrarErro('Este navegador não abriu o WebGL, então a animação não pode tocar aqui.')
+  throw e
+}
+
+// Granulado de fita velha: 160×100 de ruído redesenhado a cada 3 quadros (como no app).
+{
+  const g = document.getElementById('granulado')
+  const ctx = g.getContext('2d')
+  g.width = 160
+  g.height = 100
+  let n = 0
+  const desenhar = () => {
+    if (n++ % 3 === 0) {
+      const img = ctx.createImageData(160, 100)
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+        img.data[i + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+    }
+    requestAnimationFrame(desenhar)
+  }
+  requestAnimationFrame(desenhar)
+}
+
+let abertura = 'espadasCruzadas'
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let velocidade = 1
+let inicio = 0
+let raf = 0
+let tAtual = 0
+let esperaDeTocar = 0
+const duracao = () => ABERTURAS[abertura].meta.duracaoNaturalS
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+  if (!raf) desenhar(tAtual)
+}
+
+function nomeEscrito() {
+  const v = campoNome.value.replace(/\s+/g, ' ').trim()
+  return v === '' ? B.NOME_PADRAO : v
+}
+
+function montar() {
+  cena?.descartar()
+  const nome = nomeEscrito()
+  cena = ABERTURAS[abertura].criar(THREE, { reduzirMovimento: reduzir, nome })
+  // Como o motor: luz pontual e holofote convertidos (esta cena não tem nenhum).
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  if (audio) {
+    // O som da montagem anterior segue tocando no grafo velho: corta a saída dele.
+    audio.volume.disconnect()
+    audio.volume = audio.ctx.createGain()
+    audio.volume.gain.value = somLigado ? 1 : 0
+    audio.volume.connect(audio.ctx.destination)
+    audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  }
+  pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
+  for (const b of segmentos) b.setAttribute('aria-pressed', String(b.dataset.abertura === abertura))
+  descricao.textContent = ABERTURAS[abertura].descricao
+  canvas.setAttribute('aria-label', `Animação: duas espadas se cruzam no centro e o nome ${nome} aparece em letras de ouro`)
+  ajustar()
+}
+
+function desenhar(t) {
+  if (!cena) return
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(duracao())} s`
+}
+
+function tick(agora) {
+  const t = ((agora - inicio) / 1000) * velocidade
+  if (t >= duracao()) {
+    // O motor fecha em preto no fim.
+    tAtual = duracao()
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(duracao())} s / ${virgula(duracao())} s`
+    depois.dataset.visivel = 'true'
+    raf = 0
+    return
+  }
+  tAtual = t
+  desenhar(t)
+  if (somLigado) pistas?.atualizar(t)
+  raf = requestAnimationFrame(tick)
+}
+
+function tocar() {
+  clearTimeout(esperaDeTocar)
+  depois.dataset.visivel = 'false'
+  pistas?.reiniciar()
+  cancelAnimationFrame(raf)
+  raf = requestAnimationFrame((agora) => {
+    inicio = agora
+    tick(agora)
+  })
+}
+
+/** Para num quadro (o nome já aceso) enquanto a pessoa digita. */
+function mostrarQuadro(t) {
+  cancelAnimationFrame(raf)
+  raf = 0
+  depois.dataset.visivel = 'false'
+  tAtual = t
+  desenhar(t)
+}
+
+for (const b of segmentos) {
+  b.addEventListener('click', () => {
+    if (b.dataset.abertura === abertura) return tocar()
+    abertura = b.dataset.abertura
+    montar()
+    tocar()
+  })
+}
+document.getElementById('repetir').addEventListener('click', tocar)
+campoNome.addEventListener('input', () => {
+  montar()
+  mostrarQuadro(ABERTURAS[abertura].meta.quadroDaMiniaturaS)
+  clearTimeout(esperaDeTocar)
+  esperaDeTocar = setTimeout(tocar, 900)
+})
+campoNome.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  tocar()
+})
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  montar()
+  tocar()
+})
+botaoLenta.addEventListener('click', () => {
+  const nova = velocidade === 1 ? 0.25 : 1
+  // Mantém o ponto atual da animação ao trocar a velocidade no meio.
+  if (raf) inicio = performance.now() - (tAtual * 1000) / nova
+  velocidade = nova
+  botaoLenta.setAttribute('aria-pressed', String(velocidade !== 1))
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+    pistas = cena.criarSom ? cena.criarSom(audio.kit) : null
+  }
+  somLigado = !somLigado
+  audio.volume.gain.value = somLigado ? 1 : 0
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) tocar()
+})
+
+// Tela cheia: só o palco; Esc sai (o navegador cuida). Sem a API (moldura sem permissão), o botão fica desligado com o motivo.
+if (document.fullscreenEnabled && palco.requestFullscreen) {
+  botaoTela.addEventListener('click', () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void palco.requestFullscreen().catch(() => undefined)
+  })
+  document.addEventListener('fullscreenchange', () => {
+    botaoTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'
+  })
+} else {
+  botaoTela.disabled = true
+  document.getElementById('nota-tela-cheia').hidden = false
+}
+
+new ResizeObserver(ajustar).observe(canvas)
+montar()
+tocar()
+</script>
+</body>
+</html>
