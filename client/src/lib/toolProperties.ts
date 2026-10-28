@@ -66,6 +66,8 @@ export type PropertyGroupId =
   | 'revealBrush'
   /** Penhasco: "Riscar | Apagar" e a largura do PRÓXIMO risco (`PenhascoControls`). */
   | 'penhasco'
+  /** Barranco: o modo (Risco | Área alta | Rampa), a altura e o risco escolhido (`BarrancoControls`). */
+  | 'barranco'
   /** Texturas: o modo (Pincel | Balde | Borracha), a biblioteca, tamanho e força do PRÓXIMO gesto (`TexturasControls`). */
   | 'texturas'
   /** Carimbos: o modo (Carimbo | Borracha), a biblioteca, tamanho, largura e densidade do PRÓXIMO gesto (`CarimbosControls`). */
@@ -83,7 +85,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'lightPreset', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'penhasco', 'texturas', 'carimbos', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'barranco', 'texturas', 'carimbos', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -368,6 +370,8 @@ export function relevantPropertyGroups(
 
   // Penhasco: o mesmo molde — o que o PRÓXIMO risco faz e a largura dele.
   if (activeTool === 'penhasco') groups.add('penhasco')
+  // Barranco: o mesmo molde — o modo, a altura e o risco escolhido.
+  if (activeTool === 'barranco') groups.add('barranco')
   // Texturas: o mesmo molde — a biblioteca e o que o PRÓXIMO gesto faz.
   if (activeTool === 'texturas') groups.add('texturas')
   // Carimbos: idem — a biblioteca de objetos e o que o PRÓXIMO gesto faz.

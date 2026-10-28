@@ -61,6 +61,8 @@ import { portaAVistaAntesEDepois } from './quandoTocarSom'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
+import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarranco'
+import { pisoDoRecorte } from '../lib/barranco'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
@@ -1193,6 +1195,9 @@ interface Scene {
    * (`knownMask`): a sombra de uma costa na névoa não escorre para o lado visto.
    */
   relevo: RelevoRenderer
+  /** BARRANCO (`pixi/drawBarranco.ts`): só o que o recorte trouxe, sob a máscara do conhecido. */
+  barranco: DesenhoDoBarranco
+  barrancoContainer: Container
   /**
    * TEXTURAS (`pixi/drawTexturas.ts`): pintadas SÓ dos passos do recorte deste
    * jogador (`texturasParaJogador`), sob a névoa como as salas e ainda
@@ -2911,6 +2916,11 @@ function PlayerViewDoCanvas({
           }
         : null,
     )
+    // BARRANCO: só o que o recorte trouxe (o que ele já viu). Vale até no modo leve:
+    // o barranco segura a ficha, e a tela tem de mostrar por quê.
+    const barrancoDoRecorte = currentMap.barranco
+    scene.barrancoContainer.visible = barrancoDoRecorte !== undefined
+    scene.barranco.atualizar(barrancoDoRecorte === undefined ? null : { barranco: barrancoDoRecorte, piso: pisoDoRecorte(barrancoDoRecorte), grid: currentMap.grid })
     // TEXTURAS: só os passos que o recorte trouxe; o balde enche as formas do
     // recorte. Modo leve ("Efeitos do mapa" desligado, ou o WebGL já caiu): nada.
     scene.texturas.atualizar(
@@ -3366,6 +3376,16 @@ function PlayerViewDoCanvas({
       })
       relevoContainer.addChild(relevo.camada)
       relevoContainer.mask = relevoMask
+      // BARRANCO: a mesma máscara do conhecido, num contêiner próprio (o do relevo some
+      // com o relevo desligado, e o barranco vale em todo mapa). Escondido sem barranco:
+      // máscara visível paga o stencil a cada quadro.
+      const barrancoMask = new Graphics(knownMask.context)
+      const barrancoContainer = new Container()
+      barrancoContainer.eventMode = 'none'
+      barrancoContainer.visible = false
+      const barranco = criarDesenhoDoBarranco()
+      barrancoContainer.addChild(barranco.camada)
+      barrancoContainer.mask = barrancoMask
       // TEXTURAS: a mesma máscara do conhecido (contexto compartilhado), num
       // contêiner próprio — escondido enquanto não há textura, pelo mesmo
       // motivo do relevo (máscara visível custa o stencil a cada quadro).
@@ -3476,6 +3496,8 @@ function PlayerViewDoCanvas({
         texturasContainer,
         relevoMask,
         relevoContainer,
+        barrancoMask,
+        barrancoContainer,
         regionStrokes,
         paths,
         // CARIMBOS acima da borda das regiões e dos caminhos, abaixo de móveis,
@@ -3724,6 +3746,8 @@ function PlayerViewDoCanvas({
         lightsRenderer: luzesPorNo.de(lights),
         luzesPorNo,
         relevo,
+        barranco,
+        barrancoContainer,
         texturas,
         gradeDaBatalha,
         carimbos,
@@ -4544,6 +4568,7 @@ function PlayerViewDoCanvas({
         for (const renderer of scene.luzesPorNo.todos()) renderer.destroy()
         // A textura do relevo também não.
         scene.relevo.destruir()
+        scene.barranco.destroy()
         scene.texturas.destruir()
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.

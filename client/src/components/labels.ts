@@ -41,6 +41,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   concealZone: 'Zona oculta',
   revealBrush: 'Pincel de revelar',
   penhasco: 'Penhasco',
+  barranco: 'Barranco',
   texturas: 'Texturas',
   carimbos: 'Carimbos',
   pin: 'Pino',
@@ -119,6 +120,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche uma região ou um desenho, a borracha tira. Segure Alt com o pincel para apagar.',
   carimbos:
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
+  barranco:
+    'Dê parte alta e parte baixa ao mapa. Risco: arraste a beira e escolha o lado alto (F vira). Área alta: pinte o platô, e a borda vira barranco; começar dentro sobe mais um degrau, Alt desce. Rampa: clique no barranco para abrir a passagem. O barranco segura a ficha; a visão passa por cima.',
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
@@ -168,6 +171,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   concealZone: 'Arraste a área que os jogadores não veem.',
   revealBrush: 'Pinte o mapa durante o jogo.',
   penhasco: 'Risque a costa onde quer o rochedo.',
+  barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
@@ -221,7 +225,7 @@ export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   // — e, ao contrário das formas do Desenho, cada caminho carrega a própria cor.
   { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'path', 'cluster:objeto', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
-  { nome: 'Terreno', slots: ['penhasco', 'texturas', 'carimbos'] },
+  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
   { nome: 'Esconder e revelar', slots: ['concealZone', 'revealBrush'] },
@@ -289,6 +293,13 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
   door_secret:
     'A porta do caminho é secreta: enquanto ela estiver escondida, ninguém passa, nem com ela aberta. Clique em "Revelar passagem" no painel da porta para liberar.',
 }
+
+/**
+ * O barranco segurou o arrasto do mestre. O texto de parede mandaria abrir uma
+ * Porta, que no barranco não existe: a passagem é a rampa ou a ponta do risco.
+ */
+export const BARRANCO_SEGURA_A_FICHA_TEXT =
+  'O barranco segurou a ficha: a parede de terra não se sobe. Ela passa por uma rampa ou pela ponta do risco; para abrir uma rampa, use a ferramenta Barranco no modo Rampa.'
 
 /**
  * Arrastar o token PARA DENTRO do vão de uma porta fechada e destrancada abre

@@ -44,6 +44,12 @@ export type DrawingTool =
    */
   | 'penhasco'
   /**
+   * Barranco: a parede de terra dos mapas que não são de continente (vila,
+   * cidade, campo). Risco com lado alto, Área alta (platô) e Rampa
+   * (`lib/barranco.ts`). Segura o andar da ficha, não a visão.
+   */
+  | 'barranco'
+  /**
    * Texturas: o mestre pinta uma textura da biblioteca (areia, floresta...)
    * por cima do que quiser, com pincel, balde e borracha (`lib/texturas.ts`).
    * Não é o Chão: não cria piso, só pinta por cima das regiões e desenhos.

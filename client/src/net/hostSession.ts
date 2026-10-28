@@ -66,6 +66,7 @@ import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } fro
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
+import { paredesParaAndar } from '../lib/barranco'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
@@ -5863,7 +5864,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   function paredesDoRecorte(clientId: string, mapId: string, piso: number): Wall[] | null {
     const recorte = sentViews.get(clientId)?.view?.map
-    return recorte === undefined || recorte.id !== mapId ? null : mapaDoPiso(recorte, piso).walls
+    // BARRANCO: o que ele vê do barranco (o do recorte) também segura a conta dele.
+    return recorte === undefined || recorte.id !== mapId ? null : paredesParaAndar(mapaDoPiso(recorte, piso).walls, recorte, piso)
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -5903,7 +5905,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const piso = tokenPisoOf(msg.tokenId, scene.map)
     const floorMap = mapaDoPiso(scene.map, piso)
     // B6: o host pede as casas andadas (`comCaminho`) para o caminho andado; a resposta ao jogador não as leva.
-    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? floorMap.walls, comCaminho: true } : undefined
+    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? paredesParaAndar(floorMap.walls, floorMap, piso), comCaminho: true } : undefined
     const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da

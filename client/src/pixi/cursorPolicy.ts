@@ -90,6 +90,8 @@ export type GestureMode =
   | 'painting-reveal-brush'
   // Penhasco: arrasto que risca (ou apaga) penhasco na costa.
   | 'painting-penhasco'
+  // Barranco: arrasto que risca a beira ou pinta a área alta.
+  | 'painting-barranco'
   // Texturas: arrasto do pincel (ou da borracha) de textura.
   | 'painting-textura'
   // Carimbos: o spray (ou a borracha) de objetos.
@@ -223,6 +225,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'concealZone',
   'revealBrush',
   'penhasco',
+  'barranco',
   // Texturas: o clique pinta (pincel) ou enche (balde).
   'texturas',
   // Carimbos: o clique solta um objeto (ou apaga, com a borracha).
@@ -340,6 +343,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'painting-reveal-brush':
     // Penhasco: idem, riscando ou apagando.
     case 'painting-penhasco':
+    case 'painting-barranco':
     case 'painting-textura':
     case 'painting-carimbo':
     case 'area-marquee-drag':
