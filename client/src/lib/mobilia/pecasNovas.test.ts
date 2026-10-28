@@ -123,7 +123,8 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     const fogueira = TIPOS_NO_CATALOGO.indexOf('fogueira')
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     expect(TIPOS_NO_CATALOGO.slice(-2)).toEqual(['arcoDoPortao', 'placaDeSeta'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(26)
+    // 26 de antes e os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona).
+    expect(TIPOS_NO_CATALOGO).toHaveLength(34)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

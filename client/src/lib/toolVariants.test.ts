@@ -240,12 +240,12 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide em 3 partes (Dentro de casa 12, Rua e jardim 11 com o Fogo, Feira 3) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide em 3 partes (Dentro de casa 20 com os móveis de casa, Rua e jardim 11 com o Fogo, Feira 3) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
-      ['Dentro de casa', 12],
+      ['Dentro de casa', 20],
       ['Rua e jardim', 11],
       ['Feira', 3],
     ])
