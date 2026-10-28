@@ -3162,6 +3162,8 @@ function PlayerViewDoCanvas({
       texturasContainer.eventMode = 'none'
       texturasContainer.visible = false
       const texturas = createTexturasRenderer({
+        // F7: a pilha de camadas vira uma textura composta (um sprite por quadro, não uma máscara por camada).
+        palco: { renderer: app.renderer, ticker: app.ticker },
         aoMudarVisibilidade: (visivel) => {
           if (!texturasContainer.destroyed) texturasContainer.visible = visivel
         },

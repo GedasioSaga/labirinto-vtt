@@ -1,4 +1,4 @@
-import { CanvasSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js'
+import { CanvasSource, Container, Sprite, Texture, TilingSprite, type Renderer, type Ticker } from 'pixi.js'
 import type { Drawing, MapData, PinceladaDeTextura, Region, TexturaImportada } from '../types/map'
 import { planoDasTexturas, pixelsDoPlano, type PlanoDasTexturas } from '../lib/planoDasTexturas'
 import { assinaturaDasTexturas, type Caixa } from '../lib/texturas'
@@ -10,6 +10,7 @@ import { rasterizarTexturas } from './texturasRaster'
 import { meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
 import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoEmPedacos } from './pedacosDoChao'
+import { criarVitrine, type Vitrine } from './vitrineDasTexturas'
 
 /**
  * TEXTURAS no palco (`lib/texturas.ts`): acima do chão das regiões e dos
@@ -64,6 +65,13 @@ export interface OpcoesDasTexturas {
   pixelsDoLadrilho?: (ladrilho: Texture) => ImagemDoLadrilho | null
   /** Meio-Termo (MT7): o cache dos pedaços do chão (os testes passam um com fila e teto controlados). */
   cacheDoChao?: CacheDoChao
+  /**
+   * O palco que desenha a camada (F7): com ele, a pilha de camadas é composta
+   * numa textura só (`vitrineDasTexturas.ts`) e o quadro desenha um sprite, em
+   * vez de uma passada de máscara por camada a cada quadro. Sem ele (testes,
+   * a imagem exportada), as camadas ficam direto na `camada`, como antes.
+   */
+  palco?: { renderer: Renderer; ticker: Ticker }
 }
 
 export interface TexturasRenderer {
@@ -278,9 +286,26 @@ function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): b
 }
 
 export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): TexturasRenderer {
-  const camada = new Container()
-  camada.eventMode = 'none'
-  camada.label = 'texturas'
+  /** Onde as camadas são montadas: a própria `camada` (sem palco) ou a pilha que a vitrine compõe. */
+  const pilha = new Container()
+  pilha.eventMode = 'none'
+  pilha.label = 'texturas'
+  /** Pedaço da tela à vista e a área composta da última composição (a vitrine recorta a pilha nelas). */
+  const recortarPilha = (vistaDaTela: Caixa, mundo: Caixa) => {
+    for (const { repetida, caixa, chao } of noPalco) {
+      recortarNaVista(repetida, caixa, mundo)
+      chao?.ajustar(vistaDaTela, mundo)
+    }
+  }
+  /** Um ladrilho da vitrine: a repetida e a área das máscaras ficam presas a ele (a textura do filtro fica do tamanho do ladrilho). */
+  const limitarPilha = (mundo: Caixa) => {
+    for (const { repetida, caixa, chao } of noPalco) {
+      recortarNaVista(repetida, caixa, mundo)
+      chao?.limitarFiltro(mundo)
+    }
+  }
+  const vitrine: Vitrine | null = opcoes.palco === undefined ? null : criarVitrine({ ...opcoes.palco, fonte: pilha, recortar: recortarPilha, limitar: limitarPilha })
+  const camada = vitrine?.camada ?? pilha
   const esperaMs = opcoes.esperaMs ?? ESPERA_DAS_TEXTURAS_MS
   const rasterizar = opcoes.rasterizar ?? rasterizarTexturas
   const ladrilho = opcoes.ladrilho ?? ladrilhoPadrao
@@ -351,7 +376,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
 
   function limparPalco(): void {
     noPalco = []
-    soltarPintura(camada)
+    soltarPintura(pilha)
+    vitrine?.sujar('ja')
     // Nenhuma camada usa mais os ladrilhos que o pacote novo aposentou.
     soltarDescartados()
     mudarVisibilidade(false)
@@ -452,7 +478,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
         cacheDoChao ??= new CacheDoChao()
         // A máscara entra como filtro com a área presa à vista (`mascaraNaVista`, pedacosDoChao.ts), não por
         // `setMask`: os pedaços passam da vista, e a textura do filtro chegava a 8192 px por camada a cada quadro.
-        const chao = montarChaoEmPedacos({ cache: cacheDoChao, chaveDoChao: doChao.chave, chao: doChao.chao, caixa: c.caixa, repetida, vista, mascara, aoFicarPronto: () => marcar('chao:pronto') })
+        const chao = montarChaoEmPedacos({ cache: cacheDoChao, chaveDoChao: doChao.chave, chao: doChao.chao, caixa: c.caixa, repetida, vista, mascara, aoFicarPronto: () => marcar('chao:pronto'), aoMudar: () => vitrine?.sujar('aos-poucos') })
         alvo.addChild(chao.grupo, mascara)
         montadas.push({ repetida, caixa: c.caixa, chao })
         return
@@ -476,10 +502,11 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     const pronto = await prepararPlano(plano, entrada, cancelado)
     if (pronto === null) return
     limparPalco()
-    noPalco = montarPlano(camada, plano, entrada, pronto, vista, meioTermoLigado())
+    noPalco = montarPlano(pilha, plano, entrada, pronto, vista, meioTermoLigado())
+    vitrine?.sujar('ja')
     cenaNoPalco = entrada.cena
     marcar('texturas:no-palco')
-    mudarVisibilidade(camada.children.length > 0)
+    mudarVisibilidade(pilha.children.length > 0)
     opcoes.aoGerar?.({ ms: performance.now() - inicio, camadas: plano.camadas.length, pixels: pixelsDoPlano(plano) })
   }
 
@@ -516,7 +543,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       })
     }
     // Sem nada no palco (abriu a cena) não há o que esperar; na edição, espera a mão parar.
-    if (cenaNova || camada.children.length === 0) comecar()
+    if (cenaNova || pilha.children.length === 0) comecar()
     else espera = setTimeout(comecar, esperaMs)
   }
 
@@ -560,6 +587,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     pintarAParte,
     ajustarAVista: (agora) => {
       vista = agora
+      // Com a vitrine, quem recorta é ela, na hora de compor (tela + margem, `recortarPilha`).
+      if (vitrine !== null) return
       for (const { repetida, caixa, chao } of noPalco) {
         recortarNaVista(repetida, caixa, vista)
         chao?.ajustar(vista)
@@ -584,7 +613,8 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       prontos.clear()
       // Os pedaços do chão já foram soltos pelo `limparPalco`: o cache destrói todos.
       cacheDoChao?.destruir()
-      camada.destroy()
+      vitrine?.destruir()
+      pilha.destroy()
     },
   }
 }

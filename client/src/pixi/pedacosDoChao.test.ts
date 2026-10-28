@@ -177,8 +177,11 @@ describe('a camada em pedaços', () => {
   it('F1: a máscara entra como filtro com a área presa a vista ∩ caixa, que anda com a vista (mesmo sem trocar de pedaços)', () => {
     const fila = filaManual()
     const cache = new CacheDoChao({ agendar: fila.agendar, fatiaMs: 1000 })
-    const mascara = new Sprite(Texture.WHITE)
     const caixa = { minX: 100, minY: 50, maxX: 2000, maxY: 1500 }
+    // A tela da máscara arredonda para cima: ela passa da caixa (aqui 2,5 à direita e embaixo).
+    const mascara = new Sprite(Texture.WHITE)
+    mascara.position.set(caixa.minX, caixa.minY)
+    mascara.scale.set(1902.5, 1452.5)
     const camada = montarChaoEmPedacos({ cache, chaveDoChao: 'grama#0#192#meio-termo-1', chao: CHAO, caixa, repetida: new TilingSprite({ texture: Texture.WHITE }), vista: { minX: 0.4, minY: 0, maxX: 600.2, maxY: 400 }, mascara })
     const filtro = camada.grupo.filters?.[0]
     expect(filtro).toBeInstanceOf(MaskFilter)
@@ -197,9 +200,9 @@ describe('a camada em pedaços', () => {
     // Pan dentro da mesma faixa de pedaços: a área anda junto.
     camada.ajustar({ minX: 150, minY: 60, maxX: 750, maxY: 460 })
     expect(area()).toEqual({ x: 150, y: 60, w: 600, h: 400 })
-    // Zoom afastado: a área fica presa à caixa da pintura.
+    // Zoom afastado: a área fica presa à caixa da pintura mais a sobra da máscara (a borda pintada mora nela).
     camada.ajustar({ minX: -5000, minY: -5000, maxX: 9000, maxY: 9000 })
-    expect(area()).toEqual({ x: 100, y: 50, w: 1900, h: 1450 })
+    expect(area()).toEqual({ x: 100, y: 50, w: 1903, h: 1453 })
     // Fora da vista: o grupo não desenha (área vazia faria o Pixi pular o filtro e desenhar sem máscara).
     camada.ajustar({ minX: 3000, minY: 3000, maxX: 3600, maxY: 3400 })
     expect(camada.grupo.renderable).toBe(false)

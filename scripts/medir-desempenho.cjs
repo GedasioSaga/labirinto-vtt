@@ -173,7 +173,10 @@ function conferirLimites(limites, linhas) {
         for (const chave of regra.filtro) {
           const f = r[chave]
           if (!f) reprovas.push(`${id} ${chave}: sem medida [${regra.nome}]`)
-          else if (f.passadas_por_quadro > regra.passadas_max) reprovas.push(`${id} ${chave}: ${f.passadas_por_quadro} passadas de filtro por quadro > ${regra.passadas_max} [${regra.nome}]`)
+          else {
+            if (regra.passadas_max !== undefined && f.passadas_por_quadro > regra.passadas_max) reprovas.push(`${id} ${chave}: ${f.passadas_por_quadro} passadas de filtro por quadro > ${regra.passadas_max} [${regra.nome}]`)
+            if (regra.area_max_mpx !== undefined && f.megapixels_de_area_por_quadro > regra.area_max_mpx) reprovas.push(`${id} ${chave}: ${f.megapixels_de_area_por_quadro} Mpx de filtro por quadro > ${regra.area_max_mpx} [${regra.nome}]`)
+          }
         }
         continue
       }

@@ -277,8 +277,14 @@ export class CacheDoChao {
 export interface ChaoEmPedacos {
   /** O que vai para o palco (a máscara da camada é posta nele). */
   readonly grupo: Container
-  /** A vista mudou (`null` = a pintura inteira, a do PNG). Barato quando os pedaços não mudam. */
-  ajustar: (vista: Caixa | null) => void
+  /**
+   * A vista mudou (`null` = a pintura inteira, a do PNG). Barato quando os pedaços não mudam.
+   * `cobrir` = a área a cobrir quando ela passa da vista (a vitrine das texturas compõe tela + margem);
+   * o nível dos pedaços continua o da vista, para a imagem ser a mesma.
+   */
+  ajustar: (vista: Caixa | null, cobrir?: Caixa) => void
+  /** Só a área da máscara (um ladrilho da vitrine), sem mexer nos pedaços pedidos. */
+  limitarFiltro: (area: Caixa) => void
   /** Resolve quando todos os pedaços pedidos estão no palco (ou a camada foi solta). */
   pronto: () => Promise<void>
   /** Pedaços pedidos que ainda não chegaram. */
@@ -317,6 +323,8 @@ export interface MontagemDoChao {
   mascara?: Sprite
   /** Avisado cada vez que todos os pedaços da vista ficam prontos. */
   aoFicarPronto?: () => void
+  /** Avisado quando o que o grupo desenha muda (pedaço chegou, faixa trocou): a vitrine compõe de novo. */
+  aoMudar?: () => void
 }
 
 /**
@@ -339,6 +347,14 @@ function mascaraNaVista(grupo: Container, mascara: Sprite, caixa: Caixa): { ajus
   mascara.renderable = false
   grupo.filters = [filtro]
   const area = new Rectangle()
+  // A tela da máscara arredonda a caixa para cima (pixels inteiros na escala da pintura) e pode passar da
+  // caixa em até um pixel dela: a área cobre a caixa E a máscara, para nunca cortar o que a máscara mostra.
+  const coberta: Caixa = {
+    minX: Math.min(caixa.minX, Math.floor(mascara.x)),
+    minY: Math.min(caixa.minY, Math.floor(mascara.y)),
+    maxX: Math.max(caixa.maxX, Math.ceil(mascara.x + mascara.width)),
+    maxY: Math.max(caixa.maxY, Math.ceil(mascara.y + mascara.height)),
+  }
   return {
     ajustar: (vista) => {
       if (vista === null) {
@@ -347,7 +363,7 @@ function mascaraNaVista(grupo: Container, mascara: Sprite, caixa: Caixa): { ajus
         grupo.renderable = true
         return
       }
-      const naVista = areaNaVista(caixa, vista)
+      const naVista = areaNaVista(coberta, vista)
       // Fora da vista nada se vê; e área vazia faria o Pixi PULAR o filtro e desenhar o grupo sem máscara.
       grupo.renderable = naVista !== null
       if (naVista === null) return
@@ -399,6 +415,8 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
   }
 
   function cobertura(): void {
+    // O placeholder, os pedaços de antes ou os novos mudaram: a vitrine compõe de novo.
+    m.aoMudar?.()
     const faltam = contarFaltam()
     m.repetida.renderable = faltam > 0
     if (faltam > 0) return
@@ -418,12 +436,13 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
     no.sprite = sprite
   }
 
-  function ajustar(vista: Caixa | null): void {
+  function ajustar(vista: Caixa | null, cobrir?: Caixa): void {
     if (solto) return
+    const alvo = vista === null ? null : (cobrir ?? vista)
     // A área do filtro anda com a vista a cada chamada (o pan não muda a faixa de pedaços, mas muda a vista).
-    mascarada?.ajustar(vista)
+    mascarada?.ajustar(alvo)
     const nivel = vista === null ? nivelDaVista(m.caixa, MAX_PEDACOS_NO_PNG) : nivelDaVista(vista)
-    const area = vista === null ? m.caixa : areaNaVista(m.caixa, vista)
+    const area = alvo === null ? m.caixa : areaNaVista(m.caixa, alvo)
     const f = area === null ? null : faixaDaArea(area, nivel)
     const nova = f === null ? `${nivel}|nada` : `${nivel}|${f.i0}|${f.i1}|${f.j0}|${f.j1}`
     // Arrastar chama isto a cada quadro: só monta a lista quando a faixa de pedaços muda.
@@ -462,6 +481,9 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
   const camada: ChaoEmPedacos = {
     grupo,
     ajustar,
+    limitarFiltro: (area) => {
+      if (!solto) mascarada?.ajustar(area)
+    },
     get faltam() {
       return contarFaltam()
     },
