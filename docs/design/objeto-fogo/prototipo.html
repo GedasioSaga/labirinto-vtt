@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fogo no mapa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Mesma bancada escura dos outros protótipos do Labirinto (o fundo do editor, #2b2b2b):
+   a página é o mundo do editor, por isso um tema só, escuro. */
+:root {
+  color-scheme: dark;
+  --bg: #1c1b19;
+  --bancada: #2b2b2b;
+  --painel: #262422;
+  --ink: #ece6da;
+  --ink-2: #b9b1a3;
+  --ink-3: #8d8579;
+  --rule: #3b3833;
+  --controle: #232220;
+  --controle-borda: #45413b;
+  --controle-ativo: #45403a;
+  --borda-chama: #a04a2c;
+  --miolo: #f0c98a;
+  --fogo: #e39446;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; padding-inline: 16px; padding-block: 0 72px; }
+.coluna { max-width: 1080px; margin-inline: auto; display: grid; gap: 44px; }
+h1, h2 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: 0.005em; }
+h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1.05; }
+h2 { font-size: 24px; line-height: 1.15; }
+p { margin: 0; max-width: 68ch; }
+
+/* Barra fixa: o controle que vale para a página toda */
+.barra { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); margin-inline: -16px; padding: 10px 16px; }
+.barra-dentro { max-width: 1080px; margin-inline: auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.marca { font-family: var(--f-display); font-weight: 500; font-size: 15px; color: var(--ink-2); }
+.barra-direita { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.estado { color: var(--ink-3); font-size: 13px; }
+
+.alternar { font: 500 14px/1.2 var(--f-body); color: var(--ink); background: var(--bancada); border: 1px solid #4a4640; border-radius: 6px; padding: 10px 14px; min-height: 44px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; transition: transform 140ms var(--ease-out), background-color 160ms ease, border-color 160ms ease; }
+.alternar:active { transform: scale(0.97); }
+.alternar:focus-visible { outline: 2px solid var(--miolo); outline-offset: 2px; }
+.alternar .luz { width: 10px; height: 10px; border-radius: 50%; background: #4a4640; transition: background-color 160ms ease; flex: none; }
+.alternar[aria-pressed="true"] { border-color: var(--miolo); }
+.alternar[aria-pressed="true"] .luz { background: var(--miolo); }
+@media (hover: hover) and (pointer: fine) { .alternar:hover { background: #34322f; } }
+
+header.abertura { display: grid; gap: 14px; padding-top: 32px; }
+.abertura > p { color: var(--ink-2); font-size: 16.5px; }
+blockquote { margin: 4px 0 0; padding: 2px 0 2px 16px; border-left: 3px solid var(--borda-chama); display: grid; gap: 4px; }
+blockquote p { font-size: 16px; color: var(--ink); }
+blockquote footer { font-size: 13px; color: var(--ink-3); }
+
+section { display: grid; gap: 16px; }
+.cabeca { display: grid; gap: 6px; }
+.cabeca p { color: var(--ink-2); }
+.bancada { background: var(--bancada); border-radius: 4px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+
+/* Controles do mapa */
+.controles { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; }
+.grupo { border: 0; margin: 0; padding: 0; min-width: 0; }
+.grupo legend, .grupo .titulo { font-size: 13px; color: var(--ink-3); padding: 0; margin-bottom: 6px; display: block; }
+.segmentos { display: inline-flex; flex-wrap: wrap; background: var(--controle); border: 1px solid var(--controle-borda); border-radius: 7px; padding: 3px; gap: 3px; }
+.segmentos label { position: relative; display: block; }
+/* O input fica por cima e recebe o toque; o span só desenha (o scale do :active criaria uma camada acima dele). */
+.segmentos input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.segmentos span { pointer-events: none; display: flex; flex-direction: column; justify-content: center; min-height: 44px; padding: 4px 12px; border-radius: 5px; font-weight: 500; font-size: 14px; line-height: 1.2; color: var(--ink-2); transition: background-color 160ms ease, color 160ms ease, transform 140ms var(--ease-out); }
+.segmentos small { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.segmentos input:checked + span { background: var(--controle-ativo); color: var(--ink); box-shadow: inset 0 0 0 1px #6a6259; }
+.segmentos input:checked + span small { color: var(--ink-2); }
+.segmentos input:focus-visible + span { outline: 2px solid var(--miolo); outline-offset: 1px; }
+.segmentos label:active span { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) { .segmentos input:not(:checked):hover + span { color: var(--ink); background: #2f2d2a; } }
+.botoes-linha { display: flex; flex-wrap: wrap; gap: 8px; }
+
+canvas#mapa { display: block; width: 100%; border-radius: 3px; background: #8cbf80; }
+.medida { font-size: 13.5px; color: var(--ink-2); max-width: none; font-variant-numeric: tabular-nums; min-height: 2.6em; }
+
+/* O que cada fogo tem */
+dl.partes { margin: 0; display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 0; }
+dl.partes dt, dl.partes dd { padding-block: 12px; border-top: 1px solid var(--rule); margin: 0; }
+dl.partes dt { font-family: var(--f-display); font-weight: 600; font-size: 17px; padding-right: 16px; }
+dl.partes dd { color: var(--ink-2); max-width: 68ch; }
+dl.partes dt:first-of-type, dl.partes dt:first-of-type + dd { border-top: 0; padding-top: 0; }
+@media (max-width: 640px) { dl.partes { grid-template-columns: 1fr; } dl.partes dd { border-top: 0; padding-top: 0; } }
+
+/* Como entra no app */
+ul.notas { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--ink-2); max-width: 74ch; }
+ul.notas b { color: var(--ink); font-weight: 500; }
+.tabela { overflow-x: auto; }
+table { border-collapse: collapse; min-width: 520px; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 7px 12px; border-bottom: 1px solid #34312d; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 500; color: var(--ink-3); font-size: 13px; }
+td { color: var(--ink-2); }
+td:first-child { color: var(--ink); }
+caption { text-align: left; color: var(--ink-3); font-size: 13px; caption-side: bottom; padding-top: 8px; }
+ol.duvidas { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 74ch; color: var(--ink-2); }
+ol.duvidas b { color: var(--ink); font-weight: 500; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; color: #d9d2c4; }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <div class="barra-dentro">
+    <span class="marca">Objeto Fogo, protótipo para aprovar</span>
+    <span class="barra-direita">
+      <span class="estado" id="estado-sistema"></span>
+      <button class="alternar" id="menos-movimento" type="button" aria-pressed="false"><span class="luz" aria-hidden="true"></span>Menos movimento</button>
+    </span>
+  </div>
+</div>
+
+<main class="coluna">
+  <header class="abertura">
+    <h1>Fogo no mapa</h1>
+    <p>Um objeto para marcar que alguma coisa está pegando fogo. A chama tremula, solta fagulhas e um fio de fumaça, e o chão em volta pisca laranja. Visto de cima, no estilo Meio-Termo, em três tamanhos.</p>
+    <blockquote>
+      <p>“Eu também quero um objeto que seja uma chama com animação de fogueira, para representar que alguma coisa está pegando fogo.”</p>
+      <footer>O mestre, 27/10/2026</footer>
+    </blockquote>
+  </header>
+
+  <section aria-labelledby="t-mapa">
+    <div class="cabeca">
+      <h2 id="t-mapa">No mapa</h2>
+      <p>A casa da esquerda está pegando fogo. Troque o tamanho, o zoom e o desenho da chama para comparar. Nada aqui mexe no app.</p>
+    </div>
+    <div class="bancada">
+      <div class="controles">
+        <fieldset class="grupo">
+          <legend>Tamanho</legend>
+          <div class="segmentos">
+            <label><input type="radio" name="tamanho" value="chama"><span>Chama<small>1 casa</small></span></label>
+            <label><input type="radio" name="tamanho" value="fogueira"><span>Fogueira<small>2 casas</small></span></label>
+            <label><input type="radio" name="tamanho" value="incendio" checked><span>Incêndio<small>4 por 3 casas</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="grupo">
+          <legend>Zoom</legend>
+          <div class="segmentos">
+            <label><input type="radio" name="zoom" value="perto"><span>Perto<small>200%</small></span></label>
+            <label><input type="radio" name="zoom" value="normal" checked><span>Normal<small>100%</small></span></label>
+            <label><input type="radio" name="zoom" value="longe"><span>Longe<small>50%</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="grupo">
+          <legend>Desenho da chama</legend>
+          <div class="segmentos">
+            <label><input type="radio" name="desenho" value="labareda" checked><span>Labareda nova<small>pintada, 16 quadros</small></span></label>
+            <label><input type="radio" name="desenho" value="vetor"><span>Igual à fogueira de hoje<small>a chama do móvel</small></span></label>
+          </div>
+        </fieldset>
+        <div class="grupo">
+          <span class="titulo" id="t-comparar">Comparar</span>
+          <div class="botoes-linha" role="group" aria-labelledby="t-comparar">
+            <button class="alternar" id="espalhar" type="button" aria-pressed="false"><span class="luz" aria-hidden="true"></span>Espalhar 20 fogos</button>
+            <button class="alternar" id="jogador" type="button" aria-pressed="false"><span class="luz" aria-hidden="true"></span>Ver como o jogador</button>
+          </div>
+        </div>
+      </div>
+      <canvas id="mapa" role="img" aria-label="Mapa de exemplo com fogo"></canvas>
+      <p class="medida" id="medida">Pintando as labaredas…</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-partes">
+    <div class="cabeca">
+      <h2 id="t-partes">O que cada fogo tem</h2>
+      <p>Cores contidas, as mesmas da fogueira aprovada em 14/10: borda <code>#a04a2c</code>, laranja <code>#e39446</code> (o fogo da paleta Meio-Termo), miolo <code>#f0c98a</code> e fagulha <code>#f6dca8</code>. Nada de brilho somado nem neon.</p>
+    </div>
+    <dl class="partes">
+      <dt>Chão queimado</dt>
+      <dd>Fuligem com borda irregular, cinza clara, brasas no pé de cada labareda e, nos tamanhos maiores, toras e vigas carbonizadas. Fica parado: entra na imagem do objeto, como a lenha da fogueira, e nunca é repintado.</dd>
+      <dt>Brilho no chão</dt>
+      <dd>Um disco laranja-claro em volta do fogo que pisca de leve, só na transparência e na escala, no mesmo ritmo das labaredas.</dd>
+      <dt>Labaredas</dt>
+      <dd>3 línguas na Chama, 5 na Fogueira e 11 no Incêndio, cada uma no seu passo. Ficam sempre em pé na tela, como a chama da fogueira: girar o objeto não deita o fogo.</dd>
+      <dt>Fagulhas</dt>
+      <dd>3, 5 e 9, subindo e apagando em menos de um segundo. No zoom Longe elas somem, porque ficariam do tamanho de um pixel.</dd>
+      <dt>Fumaça</dt>
+      <dd>Um fio na Chama e na Fogueira, dois no Incêndio, subindo e indo com o vento. No zoom Longe usa metade das nuvens.</dd>
+      <dt>Menos movimento</dt>
+      <dd>A chama para numa pose, as fagulhas somem, a fumaça fica parada e só o brilho respira, bem devagar.</dd>
+    </dl>
+  </section>
+
+  <section aria-labelledby="t-app">
+    <div class="cabeca">
+      <h2 id="t-app">Como entra no app</h2>
+      <p>O detalhe está no <code>README.md</code> desta pasta. Em resumo:</p>
+    </div>
+    <ul class="notas">
+      <li><b>A parte parada é pintada uma vez</b> (chão queimado, brasas, toras), na imagem do objeto, como os outros móveis do Meio-Termo.</li>
+      <li><b>A parte que mexe é feita de imagens prontas.</b> Os 16 quadros dos 2 desenhos de labareda saem do código uma vez por sessão, numa folha de 2048 por 384 px (cerca de 3 MB na placa de vídeo). Por quadro o Pixi só troca o quadro, a escala, a posição e a transparência. Sem shader e sem filtro.</li>
+      <li><b>Só anima o que está na tela.</b> Fogo fora da câmera sai do relógio. Na tela do jogador, fogo na névoa nem chega a existir: não desenha nem brilho.</li>
+      <li><b>Mesmo ritmo nas duas telas</b> sem sincronizar nada: o passo de cada fogo sai do id dele, como na fogueira.</li>
+    </ul>
+    <div class="tabela">
+      <table>
+        <caption>Estimativa pelo desenho do protótipo, não medida no app.</caption>
+        <thead><tr><th scope="col">Tamanho</th><th scope="col">Imagens que mexem</th><th scope="col">Números trocados por quadro</th><th scope="col">Parte parada (pintada uma vez)</th></tr></thead>
+        <tbody>
+          <tr><td>Chama</td><td>10</td><td>cerca de 30</td><td>fuligem e 3 brasas</td></tr>
+          <tr><td>Fogueira</td><td>15</td><td>cerca de 45</td><td>fuligem, 5 brasas, 2 toras</td></tr>
+          <tr><td>Incêndio</td><td>29</td><td>cerca de 90</td><td>fuligem, 11 brasas, 4 vigas</td></tr>
+          <tr><td>20 fogos na tela (o botão)</td><td>cerca de 300</td><td>cerca de 900</td><td>uma vez por fogo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-decidir">
+    <div class="cabeca">
+      <h2 id="t-decidir">Para decidir</h2>
+      <p>Responda pelo número.</p>
+    </div>
+    <ol class="duvidas">
+      <li><b>Desenho da chama:</b> a labareda nova (pintada, mais viva) ou igual à fogueira de hoje (a mesma chama do móvel Fogueira, só que várias)?</li>
+      <li><b>Nome e lugar no menu:</b> proponho “Fogo” na parte Rua e jardim, logo depois da Fogueira, com os três tamanhos no painel. Só que o tamanho do meio também se chama Fogueira, igual ao móvel. Troco o nome dele (por exemplo “Fogaréu”), ou prefere outro arranjo?</li>
+      <li><b>Telhado:</b> o fogo fica embaixo do telhado, como os móveis, ou por cima, para a casa queimar vista de fora?</li>
+      <li><b>Noite:</b> o fogo também acende uma luz no mapa de luz, como um lampião, ou basta o brilho do desenho?</li>
+      <li><b>Chão queimado:</b> faz parte do fogo (some quando ele sai) ou vira uma opção?</li>
+      <li><b>Menos movimento:</b> o brilho respira devagar, como está, ou fica totalmente parado?</li>
+    </ol>
+  </section>
+</main>
+
+<script>
+'use strict';
+/* ==========================================================================
+   FOGO NO MAPA, protótipo do objeto. Tudo em "casas" (1 casa = 48 px a 100%).
+   Parte parada (chão queimado) entra no fundo, pintado uma vez por zoom.
+   Parte que mexe: brilho, labaredas (folha de 16 quadros), fagulhas, fumaça.
+   ========================================================================== */
+const CASA = 48;
+const CICLO = 2400;             // ms, o ciclo da chama aprovada (só harmônicos inteiros)
+const VIDA_DA_FAGULHA = 0.375;  // fração do ciclo (0,9 s), a da fogueira aprovada
+const QUADROS = 16;             // quadros da labareda
+const QPS = 16;                 // quadros por segundo da labareda (volta de 1 s)
+const QW = 128, QH = 192;       // tamanho de cada quadro na folha
+const BASE_DO_QUADRO = 0.04;    // margem de baixo do quadro (o pé da chama)
+const LARGURA_DA_LINGUA = 1.3;  // a labareda sai mais larga que o quadro: as línguas vizinhas se juntam numa massa só
+const V = Math.PI * 2;
+const ZOOMS = { perto: 2, normal: 1, longe: 0.5 };
+const CASA_PX_SEM_FAGULHA = 30; // abaixo disto (px de tela por casa) a fagulha some
+const VISAO = 5.6;              // raio da visão do jogador, em casas
+const FICHA = [6.6, 8.25];      // a ficha do jogador, na porta da casa
+const FOCO = [4.0, 4.2];        // onde fica o fogo do controle Tamanho
+const REDUZIDO_MS = 100;        // com menos movimento, 10 quadros por segundo
+
+const P = {
+  grama: '#8cbf80', gramaRealce: '#a2cc92', gramaSombra: '#76ac6d', tufo: '#689c5f',
+  terra: '#dda56c', terraSombra: '#c78d58', seixo: '#c4915f',
+  praca: '#dcd0b6', pracaRealce: '#ebe2cd', pracaSombra: '#bcae94',
+  carvalho: '#a07b51', nogueira: '#775739', pinho: '#b9995f', linho: '#d4c7a5',
+  vinho: '#8f4a49', ocre: '#b2904f', ferro: '#5d6164', latao: '#b89552',
+  reboco: '#efe7cf', pedra: '#c3c0b2', folha: '#55ae74', folhaEscura: '#469a63',
+  rosa: '#e8a2c4', amarelo: '#f0d266', branco: '#f3efe2', telhaAzul: '#43639a',
+};
+const FOGO = { contorno: '#7c3622', borda: '#a04a2c', laranja: '#c4683a', fogo: '#e39446', miolo: '#f0c98a', fagulha: '#f6dca8' };
+const BRASA_VIVA = [150, 82, 62];
+const BRASA_QUENTE = [196, 130, 82];
+
+/* ---------- números, ruído e cor ---------- */
+function hash3(a, b, c) {
+  let h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ Math.imul(c | 0, 0x2545f491);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function ruido(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash3(xi, yi, s), b = hash3(xi + 1, yi, s), c = hash3(xi, yi + 1, s), d = hash3(xi + 1, yi + 1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y, s, oitavas = 3) {
+  let t = 0, amp = 0.5, soma = 0;
+  for (let i = 0; i < oitavas; i++) {
+    t += amp * ruido(x, y, s + i * 31);
+    soma += amp;
+    x = x * 2.02 + 17.1; y = y * 2.02 + 9.3; amp *= 0.5;
+  }
+  return t / soma;
+}
+const frac = (v) => v - Math.floor(v);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+function suave(a, b, v) { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+function rgbDe(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgba(c, a = 1) { return `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`; }
+function misturar(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
+/** Contorno do Meio-Termo: a própria cor escurecida, nunca preto. */
+function escuro(hex, f = 0.6) { return rgba(rgbDe(hex).map((v) => v * f)); }
+function variar(hex, d) { return rgba(rgbDe(hex).map((v) => clamp(v * (1 + d), 0, 255))); }
+/** FNV-1a de 32 bits: o passo do fogo sai do id, igual nas duas telas. */
+function fnv(id) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+function tela(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+/* ---------- os três tamanhos (casas, origem no centro do fogo) ----------
+   lingua: [x da base, y da base, altura, desenho 0|1], já na ordem de desenho (de trás para a frente).
+   queimado: manchas [cx, cy, rx, ry]. brilho: [rx, ry, cx, cy, alfa]. toras: [x1, y1, x2, y2, raio]. */
+const TAMANHOS = {
+  chama: {
+    nome: 'Chama',
+    linguas: [[0.04, 0.16, 0.92, 0], [-0.2, 0.24, 0.52, 1], [0.24, 0.26, 0.42, 0]],
+    queimado: [[0, 0.18, 0.46, 0.36]], toras: [],
+    brilho: [1.0, 0.9, 0, 0.1, 0.9],
+    fagulhas: { n: 3, sobe: 0.55 },
+    fumaca: { colunas: [0], n: 3, s0: 0.22, s1: 0.62, sobe: 1.6, alfa: 0.32, vida: 4200, vento: 0.35 },
+  },
+  fogueira: {
+    nome: 'Fogueira',
+    linguas: [[-0.12, 0.0, 0.85, 1], [0, 0.3, 1.45, 0], [0.44, 0.38, 1.0, 0], [-0.42, 0.42, 0.95, 1], [0.2, 0.6, 0.6, 1]],
+    queimado: [[0, 0.3, 0.95, 0.72], [-0.3, 0.0, 0.5, 0.4]],
+    toras: [[-0.5, 0.52, 0.38, 0.12, 0.07], [-0.32, 0.12, 0.5, 0.56, 0.065]],
+    brilho: [1.75, 1.55, 0, 0.2, 0.92],
+    fagulhas: { n: 5, sobe: 0.85 },
+    fumaca: { colunas: [1], n: 4, s0: 0.3, s1: 0.95, sobe: 2.3, alfa: 0.36, vida: 4800, vento: 0.5 },
+  },
+  incendio: {
+    nome: 'Incêndio',
+    linguas: [
+      [-0.45, -0.75, 1.25, 0], [0.55, -0.6, 1.15, 1], [-1.35, -0.55, 1.0, 1], [1.4, -0.35, 0.9, 0],
+      [0.05, 0.05, 1.9, 0], [-0.95, 0.15, 1.5, 0], [0.95, 0.2, 1.55, 1], [1.5, 0.7, 0.75, 1],
+      [-1.55, 0.75, 0.8, 0], [-0.4, 0.85, 1.1, 1], [0.6, 0.9, 1.0, 0],
+    ],
+    queimado: [[0, 0.1, 1.6, 1.15], [-1.05, 0.3, 1.0, 0.8], [1.0, 0.0, 1.0, 0.85], [0.1, -0.6, 1.1, 0.6]],
+    toras: [[-1.6, 0.4, -0.2, -0.3, 0.09], [0.1, 0.62, 1.6, -0.1, 0.085], [-0.8, 0.95, 0.7, 1.0, 0.08], [-1.2, -0.6, 0.2, -0.85, 0.075]],
+    brilho: [3.0, 2.5, 0, 0.0, 0.95],
+    fagulhas: { n: 9, sobe: 1.2 },
+    fumaca: { colunas: [5, 6], n: 4, s0: 0.45, s1: 1.5, sobe: 3.2, alfa: 0.4, vida: 5200, vento: 0.7 },
+  },
+};
+/** Até onde cada tamanho chega (para saber se está na tela). */
+for (const T of Object.values(TAMANHOS)) {
+  const [brx, bry, bcx, bcy] = T.brilho;
+  let x0 = bcx - brx, x1 = bcx + brx, y0 = bcy - bry, y1 = bcy + bry;
+  for (const [bx, by, h] of T.linguas) { x0 = Math.min(x0, bx - h * 0.5); x1 = Math.max(x1, bx + h * 0.5); y0 = Math.min(y0, by - h - T.fagulhas.sobe - 0.2); y1 = Math.max(y1, by + 0.2); }
+  for (const c of T.fumaca.colunas) {
+    const [bx, by, h] = T.linguas[c];
+    x0 = Math.min(x0, bx - T.fumaca.s1); x1 = Math.max(x1, bx + T.fumaca.vento + T.fumaca.s1);
+    y0 = Math.min(y0, by - h - T.fumaca.sobe - T.fumaca.s1);
+  }
+  T.limites = { x0, x1, y0, y1 };
+  T.altas = T.linguas.map((l, i) => ({ l, i })).sort((a, b) => b.l[2] - a.l[2]).slice(0, 4).map((o) => o.l);
+}
+
+/* ---------- a cena ---------- */
+const CASA_INT = { x0: 1.8, y0: 1.0, x1: 11.2, y1: 7.6 };
+const PORTA = [6.2, 7.0];
+const TELHADO = { x: 2.4, y: 10.5, w: 6.2, h: 3.2 };
+const ARVORES = [[13.0, 3.6, 1.05], [14.3, 11.9, 1.1], [11.2, 13.9, 0.85], [0.6, 4.2, 0.95]];
+const ESPALHADOS = [
+  ['f01', 13.4, 1.6, 'chama'], ['f02', 15.2, 5.2, 'fogueira'], ['f03', 20.4, 3.4, 'incendio'], ['f04', 23.6, 6.4, 'chama'],
+  ['f05', 21.0, 9.2, 'fogueira'], ['f06', 24.4, 11.8, 'chama'], ['f07', 18.2, 12.6, 'chama'], ['f08', 12.6, 9.9, 'chama'],
+  ['f09', 10.6, 11.8, 'fogueira'], ['f10', 5.5, 11.9, 'incendio'], ['f11', 1.0, 9.9, 'chama'], ['f12', 0.8, 13.4, 'chama'],
+  ['f13', 9.7, 6.4, 'chama'], ['f14', 8.8, 2.3, 'chama'], ['f15', 14.6, 13.6, 'fogueira'], ['f16', 16.0, 8.0, 'chama'],
+  ['f17', 22.4, 13.6, 'chama'], ['f18', 12.0, 7.0, 'chama'], ['f19', 3.2, 8.7, 'chama'], ['f20', 25.2, 1.8, 'fogueira'],
+];
+const yCaminho = (x) => 9.2 + 0.4 * Math.sin(x * 0.33 + 0.6);
+const xPraca = (y) => 16.7 + 0.22 * Math.sin(y * 0.8 + 1.1);
+function ehGrama(x, y) {
+  if (x > xPraca(y) - 0.15) return false;
+  if (x > CASA_INT.x0 - 0.3 && x < CASA_INT.x1 + 0.3 && y > CASA_INT.y0 - 0.3 && y < CASA_INT.y1 + 0.45) return false;
+  if (x > TELHADO.x - 0.1 && x < TELHADO.x + TELHADO.w + 0.3 && y > TELHADO.y - 0.1 && y < TELHADO.y + TELHADO.h + 0.35) return false;
+  if (x < 17.2 && Math.abs(y - yCaminho(x)) < 0.78) return false;
+  return true;
+}
+
+/* ---------- texturas que o fogo usa (feitas uma vez) ---------- */
+const RAMPA = [[0.05, FOGO.contorno], [0.14, FOGO.borda], [0.38, FOGO.laranja], [0.6, FOGO.fogo], [0.82, FOGO.miolo], [1, FOGO.fagulha]].map(([f, h]) => [f, rgbDe(h)]);
+const COR = [0, 0, 0];
+function rampa(f) {
+  for (let i = 1; i < RAMPA.length; i++) {
+    if (f <= RAMPA[i][0]) {
+      const [f0, c0] = RAMPA[i - 1], [f1, c1] = RAMPA[i];
+      const t = clamp((f - f0) / (f1 - f0), 0, 1);
+      COR[0] = lerp(c0[0], c1[0], t); COR[1] = lerp(c0[1], c1[1], t); COR[2] = lerp(c0[2], c1[2], t);
+      return COR;
+    }
+  }
+  const c = RAMPA[RAMPA.length - 1][1];
+  COR[0] = c[0]; COR[1] = c[1]; COR[2] = c[2];
+  return COR;
+}
+
+/**
+ * Um quadro da labareda (a receita do fogo do pinheiral, deitada para a vista de cima):
+ * forma que afina para cima, corroída por ruído que sobe. A volta fecha sem salto
+ * porque o ruído do quadro t mistura dois campos deslocados de uma volta inteira.
+ */
+function pintarQuadro(g, desenho, q) {
+  const img = g.createImageData(QW, QH);
+  const d = img.data;
+  const t = q / QUADROS;
+  const sem = desenho ? 47 : 11;
+  const distorcao = desenho ? 0.95 : 0.7;
+  const larguraDaBase = desenho ? 0.98 : 0.86;
+  const contraste = 1 / Math.sqrt((1 - t) * (1 - t) + t * t);
+  const S1 = 2.2, S2 = 3.1;
+  for (let py = 0; py < QH; py++) {
+    const y = (1 - (py + 0.5) / QH - BASE_DO_QUADRO) / (1 - BASE_DO_QUADRO);
+    if (y <= 0) continue;
+    const largura = lerp(larguraDaBase, 0.12, Math.pow(y, 0.85)) * (0.75 + 0.25 * suave(0, 0.16, y));
+    const envelope = largura + distorcao * 0.5 * y + 0.06;
+    const qy = y * 1.7, qy2 = y * 3.57;
+    for (let px = 0; px < QW; px++) {
+      const u = (px + 0.5) / QW;
+      const x = (u - 0.5) * 2;
+      if (Math.abs(x) > envelope) continue;
+      const qx = u * 2.4 + sem * 0.37;
+      const n = 0.5 + ((1 - t) * fbm(qx, qy - t * S1, sem) + t * fbm(qx, qy - (t - 1) * S1, sem) - 0.5) * contraste;
+      const qx2 = qx * 2.1 + 3.1;
+      const n2 = 0.5 + ((1 - t) * fbm(qx2, qy2 - t * S2, sem + 5) + t * fbm(qx2, qy2 - (t - 1) * S2, sem + 5) - 0.5) * contraste;
+      const forma = 1 - Math.abs(x + (n - 0.5) * distorcao * y) / largura;
+      let f = forma * 1.05 + (n2 - 0.5) * 0.85 - y * 0.75;
+      f = clamp(f, 0, 1) * suave(0, 0.07, y);
+      if (f < 0.05) continue;
+      const c = rampa(f);
+      const a = suave(0.05, 0.11, f) * (1 - 0.2 * suave(0.75, 1, y));
+      const i = (py * QW + px) * 4;
+      d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = a * 255;
+    }
+  }
+  g.putImageData(img, q * QW, desenho * QH);
+}
+
+function texturaDoBrilho() {
+  const c = tela(256, 256), g = c.getContext('2d');
+  const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(240,201,138,0.7)');
+  gr.addColorStop(0.22, 'rgba(236,170,98,0.5)');
+  gr.addColorStop(0.55, 'rgba(227,148,70,0.2)');
+  gr.addColorStop(1, 'rgba(227,148,70,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return c;
+}
+function texturaDaFagulha() {
+  const c = tela(16, 16), g = c.getContext('2d');
+  const gr = g.createRadialGradient(8, 8, 0, 8, 8, 8);
+  gr.addColorStop(0, 'rgba(255,243,214,1)');
+  gr.addColorStop(0.45, 'rgba(246,220,168,0.9)');
+  gr.addColorStop(1, 'rgba(246,220,168,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 16, 16);
+  return c;
+}
+/** Duas nuvens de fumaça lado a lado (96 x 96 cada), cinza quente, borda corroída. */
+function texturaDaFumaca() {
+  const c = tela(192, 96), g = c.getContext('2d');
+  const img = g.createImageData(192, 96), d = img.data;
+  const baixo = rgbDe('#5d5650'), alto = rgbDe('#78706a');
+  for (let v = 0; v < 2; v++) {
+    for (let y = 0; y < 96; y++) {
+      for (let x = 0; x < 96; x++) {
+        const dx = (x + 0.5) / 48 - 1, dy = (y + 0.5) / 48 - 1;
+        const e = Math.hypot(dx, dy) + (fbm(x / 20 + v * 7, y / 20, 90 + v) - 0.5) * 0.75;
+        const a = (1 - suave(0.3, 1.0, e)) * 0.85;
+        if (a <= 0) continue;
+        const cor = misturar(baixo, alto, 1 - y / 96);
+        const i = (y * 192 + v * 96 + x) * 4;
+        d[i] = cor[0]; d[i + 1] = cor[1]; d[i + 2] = cor[2]; d[i + 3] = a * 255;
+      }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/** O chão queimado de um tamanho: fuligem, cinza, toras e brasas. Parado, pintado uma vez. */
+const RES_DO_QUEIMADO = 80;
+function pintarQueimado(chave) {
+  const T = TAMANHOS[chave];
+  const margem = 0.3;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [cx, cy, rx, ry] of T.queimado) { x0 = Math.min(x0, cx - rx); x1 = Math.max(x1, cx + rx); y0 = Math.min(y0, cy - ry); y1 = Math.max(y1, cy + ry); }
+  x0 -= margem; y0 -= margem; x1 += margem; y1 += margem;
+  const w = Math.ceil((x1 - x0) * RES_DO_QUEIMADO), h = Math.ceil((y1 - y0) * RES_DO_QUEIMADO);
+  const c = tela(w, h), g = c.getContext('2d');
+  const img = g.createImageData(w, h), d = img.data;
+  const centro = rgbDe('#2a201b'), borda = rgbDe('#4d3b2f'), cinza = rgbDe('#8a8178');
+  const sem = fnv(chave) & 1023;
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const X = x0 + (px + 0.5) / RES_DO_QUEIMADO, Y = y0 + (py + 0.5) / RES_DO_QUEIMADO;
+      let dist = Infinity;
+      for (const [cx, cy, rx, ry] of T.queimado) dist = Math.min(dist, Math.hypot((X - cx) / rx, (Y - cy) / ry));
+      const e = dist + (fbm(X * 2.4 + 5, Y * 2.4 + 9, 61 + sem) - 0.5) * 0.55;
+      let a = (1 - suave(0.5, 1.0, e)) * 0.6;
+      if (a <= 0) continue;
+      let cor = misturar(centro, borda, suave(0.15, 0.95, e));
+      if (e < 0.82 && fbm(X * 9, Y * 9, 77 + sem, 2) > 0.66) { cor = misturar(cor, cinza, 0.55); a = Math.max(a, 0.5); }
+      const i = (py * w + px) * 4;
+      d[i] = cor[0]; d[i + 1] = cor[1]; d[i + 2] = cor[2]; d[i + 3] = a * 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  g.setTransform(RES_DO_QUEIMADO, 0, 0, RES_DO_QUEIMADO, -x0 * RES_DO_QUEIMADO, -y0 * RES_DO_QUEIMADO);
+  g.lineCap = 'round';
+  for (const [ax, ay, bx, by, r] of T.toras) {
+    g.strokeStyle = '#33271f'; g.lineWidth = r * 2; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+    g.strokeStyle = 'rgba(110,87,69,0.55)'; g.lineWidth = r * 0.7; g.beginPath(); g.moveTo(ax, ay - r * 0.35); g.lineTo(bx, by - r * 0.35); g.stroke();
+  }
+  T.linguas.forEach(([bx, by, h], k) => {
+    const rx = 0.13 * h, ry = 0.075 * h;
+    const gr = g.createRadialGradient(bx, by - 0.02, 0, bx, by - 0.02, rx);
+    gr.addColorStop(0, rgba(BRASA_QUENTE, 0.95)); gr.addColorStop(0.7, rgba(BRASA_VIVA, 0.85)); gr.addColorStop(1, rgba(BRASA_VIVA, 0));
+    g.fillStyle = gr; g.beginPath(); g.ellipse(bx, by - 0.02, rx, ry, 0, 0, V); g.fill();
+    for (let j = 0; j < 3; j++) {
+      const ox = (hash3(k, j, 3) - 0.5) * 0.34 * h, oy = (hash3(k, j, 4) - 0.5) * 0.16 * h;
+      g.fillStyle = rgba(j % 2 ? BRASA_VIVA : BRASA_QUENTE, 0.9);
+      g.beginPath(); g.arc(bx + ox, by + oy, 0.025 + hash3(k, j, 5) * 0.018, 0, V); g.fill();
+    }
+  });
+  return { canvas: c, ox: x0, oy: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** A chama da fogueira aprovada (ESPEC de 14/10): 4 Béziers em unidade de altura, ponta em (0, -1). */
+const CURVA = [[0.13, -0.75, 0.4, -0.52, 0.36, -0.25], [0.33, -0.06, 0.18, 0, 0, 0], [-0.18, 0, -0.33, -0.06, -0.36, -0.25], [-0.4, -0.52, -0.13, -0.75, 0, -1]];
+function caminhoDaChama(ex, ey, desloc) {
+  const p = new Path2D();
+  p.moveTo(0, -1 * ey + desloc);
+  for (const [a, b, c, d, e, f] of CURVA) p.bezierCurveTo(a * ex, b * ey + desloc, c * ex, d * ey + desloc, e * ex, f * ey + desloc);
+  p.closePath();
+  return p;
+}
+const CHAMA_VETOR = caminhoDaChama(1, 1, 0);
+const MIOLO_VETOR = caminhoDaChama(0.5, 0.56, -0.04);
+
+/** A pose da chama aprovada: o pulso de 1,2 s, o mais rápido de 3,75 Hz; quando sobe, afina. */
+const pose = { sx: 1, sy: 1, a: 0.9 };
+function escreverPose(tempo, fase) {
+  const u = frac(tempo / CICLO + fase);
+  pose.sy = 1 + 0.07 * Math.sin(V * 2 * u) + 0.035 * Math.sin(V * 5 * u + 1.3) + 0.015 * Math.sin(V * 9 * u + 0.4);
+  pose.sx = 1 - 0.4 * (pose.sy - 1) + 0.02 * Math.sin(V * 3 * u + 2.1);
+  pose.a = Math.min(1, 0.86 + 0.1 * Math.sin(V * 4 * u + 0.9) + 0.04 * Math.sin(V * 7 * u + 2.6));
+}
+
+/* ---------- estado ---------- */
+const estado = {
+  tamanho: 'incendio', zoom: 'normal', desenho: 'labareda',
+  espalhar: false, jogador: false, reduzido: false, reduzidoPeloSistema: false, mexeuNoMenos: false,
+};
+const tex = { brilho: texturaDoBrilho(), fagulha: texturaDaFagulha(), fumaca: null, folha: null };
+const queimados = {};
+let folhaPronta = false;
+let fogos = [];
+
+function criarFogo(id, x, y, tamanho) {
+  const T = TAMANHOS[tamanho];
+  const n = fnv(id);
+  const fagulhas = [];
+  for (let j = 0; j < T.fagulhas.n; j++) {
+    const [bx, by, h] = T.altas[j % T.altas.length];
+    fagulhas.push({ bx, by, h, inicio: frac(j / T.fagulhas.n + hash3(n, j, 1) * 0.2), x0: (hash3(n, j, 2) - 0.5) * 0.3, deriva: (hash3(n, j, 3) - 0.5) * 0.22, onda: hash3(n, j, 4) * V });
+  }
+  return { id, x, y, T, tamanho, fase: n / 4294967296, desloc: T.linguas.map((_, i) => Math.floor(hash3(n, i, 5) * QUADROS)), fagulhas };
+}
+function montarFogos() {
+  fogos = [criarFogo('foco', FOCO[0], FOCO[1], estado.tamanho)];
+  if (estado.espalhar) for (const [id, x, y, t] of ESPALHADOS) fogos.push(criarFogo(id, x, y, t));
+  fogos.sort((a, b) => a.y - b.y);
+}
+
+/* ---------- câmera e telas ---------- */
+const canvas = document.getElementById('mapa');
+const g = canvas.getContext('2d');
+let fundo = tela(1, 1), nevoa = tela(1, 1);
+let cssW = 0, cssH = 0, dpr = 1, cam = null;
+
+function camera() {
+  const casaPx = CASA * ZOOMS[estado.zoom];
+  const centro = estado.zoom === 'perto' ? [FOCO[0] + 0.3, FOCO[1] - 0.9] : estado.zoom === 'normal' ? [12.4, 7.45] : [13, 8];
+  const vw = cssW / casaPx, vh = cssH / casaPx;
+  return { casaPx, k: casaPx * dpr, x0: centro[0] - vw / 2, y0: centro[1] - vh / 2, x1: centro[0] + vw / 2, y1: centro[1] + vh / 2 };
+}
+
+/* ---------- o fundo (parado): chão, casa, telhado, praça, árvores e o chão queimado ---------- */
+function pintarGrama(c, cam) {
+  c.fillStyle = P.grama;
+  c.fillRect(cam.x0 - 1, cam.y0 - 1, cam.x1 - cam.x0 + 2, cam.y1 - cam.y0 + 2);
+  const cel = 0.25;
+  const ox = Math.floor(cam.x0 / cel) * cel - cel, oy = Math.floor(cam.y0 / cel) * cel - cel;
+  const lw = Math.ceil((cam.x1 - ox) / cel) + 2, lh = Math.ceil((cam.y1 - oy) / cel) + 2;
+  const baixa = tela(lw, lh), bg = baixa.getContext('2d');
+  const img = bg.createImageData(lw, lh), d = img.data;
+  const A = rgbDe(P.gramaSombra), B = rgbDe(P.gramaRealce);
+  for (let j = 0; j < lh; j++) {
+    for (let i = 0; i < lw; i++) {
+      const wx = ox + i * cel, wy = oy + j * cel;
+      const n = fbm(wx * 0.42, wy * 0.42, 3, 3) * 0.75 + ruido(wx * 1.7, wy * 1.7, 8) * 0.25;
+      const cor = misturar(A, B, suave(0.32, 0.68, n));
+      const k = (j * lw + i) * 4;
+      d[k] = cor[0]; d[k + 1] = cor[1]; d[k + 2] = cor[2]; d[k + 3] = 175;
+    }
+  }
+  bg.putImageData(img, 0, 0);
+  c.imageSmoothingEnabled = true;
+  c.drawImage(baixa, ox, oy, lw * cel, lh * cel);
+}
+function pintarTufos(c, cam) {
+  const flores = { [P.rosa]: [], [P.amarelo]: [], [P.branco]: [] };
+  const cores = [P.rosa, P.amarelo, P.branco];
+  c.beginPath();
+  for (let cy = Math.floor(cam.y0) - 1; cy <= Math.ceil(cam.y1); cy++) {
+    for (let cx = Math.floor(cam.x0) - 1; cx <= Math.ceil(cam.x1); cx++) {
+      for (let k = 0; k < 3; k++) {
+        const x = cx + hash3(cx, cy, 30 + k), y = cy + hash3(cx, cy, 40 + k);
+        if (!ehGrama(x, y)) continue;
+        const alto = 0.11 + hash3(cx, cy, 45 + k) * 0.08, inclina = (hash3(cx, cy, 48 + k) - 0.5) * 0.06;
+        for (let b = -1; b <= 1; b++) { c.moveTo(x + b * 0.04, y); c.lineTo(x + b * 0.07 + inclina, y - alto * (b === 0 ? 1 : 0.72)); }
+      }
+      if (hash3(cx, cy, 50) < 0.13) {
+        const x = cx + hash3(cx, cy, 51), y = cy + hash3(cx, cy, 52);
+        if (ehGrama(x, y)) flores[cores[Math.floor(hash3(cx, cy, 53) * 3)]].push([x, y]);
+      }
+    }
+  }
+  c.strokeStyle = P.tufo; c.lineWidth = 0.032; c.lineCap = 'round'; c.stroke();
+  for (const [cor, lista] of Object.entries(flores)) {
+    c.fillStyle = cor; c.beginPath();
+    for (const [x, y] of lista) for (let p = 0; p < 4; p++) { const a = p * V / 4 + 0.4; c.moveTo(x + Math.cos(a) * 0.045 + 0.034, y + Math.sin(a) * 0.045); c.arc(x + Math.cos(a) * 0.045, y + Math.sin(a) * 0.045, 0.034, 0, V); }
+    c.fill();
+  }
+  c.fillStyle = '#c98f3a'; c.beginPath();
+  for (const lista of Object.values(flores)) for (const [x, y] of lista) { c.moveTo(x + 0.022, y); c.arc(x, y, 0.022, 0, V); }
+  c.fill();
+}
+function pintarCaminho(c, cam) {
+  if (cam.x0 > 17.5) return;
+  const fim = xPraca(yCaminho(16.8)) + 0.4;
+  const inicio = Math.min(cam.x0 - 1, 0);
+  c.beginPath();
+  c.moveTo(inicio, yCaminho(inicio));
+  for (let x = inicio + 0.25; x <= fim; x += 0.25) c.lineTo(x, yCaminho(x));
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  c.strokeStyle = P.terraSombra; c.lineWidth = 1.48; c.stroke();
+  c.strokeStyle = P.terra; c.lineWidth = 1.32; c.stroke();
+  c.fillStyle = P.seixo; c.beginPath();
+  for (let x = Math.floor(cam.x0); x <= fim; x += 0.37) {
+    const i = Math.round(x * 100);
+    const y = yCaminho(x) + (hash3(i, 1, 60) - 0.5) * 1.0, r = 0.035 + hash3(i, 2, 60) * 0.03;
+    c.moveTo(x + r, y); c.ellipse(x, y, r, r * 0.75, 0, 0, V);
+  }
+  c.fill();
+}
+function pintarPraca(c, cam) {
+  if (cam.x1 < 16) return;
+  const ys = cam.y0 - 1, ye = cam.y1 + 1;
+  const borda = new Path2D();
+  borda.moveTo(xPraca(ys), ys);
+  for (let y = ys; y <= ye; y += 0.25) borda.lineTo(xPraca(y), y);
+  const regiao = new Path2D(borda);
+  regiao.lineTo(cam.x1 + 1, ye); regiao.lineTo(cam.x1 + 1, ys); regiao.closePath();
+  c.fillStyle = P.pracaSombra; c.fill(regiao);
+  c.save(); c.clip(regiao);
+  const H = 0.62;
+  const grupos = [[], [], []];
+  for (let r = Math.floor(cam.y0 / H) - 1; r * H < cam.y1 + H; r++) {
+    const yy = r * H;
+    let x = xPraca(yy + H / 2) - 0.5 - hash3(r, 0, 21) * 0.5, i = 0;
+    while (x < cam.x1 + 1) {
+      const w = 0.7 + hash3(r, i, 22) * 0.55, t = hash3(r, i, 23);
+      grupos[t < 0.3 ? 0 : t < 0.82 ? 1 : 2].push([x, yy, w]);
+      x += w; i++;
+    }
+  }
+  [P.pracaRealce, P.praca, rgba(misturar(rgbDe(P.praca), rgbDe(P.pracaSombra), 0.45))].forEach((cor, k) => {
+    c.fillStyle = cor; c.beginPath();
+    for (const [x, y, w] of grupos[k]) c.roundRect(x + 0.035, y + 0.035, w - 0.07, H - 0.07, 0.06);
+    c.fill();
+  });
+  c.restore();
+  c.strokeStyle = '#b3a487'; c.lineWidth = 0.04; c.stroke(borda);
+}
+function sombraDe(c, x, y, w, h, r = 0.05) {
+  c.fillStyle = 'rgba(52,36,24,0.24)'; c.beginPath(); c.roundRect(x + 0.08, y + 0.1, w, h, r); c.fill();
+}
+function peca(c, x, y, w, h, cor, r = 0.05) {
+  c.fillStyle = cor; c.beginPath(); c.roundRect(x, y, w, h, r); c.fill();
+  c.strokeStyle = 'rgba(255,248,230,0.16)'; c.lineWidth = 0.025; c.beginPath(); c.moveTo(x + 0.04, y + h - 0.04); c.lineTo(x + 0.04, y + 0.04); c.lineTo(x + w - 0.04, y + 0.04); c.stroke();
+  c.strokeStyle = escuro(cor); c.lineWidth = 0.03; c.beginPath(); c.roundRect(x, y, w, h, r); c.stroke();
+}
+function pintarCasa(c) {
+  const { x0, y0, x1, y1 } = CASA_INT;
+  // assoalho: tábuas de comprimento variado, emenda de topo e veio leve
+  c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.clip();
+  const alt = 0.34;
+  for (let r = 0; y0 + r * alt < y1; r++) {
+    const y = y0 + r * alt;
+    let x = x0 - hash3(r, 0, 70) * 1.5, i = 0;
+    while (x < x1) {
+      const len = 1.6 + hash3(r, i, 71) * 2.2;
+      c.fillStyle = variar(P.carvalho, (hash3(r, i, 72) - 0.5) * 0.12);
+      c.fillRect(x, y, len, alt);
+      c.strokeStyle = 'rgba(92,62,36,0.2)'; c.lineWidth = 0.012; c.beginPath();
+      for (let v = 0; v < 2; v++) {
+        const yy = y + alt * (0.32 + v * 0.36);
+        c.moveTo(x + 0.1, yy);
+        for (let s = 0.1; s < len - 0.1; s += 0.2) c.lineTo(x + s, yy + Math.sin((x + s) * 3.1 + r + v) * 0.02);
+      }
+      c.stroke();
+      c.strokeStyle = 'rgba(96,70,44,0.75)'; c.lineWidth = 0.022; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + alt); c.stroke();
+      x += len; i++;
+    }
+    c.strokeStyle = 'rgba(96,70,44,0.7)'; c.lineWidth = 0.022; c.beginPath(); c.moveTo(x0, y + alt); c.lineTo(x1, y + alt); c.stroke();
+  }
+  // sombra das paredes no chão (luz de cima à esquerda)
+  let gr = c.createLinearGradient(0, y0, 0, y0 + 0.32);
+  gr.addColorStop(0, 'rgba(45,30,20,0.26)'); gr.addColorStop(1, 'rgba(45,30,20,0)');
+  c.fillStyle = gr; c.fillRect(x0, y0, x1 - x0, 0.32);
+  gr = c.createLinearGradient(x0, 0, x0 + 0.28, 0);
+  gr.addColorStop(0, 'rgba(45,30,20,0.2)'); gr.addColorStop(1, 'rgba(45,30,20,0)');
+  c.fillStyle = gr; c.fillRect(x0, y0, 0.28, y1 - y0);
+  // móveis
+  sombraDe(c, 2.25, 1.35, 1.15, 2.0); peca(c, 2.25, 1.35, 1.15, 2.0, P.nogueira, 0.06);
+  peca(c, 2.33, 1.43, 0.99, 1.84, P.linho, 0.05);
+  peca(c, 2.4, 1.5, 0.85, 0.4, '#e3d9bf', 0.12);
+  peca(c, 2.33, 2.1, 0.99, 1.17, P.vinho, 0.05);
+  c.strokeStyle = 'rgba(255,230,220,0.22)'; c.lineWidth = 0.03; c.beginPath(); c.moveTo(2.36, 2.24); c.lineTo(3.29, 2.24); c.stroke();
+  sombraDe(c, 5.0, 1.12, 2.1, 0.55); peca(c, 5.0, 1.12, 2.1, 0.55, P.carvalho, 0.04);
+  c.fillStyle = P.latao; c.beginPath(); c.arc(5.7, 1.55, 0.04, 0, V); c.arc(6.4, 1.55, 0.04, 0, V); c.fill();
+  sombraDe(c, 7.5, 3.4, 2.0, 1.15); peca(c, 7.5, 3.4, 2.0, 1.15, P.carvalho, 0.05);
+  c.strokeStyle = 'rgba(96,70,44,0.6)'; c.lineWidth = 0.02; c.beginPath(); c.moveTo(7.55, 3.78); c.lineTo(9.45, 3.78); c.moveTo(7.55, 4.16); c.lineTo(9.45, 4.16); c.stroke();
+  for (const x of [7.0, 9.58]) { sombraDe(c, x, 3.62, 0.42, 0.7); peca(c, x, 3.62, 0.42, 0.7, P.pinho, 0.06); }
+  c.fillStyle = 'rgba(52,36,24,0.24)'; c.beginPath(); c.arc(10.53, 1.85, 0.36, 0, V); c.fill();
+  c.fillStyle = P.carvalho; c.beginPath(); c.arc(10.45, 1.75, 0.36, 0, V); c.fill();
+  c.strokeStyle = P.ferro; c.lineWidth = 0.045; c.beginPath(); c.arc(10.45, 1.75, 0.3, 0, V); c.stroke();
+  c.strokeStyle = escuro(P.carvalho); c.lineWidth = 0.03; c.beginPath(); c.arc(10.45, 1.75, 0.36, 0, V); c.stroke();
+  peca(c, 4.6, 5.3, 2.6, 1.4, P.ocre, 0.04);
+  c.strokeStyle = escuro(P.ocre, 0.78); c.lineWidth = 0.1; c.strokeRect(4.75, 5.45, 2.3, 1.1);
+  c.fillStyle = variar(P.ocre, 0.12); c.beginPath(); c.moveTo(5.9, 5.65); c.lineTo(6.55, 6.0); c.lineTo(5.9, 6.35); c.lineTo(5.25, 6.0); c.closePath(); c.fill();
+  c.restore();
+  // paredes: anel de reboco, contorno no tom escuro dele, porta de tábua com degrau de pedra
+  const e = 0.18;
+  const anel = new Path2D();
+  anel.rect(x0 - e / 2, y0 - e / 2, x1 - x0 + e, y1 - y0 + e);
+  anel.rect(x0 + e / 2, y0 + e / 2, x1 - x0 - e, y1 - y0 - e);
+  c.fillStyle = P.reboco; c.fill(anel, 'evenodd');
+  c.strokeStyle = escuro(P.reboco, 0.62); c.lineWidth = 0.03; c.stroke(anel);
+  const [p0, p1] = PORTA;
+  peca(c, p0 - 0.04, y1 + e / 2 + 0.01, p1 - p0 + 0.08, 0.16, P.pedra, 0.03);
+  c.fillStyle = '#5a4434'; c.fillRect(p0 - 0.05, y1 - e / 2 - 0.01, 0.07, e + 0.02); c.fillRect(p1 - 0.02, y1 - e / 2 - 0.01, 0.07, e + 0.02);
+  peca(c, p0 + 0.02, y1 - e / 2 + 0.01, p1 - p0 - 0.04, e - 0.02, P.pinho, 0.02);
+  c.fillStyle = P.latao; c.beginPath(); c.arc(p1 - 0.14, y1, 0.03, 0, V); c.fill();
+}
+function pintarTelhado(c) {
+  const { x, y, w, h } = TELHADO, meio = y + h / 2;
+  c.fillStyle = 'rgba(40,28,20,0.28)'; c.fillRect(x + 0.22, y + 0.28, w, h);
+  c.fillStyle = '#c07c5e'; c.fillRect(x, y, w, h / 2);
+  c.fillStyle = '#a5664c'; c.fillRect(x, meio, w, h / 2);
+  const linha = 0.3;
+  for (const [a, b] of [[y, meio], [meio, y + h]]) {
+    c.strokeStyle = 'rgba(100,50,35,0.45)'; c.lineWidth = 0.03; c.beginPath();
+    for (let yy = a + linha; yy < b - 0.05; yy += linha) { c.moveTo(x, yy); c.lineTo(x + w, yy); }
+    c.stroke();
+    c.strokeStyle = 'rgba(100,50,35,0.3)'; c.lineWidth = 0.02; c.beginPath();
+    let r = 0;
+    for (let yy = a + linha; yy < b - 0.05; yy += linha, r++) {
+      for (let xx = x + (r % 2) * 0.15; xx < x + w - 0.15; xx += linha) { c.moveTo(xx + 0.3, yy); c.arc(xx + 0.15, yy, 0.15, 0, Math.PI); }
+    }
+    c.stroke();
+  }
+  c.fillStyle = '#8b5642'; c.fillRect(x, meio - 0.09, w, 0.18);
+  c.strokeStyle = 'rgba(255,220,190,0.25)'; c.lineWidth = 0.025; c.beginPath(); c.moveTo(x, meio - 0.07); c.lineTo(x + w, meio - 0.07); c.stroke();
+  c.strokeStyle = '#6d3f30'; c.lineWidth = 0.045; c.strokeRect(x, y, w, h);
+  peca(c, x + w - 1.3, y + 0.35, 0.5, 0.5, P.pedra, 0.04);
+  c.fillStyle = '#4a4541'; c.fillRect(x + w - 1.18, y + 0.47, 0.26, 0.26);
+}
+function pintarBarraca(c) {
+  const x = 19.0, y = 2.2, w = 3.2, h = 2.0, faixa = 0.4;
+  c.fillStyle = 'rgba(52,36,24,0.26)'; c.fillRect(x + 0.18, y + 0.24, w, h + 0.1);
+  for (let i = 0; i * faixa < w; i++) { c.fillStyle = i % 2 ? P.vinho : P.linho; c.fillRect(x + i * faixa, y, Math.min(faixa, w - i * faixa), h); }
+  for (let i = 0; i * faixa < w; i++) { c.fillStyle = i % 2 ? P.vinho : P.linho; c.beginPath(); c.arc(x + i * faixa + faixa / 2, y + h, faixa / 2, 0, Math.PI); c.fill(); }
+  c.strokeStyle = 'rgba(255,248,230,0.2)'; c.lineWidth = 0.03; c.beginPath(); c.moveTo(x + 0.05, y + 0.06); c.lineTo(x + w - 0.05, y + 0.06); c.stroke();
+  c.strokeStyle = escuro(P.vinho); c.lineWidth = 0.03; c.strokeRect(x, y, w, h);
+  for (const [cx, cy] of [[22.7, 4.5], [23.5, 4.9]]) {
+    sombraDe(c, cx, cy, 0.62, 0.62); peca(c, cx, cy, 0.62, 0.62, P.pinho, 0.03);
+    c.strokeStyle = escuro(P.pinho, 0.7); c.lineWidth = 0.03; c.beginPath(); c.moveTo(cx + 0.06, cy + 0.06); c.lineTo(cx + 0.56, cy + 0.56); c.moveTo(cx + 0.56, cy + 0.06); c.lineTo(cx + 0.06, cy + 0.56); c.stroke();
+  }
+  c.fillStyle = 'rgba(52,36,24,0.24)'; c.beginPath(); c.arc(18.28, 5.7, 0.34, 0, V); c.fill();
+  c.fillStyle = P.carvalho; c.beginPath(); c.arc(18.2, 5.6, 0.34, 0, V); c.fill();
+  c.strokeStyle = P.ferro; c.lineWidth = 0.045; c.beginPath(); c.arc(18.2, 5.6, 0.28, 0, V); c.stroke();
+  c.strokeStyle = escuro(P.carvalho); c.lineWidth = 0.03; c.beginPath(); c.arc(18.2, 5.6, 0.34, 0, V); c.stroke();
+}
+function pintarArvore(c, x, y, r) {
+  c.fillStyle = 'rgba(38,58,34,0.26)'; c.beginPath(); c.ellipse(x + 0.28 * r, y + 0.34 * r, r * 1.02, r * 0.9, 0, 0, V); c.fill();
+  const lobos = [[0, 0, 0.62]];
+  for (let k = 0; k < 7; k++) { const a = k * V / 7 + 0.3; lobos.push([Math.cos(a) * 0.45, Math.sin(a) * 0.45, 0.5 + hash3(k, Math.round(x * 10), 80) * 0.1]); }
+  c.strokeStyle = '#356f49'; c.lineWidth = 0.07; c.beginPath();
+  for (const [lx, ly, lr] of lobos) { c.moveTo(x + lx * r + lr * r, y + ly * r); c.arc(x + lx * r, y + ly * r, lr * r, 0, V); }
+  c.stroke();
+  c.fillStyle = P.folhaEscura; c.fill();
+  c.fillStyle = P.folha; c.beginPath();
+  for (const [lx, ly, lr] of lobos) { const cx = x + (lx - 0.08) * r, cy = y + (ly - 0.1) * r, rr = lr * r * 0.82; c.moveTo(cx + rr, cy); c.arc(cx, cy, rr, 0, V); }
+  c.fill();
+  c.fillStyle = 'rgba(140,210,160,0.35)'; c.beginPath();
+  for (const [lx, ly, lr] of lobos.slice(0, 4)) { const cx = x + (lx - 0.2) * r, cy = y + (ly - 0.24) * r, rr = lr * r * 0.36; c.moveTo(cx + rr, cy); c.arc(cx, cy, rr, 0, V); }
+  c.fill();
+}
+function pintarFicha(c) {
+  const [x, y] = FICHA;
+  c.fillStyle = 'rgba(30,24,18,0.3)'; c.beginPath(); c.ellipse(x + 0.06, y + 0.08, 0.36, 0.33, 0, 0, V); c.fill();
+  c.fillStyle = P.telhaAzul; c.beginPath(); c.arc(x, y, 0.34, 0, V); c.fill();
+  c.strokeStyle = P.branco; c.lineWidth = 0.06; c.stroke();
+  c.fillStyle = 'rgba(243,239,226,0.85)'; c.beginPath(); c.arc(x, y - 0.06, 0.1, 0, V); c.moveTo(x + 0.18, y + 0.2); c.arc(x, y + 0.2, 0.18, Math.PI, 0); c.fill();
+}
+function pintarFundo() {
+  fundo.width = Math.round(cssW * dpr); fundo.height = Math.round(cssH * dpr);
+  const c = fundo.getContext('2d');
+  c.setTransform(cam.k, 0, 0, cam.k, -cam.x0 * cam.k, -cam.y0 * cam.k);
+  pintarGrama(c, cam);
+  pintarPraca(c, cam);
+  pintarCaminho(c, cam);
+  pintarTufos(c, cam);
+  pintarCasa(c);
+  pintarTelhado(c);
+  pintarBarraca(c);
+  pintarFicha(c);
+  for (const f of fogos) {
+    const q = queimados[f.tamanho];
+    if (q) c.drawImage(q.canvas, f.x + q.ox, f.y + q.oy, q.w, q.h);
+  }
+  for (const [x, y, r] of ARVORES) pintarArvore(c, x, y, r);
+}
+function pintarNevoa() {
+  nevoa.width = Math.round(cssW * dpr); nevoa.height = Math.round(cssH * dpr);
+  const c = nevoa.getContext('2d');
+  c.fillStyle = 'rgba(20,19,17,0.95)'; c.fillRect(0, 0, nevoa.width, nevoa.height);
+  c.globalCompositeOperation = 'destination-out';
+  const sx = (FICHA[0] - cam.x0) * cam.k, sy = (FICHA[1] - cam.y0) * cam.k, r = VISAO * cam.k;
+  const gr = c.createRadialGradient(sx, sy, 0, sx, sy, r);
+  gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.84, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = gr; c.beginPath(); c.arc(sx, sy, r, 0, V); c.fill();
+  c.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- o que mexe: brilho, labaredas, fagulhas, fumaça ---------- */
+function desenharBrilho(c, f, tempo) {
+  const [rx, ry, cx, cy, alfa] = f.T.brilho;
+  let a, esc = 1;
+  if (estado.reduzido) a = alfa * (0.93 + 0.07 * Math.sin(V * tempo / 4000 + f.fase * V));
+  else {
+    const u = frac(tempo / CICLO + f.fase);
+    a = alfa * Math.min(1, 0.84 + 0.1 * Math.sin(V * 4 * u + 0.9) + 0.06 * Math.sin(V * 7 * u + 2.6));
+    esc = 1 + 0.03 * Math.sin(V * 2 * u + 0.4);
+  }
+  c.globalAlpha = a;
+  c.drawImage(tex.brilho, f.x + cx - rx * esc, f.y + cy - ry * esc, rx * 2 * esc, ry * 2 * esc);
+}
+function desenharLinguas(c, f, tempo) {
+  const quadroAgora = Math.floor(tempo * QPS / 1000);
+  const L = f.T.linguas;
+  for (let i = 0; i < L.length; i++) {
+    const [bx, by, h, desenho] = L[i];
+    if (estado.reduzido) { pose.sx = 1; pose.sy = 1; pose.a = 0.9; } else escreverPose(tempo, f.fase + i * 0.137);
+    const x = f.x + bx, y = f.y + by;
+    if (estado.desenho === 'vetor') {
+      c.save(); c.translate(x, y); c.scale(h * pose.sx, h * pose.sy);
+      c.globalAlpha = 1; c.fillStyle = FOGO.borda; c.fill(CHAMA_VETOR);
+      c.globalAlpha = pose.a; c.fillStyle = FOGO.miolo; c.fill(MIOLO_VETOR);
+      c.restore();
+    } else if (folhaPronta) {
+      const q = estado.reduzido ? f.desloc[i] : (quadroAgora + f.desloc[i]) % QUADROS;
+      const alto = h / (1 - BASE_DO_QUADRO);
+      const hq = alto * pose.sy, wq = alto * (QW / QH) * LARGURA_DA_LINGUA * pose.sx;
+      c.globalAlpha = 1;
+      c.drawImage(tex.folha, q * QW, desenho * QH, QW, QH, x - wq / 2, y - hq * (1 - BASE_DO_QUADRO), wq, hq);
+    }
+  }
+}
+function desenharFagulhas(c, f, tempo, raioMinimo) {
+  const u = frac(tempo / CICLO + f.fase);
+  const sobe = f.T.fagulhas.sobe;
+  const r = Math.max(raioMinimo, 0.03) * 2.4;
+  for (const e of f.fagulhas) {
+    const p = frac(u - e.inicio) / VIDA_DA_FAGULHA;
+    if (p >= 1) continue;
+    const subida = 1 - (1 - p) * (1 - p);
+    const x = f.x + e.bx + e.x0 * e.h + e.deriva * p + 0.035 * e.h * Math.sin(V * 1.5 * p + e.onda);
+    const y = f.y + e.by - e.h * 0.88 - sobe * subida;
+    c.globalAlpha = Math.min(1, p / 0.12) * Math.pow(1 - p, 1.4) * 0.9;
+    c.drawImage(tex.fagulha, x - r, y - r, 2 * r, 2 * r);
+  }
+}
+function desenharFumaca(c, f, tempo, metade) {
+  if (!tex.fumaca) return;
+  const F = f.T.fumaca;
+  for (let k = 0; k < F.colunas.length; k++) {
+    const [bx, by, h] = f.T.linguas[F.colunas[k]];
+    for (let i = 0; i < F.n; i++) {
+      if (metade && i % 2 === 1) continue;
+      const p = estado.reduzido ? frac(i / F.n + 0.1 + k * 0.37) : frac(tempo / F.vida + f.fase + i / F.n + k * 0.37);
+      const a = F.alfa * suave(0, 0.18, p) * (1 - suave(0.45, 1, p)) * (estado.reduzido ? 0.85 : 1);
+      if (a <= 0.003) continue;
+      const x = f.x + bx + F.vento * Math.pow(p, 1.4) + 0.09 * Math.sin(V * (p * 0.9 + i * 0.31 + f.fase));
+      const y = f.y + by - h * 0.95 - F.sobe * p;
+      const s = lerp(F.s0, F.s1, p);
+      c.globalAlpha = a;
+      c.drawImage(tex.fumaca, (i % 2) * 96, 0, 96, 96, x - s / 2, y - s / 2, s, s);
+    }
+  }
+}
+
+/* ---------- o quadro ---------- */
+const amostras = [];
+let ultimoQuadro = 0, ultimaLeitura = 0, raf = 0, naTela = true;
+let contagem = { total: 0, tela: 0, jogador: 0 };
+
+function fogoNaTela(f) {
+  const L = f.T.limites;
+  return f.x + L.x1 > cam.x0 && f.x + L.x0 < cam.x1 && f.y + L.y1 > cam.y0 && f.y + L.y0 < cam.y1;
+}
+function fogoVisivelAoJogador(f) { return Math.hypot(f.x - FICHA[0], f.y - FICHA[1]) <= VISAO; }
+
+function quadro(agora) {
+  raf = requestAnimationFrame(quadro);
+  if (estado.reduzido && agora - ultimoQuadro < REDUZIDO_MS) return;
+  ultimoQuadro = agora;
+  if (!cam) return;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalAlpha = 1;
+  g.drawImage(fundo, 0, 0);
+  const t0 = performance.now();
+  const lista = [];
+  let naCamera = 0;
+  for (const f of fogos) {
+    if (!fogoNaTela(f)) continue;
+    naCamera++;
+    if (estado.jogador && !fogoVisivelAoJogador(f)) continue;
+    lista.push(f);
+  }
+  g.setTransform(cam.k, 0, 0, cam.k, -cam.x0 * cam.k, -cam.y0 * cam.k);
+  g.imageSmoothingEnabled = true;
+  const comFagulha = !estado.reduzido && cam.casaPx >= CASA_PX_SEM_FAGULHA;
+  const metadeDaFumaca = cam.casaPx < CASA_PX_SEM_FAGULHA;
+  const raioMinimo = 1.2 / cam.casaPx;
+  for (const f of lista) desenharBrilho(g, f, agora);
+  for (const f of lista) { desenharLinguas(g, f, agora); if (comFagulha) desenharFagulhas(g, f, agora, raioMinimo); }
+  for (const f of lista) desenharFumaca(g, f, agora, metadeDaFumaca);
+  g.globalAlpha = 1;
+  const gasto = performance.now() - t0;
+  if (estado.jogador) { g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(nevoa, 0, 0); }
+  amostras.push(gasto);
+  if (amostras.length > 120) amostras.shift();
+  contagem = { total: fogos.length, tela: naCamera, jogador: lista.length };
+  if (agora - ultimaLeitura > 500) { ultimaLeitura = agora; escreverMedida(); }
+}
+
+/* ---------- textos ---------- */
+const medida = document.getElementById('medida');
+const numero = (v, casas = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+function p95() { if (!amostras.length) return 0; const o = [...amostras].sort((a, b) => a - b); return o[Math.min(o.length - 1, Math.floor(o.length * 0.95))]; }
+function escreverMedida() {
+  if (estado.desenho === 'labareda' && !folhaPronta) return;
+  const { total, tela, jogador } = contagem;
+  const fogosTxt = total === 1 ? '1 fogo' : `${total} fogos`;
+  let txt = `No mapa: ${fogosTxt}. Na tela: ${tela}, e só esses animam.`;
+  if (estado.jogador) txt += ` O jogador vê ${jogador}: fogo na névoa nem é desenhado.`;
+  if (estado.reduzido) txt += ' Menos movimento: 10 quadros por segundo, só o brilho muda.';
+  else if (cam && cam.casaPx < CASA_PX_SEM_FAGULHA) txt += ' No zoom Longe as fagulhas somem e a fumaça usa metade das nuvens.';
+  txt += ` Desenhar os fogos levou p95 de ${numero(p95(), 2)} ms por quadro (medido neste navegador, no canvas 2D do protótipo, não no Pixi).`;
+  medida.textContent = txt;
+}
+function descreverMapa() {
+  const T = TAMANHOS[estado.tamanho];
+  const zoom = { perto: 'perto, 200%', normal: 'normal, 100%', longe: 'longe, 50%' }[estado.zoom];
+  let txt = `Mapa de exemplo visto de cima: casa com assoalho de madeira, grama, caminho de terra e praça de pedra. Fogo tamanho ${T.nome} dentro da casa, zoom ${zoom}`;
+  if (estado.espalhar) txt += ', com mais 20 fogos espalhados';
+  if (estado.jogador) txt += ', na tela do jogador com névoa';
+  canvas.setAttribute('aria-label', txt + '.');
+}
+
+/* ---------- montagem ---------- */
+function medirTela() {
+  const largura = canvas.parentElement.clientWidth - 32;
+  cssW = Math.max(280, Math.floor(largura));
+  cssH = Math.round(clamp(cssW * 0.62, 360, 660));
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+}
+function refazer({ medir = false, fogo = false } = {}) {
+  if (medir) medirTela();
+  if (fogo) montarFogos();
+  cam = camera();
+  pintarFundo();
+  pintarNevoa();
+  amostras.length = 0;
+  descreverMapa();
+}
+
+/** Trabalho pesado em fatias curtas (nenhuma tarefa longa): o chão queimado e a folha da labareda. */
+function emFatias(tarefas, aoAndar, aoTerminar) {
+  let k = 0;
+  function passo() {
+    const fim = performance.now() + 12;
+    while (k < tarefas.length && performance.now() < fim) { tarefas[k](); k++; }
+    aoAndar(k, tarefas.length);
+    if (k < tarefas.length) setTimeout(passo, 0); else aoTerminar();
+  }
+  passo();
+}
+
+function ligarControles() {
+  for (const nome of ['tamanho', 'zoom', 'desenho']) {
+    for (const input of document.querySelectorAll(`input[name="${nome}"]`)) {
+      input.addEventListener('change', () => {
+        if (!input.checked) return;
+        estado[nome] = input.value;
+        if (nome === 'tamanho') refazer({ fogo: true });
+        else if (nome === 'zoom') refazer();
+        else { amostras.length = 0; descreverMapa(); }
+        escreverMedida();
+      });
+    }
+  }
+  const espalhar = document.getElementById('espalhar');
+  espalhar.addEventListener('click', () => {
+    estado.espalhar = !estado.espalhar;
+    espalhar.setAttribute('aria-pressed', String(estado.espalhar));
+    refazer({ fogo: true });
+  });
+  const jogador = document.getElementById('jogador');
+  jogador.addEventListener('click', () => {
+    estado.jogador = !estado.jogador;
+    jogador.setAttribute('aria-pressed', String(estado.jogador));
+    amostras.length = 0;
+    descreverMapa();
+  });
+  const menos = document.getElementById('menos-movimento');
+  const sistema = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const estadoSistema = document.getElementById('estado-sistema');
+  function aplicarSistema() {
+    estado.reduzidoPeloSistema = sistema.matches;
+    estadoSistema.textContent = sistema.matches ? 'O sistema pede menos movimento.' : 'O sistema não pede menos movimento.';
+    if (!estado.mexeuNoMenos) estado.reduzido = sistema.matches;
+    menos.setAttribute('aria-pressed', String(estado.reduzido));
+  }
+  sistema.addEventListener('change', aplicarSistema);
+  aplicarSistema();
+  menos.addEventListener('click', () => {
+    estado.mexeuNoMenos = true;
+    estado.reduzido = !estado.reduzido;
+    menos.setAttribute('aria-pressed', String(estado.reduzido));
+    amostras.length = 0;
+    escreverMedida();
+  });
+  // Só refaz quando a largura ou a densidade da tela mudam (a altura do canvas sai da largura).
+  new ResizeObserver(() => {
+    const largura = Math.max(280, Math.floor(canvas.parentElement.clientWidth - 32));
+    if (cam && largura === cssW && Math.min(window.devicePixelRatio || 1, 2) === dpr) return;
+    refazer({ medir: true });
+  }).observe(canvas.parentElement);
+  new IntersectionObserver((entradas) => {
+    naTela = entradas[0].isIntersecting;
+    if (naTela && !raf) raf = requestAnimationFrame(quadro);
+    if (!naTela && raf) { cancelAnimationFrame(raf); raf = 0; }
+  }).observe(canvas);
+}
+
+function iniciar() {
+  medirTela();
+  montarFogos();
+  ligarControles();
+  // 1) chão queimado e fumaça; 2) a folha da labareda (2 desenhos x 16 quadros)
+  const preparo = [
+    ...Object.keys(TAMANHOS).map((chave) => () => { queimados[chave] = pintarQueimado(chave); }),
+    () => { tex.fumaca = texturaDaFumaca(); },
+  ];
+  emFatias(preparo, () => {}, () => {
+    refazer();
+    if (!raf && naTela) raf = requestAnimationFrame(quadro);
+    tex.folha = tela(QW * QUADROS, QH * 2);
+    const fg = tex.folha.getContext('2d');
+    const quadros = [];
+    for (let q = 0; q < QUADROS; q++) for (let d = 0; d < 2; d++) quadros.push(() => pintarQuadro(fg, d, q));
+    emFatias(quadros, (k, n) => { if (k < n && estado.desenho === 'labareda') medida.textContent = `Pintando as labaredas: ${k} de ${n} quadros…`; }, () => { folhaPronta = true; amostras.length = 0; escreverMedida(); });
+  });
+}
+iniciar();
+</script>
+</body>
+</html>

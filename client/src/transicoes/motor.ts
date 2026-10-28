@@ -1,6 +1,7 @@
 import type * as Three from 'three'
+import { aberturaDeBatalhaInfo, criarCenaDaAbertura } from './aberturasDeBatalha'
 import { aguardarTransicoesDeFora, criarCenaDeFora, duracaoEfetivaS, transicaoInfo, type TransicaoEscolhida, type TransicaoId, type TransicaoInfo } from './catalogo'
-import type { CenaTransicao, CriarCena, KitDeSom, ThreeModule } from './tipos'
+import type { CenaTransicao, CriarCena, KitDeSom, OpcoesDaCena, ThreeModule } from './tipos'
 
 /**
  * Motor das transições especiais: carrega `three` sob demanda, monta a cena do
@@ -74,9 +75,9 @@ function criarRenderer(THREE: ThreeModule, canvas: HTMLCanvasElement, guardarQua
   return renderer
 }
 
-export interface OpcoesDeTocar {
+/** O que tocar uma cena pede, seja transição de local ou abertura de batalha. */
+interface OpcoesDoPalco {
   canvas: HTMLCanvasElement
-  escolha: TransicaoEscolhida
   /** 0 a 1; 0 = mudo. Pode mudar depois com `definirVolume`. */
   volume: number
   reduzirMovimento: boolean
@@ -87,14 +88,61 @@ export interface OpcoesDeTocar {
   onFim: () => void
 }
 
+export interface OpcoesDeTocar extends OpcoesDoPalco {
+  escolha: TransicaoEscolhida
+}
+
+export interface OpcoesDeTocarAbertura extends OpcoesDoPalco {
+  /** Id da abertura no registro (`aberturasDeBatalha.ts`), ex.: "espadas-cruzadas". */
+  id: string
+  /** O nome que a cena mostra; ausente ou vazio = o padrão da cena ("Royals" nas espadas). */
+  nome?: string
+}
+
 export interface ControleDeTransicao {
   parar: () => void
   definirVolume: (volume: number) => void
 }
 
+/** A fábrica achada e as durações; `null` = este app não tem a cena. */
+interface CenaResolvida {
+  criar: CriarCena
+  duracaoNaturalS: number
+  duracaoS: number
+}
+
 /** Toca uma transição. Resolve com o controle; qualquer falha vira `onFim` imediato. */
-export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeTransicao> {
-  const { canvas, escolha, reduzirMovimento, repetir = false, onFade, onFim } = opcoes
+export function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeTransicao> {
+  const { escolha } = opcoes
+  return tocarCena(opcoes, { reduzirMovimento: opcoes.reduzirMovimento }, async () => {
+    const criar = await resolverFabricaDaCena(escolha.id)
+    const info = transicaoInfo(escolha.id)
+    if (criar === null || info === undefined) return null
+    return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: duracaoEfetivaS(escolha, info) }
+  })
+}
+
+/**
+ * Toca uma abertura de batalha do pacote, sempre na duração natural, com o
+ * `nome` chegando à cena por `OpcoesDaCena`. Abertura que este app não tem
+ * (pacote ainda não baixado, app antigo) vira `onFim` na hora, como a
+ * transição desconhecida.
+ */
+export function tocarAberturaDeBatalha(opcoes: OpcoesDeTocarAbertura): Promise<ControleDeTransicao> {
+  const { id, nome } = opcoes
+  const opcoesDaCena: OpcoesDaCena = nome === undefined ? { reduzirMovimento: opcoes.reduzirMovimento } : { reduzirMovimento: opcoes.reduzirMovimento, nome }
+  return tocarCena(opcoes, opcoesDaCena, async () => {
+    // O pacote pode estar chegando agora: o mesmo carregamento das transições.
+    await aguardarTransicoesDeFora()
+    const criar = criarCenaDaAbertura(id)
+    const info = aberturaDeBatalhaInfo(id)
+    if (criar === null || info === undefined) return null
+    return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: info.duracaoNaturalS }
+  })
+}
+
+async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, resolver: () => Promise<CenaResolvida | null>): Promise<ControleDeTransicao> {
+  const { canvas, repetir = false, onFade, onFim } = opcoes
   let parado = false
   let fimAvisado = false
   const avisarFim = () => {
@@ -107,7 +155,7 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
   let THREE: ThreeModule
   let renderer: Three.WebGLRenderer
   let cena: CenaTransicao
-  let info: TransicaoInfo
+  let resolvida: CenaResolvida
   if (!temWebGL()) {
     avisarFim()
     return controleVazio
@@ -116,16 +164,15 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
   let rendererCriado: Three.WebGLRenderer | null = null
   try {
     // A fábrica antes do `three`: transição desconhecida nem baixa a biblioteca.
-    const criar = await resolverFabricaDaCena(escolha.id)
-    const achada = transicaoInfo(escolha.id)
-    if (criar === null || achada === undefined) {
+    const achada = await resolver()
+    if (achada === null) {
       avisarFim()
       return controleVazio
     }
-    info = achada
+    resolvida = achada
     THREE = await carregarThree()
     renderer = rendererCriado = criarRenderer(THREE, canvas, false)
-    cena = criar(THREE, { reduzirMovimento })
+    cena = resolvida.criar(THREE, opcoesDaCena)
     // Vale também para as do pacote: elas são escritas no mesmo molde das
     // embutidas (luzes afinadas em unidades legadas), e assim tocam igual.
     converterLuzesLegadas(cena.scene)
@@ -135,8 +182,8 @@ export async function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeT
     return controleVazio
   }
 
-  const natural = info.duracaoNaturalS
-  const escala = natural / duracaoEfetivaS(escolha, info)
+  const natural = resolvida.duracaoNaturalS
+  const escala = natural / resolvida.duracaoS
 
   // Som: contexto próprio, criado já dentro do gesto que abriu a transição
   // quando houver um; se o navegador recusar, segue mudo.
