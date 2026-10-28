@@ -1,0 +1,11 @@
+{
+  "id": "chamine",
+  "nome": "Chaminé",
+  "idDoApp": null,
+  "tipo": "objeto",
+  "onda": 2,
+  "lote": 5,
+  "semente": 22,
+  "sob": "telhado-telhas",
+  "objeto": { "ladoPx": 72, "corpoPx": 40, "ancoraPx": [28, 28] }
+}
