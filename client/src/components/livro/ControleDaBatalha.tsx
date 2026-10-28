@@ -56,6 +56,11 @@ export interface ControleDaBatalhaProps {
 
 export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: ControleDaBatalhaProps) {
   const ligada = useBatalhaStore((state) => Object.hasOwn(state.cenas, sceneKey))
+  // B6 (decisão 3): só o mestre zera os caminhos; sem caminho andado não há o que zerar.
+  const algumCaminho = useBatalhaStore((state) => {
+    const cena = Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined
+    return cena !== undefined && Object.keys(cena.caminhos).length > 0
+  })
   const anuncio = useBatalhaStore((state) => state.anuncio)
   const aberturas = useSyncExternalStore(assinarAberturasDeBatalha, listarAberturasDeBatalha)
   const [escolhendo, setEscolhendo] = useState(false)
@@ -151,6 +156,23 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           </Botao>
         )}
       </Balao>
+      {ligada && (
+        <Balao texto={algumCaminho ? 'Apaga o caminho andado de todas as fichas desta cena' : 'Nenhuma ficha andou desde o último zerar'}>
+          {(gatilho) => (
+            <Botao
+              {...gatilho}
+              largo
+              variante="fantasma"
+              aria-disabled={!algumCaminho}
+              onClick={() => {
+                if (algumCaminho) useBatalhaStore.getState().zerarCaminhos(sceneKey)
+              }}
+            >
+              Zerar caminhos
+            </Botao>
+          )}
+        </Balao>
+      )}
       <Dialogo aberto={escolhendo} titulo="Iniciar batalha" onFechar={() => setEscolhendo(false)} pequeno descricao="A abertura toca no mestre, nos jogadores e na TV.">
         <form className="gr-batalha-dlg" onSubmit={confirmar}>
           <CampoSel rotulo="Abertura" opcoes={opcoes} valor={transicao} onChange={setTransicao} />

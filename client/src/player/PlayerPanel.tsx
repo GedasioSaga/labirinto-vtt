@@ -20,6 +20,7 @@ import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import type { PlayerMarkFormProps } from './PlayerMarkForm'
 import { PlayerMarcacoes } from './PlayerMarcacoes'
 import { IconeDoJogador, type NomeDoIcone } from './IconeDoJogador'
+import { textoBlocos, type FerramentaDeMedida } from '../lib/batalha/ferramentasDoJogador'
 import { acompanharTeclado } from './tecladoDoCelular'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
@@ -255,6 +256,18 @@ interface PlayerPanelProps {
   /** Modo "Medir" ligado: arrastar no mapa mede a distância (só nesta tela). */
   measureArmed: boolean
   onToggleMeasure: () => void
+  /**
+   * MODO BATALHA (B6): a cena dele está em batalha. O Medir sai de "No mapa" e
+   * vai para "Em batalha", ao lado de Círculo, Cone e Visão (decisão 2).
+   */
+  batalha?: boolean
+  /** MODO BATALHA (B6): blocos que as fichas dele andaram desde que a batalha ligou (ou o mestre zerou). */
+  andou?: number
+  /** A peça de medir escolhida em batalha. */
+  ferramenta?: FerramentaDeMedida
+  onFerramenta?: (ferramenta: FerramentaDeMedida) => void
+  /** COMPARTILHAR COM O MESTRE (B6): o interruptor, junto das ferramentas de medir. Ausente = sem interruptor. */
+  compartilharComMestre?: { ligado: boolean; onChange: (ligado: boolean) => void }
   /** Modo "Laser" ligado: segurar e arrastar no mapa aponta, e quem está na mesma cena vê. */
   laserArmed: boolean
   onToggleLaser: () => void
@@ -364,6 +377,11 @@ export function PlayerPanel({
   onToggleSignal,
   measureArmed,
   onToggleMeasure,
+  batalha = false,
+  andou = 0,
+  ferramenta = 'regua',
+  onFerramenta,
+  compartilharComMestre,
   laserArmed,
   onToggleLaser,
   destinationArmed = false,
@@ -634,6 +652,16 @@ export function PlayerPanel({
     onToggleMeasure()
   }
 
+  /** MODO BATALHA: tocar na peça ligada desliga; tocar em outra troca de peça (e liga o Medir, se estava desligado). */
+  function escolherFerramenta(peca: FerramentaDeMedida) {
+    if (measureArmed && ferramenta === peca) {
+      onToggleMeasure()
+      return
+    }
+    onFerramenta?.(peca)
+    if (!measureArmed) toggleMeasure()
+  }
+
   function toggleLaser() {
     // Mesma razão: no celular a gaveta cobre o mapa onde o dedo vai apontar.
     if (!laserArmed) closeDrawer()
@@ -865,18 +893,66 @@ export function PlayerPanel({
                   note={onToggleNote === undefined ? undefined : { armed: noteArmed, onToggle: toggleNote }}
                   markForm={markForm}
                 />
-                <button type="button" className="pp-button pp-button--toggle pp-peca" aria-pressed={measureArmed} onClick={toggleMeasure}>
-                  <IconeDoJogador nome="regua" />
-                  Medir
-                </button>
+                {/* MODO BATALHA: o Medir mora em "Em batalha", com as outras peças de medir. */}
+                {!batalha && (
+                  <button type="button" className="pp-button pp-button--toggle pp-peca" aria-pressed={measureArmed} onClick={toggleMeasure}>
+                    <IconeDoJogador nome="regua" />
+                    Medir
+                  </button>
+                )}
                 <button type="button" className="pp-button pp-button--toggle pp-peca" aria-pressed={laserArmed} onClick={toggleLaser}>
                   <IconeDoJogador nome="laser" />
                   Laser
                 </button>
               </div>
+              {/* EM BATALHA (B6): Medir em blocos, Círculo, Cone e Visão. A dica de baixo é a única das duas fileiras. */}
+              {batalha && (
+                <>
+                  <h3 id={`${panelId}-em-batalha`} className="pp-titulo-secao">
+                    Em batalha
+                  </h3>
+                  <div className="pp-pecas" role="group" aria-labelledby={`${panelId}-em-batalha`}>
+                    {PECAS_DE_BATALHA.map((peca) => (
+                      <button
+                        key={peca.ferramenta}
+                        type="button"
+                        className="pp-button pp-button--toggle pp-peca"
+                        aria-pressed={measureArmed && ferramenta === peca.ferramenta}
+                        onClick={() => escolherFerramenta(peca.ferramenta)}
+                      >
+                        <IconeDoJogador nome={peca.icone} />
+                        {peca.rotulo}
+                      </button>
+                    ))}
+                  </div>
+                  {/* CAMINHO ANDADO (B6): a conta é do mestre; zerar também (decisão 3). */}
+                  <p className="pp-andado">
+                    Você andou <strong className="pp-andado__total">{textoBlocos(andou)}</strong> nesta batalha.
+                    <span className="pp-andado__sub">Conta até o mestre zerar os caminhos.</span>
+                  </p>
+                </>
+              )}
               <p className="pp-dica-acao" aria-live="polite">
-                {mapActionHint({ signal: signalArmed, destination: destinationArmed, note: noteArmed, measure: measureArmed, laser: laserArmed })}
+                {mapActionHint({ signal: signalArmed, destination: destinationArmed, note: noteArmed, measure: measureArmed, laser: laserArmed }, batalha ? ferramenta : null)}
               </p>
+              {/* COMPARTILHAR COM O MESTRE: em batalha sempre à vista; fora dela, junto do Medir ligado. */}
+              {compartilharComMestre !== undefined && (batalha || measureArmed) && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={compartilharComMestre.ligado}
+                  className="pp-interruptor"
+                  onClick={() => compartilharComMestre.onChange(!compartilharComMestre.ligado)}
+                >
+                  <span className="pp-interruptor__trilho" aria-hidden="true">
+                    <span className="pp-interruptor__bola" />
+                  </span>
+                  <span className="pp-interruptor__texto">
+                    Compartilhar com o mestre
+                    <span className="pp-interruptor__sub">{compartilharComMestre.ligado ? 'O mestre vê o que você mede.' : 'Só você vê o que mede.'}</span>
+                  </span>
+                </button>
+              )}
               {(mapShare !== undefined || onStepAway !== undefined) && (
                 <div className="pp-linhas">
                   {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
@@ -1177,6 +1253,21 @@ function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
   )
 }
 
+/** MODO BATALHA (B6): as peças de medir, na ordem do protótipo. */
+const PECAS_DE_BATALHA: readonly { ferramenta: FerramentaDeMedida; rotulo: string; icone: 'regua' | 'circulo' | 'cone' | 'olho' }[] = [
+  { ferramenta: 'regua', rotulo: 'Medir', icone: 'regua' },
+  { ferramenta: 'circulo', rotulo: 'Círculo', icone: 'circulo' },
+  { ferramenta: 'cone', rotulo: 'Cone', icone: 'cone' },
+  { ferramenta: 'visao', rotulo: 'Visão', icone: 'olho' },
+]
+
+const DICA_DA_PECA: Readonly<Record<FerramentaDeMedida, string>> = {
+  regua: 'Arraste no mapa para medir em blocos, em linha reta. Esc sai.',
+  circulo: 'Arraste do centro até a borda. + e − mudam o raio. Esc sai.',
+  cone: 'Arraste de quem mede para a direção. Q e E giram, + e − mudam o tamanho. Esc sai.',
+  visao: 'Arraste até o alvo: a linha mostra se uma parede que você conhece barra a visão. Esc sai.',
+}
+
 /** Os modos de toque no mapa que podem estar ligados: Sinalizar, Medir e Laser, e os dois do menu "Marcações". */
 interface MapActionsArmed {
   signal: boolean
@@ -1191,10 +1282,11 @@ interface MapActionsArmed {
  * nenhum está. É a única: o "Marcações" não escreve a sua, e duas dicas
  * anunciadas juntas se contradiziam (no notebook a coluna não fecha ao ligar).
  */
-function mapActionHint(armed: MapActionsArmed): string {
+function mapActionHint(armed: MapActionsArmed, pecaDaBatalha: FerramentaDeMedida | null): string {
   if (armed.signal) return 'Toque no mapa para sinalizar. No PC: Alt+clique ou segure o clique parado.'
   if (armed.destination) return 'Toque no destino, no mapa. Esc sai.'
   if (armed.note) return 'Toque onde anotar. Só você vê. Esc sai.'
+  if (armed.measure && pecaDaBatalha !== null) return DICA_DA_PECA[pecaDaBatalha]
   if (armed.measure) return 'Arraste no mapa para medir. Esc sai.'
   if (armed.laser) return 'Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.'
   return 'Escolha uma ação e toque no mapa.'

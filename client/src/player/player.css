@@ -7133,3 +7133,129 @@ button.pp-colecao__casa:focus-visible {
     animation: none;
   }
 }
+
+/*
+ * MODO BATALHA (B6): o aviso do esbarrão. Mesma pílula dos avisos de
+ * movimento, com a borda em brasa: o número que ele traz é o do host.
+ */
+.pp-notice--esbarrou {
+  border-color: var(--lb-color-ember, #e2645a);
+}
+
+/*
+ * CAMINHO ANDADO (B6): "Você andou N blocos nesta batalha.", embaixo das
+ * peças de batalha, com o número em latão e algarismos de mesma largura.
+ */
+.pp-andado {
+  margin: 6px 0 0;
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: 1.45;
+  color: var(--lb-color-parchment, #e8e2d4);
+}
+
+.pp-andado__total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-andado__sub {
+  display: block;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/*
+ * COMPARTILHAR COM O MESTRE (B6): o interruptor junto das peças de medir, o
+ * do protótipo aprovado (docs/design/batalha-ferramentas/prototipo.html):
+ * trilho escuro, bola de pergaminho; ligado, latão. A linha de baixo diz o
+ * que muda para quem não lê o estado pela cor.
+ */
+.pp-interruptor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--lb-control-touch, 44px);
+  margin-top: 4px;
+  padding: 0 2px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+}
+
+.pp-interruptor:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-interruptor__trilho {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease-out;
+}
+
+.pp-interruptor:active .pp-interruptor__trilho {
+  transform: scale(0.96);
+}
+
+.pp-interruptor__bola {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lb-color-parchment-dim, #a2a09a);
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 160ms ease;
+}
+
+.pp-interruptor[aria-checked='true'] .pp-interruptor__trilho {
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  border-color: rgba(224, 164, 74, 0.55);
+}
+
+.pp-interruptor[aria-checked='true'] .pp-interruptor__bola {
+  transform: translateX(16px);
+  background: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-interruptor__texto {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  font-size: var(--lb-font-size-md, 13px);
+}
+
+.pp-interruptor__sub {
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-interruptor__trilho {
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease;
+  }
+  .pp-interruptor:active .pp-interruptor__trilho {
+    transform: none;
+  }
+  .pp-interruptor__bola {
+    transition: background-color 160ms ease;
+  }
+}

@@ -19,6 +19,9 @@ const TRACOS = {
   ficha: <path d="M6 3.5h12v17H6z M9 8h6 M9 11.5h6 M9 15h3.5" />,
   bandeira: <path d="M6 20.5V4 M6 4.5h11l-2 4 2 4H6" />,
   regua: <path d="M3.5 16.5l13-13 4 4-13 13z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2" />,
+  /** MODO BATALHA (B6): o círculo é quadrado (decisão 4) e o cone abre em leque, como no protótipo; a Visão usa o `olho`. */
+  circulo: <path d="M4.5 4.5h15v15h-15z M9.5 9.5h5v5h-5z" />,
+  cone: <path d="M4 12l15-6.5 M4 12l15 6.5 M19 5.5c1.4 2.2 1.4 10.8 0 13" />,
   laser: (
     <>
       <circle cx="12" cy="12" r="2.2" />
