@@ -4,7 +4,7 @@ import { comCamadasDoJogadorLidas } from '../lib/camadas/doJogador'
 import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
-import { decodeExploration, type Exploration } from '../lib/exploration'
+import { decodeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
 import { cleanFloorLabel } from '../lib/buildingFloors'
 import { lerLuzDoJogador, type LuzDoJogador } from '../lib/periodo'
 import { lerPortasPorAtravessar } from '../lib/portasPorAtravessar'
@@ -163,7 +163,7 @@ import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
-import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import { applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
@@ -1720,6 +1720,8 @@ interface ReceivedView {
   map: MapData
   vision: RegionPoint[][]
   explored: Exploration | undefined
+  /** O explorado como veio no fio: base dos trechos do próximo `patch` (`exploredEdits`). */
+  exploredWire: ExploredWire | undefined
   ownTokens: string[]
   concealed: RegionPoint[][]
 }
@@ -1836,9 +1838,23 @@ function isTokenChange(value: unknown): value is TokenChange {
  * `isMapShape`: o mestre é a fonte. O mapa que sai da aplicação passa por
  * `isMapShape` de novo antes de ir para a tela.
  */
+function isItemListPatch(value: unknown): value is ItemListPatch {
+  if (!isRecord(value) || !Array.isArray(value.change) || !value.change.every((item) => isRecord(item) && typeof item.id === 'string')) return false
+  return isStringList(value.remove) && (value.order === undefined || isStringList(value.order))
+}
+
+function isStringEditList(value: unknown): boolean {
+  return Array.isArray(value) && value.every((e) => Array.isArray(e) && e.length === 3 && isFiniteNumber(e[0]) && isFiniteNumber(e[1]) && typeof e[2] === 'string')
+}
+
+function isExploredEdits(value: unknown): value is ExploredEdits {
+  return isRecord(value) && isStringEditList(value.bits) && isStringEditList(value.rings) && (value.ringsFar === undefined || isStringEditList(value.ringsFar))
+}
+
 function isMapPatchShape(value: unknown): value is MapPatch {
   if (!isRecord(value) || !isRecord(value.set)) return false
-  const { tokens } = value
+  const { tokens, items } = value
+  if (items !== undefined && (!isRecord(items) || !Object.values(items).every(isItemListPatch))) return false
   if (tokens === undefined) return true
   if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
   return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
@@ -3360,6 +3376,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     peek: RoofPeek | undefined,
     waitingTokens: string[],
     porAtravessar: readonly string[],
+    exploredWire?: ExploredWire,
   ): void {
     if (rev <= state.rev) return
     // CAMADAS (aditivo, `isMapShape` não muda): `camadasDoJogador` torto vira
@@ -3369,7 +3386,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
     // Base para o próximo `patch` (view.patch): sempre a última tela CHEIA do mestre.
-    received = { rev, map, vision, explored, ownTokens, concealed }
+    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -3481,10 +3498,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return
     }
     let explored = received.explored
+    let exploredWire = received.exploredWire
     if (data.explored !== undefined) {
       const decoded = decodeExploration(data.explored)
       if (decoded === null) return askResync()
       explored = decoded
+      exploredWire = data.explored as ExploredWire // as: `decodeExploration` acabou de validar o formato inteiro
+    } else if (data.exploredEdits !== undefined) {
+      // Só os trechos que mudaram, em cima do último explorado que veio no fio.
+      if (exploredWire === undefined || !isExploredEdits(data.exploredEdits)) return askResync()
+      const wire = applyExploredEdits(exploredWire, data.exploredEdits)
+      const decoded = wire === null ? null : decodeExploration(wire)
+      if (wire === null || decoded === null) return askResync()
+      explored = decoded
+      exploredWire = wire
     }
     const vision = data.vision === undefined ? received.vision : isVision(data.vision) ? data.vision : null
     const ownTokens = data.ownTokens === undefined ? received.ownTokens : isStringList(data.ownTokens) ? data.ownTokens : null
@@ -3511,6 +3538,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.peek,
       state.waitingTokens ?? [],
       state.porAtravessar ?? [],
+      exploredWire,
     )
   }
 
@@ -4504,7 +4532,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
         if (porAtravessar === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar)
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         return
       }
       case 'wait.state':
