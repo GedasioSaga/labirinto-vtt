@@ -1,18 +1,18 @@
 {
   "casaPx": 64,
   "contrato": 1,
-  "corMedia": "#4f8b5c",
+  "corMedia": "#38704c",
   "destino": "carimbo",
   "formas": {
-    "conta": "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; espelho na diagonal quando floor(k / variacoes) é ímpar: a imagem transposta, (u, v) -> (v, u), com a mesma translação (o meio da imagem não anda; ver CONTRATO.md 9.4); a imagem nunca gira",
-    "espelho": "diagonal",
+    "conta": "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; nunca espelha (o desenho fica de pé na tela, com o tronco embaixo; transposto, ele deitaria); a imagem nunca gira",
+    "espelho": "nenhum",
     "variacoes": 4
   },
   "id": "arvore",
   "idDoApp": "arvore",
   "lote": 6,
   "memoria": {
-    "discoBytes": 183562,
+    "discoBytes": 153497,
     "gpuBytes": 2643284,
     "tetoDiscoBytes": 1572864,
     "tetoGpuBytes": 2796202
@@ -22,19 +22,19 @@
   "sombra": {
     "alfa": 0.25,
     "borrao": 0.03,
-    "conta": "a silhueta (o alfa do desenho, já no lugar) andada deslocamento x tamanho na direção, desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez",
+    "comprimento": 0.78,
+    "conta": "a silhueta (o alfa do desenho, já no lugar) deitada no chão a partir do pé, como a sombra 'em-pe' de hoje (client/src/carimbos/arte.ts, matrizDaSombra): com (dx, dy) a direção normalizada e (x, y) o ponto a partir do pé (a âncora), y = -h a altura h acima dele, o ponto cai em (x - comprimento x dx x y, -comprimento x dy x y), ou seja, h x comprimento na direção: o pé fica e o alto se deita para baixo e para a direita; desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez (CONTRATO.md 9.4)",
     "cor": "#0a1c28",
-    "deslocamento": 0.16,
     "direcao": [
       7,
       11
     ],
-    "jeito": "deslocada"
+    "jeito": "em-pe"
   },
   "sprite": {
     "ancoraPx": [
-      173.6,
-      360.2
+      173.9,
+      336.9
     ],
     "arquivos": [
       "carimbo-1.png",
@@ -45,7 +45,7 @@
     "canais": "RGBA, cor reta, alfa reto, sem sombra",
     "ladoPx": 352,
     "unidade": "o tamanho do carimbo no mundo (Carimbo.tamanho, px)",
-    "unidadePx": 300.0
+    "unidadePx": 262.0
   },
   "tamanhoDoApp": 15.0,
   "tipo": "carimbo"
