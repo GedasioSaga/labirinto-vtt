@@ -33,6 +33,7 @@ import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
 import { conferirMetasF3, ligarProvaF3, lerProvaF3, metasF3Ligadas, provaF3Ligada } from './metas-f3'
+import { conferirMetasF9, metasF9Ligadas } from './metas-f9'
 
 // ---------------------------------------------------------------- casos
 
@@ -630,12 +631,13 @@ for (const caso of CASOS) {
       fio.push([Date.now(), /"type":"([^"]+)"/.exec(texto.slice(0, 80))?.[1] ?? '?', texto.length])
       sockets.get(clientId)?.send(texto)
     })
-    const tallyDoFio = (desde: number): Record<string, { n: number; bytes: number }> => {
-      const saida: Record<string, { n: number; bytes: number }> = {}
+    const tallyDoFio = (desde: number): Record<string, { n: number; bytes: number; max: number }> => {
+      const saida: Record<string, { n: number; bytes: number; max: number }> = {}
       for (const [, tipo, bytes] of fio.slice(desde)) {
-        saida[tipo] ??= { n: 0, bytes: 0 }
+        saida[tipo] ??= { n: 0, bytes: 0, max: 0 }
         saida[tipo].n += 1
         saida[tipo].bytes += bytes
+        saida[tipo].max = Math.max(saida[tipo].max, bytes)
       }
       return saida
     }
@@ -890,5 +892,6 @@ for (const caso of CASOS) {
     if (SAIDA !== '') appendFileSync(SAIDA, `${JSON.stringify(registro)}\n`)
     console.log(`DESEMPENHO ${caso.id} ${JSON.stringify({ abrir_mestre: registro.abrir_mestre, abrir_jogador: registro.abrir_jogador, cenarios: cenarios.map((c) => [c.papel, c.cenario, c.fps, c.quadro_p95_ms, c.longas_max_ms, c.cpu_ms_por_s]) })}`)
     if (metasF3Ligadas()) expect(conferirMetasF3({ caso, cenarios }), 'metas da F3 (client/desempenho/metas-f3.ts)').toEqual([])
+    if (metasF9Ligadas()) expect(conferirMetasF9({ caso, cenarios }), 'metas da F9 (client/desempenho/metas-f9.ts)').toEqual([])
   })
 }
