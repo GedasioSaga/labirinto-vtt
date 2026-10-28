@@ -9,6 +9,7 @@ import {
   TENTATIVAS_MIN,
   TIRO_TEXTO_MAX_LENGTH,
   type DificuldadeTiro,
+  type MedalhaTiro,
   type MinigameTiro,
 } from '../minigames/tiro/tipos'
 
@@ -63,6 +64,13 @@ export const TIRO_MOTIVOS_DA_RECUSA: readonly TiroMotivoDaRecusa[] = ['longe', '
 /** `fim`: o sino tocou; `desistiu`: saiu pela pausa (sem medalha). */
 export type TiroDesfecho = 'fim' | 'desistiu'
 const DESFECHOS: readonly TiroDesfecho[] = ['fim', 'desistiu']
+/**
+ * Como acabou a última rodada de um colega, para a mesa no canto do palco: a
+ * medalha, `nenhuma` (foi até o sino sem medalha), `desistiu` ou `encerrado`.
+ * Ausente = ainda não terminou rodada nesta sessão.
+ */
+export type TiroUltimaRodada = MedalhaTiro | 'nenhuma' | 'desistiu' | 'encerrado'
+const ULTIMAS_RODADAS: readonly TiroUltimaRodada[] = [...MEDALHAS_TIRO, 'nenhuma', 'desistiu', 'encerrado']
 const PERMITIDAS: readonly MinigameTiro['permitida'][] = ['escolha', ...DIFICULDADES_TIRO]
 
 export interface TiroParticipante {
@@ -117,7 +125,7 @@ export interface TiroEstadoMessage {
   type: 'tiro.estado'
   sessao: string
   fase: TiroFaseNoFio
-  participantes: (TiroParticipante & { status: TiroStatus })[]
+  participantes: (TiroParticipante & { status: TiroStatus; ultima?: TiroUltimaRodada })[]
 }
 
 /** O host liberou a rodada `rodada` (= tentativas usadas, contando esta). */
@@ -281,8 +289,12 @@ export function parseTiroHostMessage(value: unknown): TiroHostMessage | null {
       const fase = umDaLista(FASES_NO_FIO, value.fase)
       const participantes = listaDe(value.participantes, TIRO_PARTICIPANTES_MAX, (item) => {
         const base = lerParticipante(item)
-        const status = isRecord(item) ? umDaLista(TIRO_STATUS, item.status) : undefined
-        return base === null || status === undefined ? null : { ...base, status }
+        if (base === null || !isRecord(item)) return null
+        const status = umDaLista(TIRO_STATUS, item.status)
+        if (status === undefined) return null
+        if (item.ultima === undefined) return { ...base, status }
+        const ultima = umDaLista(ULTIMAS_RODADAS, item.ultima)
+        return ultima === undefined ? null : { ...base, status, ultima }
       })
       return fase === undefined || participantes === null ? null : { type: 'tiro.estado', sessao, fase, participantes }
     }

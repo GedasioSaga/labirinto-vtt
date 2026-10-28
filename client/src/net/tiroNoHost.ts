@@ -9,6 +9,7 @@ import type {
   TiroMotivoDoFim,
   TiroProntoMessage,
   TiroStatus,
+  TiroUltimaRodada,
   TiroVivo,
   TiroVivoMessage,
 } from './protocoloDoTiro'
@@ -153,6 +154,13 @@ const ativa = (s: Tiro): boolean => s.fase === 'aberta' || s.fase === 'pausa'
 /** Na barraca: recebe pausa, retomada e encerramento. */
 const naBarraca = (p: Participante): boolean => p.status === 'convidado' || p.status === 'atirando'
 
+/** A última rodada, para a mesa dos colegas: as mesmas palavras do placar do mestre (`estadoNoPlacar`). */
+function ultimaNoFio(r: TiroRodadaNoMestre | undefined): TiroUltimaRodada | undefined {
+  if (r === undefined) return undefined
+  if (r.desfecho === 'encerrado' || r.desfecho === 'desistiu') return r.desfecho
+  return r.medalha === null ? 'nenhuma' : r.medalha
+}
+
 function melhorDe(rodadas: readonly TiroRodadaNoMestre[]): TiroRodadaNoMestre | undefined {
   return rodadas.reduce<TiroRodadaNoMestre | undefined>((m, r) => (r.desfecho === 'fim' && (m === undefined || r.pontos > m.pontos) ? r : m), undefined)
 }
@@ -181,7 +189,10 @@ export function criarTiroNoHost(ctx: ContextoDoTiro): TiroNoHost {
     type: 'tiro.estado',
     sessao: s.sessao,
     fase: s.fase === 'pausa' ? 'pausa' : 'aberta',
-    participantes: s.participantes.map((p) => ({ playerId: p.playerId, nome: p.nome, status: p.status })),
+    participantes: s.participantes.map((p) => {
+      const ultima = ultimaNoFio(p.rodadas.at(-1))
+      return ultima === undefined ? { playerId: p.playerId, nome: p.nome, status: p.status } : { playerId: p.playerId, nome: p.nome, status: p.status, ultima }
+    }),
   })
 
   const estadoATodos = (s: Tiro): SaidaDoTiro[] => {

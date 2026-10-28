@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as PointerDoReact, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import type { TiroDesfecho, TiroNumeros, TiroParticipante, TiroStatus, TiroVivo } from '../../../net/protocoloDoTiro'
+import type { TiroDesfecho, TiroNumeros, TiroParticipante, TiroStatus, TiroUltimaRodada, TiroVivo } from '../../../net/protocoloDoTiro'
 import { tiroAceitaPronto, tiroAtirando, type TiroDoJogador } from '../../../player/estadoDoTiro'
 import { estaCalado, PREFERENCIA_DE_SOM_PADRAO, percentualDoVolume, useSomStore } from '../../../stores/somStore'
 import { ganhoDaMesa } from '../../danca/tela/audioDaDanca'
@@ -127,6 +127,13 @@ function meuEstado(inst: InstantaneoDoTiro, pausadaPeloMestre: boolean): string 
 }
 
 const PALAVRA_DO_STATUS: Readonly<Record<TiroStatus, string>> = { convidado: 'no convite', atirando: 'atirando', terminou: 'terminou', saiu: 'saiu' }
+
+/** Um colega na mesa: quem já fechou rodada mostra como ela acabou, igual ao placar do mestre ("terminou: Ouro"). */
+function estadoDoColega(p: { status: TiroStatus; ultima?: TiroUltimaRodada }): string {
+  if (p.status === 'saiu' || p.status === 'atirando' || p.ultima === undefined) return PALAVRA_DO_STATUS[p.status]
+  if (p.ultima === 'encerrado' || p.ultima === 'desistiu') return p.ultima
+  return `terminou: ${p.ultima === 'nenhuma' ? 'sem medalha' : NOMES_MED[p.ultima]}`
+}
 
 /** Os números da rodada como o `tiro.fim` os leva. */
 function numerosDe(r: ResultadoDaRodada): TiroNumeros {
@@ -350,7 +357,7 @@ function TelaDoTiro({ tiro, playerId, acoes, criarAudio = criarAudioDoNavegador,
   // ---------------------------------------------------------------- mesa no canto do palco
 
   const status = tiro.estado?.participantes ?? convite.participantes.map<TiroParticipante & { status: TiroStatus }>((p) => ({ ...p, status: 'convidado' }))
-  const mesa = [{ id: 'eu', nome: 'Você', estado: meuEstado(inst, tiro.pausada) }, ...status.filter((p) => p.playerId !== playerId).map((p) => ({ id: p.playerId, nome: p.nome, estado: PALAVRA_DO_STATUS[p.status] }))]
+  const mesa = [{ id: 'eu', nome: 'Você', estado: meuEstado(inst, tiro.pausada) }, ...status.filter((p) => p.playerId !== playerId).map((p) => ({ id: p.playerId, nome: p.nome, estado: estadoDoColega(p) }))]
 
   return (
     <div
