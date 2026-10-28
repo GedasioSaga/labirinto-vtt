@@ -33,6 +33,7 @@ import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
 import { conferirMetasF5 } from './metas-f5'
+import { conferirMetasF4 } from './metas-f4'
 
 // ---------------------------------------------------------------- casos
 
@@ -879,5 +880,6 @@ for (const caso of CASOS) {
     if (SAIDA !== '') appendFileSync(SAIDA, `${JSON.stringify(registro)}\n`)
     console.log(`DESEMPENHO ${caso.id} ${JSON.stringify({ abrir_mestre: registro.abrir_mestre, abrir_jogador: registro.abrir_jogador, cenarios: cenarios.map((c) => [c.papel, c.cenario, c.fps, c.quadro_p95_ms, c.longas_max_ms, c.cpu_ms_por_s]) })}`)
     conferirMetasF5(caso.id, registro)
+    conferirMetasF4(caso.id, cenarios)
   })
 }
