@@ -34,12 +34,25 @@ import {
   type EntradaPesca,
   type MinigamePesca,
 } from '../minigames/pesca/tipos'
+import { NOTA_DAS_MEDALHAS } from '../minigames/tiro/tela/textos'
+import {
+  BARRACA_MAX_LENGTH,
+  TENTATIVAS_MAX,
+  TENTATIVAS_MIN,
+  TIRO_TEXTO_MAX_LENGTH,
+  type DificuldadeTiro,
+  type EntradaTiro,
+  type MedalhaTiro,
+  type MinigameTiro,
+} from '../minigames/tiro/tipos'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { trocarJogoDoMinigame } from '../lib/pins'
 import { DANCA_DURACAO_MAX_S } from '../net/protocoloDaDanca'
 import { DancaAoVivoPainel, type DancaAoVivoProps } from './DancaAoVivo'
 import { PescaAoVivoPainel } from './PescaAoVivo'
 import type { PescaNoPainel } from './pescaNoPainel'
+import { TiroAoVivoPainel } from './TiroAoVivo'
+import type { TiroNoPainel } from './tiroNoPainel'
 import './MinigameControls.css'
 
 /**
@@ -162,6 +175,29 @@ const PERMITIDAS_PESCA: readonly { valor: 'escolha' | DificuldadePesca; rotulo: 
   { valor: 'escolha', rotulo: 'Jogador escolhe' },
   { valor: 'normal', rotulo: 'Só Normal' },
   { valor: 'extremo', rotulo: 'Só Extremo' },
+]
+
+/** A barraca de tiro, na ordem e com os nomes do protótipo aprovado. */
+const ENTRADAS_DO_TIRO: readonly { valor: EntradaTiro; rotulo: string }[] = [
+  { valor: 'pino', rotulo: 'Jogador toca no pino' },
+  { valor: 'mestre', rotulo: 'Mestre chama' },
+]
+
+const TENTATIVAS: readonly { valor: string; rotulo: string }[] = Array.from({ length: TENTATIVAS_MAX - TENTATIVAS_MIN + 1 }, (_, i) => {
+  const n = String(TENTATIVAS_MIN + i)
+  return { valor: n, rotulo: n }
+})
+
+const PERMITIDAS_DO_TIRO: readonly { valor: 'escolha' | DificuldadeTiro; rotulo: string }[] = [
+  { valor: 'escolha', rotulo: 'O jogador escolhe' },
+  { valor: 'normal', rotulo: 'Só Normal' },
+  { valor: 'extremo', rotulo: 'Só Extremo' },
+]
+
+const METAS_DO_TIRO: readonly { valor: MedalhaTiro; rotulo: string }[] = [
+  { valor: 'bronze', rotulo: 'Bronze' },
+  { valor: 'prata', rotulo: 'Prata' },
+  { valor: 'ouro', rotulo: 'Ouro' },
 ]
 
 // ------------------------------------------------------------------ memória da música
@@ -650,12 +686,14 @@ export interface MinigameControlsProps {
   aoVivo: Omit<DancaAoVivoProps, 'pinId'> | null
   /** Sala aberta: a pesca ao vivo deste pino (`pescaNoPainel`). `null` ou ausente = sem sala. */
   aoVivoDaPesca?: PescaNoPainel | null
+  /** Sala aberta: a barraca de tiro ao vivo deste pino (`tiroNoPainel`). `null` ou ausente = sem sala. */
+  aoVivoDoTiro?: TiroNoPainel | null
   /** O teste troca; o app usa o disco e o Web Audio de verdade. */
   caminho?: CaminhoDaMusica
 }
 
 /**
- * O painel do jogo gravado no pino: no topo, a escolha Dança | Pesca (trocar
+ * O painel do jogo gravado no pino: no topo, a escolha Dança | Pesca | Tiro (trocar
  * põe o desafio padrão do outro jogo; o Ctrl+Z do `updatePin` desfaz), e
  * embaixo os campos do jogo escolhido.
  */
@@ -676,7 +714,7 @@ export function MinigameControls(props: MinigameControlsProps) {
       {minigame.jogo === 'pesca' ? (
         <PainelDaPesca {...props} minigame={minigame} />
       ) : minigame.jogo === 'tiro' ? (
-        <p className="lb-minigame__nota">A barraca de tiro guarda o desafio do protótipo; os campos chegam na fase das telas.</p>
+        <PainelDoTiro {...props} minigame={minigame} />
       ) : (
         <PainelDaDanca {...props} minigame={minigame} />
       )}
@@ -752,6 +790,79 @@ function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPes
         <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar a pesca{minigame.entrada === 'mestre' ? ' e chamar quem pesca' : ''}.</span>
       ) : (
         <PescaAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDaPesca} />
+      )}
+    </>
+  )
+}
+
+type PainelDoTiroProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoTiro'> & { minigame: MinigameTiro }
+
+/**
+ * A barraca de tiro do pino, na ordem do protótipo aprovado (visão
+ * "Mestre"): quem desafia, a fala, o nome da barraca, como começa, as
+ * tentativas, a dificuldade permitida, a meta, o prêmio e a consequência.
+ * Sem porta nem música: o tiro não abre nada.
+ */
+function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroProps) {
+  const baseId = useId()
+  const mudar = (patch: Partial<MinigameTiro>) => onChange({ ...minigame, ...patch })
+  const id = (nome: string) => `${baseId}-${nome}`
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('npc')}>
+          Quem desafia
+        </label>
+        <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('fala')}>
+          Fala
+        </label>
+        <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('barraca')}>
+          Nome da barraca
+        </label>
+        <CampoDeTexto id={id('barraca')} valor={minigame.barraca} max={BARRACA_MAX_LENGTH} onCommit={(barraca) => mudar({ barraca })} />
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Como começa</legend>
+        <Pastilhas rotulo="Como começa" opcoes={ENTRADAS_DO_TIRO} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
+        <span className="lb-label">
+          {minigame.entrada === 'mestre' ? 'Os jogadores veem o convite quando você chamar, daqui do painel.' : 'Quem pisa no pino vê o convite e começa quando quiser.'}
+        </span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Tentativas</legend>
+        <Pastilhas rotulo="Tentativas" opcoes={TENTATIVAS} valor={String(minigame.tentativas)} onChange={(n) => mudar({ tentativas: Number(n) })} classe="lb-minigame__seg--letras" />
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Dificuldade permitida</legend>
+        <Pastilhas rotulo="Dificuldade permitida" opcoes={PERMITIDAS_DO_TIRO} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Meta para passar</legend>
+        <Pastilhas rotulo="Meta para passar" opcoes={METAS_DO_TIRO} valor={minigame.meta} onChange={(meta) => mudar({ meta })} />
+        <span className="lb-label">{NOTA_DAS_MEDALHAS}</span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">O que vale</legend>
+        <label className="lb-label" htmlFor={id('premio')}>
+          Prêmio (passou)
+        </label>
+        <CampoDeTexto id={id('premio')} valor={minigame.premio.texto} max={TIRO_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ premio: { texto } })} />
+        <label className="lb-label" htmlFor={id('consequencia')}>
+          Consequência (não passou)
+        </label>
+        <CampoDeTexto id={id('consequencia')} valor={minigame.consequencia.texto} max={TIRO_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ consequencia: { texto } })} />
+        <span className="lb-label">Só texto: aparece no convite e no resultado do jogador. O tiro não abre porta nem entrega item.</span>
+      </fieldset>
+      {aoVivoDoTiro === null || aoVivoDoTiro === undefined ? (
+        <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar o placar{minigame.entrada === 'mestre' ? ' e chamar para a barraca' : ''}.</span>
+      ) : (
+        <TiroAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDoTiro} />
       )}
     </>
   )

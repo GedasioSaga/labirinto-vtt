@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
 import { textoDaRecusaDaPesca } from './estadoDaPesca'
+import { textoDaRecusaDoTiro } from './estadoDoTiro'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
@@ -67,6 +68,7 @@ import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
+import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
 import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
@@ -683,6 +685,8 @@ interface SessionProps {
   ajustesDaDanca?: AjustesDaTelaDaDanca
   /** O mesmo para a pesca (onde a tela entra). A Visão de jogador passa na fase 5 do plano da pesca. */
   ajustesDaPesca?: AjustesDaTelaDaPesca
+  /** O mesmo para a barraca de tiro. */
+  ajustesDoTiro?: AjustesDaTelaDoTiro
 }
 
 /** Ação de uma tela de texto. `primary` é o botão de latão, no máximo um por tela. */
@@ -735,7 +739,7 @@ const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: fa
 const HANDSHAKE_DEADLINE_MS = 8_000
 
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
-export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca }: SessionProps) {
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca, ajustesDoTiro }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
   const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
@@ -1737,6 +1741,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPescar={() => {
               if (connection.pedirPesca(openPin.id)) setOpenPinId(null)
             }}
+            // TIRO "Jogador toca no pino": o mesmo caminho; o convite volta e abre a barraca.
+            onAtirar={() => {
+              if (connection.pedirTiro(openPin.id)) setOpenPinId(null)
+            }}
           />
         )}
         {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
@@ -2013,6 +2021,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {textoDaRecusaDaPesca(state.pescaRecusada.motivo)}
           </p>
         )}
+        {/* TIRO no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.tiroRecusado && (
+          <p key={state.tiroRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDoTiro(state.tiroRecusado.motivo)}
+          </p>
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
@@ -2122,6 +2136,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* DANÇA: o convite do mestre abre a tela da dança por cima do mapa, até o resultado ou o encerramento. */}
         {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} fontesDaMusica={musicaDaSala} {...ajustesDaDanca} />}
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
+        {/* TIRO: o convite da barraca abre por cima do mapa, até o jogador sair. */}
+        {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}

@@ -209,6 +209,7 @@ import { BotaoDoLivroDeRegras, PersonagensDaAventura } from './components/Person
 import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
+import { tiroNoPainel } from './components/tiroNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
@@ -222,6 +223,7 @@ import { MINIGAME_PADRAO } from './minigames/danca/tipos'
 import type { MinigameDoPino } from './minigames/tipos'
 import type { DancaAoVivo } from './net/dancaNoHost'
 import type { PescaAoVivo } from './net/pescaNoHost'
+import type { TiroAoVivo } from './net/tiroNoHost'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly, setExitPassage } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
@@ -767,6 +769,8 @@ function App() {
   const [danca, setDanca] = useState<DancaAoVivo | null>(null)
   // MINIGAME DE PESCA: cada pino com pesca (quem pesca, o vivo, os cestos), como o painel lê. O dono é a sessão do host.
   const [pescas, setPescas] = useState<PescaAoVivo[]>([])
+  // MINIGAME DE TIRO: cada pino com barraca de tiro (quem atira, o vivo, as rodadas), como o painel lê. O dono é a sessão do host.
+  const [tiros, setTiros] = useState<TiroAoVivo[]>([])
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -882,6 +886,7 @@ function App() {
         onSecretChecksChange: setSecretChecks,
         onDancaChange: setDanca,
         onPescaChange: setPescas,
+        onTiroChange: setTiros,
         onTunnelChange: setTunnel,
         // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
         getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
@@ -2534,6 +2539,12 @@ function App() {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       pescas,
+      ponte: () => hostBridgeRef.current,
+    }),
+    aoVivoDoTiro: tiroNoPainel(pin.id, {
+      aberta: room !== null,
+      players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+      tiros,
       ponte: () => hostBridgeRef.current,
     }),
   })
