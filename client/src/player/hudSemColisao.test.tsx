@@ -326,7 +326,7 @@ describe('cartão do pino: uma coluna de botões', () => {
 describe('rolagens no pé da coluna do canto', () => {
   // Em 390 x 844 a rolagem mais nova ficava a 124 px do rodapé, atrás da mão
   // (z 22 sobre z 12); no celular deitado a lista, com lugar fixo, caía sobre
-  // o pé da faixa da vez do confronto. Agora a lista mora no pé da coluna do
+  // o pé da faixa da vez do combate. Agora a lista mora no pé da coluna do
   // canto e fica com o que sobra dela: quem cede lugar são as rolagens.
   it('a caixa das rolagens fica com o que sobra da coluna e é um contêiner de altura, encostado no pé', async () => {
     const caixa = regraBase(await lerPlayerCss(), '.pp-rolagens')
@@ -460,9 +460,9 @@ describe('aviso da porta trancada no celular', () => {
 
 describe('canto da direita', () => {
   // Em 1280 x 800 as abas de andar, o selo da cena, o "Onde estou" e o
-  // confronto moravam todos em top 12 / right 12, um por cima do outro. Em
+  // combate moravam todos em top 12 / right 12, um por cima do outro. Em
   // 390 x 844 a barra cobria as abas e o selo, o alarme cobria o selo, e o
-  // confronto descia para cima do "Chamar o mestre", do aviso e do ferrolho.
+  // combate descia para cima do "Chamar o mestre", do aviso e do ferrolho.
   // O selo da cena e o "Onde estou" viraram um selo só (`.pp-where`).
   const FILHOS = ['.pp-floors', '.pp-where', '.pp-rolagens', '.pp-dice-feed']
 
@@ -689,7 +689,7 @@ describe('alto-falante (som da mesa) na pilha do canto de baixo à direita', () 
 describe('celular deitado: a pilha do canto de baixo sem altura de sobra', () => {
   // Em 844 x 390 (uns 340 px úteis com a barra do navegador) a pilha em pé
   // não cabe: o popover do alto-falante saía pelo alto da tela, a coluna do
-  // canto com o confronto aberto descia até a mão do chamado, e as rolagens
+  // canto com o combate aberto descia até a mão do chamado, e as rolagens
   // caíam sobre o pé da faixa da vez. Deitado, a pilha vira duas colunas no pé:
   // a de pedra (zoom e alto-falante) na borda e a do chamado ao lado.
   it('o popover abre para a esquerda do alto-falante, com o pé no pé dele: só cresce para cima', async () => {
@@ -733,7 +733,7 @@ describe('celular deitado: a pilha do canto de baixo sem altura de sobra', () =>
 
 describe('duas colunas dividem a faixa livre do mapa ao meio', () => {
   // As ações do lugar (à esquerda, depois da coluna do painel) e a coluna do
-  // canto (à direita: as rolagens no pé, o confronto) moram na mesma altura.
+  // canto (à direita: as rolagens no pé, o combate) moram na mesma altura.
   // Cada uma tinha o seu teto: o das ações era a metade da TELA, medido a
   // partir da borda já deslocada pelo painel, e o das rolagens, 260 px
   // encostados à direita. A 320, 390 e 768 (com a coluna do painel aberta) as

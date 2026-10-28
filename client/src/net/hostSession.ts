@@ -38,7 +38,6 @@ import {
   raioDoPeriodo,
   roomClueForPlayer,
   sceneNameForPlayer,
-  turnForPlayer,
   waitingTokensForPlayer,
   type CompanionMarks,
   type GroupViewer,
@@ -56,14 +55,12 @@ import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encont
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
-import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
 import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
-import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
@@ -1675,10 +1672,14 @@ export interface HostSessionOptions {
   now?: () => number
   randomId?: () => string
   /**
-   * INICIATIVA: de quem é a vez no mestre, lida a cada snapshot. Ausente =
-   * ninguém. O jogador só recebe o recorte disto (`turnForPlayer`).
+   * MODO BATALHA (fatia B4): a cena `sceneKey` (`tableSceneKey`) está em
+   * batalha? Lido a cada snapshot e a cada pedido de movimento; mora só na
+   * sessão do mestre (`stores/batalhaStore.ts`), nunca no arquivo. Ausente =
+   * nenhuma cena em batalha. Só vale em grade quadrada.
    */
-  getTurn?: () => TurnRef | null
+  getBatalha?: (sceneKey: string) => boolean
+  /** MODO BATALHA: o host aceitou `blocos` (> 0) para a ficha `tokenId` na cena `sceneKey` — o caminho andado soma. */
+  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number) => void
   /**
    * DIA/TARDE/NOITE: o período da sessão no mestre, lido a cada recorte.
    * Ausente ou `null` = mestre sem período (o campo `luz` nem sai). Cada
@@ -2951,7 +2952,7 @@ interface SentView {
   /** O que a conexão tem na tela; `null` = a espera. É de onde sai o próximo `patch`. */
   view: PlayerViewContent | null
   /**
-   * Os campos do snapshot que o `patch` NÃO leva (vez, perigo, confronto,
+   * Os campos do snapshot que o `patch` NÃO leva (batalha, perigo,
    * portas por atravessar…), em JSON; `null` = a espera. Mudou algum: vai o
    * snapshot inteiro, senão o jogador ficaria com o de antes.
    */
@@ -2989,8 +2990,8 @@ function contentOf(msg: SnapshotMessage): PlayerViewContent {
 }
 
 /**
- * O resto do snapshot (fora `contentOf`, `type` e `rev`), em JSON: vez,
- * perigo, confronto, portas por atravessar, andares, relógio… O `patch` não
+ * O resto do snapshot (fora `contentOf`, `type` e `rev`), em JSON: batalha,
+ * perigo, portas por atravessar, andares, relógio… O `patch` não
  * leva nada disto — o jogador mantém o que já tinha —, então mudou, vai inteiro.
  */
 function extrasOf(msg: SnapshotMessage): string {
@@ -3332,11 +3333,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
   // `restoredMapIds`: as cenas cuja memória veio dele.
   const claimedSeats = new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>()
-  // CONFRONTO — por mapa (`MapData.id`): casas que a ficha da vez já andou
-  // nesta vez. Preso ao `turno` e à ficha: "Próxima vez" muda o turno e o
-  // gasto velho deixa de valer sozinho. Mapa sem confronto no broadcast apaga
-  // a entrada (o mestre encerrou; recomeçar não herda o passo gasto).
-  const gastoDaVez = new Map<string, { turno: number; fichaId: string; casas: number }>()
   // AJUDANTE CONTRATADO — por id da ficha: a quem ela está emprestada e o
   // acordo. Mora aqui, junto de `ownership`, porque o acordo não pode durar
   // mais que a posse que descreve. Invariante: só existe enquanto
@@ -3546,20 +3542,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return outbound
   }
 
-  /** Casas já andadas na vez atual do confronto de `map` (0 sem confronto ou em vez nova). */
-  const gastoNaVez = (map: MapData): number => {
-    const confronto = map.confronto
-    if (confronto === undefined) return 0
-    const gasto = gastoDaVez.get(map.id)
-    return gasto !== undefined && gasto.turno === confronto.turno && gasto.fichaId === fichaDaVez(confronto) ? gasto.casas : 0
-  }
-
-  /** Soma ao gasto da vez o movimento que o host acabou de aceitar. */
-  const gastarNaVez = (map: MapData, tokenId: string, casas: number): void => {
-    const confronto = map.confronto
-    if (confronto === undefined) return
-    gastoDaVez.set(map.id, { turno: confronto.turno, fichaId: tokenId, casas: gastoNaVez(map) + casas })
-  }
+  /**
+   * MODO BATALHA (B4): a cena está em batalha na sessão do mestre e a grade é
+   * quadrada (os blocos são de casa quadrada; hex e triângulo andam como fora da batalha).
+   */
+  const emBatalha = (scene: HostScene): boolean => scene.map.gridShape === 'square' && options.getBatalha?.(tableSceneKey(scene)) === true
 
   /** Jogadores do conjunto, na ordem da sala (a do painel Grupo), não na ordem em que o mestre marcou. */
   const inRoomOrder = (chosen: ReadonlySet<string>): string[] =>
@@ -4439,15 +4426,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       place: memory.place,
       places: rememberedPlaces(playerId),
     }
-    // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
-    const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
-    if (turn !== null) base.turn = turn
+    // MODO BATALHA: só o "está em batalha" da cena DELE; o caminho andado fica no mestre.
+    if (emBatalha(scene)) base.batalha = true
     // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
     if (view.hazards.length > 0) base.hazards = view.hazards
-    // CONFRONTO: a faixa sai montada com as fichas QUE ESTE RECORTE MANDOU —
-    // nunca com a fila do mestre (ficha escondida fica de fora, e a vez dela vira `null`).
-    const confronto = confrontoParaJogador(map.confronto, [...sent], ownTokens, gastoNaVez(map))
-    if (confronto !== undefined) base.confronto = confronto
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
     if (view.gatilhos.length > 0) base.gatilhos = view.gatilhos
     // PORTAS POR ATRAVESSAR: só porta que já foi no recorte dele; o campo só existe quando há alguma.
@@ -4519,7 +4501,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const inputs = scene === null ? null : viewInputsFor(playerId, world, scene)
     // DIA/TARDE/NOITE: entra o período DA CENA dele, não o da sessão — a troca não mexe em quem está numa cena interior ou fixa.
     const periodoAqui = sessionPeriod()
-    const session = JSON.stringify([options.getTurn?.() ?? null, map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
+    const session = JSON.stringify([scene !== null && emBatalha(scene), map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&
@@ -4595,7 +4577,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (snapshot === null || view === null) return had === null ? null : { type: 'lobby.waiting' }
     // Sem tela anterior (primeira vez, ou saindo da espera): só o snapshot serve.
     if (last === undefined || had === undefined || had === null) return snapshot
-    // O que o `patch` não leva mudou (confronto, portas por atravessar, vez…): vai inteiro.
+    // O que o `patch` não leva mudou (batalha, portas por atravessar…): vai inteiro.
     if (last.extras !== extras) return snapshot
     const patch = diffView(had, view)
     // Campo que sumiu do mapa não cabe num patch: vai inteiro.
@@ -5723,6 +5705,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return trechoNoConhecido(map, token, to, { explored: memory.exp, vision: memory.vision, concealed: memory.ocultas ?? memory.covered })
   }
 
+  /**
+   * MODO BATALHA: as paredes que o jogador conhece no piso `piso` da cena
+   * `mapId` — as da última tela que esta conexão recebeu. `null` sem tela
+   * dessa cena (aí ele não conhece nada a mais nem a menos que o mestre).
+   */
+  function paredesDoRecorte(clientId: string, mapId: string, piso: number): Wall[] | null {
+    const recorte = sentViews.get(clientId)?.view?.map
+    return recorte === undefined || recorte.id !== mapId ? null : mapaDoPiso(recorte, piso).walls
+  }
+
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -5741,11 +5733,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (msg.caminhada === true && !cliqueParaAndarLigado(scene.map)) {
       return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'caminhada_desligada' })
     }
-    // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
-    // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
-    // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
-    const turnTokenId = turnTokenIdOn(options.getTurn?.() ?? null, scene.map)
-    // CONFRONTO: a vez e o passo são os da cena DELE — a de outra cena não pesa aqui.
     // LEVAR FICHA JUNTO: o ferido que ela leva sai do caminho junto com ela, então
     // não ocupa a casa para onde ela vai. O vínculo vem do mapa do MESTRE: o
     // recorte do jogador não o carrega.
@@ -5762,12 +5749,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (carrier !== null) for (const id of [carrier.id, ...passengerIdsOf(scene.map, carrier.id)]) carriedIds.add(id)
     const occupants = occupantsSeenBy(playerId, scene.map)?.filter((t) => !carriedIds.has(t.id))
     // PISOS: só as paredes (e as fichas) do piso da ficha seguram o passo — o piso de cima não é teto aqui.
-    const floorMap = mapaDoPiso(scene.map, tokenPisoOf(msg.tokenId, scene.map))
-    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
-      occupants,
-      turnTokenId,
-      gastoNaVez: gastoNaVez(scene.map),
-    })
+    const piso = tokenPisoOf(msg.tokenId, scene.map)
+    const floorMap = mapaDoPiso(scene.map, piso)
+    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? floorMap.walls } : undefined
+    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
     // tela dele, aqui no host). Depois de todas as recusas de sempre: a marca só acrescenta.
@@ -5782,13 +5767,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // VEÍCULO: o passo do motorista vira o passo do veículo (`driveTarget`).
     const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y)
     if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
-    // CONFRONTO: o passo aceito conta no passo máximo da vez.
-    if (result.casas !== undefined) gastarNaVez(scene.map, msg.tokenId, result.casas)
+    // MODO BATALHA: os blocos aceitos somam no caminho andado (no mestre) e vão na resposta.
+    const blocos = result.blocos === undefined ? {} : { blocos: result.blocos }
+    if (result.blocos !== undefined && result.blocos > 0) options.onBatalhaAndou?.(tableSceneKey(scene), msg.tokenId, result.blocos)
     // `landing` só leva o motivo; o ponto já passou pelo recorte em `validateTokenMove`
     // (chão em zona oculta ou sala secreta nunca vira destino; sala com teto vira,
     // como no movimento normal, e o teto abre porque a ficha entrou).
     const landing = result.landing === undefined ? {} : { landing: result.landing }
-    const accepted: HostMessage = { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y, ...landing }
+    const accepted: HostMessage = { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y, ...landing, ...blocos }
     const outbound: Outbound[] = [{ clientId, msg: accepted }]
     // O motorista não anda sozinho no mapa do mestre: quem anda é o VEÍCULO, e
     // `setTokenPosition` leva todos a bordo pelo mesmo deslocamento (ele inclusive).
@@ -7140,9 +7126,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const token = map.tokens.find((t) => t.id === msg.tokenId)
     const stair = map.stairs.find((s) => s.id === msg.stairId)
     if (token === undefined || stair === undefined) return { outbound: [] }
-    // As travas do passo seguram a escada também: cadeado do mestre, vez da
-    // iniciativa e vez do confronto (senão a ficha "foge" de piso sem gastar passo).
-    if (travaDaFichaDoJogador(map, token, turnTokenIdOn(options.getTurn?.() ?? null, map)) !== null) return { outbound: [] }
+    // As travas do passo seguram a escada também: cadeado e ficha congelada pelo mestre.
+    if (travaDaFichaDoJogador(token) !== null) return { outbound: [] }
     // CONGELAR FICHA: nem levando ficha congelada — ela subiria junto (`comFichaNoPiso`).
     if (congeladaPresaA(map, [token.id]) !== null) return { outbound: [] }
     const escada = escadaDaFicha({ stairs: [stair], grid: map.grid }, token)
@@ -7177,7 +7162,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const refuse = (reason: VehicleRejection) => ({ refuse: reply(clientId, { type: 'vehicle.rejected', reason }) })
     if (inPausedScene(scene)) return refuse('paused')
     if (awayPlayers.has(playerId)) return refuse('locked')
-    const trava = travaDaFichaDoJogador(scene.map, token, turnTokenIdOn(options.getTurn?.() ?? null, scene.map))
+    const trava = travaDaFichaDoJogador(token)
     if (trava !== null) return refuse(trava)
     return { playerId, scene, token }
   }
@@ -10692,10 +10677,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       waitsEndedInViews = false
       // Antes dos recortes, e em toda cena: quem está longe da porta também não pode herdar ferrolho morto.
       podarFerrolhosDe(world)
-      // Confronto encerrado: o gasto daquela cena não pode passar para o próximo.
-      for (const scene of allScenes(world)) {
-        if (scene.map.confronto === undefined) gastoDaVez.delete(scene.map.id)
-      }
       // Prazo vencido antes do mapa: o recado da volta chega e o snapshot já sai sem o ajudante.
       const outbound: Outbound[] = expireDue(world)
       // CONGELAR FICHA: o pedido que o mestre congelou sai da espera já neste envio.

@@ -21,10 +21,8 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
-import { useInitiativeStore } from '../stores/initiativeStore'
 import { alternarPausaDosNpcs } from '../stores/npcsAndando'
 import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
-import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
@@ -2432,8 +2430,6 @@ export function PixiCanvas({
         if (pilhaMudou.moveis) redrawProps()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
-        const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         // VOLTO JÁ: selo de ausente na ficha de quem saiu da mesa. A imagem
         // exportada é do mapa, não da sessão: sai sem selo.
         const awayTokenIds = exportScene === null ? useAwayTokensStore.getState().tokenIds : undefined
@@ -2451,7 +2447,6 @@ export function PixiCanvas({
           map.grid,
           single?.kind === 'token' ? single.id : null,
           camera.scale,
-          turnTokenId,
           awayTokenIds,
           glide,
           pinosDaCena(map),
@@ -2949,10 +2944,6 @@ export function PixiCanvas({
         if (state.pontoAberto !== previous.pontoAberto) redrawShapeLayers(['patrolRoutes'])
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
-      // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
-      const unsubscribeTurn = useInitiativeStore.subscribe((state, previous) => {
-        if (state.turn !== previous.turn) redrawTokens()
-      })
       // A store só troca de referência quando o conjunto de fichas fora da mesa muda.
       const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
         if (state.tokenIds !== previous.tokenIds) redrawTokens()
@@ -8753,7 +8744,6 @@ export function PixiCanvas({
         telhadosRenderer.destruir()
         unsubscribePontoAberto()
         unsubscribeTokens()
-        unsubscribeTurn()
         unsubscribeAwayTokens()
         unsubscribeContinente()
         unsubscribeDonos()

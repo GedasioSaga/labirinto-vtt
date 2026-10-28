@@ -8,7 +8,6 @@ import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/mar
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import type { MotivoDaCaminhada } from '../lib/cliqueParaAndar'
-import type { PlayerConfronto } from '../lib/confronto'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
@@ -1045,7 +1044,34 @@ export interface VehicleLeaveMessage {
  * saiu de perto antes do pedido chegar), `paused` (mesa pausada) e as travas
  * do passo (`travaDaFichaDoJogador`). Nunca quem está a bordo nem quantos lugares há.
  */
-export type VehicleRejection = 'cheio' | 'longe' | 'paused' | 'locked' | 'congelado' | 'not_your_turn'
+export type VehicleRejection = 'cheio' | 'longe' | 'paused' | 'locked' | 'congelado'
+
+/** Teto do id da transição de batalha e do texto dela, em caracteres. */
+export const BATALHA_TRANSICAO_MAX = 64
+export const BATALHA_TEXTO_MAX = 40
+
+/** MODO BATALHA (B4): a abertura da batalha que o jogador e a tela da mesa tocam (ver `HostMessage`). */
+export interface BatalhaIniciadaMessage {
+  type: 'batalha.iniciada'
+  transicao?: string
+  texto?: string
+}
+
+/** Texto curto não vazio, sem quebra de linha, até `max` caracteres. */
+function textoCurto(value: unknown, max: number): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\r\n]/.test(value)
+}
+
+/** Valida o aviso de batalha iniciada (mestre e jogador usam o mesmo). Campo torto derruba a mensagem. */
+export function lerBatalhaIniciada(value: unknown): BatalhaIniciadaMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.iniciada') return null
+  if (value.transicao !== undefined && !textoCurto(value.transicao, BATALHA_TRANSICAO_MAX)) return null
+  if (value.texto !== undefined && !textoCurto(value.texto, BATALHA_TEXTO_MAX)) return null
+  const msg: BatalhaIniciadaMessage = { type: 'batalha.iniciada' }
+  if (typeof value.transicao === 'string') msg.transicao = value.transicao
+  if (typeof value.texto === 'string') msg.texto = value.texto.trim()
+  return msg
+}
 
 /**
  * JOGADOR TRANCA PORTA: `on: true` corre o ferrolho da porta `wallId` do lado
@@ -1844,12 +1870,9 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  // `turn`: id da ficha da vez (iniciativa), só quando ela está em `map.tokens`
-  // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
+  // `batalha` (MODO BATALHA, B4): a cena DELE está em batalha. Fora do `patch`. Ausente = fora da batalha.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
-  // `confronto`: a faixa do confronto da cena DELE, já recortada (`lib/confronto.ts`).
-  // Ausente = sem confronto nesta cena.
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
   // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
   // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
@@ -1865,14 +1888,21 @@ export type HostMessage =
   // `waiting` (ENCONTRO MARCADO): ver o comentário acima de `HostMessage`.
   // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
   // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; confronto?: PlayerConfronto; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   // `landing`: a ficha parou em outro lugar que não o pedido, e por quê (ficha sem chão => chão mais próximo).
-  | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding }
+  // `blocos` (MODO BATALHA, B4): os blocos que o host contou neste movimento; o cliente só mostra.
+  // Em batalha (x, y) é o centro da casa e pode ficar antes do pedido: a ficha parou na última
+  // casa legal, sem motivo (`lib/batalha/movimentoEmBatalha.ts`). Ausente = fora da batalha.
+  | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding; blocos?: number }
+  // MODO BATALHA (B4): o mestre ligou a batalha na cena; vai aos jogadores da cena e à tela da
+  // mesa que a mostra, uma vez. `transicao`: id da animação de abertura escolhida; `texto`: o
+  // nome que aparece nela (ex.: "Royals"). Os dois opcionais: ausente = sem animação ou sem texto.
+  | BatalhaIniciadaMessage
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   // VEÍCULO: o "Subir"/"Descer" não valeu, e por quê (`VehicleRejection`). Aceito não tem resposta: vem no snapshot.
   | { type: 'vehicle.rejected'; reason: VehicleRejection }

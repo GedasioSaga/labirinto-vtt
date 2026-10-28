@@ -46,7 +46,7 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { useInitiativeStore } from './stores/initiativeStore'
+import { useBatalhaStore } from './stores/batalhaStore'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -881,8 +881,9 @@ function App() {
         onDancaChange: setDanca,
         onPescaChange: setPescas,
         onTunnelChange: setTunnel,
-        // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
-        getTurn: () => useInitiativeStore.getState().turn,
+        // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
+        getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
+        onBatalhaAndou: (sceneKey, tokenId, blocos) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos),
         // O período vai no snapshot recortado (`luzParaJogador`): só o da cena de cada jogador, nunca hora.
         getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
         onTableScreensChange: setTableScreens,
@@ -935,7 +936,7 @@ function App() {
     criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
       getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
-      getTurn: () => useInitiativeStore.getState().turn,
+      getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
       getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
@@ -978,11 +979,16 @@ function App() {
       }),
     [],
   )
-  // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
+  // MODO BATALHA: a abertura vai uma vez aos jogadores da cena e à TV (antes do snapshot), e
+  // cena que entrou ou saiu da batalha manda o snapshot na hora. O caminho andado não reenvia nada.
   useEffect(
     () =>
-      useInitiativeStore.subscribe((state, previous) => {
-        if (state.turn !== previous.turn) notificarPontes((ponte) => ponte.notifyTurnChanged())
+      useBatalhaStore.subscribe((state, previous) => {
+        const anuncio = state.anuncio
+        if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
+        if (JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
+          notificarPontes((ponte) => ponte.notifyBatalhaChanged())
+        }
       }),
     [],
   )

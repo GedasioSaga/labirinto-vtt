@@ -279,7 +279,7 @@ describe('Minhas pistas — "Mostrar para…"', () => {
 /**
  * PAINEL PISTAS, lado da sessão: para cada pino, quem RECEBEU (o pino saiu
  * no pacote dele, com o texto) e quem LEU (abriu o cartão, `pin.read`). É o
- * que o mestre anotava no papel antes do confronto. Mesa do crime em
+ * que o mestre anotava no papel antes do combate. Mesa do crime em
  * miniatura: Gabi ao lado do bilhete, Fábio no mesmo quarto, Ana longe.
  */
 

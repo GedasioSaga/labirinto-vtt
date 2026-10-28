@@ -94,7 +94,6 @@ import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/
 import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
-import { useInitiativeStore } from './initiativeStore'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -1012,13 +1011,11 @@ export function subscribeToServedScenes(onChange: () => void): () => void {
 }
 
 /**
- * A ficha que já estava no mapa `mapId` trocou `fromId` por `toId` (ver
- * `withTokens` em `lib/travessiaDaFicha.ts`). A iniciativa é guardada por mapa + id: o valor e a vez dela
- * vão com ela, e a que chegou entra sem nenhum dos dois. Se o mapa é o que
- * está aberto (`inEditor`), a seleção dela também segue a ficha.
+ * A ficha que já estava no mapa de destino trocou `fromId` por `toId` (ver
+ * `withTokens` em `lib/travessiaDaFicha.ts`). Se o mapa é o que está aberto
+ * (`inEditor`), a seleção dela segue a ficha.
  */
-function renameResidentOutsideMap(mapId: string, fromId: string, toId: string, inEditor: boolean): void {
-  useInitiativeStore.getState().renameToken(mapId, fromId, toId)
+function renameResidentOutsideMap(fromId: string, toId: string, inEditor: boolean): void {
   if (!inEditor) return
   const { selection } = useMapStore.getState()
   if (!selectionHas(selection, { kind: 'token', id: fromId })) return
@@ -2165,7 +2162,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
-    for (const [travelerId, residentId] of renamedResidents) renameResidentOutsideMap(to.map.id, travelerId, residentId, toSceneId === activeSceneId)
+    for (const [travelerId, residentId] of renamedResidents) renameResidentOutsideMap(travelerId, residentId, toSceneId === activeSceneId)
     return true
   },
 

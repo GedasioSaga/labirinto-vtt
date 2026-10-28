@@ -4,8 +4,8 @@ import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } fr
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { playerHiddenRings } from './fogFilter'
-import { clampToMaxStep, findOccupant, tokensOccupy } from './movementRules'
-import { cabeNoPasso, casasDoTrajeto, fichaDaVez } from './confronto'
+import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
+import { passoEmBatalha } from './batalha/movimentoEmBatalha'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -22,9 +22,6 @@ export interface TokenMoveRequest {
 
 /**
  * `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado').
- * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez, ou
- * há CONFRONTO na cena (`lib/confronto.ts`) e a ficha está na fila fora da vez.
- * `too_far`: CONFRONTO — o trajeto passa do que resta do passo.
  * `congelado`: CONGELAR FICHA — o mestre congelou a ficha (`Token.congelado`),
  * ou uma que iria presa a ela (a bordo, levada; a sessão confere, `lib/congelar.ts`).
  * `a_bordo`: VEÍCULO — a ficha vai a bordo e não é a motorista (`driverOf`): quem
@@ -35,12 +32,10 @@ export type TokenMoveRejection =
   | 'not_owner'
   | 'locked'
   | 'congelado'
-  | 'not_your_turn'
   | 'outside_map'
   | 'wall'
   | 'outside_floor'
   | 'occupied'
-  | 'too_far'
   | 'a_bordo'
 
 /**
@@ -50,9 +45,9 @@ export type TokenMoveRejection =
  */
 export type TokenMoveLanding = 'nearest_floor'
 
-/** `casas`: só quando o movimento conta no passo do confronto — é o que o host soma ao gasto da vez. */
+/** `blocos`: só no MODO BATALHA — os blocos que este movimento andou (`lib/batalha/movimentoEmBatalha.ts`). */
 export type TokenMoveResult =
-  | { ok: true; x: number; y: number; landing?: TokenMoveLanding; casas?: number }
+  | { ok: true; x: number; y: number; landing?: TokenMoveLanding; blocos?: number }
   | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
@@ -65,13 +60,14 @@ export interface TokenMoveOptions {
    */
   occupants?: readonly Token[]
   /**
-   * INICIATIVA: id da ficha da vez NESTE mapa. Com valor, o jogador só move
-   * essa ficha; ausente ou `null` = sem iniciativa aqui, todo mundo move. O
-   * host (mestre) nunca espera a vez.
+   * MODO BATALHA (fatia B4): a cena está em batalha. O destino vai para o
+   * centro da casa, os blocos contam pelo menor caminho legal e a resposta
+   * leva `blocos` (`lib/batalha/movimentoEmBatalha.ts`). `paredesDoJogador`: as
+   * paredes do recorte que ESTE jogador recebeu, no piso da ficha (o caminho é
+   * o que ele faria; o host o anda com as paredes de `map`). Ausente = fora da
+   * batalha. Não vale para o mestre (`isHost`).
    */
-  turnTokenId?: string | null
-  /** Casas que a ficha da vez já andou nesta vez (confronto). Ausente = 0. */
-  gastoNaVez?: number
+  batalha?: { paredesDoJogador: readonly Wall[] }
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -297,24 +293,15 @@ function pathStaysOnFloor(map: MapData, compiled: CompiledFloor, fromX: number, 
 
 /**
  * As travas que seguram a ficha de um JOGADOR, qualquer que seja o jeito de
- * andar: o passo (`validateTokenMove`) e a troca de piso pela escada
- * (`handleTokenPiso` no host). Cadeado do mestre, ficha CONGELADA pelo mestre
- * (o cadeado vence: segura mais), vez da iniciativa (`turnTokenId` ausente ou
- * `null` = sem iniciativa aqui) e vez do CONFRONTO (só prende ficha que está
- * na fila). O mestre não passa por aqui. `=== true` e não `estaCongelada`
+ * andar: o passo (`validateTokenMove`), a troca de piso pela escada
+ * (`handleTokenPiso` no host) e o "Subir"/"Descer" do veículo. Cadeado do
+ * mestre e ficha CONGELADA pelo mestre (o cadeado vence: segura mais). O
+ * mestre não passa por aqui. `=== true` e não `estaCongelada`
  * (`lib/congelar.ts`): aquele arquivo puxa este, e o import daria volta.
  */
-export function travaDaFichaDoJogador(
-  map: Pick<MapData, 'confronto'>,
-  token: Pick<Token, 'id' | 'locked' | 'congelado'>,
-  turnTokenId: string | null | undefined,
-): 'locked' | 'congelado' | 'not_your_turn' | null {
+export function travaDaFichaDoJogador(token: Pick<Token, 'locked' | 'congelado'>): 'locked' | 'congelado' | null {
   if (token.locked) return 'locked'
   if (token.congelado === true) return 'congelado'
-  const turn = turnTokenId ?? null
-  if (turn !== null && turn !== token.id) return 'not_your_turn'
-  const confronto = map.confronto
-  if (confronto !== undefined && confronto.fila.includes(token.id) && fichaDaVez(confronto) !== token.id) return 'not_your_turn'
   return null
 }
 
@@ -330,14 +317,9 @@ export function validateTokenMove(
   if (!options.isHost) {
     const owned = ownership[request.playerId] ?? [] // jogador sem entrada no mapa de posse não possui nada
     if (!owned.includes(token.id)) return { ok: false, reason: 'not_owner' }
-    const trava = travaDaFichaDoJogador(map, token, options.turnTokenId)
+    const trava = travaDaFichaDoJogador(token)
     if (trava !== null) return { ok: false, reason: trava }
   }
-
-  // CONFRONTO: o passo conta só para pedido de jogador e só para ficha da
-  // fila (a vez já foi checada acima); o mestre e quem está fora da fila andam livres.
-  const confronto = options.isHost ? undefined : map.confronto
-  const naFila = confronto !== undefined && confronto.fila.includes(token.id)
 
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 
@@ -357,6 +339,24 @@ export function validateTokenMove(
     return { ok: true, x: landing.x, y: landing.y, landing: 'nearest_floor' }
   }
 
+  // MODO BATALHA: centro da casa, blocos pelo menor caminho legal (o mestre anda livre).
+  if (!options.isHost && options.batalha !== undefined) {
+    const occupants = options.occupants ?? map.tokens
+    return passoEmBatalha({
+      grid: map.grid,
+      colunas: map.width,
+      linhas: map.height,
+      de: from,
+      para: { x: request.x, y: request.y },
+      tamanho: token.size,
+      passoMaximo: maxStepOf(map),
+      paredesDoHost: map.walls,
+      paredesDoJogador: options.batalha.paredesDoJogador,
+      noChao: (p) => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
+      ocupada: (p) => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
+    })
+  }
+
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
   const path = findTokenPath(from, to, map.walls, map.grid)
   if (path === null) return { ok: false, reason: 'wall' }
@@ -374,12 +374,7 @@ export function validateTokenMove(
     return { ok: false, reason: 'occupied' }
   }
 
-  if (confronto === undefined || !naFila) return { ok: true, x: to.x, y: to.y }
-  // O passo é medido no MESMO trajeto que acabou de passar (o vão da porta
-  // aberta conta), na régua do mapa.
-  const casas = casasDoTrajeto(map, path)
-  if (!cabeNoPasso(confronto.passo, options.gastoNaVez ?? 0, casas)) return { ok: false, reason: 'too_far' }
-  return { ok: true, x: to.x, y: to.y, casas }
+  return { ok: true, x: to.x, y: to.y }
 }
 
 /**

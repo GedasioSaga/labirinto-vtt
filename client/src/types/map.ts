@@ -2250,14 +2250,6 @@ export interface MapData {
    */
   hazards?: Hazard[]
   /**
-   * CONFRONTO desta cena (`lib/confronto.ts`): fila de vez e passo por vez.
-   * `undefined` = sem confronto — mapa salvo antes deste campo abre igual, sem
-   * linha de migração. Cada cena guarda o seu: a vez de uma nunca mexe na de
-   * outra. NÃO viaja para o jogador: o recorte tira o campo, e o host manda só
-   * a faixa (`PlayerConfronto`) montada com as fichas que ele pode ver.
-   */
-  confronto?: Confronto
-  /**
    * PERIGO QUE SE ALASTRA (`lib/perigo.ts`): fogo ou água presos a Salas, que o
    * mestre faz avançar pelas portas abertas. `undefined` = sem perigo — mapa
    * salvo antes deste campo abre igual. O jogador recebe só as salas tomadas
@@ -2552,20 +2544,6 @@ export interface Perigo {
   salas: string[]
   /** `undefined` === nenhuma sala em cinza (água, ou fogo que ainda não avançou): sem linha de migração — quem confere o campo é `perigosFromFile`. */
   cinzas?: string[]
-}
-
-/**
- * Confronto numa cena. `fila`: ids das fichas na ordem da vez (jogadores e
- * NPCs). `vez`: índice em `fila` de quem joga agora. `passo`: casas por vez,
- * inteiro >= 1, medido na régua do mapa (`measurementMode`). `turno`: conta as
- * vezes passadas desde o começo — muda a cada "Próxima vez", e é o que zera o
- * gasto da vez no host, mesmo quando a vez volta à mesma ficha.
- */
-export interface Confronto {
-  fila: string[]
-  vez: number
-  passo: number
-  turno: number
 }
 
 /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo curto que o jogador lê na aba. */

@@ -5184,7 +5184,7 @@ button.pp-colecao__casa:focus-visible {
  * que sobra até o pé. Ela é um contêiner de altura: a lista mostra só as
  * rolagens que cabem INTEIRAS nela (fim do arquivo) — as mais novas, embaixo,
  * perto dos controles. Antes a lista tinha lugar fixo e caía sobre o pé do
- * confronto no celular deitado. Só texto: o toque atravessa para o mapa.
+ * combate no celular deitado. Só texto: o toque atravessa para o mapa.
  */
 .pp-rolagens {
   flex: 1 1 0;
@@ -7006,7 +7006,7 @@ button.pp-colecao__casa:focus-visible {
 
 /*
  * CELULAR DEITADO (até 480 px de altura): em pé a pilha do canto de baixo não
- * cabe — com o confronto aberto, a coluna do canto descia até a mão do
+ * cabe — com o combate aberto, a coluna do canto descia até a mão do
  * chamado e as rolagens caíam sobre o pé da faixa da vez. Deitado, a pilha
  * vira duas colunas no pé da tela: a de pedra (zoom no chão, alto-falante em
  * cima dele) na borda, e a do chamado (a mão no chão, o aviso em cima) ao

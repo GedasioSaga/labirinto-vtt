@@ -1,7 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PlayerConfronto } from '../lib/confronto'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Stair, Token } from '../types/map'
@@ -23,18 +22,12 @@ function mapa(tokens: Token[], stairs: Stair[] = [ESCADA]): MapData {
   return { ...createEmptyMap('m', 'M', 20, 20, 40), tokens, stairs }
 }
 
-/** O que a tela sabe das travas do passo: a vez da iniciativa, o confronto e a cena pausada. */
+/** O que a tela sabe das travas do passo além da ficha: a cena pausada. */
 interface Travas {
-  turn: string | undefined
-  confronto: PlayerConfronto | undefined
   paused: boolean
 }
 
-const SEM_TRAVAS: Travas = { turn: undefined, confronto: undefined, paused: false }
-
-function confronto(fila: string[], vez: string | null): PlayerConfronto {
-  return { fila, vez, suaVez: vez === 'lia', passo: 6, restam: vez === 'lia' ? 6 : null }
-}
+const SEM_TRAVAS: Travas = { paused: false }
 
 describe('PlayerEscada — subir e descer na tela do jogador', () => {
   let container: HTMLDivElement
@@ -54,7 +47,7 @@ describe('PlayerEscada — subir e descer na tela do jogador', () => {
   })
 
   const render = (map: MapData, own: string[], onTrocar: (tokenId: string, stairId: string) => void = () => {}, travas: Travas = SEM_TRAVAS) =>
-    act(() => root.render(<PlayerEscada map={map} ownTokens={own} onTrocar={onTrocar} turn={travas.turn} confronto={travas.confronto} paused={travas.paused} />))
+    act(() => root.render(<PlayerEscada map={map} ownTokens={own} onTrocar={onTrocar} paused={travas.paused} />))
   const botao = (): HTMLButtonElement | null => container.querySelector('button')
 
   it('ficha dele no 1º piso, no mapa que o RECORTE entrega: "Descer ao térreo", nunca "Subir ao 1º piso"', () => {
@@ -94,38 +87,30 @@ describe('PlayerEscada — subir e descer na tela do jogador', () => {
     expect(botao()?.textContent).toBe('Subir ao 1º piso')
   })
 
-  it('fora da vez da iniciativa, fora da vez no confronto ou com a cena pausada: nenhum botão (o host recusaria)', () => {
+  it('com a cena pausada ou a ficha segurada/congelada pelo mestre: nenhum botão (o host recusaria)', () => {
     const naEscada = mapa([ficha('lia', 200, 220), ficha('caio', 600, 600)])
-    const comTravas = (travas: Partial<Travas>) => render(naEscada, ['lia'], () => {}, { ...SEM_TRAVAS, ...travas })
-    // Iniciativa: a vez é do Caio.
-    comTravas({ turn: 'caio' })
-    expect(botao()).toBeNull()
-    // Confronto: a Lia está na fila e a vez é do Caio; ou de alguém que ela não vê (vez null).
-    comTravas({ confronto: confronto(['caio', 'lia'], 'caio') })
-    expect(botao()).toBeNull()
-    comTravas({ confronto: confronto(['lia'], null) })
-    expect(botao()).toBeNull()
     // Cena pausada pelo mestre.
-    comTravas({ paused: true })
+    render(naEscada, ['lia'], () => {}, { paused: true })
     expect(botao()).toBeNull()
-    // Pré-condição: na vez dela (iniciativa e confronto) e fora da fila do confronto, o botão volta.
-    comTravas({ turn: 'lia' })
-    expect(botao()?.textContent).toBe('Subir ao 1º piso')
-    comTravas({ confronto: confronto(['caio', 'lia'], 'lia') })
-    expect(botao()?.textContent).toBe('Subir ao 1º piso')
-    comTravas({ confronto: confronto(['caio'], 'caio') })
+    // Cadeado e floco do mestre (as travas do host, `travaDaFichaDoJogador`).
+    render(mapa([{ ...ficha('lia', 200, 220), locked: true }]), ['lia'])
+    expect(botao()).toBeNull()
+    render(mapa([{ ...ficha('lia', 200, 220), congelado: true }]), ['lia'])
+    expect(botao()).toBeNull()
+    // Pré-condição: sem trava, o botão volta.
+    render(naEscada, ['lia'])
     expect(botao()?.textContent).toBe('Subir ao 1º piso')
   })
 
-  it('a vez passou ao Caio enquanto esperava o host: o botão some, e na vez dela volta sem o "Subindo…" preso', () => {
+  it('a cena pausou enquanto esperava o host: o botão some, e ao voltar não fica o "Subindo…" preso', () => {
     const onTrocar = vi.fn()
     const naEscada = mapa([ficha('lia', 200, 220), ficha('caio', 600, 600)])
     render(naEscada, ['lia'], onTrocar)
     act(() => botao()?.click())
     expect(botao()?.textContent).toBe('Subindo…')
-    render(naEscada, ['lia'], onTrocar, { ...SEM_TRAVAS, turn: 'caio' })
+    render(naEscada, ['lia'], onTrocar, { paused: true })
     expect(botao()).toBeNull()
-    render(naEscada, ['lia'], onTrocar, { ...SEM_TRAVAS, turn: 'lia' })
+    render(naEscada, ['lia'], onTrocar, SEM_TRAVAS)
     expect(botao()?.textContent).toBe('Subir ao 1º piso')
     expect(botao()?.getAttribute('aria-disabled')).toBe('false')
     expect(onTrocar).toHaveBeenCalledTimes(1)

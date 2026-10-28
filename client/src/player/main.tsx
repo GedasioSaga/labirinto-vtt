@@ -49,7 +49,6 @@ import { PlayerEscada } from './PlayerEscada'
 import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
-import { TurnWaitNotice } from './TurnWaitNotice'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -1382,7 +1381,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}
             waitingTokens={waitingTokens}
-            turnTokenId={state.turn ?? null}
             settings={settings}
             focusTokenId={focus.tokenId}
             focusSeq={focus.seq}
@@ -1630,8 +1628,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerEscada
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
           />
@@ -1639,8 +1635,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerVeiculo
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             aviso={state.moveNotice?.id}
             onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}
@@ -2100,7 +2094,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {mapSharedNoticeText(state.mapShared.from)}
           </p>
         )}
-        <TurnWaitNotice notice={state.turnNotice} />
         {state.hazardNotice && (
           // ZONA DE PERIGO: "Você entrou no fogo!". `key` no id reanuncia a cada entrada.
           <p key={state.hazardNotice.id} className="pp-notice" role="alert">
