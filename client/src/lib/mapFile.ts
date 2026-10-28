@@ -47,6 +47,18 @@ import {
   type DificuldadePesca,
   type MinigamePesca,
 } from '../minigames/pesca/tipos'
+import {
+  BARRACA_MAX_LENGTH,
+  DIFICULDADES_TIRO,
+  ENTRADAS_TIRO,
+  MEDALHAS_TIRO,
+  MINIGAME_TIRO_PADRAO,
+  TENTATIVAS_MAX,
+  TENTATIVAS_MIN,
+  TIRO_TEXTO_MAX_LENGTH,
+  type DificuldadeTiro,
+  type MinigameTiro,
+} from '../minigames/tiro/tipos'
 import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
@@ -259,7 +271,34 @@ export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined
   const jogo = campoDoArquivo(valor, 'jogo')
   if (jogo === 'danca') return lerDancaDoArquivo(valor)
   if (jogo === 'pesca') return lerPescaDoArquivo(valor)
+  if (jogo === 'tiro') return lerTiroDoArquivo(valor)
   return undefined
+}
+
+const PERMITIDAS_TIRO: readonly ('escolha' | DificuldadeTiro)[] = ['escolha', ...DIFICULDADES_TIRO]
+
+/**
+ * O TIRO do disco, pelo caminho da pesca: textos aparados e cortados nos
+ * tetos de `tiro/tipos.ts`; `tentativas` fora de 1..5 vem para a ponta mais
+ * perto (o quebrado, para o inteiro mais perto) e o que não é número volta o
+ * padrão; `entrada`, `permitida` e `meta` fora da lista voltam o padrão.
+ * Prêmio e consequência são só texto.
+ */
+function lerTiroDoArquivo(valor: object): MinigameTiro {
+  const padrao = MINIGAME_TIRO_PADRAO
+  const tentativas = campoDoArquivo(valor, 'tentativas')
+  return {
+    jogo: 'tiro',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), FALA_MAX_LENGTH, padrao.fala),
+    barraca: textoDoArquivo(campoDoArquivo(valor, 'barraca'), BARRACA_MAX_LENGTH, padrao.barraca),
+    entrada: umDaLista(ENTRADAS_TIRO, campoDoArquivo(valor, 'entrada')) ?? padrao.entrada,
+    tentativas: ehNumeroFinito(tentativas) ? Math.min(TENTATIVAS_MAX, Math.max(TENTATIVAS_MIN, Math.round(tentativas))) : padrao.tentativas,
+    permitida: umDaLista(PERMITIDAS_TIRO, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
+    meta: umDaLista(MEDALHAS_TIRO, campoDoArquivo(valor, 'meta')) ?? padrao.meta,
+    premio: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'premio'), padrao.premio.texto, TIRO_TEXTO_MAX_LENGTH) },
+    consequencia: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'consequencia'), padrao.consequencia.texto, TIRO_TEXTO_MAX_LENGTH) },
+  }
 }
 
 /**
@@ -291,10 +330,10 @@ function lancesDoArquivo(valor: unknown, padrao: number): number {
   return Math.min(LANCES_MAX, Math.max(LANCES_MIN, Math.round(valor)))
 }
 
-/** O `{ texto }` do prêmio e da consequência da pesca: objeto que não é objeto, ou texto que não é texto, volta o padrão. */
-function textoDeObjetoDoArquivo(valor: unknown, padrao: string): string {
+/** O `{ texto }` do prêmio e da consequência da pesca e do tiro: objeto que não é objeto, ou texto que não é texto, volta o padrão. */
+function textoDeObjetoDoArquivo(valor: unknown, padrao: string, max = PESCA_TEXTO_MAX_LENGTH): string {
   if (!ehObjetoDoArquivo(valor)) return padrao
-  return textoDoArquivo(campoDoArquivo(valor, 'texto'), PESCA_TEXTO_MAX_LENGTH, padrao)
+  return textoDoArquivo(campoDoArquivo(valor, 'texto'), max, padrao)
 }
 
 /** A DANÇA do disco, como sempre foi lida (mapa antigo abre igual). */

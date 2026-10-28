@@ -1024,7 +1024,8 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
   /**
    * Só do MINIGAME: o desafio inteiro do jogo escolhido — a dança (NPC, fala,
    * música, nota mínima, prêmio e consequência) ou a pesca (NPC, fala, lago,
-   * como começa, lances, prêmio e consequência). Lido campo a campo do disco
+   * como começa, lances, prêmio e consequência) ou o tiro (NPC, fala, barraca,
+   * como começa, tentativas, dificuldade, meta, prêmio e consequência). Lido campo a campo do disco
    * (`lib/mapFile.ts`); pino de minigame sem ele recebe `MINIGAME_PADRAO` (a
    * dança). NUNCA sai no recorte do jogador (`lib/fogFilter.ts`): o prêmio e
    * a consequência são do mestre, e o convite leva aos chamados só o que eles

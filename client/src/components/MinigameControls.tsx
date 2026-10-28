@@ -145,6 +145,7 @@ const CONSEQUENCIAS: readonly { valor: ConsequenciaDanca; rotulo: string }[] = [
 const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
   { valor: 'danca', rotulo: 'Dança' },
   { valor: 'pesca', rotulo: 'Pesca' },
+  { valor: 'tiro', rotulo: 'Tiro' },
 ]
 
 const ENTRADAS: readonly { valor: EntradaPesca; rotulo: string }[] = [
@@ -672,7 +673,13 @@ export function MinigameControls(props: MinigameControlsProps) {
           onChange={(jogo) => jogo !== minigame.jogo && onChange(trocarJogoDoMinigame(minigame, jogo))}
         />
       </fieldset>
-      {minigame.jogo === 'pesca' ? <PainelDaPesca {...props} minigame={minigame} /> : <PainelDaDanca {...props} minigame={minigame} />}
+      {minigame.jogo === 'pesca' ? (
+        <PainelDaPesca {...props} minigame={minigame} />
+      ) : minigame.jogo === 'tiro' ? (
+        <p className="lb-minigame__nota">A barraca de tiro guarda o desafio do protótipo; os campos chegam na fase das telas.</p>
+      ) : (
+        <PainelDaDanca {...props} minigame={minigame} />
+      )}
     </div>
   )
 }

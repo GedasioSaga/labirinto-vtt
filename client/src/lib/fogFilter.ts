@@ -5061,8 +5061,9 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
  */
 function minigameVisivelDe(pin: Pin): MinigameVisivel {
   const minigame = pin.minigame
-  if (minigame === undefined || minigame.jogo !== 'pesca') return { jogo: 'danca', entrada: 'mestre' }
-  return { jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }
+  if (minigame === undefined || (minigame.jogo !== 'pesca' && minigame.jogo !== 'tiro')) return { jogo: 'danca', entrada: 'mestre' }
+  // Pesca e tiro: o jogo, e a entrada pela lista (o torto cai no mestre).
+  return { jogo: minigame.jogo, entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }
 }
 
 /**
