@@ -40,8 +40,8 @@ export interface OpcoesDaCena {
   reduzirMovimento: boolean
   /**
    * Só a abertura de batalha (`aberturasDeBatalha.ts`) passa: o nome que a
-   * cena mostra (grupo, inimigo). Ausente = o padrão da cena. A transição de
-   * local não recebe e ignora.
+   * cena mostra (grupo, inimigo). Ausente ou vazio = sem nome (até 28/10/2026
+   * era o padrão da cena, "Royals"). A transição de local não recebe e ignora.
    */
   nome?: string
 }

@@ -19,10 +19,16 @@ import { clamp01, easeInOutSine, easeOutCubic, span } from '../../transicoes/cur
  * fecham sobre o cruzamento para a troca.
  *
  * Contrato: o mesmo `CriarCena` das transições (`src/transicoes/tipos.ts`),
- * com um campo a mais e opcional, `nome` (padrão "Royals"). Aprovada pelo
- * mestre em 27/10/2026: vai no pacote como tipo `batalha`, o app registra em
+ * com um campo a mais e opcional, `nome`. Aprovada pelo mestre em 27/10/2026:
+ * vai no pacote como tipo `batalha`, o app registra em
  * `transicoes/aberturasDeBatalha.ts` e toca com `tocarAberturaDeBatalha`
  * (`transicoes/motor.ts`), que passa o `nome` em `OpcoesDaCena`.
+ *
+ * Nome ausente, vazio ou só espaço = sem nome (pedido de 28/10/2026: "quero a
+ * opção de não precisar colocar o nome"). Sai junto o que só existia por causa
+ * dele: o segundo tranco e a chapa de ferro de quando ele bate, e o "tiin" do
+ * reflexo no movimento reduzido (ali a lâmina não brilha). O "Royals" de
+ * aventura nova é o valor inicial do campo no app, não da cena.
  *
  * Tudo é desenhado com `ShaderMaterial` sem conversão de cor na saída, então
  * o que foi pintado no canvas é o que aparece, com ou sem gerenciamento de
@@ -30,7 +36,6 @@ import { clamp01, easeInOutSine, easeOutCubic, span } from '../../transicoes/cur
  * nada aqui).
  */
 
-export const NOME_PADRAO = 'Royals'
 export const NOME_MAX_LETRAS = 24
 
 /** Roteiro em segundos (movimento completo). */
@@ -68,14 +73,14 @@ export const ROTEIRO_REDUZIDO = {
 } as const
 
 export interface OpcoesDaBatalha extends OpcoesDaCena {
-  /** O nome que aparece (grupo, equipe, inimigo). Vazio = "Royals". */
+  /** O nome que aparece (grupo, equipe, inimigo). Ausente ou vazio = sem nome. */
   nome?: string
 }
 
-/** Espaços juntados, até 24 letras (sem partir emoji ao meio); vazio vira o padrão. */
+/** Espaços juntados, até 24 letras (sem partir emoji ao meio); `''` = sem nome. */
 export function nomeDaBatalha(nome: string | undefined): string {
   const limpo = (nome ?? '').replace(/\s+/g, ' ').trim()
-  return limpo === '' ? NOME_PADRAO : Array.from(limpo).slice(0, NOME_MAX_LETRAS).join('')
+  return Array.from(limpo).slice(0, NOME_MAX_LETRAS).join('')
 }
 
 // ── Medidas ──────────────────────────────────────────────────────────────────
@@ -809,7 +814,7 @@ interface EstadoDaCamera {
   giro: number
 }
 
-function estadoDaCamera(t: number, reduzir: boolean, distancia: number): EstadoDaCamera {
+function estadoDaCamera(t: number, reduzir: boolean, distancia: number, comNome: boolean): EstadoDaCamera {
   const T = ROTEIRO_DAS_ESPADAS
   if (reduzir) return { x: 0, y: 0, z: distancia, giro: 0 }
   const escala = distancia / DISTANCIA_BASE
@@ -819,10 +824,10 @@ function estadoDaCamera(t: number, reduzir: boolean, distancia: number): EstadoD
   let z = distancia * (1.04 - 0.04 * u * u) * (1 - 0.045 * easeInOutSine(span(t, estouro, T.fechaFim)))
   const tau = t - estouro
   z -= 0.45 * escala * pancada(tau, 0.035)
-  // Tremor forte e curto no estouro; um segundo, menor, quando o nome bate.
+  // Tremor forte e curto no estouro; um segundo, menor, quando o nome bate (sem nome, não há o que bater).
   const tauNome = t - T.nomeAssenta
   const forte = tau > 0 ? 0.15 * escala * Math.exp(-tau * 16) : 0
-  const nome = tauNome > 0 ? 0.05 * escala * Math.exp(-tauNome * 20) : 0
+  const nome = comNome && tauNome > 0 ? 0.05 * escala * Math.exp(-tauNome * 20) : 0
   return {
     x: forte * (Math.sin(tau * 110) + 0.5 * Math.sin(tau * 170)) + nome * Math.sin(tauNome * 120),
     y: forte * 0.8 * (Math.cos(tau * 97) + 0.5 * Math.sin(tau * 151)) + nome * Math.cos(tauNome * 105),
@@ -1044,20 +1049,24 @@ export function criarCenaEspadasCruzadas(THREE: ThreeModule, opcoes: OpcoesDaBat
   estrela.visible = !reduzir
   scene.add(ondaLarga, ondaRapida, clarao, estrela)
 
-  // Nome.
+  // Nome. Sem nome, nada é pintado e o grupo nem entra na cena: o cruzamento fica à mostra.
   const nome = nomeDaBatalha(opcoes.nome)
-  const pintado = pintarNome(THREE, nome)
-  guardar(pintado.metal)
-  guardar(pintado.mascara)
-  const larguraDoNome = NOME_LARGURA * pintado.fracao
+  const comNome = nome !== ''
+  const pintado = comNome ? pintarNome(THREE, nome) : null
+  if (pintado) {
+    guardar(pintado.metal)
+    guardar(pintado.mascara)
+  }
+  const fracaoDoNome = pintado?.fracao ?? 0
+  const larguraDoNome = NOME_LARGURA * fracaoDoNome
   const uNome = {
-    mapa: { value: pintado.metal },
-    mascara: { value: pintado.mascara },
+    mapa: { value: pintado?.metal ?? null },
+    mascara: { value: pintado?.mascara ?? null },
     uCalor: { value: 0 },
     uBrasa: { value: 0 },
     uBrilho: { value: -1 },
     uOpacidade: { value: 0 },
-    uLargura: { value: Math.max(0.05, pintado.fracao) },
+    uLargura: { value: Math.max(0.05, fracaoDoNome) },
     uTempo: { value: 0 },
   }
   const geoNome = guardar(new THREE.PlaneGeometry(NOME_LARGURA, NOME_ALTURA))
@@ -1065,7 +1074,7 @@ export function criarCenaEspadasCruzadas(THREE: ThreeModule, opcoes: OpcoesDaBat
   grupoDoNome.position.set(0, CENTRO_Y, NOME_Z)
   grupoDoNome.add(malha(geoNome, material(VERTICE, FRAG_NOME_METAL, uNome, false), 11))
   grupoDoNome.add(malha(geoNome, material(VERTICE, FRAG_NOME_BRILHO, uNome, true), 12))
-  scene.add(grupoDoNome)
+  if (comNome) scene.add(grupoDoNome)
 
   // Faíscas do choque (na frente do nome).
   const rndFaiscas = semente(4243)
@@ -1281,7 +1290,7 @@ export function criarCenaEspadasCruzadas(THREE: ThreeModule, opcoes: OpcoesDaBat
     }
 
     // Câmera.
-    const c = estadoDaCamera(t, reduzir, distancia)
+    const c = estadoDaCamera(t, reduzir, distancia, comNome)
     camera.position.set(c.x, c.y, c.z)
     camera.rotation.set(0, 0, c.giro)
 
@@ -1330,7 +1339,7 @@ export function criarCenaEspadasCruzadas(THREE: ThreeModule, opcoes: OpcoesDaBat
   ajustarTela(aspecto)
   atualizar(0)
 
-  return { scene, camera, atualizar, ajustarTela, criarSom: (kit: KitDeSom) => criarSomDasEspadas(kit, reduzir), descartar }
+  return { scene, camera, atualizar, ajustarTela, criarSom: (kit: KitDeSom) => criarSomDasEspadas(kit, reduzir, comNome), descartar }
 }
 
 // ── Som (sintetizado) ────────────────────────────────────────────────────────
@@ -1603,7 +1612,7 @@ function corte(s: Saida, a: number) {
 
 type Pista = [nome: string, quando: number, tocar: (agora: number) => void]
 
-function criarSomDasEspadas(kitDoMotor: KitDeSom, reduzir: boolean) {
+function criarSomDasEspadas(kitDoMotor: KitDeSom, reduzir: boolean, comNome: boolean) {
   const { ctx } = kitDoMotor
   // Limitador na saída: o choque soma estalo, tinido, batida e drone no mesmo instante.
   const limitador = ctx.createDynamicsCompressor()
@@ -1622,7 +1631,7 @@ function criarSomDasEspadas(kitDoMotor: KitDeSom, reduzir: boolean) {
   const s: Saida = { ctx, seco: limitador, sala, ruido: kitDoMotor.ruido }
   const T = ROTEIRO_DAS_ESPADAS
   const R = ROTEIRO_REDUZIDO
-  const pistas: Pista[] = reduzir
+  const todas: Pista[] = reduzir
     ? [
         ['drone', 0, (a) => drone(s, a, T.duracao, R.impacto)],
         ['choque', R.impacto, (a) => choque(s, a, 0.75)],
@@ -1644,6 +1653,10 @@ function criarSomDasEspadas(kitDoMotor: KitDeSom, reduzir: boolean) {
         ['corte', T.corte, (a) => corte(s, a)],
         ['fecha', T.fechaFim, (a) => batida(s, a, 0.75, 80, 26, 0.8, 30)],
       ]
+  // Sem nome, fica fora o som que só ele tinha: a chapa de quando ele bate e, no
+  // movimento reduzido, o "tiin" (ali a lâmina não brilha, só o nome brilhava).
+  const soDoNome: readonly string[] = comNome ? [] : reduzir ? ['brilho'] : ['chapa']
+  const pistas = todas.filter(([nome]) => !soDoNome.includes(nome))
   const tocadas = new Set<string>()
   return {
     atualizar(t: number) {

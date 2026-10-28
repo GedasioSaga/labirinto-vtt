@@ -1054,7 +1054,12 @@ export type VehicleRejection = 'cheio' | 'longe' | 'paused' | 'locked' | 'congel
 export const BATALHA_TRANSICAO_MAX = 64
 export const BATALHA_TEXTO_MAX = 40
 
-/** MODO BATALHA (B4): a abertura da batalha que o jogador e a tela da mesa tocam (ver `HostMessage`). */
+/**
+ * MODO BATALHA (B4): a abertura da batalha que o jogador e a tela da mesa tocam (ver `HostMessage`).
+ * `texto` ausente = abertura sem nome (a cena do pacote não põe mais "Royals" no lugar, desde
+ * 28/10/2026). Vazio nunca vai no fio: `textoCurto` o recusa e derrubaria o aviso inteiro no
+ * jogador, inclusive no de versão antiga.
+ */
 export interface BatalhaIniciadaMessage {
   type: 'batalha.iniciada'
   transicao?: string

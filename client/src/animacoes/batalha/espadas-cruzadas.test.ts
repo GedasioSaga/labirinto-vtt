@@ -9,7 +9,8 @@ import meta from './espadas-cruzadas.json'
  * Espadas cruzadas (aprovada em 27/10/2026): do índice do pacote até a cena.
  * A entrada `batalha` entra no registro das aberturas (e um tipo que o app não
  * conhece cai fora sem levar as outras), e o `nome` passado em `OpcoesDaCena`
- * é o texto que a cena pinta; sem nome, "Royals".
+ * é o texto que a cena pinta; sem nome, nenhum (pedido de 28/10/2026: antes
+ * caía em "Royals").
  */
 
 /** Os textos pintados no canvas 2D: é ali que o nome vira desenho. */
@@ -63,7 +64,7 @@ const INDICE = JSON.stringify({
 const origem: OrigemDoPacote = { lerIndice: () => Promise.resolve(INDICE), importar: () => Promise.resolve(moduloDasEspadas) }
 
 describe('Espadas cruzadas no pacote', () => {
-  it('o nome de OpcoesDaCena chega à cena; sem nome, "Royals"', async () => {
+  it('o nome de OpcoesDaCena chega à cena; sem nome, nada é pintado', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.stubGlobal('Path2D', Path2DFalso)
     const carregado = await carregarPacoteDeAnimacoes(origem)
@@ -73,12 +74,12 @@ describe('Espadas cruzadas no pacote', () => {
     if (criar === null) throw new Error('a abertura não entrou no registro')
 
     for (const [nome, esperado] of [
-      ['Piratas do Leste', 'Piratas do Leste'],
-      [undefined, 'Royals'],
+      ['Piratas do Leste', ['Piratas do Leste']],
+      [undefined, []],
     ] as const) {
       textosPintados.length = 0
       const cena = criar(THREE, nome === undefined ? { reduzirMovimento: true } : { reduzirMovimento: true, nome })
-      expect(new Set(textosPintados.filter((texto) => texto !== 'H'))).toEqual(new Set([esperado]))
+      expect(new Set(textosPintados.filter((texto) => texto !== 'H'))).toEqual(new Set(esperado))
       expect(cena.atualizar(meta.duracaoNaturalS).fade).toBe(1)
       cena.descartar()
     }

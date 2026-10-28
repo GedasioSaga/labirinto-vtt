@@ -25,7 +25,7 @@ import './livro.css'
  * "Iniciar batalha" / "Encerrar batalha" do livro da mesa, no alto da página
  * Cenas, e o Shift+B de qualquer ponto do editor (menos num campo de texto).
  * Iniciar abre a escolha da abertura (as do pacote, ou "Nenhuma") e do nome
- * (padrão "Royals"), lembrados por aventura; confirmar liga a batalha na cena
+ * (começa em "Royals"; apagado = abertura sem nome), lembrados por aventura; confirmar liga a batalha na cena
  * (`batalhaStore.ligar`), o App manda `batalha.iniciada` aos jogadores e à TV,
  * e a abertura toca aqui também. Encerrar desliga. Mapa triangular não tem
  * batalha (decisão 7): o botão fica desligado e o balão diz o motivo.
@@ -176,7 +176,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
       <Dialogo aberto={escolhendo} titulo="Iniciar batalha" onFechar={() => setEscolhendo(false)} pequeno descricao="A abertura toca no mestre, nos jogadores e na TV.">
         <form className="gr-batalha-dlg" onSubmit={confirmar}>
           <CampoSel rotulo="Abertura" opcoes={opcoes} valor={transicao} onChange={setTransicao} />
-          <CampoTexto rotulo="Nome na abertura" valor={nome} onChange={setNome} maxLength={NOME_DA_BATALHA_MAX} placeholder={NOME_PADRAO_DA_BATALHA} />
+          {/* Vazio = a abertura toca sem nome; o placeholder diz isso (o "Royals" é só o valor inicial). */}
+          <CampoTexto rotulo="Nome na abertura" valor={nome} onChange={setNome} maxLength={NOME_DA_BATALHA_MAX} placeholder="Sem nome" />
           <Acoes>
             <Botao tipo="submit" variante="primario">
               Iniciar

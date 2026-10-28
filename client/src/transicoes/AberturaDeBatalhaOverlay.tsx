@@ -5,7 +5,7 @@ import { tocarAberturaDeBatalha, type ControleDeTransicao } from './motor'
 import './transicoes.css'
 
 /**
- * MODO BATALHA (fatia B5): a abertura da batalha (as espadas e o "Royals") em
+ * MODO BATALHA (fatia B5): a abertura da batalha (as espadas ou a Marinha, com o nome ou sem) em
  * tela cheia, no mestre, no jogador e na TV. Toca uma vez por `abertura.id` e
  * some com o mesmo fade curto da transição de local (`TransicaoOverlay.tsx`).
  * Sem `transicao` ("Nenhuma") não aparece; abertura que este app não tem

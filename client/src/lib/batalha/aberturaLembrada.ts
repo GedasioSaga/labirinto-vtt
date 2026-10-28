@@ -4,7 +4,12 @@
  * Preferência do mestre, não da mesa: não vai ao arquivo nem aos jogadores.
  */
 
-/** O nome que a cena mostra quando o mestre não escreve outro (pedido do mestre: "o nome royals aparecendo"). */
+/**
+ * O nome com que o campo abre numa aventura sem escolha guardada (pedido do
+ * mestre: "o nome royals aparecendo"). Só o valor inicial: o mestre que apaga
+ * fica sem nome na abertura, e o vazio fica lembrado como vazio (pedido de
+ * 28/10/2026: "quero a opção de não precisar colocar o nome").
+ */
 export const NOME_PADRAO_DA_BATALHA = 'Royals'
 /** Teto do nome no campo; o fio aceita até `BATALHA_TEXTO_MAX` (net/protocol.ts). */
 export const NOME_DA_BATALHA_MAX = 24
@@ -25,7 +30,11 @@ export function chaveDaAberturaLembrada(aventuraId: string | null): string {
   return PREFIXO + (aventuraId ?? SEM_AVENTURA)
 }
 
-/** O nome que vai no aviso: aparado, cortado no teto; vazio = a cena usa o padrão dela. */
+/**
+ * O nome que vai no aviso: aparado, cortado no teto. Vazio = `undefined`, e o
+ * aviso sai sem `texto`, que a cena lê como "sem nome". Não manda `texto: ''`:
+ * `lerBatalhaIniciada` recusa texto vazio e derrubaria o aviso inteiro.
+ */
 export function nomeParaOFio(texto: string): string | undefined {
   const limpo = texto.replace(/[\r\n]+/g, ' ').trim().slice(0, NOME_DA_BATALHA_MAX)
   return limpo.length === 0 ? undefined : limpo
@@ -61,7 +70,9 @@ export function gravarAberturaLembrada(armazem: ArmazemDaAbertura | null, aventu
 
 /**
  * A escolha com que o diálogo abre: a lembrada, se a abertura ainda existe no
- * app; senão a primeira da lista (as espadas), senão "Nenhuma".
+ * app; senão a primeira da lista (a ordem do pacote, por nome de arquivo: a
+ * Bandeira da Marinha vem antes das Espadas), senão "Nenhuma". O nome
+ * lembrado vale mesmo vazio (`''` = sem nome); só sem nada guardado é "Royals".
  */
 export function escolhaInicial(lembrada: AberturaLembrada | null, idsDisponiveis: readonly string[]): AberturaLembrada {
   const texto = lembrada?.texto ?? NOME_PADRAO_DA_BATALHA
