@@ -1,0 +1,75 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#306644",
+  "detalhes": {
+    "agrupamento": 0.6,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.65,
+    "escalaMax": 1.5,
+    "escalaMin": 1.1,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 2396,
+    "variacaoDeTom": 0.035
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.623046840337338,
+      "miolo": 0.594401024378991,
+      "razao": 1.0481927432549
+    },
+    "base-2.png": {
+      "borda": 0.572265620576218,
+      "miolo": 0.57606339721436,
+      "razao": 0.993407363396968
+    },
+    "base-3.png": {
+      "borda": 0.560546851484105,
+      "miolo": 0.582899274522788,
+      "razao": 0.961653026490756
+    }
+  },
+  "id": "floresta",
+  "idDoApp": "floresta",
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 662266,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 2334
+  },
+  "nome": "Floresta",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 2360
+  }
+}
