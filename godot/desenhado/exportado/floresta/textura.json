@@ -12,13 +12,13 @@
   "contrato": 1,
   "corMedia": "#306644",
   "detalhes": {
-    "agrupamento": 0.6,
+    "agrupamento": 0.65,
     "arquivo": "detalhes.png",
     "celulaCasas": 2,
     "colunas": 2,
-    "densidade": 0.65,
-    "escalaMax": 1.5,
-    "escalaMin": 1.1,
+    "densidade": 0.62,
+    "escalaMax": 1.3,
+    "escalaMin": 1.05,
     "gradeDoMundoPx": 64,
     "ladoPx": 512,
     "linhas": 2,
@@ -54,7 +54,7 @@
   "idDoApp": "floresta",
   "lote": 1,
   "memoria": {
-    "discoBytes": 662266,
+    "discoBytes": 658103,
     "gpuBytes": 5592404,
     "tetoDiscoBytes": 1572864,
     "tetoGpuBytes": 6291456

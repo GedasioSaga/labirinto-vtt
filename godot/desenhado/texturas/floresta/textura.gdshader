@@ -14,7 +14,11 @@
 // - cada lobo pintado como esfera fez a copa ler como cacho de bolinhas;
 // - 3 ou 4 lobos fundos na silhueta viraram trevo, e 5 ondas iguais viraram estrela
 //   (carimbos que o olho acha); as ondas agora variam de tamanho, alcance e ângulo;
-// - copa pequena e espaçada vira confete: as copas têm 2 a 2,6 casas e se cobrem;
+// - pedido do usuário (28/10, sobre a folha do lote 1): "tem muita árvore em cima de
+//   outra árvore". As copas caíram de 2 a 2,6 para 1,3 a 1,8 casas, a densidade baixou
+//   e cada copa leva uma faixa do chão da mata em volta, que abre um vão escuro quando
+//   duas caem perto. O espalhamento do contrato (1 ponto livre por célula de 1 casa)
+//   não garante distância mínima: ainda sai um par empilhado aqui e ali;
 // - pincelada de 1/4 de casa dentro da copa virou pontilhado a 50% (saiu);
 // - ruído miúdo na borda de uma faixa lisa deixava ilhotas de luz (bolinhas a 300%).
 shader_type canvas_item;
@@ -66,7 +70,7 @@ float uniao_suave(float a, float b, float k) {
 
 // O raio da copa i (px do mundo; a célula vai de -64 a 64).
 float raio_copa(int i) {
-	return i == 0 ? 57.0 : (i == 1 ? 53.0 : (i == 2 ? 56.0 : 51.0));
+	return i == 0 ? 49.0 : (i == 1 ? 46.0 : (i == 2 ? 48.0 : 45.0));
 }
 
 // Quantas ondas a borda da copa i tem (rasas: é o contorno da folhagem, não lobo).
@@ -140,8 +144,13 @@ vec4 copa(int i, vec2 q, float px) {
 	//    no chão escuro), borda esfumada, alfa 0,24; e um halo leve em volta, que
 	//    escurece a copa de trás junto desta (dá a profundidade da mata).
 	float ds = sd_copa(i, q - vec2(3.0, 4.0), 0.12) + onda;
-	float a_sombra = max((1.0 - smoothstep(-3.0, 4.0, ds)) * 0.24, (1.0 - smoothstep(0.0, 5.0, d)) * 0.16);
+	float a_sombra = (1.0 - smoothstep(-3.0, 4.0, ds)) * 0.24;
 	acc = sobre(acc, SOMBRA_VERDE, a_sombra);
+	// Uma faixa do chão da mata em volta da copa (até 5 px). Em cima do chão ela quase
+	// não aparece (é a cor dele); em cima da copa de trás, abre um vão escuro entre as
+	// duas, e cada copa lê como uma árvore só, mesmo quando o app joga duas perto.
+	float a_vao = (1.0 - smoothstep(1.0, 5.0, d)) * 0.55;
+	acc = sobre(acc, CHAO_MATA * 0.9, a_vao);
 
 	// 2. Contorno: a folha escurecida, mais fino do lado da luz (1,3 px) e mais
 	//    grosso do lado da sombra (2 px).
