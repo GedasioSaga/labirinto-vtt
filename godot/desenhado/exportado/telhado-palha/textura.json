@@ -1,0 +1,78 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png"
+    ],
+    "canais": {
+      "b": "0",
+      "g": "lado ao longo do beiral: 0,5 + 0,5 * lado",
+      "r": "valor (0,5 = a cor do mestre)"
+    },
+    "ladoPx": 512,
+    "orientacao": "x = u, ao longo do beiral; a linha de baixo da imagem encosta na ponta do beiral (v = 0) e y sobe para a cumeeira",
+    "periodoCasas": 8
+  },
+  "beiral": {
+    "alturaPx": 6.0,
+    "escuro": 0.38,
+    "franjaPassoPx": 20.0,
+    "franjaPx": 2.0
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.4921876633889,
+      "miolo": 1.91308628112893,
+      "razao": 0.779989736013555
+    },
+    "base-2.png": {
+      "borda": 1.47656263463432,
+      "miolo": 1.83951861923561,
+      "razao": 0.802689692397836
+    }
+  },
+  "faixa": {
+    "de": "cumeeira-amarrada"
+  },
+  "id": "telhado-palha",
+  "idDoApp": "palha",
+  "lote": 5,
+  "luz": {
+    "agua": 0.22,
+    "lado": 0.12
+  },
+  "memoria": {
+    "discoBytes": 380543,
+    "gpuBytes": 2796202,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 3.0,
+    "faixa": 0.14,
+    "semente": 2940
+  },
+  "nome": "Palha",
+  "onda": 2,
+  "rincao": {
+    "escuro": 0.1,
+    "larguraPx": 1.7
+  },
+  "tingir": {
+    "claroDesde": 0.94,
+    "conta": "luz-oklab",
+    "escuroAte": 0.1,
+    "ganhoL": 0.48,
+    "neutro": 0.5
+  },
+  "tipo": "telhado",
+  "tom": {
+    "amplitude": 0.03,
+    "escala": 6.0,
+    "semente": 2966
+  },
+  "valorMedio": 0.51
+}
