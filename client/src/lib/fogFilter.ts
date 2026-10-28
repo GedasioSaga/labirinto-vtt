@@ -2,6 +2,7 @@ import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, Ha
 import { lerPeriodo, luzAcesaNoPeriodo } from './periodo'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
+import { barrancoParaJogador } from './barranco'
 import { importadasParaJogador, texturasParaJogador } from './texturas'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
@@ -4042,6 +4043,22 @@ function recorteDoGrupo(
           penhascos: terrenoVisivel
             ? penhascosParaJogador(
                 map.penhascos,
+                (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+                (p) => inHiddenPlace(p) || inConcealZone(p),
+              )
+            : undefined,
+        }),
+    // BARRANCO: o mesmo molde do penhasco (`barrancoParaJogador`): só o que
+    // encosta no que ele conhece, do piso do grupo; o resto diria na névoa onde
+    // há parte alta. Terreno escondido dos jogadores: nada.
+    ...(map.barranco === undefined
+      ? {}
+      : {
+          barranco: terrenoVisivel
+            ? barrancoParaJogador(
+                map.barranco,
+                pisoDoGrupo(mapaInteiro, viewers, loans),
+                map.grid,
                 (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
                 (p) => inHiddenPlace(p) || inConcealZone(p),
               )

@@ -141,6 +141,9 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('texturasContainer', [], ['terreno'], SOB),
   faixa('relevoMask', [], ['terreno'], SOB),
   faixa('relevoContainer', [], ['terreno'], SOB),
+  // BARRANCO: em Terreno, logo acima do relevo, com a máscara do conhecido (no editor mora dentro do relevoContainer).
+  faixa('barrancoMask', [], ['terreno'], SOB),
+  faixa('barrancoContainer', [], ['terreno'], SOB),
   faixa('regionStrokes', ['regiao'], ['salas'], SOB),
   faixa('paths', ['desenho'], ['anotacoes'], SOB),
   faixa('carimbosMask', [], ['terreno'], SOB),
