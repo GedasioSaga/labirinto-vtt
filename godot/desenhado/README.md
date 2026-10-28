@@ -36,13 +36,19 @@ godot/desenhado/
   comum/          CONGELADA: cabecalho/rodape.gdshaderinc (o molde do shader da textura),
                   mundo.gdshaderinc (hash e ruidoDoMundo do app), compor.gdshader (a mesa
                   de prova), contrato.gd, pintor.gd, mesa.gd
+                  onda 2 (telhado, faixa, objeto; CONTRATO.md seção 8): telhado.gdshaderinc,
+                  rodape_telhado/rodape_objeto.gdshaderinc, contrato_telhado.gd,
+                  pintor_telhado.gd, mesa_telhado.gd
   texturas/<id>/  do designer: textura.gdshader + config.json (_modelo/ é o ponto de partida,
-                  grama/ é o piloto)
+                  grama/ é o piloto; na onda 2, telhado-telhas/ é o piloto e _modelo-objeto/
+                  e _modelo-faixa/ os modelos)
   exportado/<id>/ gerada: base-1..3.png, detalhes.png, textura.json (vai para o git; o
                   .gdignore de exportado/ esconde a pasta do editor do Godot)
   prova/<id>/     gerada: folha.png e peças (fora do git; o padrão quando não se passa --prova)
-  scripts/exportar_uma.gd, scripts/folha_do_lote.gd
+  scripts/exportar_uma.gd, scripts/folha_do_lote.gd, scripts/folha_do_lote_telhados.gd
   ferramentas/atual.ts   pinta o Atual (a textura de hoje do app) com o código de client/src
+  ferramentas/telhado.ts monta o telhado Desenhado com as águas do app (a referência da
+                         seção 8 do CONTRATO.md) e o Atual com o pintarTelhado de hoje
 ```
 
 ### Fila do Godot (obrigatória)

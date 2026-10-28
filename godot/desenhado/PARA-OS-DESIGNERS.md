@@ -138,8 +138,78 @@ memória); o que você acha que ainda está fraco, dito com honestidade; e o has
 
 ---
 
+## Onda 2: o que muda para quem faz telhado, objeto e faixa (28/10/2026)
+
+Acrescente este bloco ao prompt de cada designer da onda 2 (lote 5). O resto do prompt
+acima continua valendo (onde escrever, a fila, a vez do editor, o commit, sem testes).
+
+**Leia, além do ESTILO.md:** CONTRATO.md seção 8 inteira; `comum/telhado.gdshaderinc` (as
+funções que você escreve); o piloto `texturas/telhado-telhas/` (telhado com faixa própria);
+e o modelo do seu tipo: `texturas/_modelo-objeto/` (chaminé) ou `texturas/_modelo-faixa/`
+(cumeeira amarrada). No app, só para ler: `client/src/texturas/telhado.ts` (o desenho de
+hoje), `client/src/texturas/meioTermo/chamine.ts` e `cumeeiraAmarrada.ts`.
+
+**Por tipo:**
+
+| Item | `tipo` | Você escreve | Rodapé | Notas |
+|---|---|---|---|---|
+| `telhado-madeira`, `telhado-palha` | `telhado` | `vec2 pintar_telhado(p, P, px, sem, qual)` devolvendo (valor, lado) | `rodape_telhado` | `idDoApp` = `madeira` ou `palha`; a palha põe `"faixa": { "de": "cumeeira-amarrada" }` e, se quiser a franja, `"beiral": { "franjaPx": 1.6 }` |
+| `cumeeira-amarrada` | `faixa` | `vec3 pintar_faixa(q, L, meia, px, sem)` devolvendo (valor, lado, alfa), com `#define SO_FAIXA` | `rodape_telhado` | `"modelo": "palha"`, `"faixa": { "comprimentoPx": 36, "meiaLarguraPx": 4, "onde": ["cumeeira"] }` (a de hoje: 3,4 px de cada lado, amarra a cada 9 px) |
+| `chamine` | `objeto` | `vec4 pintar_objeto(q, px, sem)`, cor reta e alfa, COM a sombra | `rodape_objeto` | `"objeto": { "ladoPx": 64, "corpoPx": 40, "ancoraPx": [29, 29] }`: q = px do mapa a partir do centro do corpo; o app escala o corpo para 11 a 20 px do mapa |
+
+**O que é diferente do chão:**
+
+1. **Valor, não cor** (telhado e faixa). Você pinta em cinza: 0,5 é exatamente a cor que o
+   mestre escolher, das 6 do modelo ou livre. Mexa a luz com `valor_de(luz)` (luz de
+   -0,5 a 0,5). A média da água tem de ficar em 0,5 ± 0,03 (o exportador mede a base-1 e
+   avisa). Nada de matiz: a cor é do mestre.
+2. **O espaço é a água.** p.x = u ao longo do beiral; p.y = v subindo da PONTA do beiral.
+   As fileiras fecham no período (P / altura da fileira inteiro, e v = 0 é a borda de baixo
+   de uma fileira). `fileira_em(v, a)` devolve o índice e onde o ponto está na fileira.
+3. **O lado, não a luz lateral.** O que acende de um lado (a capa da telha, a beira da
+   tábua, o feixe da palha) vai no segundo número, `lado` (-1..1, +1 = virada para +u). O
+   app acende pela luz de cada água. Se você pintar a luz lateral no valor, ela fica certa
+   numa água e errada na do outro lado.
+4. **O que é do app, não seu:** a luz de cada água, a ponta escura do beiral, a sombra do
+   rincão, a sombra no chão, a cor. Só mude os números (`luz`, `beiral`, `rincao` no
+   `config.json`) se a folha pedir.
+5. **Mesma geometria nas variantes.** Fileiras, colunas e empeno usam `sem`; tom de cada
+   peça, desbotado e grão usam `sem + qual * 1000`. 2 variantes bastam no telhado.
+6. **Escala calma.** O app de hoje pinta 32 telhas por casa (13 x 10 px); o piloto usa 7,5
+   (25,6 x 21,3 px) para nada virar escama a 25%. Pense na tábua e na palha do mesmo jeito:
+   menos e maior. Peça repetida igual em fila vira "wwww": sorteie um pouco cada peça (o
+   piloto sorteia o quanto cada ponta de capa avança).
+7. **Objeto: a luz não gira.** A chaminé fica sempre de pé na tela: pinte a sombra para
+   baixo e para a direita, como no chão. Não é tingida: use a paleta.
+
+**Comandos:** os mesmos (`exportar_uma.gd --textura=<id> --folha --prova=<PROVA>`). O
+exportador vê o `tipo` e monta a mesa dos telhados: a casa retangular e a casa em L em 3
+cores, a 100%, 50%, 25% e 300%, o telhado grande e o Atual ao lado. `--mapa` não vale aqui.
+A faixa e o objeto saem por cima do telhado do Desenhado (`"sob"` no config; padrão
+`telhado-palha` e `telhado-telhas`); se ele ainda não existe, por cima de um telhado liso
+na cor (a folha avisa). A palha mostra a faixa da `cumeeira-amarrada` assim que ela for
+exportada; antes disso, a folha avisa e sai sem faixa.
+
+**Olhe na folha:** as águas se leem (cada uma num tom, como o Atual); o telhado grande a
+50% sem repetição reconhecível; nada de escama, bolinha ou "wwww" a 25% e 50%; as 3 cores
+sem estourar (a escura, preto ou nogueira ou musgo, ainda mostra a forma); a cumeeira e o
+rincão do L a 300% sem serrilha nem degrau. A média de cada cor está no título de cada
+bloco: até ±0,01 de luz OKLab.
+
+**Pronto quando** (CONTRATO.md 8.9): sai com 0; valor médio 0,5 ± 0,03; emenda entre 0,8 e
+1,25 (ou explicada); e o olho na folha acima. A repetição "completo" do chão não vale aqui.
+
+---
+
 ## Notas para o orquestrador
 
+- **Onda 2:** a folha do lote dos telhados é outro comando (lê `area50.png`,
+  `atual-area50.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta):
+  `... --script res://scripts/folha_do_lote_telhados.gd -- --texturas=telhado-telhas,telhado-madeira,telhado-palha,chamine,cumeeira-amarrada --prova=<raiz das PROVAS> --saida=<raiz>/lote.png`.
+  A palha e a `cumeeira-amarrada` se usam uma à outra (a faixa da palha vem da cumeeira; a
+  folha da cumeeira sai por cima da palha) e a `chamine` sai por cima da `telhado-telhas`:
+  depois que os 5 terminarem, rode `--folha` de novo nesses três antes da folha do lote,
+  para cada um pegar a versão final do outro.
 - A folha do lote, depois que os 5 terminarem:
   `... --script res://scripts/folha_do_lote.gd -- --texturas=a,b,c,d,e --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote N"`
   (lê `<raiz>/<id>/area50.png`, `atual-area50.png`, `perto300.png` e `resumo.json`).

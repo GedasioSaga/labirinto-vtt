@@ -12,6 +12,9 @@ extends SceneTree
 const Contrato := preload("res://comum/contrato.gd")
 const Pintor := preload("res://comum/pintor.gd")
 const Mesa := preload("res://comum/mesa.gd")
+const ContratoTelhado := preload("res://comum/contrato_telhado.gd")
+const PintorTelhado := preload("res://comum/pintor_telhado.gd")
+const MesaTelhado := preload("res://comum/mesa_telhado.gd")
 
 
 ## Se algo travar (erro de script no meio de uma espera), a fila não fica presa.
@@ -39,6 +42,11 @@ func _rodar() -> void:
 		quit(2)
 		return
 	var id: String = args["textura"]
+	# Onda 2 (telhado, faixa, objeto): outro contrato e outra mesa (CONTRATO.md, seção 8).
+	# O chão não tem "tipo" e segue exatamente o caminho de antes.
+	if ContratoTelhado.tipo_de(id) != "chao":
+		await _rodar_telhado(args, id, inicio)
+		return
 	var lido := Contrato.ler_config(id)
 	if not lido["ok"]:
 		for e in lido["erros"]:
@@ -111,6 +119,75 @@ func _rodar() -> void:
 		if m["ok"]:
 			var rep: Dictionary = m["resumo"]["repeticao"]
 			print("  repetição (0 = cópia, 1 = não repete): só base-1 %.2f, base misturada %.2f, completo %.2f" % [rep["soBase1"], rep["baseMisturada"], rep["completo"]])
+			print("  folha: ", prova.path_join("folha.png"))
+		else:
+			ok = false
+	print("Pronto em %d ms" % (Time.get_ticks_msec() - inicio))
+	quit(0 if ok else 1)
+
+
+## Telhado, faixa ou objeto: pinta, grava o textura.json e, com --folha, monta a mesa dos telhados.
+func _rodar_telhado(args: Dictionary, id: String, inicio: int) -> void:
+	var lido := ContratoTelhado.ler_config(id)
+	if not lido["ok"]:
+		for e in lido["erros"]:
+			printerr("  ERRO config: ", e)
+		quit(2)
+		return
+	var cfg: Dictionary = lido["config"]
+	var saida: String = args.get("saida", ProjectSettings.globalize_path("res://exportado/%s" % id))
+	var prova: String = args.get("prova", ProjectSettings.globalize_path("res://prova/%s" % id))
+	if args.has("mapa"):
+		print("  --mapa não vale para telhado (a mesa monta as casas dela); ignorado")
+	_esconder_do_editor(ProjectSettings.globalize_path("res://exportado"))
+	if not args.has("prova"):
+		_esconder_do_editor(ProjectSettings.globalize_path("res://prova"))
+	print("Desenhado: exportando '%s' (%s, tipo %s) para %s" % [id, cfg["nome"], cfg["tipo"], saida])
+	var pintor := PintorTelhado.new()
+	root.add_child(pintor)
+	var r: Dictionary = await pintor.pintar(cfg, saida)
+	for e in r["erros"]:
+		printerr("  ERRO: ", e)
+	if not r["ok"]:
+		quit(1)
+		return
+	# Sobras de uma exportação anterior (menos variantes, faixa que saiu) saem da pasta.
+	for v in range(cfg.get("variantes", 0), 3):
+		if FileAccess.file_exists(saida.path_join(Contrato.ARQUIVOS_DE_BASE[v])):
+			DirAccess.remove_absolute(saida.path_join(Contrato.ARQUIVOS_DE_BASE[v]))
+	if not r["temFaixa"] and FileAccess.file_exists(saida.path_join(ContratoTelhado.ARQUIVO_DA_FAIXA)):
+		DirAccess.remove_absolute(saida.path_join(ContratoTelhado.ARQUIVO_DA_FAIXA))
+	var gpu := 0
+	var disco := 0
+	for arquivo in r["imagens"]:
+		var img: Image = r["imagens"][arquivo]
+		gpu += Contrato.bytes_gpu(img.get_width(), img.get_height())
+		disco += _tamanho(saida.path_join(arquivo))
+	var params := ContratoTelhado.parametros(cfg, r, gpu, disco)
+	var f := FileAccess.open(saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS), FileAccess.WRITE)
+	f.store_string(JSON.stringify(params, "  ") + "\n")
+	f.close()
+	for arquivo in r["arquivos"]:
+		print("  gravado: ", arquivo)
+	print("  gravado: ", saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS))
+	for arquivo in r["emendas"]:
+		print("  emenda %-11s %.2f (1 = igual ao miolo; a junta da fileira na borda sobe o número)" % [arquivo, r["emendas"][arquivo]["razao"]])
+	var ok := true
+	if cfg["tipo"] == "telhado":
+		print("  valor médio da base-1: %.3f (0,5 = a cor do mestre)" % r["valorMedio"])
+		if absf(r["valorMedio"] - 0.5) > 0.03:
+			printerr("  AVISO: o valor médio passou de 0,5 ± 0,03; o telhado vai sair mais claro ou mais escuro que a cor escolhida")
+	print("  memória: %.2f MiB (teto %.1f), %.2f MiB em disco (teto %.2f)" % [gpu / 1048576.0, Contrato.TETO_GPU_POR_TEXTURA / 1048576.0, disco / 1048576.0, Contrato.TETO_DISCO_POR_TEXTURA / 1048576.0])
+	if gpu > Contrato.TETO_GPU_POR_TEXTURA or disco > Contrato.TETO_DISCO_POR_TEXTURA:
+		printerr("  ERRO: passou do teto de memória")
+		ok = false
+	if args.has("folha"):
+		var mesa := MesaTelhado.new()
+		root.add_child(mesa)
+		var m: Dictionary = await mesa.montar(cfg, saida, prova, args.has("sem-atual"))
+		for e in m["erros"]:
+			printerr("  ERRO folha: ", e)
+		if m["ok"]:
 			print("  folha: ", prova.path_join("folha.png"))
 		else:
 			ok = false

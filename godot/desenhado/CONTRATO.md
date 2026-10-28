@@ -6,8 +6,8 @@ isso não se repete e quanto pode pesar. A implementação de referência da mon
 exportados. Quando o app integrar o Desenhado, ele faz a mesma conta; se fizer igual, o
 que a folha mostra é o que o mestre vê.
 
-Vale para a **onda 1** (chão e caminhos). Telhado, sprite e móvel têm contrato próprio,
-escrito antes da onda deles (fim deste arquivo).
+As seções 1 a 6 valem para a **onda 1** (chão e caminhos). A **onda 2** (telhado, faixa e
+objeto) está na seção 8, de 28/10/2026. Sprite e traço ainda não têm contrato (seção 7).
 
 ## 1. A decisão contra repetição, em 5 linhas
 
@@ -217,8 +217,7 @@ O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto 
 
 ## 7. O que ainda não tem contrato
 
-- **Telhados (onda 2)**: material no espaço do telhado (u ao longo do beiral, v da cumeeira
-  ao beiral), tingível pelas 6 cores de cada modelo. Escrever antes da onda 2.
+- ~~**Telhados (onda 2)**~~: escrito em 28/10, seção 8.
 - **Sprites (ondas 3 e 4)**: árvore, planta e móvel como imagem com alfa, com sementes e
   vistas. Escrever antes da onda 3, junto com a decisão dos móveis (sprite por móvel ou só
   os 24 materiais).
@@ -226,3 +225,176 @@ O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto 
 - **Entrega ao app**: o pacote de animações de hoje só aceita `.js` de até 2 MiB
   (`desktop/src-tauri/src/net/animacoes.rs`); PNG precisa de outro canal ou de ir junto do
   app. Decisão da fase de integração.
+
+## 8. Telhados, faixa e objeto (onda 2, 28/10/2026)
+
+Como o app pinta telhado hoje (`client/src/texturas/telhado.ts`, `lib/telhado/aguas.ts`):
+cada sala tem um polígono; `aguas.ts` acha, para cada ponto, a **água** dona (a borda mais
+perto), a **altura** desde a ponta do beiral e a posição **ao longo** da borda; a imagem
+do telhado é pintada **uma vez por sala** na CPU, a 1 px por px do mapa (até 1024 x 1024
+px, `escalaDaTexturaDoTelhado`), e é ela que some quando o pino entra. A cor do mestre é o
+tom da água em luz neutra (`lib/telhado/paletas.ts`: Telhas, Madeira, Palha, 6 cores cada
+mais cor livre). O Desenhado troca só o desenho dentro dessa imagem: o resto (águas,
+sombra no chão, sumir ao entrar, cache por sala, modelo e cor) continua igual.
+
+### 8.1 A decisão em 6 linhas
+
+1. **O material de uma água, não o telhado.** Cada telhado entrega uma base quadrada (P x P
+   px, 64 px por casa) no espaço da água: x = u ao longo do beiral, y sobe da ponta do
+   beiral (a linha de baixo da imagem) para a cumeeira. Repete nos dois sentidos.
+2. **O app gira e recorta pela conta que já tem:** u = `aoLongo + regua[agua]` e v =
+   `altura` (a de `aguaNoPonto`, 0 na ponta do beiral), e lê a base em (u mod P, P - v mod
+   P). As fileiras ficam paralelas ao beiral em toda água, de qualquer forma de sala.
+3. **Tingível pela conta do chão de sala** (PROPOSTA-TINGIR.md): a base é valor em cinza,
+   0,5 = a cor do mestre; a luz da água, a ponta do beiral e o rincão entram no MESMO valor,
+   e a rampa OKLab da cor troca o valor pela cor no fim.
+4. **A luz lateral vem num canal próprio** (G = lado): a capa da telha acende o lado virado
+   para a luz em cada água, sem pintar a luz na imagem (que ficaria errada nas águas giradas).
+5. **Cumeeira e espigão levam uma faixa** (a peça de cumeeira, repetível ao longo da
+   emenda); o rincão é só a sombra do app. A cumeeira amarrada da palha é uma faixa avulsa.
+6. **A chaminé é um objeto** visto de cima, com a sombra pintada, não tingido, posto onde o
+   app já põe (`posicaoDaChamine`). Sem período, sem repetição: uma imagem.
+
+### 8.2 Arquivos por tipo
+
+O `config.json` ganha `"tipo"`: `"telhado"`, `"faixa"` ou `"objeto"` (o chão não leva o
+campo e segue as seções 1 a 6 sem mudança nenhuma; conferido em 28/10: as 18 texturas
+aprovadas reexportadas saíram byte a byte iguais).
+
+| Tipo | Arquivo | Tamanho | Conteúdo |
+|---|---|---|---|
+| telhado | `base-1.png` .. `base-N.png` (N = 1 a 3) | P x P px, P = 256 ou 512 (`periodoCasas` 4 ou 8), 64 px por casa | RGB: **R = valor** (0,5 = a cor do mestre), **G = 0,5 + 0,5 · lado** (inclinação ao longo do beiral, +1 = virada para +u), B = 0. Mesma geometria nas variantes (fileiras e colunas), outra superfície |
+| telhado (opcional), faixa | `faixa.png` | (2 · comprimentoPx) x (4 · meiaLarguraPx) px, 128 px por casa | RGBA: R = valor, G = 0,5 + 0,5 · lado ATRAVESSANDO a emenda, A = alfa reto; x ao longo (repete a cada comprimentoPx), y de -meia (linha 0) a +meia |
+| objeto | `objeto.png` | ladoPx x ladoPx, 128 px por casa | RGBA, cor reta e alfa reto, com a sombra; NÃO é tingido |
+| todos | `textura.json` | | os parâmetros abaixo, explícitos |
+
+Shaders: `comum/telhado.gdshaderinc` (o cabeçalho; explica as funções),
+`comum/rodape_telhado.gdshaderinc` (telhado e faixa) e `comum/rodape_objeto.gdshaderinc`.
+
+### 8.3 Parâmetros (`textura.json` do telhado)
+
+```
+contrato 1, tipo "telhado", id, nome, idDoApp ("telhas" | "madeira" | "palha": o modelo do app)
+casaPx     64
+base       { arquivos, ladoPx: P, periodoCasas, canais, orientacao }
+mistura    { semente, escala, faixa, corte }   a mistura das variantes no MUNDO (x, y), seção 4
+tom        { semente, escala, amplitude }      o tom do mundo, seção 4 (amplitude até 0,06)
+tingir     { conta: "luz-oklab", neutro 0,5, ganhoL 0,48, escuroAte 0,10, claroDesde 0,94 }
+luz        { agua: 0,18, lado: 0,12 }          em valor (0,1 de valor = 0,048 de luz OKLab)
+beiral     { escuro: 0,22, alturaPx: 2,2, franjaPx: 0, franjaPassoPx: 4,6 }
+rincao     { escuro: 0,10, larguraPx: 1,7 }
+faixa      { arquivo: "faixa.png", pxPorCasa 128, comprimentoPx, meiaLarguraPx,
+             onde: ["cumeeira", "espigao"], ... } | { de: "<id de uma faixa>" } | null
+valorMedio a média de R na base-1 (o exportador avisa fora de 0,5 ± 0,03)
+memoria, emendas
+```
+
+A faixa avulsa (`tipo: "faixa"`) leva `modelo` (o telhado em que vai), `faixa`, `tingir` e
+`luz.lado`. O objeto leva `objeto { arquivo, pxPorCasa 128, ladoPx, corpoPx, ancoraPx }`:
+`corpoPx` é o lado do corpo na imagem e `ancoraPx` o centro dele.
+
+### 8.4 A montagem (o app faz exatamente isto)
+
+A referência é `ferramentas/telhado.ts` (`campoDoTelhado`, `rampaDaCor`, `tingirCampo`,
+`porObjeto`): TypeScript que importa as águas, a chaminé e o ruído do PRÓPRIO app. Para
+cada pixel (x, y) da imagem do telhado (a mesma caixa e a mesma varredura de linha de
+`comecarTelhado`, 1 px por px do mapa):
+
+```
+amostrarAgua(geo, x, y, dentro, BEIRAL_PX + 0,5) -> a (água), dist, aoLongo, b (vizinha), ate, rincao
+v = dist + BEIRAL_PX                  (0 na ponta do beiral)
+u = aoLongo + regua[a]                (bordas alinhadas dividem a régua)
+luzDaAgua[a]  = -(n_a · LUZ)          LUZ = (-1, -0,45) normalizado, a luz do app
+luzAoLongo[a] =  (d_a · LUZ)
+valor(a, u, v):
+    (vi, li) = base-i em (u mod P, P - (v mod P)), bilinear, repete; li = 2·G - 1
+    w = os pesos das variantes por ruidoDoMundo(x / mistura.escala, y / mistura.escala, mistura.semente) (seção 4)
+    V = soma(w·vi) · (1 + tom.amplitude · ruidoDoMundo(x / tom.escala, y / tom.escala, tom.semente))
+    devolve V + luz.lado · soma(w·li) · luzAoLongo[a] + luz.agua · luzDaAgua[a]
+G = valor(a, u, v)
+se b >= 0 e ate < 0,5:  G = G·(0,5 + ate) + valor(b, t[b] + regua[b], s[b] + BEIRAL_PX)·(0,5 - ate)
+se rincao:              G -= rincao.escuro · (1 - suave(0,4; rincao.larguraPx; ate))
+vb = v - franja(u)      (franja = 0 sem beiral.franjaPx; senão a fórmula da palha do app)
+se vb < alturaPx:       G -= beiral.escuro · (1 - suave(0; alturaPx; vb))
+faixa (b >= 0, não rincão, ate < meiaLarguraPx, e o tipo da emenda em faixa.onde;
+       cumeeira = ehCumeeira(geo, a, b), o resto é espigão):
+    s = posicaoAoLongoDoCume(geo, a, b, x, y);  c = +ate na água de índice menor, -ate na outra
+    (gf, lf, af) = faixa.png em (s mod comprimentoPx, c + meia) · 2 px por px do mapa
+    luzAtravessada = normalize(n_maior - n_menor) · LUZ
+    G += (gf + luz.lado · lf · luzAtravessada - G) · af
+cor = rampa[cor do mestre][arredonda(G · 255)]       (PROPOSTA-TINGIR.md; uma rampa por cor)
+alfa = clamp(vb + 0,5; 0; 1)
+```
+
+Depois, com a chaminé ligada, `porObjeto` põe o `objeto.png` por cima, centro do corpo em
+`posicaoDaChamine(geo)`, escalado para o corpo ter o `lado` que ela dá (11 a 20 px do mapa):
+1 px do mapa = `corpoPx / lado` px da imagem, bilinear, "por cima" com alfa reto.
+
+O custo é o de hoje (uma pintura por sala e por troca de modelo ou cor, guardada no mesmo
+cache); a conta por pixel troca o desenho procedural por 2 ou 3 leituras bilineares e 2
+ruídos do mundo, mais a faixa perto das emendas. Pintar em fatias (a palha já faz) dá os
+mesmos bytes. A rampa é uma tabela de 256 cores por cor.
+
+### 8.5 Tingir
+
+A conta é a da PROPOSTA-TINGIR.md, sem mudar nada, com G no lugar de g. O que muda é a
+faixa de G: o chão usa de 0,43 a 0,59; o telhado usa mais (a sombra da fileira, a luz da
+água, a ponta do beiral), e com `ganhoL` 0,48 G de 0,2 a 0,8 dá luz de -0,14 a +0,14. A
+média do telhado fica a menos de 0,004 da cor escolhida nas 3 cores da folha do piloto
+(o Atual fica a 0,010 a 0,015). A palha de hoje clareia para o neutro (`pincel.neutro`);
+a rampa OKLab segura o croma enquanto sobe a luz, o que deve dar um efeito parecido (não
+conferido: o designer da palha olha na folha).
+
+### 8.6 Cumeeira, espigão e rincão
+
+- **Cumeeira** (águas opostas) e **espigão** (águas vizinhas, quina de fora): a faixa da
+  textura, se ela tiver e se `faixa.onde` pedir. Sem faixa: só a mistura de área das duas
+  águas na emenda (sem serrilha).
+- **Rincão** (quina de dentro): a sombra do app (`rincao.escuro`, `rincao.larguraPx`),
+  nunca faixa (é um vale, não uma peça por cima).
+- **Palha**: a faixa vem da `cumeeira-amarrada` (`"faixa": { "de": "cumeeira-amarrada" }`),
+  só na cumeeira, como hoje. Telhas: a faixa é a do próprio telhado (telha de cumeeira).
+- Onde três emendas se encontram (cumeeira e dois espigões), cada pixel fica com a emenda
+  mais perto: as faixas se encontram em meia-esquadria, sem sobrepor.
+
+### 8.7 Objeto e faixa repetível
+
+- **Objeto** (a chaminé): uma imagem, sem período nem variante. A luz não gira (a
+  chaminé fica sempre de pé na tela), por isso a sombra pode vir pintada. Não é tingido.
+- **Faixa repetível** (a cumeeira amarrada, a telha de cumeeira): período só ao longo
+  (`comprimentoPx`), tingida pela cor do telhado em que está, com o lado atravessando.
+  Período de 16 a 512 px do mapa; meia largura de 2 a 12 px.
+
+### 8.8 Teto de memória
+
+O telhado montado ocupa na placa de vídeo o mesmo que hoje: a mesma imagem por sala, do
+mesmo tamanho (até 1024 x 1024), no mesmo cache. **A mais que o Atual: 0 MB.** Os arquivos
+lidos para pintar ficam na memória comum: o mesmo teto do chão, **6 MiB por item** (RGBA +
+mipmaps, conta conservadora) e **1,5 MiB em disco**; o piloto `telhado-telhas` dá 2,71 MiB e
+0,32 MiB. Por mapa: no máximo 3 telhados, 1 faixa e 1 objeto, uns 9 MiB com bases de 512
+px; entram na conta dos 48 MiB por mapa junto com os chãos (a conta por mapa é do app, na
+integração).
+
+### 8.9 Critério de pronto de um telhado
+
+1. `exportar_uma.gd --textura=<id> --folha` sai com 0; valor médio da base-1 em 0,5 ± 0,03.
+2. Emenda de cada base entre 0,8 e 1,25 (a borda da base é uma borda de fileira e de coluna:
+   o número sobe; explique se passar).
+3. A repetição "completo" do chão não vale (material com estrutura, a mesma decisão do
+   orquestrador para os pisos de 28/10). Vale o olho na folha: o telhado grande (28 x 8
+   casas) a 50% sem repetição reconhecível, as 3 cores sem estourar nem sumir, nada de
+   escama, bolinha nem "wwww" a 25% e a 50%, sem serrilha a 300%.
+4. A média de cada cor a menos de 0,01 de luz OKLab da cor escolhida (está na folha).
+
+### 8.10 A mesa de prova dos telhados
+
+`--folha` num item da onda 2 monta outra mesa (`comum/mesa_telhado.gd` arruma, o
+`ferramentas/telhado.ts` monta): a cena A (18 x 10 casas: a casa retangular de 7 x 5 e a
+casa em L de 7 x 8, com cumeeira, espigão e rincão) em 3 cores (a padrão do modelo e duas
+da paleta do app, uma escura) a 100%, 50% e 25%, o close a 300% no encontro do rincão com
+as duas cumeeiras do L, o telhado grande (28 x 8 casas) a 50% e os arquivos (valor e lado
+em cinza). O Atual é o `pintarTelhado` de hoje nas mesmas casas, com a chaminé quando o
+item é objeto e a cumeeira amarrada quando o modelo é palha. Chão chapado e a sombra do
+app (6, 8 px, 25%). Faixa e objeto saem por cima do telhado `sob` do config (padrão:
+`telhado-palha` e `telhado-telhas`), ou de um telhado liso quando ele ainda não existe.
+Folha do lote: `scripts/folha_do_lote_telhados.gd` (PARA-OS-DESIGNERS.md).
