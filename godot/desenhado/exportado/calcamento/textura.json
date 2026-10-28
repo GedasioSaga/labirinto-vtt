@@ -1,0 +1,70 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#a29c8d",
+  "detalhes": {
+    "agrupamento": 0.9,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.12,
+    "escalaMax": 1.3,
+    "escalaMin": 0.8,
+    "espelhar": true,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.2,
+      0.6,
+      1.0,
+      0.5
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 8052,
+    "variacaoDeTom": 0.04
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.93098957708571,
+      "miolo": 1.93055550727877,
+      "razao": 1.00022484192001
+    },
+    "base-2.png": {
+      "borda": 1.93424479017267,
+      "miolo": 1.81684023792817,
+      "razao": 1.06462018497476
+    }
+  },
+  "id": "calcamento",
+  "idDoApp": "calcamento",
+  "lote": 4,
+  "memoria": {
+    "discoBytes": 574324,
+    "gpuBytes": 4194303,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 1.5,
+    "faixa": 0.1,
+    "semente": 7990
+  },
+  "nome": "Calçamento",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.04,
+    "escala": 4.0,
+    "semente": 8016
+  }
+}
