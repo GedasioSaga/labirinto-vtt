@@ -62,14 +62,14 @@ function mudarFaixa(rotulo: string, valor: number): void {
 }
 
 describe('CarimbosControls', () => {
-  it('mostra os nove objetos da biblioteca (com a árvore redonda da MT5), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
+  it('mostra os dez objetos da biblioteca (com a árvore redonda da MT5 e o tronco caído), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
     montar()
     const objetos = radios('Objeto')
-    expect(objetos.map((b) => b.textContent)).toEqual(['Pinheiro', 'Pinheiro com neve', 'Árvore', 'Árvore redonda', 'Arbusto', 'Palmeira', 'Pedras', 'Poça', 'Juncos'])
+    expect(objetos.map((b) => b.textContent)).toEqual(['Pinheiro', 'Pinheiro com neve', 'Árvore', 'Árvore redonda', 'Arbusto', 'Tronco caído', 'Palmeira', 'Pedras', 'Poça', 'Juncos'])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
     expect(objetos.filter((b) => b.tabIndex === 0)).toHaveLength(1)
-    act(() => objetos[5].click())
+    act(() => objetos[6].click())
     expect(useMapStore.getState().carimboEscolhido).toBe('palmeira')
   })
 

@@ -2,7 +2,8 @@
  * A BIBLIOTECA INICIAL de carimbos (fatia 5 do plano do relevo): os objetos do
  * protótipo Diorama (`mapa-vivo/diorama`), redesenhados um a um para a
  * ferramenta Carimbos — pinheiro, pinheiro com neve, árvore, arbusto,
- * palmeira, pedras da serra, poça do pântano e juncos.
+ * palmeira, pedras da serra, poça do pântano e juncos; depois, a árvore
+ * redonda (MT5) e o tronco caído (28/10/2026).
  *
  * Cada objeto é desenhado com o Canvas 2D num QUADRO de unidades: 1 = o
  * tamanho natural dele, a BASE (onde toca o chão) na origem, x de -0,75 a
@@ -24,8 +25,13 @@
 
 export type Rgb = readonly [number, number, number]
 
-/** Como a sombra cai: `em-pe` (alto, sombra comprida), `baixa` (rente ao chão) ou `nenhuma` (do chão, como a poça). */
-export type SombraDoCarimbo = 'em-pe' | 'baixa' | 'nenhuma'
+/**
+ * Como a sombra cai: `em-pe` (alto, sombra comprida), `baixa` (rente ao chão),
+ * `deitada` (deitado no chão e comprido, como o tronco caído: a silhueta
+ * inteira desliza um tanto curto, sem a ponta de trás parecer no alto) ou
+ * `nenhuma` (do chão, como a poça).
+ */
+export type SombraDoCarimbo = 'em-pe' | 'baixa' | 'deitada' | 'nenhuma'
 
 /**
  * O desenho de um objeto no quadro de unidades. `giro` em radianos (o
@@ -548,6 +554,379 @@ function desenharArvoreRedonda(g: CanvasRenderingContext2D, giro: number, sement
 }
 
 // ---------------------------------------------------------------------------
+// Tronco caído (pedido de 28/10/2026): um tronco DEITADO no chão, visto de
+// cima e um pouco de frente, como as pedras e a poça. O giro aponta o tronco
+// para qualquer lado (deitado, ele não tem "de pé"); a variante escolhe uma
+// de quatro formas, cada uma num giro reto e num diagonal: reto com a ponta
+// quebrada, com um galho seco, com musgo por cima de um lado, e curto e
+// grosso com o corte e os anéis. A casca são POUCAS FAIXAS LARGAS ao longo do
+// tronco (o lado da luz, o meio e o lado da sombra), de borda mansa, nunca
+// risco fino, escama ou bolinha (pedido do usuário: "tá muito detalhado,
+// cheio de bolinhas, fica estranho"); o corte tem dois anéis calmos. A luz é
+// a de sempre: a faixa clara vai para o lado que olha para cima à esquerda, e
+// a ponta que olha para a luz sai clara. A sombra é `deitada` (`arte.ts`).
+//
+// Os pontos saem já no quadro (sem `rotate`/`scale` no contexto): u corre ao
+// longo do tronco, v de través, e `eixoDoTronco` leva (u, v) para o quadro —
+// o comprimento encolhe quando aponta para cima ou para baixo (o chão visto
+// um pouco de frente), a grossura não.
+
+const CASCA_DA_LUZ: Rgb = [124, 94, 66]
+const GALHO_SECO: Rgb = [108, 84, 60]
+const CERNE_CLARO: Rgb = [178, 142, 100]
+const CERNE_ESCURO: Rgb = [128, 98, 68]
+
+/**
+ * O meio do tronco no quadro, um pouco acima da base: o tronco que aponta
+ * para cima e para baixo cabe no quadro do corpo, e a sombra dele no da
+ * sombra (`QUADRO_DA_SOMBRA`, que começa em -0,6).
+ */
+const CENTRO_DO_TRONCO = { x: 0, y: -0.2 } as const
+/** O quanto encolhe o comprimento que aponta para cima ou para baixo (as pedras, pequenas, usam 0,55). */
+const ACHATAMENTO_DO_CHAO = 0.7
+
+type PontaDoTronco = 'redonda' | 'corte' | 'quebrada' | 'lascada'
+
+interface FormaDoTronco {
+  /** Onde o cilindro começa e acaba ao longo do tronco; as pontas passam um pouco disso. */
+  u0: number
+  u1: number
+  raio: number
+  /** Quanto o tronco afina do pé (u0) para a ponta (u1), em fração do raio. */
+  afina: number
+  ponta0: PontaDoTronco
+  ponta1: PontaDoTronco
+  galho: boolean
+  musgo: boolean
+}
+
+type NomeDaForma = 'quebrado' | 'galho' | 'musgo' | 'curto'
+
+/**
+ * As quatro formas, no quadro de unidades: as compridas com ~1,3 unidade de
+ * ponta a ponta, a curta com ~0,95 e mais grossa. Nenhuma ponta passa de 0,7
+ * do meio com o bojo (a ponta que aponta para baixo na tela, 70% disso, ainda
+ * cabe no quadro, que acaba em 0,3).
+ */
+const FORMAS_DO_TRONCO: Record<NomeDaForma, FormaDoTronco> = {
+  quebrado: { u0: -0.57, u1: 0.48, raio: 0.12, afina: 0.2, ponta0: 'redonda', ponta1: 'quebrada', galho: false, musgo: false },
+  galho: { u0: -0.57, u1: 0.57, raio: 0.116, afina: 0.16, ponta0: 'corte', ponta1: 'redonda', galho: true, musgo: false },
+  musgo: { u0: -0.57, u1: 0.55, raio: 0.126, afina: 0.14, ponta0: 'redonda', ponta1: 'lascada', galho: false, musgo: true },
+  curto: { u0: -0.36, u1: 0.36, raio: 0.168, afina: 0.08, ponta0: 'redonda', ponta1: 'corte', galho: false, musgo: false },
+}
+
+/**
+ * A forma de cada uma das oito variantes (uma a cada 45°): cada forma sai num
+ * giro reto e num diagonal, nunca só em pé ou só deitada na tela. A variante
+ * 1 é a da miniatura do painel: o tronco do galho, com o corte virado para a luz.
+ */
+const FORMA_POR_VARIANTE: readonly NomeDaForma[] = ['musgo', 'galho', 'curto', 'quebrado', 'galho', 'musgo', 'quebrado', 'curto']
+
+/** A ponta quebrada: [de través, em frações do raio, do lado +v ao -v; para fora, em unidades]. Poucos dentes, grandes. */
+const DENTES_DA_QUEBRA: ReadonlyArray<readonly [number, number]> = [
+  [1, -0.02],
+  [0.6, 0.05],
+  [0.26, 0.18],
+  [0.02, 0.05],
+  [-0.34, 0.12],
+  [-0.68, 0.01],
+  [-1, 0.03],
+]
+/** A ponta lascada (a do musgo): a quebra antiga, de dentes baixos. */
+const DENTES_DA_LASCA: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [0.45, 0.07],
+  [0.05, 0.02],
+  [-0.4, 0.09],
+  [-1, 0.01],
+]
+
+type Ponto = [number, number]
+
+interface EixoDoTronco {
+  /** O ponto (u ao longo, v de través) no quadro. */
+  ponto: (u: number, v: number) => Ponto
+  /** O ângulo do tronco na tela (para as elipses do corte) e o quanto o comprimento encolhe nele. */
+  angulo: number
+  encurta: number
+  /** Para onde, no chão, olham o lado +v e a ponta +u (para tingir pela luz). */
+  lado: { x: number; y: number }
+  frente: { x: number; y: number }
+  /** O lado +v na tela (para baixo, ele é o lado que a vista de frente mostra por baixo). */
+  ladoNaTela: { x: number; y: number }
+}
+
+function eixoDoTronco(giro: number): EixoDoTronco {
+  const c = Math.cos(giro)
+  const s = Math.sin(giro)
+  const encurta = Math.hypot(c, s * ACHATAMENTO_DO_CHAO)
+  const a = { x: c / encurta, y: (s * ACHATAMENTO_DO_CHAO) / encurta }
+  const p = { x: -a.y, y: a.x }
+  return {
+    ponto: (u, v) => [CENTRO_DO_TRONCO.x + a.x * u * encurta + p.x * v, CENTRO_DO_TRONCO.y + a.y * u * encurta + p.y * v],
+    angulo: Math.atan2(a.y, a.x),
+    encurta,
+    lado: { x: -s, y: c },
+    frente: { x: c, y: s },
+    ladoNaTela: p,
+  }
+}
+
+/** O quanto a direção do chão olha para a luz (LUZ_3D sem a altura): -1 de costas, 1 de frente. */
+function deFrenteParaALuz(d: { x: number; y: number }): number {
+  return (d.x * LUZ_3D.x + d.y * LUZ_3D.y) / ((Math.hypot(d.x, d.y) || 1) * Math.hypot(LUZ_3D.x, LUZ_3D.y))
+}
+
+function caminho(g: CanvasRenderingContext2D, pontos: readonly Ponto[]): void {
+  g.beginPath()
+  pontos.forEach(([x, y], i) => (i === 0 ? g.moveTo(x, y) : g.lineTo(x, y)))
+  g.closePath()
+}
+
+/** Os dentes de uma ponta quebrada, do lado +v ao -v (`espelho` troca os lados). */
+function dentesDaPonta(ponta: 'quebrada' | 'lascada', espelho: boolean): ReadonlyArray<readonly [number, number]> {
+  const dentes = ponta === 'quebrada' ? DENTES_DA_QUEBRA : DENTES_DA_LASCA
+  return espelho ? dentes.map(([dv, du]) => [-dv, du] as const).reverse() : dentes
+}
+
+/** A face do corte, ao longo do tronco NA TELA, em frações do raio: a de lado se vê de quina; a que olha para quem vê, quase redonda. */
+const FACE_DO_CORTE = { deLado: 0.3, deFrente: 0.72 } as const
+/** A face cabe no bojo da ponta serrada com uma beira de casca em volta (a face é 78% do bojo). */
+const FACE_NO_BOJO = 0.78
+/** O bojo da ponta redonda, na tela, em frações do raio. */
+const BOJO_REDONDO = { deLado: 0.42, deFrente: 0.67 } as const
+
+/**
+ * O bojo da ponta redonda ou serrada, ao longo do tronco, em unidades de u.
+ * A ponta que aponta para baixo na tela olha para quem vê e mostra mais de si
+ * (o tronco curto apontando para baixo, com o corte achatado, parecia um toco
+ * em pé); a que aponta para cima ou de lado fica com o bojo de quina.
+ */
+function bojoDaPonta(ponta: 'corte' | 'redonda', raio: number, para: 1 | -1, eixo: EixoDoTronco): number {
+  const deFrente = Math.max(0, eixo.frente.y * para)
+  const naTela =
+    ponta === 'corte'
+      ? (FACE_DO_CORTE.deLado + (FACE_DO_CORTE.deFrente - FACE_DO_CORTE.deLado) * deFrente) / FACE_NO_BOJO
+      : BOJO_REDONDO.deLado + (BOJO_REDONDO.deFrente - BOJO_REDONDO.deLado) * deFrente
+  return (naTela * raio) / eixo.encurta
+}
+
+/** Até onde a ponta passa do cilindro, em unidades (as faixas da casca vão até ali, e não além do quadro). */
+function alcanceDaPonta(ponta: PontaDoTronco, raio: number, para: 1 | -1, eixo: EixoDoTronco): number {
+  if (ponta === 'quebrada' || ponta === 'lascada') return Math.max(...dentesDaPonta(ponta, false).map(([, du]) => du))
+  return bojoDaPonta(ponta, raio, para, eixo)
+}
+
+/** A ponta, do lado +v ao -v, sem os dois cantos (que são da borda do tronco). `para` = +1 na ponta u1, -1 na u0. */
+function pontaDoContorno(ponta: PontaDoTronco, u: number, para: 1 | -1, raio: number, meio: number, espelho: boolean, eixo: EixoDoTronco): Ponto[] {
+  if (ponta === 'quebrada' || ponta === 'lascada') return dentesDaPonta(ponta, espelho).map(([dv, du]) => [u + para * du, meio + raio * dv])
+  const bojo = bojoDaPonta(ponta, raio, para, eixo)
+  const pontos: Ponto[] = []
+  const passos = 8
+  for (let k = 1; k < passos; k++) {
+    const fi = Math.PI / 2 - (Math.PI * k) / passos
+    pontos.push([u + para * bojo * Math.cos(fi), meio + raio * Math.sin(fi)])
+  }
+  return pontos
+}
+
+function desenharTroncoCaido(g: CanvasRenderingContext2D, giro: number, semente: number): void {
+  const variante = ((Math.round(semente) % 8) + 8) % 8
+  const f = FORMAS_DO_TRONCO[FORMA_POR_VARIANTE[variante]]
+  const eixo = eixoDoTronco(giro)
+  const comprimento = f.u1 - f.u0
+  const raio = (u: number) => f.raio * (1 + f.afina * (0.5 - (u - f.u0) / comprimento))
+  // Uma curva leve: tronco de verdade não é cano.
+  const arco = (sorteio(semente, 120) - 0.5) * 0.5 * f.raio
+  const meio = (u: number) => arco * (1 - ((2 * (u - f.u0)) / comprimento - 1) ** 2)
+  const espelho = sorteio(semente, 121) < 0.5
+  const naTela = (lista: readonly Ponto[]) => lista.map(([u, v]) => eixo.ponto(u, v))
+
+  // O contorno: a borda +v do pé à ponta, a ponta u1, a borda -v de volta e a ponta u0.
+  const passos = 14
+  const ao = (i: number) => f.u0 + (comprimento * i) / passos
+  const contorno: Ponto[] = []
+  for (let i = 0; i <= passos; i++) contorno.push([ao(i), meio(ao(i)) + raio(ao(i))])
+  contorno.push(...pontaDoContorno(f.ponta1, f.u1, 1, raio(f.u1), meio(f.u1), espelho, eixo))
+  for (let i = passos; i >= 0; i--) contorno.push([ao(i), meio(ao(i)) - raio(ao(i))])
+  contorno.push(...pontaDoContorno(f.ponta0, f.u0, -1, raio(f.u0), meio(f.u0), espelho, eixo).reverse())
+  const silhueta = naTela(contorno)
+
+  // De que lado bate a luz: o lado +v (1) ou o -v (-1). Com o tronco apontando
+  // para a luz os dois lados empatam, e o escuro fica no lado que a vista de
+  // frente mostra por baixo (o de baixo na tela).
+  const olhar = deFrenteParaALuz(eixo.lado)
+  const ladoDaLuz = Math.abs(olhar) >= 0.16 ? Math.sign(olhar) : eixo.ladoNaTela.y > 0 ? -1 : 1
+  const deLado = Math.abs(olhar)
+
+  if (f.galho) desenharGalhoSeco(g, eixo, raio, meio, semente)
+
+  g.fillStyle = css(TRONCO)
+  caminho(g, silhueta)
+  g.fill()
+
+  g.save()
+  caminho(g, silhueta)
+  g.clip()
+  // As faixas da casca, em frações do raio a partir do meio, no sentido do
+  // lado da luz; a borda de cada uma ondula devagar ao longo do tronco.
+  const alem = 1.3
+  const faixa = (de: number, ate: number, cor: Rgb, onda: number) => {
+    const borda = (u: number, x: number, k: number) =>
+      Math.abs(x) >= alem ? x : x + 0.08 * Math.sin(u * 5.2 + sorteio(semente, onda + k) * Math.PI * 2)
+    const ua = f.u0 - alcanceDaPonta(f.ponta0, raio(f.u0), -1, eixo) - 0.01
+    const ub = f.u1 + alcanceDaPonta(f.ponta1, raio(f.u1), 1, eixo) + 0.01
+    const pontos: Ponto[] = []
+    for (let i = 0; i <= passos; i++) {
+      const u = ua + ((ub - ua) * i) / passos
+      pontos.push([u, meio(u) + ladoDaLuz * borda(u, de, 0) * raio(u)])
+    }
+    for (let i = passos; i >= 0; i--) {
+      const u = ua + ((ub - ua) * i) / passos
+      pontos.push([u, meio(u) + ladoDaLuz * borda(u, ate, 1) * raio(u)])
+    }
+    g.fillStyle = css(cor)
+    caminho(g, naTela(pontos))
+    g.fill()
+  }
+  faixa(-alem, -0.6 + 0.25 * deLado, TRONCO_SOMBRA, 130)
+  const fimDaLuz = 0.5 + 0.5 * deLado
+  faixa(-0.3 + 0.52 * deLado, 1 - fimDaLuz < 0.22 ? alem : fimDaLuz, CASCA_DA_LUZ, 132)
+
+  // As pontas de madeira: o corte com os anéis, a quebra com a madeira rasgada.
+  const pontas: Array<[PontaDoTronco, number, 1 | -1]> = [
+    [f.ponta0, f.u0, -1],
+    [f.ponta1, f.u1, 1],
+  ]
+  for (const [ponta, u, para] of pontas) {
+    if (ponta === 'redonda') continue
+    const luzDaPonta = 0.5 + 0.5 * deFrenteParaALuz({ x: eixo.frente.x * para, y: eixo.frente.y * para })
+    if (ponta === 'corte') desenharCorte(g, eixo, u, para, raio(u), meio(u), luzDaPonta, ladoDaLuz)
+    else {
+      const fundo = ponta === 'quebrada' ? 0.075 : 0.05
+      const fora = dentesDaPonta(ponta, espelho).map(([dv, du]): Ponto => [u + para * du, meio(u) + raio(u) * dv])
+      const dentro = dentesDaPonta(ponta, espelho).map(([dv, du]): Ponto => [u + para * (du - fundo), meio(u) + raio(u) * dv * 0.8])
+      g.fillStyle = css(misturar(CERNE_ESCURO, CERNE_CLARO, 0.15 + 0.6 * luzDaPonta))
+      caminho(g, naTela([...fora, ...dentro.reverse()]))
+      g.fill()
+    }
+  }
+
+  if (f.musgo) desenharMusgo(g, eixo, f, raio, meio, ladoDaLuz, semente)
+  g.restore()
+}
+
+/** O corte de serra visto meio de lado: a face clara (mais na luz quando a ponta olha para ela) e dois anéis calmos. */
+function desenharCorte(g: CanvasRenderingContext2D, eixo: EixoDoTronco, u: number, para: 1 | -1, raio: number, meio: number, luz: number, ladoDaLuz: number): void {
+  const [cx, cy] = eixo.ponto(u, meio)
+  // A face cabe no bojo da ponta serrada, com uma beira de casca em volta.
+  const rx = FACE_NO_BOJO * bojoDaPonta('corte', raio, para, eixo) * eixo.encurta
+  const ry = 0.86 * raio
+  const face = misturar(CERNE_ESCURO, CERNE_CLARO, 0.45 + 0.55 * luz)
+  const anel = misturar(face, CERNE_ESCURO, 0.5)
+  // O miolo fica um pouco fora do centro, para dentro e para o lado da sombra (a árvore cresceu torta).
+  const [mx, my] = eixo.ponto(u - para * 0.012, meio - ladoDaLuz * raio * 0.12)
+  const elipse = (x: number, y: number, k: number, cor: Rgb) => {
+    g.fillStyle = css(cor)
+    g.beginPath()
+    g.ellipse(x, y, rx * k, ry * k, eixo.angulo, 0, Math.PI * 2)
+    g.fill()
+  }
+  elipse(cx, cy, 1, face)
+  elipse(cx + (mx - cx) * 0.4, cy + (my - cy) * 0.4, 0.72, anel)
+  elipse(cx + (mx - cx) * 0.6, cy + (my - cy) * 0.6, 0.56, face)
+  elipse(mx, my, 0.26, misturar(face, anel, 0.6))
+}
+
+/** O galho seco: sai de um lado perto do meio, afina até a ponta e abre um raminho. Vai por baixo do tronco (a base some nele). */
+function desenharGalhoSeco(
+  g: CanvasRenderingContext2D,
+  eixo: EixoDoTronco,
+  raio: (u: number) => number,
+  meio: (u: number) => number,
+  semente: number,
+): void {
+  const lado = sorteio(semente, 140) < 0.5 ? 1 : -1
+  const ub = 0.1 + 0.08 * sorteio(semente, 141)
+  const base: Ponto = [ub, meio(ub) + lado * raio(ub) * 0.55]
+  const ramo = (de: Ponto, angulo: number, comprimento: number, grosso: number, fino: number) => {
+    const du = Math.cos(angulo)
+    const dv = lado * Math.sin(angulo)
+    const n: Ponto = [-dv, du]
+    const curva = 0.025 * lado
+    const ponta: Ponto = [de[0] + du * comprimento, de[1] + dv * comprimento]
+    const meioDoRamo: Ponto = [de[0] + du * comprimento * 0.5 + n[0] * curva, de[1] + dv * comprimento * 0.5 + n[1] * curva]
+    const largura = (grosso + fino) / 2
+    caminho(
+      g,
+      [
+        [de[0] + n[0] * grosso, de[1] + n[1] * grosso],
+        [meioDoRamo[0] + n[0] * largura, meioDoRamo[1] + n[1] * largura],
+        [ponta[0] + n[0] * fino, ponta[1] + n[1] * fino],
+        [ponta[0] - n[0] * fino, ponta[1] - n[1] * fino],
+        [meioDoRamo[0] - n[0] * largura, meioDoRamo[1] - n[1] * largura],
+        [de[0] - n[0] * grosso, de[1] - n[1] * grosso],
+      ].map(([u, v]) => eixo.ponto(u, v)),
+    )
+    g.fill()
+  }
+  g.fillStyle = css(GALHO_SECO)
+  const angulo = 0.92
+  const comprimento = 0.3
+  // Grosso o bastante para ler a 25% de zoom: mais fino que isso vira risco.
+  ramo(base, angulo, comprimento, 0.045, 0.014)
+  // O raminho: do terço de fora do galho, abrindo para a ponta do tronco.
+  const t = 0.62
+  const forquilha: Ponto = [base[0] + Math.cos(angulo) * comprimento * t, base[1] + lado * Math.sin(angulo) * comprimento * t]
+  ramo(forquilha, angulo - 0.7, 0.11, 0.022, 0.009)
+}
+
+/**
+ * O musgo: uma almofada só, por cima do tronco, na metade do pé — redonda nas
+ * duas pontas, de borda que ondula devagar (dois ou três calombos largos,
+ * nunca bolinha), com a parte que olha para a luz mais clara. Os tons são os
+ * do arbusto, para os dois conversarem no mapa.
+ */
+function desenharMusgo(
+  g: CanvasRenderingContext2D,
+  eixo: EixoDoTronco,
+  f: FormaDoTronco,
+  raio: (u: number) => number,
+  meio: (u: number) => number,
+  ladoDaLuz: number,
+  semente: number,
+): void {
+  const comprimento = f.u1 - f.u0
+  const almofada = (inicio: number, fim: number, de: number, ate: number, cor: Rgb, onda: number) => {
+    const passos = 18
+    // O perfil: cheio no meio, fechando em curva nas duas pontas.
+    const cheio = (t: number) => Math.sqrt(Math.max(0, Math.sin(Math.PI * t)))
+    const borda = (u: number, t: number, x: number, k: number) => (x + 0.16 * Math.sin(u * 11 + sorteio(semente, onda + k) * Math.PI * 2)) * cheio(t)
+    const pontos: Ponto[] = []
+    for (let i = 0; i <= passos; i++) {
+      const t = i / passos
+      const u = inicio + (fim - inicio) * t
+      pontos.push([u, meio(u) + ladoDaLuz * borda(u, t, ate, 0) * raio(u)])
+    }
+    for (let i = passos; i >= 0; i--) {
+      const t = i / passos
+      const u = inicio + (fim - inicio) * t
+      pontos.push([u, meio(u) + ladoDaLuz * borda(u, t, de, 1) * raio(u)])
+    }
+    g.fillStyle = css(cor)
+    caminho(g, pontos.map(([u, v]) => eixo.ponto(u, v)))
+    g.fill()
+  }
+  // Por cima e descendo pelo lado da sombra (onde o musgo cresce): a manta
+  // passa da borda escura e o contorno do tronco a corta, então ela abraça o
+  // tronco em vez de pousar nele como uma folha.
+  const inicio = f.u0 + 0.03
+  const fim = f.u0 + comprimento * 0.55
+  almofada(inicio, fim, -1.25, 0.58, TONS_DO_ARBUSTO.escuro, 150)
+  almofada(inicio + comprimento * 0.06, fim - comprimento * 0.12, -0.2, 0.5, TONS_DO_ARBUSTO.medio, 152)
+}
+
+// ---------------------------------------------------------------------------
 
 export const CARIMBOS_EMBUTIDOS: readonly DefinicaoDeCarimbo[] = [
   { id: 'pinheiro', nome: 'Pinheiro', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, false) },
@@ -555,6 +934,9 @@ export const CARIMBOS_EMBUTIDOS: readonly DefinicaoDeCarimbo[] = [
   { id: 'arvore', nome: 'Árvore', tamanho: 15, sombra: 'em-pe', desenhar: desenharArvore },
   { id: 'arvore-redonda', nome: 'Árvore redonda', tamanho: 14, sombra: 'em-pe', desenhar: desenharArvoreRedonda },
   { id: 'arbusto', nome: 'Arbusto', tamanho: 6, sombra: 'baixa', desenhar: (g, giro, semente) => desenharCopa(g, giro, semente, TONS_DO_ARBUSTO, -0.3, 0.4) },
+  // Ao lado do arbusto, com a mata. Tamanho 10 (o das pedras): ~1,3 unidade de
+  // ponta a ponta = 13 px do protótipo, umas 2 casas num mapa de 200 × 200.
+  { id: 'tronco-caido', nome: 'Tronco caído', tamanho: 10, sombra: 'deitada', desenhar: desenharTroncoCaido },
   { id: 'palmeira', nome: 'Palmeira', tamanho: 13, sombra: 'em-pe', desenhar: desenharPalmeira },
   { id: 'pedras', nome: 'Pedras', tamanho: 10, sombra: 'baixa', desenhar: desenharPedras },
   { id: 'poca', nome: 'Poça', tamanho: 12, sombra: 'nenhuma', desenhar: desenharPoca },
@@ -582,6 +964,10 @@ export const PALETA_DOS_EMBUTIDOS: readonly Rgb[] = [
   REDONDA_FLOR_ROSA,
   REDONDA_FLOR_BRANCA,
   ...Object.values(TONS_DO_ARBUSTO),
+  CASCA_DA_LUZ,
+  GALHO_SECO,
+  CERNE_CLARO,
+  CERNE_ESCURO,
   PALMEIRA_TRONCO,
   PALMEIRA_TRONCO_SOMBRA,
   FOLHA_CLARA,

@@ -51,6 +51,11 @@ function trocarLista(nova: readonly CarimboDoCatalogo[]): void {
   for (const ouvinte of ouvintes) ouvinte()
 }
 
+/**
+ * A sombra que um carimbo do PACOTE pode pedir. A `deitada` (a do tronco
+ * caído, 28/10/2026) fica só na biblioteca por ora: o contrato do pacote não
+ * muda, e um app mais velho não recusa carimbo de pacote por ela.
+ */
 export function ehSombraDeCarimbo(valor: unknown): valor is SombraDoCarimbo {
   return valor === 'em-pe' || valor === 'baixa' || valor === 'nenhuma'
 }

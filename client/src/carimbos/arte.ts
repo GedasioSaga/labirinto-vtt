@@ -11,8 +11,9 @@ import { css, type DesenhoDeCarimbo, type Rgb, type SombraDoCarimbo } from './em
  * imagem importada ganham sombra sem desenhá-la: a silhueta é projetada no
  * chão na direção da sombra do relevo (`AJUSTE_DO_RELEVO.sombra`, para baixo
  * e para a direita), comprida no que é alto (`em-pe`), curta no que é baixo
- * (`baixa`), e deslocada inteira na imagem importada (`solta`: não sabemos
- * onde é o pé dela). A silhueta é opaca; a transparência entra uma vez só,
+ * (`baixa`), e deslocada inteira no que está deitado no chão (`deitada`, um
+ * tanto curto) e na imagem importada (`solta`: não sabemos onde é o pé
+ * dela). A silhueta é opaca; a transparência entra uma vez só,
  * na camada inteira (`drawCarimbos.ts`), e duas sombras que se cruzam não
  * escurecem duas vezes — a mesma regra do protótipo Diorama.
  */
@@ -65,6 +66,13 @@ const DIRECAO = (() => {
 const COMPRIMENTO = { 'em-pe': 0.78, baixa: 0.4 } as const
 /** Deslocamento da sombra da imagem importada, em unidades. */
 const DESLOCAMENTO_SOLTO = 0.13
+/**
+ * Deslocamento da sombra do objeto deitado (o tronco caído), em unidades: a
+ * grossura dele (~0,23) vezes o sol da `baixa`. A `baixa` projeta cada ponto
+ * pela altura NA TELA, e o tronco comprido apontando para cima sairia com a
+ * sombra em cunha, como se a ponta de trás estivesse no alto.
+ */
+const DESLOCAMENTO_DEITADO = 0.09
 
 /**
  * Para onde cada ponto do corpo cai no chão. Um ponto a altura `h` acima da
@@ -73,6 +81,7 @@ const DESLOCAMENTO_SOLTO = 0.13
  */
 export function matrizDaSombra(jeito: Exclude<JeitoDaSombra, 'nenhuma'>): Matriz {
   if (jeito === 'solta') return [1, 0, 0, 1, DIRECAO.x * DESLOCAMENTO_SOLTO, DIRECAO.y * DESLOCAMENTO_SOLTO]
+  if (jeito === 'deitada') return [1, 0, 0, 1, DIRECAO.x * DESLOCAMENTO_DEITADO, DIRECAO.y * DESLOCAMENTO_DEITADO]
   const l = COMPRIMENTO[jeito]
   return [1, 0, -l * DIRECAO.x, -l * DIRECAO.y, 0, 0]
 }
