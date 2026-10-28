@@ -95,6 +95,16 @@ pontilhado?), o miolo a 100% e o close a 300%. Olhe também o número de repeti�
 folha. Mexa nos números do `config.json` (densidade, agrupamento, mistura) antes de
 redesenhar.
 
+**Detalhe grande que empilha** (copa, arbusto, pedra grande): se a folha mostra dois caindo
+quase um em cima do outro, ligue o afastamento em `detalhes` do `config.json`:
+`"afastarCasas": 0.875`. É a distância, em casas, que ele tenta deixar entre dois centros
+vizinhos; o máximo é meia célula (0,5 com `celulaCasas: 1`, 1 com `celulaCasas: 2`).
+Comece perto do diâmetro visível do detalhe menos um terço (a floresta, com copas de ~1,4
+casa, usa 0,875). Ele não tira nem põe detalhe: as moitas e clareiras ficam iguais, só os
+vizinhos próximos se afastam. Não use em detalhe miúdo (tufo, flor, pedrinha): ali o
+empilhado não aparece e a conta fica mais cara. Sem o campo, o espalhamento é o de sempre.
+O app tem de fazer a mesma conta quando integrar (CONTRATO.md, seção 4).
+
 **Pronto quando** (CONTRATO.md, seção 6): o comando sai com 0; emenda de cada base entre
 0,8 e 1,25 (ou a junta explicada); repetição "completo" >= 0,80; e você olhou a folha nos
 três zooms sem achar repetição, pontilhado ou serrilhado.

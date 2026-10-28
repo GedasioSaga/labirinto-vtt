@@ -179,6 +179,7 @@ func _vista(cfg: Dictionary, fonte: int, origem: Vector2, zoom: float, lado_tela
 		"escala_min": det["escalaMin"],
 		"escala_max": det["escalaMax"],
 		"variacao_tom": det["variacaoDeTom"],
+		"afastar_px": float(det.get("afastarCasas", 0.0)) * Contrato.CASA_PX,
 		"usar_mascara": usar_mascara,
 		"mascara_origem": origem_area,
 		"mascara_mundo": Vector2(CASAS, CASAS) * Contrato.CASA_PX,

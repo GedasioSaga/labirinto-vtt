@@ -14,7 +14,7 @@ escrito antes da onda deles (fim deste arquivo).
 1. **Base calma** de 8 x 8 casas (512 px, 64 px por casa), sem nenhum marco que o olho reconheça.
 2. **3 variantes** da mesma base (2 em material com estrutura), misturadas pelo `ruidoDoMundo` do app numa escala longa: sem período.
 3. **Tom do mundo**: o chão inteiro clareia e escurece devagar (outro `ruidoDoMundo`, amplitude até 0,06).
-4. **Detalhes num atlas** (até 16 de 1 casa, ou 4 de 2 casas, a 128 px por casa), espalhados pelo mundo com o `hash` do app numa grade de meia célula, com moitas e clareiras.
+4. **Detalhes num atlas** (até 16 de 1 casa, ou 4 de 2 casas, a 128 px por casa), espalhados pelo mundo com o `hash` do app numa grade de meia célula, com moitas e clareiras (e, se a textura pedir, afastados para dois não caírem um em cima do outro).
 5. A folha prova: 40 x 40 casas a 50% e 100% (no chão de um mapa real) e o número de repetição.
 
 ### O que mudou em relação à direção sugerida, e por quê
@@ -61,7 +61,7 @@ mistura       { semente, escala, faixa, corte }
 tom           { semente, escala, amplitude }
 detalhes      { arquivo, ladoPx: 512, colunas, linhas, pxPorCasa: 128, celulaCasas,
                 gradeDoMundoPx, semente, quantos, pesos[], densidade, agrupamento,
-                escalaMin, escalaMax, variacaoDeTom }
+                escalaMin, escalaMax, variacaoDeTom, afastarCasas (opcional, seção 4) }
 corMedia      "#rrggbb" da base-1 (miniatura, zoom muito pequeno, estilo Simples)
 memoria       { gpuBytes, discoBytes, tetoGpuBytes, tetoDiscoBytes }
 emendas       a medida de emenda de cada base (1 = a borda igual ao miolo)
@@ -102,6 +102,44 @@ detalhes (c = celulaCasas, passo = 32·c px):
 O app pode assar isto em pedaços (como o `chaoNoMundo.ts` já faz com pedaços de 256 px) em
 vez de calcular por pixel na placa; o resultado tem de ser o mesmo. As duas contas
 concordam até ~1e-6 (o app conta em double, o Godot em float).
+
+### Afastamento (opcional: `detalhes.afastarCasas`)
+
+O sorteio acima pode pôr dois detalhes quase um em cima do outro (dois centros a poucos px):
+em copa de árvore isso lê como uma árvore só, deformada. Com `afastarCasas` no
+`textura.json`, as células, o detalhe, a escala e o tom são os mesmos; só o centro anda,
+em 2 rodadas. Sem o campo, nada muda: a conta é a de cima, byte a byte (provado em 28/10
+nas 4 texturas do lote 1 sem o campo: exportação e folha idênticas).
+
+```
+dmin = afastarCasas · 64 px        (0 < afastarCasas <= c / 2: até um passo da grade)
+c0(g) = o centro de cima, só nas células que têm detalhe (r(0) < p)
+vizinhas de g = as 8 células em volta que também têm detalhe
+empurrão(a, b, g, h): v = a - b, d = |v|
+    se d >= dmin: 0
+    direção = v / d, ou normalize(g - h) se d < 0,001 (centros iguais)
+    devolve direção · (dmin - d) / 2           (cada um anda a metade do que falta)
+limite(v) = v encurtado para no máximo dmin / 2
+rodada 1: c1(g) = c0(g) + limite(soma dos empurrão(c0(g), c0(h), g, h))
+rodada 2: c2(g) = c0(g) + limite(c1(g) - c0(g) + soma dos empurrão(c1(g), c1(h), g, h))
+desenha em c2(g), na mesma ordem (gy e depois gx)
+```
+
+O deslocamento total fica em dmin / 2 no máximo, e com escala até 1,5 o detalhe deslocado
+ainda cabe nas 5 x 5 células em volta do pixel. A referência é `com_detalhes_afastados()` em
+`comum/compor.gdshader`. **O app precisa da mesma conta na integração**, com as mesmas 2
+rodadas, as mesmas 8 vizinhas e o mesmo limite: senão as copas caem em outro lugar.
+Assando em pedaços fica barato (cada centro é calculado uma vez por pedaço).
+
+Medida na floresta (simulação com o hash e o ruído do app, 6.400 células): sem
+afastamento, 26% das copas têm uma vizinha a menos de 0,4 da soma dos dois raios
+(quase em cima); com `afastarCasas` 0,875, sobra 0,1%, com o mesmo número de copas (0,59
+por casa) e as mesmas moitas e clareiras. A cobertura sobe de 0,69 para 0,72, porque as
+copas param de se esconder umas atrás das outras.
+
+Por que não uma grade sacudida (um ponto por célula de passo próprio, com folga): na mesma
+simulação, com a mesma quantidade de copas a folga fica pequena e a grade lê como
+fileira; com folga para desmanchar a fileira, a mata fica 13 a 22% mais rala.
 
 ## 5. Teto de memória
 

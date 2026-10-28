@@ -91,6 +91,9 @@ static func ler_config(id: String) -> Dictionary:
 			"variacaoDeTom": float(det.get("variacaoDeTom", 0.05)),
 		},
 	}
+	# Opcional: sem ele o espalhamento é o de sempre e o textura.json não muda.
+	if det.has("afastarCasas"):
+		cfg["detalhes"]["afastarCasas"] = float(det["afastarCasas"])
 	if c.get("id", id) != id:
 		erros.append("config.json diz id '%s', mas a pasta é '%s'" % [c.get("id"), id])
 	if cfg["nome"].strip_edges() == "":
@@ -135,6 +138,12 @@ static func ler_config(id: String) -> Dictionary:
 		erros.append("'detalhes.escalaMin/escalaMax' entre 0,5 e 1,5, mínimo <= máximo")
 	if d["variacaoDeTom"] < 0.0 or d["variacaoDeTom"] > 0.12:
 		erros.append("'detalhes.variacaoDeTom' de 0 a 0,12")
+	if d.has("afastarCasas"):
+		# Até um passo da grade (meia célula): as vizinhas são só as 8 em volta, e o
+		# detalhe deslocado (no máximo afastar / 2) ainda cabe no laço de 5 x 5 células.
+		var afastar: float = d["afastarCasas"]
+		if afastar <= 0.0 or afastar > celula * 0.5:
+			erros.append("'detalhes.afastarCasas' maior que 0 e até %.1f (meia célula)" % (celula * 0.5))
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
 
 
@@ -159,6 +168,25 @@ static func parametros(cfg: Dictionary, base_lado: int, tem_atlas: bool, media: 
 	var arquivos: Array = []
 	for v in cfg["variantes"]:
 		arquivos.append(ARQUIVOS_DE_BASE[v])
+	var detalhes := {
+		"arquivo": ARQUIVO_DO_ATLAS if tem_atlas else null,
+		"ladoPx": ATLAS_LADO,
+		"colunas": ATLAS_COLUNAS / int(det["celulaCasas"]),
+		"linhas": ATLAS_LINHAS / int(det["celulaCasas"]),
+		"pxPorCasa": ATLAS_PX_POR_CASA,
+		"celulaCasas": det["celulaCasas"],
+		"gradeDoMundoPx": CASA_PX / 2 * int(det["celulaCasas"]),
+		"semente": det["semente"],
+		"quantos": det["quantos"],
+		"pesos": det["pesos"],
+		"densidade": det["densidade"],
+		"agrupamento": det["agrupamento"],
+		"escalaMin": det["escalaMin"],
+		"escalaMax": det["escalaMax"],
+		"variacaoDeTom": det["variacaoDeTom"],
+	}
+	if det.has("afastarCasas"):
+		detalhes["afastarCasas"] = det["afastarCasas"]
 	return {
 		"contrato": VERSAO,
 		"id": cfg["id"],
@@ -174,23 +202,7 @@ static func parametros(cfg: Dictionary, base_lado: int, tem_atlas: bool, media: 
 		},
 		"mistura": cfg["mistura"],
 		"tom": cfg["tom"],
-		"detalhes": {
-			"arquivo": ARQUIVO_DO_ATLAS if tem_atlas else null,
-			"ladoPx": ATLAS_LADO,
-			"colunas": ATLAS_COLUNAS / int(det["celulaCasas"]),
-			"linhas": ATLAS_LINHAS / int(det["celulaCasas"]),
-			"pxPorCasa": ATLAS_PX_POR_CASA,
-			"celulaCasas": det["celulaCasas"],
-			"gradeDoMundoPx": CASA_PX / 2 * int(det["celulaCasas"]),
-			"semente": det["semente"],
-			"quantos": det["quantos"],
-			"pesos": det["pesos"],
-			"densidade": det["densidade"],
-			"agrupamento": det["agrupamento"],
-			"escalaMin": det["escalaMin"],
-			"escalaMax": det["escalaMax"],
-			"variacaoDeTom": det["variacaoDeTom"],
-		},
+		"detalhes": detalhes,
 		"corMedia": "#" + media.to_html(false),
 		"memoria": {
 			"gpuBytes": gpu,

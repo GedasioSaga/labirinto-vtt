@@ -12,6 +12,7 @@
   "contrato": 1,
   "corMedia": "#306644",
   "detalhes": {
+    "afastarCasas": 0.875,
     "agrupamento": 0.65,
     "arquivo": "detalhes.png",
     "celulaCasas": 2,

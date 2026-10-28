@@ -18,7 +18,11 @@
 //   outra árvore". As copas caíram de 2 a 2,6 para 1,3 a 1,8 casas, a densidade baixou
 //   e cada copa leva uma faixa do chão da mata em volta, que abre um vão escuro quando
 //   duas caem perto. O espalhamento do contrato (1 ponto livre por célula de 1 casa)
-//   não garante distância mínima: ainda sai um par empilhado aqui e ali;
+//   não garante distância mínima, então o config.json liga o afastamento
+//   (detalhes.afastarCasas 0,875 = 56 px): as mesmas copas, nas mesmas células, só
+//   empurradas para longe das vizinhas próximas. Uma grade sacudida saiu na
+//   simulação: com a mesma quantidade de copas ela fica regular (fileira), e com
+//   folga para desmanchar a fileira fica 13 a 22% mais rala;
 // - pincelada de 1/4 de casa dentro da copa virou pontilhado a 50% (saiu);
 // - ruído miúdo na borda de uma faixa lisa deixava ilhotas de luz (bolinhas a 300%).
 shader_type canvas_item;

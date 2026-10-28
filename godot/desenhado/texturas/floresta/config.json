@@ -29,6 +29,7 @@
     "agrupamento": 0.65,
     "escalaMin": 1.05,
     "escalaMax": 1.3,
-    "variacaoDeTom": 0.035
+    "variacaoDeTom": 0.035,
+    "afastarCasas": 0.875
   }
 }
