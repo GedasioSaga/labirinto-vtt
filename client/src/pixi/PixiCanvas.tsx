@@ -74,6 +74,8 @@ import {
 import { carimboDoCatalogo } from '../carimbos/catalogo'
 import { consultaDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
+import { criarDesenhoDoBarranco } from './drawBarranco'
+import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createNuvensRenderer } from './drawNuvens'
@@ -1160,6 +1162,9 @@ export function PixiCanvas({
       const relevoContainer = new Container()
       relevoContainer.eventMode = 'none'
       relevoContainer.addChild(relevo.camada)
+      // BARRANCO (`drawBarranco.ts`): mora em Terreno, como o Penhasco — no contêiner do relevo, por cima dele.
+      const desenhoDoBarranco = criarDesenhoDoBarranco()
+      relevoContainer.addChild(desenhoDoBarranco.camada)
       // TEXTURAS (`drawTexturas.ts`): o que o mestre pintou com a ferramenta
       // Texturas, por cima do chão e dos desenhos e ABAIXO do relevo — a luz e
       // a sombra caem por cima da textura, e a borda das salas, as paredes, os
@@ -1297,6 +1302,15 @@ export function PixiCanvas({
       // (handlesGraphics) e o draft ativo, mesma ordem do CONTRATO da frente.
       const hoverGraphics = new Graphics()
       const draftGraphics = new Graphics()
+      // BARRANCO: os gestos da ferramenta (`barrancoNoEditor.ts`); o rascunho do risco e a prévia da rampa usam o draft.
+      const gestoDoBarranco = criarGestoDoBarranco({
+        rascunho: draftGraphics,
+        aoMudarDesenho: () => desenhoDoBarranco.atualizar(gestoDoBarranco.entrada()),
+        avisar: (texto) => {
+          const toasts = useToastStore.getState()
+          if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
+        },
+      })
       // TEXTURAS: o anel do pincel (o tamanho dele) segue o ponteiro, acima do rascunho.
       const anelDoPincelGraphics = new Graphics()
       const angleIndicatorContainer = new Container()
@@ -3014,6 +3028,10 @@ export function PixiCanvas({
         textResolutionTask.flush()
       })
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
+      // BARRANCO: refaz só quando a entrada muda (barranco, piso, grade, risco escolhido), comparada por referência.
+      const atualizarBarranco = () => desenhoDoBarranco.atualizar(gestoDoBarranco.entrada())
+      atualizarBarranco()
+      const unsubscribeBarranco = useMapStore.subscribe(atualizarBarranco)
       // O par de um pino de viagem mora numa cena de FUNDO: ligar, desligar ou
       // apagar o par muda o cache da aventura sem tocar em `map.pins` daqui, e
       // o pino daqui precisa acender ou apagar mesmo assim.
@@ -3251,6 +3269,8 @@ export function PixiCanvas({
         | 'painting-reveal-brush'
         // Penhasco: arrasto que risca (ou, com Alt, apaga) penhasco na costa.
         | 'painting-penhasco'
+        // Barranco: risco, traço da área alta ou clique de rampa (`barrancoNoEditor.ts`).
+        | 'painting-barranco'
         // Texturas: arrasto do pincel (ou da borracha) de textura.
         | 'painting-textura'
         // Carimbos: o clique (ou o spray, ou a borracha) de objetos.
@@ -5074,6 +5094,9 @@ export function PixiCanvas({
         // desfazer) depois de cancelado, ou já com outra ferramenta na mão.
         penhascoStroke = []
         if (mode === 'painting-penhasco') mode = 'idle'
+        // Barranco: idem — o traço da área cancelado não vira passo, e o risco cancelado não entra.
+        gestoDoBarranco.cancelar()
+        if (mode === 'painting-barranco') mode = 'idle'
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
         texturaStroke = []
         if (mode === 'painting-textura') mode = 'idle'
@@ -5960,6 +5983,12 @@ export function PixiCanvas({
           revealStrokeRadius = revealBrushRadius(map.grid, revealBrushWidth)
           revealStroke = [worldPoint]
           drawRevealStroke()
+          return
+        }
+
+        if (activeTool === 'barranco') {
+          // BARRANCO (`barrancoNoEditor.ts`): risco, área alta ou rampa, pelo modo do painel; Alt desce a área.
+          if (gestoDoBarranco.comecar(worldPoint, event.altKey)) mode = 'painting-barranco'
           return
         }
 
@@ -7051,6 +7080,7 @@ export function PixiCanvas({
 
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
 
@@ -7441,6 +7471,7 @@ export function PixiCanvas({
         // como no pincel de blocos acima (o ponto de fora não entra no traço).
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
+        if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
         // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
         if (mode === 'painting-carimbo') finishCarimbo(null)
@@ -7628,6 +7659,8 @@ export function PixiCanvas({
         // ocioso — 1 evento de atraso perceptível é imperceptível a 60fps.
         if (mode === 'idle') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          // BARRANCO: a prévia da rampa segue o ponteiro ocioso.
+          if (useMapStore.getState().activeTool === 'barranco') gestoDoBarranco.pairar(worldPoint)
           const hover = resolveHoverAtIdle(worldPoint)
           hoverKind = hover.kind
           hoverCorner = hover.corner
@@ -8058,6 +8091,11 @@ export function PixiCanvas({
 
         if (mode === 'painting-reveal-brush') {
           extendRevealStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-barranco') {
+          gestoDoBarranco.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -8586,6 +8624,8 @@ export function PixiCanvas({
         switch (action.kind) {
           case 'cancel':
             clearDrafts()
+            // Barranco: Esc solta o risco escolhido.
+            useMapStore.getState().setBarrancoEscolhido(null)
             // Onda 4, item 24 — Esc cancela um marquee aberto e limpa a
             // seleção, de QUALQUER tamanho.
             //
@@ -8619,6 +8659,8 @@ export function PixiCanvas({
           // 16/09/2026). O aviso NOMEIA o que foi apagado e mostra a saída —
           // mesma função do toast de desfazer da referência do nicho.
           case 'deleteSelected': {
+            // Barranco: com um risco escolhido na ferramenta, Delete apaga o risco.
+            if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.apagarEscolhido()) break
             // O pino de ponto de interesse vive FORA de `selection` (estado
             // próprio, `selectedPinId`), então Delete nunca o alcançava: dava
             // para colocar e não dava para tirar sem achar "Excluir ponto de
@@ -8687,6 +8729,8 @@ export function PixiCanvas({
             nudgeSelected(action.dx, action.dy, action.fine)
             break
           case 'fitAll':
+            // Barranco: com um risco escolhido na ferramenta, F vira o lado alto na hora; sem risco, F enquadra como sempre.
+            if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.virarEscolhido()) break
             fitToContent('gesto')
             break
           case 'zoomReset':
@@ -8831,6 +8875,7 @@ export function PixiCanvas({
         glideDaCamera.parar()
         zoomDaRoda.cancelar()
         unsubscribeShapes()
+        unsubscribeBarranco()
         unsubscribeTravelLinks()
         unsubscribeTerritorio()
         unsubscribeTelhados()
@@ -8858,6 +8903,8 @@ export function PixiCanvas({
         lightsRenderer.destroy()
         // A textura do relevo também não: o Sprite sai com a cena, ela não.
         relevo.destruir()
+        gestoDoBarranco.cancelar()
+        desenhoDoBarranco.destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
         texturas.destruir()
         // Os desenhos e as sombras dos carimbos também.

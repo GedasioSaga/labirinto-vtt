@@ -13,6 +13,8 @@ import {
   type ToolbarSlot,
 } from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
+import { isContinente } from '../lib/marcadorDeContinente'
+import { useMapStore } from '../stores/mapStore'
 import { placeHint, type HintPlacement } from './hintPlacement'
 import {
   TOOL_VARIANTS,
@@ -306,6 +308,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    */
   const [hintDismissed, setHintDismissed] = useState(false)
   const [hintTool, setHintTool] = useState(activeTool)
+  // BARRANCO (decisão 6 de 28/10): o Penhasco fica SÓ no mapa de continente, e o
+  // Barranco é a ferramenta dos outros mapas. Um troca o outro no mesmo lugar da barra.
+  const continente = useMapStore((s) => isContinente(s.map))
   /**
    * Última escolha feita numa setinha — só QUAL posição e QUAL eixo. O VALOR
    * fica de fora de propósito: ele é relido de `variantBindings` a cada render
@@ -517,6 +522,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
           <div className="lb-toolbar__group" key={group.nome} role="group" aria-label={group.nome}>
             {index > 0 && <span className="lb-toolbar__sep" aria-hidden="true" />}
             {group.slots.map((slot) => {
+              if ((slot === 'penhasco' && !continente) || (slot === 'barranco' && continente)) return null
               const view = slotView(slot, activeTool, ultima)
               if (!view) return null
               const { Icon } = view

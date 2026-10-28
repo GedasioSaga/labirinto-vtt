@@ -183,6 +183,20 @@ export function CarimbosIcon(props: IconProps) {
 }
 
 /**
+ * Barranco: a beira de cima ondulando e a parede de terra caindo para o lado
+ * baixo, como o ícone do Risco no protótipo (`docs/design/barranco/`).
+ */
+export function BarrancoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 9c4-3 7 2 11-1s5-3 7-2" />
+      <path d="M3 14c4-3 7 2 11-1s5-3 7-2" />
+      <path d="M3 9v5M21 6v5" />
+    </Icon>
+  )
+}
+
+/**
  * Penhasco: a terra vista de lado — o chão em cima e a parede descendo em
  * degraus até a água, que ondula no pé dela.
  */

@@ -847,9 +847,10 @@ export function riscoPerto(geos: readonly GeoDoBarranco[], p: RegionPoint, raio:
   return melhor === null ? null : melhor.id
 }
 
-/** Onde fica a alça Virar de um risco: o meio da beira, com a seta apontando para o lado baixo. */
-export function alcaDoRisco(geo: GeoDoBarranco): PontoDaBeira {
-  return pontoEm(geo, geo.len / 2)
+/** A alça Virar de um risco: no meio da parede, com a seta (`ux`, `uy`) apontando para o lado baixo. */
+export function alcaDoRisco(geo: GeoDoBarranco, grid: number): { x: number; y: number; raio: number; ux: number; uy: number } {
+  const P = pontoEm(geo, geo.len / 2)
+  return { x: P.x + P.ux * P.t * 0.5, y: P.y + P.uy * P.t * 0.5, raio: Math.max(10, grid * 0.28), ux: P.ux, uy: P.uy }
 }
 
 // ---------------------------------------------------------------------------

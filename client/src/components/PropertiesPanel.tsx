@@ -100,6 +100,7 @@ import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTrigge
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PenhascoControls } from './PenhascoControls'
+import { BarrancoControls } from './BarrancoControls'
 import { TexturasControls } from './TexturasControls'
 import { CarimbosControls } from './CarimbosControls'
 import { PinControls, type PinControlsProps } from './PinControls'
@@ -821,6 +822,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="penhasco" groups={groups}>
           <PenhascoControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="barranco" groups={groups}>
+          <BarrancoControls />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="texturas" groups={groups}>
           <TexturasControls />
