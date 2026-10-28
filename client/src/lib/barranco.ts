@@ -15,8 +15,9 @@ import { pisoDe, pisoLido } from './pisos'
  *   grade, decisão 3 de 28/10).
  * A RAMPA é um vão de terra: o barranco mais perto do ponto abre 2 quadrados.
  *
- * Segura o ANDAR, não a visão: `segmentosQueSeguram` dá a linha do meio da
- * parede (fora das rampas) que o arrasto, o andar por clique e a batalha testam.
+ * Segura o ANDAR, não a visão: `segmentosQueSeguram` dá as duas beiradas da
+ * faixa de terra (fora das rampas), afastadas o raio da ficha, que o arrasto,
+ * o andar por clique e a batalha testam.
  *
  * Folha de propósito (só tipos, `pisos` e o corte de caminho do penhasco):
  * quem desenha (`pixi/drawBarranco.ts`) e quem anda importam daqui.
@@ -614,7 +615,7 @@ export interface SegmentoDeBarranco {
   by: number
 }
 
-const cacheDeSegmentos = new WeakMap<GeoDoBarranco[], SegmentoDeBarranco[]>()
+const cacheDeSegmentos = new WeakMap<GeoDoBarranco[], Map<number, SegmentoDeBarranco[]>>()
 
 /** Distância de `p` à reta de `a` até `b`. */
 function distanciaAoTrecho(p: Pt, a: Pt, b: Pt): number {
@@ -631,21 +632,29 @@ function distanciaAoTrecho(p: Pt, a: Pt, b: Pt): number {
  * na terra. As pontas afinam, e a ficha passa por fora delas. A visão não usa
  * isto (decisão 2 de 28/10).
  *
+ * `folga`: quanto as duas beiradas se afastam da terra, cada uma para o seu
+ * lado. As contas de andar testam o CENTRO da ficha; com a folga do raio dela
+ * (`segmentosDoMapa` passa meia casa), o centro para a um raio da terra e o
+ * disco fica encostado na beira, fora dela, como no protótipo. As tampas ligam
+ * as pontas afastadas.
+ *
  * O desenho tem um ponto a cada poucos px; aqui o ponto que fica a menos de
  * meio px da reta entre os vizinhos sai: a reta do platô vira um trecho só, e
  * o arrasto, a malha e os blocos da batalha testam bem menos linhas.
  */
-export function segmentosQueSeguram(geos: GeoDoBarranco[]): SegmentoDeBarranco[] {
-  const guardado = cacheDeSegmentos.get(geos)
+export function segmentosQueSeguram(geos: GeoDoBarranco[], folga = 0): SegmentoDeBarranco[] {
+  let porFolga = cacheDeSegmentos.get(geos)
+  const guardado = porFolga?.get(folga)
   if (guardado !== undefined) return guardado
   const segs: SegmentoDeBarranco[] = []
   const empurrar = (a: Pt, b: Pt) => {
     if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.01) segs.push({ ax: a[0], ay: a[1], bx: b[0], by: b[1] })
   }
   for (const g of geos) {
-    const beirada = (fracao: number) => (i: number): Pt => [g.lip[i][0] + g.vn[i][0] * g.t[i] * fracao, g.lip[i][1] + g.vn[i][1] * g.t[i] * fracao]
-    const beira = beirada(0)
-    const pe = beirada(1)
+    // `vn` é o vetor de esquadria (comprimento >= 1): afastar por ele mantém a distância `folga` dos dois trechos vizinhos.
+    const afastada = (quanto: (i: number) => number) => (i: number): Pt => [g.lip[i][0] + g.vn[i][0] * quanto(i), g.lip[i][1] + g.vn[i][1] * quanto(i)]
+    const beira = afastada(() => -folga)
+    const pe = afastada((i) => g.t[i] + folga)
     for (const corrida of corridas(g)) {
       const idx = corrida.fechada ? [...corrida.idx, corrida.idx[0]] : corrida.idx
       if (idx.length < 2) continue
@@ -667,7 +676,11 @@ export function segmentosQueSeguram(geos: GeoDoBarranco[]): SegmentoDeBarranco[]
       }
     }
   }
-  cacheDeSegmentos.set(geos, segs)
+  if (porFolga === undefined) {
+    porFolga = new Map()
+    cacheDeSegmentos.set(geos, porFolga)
+  }
+  porFolga.set(folga, segs)
   return segs
 }
 
@@ -722,10 +735,14 @@ export function mapaParaAndar(map: MapData, piso: number): MapData {
   return novo
 }
 
-/** Os segmentos que seguram a ficha neste mapa e piso (vazio sem barranco). */
+/**
+ * Os segmentos que seguram a ficha neste mapa e piso (vazio sem barranco),
+ * afastados meia casa da terra: o raio da ficha de 1 casa. A ficha 2x2 usa o
+ * mesmo raio (limitação conhecida, no plano).
+ */
 export function segmentosDoMapa(map: Pick<MapData, 'barranco' | 'grid'>, piso: number): SegmentoDeBarranco[] {
   if (map.barranco === undefined) return []
-  return segmentosQueSeguram(geosDoBarranco(map.barranco, piso, map.grid))
+  return segmentosQueSeguram(geosDoBarranco(map.barranco, piso, map.grid), map.grid / 2)
 }
 
 /**
