@@ -180,6 +180,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   balcao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('barra', 'Barra de pé', METAIS, 'latao')],
   // A mesa posta: a louça, a comida e a caneca têm cor própria (como as flores da jardineira); o que muda é a forma.
   pratos: [],
+  privada: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('ferragens', 'Puxador', METAIS, 'latao')],
+  sofa: [lugar('tecido', 'Estofado', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  poltrona: [lugar('tecido', 'Estofado', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

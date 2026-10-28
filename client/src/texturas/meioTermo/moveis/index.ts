@@ -41,6 +41,9 @@ import { montarGeladeira } from './geladeira'
 import { montarPia } from './pia'
 import { montarBalcao } from './balcao'
 import { montarPratos } from './pratos'
+import { montarPrivada } from './privada'
+import { montarSofa } from './sofa'
+import { montarPoltrona } from './poltrona'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -81,6 +84,10 @@ const MONTADORES = {
   balcao: montarBalcao,
   // A mesa posta: a forma (cheio, vazio, pilha) chega na `variante`, como o desenho da lápide.
   pratos: montarPratos,
+  // O banheiro e a sala: o sofá e a poltrona são o mesmo estofado (`montarEstofado`).
+  privada: montarPrivada,
+  sofa: montarSofa,
+  poltrona: montarPoltrona,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -109,7 +116,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

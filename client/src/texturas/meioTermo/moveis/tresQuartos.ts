@@ -104,6 +104,9 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   balcao: DERIVADO,
   // A mesa posta sobe a altura do tampo, com a sombra junto: ela está em cima da mesa.
   pratos: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },
+  privada: DERIVADO,
+  sofa: DERIVADO,
+  poltrona: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

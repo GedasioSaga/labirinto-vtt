@@ -22,7 +22,7 @@ import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 export const PECAS_NOVAS = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -80,6 +80,10 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   balcao: { rotulo: 'Balcão', artigo: 'um balcão', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
   // A mesa posta: desenhada por cima da mesa e do balcão (`ehMovelDeCimaDaMesa`), com a forma cheio, vazio ou pilha.
   pratos: { rotulo: 'Pratos', artigo: 'uns pratos', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  // O banheiro e a sala: a privada de madeira e louça, o sofá estofado (estica, uma almofada por casa) e a poltrona, o par dele.
+  privada: { rotulo: 'Privada', artigo: 'uma privada', tamanho: { largura: 0.5, altura: 0.6 }, redonda: false },
+  sofa: { rotulo: 'Sofá', artigo: 'um sofá', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  poltrona: { rotulo: 'Poltrona', artigo: 'uma poltrona', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -106,6 +110,9 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     pia: valor(f.pia),
     balcao: valor(f.balcao),
     pratos: valor(f.pratos),
+    privada: valor(f.privada),
+    sofa: valor(f.sofa),
+    poltrona: valor(f.poltrona),
   }
 }
 
@@ -128,7 +135,7 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
 ]
 
 /**
@@ -140,7 +147,9 @@ const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
   // A mesa posta (os Pratos) com as mesas, onde ela vai.
   mesa: ['mesaQuadrada', 'mesaRedonda', 'pratos'],
   // A cozinha fica junto do armário de cozinha, e o balcão com o aparador, o parente esticável dele.
-  armario: ['fogao', 'geladeira', 'pia'],
+  armario: ['fogao', 'geladeira', 'pia', 'privada'],
+  // O sofá e a poltrona com a cadeira, os outros assentos.
+  cadeira: ['sofa', 'poltrona'],
   aparador: ['balcao'],
   cerca: ['sebe', 'jardineira'],
   tapete: ['tapeteLongo'],
@@ -279,6 +288,16 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
     case 'pratos':
       // O prato e a caneca no canto.
       return [...aro(largura * 0.62, altura * 0.62, -hw * 0.15, hh * 0.08), ...aro(largura * 0.24, altura * 0.24, hw * 0.6, -hh * 0.6)]
+    case 'privada':
+      // A caixa de descarga no fundo e o assento oval na frente.
+      return [linha(-hw, -hh * 0.4, hw), ...aro(largura * 0.86, altura * 0.62, 0, hh * 0.3)]
+    case 'sofa':
+    case 'poltrona': {
+      // O encosto no fundo e os dois braços: o "U" em volta do assento (a poltrona tem os braços mais largos).
+      const braco = largura * (tipo === 'sofa' ? 0.11 : 0.2)
+      const encosto = -hh + altura * 0.3
+      return [linha(-hw + braco, encosto, hw - braco), { x1: -hw + braco, y1: encosto, x2: -hw + braco, y2: hh }, { x1: hw - braco, y1: encosto, x2: hw - braco, y2: hh }]
+    }
   }
 }
 

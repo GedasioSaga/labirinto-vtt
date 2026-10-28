@@ -591,6 +591,30 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M20 21V9.5M18.3 3.5v4a1.7 1.7 0 0 0 3.4 0v-4M20 3.5v4" />
         </>
       )
+    case 'privada':
+      // De lado: a caixa de descarga na parede, o assento e o vaso descendo até o pé.
+      return (
+        <>
+          <rect x="5" y="3" width="7" height="6.5" />
+          <path d="M5 13h14M6.5 13a5.5 5.5 0 0 0 5.5 5.5h1M12 18.5V21h-3M10 9.5V13" />
+        </>
+      )
+    case 'sofa':
+      // De frente: o encosto, os dois braços mais baixos e as duas almofadas.
+      return (
+        <>
+          <path d="M5 13V7.5A1.5 1.5 0 0 1 6.5 6h11A1.5 1.5 0 0 1 19 7.5V13" />
+          <path d="M2.5 11h2.5v7h14v-7h2.5v7.5h-19zM5 14h14M12 14v4M4 18.5v2M20 18.5v2" />
+        </>
+      )
+    case 'poltrona':
+      // De frente, estreita e funda: o encosto alto, os braços largos e uma almofada.
+      return (
+        <>
+          <path d="M8 13V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V13" />
+          <path d="M4 10.5h4V18h8v-7.5h4V19H4zM8 14.5h8M5.5 19v2M18.5 19v2" />
+        </>
+      )
     case 'balcao':
       // Comprido, o tampo com a beira da frente e a barra de pé rente ao chão.
       return (
