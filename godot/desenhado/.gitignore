@@ -1,0 +1,5 @@
+# Cache de importação e de shader do Godot (recriado ao abrir o projeto)
+.godot/
+# Ajuste local de janela usado só nas rodadas automáticas
+override.cfg
+*.tmp
