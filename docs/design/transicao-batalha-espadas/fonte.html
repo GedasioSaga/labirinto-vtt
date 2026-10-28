@@ -167,7 +167,7 @@ const ABERTURAS = {
   espadasCruzadas: {
     criar: B.espadasCruzadas,
     meta: B.metaEspadasCruzadas,
-    descricao: 'Duas espadas entram pelos lados e se cruzam no centro com um clarão; o nome nasce do choque em ouro em brasa e esfria. No fim, dois cortes em X riscam a tela e ela fecha em preto.',
+    descricao: 'Duas espadas escurecidas avançam pelos lados e se chocam no centro sem parar; o contato congela num clarão carmesim e estoura. O nome desce pesado, em ferro escuro com rachaduras em brasa. No fim, dois cortes em X riscam a tela e ela fecha em preto.',
   },
 }
 const palco = document.getElementById('palco')
@@ -286,7 +286,7 @@ function montar() {
   pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
   for (const b of segmentos) b.setAttribute('aria-pressed', String(b.dataset.abertura === abertura))
   descricao.textContent = ABERTURAS[abertura].descricao
-  canvas.setAttribute('aria-label', `Animação: duas espadas se cruzam no centro e o nome ${nome} aparece em letras de ouro`)
+  canvas.setAttribute('aria-label', `Animação: duas espadas escuras se chocam no centro e o nome ${nome} desce em ferro com brasa vermelha`)
   ajustar()
 }
 
