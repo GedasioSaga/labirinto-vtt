@@ -1,6 +1,6 @@
 import type { Prop } from '../types/map'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
-import { ehMovelDoChao } from '../lib/mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../lib/mobilia'
 import { pointInPolygonInclusive } from '../lib/roomNesting'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 
@@ -12,7 +12,12 @@ import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
  */
 export function findPropAt(props: Prop[], point: { x: number; y: number }): Prop | null {
   // O tapete longo (MT5) também mora no chão (`ehMovelDoChao`).
-  return findTopmostAt(props, point, (prop) => !ehMovelDoChao(prop.mobilia)) ?? findTopmostAt(props, point, (prop) => ehMovelDoChao(prop.mobilia))
+  // A mesa posta (os Pratos) é desenhada por cima da mesa: o clique pega ela primeiro (`ehMovelDeCimaDaMesa`).
+  return (
+    findTopmostAt(props, point, (prop) => ehMovelDeCimaDaMesa(prop.mobilia)) ??
+    findTopmostAt(props, point, (prop) => !ehMovelDoChao(prop.mobilia)) ??
+    findTopmostAt(props, point, (prop) => ehMovelDoChao(prop.mobilia))
+  )
 }
 
 function findTopmostAt(props: Prop[], point: { x: number; y: number }, accepts: (prop: Prop) => boolean): Prop | null {

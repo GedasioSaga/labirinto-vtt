@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alternarCadeado, alternarOlhoDoMestre } from './camadas/estado'
@@ -34,7 +34,7 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaCurva, aceitaVista, comAparenciaDoMovel, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
+  aceitaCurva, aceitaVista, comAparenciaDoMovel, formaDosPratos, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
@@ -901,6 +901,17 @@ export function trocarFormaDoTapete(map: MapData, propId: string, forma: FormaDo
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo?.mobilia !== 'tapete' || formaDoTapete(alvo) === forma) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraForma(p, forma, map.grid) : p)) }
+}
+
+/**
+ * "Forma" do painel dos PRATOS (Prato cheio | Prato vazio | Pilha), a mesa
+ * posta: a pegada fica (`pratosComOutraForma`). A mesma forma, outro tipo ou
+ * id que não existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFormaDosPratos(map: MapData, propId: string, forma: FormaDosPratos): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'pratos' || formaDosPratos(alvo) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? pratosComOutraForma(p, forma) : p)) }
 }
 
 /**

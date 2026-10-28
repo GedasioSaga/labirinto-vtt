@@ -8,7 +8,7 @@ import { drawPropSilhouettes } from './drawPropSilhouettes'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
-import { ehMovelDoChao } from '../lib/mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../lib/mobilia'
 import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
@@ -81,6 +81,8 @@ function strokeDashedPolygon(graphics: Graphics, points: readonly { x: number; y
 export const FURNITURE_LABEL = 'mobilia'
 /** Rótulo do `Container` do CHÃO: os tapetes, sempre no índice 0 dos objetos, por baixo de sprite e móvel. */
 export const FLOOR_LABEL = 'chao-dos-objetos'
+/** Rótulo do `Container` da MESA POSTA: os Pratos, por cima de sprite e móvel, logo abaixo do destaque. */
+export const MESA_POSTA_LABEL = 'mesa-posta'
 
 /** Transparência do objeto no editor: fantasma do "Oculto no editor", meio apagado se "Oculto para jogadores". */
 function propAlpha(prop: Prop): number {
@@ -154,6 +156,9 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   let highlightAttached = false
   const floor = new Container()
   floor.label = FLOOR_LABEL
+  // A MESA POSTA (os Pratos): o avesso do chão, por cima de todo objeto e logo abaixo do destaque.
+  const mesaPosta = new Container()
+  mesaPosta.label = MESA_POSTA_LABEL
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
   // mesmo toast de erro a cada `draw()` (chamado a cada mudança relevante do
   // mapa, não só uma vez). Fechado por closure igual `spriteCache`: nasce
@@ -265,6 +270,11 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       if (floor.parent !== container) container.addChildAt(floor, 0)
       else if (container.getChildIndex(floor) !== 0) container.setChildIndex(floor, 0)
     }
+    // A mesa posta volta ao topo, logo abaixo do destaque. Mapa sem pratos nunca a ganha.
+    if (mesaPosta.children.length > 0) {
+      if (mesaPosta.parent !== container) container.addChildAt(mesaPosta, container.getChildIndex(highlightGraphics))
+      else if (container.getChildIndex(mesaPosta) !== container.getChildIndex(highlightGraphics) - 1) container.setChildIndex(mesaPosta, container.getChildIndex(highlightGraphics) - 1)
+    }
   }
 
   /**
@@ -285,6 +295,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     // O tapete (e o tapete longo, MT5) mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
     if (ehMovelDoChao(prop.mobilia)) {
       if (entry.drawing.parent !== floor) floor.addChild(entry.drawing)
+    } else if (ehMovelDeCimaDaMesa(prop.mobilia)) {
+      if (entry.drawing.parent !== mesaPosta) mesaPosta.addChild(entry.drawing)
     } else if (entry.drawing.parent !== container) {
       container.addChildAt(entry.drawing, 0)
     }

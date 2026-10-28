@@ -1,8 +1,10 @@
 import { useId, useRef, type CSSProperties } from 'react'
 import {
   FORMAS_DO_TAPETE,
+  FORMAS_DOS_PRATOS,
   PALETA_DE_TECIDO,
   ROTULO_FORMA,
+  ROTULO_FORMA_DOS_PRATOS,
   ROTULO_MOBILIA,
   ROTULO_VISTA,
   VISTAS_MOBILIA,
@@ -10,6 +12,7 @@ import {
   ehMovelVazado,
   ehTipoMobilia,
   formaDoTapete,
+  formaDosPratos,
   normalizarCorDeTecido,
   normalizarCorDoMovel,
   vistaDoMovel,
@@ -23,7 +26,7 @@ import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { useMapStore } from '../stores/mapStore'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
-import type { FormaDoTapete, Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FormaDoTapete, FormaDosPratos, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -56,6 +59,11 @@ export interface MobiliaControlsProps {
    * só mostram o móvel, sem editar a pegada).
    */
   onTamanhoDoFogoChange?: (id: string, tamanho: TamanhoDoFogo) => void
+  /**
+   * Pratos (a mesa posta): troca a forma (Prato cheio | Prato vazio | Pilha)
+   * no lugar; o tamanho fica. Ausente = o painel não oferece a forma.
+   */
+  onFormaDosPratosChange?: (id: string, forma: FormaDosPratos) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -253,6 +261,7 @@ export function MobiliaControls({
   onVistaChange,
   onFormaChange,
   onTamanhoDoFogoChange,
+  onFormaDosPratosChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -326,6 +335,26 @@ export function MobiliaControls({
                 >
                   <FormaDoTapeteIcon forma={opcao} size={16} strokeWidth={1.8} />
                   {ROTULO_FORMA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* A forma dos pratos (a mesa posta): o mesmo segmentado da forma do tapete, só com o nome. */}
+        {tipo === 'pratos' && onFormaDosPratosChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DOS_PRATOS.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDosPratos(prop) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDosPratosChange(prop.id, opcao)}
+                >
+                  {ROTULO_FORMA_DOS_PRATOS[opcao]}
                 </button>
               ))}
             </div>

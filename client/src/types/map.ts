@@ -1703,8 +1703,10 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   /** TAPETE (pedido de 15/10/2026): a "Forma" do tapete. Só `'redondo'` é
    *  gravado; ausente = retangular — sem linha de migração. Vale só no tapete
    *  (`lib/mobilia.ts` recusa o resto na leitura e na travessia); vai ao
-   *  jogador junto do tipo. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'>
+   *  jogador junto do tipo. Os PRATOS (mesa posta, 28/10/2026) usam o mesmo
+   *  campo para a forma deles: só `'vazio'` e `'pilha'` são gravados; ausente =
+   *  prato cheio. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'>
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1749,6 +1751,9 @@ export type VistaMobilia = 'frente' | 'lado'
 
 /** "Forma" do tapete (`lib/mobilia.ts`): retangular (o padrão) ou redondo. Só o redondo é gravado. */
 export type FormaDoTapete = 'retangular' | 'redondo'
+
+/** "Forma" dos pratos, a mesa posta (`lib/mobilia.ts`): prato cheio (o padrão), vazio ou a pilha. Só vazio e pilha são gravados. */
+export type FormaDosPratos = 'cheio' | 'vazio' | 'pilha'
 
 export interface DrawingPoint {
   x: number

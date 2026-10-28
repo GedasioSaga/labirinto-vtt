@@ -40,6 +40,7 @@ import { montarFogao } from './fogao'
 import { montarGeladeira } from './geladeira'
 import { montarPia } from './pia'
 import { montarBalcao } from './balcao'
+import { montarPratos } from './pratos'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -78,6 +79,8 @@ const MONTADORES = {
   geladeira: montarGeladeira,
   pia: montarPia,
   balcao: montarBalcao,
+  // A mesa posta: a forma (cheio, vazio, pilha) chega na `variante`, como o desenho da lápide.
+  pratos: montarPratos,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -106,7 +109,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
@@ -128,7 +131,7 @@ export interface DesenhoDoMovel {
   readonly forma?: FormaDoTapete
   /** Só na cerca: a volta em graus (0 ou ausente = reta). */
   readonly curva?: number
-  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). */
+  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). Nos pratos, a forma (`varianteDosPratos`). */
   readonly variante?: number
   /**
    * Só na placa de seta: o giro do objeto em quartos de volta (90, 180 ou 270;

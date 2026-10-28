@@ -48,7 +48,18 @@ export interface PerfilDoTresQuartos {
   readonly espessura?: number
   /** Poste de ferro no meio (o lampião), com este raio (px do protótipo), do chão ao tampo mais alto. */
   readonly poste?: number
+  /**
+   * A sombra sobe junto com as peças soltas (`alturaSolta`): a mesa posta,
+   * cuja sombra cai no tampo da mesa, e não no chão debaixo dela.
+   */
+  readonly sombrasSobem?: boolean
 }
+
+/**
+ * Quanto a MESA POSTA (os Pratos) sobe na 3/4, em px do protótipo: entre o
+ * tampo da mesa (0,5 casa) e o do balcão (0,62), a menos de 4 px de cada um.
+ */
+export const ALTURA_DA_MESA_POSTA = 0.56 * G
 
 const DERIVADO: PerfilDoTresQuartos = { modo: 'derivado' }
 const EM_PE: PerfilDoTresQuartos = { modo: 'em-pe' }
@@ -91,6 +102,8 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   geladeira: DERIVADO,
   pia: DERIVADO,
   balcao: DERIVADO,
+  // A mesa posta sobe a altura do tampo, com a sombra junto: ela está em cima da mesa.
+  pratos: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */
@@ -262,6 +275,11 @@ function materialDaFrente(partes: readonly Peca[], todas: readonly Peca[]): Mate
   return maior.mat
 }
 
+/** A forma `f` subida `d` px na tela (a sombra da mesa posta, no tampo). */
+function subida(f: Forma, d: number): Forma {
+  return { b: [f.b[0], f.b[1] - d, f.b[2], f.b[3] - d], d: (x, y) => f.d(x, y + d) }
+}
+
 /** Forma redonda (o canto da caixa fica fora dela): o veio da frente corre de pé, como as aduelas do barril. */
 function ehRedonda(f: Forma): boolean {
   const b = f.b
@@ -316,7 +334,7 @@ export function cenaEmTresQuartos(cena: Cena, perfil: PerfilDoTresQuartos, peca:
     .sort((a, b) => a.e.forma.b[3] - b.e.forma.b[3] || a.e.z - b.e.z || a.i - b.i)
     .map(({ e }) => e)
   const partes: Peca[] = [...soltas]
-  const sombras: Sombra[] = [...cena.sombras]
+  const sombras: Sombra[] = perfil.sombrasSobem === true ? cena.sombras.map((s) => ({ ...s, forma: subida(s.forma, alturaSolta) })) : [...cena.sombras]
   ordem.forEach((e, i) => {
     const mat = materialDaFrente(e.partes, cena.partes)
     const veio = { eixo: ehRedonda(e.forma) ? QUARTO : 0, tom: TOM_DA_FRENTE, bisel: 0.8, contorno: 0.2, semente: 900 + i }

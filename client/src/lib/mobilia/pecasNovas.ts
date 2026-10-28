@@ -22,7 +22,7 @@ import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 export const PECAS_NOVAS = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -78,6 +78,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   geladeira: { rotulo: 'Geladeira', artigo: 'uma geladeira', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
   pia: { rotulo: 'Pia', artigo: 'uma pia', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
   balcao: { rotulo: 'Balcão', artigo: 'um balcão', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
+  // A mesa posta: desenhada por cima da mesa e do balcão (`ehMovelDeCimaDaMesa`), com a forma cheio, vazio ou pilha.
+  pratos: { rotulo: 'Pratos', artigo: 'uns pratos', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -103,6 +105,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     geladeira: valor(f.geladeira),
     pia: valor(f.pia),
     balcao: valor(f.balcao),
+    pratos: valor(f.pratos),
   }
 }
 
@@ -125,7 +128,7 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
-  'fogao', 'geladeira', 'pia', 'balcao',
+  'fogao', 'geladeira', 'pia', 'balcao', 'pratos',
 ]
 
 /**
@@ -134,7 +137,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
  * com a cerca, e o tapete longo com o tapete (MT5).
  */
 const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
-  mesa: ['mesaQuadrada', 'mesaRedonda'],
+  // A mesa posta (os Pratos) com as mesas, onde ela vai.
+  mesa: ['mesaQuadrada', 'mesaRedonda', 'pratos'],
   // A cozinha fica junto do armário de cozinha, e o balcão com o aparador, o parente esticável dele.
   armario: ['fogao', 'geladeira', 'pia'],
   aparador: ['balcao'],
@@ -272,6 +276,9 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
     case 'balcao':
       // A moldura da frente do tampo e a barra de pé, de ponta a ponta.
       return [linha(-hw, hh * 0.4, hw), linha(-hw * 0.96, hh * 0.86, hw * 0.96)]
+    case 'pratos':
+      // O prato e a caneca no canto.
+      return [...aro(largura * 0.62, altura * 0.62, -hw * 0.15, hh * 0.08), ...aro(largura * 0.24, altura * 0.24, hw * 0.6, -hh * 0.6)]
   }
 }
 

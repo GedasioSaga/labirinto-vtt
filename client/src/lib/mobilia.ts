@@ -1,4 +1,4 @@
-import type { FormaDoTapete, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FormaDoTapete, FormaDosPratos, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 import { TIPOS_MOBILIA } from './mobilia/tipos'
 import {
@@ -210,8 +210,42 @@ export function formaDoTapete(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): For
   return normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma) ?? 'retangular'
 }
 
-/** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo. Mesma referência se nada muda. */
-function comFormaGravada(prop: Prop, forma: 'redondo' | undefined): Prop {
+/** Ordem em que o painel oferece as formas dos pratos (a mesa posta). */
+export const FORMAS_DOS_PRATOS: readonly FormaDosPratos[] = ['cheio', 'vazio', 'pilha']
+
+/** Nome de cada forma dos pratos no painel. */
+export const ROTULO_FORMA_DOS_PRATOS: Readonly<Record<FormaDosPratos, string>> = {
+  cheio: 'Prato cheio',
+  vazio: 'Prato vazio',
+  pilha: 'Pilha',
+}
+
+/**
+ * A forma dos PRATOS na forma única que o mapa guarda: só `'vazio'` e
+ * `'pilha'`, e só nos pratos; o resto (o prato cheio, que é o padrão, texto
+ * torto, outro tipo) vira `undefined`. A mesma porta da forma do tapete.
+ */
+export function normalizarFormaDosPratos(tipo: TipoMobilia | undefined, valor: unknown): 'vazio' | 'pilha' | undefined {
+  return tipo === 'pratos' && (valor === 'vazio' || valor === 'pilha') ? valor : undefined
+}
+
+/** A forma que vale para os pratos: a gravada ou o prato cheio. */
+export function formaDosPratos(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): FormaDosPratos {
+  return normalizarFormaDosPratos(prop.mobilia, prop.mobiliaForma) ?? 'cheio'
+}
+
+/** A forma dos pratos como o desenho com textura a lê (a `variante`, como a da lápide): 0 cheio, 1 vazio, 2 pilha. */
+export function varianteDosPratos(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): number {
+  return FORMAS_DOS_PRATOS.indexOf(formaDosPratos(prop))
+}
+
+/** A forma gravada que o tipo aceita: a do tapete ou a dos pratos (a mesma porta da leitura, da edição e da travessia). */
+function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): Prop['mobiliaForma'] {
+  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor)
+}
+
+/** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo e nos pratos vazio ou em pilha. Mesma referência se nada muda. */
+function comFormaGravada(prop: Prop, forma: Prop['mobiliaForma']): Prop {
   if (prop.mobiliaForma === forma) return prop
   const { mobiliaForma: _forma, ...semForma } = prop
   return forma === undefined ? semForma : { ...semForma, mobiliaForma: forma }
@@ -223,8 +257,10 @@ function comFormaGravada(prop: Prop, forma: 'redondo' | undefined): Prop {
  * devolve a mesma lista.
  */
 export function emOrdemDeDesenho<T extends Pick<Prop, 'mobilia'>>(props: readonly T[]): readonly T[] {
-  if (!props.some((p) => ehMovelDoChao(p.mobilia))) return props
-  return [...props.filter((p) => ehMovelDoChao(p.mobilia)), ...props.filter((p) => !ehMovelDoChao(p.mobilia))]
+  if (!props.some((p) => ehMovelDoChao(p.mobilia) || ehMovelDeCimaDaMesa(p.mobilia))) return props
+  // A mesa posta (os Pratos) vai por último: por cima da mesa ou do balcão, posta antes ou depois deles.
+  const noMeio = props.filter((p) => !ehMovelDoChao(p.mobilia) && !ehMovelDeCimaDaMesa(p.mobilia))
+  return [...props.filter((p) => ehMovelDoChao(p.mobilia)), ...noMeio, ...props.filter((p) => ehMovelDeCimaDaMesa(p.mobilia))]
 }
 
 /**
@@ -314,6 +350,16 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
   return tipo === 'tapete' || tipo === 'tapeteLongo'
+}
+
+/**
+ * Móveis que moram EM CIMA da mesa, por cima de todo objeto: os Pratos (a mesa
+ * posta, 28/10/2026). O avesso do tapete: a ordem de desenho (de cima e 3/4),
+ * o contêiner da mesa posta do editor e o clique (que pega os pratos primeiro)
+ * leem esta lista.
+ */
+export function ehMovelDeCimaDaMesa(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'pratos'
 }
 
 /** Lados do polígono que imita a elipse: redondo a olho no zoom máximo, poucos pontos. */
@@ -1331,11 +1377,11 @@ function comVistaGravada(prop: Prop, vista: 'lado' | undefined): Prop {
  */
 export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number): Prop {
   const vista = normalizarVistaDoMovel(tipo, prop.mobiliaVista)
-  // A forma é só do tapete, como a curva é só da cerca: outro tipo não tem o que guardar.
+  // A forma é só do tapete e dos pratos, como a curva é só da cerca: outro tipo não tem o que guardar.
   const forma = normalizarFormaDoTapete(tipo, prop.mobiliaForma)
   const trocado = comFormaGravada(
     { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade, forma ?? 'retangular') },
-    forma,
+    normalizarFormaDoMovel(tipo, prop.mobiliaForma),
   )
   // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
   const curvado = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
@@ -1364,6 +1410,16 @@ export function movelComOutraVista(prop: Prop, vista: VistaMobilia, grade: numbe
  * Centro, giro, vista, camada, trava, ocultos, piso, rótulo e aparência ficam.
  * Só `'redondo'` é gravado. Outro tipo devolve o mesmo objeto.
  */
+/**
+ * A "Forma" dos PRATOS (Prato cheio | Prato vazio | Pilha): os mesmos pratos
+ * na outra forma, no MESMO tamanho (a mesa posta não muda de pegada). Só
+ * `'vazio'` e `'pilha'` são gravados. Outro tipo devolve o mesmo objeto.
+ */
+export function pratosComOutraForma(prop: Prop, forma: FormaDosPratos): Prop {
+  if (prop.mobilia !== 'pratos') return prop
+  return comFormaGravada(prop, forma === 'cheio' ? undefined : forma)
+}
+
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {
   if (prop.mobilia !== 'tapete') return prop
   return { ...comFormaGravada(prop, forma === 'redondo' ? 'redondo' : undefined), ...tamanhoPadrao('tapete', vistaDoMovel(prop), grade, forma) }
@@ -1572,8 +1628,8 @@ export function propMobiliaFromFile(prop: Prop): Prop {
       // CERCA CURVA: só na cerca, número finito até meia volta; o resto some.
       normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva),
     ),
-    // TAPETE: só `'redondo'`, e só no tapete; o resto some.
-    normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma),
+    // TAPETE: só `'redondo'`, e só no tapete; PRATOS: só `'vazio'` e `'pilha'`; o resto some.
+    normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma),
   ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho))
   const mesmo =
     mesmaAparenciaDoMovel(lido, prop) &&
@@ -1606,8 +1662,8 @@ export function mobiliaParaJogador(prop: Prop): Partial<Prop> {
   // A CURVA da cerca: só na cerca, número finito até meia volta; a reta não vira campo.
   const curva = normalizarCurvaDaCerca(prop.mobilia, prop.mobiliaCurva)
   if (curva !== undefined) paraJogador.mobiliaCurva = curva
-  // A FORMA do tapete: só `'redondo'` e só no tapete.
-  const forma = normalizarFormaDoTapete(prop.mobilia, prop.mobiliaForma)
+  // A FORMA do tapete (só `'redondo'`) e a dos pratos (só `'vazio'` e `'pilha'`).
+  const forma = normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma)
   if (forma !== undefined) paraJogador.mobiliaForma = forma
   // As cores de TECIDO da cama: só na cama e só `#rrggbb`.
   const corDoTravesseiro = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoTravesseiro)

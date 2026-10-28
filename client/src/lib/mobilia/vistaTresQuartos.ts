@@ -1,6 +1,6 @@
 import type { MapData, Prop } from '../../types/map'
 import { meioTermoLigado } from '../estiloDoMapa'
-import { ehMovelDoChao } from '../mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../mobilia'
 import { desenhaEmLinhas } from './desenhoDoMovel'
 import { rotationTrig } from '../roomRotation'
 
@@ -56,8 +56,14 @@ export function baseDoMovel(prop: Pick<Prop, 'y' | 'width' | 'height' | 'rotatio
  */
 export function emOrdemDoTresQuartos<T extends Pick<Prop, 'mobilia' | 'y' | 'width' | 'height' | 'rotation'>>(props: readonly T[]): T[] {
   const chao = props.filter((p) => ehMovelDoChao(p.mobilia))
-  const resto = props
-    .filter((p) => !ehMovelDoChao(p.mobilia))
+  // A mesa posta (os Pratos) fica por cima de tudo, pela base entre ela: a base dela cai dentro da mesa.
+  const deCima = props.filter((p) => ehMovelDeCimaDaMesa(p.mobilia))
+  return [...chao, ...pelaBase(props.filter((p) => !ehMovelDoChao(p.mobilia) && !ehMovelDeCimaDaMesa(p.mobilia))), ...pelaBase(deCima)]
+}
+
+/** Do norte para o sul pela base (empate: a ordem da lista); base que não é número vai para o fim. */
+function pelaBase<T extends Pick<Prop, 'y' | 'width' | 'height' | 'rotation'>>(props: readonly T[]): T[] {
+  return props
     .map((prop, i) => ({ prop, i, base: baseDoMovel(prop) }))
     .sort((a, b) => {
       const ba = Number.isFinite(a.base) ? a.base : Infinity
@@ -65,5 +71,4 @@ export function emOrdemDoTresQuartos<T extends Pick<Prop, 'mobilia' | 'y' | 'wid
       return ba === bb ? a.i - b.i : ba - bb
     })
     .map((item) => item.prop)
-  return [...chao, ...resto]
 }

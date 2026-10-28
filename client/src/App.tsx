@@ -625,6 +625,7 @@ function App() {
   const trocarVistaDoMovel = useMapStore((state) => state.trocarVistaDoMovel)
   const trocarFormaDoTapete = useMapStore((state) => state.trocarFormaDoTapete)
   const trocarTamanhoDoFogo = useMapStore((state) => state.trocarTamanhoDoFogo)
+  const trocarFormaDosPratos = useMapStore((state) => state.trocarFormaDosPratos)
   const setAparenciaDoMovel = useMapStore((state) => state.setAparenciaDoMovel)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
@@ -3677,6 +3678,7 @@ function App() {
               onVistaChange: trocarVistaDoMovel,
               onFormaChange: trocarFormaDoTapete,
               onTamanhoDoFogoChange: trocarTamanhoDoFogo,
+              onFormaDosPratosChange: trocarFormaDosPratos,
               onAparenciaChange: setAparenciaDoMovel,
             }}
             // ITEM NO CHÃO: nome, modo de pegar e pilha são um passo do Ctrl+Z cada; trocar vira pino de item.

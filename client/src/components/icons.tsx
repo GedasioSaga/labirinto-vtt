@@ -582,6 +582,15 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M12 11V5.5h3.5V7.5" />
         </>
       )
+    case 'pratos':
+      // De cima, como na mesa: o prato com a aba e o garfo ao lado (o prato sozinho seria o barril).
+      return (
+        <>
+          <circle cx="10" cy="13" r="7" />
+          <circle cx="10" cy="13" r="4" />
+          <path d="M20 21V9.5M18.3 3.5v4a1.7 1.7 0 0 0 3.4 0v-4M20 3.5v4" />
+        </>
+      )
     case 'balcao':
       // Comprido, o tampo com a beira da frente e a barra de pé rente ao chão.
       return (
