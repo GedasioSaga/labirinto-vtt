@@ -1,0 +1,29 @@
+{
+  "id": "grama-amarela",
+  "nome": "Campo (amarelo)",
+  "idDoApp": "grama-amarela",
+  "onda": 1,
+  "lote": 1,
+  "semente": 11,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2,
+    "faixa": 0.12,
+    "corte": 0.18
+  },
+  "tom": {
+    "escala": 6,
+    "amplitude": 0.04
+  },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 12,
+    "pesos": [3, 3, 3, 3, 3, 2, 1.5, 1.5, 1, 0.6, 0.5, 0.6],
+    "densidade": 0.45,
+    "agrupamento": 1,
+    "escalaMin": 0.8,
+    "escalaMax": 1.2,
+    "variacaoDeTom": 0.05
+  }
+}
