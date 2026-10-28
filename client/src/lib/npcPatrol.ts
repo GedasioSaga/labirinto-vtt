@@ -79,7 +79,8 @@ export function readPasso(raw: unknown): PassoDaPatrulha | null {
   }
 }
 
-function readPassos(raw: unknown[]): PassoDaPatrulha[] {
+/** A lista de passos como vale para executar: passo torto some, teto de `PASSOS_MAX_POR_PONTO` (ponto da patrulha e posto da rotina). */
+export function readPassos(raw: readonly unknown[]): PassoDaPatrulha[] {
   return raw
     .flatMap((p: unknown) => {
       const passo = readPasso(p)

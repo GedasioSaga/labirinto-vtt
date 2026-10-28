@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decodeExploration, isPointExplored, type Exploration } from '../lib/exploration'
 import { createEmptyMap, setTokenPosition } from '../lib/mapFactory'
-import type { TurnRef } from '../lib/initiative'
 import { comFichaNoPiso } from '../lib/pisos'
 import type { AreaTrigger, Hazard, Light, MapData, Pin, Region, Stair, Token, Wall } from '../types/map'
 import { createHostSession, type HostSession, type HostWorld } from './hostSession'
@@ -55,10 +54,10 @@ function comFicha(map: MapData, tokenId: string, patch: Partial<Token>): MapData
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, ...patch } : t)) }
 }
 
-function mesa(getTurn?: () => TurnRef | null) {
+function mesa(getBatalha?: (sceneKey: string) => boolean) {
   let n = 0
   let agora = 0
-  const s: HostSession = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => agora, randomId: () => `id-${(n += 1)}`, getTurn })
+  const s: HostSession = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => agora, randomId: () => `id-${(n += 1)}`, getBatalha })
   const entra = (clientId: string, name: string, map: MapData): string => {
     const first = s.handleMessage(clientId, { type: 'join', code: CODE, name }, map).outbound[0]?.msg
     if (first?.type !== 'welcome') throw new Error('esperava welcome')
@@ -143,10 +142,10 @@ describe('hostSession — pisos na mesma cena', () => {
     expect(pede('c1', map).applyPiso).toEqual({ tokenId: 'lia', piso: 1 })
   })
 
-  it('escada respeita as travas do passo: cadeado do mestre, vez da iniciativa e vez do confronto', () => {
-    // A vez da iniciativa é trocada entre os pedidos; começa sem iniciativa.
-    const vez: { atual: TurnRef | null } = { atual: null }
-    const t = mesa(() => vez.atual)
+  it('escada respeita as travas do passo (cadeado e ficha congelada); a batalha ligada não prende (B4)', () => {
+    // A batalha é ligada entre os pedidos; começa desligada.
+    const batalha = { ligada: false }
+    const t = mesa(() => batalha.ligada)
     const map = predio()
     t.s.assignToken(t.entra('c1', 'Ana', map), 'lia')
     t.snapshotPara('c1', map)
@@ -162,22 +161,16 @@ describe('hostSession — pisos na mesma cena', () => {
     expect(pede(travada).applyPiso).toBeUndefined()
     expect(pede(travada).outbound).toEqual([])
 
-    // Iniciativa: é a vez do Caio nesta cena; a Lia não foge de piso fora da vez.
-    vez.atual = { mapId: map.id, tokenId: 'caio' }
-    expect(pede(map).applyPiso).toBeUndefined()
-    // Na vez dela, sobe.
-    vez.atual = { mapId: map.id, tokenId: 'lia' }
-    expect(pede(map).applyPiso).toEqual({ tokenId: 'lia', piso: 1 })
-    vez.atual = null
+    // Ficha congelada pelo mestre: mesma recusa calada.
+    const congelada = comFicha(map, 'lia', { congelado: true })
+    expect(pede(congelada).applyPiso).toBeUndefined()
+    expect(pede(congelada).outbound).toEqual([])
 
-    // Confronto: a Lia está na fila, mas a vez é do Caio.
-    const foraDaVez = predio({ confronto: { fila: ['caio', 'lia'], vez: 0, passo: 6, turno: 1 } })
-    expect(pede(foraDaVez).applyPiso).toBeUndefined()
-    // Na vez dela no confronto, sobe; fora da fila também (o confronto só prende quem está nela).
-    const naVez = predio({ confronto: { fila: ['caio', 'lia'], vez: 1, passo: 6, turno: 1 } })
-    expect(pede(naVez).applyPiso).toEqual({ tokenId: 'lia', piso: 1 })
-    const foraDaFila = predio({ confronto: { fila: ['caio'], vez: 0, passo: 6, turno: 1 } })
-    expect(pede(foraDaFila).applyPiso).toEqual({ tokenId: 'lia', piso: 1 })
+    // Batalha ligada na cena: não há vez, a escada continua valendo; e a trava continua prendendo.
+    batalha.ligada = true
+    expect(pede(map).applyPiso).toEqual({ tokenId: 'lia', piso: 1 })
+    expect(pede(travada).applyPiso).toBeUndefined()
+    expect(pede(congelada).applyPiso).toBeUndefined()
   })
 
   it('memória separada por piso: o térreo explorado não vira explorado no 1º piso, e volta ao descer', () => {

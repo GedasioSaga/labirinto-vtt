@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { escadaDaFicha, nomeDoPiso, pisoDe } from '../lib/pisos'
-import type { PlayerConfronto } from '../lib/confronto'
 import type { MapData, Token } from '../types/map'
 
 /**
@@ -14,17 +13,13 @@ export interface PlayerEscadaProps {
   /** O mapa que o jogador RECEBEU (o recorte): só tem as escadas que ele pode ver. */
   map: MapData
   ownTokens: readonly string[]
-  /** INICIATIVA: a ficha da vez, só quando ela veio no recorte (`turnForPlayer`). */
-  turn: string | undefined
-  /** CONFRONTO da cena dele, como o host mandou. */
-  confronto: PlayerConfronto | undefined
   /** Cena pausada pelo mestre. */
   paused: boolean
   onTrocar: (tokenId: string, stairId: string) => void
 }
 
 /** O que a tela sabe das travas do passo — as mesmas que o host usa na escada (e no veículo, `PlayerVeiculo`). */
-export type TravasDaTela = Pick<PlayerEscadaProps, 'turn' | 'confronto' | 'paused'>
+export type TravasDaTela = Pick<PlayerEscadaProps, 'paused'>
 
 /** O que o botão oferece: qual ficha, por qual escada, de que piso para qual. */
 interface Alvo {
@@ -37,17 +32,12 @@ interface Alvo {
 /**
  * O host recusa a escada em silêncio com as travas do passo
  * (`travaDaFichaDoJogador` em `handleTokenPiso`) e com a cena pausada: o botão
- * não oferece o que vai ser recusado. Vez de ficha que o jogador não vê não
- * chega aqui (`turn` ausente) — a tela não pode saber dela sem contar que existe.
+ * não oferece o que vai ser recusado.
  */
-export function fichaTravada(token: Token, { turn, confronto, paused }: TravasDaTela): boolean {
+export function fichaTravada(token: Token, { paused }: TravasDaTela): boolean {
   if (paused) return true
   // Cadeado do mestre, e a ficha que ele congelou (CONGELAR FICHA).
-  if (token.locked === true || token.congelado === true) return true
-  // Iniciativa: vez de outra ficha nesta cena.
-  if (turn !== undefined && turn !== token.id) return true
-  // Confronto: só prende ficha da fila; `vez` null é a vez de alguém que ele não vê.
-  return confronto !== undefined && confronto.fila.includes(token.id) && confronto.vez !== token.id
+  return token.locked === true || token.congelado === true
 }
 
 /** A primeira ficha do jogador, sem trava, encostada numa escada que liga pisos. */
@@ -69,8 +59,8 @@ function alvoDoMapa(map: MapData, ownTokens: readonly string[], travas: TravasDa
  * "Subindo…" até o piso novo chegar no snapshot (o botão vira o de voltar) ou
  * até `PISO_PENDENTE_MAX_MS`. Escada que não liga nada não ganha botão.
  */
-export function PlayerEscada({ map, ownTokens, turn, confronto, paused, onTrocar }: PlayerEscadaProps) {
-  const alvo = useMemo(() => alvoDoMapa(map, ownTokens, { turn, confronto, paused }), [map, ownTokens, turn, confronto, paused])
+export function PlayerEscada({ map, ownTokens, paused, onTrocar }: PlayerEscadaProps) {
+  const alvo = useMemo(() => alvoDoMapa(map, ownTokens, { paused }), [map, ownTokens, paused])
   /** O pedido que espera o host: de qual ficha e de que piso ela saiu. */
   const [pedido, setPedido] = useState<{ tokenId: string; deOnde: number } | null>(null)
   const alvoTokenId = alvo?.tokenId ?? null

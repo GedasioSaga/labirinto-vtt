@@ -44,7 +44,7 @@ export function clampClueText(text: string): string {
 }
 
 /**
- * O PAINEL PISTAS (aba Jogo): antes do confronto, o mestre olha quem recebeu
+ * O PAINEL PISTAS (aba Jogo): antes do combate, o mestre olha quem recebeu
  * e quem leu cada pista, em vez de anotar no papel. Uma linha por pino "!" ou
  * "?" de todas as cenas abertas; uma bolinha por jogador. Lógica pura, no
  * molde de `lib/party.ts`: lê o mundo que o host serve, o que a sessão contou

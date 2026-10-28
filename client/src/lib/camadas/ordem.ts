@@ -93,6 +93,9 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('lightsContainer', ['luz'], ['iluminacao']),
   faixa('watchConesGraphics', [], FIXA),
   faixa('patrolRoutesGraphics', [], FIXA),
+  // MODO BATALHA (B5): a grade de batalha por cima da planta e abaixo de nomes,
+  // fichas e pinos. No editor o telhado já fica acima das fichas, então ela fica abaixo dele.
+  faixa('gradeDaBatalha', [], FIXA),
   faixa('nomesDosLugaresContainer', [], ['salas']),
   faixa('tokensContainer', ['ficha'], ['tokens']),
   faixa('concealZonesContainer', [], FIXA),
@@ -166,6 +169,8 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('peekedRoofs', ['telhado'], ['telhados'], SOBRE),
   faixa('peekMask', ['telhado'], ['telhados'], SOBRE),
   faixa('portasNoTelhado', ['parede'], ['portas'], SOBRE),
+  // MODO BATALHA (B5): acima da névoa e dos telhados, abaixo de pílulas, marcas, pinos e fichas.
+  faixa('gradeDaBatalha', [], FIXA, SOBRE),
   faixa('nomesDosLugares', [], ['salas'], SOBRE),
   faixa('marks', [], FIXA, SOBRE),
   faixa('pins', ['pino'], ['anotacoes'], SOBRE),

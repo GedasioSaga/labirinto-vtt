@@ -134,7 +134,7 @@ describe('createTokensRenderer — só repinta a ficha que mudou', () => {
   // BARRA DE VIDA (fatia 10): a vida vem da ficha do sistema, por fora do token,
   // num mapa refeito a cada desenho — conta o VALOR, não o objeto.
   const comVida = (renderer: ReturnType<typeof createTokensRenderer>, container: Container, fichas: Token[], vidaDeB: number) =>
-    renderer.draw(container, fichas, GRID, null, 1, null, undefined, undefined, undefined, new Map([['b', { atual: vidaDeB, maximo: 10 }]]))
+    renderer.draw(container, fichas, GRID, null, 1, undefined, undefined, undefined, new Map([['b', { atual: vidaDeB, maximo: 10 }]]))
 
   it('mudar a vida da ficha ligada repinta só a ficha mudada, com o MESMO token', () => {
     const container = new Container()
@@ -166,25 +166,15 @@ describe('createTokensRenderer — só repinta a ficha que mudou', () => {
     expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, 'c', 1))).toEqual(['a', 'c'])
   })
 
-  it('a vez que passa repinta só a ficha que perdeu e a que ganhou', () => {
-    const container = new Container()
-    const renderer = createTokensRenderer()
-    const fichas = tresFichas()
-    renderer.draw(container, fichas, GRID, null, 1, 'a')
-    const donos = donosDosWrappers(container)
-
-    expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, null, 1, 'b'))).toEqual(['a', 'b'])
-  })
-
   it('sair da mesa (Volto já) repinta só aquela ficha, e voltar também', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
     const fichas = tresFichas()
-    renderer.draw(container, fichas, GRID, null, 1, null, new Set())
+    renderer.draw(container, fichas, GRID, null, 1, new Set())
     const donos = donosDosWrappers(container)
 
-    expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, null, 1, null, new Set(['c'])))).toEqual(['c'])
-    expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, null, 1, null, new Set()))).toEqual(['c'])
+    expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, null, 1, new Set(['c'])))).toEqual(['c'])
+    expect(fichasRepintadas(container, donos, () => renderer.draw(container, fichas, GRID, null, 1, new Set()))).toEqual(['c'])
   })
 
   it('mudar a grade repinta todas: o raio de cada uma sai dela', () => {
@@ -221,16 +211,16 @@ describe('createTokensRenderer — quantos nomes pedem nova resolução de texto
     expect(renderer.draw(container, fichas, GRID, null, 1)).toBe(0)
   })
 
-  it('mover, selecionar e passar a vez não contam; renomear conta (o teto da resolução depende do tamanho do nome)', () => {
+  it('mover e selecionar não contam; renomear conta (o teto da resolução depende do tamanho do nome)', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
     const fichas = tresFichas()
     renderer.draw(container, fichas, GRID, null, 1)
 
     const movida = fichas.map((t) => (t.id === 'b' ? { ...t, x: 340 } : t))
-    expect(renderer.draw(container, movida, GRID, 'b', 1, 'a')).toBe(0)
+    expect(renderer.draw(container, movida, GRID, 'b', 1)).toBe(0)
     const renomeada = movida.map((t) => (t.id === 'b' ? { ...t, name: 'Bruno, o Batedor' } : t))
-    expect(renderer.draw(container, renomeada, GRID, 'b', 1, 'a')).toBe(1)
+    expect(renderer.draw(container, renomeada, GRID, 'b', 1)).toBe(1)
   })
 
   it('ficha nova sem nome também conta: o Text dela nasceu agora, na resolução do renderer', () => {

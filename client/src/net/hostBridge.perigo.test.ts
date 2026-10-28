@@ -55,7 +55,7 @@ describe('hostBridge e a zona de perigo', () => {
     expect(t.sentTo('c1')).toContainEqual({ type: 'hazard.entered', kind: 'fogo' })
 
     // Outro snapshot com a ficha parada no mesmo fogo: nada de aviso novo.
-    t.bridge.notifyTurnChanged()
+    t.bridge.notifyBatalhaChanged()
     expect(textosDosAvisos().filter((texto) => texto.includes('fogo'))).toEqual(['Ana entrou no fogo'])
   })
 })

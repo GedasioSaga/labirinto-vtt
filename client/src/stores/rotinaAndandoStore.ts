@@ -3,10 +3,22 @@ import { create } from 'zustand'
 import { type AvisoDePortaTrancada, avisosDePortaTrancada, mesmosAvisos } from '../lib/avisosDaRotina'
 import { ORCAMENTO_POR_QUADRO_MS } from '../lib/caminhamento/agenda'
 import { comPortasDoNpc, type MotorDosNpcs, motorComRelogio, type PortaDoNpc, QUADRO_DA_AGENDA_MS } from '../lib/caminhamento/tiqueDosNpcs'
-import { adiarEsperas, chaveDaRotina, darPassoDaRotina, desligarRotina, ligarRotina, PASSO_DA_ROTINA_MS, type RotinasAndando } from '../lib/rotinaAndando'
-import type { CenaDaRotina } from '../lib/rotinaDoNpc'
+import {
+  adiarEsperas,
+  apitarRotina,
+  chaveDaRotina,
+  darPassoDaRotina,
+  depoisDoPulo,
+  desligarRotina,
+  ligarRotina,
+  PASSO_DA_ROTINA_MS,
+  type RotinasAndando,
+  seguirRotina,
+} from '../lib/rotinaAndando'
+import { calarFicha } from '../lib/patrulhaAndando'
+import type { CenaDaRotina, MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import type { MapData } from '../types/map'
-import { periodoDaSessao, subscribeToOpenings, useAdventureStore } from './adventureStore'
+import { periodoDaSessao, subscribeToApito, subscribeToOpenings, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
 
@@ -20,6 +32,10 @@ import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcs
  *
  * O estado de cada NPC andando (o trecho, a espera, o `aviso` de quando
  * desiste de um posto) mora em `andando`: nunca na ficha nem no arquivo.
+ *
+ * APITO (Caminhos F4): o store assina `subscribeToApito` e liga a caminhada de
+ * cada ficha com posto no valor novo (`apitarRotina`); a que não andava sai
+ * de `andando` quando chega e acaba as etapas do posto.
  */
 interface RotinaAndandoState {
   andando: RotinasAndando
@@ -33,6 +49,16 @@ interface RotinaAndandoState {
   fixas: ReadonlySet<string>
   ligar: (tokenId: string) => void
   desligar: (tokenId: string) => void
+  /** Solta a ficha parada na etapa "Esperar o mestre" de um posto. */
+  seguir: (tokenId: string) => void
+  /** APITO: liga a caminhada de quem tem posto em `valor` (`movimentos` do `planejarRotina`); quem assina é o próprio store. */
+  apitar: (valor: string, movimentos: readonly MovimentoDaRotina[]) => void
+  /**
+   * "Pular para o posto": as fichas com posto no valor atual de `estadoId` caem
+   * nele de uma vez (`useAdventureStore.pularParaOPosto`) e a caminhada do apito
+   * delas acaba. Devolve quantas pularam.
+   */
+  pularParaOPosto: (estadoId: string, fixas?: ReadonlySet<string>) => number
   setFixas: (fixas: ReadonlySet<string>) => void
   /** Um tique do relógio. */
   darPasso: () => void
@@ -91,6 +117,14 @@ function aplicarPortas(portas: readonly PortaDoNpc[]): void {
   }
 }
 
+/** Parou no meio da etapa "Falar": o balão não fica sobre a ficha parada. Fora do Ctrl+Z, na cena aberta e nas de fundo. */
+function calarNaMesa(tokenId: string): void {
+  const transform = (map: MapData) => calarFicha(map, tokenId)
+  useMapStore.getState().applyPlayerChange(transform)
+  const aventura = useAdventureStore.getState()
+  for (const sceneId of Object.keys(aventura.cache)) aventura.applyPlayerChangeToBackgroundScene(sceneId, transform)
+}
+
 /** Os avisos de `andando`, cada ficha no mapa da cena onde está agora (a aberta pelo mapa vivo, as de fundo pelo cache). */
 function avisosDaRotina(andando: RotinasAndando): AvisoDePortaTrancada[] {
   // As cenas só são lidas se alguém estiver parado por porta: o tique comum não paga a busca.
@@ -118,8 +152,20 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
     fixas: new Set(),
     ligar: (tokenId) => trocar(ligarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), tokenId, estadosDaAventura(), agoraDosNpcs())),
     desligar: (tokenId) => {
+      if (get().andando.has(tokenId)) calarNaMesa(tokenId)
       largar([tokenId])
       trocar(desligarRotina(get().andando, tokenId))
+    },
+    seguir: (tokenId) => trocar(seguirRotina(get().andando, tokenId, agoraDosNpcs())),
+    apitar: (valor, movimentos) =>
+      trocar(apitarRotina(get().andando, useAdventureStore.getState().cenasDaRotina(), movimentos, valor, estadosDaAventura(), agoraDosNpcs())),
+    pularParaOPosto: (estadoId, fixas) => {
+      const pularam = useAdventureStore.getState().pularParaOPosto(estadoId, fixas)
+      if (pularam.length === 0) return 0
+      const ids = pularam.map((m) => m.tokenId)
+      largar(ids)
+      trocar(depoisDoPulo(get().andando, useAdventureStore.getState().cenasDaRotina(), ids, estadosDaAventura(), agoraDosNpcs()))
+      return pularam.length
     },
     setFixas: (fixas) => set({ fixas }),
     darPasso: () => {
@@ -144,6 +190,10 @@ export const useRotinaAndandoStore = create<RotinaAndandoState>()((set, get) => 
 // andando: a rotina ligada é da sessão que saiu. A troca de cena não passa por
 // aqui — a ficha segue andando na cena de fundo.
 const pararAoAbrir = subscribeToOpenings(() => useRotinaAndandoStore.getState().reset())
+
+// APITO (Caminhos F4): trocar o estado do mundo liga a caminhada de quem tem
+// posto no valor novo; ninguém pula. O relógio começa no próximo tique.
+const andarAoApito = subscribeToApito(({ valor, movimentos }) => useRotinaAndandoStore.getState().apitar(valor, movimentos))
 
 // AVISO AO MESTRE: o mestre destrancou (ou trancou) uma porta do mapa aberto —
 // o aviso acompanha na hora, sem esperar tique (com os NPCs pausados não há tique).
@@ -174,6 +224,7 @@ const seguirAPausa = assinarPausa(
 import.meta.hot?.accept(() => import.meta.hot?.invalidate())
 import.meta.hot?.dispose(() => {
   pararAoAbrir()
+  andarAoApito()
   seguirAsPortas()
   seguirAPausa()
   if (relogio !== null) clearInterval(relogio)

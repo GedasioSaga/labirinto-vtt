@@ -93,6 +93,7 @@ import { tradeSideText, type TradeProposal } from '../lib/troca'
 import {
   CALL_REASON_LABELS,
   clampTravelDenyText,
+  lerBatalhaIniciada,
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
   parseSomFalhou,
@@ -120,7 +121,6 @@ import { sementeDosAssentos, type SementeDoDono } from './visaoDeTeste/semente'
 import { criarSaidaEmOrdem } from './pacoteComprimido'
 import { midiasDaMensagem } from './liberacaoDosSons'
 import { guardSightingNotices } from './guardNotices'
-import type { TurnRef } from '../lib/initiative'
 import type { PeriodoLido } from '../lib/periodo'
 import { hazardEntryLine } from '../lib/hazards'
 import type { DiceRequest } from '../lib/dice'
@@ -315,8 +315,10 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
   onPlayerLaser?: (laser: HostPlayerLaser) => void
-  /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
-  getTurn?: () => TurnRef | null
+  /** MODO BATALHA: a cena (`tableSceneKey`) está em batalha na sessão do mestre (`stores/batalhaStore.ts`). */
+  getBatalha?: (sceneKey: string) => boolean
+  /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena; o caminho andado soma. */
+  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number) => void
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
   getPeriodo?: () => PeriodoLido | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
@@ -690,8 +692,15 @@ export interface HostBridge extends RedeDosSons {
   endAlarm(): void
   /** O alarme soando, para o painel; `null` sem alarme ou com a sala fechada. */
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
-  /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
-  notifyTurnChanged(): void
+  /** MODO BATALHA: uma cena entrou ou saiu da batalha: snapshot na hora, com o `batalha` novo. */
+  notifyBatalhaChanged(): void
+  /**
+   * MODO BATALHA: a abertura da batalha (`batalha.iniciada`) aos jogadores
+   * conectados da cena `sceneKey` e à tela da mesa que a mostra, uma vez.
+   * `transicao` e `texto` opcionais; campo que o jogador recusaria derruba o
+   * aviso inteiro (mesmo parser dele). Sala fechada: nada.
+   */
+  anunciarBatalha(anuncio: { sceneKey: string; transicao?: string; texto?: string }): void
   /** O mestre trocou Dia/Tarde/Noite: snapshot na hora, com o período (e a visão da noite) novos. */
   notifyPeriodoChanged(): void
   /**
@@ -3659,7 +3668,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         code: room.code,
         visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
         now: deps.now,
-        getTurn: deps.getTurn,
+        getBatalha: deps.getBatalha,
+        onBatalhaAndou: deps.onBatalhaAndou,
         getPeriodo: deps.getPeriodo,
         restoreSeats,
         restoreExploration,
@@ -3782,10 +3792,26 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       scheduleBroadcast()
     },
 
-    notifyTurnChanged() {
-      // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+    notifyBatalhaChanged() {
+      // Um snapshot que já estava na fila sai agora, com o `batalha` novo dentro.
       cancelPendingBroadcast()
       broadcastNow()
+    },
+
+    anunciarBatalha({ sceneKey, transicao, texto }) {
+      const room = session
+      if (room === null) return
+      const msg = lerBatalhaIniciada({ type: 'batalha.iniciada', transicao, texto })
+      if (msg === null) return
+      // Jogador da cena aberta de mapa solto não tem `sceneId`: a chave dele é a do mapa aberto.
+      const aberta = tableSceneKey(world().open)
+      const naCena = room
+        .listPlayers(world())
+        .filter((p) => p.connected && p.clientId !== null && p.status === 'playing' && (p.sceneId ?? aberta) === sceneKey)
+        .flatMap((p) => (p.clientId === null ? [] : [p.clientId]))
+      const telas = telasDaMesa()
+      const clientIds = telas.cena === sceneKey ? [...naCena, ...telas.clientIds] : naCena
+      if (clientIds.length > 0) void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
     },
 
     notifyPeriodoChanged() {

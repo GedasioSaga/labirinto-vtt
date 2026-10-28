@@ -106,6 +106,22 @@ export function isRightColumnShortcut(evt: ShortcutEvent): boolean {
 }
 
 /**
+ * MODO BATALHA (B5): inicia a batalha na cena aberta (abre a escolha da
+ * abertura) ou a encerra, no formato de `aria-keyshortcuts`. B sozinho é a
+ * ferramenta `prop`; Shift+B estava livre e segue a família dos Shift+letra do mestre.
+ * Fora do `resolveShortcut`: quem ouve é o controle da batalha no livro da
+ * mesa (`isBattleShortcut`, livro/ControleDaBatalha.tsx).
+ */
+export const BATTLE_SHORTCUT = 'Shift+B'
+
+/** A tecla é o `BATTLE_SHORTCUT`? Num campo de texto não: ali o Shift+B é um B maiúsculo. */
+export function isBattleShortcut(evt: ShortcutEvent): boolean {
+  if (!evt.shiftKey || evt.ctrlKey || evt.metaKey || evt.altKey) return false
+  if (evt.key.toLowerCase() !== 'b') return false
+  return !isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)
+}
+
+/**
  * Teclas dos atalhos da aba Sons (Sistema 4, sons ao vivo): o dígito N toca o
  * efeito com o atalho N. Os dígitos estavam livres (só Ctrl+0 é atalho, o zoom).
  * Fora do `resolveShortcut`: quem ouve é a folha Sons do livro da mesa, que

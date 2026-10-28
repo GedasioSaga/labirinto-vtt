@@ -31,7 +31,7 @@ const amount = (current: number, max: number) => ({ current, max })
 
 /** O desenho do editor com as vidas das fichas ligadas (o resto no padrão). */
 function desenhar(renderer: TokensRenderer, container: Container, tokens: Token[], vidas: Record<string, VidaDaFicha> = {}): void {
-  renderer.draw(container, tokens, GRID, null, undefined, null, undefined, undefined, undefined, new Map(Object.entries(vidas)))
+  renderer.draw(container, tokens, GRID, null, undefined, undefined, undefined, undefined, new Map(Object.entries(vidas)))
 }
 
 function barraDe(wrapper: Container): Graphics | undefined {

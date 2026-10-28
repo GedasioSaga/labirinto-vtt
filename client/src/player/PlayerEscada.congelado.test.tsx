@@ -37,7 +37,7 @@ describe('PlayerEscada — ficha congelada', () => {
   })
 
   const render = (map: MapData) =>
-    act(() => root.render(<PlayerEscada map={map} ownTokens={['lia']} onTrocar={() => {}} turn={undefined} confronto={undefined} paused={false} />))
+    act(() => root.render(<PlayerEscada map={map} ownTokens={['lia']} onTrocar={() => {}} paused={false} />))
 
   it('controle: solta na escada, o botão aparece', () => {
     render(mapa([lia()]))

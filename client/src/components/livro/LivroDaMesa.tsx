@@ -110,6 +110,8 @@ export interface LivroDaMesaProps {
   chat?: ReactNode
   mesa?: ReactNode
   cenas: ReactNode
+  /** MODO BATALHA (B5): o "Iniciar batalha" / "Encerrar batalha" (`ControleDaBatalha`), no alto da página Cenas. */
+  batalha?: ReactNode
   /** Quem pede algo no Grupo (passagem, ficha longe, personagem): o contador do marcador Grupo. */
   pedidos: number
   /** O que o chat ainda não leu: o contador do marcador Chat. */
@@ -145,7 +147,7 @@ function FolhaDaMesa({ pagina, aberta, id, cheia = false, children }: { pagina: 
  * Sala fixo acima das páginas. Substitui a coluna da direita (abas Jogo e Chat
  * e o divisor "Altura das Cenas"). As páginas trazem os componentes de sempre.
  */
-export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, cenas, pedidos, naoLidas, obstaculoRef }: LivroDaMesaProps) {
+export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, cenas, batalha, pedidos, naoLidas, obstaculoRef }: LivroDaMesaProps) {
   const paginaGuardada = useLivroDaMesaStore((state) => state.pagina)
   const trocaAnimada = useLivroDaMesaStore((state) => state.trocaAnimada)
   const comSala = topo !== undefined
@@ -289,6 +291,7 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
               </>
             )}
             <FolhaDaMesa pagina="cenas" aberta={pagina === 'cenas'}>
+              {batalha}
               {/* `div` com papel de região, e não `section`: as jornadas acham seções pela tag. */}
               <div className="lb-cenas-pagina" role="region" aria-label="Cenas">
                 {cenas}

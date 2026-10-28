@@ -49,7 +49,6 @@ import { PlayerEscada } from './PlayerEscada'
 import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
-import { TurnWaitNotice } from './TurnWaitNotice'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -64,6 +63,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
+import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
@@ -1386,8 +1386,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             ownTokens={ownTokens}
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}
+            // MODO BATALHA (B5): a grade de batalha só no andar da cena dele.
+            batalha={state.batalha === true}
             waitingTokens={waitingTokens}
-            turnTokenId={state.turn ?? null}
             settings={settings}
             focusTokenId={focus.tokenId}
             focusSeq={focus.seq}
@@ -1635,8 +1636,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerEscada
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
           />
@@ -1644,8 +1643,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerVeiculo
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             aviso={state.moveNotice?.id}
             onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}
@@ -2105,7 +2102,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {mapSharedNoticeText(state.mapShared.from)}
           </p>
         )}
-        <TurnWaitNotice notice={state.turnNotice} />
         {state.hazardNotice && (
           // ZONA DE PERIGO: "Você entrou no fogo!". `key` no id reanuncia a cada entrada.
           <p key={state.hazardNotice.id} className="pp-notice" role="alert">
@@ -2128,6 +2124,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
+        {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
+        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} />
         {reconnecting}
       </PlayerErrorBoundary>
     )

@@ -9,12 +9,11 @@
  * atalho na mesma cena) leva o VEÍCULO com todos a bordo, cada um no
  * afastamento que tinha, ainda a bordo; a passageira que não dirige lê
  * "a_bordo" e nada anda; dirigindo para longe do pino, o pedido cai por
- * "far"; nenhum frame leva a lista nem os lugares. Na vez de outra ficha, o
- * "Subir" e o "Descer" voltam "not_your_turn" (o host continua validando).
+ * "far"; nenhum frame leva a lista nem os lugares. Com a ficha segurada pelo
+ * mestre, o "Subir" e o "Descer" voltam "locked" (o host continua validando).
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { MapData, Pin, Token } from '../types/map'
-import type { TurnRef } from '../lib/initiative'
 import type { TravelLogEntry } from '../lib/travelLog'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -113,7 +112,7 @@ interface Enviado {
 
 const esperarSnapshot = () => new Promise((resolve) => setTimeout(resolve, BROADCAST_THROTTLE_MS + 30))
 
-async function mesa(turno: { atual: TurnRef | null } = { atual: null }, nomes: { gui: string; bia: string; caio: string } = { gui: 'Gui', bia: 'Bia', caio: 'Caio' }) {
+async function mesa(batalha: { ligada: boolean } = { ligada: false }, nomes: { gui: string; bia: string; caio: string } = { gui: 'Gui', bia: 'Bia', caio: 'Caio' }) {
   const cenas = montarAventura()
   let diario: TravelLogEntry[] = []
   const ouvintes = new Map<string, (event: { payload: unknown }) => void>()
@@ -139,7 +138,7 @@ async function mesa(turno: { atual: TurnRef | null } = { atual: null }, nomes: {
     applyVehicleHop: hostPlayerChanges.applyVehicleHop,
     applyDoor: () => undefined,
     applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) => useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold),
-    getTurn: () => turno.atual,
+    getBatalha: () => batalha.ligada,
     onTravelLogChange: (log) => {
       diario = log
     },
@@ -343,7 +342,7 @@ describe('veículo: sobras da viagem da motorista', () => {
   })
 
   it('diário e aviso de chegada dizem quem dirigiu, com o veículo entre parênteses — não o veículo como quem viajou', async () => {
-    const t = await mesa({ atual: null }, { gui: 'Gedasio', bia: 'Beatriz', caio: 'Caio' })
+    const t = await mesa({ ligada: false }, { gui: 'Gedasio', bia: 'Beatriz', caio: 'Caio' })
     abrirPoco(t.a06, t.a07, 'livre')
     t.sobe('c-gui', 'gui')
     t.sobe('c-bia', 'bia')
@@ -411,26 +410,30 @@ describe('veículo: sobras da viagem da motorista', () => {
   })
 })
 
-describe('veículo na iniciativa: fora da vez, o host recusa o "Subir" e o "Descer"', () => {
+describe('veículo e as travas do passo (batalha B4): sem vez; o cadeado do mestre segura o "Subir" e o "Descer"', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('na vez do Caio, o Gui não sobe nem desce: "not_your_turn"; na vez dele, sobe', async () => {
-    const turno: { atual: TurnRef | null } = { atual: null }
-    const t = await mesa(turno)
+  it('com a batalha ligada, o Gui segurado pelo mestre não sobe e a Bia segurada não desce ("locked"); solto, sobe', async () => {
+    const t = await mesa({ ligada: true })
     t.sobe('c-bia', 'bia')
-    turno.atual = { mapId: 'map_a06', tokenId: 'caio' }
+    const segurar = (id: string, locked: boolean) => {
+      const map = useMapStore.getState().map
+      useMapStore.setState({ map: { ...map, tokens: map.tokens.map((ficha) => (ficha.id === id ? { ...ficha, locked } : ficha)) } })
+    }
+    segurar('gui', true)
+    segurar('bia', true)
     let desde = t.enviados.length
 
     t.sobe('c-gui', 'gui')
     t.desce('c-bia', 'bia')
 
-    expect(respostas(t.enviados, 'c-gui', desde)).toEqual([{ type: 'vehicle.rejected', reason: 'not_your_turn' }])
-    expect(respostas(t.enviados, 'c-bia', desde)).toEqual([{ type: 'vehicle.rejected', reason: 'not_your_turn' }])
+    expect(respostas(t.enviados, 'c-gui', desde)).toEqual([{ type: 'vehicle.rejected', reason: 'locked' }])
+    expect(respostas(t.enviados, 'c-bia', desde)).toEqual([{ type: 'vehicle.rejected', reason: 'locked' }])
     expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['bia'])
 
-    turno.atual = { mapId: 'map_a06', tokenId: 'gui' }
+    segurar('gui', false)
     desde = t.enviados.length
     t.sobe('c-gui', 'gui')
     expect(respostas(t.enviados, 'c-gui', desde)).toEqual([])

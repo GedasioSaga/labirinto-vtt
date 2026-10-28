@@ -14,7 +14,6 @@ import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenC
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
-import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -3969,9 +3968,6 @@ function recorteDoGrupo(
     return shadow ? asShadow(seen) : seen
   })
 
-  // CONFRONTO: o campo do mestre NUNCA sai no mapa (tem a fila inteira, com a
-  // ficha escondida, e o turno). O jogador recebe a faixa à parte, montada
-  // pelo host com as fichas deste recorte (`confrontoParaJogador`).
   // PERIGO QUE SE ALASTRA: a lista do mestre também fica (id, salas fora da
   // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
   // CAMADAS: o modelo (nomes das camadas livres são segredo do mestre), o olho
@@ -3980,7 +3976,6 @@ function recorteDoGrupo(
   // algo difere do padrão, `camadasDoJogador`: id e opacidade das camadas que
   // ele vê, na ordem da lista (`lib/camadas/doJogador.ts`). Mapa antigo: nada.
   const {
-    confronto: _confrontoDoMestre,
     perigos: perigosDoMestre,
     modeloCamadas: _modeloDoMestre,
     ocultasDoJogador: _ocultasDoJogador,
@@ -4666,18 +4661,6 @@ export function ownTokensInView(view: PlayerMapView, ownedIds: readonly string[]
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
 export function filterMapForHost(map: MapData): MapData {
   return map
-}
-
-/**
- * INICIATIVA — de quem é a vez, como o jogador pode saber: o id da ficha da
- * vez SÓ quando ela está no recorte que ele já recebe (`view`, a saída de
- * `filterMapForPlayer`) e a vez é deste mapa. Ficha secreta, oculta, atrás da
- * parede, fora da visão ou de outra cena não está no recorte: `null`, e o
- * campo nem sai — "é a vez de alguém que você não vê" já diria que há alguém.
- */
-export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
-  if (turn === null || turn.mapId !== view.id) return null
-  return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */

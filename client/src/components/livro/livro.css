@@ -313,6 +313,11 @@
 .gr-livro--dir .lb-mchat { flex: 1; min-height: 0; background: none; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .gr-livro--dir .lb-mchat-vazio { padding: 12px 12px 20px 14px; }
 .gr-livro--dir .lb-cenas-pagina { padding: 4px 4px 12px; }
+
+/* MODO BATALHA (B5): "Iniciar batalha" no alto da página Cenas, junto dos controles da cena */
+.gr-batalha { margin: 12px 12px 4px 14px; }
+.gr-batalha .gr-bt[aria-disabled='true'] { opacity: 0.55; cursor: not-allowed; }
+.gr-batalha-dlg { display: flex; flex-direction: column; gap: 14px; }
 .lb-mesa { padding: 0 12px 20px 14px; }
 .lb-mesa__pe { margin-top: 12px; }
 .lb-room__ruido,
