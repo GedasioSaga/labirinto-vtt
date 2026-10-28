@@ -101,7 +101,7 @@ import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
-import { barrancoOuVazio, comBarranco, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
+import { barrancoOuVazio, comBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
 import type { AlturaDoBarranco, BarrancoDoMapa } from '../types/map'
 import {
   comTexturas,
@@ -244,7 +244,8 @@ function moveTokenExplaining(map: MapData, token: Token, targetX: number, target
   const from = { x: token.x, y: token.y }
   const to = { x: targetX, y: targetY }
   // PISOS NA MESMA CENA: só a parede do piso da ficha barra — a do piso de cima não existe aqui.
-  const blocked = describeBlockedMove(from, to, mapaDoPiso(map, pisoDe(token)).walls, map.grid)
+  // BARRANCO: a linha do barranco do piso segura o arrasto do mestre como parede (a visão passa por cima).
+  const blocked = describeBlockedMove(from, to, paredesParaAndar(mapaDoPiso(map, pisoDe(token)).walls, map, pisoDe(token)), map.grid)
   if (blocked === null) return mapFactory.setTokenPosition(map, token.id, targetX, targetY)
 
   const door = map.walls.find((w) => w.id === blocked.wallId)?.door ?? null

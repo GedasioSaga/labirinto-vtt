@@ -1,6 +1,8 @@
 import type { MapData, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
+import { paredesParaAndar } from './barranco'
+import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { playerHiddenRings } from './fogFilter'
@@ -334,6 +336,8 @@ export function validateTokenMove(
   // FATO — obstáculo além do alcance não recusa um passo que nem chega lá.
   const to = options.isHost ? { x: request.x, y: request.y } : clampToMaxStep(map, from, { x: request.x, y: request.y })
   const compiled = compileFloor(map.floor)
+  // BARRANCO (`lib/barranco.ts`): a linha do barranco do piso da ficha segura o passo como parede que deixa ver.
+  const paredes = paredesParaAndar(map.walls, map, pisoDe(token))
 
   // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
   // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto
@@ -355,7 +359,7 @@ export function validateTokenMove(
       para: { x: request.x, y: request.y },
       tamanho: token.size,
       passoMaximo: maxStepOf(map),
-      paredesDoHost: map.walls,
+      paredesDoHost: paredes,
       paredesDoJogador: options.batalha.paredesDoJogador,
       noChao: (p) => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
       ocupada: (p) => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
@@ -366,7 +370,7 @@ export function validateTokenMove(
   }
 
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
-  const path = findTokenPath(from, to, map.walls, map.grid)
+  const path = findTokenPath(from, to, paredes, map.grid)
   if (path === null) return { ok: false, reason: 'wall' }
 
   for (let i = 1; i < path.length; i += 1) {

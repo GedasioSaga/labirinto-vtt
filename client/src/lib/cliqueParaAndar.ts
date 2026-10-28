@@ -1,6 +1,8 @@
 import type { MapData, Token } from '../types/map'
 import type { Point } from '../pixi/world'
 import { caminhoConhecido, isPointKnown, type KnownArea } from './knownPath'
+import { mapaParaAndar } from './barranco'
+import { pisoDe } from './pisos'
 import { MAX_PATH_SAMPLES } from './moveValidation'
 import { findOccupant, tokensOccupy } from './movementRules'
 
@@ -98,8 +100,10 @@ export function planejarCaminhada(map: MapData, quemAnda: Token, alvo: Point, ar
   if (!cliqueParaAndarLigado(map)) return { tipo: 'aviso', motivo: 'caminhada_desligada' }
   const ocupado = (p: Point): boolean => tokensOccupy(map) && findOccupant(map.tokens, quemAnda.id, p, map.grid) !== undefined
   const destinoPedido = { x: Math.round(alvo.x), y: Math.round(alvo.y) }
+  // BARRANCO: o caminho desvia do barranco que ele vê (rampa e ponta do risco deixam passar).
+  const mapaQueAnda = mapaParaAndar(map, pisoDe(quemAnda))
   if (!ocupado(destinoPedido)) {
-    const r = caminhoConhecido(map, quemAnda, destinoPedido, area)
+    const r = caminhoConhecido(mapaQueAnda, quemAnda, destinoPedido, area)
     return r.tipo === 'caminho' ? { tipo: 'andar', trechos: r.trechos, destino: destinoPedido } : { tipo: 'aviso', motivo: 'caminho_desconhecido' }
   }
   let tentadas = 0
@@ -108,7 +112,7 @@ export function planejarCaminhada(map: MapData, quemAnda: Token, alvo: Point, ar
     const destino = { x: Math.round(casa.x), y: Math.round(casa.y) }
     if (ocupado(destino) || !isPointKnown(area, destino)) continue
     tentadas += 1
-    const r = caminhoConhecido(map, quemAnda, destino, area)
+    const r = caminhoConhecido(mapaQueAnda, quemAnda, destino, area)
     if (r.tipo === 'caminho') return { tipo: 'andar', trechos: r.trechos, destino }
   }
   return { tipo: 'aviso', motivo: 'occupied' }

@@ -1,4 +1,4 @@
-import type { AlturaDoBarranco, BarrancoDoMapa, MapData, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco } from '../types/map'
+import type { AlturaDoBarranco, BarrancoDoMapa, MapData, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco, Wall } from '../types/map'
 import { caminhosParaJogador } from './penhasco'
 import { pisoDe, pisoLido } from './pisos'
 
@@ -616,31 +616,93 @@ export interface SegmentoDeBarranco {
 
 const cacheDeSegmentos = new WeakMap<GeoDoBarranco[], SegmentoDeBarranco[]>()
 
+/** Distância de `p` à reta de `a` até `b`. */
+function distanciaAoTrecho(p: Pt, a: Pt, b: Pt): number {
+  return maisPerto(p[0], p[1], a[0], a[1], b[0], b[1]).d
+}
+
 /**
  * A linha que segura a ficha: o meio da parede de cada trecho que não é rampa.
  * Do lado baixo a ficha para no pé, do lado alto para na beira. As pontas do
  * risco afinam, mas a linha segura até o fim: a ficha passa por fora da ponta.
  * A visão não usa isto (decisão 2 de 28/10).
+ *
+ * O desenho tem um ponto a cada poucos px; aqui o ponto que fica a menos de
+ * meio px da reta entre os vizinhos sai: a reta do platô vira um trecho só, e
+ * o arrasto, a malha e os blocos da batalha testam bem menos linhas.
  */
 export function segmentosQueSeguram(geos: GeoDoBarranco[]): SegmentoDeBarranco[] {
   const guardado = cacheDeSegmentos.get(geos)
   if (guardado !== undefined) return guardado
   const segs: SegmentoDeBarranco[] = []
   for (const g of geos) {
-    const n = g.lip.length
-    for (let i = 0; i < g.nSeg; i += 1) {
-      if (trechoNaRampa(g, i)) continue
-      const j = (i + 1) % n
-      segs.push({
-        ax: g.lip[i][0] + g.vn[i][0] * g.t[i] * 0.5,
-        ay: g.lip[i][1] + g.vn[i][1] * g.t[i] * 0.5,
-        bx: g.lip[j][0] + g.vn[j][0] * g.t[j] * 0.5,
-        by: g.lip[j][1] + g.vn[j][1] * g.t[j] * 0.5,
-      })
+    const meio = (i: number): Pt => [g.lip[i][0] + g.vn[i][0] * g.t[i] * 0.5, g.lip[i][1] + g.vn[i][1] * g.t[i] * 0.5]
+    for (const corrida of corridas(g)) {
+      const idx = corrida.fechada ? [...corrida.idx, corrida.idx[0]] : corrida.idx
+      if (idx.length < 2) continue
+      let ancora = meio(idx[0])
+      for (let k = 1; k < idx.length; k += 1) {
+        const atual = meio(idx[k])
+        const ultimo = k === idx.length - 1
+        if (!ultimo && distanciaAoTrecho(atual, ancora, meio(idx[k + 1])) < 0.5) continue
+        segs.push({ ax: ancora[0], ay: ancora[1], bx: atual[0], by: atual[1] })
+        ancora = atual
+      }
     }
   }
   cacheDeSegmentos.set(geos, segs)
   return segs
+}
+
+const cacheDeParedes = new WeakMap<readonly Wall[], WeakMap<SegmentoDeBarranco[], Wall[]>>()
+
+/**
+ * As paredes que seguram o ANDAR neste piso: as do mapa mais a linha do
+ * barranco, como parede que deixa ver (`blocksLight: false`) e não deixa
+ * passar. Só para as contas de andar (arrasto, andar por clique, batalha):
+ * nunca vai para `map.walls`, para o desenho nem para a visão. Guardado pelas
+ * duas listas: a mesma entrada devolve o MESMO array (as malhas e os blocos
+ * guardam cache pela referência das paredes).
+ */
+export function paredesParaAndar(walls: Wall[], map: Pick<MapData, 'barranco' | 'grid'>, piso: number): Wall[] {
+  const segs = segmentosDoMapa(map, piso)
+  if (segs.length === 0) return walls
+  let porSegs = cacheDeParedes.get(walls)
+  if (porSegs === undefined) {
+    porSegs = new WeakMap()
+    cacheDeParedes.set(walls, porSegs)
+  }
+  const guardado = porSegs.get(segs)
+  if (guardado !== undefined) return guardado
+  const doBarranco = segs.map(
+    (s, i): Wall => ({ id: `barranco:${i}`, x1: s.ax, y1: s.ay, x2: s.bx, y2: s.by, blocksLight: false, blocksMove: true, door: null, ...(piso !== 0 ? { piso } : {}) }),
+  )
+  const todas = [...walls, ...doBarranco]
+  porSegs.set(segs, todas)
+  return todas
+}
+
+/** O id é de uma linha de barranco (e não de uma parede do mapa)? */
+export function ehParedeDoBarranco(id: string): boolean {
+  return id.startsWith('barranco:')
+}
+
+const cacheDeMapas = new WeakMap<MapData, Map<number, MapData>>()
+
+/** O mapa com as paredes de andar do piso (`paredesParaAndar`), para quem planeja caminho. O MESMO mapa sem barranco. */
+export function mapaParaAndar(map: MapData, piso: number): MapData {
+  const walls = paredesParaAndar(map.walls, map, piso)
+  if (walls === map.walls) return map
+  let porPiso = cacheDeMapas.get(map)
+  if (porPiso === undefined) {
+    porPiso = new Map()
+    cacheDeMapas.set(map, porPiso)
+  }
+  const guardado = porPiso.get(piso)
+  if (guardado !== undefined && guardado.walls === walls) return guardado
+  const novo = { ...map, walls }
+  porPiso.set(piso, novo)
+  return novo
 }
 
 /** Os segmentos que seguram a ficha neste mapa e piso (vazio sem barranco). */
@@ -871,6 +933,7 @@ const VIZINHOS: readonly (readonly [number, number])[] = [
  */
 export function barrancoParaJogador(
   b: BarrancoDoMapa | undefined,
+  piso: number,
   grid: number,
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
@@ -878,8 +941,10 @@ export function barrancoParaJogador(
   if (b === undefined) return undefined
   const escala = escalaDoBarranco(grid)
   const raio = ROLO_DA_PONTA * escala
+  // Só o piso do grupo: o barranco do andar de cima não existe na tela dele.
+  const doPiso = <T extends { piso?: number }>(item: T): boolean => pisoDe(item) === piso
   const riscos = caminhosParaJogador(
-    b.riscos.map((r) => ({ ...r, raio })),
+    b.riscos.filter(doPiso).map((r) => ({ ...r, raio })),
     conhece,
     escondido,
   )
@@ -887,9 +952,15 @@ export function barrancoParaJogador(
     .map(({ raio: _raio, ...r }) => r)
   const q = b.quadrado
   const centro = (x: number, y: number): RegionPoint => ({ x: b.origem.x + (x + 0.5) * q, y: b.origem.y + (y + 0.5) * q })
-  const quadrados = b.quadrados.filter((c) => !escondido(centro(c.x, c.y)) && VIZINHOS.some(([dx, dy]) => conhece(centro(c.x + dx, c.y + dy))))
+  const quadrados = b.quadrados.filter((c) => doPiso(c) && !escondido(centro(c.x, c.y)) && VIZINHOS.some(([dx, dy]) => conhece(centro(c.x + dx, c.y + dy))))
   const meioVao = (RAMPA_EM_QUADRADOS * QUADRADO_DO_PROTOTIPO * escala) / 2
-  const rampas = b.rampas.filter((r) => !escondido(r) && (conhece(r) || conhece({ x: r.x - meioVao, y: r.y }) || conhece({ x: r.x + meioVao, y: r.y }) || conhece({ x: r.x, y: r.y - meioVao }) || conhece({ x: r.x, y: r.y + meioVao })))
+  const rampas = b.rampas.filter((r) => doPiso(r) && !escondido(r) && (conhece(r) || conhece({ x: r.x - meioVao, y: r.y }) || conhece({ x: r.x + meioVao, y: r.y }) || conhece({ x: r.x, y: r.y - meioVao }) || conhece({ x: r.x, y: r.y + meioVao })))
   const recorte = { quadrado: b.quadrado, origem: b.origem, riscos, quadrados, rampas }
   return barrancoEstaVazio(recorte) ? undefined : recorte
+}
+
+/** O piso do barranco do RECORTE (todos os itens são do piso do grupo, `barrancoParaJogador`); 0 sem item. */
+export function pisoDoRecorte(b: BarrancoDoMapa): number {
+  const item = b.riscos[0] ?? b.quadrados[0] ?? b.rampas[0]
+  return item === undefined ? 0 : pisoDe(item)
 }
