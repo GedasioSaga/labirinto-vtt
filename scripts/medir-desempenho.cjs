@@ -53,6 +53,8 @@ const CASOS = [
   { id: 'sint200-mt-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'sint200-linhas-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'linhas', tela: QHD_150, perfil: false, fases: 'mesa' },
   { id: 'sint200-mt-1080', mapa: 'sintetico', lado: 200, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
+  { id: 'sint200-linhas-1440-dpr15', mapa: 'sintetico', lado: 200, obra: 'linhas', tela: QHD_150, perfil: false, fases: 'mesa' },
+  { id: 'sint200-linhas-1080', mapa: 'sintetico', lado: 200, obra: 'linhas', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint100-mt-1080', mapa: 'sintetico', lado: 100, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
   { id: 'sint50-mt-1080', mapa: 'sintetico', lado: 50, obra: 'meio-termo', tela: FULLHD, perfil: false, fases: 'mesa' },
 ]
@@ -70,6 +72,7 @@ function lerArgs(argv) {
     else if (a === '--so') out.so = argv[++i].split(',')
     else if (a === '--sem-build') out.semBuild = true
     else if (a === '--sem-perfil') out.semPerfil = true
+    else if (a === '--com-perfil') out.comPerfil = true
     else if (a === '--janela') process.env.LAB_DES_JANELA = '1'
     else if (a === '--gravar') out.gravar = argv[++i]
     else if (a === '--mapa-real') out.mapaReal = argv[++i]
@@ -111,7 +114,7 @@ function main() {
   const args = lerArgs(process.argv.slice(2))
   const ids = args.so ?? CONJUNTOS[args.conjunto]
   if (ids === undefined) throw new Error(`conjunto desconhecido: ${args.conjunto}`)
-  const casos = CASOS.filter((c) => ids.includes(c.id)).map((c) => (args.semPerfil ? { ...c, perfil: false } : c))
+  const casos = CASOS.filter((c) => ids.includes(c.id)).map((c) => (args.semPerfil ? { ...c, perfil: false } : args.comPerfil ? { ...c, perfil: true } : c))
   if (casos.length === 0) throw new Error(`nenhum caso com os ids ${ids.join(',')}`)
   fs.mkdirSync(TEMP, { recursive: true })
   const dist = process.env.LAB_DES_DIST || path.join(TEMP, 'dist')

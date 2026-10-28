@@ -1,0 +1,7877 @@
+{
+ "gerado_em": "2026-10-28T01:53:51.144Z",
+ "modo": "prod",
+ "build": "vite build, VITE_LAB_SONDA=1, --minify false, --sourcemap",
+ "casos": [
+  {
+   "caso": {
+    "id": "real-mt-1080",
+    "mapa": "real",
+    "obra": "meio-termo",
+    "tela": {
+     "largura": 1920,
+     "altura": 1080,
+     "dpr": 1
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "mapa real do usuário (fora do repo)",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 44,
+    "fichas": 2,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1,
+   "abrir_mestre": {
+    "canvas_ms": 864.1,
+    "primeiro_quadro_ms": 1160.2,
+    "interativo_ms": 2994.2,
+    "longas": {
+     "n": 5,
+     "max_ms": 362,
+     "total_ms": 987
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 76,
+    "megapixels": 9.35,
+    "mb_rgba": 36,
+    "maiores": [
+     "2048x1420",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 636,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 16.3,
+    "megapixels_de_area_por_quadro": 1.49,
+    "maior_area_px": "804x517",
+    "texturas_do_filtro": {
+     "256x512": 3.1,
+     "128x128": 1,
+     "128x256": 1,
+     "1024x512": 2,
+     "512x256": 2,
+     "512x128": 1,
+     "256x256": 1,
+     "512x512": 1,
+     "1024x1024": 1,
+     "32x512": 1,
+     "256x128": 1,
+     "64x64": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 182,
+    "megapixels": 22.94,
+    "mb_rgba": 87,
+    "maiores": [
+     "2048x1420",
+     "2047x881",
+     "1024x1024",
+     "1257x677",
+     "1257x677",
+     "798x757"
+    ],
+    "nos_na_cena": 717,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 261,
+    "megapixels": 35.71,
+    "mb_rgba": 136,
+    "maiores": [
+     "2048x2048",
+     "2048x1420",
+     "2048x1024",
+     "2047x881",
+     "1024x1024",
+     "2048x512"
+    ],
+    "nos_na_cena": 787,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 4.92,
+    "maior_area_px": "1922x1081",
+    "texturas_do_filtro": {
+     "2048x256": 2,
+     "2048x2048": 2,
+     "2048x512": 1,
+     "128x512": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 67,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 19,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 6,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 6,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 14,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:3e5c6a69-15d0-4a77-92dd-a6c7ba66fa5e": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 3,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 621.4,
+    "primeiro_quadro_ms": 723.7,
+    "interativo_ms": 957.1,
+    "snapshot_ms_desde_o_clique": 204,
+    "snapshot_bytes": 171873,
+    "longas": {
+     "n": 4,
+     "max_ms": 287,
+     "total_ms": 545
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 40,
+    "megapixels": 10.15,
+    "mb_rgba": 39,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 151,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 4.92,
+    "maior_area_px": "1921x1081",
+    "texturas_do_filtro": {
+     "2048x256": 2,
+     "2048x2048": 2,
+     "2048x512": 1,
+     "128x512": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 2.11,
+    "maior_area_px": "1921x1081",
+    "texturas_do_filtro": {
+     "2048x2048": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 107,
+    "megapixels": 14.31,
+    "mb_rgba": 55,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 155,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 62,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 17,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 10,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 1,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 6,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 6,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "ficha_do_jogador_travou": true,
+   "gpu_jogador_fim": {
+    "texturas": 107,
+    "megapixels": 14.31,
+    "mb_rgba": 55,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 155,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5015,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 52.6,
+     "script_ms_por_s": 37,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3056,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 68.8,
+     "script_ms_por_s": 45.8,
+     "draws_por_quadro_p50": 49,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4273,
+     "quadros": 255,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 63.6,
+     "script_ms_por_s": 42.8,
+     "draws_por_quadro_p50": 33,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3058,
+     "quadros": 183,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 129.2,
+     "script_ms_por_s": 103.9,
+     "draws_por_quadro_p50": 50,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2774,
+     "quadros": 165,
+     "fps": 59.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 33.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 117.4,
+     "script_ms_por_s": 83.3,
+     "draws_por_quadro_p50": 54,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 330
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3697,
+     "quadros": 220,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 49.7,
+     "script_ms_por_s": 33.9,
+     "draws_por_quadro_p50": 52,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5015,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 61.2,
+     "script_ms_por_s": 45.6,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5015,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 90.6,
+     "script_ms_por_s": 77.2,
+     "draws_por_quadro_p50": 54,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3042,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 58.1,
+     "script_ms_por_s": 42.2,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3042,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 168.7,
+     "script_ms_por_s": 137,
+     "draws_por_quadro_p50": 54,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4267,
+     "quadros": 255,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.1,
+     "script_ms_por_s": 38.9,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4267,
+     "quadros": 255,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 237.8,
+     "script_ms_por_s": 215.1,
+     "draws_por_quadro_p50": 43,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3156,
+     "quadros": 184,
+     "fps": 58.7,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 83.3,
+     "longas_n": 1,
+     "longas_max_ms": 106,
+     "longas_total_ms": 106,
+     "cpu_ms_por_s": 153.1,
+     "script_ms_por_s": 121.4,
+     "draws_por_quadro_p50": 37,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3156,
+     "quadros": 188,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 91,
+     "script_ms_por_s": 76.2,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4156,
+     "quadros": 248,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 77.8,
+     "script_ms_por_s": 59.7,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4155,
+     "quadros": 248,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 96.6,
+     "script_ms_por_s": 76.4,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2730,
+     "quadros": 163,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 90.1,
+     "script_ms_por_s": 56.4,
+     "draws_por_quadro_p50": 37,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2730,
+     "quadros": 163,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 90.6,
+     "script_ms_por_s": 76.4,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2730,
+     "quadros": 163,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 71.1,
+     "script_ms_por_s": 53.2,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 13,
+       "bytes": 2096
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -558,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 2126
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2730,
+     "quadros": 161,
+     "fps": 59.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 33.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 309.9,
+     "script_ms_por_s": 278.4,
+     "draws_por_quadro_p50": 55,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 13,
+       "bytes": 2096
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -558,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 2126
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3684,
+     "quadros": 220,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.2,
+     "script_ms_por_s": 43.3,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8621
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3685,
+     "quadros": 219,
+     "fps": 59.7,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 33.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 139.9,
+     "script_ms_por_s": 121.5,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8621
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "real-linhas-1080",
+    "mapa": "real",
+    "obra": "linhas",
+    "tela": {
+     "largura": 1920,
+     "altura": 1080,
+     "dpr": 1
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "mapa real do usuário (fora do repo)",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 44,
+    "fichas": 2,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1,
+   "abrir_mestre": {
+    "canvas_ms": 634.7,
+    "primeiro_quadro_ms": 812.1,
+    "interativo_ms": 2079.1,
+    "longas": {
+     "n": 4,
+     "max_ms": 278,
+     "total_ms": 665
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 115,
+    "megapixels": 19.42,
+    "mb_rgba": 74,
+    "maiores": [
+     "2048x1420",
+     "2047x881",
+     "1024x1024",
+     "1257x677",
+     "1257x677",
+     "798x757"
+    ],
+    "nos_na_cena": 670,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 16.3,
+    "megapixels_de_area_por_quadro": 1.49,
+    "maior_area_px": "804x517",
+    "texturas_do_filtro": {
+     "256x512": 3.1,
+     "128x128": 1,
+     "128x256": 1,
+     "1024x512": 2,
+     "512x256": 2,
+     "512x128": 1,
+     "256x256": 1,
+     "512x512": 1,
+     "1024x1024": 1,
+     "32x512": 1,
+     "256x128": 1,
+     "64x64": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 145,
+    "megapixels": 20.45,
+    "mb_rgba": 78,
+    "maiores": [
+     "2048x1420",
+     "2047x881",
+     "1024x1024",
+     "1257x677",
+     "1257x677",
+     "798x757"
+    ],
+    "nos_na_cena": 670,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 167,
+    "megapixels": 29.55,
+    "mb_rgba": 113,
+    "maiores": [
+     "2048x2048",
+     "2048x1420",
+     "2048x1024",
+     "2047x881",
+     "1024x1024",
+     "2048x512"
+    ],
+    "nos_na_cena": 670,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 4.92,
+    "maior_area_px": "1922x1081",
+    "texturas_do_filtro": {
+     "2048x256": 2,
+     "2048x2048": 2,
+     "2048x512": 1,
+     "128x512": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 71,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 19,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 12,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:3e5c6a69-15d0-4a77-92dd-a6c7ba66fa5e": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 3,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 601.2,
+    "primeiro_quadro_ms": 703.6,
+    "interativo_ms": 953.6,
+    "snapshot_ms_desde_o_clique": 180,
+    "snapshot_bytes": 171874,
+    "longas": {
+     "n": 4,
+     "max_ms": 287,
+     "total_ms": 591
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 20,
+    "megapixels": 8.84,
+    "mb_rgba": 34,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 4.92,
+    "maior_area_px": "1921x1081",
+    "texturas_do_filtro": {
+     "2048x256": 2,
+     "2048x2048": 2,
+     "2048x512": 1,
+     "128x512": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 2.11,
+    "maior_area_px": "1921x1081",
+    "texturas_do_filtro": {
+     "2048x2048": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 24,
+    "megapixels": 8.87,
+    "mb_rgba": 34,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 62,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 17,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 10,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 6,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 6,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "ficha_do_jogador_travou": true,
+   "gpu_jogador_fim": {
+    "texturas": 24,
+    "megapixels": 8.87,
+    "mb_rgba": 34,
+    "maiores": [
+     "2048x2048",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5016,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.1,
+     "script_ms_por_s": 38.8,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3042,
+     "quadros": 181,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 77,
+     "script_ms_por_s": 52.1,
+     "draws_por_quadro_p50": 49,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4037,
+     "quadros": 241,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.6,
+     "script_ms_por_s": 32.9,
+     "draws_por_quadro_p50": 33,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3030,
+     "quadros": 181,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 68.1,
+     "script_ms_por_s": 43.1,
+     "draws_por_quadro_p50": 48,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2752,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 120.9,
+     "script_ms_por_s": 85.1,
+     "draws_por_quadro_p50": 52,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 334
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3701,
+     "quadros": 221,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 53,
+     "script_ms_por_s": 35.8,
+     "draws_por_quadro_p50": 50,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5014,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.9,
+     "script_ms_por_s": 44.2,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5014,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 84.2,
+     "script_ms_por_s": 70.4,
+     "draws_por_quadro_p50": 52,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3053,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.9,
+     "script_ms_por_s": 39.5,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3053,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 105.7,
+     "script_ms_por_s": 78,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4046,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.9,
+     "script_ms_por_s": 38.8,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4046,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 112,
+     "script_ms_por_s": 87,
+     "draws_por_quadro_p50": 41,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3149,
+     "quadros": 184,
+     "fps": 58.7,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 83.3,
+     "longas_n": 1,
+     "longas_max_ms": 103,
+     "longas_total_ms": 103,
+     "cpu_ms_por_s": 85.3,
+     "script_ms_por_s": 51,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3149,
+     "quadros": 188,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 90.4,
+     "script_ms_por_s": 75.4,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4049,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 71.9,
+     "script_ms_por_s": 53.9,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4049,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 88.5,
+     "script_ms_por_s": 71.3,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2733,
+     "quadros": 162,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 95.5,
+     "script_ms_por_s": 57.4,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2732,
+     "quadros": 162,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 89.2,
+     "script_ms_por_s": 73.6,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2723,
+     "quadros": 162,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 65.9,
+     "script_ms_por_s": 48.9,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 2262
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -563,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 2277
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2723,
+     "quadros": 161,
+     "fps": 59.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 33.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 296.1,
+     "script_ms_por_s": 265.5,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 2262
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -563,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 2277
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3698,
+     "quadros": 220,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.4,
+     "script_ms_por_s": 42.6,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 7,
+      "bytes_do_mestre": 8606
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3697,
+     "quadros": 218,
+     "fps": 59.4,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 50.1,
+     "longas_n": 1,
+     "longas_max_ms": 59,
+     "longas_total_ms": 59,
+     "cpu_ms_por_s": 145.7,
+     "script_ms_por_s": 128,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 7,
+      "bytes_do_mestre": 8606
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "real-mt-1440-dpr15",
+    "mapa": "real",
+    "obra": "meio-termo",
+    "tela": {
+     "largura": 2560,
+     "altura": 1440,
+     "dpr": 1.5
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "mapa real do usuário (fora do repo)",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 44,
+    "fichas": 2,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1.5,
+   "abrir_mestre": {
+    "canvas_ms": 689.4,
+    "primeiro_quadro_ms": 878.6,
+    "interativo_ms": 2095.6,
+    "longas": {
+     "n": 4,
+     "max_ms": 336,
+     "total_ms": 726
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 121,
+    "megapixels": 22.01,
+    "mb_rgba": 84,
+    "maiores": [
+     "2048x1420",
+     "2048x1024",
+     "2047x881",
+     "1024x1024",
+     "1257x677",
+     "1257x677"
+    ],
+    "nos_na_cena": 707,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 17.3,
+    "megapixels_de_area_por_quadro": 4.87,
+    "maior_area_px": "1686x774",
+    "texturas_do_filtro": {
+     "1024x512": 4.1,
+     "128x256": 1,
+     "1024x256": 2,
+     "2048x1024": 3.1,
+     "512x512": 3.1,
+     "256x512": 1,
+     "1024x1024": 1,
+     "256x256": 1,
+     "128x128": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 195,
+    "megapixels": 30.35,
+    "mb_rgba": 116,
+    "maiores": [
+     "2048x1420",
+     "2048x1024",
+     "1024x2048",
+     "2047x881",
+     "1024x1024",
+     "512x2048"
+    ],
+    "nos_na_cena": 736,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 226,
+    "megapixels": 53.79,
+    "mb_rgba": 205,
+    "maiores": [
+     "4096x2048",
+     "4096x1024",
+     "2048x2048",
+     "2048x1420",
+     "2048x1024",
+     "1024x2048"
+    ],
+    "nos_na_cena": 785,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 19.16,
+    "maior_area_px": "3842x1982",
+    "texturas_do_filtro": {
+     "4096x1024": 3.1,
+     "4096x2048": 2,
+     "512x512": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 71,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 19,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 6,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 18,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 6,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:3e5c6a69-15d0-4a77-92dd-a6c7ba66fa5e": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 3,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 633.7,
+    "primeiro_quadro_ms": 743.5,
+    "interativo_ms": 993.5,
+    "snapshot_ms_desde_o_clique": 159,
+    "snapshot_bytes": 171873,
+    "longas": {
+     "n": 4,
+     "max_ms": 329,
+     "total_ms": 636
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 27,
+    "megapixels": 7.27,
+    "mb_rgba": 28,
+    "maiores": [
+     "2048x1024",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 139,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 19.15,
+    "maior_area_px": "3841x1980",
+    "texturas_do_filtro": {
+     "4096x1024": 3.1,
+     "4096x2048": 2,
+     "512x512": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 1.68,
+    "maior_area_px": "1956x843",
+    "texturas_do_filtro": {
+     "2048x1024": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 50,
+    "megapixels": 21.22,
+    "mb_rgba": 81,
+    "maiores": [
+     "4096x2048",
+     "4096x1024",
+     "2048x1024",
+     "2048x983",
+     "2047x881",
+     "512x512"
+    ],
+    "nos_na_cena": 139,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 62,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 17,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 10,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 1,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 6,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 6,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "ficha_do_jogador_travou": true,
+   "gpu_jogador_fim": {
+    "texturas": 132,
+    "megapixels": 43.25,
+    "mb_rgba": 165,
+    "maiores": [
+     "4096x4096",
+     "4096x2048",
+     "4096x1024",
+     "2048x1024",
+     "2048x983",
+     "2047x881"
+    ],
+    "nos_na_cena": 176,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5019,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 52.1,
+     "script_ms_por_s": 36.8,
+     "draws_por_quadro_p50": 73,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3045,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 74.8,
+     "script_ms_por_s": 51.2,
+     "draws_por_quadro_p50": 73,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4061,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 80.3,
+     "script_ms_por_s": 57.8,
+     "draws_por_quadro_p50": 40,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3044,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 338.9,
+     "script_ms_por_s": 311.1,
+     "draws_por_quadro_p50": 62,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2779,
+     "quadros": 166,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 212.3,
+     "script_ms_por_s": 174.9,
+     "draws_por_quadro_p50": 58,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 326
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3714,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 53.2,
+     "script_ms_por_s": 36.7,
+     "draws_por_quadro_p50": 56,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5019,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.9,
+     "script_ms_por_s": 44.5,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5019,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 88,
+     "script_ms_por_s": 75,
+     "draws_por_quadro_p50": 58,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3036,
+     "quadros": 181,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.3,
+     "script_ms_por_s": 42.4,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3036,
+     "quadros": 181,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 365.2,
+     "script_ms_por_s": 330.6,
+     "draws_por_quadro_p50": 65,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4200,
+     "quadros": 251,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 69.2,
+     "script_ms_por_s": 49.5,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4199,
+     "quadros": 251,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 535.4,
+     "script_ms_por_s": 498.2,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3216,
+     "quadros": 186,
+     "fps": 58.1,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 116.3,
+     "longas_n": 1,
+     "longas_max_ms": 137,
+     "longas_total_ms": 137,
+     "cpu_ms_por_s": 98.4,
+     "script_ms_por_s": 59.2,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3216,
+     "quadros": 192,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 110.7,
+     "script_ms_por_s": 92.2,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4078,
+     "quadros": 244,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 124.7,
+     "script_ms_por_s": 100.7,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4078,
+     "quadros": 244,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 132.4,
+     "script_ms_por_s": 105.4,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2785,
+     "quadros": 166,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 129.5,
+     "script_ms_por_s": 80.3,
+     "draws_por_quadro_p50": 38,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2784,
+     "quadros": 166,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 128.1,
+     "script_ms_por_s": 105,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2835,
+     "quadros": 169,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 91.3,
+     "script_ms_por_s": 68,
+     "draws_por_quadro_p50": 37,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 7,
+       "bytes": 1126
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -546,
+      "mensagens_do_mestre": 9,
+      "bytes_do_mestre": 1156
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2830,
+     "quadros": 137,
+     "fps": 48.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 33.3,
+     "quadro_p99_ms": 83.5,
+     "quadro_max_ms": 116.8,
+     "longas_n": 7,
+     "longas_max_ms": 115,
+     "longas_total_ms": 689,
+     "cpu_ms_por_s": 633.1,
+     "script_ms_por_s": 594.8,
+     "draws_por_quadro_p50": 57,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 7,
+       "bytes": 1126
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -546,
+      "mensagens_do_mestre": 9,
+      "bytes_do_mestre": 1156
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3738,
+     "quadros": 223,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.7,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 83.1,
+     "script_ms_por_s": 60.8,
+     "draws_por_quadro_p50": 37,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8588
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8618
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3738,
+     "quadros": 215,
+     "fps": 57.8,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 33.3,
+     "quadro_max_ms": 66.7,
+     "longas_n": 3,
+     "longas_max_ms": 78,
+     "longas_total_ms": 196,
+     "cpu_ms_por_s": 222.6,
+     "script_ms_por_s": 194.6,
+     "draws_por_quadro_p50": 57,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8588
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8618
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "real-linhas-1440-dpr15",
+    "mapa": "real",
+    "obra": "linhas",
+    "tela": {
+     "largura": 2560,
+     "altura": 1440,
+     "dpr": 1.5
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "mapa real do usuário (fora do repo)",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 44,
+    "fichas": 2,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1.5,
+   "abrir_mestre": {
+    "canvas_ms": 1081.8,
+    "primeiro_quadro_ms": 1375.7,
+    "interativo_ms": 2709.5,
+    "longas": {
+     "n": 4,
+     "max_ms": 537,
+     "total_ms": 1154
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 80,
+    "megapixels": 9.41,
+    "mb_rgba": 36,
+    "maiores": [
+     "2048x1420",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 636,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 17.3,
+    "megapixels_de_area_por_quadro": 4.87,
+    "maior_area_px": "1686x774",
+    "texturas_do_filtro": {
+     "1024x512": 4.1,
+     "128x256": 1,
+     "1024x256": 2,
+     "2048x1024": 3.1,
+     "512x512": 3.1,
+     "256x512": 1,
+     "1024x1024": 1,
+     "256x256": 1,
+     "128x128": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 138,
+    "megapixels": 26.74,
+    "mb_rgba": 102,
+    "maiores": [
+     "2048x1420",
+     "2048x1024",
+     "1024x2048",
+     "2047x881",
+     "1024x1024",
+     "512x2048"
+    ],
+    "nos_na_cena": 670,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 163,
+    "megapixels": 49.79,
+    "mb_rgba": 190,
+    "maiores": [
+     "4096x2048",
+     "4096x1024",
+     "2048x2048",
+     "2048x1420",
+     "2048x1024",
+     "1024x2048"
+    ],
+    "nos_na_cena": 670,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 19.16,
+    "maior_area_px": "3842x1981",
+    "texturas_do_filtro": {
+     "4096x1024": 3.1,
+     "4096x2048": 2,
+     "512x512": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 71,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 19,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 6,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 12,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:3e5c6a69-15d0-4a77-92dd-a6c7ba66fa5e": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 3,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 847.1,
+    "primeiro_quadro_ms": 987,
+    "interativo_ms": 1420.5,
+    "snapshot_ms_desde_o_clique": 214,
+    "snapshot_bytes": 171874,
+    "longas": {
+     "n": 4,
+     "max_ms": 446,
+     "total_ms": 882
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 19,
+    "megapixels": 6.74,
+    "mb_rgba": 26,
+    "maiores": [
+     "2048x1024",
+     "2048x983",
+     "2047x881",
+     "512x512",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 6.1,
+    "megapixels_de_area_por_quadro": 19.17,
+    "maior_area_px": "3842x1980",
+    "texturas_do_filtro": {
+     "4096x1024": 3.1,
+     "4096x2048": 2,
+     "512x512": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 1.68,
+    "maior_area_px": "1956x843",
+    "texturas_do_filtro": {
+     "2048x1024": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 22,
+    "megapixels": 19.33,
+    "mb_rgba": 74,
+    "maiores": [
+     "4096x2048",
+     "4096x1024",
+     "2048x1024",
+     "2048x983",
+     "2047x881",
+     "512x512"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 62,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 17,
+       "fora": 0
+      },
+      "graphics:e8c35dd5-3643-4582-a167-671e9d12e92e<Container<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 10,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 5,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 6,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 6,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<nomeDoLugar:30928791-4c5e-4309-892e-0673c39cb8aa": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "ficha_do_jogador_travou": true,
+   "gpu_jogador_fim": {
+    "texturas": 23,
+    "megapixels": 36.1,
+    "mb_rgba": 138,
+    "maiores": [
+     "4096x4096",
+     "4096x2048",
+     "4096x1024",
+     "2048x1024",
+     "2048x983",
+     "2047x881"
+    ],
+    "nos_na_cena": 129,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5011,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.2,
+     "script_ms_por_s": 43,
+     "draws_por_quadro_p50": 73,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3068,
+     "quadros": 183,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 92.7,
+     "script_ms_por_s": 65,
+     "draws_por_quadro_p50": 73,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4173,
+     "quadros": 249,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.1,
+     "script_ms_por_s": 36.9,
+     "draws_por_quadro_p50": 40,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3049,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 102.9,
+     "script_ms_por_s": 57.8,
+     "draws_por_quadro_p50": 58,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2784,
+     "quadros": 165,
+     "fps": 59.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 33.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 140.9,
+     "script_ms_por_s": 94.6,
+     "draws_por_quadro_p50": 52,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 331
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3692,
+     "quadros": 221,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 55.7,
+     "script_ms_por_s": 37.2,
+     "draws_por_quadro_p50": 50,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5013,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 63.1,
+     "script_ms_por_s": 46.7,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 3,
+       "bytes": 45
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5013,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 84.4,
+     "script_ms_por_s": 68.6,
+     "draws_por_quadro_p50": 52,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 3,
+       "bytes": 45
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3058,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 73,
+     "script_ms_por_s": 52.3,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3058,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 141.3,
+     "script_ms_por_s": 105.4,
+     "draws_por_quadro_p50": 61,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4172,
+     "quadros": 249,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 64,
+     "script_ms_por_s": 45.4,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4172,
+     "quadros": 249,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 118.6,
+     "script_ms_por_s": 90,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3212,
+     "quadros": 185,
+     "fps": 57.8,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 133.2,
+     "longas_n": 1,
+     "longas_max_ms": 152,
+     "longas_total_ms": 152,
+     "cpu_ms_por_s": 80.3,
+     "script_ms_por_s": 48.5,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3212,
+     "quadros": 192,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 86.6,
+     "script_ms_por_s": 71.6,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4160,
+     "quadros": 249,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 69.9,
+     "script_ms_por_s": 51.4,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4160,
+     "quadros": 249,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 89.2,
+     "script_ms_por_s": 74,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2763,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 108.4,
+     "script_ms_por_s": 64.3,
+     "draws_por_quadro_p50": 36,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2762,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.3,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 108.6,
+     "script_ms_por_s": 84.7,
+     "draws_por_quadro_p50": 63,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.rejected": {
+       "n": 1,
+       "bytes": 59
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 0,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2762,
+     "quadros": 165,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 74.8,
+     "script_ms_por_s": 55.1,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 12,
+       "bytes": 1931
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -547,
+      "mensagens_do_mestre": 14,
+      "bytes_do_mestre": 1961
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2763,
+     "quadros": 161,
+     "fps": 58.5,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 33.5,
+     "quadro_max_ms": 33.6,
+     "longas_n": 2,
+     "longas_max_ms": 61,
+     "longas_total_ms": 116,
+     "cpu_ms_por_s": 335.2,
+     "script_ms_por_s": 301.6,
+     "draws_por_quadro_p50": 53,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 12,
+       "bytes": 1931
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -547,
+      "mensagens_do_mestre": 14,
+      "bytes_do_mestre": 1961
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3706,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 66.6,
+     "script_ms_por_s": 47.8,
+     "draws_por_quadro_p50": 35,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8621
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3706,
+     "quadros": 219,
+     "fps": 59.2,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 50.1,
+     "longas_n": 1,
+     "longas_max_ms": 70,
+     "longas_total_ms": 70,
+     "cpu_ms_por_s": 156.3,
+     "script_ms_por_s": 137.3,
+     "draws_por_quadro_p50": 51,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8591
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8621
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "sint200-mt-1440-dpr15",
+    "mapa": "sintetico",
+    "lado": 200,
+    "obra": "meio-termo",
+    "tela": {
+     "largura": 2560,
+     "altura": 1440,
+     "dpr": 1.5
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "Sintético 200x200",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 37,
+    "fichas": 6,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1.5,
+   "abrir_mestre": {
+    "canvas_ms": 857.4,
+    "primeiro_quadro_ms": 1076.5,
+    "interativo_ms": 2260.2,
+    "longas": {
+     "n": 4,
+     "max_ms": 408,
+     "total_ms": 871
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 97,
+    "megapixels": 13.68,
+    "mb_rgba": 52,
+    "maiores": [
+     "1810x2048",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 687,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 26.4,
+    "megapixels_de_area_por_quadro": 44.28,
+    "maior_area_px": "1830x2129",
+    "texturas_do_filtro": {
+     "2048x2048": 12.2,
+     "1024x512": 1,
+     "256x128": 1,
+     "1024x1024": 3.1,
+     "1024x2048": 2,
+     "2048x512": 1,
+     "128x128": 3.1,
+     "2048x1024": 1,
+     "2048x4096": 1,
+     "512x1024": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 279,
+    "megapixels": 87.16,
+    "mb_rgba": 332,
+    "maiores": [
+     "4096x4096",
+     "2048x4096",
+     "4096x2048",
+     "2048x2048",
+     "1024x4096",
+     "1810x2048"
+    ],
+    "nos_na_cena": 954,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 350,
+    "megapixels": 95.09,
+    "mb_rgba": 363,
+    "maiores": [
+     "4096x4096",
+     "2048x4096",
+     "4096x2048",
+     "2048x2048",
+     "1024x4096",
+     "1810x2048"
+    ],
+    "nos_na_cena": 1106,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 20.3,
+    "megapixels_de_area_por_quadro": 149.1,
+    "maior_area_px": "3841x2161",
+    "texturas_do_filtro": {
+     "4096x4096": 17.3,
+     "256x2048": 1,
+     "4096x2048": 1,
+     "1024x4096": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 139,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 31,
+       "fora": 0
+      },
+      "graphics:sala-95<Container<Container<Container": {
+       "n": 2,
+       "fora": 2
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 20,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 48,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 20,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 7,
+       "fora": 3
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 923.2,
+    "primeiro_quadro_ms": 1092.8,
+    "interativo_ms": 1192.8,
+    "snapshot_ms_desde_o_clique": 231,
+    "snapshot_bytes": 122742,
+    "longas": {
+     "n": 3,
+     "max_ms": 507,
+     "total_ms": 802
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 14,
+    "megapixels": 0.97,
+    "mb_rgba": 4,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "371x177",
+     "371x177",
+     "371x177",
+     "256x256"
+    ],
+    "nos_na_cena": 116,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 20.3,
+    "megapixels_de_area_por_quadro": 149.17,
+    "maior_area_px": "3841x2162",
+    "texturas_do_filtro": {
+     "4096x4096": 17.3,
+     "256x2048": 1,
+     "4096x2048": 1,
+     "1024x4096": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 0.01,
+    "maior_area_px": "81x81",
+    "texturas_do_filtro": {
+     "128x128": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 21,
+    "megapixels": 1.72,
+    "mb_rgba": 7,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 121,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 40,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 10,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 7,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 4,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "gpu_jogador_fim": {
+    "texturas": 25,
+    "megapixels": 2.05,
+    "mb_rgba": 8,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177"
+    ],
+    "nos_na_cena": 125,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5017,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 77.2,
+     "script_ms_por_s": 59.2,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3036,
+     "quadros": 181,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 117.5,
+     "script_ms_por_s": 85.3,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4143,
+     "quadros": 152,
+     "fps": 36.9,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 66.7,
+     "quadro_p99_ms": 83.4,
+     "quadro_max_ms": 116.7,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 461.7,
+     "script_ms_por_s": 440.7,
+     "draws_por_quadro_p50": 108,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3164,
+     "quadros": 78,
+     "fps": 25.4,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 83.4,
+     "quadro_p99_ms": 116.6,
+     "quadro_max_ms": 116.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 702.9,
+     "script_ms_por_s": 678.4,
+     "draws_por_quadro_p50": 105,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2847,
+     "quadros": 71,
+     "fps": 25.3,
+     "quadro_p50_ms": 16.8,
+     "quadro_p95_ms": 100,
+     "quadro_p99_ms": 100.2,
+     "quadro_max_ms": 150,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 416.2,
+     "script_ms_por_s": 388.6,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 640
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3729,
+     "quadros": 103,
+     "fps": 27.7,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 116.7,
+     "quadro_p99_ms": 116.8,
+     "quadro_max_ms": 133.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 55.7,
+     "script_ms_por_s": 42.2,
+     "draws_por_quadro_p50": 119,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5015,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 56.2,
+     "script_ms_por_s": 40.1,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5015,
+     "quadros": 116,
+     "fps": 23.5,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 83.3,
+     "quadro_p99_ms": 99.9,
+     "quadro_max_ms": 116.6,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 52.2,
+     "script_ms_por_s": 45,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3150,
+     "quadros": 188,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.6,
+     "script_ms_por_s": 37.8,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3150,
+     "quadros": 67,
+     "fps": 21.7,
+     "quadro_p50_ms": 49.9,
+     "quadro_p95_ms": 83.4,
+     "quadro_p99_ms": 100,
+     "quadro_max_ms": 116.5,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 587.8,
+     "script_ms_por_s": 567.1,
+     "draws_por_quadro_p50": 107,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4328,
+     "quadros": 258,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 58.7,
+     "script_ms_por_s": 40.7,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4328,
+     "quadros": 95,
+     "fps": 22.5,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 66.6,
+     "quadro_p99_ms": 100,
+     "quadro_max_ms": 100,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 571.2,
+     "script_ms_por_s": 548.6,
+     "draws_por_quadro_p50": 101,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3179,
+     "quadros": 183,
+     "fps": 58.1,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 116.6,
+     "longas_n": 1,
+     "longas_max_ms": 138,
+     "longas_total_ms": 138,
+     "cpu_ms_por_s": 89.3,
+     "script_ms_por_s": 51.4,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3179,
+     "quadros": 68,
+     "fps": 21.8,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 50.2,
+     "quadro_p99_ms": 66.8,
+     "quadro_max_ms": 83.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 102.6,
+     "script_ms_por_s": 94.1,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4071,
+     "quadros": 243,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 72.9,
+     "script_ms_por_s": 51.6,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4069,
+     "quadros": 86,
+     "fps": 21.5,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 66.6,
+     "quadro_p99_ms": 66.8,
+     "quadro_max_ms": 66.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 55.7,
+     "script_ms_por_s": 48.7,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2730,
+     "quadros": 163,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 100.6,
+     "script_ms_por_s": 61.4,
+     "draws_por_quadro_p50": 23,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2730,
+     "quadros": 52,
+     "fps": 19.6,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 66.5,
+     "quadro_p99_ms": 66.8,
+     "quadro_max_ms": 83.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 60.2,
+     "script_ms_por_s": 40.3,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2854,
+     "quadros": 170,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 17.1,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 89.1,
+     "script_ms_por_s": 66.1,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 1807
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 1822
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2847,
+     "quadros": 52,
+     "fps": 18.7,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 67.1,
+     "quadro_p99_ms": 83.4,
+     "quadro_max_ms": 83.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 352.4,
+     "script_ms_por_s": 327.4,
+     "draws_por_quadro_p50": 122,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 1807
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 1822
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3708,
+     "quadros": 221,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 67,
+     "script_ms_por_s": 48.2,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 7,
+      "bytes_do_mestre": 8638
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3709,
+     "quadros": 69,
+     "fps": 19,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 66.7,
+     "quadro_p99_ms": 66.8,
+     "quadro_max_ms": 66.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 93.2,
+     "script_ms_por_s": 78.3,
+     "draws_por_quadro_p50": 120,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 7,
+      "bytes_do_mestre": 8638
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "sint200-mt-1080",
+    "mapa": "sintetico",
+    "lado": 200,
+    "obra": "meio-termo",
+    "tela": {
+     "largura": 1920,
+     "altura": 1080,
+     "dpr": 1
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "Sintético 200x200",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 37,
+    "fichas": 6,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1,
+   "abrir_mestre": {
+    "canvas_ms": 973.6,
+    "primeiro_quadro_ms": 1227.5,
+    "interativo_ms": 2644.9,
+    "longas": {
+     "n": 4,
+     "max_ms": 262,
+     "total_ms": 592
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 97,
+    "megapixels": 13.62,
+    "mb_rgba": 52,
+    "maiores": [
+     "1810x2048",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 687,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 26.4,
+    "megapixels_de_area_por_quadro": 14.03,
+    "maior_area_px": "1132x1072",
+    "texturas_do_filtro": {
+     "1024x1024": 8.1,
+     "512x256": 1,
+     "128x64": 1,
+     "2048x2048": 2,
+     "512x512": 3.1,
+     "512x2048": 1,
+     "2048x1024": 2,
+     "1024x256": 1,
+     "1024x512": 1,
+     "64x128": 1,
+     "128x128": 2,
+     "1024x2048": 2,
+     "512x1024": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 409,
+    "megapixels": 59.04,
+    "mb_rgba": 225,
+    "maiores": [
+     "2048x2048",
+     "1810x2048",
+     "2048x1024",
+     "1024x2048",
+     "985x1146",
+     "1068x1027"
+    ],
+    "nos_na_cena": 1223,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 344,
+    "megapixels": 54.61,
+    "mb_rgba": 208,
+    "maiores": [
+     "2048x2048",
+     "1810x2048",
+     "2048x1024",
+     "1024x2048",
+     "985x1146",
+     "1068x1027"
+    ],
+    "nos_na_cena": 1099,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 19.3,
+    "megapixels_de_area_por_quadro": 37.84,
+    "maior_area_px": "1922x1083",
+    "texturas_do_filtro": {
+     "2048x2048": 17.3,
+     "2048x1024": 1,
+     "16x2048": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 125,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 30,
+       "fora": 0
+      },
+      "graphics:sala-95<Container<Container<Container": {
+       "n": 2,
+       "fora": 2
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 19,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 37,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 19,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 7,
+       "fora": 4
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 694.4,
+    "primeiro_quadro_ms": 870.8,
+    "interativo_ms": 937.6,
+    "snapshot_ms_desde_o_clique": 189,
+    "snapshot_bytes": 122742,
+    "longas": {
+     "n": 3,
+     "max_ms": 355,
+     "total_ms": 620
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 18,
+    "megapixels": 1.74,
+    "mb_rgba": 7,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177"
+    ],
+    "nos_na_cena": 120,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 19.3,
+    "megapixels_de_area_por_quadro": 37.79,
+    "maior_area_px": "1921x1082",
+    "texturas_do_filtro": {
+     "2048x2048": 17.3,
+     "2048x1024": 1,
+     "16x2048": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 0.24,
+    "maior_area_px": "487x491",
+    "texturas_do_filtro": {
+     "512x512": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 39,
+    "megapixels": 6.1,
+    "mb_rgba": 23,
+    "maiores": [
+     "1024x1024",
+     "512x2048",
+     "512x1024",
+     "256x2048",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 124,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 40,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 10,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 7,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "filter:pushFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "filter:popFilter": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 4,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "gpu_jogador_fim": {
+    "texturas": 40,
+    "megapixels": 6.11,
+    "mb_rgba": 23,
+    "maiores": [
+     "1024x1024",
+     "512x2048",
+     "512x1024",
+     "256x2048",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 128,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5016,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 67.4,
+     "script_ms_por_s": 51.4,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3078,
+     "quadros": 184,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 106.6,
+     "script_ms_por_s": 79,
+     "draws_por_quadro_p50": 108,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4157,
+     "quadros": 248,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 620.3,
+     "script_ms_por_s": 596.1,
+     "draws_por_quadro_p50": 98,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3068,
+     "quadros": 183,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 17,
+     "quadro_max_ms": 17.2,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 625.9,
+     "script_ms_por_s": 596.1,
+     "draws_por_quadro_p50": 101,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2763,
+     "quadros": 165,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 161.6,
+     "script_ms_por_s": 121.8,
+     "draws_por_quadro_p50": 102,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 641
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3678,
+     "quadros": 220,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 64,
+     "script_ms_por_s": 46.7,
+     "draws_por_quadro_p50": 100,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5009,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 62.7,
+     "script_ms_por_s": 44.9,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5009,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 132.2,
+     "script_ms_por_s": 117.5,
+     "draws_por_quadro_p50": 101,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3046,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 53,
+     "script_ms_por_s": 36.6,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3046,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 609.2,
+     "script_ms_por_s": 576.3,
+     "draws_por_quadro_p50": 103,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4186,
+     "quadros": 250,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 51.2,
+     "script_ms_por_s": 34.9,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4187,
+     "quadros": 250,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 549.3,
+     "script_ms_por_s": 522.4,
+     "draws_por_quadro_p50": 90,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3172,
+     "quadros": 184,
+     "fps": 58.4,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 100.1,
+     "longas_n": 1,
+     "longas_max_ms": 119,
+     "longas_total_ms": 119,
+     "cpu_ms_por_s": 87.1,
+     "script_ms_por_s": 53.2,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3165,
+     "quadros": 189,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 503.3,
+     "script_ms_por_s": 483.9,
+     "draws_por_quadro_p50": 124,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4060,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 70.4,
+     "script_ms_por_s": 50.8,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4060,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 126.4,
+     "script_ms_por_s": 112.1,
+     "draws_por_quadro_p50": 103,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2741,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 92.1,
+     "script_ms_por_s": 55.8,
+     "draws_por_quadro_p50": 23,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2741,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 143.3,
+     "script_ms_por_s": 110.3,
+     "draws_por_quadro_p50": 103,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move",
+       "ping"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2776,
+     "quadros": 166,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 65.8,
+     "script_ms_por_s": 48.1,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 15,
+       "bytes": 1944
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 17,
+      "bytes_do_mestre": 1974
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2776,
+     "quadros": 166,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 300,
+     "script_ms_por_s": 269.6,
+     "draws_por_quadro_p50": 103,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 15,
+       "bytes": 1944
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 17,
+      "bytes_do_mestre": 1974
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3718,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 59.8,
+     "script_ms_por_s": 42.4,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3718,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 161.3,
+     "script_ms_por_s": 141.2,
+     "draws_por_quadro_p50": 101,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "sint200-linhas-1440-dpr15",
+    "mapa": "sintetico",
+    "lado": 200,
+    "obra": "linhas",
+    "tela": {
+     "largura": 2560,
+     "altura": 1440,
+     "dpr": 1.5
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "Sintético 200x200",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 37,
+    "fichas": 6,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1.5,
+   "abrir_mestre": {
+    "canvas_ms": 776.7,
+    "primeiro_quadro_ms": 978.8,
+    "interativo_ms": 1895.9,
+    "longas": {
+     "n": 4,
+     "max_ms": 371,
+     "total_ms": 806
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 97,
+    "megapixels": 13.68,
+    "mb_rgba": 52,
+    "maiores": [
+     "1810x2048",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 687,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 26.4,
+    "megapixels_de_area_por_quadro": 44.28,
+    "maior_area_px": "1830x2129",
+    "texturas_do_filtro": {
+     "2048x2048": 12.2,
+     "1024x512": 1,
+     "256x128": 1,
+     "1024x1024": 3.1,
+     "1024x2048": 2,
+     "2048x512": 1,
+     "128x128": 3.1,
+     "2048x1024": 1,
+     "2048x4096": 1,
+     "512x1024": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 169,
+    "megapixels": 80.02,
+    "mb_rgba": 305,
+    "maiores": [
+     "4096x4096",
+     "2048x4096",
+     "4096x2048",
+     "2048x2048",
+     "1024x4096",
+     "1810x2048"
+    ],
+    "nos_na_cena": 739,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 186,
+    "megapixels": 84.34,
+    "mb_rgba": 322,
+    "maiores": [
+     "4096x4096",
+     "2048x4096",
+     "4096x2048",
+     "2048x2048",
+     "1024x4096",
+     "1810x2048"
+    ],
+    "nos_na_cena": 739,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 20.3,
+    "megapixels_de_area_por_quadro": 149.13,
+    "maior_area_px": "3842x2161",
+    "texturas_do_filtro": {
+     "4096x4096": 17.3,
+     "256x2048": 1,
+     "4096x2048": 1,
+     "1024x4096": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 131,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 31,
+       "fora": 0
+      },
+      "graphics:sala-95<Container<Container<Container": {
+       "n": 2,
+       "fora": 2
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 20,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 20,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 20,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 20,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 7,
+       "fora": 3
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 742.3,
+    "primeiro_quadro_ms": 884.8,
+    "interativo_ms": 984.8,
+    "snapshot_ms_desde_o_clique": 191,
+    "snapshot_bytes": 122742,
+    "longas": {
+     "n": 3,
+     "max_ms": 399,
+     "total_ms": 638
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 14,
+    "megapixels": 0.97,
+    "mb_rgba": 4,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "371x177",
+     "371x177",
+     "371x177",
+     "256x256"
+    ],
+    "nos_na_cena": 116,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 20.3,
+    "megapixels_de_area_por_quadro": 149.2,
+    "maior_area_px": "3842x2162",
+    "texturas_do_filtro": {
+     "4096x4096": 17.3,
+     "256x2048": 1,
+     "4096x2048": 1,
+     "1024x4096": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 0.01,
+    "maior_area_px": "81x81",
+    "texturas_do_filtro": {
+     "128x128": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 19,
+    "megapixels": 1.59,
+    "mb_rgba": 6,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177",
+     "371x177"
+    ],
+    "nos_na_cena": 118,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 41,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 10,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 7,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 4,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "gpu_jogador_fim": {
+    "texturas": 22,
+    "megapixels": 1.86,
+    "mb_rgba": 7,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177"
+    ],
+    "nos_na_cena": 122,
+    "resolucao": 1.5,
+    "backbuffer": "2560x1440"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5020,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 64.9,
+     "script_ms_por_s": 49.2,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3079,
+     "quadros": 184,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 89.8,
+     "script_ms_por_s": 64.8,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4260,
+     "quadros": 169,
+     "fps": 39.8,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 66.6,
+     "quadro_p99_ms": 83.3,
+     "quadro_max_ms": 100.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 72.9,
+     "script_ms_por_s": 55,
+     "draws_por_quadro_p50": 100,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3128,
+     "quadros": 94,
+     "fps": 30.1,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 83.5,
+     "quadro_p99_ms": 100.1,
+     "quadro_max_ms": 116.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 46.9,
+     "script_ms_por_s": 27.5,
+     "draws_por_quadro_p50": 83,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2758,
+     "quadros": 79,
+     "fps": 28.9,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 100,
+     "quadro_p99_ms": 116.5,
+     "quadro_max_ms": 133.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 98.1,
+     "script_ms_por_s": 70.1,
+     "draws_por_quadro_p50": 86,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 640
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3704,
+     "quadros": 112,
+     "fps": 30.8,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 83.5,
+     "quadro_p99_ms": 100.2,
+     "quadro_max_ms": 116.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 37.3,
+     "script_ms_por_s": 26.7,
+     "draws_por_quadro_p50": 84,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5014,
+     "quadros": 300,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 58.6,
+     "script_ms_por_s": 42.1,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5014,
+     "quadros": 127,
+     "fps": 25.5,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 116.8,
+     "quadro_p99_ms": 133.4,
+     "quadro_max_ms": 150,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 40.2,
+     "script_ms_por_s": 32.6,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3135,
+     "quadros": 187,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 61.4,
+     "script_ms_por_s": 43.2,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3135,
+     "quadros": 79,
+     "fps": 26,
+     "quadro_p50_ms": 16.8,
+     "quadro_p95_ms": 100.1,
+     "quadro_p99_ms": 116.7,
+     "quadro_max_ms": 116.7,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 60,
+     "script_ms_por_s": 44.2,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4268,
+     "quadros": 255,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 52.3,
+     "script_ms_por_s": 36.4,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 3,
+       "bytes": 45
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4268,
+     "quadros": 114,
+     "fps": 27,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 50.1,
+     "quadro_p99_ms": 66.2,
+     "quadro_max_ms": 116.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 65.7,
+     "script_ms_por_s": 50.3,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 3,
+       "bytes": 45
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3214,
+     "quadros": 187,
+     "fps": 58.4,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 99.9,
+     "longas_n": 1,
+     "longas_max_ms": 111,
+     "longas_total_ms": 111,
+     "cpu_ms_por_s": 87.8,
+     "script_ms_por_s": 50.5,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3214,
+     "quadros": 79,
+     "fps": 24.9,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 50.1,
+     "quadro_p99_ms": 50.2,
+     "quadro_max_ms": 100,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 44.7,
+     "script_ms_por_s": 36.1,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4053,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 62.3,
+     "script_ms_por_s": 43.7,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4053,
+     "quadros": 99,
+     "fps": 24.8,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 50.1,
+     "quadro_p99_ms": 50.2,
+     "quadro_max_ms": 66.6,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 39,
+     "script_ms_por_s": 31.7,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2774,
+     "quadros": 165,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 104.7,
+     "script_ms_por_s": 64,
+     "draws_por_quadro_p50": 23,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2774,
+     "quadros": 59,
+     "fps": 21.6,
+     "quadro_p50_ms": 50,
+     "quadro_p95_ms": 50.3,
+     "quadro_p99_ms": 66.7,
+     "quadro_max_ms": 66.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 57.5,
+     "script_ms_por_s": 31.4,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2767,
+     "quadros": 165,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.9,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 61.7,
+     "script_ms_por_s": 45.6,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 1812
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 1827
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2767,
+     "quadros": 60,
+     "fps": 22.2,
+     "quadro_p50_ms": 49.9,
+     "quadro_p95_ms": 116.9,
+     "quadro_p99_ms": 133.5,
+     "quadro_max_ms": 166.8,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 191.9,
+     "script_ms_por_s": 169.1,
+     "draws_por_quadro_p50": 87,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 14,
+       "bytes": 1812
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 15,
+      "bytes_do_mestre": 1827
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3703,
+     "quadros": 221,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 51.5,
+     "script_ms_por_s": 36.8,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3702,
+     "quadros": 80,
+     "fps": 21.9,
+     "quadro_p50_ms": 33.4,
+     "quadro_p95_ms": 133.4,
+     "quadro_p99_ms": 150,
+     "quadro_max_ms": 166.7,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 66.3,
+     "script_ms_por_s": 54.4,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  },
+  {
+   "caso": {
+    "id": "sint200-linhas-1080",
+    "mapa": "sintetico",
+    "lado": 200,
+    "obra": "linhas",
+    "tela": {
+     "largura": 1920,
+     "altura": 1080,
+     "dpr": 1
+    },
+    "perfil": false,
+    "fases": "mesa"
+   },
+   "mapa": {
+    "nome": "Sintético 200x200",
+    "lado": "200x200",
+    "grade": 64,
+    "paredes": 442,
+    "salas": 13,
+    "desenhos": 152,
+    "texturas": 228,
+    "carimbos": 434,
+    "penhascos": 37,
+    "fichas": 6,
+    "zonas": 6,
+    "relevo": true
+   },
+   "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 6GB Laptop GPU (0x000025EC) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+   "dpr_real": 1,
+   "abrir_mestre": {
+    "canvas_ms": 774.4,
+    "primeiro_quadro_ms": 961.4,
+    "interativo_ms": 1861.7,
+    "longas": {
+     "n": 4,
+     "max_ms": 376,
+     "total_ms": 781
+    }
+   },
+   "gpu_mestre_ao_abrir": {
+    "texturas": 97,
+    "megapixels": 13.62,
+    "mb_rgba": 52,
+    "maiores": [
+     "1810x2048",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 687,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_ao_abrir": {
+    "quadros": 60,
+    "passadas_por_quadro": 26.4,
+    "megapixels_de_area_por_quadro": 14.03,
+    "maior_area_px": "1132x1072",
+    "texturas_do_filtro": {
+     "1024x1024": 8.1,
+     "512x256": 1,
+     "128x64": 1,
+     "2048x2048": 2,
+     "512x512": 3.1,
+     "512x2048": 1,
+     "2048x1024": 2,
+     "1024x256": 1,
+     "1024x512": 1,
+     "64x128": 1,
+     "128x128": 2,
+     "1024x2048": 2,
+     "512x1024": 1
+    }
+   },
+   "gpu_mestre_depois_do_zoom": {
+    "texturas": 172,
+    "megapixels": 43.28,
+    "mb_rgba": 165,
+    "maiores": [
+     "2048x2048",
+     "1810x2048",
+     "2048x1024",
+     "1024x2048",
+     "985x1146",
+     "1068x1027"
+    ],
+    "nos_na_cena": 739,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "gpu_mestre_perto": {
+    "texturas": 182,
+    "megapixels": 43.92,
+    "mb_rgba": 168,
+    "maiores": [
+     "2048x2048",
+     "1810x2048",
+     "2048x1024",
+     "1024x2048",
+     "985x1146",
+     "1068x1027"
+    ],
+    "nos_na_cena": 739,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mestre_perto": {
+    "quadros": 60,
+    "passadas_por_quadro": 19.3,
+    "megapixels_de_area_por_quadro": 37.84,
+    "maior_area_px": "1922x1083",
+    "texturas_do_filtro": {
+     "2048x2048": 17.3,
+     "2048x1024": 1,
+     "16x2048": 1
+    }
+   },
+   "diag_f8_mestre_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "renderGroup": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Container<Container",
+     "instrucoes": 127,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 30,
+       "fora": 0
+      },
+      "graphics:sala-95<Container<Container<Container": {
+       "n": 2,
+       "fora": 2
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 2,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 19,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 19,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 19,
+       "fora": 0
+      },
+      "batch:renderBatch": {
+       "n": 20,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 9,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 7,
+       "fora": 4
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "telhados<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Graphics<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "fantasma-do-endireitar<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "Container<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    }
+   ],
+   "jogador_em_navegador_separado": true,
+   "abrir_jogador": {
+    "canvas_ms": 708.7,
+    "primeiro_quadro_ms": 835.8,
+    "interativo_ms": 852.6,
+    "snapshot_ms_desde_o_clique": 247,
+    "snapshot_bytes": 122742,
+    "longas": {
+     "n": 3,
+     "max_ms": 328,
+     "total_ms": 526
+    }
+   },
+   "gpu_jogador_ao_abrir": {
+    "texturas": 18,
+    "megapixels": 1.74,
+    "mb_rgba": 7,
+    "maiores": [
+     "512x512",
+     "512x512",
+     "512x512",
+     "512x512",
+     "487x491",
+     "371x177"
+    ],
+    "nos_na_cena": 118,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "filtro_mesa_mestre": {
+    "quadros": 60,
+    "passadas_por_quadro": 19.3,
+    "megapixels_de_area_por_quadro": 37.79,
+    "maior_area_px": "1921x1082",
+    "texturas_do_filtro": {
+     "2048x2048": 17.3,
+     "2048x1024": 1,
+     "16x2048": 1
+    }
+   },
+   "filtro_mesa_jogador": {
+    "quadros": 60,
+    "passadas_por_quadro": 1,
+    "megapixels_de_area_por_quadro": 0.24,
+    "maior_area_px": "487x491",
+    "texturas_do_filtro": {
+     "512x512": 1
+    }
+   },
+   "gpu_jogador_depois_do_zoom": {
+    "texturas": 26,
+    "megapixels": 5.25,
+    "mb_rgba": 20,
+    "maiores": [
+     "1024x1024",
+     "512x2048",
+     "512x1024",
+     "256x2048",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 118,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "diag_f8_jogador_perto": [
+    {
+     "grupo": "Container",
+     "instrucoes": 41,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 10,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container": {
+       "n": 7,
+       "fora": 0
+      },
+      "stencilMask:pushMaskBegin Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:pushMaskEnd Graphics<Container<Container": {
+       "n": 4,
+       "fora": 0
+      },
+      "alphaMask:pushMaskBegin Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:pushMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "alphaMask:popMaskEnd Sprite<texturas<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "stencilMask:popMaskBegin": {
+       "n": 4,
+       "fora": 0
+      },
+      "stencilMask:popMaskEnd": {
+       "n": 4,
+       "fora": 0
+      },
+      "renderGroup": {
+       "n": 2,
+       "fora": 0
+      },
+      "graphics:Graphics<Container<Container<Container": {
+       "n": 1,
+       "fora": 0
+      },
+      "graphics:Graphics<marcador-de-continente<Container<Container": {
+       "n": 2,
+       "fora": 0
+      }
+     }
+    },
+    {
+     "grupo": "carimbos-rascunho<carimbos<Container<Container",
+     "instrucoes": 0,
+     "por_tipo": {}
+    },
+    {
+     "grupo": "nuvens<Container<Container",
+     "instrucoes": 1,
+     "por_tipo": {
+      "batch:startBatch": {
+       "n": 1,
+       "fora": 0
+      }
+     }
+    }
+   ],
+   "rumo_da_ficha_do_jogador": {
+    "x": 640,
+    "y": 0
+   },
+   "gpu_jogador_fim": {
+    "texturas": 27,
+    "megapixels": 5.25,
+    "mb_rgba": 20,
+    "maiores": [
+     "1024x1024",
+     "512x2048",
+     "512x1024",
+     "256x2048",
+     "512x512",
+     "512x512"
+    ],
+    "nos_na_cena": 122,
+    "resolucao": 1,
+    "backbuffer": "1920x1080"
+   },
+   "cenarios": [
+    {
+     "cenario": "parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5010,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 53.8,
+     "script_ms_por_s": 40.6,
+     "draws_por_quadro_p50": 110,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-mapa-inteiro-3s",
+     "papel": "mestre",
+     "duracao_ms": 3041,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 82.4,
+     "script_ms_por_s": 59.9,
+     "draws_por_quadro_p50": 108,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "zoom-roda-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4036,
+     "quadros": 241,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.1,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 62.5,
+     "script_ms_por_s": 43.8,
+     "draws_por_quadro_p50": 86,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "pan-perto-3s",
+     "papel": "mestre",
+     "duracao_ms": 3046,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 76.6,
+     "script_ms_por_s": 51.5,
+     "draws_por_quadro_p50": 83,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "arrastar-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2792,
+     "quadros": 164,
+     "fps": 59.3,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 33.4,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 173.9,
+     "script_ms_por_s": 129.4,
+     "draws_por_quadro_p50": 84,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {},
+     "extra": {
+      "ficha_andou_px": 641
+     }
+    },
+    {
+     "cenario": "revelar-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3708,
+     "quadros": 221,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 65.9,
+     "script_ms_por_s": 47.6,
+     "draws_por_quadro_p50": 82,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {}
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "jogador",
+     "duracao_ms": 5007,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 62,
+     "script_ms_por_s": 45,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-parado-5s",
+     "papel": "mestre",
+     "duracao_ms": 5008,
+     "quadros": 299,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 103.6,
+     "script_ms_por_s": 88.6,
+     "draws_por_quadro_p50": 83,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3042,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 60,
+     "script_ms_por_s": 41.3,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3042,
+     "quadros": 182,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 140.3,
+     "script_ms_por_s": 108.9,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4054,
+     "quadros": 243,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 54.4,
+     "script_ms_por_s": 37.3,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-mestre-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4055,
+     "quadros": 243,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 139.1,
+     "script_ms_por_s": 112.1,
+     "draws_por_quadro_p50": 81,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "jogador",
+     "duracao_ms": 3179,
+     "quadros": 184,
+     "fps": 58.4,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 100.2,
+     "longas_n": 1,
+     "longas_max_ms": 120,
+     "longas_total_ms": 120,
+     "cpu_ms_por_s": 90,
+     "script_ms_por_s": 51.7,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-pan-3s",
+     "papel": "mestre",
+     "duracao_ms": 3179,
+     "quadros": 189,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 116.1,
+     "script_ms_por_s": 99,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mundo_mexeu_px": 300
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "jogador",
+     "duracao_ms": 4047,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 68.1,
+     "script_ms_por_s": 49.7,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-zoom-2s-dentro-2s-fora",
+     "papel": "mestre",
+     "duracao_ms": 4047,
+     "quadros": 242,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 100.9,
+     "script_ms_por_s": 85.5,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "jogador",
+     "duracao_ms": 2731,
+     "quadros": 163,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17.5,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 111.1,
+     "script_ms_por_s": 68.6,
+     "draws_por_quadro_p50": 23,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-arrasta-propria-ficha-10-casas",
+     "papel": "mestre",
+     "duracao_ms": 2731,
+     "quadros": 162,
+     "fps": 59.6,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 33.3,
+     "longas_n": 1,
+     "longas_max_ms": 53,
+     "longas_total_ms": 53,
+     "cpu_ms_por_s": 141.4,
+     "script_ms_por_s": 102.8,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      },
+      "token.move.accepted": {
+       "n": 1,
+       "bytes": 61
+      },
+      "patch": {
+       "n": 1,
+       "bytes": 122605
+      }
+     },
+     "extra": {
+      "ficha_andou_px_no_mestre": 640,
+      "rumo": {
+       "x": 640,
+       "y": 0
+      },
+      "jogador_mandou": [
+       "ping",
+       "token.move"
+      ]
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "jogador",
+     "duracao_ms": 2747,
+     "quadros": 164,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 81.3,
+     "script_ms_por_s": 59.6,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 13,
+       "bytes": 1676
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 14,
+      "bytes_do_mestre": 1691
+     }
+    },
+    {
+     "cenario": "mesa-jogador-ve-mestre-mover-ficha",
+     "papel": "mestre",
+     "duracao_ms": 2747,
+     "quadros": 160,
+     "fps": 58.5,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 33.3,
+     "quadro_max_ms": 50,
+     "longas_n": 1,
+     "longas_max_ms": 52,
+     "longas_total_ms": 52,
+     "cpu_ms_por_s": 352.3,
+     "script_ms_por_s": 314.9,
+     "draws_por_quadro_p50": 85,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 13,
+       "bytes": 1676
+      },
+      "pong": {
+       "n": 1,
+       "bytes": 15
+      }
+     },
+     "extra": {
+      "ficha_andou_px": -640,
+      "mensagens_do_mestre": 14,
+      "bytes_do_mestre": 1691
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "jogador",
+     "duracao_ms": 3726,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.8,
+     "quadro_max_ms": 16.9,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 62.5,
+     "script_ms_por_s": 44.6,
+     "draws_por_quadro_p50": 22,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    },
+    {
+     "cenario": "mesa-mestre-revela-nevoa-6-zonas",
+     "papel": "mestre",
+     "duracao_ms": 3725,
+     "quadros": 222,
+     "fps": 60,
+     "quadro_p50_ms": 16.7,
+     "quadro_p95_ms": 16.8,
+     "quadro_p99_ms": 16.9,
+     "quadro_max_ms": 17,
+     "longas_n": 0,
+     "longas_max_ms": 0,
+     "longas_total_ms": 0,
+     "cpu_ms_por_s": 145.9,
+     "script_ms_por_s": 124,
+     "draws_por_quadro_p50": 83,
+     "quadros_com_desenho_pct": 100,
+     "mensagens": {
+      "patch": {
+       "n": 6,
+       "bytes": 8623
+      },
+      "pong": {
+       "n": 2,
+       "bytes": 30
+      }
+     },
+     "extra": {
+      "mensagens_do_mestre": 8,
+      "bytes_do_mestre": 8653
+     }
+    }
+   ],
+   "erros_de_pagina": []
+  }
+ ]
+}

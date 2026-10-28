@@ -27,7 +27,7 @@
 //
 // O que NÃO é: portão. Nada aqui reprova por número; reprova só se a mesa não
 // abrir. As metas entram quando a otimização tiver alvo.
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { expect, test, type Browser, type BrowserContext, type CDPSession, type Page, type WebSocketRoute } from '@playwright/test'
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
@@ -36,6 +36,7 @@ import { conferirMetasF3, ligarProvaF3, lerProvaF3, metasF3Ligadas, provaF3Ligad
 import { conferirMetasF5 } from './metas-f5'
 import { conferirMetasF9, metasF9Ligadas } from './metas-f9'
 import { conferirMetasF4 } from './metas-f4'
+import { conferirMetasF8, diagF8Ligado, diagnosticoDeDesenhoF8, metasF8Ligadas } from './metas-f8'
 
 // ---------------------------------------------------------------- casos
 
@@ -438,6 +439,9 @@ async function perfilar(medidas: Medida[], medidores: Medidor[], mapear: Mapeado
   await acao()
   for (const m of medidores) {
     const { profile } = await m.cdp.send('Profiler.stop')
+    // `LAB_DES_PERFIL_BRUTO` = pasta (fora do repo): grava o .cpuprofile inteiro (abre no DevTools).
+    const bruto = process.env.LAB_DES_PERFIL_BRUTO ?? ''
+    if (bruto !== '') writeFileSync(`${bruto}/${Date.now()}-${m.papel}-${medidas[0]?.cenario ?? 'x'}.cpuprofile`, JSON.stringify(profile))
     const resumo = await resumirPerfil(profile as Perfil, mapear)
     const alvo = medidas.find((x) => x.papel === m.papel)
     if (alvo !== undefined) {
@@ -780,6 +784,8 @@ for (const caso of CASOS) {
     const abrirMestre = await esperarAbrir(mestre, clique)
     marco(`mestre: abriu ${JSON.stringify(abrirMestre)}`)
     registro.abrir_mestre = { ...abrirMestre, longas: await longasEntre(mestre, clique, clique + abrirMestre.interativo_ms) }
+    // F8 (diag): cada tarefa longa da abertura, [início desde o clique, duração], para saber em que fase ela cai.
+    if (diagF8Ligado()) registro.abrir_mestre_longas_f8 = await mestre.evaluate((d) => (window as unknown as Janela).__des.longas.filter(([t]) => t >= d).slice(0, 12).map(([t, dur]) => [Math.round(t - d), Math.round(dur)]), clique) // as: o coletor pendurou no window
     registro.gpu_mestre_ao_abrir = await memoriaDaGpu(mestre, 'appMestre')
     const cdpMestre = await ctxMestre.newCDPSession(mestre)
     await cdpMestre.send('Performance.enable', { timeDomain: 'threadTicks' })
@@ -827,6 +833,7 @@ for (const caso of CASOS) {
     await centrarEAproximar(mestre, npc, map.grid)
     registro.gpu_mestre_perto = await memoriaDaGpu(mestre, 'appMestre')
     registro.filtro_mestre_perto = await passadasDeFiltro(mestre, 'appMestre')
+    if (diagF8Ligado()) registro.diag_f8_mestre_perto = await diagnosticoDeDesenhoF8(mestre, 'appMestre')
     await foto(mestre, 'appMestre', `${caso.id}-mestre-perto`)
     await cenario('pan-perto-3s', soMestre, () => arrastar(mestre, 'middle', circulo(200), 3000))
     await centrarEAproximar(mestre, npc, map.grid)
@@ -945,6 +952,12 @@ for (const caso of CASOS) {
       registro.filtro_mesa_mestre = await passadasDeFiltro(mestre, 'appMestre')
       registro.filtro_mesa_jogador = await passadasDeFiltro(jogador, 'appJogador')
       await cenario('mesa-parado-5s', mesa, () => jogador.waitForTimeout(5000))
+      // F8: o MESTRE arrasta e dá zoom com o jogador aberto (a queixa: os dois no mesmo PC).
+      await cenario('mesa-mestre-pan-3s', mesa, () => arrastar(mestre, 'middle', circulo(200), 3000))
+      await cenario('mesa-mestre-zoom-2s-dentro-2s-fora', mesa, async () => {
+        await rodar(mestre, centro, -100, 2000)
+        await rodar(mestre, centro, 100, 2000)
+      })
       await cenario('mesa-jogador-pan-3s', mesa, async () => {
         const antes = await posicaoDoMundo()
         await arrastar(jogador, 'left', circuloJ, 3000)
@@ -958,6 +971,7 @@ for (const caso of CASOS) {
       registro.gpu_jogador_depois_do_zoom = await memoriaDaGpu(jogador, 'appJogador')
       await aproximarNa(jogador, 'appJogador', fichaDoJogador, map.grid)
       await foto(jogador, 'appJogador', `${caso.id}-jogador-perto`)
+      if (diagF8Ligado()) registro.diag_f8_jogador_perto = await diagnosticoDeDesenhoF8(jogador, 'appJogador')
       let idaDoJogador = 1
       const fichaAtual = { x: fichaDoJogador.x, y: fichaDoJogador.y }
       // Para a direita; se o passo não sair (parede no caminho, o mestre recusa), a passada seguinte tenta uma direção sem parede.
@@ -1031,5 +1045,6 @@ for (const caso of CASOS) {
     conferirMetasF5(caso.id, registro)
     if (metasF9Ligadas()) expect(conferirMetasF9({ caso, cenarios }), 'metas da F9 (client/desempenho/metas-f9.ts)').toEqual([])
     conferirMetasF4(caso.id, cenarios)
+    if (metasF8Ligadas()) expect(conferirMetasF8({ caso, registro, cenarios }), 'metas da F8 (client/desempenho/metas-f8.ts)').toEqual([])
   })
 }
