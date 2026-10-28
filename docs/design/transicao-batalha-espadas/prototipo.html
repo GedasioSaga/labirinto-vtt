@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abertura de batalha</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  --acento: #a8741f;
+  --acento-tinta: #ffffff;
+  --acento-suave: #f3e6cf;
+  --foco: #2a6fdb;
+  --raio: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #e0a948;
+    --acento-tinta: #1a1408;
+    --acento-suave: #3a2f1c;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #e0a948;
+  --acento-tinta: #1a1408;
+  --acento-suave: #3a2f1c;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; max-width: 65ch; }
+.ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 12px; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo .rotulo { color: var(--tinta-2); font-size: 0.9375rem; }
+.segmentos { display: inline-flex; padding: 4px; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+.segmentos button { border-color: transparent; min-width: 160px; }
+.segmentos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); box-shadow: none; }
+input[type="text"] {
+  min-height: 44px; width: 260px; max-width: 100%; padding: 0 14px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-size: 1rem;
+}
+input[type="text"]::placeholder { color: var(--tinta-2); }
+.dica { color: var(--tinta-2); font-size: 0.8125rem; }
+.descricao { margin: 0 0 12px; color: var(--tinta-2); font-size: 0.9375rem; min-height: 1.5em; max-width: 70ch; }
+/* Mesmas camadas da tela de transição do app (TransicaoTela + transicoes.css). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.granulado { opacity: 0.06; mix-blend-mode: screen; pointer-events: none; }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%); pointer-events: none; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+.depois {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center;
+  color: #b3aa99; font-size: 0.9375rem; pointer-events: none;
+  opacity: 0; transition: opacity 200ms var(--ease-out);
+}
+.depois[data-visivel="true"] { opacity: 1; transition-duration: 400ms; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled:active { transform: none; }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+.barra button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; max-width: 75ch; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: background-color 160ms ease, color 160ms ease; }
+  button:active { transform: none; }
+}
+@media (max-width: 520px) {
+  .tempo { margin-left: 0; width: 100%; }
+  .segmentos, .campo, input[type="text"] { width: 100%; }
+  .segmentos button { flex: 1; min-width: 0; padding: 0 8px; }
+}
+</style>
+<script>// Gerado por montar.cjs (esbuild 0.28.2) a partir de client/src. Não edite aqui.
+var AberturasDeBatalha=(()=>{var Ge=Object.defineProperty;var ko=Object.getOwnPropertyDescriptor;var Go=Object.getOwnPropertyNames;var No=Object.prototype.hasOwnProperty;var Bo=(t,a)=>{for(var e in a)Ge(t,e,{get:a[e],enumerable:!0})},Io=(t,a,e,o)=>{if(a&&typeof a=="object"||typeof a=="function")for(let n of Go(a))!No.call(t,n)&&n!==e&&Ge(t,n,{get:()=>a[n],enumerable:!(o=ko(a,n))||o.enumerable});return t};var Lo=t=>Io(Ge({},"__esModule",{value:!0}),t);var Ct={};Bo(Ct,{NOME_MAX_LETRAS:()=>je,NOME_PADRAO:()=>Ke,espadasCruzadas:()=>xo,metaEspadasCruzadas:()=>Co});function re(t){let a=t;return()=>(a=a*16807%2147483647)/2147483647}var Ne=t=>Math.min(1,Math.max(0,t)),b=(t,a,e)=>Ne((t-a)/(e-a)),me=t=>-(Math.cos(Math.PI*t)-1)/2,V=t=>1-Math.pow(1-t,3);var Ke="Royals",je=24,ve={duracao:2.8,fadeInFim:.08,impacto:.4,congela:.07,nomeSurge:.53,nomeAssenta:.7,esfriaFim:1.25,brilhoDaLaminaInicio:1.35,brilhoDaLaminaFim:1.8,brilhoDoNomeInicio:1.5,brilhoDoNomeFim:1.95,corte:2.1,fechaInicio:2.16,fechaFim:2.5,fadeOutInicio:2.5},Ee={surgeFim:.4,impacto:.42,nomeSurge:.5,nomeAceso:.95,esfriaFim:1.35,fadeOutInicio:2.25};function qo(t){let a=(t??"").replace(/\s+/g," ").trim();return a===""?Ke:Array.from(a).slice(0,je).join("")}var ho=.628,j=.2,bo=34,Be=Math.tan(bo*Math.PI/360),ze=6.6,Vo=1.45,We=480,Xe=1600,Ie=520,zo=640,fe=2048,De=640,Je=4.4,Wo=Je*De/fe,ao=.6,Xo=330,Jo=1760,Ko="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",Le=120,qe=34,z=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,jo=`
+varying vec2 vPos;
+void main() {
+  vPos = position.xy;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Eo=`
+attribute vec3 cor;
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  vUv = uv;
+  vCor = cor;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Zo=`
+uniform vec3 uCentro;
+uniform vec3 uBorda;
+varying vec2 vPos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main() {
+  float r = length(vPos / vec2(7.0, 4.4));
+  vec3 cor = mix(uCentro, uBorda, smoothstep(0.0, 1.0, r));
+  cor += (hash(floor(vPos * 90.0)) - 0.5) * 0.008;
+  gl_FragColor = vec4(cor, 1.0);
+}`,no=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uTempo;
+uniform vec2 uDesvio;
+varying vec2 vUv;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float ruido(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += a * ruido(p);
+    p = p * 2.03 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+void main() {
+  vec2 p = vUv * vec2(4.0, 2.25) + uDesvio;
+  vec2 q = vec2(fbm(p + vec2(0.0, uTempo * 0.06)), fbm(p + vec2(5.2, 1.3) - uTempo * 0.05));
+  float n = fbm(p + 1.7 * q + vec2(uTempo * 0.11, -uTempo * 0.03));
+  float baixo = smoothstep(1.0, 0.1, vUv.y);
+  float borda = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x) * smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.85, vUv.y);
+  float v = smoothstep(0.38, 0.9, n) * (0.35 + 0.65 * baixo) * borda;
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,$o=`
+uniform sampler2D mapa;
+uniform float uOpacidade;
+uniform float uLuz;
+uniform float uCalor;
+uniform float uBrilho;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  if (c.a < 0.004) discard;
+  float lamina = smoothstep(0.352, 0.37, vUv.y);
+  float aco = smoothstep(0.12, 0.45, dot(c.rgb, vec3(0.333)));
+  vec3 cor = c.rgb * uLuz;
+  float perto = exp(-abs(vUv.y - 0.6) * 6.0);
+  cor += vec3(1.0, 0.16, 0.08) * perto * uCalor * (0.35 + 0.65 * lamina) * c.a;
+  cor += vec3(0.16, 0.015, 0.012) * c.a;
+  float b = (vUv.y - uBrilho) / 0.028;
+  cor += vec3(0.8, 0.86, 0.95) * exp(-b * b) * lamina * aco * 0.55;
+  gl_FragColor = vec4(cor, c.a * uOpacidade);
+}`,Yo=`
+uniform sampler2D mapa;
+uniform float uOpacidade;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  gl_FragColor = vec4(c.rgb, c.a * uOpacidade);
+}`,Qo=`
+uniform sampler2D mascara;
+uniform float uCalor;
+uniform float uBrasa;
+uniform float uBrilho;
+uniform float uOpacidade;
+uniform float uLargura;
+uniform float uTempo;
+varying vec2 vUv;
+void main() {
+  vec4 k = texture2D(mascara, vUv);
+  float letra = k.r;
+  float halo = k.g;
+  float fenda = k.b;
+  vec3 quente = mix(vec3(0.6, 0.03, 0.02), vec3(1.0, 0.4, 0.22), uCalor);
+  vec3 cor = quente * (letra * 0.9 * uCalor + halo * (0.35 * uBrasa + 0.6 * uCalor));
+  float tremula = 0.75 + 0.25 * sin(vUv.x * 41.0 + uTempo * 7.0) * sin(vUv.y * 23.0 - uTempo * 5.0);
+  cor += vec3(1.0, 0.2, 0.08) * fenda * (uBrasa * 1.1 * tremula + uCalor);
+  float s = (vUv.x - 0.5) / uLargura + 0.5 + (vUv.y - 0.5) * 0.18;
+  float b = (s - uBrilho) / 0.045;
+  cor += vec3(0.8, 0.86, 0.95) * exp(-b * b) * letra * 0.45;
+  gl_FragColor = vec4(cor * uOpacidade, 1.0);
+}`,Ho=`
+uniform vec3 uMiolo;
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float r2 = dot(p, p);
+  vec3 cor = uMiolo * exp(-r2 * 28.0) * 1.2 + uCor * exp(-r2 * 5.0) * 0.6;
+  cor *= 1.0 - smoothstep(0.7, 1.0, r2);
+  gl_FragColor = vec4(cor * uForca, 1.0);
+}`,et=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float h = exp(-abs(p.y) * 60.0) * pow(max(0.0, 1.0 - abs(p.x)), 2.0);
+  float v = exp(-abs(p.x) * 60.0) * pow(max(0.0, 1.0 - abs(p.y)), 2.0);
+  float miolo = exp(-dot(p, p) * 40.0);
+  gl_FragColor = vec4(uCor * (h + v * 0.8 + miolo) * uForca, 1.0);
+}`,ro=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uEspessura;
+varying vec2 vUv;
+void main() {
+  float r = length(vUv * 2.0 - 1.0);
+  float fino = (r - 0.8) / uEspessura;
+  float largo = (r - 0.78) / (uEspessura * 3.5);
+  float v = exp(-fino * fino) + exp(-largo * largo) * 0.3;
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,ot=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  gl_FragColor = vec4(uCor * exp(-dot(p, p) * 3.2) * uForca, 1.0);
+}`,tt=`
+uniform vec3 uCor;
+uniform float uForca;
+void main() {
+  gl_FragColor = vec4(uCor * uForca, 1.0);
+}`,at=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uDesenho;
+varying vec2 vUv;
+void main() {
+  float a = abs(vUv.y - 0.5) * 2.0;
+  float v = exp(-a * a * 60.0) + exp(-a * a * 6.0) * 0.25;
+  float desenhado = step(vUv.x, uDesenho);
+  float pontas = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x);
+  gl_FragColor = vec4(uCor * v * desenhado * pontas * uForca, 1.0);
+}`,nt=`
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  float a = (vUv.y - 0.5) / 0.25;
+  float atraves = exp(-a * a);
+  float aoLongo = smoothstep(0.0, 1.0, vUv.x) * (1.0 - smoothstep(0.85, 1.0, vUv.x) * 0.5);
+  gl_FragColor = vec4(vCor * atraves * aoLongo, 1.0);
+}`,rt=`
+void main() {
+  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+}`;function Fe(t,a){let e=document.createElement("canvas");e.width=t,e.height=a;let o=e.getContext("2d");if(!o)throw new Error("canvas 2D indisponível");return[e,o]}var de="#140f11";function Ve(t,a,e){let o=t.createLinearGradient(0,a,0,e);return o.addColorStop(0,"#7a7f88"),o.addColorStop(.4,"#454a52"),o.addColorStop(.75,"#24272c"),o.addColorStop(1,"#111216"),o}function so(t,a,e,o,n){let u=t.createRadialGradient(a-o*.3,e-n*.4,1,a,e,Math.max(o,n)*1.15);u.addColorStop(0,"#ff7a66"),u.addColorStop(.4,"#c0141e"),u.addColorStop(1,"#4a0508"),t.fillStyle=u,t.beginPath(),t.ellipse(a,e,o,n,0,0,Math.PI*2),t.fill(),t.strokeStyle="#1c0a0b",t.lineWidth=2.5,t.stroke(),t.fillStyle="rgba(255, 225, 220, 0.75)",t.beginPath(),t.ellipse(a-o*.3,e-n*.45,o*.25,n*.28,-.3,0,Math.PI*2),t.fill()}function st(t){let[a,e]=Fe(We,Xe),o=We/2,n=re(1931);e.lineJoin="round",e.lineCap="round";let u=p=>31+(p-330)/704*11,r=[[42,1034]];for(let p=0;p<4;p++){let y=1e3-p*44;r.push([u(y),y],[u(y)-12,y-10],[u(y-26),y-26])}r.push([31,330]);let s=p=>{let y=new Path2D;return r.forEach(([w,x],U)=>U===0?y.moveTo(o+p*w,x):y.lineTo(o+p*w,x)),y.quadraticCurveTo(o+p*28,190,o,30),y},c=new Path2D;r.forEach(([p,y],w)=>w===0?c.moveTo(o-p,y):c.lineTo(o-p,y)),c.quadraticCurveTo(o-28,190,o,30),c.quadraticCurveTo(o+28,190,o+31,330);for(let p=r.length-1;p>=0;p--)c.lineTo(o+r[p][0],r[p][1]);c.closePath(),e.strokeStyle=de,e.lineWidth=7,e.stroke(c),e.save(),e.clip(c);let m=e.createLinearGradient(o-42,0,o,0);m.addColorStop(0,"#5b6068"),m.addColorStop(1,"#8c929b"),e.fillStyle=m,e.fillRect(o-50,0,50,1040);let v=e.createLinearGradient(o,0,o+42,0);v.addColorStop(0,"#2c3036"),v.addColorStop(1,"#1b1d22"),e.fillStyle=v,e.fillRect(o,0,50,1040),e.lineWidth=4,e.strokeStyle="#b9c0c9",e.stroke(s(-1)),e.strokeStyle="#0d0e11",e.stroke(s(1));let l=e.createLinearGradient(0,360,0,660);l.addColorStop(0,"rgba(200, 210, 225, 0)"),l.addColorStop(.5,"rgba(200, 210, 225, 0.12)"),l.addColorStop(1,"rgba(200, 210, 225, 0)"),e.fillStyle=l,e.fillRect(o-50,360,100,300);let f=e.createLinearGradient(0,860,0,1034);f.addColorStop(0,"rgba(8, 6, 8, 0)"),f.addColorStop(1,"rgba(8, 6, 8, 0.35)"),e.fillStyle=f,e.fillRect(o-50,860,100,180),e.strokeStyle="rgba(200, 208, 220, 0.35)",e.lineWidth=1.5,e.beginPath(),e.moveTo(o-.5,1030),e.lineTo(o-.5,60),e.stroke();let A=e.createLinearGradient(o-8,0,o+8,0);A.addColorStop(0,"#16181c"),A.addColorStop(.45,"#3b3f46"),A.addColorStop(1,"#1d2025"),e.fillStyle=A,e.beginPath(),e.roundRect(o-8,430,16,584,8),e.fill(),e.strokeStyle="rgba(160, 168, 180, 0.3)",e.lineWidth=1,e.stroke(),e.lineWidth=1;for(let p=0;p<90;p++){let y=o+(n()-.5)*70,w=120+n()*900,x=6+n()*20,U=(n()-.5)*.9;e.strokeStyle=n()<.5?`rgba(220, 225, 235, ${.04+n()*.05})`:`rgba(0, 0, 0, ${.08+n()*.08})`,e.beginPath(),e.moveTo(y,w),e.lineTo(y+Math.sin(U)*x,w+Math.cos(U)*x),e.stroke()}e.restore();let g=new Path2D;g.moveTo(o-25,1100),g.quadraticCurveTo(o-31,1243,o-25,1386),g.lineTo(o+25,1386),g.quadraticCurveTo(o+31,1243,o+25,1100),g.closePath(),e.strokeStyle=de,e.lineWidth=6,e.stroke(g),e.save(),e.clip(g);let M=e.createLinearGradient(o-30,0,o+30,0);M.addColorStop(0,"#120c0d"),M.addColorStop(.27,"#3a2b2d"),M.addColorStop(.57,"#1c1416"),M.addColorStop(1,"#0c0809"),e.fillStyle=M,e.fillRect(o-40,1090,80,310);for(let p=1084;p<1400;p+=22)e.strokeStyle="rgba(130, 16, 20, 0.9)",e.lineWidth=6,e.beginPath(),e.moveTo(o-34,p),e.lineTo(o+34,p+16),e.stroke(),e.strokeStyle="rgba(255, 120, 110, 0.18)",e.lineWidth=2,e.beginPath(),e.moveTo(o-34,p-3),e.lineTo(o+34,p+13),e.stroke();e.restore(),e.fillStyle=de,e.beginPath(),e.roundRect(o-36,1377,72,24,9),e.fill(),e.fillStyle=Ve(e,1380,1398),e.beginPath(),e.roundRect(o-33,1380,66,18,7),e.fill();let _=p=>{let y=new Path2D;return y.moveTo(o,1030),y.quadraticCurveTo(o+p*120,1034,o+p*212,984),y.quadraticCurveTo(o+p*140,1064,o,1080),y.closePath(),y},T=new Path2D;T.moveTo(o,1004),T.lineTo(o+40,1028),T.lineTo(o+30,1070),T.lineTo(o,1122),T.lineTo(o-30,1070),T.lineTo(o-40,1028),T.closePath(),e.lineJoin="miter",e.strokeStyle=de,e.lineWidth=9,e.stroke(_(-1)),e.stroke(_(1)),e.lineWidth=11,e.stroke(T);let F=Ve(e,980,1090);e.fillStyle=F,e.fill(_(-1)),e.fill(_(1));for(let p of[-1,1])e.strokeStyle="rgba(210, 215, 225, 0.35)",e.lineWidth=2.5,e.beginPath(),e.moveTo(o,1036),e.quadraticCurveTo(o+p*118,1040,o+p*200,994),e.stroke(),e.strokeStyle="#8e1a1a",e.lineWidth=3,e.beginPath(),e.moveTo(o+p*30,1054),e.quadraticCurveTo(o+p*110,1052,o+p*170,1012),e.stroke(),e.strokeStyle="rgba(255, 90, 70, 0.5)",e.lineWidth=1,e.stroke();e.fillStyle=F,e.fill(T),e.save(),e.translate(o,1058),e.scale(.72,.72),e.translate(-o,-1058),e.strokeStyle="rgba(150, 155, 165, 0.35)",e.lineWidth=3,e.stroke(T),e.restore(),e.lineJoin="round",so(e,o,1052,12,17);let O=new Path2D;return O.moveTo(o,1398),O.lineTo(o+34,1440),O.lineTo(o,1512),O.lineTo(o-34,1440),O.closePath(),e.lineJoin="miter",e.strokeStyle=de,e.lineWidth=9,e.stroke(O),e.fillStyle=Ve(e,1398,1512),e.fill(O),e.save(),e.clip(O),e.fillStyle="rgba(255, 255, 255, 0.12)",e.fillRect(o-40,1390,40,130),e.restore(),e.lineJoin="round",so(e,o,1442,8,9),new t.CanvasTexture(a)}function ct(t,a){let[e,o]=Fe(fe,De),n=G=>`600 ${G}px ${Ko}`;o.font=n(100);let u=Math.max(1,o.measureText(a).width),r=Math.min(Xo,100*Jo/u);o.font=n(r),o.textAlign="center",o.textBaseline="alphabetic";let s=o.measureText(a),c=s.actualBoundingBoxAscent||r*.7,m=s.actualBoundingBoxDescent||0,v=o.measureText("H").actualBoundingBoxAscent||r*.68,l=fe/2,f=De/2+(c-m)/2,A=r*.075,g=f-v,M=f+v*.2;o.lineJoin="round",o.miterLimit=2,o.strokeStyle="#0b0809",o.lineWidth=A,o.strokeText(a,l,f);let _=o.createLinearGradient(0,g,0,M);_.addColorStop(0,"#b4b9c1"),_.addColorStop(.5,"#4a4f57"),_.addColorStop(1,"#0f1013"),o.strokeStyle=_,o.lineWidth=r*.034,o.strokeText(a,l,f);let T=o.createLinearGradient(0,g,0,M);T.addColorStop(0,"#8a8f97"),T.addColorStop(.25,"#5d626a"),T.addColorStop(.48,"#33373d"),T.addColorStop(.52,"#18191d"),T.addColorStop(.6,"#41454c"),T.addColorStop(.85,"#25282d"),T.addColorStop(1,"#111215"),o.fillStyle=T,o.fillText(a,l,f);let F=re(5381),O=new Path2D,p=Math.max(5,Math.round(Array.from(a).length*2.5)),y=l-s.width/2;for(let G=0;G<p;G++){let k=y+F()*s.width,L=g+F()*(f-g);O.moveTo(k,L);let N=F()*Math.PI*2,X=2+Math.floor(F()*3);for(let se=0;se<X;se++){N+=(F()-.5)*.9;let he=r*(.06+F()*.08);k+=Math.cos(N)*he,L+=Math.sin(N)*he,O.lineTo(k,L)}}o.save(),o.globalCompositeOperation="source-atop",o.strokeStyle="#0b0708",o.lineWidth=r*.02,o.stroke(O),o.strokeStyle="#4a0c0c",o.lineWidth=r*.008,o.stroke(O),o.lineWidth=1.2;for(let G=0;G<220;G++){let k=l+(F()-.5)*s.width,L=g+F()*(M-g+m),N=4+F()*16,X=F()*Math.PI;o.strokeStyle=F()<.5?"rgba(220, 225, 235, 0.07)":"rgba(0, 0, 0, 0.14)",o.beginPath(),o.moveTo(k,L),o.lineTo(k+Math.cos(X)*N,L+Math.sin(X)*N),o.stroke()}o.restore(),o.save(),o.globalCompositeOperation="destination-over",o.fillStyle="#060405",o.strokeStyle="#060405",o.lineWidth=A,o.shadowColor="rgba(0, 0, 0, 0.9)",o.shadowBlur=r*.1,o.shadowOffsetY=r*.045,o.fillText(a,l,f),o.strokeText(a,l,f),o.shadowColor="rgba(0, 0, 0, 0.7)",o.shadowBlur=r*.4,o.shadowOffsetY=0,o.fillText(a,l,f),o.strokeText(a,l,f),o.restore();let[w,x]=Fe(fe/2,De/2);x.fillStyle="#000",x.fillRect(0,0,w.width,w.height),x.font=n(r/2),x.textAlign="center",x.textBaseline="alphabetic",x.lineJoin="round";let U=5e3;x.save(),x.shadowColor="rgb(0, 255, 0)",x.shadowBlur=r*.14,x.shadowOffsetX=U,x.fillStyle="#fff",x.fillText(a,l/2-U,f/2),x.fillText(a,l/2-U,f/2),x.restore(),x.globalCompositeOperation="lighter",x.fillStyle="rgb(255, 0, 0)",x.strokeStyle="rgb(255, 0, 0)",x.lineWidth=A/2,x.fillText(a,l/2,f/2),x.strokeText(a,l/2,f/2);let[H,R]=Fe(w.width,w.height);return R.scale(.5,.5),R.font=n(r),R.textAlign="center",R.textBaseline="alphabetic",R.fillStyle="#fff",R.fillText(a,l,f),R.globalCompositeOperation="source-in",R.strokeStyle="rgb(0, 0, 255)",R.lineJoin="round",R.lineCap="round",R.lineWidth=r*.018,R.stroke(O),x.save(),x.shadowColor="rgb(0, 0, 255)",x.shadowBlur=r*.03,x.drawImage(H,0,0),x.restore(),{metal:new t.CanvasTexture(e),mascara:new t.CanvasTexture(w),fracao:Math.min(1,(s.width+A)/fe)}}var it={x:-6,y:-1.2,rz:-1.5,ry:1},co={x:0,y:0,rz:-ho,ry:0},io=t=>t*t*t;function lo(t,a){let e=ve;if(a)return co;if(t<e.impacto){let u=b(t,0,e.impacto),r=.45*u+.55*u*u,s=it,c=co;return{x:s.x+(c.x-s.x)*r,y:s.y+(c.y-s.y)*r,rz:s.rz+(c.rz-s.rz)*r,ry:s.ry*(1-V(b(u,0,.75)))}}let o=Math.max(0,t-e.impacto-e.congela),n=Math.exp(-o*10)*Math.sin(o*34);return{x:-.12*n,y:0,rz:-ho+.085*n,ry:0}}function go(t,a){return t<=0?0:t/a*Math.exp(1-t/a)}function lt(t,a,e){let o=ve;if(a)return{x:0,y:0,z:e,giro:0};let n=e/ze,u=o.impacto+o.congela,r=b(t,0,o.impacto),s=e*(1.04-.04*r*r)*(1-.045*me(b(t,u,o.fechaFim))),c=t-u;s-=.45*n*go(c,.035);let m=t-o.nomeAssenta,v=c>0?.15*n*Math.exp(-c*16):0,l=m>0?.05*n*Math.exp(-m*20):0;return{x:v*(Math.sin(c*110)+.5*Math.sin(c*170))+l*Math.sin(m*120),y:v*.8*(Math.cos(c*97)+.5*Math.sin(c*151))+l*Math.cos(m*105),z:s,giro:c>0?.02*Math.exp(-c*16)*Math.sin(c*83):0}}function ut(t,a){let e=ve,o=1-b(t,0,e.fadeInFim),n=a?me(b(t,Ee.fadeOutInicio,e.duracao)):b(t,e.fadeOutInicio,e.duracao);return Math.max(o,n)}function uo(t,a,e,o,n){let u=new Float32Array(a*12),r=new Float32Array(a*12),s=new Float32Array(a*8),c=[];for(let g=0;g<a;g++){s.set([0,0,0,1,1,1,1,0],g*8);let M=g*4;c.push(M,M+1,M+2,M,M+2,M+3)}let m=n(new t.BufferGeometry),v=new t.BufferAttribute(u,3).setUsage(t.DynamicDrawUsage),l=new t.BufferAttribute(r,3).setUsage(t.DynamicDrawUsage);m.setAttribute("position",v),m.setAttribute("cor",l),m.setAttribute("uv",new t.BufferAttribute(s,2)),m.setIndex(c);let f=n(new t.ShaderMaterial({vertexShader:Eo,fragmentShader:nt,transparent:!0,depthWrite:!1,depthTest:!1,blending:t.AdditiveBlending,side:t.DoubleSide})),A=new t.Mesh(m,f);return A.frustumCulled=!1,A.renderOrder=o,{malha:A,definir(g,M,_,T,F,O,p,y,w,x){let U=Math.hypot(T,F)||1,H=T/U,R=F/U,G=-R*p/2,k=H*p/2,L=M-H*O,N=_-R*O;u.set([L+G,N+k,e,L-G,N-k,e,M-G,_-k,e,M+G,_+k,e],g*12);for(let X=0;X<4;X++)r.set([y,w,x],g*12+X*3)},esconder(g){u.fill(0,g*12,g*12+12),r.fill(0,g*12,g*12+12)},enviar(){v.needsUpdate=!0,l.needsUpdate=!0}}}function mt(t,a){let e=a.reduzirMovimento,o=ve,n=Ee,u=[],r=h=>(u.push(h),h),s=(h,i,C)=>new t.Vector3(h,i,C),c=(h,i,C,S)=>r(new t.ShaderMaterial({vertexShader:h,fragmentShader:i,uniforms:C,transparent:!0,depthWrite:!1,depthTest:!1,blending:S?t.AdditiveBlending:t.NormalBlending,side:t.DoubleSide})),m=(h,i,C)=>{let S=new t.Mesh(h,i);return S.renderOrder=C,S.frustumCulled=!1,S},v=r(new t.PlaneGeometry(1,1)),l=new t.Scene,f=new t.PerspectiveCamera(bo,16/9,.1,80);l.add(f);let A=16/9,g=ze,M=new t.Mesh(r(new t.PlaneGeometry(80,45)),r(new t.ShaderMaterial({vertexShader:jo,fragmentShader:Zo,uniforms:{uCentro:{value:s(.05,.018,.02)},uBorda:{value:s(.006,.004,.005)}},depthWrite:!1,depthTest:!1})));M.position.z=-3,M.renderOrder=0,M.frustumCulled=!1,l.add(M);let _={uCor:{value:s(.32,.03,.03)},uForca:{value:0},uTempo:{value:0},uDesvio:{value:new t.Vector2(0,0)}},T=m(v,c(z,no,_,!0),1);T.scale.set(16,9,1),T.position.set(0,0,-1.5);let F={uCor:{value:s(.26,.02,.025)},uForca:{value:0},uTempo:{value:0},uDesvio:{value:new t.Vector2(3.7,1.9)}},O=m(v,c(z,no,F,!0),10);O.scale.set(12,4.5,1),O.position.set(0,-1.6,1),l.add(T,O);let p={uCor:{value:s(.3,.02,.02)},uForca:{value:0}},y=m(v,c(z,ot,p,!0),2);y.scale.set(9,6,1),y.position.set(0,j,-1.2),l.add(y);let w=re(2711),x=Array.from({length:qe},()=>({x:(w()*2-1)*3.6,y0:w(),vel:.16+.22*w(),fase:w()*Math.PI*2,tamanho:.02+.02*w()})),U=uo(t,qe,-.8,3,r);U.malha.visible=!e,l.add(U.malha);let H=r(st(t)),R=r(new t.PlaneGeometry(We/Ie,Xe/Ie)),G=(Xe/2-zo)/Ie,k=new t.Group;k.position.y=j,l.add(k);let L=[.025,.05],N=(h,i,C)=>{let S={mapa:{value:H},uOpacidade:{value:1},uLuz:{value:1},uCalor:{value:0},uBrilho:{value:-1}},D=new t.Group,d=m(R,c(z,$o,S,!1),i);return d.position.y=-G,h&&(d.scale.x=-1),D.add(d),D.position.z=C,k.add(D),{grupo:D,uniforms:S}},X=L.map(()=>N(!0,4,-.03)),se=N(!0,5,-.03),he=L.map(()=>N(!1,6,.03)),$e=N(!1,7,.03),Oe=(h,i,C)=>{h.grupo.position.x=i.x*-C,h.grupo.position.y=i.y,h.grupo.rotation.z=i.rz*-C,h.grupo.rotation.y=i.ry*-C},we={uCor:{value:s(1,.45,.38)},uForca:{value:0},uEspessura:{value:.03}},be=m(v,c(z,ro,we,!0),8);be.position.set(0,j,.3);let Pe={uCor:{value:s(.85,.08,.06)},uForca:{value:0},uEspessura:{value:.07}},ge=m(v,c(z,ro,Pe,!0),8);ge.position.set(0,j,.28);let xe={uMiolo:{value:s(1,.9,.86)},uCor:{value:s(.95,.14,.08)},uForca:{value:0}},ce=m(v,c(z,Ho,xe,!0),9);ce.position.set(0,j,.35);let _e={uCor:{value:s(1,.8,.75)},uForca:{value:0}},Y=m(v,c(z,et,_e,!0),9);Y.position.set(0,j,.4),be.visible=!e,ge.visible=!e,Y.visible=!e,l.add(ge,be,ce,Y);let Ao=qo(a.nome),ee=ct(t,Ao);r(ee.metal),r(ee.mascara);let yo=Je*ee.fracao,J={mapa:{value:ee.metal},mascara:{value:ee.mascara},uCalor:{value:0},uBrasa:{value:0},uBrilho:{value:-1},uOpacidade:{value:0},uLargura:{value:Math.max(.05,ee.fracao)},uTempo:{value:0}},Ye=r(new t.PlaneGeometry(Je,Wo)),oe=new t.Group;oe.position.set(0,j,ao),oe.add(m(Ye,c(z,Yo,J,!1),11)),oe.add(m(Ye,c(z,Qo,J,!0),12)),l.add(oe);let ie=re(4243),So=Array.from({length:Le},()=>{let h=ie()*Math.PI*2,i=ie(),C=Math.sin(h)<0?.6:1;return{cos:Math.cos(h),sen:Math.sin(h),vel:(3.5+8*i*i)*C,vida:.25+.5*ie(),atraso:ie()*.025,largura:.016+.016*ie()}}),le=uo(t,Le,.5,13,r);le.malha.visible=!e,l.add(le.malha);let te=new t.Group;te.position.z=-1,f.add(te);let Ue={uCor:{value:s(1,.85,.8)},uForca:{value:0}},Re=m(v,c(z,tt,Ue,!0),14);Re.scale.set(8,8,1),Re.visible=!e,te.add(Re);let To=1.2,Mo=r(new t.PlaneGeometry(To*2,.03)),Qe=h=>{let i={uCor:{value:s(1,.35,.3)},uForca:{value:0},uDesenho:{value:0}},C=m(Mo,c(z,at,i,!0),15);return C.rotation.z=h,C.visible=!1,te.add(C),{m:C,uniforms:i}},q=Math.PI/180,Do=Qe(54*q),Fo=Qe(126*q),He=.004,Ce=6,Oo=c(z,rt,{},!1),Ae=(h,i,C)=>{let S=h-He,D=i+He,d=r(new t.BufferGeometry);d.setAttribute("position",new t.BufferAttribute(new Float32Array([0,0,0,Ce*Math.cos(S),Ce*Math.sin(S),0,Ce*Math.cos(D),Ce*Math.sin(D),0]),3)),d.setAttribute("uv",new t.BufferAttribute(new Float32Array(6),2));let P=m(d,Oo,16);return P.visible=!1,te.add(P),{m:P,dx:Math.cos(C),dy:Math.sin(C)}},wo=[Ae(54*q,126*q,90*q),Ae(126*q,234*q,180*q),Ae(234*q,306*q,270*q),Ae(-54*q,54*q,0)],Po=(h,i,C,S)=>{let D=Be,d=Be*A,P=.06;return i>.5?D-S+P:i<-.5?D+S+P:h>.5?d-C+P:d+C+P},_o=h=>{let S=o.impacto+o.congela;for(let D=0;D<Le;D++){let d=So[D],P=h-S-d.atraso;if(P<=0||P>=d.vida){le.esconder(D);continue}let Q=Math.exp(-3*P),ae=(1-Q)/3,ye=d.cos*d.vel*ae,ke=d.sen*d.vel*ae-7/3*(P-ae),Se=d.cos*d.vel*Q,Te=d.sen*d.vel*Q-7*(1-Q)/3,ne=P/d.vida,W=Math.pow(1-ne,1.5)*1.7,B=Math.min(.5,.06+.045*Math.hypot(Se,Te));le.definir(D,ye,j+ke,Se,Te,B,d.largura*(1-.5*ne),W,Math.max(0,.85-.8*ne)*W,Math.max(0,.75-.72*ne)*W)}le.enviar()},Uo=h=>{let i=V(b(h,o.impacto,o.impacto+.5));for(let C=0;C<qe;C++){let S=x[C];if(i<=0){U.esconder(C);continue}let D=-2.7+(S.y0*5.4+S.vel*h)%5.4,d=S.x+.1*Math.sin(h*1.1+S.fase),P=(.35+.25*Math.sin(h*6+S.fase*3))*i;U.definir(C,d,D,.1*Math.cos(h*1.1+S.fase),1,S.tamanho*2.2,S.tamanho,P,P*.18,P*.06)}U.enviar()};function eo(h){let i=Math.max(0,h),C=e?n.impacto:o.impacto,S=i>=C,D=!e&&S&&i<o.impacto+o.congela,d=i-(e?n.impacto:o.impacto+o.congela),P=D?1:d>=0?Math.pow(1-b(d,0,.2),2):0,Q=e?1:i,ae=(S?.5*(D?1:Math.exp(-Math.max(0,d)*5)):0)+.6*b(i,0,.3);_.uTempo.value=Q,F.uTempo.value=Q*1.3,_.uForca.value=ae,F.uForca.value=ae*.7;let ye=lo(i,e);Oe($e,ye,1),Oe(se,ye,-1);let ke=e?V(b(i,0,n.surgeFim)):1,Se=e||i<o.brilhoDaLaminaInicio||i>o.brilhoDaLaminaFim?-1:.37+.63*me(b(i,o.brilhoDaLaminaInicio,o.brilhoDaLaminaFim)),Te=D?1:d>=0?.2+.8*Math.exp(-d*6):0;for(let B of[$e,se])B.uniforms.uOpacidade.value=ke,B.uniforms.uLuz.value=1+.6*P,B.uniforms.uCalor.value=Te,B.uniforms.uBrilho.value=Se;let ne=!e&&i<o.impacto?Ne(b(i,0,.05)):0;if(L.forEach((B,Z)=>{let ue=lo(Math.max(0,i-B),e),Me=ne*(Z===0?.4:.18);for(let[I,K]of[[he[Z],1],[X[Z],-1]])I.grupo.visible=Me>.003,Oe(I,ue,K),I.uniforms.uOpacidade.value=Me}),e?(xe.uForca.value=d>=0?.6*(1-b(d,0,.5)):0,ce.scale.setScalar(2)):D?(xe.uForca.value=1.3,ce.scale.setScalar(1.3),_e.uForca.value=1,Y.scale.setScalar(1.8),Y.rotation.z=0,Ue.uForca.value=.55,we.uForca.value=0,Pe.uForca.value=0):(xe.uForca.value=d>=0?1.3*Math.pow(1-b(d,0,.3),2):0,ce.scale.setScalar(1.3+3.4*V(b(d,0,.22))),_e.uForca.value=d>=0?1-b(d,0,.22):0,Y.scale.setScalar(1.8+1.8*V(b(d,0,.22))),Y.rotation.z=.12*b(d,0,.22),Ue.uForca.value=d>=0?.55*Math.pow(1-b(d,0,.1),2):0,we.uForca.value=d>=0?1.1*Math.pow(1-b(d,0,.3),1.5):0,be.scale.setScalar(.4+4.6*V(b(d,0,.3))),Pe.uForca.value=d>=0?.8*Math.pow(1-b(d,0,.55),1.5):0,ge.scale.setScalar(.4+3.2*V(b(d,0,.55)))),p.uForca.value=D?1.2:d>=0?.55+.65*Math.exp(-d*4):.2*b(i,0,.4),J.uTempo.value=i,e)J.uOpacidade.value=V(b(i,n.nomeSurge,n.nomeAceso)),J.uCalor.value=.6*(1-V(b(i,n.nomeSurge,n.esfriaFim))),J.uBrasa.value=.6*b(i,n.nomeSurge,n.nomeAceso),oe.scale.setScalar(1);else{let B=i>=o.nomeAssenta;J.uOpacidade.value=V(b(i,o.nomeSurge,o.nomeSurge+.06)),J.uCalor.value=B?1-V(b(i,o.nomeAssenta,o.esfriaFim)):.3,J.uBrasa.value=B?b(i,o.nomeAssenta,o.nomeAssenta+.05)*(.58+.12*Math.sin((i-o.nomeAssenta)*5)):0;let Z=1.45-.45*io(b(i,o.nomeSurge,o.nomeAssenta)),ue=1-.02*go(i-o.nomeAssenta,.03);oe.scale.setScalar(Z*ue*(1+.02*b(i,o.nomeAssenta,o.fechaFim)))}J.uBrilho.value=i<o.brilhoDoNomeInicio||i>o.brilhoDoNomeFim?-1:-.2+1.45*me(b(i,o.brilhoDoNomeInicio,o.brilhoDoNomeFim)),e||(_o(i),Uo(i));let W=lt(i,e,g);if(f.position.set(W.x,W.y,W.z),f.rotation.set(0,0,W.giro),!e){let B=-W.x/W.z,Z=(j-W.y)/W.z;te.position.set(B,Z,-1);let ue=[[Do,o.corte],[Fo,o.corte+.05]];for(let[I,K]of ue){let to=(1-b(i,K+.06,K+.3))*(i>=K?1:0);I.m.visible=to>0,I.uniforms.uForca.value=to,I.uniforms.uDesenho.value=V(b(i,K,K+.09))}let Me=io(b(i,o.fechaInicio,o.fechaFim));for(let I of wo){I.m.visible=i>=o.fechaInicio;let K=Po(I.dx,I.dy,B,Z)*(1-Me);I.m.position.set(I.dx*K,I.dy*K,0)}}return{fade:ut(i,e)}}function oo(h){A=Math.max(.2,h);let i=Be*A,C=yo/2*1.5/i+ao,S=Vo/i;g=Math.max(ze,C,S),f.aspect=A,f.updateProjectionMatrix()}function Ro(){for(let h of u)h.dispose();u.length=0}return oo(A),eo(0),{scene:l,camera:f,atualizar:eo,ajustarTela:oo,criarSom:h=>bt(h,e),descartar:Ro}}function E(t,a,e,o,n){t.gain.setValueAtTime(1e-4,a),t.gain.exponentialRampToValueAtTime(Math.max(2e-4,e),a+o),t.gain.exponentialRampToValueAtTime(1e-4,a+o+n)}function dt(t,a){let e=Math.ceil(t.sampleRate*a),o=t.createBuffer(2,e,t.sampleRate);for(let n=0;n<2;n++){let u=re(n===0?7:11),r=o.getChannelData(n);for(let s=0;s<e;s++)r[s]=(u()*2-1)*Math.pow(1-s/e,3)}return o}function ft(t){let e=new Float32Array(new ArrayBuffer(4096));for(let o=0;o<1024;o++){let n=o/1023*2-1;e[o]=Math.tanh(t*n)/Math.tanh(t)}return e}function pe(t,a,e,o,n){let u=t.ctx.createBufferSource();u.buffer=t.ruido(1);let r=u;for(let s of o)r.connect(s),r=s;r.connect(n),u.start(a),u.stop(a+e)}function $(t,a,e,o=.7){let n=t.createBiquadFilter();return n.type=a,n.frequency.value=e,n.Q.value=o,n}function mo(t,a,e,o,n,u,r){let{ctx:s}=t,c=$(s,"bandpass",u,1.4);c.frequency.setValueAtTime(u,a),c.frequency.exponentialRampToValueAtTime(r,a+e);let m=s.createGain();m.gain.setValueAtTime(1e-4,a),m.gain.exponentialRampToValueAtTime(n*.4,a+.05),m.gain.exponentialRampToValueAtTime(n,a+e*.97),m.gain.exponentialRampToValueAtTime(1e-4,a+e+.03);let v=s.createStereoPanner();v.pan.setValueAtTime(o,a),v.pan.linearRampToValueAtTime(o*.2,a+e),m.connect(v),v.connect(t.seco),pe(t,a,e+.08,[c],m)}function Ze(t,a,e,o,n,u,r){let{ctx:s}=t,c=s.createOscillator();c.frequency.setValueAtTime(o,a),c.frequency.exponentialRampToValueAtTime(n,a+.38);let m=s.createWaveShaper();m.curve=ft(2.5);let v=s.createGain();E(v,a,e,.004,u),c.connect(m),m.connect(v),v.connect(t.seco),v.connect(t.sala),c.start(a),c.stop(a+u+.06);let l=s.createGain();E(l,a,e*.7,.002,.16),l.connect(t.seco),pe(t,a,.22,[$(s,"lowpass",220)],l);let f=s.createOscillator();f.frequency.value=r;let A=s.createGain();E(A,a,e*.45,.01,u*.9),f.connect(A),A.connect(t.seco),f.start(a),f.stop(a+u+.06)}var pt=[[620,.22,.35],[940,.16,.3],[1320,.2,1.3],[2110,.17,1],[3010,.12,.8],[4180,.08,.6],[5600,.05,.4]];function fo(t,a,e){let{ctx:o}=t,n=o.createGain();E(n,a,.9*e,.001,.04),n.connect(t.seco),pe(t,a,.06,[$(o,"highpass",1800)],n);let u=o.createGain();E(u,a,.4*e,.004,.5),u.connect(t.seco),u.connect(t.sala);let r=$(o,"bandpass",6200,5);r.frequency.setValueAtTime(6200,a),r.frequency.exponentialRampToValueAtTime(2400,a+.36),pe(t,a,.6,[$(o,"highpass",1400),r],u);for(let[s,c]of[[1,-.2],[1.0135,.2]]){let m=o.createStereoPanner();m.pan.value=c,m.connect(t.seco),m.connect(t.sala);for(let[v,l,f]of pt){let A=o.createOscillator();A.frequency.value=v*s;let g=o.createGain();E(g,a,l*e*.8,.002,f),A.connect(g),g.connect(m),A.start(a),A.stop(a+f+.05)}}Ze(t,a,1*e,120,30,.9,36)}function vt(t,a){let{ctx:e}=t;Ze(t,a,.8,90,28,.7,32);let o=e.createStereoPanner();o.connect(t.seco),o.connect(t.sala);for(let[n,u,r]of[[210,.14,.28],[330,.1,.22],[470,.07,.18]]){let s=e.createOscillator();s.type="triangle",s.frequency.value=n;let c=e.createGain();E(c,a,u,.002,r),s.connect(c),c.connect(o),s.start(a),s.stop(a+r+.05)}}function po(t,a,e,o){let{ctx:n}=t,u=$(n,"lowpass",300,4),r=n.createOscillator();r.frequency.value=.45;let s=n.createGain();s.gain.value=90,r.connect(s),s.connect(u.frequency);let c=n.createGain();c.gain.setValueAtTime(1e-4,a),c.gain.exponentialRampToValueAtTime(.13,a+.3),c.gain.setValueAtTime(.13,a+o),c.gain.exponentialRampToValueAtTime(.22,a+o+.08),c.gain.exponentialRampToValueAtTime(.14,a+o+.8),c.gain.setValueAtTime(.14,a+e-.4),c.gain.exponentialRampToValueAtTime(1e-4,a+e),u.connect(c),c.connect(t.seco);let m=[r];for(let[v,l]of[[49,.5],[49.4,.35],[69.3,.4]]){let f=n.createOscillator();f.type="sawtooth",f.frequency.value=v;let A=n.createGain();A.gain.value=l,f.connect(A),A.connect(u),m.push(f)}for(let v of m)v.start(a),v.stop(a+e+.05)}function vo(t,a){let{ctx:e}=t,o=e.createStereoPanner();o.pan.setValueAtTime(-.3,a),o.pan.linearRampToValueAtTime(.3,a+.5),o.connect(t.seco),o.connect(t.sala);for(let[n,u]of[[2093,.035],[3136,.02]]){let r=e.createOscillator();r.frequency.value=n;let s=e.createGain();E(s,a,u,.004,.7),r.connect(s),s.connect(o),r.start(a),r.stop(a+.75)}}function ht(t,a){let{ctx:e}=t,o=$(e,"bandpass",2500,2);o.frequency.setValueAtTime(2500,a),o.frequency.exponentialRampToValueAtTime(9e3,a+.1);let n=e.createGain();E(n,a,.28,.008,.16);let u=e.createStereoPanner();u.pan.setValueAtTime(-.5,a),u.pan.linearRampToValueAtTime(.5,a+.15),n.connect(u),u.connect(t.seco),u.connect(t.sala),pe(t,a,.2,[$(e,"highpass",2200),o],n)}function bt(t,a){let{ctx:e}=t,o=e.createDynamicsCompressor();o.threshold.value=-10,o.knee.value=6,o.ratio.value=12,o.attack.value=.002,o.release.value=.25,o.connect(t.destino);let n=e.createConvolver();n.buffer=dt(e,2.2);let u=e.createGain();u.gain.value=.38,n.connect(u),u.connect(o);let r={ctx:e,seco:o,sala:n,ruido:t.ruido},s=ve,c=Ee,m=a?[["drone",0,l=>po(r,l,s.duracao,c.impacto)],["choque",c.impacto,l=>fo(r,l,.75)],["brilho",s.brilhoDoNomeInicio+.12,l=>vo(r,l)]]:[["drone",0,l=>po(r,l,s.duracao,s.impacto)],["zunido",0,l=>{mo(r,l,s.impacto,-.8,.55,500,3200),mo(r,l+.01,s.impacto-.01,.8,.5,460,3e3)}],["choque",s.impacto,l=>fo(r,l,1)],["chapa",s.nomeAssenta,l=>vt(r,l)],["brilho",s.brilhoDoNomeInicio+.12,l=>vo(r,l)],["corte",s.corte,l=>ht(r,l)],["fecha",s.fechaFim,l=>Ze(r,l,.75,80,26,.8,30)]],v=new Set;return{atualizar(l){for(let[f,A,g]of m)l>=A&&!v.has(f)&&(v.add(f),g(e.currentTime))},reiniciar:()=>v.clear()}}var gt=mt,xo=gt;var Co={nome:"Espadas cruzadas",duracaoNaturalS:2.8,quadroDaMiniaturaS:1.6};return Lo(Ct);})();
+</script>
+</head>
+<body>
+<main>
+  <h1>Abertura de batalha</h1>
+  <p class="sub">Toca quando o mestre liga o modo batalha, para o mestre, os jogadores e a TV ao mesmo tempo. A primeira opção é Espadas cruzadas, com o nome que você escrever.</p>
+  <div class="ajustes">
+    <div class="campo">
+      <span class="rotulo" id="rotulo-abertura">Abertura</span>
+      <div class="segmentos" role="group" aria-labelledby="rotulo-abertura">
+        <button type="button" data-abertura="espadasCruzadas" aria-pressed="true">Espadas cruzadas</button>
+      </div>
+    </div>
+    <div class="campo">
+      <label class="rotulo" for="nome">Nome que aparece</label>
+      <input type="text" id="nome" value="Royals" autocomplete="off" spellcheck="false" aria-describedby="dica-nome">
+      <span class="dica" id="dica-nome">Vazio usa Royals. Ao parar de digitar, a animação toca de novo; Enter toca na hora.</span>
+    </div>
+  </div>
+  <p class="descricao" id="descricao" aria-live="polite"></p>
+  <div class="palco" id="palco">
+    <canvas id="cena" role="img"></canvas>
+    <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
+    <div class="vinheta" aria-hidden="true"></div>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="depois" id="depois" aria-hidden="true">Aqui o app mostra o mapa da batalha.</div>
+    <div class="erro" id="erro" role="alert"></div>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <button type="button" id="lenta" aria-pressed="false">Câmera lenta</button>
+    <button type="button" id="tela-cheia">Tela cheia</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s / 2,8 s</span>
+  </div>
+  <p class="nota" id="nota-tela-cheia" hidden>Tela cheia indisponível aqui: esta moldura não deixa a página ocupar a tela.</p>
+  <p class="nota">Câmera lenta toca a 1/4 da velocidade para ver o choque; o som continua na velocidade normal. Trocar o nome, o movimento reduzido ou ligar o som recomeça do início. No app, a vinheta, o granulado e a cortina preta são os mesmos desta página.</p>
+</main>
+<script type="module">
+const erro = document.getElementById('erro')
+function mostrarErro(texto) {
+  erro.textContent = texto
+  erro.style.display = 'grid'
+}
+
+let THREE
+try {
+  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js')
+} catch {
+  mostrarErro('Não deu para baixar o three.js da CDN. Esta página precisa de internet para abrir a animação.')
+  throw new Error('three.js indisponível')
+}
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer.
+THREE.ColorManagement.enabled = false
+const B = window.AberturasDeBatalha
+const ABERTURAS = {
+  espadasCruzadas: {
+    criar: B.espadasCruzadas,
+    meta: B.metaEspadasCruzadas,
+    descricao: 'Duas espadas escurecidas avançam pelos lados e se chocam no centro sem parar; o contato congela num clarão carmesim e estoura. O nome desce pesado, em ferro escuro com rachaduras em brasa. No fim, dois cortes em X riscam a tela e ela fecha em preto.',
+  },
+}
+const palco = document.getElementById('palco')
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const depois = document.getElementById('depois')
+const tempo = document.getElementById('tempo')
+const descricao = document.getElementById('descricao')
+const campoNome = document.getElementById('nome')
+const botaoSom = document.getElementById('som')
+const botaoLenta = document.getElementById('lenta')
+const botaoTela = document.getElementById('tela-cheia')
+const caixaReduzir = document.getElementById('reduzir')
+const segmentos = [...document.querySelectorAll('[data-abertura]')]
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+campoNome.maxLength = B.NOME_MAX_LETRAS
+campoNome.placeholder = B.NOME_PADRAO
+campoNome.value = B.NOME_PADRAO
+document.getElementById('dica-nome').textContent = `Vazio usa ${B.NOME_PADRAO}. Ao parar de digitar, a animação toca de novo; Enter toca na hora.`
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  mostrarErro('Este navegador não abriu o WebGL, então a animação não pode tocar aqui.')
+  throw e
+}
+
+// Granulado de fita velha: 160×100 de ruído redesenhado a cada 3 quadros (como no app).
+{
+  const g = document.getElementById('granulado')
+  const ctx = g.getContext('2d')
+  g.width = 160
+  g.height = 100
+  let n = 0
+  const desenhar = () => {
+    if (n++ % 3 === 0) {
+      const img = ctx.createImageData(160, 100)
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+        img.data[i + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+    }
+    requestAnimationFrame(desenhar)
+  }
+  requestAnimationFrame(desenhar)
+}
+
+let abertura = 'espadasCruzadas'
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let velocidade = 1
+let inicio = 0
+let raf = 0
+let tAtual = 0
+let esperaDeTocar = 0
+const duracao = () => ABERTURAS[abertura].meta.duracaoNaturalS
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+  if (!raf) desenhar(tAtual)
+}
+
+function nomeEscrito() {
+  const v = campoNome.value.replace(/\s+/g, ' ').trim()
+  return v === '' ? B.NOME_PADRAO : v
+}
+
+function montar() {
+  cena?.descartar()
+  const nome = nomeEscrito()
+  cena = ABERTURAS[abertura].criar(THREE, { reduzirMovimento: reduzir, nome })
+  // Como o motor: luz pontual e holofote convertidos (esta cena não tem nenhum).
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  if (audio) {
+    // O som da montagem anterior segue tocando no grafo velho: corta a saída dele.
+    audio.volume.disconnect()
+    audio.volume = audio.ctx.createGain()
+    audio.volume.gain.value = somLigado ? 1 : 0
+    audio.volume.connect(audio.ctx.destination)
+    audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  }
+  pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
+  for (const b of segmentos) b.setAttribute('aria-pressed', String(b.dataset.abertura === abertura))
+  descricao.textContent = ABERTURAS[abertura].descricao
+  canvas.setAttribute('aria-label', `Animação: duas espadas escuras se chocam no centro e o nome ${nome} desce em ferro com brasa vermelha`)
+  ajustar()
+}
+
+function desenhar(t) {
+  if (!cena) return
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(duracao())} s`
+}
+
+function tick(agora) {
+  const t = ((agora - inicio) / 1000) * velocidade
+  if (t >= duracao()) {
+    // O motor fecha em preto no fim.
+    tAtual = duracao()
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(duracao())} s / ${virgula(duracao())} s`
+    depois.dataset.visivel = 'true'
+    raf = 0
+    return
+  }
+  tAtual = t
+  desenhar(t)
+  if (somLigado) pistas?.atualizar(t)
+  raf = requestAnimationFrame(tick)
+}
+
+function tocar() {
+  clearTimeout(esperaDeTocar)
+  depois.dataset.visivel = 'false'
+  pistas?.reiniciar()
+  cancelAnimationFrame(raf)
+  raf = requestAnimationFrame((agora) => {
+    inicio = agora
+    tick(agora)
+  })
+}
+
+/** Para num quadro (o nome já aceso) enquanto a pessoa digita. */
+function mostrarQuadro(t) {
+  cancelAnimationFrame(raf)
+  raf = 0
+  depois.dataset.visivel = 'false'
+  tAtual = t
+  desenhar(t)
+}
+
+for (const b of segmentos) {
+  b.addEventListener('click', () => {
+    if (b.dataset.abertura === abertura) return tocar()
+    abertura = b.dataset.abertura
+    montar()
+    tocar()
+  })
+}
+document.getElementById('repetir').addEventListener('click', tocar)
+campoNome.addEventListener('input', () => {
+  montar()
+  mostrarQuadro(ABERTURAS[abertura].meta.quadroDaMiniaturaS)
+  clearTimeout(esperaDeTocar)
+  esperaDeTocar = setTimeout(tocar, 900)
+})
+campoNome.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  tocar()
+})
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  montar()
+  tocar()
+})
+botaoLenta.addEventListener('click', () => {
+  const nova = velocidade === 1 ? 0.25 : 1
+  // Mantém o ponto atual da animação ao trocar a velocidade no meio.
+  if (raf) inicio = performance.now() - (tAtual * 1000) / nova
+  velocidade = nova
+  botaoLenta.setAttribute('aria-pressed', String(velocidade !== 1))
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+    pistas = cena.criarSom ? cena.criarSom(audio.kit) : null
+  }
+  somLigado = !somLigado
+  audio.volume.gain.value = somLigado ? 1 : 0
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) tocar()
+})
+
+// Tela cheia: só o palco; Esc sai (o navegador cuida). Sem a API (moldura sem permissão), o botão fica desligado com o motivo.
+if (document.fullscreenEnabled && palco.requestFullscreen) {
+  botaoTela.addEventListener('click', () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void palco.requestFullscreen().catch(() => undefined)
+  })
+  document.addEventListener('fullscreenchange', () => {
+    botaoTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'
+  })
+} else {
+  botaoTela.disabled = true
+  document.getElementById('nota-tela-cheia').hidden = false
+}
+
+new ResizeObserver(ajustar).observe(canvas)
+montar()
+tocar()
+</script>
+</body>
+</html>

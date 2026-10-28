@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abertura de batalha</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  --acento: #a8741f;
+  --acento-tinta: #ffffff;
+  --acento-suave: #f3e6cf;
+  --foco: #2a6fdb;
+  --raio: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #e0a948;
+    --acento-tinta: #1a1408;
+    --acento-suave: #3a2f1c;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #e0a948;
+  --acento-tinta: #1a1408;
+  --acento-suave: #3a2f1c;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; max-width: 65ch; }
+.ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 12px; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo .rotulo { color: var(--tinta-2); font-size: 0.9375rem; }
+.segmentos { display: inline-flex; padding: 4px; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+.segmentos button { border-color: transparent; min-width: 160px; }
+.segmentos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); box-shadow: none; }
+input[type="text"] {
+  min-height: 44px; width: 260px; max-width: 100%; padding: 0 14px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-size: 1rem;
+}
+input[type="text"]::placeholder { color: var(--tinta-2); }
+.dica { color: var(--tinta-2); font-size: 0.8125rem; }
+.descricao { margin: 0 0 12px; color: var(--tinta-2); font-size: 0.9375rem; min-height: 1.5em; max-width: 70ch; }
+/* Mesmas camadas da tela de transição do app (TransicaoTela + transicoes.css). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.granulado { opacity: 0.06; mix-blend-mode: screen; pointer-events: none; }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%); pointer-events: none; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+.depois {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center;
+  color: #b3aa99; font-size: 0.9375rem; pointer-events: none;
+  opacity: 0; transition: opacity 200ms var(--ease-out);
+}
+.depois[data-visivel="true"] { opacity: 1; transition-duration: 400ms; }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled:active { transform: none; }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+.barra button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; max-width: 75ch; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: background-color 160ms ease, color 160ms ease; }
+  button:active { transform: none; }
+}
+@media (max-width: 520px) {
+  .tempo { margin-left: 0; width: 100%; }
+  .segmentos, .campo, input[type="text"] { width: 100%; }
+  .segmentos button { flex: 1; min-width: 0; padding: 0 8px; }
+}
+</style>
+<script>/*__CENAS__*/</script>
+</head>
+<body>
+<main>
+  <h1>Abertura de batalha</h1>
+  <p class="sub">Toca quando o mestre liga o modo batalha, para o mestre, os jogadores e a TV ao mesmo tempo. A primeira opção é Espadas cruzadas, com o nome que você escrever.</p>
+  <div class="ajustes">
+    <div class="campo">
+      <span class="rotulo" id="rotulo-abertura">Abertura</span>
+      <div class="segmentos" role="group" aria-labelledby="rotulo-abertura">
+        <button type="button" data-abertura="espadasCruzadas" aria-pressed="true">Espadas cruzadas</button>
+      </div>
+    </div>
+    <div class="campo">
+      <label class="rotulo" for="nome">Nome que aparece</label>
+      <input type="text" id="nome" value="Royals" autocomplete="off" spellcheck="false" aria-describedby="dica-nome">
+      <span class="dica" id="dica-nome">Vazio usa Royals. Ao parar de digitar, a animação toca de novo; Enter toca na hora.</span>
+    </div>
+  </div>
+  <p class="descricao" id="descricao" aria-live="polite"></p>
+  <div class="palco" id="palco">
+    <canvas id="cena" role="img"></canvas>
+    <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
+    <div class="vinheta" aria-hidden="true"></div>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="depois" id="depois" aria-hidden="true">Aqui o app mostra o mapa da batalha.</div>
+    <div class="erro" id="erro" role="alert"></div>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <button type="button" id="lenta" aria-pressed="false">Câmera lenta</button>
+    <button type="button" id="tela-cheia">Tela cheia</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s / 2,8 s</span>
+  </div>
+  <p class="nota" id="nota-tela-cheia" hidden>Tela cheia indisponível aqui: esta moldura não deixa a página ocupar a tela.</p>
+  <p class="nota">Câmera lenta toca a 1/4 da velocidade para ver o choque; o som continua na velocidade normal. Trocar o nome, o movimento reduzido ou ligar o som recomeça do início. No app, a vinheta, o granulado e a cortina preta são os mesmos desta página.</p>
+</main>
+<script type="module">
+const erro = document.getElementById('erro')
+function mostrarErro(texto) {
+  erro.textContent = texto
+  erro.style.display = 'grid'
+}
+
+let THREE
+try {
+  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js')
+} catch {
+  mostrarErro('Não deu para baixar o three.js da CDN. Esta página precisa de internet para abrir a animação.')
+  throw new Error('three.js indisponível')
+}
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer.
+THREE.ColorManagement.enabled = false
+const B = window.AberturasDeBatalha
+const ABERTURAS = {
+  espadasCruzadas: {
+    criar: B.espadasCruzadas,
+    meta: B.metaEspadasCruzadas,
+    descricao: 'Duas espadas escurecidas avançam pelos lados e se chocam no centro sem parar; o contato congela num clarão carmesim e estoura. O nome desce pesado, em ferro escuro com rachaduras em brasa. No fim, dois cortes em X riscam a tela e ela fecha em preto.',
+  },
+}
+const palco = document.getElementById('palco')
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const depois = document.getElementById('depois')
+const tempo = document.getElementById('tempo')
+const descricao = document.getElementById('descricao')
+const campoNome = document.getElementById('nome')
+const botaoSom = document.getElementById('som')
+const botaoLenta = document.getElementById('lenta')
+const botaoTela = document.getElementById('tela-cheia')
+const caixaReduzir = document.getElementById('reduzir')
+const segmentos = [...document.querySelectorAll('[data-abertura]')]
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+campoNome.maxLength = B.NOME_MAX_LETRAS
+campoNome.placeholder = B.NOME_PADRAO
+campoNome.value = B.NOME_PADRAO
+document.getElementById('dica-nome').textContent = `Vazio usa ${B.NOME_PADRAO}. Ao parar de digitar, a animação toca de novo; Enter toca na hora.`
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  mostrarErro('Este navegador não abriu o WebGL, então a animação não pode tocar aqui.')
+  throw e
+}
+
+// Granulado de fita velha: 160×100 de ruído redesenhado a cada 3 quadros (como no app).
+{
+  const g = document.getElementById('granulado')
+  const ctx = g.getContext('2d')
+  g.width = 160
+  g.height = 100
+  let n = 0
+  const desenhar = () => {
+    if (n++ % 3 === 0) {
+      const img = ctx.createImageData(160, 100)
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+        img.data[i + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+    }
+    requestAnimationFrame(desenhar)
+  }
+  requestAnimationFrame(desenhar)
+}
+
+let abertura = 'espadasCruzadas'
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let velocidade = 1
+let inicio = 0
+let raf = 0
+let tAtual = 0
+let esperaDeTocar = 0
+const duracao = () => ABERTURAS[abertura].meta.duracaoNaturalS
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+  if (!raf) desenhar(tAtual)
+}
+
+function nomeEscrito() {
+  const v = campoNome.value.replace(/\s+/g, ' ').trim()
+  return v === '' ? B.NOME_PADRAO : v
+}
+
+function montar() {
+  cena?.descartar()
+  const nome = nomeEscrito()
+  cena = ABERTURAS[abertura].criar(THREE, { reduzirMovimento: reduzir, nome })
+  // Como o motor: luz pontual e holofote convertidos (esta cena não tem nenhum).
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  if (audio) {
+    // O som da montagem anterior segue tocando no grafo velho: corta a saída dele.
+    audio.volume.disconnect()
+    audio.volume = audio.ctx.createGain()
+    audio.volume.gain.value = somLigado ? 1 : 0
+    audio.volume.connect(audio.ctx.destination)
+    audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  }
+  pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
+  for (const b of segmentos) b.setAttribute('aria-pressed', String(b.dataset.abertura === abertura))
+  descricao.textContent = ABERTURAS[abertura].descricao
+  canvas.setAttribute('aria-label', `Animação: duas espadas escuras se chocam no centro e o nome ${nome} desce em ferro com brasa vermelha`)
+  ajustar()
+}
+
+function desenhar(t) {
+  if (!cena) return
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(duracao())} s`
+}
+
+function tick(agora) {
+  const t = ((agora - inicio) / 1000) * velocidade
+  if (t >= duracao()) {
+    // O motor fecha em preto no fim.
+    tAtual = duracao()
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(duracao())} s / ${virgula(duracao())} s`
+    depois.dataset.visivel = 'true'
+    raf = 0
+    return
+  }
+  tAtual = t
+  desenhar(t)
+  if (somLigado) pistas?.atualizar(t)
+  raf = requestAnimationFrame(tick)
+}
+
+function tocar() {
+  clearTimeout(esperaDeTocar)
+  depois.dataset.visivel = 'false'
+  pistas?.reiniciar()
+  cancelAnimationFrame(raf)
+  raf = requestAnimationFrame((agora) => {
+    inicio = agora
+    tick(agora)
+  })
+}
+
+/** Para num quadro (o nome já aceso) enquanto a pessoa digita. */
+function mostrarQuadro(t) {
+  cancelAnimationFrame(raf)
+  raf = 0
+  depois.dataset.visivel = 'false'
+  tAtual = t
+  desenhar(t)
+}
+
+for (const b of segmentos) {
+  b.addEventListener('click', () => {
+    if (b.dataset.abertura === abertura) return tocar()
+    abertura = b.dataset.abertura
+    montar()
+    tocar()
+  })
+}
+document.getElementById('repetir').addEventListener('click', tocar)
+campoNome.addEventListener('input', () => {
+  montar()
+  mostrarQuadro(ABERTURAS[abertura].meta.quadroDaMiniaturaS)
+  clearTimeout(esperaDeTocar)
+  esperaDeTocar = setTimeout(tocar, 900)
+})
+campoNome.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  tocar()
+})
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  montar()
+  tocar()
+})
+botaoLenta.addEventListener('click', () => {
+  const nova = velocidade === 1 ? 0.25 : 1
+  // Mantém o ponto atual da animação ao trocar a velocidade no meio.
+  if (raf) inicio = performance.now() - (tAtual * 1000) / nova
+  velocidade = nova
+  botaoLenta.setAttribute('aria-pressed', String(velocidade !== 1))
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+    pistas = cena.criarSom ? cena.criarSom(audio.kit) : null
+  }
+  somLigado = !somLigado
+  audio.volume.gain.value = somLigado ? 1 : 0
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) tocar()
+})
+
+// Tela cheia: só o palco; Esc sai (o navegador cuida). Sem a API (moldura sem permissão), o botão fica desligado com o motivo.
+if (document.fullscreenEnabled && palco.requestFullscreen) {
+  botaoTela.addEventListener('click', () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void palco.requestFullscreen().catch(() => undefined)
+  })
+  document.addEventListener('fullscreenchange', () => {
+    botaoTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'
+  })
+} else {
+  botaoTela.disabled = true
+  document.getElementById('nota-tela-cheia').hidden = false
+}
+
+new ResizeObserver(ajustar).observe(canvas)
+montar()
+tocar()
+</script>
+</body>
+</html>

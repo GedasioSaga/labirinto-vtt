@@ -2185,6 +2185,8 @@ function PlayerViewDoCanvas({
     scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
     if (showGrid) drawPlayerGrid(scene.grid, currentMap, pixel)
     else scene.grid.clear()
+    // DESEMPENHO (F8): grade desligada fora do desenho; vazia, ainda pagava a máscara de stencil do piso a cada quadro.
+    scene.grid.renderable = showGrid
   }
 
   function redrawStairsLayer(scene: Scene): void {
@@ -3162,6 +3164,8 @@ function PlayerViewDoCanvas({
       texturasContainer.eventMode = 'none'
       texturasContainer.visible = false
       const texturas = createTexturasRenderer({
+        // F7: a pilha de camadas vira uma textura composta (um sprite por quadro, não uma máscara por camada).
+        palco: { renderer: app.renderer, ticker: app.ticker },
         aoMudarVisibilidade: (visivel) => {
           if (!texturasContainer.destroyed) texturasContainer.visible = visivel
         },

@@ -91,7 +91,8 @@ import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoi
 import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle } from '../lib/correio'
 import { chatFacesByName, type ChatChannel } from '../lib/chat'
-import { findKnownPath, prepararCaminhoConhecido } from '../lib/knownPath'
+import { findKnownPath } from '../lib/knownPath'
+import { criarPreparoDoCaminho, type PreparoDoCaminho } from '../lib/preparoDoCaminho'
 import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
@@ -136,8 +137,6 @@ const IGNORE_MOVE = (): void => {}
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 /** O aviso do "Me avise quando der". */
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
-/** Fatia da montagem da malha do "Andar até aqui", em ms: bem abaixo de um quadro. */
-const FATIA_DA_MALHA_MS = 8
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -855,18 +854,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
   /**
    * A malha do "Andar até aqui" é montada em fatias assim que a cena chega
-   * (`prepararCaminhoConhecido`): no mapa grande, montá-la inteira no toque
-   * longo seria uma tarefa longa. Abrir ou fechar porta não a refaz.
+   * (`lib/preparoDoCaminho.ts`): no mapa grande, montá-la inteira no toque
+   * longo seria uma tarefa longa. Abrir ou fechar porta não a refaz, e parede
+   * que anda com uma ficha do mestre não a refaz a cada pacote (F4).
    */
   const mapaDoCaminho = state.map
+  const preparoDoCaminho = useRef<PreparoDoCaminho | null>(null)
+  // Criado e parado no mesmo efeito (o StrictMode monta duas vezes); o efeito
+  // do mapa, declarado depois, roda em seguida e entrega o mapa atual.
   useEffect(() => {
-    if (mapaDoCaminho === undefined) return
-    let fatia: ReturnType<typeof setTimeout> | undefined
-    const adiantar = () => {
-      fatia = prepararCaminhoConhecido(mapaDoCaminho, FATIA_DA_MALHA_MS) ? undefined : setTimeout(adiantar, 0)
+    const preparo = criarPreparoDoCaminho()
+    preparoDoCaminho.current = preparo
+    return () => {
+      preparo.parar()
+      if (preparoDoCaminho.current === preparo) preparoDoCaminho.current = null
     }
-    fatia = setTimeout(adiantar, 0)
-    return () => clearTimeout(fatia)
+  }, [])
+  useEffect(() => {
+    if (mapaDoCaminho !== undefined) preparoDoCaminho.current?.atualizar(mapaDoCaminho)
   }, [mapaDoCaminho])
   /** Ficha ALHEIA aberta no cartão de ações; `null` = fechado. */
   const [openTokenId, setOpenTokenId] = useState<string | null>(null)

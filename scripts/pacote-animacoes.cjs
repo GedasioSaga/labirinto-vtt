@@ -13,8 +13,13 @@
  *
  * Fontes: client/src/animacoes/<tipo>/<id>.ts, com <id>.json ao lado (nome e
  * durações, a escala da textura ou o tamanho e a sombra do carimbo); tipo =
- * transicao | porta | cenario | textura | carimbo. Cada uma vira um módulo ES autocontido (Vite em modo lib), cujo
- * `export default` é a função do tipo. O contrato está no README de cada pasta.
+ * transicao | porta | cenario | textura | carimbo | batalha. Cada uma vira um módulo ES autocontido (Vite em modo lib), cujo
+ * `export default` é a função do tipo. O contrato está no README de cada pasta
+ * (batalha = abertura de batalha: o mesmo contrato da transição, mais `nome`).
+ *
+ * Tipo novo e app antigo: o app que não conhece um `tipo` pula a entrada
+ * (`lerTipo` de lib/pacoteDeAnimacoes.ts desde a 0.4.21; o Rust só olha
+ * `arquivos`), e as outras entram. Por isso tipo novo não sobe o motorMinimo.
  *
  * O app instalado só aceita o pacote se o `indice.json` vier assinado pela
  * MESMA chave do atualizador (%USERPROFILE%\.tauri\labirinto.key, sem senha),
@@ -51,6 +56,8 @@ const TETO_ARQUIVO = 2 * 1024 * 1024
 const TETO_TOTAL = 20 * 1024 * 1024
 const TRANSICAO_DURACAO = [2, 30]
 const CENARIO_DURACAO = [3, 40]
+/** Abertura de batalha: curta (`ABERTURA_DURACAO_MIN_S`/`MAX_S` de transicoes/aberturasDeBatalha.ts). */
+const BATALHA_DURACAO = [1, 10]
 const PORTA_DURACAO_MAX_MS = 3000
 /** Sons que o app sintetiza para a porta (`SONS_DA_ANIMACAO_DE_PORTA` de portas/animacoesDePorta.ts). Opcional na meta. */
 const PORTA_SONS = ['rangido', 'trinco', 'dupla', 'grade', 'arrombada', 'sanfona', 'cortina']
@@ -60,14 +67,16 @@ const TEXTURA_ESCALA = [8, 200]
 const CARIMBO_TAMANHO = [2, 80]
 /** O jeito da sombra do carimbo (`SombraDoCarimbo` de carimbos/embutidos.ts). */
 const CARIMBO_SOMBRAS = ['em-pe', 'baixa', 'nenhuma']
-/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts, carimbos/embutidos.ts): a embutida ganha. */
+/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts, carimbos/embutidos.ts; abertura de batalha não tem embutida): a embutida ganha. */
 const EMBUTIDAS = {
   transicao: ['porta', 'escada-pedra', 'escada-pedra-descendo'],
   porta: ['girar', 'deslizar'],
   cenario: ['panoramica'],
   textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
   carimbo: ['pinheiro', 'pinheiro-nevado', 'arvore', 'arbusto', 'palmeira', 'pedras', 'poca', 'juncos'],
+  batalha: [],
 }
+const DURACAO_POR_TIPO = { transicao: TRANSICAO_DURACAO, cenario: CENARIO_DURACAO, batalha: BATALHA_DURACAO }
 const TIPOS = Object.keys(EMBUTIDAS)
 
 function falhar(mensagem) {
@@ -153,11 +162,11 @@ function entradaDaMeta(tipo, id, meta, onde) {
     if (!CARIMBO_SOMBRAS.includes(meta.sombra)) erro(`"sombra" é ${CARIMBO_SOMBRAS.join(', ')}`)
     return { id, tipo, nome, tamanho: meta.tamanho, sombra: meta.sombra }
   }
-  const [min, max] = tipo === 'transicao' ? TRANSICAO_DURACAO : CENARIO_DURACAO
+  const [min, max] = DURACAO_POR_TIPO[tipo]
   if (!numero(meta.duracaoNaturalS) || meta.duracaoNaturalS < min || meta.duracaoNaturalS > max) erro(`"duracaoNaturalS" entre ${min} e ${max}`)
   const quadro = meta.quadroDaMiniaturaS
   const quadroValido = numero(quadro) && quadro >= 0 && quadro <= meta.duracaoNaturalS
-  if (tipo === 'transicao' && !quadroValido) erro('"quadroDaMiniaturaS" entre 0 e a duração natural')
+  if (tipo !== 'cenario' && !quadroValido) erro('"quadroDaMiniaturaS" entre 0 e a duração natural')
   if (tipo === 'cenario' && quadro !== undefined && !quadroValido) erro('"quadroDaMiniaturaS" (opcional) entre 0 e a duração natural')
   const entrada = { id, tipo, nome, duracaoNaturalS: meta.duracaoNaturalS }
   if (quadro !== undefined) entrada.quadroDaMiniaturaS = quadro
@@ -312,7 +321,7 @@ function lerAprovadas() {
   } catch (erro) {
     falhar(`aprovadas.json não é JSON: ${erro.message}`)
   }
-  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario|textura|carimbo)\/[a-z0-9-]{1,40}$/.test(item))) {
+  if (!Array.isArray(lista) || !lista.every((item) => typeof item === 'string' && /^(transicao|porta|cenario|textura|carimbo|batalha)\/[a-z0-9-]{1,40}$/.test(item))) {
     falhar('aprovadas.json tem de ser uma lista de "<tipo>/<id>" (ex.: "transicao/portao-pesado")')
   }
   return new Set(lista)

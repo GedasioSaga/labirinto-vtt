@@ -37,7 +37,7 @@ export interface KnownArea {
   concealed: readonly RegionPoint[][]
 }
 
-type PathMap = Pick<MapData, 'width' | 'height' | 'grid' | 'walls' | 'floor'>
+export type PathMap = Pick<MapData, 'width' | 'height' | 'grid' | 'walls' | 'floor'>
 
 export type MotivoSemCaminhoConhecido = 'sem-caminho' | 'porta-trancada' | 'porta-fechada'
 
@@ -180,20 +180,37 @@ function mapaValido(map: PathMap): boolean {
   return [map.grid, map.width, map.height].every(Number.isFinite) && map.grid > 0 && map.width > 0 && map.height > 0
 }
 
+/**
+ * A malha guardada já é a deste mapa e está pronta? Só confere, não monta
+ * nada: quem agenda a montagem (`preparoDoCaminho.ts`) decide se espera.
+ * `true` também para mapa inválido (não há o que montar).
+ */
+export function caminhoConhecidoPronto(map: PathMap): boolean {
+  if (!mapaValido(map)) return true
+  const g = malhaGuardada
+  return g !== null && malhaServe(g, mapaDaRede(map)) && malhaPronta(g.malha)
+}
+
+/** Já existe malha guardada (de qualquer mapa)? A primeira montagem não espera. */
+export function temMalhaDoJogador(): boolean {
+  return malhaGuardada !== null
+}
+
+function malhaServe(g: { malha: Malha; ultimas: readonly Wall[] }, mapa: MapaDoCaminho): boolean {
+  return (
+    g.malha.grid === mapa.grid &&
+    g.malha.raio === mapa.grid * RAIO_NA_REDE &&
+    g.malha.largura === Math.max(1, Math.ceil(mapa.width)) &&
+    g.malha.altura === Math.max(1, Math.ceil(mapa.height)) &&
+    (g.ultimas === mapa.walls || mesmaEstrutura(g.malha.paredes, mapa.walls))
+  )
+}
+
 function malhaDoJogador(map: PathMap): Malha {
   const mapa = mapaDaRede(map)
   const raio = mapa.grid * RAIO_NA_REDE
   const g = malhaGuardada
-  const largura = Math.max(1, Math.ceil(mapa.width))
-  const altura = Math.max(1, Math.ceil(mapa.height))
-  const serve =
-    g !== null &&
-    g.malha.grid === mapa.grid &&
-    g.malha.raio === raio &&
-    g.malha.largura === largura &&
-    g.malha.altura === altura &&
-    (g.ultimas === mapa.walls || mesmaEstrutura(g.malha.paredes, mapa.walls))
-  if (serve) {
+  if (g !== null && malhaServe(g, mapa)) {
     g.ultimas = mapa.walls
     return g.malha
   }

@@ -98,8 +98,35 @@ export interface NomesDosLugaresRenderer {
   concluirAparicao: () => void
   /** O lugar cuja pílula está sob o ponto, em px do canvas (o mesmo espaço de `event.global`), ou `null`. */
   lugarEm: (x: number, y: number) => string | null
+  /**
+   * DESEMPENHO (F8): a vista em px de MUNDO; a pílula inteira fora dela não
+   * entra no desenho (`culled`), cada uma era uma chamada de desenho a mais
+   * com quebra de lote. `null` = nenhuma recortada (o padrão; exportar imagem).
+   */
+  recortarNaVista: (vista: VistaNoMundo | null) => void
   /** Desmonte: sai do relógio e destrói as pílulas. */
   destruir: () => void
+}
+
+/** Retângulo visível em px de mundo (o `Viewport` de `pixi/grid.ts`). */
+export interface VistaNoMundo {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+/** Folga do recorte em px de tela: a sombra e o aro passam um pouco da caixa medida. */
+const FOLGA_DO_RECORTE_PX = 24
+
+/**
+ * A pílula está inteira fora da vista? Puro, para o teste. O que ela desenha
+ * cabe num raio (px de TELA) em volta da âncora: meia largura mais o deslize
+ * para o lado, a haste mais a subida e a altura para cima.
+ */
+export function pilulaForaDaVista(ancora: { x: number; y: number }, raioNaTela: number, escala: number, vista: VistaNoMundo): boolean {
+  const r = raioNaTela / escala
+  return ancora.x + r < vista.left || ancora.x - r > vista.right || ancora.y + r < vista.top || ancora.y - r > vista.bottom
 }
 
 interface Pilula {
@@ -191,6 +218,17 @@ export function createNomesDosLugaresRenderer(movimento?: MovimentoDasPilulas): 
   let emEdicao: string | null = null
   let reduzido = false
   let noRelogio = false
+  let vista: VistaNoMundo | null = null
+
+  function raioNaTela(p: Pilula): number {
+    const subida = p.arranjo?.subida ?? 0
+    const deslize = Math.abs(p.arranjo?.deslize ?? 0)
+    return Math.max(p.largura / 2 + deslize, MEDIDAS_DA_PILULA.haste + subida + MEDIDAS_DA_PILULA.altura) + FOLGA_DO_RECORTE_PX
+  }
+
+  function recortar(p: Pilula): void {
+    p.raiz.culled = vista !== null && pilulaForaDaVista(p.lugar.ancora, raioNaTela(p), escala, vista)
+  }
 
   function aplicar(p: Pilula, quadro: QuadroDaAparicao): void {
     p.raiz.alpha = quadro.alfa * (p.lugar.esmaecido ? ALFA_ESMAECIDO : 1)
@@ -289,6 +327,7 @@ export function createNomesDosLugaresRenderer(movimento?: MovimentoDasPilulas): 
       p.corpo.pivot.x = -(p.arranjo?.deslize ?? 0)
       p.haste.scale.y = altura
       p.raiz.visible = visivel(p)
+      recortar(p)
     }
   }
 
@@ -404,11 +443,16 @@ export function createNomesDosLugaresRenderer(movimento?: MovimentoDasPilulas): 
     return null
   }
 
+  function recortarNaVista(nova: VistaNoMundo | null): void {
+    vista = nova
+    for (const p of pilulas.values()) recortar(p)
+  }
+
   function destruir(): void {
     esvaziar()
     cena = null
     if (!camada.destroyed) camada.destroy({ children: true })
   }
 
-  return { camada, atualizar, setCameraScale, setLugarEmEdicao, concluirAparicao, lugarEm, destruir }
+  return { camada, atualizar, setCameraScale, setLugarEmEdicao, concluirAparicao, lugarEm, recortarNaVista, destruir }
 }

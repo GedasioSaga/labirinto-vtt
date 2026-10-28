@@ -613,6 +613,13 @@ function boxTouchesAny(points: readonly RegionPoint[], boxes: readonly Box[]): b
   return box !== null && boxes.some((b) => box.maxX >= b.minX && box.minX <= b.maxX && box.maxY >= b.minY && box.minY <= b.maxY)
 }
 
+/** Lado do bloco do índice de zonas ocultas, em px de mundo (8 casas de 64). */
+const ZONE_BUCKET = 512
+/** Chave numérica do bloco (bx, by), com folga para coordenada negativa. */
+const zoneBucketKey = (bx: number, by: number): number => (bx + 32768) * 65536 + (by + 32768)
+/** Zona que cobre mais blocos que isto fica fora do índice (testada sempre). */
+const ZONE_BUCKET_MAX = 4096
+
 interface BoxedRing extends Box {
   ring: RegionPoint[]
 }
@@ -2382,7 +2389,38 @@ function recorteDoGrupo(
     point.y <= zone.maxY &&
     pointInRing(point, zone.ring) &&
     !(zone.unveiled.size > 0 && zone.unveiled.has(cellKeyAt(point)))
-  const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && zones.some((zone) => hidesPoint(zone, point))
+  // ÍNDICE DAS ZONAS em blocos de mundo: o corte de texturas e penhascos testa
+  // dezenas de milhares de pontos por recorte (a cada passo da ficha), quase
+  // todos longe de toda zona. O bloco do ponto diz quais zonas podem contê-lo.
+  const zoneBuckets = new Map<number, ActiveZone[]>()
+  /** Zona sem caixa finita ou grande demais para o índice: testada sempre, como antes. */
+  const zonesEverywhere: ActiveZone[] = []
+  for (const zone of zones) {
+    const bx0 = Math.floor(zone.minX / ZONE_BUCKET)
+    const bx1 = Math.floor(zone.maxX / ZONE_BUCKET)
+    const by0 = Math.floor(zone.minY / ZONE_BUCKET)
+    const by1 = Math.floor(zone.maxY / ZONE_BUCKET)
+    if (![bx0, bx1, by0, by1].every(Number.isFinite) || (bx1 - bx0 + 1) * (by1 - by0 + 1) > ZONE_BUCKET_MAX || Math.abs(bx0) > 30000 || Math.abs(bx1) > 30000 || Math.abs(by0) > 30000 || Math.abs(by1) > 30000) {
+      zonesEverywhere.push(zone)
+      continue
+    }
+    for (let bx = bx0; bx <= bx1; bx += 1) {
+      for (let by = by0; by <= by1; by += 1) {
+        const key = zoneBucketKey(bx, by)
+        const list = zoneBuckets.get(key)
+        if (list === undefined) zoneBuckets.set(key, [zone])
+        else list.push(zone)
+      }
+    }
+  }
+  const inConcealZone = (point: RegionPoint): boolean => {
+    if (zones.length === 0) return false
+    // Sem o cache (teste de igualdade), o caminho antigo: zona a zona.
+    if (!cacheDoRecorte.ligado) return zones.some((zone) => hidesPoint(zone, point))
+    if (zonesEverywhere.length > 0 && zonesEverywhere.some((zone) => hidesPoint(zone, point))) return true
+    const near = zoneBuckets.get(zoneBucketKey(Math.floor(point.x / ZONE_BUCKET), Math.floor(point.y / ZONE_BUCKET)))
+    return near !== undefined && near.some((zone) => hidesPoint(zone, point))
+  }
   /** Algum ponto da lista numa zona ativa? A caixa da lista longe de toda zona responde sem olhar ponto a ponto. */
   const anyInConcealZone = (points: readonly RegionPoint[]): boolean => boxTouchesAny(points, zones) && points.some(inConcealZone)
 
