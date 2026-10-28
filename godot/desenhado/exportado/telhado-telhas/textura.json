@@ -1,0 +1,93 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png"
+    ],
+    "canais": {
+      "b": "0",
+      "g": "lado ao longo do beiral: 0,5 + 0,5 * lado",
+      "r": "valor (0,5 = a cor do mestre)"
+    },
+    "ladoPx": 512,
+    "orientacao": "x = u, ao longo do beiral; a linha de baixo da imagem encosta na ponta do beiral (v = 0) e y sobe para a cumeeira",
+    "periodoCasas": 8
+  },
+  "beiral": {
+    "alturaPx": 2.2,
+    "escuro": 0.22,
+    "franjaPassoPx": 4.6,
+    "franjaPx": 0.0
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "emendas": {
+    "base-1.png": {
+      "borda": 16.3554702835972,
+      "miolo": 15.3528659268341,
+      "razao": 1.06530405212559
+    },
+    "base-2.png": {
+      "borda": 16.3027359414264,
+      "miolo": 15.3056654706597,
+      "razao": 1.06514388235376
+    }
+  },
+  "faixa": {
+    "alturaImagemPx": 24,
+    "arquivo": "faixa.png",
+    "canais": {
+      "a": "alfa reto",
+      "g": "lado atravessando: 0,5 + 0,5 * lado",
+      "r": "valor (0,5 = a cor do mestre)"
+    },
+    "comprimentoPx": 160,
+    "larguraImagemPx": 320,
+    "meiaLarguraPx": 6.0,
+    "onde": [
+      "cumeeira",
+      "espigao"
+    ],
+    "orientacao": "x = ao longo da emenda (repete a cada comprimentoPx); y = atravessando, de -meia (linha 0) a +meia; +y = o lado da água de índice menor",
+    "pxPorCasa": 128
+  },
+  "id": "telhado-telhas",
+  "idDoApp": "telhas",
+  "lote": 5,
+  "luz": {
+    "agua": 0.18,
+    "lado": 0.12
+  },
+  "memoria": {
+    "discoBytes": 336685,
+    "gpuBytes": 2837162,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 3.0,
+    "faixa": 0.14,
+    "semente": 1930
+  },
+  "nome": "Telhas",
+  "onda": 2,
+  "rincao": {
+    "escuro": 0.1,
+    "larguraPx": 1.7
+  },
+  "tingir": {
+    "claroDesde": 0.94,
+    "conta": "luz-oklab",
+    "escuroAte": 0.1,
+    "ganhoL": 0.48,
+    "neutro": 0.5
+  },
+  "tipo": "telhado",
+  "tom": {
+    "amplitude": 0.03,
+    "escala": 6.0,
+    "semente": 1956
+  },
+  "valorMedio": 0.495
+}

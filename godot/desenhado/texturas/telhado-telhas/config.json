@@ -1,0 +1,17 @@
+{
+  "id": "telhado-telhas",
+  "nome": "Telhas",
+  "idDoApp": "telhas",
+  "tipo": "telhado",
+  "onda": 2,
+  "lote": 5,
+  "semente": 19,
+  "variantes": 2,
+  "periodoCasas": 8,
+  "mistura": { "escala": 3.0, "faixa": 0.14, "corte": 0.18 },
+  "tom": { "escala": 6.0, "amplitude": 0.03 },
+  "luz": { "agua": 0.18, "lado": 0.12 },
+  "beiral": { "escuro": 0.22, "alturaPx": 2.2 },
+  "rincao": { "escuro": 0.10, "larguraPx": 1.7 },
+  "faixa": { "comprimentoPx": 160, "meiaLarguraPx": 6, "onde": ["cumeeira", "espigao"] }
+}
