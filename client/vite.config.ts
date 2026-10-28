@@ -11,7 +11,8 @@ import { globsDosProjetos } from './projetosDoVitest.js'
 const host = process.env.TAURI_DEV_HOST
 const porta = portaDoProjeto()
 const projetos = globsDosProjetos()
-const EXCLUIDOS_DO_TESTE = ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**']
+// desempenho/ = harness Playwright do mapa grande (scripts/medir-desempenho.cjs), não é vitest
+const EXCLUIDOS_DO_TESTE = ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**', 'desempenho/**']
 
 export default defineConfig({
   plugins: [react()],
