@@ -1,0 +1,2778 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barranco do Labirinto</title>
+<script>
+  // Só para a conferência do protótipo: um erro de script fica escrito no <html>.
+  window.addEventListener('error', (e) => { document.documentElement.dataset.erro = String(e.message) })
+</script>
+<style>
+/*
+ * Protótipo do Barranco: parte alta e parte baixa em mapa de vila, cidade e
+ * campo. Arquivo único, sem nada de fora.
+ *
+ * Os tokens `--lb-*` são cópia dos que o app injeta pelo `themeCss()`
+ * (client/src/theme.ts): mesmo nome, mesmo valor. As classes `.lb-*` copiam a
+ * cara de client/src/main.css (segmentado, botão, legenda, dica), as mesmas do
+ * painel do Penhasco (PenhascoControls). O app só tem o tema escuro; o
+ * protótipo também.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xxl: 34px;
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-6: 24px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Só deste protótipo: a volta do lado alto (o barranco recolhe e cresce do outro lado) e o miolo da ficha. */
+  --barranco-vira: 220ms;
+  --barranco-vira-ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --ficha-miolo: #2d4a6b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: var(--lb-font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.pagina {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px max(16px, 2vw) 40px;
+}
+
+.cabeca { margin: 0 0 20px; max-width: 68ch; }
+.cabeca h1 {
+  margin: 0 0 6px;
+  font: 400 var(--lb-font-size-xxl)/1.1 var(--lb-font-display);
+  letter-spacing: -0.01em;
+}
+.cabeca p { margin: 0; font-size: var(--lb-font-size-lg); color: var(--lb-color-parchment-dim); }
+
+/* Três colunas no PC: o painel da ferramenta (a largura do rail do app), o mapa e as perguntas. */
+.palco {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 300px;
+  gap: var(--lb-space-4);
+  align-items: start;
+}
+
+.painel, .decidir {
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-lg);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+}
+
+.painel { position: sticky; top: 16px; overflow: hidden; }
+
+/* ---------------------------------------------------- peças do app (main.css) */
+
+.lb-section { display: flex; flex-direction: column; gap: var(--lb-space-3); padding: var(--lb-space-4); }
+.lb-section + .lb-section { border-top: 1px solid var(--lb-color-line); }
+.lb-section[hidden] { display: none; }
+
+.lb-eyebrow {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-field__hint { margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); }
+
+.lb-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-seg__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: var(--lb-space-2) var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 500;
+  line-height: 1.15;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) {
+  .lb-seg__option:hover:not([aria-checked='true']) { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); }
+}
+
+.lb-seg__option[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-seg__option svg { display: block; width: 22px; height: 22px; opacity: 0.8; }
+.lb-seg__option[aria-checked='true'] svg { opacity: 1; }
+
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+@media (hover: hover) {
+  .lb-btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-line-strong); }
+  .lb-btn--ghost:hover:not(:disabled) { background: var(--lb-color-stone-raised); border-color: var(--lb-color-line); color: var(--lb-color-parchment); }
+}
+.lb-btn:active:not(:disabled) { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+.lb-btn:disabled { color: var(--lb-color-parchment-faint); background: transparent; border-color: var(--lb-color-line); cursor: not-allowed; }
+.lb-btn--ghost { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.lb-btn--ghost:disabled { border-color: transparent; }
+.lb-btn--compact { min-height: 28px; padding: 0 var(--lb-space-2); font-size: var(--lb-font-size-sm); }
+
+:focus-visible { outline: none; }
+.lb-btn:focus-visible, .lb-seg__option:focus-visible, .alca:focus-visible, .chave input:focus-visible + span {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  font: 500 var(--lb-font-size-xs)/16px var(--lb-font-utility);
+  text-align: center;
+  color: var(--lb-color-parchment-dim);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 4px;
+}
+.lb-btn:disabled kbd { opacity: 0.6; }
+
+.linha { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+/* ---------------------------------------------------------------- o mapa */
+
+.mapa-col { display: grid; gap: 10px; min-width: 0; }
+
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.barra .grupo { display: flex; align-items: center; gap: 10px; }
+.barra .lb-seg { width: 216px; }
+.barra .lb-seg__option { min-height: 28px; padding-block: 5px; font-size: var(--lb-font-size-md); }
+.barra .dica-estilo { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.barra .empurra { margin-left: auto; }
+
+.chave { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); }
+.chave input { position: absolute; opacity: 0; pointer-events: none; }
+.chave span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  transition: border-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.chave span::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--lb-color-line-strong);
+  background: var(--lb-color-stone-raised);
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.chave input:checked + span { color: var(--lb-color-parchment); border-color: rgba(224, 164, 74, 0.28); }
+.chave input:checked + span::before { background: var(--lb-color-brass); border-color: var(--lb-color-brass); box-shadow: inset 0 0 0 3px var(--lb-color-stone-sunken); }
+
+.mapa-moldura {
+  position: relative;
+  border-radius: var(--lb-radius-lg);
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken);
+  box-shadow: var(--lb-shadow-float);
+}
+.mapa-moldura:has(#mapa:focus-visible) { box-shadow: var(--lb-shadow-focus), var(--lb-shadow-float); }
+
+#mapa { display: block; width: 100%; aspect-ratio: 1024 / 640; touch-action: none; }
+
+/* As alças "Virar" ficam por cima do canvas, no meio de cada risco. */
+.alcas { position: absolute; inset: 0; pointer-events: none; }
+.alca {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 10px 0 5px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  background: rgba(19, 19, 23, 0.9);
+  color: var(--lb-color-parchment);
+  font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.35);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.alca:active { transform: translate(-50%, -50%) scale(0.97); }
+.alca[aria-current='true'] { border-color: var(--lb-color-brass); }
+.alca svg { width: 16px; height: 16px; color: var(--lb-color-brass); transition: transform var(--barranco-vira) var(--barranco-vira-ease); }
+.alca[hidden] { display: none; }
+.alca.apagada { opacity: 0.3; pointer-events: none; }
+.alca { transition: transform var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease), opacity var(--lb-motion-fast) var(--lb-motion-ease); }
+
+.status { margin: 0; min-height: 1.45em; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment); }
+.nota { margin: 0; max-width: 90ch; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.nota kbd { margin-inline: 1px; }
+
+/* ---------------------------------------------------------- para decidir */
+
+.decidir { padding: var(--lb-space-4); }
+.decidir h2 { margin: 0 0 4px; font: 400 20px/1.2 var(--lb-font-display); }
+.decidir > p { margin: 0 0 var(--lb-space-2); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.perguntas { display: grid; }
+.pergunta { padding: var(--lb-space-3) 0; border-top: 1px solid var(--lb-color-line); display: grid; gap: var(--lb-space-2); }
+.pergunta h3 { margin: 0; font: 600 var(--lb-font-size-lg)/1.25 var(--lb-font-sans); }
+.pergunta p { margin: 0; font-size: 12.5px; color: var(--lb-color-parchment-dim); }
+.pergunta .sugestao { color: var(--lb-color-parchment-faint); }
+.pergunta .sugestao strong { color: var(--lb-color-brass); font-weight: 600; }
+
+@media (max-width: 1240px) {
+  .palco { grid-template-columns: 264px minmax(0, 1fr); }
+  .decidir { grid-column: 1 / -1; }
+  .perguntas { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); column-gap: var(--lb-space-6); }
+}
+
+@media (max-width: 780px) {
+  .palco { grid-template-columns: minmax(0, 1fr); }
+  .painel { position: static; order: 2; }
+  .decidir { order: 3; }
+  .barra .empurra { margin-left: 0; }
+}
+
+.alca.na-hora svg { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .alca svg { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header class="cabeca">
+    <h1>Barranco</h1>
+    <p>Parte alta e parte baixa em mapa de vila, cidade e campo. Risque uma beira ou pinte uma área alta. A ficha não atravessa: sobe pela rampa ou passa onde a linha acaba. A visão passa por cima.</p>
+  </header>
+
+  <div class="palco">
+    <aside class="painel" aria-label="Ferramenta Barranco">
+      <section class="lb-section">
+        <h2 class="lb-eyebrow" id="t-ferramenta">Barranco</h2>
+        <div class="lb-seg" role="radiogroup" aria-labelledby="t-ferramenta" data-grupo="ferramenta"></div>
+        <p class="lb-field__hint" id="dica-ferramenta"></p>
+      </section>
+
+      <section class="lb-section" data-so="area">
+        <h2 class="lb-eyebrow" id="t-modo">Ao pintar</h2>
+        <div class="lb-seg" role="radiogroup" aria-labelledby="t-modo" data-grupo="areaModo"></div>
+        <h2 class="lb-eyebrow" id="t-pincel">Largura do pincel</h2>
+        <div class="lb-seg" role="radiogroup" aria-labelledby="t-pincel" data-grupo="pincel"></div>
+      </section>
+
+      <section class="lb-section" data-so="risco area">
+        <h2 class="lb-eyebrow" id="t-altura">Altura do barranco</h2>
+        <div class="lb-seg" role="radiogroup" aria-labelledby="t-altura" data-grupo="altura"></div>
+        <p class="lb-field__hint" id="dica-altura"></p>
+      </section>
+
+      <section class="lb-section" data-so="risco">
+        <h2 class="lb-eyebrow">Risco escolhido</h2>
+        <p class="lb-field__hint" id="risco-escolhido"></p>
+        <div class="linha">
+          <button type="button" class="lb-btn" id="b-virar">Virar o lado alto <kbd>F</kbd></button>
+          <button type="button" class="lb-btn lb-btn--ghost" id="b-apagar">Apagar o risco</button>
+        </div>
+      </section>
+
+      <section class="lb-section" data-so="rampa">
+        <h2 class="lb-eyebrow">Rampas</h2>
+        <p class="lb-field__hint" id="conta-rampas"></p>
+      </section>
+
+      <section class="lb-section">
+        <h2 class="lb-eyebrow">Ficha</h2>
+        <p class="lb-field__hint">Arraste a ficha do mapa, ou clique no mapa e use as setas ou <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> (<kbd>Shift</kbd> anda um quadrado).</p>
+        <div class="linha">
+          <button type="button" class="lb-btn lb-btn--compact" id="b-ficha">Voltar a ficha para a rua</button>
+        </div>
+      </section>
+
+      <section class="lb-section">
+        <div class="linha">
+          <button type="button" class="lb-btn lb-btn--compact" id="b-desfazer" title="Ctrl+Z">Desfazer</button>
+          <button type="button" class="lb-btn lb-btn--compact" id="b-refazer" title="Ctrl+Y">Refazer</button>
+          <button type="button" class="lb-btn lb-btn--ghost lb-btn--compact" id="b-restaurar">Restaurar a cena</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="mapa-col" aria-label="Mapa">
+      <div class="barra">
+        <div class="grupo">
+          <div class="lb-seg" role="radiogroup" aria-label="Estilo do mapa" data-grupo="estilo"></div>
+          <p class="dica-estilo" id="dica-estilo"></p>
+        </div>
+        <label class="chave empurra"><input type="checkbox" id="c-grade" checked><span>Grade</span></label>
+      </div>
+      <div class="mapa-moldura">
+        <canvas id="mapa" tabindex="0" role="application" aria-roledescription="mapa"
+          aria-label="Mapa da vila. Arraste a ficha, ou use as setas ou WASD com o mapa em foco. As ferramentas ficam no painel à esquerda."
+          aria-describedby="status"></canvas>
+        <div class="alcas"></div>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+      <p class="nota">Na cena: a praça é uma área alta (Médio) e o terraço com a árvore é área dentro dela (Baixo, mais um degrau). O barranco do rio é um risco (Alto) que acaba no meio. O morro também é risco (Médio) e não tem rampa. Atalhos: <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> trocam a ferramenta, <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz, <kbd>Esc</kbd> solta o risco escolhido, <kbd>Delete</kbd> apaga.</p>
+    </section>
+
+    <aside class="decidir" aria-labelledby="t-decidir">
+      <h2 id="t-decidir">Para decidir</h2>
+      <p>Respostas que só você pode dar. Cada opção já vale no mapa: experimente antes de escolher.</p>
+      <div class="perguntas">
+        <article class="pergunta">
+          <h3 id="q-borda">O barranco segue a grade?</h3>
+          <p>Livre, a beira faz curva e corta os quadrados. Na grade, cada quadrado é alto ou baixo e a beira anda pelas linhas, em escada na diagonal.</p>
+          <div class="lb-seg" role="radiogroup" aria-labelledby="q-borda" data-grupo="borda"></div>
+          <p class="sugestao"><strong>Sugestão:</strong> livre. A forma fica calma, e a regra de andar é a mesma.</p>
+        </article>
+        <article class="pergunta">
+          <h3 id="q-rampa">A rampa é vão ou peça?</h3>
+          <p>Vão: o próprio barranco abre e vira uma descida de terra. Peça: uma escada de pedra posta sobre o barranco, que sai e entra como objeto.</p>
+          <div class="lb-seg" role="radiogroup" aria-labelledby="q-rampa" data-grupo="rampaTipo"></div>
+          <p class="sugestao"><strong>Sugestão:</strong> vão. É o barranco que abre, sem mais um objeto para cuidar.</p>
+        </article>
+        <article class="pergunta">
+          <h3 id="q-niveis">Quantos degraus acima do chão?</h3>
+          <p>A cena usa 2: a praça e o terraço dentro dela. Com 1, o terraço se junta à praça. Com 3, dá para pintar mais um degrau em cima do terraço.</p>
+          <div class="lb-seg" role="radiogroup" aria-labelledby="q-niveis" data-grupo="niveisMax"></div>
+          <p class="sugestao"><strong>Sugestão:</strong> 3. Cabe morro com mirante sem ficar difícil de ler.</p>
+        </article>
+        <article class="pergunta">
+          <h3 id="q-visao">Quem está embaixo vê o que está em cima?</h3>
+          <p>De cima para baixo a visão passa (decidido). Arraste a ficha da rua contra a praça e olhe a linha de visão.</p>
+          <div class="lb-seg" role="radiogroup" aria-labelledby="q-visao" data-grupo="visao"></div>
+          <p class="sugestao"><strong>Sugestão:</strong> vê. É o mais simples de explicar na mesa.</p>
+        </article>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict'
+
+  // ================================================================ medidas
+
+  const CEL = 32
+  const COLS = 32
+  const LINS = 20
+  const MW = COLS * CEL
+  const MH = LINS * CEL
+  /** Espessura da parede do barranco no mapa a 100%, em px do mundo. */
+  const ALTURA_PX = { baixo: 10, medio: 16, alto: 24 }
+  const ALTURAS = ['baixo', 'medio', 'alto']
+  const ROTULO_ALTURA = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' }
+  const RAIO_FICHA = 13
+  /** Largura da rampa ao longo do barranco: 2 quadrados, para a ficha passar folgada. */
+  const RAMPA_LARGURA = 64
+  /** Raio do pincel da área, em quadrados. */
+  const PINCEL = { fino: 0.55, medio: 1.3, largo: 2.3 }
+  const VIRAR_MS = 220
+  const RAIZ = Math.SQRT1_2
+  /** A luz vem de cima à esquerda, como no resto do app. */
+  const PARA_LUZ = [-RAIZ, -RAIZ]
+  const FICHA_INICIO = { x: 470, y: 416 }
+  const reduzirMovimento = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+  // ================================================================ paleta
+
+  // <PALETA> as únicas cores do mapa. Atual = Meio-Termo (client/src/texturas/meioTermo/paleta.ts);
+  // Desenhado = protótipo Mother (docs/design/vila-estilo-mother/prototipo/mother.js). Cada cor gera
+  // realce, sombra e contorno (o escuro da própria cor, nunca preto); `escuro` é quanto da luz o contorno guarda.
+  const PALETAS = {
+    atual: {
+      escuro: 0.6,
+      cores: {
+        grama: { base: '#8cbf80', realce: '#a2cc92', sombra: '#76ac6d' },
+        terra: { base: '#dda56c', realce: '#e7b882', sombra: '#c78d58' },
+        praca: { base: '#dcd0b6', realce: '#ebe2cd', sombra: '#bcae94' },
+        barranco: { base: '#aa745c', realce: '#c28b71', sombra: '#915f4a' },
+        agua: { base: '#40707e' },
+        pedra: { base: '#c3c0b2' },
+        madeira: { base: '#b9895f' },
+        folha: { base: '#55ae74' },
+        ardosia: { base: '#5f6a66' },
+        telhaAzul: { base: '#43639a' },
+        telhaTerracota: { base: '#b56e50' },
+        telhaVerde: { base: '#7f9a64' },
+        telhaNeutra: { base: '#867a6a' },
+        luz: { base: '#fff3dc' },
+      },
+    },
+    desenhado: {
+      escuro: 0.5,
+      cores: {
+        grama: { base: '#86eab8', sombra: '#66ca98', contorno: '#2ea268' },
+        terra: { base: '#f8b868', realce: '#f8c878', sombra: '#e8a058' },
+        praca: { base: '#d8f8e8', realce: '#e8fcf4', sombra: '#c8e8d8' },
+        barranco: { base: '#b87058', realce: '#d08870', sombra: '#a06040' },
+        agua: { base: '#68b0d8' },
+        pedra: { base: '#c4d0c8' },
+        madeira: { base: '#d09060' },
+        folha: { base: '#48c088' },
+        ardosia: { base: '#687878', realce: '#a0b0a8', sombra: '#586868' },
+        telhaAzul: { base: '#7896d6' },
+        telhaTerracota: { base: '#e08058' },
+        telhaVerde: { base: '#a0c878' },
+        telhaNeutra: { base: '#a8b0b8' },
+        luz: { base: '#fff3dc' },
+      },
+    },
+  }
+  // </PALETA>
+
+  const limitar = (v, a, b) => (v < a ? a : v > b ? b : v)
+  const suave = (t) => {
+    const x = limitar(t, 0, 1)
+    return x * x * (3 - 2 * x)
+  }
+  const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+  const rgbHex = (c) => '#' + c.map((v) => Math.round(limitar(v, 0, 255)).toString(16).padStart(2, '0')).join('')
+  function luminancia(h) {
+    const [r, g, b] = hexRgb(h).map((v) => {
+      const u = v / 255
+      return u <= 0.04045 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  function paraHsl([r, g, b]) {
+    r /= 255
+    g /= 255
+    b /= 255
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const l = (max + min) / 2
+    if (max === min) return [0, 0, l]
+    const d = max - min
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+    return [h * 60, s, l]
+  }
+  function deHsl(h, s, l) {
+    const hh = (((h % 360) + 360) % 360) / 360
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    const f = (t) => {
+      const u = (t + 1) % 1
+      if (u < 1 / 6) return p + (q - p) * 6 * u
+      if (u < 1 / 2) return q
+      if (u < 2 / 3) return p + (q - p) * (2 / 3 - u) * 6
+      return p
+    }
+    return rgbHex([f(hh + 1 / 3) * 255, f(hh) * 255, f(hh - 1 / 3) * 255])
+  }
+  const misturar = (a, b, t) => {
+    const x = hexRgb(a)
+    const y = hexRgb(b)
+    return rgbHex(x.map((v, i) => v + (y[i] - v) * t))
+  }
+  const tinta = (hex, alfa) => {
+    const [r, g, b] = hexRgb(hex)
+    return `rgba(${r}, ${g}, ${b}, ${alfa})`
+  }
+  const rumo = (h, alvo) => ((alvo - h + 540) % 360) - 180
+
+  const cacheDeTons = new Map()
+  /** Base, realce (luz de cima à esquerda), sombra e contorno de uma cor da paleta do estilo. */
+  function tons(estilo, nome) {
+    const chave = estilo + ':' + nome
+    const pronto = cacheDeTons.get(chave)
+    if (pronto) return pronto
+    const paleta = PALETAS[estilo]
+    const c = paleta.cores[nome]
+    if (!c) throw new Error('cor fora da paleta: ' + nome)
+    const [h, s, l] = paraHsl(hexRgb(c.base))
+    const quente = h < 90 || h > 330
+    const realce = c.realce || deHsl(h + rumo(h, 55) * 0.12, s, limitar(l + 0.09, 0, 0.95))
+    const sombra = c.sombra || deHsl(h + (quente ? -4 : 0), limitar(s + 0.05, 0, 1), limitar(l - 0.12, 0.05, 1))
+    let contorno = c.contorno
+    if (!contorno) {
+      const sc = limitar(s + 0.12, 0, 0.85)
+      let lc = l * paleta.escuro
+      contorno = deHsl(h + (quente ? -6 : 0), sc, lc)
+      while (luminancia(contorno) < 0.07 && lc < 0.6) {
+        lc += 0.01
+        contorno = deHsl(h + (quente ? -6 : 0), sc, lc)
+      }
+    }
+    const t = { base: c.base, realce, sombra, contorno }
+    cacheDeTons.set(chave, t)
+    return t
+  }
+
+  /** Cores da interface por cima do mapa: os tokens do app, lidos do CSS (sem segunda cópia). */
+  const css = getComputedStyle(document.documentElement)
+  const UI = {
+    latao: css.getPropertyValue('--lb-color-brass').trim(),
+    pergaminho: css.getPropertyValue('--lb-color-parchment').trim(),
+    brasa: css.getPropertyValue('--lb-color-ember').trim(),
+    pedra: css.getPropertyValue('--lb-color-stone-solid').trim(),
+    miolo: css.getPropertyValue('--ficha-miolo').trim(),
+    fonte: css.getPropertyValue('--lb-font-sans').trim(),
+  }
+
+  // ================================================================ geometria
+
+  const dist = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1])
+  function lerpP(a, b, u) {
+    const o = new Array(a.length)
+    for (let i = 0; i < a.length; i += 1) o[i] = a[i] + (b[i] - a[i]) * u
+    return o
+  }
+  /** Corta os cantos (Chaikin): a forma fica calma sem perder o desenho. Leva junto o 3º valor (a altura). */
+  function chaikin(pts, vezes, fechado) {
+    let p = pts
+    for (let k = 0; k < vezes; k += 1) {
+      const n = p.length
+      if (n < 3) return p
+      const q = []
+      if (!fechado) q.push(p[0])
+      const lim = fechado ? n : n - 1
+      for (let i = 0; i < lim; i += 1) {
+        const a = p[i]
+        const b = p[(i + 1) % n]
+        q.push(lerpP(a, b, 0.25), lerpP(a, b, 0.75))
+      }
+      if (!fechado) q.push(p[n - 1])
+      p = q
+    }
+    return p
+  }
+  /** Pontos a cada `passo` px ao longo do traço. */
+  function reamostrar(pts, passo, fechado) {
+    const n = pts.length
+    if (n < 2) return pts.map((p) => p.slice())
+    const segs = fechado ? n : n - 1
+    const out = [pts[0].slice()]
+    let resto = passo
+    for (let i = 0; i < segs; i += 1) {
+      const a = pts[i]
+      const b = pts[(i + 1) % n]
+      const l = dist(a, b)
+      let pos = 0
+      while (l - pos >= resto) {
+        pos += resto
+        out.push(lerpP(a, b, pos / l))
+        resto = passo
+      }
+      resto -= l - pos
+    }
+    if (fechado) {
+      if (out.length > 2 && dist(out[out.length - 1], out[0]) < passo * 0.4) out.pop()
+    } else {
+      const ult = pts[n - 1]
+      if (dist(out[out.length - 1], ult) > passo * 0.35) out.push(ult.slice())
+      else out[out.length - 1] = ult.slice()
+    }
+    return out
+  }
+  function maisPerto(px, py, ax, ay, bx, by) {
+    const dx = bx - ax
+    const dy = by - ay
+    const l2 = dx * dx + dy * dy || 1
+    const u = limitar(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1)
+    const x = ax + dx * u
+    const y = ay + dy * u
+    return { u, x, y, d: Math.hypot(px - x, py - y) }
+  }
+  function distAoTraco(p, pts) {
+    let m = Infinity
+    for (let i = 0; i < pts.length - 1; i += 1) m = Math.min(m, maisPerto(p[0], p[1], pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]).d)
+    return m
+  }
+  function dentroDoPoligono(x, y, pol) {
+    let dentro = false
+    for (let i = 0, j = pol.length - 1; i < pol.length; j = i, i += 1) {
+      const [xi, yi] = pol[i]
+      const [xj, yj] = pol[j]
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro
+    }
+    return dentro
+  }
+  function anel(path, pts) {
+    path.moveTo(pts[0][0], pts[0][1])
+    for (let i = 1; i < pts.length; i += 1) path.lineTo(pts[i][0], pts[i][1])
+    path.closePath()
+  }
+  function traco(pts, fechado) {
+    const p = new Path2D()
+    p.moveTo(pts[0][0], pts[0][1])
+    for (let i = 1; i < pts.length; i += 1) p.lineTo(pts[i][0], pts[i][1])
+    if (fechado) p.closePath()
+    return p
+  }
+  function hash(a, b, c) {
+    let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1274126177)
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    h ^= h >>> 16
+    return (h >>> 0) / 4294967296
+  }
+
+  /**
+   * Completa um barranco a partir da beira de cima (`lip`): comprimento, normal de cada trecho
+   * (para o lado BAIXO) e a normal de cada ponto em esquadro (a quina reta continua reta).
+   */
+  function completarGeo(geo) {
+    const { lip, fechado } = geo
+    const n = lip.length
+    const s = new Float64Array(n)
+    let acc = 0
+    for (let i = 1; i < n; i += 1) {
+      acc += dist(lip[i - 1], lip[i])
+      s[i] = acc
+    }
+    const len = fechado ? acc + dist(lip[n - 1], lip[0]) : acc
+    const nSeg = fechado ? n : n - 1
+    const sn = []
+    for (let i = 0; i < nSeg; i += 1) {
+      const a = lip[i]
+      const b = lip[(i + 1) % n]
+      const tx = b[0] - a[0]
+      const ty = b[1] - a[1]
+      const l = Math.hypot(tx, ty) || 1
+      sn.push([(-ty / l) * geo.sinal, (tx / l) * geo.sinal])
+    }
+    const un = []
+    const vn = []
+    for (let i = 0; i < n; i += 1) {
+      const n1 = fechado ? sn[(i - 1 + n) % n] : sn[Math.max(0, i - 1)]
+      const n2 = fechado ? sn[i % nSeg] : sn[Math.min(nSeg - 1, i)]
+      let mx = n1[0] + n2[0]
+      let my = n1[1] + n2[1]
+      const ml = Math.hypot(mx, my)
+      if (ml < 1e-6) {
+        mx = n2[0]
+        my = n2[1]
+      } else {
+        mx /= ml
+        my /= ml
+      }
+      const c = Math.max(0.5, mx * n1[0] + my * n1[1])
+      un.push([mx, my])
+      vn.push([mx / c, my / c])
+    }
+    Object.assign(geo, { s, len, nSeg, sn, un, vn, vaos: [] })
+    return geo
+  }
+
+  /**
+   * Quanto da parede aparece, pela direção para onde ela olha: o mapa é visto de cima, um pouco
+   * do sul, como nos RPGs. A parede virada para o sul aparece inteira; a do norte e as dos lados
+   * ficam finas. É isso que faz o alto ler como alto, e não como um muro em volta.
+   */
+  const VISTA_MIN = 0.36
+  function fatorDaVista(un) {
+    return VISTA_MIN + (1 - VISTA_MIN) * Math.max(0, un[1])
+  }
+
+  /** O ponto da beira a `s` px do começo, com a normal e a altura dali. */
+  function pontoEm(geo, s) {
+    const { lip, fechado, len } = geo
+    const n = lip.length
+    let ss = fechado ? ((s % len) + len) % len : limitar(s, 0, len)
+    let i = 0
+    let lo = 0
+    let hi = n - 1
+    while (lo <= hi) {
+      const m = (lo + hi) >> 1
+      if (geo.s[m] <= ss) {
+        i = m
+        lo = m + 1
+      } else hi = m - 1
+    }
+    if (!fechado && i >= n - 1) i = n - 2
+    const j = (i + 1) % n
+    const s0 = geo.s[i]
+    const s1 = j === 0 ? len : geo.s[j]
+    const u = s1 > s0 ? (ss - s0) / (s1 - s0) : 0
+    const a = lip[i]
+    const b = lip[j]
+    const ux = geo.un[i][0] + (geo.un[j][0] - geo.un[i][0]) * u
+    const uy = geo.un[i][1] + (geo.un[j][1] - geo.un[i][1]) * u
+    const ul = Math.hypot(ux, uy) || 1
+    return {
+      x: a[0] + (b[0] - a[0]) * u,
+      y: a[1] + (b[1] - a[1]) * u,
+      ux: ux / ul,
+      uy: uy / ul,
+      t: geo.t[i] + (geo.t[j] - geo.t[i]) * u,
+    }
+  }
+
+  /** O ponto da beira mais perto de `p`. */
+  function pertoDoGeo(geo, p) {
+    let melhor = { d: Infinity, s: 0, x: 0, y: 0, i: 0 }
+    const { lip, nSeg } = geo
+    const n = lip.length
+    for (let i = 0; i < nSeg; i += 1) {
+      const a = lip[i]
+      const b = lip[(i + 1) % n]
+      const r = maisPerto(p[0], p[1], a[0], a[1], b[0], b[1])
+      if (r.d < melhor.d) {
+        const s1 = (i + 1) % n === 0 ? geo.len : geo.s[i + 1]
+        melhor = { d: r.d, s: geo.s[i] + (s1 - geo.s[i]) * r.u, x: r.x, y: r.y, i }
+      }
+    }
+    return melhor
+  }
+
+  /** O trecho `i` cai inteiro dentro de uma rampa? (Inteiro: a rampa cobre a emenda e não sobra fresta.) */
+  function trechoNaRampa(geo, i) {
+    if (!geo.vaos.length) return false
+    const s0 = geo.s[i]
+    const s1 = (i + 1) % geo.lip.length === 0 ? geo.len : geo.s[i + 1]
+    for (const v of geo.vaos) {
+      const ini = v.s - v.w / 2
+      if (geo.fechado) {
+        const a = (((s0 - ini) % geo.len) + geo.len) % geo.len
+        if (a + (s1 - s0) <= v.w) return true
+      } else if (s0 >= ini && s1 <= ini + v.w) return true
+    }
+    return false
+  }
+
+  /** Corridas contínuas de trechos que não são rampa (para sombra, contorno e beira). */
+  function corridas(geo, pula) {
+    const { nSeg, fechado, lip } = geo
+    const n = lip.length
+    const lista = []
+    let atual = null
+    if (fechado) {
+      let ini = -1
+      for (let i = 0; i < nSeg; i += 1) {
+        if (pula(i)) {
+          ini = i
+          break
+        }
+      }
+      if (ini < 0) return [{ idx: Array.from({ length: n }, (_, i) => i), fechada: true }]
+      for (let k = 1; k <= nSeg; k += 1) {
+        const i = (ini + k) % nSeg
+        if (pula(i)) {
+          if (atual) lista.push({ idx: atual, fechada: false })
+          atual = null
+        } else {
+          if (!atual) atual = [i]
+          atual.push((i + 1) % n)
+        }
+      }
+    } else {
+      for (let i = 0; i < nSeg; i += 1) {
+        if (pula(i)) {
+          if (atual) lista.push({ idx: atual, fechada: false })
+          atual = null
+        } else {
+          if (!atual) atual = [i]
+          atual.push(i + 1)
+        }
+      }
+    }
+    if (atual) lista.push({ idx: atual, fechada: false })
+    return lista
+  }
+
+  /** A faixa entre duas distâncias da beira (para o lado baixo), como caminho para pintar com evenodd. */
+  function faixa(geo, corrida, de, ate) {
+    const p = new Path2D()
+    const { lip, vn } = geo
+    const pt = (i, d) => [lip[i][0] + vn[i][0] * d, lip[i][1] + vn[i][1] * d]
+    const a = corrida.idx.map((i) => pt(i, de(i)))
+    const b = corrida.idx.map((i) => pt(i, ate(i)))
+    if (corrida.fechada) {
+      anel(p, a)
+      anel(p, b)
+    } else anel(p, a.concat(b.reverse()))
+    return p
+  }
+
+  // ---------------------------------------------------------------- risco
+
+  /** Os 4 vizinhos de grade, de `a` até `b` (vértices da grade), sem diagonal. */
+  function passosNaGrade(a, b) {
+    const out = []
+    let [x, y] = a
+    const dx = Math.abs(b[0] - x)
+    const dy = Math.abs(b[1] - y)
+    const sx = Math.sign(b[0] - x)
+    const sy = Math.sign(b[1] - y)
+    let ix = 0
+    let iy = 0
+    while (ix < dx || iy < dy) {
+      if (iy >= dy || (ix < dx && (ix + 0.5) / dx < (iy + 0.5) / dy)) {
+        x += sx
+        ix += 1
+      } else {
+        y += sy
+        iy += 1
+      }
+      out.push([x, y])
+    }
+    return out
+  }
+
+  /** "Na grade": o risco anda pelas linhas da grade, em escada na diagonal. */
+  function escadaNaGrade(pts) {
+    const v = []
+    const empurrar = (q) => {
+      const k = v.length
+      if (k && v[k - 1][0] === q[0] && v[k - 1][1] === q[1]) return
+      if (k > 1 && v[k - 2][0] === q[0] && v[k - 2][1] === q[1]) {
+        v.pop()
+        return
+      }
+      v.push(q)
+    }
+    for (const p of pts) {
+      const q = [Math.round(p[0] / CEL), Math.round(p[1] / CEL)]
+      if (!v.length) {
+        empurrar(q)
+        continue
+      }
+      for (const passo of passosNaGrade(v[v.length - 1], q)) empurrar(passo)
+    }
+    return v.map(([x, y]) => [x * CEL, y * CEL])
+  }
+
+  function geoDoRisco(r) {
+    let lip
+    if (estado.borda === 'grade') lip = escadaNaGrade(r.pts)
+    else lip = reamostrar(chaikin(reamostrar(r.pts, 10, false), 2, false), 5, false)
+    if (lip.length < 2) return null
+    const m = r.mostra
+    const geo = completarGeo({ tipo: 'risco', ref: r, fechado: false, lip, sinal: m >= 0 ? 1 : -1, semente: r.id * 7 })
+    if (geo.len < 8) return null
+    const t0 = ALTURA_PX[r.altura] * Math.abs(m)
+    // as pontas afinam até sumir: o barranco morre no chão, e é por ali que a ficha passa
+    const rolo = Math.min(44, geo.len * 0.3)
+    geo.t = Array.from(geo.s, (s, i) => t0 * suave(Math.min(s, geo.len - s) / rolo) * fatorDaVista(geo.un[i]))
+    return geo
+  }
+
+  /** O lado alto começa para cima (norte): a parede cai para o sul. Na vertical, cai para o leste. */
+  function ladoInicial(pts) {
+    let nx = 0
+    let ny = 0
+    for (let i = 1; i < pts.length; i += 1) {
+      const tx = pts[i][0] - pts[i - 1][0]
+      const ty = pts[i][1] - pts[i - 1][1]
+      nx += -ty
+      ny += tx
+    }
+    const l = Math.hypot(nx, ny) || 1
+    if (Math.abs(ny / l) > 0.2) return ny > 0 ? 1 : -1
+    return nx > 0 ? 1 : -1
+  }
+
+  // ---------------------------------------------------------------- área
+
+  /** As beiras da região `nivel >= k`, por aresta de quadrado, encadeadas em laços (o de dentro do buraco também). */
+  function lacosDoNivel(k, nivelEm, alturaEm) {
+    const dentro = (x, y) => x >= 0 && y >= 0 && x < COLS && y < LINS && nivelEm(y * COLS + x) >= k
+    const arestas = []
+    for (let y = 0; y < LINS; y += 1) {
+      for (let x = 0; x < COLS; x += 1) {
+        if (!dentro(x, y)) continue
+        const t = ALTURA_PX[ALTURAS[alturaEm(y * COLS + x, k)]]
+        if (!dentro(x, y - 1)) arestas.push({ a: [x + 1, y], b: [x, y], t })
+        if (!dentro(x, y + 1)) arestas.push({ a: [x, y + 1], b: [x + 1, y + 1], t })
+        if (!dentro(x - 1, y)) arestas.push({ a: [x, y], b: [x, y + 1], t })
+        if (!dentro(x + 1, y)) arestas.push({ a: [x + 1, y + 1], b: [x + 1, y], t })
+      }
+    }
+    const porInicio = new Map()
+    arestas.forEach((e, i) => {
+      const chave = e.a[0] + ',' + e.a[1]
+      if (!porInicio.has(chave)) porInicio.set(chave, [])
+      porInicio.get(chave).push(i)
+    })
+    const usada = new Uint8Array(arestas.length)
+    const curva = (dx, dy, e) => dx * (e.b[1] - e.a[1]) - dy * (e.b[0] - e.a[0])
+    const lacos = []
+    for (let i0 = 0; i0 < arestas.length; i0 += 1) {
+      if (usada[i0]) continue
+      const laco = []
+      let i = i0
+      for (;;) {
+        usada[i] = 1
+        const e = arestas[i]
+        laco.push(e)
+        const cands = (porInicio.get(e.b[0] + ',' + e.b[1]) || []).filter((j) => !usada[j])
+        if (!cands.length) break
+        // no cruzamento em diagonal, vira para dentro: quadrados só de quina ficam em laços separados
+        const dx = e.b[0] - e.a[0]
+        const dy = e.b[1] - e.a[1]
+        cands.sort((p, q) => curva(dx, dy, arestas[p]) - curva(dx, dy, arestas[q]))
+        i = cands[0]
+      }
+      if (laco.length >= 4) lacos.push(laco)
+    }
+    return lacos
+  }
+
+  function geoDoLaco(laco, k, borda) {
+    let lip
+    if (borda === 'grade') {
+      lip = laco.map((e, i) => {
+        const ant = laco[(i - 1 + laco.length) % laco.length]
+        return [e.a[0] * CEL, e.a[1] * CEL, (e.t + ant.t) / 2]
+      })
+    } else {
+      // os meios das arestas viram curva: a escada da diagonal some e a quina arredonda meio quadrado
+      const meios = laco.map((e) => [((e.a[0] + e.b[0]) / 2) * CEL, ((e.a[1] + e.b[1]) / 2) * CEL, e.t])
+      lip = chaikin(meios, 3, true)
+    }
+    const geo = completarGeo({ tipo: 'area', nivel: k, fechado: true, lip, sinal: 1, semente: k * 31 + laco.length })
+    geo.t = lip.map((p, i) => p[2] * fatorDaVista(geo.un[i]))
+    return geo
+  }
+
+  // ================================================================ cena
+
+  /** Praça (nível 1, Médio) e terraço dentro dela (nível 2, Baixo), em quadrados. */
+  function celulasDaCena() {
+    const nivel = new Uint8Array(COLS * LINS)
+    const alturas = new Uint8Array(COLS * LINS * 4)
+    const subir = (x0, y0, x1, y1, k, altura, fora = []) => {
+      for (let y = y0; y <= y1; y += 1) {
+        for (let x = x0; x <= x1; x += 1) {
+          if (fora.some(([a, b]) => a === x && b === y)) continue
+          const i = y * COLS + x
+          nivel[i] = Math.max(nivel[i], k)
+          alturas[i * 4 + k] = ALTURAS.indexOf(altura)
+        }
+      }
+    }
+    subir(4, 2, 17, 10, 1, 'medio', [[4, 2], [5, 2], [4, 3], [16, 2], [17, 2], [17, 3], [4, 10], [16, 10], [17, 10], [17, 9]])
+    subir(6, 4, 9, 6, 2, 'baixo')
+    return { nivel, alturas }
+  }
+
+  function cenaInicial() {
+    const { nivel, alturas } = celulasDaCena()
+    return {
+      nivel,
+      alturas,
+      riscos: [
+        { id: 1, nome: 'barranco do rio', altura: 'alto', lado: 1, pts: chaikin([[-14, 492], [120, 498], [260, 488], [420, 496], [560, 506], [598, 510]], 4, false) },
+        { id: 2, nome: 'morro', altura: 'medio', lado: 1, pts: chaikin([[612, -14], [650, 46], [730, 86], [840, 100], [940, 86], [1042, 70]], 4, false) },
+      ],
+      rampas: [{ x: 336, y: 360 }, { x: 256, y: 229 }],
+      proximoId: 3,
+    }
+  }
+
+  // O chão fixo da vila (pintado uma vez por estilo). A praça de pedra sai da própria área da cena, um pouco para dentro.
+  const CENA_CEL = celulasDaCena()
+  function poligonoDaCena(k, recuo, borda) {
+    const laco = lacosDoNivel(k, (i) => CENA_CEL.nivel[i], (i, kk) => CENA_CEL.alturas[i * 4 + kk])[0]
+    const geo = geoDoLaco(laco, k, borda)
+    return geo.lip.map((p, i) => [p[0] - geo.vn[i][0] * recuo, p[1] - geo.vn[i][1] * recuo])
+  }
+  // a pedra segue a borda escolhida: curva no Livre, em escada Na grade
+  const CHAO_DA_CENA = {
+    livre: { praca: poligonoDaCena(1, 3, 'livre'), terraco: poligonoDaCena(2, 3, 'livre'), memo: new Map() },
+    grade: { praca: poligonoDaCena(1, 3, 'grade'), terraco: poligonoDaCena(2, 3, 'grade'), memo: new Map() },
+  }
+  const chaoDaCena = () => CHAO_DA_CENA[estado.borda]
+
+  const ESTRADAS = [
+    { pts: chaikin([[-30, 420], [300, 413], [640, 420], [1060, 412]], 3, false), w: 50 },
+    { pts: [[336, 330], [336, 410]], w: 34 },
+    { pts: [[708, 294], [708, 410]], w: 24 },
+    { pts: [[900, 298], [900, 410]], w: 24 },
+    { pts: [[58, 300], [58, 410]], w: 22 },
+    { pts: chaikin([[640, 430], [652, 488], [630, 556]], 3, false), w: 26 },
+  ]
+  const AGUA = chaikin(
+    [[-20, 568], [120, 562], [260, 570], [420, 563], [560, 566], [660, 552], [760, 542], [880, 548], [1044, 538], [1044, 660], [-20, 660]],
+    3,
+    true,
+  )
+  const MANCHAS = [
+    [120, 80, 160, 'realce', 0.35], [520, 300, 220, 'realce', 0.2], [860, 160, 200, 'sombra', 0.28],
+    [300, 520, 180, 'sombra', 0.22], [980, 420, 170, 'realce', 0.25], [60, 360, 140, 'sombra', 0.24],
+    [700, 470, 160, 'realce', 0.22],
+  ]
+  const CASAS = [
+    { ret: [392, 96, 536, 208], telha: 'telhaAzul', porta: 464 },
+    { ret: [640, 176, 776, 296], telha: 'telhaTerracota', porta: 708 },
+    { ret: [832, 196, 968, 298], telha: 'telhaVerde', porta: 900 },
+    { ret: [14, 196, 102, 296], telha: 'telhaNeutra', porta: 58 },
+  ]
+  const ARVORES = [
+    { x: 256, y: 176, r: 28 }, { x: 720, y: 30, r: 22 }, { x: 850, y: 42, r: 24 }, { x: 978, y: 28, r: 22 },
+    { x: 46, y: 128, r: 22 }, { x: 800, y: 500, r: 22 }, { x: 950, y: 488, r: 22 },
+  ].map((a, i) => ({ ...a, semente: i * 1.7 + 0.4 }))
+  const POCO = { x: 420, y: 284, r: 15 }
+
+  /** O chão no alto da beira: grama, terra de caminho ou pedra da praça (guardado de 2 em 2 px). */
+  function chaoEm(x, y) {
+    const cena = chaoDaCena()
+    const chave = Math.round(x / 2) * 8192 + Math.round(y / 2)
+    let mat = cena.memo.get(chave)
+    if (mat) return mat
+    mat = 'grama'
+    if (dentroDoPoligono(x, y, cena.praca) && !dentroDoPoligono(x, y, cena.terraco)) mat = 'praca'
+    else if (ESTRADAS.some((e) => distAoTraco([x, y], e.pts) < e.w / 2)) mat = 'terra'
+    cena.memo.set(chave, mat)
+    return mat
+  }
+
+  // ================================================================ estado
+
+  const estado = {
+    estilo: 'atual',
+    grade: true,
+    borda: 'livre',
+    rampaTipo: 'vao',
+    niveisMax: 2,
+    visao: 've',
+    ferramenta: 'risco',
+    altura: 'medio',
+    areaModo: 'subir',
+    pincel: 'medio',
+    // abre com o barranco do rio escolhido: a alça Virar já aparece no mapa
+    selecionado: 1,
+    ficha: { ...FICHA_INICIO },
+    ...cenaInicial(),
+  }
+  for (const r of estado.riscos) r.mostra = r.lado
+
+  let geos = []
+  let colisao = { segs: [] }
+  const pilha = []
+  const refeitos = []
+
+  function nivelEfetivo(i) {
+    return Math.min(estado.nivel[i], estado.niveisMax)
+  }
+  function nivelNoPonto(x, y) {
+    const cx = limitar(Math.floor(x / CEL), 0, COLS - 1)
+    const cy = limitar(Math.floor(y / CEL), 0, LINS - 1)
+    return nivelEfetivo(cy * COLS + cx)
+  }
+
+  /** Refaz todos os barrancos (áreas e riscos), as rampas e a colisão. */
+  function construir() {
+    const lista = []
+    for (let k = 1; k <= estado.niveisMax; k += 1) {
+      for (const laco of lacosDoNivel(k, nivelEfetivo, (i, kk) => estado.alturas[i * 4 + kk])) lista.push(geoDoLaco(laco, k, estado.borda))
+    }
+    for (const r of estado.riscos) {
+      const g = geoDoRisco(r)
+      if (g) lista.push(g)
+    }
+    geos = lista
+    // cada rampa vai para o barranco mais perto dela
+    for (const rampa of estado.rampas) {
+      let melhor = null
+      for (const g of geos) {
+        const p = pertoDoGeo(g, [rampa.x, rampa.y])
+        const alcance = Math.max(8, pontoEm(g, p.s).t) + 14
+        if (p.d <= alcance && (!melhor || p.d < melhor.d)) melhor = { g, s: p.s, d: p.d }
+      }
+      if (melhor) melhor.g.vaos.push({ s: melhor.s, w: RAMPA_LARGURA, ref: rampa })
+    }
+    montarColisao()
+    cacheSujo = true
+    posicionarAlcas()
+    pedirQuadro()
+  }
+
+  // ================================================================ colisão da ficha
+
+  /**
+   * Cada trecho de barranco vira uma cápsula no meio da parede, com meia espessura mais o raio da
+   * ficha: do lado baixo a ficha para no pé, do lado alto para na beira. Rampa não tem cápsula. As
+   * pontas do risco afinam, mas a linha segura até o fim: a ficha passa por fora da ponta.
+   */
+  function montarColisao() {
+    const segs = []
+    for (const g of geos) {
+      const n = g.lip.length
+      for (let i = 0; i < g.nSeg; i += 1) {
+        if (trechoNaRampa(g, i)) continue
+        const j = (i + 1) % n
+        const a = g.lip[i]
+        const b = g.lip[j]
+        const ta = g.t[i]
+        const tb = g.t[j]
+        const ax = a[0] + g.vn[i][0] * ta * 0.5
+        const ay = a[1] + g.vn[i][1] * ta * 0.5
+        const bx = b[0] + g.vn[j][0] * tb * 0.5
+        const by = b[1] + g.vn[j][1] * tb * 0.5
+        const ra = RAIO_FICHA + ta * 0.5
+        const rb = RAIO_FICHA + tb * 0.5
+        const m = Math.max(ra, rb)
+        segs.push({ ax, ay, bx, by, ra, rb, x0: Math.min(ax, bx) - m, x1: Math.max(ax, bx) + m, y0: Math.min(ay, by) - m, y1: Math.max(ay, by) + m, g, i })
+      }
+    }
+    colisao = { segs }
+  }
+
+  /**
+   * Empurra a ficha para fora de barranco, casa e poço. Devolve o trecho de barranco que segurou, se
+   * houve. A cada volta sai só do trecho mais fundo: empurrar um trecho atrás do outro puxava a ficha
+   * de lado ao longo de uma parede reta.
+   */
+  function resolver(p) {
+    let bateu = null
+    for (let volta = 0; volta < 6; volta += 1) {
+      let mexeu = false
+      let fundo = null
+      for (const s of colisao.segs) {
+        if (p.x < s.x0 || p.x > s.x1 || p.y < s.y0 || p.y > s.y1) continue
+        const c = maisPerto(p.x, p.y, s.ax, s.ay, s.bx, s.by)
+        const raio = s.ra + (s.rb - s.ra) * c.u
+        if (c.d < raio && (!fundo || raio - c.d > fundo.entra)) fundo = { s, c, raio, entra: raio - c.d }
+      }
+      if (fundo) {
+        const { s, c, raio } = fundo
+        if (c.d < 1e-6) {
+          const nn = s.g.un[s.i]
+          p.x = c.x - nn[0] * raio
+          p.y = c.y - nn[1] * raio
+        } else {
+          p.x = c.x + ((p.x - c.x) / c.d) * raio
+          p.y = c.y + ((p.y - c.y) / c.d) * raio
+        }
+        bateu = s
+        mexeu = true
+      }
+      for (const casa of CASAS) {
+        const [x0, y0, x1, y1] = casa.ret
+        const cx = limitar(p.x, x0, x1)
+        const cy = limitar(p.y, y0, y1)
+        const d = Math.hypot(p.x - cx, p.y - cy)
+        if (d < RAIO_FICHA) {
+          if (d < 1e-6) {
+            const fuga = [[p.x - x0, -1, 0], [x1 - p.x, 1, 0], [p.y - y0, 0, -1], [y1 - p.y, 0, 1]].sort((a, b) => a[0] - b[0])[0]
+            p.x += fuga[1] * (fuga[0] + RAIO_FICHA)
+            p.y += fuga[2] * (fuga[0] + RAIO_FICHA)
+          } else {
+            p.x = cx + ((p.x - cx) / d) * RAIO_FICHA
+            p.y = cy + ((p.y - cy) / d) * RAIO_FICHA
+          }
+          mexeu = true
+        }
+      }
+      const dp = Math.hypot(p.x - POCO.x, p.y - POCO.y)
+      const rp = POCO.r + RAIO_FICHA
+      if (dp < rp && dp > 1e-6) {
+        p.x = POCO.x + ((p.x - POCO.x) / dp) * rp
+        p.y = POCO.y + ((p.y - POCO.y) / dp) * rp
+        mexeu = true
+      }
+      p.x = limitar(p.x, RAIO_FICHA, MW - RAIO_FICHA)
+      p.y = limitar(p.y, RAIO_FICHA, MH - RAIO_FICHA)
+      if (!mexeu) break
+    }
+    return bateu
+  }
+
+  /** Anda a ficha até o alvo em passos de 3 px: contra o barranco ela escorrega pela parede. */
+  function andar(alvo) {
+    const f = estado.ficha
+    const dx = alvo[0] - f.x
+    const dy = alvo[1] - f.y
+    const n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 3))
+    let bateu = null
+    for (let i = 0; i < n; i += 1) {
+      f.x += dx / n
+      f.y += dy / n
+      const b = resolver(f)
+      if (b) bateu = b
+    }
+    return bateu
+  }
+
+  // ================================================================ desenho
+
+  const canvas = document.getElementById('mapa')
+  const ctx = canvas.getContext('2d')
+  const moldura = canvas.parentElement
+  const novaTela = () => document.createElement('canvas')
+  const camadaChao = novaTela()
+  const camadaObjetos = novaTela()
+  const camadaMapa = novaTela()
+  const sombraA = novaTela()
+  const sombraB = novaTela()
+  let W = 0
+  let H = 0
+  let K = 1
+  let DPR = 1
+  let larguraCss = 0
+  let chaoSujo = true
+  let objetosSujos = true
+  let cacheSujo = true
+  let quadroPedido = false
+
+  function medir() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const lw = canvas.clientWidth
+    if (!lw || (lw === larguraCss && dpr === DPR)) return
+    larguraCss = lw
+    DPR = dpr
+    W = Math.round(lw * dpr)
+    H = Math.round((lw * MH * dpr) / MW)
+    K = W / MW
+    for (const c of [canvas, camadaChao, camadaObjetos, camadaMapa]) {
+      c.width = W
+      c.height = H
+    }
+    sombraA.width = sombraB.width = Math.ceil(W / 2)
+    sombraA.height = sombraB.height = Math.ceil(H / 2)
+    chaoSujo = objetosSujos = cacheSujo = true
+    posicionarAlcas()
+    pedirQuadro()
+  }
+
+  /** px de tela (CSS) em px do mundo: para linhas de interface que ficam com a mesma espessura em qualquer tamanho. */
+  const px = (n) => (n * DPR) / K
+
+  function emMundo(c) {
+    c.setTransform(K, 0, 0, K, 0, 0)
+  }
+
+  // ---------------------------------------------------------------- chão
+
+  function pintarChao() {
+    const c = camadaChao.getContext('2d')
+    const est = estado.estilo
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.clearRect(0, 0, W, H)
+    emMundo(c)
+    const g = tons(est, 'grama')
+    c.fillStyle = g.base
+    c.fillRect(-20, -20, MW + 40, MH + 40)
+    // variação larga e mansa: o chão não repete, sem pintinha nenhuma
+    for (const [x, y, r, tom, a] of MANCHAS) {
+      const grd = c.createRadialGradient(x, y, 0, x, y, r)
+      grd.addColorStop(0, tinta(g[tom], a))
+      grd.addColorStop(1, tinta(g[tom], 0))
+      c.fillStyle = grd
+      c.fillRect(x - r, y - r, 2 * r, 2 * r)
+    }
+    // caminhos de terra
+    const te = tons(est, 'terra')
+    c.lineCap = 'round'
+    c.lineJoin = 'round'
+    for (const e of ESTRADAS) {
+      const p = traco(e.pts, false)
+      c.strokeStyle = te.sombra
+      c.lineWidth = e.w + 4
+      c.stroke(p)
+      c.strokeStyle = te.base
+      c.lineWidth = e.w
+      c.stroke(p)
+      c.strokeStyle = tinta(te.realce, 0.55)
+      c.lineWidth = e.w * 0.42
+      c.stroke(p)
+    }
+    // a pedra da praça e a grama do terraço
+    const tp = tons(est, 'praca')
+    const cena = chaoDaCena()
+    const praca = traco(cena.praca, true)
+    c.fillStyle = tp.base
+    c.fill(praca)
+    c.strokeStyle = tp.sombra
+    c.lineWidth = 2.5
+    c.stroke(praca)
+    const terraco = traco(cena.terraco, true)
+    c.fillStyle = g.base
+    c.fill(terraco)
+    c.strokeStyle = g.sombra
+    c.lineWidth = 2
+    c.stroke(terraco)
+    // o rio: areia molhada na beira, a água e uma linha de luz
+    const ta = tons(est, 'agua')
+    const agua = traco(AGUA, true)
+    c.strokeStyle = te.realce
+    c.lineWidth = 9
+    c.stroke(agua)
+    c.fillStyle = ta.base
+    c.fill(agua)
+    c.save()
+    c.clip(agua)
+    c.strokeStyle = tinta(ta.realce, 0.9)
+    c.lineWidth = 3
+    c.stroke(agua)
+    c.restore()
+  }
+
+  // ---------------------------------------------------------------- casas, árvores e poço
+
+  function pintarCasa(c, casa, est) {
+    const [x0, y0, x1, y1] = casa.ret
+    const t = tons(est, casa.telha)
+    const sombraChao = tons(est, 'ardosia').contorno
+    c.save()
+    c.shadowColor = tinta(sombraChao, 0.36)
+    c.shadowBlur = 7 * K
+    c.shadowOffsetX = 6 * K
+    c.shadowOffsetY = 8 * K
+    c.fillStyle = t.base
+    c.fillRect(x0, y0, x1 - x0, y1 - y0)
+    c.restore()
+    const w = x1 - x0
+    const h = y1 - y0
+    const cx = (x0 + x1) / 2
+    const cy = (y0 + y1) / 2
+    let aguas
+    if (w >= h) {
+      const r1 = [x0 + h / 2, cy]
+      const r2 = [x1 - h / 2, cy]
+      aguas = [
+        [[[x0, y0], [x1, y0], r2, r1], misturar(t.base, t.realce, 0.5)],
+        [[[x0, y1], r1, r2, [x1, y1]], misturar(t.base, t.sombra, 0.75)],
+        [[[x0, y0], r1, [x0, y1]], t.realce],
+        [[[x1, y0], [x1, y1], r2], t.sombra],
+      ]
+    } else {
+      const r1 = [cx, y0 + w / 2]
+      const r2 = [cx, y1 - w / 2]
+      aguas = [
+        [[[x0, y0], r1, r2, [x0, y1]], t.realce],
+        [[[x1, y0], [x1, y1], r2, r1], t.sombra],
+        [[[x0, y0], [x1, y0], r1], misturar(t.base, t.realce, 0.5)],
+        [[[x0, y1], r2, [x1, y1]], misturar(t.base, t.sombra, 0.75)],
+      ]
+    }
+    for (const [pts, cor] of aguas) {
+      c.fillStyle = cor
+      c.fill(traco(pts, true))
+    }
+    c.strokeStyle = misturar(t.sombra, t.contorno, 0.45)
+    c.lineWidth = 1
+    for (const [pts] of aguas) c.stroke(traco(pts, true))
+    c.strokeStyle = t.contorno
+    c.lineWidth = est === 'desenhado' ? 2 : 1.4
+    c.strokeRect(x0, y0, w, h)
+    // porta e degrau no beiral de baixo
+    const tm = tons(est, 'madeira')
+    const tpd = tons(est, 'pedra')
+    c.fillStyle = tpd.base
+    c.strokeStyle = tpd.contorno
+    c.lineWidth = 1.2
+    c.beginPath()
+    c.roundRect(casa.porta - 14, y1 + 6, 28, 7, 2)
+    c.fill()
+    c.stroke()
+    c.fillStyle = tm.base
+    c.strokeStyle = tm.contorno
+    c.beginPath()
+    c.rect(casa.porta - 11, y1 - 3, 22, 9)
+    c.fill()
+    c.stroke()
+  }
+
+  function copa(cx, cy, r, semente) {
+    const p = new Path2D()
+    const N = 48
+    for (let i = 0; i <= N; i += 1) {
+      const a = (i / N) * Math.PI * 2
+      const rr = r * (1 + 0.045 * Math.sin(5 * a + semente) + 0.03 * Math.sin(3 * a + 2 * semente))
+      const x = cx + Math.cos(a) * rr
+      const y = cy + Math.sin(a) * rr
+      if (i) p.lineTo(x, y)
+      else p.moveTo(x, y)
+    }
+    p.closePath()
+    return p
+  }
+
+  function pintarArvore(c, a, est) {
+    const t = tons(est, 'folha')
+    c.fillStyle = tinta(tons(est, 'ardosia').contorno, 0.3)
+    c.beginPath()
+    c.ellipse(a.x + 6, a.y + 8, a.r * 0.95, a.r * 0.85, 0, 0, Math.PI * 2)
+    c.fill()
+    const forma = copa(a.x, a.y, a.r, a.semente)
+    c.fillStyle = t.sombra
+    c.fill(forma)
+    c.save()
+    c.clip(forma)
+    c.fillStyle = t.base
+    c.fill(copa(a.x - a.r * 0.12, a.y - a.r * 0.14, a.r * 0.92, a.semente))
+    c.fillStyle = tinta(t.realce, 0.95)
+    c.fill(copa(a.x - a.r * 0.3, a.y - a.r * 0.32, a.r * 0.46, a.semente + 1))
+    c.restore()
+    c.strokeStyle = t.contorno
+    c.lineWidth = est === 'desenhado' ? 2 : 1.4
+    c.stroke(forma)
+  }
+
+  function pintarPoco(c, est) {
+    const { x, y, r } = POCO
+    const tpd = tons(est, 'pedra')
+    const ta = tons(est, 'agua')
+    c.fillStyle = tinta(tons(est, 'ardosia').contorno, 0.3)
+    c.beginPath()
+    c.arc(x + 3, y + 4, r, 0, Math.PI * 2)
+    c.fill()
+    c.beginPath()
+    c.arc(x, y, r, 0, Math.PI * 2)
+    c.fillStyle = tpd.base
+    c.fill()
+    c.strokeStyle = tpd.contorno
+    c.lineWidth = est === 'desenhado' ? 2 : 1.4
+    c.stroke()
+    c.beginPath()
+    c.arc(x, y, r * 0.58, 0, Math.PI * 2)
+    c.fillStyle = ta.base
+    c.fill()
+    c.strokeStyle = tpd.sombra
+    c.lineWidth = 1.2
+    c.stroke()
+    c.beginPath()
+    c.arc(x, y, r * 0.58 - 2.5, Math.PI * 1.05, Math.PI * 1.45)
+    c.strokeStyle = tinta(ta.realce, 0.9)
+    c.lineWidth = 1.6
+    c.stroke()
+  }
+
+  function pintarObjetos() {
+    const c = camadaObjetos.getContext('2d')
+    const est = estado.estilo
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.clearRect(0, 0, W, H)
+    emMundo(c)
+    c.lineJoin = 'round'
+    pintarPoco(c, est)
+    for (const casa of CASAS) pintarCasa(c, casa, est)
+    for (const a of ARVORES) pintarArvore(c, a, est)
+    if (estado.grade) {
+      // a grade fica por cima do mapa e embaixo da ficha
+      c.strokeStyle = tinta(tons(est, 'grama').contorno, est === 'desenhado' ? 0.16 : 0.2)
+      c.lineWidth = px(1)
+      c.beginPath()
+      for (let x = CEL; x < MW; x += CEL) {
+        c.moveTo(x, 0)
+        c.lineTo(x, MH)
+      }
+      for (let y = CEL; y < MH; y += CEL) {
+        c.moveTo(0, y)
+        c.lineTo(MW, y)
+      }
+      c.stroke()
+    }
+  }
+
+  // ---------------------------------------------------------------- o barranco
+
+  /** As faixas de cor da parede, da beira (0) ao pé (1): r = realce, b = base, s = sombra. */
+  const PERFIL = {
+    // a do app (barranco.ts, PERFIL_DO_BARRANCO): transições largas, nenhuma vira listra
+    atual: [[0, 'r'], [0.08, 'r'], [0.42, 'b'], [0.5, 'b'], [0.95, 's'], [1, 's']],
+    // a do Mother: três faixas chapadas, liso, sem hachura
+    desenhado: [[0, 'r'], [0.26, 'r'], [0.3, 'b'], [0.7, 'b'], [0.74, 's'], [1, 's']],
+  }
+
+  const cacheFace = new Map()
+  /** As cores da parede conforme ela olha para a luz (f = 1) ou contra ela (f = -1). */
+  function coresDaFace(est, f) {
+    const q = Math.round(f * 12)
+    const chave = est + q
+    const pronta = cacheFace.get(chave)
+    if (pronta) return pronta
+    const t = tons(est, 'barranco')
+    const luz = tons(est, 'luz').base
+    const ff = q / 12
+    let r = t.realce
+    let b = t.base
+    let s = t.sombra
+    if (ff > 0) {
+      const a = ff * 0.42
+      r = misturar(r, luz, a * 0.55)
+      b = misturar(b, t.realce, a)
+      s = misturar(s, t.base, a * 0.8)
+    } else if (ff < 0) {
+      const a = -ff * 0.45
+      r = misturar(r, t.base, a)
+      b = misturar(b, t.sombra, a)
+      s = misturar(s, t.contorno, a * 0.6)
+    }
+    const cores = { r, b, s }
+    cacheFace.set(chave, cores)
+    return cores
+  }
+
+  /** O pé da parede; no Desenhado, uma beira de baixo em zigue-zague largo e desigual, calmo. */
+  function pesDoGeo(geo, est) {
+    return geo.lip.map((p, i) => {
+      let z = 0
+      if (est === 'desenhado') {
+        const s = geo.s[i]
+        // dente de 20 a 34 px, baixo: lê como traço à mão, não como serrilha
+        const fase = s / 26 + 0.55 * Math.sin(s / 57 + geo.semente)
+        const fr = fase - Math.floor(fase)
+        z = (1 - 4 * Math.abs(fr - 0.5)) * 1.2 * Math.min(1, geo.t[i] / 8)
+      }
+      const d = geo.t[i] + z
+      return [p[0] + geo.vn[i][0] * d, p[1] + geo.vn[i][1] * d]
+    })
+  }
+
+  /** A sombra que cai no lado baixo: o pé sempre, e mais longe quando a parede está de costas para a luz. */
+  function pintarSombraEm(c, geo, pula) {
+    for (const corrida of corridas(geo, pula)) {
+      c.fill(
+        faixa(
+          geo,
+          corrida,
+          (i) => geo.t[i] * 0.5,
+          (i) => {
+            const u = geo.un[i]
+            const deCostas = Math.max(0, -(u[0] * PARA_LUZ[0] + u[1] * PARA_LUZ[1]))
+            return geo.t[i] + 3 + geo.t[i] * 1.05 * deCostas
+          },
+        ),
+        'evenodd',
+      )
+    }
+  }
+
+  /** Junta as sombras de vários barrancos numa camada, borra em meia resolução e assenta no mapa. */
+  function assentarSombras(c, lista, est, preview) {
+    if (!lista.length) return
+    const cor = tons(est, 'ardosia').contorno
+    const alfa = est === 'desenhado' ? 0.26 : 0.3
+    if (preview) {
+      c.save()
+      c.fillStyle = tinta(cor, alfa * 0.8)
+      for (const g of lista) pintarSombraEm(c, g, (i) => trechoNaRampa(g, i))
+      c.restore()
+      return
+    }
+    const a = sombraA.getContext('2d')
+    const b = sombraB.getContext('2d')
+    a.setTransform(1, 0, 0, 1, 0, 0)
+    a.clearRect(0, 0, sombraA.width, sombraA.height)
+    a.setTransform(K / 2, 0, 0, K / 2, 0, 0)
+    a.fillStyle = cor
+    for (const g of lista) pintarSombraEm(a, g, (i) => trechoNaRampa(g, i))
+    b.setTransform(1, 0, 0, 1, 0, 0)
+    b.clearRect(0, 0, sombraB.width, sombraB.height)
+    b.filter = `blur(${Math.max(1, (4.5 * K) / 2)}px)`
+    b.drawImage(sombraA, 0, 0)
+    b.filter = 'none'
+    c.save()
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.globalAlpha = alfa
+    c.drawImage(sombraB, 0, 0, W, H)
+    c.restore()
+  }
+
+  function pintarParede(c, geo, est, pes) {
+    const perfil = PERFIL[est]
+    const n = geo.lip.length
+    for (let i = 0; i < geo.nSeg; i += 1) {
+      if (trechoNaRampa(geo, i)) continue
+      const j = (i + 1) % n
+      const ta = geo.t[i]
+      const tb = geo.t[j]
+      if (ta < 0.4 && tb < 0.4) continue
+      const a = geo.lip[i]
+      const b = geo.lip[j]
+      const fa = pes[i]
+      const fb = pes[j]
+      const sn = geo.sn[i]
+      let tx = b[0] - a[0]
+      let ty = b[1] - a[1]
+      const tl = Math.hypot(tx, ty) || 1
+      // cada trecho passa 0,4 px do vizinho: sem fresta de antialias entre eles
+      tx = (tx / tl) * 0.4
+      ty = (ty / tl) * 0.4
+      const cores = coresDaFace(est, sn[0] * PARA_LUZ[0] + sn[1] * PARA_LUZ[1])
+      const mx = (a[0] + b[0]) / 2
+      const my = (a[1] + b[1]) / 2
+      const tm = Math.max(1, (ta + tb) / 2)
+      const g = c.createLinearGradient(mx, my, mx + sn[0] * tm, my + sn[1] * tm)
+      for (const [o, q] of perfil) g.addColorStop(o, cores[q])
+      c.fillStyle = g
+      c.beginPath()
+      c.moveTo(a[0] - tx, a[1] - ty)
+      c.lineTo(b[0] + tx, b[1] + ty)
+      c.lineTo(fb[0] + tx, fb[1] + ty)
+      c.lineTo(fa[0] - tx, fa[1] - ty)
+      c.closePath()
+      c.fill()
+    }
+    // o contorno no pé: o escuro da própria terra, nunca preto
+    const tb = tons(est, 'barranco')
+    c.strokeStyle = tb.contorno
+    c.lineWidth = est === 'desenhado' ? 2 : 1.2
+    c.lineJoin = 'round'
+    c.lineCap = 'round'
+    for (const corrida of corridas(geo, (i) => trechoNaRampa(geo, i))) {
+      const pts = corrida.idx.filter((i) => geo.t[i] > 0.6 || corrida.fechada).map((i) => pes[i])
+      if (pts.length > 1) c.stroke(traco(pts, corrida.fechada))
+    }
+  }
+
+  /** Separa uma corrida em pedaços de mesmo chão no alto (grama, terra ou pedra). */
+  function porChao(geo, corrida) {
+    const pedacos = []
+    let atual = null
+    for (const i of corrida.idx) {
+      const u = geo.un[i]
+      const mat = chaoEm(geo.lip[i][0] - u[0] * 6, geo.lip[i][1] - u[1] * 6)
+      if (!atual || atual.mat !== mat) {
+        if (atual) atual.idx.push(i)
+        atual = { mat, idx: [i], fechada: false }
+        pedacos.push(atual)
+      } else atual.idx.push(i)
+    }
+    if (pedacos.length === 1 && corrida.fechada) pedacos[0].fechada = true
+    return pedacos
+  }
+
+  /**
+   * A beira de cima. Atual: um fio de luz no alto da beira. Desenhado: a grama passa um pouco por
+   * cima da parede, numa onda só, mansa e desigual (sem tufo redondo repetido); na pedra, um meio-fio reto.
+   */
+  function pintarBeira(c, geo, est) {
+    const lista = corridas(geo, (i) => trechoNaRampa(geo, i))
+    for (const corrida of lista) {
+      for (const pedaco of porChao(geo, corrida)) {
+        if (pedaco.idx.length < 2) continue
+        const t = tons(est, pedaco.mat)
+        if (est === 'atual') {
+          const pts = pedaco.idx.map((i) => [geo.lip[i][0] - geo.un[i][0] * 0.9, geo.lip[i][1] - geo.un[i][1] * 0.9])
+          c.strokeStyle = t.realce
+          c.lineWidth = 1.7
+          c.stroke(traco(pts, pedaco.fechada))
+          continue
+        }
+        const pedra = pedaco.mat === 'praca'
+        const onda = (i) => {
+          if (pedra) return 2.2
+          const s = geo.s[i]
+          const w = 2.6 + 1.3 * Math.sin(s / 6.5 + 0.9 * Math.sin(s / 23 + geo.semente))
+          return w * Math.min(1, geo.t[i] / 6)
+        }
+        const forma = faixa(geo, pedaco, () => -1.4, onda)
+        c.fillStyle = t.sombra
+        c.fill(forma, 'evenodd')
+        c.fillStyle = t.base
+        c.fill(faixa(geo, pedaco, () => -1.4, (i) => onda(i) - 1.3), 'evenodd')
+        c.strokeStyle = t.contorno
+        c.lineWidth = 1.5
+        c.stroke(traco(pedaco.idx.map((i) => [geo.lip[i][0] + geo.vn[i][0] * onda(i), geo.lip[i][1] + geo.vn[i][1] * onda(i)]), pedaco.fechada))
+      }
+    }
+  }
+
+  /** A rampa sobre o barranco: vão de terra (a parede abre) ou escada de pedra (uma peça). */
+  function pintarRampa(c, geo, v, est, fantasma) {
+    const N = 12
+    const topo = []
+    const pe = []
+    let tMax = 4
+    let fx = 0
+    let fy = 0
+    for (let q = 0; q <= N; q += 1) {
+      const u = q / N
+      const P = pontoEm(geo, v.s - v.w / 2 + v.w * u)
+      const t = Math.max(P.t, 4)
+      tMax = Math.max(tMax, t)
+      const saia = 7 * Math.sin(Math.PI * u)
+      topo.push([P.x - P.ux * 1.5, P.y - P.uy * 1.5])
+      pe.push([P.x + P.ux * (t + saia), P.y + P.uy * (t + saia)])
+      fx += P.ux
+      fy += P.uy
+    }
+    const fl = Math.hypot(fx, fy) || 1
+    fx /= fl
+    fy /= fl
+    const forma = traco(topo.concat(pe.slice().reverse()), true)
+    const f = fx * PARA_LUZ[0] + fy * PARA_LUZ[1]
+    const meio = N / 2
+    const largo = est === 'desenhado' ? 1.8 : 1.2
+    c.save()
+    if (fantasma) c.globalAlpha = 0.72
+    if (estado.rampaTipo === 'vao') {
+      const te = tons(est, 'terra')
+      const g = c.createLinearGradient(topo[meio][0], topo[meio][1], pe[meio][0], pe[meio][1])
+      const claro = f > 0 ? misturar(te.realce, tons(est, 'luz').base, f * 0.25) : te.realce
+      g.addColorStop(0, claro)
+      g.addColorStop(0.55, te.base)
+      g.addColorStop(1, f < 0 ? misturar(te.base, te.sombra, -f * 0.6) : te.base)
+      c.fillStyle = g
+      c.fill(forma)
+      // as duas laterais do vão: a parede cortada, com o contorno dela
+      const tb = tons(est, 'barranco')
+      c.strokeStyle = tb.contorno
+      c.lineWidth = largo
+      c.lineCap = 'round'
+      c.beginPath()
+      c.moveTo(topo[0][0], topo[0][1])
+      c.lineTo(pe[0][0], pe[0][1])
+      c.moveTo(topo[N][0], topo[N][1])
+      c.lineTo(pe[N][0], pe[N][1])
+      c.stroke()
+    } else {
+      const tp = tons(est, 'pedra')
+      c.fillStyle = f >= 0 ? misturar(tp.base, tp.realce, f * 0.5) : misturar(tp.base, tp.sombra, -f * 0.5)
+      c.fill(forma)
+      const degraus = tMax >= 14 ? 3 : 2
+      c.lineCap = 'butt'
+      for (let d = 1; d < degraus; d += 1) {
+        const fr = d / degraus
+        const linha = (desvio) => topo.map((p, q) => lerpP(p, pe[q], fr + desvio))
+        c.strokeStyle = tp.sombra
+        c.lineWidth = 2.4
+        c.stroke(traco(linha(0.05), false))
+        c.strokeStyle = tp.realce
+        c.lineWidth = 1.3
+        c.stroke(traco(linha(-0.03), false))
+      }
+      c.strokeStyle = tp.contorno
+      c.lineWidth = largo
+      c.lineJoin = 'round'
+      c.stroke(forma)
+    }
+    c.restore()
+    if (fantasma) {
+      c.save()
+      c.strokeStyle = fantasma === 'tirar' ? UI.brasa : UI.latao
+      c.lineWidth = px(1.6)
+      c.setLineDash([px(5), px(4)])
+      c.stroke(forma)
+      c.restore()
+    }
+  }
+
+  /** O alto de uma área: o mesmo chão, um pouco mais claro a cada degrau (mais alto, mais luz). */
+  function pintarTopo(c, lista, k, est) {
+    const p = new Path2D()
+    for (const g of lista) anel(p, g.lip)
+    c.save()
+    c.clip(p, 'evenodd')
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.drawImage(camadaChao, 0, 0)
+    c.fillStyle = tinta(tons(est, 'luz').base, (est === 'desenhado' ? 0.06 : 0.07) * k)
+    c.fillRect(0, 0, W, H)
+    c.restore()
+  }
+
+  function pintarBarrancos(c, lista, est) {
+    for (const g of lista) {
+      const pes = pesDoGeo(g, est)
+      pintarParede(c, g, est, pes)
+      for (const v of g.vaos) pintarRampa(c, g, v, est, null)
+    }
+  }
+
+  function pintarMapa() {
+    const c = camadaMapa.getContext('2d')
+    const est = estado.estilo
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.clearRect(0, 0, W, H)
+    c.drawImage(camadaChao, 0, 0)
+    emMundo(c)
+    // nível por nível: sombra no de baixo, parede, rampa, o alto e a beira
+    for (let k = 1; k <= estado.niveisMax; k += 1) {
+      const lista = geos.filter((g) => g.tipo === 'area' && g.nivel === k)
+      if (!lista.length) continue
+      assentarSombras(c, lista, est, false)
+      pintarBarrancos(c, lista, est)
+      pintarTopo(c, lista, k, est)
+      for (const g of lista) pintarBeira(c, g, est)
+    }
+    const riscos = geos.filter((g) => g.tipo === 'risco')
+    assentarSombras(c, riscos, est, false)
+    pintarBarrancos(c, riscos, est)
+    for (const g of riscos) pintarBeira(c, g, est)
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.drawImage(camadaObjetos, 0, 0)
+  }
+
+  // ---------------------------------------------------------------- por cima: ficha e prévias
+
+  const ficha = { ergue: 0, ergueAlvo: 0, ultimo: 0 }
+  const vista = { hover: null, contato: null, alvo: null, rascunho: null }
+
+  function pintarFicha(c) {
+    const { x, y } = estado.ficha
+    const e = ficha.ergue
+    const r = RAIO_FICHA * (1 + 0.1 * e)
+    c.fillStyle = `rgba(14, 18, 16, ${0.34 - 0.1 * e})`
+    c.beginPath()
+    c.ellipse(x + 1.5 + 3 * e, y + 2.5 + 4 * e, r, r * 0.92, 0, 0, Math.PI * 2)
+    c.fill()
+    c.beginPath()
+    c.arc(x, y - 1.5 * e, r, 0, Math.PI * 2)
+    const g = c.createLinearGradient(x - r, y - r, x + r, y + r)
+    g.addColorStop(0, UI.latao)
+    g.addColorStop(1, misturar(UI.latao, '#000000', 0.25))
+    c.fillStyle = g
+    c.fill()
+    c.beginPath()
+    c.arc(x, y - 1.5 * e, r - 2.6, 0, Math.PI * 2)
+    c.fillStyle = UI.miolo
+    c.fill()
+    c.fillStyle = UI.pergaminho
+    c.font = `600 ${r * 0.95}px ${UI.fonte}`
+    c.textAlign = 'center'
+    c.textBaseline = 'middle'
+    c.fillText('A', x, y - 1.5 * e + 0.8)
+    if (document.activeElement === canvas && canvas.matches(':focus-visible')) {
+      c.beginPath()
+      c.arc(x, y - 1.5 * e, r + px(4), 0, Math.PI * 2)
+      c.strokeStyle = UI.latao
+      c.lineWidth = px(2)
+      c.stroke()
+    }
+  }
+
+  /** A linha de visão enquanto a ficha está presa: passa por cima, ou para no barranco quando "de baixo não vê". */
+  function pintarVisao(c) {
+    const f = estado.ficha
+    const alvo = vista.alvo
+    if (!alvo || !vista.contato || Math.hypot(alvo[0] - f.x, alvo[1] - f.y) < 16) return
+    const corte = corteDaVisao([f.x, f.y], alvo)
+    const fim = corte || alvo
+    c.save()
+    c.lineCap = 'round'
+    c.setLineDash([px(6), px(5)])
+    c.strokeStyle = 'rgba(14, 16, 18, 0.55)'
+    c.lineWidth = px(3.4)
+    c.beginPath()
+    c.moveTo(f.x, f.y)
+    c.lineTo(fim[0], fim[1])
+    c.stroke()
+    c.strokeStyle = UI.pergaminho
+    c.lineWidth = px(1.6)
+    c.stroke()
+    c.setLineDash([])
+    if (corte) {
+      const dx = alvo[0] - f.x
+      const dy = alvo[1] - f.y
+      const l = Math.hypot(dx, dy) || 1
+      const nx = -dy / l
+      const ny = dx / l
+      c.strokeStyle = UI.brasa
+      c.lineWidth = px(2.4)
+      c.beginPath()
+      c.moveTo(corte[0] + nx * px(7), corte[1] + ny * px(7))
+      c.lineTo(corte[0] - nx * px(7), corte[1] - ny * px(7))
+      c.stroke()
+    } else {
+      // um olho no fim: ali a ficha enxerga
+      const [ox, oy] = alvo
+      c.fillStyle = 'rgba(14, 16, 18, 0.7)'
+      c.beginPath()
+      c.ellipse(ox, oy, px(9), px(6), 0, 0, Math.PI * 2)
+      c.fill()
+      c.strokeStyle = UI.pergaminho
+      c.lineWidth = px(1.4)
+      c.beginPath()
+      c.moveTo(ox - px(7), oy)
+      c.quadraticCurveTo(ox, oy - px(6), ox + px(7), oy)
+      c.quadraticCurveTo(ox, oy + px(6), ox - px(7), oy)
+      c.stroke()
+      c.fillStyle = UI.pergaminho
+      c.beginPath()
+      c.arc(ox, oy, px(2), 0, Math.PI * 2)
+      c.fill()
+    }
+    c.restore()
+  }
+
+  /** Onde a visão de baixo bate num barranco subindo (só com "Não vê"); `null` se passa. */
+  function corteDaVisao(de, ate) {
+    if (estado.visao !== 'naove') return null
+    const cortes = []
+    for (const g of geos) {
+      const n = g.lip.length
+      for (let i = 0; i < g.nSeg; i += 1) {
+        const a = g.lip[i]
+        const b = g.lip[(i + 1) % n]
+        const x = cruzamento(de, ate, a, b)
+        if (x) cortes.push({ u: x.u, x: x.x, y: x.y, g, i })
+      }
+    }
+    cortes.sort((p, q) => p.u - q.u)
+    for (const k of cortes) {
+      const sn = k.g.sn[k.i]
+      // de onde a linha vem: lado baixo (a normal aponta para lá) é olhar para cima
+      const v = (de[0] - k.x) * sn[0] + (de[1] - k.y) * sn[1]
+      if (v > 0) return [k.x, k.y]
+    }
+    return null
+  }
+
+  function cruzamento(p, q, a, b) {
+    const rx = q[0] - p[0]
+    const ry = q[1] - p[1]
+    const sx = b[0] - a[0]
+    const sy = b[1] - a[1]
+    const den = rx * sy - ry * sx
+    if (Math.abs(den) < 1e-9) return null
+    const u = ((a[0] - p[0]) * sy - (a[1] - p[1]) * sx) / den
+    const w = ((a[0] - p[0]) * ry - (a[1] - p[1]) * rx) / den
+    if (u <= 0 || u >= 1 || w < 0 || w > 1) return null
+    return { u, x: p[0] + rx * u, y: p[1] + ry * u }
+  }
+
+  function pintarPorCima(c) {
+    emMundo(c)
+    const est = estado.estilo
+    const sel = geos.find((g) => g.tipo === 'risco' && g.ref.id === estado.selecionado)
+    // o risco sendo riscado, já com parede e sombra
+    if (vista.rascunho && vista.rascunho.pts.length > 1) {
+      const r = { id: 99, altura: estado.altura, lado: 1, mostra: 1, pts: vista.rascunho.pts }
+      r.lado = r.mostra = ladoInicial(r.pts)
+      const g = geoDoRisco(r)
+      if (g) {
+        assentarSombras(c, [g], est, true)
+        pintarBarrancos(c, [g], est)
+        pintarBeira(c, g, est)
+      }
+    }
+    // o risco escolhido: tracejado de latão no alto da beira
+    if (sel && estado.ferramenta === 'risco') {
+      const pts = sel.lip.map((p, i) => [p[0] - sel.un[i][0] * 3, p[1] - sel.un[i][1] * 3])
+      c.save()
+      c.strokeStyle = UI.latao
+      c.lineWidth = px(1.8)
+      c.setLineDash([px(6), px(4)])
+      c.lineCap = 'round'
+      c.stroke(traco(pts, false))
+      c.restore()
+    }
+    const h = vista.hover
+    if (h && !gesto) {
+      if (estado.ferramenta === 'risco') {
+        const perto = riscoPerto(h, px(10))
+        if (perto && perto.ref.id !== estado.selecionado) {
+          c.save()
+          c.strokeStyle = tinta(UI.pergaminho, 0.6)
+          c.lineWidth = px(1.4)
+          c.stroke(traco(perto.lip.map((p, i) => [p[0] - perto.un[i][0] * 3, p[1] - perto.un[i][1] * 3]), false))
+          c.restore()
+        }
+      } else if (estado.ferramenta === 'rampa') {
+        const alvo = alvoDaRampa(h)
+        if (alvo && alvo.tirar) pintarRampa(c, alvo.g, alvo.v, est, 'tirar')
+        else if (alvo) pintarRampa(c, alvo.g, { s: alvo.s, w: RAMPA_LARGURA }, est, 'pôr')
+      }
+    }
+    if (h && estado.ferramenta === 'area' && (!gesto || gesto.tipo === 'pintar')) pintarPincel(c, h)
+    // onde a ficha encostou no barranco: um fio claro na beira
+    if (vista.contato) {
+      const { g, s } = vista.contato
+      const pts = []
+      for (let d = -20; d <= 20; d += 4) {
+        const P = pontoEm(g, s + d)
+        pts.push([P.x - P.ux * 1.2, P.y - P.uy * 1.2])
+      }
+      c.save()
+      c.strokeStyle = tinta(UI.pergaminho, 0.85)
+      c.lineWidth = px(2.2)
+      c.lineCap = 'round'
+      c.stroke(traco(pts, false))
+      c.restore()
+    }
+    pintarVisao(c)
+    pintarFicha(c)
+  }
+
+  function pintarPincel(c, h) {
+    const raio = PINCEL[estado.pincel] * CEL
+    const ini = gesto && gesto.tipo === 'pintar' ? gesto.ini : nivelNoPonto(h[0], h[1])
+    const descer = gesto && gesto.tipo === 'pintar' ? gesto.descer : estado.areaModo === 'descer' || teclaAlt
+    const alvo = descer ? ini - 1 : ini + 1
+    c.save()
+    if (alvo >= 0 && alvo <= estado.niveisMax) {
+      c.fillStyle = tinta(UI.latao, 0.18)
+      for (const i of celulasDoPincel(h)) if (nivelEfetivo(i) === ini) c.fillRect((i % COLS) * CEL, Math.floor(i / COLS) * CEL, CEL, CEL)
+    }
+    c.beginPath()
+    c.arc(h[0], h[1], raio, 0, Math.PI * 2)
+    c.strokeStyle = tinta(UI.pergaminho, 0.8)
+    c.lineWidth = px(1.4)
+    c.setLineDash([px(4), px(4)])
+    c.stroke()
+    c.restore()
+  }
+
+  function desenharQuadro() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(camadaMapa, 0, 0)
+    pintarPorCima(ctx)
+    // com a ficha embaixo da alça, a alça esmaece e o clique vai para a ficha
+    for (const b of botoesDeAlca.values()) {
+      const sob = !b.hidden && Math.hypot(Number(b.dataset.x) - estado.ficha.x, Number(b.dataset.y) - estado.ficha.y) < RAIO_FICHA + 26
+      if (b.classList.contains('apagada') !== sob) b.classList.toggle('apagada', sob)
+    }
+  }
+
+  function pedirQuadro() {
+    if (quadroPedido) return
+    quadroPedido = true
+    requestAnimationFrame(quadro)
+  }
+
+  function quadro(agora) {
+    quadroPedido = false
+    if (!W) return
+    let continua = false
+    let mudouRisco = false
+    for (const r of estado.riscos) {
+      if (!r.anim) continue
+      const p = Math.min(1, (agora - r.anim.t0) / VIRAR_MS)
+      const e = p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2
+      r.mostra = r.anim.de + (r.anim.ate - r.anim.de) * e
+      if (p >= 1) {
+        r.mostra = r.anim.ate
+        r.anim = null
+      } else continua = true
+      mudouRisco = true
+    }
+    if (mudouRisco) construir()
+    const dt = ficha.ultimo ? Math.min(64, agora - ficha.ultimo) : 16
+    ficha.ultimo = agora
+    if (reduzirMovimento.matches) ficha.ergue = ficha.ergueAlvo
+    else if (Math.abs(ficha.ergue - ficha.ergueAlvo) > 0.01) {
+      ficha.ergue += (ficha.ergueAlvo - ficha.ergue) * (1 - Math.exp(-dt / 45))
+      continua = true
+    } else ficha.ergue = ficha.ergueAlvo
+    if (chaoSujo) {
+      pintarChao()
+      chaoSujo = false
+      cacheSujo = true
+    }
+    if (objetosSujos) {
+      pintarObjetos()
+      objetosSujos = false
+      cacheSujo = true
+    }
+    if (cacheSujo) {
+      pintarMapa()
+      cacheSujo = false
+    }
+    desenharQuadro()
+    if (continua) pedirQuadro()
+    else ficha.ultimo = 0
+  }
+
+  // ================================================================ alças "Virar"
+
+  const alcas = moldura.querySelector('.alcas')
+  const botoesDeAlca = new Map()
+  const SETA = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+  /** Uma alça no meio de cada risco: a seta aponta para o lado baixo, e clicar vira o lado alto. */
+  function posicionarAlcas() {
+    const vivos = new Set()
+    const escala = larguraCss / MW
+    for (const g of geos) {
+      if (g.tipo !== 'risco') continue
+      const r = g.ref
+      vivos.add(r.id)
+      let b = botoesDeAlca.get(r.id)
+      if (!b) {
+        b = document.createElement('button')
+        b.type = 'button'
+        b.className = 'alca'
+        b.innerHTML = SETA + '<span>Virar</span>'
+        b.addEventListener('click', () => {
+          selecionar(r.id)
+          virar(r)
+        })
+        alcas.appendChild(b)
+        botoesDeAlca.set(r.id, b)
+      }
+      b.setAttribute('aria-label', 'Virar o lado alto do ' + r.nome)
+      b.setAttribute('aria-current', String(r.id === estado.selecionado))
+      // só no risco escolhido: na beira é onde a ficha para, e uma alça em cada risco roubava o clique dela
+      b.hidden = estado.ferramenta !== 'risco' || r.id !== estado.selecionado
+      const P = pontoEm(g, g.len / 2)
+      // a seta aponta para o lado baixo de descanso (o de depois da volta), não o do meio da animação:
+      // `un * sinal` é a direita do traço, e `lado` diz se o baixo é a direita
+      let ang = (Math.atan2(P.uy * g.sinal * r.lado, P.ux * g.sinal * r.lado) * 180) / Math.PI
+      if (r.giro !== undefined) {
+        while (ang - r.giro > 180) ang -= 360
+        while (ang - r.giro < -180) ang += 360
+      }
+      r.giro = ang
+      b.dataset.x = P.x
+      b.dataset.y = P.y
+      b.style.left = limitar(P.x * escala, 44, larguraCss - 44) + 'px'
+      b.style.top = limitar(P.y * escala, 18, larguraCss * (MH / MW) - 18) + 'px'
+      b.querySelector('svg').style.transform = `rotate(${ang}deg)`
+    }
+    for (const [id, b] of botoesDeAlca) {
+      if (!vivos.has(id)) {
+        b.remove()
+        botoesDeAlca.delete(id)
+      }
+    }
+  }
+
+  // ================================================================ ações
+
+  function foto() {
+    return JSON.stringify({
+      riscos: estado.riscos.map((r) => ({ id: r.id, nome: r.nome, altura: r.altura, lado: r.lado, pts: r.pts })),
+      nivel: Array.from(estado.nivel),
+      alturas: Array.from(estado.alturas),
+      rampas: estado.rampas,
+      proximoId: estado.proximoId,
+      selecionado: estado.selecionado,
+    })
+  }
+  function aplicarFoto(json) {
+    const f = JSON.parse(json)
+    estado.riscos = f.riscos.map((r) => ({ ...r, mostra: r.lado, anim: null }))
+    estado.nivel = Uint8Array.from(f.nivel)
+    estado.alturas = Uint8Array.from(f.alturas)
+    estado.rampas = f.rampas
+    estado.proximoId = f.proximoId
+    estado.selecionado = estado.riscos.some((r) => r.id === f.selecionado) ? f.selecionado : null
+    estado.altura = riscoEscolhido()?.altura ?? estado.altura
+    for (const b of botoesDeAlca.values()) b.remove()
+    botoesDeAlca.clear()
+    construir()
+    resolver(estado.ficha)
+    atualizarPainel()
+  }
+  function guardar(f = foto()) {
+    pilha.push(f)
+    if (pilha.length > 80) pilha.shift()
+    refeitos.length = 0
+    atualizarPainel()
+  }
+  function desfazer() {
+    if (!pilha.length) return
+    refeitos.push(foto())
+    aplicarFoto(pilha.pop())
+    dizer('Desfeito.')
+  }
+  function refazer() {
+    if (!refeitos.length) return
+    pilha.push(foto())
+    aplicarFoto(refeitos.pop())
+    dizer('Refeito.')
+  }
+
+  function selecionar(id) {
+    estado.selecionado = id
+    // escolher um risco mostra a altura dele no painel
+    const r = riscoEscolhido()
+    if (r) estado.altura = r.altura
+    atualizarPainel()
+    posicionarAlcas()
+    pedirQuadro()
+  }
+
+  /** Vira o lado alto. Pelo clique, a parede recolhe e cresce do outro lado (220 ms); pelo teclado, vira na hora. */
+  function virar(r, pelaTecla = false) {
+    if (!r) return
+    guardar()
+    const de = r.mostra
+    r.lado = -r.lado
+    const b = botoesDeAlca.get(r.id)
+    if (reduzirMovimento.matches || pelaTecla) {
+      r.mostra = r.lado
+      r.anim = null
+      if (b) b.classList.add('na-hora')
+      construir()
+      if (b) {
+        // assenta o giro novo sem transição antes de devolver a transição à seta
+        void getComputedStyle(b.querySelector('svg')).transform
+        b.classList.remove('na-hora')
+      }
+    } else {
+      // começa de onde a parede está: virar de novo no meio da volta não dá salto
+      r.anim = { de, ate: r.lado, t0: performance.now() }
+      pedirQuadro()
+    }
+    posicionarAlcas()
+    resolver(estado.ficha)
+    dizer(`Lado alto do ${r.nome} virado.`)
+  }
+
+  function riscoEscolhido() {
+    return estado.riscos.find((r) => r.id === estado.selecionado) || null
+  }
+
+  function apagarRisco() {
+    const r = riscoEscolhido()
+    if (!r) return
+    guardar()
+    estado.riscos = estado.riscos.filter((x) => x !== r)
+    estado.selecionado = null
+    construir()
+    atualizarPainel()
+    dizer(`O ${r.nome} saiu do mapa.`)
+  }
+
+  function riscoPerto(p, raio) {
+    let melhor = null
+    for (const g of geos) {
+      if (g.tipo !== 'risco') continue
+      const q = pertoDoGeo(g, p)
+      // conta a parede também: clicar na terra do barranco escolhe o risco
+      const alcance = raio + Math.max(0, (p[0] - q.x) * g.un[q.i][0] + (p[1] - q.y) * g.un[q.i][1] > 0 ? g.t[q.i] : 0)
+      if (q.d <= alcance && (!melhor || q.d < melhor.d)) melhor = { g, d: q.d }
+    }
+    return melhor ? melhor.g : null
+  }
+
+  /** Onde a rampa cairia (ou qual rampa sairia) com o ponteiro em `p`. */
+  function alvoDaRampa(p) {
+    for (const g of geos) {
+      for (const v of g.vaos) {
+        const P = pontoEm(g, v.s)
+        const mx = P.x + P.ux * P.t * 0.5
+        const my = P.y + P.uy * P.t * 0.5
+        if (Math.hypot(p[0] - mx, p[1] - my) < v.w / 2) return { g, v, tirar: true }
+      }
+    }
+    let melhor = null
+    for (const g of geos) {
+      const q = pertoDoGeo(g, p)
+      const P = pontoEm(g, q.s)
+      const alcance = Math.max(8, P.t) + px(10)
+      if (q.d <= alcance && P.t > 2 && (!melhor || q.d < melhor.d)) melhor = { g, s: q.s, d: q.d, P }
+    }
+    return melhor
+  }
+
+  function porOuTirarRampa(p) {
+    const alvo = alvoDaRampa(p)
+    if (!alvo) {
+      dizer('Aqui não há barranco. Passe o ponteiro sobre a parede de terra.')
+      return
+    }
+    guardar()
+    if (alvo.tirar) {
+      estado.rampas = estado.rampas.filter((r) => r !== alvo.v.ref)
+      dizer('Rampa tirada. O barranco voltou a segurar a ficha ali.')
+    } else {
+      const P = alvo.P
+      estado.rampas = estado.rampas.concat({ x: P.x + P.ux * P.t * 0.5, y: P.y + P.uy * P.t * 0.5 })
+      dizer('Rampa posta. A ficha sobe e desce por ela.')
+    }
+    construir()
+    resolver(estado.ficha)
+    atualizarPainel()
+  }
+
+  function celulasDoPincel(p) {
+    const raio = PINCEL[estado.pincel] * CEL
+    const lista = []
+    const x0 = Math.max(0, Math.floor((p[0] - raio) / CEL))
+    const x1 = Math.min(COLS - 1, Math.floor((p[0] + raio) / CEL))
+    const y0 = Math.max(0, Math.floor((p[1] - raio) / CEL))
+    const y1 = Math.min(LINS - 1, Math.floor((p[1] + raio) / CEL))
+    for (let y = y0; y <= y1; y += 1) {
+      for (let x = x0; x <= x1; x += 1) {
+        if (Math.hypot((x + 0.5) * CEL - p[0], (y + 0.5) * CEL - p[1]) <= raio) lista.push(y * COLS + x)
+      }
+    }
+    return lista
+  }
+
+  /** Pinta um toque do pincel: só os quadrados no nível onde o traço começou mudam (sobe ou desce um degrau). */
+  function pincelar(p) {
+    const { ini, descer } = gesto
+    const alvo = descer ? ini - 1 : ini + 1
+    if (alvo < 0 || alvo > estado.niveisMax) return false
+    const a = ALTURAS.indexOf(estado.altura)
+    let mudou = false
+    for (const i of celulasDoPincel(p)) {
+      if (nivelEfetivo(i) !== ini) continue
+      estado.nivel[i] = alvo
+      if (!descer) estado.alturas[i * 4 + alvo] = a
+      mudou = true
+    }
+    return mudou
+  }
+
+  // ================================================================ entrada
+
+  let gesto = null
+  let teclaAlt = false
+
+  function noMundo(ev) {
+    const r = canvas.getBoundingClientRect()
+    return [((ev.clientX - r.left) * MW) / r.width, ((ev.clientY - r.top) * MH) / r.height]
+  }
+
+  function emCimaDaFicha(p) {
+    return Math.hypot(p[0] - estado.ficha.x, p[1] - estado.ficha.y) <= RAIO_FICHA + 5
+  }
+
+  function cursor(p) {
+    if (gesto && gesto.tipo === 'ficha') return 'grabbing'
+    if (p && emCimaDaFicha(p)) return 'grab'
+    if (estado.ferramenta === 'rampa') return p && alvoDaRampa(p) ? 'pointer' : 'not-allowed'
+    if (estado.ferramenta === 'risco' && p && riscoPerto(p, px(10))) return 'pointer'
+    return 'crosshair'
+  }
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || gesto) return
+    const p = noMundo(ev)
+    canvas.setPointerCapture(ev.pointerId)
+    vista.hover = p
+    if (emCimaDaFicha(p)) {
+      gesto = { tipo: 'ficha', id: ev.pointerId, desvio: [estado.ficha.x - p[0], estado.ficha.y - p[1]] }
+      ficha.ergueAlvo = 1
+    } else if (estado.ferramenta === 'risco') {
+      gesto = { tipo: 'riscar', id: ev.pointerId, inicio: p, pts: [p], perto: riscoPerto(p, px(10)) }
+      vista.rascunho = null
+    } else if (estado.ferramenta === 'area') {
+      gesto = { tipo: 'pintar', id: ev.pointerId, ini: nivelNoPonto(p[0], p[1]), descer: ev.altKey || estado.areaModo === 'descer', ultimo: p, antes: foto(), mudou: false }
+      const alvo = gesto.descer ? gesto.ini - 1 : gesto.ini + 1
+      if (alvo > estado.niveisMax) dizer(`Limite de ${estado.niveisMax} ${estado.niveisMax === 1 ? 'degrau' : 'degraus'} acima do chão. Mude em "Quantos degraus".`)
+      else if (alvo < 0) dizer('Aqui já é o chão: não dá para descer mais.')
+      if (pincelar(p)) {
+        gesto.mudou = true
+        construir()
+      }
+    } else if (estado.ferramenta === 'rampa') {
+      gesto = { tipo: 'rampa', id: ev.pointerId, inicio: p }
+    }
+    canvas.style.cursor = cursor(p)
+    pedirQuadro()
+  })
+
+  canvas.addEventListener('pointermove', (ev) => {
+    const p = noMundo(ev)
+    vista.hover = p
+    teclaAlt = ev.altKey
+    if (gesto && gesto.id === ev.pointerId) {
+      if (gesto.tipo === 'ficha') {
+        const alvo = [p[0] + gesto.desvio[0], p[1] + gesto.desvio[1]]
+        const bateu = andar(alvo)
+        vista.alvo = alvo
+        const preso = bateu && Math.hypot(alvo[0] - estado.ficha.x, alvo[1] - estado.ficha.y) > 4
+        vista.contato = preso ? { g: bateu.g, s: pertoDoGeo(bateu.g, [estado.ficha.x, estado.ficha.y]).s } : null
+        dizer(preso ? textoPreso() : textoDaFicha())
+      } else if (gesto.tipo === 'riscar') {
+        const ult = gesto.pts[gesto.pts.length - 1]
+        if (dist(ult, p) >= 4) gesto.pts.push(p)
+        if (dist(gesto.inicio, p) > 10) vista.rascunho = { pts: gesto.pts }
+      } else if (gesto.tipo === 'pintar') {
+        const passos = Math.max(1, Math.ceil(dist(gesto.ultimo, p) / (CEL / 2)))
+        let mudou = false
+        for (let k = 1; k <= passos; k += 1) if (pincelar(lerpP(gesto.ultimo, p, k / passos))) mudou = true
+        gesto.ultimo = p
+        if (mudou) {
+          gesto.mudou = true
+          construir()
+        }
+      }
+    }
+    canvas.style.cursor = cursor(p)
+    pedirQuadro()
+  })
+
+  function terminarGesto(ev, cancelado) {
+    if (!gesto || gesto.id !== ev.pointerId) return
+    const g = gesto
+    gesto = null
+    const p = noMundo(ev)
+    if (g.tipo === 'ficha') {
+      ficha.ergueAlvo = 0
+      vista.contato = null
+      vista.alvo = null
+      dizer(textoDaFicha())
+    } else if (g.tipo === 'riscar') {
+      vista.rascunho = null
+      const comprido = g.pts.length > 3 && dist(g.inicio, p) + comprimento(g.pts) > 30
+      if (!cancelado && comprido) {
+        guardar()
+        const lado = ladoInicial(g.pts)
+        const r = { id: estado.proximoId, nome: 'risco ' + estado.proximoId, altura: estado.altura, lado, mostra: lado, pts: g.pts }
+        estado.proximoId += 1
+        estado.riscos.push(r)
+        estado.selecionado = r.id
+        construir()
+        resolver(estado.ficha)
+        atualizarPainel()
+        dizer(`Risco posto, ${ROTULO_ALTURA[r.altura]}. O lado alto ficou ${lado === 1 ? 'para cima' : 'para baixo'}; use Virar para trocar.`)
+      } else if (!cancelado) {
+        selecionar(g.perto ? g.perto.ref.id : null)
+        if (g.perto) dizer(`Escolhido: ${g.perto.ref.nome}.`)
+      }
+    } else if (g.tipo === 'pintar') {
+      if (g.mudou) {
+        guardar(g.antes)
+        resolver(estado.ficha)
+        dizer('Área pintada. A borda virou barranco.')
+      }
+    } else if (g.tipo === 'rampa' && !cancelado && dist(g.inicio, p) < 8) {
+      porOuTirarRampa(p)
+    }
+    canvas.style.cursor = cursor(p)
+    pedirQuadro()
+  }
+  canvas.addEventListener('pointerup', (ev) => terminarGesto(ev, false))
+  canvas.addEventListener('pointercancel', (ev) => terminarGesto(ev, true))
+  canvas.addEventListener('pointerleave', () => {
+    if (!gesto) {
+      vista.hover = null
+      pedirQuadro()
+    }
+  })
+  canvas.addEventListener('focus', pedirQuadro)
+  canvas.addEventListener('blur', pedirQuadro)
+
+  function comprimento(pts) {
+    let l = 0
+    for (let i = 1; i < pts.length; i += 1) l += dist(pts[i - 1], pts[i])
+    return l
+  }
+
+  const PASSO_TECLA = 8
+  canvas.addEventListener('keydown', (ev) => {
+    const dir = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] }[ev.key.length === 1 ? ev.key.toLowerCase() : ev.key]
+    if (!dir || ev.ctrlKey || ev.metaKey || ev.altKey) return
+    ev.preventDefault()
+    const passo = ev.shiftKey ? CEL : PASSO_TECLA
+    const f = estado.ficha
+    const alvo = [f.x + dir[0] * passo, f.y + dir[1] * passo]
+    const bateu = andar(alvo)
+    const preso = bateu && Math.hypot(alvo[0] - f.x, alvo[1] - f.y) > 2
+    dizer(preso ? textoPreso() : textoDaFicha())
+    pedirQuadro()
+  })
+
+  document.addEventListener('keydown', (ev) => {
+    teclaAlt = ev.altKey
+    const tag = ev.target && ev.target.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
+    if (ev.ctrlKey || ev.metaKey) {
+      const k = ev.key.toLowerCase()
+      if (k === 'z' && !ev.shiftKey) {
+        ev.preventDefault()
+        desfazer()
+      } else if (k === 'y' || (k === 'z' && ev.shiftKey)) {
+        ev.preventDefault()
+        refazer()
+      }
+      return
+    }
+    if (ev.altKey) {
+      pedirQuadro()
+      return
+    }
+    if (ev.key === '1' || ev.key === '2' || ev.key === '3') {
+      escolher('ferramenta', ['risco', 'area', 'rampa'][Number(ev.key) - 1])
+    } else if (ev.key === 'f' || ev.key === 'F') {
+      if (riscoEscolhido()) virar(riscoEscolhido(), true)
+      else dizer('Escolha um risco no mapa (clique nele) para virar.')
+    } else if ((ev.key === 'Delete' || ev.key === 'Backspace') && riscoEscolhido()) {
+      ev.preventDefault()
+      apagarRisco()
+    } else if (ev.key === 'Escape') {
+      if (gesto && gesto.tipo === 'riscar') {
+        gesto = null
+        vista.rascunho = null
+        dizer('Risco cancelado.')
+      } else if (estado.selecionado) selecionar(null)
+      pedirQuadro()
+    }
+  })
+  document.addEventListener('keyup', (ev) => {
+    if (teclaAlt !== ev.altKey) {
+      teclaAlt = ev.altKey
+      pedirQuadro()
+    }
+  })
+
+  // ================================================================ textos
+
+  const statusEl = document.getElementById('status')
+  function dizer(texto) {
+    if (statusEl.textContent !== texto) statusEl.textContent = texto
+  }
+
+  function textoDaFicha() {
+    const { x, y } = estado.ficha
+    const k = nivelNoPonto(x, y)
+    let base
+    if (k === 0) base = y > 366 && y < 462 ? 'Na rua' : 'No chão'
+    else if (k === 1 && dentroDoPoligono(x, y, chaoDaCena().praca)) base = 'Na praça, um degrau acima da rua'
+    else if (k === 2 && dentroDoPoligono(x, y, chaoDaCena().terraco)) base = 'No terraço, dois degraus acima da rua'
+    else base = k === 1 ? 'Um degrau acima do chão' : `${k} degraus acima do chão`
+    for (const g of geos) {
+      if (g.tipo !== 'risco') continue
+      const q = pertoDoGeo(g, [x, y])
+      if (q.d > 2 * CEL || q.s < 8 || q.s > g.len - 8) continue
+      const sn = g.sn[q.i]
+      const lado = (x - q.x) * sn[0] + (y - q.y) * sn[1] > 0 ? 'embaixo' : 'em cima'
+      base += `, ${lado} do ${g.ref.nome}`
+      break
+    }
+    return base + '.'
+  }
+
+  function textoPreso() {
+    const f = estado.ficha
+    const alvo = vista.alvo || [f.x, f.y]
+    if (estado.visao === 'naove' && corteDaVisao([f.x, f.y], alvo)) return 'O barranco segura a ficha, e de baixo ela não vê o que está em cima.'
+    return 'O barranco segura a ficha. A visão passa por cima.'
+  }
+
+  // ================================================================ painel
+
+  const ICONES = {
+    risco: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9c4-3 7 2 11-1s5-3 7-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M3 9c4-3 7 2 11-1s5-3 7-2v5c-2-1-3-1-7 1s-7-2-11 1z" fill="currentColor" opacity="0.35"/></svg>',
+    area: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="8" width="13" height="11" rx="2" fill="currentColor" opacity="0.35"/><rect x="4.5" y="5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+    rampa: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h6l6 9h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 8l6 9H9z" fill="currentColor" opacity="0.35"/></svg>',
+  }
+
+  const GRUPOS = {
+    ferramenta: [['risco', 'Risco', ICONES.risco], ['area', 'Área alta', ICONES.area], ['rampa', 'Rampa', ICONES.rampa]],
+    areaModo: [['subir', 'Subir'], ['descer', 'Descer']],
+    pincel: [['fino', 'Fino'], ['medio', 'Médio'], ['largo', 'Largo']],
+    altura: [['baixo', 'Baixo'], ['medio', 'Médio'], ['alto', 'Alto']],
+    estilo: [['atual', 'Atual'], ['desenhado', 'Desenhado']],
+    borda: [['livre', 'Livre'], ['grade', 'Na grade']],
+    rampaTipo: [['vao', 'Vão de terra'], ['escada', 'Escada de pedra']],
+    niveisMax: [[1, '1'], [2, '2'], [3, '3']],
+    visao: [['ve', 'Vê'], ['naove', 'Não vê']],
+  }
+
+  const segmentados = new Map()
+  for (const el of document.querySelectorAll('[data-grupo]')) {
+    const nome = el.dataset.grupo
+    const botoes = GRUPOS[nome].map(([valor, rotulo, icone]) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'lb-seg__option'
+      b.setAttribute('role', 'radio')
+      b.innerHTML = (icone || '') + '<span>' + rotulo + '</span>'
+      b.addEventListener('click', () => escolher(nome, valor))
+      b.addEventListener('keydown', (ev) => {
+        const passo = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[ev.key]
+        if (!passo) return
+        ev.preventDefault()
+        ev.stopPropagation()
+        const lista = GRUPOS[nome]
+        const i = lista.findIndex(([v]) => v === estado[nome])
+        const prox = lista[(i + passo + lista.length) % lista.length][0]
+        escolher(nome, prox)
+        segmentados.get(nome).find((x) => x.valor === prox).b.focus()
+      })
+      el.appendChild(b)
+      return { valor, b }
+    })
+    segmentados.set(nome, botoes)
+  }
+
+  function escolher(nome, valor) {
+    if (estado[nome] === valor) return
+    estado[nome] = valor
+    if (nome === 'altura') {
+      const r = riscoEscolhido()
+      if (r && estado.ferramenta === 'risco' && r.altura !== valor) {
+        guardar()
+        r.altura = valor
+        construir()
+        resolver(estado.ficha)
+        dizer(`O ${r.nome} ficou ${ROTULO_ALTURA[valor]}.`)
+      }
+    } else if (nome === 'estilo') {
+      chaoSujo = objetosSujos = cacheSujo = true
+    } else if (nome === 'borda' || nome === 'niveisMax') {
+      if (nome === 'borda') chaoSujo = true
+      construir()
+      resolver(estado.ficha)
+      dizer(textoDaFicha())
+    } else if (nome === 'rampaTipo') {
+      cacheSujo = true
+    } else if (nome === 'ferramenta') {
+      posicionarAlcas()
+    }
+    atualizarPainel()
+    pedirQuadro()
+  }
+
+  const DICAS = {
+    risco: 'Arraste para riscar a beira. O lado alto começa para cima; use Virar para trocar. Clique num risco para escolher.',
+    area: 'Pinte a parte alta: a borda inteira vira barranco. Comece dentro de uma área alta para subir mais um degrau. Segure Alt para descer.',
+    rampa: 'Passe o ponteiro sobre um barranco e clique para pôr a rampa. Clique numa rampa para tirar.',
+  }
+  const DICAS_ESTILO = { atual: 'O barranco liso do estilo de hoje.', desenhado: 'O barranco do protótipo Mother.' }
+
+  const bVirar = document.getElementById('b-virar')
+  const bApagar = document.getElementById('b-apagar')
+  const bDesfazer = document.getElementById('b-desfazer')
+  const bRefazer = document.getElementById('b-refazer')
+
+  function atualizarPainel() {
+    for (const [nome, botoes] of segmentados) {
+      for (const { valor, b } of botoes) {
+        const marcado = estado[nome] === valor
+        b.setAttribute('aria-checked', String(marcado))
+        b.tabIndex = marcado ? 0 : -1
+      }
+    }
+    for (const sec of document.querySelectorAll('[data-so]')) sec.hidden = !sec.dataset.so.split(' ').includes(estado.ferramenta)
+    document.getElementById('dica-ferramenta').textContent = DICAS[estado.ferramenta]
+    document.getElementById('dica-estilo').textContent = DICAS_ESTILO[estado.estilo]
+    const r = riscoEscolhido()
+    document.getElementById('dica-altura').textContent =
+      estado.ferramenta === 'risco'
+        ? r
+          ? `Muda o ${r.nome} agora e vale para os próximos riscos.`
+          : 'Vale para o próximo risco. Com um risco escolhido, muda ele também.'
+        : 'Vale para o que você pintar daqui para frente.'
+    document.getElementById('risco-escolhido').textContent = r
+      ? `${r.nome[0].toUpperCase() + r.nome.slice(1)}, ${ROTULO_ALTURA[r.altura]}. A seta da alça aponta para o lado baixo.`
+      : 'Nenhum. Clique num risco no mapa para virar o lado alto ou apagar.'
+    bVirar.disabled = !r
+    bApagar.disabled = !r
+    bDesfazer.disabled = !pilha.length
+    bRefazer.disabled = !refeitos.length
+    const n = estado.rampas.length
+    document.getElementById('conta-rampas').textContent =
+      (n === 0 ? 'Nenhuma rampa no mapa.' : n === 1 ? 'Uma rampa no mapa.' : `${n} rampas no mapa.`) + ' Cada rampa abre 2 quadrados no barranco.'
+  }
+
+  bVirar.addEventListener('click', () => virar(riscoEscolhido()))
+  bApagar.addEventListener('click', apagarRisco)
+  bDesfazer.addEventListener('click', desfazer)
+  bRefazer.addEventListener('click', refazer)
+  document.getElementById('b-restaurar').addEventListener('click', () => {
+    guardar()
+    const cena = cenaInicial()
+    Object.assign(estado, cena, { selecionado: 1 })
+    for (const r of estado.riscos) r.mostra = r.lado
+    estado.altura = riscoEscolhido().altura
+    for (const b of botoesDeAlca.values()) b.remove()
+    botoesDeAlca.clear()
+    estado.ficha = { ...FICHA_INICIO }
+    construir()
+    atualizarPainel()
+    dizer('Cena restaurada. Desfazer traz de volta o que você tinha.')
+  })
+  document.getElementById('b-ficha').addEventListener('click', () => {
+    estado.ficha = { ...FICHA_INICIO }
+    dizer(textoDaFicha())
+    pedirQuadro()
+  })
+  document.getElementById('c-grade').addEventListener('change', (ev) => {
+    estado.grade = ev.target.checked
+    objetosSujos = true
+    pedirQuadro()
+  })
+
+  // ================================================================ início
+
+  new ResizeObserver(medir).observe(moldura)
+  window.matchMedia('(resolution: 1dppx)').addEventListener?.('change', medir)
+  estado.altura = riscoEscolhido()?.altura ?? estado.altura
+  construir()
+  atualizarPainel()
+  dizer(textoDaFicha())
+  medir()
+})()
+</script>
+</body>
+</html>
