@@ -63,6 +63,9 @@ import { acharItemNoMapa } from '../lib/itemNoMapa'
 import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
+import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
+import { textoBlocos, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
+import { MEDIDA_ENVIO_INTERVALO_MS } from '../net/protocoloDaMedida'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { playerExitPassageOf } from '../lib/pinTravel'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
@@ -330,6 +333,12 @@ export interface PlayerState {
    * VEÍCULO: a recusa do "Subir" (`VehicleNotice`) sai no mesmo lugar.
    */
   moveNotice?: { id: number; reason: MoveNoticeReason }
+  /**
+   * MODO BATALHA (B6): o host parou a ficha antes do que a prévia dele
+   * contava — uma parede que ele não via barrou o caminho. O texto traz o
+   * número real ("andou 2 blocos, não 5"): vale o host, nunca em silêncio.
+   */
+  esbarrou?: { id: number; texto: string }
   /**
    * CLICAR PARA ANDAR: a caminhada em curso (clique no chão ou "Andar até
    * aqui") e o ponto onde ela termina — a marca no destino. Some ao chegar, ao
@@ -1245,6 +1254,13 @@ export interface PlayerConnection {
   /** Soltou o laser: manda o que faltava e o `off`, só se algo saiu desde o último. */
   laserOff(): void
   /**
+   * COMPARTILHAR COM O MESTRE (B6): a medida ao vivo vai ao host, que a
+   * repassa só à tela do mestre. No máximo uma a cada
+   * `MEDIDA_ENVIO_INTERVALO_MS` (a última sempre sai); `null` apaga a marca
+   * lá. Repetir a mesma medida não manda nada.
+   */
+  compartilharMedida(medida: MedidaCompartilhada | null): void
+  /**
    * "Pegar" o item do pino `pinId` — ou da imagem de item no chão com esse
    * id (ITEM NO MAPA). `false` se não está jogando, o item não está no mapa
    * dele ou não é pegável, ou o socket não está aberto.
@@ -1523,6 +1539,15 @@ export const WAKE_PROBE_MS = 800
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
 export const MOVE_NOTICE_TTL_MS = 2500
+/** O aviso do esbarrão (B6) fica mais: ele traz um número que o jogador precisa ler. */
+export const ESBARROU_TTL_MS = 8000
+
+/** O aviso quando o host parou a ficha antes da prévia: a regra do usuário de 27/10, texto aprovado em 28/10. */
+export function textoDoEsbarrao(andou: number, pediu: number): string {
+  return andou === 0
+    ? 'Uma parede que você não via barrou o caminho. A ficha não saiu do lugar.'
+    : `Uma parede que você não via barrou o caminho. A ficha andou ${textoBlocos(andou)}, não ${pediu}.`
+}
 /** Por que a ficha parou em outro lugar que não o pedido, em uma linha curta (pouso aceito, não recusa). */
 export const MOVE_NOTICE_TEXT: Record<TokenMoveLanding, string> = {
   nearest_floor: 'O chão sumiu debaixo da ficha: ela foi para o chão mais perto',
@@ -1696,6 +1721,8 @@ interface PendingMove {
   y: number
   prevX: number
   prevY: number
+  /** MODO BATALHA: os blocos que a prévia contou com as paredes que ele conhece; o host pode parar antes. */
+  previstos?: number
 }
 
 /**
@@ -2072,6 +2099,39 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** Recusa do movimento (`TokenMoveRejection`) ou pouso em outro lugar após aceite (`TokenMoveLanding`). */
+  let esbarrouTimer: ReturnType<typeof setTimeout> | null = null
+
+  function showEsbarrao(andou: number, pediu: number): void {
+    if (esbarrouTimer !== null) clearTimeout(esbarrouTimer)
+    setState({ esbarrou: { id: nextNoticeId++, texto: textoDoEsbarrao(andou, pediu) } })
+    esbarrouTimer = setTimeout(() => {
+      esbarrouTimer = null
+      setState({ esbarrou: undefined })
+    }, ESBARROU_TTL_MS)
+  }
+
+  /** COMPARTILHAR COM O MESTRE: a última medida mandada (JSON) e a que espera a janela de envio. */
+  let medidaEnviada: string | null = null
+  let medidaEsperando: { medida: MedidaCompartilhada | null } | null = null
+  let medidaTimer: ReturnType<typeof setTimeout> | null = null
+
+  function enviarMedida(medida: MedidaCompartilhada | null): void {
+    const json = JSON.stringify(medida)
+    if (json === medidaEnviada) return
+    if (send({ type: 'medida.compartilhar', medida })) medidaEnviada = json
+  }
+
+  function armarMedidaTimer(): void {
+    medidaTimer = setTimeout(() => {
+      medidaTimer = null
+      const proxima = medidaEsperando
+      medidaEsperando = null
+      if (proxima === null) return
+      enviarMedida(proxima.medida)
+      armarMedidaTimer()
+    }, MEDIDA_ENVIO_INTERVALO_MS)
+  }
+
   function showMoveNotice(reason: MoveNoticeReason): void {
     clearMoveNotice()
     setState({ moveNotice: { id: nextNoticeId++, reason } })
@@ -3151,6 +3211,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
   function handleSocketLost(): void {
+    // COMPARTILHAR COM O MESTRE: a queda apagou a marca no host; a volta manda a medida de novo.
+    medidaEnviada = null
     // SONS AO VIVO: na volta o mestre manda os loops de novo, no ponto de agora; o parado durante a queda não volta.
     loopsVivos.clear()
     // A chave era deste socket: a volta recebe outra.
@@ -3200,9 +3262,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const token = map?.tokens.find((t) => t.id === tokenId)
     if (!map || !token) return null
     const reqId = `m${nextReqId++}`
+    // MODO BATALHA (B6): a prévia sobre o recorte, ANTES do movimento otimista (é de onde a ficha sai).
+    const previa = state.batalha === true ? previaDoPassoEmBatalha(map, tokenId, { x, y }) : null
+    const previstos = previa !== null && previa.ok && previa.blocos !== undefined ? { previstos: previa.blocos } : {}
     // CLICAR PARA ANDAR: o trecho de caminhada vai marcado; o arrasto, sem a marca.
     if (!send(caminhada ? { type: 'token.move', reqId, tokenId, x, y, caminhada: true } : { type: 'token.move', reqId, tokenId, x, y })) return null
-    pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
+    pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y, ...previstos })
     // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
     // reunido): já viu onde está, o aviso sai.
     const phase = state.travel?.phase
@@ -4506,7 +4571,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
         // Resposta a pedido que já não está pendente (troca de cena) não mexe na ficha nem avisa.
         const known = pending.has(data.reqId)
+        const previstos = pending.get(data.reqId)?.previstos
         handleAccepted(data.reqId, data.x, data.y)
+        // MODO BATALHA (B6): o host parou antes da prévia (parede que ele não via). Vale o host, com aviso.
+        const andou = typeof data.blocos === 'number' && Number.isInteger(data.blocos) && data.blocos >= 0 ? data.blocos : undefined
+        if (known && previstos !== undefined && andou !== undefined && andou < previstos && state.status === 'playing') showEsbarrao(andou, previstos)
         // Motivo desconhecido não derruba o movimento aceito: só não inventa aviso.
         if (known && data.landing === 'nearest_floor' && state.status === 'playing') showMoveNotice(data.landing)
         return
@@ -5081,6 +5150,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       resetOwnLaser()
       if (rest.length > 0) send({ type: 'laser', points: rest })
       send({ type: 'laser', off: true })
+    },
+
+    compartilharMedida(medida) {
+      // Apagar sai na hora: a marca no mestre não pode ficar depois que o jogador desligou.
+      if (medida === null || medidaTimer === null) {
+        medidaEsperando = null
+        enviarMedida(medida)
+        if (medidaTimer === null) armarMedidaTimer()
+        return
+      }
+      medidaEsperando = { medida }
     },
 
     takePin(pinId) {

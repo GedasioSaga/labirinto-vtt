@@ -58,6 +58,8 @@ import { PlayerSecretCheckCard, SECRET_CHECK_NOTICE_TEXT } from './PlayerSecretC
 import { PlayerNoiseCue } from './PlayerNoiseCue'
 import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
+import { gravarCompartilharComMestre, lerCompartilharComMestre } from './compartilharComMestre'
+import type { FerramentaDeMedida, MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
 import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
@@ -770,6 +772,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [destinationArmed, setDestinationArmed] = useState(false)
   /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
   const [measureArmed, setMeasureArmed] = useState(false)
+  /** MODO BATALHA (B6): a peça de medir em batalha. Fora da batalha o PlayerView usa só a régua. */
+  const [ferramenta, setFerramenta] = useState<FerramentaDeMedida>('regua')
+  /** COMPARTILHAR COM O MESTRE (B6): o interruptor, lembrado no aparelho (padrão ligado). */
+  const [compartilhar, setCompartilhar] = useState(lerCompartilharComMestre)
+  /** A medida de agora, para o interruptor religado mandá-la na hora, sem esperar o próximo gesto. */
+  const medidaAtual = useRef<MedidaCompartilhada | null>(null)
   /** A medida solta na tela (px de mundo), para o "Mostrar a…"; `null` = nenhuma. Quem avisa é o PlayerView. */
   const [measuredRoute, setMeasuredRoute] = useState<RegionPoint[] | null>(null)
   /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
@@ -1301,6 +1309,23 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     },
     [connection],
   )
+  // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo vai ao host (que a repassa só ao mestre) com o interruptor ligado.
+  const medidaMudou = useCallback(
+    (medida: MedidaCompartilhada | null) => {
+      medidaAtual.current = medida
+      if (compartilhar) connection.compartilharMedida(medida)
+    },
+    [connection, compartilhar],
+  )
+  const trocarCompartilhar = useCallback(
+    (ligado: boolean) => {
+      setCompartilhar(ligado)
+      gravarCompartilharComMestre(ligado)
+      // Desligou: a marca some do mestre na hora. Religou: a medida que está na tela vai já.
+      connection.compartilharMedida(ligado ? medidaAtual.current : null)
+    },
+    [connection],
+  )
   const askRoutePeers = useCallback(() => connection.askRoutePeers(), [connection])
   const dismissSharedRoute = useCallback(() => connection.dismissSharedRoute(), [connection])
   // CHAT: a aba "Chat" do Painel.
@@ -1433,6 +1458,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             }}
             measureArmed={measureArmed}
             onMeasureSettle={settleMeasure}
+            ferramenta={state.batalha === true ? ferramenta : 'regua'}
+            onMedidaMudou={medidaMudou}
             sharedRoute={state.sharedRoute}
             laserArmed={laserArmed}
             ownLaserColor={ownLaserColor}
@@ -1484,6 +1511,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setDestinationArmed(false)
             setNoteArmed(false)
           }}
+          batalha={state.batalha === true}
+          ferramenta={ferramenta}
+          onFerramenta={setFerramenta}
+          compartilharComMestre={{ ligado: compartilhar, onChange: trocarCompartilhar }}
           measureArmed={measureArmed}
           onToggleMeasure={() => {
             setMeasureArmed((armed) => !armed)
@@ -2062,6 +2093,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.pointNotice && (
           <p key={state.pointNotice.id} className="pp-notice pp-notice--point" role="status" aria-live="polite">
             {pointNoticeText(state.pointNotice)}
+          </p>
+        )}
+        {/* MODO BATALHA (B6): o host parou a ficha antes da prévia; o número é o real. */}
+        {state.esbarrou && (
+          <p key={state.esbarrou.id} className="pp-notice pp-notice--esbarrou" role="status" aria-live="polite">
+            {state.esbarrou.texto}
           </p>
         )}
         {/* Porta e movimento avisam no mesmo lugar: vale o mais novo (`latestActionNotice`).

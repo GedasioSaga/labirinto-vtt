@@ -1,4 +1,6 @@
 import { coresDosPinos } from '../lib/marcadorDeContinente'
+import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
+import type { MedidaCompartilharMessage } from './protocoloDaMedida'
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
@@ -941,6 +943,25 @@ export interface HostPlayerLaser {
 }
 
 /**
+ * COMPARTILHAR COM O MESTRE (B6): a medida ao vivo de um jogador, só para a
+ * tela do mestre (nenhum outro jogador nem a TV recebe). `apagar`: o jogador
+ * desligou o interruptor, limpou a medida ou caiu. O rótulo o mestre monta dos
+ * números (`rotuloParaOMestre`); o nome e a cor quem põe é o host.
+ */
+export type HostMedidaDoJogador =
+  | { playerId: string; apagar: true }
+  | {
+      playerId: string
+      name: string
+      /** A cor da ficha dele (`#rrggbb`) ou, ficha sem cor, a da paleta de sinais. */
+      color: string
+      /** O mapa da cena DELE: a tela do mestre só desenha quando é o mapa aberto. */
+      mapId: string
+      emBatalha: boolean
+      medida: MedidaCompartilhada
+    }
+
+/**
  * Chamado de um jogador ("chamar o mestre"), como o MESTRE o lê. Nada disto
  * vai a outro jogador: quem chamou só recebe o estado da própria mão.
  */
@@ -1069,6 +1090,8 @@ export interface HostResult {
   applyVehicle?: AppliedVehicle
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
+  /** COMPARTILHAR COM O MESTRE (B6): a medida do jogador para a tela do mestre (e só para ela). */
+  medidaDoJogador?: HostMedidaDoJogador
   /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
   pointAction?: PointActionRequest
   /** Pedido de ficha de quem chegou sem personagem: o integrador pergunta ao mestre. */
@@ -1498,6 +1521,15 @@ export const VISION_RADIUS_STEP = 50
  * lotes jogaria fora justamente esses), e ainda segura quem inunda.
  */
 export const PLAYER_LASER_MAX_PER_WINDOW = 40
+
+/**
+ * COMPARTILHAR COM O MESTRE: teto de medidas por jogador a cada
+ * `MEDIDA_JANELA_MS`. O cliente manda no máximo ~10 por segundo
+ * (`MEDIDA_ENVIO_INTERVALO_MS`); o dobro dá folga à rede que atrasa e
+ * entrega várias juntas. O excesso morre em silêncio.
+ */
+export const MEDIDA_MAX_POR_JANELA = 20
+export const MEDIDA_JANELA_MS = 1000
 export const PLAYER_LASER_WINDOW_MS = 1000
 
 /**
@@ -3167,6 +3199,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastVehicleActionAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
+  // Por playerId: COMPARTILHAR COM O MESTRE — janela do teto (MEDIDA_MAX_POR_JANELA)
+  // e quem tem medida na tela do mestre agora (a queda apaga só a de quem tem).
+  const medidaWindows = new Map<string, { start: number; count: number }>()
+  const medidasNoMestre = new Set<string>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
   // cena (`sceneKey`) onde o gesto acontece. O `off` vai só a elas — a quem
   // nada viu, nem o aviso de que o gesto acabou. Lote vindo de outra cena
@@ -6285,6 +6321,46 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * quem aguarda, fora do mapa ou acima do teto por segundo morre em silêncio.
    * Quem aponta não recebe eco: a tela dele desenha o próprio rastro na hora.
    */
+  /** A marca do jogador some da tela do mestre (só quando havia uma: a queda de quem nunca mediu não manda nada). */
+  function apagarMedidaNoMestre(playerId: string): Pick<HostResult, 'medidaDoJogador'> {
+    medidaWindows.delete(playerId)
+    if (!medidasNoMestre.delete(playerId)) return {}
+    return { medidaDoJogador: { playerId, apagar: true } }
+  }
+
+  /**
+   * COMPARTILHAR COM O MESTRE (B6). A medida vai só ao integrador (a tela do
+   * mestre): `outbound` fica vazio, nenhum jogador recebe nada. Inválida (fora
+   * do mapa da cena dele, Círculo/Cone/Visão fora da batalha), de quem aguarda
+   * ou acima do teto por segundo: descartada em silêncio.
+   */
+  function handleMedidaDoJogador(clientId: string, msg: MedidaCompartilharMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return { outbound: [] }
+    const record = players.get(playerId)
+    if (record === undefined) return { outbound: [] }
+    const at = now()
+    const quota = medidaWindows.get(playerId)
+    if (quota === undefined || at - quota.start >= MEDIDA_JANELA_MS) medidaWindows.set(playerId, { start: at, count: 1 })
+    else if (quota.count >= MEDIDA_MAX_POR_JANELA) return { outbound: [] }
+    else quota.count += 1
+    if (msg.medida === null) {
+      if (!medidasNoMestre.delete(playerId)) return { outbound: [] }
+      return { outbound: [], medidaDoJogador: { playerId, apagar: true } }
+    }
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    const batalha = emBatalha(scene)
+    if (!medidaCabeNoMapa(msg.medida, { colunas: map.width, linhas: map.height, grid: map.grid }, batalha)) return { outbound: [] }
+    medidasNoMestre.add(playerId)
+    return {
+      outbound: [],
+      medidaDoJogador: { playerId, name: record.name, color: laserColorOf(playerId, map), mapId: map.id, emBatalha: batalha, medida: msg.medida },
+    }
+  }
+
   function handlePlayerLaser(clientId: string, msg: PlayerLaserMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -9260,6 +9336,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleCabineCall(clientId, msg, world)
       case 'laser':
         return handlePlayerLaser(clientId, msg, world)
+      case 'medida.compartilhar':
+        return handleMedidaDoJogador(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)
       case 'clue.peers':
@@ -10276,7 +10354,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastViews.delete(playerId)
       // DANÇA: quem dançava e caiu não passou; se era o último na pista, sai o desfecho.
       // PESCA: quem pescava e caiu sai; quem estava só convidado recebe o convite de novo ao voltar.
-      return comDesfechoDaDanca({ outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId)] })
+      // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
+      return comDesfechoDaDanca({ outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId)], ...apagarMedidaNoMestre(playerId) })
     },
 
     kick(clientId) {
@@ -10299,7 +10378,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       viewEpoch += 1
       // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
       // PESCA: o expulso sai da pesca (do convite, ou da água).
-      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId)] })
+      return comDesfechoDaDanca({
+        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId)],
+        ...apagarMedidaNoMestre(playerId),
+      })
     },
 
     confirmReturn(playerId, previousId, source) {

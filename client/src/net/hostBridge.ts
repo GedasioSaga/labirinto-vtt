@@ -62,6 +62,7 @@ import {
   type HostPeek,
   type HostResult,
   type HostPlayerLaser,
+  type HostMedidaDoJogador,
   type HostSession,
   type HostSignal,
   type HostWorld,
@@ -315,6 +316,8 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
   onPlayerLaser?: (laser: HostPlayerLaser) => void
+  /** COMPARTILHAR COM O MESTRE (B6): a medida de um jogador (ou o apagar dela), só para a tela do mestre. */
+  onMedidaDoJogador?: (medida: HostMedidaDoJogador) => void
   /** MODO BATALHA: a cena (`tableSceneKey`) está em batalha na sessão do mestre (`stores/batalhaStore.ts`). */
   getBatalha?: (sceneKey: string) => boolean
   /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena; o caminho andado soma. */
@@ -3413,6 +3416,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneReturnToasts()
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
+    if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
     if (result.call !== undefined) announceCall(result.call)
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
@@ -3565,6 +3569,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // DANÇA: quem dançava saiu; os colegas leem o estado novo e, se era o último, sai o desfecho.
     const result = session.disconnect(clientId, at)
     void dispatch(result)
+    // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
+    if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     notifyDancaIfChanged()
     notifyPescaIfChanged()
@@ -4194,6 +4200,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
       if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
       notifyDancaIfChanged()
       notifyPescaIfChanged()

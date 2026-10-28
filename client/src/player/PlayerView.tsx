@@ -124,10 +124,35 @@ import {
   playerMeasureLabel,
   playerMeasureReducer,
   withMeasureArmed,
+  foraDeCampoDeTexto,
+  teclaDaMedida,
+  type PlayerMeasure,
   type PlayerMeasureEvent,
   type PlayerMeasureState,
 } from './playerMeasure'
-import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
+import {
+  criarNumerosDasCasas,
+  drawMedidaEmBatalha,
+  drawPlayerMeasure,
+  drawPlayerTokenDrag,
+  drawPlayerTokenDragCaminho,
+  LADO_MINIMO_DO_NUMERO_PX,
+  type CasasNaTela,
+} from './drawPlayerMeasure'
+import {
+  ajustarTamanho,
+  fimQueDesenha,
+  girarCone,
+  lerMedida,
+  medidaDoGesto,
+  medidaVazia,
+  textoBlocos,
+  type FerramentaDeMedida,
+  type GradeDoMapa,
+  type MedidaCompartilhada,
+} from '../lib/batalha/ferramentasDoJogador'
+import { centroDaCasa } from '../lib/batalha/blocos'
+import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
 import { resolveTokenRelease } from './tokenRelease'
 import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
 import { drawSharedRoute, sharedRouteLabel } from './drawSharedRoute'
@@ -253,6 +278,14 @@ interface PlayerViewProps {
   onMeasureSettle?: (points: RegionPoint[] | null) => void
   /** Caminho que um colega mostrou com a régua: tracejado na cor dele, com a etiqueta "caminho do …". */
   sharedRoute?: SharedRoute
+  /** MODO BATALHA (B6): a peça do Medir em batalha (Medir, Círculo, Cone ou Visão). Fora da batalha só vale a régua. */
+  ferramenta?: FerramentaDeMedida
+  /**
+   * COMPARTILHAR COM O MESTRE (B6): a medida ao vivo como vai ao mestre (no
+   * arrasto e enquanto fica na tela), ou `null` quando some ou fica vazia. Só
+   * chama quando muda; quem decide se manda é a tela de cima (o interruptor).
+   */
+  onMedidaMudou?: (medida: MedidaCompartilhada | null) => void
   /** Toque curto numa porta: pede ao mestre para abrir/fechar (o mestre valida). */
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
@@ -388,6 +421,10 @@ type Drag =
       origin: Point
       reach: Point[] | null
       label: string | null
+      /** MODO BATALHA (B6): o caminho da prévia (centros das casas, px de mundo); `null` fora da batalha ou sem caminho. */
+      caminho: Point[] | null
+      /** MODO BATALHA: a casa pedida da última prévia — a conta só refaz quando o dedo muda de casa. */
+      previaChave: string | null
       screenStart: Point
       screenLast: Point
       startX: number
@@ -1318,6 +1355,10 @@ interface Scene {
   lastMeasureKey: string | null
   /** Última medida solta avisada por `onMeasureSettle` (pontos de mundo); `null` = nenhuma, `''` = nada avisado ainda. */
   lastSettledKey: string | null
+  /** MODO BATALHA (B6): os números dos blocos nas casas da régua, logo acima dela. */
+  numerosDaMedida: ReturnType<typeof criarNumerosDasCasas>
+  /** COMPARTILHAR COM O MESTRE: a última medida avisada por `onMedidaMudou` (JSON); `''` = nada avisado ainda. */
+  lastMedidaKey: string
   /** Caminho de um colega, em espaço de tela como a régua (espessura fixa em qualquer zoom). */
   routeLayer: Graphics
   /** Último caminho desenhado (id + pontos de tela); igual = nada a repintar. */
@@ -1890,6 +1931,8 @@ function PlayerViewDoCanvas({
   measureArmed = false,
   onMeasureSettle,
   sharedRoute,
+  ferramenta = 'regua',
+  onMedidaMudou,
   onDoorToggle,
   onPinOpen,
   onTokenOpen,
@@ -1957,6 +2000,8 @@ function PlayerViewDoCanvas({
     measureArmed,
     onMeasureSettle,
     sharedRoute,
+    ferramenta,
+    onMedidaMudou,
     onDoorToggle,
     onPinOpen,
     onTokenOpen,
@@ -2018,6 +2063,7 @@ function PlayerViewDoCanvas({
    */
   function syncMeasure(scene: Scene): void {
     reportSettledMeasure(scene)
+    reportarMedida(scene)
     const measure = scene.measure.measure
     const label = measureLabelRef.current
     const announcer = measureAnnouncerRef.current
@@ -2025,7 +2071,12 @@ function PlayerViewDoCanvas({
       if (scene.lastMeasureKey === null) return
       scene.lastMeasureKey = null
       scene.measureLayer.clear()
+      scene.numerosDaMedida.mostrar([])
       if (label && announcer) writeMeasureText({ label, announcer }, null)
+      return
+    }
+    if (latestRef.current.batalha) {
+      syncMedidaEmBatalha(scene, measure, label, announcer)
       return
     }
     const start = measureWorldToScreen(scene.camera, measure.start)
@@ -2034,9 +2085,64 @@ function PlayerViewDoCanvas({
     const key = JSON.stringify([start, end, text])
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
+    scene.numerosDaMedida.mostrar([])
     drawPlayerMeasure(scene.measureLayer, start, end)
     if (label && announcer) writeMeasureText({ label, announcer }, text)
     if (label) showScreenLabel(scene, label, text, end)
+  }
+
+  /**
+   * MODO BATALHA (B6): Medir em blocos (casa a casa, numerada), Círculo
+   * quadrado, Cone em 8 direções e Visão contra as paredes que ELE conhece (o
+   * recorte: parede invisível não corta a medição). Mesma chave da régua: só
+   * repinta quando a medida ou a câmera mudam.
+   */
+  function syncMedidaEmBatalha(scene: Scene, measure: PlayerMeasure, label: HTMLDivElement | null, announcer: HTMLDivElement | null): void {
+    const { map, ferramenta: peca } = latestRef.current
+    const grade: GradeDoMapa = { colunas: map.width, linhas: map.height, grid: map.grid }
+    const medida = medidaDoGesto(peca ?? 'regua', measure.start, measure.end, grade)
+    const key = JSON.stringify([medida, scene.camera.x, scene.camera.y, scene.camera.scale])
+    if (key === scene.lastMeasureKey) return
+    scene.lastMeasureKey = key
+    const leitura = lerMedida(medida, grade, medida.ferramenta === 'visao' ? obstaculosDasLuzes(scene, map) : [])
+    const ponto = (p: Point): Point => measureWorldToScreen(scene.camera, p)
+    const lado = map.grid * scene.camera.scale
+    const tela: CasasNaTela = {
+      canto: (casa) => ponto({ x: casa.col * map.grid, y: casa.row * map.grid }),
+      centro: (casa) => ponto(centroDaCasa(casa, map.grid)),
+      lado,
+    }
+    drawMedidaEmBatalha(scene.measureLayer, medida, leitura, tela, ponto)
+    scene.numerosDaMedida.mostrar(
+      leitura.numerada && lado >= LADO_MINIMO_DO_NUMERO_PX ? leitura.casas.map((casa, i) => ({ centro: tela.centro(casa), numero: i + 1 })) : [],
+    )
+    if (label && announcer) writeMeasureText({ label, announcer }, leitura.texto)
+    if (label) showScreenLabel(scene, label, leitura.texto, ponto(leitura.ancora))
+  }
+
+  /**
+   * COMPARTILHAR COM O MESTRE (B6): a medida de agora, na forma que vai ao
+   * mestre, avisada só quando muda. Medida vazia (um toque sem arrastar) é
+   * "nenhuma". Fora da batalha, a régua de sempre, com as pontas presas no mapa
+   * (ponta fora dele o host descartaria, e a marca velha ficaria no mestre).
+   */
+  function reportarMedida(scene: Scene): void {
+    const { map, ferramenta: peca, batalha: emBatalha } = latestRef.current
+    const measure = scene.measure.measure
+    let medida: MedidaCompartilhada | null = null
+    if (measure !== null && emBatalha) {
+      const candidata = medidaDoGesto(peca ?? 'regua', measure.start, measure.end, { colunas: map.width, linhas: map.height, grid: map.grid })
+      medida = medidaVazia(candidata, map.grid) ? null : candidata
+    } else if (measure !== null && (measure.start.x !== measure.end.x || measure.start.y !== measure.end.y)) {
+      const largura = map.width * map.grid
+      const altura = map.height * map.grid
+      const preso = (p: Point): Point => ({ x: Math.min(largura, Math.max(0, p.x)), y: Math.min(altura, Math.max(0, p.y)) })
+      medida = { ferramenta: 'regua', de: preso(measure.start), ate: preso(measure.end) }
+    }
+    const key = JSON.stringify(medida)
+    if (key === scene.lastMedidaKey) return
+    scene.lastMedidaKey = key
+    latestRef.current.onMedidaMudou?.(medida)
   }
 
   /** Escreve o rótulo acima e à direita de `end` (pontos de tela), como o do mestre, preso dentro da tela. */
@@ -2123,11 +2229,12 @@ function PlayerViewDoCanvas({
     const start = measureWorldToScreen(scene.camera, drag.origin)
     const end = measureWorldToScreen(scene.camera, { x: drag.x, y: drag.y })
     // A câmera entra na chave: o contorno é refeito só quando a tela muda.
-    const key = JSON.stringify([start, end, drag.label, scene.camera.scale, drag.reach === null])
+    const key = JSON.stringify([start, end, drag.label, scene.camera.scale, drag.reach === null, drag.caminho?.length ?? 0])
     if (key === scene.lastTokenDragKey) return
     scene.lastTokenDragKey = key
-    const reach = drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null
-    drawPlayerTokenDrag(scene.tokenDragLayer, start, end, reach)
+    // MODO BATALHA (B6): o caminho da prévia, casa a casa, no lugar da reta (e sem o contorno do alcance: o passo máximo já corta o caminho).
+    if (drag.caminho !== null) drawPlayerTokenDragCaminho(scene.tokenDragLayer, drag.caminho.map((p) => measureWorldToScreen(scene.camera, p)))
+    else drawPlayerTokenDrag(scene.tokenDragLayer, start, end, drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null)
     if (label) showScreenLabel(scene, label, drag.label, end)
   }
 
@@ -2178,6 +2285,42 @@ function PlayerViewDoCanvas({
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y + MEASURE_LABEL_OFFSET_PX), scene.app.screen.height - label.offsetHeight)
     label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /**
+   * Onde a ficha arrastada fica e o que o rótulo diz. MODO BATALHA (B6): a
+   * prévia faz a conta do host sobre o recorte (`previaDoPassoEmBatalha`): a
+   * ficha encaixa na casa onde o host vai parar, o caminho dá a volta nas
+   * paredes que ele conhece e o rótulo diz "N blocos" ou por que não dá. A
+   * conta só refaz quando o dedo muda de casa.
+   */
+  function preverArrasto(drag: Extract<Drag, { kind: 'token' }>, wanted: Point): void {
+    const { map, batalha: emBatalha } = latestRef.current
+    if (!emBatalha) {
+      const preview = previewTokenDrag(map, drag.origin, wanted)
+      drag.x = preview.at.x
+      drag.y = preview.at.y
+      drag.label = preview.label
+      drag.caminho = null
+      return
+    }
+    const chave = `${Math.floor(wanted.x / map.grid)},${Math.floor(wanted.y / map.grid)}`
+    if (chave === drag.previaChave) return
+    drag.previaChave = chave
+    const previa = previaDoPassoEmBatalha(map, drag.tokenId, wanted)
+    if (!previa.ok) {
+      drag.x = wanted.x
+      drag.y = wanted.y
+      drag.label = previa.reason === 'occupied' ? 'Casa ocupada' : previa.reason === 'outside_floor' ? 'Fora do chão' : previa.reason === 'wall' ? 'Sem caminho' : null
+      drag.caminho = null
+      return
+    }
+    drag.x = previa.x
+    drag.y = previa.y
+    const blocos = previa.blocos ?? 0
+    drag.label = blocos === 0 ? null : textoBlocos(blocos)
+    const casas = previa.caminho ?? []
+    drag.caminho = casas.length > 1 ? casas.map((casa) => centroDaCasa(casa, map.grid)) : null
   }
 
   function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
@@ -3073,6 +3216,8 @@ function PlayerViewDoCanvas({
       origin,
       reach: reachOutline(latestRef.current.map, origin),
       label: null,
+      caminho: null,
+      previaChave: null,
       screenStart: screen,
       screenLast: screen,
       startX: screen.x,
@@ -3423,6 +3568,9 @@ function PlayerViewDoCanvas({
       // Régua do jogador acima do mapa (e da névoa: medir até onde ainda não se vê é legítimo) e abaixo dos sinais.
       const measureLayer = new Graphics()
       measureLayer.eventMode = 'none'
+      // MODO BATALHA (B6): os números dos blocos da régua, logo acima dela.
+      const numerosLayer = new Container()
+      numerosLayer.eventMode = 'none'
       // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
       const pulseLayer = new Graphics()
       pulseLayer.eventMode = 'none'
@@ -3439,7 +3587,7 @@ function PlayerViewDoCanvas({
       // Caminho de um colega sob a própria régua: medir por cima dele não esconde a medida.
       const routeLayer = new Graphics()
       routeLayer.eventMode = 'none'
-      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, routeLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
+      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, routeLayer, measureLayer, numerosLayer, tokenDragLayer, signalsLayer, laserLayer)
       // MAPA DE LUZ (Luz L4b): por cima de tudo do mundo (as fichas escurecem à
       // noite, D2), com o contorno da própria ficha logo acima. Régua, sinais e
       // notas moram fora do mundo e não escurecem. Só entra no mundo com tinta
@@ -3596,6 +3744,8 @@ function PlayerViewDoCanvas({
         // '' não é chave de medida nenhuma: o primeiro quadro avisa "sem medida",
         // e a tela de cima esquece a de uma cena (ou montagem) anterior.
         lastSettledKey: '',
+        numerosDaMedida: criarNumerosDasCasas(numerosLayer),
+        lastMedidaKey: '',
         routeLayer,
         lastRouteKey: null,
         ownLaser: NO_OWN_LASER,
@@ -3679,13 +3829,10 @@ function PlayerViewDoCanvas({
         scene.camera = next
         applyCamera(scene)
         // Passo máximo vale também com a borda rolando: a ficha para no alcance.
-        const preview = previewTokenDrag(current, drag.origin, {
+        preverArrasto(drag, {
           x: (drag.screenX - next.x) / next.scale + drag.offsetX,
           y: (drag.screenY - next.y) / next.scale + drag.offsetY,
         })
-        drag.x = preview.at.x
-        drag.y = preview.at.y
-        drag.label = preview.label
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
         syncTokenDrag(scene)
       }
@@ -3991,7 +4138,7 @@ function PlayerViewDoCanvas({
           // Com o modo Medir, o arrasto mede: nem câmera, nem sinal, nem cartão de pino.
           cancelLongPress()
           scene.drag = { kind: 'measure', pointerId, before: scene.measure }
-          applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey) })
+          applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey, latestRef.current.batalha) })
           return
         }
         if (latestRef.current.laserArmed) {
@@ -4096,7 +4243,7 @@ function PlayerViewDoCanvas({
         // Outro ponteiro (um dedo que ficou de fora do gesto): não é com este.
         if (event.pointerId !== drag.pointerId) return
         if (drag.kind === 'measure') {
-          applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey) })
+          applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey, latestRef.current.batalha) })
           return
         }
         if (drag.kind === 'laser') {
@@ -4116,10 +4263,7 @@ function PlayerViewDoCanvas({
         const world = scene.world.toLocal(event.global)
         // Passo máximo: a ficha para no último ponto do alcance e o dedo segue
         // sozinho; o rótulo conta os quadrados até onde a FICHA está.
-        const preview = previewTokenDrag(latestRef.current.map, drag.origin, { x: world.x + drag.offsetX, y: world.y + drag.offsetY })
-        drag.x = preview.at.x
-        drag.y = preview.at.y
-        drag.label = preview.label
+        preverArrasto(drag, { x: world.x + drag.offsetX, y: world.y + drag.offsetY })
         drag.screenLast = { x: event.global.x, y: event.global.y }
         drag.screenX = event.global.x
         drag.screenY = event.global.y
@@ -4452,6 +4596,39 @@ function PlayerViewDoCanvas({
     if (!measureArmed && scene.drag?.kind === 'measure') scene.drag = null
     syncMeasure(scene)
   }, [measureArmed])
+
+  useEffect(() => {
+    // MODO BATALHA (B6): trocar de peça (ou entrar e sair da batalha) começa sem medida —
+    // um círculo não vira cone no meio, e a medida velha não fica no mestre.
+    const scene = sceneRef.current
+    if (!scene) return
+    scene.measure = withMeasureArmed(MEASURE_OFF, scene.measure.armed)
+    if (scene.drag?.kind === 'measure') scene.drag = null
+    syncMeasure(scene)
+  }, [ferramenta, batalha])
+
+  useEffect(() => {
+    // MODO BATALHA (B6): Q e E giram o cone; + e − mudam o raio do círculo e o
+    // tamanho do cone. Só com o Medir ligado em batalha e fora de campo de texto.
+    if (!measureArmed || !batalha) return
+    const onKey = (event: KeyboardEvent) => {
+      const scene = sceneRef.current
+      const measure = scene?.measure.measure
+      if (!scene || !measure || event.ctrlKey || event.metaKey || event.altKey || !foraDeCampoDeTexto(event.target)) return
+      const tecla = teclaDaMedida(event.key)
+      if (tecla === null) return
+      const { map, ferramenta: peca } = latestRef.current
+      const atual = medidaDoGesto(peca ?? 'regua', measure.start, measure.end, { colunas: map.width, linhas: map.height, grid: map.grid })
+      const nova = tecla.tipo === 'girar' ? girarCone(atual, tecla.sentido) : ajustarTamanho(atual, tecla.sentido)
+      const fim = nova === atual ? null : fimQueDesenha(nova, map.grid)
+      if (fim === null) return
+      event.preventDefault()
+      scene.measure = { ...scene.measure, measure: { ...measure, end: fim } }
+      syncMeasure(scene)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [measureArmed, batalha])
 
   useEffect(() => {
     // Desligou (botão de novo ou Escape) com o dedo ainda apertado: o gesto termina ali.

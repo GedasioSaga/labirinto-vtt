@@ -43,6 +43,7 @@ import {
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
+import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 
 export type { OwnTokenElsewhere }
 
@@ -1162,6 +1163,8 @@ export type PlayerMessage =
   // MINIGAME DE PESCA: pedir, pronto, vivo, lance e cesto (`protocoloDaPesca.ts`).
   | PescaPlayerMessage
   | MyNotesSetMessage
+  // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo do jogador, só ao mestre (`protocoloDaMedida.ts`).
+  | MedidaCompartilharMessage
 
 /**
  * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
@@ -3376,6 +3379,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parsePersonagemAjustar(value)
     case 'livro.pedir':
       return parseLivroPedir(value)
+    case 'medida.compartilhar':
+      return parseMedidaCompartilhar(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':

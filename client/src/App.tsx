@@ -40,6 +40,7 @@ import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
 import { nuvensLigadas } from './lib/nuvens'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
+import { useMedidasDosJogadoresStore } from './stores/medidasDosJogadoresStore'
 import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
 import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
@@ -901,6 +902,7 @@ function App() {
         }),
         // Laser do jogador: o canvas desenha pela store, só o da cena aberta.
         onPlayerLaser: (laser) => usePlayerLaserStore.getState().receive(laser),
+        onMedidaDoJogador: (medida) => useMedidasDosJogadoresStore.getState().receive(medida),
         // Chamar o mestre: a linha na caixa "Chamados" a ponte já põe; aqui só o bipe.
         onCall: () => playSignalSound(),
         // "Ir lá" do chamado: a cena de quem chamou (ou a aberta, no mapa solto) com a ficha no centro.
@@ -1089,6 +1091,7 @@ function App() {
     useDonosDasFichasStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
+    useMedidasDosJogadoresStore.getState().clear()
     useLaserStore.getState().setToggled(false)
     useDiceStore.getState().clear()
     // Sala fechada: o painel esvazia; a conversa guardada volta do disco quando a sala reabrir.

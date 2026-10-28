@@ -31,7 +31,11 @@ export const LIMITE_DA_BUSCA_EM_BLOCOS = 120
 
 export type RecusaEmBatalha = 'wall' | 'outside_floor' | 'occupied'
 
-export type PassoEmBatalha = { ok: true; x: number; y: number; blocos: number } | { ok: false; reason: RecusaEmBatalha }
+/**
+ * `caminho`: as casas andadas, da de saída à de parada (B6: a prévia do
+ * jogador desenha por ele). Fica no host; a resposta ao jogador não o leva.
+ */
+export type PassoEmBatalha = { ok: true; x: number; y: number; blocos: number; caminho: readonly Casa[] } | { ok: false; reason: RecusaEmBatalha }
 
 export interface PedidoEmBatalha {
   /** Tamanho da casa em px de mundo. */
@@ -112,5 +116,5 @@ export function passoEmBatalha(pedido: PedidoEmBatalha): PassoEmBatalha {
   }
   const casaFinal = caminho[parada] ?? origem
   const ponto = pontoDaCasa(casaFinal)
-  return { ok: true, x: ponto.x, y: ponto.y, blocos: parada }
+  return { ok: true, x: ponto.x, y: ponto.y, blocos: parada, caminho: caminho.slice(0, parada + 1) }
 }
