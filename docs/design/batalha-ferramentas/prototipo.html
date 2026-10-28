@@ -1,0 +1,2055 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferramentas de batalha</title>
+<script>
+  // Só para a conferência automática do protótipo: um erro de script fica escrito no <html>.
+  window.addEventListener('error', (e) => { document.documentElement.dataset.erro = String(e.message) })
+</script>
+<style>
+/*
+ * Protótipo da fatia B6 (docs/planos/modo-batalha-2026-10-24.md): as
+ * ferramentas do jogador em batalha. Arquivo único, sem nada de fora.
+ *
+ * Os tokens abaixo são cópia dos `--lb-*` que o app injeta pelo `themeCss()`
+ * (client/src/theme.ts): mesmo nome, mesmo valor. As classes copiam a cara do
+ * painel do jogador (client/src/player/player.css): a folha de papel escuro, a
+ * peça que vira placa de latão quando ligada, o rótulo da régua e o aviso em
+ * pílula. O app só tem o tema escuro; o protótipo também.
+ */
+:root {
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-tide: #79a9cc;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-control-touch: 44px;
+  --lb-control-gap: 8px;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84;
+  --lb-gr-latao-2: #e0a44a;
+  --lb-gr-latao-3: #b87d2e;
+  --lb-gr-couro-1: #17100a;
+  --lb-gr-couro-2: #251a11;
+  --lb-gr-couro-3: #2f2216;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: var(--lb-font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-ink);
+  overflow-x: hidden;
+}
+
+.pagina {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px 24px 32px;
+}
+
+.cabeca { margin: 0 0 16px; max-width: 72ch; }
+
+.cabeca h1 {
+  margin: 0 0 4px;
+  font: 400 var(--lb-font-size-xl)/1.2 var(--lb-font-display);
+}
+
+.cabeca p { margin: 0; color: var(--lb-color-parchment-dim); }
+
+/* Três colunas no PC largo: o painel do jogador, o mapa e a tela do mestre. */
+.palco {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* A folha do grimório: papel escuro e filete de 1 px, como `.pp-panel`. */
+.folha {
+  padding: 14px 12px;
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  box-shadow: var(--lb-shadow-float);
+}
+
+.folha > * + * { margin-top: 12px; }
+
+.titulo {
+  margin: 0;
+  font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display);
+  color: var(--lb-color-parchment);
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.filete { height: 1px; margin-inline: 0; margin-bottom: 0; border: 0; background: var(--lb-gr-filete); }
+
+/* ----------------------------------------------------------- as peças */
+
+.pecas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.peca {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 6px 4px;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--lb-color-parchment);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out);
+}
+
+.peca:active { transform: scale(0.97); }
+
+.peca .ic { color: var(--lb-gr-gravado); }
+
+/* Ligada, a peça vira placa de latão, como no painel do jogador. */
+.peca[aria-pressed='true'] {
+  color: var(--lb-color-brass-contrast);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  border-color: rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.peca[aria-pressed='true'] .ic { color: inherit; }
+
+@media (hover: hover) {
+  .peca:hover:not([aria-pressed='true']) {
+    background: var(--lb-gr-cartao-alto);
+    border-color: var(--lb-gr-filete-forte);
+  }
+}
+
+.ic {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+.dica {
+  margin: 0;
+  min-height: 4.4em;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------------------------------------------------- caminho andado */
+
+.andado { display: flex; gap: 10px; align-items: flex-start; }
+
+.andado .ic { margin-top: 2px; color: var(--lb-gr-gravado); }
+
+.andado__total {
+  margin: 0;
+  font-size: var(--lb-font-size-md);
+}
+
+.andado__total strong {
+  font-family: var(--lb-font-utility);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass);
+}
+
+.teclas {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.teclas dt { white-space: nowrap; }
+.teclas dd { margin: 0; }
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  font: 600 10.5px/1.6 var(--lb-font-utility);
+  text-align: center;
+  color: var(--lb-color-parchment);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: 5px;
+}
+
+/* --------------------------------------------------------------- mapa */
+
+.mapa { min-width: 0; }
+
+.mapa__palco { position: relative; }
+
+.mapa__camadas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--lb-radius-md);
+  box-shadow: var(--lb-shadow-float);
+  background: #17120d;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.mapa__camadas:focus-visible {
+  box-shadow: var(--lb-shadow-float), 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+}
+
+.mapa__camadas[data-cursor='pegar'] { cursor: grab; }
+.mapa__camadas[data-cursor='arrastando'] { cursor: grabbing; }
+.mapa__camadas[data-cursor='medir'] { cursor: crosshair; }
+
+.mapa canvas { display: block; }
+
+/* "Em batalha": o jogador sabe que a mesa está em batalha. */
+.selo {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 10px;
+  font-size: var(--lb-font-size-md);
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone);
+  border: 1px solid rgba(226, 100, 90, 0.45);
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: none;
+}
+
+.selo::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-color-ember);
+}
+
+/* O rótulo da régua do jogador (`.pp-measure-label`). */
+.rotulo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  padding: 2px 8px;
+  font-size: var(--lb-font-size-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-md);
+  pointer-events: none;
+}
+
+.rotulo[hidden] { display: none; }
+.rotulo[data-tom='ruim'] { border-color: rgba(226, 100, 90, 0.75); }
+.rotulo[data-tom='bom'] { border-color: rgba(127, 180, 138, 0.75); }
+.rotulo--andou { border-color: rgba(224, 164, 74, 0.6); animation: entrar 160ms var(--lb-gr-ease-out); }
+.rotulo--nome { font-weight: 500; }
+
+/* Avisos e o "Mostrar a…": empilhados no pé do mapa, como `.pp-route-dock`. */
+.avisos {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+
+.avisos__lista { display: grid; justify-items: center; gap: 8px; }
+
+.aviso,
+.doca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px 6px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: 22px;
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: auto;
+  animation: entrar 160ms var(--lb-gr-ease-out);
+}
+
+.aviso { max-width: 62ch; }
+.aviso[data-tom='ruim'] { border-color: rgba(226, 100, 90, 0.7); }
+.aviso[data-saindo] { opacity: 0; transform: translateY(4px); transition: opacity 120ms ease-out, transform 120ms ease-out; }
+
+.aviso__texto { flex: 1 1 260px; }
+
+.bt-pilula {
+  min-height: 32px;
+  padding: 4px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast);
+  background: var(--lb-color-brass);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out);
+}
+
+.bt-pilula:active:not(:disabled):not([aria-disabled='true']) { transform: scale(0.97); }
+
+@media (hover: hover) {
+  .bt-pilula:hover:not(:disabled):not([aria-disabled='true']) { background: var(--lb-color-brass-bright); }
+  .bt-pilula--contorno:hover:not(:disabled) { background: transparent; border-color: var(--lb-color-brass); }
+}
+
+/* Ação secundária: contorno, não cheio (`.pp-route-notice__dismiss`). */
+.bt-pilula--contorno {
+  color: var(--lb-color-parchment);
+  background: transparent;
+  border-color: var(--lb-color-line-panel);
+}
+
+.bt-pilula:disabled,
+.bt-pilula[aria-disabled='true'] {
+  color: var(--lb-color-parchment-dim);
+  background: transparent;
+  border-color: var(--lb-color-line-panel);
+  cursor: default;
+}
+
+.doca[hidden] { display: none; }
+
+.doca__lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.doca__status { margin: 0; padding-right: 6px; }
+
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------- tela do mestre */
+
+.mestre { border-top: 3px solid var(--lb-gr-couro-3); }
+
+.mestre__secao > * + * { margin-top: 8px; }
+
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--lb-control-touch);
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.interruptor__trilho {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--lb-gr-cartao-alto);
+  border: 1px solid var(--lb-gr-filete-forte);
+  transition: background-color 160ms ease;
+}
+
+.interruptor__bola {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lb-color-parchment-dim);
+  transition: transform 160ms var(--lb-gr-ease-out), background-color 160ms ease;
+}
+
+.interruptor[aria-checked='true'] .interruptor__trilho { background: var(--lb-gr-latao-3); border-color: rgba(0, 0, 0, 0.4); }
+.interruptor[aria-checked='true'] .interruptor__bola { transform: translateX(16px); background: var(--lb-gr-latao-1); }
+
+.legenda { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.legenda li { display: flex; align-items: center; gap: 8px; }
+.legenda i { flex: none; width: 22px; height: 0; border-top: 2.5px dashed; }
+
+.feed {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--lb-font-size-md);
+}
+
+.feed li {
+  padding: 6px 10px;
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+}
+
+.feed li[data-tom='ruim'] { border-color: rgba(226, 100, 90, 0.55); }
+.feed li.feed__vazio { color: var(--lb-color-parchment-dim); background: none; border-style: dashed; }
+.feed small { display: block; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.decidir {
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+.decidir li + li { margin-top: 6px; }
+.decidir li::marker { font-family: var(--lb-font-utility); color: var(--lb-color-brass); }
+
+.fala {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* PC estreito (1080): o mestre desce para baixo do mapa, em três colunas. */
+@media (max-width: 1279px) {
+  .palco { grid-template-columns: 260px minmax(0, 1fr); }
+  .mestre { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .mestre > * + * { margin-top: 0; }
+}
+
+/* Tela pequena: tudo numa coluna. */
+@media (max-width: 759px) {
+  .pagina { padding: 16px 16px 24px; }
+  .palco { grid-template-columns: minmax(0, 1fr); }
+  .mestre { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso, .doca, .rotulo--andou { animation-name: aparecer; }
+  .aviso[data-saindo] { transform: none; }
+  .interruptor__bola { transition: background-color 160ms ease; }
+  @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header class="cabeca">
+    <h1>Ferramentas do jogador em batalha</h1>
+    <p>Protótipo da fatia B6, para o mestre aprovar antes de entrar no app. Você joga como a Lia, pelo navegador. A coluna do mestre mostra o que chega na mesa.</p>
+  </header>
+
+  <main class="palco">
+    <!-- O PAINEL DO JOGADOR: a seção nova "Em batalha", no molde do "No mapa". -->
+    <section class="folha jogador" aria-labelledby="t-batalha">
+      <h2 class="titulo" id="t-batalha">Em batalha</h2>
+      <div class="pecas" role="group" aria-labelledby="t-batalha">
+        <button type="button" class="peca" data-ferramenta="regua" aria-pressed="false">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16.5l13-13 4 4-13 13z M7.5 12.5l2 2 M10.5 9.5l2 2 M13.5 6.5l2 2"/></svg>
+          Medir
+        </button>
+        <button type="button" class="peca" data-ferramenta="circulo" aria-pressed="false">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 4.5h15v15h-15z M9.5 9.5h5v5h-5z"/></svg>
+          Círculo
+        </button>
+        <button type="button" class="peca" data-ferramenta="cone" aria-pressed="false">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l15-6.5 M4 12l15 6.5 M19 5.5c1.4 2.2 1.4 10.8 0 13"/></svg>
+          Cone
+        </button>
+        <button type="button" class="peca" data-ferramenta="visao" aria-pressed="false">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+          Visão
+        </button>
+      </div>
+      <p class="dica" id="dica" aria-live="polite"></p>
+
+      <hr class="filete">
+      <div class="andado">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.5c1.6 0 2.5 1.6 2.5 3.6S9.6 12 8 12s-2.5-1.9-2.5-3.9S6.4 4.5 8 4.5z M16 10c1.6 0 2.5 1.6 2.5 3.6S17.6 17.5 16 17.5s-2.5-1.9-2.5-3.9S14.4 10 16 10z"/></svg>
+        <div>
+          <p class="andado__total" id="andado-total"></p>
+          <p class="sub" id="andado-ultimo"></p>
+          <p class="sub">Conta até o mestre tocar em Zerar caminhos.</p>
+        </div>
+      </div>
+
+      <hr class="filete">
+      <dl class="teclas" id="teclas" aria-label="Teclado no mapa">
+        <dt><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>andam pela grade</dd>
+        <dt><kbd>Enter</kbd></dt><dd>marca o começo e confirma</dd>
+        <dt><kbd>Esc</kbd></dt><dd>cancela, e depois desliga a peça</dd>
+        <dt><kbd>1</kbd> a <kbd>4</kbd></dt><dd>ligam Medir, Círculo, Cone e Visão</dd>
+        <dt><kbd>Q</kbd> <kbd>E</kbd></dt><dd>giram o cone</dd>
+        <dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>raio do círculo e tamanho do cone</dd>
+      </dl>
+    </section>
+
+    <!-- O MAPA do jogador: o recorte dele, com a grade por cima. -->
+    <section class="mapa" aria-label="Mapa">
+      <div class="mapa__palco" id="palco">
+        <!-- Só o canvas recebe o ponteiro e o teclado do mapa; os avisos e o "Mostrar a…" moram ao lado, por cima. -->
+        <div class="mapa__camadas" id="camadas" tabindex="0" role="application" aria-roledescription="mapa da batalha"
+             aria-label="Mapa da batalha. Arraste a ficha da Lia para andar, ou use as setas e Enter." aria-describedby="teclas">
+          <canvas id="tela" aria-hidden="true"></canvas>
+        </div>
+        <div class="selo" aria-hidden="true">Em batalha</div>
+        <div class="rotulo" id="rotulo-medida" aria-hidden="true" hidden></div>
+        <div class="rotulo rotulo--andou" id="rotulo-andou" aria-hidden="true" hidden></div>
+        <div class="rotulo rotulo--nome" id="rotulo-nome" aria-hidden="true" hidden></div>
+        <div class="avisos">
+          <div class="avisos__lista" id="avisos" aria-live="polite"></div>
+          <section class="doca" id="doca" aria-label="Mostrar esta medida" tabindex="-1" hidden></section>
+        </div>
+      </div>
+      <div class="fala" id="fala" aria-live="polite" aria-atomic="true"></div>
+    </section>
+
+    <!-- A TELA DO MESTRE, simulada: o que chega lá e os dois controles dele. -->
+    <aside class="folha mestre" aria-labelledby="t-mestre">
+      <div class="mestre__secao">
+        <h2 class="titulo" id="t-mestre">Tela do mestre</h2>
+        <p class="sub">Simulada, para você ver o que chega na mesa enquanto testa o jogador.</p>
+        <button type="button" class="bt-pilula" id="zerar">Zerar caminhos</button>
+        <p class="sub" id="zerar-motivo">Apaga o caminho andado de todas as fichas desta cena.</p>
+        <button type="button" class="interruptor" id="escondidas" role="switch" aria-checked="false">
+          <span class="interruptor__trilho" aria-hidden="true"><span class="interruptor__bola"></span></span>
+          Mostrar o que o jogador não vê
+        </button>
+        <ul class="legenda">
+          <li><i style="color: var(--lb-color-ember)"></i>parede invisível</li>
+          <li><i style="color: var(--lb-color-tide)"></i>parede ainda na névoa</li>
+        </ul>
+        <button type="button" class="bt-pilula bt-pilula--contorno" id="recomecar">Recomeçar a demonstração</button>
+      </div>
+      <div class="mestre__secao">
+        <h3 class="titulo">Avisos que chegaram</h3>
+        <ol class="feed" id="feed" aria-live="polite"></ol>
+      </div>
+      <div class="mestre__secao">
+        <h3 class="titulo">Para decidir</h3>
+        <ol class="decidir">
+          <li>Medir conta em linha reta, casa a casa, sem olhar parede. O caminho de verdade aparece ao arrastar a ficha. Fica assim?</li>
+          <li>Em batalha, o Medir de sempre passa a contar blocos, e Círculo, Cone e Visão só aparecem em batalha. Pode ser?</li>
+          <li>Zerar caminhos fica só com o mestre, ou o jogador também zera o dele?</li>
+          <li>O jogador vê o caminho andado dos colegas, como o do Bruno aqui, ou só o dele?</li>
+          <li>O texto do aviso ao esbarrar diz "uma parede que você não via". Serve?</li>
+        </ol>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict'
+
+  // ============================================================ o mapa de exemplo
+  //
+  // Planta em casas: '#' fora do chão, '.' chão que o jogador conhece, 'f' chão
+  // ainda na névoa. Sala da Lia a oeste, a porta em (8, 4), o salão no meio e a
+  // sala da névoa a leste.
+  const COLUNAS = 20
+  const LINHAS = 12
+  const PLANTA = [
+    '####################',
+    '#.......#......#####',
+    '#.......#......#####',
+    '#.......#......ffff#',
+    '#..............ffff#',
+    '#.......#......ffff#',
+    '#.......#......ffff#',
+    '#.......#......ffff#',
+    '#########......ffff#',
+    '#########......ffff#',
+    '#########......#####',
+    '####################',
+  ]
+  PLANTA.forEach((linha, r) => {
+    if (linha.length !== COLUNAS) throw new Error(`planta: a linha ${r} tem ${linha.length} casas`)
+  })
+  if (PLANTA.length !== LINHAS) throw new Error('planta: número de linhas errado')
+
+  /** Teto da busca em blocos, o mesmo de `LIMITE_DA_BUSCA_EM_BLOCOS` (movimentoEmBatalha.ts). */
+  const LIMITE_DA_BUSCA = 120
+  /** Teto do círculo e do cone pelo teclado: passa de qualquer magia de mesa. */
+  const RAIO_MAXIMO = 9
+  const CONE_MAXIMO = 12
+  const COLEGAS = ['Bruno', 'Caio']
+
+  // Cores do mapa: o Meio-Termo (docs/design/vila-meio-termo/README.md, `praca`)
+  // e as do app para as marcas.
+  const COR = {
+    vazio: '#17120d',
+    nevoa: 'rgba(19, 16, 12, 0.95)',
+    chaoSombra: [188, 174, 148],
+    chaoRealce: [235, 226, 205],
+    grao: 'rgba(118, 96, 66, 0.2)',
+    parede: '#4a3624',
+    gradeEscura: 'rgba(52, 38, 22, 0.3)',
+    gradeClara: 'rgba(236, 234, 228, 0.08)',
+    latao: '#e0a44a',
+    lataoFundo: 'rgba(224, 164, 74, 0.4)',
+    lataoBorda: 'rgba(160, 104, 34, 0.85)',
+    lataoTexto: '#2a1a08',
+    pergaminho: '#f2ede4',
+    veu: 'rgba(17, 17, 17, 0.45)',
+    brasa: '#e2645a',
+    mare: '#79a9cc',
+    verde: '#7fb48a',
+  }
+
+  // ============================================================ paredes
+  //
+  // Toda parede mora numa aresta da grade. `v{X},{y}`: a linha vertical x = X,
+  // de y a y + 1. `h{x},{Y}`: a horizontal y = Y, de x a x + 1. Tudo em casas.
+  // `tipo`: 'mapa' (o jogador vê), 'invisivel' (só o host conhece) ou 'nevoa'
+  // (ainda não explorada). `conhecida` = está no recorte do jogador.
+  const paredes = new Map()
+
+  function ehChao(c, r) {
+    return c >= 0 && r >= 0 && c < COLUNAS && r < LINHAS && PLANTA[r][c] !== '#'
+  }
+
+  function segmentoDaChave(chave) {
+    const [x, y] = chave.slice(1).split(',').map(Number)
+    return chave[0] === 'v' ? { x1: x, y1: y, x2: x, y2: y + 1 } : { x1: x, y1: y, x2: x + 1, y2: y }
+  }
+
+  function poeParede(chave, tipo) {
+    if (paredes.has(chave)) return
+    paredes.set(chave, { chave, tipo, conhecida: tipo === 'mapa', reveladaEm: null, ...segmentoDaChave(chave) })
+  }
+
+  function montarParedes() {
+    paredes.clear()
+    // Do salão para a sala da névoa: o lado do salão o jogador vê.
+    for (const r of [3, 4, 8, 9]) poeParede(`v15,${r}`, 'mapa')
+    // A barreira invisível no meio do salão, entre a Lia e o goblin de cima.
+    for (let r = 3; r <= 7; r += 1) poeParede(`v12,${r}`, 'invisivel')
+    // Dentro da névoa: uma parede que ninguém explorou.
+    for (let c = 16; c <= 18; c += 1) poeParede(`h${c},7`, 'nevoa')
+    // A borda do chão: parede onde chão encosta em fora-do-chão.
+    for (let r = 0; r < LINHAS; r += 1) {
+      for (let c = 0; c < COLUNAS; c += 1) {
+        if (!ehChao(c, r)) continue
+        const tipo = PLANTA[r][c] === 'f' ? 'nevoa' : 'mapa'
+        if (!ehChao(c + 1, r)) poeParede(`v${c + 1},${r}`, tipo)
+        if (!ehChao(c - 1, r)) poeParede(`v${c},${r}`, tipo)
+        if (!ehChao(c, r + 1)) poeParede(`h${c},${r + 1}`, tipo)
+        if (!ehChao(c, r - 1)) poeParede(`h${c},${r}`, tipo)
+      }
+    }
+  }
+
+  const barraNoJogador = (chave) => paredes.get(chave)?.conhecida === true
+  const barraNoHost = (chave) => paredes.has(chave)
+
+  // ============================================================ blocos (porte de lib/batalha/blocos.ts)
+
+  const mesmaCasa = (a, b) => a.c === b.c && a.r === b.r
+  const blocosEntre = (a, b) => Math.max(Math.abs(a.c - b.c), Math.abs(a.r - b.r))
+  const textoBlocos = (n) => (n === 1 ? '1 bloco' : `${n} blocos`)
+  const dentroDoMapa = (casa) => casa.c >= 0 && casa.r >= 0 && casa.c < COLUNAS && casa.r < LINHAS
+  const prenderNoMapa = (casa) => ({ c: Math.min(COLUNAS - 1, Math.max(0, casa.c)), r: Math.min(LINHAS - 1, Math.max(0, casa.r)) })
+
+  /**
+   * As arestas que o passo de 1 bloco cruza. Reto: a aresta entre as casas.
+   * Diagonal: as 4 arestas que encostam na quina cruzada — com parede só em
+   * aresta, isto é a regra do app: a diagonal só vale onde os dois caminhos
+   * retos valem e nenhuma parede encosta na quina.
+   */
+  function arestasDoPasso(a, b) {
+    const dc = b.c - a.c
+    const dr = b.r - a.r
+    if (dr === 0) return [`v${Math.max(a.c, b.c)},${a.r}`]
+    if (dc === 0) return [`h${a.c},${Math.max(a.r, b.r)}`]
+    const vx = Math.max(a.c, b.c)
+    const vy = Math.max(a.r, b.r)
+    return [`v${vx},${vy - 1}`, `v${vx},${vy}`, `h${vx - 1},${vy}`, `h${vx},${vy}`]
+  }
+
+  function conferirPasso(barra, a, b) {
+    if (!ehChao(a.c, a.r) || !ehChao(b.c, b.r) || blocosEntre(a, b) !== 1) return 'invalido'
+    const arestas = arestasDoPasso(a, b)
+    if (!arestas.some(barra)) return 'livre'
+    return arestas.length === 1 ? 'parede' : 'quina'
+  }
+
+  /** Os 8 vizinhos: retos primeiro, como em blocos.ts (o caminho prefere andar reto quando empata). */
+  const VIZINHOS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+
+  /** Busca em largura: o menor caminho em blocos, só por passos livres. `null` quando não chega. */
+  function menorCaminho(barra, de, para, limite) {
+    if (!dentroDoMapa(de) || !dentroDoMapa(para) || blocosEntre(de, para) > limite) return null
+    if (mesmaCasa(de, para)) return { blocos: 0, caminho: [de] }
+    const indice = (c, r) => c + r * COLUNAS
+    const distancia = new Int32Array(COLUNAS * LINHAS).fill(-1)
+    const veio = new Int32Array(COLUNAS * LINHAS).fill(-1)
+    const fila = [indice(de.c, de.r)]
+    distancia[fila[0]] = 0
+    const alvo = indice(para.c, para.r)
+    for (let cabeca = 0; cabeca < fila.length; cabeca += 1) {
+      const atual = fila[cabeca]
+      if (distancia[atual] >= limite) continue
+      const daqui = { c: atual % COLUNAS, r: Math.floor(atual / COLUNAS) }
+      for (const [dc, dr] of VIZINHOS) {
+        const ali = { c: daqui.c + dc, r: daqui.r + dr }
+        if (!dentroDoMapa(ali)) continue
+        const i = indice(ali.c, ali.r)
+        if (distancia[i] !== -1 || conferirPasso(barra, daqui, ali) !== 'livre') continue
+        distancia[i] = distancia[atual] + 1
+        veio[i] = atual
+        if (i === alvo) {
+          const caminho = []
+          for (let k = alvo; k !== -1; k = veio[k]) caminho.push({ c: k % COLUNAS, r: Math.floor(k / COLUNAS) })
+          return { blocos: distancia[i], caminho: caminho.reverse() }
+        }
+        fila.push(i)
+      }
+    }
+    return null
+  }
+
+  /**
+   * O HOST anda o caminho que o jogador pediu com TODAS as paredes (opção D):
+   * no primeiro passo que não vale, a ficha para na casa de antes.
+   */
+  function andarNoHost(caminho) {
+    for (let i = 1; i < caminho.length; i += 1) {
+      if (conferirPasso(barraNoHost, caminho[i - 1], caminho[i]) !== 'livre') {
+        return { parouEm: i - 1, barrou: arestasDoPasso(caminho[i - 1], caminho[i]).filter(barraNoHost) }
+      }
+    }
+    return { parouEm: caminho.length - 1, barrou: [] }
+  }
+
+  // ============================================================ medição (porte de lib/batalha/medicao.ts)
+
+  const DIRECOES = ['leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste', 'norte', 'nordeste']
+  const PASSO_DA_DIRECAO = {
+    leste: [1, 0], sudeste: [1, 1], sul: [0, 1], sudoeste: [-1, 1],
+    oeste: [-1, 0], noroeste: [-1, -1], norte: [0, -1], nordeste: [1, -1],
+  }
+
+  /** Círculo quadrado (decisão 4): raio 2 = 25 casas, cortado só pela borda do mapa. */
+  function casasNoCirculo(centro, raio) {
+    const casas = []
+    for (let r = Math.max(0, centro.r - raio); r <= Math.min(LINHAS - 1, centro.r + raio); r += 1) {
+      for (let c = Math.max(0, centro.c - raio); c <= Math.min(COLUNAS - 1, centro.c + raio); c += 1) casas.push({ c, r })
+    }
+    return casas
+  }
+
+  /** Cone em 8 direções (decisão 5): meia abertura atan(1/2), beira inclusa, quem mede fora. */
+  function casasNoCone(origem, direcao, comprimento) {
+    if (comprimento <= 0) return []
+    const [ux, uy] = PASSO_DA_DIRECAO[direcao]
+    const tamanho2 = ux * ux + uy * uy
+    const casas = []
+    for (let r = Math.max(0, origem.r - comprimento); r <= Math.min(LINHAS - 1, origem.r + comprimento); r += 1) {
+      for (let c = Math.max(0, origem.c - comprimento); c <= Math.min(COLUNAS - 1, origem.c + comprimento); c += 1) {
+        const vx = c - origem.c
+        const vy = r - origem.r
+        const projecao = vx * ux + vy * uy
+        if (projecao <= 0) continue
+        if (5 * projecao * projecao >= 4 * (vx * vx + vy * vy) * tamanho2) casas.push({ c, r })
+      }
+    }
+    return casas
+  }
+
+  function direcaoMaisPerto(dx, dy) {
+    if (dx === 0 && dy === 0) return null
+    const oitavos = Math.round(Math.atan2(dy, dx) / (Math.PI / 4))
+    return DIRECOES[((oitavos % 8) + 8) % 8]
+  }
+
+  /**
+   * Linha de visão do centro de uma casa ao de outra, contra as paredes QUE O
+   * JOGADOR CONHECE (regra do usuário, 27/10: parede invisível não corta a
+   * medição). Paralela não barra; tocar a ponta de uma parede barra.
+   */
+  function linhaDeVisao(de, para) {
+    const a = { x: de.c + 0.5, y: de.r + 0.5 }
+    const b = { x: para.c + 0.5, y: para.r + 0.5 }
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const comprimento = Math.hypot(dx, dy)
+    if (comprimento < 1e-6) return { livre: true, de: a, para: b }
+    const tMinimo = 1e-6 / comprimento
+    const tMaximo = 1 - tMinimo
+    let primeiroT = Infinity
+    for (const parede of paredes.values()) {
+      if (!parede.conhecida) continue
+      const ex = parede.x2 - parede.x1
+      const ey = parede.y2 - parede.y1
+      const denominador = dx * ey - dy * ex
+      if (Math.abs(denominador) < 1e-12) continue
+      const wx = parede.x1 - a.x
+      const wy = parede.y1 - a.y
+      const t = (wx * ey - wy * ex) / denominador
+      if (t < tMinimo || t > tMaximo || t >= primeiroT) continue
+      const u = (wx * dy - wy * dx) / denominador
+      if (u < 0 || u > 1) continue
+      primeiroT = t
+    }
+    if (primeiroT === Infinity) return { livre: true, de: a, para: b }
+    return { livre: false, de: a, para: b, ponto: { x: a.x + dx * primeiroT, y: a.y + dy * primeiroT } }
+  }
+
+  /** A régua casa a casa: um bloco por passo, a diagonal vale 1. */
+  function casasDaRegua(de, ate) {
+    const n = blocosEntre(de, ate)
+    const casas = []
+    for (let i = 0; i <= n; i += 1) {
+      const t = n === 0 ? 0 : i / n
+      casas.push({ c: Math.round(de.c + (ate.c - de.c) * t), r: Math.round(de.r + (ate.r - de.r) * t) })
+    }
+    return casas
+  }
+
+  // ============================================================ estado
+
+  const FICHAS_DO_COMECO = [
+    { id: 'lia', nome: 'Lia', letra: 'L', cor: '#e0a44a', c: 4, r: 5, minha: true },
+    { id: 'caio', nome: 'Caio', letra: 'C', cor: '#ab93d6', c: 2, r: 2 },
+    { id: 'bruno', nome: 'Bruno', letra: 'B', cor: '#79a9cc', c: 10, r: 2 },
+    { id: 'g1', nome: 'Goblin', letra: 'G', cor: '#e2645a', c: 13, r: 5 },
+    { id: 'g2', nome: 'Goblin', letra: 'G', cor: '#e2645a', c: 13, r: 9 },
+  ]
+  /** O Bruno já andou 4 blocos antes da demonstração: há caminho para zerar desde o começo. */
+  const TRILHA_DO_BRUNO = [{ c: 7, r: 4 }, { c: 8, r: 4 }, { c: 9, r: 4 }, { c: 10, r: 3 }, { c: 10, r: 2 }]
+
+  const estado = {
+    fichas: [],
+    nevoa: new Set(),
+    trilhas: { lia: [], bruno: [] },
+    ultimoMovimento: null,
+    ferramenta: null,
+    /** A medida: { tipo, de, ate, arrastando, direcao?, comprimento?, raio? }. */
+    medida: null,
+    /** O arrasto da própria ficha (ou o plano pelo teclado): { ate }. */
+    plano: null,
+    cursor: { c: 4, r: 5 },
+    tecladoAtivo: false,
+    hover: null,
+    ponteiro: null,
+    mostrarEscondidas: false,
+    doca: { fase: 'oferta', para: null },
+    feed: [],
+  }
+
+  let animAndar = null
+  let animEsbarrao = null
+  let instantaneo = false
+  const relogios = new Set()
+
+  function depois(ms, fazer) {
+    const id = setTimeout(() => {
+      relogios.delete(id)
+      fazer()
+    }, ms)
+    relogios.add(id)
+    return id
+  }
+
+  function zerarEstado() {
+    for (const id of relogios) clearTimeout(id)
+    relogios.clear()
+    montarParedes()
+    estado.fichas = FICHAS_DO_COMECO.map((f) => ({ ...f }))
+    estado.nevoa = new Set()
+    for (let r = 0; r < LINHAS; r += 1) for (let c = 0; c < COLUNAS; c += 1) if (PLANTA[r][c] === 'f') estado.nevoa.add(`${c},${r}`)
+    estado.trilhas = { lia: [], bruno: TRILHA_DO_BRUNO.map((p) => ({ ...p })) }
+    estado.ultimoMovimento = null
+    estado.ferramenta = null
+    estado.medida = null
+    estado.plano = null
+    estado.cursor = { c: 4, r: 5 }
+    estado.doca = { fase: 'oferta', para: null }
+    estado.feed = []
+    animAndar = null
+    animEsbarrao = null
+    el.avisos.replaceChildren()
+    el.rotuloAndou.hidden = true
+    desenharFeed()
+  }
+
+  const minhaFicha = () => estado.fichas.find((f) => f.minha)
+  const fichaNaCasa = (casa) => estado.fichas.find((f) => f.c === casa.c && f.r === casa.r) ?? null
+  const reduzirMovimento = () => instantaneo || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  // ============================================================ elementos
+
+  const el = {
+    palco: document.getElementById('palco'),
+    camadas: document.getElementById('camadas'),
+    tela: document.getElementById('tela'),
+    rotuloMedida: document.getElementById('rotulo-medida'),
+    rotuloAndou: document.getElementById('rotulo-andou'),
+    rotuloNome: document.getElementById('rotulo-nome'),
+    avisos: document.getElementById('avisos'),
+    doca: document.getElementById('doca'),
+    fala: document.getElementById('fala'),
+    dica: document.getElementById('dica'),
+    andadoTotal: document.getElementById('andado-total'),
+    andadoUltimo: document.getElementById('andado-ultimo'),
+    zerar: document.getElementById('zerar'),
+    zerarMotivo: document.getElementById('zerar-motivo'),
+    escondidas: document.getElementById('escondidas'),
+    recomecar: document.getElementById('recomecar'),
+    feed: document.getElementById('feed'),
+    pecas: [...document.querySelectorAll('.peca')],
+  }
+  const ctx = el.tela.getContext('2d')
+  const chao = document.createElement('canvas')
+
+  let S = 40
+  let dpr = 1
+
+  // ============================================================ previa e movimento
+
+  /** A prévia do jogador, com as paredes do recorte dele: o mesmo veredito que o host daria se não houvesse nada escondido. */
+  function previaDoMovimento(destino) {
+    const lia = minhaFicha()
+    if (mesmaCasa(destino, lia)) return { ok: false, motivo: 'parado' }
+    if (!ehChao(destino.c, destino.r)) return { ok: false, motivo: 'fora' }
+    const ocupante = fichaNaCasa(destino)
+    if (ocupante !== null) return { ok: false, motivo: 'ocupada', nome: ocupante.nome }
+    const movimento = menorCaminho(barraNoJogador, lia, destino, LIMITE_DA_BUSCA)
+    if (movimento === null) return { ok: false, motivo: 'sem-caminho' }
+    return { ok: true, ...movimento }
+  }
+
+  function textoDaRecusa(previa) {
+    if (previa.motivo === 'fora') return 'Fora do chão'
+    if (previa.motivo === 'ocupada') return `Casa ocupada (${previa.nome})`
+    if (previa.motivo === 'sem-caminho') return 'Sem caminho até ali'
+    return null
+  }
+
+  function executarMovimento(destino) {
+    estado.plano = null
+    const previa = previaDoMovimento(destino)
+    if (!previa.ok) {
+      const texto = textoDaRecusa(previa)
+      if (texto !== null) avisar(`${texto}. A ficha ficou onde estava.`, 'ruim', 4000)
+      pedirDesenho()
+      return
+    }
+    const host = andarNoHost(previa.caminho)
+    const andados = previa.caminho.slice(0, host.parouEm + 1)
+    const blocos = andados.length - 1
+    const esbarrou = host.parouEm < previa.caminho.length - 1
+    const proxima = esbarrou ? previa.caminho[host.parouEm + 1] : null
+    animarAndar(andados, () => {
+      const lia = minhaFicha()
+      const fim = andados[andados.length - 1]
+      lia.c = fim.c
+      lia.r = fim.r
+      estado.cursor = { ...fim }
+      somarNaTrilha(andados)
+      estado.ultimoMovimento = blocos
+      if (esbarrou) revelarEAvisar(host.barrou, fim, proxima, blocos, previa.blocos)
+      else {
+        mostrarAndou(fim, blocos)
+        falar(`Lia andou ${textoBlocos(blocos)}.`)
+      }
+      explorarSePreciso(fim)
+      atualizarPainel()
+    })
+  }
+
+  function somarNaTrilha(andados) {
+    if (andados.length < 2) return
+    const trilha = estado.trilhas.lia
+    if (trilha.length === 0) trilha.push({ ...andados[0] })
+    for (const casa of andados.slice(1)) trilha.push({ ...casa })
+  }
+
+  /** REVELA E AVISA (regra do usuário, 27/10): a parede entra no recorte, o jogador lê o número real e o mestre recebe o aviso. */
+  function revelarEAvisar(arestas, fim, proxima, andou, pediu) {
+    const agora = performance.now()
+    let invisivel = false
+    for (const chave of arestas) {
+      const parede = paredes.get(chave)
+      if (parede === undefined || parede.conhecida) continue
+      parede.conhecida = true
+      parede.reveladaEm = agora
+      if (parede.tipo === 'invisivel') invisivel = true
+    }
+    if (!reduzirMovimento()) animEsbarrao = { inicio: agora, dc: proxima.c - fim.c, dr: proxima.r - fim.r }
+    const texto = andou === 0
+      ? 'Uma parede que você não via barrou o caminho. A ficha não saiu do lugar.'
+      : `Uma parede que você não via barrou o caminho. A ficha andou ${textoBlocos(andou)}, não ${pediu}.`
+    avisar(texto, 'ruim', 8000)
+    registrar(invisivel ? 'Lia esbarrou na parede invisível.' : 'Lia esbarrou numa parede que ainda estava na névoa.', 'A parede agora aparece para ela.', 'ruim')
+    pedirDesenho()
+  }
+
+  /** Entrou na névoa: a sala inteira fica explorada (as paredes dela também). A invisível continua escondida. */
+  function explorarSePreciso(casa) {
+    if (!estado.nevoa.has(`${casa.c},${casa.r}`)) return
+    estado.nevoa.clear()
+    for (const parede of paredes.values()) if (parede.tipo === 'nevoa') parede.conhecida = true
+    pedirDesenho()
+  }
+
+  function animarAndar(caminho, aoTerminar) {
+    if (caminho.length < 2 || reduzirMovimento()) {
+      aoTerminar()
+      pedirDesenho()
+      return
+    }
+    // Movimento na tela: ease-in-out, 150 ms por bloco, com teto para o caminho longo não arrastar a jogada.
+    animAndar = { caminho, inicio: performance.now(), duracao: Math.min(900, 150 * (caminho.length - 1)), aoTerminar }
+    pedirDesenho()
+  }
+
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+
+  function posicaoDaFicha(ficha, agora) {
+    if (ficha.minha && animAndar !== null) {
+      const { caminho, inicio, duracao } = animAndar
+      const t = Math.min(1, (agora - inicio) / duracao)
+      const p = easeInOut(t) * (caminho.length - 1)
+      const i = Math.min(caminho.length - 2, Math.floor(p))
+      const f = p - i
+      return { x: caminho[i].c + (caminho[i + 1].c - caminho[i].c) * f + 0.5, y: caminho[i].r + (caminho[i + 1].r - caminho[i].r) * f + 0.5 }
+    }
+    if (ficha.minha && animEsbarrao !== null) {
+      // O tranco: avança um sétimo de casa contra a parede e volta.
+      const t = Math.min(1, (agora - animEsbarrao.inicio) / 200)
+      const s = Math.sin(Math.PI * easeOut(t)) * 0.14
+      return { x: ficha.c + 0.5 + animEsbarrao.dc * s, y: ficha.r + 0.5 + animEsbarrao.dr * s }
+    }
+    return { x: ficha.c + 0.5, y: ficha.r + 0.5 }
+  }
+
+  // ============================================================ medidas
+
+  function comecarMedida(casa) {
+    const tipo = estado.ferramenta
+    estado.medida = { tipo, de: { ...casa }, ate: { ...casa }, arrastando: true, direcao: 'leste', comprimento: 0, raio: 0 }
+    estado.doca = { fase: 'oferta', para: null }
+  }
+
+  function esticarMedida(casa) {
+    const m = estado.medida
+    if (m === null) return
+    m.ate = { ...casa }
+    if (m.tipo === 'circulo') m.raio = Math.min(RAIO_MAXIMO, blocosEntre(m.de, casa))
+    if (m.tipo === 'cone') {
+      m.direcao = direcaoMaisPerto(casa.c - m.de.c, casa.r - m.de.r) ?? m.direcao
+      m.comprimento = Math.min(CONE_MAXIMO, blocosEntre(m.de, casa))
+    }
+  }
+
+  function soltarMedida() {
+    const m = estado.medida
+    if (m === null) return
+    m.arrastando = false
+    // Um toque sem arrastar não mede nada: a medida some, em vez de oferecer "Mostrar a…" de uma medida vazia.
+    const vazia = m.tipo === 'cone' ? m.comprimento === 0 : m.tipo === 'circulo' ? m.raio === 0 : mesmaCasa(m.de, m.ate)
+    if (vazia) estado.medida = null
+  }
+
+  function girarCone(sentido) {
+    const m = estado.medida
+    if (m === null || m.tipo !== 'cone') return
+    m.direcao = DIRECOES[(DIRECOES.indexOf(m.direcao) + sentido + 8) % 8]
+    if (m.comprimento === 0) m.comprimento = 1
+    estado.doca = { fase: 'oferta', para: null }
+  }
+
+  function ajustarTamanho(passo) {
+    const m = estado.medida
+    if (m === null) return
+    if (m.tipo === 'circulo') m.raio = Math.min(RAIO_MAXIMO, Math.max(0, m.raio + passo))
+    else if (m.tipo === 'cone') m.comprimento = Math.min(CONE_MAXIMO, Math.max(1, m.comprimento + passo))
+    else return
+    estado.doca = { fase: 'oferta', para: null }
+  }
+
+  const NOME_DA_DIRECAO = {
+    leste: 'o leste', sudeste: 'o sudeste', sul: 'o sul', sudoeste: 'o sudoeste',
+    oeste: 'o oeste', noroeste: 'o noroeste', norte: 'o norte', nordeste: 'o nordeste',
+  }
+
+  /** O que a medida diz, no rótulo e para o leitor de tela, e onde o rótulo mora. */
+  function leituraDaMedida(m) {
+    if (m.tipo === 'regua') return { texto: textoBlocos(blocosEntre(m.de, m.ate)), casa: m.ate, tom: '' }
+    if (m.tipo === 'circulo') {
+      const n = casasNoCirculo(m.de, m.raio).length
+      return { texto: `raio ${m.raio}, ${textoBlocos(n)}`, casa: prenderNoMapa({ c: m.de.c + m.raio, r: m.de.r - m.raio }), tom: '' }
+    }
+    if (m.tipo === 'cone') {
+      if (m.comprimento === 0) return { texto: 'Arraste para a direção', casa: m.de, tom: '' }
+      const [ux, uy] = PASSO_DA_DIRECAO[m.direcao]
+      const n = casasNoCone(m.de, m.direcao, m.comprimento).length
+      const ponta = prenderNoMapa({ c: m.de.c + ux * m.comprimento, r: m.de.r + uy * m.comprimento })
+      return { texto: `${m.comprimento} para ${NOME_DA_DIRECAO[m.direcao]}, ${textoBlocos(n)}`, casa: ponta, tom: '' }
+    }
+    if (mesmaCasa(m.de, m.ate)) return { texto: 'Arraste até o alvo', casa: m.de, tom: '' }
+    const visao = linhaDeVisao(m.de, m.ate)
+    const distancia = textoBlocos(blocosEntre(m.de, m.ate))
+    const alvo = fichaNaCasa(m.ate)
+    const quem = alvo !== null && !mesmaCasa(m.de, m.ate) ? alvo.nome : null
+    if (visao.livre) return { texto: quem === null ? `Vê, a ${distancia}` : `Vê ${artigo(quem)}, a ${distancia}`, casa: m.ate, tom: 'bom' }
+    return { texto: quem === null ? `Parede no caminho, a ${distancia}` : `Não vê ${artigo(quem)}: parede no caminho`, casa: m.ate, tom: 'ruim' }
+  }
+
+  const artigo = (nome) => (nome === 'Goblin' ? 'o Goblin' : nome === 'Lia' ? 'a Lia' : `o ${nome}`)
+
+  const NOME_DA_MEDIDA = { regua: 'uma medida', circulo: 'um círculo', cone: 'um cone', visao: 'uma linha de visão' }
+
+  // ============================================================ desenho
+
+  let quadroPedido = 0
+
+  function pedirDesenho() {
+    if (quadroPedido === 0) quadroPedido = requestAnimationFrame(quadro)
+  }
+
+  function quadro(agora) {
+    quadroPedido = 0
+    let continuar = false
+    if (animAndar !== null) {
+      if (agora - animAndar.inicio >= animAndar.duracao) {
+        const fim = animAndar.aoTerminar
+        animAndar = null
+        fim()
+      } else continuar = true
+    }
+    if (animEsbarrao !== null) {
+      if (agora - animEsbarrao.inicio >= 200) animEsbarrao = null
+      else continuar = true
+    }
+    if (desenhar(agora)) continuar = true
+    atualizarRotulos()
+    atualizarCursorDoPonteiro()
+    if (continuar) pedirDesenho()
+  }
+
+  let medido = false
+
+  function redimensionar() {
+    const largura = el.palco.parentElement.clientWidth
+    const novo = Math.max(16, Math.min(44, Math.floor(largura / COLUNAS)))
+    const novoDpr = Math.min(3, window.devicePixelRatio || 1)
+    if (medido && novo === S && novoDpr === dpr) return
+    medido = true
+    S = novo
+    dpr = novoDpr
+    const w = COLUNAS * S
+    const h = LINHAS * S
+    el.palco.style.width = `${w}px`
+    el.palco.style.height = `${h}px`
+    el.tela.style.width = `${w}px`
+    el.tela.style.height = `${h}px`
+    el.tela.width = Math.round(w * dpr)
+    el.tela.height = Math.round(h * dpr)
+    pintarChao()
+    pedirDesenho()
+  }
+
+  /** Acaso determinístico por posição: o chão nunca repete e é sempre o mesmo. */
+  function acaso(x, y, semente) {
+    let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(semente, 982451653)
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296
+  }
+
+  /** O chão de pedra clara e quente do Meio-Termo, pintado uma vez por tamanho. */
+  function pintarChao() {
+    const w = COLUNAS * S
+    const h = LINHAS * S
+    chao.width = Math.round(w * dpr)
+    chao.height = Math.round(h * dpr)
+    const g = chao.getContext('2d')
+    g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    g.fillStyle = COR.vazio
+    g.fillRect(0, 0, w, h)
+    const AMOSTRAS = 5
+    const nc = COLUNAS * AMOSTRAS
+    const nr = LINHAS * AMOSTRAS
+    const ruido = document.createElement('canvas')
+    ruido.width = nc
+    ruido.height = nr
+    const rg = ruido.getContext('2d')
+    const imagem = rg.createImageData(nc, nr)
+    for (let y = 0; y < nr; y += 1) {
+      for (let x = 0; x < nc; x += 1) {
+        const v = 0.55 * acaso(x, y, 1) + 0.45 * acaso(x >> 2, y >> 2, 2)
+        const t = 0.32 + 0.36 * v
+        const i = (y * nc + x) * 4
+        for (let k = 0; k < 3; k += 1) imagem.data[i + k] = Math.round(COR.chaoSombra[k] + (COR.chaoRealce[k] - COR.chaoSombra[k]) * t)
+        imagem.data[i + 3] = 255
+      }
+    }
+    rg.putImageData(imagem, 0, 0)
+    g.save()
+    g.beginPath()
+    for (let r = 0; r < LINHAS; r += 1) for (let c = 0; c < COLUNAS; c += 1) if (ehChao(c, r)) g.rect(c * S, r * S, S, S)
+    g.clip()
+    g.imageSmoothingEnabled = true
+    g.drawImage(ruido, 0, 0, w, h)
+    g.fillStyle = COR.grao
+    for (let r = 0; r < LINHAS; r += 1) {
+      for (let c = 0; c < COLUNAS; c += 1) {
+        if (!ehChao(c, r)) continue
+        for (let k = 0; k < 6; k += 1) {
+          const raio = 0.6 + acaso(c * 7 + k, r, 5) * 0.8
+          g.beginPath()
+          g.arc((c + acaso(c, r * 7 + k, 3)) * S, (r + acaso(c * 3 + k, r * 5, 4)) * S, raio, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+    }
+    g.restore()
+  }
+
+  function linha(x1, y1, x2, y2) {
+    ctx.beginPath()
+    ctx.moveTo(x1 * S, y1 * S)
+    ctx.lineTo(x2 * S, y2 * S)
+    ctx.stroke()
+  }
+
+  /** O traço da régua do app (`drawPlayerMeasure.ts`): claro, com um véu escuro por baixo para não sumir no chão claro. */
+  function tracoComVeu(pontos, cor, largura) {
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const [estilo, w] of [[COR.veu, largura + 2.5], [cor, largura]]) {
+      ctx.strokeStyle = estilo
+      ctx.lineWidth = w
+      ctx.beginPath()
+      pontos.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x * S, p.y * S) : ctx.lineTo(p.x * S, p.y * S)))
+      ctx.stroke()
+    }
+  }
+
+  function pintarCasas(casas, fundo, borda) {
+    ctx.fillStyle = fundo
+    for (const casa of casas) ctx.fillRect(casa.c * S, casa.r * S, S, S)
+    if (borda === null) return
+    ctx.strokeStyle = borda
+    ctx.lineWidth = 1
+    for (const casa of casas) ctx.strokeRect(casa.c * S + 1.5, casa.r * S + 1.5, S - 3, S - 3)
+  }
+
+  function numeroNaCasa(casa, numero, fundo, texto) {
+    const raio = Math.max(6, S * 0.2)
+    const x = (casa.c + 0.5) * S
+    const y = (casa.r + 0.5) * S
+    ctx.fillStyle = fundo
+    ctx.beginPath()
+    ctx.arc(x, y, raio, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = texto
+    ctx.font = `600 ${Math.max(9, Math.round(S * 0.26))}px Bahnschrift, 'Segoe UI', system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(numero), x, y + 0.5)
+  }
+
+  function misturarCor(a, b, t) {
+    const pa = parseInt(a.slice(1), 16)
+    const pb = parseInt(b.slice(1), 16)
+    const canal = (p, s) => (p >> s) & 255
+    const c = (s) => Math.round(canal(pa, s) + (canal(pb, s) - canal(pa, s)) * t)
+    return `rgb(${c(16)}, ${c(8)}, ${c(0)})`
+  }
+
+  /** Desenha tudo; devolve `true` quando ainda há algo andando (a parede revelada esfriando). */
+  function desenhar(agora) {
+    let animando = false
+    const w = COLUNAS * S
+    const h = LINHAS * S
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(chao, 0, 0)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    // Névoa: o que o jogador ainda não explorou.
+    ctx.fillStyle = COR.nevoa
+    for (const chave of estado.nevoa) {
+      const [c, r] = chave.split(',').map(Number)
+      ctx.fillRect(c * S, r * S, S, S)
+    }
+
+    // Paredes do recorte. A revelada há pouco esfria da brasa até a cor de parede.
+    const larguraParede = Math.max(2.5, S * 0.11)
+    ctx.lineCap = 'round'
+    for (const parede of paredes.values()) {
+      if (!parede.conhecida) continue
+      const idade = parede.reveladaEm === null ? 1 : Math.min(1, (agora - parede.reveladaEm) / 900)
+      if (idade < 1) {
+        animando = true
+        ctx.strokeStyle = `rgba(226, 100, 90, ${0.35 * (1 - idade)})`
+        ctx.lineWidth = larguraParede + 8 * (1 - idade)
+        linha(parede.x1, parede.y1, parede.x2, parede.y2)
+      }
+      ctx.strokeStyle = idade < 1 ? misturarCor(COR.brasa, COR.parede, easeOut(idade)) : COR.parede
+      ctx.lineWidth = larguraParede
+      linha(parede.x1, parede.y1, parede.x2, parede.y2)
+    }
+
+    // Só com o interruptor do mestre: o que o jogador não vê, tracejado.
+    if (estado.mostrarEscondidas) {
+      ctx.setLineDash([6, 5])
+      ctx.lineWidth = 2.5
+      ctx.lineCap = 'butt'
+      for (const parede of paredes.values()) {
+        if (parede.conhecida) continue
+        ctx.strokeStyle = parede.tipo === 'invisivel' ? COR.brasa : COR.mare
+        linha(parede.x1, parede.y1, parede.x2, parede.y2)
+      }
+      ctx.setLineDash([])
+    }
+
+    // A GRADE POR CIMA (decisão 2): acima do mapa e da névoa, abaixo das fichas e das marcas.
+    // Duas passadas: a escura aparece no chão claro, a clara aparece na névoa.
+    for (const cor of [COR.gradeEscura, COR.gradeClara]) {
+      ctx.strokeStyle = cor
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      for (let c = 1; c < COLUNAS; c += 1) {
+        ctx.moveTo(c * S + 0.5, 0)
+        ctx.lineTo(c * S + 0.5, h)
+      }
+      for (let r = 1; r < LINHAS; r += 1) {
+        ctx.moveTo(0, r * S + 0.5)
+        ctx.lineTo(w, r * S + 0.5)
+      }
+      ctx.stroke()
+    }
+
+    desenharTrilhas()
+    desenharAreas()
+    desenharPrevia()
+    for (const ficha of estado.fichas) desenharFicha(ficha, posicaoDaFicha(ficha, agora), 1)
+    desenharLinhasDaMedida()
+    desenharCursor()
+    return animando
+  }
+
+  function desenharTrilhas() {
+    const bruno = estado.trilhas.bruno
+    if (bruno.length > 1) {
+      ctx.globalAlpha = 0.75
+      tracoComVeu(bruno.map((p) => ({ x: p.c + 0.5, y: p.r + 0.5 })), COR.mare, 2)
+      ctx.globalAlpha = 1
+    }
+    const lia = estado.trilhas.lia
+    if (lia.length > 1) {
+      tracoComVeu(lia.map((p) => ({ x: p.c + 0.5, y: p.r + 0.5 })), COR.latao, 2)
+      lia.slice(1).forEach((casa, i) => numeroNaCasa(casa, i + 1, COR.latao, COR.lataoTexto))
+    }
+  }
+
+  function desenharAreas() {
+    const m = estado.medida
+    if (m === null) return
+    if (m.tipo === 'regua') {
+      // Casa a casa: cada casa da régua com o número do bloco, por baixo das fichas.
+      const casas = casasDaRegua(m.de, m.ate).slice(1)
+      pintarCasas(casas, COR.lataoFundo, COR.lataoBorda)
+      if (S >= 22) casas.forEach((casa, i) => numeroNaCasa(casa, i + 1, 'rgba(28, 22, 8, 0.82)', COR.pergaminho))
+    } else if (m.tipo === 'circulo') {
+      const casas = casasNoCirculo(m.de, m.raio)
+      pintarCasas(casas, COR.lataoFundo, null)
+      const c0 = Math.max(0, m.de.c - m.raio)
+      const r0 = Math.max(0, m.de.r - m.raio)
+      const c1 = Math.min(COLUNAS - 1, m.de.c + m.raio)
+      const r1 = Math.min(LINHAS - 1, m.de.r + m.raio)
+      ctx.strokeStyle = COR.lataoBorda
+      ctx.lineWidth = 2
+      ctx.strokeRect(c0 * S + 1, r0 * S + 1, (c1 - c0 + 1) * S - 2, (r1 - r0 + 1) * S - 2)
+    } else if (m.tipo === 'cone') {
+      pintarCasas(casasNoCone(m.de, m.direcao, m.comprimento), COR.lataoFundo, COR.lataoBorda)
+    }
+  }
+
+  function desenharLinhasDaMedida() {
+    const m = estado.medida
+    if (m === null) return
+    const centro = (casa) => ({ x: casa.c + 0.5, y: casa.r + 0.5 })
+    if (m.tipo === 'regua') {
+      tracoComVeu([centro(m.de), centro(m.ate)], COR.pergaminho, 2)
+      pontas(centro(m.de), centro(m.ate))
+    } else if (m.tipo === 'circulo') {
+      pontas(centro(m.de), null)
+    } else if (m.tipo === 'cone') {
+      const [ux, uy] = PASSO_DA_DIRECAO[m.direcao]
+      ctx.setLineDash([5, 4])
+      // O eixo sai da beira da casa de origem: não risca a letra da ficha que mede.
+      const saida = 0.5 / Math.max(Math.abs(ux), Math.abs(uy))
+      tracoComVeu([{ x: m.de.c + 0.5 + ux * saida, y: m.de.r + 0.5 + uy * saida }, { x: m.de.c + 0.5 + ux * m.comprimento, y: m.de.r + 0.5 + uy * m.comprimento }], COR.pergaminho, 1.5)
+      ctx.setLineDash([])
+      ctx.strokeStyle = COR.pergaminho
+      ctx.lineWidth = 2
+      ctx.strokeRect(m.de.c * S + 2, m.de.r * S + 2, S - 4, S - 4)
+    } else if (m.tipo === 'visao') {
+      const visao = linhaDeVisao(m.de, m.ate)
+      if (visao.livre) {
+        tracoComVeu([visao.de, visao.para], COR.verde, 2.5)
+      } else {
+        tracoComVeu([visao.de, visao.ponto], COR.verde, 2.5)
+        ctx.globalAlpha = 0.8
+        ctx.setLineDash([5, 5])
+        tracoComVeu([visao.ponto, visao.para], COR.brasa, 2)
+        ctx.setLineDash([])
+        ctx.globalAlpha = 1
+        marcarX(visao.ponto)
+      }
+      pontas(visao.de, visao.para)
+    }
+  }
+
+  function pontas(inicio, fim) {
+    ctx.fillStyle = COR.pergaminho
+    ctx.beginPath()
+    ctx.arc(inicio.x * S, inicio.y * S, 3.5, 0, Math.PI * 2)
+    ctx.fill()
+    if (fim === null) return
+    ctx.strokeStyle = COR.pergaminho
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(fim.x * S, fim.y * S, 5, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  function marcarX(ponto) {
+    const x = ponto.x * S
+    const y = ponto.y * S
+    const t = Math.max(5, S * 0.16)
+    for (const [cor, largura] of [[COR.veu, 5], [COR.brasa, 2.5]]) {
+      ctx.strokeStyle = cor
+      ctx.lineWidth = largura
+      ctx.beginPath()
+      ctx.moveTo(x - t, y - t)
+      ctx.lineTo(x + t, y + t)
+      ctx.moveTo(x + t, y - t)
+      ctx.lineTo(x - t, y + t)
+      ctx.stroke()
+    }
+  }
+
+  function desenharPrevia() {
+    if (estado.plano === null) return
+    const previa = previaDoMovimento(estado.plano.ate)
+    if (previa.ok) {
+      tracoComVeu(previa.caminho.map((p) => ({ x: p.c + 0.5, y: p.r + 0.5 })), COR.pergaminho, 2)
+      ctx.fillStyle = COR.pergaminho
+      for (const casa of previa.caminho.slice(1, -1)) {
+        ctx.beginPath()
+        ctx.arc((casa.c + 0.5) * S, (casa.r + 0.5) * S, 2.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      desenharFicha(minhaFicha(), { x: estado.plano.ate.c + 0.5, y: estado.plano.ate.r + 0.5 }, 0.55)
+    } else if (previa.motivo !== 'parado') {
+      const casa = estado.plano.ate
+      ctx.strokeStyle = COR.brasa
+      ctx.lineWidth = 2
+      ctx.setLineDash([4, 3])
+      ctx.strokeRect(casa.c * S + 3, casa.r * S + 3, S - 6, S - 6)
+      ctx.setLineDash([])
+    }
+  }
+
+  function desenharFicha(ficha, centro, opacidade) {
+    const x = centro.x * S
+    const y = centro.y * S
+    const raio = S * 0.36
+    ctx.globalAlpha = opacidade
+    ctx.fillStyle = 'rgba(30, 20, 10, 0.35)'
+    ctx.beginPath()
+    ctx.ellipse(x, y + raio * 0.28, raio * 1.02, raio * 0.92, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = ficha.cor
+    ctx.beginPath()
+    ctx.arc(x, y, raio, 0, Math.PI * 2)
+    ctx.fill()
+    // Contorno no tom escuro da própria cor, nunca preto (Meio-Termo, regra 1).
+    ctx.strokeStyle = misturarCor(ficha.cor, '#000000', 0.45)
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+    if (ficha.minha) {
+      ctx.strokeStyle = COR.pergaminho
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(x, y, raio + 3, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.fillStyle = misturarCor(ficha.cor, '#000000', 0.72)
+    ctx.font = `600 ${Math.round(S * 0.36)}px Bahnschrift, 'Segoe UI', system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(ficha.letra, x, y + 1)
+    ctx.globalAlpha = 1
+  }
+
+  function desenharCursor() {
+    const comTeclado = estado.tecladoAtivo && document.activeElement === el.camadas
+    if (comTeclado) {
+      const casa = estado.cursor
+      ctx.strokeStyle = COR.pergaminho
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 3])
+      ctx.strokeRect(casa.c * S + 1.5, casa.r * S + 1.5, S - 3, S - 3)
+      ctx.setLineDash([])
+      return
+    }
+    const casa = estado.hover
+    if (casa === null || estado.ponteiro !== null) return
+    const sobreMinha = mesmaCasa(casa, minhaFicha())
+    if (estado.ferramenta === null && !sobreMinha) return
+    ctx.strokeStyle = 'rgba(242, 237, 228, 0.6)'
+    ctx.lineWidth = 1.5
+    ctx.strokeRect(casa.c * S + 1.5, casa.r * S + 1.5, S - 3, S - 3)
+  }
+
+  // ============================================================ rótulos, painel e avisos
+
+  function colocarRotulo(rotulo, casa, texto, tom) {
+    if (texto === null) {
+      rotulo.hidden = true
+      return
+    }
+    if (rotulo.textContent !== texto) rotulo.textContent = texto
+    rotulo.dataset.tom = tom
+    rotulo.hidden = false
+    const largura = rotulo.offsetWidth
+    const altura = rotulo.offsetHeight
+    let x = (casa.c + 1) * S + 6
+    if (x + largura > COLUNAS * S - 4) x = casa.c * S - largura - 6
+    const y = Math.min(LINHAS * S - altura - 4, Math.max(4, casa.r * S - altura + 4))
+    // left/top, e não transform: a entrada do rótulo anima o transform.
+    rotulo.style.left = `${Math.round(Math.max(4, x))}px`
+    rotulo.style.top = `${Math.round(y)}px`
+  }
+
+  let ultimaFala = ''
+
+  function falar(texto) {
+    if (texto === ultimaFala) return
+    ultimaFala = texto
+    el.fala.textContent = texto
+  }
+
+  function atualizarRotulos() {
+    let leitura = null
+    if (estado.plano !== null) {
+      const previa = previaDoMovimento(estado.plano.ate)
+      if (previa.ok) leitura = { texto: textoBlocos(previa.blocos), casa: estado.plano.ate, tom: '' }
+      else if (previa.motivo !== 'parado') leitura = { texto: textoDaRecusa(previa), casa: estado.plano.ate, tom: 'ruim' }
+    } else if (estado.medida !== null) {
+      leitura = leituraDaMedida(estado.medida)
+    }
+    colocarRotulo(el.rotuloMedida, leitura?.casa ?? { c: 0, r: 0 }, leitura?.texto ?? null, leitura?.tom ?? '')
+    if (leitura !== null) falar(leitura.texto)
+
+    const sobre = estado.hover !== null && estado.ponteiro === null && leitura === null ? fichaNaCasa(estado.hover) : null
+    colocarRotulo(el.rotuloNome, sobre ?? { c: 0, r: 0 }, sobre === null ? null : sobre.minha ? 'Lia (você)' : sobre.nome, '')
+    atualizarDoca()
+  }
+
+  function mostrarAndou(casa, blocos) {
+    colocarRotulo(el.rotuloAndou, casa, `andou ${textoBlocos(blocos)}`, '')
+    depois(1600, () => {
+      el.rotuloAndou.hidden = true
+    })
+  }
+
+  const DICAS = {
+    nenhuma: 'Arraste a sua ficha para andar. A prévia conta os blocos com as paredes que você conhece; quem decide é o mestre.',
+    regua: 'Arraste de uma casa a outra. Conta em linha reta, casa a casa, e a diagonal vale 1 bloco.',
+    circulo: 'Toque no centro e arraste para abrir. É quadrado: raio 2 pega 25 blocos.',
+    cone: 'Toque na origem e arraste para a direção. Gira de 45 em 45 graus (Q e E no teclado).',
+    visao: 'Arraste de quem olha até o alvo. Só as paredes que você conhece barram a linha.',
+  }
+
+  function atualizarPainel() {
+    for (const peca of el.pecas) peca.setAttribute('aria-pressed', String(peca.dataset.ferramenta === estado.ferramenta))
+    el.dica.textContent = DICAS[estado.ferramenta ?? 'nenhuma']
+    const andou = Math.max(0, estado.trilhas.lia.length - 1)
+    el.andadoTotal.innerHTML = ''
+    el.andadoTotal.append('Você andou ')
+    const forte = document.createElement('strong')
+    forte.textContent = textoBlocos(andou)
+    el.andadoTotal.append(forte, ' nesta batalha.')
+    el.andadoUltimo.textContent = estado.ultimoMovimento === null ? 'Ainda não andou desde o último zerar.' : `Último movimento: ${textoBlocos(estado.ultimoMovimento)}.`
+    const algumCaminho = estado.trilhas.lia.length > 1 || estado.trilhas.bruno.length > 1
+    el.zerar.disabled = !algumCaminho
+    el.zerarMotivo.textContent = algumCaminho ? 'Apaga o caminho andado de todas as fichas desta cena.' : 'Nenhuma ficha andou desde o último zerar.'
+    el.escondidas.setAttribute('aria-checked', String(estado.mostrarEscondidas))
+  }
+
+  function avisar(texto, tom, duracao) {
+    const aviso = document.createElement('div')
+    aviso.className = 'aviso'
+    aviso.dataset.tom = tom
+    const corpo = document.createElement('span')
+    corpo.className = 'aviso__texto'
+    corpo.textContent = texto
+    const fechar = document.createElement('button')
+    fechar.type = 'button'
+    fechar.className = 'bt-pilula bt-pilula--contorno'
+    fechar.textContent = 'Fechar'
+    aviso.append(corpo, fechar)
+    // Um aviso por vez no pé do mapa: o novo substitui o anterior.
+    for (const velho of [...el.avisos.children]) velho.remove()
+    el.avisos.append(aviso)
+
+    let restante = duracao
+    let comecou = performance.now()
+    let relogio = depois(restante, sair)
+    function sair() {
+      if (!aviso.isConnected) return
+      aviso.dataset.saindo = ''
+      depois(130, () => aviso.remove())
+    }
+    // Não some enquanto o ponteiro ou o foco estão nele.
+    const pausar = () => {
+      clearTimeout(relogio)
+      relogios.delete(relogio)
+      restante -= performance.now() - comecou
+    }
+    const seguir = () => {
+      comecou = performance.now()
+      relogio = depois(Math.max(1500, restante), sair)
+    }
+    aviso.addEventListener('pointerenter', pausar)
+    aviso.addEventListener('pointerleave', seguir)
+    aviso.addEventListener('focusin', pausar)
+    aviso.addEventListener('focusout', seguir)
+    fechar.addEventListener('click', () => {
+      aviso.remove()
+      el.camadas.focus()
+    })
+  }
+
+  function registrar(texto, detalhe, tom) {
+    estado.feed.unshift({ texto, detalhe, tom })
+    estado.feed.length = Math.min(estado.feed.length, 8)
+    desenharFeed()
+  }
+
+  function desenharFeed() {
+    const itens = estado.feed.map((entrada) => {
+      const li = document.createElement('li')
+      li.dataset.tom = entrada.tom
+      li.textContent = entrada.texto
+      if (entrada.detalhe) {
+        const small = document.createElement('small')
+        small.textContent = entrada.detalhe
+        li.append(small)
+      }
+      return li
+    })
+    if (itens.length === 0) {
+      const vazio = document.createElement('li')
+      vazio.className = 'feed__vazio'
+      vazio.textContent = 'Nada ainda. Leve a Lia para junto do goblin de cima, no salão: há uma parede invisível no caminho.'
+      itens.push(vazio)
+    }
+    el.feed.replaceChildren(...itens)
+  }
+
+  // ============================================================ "Mostrar a…"
+
+  let docaDesenhada = ''
+  let ultimoPedidoPeloTeclado = false
+
+  function atualizarDoca() {
+    const m = estado.medida
+    const visivel = estado.ferramenta !== null && m !== null && !m.arrastando
+    const assinatura = visivel ? `${estado.doca.fase}|${estado.doca.para}` : ''
+    if (assinatura === docaDesenhada) return
+    docaDesenhada = assinatura
+    el.doca.hidden = !visivel
+    if (!visivel) {
+      el.doca.replaceChildren()
+      return
+    }
+    const { fase, para } = estado.doca
+    // Redesenhar troca os botões: quem estava com o foco num deles volta para o mesmo nome.
+    const focado = el.doca.contains(document.activeElement) ? document.activeElement.textContent : null
+    const filhos = []
+    if (fase === 'oferta') {
+      const pedir = document.createElement('button')
+      pedir.type = 'button'
+      pedir.className = 'bt-pilula'
+      pedir.textContent = 'Mostrar a…'
+      pedir.addEventListener('click', pedirColegas)
+      filhos.push(pedir)
+    } else if (fase === 'procurando') {
+      filhos.push(status('Procurando quem está nesta cena…'))
+      falar('Procurando quem está nesta cena…')
+    } else {
+      const lista = document.createElement('ul')
+      lista.className = 'doca__lista'
+      lista.setAttribute('aria-label', 'Mostrar a medida a')
+      for (const nome of COLEGAS) {
+        const li = document.createElement('li')
+        const bt = document.createElement('button')
+        bt.type = 'button'
+        bt.className = 'bt-pilula'
+        bt.textContent = nome
+        // Enviando: o nome continua ali dizendo para quem vai, sem convidar outro toque (e sem perder o foco).
+        if (fase === 'enviando') bt.setAttribute('aria-disabled', 'true')
+        bt.addEventListener('click', () => {
+          if (estado.doca.fase !== 'enviando') mostrarA(nome)
+        })
+        li.append(bt)
+        lista.append(li)
+      }
+      filhos.push(lista)
+      if (fase === 'enviando') filhos.push(status(`Mostrando a medida a ${para}…`))
+      if (fase === 'ok') {
+        filhos.push(status(`Medida mostrada a ${para}.`))
+        falar(`Medida mostrada a ${para}.`)
+      }
+    }
+    el.doca.replaceChildren(...filhos)
+    const botoes = [...el.doca.querySelectorAll('button')]
+    // Sem botão (procurando), o foco espera na própria faixa, sem pular para o mapa.
+    if (focado !== null) (botoes.find((bt) => bt.textContent === focado) ?? botoes[0] ?? el.doca).focus()
+    // A lista chegou: quem pediu pelo teclado já está no primeiro nome (como `PlayerRouteShare`).
+    else if (fase === 'lista' && ultimoPedidoPeloTeclado) botoes[0]?.focus()
+  }
+
+  function status(texto) {
+    const p = document.createElement('p')
+    p.className = 'doca__status'
+    p.textContent = texto
+    return p
+  }
+
+  function pedirColegas(evento) {
+    ultimoPedidoPeloTeclado = evento.detail === 0
+    estado.doca = { fase: 'procurando', para: null }
+    atualizarDoca()
+    depois(350, () => {
+      if (estado.doca.fase !== 'procurando') return
+      estado.doca = { fase: 'lista', para: null }
+      atualizarDoca()
+    })
+  }
+
+  function mostrarA(nome) {
+    const m = estado.medida
+    if (m === null) return
+    const qual = NOME_DA_MEDIDA[m.tipo]
+    estado.doca = { fase: 'enviando', para: nome }
+    atualizarDoca()
+    depois(400, () => {
+      if (estado.doca.fase !== 'enviando') return
+      estado.doca = { fase: 'ok', para: nome }
+      atualizarDoca()
+      registrar(`Lia mostrou ${qual} a ${nome}.`, `Na tela de ${nome}: "Lia mostrou ${qual} no mapa."`, '')
+    })
+  }
+
+  // ============================================================ entrada
+
+  function casaDoEvento(evento) {
+    const caixa = el.tela.getBoundingClientRect()
+    return prenderNoMapa({ c: Math.floor((evento.clientX - caixa.left) / S), r: Math.floor((evento.clientY - caixa.top) / S) })
+  }
+
+  function atualizarCursorDoPonteiro() {
+    let cursor = ''
+    if (estado.plano !== null && estado.ponteiro !== null) cursor = 'arrastando'
+    else if (estado.ferramenta !== null) cursor = 'medir'
+    else if (estado.hover !== null && mesmaCasa(estado.hover, minhaFicha()) && animAndar === null) cursor = 'pegar'
+    if (el.camadas.dataset.cursor !== cursor) el.camadas.dataset.cursor = cursor
+  }
+
+  el.camadas.addEventListener('pointerdown', (evento) => {
+    // Um dedo por vez: o segundo toque não pula a medida para outro lugar.
+    if (evento.button !== 0 || estado.ponteiro !== null) return
+    estado.tecladoAtivo = false
+    const casa = casaDoEvento(evento)
+    estado.cursor = { ...casa }
+    if (estado.ferramenta !== null) {
+      el.camadas.setPointerCapture(evento.pointerId)
+      estado.ponteiro = evento.pointerId
+      comecarMedida(casa)
+    } else if (animAndar === null && mesmaCasa(casa, minhaFicha())) {
+      el.camadas.setPointerCapture(evento.pointerId)
+      estado.ponteiro = evento.pointerId
+      estado.plano = { ate: casa }
+    }
+    pedirDesenho()
+  })
+
+  el.camadas.addEventListener('pointermove', (evento) => {
+    const casa = casaDoEvento(evento)
+    const mudou = estado.hover === null || !mesmaCasa(estado.hover, casa)
+    estado.hover = casa
+    if (evento.pointerId === estado.ponteiro) {
+      if (estado.medida?.arrastando) esticarMedida(casa)
+      if (estado.plano !== null) estado.plano.ate = casa
+    }
+    if (mudou) pedirDesenho()
+  })
+
+  function soltarPonteiro(evento, cancelado) {
+    if (evento.pointerId !== estado.ponteiro) return
+    estado.ponteiro = null
+    if (estado.medida?.arrastando) {
+      if (cancelado) estado.medida = null
+      else soltarMedida()
+    }
+    if (estado.plano !== null) {
+      const destino = estado.plano.ate
+      estado.plano = null
+      if (!cancelado) executarMovimento(destino)
+    }
+    pedirDesenho()
+  }
+
+  el.camadas.addEventListener('pointerup', (evento) => soltarPonteiro(evento, false))
+  el.camadas.addEventListener('pointercancel', (evento) => soltarPonteiro(evento, true))
+  el.camadas.addEventListener('pointerleave', () => {
+    estado.hover = null
+    pedirDesenho()
+  })
+  el.camadas.addEventListener('focus', pedirDesenho)
+  el.camadas.addEventListener('blur', pedirDesenho)
+
+  const SETAS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+
+  function confirmarNoCursor() {
+    const casa = estado.cursor
+    if (estado.ferramenta !== null) {
+      if (estado.medida?.arrastando) soltarMedida()
+      else comecarMedida(casa)
+    } else if (estado.plano !== null) {
+      executarMovimento(estado.plano.ate)
+    } else if (animAndar === null) {
+      estado.plano = { ate: { ...casa } }
+    }
+  }
+
+  el.camadas.addEventListener('keydown', (evento) => {
+    const seta = SETAS[evento.key]
+    if (seta !== undefined) {
+      evento.preventDefault()
+      estado.tecladoAtivo = true
+      estado.cursor = prenderNoMapa({ c: estado.cursor.c + seta[0], r: estado.cursor.r + seta[1] })
+      if (estado.medida?.arrastando) esticarMedida(estado.cursor)
+      if (estado.plano !== null) estado.plano.ate = { ...estado.cursor }
+      if (estado.medida === null && estado.plano === null) {
+        const ficha = fichaNaCasa(estado.cursor)
+        if (ficha !== null) falar(ficha.minha ? 'Lia, a sua ficha' : ficha.nome)
+      }
+      pedirDesenho()
+      return
+    }
+    if (evento.key === 'Enter' || evento.key === ' ') {
+      evento.preventDefault()
+      estado.tecladoAtivo = true
+      confirmarNoCursor()
+      pedirDesenho()
+      return
+    }
+    const tecla = evento.key.toLowerCase()
+    if (tecla === 'q' || tecla === 'e') {
+      girarCone(tecla === 'e' ? 1 : -1)
+      pedirDesenho()
+    } else if (evento.key === '+' || evento.key === '=') {
+      ajustarTamanho(1)
+      pedirDesenho()
+    } else if (evento.key === '-' || evento.key === '_') {
+      ajustarTamanho(-1)
+      pedirDesenho()
+    }
+  })
+
+  const FERRAMENTAS = ['regua', 'circulo', 'cone', 'visao']
+
+  /** Ligar uma peça desliga a outra; tocar na ligada desliga (como Sinalizar, Medir e Laser no app). */
+  function alternarFerramenta(nome) {
+    estado.ferramenta = estado.ferramenta === nome ? null : nome
+    estado.medida = null
+    estado.plano = null
+    estado.doca = { fase: 'oferta', para: null }
+    atualizarPainel()
+    pedirDesenho()
+  }
+
+  for (const peca of el.pecas) peca.addEventListener('click', () => alternarFerramenta(peca.dataset.ferramenta))
+
+  document.addEventListener('keydown', (evento) => {
+    if (evento.ctrlKey || evento.metaKey || evento.altKey) return
+    const indice = ['1', '2', '3', '4'].indexOf(evento.key)
+    if (indice !== -1) {
+      alternarFerramenta(FERRAMENTAS[indice])
+      return
+    }
+    if (evento.key !== 'Escape') return
+    if (estado.plano !== null) estado.plano = null
+    else if (estado.medida !== null) estado.medida = null
+    else if (estado.ferramenta !== null) estado.ferramenta = null
+    else return
+    // O foco estava no "Mostrar a…", que vai sumir: volta para o mapa, não para o começo da página.
+    if (el.doca.contains(document.activeElement)) el.camadas.focus()
+    estado.ponteiro = null
+    estado.doca = { fase: 'oferta', para: null }
+    atualizarPainel()
+    pedirDesenho()
+  })
+
+  el.zerar.addEventListener('click', () => {
+    estado.trilhas = { lia: [], bruno: [] }
+    estado.ultimoMovimento = null
+    registrar('Você zerou os caminhos desta cena.', 'Lia e Bruno voltam a contar do zero.', '')
+    avisar('O mestre zerou os caminhos.', '', 3500)
+    atualizarPainel()
+    pedirDesenho()
+  })
+
+  el.escondidas.addEventListener('click', () => {
+    estado.mostrarEscondidas = !estado.mostrarEscondidas
+    atualizarPainel()
+    pedirDesenho()
+  })
+
+  el.recomecar.addEventListener('click', () => {
+    const mostrar = estado.mostrarEscondidas
+    zerarEstado()
+    estado.mostrarEscondidas = mostrar
+    atualizarPainel()
+    pedirDesenho()
+  })
+
+  // ============================================================ começo
+
+  /**
+   * Cenas prontas para conferir o desenho sem mexer no mouse:
+   * `#prova=cone` (cone medido a partir da Lia) e `#prova=esbarrou` (a Lia
+   * esbarra na parede invisível, com o interruptor do mestre ligado).
+   */
+  function aplicarProva(nome) {
+    if (nome === 'cone') {
+      alternarFerramenta('cone')
+      comecarMedida({ c: minhaFicha().c, r: minhaFicha().r })
+      esticarMedida({ c: 9, r: 4 })
+      soltarMedida()
+    } else if (nome === 'esbarrou') {
+      instantaneo = true
+      estado.mostrarEscondidas = true
+      executarMovimento({ c: 12, r: 5 })
+      instantaneo = false
+    }
+    atualizarPainel()
+  }
+
+  zerarEstado()
+  atualizarPainel()
+  new ResizeObserver(redimensionar).observe(el.palco.parentElement)
+  redimensionar()
+  const prova = /prova=([a-z]+)/.exec(location.hash)
+  if (prova !== null) aplicarProva(prova[1])
+  pedirDesenho()
+  document.documentElement.dataset.pronto = '1'
+})()
+</script>
+</body>
+</html>
