@@ -83,7 +83,7 @@ import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import {
-  BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS,
+  BARRANCO_SEGURA_A_FICHA_TEXT, BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS,
   avisoDaSalaQueNaoAbriu, avisoDoCorredorAberto, avisoDoEndireitar,
 } from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
@@ -101,7 +101,7 @@ import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
-import { barrancoOuVazio, comBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
+import { barrancoOuVazio, comBarranco, ehParedeDoBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
 import type { AlturaDoBarranco, BarrancoDoMapa } from '../types/map'
 import {
   comTexturas,
@@ -255,7 +255,10 @@ function moveTokenExplaining(map: MapData, token: Token, targetX: number, target
     return mapFactory.setTokenPosition(opened, token.id, targetX, targetY)
   }
 
-  noticeMoveOnce(`${blocked.reason}:${blocked.wallId}`, BLOCKED_MOVE_TEXT[blocked.reason])
+  noticeMoveOnce(
+    `${blocked.reason}:${blocked.wallId}`,
+    ehParedeDoBarranco(blocked.wallId) ? BARRANCO_SEGURA_A_FICHA_TEXT : BLOCKED_MOVE_TEXT[blocked.reason],
+  )
   return map
 }
 

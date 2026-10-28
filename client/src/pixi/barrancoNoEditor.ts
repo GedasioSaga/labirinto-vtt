@@ -206,8 +206,12 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
     if (g === null) return
     const s = estado()
     if (g.tipo === 'riscar') {
-      if (p === null) return
-      const pontos = g.pontos[g.pontos.length - 1] === p ? g.pontos : [...g.pontos, p]
+      // Soltar fora (p nulo, o pointerupoutside): o traço que já andou vale, como no
+      // pincel de penhasco. O Pixi manda o "outside" também quando o alvo do soltar
+      // não é o do apertar, e aí o risco sumia sem aviso.
+      const pontos = p === null || g.pontos[g.pontos.length - 1] === p ? g.pontos : [...g.pontos, p]
+      const ultimo = pontos[pontos.length - 1]
+      if (ultimo === undefined) return
       if (arrastoViraRisco(pontos, s.map.grid)) {
         const id = crypto.randomUUID()
         if (s.mudarBarranco((b, piso) => riscarBarranco(b, pontos, s.barrancoAltura, piso, id))) {
@@ -217,7 +221,7 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
         }
         return
       }
-      s.setBarrancoEscolhido(riscoPerto(geosDeAgora(), p, 10 * escalaDoBarranco(s.map.grid)))
+      s.setBarrancoEscolhido(riscoPerto(geosDeAgora(), ultimo, 10 * escalaDoBarranco(s.map.grid)))
       return
     }
     if (g.tipo === 'pintar') {

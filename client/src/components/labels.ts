@@ -295,6 +295,13 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
 }
 
 /**
+ * O barranco segurou o arrasto do mestre. O texto de parede mandaria abrir uma
+ * Porta, que no barranco não existe: a passagem é a rampa ou a ponta do risco.
+ */
+export const BARRANCO_SEGURA_A_FICHA_TEXT =
+  'O barranco segurou a ficha: a parede de terra não se sobe. Ela passa por uma rampa ou pela ponta do risco; para abrir uma rampa, use a ferramenta Barranco no modo Rampa.'
+
+/**
  * Arrastar o token PARA DENTRO do vão de uma porta fechada e destrancada abre
  * a porta e deixa passar — o gesto é o de empurrar a porta. O aviso existe
  * porque isso muda o mapa (o jogador passa a enxergar pelo vão): mudança de

@@ -940,7 +940,8 @@ export function barrancoParaJogador(
 ): BarrancoDoMapa | undefined {
   if (b === undefined) return undefined
   const escala = escalaDoBarranco(grid)
-  const raio = ROLO_DA_PONTA * escala
+  // O alcance do corte é a parede mais grossa: o pedaço leva no máximo duas espessuras além do que ele conhece.
+  const raio = ESPESSURA_DO_PROTOTIPO.alto * escala
   // Só o piso do grupo: o barranco do andar de cima não existe na tela dele.
   const doPiso = <T extends { piso?: number }>(item: T): boolean => pisoDe(item) === piso
   const riscos = caminhosParaJogador(
