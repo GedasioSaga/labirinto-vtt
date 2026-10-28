@@ -1,0 +1,83 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#e1b37f",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.34,
+    "escalaMax": 1.15,
+    "escalaMin": 0.9,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      0.6,
+      0.6,
+      0.5,
+      0.4,
+      0.8,
+      0.8,
+      0.9,
+      2.4,
+      2.4,
+      2.2,
+      0.5,
+      0.8
+    ],
+    "pxPorCasa": 128,
+    "quantos": 12,
+    "semente": 4214,
+    "variacaoDeTom": 0.05
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.43098980974173,
+      "miolo": 1.46603748803803,
+      "razao": 0.976093600209908
+    },
+    "base-2.png": {
+      "borda": 1.42252613499295,
+      "miolo": 1.42849404874141,
+      "razao": 0.995822234083704
+    },
+    "base-3.png": {
+      "borda": 1.50000022229506,
+      "miolo": 1.42241768082992,
+      "razao": 1.05454272856048
+    }
+  },
+  "id": "caminho",
+  "idDoApp": null,
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 815329,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.14,
+    "escala": 1.5,
+    "faixa": 0.14,
+    "semente": 4152
+  },
+  "nome": "Caminho",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.06,
+    "escala": 3.0,
+    "semente": 4178
+  }
+}

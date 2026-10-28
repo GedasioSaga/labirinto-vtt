@@ -1,0 +1,22 @@
+{
+  "id": "caminho",
+  "nome": "Caminho",
+  "idDoApp": null,
+  "onda": 1,
+  "lote": 1,
+  "semente": 41,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 1.5, "faixa": 0.14, "corte": 0.14 },
+  "tom": { "escala": 3.0, "amplitude": 0.06 },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 12,
+    "pesos": [0.6, 0.6, 0.5, 0.4, 0.8, 0.8, 0.9, 2.4, 2.4, 2.2, 0.5, 0.8],
+    "densidade": 0.34,
+    "agrupamento": 1,
+    "escalaMin": 0.9,
+    "escalaMax": 1.15,
+    "variacaoDeTom": 0.05
+  }
+}
