@@ -15,6 +15,9 @@ const Mesa := preload("res://comum/mesa.gd")
 const ContratoTelhado := preload("res://comum/contrato_telhado.gd")
 const PintorTelhado := preload("res://comum/pintor_telhado.gd")
 const MesaTelhado := preload("res://comum/mesa_telhado.gd")
+const ContratoCarimbo := preload("res://comum/contrato_carimbo.gd")
+const PintorCarimbo := preload("res://comum/pintor_carimbo.gd")
+const MesaCarimbo := preload("res://comum/mesa_carimbo.gd")
 
 
 ## Se algo travar (erro de script no meio de uma espera), a fila não fica presa.
@@ -42,6 +45,10 @@ func _rodar() -> void:
 		quit(2)
 		return
 	var id: String = args["textura"]
+	# Onda 3 (carimbo, trecho): outro contrato e outra mesa (CONTRATO.md, seção 9).
+	if ContratoCarimbo.TIPOS.has(ContratoTelhado.tipo_de(id)):
+		await _rodar_carimbo(args, id, inicio)
+		return
 	# Onda 2 (telhado, faixa, objeto): outro contrato e outra mesa (CONTRATO.md, seção 8).
 	# O chão não tem "tipo" e segue exatamente o caminho de antes.
 	if ContratoTelhado.tipo_de(id) != "chao":
@@ -183,6 +190,68 @@ func _rodar_telhado(args: Dictionary, id: String, inicio: int) -> void:
 		ok = false
 	if args.has("folha"):
 		var mesa := MesaTelhado.new()
+		root.add_child(mesa)
+		var m: Dictionary = await mesa.montar(cfg, saida, prova, args.has("sem-atual"))
+		for e in m["erros"]:
+			printerr("  ERRO folha: ", e)
+		if m["ok"]:
+			print("  folha: ", prova.path_join("folha.png"))
+		else:
+			ok = false
+	print("Pronto em %d ms" % (Time.get_ticks_msec() - inicio))
+	quit(0 if ok else 1)
+
+
+## Carimbo ou trecho: pinta, grava o textura.json e, com --folha, monta a mesa dos carimbos.
+func _rodar_carimbo(args: Dictionary, id: String, inicio: int) -> void:
+	var lido := ContratoCarimbo.ler_config(id)
+	if not lido["ok"]:
+		for e in lido["erros"]:
+			printerr("  ERRO config: ", e)
+		quit(2)
+		return
+	var cfg: Dictionary = lido["config"]
+	var saida: String = args.get("saida", ProjectSettings.globalize_path("res://exportado/%s" % id))
+	var prova: String = args.get("prova", ProjectSettings.globalize_path("res://prova/%s" % id))
+	if args.has("mapa"):
+		print("  --mapa não vale para carimbo (a mesa espalha numa grama dela); ignorado")
+	_esconder_do_editor(ProjectSettings.globalize_path("res://exportado"))
+	if not args.has("prova"):
+		_esconder_do_editor(ProjectSettings.globalize_path("res://prova"))
+	print("Desenhado: exportando '%s' (%s, tipo %s) para %s" % [id, cfg["nome"], cfg["tipo"], saida])
+	var pintor := PintorCarimbo.new()
+	root.add_child(pintor)
+	var r: Dictionary = await pintor.pintar(cfg, saida)
+	for e in r["erros"]:
+		printerr("  ERRO: ", e)
+	if not r["ok"]:
+		quit(1)
+		return
+	# Sobras de uma exportação anterior (menos variações, outro tipo) saem da pasta.
+	var manter: Array = r["imagens"].keys()
+	for velho in ContratoCarimbo.ARQUIVOS_DO_CARIMBO + [ContratoCarimbo.ARQUIVO_DO_TRECHO, ContratoCarimbo.ARQUIVO_DO_RELEVO]:
+		if not manter.has(velho) and FileAccess.file_exists(saida.path_join(velho)):
+			DirAccess.remove_absolute(saida.path_join(velho))
+	var gpu := 0
+	var disco := 0
+	for arquivo in r["imagens"]:
+		var img: Image = r["imagens"][arquivo]
+		gpu += Contrato.bytes_gpu(img.get_width(), img.get_height())
+		disco += _tamanho(saida.path_join(arquivo))
+	var params := ContratoCarimbo.parametros(cfg, r, gpu, disco)
+	var f := FileAccess.open(saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS), FileAccess.WRITE)
+	f.store_string(JSON.stringify(params, "  ") + "\n")
+	f.close()
+	for arquivo in r["arquivos"]:
+		print("  gravado: ", arquivo)
+	print("  gravado: ", saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS))
+	print("  memória: %.2f MiB na placa (teto %.2f, o Atual de hoje), %.2f MiB em disco (teto %.2f)" % [gpu / 1048576.0, ContratoCarimbo.TETO_GPU_POR_CARIMBO / 1048576.0, disco / 1048576.0, ContratoCarimbo.TETO_DISCO_POR_CARIMBO / 1048576.0])
+	var ok := true
+	if gpu > ContratoCarimbo.TETO_GPU_POR_CARIMBO or disco > ContratoCarimbo.TETO_DISCO_POR_CARIMBO:
+		printerr("  ERRO: passou do teto de memória (menos variações ou uma imagem menor)")
+		ok = false
+	if args.has("folha"):
+		var mesa := MesaCarimbo.new()
 		root.add_child(mesa)
 		var m: Dictionary = await mesa.montar(cfg, saida, prova, args.has("sem-atual"))
 		for e in m["erros"]:

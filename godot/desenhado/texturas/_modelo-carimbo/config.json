@@ -1,0 +1,22 @@
+{
+  "id": "_modelo-carimbo",
+  "nome": "Modelo de carimbo",
+  "idDoApp": "arbusto",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 6,
+  "semente": 7,
+  "tamanhoDoApp": 6,
+  "variacoes": 2,
+  "sprite": {
+    "ladoPx": 160,
+    "unidadePx": 128,
+    "ancoraPx": [80, 80]
+  },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamento": 0.14,
+    "borrao": 0.04
+  }
+}

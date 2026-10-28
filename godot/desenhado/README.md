@@ -39,16 +39,24 @@ godot/desenhado/
                   onda 2 (telhado, faixa, objeto; CONTRATO.md seção 8): telhado.gdshaderinc,
                   rodape_telhado/rodape_objeto.gdshaderinc, contrato_telhado.gd,
                   pintor_telhado.gd, mesa_telhado.gd
+                  onda 3 (carimbo, trecho; CONTRATO.md seção 9): carimbo.gdshaderinc,
+                  rodape_carimbo.gdshaderinc, contrato_carimbo.gd, pintor_carimbo.gd,
+                  mesa_carimbo.gd
   texturas/<id>/  do designer: textura.gdshader + config.json (_modelo/ é o ponto de partida,
                   grama/ é o piloto; na onda 2, telhado-telhas/ é o piloto e _modelo-objeto/
-                  e _modelo-faixa/ os modelos)
+                  e _modelo-faixa/ os modelos; na onda 3, arvore/ é o piloto e
+                  _modelo-carimbo/ e _modelo-trecho/ os modelos)
   exportado/<id>/ gerada: base-1..3.png, detalhes.png, textura.json (vai para o git; o
                   .gdignore de exportado/ esconde a pasta do editor do Godot)
   prova/<id>/     gerada: folha.png e peças (fora do git; o padrão quando não se passa --prova)
-  scripts/exportar_uma.gd, scripts/folha_do_lote.gd, scripts/folha_do_lote_telhados.gd
+  scripts/exportar_uma.gd, scripts/folha_do_lote.gd, scripts/folha_do_lote_telhados.gd,
+  scripts/folha_do_lote_carimbos.gd
   ferramentas/atual.ts   pinta o Atual (a textura de hoje do app) com o código de client/src
   ferramentas/telhado.ts monta o telhado Desenhado com as águas do app (a referência da
                          seção 8 do CONTRATO.md) e o Atual com o pintarTelhado de hoje
+  ferramentas/carimbo.ts + carimbo_pagina.ts  a mesa dos carimbos e trechos no Chromium do
+                         Playwright: o Desenhado pela conta da seção 9 (a referência para o
+                         app) e o Atual com o assarDesenho e o criarSpray de hoje
 ```
 
 ### Fila do Godot (obrigatória)

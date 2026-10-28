@@ -218,9 +218,10 @@ O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto 
 ## 7. O que ainda não tem contrato
 
 - ~~**Telhados (onda 2)**~~: escrito em 28/10, seção 8.
-- **Sprites (ondas 3 e 4)**: árvore, planta e móvel como imagem com alfa, com sementes e
-  vistas. Escrever antes da onda 3, junto com a decisão dos móveis (sprite por móvel ou só
-  os 24 materiais).
+- ~~**Sprites da onda 3**~~: escrito em 28/10, seção 9 (carimbo e trecho; o vaso, a
+  jardineira e a sebe entram aqui).
+- **Móveis (onda 4)**: sprite por móvel ou só os 24 materiais. Decidir com o usuário antes
+  da onda 4; o tipo "carimbo" de destino "movel" (9.6) já serve para um móvel redondo.
 - **Traço (onda 5)**: penhasco e parede repetíveis ao longo de um traço.
 - **Entrega ao app**: o pacote de animações de hoje só aceita `.js` de até 2 MiB
   (`desktop/src-tauri/src/net/animacoes.rs`); PNG precisa de outro canal ou de ir junto do
@@ -398,3 +399,146 @@ item é objeto e a cumeeira amarrada quando o modelo é palha. Chão chapado e a
 app (6, 8 px, 25%). Faixa e objeto saem por cima do telhado `sob` do config (padrão:
 `telhado-palha` e `telhado-telhas`), ou de um telhado liso quando ele ainda não existe.
 Folha do lote: `scripts/folha_do_lote_telhados.gd` (PARA-OS-DESIGNERS.md).
+
+## 9. Carimbos e trechos (onda 3, 28/10/2026)
+
+Como o app pinta carimbo hoje (`client/src/carimbos/`, `lib/carimbos.ts`,
+`pixi/drawCarimbos.ts`): cada embutido é um desenho em Canvas 2D `(g, giro, semente)` num
+quadro "em pé" (o pé na origem, o tronco embaixo), assado em 256 texels em 8 variantes
+(`varianteDoGiro = round(giro / 45) mod 8`); o sprite nunca gira na tela, então a luz não
+gira. A sombra é a silhueta cisalhada (`matrizDaSombra`, direção 7, 11), cor `[10, 28, 40]`,
+alfa 0,28 numa camada só. O tamanho no mundo é `tamanhoNatural = max(tamanho x unidade,
+0,8 casa) x escolha` (escolha de 40% a 250%), com `unidade = max(L, A) x grid / 1242`. A
+sebe e a jardineira são móveis do Meio-Termo (`texturas/meioTermo/moveis/`); a sebe curva
+por `Prop.mobiliaCurva` (até ±180 graus, arco de `geometriaDaCerca`).
+
+### 9.1 A decisão em 6 linhas
+
+1. **Carimbo = 1 a 4 sprites RGBA com alfa**, cor reta, sem sombra, vistos de cima, com o pé
+   (Carimbo.x, y) em `ancoraPx`. O tamanho é o de hoje: 1 unidade = `Carimbo.tamanho`.
+2. **A imagem nunca gira.** O giro do mestre escolhe a forma: k = `varianteDoGiro(giro)`,
+   arquivo = k mod N, espelho na diagonal (a imagem transposta, o meio dela fixo) quando
+   floor(k / N) é ímpar. LUZ está na diagonal: o espelho não muda a luz. Até 8 formas com 4 arquivos.
+3. **A sombra é do app**, pela silhueta: andada `deslocamento x tamanho` na direção (7, 11),
+   desfocada `borrao x tamanho`, numa camada só, `#0a1c28` a 0,25. `nenhuma` = do chão.
+4. **Âncora no pé de hoje:** `ancoraPx = meio da imagem - centroDoAtual x unidadePx`; a
+   copa fica onde a copa de hoje fica e o objeto não anda quando o mapa troca de estilo.
+5. **Sebe e jardineira = trecho**: um período de L px ao longo, com a ponta do começo, em
+   cor (sem luz) e relevo (para onde inclina). O app deita o trecho na reta ou no arco e
+   acende pela LUZ depois (9.5); a ponta do fim é a do começo espelhada.
+6. **Teto:** na placa, até o que o Atual pesa hoje (8 x 256² RGBA com mipmap = 2,67 MiB por
+   carimbo); em disco, 1,5 MiB por item. O vaso é carimbo de destino `movel`.
+
+### 9.2 Arquivos e config por tipo
+
+| Tipo | `config.json` | Arquivos em `exportado/<id>/` |
+|---|---|---|
+| `carimbo` | `destino` (`carimbo` = ferramenta Carimbos; `movel` = ferramenta Objetos), `tamanhoDoApp` (o `tamanho` de `embutidos.ts` ou do `.json` do pacote; obrigatório no destino carimbo), `variacoes` 1 a 4, `sprite.ladoPx` 32 a 512, `sprite.unidadePx` 16 a 512 (px da imagem numa unidade), `sprite.ancoraPx`, `sombra` | `carimbo-1.png` .. `carimbo-N.png` (ladoPx²), `textura.json` |
+| `trecho` | `curva` (a sebe: true; a jardineira: false), `casas` (o tamanho padrão do móvel), `trecho.comprimentoPx` 16 a 256 (L), `trecho.meiaLarguraPx` 4 a 48, `trecho.pontaPx` 0 a 64, `luz.forca` 0 a 1, `sombra` | `trecho.png`, `trecho-relevo.png` ((ponta + L) x 2 por 4 x meia, 128 px por casa), `textura.json` |
+
+`sombra`: `jeito` (`deslocada` ou `nenhuma`), `deslocamento` 0 a 0,5 e `borrao` 0 a 0,2, os
+dois em unidades do tamanho (no trecho, da largura 2 x meia). Shader:
+`comum/carimbo.gdshaderinc` (as assinaturas e as unidades de q) e
+`comum/rodape_carimbo.gdshaderinc`. Modelos: `texturas/_modelo-carimbo/`,
+`texturas/_modelo-trecho/`; piloto: `texturas/arvore/`.
+
+### 9.3 Parâmetros (`textura.json`)
+
+Tudo explícito, montado por `comum/contrato_carimbo.gd` (`parametros`): `tipo`, `idDoApp`,
+`sombra` (jeito, direção, deslocamento, borrão, alfa, cor e a conta em texto), `memoria`
+(bytes na placa e em disco, com os tetos). No carimbo: `destino`, `sprite` (arquivos,
+ladoPx, unidadePx, ancoraPx), `formas` (variações, o espelho e a conta), `tamanhoDoApp`,
+`corMedia` (a miniatura e o zoom muito pequeno). No trecho: `curva`, `casas`, `trecho`
+(arquivos, pxPorCasa 128, tamanho da imagem, comprimento, meia, ponta, canais e
+orientação) e `luz` (força e direção).
+
+### 9.4 A montagem do carimbo (o app faz exatamente isto)
+
+Para um `Carimbo {x, y, tamanho, giro}` (x, y = o pé; tamanho em px do mundo):
+
+    s = tamanho / unidadePx                 // escala da imagem para o mundo
+    k = varianteDoGiro(giro)                // 0..7, a conta de hoje
+    arquivo = carimbo-(k mod N + 1).png
+    espelho = floor(k / N) é ímpar
+    sem espelho: setTransform(s, 0, 0, s, x - s·ancora.x, y - s·ancora.y)
+    com espelho: setTransform(0, s, s, 0, x - s·ancora.x, y - s·ancora.y)   // (u, v) -> (v, u)
+    sombra: a silhueta do mesmo desenho, na mesma transformação, numa camada só para todos,
+            andada deslocamento·tamanho na direção (7, 11) normalizada e desfocada
+            borrao·tamanho (desvio do blur() do Canvas); a camada pintada com #0a1c28 a 0,25
+    corpos por cima, em ordem de y (o pé mais embaixo por último)
+
+Com espelho, o ponto (u, v) da imagem vai para (x + s·(v - ancora.x), y + s·(u - ancora.y));
+sem espelho, para (x + s·(u - ancora.x), y + s·(v - ancora.y)). Os pontos da diagonal da
+imagem (u = v), o meio dela incluído, caem no mesmo lugar nos dois: o objeto desenhado no
+MEIO da imagem não anda quando espelha (no piloto a âncora é `[173,6; 360,2]` numa imagem
+de 352, o pé 184 px abaixo do meio, e a copa fica acima do pé nas 8 formas). Por isso o
+desenho é centrado no meio da imagem e só a âncora diz onde fica o pé. O app nunca escala
+a imagem num eixo só. Zoom muito pequeno: a cor média (`corMedia`). Mipmap ligado.
+
+### 9.5 A montagem do trecho (a luz que o app aplica)
+
+Para cada ponto da tela perto do eixo do trecho (a reta, ou o arco de `geometriaDaCerca`
+com a corda e a volta do móvel), o app acha s (ao longo, 0 no começo do eixo, até o
+comprimento total T), c (atravessando, + do lado n) e t (a direção de andar no ponto), com
+n = (-t.y, t.x). Fora de |c| <= meia e de -ponta <= s <= T + ponta, nada.
+
+    se s < 0:        xi = (ponta + s)·2,         ladoAo = +1      // a ponta do começo
+    se s > T:        xi = (ponta + T - s)·2,     ladoAo = -1      // a do fim, espelhada
+    senão:           xi = (ponta + s mod L)·2,   ladoAo = +1      // o período repete
+    yi = (c + meia)·2
+    cor = trecho.png em (xi, yi), bilinear;  r = trecho-relevo.png no mesmo ponto
+    N = (2·r.R - 1)·ladoAo·t + (2·r.G - 1)·n                     // a normal deitada na tela
+    luz = dot(N, LUZ),  LUZ = (-0,7071; -0,7071)
+    luz >= 0: cor = mix(cor, realce_de(cor), luz·forca)          // realce_de do cabeçalho
+    luz <  0: cor = cor·(1 - 0,3·forca·(-luz))
+    sombra: a mesma conta do carimbo, com o tamanho = a largura (2·meia)
+
+A jardineira (`curva: false`) usa a mesma conta numa reta: o móvel esticado repete o
+período e não estica a imagem. A emenda a cada L tem de ser invisível (é o que a folha
+mostra nos trechos longos). A conta está escrita, igual, em `ferramentas/carimbo_pagina.ts`
+(`camadaDeTrechos`): é a referência para a integração.
+
+### 9.6 Vaso, jardineira e sebe (o destino de cada um)
+
+- **Vaso** (0,5 x 0,5 casa, redondo): carimbo de destino `movel`; 1 unidade = 1 casa; o
+  giro do móvel escolhe a forma como no carimbo (a imagem não gira; o vaso é redondo).
+- **Jardineira** (1 x 0,5): trecho reto (`curva: false`), `casas: [1, 0.5]`.
+- **Sebe** (2 x 0,5, esticável e curva): trecho com `curva: true`, `casas: [2, 0.5]`.
+
+### 9.7 Teto de memória
+
+Carimbo: `variacoes x ladoPx² x 4 x 4/3` <= 2,67 MiB na placa (4 arquivos de 352 px = 2,52
+MiB, o piloto) e os PNGs <= 1,5 MiB em disco. Trecho: duas imagens pequenas (o modelo usa
+0,09 MiB). O exportador mede e falha acima do teto. O portão do app (200 MB em
+`docs/desempenho/limites.json`) não muda: o Desenhado troca o assado de hoje, não soma.
+
+### 9.8 A mesa de prova dos carimbos
+
+`--folha` num item da onda 3 monta outra mesa (`comum/mesa_carimbo.gd` arruma, o
+`ferramentas/carimbo.ts` abre o Chromium do Playwright, `ferramentas/carimbo_pagina.ts`
+monta no Canvas 2D, o motor dos carimbos de hoje). Chão: a grama aprovada (`exportado/grama`).
+
+- **Sozinho** (a forma 1) a 25, 50, 100 e 300%, Desenhado e Atual.
+- **As formas:** as 2N do Desenhado e as 8 do Atual (um desenho assado a cada 45 graus).
+- **Bosque:** 51 objetos soltos pelo `criarSpray` do app (sorteio de semente fixa, 4 traços
+  de densidade 0,35 a 1 e 3 soltos, escolha de 60 a 160%) em 24 x 24 casas, a 50% e 25%, e
+  o recorte de 8 x 8 casas da mata fechada a 100%; o Atual com os mesmos objetos.
+- **Trecho:** sozinho, as 8 formas (girado de 45 em 45 graus, as curvas de 90, -90 e 180
+  graus, um curto) e 9 trechos retos, girados, curvos, curtos e longos. Sem Atual (o móvel
+  de hoje é do Meio-Termo; a folha diz).
+- A folha mostra o `centroDoAtual` (o meio da área do desenho de hoje, em unidades do pé) e
+  o tamanho a 100% no mapa de referência (a árvore: 154,6 px, 2,42 casas).
+
+Folha do lote: `scripts/folha_do_lote_carimbos.gd` (PARA-OS-DESIGNERS.md).
+
+### 9.9 Critério de pronto de um carimbo ou trecho
+
+1. `exportar_uma.gd --textura=<id> --folha` sai com 0 e a memória cabe no teto.
+2. **Nada de escama, bolinha nem pontilhado** a 25%, 50% e 100% (a crítica do usuário de
+   28/10: "tá muito detalhado, cheio de bolinhas, fica estranho"). Forma grande e calma,
+   poucas massas largas, luz em cima à esquerda, contorno como o protótipo do Fogo.
+3. No bosque a 50%, ninguém acha o mesmo objeto repetido; na mata fechada, as massas se
+   separam pela sombra, não viram bolhas iguais.
+4. O objeto a 100% fica onde o Atual fica (a âncora pela conta de 9.1, item 4).
+5. Trecho: sem emenda visível a cada L, a luz sempre de cima à esquerda em toda forma, e a
+   ponta do fim igual à do começo.

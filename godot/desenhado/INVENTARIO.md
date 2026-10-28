@@ -79,7 +79,10 @@ tingível pelas cores do mestre. Contrato próprio antes da onda.
 
 Hoje: ferramenta **Carimbos** (`carimbos/catalogo.ts`), desenho em Canvas 2D assado uma vez,
 8 giros x 8 sementes, sombra projetada pela silhueta; mais 3 móveis que são planta. O
-Desenhado entrega **sprites** (imagem com alfa por semente). Contrato próprio antes da onda.
+Desenhado entrega **sprites** (imagem com alfa por semente). Contrato: CONTRATO.md seção 9
+(28/10/2026): carimbo de 1 a 4 sprites vistos de cima (o giro escolhe a forma, a imagem não
+gira, a sombra é do app); o vaso é carimbo de destino `movel`; a sebe e a jardineira são
+**trecho** (um período repetível com relevo, a luz do app). Piloto: `arvore`.
 
 | # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega |
 |---|---|---|---|---|
@@ -94,8 +97,8 @@ Desenhado entrega **sprites** (imagem com alfa por semente). Contrato próprio a
 | 29 | `palmeira` | Palmeira | Carimbos | sprite |
 | 30 | `juncos` | Juncos | Carimbos | sprite, sombra baixa |
 | 31 | `sebe` | Sebe | Objetos (móvel `sebe`, 2 x 0,5 casa, esticável e curva) | trecho repetível ao longo da sebe |
-| 32 | `jardineira` | Jardineira | Objetos (móvel, 1 x 0,5 casa) | sprite |
-| 33 | `vaso` | Vaso de planta | Objetos (móvel, 0,5 x 0,5 casa) | sprite |
+| 32 | `jardineira` | Jardineira | Objetos (móvel, 1 x 0,5 casa) | trecho reto (`curva: false`): o móvel esticado repete o período |
+| 33 | `vaso` | Vaso de planta | Objetos (móvel, 0,5 x 0,5 casa) | sprite (carimbo de destino `movel`) |
 
 | # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega |
 |---|---|---|---|---|

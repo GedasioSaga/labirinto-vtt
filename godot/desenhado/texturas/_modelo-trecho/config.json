@@ -1,0 +1,22 @@
+{
+  "id": "_modelo-trecho",
+  "nome": "Modelo de trecho",
+  "idDoApp": "sebe",
+  "tipo": "trecho",
+  "onda": 3,
+  "lote": 8,
+  "semente": 9,
+  "curva": true,
+  "casas": [2, 0.5],
+  "trecho": {
+    "comprimentoPx": 64,
+    "meiaLarguraPx": 14,
+    "pontaPx": 14
+  },
+  "luz": { "forca": 0.8 },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamento": 0.2,
+    "borrao": 0.06
+  }
+}
