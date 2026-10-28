@@ -1,11 +1,15 @@
 import type { MapData, PostoDaRotina, RotinaDoNpc, Token } from '../types/map'
+import { comEfeitos, type EfeitosDosPassos, temEfeito } from './etapasDoNpc'
+import { readPassos } from './npcPatrol'
 import { lerPeriodo } from './periodo'
 
 /**
  * ROTINA DO NPC — cada ficha tem um posto por turno, até em outra cena, e ao
- * tocar o apito todas vão para o posto de uma vez. O "apito" é um ESTADO DO
- * MUNDO ("Apito: Aurora, Meio, Brasa, Sombra"): trocar o valor dele é tocar o
- * apito (`useAdventureStore.trocarEstadoDoMundo`). Plano:
+ * tocar o apito todas ANDAM até o posto (Caminhos F4: `useRotinaAndandoStore`
+ * liga a caminhada; o pulo de uma vez ficou só no botão "Pular para o posto",
+ * `useAdventureStore.pularParaOPosto`). O "apito" é um ESTADO DO MUNDO
+ * ("Apito: Aurora, Meio, Brasa, Sombra"): trocar o valor dele é tocar o apito
+ * (`useAdventureStore.trocarEstadoDoMundo`). Plano:
  * `docs/planos/rotina-do-npc-p.md`.
  *
  * Aqui só o que é puro: planejar quem vai para onde, mover dentro da cena,
@@ -18,8 +22,12 @@ export interface CenaDaRotina {
   map: MapData
 }
 
-/** Uma ficha indo ao posto: `de` e `para` são ids de cena; iguais = anda dentro da cena. */
-export interface MovimentoDaRotina {
+/**
+ * Uma ficha indo ao posto: `de` e `para` são ids de cena; iguais = anda dentro
+ * da cena. ETAPAS DO POSTO: o que as etapas mudaram nela (frente, fala,
+ * oculta) vai junto; ausente = nada mudou.
+ */
+export interface MovimentoDaRotina extends EfeitosDosPassos {
   tokenId: string
   de: string
   para: string
@@ -64,33 +72,41 @@ export function planejarRotina(
 }
 
 /**
- * O mapa com cada movimento DENTRO da cena aplicado (`de === para`). Devolve o
- * MESMO mapa quando nenhuma ficha dele anda. Pura e válida para qualquer
- * versão do mapa: serve de `transform` para `applyPlayerChange`, que a
- * reaplica no histórico do desfazer.
+ * O mapa com cada movimento DENTRO da cena aplicado (`de === para`) e com os
+ * efeitos das etapas (frente, fala, oculta) de qualquer movimento cuja ficha
+ * esteja nele — o de quem troca de cena vale aqui, ANTES da travessia, e vai
+ * com a ficha. Devolve o MESMO mapa quando nada muda. Pura e válida para
+ * qualquer versão do mapa: serve de `transform` para `applyPlayerChange`, que
+ * a reaplica no histórico do desfazer.
  */
 export function moverNaCena(map: MapData, movimentos: readonly MovimentoDaRotina[]): MapData {
-  const destino = new Map(movimentos.filter((m) => m.de === m.para).map((m): [string, MovimentoDaRotina] => [m.tokenId, m]))
-  if (destino.size === 0) return map
+  const porFicha = new Map(movimentos.filter((m) => m.de === m.para || temEfeito(m)).map((m): [string, MovimentoDaRotina] => [m.tokenId, m]))
+  if (porFicha.size === 0) return map
   let mudou = false
   const tokens = map.tokens.map((token) => {
-    const m = destino.get(token.id)
-    if (m === undefined || (token.x === m.x && token.y === m.y)) return token
-    mudou = true
-    return { ...token, x: m.x, y: m.y }
+    const m = porFicha.get(token.id)
+    if (m === undefined) return token
+    let t = comEfeitos(token, m)
+    if (m.de === m.para && (t.x !== m.x || t.y !== m.y)) t = { ...t, x: m.x, y: m.y }
+    if (t !== token) mudou = true
+    return t
   })
   return mudou ? { ...map, tokens } : map
 }
 
 /**
  * A rotina com `posto` no lugar do posto do mesmo valor (valor novo vai para o
- * fim). `posto` sem `periodo` mantém o período do que ele troca: "Gravar aqui"
- * de novo muda o lugar, não o período.
+ * fim). `posto` sem `periodo` (ou sem `passos`) mantém o período (e as etapas)
+ * do que ele troca: "Gravar aqui" de novo muda o lugar, não o resto.
  */
 export function gravarPosto(rotina: RotinaDoNpc, posto: PostoDaRotina): RotinaDoNpc {
   const trocado = rotina.postos.find((p) => p.valor === posto.valor)
   if (trocado === undefined) return { ...rotina, postos: [...rotina.postos, posto] }
-  const novo = posto.periodo === undefined && trocado.periodo !== undefined ? { ...posto, periodo: trocado.periodo } : posto
+  const novo: PostoDaRotina = {
+    ...posto,
+    ...(posto.periodo === undefined && trocado.periodo !== undefined ? { periodo: trocado.periodo } : {}),
+    ...(posto.passos === undefined && trocado.passos !== undefined ? { passos: trocado.passos } : {}),
+  }
   return { ...rotina, postos: rotina.postos.map((p) => (p.valor === posto.valor ? novo : p)) }
 }
 
@@ -121,12 +137,14 @@ function numeroFinito(value: unknown): value is number {
 
 function postoDoArquivo(raw: unknown): PostoDaRotina | null {
   if (!isRecord(raw)) return null
-  const { valor, sceneId, x, y, periodo } = raw
+  const { valor, sceneId, x, y, periodo, passos } = raw
   if (typeof valor !== 'string' || typeof sceneId !== 'string' || sceneId.length === 0) return null
   if (!numeroFinito(x) || !numeroFinito(y)) return null
   // Período torto sai e o posto fica, valendo em todos (o posto de antes do campo); 'manha' do relógio antigo é 'dia'.
   const lido = lerPeriodo(periodo)
-  return { valor, sceneId, x, y, ...(lido === undefined ? {} : { periodo: lido }) }
+  // ETAPAS: a leitura da patrulha (passo torto some); sem lista, o posto fica como era (esperar 2 s).
+  const etapas = Array.isArray(passos) ? readPassos(passos) : undefined
+  return { valor, sceneId, x, y, ...(lido === undefined ? {} : { periodo: lido }), ...(etapas === undefined ? {} : { passos: etapas }) }
 }
 
 /**

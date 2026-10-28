@@ -3292,6 +3292,8 @@ function App() {
                   onTrocar={(estadoId, valor) =>
                     useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor, new Set(roomPlayers.flatMap((player) => player.tokenIds)))
                   }
+                  // CAMINHOS F4: o apito faz andar; o pulo de uma vez é só este botão, com a mesma regra da mão do jogador.
+                  onPular={(estadoId) => useRotinaAndandoStore.getState().pularParaOPosto(estadoId, new Set(roomPlayers.flatMap((player) => player.tokenIds)))}
                 />
               )
             }

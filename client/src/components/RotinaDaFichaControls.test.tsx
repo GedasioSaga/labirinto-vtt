@@ -4,13 +4,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { EstadoDoMundo } from '../lib/estadoDoMundo'
 import type { RotinaDoNpc, Token } from '../types/map'
 import { ROTINA_HINT, ROTINA_SEM_ESTADO, RotinaDaFichaControls } from './RotinaDaFichaControls'
-import { trocaText } from './WorldStateSection'
+import { puloText, trocaText } from './WorldStateSection'
 
-describe('trocaText: o aviso do apito conta as fichas que foram ao posto', () => {
+describe('trocaText: o aviso do apito conta as fichas que vão ao posto (andando, Caminhos F4)', () => {
   it('só fichas, fichas e elementos, e o aviso antigo quando nenhuma andou', () => {
-    expect(trocaText('Apito', 'Meio', { elementos: 0, cenas: 2, fichas: 3 })).toBe('Apito: Meio. 3 fichas foram ao posto em 2 cenas.')
-    expect(trocaText('Apito', 'Meio', { elementos: 1, cenas: 1, fichas: 1 })).toBe('Apito: Meio. 1 elemento mudou e 1 ficha foi ao posto em 1 cena.')
+    expect(trocaText('Apito', 'Meio', { elementos: 0, cenas: 2, fichas: 3 })).toBe('Apito: Meio. 3 fichas vão ao posto em 2 cenas.')
+    expect(trocaText('Apito', 'Meio', { elementos: 1, cenas: 1, fichas: 1 })).toBe('Apito: Meio. 1 elemento mudou e 1 ficha vai ao posto em 1 cena.')
     expect(trocaText('Apito', 'Meio', { elementos: 0, cenas: 0 })).toBe('Apito: Meio. Nenhum elemento mudou.')
+  })
+})
+
+describe('puloText: o aviso de "Pular para o posto"', () => {
+  it('conta quem pulou e avisa quando todas já estavam lá', () => {
+    expect(puloText('Apito', 'Meio', 3)).toBe('Apito: Meio. 3 fichas pularam para o posto.')
+    expect(puloText('Apito', 'Meio', 1)).toBe('Apito: Meio. 1 ficha pulou para o posto.')
+    expect(puloText('Apito', 'Meio', 0)).toBe('Apito: Meio. Todas as fichas já estavam no posto.')
   })
 })
 

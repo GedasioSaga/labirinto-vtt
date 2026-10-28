@@ -1,13 +1,16 @@
-import type { MapData, ModoDaPatrulha, PassoDaPatrulha, Token, TokenPatrol } from '../types/map'
+import type { MapData, ModoDaPatrulha, PassoDaPatrulha, TokenPatrol } from '../types/map'
 import { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
 import type { Andarilho } from './caminhamento/andarilho'
 import { type AvisoDoNpc, avisoDepoisDeChegar, avisoDoFim, type MotorDosNpcs, motorImediato, type MudancaDePorta, TiqueDosNpcs } from './caminhamento/tiqueDosNpcs'
 import { estaCongelada } from './congelar'
+import { comEfeitos, type EfeitosDosPassos, type Execucao, executarPassos, segurada, temEfeito } from './etapasDoNpc'
 import { passosDoPonto, tokenPatrolOf, VELOCIDADE_PADRAO } from './npcPatrol'
 import { PASSO_DA_ROTINA_MS, passoEmPx } from './rotinaAndando'
 
 export { adiarEsperas } from './rotinaAndando'
 export { TENTAR_DE_NOVO_MS } from './andarPeloCaminho'
+// CAMINHOS F4: o executor das etapas mora em `etapasDoNpc.ts`, junto com a rotina; daqui segue exportado como antes.
+export { executarPassos, type EfeitosDosPassos, type Execucao } from './etapasDoNpc'
 
 /**
  * PATRULHA ANDANDO — "Patrulhar sozinha": ligada, a ficha anda pela própria
@@ -59,16 +62,6 @@ export interface FichaPatrulhando {
 
 /** Fichas com a patrulha ligada, por id. */
 export type PatrulhasAndando = ReadonlyMap<string, FichaPatrulhando>
-
-/** O que a macro do ponto muda na ficha, além de onde ela está. */
-export interface EfeitosDosPassos {
-  /** Passo "Olhar": a frente da ficha, em graus (0 = para cima, horário). */
-  olhar?: number
-  /** Passo "Falar": o texto; `null` cala (ela voltou a andar). */
-  fala?: string | null
-  /** Passo "Sumir" (`true`) ou "Aparecer" (`false`). */
-  sumida?: boolean
-}
 
 /** O passo de uma ficha, aplicado ao mapa por `moverPatrulhas`. */
 export interface MovimentoDaPatrulha extends EfeitosDosPassos {
@@ -161,55 +154,6 @@ export function seguirPatrulha(andando: PatrulhasAndando, tokenId: string, now: 
   return next
 }
 
-/** Até onde a macro do ponto foi neste tique. */
-export interface Execucao {
-  efeitos: EfeitosDosPassos
-  /** O próximo passo a fazer; `null` = a macro acabou e a ficha segue. */
-  proximo: number | null
-  esperaAte: number
-  esperandoMestre: boolean
-  /** Passo "Velocidade" feito neste tique. */
-  velocidade?: number
-}
-
-/**
- * O EXECUTOR DA MACRO: faz os passos a partir de `desde`, de uma vez, até um
- * que segura a ficha (esperar, esperar o mestre) ou até o fim. Olhar, falar,
- * sumir, aparecer e velocidade não levam tempo: valem no mesmo tique.
- */
-export function executarPassos(passos: readonly PassoDaPatrulha[], desde: number, now: number): Execucao {
-  const efeitos: EfeitosDosPassos = {}
-  let velocidade: number | undefined
-  const depois = (i: number) => (i + 1 < passos.length ? i + 1 : null)
-  for (let i = desde; i < passos.length; i += 1) {
-    const passo = passos[i]
-    if (passo === undefined) continue
-    switch (passo.tipo) {
-      case 'esperar':
-        if (passo.segundos > 0) return { efeitos, velocidade, proximo: depois(i), esperaAte: now + passo.segundos * 1000, esperandoMestre: false }
-        break
-      case 'esperarMestre':
-        return { efeitos, velocidade, proximo: depois(i), esperaAte: now, esperandoMestre: true }
-      case 'olhar':
-        efeitos.olhar = passo.graus
-        break
-      case 'velocidade':
-        velocidade = passo.casas
-        break
-      case 'falar':
-        efeitos.fala = passo.texto === '' ? null : passo.texto
-        break
-      case 'sumir':
-        efeitos.sumida = true
-        break
-      case 'aparecer':
-        efeitos.sumida = false
-        break
-    }
-  }
-  return { efeitos, velocidade, proximo: null, esperaAte: now, esperandoMestre: false }
-}
-
 /** A ficha depois de um pedaço da macro do ponto `ponto`. */
 function depoisDosPassos(ficha: FichaPatrulhando, ponto: number, ex: Execucao): FichaPatrulhando {
   const { noPonto: _antes, esperandoMestre: _parou, velocidadeDoTrecho: _velocidade, ...resto } = ficha
@@ -221,15 +165,6 @@ function depoisDosPassos(ficha: FichaPatrulhando, ponto: number, ex: Execucao): 
     ...(ex.esperandoMestre ? { esperandoMestre: true as const } : {}),
     ...(velocidadeDoTrecho === undefined ? {} : { velocidadeDoTrecho }),
   }
-}
-
-/** A macro segura a ficha agora (espera ainda correndo, ou o mestre)? */
-function segurada(ficha: FichaPatrulhando, now: number): boolean {
-  return ficha.esperandoMestre === true || ficha.esperaAte > now
-}
-
-function temEfeito(efeitos: EfeitosDosPassos): boolean {
-  return efeitos.olhar !== undefined || efeitos.fala !== undefined || efeitos.sumida !== undefined
 }
 
 /**
@@ -316,34 +251,6 @@ export function darPassoDaPatrulha(
     next.set(tokenId, depoisDosPassos(rumoA(seguinte, now, andarilho, avisoDepoisDeChegar(estado.aviso, ponto)), destino, ex))
   }
   return { movimentos, portas: mundo.portas.map(({ wallId, aberta }) => ({ wallId, aberta })), andando: next }
-}
-
-/** A direção do cone da vigia (0 = leste) para a frente `graus` da ficha (0 = para cima). */
-function direcaoDaVigia(graus: number): number {
-  return (graus + 270) % 360
-}
-
-/** A ficha com os efeitos da macro; a MESMA instância quando nada muda. */
-function comEfeitos(token: Token, m: EfeitosDosPassos): Token {
-  let t = token
-  if (m.olhar !== undefined && t.rotation !== m.olhar) t = { ...t, rotation: m.olhar }
-  if (m.olhar !== undefined && t.vigia !== undefined && t.vigia !== null) {
-    const direcao = direcaoDaVigia(m.olhar)
-    if (t.vigia.direcao !== direcao) t = { ...t, vigia: { ...t.vigia, direcao } }
-  }
-  if (m.fala === null && 'fala' in t) {
-    const { fala: _calou, ...resto } = t
-    t = resto
-  } else if (typeof m.fala === 'string' && t.fala !== m.fala) {
-    t = { ...t, fala: m.fala }
-  }
-  if (m.sumida === true && t.hidden !== true) {
-    t = { ...t, hidden: true }
-  } else if (m.sumida === false && 'hidden' in t) {
-    const { hidden: _sumida, ...resto } = t
-    t = resto
-  }
-  return t
 }
 
 /**

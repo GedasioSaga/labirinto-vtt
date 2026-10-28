@@ -1615,6 +1615,12 @@ export interface PostoDaRotina {
    * mestre: a rotina inteira fica fora do recorte do jogador.
    */
   periodo?: Periodo
+  /**
+   * ETAPAS DO POSTO (Caminhos F4): o que a ficha faz ao chegar, com os passos
+   * da patrulha (esperar, falar, olhar...), lidos por `readPasso`. Ausente =
+   * esperar 2 s e seguir (o posto de antes do campo). Também só do mestre.
+   */
+  passos?: PassoDaPatrulha[]
 }
 
 /** O acordo do ajudante contratado (`Token.contrato`). */

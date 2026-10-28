@@ -501,11 +501,20 @@ interface AdventureState {
    * Mudança de MESA: fora do Ctrl+Z do mestre nas duas pontas. Devolve quantos
    * elementos mudaram e em quantas cenas; `null` quando o estado não existe ou
    * o valor não é dele (nada muda).
-   * ROTINA DO NPC: é também o APITO — cada ficha com posto em `valor` vai para
-   * ele, dentro da cena ou para outra (`transferToken`), também fora do Ctrl+Z.
-   * `fixas`: fichas que um jogador segura; ficam onde estão.
+   * ROTINA DO NPC: é também o APITO (Caminhos F4) — nenhuma ficha sai do lugar
+   * aqui: quem tem posto em `valor` (`planejarRotina`) é avisado a quem assina
+   * `subscribeToApito` (a rotina andando, que liga a caminhada de cada uma).
+   * `fichas` do resumo conta as que vão ao posto. `fixas`: fichas que um
+   * jogador segura; ficam onde estão.
    */
   trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
+  /**
+   * "PULAR PARA O POSTO" (o teleporte que o apito fazia): cada ficha com posto
+   * no valor ATUAL de `estadoId` cai nele de uma vez, dentro da cena ou para
+   * outra (`transferToken`), fora do Ctrl+Z. Devolve os movimentos feitos
+   * (vazio: ninguém pulou). `fixas`: fichas que um jogador segura; ficam.
+   */
+  pularParaOPosto: (estadoId: string, fixas?: ReadonlySet<string>) => MovimentoDaRotina[]
   /**
    * ROTINA ANDANDO: a cena aberta e as de fundo que abriram, onde a rotina
    * procura a ficha e os postos. Sem aventura aberta: nenhuma.
@@ -1259,6 +1268,33 @@ export function subscribeToOpenings(onOpen: () => void): () => void {
   }
 }
 
+/** O APITO tocado (`trocarEstadoDoMundo`): quem tem posto no valor novo, pelo `planejarRotina`. */
+export interface ApitoTocado {
+  estadoId: string
+  valor: string
+  movimentos: readonly MovimentoDaRotina[]
+}
+
+/** Quem liga a caminhada quando o apito toca (ver `subscribeToApito`). */
+const apitoListeners = new Set<(apito: ApitoTocado) => void>()
+
+/**
+ * Avisa `onApito` a cada apito com alguém para ir ao posto (Caminhos F4): a
+ * rotina andando (`useRotinaAndandoStore`) liga a caminhada de cada ficha. O
+ * aviso sai depois de o estado e os elementos amarrados mudarem; nenhuma ficha
+ * saiu do lugar ainda. Devolve o cancelamento.
+ */
+export function subscribeToApito(onApito: (apito: ApitoTocado) => void): () => void {
+  apitoListeners.add(onApito)
+  return () => {
+    apitoListeners.delete(onApito)
+  }
+}
+
+function avisarApito(apito: ApitoTocado): void {
+  for (const onApito of apitoListeners) onApito(apito)
+}
+
 /** Começa uma abertura: o que ainda chegar da anterior é descartado e quem assina `subscribeToOpenings` fica sabendo. */
 function beginOpening(): number {
   openGeneration += 1
@@ -1787,13 +1823,26 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       cenas: cenasMudadas,
       ...(movimentos.length === 0 ? {} : { fichas: movimentos.length }),
     }
-    // Id de ficha é único na aventura: o mesmo `transform` serve a toda cena.
-    const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
+    const transform = (map: MapData) => aplicarEstadoNoMapa(map, estadoId, valor)
     useMapStore.getState().applyPlayerChange(transform)
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
-    levarParaOutraCena(get, movimentos, activeSceneId)
     set({ adventure: { ...adventure, estados }, structureDirty: true })
+    // APITO (Caminhos F4): ninguém pula daqui; a rotina andando liga a caminhada de cada uma.
+    if (movimentos.length > 0) avisarApito({ estadoId, valor, movimentos })
     return resumo
+  },
+
+  pularParaOPosto: (estadoId, fixas) => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return []
+    const valor = (adventure.estados ?? []).find((estado) => estado.id === estadoId)?.atual
+    if (valor === undefined) return []
+    const movimentos = planejarRotina(cenasCarregadas(activeSceneId, useMapStore.getState().map, cache), estadoId, valor, fixas)
+    if (movimentos.length === 0) return []
+    // Id de ficha é único na aventura: o mesmo `transform` serve a toda cena.
+    mudarNaMesa(get, (map) => moverNaCena(map, movimentos))
+    levarParaOutraCena(get, movimentos, activeSceneId)
+    return movimentos
   },
 
   cenasDaRotina: () => {
