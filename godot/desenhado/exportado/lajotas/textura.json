@@ -1,0 +1,70 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#c4bfaf",
+  "detalhes": {
+    "agrupamento": 0.9,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.1,
+    "escalaMax": 1.3,
+    "escalaMin": 0.8,
+    "espelhar": true,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.2,
+      0.6,
+      1.0,
+      0.5
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 6840,
+    "variacaoDeTom": 0.04
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.60351552942302,
+      "miolo": 1.76670996414032,
+      "razao": 0.907628055521435
+    },
+    "base-2.png": {
+      "borda": 1.6191405284917,
+      "miolo": 1.77615006774431,
+      "razao": 0.911601197385301
+    }
+  },
+  "id": "lajotas",
+  "idDoApp": "lajotas",
+  "lote": 3,
+  "memoria": {
+    "discoBytes": 543824,
+    "gpuBytes": 4194303,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 1.5,
+    "faixa": 0.1,
+    "semente": 6778
+  },
+  "nome": "Lajotas de pedra (forma Clara)",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.04,
+    "escala": 4.0,
+    "semente": 6804
+  }
+}

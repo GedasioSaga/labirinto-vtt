@@ -1,0 +1,23 @@
+{
+  "id": "lajotas",
+  "nome": "Lajotas de pedra (forma Clara)",
+  "idDoApp": "lajotas",
+  "onda": 1,
+  "lote": 3,
+  "semente": 67,
+  "variantes": 2,
+  "periodoCasas": 8,
+  "mistura": { "escala": 1.5, "faixa": 0.1, "corte": 0.18 },
+  "tom": { "escala": 4.0, "amplitude": 0.04 },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [1.2, 0.6, 1.0, 0.5],
+    "densidade": 0.1,
+    "agrupamento": 0.9,
+    "escalaMin": 0.8,
+    "escalaMax": 1.3,
+    "variacaoDeTom": 0.04,
+    "espelhar": true
+  }
+}
