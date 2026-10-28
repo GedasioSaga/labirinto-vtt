@@ -15,6 +15,12 @@
 //      detalhes, nas mesmas células, com 2 rodadas de afastamento entre
 //      vizinhos, para dois não caírem quase um em cima do outro. Sem o
 //      parâmetro, a conta é exatamente a de antes (com_detalhes).
+//      Mais 3 opcionais (CONTRATO.md seção 4), para peça grande e solta (copa de
+//      bosque): detalhes.passoCasas (a grade com passo maior que meia célula),
+//      detalhes.grupos (grupos redondos sorteados numa grade grossa no lugar do
+//      ruído do mundo) e detalhes.espelhar (metade das peças espelhada na
+//      diagonal, que não mexe na luz de cima à esquerda). Sem eles, a conta é a
+//      de antes, byte a byte.
 //
 // fonte: 0 = Desenhado completo; 1 = só base-1 (controle, mostra a repetição
 // crua); 2 = base misturada + tom, sem detalhes; 3 = imagem do Atual (a textura
@@ -60,6 +66,13 @@ uniform float escala_min = 0.85;
 uniform float escala_max = 1.1;
 uniform float variacao_tom = 0.05;
 uniform float afastar_px = 0.0;        // 0: espalhamento de sempre; > 0: distância que o afastamento busca (px do mundo)
+uniform float passo_casas = 0.0;       // 0: grade de meia célula (32 px x celula_casas); > 0: passo da grade em casas
+uniform bool grupos_ligados = false;   // false: aglomerado = ruído do mundo; true: grupos redondos
+uniform float grupos_grade_px = 640.0; // lado da grade grossa dos grupos (px do mundo)
+uniform float grupos_chance = 0.9;     // chance de uma célula grossa ter grupo
+uniform float grupos_raio_min = 0.3;   // raio do grupo, em lados da grade grossa
+uniform float grupos_raio_max = 0.42;
+uniform bool espelhar = false;         // true: metade das peças espelhada na diagonal (x <-> y)
 
 uniform sampler2D imagem_atual : repeat_disable, filter_linear_mipmap;
 uniform vec2 atual_origem = vec2(0.0);  // px do mundo do canto da imagem do Atual
@@ -93,6 +106,41 @@ int escolher_detalhe(float r) {
 	return max(n_detalhes - 1, 0);
 }
 
+// O aglomerado da célula de centro cc (de -1 a 1): puxa a densidade para cima nas
+// moitas e para baixo nas clareiras. Sem grupos, é o ruído do mundo de sempre. Com
+// grupos: cada célula de uma grade grossa (grupos_grade_px) tem um grupo com chance
+// grupos_chance, centro sorteado longe da borda (de 0,2 a 0,8 do lado) e raio
+// sorteado entre grupos_raio_min e grupos_raio_max lados; o aglomerado é 1 no miolo
+// do grupo (até 0,55 do raio), cai suave até -1 na borda e é -1 fora de todo grupo.
+// Basta olhar as 3 x 3 células grossas em volta (o raio vai até 0,5 do lado).
+float aglomerado_em(vec2 cc) {
+	if (!grupos_ligados) {
+		return ruido_do_mundo(cc.x, cc.y, detalhes_semente + 50);
+	}
+	ivec2 b0 = ivec2(floor(cc / grupos_grade_px));
+	float m = 0.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			ivec2 b = b0 + ivec2(i, j);
+			if (hash_app(b.x, b.y, detalhes_semente + 60) >= grupos_chance) {
+				continue;
+			}
+			vec2 centro = (vec2(b) + 0.2 + 0.6 * vec2(hash_app(b.x, b.y, detalhes_semente + 61), hash_app(b.x, b.y, detalhes_semente + 62))) * grupos_grade_px;
+			float r = mix(grupos_raio_min, grupos_raio_max, hash_app(b.x, b.y, detalhes_semente + 63)) * grupos_grade_px;
+			m = max(m, 1.0 - smoothstep(0.55 * r, r, length(cc - centro)));
+		}
+	}
+	return 2.0 * m - 1.0;
+}
+
+// q do detalhe da célula g espelhado na diagonal, se a textura pede e o sorteio cai.
+vec2 espelhado(vec2 q, ivec2 g) {
+	if (espelhar && hash_app(g.x, g.y, detalhes_semente + 6) < 0.5) {
+		return q.yx;
+	}
+	return q;
+}
+
 vec3 base_misturada(vec2 w) {
 	vec2 uv = w / periodo;
 	vec3 b1 = texture(base_1, uv).rgb;
@@ -118,6 +166,11 @@ vec3 com_detalhes(vec2 w, vec3 c) {
 	float passo = 32.0 * celula_casas;
 	float meia = 32.0 * celula_casas;
 	float por_celula = densidade * 0.25 * celula_casas * celula_casas;
+	if (passo_casas > 0.0) {
+		// Grade de passo maior (detalhes.passoCasas): por célula, densidade x passo².
+		passo = 64.0 * passo_casas;
+		por_celula = densidade * passo_casas * passo_casas;
+	}
 	ivec2 g0 = ivec2(floor(w / passo));
 	float teto = clamp(por_celula * (1.0 + 2.0 * agrupamento), 0.0, 0.85);
 	vec2 grade = vec2(float(atlas_colunas), float(atlas_linhas));
@@ -131,14 +184,14 @@ vec3 com_detalhes(vec2 w, vec3 c) {
 				continue;
 			}
 			vec2 cc = (vec2(g) + 0.5) * passo;
-			float aglomerado = ruido_do_mundo(cc.x, cc.y, detalhes_semente + 50);
+			float aglomerado = aglomerado_em(cc);
 			float p = clamp(por_celula * (1.0 + agrupamento * 2.0 * aglomerado), 0.0, 0.85);
 			if (r0 >= p) {
 				continue;
 			}
 			vec2 centro = (vec2(g) + vec2(hash_app(g.x, g.y, detalhes_semente + 1), hash_app(g.x, g.y, detalhes_semente + 2))) * passo;
 			float esc = mix(escala_min, escala_max, hash_app(g.x, g.y, detalhes_semente + 4));
-			vec2 q = (w - centro) / esc;
+			vec2 q = espelhado((w - centro) / esc, g);
 			if (abs(q.x) >= meia || abs(q.y) >= meia) {
 				continue;
 			}
@@ -162,7 +215,7 @@ vec3 candidata(ivec2 g, float passo, float por_celula, float teto) {
 		return vec3(0.0);
 	}
 	vec2 cc = (vec2(g) + 0.5) * passo;
-	float aglomerado = ruido_do_mundo(cc.x, cc.y, detalhes_semente + 50);
+	float aglomerado = aglomerado_em(cc);
 	float p = clamp(por_celula * (1.0 + agrupamento * 2.0 * aglomerado), 0.0, 0.85);
 	if (r0 >= p) {
 		return vec3(0.0);
@@ -197,6 +250,11 @@ vec3 com_detalhes_afastados(vec2 w, vec3 c) {
 	float passo = 32.0 * celula_casas;
 	float meia = 32.0 * celula_casas;
 	float por_celula = densidade * 0.25 * celula_casas * celula_casas;
+	if (passo_casas > 0.0) {
+		// Grade de passo maior (detalhes.passoCasas): por célula, densidade x passo².
+		passo = 64.0 * passo_casas;
+		por_celula = densidade * passo_casas * passo_casas;
+	}
 	ivec2 g0 = ivec2(floor(w / passo));
 	float teto = clamp(por_celula * (1.0 + 2.0 * agrupamento), 0.0, 0.85);
 	vec2 grade = vec2(float(atlas_colunas), float(atlas_linhas));
@@ -250,7 +308,7 @@ vec3 com_detalhes_afastados(vec2 w, vec3 c) {
 			}
 			vec2 centro = a.xy + limitar(desl, lim);
 			float esc = mix(escala_min, escala_max, hash_app(g.x, g.y, detalhes_semente + 4));
-			vec2 q = (w - centro) / esc;
+			vec2 q = espelhado((w - centro) / esc, g);
 			if (abs(q.x) >= meia || abs(q.y) >= meia) {
 				continue;
 			}

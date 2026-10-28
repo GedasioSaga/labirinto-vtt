@@ -105,6 +105,17 @@ vizinhos próximos se afastam. Não use em detalhe miúdo (tufo, flor, pedrinha)
 empilhado não aparece e a conta fica mais cara. Sem o campo, o espalhamento é o de sempre.
 O app tem de fazer a mesma conta quando integrar (CONTRATO.md, seção 4).
 
+**Detalhe grande e solto, em grupos redondos** (árvore de 2 casas ou mais, como no
+Bosque): a grade normal tem um ponto por meia célula, e com ela a peça grande cai em cima
+da vizinha. Ponha em `detalhes` `"passoCasas": 1.8` (a distância da grade, em casas: mais
+que meia célula e até 4; use `afastarCasas` igual a ele e `densidade · passoCasas²` até
+0,85), e a escala pode ir até 2. Para bosquetes redondos com clareira entre eles, no lugar
+das manchas do ruído, use `"grupos": { "gradeCasas": 12, "chance": 0.85, "raioMin": 0.38,
+"raioMax": 0.5 }` (um grupo por quadrado de 12 casas, raio em lados do quadrado) e
+`agrupamento` perto de 1, para a borda do grupo ficar nítida. `"espelhar": true` vira a peça
+na diagonal em metade das células (4 peças viram 8 formas; a luz continua certa). Sem os
+campos, nada muda. O app tem de fazer a mesma conta (CONTRATO.md, seção 4).
+
 **Pronto quando** (CONTRATO.md, seção 6): o comando sai com 0; emenda de cada base entre
 0,8 e 1,25 (ou a junta explicada); repetição "completo" >= 0,80; e você olhou a folha nos
 três zooms sem achar repetição, pontilhado ou serrilhado.

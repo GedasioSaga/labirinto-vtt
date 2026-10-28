@@ -94,6 +94,19 @@ static func ler_config(id: String) -> Dictionary:
 	# Opcional: sem ele o espalhamento é o de sempre e o textura.json não muda.
 	if det.has("afastarCasas"):
 		cfg["detalhes"]["afastarCasas"] = float(det["afastarCasas"])
+	# Opcionais da peça grande e solta (CONTRATO.md seção 4), nos mesmos termos.
+	if det.has("passoCasas"):
+		cfg["detalhes"]["passoCasas"] = float(det["passoCasas"])
+	if det.has("grupos"):
+		var gr: Dictionary = det["grupos"] if typeof(det["grupos"]) == TYPE_DICTIONARY else {}
+		cfg["detalhes"]["grupos"] = {
+			"gradeCasas": float(gr.get("gradeCasas", 0.0)),
+			"chance": float(gr.get("chance", -1.0)),
+			"raioMin": float(gr.get("raioMin", 0.0)),
+			"raioMax": float(gr.get("raioMax", 0.0)),
+		}
+	if det.has("espelhar"):
+		cfg["detalhes"]["espelhar"] = bool(det["espelhar"])
 	if c.get("id", id) != id:
 		erros.append("config.json diz id '%s', mas a pasta é '%s'" % [c.get("id"), id])
 	if cfg["nome"].strip_edges() == "":
@@ -134,16 +147,38 @@ static func ler_config(id: String) -> Dictionary:
 		erros.append("'detalhes.densidade' (detalhes por casa) de 0 a %.2f" % (3.4 / float(celula * celula)))
 	if d["agrupamento"] < 0.0 or d["agrupamento"] > 1.0:
 		erros.append("'detalhes.agrupamento' de 0 a 1")
-	if d["escalaMin"] < 0.5 or d["escalaMax"] > 1.5 or d["escalaMin"] > d["escalaMax"]:
-		erros.append("'detalhes.escalaMin/escalaMax' entre 0,5 e 1,5, mínimo <= máximo")
+	# O passo da grade (em casas): meia célula, ou detalhes.passoCasas.
+	var passo: float = celula * 0.5
+	var escala_teto := 1.5
+	if d.has("passoCasas"):
+		var pedido: float = d["passoCasas"]
+		if pedido <= celula * 0.5 or pedido > 4.0:
+			erros.append("'detalhes.passoCasas' maior que %.1f (meia célula) e até 4" % (celula * 0.5))
+		else:
+			passo = pedido
+			# O laço de 5 x 5 células cobre uma peça de meio lado até 1,5 passo; o teto de 2
+			# é o da nitidez do atlas (a 2, uma casa do mundo tem 64 px do atlas).
+			escala_teto = minf(2.0, 3.0 * passo / float(celula))
+			if d["densidade"] * passo * passo > 0.85:
+				erros.append("'detalhes.densidade' com passoCasas %.2f: de 0 a %.3f (0,85 por célula)" % [passo, 0.85 / (passo * passo)])
+	if d["escalaMin"] < 0.5 or d["escalaMax"] > escala_teto or d["escalaMin"] > d["escalaMax"]:
+		erros.append("'detalhes.escalaMin/escalaMax' entre 0,5 e %.2f, mínimo <= máximo" % escala_teto)
 	if d["variacaoDeTom"] < 0.0 or d["variacaoDeTom"] > 0.12:
 		erros.append("'detalhes.variacaoDeTom' de 0 a 0,12")
 	if d.has("afastarCasas"):
-		# Até um passo da grade (meia célula): as vizinhas são só as 8 em volta, e o
-		# detalhe deslocado (no máximo afastar / 2) ainda cabe no laço de 5 x 5 células.
+		# Até um passo da grade: as vizinhas são só as 8 em volta, e o detalhe deslocado
+		# (no máximo afastar / 2) ainda cabe no laço de 5 x 5 células.
 		var afastar: float = d["afastarCasas"]
-		if afastar <= 0.0 or afastar > celula * 0.5:
-			erros.append("'detalhes.afastarCasas' maior que 0 e até %.1f (meia célula)" % (celula * 0.5))
+		if afastar <= 0.0 or afastar > passo:
+			erros.append("'detalhes.afastarCasas' maior que 0 e até %.2f (um passo da grade)" % passo)
+	if d.has("grupos"):
+		var gr: Dictionary = d["grupos"]
+		if gr["gradeCasas"] < 4.0 or gr["gradeCasas"] > 32.0:
+			erros.append("'detalhes.grupos.gradeCasas' de 4 a 32")
+		if gr["chance"] < 0.0 or gr["chance"] > 1.0:
+			erros.append("'detalhes.grupos.chance' de 0 a 1")
+		if gr["raioMin"] < 0.1 or gr["raioMax"] > 0.5 or gr["raioMin"] > gr["raioMax"]:
+			erros.append("'detalhes.grupos.raioMin/raioMax' entre 0,1 e 0,5 do lado da grade, mínimo <= máximo")
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
 
 
@@ -187,6 +222,13 @@ static func parametros(cfg: Dictionary, base_lado: int, tem_atlas: bool, media: 
 	}
 	if det.has("afastarCasas"):
 		detalhes["afastarCasas"] = det["afastarCasas"]
+	if det.has("passoCasas"):
+		detalhes["passoCasas"] = det["passoCasas"]
+		detalhes["gradeDoMundoPx"] = det["passoCasas"] * CASA_PX
+	if det.has("grupos"):
+		detalhes["grupos"] = det["grupos"]
+	if det.has("espelhar"):
+		detalhes["espelhar"] = det["espelhar"]
 	return {
 		"contrato": VERSAO,
 		"id": cfg["id"],

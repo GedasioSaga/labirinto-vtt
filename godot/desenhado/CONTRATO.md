@@ -61,7 +61,9 @@ mistura       { semente, escala, faixa, corte }
 tom           { semente, escala, amplitude }
 detalhes      { arquivo, ladoPx: 512, colunas, linhas, pxPorCasa: 128, celulaCasas,
                 gradeDoMundoPx, semente, quantos, pesos[], densidade, agrupamento,
-                escalaMin, escalaMax, variacaoDeTom, afastarCasas (opcional, seção 4) }
+                escalaMin, escalaMax, variacaoDeTom, e os opcionais da seção 4:
+                afastarCasas, passoCasas, grupos { gradeCasas, chance, raioMin,
+                raioMax }, espelhar }
 corMedia      "#rrggbb" da base-1 (miniatura, zoom muito pequeno, estilo Simples)
 memoria       { gpuBytes, discoBytes, tetoGpuBytes, tetoDiscoBytes }
 emendas       a medida de emenda de cada base (1 = a borda igual ao miolo)
@@ -112,7 +114,8 @@ em 2 rodadas. Sem o campo, nada muda: a conta é a de cima, byte a byte (provado
 nas 4 texturas do lote 1 sem o campo: exportação e folha idênticas).
 
 ```
-dmin = afastarCasas · 64 px        (0 < afastarCasas <= c / 2: até um passo da grade)
+dmin = afastarCasas · 64 px        (0 < afastarCasas <= um passo da grade, em casas:
+                                    c / 2, ou passoCasas quando ele existe)
 c0(g) = o centro de cima, só nas células que têm detalhe (r(0) < p)
 vizinhas de g = as 8 células em volta que também têm detalhe
 empurrão(a, b, g, h): v = a - b, d = |v|
@@ -140,6 +143,51 @@ copas param de se esconder umas atrás das outras.
 Por que não uma grade sacudida (um ponto por célula de passo próprio, com folga): na mesma
 simulação, com a mesma quantidade de copas a folga fica pequena e a grade lê como
 fileira; com folga para desmanchar a fileira, a mata fica 13 a 22% mais rala.
+
+### Passo, grupos e espelho (opcionais: `detalhes.passoCasas`, `detalhes.grupos`, `detalhes.espelhar`)
+
+Nasceram com o Bosque (lote 2, 28/10): árvore grande e solta, em bosquete redondo, não cabe
+na grade de meia célula (1 ponto por casa com `celulaCasas: 2`, então a copa de 2 casas cai
+em cima da vizinha), e o ruído do mundo só dá grupo em fileira curva ou em continente. Os
+três são independentes e cada um só muda a conta quando está no `textura.json`. Sem eles,
+a saída é byte a byte a de antes: provado em 28/10 nas 7 texturas aprovadas (grama,
+grama-amarela, terra, caminho, floresta, chao-de-floresta e areia), exportação (base-1..3,
+detalhes.png, textura.json) e folha (area50, area100, perto300, resumo.json) idênticas,
+antes e depois da troca e contra o `exportado/` commitado.
+
+```
+passoCasas (c/2 < passoCasas <= 4):
+    passo = 64 · passoCasas px                 (no lugar de 32·c)
+    p = clamp(densidade · passoCasas² · (1 + agrupamento · 2 · a), 0, 0,85)
+    densidade · passoCasas² <= 0,85; afastarCasas <= passoCasas;
+    escalaMax <= min(2, 3 · passoCasas / c)    (o laço de 5 x 5 células ainda alcança)
+    o resto (r(k), centro, i, escala, tom, afastamento) é o de cima, com este passo
+
+grupos { gradeCasas (4 a 32), chance (0 a 1), raioMin, raioMax (0,1 a 0,5; min <= max) }:
+    G = gradeCasas · 64 px; cc = centro da célula de detalhe ((gx + 0,5)·passo, ...)
+    m = 0
+    para cada b nas 3 x 3 células da grade G em volta de floor(cc / G):
+        se hash(b.x, b.y, detalhes.semente + 60) < chance:
+            o = (b + 0,2 + 0,6 · (hash(b.x, b.y, semente + 61), hash(b.x, b.y, semente + 62))) · G
+            r = mix(raioMin, raioMax, hash(b.x, b.y, semente + 63)) · G
+            m = max(m, 1 - smoothstep(0,55 · r, r, |cc - o|))
+    a = 2 · m - 1                              (no lugar do ruidoDoMundo da linha de a)
+
+espelhar (true):
+    q = a posição do pixel na célula do atlas, (pixel - centro) / escala
+    se hash(gx, gy, detalhes.semente + 6) < 0,5: q = (q.y, q.x)   (espelho na diagonal)
+```
+
+O espelho é na diagonal de propósito: a luz vem de cima à esquerda, na diagonal, e a sombra
+do atlas anda na mesma diagonal, então a peça espelhada continua com a luz certa. Assim 4
+peças viram 8 formas. A referência é `aglomerado_em()` e `espelhado()` em
+`comum/compor.gdshader`. **O app precisa da mesma conta na integração** (o passo, o
+aglomerado dos grupos e o espelho), senão as árvores caem em outro lugar e com outra forma.
+
+Medida no Bosque (simulação com o hash e o ruído do app, semente 31, passoCasas 1,8 e
+afastarCasas 1,8): 0,09 copa por casa, cobertura 0,27, 46% do chão a mais de 1 casa de
+uma copa, e 1% das copas com vizinha a menos de 0,6 da soma dos raios (5% abaixo de 0,7:
+copas que se encostam dentro do bosquete, sem uma cobrir a outra).
 
 ## 5. Teto de memória
 
