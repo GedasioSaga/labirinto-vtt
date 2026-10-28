@@ -63,6 +63,7 @@ import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readPinPass } from './pinPass'
 import { lerPenhascos } from './penhasco'
+import { lerBarranco } from './barranco'
 import { lerTexturas, lerTexturasImportadas } from './texturas'
 import { lerCarimbos, lerCarimbosImportados } from './carimbos'
 import { lerLojaDoArquivo } from './loja'
@@ -959,6 +960,8 @@ function deserializeMapFields(json: string): MapData {
     ...(typeof parsed.cliqueParaAndar === 'boolean' ? { cliqueParaAndar: parsed.cliqueParaAndar } : {}),
     // PENHASCO: campo NOVO e OPCIONAL. Risco torto sai, lista vazia abre sem o campo (`lerPenhascos`).
     ...penhascosDoArquivo(parsed.penhascos),
+    // BARRANCO: campo NOVO e OPCIONAL. Item torto sai; vazio abre sem o campo (`lerBarranco`).
+    ...barrancoDoArquivo(parsed.barranco),
     // TEXTURAS: campos NOVOS e OPCIONAIS. Passo torto sai; lista vazia abre sem o campo (`lerTexturas`).
     ...texturasDoArquivo(parsed.texturas, parsed.texturasImportadas),
     // CARIMBOS: campos NOVOS e OPCIONAIS. Objeto torto sai; lista vazia abre sem o campo (`lerCarimbos`).
@@ -1052,6 +1055,12 @@ function carimbosDoArquivo(objetos: unknown, importados: unknown): Pick<MapData,
   const carimbos = lerCarimbos(objetos)
   const carimbosImportados = lerCarimbosImportados(importados)
   return { ...(carimbos === undefined ? {} : { carimbos }), ...(carimbosImportados === undefined ? {} : { carimbosImportados }) }
+}
+
+/** BARRANCO: o campo só entra com algum risco, quadrado ou rampa lido (`lib/barranco.ts`). */
+function barrancoDoArquivo(valor: unknown): Pick<MapData, 'barranco'> {
+  const barranco = lerBarranco(valor)
+  return barranco === undefined ? {} : { barranco }
 }
 
 /** PENHASCO: o campo só entra com algum risco lido (`lib/penhasco.ts`). */

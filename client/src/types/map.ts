@@ -2334,6 +2334,16 @@ export interface MapData {
    */
   penhascos?: TracoDePenhasco[]
   /**
+   * BARRANCO (`lib/barranco.ts`): a parede de terra que dá parte alta e parte
+   * baixa nos mapas que não são de continente (vila, cidade, campo). Riscos
+   * com lado alto, quadrados altos (área de 1 a 3 degraus) e rampas (vãos).
+   * Segura o ANDAR da ficha, não a visão. Ausente = sem barranco, sem linha de
+   * migração (o último apagado tira o campo). Leitura segura em `lerBarranco`.
+   * Sai no recorte do jogador só o que encosta no que ele conhece
+   * (`barrancoParaJogador`).
+   */
+  barranco?: BarrancoDoMapa
+  /**
    * TEXTURAS (`lib/texturas.ts`): o que o mestre pintou com a ferramenta
    * Texturas, na ordem em que pintou (pincelada, balde e borracha; a de depois
    * cobre a de antes). A textura não é guardada como imagem: cada tela a pinta
@@ -2466,6 +2476,49 @@ export interface TracoDePenhasco extends NoPiso {
    * borracha tira de todas).
    */
   altura?: AlturaDoPenhasco
+}
+
+/** Espessura da parede de um barranco: 10, 16 ou 24 px num quadrado de 32 (`lib/barranco.ts`). */
+export type AlturaDoBarranco = 'baixo' | 'medio' | 'alto'
+
+/**
+ * Um risco de barranco: a beira de cima, cortada livre (não segue a grade).
+ * `lado` é para onde a parede cai (o lado BAIXO): 1 ou -1 em relação ao
+ * sentido do risco. Altura ausente = Médio.
+ */
+export interface RiscoDeBarranco extends NoPiso {
+  id: string
+  pontos: RegionPoint[]
+  lado: 1 | -1
+  altura?: AlturaDoBarranco
+}
+
+/**
+ * Um quadrado alto da área (platô). `alturas[k - 1]` é a espessura da parede
+ * do degrau `k`; o nível do quadrado é `alturas.length` (1 a 3).
+ */
+export interface QuadradoAlto extends NoPiso {
+  x: number
+  y: number
+  alturas: AlturaDoBarranco[]
+}
+
+/** Uma rampa: o vão de terra no barranco mais perto deste ponto (px de mundo). */
+export interface RampaDeBarranco extends NoPiso {
+  id: string
+  x: number
+  y: number
+}
+
+/** O barranco do mapa (`MapData.barranco`). */
+export interface BarrancoDoMapa {
+  /** Lado do quadrado da área alta, em px de mundo (a grade de quando a área nasceu). */
+  quadrado: number
+  /** Onde fica o canto do quadrado (0, 0), em px de mundo. */
+  origem: RegionPoint
+  riscos: RiscoDeBarranco[]
+  quadrados: QuadradoAlto[]
+  rampas: RampaDeBarranco[]
 }
 
 /**

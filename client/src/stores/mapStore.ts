@@ -101,6 +101,8 @@ import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
+import { barrancoOuVazio, comBarranco, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
+import type { AlturaDoBarranco, BarrancoDoMapa } from '../types/map'
 import {
   comTexturas,
   comTexturasImportadas,
@@ -489,6 +491,20 @@ interface MapStoreState {
   /** Altura da parede dos PRÓXIMOS riscos (o risco guarda a dele). Mesma classe da largura. */
   penhascoAltura: AlturaDoPenhasco
   setPenhascoAltura: (altura: AlturaDoPenhasco) => void
+  /** Ferramenta Barranco (`lib/barranco.ts`): o modo (Risco, Área alta, Rampa),
+   *  a altura dos PRÓXIMOS riscos e áreas, o que o traço da área faz e o
+   *  pincel dela. Preferências, sem histórico e fora do map.json, como as do penhasco. */
+  barrancoModo: ModoDoBarranco
+  setBarrancoModo: (modo: ModoDoBarranco) => void
+  barrancoAltura: AlturaDoBarranco
+  setBarrancoAltura: (altura: AlturaDoBarranco) => void
+  barrancoArea: AreaDoBarranco
+  setBarrancoArea: (area: AreaDoBarranco) => void
+  barrancoPincel: PincelDaArea
+  setBarrancoPincel: (pincel: PincelDaArea) => void
+  /** O risco escolhido (alça Virar, F, Delete); `null` = nenhum. Fora do histórico. */
+  barrancoEscolhido: string | null
+  setBarrancoEscolhido: (id: string | null) => void
   /**
    * Ferramenta Texturas (`lib/texturas.ts`): a textura escolhida na biblioteca,
    * o que o PRÓXIMO gesto faz (Pincel | Balde | Borracha; Alt troca o pincel
@@ -1266,6 +1282,13 @@ interface MapStoreState {
   /** Tira todos os riscos de penhasco da cena aberta. Com desfazer. */
   apagarTodosOsPenhascos: () => void
   /**
+   * BARRANCO (`lib/barranco.ts`): troca o barranco da cena aberta num passo do
+   * desfazer (risco, área, rampa, virar, altura, apagar). `mudar` recebe o
+   * barranco (ou um vazio na grade de agora) e o piso em edição; devolver o
+   * MESMO barranco não gasta passo. `false` = nada mudou ou Terreno travado.
+   */
+  mudarBarranco: (mudar: (barranco: BarrancoDoMapa, piso: number) => BarrancoDoMapa) => boolean
+  /**
    * TEXTURAS (`lib/texturas.ts`): solta uma pincelada do pincel ou da borracha.
    * Uma pincelada é UM passo no desfazer; a borracha onde não há textura não
    * vira passo e devolve o motivo para a tela dizer.
@@ -1930,6 +1953,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     penhascoModo: 'riscar',
     penhascoLargura: 'media',
     penhascoAltura: 'medio',
+    barrancoModo: 'risco',
+    barrancoAltura: 'medio',
+    barrancoArea: 'subir',
+    barrancoPincel: 'medio',
+    barrancoEscolhido: null,
     texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO,
     texturaModo: 'pincel',
     texturaTamanho: TAMANHO_DO_PINCEL_PADRAO,
@@ -2124,6 +2152,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setPenhascoModo: (modo) => set({ penhascoModo: modo }),
     setPenhascoLargura: (largura) => set({ penhascoLargura: largura }),
     setPenhascoAltura: (altura) => set({ penhascoAltura: altura }),
+    setBarrancoModo: (modo) => set({ barrancoModo: modo }),
+    setBarrancoAltura: (altura) => set({ barrancoAltura: altura }),
+    setBarrancoArea: (area) => set({ barrancoArea: area }),
+    setBarrancoPincel: (pincel) => set({ barrancoPincel: pincel }),
+    setBarrancoEscolhido: (id) => set({ barrancoEscolhido: id }),
     setTexturaEscolhida: (id) => set({ texturaEscolhida: id }),
     setTexturaModo: (modo) => set({ texturaModo: modo }),
     setTexturaTamanho: (tamanho) => {
@@ -3008,6 +3041,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const { map, pisoAtivo } = get()
       if ((mapaDoPiso(map, pisoAtivo).penhascos ?? []).length === 0) return
       withHistory((m) => comPenhascos(m, comListaDoPiso(m.penhascos ?? [], [], pisoAtivo)))
+    },
+    mudarBarranco: (mudar) => {
+      // O barranco mora preso em Terreno, como o penhasco e as texturas: Terreno travado recusa com o aviso.
+      if (terrenoBarrado()) return false
+      const { map, pisoAtivo } = get()
+      const antes = barrancoOuVazio(map)
+      const depois = mudar(antes, pisoAtivo)
+      if (depois === antes) return false
+      withHistory((m) => comBarranco(m, depois))
+      return true
     },
     setNomesDosLugares: (ligado) => {
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
