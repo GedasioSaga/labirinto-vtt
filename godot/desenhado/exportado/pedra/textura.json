@@ -1,0 +1,84 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#b0a998",
+  "detalhes": {
+    "afastarCasas": 3.2,
+    "agrupamento": 0.4,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.083,
+    "escalaMax": 2.0,
+    "escalaMin": 1.5,
+    "espelhar": true,
+    "gradeDoMundoPx": 204.8,
+    "grupos": {
+      "chance": 0.9,
+      "gradeCasas": 16.0,
+      "raioMax": 0.5,
+      "raioMin": 0.42
+    },
+    "ladoPx": 512,
+    "linhas": 2,
+    "passoCasas": 3.2,
+    "pesos": [
+      1.0,
+      1.0,
+      0.1,
+      0.6
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 4416,
+    "variacaoDeTom": 0.06
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.29817700595595,
+      "miolo": 1.29286016599508,
+      "razao": 1.00411246328158
+    },
+    "base-2.png": {
+      "borda": 1.32356762944255,
+      "miolo": 1.3364799550618,
+      "razao": 0.990338556466672
+    },
+    "base-3.png": {
+      "borda": 1.25455721688922,
+      "miolo": 1.33235669141868,
+      "razao": 0.941607622770584
+    }
+  },
+  "id": "pedra",
+  "idDoApp": "pedra",
+  "lote": 3,
+  "memoria": {
+    "discoBytes": 853454,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 4354
+  },
+  "nome": "Serra",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 4380
+  }
+}
