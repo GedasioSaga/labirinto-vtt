@@ -165,7 +165,7 @@ function pistasConferidas(valor: unknown, id: string): ReturnType<NonNullable<Ce
  * sem WebGL. `scene` e `camera` são conferidas contra as classes do PRÓPRIO
  * `three` que o motor passou: a cena do pacote não importa `three`, recebe.
  */
-function cenaConferida(valor: unknown, THREE: ThreeModule, id: string): CenaTransicao {
+export function cenaConferida(valor: unknown, THREE: ThreeModule, id: string): CenaTransicao {
   if (typeof valor !== 'object' || valor === null) throw new Error(`transição ${id}: criar não devolveu um objeto`)
   if (!('scene' in valor) || !(valor.scene instanceof THREE.Scene)) throw new Error(`transição ${id}: sem scene`)
   if (!('camera' in valor) || !(valor.camera instanceof THREE.PerspectiveCamera)) throw new Error(`transição ${id}: sem camera perspectiva`)

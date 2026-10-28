@@ -38,6 +38,12 @@ export interface CenaTransicao {
 
 export interface OpcoesDaCena {
   reduzirMovimento: boolean
+  /**
+   * Só a abertura de batalha (`aberturasDeBatalha.ts`) passa: o nome que a
+   * cena mostra (grupo, inimigo). Ausente = o padrão da cena. A transição de
+   * local não recebe e ignora.
+   */
+  nome?: string
 }
 
 export type CriarCena = (THREE: ThreeModule, opcoes: OpcoesDaCena) => CenaTransicao

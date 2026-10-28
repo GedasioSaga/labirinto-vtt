@@ -19,9 +19,10 @@ import { clamp01, easeInOutSine, easeOutCubic, span } from '../../transicoes/cur
  * fecham sobre o cruzamento para a troca.
  *
  * Contrato: o mesmo `CriarCena` das transições (`src/transicoes/tipos.ts`),
- * com um campo a mais e opcional, `nome` (padrão "Royals"). O tipo `batalha`
- * ainda não existe no pacote (`scripts/pacote-animacoes.cjs` só lê os tipos
- * conhecidos) nem no app: entra quando o mestre aprovar o protótipo.
+ * com um campo a mais e opcional, `nome` (padrão "Royals"). Aprovada pelo
+ * mestre em 27/10/2026: vai no pacote como tipo `batalha`, o app registra em
+ * `transicoes/aberturasDeBatalha.ts` e toca com `tocarAberturaDeBatalha`
+ * (`transicoes/motor.ts`), que passa o `nome` em `OpcoesDaCena`.
  *
  * Tudo é desenhado com `ShaderMaterial` sem conversão de cor na saída, então
  * o que foi pintado no canvas é o que aparece, com ou sem gerenciamento de
