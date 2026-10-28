@@ -606,7 +606,7 @@ export function geosDoBarranco(b: BarrancoDoMapa | undefined, piso: number, grid
 // ---------------------------------------------------------------------------
 // Andar: a linha que segura a ficha
 
-/** Um trecho da linha do meio da parede, fora das rampas. */
+/** Um trecho de uma das beiradas da faixa de terra (ou a tampa de uma ponta), fora das rampas. */
 export interface SegmentoDeBarranco {
   ax: number
   ay: number
@@ -622,10 +622,14 @@ function distanciaAoTrecho(p: Pt, a: Pt, b: Pt): number {
 }
 
 /**
- * A linha que segura a ficha: o meio da parede de cada trecho que não é rampa.
- * Do lado baixo a ficha para no pé, do lado alto para na beira. As pontas do
- * risco afinam, mas a linha segura até o fim: a ficha passa por fora da ponta.
- * A visão não usa isto (decisão 2 de 28/10).
+ * As linhas que seguram a ficha: as DUAS beiradas da faixa de terra (a beira
+ * do lado alto e o pé do lado baixo) de cada trecho que não é rampa. A faixa é
+ * um obstáculo grosso: o passo que entra nela, de qualquer lado, é barrado, e
+ * a ficha para encostada na beira, nunca em cima da terra (pedido de 28/10,
+ * depois dos prints). Onde a corrida acaba (na rampa e na ponta do risco) uma
+ * tampa liga beira e pé: pela rampa a ficha atravessa, mas não entra de lado
+ * na terra. As pontas afinam, e a ficha passa por fora delas. A visão não usa
+ * isto (decisão 2 de 28/10).
  *
  * O desenho tem um ponto a cada poucos px; aqui o ponto que fica a menos de
  * meio px da reta entre os vizinhos sai: a reta do platô vira um trecho só, e
@@ -635,18 +639,31 @@ export function segmentosQueSeguram(geos: GeoDoBarranco[]): SegmentoDeBarranco[]
   const guardado = cacheDeSegmentos.get(geos)
   if (guardado !== undefined) return guardado
   const segs: SegmentoDeBarranco[] = []
+  const empurrar = (a: Pt, b: Pt) => {
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.01) segs.push({ ax: a[0], ay: a[1], bx: b[0], by: b[1] })
+  }
   for (const g of geos) {
-    const meio = (i: number): Pt => [g.lip[i][0] + g.vn[i][0] * g.t[i] * 0.5, g.lip[i][1] + g.vn[i][1] * g.t[i] * 0.5]
+    const beirada = (fracao: number) => (i: number): Pt => [g.lip[i][0] + g.vn[i][0] * g.t[i] * fracao, g.lip[i][1] + g.vn[i][1] * g.t[i] * fracao]
+    const beira = beirada(0)
+    const pe = beirada(1)
     for (const corrida of corridas(g)) {
       const idx = corrida.fechada ? [...corrida.idx, corrida.idx[0]] : corrida.idx
       if (idx.length < 2) continue
-      let ancora = meio(idx[0])
-      for (let k = 1; k < idx.length; k += 1) {
-        const atual = meio(idx[k])
-        const ultimo = k === idx.length - 1
-        if (!ultimo && distanciaAoTrecho(atual, ancora, meio(idx[k + 1])) < 0.5) continue
-        segs.push({ ax: ancora[0], ay: ancora[1], bx: atual[0], by: atual[1] })
-        ancora = atual
+      for (const linha of [beira, pe]) {
+        let ancora = linha(idx[0])
+        for (let k = 1; k < idx.length; k += 1) {
+          const atual = linha(idx[k])
+          const ultimo = k === idx.length - 1
+          if (!ultimo && distanciaAoTrecho(atual, ancora, linha(idx[k + 1])) < 0.5) continue
+          empurrar(ancora, atual)
+          ancora = atual
+        }
+      }
+      if (!corrida.fechada) {
+        const primeiro = idx[0]
+        const final = idx[idx.length - 1]
+        empurrar(beira(primeiro), pe(primeiro))
+        empurrar(beira(final), pe(final))
       }
     }
   }
