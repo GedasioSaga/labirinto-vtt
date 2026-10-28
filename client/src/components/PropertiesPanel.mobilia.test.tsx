@@ -114,7 +114,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
     expect(Array.from(tipo.options).map((o) => texto(o))).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Tapete longo',
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Fogo', 'Tapete', 'Tapete longo',
       'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta',
     ])
     expect(tipo.value).toBe('mesa')

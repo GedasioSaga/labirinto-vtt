@@ -215,6 +215,17 @@ export interface LuzDoFogo extends LuzNoMapa {
 }
 
 /** A luz de cada fogo (`hidden` não ilumina), recortada pela parede como as outras luzes. */
+/**
+ * O conteúdo que muda a luz dos fogos. O jogador recebe snapshot novo (listas
+ * novas) a cada pacote: comparar a lista por identidade refaria o mapa de luz sem
+ * nada ter mudado.
+ */
+function conteudoDosFogos(fogos: readonly FogoQueIlumina[] | undefined): string {
+  let chave = ''
+  for (const f of fogos ?? []) if (f.mobilia === 'fogo' && f.hidden !== true) chave += `${f.id}|${f.x}|${f.y}|${f.width}|${f.height};`
+  return chave
+}
+
 export function luzesDosFogos(fogos: readonly FogoQueIlumina[], obstaculos: Segment[], fatorDaLuz: number, cache?: CacheDePoligonos): LuzDoFogo[] {
   const fator = grampear01(fatorDaLuz)
   if (fator === 0) return []
@@ -437,6 +448,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
   let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
   const poligonosDosFogos: CacheDePoligonos = new Map()
   let fogosLidos: readonly FogoQueIlumina[] | undefined
+  let revisaoDosFogos: string | null = null
   let chaveDosFogos: string | null = null
   let versaoDosFogos = 0
   let passoDoTremor = -1
@@ -471,9 +483,13 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
 
   /** A luz dos fogos: refeita só quando a lista, a parede ou o período mudam. */
   function refazerFogos(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {
-    const chave = `${quadro.revisao}|${tinta.fatorDaLuz}`
-    if (quadro.fogos === fogosLidos && chave === chaveDosFogos) return
+    const revisao = `${quadro.revisao}|${tinta.fatorDaLuz}`
+    if (quadro.fogos === fogosLidos && revisao === revisaoDosFogos) return
     fogosLidos = quadro.fogos
+    revisaoDosFogos = revisao
+    // Lista nova com os mesmos fogos (snapshot novo do jogador, outro objeto que mudou): nada a refazer.
+    const chave = `${revisao}|${conteudoDosFogos(quadro.fogos)}`
+    if (chave === chaveDosFogos) return
     chaveDosFogos = chave
     versaoDosFogos += 1
     for (const luz of luzesDosFogosNoPalco) luz.desenho.destroy()

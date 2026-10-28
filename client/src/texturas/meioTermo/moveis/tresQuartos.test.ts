@@ -73,7 +73,10 @@ describe('vista 3/4: o catálogo inteiro', () => {
     }
   })
 
-  for (const tipo of TIPOS_MOBILIA) {
+  // O FOGO fica fora desta regra: a imagem dele é só o chão queimado, rente ao chão (sem altura nem
+  // sombra), e as chamas, que são a parte em pé, já sobem na tela pela camada animada (`pixi/fogosDoMapa.ts`).
+  // Na 3/4 a imagem dele não muda (teste logo abaixo).
+  for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
     it(`${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)
@@ -95,6 +98,13 @@ describe('vista 3/4: o catálogo inteiro', () => {
       }
     })
   }
+
+  it('fogo: o chão queimado é plano, então a 3/4 sai igual à vista de cima', () => {
+    const prop = movel('fogo')
+    for (const nivel of [1, 3]) {
+      expect(digitalDosPixels(pintar(desenho(prop, 'tres-quartos'), nivel).pixels), `nível ${nivel}`).toBe(digitalDosPixels(pintar(desenho(prop), nivel).pixels))
+    }
+  })
 
   it('a fogueira sobe a lenha o mesmo que a chama sobe na tela', () => {
     expect(PERFIS.fogueira.alturaSolta).toBe(ALTURA_DA_LENHA_EM_TRES_QUARTOS)
