@@ -1,0 +1,22 @@
+{
+  "id": "troque-pelo-id",
+  "nome": "Nome que o mestre vê",
+  "idDoApp": null,
+  "onda": 1,
+  "lote": 1,
+  "semente": 7,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 2.0, "faixa": 0.12, "corte": 0.18 },
+  "tom": { "escala": 6.0, "amplitude": 0.04 },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 4,
+    "pesos": [1, 1, 1, 1],
+    "densidade": 0.6,
+    "agrupamento": 0.8,
+    "escalaMin": 0.85,
+    "escalaMax": 1.15,
+    "variacaoDeTom": 0.05
+  }
+}

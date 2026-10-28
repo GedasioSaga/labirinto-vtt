@@ -3,3 +3,10 @@
 # Ajuste local de janela usado só nas rodadas automáticas
 override.cfg
 *.tmp
+# Mesa de prova: folhas e peças (podem ter o chão de um mapa real; nunca entram no git)
+prova/
+# O Atual empacotado pelo esbuild (refeito a cada folha)
+ferramentas/.build/
+# Os .uid que o editor do Godot (o do MCP) cria ao lado de cada script e shader. O projeto
+# referencia tudo pelo caminho; sem isto cada designer veria dezenas de arquivos novos
+*.uid

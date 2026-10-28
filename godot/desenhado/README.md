@@ -18,6 +18,94 @@ Ele tem duas partes:
 
 Tudo usa semente fixa: abrir duas vezes dá a mesma imagem, byte a byte.
 
+## O pacote Desenhado (fundação de 28/10/2026)
+
+Por cima do protótipo, a fundação do pacote de verdade: uma pasta por textura, uma
+biblioteca comum congelada, um comando que exporta UMA textura e monta a folha de
+aprovação, e uma fila para vários designers rodarem o Godot ao mesmo tempo.
+
+| Leia | Para quê |
+|---|---|
+| `INVENTARIO.md` | as 65 coisas que o Desenhado cobre, por onda, em lotes de 5 |
+| `ESTILO.md` | as regras de desenho (a crítica de 28/10), paleta, contorno, zooms |
+| `CONTRATO.md` | arquivos de saída, a montagem contra repetição, teto de memória, critério de pronto |
+| `PARA-OS-DESIGNERS.md` | o prompt de cada designer de textura |
+
+```
+godot/desenhado/
+  comum/          CONGELADA: cabecalho/rodape.gdshaderinc (o molde do shader da textura),
+                  mundo.gdshaderinc (hash e ruidoDoMundo do app), compor.gdshader (a mesa
+                  de prova), contrato.gd, pintor.gd, mesa.gd
+  texturas/<id>/  do designer: textura.gdshader + config.json (_modelo/ é o ponto de partida,
+                  grama/ é o piloto)
+  exportado/<id>/ gerada: base-1..3.png, detalhes.png, textura.json (vai para o git; o
+                  .gdignore de exportado/ esconde a pasta do editor do Godot)
+  prova/<id>/     gerada: folha.png e peças (fora do git; o padrão quando não se passa --prova)
+  scripts/exportar_uma.gd, scripts/folha_do_lote.gd
+  ferramentas/atual.ts   pinta o Atual (a textura de hoje do app) com o código de client/src
+```
+
+### Fila do Godot (obrigatória)
+
+Vários agentes rodando o Godot juntos no mesmo projeto podem estragar o cache `.godot/`.
+**Toda** chamada ao Godot deste projeto passa pela fila (a mesma `suite-lock.cjs` das
+suítes, com uma pasta de trinco só do Godot):
+
+```
+GODOT="C:/Users/gedasio.filho/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_win64_console.exe"
+export SUITE_LOCK_DIR=C:/Users/gedasio.filho/.claude/state/godot-lock
+node C:/Users/gedasio.filho/.claude/scripts/suite-lock.cjs --nome <id> -- "$GODOT" --path C:/dev/labirinto-desenhado/godot/desenhado --script res://scripts/exportar_uma.gd -- --textura=<id> [--folha] [--prova=<pasta>] [--mapa=<map.json>]
+node C:/Users/gedasio.filho/.claude/scripts/suite-lock.cjs --status    # quem está rodando e quem espera
+```
+
+Conferido em 28/10: duas exportações lançadas juntas, a segunda esperou 11 s ("fila 2 de 2")
+e as duas saíram com 0.
+
+### O editor e o MCP do Godot
+
+As ferramentas `mcp__godot__*` falam com **um** editor aberto neste projeto (porta 6505),
+compartilhado por todos. As regras de uso entre vários designers (o que é livre, o que
+precisa da "vez do editor", o que nunca) estão em `PARA-OS-DESIGNERS.md`. Para o editor não
+brigar com a fila nem sujar o git:
+
+- o exportador grava `.gdignore` em `exportado/` e em `prova/`: o editor não importa esses
+  PNGs (sem `.import` ao lado deles e sem reimportar enquanto a fila regrava);
+- os `.uid` que o editor cria ao lado de cada script e shader estão no `.gitignore` (o
+  projeto referencia tudo pelo caminho);
+- o `project.godot` está no formato que o editor grava (na primeira abertura, em 28/10, ele
+  tirou o comentário do topo e a linha `window/stretch/mode`, que era o valor padrão; essa é
+  a versão do git), então abrir o editor de novo não o altera.
+
+Conferido em 28/10 com o editor aberto: a exportação da grama pela fila saiu com 0 e os
+mesmos números de antes, nenhum `.import` apareceu, e o `git status` só ganhou os `.uid`
+(agora ignorados) e aquela reescrita do `project.godot`.
+
+### Exportar UMA textura e montar a folha
+
+`scripts/exportar_uma.gd` (opções no topo do arquivo):
+
+- `--textura=<id>` lê `texturas/<id>/`, confere o `config.json`, pinta as bases e o atlas e
+  grava em `exportado/<id>/` (ou `--saida=<pasta>`), com o `textura.json`. Recusa a textura
+  que passa do teto de memória.
+- `--folha` monta a folha de aprovação a partir dos arquivos gravados, do jeito que o app
+  vai montar (`comum/compor.gdshader`): a área de 40 x 40 casas a 50% e a 100%, um close a
+  300%, os arquivos, o Atual ao lado e a medida de repetição. Grava em `prova/<id>/` (ou
+  `--prova=<pasta>`).
+- `--mapa=<map.json>` usa o chão de um mapa real (só leitura): acha a janela de 40 x 40
+  casas em que a textura mais aparece e pinta o resto de cinza. Exige `--prova` fora do repo.
+
+**Não é `--headless`:** no modo headless o Godot não desenha quadro nenhum; a espera pelos
+SubViewports não acaba (conferido em 28/10: parado à força depois de 90 s). Sem ele, uma
+janela pisca uns segundos e fecha. Se o script travar (erro no meio de uma espera), ele sai
+sozinho em 180 s com o código 3, para não prender a fila.
+
+`scripts/folha_do_lote.gd --texturas=a,b,c,d,e --prova=<raiz> --saida=<arquivo.png>` junta
+as folhas de até 5 texturas numa folha só, para a aprovação do lote.
+
+O Atual sai de `ferramentas/atual.ts`: o exportador empacota com o esbuild do repositório
+(`node_modules/esbuild`) e roda com o Node; é o chão do Meio-Termo sem manchas, pintado pelo
+mesmo `pintarPedaco` que o app usa.
+
 ## Abrir a cena
 
 ```

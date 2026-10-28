@@ -1,0 +1,136 @@
+# Modelo de prompt: um designer, uma textura
+
+Para o orquestrador: copie o bloco abaixo, troque `<id>`, `<nome>`, `<lote>` e
+`<PROVA>` (uma pasta do scratchpad da sessão, por exemplo
+`.../scratchpad/desenhado/lote-1/<id>`) e mande um designer por textura. Os 5 podem rodar
+ao mesmo tempo no mesmo worktree: cada um escreve só na pasta dele, e o Godot passa por
+uma fila.
+
+---
+
+Você vai fazer UMA textura do pacote Desenhado do Labirinto: **`<id>` (<nome>)**, lote
+<lote>. Worktree `C:/dev/labirinto-desenhado`, branch `feat/desenhado`, projeto Godot em
+`godot/desenhado/`. Outros 4 designers estão trabalhando ao mesmo tempo, no mesmo
+worktree, cada um na sua textura.
+
+**Leia antes de desenhar, nesta ordem:**
+
+1. `godot/desenhado/ESTILO.md` inteiro (a crítica do usuário vira regra: nada de bolinha,
+   escama ou pontilhado; formas calmas; ambiente grande não pode parecer repetido).
+2. `godot/desenhado/CONTRATO.md` inteiro (o que entregar e como o app monta o chão).
+3. A sua linha em `godot/desenhado/INVENTARIO.md`.
+4. O exemplo: `godot/desenhado/texturas/grama/` (piloto, não é final) e o modelo
+   `godot/desenhado/texturas/_modelo/`.
+5. A biblioteca que você só inclui: `comum/cabecalho.gdshaderinc` (as duas funções que
+   você escreve e os ajudantes de tom) e `shaders/base.gdshaderinc` (paleta, `rz`, `fz`,
+   `hash_cel`, `rk`, `pinceladas`, `grao`, `cobre`, `sd_traco`, `sd_elipse`, `sd_caixa`,
+   `girar`, `sobre`).
+6. As referências: `docs/design/objeto-fogo/prototipo.html` (`pintarGrama`,
+   `pintarTufos`) e `docs/design/vila-meio-termo/README.md`.
+7. Para comparar com o que o app mostra hoje, a primeira folha já põe o Atual ao lado.
+
+**Onde você pode escrever: só aqui.**
+
+- `godot/desenhado/texturas/<id>/` (crie copiando `texturas/_modelo/`): `textura.gdshader`
+  e `config.json`. Ponha `"id": "<id>"` e o `idDoApp` da sua linha do inventário.
+- `godot/desenhado/exportado/<id>/` é gerada pelo exportador; não edite à mão.
+- A folha vai para `<PROVA>` (fora do repo).
+
+**Não edite nada fora da sua pasta.** Em especial: `comum/`, `shaders/`, `scripts/`,
+`cenas/`, `ferramentas/`, `project.godot`, os `.md`, `client/` e as pastas de outra
+textura. Se a biblioteca não tiver algo que você precisa, escreva a função **no seu**
+`textura.gdshader`. Se achar um defeito na biblioteca, pare e reporte; não conserte.
+
+**Comandos** (Git Bash; sempre pela fila, nunca o Godot direto):
+
+```
+GODOT="C:/Users/gedasio.filho/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_win64_console.exe"
+export SUITE_LOCK_DIR=C:/Users/gedasio.filho/.claude/state/godot-lock
+
+# exportar e montar a folha (cerca de 10 s; uma janela do Godot pisca e fecha)
+node C:/Users/gedasio.filho/.claude/scripts/suite-lock.cjs --nome <id> -- "$GODOT" --path C:/dev/labirinto-desenhado/godot/desenhado --script res://scripts/exportar_uma.gd -- --textura=<id> --folha --prova=<PROVA>
+
+# a mesma folha no chão do mapa real do usuário (só leitura; a prova TEM de estar fora do repo)
+... -- --textura=<id> --folha --prova=<PROVA> --mapa="C:/Users/gedasio.filho/AppData/Roaming/com.labirinto.app/maps/map_1acb843c-0d7a-4e0c-8d61-0b2d891093b5/map.json"
+```
+
+Sai com 0 (ok), 1 (a textura falhou: shader, teto de memória) ou 2 (config errado). O erro
+de shader do Godot aparece no terminal com a linha. Se o comando esperar na fila, é outro
+designer exportando: espere, não rode por fora.
+
+**MCP do Godot (opcional): é UM editor, o mesmo para os 5.** As ferramentas `mcp__godot__*`
+falam com um editor só (porta 6505), que o orquestrador abre neste projeto antes de mandar
+vocês. A exportação e a folha que valem são sempre as do comando acima, pela fila; o MCP é
+para olhar e experimentar.
+
+1. Comece com `get_godot_status`. Se `connected` for false, ou o `project_path` não for
+   `C:/dev/labirinto-desenhado/godot/desenhado/`, não use o MCP e **não abra outro editor**
+   (o segundo briga pela porta e pelo cache `.godot/`): siga só com a linha de comando.
+2. **Livre a qualquer hora** (só lê): `get_godot_status`, `get_errors`, `get_console_log`,
+   `read_file`, `list_dir`, `search_project`, `validate_script`, `classdb_query`,
+   `get_guide`. O console e a lista de erros são de todos: procure o seu caminho neles.
+3. **Escrever pelo MCP** (`write_file`, `edit_script`, `create_scene`, `create_folder`,
+   `save_resource_to_file`): só dentro de `res://texturas/<id>/`, como qualquer escrita. Uma
+   cena de bancada sua, se quiser: `res://texturas/<id>/bancada.tscn`.
+4. **Mexer no estado do editor** (abrir cena, `add_node`, `set_node_properties`,
+   `instance_scene`, `run_scene`, `take_screenshot`, `stop_scene`, `send_input`,
+   `set_editor_selection`, `close_editor_tabs`): só na **vez do editor**, uma fila própria,
+   separada da de exportar. Pegue a vez em segundo plano (`run_in_background`; dura até 3 min):
+
+   ```
+   SUITE_LOCK_DIR=C:/Users/gedasio.filho/.claude/state/godot-editor-lock node C:/Users/gedasio.filho/.claude/scripts/suite-lock.cjs --nome <id> -- node -e "setTimeout(()=>{},180000)"
+   ```
+
+   Confira com `SUITE_LOCK_DIR=.../godot-editor-lock node .../suite-lock.cjs --status` que
+   está "rodando: <id>", faça o que precisa, deixe o editor como achou (pare a cena, feche a
+   aba que você abriu) e solte a vez parando aquela tarefa (`TaskStop`). Sem a vez, a sua
+   cena derruba a de outro designer, e o print sai com a cena dele.
+5. **Nunca:** `map_project`; `mcp_undo` e `mcp_redo` (o histórico é de todos: você desfaria
+   o trabalho de outro); `update_project_settings`, `setup_autoload`, `configure_input_map`;
+   `delete_file` ou `delete_folder` fora da sua pasta; exportar ou montar a folha pelo editor.
+
+**Como trabalhar:** comece pela base calma e só depois o atlas. A cada rodada, abra
+`<PROVA>/folha.png` e olhe as três coisas: a área de 40 x 40 a 50% (repete? vira
+pontilhado?), o miolo a 100% e o close a 300%. Olhe também o número de repetição no topo da
+folha. Mexa nos números do `config.json` (densidade, agrupamento, mistura) antes de
+redesenhar.
+
+**Pronto quando** (CONTRATO.md, seção 6): o comando sai com 0; emenda de cada base entre
+0,8 e 1,25 (ou a junta explicada); repetição "completo" >= 0,80; e você olhou a folha nos
+três zooms sem achar repetição, pontilhado ou serrilhado.
+
+**Testes:** nenhum teste automático (regra do usuário). A prova são as rodadas do Godot e
+a folha.
+
+**Commit:** só dos seus caminhos, sem push:
+
+```
+git -C C:/dev/labirinto-desenhado add godot/desenhado/texturas/<id> godot/desenhado/exportado/<id>
+git -C C:/dev/labirinto-desenhado commit -m "feat(desenhado): <id> texture" -- godot/desenhado/texturas/<id> godot/desenhado/exportado/<id>
+```
+
+Última linha da mensagem: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+Nunca commite a folha nem imagem do mapa do usuário (o repo é público).
+
+**Entregue (até 20 linhas):** o caminho da folha; os números da folha (repetição, emendas,
+memória); o que você acha que ainda está fraco, dito com honestidade; e o hash do commit.
+
+---
+
+## Notas para o orquestrador
+
+- A folha do lote, depois que os 5 terminarem:
+  `... --script res://scripts/folha_do_lote.gd -- --texturas=a,b,c,d,e --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote N"`
+  (lê `<raiz>/<id>/area50.png`, `atual-area50.png`, `perto300.png` e `resumo.json`).
+- **O editor do MCP é seu de abrir e fechar**, um só, antes de mandar os designers (em
+  segundo plano), e fechado quando o lote acaba:
+  `"C:/Users/gedasio.filho/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.7.2-stable_win64.exe" --path C:/dev/labirinto-desenhado/godot/desenhado -e`.
+  Confira com `get_godot_status` (uns 10 s depois). Conferido em 28/10: com o editor aberto,
+  a exportação pela fila saiu igual (exit 0, os mesmos números); o editor não importa
+  `exportado/` nem `prova/` (`.gdignore`, gravado pelo exportador), os `.uid` que ele cria
+  estão no `.gitignore` e o `project.godot` já está no formato que ele grava, então abrir o
+  editor não suja o git. Nunca `map_project`.
+- A vez do editor (passo 4 do prompt) conferida em 28/10: com a vez presa, o segundo
+  esperou ("fila 2 de 2"); parada a tarefa que a prendia, o seguinte entrou na hora.
+- Cada exportação leva uns 10 s na fila; 5 designers em rodadas de 2 a 3 minutos quase
+  não esperam.
