@@ -35,6 +35,7 @@ import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
 import { conferirMetasF3, ligarProvaF3, lerProvaF3, metasF3Ligadas, provaF3Ligada } from './metas-f3'
 import { conferirMetasF5 } from './metas-f5'
 import { conferirMetasF9, metasF9Ligadas } from './metas-f9'
+import { conferirMetasF4 } from './metas-f4'
 
 // ---------------------------------------------------------------- casos
 
@@ -1029,5 +1030,6 @@ for (const caso of CASOS) {
     if (metasF3Ligadas()) expect(conferirMetasF3({ caso, cenarios }), 'metas da F3 (client/desempenho/metas-f3.ts)').toEqual([])
     conferirMetasF5(caso.id, registro)
     if (metasF9Ligadas()) expect(conferirMetasF9({ caso, cenarios }), 'metas da F9 (client/desempenho/metas-f9.ts)').toEqual([])
+    conferirMetasF4(caso.id, cenarios)
   })
 }
