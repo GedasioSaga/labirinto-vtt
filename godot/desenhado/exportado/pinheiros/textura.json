@@ -1,0 +1,76 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#35432f",
+  "detalhes": {
+    "afastarCasas": 1.0,
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.58,
+    "escalaMax": 1.15,
+    "escalaMin": 0.95,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 5426,
+    "variacaoDeTom": 0.035
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.462239555781707,
+      "miolo": 0.457573769817827,
+      "razao": 1.01019679507796
+    },
+    "base-2.png": {
+      "borda": 0.464192707877373,
+      "miolo": 0.450737846743626,
+      "razao": 1.02985074635057
+    },
+    "base-3.png": {
+      "borda": 0.421223933226429,
+      "miolo": 0.430447025840598,
+      "razao": 0.978573222579115
+    }
+  },
+  "id": "pinheiros",
+  "idDoApp": "pinheiros",
+  "lote": 2,
+  "memoria": {
+    "discoBytes": 601830,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 5364
+  },
+  "nome": "Pinheiros",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 5390
+  }
+}
