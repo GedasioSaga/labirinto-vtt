@@ -1,0 +1,52 @@
+{
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#4f8b5c",
+  "destino": "carimbo",
+  "formas": {
+    "conta": "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; espelho na diagonal quando floor(k / variacoes) é ímpar: a imagem transposta, (u, v) -> (v, u), com a mesma translação (o meio da imagem não anda; ver CONTRATO.md 9.4); a imagem nunca gira",
+    "espelho": "diagonal",
+    "variacoes": 4
+  },
+  "id": "arvore",
+  "idDoApp": "arvore",
+  "lote": 6,
+  "memoria": {
+    "discoBytes": 183562,
+    "gpuBytes": 2643284,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 2796202
+  },
+  "nome": "Árvore",
+  "onda": 3,
+  "sombra": {
+    "alfa": 0.25,
+    "borrao": 0.03,
+    "conta": "a silhueta (o alfa do desenho, já no lugar) andada deslocamento x tamanho na direção, desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez",
+    "cor": "#0a1c28",
+    "deslocamento": 0.16,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "sprite": {
+    "ancoraPx": [
+      173.6,
+      360.2
+    ],
+    "arquivos": [
+      "carimbo-1.png",
+      "carimbo-2.png",
+      "carimbo-3.png",
+      "carimbo-4.png"
+    ],
+    "canais": "RGBA, cor reta, alfa reto, sem sombra",
+    "ladoPx": 352,
+    "unidade": "o tamanho do carimbo no mundo (Carimbo.tamanho, px)",
+    "unidadePx": 300.0
+  },
+  "tamanhoDoApp": 15.0,
+  "tipo": "carimbo"
+}
