@@ -1,0 +1,87 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#3a5537",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.2,
+    "escalaMax": 1.3,
+    "escalaMin": 0.85,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      1.0,
+      0.8,
+      0.6,
+      0.8,
+      1.3,
+      1.3,
+      1.1,
+      0.9,
+      1.1,
+      0.5
+    ],
+    "pxPorCasa": 128,
+    "quantos": 16,
+    "semente": 3204,
+    "variacaoDeTom": 0.04
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.540364561020397,
+      "miolo": 0.541124117420016,
+      "razao": 0.998596336080452
+    },
+    "base-2.png": {
+      "borda": 0.552734349475941,
+      "miolo": 0.52332899113632,
+      "razao": 1.05618904902588
+    },
+    "base-3.png": {
+      "borda": 0.481119762989692,
+      "miolo": 0.523111966952759,
+      "razao": 0.919726164538578
+    }
+  },
+  "id": "chao-de-floresta",
+  "idDoApp": "chao-de-floresta",
+  "lote": 2,
+  "memoria": {
+    "discoBytes": 632815,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.14,
+    "semente": 3142
+  },
+  "nome": "Chão de floresta",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 3168
+  }
+}
