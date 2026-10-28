@@ -170,14 +170,17 @@ vec3 lj_pedra_base() {
 vec3 lj_cor_da_pedra(int n, int qual, int sem) {
 	uint h = hash_cel(vec2(float(n), float(qual) + 11.0), sem);
 	vec3 c = lj_pedra_base();
-	c = mix(c, sombra_de(LJ_ARDOSIA), 0.3 * rk(h, 0));
+	// Com 0,3 de ardósia (rodada 1 da Escura) as pedras verdes ao lado das quentes
+	// viravam um xadrez verde e marrom a 100%.
+	c = mix(c, sombra_de(LJ_ARDOSIA), 0.18 * rk(h, 0));
 	c = mix(c, sombra_de(LJ_METAL), 0.2 * smoothstep(0.8, 1.0, rk(h, 2)));
 	c *= 1.0 + 0.04 * (rk(h, 1) * 2.0 - 1.0);
 	return c;
 }
 
+// A junta a 75% da pedra: a 70% a malha ficava dura demais a 50%.
 vec3 lj_junta_base() {
-	return lj_pedra_base() * 0.7;
+	return lj_pedra_base() * 0.75;
 }
 
 const float LJ_LUZ_CHANFRO = 0.08;
