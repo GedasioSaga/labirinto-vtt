@@ -194,7 +194,8 @@ import {
   buildFreeWallsFromPoints,
 } from '../lib/drawingFactory'
 import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
-import { createPropsRenderer } from './drawProps'
+import { createPropsRenderer, HIDDEN_PROP_GHOST_ALPHA } from './drawProps'
+import { createFogosDoMapa } from './fogosDoMapa'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { drawFaccoes } from './drawFaccoes'
@@ -1149,6 +1150,15 @@ export function PixiCanvas({
           el.dataset.texturasPixels = String(medida.pixels)
         },
       })
+      // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
+      const fogos = createFogosDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.fogos = String(estado.fogos)
+          el.dataset.fogosNaVista = String(estado.naVista)
+          el.dataset.fogosAnimando = String(estado.animando)
+        },
+      })
       // CARIMBOS (`drawCarimbos.ts`): os objetos que o mestre soltou, acima do
       // relevo, da borda das salas e dos caminhos (a árvore fica de pé por cima
       // da estrada) e ABAIXO de paredes, nomes, pinos e fichas.
@@ -1337,6 +1347,7 @@ export function PixiCanvas({
         concealZonesContainer,
         pinsContainer,
         telhadosContainer,
+        fogosContainer: fogos.camada,
         fantasmaDeTesteContainer,
         straightenGhostGraphics,
         floorSelectionGraphics,
@@ -1449,6 +1460,7 @@ export function PixiCanvas({
         // Toda mudança de câmera e de tamanho da tela passa por aqui: a textura
         // repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
+        fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
       }
       positionWorld()
       world.scale.set(camera.scale)
@@ -2603,6 +2615,8 @@ export function PixiCanvas({
           mapa: { largura: map.width * map.grid, altura: map.height * map.grid },
           vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
           fichas: [],
+          // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
+          fogos: map.props,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
@@ -2713,9 +2727,12 @@ export function PixiCanvas({
         const camadas = contextoDeCamadas(map)
         // A VISTA DOS MÓVEIS da cena (Meio-Termo) vai junto, como no jogador.
         const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, vistaDosMoveis: map.vistaDosMoveis }
-        for (const { no, itens } of distribuir(visibleProps(map.props, map), pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
+        const propsVisiveis = visibleProps(map.props, map)
+        for (const { no, itens } of distribuir(propsVisiveis, pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
           propsPorNo.de(no).draw(no, itens, single?.kind === 'prop' ? single.id : null, vista)
         }
+        // As chamas do objeto Fogo, na camada delas por cima dos telhados (o mesmo fantasma do móvel).
+        fogos.sincronizar(propsVisiveis, { cameraScale: camera.scale, grade: map.grid, alfa: (p) => (isHidden(p) ? HIDDEN_PROP_GHOST_ALPHA : p.secret ? SECRET_ITEM_ALPHA : 1) })
         // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
         // de formas, e sem isto as alças ficam na posição de onde o prop saiu.
         redrawEditHandles()
@@ -2902,6 +2919,7 @@ export function PixiCanvas({
         redrawMapBounds()
         // A textura repetida também é recortada à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
+        fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
       })
       // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
       // mudar de tamanho sem esse evento (layout, WebView2 maximizando) e o
@@ -8785,6 +8803,8 @@ export function PixiCanvas({
         nuvens.destruir()
         // E as chamas das fogueiras (com as formas compartilhadas delas).
         propsRenderer.destruir()
+        // E os fogos (saem do relógio antes do app).
+        fogos.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)

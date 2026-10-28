@@ -19,7 +19,7 @@ import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogue
  * no projeto inteiro, abaixo do "regra do três" da convenção do projeto.
  */
 /** Objeto "Oculto no editor": fantasma bem transparente, mas ainda clicável (igual ao token). */
-const HIDDEN_PROP_GHOST_ALPHA = 0.3
+export const HIDDEN_PROP_GHOST_ALPHA = 0.3
 const GHOST_DASH_LENGTH = 8
 const GHOST_OUTLINE_WIDTH = 2
 const GHOST_OUTLINE_COLOR = 0xffffff

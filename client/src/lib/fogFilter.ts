@@ -3953,6 +3953,22 @@ function recorteDoGrupo(
     vistaDosMoveis: vistaDoMestre,
     ...mapSemConfronto
   } = mapWithoutHazards
+  /**
+   * FOGO NO TELHADO (objeto Fogo, decisão do mestre de 27/10/2026): as chamas
+   * ficam por cima do telhado, então a casa queimando aparece vista de fora. O
+   * fogo sob teto fechado vai quando o jogador vê AGORA o contorno daquele
+   * prédio (lembrar não basta: o fogo é de agora), pelas mesmas amostras de
+   * fora que decidem o telhado (`contourSamples`). Sala secreta e zona oculta
+   * continuam escondendo o fogo como escondem qualquer objeto.
+   */
+  const fogoNoTelhadoAVista = (p: MapData['props'][number]): boolean => {
+    if (p.mobilia !== 'fogo') return false
+    const centro = { x: p.x, y: p.y }
+    const telhado = closedRoofs.find((roof) => inRoof(roof, centro))
+    if (telhado === undefined) return false
+    if (propSamplePoints(p).some((q) => inSecretRoom(q) || hiddenByZone(q))) return false
+    return contourSamples(telhado.points).some(isVisible)
+  }
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
@@ -4027,7 +4043,7 @@ function recorteDoGrupo(
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
     // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: naCamadaDoJogador('objeto', map.props)
-      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y }))
+      .filter((p) => !p.hidden && !p.secret && ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p)))
       .map(propForPlayer),
     drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
