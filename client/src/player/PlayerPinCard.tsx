@@ -140,6 +140,12 @@ interface PlayerPinCardProps {
    * cartão só diz como se pesca ali.
    */
   onPescar?: () => void
+  /**
+   * TIRO "Jogador toca no pino": "Atirar" pede o convite da barraca ao mestre,
+   * como o "Pescar". Apagado com a ficha longe. Ausente = o cartão só diz como
+   * se joga ali.
+   */
+  onAtirar?: () => void
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
@@ -150,6 +156,11 @@ const TEXTO_DA_PESCA_DO_MESTRE = 'Pesca. O mestre chama quando for a hora.'
 /** Pesca "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no pino e toque em "Pescar".'
 const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
+/** Barraca de tiro que o mestre chama: o cartão não oferece gesto, como a pesca do mestre. */
+const TEXTO_DO_TIRO_DO_MESTRE = 'Barraca de tiro. O mestre chama quando for a hora.'
+/** Tiro "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DO_TIRO_NO_PINO = 'Barraca de tiro. Encoste no pino e toque em "Atirar".'
+const TEXTO_LONGE_DO_TIRO = 'Chegue mais perto para atirar.'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: PinDoCartao): string {
@@ -332,6 +343,7 @@ export function PlayerPinCard({
   onBarrar,
   onVerAnimacao,
   onPescar,
+  onAtirar,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -445,6 +457,8 @@ export function PlayerPinCard({
   // Do desafio, só o jogo e como começa chegam (`minigameVisivel`): a pesca
   // "Jogador toca no pino" é o único minigame com gesto aqui.
   const pesca = minigame && pin.minigameVisivel?.jogo === 'pesca' ? pin.minigameVisivel.entrada : null
+  // A barraca de tiro, do mesmo jeito: só o jogo e como começa.
+  const tiro = minigame && pin.minigameVisivel?.jogo === 'tiro' ? pin.minigameVisivel.entrada : null
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
   // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
   // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
@@ -655,7 +669,7 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {minigame && pesca === null && (
+        {minigame && pesca === null && tiro === null && (
           // Frase, não botão: o convite chega quando o mestre chamar, e um
           // botão aqui prometeria um gesto que o jogador não tem.
           <p className="pp-pincard__locked">{TEXTO_DO_MINIGAME}</p>
@@ -669,6 +683,17 @@ export function PlayerPinCard({
               Pescar
             </button>
             {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_PESCA}</p>}
+          </>
+        )}
+        {tiro === 'mestre' && <p className="pp-pincard__locked">{TEXTO_DO_TIRO_DO_MESTRE}</p>}
+        {tiro === 'pino' && onAtirar === undefined && <p className="pp-pincard__locked">{TEXTO_DO_TIRO_NO_PINO}</p>}
+        {tiro === 'pino' && onAtirar !== undefined && (
+          // Sem confirmação, como o "Pescar": o convite que volta já pergunta a dificuldade.
+          <>
+            <button type="button" className="pp-pincard__travel" disabled={longe} onClick={onAtirar}>
+              Atirar
+            </button>
+            {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DO_TIRO}</p>}
           </>
         )}
         {semVolta && <span className="pp-pincard__oneway pp-pincard__oneway--card">{ETIQUETA_SO_IDA}</span>}

@@ -1,6 +1,7 @@
 import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
 import { MINIGAME_PADRAO, type MinigameDanca, type MusicaDaDanca } from '../minigames/danca/tipos'
 import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from '../minigames/pesca/tipos'
+import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from '../minigames/tiro/tipos'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { parseHexColor } from './tokenColor'
 
@@ -199,6 +200,8 @@ export function minigamePadraoDo(jogo: JogoDoMinigame): MinigameDoPino {
       return minigamePadrao()
     case 'pesca':
       return copiarMinigame(MINIGAME_PESCA_PADRAO)
+    case 'tiro':
+      return copiarMinigame(MINIGAME_TIRO_PADRAO)
   }
 }
 
@@ -215,6 +218,7 @@ export function trocarJogoDoMinigame(minigame: MinigameDoPino, jogo: JogoDoMinig
 /** Cópia funda do desafio: quem guarda (o convite, o pino novo) não divide objeto com o original. */
 export function copiarMinigame(minigame: MinigameDanca): MinigameDanca
 export function copiarMinigame(minigame: MinigamePesca): MinigamePesca
+export function copiarMinigame(minigame: MinigameTiro): MinigameTiro
 export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino
 export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
   switch (minigame.jogo) {
@@ -226,6 +230,7 @@ export function copiarMinigame(minigame: MinigameDoPino): MinigameDoPino {
         consequencia: { ...minigame.consequencia },
       }
     case 'pesca':
+    case 'tiro':
       return { ...minigame, premio: { ...minigame.premio }, consequencia: { ...minigame.consequencia } }
   }
 }
@@ -808,7 +813,7 @@ export function pinSummary(pin: Pin): string {
   // O minigame também: o controle no mapa, e o nome do jogo quando há um.
   if (pin.kind === 'minigame') {
     const jogo = pin.minigame?.jogo
-    return jogo === 'danca' ? 'Dança' : jogo === 'pesca' ? 'Pesca' : 'Minigame'
+    return jogo === 'danca' ? 'Dança' : jogo === 'pesca' ? 'Pesca' : jogo === 'tiro' ? 'Tiro' : 'Minigame'
   }
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`

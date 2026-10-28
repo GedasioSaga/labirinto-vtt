@@ -44,6 +44,7 @@ import {
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
+import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 
 export type { OwnTokenElsewhere }
@@ -383,7 +384,8 @@ export type { OwnTokenElsewhere }
  *
  * O MINIGAME DE PESCA também (`protocoloDaPesca.ts`): o convite só a quem
  * entra (o chamado pelo mestre, ou quem pediu de perto do pino), e o que cada
- * um faz na água vai só ao mestre.
+ * um faz na água vai só ao mestre. O MINIGAME DE TIRO segue o mesmo caminho
+ * (`protocoloDoTiro.ts`), com as tentativas contadas no host.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -1163,6 +1165,8 @@ export type PlayerMessage =
   | DancaPlayerMessage
   // MINIGAME DE PESCA: pedir, pronto, vivo, lance e cesto (`protocoloDaPesca.ts`).
   | PescaPlayerMessage
+  // MINIGAME DE TIRO: pedir, pronto, vivo e resultado (`protocoloDoTiro.ts`).
+  | TiroPlayerMessage
   | MyNotesSetMessage
   // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo do jogador, só ao mestre (`protocoloDaMedida.ts`).
   | MedidaCompartilharMessage
@@ -2012,6 +2016,8 @@ export type HostMessage =
   | DancaHostMessage
   // MINIGAME DE PESCA: convite, estado, pausa e encerramento (`protocoloDaPesca.ts`).
   | PescaHostMessage
+  // MINIGAME DE TIRO: convite, estado, início, pausa, encerramento e recusa (`protocoloDoTiro.ts`).
+  | TiroHostMessage
   // SONS AO VIVO: tocar, parar, parar tudo, volume e pré-carga (`parseSomHostMessage`).
   | SomHostMessage
   | { type: 'kicked' }
@@ -3393,6 +3399,11 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'pesca.lance':
     case 'pesca.fim':
       return parsePescaPlayerMessage(value)
+    case 'tiro.pedir':
+    case 'tiro.pronto':
+    case 'tiro.vivo':
+    case 'tiro.fim':
+      return parseTiroPlayerMessage(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
     case 'pin.travel.cancel':

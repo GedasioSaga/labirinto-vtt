@@ -119,7 +119,7 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   const [encerrado, setEncerrado] = useState(false)
   const [modo, setModo] = useState<ModoDoTeste>('olhar')
   const [recado, setRecado] = useState(false)
-  /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança e a da pesca entram. */
+  /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança, a da pesca e a do tiro entram. */
   const [tela, setTela] = useState<HTMLDivElement | null>(null)
   const midia = geracao === null ? undefined : geracao.midia
   // Mesma referência enquanto a base e a caixa não mudam: `fontesDaMusica` nova faria a dança baixar a música de novo.
@@ -254,6 +254,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
             onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
             ajustesDaDanca={danca}
             ajustesDaPesca={pesca}
+            // A barraca de tiro entra na mesma caixa que a pesca (só a raiz muda).
+            ajustesDoTiro={pesca}
           />
           </ImagemDaMesa.Provider>
         ) : (

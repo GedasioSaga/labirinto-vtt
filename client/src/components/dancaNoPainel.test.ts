@@ -28,7 +28,7 @@ const DANCA_DO_TESTE = danca('teste', 'convite')
 const DANCA_DA_SALA = danca('sala', 'musica')
 
 const FICHA = { id: 'tok-ana', nome: 'Ana', retrato: null, cor: '#ffffff', dono: null, npc: false }
-const TESTE_ABERTO: EstadoDaVisao = { aberta: true, ficha: FICHA, danca: DANCA_DO_TESTE, pesca: [], jogadores: [{ playerId: 'p-teste', name: 'Ana' }] }
+const TESTE_ABERTO: EstadoDaVisao = { aberta: true, ficha: FICHA, danca: DANCA_DO_TESTE, pesca: [], tiro: [], jogadores: [{ playerId: 'p-teste', name: 'Ana' }] }
 
 function sala(aberta: boolean, ponte: PonteDaDanca | null) {
   return { aberta, players: [{ playerId: 'p-bia', name: 'Bia' }], danca: DANCA_DA_SALA, ponte: () => ponte }

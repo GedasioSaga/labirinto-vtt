@@ -36,15 +36,18 @@ export const SELETOR_DA_DANCA = '.lb-danca'
  */
 export const SELETOR_DA_PESCA = '.lb-pesca'
 
+/** MINIGAME DE TIRO: a raiz da barraca de tiro (`TiroOverlay.tsx`), livre no Olhar como a pesca. */
+export const SELETOR_DO_TIRO = '.lb-tiro'
+
 /** As telas de minigame, livres no Olhar. */
-const SELETOR_DOS_MINIGAMES = `${SELETOR_DA_DANCA}, ${SELETOR_DA_PESCA}`
+const SELETOR_DOS_MINIGAMES = `${SELETOR_DA_DANCA}, ${SELETOR_DA_PESCA}, ${SELETOR_DO_TIRO}`
 
 /** O alvo do evento é parte da câmera ou da tela de um minigame (livres no Olhar)? */
 export function alvoLivreNoOlhar(alvo: EventTarget | null): boolean {
   return alvo instanceof Element && (alvo.closest(SELETOR_LIVRE_NO_OLHAR) !== null || alvo.closest(SELETOR_DOS_MINIGAMES) !== null)
 }
 
-/** A tela da dança ou da pesca está aberta nesta página? */
+/** A tela da dança, da pesca ou do tiro está aberta nesta página? */
 function minigameAberto(documento: Document): boolean {
   return documento.querySelector(SELETOR_DOS_MINIGAMES) !== null
 }
@@ -117,7 +120,7 @@ export function criarBloqueioDoOlhar(ativo: () => boolean, aoBloquear: () => voi
  * atalhos da tela do jogador ouvem na `window` (a mochila no "i", os do
  * painel). Barra na captura da `window`, antes de todos. Devolve o desligar.
  *
- * Com a tela da DANÇA ou da PESCA aberta, a guarda sai do caminho: o jogo ouve as teclas
+ * Com a tela da DANÇA, da PESCA ou do TIRO aberta, a guarda sai do caminho: o jogo ouve as teclas
  * na captura da `window` (depois desta guarda, que se instalou antes) e ela
  * mesma não deixa a tecla seguir para o mapa e os atalhos atrás dela.
  */

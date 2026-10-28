@@ -130,6 +130,7 @@ import { areaTriggerEntryLine } from '../lib/areaTriggers'
 import { giveNewItemChange } from '../lib/items'
 import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
+import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -312,6 +313,12 @@ export interface HostBridgeDeps {
    * mudança. Sala fechada = `[]`.
    */
   onPescaChange?: (pescas: PescaAoVivo[]) => void
+  /**
+   * MINIGAME DE TIRO: cada pino com barraca como o painel do mestre lê (quem
+   * entrou, tentativas, pontos ao vivo, rodadas e a melhor), a cada mudança.
+   * Sala fechada = `[]`.
+   */
+  onTiroChange?: (tiros: TiroAoVivo[]) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -674,6 +681,16 @@ export interface HostBridge extends RedeDosSons {
   encerrarPesca(pinId: string): boolean
   /** Cada pino com pesca, para o painel; `[]` = nenhuma, ou sala fechada. */
   pesca(): PescaAoVivo[]
+  /** MINIGAME DE TIRO ("Mestre chama"): chama estes jogadores para a barraca do pino. `null` com a sala fechada. */
+  convidarParaTiro(pinId: string, playerIds: readonly string[]): TiroConviteResultado | null
+  /** "Pausar para todos" / "Continuar" da barraca. `false` = fora de fase ou sala fechada. */
+  pausarTiro(pinId: string): boolean
+  retomarTiro(pinId: string): boolean
+  /** "Encerrar para todos" e "Reabrir para todos" da barraca do pino. */
+  encerrarTiro(pinId: string): boolean
+  reabrirTiro(pinId: string): boolean
+  /** Cada pino com tiro, para o painel; `[]` = nenhum, ou sala fechada. */
+  tiro(): TiroAoVivo[]
   /**
    * ABALO POR DISTÂNCIA: a cada jogador em cena, o texto da faixa dele
    * (`hostSession.abalo`). Devolve quantos ouviram em cada faixa, ou `null` com
@@ -1075,6 +1092,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastSecretChecksKey = '[]'
   let lastDancaKey = 'null'
   let lastPescaKey = '[]'
+  let lastTiroKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -1478,12 +1496,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPescaChange?.(pescas)
   }
 
+  /** TIRO: o painel do mestre só ouve quando algo mudou (os pontos mudam a cada `tiro.vivo`). */
+  const notifyTiroIfChanged = () => {
+    const tiros = session === null ? [] : session.tiro()
+    const key = JSON.stringify(tiros)
+    if (key === lastTiroKey) return
+    lastTiroKey = key
+    deps.onTiroChange?.(tiros)
+  }
+
+  /** TIRO: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
+  const comandoDoTiro = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
+    if (session === null) return null
+    const result = run(session)
+    void dispatch(result)
+    notifyTiroIfChanged()
+    return result
+  }
+
   /** PESCA: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
   const comandoDaPesca = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
     if (session === null) return null
     const result = run(session)
     void dispatch(result)
     notifyPescaIfChanged()
+    notifyTiroIfChanged()
     return result
   }
 
@@ -3546,6 +3583,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     notifyDancaIfChanged()
     notifyPescaIfChanged()
+    notifyTiroIfChanged()
     if (wasJoined) return
     if (session.isTable(clientId)) announceTable()
     else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
@@ -3579,6 +3617,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     notifyDancaIfChanged()
     notifyPescaIfChanged()
+    notifyTiroIfChanged()
     forgetScreen(clientId)
     if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
@@ -3787,6 +3826,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifySecretChecksIfChanged()
       notifyDancaIfChanged()
       notifyPescaIfChanged()
+      notifyTiroIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -4170,6 +4210,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return session === null ? [] : session.pesca()
     },
 
+    convidarParaTiro(pinId, playerIds) {
+      const result = comandoDoTiro((room) => room.convidarParaTiro(pinId, playerIds, world()))
+      return result === null ? null : result.convite
+    },
+
+    pausarTiro(pinId) {
+      return comandoDoTiro((room) => room.pausarTiro(pinId))?.ok === true
+    },
+
+    retomarTiro(pinId) {
+      return comandoDoTiro((room) => room.retomarTiro(pinId))?.ok === true
+    },
+
+    encerrarTiro(pinId) {
+      return comandoDoTiro((room) => room.encerrarTiro(pinId))?.ok === true
+    },
+
+    reabrirTiro(pinId) {
+      return comandoDoTiro((room) => room.reabrirTiro(pinId, world()))?.ok === true
+    },
+
+    tiro() {
+      return session === null ? [] : session.tiro()
+    },
+
     abalo(origem, textos, vizinhas) {
       if (session === null) return null
       const result = session.abalo(origem, textos, vizinhas, world())
@@ -4211,6 +4276,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
       notifyDancaIfChanged()
       notifyPescaIfChanged()
+      notifyTiroIfChanged()
       // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.
       armLoanTimer()
       pruneTravelToasts()

@@ -38,6 +38,9 @@ export const MENSAGENS_DA_DANCA: ReadonlySet<string> = new Set(['danca.pronto', 
  */
 export const MENSAGENS_DA_PESCA: ReadonlySet<string> = new Set(['pesca.pronto', 'pesca.vivo', 'pesca.lance', 'pesca.fim'])
 
+/** MINIGAME DE TIRO: idem para a barraca (a dificuldade, o vivo e o fim). O `tiro.pedir`, como o `pesca.pedir`, só no Jogar. */
+export const MENSAGENS_DO_TIRO: ReadonlySet<string> = new Set(['tiro.pronto', 'tiro.vivo', 'tiro.fim'])
+
 const CONNECTING = 0
 const OPEN = 1
 const CLOSED = 3
@@ -52,7 +55,7 @@ export function saiNoOlhar(data: string): boolean {
   }
   if (typeof mensagem !== 'object' || mensagem === null) return false
   const tipo: unknown = Reflect.get(mensagem, 'type')
-  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo) || MENSAGENS_DA_PESCA.has(tipo))
+  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo) || MENSAGENS_DA_PESCA.has(tipo) || MENSAGENS_DO_TIRO.has(tipo))
 }
 
 export interface OpcoesDoSocketDoCanal {

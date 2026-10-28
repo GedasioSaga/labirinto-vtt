@@ -118,6 +118,6 @@ describe('Visão de jogador — a dança testada sozinho', () => {
     await vi.waitFor(() => expect(controlador.estado().danca).toBeNull())
 
     controlador.fechar()
-    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, pesca: [], jogadores: [] })
+    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, pesca: [], tiro: [], jogadores: [] })
   })
 })
