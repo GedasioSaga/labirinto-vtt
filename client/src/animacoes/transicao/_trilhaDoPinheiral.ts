@@ -2,31 +2,33 @@ import type * as Three from 'three'
 import type { CenaTransicao, CriarCena, KitDeSom, OpcoesDaCena, ThreeModule } from '../../transicoes/tipos'
 import { descartarCena, semente } from '../../transicoes/texturas'
 import { type ArvoreDaMata, type FogoDoPinheiral, montarFogo, RUIDO } from './_fogoDoPinheiral'
+import { span } from '../../transicoes/curvas'
 import {
-  andadoEm,
-  avancoEm,
   BORDA_DA_MATA,
+  estadoDaTrilha,
   fadeEm,
-  faseEm,
   fogoEm,
-  inclinacaoDaTrilha,
   rajadaEm,
   tremorEm,
   trilhaX,
   type VarianteDaTrilha,
+  Z_DA_PARADA,
 } from './_roteiroDoPinheiral'
 import { somDaTrilha } from './_somDoPinheiral'
 
 /*
  * TRILHA DO PINHEIRAL (pacote de animações, transição de viagem). Pedido de
- * 27/10/2026, com duas variações da mesma caminhada:
+ * 27/10/2026, com duas variações da mesma caminhada. Primeira pessoa, como as
+ * outras transições (pedido do mestre, 27/10): a câmera é os olhos de quem
+ * anda e o corpo não aparece.
  *
- * - 'dia': fim de tarde frio de tempo fechado. Uma pessoa de capa e mochila
- *   anda de costas para a câmera por uma trilha de terra; à frente, um
- *   pinheiral escuro e denso, com neblina na borda, cresce até tomar o quadro.
- * - 'chamas': a mesma caminhada, a mesma câmera, à noite, com o pinheiral em
- *   chamas: fogo nas copas, brasas subindo, fumaça e a luz laranja tremendo na
- *   trilha e na pessoa, que vira silhueta e estica a sombra para a câmera.
+ * - 'dia': fim de tarde frio de tempo fechado. Os olhos andam por uma trilha
+ *   de terra rumo a um pinheiral escuro e denso, com neblina na borda, que
+ *   cresce à frente; param perto da borda e sobem para as copas, que tomam o
+ *   quadro, e o escuro fecha a tela.
+ * - 'chamas': a mesma caminhada, os mesmos olhos, à noite, com o pinheiral em
+ *   chamas: fogo nas copas, brasas e fumaça baixa vindo na direção de quem
+ *   anda, a luz laranja tremendo no chão da trilha à frente.
  *
  * Tudo pintado em canvas ou calculado em shader na criação (o pacote não
  * aceita imagem). Roteiro em `_roteiroDoPinheiral.ts`, fogo em
@@ -95,7 +97,7 @@ const CHAMAS: Paleta = {
   forcaHemisferio: 1,
   luzDirecional: 0x8193c0,
   forcaDirecional: 0.45,
-  // Lua atrás da câmera, à direita: só um fio azul nas costas da pessoa.
+  // Lua atrás de quem anda, à direita: só um fio azul na trilha e nas pontas dos galhos.
   direcaoDaLuz: [0.6, 0.8, 0.9],
 }
 
@@ -437,114 +439,6 @@ function geometriaDoTufo(THREE: ThreeModule): Three.BufferGeometry {
   return geo
 }
 
-interface Andarilho {
-  raiz: Three.Group
-  /** Põe o corpo na fase do ciclo de passos (radianos). */
-  posar: (fase: number) => void
-}
-
-/**
- * A pessoa: capa cor de ferrugem com capuz, mochila com o rolo de dormir,
- * túnica, calça e botas. Juntas em grupos (quadril, coxa, joelho, tornozelo,
- * ombro, cotovelo) para o ciclo de passos: perna que balança dobra o joelho,
- * o quadril sobe no apoio e desce no contato, os braços vão contra as pernas,
- * os ombros giram contra o quadril e a capa arrasta para trás a cada passo.
- */
-function montarAndarilho(THREE: ThreeModule): Andarilho {
-  const material = (hex: number, rugosidade = 0.9) => new THREE.MeshStandardMaterial({ color: corLinear(THREE, hex), roughness: rugosidade, metalness: 0 })
-  const capa = material(0x8c3f24)
-  capa.side = THREE.DoubleSide
-  const tunica = material(0x3b3d2c)
-  const calca = material(0x2b2722)
-  const bota = material(0x1c1714, 0.8)
-  const pele = material(0xb88a6a, 0.7)
-  const couro = material(0x5a3d26, 0.75)
-  const rolo = material(0x9c8a66)
-  const peca = (geo: Three.BufferGeometry, mat: Three.Material, pai: Three.Object3D, x = 0, y = 0, z = 0) => {
-    const m = new THREE.Mesh(geo, mat)
-    m.position.set(x, y, z)
-    m.castShadow = true
-    pai.add(m)
-    return m
-  }
-  const junta = (pai: Three.Object3D, x: number, y: number, z: number) => {
-    const g = new THREE.Group()
-    g.position.set(x, y, z)
-    pai.add(g)
-    return g
-  }
-
-  const raiz = new THREE.Group()
-  const quadril = junta(raiz, 0, 0.93, 0)
-  peca(new THREE.BoxGeometry(0.3, 0.16, 0.19), calca, quadril)
-  const perna = (lado: number) => {
-    const coxa = junta(quadril, 0.095 * lado, -0.03, 0)
-    peca(new THREE.CapsuleGeometry(0.068, 0.32, 4, 8), calca, coxa, 0, -0.21, 0)
-    const joelho = junta(coxa, 0, -0.43, 0)
-    peca(new THREE.CapsuleGeometry(0.056, 0.32, 4, 8), calca, joelho, 0, -0.2, 0)
-    peca(new THREE.CylinderGeometry(0.064, 0.06, 0.16, 8), bota, joelho, 0, -0.34, 0)
-    const tornozelo = junta(joelho, 0, -0.42, 0)
-    peca(new THREE.BoxGeometry(0.11, 0.09, 0.25), bota, tornozelo, 0, -0.03, -0.05)
-    return { coxa, joelho, tornozelo }
-  }
-  const esquerda = perna(-1)
-  const direita = perna(1)
-
-  const tronco = junta(quadril, 0, 0.06, 0)
-  peca(new THREE.CapsuleGeometry(0.16, 0.3, 4, 10), tunica, tronco, 0, 0.3, 0).scale.set(1.05, 1, 0.75)
-  peca(new THREE.CylinderGeometry(0.17, 0.175, 0.06, 12), couro, tronco, 0, 0.08, 0)
-  const cabeca = junta(tronco, 0, 0.67, 0)
-  peca(new THREE.SphereGeometry(0.1, 12, 10), pele, cabeca, 0, 0, -0.01)
-  peca(new THREE.SphereGeometry(0.128, 14, 10), capa, cabeca, 0, 0.012, 0.018).scale.set(1, 1.08, 1.1)
-  peca(new THREE.ConeGeometry(0.07, 0.16, 8), capa, cabeca, 0, -0.03, 0.13).rotation.x = 2.1
-  const braco = (lado: number) => {
-    const ombro = junta(tronco, 0.215 * lado, 0.52, 0)
-    peca(new THREE.CapsuleGeometry(0.052, 0.22, 4, 8), tunica, ombro, 0, -0.15, 0)
-    const cotovelo = junta(ombro, 0, -0.3, 0)
-    peca(new THREE.CapsuleGeometry(0.046, 0.2, 4, 8), tunica, cotovelo, 0, -0.13, 0)
-    peca(new THREE.SphereGeometry(0.05, 8, 6), pele, cotovelo, 0, -0.28, 0)
-    return { ombro, cotovelo }
-  }
-  const bracoE = braco(-1)
-  const bracoD = braco(1)
-  // A capa cobre só as costas (metade de um cone aberto, presa nos ombros).
-  const presaDaCapa = junta(tronco, 0, 0.6, 0.06)
-  peca(new THREE.CylinderGeometry(0.2, 0.36, 0.95, 16, 3, true, -Math.PI / 2, Math.PI), capa, presaDaCapa, 0, -0.475, 0)
-  peca(new THREE.BoxGeometry(0.3, 0.34, 0.15), couro, tronco, 0, 0.36, 0.25)
-  peca(new THREE.CylinderGeometry(0.075, 0.075, 0.42, 10), rolo, tronco, 0, 0.58, 0.23).rotation.z = Math.PI / 2
-
-  const AMPLITUDE = 0.38
-  const posarPerna = (p: { coxa: Three.Group; joelho: Three.Group; tornozelo: Three.Group }, fase: number) => {
-    const s = Math.sin(fase)
-    const balanco = Math.pow(Math.max(0, Math.cos(fase)), 1.6)
-    p.coxa.rotation.x = AMPLITUDE * s
-    p.joelho.rotation.x = -(0.08 + 0.95 * balanco)
-    // Pé quase rente ao chão; ponta para cima no contato, calcanhar sobe no impulso.
-    p.tornozelo.rotation.x = -(p.coxa.rotation.x + p.joelho.rotation.x) + 0.18 * s
-  }
-
-  return {
-    raiz,
-    posar(fase: number) {
-      const s = Math.sin(fase)
-      const c = Math.cos(fase)
-      quadril.position.y = 0.915 + 0.032 * Math.cos(2 * fase)
-      quadril.position.x = 0.028 * c
-      quadril.rotation.y = -0.06 * s
-      quadril.rotation.z = 0.03 * c
-      posarPerna(esquerda, fase)
-      posarPerna(direita, fase + Math.PI)
-      tronco.rotation.set(-0.07, 0.09 * s, -0.025 * c)
-      cabeca.rotation.set(0.05, -0.07 * s, 0)
-      bracoE.ombro.rotation.set(-0.34 * s, 0, -0.1)
-      bracoD.ombro.rotation.set(0.34 * s, 0, 0.1)
-      bracoE.cotovelo.rotation.x = 0.18 + 0.22 * Math.max(0, -s)
-      bracoD.cotovelo.rotation.x = 0.18 + 0.22 * Math.max(0, s)
-      presaDaCapa.rotation.set(-0.1 - 0.05 * (0.5 + 0.5 * Math.sin(2 * fase + 0.8)), 0, 0.035 * Math.cos(fase + 0.5))
-    },
-  }
-}
-
 // ---------------------------------------------------------------------------
 // A cena
 // ---------------------------------------------------------------------------
@@ -656,6 +550,8 @@ function montarTrilha(THREE: ThreeModule, { reduzirMovimento }: OpcoesDaCena, va
     tufos.setColorAt(i, cor.setScalar((0.55 + rnd() * 0.3) * (chamas ? 0.8 : 1)))
   }
   tufos.frustumCulled = false
+  // À noite o capim estica a sombra na luz do fogo, na direção de quem anda.
+  tufos.castShadow = chamas
   scene.add(tufos)
 
   // --- O pinheiral ---------------------------------------------------------------
@@ -674,9 +570,12 @@ function montarTrilha(THREE: ThreeModule, { reduzirMovimento }: OpcoesDaCena, va
     const z = BORDA_DA_MATA + 0.5 + rnd() * 4
     const x = -30 + rnd() * 60
     if (Math.abs(x - trilhaX(z)) < 2.2) continue
-    arvores.push({ x, z, altura: 6 + rnd() * 5, profundidade: 0 })
+    const altura = 6 + rnd() * 5
+    // A saia de baixo (raio ~0,34 da altura) não pode chegar aos olhos de quem para na beira da mata.
+    if (Math.hypot(x - trilhaX(Z_DA_PARADA), z - Z_DA_PARADA) < altura * 0.34 + 0.5) continue
+    arvores.push({ x, z, altura, profundidade: 0 })
   }
-  // Pinheiros soltos no campo, entre a câmera e a mata: dão profundidade quando a câmera anda.
+  // Pinheiros soltos no campo, entre quem anda e a mata: dão profundidade à caminhada.
   const soltos = Array.from({ length: 16 }, (_, i) => {
     const z = 4 - rnd() * 22
     return { x: trilhaX(z) + (i % 2 === 0 ? -1 : 1) * (4.5 + rnd() * 11), z, altura: 3.5 + rnd() * 5.5 }
@@ -721,59 +620,76 @@ function montarTrilha(THREE: ThreeModule, { reduzirMovimento }: OpcoesDaCena, va
     sprite.position.set(x0, naBorda ? 0.9 + rnd() * 0.9 : 0.6, naBorda ? BORDA_DA_MATA + 2 - rnd() * 3.5 : -12 - rnd() * 5)
     material.opacity = P.neblinaOpacidade * (naBorda ? 1 : 0.5) * (0.75 + rnd() * 0.5)
     scene.add(sprite)
-    return { sprite, x0, velocidade: 0.12 + rnd() * 0.12, s: i * 1.3 }
+    return { sprite, material, opacidade: material.opacity, x0, velocidade: 0.12 + rnd() * 0.12, s: i * 1.3 }
   })
 
-  // --- A pessoa e a sombra no chão -----------------------------------------------
-  const andarilho = montarAndarilho(THREE)
-  scene.add(andarilho.raiz)
-  const sombra = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.9, 1.1),
-    new THREE.MeshBasicMaterial({ map: texMancha, color: 0x000000, transparent: true, opacity: chamas ? 0.35 : 0.5, depthWrite: false }),
-  )
-  sombra.rotation.x = -Math.PI / 2
-  scene.add(sombra)
+  // --- Fumaça baixa que o calor empurra da borda da mata para quem anda (só nas chamas) ---
+  const rndDaFumaca = semente(20261029)
+  const fumacasBaixas = chamas
+    ? Array.from({ length: 12 }, (_, i) => {
+        // Cor de fumaça acesa pelo fogo de trás: no escuro da noite, uma mais apagada nem apareceria.
+        const material = new THREE.SpriteMaterial({ map: texMancha, color: lin(0x8a4c2e), transparent: true, depthWrite: false, opacity: 0 })
+        const sprite = new THREE.Sprite(material)
+        // Desenhada depois das chamas e das brasas: é ela que fica entre os olhos e o fogo.
+        sprite.renderOrder = 5
+        scene.add(sprite)
+        return { sprite, material, fase: i / 12, lado: (rndDaFumaca() - 0.5) * 6, opacidade: 0.2 + rndDaFumaca() * 0.14, tamanho: 3.5 + rndDaFumaca() * 3 }
+      })
+    : []
+  /** Segundos de cada bafo de fumaça da borda da mata até passar pelos olhos (com movimento reduzido, bem mais lento). */
+  const VIDA_DA_FUMACA = reduzirMovimento ? 13 : 5.5
+  const CAMINHO_DA_FUMACA = 9
 
-  const fogo: FogoDoPinheiral | null = chamas ? montarFogo(THREE, scene, { arvores, reduzir: reduzirMovimento, alvo: andarilho.raiz }) : null
-
-  // --- Câmera ------------------------------------------------------------------
-  const alvoDaCamera = new THREE.Vector3()
-  const BOCA_DA_TRILHA = -24
-  let fatorDoCampo = 1
+  // --- Os olhos -------------------------------------------------------------------
+  // O holofote do fogo mira um ponto da trilha uns passos à frente: a poça de luz trêmula anda junto.
+  const alvoDoFogo = new THREE.Object3D()
+  scene.add(alvoDoFogo)
+  const fogo: FogoDoPinheiral | null = chamas ? montarFogo(THREE, scene, { arvores, reduzir: reduzirMovimento, alvo: alvoDoFogo }) : null
+  const frente = new THREE.Vector3()
+  const ateOSprite = new THREE.Vector3()
   let ultimoT = 0
 
-  /** A pessoa e a câmera no tempo t (sem tocar nas luzes: o motor ainda vai converter as unidades delas). */
+  /** Os olhos no tempo t (sem tocar nas luzes: o motor ainda vai converter as unidades delas). */
   function posar(t: number) {
     ultimoT = t
-    const wz = -andadoEm(t)
-    const wx = trilhaX(wz)
-    andarilho.raiz.position.set(wx, 0, wz)
-    andarilho.raiz.rotation.y = Math.atan2(inclinacaoDaTrilha(wz), 1)
-    andarilho.posar(faseEm(t))
-    sombra.position.set(wx, 0.012, wz + 0.05)
-
-    const a = avancoEm(t)
-    // Recua enquanto fecha o campo de visão: a pessoa fica do mesmo tamanho e a mata cresce.
-    const recuo = reduzirMovimento ? 5.2 + 0.6 * a : 5.2 + 1.8 * a
-    const camZ = wz + recuo
-    const tremX = reduzirMovimento ? 0 : 0.035 * Math.sin(t * 0.83 + 0.4) + 0.015 * Math.sin(t * 1.9)
-    const tremY = reduzirMovimento ? 0 : 0.025 * Math.sin(t * 1.21 + 1.3)
-    camera.position.set(0.5 * (trilhaX(camZ) + wx) + 0.9 - 0.35 * a + tremX, 2.25 - 0.5 * a + tremY, camZ)
-    const peso = 0.75
-    alvoDaCamera.set(wx + (trilhaX(BOCA_DA_TRILHA) - wx) * peso, 1.2 + (2.4 + 0.8 * a - 1.2) * peso, wz + (BOCA_DA_TRILHA - wz) * peso)
-    camera.lookAt(alvoDaCamera)
-    camera.fov = (reduzirMovimento ? 50 - 4 * a : 50 - 16 * a) * fatorDoCampo
-    camera.updateProjectionMatrix()
+    const e = estadoDaTrilha(t, reduzirMovimento)
+    camera.position.set(e.x, e.y, e.z)
+    camera.rotation.set(e.inclinacao, e.guinada, e.rolagem, 'YXZ')
+    camera.updateMatrixWorld()
+    camera.getWorldDirection(frente)
     ceu.position.copy(camera.position)
     serra.position.copy(camera.position)
+    const zDoAlvo = e.z - 3.5
+    alvoDoFogo.position.set(trilhaX(zDoAlvo), 0, zDoAlvo)
   }
   posar(0)
+
+  /**
+   * Quanto um sprite pode aparecer pela profundidade dele diante dos olhos (0 a 1).
+   * Sprite é um cartão virado para a câmera: quando quem anda chega no plano dele, ele
+   * cobriria a tela e sumiria de estalo. Some antes, devagar.
+   */
+  function longeDosOlhos(sprite: Three.Sprite): number {
+    const k = span(ateOSprite.subVectors(sprite.position, camera.position).dot(frente), 1, 4.5)
+    return k * k * (3 - 2 * k)
+  }
 
   function atualizar(t: number) {
     posar(t)
     materialDoCeu.uniforms.uTempo.value = t
     const rajada = rajadaEm(t)
-    for (const n of neblinas) n.sprite.position.x = n.x0 + n.velocidade * t * (0.7 + 0.6 * rajada) + 0.3 * Math.sin(t * 0.5 + n.s)
+    for (const n of neblinas) {
+      n.sprite.position.x = n.x0 + n.velocidade * t * (0.7 + 0.6 * rajada) + 0.3 * Math.sin(t * 0.5 + n.s)
+      n.material.opacity = n.opacidade * longeDosOlhos(n.sprite)
+    }
+    for (const f of fumacasBaixas) {
+      const vida = (t / VIDA_DA_FUMACA + f.fase) % 1
+      const z = BORDA_DA_MATA + 1 + vida * CAMINHO_DA_FUMACA
+      f.sprite.position.set(trilhaX(z) + f.lado + vida * 0.8, 0.5 + vida * 1.6, z)
+      const escala = f.tamanho * (0.7 + vida * 0.9)
+      f.sprite.scale.set(escala * 1.6, escala, 1)
+      f.material.opacity = f.opacidade * Math.sin(Math.PI * vida) * longeDosOlhos(f.sprite)
+    }
     if (chamas) {
       const fogoAgora = fogoEm(t)
       materialDoCeu.uniforms.uBrilhoDoFogo.value = fogoAgora * (0.85 + 0.15 * tremorEm(t, 3.3, reduzirMovimento))
@@ -785,7 +701,8 @@ function montarTrilha(THREE: ThreeModule, { reduzirMovimento }: OpcoesDaCena, va
 
   function ajustarTela(aspecto: number) {
     camera.aspect = aspecto
-    fatorDoCampo = aspecto < 0.8 ? 1.32 : 1
+    camera.fov = aspecto < 0.8 ? 66 : 50
+    camera.updateProjectionMatrix()
     posar(ultimoT)
   }
 

@@ -95,7 +95,7 @@ label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); marg
 <body>
 <main>
   <h1>Trilha do pinheiral</h1>
-  <p class="sub">Transição de viagem do pino · 7 s · a mesma caminhada e a mesma câmera; muda a hora e o fogo</p>
+  <p class="sub">Transição de viagem do pino · 7 s · em primeira pessoa · a mesma caminhada; muda a hora e o fogo</p>
   <div class="escolha">
     <span class="rotulo" id="rotulo-fundo">Variação</span>
     <div class="segmentos" role="group" aria-labelledby="rotulo-fundo">
@@ -105,7 +105,7 @@ label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); marg
   </div>
   <p class="descricao" id="descricao" aria-live="polite"></p>
   <div class="palco" id="palco">
-    <canvas id="cena" aria-label="Animação: uma pessoa anda por uma trilha de terra rumo a um pinheiral escuro, até a mata tomar a tela"></canvas>
+    <canvas id="cena" aria-label="Animação em primeira pessoa: anda-se por uma trilha de terra rumo a um pinheiral escuro, para-se perto da borda e o olhar sobe para as copas, até a mata tomar a tela"></canvas>
     <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
     <div class="vinheta" aria-hidden="true"></div>
     <div class="cortina" id="cortina" aria-hidden="true"></div>
@@ -129,8 +129,8 @@ THREE.ColorManagement.enabled = false
 const DURACAO = 7
 const CENAS = window.TrilhaDoPinheiral
 const DESCRICOES = {
-  dia: 'Fim de tarde frio, tempo fechado: a pessoa anda pela trilha de terra e o pinheiral escuro, com neblina na borda, cresce até tomar o quadro.',
-  chamas: 'A mesma caminhada à noite, com o pinheiral pegando fogo: chamas nas copas, brasas subindo, fumaça e a luz laranja tremendo na trilha e na pessoa.',
+  dia: 'Fim de tarde frio, tempo fechado, em primeira pessoa: você anda pela trilha de terra, o pinheiral escuro com neblina na borda cresce à frente, você para e ergue o olhar para as copas, que tomam o quadro.',
+  chamas: 'A mesma caminhada à noite, com o pinheiral pegando fogo: a luz laranja treme no chão da trilha à frente, fumaça e brasas vêm na sua direção, e o olhar sobe para as copas em chamas.',
 }
 const palco = document.getElementById('palco')
 const canvas = document.getElementById('cena')

@@ -1,7 +1,7 @@
 import type { KitDeSom } from '../../transicoes/tipos'
 import { easeInOutSine, span } from '../../transicoes/curvas'
 import { semente } from '../../transicoes/texturas'
-import { CADENCIA, DURACAO, fogoEm, passoEm, rajadaEm, tremorEm, type VarianteDaTrilha } from './_roteiroDoPinheiral'
+import { fogoEm, PASSOS, passoEm, rajadaEm, tremorEm, type VarianteDaTrilha } from './_roteiroDoPinheiral'
 
 /*
  * Som da "Trilha do pinheiral", todo sintetizado (o pacote não leva arquivo de
@@ -15,8 +15,6 @@ const PASSO = 0.42
 const CORVO = 0.07
 const RUGIDO = 0.34
 const ESTALO = 0.2
-/** Último contato de pé antes do fim. */
-const PASSOS = Math.floor(CADENCIA * DURACAO)
 
 /** Entra com o fade e sai antes do fim: o motor fecha o som em 7 s e não pode cortar nada. */
 function envelopeGeralEm(t: number): number {

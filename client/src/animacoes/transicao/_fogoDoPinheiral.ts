@@ -8,7 +8,8 @@ import { fogoEm, tremorEm, trilhaX } from './_roteiroDoPinheiral'
  * da cena (nada de relógio interno): chamas em placas viradas para a câmera,
  * com a forma corroída por ruído que sobe; brasas que sobem e derivam com o
  * vento; fumaça escura iluminada por baixo; luzes de fogo que tremem e um
- * holofote que estica a sombra da pessoa na trilha, na direção da câmera.
+ * holofote que joga a luz trêmula na trilha à frente de quem anda e estica a
+ * sombra do capim na direção dos olhos.
  */
 
 export interface ArvoreDaMata {
@@ -192,7 +193,7 @@ function texturaDeHalo(THREE: ThreeModule): Three.CanvasTexture {
 interface Opcoes {
   arvores: ArvoreDaMata[]
   reduzir: boolean
-  /** A pessoa: o holofote do fogo mira nela para esticar a sombra. */
+  /** Um ponto da trilha à frente dos olhos: o holofote do fogo mira nele (a cena o move a cada quadro). */
   alvo: Three.Object3D
 }
 
@@ -269,8 +270,9 @@ export function montarFogo(THREE: ThreeModule, scene: Three.Scene, { arvores, re
   const param = new Float32Array(BRASAS * 4)
   const subida = new Float32Array(BRASAS * 2)
   for (let i = 0; i < BRASAS; i++) {
+    // As de perto nascem entre os olhos e a borda da mata e derivam na direção de quem anda.
     const perto = i % 6 === 0
-    origem.set(perto ? [-6 + rnd() * 12, 0.4 + rnd() * 2.5, -14 + rnd() * 8] : [-28 + rnd() * 56, 2 + rnd() * 9, -30 + rnd() * 11], i * 3)
+    origem.set(perto ? [-6 + rnd() * 12, 0.4 + rnd() * 2.5, -21 + rnd() * 7] : [-28 + rnd() * 56, 2 + rnd() * 9, -30 + rnd() * 11], i * 3)
     param.set([(1.1 + rnd() * 1.8) * ritmo, rnd(), 0.4 + rnd() * 1.2, perto ? 0.05 + rnd() * 0.06 : 0.12 + rnd() * 0.16], i * 4)
     subida.set([perto ? 4 + rnd() * 4 : 12 + rnd() * 10, perto ? 0.6 : 1], i * 2)
   }
