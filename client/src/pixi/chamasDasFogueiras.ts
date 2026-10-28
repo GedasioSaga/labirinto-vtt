@@ -87,20 +87,20 @@ function fracao(valor: number): number {
   return valor - Math.floor(valor)
 }
 
-/** Pose que o relógio reescreve a cada quadro: com dezenas de fogueiras, nada novo para o coletor de lixo. */
-interface PoseReescrita {
+/** Pose que o relógio reescreve a cada quadro: com dezenas de fogueiras, nada novo para o coletor de lixo. O objeto Fogo (`fogosDoMapa.ts`) reaproveita. */
+export interface PoseReescrita {
   escalaX: number
   escalaY: number
   alpha: number
   fagulhas: { x: number; y: number; alpha: number }[]
 }
 
-function novaPose(): PoseReescrita {
+export function novaPose(): PoseReescrita {
   return { escalaX: 1, escalaY: 1, alpha: ALPHA_DO_MIOLO_PARADO, fagulhas: FAGULHAS.map((fagulha) => ({ x: fagulha.x0, y: -NASCER_DA_FAGULHA, alpha: 0 })) }
 }
 
 /** Escreve em `destino` a pose da chama em movimento (ver `poseDaChama`) e devolve o próprio `destino`. */
-function escreverPose(tempoMs: number, fase: number, destino: PoseReescrita): PoseReescrita {
+export function escreverPose(tempoMs: number, fase: number, destino: PoseReescrita): PoseReescrita {
   const volta = 2 * Math.PI
   const u = fracao(tempoMs / CICLO_DA_CHAMA_MS + fase)
   destino.escalaY = 1 + 0.07 * Math.sin(volta * 2 * u) + 0.035 * Math.sin(volta * 5 * u + 1.3) + 0.015 * Math.sin(volta * 9 * u + 0.4)
@@ -178,8 +178,8 @@ const MIOLO = { escalaX: 0.5, escalaY: 0.56, deslocamento: -0.04 }
  * unidade: desenhada em H = 1 a chama sairia um losango; a 256 a curva fica lisa
  * até ~400 px de tela.
  */
-const ALTURA_DE_REFERENCIA = 256
-const RAIO_DE_REFERENCIA = 16
+export const ALTURA_DE_REFERENCIA = 256
+export const RAIO_DE_REFERENCIA = 16
 /** A fagulha nunca fica menor que isto na tela... */
 const RAIO_MINIMO_DA_FAGULHA_EM_PX = 1.2
 /** ...e no mais é esta fração do lado menor da fogueira (0,022 casa no tamanho padrão). */
@@ -199,6 +199,21 @@ function contextoDaChama(cor: number, escalaX: number, escalaY: number, deslocam
     contexto.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, fim.x, fim.y)
   }
   return contexto.closePath().fill({ color: cor })
+}
+
+/** As três formas da chama (borda, miolo e fagulha), em unidade de referência: a fogueira e o objeto Fogo desenham as mesmas. */
+export interface FormasDaChama {
+  borda: GraphicsContext
+  miolo: GraphicsContext
+  fagulha: GraphicsContext
+}
+
+export function criarFormasDaChama(): FormasDaChama {
+  return {
+    borda: contextoDaChama(COR_DA_BORDA_DA_CHAMA, 1, 1, 0),
+    miolo: contextoDaChama(COR_DO_MIOLO_DA_CHAMA, MIOLO.escalaX, MIOLO.escalaY, MIOLO.deslocamento),
+    fagulha: new GraphicsContext().circle(0, 0, RAIO_DE_REFERENCIA).fill({ color: COR_DA_FAGULHA }),
+  }
 }
 
 /** O que a chama lê do objeto. */
@@ -272,20 +287,16 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   const chamas = new Map<string, ChamaNoPalco>()
   // Uma pose só para o quadro inteiro: `aplicar` lê na hora, antes da próxima fogueira reescrever.
   const poseDoQuadro = novaPose()
-  let contextos: { borda: GraphicsContext; miolo: GraphicsContext; fagulha: GraphicsContext } | null = null
+  let contextos: FormasDaChama | null = null
   let noRelogio = false
   let parada = movimento === undefined || movimento.reducedMotion()
   let conferidoEm = 0
   let avisado = ''
 
   /** As formas nascem com a primeira fogueira e ficam até o fim. */
-  function formas(): { borda: GraphicsContext; miolo: GraphicsContext; fagulha: GraphicsContext } {
+  function formas(): FormasDaChama {
     if (contextos !== null) return contextos
-    contextos = {
-      borda: contextoDaChama(COR_DA_BORDA_DA_CHAMA, 1, 1, 0),
-      miolo: contextoDaChama(COR_DO_MIOLO_DA_CHAMA, MIOLO.escalaX, MIOLO.escalaY, MIOLO.deslocamento),
-      fagulha: new GraphicsContext().circle(0, 0, RAIO_DE_REFERENCIA).fill({ color: COR_DA_FAGULHA }),
-    }
+    contextos = criarFormasDaChama()
     return contextos
   }
 

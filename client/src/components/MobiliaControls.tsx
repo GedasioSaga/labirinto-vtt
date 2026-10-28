@@ -16,6 +16,7 @@ import {
   type AparenciaDoMovelPatch,
 } from '../lib/mobilia'
 import { catalogoComOTipo } from '../lib/mobilia/pecasNovas'
+import { ROTULO_DO_TAMANHO_DO_FOGO, TAMANHOS_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from '../lib/mobilia/fogo'
 import { ofereceDesenhoEmLinhas, saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
@@ -49,6 +50,12 @@ export interface MobiliaControlsProps {
   onVistaChange: (id: string, vista: VistaMobilia) => void
   /** Tapete: troca a forma (Retangular | Redondo) no lugar; o tamanho vai para o padrão da forma nova. */
   onFormaChange: (id: string, forma: FormaDoTapete) => void
+  /**
+   * Fogo: troca o tamanho (Chama | Fogaréu | Incêndio) no lugar; a pegada vai
+   * para a do tamanho. Ausente = o painel não oferece o tamanho (as fichas que
+   * só mostram o móvel, sem editar a pegada).
+   */
+  onTamanhoDoFogoChange?: (id: string, tamanho: TamanhoDoFogo) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -245,9 +252,12 @@ export function MobiliaControls({
   onTipoChange,
   onVistaChange,
   onFormaChange,
+  onTamanhoDoFogoChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
+  // O tamanho do fogo é a pegada na grade do mapa: esticado à mão, nenhum dos três fica marcado.
+  const grade = useMapStore((state) => state.map.grid)
   const tipo = prop.mobilia
   if (tipo === undefined) return null
 
@@ -316,6 +326,26 @@ export function MobiliaControls({
                 >
                   <FormaDoTapeteIcon forma={opcao} size={16} strokeWidth={1.8} />
                   {ROTULO_FORMA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* O tamanho só existe no fogo: os três de partida, no mesmo segmentado. */}
+        {tipo === 'fogo' && onTamanhoDoFogoChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Tamanho</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Tamanho">
+              {TAMANHOS_DO_FOGO.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={tamanhoDoFogo(prop.width, prop.height, grade) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onTamanhoDoFogoChange(prop.id, opcao)}
+                >
+                  {ROTULO_DO_TAMANHO_DO_FOGO[opcao]}
                 </button>
               ))}
             </div>

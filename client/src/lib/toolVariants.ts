@@ -522,7 +522,7 @@ export const ATALHO_DA_ARVORE: {
  */
 export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = [
   { titulo: 'Dentro de casa', tipos: ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'armario', 'aparador', 'tapete', 'tapeteLongo'] },
-  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'lapide'] },
+  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
 ]
 

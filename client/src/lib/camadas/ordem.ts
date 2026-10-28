@@ -101,6 +101,8 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('concealZonesContainer', [], FIXA),
   faixa('pinsContainer', ['pino'], ['anotacoes']),
   faixa('telhadosContainer', ['telhado'], ['telhados']),
+  // Objeto Fogo (27/10/2026): as chamas POR CIMA do telhado (a casa queimando vista de fora), `pixi/fogosDoMapa.ts`.
+  faixa('fogosContainer', [], FIXA),
   faixa('fantasmaDeTesteContainer', [], FIXA),
   faixa('straightenGhostGraphics', [], FIXA),
   faixa('floorSelectionGraphics', [], FIXA),
@@ -169,6 +171,8 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('peekedRoofs', ['telhado'], ['telhados'], SOBRE),
   faixa('peekMask', ['telhado'], ['telhados'], SOBRE),
   faixa('portasNoTelhado', ['parede'], ['portas'], SOBRE),
+  // As chamas do objeto Fogo, por cima dos telhados: só chega fogo que a visão (ou o telhado à vista) deixou passar (`fogFilter.ts`).
+  faixa('fogos', [], FIXA, SOBRE),
   // MODO BATALHA (B5): acima da névoa e dos telhados, abaixo de pílulas, marcas, pinos e fichas.
   faixa('gradeDaBatalha', [], FIXA, SOBRE),
   faixa('nomesDosLugares', [], ['salas'], SOBRE),

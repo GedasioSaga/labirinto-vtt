@@ -38,6 +38,7 @@ import {
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
+import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
@@ -900,6 +901,20 @@ export function trocarFormaDoTapete(map: MapData, propId: string, forma: FormaDo
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo?.mobilia !== 'tapete' || formaDoTapete(alvo) === forma) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraForma(p, forma, map.grid) : p)) }
+}
+
+/**
+ * "Tamanho" do painel do FOGO (Chama, Fogaréu, Incêndio): a pegada vai para a
+ * do tamanho na grade do mapa, com o centro no lugar (giro, camada, trava e
+ * rótulo ficam). O mesmo tamanho, outro tipo ou id que não existe devolvem o
+ * MESMO mapa — a store usa isso para não empilhar passo vazio no desfazer.
+ */
+export function trocarTamanhoDoFogo(map: MapData, propId: string, tamanho: TamanhoDoFogo): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'fogo' || tamanhoDoFogo(alvo.width, alvo.height, map.grid) === tamanho) return map
+  const casas = CASAS_DO_TAMANHO_DO_FOGO[tamanho]
+  const novo = { ...alvo, width: casas.largura * map.grid, height: casas.altura * map.grid }
+  return { ...map, props: map.props.map((p) => (p === alvo ? novo : p)) }
 }
 
 /**

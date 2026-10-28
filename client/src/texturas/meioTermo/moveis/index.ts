@@ -35,6 +35,7 @@ import { montarJardineira } from './jardineira'
 import { montarArcoDoPortao } from './arcoDoPortao'
 import { montarPlacaDeSeta } from './placaDeSeta'
 import { montarTapeteLongo } from './tapeteLongo'
+import { montarFogo } from './fogo'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -66,6 +67,8 @@ const MONTADORES = {
   arcoDoPortao: montarArcoDoPortao,
   placaDeSeta: montarPlacaDeSeta,
   tapeteLongo: montarTapeteLongo,
+  // Objeto Fogo (27/10/2026): só o chão queimado; as chamas são a camada animada `pixi/fogosDoMapa.ts`.
+  fogo: montarFogo,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -93,7 +96,7 @@ export function escalaDoNivel(nivel: number): number {
 export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
-  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

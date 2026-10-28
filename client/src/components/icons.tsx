@@ -533,6 +533,15 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M9.5 3.5V2M12 3.5V2M14.5 3.5V2M9.5 20.5V22M12 20.5V22M14.5 20.5V22" />
         </>
       )
+    case 'fogo':
+      // Três línguas em pé (a do meio mais alta), a chama da fogueira repetida, sobre o chão queimado.
+      return (
+        <>
+          <path d="M12 3c1.6 3 4 5 4 9a4 4 0 0 1-8 0c0-4 2.4-6 4-9z" />
+          <path d="M6.5 9.5c.9 1.7 2 2.9 2 5a2 2 0 0 1-4 0c0-2.1 1.1-3.3 2-5zM17.5 9.5c.9 1.7 2 2.9 2 5a2 2 0 0 1-4 0c0-2.1 1.1-3.3 2-5z" />
+          <path d="M3 20.5h18" />
+        </>
+      )
   }
 }
 

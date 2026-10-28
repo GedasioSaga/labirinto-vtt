@@ -85,6 +85,7 @@ import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
+import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
 import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
@@ -1170,6 +1171,8 @@ interface Scene {
    * revelado), abaixo de bilhetes, pinos e fichas.
    */
   nomesDosLugares: NomesDosLugaresRenderer
+  /** OBJETO FOGO (`pixi/fogosDoMapa.ts`): as chamas por cima dos telhados, dos objetos que o recorte deixou passar; só as da vista animam. */
+  fogos: FogosDoMapa
   /**
    * NUVENS (`pixi/drawNuvens.ts`): as mesmas do mestre (tamanho do mapa e
    * relógio de parede), SOB a névoa: o preto opaco do nunca visto cobre o
@@ -1371,6 +1374,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
+  scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
 }
@@ -2241,6 +2245,8 @@ function PlayerViewDoCanvas({
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('chamasCamada'), deObjeto)) {
       sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale, vistaDosMoveis })
     }
+    // O objeto Fogo que sai da visão (e do telhado à vista) some junto: fogo na névoa nem é criado.
+    scene.fogos.sincronizar(props, { cameraScale: scale, grade: currentMap.grid })
     const pares = nosEmPar(scene.pilha.nosDaFaixa('propImages'), scene.pilha.nosDaFaixa('propLabels'))
     const contagem: PropLooksCount = { images: 0, labels: 0 }
     distribuir(props, pares.map((par) => par.imagem), deObjeto).forEach(({ itens }, i) => {
@@ -3201,6 +3207,14 @@ function PlayerViewDoCanvas({
       carimbosContainer.addChild(carimbos.camada)
       carimbosContainer.mask = carimbosMask
       const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const fogos = createFogosDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.fogos = String(estado.fogos)
+          el.dataset.fogosNaVista = String(estado.naVista)
+          el.dataset.fogosAnimando = String(estado.animando)
+        },
+      })
       // NUVENS: sem máscara própria (a névoa opaca já as cobre fora do conhecido,
       // e máscara visível pagaria o stencil a cada quadro). O relógio só roda com
       // elas andando: desligadas (chave, "Efeitos do mapa", modo leve) ou paradas, nada.
@@ -3317,6 +3331,8 @@ function PlayerViewDoCanvas({
         // PORTA POR CIMA DO TELHADO: a porta de fora que o jogador vê ou já viu,
         // acima do telhado (senão ele não acha por onde entrar) e abaixo de nomes, pinos e fichas.
         portasNoTelhado,
+        // FOGO por cima do telhado (a casa queimando vista de fora): só o que o recorte mandou (`fogFilter.ts`).
+        fogos: fogos.camada,
         gradeDaBatalha: gradeDaBatalha.camada,
         // NOMES DOS LUGARES acima da névoa (só o lugar já conhecido tem pílula,
         // `lugaresConhecidos`) e abaixo de bilhete, pino e ficha, que seguem legíveis por cima.
@@ -3495,6 +3511,7 @@ function PlayerViewDoCanvas({
         gradeDaBatalha,
         carimbos,
         nomesDosLugares,
+        fogos,
         nuvens,
         lugaresKey: emptyContentKey(),
         lugares: [],
@@ -3882,6 +3899,8 @@ function PlayerViewDoCanvas({
           mapa: { largura: m.width * m.grid, altura: m.height * m.grid },
           vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
           fichas,
+          // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
+          fogos: m.props,
         })
         const { refeitos, ultimoMs, maiorMs } = scene.mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
@@ -4314,6 +4333,7 @@ function PlayerViewDoCanvas({
         // Os nós criados da pilha (e as chamas deles) antes da de hoje.
         scene.pilha.destruir()
         scene.chamas.destruir()
+        scene.fogos.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
