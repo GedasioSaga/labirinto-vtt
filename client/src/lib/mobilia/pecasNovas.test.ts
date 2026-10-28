@@ -26,6 +26,8 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   arcoDoPortao: [2, 0.5],
   placaDeSeta: [0.5, 0.5],
   tapeteLongo: [1, 4],
+  // Objeto Fogo (27/10/2026): nasce na Chama; Fogaréu e Incêndio são escolhas do painel.
+  fogo: [1, 1],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -43,10 +45,11 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   arcoDoPortao: ['Arco do portão', 'um arco do portão'],
   placaDeSeta: ['Placa de seta', 'uma placa de seta'],
   tapeteLongo: ['Tapete longo', 'um tapete longo'],
+  fogo: ['Fogo', 'um fogo'],
 }
 
 describe('peças novas: registro', () => {
-  it('os 14 tipos dos lotes 1 e 2 estão no catálogo de tipos, depois dos 11 de antes', () => {
+  it('os 14 tipos dos lotes 1 e 2 e o Fogo estão no catálogo de tipos, depois dos 11 de antes', () => {
     expect(PECAS_NOVAS).toEqual(Object.keys(TAMANHOS))
     expect(TIPOS_MOBILIA.slice(0, 11)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
     for (const tipo of PECAS_NOVAS) {
@@ -116,8 +119,11 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO.slice(cerca, cerca + 3)).toEqual(['cerca', 'sebe', 'jardineira'])
     const tapete = TIPOS_NO_CATALOGO.indexOf('tapete')
     expect(TIPOS_NO_CATALOGO.slice(tapete, tapete + 2)).toEqual(['tapete', 'tapeteLongo'])
+    // O Fogo logo depois da Fogueira (o móvel continua como estava).
+    const fogueira = TIPOS_NO_CATALOGO.indexOf('fogueira')
+    expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     expect(TIPOS_NO_CATALOGO.slice(-2)).toEqual(['arcoDoPortao', 'placaDeSeta'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(25)
+    expect(TIPOS_NO_CATALOGO).toHaveLength(26)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

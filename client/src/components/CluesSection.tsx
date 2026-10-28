@@ -57,7 +57,7 @@ function dotActionText(dot: ClueDot): string {
 
 /**
  * "Pistas", na aba Jogo, logo abaixo do Grupo: o mestre confere antes do
- * confronto quem recebeu e quem leu cada pista. A bolinha é da cor da ficha
+ * combate quem recebeu e quem leu cada pista. A bolinha é da cor da ficha
  * do jogador (a mesma do Grupo): vazia = não recebeu, com miolo = recebeu,
  * cheia = leu; tracejada = escondida dele pelo "Quem vê". Cada bolinha é um
  * botão de alternar (`aria-pressed` = a pista chega a ele): o estado de

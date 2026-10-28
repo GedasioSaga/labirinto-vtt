@@ -11,6 +11,8 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { tableScreenText } from './tableScreenText'
 import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
 import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
+import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
 
 /**
  * TELA DA MESA — a página de espectador para a TV ou o projetor. Mesmo
@@ -101,11 +103,14 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           gatilhos={state.gatilhos}
           porAtravessar={state.porAtravessar}
           ownTokens={NO_TOKENS}
+          batalha={state.batalha === true}
           settings={settings}
           focusTokenId={null}
           focusSeq={0}
           onMove={IGNORE_MOVE}
         />
+        {/* MODO BATALHA (B5): a TV toca a abertura também, no volume fixo dela (o mesmo dos sons ao vivo). */}
+        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} volume={PREFERENCIA_DE_SOM_PADRAO.volume} />
       </PlayerErrorBoundary>
     )
   }

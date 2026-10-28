@@ -16,7 +16,7 @@ import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { MapData, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostSession, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
-import { applyMapPatch, type PlayerViewContent } from './viewPatch'
+import { applyViewPatch, type PlayerViewContent } from './viewPatch'
 
 const CODE = 'MEDE01'
 const RAIO = 500
@@ -63,9 +63,9 @@ function telaDe(snap: Snapshot): PlayerViewContent {
 }
 
 function aplica(tela: PlayerViewContent, patch: Patch): PlayerViewContent {
-  const map = patch.map === undefined ? tela.map : applyMapPatch(tela.map, patch.map)
-  if (map === null) throw new Error('patch não encaixou na tela')
-  return { map, vision: patch.vision ?? tela.vision, explored: patch.explored ?? tela.explored, ownTokens: patch.ownTokens ?? tela.ownTokens, concealed: patch.concealed ?? tela.concealed }
+  const depois = applyViewPatch(tela, patch)
+  if (depois === null) throw new Error('patch não encaixou na tela')
+  return depois
 }
 
 const peloFio = (v: unknown): unknown => JSON.parse(JSON.stringify(v))

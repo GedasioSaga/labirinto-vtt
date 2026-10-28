@@ -5,7 +5,7 @@ import type { ClueDot, ClueRow } from '../lib/clues'
 import { CluesSection } from './CluesSection'
 
 /*
- * PAINEL PISTAS na aba Jogo: o mestre olha, antes do confronto, quem recebeu
+ * PAINEL PISTAS na aba Jogo: o mestre olha, antes do combate, quem recebeu
  * e quem leu cada pista. Clicar na linha leva o editor ao pino; clicar na
  * bolinha revela ou esconde a pista daquele jogador.
  */

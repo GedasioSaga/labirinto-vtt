@@ -49,7 +49,6 @@ import { PlayerEscada } from './PlayerEscada'
 import { PlayerVeiculo } from './PlayerVeiculo'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
-import { TurnWaitNotice } from './TurnWaitNotice'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -64,6 +63,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
+import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
@@ -92,7 +92,8 @@ import { passagemABordo, passagemCongelada, pinTravelChoices, type PinTravelChoi
 import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle } from '../lib/correio'
 import { chatFacesByName, type ChatChannel } from '../lib/chat'
-import { findKnownPath, prepararCaminhoConhecido } from '../lib/knownPath'
+import { findKnownPath } from '../lib/knownPath'
+import { criarPreparoDoCaminho, type PreparoDoCaminho } from '../lib/preparoDoCaminho'
 import type { Pin, Stair } from '../types/map'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
@@ -137,8 +138,6 @@ const IGNORE_MOVE = (): void => {}
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 /** O aviso do "Me avise quando der". */
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
-/** Fatia da montagem da malha do "Andar até aqui", em ms: bem abaixo de um quadro. */
-const FATIA_DA_MALHA_MS = 8
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -856,18 +855,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
   /**
    * A malha do "Andar até aqui" é montada em fatias assim que a cena chega
-   * (`prepararCaminhoConhecido`): no mapa grande, montá-la inteira no toque
-   * longo seria uma tarefa longa. Abrir ou fechar porta não a refaz.
+   * (`lib/preparoDoCaminho.ts`): no mapa grande, montá-la inteira no toque
+   * longo seria uma tarefa longa. Abrir ou fechar porta não a refaz, e parede
+   * que anda com uma ficha do mestre não a refaz a cada pacote (F4).
    */
   const mapaDoCaminho = state.map
+  const preparoDoCaminho = useRef<PreparoDoCaminho | null>(null)
+  // Criado e parado no mesmo efeito (o StrictMode monta duas vezes); o efeito
+  // do mapa, declarado depois, roda em seguida e entrega o mapa atual.
   useEffect(() => {
-    if (mapaDoCaminho === undefined) return
-    let fatia: ReturnType<typeof setTimeout> | undefined
-    const adiantar = () => {
-      fatia = prepararCaminhoConhecido(mapaDoCaminho, FATIA_DA_MALHA_MS) ? undefined : setTimeout(adiantar, 0)
+    const preparo = criarPreparoDoCaminho()
+    preparoDoCaminho.current = preparo
+    return () => {
+      preparo.parar()
+      if (preparoDoCaminho.current === preparo) preparoDoCaminho.current = null
     }
-    fatia = setTimeout(adiantar, 0)
-    return () => clearTimeout(fatia)
+  }, [])
+  useEffect(() => {
+    if (mapaDoCaminho !== undefined) preparoDoCaminho.current?.atualizar(mapaDoCaminho)
   }, [mapaDoCaminho])
   /** Ficha ALHEIA aberta no cartão de ações; `null` = fechado. */
   const [openTokenId, setOpenTokenId] = useState<string | null>(null)
@@ -1381,8 +1386,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             ownTokens={ownTokens}
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}
+            // MODO BATALHA (B5): a grade de batalha só no andar da cena dele.
+            batalha={state.batalha === true}
             waitingTokens={waitingTokens}
-            turnTokenId={state.turn ?? null}
             settings={settings}
             focusTokenId={focus.tokenId}
             focusSeq={focus.seq}
@@ -1630,8 +1636,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerEscada
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             onTrocar={(tokenId, stairId) => connection.changeFloor(tokenId, stairId)}
           />
@@ -1639,8 +1643,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PlayerVeiculo
             map={state.map}
             ownTokens={ownTokens}
-            turn={state.turn}
-            confronto={state.confronto}
             paused={state.paused === true}
             aviso={state.moveNotice?.id}
             onSubir={(tokenId, vehicleId) => connection.boardVehicle(tokenId, vehicleId)}
@@ -2100,7 +2102,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {mapSharedNoticeText(state.mapShared.from)}
           </p>
         )}
-        <TurnWaitNotice notice={state.turnNotice} />
         {state.hazardNotice && (
           // ZONA DE PERIGO: "Você entrou no fogo!". `key` no id reanuncia a cada entrada.
           <p key={state.hazardNotice.id} className="pp-notice" role="alert">
@@ -2123,6 +2124,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
+        {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
+        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} />
         {reconnecting}
       </PlayerErrorBoundary>
     )

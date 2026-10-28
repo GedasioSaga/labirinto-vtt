@@ -18,13 +18,14 @@ import { periodoDaSessao, personagensAtivos, pinTravelOf, sistemaAtivo, unlinked
 import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
+import { criarPortaoDaVista } from './vistaCoberta'
+import { criarGradeDaBatalha } from './gradeDaBatalha'
+import { preaquecerContornoDoChao, proximaTarefa } from './aberturaDoEditor'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
-import { useInitiativeStore } from '../stores/initiativeStore'
 import { alternarPausaDosNpcs } from '../stores/npcsAndando'
 import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
-import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
@@ -194,7 +195,8 @@ import {
   buildFreeWallsFromPoints,
 } from '../lib/drawingFactory'
 import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
-import { createPropsRenderer } from './drawProps'
+import { createPropsRenderer, HIDDEN_PROP_GHOST_ALPHA } from './drawProps'
+import { createFogosDoMapa } from './fogosDoMapa'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { drawFaccoes } from './drawFaccoes'
@@ -751,6 +753,8 @@ interface PixiCanvasProps {
    * chegam por `map.grid`/`map.gridOffset`, não por esta prop).
    */
   gridAlignPreview?: GridAlignResult | null
+  /** MODO BATALHA (B5): a cena aberta está em batalha; a grade de batalha aparece por cima do mapa (`gradeDaBatalha.ts`). */
+  batalhaLigada?: boolean
   /**
    * Reporta as dimensões NATURAIS (px) da textura de fundo carregada, depois
    * que `redrawBackground` resolve `Assets.load` — `null` sem fundo de
@@ -902,6 +906,7 @@ const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
 
 export function PixiCanvas({
   gridAlignPreview = null,
+  batalhaLigada = false,
   onBackgroundImageSizeChange,
   resetZoomRequest,
   cameraRequest = null,
@@ -1017,6 +1022,13 @@ export function PixiCanvas({
   // ZoomHud, que o App repassa; o Ctrl+0 é resolvido aqui dentro, pelo
   // atalho `zoomReset`) — ver docstring de `resetZoomRequest` acima.
   const resetZoomRequestRef = useRef<(() => void) | null>(null)
+  // Mesma ponte para a batalha: a prop muda fora do `setup()`; o valor vivo fica no ref para o primeiro desenho.
+  const batalhaLigadaRef = useRef(batalhaLigada)
+  batalhaLigadaRef.current = batalhaLigada
+  const gradeDaBatalhaRedrawRef = useRef<((ligada: boolean) => void) | null>(null)
+  useEffect(() => {
+    gradeDaBatalhaRedrawRef.current?.(batalhaLigada)
+  }, [batalhaLigada])
 
   useEffect(() => {
     gridAlignOverlayRedrawRef.current?.(gridAlignPreview)
@@ -1068,13 +1080,21 @@ export function PixiCanvas({
     const setup = async () => {
       // Densidade do monitor (125%/150%): o backbuffer tem pixels físicos e o
       // canvas fica no tamanho CSS; event.global e app.screen seguem em px CSS.
-      await app.init({
-        backgroundColor: EDITOR_BACKGROUND_COLOR,
-        resizeTo: el,
-        resolution: currentRendererResolution(),
-        autoDensity: true,
-        antialias: true,
-      })
+      // DESEMPENHO (F8, abrir): o contorno do chão sai numa tarefa própria enquanto o Pixi
+      // inicia, e o resto da montagem começa noutra tarefa (`proximaTarefa`): a primeira
+      // pintura acha o contorno guardado e a montagem não soma tudo numa tarefa longa só.
+      // Mapa sem chão para contornar: nenhuma tarefa a mais (a montagem segue como antes).
+      const [, preaqueceu] = await Promise.all([
+        app.init({
+          backgroundColor: EDITOR_BACKGROUND_COLOR,
+          resizeTo: el,
+          resolution: currentRendererResolution(),
+          autoDensity: true,
+          antialias: true,
+        }),
+        preaquecerContornoDoChao(() => useMapStore.getState().map),
+      ])
+      if (preaqueceu) await proximaTarefa()
       if (destroyed) {
         app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
         return
@@ -1143,10 +1163,21 @@ export function PixiCanvas({
       // a sombra caem por cima da textura, e a borda das salas, as paredes, os
       // nomes, os pinos e as fichas continuam legíveis por cima dela.
       const texturas = createTexturasRenderer({
+        // F7: a pilha de camadas vira uma textura composta (um sprite por quadro, não uma máscara por camada).
+        palco: { renderer: app.renderer, ticker: app.ticker },
         aoGerar: (medida) => {
           el.dataset.texturasMs = String(Math.round(medida.ms))
           el.dataset.texturasCamadas = String(medida.camadas)
           el.dataset.texturasPixels = String(medida.pixels)
+        },
+      })
+      // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
+      const fogos = createFogosDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.fogos = String(estado.fogos)
+          el.dataset.fogosNaVista = String(estado.naVista)
+          el.dataset.fogosAnimando = String(estado.animando)
         },
       })
       // CARIMBOS (`drawCarimbos.ts`): os objetos que o mestre soltou, acima do
@@ -1214,6 +1245,8 @@ export function PixiCanvas({
       // ROTA DE PATRULHA: a ronda de cada NPC, também embaixo das fichas e só do mestre.
       const patrolRoutesGraphics = new Graphics()
       patrolRoutesGraphics.eventMode = 'none'
+      // MODO BATALHA (B5): a grade de batalha, só com a batalha ligada na cena aberta.
+      const gradeDaBatalha = criarGradeDaBatalha()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -1332,11 +1365,13 @@ export function PixiCanvas({
         lightsContainer,
         watchConesGraphics,
         patrolRoutesGraphics,
+        gradeDaBatalha: gradeDaBatalha.camada,
         nomesDosLugaresContainer,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
         telhadosContainer,
+        fogosContainer: fogos.camada,
         fantasmaDeTesteContainer,
         straightenGhostGraphics,
         floorSelectionGraphics,
@@ -1449,6 +1484,7 @@ export function PixiCanvas({
         // Toda mudança de câmera e de tamanho da tela passa por aqui: a textura
         // repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
+        fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
       }
       positionWorld()
       world.scale.set(camera.scale)
@@ -1855,9 +1891,17 @@ export function PixiCanvas({
         const { map } = sceneState()
         if (!map.showGrid) {
           // Contexto compartilhado: limpa as duas camadas (dentro e fora do piso).
-          gridGraphics.clear()
+          // DESEMPENHO (F8): só se havia traço. Limpar o vazio a cada quadro de pan
+          // marcava o Graphics como mudado e o Pixi refazia o lote do mundo inteiro.
+          if (gridGraphics.context.instructions.length > 0) gridGraphics.clear()
+          // E fora do desenho: a grade vazia ainda pagava as duas máscaras de stencil
+          // do piso (4 chamadas de desenho por quadro, sem pintar nada).
+          gridGraphics.renderable = false
+          gridOutsideGraphics.renderable = false
           return
         }
+        gridGraphics.renderable = true
+        gridOutsideGraphics.renderable = true
         const viewport = computeViewport()
         // Traço branco opaco; cor e opacidade saem do tint/alpha de cada camada.
         const lineSettings = { ...map.gridSettings, color: '#ffffff', opacity: 1 }
@@ -1929,9 +1973,26 @@ export function PixiCanvas({
        * de `width`/`height`/`grid`, que mudam junto de `grid` na assinatura
        * de `subscribeToGridRedraw` (ver comentário mais abaixo).
        */
+      const portaoDaMoldura = criarPortaoDaVista()
       const redrawMapBounds = () => {
         const { map } = sceneState()
-        drawMapBounds(mapBoundsGraphics, map, computeViewport(), pixelGrid(camera.scale, app.renderer.resolution))
+        const pixel = pixelGrid(camera.scale, app.renderer.resolution)
+        const viewport = computeViewport()
+        // DESEMPENHO (F8): mesmo gatilho (toda câmera e todo tamanho de tela): as pílulas
+        // de nome inteiras fora da vista saem do desenho. Exportando, a vista é a cena inteira.
+        nomesDosLugares.recortarNaVista(viewport)
+        // MODO BATALHA (B5): o mesmo gatilho e o mesmo portão com folga; a imagem exportada sai sem a grade de batalha.
+        gradeDaBatalha.definir(batalhaLigadaRef.current, map)
+        gradeDaBatalha.ajustarAVista(exportScene === null ? viewport : null, camera.scale, app.renderer.resolution)
+        if (exportScene !== null) {
+          portaoDaMoldura.esquecer()
+          drawMapBounds(mapBoundsGraphics, map, viewport, pixel)
+          return
+        }
+        // DESEMPENHO (F8): desenhada com uma tela de folga para cada lado; o pan
+        // dentro da folga não refaz o Graphics (nem o lote do mundo). Ver vistaCoberta.ts.
+        const vista = portaoDaMoldura.precisa(`${camera.scale}|${app.renderer.resolution}|${map.width}|${map.height}|${map.grid}`, viewport)
+        if (vista !== null) drawMapBounds(mapBoundsGraphics, map, vista, pixel)
       }
 
       /**
@@ -1996,6 +2057,7 @@ export function PixiCanvas({
        * zoom, com o mapa parado. A mesma referência é o que deixa o renderer
        * de luzes pular o halo inteiro e refazer só o marcador.
        */
+      const SEM_OBSTACULOS_DE_LUZ: Segment[] = []
       let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
       const lightOccludersOf = (map: MapData): Segment[] => {
         if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === map.floor) return lightOccluders.segments
@@ -2013,8 +2075,10 @@ export function PixiCanvas({
         const single = selectionSingle(selection)
         const camadas = contextoDeCamadas(map)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
-        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: lightOccludersOf(map), semHalo: luzesSemHalo }
-        for (const { no, itens } of distribuir(visibleLights(map.lights, map), pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
+        const luzes = visibleLights(map.lights, map)
+        // DESEMPENHO (F8): sem luz, nada recorta a luz; os obstáculos (contorno do chão) não são calculados ao abrir.
+        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: luzes.length === 0 ? SEM_OBSTACULOS_DE_LUZ : lightOccludersOf(map), semHalo: luzesSemHalo }
+        for (const { no, itens } of distribuir(luzes,pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
           luzesPorNo.de(no).draw(no, itens, opcoes)
         }
         // Para o e2e: gradientes vivos (1 textura cada) não podem crescer com trocas de intensidade.
@@ -2432,8 +2496,6 @@ export function PixiCanvas({
         if (pilhaMudou.moveis) redrawProps()
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
-        const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         // VOLTO JÁ: selo de ausente na ficha de quem saiu da mesa. A imagem
         // exportada é do mapa, não da sessão: sai sem selo.
         const awayTokenIds = exportScene === null ? useAwayTokensStore.getState().tokenIds : undefined
@@ -2451,7 +2513,6 @@ export function PixiCanvas({
           map.grid,
           single?.kind === 'token' ? single.id : null,
           camera.scale,
-          turnTokenId,
           awayTokenIds,
           glide,
           pinosDaCena(map),
@@ -2603,6 +2664,8 @@ export function PixiCanvas({
           mapa: { largura: map.width * map.grid, altura: map.height * map.grid },
           vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
           fichas: [],
+          // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
+          fogos: map.props,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
@@ -2713,9 +2776,12 @@ export function PixiCanvas({
         const camadas = contextoDeCamadas(map)
         // A VISTA DOS MÓVEIS da cena (Meio-Termo) vai junto, como no jogador.
         const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, vistaDosMoveis: map.vistaDosMoveis }
-        for (const { no, itens } of distribuir(visibleProps(map.props, map), pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
+        const propsVisiveis = visibleProps(map.props, map)
+        for (const { no, itens } of distribuir(propsVisiveis, pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
           propsPorNo.de(no).draw(no, itens, single?.kind === 'prop' ? single.id : null, vista)
         }
+        // As chamas do objeto Fogo, na camada delas por cima dos telhados (o mesmo fantasma do móvel).
+        fogos.sincronizar(propsVisiveis, { cameraScale: camera.scale, grade: map.grid, alfa: (p) => (isHidden(p) ? HIDDEN_PROP_GHOST_ALPHA : p.secret ? SECRET_ITEM_ALPHA : 1) })
         // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
         // de formas, e sem isto as alças ficam na posição de onde o prop saiu.
         redrawEditHandles()
@@ -2759,6 +2825,7 @@ export function PixiCanvas({
       void redrawBackground()
       gridAlignOverlayRedrawRef.current = redrawGridAlignOverlay
       redrawGridAlignOverlay(gridAlignPreview)
+      gradeDaBatalhaRedrawRef.current = (ligada) => gradeDaBatalha.definir(ligada, sceneState().map)
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
       const redrawScene = () => {
@@ -2902,6 +2969,7 @@ export function PixiCanvas({
         redrawMapBounds()
         // A textura repetida também é recortada à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
+        fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
       })
       // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
       // mudar de tamanho sem esse evento (layout, WebView2 maximizando) e o
@@ -2949,10 +3017,6 @@ export function PixiCanvas({
         if (state.pontoAberto !== previous.pontoAberto) redrawShapeLayers(['patrolRoutes'])
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
-      // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
-      const unsubscribeTurn = useInitiativeStore.subscribe((state, previous) => {
-        if (state.turn !== previous.turn) redrawTokens()
-      })
       // A store só troca de referência quando o conjunto de fichas fora da mesa muda.
       const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
         if (state.tokenIds !== previous.tokenIds) redrawTokens()
@@ -8753,7 +8817,6 @@ export function PixiCanvas({
         telhadosRenderer.destruir()
         unsubscribePontoAberto()
         unsubscribeTokens()
-        unsubscribeTurn()
         unsubscribeAwayTokens()
         unsubscribeContinente()
         unsubscribeDonos()
@@ -8785,6 +8848,8 @@ export function PixiCanvas({
         nuvens.destruir()
         // E as chamas das fogueiras (com as formas compartilhadas delas).
         propsRenderer.destruir()
+        // E os fogos (saem do relógio antes do app).
+        fogos.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)
@@ -8793,6 +8858,7 @@ export function PixiCanvas({
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
         gridAlignOverlayRedrawRef.current = null
+        gradeDaBatalhaRedrawRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
         editingRoomRef.current = null

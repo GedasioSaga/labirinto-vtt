@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container, EventBoundary, FederatedPointerEvent, Graphics, Text, type Ticker } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useMapStore } from '../stores/mapStore'
-import { useInitiativeStore } from '../stores/initiativeStore'
 import { useFollowStore } from '../stores/followStore'
 import { hostPlayerChanges } from '../net/playerChanges'
 import { RECENTER_MS } from '../player/edgeFollow'
@@ -13,7 +12,7 @@ import { theme } from '../theme'
 import type { Camera } from './world'
 import type { MapData, Region, Token } from '../types/map'
 import { PixiCanvas } from './PixiCanvas'
-import { TOKEN_LIFT_SCALE, TURN_RING_LABEL } from './tokensRenderer'
+import { TOKEN_LIFT_SCALE } from './tokensRenderer'
 import { roomLabelPosition } from './drawRoomNames'
 import { ZOOM_DA_RODA_PARADA_MS } from './zoomDaRoda'
 
@@ -63,7 +62,6 @@ const GRADE = 64
 const MAPA_ID = 'm_canvas_movimento'
 const LEVANTAR_MS = Number.parseFloat(theme.motion.fast)
 const ASSENTAR_MS = Number.parseFloat(theme.motion.base)
-const PULSO_MS = Number.parseFloat(theme.motion.base)
 
 const QUARTO: Region = {
   id: 'quarto',
@@ -117,7 +115,6 @@ beforeEach(() => {
     snapTargets: { token: false, wall: false, prop: false },
     camera: { x: 0, y: 0, scale: 1 },
   })
-  useInitiativeStore.getState().reset()
   useFollowStore.setState({ playerId: null })
   raiz = document.createElement('div')
   document.body.appendChild(raiz)
@@ -129,7 +126,6 @@ afterEach(() => {
   raiz.remove()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  useInitiativeStore.getState().reset()
   useFollowStore.setState({ playerId: null })
 })
 
@@ -211,10 +207,6 @@ function wrapperDaFicha(nome: string): Container {
   return pai
 }
 
-function anelDaVez(nome: string): Graphics | undefined {
-  return wrapperDaFicha(nome).children.find((c): c is Graphics => c instanceof Graphics && c.label === TURN_RING_LABEL)
-}
-
 /** Largura (px de mundo) do contorno azul de hover desenhado agora, ou `null` sem contorno. */
 function larguraDoHover(): number | null {
   for (const no of descendentes(app().stage)) {
@@ -293,28 +285,6 @@ describe('PixiCanvas — ficha levanta ao ser arrastada (M20)', () => {
     quadro(ASSENTAR_MS)
     expect(wrapperDaFicha('Lanterna').scale.x).toBe(1)
     expect(useMapStore.getState().map.tokens.find((t) => t.id === 'lanterna')).toMatchObject({ x: 300, y: 160 })
-  })
-})
-
-describe('PixiCanvas — anel da vez entra com pulso (M21)', () => {
-  // O Shift+N que passava a vez saiu com a Iniciativa (modo batalha, B3); o
-  // anel continua até a B4 tirar o `turn` do host.
-  it('a vez passa: o anel fecha sobre a ficha; o Shift+N não passa mais a vez', async () => {
-    useInitiativeStore.setState({ values: { [MAPA_ID]: { lanterna: 20, machado: 10 } } })
-    await monta()
-    congelaRelogio()
-
-    act(() => useInitiativeStore.getState().setTurn({ mapId: MAPA_ID, tokenId: 'lanterna' }))
-    expect(anelDaVez('Lanterna')?.alpha).toBe(0)
-    quadro(PULSO_MS)
-    expect(anelDaVez('Lanterna')?.alpha).toBe(1)
-    expect(anelDaVez('Lanterna')?.scale.x).toBe(1)
-
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'N', shiftKey: true, bubbles: true }))
-    })
-    expect(useInitiativeStore.getState().turn).toEqual({ mapId: MAPA_ID, tokenId: 'lanterna' })
-    expect(anelDaVez('Machado')).toBeUndefined()
   })
 })
 

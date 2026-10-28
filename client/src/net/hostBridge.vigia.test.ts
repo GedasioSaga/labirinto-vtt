@@ -96,8 +96,8 @@ describe('hostBridge: "Guarda viu <jogador>"', () => {
     entra('c1', 'Ana', 'ficha-ana')
     expect(avisos()).toContain('Guarda viu Ana')
     // Snapshots seguintes com Ana parada no mesmo lugar não repetem o aviso.
-    bridge.notifyTurnChanged()
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos().filter((t) => t === 'Guarda viu Ana')).toHaveLength(1)
   })
 
@@ -105,15 +105,15 @@ describe('hostBridge: "Guarda viu <jogador>"', () => {
     const { bridge, entra, estado } = await sala()
     entra('c1', 'Ana', 'ficha-ana')
     estado.ana = { x: 100, y: 100 }
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     estado.ana = { x: 425, y: 325 }
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos().filter((t) => t === 'Guarda viu Ana')).toHaveLength(2)
   })
 
   it('ficha que não é de jogador na frente do guarda não avisa nada', async () => {
     const { bridge } = await sala()
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos().some((t) => t.includes(' viu '))).toBe(false)
   })
 
@@ -122,7 +122,7 @@ describe('hostBridge: "Guarda viu <jogador>"', () => {
     entra('c2', 'Bia', 'ficha-bia')
     expect(avisos().some((t) => t.includes('viu Bia'))).toBe(false)
     estado.biaNaTorre = true
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos()).toContain('Sentinela viu Bia em Torre')
   })
 })

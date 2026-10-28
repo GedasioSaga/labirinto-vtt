@@ -1,5 +1,6 @@
 import { BufferImageSource, Container, Graphics, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js'
-import type { Light, MapData, Periodo, RegionPoint } from '../types/map'
+import type { Light, MapData, Periodo, Prop, RegionPoint } from '../types/map'
+import { CASA_DO_FOGO_PX } from '../lib/mobilia/fogo'
 import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
 import { computeVisibility, type Segment } from '../lib/visibility'
 
@@ -186,6 +187,70 @@ export function luzesDoMapa(luzes: readonly Light[], obstaculos: Segment[], fato
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Parte pura: a luz do objeto Fogo
+// ───────────────────────────────────────────────────────────────────────────
+
+/** O que a luz do fogo lê do objeto. */
+export type FogoQueIlumina = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'mobilia' | 'hidden'>
+
+/**
+ * A LUZ DO FOGO (decisão do mestre, 27/10/2026): à noite o objeto Fogo acende
+ * uma luz no mapa, como um lampião, no tom do fogo. Alcance: meia diagonal da
+ * pegada mais 2,5 casas (3,2 casas na Chama, 5 no Incêndio).
+ */
+export const COR_DA_LUZ_DO_FOGO = 0xf2a65a
+export const FORCA_DA_LUZ_DO_FOGO = 0.85
+const ALCANCE_ALEM_DA_PEGADA = 2.5 * CASA_DO_FOGO_PX
+
+/** FNV-1a do id, em [0, 1): o tremor de cada fogo no seu passo, igual nas duas telas. */
+function faseDoId(id: string): number {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < id.length; i += 1) hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193)
+  return (hash >>> 0) / 2 ** 32
+}
+
+/** Uma luz de fogo pronta: a luz de sempre e a fase do tremor. */
+export interface LuzDoFogo extends LuzNoMapa {
+  fase: number
+}
+
+/** A luz de cada fogo (`hidden` não ilumina), recortada pela parede como as outras luzes. */
+/**
+ * O conteúdo que muda a luz dos fogos. O jogador recebe snapshot novo (listas
+ * novas) a cada pacote: comparar a lista por identidade refaria o mapa de luz sem
+ * nada ter mudado.
+ */
+function conteudoDosFogos(fogos: readonly FogoQueIlumina[] | undefined): string {
+  let chave = ''
+  for (const f of fogos ?? []) if (f.mobilia === 'fogo' && f.hidden !== true) chave += `${f.id}|${f.x}|${f.y}|${f.width}|${f.height};`
+  return chave
+}
+
+export function luzesDosFogos(fogos: readonly FogoQueIlumina[], obstaculos: Segment[], fatorDaLuz: number, cache?: CacheDePoligonos): LuzDoFogo[] {
+  const fator = grampear01(fatorDaLuz)
+  if (fator === 0) return []
+  const saida: LuzDoFogo[] = []
+  for (const f of fogos) {
+    if (f.mobilia !== 'fogo' || f.hidden === true || !Number.isFinite(f.x) || !Number.isFinite(f.y) || !(f.width > 0) || !(f.height > 0)) continue
+    const raio = 0.5 * Math.hypot(f.width, f.height) + ALCANCE_ALEM_DA_PEGADA
+    const chave = `${f.id}|${f.x}|${f.y}|${raio}`
+    const guardado = cache?.get(chave)
+    const poligono = guardado !== undefined && guardado.obstaculos === obstaculos ? guardado.poligono : computeVisibility({ x: f.x, y: f.y }, obstaculos, raio)
+    cache?.set(chave, { obstaculos, poligono })
+    if (poligono.length < 3) continue
+    saida.push({ id: f.id, x: f.x, y: f.y, raio, cor: COR_DA_LUZ_DO_FOGO, forca: FORCA_DA_LUZ_DO_FOGO * fator, poligono, fase: faseDoId(f.id) })
+  }
+  return saida
+}
+
+/** O tremor leve da luz do fogo no instante `tempoMs`: entre 0,84 e 1 da força, sem salto. */
+export function tremorDoFogo(tempoMs: number, fase: number): number {
+  const s = tempoMs / 1000
+  const volta = 2 * Math.PI
+  return 0.92 + 0.05 * Math.sin(volta * (1.7 * s + fase)) + 0.03 * Math.sin(volta * (4.3 * s + 2 * fase))
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Parte pura: a chave de revisão
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -284,6 +349,12 @@ export interface QuadroDoMapaDeLuz {
   mapa: { largura: number; altura: number }
   vista: Vista
   fichas: readonly FichaComContorno[]
+  /**
+   * Os objetos do mapa: o Fogo acende luz (`luzesDosFogos`). No jogador, a lista
+   * já recortada pela visão: fogo que ele não vê não ilumina. A MESMA lista
+   * (referência) entre quadros não refaz a geometria. Ausente = sem luz de fogo.
+   */
+  fogos?: readonly FogoQueIlumina[]
 }
 
 export interface MedidasDoMapaDeLuz {
@@ -305,6 +376,15 @@ export interface MapaDeLuz {
   /** `null` = sem tinta (dia): esconde tudo e não desenha. */
   atualizar(quadro: QuadroDoMapaDeLuz | null): void
   destruir(): void
+}
+
+/** O tremor da luz do fogo é redesenhado a 10 quadros por segundo, e só com fogo aceso na vista. */
+const QUADRO_DO_TREMOR_MS = 100
+/** De quanto em quanto tempo o mapa de luz relê o "menos movimento" do sistema (com ele, o tremor para). */
+const CONFERIR_MOVIMENTO_MS = 1000
+
+function prefereMenosMovimento(): boolean {
+  return typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
 }
 
 /** Lado da textura da queda; a borda fica transparente porque o preenchimento global repete a textura. */
@@ -362,7 +442,20 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
   const fundo = new Graphics()
   const claros = new Graphics()
   claros.blendMode = 'add'
-  palco.addChild(fundo, claros)
+  // A luz de cada fogo num Graphics próprio: o tremor só troca o alpha dele, sem refazer a geometria.
+  const clarosDosFogos = new Container()
+  palco.addChild(fundo, claros, clarosDosFogos)
+  let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
+  const poligonosDosFogos: CacheDePoligonos = new Map()
+  let fogosLidos: readonly FogoQueIlumina[] | undefined
+  let revisaoDosFogos: string | null = null
+  let chaveDosFogos: string | null = null
+  let versaoDosFogos = 0
+  let passoDoTremor = -1
+  let reduzido = prefereMenosMovimento()
+  let movimentoConferidoEm = 0
+  // Os obstáculos da revisão de agora: arrastar um móvel troca a lista de objetos, não as paredes.
+  let obstaculosGuardados: { revisao: number; lista: Segment[] } | null = null
 
   const poligonos: CacheDePoligonos = new Map()
   const transformacao = new Matrix()
@@ -388,6 +481,60 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     }
   }
 
+  /** A luz dos fogos: refeita só quando a lista, a parede ou o período mudam. */
+  function refazerFogos(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {
+    const revisao = `${quadro.revisao}|${tinta.fatorDaLuz}`
+    if (quadro.fogos === fogosLidos && revisao === revisaoDosFogos) return
+    fogosLidos = quadro.fogos
+    revisaoDosFogos = revisao
+    // Lista nova com os mesmos fogos (snapshot novo do jogador, outro objeto que mudou): nada a refazer.
+    const chave = `${revisao}|${conteudoDosFogos(quadro.fogos)}`
+    if (chave === chaveDosFogos) return
+    chaveDosFogos = chave
+    versaoDosFogos += 1
+    for (const luz of luzesDosFogosNoPalco) luz.desenho.destroy()
+    luzesDosFogosNoPalco = []
+    const lista = quadro.fogos ?? []
+    // Mapa sem fogo não pede os obstáculos nem cria nada.
+    if (!lista.some((p) => p.mobilia === 'fogo')) {
+      poligonosDosFogos.clear()
+      return
+    }
+    if (obstaculosGuardados === null || obstaculosGuardados.revisao !== quadro.revisao) obstaculosGuardados = { revisao: quadro.revisao, lista: quadro.obstaculos() }
+    const luzes = luzesDosFogos(lista, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos)
+    const vivas = new Set(luzes.map((l) => `${l.id}|${l.x}|${l.y}|${l.raio}`))
+    for (const chaveDaLuz of poligonosDosFogos.keys()) if (!vivas.has(chaveDaLuz)) poligonosDosFogos.delete(chaveDaLuz)
+    for (const luz of luzes) {
+      const desenho = new Graphics()
+      desenho.blendMode = 'add'
+      desenho.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: 1 })
+      desenho.alpha = luz.forca
+      clarosDosFogos.addChild(desenho)
+      luzesDosFogosNoPalco.push({ desenho, fase: luz.fase, forca: luz.forca, caixa: { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio } })
+    }
+    passoDoTremor = -1
+  }
+
+  /** O tremor leve: com fogo aceso na vista e movimento normal, um passo a cada 100 ms; senão, a força parada. */
+  function tremer(quadro: QuadroDoMapaDeLuz): void {
+    if (luzesDosFogosNoPalco.length === 0) return
+    const agora = performance.now()
+    if (Math.abs(agora - movimentoConferidoEm) >= CONFERIR_MOVIMENTO_MS) {
+      movimentoConferidoEm = agora
+      reduzido = prefereMenosMovimento()
+    }
+    const escala = quadro.vista.escala > 0 && Number.isFinite(quadro.vista.escala) ? quadro.vista.escala : 1
+    const minX = -quadro.vista.x / escala
+    const minY = -quadro.vista.y / escala
+    const maxX = minX + quadro.vista.largura / escala
+    const maxY = minY + quadro.vista.altura / escala
+    const naVista = luzesDosFogosNoPalco.some(({ caixa }) => caixa.minX <= maxX && caixa.maxX >= minX && caixa.minY <= maxY && caixa.maxY >= minY)
+    const passo = reduzido || !naVista ? -1 : Math.floor(agora / QUADRO_DO_TREMOR_MS)
+    if (passo === passoDoTremor) return
+    passoDoTremor = passo
+    for (const luz of luzesDosFogosNoPalco) luz.desenho.alpha = passo < 0 ? luz.forca : luz.forca * tremorDoFogo(passo * QUADRO_DO_TREMOR_MS, luz.fase)
+  }
+
   function refazerFundo(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {
     const chave = `${tinta.rgb}|${quadro.mapa.largura}|${quadro.mapa.altura}`
     if (chave === chaveDoFundo) return
@@ -404,7 +551,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
   }
 
   function desenhar(quadro: QuadroDoMapaDeLuz): void {
-    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}`
+    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}|${versaoDosFogos}|${passoDoTremor}`
     if (chave === chaveDoDesenho) return
     chaveDoDesenho = chave
     const largura = Math.max(1, Math.ceil(quadro.vista.largura * ESCALA_DO_MAPA_DE_LUZ))
@@ -447,6 +594,8 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     const inicio = performance.now()
     const refeitosAntes = medidas.refeitos
     refazerGeometria(quadro, tinta)
+    refazerFogos(quadro, tinta)
+    tremer(quadro)
     refazerFundo(quadro, tinta)
     desenhar(quadro)
     posicionarSprite(quadro.vista)
@@ -469,6 +618,9 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     textura.destroy(true)
     queda.destroy(true)
     poligonos.clear()
+    poligonosDosFogos.clear()
+    luzesDosFogosNoPalco = []
+    obstaculosGuardados = null
   }
 
   return { sprite, contorno, medidas, atualizar, destruir }

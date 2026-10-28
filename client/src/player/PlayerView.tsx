@@ -85,13 +85,15 @@ import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
+import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
 import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
 import { faseDoMarcador } from '../pixi/drawMarcadorDeContinente'
 import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from '../pixi/vistaDoMarcador'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
+import { criarGradeDaBatalha, type GradeDaBatalha } from '../pixi/gradeDaBatalha'
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
@@ -193,8 +195,8 @@ interface PlayerViewProps {
    * de antes da Luz.
    */
   luz?: LuzDoJogador | null
-  /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
-  turnTokenId?: string | null
+  /** MODO BATALHA (B5): a cena está em batalha (`snapshot.batalha`); a grade de batalha aparece por cima do mapa. */
+  batalha?: boolean
   /**
    * ENCONTRO MARCADO: fichas com a marca "esperando" (o nome ganha
    * "· esperando"). Já vem do recorte do mestre: só ficha que o jogador vê.
@@ -621,7 +623,7 @@ function roomLabelObstacles(map: MapData): LabelObstacle[] {
  * máscara da foto, e as marcas de condição); a textura chega depois e é
  * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false, waiting = false): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, waiting = false): void {
   const radius = tokenRadius(token, grid)
   // MAPA DE CONTINENTE: o recorte só põe `pino` em ficha de jogador numa cena Continente.
   const pino = typeof token.pino === 'string' ? token.pino : null
@@ -659,8 +661,6 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
       .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
   }
-  // A ficha da vez: o mesmo anel solto do mapa do mestre (pixi/tokensRenderer.ts).
-  if (turn) view.body.circle(0, 0, radius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
   // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
   const health = readTokenHealth(token.health)
   drawTokenHealthBar(view.bar, radius, health)
@@ -845,7 +845,7 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
 }
 
 /** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
-export function createTokenView(token: Token, grid: number, own: boolean, turn = false, waiting = false): TokenView {
+export function createTokenView(token: Token, grid: number, own: boolean, waiting = false): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -897,13 +897,13 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
     alert,
     lock,
     frost,
-    key: tokenViewKey(token, grid, own, turn, waiting),
+    key: tokenViewKey(token, grid, own, waiting),
     pino: null,
     marcador: null,
     loadedPhoto: null,
     loadSeq: 0,
   }
-  paintTokenView(view, token, grid, own, turn, waiting)
+  paintTokenView(view, token, grid, own, waiting)
   return view
 }
 
@@ -935,15 +935,14 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false, waiting = false): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean, waiting = false): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
   // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
   const health = readTokenHealth(token.health)
   const healthKey = health === null ? null : [health.current, health.max]
   // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
-  // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
-  // que ganham/perdem o anel.
+  // mandar repintar nada.
   // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
   // `waiting` idem: a marca "esperando" (ENCONTRO MARCADO) entra e sai sem o nome mudar.
   // A marca de companheiro também: a ficha que deixa de ser de jogador (ou passa a ser) repinta na hora.
@@ -958,7 +957,6 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
     token.color ?? null,
     healthKey,
     tokenConditionsOf(token),
-    turn,
     watchAlertOf(token),
     waiting,
     token.companion ?? null,
@@ -1158,6 +1156,8 @@ interface Scene {
    * recortadas pelo que ele conhece, debaixo do relevo.
    */
   texturas: TexturasRenderer
+  /** MODO BATALHA (B5): a grade de batalha, recortada à vista com folga (`pixi/gradeDaBatalha.ts`). */
+  gradeDaBatalha: GradeDaBatalha
   /**
    * CARIMBOS (`pixi/drawCarimbos.ts`): SÓ os objetos do recorte deste jogador
    * (`carimbosParaJogador`: base no que ele conhece), sob a névoa e ainda
@@ -1171,6 +1171,8 @@ interface Scene {
    * revelado), abaixo de bilhetes, pinos e fichas.
    */
   nomesDosLugares: NomesDosLugaresRenderer
+  /** OBJETO FOGO (`pixi/fogosDoMapa.ts`): as chamas por cima dos telhados, dos objetos que o recorte deixou passar; só as da vista animam. */
+  fogos: FogosDoMapa
   /**
    * NUVENS (`pixi/drawNuvens.ts`): as mesmas do mestre (tamanho do mapa e
    * relógio de parede), SOB a névoa: o preto opaco do nunca visto cobre o
@@ -1371,8 +1373,18 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.world.scale.set(scene.camera.scale)
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  ajustarGradeDaBatalhaAVista(scene)
+  scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
+}
+
+/** MODO BATALHA (B5): a grade de batalha segue a câmera; dentro da folga já desenhada, não refaz nada. */
+function ajustarGradeDaBatalhaAVista(scene: Scene): void {
+  const { camera } = scene
+  const { width, height } = scene.app.screen
+  const vista = { left: -camera.x / camera.scale, top: -camera.y / camera.scale, right: (width - camera.x) / camera.scale, bottom: (height - camera.y) / camera.scale }
+  scene.gradeDaBatalha.ajustarAVista(vista, camera.scale, scene.app.renderer.resolution)
 }
 
 /**
@@ -1859,7 +1871,7 @@ function PlayerViewDoCanvas({
   porAtravessar = NO_DOORS_TO_CROSS,
   ownTokens,
   luz = null,
-  turnTokenId = null,
+  batalha = false,
   waitingTokens = NO_WAITING,
   settings,
   focusTokenId,
@@ -1930,7 +1942,7 @@ function PlayerViewDoCanvas({
     porAtravessar,
     ownTokens,
     luz,
-    turnTokenId,
+    batalha,
     waitingTokens,
     settings,
     onMove,
@@ -2185,6 +2197,8 @@ function PlayerViewDoCanvas({
     scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
     if (showGrid) drawPlayerGrid(scene.grid, currentMap, pixel)
     else scene.grid.clear()
+    // DESEMPENHO (F8): grade desligada fora do desenho; vazia, ainda pagava a máscara de stencil do piso a cada quadro.
+    scene.grid.renderable = showGrid
   }
 
   function redrawStairsLayer(scene: Scene): void {
@@ -2231,6 +2245,8 @@ function PlayerViewDoCanvas({
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('chamasCamada'), deObjeto)) {
       sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale, vistaDosMoveis })
     }
+    // O objeto Fogo que sai da visão (e do telhado à vista) some junto: fogo na névoa nem é criado.
+    scene.fogos.sincronizar(props, { cameraScale: scale, grade: currentMap.grid })
     const pares = nosEmPar(scene.pilha.nosDaFaixa('propImages'), scene.pilha.nosDaFaixa('propLabels'))
     const contagem: PropLooksCount = { images: 0, labels: 0 }
     distribuir(props, pares.map((par) => par.imagem), deObjeto).forEach(({ itens }, i) => {
@@ -2653,7 +2669,6 @@ function PlayerViewDoCanvas({
       glimpses: currentGlimpses,
       peek: currentPeek,
       ownTokens: own,
-      turnTokenId: currentTurn,
       waitingTokens: waiting,
       settings: currentSettings,
     } = latestRef.current
@@ -2666,6 +2681,8 @@ function PlayerViewDoCanvas({
     const worldHeight = currentMap.height * currentMap.grid
 
     redrawGridLayer(scene)
+    // MODO BATALHA (B5): barato sem mudança (`definir` compara batalha e grade do mapa).
+    scene.gradeDaBatalha.definir(latestRef.current.batalha, currentMap)
     // Chão só da vizinhança conhecida: o contorno (caro) sai de dezenas de
     // peças, não das milhares da cena. Ordem preservada (peça que apaga).
     // Render fiel fica com o chão INTEIRO: ele rasteriza o mapa todo de uma
@@ -2856,9 +2873,8 @@ function PlayerViewDoCanvas({
     const noDaFicha = noDoItem(scene.pilha.nosDaFaixa('tokens'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
-      const isTurn = token.id === currentTurn
       const isWaiting = waitingSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn, isWaiting)
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isWaiting)
       let view = scene.tokenViews.get(token.id)
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
@@ -2867,13 +2883,13 @@ function PlayerViewDoCanvas({
       const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn, isTurn, isWaiting)
+        view = createTokenView(token, currentMap.grid, isOwn, isWaiting)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn, isTurn, isWaiting)
+        paintTokenView(view, token, currentMap.grid, isOwn, isWaiting)
       }
       const noDela = noDaFicha === undefined ? scene.tokens : noDaFicha(token)
       if (view.wrapper.parent !== noDela) noDela.addChild(view.wrapper)
@@ -3162,6 +3178,8 @@ function PlayerViewDoCanvas({
       texturasContainer.eventMode = 'none'
       texturasContainer.visible = false
       const texturas = createTexturasRenderer({
+        // F7: a pilha de camadas vira uma textura composta (um sprite por quadro, não uma máscara por camada).
+        palco: { renderer: app.renderer, ticker: app.ticker },
         aoMudarVisibilidade: (visivel) => {
           if (!texturasContainer.destroyed) texturasContainer.visible = visivel
         },
@@ -3189,6 +3207,14 @@ function PlayerViewDoCanvas({
       carimbosContainer.addChild(carimbos.camada)
       carimbosContainer.mask = carimbosMask
       const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const fogos = createFogosDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.fogos = String(estado.fogos)
+          el.dataset.fogosNaVista = String(estado.naVista)
+          el.dataset.fogosAnimando = String(estado.animando)
+        },
+      })
       // NUVENS: sem máscara própria (a névoa opaca já as cobre fora do conhecido,
       // e máscara visível pagaria o stencil a cada quadro). O relógio só roda com
       // elas andando: desligadas (chave, "Efeitos do mapa", modo leve) ou paradas, nada.
@@ -3215,6 +3241,8 @@ function PlayerViewDoCanvas({
       const portasNoTelhado = new Graphics()
       portasNoTelhado.label = 'portasNoTelhado'
       portasNoTelhado.eventMode = 'none'
+      // MODO BATALHA (B5): a grade de batalha acima da névoa e dos telhados, abaixo de pílulas, marcas, pinos e fichas.
+      const gradeDaBatalha = criarGradeDaBatalha()
       const pins = new Container()
       const marks = new Graphics()
       const lastSeen = new Container()
@@ -3303,6 +3331,9 @@ function PlayerViewDoCanvas({
         // PORTA POR CIMA DO TELHADO: a porta de fora que o jogador vê ou já viu,
         // acima do telhado (senão ele não acha por onde entrar) e abaixo de nomes, pinos e fichas.
         portasNoTelhado,
+        // FOGO por cima do telhado (a casa queimando vista de fora): só o que o recorte mandou (`fogFilter.ts`).
+        fogos: fogos.camada,
+        gradeDaBatalha: gradeDaBatalha.camada,
         // NOMES DOS LUGARES acima da névoa (só o lugar já conhecido tem pílula,
         // `lugaresConhecidos`) e abaixo de bilhete, pino e ficha, que seguem legíveis por cima.
         nomesDosLugares: nomesDosLugares.camada,
@@ -3477,8 +3508,10 @@ function PlayerViewDoCanvas({
         luzesPorNo,
         relevo,
         texturas,
+        gradeDaBatalha,
         carimbos,
         nomesDosLugares,
+        fogos,
         nuvens,
         lugaresKey: emptyContentKey(),
         lugares: [],
@@ -3583,6 +3616,7 @@ function PlayerViewDoCanvas({
         reportZoomLimits(scene.camera.scale)
       }
       sceneRef.current = scene
+      ajustarGradeDaBatalhaAVista(scene)
 
       // Degrau dos botões + e −. Primeiro ticker de propósito: sinais, laser e
       // régua do mesmo quadro já se desenham com a câmera nova.
@@ -3865,6 +3899,8 @@ function PlayerViewDoCanvas({
           mapa: { largura: m.width * m.grid, altura: m.height * m.grid },
           vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
           fichas,
+          // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
+          fogos: m.props,
         })
         const { refeitos, ultimoMs, maiorMs } = scene.mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
@@ -4297,6 +4333,7 @@ function PlayerViewDoCanvas({
         // Os nós criados da pilha (e as chamas deles) antes da de hoje.
         scene.pilha.destruir()
         scene.chamas.destruir()
+        scene.fogos.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
@@ -4331,7 +4368,12 @@ function PlayerViewDoCanvas({
     const scene = sceneRef.current
     if (scene) redraw(scene)
     // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, turnTokenId, settings, arrivalKey])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, settings, arrivalKey])
+
+  // MODO BATALHA (B5): ligar ou desligar a batalha só mexe na grade de batalha, sem redesenhar a cena.
+  useEffect(() => {
+    sceneRef.current?.gradeDaBatalha.definir(batalha, latestRef.current.map)
+  }, [batalha])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

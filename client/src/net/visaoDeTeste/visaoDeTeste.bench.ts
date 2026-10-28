@@ -94,8 +94,8 @@ describe('Visão de jogador, 990 paredes, 1 jogador', () => {
 
   bench('broadcast inteiro da ponte de teste depois de o mestre mexer', () => {
     useMapStore.setState({ map: mapaArrastado() })
-    // `notifyTurnChanged` manda na hora (`broadcastNow`): o mesmo trabalho do broadcast do arrasto, sem esperar o intervalo.
-    ponte.notifyTurnChanged()
+    // `notifyBatalhaChanged` manda na hora (`broadcastNow`): o mesmo trabalho do broadcast do arrasto, sem esperar o intervalo.
+    ponte.notifyBatalhaChanged()
   })
 
   bench('arrasto de parede de 1 s com o teste aberto (um passo a cada 16 ms)', () => arrastar(false), { iterations: 3, warmupIterations: 0, time: 0 })

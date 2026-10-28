@@ -171,6 +171,8 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   arcoDoPortao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('placa', 'Placa', MADEIRAS, 'pinho')],
   placaDeSeta: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   tapeteLongo: [lugar('tecido', 'Tecido', TECIDOS, 'vinho')],
+  // Objeto Fogo: sem material (o chão queimado e as brasas têm cor própria, como a chama da fogueira).
+  fogo: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

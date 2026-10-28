@@ -26,7 +26,6 @@ import { createEmptyMap, setTokenPosition } from '../src/lib/mapFactory'
 import { boardVehicle, leaveVehicle, passengerIdsOf } from '../src/lib/vehicle'
 import { PIN_HEAD_OFFSET } from '../src/lib/pins'
 import { fitCamera } from '../src/pixi/world'
-import type { TurnRef } from '../src/lib/initiative'
 import type { MapData, Pin, Token } from '../src/types/map'
 
 test.use({ trace: 'off', video: 'off' })
@@ -103,9 +102,9 @@ function transferir(world: HostWorld, t: AppliedTransfer): HostWorld {
 /** A mesa: uma sessão real, o mundo do mestre e as telas ligadas a ela. */
 function criarMesa() {
   let world = mundoInicial()
-  let turno: TurnRef | null = null
+  let emBatalha = false
   let n = 0
-  const session = createHostSession({ code: CODE, visionRadius: 2000, randomId: () => `id-${++n}`, getTurn: () => turno })
+  const session = createHostSession({ code: CODE, visionRadius: 2000, randomId: () => `id-${++n}`, getBatalha: () => emBatalha })
   const sockets = new Map<string, WebSocketRoute>()
   const idDe = new Map<string, string>()
   const despachar = (r: HostResult) => {
@@ -163,11 +162,11 @@ function criarMesa() {
     despachar(session.assignToken(pid, tokenId))
     despachar(session.broadcast(world))
   }
-  const vez = (ref: TurnRef | null) => {
-    turno = ref
+  const batalha = (ligada: boolean) => {
+    emBatalha = ligada
     despachar(session.broadcast(world))
   }
-  return { ligar, atribuir, vez, mapa: (sceneId: string) => cenaDe(sceneId)?.map ?? null }
+  return { ligar, atribuir, batalha, mapa: (sceneId: string) => cenaDe(sceneId)?.map ?? null }
 }
 
 async function entrar(browser: Browser, mesa: ReturnType<typeof criarMesa>, clientId: string, nome: string, tokenId: string): Promise<Page> {
@@ -261,16 +260,13 @@ test('a motorista passa pelo poço levando o cesto e a passageira; a passageira 
   await foto(gui, '2-gui-chegou-no-cesto')
   await foto(bia, '3-bia-chegou-a-bordo')
 
-  // 4. INICIATIVA no Poço: na vez da Bia, o Gui não ganha o "Descer"; na vez dele, ganha.
+  // 4. BATALHA no Poço (modo batalha, B4): não há vez; ligar a batalha não tira o "Descer" de ninguém.
   const descerGui = gui.getByRole('button', { name: 'Descer do veículo' })
   await expect(descerGui).toBeVisible({ timeout: ESPERA })
-  mesa.vez({ mapId: 'm-poco', tokenId: 'bia' })
-  await expect(descerGui).toBeHidden({ timeout: ESPERA })
+  mesa.batalha(true)
+  await gui.waitForTimeout(600)
+  await expect(descerGui).toBeVisible()
   await expect(gui.getByText('No veículo · motorista', { exact: true })).toBeVisible()
   await expect(bia.getByRole('button', { name: 'Descer do veículo' })).toBeVisible({ timeout: ESPERA })
-  await foto(gui, '4-gui-fora-da-vez')
-  mesa.vez({ mapId: 'm-poco', tokenId: 'gui' })
-  await expect(descerGui).toBeVisible({ timeout: ESPERA })
-  await expect(bia.getByRole('button', { name: 'Descer do veículo' })).toBeHidden({ timeout: ESPERA })
-  await foto(gui, '5-gui-na-vez')
+  await foto(gui, '4-gui-em-batalha')
 })

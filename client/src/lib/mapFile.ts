@@ -69,7 +69,6 @@ import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
 import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
-import { confrontoFromFile } from './confronto'
 import { perigosFromFile } from './perigo'
 import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
 import { readPinLeverDoor } from './lever'
@@ -657,14 +656,12 @@ function deserializeMapFields(json: string): MapData {
     throw new Error('map.json inválido: campo "id" ausente ou não é string')
   }
 
-  // CONFRONTO é campo NOVO e OPCIONAL: ausente continua ausente (mapa velho
-  // abre sem confronto e sem ganhar chave), torto some (`confrontoFromFile`).
-  const confronto = confrontoFromFile(parsed.confronto)
-  // PERIGO QUE SE ALASTRA: mesma regra — ausente continua ausente, torto some (`perigosFromFile`).
+  // A chave antiga `confronto` (modo de vez, retirado na batalha B4) é ignorada: o mapa
+  // abre igual ao mapa sem ela e a chave some no próximo salvamento.
+  // PERIGO QUE SE ALASTRA: campo opcional — ausente continua ausente, torto some (`perigosFromFile`).
   const perigos = perigosFromFile(parsed.perigos)
 
   return {
-    ...(confronto === undefined ? {} : { confronto }),
     ...(perigos === undefined ? {} : { perigos }),
     id: parsed.id,
     name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',

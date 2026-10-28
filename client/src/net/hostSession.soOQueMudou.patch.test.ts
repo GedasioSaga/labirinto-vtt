@@ -14,7 +14,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Token, Wall } from '../types/map'
 import { createHostSession, PATCH_MIN_SNAPSHOT_LENGTH, type HostResult, type HostSession, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
-import { applyMapPatch, type PlayerViewContent } from './viewPatch'
+import { applyViewPatch, type PlayerViewContent } from './viewPatch'
 
 const CODE = 'AB12CD'
 const RAIO = 500
@@ -85,15 +85,10 @@ function telaDe(snap: Snapshot): PlayerViewContent {
 
 /** O que o jogador faz com o patch: aplica na última tela. Campo ausente = não mudou. */
 function aplicaTela(tela: PlayerViewContent, patch: Patch): PlayerViewContent {
-  const map = patch.map === undefined ? tela.map : applyMapPatch(tela.map, patch.map)
-  if (map === null) throw new Error('patch não encaixou na tela')
-  return {
-    map,
-    vision: patch.vision ?? tela.vision,
-    explored: patch.explored ?? tela.explored,
-    ownTokens: patch.ownTokens ?? tela.ownTokens,
-    concealed: patch.concealed ?? tela.concealed,
-  }
+  // O explorado pode vir em trechos (`exploredEdits`, F9): `applyViewPatch` faz o que o jogador faz.
+  const depois = applyViewPatch(tela, patch)
+  if (depois === null) throw new Error('patch não encaixou na tela')
+  return depois
 }
 
 const peloFio = (valor: unknown): unknown => JSON.parse(JSON.stringify(valor))

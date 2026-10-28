@@ -46,11 +46,13 @@ const EDITOR_HOJE: [string, string[]][] = [
   ['lightsContainer', ['iluminacao']],
   ['watchConesGraphics', []],
   ['patrolRoutesGraphics', []],
+  ['gradeDaBatalha', []],
   ['nomesDosLugaresContainer', ['salas']],
   ['tokensContainer', ['tokens']],
   ['concealZonesContainer', []],
   ['pinsContainer', ['anotacoes']],
   ['telhadosContainer', ['telhados']],
+  ['fogosContainer', []],
   ['fantasmaDeTesteContainer', []],
   ['straightenGhostGraphics', []],
   ['floorSelectionGraphics', []],
@@ -110,6 +112,8 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['peekedRoofs', ['telhados']],
   ['peekMask', ['telhados']],
   ['portasNoTelhado', ['portas']],
+  ['fogos', []],
+  ['gradeDaBatalha', []],
   ['nomesDosLugares', ['salas']],
   ['marks', []],
   ['pins', ['anotacoes']],
@@ -141,7 +145,7 @@ describe('FAIXAS de hoje', () => {
   it('no jogador, tudo da planta fica sob a névoa e só luz de longe, telhado, porta no telhado, pílula, marca, pino e ficha ficam por cima', () => {
     const sobre = FAIXAS_JOGADOR.filter((f) => f.zona === 'sobre-a-nevoa').map((f) => f.id)
     const semZona = FAIXAS_JOGADOR.filter((f) => f.zona === undefined).map((f) => f.id)
-    expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens'])
+    expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens'])
     expect(semZona).toEqual(['fogUnknown', 'knownMask', 'fogDim', 'visionMask', 'concealed'])
   })
 })

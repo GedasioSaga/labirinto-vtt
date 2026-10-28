@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { PlayerConfronto } from '../lib/confronto'
 import { isNearVehicle } from '../lib/vehicle'
 import type { MapData } from '../types/map'
 import { fichaTravada, type TravasDaTela } from './PlayerEscada'
@@ -17,10 +16,6 @@ export interface PlayerVeiculoProps {
   ownTokens: readonly string[]
   /** Cena pausada pelo mestre: nada sobe nem desce. */
   paused: boolean
-  /** INICIATIVA: a ficha da vez, só quando ela veio no recorte (`turnForPlayer`). Ausente = sem vez que ele veja. */
-  turn?: string
-  /** CONFRONTO da cena dele, como o host mandou. */
-  confronto?: PlayerConfronto
   onSubir: (tokenId: string, vehicleId: string) => void
   onDescer: (tokenId: string) => void
   /** O aviso do rodapé (`moveNotice.id`): a recusa ("Veículo cheio") também encerra a espera do botão. */
@@ -40,20 +35,12 @@ export type OfertaDoVeiculo =
  * "Veículo cheio" na recusa.
  *
  * As travas são as da escada (`fichaTravada`), porque o host confere as
- * mesmas no "Subir" e no "Descer" (`travaDaFichaDoJogador`): cadeado, floco
- * e — na INICIATIVA ou no CONFRONTO — a vez de outra ficha. Travada, o botão
- * não aparece (a escada faz igual) em vez de prometer o que o host recusaria
- * com "Espere sua vez"; a faixa "Sua vez" já diz quando voltar a valer. Vez de
- * ficha que ele não vê não chega aqui (`turn` ausente): a tela não pode
- * saber dela sem contar que existe, e o host continua recusando.
+ * mesmas no "Subir" e no "Descer" (`travaDaFichaDoJogador`): cadeado e
+ * floco. Travada, o botão não aparece (a escada faz igual) em vez de prometer
+ * o que o host recusaria.
  */
-export function ofertaDoVeiculo(
-  map: MapData,
-  ownTokens: readonly string[],
-  paused: boolean,
-  vez: Pick<TravasDaTela, 'turn' | 'confronto'> = { turn: undefined, confronto: undefined },
-): OfertaDoVeiculo | null {
-  const travas: TravasDaTela = { ...vez, paused }
+export function ofertaDoVeiculo(map: MapData, ownTokens: readonly string[], paused: boolean): OfertaDoVeiculo | null {
+  const travas: TravasDaTela = { paused }
   const own = new Set(ownTokens)
   const minhas = map.tokens.filter((t) => own.has(t.id))
   const aBordo = minhas.find((t) => t.aBordo !== undefined)
@@ -79,8 +66,8 @@ export function ofertaDoVeiculo(
  * e o botão espera ("Subindo…"/"Descendo…") até o snapshot mudar a oferta ou
  * até `VEICULO_PENDENTE_MAX_MS`.
  */
-export function PlayerVeiculo({ map, ownTokens, paused, turn, confronto, onSubir, onDescer, aviso }: PlayerVeiculoProps) {
-  const oferta = useMemo(() => ofertaDoVeiculo(map, ownTokens, paused, { turn, confronto }), [map, ownTokens, paused, turn, confronto])
+export function PlayerVeiculo({ map, ownTokens, paused, onSubir, onDescer, aviso }: PlayerVeiculoProps) {
+  const oferta = useMemo(() => ofertaDoVeiculo(map, ownTokens, paused), [map, ownTokens, paused])
   const chave = oferta === null ? null : `${oferta.tipo}|${oferta.tokenId}|${oferta.tipo === 'subir' ? oferta.vehicleId : ''}`
   const [pendente, setPendente] = useState<string | null>(null)
 

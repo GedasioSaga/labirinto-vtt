@@ -12,18 +12,30 @@ export interface WorldStateSectionProps {
   onCriar: (nome: string, valores: string) => string | null
   /** Devolve o que mudou, ou `null` quando a troca não valeu. */
   onTrocar: (estadoId: string, valor: string) => ResumoDaTroca | null
+  /**
+   * "PULAR PARA O POSTO" (Caminhos F4): o apito faz as fichas andarem; este
+   * botão, que aparece depois de um apito com fichas a caminho, leva de uma
+   * vez as do valor atual. Devolve quantas pularam. Sem ele, o botão não aparece.
+   */
+  onPular?: (estadoId: string) => number
 }
 
 /** "Maré: baixa. 4 elementos mudaram em 2 cenas." — o aviso depois de um toque. */
 export function trocaText(nome: string, valor: string, resumo: ResumoDaTroca): string {
-  // ROTINA DO NPC: ausente = nenhuma ficha foi ao posto (`ResumoDaTroca.fichas`).
+  // ROTINA DO NPC: ausente = nenhuma ficha vai ao posto (`ResumoDaTroca.fichas`). Elas vão andando (Caminhos F4).
   const fichas = resumo.fichas ?? 0
   if (resumo.elementos === 0 && fichas === 0) return `${nome}: ${valor}. Nenhum elemento mudou.`
   const partes: string[] = []
   if (resumo.elementos > 0) partes.push(resumo.elementos === 1 ? '1 elemento mudou' : `${resumo.elementos} elementos mudaram`)
-  if (fichas > 0) partes.push(fichas === 1 ? '1 ficha foi ao posto' : `${fichas} fichas foram ao posto`)
+  if (fichas > 0) partes.push(fichas === 1 ? '1 ficha vai ao posto' : `${fichas} fichas vão ao posto`)
   const cenas = resumo.cenas === 1 ? '1 cena' : `${resumo.cenas} cenas`
   return `${nome}: ${valor}. ${partes.join(' e ')} em ${cenas}.`
+}
+
+/** "Apito: Meio. 3 fichas pularam para o posto." — o aviso depois de "Pular para o posto". */
+export function puloText(nome: string, valor: string, pularam: number): string {
+  if (pularam === 0) return `${nome}: ${valor}. Todas as fichas já estavam no posto.`
+  return `${nome}: ${valor}. ${pularam === 1 ? '1 ficha pulou para o posto.' : `${pularam} fichas pularam para o posto.`}`
 }
 
 function amarradosText(n: number): string {
@@ -45,9 +57,11 @@ function resumoDosEstados(estados: readonly EstadoDoMundo[]): string | undefined
   return estados.length === 1 ? `${primeiro.nome} ${primeiro.atual}` : `${estados.length} estados`
 }
 
-export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: WorldStateSectionProps) {
+export function WorldStateSection({ estados, amarrados, onCriar, onTrocar, onPular }: WorldStateSectionProps) {
   const baseId = useId()
   const [aviso, setAviso] = useState('')
+  // O último apito com fichas a caminho: o "Pular para o posto" vale para o valor dele até a próxima troca.
+  const [apito, setApito] = useState<{ estadoId: string; nome: string; valor: string } | null>(null)
   const [criando, setCriando] = useState(false)
   const [nome, setNome] = useState('')
   const [valores, setValores] = useState('')
@@ -61,7 +75,15 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
   const trocar = (estado: EstadoDoMundo, valor: string) => {
     if (valor === estado.atual) return
     const resumo = onTrocar(estado.id, valor)
-    if (resumo !== null) setAviso(trocaText(estado.nome, valor, resumo))
+    if (resumo === null) return
+    setAviso(trocaText(estado.nome, valor, resumo))
+    setApito((resumo.fichas ?? 0) > 0 ? { estadoId: estado.id, nome: estado.nome, valor } : null)
+  }
+
+  // O botão fica depois do clique (o foco não cai no vazio); clicar de novo leva quem ainda não chegou.
+  const pular = () => {
+    if (apito === null || onPular === undefined) return
+    setAviso(puloText(apito.nome, apito.valor, onPular(apito.estadoId)))
   }
 
   /** Ao fechar o formulário o foco volta para "Novo estado", que só existe no render seguinte. */
@@ -137,6 +159,11 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
         <p className="lb-world__aviso" role="status">
           {aviso}
         </p>
+        {apito !== null && onPular !== undefined && (
+          <button type="button" className="lb-btn" onClick={pular}>
+            Pular para o posto
+          </button>
+        )}
         {criando ? (
           <form className="lb-world__form" onSubmit={criar} noValidate>
             <div className="lb-field">

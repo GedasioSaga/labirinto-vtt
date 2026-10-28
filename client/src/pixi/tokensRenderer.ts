@@ -3,7 +3,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
 import type { Token } from '../types/map'
-import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import { drawTokenCircle, tokenCircleRadius } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
 import type { HealthAmount } from '../lib/tokenHealth'
@@ -97,17 +97,6 @@ const TOKEN_LIFT_MS = Number.parseFloat(theme.motion.fast)
 const TOKEN_SETTLE_MS = Number.parseFloat(theme.motion.base)
 
 /**
- * ANEL DA VEZ — quando a vez passa, o anel chega de fora, maior e
- * transparente, e fecha sobre a ficha seguinte: o olho do mestre vai direto
- * para quem joga, mesmo num mapa cheio. Troca rara e importante, por isso
- * anima; a do atalho de teclado (Shift+N) não (`semPulsoDaVez`).
- */
-export const TURN_RING_PULSE_FROM_SCALE = 1.25
-const TURN_RING_PULSE_MS = Number.parseFloat(theme.motion.base)
-/** Nome (`Container.label`) do anel da vez no wrapper — é por ele que o teste o acha. */
-export const TURN_RING_LABEL = 'vez'
-
-/**
  * O que o renderer precisa para animar. Sem isto (exportação de imagem,
  * testes), nada anima: a ficha vai direto ao estado final.
  */
@@ -134,15 +123,14 @@ export interface TokenGlideContext {
 
 export interface TokensRenderer {
   /**
-   * `cameraScale` omitido mantém o último zoom informado. `turnTokenId`: a
-   * ficha da vez na iniciativa, que ganha o anel da vez (`TURN_RING_*`).
+   * `cameraScale` omitido mantém o último zoom informado.
    * `awayTokenIds`: as fichas de quem está no Volto já, que levam o selo de
    * ausente; omitido = nenhuma (a exportação de imagem não leva estado da sessão).
    * `glide`: quem pode deslizar; omitido = tudo no lugar final, e deslize em
    * curso termina já (a exportação de imagem sai com as fichas paradas).
    * `pinos`: MAPA DE CONTINENTE — a cor (`#rrggbb`) de cada ficha de jogador,
    * que é desenhada como o pino no lugar do disco (`lib/marcadorDeContinente.ts`):
-   * só o nome embaixo, sem vida, condições nem anel da vez. Omitido = nenhuma.
+   * só o nome embaixo, sem vida nem condições. Omitido = nenhuma.
    * `vidas`: BARRA DE VIDA — a vida da ficha do sistema ligada a cada token
    * (`lib/vidaDaFicha.ts`, `vidasDaCena`); o mestre vê a de toda ficha ligada.
    * Omitido = nenhuma barra. `Token.health` (a vida antiga do token) não é lido.
@@ -160,7 +148,6 @@ export interface TokensRenderer {
     gridSize: number,
     selectedTokenId?: string | null,
     cameraScale?: number,
-    turnTokenId?: string | null,
     awayTokenIds?: ReadonlySet<string>,
     glide?: TokenGlideContext,
     pinos?: ReadonlyMap<string, string>,
@@ -176,8 +163,6 @@ export interface TokensRenderer {
    * também nunca desliza atrás do ponteiro.
    */
   levantar: (tokenId: string | null) => void
-  /** Roda `aplicar` (que troca a vez e redesenha) sem o pulso do anel: a vez passada pelo teclado. */
-  semPulsoDaVez: (aplicar: () => void) => void
   /** Desmonte: sai do relógio de quadros e esquece toda animação em curso. */
   cancelarAnimacoes: () => void
 }
@@ -209,12 +194,6 @@ function progressOf(start: number, duration: number, now: number): number {
   return Math.min(1, Math.max(0, (now - start) / duration))
 }
 
-/** O anel da vez num ponto do pulso: `k` 0 = chegando de fora, transparente; 1 = assentado. */
-function applyTurnPulse(ring: Graphics, k: number): void {
-  ring.scale.set(TURN_RING_PULSE_FROM_SCALE + (1 - TURN_RING_PULSE_FROM_SCALE) * k)
-  ring.alpha = k
-}
-
 /**
  * Tudo o que a pintura de uma ficha leu. Igual ao da última pintura = nada a
  * limpar nem a refazer: a ficha só anda. Cada Graphics limpo refaz a geometria
@@ -225,7 +204,7 @@ function applyTurnPulse(ring: Graphics, k: number): void {
  * conserva o das fichas que não mudaram (`moveTokenLive`, `setTokenPosition`),
  * então a referência cobre todo campo que o desenho lê — cor, foto, tamanho,
  * giro, nome, condições, oculta, secreta, congelada. O resto vem de fora da
- * ficha: a grade (raio), a seleção, a vez, o Volto já e a vida da ficha do
+ * ficha: a grade (raio), a seleção, o Volto já e a vida da ficha do
  * sistema (comparada por VALOR: o mapa de vidas é refeito a cada desenho). O
  * zoom não entra: ele só muda a escala do nome, refeita a cada `draw` e em `setCameraScale`.
  */
@@ -233,7 +212,6 @@ interface TokenPaint {
   token: Token
   gridSize: number
   selected: boolean
-  isTurn: boolean
   away: boolean
   /** MAPA DE CONTINENTE: a cor do pino; `null` = disco ou foto de sempre. */
   pino: string | null
@@ -248,7 +226,6 @@ function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean 
     painted.token === agora.token &&
     painted.gridSize === agora.gridSize &&
     painted.selected === agora.selected &&
-    painted.isTurn === agora.isTurn &&
     painted.away === agora.away &&
     painted.pino === agora.pino &&
     mesmaVida(painted.vida, agora.vida)
@@ -270,11 +247,6 @@ interface TokenEntry {
   photoMask: Graphics | null
   graphics: Graphics | null
   ring: Graphics
-  /** Anel da VEZ (`TURN_RING_*`): Graphics próprio, e não um traço a mais em
-   *  `ring`, porque é ele que pulsa (escala e transparência) quando a vez
-   *  chega. Nasce só na ficha da vez, logo acima de `ring`, e morre quando a
-   *  vez sai: as outras fichas continuam com os filhos de sempre. */
-  turnRing: Graphics | null
   /** Barra de vida sob o disco (`pixi/drawTokenHealth.ts`). Nasce só na
    *  ficha que TEM vida e morre quando a vida sai: ficha sem vida continua
    *  com os mesmos 4 filhos (visual, anel, nome, marcas) de antes da barra existir. */
@@ -355,18 +327,12 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   const clock = motion?.now ?? (() => performance.now())
   /** Levantar/assentar em curso, por id. */
   const scaleTweens = new Map<string, ScaleTween>()
-  /** Pulso do anel da vez em curso. */
-  let turnPulse: { id: string; start: number } | null = null
   /** Passos do jogador deslizando (`player/tokenGlide.ts`). */
   const glides = createTokenGlides()
   /** A ficha na mão do mestre (`levantar`). */
   let handId: string | null = null
-  /** A vez do último `draw`; `undefined` antes do primeiro — abrir o mapa com a vez andando não pulsa. */
-  let lastTurnTokenId: string | null | undefined = undefined
   /** A cena do último `draw` com deslize: só se desliza dentro da mesma. */
   let lastSceneId: string | null = null
-  /** `semPulsoDaVez` em curso: a vez que trocar agora aparece parada. */
-  let quietTurn = false
   /**
    * MAPA DE CONTINENTE: os pinos girando agora, por id. Só existem numa cena
    * Continente com movimento liberado: cena Normal (ou movimento reduzido)
@@ -405,12 +371,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       entry.wrapper.scale.set(tween.from + (tween.to - tween.from) * easeOutCubic(t))
       if (t >= 1) scaleTweens.delete(id)
     }
-    if (turnPulse !== null) {
-      const ring = cache.get(turnPulse.id)?.turnRing ?? null
-      const t = progressOf(turnPulse.start, TURN_RING_PULSE_MS, now)
-      if (ring !== null) applyTurnPulse(ring, easeOutCubic(t))
-      if (ring === null || t >= 1) turnPulse = null
-    }
     if (glides.size > 0) {
       for (const { id, x, y } of stepGlides(glides, now)) {
         const entry = cache.get(id)
@@ -426,7 +386,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       if (marcador !== null) posarVistaDoMarcador(marcador, now, parado)
       if (marcador === null || parado) pinosGirando.delete(id)
     }
-    if (scaleTweens.size === 0 && turnPulse === null && glides.size === 0 && pinosGirando.size === 0) stopTicking()
+    if (scaleTweens.size === 0 && glides.size === 0 && pinosGirando.size === 0) stopTicking()
   }
 
   /** Leva a escala do wrapper de `id` até `to`, de onde ela estiver (soltar no meio do levantar assenta dali). */
@@ -460,55 +420,11 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     if (tokenId !== null) animateScale(tokenId, TOKEN_LIFT_SCALE, TOKEN_LIFT_MS)
   }
 
-  function semPulsoDaVez(aplicar: () => void): void {
-    quietTurn = true
-    try {
-      aplicar()
-    } finally {
-      quietTurn = false
-    }
-  }
-
   function cancelarAnimacoes(): void {
     scaleTweens.clear()
-    turnPulse = null
     glides.clear()
     pinosGirando.clear()
     stopTicking()
-  }
-
-  /**
-   * O anel da vez desta ficha: nasce logo acima do anel da ficha — por baixo
-   * da barra de vida, do nome e das marcas, a mesma altura de quando era um
-   * traço do próprio anel — e morre quando a vez sai. `pulse` = a vez acabou
-   * de chegar aqui: começa de fora e transparente.
-   */
-  function syncTurnRing(entry: TokenEntry, tokenId: string, isTurn: boolean, outlineRadius: number, pulse: boolean): void {
-    if (!isTurn) {
-      if (entry.turnRing) {
-        entry.wrapper.removeChild(entry.turnRing)
-        entry.turnRing.destroy()
-        entry.turnRing = null
-      }
-      return
-    }
-    if (!entry.turnRing) {
-      const turnRing = new Graphics()
-      turnRing.label = TURN_RING_LABEL
-      entry.wrapper.addChildAt(turnRing, entry.wrapper.getChildIndex(entry.ring) + 1)
-      entry.turnRing = turnRing
-    }
-    entry.turnRing
-      .clear()
-      .circle(0, 0, outlineRadius + TURN_RING_GAP + TURN_RING_WIDTH / 2)
-      .stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
-    if (pulse) {
-      turnPulse = { id: tokenId, start: clock() }
-      applyTurnPulse(entry.turnRing, 0)
-      startTicking()
-    } else if (turnPulse?.id !== tokenId) {
-      applyTurnPulse(entry.turnRing, 1)
-    }
   }
 
   /** O deslize em curso desta ficha já vai para `target`? (redesenho sem relação não o corta) */
@@ -555,11 +471,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     entry.ring.clear()
     syncHealthBar(entry, null, 0)
     entry.marks.clear()
-    if (entry.turnRing) {
-      entry.wrapper.removeChild(entry.turnRing)
-      entry.turnRing.destroy()
-      entry.turnRing = null
-    }
     selecao.clear()
     if (selected) {
       selecao.ellipse(0, 0, MARCADOR_SELECAO_RX, MARCADOR_SELECAO_RY).fill({ color: SELECTION_COLOR, alpha: 0.18 })
@@ -682,7 +593,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     gridSize: number,
     selectedTokenId: string | null = null,
     cameraScale?: number,
-    turnTokenId: string | null = null,
     awayTokenIds: ReadonlySet<string> = NO_AWAY_TOKENS,
     glide?: TokenGlideContext,
     pinos: ReadonlyMap<string, string> = NO_PINS,
@@ -702,17 +612,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         scaleTweens.delete(id)
         glides.delete(id)
         pinosGirando.delete(id)
-        if (turnPulse?.id === id) turnPulse = null
       }
     }
-
-    // A vez só pulsa na TROCA: este `draw` roda a cada passo de arrasto, e
-    // com a mesma vez o anel só é redesenhado. Os testes baratos vêm antes da
-    // preferência do sistema, que só é lida quando a vez troca de verdade.
-    const turnChanged = lastTurnTokenId !== undefined && turnTokenId !== lastTurnTokenId
-    lastTurnTokenId = turnTokenId
-    if (turnChanged) turnPulse = null
-    const pulseTurn = turnChanged && turnTokenId !== null && !quietTurn && canAnimate()
 
     // Deslize só dentro da MESMA cena e só com algo a deslizar (passo novo do
     // jogador ou deslize em curso): sem isso, nem a preferência é lida.
@@ -746,7 +647,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           photoMask: null,
           graphics: null,
           ring,
-          turnRing: null,
           bar: null,
           label,
           marks,
@@ -777,10 +677,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       applyLabelSizing(entry)
 
       const selected = token.id === selectedTokenId
-      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
-      // ler de relance no meio do mapa sem esconder a seleção.
-      const isTurn = token.id === turnTokenId
-      const pulse = isTurn && pulseTurn
       // VOLTO JÁ: a ficha de quem saiu da mesa (disco apagado e selo, abaixo).
       const away = awayTokenIds.has(token.id)
       // MAPA DE CONTINENTE: ausente = a ficha de sempre (NPC, ou cena Normal).
@@ -789,11 +685,10 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       else pinosGirando.delete(token.id)
       // BARRA DE VIDA: o pino do continente não leva vida, então a dele não conta.
       const vida = pino === null ? (vidas.get(token.id) ?? null) : null
-      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida }
+      const pintura: TokenPaint = { token, gridSize, selected, away, pino, vida }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
-      // a cada passo do arrasto de OUTRA. O pulso da vez sempre repinta: é ele
-      // que arma a animação do anel.
-      if (!pulse && paintIsCurrent(entry.painted, pintura)) continue
+      // a cada passo do arrasto de OUTRA.
+      if (paintIsCurrent(entry.painted, pintura)) continue
 
       const ghost = isHidden(token)
       entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
@@ -926,7 +821,6 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
       else if (token.secret === true) strokeDashedCircle(entry.ring, outlineRadius + SECRET_RING_GAP)
-      syncTurnRing(entry, token.id, isTurn, outlineRadius, pulse)
 
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
@@ -958,5 +852,5 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     return changedLabels
   }
 
-  return { draw, setCameraScale, levantar, semPulsoDaVez, cancelarAnimacoes }
+  return { draw, setCameraScale, levantar, cancelarAnimacoes }
 }

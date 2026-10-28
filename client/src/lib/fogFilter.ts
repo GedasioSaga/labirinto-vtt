@@ -14,7 +14,6 @@ import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenC
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
-import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -613,6 +612,13 @@ function boxTouchesAny(points: readonly RegionPoint[], boxes: readonly Box[]): b
   const box = keptBoxOf(points)
   return box !== null && boxes.some((b) => box.maxX >= b.minX && box.minX <= b.maxX && box.maxY >= b.minY && box.minY <= b.maxY)
 }
+
+/** Lado do bloco do índice de zonas ocultas, em px de mundo (8 casas de 64). */
+const ZONE_BUCKET = 512
+/** Chave numérica do bloco (bx, by), com folga para coordenada negativa. */
+const zoneBucketKey = (bx: number, by: number): number => (bx + 32768) * 65536 + (by + 32768)
+/** Zona que cobre mais blocos que isto fica fora do índice (testada sempre). */
+const ZONE_BUCKET_MAX = 4096
 
 interface BoxedRing extends Box {
   ring: RegionPoint[]
@@ -2383,7 +2389,38 @@ function recorteDoGrupo(
     point.y <= zone.maxY &&
     pointInRing(point, zone.ring) &&
     !(zone.unveiled.size > 0 && zone.unveiled.has(cellKeyAt(point)))
-  const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && zones.some((zone) => hidesPoint(zone, point))
+  // ÍNDICE DAS ZONAS em blocos de mundo: o corte de texturas e penhascos testa
+  // dezenas de milhares de pontos por recorte (a cada passo da ficha), quase
+  // todos longe de toda zona. O bloco do ponto diz quais zonas podem contê-lo.
+  const zoneBuckets = new Map<number, ActiveZone[]>()
+  /** Zona sem caixa finita ou grande demais para o índice: testada sempre, como antes. */
+  const zonesEverywhere: ActiveZone[] = []
+  for (const zone of zones) {
+    const bx0 = Math.floor(zone.minX / ZONE_BUCKET)
+    const bx1 = Math.floor(zone.maxX / ZONE_BUCKET)
+    const by0 = Math.floor(zone.minY / ZONE_BUCKET)
+    const by1 = Math.floor(zone.maxY / ZONE_BUCKET)
+    if (![bx0, bx1, by0, by1].every(Number.isFinite) || (bx1 - bx0 + 1) * (by1 - by0 + 1) > ZONE_BUCKET_MAX || Math.abs(bx0) > 30000 || Math.abs(bx1) > 30000 || Math.abs(by0) > 30000 || Math.abs(by1) > 30000) {
+      zonesEverywhere.push(zone)
+      continue
+    }
+    for (let bx = bx0; bx <= bx1; bx += 1) {
+      for (let by = by0; by <= by1; by += 1) {
+        const key = zoneBucketKey(bx, by)
+        const list = zoneBuckets.get(key)
+        if (list === undefined) zoneBuckets.set(key, [zone])
+        else list.push(zone)
+      }
+    }
+  }
+  const inConcealZone = (point: RegionPoint): boolean => {
+    if (zones.length === 0) return false
+    // Sem o cache (teste de igualdade), o caminho antigo: zona a zona.
+    if (!cacheDoRecorte.ligado) return zones.some((zone) => hidesPoint(zone, point))
+    if (zonesEverywhere.length > 0 && zonesEverywhere.some((zone) => hidesPoint(zone, point))) return true
+    const near = zoneBuckets.get(zoneBucketKey(Math.floor(point.x / ZONE_BUCKET), Math.floor(point.y / ZONE_BUCKET)))
+    return near !== undefined && near.some((zone) => hidesPoint(zone, point))
+  }
   /** Algum ponto da lista numa zona ativa? A caixa da lista longe de toda zona responde sem olhar ponto a ponto. */
   const anyInConcealZone = (points: readonly RegionPoint[]): boolean => boxTouchesAny(points, zones) && points.some(inConcealZone)
 
@@ -3931,9 +3968,6 @@ function recorteDoGrupo(
     return shadow ? asShadow(seen) : seen
   })
 
-  // CONFRONTO: o campo do mestre NUNCA sai no mapa (tem a fila inteira, com a
-  // ficha escondida, e o turno). O jogador recebe a faixa à parte, montada
-  // pelo host com as fichas deste recorte (`confrontoParaJogador`).
   // PERIGO QUE SE ALASTRA: a lista do mestre também fica (id, salas fora da
   // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
   // CAMADAS: o modelo (nomes das camadas livres são segredo do mestre), o olho
@@ -3942,7 +3976,6 @@ function recorteDoGrupo(
   // algo difere do padrão, `camadasDoJogador`: id e opacidade das camadas que
   // ele vê, na ordem da lista (`lib/camadas/doJogador.ts`). Mapa antigo: nada.
   const {
-    confronto: _confrontoDoMestre,
     perigos: perigosDoMestre,
     modeloCamadas: _modeloDoMestre,
     ocultasDoJogador: _ocultasDoJogador,
@@ -3953,6 +3986,22 @@ function recorteDoGrupo(
     vistaDosMoveis: vistaDoMestre,
     ...mapSemConfronto
   } = mapWithoutHazards
+  /**
+   * FOGO NO TELHADO (objeto Fogo, decisão do mestre de 27/10/2026): as chamas
+   * ficam por cima do telhado, então a casa queimando aparece vista de fora. O
+   * fogo sob teto fechado vai quando o jogador vê AGORA o contorno daquele
+   * prédio (lembrar não basta: o fogo é de agora), pelas mesmas amostras de
+   * fora que decidem o telhado (`contourSamples`). Sala secreta e zona oculta
+   * continuam escondendo o fogo como escondem qualquer objeto.
+   */
+  const fogoNoTelhadoAVista = (p: MapData['props'][number]): boolean => {
+    if (p.mobilia !== 'fogo') return false
+    const centro = { x: p.x, y: p.y }
+    const telhado = closedRoofs.find((roof) => inRoof(roof, centro))
+    if (telhado === undefined) return false
+    if (propSamplePoints(p).some((q) => inSecretRoom(q) || hiddenByZone(q))) return false
+    return contourSamples(telhado.points).some(isVisible)
+  }
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
@@ -4027,7 +4076,7 @@ function recorteDoGrupo(
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
     // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: naCamadaDoJogador('objeto', map.props)
-      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y }))
+      .filter((p) => !p.hidden && !p.secret && ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p)))
       .map(propForPlayer),
     drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
@@ -4628,18 +4677,6 @@ export function ownTokensInView(view: PlayerMapView, ownedIds: readonly string[]
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
 export function filterMapForHost(map: MapData): MapData {
   return map
-}
-
-/**
- * INICIATIVA — de quem é a vez, como o jogador pode saber: o id da ficha da
- * vez SÓ quando ela está no recorte que ele já recebe (`view`, a saída de
- * `filterMapForPlayer`) e a vez é deste mapa. Ficha secreta, oculta, atrás da
- * parede, fora da visão ou de outra cena não está no recorte: `null`, e o
- * campo nem sai — "é a vez de alguém que você não vê" já diria que há alguém.
- */
-export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
-  if (turn === null || turn.mapId !== view.id) return null
-  return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */

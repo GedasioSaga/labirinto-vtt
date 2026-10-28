@@ -120,12 +120,6 @@ describe('a marca da caminhada', () => {
     expect(resposta(passo(mesa(segurada).s, segurada, 'ana', 325, 225, true))).toEqual(recusa('locked'))
   })
 
-  it('não afrouxa a vez do confronto', () => {
-    const w = mundo({ confronto: { fila: ['lirio', 'ana'], vez: 0, passo: 6, turno: 1 } })
-    const { s } = mesa(w)
-    expect(resposta(passo(s, w, 'ana', 325, 225, true))).toEqual(recusa('not_your_turn'))
-  })
-
   it('ficha congelada no MEIO da caminhada: o trecho seguinte já volta recusado (para em no máximo 1 trecho)', () => {
     const w = mundo()
     const { s } = mesa(w)

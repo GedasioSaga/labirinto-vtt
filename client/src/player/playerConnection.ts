@@ -4,7 +4,7 @@ import { comCamadasDoJogadorLidas } from '../lib/camadas/doJogador'
 import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
-import { decodeExploration, type Exploration } from '../lib/exploration'
+import { decodeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
 import { cleanFloorLabel } from '../lib/buildingFloors'
 import { lerLuzDoJogador, type LuzDoJogador } from '../lib/periodo'
 import { lerPortasPorAtravessar } from '../lib/portasPorAtravessar'
@@ -22,7 +22,6 @@ import {
   PIN_LEVER_REJECTIONS,
   PIN_TAKE_REJECTIONS,
   PIN_BUY_REJECTIONS,
-  REQ_ID_MAX_LENGTH,
   TOKEN_HIDE_REJECTIONS,
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
@@ -151,19 +150,18 @@ import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, planejarCaminhada, type AvisoDoClique, type MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import type { RoofPeek } from '../lib/fogFilter'
-import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, type ChatChannel } from '../lib/chat'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
-import { parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
+import { lerBatalhaIniciada, parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
 import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
-import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import { applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
@@ -295,12 +293,14 @@ export interface PlayerState {
    * de `map.walls`: o que não for porta do mapa recebido é descartado.
    */
   porAtravessar?: string[]
+  /** MODO BATALHA (B4): a cena dele está em batalha. Cada snapshot substitui; sem o campo, fora da batalha. */
+  batalha?: true
   /**
-   * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
-   * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
-   * está no recorte dele).
+   * MODO BATALHA: o mestre acabou de ligar a batalha nesta cena, com a
+   * abertura escolhida (`transicao`, `texto`; os dois opcionais). `id` novo a
+   * cada aviso. Quem toca a animação é a B5; aqui só fica o pedido.
    */
-  turn?: string
+  batalhaIniciada?: { id: number; transicao?: string; texto?: string }
   /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
   glimpses?: RegionPoint[][]
   /**
@@ -309,11 +309,6 @@ export interface PlayerState {
    * snapshot substitui; sem o campo, não há espiada.
    */
   peek?: RoofPeek
-  /**
-   * CONFRONTO da cena onde ele está: fila, de quem é a vez e o que resta do
-   * passo. Cada snapshot substitui; snapshot sem o campo apaga a faixa.
-   */
-  confronto?: PlayerConfronto
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /**
@@ -328,7 +323,7 @@ export interface PlayerState {
   /**
    * Recusa do mestre ao movimento (parede, fora do chão, ficha alheia, lugar
    * ocupado); a ficha já voltou sozinha. Some sozinha; `id` novo repete o aviso.
-   * Mesmo contador de `id` da porta. A vez (`not_your_turn`) vai em `turnNotice`.
+   * Mesmo contador de `id` da porta.
    * Também cobre o pouso em outro lugar quando o mestre ACEITOU o arrasto
    * (ficha sem chão => chão mais próximo, `TokenMoveLanding`).
    *
@@ -341,12 +336,6 @@ export interface PlayerState {
    * parar (recusa, arrasto, novo clique, ficha congelada) e na troca de cena.
    */
   caminhada?: { tokenId: string; destino: { x: number; y: number } }
-  /**
-   * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
-   * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
-   * é a vez: isso só vem em `turn`, e só quando o jogador vê a ficha.
-   */
-  turnNotice?: { id: number }
   /**
    * Recusa do mestre ao pedido de porta (trancada, longe, não visível). `id`
    * novo repete o aviso. Longe e não visível somem sozinhos; "Trancada" fica
@@ -1559,7 +1548,6 @@ const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
   'wall',
   'outside_floor',
   'occupied',
-  'too_far',
   'a_bordo',
   'caminhada_desligada',
   'nevoa',
@@ -1720,6 +1708,8 @@ interface ReceivedView {
   map: MapData
   vision: RegionPoint[][]
   explored: Exploration | undefined
+  /** O explorado como veio no fio: base dos trechos do próximo `patch` (`exploredEdits`). */
+  exploredWire: ExploredWire | undefined
   ownTokens: string[]
   concealed: RegionPoint[][]
 }
@@ -1747,11 +1737,6 @@ function isVision(value: unknown): value is RegionPoint[][] {
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-/** Id de ficha como o protocolo aceita (mesmo teto de `tokenId` em `net/protocol.ts`). */
-function isBoundedId(value: unknown): value is string {
-  return typeof value === 'string' && value.length >= 1 && value.length <= REQ_ID_MAX_LENGTH
 }
 
 /** Nome de cena que o selo pode mostrar: texto não vazio, no teto do mestre. */
@@ -1836,9 +1821,23 @@ function isTokenChange(value: unknown): value is TokenChange {
  * `isMapShape`: o mestre é a fonte. O mapa que sai da aplicação passa por
  * `isMapShape` de novo antes de ir para a tela.
  */
+function isItemListPatch(value: unknown): value is ItemListPatch {
+  if (!isRecord(value) || !Array.isArray(value.change) || !value.change.every((item) => isRecord(item) && typeof item.id === 'string')) return false
+  return isStringList(value.remove) && (value.order === undefined || isStringList(value.order))
+}
+
+function isStringEditList(value: unknown): boolean {
+  return Array.isArray(value) && value.every((e) => Array.isArray(e) && e.length === 3 && isFiniteNumber(e[0]) && isFiniteNumber(e[1]) && typeof e[2] === 'string')
+}
+
+function isExploredEdits(value: unknown): value is ExploredEdits {
+  return isRecord(value) && isStringEditList(value.bits) && isStringEditList(value.rings) && (value.ringsFar === undefined || isStringEditList(value.ringsFar))
+}
+
 function isMapPatchShape(value: unknown): value is MapPatch {
   if (!isRecord(value) || !isRecord(value.set)) return false
-  const { tokens } = value
+  const { tokens, items } = value
+  if (items !== undefined && (!isRecord(items) || !Object.values(items).every(isItemListPatch))) return false
   if (tokens === undefined) return true
   if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
   return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
@@ -2097,23 +2096,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       hazardNoticeTimer = null
       setState({ hazardNotice: undefined })
     }, HAZARD_NOTICE_TTL_MS)
-  }
-
-  let turnNoticeTimer: ReturnType<typeof setTimeout> | null = null
-
-  function clearTurnNotice(): void {
-    if (turnNoticeTimer !== null) clearTimeout(turnNoticeTimer)
-    turnNoticeTimer = null
-  }
-
-  /** "Espere sua vez": mesmo tempo de tela do aviso da porta. */
-  function showTurnNotice(): void {
-    clearTurnNotice()
-    setState({ turnNotice: { id: nextNoticeId++ } })
-    turnNoticeTimer = setTimeout(() => {
-      turnNoticeTimer = null
-      setState({ turnNotice: undefined })
-    }, DOOR_NOTICE_TTL_MS)
   }
 
   let hideTimer: ReturnType<typeof setTimeout> | null = null
@@ -3346,10 +3328,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
-    turn: string | undefined,
+    batalha: boolean,
     partyTokens: string[],
     hazards: PlayerHazard[],
-    confronto: PlayerConfronto | undefined,
     sceneName: string | undefined,
     where: SnapshotPlaces,
     gatilhos: PlayerAreaTrigger[],
@@ -3360,6 +3341,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     peek: RoofPeek | undefined,
     waitingTokens: string[],
     porAtravessar: readonly string[],
+    exploredWire?: ExploredWire,
   ): void {
     if (rev <= state.rev) return
     // CAMADAS (aditivo, `isMapShape` não muda): `camadasDoJogador` torto vira
@@ -3369,7 +3351,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
     // Base para o próximo `patch` (view.patch): sempre a última tela CHEIA do mestre.
-    received = { rev, map, vision, explored, ownTokens, concealed }
+    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -3382,8 +3364,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
-    const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
     // LUGARES: o desenho sai do recorte do MESTRE (`map`), não do `next` com os
     // movimentos otimistas — e nem leva ficha nenhuma (`placeSketch`).
     const { place, places: remembered } = where
@@ -3426,8 +3406,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       andares,
       luz,
       porAtravessar: doorsToCross,
-      turn: turnOnMap,
-      confronto,
+      batalha: batalha ? true : undefined,
       sceneName,
       place,
       places,
@@ -3481,10 +3460,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return
     }
     let explored = received.explored
+    let exploredWire = received.exploredWire
     if (data.explored !== undefined) {
       const decoded = decodeExploration(data.explored)
       if (decoded === null) return askResync()
       explored = decoded
+      exploredWire = data.explored as ExploredWire // as: `decodeExploration` acabou de validar o formato inteiro
+    } else if (data.exploredEdits !== undefined) {
+      // Só os trechos que mudaram, em cima do último explorado que veio no fio.
+      if (exploredWire === undefined || !isExploredEdits(data.exploredEdits)) return askResync()
+      const wire = applyExploredEdits(exploredWire, data.exploredEdits)
+      const decoded = wire === null ? null : decodeExploration(wire)
+      if (wire === null || decoded === null) return askResync()
+      explored = decoded
+      exploredWire = wire
     }
     const vision = data.vision === undefined ? received.vision : isVision(data.vision) ? data.vision : null
     const ownTokens = data.ownTokens === undefined ? received.ownTokens : isStringList(data.ownTokens) ? data.ownTokens : null
@@ -3497,10 +3486,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       explored,
       ownTokens,
       concealed,
-      state.turn,
+      state.batalha === true,
       state.partyTokens ?? [],
       state.hazards ?? [],
-      state.confronto,
       state.sceneName,
       {},
       state.gatilhos ?? [],
@@ -3511,6 +3499,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.peek,
       state.waitingTokens ?? [],
       state.porAtravessar ?? [],
+      exploredWire,
     )
   }
 
@@ -3796,7 +3785,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        clearTurnNotice()
         clearTravelTimer()
         clearPassageOpenedTimer()
         clearItemTimer()
@@ -3849,13 +3837,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           andares: undefined,
           luz: undefined,
           porAtravessar: undefined,
-          turn: undefined,
+          batalha: undefined,
+          batalhaIniciada: undefined,
           signals: undefined,
           laser: undefined,
           doorNotice: undefined,
           doorRequest: undefined,
           moveNotice: undefined,
-          turnNotice: undefined,
           travel: undefined,
           noise: undefined,
           secretCheck: undefined,
@@ -3877,7 +3865,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           wait: undefined,
           waitEnded: undefined,
           waitingTokens: undefined,
-          confronto: undefined,
           letterPeers: undefined,
           letterSend: undefined,
           // Sem ficha não há chat: o envio no ar sai junto (a recusa que vier
@@ -3901,7 +3888,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         forgetSceneLocals()
         stopWalk()
         clearPassageOpenedTimer()
-        clearTurnNotice()
         clearHazardNotice()
         // O ruído era da cena de antes: a direção dele não vale no mapa novo.
         clearNoiseTimer()
@@ -3914,7 +3900,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // As marcas de "me avise" também: o id do pino era de lá. E o caminho
         // de um colega e a lista da régua (os pontos eram do mapa de lá).
         // O cartão que o mestre mostrou era da cena de antes: fecha junto.
-        setState({ shownPin: undefined, doorRequest: undefined, turnNotice: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ shownPin: undefined, doorRequest: undefined, hazardNotice: undefined, noise: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined, sceneEpoch: state.sceneEpoch + 1, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         {
           // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
           // antes não fica aberto por cima de outro lugar.
@@ -4467,18 +4453,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
         if (data.glimpses !== undefined && !isVision(data.glimpses)) return
-        if (data.turn !== undefined && !isBoundedId(data.turn)) return
+        // MODO BATALHA: só `true` ou ausente; outro valor derruba a mensagem.
+        if (data.batalha !== undefined && data.batalha !== true) return
         if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
         if (hazards === null) return
-        // CONFRONTO: ausente = sem confronto nesta cena; malformado derruba a mensagem.
-        let confronto: PlayerConfronto | undefined
-        if (data.confronto !== undefined) {
-          const parsed = parsePlayerConfronto(data.confronto)
-          if (parsed === null) return
-          confronto = parsed
-        }
         // O host nunca manda nome vazio (sem nome público o campo nem vem): vazio é forma errada.
         if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return
         const where = parseSnapshotPlaces(data)
@@ -4504,7 +4484,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
         if (porAtravessar === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, confronto, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar)
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         return
       }
       case 'wait.state':
@@ -4533,18 +4513,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
-        // A ficha já voltou; o aviso do motivo sai em `handleRejected`. 'not_your_turn'
-        // vira "Espere sua vez" (não diz de quem é a vez). Motivo desconhecido ou
-        // ausente ainda desfaz o movimento; só não vira aviso.
-        const undone = handleRejected(data.reqId, data.reason)
-        if (undone && data.reason === 'not_your_turn') showTurnNotice()
+        // A ficha já voltou; o aviso do motivo sai em `handleRejected`. Motivo
+        // desconhecido ou ausente ainda desfaz o movimento; só não vira aviso.
+        handleRejected(data.reqId, data.reason)
         return
+      case 'batalha.iniciada': {
+        // MODO BATALHA: o pedido de tocar a abertura; campo torto derruba o aviso inteiro.
+        const aviso = lerBatalhaIniciada(data)
+        if (aviso === null) return
+        const abertura = { ...(aviso.transicao === undefined ? {} : { transicao: aviso.transicao }), ...(aviso.texto === undefined ? {} : { texto: aviso.texto }) }
+        setState({ batalhaIniciada: { id: nextNoticeId++, ...abertura } })
+        return
+      }
       case 'vehicle.rejected':
         // VEÍCULO: o "Subir"/"Descer" não valeu. Pausa já tem a faixa dela; motivo desconhecido não vira frase.
         if (state.status !== 'playing') return
         if (data.reason === 'cheio') showMoveNotice('veiculo_cheio')
         else if (data.reason === 'longe') showMoveNotice('veiculo_longe')
-        else if (data.reason === 'not_your_turn') showTurnNotice()
         else if (isMoveRejection(data.reason)) showMoveNotice(data.reason)
         return
       case 'away':
@@ -4569,7 +4554,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
         clearCompraTimer()
@@ -4591,7 +4575,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -4742,7 +4726,6 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     resetOwnLaser()
     clearDoorNotice()
     clearMoveNotice()
-    clearTurnNotice()
     clearTravelTimer()
     clearItemTimer()
     clearCompraTimer()
@@ -4783,7 +4766,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 

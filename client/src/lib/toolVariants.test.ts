@@ -200,7 +200,7 @@ describe('TOOL_VARIANTS', () => {
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
   })
 
-  it('Objetos oferece os 11 móveis, as 9 peças novas da MT4 e as 5 da MT5 na ordem do catálogo (as mesas novas depois da Mesa, sebe e jardineira depois da Cerca, tapete longo depois do Tapete, arco e placa no fim), com o nome que o mestre lê', () => {
+  it('Objetos oferece os 11 móveis, as 9 peças novas da MT4, as 5 da MT5 e o Fogo na ordem do catálogo (as mesas novas depois da Mesa, sebe e jardineira depois da Cerca, o Fogo depois da Fogueira, tapete longo depois do Tapete, arco e placa no fim), com o nome que o mestre lê', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     expect(entry.groups).toHaveLength(1)
@@ -208,12 +208,12 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.storeKey).toBe('mobiliaTipo')
     expect(grupo.label).toBe('Objeto')
     expect(grupo.options.map((o) => o.value)).toEqual([
-      'barril', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'cadeira', 'cerca', 'sebe', 'jardineira', 'armario', 'aparador', 'fogueira', 'tapete', 'tapeteLongo',
+      'barril', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'cadeira', 'cerca', 'sebe', 'jardineira', 'armario', 'aparador', 'fogueira', 'fogo', 'tapete', 'tapeteLongo',
       'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta',
     ])
-    expect(grupo.options).toHaveLength(25)
+    expect(grupo.options).toHaveLength(26)
     expect(grupo.options.map((o) => o.label)).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Tapete', 'Tapete longo',
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Fogo', 'Tapete', 'Tapete longo',
       'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta',
     ])
     expect(grupo.options[3].description).toBe('Clique no mapa para pôr uma cama.')
@@ -237,15 +237,16 @@ describe('TOOL_VARIANTS', () => {
       'Clique no mapa para pôr um arco do portão.',
       'Clique no mapa para pôr uma placa de seta.',
     ])
+    expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide em 3 partes (Dentro de casa 12, Rua e jardim 10, Feira 3) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide em 3 partes (Dentro de casa 12, Rua e jardim 11 com o Fogo, Feira 3) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
       ['Dentro de casa', 12],
-      ['Rua e jardim', 10],
+      ['Rua e jardim', 11],
       ['Feira', 3],
     ])
     const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)

@@ -131,7 +131,7 @@ export interface DepsDaVisao extends FontesDaSemente {
   /** O mundo vivo do editor: os mesmos da ponte da sala. */
   getMap: () => MapData
   getWorld: () => HostWorld
-  getTurn?: HostBridgeDeps['getTurn']
+  getBatalha?: HostBridgeDeps['getBatalha']
   getPeriodo?: HostBridgeDeps['getPeriodo']
   /** A pilha de avisos do editor: os do teste entram nela marcados "Teste ·". */
   avisos: ToastSink
@@ -463,7 +463,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       listen: transporte.listen,
       getMap: () => s.camada.aplicarNoMapa(deps.getMap()),
       getWorld: () => mundoDoTeste(s),
-      getTurn: deps.getTurn,
+      getBatalha: deps.getBatalha,
       getPeriodo: deps.getPeriodo,
       // Tudo o que o jogador de teste muda vai para a camada da sessão, nada para as stores.
       ...criarEscritoresDeTeste(s.camada, deps.getWorld),

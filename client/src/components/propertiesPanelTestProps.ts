@@ -78,7 +78,7 @@ export function propsDoPainel(ficha: Token | null, extra: Partial<PainelProps> =
     selectedProp: null,
     propTransform: { onLockedChange: nada },
     propPlayer: { onLabelChange: nada, onShowImageChange: nada },
-    propMobilia: { onTipoChange: nada, onVistaChange: nada, onFormaChange: nada, onAparenciaChange: nada },
+    propMobilia: { onTipoChange: nada, onVistaChange: nada, onFormaChange: nada, onTamanhoDoFogoChange: nada, onAparenciaChange: nada },
     selectedToken: ficha,
     tokenName: { onNameChange: nada, onPublicNameChange: nada },
     tokenImage: { onChangeImage: nada, onClearImage: nada, onSaveToLibrary: nada },

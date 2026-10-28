@@ -32,6 +32,7 @@ import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSal
 import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
+import type { TamanhoDoFogo } from '../lib/mobilia/fogo'
 import { apagarNaCamada, avisoDaRecusa, encherNaCamada, pintarNaCamada, type ResultadoNaCamada } from '../lib/camadasDoPincel'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
@@ -988,6 +989,10 @@ interface MapStoreState {
    *  forma no lugar, tamanho padrão da forma nova. Um passo no desfazer; a
    *  mesma forma ou outro tipo não entram. */
   trocarFormaDoTapete: (id: string, forma: FormaDoTapete) => void
+  /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
+   *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
+   *  tipo não entram. */
+  trocarTamanhoDoFogo: (id: string, tamanho: TamanhoDoFogo) => void
   /**
    * `typingKey`: a mesma chave em passos seguidos é UM Ctrl+Z — o seletor
    * nativo de "Cor da porta" manda uma cor por quadro do arrasto, com uma chave
@@ -2557,6 +2562,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFormaDoTapete: (id, forma) => {
       if (mapFactory.trocarFormaDoTapete(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDoTapete(map, id, forma))
+    },
+    trocarTamanhoDoFogo: (id, tamanho) => {
+      if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return
+      withHistory((map) => mapFactory.trocarTamanhoDoFogo(map, id, tamanho))
     },
     setWallDoor: (id, door, typingKey) => withHistory((map) => mapFactory.setWallDoor(map, id, door), typingKey),
     setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),

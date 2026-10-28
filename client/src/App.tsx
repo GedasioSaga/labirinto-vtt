@@ -46,7 +46,7 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { useInitiativeStore } from './stores/initiativeStore'
+import { useBatalhaStore } from './stores/batalhaStore'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -91,6 +91,7 @@ import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { ControleDaBatalha } from './components/livro/ControleDaBatalha'
 import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
@@ -620,6 +621,7 @@ function App() {
   const trocarTipoDoMovel = useMapStore((state) => state.trocarTipoDoMovel)
   const trocarVistaDoMovel = useMapStore((state) => state.trocarVistaDoMovel)
   const trocarFormaDoTapete = useMapStore((state) => state.trocarFormaDoTapete)
+  const trocarTamanhoDoFogo = useMapStore((state) => state.trocarTamanhoDoFogo)
   const setAparenciaDoMovel = useMapStore((state) => state.setAparenciaDoMovel)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
@@ -881,8 +883,9 @@ function App() {
         onDancaChange: setDanca,
         onPescaChange: setPescas,
         onTunnelChange: setTunnel,
-        // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
-        getTurn: () => useInitiativeStore.getState().turn,
+        // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
+        getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
+        onBatalhaAndou: (sceneKey, tokenId, blocos) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos),
         // O período vai no snapshot recortado (`luzParaJogador`): só o da cena de cada jogador, nunca hora.
         getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
         onTableScreensChange: setTableScreens,
@@ -935,7 +938,7 @@ function App() {
     criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
       getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
-      getTurn: () => useInitiativeStore.getState().turn,
+      getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
       getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
@@ -978,11 +981,16 @@ function App() {
       }),
     [],
   )
-  // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
+  // MODO BATALHA: a abertura vai uma vez aos jogadores da cena e à TV (antes do snapshot), e
+  // cena que entrou ou saiu da batalha manda o snapshot na hora. O caminho andado não reenvia nada.
   useEffect(
     () =>
-      useInitiativeStore.subscribe((state, previous) => {
-        if (state.turn !== previous.turn) notificarPontes((ponte) => ponte.notifyTurnChanged())
+      useBatalhaStore.subscribe((state, previous) => {
+        const anuncio = state.anuncio
+        if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
+        if (JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
+          notificarPontes((ponte) => ponte.notifyBatalhaChanged())
+        }
       }),
     [],
   )
@@ -1358,6 +1366,9 @@ function App() {
   const followingId = useFollowStore((state) => state.playerId)
   // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
   const openSceneId = adventure === null ? null : activeSceneId
+  // MODO BATALHA (B5): a chave da cena aberta, a mesma de `tableSceneKey(world.open)` (o id da cena, senão o do mapa).
+  const chaveDaCenaAberta = activeSceneId ?? map.id
+  const batalhaNaCenaAberta = useBatalhaStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -3119,6 +3130,7 @@ function App() {
       <div className="lb-editor__canvas" ref={canvasHostRef} onPointerDownCapture={(event) => apertarNoMapa(event)}>
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
+          batalhaLigada={batalhaNaCenaAberta}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
@@ -3292,6 +3304,8 @@ function App() {
                   onTrocar={(estadoId, valor) =>
                     useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor, new Set(roomPlayers.flatMap((player) => player.tokenIds)))
                   }
+                  // CAMINHOS F4: o apito faz andar; o pulo de uma vez é só este botão, com a mesma regra da mão do jogador.
+                  onPular={(estadoId) => useRotinaAndandoStore.getState().pularParaOPosto(estadoId, new Set(roomPlayers.flatMap((player) => player.tokenIds)))}
                 />
               )
             }
@@ -3631,6 +3645,7 @@ function App() {
               onTipoChange: trocarTipoDoMovel,
               onVistaChange: trocarVistaDoMovel,
               onFormaChange: trocarFormaDoTapete,
+              onTamanhoDoFogoChange: trocarTamanhoDoFogo,
               onAparenciaChange: setAparenciaDoMovel,
             }}
             // ITEM NO CHÃO: nome, modo de pegar e pilha são um passo do Ctrl+Z cada; trocar vira pino de item.
@@ -4180,6 +4195,7 @@ function App() {
         }
         chat={sala === undefined ? undefined : chatDaMesa()}
         mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
+        batalha={<ControleDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />}
         cenas={
           <ScenesSection
             scenes={scenesPanel}

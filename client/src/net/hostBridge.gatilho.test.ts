@@ -56,12 +56,12 @@ describe('hostBridge: "Armadilha: <jogador> entrou em <área>"', () => {
 
   it('Ana entra na área: o mestre lê o aviso uma vez só', async () => {
     const { bridge, estado } = await sala()
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos().some((t) => t.startsWith('Armadilha'))).toBe(false)
     estado.xAna = 1250
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos()).toContain('Armadilha: Ana entrou em nome-sala-c')
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
     expect(avisos().filter((t) => t === 'Armadilha: Ana entrou em nome-sala-c')).toHaveLength(1)
   })
 })

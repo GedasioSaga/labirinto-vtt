@@ -21,7 +21,7 @@ import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
  */
 export const PECAS_NOVAS = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
-  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo',
+  'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -69,6 +69,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   arcoDoPortao: { rotulo: 'Arco do portão', artigo: 'um arco do portão', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
   placaDeSeta: { rotulo: 'Placa de seta', artigo: 'uma placa de seta', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
   tapeteLongo: { rotulo: 'Tapete longo', artigo: 'um tapete longo', tamanho: { largura: 1, altura: 4 }, redonda: false },
+  // Objeto Fogo (27/10/2026): o tamanho padrão é o da Chama; o painel troca para Fogaréu e Incêndio (`TAMANHOS_DO_FOGO`).
+  fogo: { rotulo: 'Fogo', artigo: 'um fogo', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -89,6 +91,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     arcoDoPortao: valor(f.arcoDoPortao),
     placaDeSeta: valor(f.placaDeSeta),
     tapeteLongo: valor(f.tapeteLongo),
+    fogo: valor(f.fogo),
   }
 }
 
@@ -110,7 +113,7 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  */
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
-  'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta',
+  'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
 ]
 
 /**
@@ -122,6 +125,7 @@ const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
   mesa: ['mesaQuadrada', 'mesaRedonda'],
   cerca: ['sebe', 'jardineira'],
   tapete: ['tapeteLongo'],
+  fogueira: ['fogo'],
 }
 const COM_PARENTE: readonly PecaNova[] = Object.values(DEPOIS_DE).flat()
 
@@ -237,6 +241,9 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
       const recuo = Math.min(largura, altura) * 0.14
       return quadro(-hw + recuo, -hh + recuo, hw - recuo, hh - recuo)
     }
+    case 'fogo':
+      // O chão queimado: um aro por dentro da pegada (as línguas são a camada animada, `pixi/fogosDoMapa.ts`).
+      return aro(largura * 0.8, altura * 0.8)
   }
 }
 

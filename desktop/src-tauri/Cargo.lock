@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "labirinto"
-version = "0.5.3"
+version = "0.5.5"
 dependencies = [
  "axum",
  "base64 0.22.1",

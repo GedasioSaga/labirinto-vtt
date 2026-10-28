@@ -91,7 +91,7 @@ async function mesa() {
   /** O mestre (ou a viagem) muda quem está em cada cena; o broadcast seguinte reconcilia. */
   const mudaMundo = (naTaverna: string[], naCripta: string[]) => {
     mundo = mundoCom(naTaverna, naCripta)
-    bridge.notifyTurnChanged()
+    bridge.notifyBatalhaChanged()
   }
   const ana = entra('c-ana', 'Ana', 't-ana')
   const bia = entra('c-bia', 'Bia', 't-bia')

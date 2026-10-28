@@ -110,6 +110,8 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       arcoDoPortao: ['madeira:nogueira', 'placa:pinho'],
       placaDeSeta: ['madeira:pinho'],
       tapeteLongo: ['tecido:vinho'],
+      // Objeto Fogo (27/10/2026): sem material, como a chama da fogueira (o chão queimado tem cor própria).
+      fogo: [],
     })
   })
 
