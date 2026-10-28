@@ -1143,6 +1143,8 @@ export function PixiCanvas({
       // a sombra caem por cima da textura, e a borda das salas, as paredes, os
       // nomes, os pinos e as fichas continuam legíveis por cima dela.
       const texturas = createTexturasRenderer({
+        // F7: a pilha de camadas vira uma textura composta (um sprite por quadro, não uma máscara por camada).
+        palco: { renderer: app.renderer, ticker: app.ticker },
         aoGerar: (medida) => {
           el.dataset.texturasMs = String(Math.round(medida.ms))
           el.dataset.texturasCamadas = String(medida.camadas)
