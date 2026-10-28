@@ -69,13 +69,21 @@ export function gravarAberturaLembrada(armazem: ArmazemDaAbertura | null, aventu
 }
 
 /**
+ * Abertura marcada numa aventura sem escolha guardada. A lista segue a ordem do
+ * pacote (por nome de arquivo, a Bandeira da Marinha vem antes), mas o usuário
+ * quis as Espadas como padrão (28/10/2026).
+ */
+export const ABERTURA_PADRAO = 'espadas-cruzadas'
+
+/**
  * A escolha com que o diálogo abre: a lembrada, se a abertura ainda existe no
- * app; senão a primeira da lista (a ordem do pacote, por nome de arquivo: a
- * Bandeira da Marinha vem antes das Espadas), senão "Nenhuma". O nome
- * lembrado vale mesmo vazio (`''` = sem nome); só sem nada guardado é "Royals".
+ * app; senão as Espadas (`ABERTURA_PADRAO`), senão a primeira da lista, senão
+ * "Nenhuma". O nome lembrado vale mesmo vazio (`''` = sem nome); só sem nada
+ * guardado é "Royals".
  */
 export function escolhaInicial(lembrada: AberturaLembrada | null, idsDisponiveis: readonly string[]): AberturaLembrada {
   const texto = lembrada?.texto ?? NOME_PADRAO_DA_BATALHA
   if (lembrada !== null && (lembrada.transicao === null || idsDisponiveis.includes(lembrada.transicao))) return { transicao: lembrada.transicao, texto }
-  return { transicao: idsDisponiveis[0] ?? null, texto }
+  const padrao = idsDisponiveis.includes(ABERTURA_PADRAO) ? ABERTURA_PADRAO : idsDisponiveis[0]
+  return { transicao: padrao ?? null, texto }
 }
