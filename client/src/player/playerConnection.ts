@@ -182,6 +182,18 @@ import {
   type PescaMotivoDaRecusa,
 } from '../net/protocoloDaPesca'
 import { PESCA_RECUSA_AVISO_MS, pescaAceitaPronto, pescaNaAgua, receberPesca, registrarLance, type PescaDoJogador } from './estadoDaPesca'
+import type { DificuldadeTiro } from '../minigames/tiro/tipos'
+import {
+  parseTiroHostMessage,
+  parseTiroPlayerMessage,
+  TIRO_VIVO_INTERVALO_MS,
+  type TiroDesfecho,
+  type TiroMotivoDaRecusa,
+  type TiroNumeros,
+  type TiroPlayerMessage,
+  type TiroVivo,
+} from '../net/protocoloDoTiro'
+import { receberTiro, TIRO_RECUSA_AVISO_MS, tiroAceitaPronto, tiroAtirando, type TiroDoJogador } from './estadoDoTiro'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -580,6 +592,15 @@ export interface PlayerState {
   pesca?: PescaDoJogador
   /** PESCA "Jogador toca no pino": o host não deixou (`pesca.recusado`); some sozinho em `PESCA_RECUSA_AVISO_MS`. */
   pescaRecusada?: { id: number; pinId: string; motivo: PescaMotivoDaRecusa }
+  /**
+   * MINIGAME DE TIRO: o convite (do mestre, ou a volta do "Atirar" deste
+   * jogador), as tentativas que o host contou, a rodada liberada e o que
+   * chegou depois (estado, pausa, encerramento), como estado puro
+   * (`player/estadoDoTiro.ts`). Sai com `fecharTiro`, ou com a sala.
+   */
+  tiro?: TiroDoJogador
+  /** TIRO "Jogador toca no pino": o host não deixou (`tiro.recusado`); some sozinho em `TIRO_RECUSA_AVISO_MS`. */
+  tiroRecusado?: { id: number; pinId: string; motivo: TiroMotivoDaRecusa }
   /**
    * O que houve com o cartão do teste secreto que acabou de fechar: `sent` (a
    * resposta saiu para o mestre) ou `closed` (o mestre encerrou antes). Some
@@ -1422,6 +1443,26 @@ export interface PlayerConnection {
    */
   fecharPesca(): void
   /**
+   * TIRO ("Jogador toca no pino"): pede para entrar na barraca do pino. O
+   * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
+   * fora do jogo, com pino que não é de tiro "Jogador toca no pino", com uma
+   * rodada na tela ou com o socket fechado.
+   */
+  pedirTiro(pinId: string): boolean
+  /**
+   * TIRO: "Começar a rodada" com a dificuldade escolhida — o host conta a
+   * tentativa e manda o início com a semente. `false` sem convite aberto, sem
+   * tentativa, com a dificuldade que o mestre não permitiu ou com a barraca
+   * pausada ou encerrada.
+   */
+  prontoTiro(dificuldade: DificuldadeTiro): boolean
+  /** TIRO: pontos, tiros e balas de agora, para o placar do mestre. No máximo um a cada `TIRO_VIVO_INTERVALO_MS`. */
+  vivoTiro(vivo: Omit<TiroVivo, 'rodada'>): boolean
+  /** TIRO: a rodada acabou (o sino, ou desistiu pela pausa). Uma vez por rodada. */
+  fimTiro(fim: TiroNumeros & { desfecho: TiroDesfecho }): boolean
+  /** TIRO: a tela fechou e o estado do tiro sai (a rodada aberta a tela já mandou como desistida, pelo `fimTiro`). */
+  fecharTiro(): void
+  /**
    * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": pede ao mestre para ver a
    * cena da ficha `tokenId`. O mapa novo vem no snapshot da resposta. `false`
    * (e nada sai) quando a ficha não está na lista de fora ou o socket caiu.
@@ -2003,6 +2044,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let nextNoticeId = 1
   /** PESCA: `performance.now()` do último `pesca.vivo` que saiu (no máximo 4 por segundo). */
   let ultimoVivoDaPesca = Number.NEGATIVE_INFINITY
+  /** TIRO: `performance.now()` do último `tiro.vivo` que saiu (no máximo 4 por segundo). */
+  let ultimoVivoDoTiro = Number.NEGATIVE_INFINITY
   let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearMapSharedTimer(): void {
@@ -3047,6 +3090,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   /** PESCA: a mesma conferência do host antes de sair, como a dança. */
   function enviarPesca(message: PescaPlayerMessage): boolean {
     const conferida = parsePescaPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
+  /** TIRO: a mesma conferência do host antes de sair, como a pesca. */
+  function enviarTiro(message: TiroPlayerMessage): boolean {
+    const conferida = parseTiroPlayerMessage(message)
     return conferida !== null && send(conferida)
   }
 
@@ -4236,6 +4285,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (pesca !== state.pesca) setState({ pesca })
         return
       }
+      case 'tiro.convite':
+      case 'tiro.estado':
+      case 'tiro.inicio':
+      case 'tiro.pausa':
+      case 'tiro.retoma':
+      case 'tiro.encerra':
+      case 'tiro.recusado': {
+        // A tela da mesa só olha: a barraca é de quem entrou nela.
+        if (isTable) return
+        const msg = parseTiroHostMessage(data)
+        if (msg === null) return
+        if (msg.type === 'tiro.recusado') {
+          if (state.status !== 'playing') return
+          const id = nextNoticeId++
+          setState({ tiroRecusado: { id, pinId: msg.pinId, motivo: msg.motivo } })
+          setTimeout(() => {
+            if (state.tiroRecusado?.id === id) setState({ tiroRecusado: undefined })
+          }, TIRO_RECUSA_AVISO_MS)
+          return
+        }
+        const tiro = receberTiro(state.tiro, msg, performance.now())
+        if (tiro !== state.tiro) setState({ tiro })
+        return
+      }
       case 'midia.chave':
         // SONS AO VIVO (F5): o primeiro frame do servidor da sala. Torta some calada (e a boa de antes fica).
         if (typeof data.chave === 'string' && FORMA_DA_CHAVE_DA_MIDIA.test(data.chave)) chaveDaMidia = data.chave
@@ -4541,7 +4614,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -4575,7 +4648,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -4594,7 +4667,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -4607,7 +4680,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -5400,6 +5473,50 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Desistiu no meio: o mestre fica sabendo do cesto que ele tem, em vez de vê-lo pescando para sempre.
       if (pescaNaAgua(pesca)) enviarPesca({ type: 'pesca.fim', sessao: pesca.sessao, cesto: pesca.cesto })
       setState({ pesca: undefined })
+    },
+
+    pedirTiro(pinId) {
+      if (state.status !== 'playing') return false
+      // Uma rodada por vez na tela: no meio dela não se pede outra barraca.
+      if (tiroAtirando(state.tiro)) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'minigame' || pin.minigameVisivel?.jogo !== 'tiro' || pin.minigameVisivel.entrada !== 'pino') return false
+      return enviarTiro({ type: 'tiro.pedir', pinId })
+    },
+
+    prontoTiro(dificuldade) {
+      const tiro = state.tiro
+      if (!tiroAceitaPronto(tiro)) return false
+      // "Só Extremo" do mestre: o host recusaria calado, e a tela ficaria esperando o início.
+      const permitida = tiro.convite.permitida
+      if (permitida !== 'escolha' && permitida !== dificuldade) return false
+      if (!enviarTiro({ type: 'tiro.pronto', sessao: tiro.sessao, dificuldade })) return false
+      setState({ tiro: { ...tiro, pedindo: dificuldade } })
+      return true
+    },
+
+    vivoTiro(vivo) {
+      const tiro = state.tiro
+      if (!tiroAtirando(tiro)) return false
+      const agora = performance.now()
+      if (agora - ultimoVivoDoTiro < TIRO_VIVO_INTERVALO_MS) return false
+      if (!enviarTiro({ type: 'tiro.vivo', sessao: tiro.sessao, rodada: tiro.rodada.n, ...vivo })) return false
+      ultimoVivoDoTiro = agora
+      return true
+    },
+
+    fimTiro(fim) {
+      const tiro = state.tiro
+      if (!tiroAtirando(tiro)) return false
+      const enviado = enviarTiro({ type: 'tiro.fim', sessao: tiro.sessao, rodada: tiro.rodada.n, ...fim })
+      // Com ou sem rede, a rodada acabou nesta tela: o host conta a tentativa de qualquer jeito.
+      setState({ tiro: { ...tiro, rodada: undefined } })
+      return enviado
+    },
+
+    fecharTiro() {
+      if (state.tiro === undefined) return
+      setState({ tiro: undefined })
     },
 
     answerSecretCheck(result) {

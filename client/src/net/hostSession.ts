@@ -67,10 +67,13 @@ import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { copiarMinigame, passageOf, pinSummary } from '../lib/pins'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
+import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
+import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
+import { TIRO_PARTICIPANTES_MAX, type TiroMotivoDaRecusa, type TiroPlayerMessage } from './protocoloDoTiro'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -1979,6 +1982,22 @@ export interface HostSession {
   /** Cada pino com pesca (aberta, pausada ou a última encerrada), como o painel do MESTRE lê. */
   pesca(): PescaAoVivo[]
   /**
+   * MINIGAME DE TIRO ("Mestre chama"): `tiro.convite` (o desafio do pino
+   * `pinId`) aos escolhidos que estão na sala e jogando, até
+   * `TIRO_PARTICIPANTES_MAX`, com as tentativas zeradas. Recusa pino que não é
+   * de tiro e lista sem ninguém livre (quem está noutra barraca não conta).
+   */
+  convidarParaTiro(pinId: string, playerIds: readonly string[], source: HostMapSource): HostResult & { convite: TiroConviteResultado }
+  /** "Pausar para todos" / "Continuar" da barraca do pino. `ok: false` = sem sessão naquela fase. */
+  pausarTiro(pinId: string): HostResult & { ok: boolean }
+  retomarTiro(pinId: string): HostResult & { ok: boolean }
+  /** "Encerrar para todos": a rodada de quem atirava acaba sem medalha. Sem efeito nenhum. */
+  encerrarTiro(pinId: string): HostResult & { ok: boolean }
+  /** "Reabrir para todos": a barraca encerrada abre de novo com o desafio de agora do pino e as tentativas zeradas. */
+  reabrirTiro(pinId: string, source: HostMapSource): HostResult & { ok: boolean }
+  /** Cada pino com tiro (aberto, pausado ou o último encerrado), como o painel do MESTRE lê. */
+  tiro(): TiroAoVivo[]
+  /**
    * ABALO POR DISTÂNCIA: a cada jogador que joga e está numa cena agora, o
    * texto da FAIXA dele (`lib/abalo.ts`): `perto` na cena da origem, `andar`
    * nas cenas de `vizinhas`, `longe` no resto. Faixa com texto vazio não manda
@@ -3408,6 +3427,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const dancaNoHost = criarDancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE PESCA: uma sessão por pino (a de agora ou a última), para o painel.
   const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
+  // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
+  const tiroNoHost = criarTiroNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId(), agora: () => now() })
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
   const lostSecretCheckCard = new Set<string>()
@@ -5297,6 +5318,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...dancaNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
     outbound.push(...pescaNoHost.entrou(playerId))
+    // TIRO: o convite de novo, com as tentativas que já gastou; no meio da rodada, a aba nova perdeu a rodada.
+    outbound.push(...tiroNoHost.entrou(playerId))
     return outbound
   }
 
@@ -9202,6 +9225,56 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound }
   }
 
+  /**
+   * TIRO: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo e o
+   * resultado, pelo caminho da pesca: o pedido passa pelas regras do pino
+   * (jogando, cena sem pausa, pino de tiro no recorte DELE e uma ficha dele
+   * encostada); o resto (sessão, tentativas, tetos dos números) é de
+   * `tiroNoHost`, e o que não vale morre calado.
+   */
+  function handleTiro(clientId: string, msg: TiroPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    switch (msg.type) {
+      case 'tiro.pedir':
+        return pedirTiro(clientId, playerId, msg.pinId, world)
+      case 'tiro.pronto':
+        return { outbound: tiroNoHost.pronto(playerId, msg) }
+      case 'tiro.vivo':
+        return { outbound: tiroNoHost.vivo(playerId, msg) }
+      case 'tiro.fim':
+        return { outbound: tiroNoHost.fim(playerId, msg) }
+    }
+  }
+
+  function pedirTiro(clientId: string, playerId: string, pinId: string, world: HostWorld): HostResult {
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const recusa = (motivo: TiroMotivoDaRecusa): HostResult => reply(clientId, { type: 'tiro.recusado', pinId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'tiro') return recusa('indisponivel')
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    const { outbound, resultado } = tiroNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    if (!resultado.ok) return recusa(resultado.motivo === 'ocupado' ? 'ocupado' : 'indisponivel')
+    return { outbound }
+  }
+
+  /** O desafio de tiro gravado no pino `pinId` (cópia), em qualquer cena; `null` = não é pino de tiro. */
+  function desafioDoTiro(pinId: string, source: HostMapSource): MinigameTiro | null {
+    const pin = allScenes(toWorld(source))
+      .flatMap((scene) => scene.map.pins)
+      .find((p) => p.id === pinId)
+    const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
+    return desafio === undefined || desafio.jogo !== 'tiro' ? null : copiarMinigame(desafio)
+  }
+
   /** Cada mensagem já validada vai ao seu tratador. */
   function routeMessage(clientId: string, msg: PlayerMessage, world: HostWorld): HostResult {
     switch (msg.type) {
@@ -9336,6 +9409,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'pesca.lance':
       case 'pesca.fim':
         return handlePesca(clientId, msg, world)
+      case 'tiro.pedir':
+      case 'tiro.pronto':
+      case 'tiro.vivo':
+      case 'tiro.fim':
+        return handleTiro(clientId, msg, world)
     }
   }
 
@@ -10276,7 +10354,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastViews.delete(playerId)
       // DANÇA: quem dançava e caiu não passou; se era o último na pista, sai o desfecho.
       // PESCA: quem pescava e caiu sai; quem estava só convidado recebe o convite de novo ao voltar.
-      return comDesfechoDaDanca({ outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId)] })
+      // TIRO: quem atirava e caiu perde a rodada (a tentativa já contou).
+      return comDesfechoDaDanca({ outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId)] })
     },
 
     kick(clientId) {
@@ -10299,7 +10378,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       viewEpoch += 1
       // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
       // PESCA: o expulso sai da pesca (do convite, ou da água).
-      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId)] })
+      return comDesfechoDaDanca({ outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId)] })
     },
 
     confirmReturn(playerId, previousId, source) {
@@ -11033,6 +11112,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     pesca() {
       return pescaNoHost.aoVivo()
+    },
+
+    convidarParaTiro(pinId, playerIds, source) {
+      const desafio = desafioDoTiro(pinId, source)
+      if (desafio === null) return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      const convidados = inRoomOrder(new Set(playerIds))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
+        })
+        .slice(0, TIRO_PARTICIPANTES_MAX)
+      const { outbound, resultado } = tiroNoHost.convidar({ pinId, minigame: desafio }, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    pausarTiro(pinId) {
+      const outbound = tiroNoHost.pausar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarTiro(pinId) {
+      const outbound = tiroNoHost.retomar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarTiro(pinId) {
+      const outbound = tiroNoHost.encerrar(pinId)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    reabrirTiro(pinId, source) {
+      const desafio = desafioDoTiro(pinId, source)
+      const outbound = desafio === null ? null : tiroNoHost.reabrir({ pinId, minigame: desafio })
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    tiro() {
+      return tiroNoHost.aoVivo()
     },
 
     abalo(origem, textos, vizinhas, source) {

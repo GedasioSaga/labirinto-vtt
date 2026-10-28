@@ -452,6 +452,17 @@ export function pontosMaximos(dif: DificuldadeSim, t: number): number {
   return tirosMaximos(dif, t) * Math.round(PONTOS_MAX_DE_UM_ALVO * MULT_MAX * DIF[dif].valor)
 }
 
+/**
+ * Teto de pontos com `acertos` acertos: todos no alvo que mais vale, num combo
+ * só (o k-ésimo acerto vale `mult(k)`), mais meio ponto de arredondamento
+ * por acerto. Mais apertado que o do tempo: o combo sobe devagar.
+ */
+export function pontosMaximosPorAcertos(dif: DificuldadeSim, acertos: number): number {
+  let soma = 0
+  for (let k = 0; k < acertos; k++) soma += PONTOS_MAX_DE_UM_ALVO * mult(k) * DIF[dif].valor + 0.5
+  return Math.floor(soma)
+}
+
 // ------------------------------------------------------------------ robô que joga como gente
 
 /** Reação ~250 ms, mira pela lei de Fitts, erro gaussiano, às vezes atira no proibido. */
