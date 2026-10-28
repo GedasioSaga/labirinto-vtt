@@ -12,6 +12,7 @@ import type { MapData } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
 import { measureDistance } from '../lib/measurement'
+import { casaDoPonto, centroDaCasa } from '../lib/batalha/blocos'
 
 /** Uma medida na tela: `dragging` = o dedo ainda está apertado. */
 export interface PlayerMeasure {
@@ -50,10 +51,26 @@ export function withMeasureArmed(state: PlayerMeasureState, armed: boolean): Pla
  */
 export function escapeDisarmsMeasure(key: string, target: EventTarget | null): boolean {
   if (key !== 'Escape') return false
+  return foraDeCampoDeTexto(target)
+}
+
+/** A tecla é do mapa, e não da edição de um campo de texto (onde Q, E, + e − são letras). */
+export function foraDeCampoDeTexto(target: EventTarget | null): boolean {
   if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return true
   if (target.isContentEditable) return false
   const tag = target.tagName
   return tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT'
+}
+
+/** MODO BATALHA (B6): Q e E giram o cone; + e − mudam o raio do círculo e o tamanho do cone. */
+export type TeclaDaMedida = { tipo: 'girar'; sentido: 1 | -1 } | { tipo: 'tamanho'; sentido: 1 | -1 }
+
+export function teclaDaMedida(key: string): TeclaDaMedida | null {
+  if (key === 'q' || key === 'Q') return { tipo: 'girar', sentido: -1 }
+  if (key === 'e' || key === 'E') return { tipo: 'girar', sentido: 1 }
+  if (key === '+' || key === '=') return { tipo: 'tamanho', sentido: 1 }
+  if (key === '-' || key === '_') return { tipo: 'tamanho', sentido: -1 }
+  return null
 }
 
 /**
@@ -85,8 +102,10 @@ export function playerMeasureReducer(state: PlayerMeasureState, event: PlayerMea
  * número que os do mestre. Alt inverte o grude, igual no editor. O jogador
  * não tem o seletor de grude do mestre; o padrão do editor (ligado) vale.
  */
-export function measurePointFromScreen(camera: Camera, screen: Point, map: Pick<MapData, 'grid' | 'gridShape'>, altKey: boolean): Point {
+export function measurePointFromScreen(camera: Camera, screen: Point, map: Pick<MapData, 'grid' | 'gridShape'>, altKey: boolean, emBatalha = false): Point {
   const world = { x: (screen.x - camera.x) / camera.scale, y: (screen.y - camera.y) / camera.scale }
+  // MODO BATALHA (B6): a medida é de casa (o centro dela), como o protótipo e a contagem de blocos; Alt não solta.
+  if (emBatalha) return centroDaCasa(casaDoPonto(world, map.grid), map.grid)
   if (altKey) return world
   return snapPointForTarget('wall', map.gridShape, world.x, world.y, map.grid)
 }

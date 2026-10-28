@@ -62,6 +62,7 @@ import {
   type HostPeek,
   type HostResult,
   type HostPlayerLaser,
+  type HostMedidaDoJogador,
   type HostSession,
   type HostSignal,
   type HostWorld,
@@ -86,6 +87,7 @@ import {
   type FrozenTravel,
   type TrancaAviso,
   type TravelRequest,
+  type HostSessionOptions,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
@@ -322,10 +324,16 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
   onPlayerLaser?: (laser: HostPlayerLaser) => void
+  /** COMPARTILHAR COM O MESTRE (B6): a medida de um jogador (ou o apagar dela), só para a tela do mestre. */
+  onMedidaDoJogador?: (medida: HostMedidaDoJogador) => void
   /** MODO BATALHA: a cena (`tableSceneKey`) está em batalha na sessão do mestre (`stores/batalhaStore.ts`). */
   getBatalha?: (sceneKey: string) => boolean
-  /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena; o caminho andado soma. */
-  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number) => void
+  /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena, andando `casas`; o caminho andado soma. */
+  onBatalhaAndou?: HostSessionOptions['onBatalhaAndou']
+  /** MODO BATALHA (B6): o caminho andado da cena no mestre, que cada jogador recebe recortado. */
+  getCaminhosDaBatalha?: HostSessionOptions['getCaminhosDaBatalha']
+  /** MODO BATALHA: a ficha do jogador `nome` esbarrou numa parede que ele não via (`invisivel`: parede invisível); aviso só do mestre. */
+  onEsbarrouNaParede?: HostSessionOptions['onEsbarrouNaParede']
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
   getPeriodo?: () => PeriodoLido | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
@@ -3450,6 +3458,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pruneReturnToasts()
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
+    if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
     if (result.call !== undefined) announceCall(result.call)
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
@@ -3603,6 +3612,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // DANÇA: quem dançava saiu; os colegas leem o estado novo e, se era o último, sai o desfecho.
     const result = session.disconnect(clientId, at)
     void dispatch(result)
+    // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
+    if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     notifyDancaIfChanged()
     notifyPescaIfChanged()
@@ -3709,6 +3720,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         now: deps.now,
         getBatalha: deps.getBatalha,
         onBatalhaAndou: deps.onBatalhaAndou,
+        getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
+        onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,
         restoreExploration,
@@ -4259,6 +4272,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
       if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
       notifyDancaIfChanged()
       notifyPescaIfChanged()

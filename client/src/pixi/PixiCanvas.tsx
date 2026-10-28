@@ -133,6 +133,8 @@ import { useDestinationStore } from '../stores/destinationStore'
 import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
+import { useMedidasDosJogadoresStore } from '../stores/medidasDosJogadoresStore'
+import { createMedidasDosJogadoresRenderer } from './drawMedidasDosJogadores'
 import { useNoiseStore } from '../stores/noiseStore'
 import { createNoiseGesture } from './noiseGesture'
 import { useContaGotasStore } from '../stores/contaGotasStore'
@@ -1687,6 +1689,23 @@ export function PixiCanvas({
         if (drawn === 0) prune(now)
       }
       app.ticker.add(tickPlayerLasers)
+
+      // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo dos jogadores, abaixo dos
+      // lasers e sem receber toque. Só a do mapa aberto; o renderer não redesenha sem mudança.
+      const medidasLayer = new Container()
+      medidasLayer.eventMode = 'none'
+      app.stage.addChildAt(medidasLayer, app.stage.getChildIndex(laserLayer))
+      const medidasRenderer = createMedidasDosJogadoresRenderer()
+      let medidasDrawn = 0
+      el.dataset.medidasDosJogadores = '0'
+      const tickMedidasDosJogadores = () => {
+        const { medidas } = useMedidasDosJogadoresStore.getState()
+        if (medidas.length === 0 && medidasDrawn === 0) return
+        const drawn = medidasRenderer.draw(medidasLayer, medidas, useMapStore.getState().map, camera)
+        if (drawn !== medidasDrawn) el.dataset.medidasDosJogadores = String(drawn)
+        medidasDrawn = drawn
+      }
+      app.ticker.add(tickMedidasDosJogadores)
       /** Último ponto do ponteiro sobre o canvas (px de mundo); `null` com o ponteiro fora dele. */
       let laserPointer: Point | null = null
       /** L apertado há menos de `LASER_KEY_TAP_MS`, ainda sem decidir entre atalho da Linha e laser. */
@@ -8784,6 +8803,7 @@ export function PixiCanvas({
         app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
+        app.ticker.remove(tickMedidasDosJogadores)
         app.ticker.remove(tickMapaDeLuz)
         mapaDeLuz.destruir()
         tokensRenderer.cancelarAnimacoes()

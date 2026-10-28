@@ -40,6 +40,7 @@ import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
 import { nuvensLigadas } from './lib/nuvens'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
+import { useMedidasDosJogadoresStore } from './stores/medidasDosJogadoresStore'
 import { useNoiseStore } from './stores/noiseStore'
 import { noiseFeedbackText } from './lib/noise'
 import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from './lib/keymap'
@@ -890,7 +891,12 @@ function App() {
         onTunnelChange: setTunnel,
         // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
         getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
-        onBatalhaAndou: (sceneKey, tokenId, blocos) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos),
+        onBatalhaAndou: (sceneKey, tokenId, blocos, casas) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
+        // B6: o caminho andado vai a cada jogador recortado pelo host (o dele inteiro, o do colega só à vista).
+        getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? null,
+        // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
+        onEsbarrouNaParede: (nome, invisivel) =>
+          useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),
         // O período vai no snapshot recortado (`luzParaJogador`): só o da cena de cada jogador, nunca hora.
         getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
         onTableScreensChange: setTableScreens,
@@ -906,6 +912,7 @@ function App() {
         }),
         // Laser do jogador: o canvas desenha pela store, só o da cena aberta.
         onPlayerLaser: (laser) => usePlayerLaserStore.getState().receive(laser),
+        onMedidaDoJogador: (medida) => useMedidasDosJogadoresStore.getState().receive(medida),
         // Chamar o mestre: a linha na caixa "Chamados" a ponte já põe; aqui só o bipe.
         onCall: () => playSignalSound(),
         // "Ir lá" do chamado: a cena de quem chamou (ou a aberta, no mapa solto) com a ficha no centro.
@@ -993,7 +1000,13 @@ function App() {
       useBatalhaStore.subscribe((state, previous) => {
         const anuncio = state.anuncio
         if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
-        if (JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
+        // "Zerar caminhos" também (o `zerados` sobe): o caminho some e o jogador lê o aviso.
+        // O caminho que só soma vai com o snapshot do próprio movimento.
+        const zerou = Object.entries(state.cenas).some(([chave, cena]) => {
+          const antes = previous.cenas[chave]
+          return antes !== undefined && antes.zerados !== cena.zerados
+        })
+        if (zerou || JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
           notificarPontes((ponte) => ponte.notifyBatalhaChanged())
         }
       }),
@@ -1094,6 +1107,7 @@ function App() {
     useDonosDasFichasStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
+    useMedidasDosJogadoresStore.getState().clear()
     useLaserStore.getState().setToggled(false)
     useDiceStore.getState().clear()
     // Sala fechada: o painel esvazia; a conversa guardada volta do disco quando a sala reabrir.

@@ -2,6 +2,7 @@ import type { CarriedItem, HazardKind, MapData, MarcaRumo, PinCard, RegionPoint 
 import { cleanItemName } from '../lib/items'
 import { isCoinAmount, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX } from '../lib/troca'
 import type { PlayerHazard } from '../lib/hazards'
+import type { CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { LuzDoJogador } from '../lib/periodo'
 import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
@@ -44,6 +45,7 @@ import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from 
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
+import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 
 export type { OwnTokenElsewhere }
 
@@ -1166,6 +1168,8 @@ export type PlayerMessage =
   // MINIGAME DE TIRO: pedir, pronto, vivo e resultado (`protocoloDoTiro.ts`).
   | TiroPlayerMessage
   | MyNotesSetMessage
+  // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo do jogador, só ao mestre (`protocoloDaMedida.ts`).
+  | MedidaCompartilharMessage
 
 /**
  * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
@@ -1875,6 +1879,7 @@ export type HostMessage =
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
   // `batalha` (MODO BATALHA, B4): a cena DELE está em batalha. Fora do `patch`. Ausente = fora da batalha.
+  // `caminhos` (MODO BATALHA, B6): o caminho andado que ele pode ver (`lib/batalha/caminhoAndado.ts`). Só em batalha; fora do `patch`.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
@@ -1892,7 +1897,7 @@ export type HostMessage =
   // `waiting` (ENCONTRO MARCADO): ver o comentário acima de `HostMessage`.
   // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
   // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; caminhos?: CaminhosDaBatalha; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
@@ -3382,6 +3387,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parsePersonagemAjustar(value)
     case 'livro.pedir':
       return parseLivroPedir(value)
+    case 'medida.compartilhar':
+      return parseMedidaCompartilhar(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':

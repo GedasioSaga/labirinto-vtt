@@ -6,6 +6,7 @@ import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { playerHiddenRings } from './fogFilter'
 import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
+import type { Casa } from './batalha/blocos'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -47,7 +48,7 @@ export type TokenMoveLanding = 'nearest_floor'
 
 /** `blocos`: só no MODO BATALHA — os blocos que este movimento andou (`lib/batalha/movimentoEmBatalha.ts`). */
 export type TokenMoveResult =
-  | { ok: true; x: number; y: number; landing?: TokenMoveLanding; blocos?: number }
+  | { ok: true; x: number; y: number; landing?: TokenMoveLanding; blocos?: number; caminho?: readonly Casa[] }
   | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
@@ -67,7 +68,11 @@ export interface TokenMoveOptions {
    * o que ele faria; o host o anda com as paredes de `map`). Ausente = fora da
    * batalha. Não vale para o mestre (`isHost`).
    */
-  batalha?: { paredesDoJogador: readonly Wall[] }
+  batalha?: {
+    paredesDoJogador: readonly Wall[]
+    /** B6: devolve também as casas andadas (`caminho`), para a prévia desenhar. O host não pede. */
+    comCaminho?: boolean
+  }
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -342,7 +347,7 @@ export function validateTokenMove(
   // MODO BATALHA: centro da casa, blocos pelo menor caminho legal (o mestre anda livre).
   if (!options.isHost && options.batalha !== undefined) {
     const occupants = options.occupants ?? map.tokens
-    return passoEmBatalha({
+    const passo = passoEmBatalha({
       grid: map.grid,
       colunas: map.width,
       linhas: map.height,
@@ -355,6 +360,9 @@ export function validateTokenMove(
       noChao: (p) => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
       ocupada: (p) => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
     })
+    // O caminho só vai a quem pediu (a prévia do jogador, B6); o host responde o lugar e os blocos.
+    if (!passo.ok || options.batalha.comCaminho === true) return passo
+    return { ok: true, x: passo.x, y: passo.y, blocos: passo.blocos }
   }
 
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
