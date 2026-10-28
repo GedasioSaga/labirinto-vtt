@@ -556,6 +556,40 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M3 20.5h18" />
         </>
       )
+    // Móveis de casa (28/10/2026), de frente, como a lápide e a jardineira: de cima eles liam como caixas.
+    case 'fogao':
+      // O corpo sobre os pés, a chapa, o cano subindo e a portinha da lenha.
+      return (
+        <>
+          <rect x="4" y="9" width="16" height="9.5" rx="1" />
+          <path d="M3 9h18M15.5 9V3.5h2.5V9M6 18.5V21M18 18.5V21" />
+          <rect x="8" y="12" width="8" height="3.5" />
+        </>
+      )
+    case 'geladeira':
+      // O armário alto em duas portas (a do gelo em cima, menor), com os trincos.
+      return (
+        <>
+          <rect x="6" y="3" width="12" height="18" rx="1" />
+          <path d="M6 9.5h12M15 5.2v2.2M15 11.8v3.4" />
+        </>
+      )
+    case 'pia':
+      // A bica sobre a cuba funda, embutida no tampo.
+      return (
+        <>
+          <path d="M3 11h18M6 11v3.5a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V11" />
+          <path d="M12 11V5.5h3.5V7.5" />
+        </>
+      )
+    case 'balcao':
+      // Comprido, o tampo com a beira da frente e a barra de pé rente ao chão.
+      return (
+        <>
+          <rect x="2" y="8" width="20" height="3" />
+          <path d="M3.5 11v7.5h17V11M2 20.5h20" />
+        </>
+      )
   }
 }
 

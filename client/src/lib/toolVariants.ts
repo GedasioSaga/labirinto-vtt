@@ -521,7 +521,11 @@ export const ATALHO_DA_ARVORE: {
  * da árvore fecha a parte "Rua e jardim".
  */
 export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = [
-  { titulo: 'Dentro de casa', tipos: ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'armario', 'aparador', 'tapete', 'tapeteLongo'] },
+  // Os móveis de casa de 28/10/2026 entram aqui, em pares: o balcão com o aparador, o fogão com a geladeira.
+  {
+    titulo: 'Dentro de casa',
+    tipos: ['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'armario', 'aparador', 'balcao', 'pia', 'fogao', 'geladeira', 'tapete', 'tapeteLongo'],
+  },
   { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
 ]

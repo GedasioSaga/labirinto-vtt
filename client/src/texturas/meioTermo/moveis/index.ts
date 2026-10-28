@@ -36,6 +36,10 @@ import { montarArcoDoPortao } from './arcoDoPortao'
 import { montarPlacaDeSeta } from './placaDeSeta'
 import { montarTapeteLongo } from './tapeteLongo'
 import { montarFogo } from './fogo'
+import { montarFogao } from './fogao'
+import { montarGeladeira } from './geladeira'
+import { montarPia } from './pia'
+import { montarBalcao } from './balcao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -69,6 +73,11 @@ const MONTADORES = {
   tapeteLongo: montarTapeteLongo,
   // Objeto Fogo (27/10/2026): só o chão queimado; as chamas são a camada animada `pixi/fogosDoMapa.ts`.
   fogo: montarFogo,
+  // Móveis de casa (28/10/2026): a cozinha.
+  fogao: montarFogao,
+  geladeira: montarGeladeira,
+  pia: montarPia,
+  balcao: montarBalcao,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -97,6 +106,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete',
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
+  'fogao', 'geladeira', 'pia', 'balcao',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

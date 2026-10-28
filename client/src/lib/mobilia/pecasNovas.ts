@@ -22,6 +22,7 @@ import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 export const PECAS_NOVAS = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
+  'fogao', 'geladeira', 'pia', 'balcao',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -71,6 +72,12 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   tapeteLongo: { rotulo: 'Tapete longo', artigo: 'um tapete longo', tamanho: { largura: 1, altura: 4 }, redonda: false },
   // Objeto Fogo (27/10/2026): o tamanho padrão é o da Chama; o painel troca para Fogaréu e Incêndio (`TAMANHOS_DO_FOGO`).
   fogo: { rotulo: 'Fogo', artigo: 'um fogo', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Móveis de casa (28/10/2026), época "Fantasia, como os de hoje". A cozinha: o fogão de ferro a lenha,
+  // a geladeira de madeira (a caixa de gelo), a pia de pedra e o balcão, esticável como o aparador.
+  fogao: { rotulo: 'Fogão', artigo: 'um fogão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  geladeira: { rotulo: 'Geladeira', artigo: 'uma geladeira', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
+  pia: { rotulo: 'Pia', artigo: 'uma pia', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
+  balcao: { rotulo: 'Balcão', artigo: 'um balcão', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -92,6 +99,10 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     placaDeSeta: valor(f.placaDeSeta),
     tapeteLongo: valor(f.tapeteLongo),
     fogo: valor(f.fogo),
+    fogao: valor(f.fogao),
+    geladeira: valor(f.geladeira),
+    pia: valor(f.pia),
+    balcao: valor(f.balcao),
   }
 }
 
@@ -114,6 +125,7 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
+  'fogao', 'geladeira', 'pia', 'balcao',
 ]
 
 /**
@@ -123,6 +135,9 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
  */
 const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
   mesa: ['mesaQuadrada', 'mesaRedonda'],
+  // A cozinha fica junto do armário de cozinha, e o balcão com o aparador, o parente esticável dele.
+  armario: ['fogao', 'geladeira', 'pia'],
+  aparador: ['balcao'],
   cerca: ['sebe', 'jardineira'],
   tapete: ['tapeteLongo'],
   fogueira: ['fogo'],
@@ -244,6 +259,19 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
     case 'fogo':
       // O chão queimado: um aro por dentro da pegada (as línguas são a camada animada, `pixi/fogosDoMapa.ts`).
       return aro(largura * 0.8, altura * 0.8)
+    // Móveis de casa (28/10/2026): a frente do móvel é o lado de baixo, como no armário.
+    case 'fogao':
+      // As duas bocas no fundo da chapa e a portinha da lenha na frente.
+      return [...aro(largura * 0.3, altura * 0.3, -hw * 0.42, -hh * 0.22), ...aro(largura * 0.3, altura * 0.3, hw * 0.42, -hh * 0.22), linha(-hw * 0.4, hh * 0.62, hw * 0.4)]
+    case 'geladeira':
+      // A tampa de zinco da caixa de gelo e o fecho da frente.
+      return [...quadro(-hw * 0.62, -hh * 0.62, hw * 0.62, hh * 0.3), { x1: 0, y1: hh * 0.3, x2: 0, y2: hh }]
+    case 'pia':
+      // A cuba de pedra à esquerda e o balde à direita.
+      return [...quadro(-hw * 0.86, -hh * 0.66, hw * 0.08, hh * 0.66), ...aro(altura * 0.62, altura * 0.62, hw * 0.52, 0)]
+    case 'balcao':
+      // A moldura da frente do tampo e a barra de pé, de ponta a ponta.
+      return [linha(-hw, hh * 0.4, hw), linha(-hw * 0.96, hh * 0.86, hw * 0.96)]
   }
 }
 
