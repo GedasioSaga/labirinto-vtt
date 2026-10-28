@@ -367,7 +367,7 @@ describe('Visão de jogador no Jogar — vazamento zero para o editor', () => {
     expect(avisos).toHaveBeenCalledTimes(1)
 
     controlador.fechar()
-    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, pesca: [], jogadores: [] })
+    expect(controlador.estado()).toEqual({ aberta: false, ficha: null, danca: null, pesca: [], tiro: [], jogadores: [] })
     expect(controlador.estado().fantasma ?? null).toBeNull()
     pararDeOuvir()
 

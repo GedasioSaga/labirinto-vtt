@@ -20,7 +20,7 @@ function ponteFalsa() {
 }
 
 const FICHA = { id: 'tok-ana', nome: 'Ana', retrato: null, cor: '#ffffff', dono: null, npc: false }
-const TESTE_ABERTO: EstadoDaVisao = { aberta: true, ficha: FICHA, danca: null, pesca: [], jogadores: [{ playerId: 'p-teste', name: 'Ana' }] }
+const TESTE_ABERTO: EstadoDaVisao = { aberta: true, ficha: FICHA, danca: null, pesca: [], tiro: [], jogadores: [{ playerId: 'p-teste', name: 'Ana' }] }
 
 function sala(ponte: PonteDaDanca, prepararMusica: () => boolean) {
   return { aberta: true, players: [{ playerId: 'p-bia', name: 'Bia' }], danca: null, ponte: () => ponte, prepararMusica }

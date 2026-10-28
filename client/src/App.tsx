@@ -2507,7 +2507,7 @@ function App() {
    * `dancaNoPainel` só chama para dançar o pino de dança
    * (`hostSession.convidarParaDanca`). Chama só quem está jogando e com a
    * página aberta: a sessão recusaria o resto. Com a VISÃO DE JOGADOR aberta,
-   * a dança e a pesca ao vivo são as do teste, mesmo com a sala aberta ao lado.
+   * a dança, a pesca e o tiro ao vivo são os do teste, mesmo com a sala aberta ao lado.
    */
   const minigamePanel = (pin: Pin) => ({
     pinId: pin.id,
@@ -2541,7 +2541,7 @@ function App() {
       pescas,
       ponte: () => hostBridgeRef.current,
     }),
-    aoVivoDoTiro: tiroNoPainel(pin.id, {
+    aoVivoDoTiro: tiroNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       tiros,

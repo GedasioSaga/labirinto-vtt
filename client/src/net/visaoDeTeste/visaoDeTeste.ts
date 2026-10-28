@@ -5,6 +5,7 @@ import type { MapData, Token } from '../../types/map'
 import type { ToastSink } from '../avisosDaPonte'
 import type { DancaAoVivo } from '../dancaNoHost'
 import type { PescaAoVivo } from '../pescaNoHost'
+import type { TiroAoVivo } from '../tiroNoHost'
 import { createHostBridge, type HostBridge, type HostBridgeDeps } from '../hostBridge'
 import type { HostWorld, PlayerInfo } from '../hostSession'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH } from '../protocol'
@@ -105,11 +106,13 @@ export interface EstadoDaVisao {
    * pode tocar no pino de "Jogador toca no pino". Vazio = nenhuma.
    */
   pesca: readonly PescaAoVivo[]
+  /** MINIGAME DE TIRO: cada pino com barraca de tiro na ponte de TESTE, como a pesca. Vazio = nenhuma. */
+  tiro: readonly TiroAoVivo[]
   /** Quem está na janela jogando agora (no teste, só o jogador de teste); vazio = ninguém ainda. */
   jogadores: readonly JogadorDoTeste[]
 }
 
-export const VISAO_FECHADA: EstadoDaVisao = { aberta: false, ficha: null, danca: null, pesca: [], jogadores: [] }
+export const VISAO_FECHADA: EstadoDaVisao = { aberta: false, ficha: null, danca: null, pesca: [], tiro: [], jogadores: [] }
 
 /**
  * O que o teste pode pedir à ponte da sala de verdade: só a leitura. O tipo é
@@ -198,9 +201,9 @@ interface Sessao {
  * (ausente = sem fantasma no editor). A dança e quem joga vêm de `antes`: só a
  * ponte de teste os muda (`aoMudarDanca`, `aoMudarJogadores`).
  */
-function estadoAberto(ficha: FichaParaTeste, fantasma: FantasmaDeTeste | null, antes: Pick<EstadoDaVisao, 'danca' | 'pesca' | 'jogadores'>): EstadoDaVisao {
-  const { danca, pesca, jogadores } = antes
-  return fantasma === null ? { aberta: true, ficha, danca, pesca, jogadores } : { aberta: true, ficha, fantasma, danca, pesca, jogadores }
+function estadoAberto(ficha: FichaParaTeste, fantasma: FantasmaDeTeste | null, antes: Pick<EstadoDaVisao, 'danca' | 'pesca' | 'tiro' | 'jogadores'>): EstadoDaVisao {
+  const { danca, pesca, tiro, jogadores } = antes
+  return fantasma === null ? { aberta: true, ficha, danca, pesca, tiro, jogadores } : { aberta: true, ficha, fantasma, danca, pesca, tiro, jogadores }
 }
 
 /** Quem pode ser chamado para a dança: jogando e com a página aberta (a sessão recusaria o resto). */
@@ -359,6 +362,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       proximo.danca === estadoAtual.danca &&
       // A pesca também (`notifyPescaIfChanged`).
       proximo.pesca === estadoAtual.pesca &&
+      // E o tiro (`notifyTiroIfChanged`).
+      proximo.tiro === estadoAtual.tiro &&
       mesmosJogadores(proximo.jogadores, estadoAtual.jogadores)
     )
       return
@@ -374,6 +379,11 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
   /** A pesca da ponte de teste mudou: o painel do pino lê a nova. */
   const aoMudarPesca = (pesca: readonly PescaAoVivo[]) => {
     mudarEstado({ ...estadoAtual, pesca })
+  }
+
+  /** O tiro da ponte de teste mudou: o painel do pino lê o novo. */
+  const aoMudarTiro = (tiro: readonly TiroAoVivo[]) => {
+    mudarEstado({ ...estadoAtual, tiro })
   }
 
   /** A lista da ponte de teste mudou; o estado só muda quando quem pode ser chamado mudou (o raio, a ficha… não contam). */
@@ -442,7 +452,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     if (daLista === null) return
     encerrarPonte(s, false)
     // A dança e quem jogava eram da ponte que acabou de sair: o painel volta ao zero até a nova contar.
-    mudarEstado({ ...estadoAtual, danca: null, pesca: [], jogadores: [] })
+    mudarEstado({ ...estadoAtual, danca: null, pesca: [], tiro: [], jogadores: [] })
     s.geracao += 1
     const geracao = s.geracao
     /** Só a ponte desta geração fala com o painel: a de antes ainda pode avisar enquanto fecha. */
@@ -487,6 +497,10 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       // MINIGAME DE PESCA: idem — sem isto o painel não veria o jogador de teste entrar nem pescar.
       onPescaChange: (pesca) => {
         if (daGeracaoAtual()) aoMudarPesca(pesca)
+      },
+      // MINIGAME DE TIRO: idem, para o placar da barraca.
+      onTiroChange: (tiro) => {
+        if (daGeracaoAtual()) aoMudarTiro(tiro)
       },
       toasts: avisos,
       // O recorte do jogador de teste corre no thread do editor: mais espaçado que o da sala, e parado com a janela escondida.
