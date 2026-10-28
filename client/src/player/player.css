@@ -7143,6 +7143,29 @@ button.pp-colecao__casa:focus-visible {
 }
 
 /*
+ * CAMINHO ANDADO (B6): "Você andou N blocos nesta batalha.", embaixo das
+ * peças de batalha, com o número em latão e algarismos de mesma largura.
+ */
+.pp-andado {
+  margin: 6px 0 0;
+  font-size: var(--lb-font-size-md, 13px);
+  line-height: 1.45;
+  color: var(--lb-color-parchment, #e8e2d4);
+}
+
+.pp-andado__total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-andado__sub {
+  display: block;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/*
  * COMPARTILHAR COM O MESTRE (B6): o interruptor junto das peças de medir, o
  * do protótipo aprovado (docs/design/batalha-ferramentas/prototipo.html):
  * trilho escuro, bola de pergaminho; ligado, latão. A linha de baixo diz o

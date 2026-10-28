@@ -20,7 +20,7 @@ import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 import type { PlayerMarkFormProps } from './PlayerMarkForm'
 import { PlayerMarcacoes } from './PlayerMarcacoes'
 import { IconeDoJogador, type NomeDoIcone } from './IconeDoJogador'
-import type { FerramentaDeMedida } from '../lib/batalha/ferramentasDoJogador'
+import { textoBlocos, type FerramentaDeMedida } from '../lib/batalha/ferramentasDoJogador'
 import { acompanharTeclado } from './tecladoDoCelular'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
@@ -261,6 +261,8 @@ interface PlayerPanelProps {
    * vai para "Em batalha", ao lado de Círculo, Cone e Visão (decisão 2).
    */
   batalha?: boolean
+  /** MODO BATALHA (B6): blocos que as fichas dele andaram desde que a batalha ligou (ou o mestre zerou). */
+  andou?: number
   /** A peça de medir escolhida em batalha. */
   ferramenta?: FerramentaDeMedida
   onFerramenta?: (ferramenta: FerramentaDeMedida) => void
@@ -376,6 +378,7 @@ export function PlayerPanel({
   measureArmed,
   onToggleMeasure,
   batalha = false,
+  andou = 0,
   ferramenta = 'regua',
   onFerramenta,
   compartilharComMestre,
@@ -922,6 +925,11 @@ export function PlayerPanel({
                       </button>
                     ))}
                   </div>
+                  {/* CAMINHO ANDADO (B6): a conta é do mestre; zerar também (decisão 3). */}
+                  <p className="pp-andado">
+                    Você andou <strong className="pp-andado__total">{textoBlocos(andou)}</strong> nesta batalha.
+                    <span className="pp-andado__sub">Conta até o mestre zerar os caminhos.</span>
+                  </p>
                 </>
               )}
               <p className="pp-dica-acao" aria-live="polite">

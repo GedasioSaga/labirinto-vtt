@@ -65,6 +65,7 @@ import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
 import { textoBlocos, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
+import { lerCaminhosDaBatalha, type CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
 import { MEDIDA_ENVIO_INTERVALO_MS } from '../net/protocoloDaMedida'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { playerExitPassageOf } from '../lib/pinTravel'
@@ -298,6 +299,14 @@ export interface PlayerState {
   porAtravessar?: string[]
   /** MODO BATALHA (B4): a cena dele está em batalha. Cada snapshot substitui; sem o campo, fora da batalha. */
   batalha?: true
+  /**
+   * MODO BATALHA (B6): o caminho andado que o host deixou ele ver — o das
+   * fichas dele inteiro, com a conta, e o dos colegas só nas casas à vista.
+   * Cada snapshot substitui; sem o campo, nenhum caminho.
+   */
+  caminhos?: CaminhosDaBatalha
+  /** MODO BATALHA (decisão 3): o mestre zerou os caminhos desta batalha. `id` novo a cada vez; some sozinho. */
+  caminhosZerados?: { id: number }
   /**
    * MODO BATALHA: o mestre acabou de ligar a batalha nesta cena, com a
    * abertura escolhida (`transicao`, `texto`; os dois opcionais). `id` novo a
@@ -1541,6 +1550,8 @@ export const DOOR_NOTICE_TTL_MS = 2500
 export const MOVE_NOTICE_TTL_MS = 2500
 /** O aviso do esbarrão (B6) fica mais: ele traz um número que o jogador precisa ler. */
 export const ESBARROU_TTL_MS = 8000
+/** "O mestre zerou os caminhos." (B6): curto, como no protótipo aprovado. */
+export const CAMINHOS_ZERADOS_TTL_MS = 3500
 
 /** O aviso quando o host parou a ficha antes da prévia: a regra do usuário de 27/10, texto aprovado em 28/10. */
 export function textoDoEsbarrao(andou: number, pediu: number): string {
@@ -2100,6 +2111,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** Recusa do movimento (`TokenMoveRejection`) ou pouso em outro lugar após aceite (`TokenMoveLanding`). */
   let esbarrouTimer: ReturnType<typeof setTimeout> | null = null
+
+  let caminhosZeradosTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** O `zerados` do snapshot subiu na mesma batalha: o mestre zerou os caminhos (decisão 3: só ele zera). */
+  function avisoDosCaminhosZerados(antes: CaminhosDaBatalha | undefined, agora: CaminhosDaBatalha | undefined): { id: number } | undefined {
+    if (antes === undefined || agora === undefined || agora.zerados <= antes.zerados) return state.caminhosZerados
+    if (caminhosZeradosTimer !== null) clearTimeout(caminhosZeradosTimer)
+    caminhosZeradosTimer = setTimeout(() => {
+      caminhosZeradosTimer = null
+      setState({ caminhosZerados: undefined })
+    }, CAMINHOS_ZERADOS_TTL_MS)
+    return { id: nextNoticeId++ }
+  }
 
   function showEsbarrao(andou: number, pediu: number): void {
     if (esbarrouTimer !== null) clearTimeout(esbarrouTimer)
@@ -3394,6 +3418,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     ownTokens: string[],
     concealed: RegionPoint[][],
     batalha: boolean,
+    caminhos: CaminhosDaBatalha | undefined,
     partyTokens: string[],
     hazards: PlayerHazard[],
     sceneName: string | undefined,
@@ -3472,6 +3497,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       luz,
       porAtravessar: doorsToCross,
       batalha: batalha ? true : undefined,
+      // MODO BATALHA (B6): fora da batalha não há caminho; o aviso do zerar só dentro da mesma batalha.
+      caminhos: batalha ? caminhos : undefined,
+      caminhosZerados: avisoDosCaminhosZerados(state.caminhos, batalha ? caminhos : undefined),
       sceneName,
       place,
       places,
@@ -3552,6 +3580,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       ownTokens,
       concealed,
       state.batalha === true,
+      state.caminhos,
       state.partyTokens ?? [],
       state.hazards ?? [],
       state.sceneName,
@@ -3903,6 +3932,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           luz: undefined,
           porAtravessar: undefined,
           batalha: undefined,
+          caminhos: undefined,
           batalhaIniciada: undefined,
           signals: undefined,
           laser: undefined,
@@ -4520,6 +4550,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (data.glimpses !== undefined && !isVision(data.glimpses)) return
         // MODO BATALHA: só `true` ou ausente; outro valor derruba a mensagem.
         if (data.batalha !== undefined && data.batalha !== true) return
+        // CAMINHO ANDADO (B6): ausente = nenhum; malformado derruba a mensagem.
+        const caminhos = data.caminhos === undefined ? undefined : lerCaminhosDaBatalha(data.caminhos)
+        if (caminhos === null) return
         if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
@@ -4549,7 +4582,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
         if (porAtravessar === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         return
       }
       case 'wait.state':
@@ -4835,7 +4868,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 

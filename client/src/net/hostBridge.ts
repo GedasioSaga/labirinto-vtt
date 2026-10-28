@@ -87,6 +87,7 @@ import {
   type FrozenTravel,
   type TrancaAviso,
   type TravelRequest,
+  type HostSessionOptions,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
@@ -320,8 +321,12 @@ export interface HostBridgeDeps {
   onMedidaDoJogador?: (medida: HostMedidaDoJogador) => void
   /** MODO BATALHA: a cena (`tableSceneKey`) está em batalha na sessão do mestre (`stores/batalhaStore.ts`). */
   getBatalha?: (sceneKey: string) => boolean
-  /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena; o caminho andado soma. */
-  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number) => void
+  /** MODO BATALHA: o host aceitou `blocos` para a ficha na cena, andando `casas`; o caminho andado soma. */
+  onBatalhaAndou?: HostSessionOptions['onBatalhaAndou']
+  /** MODO BATALHA (B6): o caminho andado da cena no mestre, que cada jogador recebe recortado. */
+  getCaminhosDaBatalha?: HostSessionOptions['getCaminhosDaBatalha']
+  /** MODO BATALHA: a ficha do jogador `nome` esbarrou numa parede que ele não via (`invisivel`: parede invisível); aviso só do mestre. */
+  onEsbarrouNaParede?: HostSessionOptions['onEsbarrouNaParede']
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
   getPeriodo?: () => PeriodoLido | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
@@ -3676,6 +3681,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         now: deps.now,
         getBatalha: deps.getBatalha,
         onBatalhaAndou: deps.onBatalhaAndou,
+        getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
+        onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,
         restoreExploration,

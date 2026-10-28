@@ -73,7 +73,9 @@ export function lerMedidaCompartilhada(value: unknown): MedidaCompartilhada | nu
     case 'visao': {
       const de = lerCasa(value.de)
       const para = lerCasa(value.para)
-      return de === null || para === null ? null : { ferramenta: 'visao', de, para }
+      // `ve` é opcional (cliente antigo não manda); presente, só booleano.
+      if (de === null || para === null || (value.ve !== undefined && typeof value.ve !== 'boolean')) return null
+      return typeof value.ve === 'boolean' ? { ferramenta: 'visao', de, para, ve: value.ve } : { ferramenta: 'visao', de, para }
     }
     default:
       return null

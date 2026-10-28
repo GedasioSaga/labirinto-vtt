@@ -886,7 +886,12 @@ function App() {
         onTunnelChange: setTunnel,
         // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
         getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
-        onBatalhaAndou: (sceneKey, tokenId, blocos) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos),
+        onBatalhaAndou: (sceneKey, tokenId, blocos, casas) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
+        // B6: o caminho andado vai a cada jogador recortado pelo host (o dele inteiro, o do colega só à vista).
+        getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? null,
+        // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
+        onEsbarrouNaParede: (nome, invisivel) =>
+          useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),
         // O período vai no snapshot recortado (`luzParaJogador`): só o da cena de cada jogador, nunca hora.
         getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
         onTableScreensChange: setTableScreens,
@@ -990,7 +995,13 @@ function App() {
       useBatalhaStore.subscribe((state, previous) => {
         const anuncio = state.anuncio
         if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
-        if (JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
+        // "Zerar caminhos" também (o `zerados` sobe): o caminho some e o jogador lê o aviso.
+        // O caminho que só soma vai com o snapshot do próprio movimento.
+        const zerou = Object.entries(state.cenas).some(([chave, cena]) => {
+          const antes = previous.cenas[chave]
+          return antes !== undefined && antes.zerados !== cena.zerados
+        })
+        if (zerou || JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
           notificarPontes((ponte) => ponte.notifyBatalhaChanged())
         }
       }),

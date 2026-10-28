@@ -94,10 +94,37 @@ function rotuloDaMedida(m: MedidaNaMesa, map: MapData, grade: GradeDoMapa): stri
   return rotuloParaOMestre(m.name, medida, grade, foraDaBatalha)
 }
 
+/** O chip do rótulo, como o "4 blocos" do jogador: fundo escuro, borda e pontinho na cor dele. */
+const CHIP_FUNDO = 0x15120f
+const CHIP_FUNDO_ALPHA = 0.92
+const CHIP_BORDA_ALPHA = 0.9
+const CHIP_PADDING_X = 7
+const CHIP_PADDING_Y = 3
+const CHIP_RAIO = 6
+const PONTINHO_RAIO = 3.5
+const PONTINHO_ESPACO = 6
+
 interface Peca {
   g: Graphics
+  /** Fundo do rótulo (chip); atrás do texto. */
+  chip: Graphics
   rotulo: Text
   chave: string | null
+}
+
+/** Desenha o chip atrás de `rotulo` e põe o texto dentro, com o canto inferior esquerdo em `ancora` deslocada. */
+function desenharChip(chip: Graphics, rotulo: Text, ancora: Point, cor: number): void {
+  const recuo = CHIP_PADDING_X + PONTINHO_RAIO * 2 + PONTINHO_ESPACO
+  const largura = Math.ceil(rotulo.width) + recuo + CHIP_PADDING_X
+  const altura = Math.ceil(rotulo.height) + CHIP_PADDING_Y * 2
+  const x = Math.round(ancora.x + ROTULO_DESLOCAMENTO_PX)
+  const y = Math.round(ancora.y - ROTULO_DESLOCAMENTO_PX - altura)
+  chip.clear()
+  chip.roundRect(x, y, largura, altura, CHIP_RAIO).fill({ color: CHIP_FUNDO, alpha: CHIP_FUNDO_ALPHA })
+  chip.roundRect(x + 0.5, y + 0.5, largura - 1, altura - 1, CHIP_RAIO).stroke({ width: 1, color: cor, alpha: CHIP_BORDA_ALPHA })
+  chip.circle(x + CHIP_PADDING_X + PONTINHO_RAIO, y + altura / 2, PONTINHO_RAIO).fill({ color: cor })
+  chip.visible = true
+  rotulo.position.set(x + recuo, y + CHIP_PADDING_Y)
 }
 
 export function createMedidasDosJogadoresRenderer() {
@@ -118,11 +145,13 @@ export function createMedidasDosJogadoresRenderer() {
           g.eventMode = 'none'
           const rotulo = new Text({
             text: '',
-            style: { fontFamily: DEFAULT_TEXT_FONT_FAMILY, fontSize: 12, fontWeight: '600', fill: 0xf2ede4, stroke: { color: VEU, width: 3 } },
+            style: { fontFamily: DEFAULT_TEXT_FONT_FAMILY, fontSize: 12, fontWeight: '600', fill: 0xf2ede4 },
           })
           rotulo.eventMode = 'none'
-          container.addChild(g, rotulo)
-          peca = { g, rotulo, chave: null }
+          const chip = new Graphics()
+          chip.eventMode = 'none'
+          container.addChild(g, chip, rotulo)
+          peca = { g, chip, rotulo, chave: null }
           pecas.set(m.playerId, peca)
         }
         const chave = JSON.stringify([m.medida, m.color, m.name, m.emBatalha, camera.x, camera.y, camera.scale, map.grid])
@@ -132,14 +161,15 @@ export function createMedidasDosJogadoresRenderer() {
         peca.g.clear()
         const ancora = desenharForma(peca.g, m, grade, camera, cor)
         peca.rotulo.text = rotuloDaMedida(m, map, grade)
-        peca.rotulo.style.stroke = { color: VEU, width: 3 }
-        peca.rotulo.position.set(Math.round(ancora.x + ROTULO_DESLOCAMENTO_PX), Math.round(ancora.y - ROTULO_DESLOCAMENTO_PX - peca.rotulo.height))
+        desenharChip(peca.chip, peca.rotulo, ancora, cor)
         peca.rotulo.visible = true
       }
       for (const [playerId, peca] of pecas) {
         if (presentes.has(playerId) || peca.chave === null) continue
         peca.chave = null
         peca.g.clear()
+        peca.chip.clear()
+        peca.chip.visible = false
         peca.rotulo.visible = false
       }
       return presentes.size

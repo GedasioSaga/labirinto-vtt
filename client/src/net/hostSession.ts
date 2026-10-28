@@ -1,5 +1,8 @@
 import { coresDosPinos } from '../lib/marcadorDeContinente'
 import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
+import { centroDaCasa, type Casa } from '../lib/batalha/blocos'
+import { caminhosParaJogador, type CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
+import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
@@ -1710,8 +1713,21 @@ export interface HostSessionOptions {
    * nenhuma cena em batalha. Só vale em grade quadrada.
    */
   getBatalha?: (sceneKey: string) => boolean
-  /** MODO BATALHA: o host aceitou `blocos` (> 0) para a ficha `tokenId` na cena `sceneKey` — o caminho andado soma. */
-  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number) => void
+  /** MODO BATALHA: o host aceitou `blocos` (> 0) para a ficha `tokenId` na cena `sceneKey`, andando `casas` — o caminho andado soma. */
+  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number, casas: readonly Casa[]) => void
+  /**
+   * MODO BATALHA (B6): o caminho andado da cena `sceneKey` no mestre
+   * (`stores/batalhaStore.ts`), com o `rev` que sobe a cada mudança. Cada
+   * jogador recebe só o que vê (`caminhosParaJogador`). Ausente ou `null` = sem caminho.
+   */
+  getCaminhosDaBatalha?: (sceneKey: string) => (CaminhosNoMestre & { readonly rev: number }) | null
+  /**
+   * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
+   * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão
+   * ainda estava na névoa dele). A parede passa a valer como explorada para
+   * ele; só o mestre fica sabendo do esbarrão.
+   */
+  onEsbarrouNaParede?: (nome: string, invisivel: boolean) => void
   /**
    * DIA/TARDE/NOITE: o período da sessão no mestre, lido a cada recorte.
    * Ausente ou `null` = mestre sem período (o campo `luz` nem sai). Cada
@@ -2692,6 +2708,12 @@ interface PlayerMemory extends SceneMemory {
   pinosBarrados: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /**
+   * MODO BATALHA (regra de 27/10): paredes invisíveis em que a ficha dele
+   * esbarrou neste mapa. Para ele deixam de ser invisíveis (entram no recorte
+   * como parede comum); para os colegas, nada muda. Ausente = nenhuma.
+   */
+  paredesReveladas?: Set<string>
   /** Fichas de OUTROS jogadores no último snapshot (`partyTokens`): os colegas que ele vê agora. */
   party: string[]
   /** Zonas ocultas e tetos fechados do último snapshot: o que ele já sabe que está escondido. */
@@ -3067,6 +3089,36 @@ function explorationGrewSince(exp: Exploration, before: Uint8Array | undefined):
  * versão do mestre de cada item que saiu ao jogador. Peça recortada (zona,
  * cone) tem outro id e fica de fora, como em `planOfWholeMap`.
  */
+/** A cópia "revelada" de cada parede invisível: a mesma a cada recorte, para a planta lembrada não mudar à toa. */
+const paredeRevelada = new WeakMap<Wall, Wall>()
+/** O mapa com as paredes reveladas, por mapa e por conjunto: o mesmo objeto enquanto nada muda. */
+const mapaRevelado = new WeakMap<MapData, Map<string, MapData>>()
+
+/**
+ * MODO BATALHA (regra de 27/10, esbarrar REVELA): o mapa como o recorte DESTE
+ * jogador o lê — as paredes invisíveis em que ele esbarrou viram parede comum.
+ * Sem nenhuma, o próprio mapa.
+ */
+function comParedesReveladas(map: MapData, reveladas: ReadonlySet<string> | undefined): MapData {
+  if (reveladas === undefined || reveladas.size === 0) return map
+  const chave = [...reveladas].sort().join('\u0000')
+  const porConjunto = mapaRevelado.get(map) ?? new Map<string, MapData>()
+  const pronto = porConjunto.get(chave)
+  if (pronto !== undefined) return pronto
+  let mudou = false
+  const walls = map.walls.map((w) => {
+    if (w.hidden !== true || !reveladas.has(w.id)) return w
+    mudou = true
+    const copia = paredeRevelada.get(w) ?? { ...w, hidden: false }
+    paredeRevelada.set(w, copia)
+    return copia
+  })
+  const mapa = mudou ? { ...map, walls } : map
+  porConjunto.set(chave, mapa)
+  mapaRevelado.set(map, porConjunto)
+  return mapa
+}
+
 function planOfSent(map: MapData, sent: MapData): PlanMemory {
   const keep = <T extends { id: string }>(all: readonly T[], out: readonly { id: string }[]): Map<string, T> => {
     const ids = new Set(out.map((item) => item.id))
@@ -4343,8 +4395,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // SÓ IDA: o host enxerga a outra cena e diz, por saída, se o par é a
     // chegada oculta. Ao jogador vai só o booleano (`pinForPlayer`).
     const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(allScenes(world)))
+    // MODO BATALHA: a parede invisível em que ele esbarrou é parede comum PARA ELE (regra de 27/10).
+    const mapaDoRecorte = comParedesReveladas(map, memory.paredesReveladas)
     const cut = filterMapForPlayer(
-      map,
+      mapaDoRecorte,
       playerId,
       ownership,
       tokenRadiusIn(playerId, map),
@@ -4399,7 +4453,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
-    memory.plan = fromExplored ? planOfSent(map, view.map) : view.plan
+    memory.plan = fromExplored ? planOfSent(mapaDoRecorte, view.map) : view.plan
     bitsAtLastCut.set(memory, exp.bits.slice())
     memory.tokens = view.map.tokens
     seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
@@ -4462,8 +4516,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       place: memory.place,
       places: rememberedPlaces(playerId),
     }
-    // MODO BATALHA: só o "está em batalha" da cena DELE; o caminho andado fica no mestre.
-    if (emBatalha(scene)) base.batalha = true
+    // MODO BATALHA: o "está em batalha" da cena DELE e o caminho andado que ele pode ver
+    // (o dele inteiro; o do colega só de ficha do recorte e nas casas à vista agora).
+    if (emBatalha(scene)) {
+      base.batalha = true
+      const noMestre = options.getCaminhosDaBatalha?.(tableSceneKey(scene)) ?? null
+      if (noMestre !== null) {
+        base.caminhos = caminhosParaJogador(noMestre, {
+          minhas: new Set(ownership[playerId] ?? []),
+          visiveis: new Set(recorte.tokens.map((t) => t.id)),
+          aVista: (casa) => inAnyRing(view.vision, centroDaCasa(casa, map.grid)),
+        })
+      }
+    }
     // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
     if (view.hazards.length > 0) base.hazards = view.hazards
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
@@ -4537,7 +4602,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const inputs = scene === null ? null : viewInputsFor(playerId, world, scene)
     // DIA/TARDE/NOITE: entra o período DA CENA dele, não o da sessão — a troca não mexe em quem está numa cena interior ou fixa.
     const periodoAqui = sessionPeriod()
-    const session = JSON.stringify([scene !== null && emBatalha(scene), map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
+    // MODO BATALHA: o `rev` do caminho andado entra — "Zerar caminhos" refaz o recorte de quem está na cena.
+    const batalhaAqui = scene !== null && emBatalha(scene)
+    const caminhosRev = batalhaAqui ? (options.getCaminhosDaBatalha?.(tableSceneKey(scene))?.rev ?? 0) : null
+    const session = JSON.stringify([batalhaAqui, caminhosRev, map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&
@@ -5742,6 +5810,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * MODO BATALHA (regra de 27/10, esbarrar REVELA E AVISA): o passo andou
+   * menos do que andaria só com as paredes que o jogador conhece (a mesma
+   * conta da prévia dele, `previaDoPasso.ts`)? Então devolve as paredes fora
+   * do recorte que barraram a ficha (vazio quando não foi parede).
+   */
+  function paredesDoEsbarrao(
+    floorMap: MapData,
+    playerId: string,
+    msg: TokenMoveMessage,
+    ownership: Parameters<typeof validateTokenMove>[2],
+    occupants: readonly Token[] | undefined,
+    paredesDoJogador: readonly Wall[],
+    blocosNoHost: number,
+  ): Wall[] {
+    const soConhecidas = validateTokenMove({ ...floorMap, walls: [...paredesDoJogador] }, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
+      occupants,
+      batalha: { paredesDoJogador, comCaminho: true },
+    })
+    if (!soConhecidas.ok || soConhecidas.blocos === undefined || soConhecidas.blocos <= blocosNoHost || soConhecidas.caminho === undefined) return []
+    const conhecidas = new Set(paredesDoJogador.map((w) => w.id))
+    return paredesQueBarramOCaminho(soConhecidas.caminho, floorMap.walls, conhecidas, floorMap.grid, floorMap.width, floorMap.height)
+  }
+
+  /**
    * MODO BATALHA: as paredes que o jogador conhece no piso `piso` da cena
    * `mapId` — as da última tela que esta conexão recebeu. `null` sem tela
    * dessa cena (aí ele não conhece nada a mais nem a menos que o mestre).
@@ -5787,7 +5879,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // PISOS: só as paredes (e as fichas) do piso da ficha seguram o passo — o piso de cima não é teto aqui.
     const piso = tokenPisoOf(msg.tokenId, scene.map)
     const floorMap = mapaDoPiso(scene.map, piso)
-    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? floorMap.walls } : undefined
+    // B6: o host pede as casas andadas (`comCaminho`) para o caminho andado; a resposta ao jogador não as leva.
+    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? floorMap.walls, comCaminho: true } : undefined
     const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
@@ -5805,7 +5898,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
     // MODO BATALHA: os blocos aceitos somam no caminho andado (no mestre) e vão na resposta.
     const blocos = result.blocos === undefined ? {} : { blocos: result.blocos }
-    if (result.blocos !== undefined && result.blocos > 0) options.onBatalhaAndou?.(tableSceneKey(scene), msg.tokenId, result.blocos)
+    if (result.blocos !== undefined && result.blocos > 0) options.onBatalhaAndou?.(tableSceneKey(scene), msg.tokenId, result.blocos, result.caminho ?? [])
+    // ESBARRÃO (regra de 27/10): a parede que barrou passa a valer para ele e o mestre fica sabendo.
+    // A resposta ao jogador não muda de forma: quem mostra a parede é o próximo recorte dele.
+    const esbarrao = batalha === undefined || result.blocos === undefined ? [] : paredesDoEsbarrao(floorMap, playerId, msg, ownership, occupants, batalha.paredesDoJogador, result.blocos)
+    if (esbarrao.length > 0) {
+      const memoria = existingMemory(playerId, scene.map)
+      const invisiveis = esbarrao.filter((w) => w.hidden === true)
+      if (memoria !== undefined && invisiveis.length > 0) {
+        memoria.paredesReveladas ??= new Set()
+        for (const w of invisiveis) memoria.paredesReveladas.add(w.id)
+      }
+      options.onEsbarrouNaParede?.(players.get(playerId)?.name ?? playerId, invisiveis.length > 0)
+    }
     // `landing` só leva o motivo; o ponto já passou pelo recorte em `validateTokenMove`
     // (chão em zona oculta ou sala secreta nunca vira destino; sala com teto vira,
     // como no movimento normal, e o teto abre porque a ficha entrou).

@@ -49,7 +49,8 @@ export type MedidaCompartilhada =
   | { readonly ferramenta: 'regua'; readonly de: Point; readonly ate: Point }
   | { readonly ferramenta: 'circulo'; readonly centro: Casa; readonly raio: number }
   | { readonly ferramenta: 'cone'; readonly origem: Casa; readonly direcao: Direcao8; readonly comprimento: number }
-  | { readonly ferramenta: 'visao'; readonly de: Casa; readonly para: Casa }
+  /** `ve`: a leitura que o JOGADOR fez com as paredes que conhece (o mestre mostra essa, sem conferir parede escondida). */
+  | { readonly ferramenta: 'visao'; readonly de: Casa; readonly para: Casa; readonly ve?: boolean }
 
 /** O tamanho do mapa: casas e o lado da casa em px de mundo. */
 export interface GradeDoMapa extends LimitesDaGrade {
@@ -219,7 +220,12 @@ export function lerMedida(medida: MedidaCompartilhada, grade: GradeDoMapa, obsta
  */
 export function rotuloParaOMestre(nome: string, medida: MedidaCompartilhada, grade: GradeDoMapa, rotuloForaDaBatalha: string | null): string {
   if (medida.ferramenta === 'regua' && rotuloForaDaBatalha !== null) return `${nome}: ${rotuloForaDaBatalha}`
-  if (medida.ferramenta === 'visao') return `${nome}: visão, a ${textoBlocos(blocosEntre(medida.de, medida.para))}`
+  if (medida.ferramenta === 'visao') {
+    const distancia = textoBlocos(blocosEntre(medida.de, medida.para))
+    // A leitura é a do jogador (paredes que ele conhece); o mestre arbitra o efeito real.
+    if (medida.ve === undefined) return `${nome}: visão, a ${distancia}`
+    return `${nome} acha que ${medida.ve ? 'vê' : 'tem parede no caminho'}, a ${distancia}`
+  }
   return `${nome}: ${lerMedida(medida, grade, []).texto}`
 }
 

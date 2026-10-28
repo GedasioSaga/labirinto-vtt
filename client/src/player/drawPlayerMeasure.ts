@@ -229,3 +229,40 @@ export function drawPlayerTokenDragCaminho(g: Graphics, caminho: readonly Point[
   for (const p of resto) g.circle(p.x, p.y, 2.5).fill({ color: LATAO, alpha: LINE_ALPHA })
   g.circle(primeiro.x, primeiro.y, START_DOT_RADIUS).fill({ color: LINE_COLOR, alpha: LINE_ALPHA })
 }
+
+/** MODO BATALHA (B6): o caminho andado de uma ficha, em pontos de TELA (centros das casas), por trecho contínuo. */
+export interface TrilhaNaTela {
+  readonly trechos: readonly (readonly Point[])[]
+  /** A cor da ficha do colega; `null` = a ficha dele, em latão. */
+  readonly cor: number | null
+}
+
+/** O caminho do colega mais apagado: é contexto, não a jogada dele. */
+const ALPHA_DO_COLEGA = 0.75
+const LARGURA_DO_CAMINHO = 2
+
+/**
+ * MODO BATALHA (B6): o caminho andado, como no protótipo aprovado — traço de
+ * 2 px com véu escuro por baixo; o do colega na cor dele, mais apagado; o dele
+ * em latão, por cima (os números dos blocos vêm de `criarNumerosDasCasas`).
+ */
+export function drawCaminhosAndados(g: Graphics, trilhas: readonly TrilhaNaTela[]): void {
+  g.clear()
+  const ordem = [...trilhas.filter((t) => t.cor !== null), ...trilhas.filter((t) => t.cor === null)]
+  for (const trilha of ordem) {
+    const cor = trilha.cor ?? LATAO
+    const alpha = trilha.cor === null ? LINE_ALPHA : ALPHA_DO_COLEGA
+    for (const trecho of trilha.trechos) {
+      const [primeiro, ...resto] = trecho
+      if (primeiro === undefined || resto.length === 0) continue
+      for (const [tinta, largura, opacidade] of [
+        [SHADOW_COLOR, LARGURA_DO_CAMINHO + 2, SHADOW_ALPHA * alpha],
+        [cor, LARGURA_DO_CAMINHO, alpha],
+      ] as const) {
+        g.moveTo(primeiro.x, primeiro.y)
+        for (const p of resto) g.lineTo(p.x, p.y)
+        g.stroke({ width: largura, color: tinta, alpha: opacidade, cap: 'round', join: 'round' })
+      }
+    }
+  }
+}

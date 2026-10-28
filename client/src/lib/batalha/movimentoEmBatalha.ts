@@ -1,5 +1,5 @@
 import type { Point } from '../../pixi/world'
-import { casaDoPonto, centroDaCasa, conferirPasso, menorCaminhoEmBlocos, montarMapaDosBlocos, type Casa, type ParedeDoPasso } from './blocos'
+import { casaDoPonto, centroDaCasa, conferirPasso, FOLGA_DA_QUINA, menorCaminhoEmBlocos, montarMapaDosBlocos, paredeBarraOPasso, type Casa, type ParedeDoPasso } from './blocos'
 
 /**
  * MOVIMENTO EM BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md):
@@ -117,4 +117,41 @@ export function passoEmBatalha(pedido: PedidoEmBatalha): PassoEmBatalha {
   const casaFinal = caminho[parada] ?? origem
   const ponto = pontoDaCasa(casaFinal)
   return { ok: true, x: ponto.x, y: ponto.y, blocos: parada, caminho: caminho.slice(0, parada + 1) }
+}
+
+/**
+ * ESBARRÃO (regra do usuário de 27/10: esbarrar REVELA E AVISA): andando o
+ * `caminho` que o jogador faria com o que conhece, as paredes que ele NÃO
+ * conhece (`conhecidas`, ids do recorte dele) e que barram o primeiro passo
+ * barrado. É o que passa a valer como explorado para ele. Vazio quando nenhuma
+ * parede desconhecida barra (a ficha parou por outro motivo: chão, passo
+ * máximo, casa ocupada).
+ */
+export function paredesQueBarramOCaminho<W extends ParedeDoPasso & { readonly id: string }>(
+  caminho: readonly Casa[],
+  paredesDoHost: readonly W[],
+  conhecidas: ReadonlySet<string>,
+  grid: number,
+  colunas: number,
+  linhas: number,
+): W[] {
+  const desconhecidas = paredesDoHost.filter((w) => !conhecidas.has(w.id) && paredeBarraOPasso(w))
+  if (desconhecidas.length === 0) return []
+  const mapa = montarMapaDosBlocos(desconhecidas, grid, colunas, linhas)
+  for (let k = 1; k < caminho.length; k += 1) {
+    const a = caminho[k - 1]
+    const b = caminho[k]
+    if (a === undefined || b === undefined || conferirPasso(mapa, a, b) === 'livre') continue
+    // Só as que chegam perto das casas do passo: o teste parede a parede fica pequeno.
+    const folga = grid * FOLGA_DA_QUINA
+    const minX = Math.min(a.col, b.col) * grid - folga
+    const maxX = (Math.max(a.col, b.col) + 1) * grid + folga
+    const minY = Math.min(a.row, b.row) * grid - folga
+    const maxY = (Math.max(a.row, b.row) + 1) * grid + folga
+    return desconhecidas.filter((w) => {
+      if (Math.max(w.x1, w.x2) < minX || Math.min(w.x1, w.x2) > maxX || Math.max(w.y1, w.y2) < minY || Math.min(w.y1, w.y2) > maxY) return false
+      return conferirPasso(montarMapaDosBlocos([w], grid, colunas, linhas), a, b) !== 'livre'
+    })
+  }
+  return []
 }

@@ -60,6 +60,7 @@ import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import { gravarCompartilharComMestre, lerCompartilharComMestre } from './compartilharComMestre'
 import type { FerramentaDeMedida, MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
+import { blocosQueEleAndou } from '../lib/batalha/caminhoAndado'
 import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
@@ -1413,6 +1414,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             luz={state.luz}
             // MODO BATALHA (B5): a grade de batalha só no andar da cena dele.
             batalha={state.batalha === true}
+            // MODO BATALHA (B6): o caminho andado (o dele numerado, o dos colegas à vista).
+            caminhos={state.caminhos}
             waitingTokens={waitingTokens}
             settings={settings}
             focusTokenId={focus.tokenId}
@@ -1512,6 +1515,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setNoteArmed(false)
           }}
           batalha={state.batalha === true}
+          andou={blocosQueEleAndou(state.caminhos)}
           ferramenta={ferramenta}
           onFerramenta={setFerramenta}
           compartilharComMestre={{ ligado: compartilhar, onChange: trocarCompartilhar }}
@@ -2099,6 +2103,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.esbarrou && (
           <p key={state.esbarrou.id} className="pp-notice pp-notice--esbarrou" role="status" aria-live="polite">
             {state.esbarrou.texto}
+          </p>
+        )}
+        {/* MODO BATALHA (B6, decisão 3): só o mestre zera os caminhos; o jogador fica sabendo. */}
+        {state.caminhosZerados && !state.esbarrou && (
+          <p key={state.caminhosZerados.id} className="pp-notice" role="status" aria-live="polite">
+            O mestre zerou os caminhos.
           </p>
         )}
         {/* Porta e movimento avisam no mesmo lugar: vale o mais novo (`latestActionNotice`).

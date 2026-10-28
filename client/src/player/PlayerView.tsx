@@ -132,13 +132,17 @@ import {
 } from './playerMeasure'
 import {
   criarNumerosDasCasas,
+  drawCaminhosAndados,
   drawMedidaEmBatalha,
   drawPlayerMeasure,
   drawPlayerTokenDrag,
   drawPlayerTokenDragCaminho,
   LADO_MINIMO_DO_NUMERO_PX,
   type CasasNaTela,
+  type TrilhaNaTela,
 } from './drawPlayerMeasure'
+import { numerosDaTrilha, trechosDaTrilha, type CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
+import { tokenFillColor } from '../lib/tokenColor'
 import {
   ajustarTamanho,
   fimQueDesenha,
@@ -151,7 +155,7 @@ import {
   type GradeDoMapa,
   type MedidaCompartilhada,
 } from '../lib/batalha/ferramentasDoJogador'
-import { centroDaCasa } from '../lib/batalha/blocos'
+import { centroDaCasa, type Casa } from '../lib/batalha/blocos'
 import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
 import { resolveTokenRelease } from './tokenRelease'
 import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
@@ -222,6 +226,8 @@ interface PlayerViewProps {
   luz?: LuzDoJogador | null
   /** MODO BATALHA (B5): a cena está em batalha (`snapshot.batalha`); a grade de batalha aparece por cima do mapa. */
   batalha?: boolean
+  /** MODO BATALHA (B6): o caminho andado que o host deixou ele ver (`snapshot.caminhos`). Ausente = nenhum. */
+  caminhos?: CaminhosDaBatalha
   /**
    * ENCONTRO MARCADO: fichas com a marca "esperando" (o nome ganha
    * "· esperando"). Já vem do recorte do mestre: só ficha que o jogador vê.
@@ -1359,6 +1365,11 @@ interface Scene {
   numerosDaMedida: ReturnType<typeof criarNumerosDasCasas>
   /** COMPARTILHAR COM O MESTRE: a última medida avisada por `onMedidaMudou` (JSON); `''` = nada avisado ainda. */
   lastMedidaKey: string
+  /** MODO BATALHA (B6): o caminho andado (o dele numerado, o dos colegas), em espaço de tela como a régua. */
+  caminhosLayer: Graphics
+  numerosDoCaminho: ReturnType<typeof criarNumerosDasCasas>
+  /** Os caminhos e a câmera do último desenho; os mesmos = nada a repintar. */
+  lastCaminhos: { caminhos: CaminhosDaBatalha | undefined; camera: string } | null
   /** Caminho de um colega, em espaço de tela como a régua (espessura fixa em qualquer zoom). */
   routeLayer: Graphics
   /** Último caminho desenhado (id + pontos de tela); igual = nada a repintar. */
@@ -1913,6 +1924,7 @@ function PlayerViewDoCanvas({
   ownTokens,
   luz = null,
   batalha = false,
+  caminhos,
   waitingTokens = NO_WAITING,
   settings,
   focusTokenId,
@@ -1986,6 +1998,7 @@ function PlayerViewDoCanvas({
     ownTokens,
     luz,
     batalha,
+    caminhos,
     waitingTokens,
     settings,
     onMove,
@@ -2131,8 +2144,14 @@ function PlayerViewDoCanvas({
     const measure = scene.measure.measure
     let medida: MedidaCompartilhada | null = null
     if (measure !== null && emBatalha) {
-      const candidata = medidaDoGesto(peca ?? 'regua', measure.start, measure.end, { colunas: map.width, linhas: map.height, grid: map.grid })
+      const grade = { colunas: map.width, linhas: map.height, grid: map.grid }
+      const candidata = medidaDoGesto(peca ?? 'regua', measure.start, measure.end, grade)
       medida = medidaVazia(candidata, map.grid) ? null : candidata
+      // VISÃO: vai junto a leitura que o jogador vê na tela dele (só as paredes que ele conhece).
+      if (medida !== null && medida.ferramenta === 'visao') {
+        const visao = lerMedida(medida, grade, obstaculosDasLuzes(scene, map)).visao
+        medida = { ...medida, ve: visao === null || visao.livre }
+      }
     } else if (measure !== null && (measure.start.x !== measure.end.x || measure.start.y !== measure.end.y)) {
       const largura = map.width * map.grid
       const altura = map.height * map.grid
@@ -2250,6 +2269,38 @@ function PlayerViewDoCanvas({
     if (key === scene.lastSettledKey) return
     scene.lastSettledKey = key
     latestRef.current.onMeasureSettle?.(settled === null ? null : [{ x: settled.start.x, y: settled.start.y }, { x: settled.end.x, y: settled.end.y }])
+  }
+
+  /**
+   * MODO BATALHA (B6): o caminho andado — o das fichas dele em latão, com o
+   * número de cada bloco; o dos colegas na cor da ficha, mais apagado e sem
+   * número (decisão 4). O host já recortou o do colega às casas à vista. No
+   * ticker, como a régua: só repinta quando os caminhos ou a câmera mudam.
+   */
+  function syncCaminhosAndados(scene: Scene): void {
+    const { caminhos, map } = latestRef.current
+    const camera = `${scene.camera.x}|${scene.camera.y}|${scene.camera.scale}|${map.grid}`
+    const ultimo = scene.lastCaminhos
+    if (ultimo !== null && ultimo.caminhos === caminhos && (caminhos === undefined || ultimo.camera === camera)) return
+    scene.lastCaminhos = { caminhos, camera }
+    const ponto = (casa: Casa): Point => measureWorldToScreen(scene.camera, centroDaCasa(casa, map.grid))
+    const comNumero = map.grid * scene.camera.scale >= LADO_MINIMO_DO_NUMERO_PX
+    const trilhas: TrilhaNaTela[] = []
+    const numeros: { centro: Point; numero: number }[] = []
+    for (const ficha of caminhos?.fichas ?? []) {
+      const trechos = trechosDaTrilha(ficha.casas)
+      if (trechos.length === 0) continue
+      // Só a ficha DELE vem com a conta (`caminhosParaJogador`): latão e numerada.
+      if (ficha.blocos !== undefined) {
+        trilhas.push({ trechos: trechos.map((trecho) => trecho.map(ponto)), cor: null })
+        if (comNumero) for (const n of numerosDaTrilha(trechos, ficha.blocos)) numeros.push({ centro: ponto(n.casa), numero: n.numero })
+        continue
+      }
+      const token = map.tokens.find((t) => t.id === ficha.tokenId)
+      if (token !== undefined) trilhas.push({ trechos: trechos.map((trecho) => trecho.map(ponto)), cor: tokenFillColor(token) })
+    }
+    drawCaminhosAndados(scene.caminhosLayer, trilhas)
+    scene.numerosDoCaminho.mostrar(numeros)
   }
 
   /**
@@ -3587,7 +3638,25 @@ function PlayerViewDoCanvas({
       // Caminho de um colega sob a própria régua: medir por cima dele não esconde a medida.
       const routeLayer = new Graphics()
       routeLayer.eventMode = 'none'
-      app.stage.addChild(world, revisitLayer, personalNotesLayer, pulseLayer, routeLayer, measureLayer, numerosLayer, tokenDragLayer, signalsLayer, laserLayer)
+      // MODO BATALHA (B6): o caminho andado é rastro do que já foi: fica sob o caminho mostrado e a régua.
+      const caminhosLayer = new Graphics()
+      caminhosLayer.eventMode = 'none'
+      const numerosDoCaminhoLayer = new Container()
+      numerosDoCaminhoLayer.eventMode = 'none'
+      app.stage.addChild(
+        world,
+        revisitLayer,
+        personalNotesLayer,
+        pulseLayer,
+        caminhosLayer,
+        numerosDoCaminhoLayer,
+        routeLayer,
+        measureLayer,
+        numerosLayer,
+        tokenDragLayer,
+        signalsLayer,
+        laserLayer,
+      )
       // MAPA DE LUZ (Luz L4b): por cima de tudo do mundo (as fichas escurecem à
       // noite, D2), com o contorno da própria ficha logo acima. Régua, sinais e
       // notas moram fora do mundo e não escurecem. Só entra no mundo com tinta
@@ -3746,6 +3815,9 @@ function PlayerViewDoCanvas({
         lastSettledKey: '',
         numerosDaMedida: criarNumerosDasCasas(numerosLayer),
         lastMedidaKey: '',
+        caminhosLayer,
+        numerosDoCaminho: criarNumerosDasCasas(numerosDoCaminhoLayer),
+        lastCaminhos: null,
         routeLayer,
         lastRouteKey: null,
         ownLaser: NO_OWN_LASER,
@@ -3946,8 +4018,11 @@ function PlayerViewDoCanvas({
         syncTokenDrag(scene)
       }
       app.ticker.add(tickMeasure)
-      // Idem para o caminho de um colega.
-      const tickSharedRoute = () => syncSharedRoute(scene)
+      // Idem para o caminho de um colega e o caminho andado em batalha.
+      const tickSharedRoute = () => {
+        syncSharedRoute(scene)
+        syncCaminhosAndados(scene)
+      }
       app.ticker.add(tickSharedRoute)
 
       // Leva cada ficha em deslize um passo adiante; parada, não custa nada.
