@@ -89,6 +89,7 @@ import { AvisoParedePresa, ParedesAoRedorControls, type AvisoParedePresaProps, t
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
 import { RegionSplitControls, type RegionSplitControlsProps } from './RegionSplitControls'
+import { RegionAguaControls, type RegionAguaControlsProps } from './RegionAguaControls'
 import { FEATURES } from '../lib/features'
 import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
 import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
@@ -142,6 +143,8 @@ interface PropertiesPanelProps {
   perigoDaSala?: ReactNode
   /** SALA EM DUAS CORES da sala selecionada; ausente = sem o bloco. */
   regionSplit?: RegionSplitControlsProps
+  /** "É água" da região selecionada (`Region.agua`); ausente = sem a chave (nada selecionado, continente). */
+  regionAgua?: RegionAguaControlsProps
   /** ROTINA DO NPC da ficha selecionada (`RotinaDaFichaControls.tsx`), montada pelo App; ausente no mapa solto. */
   rotinaDaFicha?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
@@ -405,6 +408,7 @@ export function PropertiesPanel({
   estadoDaLuz,
   perigoDaSala,
   regionSplit,
+  regionAgua,
   rotinaDaFicha,
   objects: objetosDaCena,
   nesteMapa,
@@ -567,6 +571,7 @@ export function PropertiesPanel({
           <FillControls {...fill} semTitulo />
           {/* "Pintar parte da sala de outra cor" é só da Sala, como antes. */}
           {regionSplit && salaSelecionada !== null && <RegionSplitControls key={salaSelecionada.id} {...regionSplit} semTitulo />}
+          {regionAgua && <RegionAguaControls {...regionAgua} />}
         </ToolPropertiesSection>
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           {avancadoDaRegiao(true)}

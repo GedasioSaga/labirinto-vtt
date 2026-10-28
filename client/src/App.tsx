@@ -3383,6 +3383,12 @@ function App() {
                 ? undefined
                 : { split: selectedRegion.split, onChange: (split) => useMapStore.getState().setRegionSplit(selectedRegion.id, split) }
             }
+            // "É água": só fora do continente, onde tira a região do relevo (`regioesDaTerra`).
+            regionAgua={
+              selectedRegion === null || isContinente(map)
+                ? undefined
+                : { agua: selectedRegion.agua === true, onAguaChange: (agua) => useMapStore.getState().setRegionAgua(selectedRegion.id, agua) }
+            }
             perigoDaSala={
               selectedRegion?.room === undefined ? undefined : (
                 <PerigoDaSalaControls

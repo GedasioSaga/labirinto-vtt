@@ -340,40 +340,17 @@ function ehTerra(r: Region): boolean {
 
 /**
  * ÁGUA FORA DO CONTINENTE (pedido de 28/10/2026): num mapa comum, um lago ou um
- * rio feito de região não pode ganhar a luz, o friso e a sombra de morro. O app
- * não tem tipo de região "água" nem textura de água, então o sinal é a COR do
- * fundo: do ciano ao azul, saturada (`corDeAgua`). Fica fora da terra, e por
- * isso também fora da costa do penhasco. No continente nada muda: a terra é a
- * união das regiões como sempre (o mar de lá é o que fica fora delas).
- * Devolve o MESMO array quando nada sai, para os caches por referência.
+ * rio feito de região não pode ganhar a luz, o friso e a sombra de morro. O
+ * mestre marca a região com a chave "É água" (`Region.agua`, painel da região);
+ * só `agua === true` sai da terra, e por isso também da costa do penhasco. No
+ * continente nada muda: a terra é a união das regiões como sempre (o mar de lá
+ * é o que fica fora delas). Devolve o MESMO array quando nada sai, para os
+ * caches por referência.
  */
-export function regioesDaTerra<T extends Pick<Region, 'fillColor'>>(map: Pick<MapData, 'continente' | 'worldMap'>, regioes: readonly T[]): readonly T[] {
+export function regioesDaTerra<T extends Pick<Region, 'agua'>>(map: Pick<MapData, 'continente' | 'worldMap'>, regioes: readonly T[]): readonly T[] {
   if (isContinente(map)) return regioes
-  const semAgua = regioes.filter((r) => !corDeAgua(r.fillColor))
+  const semAgua = regioes.filter((r) => r.agua !== true)
   return semAgua.length === regioes.length ? regioes : semAgua
-}
-
-/**
- * Matiz da água em graus (HSV): do ciano ao azul. Cobre o "Mar" do Chão
- * (`#2f6690`, `lib/camadasDoChao.ts`) e a cor de fábrica da Região (`#3a7ad0`).
- */
-const MATIZ_DA_AGUA = { de: 180, ate: 250 } as const
-/** Abaixo disto (saturação HSV) a cor é cinza-azulado (ardósia, pedra), não água. */
-const SATURACAO_MINIMA_DA_AGUA = 0.3
-/** Abaixo disto (valor HSV) a cor é quase preta (vazio, breu), não água. */
-const VALOR_MINIMO_DA_AGUA = 0.15
-
-/** A cor `#rrggbb` lê como água? Cor ilegível não é água. */
-export function corDeAgua(cor: unknown): boolean {
-  const rgb = rgbDe(cor)
-  if (rgb === null) return false
-  const [r, g, b] = rgb
-  const maior = Math.max(r, g, b)
-  const delta = maior - Math.min(r, g, b)
-  if (maior / 255 < VALOR_MINIMO_DA_AGUA || delta / maior < SATURACAO_MINIMA_DA_AGUA) return false
-  const setor = maior === r ? (g - b) / delta : maior === g ? (b - r) / delta + 2 : (r - g) / delta + 4
-  const matiz = (setor * 60 + 360) % 360
-  return matiz >= MATIZ_DA_AGUA.de && matiz <= MATIZ_DA_AGUA.ate
 }
 
 function pontoFinito(p: RegionPoint): boolean {

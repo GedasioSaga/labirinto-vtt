@@ -829,6 +829,8 @@ interface MapStoreState {
   regionFillEnabled: boolean
   setRegionFillEnabled: (enabled: boolean) => void
   setRegionFilled: (id: string, filled: boolean) => void
+  /** "É água" de uma Região/Sala JÁ CRIADA (`Region.agua`, `lib/relevo.ts`). Com histórico; desligar tira o campo. */
+  setRegionAgua: (id: string, agua: boolean) => void
   /** SALA EM DUAS CORES: liga/ajusta a segunda cor; `null` volta a uma cor só. Com histórico. */
   setRegionSplit: (id: string, split: RegionSplit | null) => void
   /**
@@ -1805,6 +1807,12 @@ interface TypingEdit {
   map: MapData
 }
 
+/** A região sem a chave "É água": o mesmo formato de antes da chave existir. */
+function semCampoAgua(regiao: Region): Region {
+  const { agua: _agua, ...resto } = regiao
+  return resto
+}
+
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaStore, get, api) => {
   /**
    * PAREDES AO REDOR — o ponto central: TODO `set` que troca o mapa passa por
@@ -2368,6 +2376,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, filled } : r)),
     })),
+    setRegionAgua: (id, agua) => {
+      const atual = get().map.regions.find((r) => r.id === id)
+      // Sem mudança (ou região que sumiu), sem passo vazio no desfazer.
+      if (atual === undefined || (atual.agua === true) === agua) return
+      withHistory((map) => ({
+        ...map,
+        // Desligada, o campo sai: a região volta a ser como todo mapa salvo antes da chave.
+        regions: map.regions.map((r) => (r.id !== id ? r : agua ? { ...r, agua: true } : semCampoAgua(r))),
+      }))
+    },
     setRegionSplit: (id, split) => withHistory((map) => ({
       ...map,
       regions: map.regions.map((r) => {

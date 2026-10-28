@@ -1238,6 +1238,14 @@ export interface Region extends PlayerSecret, NoPiso, NaCamada {
    *  migração, mesmo padrão de wallKind/locked/hidden. */
   filled?: boolean
   /**
+   * "É água" (pedido de 28/10/2026): lago, rio ou mar feito de região. Fora do
+   * continente, a região marcada fica fora da terra do relevo (`regioesDaTerra`,
+   * `lib/relevo.ts`): sem luz, friso nem sombra de morro, e sem penhasco na
+   * beira. Só `true` vale; ausente = terra, como todo mapa salvo antes do campo.
+   * No continente não muda nada.
+   */
+  agua?: boolean
+  /**
    * Espessura do contorno em px de mundo — Fase 6, pedido literal do usuário:
    * "as propriedades das paredes/sala ... se eu quero poligono finos ou
    * medios ou gordos ... vou usar os poligonos para criar ruas ou
