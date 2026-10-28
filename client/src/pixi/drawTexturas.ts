@@ -294,6 +294,17 @@ function mesmaPintura(pedida: Pedida, b: EntradaDasTexturas, versaoB: number): b
   return true
 }
 
+/**
+ * O palco dá para a vitrine? Renderer com tela e o que ela chama, e ticker que aceita
+ * a passada. Sem isso (renderer falso dos testes de componente, Pixi que não iniciou),
+ * as camadas ficam direto na `camada`, como antes da F7, em vez de derrubar o canvas.
+ */
+function palcoUsavel(palco: OpcoesDasTexturas['palco']): palco is NonNullable<OpcoesDasTexturas['palco']> {
+  if (palco === undefined) return false
+  const r = palco.renderer as Partial<Renderer> | undefined
+  return r?.screen !== undefined && typeof r.render === 'function' && typeof palco.ticker?.add === 'function'
+}
+
 export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): TexturasRenderer {
   /** Onde as camadas são montadas: a própria `camada` (sem palco) ou a pilha que a vitrine compõe. */
   const pilha = new Container()
@@ -313,7 +324,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       chao?.limitarFiltro(mundo)
     }
   }
-  const vitrine: Vitrine | null = opcoes.palco === undefined ? null : criarVitrine({ ...opcoes.palco, fonte: pilha, recortar: recortarPilha, limitar: limitarPilha })
+  const vitrine: Vitrine | null = palcoUsavel(opcoes.palco) ? criarVitrine({ ...opcoes.palco, fonte: pilha, recortar: recortarPilha, limitar: limitarPilha }) : null
   const camada = vitrine?.camada ?? pilha
   const esperaMs = opcoes.esperaMs ?? ESPERA_DAS_TEXTURAS_MS
   const rasterizar = opcoes.rasterizar ?? rasterizarTexturas
