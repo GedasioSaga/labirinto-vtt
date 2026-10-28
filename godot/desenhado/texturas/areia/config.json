@@ -1,0 +1,22 @@
+{
+  "id": "areia",
+  "nome": "Areia",
+  "idDoApp": "areia",
+  "onda": 1,
+  "lote": 2,
+  "semente": 59,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 2.0, "faixa": 0.12, "corte": 0.13 },
+  "tom": { "escala": 4.0, "amplitude": 0.06 },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 16,
+    "pesos": [0.18, 0.18, 0.14, 0.14, 0.12, 0.1, 0.12, 0.08, 0.07, 0.14, 2.4, 2.4, 2.2, 2.0, 2.0, 0.1],
+    "densidade": 0.22,
+    "agrupamento": 1,
+    "escalaMin": 0.9,
+    "escalaMax": 1.2,
+    "variacaoDeTom": 0.04
+  }
+}
