@@ -27,14 +27,17 @@ const GRID = 64
 /** O mapa de referência: o mapa real do usuário, 200 x 200 casas (lib/relevo.ts, unidadeDoRelevo). */
 const UNIDADE_REF = (200 * GRID) / 1242
 
-interface Sombra { jeito: 'deslocada' | 'nenhuma'; direcao: [number, number]; deslocamento: number; borrao: number; alfa: number; cor: string }
+interface SombraComum { direcao: [number, number]; borrao: number; alfa: number; cor: string }
+/** A sombra "em-pe" (só carimbo): a silhueta deitada a partir do pé, como matrizDaSombra('em-pe') do app. */
+type Sombra = SombraComum & ({ jeito: 'deslocada' | 'nenhuma'; deslocamento: number } | { jeito: 'em-pe'; comprimento: number })
+type Espelho = 'diagonal' | 'nenhum'
 interface Params {
   tipo: 'carimbo' | 'trecho'
   idDoApp: string
   destino?: 'carimbo' | 'movel'
   tamanhoDoApp?: number
   sprite?: { arquivos: string[]; ladoPx: number; unidadePx: number; ancoraPx: [number, number] }
-  formas?: { variacoes: number }
+  formas?: { variacoes: number; espelho?: Espelho }
   sombra: Sombra
   curva?: boolean
   casas?: [number, number]
@@ -139,9 +142,20 @@ function espalhar(p: Params, casas: number): Carimbo[] {
 
 interface Desenhado { sprites: HTMLImageElement[]; silhuetas: HTMLCanvasElement[]; p: Params }
 
-/** A forma k (0..7): o arquivo e o espelho diagonal. */
-export function formaDoGiro(k: number, variacoes: number): { arquivo: number; espelho: boolean } {
-  return { arquivo: k % variacoes, espelho: Math.floor(k / variacoes) % 2 === 1 }
+/** A forma k (0..7): o arquivo e o espelho diagonal (com espelho "nenhum", só o arquivo). */
+export function formaDoGiro(k: number, variacoes: number, espelho: Espelho = 'diagonal'): { arquivo: number; espelho: boolean } {
+  return { arquivo: k % variacoes, espelho: espelho === 'diagonal' && Math.floor(k / variacoes) % 2 === 1 }
+}
+
+/**
+ * A sombra "em-pe" do app (client/src/carimbos/arte.ts, matrizDaSombra): o ponto a altura h
+ * acima do pé (y = -h a partir da âncora) cai h x comprimento na direção da sombra, ou seja,
+ * (x, y) -> (x - l.dx.y, -l.dy.y): o pé fica, o alto se deita para baixo e para a direita.
+ * Aplicada por cima da matriz do corpo (r, relativa ao pé), e o pé posto em X, Y.
+ */
+function deitarNoChao(g: CanvasRenderingContext2D, r: [number, number, number, number, number, number], X: number, Y: number, l: number, dx: number, dy: number): void {
+  const [a, b, c, d, e, f] = r
+  g.setTransform(a - l * dx * b, -l * dy * b, c - l * dx * d, -l * dy * d, X + e - l * dx * f, Y - l * dy * f)
 }
 
 function silhueta(img: HTMLImageElement, cor: string): HTMLCanvasElement {
@@ -168,8 +182,9 @@ function pintarDesenhado(g: CanvasRenderingContext2D, d: Desenhado, objetos: Car
   const sp = d.p.sprite!
   const sombra = d.p.sombra
   const n = d.p.formas!.variacoes
+  const espelho = d.p.formas!.espelho ?? 'diagonal'
   const ordem = [...objetos].sort((a, b) => a.y - b.y)
-  const forma = (c: Carimbo) => formaDoGiro(fixa ?? varianteDoGiro(c.giro), n)
+  const forma = (c: Carimbo) => formaDoGiro(fixa ?? varianteDoGiro(c.giro), n, espelho)
   const corpo = (gg: CanvasRenderingContext2D, c: Carimbo, img: CanvasImageSource, dx = 0, dy = 0) => {
     const f = forma(c)
     const s = (c.tamanho * zoom) / sp.unidadePx
@@ -188,7 +203,14 @@ function pintarDesenhado(g: CanvasRenderingContext2D, d: Desenhado, objetos: Car
   for (const c of ordem) {
     const t = c.tamanho * zoom
     gs.filter = sombra.borrao > 0 ? `blur(${(sombra.borrao * t).toFixed(2)}px)` : 'none'
-    corpo(gs, c, d.silhuetas[forma(c).arquivo], (dx0 / nd) * sombra.deslocamento * t, (dy0 / nd) * sombra.deslocamento * t)
+    if (sombra.jeito === 'em-pe') {
+      const f = forma(c)
+      const s = (c.tamanho * zoom) / sp.unidadePx
+      const [ax, ay] = sp.ancoraPx
+      const r: [number, number, number, number, number, number] = f.espelho ? [0, s, s, 0, -s * ax, -s * ay] : [s, 0, 0, s, -s * ax, -s * ay]
+      deitarNoChao(gs, r, (c.x - ox) * zoom, (c.y - oy) * zoom, sombra.comprimento, dx0 / nd, dy0 / nd)
+      gs.drawImage(d.silhuetas[f.arquivo], 0, 0)
+    } else corpo(gs, c, d.silhuetas[forma(c).arquivo], (dx0 / nd) * sombra.deslocamento * t, (dy0 / nd) * sombra.deslocamento * t)
   }
   g.setTransform(1, 0, 0, 1, 0, 0)
   g.globalAlpha = sombra.alfa
@@ -285,7 +307,8 @@ async function mesaDoCarimbo(d: Dados): Promise<Saida> {
   const sp = p.sprite!
   const n = p.formas!.variacoes
   info.objetos = objetos.length
-  info.formas = n * 2
+  info.formas = p.formas!.espelho === 'nenhum' ? n : n * 2
+  if (p.formas!.espelho === 'nenhum') info.tituloFormas = `As formas: o giro do mestre de 45 em 45 graus escolhe um dos ${n} desenhos (sem espelho: o desenho fica de pé; o giro k e o k + ${n} dão o mesmo), a 100%`
 
   // O objeto sozinho: no meio do quadrado, com a âncora onde o meio da imagem cai no meio.
   const t100 = tamanhoDoObjeto(p, 100)

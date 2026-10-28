@@ -414,12 +414,17 @@ por `Prop.mobiliaCurva` (até ±180 graus, arco de `geometriaDaCerca`).
 
 ### 9.1 A decisão em 6 linhas
 
-1. **Carimbo = 1 a 4 sprites RGBA com alfa**, cor reta, sem sombra, vistos de cima, com o pé
-   (Carimbo.x, y) em `ancoraPx`. O tamanho é o de hoje: 1 unidade = `Carimbo.tamanho`.
+1. **Carimbo = 1 a 4 sprites RGBA com alfa**, cor reta, sem sombra, vistos de cima ou em pé
+   (o tronco embaixo, como os de hoje: `espelho: "nenhum"`), com o pé (Carimbo.x, y) em
+   `ancoraPx`. O tamanho é o de hoje: 1 unidade = `Carimbo.tamanho`.
 2. **A imagem nunca gira.** O giro do mestre escolhe a forma: k = `varianteDoGiro(giro)`,
    arquivo = k mod N, espelho na diagonal (a imagem transposta, o meio dela fixo) quando
-   floor(k / N) é ímpar. LUZ está na diagonal: o espelho não muda a luz. Até 8 formas com 4 arquivos.
-3. **A sombra é do app**, pela silhueta: andada `deslocamento x tamanho` na direção (7, 11),
+   floor(k / N) é ímpar. LUZ está na diagonal: o espelho não muda a luz. Até 8 formas com 4
+   arquivos. Com `espelho: "nenhum"` (28/10, a árvore: transposto, o desenho em pé deitaria)
+   nunca espelha: arquivo = k mod N, até 4 formas.
+3. **A sombra é do app**, pela silhueta: `deslocada` = andada `deslocamento x tamanho` na
+   direção (7, 11); `em-pe` (só carimbo, 28/10) = deitada no chão a partir do pé, como
+   `matrizDaSombra('em-pe')` de hoje (o alto cai `comprimento` x altura na direção, 0,78);
    desfocada `borrao x tamanho`, numa camada só, `#0a1c28` a 0,25. `nenhuma` = do chão.
 4. **Âncora no pé de hoje:** `ancoraPx = meio da imagem - centroDoAtual x unidadePx`; a
    copa fica onde a copa de hoje fica e o objeto não anda quando o mapa troca de estilo.
@@ -433,19 +438,22 @@ por `Prop.mobiliaCurva` (até ±180 graus, arco de `geometriaDaCerca`).
 
 | Tipo | `config.json` | Arquivos em `exportado/<id>/` |
 |---|---|---|
-| `carimbo` | `destino` (`carimbo` = ferramenta Carimbos; `movel` = ferramenta Objetos), `tamanhoDoApp` (o `tamanho` de `embutidos.ts` ou do `.json` do pacote; obrigatório no destino carimbo), `variacoes` 1 a 4, `sprite.ladoPx` 32 a 512, `sprite.unidadePx` 16 a 512 (px da imagem numa unidade), `sprite.ancoraPx`, `sombra` | `carimbo-1.png` .. `carimbo-N.png` (ladoPx²), `textura.json` |
+| `carimbo` | `destino` (`carimbo` = ferramenta Carimbos; `movel` = ferramenta Objetos), `tamanhoDoApp` (o `tamanho` de `embutidos.ts` ou do `.json` do pacote; obrigatório no destino carimbo), `variacoes` 1 a 4, `sprite.ladoPx` 32 a 512, `sprite.unidadePx` 16 a 512 (px da imagem numa unidade), `sprite.ancoraPx`, `espelho` (`diagonal`, o padrão, ou `nenhum`: o desenho em pé), `sombra` | `carimbo-1.png` .. `carimbo-N.png` (ladoPx²), `textura.json` |
 | `trecho` | `curva` (a sebe: true; a jardineira: false), `casas` (o tamanho padrão do móvel), `trecho.comprimentoPx` 16 a 256 (L), `trecho.meiaLarguraPx` 4 a 48, `trecho.pontaPx` 0 a 64, `luz.forca` 0 a 1, `sombra` | `trecho.png`, `trecho-relevo.png` ((ponta + L) x 2 por 4 x meia, 128 px por casa), `textura.json` |
 
-`sombra`: `jeito` (`deslocada` ou `nenhuma`), `deslocamento` 0 a 0,5 e `borrao` 0 a 0,2, os
-dois em unidades do tamanho (no trecho, da largura 2 x meia). Shader:
-`comum/carimbo.gdshaderinc` (as assinaturas e as unidades de q) e
+`sombra`: `jeito` (`deslocada` ou `nenhuma`; no carimbo, também `em-pe`), `deslocamento` 0 a
+0,5 e `borrao` 0 a 0,2, os dois em unidades do tamanho (no trecho, da largura 2 x meia); no
+`em-pe`, `comprimento` 0,2 a 1,2 (o padrão é 0,78, o de hoje) no lugar do deslocamento.
+Sem `espelho` e sem `em-pe` o `textura.json` sai igual, byte a byte, ao de antes de 28/10.
+Shader: `comum/carimbo.gdshaderinc` (as assinaturas e as unidades de q) e
 `comum/rodape_carimbo.gdshaderinc`. Modelos: `texturas/_modelo-carimbo/`,
-`texturas/_modelo-trecho/`; piloto: `texturas/arvore/`.
+`texturas/_modelo-trecho/`; piloto (e o primeiro em pé): `texturas/arvore/`.
 
 ### 9.3 Parâmetros (`textura.json`)
 
 Tudo explícito, montado por `comum/contrato_carimbo.gd` (`parametros`): `tipo`, `idDoApp`,
-`sombra` (jeito, direção, deslocamento, borrão, alfa, cor e a conta em texto), `memoria`
+`sombra` (jeito, direção, deslocamento ou, no `em-pe`, comprimento, borrão, alfa, cor e a
+conta em texto), `memoria`
 (bytes na placa e em disco, com os tetos). No carimbo: `destino`, `sprite` (arquivos,
 ladoPx, unidadePx, ancoraPx), `formas` (variações, o espelho e a conta), `tamanhoDoApp`,
 `corMedia` (a miniatura e o zoom muito pequeno). No trecho: `curva`, `casas`, `trecho`
@@ -459,21 +467,33 @@ Para um `Carimbo {x, y, tamanho, giro}` (x, y = o pé; tamanho em px do mundo):
     s = tamanho / unidadePx                 // escala da imagem para o mundo
     k = varianteDoGiro(giro)                // 0..7, a conta de hoje
     arquivo = carimbo-(k mod N + 1).png
-    espelho = floor(k / N) é ímpar
+    espelho = floor(k / N) é ímpar            // formas.espelho "nenhum": nunca
     sem espelho: setTransform(s, 0, 0, s, x - s·ancora.x, y - s·ancora.y)
     com espelho: setTransform(0, s, s, 0, x - s·ancora.x, y - s·ancora.y)   // (u, v) -> (v, u)
     sombra: a silhueta do mesmo desenho, na mesma transformação, numa camada só para todos,
             andada deslocamento·tamanho na direção (7, 11) normalizada e desfocada
             borrao·tamanho (desvio do blur() do Canvas); a camada pintada com #0a1c28 a 0,25
+    sombra em-pe: a mesma camada, mas a silhueta deitada a partir do pé, como
+            matrizDaSombra('em-pe'): com [a, b, c, d, e, f] a transformação do corpo sem o
+            pé (sem espelho [s, 0, 0, s, -s·ancora.x, -s·ancora.y]; com, [0, s, s, 0, ...]),
+            (dx, dy) = (7, 11) normalizada e l = comprimento:
+            setTransform(a - l·dx·b, -l·dy·b, c - l·dx·d, -l·dy·d, x + e - l·dx·f, y - l·dy·f)
+            // o ponto a altura h acima do pé cai h·l na direção: o pé fica, o alto deita
     corpos por cima, em ordem de y (o pé mais embaixo por último)
 
 Com espelho, o ponto (u, v) da imagem vai para (x + s·(v - ancora.x), y + s·(u - ancora.y));
 sem espelho, para (x + s·(u - ancora.x), y + s·(v - ancora.y)). Os pontos da diagonal da
 imagem (u = v), o meio dela incluído, caem no mesmo lugar nos dois: o objeto desenhado no
-MEIO da imagem não anda quando espelha (no piloto a âncora é `[173,6; 360,2]` numa imagem
-de 352, o pé 184 px abaixo do meio, e a copa fica acima do pé nas 8 formas). Por isso o
-desenho é centrado no meio da imagem e só a âncora diz onde fica o pé. O app nunca escala
-a imagem num eixo só. Zoom muito pequeno: a cor média (`corMedia`). Mipmap ligado.
+MEIO da imagem não anda quando espelha (no primeiro piloto da árvore, vista de cima, a
+âncora era `[173,6; 360,2]` numa imagem de 352, o pé 184 px abaixo do meio, e a copa ficava
+acima do pé nas 8 formas). Por isso o desenho é centrado no meio da imagem e só a âncora diz
+onde fica o pé. O app nunca escala a imagem num eixo só. Zoom muito pequeno: a cor média
+(`corMedia`). Mipmap ligado.
+
+O desenho em pé (`espelho: "nenhum"`, 28/10) tem o tronco embaixo e o pé na âncora;
+transposto, ele deitaria de lado, por isso nunca espelha e tem até 4 formas (o giro k e o
+k + N dão o mesmo desenho). A árvore refeita é assim: `[173,9; 336,9]` numa imagem de 352,
+`unidadePx` 262, a copa onde a de hoje fica, com a sombra `em-pe` de hoje.
 
 ### 9.5 A montagem do trecho (a luz que o app aplica)
 
@@ -519,7 +539,8 @@ MiB, o piloto) e os PNGs <= 1,5 MiB em disco. Trecho: duas imagens pequenas (o m
 monta no Canvas 2D, o motor dos carimbos de hoje). Chão: a grama aprovada (`exportado/grama`).
 
 - **Sozinho** (a forma 1) a 25, 50, 100 e 300%, Desenhado e Atual.
-- **As formas:** as 2N do Desenhado e as 8 do Atual (um desenho assado a cada 45 graus).
+- **As formas:** as 2N do Desenhado (N com `espelho: "nenhum"`) e as 8 do Atual (um
+  desenho assado a cada 45 graus).
 - **Bosque:** 51 objetos soltos pelo `criarSpray` do app (sorteio de semente fixa, 4 traços
   de densidade 0,35 a 1 e 3 soltos, escolha de 60 a 160%) em 24 x 24 casas, a 50% e 25%, e
   o recorte de 8 x 8 casas da mata fechada a 100%; o Atual com os mesmos objetos.

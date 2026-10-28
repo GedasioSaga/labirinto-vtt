@@ -211,8 +211,9 @@ esquerda, sombra suave, contorno como o protótipo do Fogo
 pontilhado.
 
 **Leia, além do ESTILO.md:** CONTRATO.md seção 9 inteira; `comum/carimbo.gdshaderinc` (as
-assinaturas e as unidades de q); o piloto `texturas/arvore/` (copa em lobos largos, UMA
-luz por copa, festões rasos) e o modelo do seu tipo: `texturas/_modelo-carimbo/` ou
+assinaturas e as unidades de q); a árvore `texturas/arvore/` (refeita em 28/10: em pé, meio
+de lado, com tronco; copa de 6 cachos largos em 3 tons, a luz só nos de cima à esquerda) e o
+modelo do seu tipo: `texturas/_modelo-carimbo/` ou
 `texturas/_modelo-trecho/`. No app, só para ler: o desenho de hoje do seu item em
 `client/src/carimbos/embutidos.ts` (ou `animacoes/carimbo/` para o girassol) e, para a
 sebe e a jardineira, `client/src/texturas/meioTermo/moveis/`.
@@ -221,7 +222,7 @@ sebe e a jardineira, `client/src/texturas/meioTermo/moveis/`.
 
 | Item | `tipo` | Você escreve | Notas |
 |---|---|---|---|
-| árvores, pinheiros, arbusto, palmeira, juncos, pedras, poça, girassol(óis) | `carimbo`, `destino: "carimbo"` | `vec4 pintar_carimbo(q, px, sem, k)`, cor reta e alfa, SEM sombra | `tamanhoDoApp` = o `tamanho` do embutido (árvore 15, árvore redonda 14, pinheiros 14, palmeira 13, poça 12, pedras 10, arbusto 6, juncos 6) ou do `.json` do pacote (girassol); `sombra`: "em pé" de hoje = `deslocada` ~0,16; "baixa" = `deslocada` ~0,06 a 0,08; a poça = `nenhuma` |
+| árvores, pinheiros, arbusto, palmeira, juncos, pedras, poça, girassol(óis) | `carimbo`, `destino: "carimbo"` | `vec4 pintar_carimbo(q, px, sem, k)`, cor reta e alfa, SEM sombra | `tamanhoDoApp` = o `tamanho` do embutido (árvore 15, árvore redonda 14, pinheiros 14, palmeira 13, poça 12, pedras 10, arbusto 6, juncos 6) ou do `.json` do pacote (girassol); desenho em pé, com o tronco ou o pé embaixo (como a árvore de 28/10) = `"espelho": "nenhum"` e `"sombra": {"jeito": "em-pe"}` (a sombra de hoje, `comprimento` 0,78); visto de cima: "em pé" de hoje = `deslocada` ~0,16; "baixa" = `deslocada` ~0,06 a 0,08; a poça = `nenhuma` |
 | `vaso` | `carimbo`, `destino: "movel"` | o mesmo | 1 unidade = 1 casa (o vaso tem 0,5); sem `tamanhoDoApp` |
 | `sebe` | `trecho`, `curva: true`, `casas: [2, 0.5]` | `vec4 pintar_trecho(...)` (a cor SEM luz de direção) e `vec2 relevo_do_trecho(...)`, com `#define TRECHO` antes do rodapé | q.x = s ao longo (de -ponta a 0 é a ponta do começo; depois repete a cada L); q.y = c atravessando |
 | `jardineira` | `trecho`, `curva: false`, `casas: [1, 0.5]` | o mesmo | o móvel esticado repete o período; não estica a imagem |
@@ -231,9 +232,12 @@ sebe e a jardineira, `client/src/texturas/meioTermo/moveis/`.
 1. **A imagem nunca gira.** O giro do mestre escolhe a forma: até 4 arquivos e o espelho na
    diagonal dão 8 formas. Desenhe o objeto CENTRADO no meio da imagem (o espelho é a
    imagem transposta: o meio não anda) e com a luz de cima à esquerda nas 4 variações. Cada
-   variação tem de ser outra forma (lobos, tamanho, tom), não a mesma com ruído.
+   variação tem de ser outra forma (lobos, tamanho, tom), não a mesma com ruído. Desenho em
+   pé (`"espelho": "nenhum"`): transposto ele deitaria, então não espelha e são só 4 formas
+   (o giro k e o k + 4 dão o mesmo); as 4 têm de ser bem diferentes (cachos, tom, inclinação).
 2. **A sombra no chão é do app**, pela silhueta: não pinte sombra fora do objeto. Pinte só a
-   sombra de DENTRO (uma massa no lado de baixo à direita da outra).
+   sombra de DENTRO (uma massa no lado de baixo à direita da outra; na árvore em pé, a copa
+   também escurece o alto do tronco). Em pé: `em-pe`, deitada a partir do pé como a de hoje.
 3. **A âncora vem da folha.** Rode uma vez com a âncora do modelo, leia o "Centro do Atual"
    no topo da folha e ponha `ancoraPx = [meio - cx x unidadePx, meio - cy x unidadePx]`
    (meio = ladoPx / 2). Assim o objeto fica onde o de hoje fica.
@@ -244,8 +248,11 @@ sebe e a jardineira, `client/src/texturas/meioTermo/moveis/`.
 5. **Trecho: luz do app.** A cor vai sem luz de direção; o relevo diz para onde cada ponto
    inclina (x ao longo, y atravessando, -1 a 1). O app acende depois de deitar o trecho na
    curva (CONTRATO.md 9.5). Se pintar luz na cor, a sebe que vira para cima fica errada.
-6. **Escala calma, de novo.** A copa do piloto tem 4 ou 5 lobos e UMA mancha de luz; com uma
-   luz por lobo ela virou bolhas a 25%. Festão raso e largo (0,15 unidade), não serrilha.
+6. **Escala calma, de novo.** A copa da árvore tem 6 cachos, cada um em 3 camadas: a massa
+   inteira no tom da sombra, por cima a mesma forma menor e andada para a luz no tom do meio,
+   e um boné de luz só nos cachos de cima à esquerda, encostado na borda clara. Disco de
+   brilho no meio do cacho vira alvo ou bolha; luz em todo cacho vira bolhas a 25%; vista de
+   cima sem tronco, a copa lê como moita ou nuvem. Festão raso e largo, não serrilha.
 
 **Comandos:** os mesmos (`exportar_uma.gd --textura=<id> --folha --prova=<PROVA>`, uns 10 s;
 `--saida=<pasta>` para exportar fora do repositório). O exportador vê o `tipo` e monta a mesa
@@ -253,7 +260,7 @@ dos carimbos no Chromium do Playwright (Canvas 2D, o motor dos carimbos de hoje)
 não vale aqui.
 
 **Olhe na folha:** o sozinho a 300% (a forma calma, o contorno, a luz) e a 25% (nada de
-bolinha); as 8 formas (todas diferentes, a luz sempre de cima à esquerda, nenhuma cortada
+bolinha); as formas (todas diferentes, a luz sempre de cima à esquerda, nenhuma cortada
 pela borda); o bosque a 50% e 25% (ninguém acha a mesma árvore; o Atual ao lado com os
 mesmos objetos) e o recorte da mata fechada a 100% (as massas se separam). No trecho: as 8
 formas e os 9 trechos (emenda a cada L, a ponta do fim, a luz nas curvas).

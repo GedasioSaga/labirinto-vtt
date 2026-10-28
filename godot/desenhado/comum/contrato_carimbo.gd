@@ -8,6 +8,14 @@ const Contrato := preload("res://comum/contrato.gd")
 const TIPOS := ["carimbo", "trecho"]
 const DESTINOS := ["carimbo", "movel"]
 const JEITOS_DA_SOMBRA := ["deslocada", "nenhuma"]
+## O carimbo também pode ter a sombra "em-pe" (28/10, a árvore): a silhueta deitada no chão a
+## partir do pé, como a sombra "em-pe" de hoje (client/src/carimbos/arte.ts, matrizDaSombra),
+## para um desenho que fica de pé na tela (o tronco embaixo). O trecho continua com as duas.
+const JEITOS_DA_SOMBRA_DO_CARIMBO := ["deslocada", "nenhuma", "em-pe"]
+const COMPRIMENTO_EM_PE := 0.78 ## o de hoje (arte.ts, COMPRIMENTO["em-pe"])
+## O espelho das formas: "diagonal" (o padrão; a peça vista de cima) ou "nenhum" (um desenho
+## com um "em pé", que deitaria de lado se fosse transposto: cada arquivo é uma forma).
+const ESPELHOS := ["diagonal", "nenhum"]
 const VARIACOES_MAX := 4
 const ARQUIVOS_DO_CARIMBO := ["carimbo-1.png", "carimbo-2.png", "carimbo-3.png", "carimbo-4.png"]
 const ARQUIVO_DO_TRECHO := "trecho.png"
@@ -47,10 +55,15 @@ static func unidade_no_mapa_ref(tamanho_no_prototipo: float) -> float:
 	return maxf(tamanho_no_prototipo * unidade, TAMANHO_MINIMO_EM_CASAS * Contrato.CASA_PX)
 
 
-static func _sombra(s: Dictionary, erros: Array[String]) -> Dictionary:
+static func _sombra(s: Dictionary, erros: Array[String], carimbo := false) -> Dictionary:
 	var r := {"jeito": str(s.get("jeito", "deslocada")), "deslocamento": _f(s, "deslocamento", 0.12), "borrao": _f(s, "borrao", 0.04)}
-	if not JEITOS_DA_SOMBRA.has(r["jeito"]):
-		erros.append("'sombra.jeito' é 'deslocada' ou 'nenhuma'")
+	var jeitos: Array = JEITOS_DA_SOMBRA_DO_CARIMBO if carimbo else JEITOS_DA_SOMBRA
+	if not jeitos.has(r["jeito"]):
+		erros.append("'sombra.jeito' é 'deslocada', 'em-pe' ou 'nenhuma'" if carimbo else "'sombra.jeito' é 'deslocada' ou 'nenhuma'")
+	if r["jeito"] == "em-pe":
+		r["comprimento"] = _f(s, "comprimento", COMPRIMENTO_EM_PE)
+		if r["comprimento"] < 0.2 or r["comprimento"] > 1.2:
+			erros.append("'sombra.comprimento' (a sombra em pé: quanto ela anda por unidade de altura acima do pé) de 0,2 a 1,2")
 	if r["deslocamento"] < 0.0 or r["deslocamento"] > 0.5:
 		erros.append("'sombra.deslocamento' de 0 a 0,5 (em unidades do tamanho)")
 	if r["borrao"] < 0.0 or r["borrao"] > 0.2:
@@ -100,7 +113,10 @@ static func ler_config(id: String) -> Dictionary:
 			"unidadePx": _f(sp, "unidadePx", 160.0),
 			"ancoraPx": [float(anc[0]), float(anc[1])] if typeof(anc) == TYPE_ARRAY and anc.size() == 2 else [lado / 2.0, lado / 2.0],
 		}
-		cfg["sombra"] = _sombra(c.get("sombra", {}), erros)
+		cfg["sombra"] = _sombra(c.get("sombra", {}), erros, true)
+		cfg["espelho"] = str(c.get("espelho", "diagonal"))
+		if not ESPELHOS.has(cfg["espelho"]):
+			erros.append("'espelho' é 'diagonal' (o padrão: a peça vista de cima) ou 'nenhum' (um desenho em pé, com o tronco embaixo)")
 		# O tamanho do app no protótipo do relevo (embutidos.ts ou o .json do pacote); o
 		# móvel usa 1 casa por unidade. Só a mesa usa: o app sabe o tamanho de cada objeto.
 		cfg["tamanhoDoApp"] = _f(c, "tamanhoDoApp", 0.0)
@@ -159,6 +175,10 @@ static func parametros(cfg: Dictionary, r: Dictionary, gpu: int, disco: int) -> 
 		"cor": SOMBRA_COR,
 		"conta": "a silhueta (o alfa do desenho, já no lugar) andada deslocamento x tamanho na direção, desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez",
 	}
+	if sombra["jeito"] == "em-pe":
+		p["sombra"].erase("deslocamento")
+		p["sombra"]["comprimento"] = sombra["comprimento"]
+		p["sombra"]["conta"] = "a silhueta (o alfa do desenho, já no lugar) deitada no chão a partir do pé, como a sombra 'em-pe' de hoje (client/src/carimbos/arte.ts, matrizDaSombra): com (dx, dy) a direção normalizada e (x, y) o ponto a partir do pé (a âncora), y = -h a altura h acima dele, o ponto cai em (x - comprimento x dx x y, -comprimento x dy x y), ou seja, h x comprimento na direção: o pé fica e o alto se deita para baixo e para a direita; desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez (CONTRATO.md 9.4)"
 	if cfg["tipo"] == "carimbo":
 		var arquivos: Array = []
 		for v in cfg["variacoes"]:
@@ -178,6 +198,9 @@ static func parametros(cfg: Dictionary, r: Dictionary, gpu: int, disco: int) -> 
 			"espelho": "diagonal",
 			"conta": "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; espelho na diagonal quando floor(k / variacoes) é ímpar: a imagem transposta, (u, v) -> (v, u), com a mesma translação (o meio da imagem não anda; ver CONTRATO.md 9.4); a imagem nunca gira",
 		}
+		if cfg["espelho"] == "nenhum":
+			p["formas"]["espelho"] = "nenhum"
+			p["formas"]["conta"] = "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; nunca espelha (o desenho fica de pé na tela, com o tronco embaixo; transposto, ele deitaria); a imagem nunca gira"
 		if cfg["destino"] == "carimbo":
 			p["tamanhoDoApp"] = cfg["tamanhoDoApp"]
 		p["corMedia"] = r.get("corMedia", "")
