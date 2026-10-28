@@ -18,6 +18,8 @@ import { periodoDaSessao, personagensAtivos, pinTravelOf, sistemaAtivo, unlinked
 import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
+import { criarPortaoDaVista } from './vistaCoberta'
+import { preaquecerContornoDoChao, proximaTarefa } from './aberturaDoEditor'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
@@ -1068,13 +1070,21 @@ export function PixiCanvas({
     const setup = async () => {
       // Densidade do monitor (125%/150%): o backbuffer tem pixels físicos e o
       // canvas fica no tamanho CSS; event.global e app.screen seguem em px CSS.
-      await app.init({
-        backgroundColor: EDITOR_BACKGROUND_COLOR,
-        resizeTo: el,
-        resolution: currentRendererResolution(),
-        autoDensity: true,
-        antialias: true,
-      })
+      // DESEMPENHO (F8, abrir): o contorno do chão sai numa tarefa própria enquanto o Pixi
+      // inicia, e o resto da montagem começa noutra tarefa (`proximaTarefa`): a primeira
+      // pintura acha o contorno guardado e a montagem não soma tudo numa tarefa longa só.
+      // Mapa sem chão para contornar: nenhuma tarefa a mais (a montagem segue como antes).
+      const [, preaqueceu] = await Promise.all([
+        app.init({
+          backgroundColor: EDITOR_BACKGROUND_COLOR,
+          resizeTo: el,
+          resolution: currentRendererResolution(),
+          autoDensity: true,
+          antialias: true,
+        }),
+        preaquecerContornoDoChao(() => useMapStore.getState().map),
+      ])
+      if (preaqueceu) await proximaTarefa()
       if (destroyed) {
         app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
         return
@@ -1855,9 +1865,17 @@ export function PixiCanvas({
         const { map } = sceneState()
         if (!map.showGrid) {
           // Contexto compartilhado: limpa as duas camadas (dentro e fora do piso).
-          gridGraphics.clear()
+          // DESEMPENHO (F8): só se havia traço. Limpar o vazio a cada quadro de pan
+          // marcava o Graphics como mudado e o Pixi refazia o lote do mundo inteiro.
+          if (gridGraphics.context.instructions.length > 0) gridGraphics.clear()
+          // E fora do desenho: a grade vazia ainda pagava as duas máscaras de stencil
+          // do piso (4 chamadas de desenho por quadro, sem pintar nada).
+          gridGraphics.renderable = false
+          gridOutsideGraphics.renderable = false
           return
         }
+        gridGraphics.renderable = true
+        gridOutsideGraphics.renderable = true
         const viewport = computeViewport()
         // Traço branco opaco; cor e opacidade saem do tint/alpha de cada camada.
         const lineSettings = { ...map.gridSettings, color: '#ffffff', opacity: 1 }
@@ -1929,9 +1947,23 @@ export function PixiCanvas({
        * de `width`/`height`/`grid`, que mudam junto de `grid` na assinatura
        * de `subscribeToGridRedraw` (ver comentário mais abaixo).
        */
+      const portaoDaMoldura = criarPortaoDaVista()
       const redrawMapBounds = () => {
         const { map } = sceneState()
-        drawMapBounds(mapBoundsGraphics, map, computeViewport(), pixelGrid(camera.scale, app.renderer.resolution))
+        const pixel = pixelGrid(camera.scale, app.renderer.resolution)
+        const viewport = computeViewport()
+        // DESEMPENHO (F8): mesmo gatilho (toda câmera e todo tamanho de tela): as pílulas
+        // de nome inteiras fora da vista saem do desenho. Exportando, a vista é a cena inteira.
+        nomesDosLugares.recortarNaVista(viewport)
+        if (exportScene !== null) {
+          portaoDaMoldura.esquecer()
+          drawMapBounds(mapBoundsGraphics, map, viewport, pixel)
+          return
+        }
+        // DESEMPENHO (F8): desenhada com uma tela de folga para cada lado; o pan
+        // dentro da folga não refaz o Graphics (nem o lote do mundo). Ver vistaCoberta.ts.
+        const vista = portaoDaMoldura.precisa(`${camera.scale}|${app.renderer.resolution}|${map.width}|${map.height}|${map.grid}`, viewport)
+        if (vista !== null) drawMapBounds(mapBoundsGraphics, map, vista, pixel)
       }
 
       /**
@@ -1996,6 +2028,7 @@ export function PixiCanvas({
        * zoom, com o mapa parado. A mesma referência é o que deixa o renderer
        * de luzes pular o halo inteiro e refazer só o marcador.
        */
+      const SEM_OBSTACULOS_DE_LUZ: Segment[] = []
       let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
       const lightOccludersOf = (map: MapData): Segment[] => {
         if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === map.floor) return lightOccluders.segments
@@ -2013,8 +2046,10 @@ export function PixiCanvas({
         const single = selectionSingle(selection)
         const camadas = contextoDeCamadas(map)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
-        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: lightOccludersOf(map), semHalo: luzesSemHalo }
-        for (const { no, itens } of distribuir(visibleLights(map.lights, map), pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
+        const luzes = visibleLights(map.lights, map)
+        // DESEMPENHO (F8): sem luz, nada recorta a luz; os obstáculos (contorno do chão) não são calculados ao abrir.
+        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: luzes.length === 0 ? SEM_OBSTACULOS_DE_LUZ : lightOccludersOf(map), semHalo: luzesSemHalo }
+        for (const { no, itens } of distribuir(luzes,pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
           luzesPorNo.de(no).draw(no, itens, opcoes)
         }
         // Para o e2e: gradientes vivos (1 textura cada) não podem crescer com trocas de intensidade.

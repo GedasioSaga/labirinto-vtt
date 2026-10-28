@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Container, Text, Ticker } from 'pixi.js'
 import { APARICAO, type LugarComNome } from '../lib/nomesDosLugares'
-import { MEDIDAS_DA_PILULA, createNomesDosLugaresRenderer, type MovimentoDasPilulas } from './drawNomesDosLugares'
+import { MEDIDAS_DA_PILULA, createNomesDosLugaresRenderer, pilulaForaDaVista, type MovimentoDasPilulas } from './drawNomesDosLugares'
 
 /**
  * NOMES DOS LUGARES NO PALCO: a pílula nasce invisível e aparece em cascata no
@@ -278,5 +278,50 @@ describe('pílula no palco', () => {
     expect(partes(nomes.camada, 'a').texto.text).toBe('VILA NOVA')
     expect(b.destroyed).toBe(true)
     expect(nomes.camada.children).toHaveLength(1)
+  })
+})
+
+describe('recorte na vista (F8: pílula fora da tela não desenha)', () => {
+  it('a pílula inteira fora da vista fica de fora do desenho; dentro, ou só encostando, continua', () => {
+    const nomes = createNomesDosLugaresRenderer()
+    nomes.atualizar({ cena: 'c1', lugares: [lugar('perto', 100, 100), lugar('longe', 5000, 100)], animar: false })
+    nomes.recortarNaVista({ left: 0, top: 0, right: 1000, bottom: 800 })
+    expect(raiz(nomes.camada, 'perto').culled).toBe(false)
+    expect(raiz(nomes.camada, 'longe').culled).toBe(true)
+    // A vista anda até a de longe: ela volta, a de perto sai.
+    nomes.recortarNaVista({ left: 4500, top: 0, right: 5500, bottom: 800 })
+    expect(raiz(nomes.camada, 'perto').culled).toBe(true)
+    expect(raiz(nomes.camada, 'longe').culled).toBe(false)
+  })
+
+  it('a folga é em px de tela: afastado (escala pequena), a pílula logo fora da borda ainda conta como dentro', () => {
+    const nomes = createNomesDosLugaresRenderer()
+    nomes.atualizar({ cena: 'c1', lugares: [lugar('borda', 1100, 100)], animar: false })
+    nomes.setCameraScale(1)
+    nomes.recortarNaVista({ left: 0, top: 0, right: 1000, bottom: 800 })
+    expect(raiz(nomes.camada, 'borda').culled).toBe(true)
+    // Com escala 0,1 a pílula mede ~10x mais em px de mundo e alcança a vista.
+    nomes.setCameraScale(0.1)
+    nomes.recortarNaVista({ left: 0, top: 0, right: 1000, bottom: 800 })
+    expect(raiz(nomes.camada, 'borda').culled).toBe(false)
+  })
+
+  it('sem vista (null, o padrão e o exportar imagem), nenhuma é recortada; a pílula nova nasce já recortada pela vista atual', () => {
+    const nomes = createNomesDosLugaresRenderer()
+    nomes.recortarNaVista({ left: 0, top: 0, right: 1000, bottom: 800 })
+    nomes.atualizar({ cena: 'c1', lugares: [lugar('nova-longe', 9000, 9000)], animar: false })
+    expect(raiz(nomes.camada, 'nova-longe').culled).toBe(true)
+    nomes.recortarNaVista(null)
+    expect(raiz(nomes.camada, 'nova-longe').culled).toBe(false)
+  })
+})
+
+describe('pilulaForaDaVista', () => {
+  it('compara a âncora com a vista crescida pelo raio em px de mundo', () => {
+    const vista = { left: 0, top: 0, right: 100, bottom: 100 }
+    expect(pilulaForaDaVista({ x: 150, y: 50 }, 40, 1, vista)).toBe(true)
+    expect(pilulaForaDaVista({ x: 130, y: 50 }, 40, 1, vista)).toBe(false)
+    expect(pilulaForaDaVista({ x: 150, y: 50 }, 40, 0.5, vista)).toBe(false)
+    expect(pilulaForaDaVista({ x: 50, y: -41 }, 40, 1, vista)).toBe(true)
   })
 })
