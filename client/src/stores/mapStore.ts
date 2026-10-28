@@ -145,7 +145,7 @@ import {
   type ResultadoDoCarimbo,
 } from '../lib/carimbos'
 import { carimboDoCatalogo } from '../carimbos/catalogo'
-import { consultaDaTerra } from '../lib/relevo'
+import { consultaDaTerra, regioesDaTerra } from '../lib/relevo'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
 // store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
 // paralelo) e vira UM `SelectionSet` só — ver CONTRATO no topo de
@@ -2932,7 +2932,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // costa é a da terra que o relevo DESTE piso desenha (camadas à vista).
       const doPiso = mapaDoPiso(map, pisoAtivo)
       const antes = doPiso.penhascos ?? []
-      const naTerra = consultaDaTerra(visibleRegions(doPiso.regions, map.hiddenLayers))
+      // A mesma terra que o relevo desenha: fora do continente, sem as regiões de água.
+      const naTerra = consultaDaTerra(regioesDaTerra(map, visibleRegions(doPiso.regions, map.hiddenLayers)))
       const { lista, resultado } = riscarPenhascoNaLista(antes, { ...traco, id: crypto.randomUUID() }, naTerra)
       if (lista !== antes) withHistory((m) => comPenhascos(m, comListaDoPiso(m.penhascos ?? [], lista, pisoAtivo)))
       return resultado

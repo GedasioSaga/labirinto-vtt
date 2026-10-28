@@ -182,6 +182,20 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
 export const DICA_DA_FICHA_SALA_LIVRE_PAREDE = 'Clique ponto a ponto; duplo clique termina.'
 
 /**
+ * PENHASCO FORA DO CONTINENTE (pedido de 28/10/2026): num mapa comum não há
+ * costa nem mar, e a parede nasce na beira de baixo de uma região preenchida
+ * (sala, praça) e desce para fora dela. As dicas e os avisos do Penhasco
+ * trocam "costa, terra e mar" por região; no continente ficam os de sempre.
+ */
+export const PENHASCO_HINT_FORA_DO_CONTINENTE =
+  'Risque a beira de uma região onde quer rochedo: a parede de pedra desce para fora dela. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.'
+export const DICA_DA_FICHA_PENHASCO_FORA_DO_CONTINENTE = 'Risque a beira de uma região.'
+export const DICA_DO_PENHASCO_FORA_DO_CONTINENTE = 'Risque a beira de uma região: a parede desce para fora dela. Segure Alt para apagar.'
+export const AVISO_PENHASCO_LONGE_DA_BEIRA = 'O penhasco nasce na beira de uma região. Risque por cima dela: a parede desce para fora.'
+export const AVISO_PENHASCO_BEIRA_ESCONDIDA =
+  'Nesta beira a parede ficaria escondida atrás da região. O penhasco aparece na beira voltada para baixo do mapa.'
+
+/**
  * Botão da barra que agrupa várias ferramentas (plano de 15/09/2026, fatia 2).
  * O nome acessível é fixo (`label`); o ícone e o `data-tip` mostram a forma
  * que o clique vai ativar.

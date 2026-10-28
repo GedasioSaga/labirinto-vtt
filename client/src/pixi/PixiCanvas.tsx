@@ -72,7 +72,7 @@ import {
   type Spray,
 } from '../lib/carimbos'
 import { carimboDoCatalogo } from '../carimbos/catalogo'
-import { consultaDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
+import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
@@ -144,7 +144,7 @@ import { createContaGotasGesture } from './contaGotasGesture'
 import { pixelDaTela, rgbaParaHex } from '../lib/contaGotas'
 import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { useDonosDasFichasStore } from '../stores/donosDasFichasStore'
-import { coresDosPinos, type PinosNoToque } from '../lib/marcadorDeContinente'
+import { coresDosPinos, isContinente, type PinosNoToque } from '../lib/marcadorDeContinente'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -283,7 +283,9 @@ import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { baldeDeTintaNoPonto } from '../lib/baldeDeTinta'
 import {
+  AVISO_PENHASCO_BEIRA_ESCONDIDA,
   AVISO_PENHASCO_COSTA_ESCONDIDA,
+  AVISO_PENHASCO_LONGE_DA_BEIRA,
   AVISO_PENHASCO_LONGE_DA_COSTA,
   AVISO_PENHASCO_NADA_A_APAGAR,
   AVISO_PENHASCO_SEM_RELEVO,
@@ -384,14 +386,15 @@ const PENHASCO_STROKE_ALPHA = 0.45
 
 /**
  * O que a tela diz depois de soltar o pincel de penhasco, ou `null` quando o
- * risco fez o que prometia e já aparece.
+ * risco fez o que prometia e já aparece. Fora do continente não há costa nem
+ * mar: os avisos falam da beira da região.
  */
-function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean): string | null {
+function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean, continente: boolean): string | null {
   switch (resultado) {
     case 'longe-da-costa':
-      return AVISO_PENHASCO_LONGE_DA_COSTA
+      return continente ? AVISO_PENHASCO_LONGE_DA_COSTA : AVISO_PENHASCO_LONGE_DA_BEIRA
     case 'costa-escondida':
-      return AVISO_PENHASCO_COSTA_ESCONDIDA
+      return continente ? AVISO_PENHASCO_COSTA_ESCONDIDA : AVISO_PENHASCO_BEIRA_ESCONDIDA
     case 'nada-a-apagar':
       return AVISO_PENHASCO_NADA_A_APAGAR
     case 'riscou':
@@ -2317,7 +2320,8 @@ export function PixiCanvas({
       const entradaDoRelevo = (map: MapData): EntradaDoRelevo => ({
         cena: map.id,
         mapa: map,
-        regioes: visibleRegions(map.regions, map.hiddenLayers),
+        // ÁGUA: fora do continente, região de água não é terra (`regioesDaTerra`).
+        regioes: regioesDaTerra(map, visibleRegions(map.regions, map.hiddenLayers)),
         desenhos: visibleDrawings(map.drawings, map),
         // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
         penhascos: map.penhascos,
@@ -4876,7 +4880,8 @@ export function PixiCanvas({
         if (pontos.length === 0) return
         const store = useMapStore.getState()
         const resultado = store.riscarPenhasco({ modo: penhascoStrokeMode, raio: penhascoStrokeRadius, pontos, altura: penhascoStrokeAltura })
-        const aviso = avisoDoPenhasco(resultado, relevoLigado(useMapStore.getState().map))
+        const depois = useMapStore.getState().map
+        const aviso = avisoDoPenhasco(resultado, relevoLigado(depois), isContinente(depois))
         if (aviso === null) return
         const toasts = useToastStore.getState()
         if (toasts.toasts.some((toast) => toast.text === aviso)) return

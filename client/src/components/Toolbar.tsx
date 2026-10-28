@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentType, type CSSProperties, ty
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
 import {
+  PENHASCO_HINT_FORA_DO_CONTINENTE,
   ROOM_FREE_WALL_HINT,
   TOOLBAR_GROUPS,
   TOOL_CLUSTERS,
@@ -13,6 +14,8 @@ import {
   type ToolbarSlot,
 } from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
+import { isContinente } from '../lib/marcadorDeContinente'
+import { useMapStore } from '../stores/mapStore'
 import { placeHint, type HintPlacement } from './hintPlacement'
 import {
   TOOL_VARIANTS,
@@ -306,6 +309,8 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    */
   const [hintDismissed, setHintDismissed] = useState(false)
   const [hintTool, setHintTool] = useState(activeTool)
+  // PENHASCO fora do continente: a dica fala de região, não de costa (`PENHASCO_HINT_FORA_DO_CONTINENTE`).
+  const continente = useMapStore((s) => isContinente(s.map))
   /**
    * Última escolha feita numa setinha — só QUAL posição e QUAL eixo. O VALOR
    * fica de fora de propósito: ele é relido de `variantBindings` a cada render
@@ -338,7 +343,11 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
   // A Sala livre em "Criar: Parede" faz o mesmo traçado com outro fim (2 pontos,
   // linha aberta, sem sala): a dica acompanha o modo escolhido na setinha.
   const toolHint =
-    activeTool === 'roomFree' && variantBindings.roomFreeKind.value === 'parede' ? ROOM_FREE_WALL_HINT : TOOL_HINTS[activeTool]
+    activeTool === 'roomFree' && variantBindings.roomFreeKind.value === 'parede'
+      ? ROOM_FREE_WALL_HINT
+      : activeTool === 'penhasco' && !continente
+        ? PENHASCO_HINT_FORA_DO_CONTINENTE
+        : TOOL_HINTS[activeTool]
   const hint = hintDismissed ? undefined : toolHint
   /** O que a barra diz sobre a escolha, recalculado do valor corrente do eixo. */
   const echo = variantChoice ? variantEcho(variantChoice.storeKey, readVariantValue(variantBindings, variantChoice.storeKey)) : null

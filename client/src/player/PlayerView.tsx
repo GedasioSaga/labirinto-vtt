@@ -65,7 +65,7 @@ import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarr
 import { pisoDoRecorte } from '../lib/barranco'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
-import { relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
+import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
 import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
 import {
   assinaturaDosLugares,
@@ -2908,7 +2908,8 @@ function PlayerViewDoCanvas({
         ? {
             cena: currentMap.id,
             mapa: currentMap,
-            regioes: regions,
+            // ÁGUA: fora do continente, região de água não é terra (`regioesDaTerra`).
+            regioes: regioesDaTerra(currentMap, regions),
             desenhos: drawings,
             // PENHASCO: só os riscos que o recorte trouxe (junto do conhecido).
             penhascos: currentMap.penhascos,

@@ -5,7 +5,9 @@ import { CAMADAS_DO_CHAO } from '../../lib/camadasDoChao'
 import { BaldeIcon, EllipseIcon, FloorIcon, PathIcon, RegularPolygonIcon, RoomIcon } from '../icons'
 import { TOOL_VARIANTS, clusterVariantGroups, type ToolVariantGroup, type ToolVariantStoreKey } from '../../lib/toolVariants'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
-import { DICAS_DA_FICHA, DICA_DA_FICHA_SALA_LIVRE_PAREDE, TOOL_LABELS, clusterOfTool } from '../labels'
+import { DICAS_DA_FICHA, DICA_DA_FICHA_PENHASCO_FORA_DO_CONTINENTE, DICA_DA_FICHA_SALA_LIVRE_PAREDE, TOOL_LABELS, clusterOfTool } from '../labels'
+import { isContinente } from '../../lib/marcadorDeContinente'
+import { useMapStore } from '../../stores/mapStore'
 import { eixoDaVariante, type ToolVariantBindings } from '../ToolVariantMenu'
 import { TOOL_ICONS } from '../toolIcons'
 import { Cabeca, CabecaMedalha } from '../grimorio/Cabeca'
@@ -154,7 +156,13 @@ export interface FichaDaFerramentaProps {
 export function FichaDaFerramenta({ ferramenta, variantes, children }: FichaDaFerramentaProps) {
   const Icone = TOOL_ICONS[ferramenta]
   const paredeSolta = ferramenta === 'roomFree' && variantes?.roomFreeKind.value === 'parede'
-  const dica = paredeSolta ? DICA_DA_FICHA_SALA_LIVRE_PAREDE : (DICAS_DA_FICHA[ferramenta] ?? '')
+  // PENHASCO fora do continente: a dica fala de região, não de costa.
+  const penhascoForaDoContinente = useMapStore((s) => ferramenta === 'penhasco' && !isContinente(s.map))
+  const dica = paredeSolta
+    ? DICA_DA_FICHA_SALA_LIVRE_PAREDE
+    : penhascoForaDoContinente
+      ? DICA_DA_FICHA_PENHASCO_FORA_DO_CONTINENTE
+      : (DICAS_DA_FICHA[ferramenta] ?? '')
   const grupos = variantes === undefined ? [] : variantesDaFicha(ferramenta).filter((grupo) => grupoValeAgora(grupo, variantes))
   const nota = NOTAS_DA_FICHA[ferramenta]
   return (

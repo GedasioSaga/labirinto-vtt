@@ -1,7 +1,9 @@
 import type { AlturaDoPenhasco, ModoDoPenhasco } from '../types/map'
 import type { LarguraDoPenhasco } from '../lib/penhasco'
 import { relevoLigado } from '../lib/relevo'
+import { isContinente } from '../lib/marcadorDeContinente'
 import { mapaDoPiso } from '../lib/pisos'
+import { DICA_DO_PENHASCO_FORA_DO_CONTINENTE } from './labels'
 import { useMapStore } from '../stores/mapStore'
 
 const MODOS: Array<{ modo: ModoDoPenhasco; rotulo: string }> = [
@@ -41,6 +43,7 @@ export function PenhascoControls() {
   const altura = useMapStore((s) => s.penhascoAltura)
   const setAltura = useMapStore((s) => s.setPenhascoAltura)
   const comRelevo = useMapStore((s) => relevoLigado(s.map))
+  const continente = useMapStore((s) => isContinente(s.map))
   // PISOS: "apagar todos" só alcança o piso em edição; o botão aparece pelo mesmo recorte.
   const temPenhasco = useMapStore((s) => (mapaDoPiso(s.map, s.pisoAtivo).penhascos?.length ?? 0) > 0)
   const setRelevo = useMapStore((s) => s.setRelevo)
@@ -66,7 +69,9 @@ export function PenhascoControls() {
       <p className="lb-field__hint">
         {modo === 'apagar'
           ? 'Arraste sobre o penhasco para tirar o trecho. Segure Alt para riscar.'
-          : 'Risque por cima da costa: a parede nasce na beira entre a terra e o mar, descendo para a água. Segure Alt para apagar.'}
+          : continente
+            ? 'Risque por cima da costa: a parede nasce na beira entre a terra e o mar, descendo para a água. Segure Alt para apagar.'
+            : DICA_DO_PENHASCO_FORA_DO_CONTINENTE}
       </p>
       <h2 className="lb-eyebrow">Largura do pincel</h2>
       <div className="lb-seg" role="radiogroup" aria-label="Largura do pincel">
