@@ -294,7 +294,10 @@ export function criarVitrine(o: OpcoesDaVitrine): Vitrine {
     const agora = relogio()
     if (ultimaCamera === null || !mesmaCamera(ultimaCamera, camera)) mexeuEm = agora
     ultimaCamera = camera
-    const q = quadroDaVitrine(camera, o.renderer.screen, o.renderer.resolution)
+    // Renderer destruído (ou sem tela): nada a compor neste quadro, sem derrubar o laço do ticker.
+    const tela = (o.renderer as Partial<Renderer> | null | undefined)?.screen
+    if (tela === undefined || tela === null) return
+    const q = quadroDaVitrine(camera, tela, o.renderer.resolution)
     if (urgente) {
       // Pintura nova, cena nova ou a primeira: tudo agora (sem mostrar a pintura de antes nem buraco).
       urgente = false
