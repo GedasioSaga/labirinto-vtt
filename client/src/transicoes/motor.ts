@@ -95,7 +95,7 @@ export interface OpcoesDeTocar extends OpcoesDoPalco {
 export interface OpcoesDeTocarAbertura extends OpcoesDoPalco {
   /** Id da abertura no registro (`aberturasDeBatalha.ts`), ex.: "espadas-cruzadas". */
   id: string
-  /** O nome que a cena mostra; ausente ou vazio = o padrão da cena ("Royals" nas espadas). */
+  /** O nome que a cena mostra; ausente ou vazio = sem nome (as cenas do pacote desde 28/10/2026). */
   nome?: string
 }
 
@@ -139,6 +139,32 @@ export function tocarAberturaDeBatalha(opcoes: OpcoesDeTocarAbertura): Promise<C
     if (criar === null || info === undefined) return null
     return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: info.duracaoNaturalS }
   })
+}
+
+/** Teto da espera pelos shaders: com o contexto perdido no meio, o `compileAsync` não acabaria. */
+const ESPERA_DOS_SHADERS_MAX_MS = 1500
+
+/**
+ * Compila os programas da cena sem travar a página (`compileAsync` usa o
+ * KHR_parallel_shader_compile; o `compile` sozinho não basta, porque o three só
+ * espera o link no primeiro uso, e ele trava o 1º quadro do mesmo jeito). Falha
+ * ou teto estourado: segue, e o primeiro quadro compila do jeito antigo, com o
+ * `catch` dele encerrando se for o caso.
+ */
+async function compilarAntesDoRelogio(renderer: Three.WebGLRenderer, cena: CenaTransicao): Promise<void> {
+  let teto: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      renderer.compileAsync(cena.scene, cena.camera),
+      new Promise<void>((resolver) => {
+        teto = setTimeout(resolver, ESPERA_DOS_SHADERS_MAX_MS)
+      }),
+    ])
+  } catch {
+    // Segue para o primeiro quadro.
+  } finally {
+    clearTimeout(teto)
+  }
 }
 
 async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, resolver: () => Promise<CenaResolvida | null>): Promise<ControleDeTransicao> {
@@ -225,6 +251,11 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
   ajustar()
   const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(ajustar) : null
   observador?.observe(canvas)
+
+  // Os shaders compilam antes do relógio, com a cortina preta ainda cobrindo
+  // tudo: no primeiro quadro eles comiam o começo da cena (medido em 28/10/2026,
+  // a frio: 280 ms na Marinha e 492 ms nas Espadas entre o 1º e o 2º quadro).
+  await compilarAntesDoRelogio(renderer, cena)
 
   let inicio = performance.now()
   let quadro = 0
