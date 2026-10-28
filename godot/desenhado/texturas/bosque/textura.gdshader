@@ -6,22 +6,26 @@
 //
 // Regras do usuário que valem aqui: copa é forma grande e calma (nada de escama,
 // bolinha ou pontilhado: ESTILO.md seção 1) e nenhuma copa em cima de outra (crítica à
-// Floresta, 28/10). As copas moram no atlas (células de 2 casas); o config.json liga
-// detalhes.afastarCasas no máximo (1 casa) e a densidade é baixa, então nos grupos as
-// copas só se encostam na beira e entre os grupos a relva aparece.
+// Floresta, 28/10). As copas moram no atlas (células de 2 casas) e o config.json usa as
+// três opções do contrato que nasceram para o Bosque (CONTRATO.md seção 4):
+// detalhes.passoCasas (1,8 casa entre pontos do espalhamento, e afastarCasas igual),
+// detalhes.grupos (bosquetes redondos numa grade de 12 casas, com clareiras entre eles)
+// e detalhes.espelhar (4 copas viram 8 formas).
 //
 // O que as rodadas ensinaram (folha a 25%, 50%, 100% e 300%):
 // - 4 ou 5 lobos largos em volta de um miolo viraram pentágono de bala de goma;
 // - massas lisas sem borda de folhagem viraram seixo ou célula de microscópio: a borda
-//   agora é um festão de 7 a 9 arcos rasos e desiguais, e o crescente de sombra de
-//   dentro repete o festão (lê folhagem sem pintar folha);
+//   agora é um festão de 8 a 11 arcos desiguais, e cada massa deixa por dentro um
+//   crescente de sombra (a copa lê como 3 tufos de folhagem, sem pintar folha);
 // - copa redonda de 2 massas lia como ervilha a 25%: agora são 3 massas, a copa sai
 //   torta, cada uma do atlas para um lado;
-// - copa de quase 2 casas com o afastamento no máximo (1 casa) ainda caía meio em cima
-//   da vizinha (o espalhamento do contrato tem 1 ponto por casa): a copa ficou entre 1 e
-//   1,45 casa. Na simulação do espalhamento (hash e ruído do app, semente 31), nenhuma
-//   copa tem vizinha a menos de 0,6 da soma dos raios, e 1% a menos de 0,7; na Floresta
-//   aprovada, 55% estão abaixo de 0,6. A cobertura é 0,24, contra 0,73 da Floresta.
+// - com 1 ponto de espalhamento por casa, copa de 2 casas caía em cima da vizinha, e
+//   copa de 1 a 1,45 casa lia como "bolinhas verdes soltas" a 25%. Com o passo de 1,8
+//   casa as copas têm de 1,8 a 2,25 casas (2,6 nas pontas dos tufos). Na simulação do
+//   espalhamento (hash e ruído do app, semente 31), 1% das copas tem vizinha a menos de
+//   0,6 da soma dos raios (a Floresta aprovada passou dos 50% antes do afastamento);
+// - o ruído do mundo, em qualquer escala, só dava grupos em fileira curva ou em
+//   continente: os bosquetes redondos vêm de detalhes.grupos. Cobertura 0,27.
 shader_type canvas_item;
 render_mode unshaded, blend_disabled;
 
@@ -35,7 +39,7 @@ const vec3 RELVA = vec3(0.512, 0.718, 0.474);
 const vec3 RELVA_LUZ = vec3(0.583, 0.769, 0.530);    // GRAMA 40% para GRAMA_REALCE
 const vec3 RELVA_SOMBRA = vec3(0.449, 0.655, 0.414); // GRAMA_SOMBRA a 97%
 // A sombra que a árvore joga na relva (px do mundo, para baixo e para a direita).
-const vec2 SOMBRA_DESLOCA = vec2(7.0, 9.0);
+const vec2 SOMBRA_DESLOCA = vec2(6.5, 6.5);
 
 // ---------- base: a relva entre as copas ----------
 
@@ -70,14 +74,14 @@ float uniao_suave(float a, float b, float k) {
 // O tamanho da copa i (px do mundo antes da escala; a célula vai de -64 a 64; a borda
 // fica em média a 0,8 R e no máximo a 0,95 R, e a sombra cabe nos 4 px de folga): duas
 // árvores grandes, uma média e uma nova, para o bosque não ser um carimbo do mesmo
-// tamanho. O config.json escala de 1,05 a 1,3 no mundo.
+// tamanho. O config.json escala de 1,7 a 2 no mundo.
 float raio_copa(int i) {
-	return i == 0 ? 44.0 : (i == 1 ? 42.0 : (i == 2 ? 40.0 : 37.0));
+	return i == 0 ? 46.0 : (i == 1 ? 45.0 : (i == 2 ? 44.0 : 42.0));
 }
 
 // Quantos festões a folhagem da copa i tem na borda.
 float festoes_copa(int i) {
-	return i == 0 ? 9.0 : (i == 1 ? 9.0 : (i == 2 ? 8.0 : 7.0));
+	return i == 0 ? 10.0 : (i == 1 ? 9.0 : (i == 2 ? 11.0 : 8.0));
 }
 
 // As três massas do corpo da copa i: xy = centro, z = raio. A 0 é a grande, quase no
@@ -88,14 +92,14 @@ vec3 massa_copa(int i, int k) {
 	float R = raio_copa(i);
 	uint h = hash_cel(vec2(float(i), 40.0 + float(k)), 2333);
 	if (k == 0) {
-		return vec3((vec2(rk(h, 0), rk(h, 1)) - 0.5) * 0.1 * R, 0.68 * R);
+		return vec3((vec2(rk(h, 0), rk(h, 1)) - 0.5) * 0.1 * R, 0.64 * R);
 	}
 	float a = TAU * rk(hash_cel(vec2(float(i), 41.0), 2333), 0);
 	if (k == 2) {
 		a += 2.1 + 0.85 * rk(h, 0);
-		return vec3(vec2(cos(a), sin(a)) * (0.4 + 0.06 * rk(h, 1)) * R, 0.4 * R);
+		return vec3(vec2(cos(a), sin(a)) * (0.46 + 0.04 * rk(h, 1)) * R, 0.36 * R);
 	}
-	return vec3(vec2(cos(a), sin(a)) * (0.33 + 0.05 * rk(h, 1)) * R, 0.5 * R);
+	return vec3(vec2(cos(a), sin(a)) * (0.38 + 0.04 * rk(h, 1)) * R, 0.44 * R);
 }
 
 // O festão da folhagem: a borda é uma fila de arcos rasos (de 3 a 5 px) com a ponta para
@@ -111,7 +115,7 @@ float festao(int i, vec2 q) {
 	float t = a / TAU * n + rk(h, 1);
 	float k = floor(t);
 	float f = t - k;
-	float alto = 0.062 * R * (0.55 + 0.9 * rk(hash_cel(vec2(float(i), mod(k, n)), 2343), 0));
+	float alto = 0.08 * R * (0.55 + 0.9 * rk(hash_cel(vec2(float(i), mod(k, n)), 2343), 0));
 	return alto * sqrt(max(1.0 - (2.0 * f - 1.0) * (2.0 * f - 1.0), 0.0));
 }
 
@@ -121,8 +125,8 @@ float sd_copa(int i, vec2 q) {
 	vec3 m0 = massa_copa(i, 0);
 	vec3 m1 = massa_copa(i, 1);
 	vec3 m2 = massa_copa(i, 2);
-	float d = uniao_suave(length(q - m0.xy) - m0.z, length(q - m1.xy) - m1.z, 0.36 * R);
-	d = uniao_suave(d, length(q - m2.xy) - m2.z, 0.36 * R);
+	float d = uniao_suave(length(q - m0.xy) - m0.z, length(q - m1.xy) - m1.z, 0.22 * R);
+	d = uniao_suave(d, length(q - m2.xy) - m2.z, 0.22 * R);
 	return d - festao(i, q);
 }
 
@@ -159,14 +163,14 @@ vec4 copa(int i, vec2 q, float px) {
 	//    campo"), borda esfumada; e um halo leve de contato em volta, que escurece a
 	//    beira da copa vizinha quando duas se encostam. As duas juntas: alfa até 0,22.
 	float ds = sd_copa(i, q - SOMBRA_DESLOCA) + onda;
-	float a_sombra = (1.0 - smoothstep(-4.0, 4.0, ds)) * 0.22;
-	float a_halo = (1.0 - smoothstep(0.0, 4.0, d)) * 0.12;
+	float a_sombra = (1.0 - smoothstep(-3.5, 3.5, ds)) * 0.22;
+	float a_halo = (1.0 - smoothstep(0.0, 3.0, d)) * 0.12;
 	acc = sobre(acc, SOMBRA_VERDE, max(a_sombra, a_halo));
 
 	// 2. Contorno: a folha escurecida, mais fino do lado da luz e mais grosso do da sombra.
 	vec2 dir = q / max(length(q), 1e-3);
 	float lado_sombra = dot(dir, -LUZ) * 0.5 + 0.5;
-	float esp = mix(1.4, 2.0, lado_sombra);
+	float esp = mix(0.8, 1.1, lado_sombra);
 	vec3 c_traco = mix(mix(FOLHA_CONTORNO, tom_copa(i, 1), 0.55), FOLHA_CONTORNO * 0.95, smoothstep(0.3, 0.8, lado_sombra));
 	acc = sobre(acc, c_traco, cobre(d, px));
 
@@ -185,6 +189,18 @@ vec4 copa(int i, vec2 q, float px) {
 	float a_luz = 1.0 - smoothstep(-1.4, 1.4, dl);
 	vec3 c_clara = mix(c_meio, c_luz, 0.2 + 0.3 * smoothstep(-0.6, 0.6, g + mancha * 0.6));
 	c = mix(c, c_clara, a_luz);
+	// Os lobos: onde a borda de uma massa passa por dentro da copa, o lado dela que dá
+	// para baixo e para a direita deixa um crescente de sombra: a copa lê como 3 tufos de
+	// folhagem, não como um bolo liso. Só longe da borda de fora.
+	float dentro = 1.0 - smoothstep(-9.0, -3.0, d + esp);
+	for (int k = 0; k < 3; k++) {
+		vec3 mk = massa_copa(i, k);
+		vec2 v = q - mk.xy;
+		float dk = length(v) - mk.z;
+		float lado = dot(v / max(length(v), 1e-3), -LUZ);
+		float crescente = (1.0 - smoothstep(0.0, 3.5, abs(dk + 2.0))) * smoothstep(0.05, 0.6, lado);
+		c = mix(c, mix(c_meio, c_sombra, 0.65), 0.5 * crescente * dentro);
+	}
 	// O topo: um domo de borda ondulada pelo ângulo, mais acima e à esquerda.
 	vec3 m0 = massa_copa(i, 0);
 	vec2 qt = q - m0.xy - LUZ * 0.3 * R;
@@ -200,7 +216,7 @@ vec4 copa(int i, vec2 q, float px) {
 	c = mix(c, realce_de(c_luz), a_realce);
 
 	// 6. A mão de pintura: pinceladas largas na mesma direção e um grão bem leve.
-	c *= 1.0 + 0.03 * pinceladas(q0 + vec2(float(i) * 128.0, 0.0), 512.0, px, sl + 5, 32.0, -1.2, 0.5);
+	c *= 1.0 + 0.03 * pinceladas(q0 + vec2(float(i) * 128.0, 0.0), 512.0, px, sl + 5, 32.0, -0.785, 0.5);
 	c *= 1.0 + (grao(q0, 256.0, sl + 11) - 1.0) * 0.6;
 	acc = sobre(acc, c, cobre(d + esp, px));
 
