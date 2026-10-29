@@ -1,8 +1,11 @@
-import { Graphics } from 'pixi.js'
+import { Container, Graphics } from 'pixi.js'
 import type { BarrancoDoMapa } from '../types/map'
-import { alcaDoRisco, corridas, escalaDoBarranco, geosDoBarranco, pontoEm, type Corrida, type GeoDoBarranco } from '../lib/barranco'
+import { alcaDoRisco, alturaDoRisco, corridas, escalaDoBarranco, geosDoBarranco, pontoEm, type Corrida, type GeoDoBarranco } from '../lib/barranco'
 import { AJUSTE_DO_PENHASCO, corDaParede } from '../lib/relevo'
-import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
+import { assinarTracosDesenhados, ehTracoDesenhado, pedirBordaDoTraco, pedirFaceDoTraco } from '../texturas/desenhado/carregadorDoTraco'
+import { alturaDaVista, CASA_DO_TRACO, type AlturaDoTraco, type FaceDoTraco } from '../texturas/desenhado/traco'
+import { criarBarrancoDesenhado, type PassosDoAtual, type TintaDoBarranco } from './barrancoDesenhado'
 import { PALETA_MEIO_TERMO } from '../texturas/meioTermo/paleta'
 import { contornoDoTom, corDoBarranco, LARGURA_DO_CONTORNO, TONS_DO_BARRANCO } from '../texturas/meioTermo/barranco'
 import { misturar, rgb, type Rgb } from '../texturas/ruido'
@@ -204,11 +207,11 @@ function dentro(x: number, y: number, pol: readonly number[][]): boolean {
 }
 
 /** O alto de uma área: mais claro a cada degrau. Laço de fora (área negativa) enche; buraco dentro dele corta. */
-function pintarTopo(g: Graphics, lista: readonly GeoDoBarranco[], k: number): void {
+function pintarTopo(g: Graphics, lista: readonly GeoDoBarranco[], k: number, alfaPorNivel = 0.07): void {
   const fora = lista.filter((geo) => areaComSinal(geo.lip) < 0)
   const buracos = lista.filter((geo) => areaComSinal(geo.lip) >= 0)
   for (const geo of fora) {
-    g.poly(geo.lip.flatMap((p) => [p[0], p[1]])).fill({ color: numero(LUZ), alpha: 0.07 * k })
+    g.poly(geo.lip.flatMap((p) => [p[0], p[1]])).fill({ color: numero(LUZ), alpha: alfaPorNivel * k })
     for (const b of buracos) if (dentro(b.lip[0][0], b.lip[0][1], geo.lip)) g.poly(b.lip.flatMap((p) => [p[0], p[1]])).cut()
   }
 }
@@ -247,20 +250,81 @@ export interface EntradaDoBarranco {
 }
 
 export interface DesenhoDoBarranco {
-  camada: Graphics
+  camada: Container
   atualizar: (entrada: EntradaDoBarranco | null) => void
   destroy: () => void
 }
 
-export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
-  const camada = new Graphics()
-  camada.eventMode = 'none'
-  let ultima: (EntradaDoBarranco & { simples: boolean }) | null = null
+/** O id do pacote da face do barranco e do penhasco (CONTRATO 11). */
+const FACE_DO_PENHASCO = 'penhasco'
 
-  const atualizar = (entrada: EntradaDoBarranco | null): void => {
-    const simples = !meioTermoLigado()
+/**
+ * A altura de cada beira para o Desenhado: o risco tem a dele; a área, a mais
+ * alta que a beira mostra (a espessura do sul, a maior, pela escolha de 11.4).
+ */
+function alturasDasBeiras(barranco: BarrancoDoMapa, face: FaceDoTraco, grid: number): (geo: GeoDoBarranco) => AlturaDoTraco {
+  const k = grid / CASA_DO_TRACO
+  const porRisco = new Map(barranco.riscos.map((r) => [r.id, alturaDoRisco(r)]))
+  return (geo) => porRisco.get(geo.id) ?? alturaDaVista(Math.max(0, ...geo.t) / k, 'alto', face.limites)
+}
+
+/** A tinta do Desenhado se a face (e a borda dela) já chegou; `null` = pinta o Atual enquanto isso. */
+function tintaPronta(): TintaDoBarranco | null {
+  const face = pedirFaceDoTraco(FACE_DO_PENHASCO)
+  if (face === null) return null
+  const id = face.face.borda
+  return { face, borda: id !== null && ehTracoDesenhado(id) ? pedirBordaDoTraco(id) : null }
+}
+
+type Estilo = 'simples' | 'atual' | 'desenhado'
+
+export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
+  const camada = new Container()
+  camada.eventMode = 'none'
+  // Atual e Simples: o vetor de sempre, num Graphics só.
+  const vetor = new Graphics()
+  vetor.eventMode = 'none'
+  camada.addChild(vetor)
+  let ultima: (EntradaDoBarranco & { estilo: Estilo; tinta: TintaDoBarranco | null }) | null = null
+  let ultimaEntrada: EntradaDoBarranco | null = null
+  // O shader do traço não compilou neste palco: o Desenhado fica no Atual de vez.
+  let semShader = false
+  const desenhado = criarBarrancoDesenhado(() => {
+    semShader = true
+    if (ultimaEntrada !== null) pintar(ultimaEntrada)
+  })
+  // O escolhido do editor vai por cima de tudo, nos dois estilos.
+  const escolha = new Graphics()
+  escolha.eventMode = 'none'
+  camada.addChild(desenhado.camada, escolha)
+  // As imagens do pacote chegaram: pinta de novo o que saiu no Atual no lugar delas.
+  const pararDeOuvir = assinarTracosDesenhados(() => {
+    if (ultimaEntrada !== null) pintar(ultimaEntrada)
+  })
+
+  const passosDoAtual: PassosDoAtual = {
+    rampas: (g, lista) => {
+      if (ultima === null) return
+      const escala = escalaDoBarranco(ultima.grid)
+      for (const geo of lista) for (const v of geo.vaos) pintarRampa(g, geo, v.s, v.w, escala)
+    },
+    topo: (g, lista, nivel, alfa) => pintarTopo(g, lista, nivel, alfa),
+  }
+
+  function limpar(): void {
+    vetor.clear()
+    escolha.clear()
+    desenhado.limpar()
+  }
+
+  function pintar(entrada: EntradaDoBarranco | null): void {
+    ultimaEntrada = entrada
+    const quer: Estilo = !meioTermoLigado() ? 'simples' : desenhadoLigado() && !semShader ? 'desenhado' : 'atual'
+    const tinta = quer === 'desenhado' ? tintaPronta() : null
+    // Desenhado sem as imagens ainda: o Atual até elas chegarem.
+    const estilo: Estilo = quer === 'desenhado' && tinta === null ? 'atual' : quer
     if (entrada === null || entrada.barranco === undefined) {
-      if (ultima !== null) camada.clear()
+      if (ultima !== null) limpar()
       ultima = null
       return
     }
@@ -271,36 +335,57 @@ export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
       ultima.grid === entrada.grid &&
       ultima.mostras === entrada.mostras &&
       (ultima.escolhido ?? null) === (entrada.escolhido ?? null) &&
-      ultima.simples === simples
+      ultima.estilo === estilo &&
+      ultima.tinta?.face === tinta?.face &&
+      ultima.tinta?.borda === tinta?.borda
     ) {
       return
     }
-    ultima = { ...entrada, simples }
-    camada.clear()
+    ultima = { ...entrada, estilo, tinta }
+    limpar()
     const escala = escalaDoBarranco(entrada.grid)
     const geos = geosDoBarranco(entrada.barranco, entrada.piso, entrada.grid, entrada.mostras)
-    // Nível por nível: sombra no de baixo, parede, rampa, o alto e a beira; os riscos por último.
-    for (let k = 1; k <= 3; k += 1) {
-      const lista = geos.filter((geo) => geo.tipo === 'area' && geo.nivel === k)
-      if (lista.length === 0) continue
-      pintarBarrancos(camada, lista, escala, simples)
-      pintarTopo(camada, lista, k)
-      for (const geo of lista) pintarBeira(camada, geo, escala)
-    }
     const riscos = geos.filter((geo) => geo.tipo === 'risco')
-    pintarBarrancos(camada, riscos, escala, simples)
-    for (const geo of riscos) pintarBeira(camada, geo, escala)
+    if (estilo === 'desenhado' && tinta !== null) {
+      desenhado.pintar(
+        {
+          geos,
+          grid: entrada.grid,
+          alturaDe: alturasDasBeiras(entrada.barranco, tinta.face.face, entrada.grid),
+          // O chão do lado alto e a água do pé ainda não são lidos do mapa (11.12): a linha da grama.
+          chaoNoAlto: () => null,
+          aguaNoPe: () => false,
+        },
+        tinta,
+        passosDoAtual,
+      )
+    } else {
+      const simples = estilo === 'simples'
+      // Nível por nível: sombra no de baixo, parede, rampa, o alto e a beira; os riscos por último.
+      for (let k = 1; k <= 3; k += 1) {
+        const lista = geos.filter((geo) => geo.tipo === 'area' && geo.nivel === k)
+        if (lista.length === 0) continue
+        pintarBarrancos(vetor, lista, escala, simples)
+        pintarTopo(vetor, lista, k)
+        for (const geo of lista) pintarBeira(vetor, geo, escala)
+      }
+      pintarBarrancos(vetor, riscos, escala, simples)
+      for (const geo of riscos) pintarBeira(vetor, geo, escala)
+    }
     const escolhido = entrada.escolhido ?? null
     const geoEscolhido = escolhido === null ? undefined : riscos.find((geo) => geo.id === escolhido)
-    if (geoEscolhido !== undefined) pintarEscolha(camada, geoEscolhido, entrada.grid, escala)
+    if (geoEscolhido !== undefined) pintarEscolha(escolha, geoEscolhido, entrada.grid, escala)
   }
 
   return {
     camada,
-    atualizar,
+    atualizar: pintar,
     destroy: () => {
-      camada.destroy()
+      pararDeOuvir()
+      desenhado.destroy()
+      camada.destroy({ children: true })
       ultima = null
+      ultimaEntrada = null
     },
   }
 }
