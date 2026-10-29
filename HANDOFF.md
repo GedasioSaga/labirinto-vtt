@@ -539,3 +539,29 @@ Camadas 8 fatias com linha no PROGRESSO; Sons F1 a F7 (F6 e F7 sem aparelho; F5d
 
 **Critério de pronto da retomada:** `git log -1` na main = o último docs(pedidos); `git -C C:/dev/labirinto-desenhado log --oneline -12` mostra os commits acima; lote 3 tem `texturas/<id>/` commitada para as 5.
 **Evidência:** `node scripts/publicar-versao.cjs --publicar` saiu 0 em 256 s ("release v0.5.6 publicada com latest.json"); `curl .../latest.json` → version 0.5.6; tsc da main unida exit 0 (suite-lock 35 s).
+
+## Atualização 29/10 ~16h45 (vale sobre tudo acima)
+
+### Objetivo
+Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da tela preta, publicando agora; (2) copiar as 52 músicas do bot (C:/dev/projeto-rpg-v2) para uma aventura dele, depois que ele atualizar; (3) integrar o pacote Desenhado (aprovado inteiro: 79 itens, 17 lotes) no app, em fases.
+
+### Estado atual
+- **Publicadas hoje:** v0.5.9 (8 móveis, Tronco caído, Caveira pirata), v0.5.10 (Lareira, Fornalha, Bigorna, Balde, Troncos, Feno). Pacote de animações índice 13 (`motorMinimo 0.5.9`, Tiro na tela e Revólveres cruzados), publicado pelo próprio usuário.
+- **v0.5.11 em publicação** da main `a224d302`: aba Sons com Músicas e Efeitos sonoros, categorias com sugestões, miniatura do YouTube e trecho de A até B (`ebb2ab03`, `f89d7c3e`, `3e7fec9d`, `18ce95d4`); tela preta do jogador (`468fd728`) e do editor (`c0269ff3`). Notas: `C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/64bbd926-7eb9-4120-904b-108161a322fd/scratchpad/notas-0.5.11.md`. Não commitar na main enquanto `publicar-versao.cjs` roda.
+- **Desenhado:** pacote entrou na main pelo merge `8d1f5230` (pasta `godot/desenhado/`, 21 MiB; o worktree `C:/dev/labirinto-desenhado` pode ser removido depois de `rmdir` das junções node_modules). Apresentação final aprovada ("Eu gostei de tudo"): https://claude.ai/artifact/MHMqVffu24rSZz2PvmAG2P. Plano da integração: `C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/64bbd926-7eb9-4120-904b-108161a322fd/scratchpad/integracao-desenhado/PLANO.md`. Decisões: imagens dentro do instalador (~21 MB); duas conferências automáticas por fase só nesta integração; mapa novo nasce no Atual até a F4; parede com espessura do mundo só no Desenhado. F1a pausada sem nenhuma mudança (o agente só tinha lido).
+- **Músicas do bot:** exportadas de uma CÓPIA do banco do bot (`%APPDATA%/com.gedasio.rpgv2/rpg.db`, tabela `favorito`; nunca ler `segredos*`) em `C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/64bbd926-7eb9-4120-904b-108161a322fd/scratchpad/musicas-do-bot/favoritos.json`: 52 links do YouTube (Tema 20, Ambiente 14, Batalha 12, Abertura/Encerramento 6). Decisão: todas em Músicas; Batalha e Ambiente nas categorias que existem, Tema e Abertura/Encerramento novas; Repetir ligado menos em Abertura/Encerramento.
+
+### Próximos passos
+1. Quando o `publicar-versao.cjs` terminar: conferir `latest.json` = 0.5.11 e registrar no PEDIDOS.md.
+2. **Mudou (29/10, literal "As musicas são para serem global..."; escolha "Tudo global"):** a biblioteca de sons vira UMA só, com Músicas e Efeitos sonoros, valendo em todas as aventuras; os 2 sons da Tasmaturi Village passam para ela; as 52 músicas do bot entram nela uma vez. É código novo (lib/sons/bibliotecaNoDisco.ts, a loja, a aba e o lado Rust que lê e grava o sons.json, onde mora a mídia importada), para a 0.5.12; o import das 52 vem junto (um botão ou uma migração única a partir de `favoritos.json`).
+3. Retomar a F1a do Desenhado (o mesmo agente, com "pode seguir"; não há stash para tirar) e seguir F1b, F2, F3, F4 do PLANO.
+
+### Critério de pronto
+- 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
+- Músicas: a aventura escolhida abre com 52 sons novos em Músicas, nas 4 categorias, com miniaturas, e o `sons.json` antigo guardado como backup ao lado.
+- F1a: critério no PLANO (estilo por mapa trocando no editor e no jogador; mapa antigo no Atual; build sem `data:image` dos PNG; tsc 0).
+
+### Evidência
+- gitleaks na main antes do push: "131 commits scanned ... no leaks found", exit 0.
+- Push: `42e1be65..a224d302 main -> main`.
+- Pacote Desenhado: arrumação final com hash 615/615 iguais (`a9c17df1`, `8330d1e7`); diff da feat/desenhado fora de `godot/desenhado/` vazio antes do merge.
