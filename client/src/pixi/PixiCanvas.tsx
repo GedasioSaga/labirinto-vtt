@@ -911,7 +911,70 @@ const EDITOR_BACKGROUND_COLOR = 0x2b2b2b
 /** Retângulo que cobre qualquer mapa: Ctrl+A reusa o filtro da seleção por área. */
 const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
 
-export function PixiCanvas({
+/**
+ * Quantas perdas de contexto WebGL seguidas, dentro de `JANELA_DAS_PERDAS_MS`,
+ * o editor aguenta remontando o mapa (a mesma régua da tela do jogador,
+ * `player/PlayerView.tsx`). Acima disso a placa de vídeo não segura o WebGL:
+ * remontar de novo só faria o mapa piscar, então o editor mostra o aviso.
+ */
+const MAX_PERDAS_DE_CONTEXTO = 3
+const JANELA_DAS_PERDAS_MS = 60_000
+
+/**
+ * CONTEXTO WEBGL PERDIDO e PIXI QUE NÃO SOBE (bug de 29/10/2026, "fica tudo
+ * preto", achado na tela do jogador). Perder o contexto deixava o mapa do
+ * editor apagado para sempre: o Pixi não se recupera sozinho. Aqui a perda
+ * troca a chave do canvas: o Pixi inteiro é desmontado e um novo nasce, com
+ * canvas e contexto novos (o mapa mora na store, nada se perde). Sem WebGL, ou
+ * com perdas demais, vem o aviso no lugar do mapa preto.
+ */
+export function PixiCanvas(props: PixiCanvasProps) {
+  const [geracao, setGeracao] = useState(0)
+  const perdas = useRef<number[]>([])
+  const [falha, setFalha] = useState<string | null>(null)
+  const perdeuContexto = useCallback(() => {
+    const agora = Date.now()
+    perdas.current = [...perdas.current.filter((quando) => agora - quando < JANELA_DAS_PERDAS_MS), agora]
+    if (perdas.current.length > MAX_PERDAS_DE_CONTEXTO) setFalha('O contexto WebGL do mapa foi perdido repetidas vezes')
+    else setGeracao((g) => g + 1)
+  }, [])
+  const naoIniciou = useCallback((motivo: string) => setFalha(motivo), [])
+  const tentarDeNovo = () => {
+    perdas.current = []
+    setFalha(null)
+    setGeracao((g) => g + 1)
+  }
+  if (falha !== null) return <AvisoSemDesenho motivo={falha} onTentarDeNovo={tentarDeNovo} />
+  return <PixiCanvasDoContexto key={geracao} {...props} onContextoPerdido={perdeuContexto} onNaoIniciou={naoIniciou} />
+}
+
+/**
+ * O mapa do editor não pôde ser desenhado. Sem "Recarregar" de propósito:
+ * recarregar a janela do mestre derrubaria a sessão dos jogadores e o que não
+ * foi salvo. "Tentar de novo" monta um Pixi novo; se o navegador do programa
+ * continua sem WebGL, só reabrir o Labirinto resolve.
+ */
+function AvisoSemDesenho({ motivo, onTentarDeNovo }: { motivo: string; onTentarDeNovo: () => void }) {
+  return (
+    <div className="lb-semdesenho">
+      <div className="lb-semdesenho__card" role="alert">
+        <p className="lb-semdesenho__titulo">O mapa parou de ser desenhado.</p>
+        <p className="lb-semdesenho__texto">
+          A aceleração de vídeo deste computador está desligada ou travou, e o mapa precisa dela. Seu mapa continua aberto:
+          salve e reabra o Labirinto — costuma resolver.
+        </p>
+        <button type="button" className="lb-btn lb-btn--primary" onClick={onTentarDeNovo}>
+          Tentar de novo
+        </button>
+        <p className="lb-semdesenho__detalhe">{motivo}</p>
+      </div>
+    </div>
+  )
+}
+
+function PixiCanvasDoContexto({
+  onContextoPerdido,
+  onNaoIniciou,
   gridAlignPreview = null,
   batalhaLigada = false,
   onBackgroundImageSizeChange,
@@ -928,7 +991,7 @@ export function PixiCanvas({
   onImageExporterChange,
   fantasmaDeTeste = null,
   fichaDoFantasma = null,
-}: PixiCanvasProps) {
+}: PixiCanvasProps & { onContextoPerdido: () => void; onNaoIniciou: (motivo: string) => void }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onImageExporterChangeRef = useRef(onImageExporterChange)
   useEffect(() => {
@@ -1093,6 +1156,10 @@ export function PixiCanvas({
       // Mapa sem chão para contornar: nenhuma tarefa a mais (a montagem segue como antes).
       const [, preaqueceu] = await Promise.all([
         app.init({
+          // SÓ WebGL: sem ele o Pixi cairia sozinho no WebGPU ou no Canvas2D,
+          // que não desenham este mapa (máscara inversa ignorada, cena quebrada).
+          // Sem WebGL o init lança e o `catch` de `setup` mostra o aviso.
+          preference: ['webgl'],
           backgroundColor: EDITOR_BACKGROUND_COLOR,
           resizeTo: el,
           resolution: currentRendererResolution(),
@@ -1108,6 +1175,12 @@ export function PixiCanvas({
       }
       initialized = true
       registrarNaSonda('appMestre', app)
+      // Contexto perdido: quem está em volta (`PixiCanvas`) troca este Pixi por
+      // um novo. `onContextoPerdido` é estável (useCallback) e cada geração
+      // monta este efeito uma vez só, então a referência do fechamento serve.
+      app.canvas.addEventListener('webglcontextlost', () => {
+        if (!destroyed) onContextoPerdido()
+      })
       // Bloco, não o `inline` padrão do <canvas>: inline, ele mora numa linha de
       // texto que reserva embaixo o espaço das letras que descem, e com o
       // contêiner de 100% de altura essa sobra (5 px) vazava até o `.lb-editor`.
@@ -8938,7 +9011,13 @@ export function PixiCanvas({
       }
     }
 
-    const cleanupPromise = setup()
+    // Pixi que não subiu (sem WebGL, ou erro ao montar a cena): o aviso no lugar
+    // do mapa preto, e nada a limpar.
+    const cleanupPromise = setup().catch((error: unknown) => {
+      console.error('Falha ao iniciar o canvas do editor', error)
+      if (!destroyed) onNaoIniciou(error instanceof Error ? error.message : 'O mapa do editor não iniciou')
+      return undefined
+    })
 
     return () => {
       destroyed = true

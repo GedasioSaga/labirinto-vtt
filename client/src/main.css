@@ -941,6 +941,50 @@ body {
   inset: 0;
 }
 
+/* O mapa não pôde ser desenhado (sem WebGL, ou contexto perdido demais):
+   o aviso no meio da área do mapa, no lugar do canvas preto (PixiCanvas.tsx). */
+.lb-semdesenho {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lb-space-6);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-semdesenho__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  max-width: 26rem;
+  padding: var(--lb-space-6);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-float);
+}
+
+.lb-semdesenho__titulo {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-semdesenho__texto {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  line-height: 1.5;
+}
+
+.lb-semdesenho__detalhe {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* A barra de ferramentas centraliza na viewport, mas o padding simétrico do
    tamanho do livro do mestre (components/livro/livro.css) impede que ela
    chegue perto dele mesmo na largura mínima — como o padding é igual dos dois
