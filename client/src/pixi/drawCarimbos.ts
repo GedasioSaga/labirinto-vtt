@@ -1,9 +1,20 @@
-import { CanvasSource, Container, Sprite, Texture } from 'pixi.js'
+import { CanvasSource, Container, ImageSource, Sprite, Texture } from 'pixi.js'
 import type { Carimbo, CarimboImportado, MapData } from '../types/map'
 import { ehTipoImportado, mesmosCarimbos, varianteDoGiro } from '../lib/carimbos'
 import { unidadeDoRelevo } from '../lib/relevo'
+import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { assinarCarimbos, carimboDoCatalogo } from '../carimbos/catalogo'
 import { ALFA_DA_SOMBRA, assarDesenho, assarImagem, QUADRO_DA_SOMBRA, type ArteEmTela, type QuadroDaArte } from '../carimbos/arte'
+import {
+  ALFA_DA_SOMBRA_DESENHADA,
+  assinarCarimbosDesenhados,
+  ehCarimboDesenhado,
+  formaDoGiro,
+  pedirCarimboDesenhado,
+  quadroDoCorpo,
+  silhuetaDaForma,
+  type CarimboCarregado,
+} from '../texturas/desenhado/carimbos'
 
 /**
  * CARIMBOS no palco (`lib/carimbos.ts`): os objetos que o mestre soltou,
@@ -23,6 +34,14 @@ import { ALFA_DA_SOMBRA, assarDesenho, assarImagem, QUADRO_DA_SOMBRA, type ArteE
  * NADA é redesenhado por quadro: os sprites e os pedaços mudam só quando os
  * objetos mudam, e só o pedaço que mudou é pintado de novo. Troca de cena
  * solta tudo da anterior na hora.
+ *
+ * DESENHADO (CONTRATO.md 9.4, `texturas/desenhado/carimbos.ts`): no mapa
+ * Desenhado os 12 carimbos do pacote trocam o assado de hoje pelas imagens do
+ * pacote, nas mesmas três camadas. A imagem nunca gira: o giro escolhe a
+ * forma, e o espelho diagonal é a imagem transposta no sprite (sem textura a
+ * mais). A sombra é a silhueta do mesmo desenho, com o quadro dela. Enquanto a
+ * imagem não chega (ou se não vier) o objeto sai no Atual; quando chega, as
+ * artes do Atual daquele tipo saem da placa (o Desenhado troca, não soma).
  */
 
 /** Lado do desenho de cada objeto, em texels: nítido de perto no editor (o celular passa menos). */
@@ -48,7 +67,11 @@ export interface ArteNoPalco {
   quadro: QuadroDaArte
   /** A silhueta da sombra (`carimbos/arte.ts`), ou `null` no objeto do chão. */
   sombra: CanvasImageSource | null
+  /** O quadro da silhueta, em unidades a partir do pé; ausente = `QUADRO_DA_SOMBRA` (o Atual). */
+  quadroDaSombra?: { esquerda: number; topo: number; largura: number; altura: number }
   chao: boolean
+  /** A imagem vai transposta, (u, v) -> (v, u): o espelho diagonal do Desenhado (CONTRATO 9.4). */
+  transposta?: boolean
 }
 
 export interface EntradaDosCarimbos {
@@ -216,17 +239,24 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   let destruido = false
   let visivel = false
   let ultima: EntradaDosCarimbos | null = null
-  let desenhada: { entrada: EntradaDosCarimbos; versao: number } | null = null
+  let desenhada: { entrada: EntradaDosCarimbos; versao: number; desenhado: boolean } | null = null
   /** Texturas que saíram do cache (pacote novo) e ainda podem estar em sprites: soltas no próximo desenho. */
   const aposentadas: Texture[] = []
   /**
-   * Sombras da prévia de artes aposentadas que um traço EM CURSO ainda mostra:
+   * Texturas (sombras e corpos) de artes aposentadas que a prévia de um traço EM CURSO ainda mostra:
    * destruir agora derrubaria o laço de render (o sprite lê a textura a cada
    * quadro). Saem quando a prévia acaba (`limparPrevia`).
    */
   const sombrasPresasNaPrevia: Texture[] = []
-
-  /** A sombra da prévia desta arte sai do cache: na hora, ou ao fim do traço que ainda a mostra. */
+  /** DESENHADO: a textura de cada arquivo (`tipo#arquivo`), a mesma para a forma com e sem espelho. */
+  const texturasDesenhadas = new Map<string, Texture>()
+  /** DESENHADO: a arte de cada forma (`tipo#arquivo`, mais `#t` quando transposta). */
+  const artesDesenhadas = new Map<string, ArteNoPalco>()
+  /** DESENHADO: de que carga saíram as artes de cada tipo (o carregador pode soltar e baixar de novo). */
+  const cargaDoTipo = new Map<string, CarimboCarregado>()
+  /** A cena e o estilo do último desenho (a prévia pede as artes no meio do traço). */
+  let cenaAtual = ''
+  let desenhadoAgora = false
   function aposentarSombraDaPrevia(arte: ArteNoPalco): void {
     const textura = sombrasDaPrevia.get(arte)
     if (textura === undefined) return
@@ -251,6 +281,82 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     versaoDasArtes += 1
     if (ultima !== null) atualizar(ultima)
   })
+  // DESENHADO: a imagem de um tipo chegou; quem saiu no Atual no lugar dele repinta.
+  const pararDeOuvirODesenhado = assinarCarimbosDesenhados(() => {
+    versaoDasArtes += 1
+    if (ultima !== null) atualizar(ultima)
+  })
+
+  /** As artes do Atual deste tipo saem da placa: o Desenhado dele chegou (troca, não soma). */
+  function aposentarAtualDe(tipo: string): void {
+    for (let v = 0; v < 8; v += 1) {
+      const chave = `${tipo}#${v}`
+      const guardada = artes.get(chave)
+      if (guardada === undefined || guardada === 'assando') continue
+      if (guardada !== null) {
+        aposentadas.push(guardada.corpo)
+        aposentarSombraDaPrevia(guardada)
+      }
+      artes.delete(chave)
+    }
+  }
+
+  /** As artes do Desenhado saem (do tipo dado, ou todas): estilo trocado, ou carga nova do tipo. */
+  function aposentarDesenhado(tipo?: string): void {
+    const doTipo = (chave: string) => tipo === undefined || chave.slice(0, chave.indexOf('#')) === tipo
+    for (const [chave, arte] of [...artesDesenhadas]) {
+      if (!doTipo(chave)) continue
+      aposentarSombraDaPrevia(arte)
+      artesDesenhadas.delete(chave)
+    }
+    for (const [chave, textura] of [...texturasDesenhadas]) {
+      if (!doTipo(chave)) continue
+      aposentadas.push(textura)
+      texturasDesenhadas.delete(chave)
+    }
+    if (tipo === undefined) cargaDoTipo.clear()
+    else cargaDoTipo.delete(tipo)
+  }
+
+  /**
+   * A arte Desenhada do objeto (CONTRATO 9.4), ou `null` (cena fora do
+   * Desenhado, tipo sem desenho no pacote, imagem ainda chegando): aí sai o Atual.
+   */
+  function arteDesenhada(tipo: string, giro: number): ArteNoPalco | null {
+    if (!desenhadoAgora || !ehCarimboDesenhado(tipo)) return null
+    const carga = pedirCarimboDesenhado(tipo, cenaAtual)
+    if (carga === null) return null
+    if (cargaDoTipo.get(tipo) !== carga) {
+      aposentarDesenhado(tipo)
+      cargaDoTipo.set(tipo, carga)
+    }
+    const t = carga.textura
+    const forma = formaDoGiro(varianteDoGiro(giro), t.variacoes, t.espelho)
+    const chaveDaTextura = `${tipo}#${forma.arquivo}`
+    const chave = forma.espelho ? `${chaveDaTextura}#t` : chaveDaTextura
+    const pronta = artesDesenhadas.get(chave)
+    if (pronta !== undefined) return pronta
+    const imagem = carga.imagens.at(forma.arquivo)
+    if (imagem === undefined) return null
+    let corpo = texturasDesenhadas.get(chaveDaTextura)
+    if (corpo === undefined) {
+      // Mipmap ligado (CONTRATO 9.4): de longe a imagem cai na cor média dela, sem cintilar.
+      corpo = new Texture({ source: new ImageSource({ resource: imagem, autoGenerateMipmaps: true, scaleMode: 'linear' }) })
+      texturasDesenhadas.set(chaveDaTextura, corpo)
+    }
+    const silhueta = t.sombra.jeito === 'nenhuma' ? null : silhuetaDaForma(carga, forma)
+    const arte: ArteNoPalco = {
+      corpo,
+      quadro: quadroDoCorpo(t),
+      sombra: silhueta === null ? null : silhueta.tela,
+      quadroDaSombra: silhueta === null ? undefined : silhueta.quadro,
+      chao: t.sombra.jeito === 'nenhuma',
+      transposta: forma.espelho,
+    }
+    artesDesenhadas.set(chave, arte)
+    aposentarAtualDe(tipo)
+    return arte
+  }
 
   function mudarVisibilidade(agora: boolean): void {
     if (agora === visivel) return
@@ -259,6 +365,8 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   }
 
   function arteDe(tipo: string, giro: number, importados: readonly CarimboImportado[] | undefined): ArteNoPalco | null {
+    const desenhada = arteDesenhada(tipo, giro)
+    if (desenhada !== null) return desenhada
     const importado = ehTipoImportado(tipo) ? importados?.find((c) => c.id === tipo) : undefined
     // Importado que não veio com o mapa (desfeito, de outra cena): não sai.
     if (ehTipoImportado(tipo) && importado === undefined) return null
@@ -289,19 +397,28 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     return null
   }
 
-  /** O sprite no lugar do objeto: a base na âncora, o quadro na escala do tamanho. */
+  /**
+   * O sprite no lugar do objeto: a base na âncora, o quadro na escala do
+   * tamanho. TRANSPOSTA (o espelho diagonal do Desenhado): girar 90° com o y
+   * invertido leva o texel (u, v) a (v, u); a âncora no texel (ancora.y,
+   * ancora.x) põe o pé onde o contrato manda, (x + s·(v - ancora.x), y + s·(u - ancora.y)).
+   */
   function posicionar(sprite: Sprite, c: Carimbo, arte: ArteNoPalco): void {
     if (sprite.texture !== arte.corpo) sprite.texture = arte.corpo
-    sprite.anchor.set(-arte.quadro.esquerda / arte.quadro.lado, -arte.quadro.topo / arte.quadro.lado)
+    const q = arte.quadro
+    const transposta = arte.transposta === true
+    const ancoraX = -q.esquerda / q.lado
+    const ancoraY = -q.topo / q.lado
+    sprite.anchor.set(transposta ? ancoraY : ancoraX, transposta ? ancoraX : ancoraY)
     sprite.position.set(c.x, c.y)
-    const lado = arte.quadro.lado * c.tamanho
-    sprite.width = lado
-    sprite.height = lado
-    sprite.rotation = ehTipoImportado(c.tipo) ? Math.sin((c.giro * Math.PI) / 180) * INCLINACAO_DO_IMPORTADO : 0
+    const lado = q.lado * c.tamanho
+    // A escala sempre posta inteira (o `width` do Pixi guarda o sinal de antes: a forma transposta deixaria o y invertido).
+    sprite.scale.set(lado / arte.corpo.orig.width, (transposta ? -lado : lado) / arte.corpo.orig.height)
+    sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? Math.sin((c.giro * Math.PI) / 180) * INCLINACAO_DO_IMPORTADO : 0
   }
 
-  function caixaDaSombra(c: Carimbo): { x: number; y: number; largura: number; altura: number } {
-    const q = QUADRO_DA_SOMBRA
+  function caixaDaSombra(c: Carimbo, arte: ArteNoPalco): { x: number; y: number; largura: number; altura: number } {
+    const q = arte.quadroDaSombra ?? QUADRO_DA_SOMBRA
     return { x: c.x + q.esquerda * c.tamanho, y: c.y + q.topo * c.tamanho, largura: q.largura * c.tamanho, altura: q.altura * c.tamanho }
   }
 
@@ -335,7 +452,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     const porPedaco = new Map<string, { ix: number; iy: number; itens: Array<{ c: Carimbo; arte: ArteNoPalco }> }>()
     for (const item of lista) {
       if (item.arte.sombra === null) continue
-      const caixa = caixaDaSombra(item.c)
+      const caixa = caixaDaSombra(item.c, item.arte)
       for (let ix = Math.floor(caixa.x / lado); ix <= Math.floor((caixa.x + caixa.largura) / lado); ix++) {
         for (let iy = Math.floor(caixa.y / lado); iy <= Math.floor((caixa.y + caixa.altura) / lado); iy++) {
           const chave = `${ix},${iy}`
@@ -355,7 +472,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
         y: grupo.iy * lado,
         lado,
         texels: texelsDoPedaco,
-        sombras: grupo.itens.flatMap(({ c, arte }) => (arte.sombra === null ? [] : [{ silhueta: arte.sombra, ...caixaDaSombra(c) }])),
+        sombras: grupo.itens.flatMap(({ c, arte }) => (arte.sombra === null ? [] : [{ silhueta: arte.sombra, ...caixaDaSombra(c, arte) }])),
         textura: existente?.sprite.texture,
       }
       const textura = pintarPedaco(pedaco)
@@ -382,6 +499,11 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
 
   function desenhar(entrada: EntradaDosCarimbos): void {
     const inicio = performance.now()
+    cenaAtual = entrada.cena
+    // Fora do Desenhado as imagens do pacote saem da placa (voltar a ele baixa do cache do carregador).
+    if (!desenhadoAgora && texturasDesenhadas.size > 0) aposentarDesenhado()
+    // Uma camada só para todas as sombras: no Desenhado, a transparência do contrato.
+    sombras.alpha = desenhadoAgora ? ALFA_DA_SOMBRA_DESENHADA : ALFA_DA_SOMBRA
     const lista = entrada.carimbos ?? []
     const prontos: Array<{ c: Carimbo; arte: ArteNoPalco }> = []
     for (const c of lista) {
@@ -410,8 +532,13 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     }
     if (entrada.sombras === false) for (const chave of [...pedacos.keys()]) soltarPedaco(chave)
     else desenharSombras(prontos, entrada.mapa)
-    // Nenhum sprite usa mais as texturas que o pacote novo aposentou.
-    for (const textura of aposentadas.splice(0)) textura.destroy(true)
+    // Nenhum sprite do mapa usa mais as texturas que o pacote novo (ou o Desenhado que
+    // chegou) aposentou; a do objeto que a prévia de um traço em curso ainda mostra sai ao fim dele.
+    const naPrevia = new Set([...previa.values()].map((item) => item.corpo.texture))
+    for (const textura of aposentadas.splice(0)) {
+      if (naPrevia.has(textura)) sombrasPresasNaPrevia.push(textura)
+      else textura.destroy(true)
+    }
     mudarVisibilidade(objetos.size > 0)
     opcoes.aoDesenhar?.({ ms: performance.now() - inicio, objetos: objetos.size, pedacos: pedacos.size })
   }
@@ -433,14 +560,16 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       limparTudo()
       return
     }
-    if (desenhada !== null && desenhada.versao === versaoDasArtes && mesmaEntrada(desenhada.entrada, entrada)) {
+    // O estilo é lido na hora (`lib/estiloDoMapa.ts`): trocar Atual por Desenhado repinta o mesmo mapa.
+    desenhadoAgora = desenhadoLigado()
+    if (desenhada !== null && desenhada.versao === versaoDasArtes && desenhada.desenhado === desenhadoAgora && mesmaEntrada(desenhada.entrada, entrada)) {
       // O mesmo conteúdo em referências novas (o mapa do jogador): guarda as novas, e a próxima conferência sai barata.
       desenhada.entrada = entrada
       return
     }
     // Cena nova: os objetos da anterior saem NA HORA (não ficam por cima do mapa novo).
     if (desenhada !== null && desenhada.entrada.cena !== entrada.cena) limparTudo()
-    desenhada = { entrada, versao: versaoDasArtes }
+    desenhada = { entrada, versao: versaoDasArtes, desenhado: desenhadoAgora }
     desenhar(entrada)
   }
 
@@ -477,11 +606,11 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       let sombra: Sprite | null = null
       if (texturaDaSombra !== null) {
         sombra = new Sprite(texturaDaSombra)
-        const caixa = caixaDaSombra(c)
+        const caixa = caixaDaSombra(c, arte)
         sombra.position.set(caixa.x, caixa.y)
         sombra.width = caixa.largura
         sombra.height = caixa.altura
-        sombra.alpha = ALFA_DA_SOMBRA
+        sombra.alpha = sombras.alpha
         rascunhoSombras.addChild(sombra)
       }
       // De trás para a frente também na prévia (o Pixi ordena pelo zIndex).
@@ -512,9 +641,14 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     destruir: () => {
       destruido = true
       pararDeOuvir()
+      pararDeOuvirODesenhado()
       limparTudo()
       for (const guardada of artes.values()) if (guardada !== null && guardada !== 'assando') guardada.corpo.destroy(true)
       artes.clear()
+      for (const textura of texturasDesenhadas.values()) textura.destroy(true)
+      texturasDesenhadas.clear()
+      artesDesenhadas.clear()
+      cargaDoTipo.clear()
       for (const textura of sombrasDaPrevia.values()) textura.destroy(true)
       sombrasDaPrevia.clear()
       for (const textura of sombrasPresasNaPrevia.splice(0)) textura.destroy(true)
