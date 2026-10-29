@@ -1,0 +1,33 @@
+{
+  "id": "movel-troncos",
+  "nome": "Troncos",
+  "idDoApp": "troncos",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 16,
+  "semente": 73,
+  "margemCasas": 0.0625,
+  "lugares": ["lenha"],
+  "variantes": [
+    {
+      "nome": "lenhaDeCarvalho",
+      "quando": { "forma": "lenha", "lenha": "lenhaCarvalho" },
+      "vistas": { "frente": { "casas": [1.5, 0.5], "esticar": { "eixo": "x", "pontasCasas": [0.4375, 0.4375], "periodoCasas": 0.625, "ladoMaior": true } } }
+    },
+    {
+      "nome": "lenha",
+      "quando": { "forma": "lenha" },
+      "vistas": { "frente": { "casas": [1.5, 0.5], "esticar": { "eixo": "x", "pontasCasas": [0.4375, 0.4375], "periodoCasas": 0.625, "ladoMaior": true } } }
+    },
+    { "nome": "torasDeCarvalho", "quando": { "lenha": "lenhaCarvalho" } },
+    { "nome": "toras" }
+  ],
+  "vistas": {
+    "frente": {
+      "casas": [2, 1],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.4375, 0.4375], "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.14, "borraoCasas": 0.03 }
+}
