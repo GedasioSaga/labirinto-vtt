@@ -11,7 +11,7 @@
   "corFixa": true,
   "vistas": {
     "frente": { "casas": [2, 2], "viradas": 2 },
-    "lado": { "casas": [2, 2], "viradas": 1 }
+    "lado": { "casas": [2, 2], "viradas": 2 }
   },
   "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.3, "borraoCasas": 0.04 }
 }

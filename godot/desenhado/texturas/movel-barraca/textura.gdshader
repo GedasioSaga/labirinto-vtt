@@ -14,12 +14,15 @@
 //   água da frente, em leque, puxada para as quinas onde os esteios seguram o pano;
 // - a BEIRA da frente recortada em 3 festões largos, um por pano;
 // - o BALCÃO aparecendo na frente, com a face para baixo e à direita na tela, a sombra curta
-//   dos festões no tampo e 4 montes grandes: o saco aberto, as maçãs, as couves e as abóboras.
-// DE LADO (a Frente/Lado do mestre, 2 x 2, a barraca em pé vista de frente; 1 virada, para
-// caber no teto de memória com a cor própria): o toldo inclinado em trapézio com os mesmos
-// 3 panos e dobras em leque, os festões, os dois esteios com o vão aberto (o chão aparece)
-// e o balcão de duas tábuas deitadas com os mesmos 4 montes em cima, no mesmo x da vista de
-// cima.
+//   dos festões no tampo e 3 montes grandes: o saco aberto no meio e um monte de frutas de
+//   cada lado, espelhados. A fileira é simétrica de propósito: com 2 viradas, a de 90 e a de
+//   270 graus saem transpostas (espelhadas), e só uma fileira simétrica gira sem trocar de
+//   ordem (4 viradas não cabem no teto de 3 MiB por vista com a cor própria).
+// DE LADO (a Frente/Lado do mestre, 2 x 2, a barraca em pé vista de frente; 2 viradas, a
+// mesma regra): o toldo inclinado em trapézio com os mesmos 3 panos e dobras em leque, os
+// festões, os dois esteios com o vão aberto (o chão aparece) e o balcão de duas tábuas
+// deitadas com os mesmos 3 montes em cima, no mesmo x da vista de cima. As dobras dos panos
+// de fora também são espelhadas, e a do meio desce reta, pelo mesmo motivo.
 // Desenhada no referencial da barraca e acesa no da tela (movel_de / tela_de). Margem 0: tudo
 // fica dentro da pegada. A sombra no chão é do app.
 shader_type canvas_item;
@@ -232,19 +235,24 @@ float sd_curva(vec2 m, vec2 a, vec2 c, vec2 b, vec2 r) {
 	return d;
 }
 
-// Um sorteio de -1 a 1 por pano (o mesmo nas duas vistas: a mesma barraca).
+// Um sorteio de -1 a 1 por pano (o mesmo nas duas vistas: a mesma barraca). Os panos i e
+// PANOS - 1 - i tiram o mesmo sorteio, e sd_dobra espelha o de lá: a barraca fica simétrica
+// de lado a lado, como as 2 viradas pedem.
 float jeito_do_pano(int i, int k, int sem) {
-	return rk(hash_u(uint(i) * 7919u + uint(sem) * 31u), k) * 2.0 - 1.0;
+	int par = min(i, PANOS - 1 - i);
+	return rk(hash_u(uint(par) * 7919u + uint(sem) * 31u), k) * 2.0 - 1.0;
 }
 
 // A dobra do pano i: de perto da cumeeira até perto da beira, em leque: as dos panos de
-// fora descem puxadas para as quinas da frente, onde os esteios seguram o pano; a do meio
-// desce quase reta. Nunca paralelas (paralelas liam como fendas).
+// fora descem puxadas para as quinas da frente, onde os esteios seguram o pano, espelhadas
+// uma na outra; a do meio desce reta. Nunca paralelas (paralelas liam como fendas).
 float sd_dobra(vec2 m, int i, int vis, int sem, vec2 r) {
 	float u = meio_do_pano(i);
-	float j0 = jeito_do_pano(i, 0, sem);
-	float j1 = jeito_do_pano(i, 1, sem);
-	float j2 = jeito_do_pano(i, 2, sem);
+	// O lado: -1 à esquerda, 1 à direita, 0 no pano do meio (sem sorteio em x: fica reta).
+	float lado = sign(u);
+	float j0 = jeito_do_pano(i, 0, sem) * -lado;
+	float j1 = jeito_do_pano(i, 1, sem) * -lado;
+	float j2 = jeito_do_pano(i, 2, sem) * -lado;
 	float y0 = vis == 1 ? L_TOPO + 0.07 + 0.02 * abs(j0) : CUMEEIRA_Y + 0.11 + 0.03 * abs(j0);
 	float y1 = vis == 1 ? L_BEIRA - 0.06 - 0.02 * abs(j1) : BEIRA_Y - 0.07 - 0.03 * abs(j1);
 	float wa = vis == 1 ? L_RT : TOLDO_X;
@@ -266,52 +274,41 @@ float sd_festoes(vec2 m, float meia, float y, float fundo) {
 }
 
 // ---------- os montes (cor própria) ----------
-// 0 = o saco aberto, 1 = as maçãs, 2 = as couves, 3 = as abóboras; o mesmo x nas duas vistas.
+// 0 = o saco aberto, no meio; 1 = as frutas, um monte de cada lado, espelhados (o de lá é o
+// de cá com x trocado de sinal). O mesmo x nas duas vistas.
+const vec3 FRUTA = COUVE;
+
 vec3 tom_do_monte(int i) {
-	if (i == 0) {
-		return SACO;
-	}
-	if (i == 1) {
-		return MACA;
-	}
-	if (i == 2) {
-		return COUVE;
-	}
-	return ABOBORA;
+	return i == 0 ? SACO : FRUTA;
 }
 
-// Onde fica o saco, nas duas vistas (o mesmo x).
-const float SACO_X = -0.58;
+// Onde fica o saco, nas duas vistas (o mesmo x): no eixo da barraca.
+const float SACO_X = 0.0;
 
-// O monte de frutas: UMA massa, o corpo largo e uma corcova menor por cima, unidos sem
-// vinco (o monte, nunca as frutas uma a uma). k = 0 o corpo, 1 a corcova: xy o meio, zw
-// os semieixos. De lado, o corpo assenta no tampo e a corcova sobe dele.
-vec4 lobo_cru(int i, int vis, int k) {
+// Dobra o ponto para o lado direito: os dois montes de frutas são um só, espelhado.
+// Andar a luz antes de dobrar já espelha a luz para o monte da esquerda.
+vec2 dobrar(vec2 p) {
+	return vec2(abs(p.x), p.y);
+}
+
+// O monte de frutas da direita: UMA massa, o corpo largo e uma corcova menor por cima,
+// puxada para o meio da barraca (a fileira sobe para o saco), unidos sem vinco (o monte,
+// nunca as frutas uma a uma). k = 0 o corpo, 1 a corcova: xy o meio, zw os semieixos. De
+// lado, o corpo assenta no tampo e a corcova sobe dele.
+vec4 lobo_cru(int vis, int k) {
 	if (vis == 1) {
 		float y0 = L_TAMPO_A;
-		if (i == 1) {
-			return k == 0 ? vec4(-0.195, y0, 0.165, 0.12) : vec4(-0.15, y0 - 0.08, 0.095, 0.09);
-		}
-		if (i == 2) {
-			return k == 0 ? vec4(0.205, y0, 0.18, 0.14) : vec4(0.25, y0 - 0.09, 0.105, 0.10);
-		}
-		return k == 0 ? vec4(0.585, y0, 0.155, 0.10) : vec4(0.625, y0 - 0.065, 0.085, 0.075);
+		return k == 0 ? vec4(0.51, y0, 0.17, 0.125) : vec4(0.50, y0 - 0.09, 0.11, 0.10);
 	}
-	if (i == 1) {
-		return k == 0 ? vec4(-0.205, 0.58, 0.14, 0.12) : vec4(-0.15, 0.52, 0.10, 0.085);
-	}
-	if (i == 2) {
-		return k == 0 ? vec4(0.19, 0.575, 0.155, 0.135) : vec4(0.25, 0.505, 0.105, 0.09);
-	}
-	return k == 0 ? vec4(0.57, 0.585, 0.135, 0.115) : vec4(0.625, 0.535, 0.09, 0.075);
+	return k == 0 ? vec4(0.51, 0.58, 0.152, 0.13) : vec4(0.49, 0.515, 0.104, 0.088);
 }
 
 // O monte inteiro um pouco maior, em volta do meio do corpo (de lado, do pé dele no tampo).
-const float MONTE_MAIOR = 1.12;
+const float MONTE_MAIOR = 1.2;
 
-vec4 lobo_do_monte(int i, int vis, int k) {
-	vec4 corpo = lobo_cru(i, vis, 0);
-	vec4 l = lobo_cru(i, vis, k);
+vec4 lobo_do_monte(int vis, int k) {
+	vec4 corpo = lobo_cru(vis, 0);
+	vec4 l = lobo_cru(vis, k);
 	return vec4(corpo.xy + (l.xy - corpo.xy) * MONTE_MAIOR, l.zw * MONTE_MAIOR);
 }
 
@@ -322,58 +319,56 @@ float sd_monte(vec2 p, int i, int vis) {
 		}
 		return sd_caixa(p - vec2(SACO_X, 0.56), vec2(0.172, 0.156), 0.12);
 	}
-	vec4 a = lobo_do_monte(i, vis, 0);
-	vec4 b = lobo_do_monte(i, vis, 1);
-	float s = uniao_suave(sd_elipse(p - a.xy, a.zw), sd_elipse(p - b.xy, b.zw), 0.07);
+	vec2 pd = dobrar(p);
+	vec4 a = lobo_do_monte(vis, 0);
+	vec4 b = lobo_do_monte(vis, 1);
+	float s = uniao_suave(sd_elipse(pd - a.xy, a.zw), sd_elipse(pd - b.xy, b.zw), 0.07);
 	// De lado, o monte assenta no tampo (a base reta).
 	return vis == 1 ? max(s, p.y - L_TAMPO_A) : s;
 }
 
 float sd_montes(vec2 p, int vis) {
-	float d = 1e3;
-	for (int i = 0; i < 4; i++) {
-		d = min(d, sd_monte(p, i, vis));
-	}
-	return d;
+	return min(sd_monte(p, 0, vis), sd_monte(p, 1, vis));
 }
 
-// Um monte de frutas: contorno, o tom, a sombra embaixo à direita e uma massa de luz larga
-// em cima à esquerda. escurece = a sombra curta de quem está por cima (o festão).
-void monte_de_frutas(inout vec4 av, inout vec4 ac, vec2 q, vec2 m, vec2 lm, int i, int vis, int vir, float escurece, float px) {
-	float d = sd_monte(m, i, vis);
+// Os montes de frutas: contorno, o tom, a sombra embaixo à direita e uma massa de luz larga
+// em cima à esquerda. escurece = a sombra curta de quem está por cima (o festão). Todo ponto
+// anda na luz ANTES de dobrar, para o monte da esquerda acender do lado certo.
+void monte_de_frutas(inout vec4 av, inout vec4 ac, vec2 q, vec2 m, vec2 lm, int vis, int vir, float escurece, float px) {
+	float d = sd_monte(m, 1, vis);
 	if (d > px) {
 		return;
 	}
-	vec3 tom = tom_do_monte(i);
+	vec3 tom = FRUTA;
 	float co = 0.034;
 	pousar_cor(av, ac, cor_fixa(tom, V_CONTORNO), cobre(d, px));
 	float dentro = cobre(d + co, px);
 	float v0 = V_MEIO - 0.12 * escurece;
 	pousar_cor(av, ac, cor_fixa(tom, v0), dentro);
-	float ds = sd_monte(m - lm * 0.055, i, vis) + co;
+	float ds = sd_monte(m - lm * 0.055, 1, vis) + co;
 	pousar_cor(av, ac, cor_fixa(tom, v0 - MASSA_ESCURA), dentro * (1.0 - cobre(ds, px)));
 	// Duas massas de luz: a do corpo e a da corcova, com a sombra curta da corcova no corpo
 	// (andada na tela). Sem contorno entre as duas: é um monte só.
-	vec4 e = lobo_do_monte(i, vis, 0);
-	vec4 f = lobo_do_monte(i, vis, 1);
+	vec4 e = lobo_do_monte(vis, 0);
+	vec4 f = lobo_do_monte(vis, 1);
 	vec2 cl = vis == 1 ? e.xy - vec2(0.0, 0.5 * e.w) : e.xy;
 	vec2 el = vis == 1 ? e.zw * vec2(0.5, 0.3) : e.zw * 0.52;
-	float dl = sd_elipse(m - cl - lm * 0.3 * min(e.z, e.w), el);
+	float dl = sd_elipse(dobrar(m - lm * 0.3 * min(e.z, e.w)) - cl, el);
 	pousar_cor(av, ac, cor_fixa(tom, v0 + MASSA_CLARA), dentro * cobre(dl, px));
-	float dc = sd_elipse(m - f.xy, f.zw);
-	float corcova = cobre(dc, px);
-	float s_corcova = cobre(sd_elipse(movel_de(q - S_CORCOVA, vir) - f.xy, f.zw), px);
+	float corcova = cobre(sd_elipse(dobrar(m) - f.xy, f.zw), px);
+	float s_corcova = cobre(sd_elipse(dobrar(movel_de(q - S_CORCOVA, vir)) - f.xy, f.zw), px);
 	pousar_cor(av, ac, cor_fixa(tom, v0 - 0.07), dentro * (1.0 - corcova) * s_corcova);
-	float dlc = sd_elipse(m - f.xy - lm * 0.3 * min(f.z, f.w), f.zw * 0.5);
+	float dlc = sd_elipse(dobrar(m - lm * 0.3 * min(f.z, f.w)) - f.xy, f.zw * 0.5);
 	pousar_cor(av, ac, cor_fixa(tom, v0 + MASSA_CLARA + 0.04), dentro * corcova * cobre(dlc, px));
 }
 
-// O saco aberto, de cima: o pano de linho com a beira enrolada e o grão dentro, com a
+// O saco aberto, de cima: o pano de juta com a beira enrolada e o grão dentro, com a
 // sombra que a beira joga para dentro (do lado da luz).
-// O pano do saco de cima: uma almofada de quina larga, com a beira um pouco franzida.
+// O pano do saco de cima: uma almofada de quina larga, com a beira um pouco franzida (o
+// franzido simétrico de lado a lado, como a fileira).
 float sd_saco_de_cima(vec2 p) {
 	float a = atan(p.y, p.x);
-	return sd_caixa(p, vec2(0.172, 0.156), 0.12) - 0.01 * (0.5 + 0.5 * cos(4.0 * a + 0.7));
+	return sd_caixa(p, vec2(0.172, 0.156), 0.12) - 0.01 * (0.5 + 0.5 * cos(4.0 * a + PI));
 }
 
 void saco_de_cima(inout vec4 av, inout vec4 ac, vec2 m, vec2 lm, float escurece, float px) {
@@ -471,9 +466,7 @@ void de_cima(vec2 q, float px, int vir, int sem, inout vec4 av, inout vec4 ac) {
 
 	// 2. Os montes, com a sombra dos festões por cima.
 	saco_de_cima(av, ac, m, lm, s_fest, px);
-	for (int i = 1; i < 4; i++) {
-		monte_de_frutas(av, ac, q, m, lm, i, 0, vir, s_fest, px);
-	}
+	monte_de_frutas(av, ac, q, m, lm, 0, vir, s_fest, px);
 
 	// 3. Os festões da beira, um por pano, em pé (de costas para a luz na virada 0).
 	float w = 2.0 * TOLDO_X / float(PANOS);
@@ -583,9 +576,7 @@ void de_lado(vec2 q, float px, int vir, int sem, inout vec4 av, inout vec4 ac) {
 
 	// 5. Os montes em cima do tampo.
 	saco_de_lado(av, ac, m, lm, px);
-	for (int i = 1; i < 4; i++) {
-		monte_de_frutas(av, ac, q, m, lm, i, 1, vir, 0.0, px);
-	}
+	monte_de_frutas(av, ac, q, m, lm, 1, vir, 0.0, px);
 }
 
 void pintar_movel(vec2 q, float px, int vis, int qual, int vir, int sem, inout vec4 av, inout vec4 ac) {

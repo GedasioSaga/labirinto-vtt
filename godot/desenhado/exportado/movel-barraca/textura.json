@@ -20,7 +20,7 @@
       "valor": "frente-padrao-0.png",
       "valorMedioPorLugar": [
         0.488,
-        0.34
+        0.352
       ],
       "variante": "padrao",
       "virada": 0,
@@ -40,7 +40,7 @@
       "valor": "frente-padrao-2.png",
       "valorMedioPorLugar": [
         0.489,
-        0.371
+        0.382
       ],
       "variante": "padrao",
       "virada": 2,
@@ -52,7 +52,7 @@
         2.0,
         2.0
       ],
-      "cobertura": 0.693,
+      "cobertura": 0.688,
       "cor": "lado-padrao-0-cor.png",
       "larguraPx": 256,
       "nome": "lado-padrao-0",
@@ -65,6 +65,26 @@
       "variante": "padrao",
       "virada": 0,
       "vista": "lado"
+    },
+    {
+      "alturaPx": 256,
+      "casas": [
+        2.0,
+        2.0
+      ],
+      "cobertura": 0.688,
+      "cor": "lado-padrao-2-cor.png",
+      "larguraPx": 256,
+      "nome": "lado-padrao-2",
+      "partes": "lado-padrao-2-partes.png",
+      "valor": "lado-padrao-2.png",
+      "valorMedioPorLugar": [
+        0.461,
+        0.368
+      ],
+      "variante": "padrao",
+      "virada": 2,
+      "vista": "lado"
     }
   ],
   "id": "movel-barraca",
@@ -76,8 +96,8 @@
   ],
   "margemCasas": 0.0,
   "memoria": {
-    "discoBytes": 78941,
-    "memoriaBytes": 3145725,
+    "discoBytes": 97055,
+    "memoriaBytes": 4194300,
     "tetoDiscoBytes": 524288,
     "tetoMemoriaBytes": 3145728,
     "tetoMemoriaDos31Bytes": 25165824
@@ -172,9 +192,10 @@
         2.0
       ],
       "desenhadas": [
-        0
+        0,
+        2
       ],
-      "viradas": 1
+      "viradas": 2
     }
   }
 }
