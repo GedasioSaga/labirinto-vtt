@@ -12,16 +12,168 @@
         0.6,
         0.35
       ],
-      "cobertura": 0.246,
-      "cor": "frente-padrao-0-cor.png",
+      "cobertura": 0.268,
+      "cor": "frente-reta-0-cor.png",
       "larguraPx": 133,
-      "nome": "frente-padrao-0",
-      "partes": "frente-padrao-0-partes.png",
-      "valor": "frente-padrao-0.png",
+      "nome": "frente-reta-0",
+      "partes": "frente-reta-0-partes.png",
+      "valor": "frente-reta-0.png",
+      "valorMedioPorLugar": [
+        0.357
+      ],
+      "variante": "reta",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 133,
+      "casas": [
+        0.35,
+        0.6
+      ],
+      "cobertura": 0.268,
+      "cor": "frente-reta-1-cor.png",
+      "larguraPx": 101,
+      "nome": "frente-reta-1",
+      "partes": "frente-reta-1-partes.png",
+      "valor": "frente-reta-1.png",
+      "valorMedioPorLugar": [
+        0.417
+      ],
+      "variante": "reta",
+      "virada": 1,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 101,
+      "casas": [
+        0.6,
+        0.35
+      ],
+      "cobertura": 0.268,
+      "cor": "frente-reta-2-cor.png",
+      "larguraPx": 133,
+      "nome": "frente-reta-2",
+      "partes": "frente-reta-2-partes.png",
+      "valor": "frente-reta-2.png",
+      "valorMedioPorLugar": [
+        0.416
+      ],
+      "variante": "reta",
+      "virada": 2,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 133,
+      "casas": [
+        0.35,
+        0.6
+      ],
+      "cobertura": 0.268,
+      "cor": "frente-reta-3-cor.png",
+      "larguraPx": 101,
+      "nome": "frente-reta-3",
+      "partes": "frente-reta-3-partes.png",
+      "valor": "frente-reta-3.png",
+      "valorMedioPorLugar": [
+        0.356
+      ],
+      "variante": "reta",
+      "virada": 3,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 101,
+      "casas": [
+        0.6,
+        0.35
+      ],
+      "cobertura": 0.189,
+      "cor": "frente-cruz-0-cor.png",
+      "larguraPx": 133,
+      "nome": "frente-cruz-0",
+      "partes": "frente-cruz-0-partes.png",
+      "valor": "frente-cruz-0.png",
+      "valorMedioPorLugar": [
+        0.339
+      ],
+      "variante": "cruz",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 133,
+      "casas": [
+        0.35,
+        0.6
+      ],
+      "cobertura": 0.189,
+      "cor": "frente-cruz-1-cor.png",
+      "larguraPx": 101,
+      "nome": "frente-cruz-1",
+      "partes": "frente-cruz-1-partes.png",
+      "valor": "frente-cruz-1.png",
+      "valorMedioPorLugar": [
+        0.38
+      ],
+      "variante": "cruz",
+      "virada": 1,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 101,
+      "casas": [
+        0.6,
+        0.35
+      ],
+      "cobertura": 0.189,
+      "cor": "frente-cruz-2-cor.png",
+      "larguraPx": 133,
+      "nome": "frente-cruz-2",
+      "partes": "frente-cruz-2-partes.png",
+      "valor": "frente-cruz-2.png",
+      "valorMedioPorLugar": [
+        0.38
+      ],
+      "variante": "cruz",
+      "virada": 2,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 133,
+      "casas": [
+        0.35,
+        0.6
+      ],
+      "cobertura": 0.189,
+      "cor": "frente-cruz-3-cor.png",
+      "larguraPx": 101,
+      "nome": "frente-cruz-3",
+      "partes": "frente-cruz-3-partes.png",
+      "valor": "frente-cruz-3.png",
+      "valorMedioPorLugar": [
+        0.339
+      ],
+      "variante": "cruz",
+      "virada": 3,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 101,
+      "casas": [
+        0.6,
+        0.35
+      ],
+      "cobertura": 0.246,
+      "cor": "frente-arco-0-cor.png",
+      "larguraPx": 133,
+      "nome": "frente-arco-0",
+      "partes": "frente-arco-0-partes.png",
+      "valor": "frente-arco-0.png",
       "valorMedioPorLugar": [
         0.351
       ],
-      "variante": "padrao",
+      "variante": "arco",
       "virada": 0,
       "vista": "frente"
     },
@@ -32,15 +184,15 @@
         0.6
       ],
       "cobertura": 0.246,
-      "cor": "frente-padrao-1-cor.png",
+      "cor": "frente-arco-1-cor.png",
       "larguraPx": 101,
-      "nome": "frente-padrao-1",
-      "partes": "frente-padrao-1-partes.png",
-      "valor": "frente-padrao-1.png",
+      "nome": "frente-arco-1",
+      "partes": "frente-arco-1-partes.png",
+      "valor": "frente-arco-1.png",
       "valorMedioPorLugar": [
         0.41
       ],
-      "variante": "padrao",
+      "variante": "arco",
       "virada": 1,
       "vista": "frente"
     },
@@ -51,15 +203,15 @@
         0.35
       ],
       "cobertura": 0.246,
-      "cor": "frente-padrao-2-cor.png",
+      "cor": "frente-arco-2-cor.png",
       "larguraPx": 133,
-      "nome": "frente-padrao-2",
-      "partes": "frente-padrao-2-partes.png",
-      "valor": "frente-padrao-2.png",
+      "nome": "frente-arco-2",
+      "partes": "frente-arco-2-partes.png",
+      "valor": "frente-arco-2.png",
       "valorMedioPorLugar": [
         0.41
       ],
-      "variante": "padrao",
+      "variante": "arco",
       "virada": 2,
       "vista": "frente"
     },
@@ -70,15 +222,15 @@
         0.6
       ],
       "cobertura": 0.246,
-      "cor": "frente-padrao-3-cor.png",
+      "cor": "frente-arco-3-cor.png",
       "larguraPx": 101,
-      "nome": "frente-padrao-3",
-      "partes": "frente-padrao-3-partes.png",
-      "valor": "frente-padrao-3.png",
+      "nome": "frente-arco-3",
+      "partes": "frente-arco-3-partes.png",
+      "valor": "frente-arco-3.png",
       "valorMedioPorLugar": [
         0.351
       ],
-      "variante": "padrao",
+      "variante": "arco",
       "virada": 3,
       "vista": "frente"
     }
@@ -91,8 +243,8 @@
   ],
   "margemCasas": 0.21875,
   "memoria": {
-    "discoBytes": 25831,
-    "memoriaBytes": 859704,
+    "discoBytes": 68114,
+    "memoriaBytes": 2579112,
     "tetoDiscoBytes": 524288,
     "tetoMemoriaBytes": 3145728,
     "tetoMemoriaDos31Bytes": 25165824
@@ -162,9 +314,27 @@
     "escuroAte": 0.1
   },
   "tipo": "movel",
+  "variacao": {
+    "chave": "variacao",
+    "conta": "a variante é a primeira cujo \"quando\" inteiro bate; a chave \"variacao\" bate quando o seu texto é o número que o app sorteia pelo id do objeto (doApp; sem id, 0), as outras chaves como sempre; nenhuma bate = a última",
+    "doApp": "varianteDaLapide(prop.id) de client/src/lib/mobilia/pecasNovas.ts (0 = arco, 1 = reta, 2 = cruz)",
+    "quantas": 3
+  },
   "variantes": [
     {
-      "nome": "padrao",
+      "nome": "reta",
+      "quando": {
+        "variacao": "1"
+      }
+    },
+    {
+      "nome": "cruz",
+      "quando": {
+        "variacao": "2"
+      }
+    },
+    {
+      "nome": "arco",
       "quando": {}
     }
   ],

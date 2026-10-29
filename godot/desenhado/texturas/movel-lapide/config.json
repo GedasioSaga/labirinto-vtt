@@ -9,6 +9,11 @@
   "margemCasas": 0.21875,
   "lugares": ["pedra"],
   "corFixa": true,
+  "variantes": [
+    { "nome": "reta", "quando": { "variacao": "1" } },
+    { "nome": "cruz", "quando": { "variacao": "2" } },
+    { "nome": "arco" }
+  ],
   "vistas": {
     "frente": { "casas": [0.6, 0.35], "viradas": 4 }
   },
