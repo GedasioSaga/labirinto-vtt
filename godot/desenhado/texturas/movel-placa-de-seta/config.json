@@ -1,0 +1,15 @@
+{
+  "id": "movel-placa-de-seta",
+  "nome": "Placa de seta",
+  "idDoApp": "placaDeSeta",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 11,
+  "semente": 67,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "vistas": {
+    "frente": { "casas": [0.5, 0.5], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.26, "borraoCasas": 0.03 }
+}
