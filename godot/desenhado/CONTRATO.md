@@ -619,6 +619,7 @@ Frente/Lado entra.
 | `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas }` (`periodoCasas` opcional, só no `x`: o meio que repete, 10.6) |
 | `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
 | `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
+| `pecas` | opcional, só a cerca: `{ mouraoCasas: [x, y], raioCasas, colunaCasas, viradaDaLuz }`, de onde a conta tira o mourão e a ligação na forma 0 (10.12) |
 
 Em `exportado/movel-<nome>/`, por forma `<vista>-<variante>-<virada>`: `.png` (R = G = B o
 valor, A a cobertura, alfa reto), `-partes.png` (R, G, B = lugares 1, 2, 3; o que sobra é a
@@ -635,7 +636,8 @@ cabeçalho explica cada argumento).
 de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoMeio` no
 meio liso, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
-`memoria` (bytes decodificados e em disco).
+`memoria` (bytes decodificados e em disco). Com `pecas` no config (a cerca), também `pecas`,
+com o texto `conta` (10.12); sem ele, a chave não existe e o resto sai igual.
 
 ### 10.4 Girado, Frente/Lado e 3/4
 
@@ -673,7 +675,7 @@ com o tom do lugar 1; `varas`, `corda` e afins só escolhem a variante.
 O eixo de `esticar` é o do móvel (x = ao longo); `pontasCasas` são as pontas fixas, o meio
 da imagem estica até a medida pedida. Mais curto que as duas pontas: cada ponta perde
 metade do que falta. `xy` estica nos dois (o tapete, a fogueira de área). A curva da cerca
-(`curva`) não entra no piloto: fica com o lote da cerca, que decide se é forma própria.
+não é forma própria nem trecho: é a **cerca por peças** do lote 12 (10.12).
 
 **O meio que repete (opcional, lote 11, 29/10).** Com o meio liso, quem vive esticado lia
 pobre: a 50%, o balcão de 6 casas era uma tábua listrada comprida, sem divisão nenhuma (o
@@ -725,6 +727,14 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    (o aparador estica também de lado). A leitura bilinear e o mipmap podem passar da emenda
    sem cuidado: a faixa da emenda é lisa. Como o desenho muda com o comprimento, a camada
    pronta é por comprimento pedido (a chave de `rasterDosMoveis.ts` já leva a pegada).
+8. **A cerca por peças** (10.12): com `pecas` no `textura.json`, a cerca (reta e curva, em
+   todo giro) não passa pelo esticar nem pelo quarto de volta: o rasterizador chama
+   `geometriaDaCerca(largura, altura, volta)` (a mesma do desenho em linhas, do clique e da
+   seleção), gira os mourões e o arco pelo giro do objeto e compõe como `comporCerca` de
+   `ferramentas/movel.ts`; a camada sai já na tela (a tela não gira nada). A chave da camada
+   leva a pegada, a volta, o giro e as opções. Sem a geometria (um caminho que não a tenha),
+   o `comporMovel` de sempre ainda serve para a reta: a forma 0 é um móvel válido, com o
+   meio que repete.
 
 ### 10.9 A mesa de prova dos móveis
 
@@ -735,7 +745,10 @@ sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300%; os 5 tons de
 a medida OKLab; as 4 viradas (e a vista de lado); a esticada em 1,4, 2, 3 e 5 casas e a de
 1 x 2; e a **família**, uma clareira de 12 x 12 casas da grama aprovada com árvores,
 arbustos, pedras e o tronco caído da onda 3 e uma mesa com 5 cadeiras e 3 barris (o que já
-foi desenhado sai Desenhado, o resto Atual). Por último, os arquivos sobre xadrez.
+foi desenhado sai Desenhado, o resto Atual). Por último, os arquivos sobre xadrez. Só no
+móvel com `pecas` (a cerca), a mesa roda também `ferramentas/mesa_curva.ts` e a folha ganha
+a faixa da cerca por peças (10.12), Desenhado ao lado do Atual a 100% e a 50%; na `<prova>`,
+`curva100.png`, `curva50.png` e os `atual-curva*`.
 
     exportar_uma.gd -- --textura=movel-<nome> --folha --prova=<pasta>/movel-<nome>
     folha_do_lote_moveis.gd -- --texturas=<id1>,...,<id5> --prova=<pasta> --saida=<pasta>/lote.png --titulo="Lote 10, móveis" --familia=<id>
@@ -766,3 +779,60 @@ rampa OKLab (agora por parte, com o contorno), a ideia da mesa de prova que empa
 motor da main para o Atual, e a lista do que o app guarda por móvel (`LUGARES_DE_MATERIAL`,
 as pegadas, `TIPOS_COM_VISTA`, a chave de `rasterDosMoveis.ts`). Os comandos do material
 (`folha_do_lote_materiais.gd`, `comum/mesa_material.gd`) seguem funcionando.
+
+### 10.12 A cerca por peças (lote 12, 29/10)
+
+A cerca estica e faz curva (`Prop.mobiliaCurva`, até ±180 graus; os mourões a ~1 casa de
+arco, `geometriaDaCerca` de `lib/mobilia.ts`). Dois caminhos já existiam e nenhum servia
+inteiro:
+
+- **o trecho da onda 3** (a sebe, 9.5): deita um período na curva e acende pelo relevo, mas
+  é cor pronta, sem partes (não tinge os 5 tons de madeira nem a corda e o arame), põe o
+  mourão a cada L em vez de onde o app põe (o clique e a seleção leem a geometria), e no arco
+  o disco do mourão entorta junto (±10% a ±14% na curva de 2 casas);
+- **o meio que repete** (10.6): tinge por parte e a reta fica boa, mas a imagem tem a luz
+  pintada; dobrada no arco, a borda acesa gira com a cerca e no fim de um quarto de volta
+  está do lado errado.
+
+**A decisão: a cerca sai por peças, na geometria do app, das imagens de sempre.** A forma 0
+de cada variante (`frente-<variante>-0`, uma cerca de 2 casas com 3 mourões onde o app os
+põe) é ao mesmo tempo o móvel de sempre (o meio que repete, pontas 0,5 e P = 1) e a fonte das
+peças, declaradas em `pecas` (config.json e `textura.json`):
+
+- `mouraoCasas` [x, y] e `raioCasas`: o meio de um mourão na forma (casas a partir do canto
+  da pegada) e o raio do recorte (o mourão inteiro com o contorno e a borda suave);
+- `colunaCasas`: uma coluna da ligação (a emenda do módulo, que já é lisa por contrato);
+- `viradaDaLuz` l (0,05 a 1): a faixa em que a luz da ligação passa de uma borda para a outra.
+
+A conta (`comporCerca` de `ferramentas/movel.ts`, a referência para o app):
+
+    geometria = geometriaDaCerca(largura, altura, volta)      // do app, em casas, sem o giro
+    mourões e arco girados pelo giro do objeto (o arco: o centro gira, os ângulos somam o giro)
+    forma = frente-<variante>-0 tingida (a mesma camada que o comporMovel usa)
+    1. a ligação: para cada ponto perto do eixo (o segmento do 1º ao último mourão, ou o arco
+       entre eles), t = a direção de andar, n = (-t.y, t.x), c = o quanto o ponto anda em n
+       (|c| <= meia altura da forma + margem)
+         w   = smoothstep(-l, l, -dot(n, LUZ) / 0,7071)         // LUZ = (-0,7071; -0,7071)
+         cor = w · forma(colunaCasas, c) + (1 - w) · forma(colunaCasas, -c)
+    2. os mourões, por cima e EM PÉ (nunca giram): o recorte de raio raioCasas em volta de
+       mouraoCasas, posto no meio de cada mourão da geometria, a borda suave em meio px
+    3. a sombra pela silhueta (10.7), na camada só com a dos outros
+    a tela não gira mais nada: resto = 0
+
+Por que fica bom: na cerca deitada w = 1 e a ligação é a forma como foi desenhada; em pé,
+w = 0 e a borda acesa vai para a esquerda (é a transposta, a luz no lugar); na curva a luz
+troca de borda devagar só onde a cerca anda na direção da luz, onde a vara de verdade fica
+igual dos dois lados. O mourão é redondo: em pé, ele guarda a luz em todo giro e em todo
+ponto do arco, e cai exatamente onde o clique, a seleção e o desenho em linhas o põem. A
+ligação é a mesma coluna em todo o comprimento, então não há emenda a cada mourão; a reta e a
+curva de volta pequena saem iguais (a mesma forma, os mesmos mourões). O S são duas cercas de
+volta 90 e -90 emendadas no mourão da ponta (o mourão das duas cai no mesmo ponto, igual).
+
+O que o designer da cerca garante no desenho: a ligação simétrica de cima a baixo na forma
+(só a luz muda de borda), igual em todo x entre os mourões (é a faixa lisa da costura), e o
+mourão redondo, centrado, com nada da ligação além de `raioCasas`.
+
+Opcional por móvel: sem `pecas`, nada muda (o contrato, o `textura.json`, a mesa e a folha
+dos outros saem iguais: as ondas 1 a 3 e os 13 móveis dos lotes 9 a 11 reexportados deram 51
+de 51 itens e 279 de 279 arquivos iguais por sha256 ao commitado, 29/10). A mesa:
+`ferramentas/mesa_curva.ts` (10.9), com o Atual pelo motor de hoje com a mesma volta.

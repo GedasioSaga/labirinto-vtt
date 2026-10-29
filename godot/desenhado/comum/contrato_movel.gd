@@ -47,6 +47,9 @@ const MEIO_LISO_FOLGA := 2.0 / 255.0
 ## ser lisa e igual em toda emenda (o app lê a fonte bilinear e com mipmap nela).
 const PERIODO_MIN := 0.25
 const COSTURA_PX := 4
+## A cerca por peças (opcional, CONTRATO 10.12): a faixa em que a luz da ligação troca de borda.
+const VIRADA_DA_LUZ_MIN := 0.05
+const VIRADA_DA_LUZ_MAX := 1.0
 
 
 static func eh_movel(id: String) -> bool:
@@ -173,7 +176,38 @@ static func ler_config(id: String) -> Dictionary:
 		erros.append("\"sombra.jeito\": \"deslocada\" ou \"nenhuma\" (o tapete)")
 	if cfg["sombra"]["deslocamentoCasas"] < 0.0 or cfg["sombra"]["deslocamentoCasas"] > 0.4 or cfg["sombra"]["borraoCasas"] < 0.0 or cfg["sombra"]["borraoCasas"] > 0.2:
 		erros.append("\"sombra\": deslocamentoCasas de 0 a 0,4 e borraoCasas de 0 a 0,2")
+	# A cerca por peças (opcional, CONTRATO 10.12): só quem pede "pecas"; sem o campo, o
+	# textura.json sai igual.
+	if c.has("pecas"):
+		var pe := _ler_pecas(c["pecas"], cfg)
+		erros.append_array(pe["erros"])
+		if pe["erros"].is_empty():
+			cfg["pecas"] = pe["pecas"]
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
+
+
+## As peças da cerca: o meio de um mourão e o raio do recorte, a coluna da ligação (na forma 0
+## da vista frente, casas a partir do canto da pegada) e a faixa da virada da luz.
+static func _ler_pecas(bruto, cfg: Dictionary) -> Dictionary:
+	var erros: Array[String] = []
+	if typeof(bruto) != TYPE_DICTIONARY or not cfg["vistas"].has("frente"):
+		return {"erros": ["\"pecas\": {\"mouraoCasas\": [x, y], \"raioCasas\", \"colunaCasas\", \"viradaDaLuz\"}, com a vista frente"] as Array[String], "pecas": {}}
+	var casas: Array = cfg["vistas"]["frente"]["casas"]
+	var mourao := _par(bruto.get("mouraoCasas"), [-1.0, -1.0])
+	var raio := float(bruto.get("raioCasas", -1.0))
+	var coluna := float(bruto.get("colunaCasas", -1.0))
+	var virada := float(bruto.get("viradaDaLuz", 0.35))
+	if mourao[0] < 0.0 or mourao[1] < 0.0 or mourao[0] > casas[0] or mourao[1] > casas[1]:
+		erros.append("\"pecas.mouraoCasas\": o meio de um mourão dentro da pegada da frente (%.2f x %.2f)" % [casas[0], casas[1]])
+	if raio <= 0.0 or raio > 0.5 * casas[1] + cfg["margemCasas"]:
+		erros.append("\"pecas.raioCasas\": de 0 até a meia altura da pegada mais a margem")
+	if coluna <= 0.0 or coluna >= casas[0]:
+		erros.append("\"pecas.colunaCasas\": a coluna da ligação dentro da pegada (0 a %.2f)" % casas[0])
+	elif absf(coluna - mourao[0]) < raio:
+		erros.append("\"pecas.colunaCasas\": a coluna da ligação não pode passar pelo mourão do recorte")
+	if virada < VIRADA_DA_LUZ_MIN or virada > VIRADA_DA_LUZ_MAX:
+		erros.append("\"pecas.viradaDaLuz\" de %.2f a %.2f" % [VIRADA_DA_LUZ_MIN, VIRADA_DA_LUZ_MAX])
+	return {"erros": erros, "pecas": {"mouraoCasas": mourao, "raioCasas": raio, "colunaCasas": coluna, "viradaDaLuz": virada}}
 
 
 ## O meio que repete: o desenho leva entre as pontas um número inteiro de módulos de
@@ -256,7 +290,7 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			else:
 				v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
 		vistas[vista] = v
-	return {
+	var json := {
 		"contrato": Contrato.VERSAO,
 		"tipo": TIPO,
 		"id": cfg["id"],
@@ -292,3 +326,9 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			"tetoMemoriaDos31Bytes": TETO_MEMORIA_DOS_31,
 		},
 	}
+	# Só a cerca por peças (10.12): sem "pecas" no config, a chave não existe e o resto sai igual.
+	if cfg.has("pecas"):
+		var pe: Dictionary = cfg["pecas"].duplicate()
+		pe["conta"] = "a cerca por peças, reta ou curva, na geometria do app (geometriaDaCerca de lib/mobilia.ts, girada pelo giro do objeto): a ligação = a coluna colunaCasas da forma frente-<variante>-0 tingida, deitada ao longo do eixo (o segmento do primeiro ao último mourão, ou o arco), na altura c (atravessando, + do lado n = (-t.y, t.x)), misturada com a mesma coluna na altura -c por w = smoothstep(-viradaDaLuz, viradaDaLuz, -dot(n, LUZ) / 0,7071); por cima, em pé (sem girar), o recorte de raio raioCasas em volta de mouraoCasas no meio de cada mourão; a sombra pela silhueta, como as outras; a tela não gira mais nada"
+		json["pecas"] = pe
+	return json

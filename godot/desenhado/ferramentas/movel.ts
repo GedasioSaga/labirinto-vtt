@@ -61,6 +61,22 @@ export interface Rampa {
   readonly claroDesde: number
 }
 
+/**
+ * A cerca por peças (opcional, só a cerca; CONTRATO 10.12): de onde a conta tira o mourão
+ * e a coluna da ligação na forma 0 de cada variante, para deitar a cerca na geometria do
+ * app (reta ou curva).
+ */
+export interface PecasDaCerca {
+  /** O meio de um mourão na forma 0, casas a partir do canto da pegada (sem a margem). */
+  readonly mouraoCasas: readonly [number, number]
+  /** O raio do recorte do mourão, casas: o mourão inteiro com o contorno, nada da ligação além dele. */
+  readonly raioCasas: number
+  /** A coluna da ligação (x na forma 0, casas a partir do canto da pegada): igual em todo x perto dela. */
+  readonly colunaCasas: number
+  /** De -l a l do quanto o lado da ligação olha para a luz, a luz passa de uma borda para a outra (smoothstep). */
+  readonly viradaDaLuz: number
+}
+
 export interface ParamsDoMovel {
   readonly id: string
   readonly idDoApp: string
@@ -71,6 +87,19 @@ export interface ParamsDoMovel {
   readonly formas: readonly FormaDoMovel[]
   readonly sombra: { readonly jeito: 'deslocada' | 'nenhuma'; readonly direcao: readonly [number, number]; readonly deslocamentoCasas: number; readonly borraoCasas: number; readonly alfa: number; readonly cor: string }
   readonly tingir: Rampa
+  /** Só a cerca: as peças que a conta deita na geometria do app (10.12). */
+  readonly pecas?: PecasDaCerca
+}
+
+/**
+ * A geometria da cerca que o app já calcula (`geometriaDaCerca(largura, altura, volta)` de
+ * lib/mobilia.ts), em CASAS, no referencial do objeto (o meio da pegada na origem, sem o
+ * giro): os meios dos mourões, o raio deles e o arco que passa pelos meios (null na reta).
+ */
+export interface GeometriaDaCercaEmCasas {
+  readonly mouroes: readonly { readonly x: number; readonly y: number }[]
+  readonly raio: number
+  readonly arco: { readonly center: { readonly x: number; readonly y: number }; readonly radius: number; readonly startAngle: number; readonly sweep: number } | null
 }
 
 export interface MovelCarregado {
@@ -90,6 +119,8 @@ export interface Pedido {
   readonly casasH: number
   /** O giro do objeto, em graus (Prop.rotation). */
   readonly giro: number
+  /** Só a cerca com `pecas`: a geometria do app; com ela a cerca sai por peças (10.12), reta ou curva. */
+  readonly cerca?: GeometriaDaCercaEmCasas
 }
 
 /** RGBA pré-multiplicado, 0..255, em float. */
@@ -407,6 +438,7 @@ export function desfocar(a: Float32Array, w: number, h: number, sigma: number): 
  */
 export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number): Composto {
   const p = m.p
+  if (p.pecas !== undefined && pedido.cerca !== undefined) return comporCerca(m, p.pecas, pedido, pedido.cerca, pxPorCasa)
   const vista = p.vistas[pedido.vista] ?? p.vistas.frente
   if (vista === undefined) throw new Error(`${p.id}: sem a vista ${pedido.vista}`)
   const nomeDaVista: Vista = p.vistas[pedido.vista] !== undefined ? pedido.vista : 'frente'
@@ -486,4 +518,168 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
     sombra = desfocar(a, W, H, sigma).map((v) => v * sb.alfa)
   }
   return { corpo: { w: W, h: H, px }, sombra, cx: borda + (alvo[0] * pxPorCasa) / 2, cy: borda + (alvo[1] * pxPorCasa) / 2, k, resto, forma: f.nome, transposta }
+}
+
+// ---------- a cerca por peças (10.12) ----------
+
+/** LUZ da tela (de cima à esquerda), a mesma dos shaders. */
+const LUZ_DA_TELA: readonly [number, number] = [-Math.SQRT1_2, -Math.SQRT1_2]
+
+/**
+ * A CERCA POR PEÇAS (só quem tem `pecas`, a cerca; CONTRATO 10.12), reta ou curva, em
+ * qualquer giro, com a luz sempre de cima à esquerda. A geometria é a do app (os mourões e
+ * o arco de `geometriaDaCerca`, girados pelo giro do objeto); as peças saem da forma 0 da
+ * variante, já tingida:
+ *   1. a LIGAÇÃO: para cada ponto perto do eixo (o segmento do primeiro ao último mourão,
+ *      ou o arco), s ao longo, c atravessando (+ do lado n = (-t.y, t.x), t a direção de
+ *      andar). A cor é a coluna `colunaCasas` da forma na altura c, misturada com a mesma
+ *      coluna na altura -c: w = smoothstep(-l, l, -dot(n, LUZ) / 0,7071). Na cerca deitada
+ *      (t = (1, 0)) w = 1 e sai a forma 0 como foi desenhada; em pé, w = 0 e a borda acesa
+ *      passa para a esquerda (é a transposta); na curva a luz troca de borda devagar,
+ *      onde a cerca anda na direção da luz.
+ *   2. os MOURÕES, em pé (nunca giram: são redondos e a luz deles fica no lugar), por cima:
+ *      o recorte de raio `raioCasas` em volta de `mouraoCasas`, posto no meio de cada
+ *      mourão da geometria, com a borda suavizada em meio px.
+ *   3. a sombra pela silhueta, como no resto (10.7).
+ * A tela não gira mais nada (resto 0): o giro já está na conta.
+ */
+export function comporCerca(m: MovelCarregado, pc: PecasDaCerca, pedido: Pedido, g: GeometriaDaCercaEmCasas, pxPorCasa: number): Composto {
+  const p = m.p
+  const variante = varianteDoPedido(p, pedido.opcoes)
+  const f = p.formas.find((x) => x.vista === 'frente' && x.variante === variante && x.virada === 0)
+  if (f === undefined) throw new Error(`${p.id}: falta a forma frente-${variante}-0`)
+  if (g.mouroes.length < 2) throw new Error(`${p.id}: a cerca precisa de 2 mourões`)
+  // A mesma chave do comporMovel sem transpor: as duas contas dividem a forma tingida.
+  const chave = `${p.id}|${f.nome}||${pedido.tons.map((t) => t.join(',')).join('|')}`
+  let nv = NIVEIS.get(chave)
+  if (nv === undefined) {
+    nv = niveis(tingir(m, f, pedido.tons, false))
+    NIVEIS.set(chave, nv)
+  }
+  const nivel = Math.min(nv.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(1, PX_POR_CASA / pxPorCasa)))))
+  const n = nv[nivel]
+  /** px do nível por casa. */
+  const kN = (n.w / nv[0].w) * PX_POR_CASA
+  const mg = p.margemCasas
+  const altura = f.casas[1]
+  const meia = altura / 2 + mg
+  const ang = (pedido.giro * Math.PI) / 180
+  const co = Math.cos(ang)
+  const si = Math.sin(ang)
+  const naTela = (x: number, y: number): [number, number] => [x * co - y * si, x * si + y * co]
+  const mouroes = g.mouroes.map((q) => naTela(q.x, q.y))
+  const arco = g.arco === null ? null : { c: naTela(g.arco.center.x, g.arco.center.y), r: g.arco.radius, a0: g.arco.startAngle + ang, sw: g.arco.sweep }
+  // Os limites: os mourões e o eixo, com a meia altura da forma.
+  let x0 = Infinity
+  let x1 = -Infinity
+  let y0 = Infinity
+  let y1 = -Infinity
+  const incluir = (x: number, y: number, r: number): void => {
+    x0 = Math.min(x0, x - r)
+    x1 = Math.max(x1, x + r)
+    y0 = Math.min(y0, y - r)
+    y1 = Math.max(y1, y + r)
+  }
+  for (const [x, y] of mouroes) incluir(x, y, Math.max(meia, pc.raioCasas))
+  if (arco !== null) {
+    for (let i = 0; i <= 64; i += 1) {
+      const a = arco.a0 + (arco.sw * i) / 64
+      incluir(arco.c[0] + Math.cos(a) * arco.r, arco.c[1] + Math.sin(a) * arco.r, meia)
+    }
+  }
+  const sb = p.sombra
+  const nd = Math.hypot(sb.direcao[0], sb.direcao[1])
+  const desl = sb.jeito === 'nenhuma' ? 0 : sb.deslocamentoCasas * pxPorCasa
+  const sigma = sb.jeito === 'nenhuma' ? 0 : sb.borraoCasas * pxPorCasa
+  const borda = Math.ceil(desl + 3 * sigma + 2)
+  const X0 = Math.floor(x0 * pxPorCasa) - borda
+  const Y0 = Math.floor(y0 * pxPorCasa) - borda
+  const W = Math.ceil(x1 * pxPorCasa) + borda - X0
+  const H = Math.ceil(y1 * pxPorCasa) + borda - Y0
+  const px = new Float32Array(W * H * 4)
+  const a1 = [0, 0, 0, 0]
+  const a2 = [0, 0, 0, 0]
+  // 1. A ligação.
+  const xCol = (pc.colunaCasas + mg) * kN
+  const yMeio = meia * kN
+  const [ax, ay] = mouroes[0]
+  const [bx, by] = mouroes[mouroes.length - 1]
+  const L = Math.hypot(bx - ax, by - ay) || 1
+  const tx = (bx - ax) / L
+  const ty = (by - ay) / L
+  const sentido = arco === null ? 1 : Math.sign(arco.sw)
+  for (let Y = 0; Y < H; Y += 1) {
+    const wy = (Y + 0.5 + Y0) / pxPorCasa
+    for (let X = 0; X < W; X += 1) {
+      const wx = (X + 0.5 + X0) / pxPorCasa
+      let c: number
+      let nx: number
+      let ny: number
+      if (arco === null) {
+        const s = (wx - ax) * tx + (wy - ay) * ty
+        if (s < 0 || s > L) continue
+        nx = -ty
+        ny = tx
+        c = (wx - ax) * nx + (wy - ay) * ny
+      } else {
+        const vx = wx - arco.c[0]
+        const vy = wy - arco.c[1]
+        const rr = Math.hypot(vx, vy) || 1e-9
+        let d = Math.atan2(vy, vx) - arco.a0
+        d -= 2 * Math.PI * Math.round(d / (2 * Math.PI))
+        const u = d / arco.sw
+        if (!(u >= 0 && u <= 1)) continue
+        const ux = vx / rr
+        const uy = vy / rr
+        // t = sentido x (-sen, cos) no ângulo do ponto; n = (-t.y, t.x).
+        nx = -ux * sentido
+        ny = -uy * sentido
+        c = (rr - arco.r) * (ux * nx + uy * ny)
+      }
+      if (Math.abs(c) > meia) continue
+      const olha = -(nx * LUZ_DA_TELA[0] + ny * LUZ_DA_TELA[1]) / Math.SQRT1_2
+      const w = suave(-pc.viradaDaLuz, pc.viradaDaLuz, olha)
+      ler(n, xCol, yMeio + c * kN, a1)
+      ler(n, xCol, yMeio - c * kN, a2)
+      const o = (Y * W + X) * 4
+      for (let q = 0; q < 4; q += 1) px[o + q] = w * a1[q] + (1 - w) * a2[q]
+    }
+  }
+  // 2. Os mourões, em pé, por cima.
+  const raioPx = pc.raioCasas * pxPorCasa
+  const mx = (pc.mouraoCasas[0] + mg) * kN
+  const my = (pc.mouraoCasas[1] + mg) * kN
+  for (const [qx, qy] of mouroes) {
+    const cx = qx * pxPorCasa - X0
+    const cy = qy * pxPorCasa - Y0
+    for (let Y = Math.max(0, Math.floor(cy - raioPx - 1)); Y < Math.min(H, Math.ceil(cy + raioPx + 1)); Y += 1) {
+      for (let X = Math.max(0, Math.floor(cx - raioPx - 1)); X < Math.min(W, Math.ceil(cx + raioPx + 1)); X += 1) {
+        const dx = X + 0.5 - cx
+        const dy = Y + 0.5 - cy
+        const mascara = Math.min(1, Math.max(0, raioPx - Math.hypot(dx, dy) + 0.5))
+        if (mascara <= 0) continue
+        ler(n, mx + (dx / pxPorCasa) * kN, my + (dy / pxPorCasa) * kN, a1)
+        const a = (a1[3] / 255) * mascara
+        if (a <= 0) continue
+        const o = (Y * W + X) * 4
+        for (let q = 0; q < 4; q += 1) px[o + q] = a1[q] * mascara + px[o + q] * (1 - a)
+      }
+    }
+  }
+  // 3. A sombra pela silhueta.
+  let sombra: Float32Array | null = null
+  if (sb.jeito !== 'nenhuma') {
+    const dx = Math.round((sb.direcao[0] / nd) * desl)
+    const dy = Math.round((sb.direcao[1] / nd) * desl)
+    const a = new Float32Array(W * H)
+    for (let Y = 0; Y < H; Y += 1) {
+      for (let X = 0; X < W; X += 1) {
+        const xs = X - dx
+        const ys = Y - dy
+        if (xs >= 0 && ys >= 0 && xs < W && ys < H) a[Y * W + X] = px[(ys * W + xs) * 4 + 3] / 255
+      }
+    }
+    sombra = desfocar(a, W, H, sigma).map((v) => v * sb.alfa)
+  }
+  return { corpo: { w: W, h: H, px }, sombra, cx: -X0, cy: -Y0, k: 0, resto: 0, forma: f.nome, transposta: false }
 }

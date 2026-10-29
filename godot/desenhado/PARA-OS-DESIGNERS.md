@@ -310,6 +310,11 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    não é liso. Quem vive esticado e lê como "tábua comprida" pede `periodoCasas` (o meio que
    repete, CONTRATO 10.6: um módulo inteiro por período, a emenda numa faixa lisa;
    exemplos `movel-aparador` e `movel-balcao`).
+   **A cerca faz curva por peças** (CONTRATO 10.12, lote 12): com `pecas` no config, o app
+   deita a ligação da forma 0 no arco de `geometriaDaCerca` e põe o mourão em pé em cada
+   mourão do app, com a luz no lugar em todo giro. Desenhe a ligação simétrica de cima a
+   baixo e igual em todo x entre os mourões, e o mourão redondo e centrado; diga em `pecas`
+   onde está um mourão e uma coluna da ligação. Exemplo: `movel-cerca`.
 4. **Vista de lado** (os 8 de `TIPOS_COM_VISTA`): `vistas.lado` com a pegada de lado do app;
    `vis == 1` no shader. Tem de ler como o mesmo móvel.
 5. **Variantes** só quando uma opção muda o desenho (o assento de palha ou de madeira, as
@@ -328,7 +333,9 @@ móveis da main (só leitura).
 **Olhe na folha:** sozinho e nas 3 combinações a 100, 50 e 25%, Desenhado ao lado do Atual;
 300%; os 5 tons de madeira (separados; a medida embaixo); as 4 viradas e a de lado; a
 esticada em 1,4, 2, 3 e 5 casas; a família na grama aprovada, com as árvores, as pedras e o
-tronco caído; e os arquivos sobre xadrez (o vermelho, o verde e o azul das partes).
+tronco caído; e os arquivos sobre xadrez (o vermelho, o verde e o azul das partes). Com
+`pecas` (a cerca), também a faixa da cerca por peças: as retas, o quarto de círculo, o S, a
+meia volta e a girada, a 100% e a 50%, ao lado do Atual.
 
 **Pronto quando** (CONTRATO.md 10.10): sai com 0, a memória cabe, o meio é liso, os lugares
 batem com o app, e o olho na folha: calmo, sem bolinha, outro desenho a 50%, a luz no lugar

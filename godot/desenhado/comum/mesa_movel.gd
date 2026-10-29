@@ -85,11 +85,34 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 	var params = JSON.parse_string(FileAccess.get_file_as_string(pasta_exportada.path_join(Contrato.ARQUIVO_DE_PARAMETROS)))
 	if typeof(params) != TYPE_DICTIONARY:
 		params = {}
+	# 2b. A cerca por peças (só quem tem "pecas" no textura.json, CONTRATO 10.12): as retas e
+	# as curvas na geometria do app, pela conta de ferramentas/movel.ts, ao lado do Atual.
+	var por_pecas: bool = params.has("pecas")
+	if por_pecas:
+		var entrada_c := ProjectSettings.globalize_path("res://ferramentas/mesa_curva.ts")
+		var mjs_c := ProjectSettings.globalize_path("res://ferramentas/.build/mesa_curva.mjs")
+		saida_cmd = []
+		c = OS.execute("node", [construir, entrada_c, mjs_c], saida_cmd, true)
+		if c != 0:
+			erros.append("ferramentas/construir.mjs (mesa_curva) falhou (%d): %s" % [c, "".join(saida_cmd).strip_edges()])
+			return {"ok": false, "erros": erros, "resumo": {}}
+		var argv_c := [mjs_c, "--textura=" + pasta_exportada, "--saida=" + paineis]
+		if args.has("sem-atual"):
+			argv_c.append("--sem-atual")
+		saida_cmd = []
+		c = OS.execute("node", argv_c, saida_cmd, true)
+		texto = "".join(saida_cmd).strip_edges()
+		if c != 0:
+			erros.append("ferramentas/mesa_curva.ts falhou (%d): %s" % [c, texto])
+			return {"ok": false, "erros": erros, "resumo": {}}
+		print("  ", texto)
 	var resumo := {
 		"id": cfg["id"], "nome": cfg["nome"], "tipo": cfg["tipo"], "idDoApp": cfg["idDoApp"], "onda": cfg["onda"], "lote": cfg["lote"],
 		"combos": p["combos"], "medidas": p["medidas"], "familia": p["familia"], "atual": {"ok": p["atual"]},
 		"memoria": params.get("memoria", {}), "formas": params.get("formas", []).size(),
 	}
+	if por_pecas:
+		resumo["pecas"] = true
 	# 3. As peças da folha do lote e a folha.
 	var tem_atual: bool = p["atual"]
 	_escala(_ler(paineis, "combos-desenhado-100.png"), 0.5).save_png(prova.path_join("area50.png"))
@@ -105,6 +128,12 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 			_ler(paineis, "familia-atual-100.png").save_png(prova.path_join("atual-familia100.png"))
 			_escala(_ler(paineis, "familia-atual-100.png"), 0.5).save_png(prova.path_join("atual-familia50.png"))
 			_ler(paineis, "familia-atual-300.png").save_png(prova.path_join("atual-familia300.png"))
+	if por_pecas:
+		_ler(paineis, "curva-desenhado-100.png").save_png(prova.path_join("curva100.png"))
+		_escala(_ler(paineis, "curva-desenhado-100.png"), 0.5).save_png(prova.path_join("curva50.png"))
+		if tem_atual:
+			_ler(paineis, "curva-atual-100.png").save_png(prova.path_join("atual-curva100.png"))
+			_escala(_ler(paineis, "curva-atual-100.png"), 0.5).save_png(prova.path_join("atual-curva50.png"))
 	var f := FileAccess.open(prova.path_join("resumo.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(resumo, "  "))
 	f.close()
@@ -189,6 +218,14 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 		_linha([ed], ["Desenhado a 100%"])
 		if tem_atual:
 			_linha([_ler(paineis, "esticada-atual.png")], ["Atual a 100%"])
+	# A cerca por peças (10.12).
+	if resumo.get("pecas", false):
+		_texto("A cerca por peças (CONTRATO 10.12), na geometria do app: retas de 8, 4 e 2 casas e de 4 em pé, quarto de círculo, S, meia volta e girada", MG, 22, COR_TINTA)
+		_texto("O S são duas cercas de volta 90 e -90 emendadas no mourão; embaixo, o quarto para cima (volta -90) e o girado 45 graus. As 3 ligações: varas, corda e arame.", MG, 15, COR_TINTA_3)
+		var cvd := _ler(paineis, "curva-desenhado-100.png")
+		var cva: Image = _ler(paineis, "curva-atual-100.png") if tem_atual else null
+		_linha([cvd, cva], ["Desenhado a 100%", "Atual a 100% (o motor de hoje, com a mesma volta)"])
+		_linha([_escala(cvd, 0.5), _escala(cva, 0.5) if cva != null else null], ["Desenhado a 50%", "Atual a 50%"])
 	# A família.
 	if FileAccess.file_exists(paineis.path_join("familia-desenhado-100.png")):
 		var fam: Dictionary = p["familia"]
