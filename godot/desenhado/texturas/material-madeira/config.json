@@ -1,0 +1,12 @@
+{
+  "id": "material-madeira",
+  "nome": "Madeira (material de móvel)",
+  "tipo": "material",
+  "classe": "madeira",
+  "onda": 4,
+  "lote": 9,
+  "semente": 113,
+  "casas": [8, 2],
+  "imagens": ["padrao"],
+  "tingir": { "ganhoL": 0.48 }
+}

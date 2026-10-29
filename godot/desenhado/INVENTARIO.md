@@ -7,15 +7,17 @@ lote por vez, com a folha do lote (`scripts/folha_do_lote.gd`). O último lote d
 pode ter menos de 5, para um lote nunca misturar duas ondas.
 
 Levantado no código em 28/10/2026 (branch `feat/desenhado`, app 0.5.5). As fontes estão
-no fim. **65 itens em 14 lotes.**
+no fim. **50 itens em 12 lotes** (eram 65 em 14 até 29/10, quando a onda 4 passou de 23
+móveis para os 8 materiais; a onda 5 virou o lote 12 e os números 46 a 50).
 
 O **id** é o do app sempre que o app já tem um (`idDoApp` no `config.json`), para a
 integração achar a pasta `exportado/<id>/` pelo mesmo nome. Item que o app pinta com cor
 chapada (sem textura) ganha um id novo e `idDoApp: null`.
 
 O **que entregar** remete ao contrato: "chão" = o contrato de chão de `CONTRATO.md`
-(base-1..3 + atlas + `textura.json`). Telhado, sprite de planta e móvel ainda **não** têm
-contrato: ele é escrito antes da onda começar (ver o fim do `CONTRATO.md`).
+(base-1..3 + atlas + `textura.json`). Telhado (seção 8), carimbo e trecho (seção 9) e
+material de móvel (seção 10) têm contrato; o traço da onda 5 ainda **não**: ele é escrito
+antes da onda começar (seção 7 do `CONTRATO.md`).
 
 ## Onda 1: chão e caminhos (18 itens, lotes 1 a 4)
 
@@ -108,35 +110,62 @@ gira, a sombra é do app); o vaso é carimbo de destino `movel`; a sebe e a jard
 | 37 | `girassois` | Girassóis | Carimbos, vem do pacote do GitHub | sprite |
 | 37b | `tronco-caido` | Tronco caído | Carimbos (entrou no app em 28/10, `82d858eb` na main: tamanho 10, sombra `deitada`) | sprite deitado no chão, 4 formas que seguem o giro (`espelho: "nenhum"`); sombra `deslocada` 0,09, que dá a `deitada` de hoje |
 
-## Onda 4: móveis e objetos (23 itens, lotes 9 a 13)
+## Onda 4: os 8 materiais dos móveis (8 itens, lotes 9 a 11)
 
-Hoje: 26 tipos (`lib/mobilia/tipos.ts`) montados peça por peça em
-`texturas/meioTermo/moveis/` com 24 materiais em 8 classes (`meioTermo/materiais.ts`); os 3
-que são planta foram para a onda 3. **Decidir com o usuário antes da onda:** redesenhar
-cada móvel como sprite, ou entregar só os materiais (madeira, metal, tecido, pedra, palha,
-corda, casca, folha) para o motor de hoje. Tamanhos abaixo em casas (frente).
+Hoje: 34 tipos de móvel (`lib/mobilia/tipos.ts`, com os 8 de casa de 28/10) montados peça
+por peça em `texturas/meioTermo/moveis/`, com 24 materiais em 8 classes
+(`meioTermo/materiais.ts`); os 3 que são planta foram para a onda 3. **Decisão do usuário
+de 29/10 ("Materiais primeiros"):** o Desenhado desenha as 8 classes (a superfície) e o
+motor de hoje continua montando os móveis, com troca de material e cor, esticar,
+Frente/Lado e 3/4. Móvel que ficar sem graça na folha ganha desenho próprio depois. O
+contrato é a seção 10 do `CONTRATO.md`; o id é `material-<classe>`.
 
-| Lote | Itens (id: nome que o mestre vê, tamanho) |
+| # | id | Classe e os tons que o mestre escolhe | Lote | O que o Desenhado entrega |
+|---|---|---|---|---|
+| 38 | `material-madeira` | madeira: Carvalho, Nogueira, Pinho, Cerejeira, Madeira velha | 9 (piloto) | 1 imagem 8 x 2 casas, veio ao longo; a tábua, a fresta e a emenda continuam do motor |
+| 39 | `material-metal` | metal: Ferro, Latão, Arame | 10 | superfície calma (o brilho do metal é do motor) |
+| 40 | `material-tecido` | tecido: Linho cru, Lã vinho, Lã azul, Lã musgo, Lã ocre | 10 | a classe e, opcional, `linho` (trama) e `la` (fofa) |
+| 41 | `material-pedra` | pedra: Granito, Arenito, Ardósia, Barro | 10 | a classe e, opcional, `granito`, `arenito` (camadas), `ardosia` (lâminas) |
+| 42 | `material-palha` | palha: Palha | 10 | trama do assento, ao longo |
+| 43 | `material-corda` | corda: Corda | 10 | a torção ao longo da corda |
+| 44 | `material-casca` | casca: Carvalho, Pinho, Bétula (lenha) | 11 | a classe e, opcional, `betula` (branca com riscos) e `fendida` |
+| 45 | `material-folha` | folha: Buxo, Alfeneiro | 11 | massa de folhas calma (a sebe precisa de uma troca na integração, CONTRATO 10.8) |
+
+Onde cada material aparece (o lugar que o mestre escolhe na ferramenta **Objetos**,
+`LUGARES_DE_MATERIAL`, mais as peças de material fixo). Estes móveis são a **prova** de cada
+material: a mesa de prova monta a sala com eles.
+
+| Classe | Móveis de antes | Os 8 móveis novos (28/10) |
+|---|---|---|
+| madeira | mesa, mesa quadrada, mesa redonda, cadeira, cama (catre), barril, caixa, baú, armário, aparador, cerca (mourões), arco do portão (e a placa), placa de seta, quadro de avisos, poço, barraca (balcão e esteios), carroça, jardineira | geladeira, pia, balcão, privada, sofá, poltrona (madeira); pratos (a caneca, nogueira fixa) |
+| metal | barril e carroça (aros), baú (ferragens), armário e aparador (puxadores), lampião, cerca (arame entre os mourões), pregos fixos (caixa, placa de seta, arco do portão) | fogão (corpo e puxadores), geladeira (ferragens e o zinco fixo), balcão (barra de pé), privada (puxador) |
+| tecido | cama (cobertor, travesseiro e o lençol de linho fixo), tapete, tapete longo, barraca (toldo) | sofá, poltrona (estofado) |
+| pedra | fogueira (pedras), lápide, poço (pedras); o vaso (barro) é carimbo da onda 3 | pia (pedra) |
+| palha | cadeira (assento) | nenhum |
+| corda | cerca (corda entre os mourões) | nenhum |
+| casca | fogueira (lenha) | nenhum |
+| folha | sebe (já é trecho da onda 3; decidir qual vale) | nenhum |
+
+Ficam sem material (cor própria, fora do Desenhado nesta onda): o Fogo, a chama e as brasas,
+a louça e a comida dos pratos e da privada, a água do poço e da pia, o vidro do lampião e as
+flores. Tamanhos e vistas: 8 tipos têm vista Frente/Lado e o mapa pode estar em vista 3/4
+(`MapData.vistaDosMoveis`); com os materiais, isso já vem do motor.
+
+| Lote | Itens |
 |---|---|
-| 9 | `mesa`: Mesa 2 x 1 · `mesaQuadrada`: Mesa quadrada 1 x 1 · `mesaRedonda`: Mesa redonda 1,25 x 1,25 · `cadeira`: Cadeira 0,5 x 0,5 · `catre`: Cama 1 x 2 |
-| 10 | `barril`: Barril 0,7 x 0,7 · `caixa`: Caixa 0,8 x 0,8 · `bau`: Baú 1 x 0,6 · `armario`: Armário de cozinha 1 x 0,5 · `aparador`: Aparador 2 x 0,5 |
-| 11 | `tapete`: Tapete 3 x 2 (ou redondo 2 x 2) · `tapeteLongo`: Tapete longo 1 x 4 · `fogueira`: Fogueira 1 x 1 · `lampiao`: Lampião 0,5 x 0,5 · `fogo`: Fogo (Chama 1 x 1, Fogaréu 2 x 2, Incêndio 4 x 3; a chama animada fica fora da imagem) |
-| 12 | `cerca`: Cerca 2 x 0,25 · `arcoDoPortao`: Arco do portão 2 x 0,5 · `placaDeSeta`: Placa de seta 0,5 x 0,5 · `quadroDeAvisos`: Quadro de avisos 1 x 0,4 · `poco`: Poço 1,5 x 1,5 |
-| 13 | `barraca`: Barraca de feira 2 x 2 · `carroca`: Carroça 2 x 1,25 · `lapide`: Lápide 0,6 x 0,35 |
+| 9 | `material-madeira` (o piloto, sozinho, para o usuário aprovar a direção) |
+| 10 | `material-metal` · `material-tecido` · `material-pedra` · `material-palha` · `material-corda` |
+| 11 | `material-casca` · `material-folha` |
 
-Onde aparecem: ferramenta **Objetos** (`components/MobiliaControls.tsx`); 8 tipos têm vista
-Frente/Lado e o mapa pode estar em vista 3/4 (`MapData.vistaDosMoveis`), o que multiplica
-o que cada sprite precisa cobrir.
-
-## Onda 5: penhasco e paredes (5 itens, lote 14)
+## Onda 5: penhasco e paredes (5 itens, lote 12)
 
 | # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega |
 |---|---|---|---|---|
-| 61 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | a face do barranco no espaço do traço (ao longo e para baixo), repetível ao longo |
-| 62 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | a borda de cima e o pé molhado, repetíveis ao longo |
-| 63 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
-| 64 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
-| 65 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |
+| 46 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | a face do barranco no espaço do traço (ao longo e para baixo), repetível ao longo |
+| 47 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | a borda de cima e o pé molhado, repetíveis ao longo |
+| 48 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
+| 49 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
+| 50 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |
 
 ## Fontes no código (para conferir)
 
@@ -145,6 +174,7 @@ o que cada sprite precisa cobrir.
 - Caminho e chão de sala: `stores/mapStore.ts:1917`; `pixi/drawFloor.ts:65`; `pixi/drawRegions.ts:331`.
 - Telhados: `texturas/telhado.ts`, `lib/telhado/paletas.ts:34-66`, `texturas/meioTermo/chamine.ts`, `meioTermo/cumeeiraAmarrada.ts`.
 - Carimbos: `carimbos/embutidos.ts:553-561`, `carimbos/catalogo.ts:27`.
-- Móveis: `lib/mobilia/tipos.ts:14`, `lib/mobilia.ts:55,102`, `lib/mobilia/pecasNovas.ts:63-95`, `texturas/meioTermo/moveis/`.
+- Móveis: `lib/mobilia/tipos.ts:14`, `lib/mobilia.ts:55,102`, `lib/mobilia/pecasNovas.ts:63-95`, `texturas/meioTermo/moveis/` (a tabela `TEXTURA` em `motor.ts:450`).
+- Materiais dos móveis: `texturas/meioTermo/materiais.ts:92-121` (os 24) e `:146-186` (`LUGARES_DE_MATERIAL`).
 - Penhasco e paredes: `lib/relevo.ts:138-195`, `texturas/meioTermo/barranco.ts`, `pixi/drawWalls.ts:58,332`.
 - Mapa real usado nas contas (só leitura, fora do repo): um mapa do usuário de 200 x 200 casas, 228 passos de textura.

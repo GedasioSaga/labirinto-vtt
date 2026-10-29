@@ -18,6 +18,9 @@ const MesaTelhado := preload("res://comum/mesa_telhado.gd")
 const ContratoCarimbo := preload("res://comum/contrato_carimbo.gd")
 const PintorCarimbo := preload("res://comum/pintor_carimbo.gd")
 const MesaCarimbo := preload("res://comum/mesa_carimbo.gd")
+const ContratoMaterial := preload("res://comum/contrato_material.gd")
+const PintorMaterial := preload("res://comum/pintor_material.gd")
+const MesaMaterial := preload("res://comum/mesa_material.gd")
 
 
 ## Se algo travar (erro de script no meio de uma espera), a fila não fica presa.
@@ -45,6 +48,10 @@ func _rodar() -> void:
 		quit(2)
 		return
 	var id: String = args["textura"]
+	# Onda 4 (material de móvel): outro contrato e outra mesa (CONTRATO.md, seção 10).
+	if ContratoMaterial.eh_material(id):
+		await _rodar_material(args, id, inicio)
+		return
 	# Onda 3 (carimbo, trecho): outro contrato e outra mesa (CONTRATO.md, seção 9).
 	if ContratoCarimbo.TIPOS.has(ContratoTelhado.tipo_de(id)):
 		await _rodar_carimbo(args, id, inicio)
@@ -252,6 +259,73 @@ func _rodar_carimbo(args: Dictionary, id: String, inicio: int) -> void:
 		ok = false
 	if args.has("folha"):
 		var mesa := MesaCarimbo.new()
+		root.add_child(mesa)
+		var m: Dictionary = await mesa.montar(cfg, saida, prova, args.has("sem-atual"))
+		for e in m["erros"]:
+			printerr("  ERRO folha: ", e)
+		if m["ok"]:
+			print("  folha: ", prova.path_join("folha.png"))
+		else:
+			ok = false
+	print("Pronto em %d ms" % (Time.get_ticks_msec() - inicio))
+	quit(0 if ok else 1)
+
+
+## Material de móvel: pinta as imagens, grava o textura.json e, com --folha, monta a mesa
+## dos móveis (os móveis do app com a superfície trocada).
+func _rodar_material(args: Dictionary, id: String, inicio: int) -> void:
+	var lido := ContratoMaterial.ler_config(id)
+	if not lido["ok"]:
+		for e in lido["erros"]:
+			printerr("  ERRO config: ", e)
+		quit(2)
+		return
+	var cfg: Dictionary = lido["config"]
+	var saida: String = args.get("saida", ProjectSettings.globalize_path("res://exportado/%s" % id))
+	var prova: String = args.get("prova", ProjectSettings.globalize_path("res://prova/%s" % id))
+	if args.has("mapa"):
+		print("  --mapa não vale para material (a mesa monta os móveis numa sala dela); ignorado")
+	_esconder_do_editor(ProjectSettings.globalize_path("res://exportado"))
+	if not args.has("prova"):
+		_esconder_do_editor(ProjectSettings.globalize_path("res://prova"))
+	print("Desenhado: exportando '%s' (%s, material da classe %s) para %s" % [id, cfg["nome"], cfg["classe"], saida])
+	var pintor := PintorMaterial.new()
+	root.add_child(pintor)
+	var r: Dictionary = await pintor.pintar(cfg, saida)
+	for e in r["erros"]:
+		printerr("  ERRO: ", e)
+	if not r["ok"]:
+		quit(1)
+		return
+	# Sobras de uma exportação anterior (uma imagem de subtipo que saiu da lista).
+	for velho in DirAccess.get_files_at(saida):
+		if velho.ends_with(".png") and not r["imagens"].has(velho.trim_suffix(".png")):
+			DirAccess.remove_absolute(saida.path_join(velho))
+	var memoria := 0
+	var disco := 0
+	for nome in r["imagens"]:
+		var img: Image = r["imagens"][nome]
+		memoria += ContratoMaterial.bytes_memoria(img.get_width(), img.get_height())
+		disco += _tamanho(saida.path_join(ContratoMaterial.arquivo_da_imagem(nome)))
+	var params := ContratoMaterial.parametros(cfg, r, memoria, disco)
+	var f := FileAccess.open(saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS), FileAccess.WRITE)
+	f.store_string(JSON.stringify(params, "  ") + "\n")
+	f.close()
+	for arquivo in r["arquivos"]:
+		print("  gravado: ", arquivo)
+	print("  gravado: ", saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS))
+	var ok := true
+	for nome in r["medidas"]:
+		var m: Dictionary = r["medidas"][nome]
+		print("  %s: valor médio %.3f, emendas %.2f (ao longo) e %.2f (atravessando)" % [nome, m["valorMedio"], m["emendaU"], m["emendaV"]])
+		if absf(m["valorMedio"] - 0.5) > ContratoMaterial.VALOR_MEDIO_FOLGA:
+			printerr("  aviso: o valor médio de %s passa de 0,5 +- %.2f: o móvel sai mais claro ou mais escuro que o tom escolhido" % [nome, ContratoMaterial.VALOR_MEDIO_FOLGA])
+	print("  memória: %.2f MiB decodificada (teto %.2f), %.2f MiB em disco (teto %.2f), 0 a mais na placa" % [memoria / 1048576.0, ContratoMaterial.TETO_MEMORIA_POR_MATERIAL / 1048576.0, disco / 1048576.0, ContratoMaterial.TETO_DISCO_POR_MATERIAL / 1048576.0])
+	if memoria > ContratoMaterial.TETO_MEMORIA_POR_MATERIAL or disco > ContratoMaterial.TETO_DISCO_POR_MATERIAL:
+		printerr("  ERRO: passou do teto de memória (menos imagens ou uma imagem menor)")
+		ok = false
+	if args.has("folha"):
+		var mesa := MesaMaterial.new()
 		root.add_child(mesa)
 		var m: Dictionary = await mesa.montar(cfg, saida, prova, args.has("sem-atual"))
 		for e in m["erros"]:

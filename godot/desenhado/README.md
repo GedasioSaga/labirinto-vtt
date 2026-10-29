@@ -26,7 +26,7 @@ aprovação, e uma fila para vários designers rodarem o Godot ao mesmo tempo.
 
 | Leia | Para quê |
 |---|---|
-| `INVENTARIO.md` | as 65 coisas que o Desenhado cobre, por onda, em lotes de 5 |
+| `INVENTARIO.md` | as 50 coisas que o Desenhado cobre, por onda, em lotes de 5 (na onda 4, os 8 materiais dos móveis) |
 | `ESTILO.md` | as regras de desenho (a crítica de 28/10), paleta, contorno, zooms |
 | `CONTRATO.md` | arquivos de saída, a montagem contra repetição, teto de memória, critério de pronto |
 | `PARA-OS-DESIGNERS.md` | o prompt de cada designer de textura |
@@ -42,21 +42,29 @@ godot/desenhado/
                   onda 3 (carimbo, trecho; CONTRATO.md seção 9): carimbo.gdshaderinc,
                   rodape_carimbo.gdshaderinc, contrato_carimbo.gd, pintor_carimbo.gd,
                   mesa_carimbo.gd
+                  onda 4 (material de móvel; CONTRATO.md seção 10): material.gdshaderinc,
+                  rodape_material.gdshaderinc, contrato_material.gd, pintor_material.gd,
+                  mesa_material.gd
   texturas/<id>/  do designer: textura.gdshader + config.json (_modelo/ é o ponto de partida,
                   grama/ é o piloto; na onda 2, telhado-telhas/ é o piloto e _modelo-objeto/
                   e _modelo-faixa/ os modelos; na onda 3, arvore/ é o piloto e
-                  _modelo-carimbo/ e _modelo-trecho/ os modelos)
+                  _modelo-carimbo/ e _modelo-trecho/ os modelos; na onda 4,
+                  material-madeira/ é o piloto e _modelo-material/ o modelo)
   exportado/<id>/ gerada: base-1..3.png, detalhes.png, textura.json (vai para o git; o
                   .gdignore de exportado/ esconde a pasta do editor do Godot)
   prova/<id>/     gerada: folha.png e peças (fora do git; o padrão quando não se passa --prova)
   scripts/exportar_uma.gd, scripts/folha_do_lote.gd, scripts/folha_do_lote_telhados.gd,
-  scripts/folha_do_lote_carimbos.gd
+  scripts/folha_do_lote_carimbos.gd, scripts/folha_do_lote_materiais.gd
   ferramentas/atual.ts   pinta o Atual (a textura de hoje do app) com o código de client/src
   ferramentas/telhado.ts monta o telhado Desenhado com as águas do app (a referência da
                          seção 8 do CONTRATO.md) e o Atual com o pintarTelhado de hoje
   ferramentas/carimbo.ts + carimbo_pagina.ts  a mesa dos carimbos e trechos no Chromium do
                          Playwright: o Desenhado pela conta da seção 9 (a referência para o
                          app) e o Atual com o assarDesenho e o criarSpray de hoje
+  ferramentas/material.ts + moveis.ts + png.ts + construir.mjs  a mesa dos móveis: o
+                         esbuild empacota o motor dos móveis do client da main (só leitura) e
+                         troca a superfície da classe pela do Desenhado (material.ts, a
+                         referência da seção 10 para o app); o Atual é o mesmo motor sem troca
 ```
 
 ### Fila do Godot (obrigatória)

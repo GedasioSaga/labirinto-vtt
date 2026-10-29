@@ -1,0 +1,53 @@
+{
+  "classe": "madeira",
+  "contrato": 1,
+  "estrutura": "a do motor (texMadeira sem o veio): tábua de p.tabua px, fresta, emenda de topo e o tom de cada tábua; cada tábua e cada trecho entre emendas lê uma janela sorteada da imagem (ferramentas/material.ts)",
+  "id": "material-madeira",
+  "idDoApp": "madeira",
+  "imagens": [
+    {
+      "arquivo": "padrao.png",
+      "emendas": {
+        "u": 0.903,
+        "v": 0.689
+      },
+      "nome": "padrao",
+      "vale": "a classe inteira (peça sem subtipo, ou subtipo sem imagem própria)",
+      "valorMedio": 0.4985
+    }
+  ],
+  "lote": 9,
+  "material": {
+    "alturaPx": 256,
+    "canais": "cinza (R = G = B): valor 0..1, 0,5 = o tom do material",
+    "casas": [
+      8,
+      2
+    ],
+    "larguraPx": 1024,
+    "leitura": "bilinear, repetindo; mipmap trilinear com lod = log2(texelPorPxDoPrototipo / escala da pintura)",
+    "orientacao": "x = u da peça (ao longo do veio, da trama ou do comprimento), y = v (atravessando); repete nos dois sentidos",
+    "pxDoPrototipoPorCasa": 56,
+    "pxPorCasa": 128,
+    "texelPorPxDoPrototipo": 2.28571428571429
+  },
+  "memoria": {
+    "discoBytes": 28665,
+    "memoriaBytes": 1398101,
+    "placaAMaisQueOAtualBytes": 0,
+    "tetoDiscoBytes": 524288,
+    "tetoMemoriaBytes": 1572864,
+    "tetoMemoriaDos8Bytes": 12582912
+  },
+  "nome": "Madeira (material de móvel)",
+  "onda": 4,
+  "semente": 113,
+  "tingir": {
+    "claroDesde": 0.94,
+    "conta": "luz-oklab",
+    "escuroAte": 0.1,
+    "ganhoL": 0.48,
+    "neutro": 0.5
+  },
+  "tipo": "material"
+}
