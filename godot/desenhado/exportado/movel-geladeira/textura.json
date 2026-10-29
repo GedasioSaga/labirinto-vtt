@@ -13,12 +13,13 @@
         0.75
       ],
       "cobertura": 0.757,
+      "cor": "frente-padrao-0-cor.png",
       "larguraPx": 144,
       "nome": "frente-padrao-0",
       "partes": "frente-padrao-0-partes.png",
       "valor": "frente-padrao-0.png",
       "valorMedioPorLugar": [
-        0.402,
+        0.385,
         0.299
       ],
       "variante": "padrao",
@@ -32,12 +33,13 @@
         1.0
       ],
       "cobertura": 0.757,
+      "cor": "frente-padrao-1-cor.png",
       "larguraPx": 112,
       "nome": "frente-padrao-1",
       "partes": "frente-padrao-1-partes.png",
       "valor": "frente-padrao-1.png",
       "valorMedioPorLugar": [
-        0.394,
+        0.372,
         0.298
       ],
       "variante": "padrao",
@@ -51,12 +53,13 @@
         0.75
       ],
       "cobertura": 0.757,
+      "cor": "frente-padrao-2-cor.png",
       "larguraPx": 144,
       "nome": "frente-padrao-2",
       "partes": "frente-padrao-2-partes.png",
       "valor": "frente-padrao-2.png",
       "valorMedioPorLugar": [
-        0.395,
+        0.372,
         0.298
       ],
       "variante": "padrao",
@@ -70,12 +73,13 @@
         1.0
       ],
       "cobertura": 0.757,
+      "cor": "frente-padrao-3-cor.png",
       "larguraPx": 112,
       "nome": "frente-padrao-3",
       "partes": "frente-padrao-3-partes.png",
       "valor": "frente-padrao-3.png",
       "valorMedioPorLugar": [
-        0.402,
+        0.386,
         0.299
       ],
       "variante": "padrao",
@@ -92,8 +96,8 @@
   ],
   "margemCasas": 0.0625,
   "memoria": {
-    "discoBytes": 12650,
-    "memoriaBytes": 688128,
+    "discoBytes": 17519,
+    "memoriaBytes": 1032192,
     "tetoDiscoBytes": 524288,
     "tetoMemoriaBytes": 3145728,
     "tetoMemoriaDos31Bytes": 25165824

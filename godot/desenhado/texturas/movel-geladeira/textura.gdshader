@@ -9,21 +9,22 @@
 // DE CIMA (a pegada 1 x 0,75; 4 viradas: a porta abre para um lado só, então ela não é
 // simétrica nem de lado a lado):
 // - a MOLDURA (lugar 1): o tampo inteiro, uma faixa larga e clara de madeira em volta,
-//   com as duas massas de luz da borda; a da frente é mais larga, porque é dela que saem
-//   as ferragens;
-// - a TAMPA DO GELO (lugar 1) rebaixada na moldura e mais escura que ela: a fresta funda
-//   em volta, 3 tábuas largas de trás para a frente (o baú tem as dele ao comprido) com a
-//   junta firme, e a sombra que a moldura joga para dentro na beira que fica do lado da
-//   luz (a do outro lado é a parede de dentro, acesa);
+//   com as duas massas de luz da borda, feita de 4 tábuas (a de trás e a da frente
+//   inteiras, as dos lados entre elas, com a junta firme); a da frente é mais larga,
+//   porque é dela que saem as ferragens;
+// - a TAMPA DO GELO rebaixada na moldura, de ZINCO (cor própria, a do Atual: é ele que
+//   diz "geladeira"): a fresta funda de madeira em volta, a sombra que a moldura joga na
+//   beira do lado da luz e, logo depois dela, uma massa de luz larga do zinco;
 // - as FERRAGENS da porta da frente (lugar 2), duas chapas largas que passam da beira da
 //   frente, cada uma com o brilho em cima à esquerda e a sombra curta na madeira: a
 //   DOBRADIÇA, alta e estreita, perto da quina de um lado, e o TRINCO, deitado e mais
 //   largo, do outro.
 // O que a separa do baú (tampa abaulada de tábuas ao comprido, cintas de trás até a frente,
 // cantoneiras nas 4 quinas, fecho no meio) e do armário (dois blocos em degrau, puxadores
-// em par no meio): a moldura em volta da tampa funda, as tábuas atravessadas e o metal só
-// na beira da frente, para um lado e para o outro. A sombra comprida do app diz que é alta.
-// Lugares: 1 = a madeira, 2 = as ferragens. A sombra no chão é do app.
+// em par no meio): a tampa funda de zinco na moldura e o metal só na beira da frente, para
+// um lado e para o outro. A sombra comprida do app diz que é alta.
+// Lugares: 1 = a madeira, 2 = as ferragens; o zinco é a cor própria (imagem -cor). A sombra
+// no chão é do app.
 shader_type canvas_item;
 render_mode unshaded, blend_disabled;
 
@@ -38,10 +39,14 @@ const vec2 TAMPA_MEIA = vec2(0.34, 0.2);
 const float TAMPA_Y = -0.03;        // um pouco para trás: a faixa da frente fica mais larga
 const float QUINA_TAMPA = 0.02;
 const float FRESTA = 0.018;         // a fresta funda em volta da tampa
-const float TABUAS = 3.0;
-const float JUNTA = 0.009;          // meia largura da junta entre as tábuas
-const float REBAIXO = 0.045;        // a largura da sombra que a moldura joga na tampa
-const vec3 TONS_DAS_TABUAS = vec3(0.02, -0.025, 0.0); // o tom de cada tábua em volta do da tampa
+const float JUNTA = 0.009;          // meia largura da junta entre as tábuas da moldura
+const float REBAIXO = 0.04;         // a largura da sombra que a moldura joga na tampa
+const float BRILHO_DO_ZINCO = 0.085; // a largura da massa de luz do zinco, depois da sombra
+// O zinco da tampa, a cor própria do Atual (meioTermo/moveis/geladeira.ts, #98a2a6): cinza
+// puxado para o frio, sem saturar. A luz anda 30% para o branco morno; a sombra, 22% para o escuro.
+const vec3 ZINCO = vec3(0.596, 0.635, 0.651);
+const vec3 ZINCO_LUZ = vec3(0.705, 0.737, 0.745);
+const vec3 ZINCO_SOMBRA = vec3(0.465, 0.495, 0.508);
 
 // As ferragens (x a partir do meio, y = o meio da peça a partir da beira da frente).
 const vec2 DOBRADICA = vec2(0.07, 0.1);
@@ -101,22 +106,24 @@ void de_cima(vec2 q, float px, int vir, inout vec4 av, inout vec4 ac) {
 		pousar(av, ac, V_FUNDO - 0.02, 1, buraco);
 		float parede = 1.0 - cobre(sd_caixa(p - lm * FRESTA * 1.2, bf, QUINA_TAMPA + FRESTA), px);
 		pousar(av, ac, V_SOMBRA + 0.02, 1, buraco * parede);
-		// As tábuas, de trás para a frente, cada uma no seu tom.
+		// A chapa de zinco (cor própria): o tom, a massa de luz larga logo depois da sombra da
+		// moldura, do lado da luz, e a sombra que a moldura joga na beira desse lado.
 		float dtampa = sd_caixa(p, TAMPA_MEIA, QUINA_TAMPA);
 		float tampa = cobre(dtampa, px);
-		float larg = 2.0 * TAMPA_MEIA.x / TABUAS;
-		float tx = (p.x + TAMPA_MEIA.x) / larg;
-		float j = clamp(floor(tx), 0.0, TABUAS - 1.0);
-		float tom = j < 0.5 ? TONS_DAS_TABUAS.x : (j < 1.5 ? TONS_DAS_TABUAS.y : TONS_DAS_TABUAS.z);
-		pousar(av, ac, V_MEIO - 0.05 + tom, 1, tampa);
-		float k = floor(tx + 0.5);
-		if (k >= 1.0 && k <= TABUAS - 1.0) {
-			desenhar_linha(av, ac, abs(tx - k) * larg, JUNTA, V_FUNDO, tampa, 1, px);
-		}
-		// A sombra da moldura na beira da tampa que fica do lado da luz.
+		pousar_cor(av, ac, ZINCO, tampa);
+		float brilho = 1.0 - cobre(sd_caixa(p + lm * (REBAIXO + BRILHO_DO_ZINCO), TAMPA_MEIA, QUINA_TAMPA), px);
+		pousar_cor(av, ac, ZINCO_LUZ, tampa * brilho);
 		float sombra = 1.0 - cobre(sd_caixa(p + lm * REBAIXO, TAMPA_MEIA, QUINA_TAMPA), px);
-		pousar(av, ac, V_SOMBRA - 0.02, 1, tampa * sombra * 0.9);
+		pousar_cor(av, ac, ZINCO_SOMBRA, tampa * sombra);
 	}
+	// A moldura em 4 tábuas: a de trás e a da frente inteiras, as dos lados entre elas (a
+	// junta atravessa só a faixa do lado, no alinhamento da beira da fresta).
+	float dentro = cobre(dt + CONTORNO_CASAS, px) * cobre(-df, px);
+	float y_tras = TAMPA_Y - TAMPA_MEIA.y - FRESTA;
+	float y_frente = TAMPA_Y + TAMPA_MEIA.y + FRESTA;
+	float lado = step(TAMPA_MEIA.x + FRESTA, abs(m.x));
+	float dj = min(abs(m.y - y_tras), abs(m.y - y_frente));
+	desenhar_linha(av, ac, dj, JUNTA, V_SOMBRA - 0.04, dentro * lado, 1, px);
 
 	// As ferragens da porta, na beira da frente.
 	vec2 ms = movel_de(q - SOMBRA_CURTA, vir);
