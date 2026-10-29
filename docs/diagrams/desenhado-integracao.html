@@ -67,13 +67,13 @@
 </head>
 <body>
   <div class="frame">
-    <p class="eyebrow">Arquitetura · Integração do Desenhado · F1a, F1b e F2b (29/10/2026)</p>
+    <p class="eyebrow">Arquitetura · Integração do Desenhado · F1a, F1b, F2a e F2b (29/10/2026)</p>
     <h1>O mapa escolhe o estilo, e as imagens vêm dentro do app</h1>
-    <p class="sub">O seletor da página Cena grava o estilo no mapa. O editor (pela store) e o jogador (pelo recorte que o host manda) dizem à lib qual é o estilo da cena, e os renderers leem dela. As imagens do pacote entram no build pelo Vite e chegam ao jogador pela rota /assets/. Na F1b o carregador decodifica só os chãos que o mapa usa (teto de 48 MiB por mapa) e avisa os renderers: os biomas e o piso, tingido pela cor da sala e do chão, viram pedaços no mesmo cache de 64 MB. Até a imagem chegar, e no que não cabe no teto, fica o Atual. Na F2b os 12 carimbos têm carregador próprio (carimbos.ts: as imagens prontas para a placa, teto de 12 x 2,67 MiB por mapa) e o drawCarimbos troca o assado de hoje por elas: o giro escolhe a forma (o espelho diagonal é o sprite transposto), a sombra é a silhueta do app numa camada só (#0a1c28 a 0,25) e o pé fica onde fica no Atual. Caminho e telhados são a F2.</p>
+    <p class="sub">O seletor da página Cena grava o estilo no mapa. O editor (pela store) e o jogador (pelo recorte que o host manda) dizem à lib qual é o estilo da cena, e os renderers leem dela. As imagens do pacote entram no build pelo Vite e chegam ao jogador pela rota /assets/. Na F1b o carregador decodifica só os chãos que o mapa usa (teto de 96 MiB por mapa desde a F2a; era 48) e avisa os renderers: os biomas e o piso, tingido pela cor da sala e do chão, viram pedaços no mesmo cache de 64 MB. Até a imagem chegar, e no que não cabe no teto, fica o Atual. Na F2b os 12 carimbos têm carregador próprio (carimbos.ts: as imagens prontas para a placa, teto de 12 x 2,67 MiB por mapa) e o drawCarimbos troca o assado de hoje por elas: o giro escolhe a forma (o espelho diagonal é o sprite transposto), a sombra é a silhueta do app numa camada só (#0a1c28 a 0,25) e o pé fica onde fica no Atual. Na F2a o Caminho (caminhoDesenhado.ts) mostra o chão caminho do pacote por uma máscara do traço, com o traço chapado por baixo; e o telhadosRenderer pede ao mesmo carregador o modelo do telhado, a faixa da cumeeira e a chaminé, e telhado.ts pinta em fatias as águas, a cumeeira, o rincão, o beiral e a chaminé. O telhado fica no Atual até todas as peças dele chegarem.</p>
 
     <svg viewBox="0 0 1200 640" role="img" aria-labelledby="desenhado-integracao-title desenhado-integracao-desc">
       <title id="desenhado-integracao-title">Integração do Desenhado: estilo por mapa e canal das imagens</title>
-      <desc id="desenhado-integracao-desc">O estilo escolhido na página Cena é gravado no mapa, chega à lib do estilo pelo editor e pelo recorte do jogador, e entra na chave dos renderers; as imagens do pacote vão pelo Vite até o carregador do chão, que decodifica sob demanda dentro do teto por mapa e avisa os renderers quando um chão fica pronto.</desc>
+      <desc id="desenhado-integracao-desc">O estilo escolhido na página Cena é gravado no mapa, chega à lib do estilo pelo editor e pelo recorte do jogador, e entra na chave dos renderers; as imagens do pacote vão pelo Vite até o carregador do chão, que decodifica sob demanda dentro do teto por mapa e avisa os renderers quando um chão ou uma peça de telhado fica pronta.</desc>
       <defs>
         <marker id="dd-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
           <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -189,7 +189,7 @@
       <rect x="968" y="206" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
       <text x="984" y="215" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PIXI</text>
       <text x="1060" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Renderers e pedaços</text>
-      <text x="1060" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chao · tingir · piso · drawCarimbos</text>
+      <text x="1060" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">piso · caminho · telhado · carimbo</text>
 
       <!-- N7 pacote (estado) -->
       <rect x="40" y="448" width="200" height="64" rx="6" fill="#f5f5f5"/>
@@ -235,7 +235,7 @@
     </svg>
 
     <footer>
-      Fontes: client/src/lib/estiloDoMapa.ts · client/src/types/map.ts (estiloVisual) · client/src/lib/mapFile.ts · client/src/lib/mapFactory.ts · client/src/stores/mapStore.ts · client/src/components/livro/EscolhaDoEstilo.tsx · client/src/pixi/PixiCanvas.tsx · client/src/pixi/shapesRedraw.ts · client/src/pixi/drawProps.ts · client/src/pixi/drawRelevo.ts · client/src/pixi/drawTexturas.ts · client/src/pixi/pedacosDoChao.ts · client/src/pixi/pisoDesenhado.ts · client/src/pixi/drawRegions.ts · client/src/pixi/drawFloor.ts · client/src/player/PlayerView.tsx · client/src/texturas/desenhado/ (fonte, carregador, chao, tingir) · client/vite.config.ts · plano de 29/10/2026 (seções 1 e 2).
+      Fontes: client/src/lib/estiloDoMapa.ts · client/src/types/map.ts (estiloVisual) · client/src/lib/mapFile.ts · client/src/lib/mapFactory.ts · client/src/stores/mapStore.ts · client/src/components/livro/EscolhaDoEstilo.tsx · client/src/pixi/PixiCanvas.tsx · client/src/pixi/shapesRedraw.ts · client/src/pixi/drawProps.ts · client/src/pixi/drawRelevo.ts · client/src/pixi/drawTexturas.ts · client/src/pixi/pedacosDoChao.ts · client/src/pixi/pisoDesenhado.ts · client/src/pixi/drawRegions.ts · client/src/pixi/drawFloor.ts · client/src/pixi/caminhoDesenhado.ts · client/src/pixi/telhadosRenderer.ts · client/src/pixi/drawCarimbos.ts · client/src/player/PlayerView.tsx · client/src/texturas/desenhado/ (fonte, carregador, chao, tingir, telhado, carimbos) · client/vite.config.ts · plano de 29/10/2026 (seções 1 e 2).
     </footer>
   </div>
 </body>
