@@ -647,9 +647,9 @@ function principal(): void {
   // jantar com 5 cadeiras e os pratos em cima à direita, a mesinha redonda do café, a caixa e o
   // barril da entrada, o armário na parede da direita, o
   // quarto embaixo à direita (a cama no canto e o baú no pé), o corredor embaixo à esquerda
-  // (o tapete longo e o aparador ao longo) e a cozinha embaixo no meio (a geladeira, o fogão
-  // e a pia). Sem carimbos: é dentro de casa. Vale para os móveis dos lotes 13 e 14 ou com
-  // --familia=sala.
+  // (o tapete longo e o aparador ao longo), a cozinha embaixo no meio (a geladeira, o fogão
+  // e a pia) e o banheiro na parede da esquerda (a pia, a privada e o balde). Sem carimbos: é
+  // dentro de casa. Vale para os móveis dos lotes 13 e 14 ou com --familia=sala.
   const salaObjs: Objeto[] = [
     // O primeiro de cada tipo é o do recorte de 300% (o lampião em pé, ao lado do sofá).
     { tipo: 'lampiao', x: 8.15, y: 3.5, casas: [0.5, 0.5], giro: 0, opcoes: ['ferro'], vista: 'frente' },
@@ -687,6 +687,13 @@ function principal(): void {
     { tipo: 'geladeira', x: 5.6, y: 11.2, casas: [1, 0.75], giro: 180, opcoes: ['carvalho', 'latao'], vista: 'frente' },
     { tipo: 'fogao', x: 7.0, y: 11.1, casas: [1, 1], giro: 180, opcoes: ['ferro', 'latao'], vista: 'frente' },
     { tipo: 'pia', x: 8.4, y: 11.3, casas: [1, 0.6], giro: 180, opcoes: ['granito', 'carvalho'], vista: 'frente' },
+    // O cantinho de banheiro (lote 14) na parede da esquerda, entre a entrada e o corredor, com
+    // tudo de costas para a parede: a pia de lavar, a privada com a caixa na parede e o balde
+    // de água ao lado dela. Depois da cozinha, para a pia da cozinha continuar a primeira (o
+    // recorte de 300% da folha da pia).
+    { tipo: 'pia', x: 0.4, y: 3.6, casas: [1, 0.6], giro: 270, opcoes: ['granito', 'nogueira'], vista: 'frente' },
+    { tipo: 'privada', x: 0.4, y: 4.55, casas: [0.5, 0.6], giro: 270, opcoes: ['nogueira', 'latao'], vista: 'frente' },
+    { tipo: 'balde', x: 0.45, y: 5.35, casas: [0.5, 0.5], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
   ]
   const LOTE_12 = new Set(['movel-cerca', 'movel-arco-do-portao', 'movel-poco', 'movel-carroca', 'movel-barraca'])
   const LOTES_DA_SALA = new Set(['movel-tapete', 'movel-tapete-longo', 'movel-sofa', 'movel-poltrona', 'movel-lampiao', 'movel-fogao', 'movel-geladeira', 'movel-pia', 'movel-pratos', 'movel-privada'])
