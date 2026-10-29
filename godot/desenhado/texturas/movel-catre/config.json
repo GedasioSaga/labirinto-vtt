@@ -1,0 +1,16 @@
+{
+  "id": "movel-catre",
+  "nome": "Cama",
+  "idDoApp": "catre",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 11,
+  "semente": 46,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "cobertor", "travesseiro"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 2], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.16, "borraoCasas": 0.03 }
+}
