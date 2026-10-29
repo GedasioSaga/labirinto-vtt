@@ -53,7 +53,9 @@ func rodar(args: Dictionary, id: String, inicio: int) -> int:
 		printerr("  ERRO: passou do teto em disco")
 		ok = false
 	if args.has("folha"):
-		var mesa := MesaTraco.new()
+		# A parede, a janela e a grade montam a mesa da sala (11.15); o penhasco e a borda, a do
+		# barranco. load(): um erro na mesa da sala não derruba a do barranco.
+		var mesa = load("res://comum/mesa_parede.gd").new() if cfg.get("mesa", "barranco") == "sala" else MesaTraco.new()
 		add_child(mesa)
 		var m: Dictionary = await mesa.montar(cfg, saida, prova, args)
 		for e in m["erros"]:

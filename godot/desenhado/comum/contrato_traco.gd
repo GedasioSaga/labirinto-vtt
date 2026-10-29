@@ -21,12 +21,30 @@ const MODULOS_MAX := 6
 ## 26 a do Baixo, abaixo de 40 a do Médio, senão a do Alto; nunca acima da altura da beira.
 const LIMITES_DA_ESCOLHA := [26.0, 40.0]
 const ANCORAS := ["beira", "pe"]
-const JEITOS_DA_SOMBRA := ["pe", "nenhuma"]
+## "deslocada" (a parede, a janela e a grade, 11.15): a faixa inteira andada na direção da
+## sombra da família, desfocada; não depende do lado em que o traço foi riscado.
+const JEITOS_DA_SOMBRA := ["pe", "nenhuma", "deslocada"]
+const SOMBRA_DIRECAO := [7, 11]
 ## A sombra da família (os carimbos e os móveis, seções 9 e 10): a mesma cor e o mesmo alfa.
 const SOMBRA_COR := "#0a1c28"
 const SOMBRA_ALFA := 0.25
 const LUZ := [-0.7071, -0.7071]
 const TINGIR := {"conta": "luz-oklab", "neutro": 0.5, "ganhoL": 0.48, "escuroAte": 0.10, "claroDesde": 0.94}
+## "tingir": "familia-pedra" (a parede, a janela e a grade, 11.15): a rampa da família dos
+## móveis (comum/contrato_movel.gd RAMPA, CONTRATO 10.5) com o croma da pedra no escuro
+## (-0,6, o poço do lote 12): o contorno, a junta e a grade ficam escuros sem virar ocre.
+const TINGIR_FAMILIA_PEDRA := {
+	"conta": "valor-oklab",
+	"escuro": [[0.0, 0.42], [0.10, 0.50], [0.24, 0.64], [0.36, 0.78], [0.50, 1.0]],
+	"claro": [[0.50, 0.0], [0.62, 0.12], [0.76, 0.26], [1.0, 0.45]],
+	"cromaNaSombra": -0.6,
+	"amareloNaLuz": 0.12,
+	"cromaNaLuz": 0.2,
+	"escuroAte": 0.10,
+	"claroDesde": 0.94,
+}
+## As mesas de prova: "barranco" (comum/mesa_traco.gd) ou "sala" (comum/mesa_parede.gd).
+const MESAS := ["barranco", "sala"]
 ## Na placa e no disco, por item (as alturas e as linhas somadas, RGBA com mipmaps).
 const TETO_MEMORIA := 6 * 1024 * 1024
 const TETO_DISCO := 1536 * 1024
@@ -55,8 +73,19 @@ static func ler_config(id: String) -> Dictionary:
 	var cfg := {
 		"id": str(c.get("id", "")), "nome": str(c.get("nome", id)), "idDoApp": c.get("idDoApp", null),
 		"tipo": TIPO, "parte": str(c.get("parte", "")), "onda": int(c.get("onda", 5)), "lote": int(c.get("lote", 17)),
-		"semente": int(c.get("semente", 7)), "tingir": bool(c.get("tingir", false)),
+		"semente": int(c.get("semente", 7)), "tingir": false,
 	}
+	var tg = c.get("tingir", false)
+	if typeof(tg) == TYPE_STRING:
+		if tg != "familia-pedra":
+			erros.append("tingir: true, false ou \"familia-pedra\"")
+		cfg["tingir"] = true
+		cfg["rampa"] = str(tg)
+	else:
+		cfg["tingir"] = bool(tg)
+	cfg["mesa"] = str(c.get("mesa", "barranco"))
+	if not MESAS.has(cfg["mesa"]):
+		erros.append("mesa: %s" % str(MESAS))
 	if cfg["id"] != id:
 		erros.append("\"id\" tem de ser \"%s\"" % id)
 	if not PARTES.has(cfg["parte"]):
@@ -85,9 +114,15 @@ static func ler_config(id: String) -> Dictionary:
 				erros.append("luz.%s: de 0 a 1" % k)
 		var s: Dictionary = c.get("sombra", {})
 		cfg["sombra"] = {"jeito": str(s.get("jeito", "pe")), "comprimentoPx": _f(s, "comprimentoPx", 6.0), "borraoPx": _f(s, "borraoPx", 8.0)}
+		if cfg["sombra"]["jeito"] == "deslocada":
+			cfg["sombra"]["deslocamentoPx"] = _f(s, "deslocamentoPx", 4.0)
 		if not JEITOS_DA_SOMBRA.has(cfg["sombra"]["jeito"]):
 			erros.append("sombra.jeito: %s" % str(JEITOS_DA_SOMBRA))
 		cfg["borda"] = c.get("borda", null)
+		# A parede, a janela e a grade (11.15): o que o app precisa além da face (o contorno que
+		# ele pinta, o papel do item na parede). Passa reto para o textura.json.
+		if typeof(c.get("parede", null)) == TYPE_DICTIONARY:
+			cfg["parede"] = c["parede"]
 	elif cfg["parte"] == "borda":
 		var b: Dictionary = c.get("borda", {})
 		var linhas: Array = b.get("linhas", [])
@@ -140,9 +175,14 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			"conta": "j = 0, 1, 2...: m(j) = floor(hash(j, 0, semente + h) * N), trocado pelo seguinte se igual ao de antes; espelho(j) = hash(j, 1, semente + h) < 0,5; h = o hash do id do traço; no laço fechado os comprimentos escalam para somar o comprimento da beira",
 		}
 		p["luz"] = {"face": cfg["luz"]["face"], "relevo": cfg["luz"]["relevo"], "direcao": LUZ, "conta": "l = face * dot(baixo, LUZ) + relevo * dot(rx * aoLongo + ry * baixo, LUZ); l >= 0: mix(cor, realce_de(cor), l); l < 0: cor * (1 - 0,3 * (-l))"}
-		p["sombra"] = {"jeito": cfg["sombra"]["jeito"], "comprimentoPx": cfg["sombra"]["comprimentoPx"], "borraoPx": cfg["sombra"]["borraoPx"], "cor": SOMBRA_COR, "alfa": SOMBRA_ALFA, "conta": "o polígono de d = t / 2 a d = t + comprimentoPx + 1,05 * t * deCostas (t da beira) (deCostas = max(0, -dot(normal, LUZ))), desfocado borraoPx, numa camada só, por baixo da face"}
-		p["tingir"] = TINGIR if cfg["tingir"] else null
+		if cfg["sombra"]["jeito"] == "deslocada":
+			p["sombra"] = {"jeito": "deslocada", "deslocamentoPx": cfg["sombra"]["deslocamentoPx"], "borraoPx": cfg["sombra"]["borraoPx"], "direcao": SOMBRA_DIRECAO, "cor": SOMBRA_COR, "alfa": SOMBRA_ALFA, "conta": "a faixa inteira de todas as paredes (a espessura toda, o contorno incluído) numa camada só, andada deslocamentoPx na direção (7, 11) normalizada, desfocada borraoPx, por baixo das paredes e por cima do chão"}
+		else:
+			p["sombra"] = {"jeito": cfg["sombra"]["jeito"], "comprimentoPx": cfg["sombra"]["comprimentoPx"], "borraoPx": cfg["sombra"]["borraoPx"], "cor": SOMBRA_COR, "alfa": SOMBRA_ALFA, "conta": "o polígono de d = t / 2 a d = t + comprimentoPx + 1,05 * t * deCostas (t da beira) (deCostas = max(0, -dot(normal, LUZ))), desfocado borraoPx, numa camada só, por baixo da face"}
+		p["tingir"] = (TINGIR_FAMILIA_PEDRA if cfg.get("rampa", "") == "familia-pedra" else TINGIR) if cfg["tingir"] else null
 		p["borda"] = cfg["borda"]
+		if cfg.has("parede"):
+			p["parede"] = cfg["parede"]
 		p["corMedia"] = r["corMedia"]
 	else:
 		var b: Dictionary = cfg["borda"]

@@ -228,9 +228,9 @@ uso (CONTRATO 10.11).
 |---|---|---|---|---|
 | 75 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | traço, parte face (CONTRATO 11): 5 módulos de 2 a 3,25 casas em 3 alturas, cor e relevo; a terra em 3 faixas e o pé em zigue-zague, pedrões só no Médio e no Alto. **Feito no lote 17** |
 | 76 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | traço, parte borda (CONTRATO 11.11): 4 linhas de 16 casas, grama, terra e neve que debruçam na beira e a espuma no pé. **Feito no lote 17** |
-| 77 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
-| 78 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
-| 79 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |
+| 77 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço. **Feito no lote 17** (CONTRATO 11.15: 3 alvenarias pela espessura, contorno do app em dois passes) |
+| 78 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço. **Feito no lote 17** (módulo de 1 casa repetido: vidro claro no meio da espessura, peitoril e ombreiras) |
+| 79 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço. **Feito no lote 17** (módulo de 1 casa: trilho e 3 barras redondas por casa, ferro escuro da rampa) |
 
 ## Fontes no código (para conferir)
 

@@ -1122,3 +1122,45 @@ lote: `scripts/folha_do_lote_tracos.gd -- --texturas=a,b,c --prova=<raiz> --said
 - Não mexa nos arquivos da base (`comum/traco*.gdshaderinc`, `contrato_traco.gd`,
   `pintor_traco.gd`, `rodar_traco.gd`, `mesa_traco.gd`, `ferramentas/traco.ts`); se precisar,
   mude uma vez e prove por hash que o penhasco e o penhasco-borda saem iguais.
+
+### 11.15 A parede, a janela e a grade (feitas no lote 17)
+
+A parede é um traço sem lado baixo: a face vai **atravessando** a espessura, de um lado ao outro
+do traço de `pixi/drawWalls.ts`. A conta de referência é `ferramentas/parede.ts`
+(`pintarParedes`); a mesa é a da sala (`"mesa": "sala"` no config, `comum/mesa_parede.gd` e
+`ferramentas/mesa_parede.ts`).
+
+- **Três itens, uma família.** `texturas/parede/` (5 módulos sorteados de 2 a 3,5 casas),
+  `texturas/janela/` e `texturas/grade-de-prisao/` (1 módulo de 1 casa cada, sem sorteio). Os três
+  incluem `texturas/parede/parede_comum.gdshaderinc`: a coluna da costura é a mesma nos três (a
+  mesa mede, "costura entre itens", e tem de dar 0/255; deu 0 na cor e 0 no relevo).
+- **As 3 alturas são 3 alvenarias**, escolhidas pela espessura do mundo (11.4: até 26 px Baixo,
+  até 40 Médio, acima Alto): Baixo, lajes compridas numa fiada; Médio, blocos de uma casa; Alto
+  (muralha), duas fiadas desencontradas com a junta comprida no meio. A imagem é **só o miolo**.
+- **O contorno é do app, em dois passes.** (1) A faixa inteira de todas as paredes do mapa no
+  valor 0,10 da rampa (`parede.contorno`: 2,4 px do mundo, no mínimo 1,2, no máximo 14% da
+  espessura). (2) O miolo pela imagem, de `-hi` a `+hi` (hi = espessura/2 - contorno), na ordem:
+  a parede que encosta a ponta no meio de outra (o T) primeiro, depois a mais fina, a fechada por
+  último. O miolo de uma apaga o contorno da outra: no T e no cruzamento as paredes se fundem.
+- **A sombra** é "deslocada": a faixa inteira andada 5 px na direção (7, 11) e desfocada (9 px),
+  alfa 0,25 da cor da sombra. Não depende do sentido em que a parede foi riscada.
+- **A luz**: `luz.face` 0 (a parede não tem lado), `luz.relevo` 0,55 (os chanfros dos blocos).
+- **Corridas.** A cadeia (as paredes ligadas de `groupWallChains`; a porta parte a cadeia) se
+  divide em corridas por papel (parede, janela, grade) e **em toda quina** (a cadeia vira mais
+  de 25 graus). A corrida de parede fecha em módulos inteiros (`sequenciaDeModulos` com o id
+  `<cadeia>:<j>`); a de menos de 1,25 casa sai lisa (só a coluna da costura). A de janela ou
+  grade repete o módulo `n = max(1, round(comprimento / 64))` vezes inteiras, sem espelho (uma
+  janela de 3 casas são 3 vidraças com pilar). Na cadeia aberta a primeira e a última corrida
+  encolhem pelo contorno (a ponta é reta, com o contorno dentro do comprimento).
+- **Quina em esquadro.** O pixel é do trecho pelo quadrilátero do esquadro, mas o `s` sai da
+  **projeção** no trecho (as juntas ficam retas até o corte). Além da quina, o canto estica a
+  coluna da ponta da corrida (a costura, o meio de um bloco): a quina vira um bloco em L, sem
+  junta no canto.
+- **Tingir** `"familia-pedra"`: a rampa dos móveis (10.5) com o croma da pedra (-0,6 na sombra),
+  na cor da parede (`wall.color`, padrão `#d8d2c4`). As barras da grade ficam nos valores 0,03 a
+  0,20 da rampa: leem como ferro escuro em qualquer cor de parede.
+- **Espessura.** O app hoje tem degraus de px de TELA (thin 1, medium 2, thick 3). No Desenhado
+  a parede precisa de espessura do MUNDO: a proposta é fina 12, média 20, grossa 32 px
+  (`parede.espessuraDoDegrauPx`); a contínua (1 a 64) passa direto.
+- **A janela e a grade não partem a cadeia**: são trechos dela (`wall.janela`, `wall.grade`).
+  Hoje a grade só existe com o Meio-Termo ligado; no Desenhado ela é um item próprio.

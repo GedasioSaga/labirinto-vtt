@@ -61,7 +61,7 @@ func _rodar() -> void:
 	fundo.size = Vector2(largura, altura)
 	vp.add_child(fundo)
 	_rotulo(vp, "%s  ·  Desenhado  ·  %d item(ns)" % [titulo, ids.size()], Vector2(MG, 16), 28, COR_TINTA, 0)
-	_rotulo(vp, "Por linha: reta, curva, quina e S nas 3 alturas (Baixo, Médio, Alto) sobre a grama aprovada a 50%, o Atual igual, a quina de perto (300%, reduzida) nos dois, e o morro com a família (árvores, pedras, tronco, cerca, poço) a 50%.", Vector2(MG, 56), 16, COR_TINTA_3, 0)
+	_rotulo(vp, "Por linha, a 50%: as formas nas 3 alturas (Baixo, Médio, Alto) e o Atual igual, o recorte de perto (300%, reduzido) nos dois, e a família: o morro (árvores, pedras, tronco, cerca, poço) no penhasco e na borda; a casa (salão, quarto, cela, móveis) na parede, na janela e na grade.", Vector2(MG, 56), 16, COR_TINTA_3, 0)
 	var faltou: Array[String] = []
 	for k in ids.size():
 		var id := ids[k].strip_edges()

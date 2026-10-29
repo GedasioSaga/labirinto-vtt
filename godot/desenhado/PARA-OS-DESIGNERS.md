@@ -382,6 +382,13 @@ grade (próximas). O contrato é a seção 11 do `CONTRATO.md`; leia a 11.14 ant
   `pintor_traco.gd`, `rodar_traco.gd`, `mesa_traco.gd` nem em `ferramentas/traco.ts`. A parede
   precisa de uma cena de sala nova na mesa (11.14): faça num arquivo novo ou mude a mesa uma vez e
   prove por hash que o penhasco e a borda saem iguais.
+- **A parede, a janela e a grade (feitas, lote 17; CONTRATO 11.15).** Comece de
+  `texturas/parede/` e inclua `parede_comum.gdshaderinc` (a coluna da costura e a ombreira dos
+  vãos). Ali `q.y` atravessa a parede (não há lado baixo) e a imagem é só o miolo: o contorno é
+  do app. Com `"mesa": "sala"` a folha monta a mesa da sala: as formas (reta com porta, quina, T,
+  sala fechada), o paredão, os recortes a 300% e a casa com os móveis em 3 cores de parede, ao
+  lado do Atual. Olhe a "costura entre itens" no topo da folha: tem de ser 0/255. A janela e a
+  grade precisam da parede exportada (e a folha da parede, das duas).
 
 ## Notas para o orquestrador
 

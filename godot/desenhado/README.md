@@ -78,6 +78,11 @@ godot/desenhado/
                          referência da seção 11 para o app (a face deitada na beira de
                          lib/barranco.ts, a luz pelo relevo, a borda, a sombra) e pinta o Atual
                          com as cores do barranco do Meio-Termo; mesa_traco.ts monta as cenas
+  ferramentas/parede.ts + mesa_parede.ts  a mesa da sala (seção 11.15): parede.ts é a conta
+                         de referência da parede para o app (contorno e miolo em dois passes,
+                         corridas, quina em esquadro); mesa_parede.ts monta as formas, o
+                         paredão e a casa com os móveis, ao lado do Atual de pixi/drawWalls.ts
+                         (comum/mesa_parede.gd, para os configs com "mesa": "sala")
   ferramentas/movel.ts + mesa_movel.ts  a mesa dos móveis desenhados: movel.ts é a conta
                          de referência da seção 10 para o app (tingir por parte, virada,
                          esticar, sombra); mesa_movel.ts pinta o Desenhado com ela e o Atual
