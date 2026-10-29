@@ -26,10 +26,25 @@ aprovação, e uma fila para vários designers rodarem o Godot ao mesmo tempo.
 
 | Leia | Para quê |
 |---|---|
-| `INVENTARIO.md` | as 73 coisas que o Desenhado cobre, por onda, em lotes de 5 (na onda 4, os 31 móveis desenhados que pegam cor) |
+| `INVENTARIO.md` | as 79 coisas que o Desenhado cobre (80 pastas com o 37b, o tronco caído), em 5 ondas e 17 lotes de até 5 (na onda 4, os 37 móveis desenhados que pegam cor; na onda 5, os 5 traços: penhasco, penhasco-borda, parede, janela, grade-de-prisao), com o commit de cada entrega |
 | `ESTILO.md` | as regras de desenho (a crítica de 28/10), paleta, contorno, zooms |
 | `CONTRATO.md` | arquivos de saída, a montagem contra repetição, teto de memória, critério de pronto |
 | `PARA-OS-DESIGNERS.md` | o prompt de cada designer de textura |
+
+### Para integrar no app
+
+Nada disto está no app ainda. O que a integração precisa está escrito no `CONTRATO.md`, por
+tipo; aqui só os ponteiros (o que existe e com que commit: `INVENTARIO.md`, coluna Estado):
+
+| Tipo | Onde ler |
+|---|---|
+| Todos: o canal de entrega dos PNG (o pacote de animações só leva `.js`) | `CONTRATO.md` §7, "Entrega ao app" (decisão em aberto) |
+| Chão (onda 1) | §4 (a montagem que o app faz) e §5 (o teto de memória) |
+| Telhado, faixa e objeto (onda 2) | §8.4 (a montagem) e §8.8 (o teto) |
+| Carimbo e trecho (onda 3) | §9.4 e §9.5 (a montagem e a luz), §9.6 (o destino do vaso, da jardineira e da sebe), §9.7 (o teto) |
+| Móvel desenhado (onda 4) | §10.8 (a lista do que a integração precisa), com §10.12 (a cerca por peças) e §10.13 (a variação da lápide) |
+| Traço: penhasco e borda (onda 5) | §11.12 |
+| Traço: parede, janela e grade (onda 5) | §11.15 (o contorno em dois passes, as corridas, a quina, a espessura do mundo) e §11.14 |
 
 ```
 godot/desenhado/
@@ -86,7 +101,8 @@ godot/desenhado/
   ferramentas/movel.ts + mesa_movel.ts  a mesa dos móveis desenhados: movel.ts é a conta
                          de referência da seção 10 para o app (tingir por parte, virada,
                          esticar, sombra); mesa_movel.ts pinta o Desenhado com ela e o Atual
-                         com o motor dos móveis da main, e a cena de família da onda 3
+                         com o motor dos móveis da main, e as 4 cenas de família (a
+                         clareira, a praça, a sala e a oficina; CONTRATO.md 10.9)
 ```
 
 ### Fila do Godot (obrigatória)

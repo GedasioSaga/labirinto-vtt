@@ -606,8 +606,9 @@ Frente/Lado entra.
    (7, 11), desfocada, cor `#0a1c28` a 25% (a dos carimbos, 9.1), numa camada só com a
    deles. O designer só escolhe o quanto ela anda e o borrão.
 6. **Teto:** 3 MiB de memória decodificada **por vista** (RGBA com mipmap, todas as formas
-   da vista), 0,5 MiB em disco por móvel, 24 MiB os 31 juntos (só os tipos e as vistas que o
-   mapa usa carregam). Por vista desde o lote 12 (decisão do orquestrador): o app carrega só
+   da vista), 0,5 MiB em disco por móvel, 24 MiB os 37 juntos (só os tipos e as vistas que o
+   mapa usa carregam; a chave `memoria.tetoMemoriaDos31Bytes` do `textura.json` guarda o nome
+   de quando eram 31, e o valor vale para os 37). Por vista desde o lote 12 (decisão do orquestrador): o app carrega só
    a vista que o móvel usa (a Frente/Lado do mestre), então a carroça, com 2,92 MiB em cada
    uma das 2 vistas, cabe. No `textura.json`, `memoria.memoriaBytes` é a soma de todas as
    formas e `memoria.tetoMemoriaBytes` é o teto de uma vista (a integração soma as formas
@@ -638,17 +639,33 @@ cabeçalho explica cada argumento).
 ### 10.3 Parâmetros (`textura.json`)
 
 `contrato`, `tipo: "movel"`, `idDoApp`, `pxPorCasa: 128`, `margemCasas`, `lugares`,
-`corFixa`, `variantes` (a que tem vistas próprias as leva, no mesmo formato de `vistas`),
+`canais` (o texto do que cada canal de cada imagem quer dizer), `variantes` (a que tem vistas
+próprias as leva, no mesmo formato de `vistas`),
 `vistas` (com `viradas` e `esticar`; no meio que repete, também
 `periodoCasas`, `modulos` e o texto `meio` da conta; no centro fixo, `centroCasas` (e
 `centroCasasY` no dos dois eixos) e o texto `meio`), `viradas` (o texto da regra
-de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoMeio` no
+de 10.4), `formas` (nome, vista, variante, virada, casas, `larguraPx`, `alturaPx`, os
+arquivos `valor` e `partes`, e `cor` só no móvel com cor própria; `valorMedioPorLugar` e
+`cobertura`; `variacaoDoMeio` no
 meio liso, mais `variacaoDoMeioY` no `xy` com `centroCasasY`, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
 `memoria` (bytes decodificados e em disco). Com `pecas` no config (a cerca), também `pecas`,
 com o texto `conta` (10.12); sem ele, a chave não existe e o resto sai igual. Com
 `quando.variacao` em alguma variante (a lápide), também `variacao` (`chave`, a função do
 app em `doApp`, `quantas` e o texto `conta`, 10.13); sem ela, a chave não existe.
+
+**A cor própria no `textura.json`.** O `corFixa` é campo do `config.json`, não do
+`textura.json`: o exportador (`parametros` de `comum/contrato_movel.gd`) não grava `corFixa`
+no topo. Com `corFixa: true`, cada forma ganha a chave `cor` (o nome da imagem `-cor.png`);
+sem ela, as formas não têm `cor`. É por essa chave, forma a forma, que o app sabe se há cor
+própria; `canais.cor` sai sempre, só com o texto do canal.
+
+**Móvel sem lugar** (os pratos, o fogo, o feno: `lugares: []`). Cada forma grava
+`valorMedioPorLugar: [null]` (uma entrada, nula), não a lista vazia: a medida de
+`comum/pintor_movel.gd` conta pelo menos um lugar. Trocar para `[]` mudaria os `textura.json`
+já exportados desses três, então fica assim. A chave é só medida (a conta de referência,
+`ferramentas/movel.ts`, não a lê): a integração conta os lugares por `lugares` e ignora o
+`null`.
 
 ### 10.4 Girado, Frente/Lado e 3/4
 
@@ -830,12 +847,29 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
 `--folha` num móvel roda `comum/mesa_movel.gd`: `ferramentas/construir.mjs` empacota
 `ferramentas/mesa_movel.ts` (com `movel.ts` e o motor dos móveis do client da main, só
 leitura), o `node` pinta e o Godot arruma a folha. Mostra, Desenhado ao lado do Atual:
-sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300%; os 5 tons de madeira (no
-primeiro lugar de madeira, qualquer que seja a posição dele: o poço tem as pedras antes) com
-a medida OKLab; as 4 viradas (e a vista de lado); a esticada em 1,4, 2, 3 e 5 casas e a de
-1 x 2; e a **família**, uma clareira de 12 x 12 casas da grama aprovada com árvores,
-arbustos, pedras e o tronco caído da onda 3 e uma mesa com 5 cadeiras e 3 barris (o que já
-foi desenhado sai Desenhado, o resto Atual). Por último, os arquivos sobre xadrez. Só no
+sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300% (com formas, `quando.forma`
+ou `quando.variacao`, cada combinação mostra uma forma diferente, cada forma uma vez só, e o
+Atual recebe a mesma forma ou variação, como `rasterDosMoveis.ts` a passa); os 5 tons de
+madeira (no primeiro lugar de madeira, qualquer que seja a posição dele: o poço tem as pedras
+antes) com a medida OKLab **nos px desse lugar**: o canal dele na imagem `-partes`, pesado pela
+cobertura e posto na tela pela mesma conta (`paineis/mascara-madeira-300.png`), a mesma máscara
+no Desenhado e no Atual; o móvel sem lugar de madeira diz "sem madeira"; as 4 viradas (e a
+vista de lado); a esticada em 1,4, 2, 3 e 5 casas e a de 1 x 2; e a **família**, uma cena de
+12 x 12 casas (o que já foi desenhado sai Desenhado, o resto Atual; o 300% é o recorte de 4 x 4
+casas em volta do primeiro móvel do tipo da folha na cena). São 4 cenas, escolhidas pelo
+móvel da folha ou por `--familia=clareira|praca|sala|oficina`:
+
+| Cena | Chão | Quem usa | O que tem |
+|---|---|---|---|
+| `clareira` (a de partida) | a grama aprovada | o piloto (lote 9), os lotes 10 e 11 e o 15 menos a lareira e a fornalha (a fogueira, o fogo e a lápide) | árvores, arbustos, pedras e o tronco caído da onda 3; a mesa com 5 cadeiras e 3 barris, um canto de depósito, a cama, o balcão, o aparador, o quadro e a placa; a fogueira, um fogo pequeno e 3 lápides, uma de cada variação |
+| `praca` | a grama aprovada | o lote 12 (cerca, arco do portão, poço, carroça, barraca) | o arco esticado, a cerca curvando dos dois lados, o poço no meio, a barraca, a carroça, barris, caixas, a placa e o quadro; a onda 3 nas bordas |
+| `sala` | o chão de sala aprovado, tingido `#a8776a` | os lotes 13 e 14 e a lareira | a sala de estar, a mesa de jantar com os pratos, a cozinha, o quarto, o corredor, o banheiro e a lareira com a lenha; sem carimbos |
+| `oficina` | a grama aprovada | a fornalha e o lote 16 (bigorna, balde, troncos, feno) | a oficina de ferreiro e o celeiro com o curral; a onda 3 nas bordas |
+
+Os traços têm as cenas deles, fora desta mesa: o morro do penhasco (`comum/mesa_traco.gd` e
+`ferramentas/mesa_traco.ts`, 11.13) e a casa da parede (`comum/mesa_parede.gd` e
+`ferramentas/mesa_parede.ts`, que `comum/rodar_traco.gd` escolhe com `"mesa": "sala"`, 11.15).
+Por último, os arquivos sobre xadrez. Só no
 móvel com `pecas` (a cerca), a mesa roda também `ferramentas/mesa_curva.ts` e a folha ganha
 a faixa da cerca por peças (10.12), Desenhado ao lado do Atual a 100% e a 50%; na `<prova>`,
 `curva100.png`, `curva50.png` e os `atual-curva*`.
@@ -950,9 +984,11 @@ igual. Uma forma só no Desenhado poria o cemitério inteiro igual. A decisão d
   própria lápide), reexportadas depois da mudança, saíram iguais por sha256 ao commitado:
   472 arquivos de 69 texturas contra o commit de base (`c2f11d48`) e os 20 da fogueira e do
   fogo, que entraram depois, contra o HEAD (`9c85d7c1`), 29/10, todas na primeira tentativa.
-- **A mesa de prova** (`ferramentas/mesa_movel.ts`) ainda não passa a variação: a folha de
-  `--folha` mostra só a variante sem variação (o arco). A prova das 3 formas, ao lado das 3
-  do Atual e num cemitério na grama, foi feita fora dela, com a mesma conta.
+- **A mesa de prova** (`ferramentas/mesa_movel.ts`) passa a variação desde a arrumação de
+  29/10 (`Objeto.variacao`): as 3 combinações da folha são o arco, a reta e a cruz, ao lado
+  das 3 do Atual (a mesma variação como `variante` do motor), e a clareira tem as 3 lápides
+  lado a lado (10.9). Antes disso a folha mostrava só o arco, e a prova das 3 formas foi
+  feita fora dela, com a mesma conta.
 
 ## 11. Traço (onda 5, 29/10/2026)
 

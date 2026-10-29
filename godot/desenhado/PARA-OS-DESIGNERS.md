@@ -278,7 +278,7 @@ partes marcadas, e o app tinge cada parte com o material do mestre. O caminho de
 (só a superfície dos 8 materiais, com o motor de hoje desenhando a forma) foi **reprovado**
 no mesmo dia: *"Não parece que teve muita mudança ainda parece o mesmo atual e não
 desenhado"*. A forma é o Desenhado. Um designer, um lote de até 5 móveis
-(`INVENTARIO.md`, lotes 10 a 15): `texturas/movel-<nome>/`, copiado de `_modelo-movel/` ou
+(`INVENTARIO.md`, lotes 10 a 16; todos feitos em 29/10): `texturas/movel-<nome>/`, copiado de `_modelo-movel/` ou
 do piloto que mais se parece (`movel-mesa` para tampo e pernas, `movel-cadeira` para vista
 de lado e variante, `movel-barril` para o redondo e o metal).
 
@@ -342,8 +342,10 @@ móveis da main (só leitura).
 
 **Olhe na folha:** sozinho e nas 3 combinações a 100, 50 e 25%, Desenhado ao lado do Atual;
 300%; os 5 tons de madeira (separados; a medida embaixo); as 4 viradas e a de lado; a
-esticada em 1,4, 2, 3 e 5 casas; a família na grama aprovada, com as árvores, as pedras e o
-tronco caído; e os arquivos sobre xadrez (o vermelho, o verde e o azul das partes). Com
+esticada em 1,4, 2, 3 e 5 casas; a família (a cena de família do lote, CONTRATO 10.9: a
+clareira, a praça da vila, a sala ou a oficina e fazenda); e os arquivos sobre xadrez (o
+vermelho, o verde e o azul das partes). Com formas (os pratos, as pilhas, o fogo de casa, o
+tapete redondo) ou a variação do id (a lápide), cada uma das 3 combinações mostra uma forma. Com
 `pecas` (a cerca), também a faixa da cerca por peças: as retas, o quarto de círculo, o S, a
 meia volta e a girada, a 100% e a 50%, ao lado do Atual.
 
@@ -355,8 +357,8 @@ nas 4 viradas, e da família das folhas dos lotes 6 a 8.
 
 ## Onda 5: o que muda para quem faz um traço (29/10/2026)
 
-Vale para o penhasco (feito, lote 17), a borda dele (feita) e para a parede, a janela e a
-grade (próximas). O contrato é a seção 11 do `CONTRATO.md`; leia a 11.14 antes de começar.
+Vale para os 5 traços do lote 17, todos feitos em 29/10: o penhasco, a borda dele, a parede,
+a janela e a grade. O contrato é a seção 11 do `CONTRATO.md`; leia a 11.14 antes de começar.
 
 - **Comece de** `texturas/penhasco/` (a face) ou `texturas/penhasco-borda/` (a borda): copie a
   pasta, troque `id`, `nome`, `idDoApp` e `semente` no `config.json` e reescreva as funções.
@@ -403,12 +405,19 @@ grade (próximas). O contrato é a seção 11 do `CONTRATO.md`; leia a 11.14 ant
   a família de `--familia`):
   `... --script res://scripts/folha_do_lote_moveis.gd -- --texturas=movel-a,movel-b,movel-c,movel-d,movel-e --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote 10, móveis" --familia=movel-a`.
   Exporte **todos** os móveis do lote antes das folhas: a cena de família pinta Desenhado o
-  que já está em `exportado/movel-*` e Atual o resto (a mesa, as 5 cadeiras e os 3 barris
-  do piloto; um lote novo que queira aparecer nela acrescenta os seus objetos a
-  `familiaObjs` de `ferramentas/mesa_movel.ts`). Lote 9 = o piloto mesa, cadeira, barril, para
-  o usuário aprovar a direção antes dos lotes 10 a 15; se ele mudar a direção, os outros
-  copiam. A mesa empacota o client da **main** (`git --git-common-dir`), porque os 8 móveis
-  de casa de 28/10 ainda não estão na `feat/desenhado`. O caminho reprovado
+  que já está em `exportado/movel-*` e Atual o resto. São 4 cenas em
+  `ferramentas/mesa_movel.ts` (CONTRATO 10.9), escolhidas pelo móvel da folha ou por
+  `--familia=clareira|praca|sala|oficina`: a **clareira** (a de partida: o piloto e os lotes
+  10, 11 e 15 menos a lareira e a fornalha), a **praça da vila** (lote 12), a **sala** (lotes
+  13 e 14 e a lareira) e a **oficina e fazenda** (a fornalha e o lote 16). Um móvel novo que
+  queira aparecer acrescenta os seus objetos à lista da cena (`familiaObjs`, `pracaObjs`,
+  `salaObjs`, `oficinaObjs`); o primeiro de cada tipo é o do recorte de 300%. Os traços têm
+  as cenas deles: o morro do penhasco (`ferramentas/mesa_traco.ts`, `comum/mesa_traco.gd`) e
+  a casa da parede (`ferramentas/mesa_parede.ts`, `comum/mesa_parede.gd`, que
+  `comum/rodar_traco.gd` escolhe com `"mesa": "sala"`). Lote 9 = o piloto mesa, cadeira,
+  barril, a direção que os lotes 10 a 16 seguiram. A mesa empacota o
+  client da **main** (`git --git-common-dir`), porque os móveis de casa de 28/10 e os de 29/10
+  ainda não estão na `feat/desenhado`. O caminho reprovado
   (`material-madeira`, `folha_do_lote_materiais.gd`) segue no repo, sem uso.
 - **Onda 3:** a folha do lote dos carimbos é outro comando (lê `area25.png`,
   `atual-area25.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta):
