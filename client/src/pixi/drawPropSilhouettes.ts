@@ -472,8 +472,9 @@ function drawTexturedFurniture(
   grid: PixelGrid,
   edgeWidth: number,
   vista: 'tres-quartos' | undefined,
+  gradeDoMapa: number | undefined,
 ): boolean {
-  const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution, vista)
+  const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution, vista, gradeDoMapa)
   if (imagem === null) return false
   const mostrar = imagem.mostrar
   if (mostrar === null) {
@@ -520,12 +521,14 @@ export function drawPropSilhouettes(
   cameraScale = 1,
   rendererResolution = 1,
   vistaDosMoveis?: MapData['vistaDosMoveis'],
+  /** A grade do mapa (px por casa): o Desenhado mede as pontas esticadas em casas dele. */
+  gradeDoMapa?: number,
 ): number {
   graphics.clear()
   const grid = pixelGrid(cameraScale, rendererResolution, PROP_SILHOUETTE_EDGE_SCREEN_PX)
   const edgeWidth = strokeWidthInWorld(grid)
   const repintar = (): void => {
-    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis)
+    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa)
   }
   // A chave de obra vale para os 11 móveis de antes, menos o que pediu a versão EM LINHAS (MT12);
   // a PEÇA NOVA (MT4) sai sempre com textura (`saiComTextura`).
@@ -541,7 +544,7 @@ export function drawPropSilhouettes(
     // O tapete fica no chão: pintado antes, por baixo de todo objeto. Na 3/4, o resto pela base.
     for (const prop of vista === undefined ? emOrdemDeDesenho(props) : emOrdemDoTresQuartos(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista, gradeDoMapa)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1

@@ -59,8 +59,12 @@ export function idDoMovelDesenhado(tipo: string | undefined): IdDoDesenhado | nu
 }
 
 const MEBIBYTE = 1024 * 1024
-/** Teto das imagens decodificadas de UM mapa (CONTRATO 10.1, item 6: 24 MiB os 37 juntos). */
-export const TETO_DOS_MOVEIS_POR_MAPA = 24 * MEBIBYTE
+/**
+ * Teto das imagens decodificadas de UM mapa, as vistas de frente e de lado somadas (CONTRATO
+ * 10.1, item 6): 48 MiB desde 29/10/2026 (era 24; a Frente dos 37 sozinha dá 28,4 MiB e a Lado
+ * mais 6,3, então um mapa com todos os tipos deixava 5 no Atual).
+ */
+export const TETO_DOS_MOVEIS_POR_MAPA = 48 * MEBIBYTE
 /** Teto das formas tingidas guardadas (Float32 com os níveis). */
 export const TETO_DOS_TINGIDOS = 16 * MEBIBYTE
 /** Quanto tempo uma vista pedida fica protegida da poda (ms): a da passada que está pintando não sai. */

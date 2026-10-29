@@ -186,16 +186,17 @@ function flechaDaVolta(graus: number, corda: number): number {
  * imagem de 90°. Fora disso, a flecha vai para o passo mais perto (nunca zero
  * se o app mostra a curva). Reta (ou flecha que o app não desenha) = 'r'.
  */
-function curvaDaCerca(prop: MovelParaImagem): { curva: number; chaveDaCurva: string } {
+function curvaDaCerca(prop: MovelParaImagem, grade: number = GRADE_DE_REFERENCIA): { curva: number; chaveDaCurva: string } {
   const volta = voltaDaCerca({ mobilia: prop.mobilia, mobiliaCurva: prop.mobiliaCurva })
   const corda = cordaDaCerca(prop.width, prop.height)
   if (volta === 0 || corda === null) return { curva: 0, chaveDaCurva: 'r' }
   const flecha = flechaDaVolta(volta, corda.comprimento)
   if (Math.abs(flecha) < CURVE_EPSILON_PX) return { curva: 0, chaveDaCurva: 'r' }
-  const tolerancia = (PASSO_DA_FLECHA / 2) * GRADE_DE_REFERENCIA
+  // O passo da flecha é em casas: o Atual usa a grade de referência; o Desenhado, a do mapa.
+  const tolerancia = (PASSO_DA_FLECHA / 2) * grade
   const redonda = arredondar(volta, PASSO_DA_CURVA)
   if (redonda !== 0 && Math.abs(flechaDaVolta(redonda, corda.comprimento) - flecha) <= tolerancia) return { curva: redonda, chaveDaCurva: `g${redonda}` }
-  const passo = PASSO_DA_FLECHA * GRADE_DE_REFERENCIA
+  const passo = PASSO_DA_FLECHA * grade
   const passos = Math.round(flecha / passo) || Math.sign(flecha)
   return { curva: turnDegreesForCurva(passos * passo, corda.comprimento), chaveDaCurva: `f${passos}` }
 }
@@ -263,6 +264,8 @@ export interface ChaveDesenhada {
   readonly pedido: Pedido
   readonly nivel: number
   readonly halo: HaloDoMovel
+  /** A grade do mapa (px de mundo por casa): dela saem as casas do pedido e a resolução da imagem. */
+  readonly grade: number
 }
 
 /** A forma do objeto que escolhe a variante (`quando.forma`): a do painel, o tapete redondo, o tamanho do fogo. */
@@ -273,8 +276,8 @@ function formaDoPedido(prop: MovelParaImagem, tipo: string): string | undefined 
 }
 
 /** O texto da chave desenhada sem o nível. */
-function textoDesenhado(prop: MovelParaImagem, pedido: Pedido, chaveDaCurva: string, giro: string): string {
-  const partes = ['D', prop.mobilia, pedido.vista, pedido.opcoes.join(','), pedido.forma ?? '', pedido.variacao ?? '', chaveDaCurva, passosNaChave(pedido.casasW), passosNaChave(pedido.casasH), giro]
+function textoDesenhado(prop: MovelParaImagem, pedido: Pedido, chaveDaCurva: string, giro: string, grade: number): string {
+  const partes = ['D', `g${grade}`, prop.mobilia, pedido.vista, pedido.opcoes.join(','), pedido.forma ?? '', pedido.variacao ?? '', chaveDaCurva, passosNaChave(pedido.casasW), passosNaChave(pedido.casasH), giro]
   return partes.join('|')
 }
 
@@ -283,9 +286,11 @@ function textoDesenhado(prop: MovelParaImagem, pedido: Pedido, chaveDaCurva: str
  * Atual e o dono repinta no aviso), ou `null` (o tipo não tem desenho, a vista é a 3/4, ou
  * o mapa não é Desenhado: fica o Atual, sem aviso).
  */
-export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ChaveDesenhada | 'esperando' | null {
+export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos', gradeDoMapa?: number): ChaveDesenhada | 'esperando' | null {
   const tipo = prop.mobilia
   if (vista === 'tres-quartos' || !desenhadoLigado() || !temTextura(tipo)) return null
+  // As pontas, a cerca, o tapete e o centro fixo medem em casas DO MAPA (a grade 64 não é a 50).
+  const grade = gradeDoMapa !== undefined && Number.isFinite(gradeDoMapa) && gradeDoMapa > 0 ? gradeDoMapa : GRADE_DE_REFERENCIA
   const lado = vistaDoMovel(prop)
   const movel = pedirMovelDesenhado(tipo, lado)
   if (movel === null || movel === 'esperando') return movel
@@ -300,8 +305,8 @@ export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rende
     vista: lado,
     opcoes,
     tons: opcoes.map((_o, i) => tomDoLugar(opcoes, i, lugares)),
-    casasW: casasDe(prop.width),
-    casasH: casasDe(prop.height),
+    casasW: Math.max(PASSO_DAS_CASAS, prop.width / grade),
+    casasH: Math.max(PASSO_DAS_CASAS, prop.height / grade),
     giro: quartos * 90,
     ...(forma !== undefined ? { forma } : {}),
     ...(tipo === 'lapide' ? { variacao: varianteDaLapide(prop.id) } : {}),
@@ -309,22 +314,22 @@ export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rende
   const halo = tipo === 'lampiao' ? 'lampiao' : ehMovelComFogoDeCasa(tipo) && prop.mobiliaForma !== 'apagado' ? tipo : null
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
   // A cerca por peças (CONTRATO 10.12) é montada já no giro da tela, com os mourões do app.
-  const cerca = movel.p.pecas !== undefined && tipo === 'cerca' ? cercaEmCasas(prop) : undefined
+  const cerca = movel.p.pecas !== undefined && tipo === 'cerca' ? cercaEmCasas(prop, grade) : undefined
   if (cerca !== undefined) {
     const giro = ((Math.round(giroDoObjeto) % 360) + 360) % 360
     const pedido: Pedido = { ...base, giro, cerca: cerca.geometria }
-    return { texto: textoDesenhado(prop, pedido, cerca.chaveDaCurva, `g${giro}`), movel, pedido, nivel, halo }
+    return { texto: textoDesenhado(prop, pedido, cerca.chaveDaCurva, `g${giro}`, grade), movel, pedido, nivel, halo, grade }
   }
   const pedido: Pedido = base
-  return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`), movel, pedido, nivel, halo }
+  return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`, grade), movel, pedido, nivel, halo, grade }
 }
 
 /** Os mourões e o arco da cerca do app em casas (a geometria não depende da escala), com a curva quantizada da chave. */
-function cercaEmCasas(prop: MovelParaImagem): { geometria: GeometriaDaCercaEmCasas; chaveDaCurva: string } | undefined {
-  const { curva, chaveDaCurva } = curvaDaCerca(prop)
+function cercaEmCasas(prop: MovelParaImagem, grade: number): { geometria: GeometriaDaCercaEmCasas; chaveDaCurva: string } | undefined {
+  const { curva, chaveDaCurva } = curvaDaCerca(prop, grade)
   const g = geometriaDaCerca(prop.width, prop.height, curva)
   if (g === null) return undefined
-  const k = 1 / GRADE_DE_REFERENCIA
+  const k = 1 / grade
   const arco = g.arco === null ? null : { center: { x: g.arco.center.x * k, y: g.arco.center.y * k }, radius: g.arco.radius * k, startAngle: g.arco.startAngle, sweep: g.arco.sweep }
   return { geometria: { mouroes: g.mouroes.map((q) => ({ x: q.x * k, y: q.y * k })), arco }, chaveDaCurva }
 }
@@ -627,8 +632,8 @@ export class RasterDosMoveis {
    * pronta de outro nível do mesmo desenho (a troca de zoom não volta ao
    * desenho de linhas); senão nenhuma.
    */
-  imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
-    const desenhada = chaveDesenhada(prop, cameraScale, rendererResolution, vista)
+  imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos', gradeDoMapa?: number): ImagemParaDesenhar | null {
+    const desenhada = chaveDesenhada(prop, cameraScale, rendererResolution, vista, gradeDoMapa)
     if (desenhada === 'esperando' && this.aberta !== null) this.esperandoODesenhado.set(this.aberta.dono, this.aberta.repintar)
     if (desenhada !== null && desenhada !== 'esperando') {
       const pronta = this.imagemDesenhada(desenhada, prop, cameraScale, rendererResolution, vista)
@@ -688,7 +693,8 @@ export class RasterDosMoveis {
    */
   private comecarDesenhado(texto: string, cd: ChaveDesenhada): Entrada | null {
     const S0 = escalaDoNivel(cd.nivel)
-    const pxDoNivel = S0 * G
+    // O nível conta px de tela por 50 px de mundo; numa grade maior a casa ocupa mais tela.
+    const pxDoNivel = S0 * G * (cd.grade / GRADE_DE_REFERENCIA)
     const raioDoHalo = cd.halo === 'lampiao' ? raioDoHaloDoLampiao(cd.pedido.casasW, cd.pedido.casasH, pxDoNivel) + 1 : 0
     let plano = planejarMovel(cd.movel, cd.pedido, pxDoNivel, raioDoHalo)
     if (plano !== null && Math.max(plano.W, plano.H) > LADO_MAXIMO_DA_IMAGEM) {

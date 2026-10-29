@@ -107,6 +107,8 @@ export interface PropsView {
   rendererResolution: number
   /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo): segue para `drawPropSilhouettes`, como no jogador. */
   vistaDosMoveis?: MapData['vistaDosMoveis']
+  /** A grade do mapa (`MapData.grid`): o Desenhado mede as pontas esticadas em casas dela. */
+  gradeDoMapa?: number
 }
 
 export interface PropsRenderer {
@@ -126,7 +128,7 @@ export interface PropsRenderer {
 interface FurnitureEntry {
   drawing: Graphics
   /** `estilo`: o `versaoDoEstilo()` da pintura; trocar o estilo do mapa repinta o móvel (Atual com textura, Simples em linhas). */
-  painted: { prop: Prop; cameraScale: number; rendererResolution: number; vistaDosMoveis: MapData['vistaDosMoveis']; estilo: string } | null
+  painted: { prop: Prop; cameraScale: number; rendererResolution: number; vistaDosMoveis: MapData['vistaDosMoveis']; gradeDoMapa: number | undefined; estilo: string } | null
   /** A chama da fogueira (o nó logo acima do desenho), para a ordem da 3/4 levá-la junto. */
   chama: Container | null
 }
@@ -303,7 +305,7 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       container.addChildAt(entry.drawing, 0)
     }
     const { painted } = entry
-    const { cameraScale, rendererResolution, vistaDosMoveis } = view
+    const { cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa } = view
     const estilo = versaoDoEstilo()
     // Mesma pintura: o desenho de antes continua valendo, nada a limpar.
     if (
@@ -312,13 +314,14 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       painted.cameraScale === cameraScale &&
       painted.rendererResolution === rendererResolution &&
       painted.vistaDosMoveis === vistaDosMoveis &&
+      painted.gradeDoMapa === gradeDoMapa &&
       painted.estilo === estilo
     ) {
       return
     }
-    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution, vistaDosMoveis)
+    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa)
     entry.drawing.alpha = propAlpha(prop)
-    entry.painted = { prop, cameraScale, rendererResolution, vistaDosMoveis, estilo }
+    entry.painted = { prop, cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa, estilo }
     // A chama da fogueira, logo acima do desenho dela (o mesmo fantasma); outro tipo não tem chama.
     const chama = chamas.colocar(prop, view)
     entry.chama = chama

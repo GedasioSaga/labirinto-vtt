@@ -2927,7 +2927,7 @@ function PixiCanvasDoContexto({
         // cairia em 1 px de mundo e engrossaria com o zoom (4 px no máximo).
         const camadas = contextoDeCamadas(map)
         // A VISTA DOS MÓVEIS da cena (Meio-Termo) vai junto, como no jogador.
-        const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, vistaDosMoveis: map.vistaDosMoveis }
+        const vista = { cameraScale: camera.scale, rendererResolution: app.renderer.resolution, vistaDosMoveis: map.vistaDosMoveis, gradeDoMapa: map.grid }
         const propsVisiveis = visibleProps(map.props, map)
         for (const { no, itens } of distribuir(propsVisiveis, pilha.nosDaFaixa('propsContainer'), (p: Prop) => camadas.camadaDe('objeto', p))) {
           propsPorNo.de(no).draw(no, itens, single?.kind === 'prop' ? single.id : null, vista)

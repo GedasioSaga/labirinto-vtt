@@ -613,7 +613,7 @@ Frente/Lado entra.
    (7, 11), desfocada, cor `#0a1c28` a 25% (a dos carimbos, 9.1), numa camada só com a
    deles. O designer só escolhe o quanto ela anda e o borrão.
 6. **Teto:** 3 MiB de memória decodificada **por vista** (RGBA com mipmap, todas as formas
-   da vista), 0,5 MiB em disco por móvel, 24 MiB os 37 juntos (só os tipos e as vistas que o
+   da vista), 0,5 MiB em disco por móvel, 48 MiB os 37 juntos no app (até 29/10/2026 eram 24; só os tipos e as vistas que o
    mapa usa carregam; a chave `memoria.tetoMemoriaDos31Bytes` do `textura.json` guarda o nome
    de quando eram 31, e o valor vale para os 37). Por vista desde o lote 12 (decisão do orquestrador): o app carrega só
    a vista que o móvel usa (a Frente/Lado do mestre), então a carroça, com 2,92 MiB em cada
@@ -826,7 +826,11 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    **O centro fixo** (10.6) é igual: ler `vistas.<vista>.esticar.centroCasas` e, no mesmo
    eixo ao longo, mapear como `mapearEixo(t, T, S, pontas, null, centro)`.
 9. **O teto é por vista** (10.1 item 6): carregar só as formas da vista que o móvel usa; a
-   soma das vistas carregadas no mapa fica nos 24 MiB.
+   soma das vistas carregadas no mapa fica nos 48 MiB. **Decisão do orquestrador em 29/10/2026**
+   (foco só no PC): o teto do app por mapa passou de 24 para 48 MiB de imagens decodificadas,
+   a vista de lado também conta. Motivo: a Frente dos 37 soma 28,4 MiB e a Lado 6,3 MiB
+   decodificados (sem mipmap), e com 24 um mapa com todos os tipos deixava 5 no Atual. O teto
+   das formas tingidas (16 MiB) e o descarte da vista menos usada continuam.
 10. **A pedra** (10.5): o lugar de material de classe `pedra` tinge com `cromaNaSombra`
    -0,6, como `rampaDaOpcao` de `ferramentas/movel.ts`.
 11. **O tapete** (10.6, lote 13): passar a forma do objeto (`Prop.forma`) para a escolha da

@@ -2479,7 +2479,7 @@ function PlayerViewDoCanvas({
     // opacidade própria separa dos de Objetos); mapa de hoje = um nó por faixa.
     let desenhadas = 0
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('props'), deObjeto)) {
-      if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis)
+      if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis, currentMap.grid)
     }
     scene.propsCount = desenhadas
     // Fogueira que sai da visão (ou da camada visível) leva a chama junto.
