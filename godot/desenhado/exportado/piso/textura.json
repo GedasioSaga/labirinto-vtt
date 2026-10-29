@@ -62,6 +62,13 @@
   },
   "nome": "Chão de sala",
   "onda": 1,
+  "tingir": {
+    "claroDesde": 0.94,
+    "conta": "luz-oklab",
+    "escuroAte": 0.1,
+    "ganhoL": 0.48,
+    "neutro": 0.5
+  },
   "tom": {
     "amplitude": 0.12,
     "escala": 2.0,

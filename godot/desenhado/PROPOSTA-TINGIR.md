@@ -2,7 +2,7 @@
 
 Escrita em 28/10/2026 pelo designer do `piso` (commit `81c58018`). Decisão do usuário: o chão de sala do Desenhado é uma "textura que pega a sua cor". Ainda é proposta e entra no CONTRATO.md na integração com o app.
 
-**Falta também:** `scripts/exportar_uma.gd` e `comum/contrato.gd` ignoram o bloco `tingir` do `config.json`, então o `textura.json` não leva a conta. Quem mexer em `comum/` precisa passar o bloco adiante.
+**Resolvido em 29/10/2026 (integração F1b):** `comum/contrato.gd` passa o bloco `tingir` do `config.json` adiante (`ler_config` e `parametros`), e o `exportado/piso/textura.json` leva a conta no formato do telhado: `{ conta, neutro, ganhoL, escuroAte, claroDesde }`. Reexportado só o piso: dos 621 arquivos de `exportado/`, só esse `textura.json` mudou (sha256 antes e depois; as 3 bases saíram byte a byte iguais). Textura sem o bloco sai como antes. O app lê em `client/src/texturas/desenhado/chao.ts` e tinge em `tingir.ts`.
 
 ## A conta
 

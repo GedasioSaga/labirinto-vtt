@@ -10,7 +10,7 @@
   "mistura": { "escala": 1.5, "faixa": 0.14, "corte": 0.18 },
   "tom": { "escala": 2.0, "amplitude": 0.12 },
   "tingir": {
-    "comoLer": "Proposta para o CONTRATO.md (não lida pelo exportador). A base é cinza (R = G = B): g = R / 255. O app monta o chão em cinza exatamente como na seção 4 (mistura e tom) e só no fim troca cada g pela cor da rampa da cor do mestre.",
+    "comoLer": "A conta do piso (PROPOSTA-TINGIR.md): o exportador passa conta, neutro, ganhoL e janela para o textura.json; comoLer, croma e formula são só texto. A base é cinza (R = G = B): g = R / 255. O app monta o chão em cinza exatamente como na seção 4 (mistura e tom) e só no fim troca cada g pela cor da rampa da cor do mestre.",
     "conta": "luz-oklab",
     "neutro": 0.5,
     "ganhoL": 0.48,

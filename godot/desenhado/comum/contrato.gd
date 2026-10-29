@@ -107,6 +107,19 @@ static func ler_config(id: String) -> Dictionary:
 		}
 	if det.has("espelhar"):
 		cfg["detalhes"]["espelhar"] = bool(det["espelhar"])
+	# Opcional: a textura que pega a cor da sala (PROPOSTA-TINGIR.md). Sem ele, nada muda.
+	if c.has("tingir"):
+		var tg = c["tingir"]
+		var janela = tg.get("janela", null) if typeof(tg) == TYPE_DICTIONARY else null
+		if typeof(janela) != TYPE_DICTIONARY:
+			erros.append("tingir precisa de conta, neutro, ganhoL e janela { escuroAte, claroDesde }")
+		else:
+			cfg["tingir"] = {
+				"conta": str(tg.get("conta", "luz-oklab")),
+				"neutro": float(tg.get("neutro", 0.5)),
+				"ganhoL": float(tg.get("ganhoL", 0.48)),
+				"janela": {"escuroAte": float(janela.get("escuroAte", 0.10)), "claroDesde": float(janela.get("claroDesde", 0.94))},
+			}
 	if c.get("id", id) != id:
 		erros.append("config.json diz id '%s', mas a pasta é '%s'" % [c.get("id"), id])
 	if cfg["nome"].strip_edges() == "":
@@ -229,7 +242,7 @@ static func parametros(cfg: Dictionary, base_lado: int, tem_atlas: bool, media: 
 		detalhes["grupos"] = det["grupos"]
 	if det.has("espelhar"):
 		detalhes["espelhar"] = det["espelhar"]
-	return {
+	var saida := {
 		"contrato": VERSAO,
 		"id": cfg["id"],
 		"nome": cfg["nome"],
@@ -253,4 +266,22 @@ static func parametros(cfg: Dictionary, base_lado: int, tem_atlas: bool, media: 
 			"tetoDiscoBytes": TETO_DISCO_POR_TEXTURA,
 		},
 		"emendas": emendas,
+	}
+	# A textura que pega a cor da sala (PROPOSTA-TINGIR.md, o piso): o app lê a conta
+	# daqui, no mesmo formato do telhado (contrato_telhado.gd, TINGIR). Sem o bloco no
+	# config.json, o textura.json sai byte a byte como antes.
+	if cfg.has("tingir"):
+		saida["tingir"] = _tingir_do_config(cfg["tingir"])
+	return saida
+
+
+## Só os números da conta de tingir (o config.json do designer traz também o texto da proposta).
+static func _tingir_do_config(t: Dictionary) -> Dictionary:
+	var janela: Dictionary = t["janela"]
+	return {
+		"conta": t["conta"],
+		"neutro": t["neutro"],
+		"ganhoL": t["ganhoL"],
+		"escuroAte": janela["escuroAte"],
+		"claroDesde": janela["claroDesde"],
 	}
