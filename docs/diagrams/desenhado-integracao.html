@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Integração do Desenhado</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1240px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .sub { color: var(--color-muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem; max-width: 64rem; }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+
+    footer {
+      margin-top: 1.25rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(45,49,66,0.10);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      color: var(--color-muted);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Arquitetura · Integração do Desenhado · F1a (29/10/2026)</p>
+    <h1>O mapa escolhe o estilo, e as imagens vêm dentro do app</h1>
+    <p class="sub">O seletor da página Cena grava o estilo no mapa. O editor (pela store) e o jogador (pelo recorte que o host manda) dizem à lib qual é o estilo da cena, e os renderers leem dela. As imagens do pacote entram no build pelo Vite e chegam ao jogador pela rota /assets/. Na F1a o Desenhado ainda desenha igual ao Atual: a seta tracejada é a F1b.</p>
+
+    <svg viewBox="0 0 1200 640" role="img" aria-labelledby="desenhado-integracao-title desenhado-integracao-desc">
+      <title id="desenhado-integracao-title">Integração do Desenhado: estilo por mapa e canal das imagens</title>
+      <desc id="desenhado-integracao-desc">O estilo escolhido na página Cena é gravado no mapa, chega à lib do estilo pelo editor e pelo recorte do jogador, e entra na chave dos renderers; as imagens do pacote vão pelo Vite até uma interface de fonte que a F1b vai ligar aos renderers.</desc>
+      <defs>
+        <marker id="dd-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="dd-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+        </marker>
+        <marker id="dd-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Zonas -->
+      <rect x="24" y="48" width="1152" height="352" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="36" y="52" width="128" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="100" y="61" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">ESTILO POR MAPA</text>
+      <rect x="24" y="416" width="872" height="120" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="36" y="420" width="140" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="106" y="429" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">CANAL DAS IMAGENS</text>
+
+      <!-- Setas (antes dos nós) -->
+      <!-- seletor → campo -->
+      <line x1="140" y1="144" x2="140" y2="196" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="148" y="164" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="170" y="173" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GRAVA</text>
+      <!-- campo → editor -->
+      <path d="M240,232 H292 Q300,232 300,224 V120 Q300,112 308,112 H356" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="308" y="164" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="330" y="173" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ASSINA</text>
+      <!-- campo → jogador (pelo host) -->
+      <path d="M140,264 V344 Q140,352 148,352 H356" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="196" y="332" width="104" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="248" y="341"fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HOST · RECORTE</text>
+      <!-- editor → estilo da cena -->
+      <path d="M560,112 H612 Q620,112 620,120 V212 Q620,220 628,220 H676" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#dd-arrow-accent)"/>
+      <rect x="564" y="92" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="586" y="101" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DEFINE</text>
+      <!-- jogador → estilo da cena -->
+      <path d="M560,352 H628 Q636,352 636,344 V252 Q636,244 644,244 H676" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#dd-arrow-accent)"/>
+      <rect x="572" y="332" width="44" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="594" y="341" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DEFINE</text>
+      <!-- estilo da cena → renderers -->
+      <line x1="880" y1="232" x2="956" y2="232" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="892" y="212" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="918" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VERSÃO</text>
+      <!-- estilo da cena → fonte (só no Desenhado) -->
+      <line x1="780" y1="264" x2="780" y2="444" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#dd-arrow)"/>
+      <rect x="788" y="348" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="820" y="357" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DESENHADO</text>
+      <!-- pacote → canal -->
+      <line x1="240" y1="480" x2="356" y2="480" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="268" y="460" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="298" y="469" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VITE BUILD</text>
+      <!-- canal → fonte -->
+      <line x1="560" y1="480" x2="676" y2="480" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#dd-arrow)"/>
+      <rect x="588" y="460" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="620" y="469" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SOB DEMANDA</text>
+      <!-- canal → jogador (PNG pela rota /assets/) -->
+      <line x1="460" y1="448" x2="460" y2="388" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#dd-arrow-link)"/>
+      <rect x="468" y="412" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="494" y="421" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">/ASSETS/</text>
+      <!-- fonte → renderers (F1b) -->
+      <path d="M880,480 H1052 Q1060,480 1060,472 V268" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#dd-arrow)"/>
+      <rect x="944" y="460" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="972" y="469" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">URL · F1B</text>
+
+      <!-- Nós -->
+      <!-- N1 seletor (entrada) -->
+      <rect x="40" y="80" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="80" width="200" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="48" y="86" width="24" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+      <text x="60" y="95" fill="#7a8399" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="140" y="116" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Seletor da página Cena</text>
+      <text x="140" y="132" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">EscolhaDoEstilo.tsx</text>
+
+      <!-- N2 campo do mapa (estado) -->
+      <rect x="40" y="200" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="200" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="48" y="206" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+      <text x="68" y="215" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MAPA</text>
+      <text x="140" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Campo do mapa</text>
+      <text x="140" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">estiloVisual: simples|desenhado</text>
+
+      <!-- N3 editor -->
+      <rect x="360" y="80" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="360" y="80" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="368" y="86" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="384" y="95" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PIXI</text>
+      <text x="460" y="116" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor do mestre</text>
+      <text x="460" y="132" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PixiCanvas · store</text>
+
+      <!-- N4 jogador -->
+      <rect x="360" y="320" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="360" y="320" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="368" y="326" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="384" y="335" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PIXI</text>
+      <text x="460" y="356" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tela do jogador</text>
+      <text x="460" y="372" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PlayerView · recorte ...map</text>
+
+      <!-- N5 estilo da cena (focal) -->
+      <rect x="680" y="200" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="680" y="200" width="200" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="688" y="206" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="702" y="215" fill="rgba(235,108,54,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LIB</text>
+      <text x="780" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Estilo da cena</text>
+      <text x="780" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lib/estiloDoMapa.ts</text>
+
+      <!-- N6 renderers -->
+      <rect x="960" y="200" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="960" y="200" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="968" y="206" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="984" y="215" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PIXI</text>
+      <text x="1060" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Renderers e caches</text>
+      <text x="1060" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chave com versaoDoEstilo()</text>
+
+      <!-- N7 pacote (estado) -->
+      <rect x="40" y="448" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="448" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="48" y="454" width="28" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+      <text x="62" y="463" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PNG</text>
+      <text x="140" y="484" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Pacote Desenhado</text>
+      <text x="140" y="500" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">godot/desenhado/exportado/</text>
+
+      <!-- N8 canal do instalador -->
+      <rect x="360" y="448" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="360" y="448" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="368" y="454" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="384" y="463" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VITE</text>
+      <text x="460" y="484" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Canal do instalador</text>
+      <text x="460" y="500" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">arquivos.ts · glob ?url</text>
+
+      <!-- N9 fonte (focal) -->
+      <rect x="680" y="448" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="680" y="448" width="200" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="688" y="454" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="702" y="463" fill="rgba(235,108,54,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+      <text x="780" y="484" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">FonteDoDesenhado</text>
+      <text x="780" y="500" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">fonte.ts · urlDe(id, arquivo)</text>
+
+      <!-- Legenda -->
+      <line x1="30" y1="572" x2="1170" y2="572" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="30" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <rect x="120" y="592" width="16" height="12" rx="2" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="144" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ponto de troca</text>
+      <rect x="256" y="592" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="280" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">quem desenha</text>
+      <rect x="384" y="592" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="408" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">dado gravado</text>
+      <rect x="512" y="592" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="536" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">mão do mestre</text>
+      <line x1="648" y1="598" x2="676" y2="598" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#dd-arrow-accent)"/>
+      <text x="684" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">definirEstiloDaCena</text>
+      <line x1="820" y1="598" x2="848" y2="598" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#dd-arrow-link)"/>
+      <text x="856" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">HTTP do app</text>
+      <line x1="960" y1="598" x2="988" y2="598" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#dd-arrow)"/>
+      <text x="996" y="601" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">só no Desenhado / F1b</text>
+    </svg>
+
+    <footer>
+      Fontes: client/src/lib/estiloDoMapa.ts · client/src/types/map.ts (estiloVisual) · client/src/lib/mapFile.ts · client/src/lib/mapFactory.ts · client/src/stores/mapStore.ts · client/src/components/livro/EscolhaDoEstilo.tsx · client/src/pixi/PixiCanvas.tsx · client/src/pixi/shapesRedraw.ts · client/src/pixi/drawProps.ts · client/src/pixi/drawRelevo.ts · client/src/player/PlayerView.tsx · client/src/texturas/desenhado/ · client/vite.config.ts · plano de 29/10/2026 (seções 1 e 2).
+    </footer>
+  </div>
+</body>
+</html>
