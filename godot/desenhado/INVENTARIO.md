@@ -106,6 +106,7 @@ gira, a sombra é do app); o vaso é carimbo de destino `movel`; a sebe e a jard
 | 35 | `poca` | Poça | Carimbos | sprite sem sombra |
 | 36 | `girassol` | Girassol | Carimbos, vem do pacote do GitHub | sprite |
 | 37 | `girassois` | Girassóis | Carimbos, vem do pacote do GitHub | sprite |
+| 37b | `tronco-caido` | Tronco caído | Carimbos (entrou no app em 28/10, `82d858eb` na main: tamanho 10, sombra `deitada`) | sprite deitado no chão, 4 formas que seguem o giro (`espelho: "nenhum"`); sombra `deslocada` 0,09, que dá a `deitada` de hoje |
 
 ## Onda 4: móveis e objetos (23 itens, lotes 9 a 13)
 
