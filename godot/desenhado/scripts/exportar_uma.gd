@@ -51,6 +51,14 @@ func _rodar() -> void:
 		quit(2)
 		return
 	var id: String = args["textura"]
+	# Onda 5 (traço: penhasco, parede, janela, grade): outro contrato e outra mesa
+	# (CONTRATO.md, seção 11). Carregado com load() só aqui, para um erro nos arquivos do
+	# traço não derrubar a exportação das ondas 1 a 4.
+	if ContratoTelhado.tipo_de(id) == "traco":
+		var rodador = load("res://comum/rodar_traco.gd").new()
+		root.add_child(rodador)
+		quit(await rodador.rodar(args, id, inicio))
+		return
 	# Onda 4 (móvel desenhado que pega cor): outro contrato e outra mesa (CONTRATO.md, seção 10).
 	if ContratoMovel.eh_movel(id):
 		await _rodar_movel(args, id, inicio)
