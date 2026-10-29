@@ -13,6 +13,8 @@
 .gr-paginas__mapa-vivo .gr-nota { margin: 0; }
 /* CLICAR PARA ANDAR: a chave da cena na mesma margem das fichas, abaixo do Mapa vivo. */
 .gr-paginas__clique-para-andar { padding: 0 12px 0 14px; margin: 8px 0 0; }
+/* ESTILO DO MAPA: o seletor de três da cena, na mesma margem, logo abaixo da chave de andar. */
+.gr-paginas__estilo { padding: 0 12px 0 14px; margin: 12px 0 0; }
 
 /* Fechada, depois do recolher (200 ms), o miolo sai da pintura: some da tela de
    verdade, e não só fica transparente atrás de uma altura zero. Ao abrir ele

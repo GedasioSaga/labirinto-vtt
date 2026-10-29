@@ -10,6 +10,7 @@ import { TerritorioControls, type TerritorioControlsProps } from '../TerritorioC
 import { Fichas } from '../grimorio/Ficha'
 import { Nota } from '../grimorio/Nota'
 import { ChaveCliqueParaAndar } from './ChaveCliqueParaAndar'
+import { EscolhaDoEstilo } from './EscolhaDoEstilo'
 import { FichaDaPagina } from './FichaDaPagina'
 import { TituloDaPagina } from './FolhaDoLivro'
 
@@ -67,6 +68,8 @@ export function PaginaCena({ mapName, mapWidth, mapHeight, mapGrid, objetos, ter
       )}
       {/* CLICAR PARA ANDAR: a chave é desta cena e o mestre a mexe durante o jogo, então fica à vista, fora das fichas. */}
       <ChaveCliqueParaAndar />
+      {/* ESTILO DO MAPA: também desta cena e também à vista, ao lado da chave de andar. */}
+      <EscolhaDoEstilo />
       <div className="lb-zona gr-paginas">
         <Fichas>
           {objetos}
