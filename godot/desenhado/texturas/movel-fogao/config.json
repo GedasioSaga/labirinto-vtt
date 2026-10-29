@@ -1,0 +1,16 @@
+{
+  "id": "movel-fogao",
+  "nome": "Fogão",
+  "idDoApp": "fogao",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 14,
+  "semente": 61,
+  "margemCasas": 0.0625,
+  "lugares": ["metal", "puxadores"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 1], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}
