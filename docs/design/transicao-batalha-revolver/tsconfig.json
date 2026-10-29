@@ -1,0 +1,21 @@
+{
+  "//": "Confere a cena com as mesmas regras de client/tsconfig.json. rootDirs junta src/ desta pasta com client/src, então '../../transicoes/...' acha os arquivos do app sem copiar nada. Rodar da raiz: rtk proxy npx tsc --noEmit -p docs/design/transicao-batalha-revolver",
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "rootDirs": ["./src", "../../../client/src"]
+  },
+  "include": ["src"]
+}

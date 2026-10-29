@@ -1,0 +1,1679 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abertura de batalha</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  --acento: #a8741f;
+  --acento-tinta: #ffffff;
+  --acento-suave: #f3e6cf;
+  --foco: #2a6fdb;
+  --raio: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #e0a948;
+    --acento-tinta: #1a1408;
+    --acento-suave: #3a2f1c;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #e0a948;
+  --acento-tinta: #1a1408;
+  --acento-suave: #3a2f1c;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+h2 { margin: 0 0 8px; font-size: 1.0625rem; line-height: 1.3; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; max-width: 65ch; }
+.ajustes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; margin-bottom: 12px; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo .rotulo { color: var(--tinta-2); font-size: 0.9375rem; }
+.segmentos { display: inline-flex; flex-wrap: wrap; padding: 4px; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+.segmentos button { border-color: transparent; min-width: 120px; }
+.segmentos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); box-shadow: none; }
+input[type="text"] {
+  min-height: 44px; width: 240px; max-width: 100%; padding: 0 14px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-size: 1rem;
+}
+input[type="text"]::placeholder { color: var(--tinta-2); }
+input[type="text"]:disabled { opacity: 0.55; cursor: not-allowed; }
+.dica { color: var(--tinta-2); font-size: 0.8125rem; max-width: 46ch; }
+.descricao { margin: 0 0 12px; color: var(--tinta-2); font-size: 0.9375rem; min-height: 1.5em; max-width: 72ch; }
+/* Mesmas camadas da abertura no app (AberturaDeBatalhaOverlay: canvas + cortina preta; a saída é o fade de 260 ms). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+/* O mapa de exemplo: no app, é o mapa da batalha que aparece quando a abertura sai. */
+.mapa {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 200ms var(--ease-out);
+  background-color: #2a2822;
+  background-image:
+    linear-gradient(rgba(216, 208, 191, 0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(216, 208, 191, 0.13) 1px, transparent 1px),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(98, 84, 60, 0.55), transparent 75%);
+  background-size: 6.25% 11.11%, 6.25% 11.11%, 100% 100%;
+}
+.mapa[data-visivel="true"] { opacity: 1; transition: opacity 260ms ease-out; }
+.mapa .ficha { position: absolute; width: 4.2%; aspect-ratio: 1; border-radius: 50%; border: 2px solid rgba(240, 232, 214, 0.75); }
+.mapa .etiqueta {
+  position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px;
+  background: rgba(10, 9, 7, 0.72); color: #e8e0cf; font-size: 0.875rem; white-space: nowrap;
+}
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled:active { transform: none; }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+.barra button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.linha { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 0 4px; }
+.linha label { color: var(--tinta-2); font-size: 0.9375rem; white-space: nowrap; }
+.linha input[type="range"] { flex: 1; min-width: 0; height: 44px; accent-color: var(--acento); margin: 0; }
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; max-width: 75ch; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+.decidir { margin-top: 24px; padding: 16px; background: var(--acento-suave); border-radius: var(--raio); }
+.decidir ol { margin: 0; padding-left: 1.25rem; display: grid; gap: 10px; }
+.decidir li { max-width: 78ch; }
+.decidir b { font-weight: 650; }
+.roteiro { margin-top: 20px; }
+.roteiro ol { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+.roteiro li { display: grid; grid-template-columns: 8.5rem 1fr; gap: 12px; color: var(--tinta-2); font-size: 0.9375rem; }
+.roteiro li span:first-child { color: var(--tinta); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: background-color 160ms ease, color 160ms ease; }
+  button:active { transform: none; }
+}
+@media (max-width: 560px) {
+  .tempo { margin-left: 0; width: 100%; }
+  .segmentos, .campo, input[type="text"] { width: 100%; }
+  .segmentos button { flex: 1; min-width: 0; padding: 0 8px; }
+  .roteiro li { grid-template-columns: 1fr; gap: 0; }
+}
+</style>
+<script>// Gerado por montar.cjs (esbuild 0.28.2) a partir de src/ desta pasta e de client/src. Não edite aqui.
+var AberturasDeBatalha=(()=>{var na=Object.defineProperty;var Ln=Object.getOwnPropertyDescriptor;var qn=Object.getOwnPropertyNames;var Bn=Object.prototype.hasOwnProperty;var Un=(e,a)=>{for(var o in a)na(e,o,{get:a[o],enumerable:!0})},kn=(e,a,o,t)=>{if(a&&typeof a=="object"||typeof a=="function")for(let n of qn(a))!Bn.call(e,n)&&n!==o&&na(e,n,{get:()=>a[n],enumerable:!(t=Ln(a,n))||t.enumerable});return e};var Xn=e=>kn(na({},"__esModule",{value:!0}),e);var ss={};Un(ss,{NOME_MAX_LETRAS:()=>la,ROTEIRO_DO_TIRO:()=>po,ROTEIRO_REDUZIDO:()=>ma,bandeiraDaMarinha:()=>hn,caveiraPirata:()=>Zt,espadasCruzadas:()=>_n,estadoDoTiro:()=>At,metaBandeiraDaMarinha:()=>bn,metaCaveiraPirata:()=>Kt,metaEspadasCruzadas:()=>zn,metaTiroNaTela:()=>yt,tiroNaTela:()=>Mt});function fe(e){let a=e;return()=>(a=a*16807%2147483647)/2147483647}var Oe=e=>Math.min(1,Math.max(0,e)),x=(e,a,o)=>Oe((e-a)/(o-a)),U=e=>-(Math.cos(Math.PI*e)-1)/2,$=e=>1-Math.pow(1-e,3);var la=24,po={duracao:3.8,fadeInFim:.12,sobeFim:.55,pega:1.12,miraInicio:1.17,miraFim:1.45,engatilha:1.6,tiro:1.92,impacto:1.935,raiosFim:2.22,aneisFim:2.4,nomeSurge:2.2,nomeNitido:2.58,range:2.82,cede:3.05,fadeOutInicio:3.6},ma={surgeInicio:.1,surgeFim:.75,engatilha:1.25,tiro:1.7,rachaFim:2,nomeSurge:2.05,nomeAceso:2.45,apagaInicio:3.1,apagaFim:3.55,fadeOutInicio:3.45};function Wn(e){let a=(e??"").replace(/\s+/g," ").trim();return Array.from(a).slice(0,la).join("")}var sa=34,$n=Math.tan(sa*Math.PI/360),Po=1/$n,st=1,jn=2560,Ya=.6,Yn=.15,zo=-.12,Ro=-.02,De=.705,ra=.55,ze=-2.16,Zn=.8,Kn=.12,Jn=.36,Qn=.6,En=.62,Za=Math.hypot(ze-zo,De-Ro),it=58*Math.PI/180,Hn=-3*Math.PI/180,ut=13*Math.PI/180,e0=.2,ca=7.3,o0=3.3,a0=.32,Ka=.05,t0=.04,n0=0,r0=-.3,c0=.3,s0=.16,i0=.3,da=4.4,Ye=1.35,Vo=1.6,u0=Ye*po.pega+(da-Ye)*po.pega/(Vo+1),lt=10,ia=22,l0=.0135,fo=2048,_o=512,m0=290,d0=1640,Ja=-.62,f0=2.1,v0="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",p0=`
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float ruido(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm3(vec2 p) {
+  float v = 0.5 * ruido(p);
+  v += 0.25 * ruido(p * 2.03 + vec2(1.7, 9.2));
+  v += 0.125 * ruido(p * 4.01 + vec2(8.3, 2.8));
+  return v / 0.875;
+}`,h0=`
+attribute vec2 aPivo;
+attribute vec4 aCaco;
+attribute float aBorda;
+attribute float aRacha;
+attribute float aLinha;
+uniform vec2 uImpacto;
+uniform float uAspecto;
+uniform float uQueda;
+uniform vec2 uTremor;
+varying vec2 vTela;
+varying vec2 vRel;
+varying vec4 vCaco;
+varying float vBorda;
+varying float vRacha;
+varying float vLinha;
+varying vec3 vNormal;
+varying vec3 vP;
+varying float vQueda;
+const float GRAVIDADE = 7.5;
+const float OLHO = 2.2;
+mat3 girar(vec3 e, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  float t = 1.0 - c;
+  return mat3(
+    t * e.x * e.x + c, t * e.x * e.y + s * e.z, t * e.x * e.z - s * e.y,
+    t * e.x * e.y - s * e.z, t * e.y * e.y + c, t * e.y * e.z + s * e.x,
+    t * e.x * e.z + s * e.y, t * e.y * e.z - s * e.x, t * e.z * e.z + c);
+}
+void main() {
+  vec2 p = uImpacto + position.xy;
+  vTela = p;
+  vRel = position.xy;
+  vCaco = aCaco;
+  vBorda = aBorda;
+  vRacha = aRacha;
+  vLinha = aLinha;
+  vec3 P = vec3(p, 0.0);
+  vec3 N = vec3(0.0, 0.0, 1.0);
+  float tq = uQueda - aCaco.w;
+  vQueda = max(tq, 0.0);
+  if (tq > 0.0) {
+    vec2 c = uImpacto + aPivo;
+    vec3 eixo = normalize(vec3(aCaco.x - 0.5, aCaco.y - 0.5, (aCaco.z - 0.5) * 0.5) + vec3(0.0, 0.0, 0.001));
+    float sentido = aCaco.z > 0.5 ? 1.0 : -1.0;
+    mat3 R = girar(eixo, sentido * (2.5 + 6.5 * aCaco.x) * tq);
+    P = vec3(c, 0.0) + R * vec3(p - c, 0.0);
+    N = R * N;
+    vec2 fora = aPivo / (0.25 + length(aPivo));
+    P.xy += fora * (0.35 + 0.5 * aCaco.y) * tq;
+    P.y -= 0.5 * GRAVIDADE * tq * tq;
+    P.z += (0.35 + 0.9 * aCaco.x) * tq;
+  }
+  vNormal = N;
+  vP = P;
+  // A perspectiva vai no w: a GPU interpola o caco inclinado sem torcer a imagem dele.
+  float w = max(0.2, 1.0 - P.z / OLHO);
+  vec2 tela = P.xy + uTremor * w;
+  gl_Position = vec4(tela.x / uAspecto, tela.y, clamp(-P.z * 0.3, -0.95, 0.95) * w, w);
+}`,b0=`
+${p0}
+uniform float uTempo;
+uniform float uAspecto;
+uniform float uLuz;
+uniform sampler2D uArma;
+uniform vec4 uCaixaArma;
+uniform float uAlcanceDoClarao;
+uniform vec2 uPivo;
+uniform float uArco;
+uniform float uRaioArma;
+uniform float uPxPorUnidade;
+uniform float uSurgeArma;
+uniform vec2 uBoca;
+uniform vec2 uDirTiro;
+uniform float uClarao;
+uniform float uBola;
+uniform float uFumaca;
+uniform float uIdadeDaFumaca;
+uniform float uBrilho;
+uniform vec2 uBrilhoPos;
+uniform float uRacha;
+uniform float uFrenteR;
+uniform float uFrenteA;
+uniform float uRevela;
+uniform float uLuzDoImpacto;
+uniform float uOnda;
+uniform sampler2D uNome;
+uniform vec4 uNomeRet;
+uniform float uNomeSurge;
+uniform float uVarre;
+uniform float uGrao;
+varying vec2 vTela;
+varying vec2 vRel;
+varying vec4 vCaco;
+varying float vBorda;
+varying float vRacha;
+varying float vLinha;
+varying vec3 vNormal;
+varying vec3 vP;
+varying float vQueda;
+const float OLHO = 2.2;
+
+vec2 paraUv(vec2 p) {
+  return vec2(p.x / uAspecto, p.y) * 0.5 + 0.5;
+}
+
+// A arma da textura; girando, a média de até 10 amostras no arco em volta do dedo (uma a cada
+// 2 pixels da textura: no giro ela é desenhada em resolução menor, e o borrão esconde isso).
+vec4 arma(vec2 p) {
+  vec2 rel = p - uPivo;
+  float r = length(rel);
+  float n = clamp(floor(uArco * r * uPxPorUnidade / 2.0), 1.0, 10.0);
+  if (r > uRaioArma) n = 1.0;
+  vec4 soma = vec4(0.0);
+  for (int k = 0; k < 10; k++) {
+    if (float(k) >= n) break;
+    float a = uArco * ((float(k) + 0.5) / n - 0.5);
+    float c = cos(a);
+    float s = sin(a);
+    vec2 uv = paraUv(uPivo + vec2(c * rel.x - s * rel.y, s * rel.x + c * rel.y));
+    // A textura só é limpa e desenhada dentro da caixa da arma: fora dela, sobra de outro quadro.
+    vec2 dentro = step(uCaixaArma.xy, uv) * step(uv, uCaixaArma.zw);
+    soma += texture2D(uArma, uv) * (dentro.x * dentro.y);
+  }
+  return soma / n;
+}
+
+float poeira(vec2 p) {
+  vec2 q = p * 7.0 + vec2(uTempo * 0.21, -uTempo * 0.09);
+  vec2 i = floor(q);
+  vec2 f = fract(q);
+  float h = hash(i);
+  vec2 c = vec2(hash(i + 17.3), hash(i + 41.9)) * 0.6 + 0.2 + 0.12 * vec2(sin(uTempo * (0.8 + h) + h * 30.0), cos(uTempo * (0.7 + h) + h * 21.0));
+  return smoothstep(0.035 + 0.03 * h, 0.0, length(f - c)) * step(0.86, h) * (0.35 + 0.65 * hash(i + 3.1));
+}
+
+// Lampiões desfocados no fundo do salão: manchas quentes e macias, bem fracas.
+float lampiao(vec2 p, vec2 c, float r) {
+  return smoothstep(r, r * 0.55, length(p - c));
+}
+
+vec3 fundo(vec2 p) {
+  vec3 cor = mix(vec3(0.07, 0.042, 0.024), vec3(0.01, 0.007, 0.005), smoothstep(0.05, 1.35, length(p * vec2(0.6, 1.0) - vec2(-0.06, 0.15))));
+  cor += vec3(0.55, 0.3, 0.1) * (lampiao(p, vec2(1.32, 0.52), 0.12) * 0.11 + lampiao(p, vec2(1.62, 0.38), 0.07) * 0.08 + lampiao(p, vec2(-1.38, -0.42), 0.15) * 0.06 + lampiao(p, vec2(0.92, -0.7), 0.09) * 0.05) * (0.3 + 0.7 * uLuz);
+  // O facho entra pelo alto à esquerda e passa pelo meio da tela, onde a arma gira.
+  vec2 dir = normalize(vec2(0.5, -0.87));
+  vec2 q = p - vec2(-1.05, 1.45);
+  float ao = dot(q, dir);
+  float at = abs(dot(q, vec2(-dir.y, dir.x)));
+  float largura = 0.16 + 0.24 * max(ao, 0.0);
+  float feixe = smoothstep(largura, largura * 0.2, at) * smoothstep(0.0, 0.5, ao) * exp(-max(ao, 0.0) * 0.36);
+  // O facho e a poeira que boia nele só onde há facho (os ruídos são a parte cara do fundo).
+  if (feixe > 0.001) {
+    feixe *= 0.45 + 0.75 * fbm3(p * 1.7 + vec2(uTempo * 0.06, -uTempo * 0.03));
+    cor += vec3(0.36, 0.21, 0.095) * feixe * uLuz;
+    cor += vec3(1.0, 0.82, 0.56) * poeira(p) * (0.02 + 1.2 * feixe) * uLuz;
+  }
+  return cor;
+}
+
+vec3 luzDoClarao(vec2 p) {
+  if (uClarao < 0.002 && uBola < 0.01) return vec3(0.0);
+  vec2 d = p - uBoca;
+  float r = length(d);
+  // Além do alcance (onde o clarão já não soma nem 1/300), não calcula nada.
+  if (r > uAlcanceDoClarao) return vec3(0.0);
+  float ang = atan(d.y, d.x);
+  float nucleo = exp(-r * r / 0.0035);
+  float halo = exp(-r / 0.17);
+  float raios = pow(abs(cos(ang * 3.0 + 0.5)), 26.0) * exp(-r / 0.34) + 0.6 * pow(abs(cos(ang * 2.0 + 1.3)), 40.0) * exp(-r / 0.5);
+  vec3 c = (vec3(1.0, 0.95, 0.82) * nucleo * 3.2 + vec3(1.0, 0.6, 0.22) * (halo * 0.9 + raios * 0.85)) * uClarao;
+  // A língua de fogo: sai da boca no rumo do cano e abre como um cone.
+  float ao = dot(d, uDirTiro);
+  float at = dot(d, vec2(-uDirTiro.y, uDirTiro.x));
+  float lingua = smoothstep(-0.01, 0.03, ao) * exp(-max(ao, 0.0) / 0.15) * exp(-at * at / (0.0008 + 0.06 * ao * ao));
+  c += vec3(1.0, 0.72, 0.34) * lingua * 1.7 * uClarao;
+  if (uBola > 0.01 && r < 0.5) {
+    float b = fbm3(d * 8.0 + vec2(3.1, 7.7) + uTempo);
+    c += vec3(1.0, 0.42, 0.1) * smoothstep(0.42, 0.0, r + 0.12 * (b - 0.5)) * uBola * 0.85;
+  }
+  return c;
+}
+
+vec3 fumaca(vec3 cor, vec2 p) {
+  if (uFumaca < 0.002) return cor;
+  float idade = uIdadeDaFumaca;
+  vec2 centro = uBoca + vec2(0.06, 0.12) * idade + vec2(0.0, 0.05) * idade * idade;
+  float raio = 0.08 + 0.42 * (1.0 - exp(-idade / 0.35));
+  vec2 d = (p - centro) / raio;
+  vec2 w = p - uBoca;
+  // Longe da nuvem e do fio que sobe, não há fumaça: pula o ruído. (A nuvem acaba em
+  // |d| + 0,55 (n - 0,5) = 1, então nunca passa de |d| = 1,275, ou d·d = 1,63.)
+  if (dot(d, d) > 1.65 && (w.y < -0.03 || abs(w.x) > 0.25 + 0.2 * max(w.y, 0.0))) return cor;
+  float n = fbm3(d * 1.9 + vec2(idade * 0.6, -idade * 1.1));
+  float a = smoothstep(1.0, 0.15, length(d) + 0.55 * (n - 0.5)) * uFumaca;
+  // O fio de fumaça que sobe da boca.
+  float coluna = exp(-pow((w.x - 0.04 * sin(w.y * 7.0 + uTempo * 2.0)) / (0.02 + 0.06 * max(w.y, 0.0)), 2.0)) * smoothstep(-0.02, 0.05, w.y) * exp(-max(w.y, 0.0) / 0.5);
+  a = max(a, coluna * uFumaca * 0.6 * smoothstep(0.25, 0.6, idade) * (0.4 + 0.6 * ruido(vec2(w.x * 20.0, w.y * 6.0 - uTempo * 1.5))));
+  vec3 c = vec3(0.3, 0.27, 0.24) + vec3(0.22, 0.13, 0.05) * smoothstep(0.45, 1.0, n);
+  return mix(cor, c * (0.5 + 0.5 * uLuz), clamp(a, 0.0, 1.0) * 0.7);
+}
+
+vec3 mundo(vec2 p) {
+  vec3 cor = fundo(p);
+  vec4 a = arma(p) * uSurgeArma;
+  cor = cor * (1.0 - a.a) + a.rgb;
+  cor += vec3(0.3, 0.15, 0.055) * uClarao * 0.5;
+  cor = fumaca(cor, p);
+  cor += luzDoClarao(p);
+  if (uBrilho > 0.001) {
+    vec2 d = p - uBrilhoPos;
+    // O lampejo do aço: miolo, halo e uma cruz fina (o "tim" de luz de faroeste).
+    float estrela = exp(-dot(d, d) / 0.00018) * 2.2 + exp(-length(d) / 0.05) * 0.35 + 1.1 * (exp(-abs(d.y) / 0.003) * exp(-abs(d.x) / 0.16) + exp(-abs(d.x) / 0.003) * exp(-abs(d.y) / 0.13));
+    cor += vec3(1.0, 0.93, 0.8) * estrela * uBrilho;
+  }
+  return cor;
+}
+
+void main() {
+  float r0 = length(vRel);
+  vec2 dir = vRel / max(r0, 0.00001);
+  // Onde este ponto do vidro olha o mundo: o lugar dele, o desvio do caco e a onda do impacto.
+  // O caco só entorta depois que a rachadura passou por ele.
+  float alcancado = smoothstep(uFrenteR + 0.02, uFrenteR - 0.25, r0) * uRacha;
+  vec2 p = vTela + (vCaco.xy - 0.5) * 0.016 * alcancado;
+  // A onda do impacto some em 0,6 s (exp(-0,6/0,11) < 0,005): depois disso, nem calcula.
+  if (uOnda >= 0.0 && uOnda < 0.6) {
+    float banda = exp(-pow((r0 - uOnda * 3.6) / 0.08, 2.0)) * exp(-uOnda / 0.11);
+    p += dir * banda * 0.02;
+  }
+  vec3 cor = mundo(p);
+
+  // Cada caco ficou um pouco torto: uns refletem mais.
+  cor += vec3(0.05, 0.055, 0.06) * alcancado * uRevela * pow(vCaco.z, 4.0) * (0.4 + 0.6 * uLuz);
+
+  // O pó de vidro em volta do furo (um anel fosco, riscado do centro para fora), e o furo.
+  // (o pó alcança no máximo 0,23 do furo: fora disso, pula os ruídos)
+  if (uRacha > 0.0 && r0 < 0.3) {
+    float n = ruido(dir * 7.0 + vec2(r0 * 28.0, r0 * 9.0));
+    float riscos = ruido(dir * 14.0 + r0 * 2.0) * ruido(dir * 31.0 + 5.0 + r0 * 5.0);
+    float alcance = 0.075 + 0.03 * ruido(dir * 3.0 + 7.0);
+    float po = smoothstep(alcance, 0.012, r0) * (0.35 + 0.65 * n) + smoothstep(alcance * 2.2, alcance * 0.6, r0) * riscos * 0.5;
+    cor = mix(cor, vec3(0.8, 0.86, 0.88) * (0.55 + 0.5 * uLuz), clamp(po, 0.0, 1.0) * 0.78 * uRacha * uRevela);
+    cor = mix(cor, vec3(0.012, 0.01, 0.009), smoothstep(0.017, 0.011, r0 * (0.85 + 0.3 * n)) * uRacha * uRevela);
+  }
+  // O estalo de luz da bala no vidro.
+  if (uLuzDoImpacto > 0.001) cor += vec3(1.0, 0.96, 0.88) * uLuzDoImpacto * (exp(-r0 / 0.07) * 1.8 + exp(-r0 / 0.5) * 0.25);
+
+  // O nome, em folha de ouro pintada no vidro: quebra e cai com ele (antes de surgir, nem lê).
+  if (uNomeSurge > 0.001) {
+    vec2 q = vTela + (vCaco.xy - 0.5) * 0.003 * uRacha;
+    vec2 uvNome = (q - uNomeRet.xy) / (2.0 * uNomeRet.zw) + 0.5;
+    vec4 tinta = texture2D(uNome, clamp(uvNome, 0.0, 1.0));
+    float dentro = step(0.0, uvNome.x) * step(uvNome.x, 1.0) * step(0.0, uvNome.y) * step(uvNome.y, 1.0);
+    float ouro = smoothstep(0.2, 0.55, dot(tinta.rgb, vec3(0.4, 0.4, 0.2)));
+    float varre = exp(-pow((uvNome.x - uVarre) * 8.0 - (uvNome.y - 0.5) * 2.5, 2.0));
+    vec3 corDoNome = tinta.rgb * (0.85 + 0.25 * uLuz) + vec3(1.0, 0.88, 0.6) * varre * ouro * 0.85;
+    cor = mix(cor, corDoNome, tinta.a * dentro * uNomeSurge);
+  }
+
+  // As rachaduras: um fio de luz fino (cada trecho pega a luz de um jeito, e ela corre pelo fio),
+  // com a sombra da refração ao lado; perto do furo os fios engrossam e brilham mais.
+  float px = vBorda / max(fwidth(vBorda), 0.000001);
+  float perto = 1.0 - smoothstep(0.0, 0.5, r0);
+  // (antes do tiro não há fio nenhum: pula a conta inteira)
+  if (vRacha > 0.5 && uRacha > 0.0) {
+    float frente = vRacha < 1.5 ? uFrenteR : uFrenteA;
+    float vis = smoothstep(frente, frente - 0.06, r0) * uRevela;
+    bool radial = vRacha < 1.5;
+    float largura = mix(0.9, 2.1, perto) * (radial ? 1.0 : 0.8);
+    float linha = (1.0 - smoothstep(largura * 0.5, largura * 0.5 + 0.9, px)) * vis;
+    float sombra = (1.0 - smoothstep(0.5, 3.5 + 4.0 * vCaco.y, px)) * vis;
+    cor *= 1.0 - (0.12 + 0.3 * vCaco.z) * sombra;
+    // O ruído da luz que corre no fio só onde há fio (o miolo do caco pula).
+    if (linha > 0.0) {
+      float corre = 0.55 + 0.9 * ruido(vTela * 9.0 + vLinha * 17.0);
+      float forca = clamp((0.18 + 0.82 * vLinha) * corre * (radial ? 1.0 : 0.7) + 0.6 * perto, 0.0, 1.35);
+      vec3 corDaRacha = mix(vec3(0.74, 0.88, 0.88), vec3(1.0, 0.95, 0.86), vLinha) * (0.65 + 0.45 * uLuz);
+      cor = mix(cor, corDaRacha, clamp(linha * forca, 0.0, 1.0));
+    }
+  }
+
+  // Caindo: o caco capota; a face escurece um pouco ao virar para longe da luz e pega um lampejo
+  // quando passa pelo reflexo; a quina cortada brilha só onde fica de frente para a luz.
+  if (vQueda > 0.0) {
+    // Vidro brilha dos dois lados: a normal sempre virada para quem olha.
+    vec3 N = normalize(vNormal);
+    if (N.z < 0.0) N = -N;
+    float inclina = clamp(1.0 - N.z, 0.0, 1.0);
+    cor *= (1.0 - 0.38 * smoothstep(0.05, 0.6, inclina)) * (1.0 - 0.3 * smoothstep(0.1, 0.6, vQueda));
+    // O reflexo do facho de luz na face: o olho vê cada ponto do caco de um ângulo, então o lampejo
+    // é uma mancha que corre pelo caco enquanto ele capota (não o caco inteiro branco).
+    vec3 V = normalize(vec3(0.0, 0.0, OLHO) - vP);
+    vec3 Rf = reflect(-V, N);
+    float nh = max(dot(Rf, normalize(vec3(-0.45, 0.6, 0.66))), 0.0);
+    float reflexo = smoothstep(0.93, 0.99, nh) * 0.95 + pow(nh, 10.0) * 0.08;
+    cor += vec3(1.0, 0.93, 0.8) * reflexo * (0.6 + 0.4 * ruido(vRel * 6.0 + vCaco.xy * 9.0));
+    float quina = (1.0 - smoothstep(0.6, 2.2, px)) * step(0.5, vRacha);
+    float deFrente = 0.15 + 0.85 * pow(max(dot(N, normalize(vec3(-0.45, 0.6, 0.66))), 0.0), 3.0);
+    cor = mix(cor, vec3(0.7, 0.96, 0.9) * (0.55 + 0.9 * reflexo + 0.3 * inclina), quina * deFrente * (0.35 + 0.65 * vLinha));
+  }
+
+  float vinheta = smoothstep(1.6, 0.35, length(vTela * vec2(0.56, 1.0)));
+  cor *= 0.5 + 0.5 * vinheta;
+  cor += (hash(gl_FragCoord.xy + fract(uTempo * 13.0) * 91.0) - 0.5) * uGrao;
+  gl_FragColor = vec4(max(cor, 0.0), 1.0);
+}`,x0=`
+precision highp float;
+in vec3 position;
+in vec3 normal;
+uniform mat4 modelMatrix;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+uniform mat4 uMundoParaArma;
+out vec3 vArma;
+out vec3 vNArma;
+out vec3 vN;
+out vec3 vV;
+void main() {
+  vec4 mundo = modelMatrix * vec4(position, 1.0);
+  vArma = (uMundoParaArma * mundo).xyz;
+  vNArma = mat3(uMundoParaArma) * (mat3(modelMatrix) * normal);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vV = mv.xyz;
+  vN = normalMatrix * normal;
+  gl_Position = projectionMatrix * mv;
+}`,vo=64,g0=`
+precision highp float;
+in vec3 vArma;
+in vec3 vNArma;
+in vec3 vN;
+in vec3 vV;
+uniform mat3 normalMatrix;
+uniform float uLuz;
+uniform float uClarao;
+uniform vec3 uBocaV;
+uniform vec3 uTinta;
+uniform highp sampler3D uRuido;
+out vec4 saida;
+// Ruído de valor com a grade sorteada numa textura 3D: o filtro da placa faz a mistura dos 8
+// cantos numa leitura só (no lugar de 8 sorteios por ponto). A curva suave vai na coordenada.
+float ruido3(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  return texture(uRuido, (i + u + 0.5) / ${vo}.0).r;
+}
+float fbm3d(vec3 p) {
+  return (0.5 * ruido3(p) + 0.25 * ruido3(p * 2.03 + 1.7) + 0.125 * ruido3(p * 4.01 + 4.3)) / 0.875;
+}
+// O salão refletido no aço: a caixa de luz quente do facho (alto, à esquerda, na frente), uma faixa
+// comprida no teto (o fio de luz no cano parado e o lampejo a cada volta), o contra fria atrás à
+// direita, o chão de tábua devolvendo um marrom fraco e a linha do horizonte.
+vec3 ambiente(vec3 r, float rug) {
+  float expo = exp2(mix(7.0, 2.5, rug));
+  float ganho = (expo + 2.0) * 0.045;
+  float k = max(dot(r, normalize(vec3(-0.5, 0.62, 0.6))), 0.0);
+  vec3 c = vec3(1.0, 0.8, 0.58) * (pow(k, expo) * ganho + pow(k, 3.0) * 0.32) * uLuz;
+  float teto = smoothstep(0.5, 0.92, r.y) * (1.0 - smoothstep(0.25, 0.75, abs(r.x + 0.1)));
+  c += vec3(0.95, 0.78, 0.56) * teto * mix(0.9, 0.35, rug) * uLuz;
+  float s = max(dot(r, normalize(vec3(0.85, 0.2, -0.3))), 0.0);
+  c += vec3(0.45, 0.56, 0.74) * (pow(s, expo * 0.7) * ganho * 0.55 + pow(s, 4.0) * 0.16) * uLuz;
+  c += vec3(0.13, 0.075, 0.04) * smoothstep(0.1, -0.6, r.y) * (0.5 + 0.5 * uLuz);
+  c += vec3(0.18, 0.1, 0.05) * smoothstep(-0.35, 0.25, r.y) * smoothstep(0.85, 0.2, r.y) * (0.4 + 0.6 * uLuz);
+  return c + vec3(0.03, 0.024, 0.019);
+}
+float capsula(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+void main() {
+  vec3 N = normalize(vN);
+  if (!gl_FrontFacing) N = -N;
+  vec3 V = normalize(-vV);
+  vec3 L = normalize(vec3(-0.55, 0.62, 0.56));
+  vec3 cor;
+  vec3 espec;
+#if MATERIAL == 0
+  float curv = length(fwidth(vNArma)) / max(length(fwidth(vArma)), 0.00001);
+  float borda = smoothstep(7.0, 30.0, curv);
+  float manchas = fbm3d(vArma * 2.6);
+  float detalhe = ruido3(vArma * 13.0);
+  float pintas = ruido3(vArma * 52.0 + 7.0);
+  float riscos = ruido3(vArma * vec3(1.2, 34.0, 34.0));
+  float gasto = clamp(0.55 * borda + 1.2 * (manchas - 0.52) + 0.25 * (detalhe - 0.5), 0.0, 1.0);
+  vec3 F0 = mix(vec3(0.2, 0.198, 0.195), vec3(0.6, 0.585, 0.56), gasto) * uTinta;
+  float ferrugem = smoothstep(0.62, 0.8, manchas) * (1.0 - borda) * smoothstep(0.4, 0.7, detalhe);
+  F0 = mix(F0, vec3(0.2, 0.13, 0.08), ferrugem * 0.55);
+  F0 *= 0.86 + 0.14 * riscos;
+  float poro = smoothstep(0.78, 0.96, pintas);
+  F0 *= 1.0 - 0.55 * poro;
+  float rug = clamp(mix(0.58, 0.24, gasto) + 0.12 * (riscos - 0.5) + 0.2 * poro, 0.12, 0.9);
+  vec3 R = reflect(-V, N);
+  float NV = max(dot(N, V), 0.0);
+  vec3 fres = F0 + (1.0 - F0) * pow(1.0 - NV, 5.0) * (1.0 - rug) * 0.6;
+  cor = fres * ambiente(R, rug);
+  // O rebatedor atrás da câmera: as faces chapadas de lado (que olham para quem vê) ganham um
+  // cinza quente largo, senão o aço de perfil vira preto; e um contorno frio no que fica de quina.
+  cor += F0 * vec3(0.62, 0.54, 0.44) * pow(max(dot(R, normalize(vec3(-0.2, 0.3, 1.0))), 0.0), 5.0) * 0.55 * uLuz;
+  cor += vec3(0.3, 0.36, 0.46) * pow(1.0 - NV, 3.0) * (0.25 + 0.4 * gasto) * uLuz;
+  cor += vec3(0.045, 0.04, 0.035) * (1.0 - gasto) * (0.3 + max(dot(N, L), 0.0)) * (0.35 + 0.65 * uLuz);
+  espec = F0;
+#elif MATERIAL == 1
+  vec2 eixo = normalize(vec2(0.17, -1.0));
+  vec2 lado = vec2(-eixo.y, eixo.x);
+  float ao = dot(vArma.xy, eixo);
+  float at = dot(vArma.xy, lado);
+  float veio = ruido3(vec3(at * 26.0 + 3.0 * ruido3(vArma * 3.0), ao * 2.0, vArma.z * 26.0));
+  float anel = fract(at * 9.0 + 2.2 * ruido3(vec3(ao * 1.6, vArma.z * 3.0, 1.0)));
+  vec3 alb = mix(vec3(0.075, 0.04, 0.024), vec3(0.17, 0.088, 0.048), veio);
+  alb = mix(alb, alb * 0.55, smoothstep(0.75, 1.0, anel) * 0.7);
+  // Mãos de décadas: o meio do painel mais escuro e oleoso, a borda mais clara e gasta.
+  alb *= 0.85 + 0.3 * ruido3(vArma * 4.0);
+  // O quadriculado: pirâmides miúdas dentro do painel, só nas faces laterais.
+  float lateral = smoothstep(0.55, 0.8, abs(normalize(vNArma).z));
+  float painel = smoothstep(0.012, -0.012, capsula(vArma.xy, vec2(0.86, 0.16), vec2(1.08, -0.88)) - 0.15) * lateral;
+  vec2 g = vec2(dot(vArma.xy, vec2(0.83, 0.56)), dot(vArma.xy, vec2(-0.56, 0.83))) * 27.0;
+  float fino = clamp(1.6 - length(fwidth(g)) * 1.2, 0.0, 1.0) * painel;
+  vec2 f = fract(g) - 0.5;
+  vec2 inc = abs(f.x) > abs(f.y) ? vec2(sign(f.x), 0.0) : vec2(0.0, sign(f.y));
+  vec2 incXY = inc.x * vec2(0.83, 0.56) + inc.y * vec2(-0.56, 0.83);
+  vec3 Np = normalize(N + normalMatrix * vec3(incXY * 0.55, 0.0) * fino);
+  float sulco = 1.0 - smoothstep(0.0, 0.09, 0.5 - max(abs(f.x), abs(f.y)));
+  alb *= 1.0 - 0.45 * sulco * fino;
+  float dif = max(dot(Np, L), 0.0);
+  cor = alb * (0.12 + 1.15 * dif * uLuz + 0.14 * (dot(Np, L) * 0.5 + 0.5));
+  // O verniz: um reflexo largo e um fino da caixa de luz, e o contra frio na quina.
+  vec3 R = reflect(-V, Np);
+  float verniz = (1.0 - 0.7 * painel);
+  cor += vec3(1.0, 0.84, 0.64) * (pow(max(dot(R, L), 0.0), 36.0) * 0.5 + pow(max(dot(R, L), 0.0), 6.0) * 0.05) * verniz * uLuz;
+  cor += vec3(0.4, 0.5, 0.66) * pow(1.0 - max(dot(Np, V), 0.0), 4.0) * 0.12 * uLuz;
+  espec = vec3(0.05);
+#elif MATERIAL == 2
+  vec3 R = reflect(-V, N);
+  float n = ruido3(vArma * 60.0);
+  vec3 F0 = vec3(0.3, 0.3, 0.31) * (0.8 + 0.2 * n);
+  cor = F0 * ambiente(R, 0.72) + vec3(0.03) * max(dot(N, L), 0.0) * uLuz;
+  espec = F0;
+#else
+  vec3 R = reflect(-V, N);
+  cor = vec3(0.01, 0.009, 0.008) + vec3(0.05) * ambiente(R, 0.6) * pow(1.0 - max(dot(N, V), 0.0), 2.0);
+  espec = vec3(0.02);
+#endif
+  // O clarão da boca acende o que está perto.
+  vec3 Lf = uBocaV - vV;
+  float df = length(Lf);
+  Lf /= max(df, 0.0001);
+  float luzF = uClarao / (1.0 + 1.5 * df * df);
+  cor += luzF * (vec3(0.4, 0.2, 0.07) * max(dot(N, Lf), 0.0) + espec * pow(max(dot(reflect(-V, N), Lf), 0.0), 8.0) * 3.0);
+  saida = vec4(cor, 1.0);
+}`;function A0(e,a,o=40){let t=a.getAttribute("position"),n=t.count,c=Math.floor(n/3),r=new Float32Array(c*3);for(let p=0;p<c;p++){let d=p*3,f=t.getX(d),S=t.getY(d),T=t.getZ(d),F=t.getX(d+1)-f,M=t.getY(d+1)-S,h=t.getZ(d+1)-T,y=t.getX(d+2)-f,N=t.getY(d+2)-S,w=t.getZ(d+2)-T,L=M*w-h*N,b=h*y-F*w,C=F*N-M*y,A=Math.hypot(L,b,C)||1;L/=A,b/=A,C/=A,r[p*3]=L,r[p*3+1]=b,r[p*3+2]=C}let s=p=>Math.abs(r[p*3+2])>.999,i=new Map,u=4096,l=p=>(Math.round(t.getX(p)*u)+16384)*67108864+(Math.round(t.getY(p)*u)+16384)*2048+(Math.round(t.getZ(p)*u)+1024);for(let p=0;p<n;p++){let d=l(p),f=i.get(d);f?f.push(p):i.set(d,[p])}let m=Math.cos(o*Math.PI/180),v=new Float32Array(n*3);for(let p of i.values())for(let d of p){let f=Math.floor(d/3),S=r[f*3],T=r[f*3+1],F=r[f*3+2];if(!s(f)){S=0,T=0,F=0;for(let h of p){let y=Math.floor(h/3);s(y)||r[f*3]*r[y*3]+r[f*3+1]*r[y*3+1]+r[f*3+2]*r[y*3+2]<m||(S+=r[y*3],T+=r[y*3+1],F+=r[y*3+2])}let M=Math.hypot(S,T,F)||1;S/=M,T/=M,F/=M}v[d*3]=S,v[d*3+1]=T,v[d*3+2]=F}a.setAttribute("normal",new e.Float32BufferAttribute(v,3))}function eo(e,a,o,t,n,c=4){let r=new e.ExtrudeGeometry(o,{depth:t,bevelEnabled:!0,bevelThickness:n,bevelSize:n*.9,bevelSegments:c,curveSegments:16});return r.translate(0,0,-t/2),A0(e,r),a(r)}function oo(e,a,o,t,n,c,r=!1){let s=new e.CylinderGeometry(o,t,n,c,1,r);return s.rotateZ(Math.PI/2),a(s)}function M0(e){let a=Math.PI/3,o=((e-Math.PI/6)%a+a)%a;return Math.min(o,a-o)}function y0(e,a){let i=(M,h)=>{let y=Math.min(1,M0(h)/.21),N=ua(-.27,-.19,M)*ua(.33,.28,M);return .25-.05*Math.sqrt(Math.max(0,1-y*y))*N},u=(M,h)=>{let y=i(M,h);return[M,y*Math.cos(h),y*Math.sin(h)]},l=[],m=[],v=[];for(let M=0;M<=40;M++){let h=-.315+.63*M/40;for(let y=0;y<=192;y++){let N=2*Math.PI*y/192,w=u(h,N);l.push(w[0],w[1],w[2]);let L=u(h,N+6e-4),b=u(h,N-6e-4),C=u(h+6e-4,N),A=u(h-6e-4,N),g=[L[0]-b[0],L[1]-b[1],L[2]-b[2]],O=[C[0]-A[0],C[1]-A[1],C[2]-A[2]],_=g[1]*O[2]-g[2]*O[1],I=g[2]*O[0]-g[0]*O[2],B=g[0]*O[1]-g[1]*O[0];_*0+I*Math.cos(N)+B*Math.sin(N)<0&&(_=-_,I=-I,B=-B);let Q=Math.hypot(_,I,B)||1;m.push(_/Q,I/Q,B/Q)}}for(let M=0;M<40;M++)for(let h=0;h<192;h++){let y=M*193+h,N=y+192+1;v.push(y,y+1,N,N,y+1,N+1)}let d=new e.BufferGeometry;d.setAttribute("position",new e.Float32BufferAttribute(l,3)),d.setAttribute("normal",new e.Float32BufferAttribute(m,3)),d.setIndex(v);let f=new e.Vector3().fromArray(l,0),S=new e.Vector3().fromArray(l,3),T=new e.Vector3().fromArray(l,579);if(S.clone().sub(f).cross(T.clone().sub(f)).dot(new e.Vector3(0,Math.cos(0),Math.sin(0)))<0){let M=[];for(let h=0;h<v.length;h+=3)M.push(v[h],v[h+2],v[h+1]);d.setIndex(M)}return a(d)}function ua(e,a,o){let t=Oe((o-e)/(a-e));return t*t*(3-2*t)}var Qa=Array.from({length:6},(e,a)=>a*Math.PI/3),Fo=.155,Io=.072;function T0(e,a,o){let t=new e.Group,n=new e.Group,c=new e.Group;c.position.set(-zo,-Ro,0),t.add(n),n.add(c);let r=(O,_,I=0,B=0,Q=0,W=c)=>{let oe=new e.Mesh(O,_);return oe.position.set(I,B,Q),oe.frustumCulled=!1,W.add(oe),oe};r(oo(e,o,.086,.092,1.5,56,!0),a.aco,ze+.75,De);let s=o(new e.RingGeometry(.04,.086,56));s.rotateY(-Math.PI/2),r(s,a.aco,ze,De);let i=o(new e.TorusGeometry(.083,.0045,8,56));i.rotateY(Math.PI/2),r(i,a.aco,ze+.002,De),r(oo(e,o,.04,.04,.7,32,!0),a.escuro,ze+.35,De);let u=new e.Shape;u.moveTo(-.075,0),u.quadraticCurveTo(-.06,.068,.01,.07),u.quadraticCurveTo(.065,.06,.075,0),u.lineTo(-.075,0),r(eo(e,o,u,.018,.005,2),a.aco,ze+.14,De+.07),r(oo(e,o,.118,.118,.14,56),a.aco,-.73,De);let l=new e.Shape;l.moveTo(-.69,.5),l.lineTo(-.68,.79),l.quadraticCurveTo(-.67,.875,-.58,.88),l.lineTo(.16,.89),l.quadraticCurveTo(.31,.89,.4,.81),l.lineTo(.47,.71),l.quadraticCurveTo(.6,.56,.8,.5),l.quadraticCurveTo(.95,.47,.95,.4),l.lineTo(.9,.3),l.lineTo(.62,.22),l.quadraticCurveTo(.3,.14,-.05,.155),l.lineTo(-.42,.16),l.quadraticCurveTo(-.62,.17,-.67,.3),l.lineTo(-.69,.5);let m=new e.Path;m.moveTo(-.5,.25),m.lineTo(.21,.25),m.lineTo(.21,.85),m.lineTo(-.5,.85),m.lineTo(-.5,.25),l.holes.push(m),r(eo(e,o,l,.2,.025),a.aco);let v=new e.Shape;v.absarc(-.03,-.06,.3,0,Math.PI*2,!1);let p=new e.Path;p.absarc(-.03,-.06,.245,0,Math.PI*2,!0),v.holes.push(p),r(eo(e,o,v,.085,.014,3),a.aco);let d=new e.Shape;d.moveTo(.04,.17),d.quadraticCurveTo(.065,.02,0,-.1),d.quadraticCurveTo(-.06,-.2,-.16,-.235),d.lineTo(-.152,-.2),d.quadraticCurveTo(-.08,-.17,-.04,-.08),d.quadraticCurveTo(-0,.02,-.02,.17),d.lineTo(.04,.17),r(eo(e,o,d,.06,.01,2),a.acoDoCao);let f=new e.Group;f.position.set(Jn,Qn,0),c.add(f);let S=new e.Shape;S.moveTo(-.07,-.03),S.lineTo(.07,-.06),S.quadraticCurveTo(.16,.02,.21,.14),S.quadraticCurveTo(.28,.23,.38,.25),S.lineTo(.41,.3),S.quadraticCurveTo(.3,.36,.18,.32),S.quadraticCurveTo(.07,.28,.02,.19),S.lineTo(-.05,.1),S.lineTo(-.07,-.03),r(eo(e,o,S,.1,.013,2),a.acoDoCao,0,0,0,f);let T=new e.Group;T.position.set(-.145,ra,0),c.add(T),r(y0(e,o),a.aco,0,0,0,T);let F=oo(e,o,.232,.25,.02,72,!0);r(F,a.aco,-.325+.01,0,0,T);let M=new e.Shape;M.absarc(0,0,.232,0,Math.PI*2,!1);for(let O of Qa){let _=new e.Path;_.absarc(Fo*Math.sin(O),Fo*Math.cos(O),Io,0,Math.PI*2,!0),M.holes.push(_)}let h=new e.Path;h.absarc(0,0,.032,0,Math.PI*2,!0),M.holes.push(h);let y=o(new e.ShapeGeometry(M,24));y.rotateY(-Math.PI/2),r(y,a.aco,-.325,0,0,T);let N=o(new e.CircleGeometry(.25,64));N.rotateY(Math.PI/2),r(N,a.aco,.315,0,0,T);let w=oo(e,o,Io,Io,.16,28,!0),L=o(new e.SphereGeometry(Io*.92,24,10,0,Math.PI*2,0,Math.PI/2));L.rotateZ(Math.PI/2);for(let O of Qa){let _=Fo*Math.cos(O),I=Fo*Math.sin(O);r(w,a.escuro,-.325+.08,_,I,T),r(L,a.chumbo,-.325+.075,_,I,T)}r(oo(e,o,.022,.022,.4,20),a.aco,-.9,ra),r(oo(e,o,.034,.034,.1,28),a.aco,-1.13,ra);let b=new e.Shape;b.moveTo(-.08,-.035),b.lineTo(.08,-.035),b.quadraticCurveTo(.1,-.035,.1,-.015),b.lineTo(.1,.015),b.quadraticCurveTo(.1,.035,.08,.035),b.lineTo(-.08,.035),b.quadraticCurveTo(-.1,.035,-.1,.015),b.lineTo(-.1,-.015),b.quadraticCurveTo(-.1,-.035,-.08,-.035),r(eo(e,o,b,.022,.008,2),a.aco,.42,.44,.138);let C=o(new e.CylinderGeometry(.028,.03,.014,24));C.rotateX(Math.PI/2),r(C,a.aco,.3,.27,.128),r(C,a.aco,-.57,.25,.128);let A=new e.Shape;A.moveTo(.56,.36),A.splineThru([new e.Vector2(.78,.47),new e.Vector2(.95,.42),new e.Vector2(1.06,.18),new e.Vector2(1.16,-.25),new e.Vector2(1.27,-.72),new e.Vector2(1.34,-1.04)]),A.quadraticCurveTo(1.35,-1.13,1.25,-1.15),A.lineTo(.92,-1.14),A.quadraticCurveTo(.84,-1.13,.83,-1.04),A.splineThru([new e.Vector2(.79,-.72),new e.Vector2(.72,-.4),new e.Vector2(.68,-.1),new e.Vector2(.64,.12)]),A.quadraticCurveTo(.6,.28,.56,.36),r(eo(e,o,A,.26,.05,5),a.madeira);let g=o(new e.CylinderGeometry(.032,.034,.016,24));return g.rotateX(Math.PI/2),r(g,a.aco,.97,-.38,.178),r(g,a.aco,.97,-.38,-.178),t.traverse(O=>O.layers.set(st)),{pulso:t,arma:n,modelo:c,cao:f,tambor:T}}var Ea=[0,.024,.06,.12,.2,.31,.46,.66,.92,1.26,1.7,2.3,3.1,4.4,6.4],ao=[10,10,10,10,20,20,20,20,40,40,40,40,40,40],C0=[1,.85,.72,.64,.56,.5,.45,.4,.34,.3,.26,.22,.2,.2,.2],S0=[1,1,1,1,1,1,.96,.9,.84,.78,.72,.66,.6,.55],Go=4.8;function O0(e){let a=fe(6464),o=new Uint8Array(vo**3);for(let n=0;n<o.length;n++)o[n]=Math.floor(a()*256);let t=new e.Data3DTexture(o,vo,vo,vo);return t.format=e.RedFormat,t.type=e.UnsignedByteType,t.minFilter=e.LinearFilter,t.magFilter=e.LinearFilter,t.wrapS=e.RepeatWrapping,t.wrapT=e.RepeatWrapping,t.wrapR=e.RepeatWrapping,t.unpackAlignment=1,t.generateMipmaps=!1,t.needsUpdate=!0,t}function D0(e){let a=fe(90127),o=a()*Math.PI*2,t=[[[0,0]]];for(let b=1;b<Ea.length;b++){let C=ao[Math.min(b,ao.length-1)],A=[],g=b<=4?.8:.6;for(let O=0;O<C;O++){let _=o+(O+(a()-.5)*g)/C*Math.PI*2,I=Ea[b]*(1+(a()-.5)*.36);A.push([I*Math.cos(_),I*Math.sin(_)])}t.push(A)}let n=new Map,c=(b,C)=>{let A=n.get(b);return A===void 0&&(A=a()<C,n.set(b,A)),A},r=new Map,s=b=>{let C=r.get(b.chave);if(C)return C;let[A,g]=b.a,[O,_]=b.b,I=O-A,B=_-g,Q=Math.hypot(I,B),W=.5+(a()-.5)*.2,oe=(a()-.5)*.16*Q,ce=[A+I*W-B/(Q||1)*oe,g+B*W+I/(Q||1)*oe];return r.set(b.chave,ce),ce},i=[],u=new Map,l=[],m=b=>{for(;l[b]!==b;)l[b]=l[l[b]],b=l[b];return b},v=(b,C)=>{let A=m(b),g=m(C);A!==g&&(l[g]=A)};for(let b=0;b<ao.length;b++){let C=ao[b],A=t[b+1],g=A.length/C;for(let O=0;O<C;O++){let _=b===0?t[0][0]:t[b][O],I=b===0?t[0][0]:t[b][(O+1)%C],B=[],Q=[];for(let j=g;j>=0;j--)B.push(A[(O*g+j)%A.length]);for(let j=g-1;j>=0;j--)Q.push(`A:${b+1}:${(O*g+j)%A.length}`);let W=[];b>0&&W.push({a:_,b:I,chave:`A:${b}:${O}`,tipo:2}),W.push({a:I,b:B[0],chave:`R:${b}:${(O+1)%C}`,tipo:1});for(let j=0;j<B.length-1;j++)W.push({a:B[j],b:B[j+1],chave:Q[j],tipo:2});W.push({a:B[B.length-1],b:_,chave:`R:${b}:${O}`,tipo:1});let oe=[];for(let j of W)oe.push(j.a,s(j));let ce=0,E=0,q=0;for(let j=0;j<oe.length;j++){let[K,k]=oe[j],[ae,ie]=oe[(j+1)%oe.length],ve=K*ie-ae*k;ce+=ve,E+=(K+ae)*ve,q+=(k+ie)*ve}ce/=2;let se=i.length;i.push({arestas:W,pontos:oe,area:Math.abs(ce),cx:E/(6*ce||1),cy:q/(6*ce||1)}),u.set(`${b}:${O}`,se),l.push(se)}}for(let b=0;b<ao.length;b++){let C=ao[b];for(let A=0;A<C;A++){let g=u.get(`${b}:${A}`)??0;if(c(`R:${b}:${A}`,S0[b])||v(g,u.get(`${b}:${(A-1+C)%C}`)??g),b>0){let O=ao[b-1],_=C/O;c(`A:${b}:${A}`,C0[b])||v(g,u.get(`${b-1}:${Math.floor(A/_)}`)??g)}}}let p=new Map;for(let b=0;b<i.length;b++){let C=m(b),A=p.get(C)??{area:0,x:0,y:0};A.area+=i[b].area,A.x+=i[b].cx*i[b].area,A.y+=i[b].cy*i[b].area,p.set(C,A)}let d=new Map;for(let[b,C]of p){let A=C.x/(C.area||1),g=C.y/(C.area||1),O=Math.hypot(A,g),_=Math.min(.34,.34*Math.pow(O/1.9,.8))+a()*.05;d.set(b,[A,g,a(),a(),a(),_])}let f=[],S=[],T=[],F=[],M=[],h=[],y=new Map,N=b=>{let C=y.get(b);return C===void 0&&(C=Math.pow(a(),1.6),y.set(b,C)),C},w=(b,C,A,g,O)=>{f.push(b[0],b[1],0),S.push(g[0],g[1]),T.push(g[2],g[3],g[4],g[5]),F.push(C),M.push(A),h.push(O)};for(let b=0;b<i.length;b++){let C=i[b],A=d.get(m(b))??[0,0,.5,.5,.5,0],g=0,O=0;for(let I of C.pontos)g+=I[0],O+=I[1];let _=[g/C.pontos.length,O/C.pontos.length];for(let I of C.arestas){let B=n.get(I.chave)===!1?0:I.tipo,Q=s(I),W=N(I.chave);w(_,1,B,A,W),w(I.a,0,B,A,W),w(Q,0,B,A,W),w(_,1,B,A,W),w(Q,0,B,A,W),w(I.b,0,B,A,W)}}let L=new e.BufferGeometry;return L.setAttribute("position",new e.Float32BufferAttribute(f,3)),L.setAttribute("aPivo",new e.Float32BufferAttribute(S,2)),L.setAttribute("aCaco",new e.Float32BufferAttribute(T,4)),L.setAttribute("aBorda",new e.Float32BufferAttribute(F,1)),L.setAttribute("aRacha",new e.Float32BufferAttribute(M,1)),L.setAttribute("aLinha",new e.Float32BufferAttribute(h,1)),L}function Ha(e,a){let o=document.createElement("canvas");o.width=e,o.height=a;let t=o.getContext("2d");if(!t)throw new Error("tiro na tela: sem canvas 2D");return[o,t]}function w0(e,a){let[o,t]=Ha(fo,_o),n=M=>`700 ${M}px ${v0}`;t.font=n(100);let c=Math.max(1,t.measureText(a).width),r=Math.min(m0,100*d0/c);t.font=n(r),t.textAlign="center",t.textBaseline="alphabetic";let s=t.measureText(a),i=s.actualBoundingBoxAscent||r*.7,u=s.actualBoundingBoxDescent||0,l=fo/2,m=_o/2+(i-u)/2,v=m-i;t.lineJoin="round",t.save(),t.shadowColor="rgba(0, 0, 0, 0.8)",t.shadowBlur=r*.3,t.fillStyle="rgba(0, 0, 0, 0.55)",t.fillText(a,l,m),t.restore(),t.fillStyle="#2b0f06",t.strokeStyle="#2b0f06",t.lineWidth=r*.09,t.strokeText(a,l+r*.05,m+r*.055),t.fillText(a,l+r*.05,m+r*.055),t.strokeStyle="#0c0703",t.lineWidth=r*.085,t.strokeText(a,l,m);let[p,d]=Ha(fo,_o);d.font=n(r),d.textAlign="center",d.textBaseline="alphabetic";let f=d.createLinearGradient(0,v,0,m+u);f.addColorStop(0,"#fff0c0"),f.addColorStop(.2,"#f0cd78"),f.addColorStop(.46,"#c58f2d"),f.addColorStop(.56,"#9a671b"),f.addColorStop(.74,"#dfb04e"),f.addColorStop(1,"#7a4e12"),d.fillStyle=f,d.fillText(a,l,m),d.globalCompositeOperation="source-atop";let S=fe(3131),T=r*.11;for(let M=v-T;M<m+u+T;M+=T*.86)for(let h=l-s.width/2-T;h<l+s.width/2+T;h+=T)d.strokeStyle=`rgba(255, 246, 214, ${.07+S()*.1})`,d.lineWidth=1+S()*1.5,d.beginPath(),d.arc(h+(S()-.5)*T*.3,M,T*.48,0,Math.PI*2),d.stroke();for(let M=0;M<140;M++){let h=l+(S()-.5)*s.width,y=v+S()*(i+u),N=(S()-.5)*.6,w=4+S()*16;d.strokeStyle=S()<.7?"rgba(70, 40, 8, 0.35)":"rgba(255, 250, 230, 0.25)",d.lineWidth=1+S()*1.6,d.beginPath(),d.moveTo(h,y),d.lineTo(h+Math.cos(N)*w,y+Math.sin(N)*w),d.stroke()}t.drawImage(p,0,0);let F=new e.CanvasTexture(o);return F.anisotropy=4,{textura:F,fracao:Math.min(1,(s.width+r*.9)/fo)}}var P=po,te=ma;function P0(e){let a=Oe(e/P.pega);return Ye*P.pega*a+(da-Ye)*P.pega*(1-Math.pow(1-a,Vo+1))/(Vo+1)}function ho(e){if(e<P.pega)return 2*Math.PI*(P0(e)-u0);let a=e-P.pega,o=2*Math.PI*lt;return 2*Math.PI*Ye/o*Math.exp(-ia*a)*Math.sin(o*a)}function Lo(e){if(e<P.pega)return 2*Math.PI*(Ye+(da-Ye)*Math.pow(1-Oe(e/P.pega),Vo));let a=e-P.pega,o=2*Math.PI*lt;return 2*Math.PI*Ye*Math.exp(-ia*a)*(Math.cos(o*a)-ia/o*Math.sin(o*a))}function F0(e,a){return 1+(a+1)*Math.pow(e-1,3)+a*Math.pow(e-1,2)}function mt(e,a){return a?1:e<=P.miraInicio?0:F0(x(e,P.miraInicio,P.miraFim),.9)}function dt(e,a){let o=a?te.engatilha:P.engatilha;return e>=(a?te.tiro:P.tiro)-.01?0:U(x(e,o,o+.1))}function ft(e,a){let o=a?te.engatilha:P.engatilha;return U(x(e,o+.02,o+.1))}function vt(e,a){if(a)return 0;let o=e-P.tiro;if(o<=0)return 0;let t=.045;if(o<t)return $(o/t);let n=o-t;return(1+n/.11)*Math.exp(-n/.11)}function qo(e){return e?te.tiro:P.tiro}function pt(e,a){let o=e-qo(a);return o<0?0:Math.exp(-o/.032)*(a?.55:1)}function I0(e,a){let o=e>.002?Math.max(.5*Math.log(453*e),.15*Math.log(567*e),0):0;return Math.max(o,a>.01?.5:0)}function N0(e,a){let o=e-qo(a);return o<0?0:$(Oe(o/.012))*Math.exp(-o/.075)*(a?.5:1)}function ht(e,a){if(a)return e>=te.tiro?Go:0;let o=x(e,P.impacto,P.raiosFim);return e<P.impacto?0:Go*(1-(1-o)*(1-o))}function _0(e,a){if(a)return e>=te.tiro?Go:0;let o=x(e,P.impacto+.03,P.aneisFim);return e<P.impacto+.03?0:Go*(1-(1-o)*(1-o))}function bt(e,a){return a?U(x(e,te.nomeSurge,te.nomeAceso)):$(x(e,P.nomeSurge,P.nomeNitido))}function xt(e,a){return a?(.12+.88*U(x(e,0,te.surgeFim)))*(1-U(x(e,te.apagaInicio,te.apagaFim))):(.08+.92*$(x(e,0,.5)))*(1-.14*U(x(e,P.miraFim,P.tiro)))}function gt(e,a){let o=1-$(x(e,0,P.fadeInFim)),t=U(x(e,a?te.fadeOutInicio:P.fadeOutInicio,P.duracao));return Math.max(o,t)}function z0(e,a){let o=e-P.impacto;if(a||o<0)return[0,0];let t=.014*Math.exp(-o/.06);return[t*Math.sin(o*2*Math.PI*23),t*Math.cos(o*2*Math.PI*31)]}function At(e,a){let o=180/Math.PI;return{giroGraus:a?0:ho(e)*o,voltasPorSegundo:a?0:Lo(e)/(2*Math.PI),miraGraus:mt(e,a)*it*o,cao:dt(e,a),tamborGraus:ft(e,a)*60,recuoGraus:vt(e,a)*ut*o,clarao:pt(e,a),frenteDaRachadura:ht(e,a),quedaS:a?-1:e-P.cede,nome:bt(e,a),luz:xt(e,a),fade:gt(e,a)}}function R0(e,a){let o=a.reduzirMovimento,t=Wn(a.nome),n=t!=="",c=[],r=z=>(c.push(z),z),s=(z,V)=>new e.Vector2(z,V),i=new e.Scene,u=new e.PerspectiveCamera(sa,16/9,.1,60);i.add(u);let l=new e.PerspectiveCamera(sa,16/9,.05,60);l.layers.set(st),i.add(l);let m=16/9,v=1,p={value:0},d={value:0},f={value:new e.Vector3},S={value:new e.Matrix4},T={value:r(O0(e))},F=(z,V,ue=e.FrontSide)=>r(new e.RawShaderMaterial({vertexShader:x0,fragmentShader:g0,glslVersion:e.GLSL3,defines:{MATERIAL:z},side:ue,uniforms:{uLuz:p,uClarao:d,uBocaV:f,uMundoParaArma:S,uRuido:T,uTinta:{value:new e.Vector3(...V)}}})),M=T0(e,{aco:F(0,[1,1,1]),acoDoCao:F(0,[1.22,1.08,.92]),madeira:F(1,[1,1,1]),chumbo:F(2,[1,1,1]),escuro:F(3,[1,1,1],e.DoubleSide)},r);i.add(M.pulso);let h=r(new e.WebGLRenderTarget(1,1,{samples:4})),y=r(new e.WebGLRenderTarget(1,1,{samples:4})),N=!o,w=!1,L=n?w0(e,t):null;L&&r(L.textura);let b=r(new e.DataTexture(new Uint8Array([0,0,0,0]),1,1));b.needsUpdate=!0;let C={value:0},A={value:m},g={uTempo:C,uAspecto:A,uLuz:p,uClarao:d,uArma:{value:h.texture},uCaixaArma:{value:new e.Vector4(0,0,1,1)},uAlcanceDoClarao:{value:0},uPivo:{value:s(0,0)},uArco:{value:0},uRaioArma:{value:1},uPxPorUnidade:{value:540},uSurgeArma:{value:1},uBoca:{value:s(0,0)},uDirTiro:{value:s(-1,0)},uBola:{value:0},uFumaca:{value:0},uIdadeDaFumaca:{value:0},uBrilho:{value:0},uBrilhoPos:{value:s(0,0)},uRacha:{value:0},uFrenteR:{value:0},uFrenteA:{value:0},uRevela:{value:1},uLuzDoImpacto:{value:0},uOnda:{value:-1},uNome:{value:L?L.textura:b},uNomeRet:{value:new e.Vector4(0,Ja,1,.25)},uNomeSurge:{value:0},uVarre:{value:-1},uGrao:{value:o?0:.028},uImpacto:{value:s(0,0)},uQueda:{value:-1},uTremor:{value:s(0,0)}},O=new e.Mesh(r(D0(e)),r(new e.ShaderMaterial({vertexShader:h0,fragmentShader:b0,uniforms:g,side:e.DoubleSide})));O.frustumCulled=!1,i.add(O);let _=new e.Vector2,I=new e.Color;O.onBeforeRender=z=>{z.getDrawingBufferSize(_);let V=Math.min(1,jn/Math.max(_.x,_.y,1)),ue=Math.max(1,Math.round(_.x*V)),Te=Math.max(1,Math.round(_.y*V)),pe=Math.max(1,Math.round(ue*Ya)),xe=Math.max(1,Math.round(Te*Ya));(h.width!==ue||h.height!==Te)&&(h.setSize(ue,Te),w=!1),(y.width!==pe||y.height!==xe)&&(y.setSize(pe,xe),w=!1);let Y=N?y:h;g.uArma.value=Y.texture,g.uPxPorUnidade.value=Y.height/2;let _e=z.getRenderTarget();z.getClearColor(I);let qe=z.getClearAlpha();if(z.setClearColor(0,0),!w){for(let Ue of[h,y])Ue.scissorTest=!1,z.setRenderTarget(Ue),z.clear();w=!0}let ne=Math.max(0,Math.floor(q.x/m*.5*Y.width+.5*Y.width)-2),he=Math.max(0,Math.floor(q.y*.5*Y.height+.5*Y.height)-2),le=Math.min(Y.width,Math.ceil(q.z/m*.5*Y.width+.5*Y.width)+2),ge=Math.min(Y.height,Math.ceil(q.w*.5*Y.height+.5*Y.height)+2),Ve=Math.max(1,le-ne),Be=Math.max(1,ge-he);Y.scissor.set(Math.min(ne,Y.width-1),Math.min(he,Y.height-1),Ve,Be),Y.scissorTest=!0,g.uCaixaArma.value.set((ne+1)/Y.width,(he+1)/Y.height,(ne+Ve-1)/Y.width,(he+Be-1)/Y.height),z.setRenderTarget(Y),z.clear(),z.render(i,l),z.setRenderTarget(_e),z.setClearColor(I,qe)};let B=new e.Vector3,Q=new e.Vector3,W=new e.Vector3,oe=new e.Vector3,ce=new e.Vector2,E=new e.Vector2,q=new e.Vector4(-m,-1,m,1);M.pulso.updateMatrixWorld(!0);let se=new e.Box3().setFromObject(M.modelo).applyMatrix4(M.modelo.matrixWorld.clone().invert()).expandByScalar(Yn),j=n?t0:n0,K=n?c0:s0;function k(z){let V=mt(z,o),ue=o?0:ho(z),Te=o?1:$(x(z,0,P.sobeFim));M.pulso.position.set(.5*(1-Te),-3.6*(1-Te),0),M.pulso.rotation.set(-Hn*V,it*V,0,"XYZ");let pe=vt(z,o),xe=-ut*pe,Y=Zn-zo,_e=Kn-Ro,qe=Math.cos(xe),ne=Math.sin(xe),he=e0*pe;M.arma.rotation.set(0,0,ue+xe),M.arma.position.set(Y-(qe*Y-ne*_e)+qe*he,_e-(ne*Y+qe*_e)+ne*he,0);let le=o?0:.035*Math.exp(-Math.max(0,z-P.engatilha-.09)/.05)*(z>P.engatilha+.09?1:0);M.arma.rotation.z+=le,M.cao.rotation.z=-En*dt(z,o),M.tambor.rotation.x=ft(z,o)*Math.PI/3;let ge=o?1:U(x(z,P.pega-.02,P.miraFim+.12)),Ve=o?0:U(x(z,P.miraFim,P.tiro)),Be=B.x+(Q.x-B.x)*ge,Ue=B.y+(Q.y-B.y)*ge,ea=B.z+(Q.z-B.z)*ge,$e=(ca+(o0-ca)*ge)*v-a0*Ve,oa=Ka+(r0-Ka)*ge,aa=j+(K-j)*ge;l.position.set(Be-oa*$e/Po,Ue-aa*$e/Po,ea+$e),M.pulso.updateMatrixWorld(!0),l.updateMatrixWorld()}function ae(z,V,ue,Te){return M.modelo.localToWorld(Te.set(z,V,ue))}function ie(z,V){return oe.copy(z).project(l),V.set(oe.x*m,oe.y)}let ve=!0;function Ie(){B.set(0,0,0),Q.set(0,0,0),k(P.miraFim+.3),ae(ze,De,0,Q),k(qo(o)-.005);let z=ae(ze,De,0,new e.Vector3),V=ae(ze+1,De,0,new e.Vector3),ue=z.clone().sub(V).normalize(),Te=z.clone().addScaledVector(ue,i0),pe=ie(Te,g.uImpacto.value);pe.x=Math.max(-.8*m,Math.min(.8*m,pe.x)),pe.y=Math.max(-.75,Math.min(.75,pe.y)),ve=!1}function We(z){let V=Math.min(P.duracao,Math.max(0,z));ve&&Ie(),k(V),C.value=V,p.value=xt(V,o),S.value.copy(M.modelo.matrixWorld).invert();let ue=qo(o);ae(zo,Ro,0,W),ie(W,g.uPivo.value);let Te=Math.max(.5,l.position.z-W.z);if(g.uRaioArma.value=(Za+.25)*Po/Te,g.uArco.value=o?0:Math.abs(Lo(V))*l0,N=!o&&V<P.pega+.03,N){let ne=g.uPivo.value,he=g.uRaioArma.value;q.set(ne.x-he,ne.y-he,ne.x+he,ne.y+he)}else{q.set(1/0,1/0,-1/0,-1/0);for(let ne=0;ne<8;ne++){let he=ne&1?se.max.x:se.min.x,le=ne&2?se.max.y:se.min.y,ge=ne&4?se.max.z:se.min.z;ie(ae(he,le,ge,W),E),q.set(Math.min(q.x,E.x),Math.min(q.y,E.y),Math.max(q.z,E.x),Math.max(q.w,E.y))}}ae(ze,De,0,W),ie(W,g.uBoca.value),f.value.copy(W).applyMatrix4(l.matrixWorldInverse),ae(ze-.25,De,0,W),ie(W,ce);let pe=ce.sub(g.uBoca.value);if(pe.lengthSq()>1e-8&&g.uDirTiro.value.copy(pe.normalize()),g.uSurgeArma.value=o?U(x(V,te.surgeInicio,te.surgeFim)):1,!o&&V<P.pega+.1){let ne=Lo(V),he=Math.PI+ho(V),le=Math.atan2(.62,-.5)+Math.PI/2,ge=((he-le)%Math.PI+Math.PI)%Math.PI;ge=Math.min(ge,Math.PI-ge);let Ve=Math.max(.12,Math.abs(ne)*.02),Be=1-ua(1.6,2.8,Math.abs(ne)/(2*Math.PI));g.uBrilho.value=Math.exp(-(ge*ge)/(Ve*Ve))*(.12/Ve)*Be*p.value*.8,ae(-1.15,De+.08,.05,W),ie(W,g.uBrilhoPos.value)}else g.uBrilho.value=0;d.value=pt(V,o),g.uBola.value=N0(V,o),g.uAlcanceDoClarao.value=I0(d.value,g.uBola.value);let xe=V-ue;g.uIdadeDaFumaca.value=Math.max(0,xe),g.uFumaca.value=xe<0?0:$(Oe(xe/.08))*Math.exp(-xe/1.3)*(o?.6:1);let Y=o?te.tiro:P.impacto;g.uRacha.value=V<Y?0:o?U(x(V,Y,te.rachaFim)):$(x(V,Y,Y+.05)),g.uRevela.value=o?g.uRacha.value:1,g.uFrenteR.value=ht(V,o),g.uFrenteA.value=_0(V,o),g.uLuzDoImpacto.value=V<Y?0:Math.exp(-(V-Y)/.05)*(o?.35:1),g.uOnda.value=o||V<Y?-1:V-Y;let[_e,qe]=z0(V,o);return g.uTremor.value.set(_e,qe),g.uQueda.value=o?-1:V-P.cede,g.uNomeSurge.value=n?bt(V,o):0,g.uVarre.value=o||!n?-1:-.3+1.6*U(x(V,P.nomeSurge+.05,P.nomeNitido+.25)),{fade:gt(V,o)}}function ro(z){m=Math.max(.2,z),A.value=m,u.aspect=m,u.updateProjectionMatrix(),l.aspect=m,l.updateProjectionMatrix(),v=Math.max(1,Za*Po/(.95*m*ca));let V=L?.fracao??1,ue=Math.min(f0,.86*2*m/V);g.uNomeRet.value.set(0,Ja,ue/2,ue*_o/fo/2),ve=!0}function ye(){for(let z of c)z.dispose();c.length=0}return ro(m),We(0),{scene:i,camera:u,atualizar:We,ajustarTela:ro,criarSom:z=>X0(z,o,n),descartar:ye}}function be(e,a,o,t,n){e.gain.setValueAtTime(1e-4,a),e.gain.exponentialRampToValueAtTime(Math.max(2e-4,o),a+t),e.gain.exponentialRampToValueAtTime(1e-4,a+t+n)}function Ae(e,a,o,t=.7){let n=e.createBiquadFilter();return n.type=a,n.frequency.value=o,n.Q.value=t,n}function V0(e,a){let o=Math.ceil(e.sampleRate*a),t=e.createBuffer(2,o,e.sampleRate);for(let n=0;n<2;n++){let c=fe(n===0?71:113),r=t.getChannelData(n);for(let s=0;s<o;s++)r[s]=(c()*2-1)*Math.pow(1-s/o,4.2)}return t}function we(e,a,o,t,n,c){let r=e.ctx.createBufferSource();r.buffer=e.ruido(2),r.loop=!0;let s=r;for(let i of n)s.connect(i),s=i;s.connect(c),r.start(a,t%2),r.stop(a+o)}function to(e,a,o){let t=e.ctx.createStereoPanner();return t.pan.value=a,t.connect(o),t}function et(e,a,o,t){let{ctx:n}=e,c=Ae(n,"bandpass",520,.55),r=n.createOscillator();r.frequency.value=.23;let s=n.createGain();s.gain.value=180,r.connect(s),s.connect(c.frequency);let i=n.createGain();i.gain.setValueAtTime(1e-4,a),i.gain.exponentialRampToValueAtTime(t,a+.5),i.gain.setValueAtTime(t,o-.5),i.gain.exponentialRampToValueAtTime(1e-4,o-.05),i.connect(to(e,-.2,e.seco)),we(e,a,o-a,.3,[c],i),r.start(a),r.stop(o)}function ot(e,a,o,t){let{ctx:n}=e,c=Ae(n,"lowpass",200,1.2);c.frequency.setValueAtTime(200,a),c.frequency.linearRampToValueAtTime(430,o);let r=n.createGain();r.gain.setValueAtTime(1e-4,a),r.gain.exponentialRampToValueAtTime(t*.45,a+.6),r.gain.exponentialRampToValueAtTime(t,o-.02),r.gain.exponentialRampToValueAtTime(1e-4,o+.06),c.connect(r),r.connect(e.seco);for(let[s,i,u]of[[55,"sawtooth",.4],[55.32,"sawtooth",.3],[82.41,"triangle",.35],[110,"sine",.15]]){let l=n.createOscillator();l.type=i,l.frequency.value=s;let m=n.createGain();m.gain.value=u,l.connect(m),m.connect(c),l.start(a),l.stop(o+.1)}}function at(e,a,o,t,n){let{ctx:c}=e,r=1/Math.max(.8,o),s=Ae(c,"bandpass",260+210*o,1.4),i=c.createGain(),u=Math.max(c.currentTime,a-r*.22),l=Math.max(u+.005,a);i.gain.setValueAtTime(1e-4,u),i.gain.exponentialRampToValueAtTime(Math.max(2e-4,t),l),i.gain.exponentialRampToValueAtTime(1e-4,l+r*.32),i.connect(to(e,n,e.seco)),we(e,u,l-u+r*.34+.02,a*7.3,[s],i)}function G0(e,a){let o=ho(0),t=.25;for(let n=.001;n<=P.pega;n+=.001){let c=ho(n),r=(u,l)=>Math.floor((u+l)/(2*Math.PI)),s=Lo(n)/(2*Math.PI),i=$(x(n,0,P.sobeFim));r(c,Math.PI/2)!==r(o,Math.PI/2)&&(at(e,a+n,s,(.08+.045*Math.min(1,s/4.4))*(.4+.6*i),t),t=-t),r(c,-Math.PI/2)!==r(o,-Math.PI/2)&&at(e,a+n,s*.8,(.04+.022*Math.min(1,s/4.4))*(.4+.6*i),-t*.6),o=c}}function L0(e,a){let{ctx:o}=e,t=o.createGain();be(t,a,.3,.002,.07),t.connect(e.seco),we(e,a,.1,.9,[Ae(o,"lowpass",1400,.8)],t);let n=o.createOscillator();n.frequency.setValueAtTime(150,a),n.frequency.exponentialRampToValueAtTime(60,a+.08);let c=o.createGain();be(c,a,.28,.003,.09),n.connect(c),c.connect(e.seco),n.start(a),n.stop(a+.13);let r=o.createGain();be(r,a+.004,.06,.001,.02),r.connect(e.seco),we(e,a+.004,.04,1.4,[Ae(o,"highpass",3e3,.7)],r)}function q0(e,a){let{ctx:o}=e,t=Ae(o,"bandpass",1100,.9);t.frequency.setValueAtTime(1100,a),t.frequency.exponentialRampToValueAtTime(420,a+.2);let n=o.createGain();be(n,a,.07,.04,.16),n.connect(e.seco),n.connect(e.sala),we(e,a,.24,1.7,[t],n)}function No(e,a,o,t){let{ctx:n}=e,c=n.createGain();be(c,a,1,5e-4,.012);let r=n.createGain();r.gain.value=o;for(let i of t){let u=Ae(n,"bandpass",i,26);c.connect(u),u.connect(r)}r.connect(e.seco),r.connect(e.sala);let s=n.createBufferSource();s.buffer=e.ruido(2),s.loop=!0,s.connect(c),s.start(a,a*3.7%2),s.stop(a+.06)}function tt(e,a){let{ctx:o}=e;No(e,a,2.6,[2900,4700,7400]),No(e,a+.03,.9,[5200,8100]),No(e,a+.055,.8,[5600,8600]),No(e,a+.09,3.6,[2300,3900,6100]);let t=o.createOscillator();t.frequency.value=210;let n=o.createGain();be(n,a+.09,.08,.002,.05),t.connect(n),n.connect(e.seco),t.start(a+.09),t.stop(a+.16)}function nt(e,a,o){let{ctx:t}=e,n=t.createGain();be(n,a,.6*o,4e-4,.018),n.connect(e.seco),we(e,a,.05,.11,[Ae(t,"highpass",700,.7)],n);let c=t.createGain();be(c,a,.55*o,.0015,.5);let r=Ae(t,"lowpass",7e3,.7);r.frequency.setValueAtTime(7e3,a),r.frequency.exponentialRampToValueAtTime(260,a+.35),c.connect(e.seco),c.connect(e.sala),we(e,a,.6,1.3,[r],c);let s=t.createOscillator();s.frequency.setValueAtTime(115,a),s.frequency.exponentialRampToValueAtTime(34,a+.3);let i=t.createGain();be(i,a,.7*o,.002,.42),s.connect(i),i.connect(e.seco),s.start(a),s.stop(a+.5);for(let[u,l,m]of[[.34,1600,.3],[.71,800,.14]]){let v=t.createDelay(1);v.delayTime.value=u;let p=Ae(t,"lowpass",l,.6),d=t.createGain();d.gain.value=m*o,c.connect(v),n.connect(v),v.connect(p),p.connect(d),d.connect(e.seco),d.connect(e.sala)}}function rt(e,a,o){let{ctx:t}=e,n=t.createGain();be(n,a,.55*o,4e-4,.012),n.connect(e.seco),we(e,a,.04,.5,[Ae(t,"highpass",4200,.7)],n);let c=fe(4242),r=34;for(let s=0;s<r;s++){let i=a+.004+Math.pow(s/r,1.5)*.24+c()*.006,u=t.createGain();be(u,i,(.26-.18*s/r)*(.6+.4*c())*o,4e-4,.004+c()*.006),u.connect(to(e,(c()-.5)*1.2,e.seco)),we(e,i,.02,c()*2,[Ae(t,"highpass",2600+c()*3800,.8)],u)}for(let[s,i,u]of[[2350,.04,.6],[3810,.032,.46],[5170,.024,.36],[6930,.016,.28],[8420,.012,.22]]){let l=t.createOscillator();l.frequency.value=s*(.995+c()*.01);let m=t.createGain();be(m,a+.002,i*o,.002,u),l.connect(m);let v=to(e,(c()-.5)*.8,e.seco);m.connect(v),m.connect(e.sala),l.start(a),l.stop(a+u+.05)}}function ct(e,a){let{ctx:o}=e;for(let[n,c,r]of[[2093,0,-.3],[3136,.06,0],[4186,.12,.3]]){let s=o.createOscillator();s.frequency.value=n;let i=o.createGain();be(i,a+c,.012,.12,.55),s.connect(i),i.connect(to(e,r,e.seco)),i.connect(e.sala),s.start(a+c),s.stop(a+c+.72)}let t=o.createGain();be(t,a,.02,.15,.3),t.connect(e.seco),we(e,a,.5,.2,[Ae(o,"highpass",6500,.7)],t)}function B0(e,a){let{ctx:o}=e,t=fe(2727);for(let n of[0,.06,.13,.17,.24]){let c=o.createGain();be(c,a+n,.07+t()*.05,4e-4,.006),c.connect(to(e,(t()-.5)*1,e.seco)),we(e,a+n,.02,t()*2,[Ae(o,"highpass",3e3+t()*2e3,.8)],c)}}function U0(e,a,o){let{ctx:t}=e,n=t.createGain();be(n,a,.4,.003,.32),n.connect(e.seco),n.connect(e.sala),we(e,a,.4,.7,[Ae(t,"bandpass",4200,.7)],n);let c=t.createGain();be(c,a,.12,.002,.22),c.connect(e.seco),we(e,a,.3,1.1,[Ae(t,"highpass",7500,.7)],c);let r=t.createOscillator();r.frequency.setValueAtTime(95,a),r.frequency.exponentialRampToValueAtTime(48,a+.2);let s=t.createGain();be(s,a,.16,.004,.2),r.connect(s),s.connect(e.seco),r.start(a),r.stop(a+.26);let i=fe(5151);for(let u=0;u<28;u++){let l=a+.02+Math.pow(i(),1.4)*.5,m=2600+i()*5200,v=.03+i()*.045,p=.05+i()*.1,d=(i()-.5)*1.4;if(!(l+p>o-.08))for(let[f,S]of[[1,1],[2.76,.45]]){let T=t.createOscillator();T.frequency.value=m*f;let F=t.createGain();be(F,l,v*S,.0015,p),T.connect(F),F.connect(to(e,d,e.seco)),T.start(l),T.stop(l+p+.03)}}}function k0(){let t=new Float32Array(2049);for(let n=0;n<2049;n++){let c=n/2048*2-1,r=Math.abs(c),s=r<.6?r:.6+(.8-.6)*Math.tanh((r-.6)/(.8-.6));t[n]=Math.sign(c)*s}return t}function X0(e,a,o){let{ctx:t}=e,n=t.createDynamicsCompressor();n.threshold.value=-10,n.knee.value=4,n.ratio.value=16,n.attack.value=.002,n.release.value=.2;let c=t.createWaveShaper();c.curve=k0(),c.oversample="4x",n.connect(c),c.connect(e.destino);let r=t.createGain();r.connect(n);let s=t.createConvolver();s.buffer=V0(t,1.6);let i=t.createGain();i.gain.value=.24,s.connect(i),i.connect(r);let u={ctx:t,seco:r,sala:s,ruido:e.ruido},l=P.duracao,m=f=>{r.gain.cancelScheduledValues(0),r.gain.setValueAtTime(1,Math.max(t.currentTime,f)),r.gain.setValueAtTime(1,f+l-.32),r.gain.exponentialRampToValueAtTime(1e-4,f+l-.02)},v=a?[["fecho",0,m],["vento",0,f=>et(u,f,f+l,.045)],["tensao",0,f=>ot(u,f,f+te.tiro,.11)],["engatilha",te.engatilha,f=>tt(u,f+te.engatilha)],["tiro",te.tiro,f=>nt(u,f+te.tiro,.85)],["vidro",te.tiro+.015,f=>rt(u,f+te.tiro+.015,.8)],["nome",te.nomeSurge,f=>ct(u,f+te.nomeSurge)]]:[["fecho",0,m],["vento",0,f=>et(u,f,f+l,.05)],["tensao",0,f=>ot(u,f,f+P.tiro,.15)],["giro",0,f=>G0(u,f)],["pega",P.pega,f=>L0(u,f+P.pega)],["mira",P.miraInicio,f=>q0(u,f+P.miraInicio)],["engatilha",P.engatilha,f=>tt(u,f+P.engatilha)],["tiro",P.tiro,f=>nt(u,f+P.tiro,1)],["vidro",P.impacto,f=>rt(u,f+P.impacto,1)],["nome",P.nomeSurge,f=>ct(u,f+P.nomeSurge)],["range",P.range,f=>B0(u,f+P.range)],["cede",P.cede,f=>U0(u,f+P.cede,f+l)]],p=o?v:v.filter(([f])=>f!=="nome"),d=new Set;return{atualizar(f){for(let[S,T,F]of p)f>=T&&!d.has(S)&&(d.add(S),F(t.currentTime-T))},reiniciar:()=>d.clear()}}var W0=R0,Mt=W0;var yt={nome:"Tiro na tela",duracaoNaturalS:3.8,quadroDaMiniaturaS:2.7};var j0=24,Y0={duracao:3.8,fadeInFim:.12,surgeInicio:.05,surgeFim:1.15,brasa:1.4,acendeEsquerdo:1.55,acendeDireito:1.6,vazaFim:2.2,nomeSurge:2.02,nomeNitido:2.5,pulsos:[2.38,3],apagaInicio:3.1,apagaFim:3.5,fechaInicio:3.42,fechaFim:3.7,fadeOutInicio:3.62},Z0={surgeInicio:.1,surgeFim:1.05,acende:1.45,acendeFim:1.95,nomeSurge:2,nomeAceso:2.45,apagaInicio:3.1,apagaFim:3.5,fadeOutInicio:3.45};function K0(e){let a=(e??"").replace(/\s+/g," ").trim();return Array.from(a).slice(0,j0).join("")}var Gt=34,J0=Math.tan(Gt*Math.PI/360),ba=6.6,Le=1600,J=800,Bo=1600,Uo=800,xa=4,Lt=xa/Le,Q0=.42,E0=.06,H0=1.6,qt=148,Bt=760,fa=qt*Lt,Tt=(J-Bt)*Lt,va=-1.6,pa=.75,er=-.45,ko=2048,ga=512,or=230,ar=1700,Ct=4,St=-.78,ha=3,tr="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",Xo=`
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float ruido(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm3(vec2 p) {
+  float v = 0.5 * ruido(p);
+  v += 0.25 * ruido(p * 2.03 + vec2(1.7, 9.2));
+  v += 0.125 * ruido(p * 4.01 + vec2(8.3, 2.8));
+  return v / 0.875;
+}`,Ut=`
+uniform vec2 uVazaE;
+uniform vec2 uVazaD;
+uniform float uVaza;
+float campoDosOlhos(vec2 p, float largura) {
+  vec2 e = p - uVazaE;
+  vec2 d = p - uVazaD;
+  return (exp(-dot(e, e) / largura) + exp(-dot(d, d) / largura)) * uVaza;
+}`,Ot=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Dt=`
+varying vec3 vPos;
+void main() {
+  vec4 m = modelMatrix * vec4(position, 1.0);
+  vPos = m.xyz;
+  gl_Position = projectionMatrix * viewMatrix * m;
+}`,nr=`
+varying vec2 vLocal;
+void main() {
+  vLocal = position.xy;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,rr=`
+varying vec2 vNdc;
+void main() {
+  vNdc = position.xy * 2.0;
+  gl_Position = vec4(vNdc, 0.0, 1.0);
+}`,cr=`
+${Xo}
+${Ut}
+uniform float uTempo;
+uniform float uLuz;
+uniform float uFumaca;
+uniform vec2 uCentro;
+varying vec3 vPos;
+void main() {
+  vec2 p = vPos.xy;
+  vec2 r = (p - uCentro) / vec2(3.8, 2.5);
+  vec3 cor = mix(vec3(0.04, 0.052, 0.054), vec3(0.006, 0.009, 0.01), smoothstep(0.0, 1.15, length(r))) * (0.25 + 0.75 * uLuz);
+  vec2 atras = p - uCentro - vec2(0.0, 0.85);
+  cor += vec3(0.045, 0.064, 0.07) * exp(-dot(atras, atras) / 1.6) * (0.4 + 0.6 * uLuz);
+  vec2 q = p * 0.42 + vec2(0.0, -uTempo * 0.12);
+  // Um ruído só torce o campo (dois custavam 1 ms a mais na GPU integrada).
+  float w = ruido(q * 1.3 + vec2(uTempo * 0.07, 0.0));
+  float n = fbm3(q + 1.15 * vec2(w, 0.6 - w) + vec2(uTempo * 0.03, 0.0));
+  float baixo = smoothstep(1.3, -2.2, p.y - uCentro.y);
+  float d = smoothstep(0.36, 0.84, n) * (0.4 + 0.6 * baixo) * uFumaca;
+  vec3 fumaca = mix(vec3(0.085, 0.1, 0.104), vec3(0.25, 0.28, 0.29), smoothstep(0.55, 1.0, n));
+  cor = mix(cor, fumaca * (0.3 + 0.7 * uLuz), d);
+  cor += vec3(0.4, 0.028, 0.018) * campoDosOlhos(p, 0.55) * (0.1 + 0.95 * d);
+  gl_FragColor = vec4(cor, 1.0);
+}`,sr=`
+${Xo}
+uniform sampler2D uCor;
+uniform sampler2D uMascara;
+uniform float uSurge;
+uniform float uLimpo;
+uniform float uLuz;
+uniform float uOlhoE;
+uniform float uOlhoD;
+uniform vec2 uUvE;
+uniform vec2 uUvD;
+uniform float uTempo;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(uCor, vUv);
+  if (c.a < 0.004) discard;
+  vec3 m = texture2D(uMascara, vUv).rgb;
+
+  // Formada (a maior parte da abertura), a dissolução nem é calculada.
+  float forma = 1.0;
+  float assenta = 1.0;
+  if (uSurge < 1.0) {
+    float n = 0.65 * fbm3(vUv * 4.5 + vec2(0.0, -uTempo * 0.3)) + 0.35 * ruido(vUv * 16.0 + vec2(uTempo * 0.4, 0.0));
+    float ordem = length((vUv - vec2(0.5, 0.56)) * vec2(1.0, 1.15)) / 0.62 + 0.25 * (1.0 - m.b);
+    ordem = 0.6 * ordem + 0.55 * n;
+    // Em uSurge = 1 até a ponta mais longe já assentou (ordem máx. ~0,99 + 0,3): o desvio do ramo não dá salto.
+    float p = uSurge * 1.45 - 0.12;
+    forma = mix(smoothstep(ordem - 0.2, ordem + 0.04, p), uSurge, uLimpo);
+    assenta = mix(smoothstep(ordem, ordem + 0.3, p), uSurge, uLimpo);
+  }
+
+  float poro = 0.55 * ruido(vUv * 260.0) + 0.45 * ruido(vUv * 72.0 + 3.1);
+  vec3 osso = c.rgb * (0.86 + 0.22 * poro);
+  vec3 cor = osso * vec3(0.82, 0.86, 0.88) * uLuz * (0.52 + 0.55 * smoothstep(0.25, 0.9, vUv.y));
+
+  vec2 dE = vUv - uUvE;
+  vec2 dD = vUv - uUvD;
+  float alcance = exp(-dot(dE, dE) / 0.012) * uOlhoE + exp(-dot(dD, dD) / 0.012) * uOlhoD;
+  cor += vec3(1.0, 0.14, 0.07) * c.rgb * m.r * alcance * 1.15;
+  float fundo = exp(-dot(dE, dE) / 0.0011) * uOlhoE + exp(-dot(dD, dD) / 0.0011) * uOlhoD;
+  cor += vec3(0.6, 0.04, 0.018) * m.g * (0.06 * (uOlhoE + uOlhoD) + 0.8 * fundo);
+
+  vec3 fumaca = vec3(0.13, 0.15, 0.155) * (0.35 + 0.65 * uLuz);
+  cor = mix(fumaca, cor, assenta) + vec3(0.2, 0.23, 0.24) * forma * (1.0 - assenta) * uLuz * (1.0 - uLimpo);
+  float alfa = c.a * forma;
+  gl_FragColor = vec4(cor * alfa, alfa);
+}`,ir=`
+${Xo}
+${Ut}
+uniform float uTempo;
+uniform float uLuz;
+uniform float uFumaca;
+uniform float uAbre;
+uniform vec2 uCentro;
+varying vec3 vPos;
+void main() {
+  vec2 p = vPos.xy;
+  vec2 q = p * 0.62 + vec2(3.7, -uTempo * 0.21);
+  float w = ruido(q * 0.8 + vec2(uTempo * 0.1, 2.0));
+  float n = fbm3(q + vec2(1.4 * w, -0.6 * w));
+  float d = smoothstep(0.46, 0.9, n);
+  vec2 c = (p - uCentro) / vec2(1.7, 1.35);
+  float centro = exp(-dot(c, c));
+  float baixo = smoothstep(0.7, -1.7, p.y - uCentro.y);
+  d *= (0.3 + 0.7 * baixo) * uFumaca * (1.0 - 0.82 * uAbre * centro);
+  float fecha = 1.0 - uAbre;
+  d = max(d, smoothstep(0.3, 0.78, n) * centro * fecha * fecha * 0.95 * uFumaca);
+  vec3 cor = mix(vec3(0.1, 0.115, 0.12), vec3(0.3, 0.33, 0.34), smoothstep(0.62, 1.0, n)) * (0.28 + 0.72 * uLuz);
+  cor += vec3(0.75, 0.05, 0.03) * campoDosOlhos(p, 0.32);
+  float a = d * 0.78;
+  gl_FragColor = vec4(cor * a, a);
+}`,ur=`
+uniform vec2 uE;
+uniform vec2 uD;
+uniform float uForcaE;
+uniform float uForcaD;
+uniform float uFecha;
+uniform float uFaixa;
+varying vec2 vLocal;
+vec3 olho(vec2 p, vec2 c, float forca) {
+  if (forca <= 0.0) return vec3(0.0);
+  vec2 d = p - c;
+  float alto = max(0.05, 1.0 - 0.93 * uFecha);
+  vec2 q = vec2(d.x * 0.88, d.y / alto);
+  float r2 = dot(q, q);
+  float raio = 0.75 + 0.25 * min(forca, 1.7);
+  float nucleo = exp(-r2 / (0.0005 * raio));
+  float meio = exp(-r2 / (0.0026 * raio));
+  float halo = exp(-sqrt(r2) / (0.16 * raio));
+  float faixa = exp(-abs(d.y) / (0.009 * alto)) * exp(-abs(d.x) / 0.55) * uFaixa;
+  return (vec3(1.0, 0.66, 0.42) * nucleo * 0.85 + vec3(1.0, 0.1, 0.04) * meio * 0.85 + vec3(0.48, 0.015, 0.01) * halo * 0.3 + vec3(0.85, 0.05, 0.03) * faixa * 0.34) * forca;
+}
+void main() {
+  gl_FragColor = vec4(olho(vLocal, uE, uForcaE) + olho(vLocal, uD, uForcaD), 0.0);
+}`,lr=`
+${Xo}
+uniform sampler2D uMapa;
+uniform float uSurge;
+uniform float uLimpo;
+uniform float uDesfoque;
+uniform float uOlhos;
+uniform float uApaga;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(uMapa, vUv, uDesfoque);
+  float n = fbm3(vUv * vec2(10.0, 2.5) + vec2(3.0, 0.0));
+  float ordem = 0.7 * n + 0.45 * abs(vUv.x - 0.5);
+  float p = uSurge * 1.3 - 0.1;
+  float a = mix(smoothstep(ordem - 0.07, ordem + 0.07, p), uSurge, uLimpo);
+  float face = smoothstep(0.25, 0.6, dot(c.rgb, vec3(0.333)));
+  vec3 cor = c.rgb + vec3(0.7, 0.06, 0.03) * uOlhos * 0.3 * face * smoothstep(0.32, 0.72, vUv.y);
+  float alfa = c.a * a * uApaga;
+  gl_FragColor = vec4(cor * alfa, alfa);
+}`,mr=`
+uniform float uTempo;
+uniform float uGrao;
+varying vec2 vNdc;
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+void main() {
+  float vinheta = smoothstep(0.5, 1.5, length(vNdc * vec2(0.92, 1.0))) * 0.6;
+  float g = hash(floor(gl_FragCoord.xy * 0.5) + vec2(floor(uTempo * 24.0) * 17.0, 3.0)) - 0.5;
+  float escuro = max(-g, 0.0) * uGrao * 2.0;
+  gl_FragColor = vec4(vec3(max(g, 0.0) * uGrao), clamp(vinheta + escuro, 0.0, 1.0));
+}`,kt=[0,330],Xt=[[[172,330],[306,440],[306,602]],[[306,682],[287,722],[273,748]],[[283,768],[297,790],[293,814]],[[286,864],[240,906],[206,930]],[[195,952],[193,978],[197,1e3]],[[199,1036],[160,1064],[112,1073]],[[66,1081],[28,1084],[0,1084]]],Wt=[46,714],$t=[[[110,690],[176,658],[228,660]],[[262,662],[264,724],[242,764]],[[222,802],[182,832],[130,830]],[[74,828],[36,774],[46,714]]],dr=[0,810],fr=[[[14,832],[47,852],[45,880]],[[43,898],[27,905],[15,901]],[[8,898],[3,891],[0,887]]];function Aa(e,a){let o=new Path2D;o.moveTo(J+e[0],e[1]);for(let[t,n,c]of a)o.bezierCurveTo(J+t[0],t[1],J+n[0],n[1],J+c[0],c[1]);for(let t=a.length-1;t>=0;t--){let[n,c]=a[t],r=t===0?e:a[t-1][2];o.bezierCurveTo(J-c[0],c[1],J-n[0],n[1],J-r[0],r[1])}return o.closePath(),o}function jt(e,a,o){let t=new Path2D;t.moveTo(J+o*e[0],e[1]);for(let[n,c,r]of a)t.bezierCurveTo(J+o*n[0],n[1],J+o*c[0],c[1],J+o*r[0],r[1]);return t.closePath(),t}var xo="#1a120b",vr=[{x:J,y:862,angulo:.6,meio:470},{x:J,y:862,angulo:-.6,meio:470}];function pr(e){let a=new Path2D,o=44,t=31;a.moveTo(-e,-o),a.bezierCurveTo(-e*.45,-t,e*.45,-t,e,-o),a.lineTo(e,o),a.bezierCurveTo(e*.45,t,-e*.45,t,-e,o),a.closePath();for(let n of[-1,1]){let c=n*(e+26);for(let[r,s,i]of[[18,-38,50],[18,38,50],[0,0,46]])a.moveTo(c+n*r+i,s),a.arc(c+n*r,s,i,0,Math.PI*2)}return a}function hr(e,a){let o=pr(a.meio);e.save(),e.translate(a.x,a.y),e.rotate(a.angulo);let t=Math.max(0,-.6*Math.sin(a.angulo)+.8*Math.cos(a.angulo));e.lineJoin="round",e.strokeStyle=xo,e.lineWidth=16,e.stroke(o);let n=92,c=e.createLinearGradient(0,-n,0,n);c.addColorStop(0,t>.7?"#efe4c9":"#d9cba8"),c.addColorStop(.4,"#cdbb91"),c.addColorStop(.75,"#9b865d"),c.addColorStop(1,"#5e4c30"),e.fillStyle=c,e.fill(o),e.save(),e.clip(o);for(let[r,s,i]of[[34,40,"rgba(46, 31, 15, 0.22)"],[18,34,"rgba(46, 31, 15, 0.22)"],[16,-22,`rgba(255, 250, 236, ${.1+.14*t})`],[7,-20,`rgba(255, 250, 236, ${.1+.16*t})`]])e.strokeStyle=i,e.lineWidth=r,e.lineCap="round",e.beginPath(),e.moveTo(-a.meio*.9,s),e.bezierCurveTo(-a.meio*.45,s*.75,a.meio*.45,s*.75,a.meio*.9,s),e.stroke();for(let r of[-1,1]){let s=r*(a.meio+30);Re(e,s,-30,52,"255, 250, 236",.16+.2*t),Re(e,r*(a.meio-6),0,40,"46, 31, 15",.28)}e.restore(),e.restore()}function Re(e,a,o,t,n,c){let r=e.createRadialGradient(a,o,0,a,o,t);r.addColorStop(0,`rgba(${n}, ${c})`),r.addColorStop(1,`rgba(${n}, 0)`),e.fillStyle=r,e.fillRect(a-t,o-t,t*2,t*2)}function br(e){let n=c=>-8e-4*c*c;e.save(),e.translate(J,980),e.scale(1,.32),Re(e,0,0,164,"18, 11, 6",.75),e.restore();for(let[c,r,s]of[[!0,934,44],[!1,984,37]])for(let i=0;i<8;i++){let u=-128+i*32,l=u+32/2,m=Math.abs(l)/128,v=2.5+1.5*m,p=s*(1-.22*m*m),d=c?r+n(l):r+.55*n(l),f=new Path2D;f.roundRect(J+u+v,d,32-2*v,p,c?[4,4,12,12]:[12,12,4,4]),e.strokeStyle=xo,e.lineWidth=7,e.stroke(f);let S=e.createLinearGradient(0,d,0,d+p),T=m>.8?"#b5a27b":"#e8dcc0";S.addColorStop(0,c?"#a8946b":T),S.addColorStop(c?.4:.25,T),S.addColorStop(1,c?"#cdbd97":"#7d6a47"),e.fillStyle=S,e.fill(f)}}function wt(e,a,o){for(let[t,n,c,r]of[["rgba(255, 248, 230, 0.3)",o*.55,2,3],["#24170d",o,0,0]])e.strokeStyle=t,e.lineWidth=n,e.beginPath(),a.forEach(([s,i],u)=>u===0?e.moveTo(J+s+c,i+r):e.lineTo(J+s+c,i+r)),e.stroke()}function xr(e){let a=Aa(kt,Xt);for(let r of vr)hr(e,r);e.save(),e.globalCompositeOperation="source-atop",e.shadowColor="rgba(14, 8, 4, 0.8)",e.shadowBlur=36,e.shadowOffsetX=18,e.shadowOffsetY=26,e.fillStyle="rgba(14, 8, 4, 0.85)",e.fill(a),e.restore(),e.lineJoin="round",e.strokeStyle=xo,e.lineWidth=16,e.stroke(a);let o=e.createRadialGradient(J-120,520,40,J-60,600,760);o.addColorStop(0,"#f3ead6"),o.addColorStop(.35,"#e2d4b2"),o.addColorStop(.7,"#bba67c"),o.addColorStop(1,"#7e6946"),e.fillStyle=o,e.fill(a),e.save(),e.clip(a),e.strokeStyle="rgba(66, 44, 22, 0.045)";for(let r=170;r>8;r-=12)e.lineWidth=r,e.stroke(a);e.strokeStyle="rgba(236, 246, 250, 0.22)",e.lineWidth=10,e.beginPath(),e.ellipse(J+6,610,292,274,0,Math.PI*1.12,Math.PI*1.9),e.stroke();for(let r of[-1,1])e.save(),e.translate(J+r*286,752),e.scale(.45,1),Re(e,0,0,90,"58, 38, 18",.55),e.restore(),Re(e,J+r*190,948,72,"46, 30, 14",.6),Re(e,J+r*196,842,54,"255, 249, 232",.22);Re(e,J-70,470,220,"255, 251, 238",.3),Re(e,J,772,46,"255, 249, 232",.25);let t=e.createLinearGradient(0,640,0,760);t.addColorStop(0,"rgba(60, 40, 20, 0)"),t.addColorStop(1,"rgba(60, 40, 20, 0.14)"),e.fillStyle=t,e.fillRect(0,640,Le,460),wt(e,[[128,352],[112,408],[140,450],[108,516],[121,562]],7),wt(e,[[112,408],[70,432],[58,468]],5),e.restore();for(let r of[-1,1]){let s=jt(Wt,$t,r),i=J+r*148;e.strokeStyle="rgba(255, 248, 228, 0.32)",e.lineWidth=18,e.save(),e.translate(0,7),e.stroke(s),e.restore();let u=e.createRadialGradient(i,772,8,i,752,120);u.addColorStop(0,"#040201"),u.addColorStop(.62,"#120a05"),u.addColorStop(1,"#3b2814"),e.fillStyle=u,e.fill(s),e.save(),e.clip(s);let l=e.createLinearGradient(0,656,0,730);l.addColorStop(0,"rgba(0, 0, 0, 0.75)"),l.addColorStop(1,"rgba(0, 0, 0, 0)"),e.fillStyle=l,e.fillRect(i-140,640,280,100),e.restore(),e.strokeStyle=xo,e.lineWidth=6,e.stroke(s),e.strokeStyle=`rgba(255, 251, 238, ${r<0?.3:.18})`,e.lineWidth=12,e.beginPath(),e.moveTo(J+r*60,690),e.bezierCurveTo(J+r*116,668,J+r*178,640,J+r*232,644),e.stroke()}let n=Aa(dr,fr),c=e.createLinearGradient(0,810,0,900);c.addColorStop(0,"#070402"),c.addColorStop(1,"#2a1a0d"),e.fillStyle=c,e.fill(n),e.strokeStyle=xo,e.lineWidth=5,e.stroke(n),br(e)}function gr(e){let a=Aa(kt,Xt);e.fillStyle="#000",e.fillRect(0,0,Le,Le),e.globalCompositeOperation="lighter",e.fillStyle="rgb(0, 0, 255)",e.fill(a),e.save(),e.clip(a),e.fillStyle="rgb(22, 0, 0)",e.fill(a);for(let o of[-1,1])Re(e,J+o*150,812,210,"255, 0, 0",.8),Re(e,J+o*196,850,70,"255, 0, 0",.35);Re(e,J,790,80,"255, 0, 0",.45),e.restore();for(let o of[-1,1]){let t=jt(Wt,$t,o);e.save(),e.clip(a),e.strokeStyle="rgba(255, 0, 0, 0.55)",e.lineWidth=30,e.stroke(t),e.restore(),e.save(),e.shadowColor="rgb(0, 255, 0)",e.shadowBlur=10,e.fillStyle="rgb(0, 255, 0)",e.fill(t),e.restore()}}function Ma(e,a){let o=document.createElement("canvas");o.width=e,o.height=a;let t=o.getContext("2d");if(!t)throw new Error("caveira pirata: sem canvas 2D");return[o,t]}function Ar(e){let[a,o]=Ma(Bo,Bo);o.setTransform(Bo/Le,0,0,Bo/Le,0,0),xr(o);let[t,n]=Ma(Uo,Uo);n.setTransform(Uo/Le,0,0,Uo/Le,0,0),gr(n);let c=new e.CanvasTexture(a);return c.anisotropy=4,{cor:c,mascara:new e.CanvasTexture(t)}}function Mr(e,a){let[o,t]=Ma(ko,ga),n=S=>`600 ${S}px ${tr}`;t.font=n(100);let c=Math.max(1,t.measureText(a).width),r=Math.min(or,100*ar/c);t.font=n(r),t.textAlign="center",t.textBaseline="alphabetic";let s=t.measureText(a),i=s.actualBoundingBoxAscent||r*.7,u=s.actualBoundingBoxDescent||0,l=ko/2,m=ga/2+(i-u)/2,v=m-i;t.lineJoin="round",t.save(),t.shadowColor="rgba(0, 0, 0, 0.85)",t.shadowBlur=r*.34,t.fillStyle="rgba(0, 0, 0, 0.6)",t.fillText(a,l,m),t.restore(),t.strokeStyle="#120a05",t.lineWidth=r*.075,t.strokeText(a,l,m);let p=t.createLinearGradient(0,v,0,m+u);p.addColorStop(0,"#efe5cb"),p.addColorStop(.5,"#d4c299"),p.addColorStop(1,"#957e52"),t.fillStyle=p,t.fillText(a,l,m);let d=fe(1717);t.save(),t.globalCompositeOperation="source-atop";for(let S=0;S<260;S++){let T=l+(d()-.5)*s.width,F=v+d()*(i+u),M=3+d()*14,h=d()*Math.PI;t.strokeStyle=d()<.62?"rgba(48, 30, 14, 0.4)":"rgba(255, 250, 236, 0.18)",t.lineWidth=1+d()*2.2,t.beginPath(),t.moveTo(T,F),t.lineTo(T+Math.cos(h)*M,F+Math.sin(h)*M),t.stroke()}return t.restore(),{textura:new e.CanvasTexture(o),fracao:Math.min(1,(s.width+r*.8)/ko)}}var R=Y0,ee=Z0;function yr(e,a){return e<=0?0:e/a*Math.exp(1-e/a)}function Pt(e,a){let o=e-a;return o<=0?0:$(Oe(o/.07))*(1+1.1*Math.exp(-o/.15))}function Tr(e){let t=0;for(let n of R.pulsos){let c=e-n;c<-.12||(t+=.34*(c<0?U((c+.12)/.12):(1+c/.2)*Math.exp(-c/.2)))}return t}function Cr(e){let a=.5*Math.sin(e*13.1)+.3*Math.sin(e*21.7+1)+.2*Math.sin(e*33.9+2);return .04*Math.sin(2*Math.PI*e/1.4)+.03*a}function Yt(e){return U(x(e,R.fechaInicio,R.fechaFim))}function Sr(e,a){if(a){let c=U(x(e,ee.acende,ee.acendeFim))*(1-U(x(e,ee.apagaInicio+.15,ee.apagaFim+.1)));return[c,c]}let o=.1*$(x(e,R.brasa,R.acendeEsquerdo)),t=1-(e<R.fechaInicio?0:U(x(Yt(e),.5,1))),n=1+Tr(e)+(e>R.acendeEsquerdo?Cr(e):0);return[Math.max(o,Pt(e,R.acendeEsquerdo)*n)*t,Math.max(o,Pt(e,R.acendeDireito)*n)*t]}function Or(e,a){if(a)return(.08+.92*U(x(e,ee.surgeInicio,ee.surgeFim)))*(1-.12*U(x(e,ee.acende,ee.acendeFim)))*(1-U(x(e,ee.apagaInicio,ee.apagaFim)));let o=$(x(e,.04,1.3)),t=1-.22*U(x(e,R.brasa-.05,R.acendeEsquerdo+.3));return(.06+.94*o)*t*(1-U(x(e,R.apagaInicio,R.apagaFim)))}function Dr(e,a,o){if(a)return{x:0,y:0,z:o};let t=o/ba,n=o*(1.07-.07*$(x(e,0,R.duracao)))-.035*o*yr(e-R.acendeEsquerdo,.08);return{x:.025*t*Math.sin(e*.7+.4),y:.015*t*Math.sin(e*.9),z:n}}function wr(e,a){let o=1-$(x(e,0,R.fadeInFim)),t=U(x(e,a?ee.fadeOutInicio:R.fadeOutInicio,R.duracao));return Math.max(o,t)}function bo(e,a,o,t){return new e.ShaderMaterial({vertexShader:a,fragmentShader:o,uniforms:t,transparent:!0,depthTest:!1,depthWrite:!1,blending:e.CustomBlending,blendSrc:e.OneFactor,blendDst:e.OneMinusSrcAlphaFactor})}function Pr(e,a){let o=a.reduzirMovimento,t=K0(a.nome),n=t!=="",c=n?Q0:E0,r=[],s=K=>(r.push(K),K),i=(K,k)=>new e.Vector2(K,k),u=new e.Scene,l=new e.PerspectiveCamera(Gt,16/9,.1,60);u.add(l);let m=16/9,v=ba,p={value:0},d={value:0},f={value:1},S={value:0},T={value:i(0,c+.22)},F={uTempo:p,uLuz:d,uFumaca:f,uCentro:T,uVaza:S,uVazaE:{value:i(0,0)},uVazaD:{value:i(0,0)}},M=new e.Mesh(s(new e.PlaneGeometry(30,17)),s(new e.ShaderMaterial({vertexShader:Dt,fragmentShader:cr,uniforms:F,depthTest:!1,depthWrite:!1})));M.position.set(0,0,va),M.renderOrder=1,M.frustumCulled=!1,u.add(M);let h=new e.Group;h.position.set(0,c,0),u.add(h);let y=Ar(e),N=K=>i(.5+K*qt/Le,1-Bt/Le),w={uCor:{value:s(y.cor)},uMascara:{value:s(y.mascara)},uSurge:{value:0},uLimpo:{value:o?1:0},uLuz:d,uOlhoE:{value:0},uOlhoD:{value:0},uUvE:{value:N(-1)},uUvD:{value:N(1)},uTempo:p},L=new e.Mesh(s(new e.PlaneGeometry(xa,xa)),s(bo(e,Ot,sr,w)));L.renderOrder=2,L.frustumCulled=!1,h.add(L);let b={uTempo:p,uLuz:d,uFumaca:f,uCentro:T,uVaza:S,uAbre:{value:0},uVazaE:{value:i(0,0)},uVazaD:{value:i(0,0)}},C=new e.Mesh(s(new e.PlaneGeometry(16,9)),s(bo(e,Dt,ir,b)));C.position.set(0,0,pa),C.renderOrder=3,C.frustumCulled=!1,u.add(C);let A={uE:{value:i(-fa,0)},uD:{value:i(fa,0)},uForcaE:{value:0},uForcaD:{value:0},uFecha:{value:0},uFaixa:{value:0}},g=new e.Mesh(s(new e.PlaneGeometry(3.4,1.8)),s(bo(e,nr,ur,A)));g.position.set(0,Tt,.02),g.renderOrder=4,g.frustumCulled=!1,h.add(g);let O=n?Mr(e,t):null,_={uMapa:{value:O?s(O.textura):null},uSurge:{value:0},uLimpo:{value:o?1:0},uDesfoque:{value:0},uOlhos:{value:0},uApaga:{value:1}},I=new e.Mesh(s(new e.PlaneGeometry(ha,ha*ga/ko)),s(bo(e,Ot,lr,_)));I.position.set(0,St,-Ct),I.renderOrder=5,I.frustumCulled=!1,I.visible=!1,O&&l.add(I);let B=ha*(O?.fracao??0),Q=1,W={uTempo:p,uGrao:{value:o?0:.03}},oe=new e.Mesh(s(new e.PlaneGeometry(1,1)),s(bo(e,rr,mr,W)));oe.renderOrder=6,oe.frustumCulled=!1,u.add(oe);let ce=new e.Vector3;function E(K,k,ae){ce.set(K*fa,Tt,0),h.localToWorld(ce);let ie=l.position,ve=(k-ie.z)/(ce.z-ie.z);ae.set(ie.x+(ce.x-ie.x)*ve,ie.y+(ce.y-ie.y)*ve)}function q(K){let k=Math.min(R.duracao,Math.max(0,K));p.value=o?2.2:k,d.value=Or(k,o),f.value=(.7+.3*$(x(k,0,.6)))*(1-.75*U(x(k,R.apagaInicio,R.apagaFim)));let ae=o?U(x(k,ee.surgeInicio,ee.surgeFim)):x(k,R.surgeInicio,R.surgeFim);if(w.uSurge.value=ae,b.uAbre.value=ae,o)h.position.z=0,h.scale.setScalar(1);else{let z=$(x(k,R.surgeInicio,R.surgeFim+.25));h.position.z=er*(1-z),h.scale.setScalar(.965+.035*z)}let ie=Dr(k,o,v);l.position.set(ie.x,ie.y,ie.z),l.updateMatrixWorld(),h.updateMatrixWorld();let[ve,Ie]=Sr(k,o);A.uForcaE.value=ve,A.uForcaD.value=Ie,A.uFecha.value=o?0:Yt(k),A.uFaixa.value=o?.25:.32+.9*Math.exp(-Math.max(0,k-R.acendeEsquerdo)/.18)*(k>=R.acendeEsquerdo?1:0),w.uOlhoE.value=Math.min(ve,1.4),w.uOlhoD.value=Math.min(Ie,1.4);let We=(ve+Ie)/2,ro=o?U(x(k,ee.acende,ee.acendeFim+.2)):$(x(k,R.acendeEsquerdo,R.vazaFim)),ye=o||k<R.acendeEsquerdo?0:.7*Math.exp(-(k-R.acendeEsquerdo)/.2)*$(Oe((k-R.acendeEsquerdo)/.06));if(S.value=ro*Math.min(1.3,We)+ye,E(-1,va,F.uVazaE.value),E(1,va,F.uVazaD.value),E(-1,pa,b.uVazaE.value),E(1,pa,b.uVazaD.value),O){let z=o?U(x(k,ee.nomeSurge,ee.nomeAceso)):$(x(k,R.nomeSurge,R.nomeNitido));_.uSurge.value=z,_.uDesfoque.value=o?0:3*(1-z),_.uOlhos.value=Math.min(1.3,We),_.uApaga.value=1-U(x(k,(o?ee.apagaInicio:R.apagaInicio)-.05,(o?ee.apagaFim:R.apagaFim)-.1)),I.position.y=St-(o?0:.05*(1-z)),I.visible=z>.001&&_.uApaga.value>.001}return{fade:wr(k,o)}}function se(K){m=Math.max(.2,K);let k=J0*m;v=Math.max(ba,H0/k),l.aspect=m,l.updateProjectionMatrix();let ae=2*Ct*k;Q=B>0?Math.min(1,.86*ae/B):1,I.scale.set(Q,Q,1)}function j(){for(let K of r)K.dispose();r.length=0}return se(m),q(0),{scene:u,camera:l,atualizar:q,ajustarTela:se,criarSom:K=>Nr(K,o,n),descartar:j}}function Ze(e,a,o,t,n){e.gain.setValueAtTime(1e-4,a),e.gain.exponentialRampToValueAtTime(Math.max(2e-4,o),a+t),e.gain.exponentialRampToValueAtTime(1e-4,a+t+n)}function Ke(e,a,o,t=.7){let n=e.createBiquadFilter();return n.type=a,n.frequency.value=o,n.Q.value=t,n}function Fr(e,a){let o=Math.ceil(e.sampleRate*a),t=e.createBuffer(2,o,e.sampleRate);for(let n=0;n<2;n++){let c=fe(n===0?13:29),r=t.getChannelData(n);for(let s=0;s<o;s++)r[s]=(c()*2-1)*Math.pow(1-s/o,3.4)}return t}function go(e,a,o,t,n,c){let r=e.ctx.createBufferSource();r.buffer=e.ruido(2),r.loop=!0;let s=r;for(let i of n)s.connect(i),s=i;s.connect(c),r.start(a,t%2),r.stop(a+o)}function Ft(e,a,o,t,n){let{ctx:c}=e,r=Ke(c,"lowpass",190,3),s=c.createOscillator();s.frequency.value=.32;let i=c.createGain();i.gain.value=55,s.connect(i),i.connect(r.frequency);let u=c.createGain(),l=n?.15:.2;u.gain.setValueAtTime(1e-4,a),u.gain.exponentialRampToValueAtTime(.1,a+.7),u.gain.setValueAtTime(.1,a+o-.05),u.gain.exponentialRampToValueAtTime(l,a+o+.1),u.gain.exponentialRampToValueAtTime(.13,a+o+.9),u.gain.setValueAtTime(.13,t-.5),u.gain.exponentialRampToValueAtTime(1e-4,t),r.connect(u),u.connect(e.seco);let m=[s];for(let[v,p]of[[36.71,.5],[36.95,.35],[55,.28],[51.91,.16]]){let d=c.createOscillator();d.type="sawtooth",d.frequency.value=v;let f=c.createGain();f.gain.value=p,d.connect(f),f.connect(r),m.push(d)}for(let v of m)v.start(a),v.stop(t+.05)}function It(e,a){let{ctx:o}=e,t=Ke(o,"lowpass",1900,.6),n=o.createGain();n.gain.value=.07,t.connect(n),n.connect(e.seco);let c=o.createGain();c.gain.value=.22,t.connect(c),c.connect(e.sala);let r=293.66;for(let[s,i,u]of[[.5,.45,2.8],[1,1,2.4],[1.183,.42,1.7],[1.506,.34,1.35],[2,.28,1.05],[2.514,.16,.8],[3.011,.1,.6]]){let l=o.createOscillator();l.frequency.value=r*s;let m=o.createGain();Ze(m,a,i,.004,u),l.connect(m),m.connect(t),l.start(a),l.stop(a+u+.05)}}function Nt(e,a,o,t){let{ctx:n}=e,c=Ke(n,"bandpass",300,.8);c.frequency.setValueAtTime(300,a),c.frequency.exponentialRampToValueAtTime(1100,a+o*.6),c.frequency.exponentialRampToValueAtTime(480,a+o);let r=n.createGain();r.gain.setValueAtTime(1e-4,a),r.gain.exponentialRampToValueAtTime(t,a+o*.55),r.gain.exponentialRampToValueAtTime(1e-4,a+o);let s=n.createStereoPanner();s.pan.setValueAtTime(-.4,a),s.pan.linearRampToValueAtTime(.4,a+o),r.connect(s),s.connect(e.seco),s.connect(e.sala),go(e,a,o+.05,.4,[c],r)}function Ir(e,a){let{ctx:o}=e,t=fe(808);for(let n=0;n<6;n++){let c=a+n*.022+t()*.012,r=o.createGain();Ze(r,c,.05+t()*.04,.001,.02);let s=o.createStereoPanner();s.pan.value=(n%2===0?-1:1)*.25,r.connect(s),s.connect(e.seco),go(e,c,.03,t()*2,[Ke(o,"highpass",3200,.9)],r)}}function _t(e,a,o){let{ctx:t}=e,n=Ke(t,"lowpass",250,.8);n.frequency.setValueAtTime(250,a),n.frequency.exponentialRampToValueAtTime(3200,a+.09),n.frequency.exponentialRampToValueAtTime(520,a+.7);let c=t.createGain();Ze(c,a,.5*o,.03,.7),c.connect(e.seco),c.connect(e.sala),go(e,a,.8,1.2,[n],c);let r=t.createOscillator();r.frequency.setValueAtTime(85,a),r.frequency.exponentialRampToValueAtTime(32,a+.4);let s=t.createGain();Ze(s,a,.6*o,.005,.55),r.connect(s),s.connect(e.seco),r.start(a),r.stop(a+.65);for(let[i,u,l]of[[739.99,.045,0],[783.99,.04,.05],[369.99,.035,0]]){let m=t.createOscillator();m.frequency.value=i;let v=t.createGain();Ze(v,a+l,u*o,.012,1.4);let p=t.createStereoPanner();p.pan.value=l>0?.3:-.2,m.connect(v),v.connect(p),p.connect(e.seco),p.connect(e.sala),m.start(a+l),m.stop(a+l+1.45)}}function zt(e,a,o){let{ctx:t}=e,n=Ke(t,"lowpass",220,.7);n.connect(e.seco);for(let[c,r]of[[0,1],[.17,.6]]){let s=t.createOscillator();s.frequency.setValueAtTime(62,a+c),s.frequency.exponentialRampToValueAtTime(40,a+c+.18);let i=t.createGain();Ze(i,a+c,o*r,.006,.32),s.connect(i),i.connect(n),s.start(a+c),s.stop(a+c+.4)}}function Rt(e,a){let{ctx:o}=e,t=o.createGain();Ze(t,a,.06,.15,.35),t.connect(e.seco),t.connect(e.sala),go(e,a,.55,.8,[Ke(o,"bandpass",1800,.7)],t)}function Vt(e,a){let{ctx:o}=e,t=Ke(o,"lowpass",900,.7);t.frequency.setValueAtTime(900,a),t.frequency.exponentialRampToValueAtTime(160,a+.4);let n=o.createGain();Ze(n,a,.12,.05,.42),n.connect(e.seco),go(e,a,.5,1.6,[t],n)}function Nr(e,a,o){let{ctx:t}=e,n=t.createDynamicsCompressor();n.threshold.value=-10,n.knee.value=6,n.ratio.value=12,n.attack.value=.003,n.release.value=.25,n.connect(e.destino);let c=t.createConvolver();c.buffer=Fr(t,2.4);let r=t.createGain();r.gain.value=.35,c.connect(r),r.connect(n);let s={ctx:t,seco:n,sala:c,ruido:e.ruido},i=a?[["ronco",0,m=>Ft(s,m,ee.acende,m+R.duracao,!0)],["sino",.18,m=>It(s,m+.18)],["sopro",ee.surgeInicio,m=>Nt(s,m+ee.surgeInicio,ee.surgeFim-ee.surgeInicio+.1,.09)],["acende",ee.acende,m=>_t(s,m+ee.acende,.55)],["nome",ee.nomeSurge,m=>Rt(s,m+ee.nomeSurge)],["fecha",ee.apagaInicio+.2,m=>Vt(s,m+ee.apagaInicio+.2)]]:[["ronco",0,m=>Ft(s,m,R.acendeEsquerdo,m+R.duracao,!1)],["sino",.18,m=>It(s,m+.18)],["sopro",R.surgeInicio-.04,m=>Nt(s,m+R.surgeInicio-.04,R.surgeFim-R.surgeInicio+.15,.14)],["chiado",R.brasa+.06,m=>Ir(s,m+R.brasa+.06)],["acende",R.acendeEsquerdo,m=>_t(s,m+R.acendeEsquerdo,1)],["pulso1",R.pulsos[0]-.05,m=>zt(s,m+R.pulsos[0]-.05,.42)],["pulso2",R.pulsos[1]-.05,m=>zt(s,m+R.pulsos[1]-.05,.36)],["nome",R.nomeSurge,m=>Rt(s,m+R.nomeSurge)],["fecha",R.fechaInicio,m=>Vt(s,m+R.fechaInicio)]],u=o?i:i.filter(([m])=>m!=="nome"),l=new Set;return{atualizar(m){for(let[v,p,d]of u)m>=p&&!l.has(v)&&(l.add(v),d(t.currentTime-p))},reiniciar:()=>l.clear()}}var _r=Pr,Zt=_r;var Kt={nome:"Caveira pirata",duracaoNaturalS:3.8,quadroDaMiniaturaS:2.45};var Rr=24,no={duracao:3.8,fadeInFim:.1,rajadaInicio:.08,estalo:.42,aguaSobe:.8,aguaCheia:2.25,meioDagua:1.52,mergulho:1.99,nomeSurge:2.02,nomeNitido:2.5,afundaInicio:2.6,fadeOutInicio:3.35},Fa={aguaInicio:.95,aguaFim:1.75,nomeSurge:2,nomeAceso:2.45,fadeOutInicio:3.3};function Vr(e){let a=(e??"").replace(/\s+/g," ").trim();return Array.from(a).slice(0,Rr).join("")}var vn=34,Jt=Math.tan(vn*Math.PI/360),Ao=6.6,Ko=.05,Gr=3.84,Lr=2.56,qr=-1.925,Qt=-1.978,Et=.05,Ht=1.56,Br=.18,Ur=2.3,Jo=1.4,ya=-3,jo=-3.4,Yo=3.4,en=.55,on=.08,io=13.5,Ta=4.2,Ia=1.2,Na=2,an=2048,tn=1366,Zo=2048,wa=512,kr=236,Xr=1700,nn=4,Ca=-.64,Sa=3.2,Wr="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",$r="#1543ae",Oa=[-.72,.5,.48],Qo=`
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float ruido(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm3(vec2 p) {
+  float v = 0.5 * ruido(p);
+  v += 0.25 * ruido(p * 2.03 + vec2(1.7, 9.2));
+  v += 0.125 * ruido(p * 4.01 + vec2(8.3, 2.8));
+  return v / 0.875;
+}`,Qe=`
+uniform float uNivel;
+uniform float uAgito;
+uniform float uTempoAgua;
+uniform float uMistura;
+vec3 ondaDaAgua(vec2 xz) {
+  float t = uTempoAgua;
+  float f1 = 0.85 * xz.x + 0.35 * xz.y - 1.9 * t + 0.6;
+  float f2 = 1.65 * xz.x - 0.5 * xz.y - 2.7 * t + 1.9;
+  float f3 = 2.9 * xz.x + 0.9 * xz.y - 3.9 * t + 4.1;
+  float h = 0.11 * sin(f1) + 0.065 * sin(f2) + 0.035 * sin(f3);
+  float dx = 0.11 * 0.85 * cos(f1) + 0.065 * 1.65 * cos(f2) + 0.035 * 2.9 * cos(f3);
+  float dz = 0.11 * 0.35 * cos(f1) - 0.065 * 0.5 * cos(f2) + 0.035 * 0.9 * cos(f3);
+  return vec3(uNivel + uAgito * h, uAgito * dx, uAgito * dz);
+}
+// Só a altura (três senos): é o que os fragmentos usam a cada pixel.
+float alturaDagua(vec2 xz) {
+  float t = uTempoAgua;
+  float h = 0.11 * sin(0.85 * xz.x + 0.35 * xz.y - 1.9 * t + 0.6)
+    + 0.065 * sin(1.65 * xz.x - 0.5 * xz.y - 2.7 * t + 1.9)
+    + 0.035 * sin(2.9 * xz.x + 0.9 * xz.y - 3.9 * t + 4.1);
+  return uNivel + uAgito * h;
+}
+vec3 corDaAgua(float prof) {
+  return mix(vec3(0.11, 0.315, 0.37), vec3(0.012, 0.05, 0.08), smoothstep(0.0, 7.0, prof));
+}
+vec3 sobAgua(vec3 cor, float prof) {
+  float p = max(prof, 0.0);
+  vec3 passa = exp(-vec3(1.05, 0.4, 0.3) * (0.55 + 0.5 * p));
+  float nevoa = 0.85 * (1.0 - exp(-(0.5 + 0.32 * p)));
+  return mix(cor * passa, corDaAgua(p), nevoa);
+}
+float causticas(vec2 p, float t) {
+  vec2 q = p * 2.1;
+  float a = sin(q.x + 1.2 * sin(q.y * 1.3 + t * 0.9) + t * 0.7);
+  float b = sin(q.y * 1.1 + 1.3 * sin(q.x * 1.2 - t * 0.8) - t * 0.6);
+  return pow(1.0 - abs(a * b), 7.0);
+}`,jr=`
+varying vec3 vPos;
+void main() {
+  vec4 m = modelMatrix * vec4(position, 1.0);
+  vPos = m.xyz;
+  gl_Position = projectionMatrix * viewMatrix * m;
+}`,Yr=`
+${Qo}
+${Qe}
+uniform float uTempoCeu;
+varying vec3 vPos;
+vec3 ceu(vec2 p) {
+  vec3 cor = mix(vec3(0.47, 0.54, 0.6), vec3(0.15, 0.21, 0.28), smoothstep(-3.0, 4.0, p.y));
+  cor += vec3(0.24, 0.25, 0.24) * exp(-length((p - vec2(-3.4, 2.4)) / vec2(4.0, 2.8)));
+  vec2 q = p * vec2(0.3, 0.52) + vec2(-uTempoCeu * 0.2, 0.0);
+  float v = fbm3(q);
+  float nuvem = smoothstep(0.45, 0.8, v);
+  // A barriga escura da nuvem: o mesmo campo, deslocado por um ruído só (em vez de um segundo fbm).
+  float sombra = smoothstep(0.42, 0.88, v + 0.2 * (ruido(q * 1.7 + vec2(0.05, 0.22)) - 0.5));
+  return mix(cor, mix(vec3(0.66, 0.7, 0.73), vec3(0.25, 0.3, 0.36), sombra * 0.85), nuvem * 0.7);
+}
+void main() {
+  float prof = alturaDagua(vPos.xz) - vPos.y;
+  float aa = fwidth(prof) + 0.002;
+  float sub = smoothstep(-aa, aa, prof) * uMistura;
+  vec3 agua = corDaAgua(prof) + vec3(0.07, 0.13, 0.13) * exp(-max(prof, 0.0) * 2.5);
+  // Onde já é só água, o céu nem é calculado (a maior parte da tela depois do mergulho).
+  vec3 cor = agua;
+  if (sub < 0.999) cor = mix(ceu(vPos.xy), agua, sub);
+  gl_FragColor = vec4(cor, 1.0);
+}`,Zr=`
+${Qe}
+uniform float uFase;
+uniform float uForca;
+uniform float uOndaK;
+uniform float uPulso;
+uniform float uPulsoForca;
+uniform vec2 uTamanho;
+varying vec2 vUv;
+varying vec3 vPos;
+varying vec3 vNormal;
+varying float vCavidade;
+vec3 pano(vec2 uv) {
+  float x = uv.x;
+  float y = uv.y;
+  float a = pow(x, 1.3);
+  float f1 = x * 11.0 * uOndaK - uFase + y * 1.1;
+  float f2 = x * 19.0 * uOndaK - uFase * 1.55 + y * 2.3 + 1.7;
+  float f3 = x * 31.0 * uOndaK - uFase * 2.3 + y * 3.7 + 0.4;
+  float z = (0.23 * sin(f1) + 0.07 * sin(f2) + 0.026 * smoothstep(0.5, 1.0, x) * sin(f3)) * a * uForca;
+  float pulso = exp(-pow((x - uPulso) / 0.16, 2.0)) * uPulsoForca;
+  z += 0.2 * pulso * a * sin(x * 8.0 - uFase * 0.5 + y * 0.8 + 0.8);
+  float dy = 0.085 * a * sin(f1 * 0.5 + 0.9 + y) * uForca - 0.08 * x * x * max(0.0, 1.2 - uForca);
+  float dx = -0.07 * pow(x, 2.6) * uForca * (1.0 + 0.35 * sin(2.0 * f1));
+  return vec3(x * uTamanho.x + dx, (y - 0.5) * uTamanho.y + dy, z);
+}
+void main() {
+  vUv = uv;
+  vec3 p = pano(uv);
+  vec3 px = pano(uv + vec2(0.004, 0.0));
+  vec3 py = pano(uv + vec2(0.0, 0.004));
+  vec3 n = normalize(cross(px - p, py - p));
+  vCavidade = clamp(-p.z / (0.23 * uForca + 0.001), 0.0, 1.0);
+  vec4 m = modelMatrix * vec4(p, 1.0);
+  float onda = smoothstep(0.0, 0.3, alturaDagua(m.xz) - m.y) * uMistura;
+  m.x += 0.02 * onda * sin(m.y * 5.0 + uTempoAgua * 2.2);
+  m.y += 0.012 * onda * sin(m.x * 4.0 + uTempoAgua * 1.6);
+  vPos = m.xyz;
+  vNormal = normalize(mat3(modelMatrix) * n);
+  gl_Position = projectionMatrix * viewMatrix * m;
+}`,Kr=`
+${Qo}
+${Qe}
+uniform sampler2D uMapa;
+uniform vec3 uLuz;
+uniform float uTempoCeu;
+varying vec2 vUv;
+varying vec3 vPos;
+varying vec3 vNormal;
+varying float vCavidade;
+void main() {
+  vec3 n = normalize(vNormal);
+  if (!gl_FrontFacing) n = -n;
+  vec3 V = normalize(cameraPosition - vPos);
+  vec3 base = texture2D(uMapa, vUv).rgb;
+  float ndl = dot(n, uLuz);
+  float dif = clamp((ndl + 0.2) / 1.2, 0.0, 1.0);
+  float nuvem = 0.9 + 0.14 * ruido(vec2(vPos.x * 0.45 - uTempoCeu * 0.55, vPos.y * 0.35 + 3.1));
+  float cav = 1.0 - 0.38 * vCavidade;
+  vec3 luz = vec3(1.0, 0.985, 0.96) * (0.27 + 0.76 * dif) * cav * nuvem + vec3(0.56, 0.64, 0.74) * 0.1 * (0.6 + 0.4 * n.y);
+  luz += vec3(0.85, 0.88, 0.9) * clamp(-ndl, 0.0, 1.0) * 0.12;
+  vec3 H = normalize(uLuz + V);
+  float brilho = pow(max(dot(n, H), 0.0), 20.0) * 0.08 * cav;
+  float lustro = pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.06;
+  vec3 cor = base * luz + vec3(brilho + lustro);
+  float prof = alturaDagua(vPos.xz) - vPos.y;
+  float aa = fwidth(prof) + 0.0015;
+  float sub = smoothstep(-aa, aa, prof) * uMistura;
+  if (sub > 0.0) {
+    float c = causticas(vPos.xy + vec2(0.0, vPos.z), uTempoAgua) * exp(-max(prof, 0.0) * 0.6);
+    cor = mix(cor, sobAgua(cor * (1.0 + 0.35 * c), prof), sub);
+  }
+  gl_FragColor = vec4(cor, 1.0);
+}`,Jr=`
+${Qe}
+varying vec3 vPos;
+varying vec3 vNormal;
+void main() {
+  vec4 m = modelMatrix * vec4(position, 1.0);
+  float onda = smoothstep(0.0, 0.3, alturaDagua(m.xz) - m.y) * uMistura;
+  m.x += 0.02 * onda * sin(m.y * 5.0 + uTempoAgua * 2.2);
+  vPos = m.xyz;
+  vNormal = normalize(mat3(modelMatrix) * normal);
+  gl_Position = projectionMatrix * viewMatrix * m;
+}`,Qr=`
+${Qe}
+uniform vec3 uCor;
+uniform vec3 uLuz;
+uniform float uBrilho;
+varying vec3 vPos;
+varying vec3 vNormal;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 V = normalize(cameraPosition - vPos);
+  float dif = clamp((dot(n, uLuz) + 0.25) / 1.25, 0.0, 1.0);
+  float esp = pow(max(dot(reflect(-uLuz, n), V), 0.0), 28.0) * uBrilho;
+  float borda = pow(1.0 - max(dot(n, V), 0.0), 2.0) * 0.12;
+  vec3 cor = uCor * (0.32 + 0.85 * dif + borda) + vec3(esp);
+  float prof = alturaDagua(vPos.xz) - vPos.y;
+  float aa = fwidth(prof) + 0.0015;
+  float sub = smoothstep(-aa, aa, prof) * uMistura;
+  gl_FragColor = vec4(mix(cor, sobAgua(cor, prof), sub), 1.0);
+}`,Er=`
+${Qe}
+varying vec3 vPos;
+varying vec3 vN;
+varying float vCrista;
+void main() {
+  vec4 m = modelMatrix * vec4(position, 1.0);
+  vec3 onda = ondaDaAgua(m.xz);
+  m.y = onda.x;
+  vPos = m.xyz;
+  vN = normalize(vec3(-onda.y, 1.0, -onda.z));
+  vCrista = (onda.x - uNivel) / (0.21 * max(uAgito, 0.001));
+  gl_Position = projectionMatrix * viewMatrix * m;
+}`,Hr=`
+${Qo}
+${Qe}
+uniform float uEspuma;
+varying vec3 vPos;
+varying vec3 vN;
+varying float vCrista;
+float espumaNaAgua(vec2 xz) {
+  vec2 fluxo = vec2(uTempoAgua * 0.85, 0.0);
+  float n = 0.65 * ruido(xz * vec2(1.05, 1.7) - fluxo) + 0.35 * ruido(xz * vec2(2.4, 3.3) - fluxo * 1.3 + 7.3);
+  float limiar = 0.7 - 0.3 * smoothstep(0.25, 0.95, vCrista);
+  float aa = fwidth(n) * 1.2 + 0.004;
+  return smoothstep(limiar - aa, limiar + aa, n) * uEspuma;
+}
+void main() {
+  vec3 N = normalize(vN);
+  vec3 V = normalize(cameraPosition - vPos);
+  float f = espumaNaAgua(vPos.xz);
+  vec4 saida;
+  if (gl_FrontFacing) {
+    float fres = 0.04 + 0.96 * pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 5.0);
+    vec3 reflexo = mix(vec3(0.33, 0.4, 0.47), vec3(0.6, 0.66, 0.7), clamp(reflect(-V, N).y * 1.6, 0.0, 1.0));
+    vec3 cor = mix(vec3(0.07, 0.22, 0.27), reflexo, fres) + vec3(0.1, 0.12, 0.12) * smoothstep(0.35, 1.0, vCrista);
+    float alfa = mix(0.68, 0.97, fres);
+    cor = mix(cor, vec3(0.87, 0.91, 0.92) * (0.86 + 0.14 * N.y), f);
+    alfa = mix(alfa, 0.97, f);
+    saida = vec4(cor * alfa, alfa);
+  } else {
+    vec3 cor = vec3(0.15, 0.38, 0.43) + vec3(0.18, 0.24, 0.24) * smoothstep(0.2, 1.0, vCrista);
+    cor = mix(cor, vec3(0.06, 0.14, 0.17), f * 0.75);
+    saida = vec4(cor * 0.93, 0.93);
+  }
+  gl_FragColor = saida * uMistura;
+}`,ec=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,oc=`
+uniform sampler2D uMapa;
+uniform float uOpacidade;
+uniform float uDesfoque;
+uniform float uOndula;
+uniform float uTempo;
+varying vec2 vUv;
+void main() {
+  vec2 uv = vUv;
+  uv.x += uOndula * 0.0022 * sin(uv.y * 16.0 + uTempo * 2.1);
+  uv.y += uOndula * 0.003 * sin(uv.x * 9.0 - uTempo * 1.4);
+  vec4 c = texture2D(uMapa, uv, uDesfoque);
+  gl_FragColor = vec4(c.rgb * c.a, c.a) * uOpacidade;
+}`,ac=`
+varying vec2 vNdc;
+void main() {
+  vNdc = position.xy * 2.0;
+  gl_Position = vec4(vNdc, 0.0, 1.0);
+}`,tc=`
+${Qo}
+${Qe}
+uniform vec3 uCam;
+uniform float uTanMeio;
+uniform float uAspecto;
+uniform float uTempo;
+uniform float uTempoRaios;
+uniform float uRaios;
+uniform float uEspumaVidro;
+varying vec2 vNdc;
+void main() {
+  float prof = uCam.z - ${Jo.toFixed(2)};
+  float xw = uCam.x + vNdc.x * prof * uTanMeio * uAspecto;
+  float linha = (alturaDagua(vec2(xw, ${Jo.toFixed(2)})) - uCam.y) / (prof * uTanMeio);
+  float dy = vNdc.y - linha;
+  float aa = fwidth(dy) * 1.5 + 0.0005;
+  float sob = (1.0 - smoothstep(-aa, aa, dy)) * uMistura;
+  float abaixo = max(-dy, 0.0);
+
+  // Raios: só onde há água na frente do olho.
+  vec3 luz = vec3(0.0);
+  if (sob > 0.0) {
+    vec2 s = vec2(vNdc.x * uAspecto, vNdc.y);
+    float u = s.x * 0.906 + s.y * 0.423;
+    float r1 = smoothstep(0.2, 1.0, sin(u * 2.6 + uTempoRaios * 0.31 + 1.7 * sin(u * 0.9 - uTempoRaios * 0.17)));
+    float r2 = smoothstep(0.55, 1.0, sin(u * 4.9 - uTempoRaios * 0.43 + 0.6));
+    float raios = (0.7 * r1 + 0.45 * r2) * exp(-abaixo * 0.5);
+    float rente = exp(-abaixo * 6.0);
+    luz = vec3(0.5, 0.7, 0.72) * (raios * 0.24 + rente * 0.1) * uRaios * sob;
+  }
+
+  // Menisco e espuma: só na faixa rente à linha do vidro (a faixa mais grossa tem 0,09 de NDC).
+  float menisco = 0.0;
+  float espuma = 0.0;
+  vec3 corDaEspuma = vec3(0.0);
+  if (uEspumaVidro * uMistura > 0.0 && dy > -0.1 && dy < 0.03) {
+    menisco = exp(-pow((dy + 0.006) / 0.005, 2.0)) * 0.5 * uEspumaVidro * uMistura;
+    float n1 = ruido(vec2(xw * 1.1 - uTempo * 1.6, uTempo * 0.6));
+    float n2 = ruido(vec2(xw * 3.9 + uTempo * 1.3, 3.7));
+    float grossura = 0.028 + 0.062 * (0.6 * n1 + 0.4 * n2);
+    float faixa = smoothstep(-grossura - aa, -grossura + aa, dy) * (1.0 - smoothstep(0.004 - aa, 0.004 + aa, dy));
+    float furos = smoothstep(0.3, 0.42, ruido(vec2(xw * 2.4 - uTempo * 2.2, dy * 11.0 + uTempo * 0.9)));
+    espuma = faixa * mix(1.0, furos, smoothstep(0.0, grossura, abaixo)) * uEspumaVidro * uMistura;
+    corDaEspuma = vec3(0.88, 0.92, 0.93) * (0.8 + 0.2 * smoothstep(-grossura, 0.0, dy));
+  }
+
+  float vinheta = smoothstep(0.55, 1.45, length(vNdc * vec2(0.9, 1.0))) * (0.3 + 0.12 * sob);
+  float alfa = espuma + (1.0 - espuma) * vinheta;
+  vec3 rgb = corDaEspuma * espuma + (luz + menisco * vec3(0.8, 0.9, 0.92)) * (1.0 - espuma);
+  gl_FragColor = vec4(rgb, alfa);
+}`,Pa=719,Da=e=>[Pa-e[0],e[1]],Wo=[[103.5,247.5],[107.5,223],[112,211],[120,195],[140,171],[170,150],[200,139],[232,135],[262,137.5],[290,146],[318,163],[338,182],[350,199],[356,210.5],[359.5,219.5]],rn=[[340,221],[331,204],[320,189],[300,171],[280,159],[250,150],[220,148],[190,154],[160,167],[140,183],[124,201],[113,221],[108,235],[103.5,254.5]],$o=[[340,221],[344,230],[347.5,240],[350,250],[351.2,262],[352.5,280],[353,297.5]],nc=320.5,rc=402.5,cn=2.6,cc=7;function uo(e,a){for(let o=0;o<a.length-1;o++){let t=a[Math.max(0,o-1)],n=a[o],c=a[o+1],r=a[Math.min(a.length-1,o+2)];e.bezierCurveTo(n[0]+(c[0]-t[0])/6,n[1]+(c[1]-t[1])/6,c[0]-(r[0]-n[0])/6,c[1]-(r[1]-n[1])/6,c[0],c[1])}}function me(e,a){e.beginPath(),e.moveTo(a[0][0],a[0][1]);for(let o=1;o<a.length;o++)e.lineTo(a[o][0],a[o][1]);e.closePath(),e.fill()}function Me(e,a,o,t,n,c,r){let s=r?-1:1,i=c+s*cn,u=c+s*(cn+cc);e.beginPath(),e.moveTo(t,c),e.lineTo(n,c),e.lineTo(n,i),e.quadraticCurveTo(o,i,o,u),e.lineTo(a,u),e.quadraticCurveTo(a,i,t,i),e.closePath(),e.fill()}function sc(e){let a=Wo.map(Da).reverse(),o=rn.map(Da).reverse(),t=$o.map(Da),n=$o[$o.length-1];e.beginPath(),e.moveTo(Wo[0][0],Wo[0][1]),uo(e,Wo),uo(e,a),e.lineTo(o[0][0],o[0][1]),uo(e,o),uo(e,t),e.lineTo(n[0],n[1]),uo(e,[...$o].reverse()),uo(e,rn),e.closePath(),e.fill()}function sn(e,a,o,t,n,c){let r=(t*t-c*c-a*a+n*n)/(2*(n-a)),s=Math.sqrt(Math.max(0,t*t-(r-a)*(r-a))),i=Math.atan2(-s,r-a),u=Math.atan2(-s,r-n);e.beginPath(),e.arc(a,o,t,i,-i,!1),e.arc(n,o,c,-u,u,!0),e.closePath(),e.fill()}function ic(e){let a=nc,o=rc;me(e,[[127,a+2],[132,a+2],[132,o],[127,o]]),Me(e,127,132,116,143,o,!0),Me(e,127,132,116,141,a,!1),me(e,[[129,a],[142,a],[170,o+1.5],[162,o+1.5]]),me(e,[[165,o+1.5],[170.5,o+1.5],[202,a],[196.5,a]]),me(e,[[200.5,a],[211,a],[211,o],[200.5,o]]),Me(e,200.5,211,189,222,a,!1),Me(e,200.5,211,189,222,o,!0),me(e,[[266,a-.5],[271.5,a-.5],[244.5,o],[237.5,o]]),me(e,[[267,a-.5],[278.5,a-.5],[305.5,o],[292.5,o]]),me(e,[[265.5,a],[279,a],[273,a-2.5]]),me(e,[[253,368.5],[284,368.5],[284,373],[253,373]]),Me(e,237.5,244.5,228,254,o,!0),Me(e,292.5,305.5,284,314,o,!0),me(e,[[332,a],[343,a],[343,o],[332,o]]),Me(e,332,343,321,346,a,!1),Me(e,332,343,321,354,o,!0),e.beginPath(),e.moveTo(340,a),e.lineTo(361,a),e.bezierCurveTo(377.5,a,385.5,328.5,385.5,338.5),e.bezierCurveTo(385.5,349.5,376,357.5,359,357.5),e.lineTo(340,357.5),e.closePath(),e.moveTo(340,a+4.2),e.lineTo(357.5,a+4.2),e.bezierCurveTo(367,a+4.2,371.5,330,371.5,338.5),e.bezierCurveTo(371.5,347.5,366,353.3,356.5,353.3),e.lineTo(340,353.3),e.closePath(),e.fill("evenodd"),me(e,[[347,356],[360.5,356],[392.5,o],[380,o]]),Me(e,380,392.5,377,397,o,!0),me(e,[[412,a],[422.5,a],[422.5,o],[412,o]]),Me(e,412,422.5,401,434,a,!1),Me(e,412,422.5,401,434,o,!0),me(e,[[452,a+4],[457,a+4],[457,o],[452,o]]),Me(e,452,457,441,467,o,!0),Me(e,452,466,441,467,a,!1),me(e,[[452,a],[466,a],[523,o+1.5],[510.5,o+1.5]]),me(e,[[517,a],[522,a],[522,o+1.5],[517,o+1.5]]),Me(e,517,522,506,532,a,!1),me(e,[[551,a],[562,a],[562,o],[551,o]]),Me(e,551,562,541,566,a,!1),Me(e,551,562,547,566,o,!0),me(e,[[551,a],[599.5,a],[599.5,a+4.2],[551,a+4.2]]),me(e,[[594.5,a],[600,a],[600.5,a+15],[598,a+15]]),me(e,[[551,358.5],[588.5,358.5],[588.5,363],[551,363]]),me(e,[[586.5,351],[589.5,351],[591,370.5],[588,370.5]]),me(e,[[551,o-4.5],[603,o-4.5],[603,o],[551,o]]),me(e,[[598,o-16],[601,o-16],[603,o],[597,o]])}function uc(e,a){e.fillStyle=a,sc(e),sn(e,246,268.5,26,239.5,21.5),e.save(),e.translate(Pa,0),e.scale(-1,1),sn(e,246,268.5,26,239.5,21.5),e.restore(),e.fillRect(261.5,263.8,Pa-2*261.5,10.6),ic(e)}function pn(e,a){let o=document.createElement("canvas");o.width=e,o.height=a;let t=o.getContext("2d");if(!t)throw new Error("bandeira da marinha: sem canvas 2D");return[o,t]}function lc(e){let[a,o]=pn(an,tn),t=an,n=tn,c=78,r=14;o.fillStyle="#f3f2ee",o.fillRect(0,0,t,n),o.fillStyle="#ebe9e3",o.fillRect(0,0,t,r),o.fillRect(0,n-r,t,r),o.fillRect(t-r,0,r,n),o.fillStyle="#e2e0d9",o.fillRect(0,0,c,n),o.fillStyle="#d3d0c8",o.fillRect(c-3,0,3,n),o.fillRect(0,r,t,2),o.fillRect(0,n-r-2,t,2),o.fillRect(t-r-2,0,2,n);let s=.64*t/511,i=c+(t-c)/2;o.save(),o.setTransform(s,0,0,s,i-359.5*s,n/2-269.5*s),uc(o,$r),o.restore();let u=new e.CanvasTexture(a);return u.anisotropy=8,u}function mc(e,a){let[o,t]=pn(Zo,wa),n=d=>`600 ${d}px ${Wr}`;t.font=n(100);let c=Math.max(1,t.measureText(a).width),r=Math.min(kr,100*Xr/c);t.font=n(r),t.textAlign="center",t.textBaseline="alphabetic";let s=t.measureText(a),i=s.actualBoundingBoxAscent||r*.7,u=s.actualBoundingBoxDescent||0,l=Zo/2,m=wa/2+(i-u)/2;t.lineJoin="round",t.save(),t.shadowColor="rgba(2, 9, 16, 0.75)",t.shadowBlur=r*.32,t.fillStyle="rgba(2, 9, 16, 0.6)",t.fillText(a,l,m),t.restore(),t.strokeStyle="#06121f",t.lineWidth=r*.06,t.strokeText(a,l,m);let v=t.createLinearGradient(0,m-i,0,m+u);return v.addColorStop(0,"#f5f8f8"),v.addColorStop(.55,"#dfe9ec"),v.addColorStop(1,"#b9cdd3"),t.fillStyle=v,t.fillText(a,l,m),{textura:new e.CanvasTexture(o),fracao:Math.min(1,(s.width+r*.7)/Zo)}}function dc(e){let a=no;if(e>=a.aguaCheia){let c=(1+en)*(Yo-jo)/(a.aguaCheia-a.aguaSobe)*on*(1-Math.exp(-(e-a.aguaCheia)/on));return Yo+c+.9*U(x(e,a.afundaInicio,a.duracao))}let o=x(e,a.aguaSobe,a.aguaCheia),t=o+en/(2*Math.PI)*Math.sin(2*Math.PI*o);return jo+(Yo-jo)*t}function fc(e){let a=Ia,o=Na;if(e<=a)return io*e;if(e<=o){let t=e-a;return io*a+io*t-(io-Ta)*t*t/(2*(o-a))}return io*a+(io+Ta)/2*(o-a)+Ta*(e-o)}function vc(e){let a=x(e,no.rajadaInicio,.85);return .9+.32*(a<.5?Math.sin(Math.PI*a):.5+.5*Math.cos(2*Math.PI*(a-.5)))+.1*U(x(e,0,.5))-.22*U(x(e,Ia,Na))}function pc(e){let a=no;return .6+.65*x(e,a.aguaSobe-.1,a.aguaSobe+.3)-.55*U(x(e,a.mergulho,a.duracao))}function hc(e,a){return e<=0?0:e/a*Math.exp(1-e/a)}function bc(e,a,o){let t=no;if(a)return{x:0,y:Ko,z:o};let n=o/Ao,c=o*(1.05-.05*U(x(e,0,1.8))),r=.03*n*Math.sin(e*.9),s=Ko+.02*n*Math.sin(e*1.3+.5);return s-=.05*n*hc(e-t.mergulho,.06),s-=.55*n*U(x(e,t.afundaInicio,t.duracao)),{x:r,y:s,z:c}}function xc(e,a){let o=no,t=1-$(x(e,0,o.fadeInFim)),n=U(x(e,a?Fa.fadeOutInicio:o.fadeOutInicio,o.duracao));return Math.max(t,n)}function gc(e,a){let o=a.reduzirMovimento,t=Vr(a.nome),n=no,c=Fa,r=[],s=E=>(r.push(E),E),i=(E,q,se)=>new e.Vector3(E,q,se),u=i(Oa[0],Oa[1],Oa[2]).normalize(),l=new e.Scene,m=new e.PerspectiveCamera(vn,16/9,.1,80);l.add(m);let v=16/9,p=Ao,d={uNivel:{value:jo},uAgito:{value:.6},uTempoAgua:{value:0},uMistura:{value:o?0:1}},f={value:0},S=new e.Mesh(s(new e.PlaneGeometry(34,18)),s(new e.ShaderMaterial({vertexShader:jr,fragmentShader:Yr,uniforms:{...d,uTempoCeu:f},depthWrite:!1})));S.position.set(0,-1,ya),S.renderOrder=2.5,S.frustumCulled=!1,l.add(S);let T=(E,q)=>s(new e.ShaderMaterial({vertexShader:Jr,fragmentShader:Qr,uniforms:{...d,uCor:{value:E},uLuz:{value:u},uBrilho:{value:q}}})),F=9,M=new e.Mesh(s(new e.CylinderGeometry(Et,Et*1.1,F,18,60,!0)),T(i(.16,.18,.21),.3));M.position.set(Qt,Ht-F/2,0),M.renderOrder=1;let h=new e.Mesh(s(new e.SphereGeometry(.075,24,16)),T(i(.55,.46,.3),.5));h.position.set(Qt,Ht+.06,0),h.renderOrder=1,l.add(M,h);let y={...d,uMapa:{value:s(lc(e))},uLuz:{value:u},uTempoCeu:f,uFase:{value:0},uForca:{value:1},uOndaK:{value:1},uPulso:{value:-1},uPulsoForca:{value:0},uTamanho:{value:new e.Vector2(Gr,Lr)}},N=new e.Mesh(s(new e.PlaneGeometry(1,1,112,72)),s(new e.ShaderMaterial({vertexShader:Zr,fragmentShader:Kr,uniforms:y,side:e.DoubleSide})));N.position.set(qr,Br,0),N.renderOrder=2,N.frustumCulled=!1,l.add(N);let w=Jo-ya,L=s(new e.PlaneGeometry(26,w,160,40));L.rotateX(-Math.PI/2);let b={...d,uEspuma:{value:0}},C=new e.Mesh(L,s(new e.ShaderMaterial({vertexShader:Er,fragmentShader:Hr,uniforms:b,transparent:!0,depthWrite:!1,side:e.DoubleSide,blending:e.CustomBlending,blendSrc:e.OneFactor,blendDst:e.OneMinusSrcAlphaFactor})));C.position.set(0,0,(Jo+ya)/2),C.renderOrder=3,C.frustumCulled=!1,C.visible=!o,l.add(C);let A=t===""?null:mc(e,t),g={uMapa:{value:A?s(A.textura):null},uOpacidade:{value:0},uDesfoque:{value:0},uOndula:{value:o?0:1},uTempo:{value:0}},O=new e.Mesh(s(new e.PlaneGeometry(Sa,Sa*wa/Zo)),s(new e.ShaderMaterial({vertexShader:ec,fragmentShader:oc,uniforms:g,transparent:!0,depthTest:!1,depthWrite:!1,blending:e.CustomBlending,blendSrc:e.OneFactor,blendDst:e.OneMinusSrcAlphaFactor})));O.position.set(0,Ca,-nn),O.renderOrder=4,O.frustumCulled=!1,O.visible=A!==null,m.add(O);let _=Sa*(A?.fracao??0),I={...d,uCam:{value:i(0,Ko,Ao)},uTanMeio:{value:Jt},uAspecto:{value:v},uTempo:{value:0},uTempoRaios:{value:0},uRaios:{value:1},uEspumaVidro:{value:0}},B=new e.Mesh(s(new e.PlaneGeometry(1,1)),s(new e.ShaderMaterial({vertexShader:ac,fragmentShader:tc,uniforms:I,transparent:!0,depthTest:!1,depthWrite:!1,blending:e.CustomBlending,blendSrc:e.OneFactor,blendDst:e.OneMinusSrcAlphaFactor})));B.renderOrder=5,B.frustumCulled=!1,l.add(B);function Q(E){let q=Math.min(n.duracao,Math.max(0,E)),se=p/Ao;if(d.uNivel.value=Ko+(o?Yo:dc(q))*se,d.uAgito.value=o?0:pc(q),d.uTempoAgua.value=o?0:q,d.uMistura.value=o?U(x(q,c.aguaInicio,c.aguaFim)):1,f.value=o?0:q,b.uEspuma.value=o?0:.35+.65*x(q,n.aguaSobe,n.aguaSobe+.4),o)y.uFase.value=2.4,y.uForca.value=.75,y.uOndaK.value=1,y.uPulsoForca.value=0;else{y.uFase.value=fc(q),y.uForca.value=vc(q),y.uOndaK.value=1-.38*U(x(q,Ia+.05,Na));let K=x(q,n.rajadaInicio,n.estalo+.04);y.uPulso.value=-.2+1.45*K,y.uPulsoForca.value=Math.sin(Math.PI*Oe(K*1.08))*(q>=n.rajadaInicio?1:0)}let j=bc(q,o,p);if(m.position.set(j.x,j.y,j.z),I.uCam.value.set(j.x,j.y,j.z),I.uTempo.value=o?0:q,I.uTempoRaios.value=o?1.5:q,I.uEspumaVidro.value=o?0:1,I.uRaios.value=o?.8:.55+.45*x(q,n.mergulho-.4,n.mergulho+.2),A){if(g.uTempo.value=q,o)g.uOpacidade.value=$(x(q,c.nomeSurge,c.nomeAceso)),g.uDesfoque.value=0,O.position.y=Ca;else{let K=$(x(q,n.nomeSurge,n.nomeNitido));g.uOpacidade.value=$(x(q,n.nomeSurge,n.nomeSurge+.38)),g.uDesfoque.value=4*(1-K),O.position.y=Ca-.06*(1-K);let k=(.97+.03*K)*W;O.scale.set(k,k,1)}O.visible=g.uOpacidade.value>.001}return{fade:xc(q,o)}}let W=1;function oe(E){v=Math.max(.2,E);let q=Jt*v;p=Math.max(Ao,Ur/q),m.aspect=v,m.updateProjectionMatrix(),I.uAspecto.value=v;let se=2*nn*q;W=_>0?Math.min(1,.86*se/_):1,O.scale.set(W,W,1)}function ce(){for(let E of r)E.dispose();r.length=0}return oe(v),Q(0),{scene:l,camera:m,atualizar:Q,ajustarTela:oe,criarSom:E=>Tc(E,o),descartar:ce}}function lo(e,a,o,t,n){e.gain.setValueAtTime(1e-4,a),e.gain.exponentialRampToValueAtTime(Math.max(2e-4,o),a+t),e.gain.exponentialRampToValueAtTime(1e-4,a+t+n)}function Pe(e,a,o,t=.7){let n=e.createBiquadFilter();return n.type=a,n.frequency.value=o,n.Q.value=t,n}function Je(e,a,o,t,n,c){let r=e.ctx.createBufferSource();r.buffer=e.ruido(2),r.loop=!0;let s=r;for(let i of n)s.connect(i),s=i;s.connect(c),r.start(a,t%2),r.stop(a+o)}function un(e,a,o,t){let{ctx:n}=e,c=Pe(n,"lowpass",1300,.5);c.frequency.setValueAtTime(1300,a),t||(c.frequency.linearRampToValueAtTime(2600,a+.3),c.frequency.linearRampToValueAtTime(1500,a+.9)),c.frequency.setValueAtTime(1500,a+o-.25),c.frequency.exponentialRampToValueAtTime(260,a+o+.05);let r=n.createGain();r.gain.setValueAtTime(1e-4,a),r.gain.exponentialRampToValueAtTime(t?.2:.3,a+.12),t||r.gain.exponentialRampToValueAtTime(.42,a+.3),r.gain.exponentialRampToValueAtTime(t?.18:.27,a+.9),r.gain.setValueAtTime(t?.18:.27,a+o-.3),r.gain.exponentialRampToValueAtTime(1e-4,a+o+.3);let s=n.createStereoPanner();s.pan.setValueAtTime(-.35,a),s.pan.linearRampToValueAtTime(.3,a+o),r.connect(s),s.connect(e.seco),Je(e,a,o+.4,.3,[Pe(n,"bandpass",520,.55),c],r)}function Ac(e,a,o){let{ctx:t}=e,n=fe(4242);for(let i=0;;i++){let u=.06+i/2.15+(n()-.5)*.05;if(u>o-.35)break;let l=(i===0?.7:1)*(1-.6*x(u,o-1,o-.35)),m=t.createGain();lo(m,a+u,.2*l,.012,.11);let v=t.createStereoPanner();v.pan.value=(i%2===0?-1:1)*.2,m.connect(v),v.connect(e.seco),Je(e,a+u,.16,n()*2,[Pe(t,"bandpass",380,1.1)],m)}let c=t.createGain();c.gain.setValueAtTime(1e-4,a),c.gain.exponentialRampToValueAtTime(.05,a+.25),c.gain.setValueAtTime(.05,a+o-.6),c.gain.exponentialRampToValueAtTime(1e-4,a+o-.1);let r=t.createOscillator();r.frequency.value=11;let s=t.createGain();s.gain.value=.04,r.connect(s),s.connect(c.gain),r.start(a),r.stop(a+o),c.connect(e.seco),Je(e,a,o,1.1,[Pe(t,"bandpass",1100,.9)],c)}function Mc(e,a){let{ctx:o}=e,t=o.createStereoPanner();t.pan.value=.3,t.connect(e.seco);let n=o.createGain();lo(n,a,.5,.002,.09),n.connect(t),Je(e,a,.14,.7,[Pe(o,"highpass",700),Pe(o,"bandpass",1700,.8)],n);let c=o.createGain();lo(c,a,.38,.004,.16),c.connect(t),Je(e,a,.22,1.3,[Pe(o,"bandpass",170,1.3)],c)}function ln(e,a,o,t,n,c){let{ctx:r}=e,s=Pe(r,"lowpass",220,.6);s.frequency.setValueAtTime(220,a+o),s.frequency.exponentialRampToValueAtTime(c?700:1500,a+t-.05),s.frequency.exponentialRampToValueAtTime(380,a+t+.12);let i=r.createGain();i.gain.setValueAtTime(1e-4,a+o),i.gain.exponentialRampToValueAtTime(c?.25:.5,a+t-.1),i.gain.exponentialRampToValueAtTime(.3,a+t+.25),i.gain.exponentialRampToValueAtTime(1e-4,a+n);let u=r.createOscillator();u.frequency.value=.7;let l=r.createGain();l.gain.value=.08,u.connect(l),l.connect(i.gain),u.start(a+o),u.stop(a+n),i.connect(e.seco),Je(e,a+o,n-o,.9,[s,Pe(r,"peaking",420,.8)],i)}function mn(e,a,o){let{ctx:t}=e,n=t.createOscillator();n.frequency.setValueAtTime(95,a),n.frequency.exponentialRampToValueAtTime(34,a+.45);let c=t.createGain();lo(c,a,.55*o,.01,.6),n.connect(c),c.connect(e.seco),n.start(a),n.stop(a+.7);let r=t.createGain();lo(r,a,.4*o,.006,.45),r.connect(e.seco),Je(e,a,.55,.2,[Pe(t,"lowpass",750,.8)],r)}function dn(e,a,o){let{ctx:t}=e,n=t.createGain();n.gain.setValueAtTime(1e-4,a),n.gain.exponentialRampToValueAtTime(.2,a+.35),n.gain.exponentialRampToValueAtTime(.13,o-.5),n.gain.exponentialRampToValueAtTime(1e-4,o),n.connect(e.seco),Je(e,a,o-a,1.6,[Pe(t,"lowpass",300,.7)],n)}function yc(e,a,o,t){let{ctx:n}=e,c=n.createOscillator();c.frequency.setValueAtTime(o,a),c.frequency.exponentialRampToValueAtTime(o*2.5,a+.05);let r=n.createGain();lo(r,a,t,.004,.06);let s=Pe(n,"lowpass",1600);c.connect(s),s.connect(r),r.connect(e.seco),c.start(a),c.stop(a+.1)}function fn(e,a,o){let{ctx:t}=e,n=Pe(t,"lowpass",420,.9),c=t.createGain();c.gain.setValueAtTime(1e-4,a),c.gain.exponentialRampToValueAtTime(.16,a+.4),c.gain.setValueAtTime(.16,o-.6),c.gain.exponentialRampToValueAtTime(1e-4,o),n.connect(c),c.connect(e.seco);let r=t.createGain();r.gain.value=.25,r.connect(n);let s=[[73.4,-4],[73.4,4],[110,-3],[110,3]];for(let[i,u]of s){let l=t.createOscillator();l.type="sawtooth",l.frequency.value=i,l.detune.value=u,l.connect(r),l.start(a),l.stop(o+.05)}}function Tc(e,a){let{ctx:o}=e,t=o.createDynamicsCompressor();t.threshold.value=-10,t.knee.value=6,t.ratio.value=12,t.attack.value=.003,t.release.value=.25,t.connect(e.destino);let n={ctx:o,seco:t,ruido:e.ruido},c=no,r=Fa,s=a?[["vento",0,u=>un(n,u,r.aguaFim,!0)],["mar",r.aguaInicio-.2,u=>ln(n,u,r.aguaInicio-.2,r.aguaFim,c.duracao,!0)],["mergulho",r.aguaFim-.1,u=>mn(n,u+r.aguaFim-.1,.5)],["fundo",r.aguaFim-.1,u=>dn(n,u+r.aguaFim-.1,u+c.duracao)],["apito",r.aguaFim,u=>fn(n,u+r.aguaFim,u+c.duracao)]]:[["vento",0,u=>un(n,u,c.mergulho,!1)],["tremulado",0,u=>Ac(n,u,c.mergulho)],["estalo",c.estalo,u=>Mc(n,u+c.estalo)],["mar",c.aguaSobe-.18,u=>ln(n,u,c.aguaSobe-.18,c.mergulho,c.duracao,!1)],["mergulho",c.mergulho,u=>mn(n,u+c.mergulho,1)],["fundo",c.mergulho,u=>dn(n,u+c.mergulho,u+c.duracao)],["bolhas",c.mergulho+.06,u=>{let l=[[.06,340,.12],[.19,460,.08],[.42,300,.1],[.71,520,.06]];for(let[m,v,p]of l)yc(n,u+c.mergulho+m,v,p)}],["apito",c.mergulho+.12,u=>fn(n,u+c.mergulho+.12,u+c.duracao)]],i=new Set;return{atualizar(u){for(let[l,m,v]of s)u>=m&&!i.has(l)&&(i.add(l),v(o.currentTime-m))},reiniciar:()=>i.clear()}}var Cc=gc,hn=Cc;var bn={nome:"Bandeira da Marinha",duracaoNaturalS:3.8,quadroDaMiniaturaS:1.45};var Oc=24,Co={duracao:2.8,fadeInFim:.08,impacto:.4,congela:.07,nomeSurge:.53,nomeAssenta:.7,esfriaFim:1.25,brilhoDaLaminaInicio:1.35,brilhoDaLaminaFim:1.8,brilhoDoNomeInicio:1.5,brilhoDoNomeFim:1.95,corte:2.1,fechaInicio:2.16,fechaFim:2.5,fadeOutInicio:2.5},ka={surgeFim:.4,impacto:.42,nomeSurge:.5,nomeAceso:.95,esfriaFim:1.35,fadeOutInicio:2.25};function Dc(e){let a=(e??"").replace(/\s+/g," ").trim();return Array.from(a).slice(0,Oc).join("")}var Fn=.628,ke=.2,In=34,_a=Math.tan(In*Math.PI/360),La=6.6,wc=1.45,qa=480,Ba=1600,za=520,Pc=640,yo=2048,Eo=640,Ua=4.4,Fc=Ua*Eo/yo,xn=.6,Ic=330,Nc=1760,_c="'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Times New Roman', serif",Ra=120,Va=34,Fe=`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,zc=`
+varying vec2 vPos;
+void main() {
+  vPos = position.xy;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Rc=`
+attribute vec3 cor;
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  vUv = uv;
+  vCor = cor;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`,Vc=`
+uniform vec3 uCentro;
+uniform vec3 uBorda;
+varying vec2 vPos;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main() {
+  float r = length(vPos / vec2(7.0, 4.4));
+  vec3 cor = mix(uCentro, uBorda, smoothstep(0.0, 1.0, r));
+  cor += (hash(floor(vPos * 90.0)) - 0.5) * 0.008;
+  gl_FragColor = vec4(cor, 1.0);
+}`,gn=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uTempo;
+uniform vec2 uDesvio;
+varying vec2 vUv;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float ruido(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += a * ruido(p);
+    p = p * 2.03 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+void main() {
+  vec2 p = vUv * vec2(4.0, 2.25) + uDesvio;
+  vec2 q = vec2(fbm(p + vec2(0.0, uTempo * 0.06)), fbm(p + vec2(5.2, 1.3) - uTempo * 0.05));
+  float n = fbm(p + 1.7 * q + vec2(uTempo * 0.11, -uTempo * 0.03));
+  float baixo = smoothstep(1.0, 0.1, vUv.y);
+  float borda = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x) * smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.85, vUv.y);
+  float v = smoothstep(0.38, 0.9, n) * (0.35 + 0.65 * baixo) * borda;
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,Gc=`
+uniform sampler2D mapa;
+uniform float uOpacidade;
+uniform float uLuz;
+uniform float uCalor;
+uniform float uBrilho;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  if (c.a < 0.004) discard;
+  float lamina = smoothstep(0.352, 0.37, vUv.y);
+  float aco = smoothstep(0.12, 0.45, dot(c.rgb, vec3(0.333)));
+  vec3 cor = c.rgb * uLuz;
+  float perto = exp(-abs(vUv.y - 0.6) * 6.0);
+  cor += vec3(1.0, 0.16, 0.08) * perto * uCalor * (0.35 + 0.65 * lamina) * c.a;
+  cor += vec3(0.16, 0.015, 0.012) * c.a;
+  float b = (vUv.y - uBrilho) / 0.028;
+  cor += vec3(0.8, 0.86, 0.95) * exp(-b * b) * lamina * aco * 0.55;
+  gl_FragColor = vec4(cor, c.a * uOpacidade);
+}`,Lc=`
+uniform sampler2D mapa;
+uniform float uOpacidade;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(mapa, vUv);
+  gl_FragColor = vec4(c.rgb, c.a * uOpacidade);
+}`,qc=`
+uniform sampler2D mascara;
+uniform float uCalor;
+uniform float uBrasa;
+uniform float uBrilho;
+uniform float uOpacidade;
+uniform float uLargura;
+uniform float uTempo;
+varying vec2 vUv;
+void main() {
+  vec4 k = texture2D(mascara, vUv);
+  float letra = k.r;
+  float halo = k.g;
+  float fenda = k.b;
+  vec3 quente = mix(vec3(0.6, 0.03, 0.02), vec3(1.0, 0.4, 0.22), uCalor);
+  vec3 cor = quente * (letra * 0.9 * uCalor + halo * (0.35 * uBrasa + 0.6 * uCalor));
+  float tremula = 0.75 + 0.25 * sin(vUv.x * 41.0 + uTempo * 7.0) * sin(vUv.y * 23.0 - uTempo * 5.0);
+  cor += vec3(1.0, 0.2, 0.08) * fenda * (uBrasa * 1.1 * tremula + uCalor);
+  float s = (vUv.x - 0.5) / uLargura + 0.5 + (vUv.y - 0.5) * 0.18;
+  float b = (s - uBrilho) / 0.045;
+  cor += vec3(0.8, 0.86, 0.95) * exp(-b * b) * letra * 0.45;
+  gl_FragColor = vec4(cor * uOpacidade, 1.0);
+}`,Bc=`
+uniform vec3 uMiolo;
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float r2 = dot(p, p);
+  vec3 cor = uMiolo * exp(-r2 * 28.0) * 1.2 + uCor * exp(-r2 * 5.0) * 0.6;
+  cor *= 1.0 - smoothstep(0.7, 1.0, r2);
+  gl_FragColor = vec4(cor * uForca, 1.0);
+}`,Uc=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float h = exp(-abs(p.y) * 60.0) * pow(max(0.0, 1.0 - abs(p.x)), 2.0);
+  float v = exp(-abs(p.x) * 60.0) * pow(max(0.0, 1.0 - abs(p.y)), 2.0);
+  float miolo = exp(-dot(p, p) * 40.0);
+  gl_FragColor = vec4(uCor * (h + v * 0.8 + miolo) * uForca, 1.0);
+}`,An=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uEspessura;
+varying vec2 vUv;
+void main() {
+  float r = length(vUv * 2.0 - 1.0);
+  float fino = (r - 0.8) / uEspessura;
+  float largo = (r - 0.78) / (uEspessura * 3.5);
+  float v = exp(-fino * fino) + exp(-largo * largo) * 0.3;
+  gl_FragColor = vec4(uCor * v * uForca, 1.0);
+}`,kc=`
+uniform vec3 uCor;
+uniform float uForca;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  gl_FragColor = vec4(uCor * exp(-dot(p, p) * 3.2) * uForca, 1.0);
+}`,Xc=`
+uniform vec3 uCor;
+uniform float uForca;
+void main() {
+  gl_FragColor = vec4(uCor * uForca, 1.0);
+}`,Wc=`
+uniform vec3 uCor;
+uniform float uForca;
+uniform float uDesenho;
+varying vec2 vUv;
+void main() {
+  float a = abs(vUv.y - 0.5) * 2.0;
+  float v = exp(-a * a * 60.0) + exp(-a * a * 6.0) * 0.25;
+  float desenhado = step(vUv.x, uDesenho);
+  float pontas = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x);
+  gl_FragColor = vec4(uCor * v * desenhado * pontas * uForca, 1.0);
+}`,$c=`
+varying vec2 vUv;
+varying vec3 vCor;
+void main() {
+  float a = (vUv.y - 0.5) / 0.25;
+  float atraves = exp(-a * a);
+  float aoLongo = smoothstep(0.0, 1.0, vUv.x) * (1.0 - smoothstep(0.85, 1.0, vUv.x) * 0.5);
+  gl_FragColor = vec4(vCor * atraves * aoLongo, 1.0);
+}`,jc=`
+void main() {
+  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+}`;function Ho(e,a){let o=document.createElement("canvas");o.width=e,o.height=a;let t=o.getContext("2d");if(!t)throw new Error("canvas 2D indisponível");return[o,t]}var Mo="#140f11";function Ga(e,a,o){let t=e.createLinearGradient(0,a,0,o);return t.addColorStop(0,"#7a7f88"),t.addColorStop(.4,"#454a52"),t.addColorStop(.75,"#24272c"),t.addColorStop(1,"#111216"),t}function Mn(e,a,o,t,n){let c=e.createRadialGradient(a-t*.3,o-n*.4,1,a,o,Math.max(t,n)*1.15);c.addColorStop(0,"#ff7a66"),c.addColorStop(.4,"#c0141e"),c.addColorStop(1,"#4a0508"),e.fillStyle=c,e.beginPath(),e.ellipse(a,o,t,n,0,0,Math.PI*2),e.fill(),e.strokeStyle="#1c0a0b",e.lineWidth=2.5,e.stroke(),e.fillStyle="rgba(255, 225, 220, 0.75)",e.beginPath(),e.ellipse(a-t*.3,o-n*.45,t*.25,n*.28,-.3,0,Math.PI*2),e.fill()}function Yc(e){let[a,o]=Ho(qa,Ba),t=qa/2,n=fe(1931);o.lineJoin="round",o.lineCap="round";let c=h=>31+(h-330)/704*11,r=[[42,1034]];for(let h=0;h<4;h++){let y=1e3-h*44;r.push([c(y),y],[c(y)-12,y-10],[c(y-26),y-26])}r.push([31,330]);let s=h=>{let y=new Path2D;return r.forEach(([N,w],L)=>L===0?y.moveTo(t+h*N,w):y.lineTo(t+h*N,w)),y.quadraticCurveTo(t+h*28,190,t,30),y},i=new Path2D;r.forEach(([h,y],N)=>N===0?i.moveTo(t-h,y):i.lineTo(t-h,y)),i.quadraticCurveTo(t-28,190,t,30),i.quadraticCurveTo(t+28,190,t+31,330);for(let h=r.length-1;h>=0;h--)i.lineTo(t+r[h][0],r[h][1]);i.closePath(),o.strokeStyle=Mo,o.lineWidth=7,o.stroke(i),o.save(),o.clip(i);let u=o.createLinearGradient(t-42,0,t,0);u.addColorStop(0,"#5b6068"),u.addColorStop(1,"#8c929b"),o.fillStyle=u,o.fillRect(t-50,0,50,1040);let l=o.createLinearGradient(t,0,t+42,0);l.addColorStop(0,"#2c3036"),l.addColorStop(1,"#1b1d22"),o.fillStyle=l,o.fillRect(t,0,50,1040),o.lineWidth=4,o.strokeStyle="#b9c0c9",o.stroke(s(-1)),o.strokeStyle="#0d0e11",o.stroke(s(1));let m=o.createLinearGradient(0,360,0,660);m.addColorStop(0,"rgba(200, 210, 225, 0)"),m.addColorStop(.5,"rgba(200, 210, 225, 0.12)"),m.addColorStop(1,"rgba(200, 210, 225, 0)"),o.fillStyle=m,o.fillRect(t-50,360,100,300);let v=o.createLinearGradient(0,860,0,1034);v.addColorStop(0,"rgba(8, 6, 8, 0)"),v.addColorStop(1,"rgba(8, 6, 8, 0.35)"),o.fillStyle=v,o.fillRect(t-50,860,100,180),o.strokeStyle="rgba(200, 208, 220, 0.35)",o.lineWidth=1.5,o.beginPath(),o.moveTo(t-.5,1030),o.lineTo(t-.5,60),o.stroke();let p=o.createLinearGradient(t-8,0,t+8,0);p.addColorStop(0,"#16181c"),p.addColorStop(.45,"#3b3f46"),p.addColorStop(1,"#1d2025"),o.fillStyle=p,o.beginPath(),o.roundRect(t-8,430,16,584,8),o.fill(),o.strokeStyle="rgba(160, 168, 180, 0.3)",o.lineWidth=1,o.stroke(),o.lineWidth=1;for(let h=0;h<90;h++){let y=t+(n()-.5)*70,N=120+n()*900,w=6+n()*20,L=(n()-.5)*.9;o.strokeStyle=n()<.5?`rgba(220, 225, 235, ${.04+n()*.05})`:`rgba(0, 0, 0, ${.08+n()*.08})`,o.beginPath(),o.moveTo(y,N),o.lineTo(y+Math.sin(L)*w,N+Math.cos(L)*w),o.stroke()}o.restore();let d=new Path2D;d.moveTo(t-25,1100),d.quadraticCurveTo(t-31,1243,t-25,1386),d.lineTo(t+25,1386),d.quadraticCurveTo(t+31,1243,t+25,1100),d.closePath(),o.strokeStyle=Mo,o.lineWidth=6,o.stroke(d),o.save(),o.clip(d);let f=o.createLinearGradient(t-30,0,t+30,0);f.addColorStop(0,"#120c0d"),f.addColorStop(.27,"#3a2b2d"),f.addColorStop(.57,"#1c1416"),f.addColorStop(1,"#0c0809"),o.fillStyle=f,o.fillRect(t-40,1090,80,310);for(let h=1084;h<1400;h+=22)o.strokeStyle="rgba(130, 16, 20, 0.9)",o.lineWidth=6,o.beginPath(),o.moveTo(t-34,h),o.lineTo(t+34,h+16),o.stroke(),o.strokeStyle="rgba(255, 120, 110, 0.18)",o.lineWidth=2,o.beginPath(),o.moveTo(t-34,h-3),o.lineTo(t+34,h+13),o.stroke();o.restore(),o.fillStyle=Mo,o.beginPath(),o.roundRect(t-36,1377,72,24,9),o.fill(),o.fillStyle=Ga(o,1380,1398),o.beginPath(),o.roundRect(t-33,1380,66,18,7),o.fill();let S=h=>{let y=new Path2D;return y.moveTo(t,1030),y.quadraticCurveTo(t+h*120,1034,t+h*212,984),y.quadraticCurveTo(t+h*140,1064,t,1080),y.closePath(),y},T=new Path2D;T.moveTo(t,1004),T.lineTo(t+40,1028),T.lineTo(t+30,1070),T.lineTo(t,1122),T.lineTo(t-30,1070),T.lineTo(t-40,1028),T.closePath(),o.lineJoin="miter",o.strokeStyle=Mo,o.lineWidth=9,o.stroke(S(-1)),o.stroke(S(1)),o.lineWidth=11,o.stroke(T);let F=Ga(o,980,1090);o.fillStyle=F,o.fill(S(-1)),o.fill(S(1));for(let h of[-1,1])o.strokeStyle="rgba(210, 215, 225, 0.35)",o.lineWidth=2.5,o.beginPath(),o.moveTo(t,1036),o.quadraticCurveTo(t+h*118,1040,t+h*200,994),o.stroke(),o.strokeStyle="#8e1a1a",o.lineWidth=3,o.beginPath(),o.moveTo(t+h*30,1054),o.quadraticCurveTo(t+h*110,1052,t+h*170,1012),o.stroke(),o.strokeStyle="rgba(255, 90, 70, 0.5)",o.lineWidth=1,o.stroke();o.fillStyle=F,o.fill(T),o.save(),o.translate(t,1058),o.scale(.72,.72),o.translate(-t,-1058),o.strokeStyle="rgba(150, 155, 165, 0.35)",o.lineWidth=3,o.stroke(T),o.restore(),o.lineJoin="round",Mn(o,t,1052,12,17);let M=new Path2D;return M.moveTo(t,1398),M.lineTo(t+34,1440),M.lineTo(t,1512),M.lineTo(t-34,1440),M.closePath(),o.lineJoin="miter",o.strokeStyle=Mo,o.lineWidth=9,o.stroke(M),o.fillStyle=Ga(o,1398,1512),o.fill(M),o.save(),o.clip(M),o.fillStyle="rgba(255, 255, 255, 0.12)",o.fillRect(t-40,1390,40,130),o.restore(),o.lineJoin="round",Mn(o,t,1442,8,9),new e.CanvasTexture(a)}function Zc(e,a){let[o,t]=Ho(yo,Eo),n=A=>`600 ${A}px ${_c}`;t.font=n(100);let c=Math.max(1,t.measureText(a).width),r=Math.min(Ic,100*Nc/c);t.font=n(r),t.textAlign="center",t.textBaseline="alphabetic";let s=t.measureText(a),i=s.actualBoundingBoxAscent||r*.7,u=s.actualBoundingBoxDescent||0,l=t.measureText("H").actualBoundingBoxAscent||r*.68,m=yo/2,v=Eo/2+(i-u)/2,p=r*.075,d=v-l,f=v+l*.2;t.lineJoin="round",t.miterLimit=2,t.strokeStyle="#0b0809",t.lineWidth=p,t.strokeText(a,m,v);let S=t.createLinearGradient(0,d,0,f);S.addColorStop(0,"#b4b9c1"),S.addColorStop(.5,"#4a4f57"),S.addColorStop(1,"#0f1013"),t.strokeStyle=S,t.lineWidth=r*.034,t.strokeText(a,m,v);let T=t.createLinearGradient(0,d,0,f);T.addColorStop(0,"#8a8f97"),T.addColorStop(.25,"#5d626a"),T.addColorStop(.48,"#33373d"),T.addColorStop(.52,"#18191d"),T.addColorStop(.6,"#41454c"),T.addColorStop(.85,"#25282d"),T.addColorStop(1,"#111215"),t.fillStyle=T,t.fillText(a,m,v);let F=fe(5381),M=new Path2D,h=Math.max(5,Math.round(Array.from(a).length*2.5)),y=m-s.width/2;for(let A=0;A<h;A++){let g=y+F()*s.width,O=d+F()*(v-d);M.moveTo(g,O);let _=F()*Math.PI*2,I=2+Math.floor(F()*3);for(let B=0;B<I;B++){_+=(F()-.5)*.9;let Q=r*(.06+F()*.08);g+=Math.cos(_)*Q,O+=Math.sin(_)*Q,M.lineTo(g,O)}}t.save(),t.globalCompositeOperation="source-atop",t.strokeStyle="#0b0708",t.lineWidth=r*.02,t.stroke(M),t.strokeStyle="#4a0c0c",t.lineWidth=r*.008,t.stroke(M),t.lineWidth=1.2;for(let A=0;A<220;A++){let g=m+(F()-.5)*s.width,O=d+F()*(f-d+u),_=4+F()*16,I=F()*Math.PI;t.strokeStyle=F()<.5?"rgba(220, 225, 235, 0.07)":"rgba(0, 0, 0, 0.14)",t.beginPath(),t.moveTo(g,O),t.lineTo(g+Math.cos(I)*_,O+Math.sin(I)*_),t.stroke()}t.restore(),t.save(),t.globalCompositeOperation="destination-over",t.fillStyle="#060405",t.strokeStyle="#060405",t.lineWidth=p,t.shadowColor="rgba(0, 0, 0, 0.9)",t.shadowBlur=r*.1,t.shadowOffsetY=r*.045,t.fillText(a,m,v),t.strokeText(a,m,v),t.shadowColor="rgba(0, 0, 0, 0.7)",t.shadowBlur=r*.4,t.shadowOffsetY=0,t.fillText(a,m,v),t.strokeText(a,m,v),t.restore();let[N,w]=Ho(yo/2,Eo/2);w.fillStyle="#000",w.fillRect(0,0,N.width,N.height),w.font=n(r/2),w.textAlign="center",w.textBaseline="alphabetic",w.lineJoin="round";let L=5e3;w.save(),w.shadowColor="rgb(0, 255, 0)",w.shadowBlur=r*.14,w.shadowOffsetX=L,w.fillStyle="#fff",w.fillText(a,m/2-L,v/2),w.fillText(a,m/2-L,v/2),w.restore(),w.globalCompositeOperation="lighter",w.fillStyle="rgb(255, 0, 0)",w.strokeStyle="rgb(255, 0, 0)",w.lineWidth=p/2,w.fillText(a,m/2,v/2),w.strokeText(a,m/2,v/2);let[b,C]=Ho(N.width,N.height);return C.scale(.5,.5),C.font=n(r),C.textAlign="center",C.textBaseline="alphabetic",C.fillStyle="#fff",C.fillText(a,m,v),C.globalCompositeOperation="source-in",C.strokeStyle="rgb(0, 0, 255)",C.lineJoin="round",C.lineCap="round",C.lineWidth=r*.018,C.stroke(M),w.save(),w.shadowColor="rgb(0, 0, 255)",w.shadowBlur=r*.03,w.drawImage(b,0,0),w.restore(),{metal:new e.CanvasTexture(o),mascara:new e.CanvasTexture(N),fracao:Math.min(1,(s.width+p)/yo)}}var Kc={x:-6,y:-1.2,rz:-1.5,ry:1},yn={x:0,y:0,rz:-Fn,ry:0},Tn=e=>e*e*e;function Cn(e,a){let o=Co;if(a)return yn;if(e<o.impacto){let c=x(e,0,o.impacto),r=.45*c+.55*c*c,s=Kc,i=yn;return{x:s.x+(i.x-s.x)*r,y:s.y+(i.y-s.y)*r,rz:s.rz+(i.rz-s.rz)*r,ry:s.ry*(1-$(x(c,0,.75)))}}let t=Math.max(0,e-o.impacto-o.congela),n=Math.exp(-t*10)*Math.sin(t*34);return{x:-.12*n,y:0,rz:-Fn+.085*n,ry:0}}function Nn(e,a){return e<=0?0:e/a*Math.exp(1-e/a)}function Jc(e,a,o,t){let n=Co;if(a)return{x:0,y:0,z:o,giro:0};let c=o/La,r=n.impacto+n.congela,s=x(e,0,n.impacto),i=o*(1.04-.04*s*s)*(1-.045*U(x(e,r,n.fechaFim))),u=e-r;i-=.45*c*Nn(u,.035);let l=e-n.nomeAssenta,m=u>0?.15*c*Math.exp(-u*16):0,v=t&&l>0?.05*c*Math.exp(-l*20):0;return{x:m*(Math.sin(u*110)+.5*Math.sin(u*170))+v*Math.sin(l*120),y:m*.8*(Math.cos(u*97)+.5*Math.sin(u*151))+v*Math.cos(l*105),z:i,giro:u>0?.02*Math.exp(-u*16)*Math.sin(u*83):0}}function Qc(e,a){let o=Co,t=1-x(e,0,o.fadeInFim),n=a?U(x(e,ka.fadeOutInicio,o.duracao)):x(e,o.fadeOutInicio,o.duracao);return Math.max(t,n)}function Sn(e,a,o,t,n){let c=new Float32Array(a*12),r=new Float32Array(a*12),s=new Float32Array(a*8),i=[];for(let d=0;d<a;d++){s.set([0,0,0,1,1,1,1,0],d*8);let f=d*4;i.push(f,f+1,f+2,f,f+2,f+3)}let u=n(new e.BufferGeometry),l=new e.BufferAttribute(c,3).setUsage(e.DynamicDrawUsage),m=new e.BufferAttribute(r,3).setUsage(e.DynamicDrawUsage);u.setAttribute("position",l),u.setAttribute("cor",m),u.setAttribute("uv",new e.BufferAttribute(s,2)),u.setIndex(i);let v=n(new e.ShaderMaterial({vertexShader:Rc,fragmentShader:$c,transparent:!0,depthWrite:!1,depthTest:!1,blending:e.AdditiveBlending,side:e.DoubleSide})),p=new e.Mesh(u,v);return p.frustumCulled=!1,p.renderOrder=t,{malha:p,definir(d,f,S,T,F,M,h,y,N,w){let L=Math.hypot(T,F)||1,b=T/L,C=F/L,A=-C*h/2,g=b*h/2,O=f-b*M,_=S-C*M;c.set([O+A,_+g,o,O-A,_-g,o,f-A,S-g,o,f+A,S+g,o],d*12);for(let I=0;I<4;I++)r.set([y,N,w],d*12+I*3)},esconder(d){c.fill(0,d*12,d*12+12),r.fill(0,d*12,d*12+12)},enviar(){l.needsUpdate=!0,m.needsUpdate=!0}}}function Ec(e,a){let o=a.reduzirMovimento,t=Co,n=ka,c=[],r=X=>(c.push(X),X),s=(X,D,Z)=>new e.Vector3(X,D,Z),i=(X,D,Z,H)=>r(new e.ShaderMaterial({vertexShader:X,fragmentShader:D,uniforms:Z,transparent:!0,depthWrite:!1,depthTest:!1,blending:H?e.AdditiveBlending:e.NormalBlending,side:e.DoubleSide})),u=(X,D,Z)=>{let H=new e.Mesh(X,D);return H.renderOrder=Z,H.frustumCulled=!1,H},l=r(new e.PlaneGeometry(1,1)),m=new e.Scene,v=new e.PerspectiveCamera(In,16/9,.1,80);m.add(v);let p=16/9,d=La,f=new e.Mesh(r(new e.PlaneGeometry(80,45)),r(new e.ShaderMaterial({vertexShader:zc,fragmentShader:Vc,uniforms:{uCentro:{value:s(.05,.018,.02)},uBorda:{value:s(.006,.004,.005)}},depthWrite:!1,depthTest:!1})));f.position.z=-3,f.renderOrder=0,f.frustumCulled=!1,m.add(f);let S={uCor:{value:s(.32,.03,.03)},uForca:{value:0},uTempo:{value:0},uDesvio:{value:new e.Vector2(0,0)}},T=u(l,i(Fe,gn,S,!0),1);T.scale.set(16,9,1),T.position.set(0,0,-1.5);let F={uCor:{value:s(.26,.02,.025)},uForca:{value:0},uTempo:{value:0},uDesvio:{value:new e.Vector2(3.7,1.9)}},M=u(l,i(Fe,gn,F,!0),10);M.scale.set(12,4.5,1),M.position.set(0,-1.6,1),m.add(T,M);let h={uCor:{value:s(.3,.02,.02)},uForca:{value:0}},y=u(l,i(Fe,kc,h,!0),2);y.scale.set(9,6,1),y.position.set(0,ke,-1.2),m.add(y);let N=fe(2711),w=Array.from({length:Va},()=>({x:(N()*2-1)*3.6,y0:N(),vel:.16+.22*N(),fase:N()*Math.PI*2,tamanho:.02+.02*N()})),L=Sn(e,Va,-.8,3,r);L.malha.visible=!o,m.add(L.malha);let b=r(Yc(e)),C=r(new e.PlaneGeometry(qa/za,Ba/za)),A=(Ba/2-Pc)/za,g=new e.Group;g.position.y=ke,m.add(g);let O=[.025,.05],_=(X,D,Z)=>{let H={mapa:{value:b},uOpacidade:{value:1},uLuz:{value:1},uCalor:{value:0},uBrilho:{value:-1}},re=new e.Group,G=u(C,i(Fe,Gc,H,!1),D);return G.position.y=-A,X&&(G.scale.x=-1),re.add(G),re.position.z=Z,g.add(re),{grupo:re,uniforms:H}},I=O.map(()=>_(!0,4,-.03)),B=_(!0,5,-.03),Q=O.map(()=>_(!1,6,.03)),W=_(!1,7,.03),oe=(X,D,Z)=>{X.grupo.position.x=D.x*-Z,X.grupo.position.y=D.y,X.grupo.rotation.z=D.rz*-Z,X.grupo.rotation.y=D.ry*-Z},ce={uCor:{value:s(1,.45,.38)},uForca:{value:0},uEspessura:{value:.03}},E=u(l,i(Fe,An,ce,!0),8);E.position.set(0,ke,.3);let q={uCor:{value:s(.85,.08,.06)},uForca:{value:0},uEspessura:{value:.07}},se=u(l,i(Fe,An,q,!0),8);se.position.set(0,ke,.28);let j={uMiolo:{value:s(1,.9,.86)},uCor:{value:s(.95,.14,.08)},uForca:{value:0}},K=u(l,i(Fe,Bc,j,!0),9);K.position.set(0,ke,.35);let k={uCor:{value:s(1,.8,.75)},uForca:{value:0}},ae=u(l,i(Fe,Uc,k,!0),9);ae.position.set(0,ke,.4),E.visible=!o,se.visible=!o,ae.visible=!o,m.add(se,E,K,ae);let ie=Dc(a.nome),ve=ie!=="",Ie=ve?Zc(e,ie):null;Ie&&(r(Ie.metal),r(Ie.mascara));let We=Ie?.fracao??0,ro=Ua*We,ye={mapa:{value:Ie?.metal??null},mascara:{value:Ie?.mascara??null},uCalor:{value:0},uBrasa:{value:0},uBrilho:{value:-1},uOpacidade:{value:0},uLargura:{value:Math.max(.05,We)},uTempo:{value:0}},z=r(new e.PlaneGeometry(Ua,Fc)),V=new e.Group;V.position.set(0,ke,xn),V.add(u(z,i(Fe,Lc,ye,!1),11)),V.add(u(z,i(Fe,qc,ye,!0),12)),ve&&m.add(V);let ue=fe(4243),Te=Array.from({length:Ra},()=>{let X=ue()*Math.PI*2,D=ue(),Z=Math.sin(X)<0?.6:1;return{cos:Math.cos(X),sen:Math.sin(X),vel:(3.5+8*D*D)*Z,vida:.25+.5*ue(),atraso:ue()*.025,largura:.016+.016*ue()}}),pe=Sn(e,Ra,.5,13,r);pe.malha.visible=!o,m.add(pe.malha);let xe=new e.Group;xe.position.z=-1,v.add(xe);let Y={uCor:{value:s(1,.85,.8)},uForca:{value:0}},_e=u(l,i(Fe,Xc,Y,!0),14);_e.scale.set(8,8,1),_e.visible=!o,xe.add(_e);let qe=1.2,ne=r(new e.PlaneGeometry(qe*2,.03)),he=X=>{let D={uCor:{value:s(1,.35,.3)},uForca:{value:0},uDesenho:{value:0}},Z=u(ne,i(Fe,Wc,D,!0),15);return Z.rotation.z=X,Z.visible=!1,xe.add(Z),{m:Z,uniforms:D}},le=Math.PI/180,ge=he(54*le),Ve=he(126*le),Be=.004,Ue=6,ea=i(Fe,jc,{},!1),$e=(X,D,Z)=>{let H=X-Be,re=D+Be,G=r(new e.BufferGeometry);G.setAttribute("position",new e.BufferAttribute(new Float32Array([0,0,0,Ue*Math.cos(H),Ue*Math.sin(H),0,Ue*Math.cos(re),Ue*Math.sin(re),0]),3)),G.setAttribute("uv",new e.BufferAttribute(new Float32Array(6),2));let de=u(G,ea,16);return de.visible=!1,xe.add(de),{m:de,dx:Math.cos(Z),dy:Math.sin(Z)}},oa=[$e(54*le,126*le,90*le),$e(126*le,234*le,180*le),$e(234*le,306*le,270*le),$e(-54*le,54*le,0)],aa=(X,D,Z,H)=>{let re=_a,G=_a*p,de=.06;return D>.5?re-H+de:D<-.5?re+H+de:X>.5?G-Z+de:G+Z+de},Rn=X=>{let H=t.impacto+t.congela;for(let re=0;re<Ra;re++){let G=Te[re],de=X-H-G.atraso;if(de<=0||de>=G.vida){pe.esconder(re);continue}let He=Math.exp(-3*de),co=(1-He)/3,So=G.cos*G.vel*co,ta=G.sen*G.vel*co-7/3*(de-co),Oo=G.cos*G.vel*He,Do=G.sen*G.vel*He-7*(1-He)/3,so=de/G.vida,Ne=Math.pow(1-so,1.5)*1.7,Ce=Math.min(.5,.06+.045*Math.hypot(Oo,Do));pe.definir(re,So,ke+ta,Oo,Do,Ce,G.largura*(1-.5*so),Ne,Math.max(0,.85-.8*so)*Ne,Math.max(0,.75-.72*so)*Ne)}pe.enviar()},Vn=X=>{let D=$(x(X,t.impacto,t.impacto+.5));for(let Z=0;Z<Va;Z++){let H=w[Z];if(D<=0){L.esconder(Z);continue}let re=-2.7+(H.y0*5.4+H.vel*X)%5.4,G=H.x+.1*Math.sin(X*1.1+H.fase),de=(.35+.25*Math.sin(X*6+H.fase*3))*D;L.definir(Z,G,re,.1*Math.cos(X*1.1+H.fase),1,H.tamanho*2.2,H.tamanho,de,de*.18,de*.06)}L.enviar()};function Wa(X){let D=Math.max(0,X),Z=o?n.impacto:t.impacto,H=D>=Z,re=!o&&H&&D<t.impacto+t.congela,G=D-(o?n.impacto:t.impacto+t.congela),de=re?1:G>=0?Math.pow(1-x(G,0,.2),2):0,He=o?1:D,co=(H?.5*(re?1:Math.exp(-Math.max(0,G)*5)):0)+.6*x(D,0,.3);S.uTempo.value=He,F.uTempo.value=He*1.3,S.uForca.value=co,F.uForca.value=co*.7;let So=Cn(D,o);oe(W,So,1),oe(B,So,-1);let ta=o?$(x(D,0,n.surgeFim)):1,Oo=o||D<t.brilhoDaLaminaInicio||D>t.brilhoDaLaminaFim?-1:.37+.63*U(x(D,t.brilhoDaLaminaInicio,t.brilhoDaLaminaFim)),Do=re?1:G>=0?.2+.8*Math.exp(-G*6):0;for(let Ce of[W,B])Ce.uniforms.uOpacidade.value=ta,Ce.uniforms.uLuz.value=1+.6*de,Ce.uniforms.uCalor.value=Do,Ce.uniforms.uBrilho.value=Oo;let so=!o&&D<t.impacto?Oe(x(D,0,.05)):0;if(O.forEach((Ce,je)=>{let mo=Cn(Math.max(0,D-Ce),o),wo=so*(je===0?.4:.18);for(let[Se,Ge]of[[Q[je],1],[I[je],-1]])Se.grupo.visible=wo>.003,oe(Se,mo,Ge),Se.uniforms.uOpacidade.value=wo}),o?(j.uForca.value=G>=0?.6*(1-x(G,0,.5)):0,K.scale.setScalar(2)):re?(j.uForca.value=1.3,K.scale.setScalar(1.3),k.uForca.value=1,ae.scale.setScalar(1.8),ae.rotation.z=0,Y.uForca.value=.55,ce.uForca.value=0,q.uForca.value=0):(j.uForca.value=G>=0?1.3*Math.pow(1-x(G,0,.3),2):0,K.scale.setScalar(1.3+3.4*$(x(G,0,.22))),k.uForca.value=G>=0?1-x(G,0,.22):0,ae.scale.setScalar(1.8+1.8*$(x(G,0,.22))),ae.rotation.z=.12*x(G,0,.22),Y.uForca.value=G>=0?.55*Math.pow(1-x(G,0,.1),2):0,ce.uForca.value=G>=0?1.1*Math.pow(1-x(G,0,.3),1.5):0,E.scale.setScalar(.4+4.6*$(x(G,0,.3))),q.uForca.value=G>=0?.8*Math.pow(1-x(G,0,.55),1.5):0,se.scale.setScalar(.4+3.2*$(x(G,0,.55)))),h.uForca.value=re?1.2:G>=0?.55+.65*Math.exp(-G*4):.2*x(D,0,.4),ye.uTempo.value=D,o)ye.uOpacidade.value=$(x(D,n.nomeSurge,n.nomeAceso)),ye.uCalor.value=.6*(1-$(x(D,n.nomeSurge,n.esfriaFim))),ye.uBrasa.value=.6*x(D,n.nomeSurge,n.nomeAceso),V.scale.setScalar(1);else{let Ce=D>=t.nomeAssenta;ye.uOpacidade.value=$(x(D,t.nomeSurge,t.nomeSurge+.06)),ye.uCalor.value=Ce?1-$(x(D,t.nomeAssenta,t.esfriaFim)):.3,ye.uBrasa.value=Ce?x(D,t.nomeAssenta,t.nomeAssenta+.05)*(.58+.12*Math.sin((D-t.nomeAssenta)*5)):0;let je=1.45-.45*Tn(x(D,t.nomeSurge,t.nomeAssenta)),mo=1-.02*Nn(D-t.nomeAssenta,.03);V.scale.setScalar(je*mo*(1+.02*x(D,t.nomeAssenta,t.fechaFim)))}ye.uBrilho.value=D<t.brilhoDoNomeInicio||D>t.brilhoDoNomeFim?-1:-.2+1.45*U(x(D,t.brilhoDoNomeInicio,t.brilhoDoNomeFim)),o||(Rn(D),Vn(D));let Ne=Jc(D,o,d,ve);if(v.position.set(Ne.x,Ne.y,Ne.z),v.rotation.set(0,0,Ne.giro),!o){let Ce=-Ne.x/Ne.z,je=(ke-Ne.y)/Ne.z;xe.position.set(Ce,je,-1);let mo=[[ge,t.corte],[Ve,t.corte+.05]];for(let[Se,Ge]of mo){let ja=(1-x(D,Ge+.06,Ge+.3))*(D>=Ge?1:0);Se.m.visible=ja>0,Se.uniforms.uForca.value=ja,Se.uniforms.uDesenho.value=$(x(D,Ge,Ge+.09))}let wo=Tn(x(D,t.fechaInicio,t.fechaFim));for(let Se of oa){Se.m.visible=D>=t.fechaInicio;let Ge=aa(Se.dx,Se.dy,Ce,je)*(1-wo);Se.m.position.set(Se.dx*Ge,Se.dy*Ge,0)}}return{fade:Qc(D,o)}}function $a(X){p=Math.max(.2,X);let D=_a*p,Z=ro/2*1.5/D+xn,H=wc/D;d=Math.max(La,Z,H),v.aspect=p,v.updateProjectionMatrix()}function Gn(){for(let X of c)X.dispose();c.length=0}return $a(p),Wa(0),{scene:m,camera:v,atualizar:Wa,ajustarTela:$a,criarSom:X=>ns(X,o,ve),descartar:Gn}}function Xe(e,a,o,t,n){e.gain.setValueAtTime(1e-4,a),e.gain.exponentialRampToValueAtTime(Math.max(2e-4,o),a+t),e.gain.exponentialRampToValueAtTime(1e-4,a+t+n)}function Hc(e,a){let o=Math.ceil(e.sampleRate*a),t=e.createBuffer(2,o,e.sampleRate);for(let n=0;n<2;n++){let c=fe(n===0?7:11),r=t.getChannelData(n);for(let s=0;s<o;s++)r[s]=(c()*2-1)*Math.pow(1-s/o,3)}return t}function es(e){let o=new Float32Array(new ArrayBuffer(4096));for(let t=0;t<1024;t++){let n=t/1023*2-1;o[t]=Math.tanh(e*n)/Math.tanh(e)}return o}function To(e,a,o,t,n){let c=e.ctx.createBufferSource();c.buffer=e.ruido(1);let r=c;for(let s of t)r.connect(s),r=s;r.connect(n),c.start(a),c.stop(a+o)}function Ee(e,a,o,t=.7){let n=e.createBiquadFilter();return n.type=a,n.frequency.value=o,n.Q.value=t,n}function On(e,a,o,t,n,c,r){let{ctx:s}=e,i=Ee(s,"bandpass",c,1.4);i.frequency.setValueAtTime(c,a),i.frequency.exponentialRampToValueAtTime(r,a+o);let u=s.createGain();u.gain.setValueAtTime(1e-4,a),u.gain.exponentialRampToValueAtTime(n*.4,a+.05),u.gain.exponentialRampToValueAtTime(n,a+o*.97),u.gain.exponentialRampToValueAtTime(1e-4,a+o+.03);let l=s.createStereoPanner();l.pan.setValueAtTime(t,a),l.pan.linearRampToValueAtTime(t*.2,a+o),u.connect(l),l.connect(e.seco),To(e,a,o+.08,[i],u)}function Xa(e,a,o,t,n,c,r){let{ctx:s}=e,i=s.createOscillator();i.frequency.setValueAtTime(t,a),i.frequency.exponentialRampToValueAtTime(n,a+.38);let u=s.createWaveShaper();u.curve=es(2.5);let l=s.createGain();Xe(l,a,o,.004,c),i.connect(u),u.connect(l),l.connect(e.seco),l.connect(e.sala),i.start(a),i.stop(a+c+.06);let m=s.createGain();Xe(m,a,o*.7,.002,.16),m.connect(e.seco),To(e,a,.22,[Ee(s,"lowpass",220)],m);let v=s.createOscillator();v.frequency.value=r;let p=s.createGain();Xe(p,a,o*.45,.01,c*.9),v.connect(p),p.connect(e.seco),v.start(a),v.stop(a+c+.06)}var os=[[620,.22,.35],[940,.16,.3],[1320,.2,1.3],[2110,.17,1],[3010,.12,.8],[4180,.08,.6],[5600,.05,.4]];function Dn(e,a,o){let{ctx:t}=e,n=t.createGain();Xe(n,a,.9*o,.001,.04),n.connect(e.seco),To(e,a,.06,[Ee(t,"highpass",1800)],n);let c=t.createGain();Xe(c,a,.4*o,.004,.5),c.connect(e.seco),c.connect(e.sala);let r=Ee(t,"bandpass",6200,5);r.frequency.setValueAtTime(6200,a),r.frequency.exponentialRampToValueAtTime(2400,a+.36),To(e,a,.6,[Ee(t,"highpass",1400),r],c);for(let[s,i]of[[1,-.2],[1.0135,.2]]){let u=t.createStereoPanner();u.pan.value=i,u.connect(e.seco),u.connect(e.sala);for(let[l,m,v]of os){let p=t.createOscillator();p.frequency.value=l*s;let d=t.createGain();Xe(d,a,m*o*.8,.002,v),p.connect(d),d.connect(u),p.start(a),p.stop(a+v+.05)}}Xa(e,a,1*o,120,30,.9,36)}function as(e,a){let{ctx:o}=e;Xa(e,a,.8,90,28,.7,32);let t=o.createStereoPanner();t.connect(e.seco),t.connect(e.sala);for(let[n,c,r]of[[210,.14,.28],[330,.1,.22],[470,.07,.18]]){let s=o.createOscillator();s.type="triangle",s.frequency.value=n;let i=o.createGain();Xe(i,a,c,.002,r),s.connect(i),i.connect(t),s.start(a),s.stop(a+r+.05)}}function wn(e,a,o,t){let{ctx:n}=e,c=Ee(n,"lowpass",300,4),r=n.createOscillator();r.frequency.value=.45;let s=n.createGain();s.gain.value=90,r.connect(s),s.connect(c.frequency);let i=n.createGain();i.gain.setValueAtTime(1e-4,a),i.gain.exponentialRampToValueAtTime(.13,a+.3),i.gain.setValueAtTime(.13,a+t),i.gain.exponentialRampToValueAtTime(.22,a+t+.08),i.gain.exponentialRampToValueAtTime(.14,a+t+.8),i.gain.setValueAtTime(.14,a+o-.4),i.gain.exponentialRampToValueAtTime(1e-4,a+o),c.connect(i),i.connect(e.seco);let u=[r];for(let[l,m]of[[49,.5],[49.4,.35],[69.3,.4]]){let v=n.createOscillator();v.type="sawtooth",v.frequency.value=l;let p=n.createGain();p.gain.value=m,v.connect(p),p.connect(c),u.push(v)}for(let l of u)l.start(a),l.stop(a+o+.05)}function Pn(e,a){let{ctx:o}=e,t=o.createStereoPanner();t.pan.setValueAtTime(-.3,a),t.pan.linearRampToValueAtTime(.3,a+.5),t.connect(e.seco),t.connect(e.sala);for(let[n,c]of[[2093,.035],[3136,.02]]){let r=o.createOscillator();r.frequency.value=n;let s=o.createGain();Xe(s,a,c,.004,.7),r.connect(s),s.connect(t),r.start(a),r.stop(a+.75)}}function ts(e,a){let{ctx:o}=e,t=Ee(o,"bandpass",2500,2);t.frequency.setValueAtTime(2500,a),t.frequency.exponentialRampToValueAtTime(9e3,a+.1);let n=o.createGain();Xe(n,a,.28,.008,.16);let c=o.createStereoPanner();c.pan.setValueAtTime(-.5,a),c.pan.linearRampToValueAtTime(.5,a+.15),n.connect(c),c.connect(e.seco),c.connect(e.sala),To(e,a,.2,[Ee(o,"highpass",2200),t],n)}function ns(e,a,o){let{ctx:t}=e,n=t.createDynamicsCompressor();n.threshold.value=-10,n.knee.value=6,n.ratio.value=12,n.attack.value=.002,n.release.value=.25,n.connect(e.destino);let c=t.createConvolver();c.buffer=Hc(t,2.2);let r=t.createGain();r.gain.value=.38,c.connect(r),r.connect(n);let s={ctx:t,seco:n,sala:c,ruido:e.ruido},i=Co,u=ka,l=a?[["drone",0,d=>wn(s,d,i.duracao,u.impacto)],["choque",u.impacto,d=>Dn(s,d,.75)],["brilho",i.brilhoDoNomeInicio+.12,d=>Pn(s,d)]]:[["drone",0,d=>wn(s,d,i.duracao,i.impacto)],["zunido",0,d=>{On(s,d,i.impacto,-.8,.55,500,3200),On(s,d+.01,i.impacto-.01,.8,.5,460,3e3)}],["choque",i.impacto,d=>Dn(s,d,1)],["chapa",i.nomeAssenta,d=>as(s,d)],["brilho",i.brilhoDoNomeInicio+.12,d=>Pn(s,d)],["corte",i.corte,d=>ts(s,d)],["fecha",i.fechaFim,d=>Xa(s,d,.75,80,26,.8,30)]],m=o?[]:a?["brilho"]:["chapa"],v=l.filter(([d])=>!m.includes(d)),p=new Set;return{atualizar(d){for(let[f,S,T]of v)d>=S&&!p.has(f)&&(p.add(f),T(t.currentTime))},reiniciar:()=>p.clear()}}var rs=Ec,_n=rs;var zn={nome:"Espadas cruzadas",duracaoNaturalS:2.8,quadroDaMiniaturaS:1.6};return Xn(ss);})();
+</script>
+</head>
+<body>
+<main>
+  <h1>Abertura de batalha</h1>
+  <p class="sub">Protótipo do Tiro na tela, ao lado das três aberturas que já estão no app. Um revólver velho gira no dedo, para mirando em quem olha e atira: o vidro da tela racha e cai. Toca quando o mestre liga o modo batalha, para o mestre, os jogadores e a TV ao mesmo tempo.</p>
+  <div class="ajustes">
+    <div class="campo">
+      <span class="rotulo" id="rotulo-abertura">Abertura</span>
+      <div class="segmentos" role="group" aria-labelledby="rotulo-abertura">
+        <button type="button" data-abertura="tiro" aria-pressed="true">Tiro na tela</button>
+        <button type="button" data-abertura="caveira" aria-pressed="false">Caveira pirata</button>
+        <button type="button" data-abertura="marinha" aria-pressed="false">Bandeira da Marinha</button>
+        <button type="button" data-abertura="espadas" aria-pressed="false">Espadas cruzadas</button>
+      </div>
+    </div>
+    <div class="campo">
+      <span class="rotulo" id="rotulo-com-nome">Nome na abertura</span>
+      <div class="segmentos" role="group" aria-labelledby="rotulo-com-nome">
+        <button type="button" data-com-nome="sim" aria-pressed="true">Com nome</button>
+        <button type="button" data-com-nome="nao" aria-pressed="false">Sem nome</button>
+      </div>
+    </div>
+    <div class="campo">
+      <label class="rotulo" for="nome">Nome que aparece</label>
+      <input type="text" id="nome" value="Royals" autocomplete="off" spellcheck="false" aria-describedby="dica-nome">
+    </div>
+  </div>
+  <p class="dica" id="dica-nome">Vazio = sem nome, como no app (lá o campo começa com Royals). Ao parar de digitar, a animação toca de novo; Enter toca na hora.</p>
+  <p class="descricao" id="descricao" aria-live="polite"></p>
+  <div class="palco" id="palco">
+    <canvas id="cena" role="img"></canvas>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="mapa" id="mapa" aria-hidden="true">
+      <span class="ficha" style="left: 31%; top: 40%; background: #7a2f2a"></span>
+      <span class="ficha" style="left: 37.3%; top: 51.1%; background: #2f4f7a"></span>
+      <span class="ficha" style="left: 62.5%; top: 29%; background: #2f4f7a"></span>
+      <span class="ficha" style="left: 56.2%; top: 62.2%; background: #3d6b45"></span>
+      <span class="etiqueta">Mapa de exemplo: no app, aqui entra o mapa da batalha</span>
+    </div>
+    <div class="erro" id="erro" role="alert"></div>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <button type="button" id="lenta" aria-pressed="false">Câmera lenta</button>
+    <button type="button" id="tela-cheia">Tela cheia</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s</span>
+  </div>
+  <div class="linha">
+    <label for="linha-do-tempo">Ver um quadro</label>
+    <input type="range" id="linha-do-tempo" min="0" max="3.8" step="0.01" value="0">
+  </div>
+  <p class="nota" id="nota-tela-cheia" hidden>Tela cheia indisponível aqui: esta moldura não deixa a página ocupar a tela.</p>
+  <p class="nota">Arrastar "Ver um quadro" para a animação e mostra aquele instante; Repetir volta a tocar. Câmera lenta toca a 1/4 da velocidade e o som continua na velocidade normal. O som começa desligado (o navegador só deixa tocar depois de um clique) e liga com o botão. Trocar abertura, nome ou movimento reduzido recomeça do início. Como no app, os shaders compilam antes do relógio, com a tela ainda preta; no fim, o preto sai em 260 ms e entra o mapa.</p>
+
+  <section class="decidir" aria-labelledby="titulo-decidir">
+    <h2 id="titulo-decidir">Para decidir</h2>
+    <ol>
+      <li><b>O que aparece atrás dos cacos?</b> Hoje é o preto: o motor do app desenha num quadro opaco, e o mapa só entra depois, em 260 ms. Para o mapa aparecer pelos buracos enquanto o vidro cai, o motor precisa de um quadro transparente. Isso é uma versão nova do app e mexe no motor de todas as aberturas.</li>
+      <li><b>O nome: no vidro ou na frente dele?</b> Hoje ele é pintado no vidro rachado, em folha de ouro, como letreiro de saloon, e cai junto com os cacos. A outra opção é deixar o nome inteiro na frente e só apagar depois que o vidro cair.</li>
+      <li><b>Ritmo: 3,8 s está bom?</b> É a duração da Caveira e da Bandeira. A mira (a arma parada, apontada para quem olha, antes do tiro) dura 0,47 s. Dá para esticar até 0,8 s, com mais tensão e 4,1 s no total.</li>
+      <li><b>O giro: 2,8 voltas para a frente, freando.</b> Pode ter mais voltas, mais exibido, ou menos, mais seco. Também dá para girar ao contrário.</li>
+    </ol>
+  </section>
+
+  <section class="roteiro" aria-labelledby="titulo-roteiro">
+    <h2 id="titulo-roteiro">Roteiro do Tiro na tela</h2>
+    <ol>
+      <li><span>0 a 0,55 s</span><span>Sai do preto para um salão escuro com um facho de luz empoeirada. O revólver sobe de baixo, já girando no dedo pelo guarda-mato.</span></li>
+      <li><span>0,55 a 1,12 s</span><span>O giro freia, de 4,4 para 1,35 volta por segundo. O aço pega a luz a cada volta, e o cano corta o ar num "fiu".</span></li>
+      <li><span>1,12 s</span><span>A mão pega seco, com o cano para a esquerda. Um tranco curto, tapa de couro e tlim de metal.</span></li>
+      <li><span>1,17 a 1,45 s</span><span>O pulso vira a arma para a tela e a câmera vai para a boca do cano.</span></li>
+      <li><span>1,6 s</span><span>O cão vai para trás e o tambor roda uma câmara (clic, clac). A luz aperta um pouco.</span></li>
+      <li><span>1,92 s</span><span>O tiro: clarão na boca, recuo e fumaça. O som grave de fundo corta e o eco volta do vale.</span></li>
+      <li><span>1,935 s</span><span>A bala bate no vidro. Furo, rachaduras em estrela que chegam à borda em 0,3 s e anéis atrás delas. A tela treme.</span></li>
+      <li><span>2,2 a 2,6 s</span><span>O nome aparece pintado em folha de ouro no vidro rachado, e um brilho passa por ele.</span></li>
+      <li><span>2,8 s</span><span>O vidro range.</span></li>
+      <li><span>3,05 a 3,8 s</span><span>O vidro cede. Os cacos caem do furo para fora e levam o nome. Fica o preto, e o mapa entra em 260 ms.</span></li>
+    </ol>
+  </section>
+</main>
+<script type="module">
+const erro = document.getElementById('erro')
+function mostrarErro(texto) {
+  erro.textContent = texto
+  erro.style.display = 'grid'
+}
+
+let THREE
+try {
+  THREE = await import('https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js')
+} catch {
+  mostrarErro('Não deu para baixar o three.js da CDN. Esta página precisa de internet para abrir a animação.')
+  throw new Error('three.js indisponível')
+}
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer.
+THREE.ColorManagement.enabled = false
+const B = window.AberturasDeBatalha
+const ABERTURAS = {
+  tiro: {
+    criar: B.tiroNaTela,
+    meta: B.metaTiroNaTela,
+    quadroDoNome: 2.7,
+    descricao: 'Um revólver velho, de cano comprido e cabo de nogueira, sobe girando no dedo e o aço pega a luz a cada volta. A mão o pega seco e vira a arma para quem olha. O cão engatilha e vem o tiro: o vidro da tela racha em estrela, o nome aparece pintado em ouro no vidro, e os cacos caem.',
+    rotulo: (nome) => (nome ? `Animação: um revólver gira no dedo, mira na tela e atira; o vidro racha, o nome ${nome} aparece em ouro e os cacos caem` : 'Animação: um revólver gira no dedo, mira na tela e atira; o vidro racha e os cacos caem'),
+  },
+  caveira: {
+    criar: B.caveiraPirata,
+    meta: B.metaCaveiraPirata,
+    quadroDoNome: 2.7,
+    descricao: 'A versão do app. Uma caveira pirata com dois ossos cruzados atrás se forma da fumaça numa noite fria de mar. Uma pausa com as órbitas vazias, e os olhos acendem em vermelho: um clarão curto que assenta num brilho que pulsa e vaza na fumaça. O nome sai da fumaça embaixo; no fim só os olhos ficam no escuro, até se fecharem.',
+    rotulo: (nome) => (nome ? `Animação: uma caveira pirata surge da fumaça, os olhos acendem em vermelho e o nome ${nome} aparece embaixo` : 'Animação: uma caveira pirata surge da fumaça e os olhos acendem em vermelho'),
+  },
+  marinha: {
+    criar: B.bandeiraDaMarinha,
+    meta: B.metaBandeiraDaMarinha,
+    quadroDoNome: 2.9,
+    descricao: 'A versão do app. A bandeira da Marinha esvoaça num mastro contra um céu fechado e uma rajada estala o pano. O mar sobe e enche o lugar como um tanque; o nome surge na água e a cena afunda no escuro até o mapa.',
+    rotulo: (nome) => (nome ? `Animação: a bandeira da Marinha esvoaça, o mar sobe e cobre tudo, e o nome ${nome} surge debaixo d’água` : 'Animação: a bandeira da Marinha esvoaça e o mar sobe até cobrir tudo'),
+  },
+  espadas: {
+    criar: B.espadasCruzadas,
+    meta: B.metaEspadasCruzadas,
+    quadroDoNome: 1.6,
+    descricao: 'A versão do app. Duas espadas escurecidas avançam pelos lados e se chocam no centro; o contato congela num clarão carmesim e estoura. O nome desce pesado, em ferro escuro com rachaduras em brasa, e dois cortes em X fecham a tela.',
+    rotulo: (nome) => (nome ? `Animação: duas espadas escuras se chocam no centro e o nome ${nome} desce em ferro com brasa vermelha` : 'Animação: duas espadas escuras se chocam no centro num clarão carmesim'),
+  },
+}
+const palco = document.getElementById('palco')
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const mapa = document.getElementById('mapa')
+const tempo = document.getElementById('tempo')
+const linha = document.getElementById('linha-do-tempo')
+const descricao = document.getElementById('descricao')
+const campoNome = document.getElementById('nome')
+const botaoSom = document.getElementById('som')
+const botaoLenta = document.getElementById('lenta')
+const botaoTela = document.getElementById('tela-cheia')
+const caixaReduzir = document.getElementById('reduzir')
+const segAbertura = [...document.querySelectorAll('[data-abertura]')]
+const segNome = [...document.querySelectorAll('[data-com-nome]')]
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+campoNome.maxLength = B.NOME_MAX_LETRAS
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  mostrarErro('Este navegador não abriu o WebGL, então a animação não pode tocar aqui.')
+  throw e
+}
+
+let abertura = 'tiro'
+let comNome = true
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let velocidade = 1
+let inicio = 0
+let raf = 0
+let tAtual = 0
+let esperaDeTocar = 0
+/** A compilação dos shaders da cena montada (o motor espera por ela antes de marcar o início). */
+let compilada = Promise.resolve()
+let pedido = 0
+let esperando = false
+let quadrosTocados = 0
+const duracao = () => ABERTURAS[abertura].meta.duracaoNaturalS
+/** Para conferir de fora: a última compilação, o 1º quadro depois dela e o intervalo até o 2º. */
+window.__medidas = { compilarMs: 0, primeiroQuadroMs: 0, intervaloAteO2oMs: 0, inicioDoRelogio: 0 }
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+  // Esperando os shaders: desenhar agora compilaria tudo de uma vez, travando a página.
+  if (!raf && !esperando) desenhar(tAtual)
+}
+
+/** O nome que vai para a cena: '' = sem nome (botão "Sem nome" ou campo vazio), como no app. */
+function nomeEscrito() {
+  return comNome ? campoNome.value.replace(/\s+/g, ' ').trim() : ''
+}
+
+/** Como o motor (compilarAntesDoRelogio): compileAsync com teto de 1,5 s; falhou, segue e o 1º quadro compila. */
+function compilar(alvo) {
+  const comeco = performance.now()
+  let teto
+  return Promise.race([renderer.compileAsync(alvo.scene, alvo.camera), new Promise((r) => (teto = setTimeout(r, 1500)))])
+    .catch(() => undefined)
+    .finally(() => {
+      clearTimeout(teto)
+      window.__medidas.compilarMs = performance.now() - comeco
+    })
+}
+
+function montar() {
+  cena?.descartar()
+  const nome = nomeEscrito()
+  for (const b of segNome) b.setAttribute('aria-pressed', String((b.dataset.comNome === 'sim') === comNome))
+  campoNome.disabled = !comNome
+  cena = ABERTURAS[abertura].criar(THREE, { reduzirMovimento: reduzir, nome })
+  // Como o motor: luz pontual e holofote convertidos (estas cenas não têm nenhum).
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  if (audio) {
+    // O som da montagem anterior segue tocando no grafo velho: corta a saída dele.
+    audio.volume.disconnect()
+    audio.volume = audio.ctx.createGain()
+    audio.volume.gain.value = somLigado ? 1 : 0
+    audio.volume.connect(audio.ctx.destination)
+    audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  }
+  pistas = audio && cena.criarSom ? cena.criarSom(audio.kit) : null
+  for (const b of segAbertura) b.setAttribute('aria-pressed', String(b.dataset.abertura === abertura))
+  descricao.textContent = ABERTURAS[abertura].descricao
+  canvas.setAttribute('aria-label', ABERTURAS[abertura].rotulo(nome))
+  linha.max = String(duracao())
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+  compilada = compilar(cena)
+}
+
+function desenhar(t) {
+  if (!cena) return
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(duracao())} s`
+  linha.value = String(t)
+}
+
+function tick(agora) {
+  const t = ((agora - inicio) / 1000) * velocidade
+  if (t >= duracao()) {
+    // O motor fecha em preto no fim e a abertura sai em 260 ms, mostrando o mapa.
+    tAtual = duracao()
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(duracao())} s / ${virgula(duracao())} s`
+    linha.value = String(duracao())
+    mapa.dataset.visivel = 'true'
+    raf = 0
+    return
+  }
+  tAtual = t
+  const antes = performance.now()
+  desenhar(t)
+  if (somLigado) pistas?.atualizar(t)
+  // Para conferir de fora: quanto o 1º quadro levou e o intervalo até o 2º.
+  quadrosTocados++
+  if (quadrosTocados === 1) {
+    window.__medidas.primeiroQuadroMs = performance.now() - antes
+    window.__medidas.inicioDoRelogio = agora
+  } else if (quadrosTocados === 2) window.__medidas.intervaloAteO2oMs = agora - window.__medidas.inicioDoRelogio
+  raf = requestAnimationFrame(tick)
+}
+
+async function tocar() {
+  clearTimeout(esperaDeTocar)
+  mapa.dataset.visivel = 'false'
+  cancelAnimationFrame(raf)
+  raf = 0
+  cortina.style.opacity = '1'
+  const minha = ++pedido
+  esperando = true
+  await compilada
+  if (minha !== pedido) return
+  esperando = false
+  pistas?.reiniciar()
+  cancelAnimationFrame(raf)
+  quadrosTocados = 0
+  raf = requestAnimationFrame((agora) => {
+    inicio = agora
+    tick(agora)
+  })
+}
+
+/** Para num quadro (o nome já aceso enquanto a pessoa digita, ou o ponto da linha do tempo). */
+function mostrarQuadro(t) {
+  clearTimeout(esperaDeTocar)
+  pedido++
+  esperando = false
+  cancelAnimationFrame(raf)
+  raf = 0
+  mapa.dataset.visivel = 'false'
+  tAtual = t
+  desenhar(t)
+}
+
+for (const b of segAbertura) {
+  b.addEventListener('click', () => {
+    if (b.dataset.abertura === abertura) return void tocar()
+    abertura = b.dataset.abertura
+    montar()
+    void tocar()
+  })
+}
+for (const b of segNome) {
+  b.addEventListener('click', () => {
+    const quer = b.dataset.comNome === 'sim'
+    if (quer === comNome) return void tocar()
+    comNome = quer
+    montar()
+    void tocar()
+  })
+}
+document.getElementById('repetir').addEventListener('click', () => void tocar())
+campoNome.addEventListener('input', () => {
+  montar()
+  mostrarQuadro(ABERTURAS[abertura].quadroDoNome)
+  esperaDeTocar = setTimeout(() => void tocar(), 900)
+})
+campoNome.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  void tocar()
+})
+linha.addEventListener('input', () => mostrarQuadro(Number(linha.value)))
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  montar()
+  void tocar()
+})
+botaoLenta.addEventListener('click', () => {
+  const nova = velocidade === 1 ? 0.25 : 1
+  // Mantém o ponto atual da animação ao trocar a velocidade no meio.
+  if (raf) inicio = performance.now() - (tAtual * 1000) / nova
+  velocidade = nova
+  botaoLenta.setAttribute('aria-pressed', String(velocidade !== 1))
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+    pistas = cena.criarSom ? cena.criarSom(audio.kit) : null
+  }
+  somLigado = !somLigado
+  audio.volume.gain.value = somLigado ? 1 : 0
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) void tocar()
+})
+
+// Tela cheia: só o palco; Esc sai (o navegador cuida). Sem a API (moldura sem permissão), o botão fica desligado com o motivo.
+if (document.fullscreenEnabled && palco.requestFullscreen) {
+  botaoTela.addEventListener('click', () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void palco.requestFullscreen().catch(() => undefined)
+  })
+  document.addEventListener('fullscreenchange', () => {
+    botaoTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'
+  })
+} else {
+  botaoTela.disabled = true
+  document.getElementById('nota-tela-cheia').hidden = false
+}
+
+new ResizeObserver(ajustar).observe(canvas)
+montar()
+void tocar()
+</script>
+</body>
+</html>
