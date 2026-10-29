@@ -458,6 +458,7 @@
   background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
   border: 1px solid var(--lb-gr-latao-3);
 }
+.lb-trecho__alca:focus-visible { outline: none; box-shadow: none; }
 .lb-trecho__alca:focus-visible .lb-trecho__marca { box-shadow: var(--lb-shadow-focus); }
 .lb-trecho__faixa--arrastando, .lb-trecho__faixa--arrastando .lb-trecho__alca { cursor: ew-resize; }
 .lb-trecho__tempos { display: flex; gap: var(--lb-space-2); }
