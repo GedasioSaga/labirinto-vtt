@@ -1,0 +1,23 @@
+{
+  "id": "palmeira",
+  "nome": "Palmeira",
+  "idDoApp": "palmeira",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 7,
+  "semente": 71,
+  "tamanhoDoApp": 13,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 352,
+    "unidadePx": 224,
+    "ancoraPx": [164.8, 312.6]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.78,
+    "borrao": 0.03
+  }
+}
