@@ -1,0 +1,16 @@
+{
+  "id": "movel-balde",
+  "nome": "Balde de água",
+  "idDoApp": "balde",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 16,
+  "semente": 72,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "aros"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [0.5, 0.5], "viradas": 1 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.13, "borraoCasas": 0.025 }
+}
