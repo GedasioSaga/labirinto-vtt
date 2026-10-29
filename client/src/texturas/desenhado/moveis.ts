@@ -39,14 +39,17 @@ import {
  * outros, de propósito: cada um guarda a forma que a sua conta lê.
  */
 
-/** F3a: os 25 que não esticam (o resto entra na F3b). */
+/** F3a: os 25 que não esticam. */
 const TIPOS_DA_F3A = [
   'armario', 'balde', 'barraca', 'barril', 'bau', 'bigorna', 'cadeira', 'caixa', 'carroca', 'catre', 'feno', 'fogao', 'fogo',
   'fogueira', 'fornalha', 'geladeira', 'lampiao', 'lareira', 'pia', 'placaDeSeta', 'poco', 'poltrona', 'pratos', 'privada',
   'quadroDeAvisos',
 ] as const
 
-const TIPOS_DESENHADOS: ReadonlySet<string> = new Set<string>(TIPOS_DA_F3A)
+/** F3b: os que esticam (meio liso, meio que repete, centro fixo, tapete em xy), a cerca por peças e a lápide. */
+const TIPOS_DA_F3B = ['aparador', 'arcoDoPortao', 'balcao', 'cerca', 'lapide', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'tapete', 'tapeteLongo', 'troncos'] as const
+
+const TIPOS_DESENHADOS: ReadonlySet<string> = new Set<string>([...TIPOS_DA_F3A, ...TIPOS_DA_F3B])
 
 /** O id do pacote do móvel do app (`mesaQuadrada` → `movel-mesa-quadrada`), ou `null` se ele não tem desenho. */
 export function idDoMovelDesenhado(tipo: string | undefined): IdDoDesenhado | null {

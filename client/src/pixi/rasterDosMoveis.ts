@@ -1,6 +1,6 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { cordaDaCerca, formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { cordaDaCerca, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
@@ -14,7 +14,7 @@ import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
 import { CASA_DO_FOGO_PX, tamanhoDoFogo } from '../lib/mobilia/fogo'
 import { assinarMoveisDesenhados, BYTES_DE_TRABALHO_DO_DESENHADO, pedirMovelDesenhado, pintarMovelDesenhado, raioDoHaloDoLampiao, tomDoLugar, type HaloDoMovel } from '../texturas/desenhado/moveis'
-import { planejarMovel, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
+import { planejarMovel, type GeometriaDaCercaEmCasas, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
 
 /**
  * IMAGEM PRONTA DOS MÓVEIS do Meio-Termo (plano
@@ -306,10 +306,27 @@ export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rende
     ...(forma !== undefined ? { forma } : {}),
     ...(tipo === 'lapide' ? { variacao: varianteDaLapide(prop.id) } : {}),
   }
-  const pedido: Pedido = base
   const halo = tipo === 'lampiao' ? 'lampiao' : ehMovelComFogoDeCasa(tipo) && prop.mobiliaForma !== 'apagado' ? tipo : null
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
+  // A cerca por peças (CONTRATO 10.12) é montada já no giro da tela, com os mourões do app.
+  const cerca = movel.p.pecas !== undefined && tipo === 'cerca' ? cercaEmCasas(prop) : undefined
+  if (cerca !== undefined) {
+    const giro = ((Math.round(giroDoObjeto) % 360) + 360) % 360
+    const pedido: Pedido = { ...base, giro, cerca: cerca.geometria }
+    return { texto: textoDesenhado(prop, pedido, cerca.chaveDaCurva, `g${giro}`), movel, pedido, nivel, halo }
+  }
+  const pedido: Pedido = base
   return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`), movel, pedido, nivel, halo }
+}
+
+/** Os mourões e o arco da cerca do app em casas (a geometria não depende da escala), com a curva quantizada da chave. */
+function cercaEmCasas(prop: MovelParaImagem): { geometria: GeometriaDaCercaEmCasas; chaveDaCurva: string } | undefined {
+  const { curva, chaveDaCurva } = curvaDaCerca(prop)
+  const g = geometriaDaCerca(prop.width, prop.height, curva)
+  if (g === null) return undefined
+  const k = 1 / GRADE_DE_REFERENCIA
+  const arco = g.arco === null ? null : { center: { x: g.arco.center.x * k, y: g.arco.center.y * k }, radius: g.arco.radius * k, startAngle: g.arco.startAngle, sweep: g.arco.sweep }
+  return { geometria: { mouroes: g.mouroes.map((q) => ({ x: q.x * k, y: q.y * k })), arco }, chaveDaCurva }
 }
 
 /** O texto inteiro da chave desenhada (com o nível): o que o cache guarda. */
