@@ -101,10 +101,11 @@ describe('catálogo e menu do Objeto: as três mesas, sem mudar ordem nem id', (
     const i = TIPOS_NO_CATALOGO.indexOf('mesa')
     expect(TIPOS_NO_CATALOGO.slice(i, i + 3)).toEqual(['mesa', 'mesaQuadrada', 'mesaRedonda'])
     const dentro = PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Dentro de casa')
-    // Os 8 móveis de casa (28/10/2026) entram em pares: sofá e poltrona, balcão e pratos, fogão e geladeira, pia e privada.
+    // Os 8 móveis de casa (28/10/2026) entram em pares: sofá e poltrona, balcão e pratos, fogão e geladeira, pia e privada;
+    // a lareira (29/10/2026) fecha a parte.
     expect(dentro?.tipos).toEqual([
       'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona',
-      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo',
+      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo', 'lareira',
     ])
   })
 })
