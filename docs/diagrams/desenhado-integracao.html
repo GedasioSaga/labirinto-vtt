@@ -67,9 +67,9 @@
 </head>
 <body>
   <div class="frame">
-    <p class="eyebrow">Arquitetura · Integração do Desenhado · F1a e F1b (29/10/2026)</p>
+    <p class="eyebrow">Arquitetura · Integração do Desenhado · F1a, F1b e F2b (29/10/2026)</p>
     <h1>O mapa escolhe o estilo, e as imagens vêm dentro do app</h1>
-    <p class="sub">O seletor da página Cena grava o estilo no mapa. O editor (pela store) e o jogador (pelo recorte que o host manda) dizem à lib qual é o estilo da cena, e os renderers leem dela. As imagens do pacote entram no build pelo Vite e chegam ao jogador pela rota /assets/. Na F1b o carregador decodifica só os chãos que o mapa usa (teto de 48 MiB por mapa) e avisa os renderers: os biomas e o piso, tingido pela cor da sala e do chão, viram pedaços no mesmo cache de 64 MB. Até a imagem chegar, e no que não cabe no teto, fica o Atual. Caminho e telhados são a F2.</p>
+    <p class="sub">O seletor da página Cena grava o estilo no mapa. O editor (pela store) e o jogador (pelo recorte que o host manda) dizem à lib qual é o estilo da cena, e os renderers leem dela. As imagens do pacote entram no build pelo Vite e chegam ao jogador pela rota /assets/. Na F1b o carregador decodifica só os chãos que o mapa usa (teto de 48 MiB por mapa) e avisa os renderers: os biomas e o piso, tingido pela cor da sala e do chão, viram pedaços no mesmo cache de 64 MB. Até a imagem chegar, e no que não cabe no teto, fica o Atual. Na F2b os 12 carimbos têm carregador próprio (carimbos.ts: as imagens prontas para a placa, teto de 12 x 2,67 MiB por mapa) e o drawCarimbos troca o assado de hoje por elas: o giro escolhe a forma (o espelho diagonal é o sprite transposto), a sombra é a silhueta do app numa camada só (#0a1c28 a 0,25) e o pé fica onde fica no Atual. Caminho e telhados são a F2.</p>
 
     <svg viewBox="0 0 1200 640" role="img" aria-labelledby="desenhado-integracao-title desenhado-integracao-desc">
       <title id="desenhado-integracao-title">Integração do Desenhado: estilo por mapa e canal das imagens</title>
@@ -189,7 +189,7 @@
       <rect x="968" y="206" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
       <text x="984" y="215" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PIXI</text>
       <text x="1060" y="236" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Renderers e pedaços</text>
-      <text x="1060" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chao.ts · tingir.ts · pisoDesenhado</text>
+      <text x="1060" y="252" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">chao · tingir · piso · drawCarimbos</text>
 
       <!-- N7 pacote (estado) -->
       <rect x="40" y="448" width="200" height="64" rx="6" fill="#f5f5f5"/>
@@ -212,8 +212,8 @@
       <rect x="680" y="448" width="200" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
       <rect x="688" y="454" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
       <text x="702" y="463" fill="rgba(235,108,54,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
-      <text x="780" y="484" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Carregador do chão</text>
-      <text x="780" y="500" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">carregador.ts · fonte.ts</text>
+      <text x="780" y="484" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Carregadores</text>
+      <text x="780" y="500" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">carregador · carimbos · fonte</text>
 
       <!-- Legenda -->
       <line x1="30" y1="572" x2="1170" y2="572" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
