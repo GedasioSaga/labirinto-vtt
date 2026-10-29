@@ -21,6 +21,9 @@ const MesaCarimbo := preload("res://comum/mesa_carimbo.gd")
 const ContratoMaterial := preload("res://comum/contrato_material.gd")
 const PintorMaterial := preload("res://comum/pintor_material.gd")
 const MesaMaterial := preload("res://comum/mesa_material.gd")
+const ContratoMovel := preload("res://comum/contrato_movel.gd")
+const PintorMovel := preload("res://comum/pintor_movel.gd")
+const MesaMovel := preload("res://comum/mesa_movel.gd")
 
 
 ## Se algo travar (erro de script no meio de uma espera), a fila não fica presa.
@@ -48,7 +51,11 @@ func _rodar() -> void:
 		quit(2)
 		return
 	var id: String = args["textura"]
-	# Onda 4 (material de móvel): outro contrato e outra mesa (CONTRATO.md, seção 10).
+	# Onda 4 (móvel desenhado que pega cor): outro contrato e outra mesa (CONTRATO.md, seção 10).
+	if ContratoMovel.eh_movel(id):
+		await _rodar_movel(args, id, inicio)
+		return
+	# O caminho "só materiais" de 29/10 (reprovado; CONTRATO.md 10.11): segue rodando.
 	if ContratoMaterial.eh_material(id):
 		await _rodar_material(args, id, inicio)
 		return
@@ -273,6 +280,72 @@ func _rodar_carimbo(args: Dictionary, id: String, inicio: int) -> void:
 
 ## Material de móvel: pinta as imagens, grava o textura.json e, com --folha, monta a mesa
 ## dos móveis (os móveis do app com a superfície trocada).
+func _rodar_movel(args: Dictionary, id: String, inicio: int) -> void:
+	var lido := ContratoMovel.ler_config(id)
+	if not lido["ok"]:
+		for e in lido["erros"]:
+			printerr("  ERRO config: ", e)
+		quit(2)
+		return
+	var cfg: Dictionary = lido["config"]
+	var saida: String = args.get("saida", ProjectSettings.globalize_path("res://exportado/%s" % id))
+	var prova: String = args.get("prova", ProjectSettings.globalize_path("res://prova/%s" % id))
+	if args.has("mapa"):
+		print("  --mapa não vale para móvel (a mesa monta os móveis numa cena dela); ignorado")
+	_esconder_do_editor(ProjectSettings.globalize_path("res://exportado"))
+	if not args.has("prova"):
+		_esconder_do_editor(ProjectSettings.globalize_path("res://prova"))
+	print("Desenhado: exportando '%s' (%s, móvel desenhado do tipo %s) para %s" % [id, cfg["nome"], cfg["idDoApp"], saida])
+	var pintor := PintorMovel.new()
+	root.add_child(pintor)
+	var r: Dictionary = await pintor.pintar(cfg, saida)
+	for e in r["erros"]:
+		printerr("  ERRO: ", e)
+	if not r["ok"]:
+		quit(1)
+		return
+	# Sobras de uma exportação anterior (uma forma que saiu da lista).
+	for velho in DirAccess.get_files_at(saida):
+		if velho.ends_with(".png") and not r["imagens"].has(velho):
+			DirAccess.remove_absolute(saida.path_join(velho))
+	var memoria := 0
+	var disco := 0
+	for arquivo in r["imagens"]:
+		var img: Image = r["imagens"][arquivo]
+		memoria += ContratoMovel.bytes_memoria(img.get_width(), img.get_height())
+		disco += _tamanho(saida.path_join(arquivo))
+	var params := ContratoMovel.parametros(cfg, r, memoria, disco)
+	var f := FileAccess.open(saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS), FileAccess.WRITE)
+	f.store_string(JSON.stringify(params, "  ") + "\n")
+	f.close()
+	print("  gravado: %d imagens e %s" % [r["arquivos"].size(), saida.path_join(Contrato.ARQUIVO_DE_PARAMETROS)])
+	var ok := true
+	for nome in r["medidas"]:
+		var m: Dictionary = r["medidas"][nome]
+		var linha := "  %s: cobertura %.2f, valor médio por lugar %s" % [nome, m["cobertura"], str(m["valorMedioPorLugar"])]
+		if m.has("meioLiso"):
+			linha += ", o meio muda %.4f ao longo" % m["meioLiso"]
+			if m["meioLiso"] > ContratoMovel.MEIO_LISO_FOLGA:
+				printerr("  aviso: o meio de %s não é liso ao longo (%.4f > %.4f): o app estica o meio e a mudança apareceria esticada" % [nome, m["meioLiso"], ContratoMovel.MEIO_LISO_FOLGA])
+		print(linha)
+	print("  memória: %.2f MiB decodificada (teto %.2f), %.2f MiB em disco (teto %.2f)" % [memoria / 1048576.0, ContratoMovel.TETO_MEMORIA_POR_MOVEL / 1048576.0, disco / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0])
+	if memoria > ContratoMovel.TETO_MEMORIA_POR_MOVEL or disco > ContratoMovel.TETO_DISCO_POR_MOVEL:
+		printerr("  ERRO: passou do teto de memória (menos viradas ou variantes, ou margem menor)")
+		ok = false
+	if args.has("folha"):
+		var mesa := MesaMovel.new()
+		root.add_child(mesa)
+		var m: Dictionary = await mesa.montar(cfg, saida, prova, args)
+		for e in m["erros"]:
+			printerr("  ERRO folha: ", e)
+		if m["ok"]:
+			print("  folha: ", prova.path_join("folha.png"))
+		else:
+			ok = false
+	print("Pronto em %d ms" % (Time.get_ticks_msec() - inicio))
+	quit(0 if ok else 1)
+
+
 func _rodar_material(args: Dictionary, id: String, inicio: int) -> void:
 	var lido := ContratoMaterial.ler_config(id)
 	if not lido["ok"]:

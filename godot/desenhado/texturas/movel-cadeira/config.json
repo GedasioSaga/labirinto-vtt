@@ -1,0 +1,20 @@
+{
+  "id": "movel-cadeira",
+  "nome": "Cadeira",
+  "idDoApp": "cadeira",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 9,
+  "semente": 41,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "assento"],
+  "variantes": [
+    { "nome": "palha", "quando": { "assento": "palha" } },
+    { "nome": "madeira", "quando": { "assento": "mesma" } }
+  ],
+  "vistas": {
+    "frente": { "casas": [0.5, 0.5], "viradas": 2 },
+    "lado": { "casas": [0.5, 0.75], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.11, "borraoCasas": 0.02 }
+}

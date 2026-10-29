@@ -8,8 +8,9 @@ que a folha mostra é o que o mestre vê.
 
 As seções 1 a 6 valem para a **onda 1** (chão e caminhos). A **onda 2** (telhado, faixa e
 objeto) está na seção 8, de 28/10/2026; a **onda 3** (carimbo e trecho), na seção 9; a
-**onda 4** (os 8 materiais dos móveis), na seção 10, de 29/10/2026. O traço ainda não tem
-contrato (seção 7).
+**onda 4** (os móveis desenhados à mão que pegam cor; o caminho "só materiais" foi
+reprovado no mesmo dia), na seção 10, de 29/10/2026. O traço ainda não tem contrato
+(seção 7).
 
 ## 1. A decisão contra repetição, em 5 linhas
 
@@ -222,8 +223,9 @@ O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto 
 - ~~**Telhados (onda 2)**~~: escrito em 28/10, seção 8.
 - ~~**Sprites da onda 3**~~: escrito em 28/10, seção 9 (carimbo e trecho; o vaso, a
   jardineira e a sebe entram aqui).
-- ~~**Móveis (onda 4)**~~: decidido em 29/10 ("Materiais primeiros"): os 8 materiais, não
-  um sprite por móvel; escrito na seção 10. O vaso continua carimbo de destino `movel` (9.6).
+- ~~**Móveis (onda 4)**~~: decidido em 29/10 ("Desenho à mão que pega cor", depois de o
+  "Materiais primeiros" ser reprovado): cada móvel desenhado em cinza com as partes
+  marcadas; escrito na seção 10. O vaso continua carimbo de destino `movel` (9.6).
 - **Traço (onda 5)**: penhasco e parede repetíveis ao longo de um traço.
 - **Entrega ao app**: o pacote de animações de hoje só aceita `.js` de até 2 MiB
   (`desktop/src-tauri/src/net/animacoes.rs`); PNG precisa de outro canal ou de ir junto do
@@ -566,179 +568,170 @@ Folha do lote: `scripts/folha_do_lote_carimbos.gd` (PARA-OS-DESIGNERS.md).
 5. Trecho: sem emenda visível a cada L, a luz sempre de cima à esquerda em toda forma, e a
    ponta do fim igual à do começo.
 
-## 10. Os materiais dos móveis (onda 4, 29/10/2026)
+## 10. Móvel desenhado que pega cor (onda 4, 29/10/2026)
 
-Como o app pinta móvel hoje (`client/src/texturas/meioTermo/moveis/`): cada móvel é uma
-cena de peças (`montarCena`), cada peça com forma, material (`MaterialDaPeca`: classe, cor
-e, em três classes, o subtipo `fio`, `pedra` ou `casca`), chanfro, contorno e sombra. A
-cor de cada ponto sai da função de textura da **classe** (`motor.ts`, tabela `TEXTURA`,
-`Textura(u, v, x, y, p, s, escala)`), com u ao longo do veio (o motor gira pelo `eixo`, dá
-a volta do barril pelo `polar` e segue a cerca curva pelo `arco`). A imagem do móvel é
-pintada na CPU por nível de resolução (1 a 3, `escalaDoNivel(n) = n x 50 / 56`) e guardada
-por chave em `pixi/rasterDosMoveis.ts`; a luz (o chanfro, de cima à esquerda) é do motor. O
-mestre escolhe, por lugar do móvel, um dos 24 materiais de `materiais.ts`
-(`LUGARES_DE_MATERIAL`), em 8 classes.
+**O caminho de antes, tentado e reprovado.** Na manhã de 29/10 a onda 4 começou pelo
+caminho "só materiais" (commit `c26dabef`): o Desenhado trocava só a superfície das 8
+classes de material e o motor de hoje continuava desenhando a forma, o chanfro e a luz. O
+piloto da madeira foi reprovado pelo usuário no mesmo dia, literal: *"Não parece que teve
+muita mudança ainda parece o mesmo atual e não desenhado"*. A forma é o que faz o
+Desenhado; trocar a pele não basta. O que sobrou de útil daquele caminho está na 10.11.
 
-Decisão do usuário de 29/10 ("Materiais primeiros"): o Desenhado desenha as **8 classes**,
-não cada móvel. A forma, o chanfro, o contorno, a sombra, o brilho do metal, a troca de
-material e de cor, o esticar, Frente/Lado e a vista 3/4 continuam do motor; muda só a
-superfície.
+**A decisão do usuário (29/10, "Desenho à mão que pega cor"):** cada móvel é redesenhado à
+mão, como as árvores da onda 3 (contorno, formas calmas, luz em poucas massas), numa
+imagem em **cinza com as partes marcadas** (o tampo, as pernas, o assento, os aros); o app
+tinge cada parte com o material que o mestre escolheu. Móvel que estica tem ponta + meio
+repetível. A vista 3/4 (`MapData.vistaDosMoveis`) fica **fora** (continua no Atual); a
+Frente/Lado entra.
 
 ### 10.1 A decisão em 6 linhas
 
-1. **Material = a superfície de uma classe**, não um móvel: uma imagem de valor em cinza
-   (0,5 = o tom do material), repetível nos dois sentidos; x = u da peça (ao longo do veio,
-   da trama, do comprimento), y = v (atravessando).
-2. **128 px por casa**, lados de 1, 2, 4 ou 8 casas (potência de 2: mipmap exato). A
-   madeira tem 8 x 2 casas (1024 x 256 px): o aparador e o balcão esticados não mostram o
-   período.
-3. **O app tinge** pelo tom de cada peça (`p.base`, o tom do material vezes o `tom` da peça)
-   com a rampa OKLab da PROPOSTA-TINGIR: a luz anda, o matiz e o croma ficam. Nenhum dos 24
-   tons estoura (10.5).
-4. **Sem luz assada.** A imagem não tem direção de luz (a peça gira, a luz não); o relevo é
-   o chanfro do motor. O que parece relevo na imagem é tom (o anel claro e o escuro, o fio
-   da trama), igual em qualquer giro.
-5. **A madeira guarda a estrutura do motor** (tábua de `p.tabua`, fresta, emenda de topo, o
-   tom de cada tábua) e cada tábua, e cada trecho entre emendas, lê uma janela sorteada da
-   imagem. As outras 7 classes são só superfície, deslocada pela própria peça (`su`, `sv`).
-6. **Teto:** 1,5 MiB de memória comum por material (RGBA com mipmap), 0,5 MiB em disco,
-   12 MiB os 8 juntos; **0 byte a mais na placa** (a imagem de cada móvel é a de hoje).
+1. **Um móvel = imagens por forma**: valor em cinza (0,5 = o tom do material) e as partes
+   (R, G, B = o peso dos lugares 1, 2 e 3), a 128 px por casa, a pegada mais
+   `margemCasas` de borda, com o meio da pegada no meio da imagem (a âncora).
+2. **O app tinge por parte** com a rampa OKLab da família (10.5): a luz anda, o matiz fica;
+   o contorno é a mesma rampa no escuro (50% da luz do tom), então ele é "na própria cor".
+3. **A luz fica em cima à esquerda em todo giro.** O app hoje gira a imagem inteira (a luz
+   gira junto). No Desenhado o quarto de volta k = round(giro / 90) mod 4 vem **pintado** e
+   a tela gira só o resto (de -45 a 45 graus). Desenhar 1, 2 ou 4 viradas (10.4); as que
+   faltam saem por transposição, que guarda a luz porque ela está na diagonal.
+4. **Estica por ponta + meio liso + ponta**: o designer deixa tudo o que muda ao longo nas
+   pontas; o meio é a mesma coluna em todo x (o exportador mede: até 2/255), e o app estica
+   o meio sem emenda.
+5. **A sombra no chão é do app**: a silhueta já virada e esticada, andada na direção
+   (7, 11), desfocada, cor `#0a1c28` a 25% (a dos carimbos, 9.1), numa camada só com a
+   deles. O designer só escolhe o quanto ela anda e o borrão.
+6. **Teto:** 3 MiB de memória decodificada por móvel (RGBA com mipmap, todas as formas), 0,5
+   MiB em disco, 24 MiB os 31 juntos (só os tipos que o mapa usa carregam). Piloto: mesa
+   0,40, cadeira 0,99, barril 0,11 MiB.
 
 ### 10.2 Arquivos e config
 
-| `config.json` | Arquivos em `exportado/material-<classe>/` |
-|---|---|
-| `tipo: "material"`, `classe` (madeira, metal, tecido, pedra, palha, corda, casca ou folha), `casas` [ao longo, atravessando], cada um 1, 2, 4 ou 8; `imagens`, de 1 a 4 nomes, o primeiro `padrao` (a classe) e os outros subtipos do motor (tecido: `linho`, `la`; pedra: `granito`, `arenito`, `ardosia`; casca: `betula`, `fendida`); `tingir` opcional (`ganhoL` 0,2 a 0,7, `escuroAte`, `claroDesde`); `onda`, `lote`, `semente` | `<nome>.png` por imagem (cinza, R = G = B, 8 bits), `textura.json` |
+`texturas/movel-<nome>/config.json` (modelo em `texturas/_modelo-movel/`):
 
-O id da pasta é `material-<classe>` (o `exportado/madeira.png` do protótipo é outra coisa).
-Shader: `comum/material.gdshaderinc` (o designer escreve
-`float pintar_material(vec2 p, vec2 P, float px, int sem, int qual)`: p em px da imagem, P
-o tamanho dela, `qual` o índice da imagem) e `comum/rodape_material.gdshaderinc`. Contrato:
-`comum/contrato_material.gd`. Modelo: `texturas/_modelo-material/`; piloto:
-`texturas/material-madeira/`. Subtipo sem imagem própria lê a `padrao`.
+| Campo | O quê |
+|---|---|
+| `tipo` | `"movel"`; `id` = `movel-<nome>`; `idDoApp` = o tipo em `MOVEL_TIPOS` (`mesa`, `cadeira`...) |
+| `lugares` | de 1 a 3, na ordem de `LUGARES_DE_MATERIAL[idDoApp]` do app (a mesa de prova confere) |
+| `corFixa` | `true` se tem parte de cor própria (lençol, louça, água, chama): imagem `-cor` |
+| `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão |
+| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior }` |
+| `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
+| `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
+
+Em `exportado/movel-<nome>/`, por forma `<vista>-<variante>-<virada>`: `.png` (R = G = B o
+valor, A a cobertura, alfa reto), `-partes.png` (R, G, B = lugares 1, 2, 3; o que sobra é a
+cor fixa ou o lugar 1) e `-cor.png` só com `corFixa`; mais o `textura.json`. Shader:
+`comum/movel.gdshaderinc` + `void pintar_movel(vec2 q, float px, int vis, int qual, int
+vir, int sem, inout vec4 av, inout vec4 ac)` + `comum/rodape_movel.gdshaderinc` (o
+cabeçalho explica cada argumento).
 
 ### 10.3 Parâmetros (`textura.json`)
 
-Montado por `contrato_material.gd` (`parametros`), tudo explícito: `classe`, `idDoApp` (= a
-classe, a chave da tabela `TEXTURA`), `material` (pxPorCasa 128, pxDoPrototipoPorCasa 56,
-texelPorPxDoPrototipo 2,2857, casas, larguraPx, alturaPx, orientação, canais, leitura),
-`imagens` (nome, arquivo, para que vale, valorMedio, emendas u e v), `tingir`, `estrutura`
-(madeira: a do motor; o resto: nenhuma) e `memoria` (bytes e tetos).
+`contrato`, `tipo: "movel"`, `idDoApp`, `pxPorCasa: 128`, `margemCasas`, `lugares`,
+`corFixa`, `variantes`, `vistas` (com `viradas` e `esticar`), `viradas` (o texto da regra
+de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos), `sombra` (jeito,
+direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
+`memoria` (bytes decodificados e em disco).
 
-### 10.4 A montagem (o app faz exatamente isto)
+### 10.4 Girado, Frente/Lado e 3/4
 
-No lugar de `TEXTURA[classe]`, quando o mapa está no estilo Desenhado:
+- **Quarto de volta pintado.** k = round(giro / 90) mod 4; a tela gira o resto. `viradas`:
+  **1** (simétrico de lado a lado e de cima a baixo: a mesa, o barril): k par = a forma 0,
+  k ímpar = a forma 0 transposta. **2** (simétrico de lado a lado: a cadeira de frente):
+  k 0 e 2 desenhadas, k 1 = a 2 transposta, k 3 = a 0 transposta. **4**: as quatro
+  desenhadas (a cadeira de lado). A transposta guarda a luz porque LUZ = (-0,71, -0,71).
+- **No shader**, desenhe no referencial do móvel (`movel_de(q, vir)`) e acenda no da tela
+  (`LUZ`, `para_a_luz`, as massas de `desenhar_caixa` e `desenhar_elipse`).
+- **`ladoMaior`**: a mesa de 1 x 2 sem giro é a de 2 x 1 com um quarto de volta a mais.
+- **Frente/Lado** (`TIPOS_COM_VISTA`: cadeira, baú, armário, aparador, fogueira, tapete,
+  barraca, carroça): a vista Lado é outra forma, com a pegada de lado do app
+  (`vistas.lado.casas`), as mesmas regras de virada.
+- **3/4 fica no Atual**: com `vistaDosMoveis` ligada o app desenha o móvel como hoje.
 
-    img = a imagem do subtipo da peça (p.mat.fio, .pedra ou .casca), se o material entrega; senão padrao
-    k   = 128 / 56                                    // texels por px do protótipo
-    lod = log2(k / escala)                            // escala da pintura (escalaDoNivel)
-    madeira:
-      j = floor(v / p.tabua); trecho = o trecho entre emendas de topo (a conta de texMadeira)
-      luz = a estrutura de hoje: (hash(j, semente, 811) - 0,5) x 0,12, fresta e emenda
-      ou = hash(j, trecho, semente + 815) x Pu;  ov = hash(j, trecho, semente + 816) x Pv
-      g = amostrar(img, (u + ou) x k, (v + ov) x k, lod)
-    outras classes:
-      g = amostrar(img, u x k, v x k, lod)
-    s[0..2] = rampa(p.base)[round(g x 255)]           // 10.5
-    madeira: s[3] += luz                              // o motor soma o chanfro e o contorno depois
+### 10.5 Tingir sem estourar
 
-`amostrar` = bilinear repetindo, trilinear entre níveis (média 2 x 2); Pu e Pv = o tamanho
-da imagem em px do protótipo. A referência, linha a linha, é `ferramentas/material.ts`
-(`texturaDoMaterial`), escrita contra o `motor.ts` de hoje sem mudar nada nele.
+Por parte, o tom do material do lugar (`MATERIAIS[id].tom`) vira uma rampa de 256 cores em
+OKLab: abaixo de 0,5, L x fator pelos nós `[0, 0,42] [0,10, 0,50] [0,24, 0,64] [0,36, 0,78]
+[0,5, 1]` e o croma cresce até 25%; acima, L anda para o branco pelos nós `[0,5, 0] [0,62,
+0,12] [0,76, 0,26] [1, 0,45]`, com 12% do matiz para o amarelo `#f0d266` e o croma até
++20% na luz. Valor abaixo de 0,10 e acima de 0,94 só escurece e clareia; a cor fora da tela
+é trazida de volta cortando o croma (busca binária). Os níveis da família, os mesmos para
+todo designer: `V_CONTORNO 0,10`, `V_FUNDO 0,24`, `V_SOMBRA 0,36`, `V_MEIO 0,50`,
+`V_LUZ 0,62`, `V_REALCE 0,76`. O contorno da família tem 0,042 casa (2,7 px a 100%), mais
+fino na peça estreita (`contorno_para`). Os 5 tons de madeira continuam separados: menor
+distância OKLab na mesa 0,040 no Desenhado, 0,041 no Atual.
 
-### 10.5 Tingir os 24 tons sem estourar
+`mesma` (o assento "da mesma madeira") vira a variante de madeira e o lugar 2 é tingido
+com o tom do lugar 1; `varas`, `corda` e afins só escolhem a variante.
 
-    (L, a, b) = OKLab(p.base)
-    j  = suave(0, escuroAte, L) x suave(1, claroDesde, L)    // perto do preto e do branco, anda menos
-    L' = clamp(L + ganhoL x j x (g - 0,5))
-    cor = sRGB(L', a, b); fora do sRGB, a e b encolhem juntos até caber (o mesmo matiz)
+### 10.6 Esticado
 
-Uma rampa de 256 cores por tom de peça, guardada pela chave de `p.base` (um móvel tem 2 a 6
-tons). O valor médio da imagem é 0,5 ± 0,03 (o exportador mede e avisa fora disso), então o
-tom médio do móvel fica o de hoje: no piloto, o tampo da mesa mede L 0,579 contra 0,578 do
-Atual no carvalho. Com `ganhoL` 0,48, g de 0,3 a 0,7 anda L ±0,096: o veio fica dentro do
-tom, como no chão de sala. Os tons de uma classe continuam separados como hoje porque a e b
-não mudam; a folha mostra a menor distância entre dois tons, Desenhado e Atual.
+O eixo de `esticar` é o do móvel (x = ao longo); `pontasCasas` são as pontas fixas, o meio
+da imagem estica até a medida pedida. Mais curto que as duas pontas: cada ponta perde
+metade do que falta. `xy` estica nos dois (o tapete, a fogueira de área). A curva da cerca
+(`curva`) não entra no piloto: fica com o lote da cerca, que decide se é forma própria.
 
-### 10.6 Esticado, girado, Frente/Lado e 3/4
+### 10.7 Sombra
 
-- **Esticado:** o motor monta as peças no tamanho novo (não estica imagem); u só anda mais.
-  A madeira de 8 casas, com a janela sorteada por tábua e por trecho, não mostra período no
-  aparador de 6 casas. Material sem estrutura: o lado ao longo cobre o móvel mais longo da
-  classe, ou a imagem é calma o bastante para a emenda sumir (emenda u de 0,8 a 1,25).
-- **Girado:** u e v são da peça; o veio gira com ela e a luz do chanfro fica de cima à
-  esquerda.
-- **Frente/Lado e 3/4:** são outras cenas do mesmo motor (`girarCena`, `cenaEmTresQuartos`
-  com o mesmo `criarPecas`), e cada peça lê `TEXTURA[classe]`: a troca da tabela já cobre
-  (a folha tem a faixa 3/4).
-- **Zoom:** a pintura é por nível (1 a 3); o mipmap pela `escala` evita pontilhado a 25% e o
-  nível 3 mostra a imagem a 300%.
-
-### 10.7 Teto de memória
-
-Por material: a soma de `L x A x 4 x 4/3` das imagens <= 1,5 MiB (o piloto: 1024 x 256 =
-1,33 MiB; 28 KiB em disco) e os PNGs <= 0,5 MiB. Os 8 juntos <= 12 MiB na memória comum,
-decodificados uma vez por sessão (não por móvel nem por mapa). Na placa, nada a mais: a
-imagem de cada móvel continua a mesma imagem assada de hoje, só pintada com outra
-superfície. O portão de 200 MB (`docs/desempenho/limites.json`) não muda. Custo de CPU: uma
-leitura trilinear (8 texels) por ponto no lugar do ruído de hoje; medir na integração.
+A do app (10.1 item 5). Guia: o quanto anda é a altura do móvel (mesa 0,22 casa,
+cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%. A sombra de
+**dentro** (a perna debaixo do tampo, a tampa funda do barril) é valor, no desenho.
 
 ### 10.8 O que a integração precisa (escrito, não feito)
 
-1. **A tabela por estilo.** Hoje `criarPecas` faz `tex: o.textura ?? TEXTURA[mat.classe]`
-   com uma tabela fixa. Precisa de uma tabela escolhida pelo estilo do mapa (por exemplo
-   `criarPecas(base, tabela)`), e `texturaDaClasse(classe)` lendo a mesma tabela:
-   `mesaComPernas.ts` (a madeira da borda clara, capturada na montagem) e `fogueira.ts` (a
-   lenha, na pintura) pedem a textura por ela.
-2. **A sebe** passa `texFolhagem` explicitamente (`sebe.ts`, 3 peças): a troca da classe
-   `folha` não alcança. Ela tem de pedir pela tabela, ou valer o trecho da onda 3 (9.6);
-   decidir qual com o usuário.
-3. **O estilo na chave da imagem** em `rasterDosMoveis.ts`: senão o móvel pintado num
-   estilo aparece no outro.
-4. **Carregar:** decodificar os PNGs uma vez, fazer os níveis 2 x 2 e as rampas sob demanda;
-   até a imagem chegar, pintar com a textura de hoje e repintar depois.
-5. **Entrega:** a mesma questão do resto do pacote (seção 7): o pacote de animações só leva
+1. **Estilo na chave** de `pixi/rasterDosMoveis.ts` (senão o móvel de um estilo aparece no
+   outro), e **`q<k>` para todo móvel Desenhado**: hoje só `placaDeSeta` pinta o quarto de
+   volta (`giroDaImagem`); no Desenhado todos pintam e a tela gira só o resto.
+2. **Carregar**: decodificar os PNGs do tipo na primeira vez que o mapa usa, fazer os
+   níveis 2 x 2 e as rampas por tom sob demanda; até chegar, pintar com o Atual.
+3. **Compor** como `ferramentas/movel.ts` (`comporMovel`): variante, forma da virada,
+   tingir por parte, esticar, sombra pela silhueta. É a conta de referência: se o app
+   fizer igual, o que a folha mostra é o que o mestre vê.
+4. **Fallback**: tipo ainda não desenhado, vista 3/4 ou Modo Simples (desenho "Linhas")
+   continuam no Atual, sem aviso.
+5. **Entrega**: a mesma questão do resto do pacote (seção 7): o pacote de animações só leva
    `.js`; os PNGs vão junto do app ou por outro canal.
-6. **Mais nada muda:** troca de material e de cor (o `tom` continua multiplicando
-   `p.base`), formas, chanfro, contorno, sombra, brilho do metal (o `metal` do motor, fora
-   da textura), esticar, Frente/Lado e 3/4.
+6. **Nada muda no mapa**: o tipo, a pegada, as opções de material, o giro e a vista são os
+   de hoje; o mapa salvo abre igual nos dois estilos.
 
 ### 10.9 A mesa de prova dos móveis
 
-`--folha` num material roda `comum/mesa_material.gd`: `ferramentas/construir.mjs` empacota
-`ferramentas/moveis.ts` com o motor dos móveis do client da main (só leitura; no pacote o
-`motor.ts` ganha só `__trocarTexturaDaClasse`), o `node` pinta e o Godot arruma a folha. O
-Atual é o mesmo motor sem a troca. Chão: o chão padrão das salas (`#a8776a`).
+`--folha` num móvel roda `comum/mesa_movel.gd`: `ferramentas/construir.mjs` empacota
+`ferramentas/mesa_movel.ts` (com `movel.ts` e o motor dos móveis do client da main, só
+leitura), o `node` pinta e o Godot arruma a folha. Mostra, Desenhado ao lado do Atual:
+sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300%; os 5 tons de madeira com
+a medida OKLab; as 4 viradas (e a vista de lado); a esticada em 1,4, 2, 3 e 5 casas e a de
+1 x 2; e a **família**, uma clareira de 12 x 12 casas da grama aprovada com árvores,
+arbustos, pedras e o tronco caído da onda 3 e uma mesa com 5 cadeiras e 3 barris (o que já
+foi desenhado sai Desenhado, o resto Atual). Por último, os arquivos sobre xadrez.
 
-- **A sala:** na madeira, 32 móveis reais em 16 x 10 casas (mesa com 4 cadeiras, barris,
-  mesa redonda e quadrada, catre, baú de frente e de lado, caixas, aparador esticado a
-  6 x 0,5 e a 2 x 0,5, armário de frente e de lado, quadro de avisos, balcão 5 x 0,6,
-  geladeira, carroça, jardineira, placa de seta, privada, 3 cercas e uma curva de 90 graus,
-  arco do portão), em 3 tons (carvalho, nogueira, pinho), a 100%, 50% e 25%, Desenhado ao
-  lado do Atual, e o recorte de 3 x 3 casas a 300%. Nas outras classes, a sala se monta
-  sozinha com os móveis que têm um lugar da classe (`galeria`), nos tons dela.
-- **Os tons da classe** (na madeira: mesa, cadeira, barril, baú e aparador nos 5), com L,
-  a, b e o desvio de L do tampo e a menor distância entre dois tons.
-- **A faixa 3/4** e **o arquivo** (a imagem cinza, e 2 x 2 repetida para ver a emenda).
+    exportar_uma.gd -- --textura=movel-<nome> --folha --prova=<pasta>/movel-<nome>
+    folha_do_lote_moveis.gd -- --texturas=<id1>,...,<id5> --prova=<pasta> --saida=<pasta>/lote.png --titulo="Lote 10, móveis" --familia=<id>
 
-Os comandos (sempre pela fila, sem `--headless`, README):
+Exporte todos os do lote antes das folhas (a família lê o que está em `exportado/`). Em
+`<prova>/<id>/`: `folha.png`, `area50.png`, `perto300.png`, `atual-*`, `familia100.png`,
+`familia50.png`, `familia300.png`, `resumo.json` e `paineis/`.
 
-    exportar_uma.gd -- --textura=material-<classe> --folha --prova=<pasta>
-    folha_do_lote_materiais.gd -- --texturas=<id1>,<id2>,... --prova=<pasta> --saida=<pasta>/lote.png --titulo="Lote 10, ..."
+### 10.10 Critério de pronto de um móvel
 
-Em `<prova>/<id>/`: `folha.png`, `area50.png`, `perto300.png`, `atual-area50.png`,
-`atual-perto300.png`, `resumo.json` e `paineis/`.
+1. `exportar_uma.gd --textura=movel-<nome> --folha` sai com 0: memória e disco no teto, o
+   meio liso (se estica), os lugares iguais aos do app.
+2. **Nada de risquinho, bolinha, prego, nó nem veio fino** (a crítica de 28/10: *"tá muito
+   detalhado, cheio de bolinhas, fica estranho"*). Contorno, formas grandes, 2 ou 3 massas
+   de luz por peça.
+3. **A 50%, ao lado do Atual, se vê que é outro desenho** sem legenda.
+4. A luz de cima à esquerda nas 4 viradas; a vista de lado (se tem) lê como o mesmo móvel.
+5. Os tons de madeira separados (a menor distância não abaixo da do Atual menos 0,005);
+   ferro e latão distinguíveis no mesmo móvel.
+6. Família: ao lado das folhas dos lotes 6 a 8, na grama aprovada.
 
-### 10.10 Critério de pronto de um material
+### 10.11 O que ficou do caminho "só materiais"
 
-1. `exportar_uma.gd --textura=material-<classe> --folha` sai com 0: memória e disco no
-   teto, valor médio 0,5 ± 0,03.
-2. **Nada de risquinho, bolinha, nó em ponto nem granulado** a 25, 50 e 100% (a crítica de
-   28/10). Poucas faixas longas e calmas; a 300% a imagem aguenta de perto sem virar ruído.
-3. A 50%, lê como o material sem legenda.
-4. Sem listra repetida no móvel mais longo da classe (na madeira: o aparador de 6 casas e
-   a mesa de 2).
-5. Os tons da classe continuam separados: a menor distância do Desenhado não fica abaixo da
-   do Atual menos 0,005.
-6. Família: luz de cima à esquerda (do motor), cores contidas, ao lado das folhas dos lotes
-   6 a 8 e do assoalho e do convés aprovados.
+`texturas/material-madeira/` e o seu exportado (commit `c26dabef`) **continuam no repo,
+sem uso**: são o registro do que foi reprovado e ainda exportam (o portão de hash das
+ondas 1 a 3 os pula, como pula `movel-*`). Apagar só com o usuário. Do caminho ficaram: a
+rampa OKLab (agora por parte, com o contorno), a ideia da mesa de prova que empacota o
+motor da main para o Atual, e a lista do que o app guarda por móvel (`LUGARES_DE_MATERIAL`,
+as pegadas, `TIPOS_COM_VISTA`, a chave de `rasterDosMoveis.ts`). Os comandos do material
+(`folha_do_lote_materiais.gd`, `comum/mesa_material.gd`) seguem funcionando.

@@ -270,72 +270,84 @@ o olho na folha.
 
 ---
 
-## Onda 4: o que muda para quem faz um material de móvel (29/10/2026)
+## Onda 4: o que muda para quem desenha um móvel (29/10/2026)
 
-Leia a seção 10 do `CONTRATO.md`. Decisão do usuário de 29/10: o Desenhado desenha os **8
-materiais**, não os móveis; o motor de hoje continua montando cada móvel (forma, chanfro,
-contorno, sombra, brilho do metal, troca de material e cor, esticar, Frente/Lado, 3/4). Um
-designer, uma **classe**: `texturas/material-<classe>/`, copiado de `_modelo-material/` (ou
-do piloto `material-madeira/`; veja a nota do orquestrador).
+Leia a seção 10 do `CONTRATO.md`. Decisão do usuário de 29/10 ("Desenho à mão que pega
+cor"): cada móvel é **redesenhado à mão**, como as árvores da onda 3, em cinza com as
+partes marcadas, e o app tinge cada parte com o material do mestre. O caminho de antes
+(só a superfície dos 8 materiais, com o motor de hoje desenhando a forma) foi **reprovado**
+no mesmo dia: *"Não parece que teve muita mudança ainda parece o mesmo atual e não
+desenhado"*. A forma é o Desenhado. Um designer, um lote de até 5 móveis
+(`INVENTARIO.md`, lotes 10 a 15): `texturas/movel-<nome>/`, copiado de `_modelo-movel/` ou
+do piloto que mais se parece (`movel-mesa` para tampo e pernas, `movel-cadeira` para vista
+de lado e variante, `movel-barril` para o redondo e o metal).
 
-| Classe | `config.json` | O que desenhar | Cuidado |
-|---|---|---|---|
-| `metal` | `casas` [4, 4] (o modelo) | quase liso: manchas largas e fracas de tom, um riscado de uso ao longo, muito fraco | o brilho é do motor (`metal`): não pinte brilho nem reflexo. Aros, puxadores e pregos são pequenos: a 50% só o tom aparece |
-| `tecido` | `imagens` `["padrao", "linho", "la"]` (os dois são opcionais) | linho: trama fina ao longo e atravessando, calma; lã: fofa, manchas macias | o tapete (3 x 2) e o tapete longo (1 x 4) mostram o período: nada de xadrez nem de listra que repete |
-| `pedra` | `["padrao", "granito", "arenito", "ardosia"]` (opcionais) | granito: manchas largas; arenito: camadas ao longo; ardósia: lâminas | cada pedra da fogueira e do poço é uma peça pequena; a pia e a lápide são as peças grandes. O barro (o vaso) também é pedra |
-| `palha` | `casas` [2, 2] ou [4, 1] | a trama do assento, ao longo | o assento da cadeira tem uns 0,4 casa: a 50% é quase só tom |
-| `corda` | `casas` [4, 1] | a torção ao longo, em diagonal larga | a corda da cerca é fina: o desenho só aparece de perto; a 50% vira uma linha de tom |
-| `casca` | `["padrao", "betula", "fendida"]` (opcionais) | fendas longas ao longo da tora; a bétula branca com riscos atravessando | só a lenha da fogueira usa; u corre ao longo da tora |
-| `folha` | `casas` [2, 2] | massas de folha calmas, poucas e largas | só a sebe usa, e ela já é trecho na onda 3: a mesa troca a folha dela pela tabela (CONTRATO 10.8); o usuário decide qual vale |
+**O desenho (o que o usuário aprova):**
+
+1. **Contorno grosso na própria cor e formas grandes.** As funções `desenhar_caixa`,
+   `desenhar_elipse` e `pousar_com_contorno` já põem o contorno da família (0,042 casa, mais
+   fino na peça estreita).
+2. **Luz em poucas massas.** As mesmas funções põem a massa clara em cima à esquerda e a
+   escura embaixo à direita, largas o bastante para ler a 50%. Num tampo ou num assento,
+   2 ou 3 tábuas ou panos com tons separados e uma junta firme; nada mais.
+3. **A crítica de 28/10** (*"tá muito detalhado, cheio de bolinhas, fica estranho, faz algo
+   mais bonito"*): **nada** de veio em risquinho, prego em bolinha, nó ou granulado. Se uma
+   coisa só aparece a 300%, ela sobra.
+4. **A 50%, ao lado do Atual, tem de se ver que é outro desenho.** É o teste do usuário.
 
 **O que é diferente dos outros tipos:**
 
-1. **Cinza, não cor.** `pintar_material(p, P, px, sem, qual)` devolve um valor (0,5 = o tom
-   que o mestre escolheu; `valor_de(v)` do cabeçalho). O app tinge pelos tons da classe
-   (CONTRATO 10.5); a folha mostra todos. Valor médio 0,5 ± 0,03, senão o móvel sai mais
-   claro ou mais escuro que o tom (o exportador avisa).
-2. **Sem luz.** Nada de realce em cima à esquerda nem sombra embaixo à direita: a peça gira
-   e a luz é do chanfro do motor. Relevo, só como tom (o fio, a camada, o anel).
-3. **x é ao longo.** O motor já gira u pelo veio da peça (`eixo`), dá a volta do barril
-   (`polar`) e segue a cerca curva (`arco`): desenhe a direção principal ao longo de x.
-4. **Repete nos dois sentidos** com `material_periodo` (use `fbm_p`, `ruido_p` e os ruídos
-   de valor do piloto, todos periódicos). **Não faça faixas com ruído de gradiente em 1D:**
-   ele vale 0,5 em cada nó da grade e todas as faixas se encontram no mesmo ponto (o piloto
-   mostrou esse ritmo a cada 128 px). O piloto tem `md_valor` e `md_onda` para copiar.
-5. **Escala calma, a crítica de 28/10** ("tá muito detalhado, cheio de bolinhas"): poucas
-   faixas longas, nada de ponto, nó, risquinho ou granulado. A 25% e a 50% a peça é quase só
-   tom; o desenho aparece a 300%. Uma peça de móvel é pequena (a tábua da mesa tem 0,2
-   casa): cabe uma ideia, não três.
-6. **O teto:** a soma das imagens com mipmap em 1,5 MiB (uma de 1024 x 256 = 1,33 MiB;
-   quatro de 256 x 256 = 1,33; duas de 512 x 512 = 2,67, não cabe).
+1. **Cinza e partes.** `pintar_movel` pinta valor (0,5 = o tom do material; os níveis
+   `V_*` do cabeçalho) e o lugar de cada camada (1, 2, 3 na ordem de `lugares`, que tem de
+   ser a de `LUGARES_DE_MATERIAL` do app: a mesa de prova confere). Cor própria (louça,
+   água, chama, lençol) só com `pousar_cor` e `"corFixa": true`.
+2. **A luz não gira com o móvel.** Desenhe no referencial do móvel (`m = movel_de(q, vir)`)
+   e acenda no da tela (`LUZ`, `para_a_luz`; as funções de caixa e elipse já fazem). Diga
+   em `viradas` quantas desenhar: 1 se é simétrico de lado a lado e de cima a baixo, 2 se
+   só de lado a lado, 4 se não (CONTRATO 10.4). A folha mostra as 4.
+3. **Esticar:** tudo o que muda ao longo (quinas, pernas, a massa da ponta) fica dentro de
+   `pontasCasas`; o meio é a mesma coluna em todo x. O exportador mede e avisa se o meio
+   não é liso.
+4. **Vista de lado** (os 8 de `TIPOS_COM_VISTA`): `vistas.lado` com a pegada de lado do app;
+   `vis == 1` no shader. Tem de ler como o mesmo móvel.
+5. **Variantes** só quando uma opção muda o desenho (o assento de palha ou de madeira, as
+   varas ou a corda da cerca). `mesma` (o assento da mesma madeira) é tingido com o tom do
+   lugar 1.
+6. **Sombra no chão é do app**: escolha só `deslocamentoCasas` (a altura do móvel: mesa
+   0,22, barril 0,14, cadeira 0,11) e um `borraoCasas` curto (0,02 a 0,03).
+7. **O teto:** 3 MiB por móvel com todas as formas (a cadeira, com 12 formas, gasta 0,99).
 
-**Comandos:** `exportar_uma.gd --textura=material-<classe> --folha --prova=<PROVA>` (uns 5 s;
-`--saida=<pasta>` para exportar fora do repositório). O exportador vê o `tipo` e monta a
-mesa dos móveis: o `node` pinta os móveis reais do app com o motor da main (só leitura) e
-troca só a superfície da sua classe; o Atual é o mesmo motor sem a troca. `--mapa` não vale.
+**Comandos:** exporte todos os do lote, depois as folhas (a cena de família lê o que está
+em `exportado/`): `exportar_uma.gd --textura=movel-<nome>` e
+`exportar_uma.gd --textura=movel-<nome> --folha --prova=<PROVA>/movel-<nome>` (uns 7 s).
+O `node` pinta o Desenhado pela conta de `ferramentas/movel.ts` e o Atual pelo motor dos
+móveis da main (só leitura).
 
-**Olhe na folha:** a sala a 100%, 50% e 25%, Desenhado ao lado do Atual, nos 3 primeiros
-tons; o recorte a 300%; a faixa dos tons (todos separados; a medida embaixo diz o L do
-tampo e a menor distância entre dois tons); a faixa 3/4; o arquivo 2 x 2 (a emenda). Nas
-classes que não são madeira, a sala junta sozinha os móveis que têm um lugar da classe.
+**Olhe na folha:** sozinho e nas 3 combinações a 100, 50 e 25%, Desenhado ao lado do Atual;
+300%; os 5 tons de madeira (separados; a medida embaixo); as 4 viradas e a de lado; a
+esticada em 1,4, 2, 3 e 5 casas; a família na grama aprovada, com as árvores, as pedras e o
+tronco caído; e os arquivos sobre xadrez (o vermelho, o verde e o azul das partes).
 
-**Pronto quando** (CONTRATO.md 10.10): sai com 0, a memória cabe, o valor médio e os tons
-na medida, e o olho na folha (calmo a 50%, lê como o material sem legenda, sem listra no
-móvel mais longo).
+**Pronto quando** (CONTRATO.md 10.10): sai com 0, a memória cabe, o meio é liso, os lugares
+batem com o app, e o olho na folha: calmo, sem bolinha, outro desenho a 50%, a luz no lugar
+nas 4 viradas, e da família das folhas dos lotes 6 a 8.
 
 ---
 
 ## Notas para o orquestrador
 
-- **Onda 4:** a folha do lote dos materiais é outro comando (lê `area50.png`,
-  `atual-area50.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta):
-  `... --script res://scripts/folha_do_lote_materiais.gd -- --texturas=material-metal,material-tecido,material-pedra,material-palha,material-corda --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote 10, materiais"`.
-  Os materiais não dependem um do outro: cada mesa troca só a própria classe e o resto fica
-  Atual (a cadeira de madeira Atual com o assento de palha Desenhado); tudo junto, só
-  depois da integração. Lote 9 = só o piloto `material-madeira`, para o usuário aprovar a
-  direção antes de mandar os 7; se ele mudar a madeira, os outros copiam a escala nova. A
-  mesa empacota o client da **main** (`git --git-common-dir`), porque os 8 móveis de casa
-  de 28/10 ainda não estão na `feat/desenhado`.
+- **Onda 4:** a folha do lote dos móveis é outro comando (lê `area50.png`,
+  `atual-area50.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta, e
+  a família de `--familia`):
+  `... --script res://scripts/folha_do_lote_moveis.gd -- --texturas=movel-a,movel-b,movel-c,movel-d,movel-e --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote 10, móveis" --familia=movel-a`.
+  Exporte **todos** os móveis do lote antes das folhas: a cena de família pinta Desenhado o
+  que já está em `exportado/movel-*` e Atual o resto (a mesa, as 5 cadeiras e os 3 barris
+  do piloto; um lote novo que queira aparecer nela acrescenta os seus objetos a
+  `familiaObjs` de `ferramentas/mesa_movel.ts`). Lote 9 = o piloto mesa, cadeira, barril, para
+  o usuário aprovar a direção antes dos lotes 10 a 15; se ele mudar a direção, os outros
+  copiam. A mesa empacota o client da **main** (`git --git-common-dir`), porque os 8 móveis
+  de casa de 28/10 ainda não estão na `feat/desenhado`. O caminho reprovado
+  (`material-madeira`, `folha_do_lote_materiais.gd`) segue no repo, sem uso.
 - **Onda 3:** a folha do lote dos carimbos é outro comando (lê `area25.png`,
   `atual-area25.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta):
   `... --script res://scripts/folha_do_lote_carimbos.gd -- --texturas=a,b,c,d,e --prova=<raiz das PROVAS> --saida=<raiz>/lote.png --titulo="Lote 6, árvores"`.

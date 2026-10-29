@@ -1,0 +1,19 @@
+{
+  "id": "movel-mesa",
+  "nome": "Mesa",
+  "idDoApp": "mesa",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 9,
+  "semente": 23,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "vistas": {
+    "frente": {
+      "casas": [2, 1],
+      "viradas": 1,
+      "esticar": { "eixo": "x", "pontasCasas": [0.3, 0.3], "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}

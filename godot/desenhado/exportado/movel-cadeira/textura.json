@@ -1,0 +1,359 @@
+{
+  "canais": {
+    "cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
+    "partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
+    "valor": "R = G = B: o valor 0..1 (0,5 = o tom do material do lugar); A = a cobertura; alfa reto"
+  },
+  "contrato": 1,
+  "formas": [
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.5,
+        0.5
+      ],
+      "cobertura": 0.622,
+      "larguraPx": 80,
+      "nome": "frente-palha-0",
+      "partes": "frente-palha-0-partes.png",
+      "valor": "frente-palha-0.png",
+      "valorMedioPorLugar": [
+        0.252,
+        0.467
+      ],
+      "variante": "palha",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.5,
+        0.5
+      ],
+      "cobertura": 0.622,
+      "larguraPx": 80,
+      "nome": "frente-palha-2",
+      "partes": "frente-palha-2-partes.png",
+      "valor": "frente-palha-2.png",
+      "valorMedioPorLugar": [
+        0.257,
+        0.467
+      ],
+      "variante": "palha",
+      "virada": 2,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.5,
+        0.5
+      ],
+      "cobertura": 0.622,
+      "larguraPx": 80,
+      "nome": "frente-madeira-0",
+      "partes": "frente-madeira-0-partes.png",
+      "valor": "frente-madeira-0.png",
+      "valorMedioPorLugar": [
+        0.353,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.5,
+        0.5
+      ],
+      "cobertura": 0.622,
+      "larguraPx": 80,
+      "nome": "frente-madeira-2",
+      "partes": "frente-madeira-2-partes.png",
+      "valor": "frente-madeira-2.png",
+      "valorMedioPorLugar": [
+        0.356,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 2,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 112,
+      "casas": [
+        0.5,
+        0.75
+      ],
+      "cobertura": 0.291,
+      "larguraPx": 80,
+      "nome": "lado-palha-0",
+      "partes": "lado-palha-0-partes.png",
+      "valor": "lado-palha-0.png",
+      "valorMedioPorLugar": [
+        0.315,
+        0.34
+      ],
+      "variante": "palha",
+      "virada": 0,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.75,
+        0.5
+      ],
+      "cobertura": 0.291,
+      "larguraPx": 112,
+      "nome": "lado-palha-1",
+      "partes": "lado-palha-1-partes.png",
+      "valor": "lado-palha-1.png",
+      "valorMedioPorLugar": [
+        0.315,
+        0.34
+      ],
+      "variante": "palha",
+      "virada": 1,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 112,
+      "casas": [
+        0.5,
+        0.75
+      ],
+      "cobertura": 0.291,
+      "larguraPx": 80,
+      "nome": "lado-palha-2",
+      "partes": "lado-palha-2-partes.png",
+      "valor": "lado-palha-2.png",
+      "valorMedioPorLugar": [
+        0.315,
+        0.34
+      ],
+      "variante": "palha",
+      "virada": 2,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.75,
+        0.5
+      ],
+      "cobertura": 0.291,
+      "larguraPx": 112,
+      "nome": "lado-palha-3",
+      "partes": "lado-palha-3-partes.png",
+      "valor": "lado-palha-3.png",
+      "valorMedioPorLugar": [
+        0.315,
+        0.34
+      ],
+      "variante": "palha",
+      "virada": 3,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 112,
+      "casas": [
+        0.5,
+        0.75
+      ],
+      "cobertura": 0.266,
+      "larguraPx": 80,
+      "nome": "lado-madeira-0",
+      "partes": "lado-madeira-0-partes.png",
+      "valor": "lado-madeira-0.png",
+      "valorMedioPorLugar": [
+        0.305,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 0,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.75,
+        0.5
+      ],
+      "cobertura": 0.266,
+      "larguraPx": 112,
+      "nome": "lado-madeira-1",
+      "partes": "lado-madeira-1-partes.png",
+      "valor": "lado-madeira-1.png",
+      "valorMedioPorLugar": [
+        0.305,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 1,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 112,
+      "casas": [
+        0.5,
+        0.75
+      ],
+      "cobertura": 0.266,
+      "larguraPx": 80,
+      "nome": "lado-madeira-2",
+      "partes": "lado-madeira-2-partes.png",
+      "valor": "lado-madeira-2.png",
+      "valorMedioPorLugar": [
+        0.305,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 2,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 80,
+      "casas": [
+        0.75,
+        0.5
+      ],
+      "cobertura": 0.266,
+      "larguraPx": 112,
+      "nome": "lado-madeira-3",
+      "partes": "lado-madeira-3-partes.png",
+      "valor": "lado-madeira-3.png",
+      "valorMedioPorLugar": [
+        0.305,
+        null
+      ],
+      "variante": "madeira",
+      "virada": 3,
+      "vista": "lado"
+    }
+  ],
+  "id": "movel-cadeira",
+  "idDoApp": "cadeira",
+  "lote": 9,
+  "lugares": [
+    "madeira",
+    "assento"
+  ],
+  "margemCasas": 0.0625,
+  "memoria": {
+    "discoBytes": 17359,
+    "memoriaBytes": 1037640,
+    "tetoDiscoBytes": 524288,
+    "tetoMemoriaBytes": 3145728,
+    "tetoMemoriaDos31Bytes": 25165824
+  },
+  "nome": "Cadeira",
+  "onda": 4,
+  "pxPorCasa": 128,
+  "semente": 41,
+  "sombra": {
+    "alfa": 0.25,
+    "borraoCasas": 0.02,
+    "conta": "a silhueta (o alfa do móvel já virado e esticado) andada deslocamentoCasas na direção (7, 11) normalizada, desfocada borraoCasas (desvio), pintada com a cor e o alfa, por baixo do móvel",
+    "cor": "#0a1c28",
+    "deslocamentoCasas": 0.11,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": 0.25,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "movel",
+  "variantes": [
+    {
+      "nome": "palha",
+      "quando": {
+        "assento": "palha"
+      }
+    },
+    {
+      "nome": "madeira",
+      "quando": {
+        "assento": "mesma"
+      }
+    }
+  ],
+  "viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
+  "vistas": {
+    "frente": {
+      "casas": [
+        0.5,
+        0.5
+      ],
+      "desenhadas": [
+        0,
+        2
+      ],
+      "viradas": 2
+    },
+    "lado": {
+      "casas": [
+        0.5,
+        0.75
+      ],
+      "desenhadas": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "viradas": 4
+    }
+  }
+}

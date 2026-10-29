@@ -1,0 +1,253 @@
+extends RefCounted
+## CONGELADO. O contrato de um MÓVEL DESENHADO que pega cor (onda 4, CONTRATO.md seção 10,
+## decisão do usuário de 29/10/2026: "Desenho à mão que pega cor"): o config.json de
+## "tipo": "movel", os tetos e o textura.json que o app lê.
+## Cada móvel é desenhado inteiro, como as árvores da onda 3, em CINZA (o valor) com as
+## PARTES MARCADAS (o peso de cada lugar de material); o app pinta cada parte com o
+## material que o mestre escolheu (LUGARES_DE_MATERIAL de client/src/texturas/meioTermo/
+## materiais.ts). A sombra no chão é do app.
+
+const Contrato := preload("res://comum/contrato.gd")
+
+const TIPO := "movel"
+const PX_POR_CASA := 128 ## px da imagem por casa
+const VISTAS := ["frente", "lado"] ## frente = a vista de cima de sempre; lado = a Frente/Lado do mestre
+const VIRADAS_VALIDAS := [1, 2, 4]
+const LUGARES_MAX := 3
+const VARIANTES_MAX := 4
+const CASAS_MIN := 0.25
+const CASAS_MAX := 8.0
+const MARGEM_MAX := 0.25
+## Tetos (CONTRATO.md 10.8). Memória comum = as imagens decodificadas em RGBA com mipmap,
+## só dos tipos que o mapa usa.
+const TETO_MEMORIA_POR_MOVEL := 3 * 1024 * 1024
+const TETO_DISCO_POR_MOVEL := 512 * 1024
+const TETO_MEMORIA_DOS_31 := 24 * 1024 * 1024
+## A sombra do app (a mesma cor e alfa dos carimbos, CONTRATO 9.1 item 3).
+const SOMBRA_DIRECAO := [7, 11]
+const SOMBRA_COR := "#0a1c28"
+const SOMBRA_ALFA := 0.25
+## A rampa da família (CONTRATO 10.5): os nós (valor -> fator da luz OKLab no escuro, e
+## fração do caminho até o branco no claro), iguais em ferramentas/movel.ts.
+const RAMPA := {
+	"conta": "valor-oklab",
+	"escuro": [[0.0, 0.42], [0.10, 0.50], [0.24, 0.64], [0.36, 0.78], [0.50, 1.0]],
+	"claro": [[0.50, 0.0], [0.62, 0.12], [0.76, 0.26], [1.0, 0.45]],
+	"cromaNaSombra": 0.25,
+	"amareloNaLuz": 0.12,
+	"cromaNaLuz": 0.2,
+	"escuroAte": 0.10,
+	"claroDesde": 0.94,
+}
+## Tolerância da faixa do meio de quem estica: a coluna do meio tem de ser a mesma em todo x.
+const MEIO_LISO_FOLGA := 2.0 / 255.0
+
+
+static func eh_movel(id: String) -> bool:
+	var caminho := "res://texturas/%s/config.json" % id
+	if not FileAccess.file_exists(caminho):
+		return false
+	var bruto = JSON.parse_string(FileAccess.get_file_as_string(caminho))
+	return typeof(bruto) == TYPE_DICTIONARY and str(bruto.get("tipo", "")) == TIPO
+
+
+## As viradas que o designer DESENHA (as outras saem pela diagonal, CONTRATO 10.4).
+static func viradas_desenhadas(n: int) -> Array:
+	if n == 4:
+		return [0, 1, 2, 3]
+	if n == 2:
+		return [0, 2]
+	return [0]
+
+
+static func nome_da_forma(vista: String, variante: String, virada: int) -> String:
+	return "%s-%s-%d" % [vista, variante, virada]
+
+
+static func _par(v, padrao: Array) -> Array:
+	if typeof(v) != TYPE_ARRAY or v.size() != 2:
+		return padrao
+	return [float(v[0]), float(v[1])]
+
+
+## Devolve {"ok", "erros", "config"} com os padrões preenchidos.
+static func ler_config(id: String) -> Dictionary:
+	var erros: Array[String] = []
+	var caminho := "res://texturas/%s/config.json" % id
+	var bruto = JSON.parse_string(FileAccess.get_file_as_string(caminho)) if FileAccess.file_exists(caminho) else null
+	if typeof(bruto) != TYPE_DICTIONARY:
+		return {"ok": false, "erros": ["não li %s (JSON de objeto)" % caminho] as Array[String], "config": {}}
+	var c: Dictionary = bruto
+	var cfg := {}
+	cfg["id"] = str(c.get("id", ""))
+	if cfg["id"] != id:
+		erros.append("\"id\" tem de ser \"%s\" (é \"%s\")" % [id, cfg["id"]])
+	cfg["nome"] = str(c.get("nome", id))
+	cfg["tipo"] = TIPO
+	cfg["idDoApp"] = str(c.get("idDoApp", ""))
+	if cfg["idDoApp"] == "":
+		erros.append("\"idDoApp\" = o tipo do móvel no app (lib/mobilia/tipos.ts), ex.: \"mesa\"")
+	cfg["onda"] = int(c.get("onda", 4))
+	cfg["lote"] = int(c.get("lote", 0))
+	cfg["semente"] = int(c.get("semente", 7))
+	cfg["margemCasas"] = float(c.get("margemCasas", 0.0625))
+	if cfg["margemCasas"] < 0.0 or cfg["margemCasas"] > MARGEM_MAX:
+		erros.append("\"margemCasas\" de 0 a %.2f" % MARGEM_MAX)
+	var lugares = c.get("lugares", [])
+	if typeof(lugares) != TYPE_ARRAY or lugares.size() > LUGARES_MAX:
+		erros.append("\"lugares\": até %d ids, na ordem de LUGARES_DE_MATERIAL do app" % LUGARES_MAX)
+		lugares = []
+	cfg["lugares"] = []
+	for l in lugares:
+		cfg["lugares"].append(str(l))
+	cfg["corFixa"] = bool(c.get("corFixa", false))
+	# As variantes: a opção de um lugar que muda o DESENHO (não só a cor).
+	var variantes = c.get("variantes", [{"nome": "padrao"}])
+	if typeof(variantes) != TYPE_ARRAY or variantes.is_empty() or variantes.size() > VARIANTES_MAX:
+		erros.append("\"variantes\": de 1 a %d, cada uma {\"nome\", \"quando\": {lugar: opção}}; a última vale quando nenhuma bate" % VARIANTES_MAX)
+		variantes = [{"nome": "padrao"}]
+	cfg["variantes"] = []
+	for v in variantes:
+		if typeof(v) != TYPE_DICTIONARY or str(v.get("nome", "")) == "":
+			erros.append("cada variante precisa de \"nome\"")
+			continue
+		var quando = v.get("quando", {})
+		cfg["variantes"].append({"nome": str(v["nome"]), "quando": quando if typeof(quando) == TYPE_DICTIONARY else {}})
+	# As vistas.
+	var vistas = c.get("vistas", {})
+	if typeof(vistas) != TYPE_DICTIONARY or not vistas.has("frente"):
+		erros.append("\"vistas\" precisa de \"frente\": {\"casas\": [w, h], \"viradas\": 1 | 2 | 4}")
+		vistas = {"frente": {}}
+	cfg["vistas"] = {}
+	for nome in VISTAS:
+		if not vistas.has(nome):
+			continue
+		var vb = vistas[nome]
+		if typeof(vb) != TYPE_DICTIONARY:
+			erros.append("vista \"%s\" tem de ser um objeto" % nome)
+			continue
+		var casas := _par(vb.get("casas"), [1.0, 1.0])
+		if casas[0] < CASAS_MIN or casas[1] < CASAS_MIN or casas[0] > CASAS_MAX or casas[1] > CASAS_MAX:
+			erros.append("vista \"%s\": \"casas\" de %.2f a %.0f" % [nome, CASAS_MIN, CASAS_MAX])
+		var viradas := int(vb.get("viradas", 1))
+		if not VIRADAS_VALIDAS.has(viradas):
+			erros.append("vista \"%s\": \"viradas\" 1 (igual girada meia volta), 2 (simétrica de lado a lado) ou 4" % nome)
+			viradas = 1
+		var vc := {"casas": casas, "viradas": viradas}
+		var es = vb.get("esticar", null)
+		if typeof(es) == TYPE_DICTIONARY:
+			var eixo := str(es.get("eixo", "x"))
+			if eixo != "x" and eixo != "xy":
+				erros.append("vista \"%s\": \"esticar.eixo\" é \"x\" (ao longo) ou \"xy\"" % nome)
+			var pontas := _par(es.get("pontasCasas"), [0.5, 0.5])
+			var pontas_y := _par(es.get("pontasCasasY"), pontas)
+			if pontas[0] + pontas[1] >= casas[0] + 2.0 * cfg["margemCasas"]:
+				erros.append("vista \"%s\": as pontas (%.2f + %.2f) não deixam meio no desenho de %.2f casas" % [nome, pontas[0], pontas[1], casas[0]])
+			# ladoMaior: o móvel estica pelo lado maior da pegada (a mesa de 1 x 2 sem giro é a
+			# de 2 x 1 deitada: o app troca w e h e soma um quarto de volta).
+			vc["esticar"] = {"eixo": eixo, "pontasCasas": pontas, "pontasCasasY": pontas_y if eixo == "xy" else null, "ladoMaior": bool(es.get("ladoMaior", false))}
+		cfg["vistas"][nome] = vc
+	var sb = c.get("sombra", {})
+	if typeof(sb) != TYPE_DICTIONARY:
+		sb = {}
+	cfg["sombra"] = {
+		"jeito": str(sb.get("jeito", "deslocada")),
+		"deslocamentoCasas": float(sb.get("deslocamentoCasas", 0.08)),
+		"borraoCasas": float(sb.get("borraoCasas", 0.04)),
+	}
+	if not ["deslocada", "nenhuma"].has(cfg["sombra"]["jeito"]):
+		erros.append("\"sombra.jeito\": \"deslocada\" ou \"nenhuma\" (o tapete)")
+	if cfg["sombra"]["deslocamentoCasas"] < 0.0 or cfg["sombra"]["deslocamentoCasas"] > 0.4 or cfg["sombra"]["borraoCasas"] < 0.0 or cfg["sombra"]["borraoCasas"] > 0.2:
+		erros.append("\"sombra\": deslocamentoCasas de 0 a 0,4 e borraoCasas de 0 a 0,2")
+	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
+
+
+## O tamanho da imagem (px) de uma forma: a pegada (deitada na virada 1 e 3) mais a margem.
+static func tamanho_da_imagem(casas: Array, virada: int, margem: float) -> Vector2i:
+	var w: float = casas[1] if virada % 2 == 1 else casas[0]
+	var h: float = casas[0] if virada % 2 == 1 else casas[1]
+	return Vector2i(int(round((w + 2.0 * margem) * PX_POR_CASA)), int(round((h + 2.0 * margem) * PX_POR_CASA)))
+
+
+## Todas as formas que o exportador pinta: [{nome, vista, iVista, variante, iVariante, virada, casas}].
+static func formas(cfg: Dictionary) -> Array:
+	var r := []
+	for vista in VISTAS:
+		if not cfg["vistas"].has(vista):
+			continue
+		var vc: Dictionary = cfg["vistas"][vista]
+		for iv in cfg["variantes"].size():
+			var variante: String = cfg["variantes"][iv]["nome"]
+			for virada in viradas_desenhadas(vc["viradas"]):
+				var casas: Array = vc["casas"]
+				var deitada: Array = [casas[1], casas[0]] if virada % 2 == 1 else casas
+				r.append({"nome": nome_da_forma(vista, variante, virada), "vista": vista, "iVista": VISTAS.find(vista), "variante": variante, "iVariante": iv, "virada": virada, "casas": deitada, "tamanho": tamanho_da_imagem(casas, virada, cfg["margemCasas"])})
+	return r
+
+
+## Bytes na memória comum de uma imagem decodificada (RGBA, mais 1/3 de mipmap).
+static func bytes_memoria(w: int, h: int) -> int:
+	return int(w * h * 4 * 4 / 3)
+
+
+## O textura.json: tudo explícito, o app não deriva nada.
+static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int) -> Dictionary:
+	var lista := []
+	for f in formas(cfg):
+		var nome: String = f["nome"]
+		var m: Dictionary = r["medidas"].get(nome, {})
+		var item := {
+			"nome": nome, "vista": f["vista"], "variante": f["variante"], "virada": f["virada"],
+			"casas": f["casas"], "larguraPx": f["tamanho"].x, "alturaPx": f["tamanho"].y,
+			"valor": nome + ".png", "partes": nome + "-partes.png",
+			"valorMedioPorLugar": m.get("valorMedioPorLugar", []), "cobertura": m.get("cobertura", 0.0),
+		}
+		if cfg["corFixa"]:
+			item["cor"] = nome + "-cor.png"
+		if m.has("meioLiso"):
+			item["variacaoDoMeio"] = m["meioLiso"]
+		lista.append(item)
+	var vistas := {}
+	for vista in cfg["vistas"]:
+		var vc: Dictionary = cfg["vistas"][vista]
+		var v := {"casas": vc["casas"], "viradas": vc["viradas"], "desenhadas": viradas_desenhadas(vc["viradas"])}
+		if vc.has("esticar"):
+			v["esticar"] = vc["esticar"].duplicate()
+			v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
+		vistas[vista] = v
+	return {
+		"contrato": Contrato.VERSAO,
+		"tipo": TIPO,
+		"id": cfg["id"],
+		"nome": cfg["nome"],
+		"idDoApp": cfg["idDoApp"],
+		"onda": cfg["onda"],
+		"lote": cfg["lote"],
+		"semente": cfg["semente"],
+		"pxPorCasa": PX_POR_CASA,
+		"margemCasas": cfg["margemCasas"],
+		"lugares": cfg["lugares"],
+		"canais": {
+			"valor": "R = G = B: o valor 0..1 (0,5 = o tom do material do lugar); A = a cobertura; alfa reto",
+			"partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
+			"cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
+		},
+		"variantes": cfg["variantes"],
+		"vistas": vistas,
+		"viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
+		"formas": lista,
+		"sombra": {
+			"jeito": cfg["sombra"]["jeito"], "direcao": SOMBRA_DIRECAO,
+			"deslocamentoCasas": cfg["sombra"]["deslocamentoCasas"], "borraoCasas": cfg["sombra"]["borraoCasas"],
+			"alfa": SOMBRA_ALFA, "cor": SOMBRA_COR,
+			"conta": "a silhueta (o alfa do móvel já virado e esticado) andada deslocamentoCasas na direção (7, 11) normalizada, desfocada borraoCasas (desvio), pintada com a cor e o alfa, por baixo do móvel",
+		},
+		"tingir": RAMPA,
+		"memoria": {
+			"memoriaBytes": memoria,
+			"discoBytes": disco,
+			"tetoMemoriaBytes": TETO_MEMORIA_POR_MOVEL,
+			"tetoDiscoBytes": TETO_DISCO_POR_MOVEL,
+			"tetoMemoriaDos31Bytes": TETO_MEMORIA_DOS_31,
+		},
+	}
